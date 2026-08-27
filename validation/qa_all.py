@@ -98,7 +98,7 @@ def main():
     extra=[a for a in sys.argv[1:] if not a.startswith("--")]
     targets=[os.path.join(TPL,f) for f in sorted(os.listdir(TPL)) if f.endswith(".pptx")]+extra
     baseline=json.load(open(BASE)) if os.path.exists(BASE) else {}
-    newbase={}; fails=0; drifts=0
+    newbase={}; fails=0; drifts=0; skipped_render=0
     for t in targets:
         name=os.path.basename(t)
         p=subprocess.run([sys.executable,os.path.join(HERE,"validate_deck.py"),t],
@@ -119,12 +119,25 @@ def main():
             ok,rmsg=render_check(t)
             if not ok:
                 fails+=1; msg+=f"  [RENDER FAIL: {rmsg}]"
+            elif rmsg.startswith("render skipped"):
+                # A skip must never read like a pass. This check was silent on success AND
+                # silent on skip, so a machine with no LibreOffice reported a clean gate while
+                # the one check that proves the file opens had not run at all.
+                skipped_render+=1; msg+=f"  [{rmsg}]"
         print(msg)
         if nf:
             for l in p.stdout.splitlines():
                 if "[FAIL" in l: print("     "+l.strip())
     if snap:
         json.dump(newbase,open(BASE,"w"),indent=0); print(f"\nbaseline snapshot saved ({len(newbase)} decks)")
+    if skipped_render:
+        print(f"\n!!  RENDER CHECK SKIPPED on {skipped_render} deck(s): LibreOffice (soffice) is not\n"
+              f"    installed, so \"does this deck actually open\" was NOT verified. Every text and\n"
+              f"    geometry rule reads the deck THROUGH python-pptx, which cannot see a malformed\n"
+              f"    package — seven 2026.08 ICS decks passed at 0 FAIL and were unopenable. Install\n"
+              f"    LibreOffice to close this, or pass --no-render to skip it deliberately.")
+    elif norender:
+        print("\n!!  --no-render: the deck-opens check was skipped by request.")
     print(f"\nGATE: {'PASS' if fails==0 else 'FAIL'} ({fails} FAILs, {drifts} layout drifts{' — review, then --snapshot to accept' if drifts else ''})")
     sys.exit(1 if fails else 0)
 
