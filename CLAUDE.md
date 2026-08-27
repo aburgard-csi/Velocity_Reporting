@@ -17,7 +17,8 @@ Identify the program from the request, then dispatch to the one matching subagen
 
 If a request names a client but not a program, ask which program before building. If it
 asks for a combined ARS+ICS+MRPC review (like the Marine reference deck), run each
-subagent in turn and assemble — do not improvise one blended path.
+subagent in turn and assemble with `build/assemble_combined.py` (see **Combined decks**) —
+do not improvise one blended path.
 
 ## File locations (this machine has no Google Drive — confirmed local folders)
 
@@ -61,17 +62,44 @@ not by subfolder. No per-client Delivery copies (Aaron, 2026-07-25).
 of the pipeline; do not add a LibreOffice/`soffice` conversion step or deliver a `.pdf`
 alongside the deck.
 
+**Combined decks — the standard for multi-product clients (Aaron, 2026-08-27).** A client on
+more than one program gets ONE combined ARS+ICS+MRPC Executive Review, not three separate
+decks. Build each program's deck first (each must pass its own validation gate), then
+assemble:
+
+```
+python3 build/assemble_combined.py <ars.pptx> <ics.pptx> <mrpc.pptx> <out.pptx>
+```
+
+The result is the 79-slide structure of `templates/multi-product_reference_deck.pptx`: shared
+shell (1-3), ARS (4-30), ICS (31-53), MRPC (54-62), Questions + Contact (63-64), ARS Appendix
+(65-79). Each program deck's own title / Summit / agenda / Q&A / Contact slides are dropped so
+the combined deck carries exactly one of each; the title slide lists all three products and the
+agenda names the three sections. Slides are only ever ADDED and then reordered — never deleted
+— because freeing a slide partname makes python-pptx hand that number to a later slide and the
+package ends up referencing parts twice (the defect behind the unopenable 2026.08 ICS decks).
+Run `validation/qa_all.py` on the assembled deck: it checks package integrity and that the file
+actually opens, which a 0-FAIL lint pass alone does not.
+
+**A combined deck is not always three fresh builds.** ICS financials are quarterly, so between
+workbooks the ICS section carries the previous workbook's figures forward unchanged (see
+**Cadence**). The ICS section may therefore report an older month than the ARS and MRPC
+sections. That is expected — do not "align" it, re-date it, or zero it. The per-slide source
+notes name the workbook and its period, which is what keeps a carried-forward figure auditable.
+`assemble_combined.py` prints each section's period so the difference is visible at build time.
+
 **Filename convention:**
 
 ```
 <clientid>-<yyyy.mm>-<PROGRAM>-<Client Name> <PROGRAM> Results.pptx
 ```
 
-- `<PROGRAM>` is one of `ARS`, `ICS`, `MRPC`.
+- `<PROGRAM>` is one of `ARS`, `ICS`, `MRPC`, or `ARS-ICS-MRPC` for a combined deck.
 - `<yyyy.mm>` is the data/period month, e.g. `2026.07`.
 - Examples: `1539-2026.07-ARS-Marine FCU ARS Results.pptx`,
   `1539-2026.07-ICS-Marine FCU ICS Results.pptx`,
-  `1539-2026.07-MRPC-Marine FCU MRPC Results.pptx`.
+  `1539-2026.07-MRPC-Marine FCU MRPC Results.pptx`,
+  `1075-2026.08-ARS-ICS-MRPC-Austin Bank Results.pptx` (combined; Aaron 2026-08-27).
 
 **Templates.** Each program clones-and-swaps from the latest Marine FCU (1539) reference
 deck, using that program's section only. See `templates/TEMPLATES.md` for the reference
@@ -242,6 +270,11 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `restyle_fonts.py` — font-role post-processor, run last on every deck (all programs).
 - `strip_dead.py` — zip-level dead-slide GC (called by the ARS assembler).
 - `summit_slide.py` — inserts the Executive Summit slide (used by ICS/MRPC).
+- `assemble_combined.py` — builds the combined ARS+ICS+MRPC deck from the three finished
+  program decks (see **Combined decks** above).
+- `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`) and
+  `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
+  substitute a missing face. Every chart renderer goes through it.
 - `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`, `Velocity Executive Summit.jpg`.
 - `README.md` — build/ layout notes (incl. the SM-vs-MM revenue-model extractor notes).
 
