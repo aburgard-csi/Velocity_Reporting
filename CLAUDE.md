@@ -68,12 +68,21 @@ decks. Build each program's deck first (each must pass its own validation gate),
 assemble:
 
 ```
-python3 build/assemble_combined.py <ars.pptx> <ics.pptx> <mrpc.pptx> <out.pptx>
+python3 build/assemble_combined.py --ars <ars.pptx> [--ics <ics.pptx>] [--mrpc <mrpc.pptx>] \
+                                   --out <out.pptx>
 ```
 
-The result is the 79-slide structure of `templates/multi-product_reference_deck.pptx`: shared
-shell (1-3), ARS (4-30), ICS (31-53), MRPC (54-62), Questions + Contact (63-64), ARS Appendix
-(65-79). Each program deck's own title / Summit / agenda / Q&A / Contact slides are dropped so
+`--ars` is required — the ARS deck supplies the shared shell, Questions/Contact and the
+Appendix. `--ics` / `--mrpc` are optional, so the same tool builds a two-program deck:
+**most multi-product clients are on two programs, not three** (2026.08: five ARS+ICS, one
+ARS+MRPC, two all-three). The title slide lists only the included products and the agenda
+only the included sections — an unused agenda row is REMOVED, not blanked, because an empty
+numbered row reads as a section that failed to render.
+
+All three programs gives the 79-slide structure of
+`templates/multi-product_reference_deck.pptx`: shared shell (1-3), ARS (4-30), ICS (31-53),
+MRPC (54-62), Questions + Contact (63-64), ARS Appendix (65-79). ARS+ICS drops the MRPC
+section for 70 slides; ARS+MRPC drops the ICS section. Each program deck's own title / Summit / agenda / Q&A / Contact slides are dropped so
 the combined deck carries exactly one of each; the title slide lists all three products and the
 agenda names the three sections. Slides are only ever ADDED and then reordered — never deleted
 — because freeing a slide partname makes python-pptx hand that number to a later slide and the
@@ -139,7 +148,10 @@ layout fingerprint against `validation/layout_baseline.json` — **DRIFT warning
 pass touched slides you didn't intend to change** (the class of regression that otherwise
 only a human spots). Review drifts, then `--snapshot` to accept. It also runs an **OOXML
 package-integrity check** and a **render smoke test** (opens each deck in LibreOffice and
-compares the PDF page count to the slide count). Three hard-won rules:
+compares the PDF page count to the slide count). The render test needs `soffice` on PATH;
+without it the gate now says so **loudly**, per deck and in a summary banner (2026-08-27 — it
+used to be silent on skip *and* on success, so a machine with no LibreOffice reported a clean
+gate while the one check that proves a deck opens had never run). Three hard-won rules:
 1. **LibreOffice renders are not PowerPoint.** `normAutofit` font-scaling is invisible in
    soffice renders — the validator FAILs any frame with fontScale <90%; never trust nominal
    font sizes on template-inherited frames.
@@ -225,7 +237,25 @@ companion, seasoned book, annuity. No superlatives or unsupported higher/lower c
 | --- | --- | --- |
 | ARS | Monthly | Every ARS client, each month — MM or SM path per client |
 | MRPC | Monthly | Every MRPC client, each month |
-| ICS | Quarterly full refresh; optional monthly referral update | Financials refresh only when a new ICS workbook lands (quarterly). Referrals come from VIP and can be updated monthly — a monthly build carries the latest workbook's financial sections forward in the client JSON unchanged (source notes keep the workbook period, so carried-forward figures stay auditable). Missing-section guard in the builder stops any build whose data sheet has never been populated. |
+| ICS | Quarterly full refresh; optional monthly referral update | Financials refresh only when a new ICS workbook lands (quarterly). Referrals come from VIP and can be updated monthly — a monthly build carries the latest workbook's financial sections forward in the client JSON unchanged (source notes keep the workbook period, so carried-forward figures stay auditable). Missing-section guard in the builder stops any build whose data sheet has never been populated — EXCEPT in explicit referrals-only mode, below. |
+
+**ICS before the first workbook — referrals-only builds (Aaron, 2026-08-27).** A client can be
+live on ICS and generating referrals before their first ICS workbook ever lands (Wellworth 1549).
+Their VIP referral data is real and worth showing, so build the ICS deck with:
+
+```
+python3 build/ics_pipeline/build_ics_gen.py --referrals-only <client_ics.json> \
+        templates/ics_template.pptx <out.pptx>
+```
+
+This keeps the referral slides (Power of Referrals, Referral Trend, Results by Branch) plus the
+education/reference and Q&A slides, and **omits** the workbook-driven slides (account
+performance, revenue, financial summary, comparisons) entirely — they are absent, never
+rendered from null or shown as 0. The section divider drops to "Referrals" so the deck does not
+advertise sections it lacks. It is **opt-in only**: without the flag the missing-section guard
+still stops the build, so a client mid-quarter can never silently lose their carried-forward
+financials. Combined decks handle the shorter section automatically — `assemble_combined.py`
+selects a program's slides by exclusion, not by fixed index.
 
 ## Data sources by program (do not cross these)
 
