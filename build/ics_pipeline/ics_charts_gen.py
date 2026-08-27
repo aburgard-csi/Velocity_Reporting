@@ -177,8 +177,15 @@ def c_perf_intro(d,out):
     for a in (ax,ax2): a.axis("off")
     fig.savefig(out,dpi=200,transparent=True,bbox_inches="tight",pad_inches=0.1); plt.close(fig)
 
-def render_all(d, A):
+def render_all(d, A, referrals_only=False):
     os.makedirs(A,exist_ok=True); j=lambda n: os.path.join(A,n)
+    if referrals_only:
+        # Client with no ICS workbook yet: only the VIP referral charts have data. Every
+        # other chart reads monthly_detail / revenue / performance and would raise here.
+        c_referral_trend(d,j("ics_trend.png"))
+        if d.get("referred_by_product"): c_referred_products(d,j("ics_refprod.png"))
+        print("ICS charts (referrals only) ->",A)
+        return
     md=d["monthly_detail"]
     # NSF/OD slides include NSF/OD fees + other charges (service charges)
     md.setdefault("nsf_other",[md["nsf_od"][i]+md["other_fees"][i] for i in range(len(md["months"]))])

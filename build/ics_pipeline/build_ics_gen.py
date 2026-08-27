@@ -210,14 +210,21 @@ def extract_logo(ref, path):
     return None
 
 # ============================ build ============================
-def build(d, static_path, out):
+def build(d, static_path, out, referrals_only=False):
     # Missing-input guard (Aaron 2026-07-24/25): ICS financials are QUARTERLY (workbook-
     # driven); referrals are monthly (VIP). A monthly refresh CARRIES FORWARD the latest
     # workbook's financial sections in the client JSON (source notes keep the workbook
     # period, so the carry-forward is auditable). A null section therefore means the data
     # sheet was never populated / mis-assembled — STOP; never render empty slides or 0%.
-    _required=("referrals","performance","revenue","financial_summary","monthly_detail","benchmark")
+    _required=("referrals",) if referrals_only else (
+        "referrals","performance","revenue","financial_summary","monthly_detail","benchmark")
     _missing=[k for k in _required if not d.get(k)]
+    if referrals_only:
+        _skipped=[k for k in ("performance","revenue","financial_summary","monthly_detail",
+                              "benchmark") if not d.get(k)]
+        print(f"REFERRALS-ONLY build: omitting workbook-driven sections {_skipped} — no ICS "
+              f"workbook has landed for this client yet. The financial slides are ABSENT, "
+              f"not zeroed.")
     if _missing:
         _cid=(d.get("meta") or {}).get("client_id","?")
         raise SystemExit(
@@ -237,7 +244,7 @@ def build(d, static_path, out):
         data_date=rm
     wbm=m.get("workbook_month",rm)   # last completed month in the workbook (PTD as-of)
     A=os.path.join(os.path.dirname(out) or ".","_ics_assets"); os.makedirs(A,exist_ok=True)
-    CH.render_all(d, A); a=lambda n: os.path.join(A,n)
+    CH.render_all(d, A, referrals_only=referrals_only); a=lambda n: os.path.join(A,n)
     prs=Presentation(static_path)
     prs.slide_width=Inches(13.333); prs.slide_height=Inches(7.5)
     # the template may be a FULL populated demo deck (Union Financial) — keep only the
@@ -323,7 +330,9 @@ def build(d, static_path, out):
     if LOGO[0] and os.path.exists(LOGO[0]):
         s.shapes.add_picture(LOGO[0],Inches(0.71),Inches(0.66),Inches(1.9),Inches(0.6))
     tb(s,0.7,2.25,11.9,2.4,"Invitation Checking® System",52,WHITE,True,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,font="Montserrat")
-    tb(s,0.7,5.05,11.9,0.9,"Referrals · Account Performance · Revenue",22,ORANGE,True,align=PP_ALIGN.CENTER,font="Montserrat")
+    tb(s,0.7,5.05,11.9,0.9,
+       "Referrals" if referrals_only else "Referrals · Account Performance · Revenue",
+       22,ORANGE,True,align=PP_ALIGN.CENTER,font="Montserrat")
     notes(s,"Section divider. No data.")
 
     # Agenda (after the ICS section header)
@@ -410,206 +419,212 @@ def build(d, static_path, out):
         logo(s); pagenum(s,6)
         notes(s,base+" Referred Accounts by Product — workbook 'Referred Accounts by Product' tab, filtered to Participates in ICS = Yes. Chart shows products with referrals; table lists all participating products.")
 
-    # 5b Performance of Accounts — section intro (Cindy's layout, our style)
-    s=blank(prs); title(s,"Performance of Accounts")
-    intro_bullets=["Drilling into the data","Overall Profitability","Breakdown of Revenue",
-                   "Breakdown by Month","Comparisons"]
-    bx=s.shapes.add_textbox(Inches(0.75),Inches(2.05),Inches(6.0),Inches(4.5)); btf=bx.text_frame; btf.word_wrap=True
-    for i,it in enumerate(intro_bullets):
-        pp=btf.paragraphs[0] if i==0 else btf.add_paragraph(); pp.space_after=Pt(16)
-        r1=pp.add_run(); r1.text="•  "; r1.font.size=Pt(22); r1.font.bold=True; r1.font.name="Calibri"; r1.font.color.rgb=ORANGE
-        r2=pp.add_run(); r2.text=it; r2.font.size=Pt(22); r2.font.name="Calibri"; r2.font.color.rgb=NAVY
-    s.shapes.add_picture(a("ics_perfintro.png"),Inches(6.55),Inches(1.75),Inches(5.85))
-    logo(s); pagenum(s,6)
-    notes(s,"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly referrals (bars) + cumulative referrals (line), from the VIP referral trend. No figures on the slide face.")
+    # ---- workbook-driven sections (ICS financials are QUARTERLY) ------------------
+    # Skipped ONLY in explicit referrals-only mode, for a client whose first ICS
+    # workbook has not landed yet (Wellworth 1549, Aaron 2026-08-27). These slides are
+    # OMITTED, never rendered from null — an empty ROI/revenue slide is precisely what
+    # the missing-section guard exists to prevent. A normal build still stops hard.
+    if not referrals_only:
+        # 5b Performance of Accounts — section intro (Cindy's layout, our style)
+        s=blank(prs); title(s,"Performance of Accounts")
+        intro_bullets=["Drilling into the data","Overall Profitability","Breakdown of Revenue",
+                       "Breakdown by Month","Comparisons"]
+        bx=s.shapes.add_textbox(Inches(0.75),Inches(2.05),Inches(6.0),Inches(4.5)); btf=bx.text_frame; btf.word_wrap=True
+        for i,it in enumerate(intro_bullets):
+            pp=btf.paragraphs[0] if i==0 else btf.add_paragraph(); pp.space_after=Pt(16)
+            r1=pp.add_run(); r1.text="•  "; r1.font.size=Pt(22); r1.font.bold=True; r1.font.name="Calibri"; r1.font.color.rgb=ORANGE
+            r2=pp.add_run(); r2.text=it; r2.font.size=Pt(22); r2.font.name="Calibri"; r2.font.color.rgb=NAVY
+        s.shapes.add_picture(a("ics_perfintro.png"),Inches(6.55),Inches(1.75),Inches(5.85))
+        logo(s); pagenum(s,6)
+        notes(s,"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly referrals (bars) + cumulative referrals (line), from the VIP referral trend. No figures on the slide face.")
 
-    # --- ROI / Present Value recalculated per client (the workbook ROI is not used) ---
-    # PV per account = annual profit × life; life = velocity avg 6.9 yrs for the program's
-    # first 2 years, else the client's modeled life. PV total = PV/acct × accounts opened.
-    # ROI = PV total ÷ (cost per acquired account × accounts opened).  (Aaron, 2026-07-13)
-    import datetime as _dt
-    VELOCITY_LIFE=6.9
-    p=d["performance"]; _fs=d["financial_summary"]; n_acct=_fs["ics_accounts"]
-    def _prog_years():
-        ps=d["meta"].get("program_start")
-        if not ps: return 99
-        y,m=(int(x) for x in ps.split("-")[:2])
-        yy,mm,dd=(int(x) for x in d["meta"]["data_pull"].split("-"))
-        return (_dt.date(yy,mm,dd)-_dt.date(y,m,1)).days/365.25
-    life_used=VELOCITY_LIFE if _prog_years()<2 else p.get("life_of_ics_account_years",VELOCITY_LIFE)
-    pv_per_acct=p["annual_profit_per_account"]*life_used
-    pv_total=pv_per_acct*n_acct
-    total_cost=p["cost_per_account"]*n_acct
-    roi_calc=pv_total/total_cost if total_cost else 0
+        # --- ROI / Present Value recalculated per client (the workbook ROI is not used) ---
+        # PV per account = annual profit × life; life = velocity avg 6.9 yrs for the program's
+        # first 2 years, else the client's modeled life. PV total = PV/acct × accounts opened.
+        # ROI = PV total ÷ (cost per acquired account × accounts opened).  (Aaron, 2026-07-13)
+        import datetime as _dt
+        VELOCITY_LIFE=6.9
+        p=d["performance"]; _fs=d["financial_summary"]; n_acct=_fs["ics_accounts"]
+        def _prog_years():
+            ps=d["meta"].get("program_start")
+            if not ps: return 99
+            y,m=(int(x) for x in ps.split("-")[:2])
+            yy,mm,dd=(int(x) for x in d["meta"]["data_pull"].split("-"))
+            return (_dt.date(yy,mm,dd)-_dt.date(y,m,1)).days/365.25
+        life_used=VELOCITY_LIFE if _prog_years()<2 else p.get("life_of_ics_account_years",VELOCITY_LIFE)
+        pv_per_acct=p["annual_profit_per_account"]*life_used
+        pv_total=pv_per_acct*n_acct
+        total_cost=p["cost_per_account"]*n_acct
+        roi_calc=pv_total/total_cost if total_cost else 0
 
-    # 6 Performance of ICS Accounts (Cindy's ROI layout: 3 rectangular callouts + heading + bullets)
-    AMBER=RGBColor(0xF5,0xA6,0x23)
-    s=blank(prs); title(s,"Performance of ICS Accounts"); pill(s,f"PTD · {wbm}")
-    tb(s,0.5,1.12,12.3,0.6,f"Return on Investment — {roi_calc:.2f} to 1",22,NAVY,True)
-    modeled=p.get("life_of_ics_account_years",life_used)
-    young=abs(life_used-VELOCITY_LIFE)<0.05   # first-2-years programs use the 6.9-yr velocity life
-    if young:
-        life_bullets=[f"Models indicate your average life of account is {modeled:g} years",
-                      "National Average is 6.9 Years"]
-        pv_bullets=["Using 6.9 Years to be conservative",
-                    f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
-    else:
-        life_bullets=[f"{p.get('pct_added_life',0)*100:.0f}% longer than the {VELOCITY_LIFE:g}-year "
-                      "average for all accounts","Modeled from ICS account survival"]
-        pv_bullets=[f"Using the {life_used:g}-year modeled account life",
-                    f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
-    cols=[(AMBER, f"${p['annual_profit_per_account']:,.2f}",
-           "Annual Profit Contribution per Account",
-           [f"Accounts pay for themselves in ~{p['payback_months']} months"]),
-          (ORANGE, f"{life_used:g} years",
-           "Average Life of Accounts", life_bullets),
-          (NAVY, f"${pv_per_acct:,.2f}",
-           "Present Value per Account", pv_bullets)]
-    BW,BT,BH,GAP=3.8,1.9,2.35,0.42
-    x0=(13.333-(3*BW+2*GAP))/2                     # centered block, equal side margins
-    for k,(fill,big,heading,bullets) in enumerate(cols):
-        x=x0+k*(BW+GAP)
-        box=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(x),Inches(BT),Inches(BW),Inches(BH))
-        box.fill.solid(); box.fill.fore_color.rgb=fill; box.line.fill.background()
-        try: box.adjustments[0]=0.06                # rounded corners, matches deck callouts
+        # 6 Performance of ICS Accounts (Cindy's ROI layout: 3 rectangular callouts + heading + bullets)
+        AMBER=RGBColor(0xF5,0xA6,0x23)
+        s=blank(prs); title(s,"Performance of ICS Accounts"); pill(s,f"PTD · {wbm}")
+        tb(s,0.5,1.12,12.3,0.6,f"Return on Investment — {roi_calc:.2f} to 1",22,NAVY,True)
+        modeled=p.get("life_of_ics_account_years",life_used)
+        young=abs(life_used-VELOCITY_LIFE)<0.05   # first-2-years programs use the 6.9-yr velocity life
+        if young:
+            life_bullets=[f"Models indicate your average life of account is {modeled:g} years",
+                          "National Average is 6.9 Years"]
+            pv_bullets=["Using 6.9 Years to be conservative",
+                        f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
+        else:
+            life_bullets=[f"{p.get('pct_added_life',0)*100:.0f}% longer than the {VELOCITY_LIFE:g}-year "
+                          "average for all accounts","Modeled from ICS account survival"]
+            pv_bullets=[f"Using the {life_used:g}-year modeled account life",
+                        f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
+        cols=[(AMBER, f"${p['annual_profit_per_account']:,.2f}",
+               "Annual Profit Contribution per Account",
+               [f"Accounts pay for themselves in ~{p['payback_months']} months"]),
+              (ORANGE, f"{life_used:g} years",
+               "Average Life of Accounts", life_bullets),
+              (NAVY, f"${pv_per_acct:,.2f}",
+               "Present Value per Account", pv_bullets)]
+        BW,BT,BH,GAP=3.8,1.9,2.35,0.42
+        x0=(13.333-(3*BW+2*GAP))/2                     # centered block, equal side margins
+        for k,(fill,big,heading,bullets) in enumerate(cols):
+            x=x0+k*(BW+GAP)
+            box=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(x),Inches(BT),Inches(BW),Inches(BH))
+            box.fill.solid(); box.fill.fore_color.rgb=fill; box.line.fill.background()
+            try: box.adjustments[0]=0.06                # rounded corners, matches deck callouts
+            except Exception: pass
+            tf=box.text_frame; tf.vertical_anchor=MSO_ANCHOR.MIDDLE; pp=tf.paragraphs[0]; pp.alignment=PP_ALIGN.CENTER
+            r=pp.add_run(); r.text=big; r.font.size=Pt(36); r.font.bold=True; r.font.name="Montserrat"; r.font.color.rgb=WHITE
+            shadow(box)
+            tb(s,x,BT+BH+0.12,BW,0.6,heading,18,NAVY,True)
+            bt=s.shapes.add_textbox(Inches(x),Inches(BT+BH+0.8),Inches(BW),Inches(1.7)); btf=bt.text_frame; btf.word_wrap=True
+            for j,bl in enumerate(bullets):
+                q=btf.paragraphs[0] if j==0 else btf.add_paragraph(); q.space_after=Pt(4)
+                rr=q.add_run(); rr.text="•  "+bl; rr.font.size=Pt(17); rr.font.name="Calibri"; rr.font.color.rgb=NAVY
+        logo(s); pagenum(s,6)
+        notes(s,base+f" ROI recalculated (workbook ROI not used): PV/acct = annual profit ${p['annual_profit_per_account']:.2f} × {life_used:g} yr "
+                    f"(velocity life, program <2 yr) = ${pv_per_acct:,.2f}; PV total = ${pv_total:,.0f}; "
+                    f"ROI = PV total ÷ (${p['cost_per_account']:.0f} × {n_acct:,}) = {roi_calc:.2f} : 1.")
+
+        # 6b Program Results by Month Opened — monthly-detail data table (revenue + amortized expense)
+        md0=d["monthly_detail"]; mos=md0["months"]; nrm=len(mos)
+        mo_open=[nrm-i for i in range(nrm)]; amort=p["cost_per_account"]/60.0
+        _rr=lambda label,vals,fmt:[label]+[fmt(v) for v in vals]
+        trows=[["Month Opened"]+mos,
+               _rr("Accounts Opened",md0["accounts_opened"],lambda v:f"{v:,}"),
+               _rr("Avg Balance / Acct",md0["avg_balance"],lambda v:f"${v:,.0f}"),
+               _rr("Spread on Deposits",md0["spread"],lambda v:f"${v:,.0f}"),
+               _rr("Interchange Income",md0["interchange"],lambda v:f"${v:,.0f}"),
+               _rr("NSF / OD Fees",md0["nsf_od"],lambda v:f"${v:,.0f}"),
+               _rr("Other Fees",md0["other_fees"],lambda v:f"${v:,.0f}"),
+               _rr("Account Profit Contribution",md0["profit_contribution"],lambda v:f"${v:,.0f}"),
+               _rr("Amortized Expense / Acct / Mo",[amort]*nrm,lambda v:f"${v:,.2f}"),
+               _rr("Months Open",mo_open,lambda v:f"{v}")]
+        s=blank(prs); title(s,"Program Results by Month Opened"); pill(s,f"PTD · {wbm}")
+        sub(s,"ICS-originated checking accounts by opening-month cohort — revenue and amortized acquisition expense.")
+        std_table(s,trows,0.35,1.7,12.63,[2.9]+[1]*nrm,highlight_last=False,fs=13,rowh=0.46)
+        tb(s,0.4,6.55,12.55,0.4,f"Amortized expense: ${p['cost_per_account']:.0f} ÷ 60 months = ${amort:.2f} per account per month × time open.",14,GREYT,False)
+        logo(s); pagenum(s,7)
+        notes(s,base+f" Monthly Detail tab: revenue components, account profit contribution, amortized expense (${p['cost_per_account']:.0f} ÷ 60 = ${amort:.2f}/acct/mo). Cohort by opening month.")
+
+        # 7 ICS Revenue
+        s=blank(prs); title(s,"ICS Revenue"); pill(s,f"PTD · {wbm}")
+        sub(s,"Selection: ICS-originated checking accounts; revenue program-to-date.")
+        s.shapes.add_picture(a("ics_revpie.png"),Inches(0.5),Inches(1.55),Inches(12.3))
+        logo(s); pagenum(s,7)
+        notes(s,base+" PTD revenue by source: "+", ".join(f"{c['name']} ${c['amount']:,.0f}" for c in d['revenue']['components'])+f"; total ${d['revenue']['total']:,.0f}. Workbook 'Monthly Detail'.")
+
+        # 8-13 monthly detail
+        md=d["monthly_detail"]; icPTD=sum(md["interchange"]); nsPTD=sum(md["nsf_od"]); acc=md["cumulative_accounts"][-1]
+        am=CH.acct_months(d)
+        nsoPTD=sum(md["nsf_od"])+sum(md["other_fees"]); spPTD=sum(md["spread"])
+        nso_nov=(md["nsf_od"][0]+md["other_fees"][0])
+        SPREAD_DEF="Spread = 2.75% × avg month-end balance/account, summed monthly, net of interest paid."
+        def mdslide(pg,ttl,subt,img,tiles,note,foot=None):
+            s=blank(prs); title(s,ttl); sub(s,subt); s.shapes.add_picture(img,Inches(0.4),Inches(1.7),Inches(8.6))
+            ty=1.9
+            for big,lab in tiles: callout(s,9.3,ty,3.5,1.4,big,lab,big_size=26); ty+=1.6
+            if foot: tb(s,0.5,6.5,12.3,0.5,foot,16,GREYT,False)
+            logo(s); pagenum(s,pg); notes(s,note)
+        IC_DEF="Interchange Income: Blended Rate × Debit Card Spend"
+        mdslide(8,"Total Interchange Revenue",
+                "Interchange revenue by cohort (opening month), program-to-date.",
+                a("ics_ic_tot.png"),[(f"${icPTD:,.0f}","Interchange PTD"),(f"{acc:,}","ICS accounts")],
+                base+" Interchange revenue by cohort. Workbook 'Monthly Detail' (revenue only).",foot=IC_DEF)
+        mdslide(9,"Interchange Revenue per Account per Month",
+                "Interchange revenue ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: $398.47 / 19 / 8 = $2.62).",
+                a("ics_ic_pam.png"),[(f"${icPTD/am:.2f}","Blended / account / month"),(f"${icPTD/acc:.2f}","Per account, life-to-date")],
+                base+" Interchange per account per month, cohort-normalized. Workbook 'Monthly Detail'.",foot=IC_DEF)
+        mdslide(10,"Total NSF/OD & Other Fee Revenue",
+                "NSF/OD fees plus other service charges by cohort (opening month), program-to-date. Revenue only — not item counts.",
+                a("ics_nsf_tot.png"),[(f"${nsoPTD:,.0f}","NSF/OD & Other PTD"),(f"{acc:,}","ICS accounts")],
+                base+" NSF/OD + other service charges by cohort. Workbook 'Monthly Detail' (revenue only).")
+        mdslide(11,"NSF/OD & Other Fees per Account per Month",
+                f"(NSF/OD + other charges) ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: ${nso_nov:,.2f} / 19 / 8 = ${nso_nov/19/8:.2f}).",
+                a("ics_nsf_pam.png"),[(f"${nsoPTD/am:.2f}","Blended / account / month"),(f"${nsoPTD/acc:.2f}","Per account, life-to-date")],
+                base+" NSF/OD + other charges per account per month, cohort-normalized. Workbook 'Monthly Detail'.")
+        mdslide(12,"Total Spread Revenue",
+                "Spread revenue by cohort (opening month), program-to-date.",
+                a("ics_spread_tot.png"),[(f"${spPTD:,.0f}","Spread PTD"),(f"{acc:,}","ICS accounts")],
+                base+" Spread revenue by cohort. Workbook 'Monthly Detail'.",foot=SPREAD_DEF)
+        mdslide(13,"Spread Revenue per Account per Month",
+                f"Spread revenue ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: ${md['spread'][0]:,.2f} / 19 / 8 = ${md['spread'][0]/19/8:.2f}).",
+                a("ics_spread_pam.png"),[(f"${spPTD/am:.2f}","Blended / account / month"),(f"${spPTD/acc:.2f}","Per account, life-to-date")],
+                base+" Spread per account per month, cohort-normalized. Workbook 'Monthly Detail'.",foot=SPREAD_DEF)
+        mdslide(14,"Revenue Composition by Month",
+                "Monthly revenue per referral by source: spread (net of interest), interchange, NSF/OD, other.",
+                a("ics_comp.png"),[(f"${sum(md['profit_contribution']):,.0f}","Profit contribution PTD"),(f"{acc:,}","ICS accounts")],
+                base+" Monthly revenue composition by cohort. Workbook 'Monthly Detail'.")
+        tot_pam=(sum(md["spread"])+sum(md["interchange"])+sum(md["nsf_od"])+sum(md["other_fees"]))/am
+        mdslide(15,"Revenue per Account per Month by Source",
+                "Blended revenue per account per month by source, life-to-date (cohort revenue ÷ account-months).",
+                a("ics_bucketcmp.png"),[(f"${tot_pam:,.2f}","All sources / acct / mo"),(f"{acc:,}","ICS accounts")],
+                base+" Per-account-per-month revenue compared across sources (spread, interchange, NSF/OD, other), life-to-date. Workbook 'Monthly Detail'.")
+
+        # 14 Financial Summary
+        fs=d["financial_summary"]; s=blank(prs); title(s,"ICS Financial Summary"); pill(s,f"PTD · {wbm}")
+        sub(s,"Selection: ICS-originated checking accounts; figures program-to-date.")
+        BT0=1.85                                    # callout block sits lower to balance against the selection text (Aaron 2026-07-24)
+        panel=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(0.5),Inches(BT0),Inches(4.3),Inches(4.6))
+        panel.fill.solid(); panel.fill.fore_color.rgb=LIGHT; panel.line.fill.background()
+        try: panel.adjustments[0]=0.04
         except Exception: pass
-        tf=box.text_frame; tf.vertical_anchor=MSO_ANCHOR.MIDDLE; pp=tf.paragraphs[0]; pp.alignment=PP_ALIGN.CENTER
-        r=pp.add_run(); r.text=big; r.font.size=Pt(36); r.font.bold=True; r.font.name="Montserrat"; r.font.color.rgb=WHITE
-        shadow(box)
-        tb(s,x,BT+BH+0.12,BW,0.6,heading,18,NAVY,True)
-        bt=s.shapes.add_textbox(Inches(x),Inches(BT+BH+0.8),Inches(BW),Inches(1.7)); btf=bt.text_frame; btf.word_wrap=True
-        for j,bl in enumerate(bullets):
-            q=btf.paragraphs[0] if j==0 else btf.add_paragraph(); q.space_after=Pt(4)
-            rr=q.add_run(); rr.text="•  "+bl; rr.font.size=Pt(17); rr.font.name="Calibri"; rr.font.color.rgb=NAVY
-    logo(s); pagenum(s,6)
-    notes(s,base+f" ROI recalculated (workbook ROI not used): PV/acct = annual profit ${p['annual_profit_per_account']:.2f} × {life_used:g} yr "
-                f"(velocity life, program <2 yr) = ${pv_per_acct:,.2f}; PV total = ${pv_total:,.0f}; "
-                f"ROI = PV total ÷ (${p['cost_per_account']:.0f} × {n_acct:,}) = {roi_calc:.2f} : 1.")
+        cpa=d["performance"]["cost_per_account"]; billed=cpa*fs["ics_accounts"]
+        tb(s,0.75,BT0+0.1,3.8,0.4,"Program to Date",16,NAVY,True)
+        yy=BT0+0.6
+        for lab,val in [("Account Profit Contribution",f"${fs['account_profit_contribution']:,.0f}"),
+                        ("Amortized Program Expense",f"${fs['total_program_expense']:,.0f}"),
+                        ("Net Profit",f"${fs['net_profit']:,.0f}"),
+                        (f"Billed Expense for {fs['ics_accounts']:,} Accounts",f"${billed:,.0f}")]:
+            tb(s,0.75,yy,3.9,0.4,lab,14,GREYT,False); tb(s,0.75,yy+0.32,3.9,0.5,val,20,NAVY,True); yy+=0.98
+        tb(s,0.5,6.5,12.6,0.5,f"Amortized expense: ${cpa:,.0f} ÷ 60 months = ${cpa/60:.2f} per account per month × time open.",16,GREYT,False)
+        for i,(big,lab) in enumerate([(f"{fs['ics_accounts']:,}","ICS Accounts"),(f"${fs['average_balance']:,.0f}","Average Balance"),(f"{roi_calc:.2f} : 1","Return on Investment")]):
+            callout(s,5.15,BT0+i*1.55,3.3,1.35,big,lab,big_size=24)
+        callout(s,8.7,BT0,4.15,4.6,f"${pv_total/1e6:,.2f}M","Present Value",
+                "of New ICS Accounts",fill=ORANGE,big_size=44)
+        logo(s); pagenum(s,14)
+        notes(s,base+f" Contribution ${fs['account_profit_contribution']:,.0f} − expense ${fs['total_program_expense']:,.0f} = net ${fs['net_profit']:,.0f}; "
+                    f"{fs['ics_accounts']:,} accounts, avg balance ${fs['average_balance']:,.0f}. Present Value = ${pv_total:,.0f} (annual profit × {life_used:g} yr × accounts); ROI {roi_calc:.2f}:1 (recalculated, workbook ROI not used).")
 
-    # 6b Program Results by Month Opened — monthly-detail data table (revenue + amortized expense)
-    md0=d["monthly_detail"]; mos=md0["months"]; nrm=len(mos)
-    mo_open=[nrm-i for i in range(nrm)]; amort=p["cost_per_account"]/60.0
-    _rr=lambda label,vals,fmt:[label]+[fmt(v) for v in vals]
-    trows=[["Month Opened"]+mos,
-           _rr("Accounts Opened",md0["accounts_opened"],lambda v:f"{v:,}"),
-           _rr("Avg Balance / Acct",md0["avg_balance"],lambda v:f"${v:,.0f}"),
-           _rr("Spread on Deposits",md0["spread"],lambda v:f"${v:,.0f}"),
-           _rr("Interchange Income",md0["interchange"],lambda v:f"${v:,.0f}"),
-           _rr("NSF / OD Fees",md0["nsf_od"],lambda v:f"${v:,.0f}"),
-           _rr("Other Fees",md0["other_fees"],lambda v:f"${v:,.0f}"),
-           _rr("Account Profit Contribution",md0["profit_contribution"],lambda v:f"${v:,.0f}"),
-           _rr("Amortized Expense / Acct / Mo",[amort]*nrm,lambda v:f"${v:,.2f}"),
-           _rr("Months Open",mo_open,lambda v:f"{v}")]
-    s=blank(prs); title(s,"Program Results by Month Opened"); pill(s,f"PTD · {wbm}")
-    sub(s,"ICS-originated checking accounts by opening-month cohort — revenue and amortized acquisition expense.")
-    std_table(s,trows,0.35,1.7,12.63,[2.9]+[1]*nrm,highlight_last=False,fs=13,rowh=0.46)
-    tb(s,0.4,6.55,12.55,0.4,f"Amortized expense: ${p['cost_per_account']:.0f} ÷ 60 months = ${amort:.2f} per account per month × time open.",14,GREYT,False)
-    logo(s); pagenum(s,7)
-    notes(s,base+f" Monthly Detail tab: revenue components, account profit contribution, amortized expense (${p['cost_per_account']:.0f} ÷ 60 = ${amort:.2f}/acct/mo). Cohort by opening month.")
-
-    # 7 ICS Revenue
-    s=blank(prs); title(s,"ICS Revenue"); pill(s,f"PTD · {wbm}")
-    sub(s,"Selection: ICS-originated checking accounts; revenue program-to-date.")
-    s.shapes.add_picture(a("ics_revpie.png"),Inches(0.5),Inches(1.55),Inches(12.3))
-    logo(s); pagenum(s,7)
-    notes(s,base+" PTD revenue by source: "+", ".join(f"{c['name']} ${c['amount']:,.0f}" for c in d['revenue']['components'])+f"; total ${d['revenue']['total']:,.0f}. Workbook 'Monthly Detail'.")
-
-    # 8-13 monthly detail
-    md=d["monthly_detail"]; icPTD=sum(md["interchange"]); nsPTD=sum(md["nsf_od"]); acc=md["cumulative_accounts"][-1]
-    am=CH.acct_months(d)
-    nsoPTD=sum(md["nsf_od"])+sum(md["other_fees"]); spPTD=sum(md["spread"])
-    nso_nov=(md["nsf_od"][0]+md["other_fees"][0])
-    SPREAD_DEF="Spread = 2.75% × avg month-end balance/account, summed monthly, net of interest paid."
-    def mdslide(pg,ttl,subt,img,tiles,note,foot=None):
-        s=blank(prs); title(s,ttl); sub(s,subt); s.shapes.add_picture(img,Inches(0.4),Inches(1.7),Inches(8.6))
-        ty=1.9
-        for big,lab in tiles: callout(s,9.3,ty,3.5,1.4,big,lab,big_size=26); ty+=1.6
-        if foot: tb(s,0.5,6.5,12.3,0.5,foot,16,GREYT,False)
-        logo(s); pagenum(s,pg); notes(s,note)
-    IC_DEF="Interchange Income: Blended Rate × Debit Card Spend"
-    mdslide(8,"Total Interchange Revenue",
-            "Interchange revenue by cohort (opening month), program-to-date.",
-            a("ics_ic_tot.png"),[(f"${icPTD:,.0f}","Interchange PTD"),(f"{acc:,}","ICS accounts")],
-            base+" Interchange revenue by cohort. Workbook 'Monthly Detail' (revenue only).",foot=IC_DEF)
-    mdslide(9,"Interchange Revenue per Account per Month",
-            "Interchange revenue ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: $398.47 / 19 / 8 = $2.62).",
-            a("ics_ic_pam.png"),[(f"${icPTD/am:.2f}","Blended / account / month"),(f"${icPTD/acc:.2f}","Per account, life-to-date")],
-            base+" Interchange per account per month, cohort-normalized. Workbook 'Monthly Detail'.",foot=IC_DEF)
-    mdslide(10,"Total NSF/OD & Other Fee Revenue",
-            "NSF/OD fees plus other service charges by cohort (opening month), program-to-date. Revenue only — not item counts.",
-            a("ics_nsf_tot.png"),[(f"${nsoPTD:,.0f}","NSF/OD & Other PTD"),(f"{acc:,}","ICS accounts")],
-            base+" NSF/OD + other service charges by cohort. Workbook 'Monthly Detail' (revenue only).")
-    mdslide(11,"NSF/OD & Other Fees per Account per Month",
-            f"(NSF/OD + other charges) ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: ${nso_nov:,.2f} / 19 / 8 = ${nso_nov/19/8:.2f}).",
-            a("ics_nsf_pam.png"),[(f"${nsoPTD/am:.2f}","Blended / account / month"),(f"${nsoPTD/acc:.2f}","Per account, life-to-date")],
-            base+" NSF/OD + other charges per account per month, cohort-normalized. Workbook 'Monthly Detail'.")
-    mdslide(12,"Total Spread Revenue",
-            "Spread revenue by cohort (opening month), program-to-date.",
-            a("ics_spread_tot.png"),[(f"${spPTD:,.0f}","Spread PTD"),(f"{acc:,}","ICS accounts")],
-            base+" Spread revenue by cohort. Workbook 'Monthly Detail'.",foot=SPREAD_DEF)
-    mdslide(13,"Spread Revenue per Account per Month",
-            f"Spread revenue ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: ${md['spread'][0]:,.2f} / 19 / 8 = ${md['spread'][0]/19/8:.2f}).",
-            a("ics_spread_pam.png"),[(f"${spPTD/am:.2f}","Blended / account / month"),(f"${spPTD/acc:.2f}","Per account, life-to-date")],
-            base+" Spread per account per month, cohort-normalized. Workbook 'Monthly Detail'.",foot=SPREAD_DEF)
-    mdslide(14,"Revenue Composition by Month",
-            "Monthly revenue per referral by source: spread (net of interest), interchange, NSF/OD, other.",
-            a("ics_comp.png"),[(f"${sum(md['profit_contribution']):,.0f}","Profit contribution PTD"),(f"{acc:,}","ICS accounts")],
-            base+" Monthly revenue composition by cohort. Workbook 'Monthly Detail'.")
-    tot_pam=(sum(md["spread"])+sum(md["interchange"])+sum(md["nsf_od"])+sum(md["other_fees"]))/am
-    mdslide(15,"Revenue per Account per Month by Source",
-            "Blended revenue per account per month by source, life-to-date (cohort revenue ÷ account-months).",
-            a("ics_bucketcmp.png"),[(f"${tot_pam:,.2f}","All sources / acct / mo"),(f"{acc:,}","ICS accounts")],
-            base+" Per-account-per-month revenue compared across sources (spread, interchange, NSF/OD, other), life-to-date. Workbook 'Monthly Detail'.")
-
-    # 14 Financial Summary
-    fs=d["financial_summary"]; s=blank(prs); title(s,"ICS Financial Summary"); pill(s,f"PTD · {wbm}")
-    sub(s,"Selection: ICS-originated checking accounts; figures program-to-date.")
-    BT0=1.85                                    # callout block sits lower to balance against the selection text (Aaron 2026-07-24)
-    panel=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(0.5),Inches(BT0),Inches(4.3),Inches(4.6))
-    panel.fill.solid(); panel.fill.fore_color.rgb=LIGHT; panel.line.fill.background()
-    try: panel.adjustments[0]=0.04
-    except Exception: pass
-    cpa=d["performance"]["cost_per_account"]; billed=cpa*fs["ics_accounts"]
-    tb(s,0.75,BT0+0.1,3.8,0.4,"Program to Date",16,NAVY,True)
-    yy=BT0+0.6
-    for lab,val in [("Account Profit Contribution",f"${fs['account_profit_contribution']:,.0f}"),
-                    ("Amortized Program Expense",f"${fs['total_program_expense']:,.0f}"),
-                    ("Net Profit",f"${fs['net_profit']:,.0f}"),
-                    (f"Billed Expense for {fs['ics_accounts']:,} Accounts",f"${billed:,.0f}")]:
-        tb(s,0.75,yy,3.9,0.4,lab,14,GREYT,False); tb(s,0.75,yy+0.32,3.9,0.5,val,20,NAVY,True); yy+=0.98
-    tb(s,0.5,6.5,12.6,0.5,f"Amortized expense: ${cpa:,.0f} ÷ 60 months = ${cpa/60:.2f} per account per month × time open.",16,GREYT,False)
-    for i,(big,lab) in enumerate([(f"{fs['ics_accounts']:,}","ICS Accounts"),(f"${fs['average_balance']:,.0f}","Average Balance"),(f"{roi_calc:.2f} : 1","Return on Investment")]):
-        callout(s,5.15,BT0+i*1.55,3.3,1.35,big,lab,big_size=24)
-    callout(s,8.7,BT0,4.15,4.6,f"${pv_total/1e6:,.2f}M","Present Value",
-            "of New ICS Accounts",fill=ORANGE,big_size=44)
-    logo(s); pagenum(s,14)
-    notes(s,base+f" Contribution ${fs['account_profit_contribution']:,.0f} − expense ${fs['total_program_expense']:,.0f} = net ${fs['net_profit']:,.0f}; "
-                f"{fs['ics_accounts']:,} accounts, avg balance ${fs['average_balance']:,.0f}. Present Value = ${pv_total:,.0f} (annual profit × {life_used:g} yr × accounts); ROI {roi_calc:.2f}:1 (recalculated, workbook ROI not used).")
-
-    # 15 Comparisons (modeled on the CSI/Velocity ICS Review template)
-    bm=d["benchmark"]; s=blank(prs); title(s,"Comparisons")
-    tb(s,1.3,1.4,3.9,0.5,"Velocity Clients' Average",18,NAVY,True,align=PP_ALIGN.CENTER)
-    tb(s,8.15,1.4,3.9,0.5,f"{client} Data",18,NAVY,True,align=PP_ALIGN.CENTER)
-    def cfmt(v,f):
-        if f=="usd0": return f"${v:,.0f}"
-        if f=="pct0": return f"{v:.0f}%"
-        if f=="pct1": return f"{v:.1f}%"
-        if f=="years": return f"{v:g} Years"
-        return f"{v:g}"
-    yy=2.15
-    for mm in bm["metrics"]:
-        cval=pv_per_acct if mm["label"].startswith("Lifetime Value") else mm["client"]   # recomputed PV
-        cap_pill(s,1.3,yy,3.9,0.78,cfmt(mm["velocity_avg"],mm["fmt"]),ORANGE)
-        tb(s,5.3,yy-0.05,2.75,0.9,mm["label"],17,NAVY,False,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE)
-        cap_pill(s,8.15,yy,3.9,0.78,cfmt(cval,mm["fmt"]),NAVY)
-        yy+=1.06
-    if bm.get("non_ics_close_rate_pct"):
-        tb(s,1.3,yy+0.06,10.8,0.4,f"Note: your Non-ICS accounts' 12-month close rate = {bm['non_ics_close_rate_pct']:.1f}%.",14,GREYT,False)
-    logo(s); pagenum(s,15)
-    notes(s,base+f" {client} vs the Velocity ICS client average — openings/branch, lifetime value, 12-mo close rate (ICS {[x['client'] for x in bm['metrics'] if 'Close' in x['label']][0]:.2f}% vs Non-ICS {bm.get('non_ics_close_rate_pct',0):.2f}%), account life. Velocity averages are program-wide constants.")
+        # 15 Comparisons (modeled on the CSI/Velocity ICS Review template)
+        bm=d["benchmark"]; s=blank(prs); title(s,"Comparisons")
+        tb(s,1.3,1.4,3.9,0.5,"Velocity Clients' Average",18,NAVY,True,align=PP_ALIGN.CENTER)
+        tb(s,8.15,1.4,3.9,0.5,f"{client} Data",18,NAVY,True,align=PP_ALIGN.CENTER)
+        def cfmt(v,f):
+            if f=="usd0": return f"${v:,.0f}"
+            if f=="pct0": return f"{v:.0f}%"
+            if f=="pct1": return f"{v:.1f}%"
+            if f=="years": return f"{v:g} Years"
+            return f"{v:g}"
+        yy=2.15
+        for mm in bm["metrics"]:
+            cval=pv_per_acct if mm["label"].startswith("Lifetime Value") else mm["client"]   # recomputed PV
+            cap_pill(s,1.3,yy,3.9,0.78,cfmt(mm["velocity_avg"],mm["fmt"]),ORANGE)
+            tb(s,5.3,yy-0.05,2.75,0.9,mm["label"],17,NAVY,False,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE)
+            cap_pill(s,8.15,yy,3.9,0.78,cfmt(cval,mm["fmt"]),NAVY)
+            yy+=1.06
+        if bm.get("non_ics_close_rate_pct"):
+            tb(s,1.3,yy+0.06,10.8,0.4,f"Note: your Non-ICS accounts' 12-month close rate = {bm['non_ics_close_rate_pct']:.1f}%.",14,GREYT,False)
+        logo(s); pagenum(s,15)
+        notes(s,base+f" {client} vs the Velocity ICS client average — openings/branch, lifetime value, 12-mo close rate (ICS {[x['client'] for x in bm['metrics'] if 'Close' in x['label']][0]:.2f}% vs Non-ICS {bm.get('non_ics_close_rate_pct',0):.2f}%), account life. Velocity averages are program-wide constants.")
 
     # optional mystery shop
-    if d.get("mystery_shop",{}).get("include"):
+    if (d.get("mystery_shop") or {}).get("include"):   # key can be present-but-null
         ms=d["mystery_shop"]; s=blank(prs); title(s,"Mystery Shop & Insights")
         for i,(big,lab,fill) in enumerate([(f"{ms['mystery_shops_ytd']}","Mystery Shops (YTD)",NAVY),
                                             (f"{ms['pass_rate_pct']}%","Pass Rate",ORANGE),
@@ -674,4 +689,6 @@ def build(d, static_path, out):
     prs.save(out); print("built",out,"->",len(prs.slides._sldIdLst),"slides")
 
 if __name__=="__main__":
-    build(json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3])
+    _argv=[a for a in sys.argv[1:] if a!="--referrals-only"]
+    build(json.load(open(_argv[0])), _argv[1], _argv[2],
+          referrals_only="--referrals-only" in sys.argv)
