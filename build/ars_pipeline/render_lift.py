@@ -1,9 +1,12 @@
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import json, sys
+from rpe_env import use_font
 L=json.load(open(sys.argv[1])); OUT=sys.argv[2]
 NAVY="#00274C"; GREY="#EEF2F7"; TICK="#5A6670"
-plt.rcParams.update({"font.family":"DejaVu Sans"})
+use_font("Carlito")
 cols=L['matrix_cols']; mrows=L['matrix_rows']; rev=L['revseg']
 fig=plt.figure(figsize=(13.0,4.5))
 TOP=0.06; HGT=0.72   # both tables share top & height -> aligned top/bottom, balanced

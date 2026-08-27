@@ -31,6 +31,7 @@ BUILDDIR = os.environ.get("RPE_BUILDDIR") or os.path.abspath(os.path.join(HERE, 
 REF = os.environ.get("RPE_REF") or HERE
 sys.path.insert(0, BUILDDIR)
 sys.path.insert(0, HERE)
+from rpe_env import use_font
 
 M = json.load(open(METRICS)); B = json.load(open(BASEJ)); L = json.load(open(LIFTJ)); O = json.load(open(ODDDJ))
 # MM path = the lift matrix actually carries VALUES; else SM = monthly summary.
@@ -209,7 +210,7 @@ if MM:
     subprocess.run([sys.executable, os.path.join(REF, 'render_lift.py'), LIFTJ, LIFT_PNG], check=True)
 else:
     import matplotlib as _mpl; _mpl.use('Agg'); import matplotlib.pyplot as _plt
-    _plt.rcParams.update({"font.family": "Carlito"})
+    use_font("Carlito")
     _NV="#00274C"; _OR="#F47A29"; _TK="#5A6670"
     _mr = B.get('monthly_rev_last12', []); _lab=[m for m,_ in _mr]; _val=[float(v or 0) for _,v in _mr]
     _avg=(sum(_val)/len(_val)) if _val else 0

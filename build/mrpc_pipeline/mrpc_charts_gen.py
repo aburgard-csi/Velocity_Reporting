@@ -13,12 +13,14 @@ Tier colors (fixed, per STYLE.md): Gold = orange, Platinum = gray, Business = na
 Business series/panels render only when meta.has_business is true.
 """
 import sys, os, json
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 import numpy as np
 from matplotlib.patches import Patch
 from PIL import Image
+from rpe_env import use_font
 
 def _shadow_wedges(wedges):
     return wedges   # STYLE.md: pie/donut charts are FLAT — no shadow
@@ -32,17 +34,7 @@ GOLDC="#F47A29"; PLATC="#9DB8CC"; BIZC="#00274C"   # Aaron 2026-07-24: Gold oran
 # cancellation donut palette (navy -> steel ramp + orange/gold/rose accents)
 CANCEL_COLORS=["#00274C","#B9C7D6","#5A7590","#C9D6E3","#F47A29","#D9B44A","#C98B8B"]
 
-def _font():
-    import matplotlib.font_manager as fm, glob
-    for _p in (glob.glob(os.path.expanduser("~/.fonts/Montserrat-*.ttf"))
-               +glob.glob(os.path.join(os.path.dirname(__file__),"..","..","fonts","Montserrat","static","Montserrat-*.ttf"))):
-        try: fm.fontManager.addfont(_p)
-        except Exception: pass
-    # Prefer Montserrat, else Carlito, else DejaVu.
-    fams={f.name for f in fm.fontManager.ttflist}
-    return "Carlito" if "Carlito" in fams else "DejaVu Sans"   # Calibri-equivalent body font for chart labels
-
-plt.rcParams.update({"font.family": _font(), "font.size": 14})
+use_font("Carlito"); plt.rcParams.update({"font.size": 14})
 
 def canvas(fig, CW, CH, path, pad=0.12):
     """Save fig, then letterbox onto an exact CW x CH white canvas (keeps the

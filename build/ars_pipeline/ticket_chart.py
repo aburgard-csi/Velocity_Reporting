@@ -1,9 +1,12 @@
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt, numpy as np, json, sys
 from PIL import Image
+from rpe_env import use_font
 R=json.load(open(sys.argv[1])); OUTPNG=sys.argv[2]
 NAVY="#00274C"; ORANGE="#F47A29"; STEEL="#7B9BB8"; TICK="#5A6670"
-plt.rcParams.update({"font.family":"DejaVu Sans","font.size":13})
+use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)
     ax.spines["left"].set_visible(False); ax.spines["bottom"].set_color("#B8C0CA")

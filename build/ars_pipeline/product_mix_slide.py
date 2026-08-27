@@ -34,7 +34,8 @@ Design notes reused from oddd_optimize.py: real header row is the one whose firs
 cell == 'Acct ID'; file is latin-1 with NUL bytes; month columns look like
 'Jun26 Elig'. Closed accounts are excluded from the "open" book.
 """
-import csv, re, os, glob, zipfile, tempfile
+import csv, re, os, sys, glob, zipfile, tempfile
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 from collections import defaultdict
 
 import matplotlib
@@ -48,6 +49,8 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
+
+from rpe_env import use_font
 
 # standard callout / pill drop shadow (STYLE.md)
 _SHADOW_XML = ('<a:effectLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
@@ -225,7 +228,7 @@ def extract_product_mix(odd_source):
 # ----------------------------------------------------------------------------- charts
 def render_charts(data, assets_dir):
     os.makedirs(assets_dir, exist_ok=True)
-    plt.rcParams.update({"font.family": "DejaVu Sans"})
+    use_font("Carlito")
     prods = data["products"]
 
     # ---- personal product-mix donut (open accounts) ----

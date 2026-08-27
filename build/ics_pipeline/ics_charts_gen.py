@@ -3,23 +3,17 @@
 every ICS chart. Used by build_ics_gen.py. Standalone: python3 ics_charts_gen.py <json> <dir>
 """
 import sys, os, json
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Patch
 from PIL import Image
+from rpe_env import use_font
 
 NAVY="#00274C"; ORANGE="#F47A29"; STEEL="#9DB8CC"; LIGHT="#C9D6E3"; TICK="#5A6670"; GREY="#B8C0CA"
 
-def _font():
-    import matplotlib.font_manager as fm, glob
-    for p in (glob.glob(os.path.expanduser("~/.fonts/Montserrat-*.ttf"))
-              +glob.glob(os.path.join(os.path.dirname(__file__),"..","..","fonts","Montserrat","static","Montserrat-*.ttf"))):
-        try: fm.fontManager.addfont(p)
-        except Exception: pass
-    fams={f.name for f in fm.fontManager.ttflist}
-    return "Carlito" if "Carlito" in fams else "DejaVu Sans"   # Calibri-equivalent body font for chart labels
-plt.rcParams.update({"font.family": _font(), "font.size": 16})
+use_font("Carlito"); plt.rcParams.update({"font.size": 16})
 
 def canvas(fig, CW, CH, path, pad=0.12):
     tmp=path+".tmp.png"; fig.savefig(tmp,dpi=150,facecolor="white",bbox_inches="tight",pad_inches=pad); plt.close(fig)

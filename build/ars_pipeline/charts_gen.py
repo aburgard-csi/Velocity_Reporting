@@ -1,19 +1,17 @@
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np, json, os
 from PIL import Image
 import sys
+from rpe_env import use_font
 M=json.load(open(sys.argv[1]))
 B=json.load(open(sys.argv[2]))
 OUT=sys.argv[3]; os.makedirs(OUT,exist_ok=True)
 NAVY="#00274C"; ORANGE="#F47A29"; GREY="#CFDBE8"; STEEL="#7B9BB8"; TICK="#5A6670"
 LIGHT="#9DB8CC"; GOLD="#E7A93B"
-import matplotlib.font_manager as _fm, glob as _glob, os as _os
-for _f in _glob.glob(_os.path.expanduser("~/.fonts/*.ttf")):
-    try: _fm.fontManager.addfont(_f)
-    except Exception: pass
-_CHARTFONT = "Carlito" if any(f.name=="Carlito" for f in _fm.fontManager.ttflist) else "DejaVu Sans"
-plt.rcParams.update({"font.family":_CHARTFONT,"font.size":13})
+use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def _fixacr(txt):
     """Collapse space-separated single capital letters: 'Individual H S A' -> 'Individual HSA'."""
     toks=txt.split(); out=[]; buf=[]
