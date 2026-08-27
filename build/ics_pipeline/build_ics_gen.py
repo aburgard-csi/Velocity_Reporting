@@ -271,14 +271,31 @@ def build(d, static_path, out):
     # slides at this point, so scanning everything could grab a chart image)
     LOGO[0]=extract_logo(type("_Ref",(),{"slides":_static_slides})(), a("logo.png"))
     restyle_newrel(prs)   # standard grid + logo-clearance on the static '2026 New Releases' table
-    # replace the static Q&A slide's client reference (Marine FCU -> this client)
+    # Replace the static Q&A slide's client reference. Resolve the slide by TITLE and the
+    # line by its "<client>  •  <month>" shape — never by the template's dummy client name.
+    # Matching a literal ("Marine") silently no-ops the moment the template is re-baked with
+    # a different dummy, and the deck then ships THAT name on the Q&A slide: exactly what
+    # the 2026-07-24 genericization to "Union Financial" caused.
+    _qa_swapped=False
     for sl in prs.slides:
+        _txt=[sh.text_frame.text.strip() for sh in sl.shapes
+              if sh.has_text_frame and sh.text_frame.text.strip()]
+        if not any(t.startswith("Questions & Discussion") for t in _txt):
+            continue
         for sh in sl.shapes:
-            if sh.has_text_frame and "Marine" in sh.text_frame.text:
-                for p in sh.text_frame.paragraphs:
-                    if p.runs and "Marine" in "".join(r.text for r in p.runs):
-                        p.runs[0].text=f"{client}  •  {rm}"
-                        for r in p.runs[1:]: r.text=""
+            if not sh.has_text_frame: continue
+            _t=sh.text_frame.text.strip()
+            if _t.startswith("Questions & Discussion") or "•" not in _t: continue
+            for p in sh.text_frame.paragraphs:
+                if p.runs and "•" in "".join(r.text for r in p.runs):
+                    p.runs[0].text=f"{client}  •  {rm}"
+                    for r in p.runs[1:]: r.text=""
+                    _qa_swapped=True
+    if not _qa_swapped:
+        raise SystemExit(
+            "MISS: Questions & Discussion client line not found in the ICS template.\n"
+            "  Unswapped, the deck ships the TEMPLATE client's name on the Q&A slide.\n"
+            "  Fix the builder/template pair — do not ship.")
 
     # 1 cover
     # CANONICAL title layout (matches ARS/MRPC): centered lockup card, centered 40pt title,
