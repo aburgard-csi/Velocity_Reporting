@@ -1,0 +1,52 @@
+# ---------------------------------------------------------------- Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---------------------------------------------------------------- machine-local config
+# RPE_DATA_ROOT and friends differ per machine. Never commit.
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------- client data
+# Data lives in Google Drive, not here. Nothing client-identifiable
+# belongs in this repo.
+build/ics_pipeline/data/
+build/mrpc_pipeline/data/
+*.xlsx
+*.xlsm
+*.csv
+*.tsv
+*.zip
+
+# metrics_gen intermediates (metrics.json, base.json, lift.json, oddd_metrics.json,
+# and MG_DUMP pickles) are per-client outputs, not source.
+*.pkl
+metrics*.json
+base*.json
+lift*.json
+oddd*.json
+
+# ---------------------------------------------------------------- build outputs
+# Decks are outputs and belong in Drive at Work/RPE Pipeline/Outputs/.
+# Templates are source and are the deliberate exception below.
+*.pptx
+!build/**/templates/*.pptx
+!templates/*.pptx
+!build/**/templates/*.potx
+!templates/*.potx
+*.pdf
+charts_out/
+assets_tmp/
+ars_assets_*/
+oddcsv_*/
+
+# ---------------------------------------------------------------- OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+build/ars_pipeline/charts/
