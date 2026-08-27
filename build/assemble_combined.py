@@ -38,24 +38,61 @@ from pptx.enum.shapes import MSO_SHAPE_TYPE
 BUILDDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BUILDDIR)
 
-ARS, ICS, MRPC, OUT = sys.argv[1:5]
+def _args():
+    import argparse
+    ap = argparse.ArgumentParser(description="Assemble a combined multi-product Executive Review.")
+    ap.add_argument("--ars", required=True,
+                    help="ARS deck: supplies the shared shell, Questions/Contact and the Appendix")
+    ap.add_argument("--ics")
+    ap.add_argument("--mrpc")
+    ap.add_argument("--out", required=True)
+    a = ap.parse_args()
+    if not (a.ics or a.mrpc):
+        ap.error("a combined deck needs at least one of --ics / --mrpc besides --ars")
+    return a
 
-# Sections to lift out of each program deck (1-based, inclusive), mirroring the reference.
-ICS_KEEP = [3] + list(range(5, 27))    # divider + content + education/reference; drops ICS agenda
-MRPC_KEEP = list(range(3, 12))         # divider .. MRPC Key Metrics
-ARS_HEAD = 30                          # ARS deck slides 1..30 stay ahead of the ICS section
 
-# Canonical combined shell text (from templates/multi-product_reference_deck.pptx).
-PRODUCT_LINES = ["Account Revenue Solution®",
-                 "Invitation Checking® System",
-                 "MyRewards Premium Cards®"]
-AGENDA = [("1", "Account Revenue Solution®",
-           "Program performance, mailing insights, debit card & Reg E review"),
-          ("2", "Invitation Checking® System",
-           "Referral trend, account value, ROI & financial results"),
-          ("3", "MyRewards Premium Cards®",
-           "Enrollments, channel mix, retention & revenue"),
-          ("4", "Questions & Discussion", None)]
+_A = _args()
+ARS, ICS, MRPC, OUT = _A.ars, _A.ics, _A.mrpc, _A.out
+
+ARS_HEAD = 30      # ARS deck slides 1..30 stay ahead of the ICS section
+
+# Slides dropped from a program deck when it becomes a SECTION of the combined deck: the
+# combined deck carries exactly one cover, Summit, agenda, Q&A and Contact, all from ARS.
+# Selected by exclusion rather than by fixed index — a program deck's length is not fixed
+# (an ICS deck with no workbook yet is 13 slides, not 28), and CLAUDE.md's rule is to
+# resolve slides by meaning, never by position.
+SECTION_DROP_TITLES = ("Agenda", "Questions & Discussion", "Contact Us")
+
+
+def section_slides(slides):
+    """Indices (1-based) of the slides that form this program's section.
+
+    Slides 1 and 2 are structurally the cover and the Executive Summit (summit_slide.py
+    inserts it at index 1 in every deck), so they go by position; the divider at 3 shares
+    the cover's title and cannot be told apart by text.
+    """
+    keep = []
+    for n, s in enumerate(slides, 1):
+        if n in (1, 2):
+            continue
+        title = next((sh.text_frame.text.strip().split("\n")[0]
+                      for sh in s.shapes
+                      if sh.has_text_frame and sh.text_frame.text.strip()), "")
+        if title.startswith(SECTION_DROP_TITLES):
+            continue
+        keep.append(n)
+    return keep
+
+# Canonical combined shell text (from templates/multi-product_reference_deck.pptx). Only the
+# programs actually present are listed — STYLE.md: the title slide names the included products,
+# so a two-program client must not advertise a section the deck does not contain.
+PRODUCT_NAME = {"ARS": "Account Revenue Solution®",
+                "ICS": "Invitation Checking® System",
+                "MRPC": "MyRewards Premium Cards®"}
+AGENDA_DETAIL = {"ARS": "Program performance, mailing insights, debit card & Reg E review",
+                 "ICS": "Referral trend, account value, ROI & financial results",
+                 "MRPC": "Enrollments, channel mix, retention & revenue"}
 
 
 # ---------------------------------------------------------------- cross-package slide copy
@@ -107,8 +144,9 @@ def copy_slide(src, dst_prs):
 
 
 # ---------------------------------------------------------------- shell adaptation
-def set_title_products(slide):
+def set_title_products(slide, programs):
     """Title slide lists exactly the included products (templates/STYLE.md)."""
+    product_lines = [PRODUCT_NAME[p] for p in programs]
     for sh in slide.shapes:
         if not sh.has_text_frame:
             continue
@@ -117,12 +155,12 @@ def set_title_products(slide):
         tf = sh.text_frame
         p0 = tf.paragraphs[0]
         run = p0.runs[0]
-        run.text = PRODUCT_LINES[0]
+        run.text = product_lines[0]
         for r in p0.runs[1:]:
             r.text = ""
         for extra in tf.paragraphs[1:]:
             extra._p.getparent().remove(extra._p)
-        for line in PRODUCT_LINES[1:]:
+        for line in product_lines[1:]:
             np = copy.deepcopy(p0._p)
             p0._p.getparent().append(np)
             from pptx.text.text import _Paragraph
@@ -134,7 +172,7 @@ def set_title_products(slide):
     return False
 
 
-def set_agenda(slide):
+def set_agenda(slide, programs):
     """Rewrite the ARS-only agenda into the three-program agenda, in place.
 
     Matched positionally: the agenda is a fixed 4-row grid of (number, heading, detail)
@@ -161,6 +199,9 @@ def set_agenda(slide):
     if len(rows) != 4:
         raise SystemExit(f"agenda grid: expected 4 rows, found {len(rows)} — template changed")
 
+    agenda = [(str(i + 1), PRODUCT_NAME[p], AGENDA_DETAIL[p]) for i, p in enumerate(programs)]
+    agenda.append((str(len(programs) + 1), "Questions & Discussion", None))
+
     def _settext(shape, text):
         tf = shape.text_frame
         p = tf.paragraphs[0]
@@ -172,12 +213,19 @@ def set_agenda(slide):
         for extra in tf.paragraphs[1:]:
             extra._p.getparent().remove(extra._p)
 
-    for (numbox, head, det), (n, title, detail) in zip(rows, AGENDA):
+    for (numbox, head, det), (n, title, detail) in zip(rows, agenda):
         _settext(numbox, n)
         if head is not None:
             _settext(head, title)
         if det is not None:
             _settext(det, detail if detail else "")
+
+    # A two-program deck uses 3 of the grid's 4 rows. Remove the leftovers outright rather
+    # than blanking them: an empty numbered row reads as a section that failed to render.
+    for numbox, head, det in rows[len(agenda):]:
+        for shape in (numbox, head, det):
+            if shape is not None:
+                shape._element.getparent().remove(shape._element)
     return True
 
 
@@ -256,29 +304,46 @@ def main():
         print(f"note: ARS deck has {n_ars} slides (expected 47) — section split still uses "
               f"the first {ARS_HEAD} slides and the remainder as closing+appendix")
 
-    src_ics = list(Presentation(ICS).slides)
-    src_mrpc = list(Presentation(MRPC).slides)
+    programs = ["ARS"] + (["ICS"] if ICS else []) + (["MRPC"] if MRPC else [])
+    sources = {}
+    for prog, path in (("ICS", ICS), ("MRPC", MRPC)):
+        if path:
+            sl = list(Presentation(path).slides)
+            sources[prog] = (sl, section_slides(sl))
+        else:
+            sources[prog] = None
+    print(f"programs: {'+'.join(programs)}")
 
     # ICS financials are QUARTERLY (CLAUDE.md cadence): between workbooks an ICS build carries
     # the previous workbook's financial sections forward unchanged, so the ICS section of a
     # combined deck can legitimately report an older month than ARS/MRPC. That is not an error
     # and must not be "corrected" — the per-slide source notes name the workbook and period,
     # which is what keeps a carried-forward figure auditable. It IS worth seeing, so report
-    # each section's period rather than silently presenting one reporting month for all three.
-    for label, slides in (("ARS", list(prs.slides)), ("ICS", src_ics), ("MRPC", src_mrpc)):
-        per = next((sh.text_frame.text.strip().split("•")[-1].strip()
-                    for sh in slides[0].shapes
-                    if sh.has_text_frame and "•" in sh.text_frame.text), "?")
-        print(f"  {label} section period: {per}")
+    # each section's period rather than silently presenting one reporting month for all.
+    def _period(slides):
+        return next((sh.text_frame.text.strip().split("•")[-1].strip()
+                     for sh in slides[0].shapes
+                     if sh.has_text_frame and "•" in sh.text_frame.text), "?")
+    periods = {"ARS": _period(list(prs.slides))}
+    for prog in ("ICS", "MRPC"):
+        if sources[prog]:
+            periods[prog] = _period(sources[prog][0])
+    for prog in programs:
+        print(f"  {prog} section period: {periods[prog]}")
+    if len(set(periods.values())) > 1:
+        print(f"  note: sections report different months {periods} — expected when ICS is "
+              f"carrying a prior workbook forward; source notes keep it auditable")
 
-    added = 0
-    for n in ICS_KEEP:
-        copy_slide(src_ics[n - 1], prs)
-        added += 1
-    for n in MRPC_KEEP:
-        copy_slide(src_mrpc[n - 1], prs)
-        added += 1
-    print(f"copied {added} slides ({len(ICS_KEEP)} ICS + {len(MRPC_KEEP)} MRPC)")
+    added, counts = 0, []
+    for prog in ("ICS", "MRPC"):
+        if not sources[prog]:
+            continue
+        src, keep = sources[prog]
+        for n in keep:
+            copy_slide(src[n - 1], prs)
+        added += len(keep)
+        counts.append(f"{len(keep)} {prog}")
+    print(f"copied {added} slides ({' + '.join(counts)})")
 
     # Reorder: ARS head, then the copied sections, then the ARS closing + appendix.
     lst = prs.slides._sldIdLst
@@ -293,9 +358,9 @@ def main():
     assert len({id(e) for e in lst}) == len(els), "a slide is referenced twice"
 
     slides = list(prs.slides)
-    if not set_title_products(slides[0]):
+    if not set_title_products(slides[0], programs):
         raise SystemExit("MISS: title slide product line not found — cannot label the deck")
-    set_agenda(slides[2])
+    set_agenda(slides[2], programs)
     renumber(prs)
 
     import fit_layout
