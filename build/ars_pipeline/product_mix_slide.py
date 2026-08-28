@@ -326,9 +326,13 @@ def _tile(slide, L, T, W, H, value, label, fill=NAVY):
                                 Inches(L), Inches(T), Inches(W), Inches(H))
     sp.fill.solid(); sp.fill.fore_color.rgb = fill; sp.line.fill.background()
     sp.shadow.inherit = False
+    # GREYB is the muted label grey for a NAVY tile. On an ORANGE tile it carries almost
+    # no contrast and reads as plain grey text on the fill (Aaron, 2026-08-28, FNB&T 1537
+    # Reg E by-branch slide), so the label goes white there instead.
+    lab = WHITE if fill == ORANGE else GREYB
     _tb(slide, L + 0.05, T + 0.14, W - 0.1, H * 0.5, value, 28, WHITE, True,
         PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
-    _tb(slide, L + 0.05, T + H * 0.60, W - 0.1, H * 0.34, label, 12, GREYB, False,
+    _tb(slide, L + 0.05, T + H * 0.60, W - 0.1, H * 0.34, label, 12, lab, False,
         PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP)
 
 

@@ -14,6 +14,112 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-08-28 — orange KPI tile label read grey
+
+`_tile` drew every tile label in GREYB (#CFDBE8), the muted grey picked for a NAVY tile.
+Against ORANGE that pairing carries almost no contrast and the label reads as grey text on
+the fill — Aaron flagged it on FNB&T 1537's Reg E Opt-In by Branch slide.
+
+The label is now white on an orange tile and unchanged on navy. Affects every slide with an
+orange tile: Reg E Opt-In by Branch, Excluded Accounts, Product Mix & ARS Eligibility, and
+the swipe-tier movement slides.
+
+### 2026-08-28 — Reg E new-account branch caption claimed a staffing effect
+
+The caption under the by-branch chart on "Reg E Opt-In — Opened in Last 12 Months" read
+"Lower-staffed branches lag; higher-touch branches lead on new-account opt-in." The ODD
+carries no staffing count and no measure of customer contact, so neither half of that claim
+could be shown from the data behind the chart. It was template text, so it shipped on every
+ARS deck regardless of what a client's branches actually did.
+
+It now states what the chart plots — "Dashed line = <rate> overall." — matching the sibling
+caption on the all-accounts slide. Both templates are corrected and the builder also sweeps
+the old sentence, so a re-seeded reference deck cannot reintroduce it silently.
+
+### 2026-08-28 — "ODD" no longer appears on a slide face
+
+The Mailing Response Summary subtitle ended "Offers sent and responders counted from the
+ODD", naming an internal system on a client-facing page. Removed from all three variants of
+the line — first mailing, trailing window, all mailings — so it is gone regardless of how
+many mailings a client has. Slide 13's speaker notes still name the workbook, the ODD
+extract, its pull stamp and the period, so the figures stay auditable. Verified across all
+nine 2026.08 decks; that subtitle was the only on-slide mention.
+
+### 2026-08-28 — ICS financial detail is absent when the workbook predates the deck
+
+Replaces the carry-forward rule. A monthly build carried the last ICS workbook's financial
+sections forward and stamped the DECK's period on them: 1537 FNB&T and 1676 True Sky both
+showed "PTD · August 2026" over an ICS Financial Summary built from a 2026.06 and a 2026.07
+workbook respectively.
+
+The builder now resolves the newest ICS workbook for the client from
+`Inputs/ARS & MRPC Reports/` and compares its period to the deck's. On a mismatch the
+workbook-driven sections are ABSENT rather than re-dated, reusing the referrals-only path —
+the section divider drops to "Referrals" and the agenda stops naming account value, ROI and
+financial results. Referrals, Referral Trend, Results by Branch and the education slides are
+unaffected.
+
+2026.08 effect: 1075, 1509 and 1539 have current workbooks and keep their financial detail;
+1537 and 1676 lose it (ICS section 28 → 14 slides); 1549 had no workbook and was already
+referrals-only. The referrals-only log banner no longer claims "no ICS workbook has landed"
+in this case, which was untrue when one landed and is merely older.
+
+### 2026-08-28 — empty age chart no longer drawn; last n= notation removed
+
+The Age Profile slide already wrote the right sentence when DOB is absent — "Date of birth is
+not carried in this client's data extract" — and then drew the chart anyway: an empty axis
+with a row of twelve zeros. Missing data is stated and never zeroed; only the text half of
+that rule was implemented. The plot is removed, the statement takes its place, and the
+Selection line no longer promises an age mix that is not shown. 1537 FNB&T is the case: the
+DOB column is present and blank on all 29,852 rows, which is a data-sourcing question for
+CSI, not a pipeline defect. The PNG is still generated — skipping it would leave the
+template's image19 in place and display the REFERENCE client's age chart.
+
+Separately, the two Selection captions still carrying "n=" (New-Account Debit Adoption,
+First-Year Closure) now state their population as a bare parenthetical like every other
+Selection line.
+
+### 2026-08-28 — Before vs After by Offer chart was unreadable at mailing volume
+
+Every mailing month was labelled with an "(n=…)" second line beneath it. At fifteen mailings
+(Sugar River 1038) the axis rendered as overlapping mush and the per-bar dollar labels
+overprinted each other. The axis now labels every Nth mailing capped at 8 ticks, always
+including the newest; "(n=…)" moves to the speaker notes as NU / TH per mailing, so the count
+behind each bar stays auditable rather than dropped; per-bar dollar labels are drawn only
+below 8 mailings, above which the y-axis carries the scale.
+
+Affects the seven 2026.08 clients with more than 8 mailings: 1038, 1075, 1204, 1509, 1539,
+1676, 1705. Slide 19's Mean chart needed nothing — its rotated labels handle fifteen. Same
+shape as the excluded-accounts footnote bug: correct on Wellworth's single mailing, wrong at
+volume, and passed by the gate because nothing overflows a box.
+
+### 2026-08-28 — clients.md decides what gets built, not the presence of a data file
+
+Program membership was inferred from whether input files happened to exist. That is how
+CoastLife 1705 kept producing an ICS section after cancelling — their ICS data was still on
+disk. `clients.md` now records intent and is the authority; leftover program data and a
+2026.08 DCO file are explicitly not signals to build.
+
+Confirmed by Aaron the same day: PointBank 1174 off the books entirely; Truliant FCU 1658 has
+no RPE at all; CoastLife 1705 ICS cancelled with ARS continuing; Canandaigua 1437 ends
+2026-10-31 with no further reviews; 1218, 1477 and 1502 MRPC-only; 1632, 1734 and 1738
+ICS-only. Building the roster surfaced that 1204 FSB Michigan had 2026.08 inputs and no deck.
+
+### 2026-08-28 — Excluded Accounts footnote is measured, not assumed
+
+The footnote block sits at 6.05in with the logo band starting at 6.78in, so it holds two
+lines. Which observations exist varies by client — 1549 has no Mail column at all, 1537 has
+all three and estimated five lines, which failed the gate. Lines are now measured at the 16pt
+floor `restyle_fonts` enforces and truncated to what fits; every observation still goes to
+the speaker notes, so nothing is lost, only moved. The mail-funnel sentence is shortened to
+one line.
+
+The stale-caption check also stopped flagging derived pills. It compared any
+template-identical dated text and caught "PTD · June 2026" on four of CoastLife's ICS slides,
+correct at the time because ICS financials carried forward. It now covers caption prose over
+40 characters, which still guards all 21 real template captions and exempts three pill forms
+that each have their own swap guard.
+
 ### 2026-08-28 — responder counts now agree across slides
 
 The same mailing reported different responder counts on different slides: Wellworth

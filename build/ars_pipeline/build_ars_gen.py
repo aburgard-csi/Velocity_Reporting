@@ -803,7 +803,17 @@ repl(S[26], {"all open personal accounts holding a debit card (6,192)": f"all op
 reldir = updown(M['rege_new_pct'], M['rege_pct'], ("above the book", "below the book", "in line with the book"))
 repl(S[27], {"opened July 2025 – June 2026 and still open (519)": f"opened July 2025 – June 2026 and still open ({rege_new_pool})",
              "New-account opt-in runs below the book: 20.0% of accounts opened in the last 12 months — 104 of 519.":
-             f"New-account opt-in runs {reldir}: {rege_new} of accounts opened in the last 12 months — {rege_new_in} of {rege_new_pool}."})
+             f"New-account opt-in runs {reldir}: {rege_new} of accounts opened in the last 12 months — {rege_new_in} of {rege_new_pool}.",
+             # the branch-chart caption states what the chart plots and nothing else
+             "Dashed line = 20.0% overall.": f"Dashed line = {rege_new} overall."})
+# The template used to editorialise here — "Lower-staffed branches lag; higher-touch
+# branches lead on new-account opt-in." The ODD carries no staffing or contact data, so
+# neither half of that could be shown; it shipped on every ARS deck (Aaron, 2026-08-28,
+# FNB&T 1537). Both templates are fixed, and this sweep catches a re-seeded reference deck
+# that brings the sentence back — the needle above misses first, which is the warning that
+# it did.
+repl(S[27], {"Lower-staffed branches lag; higher-touch branches lead on new-account opt-in.":
+             f"Dashed line = {rege_new} overall."}, optional=True)
 
 # ============================ SLIDE 29 — Reg E vintage
 vpool = f"{M['rege_vintage_pool']:,}"; v = M['rege_vintage']; first = v[0]; last = v[-1]
