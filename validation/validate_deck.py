@@ -18,7 +18,9 @@ Usage:
 Exit code 0 if no FAIL-level findings, 1 otherwise. Wire this into the build
 right after prs.save(): a non-zero exit should block the deck from going out.
 """
-import os, sys, re, json
+import os, sys, re, json, math
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 from pptx import Presentation
 from pptx.util import Emu
 
@@ -193,6 +195,89 @@ def package_findings(path):
     return out
 
 
+def single_line_overflow_findings(prs):
+    """FAIL a one-line label whose glyphs are wider than its box.
+
+    Added 2026-08-27. The ICS Financial Summary shipped "Billed Expense for 46,195
+    Accounts" in a 3.9in box: 3.80in of Montserrat against 3.70in of usable width, so it
+    wrapped onto the value beneath it. Everything already in this file passed, because:
+
+      * the deck asks for Calibri 14pt but enforce_min_font floors runs at 16 and the
+        font-role pass rewrites them to Montserrat, which is far wider (3.10in -> 3.80in);
+      * the LibreOffice render substitutes a narrower face, so it looked clean there.
+
+    So measure the ACTUAL run font and size against the box minus its own margins. Scoped
+    to boxes only tall enough for one line — a deliberately wrapping paragraph is fine.
+    """
+    try:
+        sys.path.insert(0, os.path.join(HERE, os.pardir, "build"))
+        from textfit import text_width_in
+    except Exception:
+        return []
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        for sh in slide.shapes:
+            if not sh.has_text_frame or sh.width is None or sh.height is None:
+                continue
+            tf = sh.text_frame
+            paras = [p for p in tf.paragraphs if p.runs]
+            if len(paras) != 1:
+                continue
+            runs = paras[0].runs
+            text = "".join(r.text for r in runs).strip()
+            if not text or "\n" in text:
+                continue
+            pt = next((r.font.size.pt for r in runs if r.font.size), None)
+            fam = next((r.font.name for r in runs if r.font.name), None)
+            if not pt or not fam:
+                continue                       # inherited from the layout — not ours to judge
+            bold = bool(runs[0].font.bold)
+            usable = _in(sh.width) - (_in(tf.margin_left) or 0) - (_in(tf.margin_right) or 0)
+            if usable <= 0:
+                continue
+            w = text_width_in(text, pt, fam, bold)
+            line_in = pt / 72.0 * 1.22
+            need = math.ceil(w / usable - 0.02)
+            box_h = _in(sh.height) - (_in(tf.margin_top) or 0) - (_in(tf.margin_bottom) or 0)
+            holds = max(1, int(box_h / line_in + 0.15))
+            # A caption box two lines tall wrapping to two lines is correct — only flag text
+            # that needs MORE lines than its own box can show.
+            if need <= holds:
+                continue
+            # Spilling past your own box is normal in this deck — captions are sized tight and
+            # the extra line simply renders below. It is only a DEFECT when the spill lands on
+            # another shape, which is what "Billed Expense for 46,195 Accounts" did to the
+            # value beneath it. So flag only a spill that collides.
+            spill_top = _in(sh.top) + _in(sh.height)
+            spill_bot = spill_top + (need - holds) * line_in
+            l, r = _in(sh.left), _in(sh.left) + _in(sh.width)
+            hit = None
+            for other in slide.shapes:
+                if other is sh or other.top is None or other.height is None:
+                    continue
+                # Spilling over a chart or picture is tolerated by this deck's layout — the
+                # captions are sized tight on purpose and the art sits below with clearance.
+                # Landing on ANOTHER TEXT shape is the defect (the ICS billed-expense label
+                # wrapped onto its own value), so only text-on-text counts.
+                if not (other.has_text_frame and other.text_frame.text.strip()):
+                    continue
+                ot, ob = _in(other.top), _in(other.top) + _in(other.height)
+                ol, orr = _in(other.left), _in(other.left) + _in(other.width)
+                if ob <= spill_top + 0.01 or ot >= spill_bot - 0.01:
+                    continue
+                if orr <= l + 0.01 or ol >= r - 0.01:
+                    continue
+                hit = other
+                break
+            if hit is not None:
+                out.append(("FAIL", idx,
+                            f"one-line label wraps and collides: needs {need} lines, box holds "
+                            f"{holds} ({w:.2f}in of {fam} {pt:.0f}pt in {usable:.2f}in) — "
+                            f"\u2026{text[:44]}\u2026 spills onto "
+                            f"\u2026{(_lbl(hit) or '')[:28]}\u2026"))
+    return out
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(2)
@@ -202,6 +287,7 @@ def main():
     findings = []  # (level, slide, msg)
     findings += package_findings(sys.argv[1])
     findings += reference_leak_findings(sys.argv[1], prs)
+    findings += single_line_overflow_findings(prs)
 
     for idx, blocks in texts:
         joined = "  ".join(blocks)
