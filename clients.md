@@ -48,6 +48,7 @@ template placeholder means SM. Verified 2026-08-28.
 | ID | Client | What changed | Effective |
 | --- | --- | --- | --- |
 | 1174 | PointBank | ICS cancelled; **no ARS either — no programs** | 2026-08-28 |
+| 1658 | Truliant FCU | **no RPE at all** — off the books | 2026-08-28 |
 | 1705 | CoastLife CU | ICS cancelled — ARS continues | 2026-08-28 |
 | 1437 | Canandaigua National Bank | ARS + MRPC end; **no further reviews will be produced** | 2026-10-31 |
 
@@ -58,7 +59,6 @@ template placeholder means SM. Verified 2026-08-28.
 | 1632 | WesBanco Bank | 2026.07 | |
 | 1734 | Altamaha Bank and Trust | 2026.08 | |
 | 1738 | Rosedale Bank | none on file | referrals-only unless a workbook lands |
-| 1658 | Truliant FCU | none on file | **unconfirmed — see open questions** |
 
 ---
 
@@ -68,6 +68,9 @@ template placeholder means SM. Verified 2026-08-28.
   2026.08 forward. Their ICS data under `build/ics_pipeline/data/1705-CoastLife Credit
   Union/` is left in place as the record of what shipped through 2026.07; it must not be
   used to build a new ICS section.
+- **2026-08-28 — Truliant FCU 1658 no longer has RPE** (Aaron). No ARS, ICS or MRPC.
+  Their ICS data folder stays in `build/ics_pipeline/data/1658-Truliant FCU/` as the
+  record of what shipped; it is not a signal to build.
 - **2026-08-28 — PointBank 1174 is off the books** (Aaron). ICS cancelled and they do
   not have ARS. Their ODD extract stays in `Inputs/ODDD/` — it is not a signal to build.
 - **2026-08-28 — Canandaigua 1437: no further reviews** (Aaron). The program terminates
@@ -86,14 +89,13 @@ template placeholder means SM. Verified 2026-08-28.
 
 These are stated as open questions, not assumptions.
 
-1. **1732 — no such client on this machine.** Named as ICS-only on 2026-08-28, but there
-   is no 1732 anywhere: no ODD extract, no workbook, no ICS or MRPC data folder, no
-   client folder in Drive. Possibly a typo. Note that **1658 Truliant FCU** — which does
-   have an ICS data folder — was NOT named in the same list, so 1732 may have been meant
-   as 1658. Confirm the id before either is built.
-2. **1658 Truliant FCU** is listed above as ICS-only on the strength of its data folder
-   alone, which is exactly the inference this file exists to stop. Confirm.
-3. **Client logos** exist for 1075, 1509, 1537, 1539, 1549, 1676 only. Every other client
+1. **1732 — no such client on this machine, and no longer explainable as a typo.** Named
+   as ICS-only on 2026-08-28, but there is no 1732 anywhere: no ODD extract, no workbook,
+   no ICS or MRPC data folder, no client folder in Drive. The obvious candidate for a
+   transposition was 1658, but 1658 has since been confirmed off RPE entirely, so that
+   reading is out. Either 1732 is a client whose data has never reached this machine, or
+   the id is wrong. Nothing is built for it until confirmed.
+2. **Client logos** exist for 1075, 1509, 1537, 1539, 1549, 1676 only. Every other client
    builds its Agenda slide without one — see CLAUDE.md **File locations**.
 
 ## What is NOT a signal to build
