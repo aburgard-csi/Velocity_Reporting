@@ -123,12 +123,27 @@ def classify_rege(series):
 # can be confirmed/ASKed rather than silently bucketed.
 STATUS_BUCKETS = ["Open", "Closed", "Dormant", "Inactive", "Frozen", "Charged Off", "Other"]
 
-def classify_status(raw):
+# `Stat Desc` is not populated by every core. 1549 Wellworth fills `Stat Code`
+# (O / C / X) and leaves `Stat Desc` BLANK on every non-open account — 18,274 of
+# 50,218 rows, which classify_status returned as "Other" because it only ever read
+# the description. Codes confirmed by Aaron 2026-08-28: O = Open, C = Closed,
+# X = Charged Off. The description still wins whenever it carries text.
+STAT_CODE_MAP = {"O": "Open", "A": "Open", "C": "Closed", "X": "Charged Off"}
+
+
+def classify_status(raw, code=None):
     t = raw.str.lower().str.strip()
     out = pd.Series("Other", index=raw.index, dtype="object")
+    if code is not None:
+        c = code.fillna("").astype(str).str.strip().str.upper()
+        blank = t.eq("")
+        for k, label in STAT_CODE_MAP.items():
+            out = out.mask(blank & c.eq(k), label)
+        # a blank description with an unmapped code stays "Other" and is flagged
+        # by the caller's unmapped-value pass — never guessed at.
     def setb(pattern, label):
         nonlocal out
-        out = out.mask((out == "Other") & t.str.contains(pattern, regex=True), label)
+        out = out.mask((out == "Other") & t.ne("") & t.str.contains(pattern, regex=True), label)
     setb(r"charge[sd]?[\s-]?off|chargeoff", "Charged Off")   # catch 'Charged Off' (the trailing d), not just 'charge off'
     # Core-specific lifecycle wording (Aaron 2026-07-25) — must run BEFORE the generic
     # patterns: "closeout"/"activation" do not match "closed"/"active".
@@ -274,7 +289,9 @@ def main():
                 counts["Business"][k] += int(v)
         if "Stat Desc" in ch:
             raw_stat = norm_text(ch["Stat Desc"])
-            mapped_stat = classify_status(raw_stat)
+            # pass Stat Code so a core that leaves Stat Desc blank still classifies
+            raw_code = norm_text(ch["Stat Code"]) if "Stat Code" in ch else None
+            mapped_stat = classify_status(raw_stat, raw_code)
             for k, v in mapped_stat.value_counts().items():
                 status_ct[k] += int(v)
             om = mapped_stat.eq("Other")

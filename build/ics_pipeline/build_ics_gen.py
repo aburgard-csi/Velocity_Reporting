@@ -19,6 +19,46 @@ from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 import ics_charts_gen as CH
+
+
+def _goal_months_elapsed(rf):
+    """How many months of the goal year this program has actually run -> (n, caption).
+
+    Branch goals in the VIP export are ANNUAL. Comparing a YTD referral count to a
+    full-year goal reports how far into the year it is, not how the branch is doing:
+    Wellworth 1549 started in May and its Main branch showed 24 against 204 (12%).
+
+    Two cases:
+      * program started inside this goal year — program-to-date equals year-to-date,
+        so count from the first month carrying referrals.
+      * program predates the year — count January through the latest data month.
+
+    Falls back to 12 (i.e. no pro-rating, the old behaviour) whenever the data does
+    not let this be derived, so a client whose file lacks a trend can never get a
+    silently wrong denominator.
+    """
+    months = ((rf.get("trend") or {}).get("months")) or []
+    latest = rf.get("latest_data_month") or ""      # 'YYYY-MM'
+    try:
+        latest_m = int(latest.split("-")[1])
+    except Exception:
+        latest_m = None
+    started_this_year = (rf.get("program_to_date") == rf.get("year_to_date")
+                         and rf.get("program_to_date") is not None)
+    n = None
+    if started_this_year and months:
+        # trend covers the whole program in this case, so its length IS the run
+        n = len(months)
+    elif latest_m:
+        n = latest_m                                 # January .. latest, inclusive
+    if not n or n <= 0:
+        return 12, ""
+    n = min(n, 12)
+    if n >= 12:
+        return 12, ""
+    partial = " The current month is partial." if (rf.get("month_to_date") or {}).get("value") else ""
+    return n, (f"Goal pro-rated to the {n} month{'s' if n != 1 else ''} the program has run "
+               f"(annual goal \u00f7 12 \u00d7 {n}).{partial}")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import summit_slide
 from textfit import fits_one_line   # measured against the bundled TTFs, not estimated
@@ -342,11 +382,19 @@ def build(d, static_path, out, referrals_only=False):
     notes(s,"Section divider. No data.")
 
     # Agenda (after the ICS section header)
+    #
+    # A referrals-only deck must not advertise sections it does not contain. The
+    # section divider already dropped to "Referrals", but the agenda still listed
+    # Performance / Revenue / Financial Summary / Comparisons — four sections that are
+    # deliberately ABSENT from the build. Wellworth 1549 shipped that way (Aaron,
+    # 2026-08-28). Rows are REMOVED, not blanked, for the same reason the combined-deck
+    # assembler removes them: an empty numbered row reads as a section that failed.
     s=blank(prs); title(s,"Agenda")
-    items=["The Power of Referrals","Referral Trend & Results by Branch",
-           "Performance of ICS Accounts","ICS Revenue & Revenue Detail",
-           "ICS Financial Summary","Comparisons",
-           "E-Learning & VIP Resources","Questions & Discussion"]
+    items=["The Power of Referrals","Referral Trend & Results by Branch"]
+    if not referrals_only:
+        items+=["Performance of ICS Accounts","ICS Revenue & Revenue Detail",
+                "ICS Financial Summary","Comparisons"]
+    items+=["E-Learning & VIP Resources","Questions & Discussion"]
     yy=1.55
     for i,it in enumerate(items,1):
         bd=s.shapes.add_shape(MSO_SHAPE.OVAL,Inches(1.6),Inches(yy),Inches(0.55),Inches(0.55))
@@ -355,6 +403,26 @@ def build(d, static_path, out, referrals_only=False):
         br=bp.add_run(); br.text=str(i); br.font.size=Pt(16); br.font.bold=True; br.font.name="Montserrat"; br.font.color.rgb=WHITE
         tb(s,2.45,yy+0.02,9.5,0.5,it,20,NAVY,False,anchor=MSO_ANCHOR.MIDDLE)
         yy+=0.66
+    # Client logo, right-hand third. The agenda's own text reaches at most 7.31in
+    # (measured against the bundled TTFs), so a logo from 8.60in clears it. Centred on
+    # the agenda block, which is shorter in a referrals-only build.
+    try:
+        import rpe_env as _rpe
+        _lp=_rpe.client_logo(m.get("client_id"))
+        if _lp is None:
+            print(f"agenda logo: none on file for client {m.get('client_id')} "
+                  f"(Inputs/Logos/<id>.png) — slide built without it")
+        else:
+            _lp=_rpe.trim_logo(_lp,A)
+            _fit=_rpe.fit_box(_lp,3.90,1.70)
+            if _fit:
+                _lw,_lh=_fit
+                _cy=(1.55+yy-0.66+0.5)/2.0     # centre of the agenda block
+                s.shapes.add_picture(str(_lp),Inches(8.60+(3.90-_lw)/2.0),
+                                     Inches(_cy-_lh/2.0),Inches(_lw),Inches(_lh))
+                print(f"agenda logo: {os.path.basename(str(_lp))} placed {_lw:.2f}x{_lh:.2f}in")
+    except Exception as _e:
+        print("!! agenda logo skipped:",repr(_e))
     logo(s); pagenum(s,3); notes(s,"Agenda. No data.")
 
     rf=d["referrals"]; base=f"Source — {m.get('vip_source','VIP ICS Referral Data')} and {m.get('workbook','ICS workbook')} for {client} ({m['client_id']}), pulled {m['data_pull']}."
@@ -393,21 +461,63 @@ def build(d, static_path, out, referrals_only=False):
     notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
 
     # 5 Results by Branch
+    # Branch goals in the VIP data are ANNUAL, but a program that started partway
+    # through the year has not had a year to hit them. Wellworth 1549 began in May and
+    # its Main branch read 24 against a 204 annual goal — 12%, which reports the
+    # calendar, not the branch. The goal is pro-rated to the months the program has
+    # actually run (Aaron, 2026-08-28); Main then reads 24 of 68, or 35%.
     s=blank(prs); title(s,"Results by Branch – Year to Date"); pill(s,f"YTD · {data_date}")
-    bb=rf["by_branch"]; rows=[["Branch","Referrals YTD","Goal","% of Goal"]]
+    _elapsed, _elapsed_txt = _goal_months_elapsed(rf)
+    bb=rf["by_branch"]
+    _gh = "Goal to Date" if _elapsed < 12 else "Goal"
+    rows=[["Branch","Referrals YTD",_gh,"% of Goal"]]
     shown=bb["branches"][:8]
+    def _prorate(annual):
+        """Annual goal -> goal for the months run. Rounded per branch so the column
+        adds up to what the reader would total by hand."""
+        return int(round(annual / 12.0 * _elapsed))
     # A branch can carry a zero goal (non-retail units like 1734's "Operations").
     # Show a dash rather than dividing by zero — and never invent a percentage.
     for b in shown:
-        pct=f"{round(b['referrals']/b['goal']*100)}%" if b.get("goal") else "—"
-        rows.append([b["name"],f"{b['referrals']}",f"{b['goal']}",pct])
-    tr=sum(b["referrals"] for b in shown); tg=sum(b["goal"] for b in shown)
+        g_=_prorate(b["goal"]) if b.get("goal") else 0
+        pct=f"{round(b['referrals']/g_*100)}%" if g_ else "—"
+        rows.append([b["name"],f"{b['referrals']}",f"{g_}" if g_ else "—",pct])
+    tr=sum(b["referrals"] for b in shown)
+    tg=sum(_prorate(b["goal"]) for b in shown if b.get("goal"))
     rows.append([f"Top {len(shown)} Total",f"{tr}",f"{tg}",
                  f"{round(tr/tg*100)}%" if tg else "—"])
-    std_table(s,rows,3.0,1.45,7.3,[2.1,1.1,0.8,0.9],highlight_last=True,fs=16,rowh=0.5)
-    sub(s,f"Selection: checking referrals by branch, year-to-date (top {len(shown)} branches).",top=6.72)
+    # widened to fill the space the callouts left — at 6.95in the table stopped at
+    # 10.3in and the right third of the slide sat empty
+    std_table(s,rows,3.35,1.45,9.45,[2.4,1.1,0.9,0.9],highlight_last=True,fs=16,rowh=0.5)
+
+    # Callouts in the empty left column (Aaron, 2026-08-28). The table shows the top 8;
+    # these read across EVERY branch, so participation and overall pace are visible
+    # without the reader adding up a truncated table.
+    _all = bb["branches"]
+    _rep = sum(1 for b in _all if b.get("referrals", 0) > 0)
+    _none = len(_all) - _rep
+    _ar = sum(b.get("referrals", 0) for b in _all)
+    _ag = sum(_prorate(b["goal"]) for b in _all if b.get("goal"))
+    _apct = f"{round(_ar/_ag*100)}%" if _ag else "—"
+    for _i, (_big, _lab) in enumerate([
+            (f"{_rep}", "Branches Reporting Referrals"),
+            (f"{_none}", "Branches Without Referrals"),
+            (_apct, "% of Goal — All Branches")]):
+        callout(s, 0.5, 1.55 + _i*1.62, 2.65, 1.42, _big, _lab,
+                fill=(ORANGE if _i == 2 else NAVY), big_size=34)
+
+    # No selection line on this slide (Aaron, 2026-08-28). With the callouts and the
+    # pro-rating note it ran to ~20in of text in a 9.68in box: it wrapped, its box
+    # overlapped the table above and it ran into the logo band below. The selection,
+    # the branch counts and the pro-rating basis are all in the notes, which is where
+    # STYLE.md puts the source anyway.
     logo(s); pagenum(s,5)
-    notes(s,base+" Referrals by branch, YTD, vs each branch's YTD goal. Top branches by referrals. VIP; branch names reconciled to the Charts 'Goals' tab.")
+    notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
+                 f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
+                 f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
+                 f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
+                 f"(annual goal / 12 x {_elapsed}); the VIP file carries the ANNUAL goal. "
+                 f"Top branches by referrals. VIP; branch names reconciled to the Charts 'Goals' tab.")
 
     # 5a Referred Accounts by Product (workbook 'Referred Accounts by Product' tab, participating products only)
     rbp=d.get("referred_by_product")

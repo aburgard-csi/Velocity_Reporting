@@ -20,37 +20,49 @@ asks for a combined ARS+ICS+MRPC review (like the Marine reference deck), run ea
 subagent in turn and assemble with `build/assemble_combined.py` (see **Combined decks**) —
 do not improvise one blended path.
 
-## File locations (this machine has no Google Drive — confirmed local folders)
+## File locations
 
-This copy of the project runs on a machine without Google Drive access. Aaron confirmed the
-local folders below on **2026-07-15**; use them for every build. Do not hardcode any *other*
-path or invent a Drive id. If Aaron says a folder has moved, or a build's inputs aren't where
-the table says, ask him to point at the specific file rather than guessing — but do not
-re-ask the whole walk-through each session.
+Paths are resolved from **`RPE_DATA_ROOT`** (`build/rpe_env.py` → `inputs()` / `outputs()`),
+set per machine in `.env`. Never hardcode a path or a Drive id in code — if a build's inputs
+aren't where `RPE_DATA_ROOT` says, ask Aaron to point at the specific file rather than
+guessing, but do not re-ask the whole walk-through each session.
 
-**Source data** — the workbook and ODD folders were moved OFF OneDrive to a plain local
-drive to stop sync corruption/lock issues (Aaron, **2026-07-17**). Both now live under
-`C:\Data Pipelines\RPE Pipeline\Inputs\`:
+**This Mac has Google Drive mounted** (corrected 2026-08-28 — this section previously said it
+did not, and named `C:\Data Pipelines\...` as the only source. Both `~/My Drive/...` and the
+`.env` value below resolve today):
 
-| Input | Folder |
+```
+RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pipeline
+```
+
+| Input | Folder under `RPE_DATA_ROOT` |
 | --- | --- |
-| Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `C:\Data Pipelines\RPE Pipeline\Inputs\ODDD\` |
-| ARS, MRPC, **and ICS** workbooks (all together) | `C:\Data Pipelines\RPE Pipeline\Inputs\ARS & MRPC Reports\` |
-| Reference deck (Marine 1539) | the project `templates\` folder |
+| Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
+| ARS, MRPC, **and ICS** workbooks (all together) | `Inputs/ARS & MRPC Reports/` |
+| Client logos (`<clientid>.png`) | `Inputs/Logos/` |
+| Reference deck (Marine 1539) | the project `templates/` folder |
 
-**Output — ONE destination (Aaron, 2026-07-25).** Save every finished deck to
-**Pipeline Outputs** only — `C:\Data Pipelines\RPE Pipeline\Outputs\` (flat; program is
-distinguished by the filename tag, not by subfolder). This replaces both the old
-**Client Presentations** drop and the per-client `Clients\<Client Name> <clientid>\<PROGRAM>
-Delivery\` copy — do not deliver to client folders going forward. In Cowork the mounted
-folders are typically the pipeline `Inputs\ODDD`, `Inputs\ARS & MRPC Reports`, and
-`Outputs` (all under `C:\Data Pipelines\RPE Pipeline\`). **Write hazard:** these mounts allow creating/copying files but NOT deleting —
-`rm` returns "Operation not permitted." Copy-to-deliver works; if a file must be replaced or
-removed, ask Aaron to do it. Confirm the writable target per session.
+**Client logos** live in `Inputs/Logos/<clientid>.png` — NOT in the repo: a client's logo is
+their brand asset and nothing client-identifiable belongs in git. `rpe_env.client_logo(id)`
+resolves it (png → jpg → extensionless, each opened before use) and returns `None` when
+absent, so a missing logo never fails a build. `rpe_env.trim_logo()` crops to the ink before
+placement — the files carry white OR transparent padding (1549 is a 2940x1532 canvas with the
+mark in one corner), and fitting the raw canvas renders a right-sized box holding a tiny logo.
+`rpe_env.fit_box()` preserves aspect: these run 1.50 to 8.77 wide-to-tall, so a fixed width
+stretches one client and overflows another.
 
-If Aaron has instead re-authorized the Google Drive **connector** for this machine, he may
-tell you to use Drive over the connector rather than a local folder — in that case use the
-connector for reads/writes. Default to the local folders above unless he says otherwise.
+**Output — ONE destination (Aaron, 2026-07-25).** Every finished deck goes to `Outputs/`
+(flat; program is distinguished by the filename tag, not by subfolder). This replaced both
+the old **Client Presentations** drop and the per-client `Clients/<Client Name> <clientid>/`
+copy — do not deliver to client folders.
+
+**On the CSI/Cowork machine** the same tree is mounted from a plain local drive at
+`C:\Data Pipelines\RPE Pipeline\` (moved off OneDrive to stop sync corruption — Aaron
+2026-07-17), with `Inputs\ODDD`, `Inputs\ARS & MRPC Reports`, and `Outputs` under it. Set
+`RPE_DATA_ROOT` to that root there. **Write hazard on those mounts:** they allow creating and
+copying files but NOT deleting — `rm` returns "Operation not permitted". Copy-to-deliver
+works; if a file must be replaced or removed, ask Aaron. Confirm the writable target per
+session.
 
 ## Shared conventions (all programs)
 
@@ -125,8 +137,8 @@ plus `metrics_gen`, `charts_gen`, `extract_base_gen`, `extract_lift`, `render_li
 optimizer is `scripts/oddd_optimize.py`; the validator is `validation/validate_deck.py`.
 Superseded one-offs, the deprecated pre-`build_ars_gen` ARS recipe (`build_gen`/`build_gen_b`/
 `build_swipepct`/`style_tables`/`swap_imgs`), backups (`*_orig`), and the old combined-Marine
-helpers were moved to `archive/` (see `archive/MANIFEST.md`) — do not call anything under
-`archive/`. See `build/README.md`. Requires python-pptx, matplotlib, openpyxl, Pillow.
+helpers were left OUT of this repo (they remain in the Drive copy's `archive/`) — nothing here
+imports them, and nothing should. See `build/README.md`. Requires python-pptx, matplotlib, openpyxl, Pillow.
 
 **Validation gate.** Run `validation/validate_deck.py` on every built deck before it
 ships. A non-zero exit blocks delivery — fix and re-run, do not override.
@@ -213,10 +225,16 @@ so every build reads the same — never invent a mapping:
   `Pending Activation` → **Open**, `Manually controlled` → **Other** (deliberate — it no longer
   surfaces as unmapped).
 
+- **Status CODE fallback** (Aaron, 2026-08-28) — not every core populates `Stat Desc`.
+  1549 Wellworth fills `Stat Code` and leaves `Stat Desc` BLANK on every non-open account
+  (18,274 of 50,218 rows). `oddd_optimize.STAT_CODE_MAP` is the one place that mapping
+  lives: **`O`/`A` → Open, `C` → Closed, `X` → Charged Off**. The description still wins
+  whenever it carries text; the code is consulted only when it is blank.
+
 `oddd_optimize.py` applies these (`classify_rege` / `classify_status`). Blank Reg E cells are
-excluded (closed/business — not applicable); blank/unknown statuses fall to `Other`. Any
-non-blank value that doesn't map is surfaced in the pack's `flags` block — **ask Aaron how to
-map it before building; do not guess.**
+excluded (closed/business — not applicable); a blank status with no usable `Stat Code` falls
+to `Other`. Any non-blank value that doesn't map — description OR code — is surfaced in the
+pack's `flags` block — **ask Aaron how to map it before building; do not guess.**
 
 **Visual style guide.** All decks (every product) follow `templates/STYLE.md` — fonts
 (Montserrat headings / Calibri detail, both embedded), title-slide rules (list only the
@@ -280,14 +298,15 @@ This is the readme index — update it whenever files are added, removed, or mov
 
 **Root**
 - `CLAUDE.md` — this file: routing, shared conventions, and this file map.
-- `VIP Navigation Guide.md` — how to pull ICS/MRPC data from the VIP dashboards.
-- `ARS Build Package.zip` — exportable snapshot of the ARS pipeline (regenerated from live).
+- `CHANGELOG.md` — behavior changes that move a client-facing number or its source.
+- `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
+- `docs/` — `PRD-2026-08-26-repo-portability-and-response-rates.md`.
 
 **`scripts/`**
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
-- `build_ars_gen.py` — the ARS deck assembler: clones the template, swaps content, inserts Product Mix, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.
+- `build_ars_gen.py` — the ARS deck assembler: clones the template, swaps content, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.
 - `metrics_gen.py` — ~105 chart metrics from the ODD (streams the `.zip`).
 - `charts_gen.py` — renders the 28 chart PNGs; `DIM` = each chart's pixel size (must match its slide box aspect).
 - `chart_lib.py` — shared take-rate-by-branch renderer (personal orange / business navy; identical size).
@@ -295,6 +314,22 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `extract_base_gen.py` / `extract_lift.py` — MM financials / Lift Matrix rows.
 - `render_lift.py`, `ticket_calc.py`, `ticket_chart.py` — Lift Matrix chart (MM); average-ticket calc + chart.
 - `product_mix_slide.py` — builds the Product Mix & ARS Eligibility slide from the ODD.
+- `rege_branch_slide.py` — builds the Reg E Opt-In by Branch table slide (the table
+  companion to the two Reg E branch charts): opted in / opted out / no election per
+  branch, sized to the space on the slide. Tiles read the SAME population as the table.
+- `excluded_accounts_slide.py` — builds the Excluded Accounts slide that follows it: the
+  eligibility waterfall (status → product code → debit card, each account counted once) and
+  the per-client excluded product codes, derived as those with no eligible account. $0
+  balance and address quality are reported as observations, NOT as exclusions — neither
+  predicts the `Elig` flag (see the module docstring for the evidence).
+- `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
+
+*Standalone ARS tools — run by hand, not part of the deck chain:*
+- `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
+  restyle_fonts / fit_layout / validate_deck, which enforce the 13.33x7.5 deck contract.
+- `responder_activity.py` — responder before/after activity from the raw ODD; feeds the one-pager.
+- `lift_extract.py` → `build_lift_matrix.py` — per-account ODD extract (`.pkl`) and the
+  standalone ARS Lift Matrix workbook built from it (the file sent to Bradford).
 
 **`build/` (shared)**
 - `restyle_fonts.py` — font-role post-processor, run last on every deck (all programs).
@@ -302,23 +337,32 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `summit_slide.py` — inserts the Executive Summit slide (used by ICS/MRPC).
 - `assemble_combined.py` — builds the combined ARS+ICS+MRPC deck from the three finished
   program decks (see **Combined decks** above).
+- `fit_layout.py` — layout-fit pass + 10pt slide numbers; run by every builder before save.
+- `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
+  used by the ICS builder and the validator. Never eyeball whether a label fits.
+- `branch_names.py` — branch id → name lookup shared by the ARS chart renderers.
 - `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
   substitute a missing face. Every chart renderer goes through it.
 - `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`, `Velocity Executive Summit.jpg`.
 - `README.md` — build/ layout notes (incl. the SM-vs-MM revenue-model extractor notes).
 
-**`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`, `data/` (per-client VIP ICS data — one folder per client; keep client-named).
-**`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py`, `setup_template.py` (one-time template bootstrap), `data/` (per-client VIP MRPC data).
+**`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`,
+`ics_workbook_extract.py` (the quarterly step: populates a client JSON's workbook sections
+from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data — one folder per client; keep client-named).
+**`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py`, `setup_template.py` (one-time template bootstrap; needs `mrpc_template_base.pptx`, which is NOT in the repo — ask Aaron for it if the template must be rebuilt), `data/` (per-client VIP MRPC data).
 
 **`templates/`** — ALL deck templates live here (consistent naming; passed to each builder as an arg).
 - `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — the three stripped per-program shells the builders clone (cleaned + styled; "Union Financial" dummy client).
-- `mrpc_template_base.pptx` — 9-slide base that `setup_template.py` bootstraps `mrpc_template.pptx` from.
 - `multi-product_reference_deck.pptx` — combined ARS+ICS+MRPC reference (Union Financial demo, styled); source for re-materializing the stripped templates.
 - `STYLE.md` — visual style guide (single source of truth). `TEMPLATES.md` — reference section map + template materialization.
 
 
-**`validation/`** — `validate_deck.py`: pre-ship lint gate (0 FAIL to ship).
-**`dashboards/`** — `RPE Dashboard.html` (delivery tracker) and `RPE Performance.html` (per-client KPIs); also maintained as Claude artifacts.
-**`fonts/Montserrat/`** — Montserrat family (TTFs) embedded in decks; Carlito (charts) ships with the environment.
-**`archive/`** — retired code, stale client caches, and historical docs (`RUNBOOK.md`, PRD) under `archive/historical/` (`archive/MANIFEST.md`); nothing live references it.
+**`validation/`** — `validate_deck.py` (pre-ship lint gate, 0 FAIL to ship), `qa_all.py`
+(the full gate: every template + given decks, package integrity, render smoke test, layout
+drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accept).
+**`fonts/`** — Montserrat (headings) and Carlito (Calibri-metric, charts), both bundled and
+embedded. `rpe_env.use_font` RAISES rather than let matplotlib substitute a missing face.
+
+`archive/` and `dashboards/` are NOT in this repo — the initial import excluded them. They
+live only in Drive. Nothing here references either.

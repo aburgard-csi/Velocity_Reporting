@@ -30,6 +30,32 @@ TPL=os.path.join(ROOT,"templates")
 BASE=os.path.join(HERE,"layout_baseline.json")
 
 
+
+def _find_soffice():
+    """Locate LibreOffice. PATH first, then the standard install locations.
+
+    macOS ships it as an .app bundle and does NOT put `soffice` on PATH, so a
+    shutil.which() lookup alone reported "no soffice" on a machine that has
+    LibreOffice installed — and the one check that proves a deck actually OPENS
+    silently never ran (Aaron, 2026-08-28). Override with RPE_SOFFICE.
+    """
+    env = os.environ.get("RPE_SOFFICE")
+    if env and os.path.exists(env):
+        return env
+    found = shutil.which("soffice") or shutil.which("libreoffice")
+    if found:
+        return found
+    for c in ("/Applications/LibreOffice.app/Contents/MacOS/soffice",
+              os.path.expanduser("~/Applications/LibreOffice.app/Contents/MacOS/soffice"),
+              "/opt/homebrew/bin/soffice", "/usr/local/bin/soffice",
+              "/usr/bin/soffice", "/usr/bin/libreoffice",
+              r"C:\Program Files\LibreOffice\program\soffice.exe",
+              r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"):
+        if os.path.exists(c):
+            return c
+    return None
+
+
 def render_check(path):
     """Open the deck with a real renderer and count the pages.
 
@@ -42,7 +68,7 @@ def render_check(path):
 
     Returns (ok, message). Skipped (ok) when soffice isn't installed.
     """
-    soffice=shutil.which("soffice") or shutil.which("libreoffice")
+    soffice=_find_soffice()
     if not soffice:
         return True,"render skipped (no soffice)"
     try:

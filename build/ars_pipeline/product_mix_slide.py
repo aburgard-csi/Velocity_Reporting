@@ -468,7 +468,11 @@ def add_product_mix_slide(prs, odd_csv, assets_dir, before_title="Program Overvi
     # KPI tiles
     share = round(data["elig_total"] / data["open_total"] * 100) if data["open_total"] else 0
     n_elig = sum(1 for p in data["products"] if p["is_eligible"])
-    tiles = [(f"{data['open_total']:,}", "Open accounts", NAVY),
+    # Label names what open_total actually counts: every account whose Stat Desc
+    # is not "Closed" — Dormant / Inactive / Frozen / Charged Off are all in it.
+    # "Open accounts" read as the status-Open count and understated the coverage
+    # (Aaron, 2026-08-28).
+    tiles = [(f"{data['open_total']:,}", "Total Accounts - Excl. Closed", NAVY),
              (f"{data['elig_total']:,}", "ARS-eligible accounts", ORANGE),
              (f"{share}%", "Eligible share of open", NAVY),
              (f"{n_elig}", f"Eligible products (of {data['n_products']})", NAVY)]

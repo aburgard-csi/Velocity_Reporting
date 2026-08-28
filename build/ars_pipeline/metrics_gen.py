@@ -118,8 +118,17 @@ NOW=(_lm.replace(day=28)+datetime.timedelta(days=4)).replace(day=1)-datetime.tim
 M=out={}
 # cohorts
 elig=[r for r in data if personal(r) and g(r,f'{LATEST} Elig')=='Yes']
+# HISTORICAL response cohort — every personal account, NOT filtered by current
+# eligibility. Counting a past mailing's responders through the `{LATEST} Elig`
+# snapshot is a survivorship filter: it silently drops anyone who responded and has
+# since closed or gone ineligible, and the same mailing then reports a different
+# responder count on different slides. Wellworth 1549 Jun 2026 read 1,077 on the
+# mailing slides (personal + mailed) but 1,026 on Program Reach, Depth of
+# Engagement, Ranking and Sustained — 51 responders short (Aaron, 2026-08-28).
+# Slides 18/19 already used this cohort for exactly this reason; the rest now match.
+resp_pop=[r for r in data if personal(r)]
 def responded(r): return any(g(r,f'{m} Resp') in RESP_MET for m in mailmonths)
-responders=[r for r in elig if responded(r)]
+responders=[r for r in resp_pop if responded(r)]
 nonresp=[r for r in elig if not responded(r)]
 M['n_eligible']=len(elig); M['n_responders']=len(responders); M['n_nonresp']=len(nonresp)
 M['overall_take']=round(100*sum(1 for r in elig if hascard(r))/len(elig),1)
@@ -154,7 +163,7 @@ mature=[m for m in mailmonths if m in nextm]  # has a following month
 recent=mature[-12:]
 rank=[]
 for m in recent:
-    c=Counter(g(r,f'{m} Resp') for r in elig if g(r,f'{m} Resp') in RESP_MET)
+    c=Counter(g(r,f'{m} Resp') for r in resp_pop if g(r,f'{m} Resp') in RESP_MET)
     rank.append([lbl(m)]+[c.get(t,0) for t in TIER_ORDER])
 M['ranking']=rank  # newest last
 
@@ -271,13 +280,34 @@ def _ask(r, m):
     o = g(r, f'{m} Mail')
     if o in OFFER_GOAL: return OFFER_GOAL[o]
     return RESP_GOAL.get(g(r, f'{m} Resp'), 5)
+# Sustained is measured on the months AFTER the mailing, not on a fixed current
+# window. sw3() is the trailing 3 months of the EXTRACT, so for a recent mailing it
+# averaged in months from BEFORE the customer ever responded and reported attrition
+# that had not happened yet. A responder met the ask in their response month by
+# definition, so that month is 100% and attrition can only appear afterwards
+# (Aaron, 2026-08-28). Each row carries its own post-window length so the caption
+# can state what was actually measured rather than claiming a 3-month window.
 sust=[]
 for m in recent:  # recent 12 mailings
-    rs=[r for r in elig if g(r,f'{m} Resp') in RESP_MET]
+    rs=[r for r in resp_pop if g(r,f'{m} Resp') in RESP_MET]
     if not rs: continue
-    ok=sum(1 for r in rs if sw3(r)>=_ask(r,m))
-    sust.append([lbl(m),len(rs),round(100*ok/len(rs),1)])
+    # A response is measured in the month AFTER the offer — the same convention the
+    # dot plot uses ("swipes in the month after the latest met-goal offer"). Wellworth
+    # confirms it: 44% of the Jun 2026 responders cleared their ask in June, 100% in
+    # July. So the RESPONSE month is mailing+1 and attrition can only show from
+    # mailing+2 onward (Aaron, 2026-08-28).
+    post = smonths[smonths.index(m)+2:] if m in smonths else []
+    if not post:
+        # the response month itself: every responder met the ask there by definition,
+        # so this reads 100% and no attrition window exists yet
+        sust.append([lbl(m), len(rs), 100.0, 0])
+        continue
+    ok=sum(1 for r in rs
+           if sum(swipes(r,x) for x in post)/len(post) >= _ask(r,m))
+    sust.append([lbl(m),len(rs),round(100*ok/len(rs),1),len(post)])
 M['sustained']=sust
+# widest post-window any bar uses, for the slide caption
+M['sustained_window']=max((x[3] for x in sust), default=0)
 
 # ---- before/after (slides 18/19) ----
 # Cohort = ALL personal responders to the mailing (Aaron, 2026-08-27). It used to be `elig`,
@@ -336,6 +366,50 @@ for m in ba_mailings:
        'nb_med':round(statistics.median([nb[i2] for i2 in od]),2) if od else 0,
        'na_med':round(statistics.median([na[i2] for i2 in od]),2) if od else 0})
 M['before_after']=ba
+
+# ---- before/after split by offer group (slide 19) ----
+# The two offers ask for different behaviour: NU asks a non-user to start using the
+# card, TH asks an existing user to reach a threshold. Pooling them hides which one
+# moves (Aaron, 2026-08-28). Grouping keys on what was MAILED ('<mon> Mail'), the
+# same key mail_summary uses — never on how they responded, which would put a
+# responder in a group whose baseline does not contain them.
+def _grp(r, m):
+    o = g(r, f'{m} Mail')
+    if o == 'NU': return 'nu'
+    if o.startswith('TH'): return 'th'
+    return None
+ba_split=[]; _pool={'nu':[[],[]], 'th':[[],[]]}
+for m in ba_mailings:
+    i=smonths.index(m)
+    pre=smonths[i-BA_W:i]; post=smonths[i+1:i+1+BA_W]
+    row={'m':lbl(m)}
+    for key in ('nu','th'):
+        rs=[r for r in ba_pop
+            if g(r,f'{m} Resp') in RESP_MET and _grp(r,m)==key]
+        if len(rs)<5:
+            row[key]={'n':len(rs),'before':0,'after':0,'gain':0}
+            continue
+        sb=[statistics.mean([spend(r,x) for x in pre]) for r in rs]
+        sa=[statistics.mean([spend(r,x) for x in post]) for r in rs]
+        sbw,saw=_wins_pair(sb,sa)
+        _pool[key][0]+=sb; _pool[key][1]+=sa
+        b=statistics.mean(sbw); a=statistics.mean(saw)
+        row[key]={'n':len(rs),'before':round(b),'after':round(a),
+                  'gain':round(100*(a-b)/b) if b else 0}
+    ba_split.append(row)
+M['before_after_split']=ba_split
+_hl={}
+for key in ('nu','th'):
+    pb,pa=_pool[key]
+    if pb:
+        b_,a_=_wins_pair(pb,pa)
+        mb=statistics.mean(b_); ma=statistics.mean(a_)
+        _hl[key]={'n':len(pb),'before':round(mb),'after':round(ma),
+                  'gain':round(100*(ma-mb)/mb) if mb else 0}
+    else:
+        _hl[key]={'n':0,'before':0,'after':0,'gain':0}
+M['ba_split_headline']=_hl
+
 M['ba_window_months']=BA_W
 
 # Headline pools every responder observation instead of averaging the per-mailing figures,
@@ -389,6 +463,29 @@ for r in new_open:
 nbrl=[(b,c[1],c[0],round(100*c[1]/c[0])) for b,c in nbrc.items() if c[0]>=15]
 nbrl.sort(key=lambda x:-x[3])
 M['rege_new_branch']=nbrl
+# Full per-branch election breakdown for the Reg E by Branch TABLE (Aaron, 2026-08-28).
+# Built on new_open — accounts opened in the trailing 12 months — not the whole book
+# (Aaron, 2026-08-28): the all-vintages view is dominated by decades of legacy
+# elections and says nothing about how branches are asking TODAY. Same cohort and same
+# >=15 threshold as the new-account chart beside it, so the two agree.
+# Kept as its OWN key: rege_branch is a fixed 4-tuple the chart and the takeaways slide
+# both unpack positionally.
+brc3=defaultdict(lambda:[0,0,0,0])   # total, in, out, no-election
+for r in new_open:
+    b=g(r,'Branch'); e=regd(r)
+    brc3[b][0]+=1
+    if e==OPTIN: brc3[b][1]+=1
+    elif e in OPTOUT: brc3[b][2]+=1
+    elif e in NOELECT: brc3[b][3]+=1
+_bt=[[b,c[1],c[2],c[3],c[0],round(100*c[1]/c[0])] for b,c in brc3.items() if c[0]>=15]
+_bt.sort(key=lambda x:-x[5])
+M['rege_branch_table']=_bt   # (branch, in, out, no_election, total, pct)
+M['rege_branch_table_total']=[sum(x[1] for x in _bt), sum(x[2] for x in _bt),
+                              sum(x[3] for x in _bt), sum(x[4] for x in _bt)]
+# The window ACTUALLY used. J25 falls back to the first activity month when the extract
+# carries fewer than 12, so a short extract's cohort is NOT a full year — Wellworth's is
+# Mar-Jul 2026. The heading states this rather than claiming twelve months.
+M['rege_new_window']=[J25.strftime('%b %Y'), J26.strftime('%b %Y'), len(smonths[-12:])]
 # ---- Reg E by vintage (slide 26) ----
 opdh_c=[r for r in data if personal(r) and isopen(r) and hascard(r)]
 last12=smonths[-12:]
@@ -458,11 +555,11 @@ M['nsf_yoy']=round(100*(jun26[1]-jun25[1])/jun25[1]) if jun25 else 0
 # ---- Reach cumulative responders (slide 30) ----
 reach=[]; seen=set();
 for m in mailmonths:
-    for i,r in enumerate(elig):
+    for i,r in enumerate(resp_pop):
         if g(r,f'{m} Resp') in RESP_MET: seen.add(id(r))
     reach.append([lbl(m),len(seen)])
 M['reach']=reach; M['reach_total']=len(responders)
-M['reach_perml']=round(len(responders)/max(1,len([m for m in mailmonths if any(g(r,f'{m} Resp') in RESP_MET for r in elig)])))
+M['reach_perml']=round(len(responders)/max(1,len([m for m in mailmonths if any(g(r,f'{m} Resp') in RESP_MET for r in resp_pop)])))
 # ---- Depth repeat responders (slide 31) ----
 def nresp(r): return sum(1 for m in mailmonths if g(r,f'{m} Resp') in RESP_MET)
 d1=sum(1 for r in responders if nresp(r)==1)
@@ -583,6 +680,7 @@ M['open_24']=sum(x[1] for x in oc); M['close_24']=sum(x[2] for x in oc); M['net_
 # the window over which account closings are reliably captured in the extract).
 allp=[r for r in data if personal(r)]
 KMCUT=datetime.datetime(2021,7,1)
+M['km_cut']=KMCUT.strftime('%b %Y')   # the caption states this window; derive, never retype
 recs=[]
 for r in allp:
     do=parsed(r,'Date Opened')

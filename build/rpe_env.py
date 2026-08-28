@@ -95,6 +95,149 @@ def outputs() -> Path:
     return _require_subdir("Outputs")
 
 
+def client_logo(client_id) -> Path | None:
+    """The client's own logo, or None. Never raises — a missing logo degrades.
+
+    Lives in `Inputs/Logos/<clientid>.<ext>`, alongside the other client inputs
+    rather than in the repo: it is the client's brand asset and nothing
+    client-identifiable belongs in git (PRD, "Data in Drive, code in git").
+
+    Filenames in that folder are not uniform — 1075 has both a .jpg and a .png, and
+    1539 carries no extension at all while still being a valid PNG. So candidates are
+    tried in preference order and each is OPENED before being accepted; an unreadable
+    or non-image file is skipped rather than handed to python-pptx, which fails the
+    whole build on a bad picture.
+    """
+    cid = str(client_id).strip()
+    if not cid:
+        return None
+    try:
+        folder = data_root() / "Inputs" / "Logos"
+    except SystemExit:
+        return None
+    if not folder.is_dir():
+        return None
+    # .png first (transparency), then jpg, then the extensionless form
+    cands = [folder / f"{cid}.png", folder / f"{cid}.PNG",
+             folder / f"{cid}.jpg", folder / f"{cid}.jpeg", folder / cid]
+    for c in cands:
+        if not c.is_file():
+            continue
+        try:
+            from PIL import Image
+            with Image.open(c) as im:
+                im.verify()
+            return c
+        except Exception:
+            continue
+    return None
+
+
+def trim_logo(img_path, out_dir):
+    """Crop a logo to its ink and return the new path (or the original, untouched).
+
+    Client logo files are not tightly cropped, and the padding is not always the same
+    kind: 1549 is a 2940x1532 canvas whose artwork sits in the top-left with the rest
+    OPAQUE WHITE, while 1676 carries 56% TRANSPARENT margin. Fitting the raw canvas
+    renders a correctly-sized box containing a tiny logo — how it first shipped on the
+    agenda slide (Aaron, 2026-08-28).
+
+    Two passes, and which one applies is decided by the file, not guessed:
+
+      * transparent padding -> the alpha bbox already bounds the ink; use it.
+      * opaque canvas -> subtract the background colour, sampled from the border RING
+        rather than the four corners. 1539's bottom-right corner is semi-transparent
+        teal ARTWORK; sampling corners took that as the background and masked the logo
+        down to 115x97 of its 420x128.
+
+    Returns the original path when nothing can be trimmed, so an already-tight logo is
+    never re-encoded.
+    """
+    try:
+        from PIL import Image, ImageChops
+    except Exception:
+        return img_path
+    try:
+        im = Image.open(img_path).convert("RGBA")
+    except Exception:
+        return img_path
+    w, h = im.size
+    if not w or not h:
+        return img_path
+
+    alpha = im.getchannel("A")
+    ink = alpha.point(lambda v: 255 if v > 8 else 0)
+    abox = ink.getbbox()
+    if not abox:
+        return img_path
+    a_w, a_h = abox[2] - abox[0], abox[3] - abox[1]
+
+    # Real transparency already bounds the ink; only an (effectively) opaque canvas
+    # needs the background colour subtracted.
+    if a_w >= w * 0.97 and a_h >= h * 0.97:
+        px = im.load()
+        step = max(1, min(w, h) // 64)
+        ring = []
+        for x in range(0, w, step):
+            ring.append(px[x, 0]); ring.append(px[x, h - 1])
+        for y in range(0, h, step):
+            ring.append(px[0, y]); ring.append(px[w - 1, y])
+        ring = [c for c in ring if c[3] > 200]
+        if ring:
+            bg = max(set(ring), key=ring.count)
+            # only trust it if the border is genuinely uniform
+            if ring.count(bg) >= len(ring) * 0.7:
+                flat = Image.new("RGB", im.size, bg[:3])
+                diff = ImageChops.difference(im.convert("RGB"), flat).convert("L")
+                not_bg = diff.point(lambda v: 255 if v > 12 else 0)
+                ink = ImageChops.multiply(ink, not_bg)
+
+    bbox = ink.getbbox()
+    if not bbox:
+        bbox = (0, 0, w, h)
+    bw, bh = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    if bw <= 0 or bh <= 0:
+        bbox, bw, bh = (0, 0, w, h), w, h
+    tight = bw >= w * 0.97 and bh >= h * 0.97
+
+    # python-pptx accepts only BMP/GIF/JPEG/PNG/TIFF/WMF and goes by CONTENT, not
+    # extension. 1539.png is really a WEBP: PIL opens it happily, so it passed
+    # client_logo's check, and add_picture then refused the whole image. Re-encode
+    # anything outside that set even when there is nothing to crop.
+    fmt = (getattr(im, "format", None) or "").upper()
+    if tight and fmt in ("BMP", "GIF", "JPEG", "JPG", "PNG", "TIFF", "WMF"):
+        return img_path                       # already tight and already usable
+
+    pad = max(1, int(round(min(bw, bh) * 0.02)))
+    box = (max(0, bbox[0] - pad), max(0, bbox[1] - pad),
+           min(w, bbox[2] + pad), min(h, bbox[3] + pad))
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        out = os.path.join(out_dir, f"logo_trim_{os.path.basename(str(img_path))}.png")
+        im.crop(box).save(out)
+        return out
+    except Exception:
+        return img_path
+
+
+def fit_box(img_path, max_w_in, max_h_in):
+    """(width, height) in inches that fits `img_path` inside the box, aspect kept.
+
+    Client logos run from 1.50 to 4.47 in aspect, so a fixed width stretches or
+    overflows depending on the client. Returns None if the image cannot be read.
+    """
+    try:
+        from PIL import Image
+        with Image.open(img_path) as im:
+            w, h = im.size
+    except Exception:
+        return None
+    if not w or not h:
+        return None
+    scale = min(max_w_in / w, max_h_in / h)
+    return w * scale, h * scale
+
+
 def _require_subdir(name: str) -> Path:
     path = data_root() / name
     if not path.is_dir():

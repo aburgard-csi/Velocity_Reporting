@@ -55,7 +55,27 @@ def _args():
 _A = _args()
 ARS, ICS, MRPC, OUT = _A.ars, _A.ics, _A.mrpc, _A.out
 
-ARS_HEAD = 30      # ARS deck slides 1..30 stay ahead of the ICS section
+# The ARS section ends at "ARS Key Takeaways"; everything after it is the closing
+# block (Q&A, Contact) plus the Appendix. This was the fixed index 30, which is only
+# right while the ARS deck is exactly 47 slides. Adding the Excluded Accounts and Reg E
+# by Branch slides made it 49, and the boundary then cut two slides early: "Reg E Opt-In
+# by Account Vintage" and "ARS Key Takeaways" were pushed AFTER the ICS section
+# (Aaron, 2026-08-28). Resolve by TITLE — CLAUDE.md: never by index.
+ARS_HEAD_FALLBACK = 30
+ARS_SECTION_END_TITLE = "ARS Key Takeaways"
+
+
+def _ars_head(prs):
+    """Index of the first slide AFTER the ARS section, resolved by title."""
+    for i, sl in enumerate(prs.slides, 1):
+        for sh in sl.shapes:
+            if (sh.has_text_frame
+                    and sh.text_frame.text.strip().startswith(ARS_SECTION_END_TITLE)):
+                return i
+    print(f"!! assemble_combined: '{ARS_SECTION_END_TITLE}' not found in the ARS deck — "
+          f"falling back to the fixed index {ARS_HEAD_FALLBACK}. If the ARS deck has "
+          f"changed length this WILL misplace slides; check the section order.")
+    return ARS_HEAD_FALLBACK
 
 # Slides dropped from a program deck when it becomes a SECTION of the combined deck: the
 # combined deck carries exactly one cover, Summit, agenda, Q&A and Contact, all from ARS.
@@ -93,6 +113,24 @@ PRODUCT_NAME = {"ARS": "Account Revenue Solution®",
 AGENDA_DETAIL = {"ARS": "Program performance, mailing insights, debit card & Reg E review",
                  "ICS": "Referral trend, account value, ROI & financial results",
                  "MRPC": "Enrollments, channel mix, retention & revenue"}
+
+# A referrals-only ICS build has no account-value, ROI or financial slides at all, so the
+# combined agenda must not name them — the same rule the ICS deck's own agenda follows
+# (Aaron, 2026-08-28). Detected from the slides actually copied, not from a flag, so the
+# agenda can never describe a section the deck does not contain.
+AGENDA_DETAIL_ICS_REFERRALS = "Referral trend, results by branch & VIP resources"
+ICS_WORKBOOK_TITLES = ("Performance of ICS Accounts", "ICS Revenue",
+                       "ICS Financial Summary", "Value of ICS")
+
+
+def _ics_is_referrals_only(slides):
+    for sl in slides:
+        for sh in sl.shapes:
+            if sh.has_text_frame:
+                t = sh.text_frame.text.strip()
+                if any(t.startswith(x) for x in ICS_WORKBOOK_TITLES):
+                    return False
+    return True
 
 
 # ---------------------------------------------------------------- cross-package slide copy
@@ -172,7 +210,7 @@ def set_title_products(slide, programs):
     return False
 
 
-def set_agenda(slide, programs):
+def set_agenda(slide, programs, detail_overrides=None):
     """Rewrite the ARS-only agenda into the three-program agenda, in place.
 
     Matched positionally: the agenda is a fixed 4-row grid of (number, heading, detail)
@@ -199,7 +237,9 @@ def set_agenda(slide, programs):
     if len(rows) != 4:
         raise SystemExit(f"agenda grid: expected 4 rows, found {len(rows)} — template changed")
 
-    agenda = [(str(i + 1), PRODUCT_NAME[p], AGENDA_DETAIL[p]) for i, p in enumerate(programs)]
+    detail = dict(AGENDA_DETAIL)
+    detail.update(detail_overrides or {})
+    agenda = [(str(i + 1), PRODUCT_NAME[p], detail[p]) for i, p in enumerate(programs)]
     agenda.append((str(len(programs) + 1), "Questions & Discussion", None))
 
     def _settext(shape, text):
@@ -317,9 +357,9 @@ def renumber(prs):
 def main():
     prs = Presentation(ARS)
     n_ars = len(prs.slides._sldIdLst)
-    if n_ars != 47:
-        print(f"note: ARS deck has {n_ars} slides (expected 47) — section split still uses "
-              f"the first {ARS_HEAD} slides and the remainder as closing+appendix")
+    ars_head = _ars_head(prs)
+    print(f"ARS deck: {n_ars} slides; section ends at {ars_head} "
+          f"('{ARS_SECTION_END_TITLE}'), closing+appendix = {n_ars - ars_head}")
 
     programs = ["ARS"] + (["ICS"] if ICS else []) + (["MRPC"] if MRPC else [])
     sources = {}
@@ -366,7 +406,7 @@ def main():
     lst = prs.slides._sldIdLst
     els = list(lst)
     assert len(els) == n_ars + added, "slide count drifted during copy"
-    head, tail, new = els[:ARS_HEAD], els[ARS_HEAD:n_ars], els[n_ars:]
+    head, tail, new = els[:ars_head], els[ars_head:n_ars], els[n_ars:]
     for el in els:
         lst.remove(el)
     for el in head + new + tail:
@@ -377,7 +417,12 @@ def main():
     slides = list(prs.slides)
     if not set_title_products(slides[0], programs):
         raise SystemExit("MISS: title slide product line not found — cannot label the deck")
-    set_agenda(slides[2], programs)
+    _overrides = {}
+    if sources.get("ICS") and _ics_is_referrals_only(sources["ICS"][0]):
+        _overrides["ICS"] = AGENDA_DETAIL_ICS_REFERRALS
+        print("  ICS section is referrals-only — agenda detail adjusted so it does not "
+              "name account value, ROI or financial results")
+    set_agenda(slides[2], programs, _overrides)
     renumber(prs)
 
     import fit_layout

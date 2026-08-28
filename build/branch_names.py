@@ -23,7 +23,8 @@ import glob
 import os
 import re
 
-BRANCH_KEYS = ("rege_branch", "rege_new_branch", "take_branch", "take_branch_monthly")
+BRANCH_KEYS = ("rege_branch", "rege_new_branch", "take_branch", "take_branch_monthly",
+               "rege_branch_table")
 
 
 def _norm(v):

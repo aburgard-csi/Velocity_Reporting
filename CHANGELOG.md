@@ -14,6 +14,140 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-08-28 — responder counts now agree across slides
+
+The same mailing reported different responder counts on different slides: Wellworth
+1549's Jun 2026 drop read 1,077 on the mailing slides and 1,026 on Program Reach,
+Depth of Engagement, Ranking and Sustained.
+
+Cause: those four counted a HISTORICAL mailing's responders through the CURRENT
+eligibility snapshot (`<latest> Elig`), which drops anyone who responded and has since
+closed or gone ineligible — 51 accounts on Wellworth. Slides 18/19 already used the
+personal cohort for exactly this reason (2026-08-27); the rest now match.
+
+Affects every ARS deck. Reach, depth and ranking figures rise.
+
+### 2026-08-28 — sustained rate measured after the response month
+
+Sustained compared the extract's trailing 3 months against the ask, for every mailing.
+For a recent mailing that window includes months from before the customer responded, so
+it reported attrition that had not happened.
+
+A response is recorded in the month AFTER the offer — Wellworth confirms it: 44% of the
+Jun 2026 responders cleared their ask in June, 100% in July. The window now starts at
+mailing+2. A mailing with no month after its response month reads 100% by definition and
+is drawn grey with the caption saying attrition cannot appear yet.
+
+### 2026-08-28 — before/after is mean only, split by offer
+
+The median twin (slide 19) is replaced by the same mean, split into Non-User and
+Threshold respondents. The two offers ask for different behaviour and pooling them hid
+which one moved. Grouping keys on `<mon> Mail`, as mail_summary does.
+
+A Non-User's baseline is near zero, so its percentage change is meaningless (Wellworth
+computes +9,018% off $13); below a $25 baseline the narrative states dollars instead.
+
+### 2026-08-28 — Stat Code fallback in the shared status classifier
+
+`classify_status` only ever read `Stat Desc`. 1549 Wellworth populates `Stat Code`
+(O/C/X) and leaves `Stat Desc` BLANK on every non-open account, so 18,274 of 50,218 rows
+classified as "Other". `oddd_optimize.STAT_CODE_MAP` now maps O/A -> Open, C -> Closed,
+X -> Charged Off (Aaron-confirmed); the description still wins when it carries text.
+
+Affects the account-status mix on any client whose core fills the code, not the label.
+
+### 2026-08-28 — take-rate-by-branch table showed months twice
+
+`set_table` trimmed surplus template ROWS but not COLUMNS, so a client with fewer
+activity months than the template's eleven kept the reference client's remaining
+columns. Wellworth's table carried a second Apr/May/Jun and a second Cards/Elig/Take%
+block from Union Financial. Columns are now trimmed to the data and the width
+re-spread. The table also fills the slide (10 branches, was a fixed 6).
+
+### 2026-08-28 — stale month captions
+
+A dozen template captions carried the reference client's month and no swap ever reached
+them, so a Jul 2026 extract shipped "Monthly debit spend (June 2026)", "opt-in status as
+of June 2026" and "Jul 2023 - Jun 2026 (36 months)" on a client with five months of data.
+Point-in-time phrases and series spans are now derived. `validate_deck` FAILs any dated
+caption still byte-identical to the template's, scoped to the template's own reporting
+month so a genuinely fixed window (the Kaplan-Meier cohort) is not flagged.
+
+### 2026-08-28 — ICS branch goals pro-rated
+
+Branch goals in the VIP export are ANNUAL, but a program that started partway through the
+year has not had a year to hit them. Wellworth began in May; its Main branch read 24
+against a 204 annual goal (12%), which reports the calendar rather than the branch. The
+goal is now pro-rated to the months the program has run — Main reads 24 of 68 (35%), and
+the top-8 total moves from 14% to 41%. Falls back to the annual goal when the run length
+cannot be derived.
+
+### 2026-08-28 — Reg E "no election" wording, and the ICS branch selection line
+
+"No election means the customer was never asked" asserted something the data cannot
+show, and put it on the branch. No election means only that we do not hold their
+decision — they may well have been asked. Now reads "no election means the customer
+hasn't given us one" (the exact phrase "didn't give us their decision" measures 12.30in
+against 12.10in of box and wraps onto the tiles).
+
+The selection line was removed from ICS "Results by Branch – Year to Date": with the
+callouts and the pro-rating note it ran to ~20in of text in a 9.68in box, wrapped, and
+its box overlapped the table above and the logo band below. Selection, branch counts and
+the pro-rating basis are all in the notes.
+
+### 2026-08-28 — combined deck split the ARS section at a fixed index
+
+`assemble_combined` kept "the first 30 slides" ahead of the ICS section. That is only
+right while the ARS deck is exactly 47 slides. Adding Excluded Accounts and Reg E by
+Branch made it 49, and the boundary cut two slides early: "Reg E Opt-In by Account
+Vintage" and "ARS Key Takeaways" were pushed AFTER the ICS section. The boundary now
+resolves by TITLE ("ARS Key Takeaways") — CLAUDE.md: never by index. It printed a note
+about the count mismatch and carried on regardless; it now states where the section ends.
+
+Also: the combined agenda described the ICS section as "Referral trend, account value,
+ROI & financial results" even for a referrals-only build that contains none of those.
+Detected from the slides actually copied, not from a flag.
+
+### 2026-08-28 — Reg E by Branch is new accounts, not the whole book
+
+The table was built on every open personal card holder — a view dominated by decades of
+legacy elections that says nothing about how branches are asking today. It now uses the
+same trailing-12-month cohort and >=15 threshold as the new-account chart beside it, and
+reconciles to `rege_new_pct`. The heading states the window ACTUALLY used: an extract
+carrying fewer than twelve activity months yields a shorter one (Wellworth's is
+Mar-Jul 2026), and "Last 12 Months" over five would be false.
+
+### 2026-08-28 — referrals-only ICS agenda listed absent sections
+
+The section divider correctly dropped to "Referrals", but the agenda still listed
+Performance of ICS Accounts, ICS Revenue & Revenue Detail, ICS Financial Summary and
+Comparisons — four sections a referrals-only build deliberately OMITS. Wellworth 1549
+shipped that way. Rows are now removed, not blanked, for the same reason
+`assemble_combined` removes them: an empty numbered row reads as a section that failed
+to render. A full workbook-driven build still lists all eight.
+
+### 2026-08-28 — client logo on the Agenda slide (ARS + ICS)
+
+Placed in the right-hand third, which is empty: the agenda's own text reaches at most
+8.80in (measured against the bundled TTFs at the 16pt floor), so a logo from 9.30in
+clears it. Sourced from `Inputs/Logos/<clientid>.png` via `rpe_env.client_logo`, cropped
+to its ink by `trim_logo` and fitted by `fit_box`. Absent logo = slide built without it.
+
+`trim_logo` also re-encodes any file python-pptx cannot embed: 1539.png is really a
+WEBP, which PIL opens happily and `add_picture` then refuses outright. MRPC has no
+agenda slide, so it is unchanged.
+
+### New slides — Excluded Accounts (ARS), Reg E Opt-In by Branch (ARS)
+
+Excluded Accounts follows Product Mix: the eligibility waterfall (status -> product code
+-> debit card, each account counted once) plus the per-client excluded product codes,
+derived as those with no eligible account. $0 balance and address quality are reported as
+observations, NOT exclusions — neither predicts the `Elig` flag.
+
+Reg E Opt-In by Branch is the table companion to the two Reg E branch charts, carrying
+opted-in / opted-out / no-election per branch.
+
+
 ### Pending — tier response rate denominators
 
 `NU 5+` and `Threshold Met` on the ARS Mailing Response Summary divide by total

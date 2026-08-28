@@ -114,7 +114,9 @@ def c_sustained():
     s=M['sustained']; cats=[f"{x[0].split()[0]} '{x[0].split()[1][2:]}" for x in s]  # Sep '23
     pct=[x[2] for x in s]
     fig,ax=figfor('image9',3.4)
-    cols=[ORANGE]*len(pct); cols[-1]=GREY
+    # grey marks a definitional 100%: a mailing with no month after it yet (post
+    # window 0), not "immature data". Older rows may lack the 4th element.
+    cols=[GREY if (len(x) > 3 and x[3] == 0) else ORANGE for x in s]
     ax.bar(range(len(pct)),pct,color=cols,width=0.62)
     for i,v in enumerate(pct):
         ax.text(i,v+1,f"{v:.0f}%",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=11)
@@ -122,7 +124,48 @@ def c_sustained():
     ax.set_ylim(0,max(pct)*1.22); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image9')
-# before/after two-panel (mean) image10 and median image31
+# image31: before/after by OFFER GROUP (mean). Replaces the median twin — the deck
+# reports one statistic, the mean, and splits it by what was asked instead
+# (Aaron, 2026-08-28). NU asks a non-user to start; TH asks a user to reach a
+# threshold, so pooling them hid which offer actually moved.
+def c_before_after_split():
+    sp=M.get('before_after_split') or []
+    if not sp:
+        print("skip image31 — no offer-group split available"); return
+    cats=[e['m'].split()[0]+e['m'].split()[1][2:] for e in sp]
+    name='image31'
+    fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*4.2,4.2))
+    x=np.arange(len(cats)); w=0.4
+    # ONE scale across both panels. With independent axes the NU panel topped at
+    # $1,200 and the TH panel at $1,500, so a lower NU bar drew the same height as a
+    # taller TH bar — the comparison the slide exists to make read backwards.
+    _allv=[e[k][b] for e in sp for k in ('nu','th') for b in ('before','after')]
+    _top=max(_allv+[1])*1.18
+    for ax,key,title in zip(axes,('nu','th'),
+                            ("Non-User Respondents","Threshold Respondents")):
+        bb=[e[key]['before'] for e in sp]; aa=[e[key]['after'] for e in sp]
+        ns=[e[key]['n'] for e in sp]
+        ax.bar(x-w/2,bb,w,color=STEEL,label="Before")
+        ax.bar(x+w/2,aa,w,color=ORANGE,label="After")
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"{c}\n(n={n:,})" for c,n in zip(cats,ns)],fontsize=11)
+        ax.set_title(f"{title} — Avg Monthly Debit Spend",color=NAVY,
+                     fontweight="bold",fontsize=12,pad=6)
+        _clean(ax)
+        ax.yaxis.set_major_formatter(lambda v,p:f"${v:,.0f}")
+        ax.tick_params(axis='y',labelsize=12)
+        ax.set_ylim(0,_top)
+        for xi,(b_,a_) in enumerate(zip(bb,aa)):
+            if b_: ax.text(xi-w/2,b_+_top*0.015,f"${b_:,.0f}",ha="center",va="bottom",
+                           color=NAVY,fontsize=10)
+            if a_: ax.text(xi+w/2,a_+_top*0.015,f"${a_:,.0f}",ha="center",va="bottom",
+                           color=NAVY,fontweight="bold",fontsize=10)
+    h,l=axes[0].get_legend_handles_labels()
+    fig.legend(h,l,loc="upper center",frameon=False,fontsize=10,ncol=2,bbox_to_anchor=(0.5,1.07))
+    fig.subplots_adjust(top=0.80,wspace=0.16,bottom=0.16)
+    save(fig,name)
+
+# before/after two-panel (mean) image10
 def c_before_after(mean=True):
     ba=M['before_after']; cats=[e['m'].split()[0]+e['m'].split()[1][2:] for e in ba]
     if mean:
@@ -356,9 +399,18 @@ def c_vintage():
     ax.bar(x-w/2,allh,w,color=STEEL,label="All debit holders")
     ax.bar(x+w/2,parto,w,color=ORANGE,label="Overdraft participants")
     for i in range(len(cats)):
-        ax.text(i-w/2,allh[i]+0.5,f"{allh[i]}",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=8)
-        ax.text(i+w/2,parto[i]+0.5,f"{parto[i]}",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=8)
+        # these are opt-in RATES — a bare "27" beside a "27%" axis reads as a count
+        # (Aaron, 2026-08-28)
+        # the NSF/OD line on ax2 runs straight through these labels (it struck out
+        # "29%" at 2022 and "30%" at 2025 on Wellworth), so each sits on a white pad —
+        # the same treatment the bayes chart uses where a line crosses a label
+        _lb=dict(boxstyle="round,pad=0.12",fc="white",ec="none")
+        ax.text(i-w/2,allh[i]+0.5,f"{allh[i]}%",ha="center",va="bottom",color=NAVY,
+                fontweight="bold",fontsize=8,bbox=_lb,zorder=6)
+        ax.text(i+w/2,parto[i]+0.5,f"{parto[i]}%",ha="center",va="bottom",color=NAVY,
+                fontweight="bold",fontsize=8,bbox=_lb,zorder=6)
     ax.set_ylabel("Reg E opt-in rate",color=NAVY,fontsize=10); ax.set_ylim(0,max(allh+parto)*1.45)
+    ax.yaxis.set_major_formatter(lambda v,_p:f"{v:.0f}%")
     ax.set_xticks(x); ax.set_xticklabels(cats,fontsize=9,rotation=0); _clean(ax); ax.tick_params(axis='y',labelsize=9)
     ax2=ax.twinx(); ax2.plot(x,ipp,color=NAVY,lw=2,marker='o',mfc='white',mec=NAVY,ms=6,label="NSF/OD items per participant / mo")
     ax2.set_ylim(0,max(ipp)*1.5); ax2.set_ylabel("NSF/OD items per participant / month",color=NAVY,fontsize=9)
@@ -391,7 +443,7 @@ def c_bayes():
     save(fig,'image32')
 
 c_monthly(); c_ranking(); c_mailer(); c_movement(); c_sustained()
-c_before_after(True); c_before_after(False); c_take_branch(); c_swipespend()
+c_before_after(True); c_before_after_split(); c_take_branch(); c_swipespend()
 c_donut('image13',M['rege_in'],M['rege_out'],M['rege_no'],M['rege_pct'])
 c_donut('image15',M['rege_new_in'],M['rege_new_out'],M['rege_new_no'],M['rege_new_pct'])
 c_rege_branch('image14',M['rege_branch'],M['rege_pct'])

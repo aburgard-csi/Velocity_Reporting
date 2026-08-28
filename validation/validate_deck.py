@@ -278,6 +278,81 @@ def single_line_overflow_findings(prs):
     return out
 
 
+_MONTH_RE = re.compile(
+    r"\b(January|February|March|April|May|June|July|August|September|October|November|December"
+    r"|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{4}\b")
+
+
+def stale_template_caption_findings(prs, deck_path=None, template_path=None):
+    """FAIL a dated caption still byte-identical to the TEMPLATE's.
+
+    The builder swaps numbers into captions but for a dozen date phrases it never
+    swapped anything, so the reference client's month shipped verbatim: 1549
+    Wellworth ran on a Jul 2026 extract and its deck read "Monthly debit spend
+    (June 2026)", "opt-in status as of June 2026" and "Jul 2023 – Jun 2026 (36
+    months)" — on a client with five months of data (Aaron, 2026-08-28).
+
+    The tell is exact identity with the template: a swapped caption always differs
+    somewhere (its own counts), so an untouched dated paragraph is a caption no swap
+    reached. Only paragraphs carrying a Month-Year are considered, which is why a
+    genuinely static line like a section header never trips this.
+    """
+    if template_path is None:
+        here = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(here, os.pardir, "templates", "ars_template.pptx")
+    if not os.path.exists(template_path):
+        return []
+    # A template compared against itself is identical everywhere, so this check is
+    # meaningless there — qa_all lints every template and would report the whole deck.
+    if deck_path:
+        tdir = os.path.realpath(os.path.dirname(template_path))
+        if os.path.realpath(os.path.dirname(deck_path)) == tdir:
+            return []
+    try:
+        tpl = Presentation(template_path)
+    except Exception:
+        return []
+    # Only captions carrying the TEMPLATE'S OWN reporting month can be stale — that is
+    # the value a swap has to replace. A caption naming a fixed historical window (the
+    # Kaplan-Meier cohort starts at Jul 2021 for every client) is correct precisely
+    # BECAUSE it still matches the template, and must not be flagged.
+    ref = None
+    for s_ in tpl.slides:
+        for sh in s_.shapes:
+            if sh.has_text_frame:
+                m = re.search(r"\b([A-Z][a-z]+)\s+(\d{4})\s+Data\b", sh.text_frame.text)
+                if m:
+                    ref = (m.group(1), m.group(2)); break
+        if ref: break
+    if not ref:
+        return []
+    long_m, yr = ref
+    forms = (f"{long_m} {yr}", f"{long_m[:3]} {yr}")
+    tpl_dated = set()
+    for s_ in tpl.slides:
+        for sh in s_.shapes:
+            if sh.has_text_frame:
+                for para in sh.text_frame.paragraphs:
+                    t = "".join(r.text for r in para.runs).strip()
+                    if len(t) > 12 and any(f in t for f in forms):
+                        tpl_dated.add(t)
+    if not tpl_dated:
+        return []
+    out = []
+    for idx, s_ in enumerate(prs.slides, 1):
+        for sh in s_.shapes:
+            if not sh.has_text_frame:
+                continue
+            for para in sh.text_frame.paragraphs:
+                t = "".join(r.text for r in para.runs).strip()
+                if t in tpl_dated:
+                    out.append(("FAIL", idx,
+                                "dated caption identical to the template — no swap "
+                                f"reached it, so it still names the reference client's "
+                                f"month: '{t[:90]}'"))
+    return out
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(2)
@@ -288,6 +363,7 @@ def main():
     findings += package_findings(sys.argv[1])
     findings += reference_leak_findings(sys.argv[1], prs)
     findings += single_line_overflow_findings(prs)
+    findings += stale_template_caption_findings(prs, sys.argv[1])
 
     for idx, blocks in texts:
         joined = "  ".join(blocks)

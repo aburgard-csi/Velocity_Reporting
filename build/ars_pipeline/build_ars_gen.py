@@ -170,6 +170,9 @@ BIZ = None
 # the window actually used.
 NEWWIN_PILL = "07-2025 · 06-2026"
 NEWWIN_TEXT = "Jul 2025 – Jun 2026"
+AS_OF_LONG = "June 2026"
+AS_OF_SHORT = "Jun 2026"
+NEWWIN_LONG = "July 2025 – June 2026"
 if ODD:
     import pandas as pd
     csvp = resolve_csv(ODD)
@@ -184,6 +187,13 @@ if ODD:
     _start = datetime.datetime(_y, _m, 1)
     NEWWIN_PILL = f"{_start:%m-%Y} · {_end:%m-%Y}"
     NEWWIN_TEXT = f"{_start:%b %Y} – {_end:%b %Y}"
+    # Point-in-time label for every "as of" caption. The template carries the
+    # REFERENCE client's month (June 2026) in a dozen captions the builder never
+    # swapped, so Wellworth shipped "Monthly debit spend (June 2026)" and
+    # "opt-in status as of June 2026" on a Jul 2026 extract (Aaron, 2026-08-28).
+    AS_OF_LONG = f"{_lm:%B %Y}"      # July 2026
+    AS_OF_SHORT = f"{_lm:%b %Y}"     # Jul 2026
+    NEWWIN_LONG = f"{_start:%B %Y} – {_end:%B %Y}"
     print(f"ODD snapshot: {LATEST_MON} (elig col '{ELIG_COL}'); "
           f"new-account window {_start:%Y-%m-%d}..{_end:%Y-%m-%d}")
     frames = []
@@ -280,6 +290,13 @@ def frames(shapes):
         if sh.has_text_frame and sh.text_frame.text.strip(): yield sh
         if sh.shape_type == 6: yield from frames(sh.shapes)
 
+def _slide_has(slide, title):
+    for sh in frames(slide.shapes):
+        if sh.text_frame.text.strip().startswith(title):
+            return True
+    return False
+
+
 def repl(slide, mapping, optional=False):
     hit = {a: False for a in mapping}
     for sh in frames(slide.shapes):
@@ -348,6 +365,86 @@ def set_table(slide, rows, trim=False):
     if trim and len(rows) < len(t.rows):
         for tr in list(t._tbl.tr_lst)[len(rows):]:
             t._tbl.remove(tr)
+    # Surplus COLUMNS are the same defect as surplus rows and had no guard: the loop
+    # above writes only as many columns as the data has, so any extra template column
+    # keeps the REFERENCE client's value. 1549 Wellworth has 5 activity months against
+    # the template's 11, and its take-rate-by-branch table shipped Apr/May/Jun and a
+    # second Cards/Elig/Take% block from Union Financial — the months appeared twice
+    # and looked like a rendering artefact (Aaron, 2026-08-28). A partial column write
+    # is never intentional, so this trims unconditionally.
+    ncols = len(rows[0]) if rows else 0
+    if ncols and ncols < len(t.columns):
+        total_w = sum(c.width for c in t.columns)
+        tbl = t._tbl
+        for gc in list(tbl.tblGrid)[ncols:]:
+            tbl.tblGrid.remove(gc)
+        for tr in tbl.tr_lst:
+            for tc in list(tr.tc_lst)[ncols:]:
+                tr.remove(tc)
+        # re-spread the original width so the table still fills its slot
+        first = t.columns[0].width
+        rest = max(1, ncols - 1)
+        each = int((total_w - first) / rest)
+        for ci, col in enumerate(t.columns):
+            if ci: col.width = each
+        for sh in slide.shapes:
+            if sh.has_table and sh.table._tbl is tbl:
+                sh.width = total_w
+        print(f"set_table: trimmed {len(list(tbl.tblGrid)) and ''}"
+              f"surplus template columns -> {ncols} cols")
+
+
+def add_table_rows(slide, n):
+    """Lengthen the slide's first table by n rows.
+
+    New rows are cloned from a BODY row and inserted BEFORE the last row, because the
+    last row is the orange Total: cloning it appended four more orange rows to the
+    take-rate-by-branch table and the bottom half of the slide read as five totals
+    (Aaron, 2026-08-28). Keeping the Total last also means set_table still writes it
+    last. Banding is re-applied afterwards so the added rows alternate like the rest.
+    """
+    from copy import deepcopy
+    t = tables(slide)[0]; tbl = t._tbl
+    rows = tbl.tr_lst
+    if len(rows) < 3:
+        src, anchor = rows[-1], None
+    else:
+        src, anchor = rows[-2], rows[-1]        # a body row, inserted above the Total
+    for _ in range(n):
+        clone = deepcopy(src)
+        if anchor is None:
+            tbl.append(clone)
+        else:
+            anchor.addprevious(clone)
+    _reband(t)
+    return t
+
+
+def _reband(t):
+    """Restore alternating body fills after rows are cloned. Header (row 0) and the
+    Total (last row) keep whatever the template gave them."""
+    from copy import deepcopy
+    from pptx.oxml.ns import qn          # bound as _qn further down; import locally
+    rows = t._tbl.tr_lst
+    if len(rows) < 4:
+        return
+    body = rows[1:-1]
+    # the template's first two body rows carry the two banded fills
+    fills = []
+    for r in body[:2]:
+        tc = r.tc_lst[1] if len(r.tc_lst) > 1 else r.tc_lst[0]
+        pr = tc.find(qn('a:tcPr'))
+        fills.append(deepcopy(pr) if pr is not None else None)
+    if len(fills) < 2 or fills[0] is None or fills[1] is None:
+        return
+    for i, r in enumerate(body):
+        want = fills[i % 2]
+        for tc in r.tc_lst:
+            old_pr = tc.find(qn('a:tcPr'))
+            new_pr = deepcopy(want)
+            if old_pr is not None:
+                tc.remove(old_pr)
+            tc.append(new_pr)
 
 def add_table_columns(slide, n, widths=None):
     """Widen the slide's first table by n columns, cloning the last column's formatting.
@@ -563,10 +660,18 @@ repl(S[15], {"Half clear their goal by 5+ transactions in the month after the of
 
 # ============================ SLIDE 17 — Sustained Respondent Activity
 # The window and the benchmark were both template text that no swap touched, so every client
-# shipped the reference client's "(Apr–Jun 2026)" and the wrong benchmark. Sustained is now
-# measured against the ask the responder ANSWERED, over this extract's trailing 3 months.
+# shipped the reference client's "(Apr–Jun 2026)" and the wrong benchmark. Sustained is
+# measured against the ask the responder ANSWERED, over the months AFTER their mailing —
+# the response month itself is 100% by definition (Aaron, 2026-08-28).
+_sw = M.get('sustained_window', 0)
+_swtxt = ("the months after each mailing" if _sw > 1 else
+          "the month after each mailing" if _sw == 1 else
+          "the months after each mailing (no post-mailing month yet)")
 repl(S[16], {"their first-offer activity goal over the latest 3 months (Apr–Jun 2026)":
-             f"the activity goal they responded to, over the latest 3 months ({M['w3_label']})"})
+             f"the activity goal they responded to, over {_swtxt}"})
+repl(S[16], {"last bar not yet mature.":
+             "a mailing with no month after it yet reads 100% by definition — "
+             "attrition can only appear from the following month."}, optional=True)
 
 # ============================ SLIDE 18 — Before/After Mean
 _baw = M.get('ba_window_months', 3)
@@ -579,9 +684,33 @@ repl(S[17], {"$644/mo before vs $1,027 after (+59%)": f"${M['ba_spend_before']:,
              f"held through the {_bawm} after",
              "3-month pre-mailing baseline vs. every month after the mailing (through June 2026)":
              f"{_baw}-month pre-mailing baseline vs. the {_bawm} after the mailing"})
-# ============================ SLIDE 19 — Before/After Median
-repl(S[18], {"debit spend rose $495 → $829 per responder (+67%)": f"debit spend rose ${M['ba_spend_med_before']:,} → ${M['ba_spend_med_after']:,} per responder (+{mgain}%)",
-             "Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}."})
+# ============================ SLIDE 19 — Before/After by Offer Group
+# Was the median twin of slide 18. The deck now reports ONE statistic — the mean —
+# and splits it by the offer that was mailed instead (Aaron, 2026-08-28): NU asks a
+# non-user to start using the card, TH asks an existing user to reach a threshold,
+# and pooling them hid which offer moved.
+_nu = M['ba_split_headline']['nu']; _th = M['ba_split_headline']['th']
+def _grpline(g, label):
+    """A Non-User's baseline is near zero by definition, so a percentage off it is
+    meaningless — Wellworth's NU cohort computes to +9,018% off a $13 baseline. Below a
+    $25 baseline the line states the dollar movement instead (Aaron, 2026-08-28)."""
+    if not g['n']:
+        return f"{label}: no mailing in this window had enough respondents to report."
+    base = f"{label}: ${g['before']:,}/mo before vs ${g['after']:,} after"
+    if g['before'] < 25:
+        return (f"{base} — a non-user starts from effectively no card spend, so the "
+                f"movement is read in dollars, not as a percentage "
+                f"({g['n']:,} respondent-observations).")
+    return f"{base} ({'+' if g['gain'] >= 0 else ''}{g['gain']}%), {g['n']:,} respondent-observations."
+set_shape_text(S[18], "On a median basis",
+               _grpline(_nu, "Non-User respondents") + " " + _grpline(_th, "Threshold respondents"),
+               optional=True)
+repl(S[18], {"Responder Activity: Before vs After (Median)":
+             "Responder Activity: Before vs After by Offer"}, optional=True)
+repl(S[18], {"Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}."})
+repl(S[18], {"median monthly debit spend (all responders) and median NSF/OD items among overdraft participants":
+             "average monthly debit spend per responder, split by the offer mailed "
+             "(Non-User vs Threshold)"}, optional=True)
 
 # ============================ SLIDE 21 — Personal Take Rate
 set_exact(S[20], "73.7%", take_new)
@@ -615,17 +744,38 @@ repl(SB("12-Month Eligible Take Rate — Personal"),
 
 # ============================ SLIDE 23 — Take by branch table
 tm = M['take_months']
-# Same rows the chart above shows, in the same branch-number order — a table ordered
-# differently from the chart beside it reads as an error.
+# Branch rows are sized to the space on the slide, not to a fixed 6. The table sat at
+# 2.35in with six branches and stopped at 5.07in, leaving roughly a third of the slide
+# empty (Aaron, 2026-08-28). Rows are 0.34in and the footer/logo band starts at 6.78in,
+# so fill down to 6.60in and add table rows for whatever the template doesn't have.
 import chart_lib as _cl_ord
-tbm = _cl_ord.branch_order(M['take_branch_monthly'][:6])
+_TBL_TOP, _ROW_H, _TBL_BOTTOM = 2.35, 0.34, 6.60
+_max_body = int((_TBL_BOTTOM - _TBL_TOP) / _ROW_H) - 2      # minus header and Total
+_nbranch = min(len(M['take_branch_monthly']), max(6, _max_body))
+tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch])
 rows = [["Branch"]+tm+["Cards", "Elig", "Take%"]]
 for row in tbm:
     b = row[0]; monthly = row[1:1+len(tm)]
     rows.append([str(b)]+[str(x) for x in monthly]+[str(row[-3]), str(row[-2]), f"{row[-1]}%"])
 tct = M['take_new_cards']; tet = M['take_new_total']
 rows.append(["Total (all branches)"]+[str(x) for x in M['take_col_totals']]+[str(tct), str(tet), f"{round(100*tct/tet)}%"])
-set_table(S[22], rows)
+_have = len(tables(S[22])[0].rows)
+if len(rows) > _have:
+    add_table_rows(S[22], len(rows) - _have)
+    print(f"take-by-branch: grew table {_have} -> {len(rows)} rows ({len(tbm)} branches)")
+set_table(S[22], rows, trim=True)
+repl(S[22], {"six largest branches shown": f"{len(tbm)} largest branches shown"}, optional=True)
+# The monthly COLUMNS span the activity months this extract carries, which is not the
+# same as the 12-month new-account window. Wellworth's caption read "monthly Aug 2025 –
+# Jul 2026" above five columns of Mar–Jul (Aaron, 2026-08-28).
+if tm:
+    # NB this runs BEFORE the as-of caption pass, so the needle is still the TEMPLATE's
+    # literal, not NEWWIN_TEXT. Replacing it here also stops the later pass touching it.
+    _cspan = f"{tm[0]} – {tm[-1]} 20{LATEST_MON[3:]}"
+    _plural = "s" if len(tm) != 1 else ""
+    repl(S[22], {"monthly Aug 2025 – Jun 2026;":
+                 f"monthly {_cspan} ({len(tm)} month{_plural} of activity in this extract);"},
+         optional=True)
 
 # ============================ SLIDE 24 — Swipes & Spend
 set_exact(S[23], "+4.3%", card_growth)
@@ -786,11 +936,125 @@ if MISSES:
     for _m in MISSES: _sys.stderr.write("  MISS " + _m + "\n")
     raise SystemExit(2)
 
+# ---- series-span captions ------------------------------------------------------
+# These name a HISTORICAL RANGE and a month count, both template literals. Wellworth
+# has three months of activity and its deck claimed "Jul 2023 – Jun 2026 (36 months)"
+# (Aaron, 2026-08-28). Each is derived from the series it describes, so a short
+# extract states its real span instead of the reference client's.
+def _span(rows, i=0):
+    """(first, last, n) as 'Mon YYYY' from a series whose element i is a 'Mon yy' label."""
+    if not rows: return None
+    def _pretty(lbl):
+        t = str(lbl).strip()
+        for fmt in ("%b %y", "%b %Y", "%b%y"):
+            try: return datetime.datetime.strptime(t, fmt).strftime("%b %Y")
+            except ValueError: pass
+        return t
+    return _pretty(rows[0][i]), _pretty(rows[-1][i]), len(rows)
+
+_ss = _span(B.get('swipespend_36') or [])
+if _ss:
+    repl(SB("Debit Card Swipes & Spend") if any(_slide_has(x, "Debit Card Swipes & Spend") for x in prs.slides) else S[23],
+         {"Monthly totals, Jul 2023 – Jun 2026 (36 months).":
+          f"Monthly totals, {_ss[0]} – {_ss[1]} ({_ss[2]} month{'s' if _ss[2] != 1 else ''})."},
+         optional=True)
+    # the same 36 that appears in the narrative bullets
+    for _sl in prs.slides:
+        repl(_sl, {"over the last 36 months": f"over the last {_ss[2]} months",
+                   "over 36 months": f"over {_ss[2]} months"}, optional=True)
+
+_ns = _span(M.get('nsf_series') or [])
+if _ns:
+    repl(S[24], {"accounts with activity (line), Sep 2023 – Jun 2026.":
+                 f"accounts with activity (line), {_ns[0]} – {_ns[1]}."}, optional=True)
+
+_op = _span(M.get('openings') or [])
+if _op:
+    _n = _op[2]
+    repl(SB("Account Openings & Closures") if any(_slide_has(x, "Account Openings & Closures") for x in prs.slides) else S[44],
+         {"over the trailing 24 months (Jul 2024 – Jun 2026)":
+          f"over the trailing {_n} months ({_op[0]} – {_op[1]})",
+          "over the trailing 24 months —": f"over the trailing {_n} months —"}, optional=True)
+    for _sl in prs.slides:
+        repl(_sl, {"trailing 24 months": f"trailing {_n} months"}, optional=True)
+
+# The Kaplan-Meier cohort window is a real constant (the span over which closings are
+# reliably captured), not a stale literal — but it was retyped in the caption, so the
+# two could drift apart silently. Swapped from the metric so they cannot.
+if M.get('km_cut'):
+    for _sl in prs.slides:
+        repl(_sl, {"accounts opened since Jul 2021": f"accounts opened since {M['km_cut']}"},
+             optional=True)
+
+# ---- client logo on the Agenda slide -------------------------------------------
+# Placed in the right-hand third, which is empty: the agenda's own text reaches at
+# most 8.80in (measured against the bundled TTFs at the 16pt floor, longest
+# sub-line in Montserrat), so a logo from 9.30in clears it. Sized to FIT rather than
+# to a fixed width — client logos run from 1.50 to 4.47 in aspect, so a fixed width
+# would stretch one client and overflow another. A missing logo is not an error.
+try:
+    import rpe_env as _rpe          # phase 2 imports it later; the agenda runs in phase 1
+    _logo_p = _rpe.client_logo(ID)
+    if _logo_p is None:
+        print(f"agenda logo: none on file for client {ID} "
+              f"(Inputs/Logos/{ID}.png) — slide built without it")
+    else:
+        _ag = SB("Agenda")
+        _LZ_L, _LZ_W, _LZ_CY, _LZ_H = 9.30, 3.60, 3.75, 1.60   # zone: left, width, centre-y, height
+        # crop to the ink first — the raw files carry white or transparent padding,
+        # and fitting the canvas renders a right-sized box holding a tiny logo
+        _logo_p = _rpe.trim_logo(_logo_p, ASSETS)
+        _fit = _rpe.fit_box(_logo_p, _LZ_W, _LZ_H)
+        if _fit:
+            _lw, _lh = _fit
+            _ag.shapes.add_picture(str(_logo_p),
+                                   Inches(_LZ_L + (_LZ_W - _lw) / 2.0),
+                                   Inches(_LZ_CY - _lh / 2.0),
+                                   Inches(_lw), Inches(_lh))
+            print(f"agenda logo: {os.path.basename(str(_logo_p))} placed {_lw:.2f}x{_lh:.2f}in")
+except Exception as _e:
+    print("!! agenda logo skipped:", repr(_e))
+
+# ---- point-in-time caption pass -------------------------------------------------
+# The template's captions carry the REFERENCE client's month. Slide-specific swaps
+# above cover the numbers but not these date phrases, so a Jul 2026 extract shipped
+# "Monthly debit spend (June 2026)" and "opt-in status as of June 2026" (Aaron,
+# 2026-08-28). These phrases are point-in-time captions ONLY — a mailing month is
+# never written this way, so rewriting them cannot corrupt a "Jun 2026 Mailer" label.
+_ASOF_SWAPS = {
+    "(June 2026)": f"({AS_OF_LONG})",
+    "as of June 2026": f"as of {AS_OF_LONG}",
+    "through June 2026": f"through {AS_OF_LONG}",
+    "in June 2026": f"in {AS_OF_LONG}",
+    "for June 2026": f"for {AS_OF_LONG}",
+    "July 2025 – June 2026": NEWWIN_LONG,
+    "July 2025 through June 2026": NEWWIN_LONG.replace(" – ", " through "),
+    "Jul 2025 – Jun 2026": NEWWIN_TEXT,
+    "Aug 2025 – Jun 2026": NEWWIN_TEXT,
+    "Apr – Jun 2026": M["w3_label"].replace("\u2013", " – "),
+    "Apr–Jun 2026": M["w3_label"],
+}
+_asof_hits = {k: 0 for k in _ASOF_SWAPS}
+for _s in prs.slides:
+    for _sh in frames(_s.shapes):
+        for _para in _sh.text_frame.paragraphs:
+            _full = "".join(r.text for r in _para.runs)
+            _new = _full
+            for _a, _b in sorted(_ASOF_SWAPS.items(), key=lambda kv: -len(kv[0])):
+                if _a != _b and _a in _new:
+                    _new = _new.replace(_a, _b); _asof_hits[_a] += 1
+            if _new != _full and _para.runs:
+                _para.runs[0].text = _new
+                for _r in _para.runs[1:]: _r.text = ""
+print("as-of caption pass: %s" % ({k: v for k, v in _asof_hits.items() if v} or "nothing to rewrite"))
+
 prs.save(WORK)
 print("phase1 text done")
 
 # ================================================================= PHASE 2
 import product_mix_slide
+import excluded_accounts_slide
+import rege_branch_slide
 from PIL import Image as _PImg
 import zipfile as _zf
 STRIP = os.path.join(BUILDDIR, "strip_dead.py")   # shared post-processor, next to restyle_fonts.py
@@ -809,6 +1073,26 @@ if ODD:
         print("product mix slide regenerated from ODD")
     except Exception as e:
         print("!! product-mix regen failed:", repr(e))
+    # Excluded Accounts sits directly after Product Mix: Product Mix shows what IS
+    # eligible, this shows what ARS never sees and why.
+    try:
+        _s, _x = excluded_accounts_slide.add_excluded_accounts_slide(
+            prs, ODD, ASSETS, after_title="Product Mix")
+        print("excluded accounts slide built from ODD (%s eligible / %s excluded of %s)"
+              % (f"{_x['elig_total']:,}", f"{_x['excluded_total']:,}", f"{_x['total']:,}"))
+        if _x["flags"]:
+            print("!! excluded accounts: unmapped status value(s) %s — resolve before "
+                  "delivery" % ", ".join(_x["flags"]))
+    except Exception as e:
+        print("!! excluded-accounts slide failed:", repr(e))
+# Reg E opt-in by branch — the table companion to the two Reg E branch charts.
+try:
+    _rs, _rn = rege_branch_slide.add_rege_branch_slide(
+        prs, M, ASSETS, AS_OF_LONG, after_title="Reg E Opt-In — Opened")
+    if _rs is not None:
+        print(f"reg-e-by-branch slide built ({_rn} branches)")
+except Exception as e:
+    print("!! reg-e-by-branch slide failed:", repr(e))
 
 # ---- 2b. Source note on every slide ----
 # Per-client source strings — DERIVED from the data pack; never hardcode a client.
