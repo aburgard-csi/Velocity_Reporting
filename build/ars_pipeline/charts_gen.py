@@ -192,8 +192,12 @@ def c_rege_branch(name,rows,avg):
     fig,ax=figfor(name,3.6)
     ax.bar(range(len(vals)),vals,color=ORANGE,width=0.64)
     for i,v in enumerate(vals): ax.text(i,v+0.6,f"{v}%",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=10)
-    ax.axhline(avg,ls="--",color=NAVY,lw=1.5); ax.text(0.0,max(max(vals),avg)*1.28,f"Overall {avg:.1f}%",color=NAVY,fontsize=9,ha="left")
-    ax.set_ylim(0,max(max(vals),avg)*1.42); ax.set_ylabel("% opted in",color=NAVY,fontsize=10)
+    # Dashed line = program average. The "Overall x%" caption that used to sit above it is
+    # gone (Aaron, 2026-08-27): the same figure is already the centre of the donut beside
+    # this chart, and the label overlapped it. Headroom drops with it — 1.42 was reserved
+    # for that caption; the bars only need clearance for their own value labels.
+    ax.axhline(avg,ls="--",color=NAVY,lw=1.5)
+    ax.set_ylim(0,max(max(vals),avg)*1.20); ax.set_ylabel("% opted in",color=NAVY,fontsize=10)
     ax.set_xticks(range(len(vals))); ax.set_xticklabels(labels,fontsize=10)
     ax.tick_params(axis='y',labelsize=9); _clean(ax)
     save(fig,name)
