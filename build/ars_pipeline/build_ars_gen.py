@@ -614,12 +614,16 @@ if TICKET_PNG:
 # the mailing count, and drops the model name (Aaron 2026-08-20: clients aren't aware of
 # other revenue models).
 _nmail = len(MS)
+# The "counted from the ODD" sentence is dropped from the slide face (Aaron,
+# 2026-08-28) — the data source belongs in the speaker notes, which already name the
+# ODD extract, its pull stamp and the workbook. It stays there; only the on-slide
+# line loses it.
 if _nmail <= 1:
-    _sub12 = "The program's first mailing. Offers sent and responders counted from the ODD."
+    _sub12 = "The program's first mailing."
 elif _nmail < int(mailings or 0):
-    _sub12 = f"Most recent {_nmail} of the program's {mailings} mailings. Offers sent and responders counted from the ODD."
+    _sub12 = f"Most recent {_nmail} of the program's {mailings} mailings."
 else:
-    _sub12 = f"All {_nmail} mailings to date. Offers sent and responders counted from the ODD."
+    _sub12 = f"All {_nmail} mailings to date."
 repl(S[11], {"Most recent 12 of the program's 81 mailings (MM revenue model).": _sub12})
 # First column carries "Trailing 12-Mailing Total", which wraps to two lines under ~2.7in.
 # Right edge stays left of the corner logo at 11.28in.
