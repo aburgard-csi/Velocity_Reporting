@@ -844,6 +844,33 @@ else: agetxt = f"Response is fairly even across ages — {u25}% of under-25 elig
 repl(SB("Responder Age Profile"), {"(8,768 with age on file)": ("(age not available in this extract)" if M.get('age_missing')
                                           else f"({M['age_base']:,} with age on file)"),
              "Response rates are highest among younger accounts — 58% of under-25 eligibles respond versus 27% of those 65+ — even though the eligible base skews older (55+ = 56%).": agetxt})
+
+if M.get('age_missing'):
+    # The sentence above was already correct, but the CHART was still drawn — an empty
+    # axis with a row of twelve zeros under it (1537 FNB&T, whose DOB column is present
+    # but blank on all 29,852 rows). CLAUDE.md is explicit: state the absence, do NOT
+    # render a 0% or an empty chart. Remove the plot and let the sentence carry the
+    # slide. The PNG is still generated and swapped in elsewhere — leaving the template
+    # image in place would show the REFERENCE client's age chart, which is worse than
+    # an empty one (Aaron, 2026-08-28).
+    _age_sl = SB("Responder Age Profile")
+    # the Selection line promised "Age mix — full eligible base vs. responders" for a
+    # chart that is no longer on the slide; say what is actually shown instead
+    # replace the WHOLE clause, including its trailing as-of date — leaving that behind
+    # produced "No age mix is shown, as of July 2026". This runs before the as-of caption
+    # pass, so the needle is still the template's June literal.
+    repl(_age_sl, {"Age mix — full eligible base vs. responders, as of June 2026.":
+                   "No age mix is shown."}, optional=True)
+    _dropped = 0
+    for _sh in list(_age_sl.shapes):
+        if _sh.shape_type == 13 and Emu(_sh.top).inches < 6.0 and Emu(_sh.width).inches > 5.0:
+            _sh._element.getparent().remove(_sh._element); _dropped += 1
+    # lift the explanatory sentence into the space the chart occupied
+    for _sh in frames(_age_sl.shapes):
+        if _sh.text_frame.text.strip().startswith("Date of birth is not carried"):
+            _sh.top = Inches(2.60); _sh.left = Inches(1.45); _sh.width = Inches(10.4)
+    print(f"age profile: DOB absent — removed {_dropped} empty chart image(s), kept the statement")
+
 # ============================ SLIDE 36 — Balance
 rm_, nm_ = M['bal_resp_med'], M['bal_non_med']
 if rm_ < nm_*0.9: baltxt = f"Responders carry lower balances than non-responders (median ${rm_:,} vs ${nm_:,}) — ARS engages transaction-reliant customers, not the highest-balance ones. (Eligibility = any account scored across the recent 12 mailings.)"
@@ -885,7 +912,11 @@ repl(SB("Debit Card Usage"), {"By their first year new personal cards are approa
              f"By their first year new personal cards are approaching the established book — {nap} active in June versus {bap}, at ${M['new_spend_active']:,} spend per active card versus ${M['book_spend_active']:,}."})
 # ============================ SLIDE 42 — New swipe seg
 seg0 = M['new_swipe_seg'][0]
-repl(SB("New-Account Debit Adoption"), {"(n=529)": f"(n={M['new_card_n']:,})"})
+# Population counts are written as a bare parenthetical everywhere else in the deck —
+# "(64,230)", "(6,926)" — so these two were the only slides carrying "n=" notation.
+# Dropping it removes the last of it from the client-facing pages and makes the two
+# Selection lines match the other four (Aaron, 2026-08-28).
+repl(SB("New-Account Debit Adoption"), {"(n=529)": f"({M['new_card_n']:,})"})
 set_exact(SB("New-Account Debit Adoption"), "529", f"{M['new_card_n']:,}")
 set_exact(SB("New-Account Debit Adoption"), "71.6%", f"{M['new_swipe_monthly_pct']:.1f}%")
 set_exact(SB("New-Account Debit Adoption"), "28.0%", f"{M['new_swipe_heavy_pct']:.1f}%")
@@ -925,7 +956,7 @@ if M['bayes_close_used'] < M['bayes_close_notused']:
     btxt = f"Early debit use tracks with better first-year retention — {M['bayes_close_used']:.1f}% close vs {M['bayes_close_notused']:.1f}% for non-users."
 else:
     btxt = f"In this book, early debit use shows no protective link with first-year retention — early-active accounts close slightly more ({M['bayes_close_used']:.1f}% vs {M['bayes_close_notused']:.1f}%)."
-repl(SB("First-Year Closure"), {"(n=1,466)": f"(n={M['bayes_n']:,})", "13.4% base rate": f"{M['bayes_prior']}% base rate",
+repl(SB("First-Year Closure"), {"(n=1,466)": f"({M['bayes_n']:,})", "13.4% base rate": f"{M['bayes_prior']}% base rate",
              "Early debit use tracks with better first-year retention — 10.3% close vs 17.4% for non-users.": btxt})
 
 # --- swap gate: every find-string must have matched something -----------------
