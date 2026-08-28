@@ -102,12 +102,18 @@ package ends up referencing parts twice (the defect behind the unopenable 2026.0
 Run `validation/qa_all.py` on the assembled deck: it checks package integrity and that the file
 actually opens, which a 0-FAIL lint pass alone does not.
 
-**A combined deck is not always three fresh builds.** ICS financials are quarterly, so between
-workbooks the ICS section carries the previous workbook's figures forward unchanged (see
-**Cadence**). The ICS section may therefore report an older month than the ARS and MRPC
-sections. That is expected — do not "align" it, re-date it, or zero it. The per-slide source
-notes name the workbook and its period, which is what keeps a carried-forward figure auditable.
-`assemble_combined.py` prints each section's period so the difference is visible at build time.
+**The ICS section presents current results only (Aaron, 2026-08-28).** ICS financials are
+quarterly, and a monthly build used to carry the previous workbook's figures forward. It no
+longer does: **if there is no workbook for the deck's own period, the workbook-driven ICS
+elements are not included at all.** The builder resolves the newest ICS workbook for the client
+from `Inputs/ARS & MRPC Reports/` and compares its period to the deck's; on a mismatch the ICS
+section falls back to the referrals-only shape — Referrals, Referral Trend, Results by Branch
+and the education slides — and the divider drops to "Referrals".
+
+Do not carry an older workbook's figures forward, and do not re-date, align or zero them. An
+ICS section that reports an older month than ARS and MRPC is no longer an expected outcome; it
+is a defect. The fix is a current workbook, not a carried-forward number.
+`assemble_combined.py` prints each section's period so any divergence is visible at build time.
 
 **Filename convention:**
 
@@ -271,8 +277,8 @@ education/reference and Q&A slides, and **omits** the workbook-driven slides (ac
 performance, revenue, financial summary, comparisons) entirely — they are absent, never
 rendered from null or shown as 0. The section divider drops to "Referrals" so the deck does not
 advertise sections it lacks. It is **opt-in only**: without the flag the missing-section guard
-still stops the build, so a client mid-quarter can never silently lose their carried-forward
-financials. Combined decks handle the shorter section automatically — `assemble_combined.py`
+still stops the build, so a client whose data sheet was simply never populated cannot silently
+ship a short section. Combined decks handle the shorter section automatically — `assemble_combined.py`
 selects a program's slides by exclusion, not by fixed index.
 
 ## Data sources by program (do not cross these)
