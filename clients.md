@@ -35,30 +35,30 @@ template placeholder means SM. Verified 2026-08-28.
 | 1676 | True Sky CU | MM | yes | yes | — | ARS-ICS |
 | 1705 | CoastLife CU | MM | yes | **cancelled** | — | ARS |
 
-**MRPC-only clients** (MRPCPM analysis for 2026.08, no ARS workbook):
+**MRPC-only clients** — confirmed by Aaron 2026-08-28.
 
 | ID | Client | Programs |
 | --- | --- | --- |
-| 1218 | Ideal CU | MRPC |
-| 1477 | The Summit FCU | MRPC |
-| 1502 | Capital Bank | MRPC |
+| 1218 | Ideal CU | MRPC only |
+| 1477 | The Summit FCU | MRPC only |
+| 1502 | Capital Bank | MRPC only |
 
 **Cancelled / ending**
 
 | ID | Client | What changed | Effective |
 | --- | --- | --- | --- |
-| 1174 | PointBank | ICS cancelled | 2026-08-28 |
+| 1174 | PointBank | ICS cancelled; **no ARS either — no programs** | 2026-08-28 |
 | 1705 | CoastLife CU | ICS cancelled — ARS continues | 2026-08-28 |
 | 1437 | Canandaigua National Bank | ARS + MRPC end; **no further reviews will be produced** | 2026-10-31 |
 
-**ICS-only clients** (ICS data in the repo, no 2026.08 ARS workbook):
+**ICS-only clients** — confirmed by Aaron 2026-08-28.
 
 | ID | Client | ICS workbook | Note |
 | --- | --- | --- | --- |
 | 1632 | WesBanco Bank | 2026.07 | |
-| 1658 | Truliant FCU | none on file | referrals-only unless a workbook lands |
 | 1734 | Altamaha Bank and Trust | 2026.08 | |
 | 1738 | Rosedale Bank | none on file | referrals-only unless a workbook lands |
+| 1658 | Truliant FCU | none on file | **unconfirmed — see open questions** |
 
 ---
 
@@ -68,7 +68,8 @@ template placeholder means SM. Verified 2026-08-28.
   2026.08 forward. Their ICS data under `build/ics_pipeline/data/1705-CoastLife Credit
   Union/` is left in place as the record of what shipped through 2026.07; it must not be
   used to build a new ICS section.
-- **2026-08-28 — PointBank 1174 cancelled ICS** (Aaron).
+- **2026-08-28 — PointBank 1174 is off the books** (Aaron). ICS cancelled and they do
+  not have ARS. Their ODD extract stays in `Inputs/ODDD/` — it is not a signal to build.
 - **2026-08-28 — Canandaigua 1437: no further reviews** (Aaron). The program terminates
   2026-10-31 and they will not receive another Executive Review before it does. Do not
   build 2026.08 or any later cycle. Their inputs (ODD, 2026.08 workbook, 2026.08 MRPCPM)
@@ -85,14 +86,23 @@ template placeholder means SM. Verified 2026-08-28.
 
 These are stated as open questions, not assumptions.
 
-1. **1174 PointBank — is ARS still running?** ICS is cancelled (confirmed). They have an
-   ODD extract but no ARS workbook for any recent period, so no ARS deck can be built as
-   things stand. Either they are fully off the books or a workbook is missing.
-2. **1218, 1477, 1502** carry 2026.08 DCO files, which normally accompany an ARS build,
-   but have no ARS workbook. MRPC-only is the reading here — confirm.
-3. **1632, 1734, 1738** carry 2026.08 DCO files with no ARS workbook, same question.
-4. **Client logos** exist for 1075, 1509, 1537, 1539, 1549, 1676 only. Every other client
+1. **1732 — no such client on this machine.** Named as ICS-only on 2026-08-28, but there
+   is no 1732 anywhere: no ODD extract, no workbook, no ICS or MRPC data folder, no
+   client folder in Drive. Possibly a typo. Note that **1658 Truliant FCU** — which does
+   have an ICS data folder — was NOT named in the same list, so 1732 may have been meant
+   as 1658. Confirm the id before either is built.
+2. **1658 Truliant FCU** is listed above as ICS-only on the strength of its data folder
+   alone, which is exactly the inference this file exists to stop. Confirm.
+3. **Client logos** exist for 1075, 1509, 1537, 1539, 1549, 1676 only. Every other client
    builds its Agenda slide without one — see CLAUDE.md **File locations**.
+
+## What is NOT a signal to build
+
+- **A 2026.08 DCO file.** 1218, 1477, 1502, 1632, 1734 and 1738 all carry one and none of
+  them are ARS clients. A DCO accompanies an ARS build but does not imply one.
+- **Leftover program data.** CoastLife's ICS folder, PointBank's ODD extract and
+  Canandaigua's 2026.08 workbook and MRPCPM all still exist for programs that have
+  stopped.
 
 ## What the evidence was
 
