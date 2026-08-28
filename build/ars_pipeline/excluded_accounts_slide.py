@@ -61,6 +61,13 @@ from product_mix_slide import (
     _NAVY_HX, _ORANGE_HX, _GREY_HX, _TICK_HX, _MONFULL, _MIDX,
 )
 from rpe_env import use_font
+from textfit import text_width_in
+
+
+def _text_w(t, pt):
+    """Rendered width at the size the run will ACTUALLY render at. restyle_fonts floors
+    every run at 16pt, so measuring the nominal 10.5 understates every line."""
+    return text_width_in(t, pt, "Calibri", False)
 
 # Status wording is the shared vocabulary from CLAUDE.md / oddd_optimize.classify_status.
 _CLOSED_PREFIX = ("closed", "charge", "purge", "pending close")
@@ -356,17 +363,29 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
     else:
         notes.append("No account on file is flagged as a bad or foreign address.")
     if data["mailed"] is not None:
-        not_mailed = data["elig_total"] - data["mailed"]
-        notes.append(f"Of {data['elig_total']:,} eligible accounts, {data['mailed']:,} were "
-                     f"sent an offer and {not_mailed:,} were not. The mail field carries the "
-                     f"offer strategy ({', '.join(data['mail_codes'] or [])}), not a "
-                     f"suppression code.")
-    _tb(s, 0.5, 6.05, 12.3, 0.62, notes, 10.5, GREYT, False,
+        notes.append(f"{data['mailed']:,} of {data['elig_total']:,} eligible accounts were "
+                     f"mailed — the mail field holds the offer strategy, not a suppression code.")
+
+    # The footnote band is 2 lines: it sits at 6.05in and the logo/page-number band
+    # starts at 6.78in, so a third line overflows into it. Which notes exist varies by
+    # client — 1549 has no mail column at all, 1537 has all three — so the block is
+    # MEASURED and truncated to what fits rather than assumed to be short enough
+    # (1537 estimated 5 lines and failed the gate). Everything lands in the speaker
+    # notes regardless, so nothing is lost, only moved.
+    _USABLE, _MAXLINES = 12.30 - 0.2, 2
+    shown, used = [], 0
+    for n in notes:
+        lines = max(1, int(_text_w(n, 16) // _USABLE) + (1 if _text_w(n, 16) % _USABLE else 0))
+        if used + lines > _MAXLINES:
+            continue
+        shown.append(n); used += lines
+    _tb(s, 0.5, 6.05, 12.3, 0.62, shown, 10.5, GREYT, False,
         PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     src = (f"Source: client ODD, {data['month_label']} snapshot ({data['elig_col']}). "
            f"Excluded product codes derived per client as those with no eligible open "
-           f"account. Reason order: status, product code, debit card.")
+           f"account. Reason order: status, product code, debit card. "
+           + " ".join(notes))
     s.notes_slide.notes_text_frame.text = src
 
     logo = os.path.join(assets_dir, "logo.png")

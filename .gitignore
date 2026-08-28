@@ -17,6 +17,7 @@ env/
 # belongs in this repo.
 build/ics_pipeline/data/
 build/mrpc_pipeline/data/
+build/ars_pipeline/data/
 *.xlsx
 *.xlsm
 *.csv

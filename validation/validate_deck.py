@@ -334,7 +334,15 @@ def stale_template_caption_findings(prs, deck_path=None, template_path=None):
             if sh.has_text_frame:
                 for para in sh.text_frame.paragraphs:
                     t = "".join(r.text for r in para.runs).strip()
-                    if len(t) > 12 and any(f in t for f in forms):
+                    # Long CAPTION prose only. A short date PILL ("PTD · June 2026",
+                    # "June 2026 Data") is a derived value with its own guard — the ARS
+                    # builder hard-fails if its pill swap matches nothing — and in a
+                    # combined deck the ICS section's pill legitimately reports an older
+                    # month, because ICS financials are quarterly and carry forward
+                    # (CLAUDE.md cadence). 1705 CoastLife's ICS section correctly reads
+                    # "PTD · June 2026" against a Jul 2026 ARS section, and this check
+                    # failed all four of those slides (Aaron, 2026-08-28).
+                    if len(t) > 40 and any(f in t for f in forms):
                         tpl_dated.add(t)
     if not tpl_dated:
         return []

@@ -298,6 +298,10 @@ This is the readme index — update it whenever files are added, removed, or mov
 
 **Root**
 - `CLAUDE.md` — this file: routing, shared conventions, and this file map.
+- `clients.md` — **which clients get which programs.** Program membership is recorded
+  here, NOT inferred from whether an input file exists: CoastLife 1705 kept producing an
+  ICS section after cancelling because their ICS data was still on disk. Check it before
+  building, and update it when a program starts or stops.
 - `CHANGELOG.md` — behavior changes that move a client-facing number or its source.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
 - `docs/` — `PRD-2026-08-26-repo-portability-and-response-rates.md`.
