@@ -256,7 +256,51 @@ def extract_logo(ref, path):
     return None
 
 # ============================ build ============================
+def _latest_ics_workbook_period(client_id):
+    """Period of the newest ICS workbook on file for this client, e.g. '2026.08'.
+
+    Returns None when none is found. Filenames are
+    '<id>-<yyyy.mm>-<name>-Invitation Checking Workbook ...' in the shared inputs
+    folder. Resolved from RPE_DATA_ROOT so it works on either machine.
+    """
+    import glob, re
+    try:
+        import rpe_env
+        folder = rpe_env.inputs() / "ARS & MRPC Reports"
+    except Exception:
+        return None
+    best = None
+    for f in glob.glob(str(folder / f"{client_id}-*")):
+        b = os.path.basename(f)
+        if "invitation checking" not in b.lower():
+            continue
+        m = re.match(rf"^{re.escape(str(client_id))}-(\d{{4}}\.\d{{2}})-", b)
+        if m and (best is None or m.group(1) > best):
+            best = m.group(1)
+    return best
+
+
 def build(d, static_path, out, referrals_only=False):
+    _stale_workbook = False
+    # ICS financial detail ships ONLY when the workbook is for the deck's own period
+    # (Aaron, 2026-08-28). It used to carry the prior quarter's figures forward, which
+    # kept the numbers auditable in the source notes but dated them as current on the
+    # slide face: 1537 FNB&T and 1676 True Sky both stamped "PTD · August 2026" on an
+    # ICS Financial Summary built from a 2026.06 and 2026.07 workbook respectively.
+    # A stale workbook now drops the workbook-driven sections instead, exactly as a
+    # client with no workbook at all does.
+    _meta = d.get("meta") or {}
+    _cid, _period = _meta.get("client_id"), _meta.get("period")
+    if not referrals_only and _cid and _period:
+        _wbp = _latest_ics_workbook_period(_cid)
+        if _wbp != _period:
+            print(f"ICS financial detail OMITTED: newest ICS workbook for {_cid} is "
+                  f"{_wbp or 'none on file'}, deck period is {_period}. Carried-forward "
+                  f"figures would be dated as current on the slide face, so the "
+                  f"workbook-driven sections are ABSENT rather than re-dated. Supply a "
+                  f"{_period} workbook to include them.")
+            referrals_only = True
+            _stale_workbook = True
     # Missing-input guard (Aaron 2026-07-24/25): ICS financials are QUARTERLY (workbook-
     # driven); referrals are monthly (VIP). A monthly refresh CARRIES FORWARD the latest
     # workbook's financial sections in the client JSON (source notes keep the workbook
@@ -268,9 +312,15 @@ def build(d, static_path, out, referrals_only=False):
     if referrals_only:
         _skipped=[k for k in ("performance","revenue","financial_summary","monthly_detail",
                               "benchmark") if not d.get(k)]
-        print(f"REFERRALS-ONLY build: omitting workbook-driven sections {_skipped} — no ICS "
-              f"workbook has landed for this client yet. The financial slides are ABSENT, "
-              f"not zeroed.")
+        if _stale_workbook:
+            print(f"REFERRALS-ONLY build: the workbook-driven sections are present in the "
+                  f"client JSON but are NOT rendered, because they come from an older "
+                  f"workbook than this deck's period. Referrals, trend, branch results and "
+                  f"the education slides are unaffected.")
+        else:
+            print(f"REFERRALS-ONLY build: omitting workbook-driven sections {_skipped} — no "
+                  f"ICS workbook has landed for this client yet. The financial slides are "
+                  f"ABSENT, not zeroed.")
     if _missing:
         _cid=(d.get("meta") or {}).get("client_id","?")
         raise SystemExit(
