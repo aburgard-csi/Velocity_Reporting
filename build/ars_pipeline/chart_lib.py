@@ -22,7 +22,7 @@ def _letterbox(fig, out_png, tw, th):
 def take_branch_chart(out_png, labels, vals, avg, bar_color, dash_color, w=1383, h=540):
     """Take-rate-by-branch bar chart with identical geometry for personal & business.
     Only the colors differ (personal orange/navy, business navy/orange)."""
-    # This geometry seats about eight bars; past that the "Br NN" labels run together and
+    # This geometry seats about eight bars; past that the branch labels run together and
     # the value labels touch (1549 arrived with 19, 1075 with 37 — Aaron, 2026-08-20).
     # Callers cap the list; this is the backstop so a new caller can't reintroduce it.
     if len(vals) > BRANCH_CAP:
@@ -40,3 +40,16 @@ def take_branch_chart(out_png, labels, vals, avg, bar_color, dash_color, w=1383,
     ax.spines["bottom"].set_color("#B8C0CA"); ax.tick_params(colors=TICK, length=0)
     for t in ax.get_xticklabels(): t.set_color(NAVY)
     _letterbox(fig, out_png, w, h)
+
+def branch_order(rows, key=lambda r: r[0]):
+    """Sort already-selected branch rows by branch NUMBER for display.
+
+    Applied AFTER the top-N slice so the chart still shows the largest branches — only
+    their left-to-right order changes (Aaron, 2026-08-27). Non-numeric ids (Texas Bay 1509
+    carries ids like 707221, and a client could use letters) sort after the numeric ones
+    instead of raising.
+    """
+    def k(r):
+        v = str(key(r))
+        return (0, int(v), "") if v.isdigit() else (1, 0, v)
+    return sorted(rows, key=k)

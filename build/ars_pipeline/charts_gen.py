@@ -131,12 +131,12 @@ def c_before_after(mean=True):
         nb=[e['nb_mean'] for e in ba]; na=[e['na_mean'] for e in ba]
         nbsd=[e['nb_sd'] for e in ba]; nasd=[e['na_sd'] for e in ba]
         name='image10'; t1="Avg Monthly Debit Spend / Responder"; t2="Avg Monthly NSF/OD Items / Responder"
-        l1="Before (3-mo baseline)"; l2="After (all months)"
+        l1="Before (3-mo baseline)"; l2="After (3-mo window)"
     else:
         sb=[e['sb_med'] for e in ba]; sa=[e['sa_med'] for e in ba]; sbsd=sasd=None
         nb=[e['nb_med'] for e in ba]; na=[e['na_med'] for e in ba]; nbsd=nasd=None
         name='image31'; t1="Median Monthly Debit Spend / Responder"; t2="Median NSF/OD Items / Overdraft Participant"
-        l1="Before (3-mo baseline)"; l2="After (all months)"
+        l1="Before (3-mo baseline)"; l2="After (3-mo window)"
     fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*4.2,4.2))
     x=np.arange(len(cats)); w=0.4
     for ax,(bb,aa,bs,as_,title,isnsf) in zip(axes,[(sb,sa,sbsd,sasd,t1,False),(nb,na,nbsd,nasd,t2,True)]):
@@ -156,7 +156,9 @@ def c_before_after(mean=True):
 # image11: take rate by branch (new eligible)
 def c_take_branch():
     import chart_lib   # shared renderer -> personal + business take-rate charts stay identical
-    tb=M['take_branch'][:chart_lib.BRANCH_CAP]; labels=[f"Br {b}" for b,_,_,_ in tb]; vals=[p for _,_,_,p in tb]
+    # top-N by size first, then ordered by branch number for display
+    tb=chart_lib.branch_order(M['take_branch'][:chart_lib.BRANCH_CAP])
+    labels=[str(b) for b,_,_,_ in tb]; vals=[p for _,_,_,p in tb]
     chart_lib.take_branch_chart(f"{OUT}/image11.png", labels, vals, M['take_new_pct'], ORANGE, NAVY, *DIM['image11'])
     print("wrote image11")
 # image12: swipes & spend combo (workbook 36mo)
@@ -184,7 +186,9 @@ def c_donut(name,vin,vout,vno,pct):
     ax.set(aspect="equal"); save(fig,name)
 # rege branch image14/16
 def c_rege_branch(name,rows,avg):
-    rows=rows[:6]; labels=[f"Br {b}" for b,_,_,_ in rows]; vals=[p for _,_,_,p in rows]
+    import chart_lib
+    rows=chart_lib.branch_order(rows[:6])   # keep the top 6, order them by number
+    labels=[str(b) for b,_,_,_ in rows]; vals=[p for _,_,_,p in rows]
     fig,ax=figfor(name,3.6)
     ax.bar(range(len(vals)),vals,color=ORANGE,width=0.64)
     for i,v in enumerate(vals): ax.text(i,v+0.6,f"{v}%",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=10)

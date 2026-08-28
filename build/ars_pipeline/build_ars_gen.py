@@ -50,7 +50,8 @@ ASSETS = tempfile.mkdtemp(prefix="ars_assets_")
 
 # ------------------------------------------------------------------ derived values (from build_gen / build_gen_b)
 def m2(x): return f"${x/1e6:.2f}M"
-months = str(B['months']); mailings = str(B['mailings'])
+# Every number shown in a callout carries thousands separators (Aaron, 2026-08-27).
+months = f"{B['months']:,}"; mailings = f"{B['mailings']:,}"
 _nm_int = int(B['mailings'] or 0)
 # "1 mailings" reads as a bug to the client. Use with {mailings} wherever the count is
 # spoken rather than tabulated.
@@ -71,11 +72,17 @@ rev_sum12 = f"${B['monthly_rev_sum12']/1000:.0f}K"; rev_avg12 = f"${B['monthly_r
 take = f"{M['take_hist_pct']:.1f}%"; take_new = f"{M['take_new_pct']:.1f}%"
 n_elig = f"{O['funnel']['eligible']:,}"  # canonical ODD flag count (personal+business); metrics n_eligible is personal-only
 rege = f"{M['rege_pct']:.1f}%"; rege_in = f"{M['rege_in']:,}"; rege_pool = f"{M['rege_pool']:,}"
-rege_new = f"{M['rege_new_pct']:.1f}%"; rege_new_in = str(M['rege_new_in']); rege_new_pool = f"{M['rege_new_pool']:,}"
+rege_new = f"{M['rege_new_pct']:.1f}%"; rege_new_in = f"{M['rege_new_in']:,}"; rege_new_pool = f"{M['rege_new_pool']:,}"
 # Mailing response now comes from the ODD (metrics_gen.mail_summary), not the workbook.
 # The workbook's denominator isn't the mailed population, so the summary slide and the
 # latest-mailer slide disagreed on the same drop — 16.3% vs 10.7% on 1549 (Aaron,
 # 2026-08-20). Newest mailing first; totals are weighted on offers sent.
+def _branch_label(b):
+    """The branch label as-is — a name once the Charts 2026 file has supplied one, otherwise
+    the ODD number. No "Br"/"Branch" prefix on either (Aaron, 2026-08-27)."""
+    return str(b)
+
+
 MS = M['mail_summary']; MST = M['mail_summary_total']
 mail_resp = f"{MST[4]:.1f}%"
 cf = B['swipespend_36'][0][2]; cl = B['swipespend_36'][-1][2]
@@ -109,7 +116,7 @@ if MM:
     dist_str = ', '.join(f"{n} {round(100*d)}%" for n, d, v in L['revseg'])
 
 # latest mailer / movement / dot
-lm = M['latest_mailing']; lmailed = f"{M['latest_mailed']:,}"; lresp = str(M['latest_responders']); lrr = f"{M['latest_resprate']:.1f}%"
+lm = M['latest_mailing']; lmailed = f"{M['latest_mailed']:,}"; lresp = f"{M['latest_responders']:,}"; lrr = f"{M['latest_resprate']:.1f}%"
 mv = {k: v for k, v in M['movement']}
 fr = mv.get('First Response', M['movement'][0][1]); imp = mv.get('Improved', M['movement'][1][1])
 tog = fr+imp; togpct = round(100*tog/M['latest_responders'])
@@ -237,10 +244,10 @@ if ODD:
 BIZ_PNG = None
 if BIZ and BIZ['branches']:
     import chart_lib   # SAME renderer as the personal take-rate chart (charts_gen image11)
-    br = BIZ['branches']
+    br = chart_lib.branch_order(BIZ['branches'])   # largest branches, ordered by number
     BIZ_PNG = os.path.join(ASSETS, 'biz_branch.png')
     # business = navy bars / orange dashed avg; identical geometry to personal (orange/navy)
-    chart_lib.take_branch_chart(BIZ_PNG, [f"Br {b[0]}" for b in br], [b[3] for b in br],
+    chart_lib.take_branch_chart(BIZ_PNG, [str(b[0]) for b in br], [b[3] for b in br],
                                 BIZ['new'], "#00274C", "#F47A29", 1383, 540)
     print("wrote", BIZ_PNG)
 
@@ -544,7 +551,7 @@ repl(S[14], {"ARS Response — Apr 2026 Movement": f"ARS Response — {lm} Movem
              "Selection: the 258 responders to the Apr 2026 mailing, compared with their prior mailing (first-time, improved, held steady, or declined).":
              f"Selection: the {lresp} responders to the {lm} mailing, compared with their prior mailing (first-time, improved, held steady, or declined).",
              "70 were first-time responders (no prior response) and 72 improved their tier — together 55% of the 258 responders moved up or in for the first time.":
-             f"{fr} were first-time responders (no prior response) and {imp} improved their tier — together {togpct}% of the {lresp} responders moved up or in for the first time."})
+             f"{fr:,} were first-time responders (no prior response) and {imp:,} improved their tier — together {togpct}% of the {lresp} responders moved up or in for the first time."})
 
 # ============================ SLIDE 16 — Transaction Increase (dot)
 repl(S[15], {"Selection: ARS responders (3,030).": f"Selection: ARS responders ({M['dot_n']:,})."})
@@ -554,9 +561,24 @@ set_exact(S[15], "+5", f"+{M['dot_median']:.0f}")
 repl(S[15], {"Half clear their goal by 5+ transactions in the month after the offer and the average by 10, with a long tail of heavy over-performers (156 at +40 or more).":
              f"Half clear their goal by {M['dot_median']:.0f}+ transactions in the month after the offer and the average by {M['dot_mean']:.0f}, with a long tail of heavy over-performers ({M['dot_tail40']} at +40 or more)."})
 
+# ============================ SLIDE 17 — Sustained Respondent Activity
+# The window and the benchmark were both template text that no swap touched, so every client
+# shipped the reference client's "(Apr–Jun 2026)" and the wrong benchmark. Sustained is now
+# measured against the ask the responder ANSWERED, over this extract's trailing 3 months.
+repl(S[16], {"their first-offer activity goal over the latest 3 months (Apr–Jun 2026)":
+             f"the activity goal they responded to, over the latest 3 months ({M['w3_label']})"})
+
 # ============================ SLIDE 18 — Before/After Mean
+_baw = M.get('ba_window_months', 3)
+_bawm = f"{_baw} month" + ("s" if _baw != 1 else "")   # a young program can fall back to 1
 repl(S[17], {"$644/mo before vs $1,027 after (+59%)": f"${M['ba_spend_before']:,}/mo before vs ${M['ba_spend_after']:,} after (+{sgain}%)",
-             "Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}."})
+             "Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}.",
+             # Windows are symmetric now (3 before vs 3 after); the old caption claimed the
+             # gain held across every later month, which the chart no longer measures.
+             "held across all later months":
+             f"held through the {_bawm} after",
+             "3-month pre-mailing baseline vs. every month after the mailing (through June 2026)":
+             f"{_baw}-month pre-mailing baseline vs. the {_bawm} after the mailing"})
 # ============================ SLIDE 19 — Before/After Median
 repl(S[18], {"debit spend rose $495 → $829 per responder (+67%)": f"debit spend rose ${M['ba_spend_med_before']:,} → ${M['ba_spend_med_after']:,} per responder (+{mgain}%)",
              "Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}."})
@@ -565,15 +587,15 @@ repl(S[18], {"debit spend rose $495 → $829 per responder (+67%)": f"debit spen
 set_exact(S[20], "73.7%", take_new)
 set_exact(S[20], "71.0%", take)
 set_exact(S[20], "707", f"{M['take_new_total']:,}")
-set_exact(S[20], "186", str(M['take_new_nocard']))
+set_exact(S[20], "186", f"{M['take_new_nocard']:,}")
 repl(S[20], {"Dashed line = 73.7% program average.": f"Dashed line = {take_new} program average."})
 
 # ============================ SLIDE 22 — Business Take Rate
 if BIZ:
     set_exact(S[21], "51.7%", f"{BIZ['new']:.1f}%")
     set_exact(S[21], "0.0%", f"{BIZ['hist']:.1f}%")
-    set_exact(S[21], "178", str(BIZ['elig']))
-    set_exact(S[21], "86", str(BIZ['nocard']))
+    set_exact(S[21], "178", f"{BIZ['elig']:,}")
+    set_exact(S[21], "86", f"{BIZ['nocard']:,}")
     repl(S[21], {"Selection: business accounts opened Jul 2025 – Jun 2026 (new take rate) and all ARS-eligible business accounts (historical). 0 business accounts are ARS-eligible in the current book.":
                  f"Selection: business accounts opened {NEWWIN_TEXT} (new take rate) and all ARS-eligible business accounts (historical). {BIZ['hist_elig']} business accounts are ARS-eligible in the current book.",
                  "Take rate by branch (new business accounts, largest branches). Dashed line = 52% program average.":
@@ -592,11 +614,15 @@ repl(SB("12-Month Eligible Take Rate — Personal"),
       f"Selection: ARS-eligible personal accounts, trailing 12 months ({NEWWIN_TEXT})."})
 
 # ============================ SLIDE 23 — Take by branch table
-tm = M['take_months']; tbm = M['take_branch_monthly'][:6]
+tm = M['take_months']
+# Same rows the chart above shows, in the same branch-number order — a table ordered
+# differently from the chart beside it reads as an error.
+import chart_lib as _cl_ord
+tbm = _cl_ord.branch_order(M['take_branch_monthly'][:6])
 rows = [["Branch"]+tm+["Cards", "Elig", "Take%"]]
 for row in tbm:
     b = row[0]; monthly = row[1:1+len(tm)]
-    rows.append([f"Br {b}"]+[str(x) for x in monthly]+[str(row[-3]), str(row[-2]), f"{row[-1]}%"])
+    rows.append([str(b)]+[str(x) for x in monthly]+[str(row[-3]), str(row[-2]), f"{row[-1]}%"])
 tct = M['take_new_cards']; tet = M['take_new_total']
 rows.append(["Total (all branches)"]+[str(x) for x in M['take_col_totals']]+[str(tct), str(tet), f"{round(100*tct/tet)}%"])
 set_table(S[22], rows)
@@ -643,7 +669,7 @@ set_shape_text(S[29], "• 226 months, 81 mailings; 5.7 : 1 profitability\n• $
 set_shape_text(S[29], "• 71.0% overall take rate\n• New-account take rate 73.7%\n• Card base +4.3% over 36 months\n• Monthly spend $9.3M",
     f"• {take} overall take rate\n• New-account take rate {take_new}\n• Card base {card_growth} over 36 months\n• Monthly spend {monthly_spend}")
 set_shape_text(S[29], "• 36.3% opt-in (personal accounts)\n• Best branches ~49% (Branch 4 49%)\n• Opportunity at low-opt-in branches\n• New-account opt-in 20.0%",
-    f"• {rege} opt-in (personal accounts)\n• Best branches ~{bb[3]}% (Branch {bb[0]} {bb[3]}%)\n• Opportunity at low-opt-in branches\n• New-account opt-in {rege_new}")
+    f"• {rege} opt-in (personal accounts)\n• Best branches ~{bb[3]}% ({_branch_label(bb[0])} {bb[3]}%)\n• Opportunity at low-opt-in branches\n• New-account opt-in {rege_new}")
 
 # ============================ SLIDE 31 — Q&A
 repl(S[30], {"Union Financial": NAME})
@@ -964,6 +990,100 @@ try:
     print("contact slide added")
 except Exception as _e:
     print("contact slide skip:", repr(_e))
+
+# ---------- Appendix: Branch Reference (Aaron, 2026-08-27) ----------------------------
+# Charts and tables label branches by NUMBER because the names collide on an eight-bar
+# chart. So the deck carries the mapping once, as the first slide of the Appendix, and the
+# reader looks a number up there. Built only when the client's "<Client> Charts 2026" file
+# actually supplied names (metrics_gen puts them in M['branch_names'] keyed by the SAME
+# label the charts print, so the two can never disagree).
+def add_branch_reference_slide(prs, pairs):
+    if not pairs:
+        return False
+    from pptx.enum.text import PP_ALIGN as _PA, MSO_ANCHOR as _MA
+    from pptx.dml.color import RGBColor as _RC
+    _navy=_RC(0x00,0x27,0x4C); _grey=_RC(0x5A,0x66,0x70); _white=_RC(0xFF,0xFF,0xFF)
+    _band=_RC(0xEE,0xF2,0xF7)
+
+    def _t0(sl):
+        for sh in sl.shapes:
+            if sh.has_text_frame and sh.text_frame.text.strip():
+                return sh.text_frame.text.strip().split("\n")[0]
+        return ""
+    app = next((sl for sl in prs.slides if _t0(sl).strip().lower()=="appendix"), None)
+    if app is None:
+        return False
+    s = prs.slides.add_slide(app.slide_layout)
+    for sh in list(s.shapes):
+        sh._element.getparent().remove(sh._element)
+
+    def _tb(x,y,w,h,text,size,color,bold,align=_PA.LEFT,font="Montserrat"):
+        b=s.shapes.add_textbox(Inches(x),Inches(y),Inches(w),Inches(h))
+        tf=b.text_frame; tf.word_wrap=True; p0=tf.paragraphs[0]; p0.alignment=align
+        r=p0.add_run(); r.text=text
+        r.font.size=Pt(size); r.font.bold=bold; r.font.color.rgb=color; r.font.name=font
+        return b
+    _tb(0.5,0.28,12.3,0.9,"Branch Reference",26,_navy,True)
+    _tb(0.5,1.12,12.3,0.5,
+        "Branch numbers are used on the charts and tables in this deck. This slide maps them "
+        "to branch names.",14,_grey,False,font="Calibri")
+
+    # Balanced columns. BOTTOM keeps the block clear of the corner logo (top 6.78) and the
+    # slide number — a single full-width table of 14 branches ran to 6.85 and collided.
+    top=1.75; BOTTOM=6.70
+    ncol=max(1,min(3,-(-len(pairs)//12)))
+    per=-(-len(pairs)//ncol)
+    cols=[pairs[i*per:(i+1)*per] for i in range(ncol)]
+    cols=[c for c in cols if c]
+    gap=0.35; total_w=12.3; cw=(total_w-gap*(len(cols)-1))/len(cols)
+    rowh=min(0.32,(BOTTOM-top)/(per+1))
+    fsz=11 if rowh>=0.28 else 9
+    for ci,col in enumerate(cols):
+        left=0.5+ci*(cw+gap)
+        tbl=s.shapes.add_table(len(col)+1,2,Inches(left),Inches(top),
+                               Inches(cw),Inches(rowh*(len(col)+1))).table
+        tbl.columns[0].width=Inches(cw*0.28); tbl.columns[1].width=Inches(cw*0.72)
+        for j,(hdr,val) in enumerate([("Branch","Name")]+list(col)):
+            for k,txt in enumerate((hdr,val)):
+                cell=tbl.cell(j,k); cell.text=str(txt)
+                cell.margin_left=Inches(0.06); cell.margin_right=Inches(0.04)
+                cell.margin_top=0; cell.margin_bottom=0
+                cell.vertical_anchor=_MA.MIDDLE
+                para=cell.text_frame.paragraphs[0]
+                run=para.runs[0] if para.runs else para.add_run()
+                run.font.size=Pt(fsz); run.font.name="Calibri"
+                if j==0:
+                    cell.fill.solid(); cell.fill.fore_color.rgb=_navy
+                    run.font.color.rgb=_white; run.font.bold=True
+                else:
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb=_band if j%2==0 else _white
+                    run.font.color.rgb=_navy
+    try:
+        s.notes_slide.notes_text_frame.text=(
+            "Source: the client's \"Charts 2026\" workbook, Branch Results tab (Branch # / "
+            "Branch Name). Charts and tables in this deck label branches by number; this "
+            "slide is the lookup. Branches with no name in that file are not listed.")
+    except Exception:
+        pass
+
+    # Place it immediately after the Appendix divider.
+    from pptx.oxml.ns import qn as _q
+    lst=prs.slides._sldIdLst
+    def _el(sl):
+        for e in lst:
+            if prs.part.related_part(e.get(_q("r:id"))) is sl.part: return e
+        return None
+    src,tgt=_el(s),_el(app)
+    if src is not None and tgt is not None:
+        lst.remove(src); lst.insert(list(lst).index(tgt)+1, src)
+    return True
+
+try:
+    if add_branch_reference_slide(prs, M.get("branch_names") or []):
+        print(f"branch reference slide added ({len(M['branch_names'])} branches)")
+except Exception as _e:
+    print("branch reference slide skip:", repr(_e))
 
 # Appendix after Contact (Aaron 2026-07-24): move the Contact slide just before the Appendix
 # divider so the Appendix section follows the Contact slide in every deck that includes it.
