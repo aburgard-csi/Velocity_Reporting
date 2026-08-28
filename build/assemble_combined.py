@@ -226,6 +226,23 @@ def set_agenda(slide, programs):
         for shape in (numbox, head, det):
             if shape is not None:
                 shape._element.getparent().remove(shape._element)
+
+    # Each row's badge is TWO stacked shapes: a decorative circle carrying no text, and the
+    # number drawn on top of it. The scan above only sees shapes WITH text, so removing row
+    # 4 left its empty circle behind as an orphan bullet (Wellworth 1549, Aaron 2026-08-27).
+    # Clear anything left in the badge column below the last row the deck actually uses.
+    kept = rows[:len(agenda)]
+    if kept:
+        ref = kept[0][0]
+        last_top = max(r[0].top for r in kept)
+        tol = Emu(60000)                      # ~0.065in
+        for shape in list(slide.shapes):
+            if None in (shape.top, shape.left, shape.width):
+                continue
+            if shape.top <= last_top + tol:
+                continue
+            if abs(shape.left - ref.left) < tol and abs(shape.width - ref.width) < tol:
+                shape._element.getparent().remove(shape._element)
     return True
 
 
