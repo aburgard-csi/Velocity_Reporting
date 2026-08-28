@@ -21,6 +21,7 @@ from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 import ics_charts_gen as CH
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import summit_slide
+from textfit import fits_one_line   # measured against the bundled TTFs, not estimated
 
 NAVY=RGBColor(0x00,0x27,0x4C); ORANGE=RGBColor(0xF4,0x7A,0x29); STEEL=RGBColor(0x9D,0xB8,0xCC)
 LIGHT=RGBColor(0xEC,0xF0,0xF4); WHITE=RGBColor(0xFF,0xFF,0xFF); GREYT=RGBColor(0x5A,0x66,0x70)
@@ -162,7 +163,12 @@ def restyle_newrel(prs):
                             cur=r.font.size.pt if r.font.size else 14
                             r.font.size=Pt(cur+4)
 
-def enforce_min_font(prs, minpt=16):
+# Every run in an ICS deck is floored at this size, so a width guard must measure against
+# MIN_PT rather than the size the drawing call passes in.
+MIN_PT = 16
+
+
+def enforce_min_font(prs, minpt=MIN_PT):
     """Bump any explicit run font size below minpt up to minpt across all slides.
     Skips the dense '2026 New Releases' reference table (can't fit at 16pt)."""
     _t=lambda s: next((sh.text_frame.text.strip().split("\n")[0] for sh in s.shapes if sh.has_text_frame and sh.text_frame.text.strip()),"")
@@ -474,7 +480,9 @@ def build(d, static_path, out, referrals_only=False):
             pv_bullets=[f"Using the {life_used:g}-year modeled account life",
                         f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
         cols=[(AMBER, f"${p['annual_profit_per_account']:,.2f}",
-               "Annual Profit Contribution per Account",
+               # "Annual Profit Contribution per Account" is 4.91in of Montserrat 18pt in a
+               # 3.60in column — it wrapped onto the bullet beneath (Aaron, 2026-08-27).
+               "Annual Profit per Account",
                [f"Accounts pay for themselves in ~{p['payback_months']} months"]),
               (ORANGE, f"{life_used:g} years",
                "Average Life of Accounts", life_bullets),
@@ -551,7 +559,9 @@ def build(d, static_path, out, referrals_only=False):
                 a("ics_ic_pam.png"),[(f"${icPTD/am:.2f}","Blended / account / month"),(f"${icPTD/acc:.2f}","Per account, life-to-date")],
                 base+" Interchange per account per month, cohort-normalized. Workbook 'Monthly Detail'.",foot=IC_DEF)
         mdslide(10,"Total NSF/OD & Other Fee Revenue",
-                "NSF/OD fees plus other service charges by cohort (opening month), program-to-date. Revenue only — not item counts.",
+                # Trailing "Revenue only — not item counts." pushed this to 13.06in in a
+                # 12.10in box, wrapping onto the callout value; it is already in the notes.
+                "NSF/OD fees plus other service charges by cohort (opening month), program-to-date.",
                 a("ics_nsf_tot.png"),[(f"${nsoPTD:,.0f}","NSF/OD & Other PTD"),(f"{acc:,}","ICS accounts")],
                 base+" NSF/OD + other service charges by cohort. Workbook 'Monthly Detail' (revenue only).")
         mdslide(11,"NSF/OD & Other Fees per Account per Month",
@@ -587,10 +597,22 @@ def build(d, static_path, out, referrals_only=False):
         cpa=d["performance"]["cost_per_account"]; billed=cpa*fs["ics_accounts"]
         tb(s,0.75,BT0+0.1,3.8,0.4,"Program to Date",16,NAVY,True)
         yy=BT0+0.6
-        for lab,val in [("Account Profit Contribution",f"${fs['account_profit_contribution']:,.0f}"),
-                        ("Amortized Program Expense",f"${fs['total_program_expense']:,.0f}"),
-                        ("Net Profit",f"${fs['net_profit']:,.0f}"),
-                        (f"Billed Expense for {fs['ics_accounts']:,} Accounts",f"${billed:,.0f}")]:
+        # "Billed Expense for 46,195 Accounts" wraps onto the value beneath it once the count
+        # is wide enough (Aaron, 2026-08-27). Drop the count when it will not fit on one
+        # line — the same figure is already on this slide in the "ICS Accounts" callout, so
+        # nothing is lost.
+        _billed_lab=f"Billed Expense for {fs['ics_accounts']:,} Accounts"
+        if not fits_one_line(_billed_lab,3.9,14,family="Montserrat",min_pt=MIN_PT):
+            _billed_lab="Billed Expense"
+        _labels=[("Account Profit Contribution",f"${fs['account_profit_contribution']:,.0f}"),
+                 ("Amortized Program Expense",f"${fs['total_program_expense']:,.0f}"),
+                 ("Net Profit",f"${fs['net_profit']:,.0f}"),
+                 (_billed_lab,f"${billed:,.0f}")]
+        for lab,val in _labels:
+            # Surface any other label that would wrap rather than let it collide unnoticed.
+            if not fits_one_line(lab,3.9,14,family="Montserrat",min_pt=MIN_PT):
+                print(f"WARNING ICS Financial Summary: label {lab!r} may wrap in its 3.9in box",
+                      file=sys.stderr)
             tb(s,0.75,yy,3.9,0.4,lab,14,GREYT,False); tb(s,0.75,yy+0.32,3.9,0.5,val,20,NAVY,True); yy+=0.98
         tb(s,0.5,6.5,12.6,0.5,f"Amortized expense: ${cpa:,.0f} ÷ 60 months = ${cpa/60:.2f} per account per month × time open.",16,GREYT,False)
         for i,(big,lab) in enumerate([(f"{fs['ics_accounts']:,}","ICS Accounts"),(f"${fs['average_balance']:,.0f}","Average Balance"),(f"{roi_calc:.2f} : 1","Return on Investment")]):
@@ -674,7 +696,7 @@ def build(d, static_path, out, referrals_only=False):
     if len(_seen)!=len(set(_seen)):
         raise SystemExit("ERROR: duplicate slide references in sldIdLst")
 
-    enforce_min_font(prs, 16)   # minimum 16pt across the deck
+    enforce_min_font(prs, MIN_PT)   # minimum size across the deck
     summit_slide.insert_summit_after_title(prs)   # Executive Summit after the title (all decks)
 
     # renumber the content-slide page boxes sequentially (skip cover/divider/full-bleed)
