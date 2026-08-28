@@ -95,12 +95,24 @@ CLOSED={'Closed','Charge-off','Charge-Off','Charged Off','Charged-Off',
 def isopen(r):
     sd=g(r,'Stat Desc'); return sd.startswith('Open') or sd.startswith('Active') or sd in OPEN
 def personal(r): return g(r,'Business?')=='No'
+# strptime dominated this script: 3.8M calls, ~24s of a 100s run, almost all of it
+# re-parsing the same handful of date strings. Cache on the STRING (not on the row) — a
+# few thousand distinct dates, and no dependence on row object identity.
+_DATE_CACHE={}
+_UNSET=object()        # None is a real cached result (unparseable date), so it cannot be the miss marker
 def parsed(r,f):
     v=g(r,f)
+    d=_DATE_CACHE.get(v,_UNSET)
+    if d is not _UNSET:
+        return d
+    out_=None
     for fmt in ('%m/%d/%Y','%Y-%m-%d %H:%M:%S','%Y-%m-%d','%m/%d/%y'):
-        try: return datetime.datetime.strptime(v,fmt)
-        except: pass
-    return None
+        try:
+            out_=datetime.datetime.strptime(v,fmt); break
+        except Exception:
+            pass
+    _DATE_CACHE[v]=out_
+    return out_
 _lm=mkey(LATEST)
 NOW=(_lm.replace(day=28)+datetime.timedelta(days=4)).replace(day=1)-datetime.timedelta(days=1)
 M=out={}
@@ -114,6 +126,9 @@ M['overall_take']=round(100*sum(1 for r in elig if hascard(r))/len(elig),1)
 
 # ---- swipe tier (slide 8) ----
 w3=smonths[-3:]   # trailing 3 months of THIS extract
+# Label for the slides that quote this window. It was hardcoded in the template as
+# "(Apr–Jun 2026)" and never swapped, so every client shipped the reference client's window.
+M['w3_label']=f"{mkey(w3[0]).strftime('%b')}\u2013{mkey(w3[-1]).strftime('%b %Y')}" 
 def sw3(r): return sum(swipes(r,m) for m in w3)/3
 def sp3(r): return sum(spend(r,m) for m in w3)/3
 def ns3(r): return sum(nsf(r,m) for m in w3)/3
@@ -149,23 +164,42 @@ M['ranking']=rank  # newest last
 # slide 12 and 10.7% on slide 14 for the same Jun 2026 drop (Aaron, 2026-08-20). Both now
 # use the same definition — offers sent = personal accounts carrying a `<mon> Mail` value,
 # responders = those whose `<mon> Resp` reached a goal tier. Newest mailing first.
-msum=[]
+# Each rate uses ITS OWN offer group as the denominator (Aaron, 2026-08-27):
+#   NU 5+ rate     = NU respondents / NU recipients
+#   Threshold rate = TH respondents / TH recipients
+# Both used to divide by the whole mailed population, which mixes the two offers into one
+# denominator and understates both — Austin Feb 2026 read NU 2.5% where the NU offer
+# actually drew 337 of 4,420 (7.6%). The offer a recipient was sent is the '<mon> Mail'
+# value ('NU' or 'TH-10'..'TH-25'); '<mon> Resp' carries what they achieved ('NU 5+' or
+# 'TH-nn' when met, 'NU 1-4' when not). Only the overall Response % spans both groups.
+msum=[]; _nu_s=_nu_r=_th_s=_th_r=0; _unknown_offers=Counter()
 for m in reversed(recent):
     sent=[r for r in data if personal(r) and g(r,f'{m} Mail')]
     if not sent: continue
     rs=[r for r in sent if g(r,f'{m} Resp') in RESP_MET]
-    nu=sum(1 for r in rs if g(r,f'{m} Resp')=='NU 5+')
+    nu_sent=[r for r in sent if g(r,f'{m} Mail')=='NU']
+    th_sent=[r for r in sent if g(r,f'{m} Mail').startswith('TH')]
+    for r in sent:
+        _o=g(r,f'{m} Mail')
+        if _o!='NU' and not _o.startswith('TH'): _unknown_offers[_o]+=1
+    nu_r=sum(1 for r in nu_sent if g(r,f'{m} Resp') in RESP_MET)
+    th_r=sum(1 for r in th_sent if g(r,f'{m} Resp') in RESP_MET)
+    _nu_s+=len(nu_sent); _nu_r+=nu_r; _th_s+=len(th_sent); _th_r+=th_r
     msum.append([lbl(m), len(sent), len(rs),
-                 round(100*nu/len(sent),1),
-                 round(100*(len(rs)-nu)/len(sent),1),
+                 round(100*nu_r/len(nu_sent),1) if nu_sent else 0.0,
+                 round(100*th_r/len(th_sent),1) if th_sent else 0.0,
                  round(100*len(rs)/len(sent),1)])
+if _unknown_offers:
+    print(f"WARNING mail_summary: offer codes that are neither NU nor TH-* were excluded "
+          f"from both rate denominators: {dict(_unknown_offers.most_common(8))}", file=sys.stderr)
 M['mail_summary']=msum
 _tot_sent=sum(x[1] for x in msum); _tot_rs=sum(x[2] for x in msum)
-# Weighted on offers sent, not a mean of rates — a mean would let a small drop swing the
-# program average as hard as a large one.
+# Trailing total pools each group's own recipients and respondents. It is NOT a mean of the
+# per-mailing rates: that would let a small drop swing the program figure as hard as a large
+# one, and with per-group denominators the pooled ratio is the only correct roll-up.
 M['mail_summary_total']=[_tot_sent, _tot_rs,
-                         round(sum(x[3]*x[1] for x in msum)/_tot_sent,1) if _tot_sent else 0.0,
-                         round(sum(x[4]*x[1] for x in msum)/_tot_sent,1) if _tot_sent else 0.0,
+                         round(100*_nu_r/_nu_s,1) if _nu_s else 0.0,
+                         round(100*_th_r/_th_s,1) if _th_s else 0.0,
                          round(100*_tot_rs/_tot_sent,1) if _tot_sent else 0.0]
 
 # ---- latest mailer (slide 12/13) ----
@@ -224,56 +258,97 @@ M['dot_hist']=[[k,hist.get(k,0)] for k in range(0,41)]
 M['dot_tail40']=hist.get(40,0)
 
 # ---- sustained by mailing (slide 15) ----
-def first_goal(r):
-    t=first_offer_tier(r); return OFFER_GOAL.get(t,5)
+# Sustained = average monthly swipes over the CURRENT 3-month window at or above the ask
+# this respondent answered (Aaron, 2026-08-27). sw3() is already the 3-month mean, so the
+# comparison is like-for-like against a monthly ask.
+#
+# The ask is the one attached to THIS mailing — the offer they were sent ('<mon> Mail'),
+# falling back to the goal implied by what they achieved ('<mon> Resp') when the offer cell
+# is blank. It used to be first_offer_tier(): the first offer ever SENT to the account,
+# whether or not they responded to it. For a repeat responder whose ask moved between
+# mailings that benchmarks the cohort against the wrong number.
+def _ask(r, m):
+    o = g(r, f'{m} Mail')
+    if o in OFFER_GOAL: return OFFER_GOAL[o]
+    return RESP_GOAL.get(g(r, f'{m} Resp'), 5)
 sust=[]
 for m in recent:  # recent 12 mailings
     rs=[r for r in elig if g(r,f'{m} Resp') in RESP_MET]
     if not rs: continue
-    ok=sum(1 for r in rs if sw3(r)>=first_goal(r))
+    ok=sum(1 for r in rs if sw3(r)>=_ask(r,m))
     sust.append([lbl(m),len(rs),round(100*ok/len(rs),1)])
 M['sustained']=sust
 
-# ---- before/after (slides 16/17) ----
-def three_before(r,m):
-    idx=smonths.index(m); pre=smonths[max(0,idx-3):idx]
-    return pre
-def all_after(r,m):
-    idx=smonths.index(m); return smonths[idx+1:]
-ba_mailings=[m for m in mature if smonths.index(m)>=3 and smonths.index(m)+1<len(smonths)]
-ba=[]
+# ---- before/after (slides 18/19) ----
+# Cohort = ALL personal responders to the mailing (Aaron, 2026-08-27). It used to be `elig`,
+# i.e. only those still ARS-eligible at the snapshot — a present-tense filter on a historical
+# cohort. On Austin 1075 that dropped 0.8% of the newest mailing's responders but 21.9% of the
+# oldest: precisely the accounts that closed or went quiet. It lifted the reported gain from
+# +53% to +62%, which is survivorship, not program lift.
+#
+# Windows are SYMMETRIC — the BA_W months before the mailing against the BA_W months after it.
+# "After" used to run to the end of the extract, so an old mailing compared 3 months against 32
+# while the newest compared 3 against 2; the bars were not measuring the same thing. A mailing
+# without a full post window is excluded rather than charted on a short one.
+# Target window is 3 months each side. A young program may not have 3 months after any
+# mailing yet (Wellworth 1549's only mailing is one month before the extract ends), so fall
+# back to the widest window that at least one mailing supports rather than charting nothing.
+# The window is recorded in ba_window_months and the slide caption states it, so a 1-month
+# comparison is never passed off as a 3-month one.
+ba_pop=[r for r in data if personal(r)]
+def _ba_window(w):
+    return [m for m in mature
+            if smonths.index(m)>=w and smonths.index(m)+1+w<=len(smonths)]
+for BA_W in (3,2,1):
+    ba_mailings=_ba_window(BA_W)
+    if ba_mailings: break
+if not ba_mailings:
+    print("WARNING before/after: no mailing has a full month on both sides — slides 18/19 "
+          "will report that the comparison is not available yet", file=sys.stderr)
+def _wins_pair(a,b):
+    """Winsorize both windows at ONE cap from their combined distribution.
+
+    Capping each window at its own mean+3sd gave before and after different thresholds, so
+    the cap itself moved the delta."""
+    allv=a+b
+    if not allv: return a,b
+    cap=statistics.mean(allv)+3*statistics.pstdev(allv)
+    return [min(v,cap) for v in a],[min(v,cap) for v in b]
+ba=[]; _pool_sb=[]; _pool_sa=[]
 for m in ba_mailings:
-    rs=[r for r in elig if g(r,f'{m} Resp') in RESP_MET]
+    i=smonths.index(m)
+    rs=[r for r in ba_pop if g(r,f'{m} Resp') in RESP_MET]
     if len(rs)<5: continue
-    pre=smonths[max(0,smonths.index(m)-3):smonths.index(m)]
-    post=smonths[smonths.index(m)+1:]
+    pre=smonths[i-BA_W:i]; post=smonths[i+1:i+1+BA_W]
     sb=[statistics.mean([spend(r,x) for x in pre]) for r in rs]
     sa=[statistics.mean([spend(r,x) for x in post]) for r in rs]
     nb=[statistics.mean([nsf(r,x) for x in pre]) for r in rs]
     na=[statistics.mean([nsf(r,x) for x in post]) for r in rs]
-    # winsorize spend at 3 SD
-    def wins(vals):
-        mu=statistics.mean(vals); sd=statistics.pstdev(vals); cap=mu+3*sd
-        return [min(v,cap) for v in vals]
-    sbw=wins(sb); saw=wins(sa)
-    # overdraft participants for median NSF
-    od=[i for i in range(len(rs)) if nb[i]>0 or na[i]>0]
+    sbw,saw=_wins_pair(sb,sa)
+    _pool_sb+=sb; _pool_sa+=sa
+    od=[i2 for i2 in range(len(rs)) if nb[i2]>0 or na[i2]>0]   # overdraft participants
     ba.append({'m':lbl(m),'n':len(rs),
        'sb_mean':round(statistics.mean(sbw)),'sa_mean':round(statistics.mean(saw)),
        'sb_sd':round(statistics.pstdev(sbw)),'sa_sd':round(statistics.pstdev(saw)),
        'nb_mean':round(statistics.mean(nb),2),'na_mean':round(statistics.mean(na),2),
        'nb_sd':round(statistics.pstdev(nb),2),'na_sd':round(statistics.pstdev(na),2),
        'sb_med':round(statistics.median(sb)),'sa_med':round(statistics.median(sa)),
-       'nb_med':round(statistics.median([nb[i] for i in od]),2) if od else 0,
-       'na_med':round(statistics.median([na[i] for i in od]),2) if od else 0})
+       'nb_med':round(statistics.median([nb[i2] for i2 in od]),2) if od else 0,
+       'na_med':round(statistics.median([na[i2] for i2 in od]),2) if od else 0})
 M['before_after']=ba
-# overall mean before/after (headline)
-allsb=[];allsa=[];annb=[];anna=[]
-for e in ba:
-    allsb.append(e['sb_mean']);allsa.append(e['sa_mean'])
-M['ba_spend_before']=round(statistics.mean(allsb)); M['ba_spend_after']=round(statistics.mean(allsa))
-M['ba_spend_med_before']=round(statistics.mean([e['sb_med'] for e in ba]))
-M['ba_spend_med_after']=round(statistics.mean([e['sa_med'] for e in ba]))
+M['ba_window_months']=BA_W
+
+# Headline pools every responder observation instead of averaging the per-mailing figures,
+# which let a 2,688-responder mailing count as much as a 5,065-responder one. (A responder who
+# answered several mailings contributes once per mailing — that is inherent to per-mailing
+# cohorts, and the pooled figure is still "per responder per mailing".)
+_hb,_ha=_wins_pair(_pool_sb,_pool_sa)
+M['ba_spend_before']=round(statistics.mean(_hb)) if _hb else 0
+M['ba_spend_after']=round(statistics.mean(_ha)) if _ha else 0
+# A TRUE median across responders. This was the mean of the per-mailing medians, which is not
+# the median of anything.
+M['ba_spend_med_before']=round(statistics.median(_pool_sb)) if _pool_sb else 0
+M['ba_spend_med_after']=round(statistics.median(_pool_sa)) if _pool_sa else 0
 
 # ============ STAGE 2 ============
 OPTIN='IN'; OPTOUT={'OUT'}; NOELECT={'NO'}
@@ -365,11 +440,16 @@ M['take_branch_monthly']=brmonthly; M['take_months']=[mkey(m).strftime('%b') for
 M['take_col_totals']=[sum(1 for r in new_elig if opened_month(r,m) and hascard(r)) for m in tmonths]
 # ---- NSF/OD over time (slide 22): monthly items + accounts w/ activity ----
 nmonths=smonths[2:]  # Sep23..Jun26 (skip first 2 for parity w/ 1038 Sep start)
-nsf_series=[]
-for m in nmonths:
-    items=sum(nsf(r,m) for r in data)
-    accts=sum(1 for r in data if nsf(r,m)>0)
-    nsf_series.append([mkey(m).strftime("%b %y"),round(items),accts])
+# One pass over the rows accumulating every month, instead of two full scans per month
+# (34 months x 273k rows x 2 = ~18M nsf() calls, each of which is two field reads).
+_items={m:0.0 for m in nmonths}; _accts={m:0 for m in nmonths}
+for r in data:
+    for m in nmonths:
+        v=nsf(r,m)
+        if v:
+            _items[m]+=v
+            if v>0: _accts[m]+=1
+nsf_series=[[mkey(m).strftime("%b %y"),round(_items[m]),_accts[m]] for m in nmonths]
 M['nsf_series']=nsf_series
 M['nsf_last_items']=nsf_series[-1][1]; M['nsf_last_accts']=nsf_series[-1][2]
 # YoY
@@ -513,11 +593,19 @@ for r in allp:
         if not dc: t=(NOW-do).days/30.44; ev=0
         else: t=(dc-do).days/30.44; ev=1
     if t>=0: recs.append((t,ev))
-evtimes=sorted(set(t for t,e in recs if e==1))
+# Kaplan-Meier. Was O(event times x records) — two full scans of `recs` per event time,
+# 38.7M generator steps and ~11s on Austin 1075. The at-risk count is just "how many
+# records have tt >= et", which one sort plus a binary search answers, and the deaths per
+# time are one Counter. Same numbers, same order.
+import bisect as _bisect
+_times=sorted(tt for tt,_ in recs)
+_deaths=Counter(tt for tt,e in recs if e==1)
+evtimes=sorted(_deaths)
 Scur=1.0; surv_steps=[]
+_N=len(_times)
 for et in evtimes:
-    n=sum(1 for tt,_ in recs if tt>=et-1e-9)
-    d=sum(1 for tt,e in recs if e==1 and abs(tt-et)<1e-9)
+    n=_N-_bisect.bisect_left(_times, et-1e-9)
+    d=_deaths[et]
     if n>0: Scur*=(1-d/n)
     surv_steps.append((et,Scur))
 def Sat(m):
@@ -535,8 +623,11 @@ M['ret_1yr']=round(100*Sat(12),1); M['ret_3yr']=round(100*Sat(36),1)
 # KM median survival (months where S crosses 0.5), else report last observable
 medm=next((et for et,sv in surv_steps if sv<=0.5),None)
 M['km_median_yr']=round(medm/12,1) if medm else None
-closed_life=[ (parsed(r,'Date Closed')-parsed(r,'Date Opened')).days/365.25
-              for r in allp if not isopen(r) and parsed(r,'Date Opened') and parsed(r,'Date Closed') ]
+closed_life=[]
+for r in allp:                      # was parsing both dates twice per row in the filter
+    if isopen(r): continue
+    _o=parsed(r,'Date Opened'); _c=parsed(r,'Date Closed')
+    if _o and _c: closed_life.append((_c-_o).days/365.25)
 M['median_closed_life']=round(statistics.median(closed_life),1) if closed_life else 0
 # Bayesian first-year closure by early debit use (slide 43)
 # cohort opened 36 to 12 months before the snapshot, so every account has had a
@@ -576,6 +667,53 @@ M['bayes_p_used_surv']=round(100*p_used_surv)
 M['bayes_close_used']=round(100*post_close_used,1)
 M['bayes_close_notused']=round(100*post_close_notused,1)
 M['bayes_rr']=round(post_close_notused/post_close_used,1) if post_close_used else 0
+# ---- branch names (Aaron, 2026-08-27) ----------------------------------------------
+# The ODD carries branch NUMBERS only. The client's "<Client> Charts 2026" workbook maps
+# them to names on its Branch Results tab, so charts and tables can say "Lufkin" rather
+# than "Branch 41". Point ARS_CHARTS_FILE at that workbook; without it the deck keeps the
+# numbers, and an unmapped branch keeps its number too rather than going blank.
+_charts=_os.environ.get('ARS_CHARTS_FILE','').strip()
+if _charts:
+    _bdir=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir)
+    if _bdir not in sys.path: sys.path.insert(0, _bdir)
+    import branch_names as _bn
+    _map=_bn.load_map(_charts)
+    if not _map:
+        print(f"WARNING branch names: no usable Branch Results tab in "
+              f"{_os.path.basename(_charts)} — no branch reference slide will be built",
+              file=sys.stderr)
+    else:
+        # Charts and tables keep the NUMBER: on an eight-bar take-rate chart the names
+        # collide badly (Aaron, 2026-08-27). The mapping rides along as data instead, and
+        # the builder turns it into one reference slide in the Appendix.
+        _pairs=[]; _seen=set(); _unmapped=[]
+        for _k in _bn.BRANCH_KEYS:
+            for _row in (M.get(_k) or []):
+                _lbl=str(_row[0])
+                if _lbl in _seen: continue
+                _seen.add(_lbl)
+                _nm=_map.get(_lbl) or (_map.get(str(int(_lbl))) if _lbl.isdigit() else None)
+                (_pairs.append([_lbl,_nm]) if _nm else _unmapped.append(_lbl))
+        # Sorted the way a reader scans them, and keyed by the SAME label the charts print.
+        _pairs.sort(key=lambda x: (0, int(x[0])) if x[0].isdigit() else (1, 0))
+        _tot=len(_pairs)+len(_unmapped)
+        _cov=(len(_pairs)/_tot) if _tot else 0
+        # A low match rate means the two files are numbering different things, not that the
+        # Charts file is missing rows. Texas Bay 1509's ODD branch column holds ids like
+        # 114413 / 707221 while its Charts file lists 01-10: exactly 2 "matched", and both
+        # were coincidences that would have put the wrong branch name against the wrong
+        # number. Publish the mapping only when most of the deck's branches resolve.
+        if _cov < 0.5:
+            M['branch_names']=[]
+            print(f"WARNING branch names: only {len(_pairs)} of {_tot} branch ids resolve "
+                  f"({_cov:.0%}) — the ODD and the Charts file appear to number different "
+                  f"things (ODD ids e.g. {sorted(_unmapped)[:4]}); no reference slide built",
+                  file=sys.stderr)
+        else:
+            M['branch_names']=_pairs
+            print(f"branch names: {len(_pairs)} of {_tot} branches named ({_cov:.0%})"
+                  + (f"; no name in file for {sorted(_unmapped)[:8]}" if _unmapped else ""))
+
 json.dump(M,open(sys.argv[2],'w'),indent=1,default=str)
 print('\nsustained bars:',[(s[0],s[2]) for s in M['sustained']])
 print('ranking last 3:',M['ranking'][-3:])
