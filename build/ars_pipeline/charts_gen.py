@@ -147,19 +147,33 @@ def c_before_after_split():
         ns=[e[key]['n'] for e in sp]
         ax.bar(x-w/2,bb,w,color=STEEL,label="Before")
         ax.bar(x+w/2,aa,w,color=ORANGE,label="After")
-        ax.set_xticks(x)
-        ax.set_xticklabels([f"{c}\n(n={n:,})" for c,n in zip(cats,ns)],fontsize=11)
+        # Label every Nth mailing only. Sugar River 1038 has FIFTEEN mailings and every
+        # month plus an "(n=...)" second line was drawn, so the whole axis rendered as
+        # overlapping mush (Aaron, 2026-08-28). Wellworth has one mailing, which is why
+        # this never showed. The n counts move to the speaker notes rather than the axis.
+        _step = max(1, -(-len(cats) // 8))          # at most 8 ticks
+        _keep = list(range(0, len(cats), _step))
+        if _keep[-1] != len(cats) - 1:
+            _keep.append(len(cats) - 1)             # always label the newest mailing
+        ax.set_xticks([x[i] for i in _keep])
+        ax.set_xticklabels([cats[i] for i in _keep], fontsize=11,
+                           rotation=(90 if _step == 1 and len(cats) > 6 else 0))
         ax.set_title(f"{title} — Avg Monthly Debit Spend",color=NAVY,
                      fontweight="bold",fontsize=12,pad=6)
         _clean(ax)
         ax.yaxis.set_major_formatter(lambda v,p:f"${v:,.0f}")
         ax.tick_params(axis='y',labelsize=12)
         ax.set_ylim(0,_top)
-        for xi,(b_,a_) in enumerate(zip(bb,aa)):
-            if b_: ax.text(xi-w/2,b_+_top*0.015,f"${b_:,.0f}",ha="center",va="bottom",
-                           color=NAVY,fontsize=10)
-            if a_: ax.text(xi+w/2,a_+_top*0.015,f"${a_:,.0f}",ha="center",va="bottom",
-                           color=NAVY,fontweight="bold",fontsize=10)
+        # Per-bar dollar labels only when they can be read. At 15 mailings that is 30
+        # labels across ~5in and they collided into each other ($1,116/$1,111/$1,120 on
+        # Sugar River). Above 8 mailings the y-axis carries the scale and the headline
+        # figures are in the slide caption.
+        if len(cats) <= 8:
+            for xi,(b_,a_) in enumerate(zip(bb,aa)):
+                if b_: ax.text(xi-w/2,b_+_top*0.015,f"${b_:,.0f}",ha="center",va="bottom",
+                               color=NAVY,fontsize=10)
+                if a_: ax.text(xi+w/2,a_+_top*0.015,f"${a_:,.0f}",ha="center",va="bottom",
+                               color=NAVY,fontweight="bold",fontsize=10)
     h,l=axes[0].get_legend_handles_labels()
     fig.legend(h,l,loc="upper center",frameon=False,fontsize=10,ncol=2,bbox_to_anchor=(0.5,1.07))
     fig.subplots_adjust(top=0.80,wspace=0.16,bottom=0.16)

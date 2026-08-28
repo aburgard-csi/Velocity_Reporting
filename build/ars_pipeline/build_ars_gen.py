@@ -1138,6 +1138,21 @@ for _i, _sl in enumerate(_S2):
     _sl.notes_slide.notes_text_frame.text = _note_for(_title_of(_sl), _i)
 print("source notes written:", len(_S2))
 
+# Per-mailing respondent counts for the by-Offer slide. They used to sit under each
+# x-axis label as "(n=...)", which was unreadable the moment a client had more than a
+# handful of mailings (Sugar River 1038 has fifteen). The chart drops them; the notes
+# keep them, so the figure behind every bar is still auditable (Aaron, 2026-08-28).
+_bas = M.get('before_after_split') or []
+if _bas:
+    for _sl in _S2:
+        if _title_of(_sl).startswith("Responder Activity: Before vs After by Offer"):
+            _counts = "; ".join(f"{r['m']}: NU {r['nu']['n']:,} / TH {r['th']['n']:,}"
+                                for r in _bas)
+            _sl.notes_slide.notes_text_frame.text += (
+                f" Respondents per mailing (Non-User / Threshold) — {_counts}.")
+            print("by-offer slide: %d per-mailing respondent counts written to notes" % len(_bas))
+            break
+
 # ensure separation between bottom text and the page number (skip title+summit front matter)
 _nudged = 0
 for _si, _sl in enumerate(prs.slides):
