@@ -309,3 +309,71 @@ def test_a_screenshot_slide_owes_no_source(tmp_path):
     body = s.shapes.add_textbox(In(0.5), In(1.5), In(9), In(0.6))
     body.text_frame.text = "Modules available to every client team."
     assert vd.source_note_findings(str(tmp_path / "1204-2026.08-ARS-Client.pptx"), prs) == []
+
+
+# =========================================================================
+# figure sidecar — the FAIL-grade identity check
+# =========================================================================
+def write_sidecar(tmp_path, rows, deck_name="1204-2026.08-ARS-Client.pptx"):
+    import json
+    deck = tmp_path / deck_name
+    (tmp_path / (deck_name + ".figures.json")).write_text(json.dumps({"figures": rows}))
+    return str(deck)
+
+
+def test_sidecar_conflict_fails(tmp_path):
+    """The Wellworth shape, now provable rather than inferred."""
+    deck = write_sidecar(tmp_path, [
+        {"measure": "responders_jun2026", "value": "1,077",
+         "slide": "Mailing Response Summary", "note": ""},
+        {"measure": "responders_jun2026", "value": "1,026",
+         "slide": "Program Reach", "note": ""},
+    ])
+    out = vd.figure_sidecar_findings(deck)
+    assert out and out[0][0] == "FAIL"
+    assert "responders_jun2026" in out[0][2]
+    assert "1,077" in out[0][2] and "1,026" in out[0][2]
+    assert "Program Reach" in out[0][2], "the finding should name where each value rendered"
+
+
+def test_sidecar_agreement_is_clean(tmp_path):
+    deck = write_sidecar(tmp_path, [
+        {"measure": "responders_jun2026", "value": "1,026",
+         "slide": "Mailing Response Summary", "note": ""},
+        {"measure": "responders_jun2026", "value": "1,026",
+         "slide": "Program Reach", "note": ""},
+    ])
+    assert vd.figure_sidecar_findings(deck) == []
+
+
+def test_distinct_measures_sharing_a_value_are_clean(tmp_path):
+    deck = write_sidecar(tmp_path, [
+        {"measure": "reach_total", "value": "3,629", "slide": "Program Reach", "note": ""},
+        {"measure": "dot_n", "value": "3,629", "slide": "Transaction Increase", "note": ""},
+    ])
+    assert vd.figure_sidecar_findings(deck) == []
+
+
+def test_absent_sidecar_is_not_a_finding(tmp_path):
+    """Only build_ars_gen emits one; older decks must still validate."""
+    assert vd.figure_sidecar_findings(str(tmp_path / "no-sidecar.pptx")) == []
+
+
+def test_unreadable_sidecar_is_review_not_fail(tmp_path):
+    deck = tmp_path / "deck.pptx"
+    (tmp_path / "deck.pptx.figures.json").write_text("{not json")
+    out = vd.figure_sidecar_findings(str(deck))
+    assert out and out[0][0] == "REVIEW"
+
+
+def test_sidecar_rule_is_fail_where_the_inferred_rule_is_review(tmp_path):
+    """The distinction that justifies both rules existing.
+
+    figure_identity_findings guesses from wording and can be wrong, so it
+    advises. The sidecar carries the builder's own naming, so it blocks.
+    """
+    deck = write_sidecar(tmp_path, [
+        {"measure": "m", "value": "1", "slide": "A", "note": ""},
+        {"measure": "m", "value": "2", "slide": "B", "note": ""},
+    ])
+    assert {f[0] for f in vd.figure_sidecar_findings(deck)} == {"FAIL"}

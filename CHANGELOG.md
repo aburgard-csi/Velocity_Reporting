@@ -14,6 +14,37 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-08-29 — figure provenance sidecar: a measure renders one value, or the build fails
+
+The 2026-08-28 Wellworth defect — the Jun 2026 drop reading 1,077 on the mailing slides and
+1,026 on Reach/Depth/Ranking/Sustained — got past two guards. The builder's swap gate fails a
+build whose swap string matched NOTHING, but here both swaps landed; they just wrote
+different numbers. And `validate_deck.figure_identity_findings` has to INFER from wording
+whether two figures are the same measure, which misfires on legitimately different cuts
+(personal vs business take rate), so it can only advise.
+
+The builder does not have to infer. It knows which measure produced each number, so it now
+says so: `set_exact`/`set_shape_text` take an optional `measure=`, and `build/figures.py`
+records (measure, rendered value, slide) as the deck is written. Two consumers:
+
+* **Build gate.** `conflicts()` runs before the phase that materializes the output file, and
+  a measure carrying two values fails the build with exit 2, naming both values and the
+  slides they landed on. Placement matters — at the final save it still exited 2, but a
+  partly-built deck was already sitting at the delivery path.
+* **`validate_deck.figure_sidecar_findings`** reads `<deck>.pptx.figures.json` and FAILs on
+  the same conflict. This is the FAIL-grade counterpart to the inferred rule, which stays at
+  REVIEW: here the builder named the measure, so a difference is arithmetic, not a guess.
+
+Naming is opt-in and only worth doing where one measure reaches more than one slide. Five are
+named today (`responders_latest_mailing` across three slides, `mailed_latest_mailing` across
+two, plus `resprate_latest_mailing`, `reach_total`, `dot_n`). No deck changes: 1204 rebuilds
+to 49 slides, 38 chart images byte-identical, 0 text differences. Only the ARS builder emits
+a sidecar; a deck without one validates exactly as before.
+
+The sidecar is written next to the deck, so an ARS build now leaves a `.figures.json`
+alongside the `.pptx` in `Outputs/`. It is build evidence, not a deliverable — safe to delete
+once the deck has passed the gate.
+
 ### 2026-08-29 — build from the template shell, never from a client deck
 
 CLAUDE.md contradicted itself: one paragraph said each program "clones-and-swaps from the

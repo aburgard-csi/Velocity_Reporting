@@ -667,6 +667,52 @@ def source_note_findings(path, prs):
     return out
 
 
+# ---------------------------------------------------------------- figure sidecar
+try:
+    from figures import FigureLog, find_sidecar
+except Exception:      # validator must still run without the build tree
+    FigureLog = None
+    def find_sidecar(_):
+        return None
+
+
+def figure_sidecar_findings(deck_path):
+    """FAIL when one NAMED measure rendered more than one value.
+
+    This is the FAIL-grade counterpart to figure_identity_findings. That rule
+    infers from wording whether two figures are the same measure, and inference
+    can be wrong, so it can only advise. Here the BUILDER said so — it recorded
+    the measure as it wrote each figure — and a difference is arithmetic.
+
+    The Wellworth defect: the Jun 2026 drop's responder count rendered 1,077 on
+    the mailing slides and 1,026 on Reach/Depth/Ranking/Sustained, because those
+    four counted a historical mailing's responders through the CURRENT
+    eligibility snapshot. Both swaps landed, so the builder's swap gate saw
+    nothing wrong.
+
+    Absent sidecar = no finding. Only build_ars_gen emits one today, and a deck
+    built before this existed must still validate.
+    """
+    if FigureLog is None:
+        return []
+    path = find_sidecar(deck_path)
+    if not path:
+        return []
+    try:
+        log = FigureLog.load(path)
+    except Exception as e:
+        return [("REVIEW", 0, f"figure sidecar {os.path.basename(path)} could not be read ({e})")]
+
+    out = []
+    for measure, byval in log.conflicts():
+        detail = "; ".join(
+            f"{v!r} on {', '.join(sorted(set(sl)) or ['(untitled)'])}"
+            for v, sl in sorted(byval.items()))
+        out.append(("FAIL", 0,
+                    f"measure '{measure}' rendered {len(byval)} different values — {detail}"))
+    return out
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(2)
@@ -681,6 +727,7 @@ def main():
     findings += figure_identity_findings(prs)
     findings += period_findings(prs, find_period_pack(sys.argv[1]))
     findings += source_note_findings(sys.argv[1], prs)
+    findings += figure_sidecar_findings(sys.argv[1])
 
     for idx, blocks in texts:
         joined = "  ".join(blocks)

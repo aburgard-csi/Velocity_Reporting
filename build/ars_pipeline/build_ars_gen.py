@@ -32,6 +32,12 @@ REF = os.environ.get("RPE_REF") or HERE
 sys.path.insert(0, BUILDDIR)
 sys.path.insert(0, HERE)
 from rpe_env import use_font
+# Figure provenance. The swap gate below catches a swap that matched NOTHING;
+# this catches two swaps that both landed and disagree — the Wellworth 1,077 vs
+# 1,026 defect, where four slides filtered a historical mailing's responders
+# through the current eligibility snapshot. Naming a measure is opt-in and only
+# worth doing where the same measure reaches more than one slide.
+import figures as _figs
 from brand import NAVY as _BNAVY, ORANGE as _BORANGE, MUTED as _BMUTED
 
 M = json.load(open(METRICS)); B = json.load(open(BASEJ)); L = json.load(open(LIFTJ)); O = json.load(open(ODDDJ))
@@ -312,7 +318,8 @@ def repl(slide, mapping, optional=False):
         for a, ok in hit.items():
             if not ok: _miss("repl", a)
 
-def set_exact(slide, oldtext, newtext, left_lo=None, left_hi=None):
+def set_exact(slide, oldtext, newtext, left_lo=None, left_hi=None, measure=None):
+    _figs.record(measure, newtext, slide)
     for sh in frames(slide.shapes):
         if sh.text_frame.text.strip() == oldtext:
             if left_lo is not None:
@@ -327,7 +334,8 @@ def set_exact(slide, oldtext, newtext, left_lo=None, left_hi=None):
     _miss("set_exact", oldtext)
     return False
 
-def set_shape_text(slide, needle, newtext, optional=False):
+def set_shape_text(slide, needle, newtext, optional=False, measure=None):
+    _figs.record(measure, newtext, slide)
     for sh in frames(slide.shapes):
         if needle in sh.text_frame.text:
             tf = sh.text_frame; lines = newtext.split("\n"); paras = tf.paragraphs
@@ -640,13 +648,19 @@ set_table(S[11], rows, trim=True)
 
 # ============================ SLIDE 14 — Latest Mailer
 repl(S[13], {"ARS Response — Apr 2026 Mailer": f"ARS Response — {lm} Mailer"})
-set_exact(S[13], "3,154", lmailed)
-set_exact(S[13], "258", lresp)
-set_exact(S[13], "8.2%", lrr)
+# The Wellworth defect lived exactly here: these three figures also appear in
+# the captions below and on slide 15, and the Reach/Depth/Ranking/Sustained
+# slides counted the SAME mailing's responders through a different cohort. Named
+# so the sidecar can assert one value per measure across every slide.
+set_exact(S[13], "3,154", lmailed, measure="mailed_latest_mailing")
+set_exact(S[13], "258", lresp, measure="responders_latest_mailing")
+set_exact(S[13], "8.2%", lrr, measure="resprate_latest_mailing")
 repl(S[13], {"The Apr 2026 mailing drew 258 responders (8.2% of those mailed), led by the higher threshold tiers.":
              f"The {lm} mailing drew {lresp} responders ({lrr} of those mailed), led by the higher threshold tiers.",
              "Selection: the 3,154 accounts mailed in the Apr 2026 drop.":
              f"Selection: the {lmailed} accounts mailed in the {lm} drop."})
+_figs.record("mailed_latest_mailing", lmailed, S[13], note="caption")
+_figs.record("responders_latest_mailing", lresp, S[13], note="caption")
 
 # ============================ SLIDE 15 — Movement
 repl(S[14], {"ARS Response — Apr 2026 Movement": f"ARS Response — {lm} Movement",
@@ -654,9 +668,11 @@ repl(S[14], {"ARS Response — Apr 2026 Movement": f"ARS Response — {lm} Movem
              f"Selection: the {lresp} responders to the {lm} mailing, compared with their prior mailing (first-time, improved, held steady, or declined).",
              "70 were first-time responders (no prior response) and 72 improved their tier — together 55% of the 258 responders moved up or in for the first time.":
              f"{fr:,} were first-time responders (no prior response) and {imp:,} improved their tier — together {togpct}% of the {lresp} responders moved up or in for the first time."})
+_figs.record("responders_latest_mailing", lresp, S[14], note="caption")
 
 # ============================ SLIDE 16 — Transaction Increase (dot)
 repl(S[15], {"Selection: ARS responders (3,030).": f"Selection: ARS responders ({M['dot_n']:,})."})
+_figs.record("dot_n", f"{M['dot_n']:,}", S[15], note="selection line")
 set_exact(S[15], "+10.2", f"+{M['dot_mean']}")
 set_exact(S[15], "14.7", f"{M['dot_std']}")
 set_exact(S[15], "+5", f"+{M['dot_median']:.0f}")
@@ -840,7 +856,7 @@ set_shape_text(S[29], "• 36.3% opt-in (personal accounts)\n• Best branches ~
 repl(S[30], {"Union Financial": NAME})
 
 # ============================ SLIDE 33 — Reach
-set_exact(SB("Program Reach"), "3,030", f"{M['reach_total']:,}")
+set_exact(SB("Program Reach"), "3,030", f"{M['reach_total']:,}", measure="reach_total")
 set_exact(SB("Program Reach"), "~178", f"~{M['reach_perml']}")
 # ============================ SLIDE 34 — Depth
 repl(SB("Depth of Engagement"), {"50.7% of responders (1,536 customers) have responded to two or more mailings":
@@ -1587,6 +1603,26 @@ for _sl in prs.slides:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.left=Inches(1.03); _x.top=Inches(1.81); _x.width=Inches(8.4); _x.height=Inches(4.38)
 
 # ---- 2c. Save -> chart swap -> letterbox -> fonts ----
+# --- figure gate: one measure, ONE value -------------------------------------
+# The swap gate above fails a build whose swap string matched nothing. This fails
+# a build where two swaps BOTH landed and disagree — Wellworth's Jun 2026 drop
+# reading 1,077 on the mailing slides and 1,026 on Reach/Depth/Ranking/Sustained.
+# Unlike validate_deck's figure_identity rule, this needs no inference: the
+# builder named the measure, so a difference is arithmetic, not a guess.
+#
+# Placed BEFORE the phase that materializes OUT. At the final save it still
+# exited 2, but a partly-built deck was already sitting at the delivery path
+# by then. Any future _figs.record() must go ABOVE this line.
+_fx = _figs.log.conflicts()
+if _fx:
+    import sys as _sys2
+    _sys2.stderr.write("BUILD FAILED — %d measure(s) rendered more than one value:\n" % len(_fx))
+    for _measure, _byval in _fx:
+        _sys2.stderr.write("  %s\n" % _measure)
+        for _v, _slides in sorted(_byval.items()):
+            _sys2.stderr.write("     %-14s on %s\n" % (_v, ", ".join(sorted(set(_slides)))))
+    raise SystemExit(2)
+
 _D = OUT + ".D.pptx"; prs.save(_D)
 def _letterbox(src, w, h, dst):
     im = _PImg.open(src).convert("RGB"); iw, ih = im.size
@@ -1702,6 +1738,10 @@ for _i, _sl in enumerate(list(_bp.slides)):
 import slide_geometry as _sg; _sg.apply(_bp)   # per-title geometry contract (build/)
 import fit_layout as _fl; _fl.fit(_bp)   # final layout-fit: clear number/logo, clamp off-slide (shared)
 _bp.save(OUT)
+_sidecar = _figs.log.dump(_figs.sidecar_path(OUT))
+if _sidecar:
+    print("figures ->", os.path.basename(_sidecar),
+          f"({len(_figs.log)} recorded, {len(_figs.log.by_measure())} measures)")
 print("branding normalized: logos + slide numbers (10pt; none on title/summit/section)")
 for _f in (_A,_B,_C,_D):
     try: os.remove(_f)
