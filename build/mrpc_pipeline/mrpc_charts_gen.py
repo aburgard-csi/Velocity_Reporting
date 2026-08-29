@@ -108,23 +108,32 @@ def chart_channel(d, out, dims):
     axd.text(0,-1.35," · ".join(f"{k} {v:.0f}%" for k,v in zip(order,pct)),
              ha='center',color=TICK,fontsize=13)
     axd.set_title("% Enrollments by Channel",color=NAVY,fontsize=13,fontweight='bold',pad=8)
-    # A channel whose count VIP would not surface is recorded as None, not 0 —
-    # Marine 1539's Paper bar is too small to trigger a tooltip and the sheet
-    # notes "~3 implied by 0.04%". Zero would be false precision. Plotting None
-    # crashed on `vals + max(vals)`, so an INCOMPLETE counts block falls back to
-    # the share chart, which is complete, rather than inventing the missing bar.
+    # A channel count may be absent for two different reasons, and they are not
+    # the same fact:
+    #   count is 0, or None with a 0% share  -> the channel genuinely has none
+    #   count is None with a NON-ZERO share  -> enrolments exist, VIP would not
+    #                                           surface the number (Marine 1539's
+    #                                           Paper bar is too small to trigger
+    #                                           a tooltip; 0.04% implies ~3)
+    # Both draw a zero-length bar; only the LABEL differs, so the chart never
+    # asserts a count it does not have and never reads a real zero as missing.
+    # Plotting None directly crashed on `vals + max(vals)`.
+    pctd=c.get("pct") or dict(zip(order,pct))
     counts=c.get("counts")
-    if counts and any(counts.get(k) is None for k in order):
-        _missing=[k for k in order if counts.get(k) is None]
-        print(f"chart_channel: no VIP count for {', '.join(_missing)} — "
-              f"showing share by channel instead of totals")
-        counts=None
     y=np.arange(len(order))[::-1]
     if counts:
-        vals=[counts[k] for k in order]
+        raw=[counts.get(k) for k in order]
+        vals=[0 if v is None else v for v in raw]
+        labels=[f"{v:,}" if v is not None else ("0" if (pctd.get(k) or 0) == 0 else "n/a")
+                for k,v in zip(order,raw)]
+        _unread=[k for k,v in zip(order,raw) if v is None and (pctd.get(k) or 0) > 0]
+        if _unread:
+            print(f"chart_channel: VIP surfaced no count for {', '.join(_unread)} "
+                  f"(share is non-zero) — bar drawn at 0 and labelled n/a")
+        span=max(vals) or 1
         axb.barh(y,vals,color=NAVY,height=0.6)
-        for yy,vv in zip(y,vals): axb.text(vv+max(vals)*0.02,yy,f"{vv:,}",va='center',color=NAVY,fontweight='bold',fontsize=13)
-        axb.set_xlim(0,max(vals)*1.18); axb.set_title("Total Enrollments by Channel",color=NAVY,fontsize=13,fontweight='bold',pad=8)
+        for yy,vv,lb in zip(y,vals,labels): axb.text(vv+span*0.02,yy,lb,va='center',color=NAVY,fontweight='bold',fontsize=13)
+        axb.set_xlim(0,span*1.18); axb.set_title("Total Enrollments by Channel",color=NAVY,fontsize=13,fontweight='bold',pad=8)
     else:
         axb.barh(y,pct,color=NAVY,height=0.6)
         for yy,vv in zip(y,pct): axb.text(vv+max(pct)*0.02,yy,f"{vv:.1f}%",va='center',color=NAVY,fontweight='bold',fontsize=13)

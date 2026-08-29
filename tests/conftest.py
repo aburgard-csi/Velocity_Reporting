@@ -5,11 +5,13 @@ import pytest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(REPO, "build")
 ARS = os.path.join(BUILD, "ars_pipeline")
+ICS = os.path.join(BUILD, "ics_pipeline")
+MRPC = os.path.join(BUILD, "mrpc_pipeline")
 SCRIPTS = os.path.join(REPO, "scripts")
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 ODD_CSV = os.path.join(FIXTURES, "synthetic_odd.csv")
 
-for p in (BUILD, ARS, SCRIPTS):  # ARS_PIPE included
+for p in (BUILD, ARS, ICS, MRPC, SCRIPTS):
     if p not in sys.path:
         sys.path.insert(0, p)
 

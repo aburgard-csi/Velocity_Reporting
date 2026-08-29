@@ -23,6 +23,25 @@ Nothing yet.
 Everything the 2026.08 client decks were built with. Cut on the day the Summit
 slides went to print; the next Summit is November 2026.
 
+### 2026-08-29 — a missing MRPC channel count is not the same fact as a zero
+
+Re-running all 15 2026.08 decks crashed Marine 1539's MRPC build: `chart_channel`
+plotted `counts["Paper"] = None` and died on `vals + max(vals)`.
+
+A channel count can be absent for two reasons and the chart must not conflate them. The
+client may genuinely have no enrolments on that channel — a real zero, and a normal
+state. Or VIP may decline to surface the number: Marine's Paper bar is too small to
+trigger a tooltip, and the sheet records `None` with the note "~3 implied by 0.04%".
+Writing `0` there would be false precision; the share is not zero.
+
+Both now draw a zero-length bar and only the LABEL differs — the count when known, `0`
+when the share is also zero, `n/a` when the share is non-zero but the count was not
+readable. The totals chart is kept either way. A first attempt fell back to the share
+chart whenever any count was missing, which threw away three good counts because of one
+and read a genuine zero as a gap.
+
+Affects Marine 1539 only: slide 58's Paper bar is now labelled `n/a` rather than `0`.
+
 ### 2026-08-29 — figure provenance sidecar: a measure renders one value, or the build fails
 
 The 2026-08-28 Wellworth defect — the Jun 2026 drop reading 1,077 on the mailing slides and

@@ -139,3 +139,4 @@ def test_module_level_record_uses_the_default_log():
     record("test_measure_xyz", "1", slide("S"))
     assert len(log) == before + 1
     log.rows = [r for r in log.rows if r["measure"] != "test_measure_xyz"]
+
