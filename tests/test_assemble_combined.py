@@ -164,12 +164,13 @@ PROGRAM_DIVIDER = {"ARS": "Account Revenue Solution",
     ("ars_mrpc", ["ARS", "MRPC"]),
 ])
 def test_every_present_program_has_a_divider(combo, programs, request):
-    """MRPC lost its divider to a positional rule.
+    """Every program section opens with its divider.
 
-    section_slides dropped indices 1 and 2 outright, assuming cover + Executive
-    Summit. MRPC has no summit slide, so its divider sits at index 2 and was
-    deleted — the combined deck ran from ICS content straight into MRPC content
-    with no section break (Aaron, 2026-08-29).
+    The templates are used as section decks here, and the MRPC template has no
+    Executive Summit slide — so its divider sits at index 2, where the old
+    positional rule (drop 1 and 2) deleted it. A BUILT deck always has a summit
+    slide, so no delivered deck was affected; resolving by meaning makes the rule
+    hold for both shapes (Aaron, 2026-08-29).
     """
     prs, _ = request.getfixturevalue(combo)
     ts = titles(prs)
@@ -285,3 +286,18 @@ def test_ics_referrals_only_detection():
     full = Presentation(ICS_T)
     assert ac._ics_is_referrals_only(list(full.slides)) is False, \
         "the full ICS template carries workbook slides"
+
+
+def test_mrpc_shell_titles_describe_what_they_become():
+    """The shell titled two slides "Revenue to ..." and two "Key Metrics".
+
+    build_mrpc_gen retitles all four by position — Revenue by Year, Revenue by
+    Month, Card Portfolio, Key Metrics — so client decks were always correct.
+    But a shell that does not describe what it becomes reads as duplicate slides
+    and hides a real duplicate if one ever appears.
+    """
+    ts = titles(Presentation(MRPC_T))
+    for want in ("MRPC Revenue by Year", "MRPC Revenue by Month",
+                 "MRPC Card Portfolio", "MRPC Key Metrics"):
+        n = sum(1 for t in ts if t.startswith(want))
+        assert n == 1, f"mrpc_template should carry exactly one {want!r} slide, found {n}"

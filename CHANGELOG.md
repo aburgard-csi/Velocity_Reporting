@@ -28,16 +28,24 @@ never swapped is indistinguishable from one that was. Corrected in CLAUDE.md,
 `templates/TEMPLATES.md` and all three deck agents, which also still named the retired
 Client Presentations drop as the delivery target.
 
-### 2026-08-29 — MRPC lost its section divider in every combined deck
+### 2026-08-29 — MRPC template shell carried misleading slide titles
 
-`assemble_combined.section_slides` dropped slide indices 1 and 2 outright, assuming every
-program deck opens with cover + Executive Summit. ARS and ICS do; MRPC does not — its
-divider sits at index 2, so it was deleted and the combined deck ran from ICS content
-straight into MRPC content with no section break.
+`mrpc_template.pptx` titled two slides "MRPC Revenue to Union Financial" and two "MRPC Key
+Metrics". They are four DIFFERENT slides — `build_mrpc_gen` retitles them by position to
+Revenue by Year, Revenue by Month, Card Portfolio and Key Metrics — so no client deck was
+ever affected, and a real build validates at 0 FAIL with four distinct titles. But a shell
+that does not describe what it becomes is a trap for the next person reading it, and it made
+the deck look like it shipped duplicate slides. The shells now carry the titles the builder
+produces, in both `mrpc_template.pptx` and the reference deck. Built output is unchanged,
+verified by rebuilding 1075 (13 slides, 0 text differences).
 
-Slides are now identified by meaning, as CLAUDE.md requires: the cover carries the
-"Executive Review" line, the divider carries the program's benefits line. Affects every
-multi-product deck containing MRPC — 9 slides now copy where 8 did.
+`assemble_combined.section_slides` also stopped resolving the opening block by position. It
+dropped indices 1 and 2 outright, assuming every deck opens with cover + Executive Summit;
+that holds for a BUILT deck of any program (summit_slide.py inserts one), so no delivered
+deck lost anything — but it is not true of the MRPC template shell, which has no summit
+slide and whose divider sits at index 2. Slides are now identified by meaning, as CLAUDE.md
+requires: the cover carries the "Executive Review" line, the divider carries the program's
+benefits line. Verified to produce identical results to the old rule on a built deck.
 
 ### 2026-08-29 — two reporting months came from the wall clock
 
