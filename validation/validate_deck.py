@@ -494,7 +494,22 @@ _SPAN = re.compile(
 
 
 def find_period_pack(deck_path):
-    """oddd_metrics.json beside the deck (or under oddd/), or None."""
+    """The ODD snapshot pack governing this deck's captions, or None.
+
+    Only an ARS-ONLY deck. `oddd_metrics.json` is an ARS artifact: its
+    `latest_month` is the ODD snapshot, which says nothing about when an ICS or
+    MRPC deck's VIP-sourced figures are current. Marine 1539's MRPC deck reads
+    "as of August 2026" against a Jul 2026 ODD and is right to — those are
+    different data with different cadences.
+
+    Combined decks are excluded for the same reason: one pack cannot arbitrate
+    captions belonging to three programs. The span-arithmetic half of
+    period_findings needs no pack and still applies to every deck.
+    """
+    base = os.path.basename(deck_path)
+    programs = [t for t in ("ARS", "ICS", "MRPC") if f"-{t}-" in base]
+    if programs != ["ARS"]:
+        return None
     d = os.path.dirname(os.path.abspath(deck_path))
     for cand in ("oddd_metrics.json", os.path.join("oddd", "oddd_metrics.json"),
                  os.path.join("..", "oddd", "oddd_metrics.json")):
@@ -656,11 +671,14 @@ def source_note_findings(path, prs):
             out.append(("FAIL", idx,
                         f"speaker note carries no Source line: '{title[:44]}'"))
 
-        low = note.lower()
         for name in REFERENCE_CLIENTS:
             if name.lower() in own:
                 continue
-            if name.lower() in low:
+            # Word-boundary match, as reference_leak_findings already does. A
+            # plain substring test flagged every "Credit Union financials" note
+            # as naming "Union Financial" — CoastLife 1705 and Texas Bay 1509
+            # both trip it, and the note was correct.
+            if re.search(r"\b" + re.escape(name) + r"\b", note, re.I):
                 out.append(("FAIL", idx,
                             f"source note names '{name}', a different client — "
                             f"the deck inherited another client's provenance"))

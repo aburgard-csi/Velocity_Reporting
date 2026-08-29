@@ -108,7 +108,17 @@ def chart_channel(d, out, dims):
     axd.text(0,-1.35," · ".join(f"{k} {v:.0f}%" for k,v in zip(order,pct)),
              ha='center',color=TICK,fontsize=13)
     axd.set_title("% Enrollments by Channel",color=NAVY,fontsize=13,fontweight='bold',pad=8)
+    # A channel whose count VIP would not surface is recorded as None, not 0 —
+    # Marine 1539's Paper bar is too small to trigger a tooltip and the sheet
+    # notes "~3 implied by 0.04%". Zero would be false precision. Plotting None
+    # crashed on `vals + max(vals)`, so an INCOMPLETE counts block falls back to
+    # the share chart, which is complete, rather than inventing the missing bar.
     counts=c.get("counts")
+    if counts and any(counts.get(k) is None for k in order):
+        _missing=[k for k in order if counts.get(k) is None]
+        print(f"chart_channel: no VIP count for {', '.join(_missing)} — "
+              f"showing share by channel instead of totals")
+        counts=None
     y=np.arange(len(order))[::-1]
     if counts:
         vals=[counts[k] for k in order]

@@ -377,3 +377,55 @@ def test_sidecar_rule_is_fail_where_the_inferred_rule_is_review(tmp_path):
         {"measure": "m", "value": "2", "slide": "B", "note": ""},
     ])
     assert {f[0] for f in vd.figure_sidecar_findings(deck)} == {"FAIL"}
+
+
+def test_credit_union_financials_is_not_a_union_financial_leak(tmp_path):
+    """'CoastLife Credit Union financials' contains 'Union Financial' as a raw
+    substring. A plain `in` test flagged every credit union's own correct note."""
+    prs = deck_with_notes([("ARS Key Takeaways", ["Chart"],
+        "Source: summary of ARS Workbook 1705 — CoastLife Credit Union financials "
+        "+ ODD extract 1705 CoastLife Credit Union, Jul 2026 snapshot.")])
+    out = vd.source_note_findings(
+        str(tmp_path / "1705-2026.08-ARS-CoastLife Credit Union ARS Results.pptx"), prs)
+    assert out == [], f"false positive: {out}"
+
+
+def test_a_real_union_financial_leak_is_still_caught(tmp_path):
+    prs = deck_with_notes([("ARS Key Takeaways", ["Chart"],
+        "Source: ARS Workbook — Union Financial financials, Jul 2026 snapshot.")])
+    out = vd.source_note_findings(
+        str(tmp_path / "1705-2026.08-ARS-CoastLife Credit Union ARS Results.pptx"), prs)
+    assert out and "Union Financial" in out[0][2]
+
+
+# --- the ODD pack governs ARS captions only ------------------------------
+def test_period_pack_is_not_applied_to_an_mrpc_deck(tmp_path):
+    """An ODD snapshot says nothing about VIP-sourced MRPC currency.
+
+    Marine 1539's MRPC deck reads "as of August 2026" against a Jul 2026 ODD and
+    is right to — different data, different cadence. Judging it against the ARS
+    pack produced eight FAILs on a correct deck.
+    """
+    import json
+    (tmp_path / "oddd_metrics.json").write_text(json.dumps({"latest_month": "Jul26"}))
+    deck = tmp_path / "1539-2026.08-MRPC-Marine FCU MRPC Results.pptx"
+    assert vd.find_period_pack(str(deck)) is None
+
+
+def test_period_pack_is_not_applied_to_a_combined_deck(tmp_path):
+    import json
+    (tmp_path / "oddd_metrics.json").write_text(json.dumps({"latest_month": "Jul26"}))
+    deck = tmp_path / "1539-2026.08-ARS-ICS-MRPC-Marine FCU Results.pptx"
+    assert vd.find_period_pack(str(deck)) is None, "one pack cannot arbitrate three programs"
+
+
+def test_period_pack_is_applied_to_an_ars_only_deck(tmp_path):
+    import json
+    (tmp_path / "oddd_metrics.json").write_text(json.dumps({"latest_month": "Jul26"}))
+    deck = tmp_path / "1204-2026.08-ARS-FSB Michigan ARS Results.pptx"
+    assert vd.find_period_pack(str(deck)) == {"latest_month": "Jul26"}
+
+
+def test_span_arithmetic_still_applies_without_a_pack():
+    prs = deck([("Trend", ["Jul 2023 – Jun 2026 (30 months)"])])
+    assert any(f[0] == "FAIL" for f in vd.period_findings(prs, None))

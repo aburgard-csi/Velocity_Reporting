@@ -75,6 +75,19 @@ def shadow(sh):
     for e in spPr.findall(qn('a:effectLst')): spPr.remove(e)
     spPr.append(parse_xml(SHADOW))
 
+def _needs_two_lines(*labels, usable_in, pt=None):
+    """True when any label is too wide for one line at the size it will RENDER at.
+
+    Measured at MIN_PT, not at the size the drawing call passes in:
+    enforce_min_font bumps every run up to that floor afterwards, so shrinking
+    the font is not an available fix on an ICS slide. Measured with textfit
+    rather than a character count — Montserrat is much wider than Calibri.
+    """
+    from textfit import text_width_in
+    size = pt or MIN_PT
+    return any(text_width_in(t, size, "Montserrat", True) > usable_in for t in labels)
+
+
 def tb(s,l,t,w,h,txt,size,color,bold=False,align=PP_ALIGN.LEFT,anchor=MSO_ANCHOR.TOP,font="Montserrat"):
     b=s.shapes.add_textbox(Inches(l),Inches(t),Inches(w),Inches(h)); tf=b.text_frame; tf.word_wrap=True; tf.vertical_anchor=anchor
     for i,ln in enumerate(txt if isinstance(txt,list) else [txt]):
@@ -786,8 +799,21 @@ def build(d, static_path, out, referrals_only=False):
 
         # 15 Comparisons (modeled on the CSI/Velocity ICS Review template)
         bm=d["benchmark"]; s=blank(prs); title(s,"Comparisons")
-        tb(s,1.3,1.4,3.9,0.5,"Velocity Clients' Average",18,NAVY,True,align=PP_ALIGN.CENTER)
-        tb(s,8.15,1.4,3.9,0.5,f"{client} Data",18,NAVY,True,align=PP_ALIGN.CENTER)
+        # Both column headers share one size so the pair reads as a pair, and that
+        # size steps down until the LONGER of the two fits on one line. At a flat
+        # 18pt "Altamaha Bank and Trust Company Data" measured 5.28in in a 3.9in
+        # box, wrapped to two lines and collided with the 19% below it — a long
+        # client name is not an exception, it is just the widest case.
+        _hl, _hr = "Velocity Clients' Average", f"{client} Data"
+        # A long client name does not fit one line here — "Altamaha Bank and
+        # Trust Company Data" is 4.64in of Montserrat 16pt in a 3.7in box — and
+        # shrinking is not an option because enforce_min_font floors every run at
+        # MIN_PT. So the header band grows upward instead, bottom-anchored, and
+        # the values below it never move. Both columns move together so the pair
+        # stays aligned. A name that fits keeps the original geometry exactly.
+        _htop, _hh = (1.15, 0.95) if _needs_two_lines(_hl, _hr, usable_in=3.9-0.2) else (1.4, 0.5)
+        tb(s,1.3,_htop,3.9,_hh,_hl,18,NAVY,True,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.BOTTOM)
+        tb(s,8.15,_htop,3.9,_hh,_hr,18,NAVY,True,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.BOTTOM)
         def cfmt(v,f):
             if f=="usd0": return f"${v:,.0f}"
             if f=="pct0": return f"{v:.0f}%"
