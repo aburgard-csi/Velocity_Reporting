@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""
+build_month.py — build the monthly client review decks for one period.
+
+The MONTHLY delivery: every active client, every month. Not the Executive
+Summit, which runs a couple of times a year and only for attendees (Aaron,
+2026-08-29) — different audience, different cadence, different deck.
+
+The roster comes from `clients.md` and nowhere else. That file's own rule is
+"this file decides what gets built, not the presence of a data file", so a driver
+carrying its own hardcoded list would be a second answer to the same question and
+would silently drift. A client whose row this parser cannot read is REPORTED, not
+skipped: a roster line nobody builds is the failure mode clients.md exists to
+prevent.
+
+Usage:
+    python3 scripts/build_month.py <period> <out-dir> [--only 1075,1204]
+
+    period    YYYY.MM, e.g. 2026.08
+    out-dir   staging directory; one folder per client, nothing is delivered
+
+Exit code is the number of clients that failed, so it can gate a delivery.
+"""
+import argparse, glob, json, os, re, subprocess, sys, time
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "build"))
+import rpe_env as R                                            # noqa: E402
+
+PY = sys.executable
+ARSP = os.path.join(REPO, "build", "ars_pipeline")
+TPL = os.path.join(REPO, "templates")
+ROSTER_FILE = os.path.join(REPO, "clients.md")
+
+
+# ----------------------------------------------------------------- roster
+def _cells(line):
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+# clients.md groups its tables under bold headings, and the heading is what gives
+# a row its meaning — a 4-column row is an ICS-only client under one heading and a
+# CANCELLED client under another. Counting columns cannot tell them apart, and
+# guessing wrong either drops a client or builds one that has no programs.
+_SECTION_PATTERNS = [
+    (re.compile(r"##\s*Active clients", re.I),      "active"),
+    (re.compile(r"\*\*MRPC-only clients", re.I),     "mrpc_only"),
+    (re.compile(r"\*\*ICS-only clients", re.I),      "ics_only"),
+    (re.compile(r"\*\*Cancelled\s*/\s*ending", re.I), "cancelled"),
+    (re.compile(r"##\s*Status changes", re.I),      "prose"),
+    (re.compile(r"##\s*Gaps needing", re.I),        "prose"),
+    (re.compile(r"##\s*What is NOT a signal", re.I), "prose"),
+    (re.compile(r"##\s*What the evidence", re.I),   "prose"),
+]
+
+
+def read_roster(path=ROSTER_FILE):
+    """[(id, name, MM|SM|None, [programs])] from clients.md.
+
+    Rows are interpreted by the SECTION they sit under, not by column count.
+    A program counts as active only on a literal "yes" (or "referrals-only" for
+    ICS); "ended", "cancelled" and "—" are inactive. A numbered row this parser
+    cannot classify is REPORTED, never silently dropped — an unbuilt roster line
+    is exactly the failure clients.md exists to prevent.
+    """
+    section = None
+    out, skipped, unparsed = [], [], []
+    for line in open(path, encoding="utf-8").read().splitlines():
+        for rx, tag in _SECTION_PATTERNS:
+            if rx.search(line):
+                section = tag
+                break
+        c = _cells(line)
+        if not c or not re.fullmatch(r"\d{3,5}", c[0]):
+            continue
+        cid, name = c[0], c[1]
+
+        if section == "active" and len(c) >= 6:
+            mmsm, ars, ics, mrpc = c[2].upper(), c[3], c[4], c[5]
+            progs = []
+            if ars.lower().startswith("yes"):
+                progs.append("ARS")
+            if "referrals-only" in ics.lower():
+                progs.append("ICS-REFERRALS")
+            elif ics.lower().startswith("yes"):
+                progs.append("ICS")
+            if mrpc.lower().startswith("yes"):
+                progs.append("MRPC")
+            if progs:
+                out.append((cid, name, mmsm if mmsm in ("MM", "SM") else None, progs))
+            else:
+                skipped.append((cid, name, "no active program"))
+        elif section == "mrpc_only":
+            out.append((cid, name, None, ["MRPC"]))
+        elif section == "ics_only":
+            note = " ".join(c[2:]).lower()
+            out.append((cid, name, None,
+                        ["ICS-REFERRALS"] if ("referrals-only" in note or "none on file" in note)
+                        else ["ICS"]))
+        elif section == "cancelled":
+            skipped.append((cid, name, "cancelled / ending"))
+        elif section in (None, "prose"):
+            continue
+        else:
+            unparsed.append((cid, name, f"unreadable row in the {section} table"))
+
+    # A client can appear in the active table AND a status table. First wins, so
+    # the active roster is authoritative and a later "cancelled" note about one
+    # of its programs does not remove the client.
+    seen, uniq = set(), []
+    for row in out:
+        if row[0] in seen:
+            continue
+        seen.add(row[0]); uniq.append(row)
+    # A stopped client can appear in more than one table (1437 is in the active
+    # roster with no programs AND under Cancelled). Report it once.
+    skipped = [s for s in skipped if s[0] not in seen] + unparsed
+    seen_skip, uniq_skip = set(), []
+    for row in skipped:
+        if row[0] in seen_skip:
+            continue
+        seen_skip.add(row[0]); uniq_skip.append(row)
+    return uniq, uniq_skip
+
+
+_NAME_RX = re.compile(r"^(\d{3,5})-\d{4}\.\d{2}-(?:ARS|ICS|MRPC)(?:-(?:ICS|MRPC))*-(.+?)"
+                      r"(?: (?:ARS|ICS|MRPC))? Results(?: \(.*\))?$")
+
+
+def delivered_names(outputs_dir):
+    """{client id: the name used in that client's most recent delivered filename}.
+
+    The deck NAME in a filename is not reliably clients.md's display name nor the
+    data's client name, and the two disagree in both directions: 1204 ships as
+    "FSB Michigan" while its workbook says "First State Bank-MI", and 1509 ships
+    as "Texas Bay Credit Union" while clients.md says "Texas Bay CU". Renaming a
+    client's deck is a delivery decision, not something to infer — so the
+    existing filename is treated as the convention of record and carried forward.
+    Archive is read too, so a client not currently in Outputs still keeps its name.
+    """
+    found = {}
+    for d, newest_first in ((outputs_dir, True), (os.path.join(outputs_dir, "Archive"), False)):
+        if not os.path.isdir(d):
+            continue
+        for f in sorted(glob.glob(os.path.join(d, "*.pptx")),
+                        key=os.path.getmtime, reverse=True):
+            m = _NAME_RX.match(os.path.basename(f)[:-5])
+            if m and m.group(1) not in found:
+                found[m.group(1)] = m.group(2).strip()
+    return found
+
+
+def deck_name(cid, roster_name, delivered):
+    """The name to put in this client's filenames, and where it came from."""
+    if cid in delivered:
+        return delivered[cid], "delivered"
+    return roster_name, "clients.md"
+
+
+def deck_tag(progs):
+    return "-".join(p.replace("-REFERRALS", "") for p in progs)
+
+
+# ----------------------------------------------------------------- build
+def run(cmd, log, stdout_to=None):
+    with open(log, "a") as lf:
+        lf.write("\n$ " + " ".join(str(c) for c in cmd) + "\n")
+        if stdout_to:
+            with open(stdout_to, "w") as out:
+                r = subprocess.run([str(c) for c in cmd], stdout=out, stderr=lf)
+        else:
+            r = subprocess.run([str(c) for c in cmd], stdout=lf, stderr=lf)
+    return r.returncode
+
+
+def ars_workbook(reports, cid, period):
+    """The ARS workbook, never the Invitation Checking one.
+
+    Several clients carry both, and "Invitation" sorts first — handing the ICS
+    workbook to the ARS extractor dies on a missing Executive Financials tab.
+    """
+    return sorted(f for f in glob.glob(os.path.join(reports, f"{cid}-{period}-*Workbook*.xlsx"))
+                  if "invitation checking" not in os.path.basename(f).lower())
+
+
+def build_client(cid, name, mmsm, progs, period, stage):
+    d = os.path.join(stage, cid); os.makedirs(d, exist_ok=True)
+    log = os.path.join(d, "build.log"); open(log, "w").close()
+    made = {}
+    I = R.inputs(); REPORTS = I / "ARS & MRPC Reports"; ODDD = I / "ODDD"
+
+    if "ARS" in progs:
+        wb = ars_workbook(str(REPORTS), cid, period)
+        if not wb:
+            return "no ARS workbook", made
+        z = str(ODDD / f"{cid}_ODDD.zip")
+        if not os.path.exists(z):
+            return "no ODDD extract", made
+        base, lift = os.path.join(d, "base.json"), os.path.join(d, "lift.json")
+        if mmsm == "MM":
+            if run([PY, f"{ARSP}/extract_base_gen.py", wb[0], base], log): return "extract_base_gen", made
+            if run([PY, f"{ARSP}/extract_lift.py", wb[0]], log, stdout_to=lift): return "extract_lift", made
+        else:
+            dco = sorted(glob.glob(os.path.join(str(REPORTS), f"{cid}-{period}-*DCO*.xlsx")))
+            if run([PY, f"{ARSP}/base_tab_extract.py", wb[0]] + ([dco[0]] if dco else []),
+                   log, stdout_to=base): return "base_tab_extract", made
+            open(lift, "w").write("{}")
+        oddd = os.path.join(d, "oddd")
+        if run([PY, os.path.join(REPO, "scripts/oddd_optimize.py"), "--input", z,
+                "--out", oddd, "--client", cid, "--name", name], log): return "oddd_optimize", made
+        met = os.path.join(d, "metrics.json")
+        if run([PY, f"{ARSP}/metrics_gen.py", z, met], log): return "metrics_gen", made
+        charts = os.path.join(d, "charts"); os.makedirs(charts, exist_ok=True)
+        if run([PY, f"{ARSP}/charts_gen.py", met, base, charts], log): return "charts_gen", made
+        out = os.path.join(d, f"{cid}-{period}-ARS-{name} ARS Results.pptx")
+        if run([PY, f"{ARSP}/build_ars_gen.py", f"{TPL}/ars_template.pptx", met, base, lift,
+                os.path.join(oddd, "oddd_metrics.json"), charts, out, z], log): return "build_ars_gen", made
+        run([PY, os.path.join(REPO, "build/restyle_fonts.py"), out], log)
+        made["ARS"] = out
+
+    for p in progs:
+        if p.startswith("ICS") or p == "MRPC":
+            prog = "ics" if p.startswith("ICS") else "mrpc"
+            U = prog.upper()
+            try:
+                sheet = str(R.resolve_client_json(cid, prog))
+            except SystemExit as e:
+                return f"no {U} sheet ({str(e).splitlines()[0]})", made
+            out = os.path.join(d, f"{cid}-{period}-{U}-{name} {U} Results.pptx")
+            cmd = [PY, os.path.join(REPO, f"build/{prog}_pipeline/build_{prog}_gen.py")]
+            if p.endswith("REFERRALS"):
+                cmd.append("--referrals-only")
+            if run(cmd + [sheet, f"{TPL}/{prog}_template.pptx", out], log):
+                return f"build_{prog}_gen", made
+            made[U] = out
+
+    if len(made) > 1:
+        combo = os.path.join(d, f"{cid}-{period}-{deck_tag(progs)}-{name} Results.pptx")
+        cmd = [PY, os.path.join(REPO, "build/assemble_combined.py"), "--ars", made["ARS"]]
+        for U in ("ICS", "MRPC"):
+            if U in made:
+                cmd += [f"--{U.lower()}", made[U]]
+        if run(cmd + ["--out", combo], log):
+            return "assemble_combined", made
+        made["DELIVERABLE"] = combo
+    else:
+        made["DELIVERABLE"] = next(iter(made.values()), None)
+    return None, made
+
+
+def validate(deck, base=None):
+    cmd = [PY, os.path.join(REPO, "validation/validate_deck.py"), deck]
+    if base and os.path.exists(base):
+        cmd.append(base)
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    return next((l.strip() for l in r.stdout.splitlines() if "FAIL," in l), "?")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("period"); ap.add_argument("out")
+    ap.add_argument("--only", help="comma-separated client ids")
+    a = ap.parse_args()
+    if not re.fullmatch(r"20\d\d\.\d\d", a.period):
+        raise SystemExit(f"period must be YYYY.MM, got {a.period!r}")
+    os.makedirs(a.out, exist_ok=True)
+
+    roster, skipped = read_roster()
+    if a.only:
+        want = {x.strip() for x in a.only.split(",")}
+        roster = [r for r in roster if r[0] in want]
+    print(f"clients.md: {len(roster)} to build, {len(skipped)} with no active program")
+    for cid, name, why in skipped:
+        print(f"    skip {cid} {name} — {why}")
+    print()
+
+    delivered = delivered_names(str(R.outputs()))
+    results = []
+    for i, (cid, roster_name, mmsm, progs) in enumerate(roster, 1):
+        t = time.time()
+        name, src = deck_name(cid, roster_name, delivered)
+        if src != "delivered":
+            print(f"    {cid}: no delivered filename to follow — naming decks "
+                  f"{name!r} from clients.md")
+        err, made = build_client(cid, name, mmsm, progs, a.period, a.out)
+        deck = made.get("DELIVERABLE")
+        gate = validate(deck, os.path.join(a.out, cid, "base.json")) if (not err and deck) else "-"
+        status = err or gate
+        print(f"[{i:>2}/{len(roster)}] {cid} {name[:26]:<26} {deck_tag(progs):<12} "
+              f"{status:<26} {time.time()-t:>5.0f}s", flush=True)
+        results.append((cid, name, progs, err, gate, deck))
+
+    json.dump([(c, n, p, e, g, d) for c, n, p, e, g, d in results],
+              open(os.path.join(a.out, "_results.json"), "w"), indent=1)
+    failed = [r for r in results if r[3] or not r[4].startswith("0 FAIL")]
+    print("\n" + "=" * 72)
+    print(f"{len(results)-len(failed)}/{len(results)} clients resolved without error")
+    for cid, name, progs, err, gate, deck in failed:
+        print(f"  {cid} {name}: {err or gate}")
+    return len(failed)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
