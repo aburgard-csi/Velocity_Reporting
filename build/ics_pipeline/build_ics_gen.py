@@ -880,7 +880,7 @@ if __name__=="__main__":
     _argv=[a for a in sys.argv[1:] if a!="--referrals-only"]
     # The client sheet resolves through rpe_env: a literal path still works, and
     # a bare `1705` or `1705_ics.json` is looked up under
-    # RPE_DATA_ROOT/Inputs/Client Data/ then the repo's data/ folder. Those JSONs
+    # RPE_DATA_ROOT/Inputs/VIP Data/ then the repo's data/ folder. Those JSONs
     # are real client data and are gitignored, so a fresh checkout on the other
     # machine has the code and none of the inputs (PRD criterion 1).
     from rpe_env import resolve_client_json

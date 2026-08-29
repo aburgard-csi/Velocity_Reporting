@@ -40,7 +40,7 @@ RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pip
 | Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
 | ARS, MRPC, **and ICS** workbooks (all together) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
-| ICS / MRPC client data sheets (`<id>_ics.json`, `<id>_mrpc.json`) | `Inputs/Client Data/` |
+| ICS / MRPC client sheets from the VIP dashboards (`<id>_ics.json`, `<id>_mrpc.json`) | `Inputs/VIP Data/` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
 | Per-program template shells (`*_template.pptx`) | the project `templates/` folder |
 

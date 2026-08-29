@@ -475,7 +475,7 @@ def restyle_fonts(prs, minpt=10):
 
 if __name__ == "__main__":
     # See build_ics_gen: a literal path still works; a bare `1075` or
-    # `1075_mrpc.json` resolves under RPE_DATA_ROOT/Inputs/Client Data/ first,
+    # `1075_mrpc.json` resolves under RPE_DATA_ROOT/Inputs/VIP Data/ first,
     # then the repo's data/ folder.
     from rpe_env import resolve_client_json
     build(json.load(open(resolve_client_json(sys.argv[1], "mrpc"))),

@@ -156,7 +156,8 @@ decks stay in Drive. Nothing client-identifiable enters the repo.
 ## Closed 2026-08-29
 
 - **`ics_pipeline/data/` and `mrpc_pipeline/data/` hold CLIENT DATA**, not
-  runtime fixtures — `1549-Wellworth Bank`, `1705_ics.json` and the like,
+  runtime fixtures assembled from the VIP dashboards — `1549-Wellworth Bank`,
+  `1705_ics.json` and the like,
   correctly gitignored and untracked. They therefore have to resolve through
   `RPE_DATA_ROOT` like every other input, or success criterion 1 is unreachable
   for ICS and MRPC on a fresh checkout.

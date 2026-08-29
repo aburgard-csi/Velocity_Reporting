@@ -121,18 +121,21 @@ def build_artifacts() -> Path:
     return path
 
 
-CLIENT_DATA_DIRNAME = "Client Data"
+VIP_DATA_DIRNAME = "VIP Data"
 
 
-def client_data() -> Path | None:
-    """`Inputs/Client Data/` under RPE_DATA_ROOT, or None if it is not there.
+def vip_data() -> Path | None:
+    """`Inputs/VIP Data/` under RPE_DATA_ROOT, or None if it is not there.
 
-    ICS and MRPC read a per-client JSON (`<id>_ics.json`, `<id>_mrpc.json`) that
-    is REAL CLIENT DATA. It is correctly gitignored, so it does not travel with
-    the repo — which means a fresh checkout on the CSI machine has the code and
-    none of the ICS/MRPC inputs, and PRD success criterion 1 ("the same client
-    built on both machines produces identical decks") is unreachable for two of
-    the three programs.
+    ICS and MRPC read a per-client JSON (`<id>_ics.json`, `<id>_mrpc.json`)
+    assembled from the VIP dashboards — `1075_mrpc.json` names its own source as
+    "VIP MyRewards Premium Cards dashboards (Enrollments, Performance,
+    Retention, Revenue to FI) + MRPCPM Analysis workbook". It is real client
+    data, correctly gitignored, so it does not travel with the repo — which
+    means a fresh checkout on the CSI machine has the code and none of the
+    ICS/MRPC inputs, and PRD success criterion 1 ("the same client built on both
+    machines produces identical decks") is unreachable for two of the three
+    programs.
 
     Unlike inputs()/outputs() this never raises: the folder is a migration
     target, and until every client JSON has moved there the repo-local
@@ -140,7 +143,7 @@ def client_data() -> Path | None:
     resolve_client_json() prefers this and falls back to that.
     """
     try:
-        path = data_root() / "Inputs" / CLIENT_DATA_DIRNAME
+        path = data_root() / "Inputs" / VIP_DATA_DIRNAME
     except SystemExit:
         return None
     return path if path.is_dir() else None
@@ -153,7 +156,7 @@ def resolve_client_json(arg, program) -> Path:
     `1705_ics.json` / `1705`. Search order:
 
       1. the literal argument, if it exists;
-      2. `Inputs/Client Data/` under RPE_DATA_ROOT — the portable location;
+      2. `Inputs/VIP Data/` under RPE_DATA_ROOT — the portable location;
       3. `build/<program>_pipeline/data/` in the repo — where these files live
          today on the Mac, kept so nothing breaks mid-migration.
 
@@ -171,7 +174,7 @@ def resolve_client_json(arg, program) -> Path:
         name = f"{name}_{program}.json"
 
     tried = []
-    shared = client_data()
+    shared = vip_data()
     if shared is not None:
         hit = shared / name
         tried.append(hit)

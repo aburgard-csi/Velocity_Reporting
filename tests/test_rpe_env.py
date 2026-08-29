@@ -39,16 +39,16 @@ def test_bare_client_id_is_expanded(program, bare, name):
 
 
 def test_shared_location_wins_over_the_repo(tmp_path, monkeypatch):
-    """Once a client sheet has moved to Inputs/Client Data/, that copy is used."""
-    shared = tmp_path / "Inputs" / rpe_env.CLIENT_DATA_DIRNAME
+    """Once a client sheet has moved to Inputs/VIP Data/, that copy is used."""
+    shared = tmp_path / "Inputs" / rpe_env.VIP_DATA_DIRNAME
     shared.mkdir(parents=True)
     (shared / "1705_ics.json").write_text('{"from": "shared"}')
-    monkeypatch.setattr(rpe_env, "client_data", lambda: shared)
+    monkeypatch.setattr(rpe_env, "vip_data", lambda: shared)
     assert rpe_env.resolve_client_json("1705_ics.json", "ics") == shared / "1705_ics.json"
 
 
 def test_missing_file_names_every_location_tried(tmp_path, monkeypatch):
-    monkeypatch.setattr(rpe_env, "client_data", lambda: tmp_path)
+    monkeypatch.setattr(rpe_env, "vip_data", lambda: tmp_path)
     with pytest.raises(SystemExit) as e:
         rpe_env.resolve_client_json("9999", "ics")
     msg = str(e.value)
@@ -63,9 +63,9 @@ def test_empty_argument_is_refused():
         rpe_env.resolve_client_json("", "ics")
 
 
-def test_client_data_never_raises():
+def test_vip_data_never_raises():
     """Unlike inputs()/outputs() this is a migration target, so absence is normal."""
-    assert rpe_env.client_data() is None or rpe_env.client_data().is_dir()
+    assert rpe_env.vip_data() is None or rpe_env.vip_data().is_dir()
 
 
 # --- build artifacts ------------------------------------------------------

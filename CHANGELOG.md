@@ -141,7 +141,7 @@ to `build/` and all three builders call it, so the next ICS or MRPC layout fix l
 contract instead of in one deck. Date phrasing derives from `build/periods.py`; a literal
 month is still fine when it is the month being described, but spans and counts are no longer
 hand-computed. ICS/MRPC client sheets resolve through `rpe_env.resolve_client_json` under
-`Inputs/Client Data/`, so a fresh checkout on the CSI machine is no longer missing them.
+`Inputs/VIP Data/`, so a fresh checkout on the CSI machine is no longer missing them.
 
 ### 2026-08-28 — orange KPI tile label read grey
 
