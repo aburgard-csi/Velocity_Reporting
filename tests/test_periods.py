@@ -115,3 +115,26 @@ def test_unparseable_month_is_refused_not_guessed():
 def test_window_of_zero_is_refused(p):
     with pytest.raises(ValueError):
         p.window(0)
+
+
+# --- the reporting month (STYLE.md:85), as opposed to the data month ------
+def test_reporting_month_prefers_the_filename_period():
+    import build_ars_onepager as op
+    assert op._reporting_month("/x/1204-2026.08-ARS-Client.pdf") == "August 2026"
+
+
+def test_reporting_month_falls_back_to_the_summit_not_the_clock(monkeypatch):
+    """date.today() was the original bug — right only in the month it shipped."""
+    import build_ars_onepager as op
+    from summit_slide import summit_period
+    monkeypatch.delenv("RPE_PERIOD", raising=False)
+    monkeypatch.delenv("ARS_PERIOD", raising=False)
+    got = op._reporting_month("/x/onepager-with-no-period.pdf")
+    y, m = summit_period().split(".")
+    assert got == datetime.date(int(y), int(m), 1).strftime("%B %Y")
+
+
+def test_reporting_month_env_overrides_everything(monkeypatch):
+    import build_ars_onepager as op
+    monkeypatch.setenv("RPE_PERIOD", "2027.03")
+    assert op._reporting_month("/x/1204-2026.08-ARS-Client.pdf") == "March 2027"

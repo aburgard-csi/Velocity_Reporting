@@ -151,9 +151,16 @@ decks stay in Drive. Nothing client-identifiable enters the repo.
 
 ## Open
 
-- The literal Drive for Desktop path on the CSI machine, for `RPE_DATA_ROOT`.
+Nothing outstanding.
 
 ## Closed 2026-08-29
+
+- **The CSI machine's `RPE_DATA_ROOT` is `C:\Data Pipelines\RPE Pipeline`**
+  (Aaron, 2026-08-29) — a plain local drive, moved off OneDrive 2026-07-17 to
+  stop sync corruption. Recorded as a commented line in `.env.example`. Those
+  mounts allow creating and copying but NOT deleting, so anything the pipeline
+  writes there must be either idempotent or written somewhere it never needs
+  removing.
 
 - **`ics_pipeline/data/` and `mrpc_pipeline/data/` hold CLIENT DATA**, not
   runtime fixtures assembled from the VIP dashboards — `1549-Wellworth Bank`,

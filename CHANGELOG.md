@@ -44,10 +44,13 @@ a sidecar; a deck without one validates exactly as before.
 The sidecar goes to `Build Artifacts/` under `RPE_DATA_ROOT`, named after its deck, NOT
 beside it: `Outputs/` is the delivery folder and holds finished decks only. `validate_deck`
 looks there first and then beside the deck, so anything built before the move still
-validates. The `.A/.B/.C/.D` phase decks are cleaned up through `atexit` as well as on the
-happy path — they are written next to the output, so a build that died partway used to leave
-four intermediate decks in the delivery folder. Verified both ways: a clean build leaves the
-output folder holding exactly one file, and a failed one leaves it empty.
+validates. The `.A/.B/.C/.D` phase decks no longer go next to the output at all — they are written to a
+temp directory and dropped through `atexit`. They used to land in the delivery folder and
+were only removed on the happy path, so a build that died partway left four intermediate
+decks there. Cleanup alone would not have been enough: the CSI mount allows creating and
+copying but NOT deleting (`rm` returns "Operation not permitted"), so nothing written there
+could ever be removed. Verified both ways: a clean build leaves the output folder holding
+exactly one file, and a failed one leaves it empty.
 
 ### 2026-08-29 — build from the template shell, never from a client deck
 
@@ -82,7 +85,25 @@ slide and whose divider sits at index 2. Slides are now identified by meaning, a
 requires: the cover carries the "Executive Review" line, the divider carries the program's
 benefits line. Verified to produce identical results to the old rule on a built deck.
 
-### 2026-08-29 — two reporting months came from the wall clock
+### 2026-08-29 — the reporting month is the Executive Summit's, never the clock
+
+`build_ars_gen`'s slide-1 note and the one-pager header both took `date.today()`. Correct
+only while a deck is rebuilt in the month it ships; rebuild an August deck in October and
+the note said October while the cover still said August.
+
+Both now resolve the same way, so a one-pager and its deck cannot disagree: `ARS_PERIOD` /
+`RPE_PERIOD`, then the `<yyyy.mm>` tag in the output filename, then **the Executive Summit's
+month** — these decks are prepared FOR the Summit, so that is when they are presented
+(Aaron, 2026-08-29). The Summit date is read from `build/assets/summit_slide.pptx`
+("Boston, MA  August 31-September 1, 2026" -> 2026.08), not hardcoded, so it moves when that
+slide does; a range takes its start. There is no clock fallback left in either — an
+unresolvable period is now a hard failure naming all three ways to fix it.
+
+STYLE.md draws the distinction and it is easy to invert: the cover and one-pager header
+carry the month the report is PRESENTED (STYLE.md:85), while the period pills and PTD
+figures carry the DATA month (STYLE.md:44, explicitly "NOT the report/generation month").
+
+### 2026-08-29 — superseded: two reporting months came from the wall clock
 
 The slide-1 speaker note (`build_ars_gen.py`) and the one-pager header
 (`build_ars_onepager.py`) both took `date.today()`. Correct only while a deck is rebuilt in

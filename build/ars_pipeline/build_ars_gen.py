@@ -501,11 +501,22 @@ _per = os.environ.get("ARS_PERIOD") or ""
 if not _per:
     _mper = re.search(r"(\d{4})\.(\d{2})", os.path.basename(OUT))
     _per = f"{_mper.group(1)}.{_mper.group(2)}" if _mper else ""
+if not _per:
+    # These decks are prepared FOR the Executive Summit, so its month is the
+    # month they are presented in. Read from the shared Summit slide rather than
+    # hardcoded, so it moves when that slide does (Aaron, 2026-08-29).
+    from summit_slide import summit_period as _summit_period
+    _per = _summit_period() or ""
+    if _per:
+        print(f"presentation month not in ARS_PERIOD or the output name; "
+              f"using the Executive Summit month ({_per})")
 try:
     PRESENT_MONTH = datetime.date(int(_per[:4]), int(_per[5:7]), 1).strftime("%B %Y")
 except Exception:
-    raise SystemExit("cannot resolve the presentation month — pass ARS_PERIOD=YYYY.MM or "
-                     "name the output <id>-<yyyy.mm>-ARS-… (got %r)" % os.path.basename(OUT))
+    raise SystemExit("cannot resolve the presentation month — pass ARS_PERIOD=YYYY.MM, "
+                     "name the output <id>-<yyyy.mm>-ARS-…, or make sure "
+                     "build/assets/summit_slide.pptx carries the Summit date "
+                     "(got %r)" % os.path.basename(OUT))
 DATA_MONTH = B['data_label'].replace(" Data", "").strip()
 print(f"months: presenting {PRESENT_MONTH} | data through {DATA_MONTH}")
 
@@ -1122,25 +1133,25 @@ import zipfile as _zf
 STRIP = os.path.join(BUILDDIR, "strip_dead.py")   # shared post-processor, next to restyle_fonts.py
 
 # ---- 2a. Regenerate Product Mix slide via a clean strip-then-add (avoids partname reuse) ----
-_A = OUT + ".A.pptx"; _B = OUT + ".B.pptx"; _C = OUT + ".C.pptx"
+# Phase decks go to a TEMP directory, not next to OUT.
+#
+# Two reasons. They were landing in the delivery folder, which holds finished
+# decks only; and a build that died partway left them there, because cleanup ran
+# only on the happy path. Worse on the CSI machine, where the mount allows
+# creating and copying but NOT deleting — `rm` returns "Operation not
+# permitted" — so no amount of cleanup would have removed them there.
+# A temp dir is local, always deletable, and never inside Outputs.
+_PHASE_DIR = tempfile.mkdtemp(prefix="ars_phase_")
+_ob = os.path.basename(OUT)
+_A = os.path.join(_PHASE_DIR, _ob + ".A.pptx")
+_B = os.path.join(_PHASE_DIR, _ob + ".B.pptx")
+_C = os.path.join(_PHASE_DIR, _ob + ".C.pptx")
 
 
 def _clean_phase_files():
-    """Remove the .A/.B/.C/.D phase decks.
-
-    They are written NEXT TO the output, so a build that dies partway used to
-    leave intermediate decks sitting in the delivery folder (Aaron, 2026-08-29 —
-    keep Outputs clean). Registered here rather than beside _D because the figure
-    gate fires before _D exists; _D is read from globals() for the same reason.
-    """
-    for _name in ("_A", "_B", "_C", "_D"):
-        _f = globals().get(_name)
-        if not _f:
-            continue
-        try:
-            os.remove(_f)
-        except OSError:
-            pass
+    """Drop the phase directory however the build ends."""
+    import shutil as _shutil
+    _shutil.rmtree(_PHASE_DIR, ignore_errors=True)
 
 
 import atexit as _atexit
@@ -1645,7 +1656,7 @@ if _fx:
             _sys2.stderr.write("     %-14s on %s\n" % (_v, ", ".join(sorted(set(_slides)))))
     raise SystemExit(2)
 
-_D = OUT + ".D.pptx"; prs.save(_D)
+_D = os.path.join(_PHASE_DIR, _ob + ".D.pptx"); prs.save(_D)
 def _letterbox(src, w, h, dst):
     im = _PImg.open(src).convert("RGB"); iw, ih = im.size
     s = min(w/iw, h/ih); nw, nh = max(1,int(iw*s)), max(1,int(ih*s))

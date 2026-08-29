@@ -9,7 +9,7 @@ SCRIPTS = os.path.join(REPO, "scripts")
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 ODD_CSV = os.path.join(FIXTURES, "synthetic_odd.csv")
 
-for p in (BUILD, ARS, SCRIPTS):
+for p in (BUILD, ARS, SCRIPTS):  # ARS_PIPE included
     if p not in sys.path:
         sys.path.insert(0, p)
 

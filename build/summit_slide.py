@@ -17,7 +17,7 @@ base template). Two helpers:
 Usage (CLI): python3 summit_slide.py insert  <deck.pptx> [deck2 ...]
              python3 summit_slide.py restore <deck.pptx> [deck2 ...]
 """
-import os, sys, copy
+import datetime, os, re, sys, copy
 from io import BytesIO
 from pptx import Presentation
 from pptx.util import Pt
@@ -25,6 +25,51 @@ from pptx.oxml.ns import qn
 
 ASSET = os.path.join(os.path.dirname(__file__), "assets", "summit_slide.pptx")
 SHAPE_TAGS = {qn('p:sp'), qn('p:pic'), qn('p:graphicFrame'), qn('p:grpSp'), qn('p:cxnSp')}
+
+
+_SUMMIT_DATE_RE = re.compile(
+    r"\b(January|February|March|April|May|June|July|August|September|October|"
+    r"November|December)\s+(\d{1,2})\s*(?:[-–—]\s*"
+    r"(?:January|February|March|April|May|June|July|August|September|October|"
+    r"November|December)?\s*\d{1,2})?\s*,\s*(\d{4})")
+
+_MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December"]
+
+
+def summit_date(asset=ASSET):
+    """The Executive Summit's START date, read from the shared Summit slide.
+
+    The decks are prepared FOR the Summit, so the Summit's month is the month
+    they are presented in — which is what STYLE.md:85 means by the reporting
+    month, as opposed to the data month on the period pills (STYLE.md:44).
+
+    Read from `build/assets/summit_slide.pptx` rather than hardcoded, so it
+    moves when the Summit slide does. The asset currently reads
+    "Boston, MA  August 31-September 1, 2026"; a range takes its START.
+
+    Returns a date, or None when the slide carries no parseable date — callers
+    decide whether that is fatal.
+    """
+    try:
+        prs = Presentation(asset)
+    except Exception:
+        return None
+    for slide in prs.slides:
+        for sh in slide.shapes:
+            if not sh.has_text_frame:
+                continue
+            m = _SUMMIT_DATE_RE.search(" ".join(sh.text_frame.text.split()))
+            if m:
+                month, day, year = m.group(1), int(m.group(2)), int(m.group(3))
+                return datetime.date(year, _MONTHS.index(month) + 1, day)
+    return None
+
+
+def summit_period(asset=ASSET):
+    """The Summit month as `YYYY.MM`, or None. Aug 31-Sep 1 2026 -> '2026.08'."""
+    d = summit_date(asset)
+    return f"{d.year:04d}.{d.month:02d}" if d else None
 
 
 def _summit_slide(prs):
