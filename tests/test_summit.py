@@ -1,15 +1,10 @@
-"""summit_slide — the Executive Summit date as the reporting month.
+"""summit_slide — reading the Executive Summit's date off its own slide.
 
-STYLE.md draws a hard line between two months, and it is easy to get backwards:
-
-  * the cover and one-pager header carry the month the report is PRESENTED
-    (STYLE.md:85);
-  * the period pills and PTD figures carry the DATA month (STYLE.md:44,
-    explicitly "NOT the report/generation month").
-
-These decks are prepared FOR the Summit, so the Summit's month is the month they
-are presented in. Read from the shared Summit slide rather than hardcoded, so it
-moves when that slide does.
+The Summit and the monthly client reviews are TWO DIFFERENT DELIVERIES: a Summit
+runs a couple of times a year and only for attendees, while the reviews go out
+monthly (Aaron, 2026-08-29). So this date describes the Summit slide and nothing
+else — in particular it does NOT drive a deck's reporting month, which comes from
+ARS_PERIOD or the output filename.
 """
 import datetime
 import pytest
@@ -28,8 +23,9 @@ def test_summit_period_is_yyyy_dot_mm():
     assert p[:4].isdigit() and p[5:].isdigit()
 
 
-def test_summit_period_matches_the_deck_filenames():
-    """Delivered decks are named <id>-2026.08-ARS-...; the Summit is Aug 31 2026."""
+def test_summit_period_reads_the_current_slide():
+    """Aug 31 - Sep 1 2026, per the slide as printed. That the 2026.08 decks share
+    the month is coincidence, not a relationship — the next Summit is November."""
     assert summit_period() == "2026.08"
 
 

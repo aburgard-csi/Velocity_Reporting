@@ -18,10 +18,13 @@ Nothing yet.
 
 ---
 
-## 2026-08-29 — August 2026 Executive Summit
+## 2026-08-29 — 2026.08 monthly delivery
 
-Everything the 2026.08 client decks were built with. Cut on the day the Summit
-slides went to print; the next Summit is November 2026.
+Everything the 2026.08 client review decks were built with.
+
+The monthly reviews and the Executive Summit are two different deliveries: the
+reviews go to every active client each month, the Summit runs a couple of times a
+year and only for attendees (Aaron, 2026-08-29). This heading is the monthly one.
 
 ### 2026-08-29 — Excluded Accounts explains OPEN accounts only
 
@@ -188,19 +191,22 @@ slide and whose divider sits at index 2. Slides are now identified by meaning, a
 requires: the cover carries the "Executive Review" line, the divider carries the program's
 benefits line. Verified to produce identical results to the old rule on a built deck.
 
-### 2026-08-29 — the reporting month is the Executive Summit's, never the clock
+### 2026-08-29 — the reporting month comes from the period, never the clock
 
 `build_ars_gen`'s slide-1 note and the one-pager header both took `date.today()`. Correct
 only while a deck is rebuilt in the month it ships; rebuild an August deck in October and
 the note said October while the cover still said August.
 
 Both now resolve the same way, so a one-pager and its deck cannot disagree: `ARS_PERIOD` /
-`RPE_PERIOD`, then the `<yyyy.mm>` tag in the output filename, then **the Executive Summit's
-month** — these decks are prepared FOR the Summit, so that is when they are presented
-(Aaron, 2026-08-29). The Summit date is read from `build/assets/summit_slide.pptx`
-("Boston, MA  August 31-September 1, 2026" -> 2026.08), not hardcoded, so it moves when that
-slide does; a range takes its start. There is no clock fallback left in either — an
-unresolvable period is now a hard failure naming all three ways to fix it.
+`RPE_PERIOD`, then the `<yyyy.mm>` tag in the output filename, and nothing else. An
+unresolvable period is a hard failure naming both ways to fix it.
+
+There is deliberately no fallback. Not the clock, for the reason above. And not the
+Executive Summit's month either — that was tried and reverted the same day: a Summit runs a
+couple of times a year and only for attendees, while these are the MONTHLY reviews, so
+deriving one from the other would be wrong ten months out of twelve (Aaron, 2026-08-29).
+`summit_slide.summit_date()` still reads the date off the slide, but nothing in a builder
+depends on it.
 
 STYLE.md draws the distinction and it is easy to invert: the cover and one-pager header
 carry the month the report is PRESENTED (STYLE.md:85), while the period pills and PTD

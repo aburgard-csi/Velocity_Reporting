@@ -123,15 +123,19 @@ def test_reporting_month_prefers_the_filename_period():
     assert op._reporting_month("/x/1204-2026.08-ARS-Client.pdf") == "August 2026"
 
 
-def test_reporting_month_falls_back_to_the_summit_not_the_clock(monkeypatch):
-    """date.today() was the original bug — right only in the month it shipped."""
+def test_reporting_month_refuses_rather_than_guessing(monkeypatch):
+    """No clock, and no Summit either.
+
+    date.today() was the original bug — right only in the month a deck ships.
+    The Executive Summit's month is not a substitute: a Summit runs a couple of
+    times a year and only for attendees, while this is the MONTHLY delivery.
+    """
     import build_ars_onepager as op
-    from summit_slide import summit_period
     monkeypatch.delenv("RPE_PERIOD", raising=False)
     monkeypatch.delenv("ARS_PERIOD", raising=False)
-    got = op._reporting_month("/x/onepager-with-no-period.pdf")
-    y, m = summit_period().split(".")
-    assert got == datetime.date(int(y), int(m), 1).strftime("%B %Y")
+    with pytest.raises(SystemExit) as e:
+        op._reporting_month("/x/onepager-with-no-period.pdf")
+    assert "RPE_PERIOD" in str(e.value)
 
 
 def test_reporting_month_env_overrides_everything(monkeypatch):

@@ -520,22 +520,20 @@ _per = os.environ.get("ARS_PERIOD") or ""
 if not _per:
     _mper = re.search(r"(\d{4})\.(\d{2})", os.path.basename(OUT))
     _per = f"{_mper.group(1)}.{_mper.group(2)}" if _mper else ""
-if not _per:
-    # These decks are prepared FOR the Executive Summit, so its month is the
-    # month they are presented in. Read from the shared Summit slide rather than
-    # hardcoded, so it moves when that slide does (Aaron, 2026-08-29).
-    from summit_slide import summit_period as _summit_period
-    _per = _summit_period() or ""
-    if _per:
-        print(f"presentation month not in ARS_PERIOD or the output name; "
-              f"using the Executive Summit month ({_per})")
+# No fallback. The reporting month comes from ARS_PERIOD or the output filename,
+# or the build refuses.
+#
+# It is NOT the Executive Summit's month: a Summit runs a couple of times a year
+# and only for attendees, while these are the MONTHLY client reviews — two
+# different deliveries, and deriving one from the other would be wrong ten months
+# out of twelve (Aaron, 2026-08-29). It is not the wall clock either: that is
+# right only while a deck is built in the month it ships, and a rebuild later
+# silently moved it.
 try:
     PRESENT_MONTH = datetime.date(int(_per[:4]), int(_per[5:7]), 1).strftime("%B %Y")
 except Exception:
-    raise SystemExit("cannot resolve the presentation month — pass ARS_PERIOD=YYYY.MM, "
-                     "name the output <id>-<yyyy.mm>-ARS-…, or make sure "
-                     "build/assets/summit_slide.pptx carries the Summit date "
-                     "(got %r)" % os.path.basename(OUT))
+    raise SystemExit("cannot resolve the presentation month — pass ARS_PERIOD=YYYY.MM or "
+                     "name the output <id>-<yyyy.mm>-ARS-… (got %r)" % os.path.basename(OUT))
 DATA_MONTH = B['data_label'].replace(" Data", "").strip()
 print(f"months: presenting {PRESENT_MONTH} | data through {DATA_MONTH}")
 

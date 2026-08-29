@@ -283,32 +283,22 @@ def _reporting_month(out_path):
 
       1. RPE_PERIOD / ARS_PERIOD;
       2. the <yyyy.mm> tag in the output filename;
-      3. the Executive Summit's month, read from the shared Summit slide — these
-         decks are prepared FOR the Summit, so that is the month they are
-         presented in (Aaron, 2026-08-29).
-
-    There is deliberately no clock fallback. date.today() was the original bug:
-    right only while a one-pager is built in the month it ships, and silently
-    wrong on every rebuild after.
+    There is deliberately no third option. Not the wall clock: date.today() was
+    the original bug, right only while a one-pager is built in the month it ships
+    and silently wrong on every rebuild after. And not the Executive Summit's
+    month either — a Summit runs a couple of times a year and only for attendees,
+    while this is part of the MONTHLY client delivery (Aaron, 2026-08-29).
     """
     per = os.environ.get("RPE_PERIOD") or os.environ.get("ARS_PERIOD") or ""
     if not per:
         m = re.search(r"(\d{4})\.(\d{2})", os.path.basename(out_path or ""))
         per = f"{m.group(1)}.{m.group(2)}" if m else ""
-    if not per:
-        from summit_slide import summit_period
-        per = summit_period() or ""
-        if per:
-            print(f"!! build_ars_onepager: no period in RPE_PERIOD or in the output name "
-                  f"{os.path.basename(out_path or '')!r}; using the Executive Summit month "
-                  f"({per}).")
     try:
         return datetime.date(int(per[:4]), int(per[5:7]), 1).strftime("%B %Y")
     except (ValueError, IndexError):
         raise SystemExit(
-            "cannot resolve the reporting month — set RPE_PERIOD=YYYY.MM, name the "
-            "output <id>-<yyyy.mm>-..., or make sure build/assets/summit_slide.pptx "
-            "carries the Summit date (got %r)" % os.path.basename(out_path or ""))
+            "cannot resolve the reporting month — set RPE_PERIOD=YYYY.MM or name the "
+            "output <id>-<yyyy.mm>-... (got %r)" % os.path.basename(out_path or ""))
 
 
 # ---------------------------------------------------------------- build
