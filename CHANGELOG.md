@@ -14,6 +14,15 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+Nothing yet.
+
+---
+
+## 2026-08-29 — August 2026 Executive Summit
+
+Everything the 2026.08 client decks were built with. Cut on the day the Summit
+slides went to print; the next Summit is November 2026.
+
 ### 2026-08-29 — figure provenance sidecar: a measure renders one value, or the build fails
 
 The 2026-08-28 Wellworth defect — the Jun 2026 drop reading 1,077 on the mailing slides and

@@ -53,3 +53,33 @@ def test_unparseable_asset_returns_none_rather_than_raising(tmp_path):
     """Callers decide whether a missing Summit date is fatal."""
     assert summit_date(str(tmp_path / "no-such-file.pptx")) is None
     assert summit_period(str(tmp_path / "no-such-file.pptx")) is None
+
+
+def test_stale_summit_warns_but_still_returns(tmp_path, monkeypatch, capsys):
+    """The slide is printed ahead of each Summit and not revised until the next.
+
+    The August 2026 slides went to print 2026-08-29, so the asset keeps saying
+    August until the November materials land. A build falling back to it after
+    the Summit is reading a stale date and should be told — but the clock is
+    used only to WARN, never to derive the value.
+    """
+    import summit_slide as ss
+    monkeypatch.setattr(ss, "summit_date", lambda asset=None: datetime.date(2020, 5, 1))
+    out = ss.summit_period()
+    captured = capsys.readouterr()
+    assert out == "2020.05", "the value is still returned"
+    assert "has passed" in captured.err
+
+
+def test_future_summit_does_not_warn(monkeypatch, capsys):
+    import summit_slide as ss
+    monkeypatch.setattr(ss, "summit_date", lambda asset=None: datetime.date(2099, 11, 1))
+    ss.summit_period()
+    assert "has passed" not in capsys.readouterr().err
+
+
+def test_warning_can_be_suppressed(monkeypatch, capsys):
+    import summit_slide as ss
+    monkeypatch.setattr(ss, "summit_date", lambda asset=None: datetime.date(2020, 5, 1))
+    ss.summit_period(warn_if_past=False)
+    assert "has passed" not in capsys.readouterr().err

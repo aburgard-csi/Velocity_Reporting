@@ -66,10 +66,27 @@ def summit_date(asset=ASSET):
     return None
 
 
-def summit_period(asset=ASSET):
-    """The Summit month as `YYYY.MM`, or None. Aug 31-Sep 1 2026 -> '2026.08'."""
+def summit_period(asset=ASSET, warn_if_past=True):
+    """The Summit month as `YYYY.MM`, or None. Aug 31-Sep 1 2026 -> '2026.08'.
+
+    Warns when the Summit it names has already happened. The slide is printed
+    ahead of each Summit and not revised until the next one — the August 2026
+    slides went to print 2026-08-29 and the asset will keep saying August until
+    the November Summit materials land (Aaron, 2026-08-29). So a build falling
+    back to this AFTER the Summit is reading a stale date, and should be told.
+
+    The clock is used only to raise the warning, never to derive the value —
+    deriving a reporting month from `date.today()` is the bug this fallback
+    replaced.
+    """
     d = summit_date(asset)
-    return f"{d.year:04d}.{d.month:02d}" if d else None
+    if not d:
+        return None
+    if warn_if_past and d < datetime.date.today():
+        print(f"!! summit_slide: {asset} still names the {d:%B %Y} Summit, which has "
+              f"passed. If you are building for a later Summit, refresh the slide or "
+              f"pass the period explicitly (RPE_PERIOD=YYYY.MM).", file=sys.stderr)
+    return f"{d.year:04d}.{d.month:02d}"
 
 
 def _summit_slide(prs):
