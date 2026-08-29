@@ -811,9 +811,11 @@ def build(d, static_path, out, referrals_only=False):
         # MIN_PT. So the header band grows upward instead, bottom-anchored, and
         # the values below it never move. Both columns move together so the pair
         # stays aligned. A name that fits keeps the original geometry exactly.
-        _htop, _hh = (1.15, 0.95) if _needs_two_lines(_hl, _hr, usable_in=3.9-0.2) else (1.4, 0.5)
-        tb(s,1.3,_htop,3.9,_hh,_hl,18,NAVY,True,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.BOTTOM)
-        tb(s,8.15,_htop,3.9,_hh,_hr,18,NAVY,True,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.BOTTOM)
+        _two = _needs_two_lines(_hl, _hr, usable_in=3.9-0.2)
+        _htop, _hh = (1.15, 0.95) if _two else (1.4, 0.5)
+        _anc = MSO_ANCHOR.BOTTOM if _two else MSO_ANCHOR.TOP
+        tb(s,1.3,_htop,3.9,_hh,_hl,18,NAVY,True,align=PP_ALIGN.CENTER,anchor=_anc)
+        tb(s,8.15,_htop,3.9,_hh,_hr,18,NAVY,True,align=PP_ALIGN.CENTER,anchor=_anc)
         def cfmt(v,f):
             if f=="usd0": return f"${v:,.0f}"
             if f=="pct0": return f"{v:.0f}%"

@@ -395,6 +395,46 @@ def renumber(prs):
 
 
 # ---------------------------------------------------------------- assemble
+def merge_figure_sidecars(out_path, section_paths):
+    """Carry each section deck's figure sidecar onto the combined deck.
+
+    `build_ars_gen` names its sidecar after the deck IT wrote — the ARS
+    component — but for a multi-product client that component is an
+    intermediate and the deck that ships is this one. validate_deck looks for a
+    sidecar named after the deck in front of it, so without this the FAIL-grade
+    figure check silently did not run on any combined deck (Aaron, 2026-08-29).
+
+    Measures are prefixed with their program. Two programs using the same
+    measure name is coincidence, not identity — pooling them unprefixed would
+    invent a conflict between unrelated figures. Within a program the check is
+    unchanged.
+
+    Returns the sidecar path, or None when no section carried one.
+    """
+    try:
+        from figures import FigureLog, find_sidecar, sidecar_path
+    except Exception:
+        return None
+    merged = FigureLog()
+    for prog, path in section_paths:
+        if not path:
+            continue
+        src = find_sidecar(path)
+        if not src:
+            continue
+        try:
+            log = FigureLog.load(src)
+        except Exception:
+            continue
+        for row in log.rows:
+            r = dict(row)
+            r["measure"] = f"{prog}:{r['measure']}"
+            merged.rows.append(r)
+    if not merged.rows:
+        return None
+    return merged.dump(sidecar_path(out_path))
+
+
 def main():
     _init_args()
     prs = Presentation(ARS)
@@ -471,6 +511,9 @@ def main():
     fit_layout.fit(prs)
     prs.save(OUT)
     print(f"built {OUT} -> {len(prs.slides._sldIdLst)} slides")
+    _sc = merge_figure_sidecars(OUT, [("ARS", ARS), ("ICS", ICS), ("MRPC", MRPC)])
+    if _sc:
+        print(f"figures -> {os.path.basename(_sc)}")
 
 
 # Guarded so the module can be IMPORTED for its pure helpers (section_slides,

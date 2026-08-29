@@ -23,6 +23,32 @@ Nothing yet.
 Everything the 2026.08 client decks were built with. Cut on the day the Summit
 slides went to print; the next Summit is November 2026.
 
+### 2026-08-29 — the figure sidecar now reaches the deck that ships
+
+`build_ars_gen` names its sidecar after the deck IT wrote — the ARS component. For a
+multi-product client that component is an intermediate; the deck that ships is the
+combined one. `validate_deck` looks for a sidecar named after the deck in front of it, so
+the FAIL-grade figure check silently did not run on any combined deck.
+
+`assemble_combined` now merges each section's sidecar onto the combined deck. Measures are
+prefixed with their program (`ARS:responders_latest_mailing`): two programs using one
+measure name is coincidence, not identity, and pooling them unprefixed would invent a
+conflict between unrelated figures. Within a program the check is unchanged.
+
+### 2026-08-29 — a multi-product client gets the combined deck only
+
+Recorded because the archive shows both shapes historically: some cycles delivered a
+client's per-program decks alongside the combined one. The per-program decks are
+intermediates that feed `assemble_combined` — one client, one deck (Aaron, 2026-08-29).
+
+### 2026-08-29 — ICS Comparisons header fits the client name
+
+"Altamaha Bank and Trust Company Data" is 4.64in of Montserrat 16pt in a 3.7in box: it
+wrapped onto the value below. Shrinking is not available — `enforce_min_font` floors every
+run at `MIN_PT`, which its own comment warns about. The header band now grows upward and
+anchors to its bottom edge, so the values never move; a name that fits keeps the original
+geometry and anchor exactly, and no other client's deck changes.
+
 ### 2026-08-29 — a missing MRPC channel count is not the same fact as a zero
 
 Re-running all 15 2026.08 decks crashed Marine 1539's MRPC build: `chart_channel`

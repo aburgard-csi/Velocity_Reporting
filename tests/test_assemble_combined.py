@@ -301,3 +301,60 @@ def test_mrpc_shell_titles_describe_what_they_become():
                  "MRPC Card Portfolio", "MRPC Key Metrics"):
         n = sum(1 for t in ts if t.startswith(want))
         assert n == 1, f"mrpc_template should carry exactly one {want!r} slide, found {n}"
+
+
+# --- the figure sidecar must reach the deck that actually ships ------------
+def _sidecar_for(deck):
+    from figures import find_sidecar
+    return find_sidecar(deck)
+
+
+def test_combined_deck_gets_a_merged_sidecar(tmp_path, monkeypatch):
+    """build_ars_gen names its sidecar after the ARS COMPONENT, but for a
+    multi-product client that component is an intermediate — the deck that ships
+    is the combined one. Without carrying it across, validate_deck's FAIL-grade
+    figure check silently did not run on any combined deck."""
+    import json, assemble_combined as ac, figures as F
+    art = tmp_path / "artifacts"; art.mkdir()
+    monkeypatch.setattr(F, "_artifacts_dir", lambda: str(art))
+
+    ars = tmp_path / "1075-2026.08-ARS-Austin Bank ARS Results.pptx"
+    ars.write_text("")
+    (art / (ars.name + ".figures.json")).write_text(json.dumps({"figures": [
+        {"measure": "responders_latest_mailing", "value": "3,560",
+         "slide": "ARS Response", "note": ""}]}))
+
+    out = tmp_path / "1075-2026.08-ARS-ICS-MRPC-Austin Bank Results.pptx"
+    p = ac.merge_figure_sidecars(str(out), [("ARS", str(ars)), ("ICS", None), ("MRPC", None)])
+    assert p and os.path.basename(p) == out.name + ".figures.json"
+    rows = json.load(open(p))["figures"]
+    assert [r["measure"] for r in rows] == ["ARS:responders_latest_mailing"]
+
+
+def test_measures_are_namespaced_by_program(tmp_path, monkeypatch):
+    """Two programs using one measure name is coincidence, not identity —
+    pooling them unprefixed would invent a conflict between unrelated figures."""
+    import json, assemble_combined as ac, figures as F
+    art = tmp_path / "artifacts"; art.mkdir()
+    monkeypatch.setattr(F, "_artifacts_dir", lambda: str(art))
+    paths = []
+    for prog, val in (("ARS", "100"), ("MRPC", "200")):
+        d = tmp_path / f"1075-{prog}.pptx"; d.write_text("")
+        (art / (d.name + ".figures.json")).write_text(json.dumps({"figures": [
+            {"measure": "enrollments", "value": val, "slide": prog, "note": ""}]}))
+        paths.append((prog, str(d)))
+    out = tmp_path / "1075-combined.pptx"
+    p = ac.merge_figure_sidecars(str(out), paths + [("ICS", None)])
+    rows = json.load(open(p))["figures"]
+    assert sorted(r["measure"] for r in rows) == ["ARS:enrollments", "MRPC:enrollments"]
+
+    from figures import FigureLog
+    assert FigureLog.load(p).conflicts() == [], "unrelated measures must not collide"
+
+
+def test_no_sidecar_anywhere_yields_none(tmp_path, monkeypatch):
+    import assemble_combined as ac, figures as F
+    art = tmp_path / "artifacts"; art.mkdir()
+    monkeypatch.setattr(F, "_artifacts_dir", lambda: str(art))
+    d = tmp_path / "x.pptx"; d.write_text("")
+    assert ac.merge_figure_sidecars(str(tmp_path/"c.pptx"), [("ARS", str(d))]) is None
