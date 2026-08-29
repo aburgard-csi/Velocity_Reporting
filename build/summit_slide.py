@@ -27,11 +27,17 @@ ASSET = os.path.join(os.path.dirname(__file__), "assets", "summit_slide.pptx")
 SHAPE_TAGS = {qn('p:sp'), qn('p:pic'), qn('p:graphicFrame'), qn('p:grpSp'), qn('p:cxnSp')}
 
 
+# Month names spelled out OR abbreviated, with or without a trailing dot. The
+# slide has always spelled them out, but it is replaced by hand before each
+# Summit and the next one is a different design — a format the parser silently
+# misses would fall back to the previous Summit's date, which is worse than
+# failing.
+_MON_ALT = ("Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+            "Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|"
+            "Nov(?:ember)?|Dec(?:ember)?")
 _SUMMIT_DATE_RE = re.compile(
-    r"\b(January|February|March|April|May|June|July|August|September|October|"
-    r"November|December)\s+(\d{1,2})\s*(?:[-–—]\s*"
-    r"(?:January|February|March|April|May|June|July|August|September|October|"
-    r"November|December)?\s*\d{1,2})?\s*,\s*(\d{4})")
+    rf"\b({_MON_ALT})\.?\s+(\d{{1,2}})\s*(?:[-–—]\s*"
+    rf"(?:(?:{_MON_ALT})\.?\s*)?\d{{1,2}})?\s*,\s*(\d{{4}})", re.I)
 
 _MONTHS = ["January", "February", "March", "April", "May", "June", "July",
            "August", "September", "October", "November", "December"]
@@ -62,7 +68,11 @@ def summit_date(asset=ASSET):
             m = _SUMMIT_DATE_RE.search(" ".join(sh.text_frame.text.split()))
             if m:
                 month, day, year = m.group(1), int(m.group(2)), int(m.group(3))
-                return datetime.date(year, _MONTHS.index(month) + 1, day)
+                idx = next((i for i, name in enumerate(_MONTHS)
+                            if name.lower().startswith(month.lower()[:3])), None)
+                if idx is None:
+                    continue
+                return datetime.date(year, idx + 1, day)
     return None
 
 

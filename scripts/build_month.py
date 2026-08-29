@@ -123,38 +123,16 @@ def read_roster(path=ROSTER_FILE):
     return uniq, uniq_skip
 
 
-_NAME_RX = re.compile(r"^(\d{3,5})-\d{4}\.\d{2}-(?:ARS|ICS|MRPC)(?:-(?:ICS|MRPC))*-(.+?)"
-                      r"(?: (?:ARS|ICS|MRPC))? Results(?: \(.*\))?$")
+def deck_name(cid, roster_name):
+    """The name that goes on the deck and in its filename.
 
-
-def delivered_names(outputs_dir):
-    """{client id: the name used in that client's most recent delivered filename}.
-
-    The deck NAME in a filename is not reliably clients.md's display name nor the
-    data's client name, and the two disagree in both directions: 1204 ships as
-    "FSB Michigan" while its workbook says "First State Bank-MI", and 1509 ships
-    as "Texas Bay Credit Union" while clients.md says "Texas Bay CU". Renaming a
-    client's deck is a delivery decision, not something to infer — so the
-    existing filename is treated as the convention of record and carried forward.
-    Archive is read too, so a client not currently in Outputs still keeps its name.
+    clients.md decides, and nothing else (Aaron, 2026-08-29). The workbook is not
+    it — 1204's says "First State Bank-MI" while the client is "First State Bank -
+    Michigan" — and neither is the previous filename, which is how "FSB Michigan"
+    persisted for a cycle. Renaming a client is a delivery decision, so it lives
+    in the roster where such decisions are recorded.
     """
-    found = {}
-    for d, newest_first in ((outputs_dir, True), (os.path.join(outputs_dir, "Archive"), False)):
-        if not os.path.isdir(d):
-            continue
-        for f in sorted(glob.glob(os.path.join(d, "*.pptx")),
-                        key=os.path.getmtime, reverse=True):
-            m = _NAME_RX.match(os.path.basename(f)[:-5])
-            if m and m.group(1) not in found:
-                found[m.group(1)] = m.group(2).strip()
-    return found
-
-
-def deck_name(cid, roster_name, delivered):
-    """The name to put in this client's filenames, and where it came from."""
-    if cid in delivered:
-        return delivered[cid], "delivered"
-    return roster_name, "clients.md"
+    return roster_name
 
 
 def deck_tag(progs):
@@ -205,6 +183,20 @@ def build_client(cid, name, mmsm, progs, period, stage):
             if run([PY, f"{ARSP}/base_tab_extract.py", wb[0]] + ([dco[0]] if dco else []),
                    log, stdout_to=base): return "base_tab_extract", made
             open(lift, "w").write("{}")
+        # The roster decides the client's name, so it overrides what the workbook
+        # carries. build_ars_gen takes NAME from base.json["client"], which for
+        # 1204 reads "First State Bank-MI" — renaming only the FILE would leave
+        # the cover and every source note still saying the old name.
+        try:
+            _b = json.load(open(base))
+            if _b.get("client") != name:
+                print(f"    {cid}: workbook says {_b.get('client')!r}; "
+                      f"clients.md says {name!r} — using the roster name")
+                _b["client"] = name
+                json.dump(_b, open(base, "w"), indent=1)
+        except (OSError, ValueError) as e:
+            return f"base.json unreadable ({e})", made
+
         oddd = os.path.join(d, "oddd")
         if run([PY, os.path.join(REPO, "scripts/oddd_optimize.py"), "--input", z,
                 "--out", oddd, "--client", cid, "--name", name], log): return "oddd_optimize", made
@@ -275,14 +267,10 @@ def main():
         print(f"    skip {cid} {name} — {why}")
     print()
 
-    delivered = delivered_names(str(R.outputs()))
     results = []
     for i, (cid, roster_name, mmsm, progs) in enumerate(roster, 1):
         t = time.time()
-        name, src = deck_name(cid, roster_name, delivered)
-        if src != "delivered":
-            print(f"    {cid}: no delivered filename to follow — naming decks "
-                  f"{name!r} from clients.md")
+        name = deck_name(cid, roster_name)
         err, made = build_client(cid, name, mmsm, progs, a.period, a.out)
         deck = made.get("DELIVERABLE")
         gate = validate(deck, os.path.join(a.out, cid, "base.json")) if (not err and deck) else "-"

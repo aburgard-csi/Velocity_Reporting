@@ -17,6 +17,12 @@ the date and who confirmed it.
 
 ## Active clients — 2026.08 cycle
 
+**`Client` is the name that goes on the deck and in the filename** — the delivery name,
+decided here (Aaron, 2026-08-29). It is not read from the workbook: 1204's workbook says
+"First State Bank-MI" and its 2026.08 deck shipped as "FSB Michigan", neither of which is
+what the client is called. Renaming a client is a delivery decision, so it is recorded in
+this file and the builders follow it.
+
 `Path` is the ARS financial extractor: **MM** = Lift Matrix (`extract_base_gen` +
 `extract_lift`), **SM** = Monthly Summary (`base_tab_extract` + DCO). Detected from the
 workbook's `Executive Financials MM` tab — a real client name means MM, the `Bank Name`
@@ -26,20 +32,20 @@ template placeholder means SM. Verified 2026-08-28.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1038 | Sugar River Bank | SM | yes | — | — | ARS |
 | 1075 | Austin Bank | SM | yes | yes | yes | ARS-ICS-MRPC |
-| 1204 | FSB Michigan | MM | yes | — | — | ARS |
+| 1204 | First State Bank - Michigan | MM | yes | — | — | ARS |
 | 1437 | Canandaigua National Bank | MM | ended | — | ended | **none — no further reviews** |
-| 1509 | Texas Bay CU | MM | yes | yes | — | ARS-ICS |
-| 1537 | FNB&T Chickasha | MM | yes | yes | — | ARS-ICS |
+| 1509 | Texas Bay Credit Union | MM | yes | yes | — | ARS-ICS |
+| 1537 | FNBT Chickasha | MM | yes | yes | — | ARS-ICS |
 | 1539 | Marine FCU | MM | yes | yes | yes | ARS-ICS-MRPC |
 | 1549 | Wellworth Bank | MM | yes | referrals-only | — | ARS-ICS |
 | 1676 | True Sky CU | MM | yes | yes | — | ARS-ICS |
-| 1705 | CoastLife CU | MM | yes | **cancelled** | — | ARS |
+| 1705 | CoastLife Credit Union | MM | yes | **cancelled** | — | ARS |
 
 **MRPC-only clients** — confirmed by Aaron 2026-08-28.
 
 | ID | Client | Programs |
 | --- | --- | --- |
-| 1218 | Ideal CU | MRPC only |
+| 1218 | Ideal Credit Union | MRPC only |
 | 1477 | The Summit FCU | MRPC only |
 | 1502 | Capital Bank | MRPC only |
 
@@ -49,15 +55,15 @@ template placeholder means SM. Verified 2026-08-28.
 | --- | --- | --- | --- |
 | 1174 | PointBank | ICS cancelled; **no ARS either — no programs** | 2026-08-28 |
 | 1658 | Truliant FCU | **no RPE at all** — off the books | 2026-08-28 |
-| 1705 | CoastLife CU | ICS cancelled — ARS continues | 2026-08-28 |
+| 1705 | CoastLife Credit Union | ICS cancelled — ARS continues | 2026-08-28 |
 | 1437 | Canandaigua National Bank | ARS + MRPC end; **no further reviews will be produced** | 2026-10-31 |
 
 **ICS-only clients** — confirmed by Aaron 2026-08-28.
 
 | ID | Client | ICS workbook | Note |
 | --- | --- | --- | --- |
-| 1632 | WesBanco Bank | 2026.07 | |
-| 1734 | Altamaha Bank and Trust | 2026.08 | |
+| 1632 | WesBanco | 2026.07 | |
+| 1734 | Altamaha Bank and Trust Company | 2026.08 | |
 | 1738 | Rosedale Bank | none on file | referrals-only unless a workbook lands |
 
 ---
@@ -81,6 +87,10 @@ template placeholder means SM. Verified 2026-08-28.
   2026-10-31 and they will not receive another Executive Review before it does. Do not
   build 2026.08 or any later cycle. Their inputs (ODD, 2026.08 workbook, 2026.08 MRPCPM)
   are still on disk and must not be taken as a signal to build.
+- **2026-08-29 — 1204 is "First State Bank - Michigan"** (Aaron). Was delivered as
+  "FSB Michigan" for 2026.08 while its workbook said "First State Bank-MI". The roster
+  name is now the delivery name and the builders follow it; 2026.08 was rebuilt and
+  reissued under the correct name.
 - **2026-08-28 — FSB Michigan 1204 confirmed ARS** (Aaron). Was missed in the 2026.08
   run; built after confirmation.
 - **2026-08-28 — Wellworth 1549 is ICS referrals-only.** Live on ICS and generating

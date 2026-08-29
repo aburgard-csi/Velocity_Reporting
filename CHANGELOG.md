@@ -26,6 +26,32 @@ The monthly reviews and the Executive Summit are two different deliveries: the
 reviews go to every active client each month, the Summit runs a couple of times a
 year and only for attendees (Aaron, 2026-08-29). This heading is the monthly one.
 
+### 2026-08-29 — clients.md decides a client's name, and 1204 is renamed
+
+1204 is **First State Bank - Michigan** (Aaron). It shipped as "FSB Michigan" while its
+workbook said "First State Bank-MI" — three names for one client, none of them agreeing.
+
+The roster's `Client` column is now the delivery name: it goes in the filename AND
+overrides what the workbook carries, so the cover and every source note match. Renaming a
+client is a delivery decision, so it belongs in the file where such decisions are recorded,
+not inferred from a previous filename (which is how "FSB Michigan" survived a cycle) or
+read off a workbook nobody chose.
+
+Six other roster entries carried short forms that had never reached a deck — "Texas Bay
+CU", "CoastLife CU", "Ideal CU", "WesBanco Bank", "FNB&T Chickasha", "Altamaha Bank and
+Trust". They are aligned to the delivered names, so making the roster authoritative renames
+1204 and nothing else. 1204's 2026.08 deck was rebuilt and reissued; the old file is
+archived as `(renamed 2026-08-29)`.
+
+### 2026-08-29 — the Summit slide stays, and its date parser is ready for the next one
+
+Confirmed: every results deck carries the Executive Summit slide (Aaron). The slide is
+replaced by hand before each Summit — Ft. Lauderdale is next, in November — so
+`summit_date()` reads the date off the slide rather than hardcoding it, and now accepts
+abbreviated month names and a range that crosses a month boundary. A format it silently
+missed would fall back to the previous Summit's date, which is worse than failing.
+`summit_period()` warns when the slide still names a Summit that has passed.
+
 ### 2026-08-29 — Excluded Accounts explains OPEN accounts only
 
 The slide answered "why is any account on file outside ARS", so its largest bar was the

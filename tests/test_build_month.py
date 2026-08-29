@@ -7,7 +7,7 @@ a row's meaning comes from the heading it sits under, not its column count.
 """
 import os
 import pytest
-from build_month import read_roster, deck_tag, deck_name, delivered_names, _NAME_RX
+from build_month import read_roster, deck_tag, deck_name
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -95,28 +95,28 @@ def test_mm_sm_path_is_read(roster):
 
 
 # --- deck naming ---------------------------------------------------------
-@pytest.mark.parametrize("filename,cid,name", [
-    ("1204-2026.08-ARS-FSB Michigan ARS Results", "1204", "FSB Michigan"),
-    ("1075-2026.08-ARS-ICS-MRPC-Austin Bank Results", "1075", "Austin Bank"),
-    ("1632-2026.08-ICS-WesBanco ICS Results", "1632", "WesBanco"),
-    ("1676-2026.08-ARS-ICS-True Sky CU Results (superseded 2026-08-29)",
-     "1676", "True Sky CU"),
+def test_the_roster_decides_the_deck_name(roster):
+    """clients.md decides, not the workbook and not the previous filename.
+
+    1204's workbook says "First State Bank-MI" and its 2026.08 deck shipped as
+    "FSB Michigan"; the client is "First State Bank - Michigan" (Aaron,
+    2026-08-29). Renaming a client is a delivery decision, so it lives in the
+    roster where such decisions are recorded.
+    """
+    assert deck_name("1204", "First State Bank - Michigan") == "First State Bank - Michigan"
+    got = next(r[1] for r in roster if r[0] == "1204")
+    assert got == "First State Bank - Michigan"
+
+
+@pytest.mark.parametrize("cid,name", [
+    ("1509", "Texas Bay Credit Union"),
+    ("1537", "FNBT Chickasha"),
+    ("1705", "CoastLife Credit Union"),
+    ("1218", "Ideal Credit Union"),
+    ("1632", "WesBanco"),
+    ("1734", "Altamaha Bank and Trust Company"),
 ])
-def test_deck_name_is_read_back_from_a_filename(filename, cid, name):
-    m = _NAME_RX.match(filename)
-    assert m and m.group(1) == cid and m.group(2).strip() == name
-
-
-def test_delivered_name_wins_over_the_roster_name():
-    """1204 ships as "FSB Michigan" while its workbook says "First State
-    Bank-MI", and 1509 ships as "Texas Bay Credit Union" while clients.md says
-    "Texas Bay CU". Renaming a client's deck is a delivery decision."""
-    n, src = deck_name("1204", "FSB Michigan", {"1204": "FSB Michigan"})
-    assert (n, src) == ("FSB Michigan", "delivered")
-    n, src = deck_name("1509", "Texas Bay CU", {"1509": "Texas Bay Credit Union"})
-    assert (n, src) == ("Texas Bay Credit Union", "delivered")
-
-
-def test_a_new_client_falls_back_to_the_roster_name():
-    n, src = deck_name("9999", "Brand New Bank", {})
-    assert (n, src) == ("Brand New Bank", "clients.md")
+def test_roster_names_match_what_is_delivered(cid, name, roster):
+    """The roster was carrying short forms that had never reached a deck. They
+    are aligned so making the roster authoritative renames only 1204."""
+    assert next(r[1] for r in roster if r[0] == cid) == name
