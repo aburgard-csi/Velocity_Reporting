@@ -40,9 +40,18 @@ RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pip
 | Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
 | ARS, MRPC, **and ICS** workbooks (all together) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
-| ICS / MRPC client sheets from the VIP dashboards (`<id>_ics.json`, `<id>_mrpc.json`) | `Inputs/VIP Data/` |
+| ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
 | Per-program template shells (`*_template.pptx`) | the project `templates/` folder |
+
+**VIP Data.** `Inputs/VIP Data/` holds the per-client ICS and MRPC sheets pulled from the
+VIP dashboards, one folder per client (`<PROGRAM>/<id>-<Name>/`), indexed by
+`manifest.json` (program, client id, period, pull date, sections). Resolve one with
+`rpe_env.resolve_client_json("1705", "ics")` — it takes a bare client id, prefers the
+manifest, and falls back to the repo's `build/<program>_pipeline/data/`. Note the loose
+`data/<id>_<program>.json` stubs there are **superseded** by the per-client folders and
+carry an older pull; they are searched last for that reason. See the folder's own
+`README.md` for provenance, currency and the refresh procedure.
 
 **Client logos** live in `Inputs/Logos/<clientid>.png` — NOT in the repo: a client's logo is
 their brand asset and nothing client-identifiable belongs in git. `rpe_env.client_logo(id)`

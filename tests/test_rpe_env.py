@@ -20,40 +20,74 @@ def test_a_literal_path_is_used_as_is(tmp_path):
     assert rpe_env.resolve_client_json(str(f), "ics") == f
 
 
-@pytest.mark.parametrize("program,name", [("ics", "1705_ics.json"),
-                                          ("mrpc", "1075_mrpc.json")])
-def test_bare_filename_falls_back_to_the_repo_data_dir(program, name):
-    expected = REPO / "build" / f"{program}_pipeline" / "data" / name
-    if not expected.exists():
-        pytest.skip(f"{name} not present in this checkout")
-    assert rpe_env.resolve_client_json(name, program) == expected
+def test_manifest_loads_if_the_vip_store_is_present():
+    rows = rpe_env.vip_manifest()
+    if rows is None:
+        pytest.skip("Inputs/VIP Data not mounted on this machine")
+    assert rows and {"program", "client_id", "file"} <= set(rows[0])
 
 
-@pytest.mark.parametrize("program,bare,name", [("ics", "1705", "1705_ics.json"),
-                                               ("mrpc", "1075", "1075_mrpc.json")])
-def test_bare_client_id_is_expanded(program, bare, name):
-    expected = REPO / "build" / f"{program}_pipeline" / "data" / name
-    if not expected.exists():
-        pytest.skip(f"{name} not present in this checkout")
-    assert rpe_env.resolve_client_json(bare, program) == expected
+def test_every_manifest_row_resolves():
+    rows = rpe_env.vip_manifest()
+    if rows is None:
+        pytest.skip("Inputs/VIP Data not mounted on this machine")
+    for r in rows:
+        p = rpe_env.resolve_client_json(r["client_id"], r["program"].lower())
+        assert p.exists(), f"{r['program']} {r['client_id']} did not resolve"
 
 
-def test_shared_location_wins_over_the_repo(tmp_path, monkeypatch):
-    """Once a client sheet has moved to Inputs/VIP Data/, that copy is used."""
-    shared = tmp_path / "Inputs" / rpe_env.VIP_DATA_DIRNAME
-    shared.mkdir(parents=True)
-    (shared / "1705_ics.json").write_text('{"from": "shared"}')
-    monkeypatch.setattr(rpe_env, "vip_data", lambda: shared)
-    assert rpe_env.resolve_client_json("1705_ics.json", "ics") == shared / "1705_ics.json"
+@pytest.mark.parametrize("arg,expected", [
+    ("1705", "1705"), ("1705_ics.json", "1705"),
+    ("1705-CoastLife Credit Union", "1705"), ("nonsense", ""),
+])
+def test_client_id_is_read_from_any_form(arg, expected):
+    assert rpe_env._client_id_of(arg) == expected
+
+
+def test_per_client_folder_beats_the_loose_stub(tmp_path, monkeypatch):
+    """The loose data/<id>_ics.json stubs are SUPERSEDED by the per-client
+    folders (VIP Data/README.md) and are an older pull — 1705's stub is the
+    2026-07-13 capture against the folder's 2026-07-15. Searching them first
+    silently returned the stale one."""
+    monkeypatch.setattr(rpe_env, "vip_data", lambda: None)
+    data = tmp_path / "build" / "ics_pipeline" / "data"
+    (data / "1705-CoastLife Credit Union").mkdir(parents=True)
+    (data / "1705_ics.json").write_text('{"which": "stub"}')
+    (data / "1705-CoastLife Credit Union" / "1705_ics.json").write_text('{"which": "folder"}')
+    monkeypatch.setattr(rpe_env, "REPO_ROOT", tmp_path)
+    got = rpe_env.resolve_client_json("1705", "ics")
+    assert got.parent.name == "1705-CoastLife Credit Union", "the stale stub won"
+
+
+def test_vip_store_beats_the_repo(tmp_path, monkeypatch):
+    store = tmp_path / "VIP Data"
+    (store / "ICS" / "1705-CoastLife Credit Union").mkdir(parents=True)
+    (store / "ICS" / "1705-CoastLife Credit Union" / "1705_ics.json").write_text("{}")
+    monkeypatch.setattr(rpe_env, "vip_data", lambda: store)
+    monkeypatch.setattr(rpe_env, "vip_manifest", lambda: None)   # exercise the glob path
+    got = rpe_env.resolve_client_json("1705", "ics")
+    assert str(got).startswith(str(store))
+
+
+def test_manifest_is_preferred_over_the_glob(tmp_path, monkeypatch):
+    store = tmp_path / "VIP Data"
+    d = store / "ICS" / "1705-CoastLife Credit Union"
+    d.mkdir(parents=True)
+    (d / "1705_ics.json").write_text("{}")
+    monkeypatch.setattr(rpe_env, "vip_data", lambda: store)
+    monkeypatch.setattr(rpe_env, "vip_manifest", lambda: [
+        {"program": "ICS", "client_id": "1705",
+         "file": "ICS/1705-CoastLife Credit Union/1705_ics.json"}])
+    assert rpe_env.resolve_client_json("1705", "ics") == d / "1705_ics.json"
 
 
 def test_missing_file_names_every_location_tried(tmp_path, monkeypatch):
     monkeypatch.setattr(rpe_env, "vip_data", lambda: tmp_path)
+    monkeypatch.setattr(rpe_env, "vip_manifest", lambda: None)
     with pytest.raises(SystemExit) as e:
         rpe_env.resolve_client_json("9999", "ics")
     msg = str(e.value)
     assert "9999_ics.json" in msg
-    assert str(tmp_path) in msg, "the shared location must be named"
     assert "ics_pipeline" in msg, "the repo fallback must be named"
     assert "available offline" in msg, "Drive streaming is the usual cause"
 

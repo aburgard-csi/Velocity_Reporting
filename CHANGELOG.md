@@ -141,7 +141,12 @@ to `build/` and all three builders call it, so the next ICS or MRPC layout fix l
 contract instead of in one deck. Date phrasing derives from `build/periods.py`; a literal
 month is still fine when it is the month being described, but spans and counts are no longer
 hand-computed. ICS/MRPC client sheets resolve through `rpe_env.resolve_client_json` under
-`Inputs/VIP Data/`, so a fresh checkout on the CSI machine is no longer missing them.
+`Inputs/VIP Data/<PROGRAM>/<id>-<Name>/`, indexed by that folder's `manifest.json`, so a
+fresh checkout on the CSI machine is no longer missing them. The loose
+`data/<id>_<program>.json` stubs in the repo are searched LAST: the README there records
+them as superseded by the per-client folders, and they are an older pull — 1705's stub is
+the 2026-07-13 capture against the folder's 2026-07-15, so an earlier search silently
+returned the stale one.
 
 ### 2026-08-28 — orange KPI tile label read grey
 

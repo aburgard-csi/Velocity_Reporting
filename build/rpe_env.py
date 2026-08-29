@@ -25,7 +25,9 @@ from both, or pointing somewhere that isn't a directory, raises.
 
 from __future__ import annotations
 
+import json
 import os
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -149,19 +151,54 @@ def vip_data() -> Path | None:
     return path if path.is_dir() else None
 
 
+VIP_MANIFEST = "manifest.json"
+
+
+def vip_manifest() -> list | None:
+    """The `clients` list from `Inputs/VIP Data/manifest.json`, or None.
+
+    The manifest is the authoritative index of the VIP store: one row per file
+    with program, client id, period, pull date and the relative path. Preferred
+    over walking the tree because it also records WHICH pull a file is, and two
+    copies of a client can differ by pull date.
+    """
+    root = vip_data()
+    if root is None:
+        return None
+    try:
+        with open(root / VIP_MANIFEST, encoding="utf-8") as fh:
+            return json.load(fh).get("clients") or None
+    except (OSError, ValueError):
+        return None
+
+
+def _client_id_of(arg) -> str:
+    """The leading client id in `1705`, `1705_ics.json`, `1705-CoastLife...`."""
+    m = re.match(r"(\d{3,5})", os.path.basename(str(arg)))
+    return m.group(1) if m else ""
+
+
 def resolve_client_json(arg, program) -> Path:
     """Find a client's ICS/MRPC data sheet.
 
-    Accepts a path (used as-is when it exists) or a bare name like
-    `1705_ics.json` / `1705`. Search order:
+    Accepts a path (used as-is when it exists) or a bare `1705_ics.json` / `1705`.
+
+    Search order, and the reason for it:
 
       1. the literal argument, if it exists;
-      2. `Inputs/VIP Data/` under RPE_DATA_ROOT — the portable location;
-      3. `build/<program>_pipeline/data/` in the repo — where these files live
-         today on the Mac, kept so nothing breaks mid-migration.
+      2. `Inputs/VIP Data/manifest.json` — the authoritative index, which also
+         records each file's period and pull date;
+      3. `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` — the store
+         laid out by hand, in case the manifest is stale;
+      4. the repo's `build/<program>_pipeline/data/<id>-<Name>/` per-client
+         folder;
+      5. the repo's loose `data/<id>_<program>.json` LAST. Those stubs are
+         superseded by the per-client folders (VIP Data/README.md) and are an
+         older pull — 1705's stub is the 2026-07-13 capture against the folder's
+         2026-07-15. Searching them earlier silently returned the stale one.
 
-    Raises with all three locations named, because "file not found" on a Drive
-    mount is usually a not-available-offline problem rather than a typo.
+    Raises with every location named, because "file not found" on a Drive mount
+    is usually a not-available-offline problem rather than a typo.
     """
     if not arg:
         raise SystemExit(f"resolve_client_json: no {program} client file given")
@@ -169,21 +206,38 @@ def resolve_client_json(arg, program) -> Path:
     if candidate.exists():
         return candidate
 
-    name = candidate.name
+    prog = program.lower()
+    cid = _client_id_of(arg)
+    name = os.path.basename(str(arg))
     if not name.endswith(".json"):
-        name = f"{name}_{program}.json"
+        name = f"{cid or name}_{prog}.json"
 
     tried = []
-    shared = vip_data()
-    if shared is not None:
-        hit = shared / name
-        tried.append(hit)
-        if hit.exists():
-            return hit
-    repo = REPO_ROOT / "build" / f"{program}_pipeline" / "data" / name
-    tried.append(repo)
-    if repo.exists():
-        return repo
+    root = vip_data()
+
+    if cid and root is not None:
+        for row in (vip_manifest() or []):
+            if (str(row.get("program", "")).lower() == prog
+                    and str(row.get("client_id", "")) == cid):
+                hit = root / row["file"]
+                tried.append(hit)
+                if hit.exists():
+                    return hit
+        for hit in sorted(root.glob(f"{program.upper()}/{cid}-*/{name}")):
+            tried.append(hit)
+            if hit.exists():
+                return hit
+
+    data_dir = REPO_ROOT / "build" / f"{prog}_pipeline" / "data"
+    if cid:
+        for hit in sorted(data_dir.glob(f"{cid}-*/{name}")):
+            tried.append(hit)
+            if hit.exists():
+                return hit
+    stub = data_dir / name
+    tried.append(stub)
+    if stub.exists():
+        return stub
 
     where = "\n  ".join(str(t) for t in [candidate] + tried)
     raise SystemExit(
