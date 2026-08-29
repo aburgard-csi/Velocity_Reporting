@@ -3,9 +3,10 @@ name: mrpc-deck
 description: >-
   Build a client's MRPC (MyRewards Premium Cards®) Executive Review deck. Use when a
   request names an MRPC client, or asks for a MyRewards / premium cards results deck.
-  Runs monthly for every MRPC client. Clones the latest Marine FCU (1539) MRPC
-  reference, swaps in the client's enrollment, channel, retention and revenue figures,
-  validates, and saves to the shared Client Presentations folder. MRPC is workbook/VIP-driven —
+  Runs monthly for every MRPC client. Builds from the stripped
+  `templates/mrpc_template.pptx` shell via `build/mrpc_pipeline/build_mrpc_gen.py`,
+  swapping in the client's enrollment, channel, retention and revenue figures, validates,
+  and saves to the pipeline `Outputs/` folder. MRPC is workbook/VIP-driven —
   it does NOT use oddd-optimizer.
 tools: Bash, Read, Write, Glob, Grep
 ---
@@ -44,7 +45,7 @@ Do **not** call oddd-optimizer for MRPC. Note it is typically a consumer-only pr
 
 ## Template
 
-Clone the MRPC section of the latest Marine 1539 reference deck. Section map and swap
+Build from `templates/mrpc_template.pptx`, the stripped per-program shell. Section map and swap
 targets are in `templates/TEMPLATES.md`. The MRPC deck = shared shell slides + MRPC
 section.
 
@@ -120,11 +121,16 @@ slide → Card Portfolio). Re-run `setup_template.py` only if the base structure
 ## Steps
 
 1. Confirm client + period; confirm the MRPC workbook + VIP dashboards are current.
-2. Clone the Marine MRPC section; swap enrollment, channel, retention, revenue and
-   key-metric figures from the workbook + dashboards.
-3. Run `validation/validate_deck.py`; fix any non-zero exit.
-4. Save to the **Client Presentations** folder as
+2. Run `build/mrpc_pipeline/build_mrpc_gen.py` against `templates/mrpc_template.pptx`,
+   swapping enrollment, channel, retention, revenue and key-metric figures from the
+   workbook + dashboards.
+3. Run `validation/validate_deck.py`; 0 FAIL to ship.
+4. Save to the pipeline **`Outputs/`** folder as
    `<clientid>-<yyyy.mm>-MRPC-<Name> MRPC Results.pptx`.
+   **Do not deliver to Client Presentations or to a per-client folder** — that drop was
+   retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
+   For a multi-program client, pass it to `build/assemble_combined.py --mrpc <deck>`
+   instead of delivering it on its own.
 5. Report the path + headline figures (PTD enrollments, active enrollments, avg monthly
    revenue, tier mix).
 

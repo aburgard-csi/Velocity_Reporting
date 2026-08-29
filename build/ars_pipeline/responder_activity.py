@@ -30,6 +30,8 @@ import statistics
 import sys
 import zipfile
 
+from odd_rows import accessors
+
 csv.field_size_limit(10 ** 7)
 
 RESP_MET = {"NU 5+", "TH-10", "TH-15", "TH-20", "TH-25"}
@@ -98,27 +100,14 @@ def load(path):
 def analyse(path):
     H, smonths, mailmonths, latest, rows = load(path)
 
-    def g(r, f):
-        j = H.get(f)
-        return (r[j].strip() if j is not None and j < len(r) else "")
-
-    def fnum(r, f):
-        v = g(r, f).replace(",", "").replace("$", "")
-        if not v:
-            return 0.0
-        try:
-            return float(v)
-        except ValueError:
-            return 0.0
-
-    def spend(r, m):
-        return fnum(r, f"{m} Sig $") + fnum(r, f"{m} PIN $")
-
-    def swipes(r, m):
-        return fnum(r, f"{m} Sig #") + fnum(r, f"{m} PIN #")
+    # These were re-implemented here because importing metrics_gen RUNS it (it
+    # reads sys.argv at module scope). odd_rows is import-safe, so the vocabulary
+    # can now be shared without that hazard.
+    odd = accessors(H)
+    g, fnum, spend, swipes = odd.g, odd.fnum, odd.spend, odd.swipes
 
     elig = [r for r in rows
-            if g(r, "Business?") == "No" and g(r, f"{latest} Elig") == "Yes"]
+            if odd.personal(r) and g(r, f"{latest} Elig") == "Yes"]
     responders = [r for r in elig
                   if any(g(r, f"{m} Resp") in RESP_MET for m in mailmonths)]
 

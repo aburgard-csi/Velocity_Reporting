@@ -11,7 +11,8 @@ from matplotlib.patches import Patch
 from PIL import Image
 from rpe_env import use_font
 
-NAVY="#00274C"; ORANGE="#F47A29"; STEEL="#9DB8CC"; LIGHT="#C9D6E3"; TICK="#5A6670"; GREY="#B8C0CA"
+from brand import (NAVY, ORANGE, STEEL_SOFT as STEEL, LIGHT, TICK,
+                   MUTED as GREY)
 
 use_font("Carlito"); plt.rcParams.update({"font.size": 16})
 

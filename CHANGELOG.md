@@ -14,6 +14,92 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-08-29 — build from the template shell, never from a client deck
+
+CLAUDE.md contradicted itself: one paragraph said each program "clones-and-swaps from the
+latest Marine FCU (1539) reference deck", while its own file listing and every builder said
+the input is the stripped `templates/*_template.pptx` shell. The builders were right — that
+is what `build_ars_gen.py` takes as argv[1].
+
+Cloning a finished client deck carries that client's numbers, captions, branch names and
+speaker notes into the next client's file. It is the mechanism behind the reference-leak
+rule and behind `validate_deck.reference_leak_findings` existing at all: a figure that was
+never swapped is indistinguishable from one that was. Corrected in CLAUDE.md,
+`templates/TEMPLATES.md` and all three deck agents, which also still named the retired
+Client Presentations drop as the delivery target.
+
+### 2026-08-29 — MRPC lost its section divider in every combined deck
+
+`assemble_combined.section_slides` dropped slide indices 1 and 2 outright, assuming every
+program deck opens with cover + Executive Summit. ARS and ICS do; MRPC does not — its
+divider sits at index 2, so it was deleted and the combined deck ran from ICS content
+straight into MRPC content with no section break.
+
+Slides are now identified by meaning, as CLAUDE.md requires: the cover carries the
+"Executive Review" line, the divider carries the program's benefits line. Affects every
+multi-product deck containing MRPC — 9 slides now copy where 8 did.
+
+### 2026-08-29 — two reporting months came from the wall clock
+
+The slide-1 speaker note (`build_ars_gen.py`) and the one-pager header
+(`build_ars_onepager.py`) both took `date.today()`. Correct only while a deck is rebuilt in
+the month it ships; rebuild an August deck in October and the note said October while the
+cover, which resolves `PRESENT_MONTH` properly, still said August.
+
+Both now resolve the reporting month the same way — `ARS_PERIOD`/`RPE_PERIOD`, else the
+`<yyyy.mm>` tag in the output filename — so a one-pager and its deck cannot disagree. Note
+that STYLE.md draws a real distinction here and it is easy to get backwards: the cover and
+one-pager header carry the month the report is PRESENTED (STYLE.md:85), while the period
+pills and PTD figures carry the DATA month (STYLE.md:44). These are the first kind.
+
+### 2026-08-29 — blank `Business?` counted two different ways in one deck
+
+`ticket_calc.personal()` read `!= 'yes'` while `metrics_gen.personal()` read `== 'No'`, so an
+account with a blank `Business?` cell was PERSONAL to one slide and BUSINESS to another in
+the same deck. `product_mix_slide` had already settled the house rule by splitting the book
+three ways — Yes, No, and everything else — so a blank is neither.
+
+Both now import one definition from the new `build/ars_pipeline/odd_rows.py`. Blanks are
+real: 1218 carries 271, 1204 carries 57, 1038 carries 2. No delivered deck moves — the blank
+accounts in 1038 and 1204 have no trailing-quarter swipes, so `ticket_calc` skipped them
+anyway, and 1218 ships no ARS deck. 1218's blended average ticket would move $44.87 -> $44.79.
+
+### 2026-08-29 — validator gained three rules and the gate gained a test suite
+
+Nearly every entry above this one is a wrong-number bug, but `validate_deck` was a text and
+geometry linter. Added, with the calibration each needed to stay quiet on a correct deck:
+
+* **figure identity** (REVIEW) — one labelled measure carrying two different values across
+  slides, the shape of the Wellworth 1,077/1,026 split. Labels are discovered from the deck
+  rather than hardcoded to four words. REVIEW, not FAIL: proving two renderings are the same
+  measure needs a builder-emitted sidecar, and inference should not block a ship.
+* **period consistency** — FAIL on a span whose stated month count contradicts its own
+  endpoints, and on a caption naming a month after the data snapshot. REVIEW on an earlier
+  month, which is sometimes correct (carried-forward ICS financials).
+* **source-note provenance** — FAIL on a data slide with no note or no Source line, and on a
+  note naming a different client. That last is the CoastLife-defaults defect;
+  `reference_leak_findings` reads slide text only, so a leak in the NOTES was invisible.
+
+`pytest tests/` (277 tests) now runs as step 0 of `qa_all.py` and a failure fails the gate,
+because a classifier regression that mis-buckets 18,000 accounts still produces a deck that
+passes every layout rule. The fixture is a synthetic 800-row ODD carrying no member data.
+
+### 2026-08-29 — one source for the palette, the slide primitives and the date phrases
+
+Not a behavior change — every rendered colour and every rebuilt deck is byte-identical,
+verified by rebuilding 1204 (49 slides, 38 chart images matching, 0 text differences). Logged
+because it changes where these are sourced from.
+
+The palette had been re-declared in seven files under four naming conventions, and five
+different greys were in service as "the light grey"; it now lives in `build/brand.py`. The
+slide primitives lived inside `product_mix_slide.py` — a module about one slide — where ICS
+and MRPC could not reach them; they now live in `build/shapes.py`. `slide_geometry.py` moved
+to `build/` and all three builders call it, so the next ICS or MRPC layout fix lands in the
+contract instead of in one deck. Date phrasing derives from `build/periods.py`; a literal
+month is still fine when it is the month being described, but spans and counts are no longer
+hand-computed. ICS/MRPC client sheets resolve through `rpe_env.resolve_client_json` under
+`Inputs/Client Data/`, so a fresh checkout on the CSI machine is no longer missing them.
+
 ### 2026-08-28 — orange KPI tile label read grey
 
 `_tile` drew every tile label in GREYB (#CFDBE8), the muted grey picked for a NAVY tile.
@@ -254,9 +340,16 @@ Reg E Opt-In by Branch is the table companion to the two Reg E branch charts, ca
 opted-in / opted-out / no-election per branch.
 
 
-### Pending — tier response rate denominators
+### 2026-08-27 — tier response rate denominators (shipped)
 
-`NU 5+` and `Threshold Met` on the ARS Mailing Response Summary divide by total
+Landed in `metrics_gen.mail_summary` (`metrics_gen.py:184-199`): `nu_sent` and
+`th_sent` split on `<mon> Mail`, each group is rated against its own base, the
+trailing total pools each group's own recipients rather than averaging the
+per-mailing rates, and an unknown offer code raises the warning the PRD asked
+for. Verified 2026-08-29. The description of the defect follows, kept because
+the reasoning is the reason the fix looks the way it does.
+
+`NU 5+` and `Threshold Met` on the ARS Mailing Response Summary divided by total
 accounts mailed instead of by each offer group's own mailed count. They are
 shares of the whole file, not response rates, and they sum exactly to the
 overall response rate — which is the tell.
@@ -283,8 +376,8 @@ in the 2026-08-20 entry.
 Affects: all nine 2026.08 ARS decks. None had been sent when this was found.
 
 CoastLife 1705 v3 was patched by hand on 2026-08-26 as a stopgap, sourcing the
-rates from the workbook rather than the ODD. It is superseded once the generator
-is fixed and CoastLife is regenerated. Do not treat v3 as the reference.
+rates from the workbook rather than the ODD. The generator fix has since landed,
+so v3 is superseded — regenerate CoastLife rather than referring to it.
 
 ---
 

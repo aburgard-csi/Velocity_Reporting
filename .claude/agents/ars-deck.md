@@ -3,9 +3,9 @@ name: ars-deck
 description: >-
   Build a client's ARS (Account Revenue Solution®) Executive Review deck. Use when a
   request names an ARS client and month, or asks for an ARS results/review deck. Runs
-  monthly for every ARS client. Clones the latest Marine FCU (1539) ARS reference,
-  swaps in the client's numbers and charts, builds the ARS Appendix as its final
-  module, validates, and saves to the shared Client Presentations folder. ARS is ODD-driven —
+  monthly for every ARS client. Builds from the stripped `templates/ars_template.pptx`
+  shell via `build/ars_pipeline/build_ars_gen.py`, adds the ARS Appendix as its final
+  module, validates, and saves to the pipeline `Outputs/` folder. ARS is ODD-driven —
   this agent calls oddd-optimizer first.
 tools: Bash, Read, Write, Glob, Grep
 ---
@@ -53,9 +53,15 @@ otherwise. Aaron may override the path explicitly — honor that.
 
 ## Template
 
-Clone the ARS section of the latest Marine 1539 reference deck. Section map and swap
-targets are in `templates/TEMPLATES.md`. The ARS deck = shared shell slides + ARS section
-+ ARS Appendix.
+Build from `templates/ars_template.pptx` — the stripped, styled per-program shell on the
+"Union Financial" dummy client. `build_ars_gen.py` takes it as its first argument and
+populates it; there is no clone-and-swap step against a client reference deck any more.
+Section map and swap targets are in `templates/TEMPLATES.md`. The ARS deck = shared shell
+slides + ARS section + ARS Appendix.
+
+(CLAUDE.md's "Templates" paragraph still describes cloning the Marine 1539 reference. That
+is stale — the builders take `templates/*_template.pptx`, as CLAUDE.md's own file listing
+says. Follow the template shell.)
 
 Build scripts (consolidated into `build/ars_pipeline/` on 2026-07-24): `oddd_optimize.py`
 (in `scripts/`) → `metrics_gen.py` → `base_tab_extract.py` (SM) or `extract_base_gen.py` +
@@ -123,14 +129,22 @@ accounts are 0/blank — do not ship survivorship artifacts.
 
 1. Confirm client + period; ensure the data pack exists (call oddd-optimizer if needed).
 2. Choose MM vs SM path from the workbook.
-3. Clone the Marine ARS section; swap text, numbers, and charts from the pack + workbook.
+3. Run `build_ars_gen.py templates/ars_template.pptx <metrics.json> <base.json>
+   <lift.json> <oddd_metrics.json> <charts/> <out.pptx> <ODDD.zip>`. The output filename
+   must carry `<id>-<yyyy.mm>-ARS-` or the builder cannot resolve the presentation month
+   (or set `ARS_PERIOD=YYYY.MM`).
 4. Build the Appendix module.
 5. **Font policy** — run the shared post-processor last: `python3 build/restyle_fonts.py <deck.pptx>`
    (headings + callouts → Montserrat; subheadings, body, tables → Calibri; floors runs at
    16 pt). Charts already render in Carlito. See `templates/STYLE.md` "Fonts".
-6. Run `validation/validate_deck.py`; fix any non-zero exit.
-7. Save to the **Client Presentations** folder as
-   `<clientid>-<yyyy.mm>-ARS-<Name> ARS Results.pptx`.
+6. Run `validation/validate_deck.py <deck> <base.json>`; 0 FAIL to ship. Passing
+   `base.json` switches on the data-vs-deck cross-check — do not omit it.
+7. Save to the pipeline **`Outputs/`** folder (flat; the program tag in the filename is
+   what distinguishes it) as `<clientid>-<yyyy.mm>-ARS-<Name> ARS Results.pptx`.
+   **Do not deliver to Client Presentations or to a per-client folder** — that drop was
+   retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
+   For a multi-program client, hand this deck to `build/assemble_combined.py --ars <deck>`
+   rather than delivering it on its own.
 8. Report the path + headline figures (PTD profit, profitability ratio, take rate,
    response rate) and which path (MM/SM) you used.
 

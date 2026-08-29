@@ -23,6 +23,10 @@ build/ars_pipeline/data/
 *.csv
 *.tsv
 *.zip
+# NB: this also excludes tests/fixtures/synthetic_odd.csv, which is invented data
+# and would be safe to commit. It is regenerated on first test run instead
+# (tests/conftest.py) — a blanket "no client data" rule is worth more than one
+# convenient exception.
 
 # metrics_gen intermediates (metrics.json, base.json, lift.json, oddd_metrics.json,
 # and MG_DUMP pickles) are per-client outputs, not source.

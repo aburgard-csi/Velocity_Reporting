@@ -445,6 +445,11 @@ def build(data, template, out):
     summit_slide.insert_summit_after_title(prs)   # Executive Summit after the title (all decks)
     renumber_pages(prs)
     restyle_fonts(prs)   # size floor only; names/skips handled by build/restyle_fonts.py post-processor
+    # Per-title geometry contract, before fit_layout — the same call ARS makes.
+    # No title in this deck carries a rule yet, so today this is a no-op; it is
+    # wired now so the next layout fix lands in the contract instead of in one
+    # deck (CLAUDE.md rule 2).
+    import slide_geometry; slide_geometry.apply(prs)
     import fit_layout; fit_layout.fit(prs)   # clear number/logo, clamp off-slide (shared)
     prs.save(out)
     print("built", out, "->", len(prs.slides._sldIdLst), "slides")
@@ -469,4 +474,9 @@ def restyle_fonts(prs, minpt=10):
             if sh.has_text_frame: _fix(sh.text_frame)
 
 if __name__ == "__main__":
-    build(json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3])
+    # See build_ics_gen: a literal path still works; a bare `1075` or
+    # `1075_mrpc.json` resolves under RPE_DATA_ROOT/Inputs/Client Data/ first,
+    # then the repo's data/ folder.
+    from rpe_env import resolve_client_json
+    build(json.load(open(resolve_client_json(sys.argv[1], "mrpc"))),
+          sys.argv[2], sys.argv[3])

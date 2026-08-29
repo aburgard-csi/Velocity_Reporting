@@ -61,6 +61,7 @@ from product_mix_slide import (
     _NAVY_HX, _ORANGE_HX, _GREY_HX, _TICK_HX, _MONFULL, _MIDX,
 )
 from rpe_env import use_font
+from periods import Period
 from textfit import text_width_in
 
 
@@ -133,7 +134,9 @@ def extract_exclusions(odd_source):
     if elig_col is None:
         raise ValueError("ODD has no ARS eligibility column — Excluded Accounts is "
                          "ARS-only (skipping).")
-    month_label = f"{_MONFULL[_MIDX[emon]]} 20{eyy}"
+    # One derivation for the snapshot label (was hand-built here, in
+    # excluded_accounts_slide and in tier_movement_slides identically).
+    month_label = Period(f"{emon}{eyy}").label()
     mail_col = f"{emon}{eyy} Mail"
     has_mail = mail_col in keep
 

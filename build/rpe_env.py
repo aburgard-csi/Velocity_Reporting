@@ -95,6 +95,74 @@ def outputs() -> Path:
     return _require_subdir("Outputs")
 
 
+CLIENT_DATA_DIRNAME = "Client Data"
+
+
+def client_data() -> Path | None:
+    """`Inputs/Client Data/` under RPE_DATA_ROOT, or None if it is not there.
+
+    ICS and MRPC read a per-client JSON (`<id>_ics.json`, `<id>_mrpc.json`) that
+    is REAL CLIENT DATA. It is correctly gitignored, so it does not travel with
+    the repo — which means a fresh checkout on the CSI machine has the code and
+    none of the ICS/MRPC inputs, and PRD success criterion 1 ("the same client
+    built on both machines produces identical decks") is unreachable for two of
+    the three programs.
+
+    Unlike inputs()/outputs() this never raises: the folder is a migration
+    target, and until every client JSON has moved there the repo-local
+    `build/<program>_pipeline/data/` is still a legitimate place to find one.
+    resolve_client_json() prefers this and falls back to that.
+    """
+    try:
+        path = data_root() / "Inputs" / CLIENT_DATA_DIRNAME
+    except SystemExit:
+        return None
+    return path if path.is_dir() else None
+
+
+def resolve_client_json(arg, program) -> Path:
+    """Find a client's ICS/MRPC data sheet.
+
+    Accepts a path (used as-is when it exists) or a bare name like
+    `1705_ics.json` / `1705`. Search order:
+
+      1. the literal argument, if it exists;
+      2. `Inputs/Client Data/` under RPE_DATA_ROOT — the portable location;
+      3. `build/<program>_pipeline/data/` in the repo — where these files live
+         today on the Mac, kept so nothing breaks mid-migration.
+
+    Raises with all three locations named, because "file not found" on a Drive
+    mount is usually a not-available-offline problem rather than a typo.
+    """
+    if not arg:
+        raise SystemExit(f"resolve_client_json: no {program} client file given")
+    candidate = Path(arg)
+    if candidate.exists():
+        return candidate
+
+    name = candidate.name
+    if not name.endswith(".json"):
+        name = f"{name}_{program}.json"
+
+    tried = []
+    shared = client_data()
+    if shared is not None:
+        hit = shared / name
+        tried.append(hit)
+        if hit.exists():
+            return hit
+    repo = REPO_ROOT / "build" / f"{program}_pipeline" / "data" / name
+    tried.append(repo)
+    if repo.exists():
+        return repo
+
+    where = "\n  ".join(str(t) for t in [candidate] + tried)
+    raise SystemExit(
+        f"Could not find the {program.upper()} client file {name!r}. Looked in:\n  {where}\n"
+        "  If it is visible in Finder/Explorer but not here, mark it available offline."
+    )
+
+
 def client_logo(client_id) -> Path | None:
     """The client's own logo, or None. Never raises — a missing logo degrades.
 

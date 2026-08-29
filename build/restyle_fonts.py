@@ -32,8 +32,7 @@ try:
 except Exception:  # older python-pptx
     PP_PLACEHOLDER = None
 
-HEAD = "Montserrat"
-BODY = "Calibri"
+from brand import HEAD, BODY
 MIN = 16
 HEAD_SIZE = 22      # runs at/above this are treated as headings
 

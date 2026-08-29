@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt, numpy as np, json, sys
 from PIL import Image
 from rpe_env import use_font
 R=json.load(open(sys.argv[1])); OUTPNG=sys.argv[2]
-NAVY="#00274C"; ORANGE="#F47A29"; STEEL="#7B9BB8"; TICK="#5A6670"
+from brand import NAVY, ORANGE, STEEL, TICK, MUTED
 use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)
-    ax.spines["left"].set_visible(False); ax.spines["bottom"].set_color("#B8C0CA")
+    ax.spines["left"].set_visible(False); ax.spines["bottom"].set_color(MUTED)
     ax.tick_params(colors=TICK,length=0); ax.set_axisbelow(True)
 CW,CH=2200,790                      # exact canvas px, aspect ~2.785 (frame 12.40 x 4.45)
 fig=plt.figure(figsize=(CW/170,CH/170)); fig.patch.set_facecolor("white")

@@ -4,9 +4,11 @@ description: >-
   Build a client's ICS (Invitation Checking® System) Executive Review deck. Use when a
   request names an ICS client, or asks for an ICS results/financial-results/referral
   deck. Runs when a new ICS workbook is available (typically quarterly), not monthly.
-  Clones the latest Marine FCU (1539) ICS reference, swaps in the client's referral,
-  ROI, revenue and mystery-shop figures, validates, and saves to the shared Client Presentations
-  folder. ICS is workbook/VIP-driven — it does NOT use oddd-optimizer.
+  Builds from the stripped `templates/ics_template.pptx` shell via
+  `build/ics_pipeline/build_ics_gen.py`, swapping in the client's referral, ROI, revenue
+  and mystery-shop figures, validates, and saves to the pipeline `Outputs/` folder. A
+  client with no workbook yet builds a referrals-only section (`--referrals-only`).
+  ICS is workbook/VIP-driven — it does NOT use oddd-optimizer.
 tools: Bash, Read, Write, Glob, Grep
 ---
 
@@ -138,12 +140,18 @@ ICS Revenue (PTD breakdown) → ICS Financial Summary → Marine/client vs Veloc
 ## Steps
 
 1. Confirm client + period; confirm a fresh ICS workbook exists.
-2. Clone the Marine ICS section; swap referral, ROI, revenue, financial-summary,
-   benchmark and mystery-shop figures from the workbook, VIP dashboard, and ICS Charts.
+2. Run `build/ics_pipeline/build_ics_gen.py` against `templates/ics_template.pptx`,
+   swapping referral, ROI, revenue, financial-summary, benchmark and mystery-shop figures
+   from the workbook, VIP dashboard, and ICS Charts. With no workbook yet, build the
+   referrals-only section: `build_ics_gen.py --referrals-only <client_ics.json> ...`.
 3. Decide whether to include the mystery-shop slide.
-4. Run `validation/validate_deck.py`; fix any non-zero exit.
-5. Save to the **Client Presentations** folder as
+4. Run `validation/validate_deck.py`; 0 FAIL to ship.
+5. Save to the pipeline **`Outputs/`** folder as
    `<clientid>-<yyyy.mm>-ICS-<Name> ICS Results.pptx`.
+   **Do not deliver to Client Presentations or to a per-client folder** — that drop was
+   retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
+   For a multi-program client, pass it to `build/assemble_combined.py --ics <deck>`
+   instead of delivering it on its own; a referrals-only section assembles correctly.
 6. Report the path + headline figures (ROI, net profit to the client, referrals PTD/YTD,
    mystery-shop pass rate).
 

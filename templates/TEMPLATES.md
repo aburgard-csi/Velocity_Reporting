@@ -1,19 +1,27 @@
-# Deck Templates — derived from the combined reference deck
+# Deck Templates — the three per-program shells
 
-All three program templates come from one reference: the latest combined Executive Review,
-which carries ARS + ICS + MRPC sections plus the shared shell and the ARS appendix. Each
-program subagent clones this deck and keeps only its own section (plus the shared shell),
-then swaps the client's numbers and charts. (Filenames in this repo are generic — no client
-names; per-client specifics live in the build instructions, `.claude/agents/ars-deck.md`.)
+**Every deck is built by its builder from the stripped shell in this folder. No deck is ever
+cloned from another client's finished deck (Aaron, 2026-08-29 — see CLAUDE.md "Templates").**
 
-## Reference deck
+- `ars_template.pptx` — ARS shell, taken by `build/ars_pipeline/build_ars_gen.py` as argv[1]
+- `ics_template.pptx` — ICS shell, taken by `build/ics_pipeline/build_ics_gen.py`
+- `mrpc_template.pptx` — MRPC shell, taken by `build/mrpc_pipeline/build_mrpc_gen.py`
 
-- **File:** `templates/multi-product_reference_deck.pptx` (the combined reference; client-neutral filename).
-- **Period:** latest available (currently data thru June 2026).
-- Update whenever a newer combined deck becomes the reference — replace
-  `templates/multi-product_reference_deck.pptx` with the newer deck (keep the generic filename).
+Each is cleaned, styled, and carries the "Union Financial" dummy client — no real client's
+numbers, captions, branch names or speaker notes. The builder populates every slide from the
+data pack. If a slide is wrong, fix the builder or the shell and rebuild; do not hand-edit a
+deck, and do not start from a previous client's file. (Filenames here are generic — no client
+names; per-client specifics live in the build instructions, `.claude/agents/*-deck.md`.)
 
-## Section map (slide numbers in the reference deck; total 67)
+## Styling reference
+
+- **File:** `templates/multi-product_reference_deck.pptx` — a client-neutral Union Financial
+  demo carrying ARS + ICS + MRPC sections, the shared shell and the ARS appendix.
+- **It is a STYLING reference and the source for re-materializing the three shells. It is
+  NOT a build input** — no build reads it, and nothing should.
+- Update it whenever the canonical look changes, then re-materialize the shells from it.
+
+## Section map — HISTORICAL (the 67-slide Marine-era reference; superseded, see v7 notes below)
 
 | Slides | Section | Belongs to |
 | --- | --- | --- |
@@ -42,11 +50,10 @@ dividers, education/reference slides — stays as-is.
 
 ## Materializing the stripped templates
 
-The reference deck is large (~6.5 MB). Once it's in the source-data location, the first run
-of each subagent should trim the reference to its section and save the stripped template in
-this `templates/` folder as `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx`.
-After that, each program clones from its local stripped template and no longer needs the
-full reference binary. Re-materialize whenever the reference deck updates.
+**Re-materializing a shell.** The styling reference is large (~6.5 MB). To rebuild a shell,
+trim it to that program's section plus the shared shell and save the result here as
+`ars_template.pptx` / `ics_template.pptx` / `mrpc_template.pptx`. This is maintenance on the
+shells, not a build step — builds read only the shells, never the reference.
 
 **Bundled templates already in this copy.** All three programs ship with a stripped template
 under the repo: `templates/ars_template.pptx` (46-slide ARS shell — cleaned + genericized

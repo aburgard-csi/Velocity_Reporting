@@ -46,7 +46,7 @@ NAVY = "FF00274C"
 ORANGE = "FFF47A29"
 ROWALT = "FFEEF2F7"
 WHITE = "FFFFFFFF"
-BODY = "Calibri"
+from brand import BODY
 
 _navy_fill = PatternFill("solid", fgColor=NAVY)
 _alt_fill = PatternFill("solid", fgColor=ROWALT)

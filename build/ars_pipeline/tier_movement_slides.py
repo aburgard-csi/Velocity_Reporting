@@ -33,7 +33,9 @@ import collections, csv, io, json, os, re, sys, zipfile
 
 from PIL import Image
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.join(_HERE, os.pardir))   # build/
 
 import matplotlib
 matplotlib.use("Agg")
@@ -42,12 +44,19 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
-from product_mix_slide import (
-    _tb, _pill, _tile, _blank_slide, _slide_title, _move_before, _renumber,
-    NAVY, ORANGE, WHITE, GREYT,
-    _NAVY_HX, _ORANGE_HX, _GREY_HX, _TICK_HX, _MONFULL, _MIDX,
+from brand import (
+    NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, WHITE_RGB as WHITE,
+    TICK_RGB as GREYT, NAVY as _NAVY_HX, ORANGE as _ORANGE_HX,
+    LABEL as _GREY_HX, TICK as _TICK_HX, HEAD, BODY,
 )
+from shapes import (
+    textbox as _tb, pill as _pill, tile as _tile, fit_picture as _fit_picture,
+    blank_slide as _blank_slide, slide_title as _slide_title,
+    move_before as _move_before, renumber as _renumber,
+)
+from product_mix_slide import _MONFULL, _MIDX
 from rpe_env import use_font
+from periods import Period
 
 TIER_MONTHS = 3
 LOOKBACK = 12            # months between the two windows (year-over-year)
@@ -207,7 +216,7 @@ def extract_tier_movement(odd_source):
     return dict(
         source_file=base_file, months=months, base_win=base_win, cur_win=cur_win,
         base_label=_win_label(base_win), cur_label=_win_label(cur_win),
-        month_label=f"{_MONFULL[_MIDX[lm[:3]]]} {2000 + int(lm[3:])}",
+        month_label=Period(lm).label(),
         elig_prods=elig_prods, dropped_prods=dropped,
         prod_rows=[(p, prod_desc.get(p) or "(no description)", prod_n[p], prod_elig[p])
                    for p in elig_prods],
@@ -218,9 +227,8 @@ def extract_tier_movement(odd_source):
 
 
 def _win_label(win):
-    a, b = win[0], win[-1]
-    return (f"{_MONFULL[_MIDX[a[:3]]][:3]}–{_MONFULL[_MIDX[b[:3]]][:3]} "
-            f"{2000 + int(b[3:])}")
+    """'May–Jul 2026' — collapsed to one year by periods.trailing when it fits."""
+    return Period(win[-1]).trailing(len(win))
 
 
 # ----------------------------------------------------------------------------- charts
@@ -368,20 +376,6 @@ def render_charts(data, assets_dir):
 
 
 # ----------------------------------------------------------------------------- slides
-def _fit_picture(slide, path, L, T, maxW, maxH):
-    """Place an image scaled to fit inside (maxW x maxH), centred horizontally in
-    that box. bbox_inches="tight" makes the saved aspect unpredictable, so the
-    box is enforced from the file's real pixel dimensions rather than assumed —
-    a chart added by width alone ran 0.2" off the bottom of slide 1."""
-    with Image.open(path) as im:
-        pw, ph = im.size
-    scale = min(maxW / pw, maxH / ph)
-    w, h = pw * scale, ph * scale
-    slide.shapes.add_picture(path, Inches(L + (maxW - w) / 2), Inches(T),
-                             Inches(w), Inches(h))
-    return T + h
-
-
 def _footer(slide, assets_dir, note):
     """Source goes in the notes, never on the slide face (STYLE.md)."""
     slide.notes_slide.notes_text_frame.text = note
@@ -393,10 +387,10 @@ def _footer(slide, assets_dir, note):
 
 def _head(slide, title, subtitle, pill):
     _tb(slide, 0.5, 0.28, 9.6, 0.9, title, 26, NAVY, True,
-        PP_ALIGN.LEFT, "Montserrat", MSO_ANCHOR.MIDDLE)
+        PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     _pill(slide, pill)
     _tb(slide, 0.5, 1.12, 12.3, 0.5, subtitle, 14, GREYT, False,
-        PP_ALIGN.LEFT, "Calibri", MSO_ANCHOR.TOP)
+        PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
 
 def add_tier_movement_slides(prs, data, assets_dir,
@@ -436,7 +430,7 @@ def add_tier_movement_slides(prs, data, assets_dir,
         f"Across the eligible base the tier mix is essentially unchanged — every tier "
         f"moves less than half a point, and net movement is {d['net']*100:+.1f}%. "
         f"The program's effect is not visible at this level.",
-        11.5, GREYT, False, PP_ALIGN.LEFT, "Calibri", MSO_ANCHOR.TOP)
+        11.5, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     _footer(s, assets_dir, src + "Net movement = share moving up minus share moving down.")
     made.append(s)
 
@@ -454,7 +448,7 @@ def add_tier_movement_slides(prs, data, assets_dir,
         _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f)
     _fit_picture(s, ch["split"], 0.55, 3.16, 6.75, 2.80)
     _tb(s, 7.55, 3.04, 5.3, 0.34, "Dormant accounts returning to active use",
-        13, NAVY, True, PP_ALIGN.CENTER, "Montserrat", MSO_ANCHOR.MIDDLE)
+        13, NAVY, True, PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
     _fit_picture(s, ch["dormant"], 7.55, 3.44, 5.3, 2.52)
     _tb(s, 0.5, 6.12, 12.3, 0.56,
         f"Responders moved up {r['up_p']*100:.1f}% of the time against "
@@ -462,7 +456,7 @@ def add_tier_movement_slides(prs, data, assets_dir,
         f"{r['dorm_re']/r['dorm_n']*100:.0f}% against "
         f"{nr['dorm_re']/nr['dorm_n']*100:.0f}%. Responders self-select, so this is "
         f"association, not proven causation.",
-        11.5, GREYT, False, PP_ALIGN.LEFT, "Calibri", MSO_ANCHOR.TOP)
+        11.5, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     _footer(s, assets_dir, src +
             f"Responder = any '<Mon> Resp' flag in the trailing {LOOKBACK} months "
             f"({data['n_resp_mailings']} mailings). Dormant = tier 0 (under 1 swipe/month) "
@@ -488,7 +482,7 @@ def add_tier_movement_slides(prs, data, assets_dir,
         f"{mn['net']*100:+.1f}%, with swipes {mr['sw_b']:.1f} → {mr['sw_c']:.1f} per month "
         f"against {mn['sw_b']:.1f} → {mn['sw_c']:.1f}. Read as association — responders "
         f"choose to respond, and accounts already trending up are likelier to engage.",
-        11.5, GREYT, False, PP_ALIGN.LEFT, "Calibri", MSO_ANCHOR.TOP)
+        11.5, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     _footer(s, assets_dir, src +
             "Mid-band excludes baseline tier 0 and 26+, where movement is mechanically "
             "one-directional. Spend = (Sig $ + PIN $) monthly average.")

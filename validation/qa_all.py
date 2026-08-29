@@ -118,17 +118,73 @@ def fingerprint(path):
         out.append({"title":title,"shapes":shapes})
     return out
 
+def _extract_for(target, cli_extract):
+    """The base_extract JSON to cross-check `target` against, or None.
+
+    Explicit --extract wins; otherwise a base.json / base_extract.json sitting
+    beside the deck is used. Template decks in templates/ have neither, so they
+    validate exactly as before.
+    """
+    if cli_extract:
+        return cli_extract
+    d=os.path.dirname(os.path.abspath(target))
+    for cand in ("base.json","base_extract.json"):
+        p=os.path.join(d,cand)
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def run_unit_tests():
+    """Gate step 0 — the unit suite.
+
+    Deck rules check a BUILT deck; these check the logic that builds it
+    (classifiers, ODD predicates, metrics invariants, the palette). A classifier
+    regression that mis-buckets 18,000 accounts still produces a deck that
+    passes every layout rule, which is how the 2026-08-28 STAT_CODE_MAP bug
+    shipped. Skipped with --no-tests, and skipped silently if pytest is absent
+    so the gate still runs on a machine without it.
+    """
+    root=os.path.dirname(HERE)
+    tests=os.path.join(root,"tests")
+    if not os.path.isdir(tests):
+        return 0, "no tests/ directory"
+    r=subprocess.run([sys.executable,"-m","pytest",tests,"-q","--no-header"],
+                     capture_output=True,text=True,cwd=root)
+    if r.returncode==5 or "No module named pytest" in (r.stderr or ""):
+        return 0, "pytest unavailable — unit suite skipped"
+    tail=[l for l in r.stdout.strip().splitlines() if l.strip()]
+    return (0 if r.returncode==0 else 1), (tail[-1] if tail else "pytest produced no output")
+
+
 def main():
     snap="--snapshot" in sys.argv
     norender="--no-render" in sys.argv
-    extra=[a for a in sys.argv[1:] if not a.startswith("--")]
+    cli_extract=None
+    if "--extract" in sys.argv:
+        i=sys.argv.index("--extract")
+        if i+1 < len(sys.argv):
+            cli_extract=sys.argv[i+1]
+    extra=[a for a in sys.argv[1:]
+           if not a.startswith("--") and a != cli_extract]
     targets=[os.path.join(TPL,f) for f in sorted(os.listdir(TPL)) if f.endswith(".pptx")]+extra
     baseline=json.load(open(BASE)) if os.path.exists(BASE) else {}
     newbase={}; fails=0; drifts=0; skipped_render=0
+    if "--no-tests" not in sys.argv:
+        tf,tmsg=run_unit_tests()
+        print(f"unit suite: {tmsg}")
+        fails+=tf
+    else:
+        print("unit suite: skipped by request (--no-tests)")
     for t in targets:
         name=os.path.basename(t)
-        p=subprocess.run([sys.executable,os.path.join(HERE,"validate_deck.py"),t],
-                         capture_output=True,text=True)
+        # validate_deck has carried a data-vs-deck cross-check on argv[2] since it
+        # was written, but this gate never passed one — so the only automated
+        # wrong-number check in the repo was switched off in the gate everyone
+        # actually runs. Pass --extract, or drop a base.json beside the deck.
+        ex=_extract_for(t,cli_extract)
+        cmd=[sys.executable,os.path.join(HERE,"validate_deck.py"),t]+([ex] if ex else [])
+        p=subprocess.run(cmd,capture_output=True,text=True)
         line=next((l for l in p.stdout.splitlines() if "FAIL," in l),"? ")
         nf=int(line.strip().split()[0]) if line.strip().split()[0].isdigit() else 1
         fails+=nf

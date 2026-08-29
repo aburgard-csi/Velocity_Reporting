@@ -361,6 +361,312 @@ def stale_template_caption_findings(prs, deck_path=None, template_path=None):
     return out
 
 
+# ---------------------------------------------------------------- figure identity
+_MONTH_WORD = re.compile(
+    r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b(19|20)\d{2}\b|\bptd\b|\bytd\b|\bltd\b",
+    re.I)
+# A figure worth tracking: a thousands-separated integer, or a percentage.
+_FIGURE = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d)?%)(?![\w])")
+_WORD = re.compile(r"[a-z][a-z'\-]+")
+
+# Labels that legitimately carry different values in different places. A
+# per-mailing or per-branch or per-tier figure is SUPPOSED to vary by row.
+# NOTE: "drop" is deliberately NOT here. A drop names one specific mailing, and
+# the defect this rule exists to catch was two different counts for the SAME
+# Jun 2026 drop — listing it as varying made the canonical example invisible.
+_VARYING = re.compile(
+    r"\b(mailing|mailer|branch|tier|segment|vintage|cohort|quarter|"
+    r"product|band|group|channel|category|reason|each|per)\b", re.I)
+
+
+def _label_of(text, start):
+    """The 2-4 content words immediately before a figure, normalized.
+
+    The label is discovered from the deck rather than hardcoded, so a measure
+    nobody thought to list is still covered.
+
+    Month words are KEPT in the label, deliberately. Stripping them was worse:
+    "responders in Jun 2026" and "responders in Jul 2026" then normalized to the
+    same label and every period-over-period pair read as a conflict. Left in,
+    the two periods simply carry different labels and are never compared.
+    """
+    words = _WORD.findall(text[:start].lower())
+    if not words:
+        return None
+    label = " ".join(words[-4:])
+    return label if len(label) >= 6 else None
+
+
+# Words that, when they appear in a slide TITLE, mean the slide reports a
+# DIFFERENT cut of the book. "12-Month Eligible Take Rate — Personal" and the
+# same title ending "— Business" carry the same caption wording next to
+# different numbers, correctly. Without this the two produced a false conflict.
+_DISCRIMINATORS = ("personal", "business", "mean", "median", "new", "existing",
+                   "book", "opt-in", "opt-out", "gold", "platinum", "before",
+                   "after", "combined", "overall", "consumer")
+
+
+def _title_key(slide):
+    for sh in slide.shapes:
+        if sh.has_text_frame and sh.text_frame.text.strip():
+            t = sh.text_frame.text.strip().lower()
+            return tuple(d for d in _DISCRIMINATORS if d in t)
+    return ()
+
+
+def figure_identity_findings(prs):
+    """One labelled measure carrying two different values.
+
+    The 2026-08-28 Wellworth defect: the Jun 2026 responder count rendered as
+    1,077 on the mailing slides and 1,026 on Reach / Depth / Ranking /
+    Sustained. Rule 7 could not see it — "responder" was not among its four
+    hardcoded label words and the values are not percentages.
+
+    Labels are DISCOVERED from the deck (the 2-4 content words before the
+    figure) rather than hardcoded, so a measure nobody listed is still covered.
+    Three guards keep it quiet on a correct deck:
+
+      * table rows are skipped — a mailing table is MEANT to vary by row;
+      * a label carrying a per-thing word (mailing, branch, tier, ...) is skipped;
+      * slides whose titles differ on a discriminator (personal vs business,
+        mean vs median) are never compared to each other.
+
+    Emitted as REVIEW, not FAIL. Proving two renderings are the SAME measure
+    needs the builder to say so — a figures.json sidecar naming each
+    interpolated value. Until that exists this rule infers identity from
+    wording, and inference should not block a ship.
+    """
+    seen = {}      # (title_key, label) -> {value: {slides}}
+    for idx, slide in enumerate(prs.slides, 1):
+        tkey = _title_key(slide)
+        for sh in slide.shapes:
+            if sh.has_table or not sh.has_text_frame:
+                continue
+            text = sh.text_frame.text
+            if not text.strip():
+                continue
+            for m in _FIGURE.finditer(text):
+                label = _label_of(text, m.start())
+                if not label or _VARYING.search(label):
+                    continue
+                seen.setdefault((tkey, label), {}).setdefault(m.group(1), set()).add(idx)
+
+    out = []
+    for (tkey, label), byval in sorted(seen.items(), key=lambda kv: kv[0][1]):
+        # never compare a count against a percentage — different measures
+        pcts = {v for v in byval if v.endswith("%")}
+        for group in (pcts, set(byval) - pcts):
+            if len(group) < 2:
+                continue
+            slides = set().union(*(byval[v] for v in group))
+            if len(slides) < 2:
+                continue      # two values on one slide is a layout, not a conflict
+            detail = "; ".join(
+                f"{v} on slide{'s' if len(byval[v])>1 else ''} "
+                f"{', '.join(str(x) for x in sorted(byval[v]))}"
+                for v in sorted(group))
+            out.append(("REVIEW", 0,
+                        f"'{label}' renders {len(group)} different values — {detail}"
+                        f" — confirm these are distinct measures"))
+    return out
+
+
+# ---------------------------------------------------------------- period consistency
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build"))
+try:
+    from periods import Period, parse_month, month_diff
+except Exception:      # validator must still run without the build tree
+    Period = None
+
+_MON = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}"
+
+# Point-in-time captions: each names THE month the slide reports.
+_PIT_PATTERNS = [
+    ("as of",     re.compile(r"as of\s+(" + _MON + r")", re.I)),
+    ("data pill", re.compile(r"(" + _MON + r")\s+Data\b", re.I)),
+    ("PTD pill",  re.compile(r"PTD\s*[·|]\s*(" + _MON + r")", re.I)),
+    ("snapshot",  re.compile(r"\((" + _MON + r")\s+snapshot\)", re.I)),
+]
+# "Aug 2023 – Jul 2026 (36 months)" — the count must match the span it claims.
+_SPAN = re.compile(
+    r"(" + _MON + r")\s*[–—-]\s*(" + _MON + r")\s*\(\s*(\d+)\s*months?\s*\)", re.I)
+
+
+def find_period_pack(deck_path):
+    """oddd_metrics.json beside the deck (or under oddd/), or None."""
+    d = os.path.dirname(os.path.abspath(deck_path))
+    for cand in ("oddd_metrics.json", os.path.join("oddd", "oddd_metrics.json"),
+                 os.path.join("..", "oddd", "oddd_metrics.json")):
+        p = os.path.join(d, cand)
+        if os.path.exists(p):
+            try:
+                return json.load(open(p))
+            except Exception:
+                return None
+    return None
+
+
+def period_findings(prs, pack=None):
+    """Date phrases that contradict the deck's own data.
+
+    A literal month is legitimate — an ICS section reporting a quarterly figure
+    that carries forward is RIGHT to name an older month than the ARS section
+    beside it. What is checked here is only whether a phrase contradicts
+    something knowable:
+
+      * FAIL  — a span whose stated month count does not match its own
+                endpoints ("Jul 2023 – Jun 2026 (30 months)"). Pure arithmetic,
+                no data pack needed, and never a false positive.
+      * FAIL  — a point-in-time caption naming a month AFTER the snapshot. The
+                data cannot come from the future.
+      * REVIEW — a point-in-time caption naming a month before the snapshot.
+                Usually a stale literal; sometimes correct (carried-forward ICS
+                financials), so it is raised, not blocked.
+    """
+    if Period is None:
+        return []
+    latest = None
+    if pack:
+        try:
+            latest = Period.from_pack(pack).latest
+        except Exception:
+            latest = None
+
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        for sh in slide.shapes:
+            if not sh.has_text_frame:
+                continue
+            text = " ".join(sh.text_frame.text.split())
+            if not text:
+                continue
+
+            for m in _SPAN.finditer(text):
+                a, b, claimed = parse_month(m.group(1)), parse_month(m.group(2)), int(m.group(3))
+                if not (a and b):
+                    continue
+                actual = month_diff(a, b)
+                if actual != claimed:
+                    out.append(("FAIL", idx,
+                                f"span '{m.group(0)}' claims {claimed} months but "
+                                f"{m.group(1)}–{m.group(2)} is {actual}"))
+
+            if latest is None:
+                continue
+            for kind, rx in _PIT_PATTERNS:
+                for m in rx.finditer(text):
+                    got = parse_month(m.group(1))
+                    if not got:
+                        continue
+                    if got > latest:
+                        out.append(("FAIL", idx,
+                                    f"{kind} names {m.group(1)}, after the "
+                                    f"{latest:%b %Y} data snapshot — the data "
+                                    f"cannot come from the future"))
+                    elif got < latest:
+                        out.append(("REVIEW", idx,
+                                    f"{kind} names {m.group(1)} but the snapshot is "
+                                    f"{latest:%b %Y} — confirm this is a carried-forward "
+                                    f"figure and not a stale caption"))
+    return out
+
+
+# ---------------------------------------------------------------- source notes
+# Structural slides carry no data, so they are not required to cite one.
+_NO_SOURCE_TITLES = (
+    "Agenda", "Questions & Discussion", "Contact Us", "Appendix",
+    "Account Revenue Solution", "Invitation Checking", "MyRewards Premium Cards",
+    "Debit Card Review", "Reg E Review", "Program Overview",
+    "Community financial institutions",
+    # ICS resource / marketing slides — screenshots of Velocity material, not
+    # client data, so there is nothing to cite.
+    "New in 2026", "E-Learning", "2026 New Releases", "Reporting:",
+    "VIP Best Practices", "Comparisons", "Performance of Accounts",
+)
+_TEMPLATE_SHELLS = ("_template.pptx", "multi-product_reference_deck.pptx")
+
+
+def _is_template_shell(path):
+    """A shell, not a deliverable.
+
+    Source notes are written by the builder at build time, so requiring them of
+    a template is a category error — the shell is exactly the artefact that does
+    not have them yet.
+    """
+    return os.path.basename(path).endswith(_TEMPLATE_SHELLS)
+
+
+def _has_data(slide):
+    """A slide REPORTING data — one that owes a source.
+
+    A wide picture alone is not enough: the ICS resource slides (E-Learning
+    Library Guide, Reporting: VIP, 2026 New Releases) are full-bleed screenshots
+    with nothing derived on them, and they cite nothing because there is nothing
+    to cite. A data slide has a table, or a chart AND a figure in its text.
+    """
+    has_chart = has_table = False
+    for sh in slide.shapes:
+        if sh.has_table:
+            has_table = True
+        if str(getattr(sh, "shape_type", "")).startswith("PICTURE"):
+            if (_in(sh.width) or 0) > 2.5:   # a logo is ~1.7"; a chart is wider
+                has_chart = True
+    if has_table:
+        return True
+    if not has_chart:
+        return False
+    text = " ".join(sh.text_frame.text for sh in slide.shapes if sh.has_text_frame)
+    return bool(re.search(r"\d", text))
+
+
+def source_note_findings(path, prs):
+    """CLAUDE.md: source-in-notes is 'a hard requirement, not a nicety'.
+
+    Until now the requirement was enforced by a human grep. Two things are
+    checked here:
+
+      * a data slide with NO speaker note at all;
+      * a note naming a reference client that is not this deck's own. This is
+        the CoastLife defaults defect: build_ars_gen defaulted ODD_SRC/WB_SRC to
+        CoastLife 1705, so every other client inherited CoastLife's source
+        notes. reference_leak_findings only ever read slide TEXT, so a leak that
+        lived in the NOTES was invisible to it.
+    """
+    if _is_template_shell(path):
+        return []
+    own = _own_client(path, prs)
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        title = next((sh.text_frame.text.strip().split("\n")[0]
+                      for sh in slide.shapes
+                      if sh.has_text_frame and sh.text_frame.text.strip()), "")
+        note = (slide.notes_slide.notes_text_frame.text.strip()
+                if slide.has_notes_slide else "")
+
+        structural = title.startswith(_NO_SOURCE_TITLES)
+        if not note:
+            if _has_data(slide) and not structural:
+                out.append(("FAIL", idx,
+                            f"no speaker note — every data slide records its source "
+                            f"(CLAUDE.md): '{title[:44]}'"))
+            continue
+
+        if "source" not in note.lower() and _has_data(slide) and not structural:
+            out.append(("FAIL", idx,
+                        f"speaker note carries no Source line: '{title[:44]}'"))
+
+        low = note.lower()
+        for name in REFERENCE_CLIENTS:
+            if name.lower() in own:
+                continue
+            if name.lower() in low:
+                out.append(("FAIL", idx,
+                            f"source note names '{name}', a different client — "
+                            f"the deck inherited another client's provenance"))
+    return out
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(2)
@@ -372,6 +678,9 @@ def main():
     findings += reference_leak_findings(sys.argv[1], prs)
     findings += single_line_overflow_findings(prs)
     findings += stale_template_caption_findings(prs, sys.argv[1])
+    findings += figure_identity_findings(prs)
+    findings += period_findings(prs, find_period_pack(sys.argv[1]))
+    findings += source_note_findings(sys.argv[1], prs)
 
     for idx, blocks in texts:
         joined = "  ".join(blocks)

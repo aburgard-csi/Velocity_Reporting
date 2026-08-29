@@ -16,9 +16,9 @@ Identify the program from the request, then dispatch to the one matching subagen
 | MRPC, MyRewards Premium Cards, enrollments, Gold/Platinum tiers | MRPC | `mrpc-deck` |
 
 If a request names a client but not a program, ask which program before building. If it
-asks for a combined ARS+ICS+MRPC review (like the Marine reference deck), run each
-subagent in turn and assemble with `build/assemble_combined.py` (see **Combined decks**) —
-do not improvise one blended path.
+asks for a combined ARS+ICS+MRPC review, run each subagent in turn and assemble with
+`build/assemble_combined.py` (see **Combined decks**) — do not improvise one blended path,
+and do not start from an existing combined deck.
 
 ## File locations
 
@@ -40,7 +40,8 @@ RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pip
 | Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
 | ARS, MRPC, **and ICS** workbooks (all together) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
-| Reference deck (Marine 1539) | the project `templates/` folder |
+| ICS / MRPC client data sheets (`<id>_ics.json`, `<id>_mrpc.json`) | `Inputs/Client Data/` |
+| Per-program template shells (`*_template.pptx`) | the project `templates/` folder |
 
 **Client logos** live in `Inputs/Logos/<clientid>.png` — NOT in the repo: a client's logo is
 their brand asset and nothing client-identifiable belongs in git. `rpe_env.client_logo(id)`
@@ -123,31 +124,72 @@ is a defect. The fix is a current workbook, not a carried-forward number.
 
 - `<PROGRAM>` is one of `ARS`, `ICS`, `MRPC`, or `ARS-ICS-MRPC` for a combined deck.
 - `<yyyy.mm>` is the data/period month, e.g. `2026.07`.
-- Examples: `1539-2026.07-ARS-Marine FCU ARS Results.pptx`,
-  `1539-2026.07-ICS-Marine FCU ICS Results.pptx`,
-  `1539-2026.07-MRPC-Marine FCU MRPC Results.pptx`,
+- Examples: `1204-2026.08-ARS-FSB Michigan ARS Results.pptx`,
+  `1705-2026.08-ICS-CoastLife Credit Union ICS Results.pptx`,
   `1075-2026.08-ARS-ICS-MRPC-Austin Bank Results.pptx` (combined; Aaron 2026-08-27).
 
-**Templates.** Each program clones-and-swaps from the latest Marine FCU (1539) reference
-deck, using that program's section only. See `templates/TEMPLATES.md` for the reference
-deck's filename and exact section slide ranges. The reference deck is a source input —
-locate it under the source-data location Aaron provides (see **File locations**), not a
-Drive id.
+**Templates — build from the shell, never from a client deck (Aaron, 2026-08-29).** Each
+program is BUILT by its builder from the stripped per-program template in the repo's
+`templates/` folder — `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — each
+a cleaned, styled shell carrying the "Union Financial" dummy client and no real client's
+numbers. The builder takes that shell as its first argument and populates every slide from
+the data pack.
+
+**No deck is ever cloned from another client's finished deck.** The older recipe cloned the
+latest Marine FCU (1539) results deck and swapped its content; that is retired. Cloning a
+client deck carries that client's numbers, captions, branch names and speaker notes into the
+next client's file, and every one of those has leaked in practice — it is the mechanism
+behind the reference-leak rule below and behind `validate_deck.py`'s
+`reference_leak_findings`. A figure that was never swapped is indistinguishable from one
+that was, which is why the gate has to hunt for them at all.
+
+If a slide is wrong, fix the BUILDER and the template shell, then rebuild. Do not hand-edit
+a deck and do not reach for a previous client's file as a starting point.
+
+`templates/TEMPLATES.md` records each shell's slide inventory and per-slide swap targets.
+`multi-product_reference_deck.pptx` (Union Financial demo) is the source for
+re-materializing the shells — it is a STYLING reference, not a build input.
 
 **Build machinery.** The deck-assembly code lives in `build/`, one folder per program
 (reorganized 2026-07-24): `build/ars_pipeline/` (the full ARS chain — `build_ars_gen.py`
 plus `metrics_gen`, `charts_gen`, `extract_base_gen`, `extract_lift`, `render_lift`,
 `ticket_calc`, `ticket_chart`, `base_tab_extract`, `product_mix_slide`), `build/ics_pipeline/`,
-`build/mrpc_pipeline/`. Shared post-processors sit in `build/` root (`restyle_fonts.py`, `summit_slide.py`,
-`fit_layout.py` — layout-fit + 10pt slide numbers, run by all builders before save) and `build/strip_dead.py`. The ODD
-optimizer is `scripts/oddd_optimize.py`; the validator is `validation/validate_deck.py`.
+`build/mrpc_pipeline/`.
+
+**Shared layer in `build/` root — used by ALL THREE programs (Aaron, 2026-08-29).** Anything
+that is not specific to one program lives here, not inside a pipeline folder:
+`brand.py` (the palette and type roles — the ONE source; it was previously re-declared in
+seven files under four naming conventions, and the greys had already drifted),
+`shapes.py` (the slide primitives — textbox, pill, tile, add_table, fit_picture,
+blank_slide, move_before, renumber; these used to live inside `product_mix_slide.py`, a
+module about one slide, where ICS and MRPC could not reach them),
+`periods.py` (every derived date phrase — windows, spans, month counts; a literal month is
+fine when it IS the month being described, but never hand-derive a span or a count),
+`slide_geometry.py` (the per-title geometry contract, promoted out of `ars_pipeline/` so
+all three programs can adopt it), plus the post-processors `restyle_fonts.py`,
+`summit_slide.py`, `fit_layout.py` (layout-fit + 10pt slide numbers, run by all builders
+before save), `strip_dead.py`, `textfit.py`, `branch_names.py` and `assemble_combined.py`.
+ARS-specific shared code stays in `build/ars_pipeline/` — `odd_rows.py` (the ODD row
+vocabulary: `g`, `fnum`, `swipes`, `spend`, `personal`, `hascard`, `isopen`) is there
+because the ODD is an ARS input.
+
+The ODD optimizer is `scripts/oddd_optimize.py`; the validator is `validation/validate_deck.py`.
 Superseded one-offs, the deprecated pre-`build_ars_gen` ARS recipe (`build_gen`/`build_gen_b`/
 `build_swipepct`/`style_tables`/`swap_imgs`), backups (`*_orig`), and the old combined-Marine
 helpers were left OUT of this repo (they remain in the Drive copy's `archive/`) — nothing here
 imports them, and nothing should. See `build/README.md`. Requires python-pptx, matplotlib, openpyxl, Pillow.
 
-**Validation gate.** Run `validation/validate_deck.py` on every built deck before it
-ships. A non-zero exit blocks delivery — fix and re-run, do not override.
+**Validation gate.** Run `validation/validate_deck.py <deck> [base.json]` on every built
+deck before it ships. A non-zero exit blocks delivery — fix and re-run, do not override.
+Passing `base.json` switches on the data-vs-deck cross-check; `validation/qa_all.py` finds
+it automatically when it sits beside the deck, or takes `--extract`.
+
+**Unit suite.** `pytest tests/` — classifiers, the ODD row vocabulary, metrics invariants,
+the palette, the period derivations, the deck rules and `assemble_combined`. It runs as
+step 0 of `qa_all.py` and a failure fails the gate, because a classifier regression that
+mis-buckets 18,000 accounts still produces a deck that passes every layout rule. The
+fixture is a synthetic 800-row ODD (`tests/fixtures/make_odd.py`) carrying no real member
+data. Skip with `--no-tests` only when you know why.
 
 **QA gate — run after ANY change to `templates/`, `build/`, or `validation/` (2026-07-24):**
 
@@ -316,7 +358,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
-- `build_ars_gen.py` — the ARS deck assembler: clones the template, swaps content, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.
+- `build_ars_gen.py` — the ARS deck assembler: populates the `ars_template.pptx` shell, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.
 - `metrics_gen.py` — ~105 chart metrics from the ODD (streams the `.zip`).
 - `charts_gen.py` — renders the 28 chart PNGs; `DIM` = each chart's pixel size (must match its slide box aspect).
 - `chart_lib.py` — shared take-rate-by-branch renderer (personal orange / business navy; identical size).
@@ -363,7 +405,7 @@ from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data —
 **`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py`, `setup_template.py` (one-time template bootstrap; needs `mrpc_template_base.pptx`, which is NOT in the repo — ask Aaron for it if the template must be rebuilt), `data/` (per-client VIP MRPC data).
 
 **`templates/`** — ALL deck templates live here (consistent naming; passed to each builder as an arg).
-- `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — the three stripped per-program shells the builders clone (cleaned + styled; "Union Financial" dummy client).
+- `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — the three stripped per-program shells the builders populate (cleaned + styled; "Union Financial" dummy client). **The only legitimate starting point for a build.**
 - `multi-product_reference_deck.pptx` — combined ARS+ICS+MRPC reference (Union Financial demo, styled); source for re-materializing the stripped templates.
 - `STYLE.md` — visual style guide (single source of truth). `TEMPLATES.md` — reference section map + template materialization.
 

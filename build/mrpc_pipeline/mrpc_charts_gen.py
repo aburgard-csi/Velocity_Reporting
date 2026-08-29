@@ -27,12 +27,13 @@ def _shadow_wedges(wedges):
 
 
 # ---- palette ---------------------------------------------------------------
-NAVY="#00274C"; STEEL="#9DB8CC"; ORANGE="#F47A29"; LIGHT="#C9D6E3"
-TICK="#5A6670"; GREY="#B8C0CA"
+from brand import NAVY, STEEL_SOFT as STEEL, ORANGE, LIGHT
+from brand import TICK, MUTED as GREY, HAIRLINE, SLATE
 # MRPC enrollment tier palette (Aaron 2026-07-16): Gold=orange, Platinum=navy, Business=steel.
-GOLDC="#F47A29"; PLATC="#9DB8CC"; BIZC="#00274C"   # Aaron 2026-07-24: Gold orange, Platinum GRAY, Business NAVY
+# Aaron 2026-07-24: Gold orange, Platinum GRAY, Business NAVY
+GOLDC, PLATC, BIZC = ORANGE, STEEL, NAVY
 # cancellation donut palette (navy -> steel ramp + orange/gold/rose accents)
-CANCEL_COLORS=["#00274C","#B9C7D6","#5A7590","#C9D6E3","#F47A29","#D9B44A","#C98B8B"]
+from brand import CANCEL_RAMP as CANCEL_COLORS
 
 use_font("Carlito"); plt.rcParams.update({"font.size": 14})
 
@@ -171,7 +172,7 @@ def chart_cancel(d, out, dims):
     ax.set_yticks(y); ax.set_yticklabels(labels,fontsize=13,color=NAVY)
     ax.set_xlim(0,max(vals)*1.18); ax.get_xaxis().set_visible(False)
     for sp in ("top","right","bottom"): ax.spines[sp].set_visible(False)
-    ax.spines["left"].set_color("#D9DEE5"); ax.tick_params(length=0)
+    ax.spines["left"].set_color(HAIRLINE); ax.tick_params(length=0)
     canvas(fig,*dims,out)
 
 def chart_revenue(d, out, dims):
@@ -251,7 +252,7 @@ def chart_card_pie(d, out, dims):
     cb=d["card_billing"]; types=card_types(cb); total=cb["total_accounts"]
     names=[t["name"] for t in types]; vals=[t["accounts"] for t in types]
     prices=[t.get("price") for t in types]
-    cols=[NAVY,ORANGE,STEEL,"#5A7590"][:len(types)]
+    cols=[NAVY,ORANGE,STEEL,SLATE][:len(types)]
     fig=plt.figure(figsize=(12,5.2))
     axd=fig.add_axes([0.00,0.02,0.46,0.96]); axl=fig.add_axes([0.50,0.02,0.48,0.96]); axl.axis('off')
     _shadow_wedges(axd.pie(vals,colors=cols,startangle=90,counterclock=False,

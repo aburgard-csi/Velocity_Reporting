@@ -51,27 +51,25 @@ from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 
 from rpe_env import use_font
+from periods import Period
 
-# standard callout / pill drop shadow (STYLE.md)
-_SHADOW_XML = ('<a:effectLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
-               '<a:outerShdw blurRad="63500" dist="38100" dir="5400000" rotWithShape="0">'
-               '<a:srgbClr val="000000"><a:alpha val="28000"/></a:srgbClr>'
-               '</a:outerShdw></a:effectLst>')
-def _shadow(shape):
-    spPr = shape._element.spPr
-    for e in spPr.findall(qn('a:effectLst')):
-        spPr.remove(e)
-    spPr.append(parse_xml(_SHADOW_XML))
-
-# ----------------------------------------------------------------------------- palette / fonts
-NAVY   = RGBColor(0x00, 0x27, 0x4C)
-ORANGE = RGBColor(0xF4, 0x7A, 0x29)
-WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
-GREYB  = RGBColor(0xCF, 0xDB, 0xE8)   # light label grey (on navy)
-GREYT  = RGBColor(0x5A, 0x66, 0x70)   # body text grey
-ROWALT = RGBColor(0xEE, 0xF2, 0xF7)   # alternating table row
-HEAD, BODY = "Montserrat", "Calibri"
-_NAVY_HX, _ORANGE_HX, _GREY_HX, _TICK_HX = "#00274C", "#F47A29", "#CFDBE8", "#5A6670"
+# Palette, type roles and shape primitives now live at build/ level so ICS and
+# MRPC can reach them too. Re-exported here under their old names because
+# build_ars_gen, excluded_accounts_slide, rege_branch_slide and
+# tier_movement_slides all import them from this module.
+from brand import (
+    NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, WHITE_RGB as WHITE,
+    LABEL_RGB as GREYB, TICK_RGB as GREYT, ROWALT_RGB as ROWALT,
+    HEAD, BODY,
+    NAVY as _NAVY_HX, ORANGE as _ORANGE_HX, LABEL as _GREY_HX, TICK as _TICK_HX,
+    COLD_RAMP, WARM_RAMP,
+)
+from shapes import (
+    shadow as _shadow, textbox as _tb, pill as _pill, tile as _tile,
+    add_table as _add_table, fit_picture as _fit_picture,
+    blank_slide as _blank_slide, slide_title as _slide_title,
+    sldid_of as _sldid_of, move_before as _move_before, renumber as _renumber,
+)
 
 MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 _MIDX  = {m: i for i, m in enumerate(MONTHS)}
@@ -169,7 +167,9 @@ def extract_product_mix(odd_source):
     if elig_col is None:
         raise ValueError("ODD has no ARS eligibility column — Product Mix & ARS "
                          "Eligibility slide is ARS-only (skipping).")
-    month_label = f"{_MONFULL[_MIDX[emon]]} 20{eyy}"
+    # One derivation for the snapshot label (was hand-built here, in
+    # excluded_accounts_slide and in tier_movement_slides identically).
+    month_label = Period(f"{emon}{eyy}").label()
 
     def norm(s):
         return s.fillna("").astype(str).str.replace("\x00", "", regex=False).str.strip()
@@ -243,9 +243,7 @@ def render_charts(data, assets_dir):
     labels = [p["name"] for p in named] + (["Other personal"] if other > 0 else [])
     vals   = [p["open"] for p in named] + ([other] if other > 0 else [])
     elig   = [p["is_eligible"] for p in named] + ([False] if other > 0 else [])
-    orange_sh = ["#F47A29", "#F79552", "#FBB27E"]
-    cold = ["#00274C","#12406E","#245C8C","#3D74A0","#6E93B4","#9DB4C8",
-            "#C0D0DD","#DDE6ED","#EAF0F4","#F2F5F8"]
+    orange_sh, cold = WARM_RAMP, COLD_RAMP
     oi = ci = 0
     colors = []
     for e in elig:
@@ -295,133 +293,6 @@ def render_charts(data, assets_dir):
     plt.close(fig)
     return donut, segbar
 
-# ----------------------------------------------------------------------------- shape helpers (match build.py)
-def _tb(slide, L, T, W, H, lines, size, color, bold, align=PP_ALIGN.CENTER,
-        font=HEAD, anchor=MSO_ANCHOR.MIDDLE):
-    box = slide.shapes.add_textbox(Inches(L), Inches(T), Inches(W), Inches(H))
-    tf = box.text_frame; tf.word_wrap = True; tf.vertical_anchor = anchor
-    if isinstance(lines, str):
-        lines = [lines]
-    for i, ln in enumerate(lines):
-        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.alignment = align
-        r = p.add_run(); r.text = ln
-        r.font.size = Pt(size); r.font.bold = bold; r.font.name = font
-        r.font.color.rgb = color
-    return box
-
-
-def _pill(slide, t):
-    sp = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                                Inches(10.5), Inches(0.34), Inches(2.35), Inches(0.5))
-    sp.fill.solid(); sp.fill.fore_color.rgb = ORANGE; sp.line.fill.background()
-    tf = sp.text_frame; tf.word_wrap = True; p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-    r = p.add_run(); r.text = t
-    r.font.size = Pt(12); r.font.bold = True; r.font.name = HEAD; r.font.color.rgb = WHITE
-    _shadow(sp)   # period pill carries the standard callout drop shadow (STYLE.md)
-
-
-def _tile(slide, L, T, W, H, value, label, fill=NAVY):
-    sp = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                                Inches(L), Inches(T), Inches(W), Inches(H))
-    sp.fill.solid(); sp.fill.fore_color.rgb = fill; sp.line.fill.background()
-    sp.shadow.inherit = False
-    # GREYB is the muted label grey for a NAVY tile. On an ORANGE tile it carries almost
-    # no contrast and reads as plain grey text on the fill (Aaron, 2026-08-28, FNB&T 1537
-    # Reg E by-branch slide), so the label goes white there instead.
-    lab = WHITE if fill == ORANGE else GREYB
-    _tb(slide, L + 0.05, T + 0.14, W - 0.1, H * 0.5, value, 28, WHITE, True,
-        PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
-    _tb(slide, L + 0.05, T + H * 0.60, W - 0.1, H * 0.34, label, 12, lab, False,
-        PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP)
-
-
-def _add_table(slide, L, T, W, H, data, colw, highlight=(), header=True, fs=10):
-    """Identical styling contract to build.py add_table()."""
-    rows = len(data); cols = len(data[0])
-    gf = slide.shapes.add_table(rows, cols, Inches(L), Inches(T), Inches(W), Inches(H))
-    tb = gf.table; tb.first_row = False; tb.horz_banding = False
-    tot = sum(colw)
-    for j, wd in enumerate(colw):
-        tb.columns[j].width = Inches(W * wd / tot)
-    for i, row in enumerate(data):
-        tb.rows[i].height = Inches(H / rows)
-        for j, val in enumerate(row):
-            c = tb.cell(i, j)
-            c.margin_top = Pt(2); c.margin_bottom = Pt(2)
-            c.margin_left = Pt(5); c.margin_right = Pt(4)
-            c.vertical_anchor = MSO_ANCHOR.MIDDLE
-            tf = c.text_frame; tf.word_wrap = True; p = tf.paragraphs[0]
-            p.alignment = PP_ALIGN.LEFT if j == 0 else PP_ALIGN.CENTER
-            r = p.add_run(); r.text = str(val); r.font.name = BODY; r.font.size = Pt(fs)
-            if header and i == 0:
-                c.fill.solid(); c.fill.fore_color.rgb = NAVY
-                r.font.color.rgb = WHITE; r.font.bold = True
-            elif i in highlight:
-                c.fill.solid(); c.fill.fore_color.rgb = ORANGE
-                r.font.color.rgb = WHITE; r.font.bold = True
-            else:
-                c.fill.solid(); c.fill.fore_color.rgb = (WHITE if i % 2 else ROWALT)
-                r.font.color.rgb = NAVY
-    return gf
-
-# ----------------------------------------------------------------------------- slide plumbing
-def _blank_slide(prs, template_slide):
-    """Add a slide using template_slide's layout, stripped of all shapes."""
-    s = prs.slides.add_slide(template_slide.slide_layout)
-    for sh in list(s.shapes):
-        sh._element.getparent().remove(sh._element)
-    return s
-
-
-def _slide_title(slide):
-    for sh in slide.shapes:
-        if sh.has_text_frame and sh.text_frame.text.strip():
-            return sh.text_frame.text.strip()
-    return ""
-
-
-def _sldid_of(prs, slide):
-    from pptx.oxml.ns import qn
-    for el in prs.slides._sldIdLst:
-        rId = el.get(qn("r:id"))
-        if prs.part.related_part(rId) is slide.part:
-            return el
-    return None
-
-
-def _move_before(prs, slide, before_title):
-    lst = prs.slides._sldIdLst
-    target = None
-    for s in prs.slides:
-        if _slide_title(s).startswith(before_title) and s is not slide:
-            target = s; break
-    if target is None:
-        return False
-    src = _sldid_of(prs, slide)
-    tgt = _sldid_of(prs, target)
-    if src is None or tgt is None:
-        return False
-    lst.remove(src)
-    tgt.addprevious(src)
-    return True
-
-
-def _renumber(prs):
-    """Mirror build.py's final page-number pass."""
-    for n, s in enumerate(prs.slides, 1):
-        found = None
-        for sh in s.shapes:
-            if (sh.has_text_frame and sh.top is not None and sh.top > Inches(6.8)
-                    and sh.left is not None and sh.left < Inches(1.2)):
-                txt = sh.text_frame.text.strip()
-                if txt.isdigit() or txt in ("‹#›", ""):
-                    found = sh; break
-        if found and found.text_frame.paragraphs[0].runs:
-            found.text_frame.paragraphs[0].runs[0].text = str(n)
-        elif n > 1 and found is None:
-            _tb(s, 0.45, 7.04, 0.7, 0.32, str(n), 11, NAVY, True, PP_ALIGN.LEFT,
-                BODY, MSO_ANCHOR.MIDDLE)
 
 # ----------------------------------------------------------------------------- table content
 def _build_table_rows(data, max_elig=5):

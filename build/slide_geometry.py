@@ -1,9 +1,29 @@
-"""Per-slide geometry contract (by TITLE, not slide number) — ARS deck.
-Applied by build_ars_gen before fit_layout, and runnable standalone on a template:
+"""Per-slide geometry contract (by TITLE, not slide number).
+
+Promoted from ars_pipeline/ to build/ so ICS and MRPC can adopt the same
+contract. CLAUDE.md rule 2 says layout defects are fixed in the geometry
+contract, never by hand-editing a deck — but only ARS had a contract to fix,
+which is why ICS and MRPC layout fixes kept landing as one-off per-deck commits.
+Applied by ALL THREE builders before fit_layout, and runnable standalone:
     python3 slide_geometry.py <deck.pptx>
-Rules (Aaron 2026-07-24): donuts end above their legend; charts start below the
-selection subtitle; captions clear their chart; Program Reach chart fills its space;
-Account Growth / Retention share identical chart geometry."""
+
+Rules are keyed on the slide TITLE, so a deck simply skips the ones it has no
+slide for. Every title with a rule today is an ARS title, which is why calling
+apply() on an ICS or MRPC deck currently changes nothing — verified, not assumed.
+That is the point: the seam is wired into all three builders now, so the NEXT
+ICS or MRPC layout fix has somewhere to go. Before this, only ARS had a contract,
+and ICS/MRPC layout defects kept landing as one-off per-deck commits (8970e17
+ICS Financial Summary labels wrapping onto their values; ba3a300; 11d16df) —
+exactly what CLAUDE.md rule 2 forbids.
+
+Adding an ICS or MRPC rule: match on its title in apply() alongside the ARS
+blocks. Do NOT start a second module — one contract, or the rule that says
+"fix the contract, never the deck" has two places to be fixed.
+
+Titles carrying a rule today (all ARS, Aaron 2026-07-24): Overall Debit Swipes /
+NSF/OD Activity (taller, never wider); 12-Month Eligible Take Rate (centered);
+Product Mix (donut ends above its legend); Program Reach (chart fills its space);
+Account Growth / Account Retention (identical chart geometry)."""
 from pptx.util import Emu, Inches
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 def _in(v): return Emu(v).inches if v is not None else None

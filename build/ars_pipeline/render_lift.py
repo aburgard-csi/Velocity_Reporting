@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import json, sys
 from rpe_env import use_font
 L=json.load(open(sys.argv[1])); OUT=sys.argv[2]
-NAVY="#00274C"; GREY="#EEF2F7"; TICK="#5A6670"
+from brand import NAVY, ROWALT as GREY, TICK
 use_font("Carlito")
 cols=L['matrix_cols']; mrows=L['matrix_rows']; rev=L['revseg']
 fig=plt.figure(figsize=(13.0,4.5))

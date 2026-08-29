@@ -32,6 +32,7 @@ REF = os.environ.get("RPE_REF") or HERE
 sys.path.insert(0, BUILDDIR)
 sys.path.insert(0, HERE)
 from rpe_env import use_font
+from brand import NAVY as _BNAVY, ORANGE as _BORANGE, MUTED as _BMUTED
 
 M = json.load(open(METRICS)); B = json.load(open(BASEJ)); L = json.load(open(LIFTJ)); O = json.load(open(ODDDJ))
 # MM path = the lift matrix actually carries VALUES; else SM = monthly summary.
@@ -228,7 +229,7 @@ if MM:
 else:
     import matplotlib as _mpl; _mpl.use('Agg'); import matplotlib.pyplot as _plt
     use_font("Carlito")
-    _NV="#00274C"; _OR="#F47A29"; _TK="#5A6670"
+    from brand import NAVY as _NV, ORANGE as _OR, TICK as _TK
     _mr = B.get('monthly_rev_last12', []); _lab=[m for m,_ in _mr]; _val=[float(v or 0) for _,v in _mr]
     _avg=(sum(_val)/len(_val)) if _val else 0
     _fig=_plt.figure(figsize=(13.0,3.9)); _ax=_fig.add_subplot(111); _x=range(len(_val))
@@ -239,7 +240,7 @@ else:
     _ax.set_xticks(list(_x)); _ax.set_xticklabels([(l.split()[0][:3]+" '"+l.split()[-1][2:]) if ' ' in l else l for l in _lab], fontsize=10)
     _ax.set_ylim(0, (max(_val)*1.20 if _val else 1)); _ax.get_yaxis().set_visible(False)
     for _sp in ['top','right','left']: _ax.spines[_sp].set_visible(False)
-    _ax.spines['bottom'].set_color('#B8C0CA'); _ax.tick_params(colors=_TK,length=0)
+    _ax.spines['bottom'].set_color(_BMUTED); _ax.tick_params(colors=_TK,length=0)
     [_t.set_color(_NV) for _t in _ax.get_xticklabels()]
     if _val: _ax.text(len(_val)-0.5,_avg, f"  avg ${_avg/1000:.0f}K", color=_OR, fontsize=11, va='center', fontweight='bold')
     SM_PNG=os.path.join(ASSETS,'sm_monthly.png'); _fig.savefig(SM_PNG,dpi=170,facecolor='white',bbox_inches='tight',pad_inches=0.12); _plt.close(_fig)
@@ -258,7 +259,7 @@ if BIZ and BIZ['branches']:
     BIZ_PNG = os.path.join(ASSETS, 'biz_branch.png')
     # business = navy bars / orange dashed avg; identical geometry to personal (orange/navy)
     chart_lib.take_branch_chart(BIZ_PNG, [str(b[0]) for b in br], [b[3] for b in br],
-                                BIZ['new'], "#00274C", "#F47A29", 1383, 540)
+                                BIZ['new'], _BNAVY, _BORANGE, 1383, 540)
     print("wrote", BIZ_PNG)
 
 # ------------------------------------------------------------------ open deck
@@ -1150,7 +1151,14 @@ _pull = _m_src.group(1) if _m_src else ""
 _lm = str(O.get("latest_month") or "").strip()
 try: _snap = _dt_src.datetime.strptime(_lm, "%b%y").strftime("%b %Y")
 except Exception: _snap = _lm or "latest"
-_gen_month = _dt_src.date.today().strftime("%b %Y")
+# The note on slide 1 states the reporting month, and the COVER already renders
+# that as PRESENT_MONTH (from ARS_PERIOD or the filename's <yyyy.mm>). Taking
+# today's clock here made the two agree only while the deck was rebuilt in the
+# month it was published — rebuild an August deck in October and the cover says
+# August while its own note says October.
+# Reformatted to the note's existing "Aug 2026" abbreviation so this fix changes
+# the deck ONLY where the month was actually wrong, not everywhere.
+_gen_month = _dt_src.datetime.strptime(PRESENT_MONTH, "%B %Y").strftime("%b %Y")
 _hist = "Jul23-forward"
 _mm = " MM" if MM else ""
 _pull_txt = (", pull " + _pull) if _pull else ""
@@ -1691,7 +1699,7 @@ for _i, _sl in enumerate(list(_bp.slides)):
         for sh in list(_sl.shapes):
             if _is_logo_pic(sh) and _in_corner(sh): _drop(sh)
         _add_logo(_sl, LOGO_DATA); _put_num(_sl, _i + 1)
-import slide_geometry as _sg; _sg.apply(_bp)   # per-title geometry contract
+import slide_geometry as _sg; _sg.apply(_bp)   # per-title geometry contract (build/)
 import fit_layout as _fl; _fl.fit(_bp)   # final layout-fit: clear number/logo, clamp off-slide (shared)
 _bp.save(OUT)
 print("branding normalized: logos + slide numbers (10pt; none on title/summit/section)")

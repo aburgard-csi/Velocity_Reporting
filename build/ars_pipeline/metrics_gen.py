@@ -62,13 +62,11 @@ else:
                 _dapp(list(_get(_row)))
     if _os.environ.get('MG_DUMP'):
         _pk.dump((hdr, _need, _redhdr, data), open(_os.environ['MG_DUMP'], 'wb')); sys.exit(0)
-def g(r,n):
-    i=H.get(n); return (r[i].strip() if i is not None and i<len(r) else '')
-def fnum(r,n):
-    v=g(r,n).replace(',','').replace('$','')
-    if v in ('','-'): return 0.0
-    try: return float(v)
-    except: return 0.0
+# The ODD row vocabulary is defined once in odd_rows and bound here. It used to
+# be re-declared in every script, and personal() had drifted between them.
+from odd_rows import accessors as _accessors, OPEN_STATUSES as OPEN, CLOSED_STATUSES as CLOSED
+_odd=_accessors(H)
+g=_odd.g; fnum=_odd.fnum
 def mkey(t): return datetime.datetime.strptime(t,'%b%y')
 smonths=sorted({re.match(r'^([A-Z][a-z]{2}\d{2}) Sig #',h).group(1) for h in hdr if re.match(r'^[A-Z][a-z]{2}\d{2} Sig #',h)},key=mkey)
 mailmonths=sorted({re.match(r'^([A-Z][a-z]{2}\d{2}) Mail',h).group(1) for h in hdr if re.match(r'^[A-Z][a-z]{2}\d{2} Mail',h)},key=mkey)
@@ -82,19 +80,8 @@ RESP_MET={'NU 5+','TH-10','TH-15','TH-20','TH-25'}
 OFFER_GOAL={'NU':5,'TH-10':10,'TH-15':15,'TH-20':20,'TH-25':25}
 RESP_GOAL={'NU 5+':5,'TH-10':10,'TH-15':15,'TH-20':20,'TH-25':25}
 TIER_ORDER=['NU 5+','TH-10','TH-15','TH-20','TH-25']
-def swipes(r,m): return fnum(r,f'{m} Sig #')+fnum(r,f'{m} PIN #')
-def spend(r,m): return fnum(r,f'{m} Sig $')+fnum(r,f'{m} PIN $')
-def nsf(r,m): return fnum(r,f'{m} MTD')
-def hascard(r): return g(r,'Debit?')=='Yes'
-OPEN={'Open','Active','Open/Active','Dormant','Inactive','Restricted','No Close on Zero Balance','No Post: Force Pay Items Only',
-      # core lifecycle wording (Aaron 2026-07-25)
-      'New This Cycle','Pending Activation'}
-CLOSED={'Closed','Charge-off','Charge-Off','Charged Off','Charged-Off',
-        # core lifecycle wording (Aaron 2026-07-25)
-        'Purge at Yearend','Purge at Year End','Pending Closeout','Pending Close Out'}
-def isopen(r):
-    sd=g(r,'Stat Desc'); return sd.startswith('Open') or sd.startswith('Active') or sd in OPEN
-def personal(r): return g(r,'Business?')=='No'
+swipes=_odd.swipes; spend=_odd.spend; nsf=_odd.nsf
+hascard=_odd.hascard; isopen=_odd.isopen; personal=_odd.personal
 # strptime dominated this script: 3.8M calls, ~24s of a 100s run, almost all of it
 # re-parsing the same handful of date strings. Cache on the STRING (not on the row) — a
 # few thousand distinct dates, and no dependence on row object identity.

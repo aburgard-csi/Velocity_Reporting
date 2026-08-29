@@ -52,8 +52,20 @@ def _args():
     return a
 
 
-_A = _args()
-ARS, ICS, MRPC, OUT = _A.ars, _A.ics, _A.mrpc, _A.out
+# Parsed inside main(), not at import. At module scope this made
+# `import assemble_combined` call argparse and exit the process with
+# SystemExit(2), so the pure helpers below could not be unit-tested at all —
+# which is why the highest-risk file in the repo, downstream of all three
+# pipelines, had every one of its four regressions found in a delivered deck.
+_A = None
+ARS = ICS = MRPC = OUT = None
+
+
+def _init_args():
+    global _A, ARS, ICS, MRPC, OUT
+    _A = _args()
+    ARS, ICS, MRPC, OUT = _A.ars, _A.ics, _A.mrpc, _A.out
+    return _A
 
 # The ARS section ends at "ARS Key Takeaways"; everything after it is the closing
 # block (Q&A, Contact) plus the Appendix. This was the fixed index 30, which is only
@@ -85,16 +97,45 @@ def _ars_head(prs):
 SECTION_DROP_TITLES = ("Agenda", "Questions & Discussion", "Contact Us")
 
 
+def _slide_text(sl):
+    return " ".join(sh.text_frame.text for sh in sl.shapes if sh.has_text_frame).lower()
+
+
+def _is_cover(sl):
+    """The program cover — the only slide carrying the 'Executive Review' line."""
+    return "executive review" in _slide_text(sl)
+
+
+def _is_summit(sl, n):
+    """The Executive Summit slide.
+
+    ARS carries it as text; ICS carries it as a full-bleed image with no text at
+    all. Both sit in the opening block, so an untitled slide in the first three
+    is the image form. MRPC has NO summit slide.
+    """
+    t = _slide_text(sl)
+    if "executive summit" in t or "summit is complimentary" in t:
+        return True
+    return n <= 3 and not t.strip()
+
+
 def section_slides(slides):
     """Indices (1-based) of the slides that form this program's section.
 
-    Slides 1 and 2 are structurally the cover and the Executive Summit (summit_slide.py
-    inserts it at index 1 in every deck), so they go by position; the divider at 3 shares
-    the cover's title and cannot be told apart by text.
+    Resolved by MEANING, not position (CLAUDE.md rule). This used to drop
+    indices 1 and 2 outright on the assumption that every deck opens with
+    cover + Executive Summit. ARS and ICS do; MRPC does NOT — its divider sits
+    at index 2, so the positional rule silently deleted the MRPC divider and the
+    combined deck ran from the ICS section straight into MRPC content with no
+    section break at all (Aaron, 2026-08-29).
+
+    The cover and the divider share a title, which is why position was reached
+    for — but they are distinguishable: the cover carries the "Executive Review"
+    line and the divider carries the program's benefits line.
     """
     keep = []
     for n, s in enumerate(slides, 1):
-        if n in (1, 2):
+        if _is_cover(s) or _is_summit(s, n):
             continue
         title = next((sh.text_frame.text.strip().split("\n")[0]
                       for sh in s.shapes
@@ -355,6 +396,7 @@ def renumber(prs):
 
 # ---------------------------------------------------------------- assemble
 def main():
+    _init_args()
     prs = Presentation(ARS)
     n_ars = len(prs.slides._sldIdLst)
     ars_head = _ars_head(prs)
@@ -431,4 +473,10 @@ def main():
     print(f"built {OUT} -> {len(prs.slides._sldIdLst)} slides")
 
 
-main()
+# Guarded so the module can be IMPORTED for its pure helpers (section_slides,
+# _ics_is_referrals_only, the agenda vocabularies) without argparse exiting the
+# process. Unguarded, `import assemble_combined` died with SystemExit(2), which
+# is why this file — the highest-risk one in the repo, sitting downstream of all
+# three pipelines — had no unit tests.
+if __name__ == "__main__":
+    main()

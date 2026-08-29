@@ -11,13 +11,13 @@ MONTHS=sorted({m.group(1) for m in
               key=lambda t: datetime.datetime.strptime(t,'%b%y'))
 if not MONTHS: raise SystemExit('ERROR: no "<Mon><yy> Sig #" columns in the ODD')
 mpos={m:i for i,m in enumerate(MONTHS)}
-def num(s):
-    s=(s or '').replace(',','').replace('$','').strip()
-    try: return float(s)
-    except: return 0.0
-def sw(row,m): return num(row[idx[m+' Sig #']])+num(row[idx[m+' PIN #']])
-def sp(row,m): return num(row[idx[m+' Sig $']])+num(row[idx[m+' PIN $']])
-def personal(row): return row[idx['Business?']].strip().lower()!='yes'
+# Shared ODD vocabulary. personal() previously read `!= 'yes'` here, which made
+# a BLANK Business? cell personal — while metrics_gen read `== 'No'`, which made
+# it business. Two slides of one deck, two denominators. odd_rows follows the
+# three-way split product_mix_slide already used: a blank is neither.
+from odd_rows import accessors
+_odd=accessors(idx)
+sw=_odd.swipes; sp=_odd.spend; personal=_odd.personal
 RESPM=[m for m in MONTHS if (m+' Resp') in idx]
 WIN=MONTHS[-3:]  # trailing quarter
 

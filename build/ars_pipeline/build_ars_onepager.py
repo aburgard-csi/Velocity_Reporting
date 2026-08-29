@@ -31,19 +31,25 @@ import matplotlib.pyplot as plt
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
+
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir))  # build/
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 
 # ---------------------------------------------------------------- palette
-NAVY = RGBColor(0x00, 0x27, 0x4C)
-ORANGE = RGBColor(0xF4, 0x7A, 0x29)
-PEACH = RGBColor(0xF6, 0xB2, 0x84)     # section-bar topic text
-TILE = RGBColor(0xEC, 0xF0, 0xF4)      # light tile fill
-WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-GREYT = RGBColor(0x5A, 0x66, 0x70)
-HEAD, BODY = "Montserrat", "Calibri"
-NAVY_HEX, ORANGE_HEX, TICK_HEX, GRID_HEX = "#00274C", "#F47A29", "#5A6670", "#E4EAF1"
+from rpe_env import use_font
+import re
+from periods import Period, parse_month
+from brand import (
+    CHART_FONT,
+    NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, PEACH_RGB as PEACH,
+    TILE_RGB as TILE, WHITE_RGB as WHITE, TICK_RGB as GREYT,
+    NAVY as NAVY_HEX, ORANGE as ORANGE_HEX, TICK as TICK_HEX, GRID as GRID_HEX,
+    STEEL_SOFT, LIGHT,
+    HEAD, BODY,
+)
 
 PAGE_W, PAGE_H = 8.5, 11.0
 M = 0.45                                # left/right margin
@@ -105,12 +111,17 @@ def _section(slide, T, title, topics):
 
 # ---------------------------------------------------------------- charts
 def _prep():
-    for fam in ("Carlito", "Calibri", "DejaVu Sans"):
-        try:
-            plt.rcParams["font.family"] = fam
-            break
-        except Exception:
-            continue
+    """Set the chart face, failing loudly if it is missing.
+
+    This used to loop over ("Carlito", "Calibri", "DejaVu Sans") inside a
+    try/except. Assigning rcParams["font.family"] NEVER raises for a missing
+    family — matplotlib substitutes silently at draw time — so the loop always
+    broke on the first entry and the fallback was unreachable. On a machine
+    without Carlito every one-pager chart rendered in DejaVu and nothing said
+    so. use_font checks availability up front, which is the whole reason it
+    exists; the one-pager was the last renderer still bypassing it.
+    """
+    use_font(CHART_FONT)
 
 
 def chart_revenue12(series, out_png, w=5.25, h=2.15):
@@ -140,7 +151,7 @@ def chart_revenue12(series, out_png, w=5.25, h=2.15):
     ax.set_axisbelow(True)
     for s in ("top", "right", "left"):
         ax.spines[s].set_visible(False)
-    ax.spines["bottom"].set_color("#C9D6E3")
+    ax.spines["bottom"].set_color(LIGHT)
     fig.savefig(out_png, dpi=300, facecolor="white")
     plt.close(fig)
     return out_png
@@ -178,7 +189,7 @@ def chart_spend36(series, out_png, w=5.25, h=2.15):
     for a in (ax, ax2):
         for s in ("top", "right", "left"):
             a.spines[s].set_visible(False)
-    ax.spines["bottom"].set_color("#C9D6E3")
+    ax.spines["bottom"].set_color(LIGHT)
     fig.savefig(out_png, dpi=300, facecolor="white")
     plt.close(fig)
     return out_png
@@ -194,7 +205,7 @@ def chart_before_after(ra, out_png, w=5.25, h=1.82):
     ax = fig.add_axes([0.105, 0.13, 0.875, 0.74])
     top = max(max(b, a) for _, b, a in groups)
     for i, (lab, before, after) in enumerate(groups):
-        for k, (v, col) in enumerate(((before, "#9DB8CC"), (after, ORANGE_HEX))):
+        for k, (v, col) in enumerate(((before, STEEL_SOFT), (after, ORANGE_HEX))):
             x = i + (k - 0.5) * 0.34
             ax.bar(x, v, color=col, width=0.31, zorder=3)
             ax.text(x, v + top * 0.045, f"${v:,.0f}", ha="center", va="bottom",
@@ -209,8 +220,8 @@ def chart_before_after(ra, out_png, w=5.25, h=1.82):
     ax.set_axisbelow(True)
     for s in ("top", "right", "left"):
         ax.spines[s].set_visible(False)
-    ax.spines["bottom"].set_color("#C9D6E3")
-    ax.bar(0, 0, color="#9DB8CC", label="3 months before mailing")
+    ax.spines["bottom"].set_color(LIGHT)
+    ax.bar(0, 0, color=STEEL_SOFT, label="3 months before mailing")
     ax.bar(0, 0, color=ORANGE_HEX, label="Every month after")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.20), ncol=2,
               frameon=False, fontsize=7, labelcolor=TICK_HEX,
@@ -264,13 +275,47 @@ def blank_page(prs):
     return s
 
 
+def _reporting_month(out_path):
+    """The month the report is PRESENTED, not the data month (STYLE.md:85).
+
+    Same resolution order the ARS deck builder uses, so a one-pager and its deck
+    can never disagree: RPE_PERIOD / ARS_PERIOD, then the <yyyy.mm> tag in the
+    output filename, then today with a warning.
+    """
+    per = os.environ.get("RPE_PERIOD") or os.environ.get("ARS_PERIOD") or ""
+    if not per:
+        m = re.search(r"(\d{4})\.(\d{2})", os.path.basename(out_path or ""))
+        per = f"{m.group(1)}.{m.group(2)}" if m else ""
+    if per:
+        try:
+            return datetime.date(int(per[:4]), int(per[5:7]), 1).strftime("%B %Y")
+        except ValueError:
+            pass
+    fallback = datetime.date.today().strftime("%B %Y")
+    print(f"!! build_ars_onepager: no reporting period in RPE_PERIOD or in the "
+          f"output name {os.path.basename(out_path or '')!r}; the header month "
+          f"falls back to today ({fallback}). Name the file <id>-<yyyy.mm>-... "
+          f"or set RPE_PERIOD=YYYY.MM.")
+    return fallback
+
+
 # ---------------------------------------------------------------- build
 def build(base, metrics, template, assets, out, ra=None):
     cid = str(metrics.get("client", "")).strip()
     name = base.get("client") or metrics.get("name")
     data_label = base.get("data_label", "")
     period = data_label.replace(" Data", "").strip()
-    report_month = datetime.date.today().strftime("%B %Y")
+    # STYLE.md draws a hard line between two months, and this header is the
+    # first kind:
+    #   reporting month = the month the report is PRESENTED (STYLE.md:85)
+    #   data month      = what the period pills and PTD figures run through
+    #                     (STYLE.md:44 — explicitly "NOT the report month")
+    # So this is deliberately NOT the data month. It was date.today(), which is
+    # right only while the one-pager is built in the month it ships; rebuilt
+    # later it silently moves. Resolved the way build_ars_gen resolves
+    # PRESENT_MONTH — from RPE_PERIOD, else the output filename's <yyyy.mm> —
+    # and only then from the clock.
+    report_month = _reporting_month(out)
 
     rg = rege_counts(metrics)
     f = metrics["funnel"]

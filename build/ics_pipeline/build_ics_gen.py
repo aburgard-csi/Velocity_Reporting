@@ -63,7 +63,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import summit_slide
 from textfit import fits_one_line   # measured against the bundled TTFs, not estimated
 
-NAVY=RGBColor(0x00,0x27,0x4C); ORANGE=RGBColor(0xF4,0x7A,0x29); STEEL=RGBColor(0x9D,0xB8,0xCC)
+from brand import (NAVY_RGB as NAVY, ORANGE_RGB as ORANGE,
+                   STEEL_SOFT_RGB as STEEL)
 LIGHT=RGBColor(0xEC,0xF0,0xF4); WHITE=RGBColor(0xFF,0xFF,0xFF); GREYT=RGBColor(0x5A,0x66,0x70)
 NAVYX="00274C"
 SHADOW=('<a:effectLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
@@ -867,10 +868,21 @@ def build(d, static_path, out, referrals_only=False):
             if sh.has_text_frame and sh.left is not None and sh.top is not None:
                 if abs(Emu(sh.left).inches-0.45)<0.2 and abs(Emu(sh.top).inches-7.04)<0.2 and sh.text_frame.text.strip().isdigit():
                     sh.text_frame.paragraphs[0].runs[0].text=str(n)
+    # Per-title geometry contract, before fit_layout — the same call ARS makes.
+    # No title in this deck carries a rule yet, so today this is a no-op; it is
+    # wired now so the next layout fix lands in the contract instead of in one
+    # deck (CLAUDE.md rule 2).
+    import slide_geometry; slide_geometry.apply(prs)
     import fit_layout; fit_layout.fit(prs)   # clear number/logo, clamp off-slide (shared)
     prs.save(out); print("built",out,"->",len(prs.slides._sldIdLst),"slides")
 
 if __name__=="__main__":
     _argv=[a for a in sys.argv[1:] if a!="--referrals-only"]
-    build(json.load(open(_argv[0])), _argv[1], _argv[2],
+    # The client sheet resolves through rpe_env: a literal path still works, and
+    # a bare `1705` or `1705_ics.json` is looked up under
+    # RPE_DATA_ROOT/Inputs/Client Data/ then the repo's data/ folder. Those JSONs
+    # are real client data and are gitignored, so a fresh checkout on the other
+    # machine has the code and none of the inputs (PRD criterion 1).
+    from rpe_env import resolve_client_json
+    build(json.load(open(resolve_client_json(_argv[0], "ics"))), _argv[1], _argv[2],
           referrals_only="--referrals-only" in sys.argv)

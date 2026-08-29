@@ -9,8 +9,8 @@ from rpe_env import use_font
 M=json.load(open(sys.argv[1]))
 B=json.load(open(sys.argv[2]))
 OUT=sys.argv[3]; os.makedirs(OUT,exist_ok=True)
-NAVY="#00274C"; ORANGE="#F47A29"; GREY="#CFDBE8"; STEEL="#7B9BB8"; TICK="#5A6670"
-LIGHT="#9DB8CC"; GOLD="#E7A93B"
+from brand import (NAVY, ORANGE, LABEL as GREY, STEEL, TICK,
+                   STEEL_SOFT as LIGHT, GOLD, MUTED, HAIRLINE)
 use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def _fixacr(txt):
     """Collapse space-separated single capital letters: 'Individual H S A' -> 'Individual HSA'."""
@@ -31,7 +31,7 @@ DIM={'image5':(1365,705),'image6':(1432,672),'image7':(1035,549),'image8':(1099,
  'image29':(1740,1064),'image30':(2047,816),'image31':(2639,1003),'image32':(2050,790)}
 def _clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)
-    ax.spines["left"].set_color("#D9DEE5"); ax.spines["bottom"].set_color("#B8C0CA")
+    ax.spines["left"].set_color(HAIRLINE); ax.spines["bottom"].set_color(MUTED)
     ax.tick_params(colors=TICK,length=0); ax.set_axisbelow(True)
 def save(fig,name):
     tmp=f"{OUT}/_{name}.png"
@@ -229,7 +229,7 @@ def c_swipespend():
     _clean(ax)
     ax2=ax.twinx(); ax2.plot(x,cards,color=ORANGE,lw=3,label="Accounts w/ Card")
     ax2.set_ylim(0,max(cards)*1.35); ax2.set_ylabel("Accounts w/ Card",color=ORANGE,fontsize=10)
-    ax2.tick_params(colors=TICK,length=0); ax2.spines["top"].set_visible(False); ax2.spines["right"].set_color("#D9DEE5")
+    ax2.tick_params(colors=TICK,length=0); ax2.spines["top"].set_visible(False); ax2.spines["right"].set_color(HAIRLINE)
     h1,l1=ax.get_legend_handles_labels(); h2,l2=ax2.get_legend_handles_labels()
     ax.legend(h1+h2,l1+l2,loc="upper center",frameon=False,ncol=2,bbox_to_anchor=(0.5,1.13),fontsize=10)
     save(fig,'image12')
@@ -354,7 +354,7 @@ def c_openings():
     ax.fill_between(x,cum,0,color=ORANGE,alpha=0.9); ax.plot(x,cum,color=ORANGE,lw=2)
     lo=min(0,min(cum)); hi=max(0,max(cum)); span=(hi-lo) or 1
     off=span*0.03
-    ax.axhline(0,color="#B8C0CA",lw=1)                          # zero baseline
+    ax.axhline(0,color=MUTED,lw=1)                          # zero baseline
     step=max(1,len(cats)//9)
     idxs=list(range(0,len(cats),step))
     if (len(cats)-1) not in idxs: idxs.append(len(cats)-1)   # always label the endpoint (headline net)
@@ -402,7 +402,7 @@ def c_nsf():
     _clean(ax)
     ax2=ax.twinx(); ax2.plot(x,accts,color=ORANGE,lw=3,label="Accounts with NSF/OD")
     ax2.set_ylim(0,max(accts)*1.5); ax2.set_ylabel("Accounts with activity",color=ORANGE,fontsize=10)
-    ax2.tick_params(colors=TICK,length=0); ax2.spines["top"].set_visible(False); ax2.spines["right"].set_color("#D9DEE5")
+    ax2.tick_params(colors=TICK,length=0); ax2.spines["top"].set_visible(False); ax2.spines["right"].set_color(HAIRLINE)
     h1,l1=ax.get_legend_handles_labels(); h2,l2=ax2.get_legend_handles_labels()
     ax.legend(h1+h2,l1+l2,loc="upper center",frameon=False,ncol=2,bbox_to_anchor=(0.5,1.12),fontsize=10)
     save(fig,'image29')

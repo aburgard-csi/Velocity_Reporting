@@ -2,7 +2,8 @@
 
 Date: 2026-08-26
 Owner: Aaron Burgard
-Status: Phase 1 in progress
+Status: Phases 1-3 shipped; Phase 4 shipped as subagents rather than skills.
+Last reviewed 2026-08-29.
 
 ---
 
@@ -42,10 +43,16 @@ combinations.
 
 ## Scope
 
-**In:** the `build/` tree; `CLAUDE.md`, `STYLE.md`, `RUNBOOK.md`; repo
-scaffolding; path and font portability; `metrics_gen.mail_summary`; the slide-12
-block and its stale comment in `build_ars_gen.py`; seven skills over four logic
-bodies.
+**In:** the `build/` tree; `CLAUDE.md`, `templates/STYLE.md`,
+`templates/TEMPLATES.md`; repo scaffolding; path and font portability;
+`metrics_gen.mail_summary`; the slide-12 block and its stale comment in
+`build_ars_gen.py`; seven deck entry points over four logic bodies.
+
+(This originally listed a `RUNBOOK.md`. It was never written, and the per-program
+build steps live in `.claude/agents/{ars,ics,mrpc}-deck.md` instead — those are
+what actually execute, so a separate runbook would be a second source to drift.
+Reference updated 2026-08-29 rather than leaving a pointer to a file that does
+not exist.)
 
 **Out:** re-issuing the eight remaining 2026.08 decks — that follows the code
 fix rather than preceding it. The slide 12 vs slide 13 responder-count mismatch,
@@ -145,6 +152,14 @@ decks stay in Drive. Nothing client-identifiable enters the repo.
 ## Open
 
 - The literal Drive for Desktop path on the CSI machine, for `RPE_DATA_ROOT`.
-- Whether `ics_pipeline/data/` and `mrpc_pipeline/data/` hold client data or
-  fixtures the builders need at runtime.
-- How the skills should be invoked — named commands or plain language.
+
+## Closed 2026-08-29
+
+- **`ics_pipeline/data/` and `mrpc_pipeline/data/` hold CLIENT DATA**, not
+  runtime fixtures — `1549-Wellworth Bank`, `1705_ics.json` and the like,
+  correctly gitignored and untracked. They therefore have to resolve through
+  `RPE_DATA_ROOT` like every other input, or success criterion 1 is unreachable
+  for ICS and MRPC on a fresh checkout.
+- **The skills shipped as subagents**, not as named commands:
+  `.claude/agents/{ars,ics,mrpc}-deck.md` plus `oddd-optimizer`, invoked in plain
+  language and composed by `build/assemble_combined.py`.

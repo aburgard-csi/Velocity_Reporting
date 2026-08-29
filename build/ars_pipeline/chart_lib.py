@@ -2,11 +2,12 @@
 render matching charts. The take-rate-by-branch chart is used for BOTH the personal slide
 (orange bars / navy dashed avg) and the business slide (navy bars / orange dashed avg); they
 must be identical in size and layout — see templates/STYLE.md."""
-import os
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
-NAVY = "#00274C"; ORANGE = "#F47A29"; TICK = "#5A6670"
+from brand import NAVY, ORANGE, TICK, MUTED
 BRANCH_CAP = 8   # bars take_branch_chart can seat without the labels colliding
 
 def _letterbox(fig, out_png, tw, th):
@@ -37,7 +38,7 @@ def take_branch_chart(out_png, labels, vals, avg, bar_color, dash_color, w=1383,
     ax.set_xticks(range(len(vals))); ax.set_xticklabels(labels, fontsize=12)
     ax.set_ylim(0, 105); ax.get_yaxis().set_visible(False)
     for sp in ("top", "right", "left"): ax.spines[sp].set_visible(False)
-    ax.spines["bottom"].set_color("#B8C0CA"); ax.tick_params(colors=TICK, length=0)
+    ax.spines["bottom"].set_color(MUTED); ax.tick_params(colors=TICK, length=0)
     for t in ax.get_xticklabels(): t.set_color(NAVY)
     _letterbox(fig, out_png, w, h)
 
