@@ -1123,6 +1123,28 @@ STRIP = os.path.join(BUILDDIR, "strip_dead.py")   # shared post-processor, next 
 
 # ---- 2a. Regenerate Product Mix slide via a clean strip-then-add (avoids partname reuse) ----
 _A = OUT + ".A.pptx"; _B = OUT + ".B.pptx"; _C = OUT + ".C.pptx"
+
+
+def _clean_phase_files():
+    """Remove the .A/.B/.C/.D phase decks.
+
+    They are written NEXT TO the output, so a build that dies partway used to
+    leave intermediate decks sitting in the delivery folder (Aaron, 2026-08-29 —
+    keep Outputs clean). Registered here rather than beside _D because the figure
+    gate fires before _D exists; _D is read from globals() for the same reason.
+    """
+    for _name in ("_A", "_B", "_C", "_D"):
+        _f = globals().get(_name)
+        if not _f:
+            continue
+        try:
+            os.remove(_f)
+        except OSError:
+            pass
+
+
+import atexit as _atexit
+_atexit.register(_clean_phase_files)
 prs.save(_A)                                   # phase-1 text deck (reference product mix at idx4)
 p2 = Presentation(_A); _xml = p2.slides._sldIdLst
 _xml.remove(list(_xml)[4])                     # orphan reference product-mix slide
@@ -1743,7 +1765,5 @@ if _sidecar:
     print("figures ->", os.path.basename(_sidecar),
           f"({len(_figs.log)} recorded, {len(_figs.log.by_measure())} measures)")
 print("branding normalized: logos + slide numbers (10pt; none on title/summit/section)")
-for _f in (_A,_B,_C,_D):
-    try: os.remove(_f)
-    except: pass
+_clean_phase_files()
 print("phase2 done ->", OUT)

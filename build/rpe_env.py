@@ -95,6 +95,32 @@ def outputs() -> Path:
     return _require_subdir("Outputs")
 
 
+BUILD_ARTIFACTS_DIRNAME = "Build Artifacts"
+
+
+def build_artifacts() -> Path:
+    """Where a build drops evidence that is NOT a deliverable.
+
+    `Outputs/` is the delivery folder and holds finished decks only. Provenance
+    sidecars, phase files and anything else a build emits to prove itself belong
+    here instead (Aaron, 2026-08-29).
+
+    Created on demand — unlike inputs()/outputs(), whose absence means a broken
+    mount and must raise. Falls back to a repo-local directory when
+    RPE_DATA_ROOT is unset, so a build never fails for want of somewhere to put
+    its bookkeeping.
+    """
+    try:
+        path = data_root() / BUILD_ARTIFACTS_DIRNAME
+    except SystemExit:
+        path = REPO_ROOT / "build_artifacts"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return REPO_ROOT / "build_artifacts"
+    return path
+
+
 CLIENT_DATA_DIRNAME = "Client Data"
 
 

@@ -41,9 +41,13 @@ two, plus `resprate_latest_mailing`, `reach_total`, `dot_n`). No deck changes: 1
 to 49 slides, 38 chart images byte-identical, 0 text differences. Only the ARS builder emits
 a sidecar; a deck without one validates exactly as before.
 
-The sidecar is written next to the deck, so an ARS build now leaves a `.figures.json`
-alongside the `.pptx` in `Outputs/`. It is build evidence, not a deliverable — safe to delete
-once the deck has passed the gate.
+The sidecar goes to `Build Artifacts/` under `RPE_DATA_ROOT`, named after its deck, NOT
+beside it: `Outputs/` is the delivery folder and holds finished decks only. `validate_deck`
+looks there first and then beside the deck, so anything built before the move still
+validates. The `.A/.B/.C/.D` phase decks are cleaned up through `atexit` as well as on the
+happy path — they are written next to the output, so a build that died partway used to leave
+four intermediate decks in the delivery folder. Verified both ways: a clean build leaves the
+output folder holding exactly one file, and a failed one leaves it empty.
 
 ### 2026-08-29 — build from the template shell, never from a client deck
 

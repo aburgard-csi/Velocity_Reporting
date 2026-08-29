@@ -66,3 +66,22 @@ def test_empty_argument_is_refused():
 def test_client_data_never_raises():
     """Unlike inputs()/outputs() this is a migration target, so absence is normal."""
     assert rpe_env.client_data() is None or rpe_env.client_data().is_dir()
+
+
+# --- build artifacts ------------------------------------------------------
+def test_build_artifacts_is_not_the_outputs_folder():
+    """Outputs/ is the delivery folder; build evidence goes elsewhere."""
+    art = rpe_env.build_artifacts()
+    try:
+        out = rpe_env.outputs()
+    except SystemExit:
+        pytest.skip("RPE_DATA_ROOT/Outputs not available on this machine")
+    assert art != out
+    assert art.is_dir(), "build_artifacts() creates the folder on demand"
+
+
+def test_build_artifacts_never_raises(monkeypatch):
+    """Unlike inputs()/outputs(), a build must not die for want of a scratch dir."""
+    monkeypatch.setattr(rpe_env, "data_root",
+                        lambda: (_ for _ in ()).throw(SystemExit("no root")))
+    assert rpe_env.build_artifacts().name == "build_artifacts"

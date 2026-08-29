@@ -41,6 +41,7 @@ RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pip
 | ARS, MRPC, **and ICS** workbooks (all together) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client data sheets (`<id>_ics.json`, `<id>_mrpc.json`) | `Inputs/Client Data/` |
+| Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
 | Per-program template shells (`*_template.pptx`) | the project `templates/` folder |
 
 **Client logos** live in `Inputs/Logos/<clientid>.png` — NOT in the repo: a client's logo is
@@ -51,6 +52,12 @@ placement — the files carry white OR transparent padding (1549 is a 2940x1532 
 mark in one corner), and fitting the raw canvas renders a right-sized box holding a tiny logo.
 `rpe_env.fit_box()` preserves aspect: these run 1.50 to 8.77 wide-to-tall, so a fixed width
 stretches one client and overflows another.
+
+**`Outputs/` holds finished decks and nothing else (Aaron, 2026-08-29).** Anything a build
+emits to prove itself — the figure provenance sidecar, the `.A/.B/.C/.D` phase decks — goes
+to `Build Artifacts/` or is cleaned up. `rpe_env.build_artifacts()` resolves that folder and
+creates it on demand; unlike `inputs()`/`outputs()` it never raises, because a build must not
+die for want of somewhere to put its bookkeeping.
 
 **Output — ONE destination (Aaron, 2026-07-25).** Every finished deck goes to `Outputs/`
 (flat; program is distinguished by the filename tag, not by subfolder). This replaced both

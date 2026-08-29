@@ -122,11 +122,35 @@ def record(measure, value, slide=None, note=None):
     log.record(measure, value, slide=slide, note=note)
 
 
+def _artifacts_dir():
+    """The build-artifacts folder, or None if rpe_env is not importable."""
+    try:
+        from rpe_env import build_artifacts
+        return str(build_artifacts())
+    except Exception:
+        return None
+
+
 def sidecar_path(deck_path):
-    return str(deck_path) + ".figures.json"
+    """Where this deck's sidecar goes.
+
+    NOT beside the deck. `Outputs/` is the delivery folder and holds finished
+    decks only — a sidecar sitting next to a client deck is build evidence in a
+    place a client-facing folder should not have any (Aaron, 2026-08-29). It is
+    named after the deck so the two stay associated across folders.
+    """
+    name = os.path.basename(str(deck_path)) + ".figures.json"
+    d = _artifacts_dir()
+    return os.path.join(d, name) if d else str(deck_path) + ".figures.json"
 
 
 def find_sidecar(deck_path):
-    """The sidecar for a deck, or None."""
-    p = sidecar_path(deck_path)
-    return p if os.path.exists(p) else None
+    """This deck's sidecar, or None.
+
+    Checks the artifacts folder first, then beside the deck — decks built before
+    the move carry theirs there, and must still validate.
+    """
+    for p in (sidecar_path(deck_path), str(deck_path) + ".figures.json"):
+        if os.path.exists(p):
+            return p
+    return None

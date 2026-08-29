@@ -11,6 +11,7 @@ so "two slides disagree about one measure" becomes arithmetic instead of the
 inference that keeps figure_identity_findings at REVIEW.
 """
 import json
+import os
 import pytest
 from types import SimpleNamespace as N
 from figures import FigureLog, log, record, sidecar_path, find_sidecar, slide_title
@@ -99,18 +100,37 @@ def test_dump_returns_none_rather_than_raising(fresh):
     assert fresh.dump("/no/such/directory/deck.figures.json") is None
 
 
-def test_sidecar_path_is_the_deck_plus_a_suffix():
-    assert sidecar_path("/x/deck.pptx") == "/x/deck.pptx.figures.json"
+def test_sidecar_does_not_land_beside_the_deck():
+    """Outputs/ is the delivery folder and holds finished decks only."""
+    p = sidecar_path("/x/Outputs/deck.pptx")
+    assert os.path.basename(p) == "deck.pptx.figures.json", "named after its deck"
+    assert os.path.dirname(p) != "/x/Outputs", "must not sit next to the deck"
+
+
+def test_sidecar_goes_to_the_build_artifacts_folder():
+    import rpe_env
+    assert os.path.dirname(sidecar_path("/x/Outputs/deck.pptx")) == str(rpe_env.build_artifacts())
 
 
 def test_find_sidecar_returns_none_when_absent(tmp_path):
-    assert find_sidecar(str(tmp_path / "deck.pptx")) is None
+    assert find_sidecar(str(tmp_path / "no-such-deck-xyz.pptx")) is None
 
 
-def test_find_sidecar_locates_it(tmp_path):
+def test_find_sidecar_still_locates_a_legacy_sidecar(tmp_path):
+    """Decks built before the move carry theirs beside the deck."""
     deck = tmp_path / "deck.pptx"
     (tmp_path / "deck.pptx.figures.json").write_text('{"figures": []}')
     assert find_sidecar(str(deck)) == str(tmp_path / "deck.pptx.figures.json")
+
+
+def test_find_sidecar_prefers_the_artifacts_folder(tmp_path, monkeypatch):
+    import figures as F
+    art = tmp_path / "artifacts"; art.mkdir()
+    monkeypatch.setattr(F, "_artifacts_dir", lambda: str(art))
+    deck = tmp_path / "deck.pptx"
+    (art / "deck.pptx.figures.json").write_text('{"figures": []}')
+    (tmp_path / "deck.pptx.figures.json").write_text('{"figures": []}')
+    assert F.find_sidecar(str(deck)) == str(art / "deck.pptx.figures.json")
 
 
 # --- the shared default instance -----------------------------------------
