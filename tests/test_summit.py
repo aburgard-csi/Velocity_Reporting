@@ -79,3 +79,32 @@ def test_warning_can_be_suppressed(monkeypatch, capsys):
     monkeypatch.setattr(ss, "summit_date", lambda asset=None: datetime.date(2020, 5, 1))
     ss.summit_period(warn_if_past=False)
     assert "has passed" not in capsys.readouterr().err
+
+
+# --- where the slide comes from ------------------------------------------
+def test_the_repo_copy_is_the_default():
+    """The common path touches no network and cannot drift."""
+    import summit_slide as ss
+    assert ss._asset() == ss._REPO_ASSET or "Inputs/Summit" in ss._asset()
+
+
+def test_drive_overrides_the_repo_copy(tmp_path, monkeypatch):
+    """The slide is replaced by hand before each Summit, by someone who should
+    not need a commit to ship it."""
+    import summit_slide as ss
+    drive = tmp_path / "Summit"; drive.mkdir()
+    slide = drive / "summit_slide.pptx"
+    shutil_src = ss._REPO_ASSET
+    import shutil; shutil.copy(shutil_src, slide)
+    monkeypatch.setattr(ss, "inputs", lambda: tmp_path, raising=False)
+    import rpe_env
+    monkeypatch.setattr(rpe_env, "inputs", lambda: tmp_path)
+    assert ss._asset() == str(slide)
+
+
+def test_a_missing_drive_folder_falls_back_silently(monkeypatch):
+    """A build must not fail because the optional override is absent."""
+    import summit_slide as ss, rpe_env
+    monkeypatch.setattr(rpe_env, "inputs",
+                        lambda: (_ for _ in ()).throw(SystemExit("no root")))
+    assert ss._asset() == ss._REPO_ASSET

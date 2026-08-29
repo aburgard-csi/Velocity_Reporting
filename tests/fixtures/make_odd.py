@@ -114,7 +114,7 @@ def build(path):
         # trailing 12 months (new-account cohort) and inside the 24-month
         # retention vintage window.
         roll = rng.random()
-        if roll < 0.17:                       # opened in the trailing 12 months
+        if roll < 0.30:                       # opened in the trailing 12 months
             back = rng.randint(0, 11)
         elif roll < 0.55:                     # opened in the retention window
             back = rng.randint(12, 35)
@@ -141,7 +141,11 @@ def build(path):
             "Acct ID": f"A{100000+i}",
             "Acct Number": f"{9000000+i}",
             "Acct Mask": f"****{1000+i}",
-            "Branch": str(rng.randint(1, 8)),
+            # Three branches, not eight. metrics_gen drops a branch with fewer
+            # than 15 accounts in the new-account cohort, so eight branches over
+            # 800 rows left every per-branch table empty and the Reg E and
+            # take-rate charts had nothing to draw.
+            "Branch": str(rng.randint(1, 3)),
             "Mailable?": "No" if rng.random() < 0.08 else "Yes",
             "Prod Code": code, "Prod Desc": desc,
             "Business?": biz,

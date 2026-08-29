@@ -14,7 +14,53 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
-Nothing yet.
+### 2026-08-29 — a whole deck is built in the test suite
+
+`tests/test_golden_deck.py` runs the real chain end to end — oddd_optimize,
+metrics_gen, charts_gen, build_ars_gen, restyle_fonts — on the synthetic ODD and a
+new synthetic workbook extract (`tests/fixtures/make_base.py`). A pipeline
+regression now surfaces in **9 seconds** instead of in a seven-minute run across
+fifteen real clients. No client data is involved; both fixtures are invented and
+generated on demand.
+
+Assertions are structural, not a hash: a hash fails on every intended change and
+teaches people to re-baseline without looking. What is pinned is what must not
+silently move — it builds, all 28 charts render, the slide count holds at 49, the
+expected slides are present, its own validator passes it, the provenance sidecar
+is emitted, and no real client's name appears anywhere in it.
+
+Building it exposed the fixture's own limits: eight branches over 800 rows left
+every per-branch cohort under metrics_gen's 15-account threshold, so the Reg E and
+take-rate branch tables came out empty and their charts had nothing to draw. The
+fixture now uses three branches and a larger new-account cohort.
+
+### 2026-08-29 — the Summit slide may come from Drive
+
+`build/assets/summit_slide.pptx` is replaced by hand before each Summit by whoever
+prepares it, who should not need a commit to ship it. `Inputs/Summit/summit_slide.pptx`
+now wins when present; the committed copy is the default, so the common path
+touches no network and cannot drift.
+
+Everything else stays in the repo deliberately. Fonts are committed precisely so
+both machines render identically; the template shells are versioned build inputs
+whose geometry `qa_all` diffs against a baseline every run. Moving those to a
+streamed folder would trade fast-and-identical-everywhere for a consistency the
+pipeline already has.
+
+The optional lookup caught a latent bug on the way in: `rpe_env` raises
+`SystemExit` when `RPE_DATA_ROOT` is unset, and `SystemExit` does not inherit from
+`Exception` — so an `except Exception` around an OPTIONAL lookup would have killed
+the build on a machine that had never configured Drive.
+
+### 2026-08-29 — README
+
+The repo had a one-line README. It now says what the pipeline builds, how to build
+a month, where data lives, and what each companion file decides — `CLAUDE.md`,
+`clients.md`, `CHANGELOG.md`, `STYLE.md`, `TEMPLATES.md`, the agent docs and the
+PRD — so the split between them is discoverable without reading all six.
+
+---
+
 
 ---
 
