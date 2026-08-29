@@ -6,7 +6,7 @@ the program was cancelled: their ICS data was still on disk, so the build still 
 slides. A cancelled program leaves its files behind — only this file records intent.
 
 **Rule: this file decides what gets built, not the presence of a data file.** If a client
-here says ARS only, do not add an ICS section because `ics_pipeline/data/<client>/`
+here says ARS only, do not add an ICS section because `Inputs/VIP Data/ICS/<client>/`
 exists. If a client should get a program whose inputs are missing, that is a
 data-sourcing task — ask Aaron, do not silently drop the section.
 
@@ -64,12 +64,16 @@ template placeholder means SM. Verified 2026-08-28.
 
 ## Status changes
 
+- **2026-08-29 — VIP sheets live only in `Inputs/VIP Data/`** (Aaron). The repo copies
+  under `build/{ics,mrpc}_pipeline/data/` are deleted; `resolve_client_json` reads the
+  Drive store and nothing else. Where a status note below points at a repo data folder as
+  "the record of what shipped", that record is now the store's per-client folder.
 - **2026-08-28 — CoastLife 1705 cancelled ICS** (Aaron). They get an ARS-only deck from
-  2026.08 forward. Their ICS data under `build/ics_pipeline/data/1705-CoastLife Credit
-  Union/` is left in place as the record of what shipped through 2026.07; it must not be
-  used to build a new ICS section.
+  2026.08 forward. Their ICS data under `Inputs/VIP Data/ICS/1705-CoastLife Credit Union/`
+  is left in place as the record of what shipped through 2026.07; it must not be used to
+  build a new ICS section.
 - **2026-08-28 — Truliant FCU 1658 no longer has RPE** (Aaron). No ARS, ICS or MRPC.
-  Their ICS data folder stays in `build/ics_pipeline/data/1658-Truliant FCU/` as the
+  Their ICS data folder stays in `Inputs/VIP Data/ICS/1658-Truliant FCU/` as the
   record of what shipped; it is not a signal to build.
 - **2026-08-28 — PointBank 1174 is off the books** (Aaron). ICS cancelled and they do
   not have ARS. Their ODD extract stays in `Inputs/ODDD/` — it is not a signal to build.

@@ -59,10 +59,15 @@ def c_monthly():
     fig,ax=figfor('image5',3.4)
     ax.bar(months,rev,color=NAVY,width=0.68)
     mx=max(rev)
+    # Same halo as the SM Monthly Summary chart: a bar near the average has its
+    # label crossing the dashed avg line, and the dash would strike through the
+    # number rather than pass behind it.
+    _halo=dict(boxstyle="square,pad=0.12", facecolor="white", edgecolor="none")
     for i,v in enumerate(rev):
         off=mx*(0.02 if i%2==0 else 0.10)   # stagger alternate labels so wide $ values don't collide
-        ax.text(i,v+off,f"${v/1000:.0f}K",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=8.5)
-    ax.axhline(avg,ls="--",color=ORANGE,lw=2)
+        ax.text(i,v+off,f"${v/1000:.0f}K",ha="center",va="bottom",color=NAVY,
+                fontweight="bold",fontsize=8.5,bbox=_halo,zorder=5)
+    ax.axhline(avg,ls="--",color=ORANGE,lw=2,zorder=2)
     ax.set_ylim(0,mx*1.26); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image5')
@@ -154,7 +159,14 @@ def c_before_after_split():
         _step = max(1, -(-len(cats) // 8))          # at most 8 ticks
         _keep = list(range(0, len(cats), _step))
         if _keep[-1] != len(cats) - 1:
-            _keep.append(len(cats) - 1)             # always label the newest mailing
+            # Always label the newest mailing — but appending it blindly put two
+            # ticks side by side whenever the stride did not land on the last
+            # index. Austin 1075 has 10 mailings, stride 2, so ticks ran
+            # ... 8, 9 and "Nov25"/"Feb26" printed on top of each other
+            # (Aaron, 2026-08-29). Drop the neighbour rather than crowd it.
+            if len(cats) - 1 - _keep[-1] < _step:
+                _keep.pop()
+            _keep.append(len(cats) - 1)
         ax.set_xticks([x[i] for i in _keep])
         ax.set_xticklabels([cats[i] for i in _keep], fontsize=11,
                            rotation=(90 if _step == 1 and len(cats) > 6 else 0))

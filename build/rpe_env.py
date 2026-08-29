@@ -179,26 +179,23 @@ def _client_id_of(arg) -> str:
 
 
 def resolve_client_json(arg, program) -> Path:
-    """Find a client's ICS/MRPC data sheet.
+    """Find a client's ICS/MRPC data sheet in the Drive VIP store.
 
     Accepts a path (used as-is when it exists) or a bare `1705_ics.json` / `1705`.
 
-    Search order, and the reason for it:
+    Search order:
 
       1. the literal argument, if it exists;
       2. `Inputs/VIP Data/manifest.json` — the authoritative index, which also
          records each file's period and pull date;
-      3. `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` — the store
-         laid out by hand, in case the manifest is stale;
-      4. the repo's `build/<program>_pipeline/data/<id>-<Name>/` per-client
-         folder;
-      5. the repo's loose `data/<id>_<program>.json` LAST. Those stubs are
-         superseded by the per-client folders (VIP Data/README.md) and are an
-         older pull — 1705's stub is the 2026-07-13 capture against the folder's
-         2026-07-15. Searching them earlier silently returned the stale one.
+      3. `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json`, in case the
+         manifest is stale.
 
-    Raises with every location named, because "file not found" on a Drive mount
-    is usually a not-available-offline problem rather than a typo.
+    There is NO repo fallback (Aaron, 2026-08-29). `build/<program>_pipeline/data/`
+    held copies that drifted: the store carried 2026-08-29 pulls while the repo
+    still had 2026-08-10, and a build reading the repo shipped month-old figures
+    that validated perfectly because they were internally consistent. Two stores
+    for one fact is the problem; the Drive store is the fact.
     """
     if not arg:
         raise SystemExit(f"resolve_client_json: no {program} client file given")
@@ -212,10 +209,17 @@ def resolve_client_json(arg, program) -> Path:
     if not name.endswith(".json"):
         name = f"{cid or name}_{prog}.json"
 
-    tried = []
     root = vip_data()
+    if root is None:
+        raise SystemExit(
+            f"Inputs/VIP Data is not available, so {name!r} cannot be resolved.\n"
+            "  Set RPE_DATA_ROOT for this machine (see .env.example), and if the\n"
+            "  folder is visible in Finder/Explorer but not here, mark it\n"
+            "  available offline."
+        )
 
-    if cid and root is not None:
+    tried = []
+    if cid:
         for row in (vip_manifest() or []):
             if (str(row.get("program", "")).lower() == prog
                     and str(row.get("client_id", "")) == cid):
@@ -228,21 +232,14 @@ def resolve_client_json(arg, program) -> Path:
             if hit.exists():
                 return hit
 
-    data_dir = REPO_ROOT / "build" / f"{prog}_pipeline" / "data"
-    if cid:
-        for hit in sorted(data_dir.glob(f"{cid}-*/{name}")):
-            tried.append(hit)
-            if hit.exists():
-                return hit
-    stub = data_dir / name
-    tried.append(stub)
-    if stub.exists():
-        return stub
-
-    where = "\n  ".join(str(t) for t in [candidate] + tried)
+    where = "\n  ".join(str(t) for t in [candidate] + tried) or str(root)
     raise SystemExit(
-        f"Could not find the {program.upper()} client file {name!r}. Looked in:\n  {where}\n"
-        "  If it is visible in Finder/Explorer but not here, mark it available offline."
+        f"Could not find the {program.upper()} client file {name!r} in the VIP store.\n"
+        f"  Looked in:\n  {where}\n"
+        "  Drive streams on demand: if it is visible in Finder/Explorer but not\n"
+        "  here, mark it available offline.\n"
+        "  Otherwise refresh it from VIP per Inputs/VIP Data/README.md, or check\n"
+        "  the client id."
     )
 
 

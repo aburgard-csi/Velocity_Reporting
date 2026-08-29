@@ -47,11 +47,12 @@ RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pip
 **VIP Data.** `Inputs/VIP Data/` holds the per-client ICS and MRPC sheets pulled from the
 VIP dashboards, one folder per client (`<PROGRAM>/<id>-<Name>/`), indexed by
 `manifest.json` (program, client id, period, pull date, sections). Resolve one with
-`rpe_env.resolve_client_json("1705", "ics")` — it takes a bare client id, prefers the
-manifest, and falls back to the repo's `build/<program>_pipeline/data/`. Note the loose
-`data/<id>_<program>.json` stubs there are **superseded** by the per-client folders and
-carry an older pull; they are searched last for that reason. See the folder's own
-`README.md` for provenance, currency and the refresh procedure.
+`rpe_env.resolve_client_json("1705", "ics")` — it takes a bare client id and prefers the
+manifest. **This is the only source.** `build/{ics,mrpc}_pipeline/data/` used to hold
+copies and was deleted 2026-08-29: the store carried 2026-08-29 pulls while the repo still
+had 2026-08-10, and a build reading the repo shipped month-old figures that validated
+perfectly because they were internally consistent. Two stores for one fact is the problem.
+See the folder's own `README.md` for provenance, currency and the refresh procedure.
 
 **Client logos** live in `Inputs/Logos/<clientid>.png` — NOT in the repo: a client's logo is
 their brand asset and nothing client-identifiable belongs in git. `rpe_env.client_logo(id)`

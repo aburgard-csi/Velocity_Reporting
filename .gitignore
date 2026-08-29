@@ -15,6 +15,10 @@ env/
 # ---------------------------------------------------------------- client data
 # Data lives in Google Drive, not here. Nothing client-identifiable
 # belongs in this repo.
+#
+# build/{ics,mrpc}_pipeline/data/ were DELETED 2026-08-29: they held copies of
+# the VIP sheets that drifted against Inputs/VIP Data/ and shipped month-old
+# figures. The ignore lines stay so a stray copy cannot be committed by accident.
 build/ics_pipeline/data/
 build/mrpc_pipeline/data/
 build/ars_pipeline/data/

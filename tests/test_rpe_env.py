@@ -44,35 +44,45 @@ def test_client_id_is_read_from_any_form(arg, expected):
     assert rpe_env._client_id_of(arg) == expected
 
 
-def test_per_client_folder_beats_the_loose_stub(tmp_path, monkeypatch):
-    """The loose data/<id>_ics.json stubs are SUPERSEDED by the per-client
-    folders (VIP Data/README.md) and are an older pull — 1705's stub is the
-    2026-07-13 capture against the folder's 2026-07-15. Searching them first
-    silently returned the stale one."""
-    monkeypatch.setattr(rpe_env, "vip_data", lambda: None)
-    data = tmp_path / "build" / "ics_pipeline" / "data"
-    (data / "1705-CoastLife Credit Union").mkdir(parents=True)
-    (data / "1705_ics.json").write_text('{"which": "stub"}')
-    (data / "1705-CoastLife Credit Union" / "1705_ics.json").write_text('{"which": "folder"}')
-    monkeypatch.setattr(rpe_env, "REPO_ROOT", tmp_path)
-    got = rpe_env.resolve_client_json("1705", "ics")
-    assert got.parent.name == "1705-CoastLife Credit Union", "the stale stub won"
+def test_there_is_no_repo_fallback(tmp_path, monkeypatch):
+    """One fact, one store (Aaron, 2026-08-29).
 
-
-def test_vip_store_beats_the_repo(tmp_path, monkeypatch):
-    store = tmp_path / "VIP Data"
-    (store / "ICS" / "1705-CoastLife Credit Union").mkdir(parents=True)
-    (store / "ICS" / "1705-CoastLife Credit Union" / "1705_ics.json").write_text("{}")
+    build/<program>_pipeline/data/ held copies that drifted — the Drive store
+    carried 2026-08-29 pulls while the repo still had 2026-08-10, and a build
+    reading the repo shipped month-old figures that validated perfectly because
+    they were internally consistent.
+    """
+    store = tmp_path / "VIP Data"; store.mkdir()
     monkeypatch.setattr(rpe_env, "vip_data", lambda: store)
-    monkeypatch.setattr(rpe_env, "vip_manifest", lambda: None)   # exercise the glob path
-    got = rpe_env.resolve_client_json("1705", "ics")
-    assert str(got).startswith(str(store))
+    monkeypatch.setattr(rpe_env, "vip_manifest", lambda: None)
+    repo_copy = tmp_path / "build" / "ics_pipeline" / "data"
+    repo_copy.mkdir(parents=True)
+    (repo_copy / "1705_ics.json").write_text("{}")
+    monkeypatch.setattr(rpe_env, "REPO_ROOT", tmp_path)
+    with pytest.raises(SystemExit):
+        rpe_env.resolve_client_json("1705", "ics")
+
+
+def test_absent_vip_store_says_how_to_fix_it(monkeypatch):
+    monkeypatch.setattr(rpe_env, "vip_data", lambda: None)
+    with pytest.raises(SystemExit) as e:
+        rpe_env.resolve_client_json("1705", "ics")
+    msg = str(e.value)
+    assert "RPE_DATA_ROOT" in msg and "available offline" in msg
+
+
+def test_vip_store_resolves_by_glob(tmp_path, monkeypatch):
+    store = tmp_path / "VIP Data"
+    d = store / "ICS" / "1705-CoastLife Credit Union"; d.mkdir(parents=True)
+    (d / "1705_ics.json").write_text("{}")
+    monkeypatch.setattr(rpe_env, "vip_data", lambda: store)
+    monkeypatch.setattr(rpe_env, "vip_manifest", lambda: None)
+    assert rpe_env.resolve_client_json("1705", "ics") == d / "1705_ics.json"
 
 
 def test_manifest_is_preferred_over_the_glob(tmp_path, monkeypatch):
     store = tmp_path / "VIP Data"
-    d = store / "ICS" / "1705-CoastLife Credit Union"
-    d.mkdir(parents=True)
+    d = store / "ICS" / "1705-CoastLife Credit Union"; d.mkdir(parents=True)
     (d / "1705_ics.json").write_text("{}")
     monkeypatch.setattr(rpe_env, "vip_data", lambda: store)
     monkeypatch.setattr(rpe_env, "vip_manifest", lambda: [
@@ -88,7 +98,7 @@ def test_missing_file_names_every_location_tried(tmp_path, monkeypatch):
         rpe_env.resolve_client_json("9999", "ics")
     msg = str(e.value)
     assert "9999_ics.json" in msg
-    assert "ics_pipeline" in msg, "the repo fallback must be named"
+    assert "README" in msg, "the fix should point at the refresh procedure"
     assert "available offline" in msg, "Drive streaming is the usual cause"
 
 

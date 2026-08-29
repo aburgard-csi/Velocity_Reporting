@@ -32,6 +32,13 @@ REF = os.environ.get("RPE_REF") or HERE
 sys.path.insert(0, BUILDDIR)
 sys.path.insert(0, HERE)
 from rpe_env import use_font
+
+# Slides whose own module wrote a source note. The blanket note pass below would
+# otherwise overwrite them with a title-keyword guess, losing the population,
+# column and scope the module actually knows (Aaron, 2026-08-29). Not "skip any
+# slide that already has a note" — the template shell carries stale dummy-client
+# notes that MUST be replaced.
+_MODULE_NOTED = []
 # Figure provenance. The swap gate below catches a swap that matched NOTHING;
 # this catches two swaps that both landed and disagree — the Wellworth 1,077 vs
 # 1,026 defect, where four slides filtered a historical mailing's responders
@@ -240,15 +247,27 @@ else:
     _avg=(sum(_val)/len(_val)) if _val else 0
     _fig=_plt.figure(figsize=(13.0,3.9)); _ax=_fig.add_subplot(111); _x=range(len(_val))
     _ax.bar(_x,_val,color=_NV,width=0.66)
-    if _val: _ax.axhline(_avg,ls='--',color=_OR,lw=2)
+    if _val: _ax.axhline(_avg,ls='--',color=_OR,lw=2,zorder=2)
+    # Bar labels sit above their bar, so a bar near the average has its label
+    # crossing the dashed avg line — the dash struck straight through "$284K",
+    # "$282K" and "$298K" on Austin (Aaron, 2026-08-29). A white halo lets the
+    # line pass BEHIND the number instead of through it; zorder keeps it there.
+    _halo=dict(boxstyle='square,pad=0.12', facecolor='white', edgecolor='none')
     for _i,_v in enumerate(_val):
-        _ax.text(_i,_v+ (max(_val)*0.02 if _val else 0), f"${_v/1000:.0f}K", ha='center', va='bottom', color=_NV, fontsize=10, fontweight='bold')
+        _ax.text(_i,_v+ (max(_val)*0.02 if _val else 0), f"${_v/1000:.0f}K", ha='center',
+                 va='bottom', color=_NV, fontsize=10, fontweight='bold',
+                 bbox=_halo, zorder=5)
     _ax.set_xticks(list(_x)); _ax.set_xticklabels([(l.split()[0][:3]+" '"+l.split()[-1][2:]) if ' ' in l else l for l in _lab], fontsize=10)
     _ax.set_ylim(0, (max(_val)*1.20 if _val else 1)); _ax.get_yaxis().set_visible(False)
     for _sp in ['top','right','left']: _ax.spines[_sp].set_visible(False)
     _ax.spines['bottom'].set_color(_BMUTED); _ax.tick_params(colors=_TK,length=0)
     [_t.set_color(_NV) for _t in _ax.get_xticklabels()]
-    if _val: _ax.text(len(_val)-0.5,_avg, f"  avg ${_avg/1000:.0f}K", color=_OR, fontsize=11, va='center', fontweight='bold')
+    # The avg label sits just ABOVE the dashed line, not centred on it. va='center'
+    # drew the orange text straight through the dash (Aaron, 2026-08-29). The offset
+    # is a share of the axis so it holds at any revenue scale.
+    if _val:
+        _ax.text(len(_val)-0.5, _avg + max(_val)*0.025, f"  avg ${_avg/1000:.0f}K",
+                 color=_OR, fontsize=11, va='bottom', fontweight='bold')
     SM_PNG=os.path.join(ASSETS,'sm_monthly.png'); _fig.savefig(SM_PNG,dpi=170,facecolor='white',bbox_inches='tight',pad_inches=0.12); _plt.close(_fig)
 
 TICKET_PNG = None
@@ -1164,7 +1183,8 @@ subprocess.run([sys.executable, STRIP, _B, _C], check=True)   # GC the orphan ->
 prs = Presentation(_C)
 if ODD:
     try:
-        product_mix_slide.add_product_mix_slide(prs, ODD, ASSETS, before_title="Program Overview")
+        _MODULE_NOTED.append(product_mix_slide.add_product_mix_slide(
+            prs, ODD, ASSETS, before_title="Program Overview")[0])
         print("product mix slide regenerated from ODD")
     except Exception as e:
         print("!! product-mix regen failed:", repr(e))
@@ -1173,6 +1193,7 @@ if ODD:
     try:
         _s, _x = excluded_accounts_slide.add_excluded_accounts_slide(
             prs, ODD, ASSETS, after_title="Product Mix")
+        _MODULE_NOTED.append(_s)
         print("excluded accounts slide built from ODD (%s eligible / %s excluded of %s)"
               % (f"{_x['elig_total']:,}", f"{_x['excluded_total']:,}", f"{_x['total']:,}"))
         if _x["flags"]:
@@ -1236,9 +1257,14 @@ def _note_for(t, idx):
     if "questions" in tl or "agenda" in tl or tl.strip()=="appendix": return "Source: section slide (static)."
     return "Source: %s — responder / new-account analytics; associational, not causal where noted." % ODD_SRC
 _S2 = list(prs.slides)
+_keep = {id(x) for x in _MODULE_NOTED}
+_written = 0
 for _i, _sl in enumerate(_S2):
+    if id(_sl) in _keep:
+        continue
     _sl.notes_slide.notes_text_frame.text = _note_for(_title_of(_sl), _i)
-print("source notes written:", len(_S2))
+    _written += 1
+print(f"source notes written: {_written} ({len(_keep)} kept from their own module)")
 
 # Per-mailing respondent counts for the by-Offer slide. They used to sit under each
 # x-axis label as "(n=...)", which was unreadable the moment a client had more than a

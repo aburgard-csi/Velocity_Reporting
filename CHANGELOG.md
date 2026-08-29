@@ -23,6 +23,55 @@ Nothing yet.
 Everything the 2026.08 client decks were built with. Cut on the day the Summit
 slides went to print; the next Summit is November 2026.
 
+### 2026-08-29 — Excluded Accounts explains OPEN accounts only
+
+The slide answered "why is any account on file outside ARS", so its largest bar was the
+closed book — an account that is closed is outside ARS by definition and explains nothing.
+Dormant and inactive accounts were a second bar, which conflates "this account is not
+active" with "this OPEN account is not eligible". Neither is a reason.
+
+The population is now the open book. Reasons are product code, no debit card, and an
+account-level remainder. The closed and dormant counts are still computed and named in the
+source note, so the scope is stated rather than implied.
+
+The tiles now reconcile — open accounts = open-and-excluded + open-and-eligible. The
+eligible tile counts OPEN eligible accounts and says so; the whole-book figure includes
+dormant accounts the core still flags eligible (147 on 1204), which left the three tiles
+147 apart with nothing on the slide to explain the gap.
+
+### 2026-08-29 — a slide module's own source note is no longer overwritten
+
+`build_ars_gen`'s note pass wrote a title-keyword note onto every slide, including the ones
+Product Mix and Excluded Accounts had already written for themselves — losing the
+population, eligibility column and scope those modules actually know. It now skips slides
+whose module wrote a note. Not "skip any slide that already has one": the template shell
+carries stale dummy-client notes that must be replaced.
+
+### 2026-08-29 — ICS and MRPC read the VIP store, and only the VIP store
+
+`resolve_client_json` no longer falls back to `build/{ics,mrpc}_pipeline/data/`, and those
+folders are deleted. They held copies that drifted: the Drive store carried 2026-08-29
+pulls while the repo still had 2026-08-10, and a build reading the repo shipped month-old
+figures that validated perfectly because they were internally consistent. Two stores for
+one fact is the problem. Every active ICS and MRPC client was confirmed present in
+`Inputs/VIP Data/` first; the only files that existed solely in the repo were two
+`_PARTIAL` captures the store's README already records as not copied.
+
+### 2026-08-29 — two chart collisions
+
+*Monthly Summary — Last 12 Months.* The orange average label was drawn with `va='center'`
+on the dashed average line, so the dash ran through the text. It now sits just above the
+line. The same dash also struck through any bar label near the average — `$284K`, `$282K`
+and `$298K` on Austin — so bar labels carry a white halo and the line passes behind them.
+
+*Responder Activity: Before vs After by Offer.* The axis labels the newest mailing on top
+of a strided tick list, and appended it blindly. Austin 1075 has ten mailings and a stride
+of two, so ticks ran `... 8, 9` and "Nov25"/"Feb26" printed on top of each other. The
+neighbouring tick is dropped rather than crowded.
+
+
+---
+
 ### 2026-08-29 — the figure sidecar now reaches the deck that ships
 
 `build_ars_gen` names its sidecar after the deck IT wrote — the ARS component. For a

@@ -4,7 +4,13 @@ excluded_accounts_slide.py — the ARS "Excluded Accounts" slide, inserted direc
 after "Product Mix & ARS Eligibility".
 
 Product Mix shows what IS eligible. This slide answers the next question: of the
-accounts on file, which ones ARS never sees, and why.
+OPEN accounts on file, which ones ARS never sees, and why.
+
+Scope — open accounts only (Aaron, 2026-08-29). A closed or charged-off account
+is outside ARS by definition and explains nothing; a dormant or inactive one is a
+different question from "why is this OPEN account not eligible". Both are still
+counted and named in the slide's source note, so the scope is stated rather than
+implied, but neither is drawn as a reason.
 
 ARS workflow only. Like product_mix_slide it refuses to build when the ODD has no
 "<Mon><yy> Elig" column, so a non-ARS dump cannot produce a meaningless slide.
@@ -28,7 +34,7 @@ against the flag on real client data (1509 Texas Bay, 72,059 accounts, May26):
                     a suppression code. "Not mailed" is the absence of a value.
 
 So the slide carries two funnels, kept apart on purpose: an ELIGIBILITY waterfall
-(every account, counted once, in the first reason that applies) and a MAILING
+(every OPEN account, counted once, in the first reason that applies) and a MAILING
 line for eligible accounts that were not sent an offer.
 
 A reason that is genuinely near-zero for a client is STATED in words, not drawn as
@@ -192,10 +198,20 @@ def extract_exclusions(odd_source):
     # each counted once, in the first reason that applies.
     o = pd.concat(chunks) if chunks else pd.DataFrame(columns=list(want) + ["elig", "isopen"])
     open_n = int(o["isopen"].sum()) if len(o) else 0
-    ie = o[~o["elig"]] if len(o) else o               # live but not eligible
-    not_open = ~ie["isopen"] if len(ie) else ie
-    n_status = int(not_open.sum()) if len(ie) else 0
-    r0 = ie[~not_open] if len(ie) else ie             # open and not eligible
+    # The slide explains excluded OPEN accounts only (Aaron, 2026-08-29). A closed
+    # or charged-off account is outside ARS by definition and explains nothing; a
+    # dormant or inactive one is a different question from "why is this open
+    # account not eligible". Both are still counted, and named in the source note
+    # so the scope is stated rather than implied — they are just not reasons.
+    n_status = int((~o["isopen"] & ~o["elig"]).sum()) if len(o) else 0
+    # Eligible among OPEN accounts, so the tiles reconcile:
+    #   open accounts = open-and-excluded + open-and-eligible.
+    # The whole-book eligible count (elig_all) includes dormant accounts the core
+    # still flags eligible — 147 on 1204 — and using it here left the three tiles
+    # 147 apart with no way for a reader to see why.
+    elig_open = int((o["isopen"] & o["elig"]).sum()) if len(o) else 0
+    r0 = o[o["isopen"] & ~o["elig"]] if len(o) else o   # open and not eligible
+    ie = r0
     in_excl = r0["Prod Code"].isin(excl_codes) if len(r0) else r0
     n_prod = int(in_excl.sum()) if len(r0) else 0
     rest = r0[~in_excl] if len(r0) else r0
@@ -234,7 +250,7 @@ def extract_exclusions(odd_source):
     return dict(
         month_label=month_label, elig_col=elig_col, mail_col=mail_col if has_mail else None,
         total=tot, closed=closed, open_total=open_n,
-        elig_total=elig_all, excluded_total=len(ie) + closed,
+        elig_total=elig_all, elig_open=elig_open, excluded_total=len(ie),
         n_status_excluded=n_status,
         status_other=sorted(status.items(), key=lambda kv: -kv[1]),
         excl_products=excl_products, n_excl_codes=len(excl_codes),
@@ -251,10 +267,11 @@ def render_chart(data, assets_dir):
     os.makedirs(assets_dir, exist_ok=True)
     use_font("Carlito")
 
-    # Closed and charged-off accounts are one bucket: the closed book (Aaron, 2026-08-28).
-    rows = [("Closed Book (closed + charged off)", data["closed"])]
-    if data["n_status_excluded"]:
-        rows.append(("Dormant / inactive status", data["n_status_excluded"]))
+    # Reasons an OPEN account is not eligible. Closed / charged-off and
+    # dormant / inactive accounts are excluded from the slide's population
+    # entirely (Aaron, 2026-08-29) — they are not reasons, they are a different
+    # book. Their counts are stated in the source note.
+    rows = []
     if data["n_prod_excluded"]:
         rows.append((f"Product not in ARS ({data['n_excl_codes']} codes)",
                      data["n_prod_excluded"]))
@@ -327,16 +344,17 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     _pill(s, f"{data['month_label']} Data")
     _tb(s, 0.5, 1.12, 12.3, 0.5,
-        "Why accounts on file are outside ARS. Each account is counted once, under "
+        "Why OPEN accounts are outside ARS. Each account is counted once, under "
         "the first reason that applies.",
         14, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     excl_all = data["excluded_total"]
-    share = round(excl_all / data["total"] * 100) if data["total"] else 0
-    tiles = [(f"{data['total']:,}", "Accounts on file", NAVY),
-             (f"{excl_all:,}", "Outside ARS", ORANGE),
-             (f"{share}%", "Share of accounts on file", NAVY),
-             (f"{data['elig_total']:,}", "ARS-eligible accounts", NAVY)]
+    open_n = data["open_total"]
+    share = round(excl_all / open_n * 100) if open_n else 0
+    tiles = [(f"{open_n:,}", "Open accounts", NAVY),
+             (f"{excl_all:,}", "Open, outside ARS", ORANGE),
+             (f"{share}%", "Share of open accounts", NAVY),
+             (f"{data['elig_open']:,}", "ARS-eligible open accounts", NAVY)]
     for i, (v, l, f) in enumerate(tiles):
         _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f)
 
@@ -386,6 +404,11 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
         PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     src = (f"Source: client ODD, {data['month_label']} snapshot ({data['elig_col']}). "
+           f"Population: the {data['open_total']:,} OPEN accounts on file. Outside this "
+           f"slide: {data['closed']:,} closed or charged-off accounts, and "
+           f"{data['n_status_excluded']:,} dormant/inactive accounts that are not "
+           f"eligible — both are a different book, not a reason an open account is "
+           f"excluded. "
            f"Excluded product codes derived per client as those with no eligible open "
            f"account. Reason order: status, product code, debit card. "
            + " ".join(notes))

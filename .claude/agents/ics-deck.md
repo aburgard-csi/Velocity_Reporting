@@ -52,7 +52,8 @@ ICS is **data-driven and client-agnostic**, like MRPC. All numbers live in a per
 JSON data sheet; the scripts render every chart and build the whole deck from it.
 
 **Files:**
-- `build/ics_pipeline/data/<id>_ics.json` — per-client data sheet. Sections: `meta`,
+- `Inputs/VIP Data/ICS/<id>-<Name>/<id>_ics.json` — per-client data sheet, resolved with
+  `rpe_env.resolve_client_json("<id>", "ics")`. Sections: `meta`,
   `referrals` (PTD/YTD/prev-month/goal, `trend`, `by_branch`), `performance`, `revenue`
   (components), `monthly_detail` (cohort by opening month — interchange/NSF-OD/spread/
   other REVENUE, avg balance, accounts opened, cumulative), `financial_summary`,
@@ -70,7 +71,7 @@ JSON data sheet; the scripts render every chart and build the whole deck from it
 **Run:**
 ```
 cd build/ics_pipeline
-python3 build_ics_gen.py data/<id>_ics.json templates/ics_template.pptx "<out>.pptx"
+python3 build_ics_gen.py <id> templates/ics_template.pptx "<out>.pptx"   # <id> resolves via Inputs/VIP Data/
 python3 ../../validation/validate_deck.py "<out>.pptx"   # 0 FAIL to ship
 ```
 

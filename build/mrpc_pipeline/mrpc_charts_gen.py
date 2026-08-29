@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Data-driven MRPC chart renderer.
 
-Reads a per-client MRPC data sheet (JSON, see data/<id>_mrpc.json) and renders
+Reads a per-client MRPC data sheet (JSON, from Inputs/VIP Data/) and renders
 every MRPC chart for ANY client into an output directory. Charts are padded to
 the exact aspect ratio of their slide slot so the build script can swap them in
 without distortion.

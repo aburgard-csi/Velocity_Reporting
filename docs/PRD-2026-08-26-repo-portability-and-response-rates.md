@@ -162,7 +162,8 @@ Nothing outstanding.
   writes there must be either idempotent or written somewhere it never needs
   removing.
 
-- **`ics_pipeline/data/` and `mrpc_pipeline/data/` hold CLIENT DATA**, not
+- **`ics_pipeline/data/` and `mrpc_pipeline/data/` held CLIENT DATA** (deleted
+  2026-08-29; the store is `Inputs/VIP Data/`), not
   runtime fixtures assembled from the VIP dashboards — `1549-Wellworth Bank`,
   `1705_ics.json` and the like,
   correctly gitignored and untracked. They therefore have to resolve through

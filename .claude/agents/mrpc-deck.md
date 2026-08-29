@@ -57,7 +57,8 @@ Marine-hardcoded, per-client manual edits. (The old `Combined Deck/mrpc_charts.p
 `swap_mrpc.py` are Marine-hardcoded and retired for new builds.)
 
 **Files:**
-- `build/mrpc_pipeline/data/<id>_mrpc.json` — the per-client data sheet. **This is where
+- `Inputs/VIP Data/MRPC/<id>-<Name>/<id>_mrpc.json` — the per-client data sheet, resolved
+  with `rpe_env.resolve_client_json("<id>", "mrpc")`. **This is where
   VIP-pulled numbers go.** Schema sections: `meta` (client, period, `has_business`),
   `enrollments_by_month`, `channel`, `performance_vs_goal`, `retention` (+ `cancellations_by_reason`),
   `revenue`, `key_metrics`, `card_billing`. Series that VIP does not label (per-month tier
@@ -74,7 +75,7 @@ Marine-hardcoded, per-client manual edits. (The old `Combined Deck/mrpc_charts.p
 **Run:**
 ```
 cd build/mrpc_pipeline
-python3 build_mrpc_gen.py data/<id>_mrpc.json templates/mrpc_template.pptx "<out>.pptx"
+python3 build_mrpc_gen.py <id> templates/mrpc_template.pptx "<out>.pptx"   # <id> resolves via Inputs/VIP Data/
 python3 ../../validation/validate_deck.py "<out>.pptx"   # 0 FAIL to ship
 ```
 
@@ -82,7 +83,7 @@ python3 ../../validation/validate_deck.py "<out>.pptx"   # 0 FAIL to ship
 Premium Cards → **MRPC Enrollments / Performance / Retention / Revenue to FI**; canvas charts
 — read visually / hover tooltips; direct dashboard URLs 404 and reset the client, so navigate
 via the left-nav and keep the client selector on the target) → **write the numbers into
-`data/<id>_mrpc.json`** → run the build. When new numbers are pulled from VIP, always add
+`Inputs/VIP Data/MRPC/<id>-<Name>/<id>_mrpc.json`** → run the build. When new numbers are pulled from VIP, always add
 them to the data sheet so the build stays repeatable — do not edit charts by hand.
 
 **Tiers / Business — client-dependent; do not assume.** VIP splits **Personal** into

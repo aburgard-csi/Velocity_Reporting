@@ -243,7 +243,7 @@ steel); the goal line is dropped when the network goal dwarfs current volume. Se
 ## MRPC pipeline (data-driven)
 MRPC decks build from a per-client JSON data sheet via `build/mrpc_pipeline/`
 (`mrpc_charts_gen.py` renders charts, `build_mrpc_gen.py` builds the deck from
-`mrpc_template.pptx`). VIP-pulled numbers go into `data/<id>_mrpc.json` — never hand-edit
+`mrpc_template.pptx`). VIP-pulled numbers go into `Inputs/VIP Data/MRPC/<id>-<Name>/<id>_mrpc.json` — never hand-edit
 charts. See the `mrpc-deck` subagent for the schema and run steps.
 ## MRPC enrollment tier colors (Aaron, 2026-07-24 — callouts MATCH the bars)
 **Gold = orange, Platinum = GRAY (steel #9DB8CC), Business = NAVY — in the chart bars AND
