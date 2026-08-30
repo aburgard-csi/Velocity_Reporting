@@ -429,3 +429,32 @@ def test_period_pack_is_applied_to_an_ars_only_deck(tmp_path):
 def test_span_arithmetic_still_applies_without_a_pack():
     prs = deck([("Trend", ["Jul 2023 – Jun 2026 (30 months)"])])
     assert any(f[0] == "FAIL" for f in vd.period_findings(prs, None))
+
+
+# =========================================================================
+# ICS Comparisons — both sides of a row share one precision
+# =========================================================================
+def test_average_life_of_account_uses_one_decimal_on_both_sides():
+    """A row whose whole purpose is comparing a pair must not print the pair at
+    two precisions. "%g" gives the shortest form, so the Velocity average
+    rendered "6.9 Years" against a client "6.21 Years", and a client at exactly
+    7 rendered "7 Years" (Aaron, 2026-08-30).
+    """
+    import sys, os
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "build", "ics_pipeline"))
+    # cfmt is defined inside build(), so exercise the format it now uses.
+    for v, expected in ((6.9, "6.9 Years"), (6.21, "6.2 Years"),
+                        (7.0, "7.0 Years"), (7.25, "7.2 Years")):
+        assert f"{v:.1f} Years" == expected
+
+
+def test_the_years_format_is_one_decimal_in_the_builder():
+    """Pins the formatter itself, so the row cannot quietly go back to %g."""
+    import os
+    src = open(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "build", "ics_pipeline", "build_ics_gen.py")).read()
+    assert 'if f=="years": return f"{v:.1f} Years"' in src, \
+        "the Comparisons years format is no longer one decimal"

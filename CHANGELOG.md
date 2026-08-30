@@ -14,6 +14,32 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-08-30 — Average Life of Account prints one decimal on both sides
+
+The ICS Comparisons row compared a pair at two precisions: the Velocity average
+rendered "6.9 Years" against a client "6.21 Years". `cfmt`'s `years` format used
+`{v:g}`, which prints the shortest form — so it also gave a client at exactly 7 a
+bare "7 Years". Both sides go through the one formatter, so `{v:.1f}` fixes the
+pair. Affects 1075 (7.66 -> 7.7), 1509 (7.05 -> 7.0), 1539 (7.24 -> 7.2) and 1734
+(6.21 -> 6.2); those four decks were rebuilt and reissued, one value each and
+nothing else touched.
+
+1537, 1632 and 1676 have no Comparisons slide to fix — their workbooks are 2026.06
+and 2026.07 against a 2026.08 deck, so their financial detail is suppressed by the
+stale-workbook rule. Checked rather than assumed, since "the slide is missing" and
+"the fix broke the slide" look the same from the outside.
+
+### 2026-08-30 — promote_month.py, and its archive stamp comes from the clock
+
+The staging-to-Outputs step is now a script in the repo rather than one written
+per run. It archives whatever a deck supersedes, and leaves a deck alone when its
+rendered content is identical to the delivered copy — a rebuild that changed
+nothing should not churn the archive and bury the copies that matter.
+
+Its date stamp was a literal, which dated four archives to the wrong day and
+collided with the previous run, producing "-2" and "-3" suffixes. Now derived from
+today; the four mis-stamped files were renamed.
+
 ### 2026-08-29 — a whole deck is built in the test suite
 
 `tests/test_golden_deck.py` runs the real chain end to end — oddd_optimize,

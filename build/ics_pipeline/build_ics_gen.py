@@ -820,7 +820,11 @@ def build(d, static_path, out, referrals_only=False):
             if f=="usd0": return f"${v:,.0f}"
             if f=="pct0": return f"{v:.0f}%"
             if f=="pct1": return f"{v:.1f}%"
-            if f=="years": return f"{v:g} Years"
+            # One decimal on BOTH sides of the row. "%g" prints the shortest form,
+            # so the Velocity average rendered "6.9 Years" against a client
+            # "6.21 Years" — two precisions in a row whose whole purpose is
+            # comparing the pair (Aaron, 2026-08-30).
+            if f=="years": return f"{v:.1f} Years"
             return f"{v:g}"
         yy=2.15
         for mm in bm["metrics"]:
