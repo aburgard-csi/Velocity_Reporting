@@ -87,6 +87,10 @@ template placeholder means SM. Verified 2026-08-28.
   2026-10-31 and they will not receive another Executive Review before it does. Do not
   build 2026.08 or any later cycle. Their inputs (ODD, 2026.08 workbook, 2026.08 MRPCPM)
   are still on disk and must not be taken as a signal to build.
+- **2026-08-30 — 1732 is not an RPE client** (Aaron). It was named as ICS-only on
+  2026-08-28 and no data for it ever existed on this machine — no ODD extract, no
+  workbook, no VIP sheet, no Drive folder. Confirmed as not on the RPE list at all, so the
+  gap is closed rather than left open: nothing is built for it and nothing is missing.
 - **2026-08-29 — 1204 is "First State Bank - Michigan"** (Aaron). Was delivered as
   "FSB Michigan" for 2026.08 while its workbook said "First State Bank-MI". The roster
   name is now the delivery name and the builders follow it; 2026.08 was rebuilt and
@@ -103,13 +107,7 @@ template placeholder means SM. Verified 2026-08-28.
 
 These are stated as open questions, not assumptions.
 
-1. **1732 — no such client on this machine, and no longer explainable as a typo.** Named
-   as ICS-only on 2026-08-28, but there is no 1732 anywhere: no ODD extract, no workbook,
-   no ICS or MRPC data folder, no client folder in Drive. The obvious candidate for a
-   transposition was 1658, but 1658 has since been confirmed off RPE entirely, so that
-   reading is out. Either 1732 is a client whose data has never reached this machine, or
-   the id is wrong. Nothing is built for it until confirmed.
-2. **Client logos** exist for 1075, 1509, 1537, 1539, 1549, 1676 only. Every other client
+1. **Client logos** exist for 1075, 1509, 1537, 1539, 1549, 1676 only. Every other client
    builds its Agenda slide without one — see CLAUDE.md **File locations**.
 
 ## What is NOT a signal to build

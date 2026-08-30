@@ -50,8 +50,11 @@ def test_stopped_clients_are_not_built(cid, reason, roster):
     assert cid not in ids(roster), f"{cid} should not build — {reason}"
 
 
-def test_unknown_client_1732_is_not_built(roster):
-    """clients.md lists it as an unresolved gap; nothing is built until confirmed."""
+def test_1732_is_not_built(roster):
+    """Confirmed not an RPE client at all (Aaron, 2026-08-30). It was named as
+    ICS-only on 2026-08-28 and no data for it ever existed here. The assertion
+    stays: it was on a list once, and a roster edit that reintroduced it would
+    otherwise build a client that does not exist."""
     assert "1732" not in ids(roster)
 
 
