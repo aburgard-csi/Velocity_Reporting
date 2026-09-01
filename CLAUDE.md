@@ -27,13 +27,22 @@ set per machine in `.env`. Never hardcode a path or a Drive id in code — if a 
 aren't where `RPE_DATA_ROOT` says, ask Aaron to point at the specific file rather than
 guessing, but do not re-ask the whole walk-through each session.
 
-**This Mac has Google Drive mounted** (corrected 2026-08-28 — this section previously said it
-did not, and named `C:\Data Pipelines\...` as the only source. Both `~/My Drive/...` and the
-`.env` value below resolve today):
+**Google Drive is the source for inputs AND outputs, on every machine (Aaron, 2026-08-31).**
+Point `RPE_DATA_ROOT` at the Drive copy of `Work/RPE Pipeline` and read and write everything
+there. Drive is where Aaron works, so it is the copy that is current; a local tree goes stale
+the moment a workbook or VIP pull lands on Drive and not on it.
 
 ```
+# Mac  (Google Drive for Desktop)
 RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pipeline
+# Windows  (Drive mounted as a letter — this machine, confirmed 2026-08-31)
+RPE_DATA_ROOT=G:\My Drive\Work\RPE Pipeline
 ```
+
+Aaron may lose Drive access later, and if he does the answer is to repoint `RPE_DATA_ROOT`
+in `.env` — nothing else. That is the whole reason the path is resolved through
+`rpe_env` and never written into code: **do not hardcode a path or a Drive id anywhere,**
+and do not reintroduce a per-machine branch in the build code.
 
 | Input | Folder under `RPE_DATA_ROOT` |
 | --- | --- |
@@ -74,13 +83,18 @@ die for want of somewhere to put its bookkeeping.
 the old **Client Presentations** drop and the per-client `Clients/<Client Name> <clientid>/`
 copy — do not deliver to client folders.
 
-**On the CSI/Cowork machine** the same tree is mounted from a plain local drive at
-`C:\Data Pipelines\RPE Pipeline\` (moved off OneDrive to stop sync corruption — Aaron
-2026-07-17), with `Inputs\ODDD`, `Inputs\ARS & MRPC Reports`, and `Outputs` under it. Set
-`RPE_DATA_ROOT` to that root there. **Write hazard on those mounts:** they allow creating and
-copying files but NOT deleting — `rm` returns "Operation not permitted". Copy-to-deliver
-works; if a file must be replaced or removed, ask Aaron. Confirm the writable target per
-session.
+**There is no RPE tree on `C:` on this machine — Drive is the only source (2026-08-31).**
+`C:\Data Pipelines\RPE Pipeline\` was the CSI/Cowork root after the move off OneDrive
+(Aaron, 2026-07-17). It is gone: `C:\Data Pipelines\` now holds only `Renewals Pipeline`,
+a different project that has its own `Inputs\` and `Outputs\` and is easy to mistake for
+this one at a glance. Do not point `RPE_DATA_ROOT` anywhere under `C:\Data Pipelines\`.
+A wrong root here fails loudly rather than quietly — `rpe_env.data_root()` raises on a
+path that is not a directory — so the risk is not a silent stale build; it is wasting
+time looking for inputs that were never there.
+
+**Write hazard on mounted folders.** Some mounts allow creating and copying files but NOT
+deleting — `rm` returns "Operation not permitted". Copy-to-deliver works; if a file must be
+replaced or removed, ask Aaron. Confirm the writable target per session.
 
 ## Shared conventions (all programs)
 
@@ -314,13 +328,49 @@ leverage, seamless, delve, and the banker-deck list — engine, lever, lift (as 
 "ARS Lift Matrix" as a proper slide name is fine), ramping, healthy, predominantly,
 companion, seasoned book, annuity. No superlatives or unsupported higher/lower claims.
 
+**Describing movement — the +/-2% band (Aaron, 2026-08-31).** A sentence that says a
+measure moved must agree with the figures beside it:
+
+| Change | Say |
+| --- | --- |
+| within **+/-2%** | "almost flat" |
+| **positive** | state the increase — the figures and the % |
+| **negative** | say it did not have an impact on that measure |
+
+The verb is DERIVED, never written as a constant. The Average Ticket caption hardcoded
+"ticket holds through response" and shipped that over declines of 5.2% to 8.6% on six
+2026.08 decks (1509, 1537, 1539, 1549, 1676, 1705); the same sentence hardcoded "monthly
+swipes rise", which real clients happen to do, so it went unseen until the golden deck's
+synthetic ODD fell 3.0% and still said "rise". Both now follow the data
+(`build_ars_gen.py` slide 11, `ticket_chart.py`), as does the chart title above the bars.
+
+**A claim with no figure behind it is not checkable.** "NSF/OD activity stayed roughly
+flat" shipped in Marine FCU commentary while NSF/OD had risen 27% (0.40 -> 0.50 per
+responder per month) in the extract that slide was built from. Nothing contradicted it
+because nothing had to: the clause carried no number. State the figures, or do not make
+the claim.
+
+**`validate_deck.claim_consistency_findings` FAILs a mismatch.** It reads one sentence at
+a time and matches each claim to its NEAREST figure pair. It distinguishes a COMPARISON
+("responders carry lower balances than non-responders, $924 vs $2,477" — two groups, one
+moment) from a MOVEMENT ("spend rose from $556 to $1,077" — one measure, two times);
+reading the first as the second failed six correct slides. It also honours negation, so
+"did not increase" is not read as an increase. See `tests/test_claim_consistency.py`,
+where half the cases are the false positives that had to be designed out.
+
 ## Cadence
+
+All three programs deliver **monthly** — one deck per client per month, per the table
+below. Nothing in this table is quarterly: where a quarterly input exists (the ICS
+workbook) it gates which SECTIONS carry current figures, never whether the deck ships.
+The Executive Summit one-pagers are a separate, non-monthly delivery — see
+**Executive Summit one-pagers** below.
 
 | Program | When | Scope |
 | --- | --- | --- |
 | ARS | Monthly | Every ARS client, each month — MM or SM path per client |
 | MRPC | Monthly | Every MRPC client, each month |
-| ICS | Quarterly full refresh; monthly referral update | Referrals come from VIP monthly. **Financial detail ships ONLY when the ICS workbook is for the deck's own period (Aaron, 2026-08-28).** This REPLACES the previous carry-forward rule: a monthly build used to carry the last workbook's financial sections forward, which kept them auditable in the source notes but dated them as current on the slide face — 1537 and 1676 both stamped "PTD · August 2026" on figures from 2026.06 and 2026.07 workbooks. The builder now resolves the newest ICS workbook for the client from `Inputs/ARS & MRPC Reports/` and, if its period differs from the deck's, omits the workbook-driven sections entirely. Referrals, Referral Trend, Results by Branch and the education slides are unaffected. Missing-section guard still stops a build whose data sheet was never populated. |
+| ICS | Monthly | **The ICS deck ships monthly like the other two (Aaron, 2026-08-31)** — what is quarterly is the WORKBOOK, not the delivery. Referrals come from VIP monthly. **Financial detail ships ONLY when the ICS workbook is for the deck's own period (Aaron, 2026-08-28).** This REPLACES the previous carry-forward rule: a monthly build used to carry the last workbook's financial sections forward, which kept them auditable in the source notes but dated them as current on the slide face — 1537 and 1676 both stamped "PTD · August 2026" on figures from 2026.06 and 2026.07 workbooks. The builder now resolves the newest ICS workbook for the client from `Inputs/ARS & MRPC Reports/` and, if its period differs from the deck's, omits the workbook-driven sections entirely. Referrals, Referral Trend, Results by Branch and the education slides are unaffected. Missing-section guard still stops a build whose data sheet was never populated. |
 
 **ICS before the first workbook — referrals-only builds (Aaron, 2026-08-27).** A client can be
 live on ICS and generating referrals before their first ICS workbook ever lands (Wellworth 1549).
@@ -339,6 +389,82 @@ advertise sections it lacks. It is **opt-in only**: without the flag the missing
 still stops the build, so a client whose data sheet was simply never populated cannot silently
 ship a short section. Combined decks handle the shorter section automatically — `assemble_combined.py`
 selects a program's slides by exclusion, not by fixed index.
+
+### Executive Summit one-pagers — NOT a canned deliverable
+
+**The Summit one-pagers are hand-built, per attendee, and are never generated on a schedule
+(Aaron, 2026-08-31).** Summits run a couple of times a year and the one-pager goes only to
+clients who are ATTENDING. It is a selective document: the point is to show that attendee
+their strongest metrics, which is a judgement call about that client, at that Summit, for
+that audience. That judgement is Aaron's — it is not a template fill and there is no
+"correct" set of figures to automate toward.
+
+So:
+
+- **Do not add the one-pager to the monthly run.** `scripts/build_month.py` builds the
+  monthly ARS/ICS/MRPC reviews and must not learn to emit one-pagers. It does not today —
+  keep it that way.
+- **Do not build one for a client who is not attending**, and do not build the full roster
+  "so they are ready". Ask Aaron which attendees need one.
+- **Do not pick the metrics.** `build/ars_pipeline/build_ars_onepager.py` renders a
+  one-pager from figures it is given; which story it tells is Aaron's call. Ask rather
+  than choosing what looks best.
+- The monthly reviews are the opposite in every respect — every client, every month, same
+  slides, no curation. Conflating the two has caused real errors: a monthly deck's
+  reporting month was once derived from the twice-yearly Summit date, which is wrong ten
+  months out of twelve (fixed 2026-08-29, commit `02def05`).
+
+The Summit slide that every monthly deck carries is a different thing again: a standing
+title/branding slide inserted by `build/summit_slide.py`, unrelated to who attends. No
+builder depends on the date printed on it.
+
+## Delivery dashboard
+
+```
+python3 scripts/dashboard.py [--period 2026.09] [--port 8787] [--no-source]
+```
+
+Serves `http://127.0.0.1:8787/` — data readiness, what is built, and what still
+needs sending, per client for one period. Loopback only: it exposes a write
+endpoint and the delivery log is not public. `scripts/deck_status.py <period>
+--json out.json` produces the same document without a browser.
+
+**Where each fact comes from.** The dashboard invents nothing; it displays
+`deck_status.collect()`.
+
+| Fact | Source |
+| --- | --- |
+| Who gets a deck | `clients.md`, via `build_month.read_roster` — the same parser the builder uses |
+| Has the data team landed it | `\\PADMIS105\Velocity_company\Aburgard\ODDD\<YYYY.MM Mon>\` and `\\PADMIS105\Velocity_clientreports\<YYYY.MM>\<Account Manager>\` |
+| Can the build run | `Inputs/` on Drive — the copy the builders actually read |
+| Built | `Outputs/<id>-<period>-*.pptx` |
+| Sent | `Build Artifacts/deliveries.json` on Drive |
+
+Override the share paths with `RPE_SRC_ODDD` / `RPE_SRC_REPORTS`; they are never
+hardcoded, for the same reason `RPE_DATA_ROOT` is not.
+
+**The CSI shares need the VPN (Aaron, 2026-08-31).** Off VPN they are not empty,
+they are *unknown*, and the dashboard says so rather than reporting a full cycle
+of phantom gaps. Drive columns stay accurate either way.
+
+**Sent is recorded, never inferred.** A deck in `Outputs/` proves it was BUILT.
+Nothing on disk knows whether it reached the client, so sent-state is written to
+`Build Artifacts/deliveries.json` by the dashboard's Mark sent button (Aaron,
+2026-08-31) — bookkeeping, so it stays out of `Outputs/`. A damaged log raises
+rather than reading as "nothing sent", which would invite sending twice.
+
+**A Drive ODD extract is only current if the SOURCE says so.** `Inputs/ODDD/`
+holds `<id>_ODDD.zip` with no period in the name, overwritten in place each
+month — so last month's extract sits at the same path under the same name and
+"a file is there" does NOT mean this period's data is there. The dashboard
+reports that as **stale**, and stale blocks exactly as hard as missing: a build
+on the previous month's ODD completes, validates, and reports the wrong month.
+Off VPN the period cannot be confirmed and is reported as unknown, not current.
+
+**ICS workbooks arrive by email, not on the share (Aaron, 2026-08-31).** They
+have no source-side signal, so their source column is `n/a` and a missing one
+does not block — without a workbook for the period the ICS section builds
+referrals-only, which is a valid deck.
 
 ## Data sources by program (do not cross these)
 
@@ -373,6 +499,9 @@ This is the readme index — update it whenever files are added, removed, or mov
 
 **`scripts/`**
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
+- `build_month.py` — builds the monthly ARS/ICS/MRPC reviews for one period from the `clients.md` roster. Never emits Summit one-pagers.
+- `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
+- `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
 - `build_ars_gen.py` — the ARS deck assembler: populates the `ars_template.pptx` shell, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.
