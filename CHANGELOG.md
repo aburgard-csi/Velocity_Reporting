@@ -14,6 +14,38 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-01 — NSF/OD year-over-year compares a year, and the Reg E vintage axis follows the data
+
+Two month literals typed into `metrics_gen.py`, both found while surveying how
+dates are rendered on chart axes.
+
+`nsf_yoy` searched the NSF series for the row labelled `'Jun 25'` and compared it
+to the LAST row, so the tile was year-over-year only for a June deck. A July-2026
+deck compared Jun 25 to Jul 26 — thirteen months — under a tile captioned "Items
+YoY". Any client whose series starts after Jun 2025 found no row and fell to an
+`else 0` branch, printing a phantom 0%. The comparison is now the same month a
+year earlier, found by month arithmetic; when the extract carries no such month
+the metric is `None` and the tile reads "n/a" with a builder warning, rather than
+0%. This moves the number on ARS slide 25 for every client whose extract does not
+end in June.
+
+The tile's own caption was stale too. `(Jun 25 → Jun 26)` uses two-digit years and
+`NSF/OD (June)` carries no year, so neither matched the as-of caption pass or the
+stale-caption gate, and both shipped the reference client's months on every deck.
+Both are now written from the data — the caption names the two months the figure
+actually compared.
+
+`rege_vintage` drew its axis from a typed `range(2018, 2027)`. An account opened
+outside that range was bucketed, counted toward the pool, and then dropped from
+the chart — silently, because the chart still looked complete. The axis is now
+the years present in the data. Nothing changes for a 2026 extract; the fix is
+against January 2027.
+
+Tests added for both, and each was confirmed to fail against the old code. The
+vintage one shifts the fixture's newest cohort forward a year and re-runs the
+pack, because no assertion on the fixture's own year spread can catch a cap that
+sits above it.
+
 ### 2026-08-30 — Average Life of Account prints one decimal on both sides
 
 The ICS Comparisons row compared a pair at two precisions: the Velocity average
