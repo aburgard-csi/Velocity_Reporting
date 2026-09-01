@@ -4,15 +4,58 @@ Behavior changes to the deck pipelines. The point of this file is that a
 reversal like the 2026-08-20 one below should be findable without reading an
 80KB source file.
 
-Record anything that changes a number on a client-facing slide, changes where a
-number is sourced from, or changes what a slide claims. Refactors and layout
-tweaks don't need an entry.
+Record corrections and changes (Aaron, 2026-09-01): anything that changes a
+number on a client-facing slide, changes where a number is sourced from, changes
+what a slide claims, or changes what a slide RENDERS. A fix that moves no figure
+still belongs here — the MRPC retention line below moved no figure and could not
+be seen on any deck that carried it. Judging an entry by whether a number moved
+is how a correction goes unrecorded.
 
 Format: newest first, dated, with the reason — not just the change.
 
 ---
 
 ## Unreleased
+
+### 2026-09-01 — MRPC overlay lines and value labels are cased, not drawn white
+
+`STYLE.md` told the MRPC renderer to draw any line overlaid on the bars in white
+so it would read over the navy. It read over the navy and nowhere else. Every
+segment crossing the GAP between two bars, and any point rising above a bar top,
+rendered white-on-white and vanished — so the Retention "Still Active" line was
+invisible for its whole length on the 2026.08 decks, leaving only the ringed
+markers, and its legend swatch was blank for the same reason. Aaron caught it on
+the 1502 Capital Bank deck.
+
+The same mistake sat one layer down in `chart_perf`: the Enrollments VALUE LABELS
+were white too. On 1502 the five zero-enrollment months have no bar behind them
+(`new_checking_approx` is null, so the bar height derives from the enrollment
+count), and five real values printed white on white.
+
+Both are now navy with a white casing — `_overlay_line()` and `_cased_text()` in
+`mrpc_charts_gen.py`, one definition each. A casing removes the dependency on
+what happens to sit behind a given mark; choosing a different flat color would
+only move the failure to a different background. Making the labels navy exposed a
+collision the white had been hiding: they sat on their own line markers, because
+the offset was a fraction of the axis maximum while the marker stays 6pt. They
+now clear it by a fixed offset in POINTS.
+
+White is still correct where the ground is guaranteed, and those were left alone:
+marker faces with a colored ring, the white pad that masks a line running behind
+a label, the separator between stacked bar segments and pie wedges, and text on
+an opaque navy/orange patch. The other four chart renderers were swept and label
+above the mark in navy or orange on the open canvas, which is background-independent.
+
+**No client-facing figure moves — every MRPC deck renders differently.** The
+retention line and the Performance vs Goal labels appear where they previously
+did not. 1502's 2026.08 deck was rebuilt and redelivered (0 FAIL, gate PASS);
+other MRPC clients pick this up on their next build.
+
+Standing-rule check added: `tests/test_chart_colors.py` reads the five chart
+renderers rather than the rendered PNGs — so it needs no client data and no
+fixture month — and fails if a mark is drawn in the canvas color again. It is
+verified against the exact lines of both defects and against six legitimate white
+usages it must not flag.
 
 ### 2026-09-01 — the ODD's `<mon> MTD` column is NSF/OD ITEMS, not fee income
 

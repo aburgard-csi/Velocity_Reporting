@@ -493,7 +493,11 @@ This is the readme index — update it whenever files are added, removed, or mov
   here, NOT inferred from whether an input file exists: CoastLife 1705 kept producing an
   ICS section after cancelling because their ICS data was still on disk. Check it before
   building, and update it when a program starts or stops.
-- `CHANGELOG.md` — behavior changes that move a client-facing number or its source.
+- `CHANGELOG.md` — **the record of corrections and changes** (Aaron, 2026-09-01): a
+  moved number or source, a changed claim, AND a change to what a slide renders.
+  Post to it whenever you change pipeline behavior. This used to say "changes that
+  move a client-facing number or its source", and that reading kept the MRPC
+  invisible-retention-line fix out of the file entirely.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
 - `docs/` — `PRD-2026-08-26-repo-portability-and-response-rates.md`.
 
