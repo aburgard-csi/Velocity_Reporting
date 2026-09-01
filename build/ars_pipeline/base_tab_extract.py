@@ -7,6 +7,7 @@ figures the standard MM pipeline produces. Usage:
 import sys,json,datetime,openpyxl
 def load(p): return openpyxl.load_workbook(p,read_only=True,data_only=True)
 def ml(v): return v.strftime("%b %Y") if isinstance(v,datetime.datetime) else v
+def mt(v): return v.strftime("%b%y") if isinstance(v,datetime.datetime) else v
 def rowvals(ws,r): return [ws.cell(r,c).value for c in range(1,ws.max_column+1)]
 def find_row(ws,label,c=3,r1=8,r2=60):
     for r in range(r1,r2):
@@ -40,6 +41,7 @@ def extract(wb):
     ri=find_row(amr,"Total Interchange Revenue"); rn=find_row(amr,"Total NSF Revenue")
     iv=rowvals(amr,ri); nv=rowvals(amr,rn)
     months=[(ml(hdr[i]),(iv[i] or 0)+(nv[i] or 0)) for i in range(len(hdr)) if isinstance(hdr[i],datetime.datetime)]
+    month_toks=[mt(h) for h in hdr if isinstance(h,datetime.datetime)]
     out["monthly_rev_last12"]=months[-12:]
     out["monthly_rev_sum12"]=round(sum(v for _,v in months[-12:]))
     out["monthly_rev_avg12"]=round(out["monthly_rev_sum12"]/12)
@@ -53,14 +55,22 @@ def extract(wb):
     mos=[ml(v) for v in khdr if isinstance(v,datetime.datetime)]
     card={m:round(((tot.get(m) or 0)-(non.get(m) or 0))*1000) for m in mos}
     tail=mos[-36:]
+    tail_toks=[mt(v) for v in khdr if isinstance(v,datetime.datetime)][-36:]
     out["swipespend_36"]=[(m,round(spend.get(m,0),2),card.get(m,0)) for m in tail]
     # Mail Response Summary (recent mailings): month, NU5+, threshold-met
     mr=wb["Mail Response Summary"]; rows=[]
     for r in range(9,mr.max_row+1):
         d=mr.cell(r,2).value
         if isinstance(d,datetime.datetime):
-            rows.append((ml(d), mr.cell(r,4).value, mr.cell(r,6).value))  # NU5+, ThresholdMet
-    out["mailings_recent"]=list(reversed(rows[-12:]))   # rows are oldest-first; take newest 12
+            rows.append((ml(d), mr.cell(r,4).value, mr.cell(r,6).value, mt(d)))  # NU5+, ThresholdMet
+    out["mailings_recent"]=[r[:3] for r in reversed(rows[-12:])]   # rows are oldest-first; take newest 12
+    # The axis token beside every month-labelled series. Chart renderers read
+    # these; they never slice a prose label. The workbook hands us real
+    # datetimes, so the token is emitted at source rather than parsed back out
+    # of "%b %Y".
+    out["axis_months"]={"monthly_rev_last12":month_toks[-12:],
+                        "swipespend_36":tail_toks,
+                        "mailings_recent":[r[3] for r in reversed(rows[-12:])]}
     return out
 
 wb=load(sys.argv[1]); res=extract(wb)

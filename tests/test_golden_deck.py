@@ -142,3 +142,32 @@ def test_no_real_client_name_appears(name, deck):
     notes = " ".join(s.notes_slide.notes_text_frame.text
                      for s in prs.slides if s.has_notes_slide)
     assert name not in joined + notes
+
+
+def test_the_data_pack_carries_axis_tokens_for_every_month_series(deck):
+    """Phase 1 of the axis standardization, checked where the renderers read it.
+
+    Both packs the ARS charts consume — the ODD metrics and the workbook base —
+    carry an `axis_months` token series beside each month-labelled series, so a
+    renderer never has to cut a prose label down to make a tick.
+    """
+    from periods import axis_label, parse_month
+
+    metrics = json.loads(open(deck["metrics"]).read())
+    base = json.loads(open(deck["base"]).read())
+
+    for pack, name in ((metrics, "metrics"), (base, "base")):
+        ax = pack.get("axis_months")
+        assert isinstance(ax, dict) and ax, f"{name}.json carries no axis_months"
+        for series, toks in ax.items():
+            assert toks, f"{name}.axis_months['{series}'] is empty"
+            for t in toks:
+                axis_label(t)          # raises if it is not a month
+
+    for series in ("monthly_rev_last12", "swipespend_36", "mailings_recent"):
+        toks = base["axis_months"][series]
+        assert len(toks) == len(base[series]), (
+            f"base.{series}: {len(toks)} tokens against {len(base[series])} rows")
+        for tok, row in zip(toks, base[series]):
+            assert parse_month(tok) == parse_month(row[0]), (
+                f"base.{series}: token {tok!r} against label {row[0]!r}")

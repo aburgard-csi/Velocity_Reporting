@@ -7,12 +7,13 @@ have to be found by reading slides.
 """
 import datetime
 import pytest
-from periods import Period, parse_month, month_diff, shift
+from periods import (Period, parse_month, month_diff, shift,
+                     axis_label, axis_labels, is_axis_label)
 
 
 # --- parsing every form the pipeline uses --------------------------------
 @pytest.mark.parametrize("token", ["Jul26", "Jul 2026", "July 2026", "Jul. 2026",
-                                   "2026-07", "07-2026"])
+                                   "Jul 26", "Jul'26", "2026-07", "07-2026"])
 def test_parse_month_accepts_pipeline_forms(token):
     assert parse_month(token) == datetime.date(2026, 7, 1)
 
@@ -142,3 +143,49 @@ def test_reporting_month_env_overrides_everything(monkeypatch):
     import build_ars_onepager as op
     monkeypatch.setenv("RPE_PERIOD", "2027.03")
     assert op._reporting_month("/x/1204-2026.08-ARS-Client.pdf") == "March 2027"
+
+
+# --- the axis vocabulary --------------------------------------------------
+# One form on every time axis. Nine were rendering across the three programs
+# before this, because each renderer cut a prose label down with its own slice.
+
+@pytest.mark.parametrize("form", ["Jul26", "Jul 2026", "July 2026", "Jul 26",
+                                  "Jul'26", "2026-07", "07-2026"])
+def test_axis_label_is_one_form_whatever_it_is_given(form):
+    assert axis_label(form) == "Jul'26"
+
+
+def test_axis_label_round_trips(): 
+    """A rendered tick parses back to the month it names."""
+    assert parse_month(axis_label("Jul26")) == datetime.date(2026, 7, 1)
+
+
+def test_axis_label_keeps_the_year():
+    """Two charts used to drop it. A 12-month window always crosses a year."""
+    assert axis_label("Dec25") != axis_label("Dec26")
+    for m in ("Jan26", "Sep26", "Dec26"):
+        assert axis_label(m).endswith("'26")
+
+
+@pytest.mark.parametrize("bad", ["", None, "Smarch 2026", "2026", "Jul"])
+def test_axis_label_refuses_what_it_cannot_read(bad):
+    with pytest.raises(ValueError):
+        axis_label(bad)
+
+
+def test_axis_labels_names_the_field_it_choked_on():
+    """A VIP month we cannot read stops the build and says which one."""
+    with pytest.raises(ValueError) as e:
+        axis_labels(["Jul26", "Aug26", "???"], field="referrals.trend.months")
+    assert "referrals.trend.months[2]" in str(e.value)
+
+
+@pytest.mark.parametrize("tick", ["Jul'26", "2024", "2026 YTD", "Pre-2018"])
+def test_is_axis_label_accepts_the_standard(tick):
+    assert is_axis_label(tick)
+
+
+@pytest.mark.parametrize("tick", ["Jul", "Jul 26", "Jul26", "Jul '26", "07-2026",
+                                  "July 2026", "26"])
+def test_is_axis_label_rejects_the_forms_being_retired(tick):
+    assert not is_axis_label(tick)

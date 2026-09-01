@@ -216,6 +216,10 @@ def extract(path):
                   "per-account-per-month = cohort revenue / accounts opened / "
                   "months open." % n),
         "months": [md.cell(hdr_row, c).value.strftime("%b %y") for c in tail],
+        # The axis token beside the prose label. The chart renderers read this;
+        # they never slice "months" ("Jul 26" was being cut to a bare "Jul" on
+        # the per-account grid, on a series that spans a year boundary).
+        "axis_months": [md.cell(hdr_row, c).value.strftime("%b%y") for c in tail],
         "accounts_opened": [int(x) for x in tser(r_open)],
         "cumulative_accounts": [int(x) for x in tser(r_cum)],
         "avg_balance": tser(r_bal),

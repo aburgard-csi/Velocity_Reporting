@@ -410,6 +410,13 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `fit_layout.py` — layout-fit pass + 10pt slide numbers; run by every builder before save.
 - `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
   used by the ICS builder and the validator. Never eyeball whether a label fits.
+- `axis.py` — the month axis for ALL THREE programs: which ticks appear (thinned above
+  14 points, newest point always labelled) and at what angle (0 / 30 / 45, measured
+  through `textfit`, never typed per chart). `periods.axis_label` decides what a tick
+  SAYS — one form, `Jul'26` (Aaron, 2026-09-01) — and takes any month form the pipeline
+  carries, raising rather than letting an unread value reach an axis. Series feed it the
+  `axis_months` tokens the data packs emit; a renderer never slices a prose label. See
+  `docs/PRD-2026-09-01-date-label-standardization.md`.
 - `branch_names.py` — branch id → name lookup shared by the ARS chart renderers.
 - `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib

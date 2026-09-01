@@ -187,3 +187,69 @@ def test_rege_vintage_axis_is_not_capped_at_a_typed_year(odd_csv, tmp_path):
         f"accounts opened in {shifted} are missing from the vintage axis {shown} — "
         f"the axis is capped rather than derived from the data")
     assert sum(r[1] for r in m["rege_vintage"]) == m["rege_vintage_pool"]
+
+
+# --- axis months: one token series per month-labelled chart ---------------
+# Phase 1 of the axis standardization. The renderers read these instead of
+# cutting a prose label down with their own slice.
+
+def _series_len(metrics, name):
+    """How many rows the series these tokens belong to actually has."""
+    if name == "take_branch_monthly":
+        # one row per branch, each carrying one column per month
+        rows = metrics["take_branch_monthly"]
+        return len(rows[0]) - 4 if rows else 0
+    return len(metrics[name])
+
+
+def test_axis_months_is_emitted(metrics):
+    ax = metrics.get("axis_months")
+    assert isinstance(ax, dict) and ax, "metrics_gen emitted no axis_months"
+    for name in ("ranking", "sustained", "before_after", "reach",
+                 "nsf_series", "openings", "take_branch_monthly"):
+        assert name in ax, f"no axis tokens for '{name}'"
+
+
+def test_every_axis_token_reaches_the_standard_form(metrics):
+    from periods import axis_label, is_axis_label
+    for name, toks in metrics["axis_months"].items():
+        for t in toks:
+            assert is_axis_label(axis_label(t)), f"{name}: {t!r} does not render"
+
+
+def test_axis_tokens_line_up_with_their_series(metrics):
+    """A parallel list that falls out of step with its rows mislabels every bar."""
+    for name, toks in metrics["axis_months"].items():
+        assert len(toks) == _series_len(metrics, name), (
+            f"{name}: {len(toks)} tokens against {_series_len(metrics, name)} rows")
+
+
+def test_axis_tokens_name_the_same_month_their_label_does(metrics):
+    """The token is the row's own month, not a neighbour's."""
+    from periods import parse_month
+    pairs = [("ranking", lambda r: r[0]), ("sustained", lambda r: r[0]),
+             ("reach", lambda r: r[0]), ("nsf_series", lambda r: r[0]),
+             ("openings", lambda r: r[0]), ("before_after", lambda r: r["m"])]
+    for name, label_of in pairs:
+        for tok, row in zip(metrics["axis_months"][name], metrics[name]):
+            assert parse_month(tok) == parse_month(label_of(row)), \
+                f"{name}: token {tok!r} against label {label_of(row)!r}"
+
+
+def test_take_branch_tokens_carry_the_year_the_label_lost(metrics):
+    """take_months is bare "%b" — the only series whose label cannot be parsed
+    back, which is why its tokens come from the months themselves."""
+    from periods import parse_month, MONTH_ABBR
+    toks = metrics["axis_months"]["take_branch_monthly"]
+    assert len(toks) == len(metrics["take_months"])
+    for tok, short in zip(toks, metrics["take_months"]):
+        d = parse_month(tok)
+        assert d is not None and MONTH_ABBR[d.month - 1] == short
+    assert len({t[-2:] for t in toks}) >= 1 and all(len(t) == 5 for t in toks)
+
+
+def test_axis_months_is_ordered_oldest_first(metrics):
+    from periods import parse_month
+    for name, toks in metrics["axis_months"].items():
+        dates = [parse_month(t) for t in toks]
+        assert dates == sorted(dates), f"{name} is not in month order: {toks}"

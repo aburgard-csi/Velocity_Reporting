@@ -70,6 +70,14 @@ def build(odd_csv, out):
         "monthly_rev_avg12": round(sum(v for _, v in rev12) / 12),
         "swipespend_36": swipes36,
         "mailings_recent": mail12,
+        # The axis token beside each month series — what the real extractors emit
+        # since 2026-09-01, and what the chart renderers read instead of slicing
+        # the prose label.
+        "axis_months": {
+            "monthly_rev_last12": list(ms[-12:]),
+            "swipespend_36": list(ms[-36:]),
+            "mailings_recent": [m for m in ms[-12:] if m in mail_months][:12],
+        },
         "dco_eligible": 9800,
     }
     json.dump(d, open(out, "w"), indent=1)

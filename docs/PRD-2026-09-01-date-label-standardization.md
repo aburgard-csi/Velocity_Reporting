@@ -2,7 +2,9 @@
 
 Date: 2026-09-01
 Owner: Aaron Burgard
-Status: Proposed. Nothing implemented.
+Status: Phases 0-1 shipped 2026-09-01 (`build/axis.py`, `periods.axis_label`,
+`axis_months` in the ARS and ICS packs). Phase 2 onward not started.
+The two defects below are fixed.
 
 ---
 
@@ -107,7 +109,7 @@ and every other series should.
 
 ## Plan
 
-**Phase 0 — the two helpers.** `periods.axis_label(token)` and
+**Phase 0 — the two helpers. SHIPPED.** `periods.axis_label(token)` and
 `axis_labels(tokens)`, pure-string, in `periods.py`: it already parses all four
 month forms via `parse_month`, and `validate_deck.py` imports it without the
 build tree, so matplotlib must stay out. The tick placement — thinning,
@@ -115,12 +117,25 @@ rotation, endpoint pinning — goes in a new `build/axis.py` beside `shapes.py`,
 which all three programs can reach. `parse_month` returning `None` raises with
 the field name; it never falls through to the raw string.
 
-**Phase 1 — producers emit tokens.** `metrics_gen`, `base_tab_extract`,
-`extract_base_gen` and `ics_workbook_extract` add a token series (`Jul26`,
-`Period.token()`) alongside the label series they already write. Additive, so
-nothing breaks mid-migration. The VIP dashboards we do not control, so their
-months are normalized on read through `parse_month` — which is the reason this
-phase is cheap: the parser already accepts every form VIP has produced.
+**Phase 1 — producers emit tokens. SHIPPED.** `metrics_gen`, `base_tab_extract`,
+`extract_base_gen` and `ics_workbook_extract` each write an `axis_months` block
+of ODD tokens beside the label series they already emit. Additive: no existing
+key changed, so nothing breaks mid-migration.
+
+`parse_month` gained the two forms the pipeline carries but could not read —
+`Jul 26` (every `%b %y` series, and the ICS workbook) and `Jul'26` (so a rendered
+tick round-trips). The VIP dashboards we do not control; their months are
+normalized on read by `month_ticks`. **Whether every VIP export parses is not yet
+proven** — no VIP data was reachable from the machine this was written on. An
+unreadable one raises and names the field, which is the intended failure, but
+Phase 2 is where any surprise surfaces.
+
+The base extractors emit their tokens at source from the workbook's own
+datetimes. `metrics_gen` derives its from the series rows instead: several of
+those loops skip a month, and a parallel list that can fall out of step with its
+own rows is a worse bug than the parse it avoids. `take_branch_monthly` is the
+exception — its labels are bare `%b` with no year to recover, so its tokens come
+from the months themselves.
 
 **Phase 2 — renderers convert, one program at a time.** ARS is 7 charts, ICS 3
 call sites covering 8 charts, MRPC 4. Run `qa_all.py` after each program and

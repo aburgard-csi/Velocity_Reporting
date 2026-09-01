@@ -29,6 +29,9 @@ and the phrase moves with the data.
     p.window(12)              -> ("Aug25", "Jul26")
     p.span_label(36)          -> "Aug 2023 – Jul 2026 (36 months)"
     p.trailing(3)             -> "May–Jul 2026"
+
+Chart TICKS are a separate vocabulary with ONE form, `axis_label` below.
+Prose names a month in full; an axis carries 36 of them across one slide.
 """
 from __future__ import annotations
 
@@ -40,7 +43,8 @@ MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July",
 MONTH_ABBR = [m[:3] for m in MONTH_FULL]
 _ABBR_IDX = {m.lower(): i for i, m in enumerate(MONTH_ABBR)}
 
-# "Jul26" (ODD column form), "Jul 2026", "July 2026", "2026-07", "07-2026"
+# "Jul26" (ODD column form), "Jul 2026", "July 2026", "Jul 26", "Jul'26",
+# "2026-07", "07-2026"
 def _num_month(n):
     """Month abbreviation for 1-12, or None. Guarded: an out-of-range number
     used to index straight into MONTH_ABBR and raise IndexError rather than
@@ -51,6 +55,12 @@ def _num_month(n):
 _TOKEN_FORMS = (
     (re.compile(r"^([A-Za-z]{3})(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
     (re.compile(r"^([A-Za-z]{3,9})\.?\s+(\d{4})$"), lambda m: (int(m.group(2)), m.group(1))),
+    # "Jul 26" — what metrics_gen's %b %y series and the ICS workbook extract
+    # carry. It went unparsed until 2026-09-01, so those series could only be read
+    # by slicing the string, which is what every chart renderer did.
+    (re.compile(r"^([A-Za-z]{3,9})\.?\s+(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
+    # "Jul'26" — the axis form below, so a rendered tick round-trips.
+    (re.compile(r"^([A-Za-z]{3})'(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
     (re.compile(r"^(\d{4})-(\d{2})$"), lambda m: (int(m.group(1)), _num_month(int(m.group(2))))),
     (re.compile(r"^(\d{2})-(\d{4})$"), lambda m: (int(m.group(2)), _num_month(int(m.group(1))))),
 )
@@ -81,6 +91,54 @@ def month_diff(a, b):
 def shift(d, months):
     total = d.year * 12 + (d.month - 1) + months
     return datetime.date(total // 12, total % 12 + 1, 1)
+
+
+# ---------------------------------------------------------------- axis labels
+# The ONE form a chart tick may take (Aaron, 2026-09-01): no space, ASCII
+# apostrophe, two-digit year. It is the narrowest of the forms that keep the
+# year, and the 36-month axes are where width is scarce.
+#
+# Nine forms of "July 2026" were rendering across the three programs before this
+# — Jul, Jul 26, Jul26, Jul'26, Jul '26, Jul 2026 — because each renderer cut a
+# prose label back down with its own string slice. Ask this module instead.
+AXIS_APOS = "'"
+AXIS_MONTH_RE = re.compile(r"^[A-Z][a-z]{2}" + re.escape(AXIS_APOS) + r"\d{2}$")
+# Year axes are a DIFFERENT vocabulary and keep four digits: "2024", "2026 YTD",
+# "Pre-2018". Reg E by Vintage and MRPC Annual Revenue are genuinely annual
+# series; named here so neither gets "standardized" into "'26".
+AXIS_YEAR_RE = re.compile(r"^(?:Pre-)?(?:19|20)\d{2}(?:\s+(?:YTD|PTD|LTD))?$")
+
+
+def axis_label(month):
+    """A month, in any form the pipeline carries, as its chart tick: "Jul'26"."""
+    d = parse_month(month) if isinstance(month, str) else month
+    if d is None:
+        raise ValueError(f"cannot read a month from {month!r}")
+    return f"{MONTH_ABBR[d.month - 1]}{AXIS_APOS}{d.year % 100:02d}"
+
+
+def axis_labels(months, field="months"):
+    """`axis_label` across a series, naming the field when an entry is unreadable.
+
+    An unreadable month RAISES. Passing the raw value through to the axis is how
+    the ICS and MRPC charts came to render whatever the VIP dashboard happened to
+    export that month, and a wrong tick label looks exactly like a right one.
+    """
+    out = []
+    for i, m in enumerate(months):
+        try:
+            out.append(axis_label(m))
+        except ValueError:
+            raise ValueError(
+                f"{field}[{i}]: cannot read a month from {m!r} — an axis is never "
+                f"rendered from an unparsed value") from None
+    return out
+
+
+def is_axis_label(text):
+    """True for a tick this module would have produced — month OR year form."""
+    t = (text or "").strip()
+    return bool(AXIS_MONTH_RE.match(t) or AXIS_YEAR_RE.match(t))
 
 
 class Period:

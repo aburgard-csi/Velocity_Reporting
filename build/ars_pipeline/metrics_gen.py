@@ -813,6 +813,42 @@ if _charts:
             print(f"branch names: {len(_pairs)} of {_tot} branches named ({_cov:.0%})"
                   + (f"; no name in file for {sorted(_unmapped)[:8]}" if _unmapped else ""))
 
+# ---- axis months: the ODD token behind every month-labelled series ----------
+# Chart renderers ask for these; they never read a prose label off a series row.
+# Each chart used to cut one down with its own slice — m.split()[0], c[:3]+c[-2:],
+# .replace(' 20',"'") — which is how nine spellings of one month came to ship in a
+# single combined deck, two of them with the year missing.
+#
+# Derived from the series rows rather than threaded through their loops on purpose:
+# several of those loops skip a month (a mailing with fewer than five responders,
+# a cohort with no post window), and a parallel list that can fall out of step with
+# its own rows is a worse bug than the parse this avoids. parse_month reads every
+# form the pack carries. take_branch_monthly is the exception — its labels are bare
+# "%b" with no year to recover, so its tokens come from the months themselves.
+import os as _os_ax, sys as _sys_ax
+_bdir_ax=_os_ax.path.join(_os_ax.path.dirname(_os_ax.path.abspath(__file__)), _os_ax.pardir)
+if _bdir_ax not in _sys_ax.path: _sys_ax.path.insert(0, _bdir_ax)
+from periods import parse_month as _parse_month
+
+def _axis_tok(v, where):
+    d=_parse_month(v)
+    if d is None:
+        raise SystemExit(f"ERROR: {where} carries {v!r}, which is not a month — "
+                         f"a chart axis is never rendered from an unparsed value")
+    return d.strftime('%b%y')
+
+_ax={'ranking':      [_axis_tok(r[0], 'ranking') for r in M['ranking']],
+     'sustained':    [_axis_tok(r[0], 'sustained') for r in M['sustained']],
+     'before_after': [_axis_tok(e['m'], 'before_after') for e in M['before_after']],
+     'reach':        [_axis_tok(r[0], 'reach') for r in M['reach']],
+     'nsf_series':   [_axis_tok(r[0], 'nsf_series') for r in M['nsf_series']],
+     'openings':     [_axis_tok(r[0], 'openings') for r in M['openings']],
+     'take_branch_monthly': list(tmonths)}
+if M.get('before_after_split'):
+    _ax['before_after_split']=[_axis_tok(e['m'], 'before_after_split')
+                               for e in M['before_after_split']]
+M['axis_months']=_ax
+
 json.dump(M,open(sys.argv[2],'w'),indent=1,default=str)
 print('\nsustained bars:',[(s[0],s[2]) for s in M['sustained']])
 print('ranking last 3:',M['ranking'][-3:])
