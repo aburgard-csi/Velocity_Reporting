@@ -316,5 +316,5 @@ def render_all(data, out_dir):
     print("all mrpc charts done ->", out_dir)
 
 if __name__=="__main__":
-    data=json.load(open(sys.argv[1]))
+    data=json.load(open(sys.argv[1], encoding="utf-8"))
     render_all(data, sys.argv[2])

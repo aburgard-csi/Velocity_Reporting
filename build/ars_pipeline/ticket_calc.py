@@ -52,4 +52,4 @@ R={'segments':segments,'blended':blended,'win':WIN,
    'base_med':round(statistics.median(base_tk),2),'resp_med':round(statistics.median(resp_tk),2),
    'base_swpm':round(bsw_t/len(base_tk)/6,1),'resp_swpm':round(rsw_t/len(resp_tk)/3,1),
    'n_resp':len(base_tk),'win_label':f"{WIN[0]}–{WIN[-1]}"}
-json.dump(R,open(OUT,'w'),indent=1); print(json.dumps(R,indent=1))
+json.dump(R,open(OUT,'w', encoding="utf-8"),indent=1); print(json.dumps(R,indent=1))

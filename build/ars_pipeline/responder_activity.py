@@ -195,7 +195,7 @@ def analyse(path):
 
 if __name__ == "__main__":
     res = analyse(sys.argv[1])
-    json.dump(res, open(sys.argv[2], "w"), indent=1)
+    json.dump(res, open(sys.argv[2], "w", encoding="utf-8"), indent=1)
     print(f"latest {res['latest_month']} | eligible {res['n_eligible']:,} | "
           f"responders {res['n_responders']:,}")
     if "ba_spend_before" in res:

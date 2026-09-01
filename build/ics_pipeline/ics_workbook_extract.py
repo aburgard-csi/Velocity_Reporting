@@ -307,7 +307,7 @@ def main():
     a = ap.parse_args()
 
     sections = extract(a.workbook)
-    data = json.load(open(a.client_json))
+    data = json.load(open(a.client_json, encoding="utf-8"))
 
     populated = [k for k in sections if data.get(k)]
     if populated:
@@ -323,7 +323,7 @@ def main():
         data.update(sections)
         meta = data.setdefault("meta", {})
         meta["workbook"] = os.path.basename(a.workbook)
-        json.dump(data, open(a.client_json, "w"), indent=1, ensure_ascii=False)
+        json.dump(data, open(a.client_json, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
         print(f"  wrote {a.client_json}")
     else:
         print(json.dumps(sections, indent=1)[:1200])

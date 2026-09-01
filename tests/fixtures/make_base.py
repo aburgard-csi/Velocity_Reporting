@@ -72,7 +72,7 @@ def build(odd_csv, out):
         "mailings_recent": mail12,
         "dco_eligible": 9800,
     }
-    json.dump(d, open(out, "w"), indent=1)
+    json.dump(d, open(out, "w", encoding="utf-8"), indent=1)
     return d
 
 

@@ -6,8 +6,8 @@ import numpy as np, json, os
 from PIL import Image
 import sys
 from rpe_env import use_font
-M=json.load(open(sys.argv[1]))
-B=json.load(open(sys.argv[2]))
+M=json.load(open(sys.argv[1], encoding="utf-8"))
+B=json.load(open(sys.argv[2], encoding="utf-8"))
 OUT=sys.argv[3]; os.makedirs(OUT,exist_ok=True)
 from brand import (NAVY, ORANGE, LABEL as GREY, STEEL, TICK,
                    STEEL_SOFT as LIGHT, GOLD, MUTED, HAIRLINE)

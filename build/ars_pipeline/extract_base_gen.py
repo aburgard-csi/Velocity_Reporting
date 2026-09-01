@@ -70,5 +70,5 @@ try:
 except Exception as e:
     pass
 import json as _j
-_j.dump(out, open(sys.argv[2],'w'), indent=1, default=str)
+_j.dump(out, open(sys.argv[2],'w', encoding="utf-8"), indent=1, default=str)
 print('dco_eligible=',out.get('dco_eligible'))

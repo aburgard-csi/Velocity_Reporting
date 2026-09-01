@@ -45,7 +45,7 @@ def build(tmp, **kw):
     for flag, path in kw.items():
         if path:
             cmd += [f"--{flag}", path]
-    r = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO)
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=REPO)
     assert r.returncode == 0, f"assemble failed:\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}"
     return Presentation(out), r.stdout
 
@@ -233,7 +233,7 @@ def test_ars_alone_is_rejected(tmp_path):
     """A single-program deck is the program deck itself, not a combined one."""
     out = os.path.join(str(tmp_path), "x.pptx")
     r = subprocess.run([sys.executable, ASSEMBLE, "--ars", ARS_T, "--out", out],
-                       capture_output=True, text=True, cwd=REPO)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=REPO)
     assert r.returncode != 0
     assert "at least one of" in (r.stderr + r.stdout)
 
@@ -327,7 +327,7 @@ def test_combined_deck_gets_a_merged_sidecar(tmp_path, monkeypatch):
     out = tmp_path / "1075-2026.08-ARS-ICS-MRPC-Austin Bank Results.pptx"
     p = ac.merge_figure_sidecars(str(out), [("ARS", str(ars)), ("ICS", None), ("MRPC", None)])
     assert p and os.path.basename(p) == out.name + ".figures.json"
-    rows = json.load(open(p))["figures"]
+    rows = json.load(open(p, encoding="utf-8"))["figures"]
     assert [r["measure"] for r in rows] == ["ARS:responders_latest_mailing"]
 
 
@@ -345,7 +345,7 @@ def test_measures_are_namespaced_by_program(tmp_path, monkeypatch):
         paths.append((prog, str(d)))
     out = tmp_path / "1075-combined.pptx"
     p = ac.merge_figure_sidecars(str(out), paths + [("ICS", None)])
-    rows = json.load(open(p))["figures"]
+    rows = json.load(open(p, encoding="utf-8"))["figures"]
     assert sorted(r["measure"] for r in rows) == ["ARS:enrollments", "MRPC:enrollments"]
 
     from figures import FigureLog

@@ -31,7 +31,7 @@ def odd_csv():
     if not os.path.exists(ODD_CSV):
         os.makedirs(FIXTURES, exist_ok=True)
         r = subprocess.run([sys.executable, os.path.join(FIXTURES, "make_odd.py"), ODD_CSV],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         assert r.returncode == 0, f"could not generate the ODD fixture:\n{r.stderr[-2000:]}"
     return ODD_CSV
 
@@ -56,6 +56,6 @@ def metrics(odd_csv, tmp_path_factory):
     out = tmp_path_factory.mktemp("metrics") / "metrics.json"
     r = subprocess.run([sys.executable, os.path.join(ARS, "metrics_gen.py"),
                         odd_csv, str(out)],
-                       capture_output=True, text=True, cwd=ARS)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=ARS)
     assert r.returncode == 0, f"metrics_gen failed:\n{r.stderr[-3000:]}"
     return json.loads(out.read_text())

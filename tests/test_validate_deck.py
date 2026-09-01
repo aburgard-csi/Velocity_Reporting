@@ -455,6 +455,6 @@ def test_the_years_format_is_one_decimal_in_the_builder():
     import os
     src = open(os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "build", "ics_pipeline", "build_ics_gen.py")).read()
+        "build", "ics_pipeline", "build_ics_gen.py"), encoding="utf-8").read()
     assert 'if f=="years": return f"{v:.1f} Years"' in src, \
         "the Comparisons years format is no longer one decimal"

@@ -4,7 +4,7 @@ import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import json, sys
 from rpe_env import use_font
-L=json.load(open(sys.argv[1])); OUT=sys.argv[2]
+L=json.load(open(sys.argv[1], encoding="utf-8")); OUT=sys.argv[2]
 from brand import NAVY, ROWALT as GREY, TICK
 use_font("Carlito")
 cols=L['matrix_cols']; mrows=L['matrix_rows']; rev=L['revseg']

@@ -799,7 +799,7 @@ if _charts:
             print(f"branch names: {len(_pairs)} of {_tot} branches named ({_cov:.0%})"
                   + (f"; no name in file for {sorted(_unmapped)[:8]}" if _unmapped else ""))
 
-json.dump(M,open(sys.argv[2],'w'),indent=1,default=str)
+json.dump(M,open(sys.argv[2],'w', encoding="utf-8"),indent=1,default=str)
 print('\nsustained bars:',[(s[0],s[2]) for s in M['sustained']])
 print('ranking last 3:',M['ranking'][-3:])
 print('ba spend before/after mean:',M['ba_spend_before'],M['ba_spend_after'],'median:',M['ba_spend_med_before'],M['ba_spend_med_after'])

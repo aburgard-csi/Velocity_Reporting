@@ -206,4 +206,4 @@ def render_all(d, A, referrals_only=False):
     print("ICS charts ->",A)
 
 if __name__=="__main__":
-    render_all(json.load(open(sys.argv[1])), sys.argv[2])
+    render_all(json.load(open(sys.argv[1], encoding="utf-8")), sys.argv[2])

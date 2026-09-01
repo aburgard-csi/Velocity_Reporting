@@ -478,5 +478,5 @@ if __name__ == "__main__":
     # `1075_mrpc.json` resolves under RPE_DATA_ROOT/Inputs/VIP Data/ first,
     # then the repo's data/ folder.
     from rpe_env import resolve_client_json
-    build(json.load(open(resolve_client_json(sys.argv[1], "mrpc"))),
+    build(json.load(open(resolve_client_json(sys.argv[1], "mrpc"), encoding="utf-8")),
           sys.argv[2], sys.argv[3])

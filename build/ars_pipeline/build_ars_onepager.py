@@ -454,6 +454,6 @@ if __name__ == "__main__":
     base_p, met_p, template, assets, out = sys.argv[1:6]
     resp_p = sys.argv[6] if len(sys.argv) > 6 else None
     os.makedirs(assets, exist_ok=True)
-    build(json.load(open(base_p)), json.load(open(met_p)), template, assets,
-          out, json.load(open(resp_p)) if resp_p else None)
+    build(json.load(open(base_p, encoding="utf-8")), json.load(open(met_p, encoding="utf-8")), template, assets,
+          out, json.load(open(resp_p, encoding="utf-8")) if resp_p else None)
     print(f"wrote {out}")

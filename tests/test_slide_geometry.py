@@ -58,7 +58,7 @@ def test_apply_is_idempotent():
     "build/mrpc_pipeline/build_mrpc_gen.py",
 ])
 def test_every_builder_calls_the_contract(path):
-    src = open(os.path.join(REPO, path)).read()
+    src = open(os.path.join(REPO, path), encoding="utf-8").read()
     assert re.search(r"slide_geometry[.\s]*\n?\s*.*apply\(", src) or \
            "slide_geometry.apply(" in src, f"{path} does not apply the geometry contract"
 
@@ -69,7 +69,7 @@ def test_every_builder_calls_the_contract(path):
 ])
 def test_contract_runs_before_fit_layout(path):
     """fit_layout clamps what the contract positions, so order matters."""
-    src = open(os.path.join(REPO, path)).read()
+    src = open(os.path.join(REPO, path), encoding="utf-8").read()
     assert src.index("slide_geometry.apply(") < src.index("fit_layout.fit(")
 
 

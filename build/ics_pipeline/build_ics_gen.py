@@ -916,5 +916,5 @@ if __name__=="__main__":
     # are real client data and are gitignored, so a fresh checkout on the other
     # machine has the code and none of the inputs (PRD criterion 1).
     from rpe_env import resolve_client_json
-    build(json.load(open(resolve_client_json(_argv[0], "ics"))), _argv[1], _argv[2],
+    build(json.load(open(resolve_client_json(_argv[0], "ics"), encoding="utf-8")), _argv[1], _argv[2],
           referrals_only="--referrals-only" in sys.argv)

@@ -34,11 +34,11 @@ NAME = "Union Financial"
 
 def sh(cmd, cwd=None, stdout_to=None):
     if stdout_to:
-        with open(stdout_to, "w") as out:
+        with open(stdout_to, "w", encoding="utf-8") as out:
             r = subprocess.run([str(c) for c in cmd], stdout=out,
-                               stderr=subprocess.PIPE, text=True, cwd=cwd)
+                               stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", cwd=cwd)
     else:
-        r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, cwd=cwd)
+        r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd)
     assert r.returncode == 0, (
         f"{os.path.basename(str(cmd[1]))} failed:\n{(r.stderr or '')[-2500:]}")
     return r
@@ -115,7 +115,7 @@ def test_no_slide_is_untitled(deck):
 # --- the deck's own gate passes ------------------------------------------
 def test_validate_deck_passes(deck):
     r = subprocess.run([PY, os.path.join(REPO, "validation/validate_deck.py"),
-                        deck["path"], deck["base"]], capture_output=True, text=True)
+                        deck["path"], deck["base"]], capture_output=True, text=True, encoding="utf-8", errors="replace")
     line = next((l for l in r.stdout.splitlines() if "FAIL," in l), "")
     assert line.strip().startswith("0 FAIL"), \
         "\n".join(l for l in r.stdout.splitlines() if "[FAIL" in l) or line

@@ -82,7 +82,7 @@ def render_check(path):
         src=os.path.join(tmp,"deck.pptx"); shutil.copyfile(path,src)
         p=subprocess.run([soffice,"-env:UserInstallation=file://"+os.path.join(tmp,"lo"),
                           "--headless","--convert-to","pdf","--outdir",tmp,src],
-                         capture_output=True,text=True,timeout=300)
+                         capture_output=True,text=True, encoding="utf-8", errors="replace",timeout=300)
         pdf=os.path.join(tmp,"deck.pdf")
         if not os.path.exists(pdf):
             err=(p.stderr or p.stdout or "").strip().splitlines()
@@ -150,7 +150,7 @@ def run_unit_tests():
     if not os.path.isdir(tests):
         return 0, "no tests/ directory"
     r=subprocess.run([sys.executable,"-m","pytest",tests,"-q","--no-header"],
-                     capture_output=True,text=True,cwd=root)
+                     capture_output=True,text=True, encoding="utf-8", errors="replace",cwd=root)
     if r.returncode==5 or "No module named pytest" in (r.stderr or ""):
         return 0, "pytest unavailable — unit suite skipped"
     tail=[l for l in r.stdout.strip().splitlines() if l.strip()]
@@ -168,7 +168,7 @@ def main():
     extra=[a for a in sys.argv[1:]
            if not a.startswith("--") and a != cli_extract]
     targets=[os.path.join(TPL,f) for f in sorted(os.listdir(TPL)) if f.endswith(".pptx")]+extra
-    baseline=json.load(open(BASE)) if os.path.exists(BASE) else {}
+    baseline=json.load(open(BASE, encoding="utf-8")) if os.path.exists(BASE) else {}
     newbase={}; fails=0; drifts=0; skipped_render=0
     if "--no-tests" not in sys.argv:
         tf,tmsg=run_unit_tests()
@@ -184,7 +184,7 @@ def main():
         # actually runs. Pass --extract, or drop a base.json beside the deck.
         ex=_extract_for(t,cli_extract)
         cmd=[sys.executable,os.path.join(HERE,"validate_deck.py"),t]+([ex] if ex else [])
-        p=subprocess.run(cmd,capture_output=True,text=True)
+        p=subprocess.run(cmd,capture_output=True,text=True, encoding="utf-8", errors="replace")
         line=next((l for l in p.stdout.splitlines() if "FAIL," in l),"? ")
         nf=int(line.strip().split()[0]) if line.strip().split()[0].isdigit() else 1
         fails+=nf
@@ -211,7 +211,7 @@ def main():
             for l in p.stdout.splitlines():
                 if "[FAIL" in l: print("     "+l.strip())
     if snap:
-        json.dump(newbase,open(BASE,"w"),indent=0); print(f"\nbaseline snapshot saved ({len(newbase)} decks)")
+        json.dump(newbase,open(BASE,"w", encoding="utf-8"),indent=0); print(f"\nbaseline snapshot saved ({len(newbase)} decks)")
     if skipped_render:
         print(f"\n!!  RENDER CHECK SKIPPED on {skipped_render} deck(s): LibreOffice (soffice) is not\n"
               f"    installed, so \"does this deck actually open\" was NOT verified. Every text and\n"

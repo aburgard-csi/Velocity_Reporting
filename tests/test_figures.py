@@ -90,7 +90,7 @@ def test_conflicts_are_reported_per_measure(fresh):
 def test_dump_and_load_round_trip(fresh, tmp_path):
     fresh.record("m", "1,077", slide("S"), note="caption")
     p = fresh.dump(str(tmp_path / "deck.pptx.figures.json"))
-    assert p and json.load(open(p))["figures"][0]["note"] == "caption"
+    assert p and json.load(open(p, encoding="utf-8"))["figures"][0]["note"] == "caption"
     assert FigureLog.load(p).rows == fresh.rows
 
 

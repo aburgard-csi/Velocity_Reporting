@@ -141,10 +141,10 @@ def deck_tag(progs):
 
 # ----------------------------------------------------------------- build
 def run(cmd, log, stdout_to=None):
-    with open(log, "a") as lf:
+    with open(log, "a", encoding="utf-8") as lf:
         lf.write("\n$ " + " ".join(str(c) for c in cmd) + "\n")
         if stdout_to:
-            with open(stdout_to, "w") as out:
+            with open(stdout_to, "w", encoding="utf-8") as out:
                 r = subprocess.run([str(c) for c in cmd], stdout=out, stderr=lf)
         else:
             r = subprocess.run([str(c) for c in cmd], stdout=lf, stderr=lf)
@@ -163,7 +163,7 @@ def ars_workbook(reports, cid, period):
 
 def build_client(cid, name, mmsm, progs, period, stage):
     d = os.path.join(stage, cid); os.makedirs(d, exist_ok=True)
-    log = os.path.join(d, "build.log"); open(log, "w").close()
+    log = os.path.join(d, "build.log"); open(log, "w", encoding="utf-8").close()
     made = {}
     I = R.inputs(); REPORTS = I / "ARS & MRPC Reports"; ODDD = I / "ODDD"
 
@@ -182,18 +182,18 @@ def build_client(cid, name, mmsm, progs, period, stage):
             dco = sorted(glob.glob(os.path.join(str(REPORTS), f"{cid}-{period}-*DCO*.xlsx")))
             if run([PY, f"{ARSP}/base_tab_extract.py", wb[0]] + ([dco[0]] if dco else []),
                    log, stdout_to=base): return "base_tab_extract", made
-            open(lift, "w").write("{}")
+            open(lift, "w", encoding="utf-8").write("{}")
         # The roster decides the client's name, so it overrides what the workbook
         # carries. build_ars_gen takes NAME from base.json["client"], which for
         # 1204 reads "First State Bank-MI" — renaming only the FILE would leave
         # the cover and every source note still saying the old name.
         try:
-            _b = json.load(open(base))
+            _b = json.load(open(base, encoding="utf-8"))
             if _b.get("client") != name:
                 print(f"    {cid}: workbook says {_b.get('client')!r}; "
                       f"clients.md says {name!r} — using the roster name")
                 _b["client"] = name
-                json.dump(_b, open(base, "w"), indent=1)
+                json.dump(_b, open(base, "w", encoding="utf-8"), indent=1)
         except (OSError, ValueError) as e:
             return f"base.json unreadable ({e})", made
 
@@ -244,7 +244,7 @@ def validate(deck, base=None):
     cmd = [PY, os.path.join(REPO, "validation/validate_deck.py"), deck]
     if base and os.path.exists(base):
         cmd.append(base)
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return next((l.strip() for l in r.stdout.splitlines() if "FAIL," in l), "?")
 
 
@@ -280,7 +280,7 @@ def main():
         results.append((cid, name, progs, err, gate, deck))
 
     json.dump([(c, n, p, e, g, d) for c, n, p, e, g, d in results],
-              open(os.path.join(a.out, "_results.json"), "w"), indent=1)
+              open(os.path.join(a.out, "_results.json"), "w", encoding="utf-8"), indent=1)
     failed = [r for r in results if r[3] or not r[4].startswith("0 FAIL")]
     print("\n" + "=" * 72)
     print(f"{len(results)-len(failed)}/{len(results)} clients resolved without error")
