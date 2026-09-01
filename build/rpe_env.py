@@ -133,11 +133,13 @@ def vip_data() -> Path | None:
     assembled from the VIP dashboards — `1075_mrpc.json` names its own source as
     "VIP MyRewards Premium Cards dashboards (Enrollments, Performance,
     Retention, Revenue to FI) + MRPCPM Analysis workbook". It is real client
-    data, correctly gitignored, so it does not travel with the repo — which
-    means a fresh checkout on the CSI machine has the code and none of the
-    ICS/MRPC inputs, and PRD success criterion 1 ("the same client built on both
-    machines produces identical decks") is unreachable for two of the three
-    programs.
+    data, correctly gitignored, so it does not travel with the repo. That used to
+    mean a fresh checkout on the CSI machine had the code and none of the
+    ICS/MRPC inputs, putting PRD success criterion 1 ("the same client built on
+    both machines produces identical decks") out of reach for two of the three
+    programs. Since 2026-09-01 both machines mount the same Drive tree — the Mac
+    through CloudStorage, Windows at `G:\\My Drive\\Work\\RPE Pipeline` — so the
+    store is wherever RPE_DATA_ROOT points and the gap is closed.
 
     Unlike inputs()/outputs() this never raises: the folder is a migration
     target, and until every client JSON has moved there the repo-local

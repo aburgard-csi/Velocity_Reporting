@@ -74,13 +74,24 @@ die for want of somewhere to put its bookkeeping.
 the old **Client Presentations** drop and the per-client `Clients/<Client Name> <clientid>/`
 copy — do not deliver to client folders.
 
-**On the CSI/Cowork machine** the same tree is mounted from a plain local drive at
-`C:\Data Pipelines\RPE Pipeline\` (moved off OneDrive to stop sync corruption — Aaron
-2026-07-17), with `Inputs\ODDD`, `Inputs\ARS & MRPC Reports`, and `Outputs` under it. Set
-`RPE_DATA_ROOT` to that root there. **Write hazard on those mounts:** they allow creating and
-copying files but NOT deleting — `rm` returns "Operation not permitted". Copy-to-deliver
-works; if a file must be replaced or removed, ask Aaron. Confirm the writable target per
-session.
+**On Windows** the same tree is reached through Google Drive for Desktop at
+`G:\My Drive\Work\RPE Pipeline\` (Aaron, 2026-09-01), with `Inputs\ODDD`,
+`Inputs\ARS & MRPC Reports`, `Inputs\Logos`, `Inputs\VIP Data` and `Outputs` under it. Set
+`RPE_DATA_ROOT` to that root there. This REPLACES `C:\Data Pipelines\RPE Pipeline\`, the
+plain local drive the tree sat on from 2026-07-17; anything still pointing at that path is
+stale.
+
+Both machines now read ONE tree — the Mac's `~/Library/CloudStorage/GoogleDrive-<account>/My
+Drive/Work/RPE Pipeline` and Windows' `G:\My Drive\Work\RPE Pipeline` are the same Drive
+folder under two mount points. That closes the gap `rpe_env.vip_data()` was written around: a
+fresh Windows checkout now has the ICS and MRPC client sheets, not just the code.
+
+**Write hazard — re-confirm it here.** The old `C:\Data Pipelines` mount allowed creating and
+copying files but NOT deleting (`rm` returned "Operation not permitted"). Whether that holds on
+the Drive mount has not been tested. Confirm the writable target per session before a build
+needs to replace a file, and ask Aaron rather than assuming either way. Note also that the
+2026-07-17 move went the other way — off a syncing filesystem, to stop sync corruption; the
+tree is back on one.
 
 ## Shared conventions (all programs)
 

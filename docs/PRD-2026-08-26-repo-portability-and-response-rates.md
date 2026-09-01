@@ -162,6 +162,12 @@ Nothing outstanding.
   writes there must be either idempotent or written somewhere it never needs
   removing.
 
+  **Superseded 2026-09-01:** the tree moved to Google Drive for Desktop at
+  `G:\My Drive\Work\RPE Pipeline`, the same Drive folder the Mac path resolves
+  to. Success criterion 1 is better served by it — both machines now read one
+  tree rather than two copies. Left above as the record of what was decided on
+  2026-08-29; `CLAUDE.md` and `.env.example` carry the live path.
+
 - **`ics_pipeline/data/` and `mrpc_pipeline/data/` held CLIENT DATA** (deleted
   2026-08-29; the store is `Inputs/VIP Data/`), not
   runtime fixtures assembled from the VIP dashboards — `1549-Wellworth Bank`,
