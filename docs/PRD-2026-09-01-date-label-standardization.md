@@ -21,7 +21,7 @@ lands on the slide:
 | image9 Sustained Response | `charts_gen.py:119` | `Jul '26` | `f"{a} '{b[2:]}"` |
 | image10/31 Before & After | `charts_gen.py:196,140` | `Jul26` | `a + b[2:]` |
 | image12 Swipes & Spend (36 mo) | `charts_gen.py:235` | `Jul26` | `a + b[2:]` |
-| image17 Program Reach | `charts_gen.py:281` | `Jul'26` | `.replace(' 20',"'")` |
+| image17 Program Reach | `charts_gen.py:281` | `Jul'26` | `.replace(' 20',"'")` — already the target form |
 | image26 Openings vs Closures | `charts_gen.py:377` | `Jul'26` | `.replace(' ',"'")` |
 | image29 NSF/OD Trend | `charts_gen.py:413` | `Jul26` | `c[:3]+c[-2:]` |
 | image30 Reg E by Vintage | `charts_gen.py:423` | `2026`, `Pre-2018` | year axis (correct, but a fourth vocabulary) |
@@ -81,10 +81,10 @@ reach these.
 
 ## The standard
 
-**Month axes: `Jul '26`.** Three-letter month, space, apostrophe, two-digit
-year. Unambiguous about the year, which `Jul` is not; compact enough for a
-36-tick axis, which `Jul 2026` is not; and already the closest thing to a
-plurality among the nine forms in use.
+**Month axes: `Jul'26`.** Three-letter month, ASCII apostrophe, two-digit year,
+no space (Aaron, 2026-09-01). Unambiguous about the year, which `Jul` is not;
+the narrowest of the forms that keep the year, which matters most on the 36-tick
+axes; and already in use on Program Reach and Openings vs Closures.
 
 **Year axes keep the 4-digit year** — `2024`, `2025`, `2026 YTD`, `Pre-2018`.
 Reg E by Vintage and MRPC Annual Revenue are genuinely annual series. Stating
@@ -95,9 +95,9 @@ not when the series happens to sit inside one calendar year. A form that
 changes shape with the data is a form that is inconsistent by construction.
 
 **Pills adopt the same token.** `07-2026` exists only because `Jul 2026`
-overflowed the pill box. `Jul '26` is the same seven characters as `07-2026`
-and removes a form for free. The descriptive prefixes STYLE.md already
-mandates (`PTD ·`, `Avg:`, `Trailing 12 months`) are unchanged.
+overflowed the pill box. `Jul'26` is shorter still and removes a form for free.
+The descriptive prefixes STYLE.md already mandates (`PTD ·`, `Avg:`,
+`Trailing 12 months`) are unchanged.
 
 **Density and rotation are derived, not typed per chart.** One helper decides
 from the tick count: ≤8 ticks horizontal; 9–14 horizontal if `textfit`
@@ -133,7 +133,7 @@ section.
 **Phase 4 — the gate.** Per the standing rule, add the check that would have
 caught it. A validator rule cannot read a PNG, so the test renders every chart
 from the existing synthetic fixtures (`tests/fixtures/make_odd.py`,
-`make_base.py`) and asserts every x-tick text matches `^[A-Z][a-z]{2} '\d{2}$`
+`make_base.py`) and asserts every x-tick text matches `^[A-Z][a-z]{2}'\d{2}$`
 or the year form. `tests/test_mrpc_charts.py` and the golden-deck test already
 establish the pattern.
 
@@ -173,9 +173,6 @@ derive the upper bound from the snapshot month.
 
 ## Open
 
-- `Jul '26` uses the ASCII apostrophe. A typographic `’` is the correct mark for
-  a client-facing deck and both bundled faces carry it; it is one constant in
-  `periods.py` either way. Aaron's call.
 - Whether Phase 2 ships across a month boundary or all at once. Shipping it
   mid-month means one client's August deck and September deck spell the month
   differently, which is the exact confusion this removes.
