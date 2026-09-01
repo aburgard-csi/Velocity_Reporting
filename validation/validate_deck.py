@@ -516,7 +516,7 @@ def find_period_pack(deck_path):
         p = os.path.join(d, cand)
         if os.path.exists(p):
             try:
-                return json.load(open(p))
+                return json.load(open(p, encoding="utf-8"))
             except Exception:
                 return None
     return None
@@ -731,11 +731,216 @@ def figure_sidecar_findings(deck_path):
     return out
 
 
+
+# ------------------------------------------------------------------ claims
+# A claim about MOVEMENT is checkable arithmetic, and until now nothing checked
+# it. Marine FCU's responder commentary read "NSF/OD activity stayed roughly
+# flat" while NSF/OD had risen 27% (0.40 -> 0.50 per responder per month) in the
+# very extract the slide was built from. Every other gate passed it: the swap
+# landed, the sidecar saw one value per measure, no banned word, nothing
+# overflowed. The sentence was simply not true, and no rule asked.
+#
+# Three things had to be got right before this could FAIL rather than advise.
+#
+# 1. COMPARISON IS NOT MOVEMENT. "Responders carry lower balances than
+#    non-responders (median $924 vs $2,477)" puts two GROUPS side by side at one
+#    moment, and "lower" describes their ordering: $924 < $2,477, so it is
+#    right. Read as a change over time it looks like a 168% RISE, and the first
+#    draft of this rule failed six correct slides exactly that way. The
+#    discriminator is "than", which is what names the other side of a
+#    comparison.
+#
+# 2. A SENTENCE CAN CARRY MORE THAN ONE CLAIM. "ticket holds through response
+#    (mean $56->$53, median $44->$43) while monthly swipes rise 8.9->17.4" holds
+#    two claims and three pairs. Testing every claim against the FIRST pair
+#    failed six more slides, reporting "rise" against the ticket figures when
+#    "rise" plainly belongs to the swipes beside it. Each claim is therefore
+#    matched to its NEAREST pair, and only within CLAIM_WINDOW characters -
+#    proximity, not inference.
+#
+# 3. "DROP" IS A MAILING HERE. In this pipeline a drop is something you send,
+#    not a decline, so "the Jun 2026 drop" is not a movement claim at all.
+#
+# What is checked:
+#
+#   * A stated percentage against its nearest pair. Pure arithmetic -
+#     "$556 to $1,077 (+94%)" either divides out or it does not.
+#   * A movement or flatness word against its nearest pair. "Flat" is held to
+#     Aaron's threshold: within +/-2% is almost flat, outside it is not
+#     (Aaron, 2026-08-31).
+#   * A comparative word against the ordering of its nearest pair.
+#
+# What is deliberately NOT checked: a movement word with no figure near it. An
+# earlier version reported those, and produced 156 findings across 20 files -
+# almost all of them legitimate summary bullets ("Card-holding accounts have
+# grown over the last 36 months") whose evidence is the CHART on the slide, not
+# a number in the prose. A rule that cries wolf 156 times is a rule nobody
+# reads. Catching an unsupported claim needs the DATA, not the text, and that
+# is a cross-check against the metrics pack, not a lint rule.
+_NUM = r"\$?\d[\d,]*(?:\.\d+)?"
+_PAIR_RX = re.compile(
+    r"(?P<a>" + _NUM + r")(?!\s*%)\s*(?:vs\.?|versus|->|\u2192|\bto\b)\s*"
+    r"(?P<b>" + _NUM + r")(?!\s*%)", re.I)
+_PCT = re.compile(r"\(?\s*(?P<sign>[+-]?)\s*(?P<v>\d+(?:\.\d+)?)\s*%\s*\)?")
+_FLAT = re.compile(r"\b(?:roughly |about |essentially |largely |broadly |relatively |"
+                   r"more or less )?(?:flat|unchanged|steady|stable|holds|hold|held|"
+                   r"little changed|no change)\b", re.I)
+# Movement: one measure at two different times.
+_UP_MOVE = re.compile(r"\b(?:rose|risen|rise|rises|increased|increase|grew|grown|"
+                      r"climbed|improved|gained|jumped)\b", re.I)
+_DOWN_MOVE = re.compile(r"\b(?:fell|fallen|declines|declined|decline|decreased|"
+                        r"decrease|reduced|shrank)\b", re.I)
+# Comparative: two things at the same time.
+_MORE_CMP = re.compile(r"\b(?:higher|more|greater|larger|above)\b", re.I)
+_LESS_CMP = re.compile(r"\b(?:lower|less|fewer|smaller|below)\b", re.I)
+_THAN = re.compile(r"\bthan\b", re.I)
+# A negated verb claims the opposite of what it says, so reading "did not
+# increase" as an increase reports the finding backwards.
+_NEGATED = re.compile(r"\b(?:not|no|never|without|n't)\b[^.;]*$", re.I)
+# Metadata and definitions are not claims about a client's results.
+_SKIP_LINE = re.compile(r"^\s*(?:selection|source|note|method|definition)\s*:", re.I)
+
+FLAT_BAND_PCT = 2.0      # Aaron's band: inside this, report as almost flat
+PCT_TOLERANCE = 1.5      # "+94%" against a computed 93.6% is rounding, not a defect
+CLAIM_WINDOW = 80        # how far a claim word may sit from the pair it describes
+
+
+def _f(tok):
+    try:
+        return float(tok.replace("$", "").replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _sentences(text):
+    for part in re.split(r"(?<=[.;!?])\s+|\n+|\s+\u2014\s+", text):
+        part = part.strip()
+        if part:
+            yield part
+
+
+def _nearest(pos, items):
+    """The (start, ...) item closest to `pos`, or None past CLAIM_WINDOW."""
+    best, bestd = None, None
+    for it in items:
+        d = abs(it[0] - pos)
+        if bestd is None or d < bestd:
+            best, bestd = it, d
+    if best is None or bestd > CLAIM_WINDOW:
+        return None
+    return best
+
+
+def claim_consistency_findings(prs):
+    """Movement and comparison claims must agree with the figures beside them."""
+    out = []
+    for idx, blocks in slide_texts(prs):
+        for block in blocks:
+            for s in _sentences(block):
+                if _SKIP_LINE.match(s) or " = " in s:
+                    continue
+                pairs = [(m.start(), m.group("a"), m.group("b"),
+                          _f(m.group("a")), _f(m.group("b")))
+                         for m in _PAIR_RX.finditer(s)]
+                if not pairs:
+                    continue
+                pcts = [(m.start(), m.group("sign"), float(m.group("v")))
+                        for m in _PCT.finditer(s)]
+                comparative = bool(_THAN.search(s))
+                short = s if len(s) <= 90 else s[:87] + "..."
+
+                claims = []
+                for rx, kind in ((_FLAT, "flat"), (_UP_MOVE, "up"), (_DOWN_MOVE, "down"),
+                                 (_MORE_CMP, "more"), (_LESS_CMP, "less")):
+                    for m in rx.finditer(s):
+                        # "did not increase" is not a claim that it increased.
+                        # Without this, a negated verb is read as its opposite
+                        # and reported backwards.
+                        if _NEGATED.search(s[max(0, m.start() - 24):m.start()]):
+                            continue
+                        claims.append((m.start(), kind, m.group(0)))
+
+                for pos, kind, word in claims:
+                    p = _nearest(pos, pairs)
+                    if not p:
+                        continue
+                    _, atok, btok, a, b = p
+                    if a is None or b is None:
+                        continue
+
+                    if kind in ("more", "less"):
+                        # Only a genuine comparison ("X than Y"); otherwise
+                        # "higher"/"lower" is describing a move, handled below.
+                        if not comparative or a == b:
+                            continue
+                        if kind == "less" and a > b:
+                            out.append(("FAIL", idx,
+                                        "text says %r but %s is GREATER than %s - %r"
+                                        % (word, atok, btok, short)))
+                        elif kind == "more" and a < b:
+                            out.append(("FAIL", idx,
+                                        "text says %r but %s is LESS than %s - %r"
+                                        % (word, atok, btok, short)))
+                        continue
+
+                    if comparative or a == 0:
+                        continue
+                    change = 100.0 * (b - a) / a
+
+                    if kind == "flat" and abs(change) > FLAT_BAND_PCT:
+                        out.append(("FAIL", idx,
+                                    "text says %r but %s -> %s is %+.1f%%, outside the "
+                                    "+/-%.0f%% band - %r"
+                                    % (word, atok, btok, change, FLAT_BAND_PCT, short)))
+                    elif kind == "up" and change < -FLAT_BAND_PCT:
+                        out.append(("FAIL", idx,
+                                    "text says %r but %s -> %s FELL %+.1f%% - %r"
+                                    % (word, atok, btok, change, short)))
+                    elif kind == "down" and change > FLAT_BAND_PCT:
+                        out.append(("FAIL", idx,
+                                    "text says %r but %s -> %s ROSE %+.1f%% - %r"
+                                    % (word, atok, btok, change, short)))
+
+                # ONE percentage only. Two or more in a sentence are describing
+                # different things, and attaching them to the single pair nearby
+                # is guesswork: "responders net +26.2% against -17.2%, with
+                # swipes 11.5 -> 16.0" carries two tier-movement rates and one
+                # unrelated pair, and testing either rate against 11.5 -> 16.0
+                # failed a correct slide.
+                for pos, sign, v in (pcts if len(pcts) == 1 else []):
+                    p = _nearest(pos, pairs)
+                    if not p or comparative:
+                        continue
+                    _, atok, btok, a, b = p
+                    if a in (None, 0) or b is None:
+                        continue
+                    change = 100.0 * (b - a) / a
+                    stated = -v if sign == "-" else v
+                    if sign == "" and abs(abs(change) - v) <= PCT_TOLERANCE:
+                        continue
+                    if abs(stated - change) > PCT_TOLERANCE:
+                        out.append(("FAIL", idx,
+                                    "stated %g%% does not match %s -> %s, which is "
+                                    "%+.1f%% - %r"
+                                    % (stated, atok, btok, change, short)))
+    return out
+
 def main():
+    # Findings quote slide text, and these decks are full of em dashes, curly
+    # quotes and arrows. Printing one to a PIPE on Windows encodes as cp1252 and
+    # raises UnicodeEncodeError part-way through the report — the summary line
+    # ("1 FAIL, 21 REVIEW") lands, every finding after it is lost, and the exit
+    # code says 1 with nothing on screen explaining why. A gate that cannot say
+    # what failed is not a gate.
+    for _s in (sys.stdout, sys.stderr):
+        try:
+            _s.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(2)
     prs = Presentation(sys.argv[1])
-    extract = json.load(open(sys.argv[2])) if len(sys.argv) > 2 else None
+    extract = json.load(open(sys.argv[2], encoding="utf-8")) if len(sys.argv) > 2 else None
     texts = slide_texts(prs)
     findings = []  # (level, slide, msg)
     findings += package_findings(sys.argv[1])
@@ -746,6 +951,7 @@ def main():
     findings += period_findings(prs, find_period_pack(sys.argv[1]))
     findings += source_note_findings(sys.argv[1], prs)
     findings += figure_sidecar_findings(sys.argv[1])
+    findings += claim_consistency_findings(prs)
 
     for idx, blocks in texts:
         joined = "  ".join(blocks)
