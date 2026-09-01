@@ -157,6 +157,7 @@ def build(path):
             "Curr Bal": f"{rng.uniform(50, 9000):.2f}",
             "Debit?": "Yes" if has_card else "No",
         }
+        ytd = 0                     # NSF/OD items, calendar-year to date
         for mi, m in enumerate(ms):
             sw = rng.randint(lo, hi) if has_card else 0
             sig = sw // 2; pin = sw - sig
@@ -164,8 +165,17 @@ def build(path):
             r[f"{m} PIN #"] = str(pin)
             r[f"{m} Sig $"] = f"{sig * rng.uniform(18, 55):.2f}"
             r[f"{m} PIN $"] = f"{pin * rng.uniform(12, 40):.2f}"
-            r[f"{m} MTD"] = f"{rng.choice([0, 0, 0, 35, 70]):.2f}"
-            r[f"{m} YTD"] = f"{rng.uniform(0, 400):.2f}"
+            # MTD/YTD are NSF/OD ITEM COUNTS, not dollars — integers, with a
+            # smoothly decaying 0/1/2/3/... frequency, matching every real
+            # extract (see odd_rows.nsf and tests/test_nsf_is_items.py). The
+            # fixture used to write '35.00'/'70.00', which looked like two
+            # $35 fees and taught the wrong meaning.
+            nsf_items = rng.choice([0, 0, 0, 0, 1, 1, 1, 2, 2, 3, 4, 6, 9])
+            r[f"{m} MTD"] = str(nsf_items)
+            # YTD is the calendar-year cumulative of MTD, so it is an integer
+            # of the same unit and never smaller than the month's own count.
+            ytd = nsf_items if m.startswith("Jan") else ytd + nsf_items
+            r[f"{m} YTD"] = str(ytd)
             r[f"{m} Reg E Code"] = "1" if rege else ""
             r[f"{m} Reg E Desc"] = rege
             r[f"{m} OD Limit"] = str(rng.choice([0, 500, 750]))

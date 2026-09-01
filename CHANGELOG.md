@@ -14,6 +14,58 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-01 — the ODD's `<mon> MTD` column is NSF/OD ITEMS, not fee income
+
+`odd_rows.nsf()` documented the `<mon> MTD` column as "NSF/OD fee income", while
+every consumer read it as an item count: `charts_gen` titles it "NSF/OD Items",
+`metrics_gen` names it `items12`/`nsf_last_items`, and `build_lift_matrix`
+multiplies it BY a per-item NSF fee. Two descriptions of one column, with the
+dollar reading only in prose.
+
+Checked against the 2026.08 extracts for 1539, 1705, 1204, 1075, 1549 and 1218
+(~580k account-months): every populated `MTD` cell is a non-negative INTEGER,
+frequencies decay smoothly from 0 through 1, 2, 3, ..., no value carries cents,
+and nothing clusters on a multiple of any fee amount. `<mon> YTD` is the
+calendar-year cumulative of the same integers (19,552 of 19,573 sampled 1539
+accounts reconcile exactly against Jan..Jul MTD). The ODD carries no OD-fee
+dollar column at all — NSF revenue reaches the deck from the workbook's
+"Total NSF Revenue" via `base_tab_extract`. ITEMS is correct.
+
+**No client-facing figure moves.** Nothing on a slide was computed from the
+dollar reading; every deck consumer already treated it as items, and no template
+slide carries "fee income" wording. This is entirely about what the number is
+called. Renamed and corrected:
+
+- `odd_rows.nsf()` — docstring now states ITEM COUNT, with the evidence.
+- `lift_extract` — `fee12` -> `items12`. A `.pkl` cached before today must be
+  regenerated; `build_lift_matrix` now says so instead of raising `KeyError`
+  inside the valuation.
+- `oddd_optimize` — `od_fee_income_MTD` -> `nsf_od_items_MTD`,
+  `od_fee_income_YTD` -> `nsf_od_items_YTD`,
+  `top_branches_by_od_income_latest` -> `top_branches_by_nsf_od_items_latest`.
+  These were formatted with a `$` in `oddd_pack.md`, including in the DERIVED
+  block labelled "for Key Metrics slide" — a mislabelled dollar figure sitting
+  where a deck author would reach for one. Now printed as counts, with a line
+  saying NSF revenue is not in the ODD. Nothing outside the script read the old
+  keys. MTD/YTD/PYTD moved from `money_fams` to `num_fams`; both paths take the
+  same sum, so the totals are unchanged.
+- `.claude/agents/oddd-optimizer.md` — the sanity-check and pack-contents wording.
+- `tests/fixtures/make_odd.py` — the fixture wrote `MTD` as `35.00`/`70.00`, i.e.
+  two $35 fees, teaching the wrong meaning to every test built on it. It now
+  writes small integers, and `YTD` as their calendar-year cumulative.
+
+Standing-rule check added: `tests/test_nsf_is_items.py` pins the meaning from
+both ends — the fixture data must keep the shape of a count (integers, count-scale
+magnitudes, YTD >= MTD), and no module that reads the column may describe it in
+money terms again. The guard is itself tested against the exact lines the defect
+shipped as.
+
+Incidental, same commit: `oddd_optimize` wrote `oddd_pack.md` and
+`oddd_metrics.json` with the platform default encoding, so it died on Windows
+with `UnicodeEncodeError` on the arrow in "mailed -> responded". Both writes are
+now `encoding="utf-8"`. This was blocking all 26 `test_golden_deck` tests on this
+machine.
+
 ### 2026-08-30 — Average Life of Account prints one decimal on both sides
 
 The ICS Comparisons row compared a pair at two precisions: the Velocity average

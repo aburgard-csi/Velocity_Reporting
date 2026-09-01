@@ -10,7 +10,12 @@ Per account it captures:
                    workbook's Segmentation Legend uses to assign a segment.
   * spend12      — 12-month average MONTHLY debit purchases (Sig $ + PIN $).
   * swipes12     — 12-month average MONTHLY swipes.
-  * fee12        — 12-month average MONTHLY NSF/OD fee income (the `MTD` column).
+  * items12      — 12-month average MONTHLY NSF/OD ITEM COUNT (the `MTD`
+                   column). Items, not dollars: build_lift_matrix multiplies
+                   this BY the per-item NSF fee, so a dollar reading here
+                   would price the fee twice. This field was called `fee12`
+                   until 2026-09-01; a `.pkl` cached before then must be
+                   regenerated.
   * eligibility/status fields for population filtering.
 
 Usage:  python3 lift_extract.py <ODDD.zip|.csv> <out.pkl> [n_tier_months] [n_val_months]
@@ -108,11 +113,11 @@ def extract(src, n_tier=TIER_MONTHS, n_val=VAL_MONTHS):
         if len(row) < ncol:
             continue
         tier_sw = sum(num(row[a]) + num(row[b]) for a, b in tier_cols) / n_tier
-        sw = sp = fee = 0.0
+        sw = sp = items = 0.0
         for a, b, c, d, e in val_cols:
             sw += num(row[a]) + num(row[b])
             sp += num(row[c]) + num(row[d])
-            fee += num(row[e])
+            items += num(row[e])
         rec = {k: (row[v].strip() if v is not None else "")
                for k, v in base_cols.items()}
         rec["elig"] = row[elig_c].strip() if elig_c is not None else ""
@@ -120,7 +125,7 @@ def extract(src, n_tier=TIER_MONTHS, n_val=VAL_MONTHS):
         rec["tier_swipes"] = tier_sw
         rec["swipes12"] = sw / n_val
         rec["spend12"] = sp / n_val
-        rec["fee12"] = fee / n_val
+        rec["items12"] = items / n_val
         recs.append(rec)
 
     meta = {"source_file": base, "months": months, "tier_window": tier_win,

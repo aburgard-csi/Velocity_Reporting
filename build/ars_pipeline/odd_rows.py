@@ -82,7 +82,20 @@ def accessors(H):
         return fnum(r, f"{m} Sig $") + fnum(r, f"{m} PIN $")
 
     def nsf(r, m):
-        """NSF/OD fee income for month m (the MTD column)."""
+        """NSF/OD ITEM COUNT for month m (the MTD column).
+
+        ITEMS, not dollars. The ODD carries no OD-fee dollar column at all —
+        NSF revenue comes from the client workbook ('Total NSF Revenue'), never
+        from here. This docstring used to say "fee income", which contradicted
+        every consumer: charts_gen titles it "NSF/OD Items", metrics_gen names
+        it items12/nsf_last_items, and build_lift_matrix multiplies it BY a
+        per-item fee. Confirmed against six 2026.08 extracts (1539, 1705, 1204,
+        1075, 1549, 1218): every populated `{m} MTD` cell is a non-negative
+        INTEGER — 0/1/2/3/... with smoothly decaying frequency, not one value
+        carrying cents, and no clustering on multiples of any fee amount. `{m} YTD` is
+        the calendar-year cumulative of the same integers (19,552 of 19,573
+        sampled 1539 accounts reconcile exactly).
+        """
         return fnum(r, f"{m} MTD")
 
     def personal(r):

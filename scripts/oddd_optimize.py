@@ -26,6 +26,7 @@ Robustness notes (learned from the real files):
     '$'/','/parenthesis-negative money formatting — all normalized.
   * Month columns look like 'May26 Elig', 'Nov24 OD Limit', 'Mar25 Resp',
     'Nov24 Sig $', 'Nov24 MTD', etc. Parsed generically by regex.
+    `<mon> MTD/YTD/PYTD` are NSF/OD ITEM COUNTS, not dollars — see odd_rows.nsf().
 """
 import argparse, csv, json, re, sys, os, io, zipfile
 from collections import defaultdict
@@ -262,7 +263,7 @@ def main():
     regE = defaultdict(lambda: defaultdict(int))      # mkey -> {Accepted/Declined/NoResp}
     campaign = defaultdict(lambda: defaultdict(int))  # 'Mail'/'Resp' -> mkey -> count
     branch_enr = defaultdict(int)                     # branch -> enrolled (latest)
-    branch_od = defaultdict(float)                    # branch -> YTD OD income (latest MTD sum? use latest MTD)
+    branch_od = defaultdict(float)                    # branch -> NSF/OD ITEM COUNT, latest MTD
     product_enr = defaultdict(int)
     status_ct = defaultdict(int)
     status_other_raw = defaultdict(int)  # raw Stat Desc values that fell to 'Other'
@@ -275,8 +276,11 @@ def main():
     reader = pd.read_csv(stream_factory(), skiprows=hdr_idx, usecols=lambda c: c in usecols,
                          dtype=str, chunksize=CHUNK, on_bad_lines="skip")
 
-    money_fams = ["OD Limit", "Sig $", "PIN $", "MTD", "YTD", "PYTD"]
-    num_fams = ["Sig #", "PIN #"]
+    # MTD/YTD/PYTD are NSF/OD ITEM COUNTS, not dollars (the ODD carries no
+    # OD-fee dollar column) — they are summed by the same money_block pass only
+    # because the cleaning is identical. See odd_rows.nsf().
+    money_fams = ["OD Limit", "Sig $", "PIN $"]
+    num_fams = ["Sig #", "PIN #", "MTD", "YTD", "PYTD"]
 
     for ch in reader:
         ch = ch.rename(columns=lambda c: c.strip())
@@ -323,7 +327,7 @@ def main():
                 for k, v in norm_text(ch.loc[enr, "Prod Desc"]).value_counts().items():
                     product_enr[k] += int(v)
 
-        # branch OD income (latest MTD)
+        # branch NSF/OD items (latest MTD)
         latest_mtd = fam.get("MTD", {}).get(latest_mk)
         if latest_mtd and latest_mtd in ch and "Branch" in ch:
             tmp = pd.DataFrame({"b": norm_text(ch["Branch"]),
@@ -396,8 +400,8 @@ def main():
             "business": dict(counts["Business"]),
             "status": dict(sorted(status_ct.items(), key=lambda x: -x[1])),
         },
-        "od_fee_income_MTD": series(money["MTD"]),
-        "od_fee_income_YTD": series(money["YTD"]),
+        "nsf_od_items_MTD": {lbl(mk): int(v) for mk, v in sorted(numc["MTD"].items())},
+        "nsf_od_items_YTD": {lbl(mk): int(v) for mk, v in sorted(numc["YTD"].items())},
         "od_limit_total": series(money["OD Limit"]),
         "od_limit_accts_gt0": {lbl(mk): int(v) for mk, v in sorted(numc["OD Limit #>0"].items())},
         "interchange": {
@@ -412,7 +416,7 @@ def main():
             "responded": {lbl(mk): int(v) for mk, v in sorted(campaign["Resp"].items())},
         },
         "top_branches_by_enrollment": dict(sorted(branch_enr.items(), key=lambda x: -x[1])[:a.topn]),
-        "top_branches_by_od_income_latest": {k: round(v, 2) for k, v in sorted(branch_od.items(), key=lambda x: -x[1])[:a.topn]},
+        "top_branches_by_nsf_od_items_latest": {k: int(v) for k, v in sorted(branch_od.items(), key=lambda x: -x[1])[:a.topn]},
         "top_products_by_enrollment": dict(sorted(product_enr.items(), key=lambda x: -x[1])[:a.topn]),
         "flags": {
             "regE_unmapped": dict(sorted(rege_unmapped.items(), key=lambda x: -x[1])),
@@ -429,7 +433,7 @@ def main():
             resp_rates[lbl(mk)] = {"mailed": m, "responded": r, "rate_pct": round(r / m * 100, 1)}
     metrics["campaign_response_rates"] = resp_rates
 
-    with open(os.path.join(out, "oddd_metrics.json"), "w") as fh:
+    with open(os.path.join(out, "oddd_metrics.json"), "w", encoding="utf-8") as fh:
         json.dump(metrics, fh, indent=2)
 
     # ---- markdown pack ----
@@ -483,7 +487,7 @@ def main():
             A(", ".join(f"{k}={v:,}" for k, v in d.items()))
         A("")
 
-    md_series("OD Fee Income — Monthly (MTD, program total)", metrics["od_fee_income_MTD"], True)
+    md_series("NSF/OD Items — Monthly (MTD, program total)", metrics["nsf_od_items_MTD"])
     md_series("OD Limit — Total extended, monthly", metrics["od_limit_total"], True)
     md_series("OD Limit — Accounts with limit > 0, monthly", metrics["od_limit_accts_gt0"])
     md_series("Debit Interchange — Signature $ monthly", metrics["interchange"]["sig_dollars"], True)
@@ -510,23 +514,25 @@ def main():
     A("## Top Branches by Enrollment (latest)")
     A(", ".join(f"{k}={v:,}" for k, v in metrics["top_branches_by_enrollment"].items()))
     A("")
-    A("## Top Branches by OD Income (latest MTD)")
-    A(", ".join(f"{k}=${v:,.0f}" for k, v in metrics["top_branches_by_od_income_latest"].items()))
+    A("## Top Branches by NSF/OD Items (latest MTD)")
+    A(", ".join(f"{k}={v:,}" for k, v in metrics["top_branches_by_nsf_od_items_latest"].items()))
     A("")
     A("## Top Products by Enrollment")
     A(", ".join(f"{k}={v:,}" for k, v in metrics["top_products_by_enrollment"].items()))
     A("")
     A("## DERIVED (for Key Metrics slide)")
-    ytd_vals = list(metrics["od_fee_income_YTD"].values())
-    A(f"Latest YTD OD fee income = ${ytd_vals[-1]:,.0f}" if ytd_vals else "Latest YTD OD fee income = n/a")
-    mtd_vals = list(metrics["od_fee_income_MTD"].values())
+    ytd_vals = list(metrics["nsf_od_items_YTD"].values())
+    A(f"Latest YTD NSF/OD items = {ytd_vals[-1]:,}" if ytd_vals else "Latest YTD NSF/OD items = n/a")
+    mtd_vals = list(metrics["nsf_od_items_MTD"].values())
     if mtd_vals:
         avg = sum(mtd_vals) / len(mtd_vals)
-        A(f"Avg monthly OD fee income (over {len(mtd_vals)} mo) = ${avg:,.0f}")
+        A(f"Avg monthly NSF/OD items (over {len(mtd_vals)} mo) = {avg:,.0f}")
+    A("NSF/OD REVENUE IS NOT IN THE ODD — the MTD/YTD columns are item counts. "
+      "Fee dollars come from the client workbook (Total NSF Revenue).")
     A(f"Active/Open accounts = {open_ct:,}")
     A(f"Enrolled accounts = {enrolled:,}")
 
-    with open(os.path.join(out, "oddd_pack.md"), "w") as fh:
+    with open(os.path.join(out, "oddd_pack.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(L) + "\n")
 
     # stdout summary

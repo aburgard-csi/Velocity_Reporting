@@ -93,9 +93,15 @@ def compute(recs, rate, nsf_fee, collection=1.0, trim="none", pct=0.05,
     n = len(pop)
     if not n:
         raise SystemExit("ERROR: empty eligible card-holding population")
+    if "items12" not in pop[0]:
+        # `fee12` was renamed to `items12` on 2026-09-01 (it was always the MTD
+        # ITEM COUNT, never fee income). Fail loudly rather than KeyError deep
+        # in the valuation.
+        raise SystemExit("ERROR: this .pkl predates the fee12 -> items12 rename; "
+                         "regenerate it with lift_extract.py")
 
     spend = {id(r): r["spend12"] for r in pop}
-    items = {id(r): r["fee12"] for r in pop}
+    items = {id(r): r["items12"] for r in pop}
     excluded = set()
     diag = {"population": n, "trim": trim, "trim_pct": pct,
             "collection": collection, "excluded": 0, "cap_spend": None,
@@ -104,7 +110,7 @@ def compute(recs, rate, nsf_fee, collection=1.0, trim="none", pct=0.05,
     if trim == "exclude":
         k = int(round(n * pct))
         excluded = ({id(r) for r in sorted(pop, key=lambda r: -r["spend12"])[:k]}
-                    | {id(r) for r in sorted(pop, key=lambda r: -r["fee12"])[:k]})
+                    | {id(r) for r in sorted(pop, key=lambda r: -r["items12"])[:k]})
         diag["excluded"] = len(excluded)
     elif trim == "winsorize":
         cs = _pct(sorted(spend.values()), 1 - pct)
@@ -138,7 +144,7 @@ def compute(recs, rate, nsf_fee, collection=1.0, trim="none", pct=0.05,
     # any trim. Otherwise the band (which covers ~40% of accounts) drags it down
     # and the check stops meaning anything.
     diag["wavg_spend"] = sum(r["spend12"] for r in pop) / n
-    diag["wavg_items"] = sum(r["fee12"] for r in pop) / n
+    diag["wavg_items"] = sum(r["items12"] for r in pop) / n
     return seg, diag
 
 

@@ -64,25 +64,28 @@ rows) when you must diagnose a new column layout.
 
 3. **Read only the outputs** (`oddd_pack.md`, `oddd_metrics.json`) and **sanity-check**:
    - Totals reconcile: `Consumer + Business == Total accounts`; status buckets sum to total.
-   - OD fee income (MTD), OD limits, and interchange $ are within sane monthly ranges and
+   - NSF/OD items (MTD), OD limits, and interchange $ are within sane monthly ranges and
      have no month that is suspiciously 0 (a 0 usually means a missing/renamed column).
+     `<mon> MTD/YTD/PYTD` are NSF/OD **item counts**, not dollars — the ODD carries no
+     OD-fee dollar column. Fee revenue comes from the client workbook. A monthly MTD
+     total that reads like dollars (a big round number) means a column moved.
    - Reg E: if the pack says **"NOT POPULATED"**, that FI simply doesn't send Reg E in its
      dump — that is expected for some cores; tell the deck author the Reg E opt-in fields aren't in
      this dump, so they must be **populated from the client's Reg E source** (workbook/core).
      Do **not** drop the Reg E slides and do **not** report a phantom 0% opt-in.
 
 4. **Report back** to whoever called you: the pack file paths, the headline numbers
-   (total accounts, enrolled, opt-in rate or "n/a", latest data month, avg monthly OD fee
-   income), and any flags raised (see below). Keep it short — the pack has the detail.
+   (total accounts, enrolled, opt-in rate or "n/a", latest data month, avg monthly NSF/OD
+   items), and any flags raised (see below). Keep it short — the pack has the detail.
 
 ## What the pack contains (what the deck draws from)
 
 Program funnel (latest month: total / eligible / enrolled / Reg E opt-in), consumer-vs-
-business mix, account-status mix, monthly **OD fee income (MTD & YTD)**, monthly **OD limit**
+business mix, account-status mix, monthly **NSF/OD item counts (MTD & YTD)**, monthly **OD limit**
 totals and count of accounts with a limit, **debit interchange** (Signature vs PIN, $ and
 counts) by month, **Reg E opt-in trend**, **mail-campaign performance** (mailed → responded
-→ response rate) by campaign month, top branches by enrollment and by OD income, top products
-by enrollment, and a DERIVED block for the Key Metrics slide.
+→ response rate) by campaign month, top branches by enrollment and by NSF/OD items, top
+products by enrollment, and a DERIVED block for the Key Metrics slide.
 
 ## ODDD format quirks (so you can fix the script if a new FI breaks it)
 
@@ -95,6 +98,8 @@ by enrollment, and a DERIVED block for the Key Metrics slide.
   encoding is **latin-1**.
 - Month columns are `MonYY <metric>` (e.g. `May26 Elig`, `Nov24 OD Limit`, `Mar26 Resp`,
   `Nov24 Sig $`, `Nov24 MTD`). Parsed generically by regex, so added months just work.
+  `MTD`/`YTD`/`PYTD` are the NSF/OD **item count** for the month / calendar year to date /
+  prior calendar year to date — integers, never dollars.
 - **pandas 3.0 gotcha:** the `str` dtype keeps missing values as NA (not the literal
   `'nan'`), and `.isin()` returns False for NA. Always `fillna("")` before counting blanks —
   the helpers already do; preserve that if you edit the script.
