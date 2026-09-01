@@ -205,8 +205,15 @@ An account opened in January 2027 is bucketed under key `'2027'`, which is not
 in `years`, so it is counted and then silently dropped from the chart. Fix:
 derive the upper bound from the snapshot month.
 
+## Decided
+
+- **Axis token: `Jul'26`** — no space, ASCII apostrophe (Aaron, 2026-09-01).
+- **Phase 2 ships all at once, not one program at a time** (Aaron, 2026-09-01).
+  All three programs converted in a single commit, so no client's next deck can
+  spell the month one way in its ARS section and another in its ICS section —
+  which is the confusion this removes.
+
 ## Open
 
-- Whether Phase 2 ships across a month boundary or all at once. Shipping it
-  mid-month means one client's August deck and September deck spell the month
-  differently, which is the exact confusion this removes.
+- Nothing blocking. Phase 3 (the two ARS window pills, `build_ars_gen.py:202`
+  and `:1340`) and Phase 4 (the render-every-chart gate) remain.
