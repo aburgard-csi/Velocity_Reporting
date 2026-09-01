@@ -2,9 +2,9 @@
 
 Date: 2026-09-01
 Owner: Aaron Burgard
-Status: Phases 0-2 shipped 2026-09-01 — every time axis in all three programs
-renders `Jul'26` through `build/axis.py`. Phase 3 (pills) and Phase 4 (the gate)
-not started. The two defects below are fixed.
+Status: COMPLETE, 2026-09-01. All five phases shipped. Every time axis and every
+window pill in all three programs renders `Jul'26`, and `tests/test_axis_gate.py`
+fails the build if one does not. The two defects below are fixed.
 
 ---
 
@@ -161,15 +161,42 @@ each step — flat, then 30, then 45 — instead of 30 being a catch-all.
 
 Visible changes beyond the label form are listed in CHANGELOG under 2026-09-01.
 
-**Phase 3 — pills.** `build_ars_gen.py:202` and `:1340`, plus the STYLE.md
-section.
+**Phase 3 — pills. SHIPPED.** Four pills, not two: the survey missed the SM Monthly Summary
+window and the Debit Usage average window, both also on `%m-%Y`. All four go
+through `periods.axis_window()`, which lives there rather than in the builder so
+it can be tested — the MM path the Lift Matrix and Debit Usage pills sit on is
+not exercised by the golden deck, which builds the SM path.
 
-**Phase 4 — the gate.** Per the standing rule, add the check that would have
-caught it. A validator rule cannot read a PNG, so the test renders every chart
-from the existing synthetic fixtures (`tests/fixtures/make_odd.py`,
-`make_base.py`) and asserts every x-tick text matches `^[A-Z][a-z]{2}'\d{2}$`
-or the year form. `tests/test_mrpc_charts.py` and the golden-deck test already
-establish the pattern.
+Two defects surfaced in the rewrite. The Lift Matrix pill guarded on `"-" in`
+the reformatted string, which really meant "did the reformat happen" — a test
+that stops meaning that the moment the format has no dash in it, so a naive swap
+would have silently fallen back to the raw workbook label. And the Debit Usage
+pill stepped back two months with a hand-rolled `while _m < 1` loop instead of
+`periods.shift`, which is the kind of hand-derived window CLAUDE.md bans.
+
+`PTD ·` pills keep the full month. They name a point in time in prose, not a
+window inside a narrow box, and STYLE.md mandates their form explicitly.
+
+**Phase 4 — the gate. SHIPPED.** Per the standing rule, add the check that would have
+caught it. `tests/test_axis_gate.py`. It intercepts `Figure.savefig`,
+renders every month-axis chart in all three programs, and reads the ticks back
+off the figures. The rule is: **any tick that NAMES a month must be in the one
+form** — `periods.names_a_month` decides which ticks are in scope, so a branch
+number or a swipe band is ignored while a bare `Jul` is caught. Verified in both
+directions: reintroducing `m.split()[0]` fails it, naming the chart and the
+ticks.
+
+Two static checks sit beside it, because a runtime gate only covers charts a
+fixture reaches: the retired slicing idioms may not reappear in any chart
+module, and the builder may not format `%m-%Y`. Getting those to work took two
+tries — a token scrubber that space-joins turns `m.split()[0]` into
+`m . split ( ) [ 0 ]`, which no punctuation pattern matches, and dropping all
+string literals makes the `%m-%Y` check pass for the wrong reason. They read
+`ast.unparse` of the tree with docstrings stripped, so comments and docstrings
+are gone and every other literal survives. Both were confirmed to fail on a
+reintroduced defect.
+
+The gate runs inside `qa_all.py`, which already runs `pytest tests/` as step 0.
 
 Phases 0–1 are additive and land together. Phase 2 is the only one that changes
 a shipped deck's face, and it is reversible per program.

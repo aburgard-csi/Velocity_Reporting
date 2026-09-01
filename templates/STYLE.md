@@ -29,8 +29,10 @@ post-processor has final say. **Always run it after building.**
   4-quarter grid) — skipped by the post-processor and noted.
 - **Build-environment note:** **Montserrat** lives at `fonts/Montserrat/` and in `~/.fonts`
   (Cowork sandbox); **Carlito** ships with the sandbox (`crosextra`). Chart renderers register
-  Carlito and floor tuned label sizes for readability (dense monthly x-axes may drop to ~13 pt
-  and rotate rather than collide — chart labels are scaled images, not deck text).
+  Carlito and floor tuned label sizes for readability — chart labels are scaled images, not
+  deck text, so the 16 pt deck floor does not apply to them. A month axis's density and
+  angle are NOT a judgement call: see **Charts (all products)** below, which is the one
+  rule.
 - **Embed the fonts in the .pptx** so the deck renders on any machine (OOXML
   `p:embeddedFontLst`; python-pptx has no native embed).
 
@@ -44,6 +46,13 @@ post-processor has final say. **Always run it after building.**
   2026"), NOT the report/generation month.
 - Genuine analysis-window pills that are NOT program-to-date (e.g. ARS "Trailing 12
   months …", "3-mo avg · …") keep their own descriptive label — do not relabel a window as PTD.
+- **A start/end WINDOW pill carries the axis token: `Aug'25 · Jul'26`** (Aaron, 2026-09-01).
+  Four pills overflow their box at "Aug 2025 – Jul 2026" and were shortened to `08-2025 ·
+  07-2026`, a numeric form invented for that box and spelled nowhere else. `periods.axis_window()`
+  builds them; never format one by hand. The descriptive prefix in front of a window is
+  unchanged (`Avg: Apr'26 · Jun'26`).
+- **`PTD ·` pills keep the full month** ("PTD · July 2026"): they name one point in time in
+  prose, not a window inside a narrow box, and the rules above still govern them.
 - Carry both dates in the data sheet: `data_pull` (YYYY-MM-DD) and `workbook_month`.
 
 ## Comparisons / benchmark slide

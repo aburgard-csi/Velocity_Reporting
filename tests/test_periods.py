@@ -8,7 +8,7 @@ have to be found by reading slides.
 import datetime
 import pytest
 from periods import (Period, parse_month, month_diff, shift,
-                     axis_label, axis_labels, is_axis_label)
+                     axis_label, axis_labels, axis_window, is_axis_label)
 
 
 # --- parsing every form the pipeline uses --------------------------------
@@ -189,3 +189,42 @@ def test_is_axis_label_accepts_the_standard(tick):
                                   "July 2026", "26"])
 def test_is_axis_label_rejects_the_forms_being_retired(tick):
     assert not is_axis_label(tick)
+
+
+# --- window pills ---------------------------------------------------------
+# The deck's four window pills are shortened because their box overflows. They
+# were shortened to "08-2025 · 07-2026" — a numeric form invented for that box
+# and spelled nowhere else in the deck.
+
+def test_axis_window_uses_the_same_token_as_the_charts():
+    assert axis_window("Aug25", "Jul26") == "Aug'25 \u00b7 Jul'26"
+
+
+def test_axis_window_takes_any_form_at_either_end():
+    assert axis_window("Jul 2025", "Jun 2026") == axis_window("Jul25", "Jun26")
+    assert axis_window(datetime.date(2025, 7, 1), "Jun 26") == "Jul'25 \u00b7 Jun'26"
+
+
+def test_axis_window_is_shorter_than_the_numeric_form_it_replaced():
+    """The reason the numeric form existed was the box, so this has to hold."""
+    assert len(axis_window("Aug25", "Jul26")) < len("08-2025 \u00b7 07-2026")
+
+
+@pytest.mark.parametrize("bad", [("", ""), ("Trailing 12 months", "Jul26"),
+                                 ("Jul26", None)])
+def test_axis_window_falls_back_rather_than_rendering_none(bad):
+    """A workbook that labels its window some other way still shows something.
+
+    The old guard tested for a "-" in the reformatted string, which really meant
+    "did the reformat happen" — a test that stops meaning that the moment the
+    format has no dash in it, which is exactly what changing the format did.
+    """
+    assert axis_window(*bad, fallback="Trailing 12 months") == "Trailing 12 months"
+
+
+def test_the_three_month_average_window_is_derived():
+    """The Debit Usage pill stepped back two months with a hand-rolled loop."""
+    june = parse_month("Jun 2026")
+    assert "Avg: " + axis_window(shift(june, -2), june) == "Avg: Apr'26 \u00b7 Jun'26"
+    jan = parse_month("Jan 2026")
+    assert axis_window(shift(jan, -2), jan) == "Nov'25 \u00b7 Jan'26"   # across the year

@@ -213,7 +213,10 @@ Passing `base.json` switches on the data-vs-deck cross-check; `validation/qa_all
 it automatically when it sits beside the deck, or takes `--extract`.
 
 **Unit suite.** `pytest tests/` — classifiers, the ODD row vocabulary, metrics invariants,
-the palette, the period derivations, the deck rules and `assemble_combined`. It runs as
+the palette, the period derivations, the deck rules, `assemble_combined`, and the **axis
+gate** (`tests/test_axis_gate.py`: renders every month-axis chart in all three programs and
+fails if any tick that names a month is outside `Jul'26` — the validator cannot see inside a
+PNG, so this is the only place that check can live). It runs as
 step 0 of `qa_all.py` and a failure fails the gate, because a classifier regression that
 mis-buckets 18,000 accounts still produces a deck that passes every layout rule. The
 fixture is a synthetic 800-row ODD (`tests/fixtures/make_odd.py`) carrying no real member

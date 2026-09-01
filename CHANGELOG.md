@@ -14,6 +14,29 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-01 — window pills carry the axis token
+
+The four start/end window pills — ARS new-account window, Lift Matrix, Debit
+Usage, and the SM Monthly Summary — read `Aug'25 · Jul'26` instead of `08-2025 ·
+07-2026`. The numeric form existed only because the box overflows at "Aug 2025 –
+Jul 2026"; the axis token is shorter still and is the one form a month takes
+anywhere else on a slide. `periods.axis_window()` builds all four.
+
+`PTD ·` pills are unchanged and keep the full month ("PTD · July 2026") — they
+name a point in time in prose, not a window inside a narrow box.
+
+Two things the rewrite fixed on the way. The Lift Matrix pill's guard tested for
+a `-` in the reformatted string, which really meant "did the reformat happen" —
+a test that stops meaning that the moment the format has no dash in it, so it
+would have silently fallen back to the raw workbook label. And the Debit Usage
+pill stepped back two months with a hand-rolled `while _m < 1` loop rather than
+`periods.shift`.
+
+Also added `tests/test_axis_gate.py`: it renders every month-axis chart in all
+three programs, reads the ticks back off the figures, and fails if any tick that
+names a month is outside `Jul'26`. `validate_deck.py` cannot do this — a tick is
+pixels inside a PNG — which is why nine spellings shipped for months.
+
 ### 2026-09-01 — one label form on every chart time axis
 
 Nine spellings of the same month were rendering across ARS, ICS and MRPC —

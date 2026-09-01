@@ -45,6 +45,8 @@ _MODULE_NOTED = []
 # through the current eligibility snapshot. Naming a measure is opt-in and only
 # worth doing where the same measure reaches more than one slide.
 import figures as _figs
+from periods import (axis_label as _axis_label, axis_window as _axis_window,
+                     parse_month as _parse_month, shift as _periods_shift)
 from brand import NAVY as _BNAVY, ORANGE as _BORANGE, MUTED as _BMUTED
 
 M = json.load(open(METRICS)); B = json.load(open(BASEJ)); L = json.load(open(LIFTJ)); O = json.load(open(ODDDJ))
@@ -55,10 +57,20 @@ M = json.load(open(METRICS)); B = json.load(open(BASEJ)); L = json.load(open(LIF
 MM = any(isinstance(v, (int, float)) for row in (L.get('matrix_rows') or [])
          for v in row[1:])
 import datetime as _dt0
-def _sm_mmyyyy(_v):
-    try:
-        _p=_v.strip().split(); return _dt0.datetime.strptime(_p[0][:3]+' '+_p[-1],'%b %Y').strftime('%m-%Y')
-    except Exception: return _v
+def _pill_month(_v):
+    """A month phrase as its pill token ("Jul'26"), or None if it is not a month.
+
+    The four window pills are shortened because their box overflows at "Jul 2026"
+    (Aaron, 2026-07-15). They used to be shortened to "07-2026", a numeric form
+    invented for that box and spelled nowhere else in the deck. The axis token is
+    a character shorter still and is the one form a month takes anywhere on a
+    slide (Aaron, 2026-09-01).
+    """
+    try: return _axis_label(_v)
+    except ValueError: return None
+
+
+_pill_window = _axis_window      # periods owns the window phrasing
 NAME = B['client']; ID = str(O.get('client', '')).strip()   # no client-name default; id comes from the data pack
 ASSETS = tempfile.mkdtemp(prefix="ars_assets_")
 
@@ -199,7 +211,10 @@ if ODD:
     _y, _m = _lm.year, _lm.month - 11
     while _m <= 0: _m += 12; _y -= 1
     _start = datetime.datetime(_y, _m, 1)
-    NEWWIN_PILL = f"{_start:%m-%Y} · {_end:%m-%Y}"
+    # The pill carries the same token the chart axes do (Aaron, 2026-09-01). It
+    # used to read "08-2025 · 07-2026": a numeric form invented purely to fit the
+    # box, and the only place in the deck that spelled a month that way.
+    NEWWIN_PILL = _axis_window(_start, _end)
     NEWWIN_TEXT = f"{_start:%b %Y} – {_end:%b %Y}"
     # Point-in-time label for every "as of" caption. The template carries the
     # REFERENCE client's month (June 2026) in a dozen captions the builder never
@@ -614,7 +629,7 @@ if MM:
         f"e.g., Non-User → 26+ = ${top_dda:,.2f} – ${nu_dda:,.2f} = ${lift_top:,.2f} per account per month.")
 else:
     _lab8=[m for m,_ in B.get('monthly_rev_last12',[])]
-    _win8=(_sm_mmyyyy(_lab8[0])+" \u00b7 "+_sm_mmyyyy(_lab8[-1])) if _lab8 else ""
+    _win8=_pill_window(_lab8[0], _lab8[-1]) if _lab8 else ""
     set_exact(S[7], "Monthly Summary — Last 12 Months", "Monthly Summary — Last 12 Months")
     repl(S[7], {"07-2025 · 06-2026": _win8})
     set_shape_text(S[7], "Selection: monthly incremental revenue, most recent 12 months (SM revenue model).", "Selection: monthly incremental revenue, most recent 12 months (SM revenue model).")
@@ -1339,21 +1354,21 @@ for _idx in (23, 24):
     print(f"slide {_idx+1} chart enlarged")
 
 
-# reformat the two long date pills that overflow (Aaron 2026-07-15): Lift Matrix + Debit Usage
-import datetime as _dt2
-def _mmyyyy(_v):
-    try:
-        _p=_v.strip().split(); _d=_dt2.datetime.strptime(_p[0][:3]+" "+_p[-1], "%b %Y"); return _d.strftime("%m-%Y")
-    except Exception: return _v
-_ls=_mmyyyy(L.get("window_start","")); _le=_mmyyyy(L.get("window_end",""))
-_lift_pill = (_ls+" \u00b7 "+_le) if (_ls and _le and "-" in _ls and "-" in _le) else L.get("window","")
+# The two long date pills that overflow their box (Aaron 2026-07-15): Lift Matrix
+# + Debit Usage. Both now carry the axis token rather than the numeric "07-2026"
+# they were shortened to — it is a character shorter and it is the one form the
+# rest of the deck spells a month in (Aaron, 2026-09-01).
+# Guarded on the parse itself. The old guard tested for a "-" in the result,
+# which really meant "did the reformat happen" — a test that silently stops
+# meaning that the moment the format has no dash in it.
+_lift_pill = _pill_window(L.get("window_start",""), L.get("window_end",""),
+                          L.get("window",""))
 _du_pill = "Avg"
-try:
-    _p=L.get("data_date","").strip().split(); _de=_dt2.datetime.strptime(_p[0][:3]+" "+_p[-1], "%b %Y")
-    _m=_de.month-2; _y=_de.year
-    while _m<1: _m+=12; _y-=1
-    _du_pill = "Avg: %02d-%d \u00b7 %s" % (_m, _y, _de.strftime("%m-%Y"))
-except Exception: pass
+_de = _parse_month(L.get("data_date",""))
+if _de:
+    # Three-month average window ending at the data date. The two-month step back
+    # was hand-rolled with a while loop; periods.shift owns that arithmetic.
+    _du_pill = "Avg: " + _axis_window(_periods_shift(_de, -2), _de)
 def _set_pill(_sh, _txt):
     _tf=_sh.text_frame; _p0=_tf.paragraphs[0]
     if _p0.runs:

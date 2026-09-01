@@ -135,6 +135,47 @@ def axis_labels(months, field="months"):
     return out
 
 
+AXIS_SEP = "\u00b7"          # the middot STYLE.md already uses between pill halves
+
+
+def axis_window(start, end, fallback=""):
+    """A start/end window as pill tokens: "Aug'25 \u00b7 Jul'26".
+
+    The deck's four window pills are shortened because the box overflows at
+    "Aug 2025 - Jul 2026" (Aaron, 2026-07-15). They were shortened to "08-2025 \u00b7
+    07-2026", a numeric form invented for that box and spelled nowhere else; the
+    axis token is a character shorter and is the one form a month takes anywhere
+    on a slide.
+
+    `fallback` is returned when either end is unreadable, so a workbook that
+    labels its window some other way still renders something rather than "None \u00b7
+    None". The caller passes whatever the workbook itself said.
+    """
+    try:
+        a, b = axis_label(start), axis_label(end)
+    except ValueError:
+        return fallback
+    return f"{a} {AXIS_SEP} {b}"
+
+
+_NAMES_A_MONTH_RE = re.compile(
+    r"(?<![A-Za-z])(?:" + "|".join(MONTH_FULL + MONTH_ABBR) + r")(?![A-Za-z])", re.I)
+
+
+def names_a_month(text):
+    """True when a tick names a month AT ALL, in any form — a bare "Jul" included.
+
+    This is the gate's filter, not a validator: it decides which rendered ticks
+    are subject to the axis vocabulary. A branch number, a tier name or a swipe
+    band names no month and is none of its business; "Jul", "Jul 26" and
+    "Jul'26" all do, and only the last is allowed.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    return parse_month(t) is not None or bool(_NAMES_A_MONTH_RE.search(t))
+
+
 def is_axis_label(text):
     """True for a tick this module would have produced — month OR year form."""
     t = (text or "").strip()
