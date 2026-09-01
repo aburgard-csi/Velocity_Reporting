@@ -49,6 +49,43 @@ def canvas(fig, CW, CH, path, pad=0.12):
     cv.paste(im.resize((nw,nh), Image.LANCZOS), ((CW-nw)//2,(CH-nh)//2))
     cv.save(path); os.remove(tmp); print("wrote", os.path.basename(path))
 
+def _overlay_line(ax, x, y, label, zorder=3, ms=6):
+    """A series line drawn OVER the bars. Navy core with a white casing, so it is
+    legible on navy bars AND on the white gaps between them.
+
+    It used to be drawn plain white (STYLE.md, pre 2026-09-01) on the assumption
+    that it never left a navy bar. It does: every segment crossing the gap between
+    two bars, and any point above a bar top, rendered white-on-white and vanished.
+    The MRPC Retention line was invisible for its whole length on the 2026.08 decks.
+    A mark is never drawn in the canvas color -- see tests/test_chart_colors.py.
+    """
+    return ax.plot(x, y, color=NAVY, lw=2.2, marker='o', mfc='white', mec=NAVY,
+                   ms=ms, label=label, zorder=zorder,
+                   path_effects=[pe.withStroke(linewidth=6, foreground='white')])
+
+
+def _cased_text(ax, x, y, text, dy=9, **kw):
+    """A value label that may land on a bar OR on the canvas. Navy glyphs with a
+    white stroke, so it reads on both -- the text counterpart of _overlay_line.
+
+    The Enrollments labels were plain white, matching the line they annotate. On
+    Capital Bank 1502 the five zero-enrollment months have no bar behind them, so
+    five real values rendered white-on-white; a short bar would swallow a non-zero
+    one the same way. A label's color must not depend on what happens to be behind it.
+
+    `dy` clears the marker in POINTS, not in data units: these labels annotate a
+    point on a line, and an offset expressed as a fraction of the axis maximum
+    shrinks to nothing on a chart with one tall month. White-on-white hid that
+    collision; navy glyphs do not.
+    """
+    kw.setdefault("color", NAVY)
+    kw.setdefault("fontweight", "bold")
+    kw.setdefault("ha", "center")
+    kw.setdefault("va", "bottom")
+    return ax.annotate(text, (x, y), xytext=(0, dy), textcoords="offset points",
+                       path_effects=[pe.withStroke(linewidth=3, foreground='white')], **kw)
+
+
 def _clean(ax):
     for sp in ("top","right","left"): ax.spines[sp].set_visible(False)
     ax.spines["bottom"].set_color(GREY); ax.tick_params(colors=TICK, length=0)
@@ -144,9 +181,10 @@ def chart_channel(d, out, dims):
     canvas(fig,*dims,out)
 
 def chart_perf(d, out, dims):
-    # New-checking bars: navy, last complete month orange (standard format). The two
-    # overlaid lines sit low over the navy bars, so Enrollments is drawn white and the
-    # Goal reference is a dashed orange line.
+    # New-checking bars: navy, last complete month orange (standard format). The
+    # Enrollments line and its value labels are cased (see _overlay_line / _cased_text)
+    # -- a month with no new checking accounts has no bar behind them. The Goal
+    # reference is a dashed orange line.
     p=d["performance_vs_goal"]; m=p["months"]; enr=p["enrollments"]
     nc=p.get("new_checking_approx") or [e/0.11 for e in enr]
     goal=[round(x*p["goal_pct"]/100) for x in nc]
@@ -154,22 +192,22 @@ def chart_perf(d, out, dims):
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,nc,color=cols,width=0.66,label='New Checking Accounts',zorder=1)
     ax.plot(x,goal,color=ORANGE,lw=2,ls='--',marker='o',mfc='white',mec=ORANGE,ms=5,label=f'Goal ({p["goal_pct"]}%)',zorder=3)
-    ax.plot(x,enr,color='white',lw=2.6,marker='o',mfc='white',mec=NAVY,ms=6,label='Enrollments',zorder=4)
-    for i in range(len(m)): ax.text(i,enr[i]+max(nc)*0.025,str(enr[i]),ha='center',color='white',fontsize=13,fontweight='bold',zorder=5)
+    _overlay_line(ax,x,enr,'Enrollments',zorder=4)
+    for i in range(len(m)): _cased_text(ax,i,enr[i],str(enr[i]),fontsize=13,zorder=5)
     ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK)
     ax.set_ylim(0,max(nc)*1.12); ax.get_yaxis().set_visible(False); _clean(ax)
     ax.legend(loc='upper center',bbox_to_anchor=(0.5,1.10),ncol=3,frameon=False,fontsize=13)
     canvas(fig,*dims,out)
 
 def chart_retention(d, out, dims):
-    # Enrolled bars: navy, last cohort month orange (standard format). Still-Active line
-    # sits over the navy bars, so it is drawn white.
+    # Enrolled bars: navy, last cohort month orange (standard format). The Still-Active
+    # line is cased (see _overlay_line) -- it crosses the white gaps between bars.
     r=d["retention"]; m=r["cohort_months"]; en=r["enrolled"]
     ac=r.get("still_active_approx") or [round(x*0.6) for x in en]
     fig,ax=plt.subplots(figsize=(9,6.4)); x=np.arange(len(m))
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,en,color=cols,width=0.68,label='Enrolled',zorder=1)
-    ax.plot(x,ac,color='white',lw=2.6,marker='o',mfc='white',mec=NAVY,ms=6,label='Still Active',zorder=3)
+    _overlay_line(ax,x,ac,'Still Active',zorder=3)
     for i in range(len(m)): ax.text(i,en[i]+max(en)*0.02,str(en[i]),ha='center',color=NAVY,fontsize=13,fontweight='bold')
     ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK,rotation=30,ha='right')
     ax.set_ylim(0,max(en)*1.15); ax.get_yaxis().set_visible(False); _clean(ax)

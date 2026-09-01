@@ -221,7 +221,24 @@ Platinum bars in the chart. For consumer-only clients the Business box is droppe
 ## MRPC bar charts (standard format)
 On time-series bar charts (Enrollment Performance, Retention, Revenue by Month) the bars
 are **navy with the last completed month in orange**. Any line overlaid on the bars
-(Enrollments, Still-Active) is drawn **white** so it stays readable over navy.
+(Enrollments, Still-Active) is drawn **navy with a white casing** — `_overlay_line()` in
+`mrpc_charts_gen.py`, one definition for all of them. Value labels that sit over the bars
+(the Enrollments counts) are cased the same way — `_cased_text()` — because a month with no
+accounts has no bar behind its label, and they clear the marker by a fixed offset in POINTS,
+not by a fraction of the axis maximum.
+
+**A mark is never drawn in the canvas color** (Aaron, 2026-09-01). These lines used to be
+plain white on the assumption that they never left a navy bar. They do: every segment
+crossing the gap between two bars, and any point that rises above a bar top, rendered
+white-on-white. The MRPC Retention line was invisible for its whole length — markers only —
+on the 2026.08 decks, and so was its legend swatch; the Enrollments labels lost five real
+values on Capital Bank 1502 the same way. A casing removes the dependency on what happens to
+sit behind a given mark; picking a different flat color only moves the failure.
+`tests/test_chart_colors.py` fails the build if a renderer draws a line or a label white again.
+
+White stays correct where the ground is guaranteed: marker faces with a colored ring, the
+white pad that masks a line behind a label, the separator between stacked segments, and text
+on an opaque navy/orange patch. The rule is about marks on the open canvas.
 
 ## MRPC Card Portfolio slide
 Card billing has its own slide (before Key Metrics): a **donut by card type** — Platinum
