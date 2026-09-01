@@ -21,6 +21,7 @@ import numpy as np
 from matplotlib.patches import Patch
 from PIL import Image
 from rpe_env import use_font
+from axis import month_ticks
 
 def _shadow_wedges(wedges):
     return wedges   # STYLE.md: pie/donut charts are FLAT — no shadow
@@ -89,11 +90,12 @@ def chart_enroll(d, out, dims):
             ax.bar(i,biz[i],bottom=gold[i]+plat[i],color=BIZC,width=0.72,alpha=a,hatch=h,edgecolor='white',linewidth=0.5)
         ax.text(i,tot[i]+max(tot)*0.015,str(tot[i]),ha="center",va="bottom",
                 color=(TICK if partial[i] else NAVY),fontweight="bold",fontsize=13)
-    ax.set_xticks(range(len(m))); ax.set_xticklabels(m,fontsize=13,color=TICK,rotation=30,ha='right')
+    labs=month_ticks(ax,np.arange(len(m)),m,field="enrollments_by_month.months",
+                     pt=13,color=TICK)
     ax.set_ylim(0,max(tot)*1.18); ax.get_yaxis().set_visible(False); _clean(ax)
     handles=[Patch(fc=GOLDC,label='Gold'),Patch(fc=PLATC,label='Platinum')]
     if hb: handles.append(Patch(fc=BIZC,label='Business'))
-    handles.append(Patch(fc=PLATC,alpha=0.42,hatch='//',label=f'{m[-1]} (partial)'))
+    handles.append(Patch(fc=PLATC,alpha=0.42,hatch='//',label=f'{labs[-1]} (partial)'))
     ax.legend(handles=handles,loc='upper center',bbox_to_anchor=(0.5,1.10),
               ncol=len(handles),frameon=False,fontsize=13)
     canvas(fig,*dims,out)
@@ -156,7 +158,7 @@ def chart_perf(d, out, dims):
     ax.plot(x,goal,color=ORANGE,lw=2,ls='--',marker='o',mfc='white',mec=ORANGE,ms=5,label=f'Goal ({p["goal_pct"]}%)',zorder=3)
     ax.plot(x,enr,color='white',lw=2.6,marker='o',mfc='white',mec=NAVY,ms=6,label='Enrollments',zorder=4)
     for i in range(len(m)): ax.text(i,enr[i]+max(nc)*0.025,str(enr[i]),ha='center',color='white',fontsize=13,fontweight='bold',zorder=5)
-    ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK)
+    month_ticks(ax,x,m,field="performance_vs_goal.months",pt=13,color=TICK)
     ax.set_ylim(0,max(nc)*1.12); ax.get_yaxis().set_visible(False); _clean(ax)
     ax.legend(loc='upper center',bbox_to_anchor=(0.5,1.10),ncol=3,frameon=False,fontsize=13)
     canvas(fig,*dims,out)
@@ -171,7 +173,7 @@ def chart_retention(d, out, dims):
     ax.bar(x,en,color=cols,width=0.68,label='Enrolled',zorder=1)
     ax.plot(x,ac,color='white',lw=2.6,marker='o',mfc='white',mec=NAVY,ms=6,label='Still Active',zorder=3)
     for i in range(len(m)): ax.text(i,en[i]+max(en)*0.02,str(en[i]),ha='center',color=NAVY,fontsize=13,fontweight='bold')
-    ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK,rotation=30,ha='right')
+    month_ticks(ax,x,m,field="retention.cohort_months",pt=13,color=TICK)
     ax.set_ylim(0,max(en)*1.15); ax.get_yaxis().set_visible(False); _clean(ax)
     ax.legend(loc='upper center',bbox_to_anchor=(0.5,1.10),ncol=2,frameon=False,fontsize=13)
     canvas(fig,*dims,out)
@@ -202,6 +204,8 @@ def chart_revenue(d, out, dims):
     ax.bar(x,amt,color=cols,width=0.64)
     for i,a in enumerate(amt):
         ax.text(i,a+max(amt)*0.02,f"${a/1000:,.0f}K",ha='center',va='bottom',color=NAVY,fontweight='bold',fontsize=13)
+    # A YEAR axis, not a month axis: four digits, "2026 YTD" and all
+    # (periods.AXIS_YEAR_RE). Deliberately not routed through month_ticks.
     ax.set_xticks(x); ax.set_xticklabels(yrs,fontsize=13,color=TICK)
     ax.set_ylim(0,max(amt)*1.16); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
@@ -231,7 +235,7 @@ def chart_revenue_month(d, out, dims):
     ax.bar(x,v,color=cols,width=0.7)
     for i,a in enumerate(v):
         ax.text(i,a+max(v)*0.015,f"${a/1000:.1f}K",ha='center',va='bottom',color=NAVY,fontsize=13,fontweight='bold')
-    ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK)
+    month_ticks(ax,x,m,field="revenue.by_month.months",pt=13,color=TICK)
     ax.set_ylim(0,max(v)*1.14); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
 

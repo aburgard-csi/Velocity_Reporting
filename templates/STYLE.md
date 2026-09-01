@@ -136,6 +136,18 @@ data rows · Calibri cells (`style_tables.py` applies this — keep it as the st
   % Spend, % NSFs** columns (as on the Marine FCU sample).
 
 ## Charts (all products)
+- **Time axes carry ONE label form: `Jul'26`** (Aaron, 2026-09-01) — three-letter month,
+  ASCII apostrophe, two-digit year, no space. Nine forms were rendering across the three
+  programs before this, two of them with the year missing. **The year is never dropped**,
+  not on a 12-month window and not on a cohort grid: both always cross a year boundary.
+  Genuinely ANNUAL axes (Reg E by Vintage, MRPC Annual Revenue) keep the four-digit year —
+  `2024`, `2026 YTD`, `Pre-2018` — and are a separate vocabulary, not an oversight.
+- **Tick density and rotation are derived, never typed per chart.** `build/axis.py`
+  `month_ticks()` decides both: at most 14 ticks (a half-width panel passes a lower cap),
+  the newest point always labelled, and the angle measured — flat if the widest label fits
+  its track, else 30° if that clears the collision, else 45°. A thinned axis reads at 45°.
+  Never set `set_xticklabels` on a month axis by hand; the labels come from the pack's
+  `axis_months` tokens, never from slicing a prose label.
 - Fill the available **horizontal space**; keep balanced white space **above and below**.
 - **No label collisions** — labels never sit on top of / under bars, lines, or connectors.
 - **Consistent font sizes** across labels, legends, ticks. Calibri (Carlito) throughout.

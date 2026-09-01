@@ -14,6 +14,32 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-01 — one label form on every chart time axis
+
+Nine spellings of the same month were rendering across ARS, ICS and MRPC —
+`Jul`, `Jul 26`, `Jul26`, `Jul'26`, `Jul '26`, `Jul 2026` — because each renderer
+cut a tick out of the series' own prose label with its own slice. A combined deck
+carried three of them, one per section. Every time axis now renders `Jul'26`, from
+the `axis_months` tokens the data packs emit.
+
+Two charts were dropping the year outright and now keep it: the ARS 12-month
+incremental revenue axis, which always crosses a year boundary and read
+`Aug Sep … Jan Feb`, and the ICS per-account-per-month grid, whose cohorts run
+`Nov'25 → Jul'26` on the one chart that exists to show older cohorts have had
+longer to earn.
+
+Tick density and rotation moved out of the renderers into `build/axis.py`. Visible
+changes beyond the label form: ARS Openings vs Closures and both Before & After
+panels now read at 45° (the panels were 90° with every mailing labelled, and are
+thinned to 8 ticks — the cap Aaron set for Sugar River's fifteen mailings, which
+previously only applied to the split chart); ARS Sustained Response and Program
+Reach are now flat where they were rotated, because the labels measure as fitting;
+the ICS per-account grid moved from 40° to 45°, where its 16pt labels stop
+colliding. Reg E by Vintage and MRPC Annual Revenue are year axes and are
+unchanged.
+
+No number moves. Every affected element is a tick label.
+
 ### 2026-09-01 — NSF/OD year-over-year compares a year, and the Reg E vintage axis follows the data
 
 Two month literals typed into `metrics_gen.py`, both found while surveying how

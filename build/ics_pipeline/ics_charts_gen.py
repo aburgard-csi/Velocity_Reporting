@@ -10,6 +10,7 @@ import numpy as np
 from matplotlib.patches import Patch
 from PIL import Image
 from rpe_env import use_font
+from axis import month_ticks
 
 from brand import (NAVY, ORANGE, STEEL_SOFT as STEEL, LIGHT, TICK,
                    MUTED as GREY)
@@ -24,6 +25,18 @@ def canvas(fig, CW, CH, path, pad=0.12):
 def clean(ax):
     for sp in ("top","right","left"): ax.spines[sp].set_visible(False)
     ax.spines["bottom"].set_color(GREY); ax.tick_params(colors=TICK,length=0); ax.set_axisbelow(True)
+
+def _detail_months(d):
+    """The month series for the Monthly Detail charts, tokens where we have them.
+
+    Unlike the ARS packs, which are regenerated on every build, a client's ICS
+    data sheet is pulled quarterly and lives in Drive — so sheets written before
+    the extractor started emitting `axis_months` are still in use. Their "%b %y"
+    labels parse, so the fallback is a read of the same fact, not a slice of it.
+    """
+    m=d["monthly_detail"]
+    return m.get("axis_months") or m["months"]
+
 
 def bars_last_orange(ax,x,v):
     return ax.bar(x,v,color=[ORANGE if i==len(v)-1 else NAVY for i in range(len(v))],width=0.66)
@@ -43,10 +56,12 @@ def c_referral_trend(d,out):
             ax.bar(i,ref[i],color=c,width=0.7)
         ax.text(i,ref[i]+max(ref)*0.02,str(ref[i]),ha="center",va="bottom",
                 color=(TICK if partial and i==len(mo)-1 else NAVY),fontweight="bold",fontsize=16)
-    ax.set_xticks(x); ax.set_xticklabels(mo,fontsize=16,color=TICK); ax.set_ylim(0,max(ref)*1.15)
+    labs=month_ticks(ax,x,mo,field="referrals.trend.months",pt=16,color=TICK)
+    ax.set_ylim(0,max(ref)*1.15)
     ax.get_yaxis().set_visible(False); clean(ax)
     h=[Patch(fc=NAVY,label="Referrals")]
-    if partial: h.append(Patch(fc=STEEL,alpha=0.6,hatch="//",label=f"{mo[-1]} (partial)"))
+    # The legend names the same month the axis does, from the same formatting.
+    if partial: h.append(Patch(fc=STEEL,alpha=0.6,hatch="//",label=f"{labs[-1]} (partial)"))
     ax.legend(handles=h,loc="upper center",bbox_to_anchor=(0.5,1.1),ncol=len(h),frameon=False,fontsize=16)
     canvas(fig,2200,940,out)
 
@@ -103,27 +118,29 @@ def acct_months(d):
     m=d["monthly_detail"]; mo=_months_open(d); return sum(m["accounts_opened"][i]*mo[i] for i in range(len(m["months"])))
 
 def _monthly_bar(d,key,out,per_account):
-    m=d["monthly_detail"]; mo=m["months"]; x=np.arange(len(mo))
+    m=d["monthly_detail"]; mo=_detail_months(d); x=np.arange(len(mo))
     vals=_per_acct_month(d,key) if per_account else m[key]
     fig,ax=plt.subplots(figsize=(11.5,5.6)); bars_last_orange(ax,x,vals)
     fmt=(lambda v:f"${v:,.2f}") if per_account else (lambda v:f"${v:,.0f}")
     for i,v in enumerate(vals): ax.text(i,v+max(vals)*0.02,fmt(v),ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
-    ax.set_xticks(x); ax.set_xticklabels(mo,fontsize=16,color=TICK); ax.set_ylim(0,max(vals)*1.15); ax.get_yaxis().set_visible(False); clean(ax)
+    month_ticks(ax,x,mo,field="monthly_detail.months",pt=16,color=TICK)
+    ax.set_ylim(0,max(vals)*1.15); ax.get_yaxis().set_visible(False); clean(ax)
     canvas(fig,1815,1000,out)
 
 def c_composition(d,out):
-    m=d["monthly_detail"]; mo=m["months"]; x=np.arange(len(mo))
+    m=d["monthly_detail"]; mo=_detail_months(d); x=np.arange(len(mo))
     series=[(m["spread"],NAVY,"Spread on Deposits"),(m["interchange"],ORANGE,"Interchange"),
             (m["nsf_od"],STEEL,"NSF/OD Fees"),(m["other_fees"],LIGHT,"Other Fees")]
     fig,ax=plt.subplots(figsize=(11.5,5.6)); b=np.zeros(len(mo))
     for vals,c,lab in series: ax.bar(x,vals,bottom=b,color=c,width=0.66,label=lab); b=b+np.array(vals)
     for i,t in enumerate(b): ax.text(i,t+max(b)*0.02,f"${t:,.0f}",ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
-    ax.set_xticks(x); ax.set_xticklabels(mo,fontsize=16,color=TICK); ax.set_ylim(0,max(b)*1.16); ax.get_yaxis().set_visible(False); clean(ax)
+    month_ticks(ax,x,mo,field="monthly_detail.months",pt=16,color=TICK)
+    ax.set_ylim(0,max(b)*1.16); ax.get_yaxis().set_visible(False); clean(ax)
     ax.legend(loc="upper center",bbox_to_anchor=(0.5,1.12),ncol=4,frameon=False,fontsize=16)
     canvas(fig,1815,1000,out)
 
 def c_perref(d,out):
-    m=d["monthly_detail"]; mo=m["months"]
+    m=d["monthly_detail"]; mo=_detail_months(d)
     for_ax=[(m["avg_balance"],"Avg Balance / Account","${:,.0f}"),
             (_per_acct_month(d,"interchange"),"Interchange / Acct / Mo","${:.2f}"),
             (_per_acct_month(d,"nsf_od"),"NSF-OD / Acct / Mo","${:.2f}")]
@@ -131,7 +148,10 @@ def c_perref(d,out):
     for ax,(vals,title,fmt) in zip(axes,for_ax):
         x=np.arange(len(mo)); bars_last_orange(ax,x,vals)
         ax.set_title(title,color=NAVY,fontsize=16,fontweight="bold",pad=8)
-        ax.set_xticks(x); ax.set_xticklabels([mm.split()[0] for mm in mo],fontsize=16,color=TICK,rotation=40,ha="right")
+        # These are OPENING-MONTH cohorts and the series routinely spans a year
+        # boundary (Nov 25 -> Jul 26). The month word alone was being rendered, on
+        # the one chart whose point is that older cohorts have had longer to earn.
+        month_ticks(ax,x,mo,field="monthly_detail.months",pt=16,color=TICK)
         ax.set_ylim(0,max(vals)*1.18); ax.get_yaxis().set_visible(False); clean(ax)
         ax.text(len(mo)-1,vals[-1]+max(vals)*0.03,fmt.format(vals[-1]),ha="center",color=ORANGE,fontsize=16,fontweight="bold")
     canvas(fig,2100,800,out)

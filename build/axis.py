@@ -9,9 +9,20 @@ facing slides showed the same 36-month series at different densities.
 
 The rules are derived from the tick count, never typed per chart:
 
-  * up to 8 ticks        — horizontal
-  * 9 to 14 ticks        — horizontal if they MEASURE as fitting, else 30 degrees
-  * more than 14 points  — thinned to about 12 ticks, at 45 degrees
+  * up to 8 ticks   — horizontal
+  * 9 to 14 ticks   — horizontal if the widest label fits its track; else 30
+                      degrees if that clears the collision, else 45
+  * a thinned axis  — 45 degrees, the angle STYLE.md already gives the 36-month
+                      combo charts
+
+One knob decides both: `max_ticks`, the most ticks an axis may carry. Above it
+the series is thinned and reads at 45; at or below it every point is labelled and
+the angle is measured. A chart with less room says so by passing a lower cap —
+the before/after panels are half-width and cap at 8, which is the tuning Aaron
+made after Sugar River's fifteen mailings rendered as overlapping mush
+(2026-08-28). An earlier draft kept the cap and the thinning threshold as two
+separate numbers, and the cap was then inert for any series short enough to sit
+under the threshold: exactly the fifteen-mailing case it existed for.
 
 and the newest point always carries a tick. That last one is not cosmetic: the
 endpoint is the headline number on the growth and reach charts, and it used to be
@@ -32,9 +43,9 @@ import textfit
 from periods import axis_labels
 
 DEFAULT_FAMILY = "Carlito"      # every chart in the pipeline renders Calibri-metric
-MAX_TICKS = 12                  # target for a thinned series
-DENSE_AT = 14                   # above this many points the series is thinned
-_GAP_IN = 0.06                  # whitespace demanded between neighbouring ticks
+MAX_TICKS = 14                  # the most ticks an axis carries before thinning
+_GAP_IN = 0.06                  # whitespace between neighbouring HORIZONTAL ticks
+_LINE_GAP_IN = 0.02             # whitespace between neighbouring ROTATED ticks
 
 
 def axes_width_in(ax):
@@ -50,7 +61,7 @@ def tick_indices(n, max_ticks=MAX_TICKS):
     """Which of `n` positions carry a label. The last one always does."""
     if n <= 0:
         return []
-    step = 1 if n <= DENSE_AT else math.ceil(n / max_ticks)
+    step = 1 if n <= max_ticks else math.ceil(n / max_ticks)
     idx = list(range(0, n, step))
     last = n - 1
     if idx[-1] != last:
@@ -63,17 +74,29 @@ def tick_indices(n, max_ticks=MAX_TICKS):
     return idx
 
 
-def rotation_for(shown, total, width_in, pt, family=DEFAULT_FAMILY):
-    """0, 30 or 45 degrees, decided by counting and measuring."""
-    if total > DENSE_AT:
+def rotation_for(shown, width_in, pt, family=DEFAULT_FAMILY, thinned=False):
+    """0, 30 or 45 degrees, decided by measuring the collision each one leaves.
+
+    Horizontal and rotated labels collide in different directions, so they are
+    two different measurements. Flat, a label collides when it is WIDER than its
+    track. Rotated, the labels are parallel lines and width stops mattering: they
+    collide when the PERPENDICULAR distance between neighbours, track * sin(a),
+    is less than the height of the type. Testing width and then falling through
+    to 30 degrees as a catch-all is what put the ICS per-account grid's 16pt
+    labels on top of each other at 30 degrees, where they need 45.
+    """
+    if thinned:
         return 45
-    if len(shown) <= 8:
+    if len(shown) <= 8 or not width_in or not shown:
+        return 0 if len(shown) <= 8 else 30
+    track = width_in / len(shown)
+    widest = max(textfit.text_width_in(t, pt, family) for t in shown)
+    if widest + _GAP_IN <= track:
         return 0
-    if width_in and shown:
-        widest = max(textfit.text_width_in(t, pt, family) for t in shown)
-        if widest + _GAP_IN <= width_in / len(shown):
-            return 0
-    return 30
+    line_h = pt / 72.0
+    if track * math.sin(math.radians(30)) >= line_h + _LINE_GAP_IN:
+        return 30
+    return 45
 
 
 def month_ticks(ax, x, months, *, field="months", pt=9, family=DEFAULT_FAMILY,
@@ -89,7 +112,8 @@ def month_ticks(ax, x, months, *, field="months", pt=9, family=DEFAULT_FAMILY,
     labels = axis_labels(months, field=field)
     idx = tick_indices(len(labels), max_ticks)
     shown = [labels[i] for i in idx]
-    rot = rotation_for(shown, len(labels), axes_width_in(ax), pt, family)
+    rot = rotation_for(shown, axes_width_in(ax), pt, family,
+                       thinned=len(labels) > max_ticks)
     kw = {"fontsize": pt, "rotation": rot}
     if rot:
         kw["ha"] = "right"

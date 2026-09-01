@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from axis import DENSE_AT, MAX_TICKS, month_ticks, rotation_for, tick_indices
+from axis import MAX_TICKS, month_ticks, rotation_for, tick_indices
 from periods import MONTH_ABBR, is_axis_label
 
 
@@ -54,9 +54,23 @@ def test_a_dense_series_is_thinned(n):
     assert len(idx) >= 6, f"{n} points thinned down to {len(idx)} ticks"
 
 
-@pytest.mark.parametrize("n", range(1, DENSE_AT + 1))
+@pytest.mark.parametrize("n", range(1, MAX_TICKS + 1))
 def test_a_short_series_labels_every_point(n):
     assert tick_indices(n) == list(range(n))
+
+
+@pytest.mark.parametrize("n", [9, 11, 14])
+def test_a_lower_cap_thins_a_series_that_would_otherwise_fit(n):
+    """The before/after panels are half-width and cap at 8.
+
+    The cap used to sit behind a separate thinning threshold, which made it inert
+    for any series short enough to fall under that threshold — which is every
+    case it existed for.
+    """
+    capped = tick_indices(n, max_ticks=8)
+    assert len(capped) <= 9, f"{n} points left {len(capped)} ticks on a half-width panel"
+    assert len(capped) < n, "the cap did nothing"
+    assert tick_indices(n) == list(range(n)), "the default cap should still label every point"
 
 
 def test_the_endpoint_never_crowds_its_neighbour():
@@ -86,16 +100,38 @@ def test_a_dense_series_reads_at_45():
 
 
 def test_a_middling_series_rotates_only_when_it_has_to():
-    """Same 12 months, two widths. The narrow one rotates; the wide one does not."""
+    """Same 12 months, three widths — the angle follows the room, nothing else."""
     _, narrow = drawn(12, width_in=4.0)
+    _, mid = drawn(12, width_in=6.5)
     _, wide = drawn(12, width_in=14.0)
-    assert narrow == 30 and wide == 0
+    assert narrow == 45, "a 0.26in track cannot hold 9pt type at 30 degrees"
+    assert mid == 30
+    assert wide == 0
 
 
 def test_rotation_is_measured_not_counted():
     """Bigger type in the same box is what tips it over, not the tick count."""
-    assert rotation_for(["May'24"] * 12, 12, 6.0, 9) == 0
-    assert rotation_for(["May'24"] * 12, 12, 6.0, 16) == 30
+    assert rotation_for(["May'24"] * 12, 6.0, 9) == 0
+    assert rotation_for(["May'24"] * 12, 6.0, 16) == 30
+
+
+def test_30_degrees_is_only_chosen_when_30_degrees_clears_the_collision():
+    """Rotated labels are parallel lines: they collide on HEIGHT against the
+    perpendicular spacing, track * sin(angle), not on width.
+
+    Returning 30 as a catch-all whenever the width test failed put the ICS
+    per-account grid's 16pt labels on top of each other — at 30 degrees a 0.40in
+    track leaves 0.20in between lines for 0.22in of type.
+    """
+    tight = ["May'26"] * 9
+    assert rotation_for(tight, 3.6, 16) == 45      # 0.40in track, 16pt type
+    assert rotation_for(tight, 3.6, 9) == 30       # same track, small enough type
+    assert rotation_for(tight, 9.0, 9) == 0        # room to stay flat
+
+
+def test_a_thinned_axis_always_reads_at_45():
+    """However few ticks survive the thinning, and however well they fit."""
+    assert rotation_for(["May'24"] * 4, 14.0, 8, thinned=True) == 45
 
 
 # --- end to end -----------------------------------------------------------

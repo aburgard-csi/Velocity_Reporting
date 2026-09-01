@@ -6,6 +6,7 @@ import numpy as np, json, os
 from PIL import Image
 import sys
 from rpe_env import use_font
+from axis import month_ticks, tick_indices
 M=json.load(open(sys.argv[1]))
 B=json.load(open(sys.argv[2]))
 OUT=sys.argv[3]; os.makedirs(OUT,exist_ok=True)
@@ -47,17 +48,29 @@ def save(fig,name):
 def figfor(name,scale=5.2):
     w,h=DIM[name]; a=w/h; H=scale; return plt.subplots(figsize=(H*a,H))
 
-def _xmonths(ax,x,cats,labels):
-    """One x-axis style for the 36-mo combo charts: ~12 ticks, 9pt, 45deg (STYLE.md)."""
-    step=max(1,round(len(cats)/12))
-    ax.set_xticks(x[::step]); ax.set_xticklabels([labels[i] for i in range(0,len(labels),step)],fontsize=9,rotation=45,ha="right")
+def _months(pack,series):
+    """The axis tokens for a month series, from the pack that produced it.
+
+    Every chart below used to cut a tick out of the series' own prose label —
+    m.split()[0], c[:3]+c[-2:], .replace(' 20',"'") — which is how one month came
+    to be spelled nine ways across the three programs, twice without its year.
+    The packs emit tokens now; a pack built before they did is refused rather
+    than sliced.
+    """
+    ax=pack.get('axis_months') or {}
+    if series not in ax:
+        raise SystemExit(f"ERROR: the data pack carries no axis_months['{series}'] — "
+                         f"rebuild it (metrics_gen / the base extractor) before rendering charts")
+    return ax[series]
 
 # image5: monthly incremental revenue, navy bars + orange dashed avg
 def c_monthly():
-    data=B['monthly_rev_last12']; months=[m.split()[0] for m,_ in data]; rev=[v for _,v in data]
+    data=B['monthly_rev_last12']; rev=[v for _,v in data]
+    toks=_months(B,'monthly_rev_last12')
     avg=sum(rev)/len(rev)
     fig,ax=figfor('image5',3.4)
-    ax.bar(months,rev,color=NAVY,width=0.68)
+    x=np.arange(len(rev))
+    ax.bar(x,rev,color=NAVY,width=0.68)
     mx=max(rev)
     # Same halo as the SM Monthly Summary chart: a bar near the average has its
     # label crossing the dashed avg line, and the dash would strike through the
@@ -68,6 +81,9 @@ def c_monthly():
         ax.text(i,v+off,f"${v/1000:.0f}K",ha="center",va="bottom",color=NAVY,
                 fontweight="bold",fontsize=8.5,bbox=_halo,zorder=5)
     ax.axhline(avg,ls="--",color=ORANGE,lw=2,zorder=2)
+    # The window is twelve months, so it always crosses a year boundary. This axis
+    # used to read "Aug Sep ... Jan Feb" with nothing saying which January.
+    month_ticks(ax,x,toks,field="monthly_rev_last12",pt=13)
     ax.set_ylim(0,mx*1.26); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image5')
@@ -116,7 +132,7 @@ def c_movement():
     save(fig,'image8')
 # image9: sustained by mailing
 def c_sustained():
-    s=M['sustained']; cats=[f"{x[0].split()[0]} '{x[0].split()[1][2:]}" for x in s]  # Sep '23
+    s=M['sustained']; toks=_months(M,'sustained')
     pct=[x[2] for x in s]
     fig,ax=figfor('image9',3.4)
     # grey marks a definitional 100%: a mailing with no month after it yet (post
@@ -125,7 +141,7 @@ def c_sustained():
     ax.bar(range(len(pct)),pct,color=cols,width=0.62)
     for i,v in enumerate(pct):
         ax.text(i,v+1,f"{v:.0f}%",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=11)
-    ax.set_xticks(range(len(pct))); ax.set_xticklabels(cats,fontsize=8.5,rotation=30,ha="right")
+    month_ticks(ax,np.arange(len(pct)),toks,field="sustained",pt=8.5)
     ax.set_ylim(0,max(pct)*1.22); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image9')
@@ -137,7 +153,8 @@ def c_before_after_split():
     sp=M.get('before_after_split') or []
     if not sp:
         print("skip image31 — no offer-group split available"); return
-    cats=[e['m'].split()[0]+e['m'].split()[1][2:] for e in sp]
+    toks=_months(M,'before_after_split')
+    cats=toks
     name='image31'
     fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*4.2,4.2))
     x=np.arange(len(cats)); w=0.4
@@ -152,24 +169,13 @@ def c_before_after_split():
         ns=[e[key]['n'] for e in sp]
         ax.bar(x-w/2,bb,w,color=STEEL,label="Before")
         ax.bar(x+w/2,aa,w,color=ORANGE,label="After")
-        # Label every Nth mailing only. Sugar River 1038 has FIFTEEN mailings and every
-        # month plus an "(n=...)" second line was drawn, so the whole axis rendered as
-        # overlapping mush (Aaron, 2026-08-28). Wellworth has one mailing, which is why
-        # this never showed. The n counts move to the speaker notes rather than the axis.
-        _step = max(1, -(-len(cats) // 8))          # at most 8 ticks
-        _keep = list(range(0, len(cats), _step))
-        if _keep[-1] != len(cats) - 1:
-            # Always label the newest mailing — but appending it blindly put two
-            # ticks side by side whenever the stride did not land on the last
-            # index. Austin 1075 has 10 mailings, stride 2, so ticks ran
-            # ... 8, 9 and "Nov25"/"Feb26" printed on top of each other
-            # (Aaron, 2026-08-29). Drop the neighbour rather than crowd it.
-            if len(cats) - 1 - _keep[-1] < _step:
-                _keep.pop()
-            _keep.append(len(cats) - 1)
-        ax.set_xticks([x[i] for i in _keep])
-        ax.set_xticklabels([cats[i] for i in _keep], fontsize=11,
-                           rotation=(90 if _step == 1 and len(cats) > 6 else 0))
+        # At most 8 ticks — these are HALF-WIDTH panels. Sugar River 1038 has
+        # fifteen mailings and every month plus an "(n=...)" second line was drawn,
+        # so the whole axis rendered as overlapping mush (Aaron, 2026-08-28); the n
+        # counts moved to the speaker notes. The cap is kept; the stride and the
+        # "don't crowd the newest mailing" rule now come from axis.tick_indices,
+        # which is where every chart's density lives.
+        month_ticks(ax,x,toks,field="before_after_split",pt=11,max_ticks=8)
         ax.set_title(f"{title} — Avg Monthly Debit Spend",color=NAVY,
                      fontweight="bold",fontsize=12,pad=6)
         _clean(ax)
@@ -193,7 +199,7 @@ def c_before_after_split():
 
 # before/after two-panel (mean) image10
 def c_before_after(mean=True):
-    ba=M['before_after']; cats=[e['m'].split()[0]+e['m'].split()[1][2:] for e in ba]
+    ba=M['before_after']; cats=_months(M,'before_after')
     if mean:
         sb=[e['sb_mean'] for e in ba]; sa=[e['sa_mean'] for e in ba]
         sbsd=[e['sb_sd'] for e in ba]; sasd=[e['sa_sd'] for e in ba]
@@ -211,7 +217,9 @@ def c_before_after(mean=True):
     for ax,(bb,aa,bs,as_,title,isnsf) in zip(axes,[(sb,sa,sbsd,sasd,t1,False),(nb,na,nbsd,nasd,t2,True)]):
         ax.bar(x-w/2,bb,w,color=STEEL,label=l1,yerr=bs,error_kw=dict(ecolor='#333',lw=0.8,capsize=1.5) if bs else {})
         ax.bar(x+w/2,aa,w,color=ORANGE,label=l2,yerr=as_,error_kw=dict(ecolor='#333',lw=0.8,capsize=1.5) if as_ else {})
-        ax.set_xticks(x); ax.set_xticklabels(cats,fontsize=12,rotation=90)
+        # Was every mailing at 90 degrees. Same 8-tick cap as its twin above: two
+        # half-width panels have half the room a full chart does.
+        month_ticks(ax,x,cats,field="before_after",pt=12,max_ticks=8)
         ax.set_title(title,color=NAVY,fontweight="bold",fontsize=12,pad=6)
         _clean(ax)
         if not isnsf: ax.yaxis.set_major_formatter(lambda v,p:f"${v:,.0f}")
@@ -232,12 +240,12 @@ def c_take_branch():
     print("wrote image11")
 # image12: swipes & spend combo (workbook 36mo)
 def c_swipespend():
-    d=B['swipespend_36']; cats=[m.split()[0]+m.split()[1][2:] for m,_,_ in d]
+    d=B['swipespend_36']; toks=_months(B,'swipespend_36')
     spend=[s for _,s,_ in d]; cards=[c for _,_,c in d]
-    fig,ax=figfor('image12',4.0); x=np.arange(len(cats))
+    fig,ax=figfor('image12',4.0); x=np.arange(len(toks))
     ax.bar(x,spend,color=STEEL,width=0.66,label="Debit Spend ($M)")
     ax.set_ylabel("Monthly Debit Spend ($M)",color=NAVY,fontsize=10); ax.set_ylim(0,max(spend)*1.15)
-    _xmonths(ax,x,cats,cats)
+    month_ticks(ax,x,toks,field="swipespend_36",pt=9)
     _clean(ax)
     ax2=ax.twinx(); ax2.plot(x,cards,color=ORANGE,lw=3,label="Accounts w/ Card")
     ax2.set_ylim(0,max(cards)*1.35); ax2.set_ylabel("Accounts w/ Card",color=ORANGE,fontsize=10)
@@ -272,13 +280,15 @@ def c_rege_branch(name,rows,avg):
     save(fig,name)
 # reach area image17
 def c_reach():
-    rc=M['reach']; cats=[x[0] for x in rc]; vals=[x[1] for x in rc]
+    rc=M['reach']; toks=_months(M,'reach'); vals=[x[1] for x in rc]
     fig,ax=figfor('image17',3.0)
-    x=np.arange(len(cats))
+    x=np.arange(len(toks))
     ax.fill_between(x,vals,color=ORANGE,alpha=0.9); ax.plot(x,vals,color=ORANGE,lw=2)
-    step=max(1,len(cats)//8)
-    for i in range(0,len(cats),step): ax.text(i,vals[i]+max(vals)*0.02,f"{vals[i]:,}",ha="center",color=NAVY,fontweight="bold",fontsize=8)
-    ax.set_xticks(x[::step]); ax.set_xticklabels([cats[i].replace(' 20',"'").replace(' ',"'") for i in range(0,len(cats),step)],fontsize=8,rotation=0)
+    # Value labels sit on exactly the points that carry a tick, so the two cannot
+    # drift apart — they were two separate strides before.
+    for i in tick_indices(len(toks)):
+        ax.text(i,vals[i]+max(vals)*0.02,f"{vals[i]:,}",ha="center",color=NAVY,fontweight="bold",fontsize=8)
+    month_ticks(ax,x,toks,field="reach",pt=8)
     ax.set_ylim(0,max(vals)*1.14); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image17')
@@ -361,20 +371,20 @@ def c_new_seg():
     save(fig,'image25')
 # openings/closures area image26
 def c_openings():
-    oc=M['openings']; cats=[x[0] for x in oc]; cum=[x[3] for x in oc]
-    fig,ax=figfor('image26',3.4); x=np.arange(len(cats))
+    oc=M['openings']; toks=_months(M,'openings'); cum=[x[3] for x in oc]
+    fig,ax=figfor('image26',3.4); x=np.arange(len(toks))
     ax.fill_between(x,cum,0,color=ORANGE,alpha=0.9); ax.plot(x,cum,color=ORANGE,lw=2)
     lo=min(0,min(cum)); hi=max(0,max(cum)); span=(hi-lo) or 1
     off=span*0.03
     ax.axhline(0,color=MUTED,lw=1)                          # zero baseline
-    step=max(1,len(cats)//9)
-    idxs=list(range(0,len(cats),step))
-    if (len(cats)-1) not in idxs: idxs.append(len(cats)-1)   # always label the endpoint (headline net)
+    # The endpoint is the headline net figure and always carries a tick; that rule
+    # moved into axis.tick_indices, which every chart now shares.
+    idxs=tick_indices(len(toks))
     for i in idxs:
         v=cum[i]; above=v>=0
         ax.text(i, v+(off if above else -off), f"{v:+,d}", ha="center",
                 va="bottom" if above else "top", color=NAVY, fontweight="bold", fontsize=9)
-    ax.set_xticks(x[::step]); ax.set_xticklabels([cats[i].replace(' ',"'") for i in range(0,len(cats),step)],fontsize=8)
+    month_ticks(ax,x,toks,field="openings",pt=8)
     ax.set_ylim(lo-span*0.16, hi+span*0.16); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image26')
@@ -406,11 +416,11 @@ def c_dotplot():
     save(fig,'image28')
 # nsf over time combo image29
 def c_nsf():
-    ns=M['nsf_series']; cats=[x[0] for x in ns]; items=[x[1] for x in ns]; accts=[x[2] for x in ns]
-    fig,ax=figfor('image29',4.0); x=np.arange(len(cats))
+    ns=M['nsf_series']; toks=_months(M,'nsf_series'); items=[x[1] for x in ns]; accts=[x[2] for x in ns]
+    fig,ax=figfor('image29',4.0); x=np.arange(len(toks))
     ax.bar(x,items,color=STEEL,width=0.66,label="NSF/OD items")
     ax.set_ylabel("NSF/OD items / month",color=NAVY,fontsize=10); ax.set_ylim(0,max(items)*1.2)
-    _xmonths(ax,x,cats,[c[:3]+c[-2:] for c in cats])
+    month_ticks(ax,x,toks,field="nsf_series",pt=9)
     _clean(ax)
     ax2=ax.twinx(); ax2.plot(x,accts,color=ORANGE,lw=3,label="Accounts with NSF/OD")
     ax2.set_ylim(0,max(accts)*1.5); ax2.set_ylabel("Accounts with activity",color=ORANGE,fontsize=10)

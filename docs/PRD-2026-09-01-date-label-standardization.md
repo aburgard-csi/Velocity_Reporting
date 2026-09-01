@@ -2,9 +2,9 @@
 
 Date: 2026-09-01
 Owner: Aaron Burgard
-Status: Phases 0-1 shipped 2026-09-01 (`build/axis.py`, `periods.axis_label`,
-`axis_months` in the ARS and ICS packs). Phase 2 onward not started.
-The two defects below are fixed.
+Status: Phases 0-2 shipped 2026-09-01 — every time axis in all three programs
+renders `Jul'26` through `build/axis.py`. Phase 3 (pills) and Phase 4 (the gate)
+not started. The two defects below are fixed.
 
 ---
 
@@ -125,10 +125,14 @@ key changed, so nothing breaks mid-migration.
 `parse_month` gained the two forms the pipeline carries but could not read —
 `Jul 26` (every `%b %y` series, and the ICS workbook) and `Jul'26` (so a rendered
 tick round-trips). The VIP dashboards we do not control; their months are
-normalized on read by `month_ticks`. **Whether every VIP export parses is not yet
-proven** — no VIP data was reachable from the machine this was written on. An
-unreadable one raises and names the field, which is the intended failure, but
-Phase 2 is where any surprise surfaces.
+normalized on read by `month_ticks`. **Whether every VIP export parses is still not
+proven** — no VIP data was reachable from the machine this was written on, and
+Phase 2 did not change that. The ICS referral trend and all four MRPC month
+series now render through the parser, and an unreadable month raises naming the
+field. Phase 2 added the first tests those charts have ever had, covering
+`Jul 25`, `Jul 2025`, `Jul25` and `2025-07`; if VIP exports something else, the
+first build after this fails loudly with the field and the value in the message,
+and the fix is one line in `_TOKEN_FORMS`.
 
 The base extractors emit their tokens at source from the workbook's own
 datetimes. `metrics_gen` derives its from the series rows instead: several of
@@ -137,10 +141,25 @@ own rows is a worse bug than the parse it avoids. `take_branch_monthly` is the
 exception — its labels are bare `%b` with no year to recover, so its tokens come
 from the months themselves.
 
-**Phase 2 — renderers convert, one program at a time.** ARS is 7 charts, ICS 3
-call sites covering 8 charts, MRPC 4. Run `qa_all.py` after each program and
-`--snapshot` the intended drift; the fingerprints will move, and moving them
-one program at a time is what keeps the drift readable.
+**Phase 2 — renderers convert, one program at a time. SHIPPED.** ARS was 8 call sites, ICS 4
+covering 8 charts, MRPC 4. No layout drift resulted — the fingerprints read
+geometry and every change is inside a PNG.
+
+Two rules had to be corrected against what the pixels actually did:
+
+*One knob, not two.* The tick cap and the thinning threshold started as separate
+numbers, which made the cap inert for any series short enough to sit under the
+threshold — exactly the fifteen-mailing case the cap existed for. The half-width
+Before & After panels would have gone back to labelling every mailing. They are
+now one number, `max_ticks`, defaulting to 14 and passed as 8 by those panels.
+
+*Rotated labels collide on height, not width.* Falling through to 30 degrees
+whenever the width test failed put the ICS per-account grid's 16pt labels on top
+of one another: rotated ticks are parallel lines, and what separates them is
+`track x sin(angle)` against the height of the type. The angle is now measured at
+each step — flat, then 30, then 45 — instead of 30 being a catch-all.
+
+Visible changes beyond the label form are listed in CHANGELOG under 2026-09-01.
 
 **Phase 3 — pills.** `build_ars_gen.py:202` and `:1340`, plus the STYLE.md
 section.
