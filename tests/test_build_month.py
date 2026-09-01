@@ -113,7 +113,7 @@ def test_the_roster_decides_the_deck_name(roster):
 
 @pytest.mark.parametrize("cid,name", [
     ("1509", "Texas Bay Credit Union"),
-    ("1537", "FNBT Chickasha"),
+    ("1537", "Brooks Bank"),
     ("1705", "CoastLife Credit Union"),
     ("1218", "Ideal Credit Union"),
     ("1632", "WesBanco"),
@@ -121,5 +121,12 @@ def test_the_roster_decides_the_deck_name(roster):
 ])
 def test_roster_names_match_what_is_delivered(cid, name, roster):
     """The roster was carrying short forms that had never reached a deck. They
-    are aligned so making the roster authoritative renames only 1204."""
+    are aligned so making the roster authoritative renames only 1204.
+
+    1537 is the exception that proves the rule: FNBT Chickasha REBRANDED to
+    Brooks Bank on 2026-08-31 (Aaron), so the roster deliberately no longer
+    matches the name on its 2026.08 deck. Decks already shipped are not reissued
+    — the roster names what the NEXT build delivers. Match 1537 by id; its name
+    is not stable across periods.
+    """
     assert next(r[1] for r in roster if r[0] == cid) == name

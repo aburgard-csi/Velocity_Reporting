@@ -35,7 +35,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1204 | First State Bank - Michigan | MM | yes | — | — | ARS |
 | 1437 | Canandaigua National Bank | MM | ended | — | ended | **none — no further reviews** |
 | 1509 | Texas Bay Credit Union | MM | yes | yes | — | ARS-ICS |
-| 1537 | FNBT Chickasha | MM | yes | yes | — | ARS-ICS |
+| 1537 | Brooks Bank | MM | yes | yes | — | ARS-ICS |
 | 1539 | Marine FCU | MM | yes | yes | yes | ARS-ICS-MRPC |
 | 1549 | Wellworth Bank | MM | yes | referrals-only | — | ARS-ICS |
 | 1676 | True Sky CU | MM | yes | yes | — | ARS-ICS |
@@ -70,6 +70,11 @@ template placeholder means SM. Verified 2026-08-28.
 
 ## Status changes
 
+- **2026-08-31 — FNBT Chickasha 1537 rebranded to Brooks Bank** (Aaron). The rebrand
+  took effect 2026-08-31, and the data team's 2026.09 DCO already lands as
+  `1537-2026.09-Brooks Bank-DCO v2_2.xlsx`. 2026.09 forward delivers as **Brooks Bank**;
+  decks already shipped as FNBT Chickasha are not reissued. Files on Drive for 2026.08
+  and earlier keep the old name — match 1537 by ID, never by client name.
 - **2026-08-29 — VIP sheets live only in `Inputs/VIP Data/`** (Aaron). The repo copies
   under `build/{ics,mrpc}_pipeline/data/` are deleted; `resolve_client_json` reads the
   Drive store and nothing else. Where a status note below points at a repo data folder as
