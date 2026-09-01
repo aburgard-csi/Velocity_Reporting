@@ -369,7 +369,8 @@ This is the readme index — update it whenever files are added, removed, or mov
   building, and update it when a program starts or stops.
 - `CHANGELOG.md` — behavior changes that move a client-facing number or its source.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
-- `docs/` — `PRD-2026-08-26-repo-portability-and-response-rates.md`.
+- `docs/` — `PRD-2026-08-26-repo-portability-and-response-rates.md`,
+  `PRD-2026-09-01-date-label-standardization.md` (one date vocabulary on chart axes).
 
 **`scripts/`**
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
