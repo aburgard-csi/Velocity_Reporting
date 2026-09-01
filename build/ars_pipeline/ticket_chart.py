@@ -4,7 +4,7 @@ import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt, numpy as np, json, sys
 from PIL import Image
 from rpe_env import use_font
-R=json.load(open(sys.argv[1])); OUTPNG=sys.argv[2]
+R=json.load(open(sys.argv[1], encoding="utf-8")); OUTPNG=sys.argv[2]
 from brand import NAVY, ORANGE, STEEL, TICK, MUTED
 use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def clean(ax):
@@ -39,7 +39,15 @@ for rr in (b1,b2):
     for r in rr: ax2.text(r.get_x()+r.get_width()/2,r.get_height()+m2*0.015,f"${r.get_height():.0f}",ha="center",va="bottom",color=NAVY,fontsize=13,fontweight="bold")
 ax2.set_xticks(x); ax2.set_xticklabels(labels,color=NAVY,fontsize=14)
 ax2.set_ylim(0,m2*1.30); ax2.get_yaxis().set_visible(False)
-ax2.set_title("Ticket holds through response",color=NAVY,fontsize=16,fontweight="bold",pad=12,loc="left")
+# Same rule as the slide caption in build_ars_gen: the verb follows the bars it
+# titles. A constant "holds" sat over 5-9% declines on six 2026.08 decks. Band is
+# Aaron's +/-2% (2026-08-31). The validator cannot read a rendered chart title, so
+# this one is only ever as right as the code that writes it.
+_tmove=100.0*(R['resp_mean']-R['base_mean'])/R['base_mean'] if R['base_mean'] else 0.0
+_ttitle=("Ticket holds through response" if abs(_tmove)<=2.0
+         else "Ticket eases through response" if _tmove<0
+         else "Ticket rises through response")
+ax2.set_title(_ttitle,color=NAVY,fontsize=16,fontweight="bold",pad=12,loc="left")
 ax2.text(0.5,0.905,f"Monthly swipes {R['base_swpm']} → {R['resp_swpm']}",transform=ax2.transAxes,ha="center",color=TICK,fontsize=11.5,style="italic")
 ax2.legend(loc="upper center",bbox_to_anchor=(0.5,-0.09),ncol=2,frameon=False,fontsize=10.5,handlelength=1.1,columnspacing=1.4)
 clean(ax2)

@@ -47,7 +47,7 @@ _MODULE_NOTED = []
 import figures as _figs
 from brand import NAVY as _BNAVY, ORANGE as _BORANGE, MUTED as _BMUTED
 
-M = json.load(open(METRICS)); B = json.load(open(BASEJ)); L = json.load(open(LIFTJ)); O = json.load(open(ODDDJ))
+M = json.load(open(METRICS, encoding="utf-8")); B = json.load(open(BASEJ, encoding="utf-8")); L = json.load(open(LIFTJ, encoding="utf-8")); O = json.load(open(ODDDJ, encoding="utf-8"))
 # MM path = the lift matrix actually carries VALUES; else SM = monthly summary.
 # Testing the list alone was wrong: an unpopulated Lift Matrix MM tab still yields
 # row labels with all-None cells (1549 Wellworth), which read as truthy and routed
@@ -275,7 +275,7 @@ if ODD:
     tjson = os.path.join(ASSETS, 'ticket.json'); TICKET_PNG = os.path.join(ASSETS, 'ticket.png')
     subprocess.run([sys.executable, os.path.join(REF, 'ticket_calc.py'), csvp, tjson], check=True)
     subprocess.run([sys.executable, os.path.join(REF, 'ticket_chart.py'), tjson, TICKET_PNG], check=True)
-    R = json.load(open(tjson))
+    R = json.load(open(tjson, encoding="utf-8"))
 
 BIZ_PNG = None
 if BIZ and BIZ['branches']:
@@ -639,12 +639,40 @@ if TICKET_PNG:
         f"Selection: ARS-eligible personal accounts with debit activity. Left: average spend per swipe by monthly-swipe tier "
         f"(3-mo avg, {win_pretty}). Right: mailing responders, ticket before vs. after response.")
     segs = R['segments']; light = segs[0]; heavy = segs[-1]
+    # The verb FOLLOWS the figures it introduces. It used to be a constant
+    # "holds", which was true of the template's own $50→$50 example and of
+    # nothing else: the 2026.08 decks said ticket "holds" over declines of 5.2%
+    # to 8.6% (1509, 1537, 1539, 1549, 1676, 1705). Band is Aaron's +/-2%
+    # (2026-08-31) — inside it a move is almost flat, outside it is not, and
+    # validate_deck.claim_consistency_findings now FAILs the mismatch.
+    def _move(before, after):
+        return 100.0 * (after - before) / before if before else 0.0
+
+    _tmove = _move(R['base_mean'], R['resp_mean'])
+    _smove = _move(R['base_swpm'], R['resp_swpm'])
+    _tverb = ("holds through" if abs(_tmove) <= 2.0
+              else "eases through" if _tmove < 0 else "rises through")
+    # The swipe clause was hardcoded "rise" too. Real clients do rise (8.9->17.4
+    # on 1539), so it never showed on a delivered deck — the golden deck's
+    # synthetic ODD fell 3.0% and said "rise" anyway. Latent, not harmless.
+    _sverb = ("hold at" if abs(_smove) <= 2.0
+              else "ease to" if _smove < 0 else "rise")
+    # The closing clause is a CONCLUSION about where the gain came from, so it
+    # only holds while swipes actually rose.
+    if _smove > 2.0:
+        _ttail = ("responders transact more often and spend more per swipe"
+                  if _tmove > 2.0
+                  else "the gain is more transactions, not larger ones")
+    elif abs(_smove) <= 2.0 and abs(_tmove) <= 2.0:
+        _ttail = "responder spending patterns are little changed"
+    else:
+        _ttail = "this window does not show that pattern"
     set_shape_text(S[9], "Spend per swipe declines as usage rises — light users (1-5/mo) average $89 per swipe versus $44 for heavy users (26+/mo), around the $47 blend. For responders, ticket holds through response (mean $50→$50, median $45→$45) while monthly swipes rise 11.7→17.1: the gain is more transactions, not larger ones.",
         f"Spend per swipe declines as usage rises — light users ({light[0]}/mo) average ${light[1]:.0f} per swipe "
         f"versus ${heavy[1]:.0f} for heavy users ({heavy[0]}/mo), around the ${R['blended']:.0f} blend. "
-        f"For responders, ticket holds through response (mean ${R['base_mean']:.0f}→${R['resp_mean']:.0f}, "
-        f"median ${R['base_med']:.0f}→${R['resp_med']:.0f}) while monthly swipes rise {R['base_swpm']}→{R['resp_swpm']}: "
-        f"the gain is more transactions, not larger ones.")
+        f"For responders, ticket {_tverb} response (mean ${R['base_mean']:.0f}→${R['resp_mean']:.0f}, "
+        f"median ${R['base_med']:.0f}→${R['resp_med']:.0f}) while monthly swipes {_sverb} {R['base_swpm']}→{R['resp_swpm']}: "
+        f"{_ttail}.")
 
 # ============================ SLIDE 12 — Mailing Response Summary
 # Subtitle used to hardcode "Most recent 12 …" and name the revenue model. It now follows
