@@ -17,45 +17,171 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
-### 2026-09-01 — MRPC overlay lines and value labels are cased, not drawn white
+### 2026-09-01 — MRPC Enrollment Performance was drawn from an invented denominator
 
-`STYLE.md` told the MRPC renderer to draw any line overlaid on the bars in white
-so it would read over the navy. It read over the navy and nowhere else. Every
-segment crossing the GAP between two bars, and any point rising above a bar top,
-rendered white-on-white and vanished — so the Retention "Still Active" line was
-invisible for its whole length on the 2026.08 decks, leaving only the ringed
-markers, and its legend swatch was blank for the same reason. Aaron caught it on
-the 1502 Capital Bank deck.
+`chart_perf` read `new_checking_approx`, a key **no client sheet has ever
+carried**, and fell back to `enrollments / 0.11` — a guessed 11% penetration. The
+real counts sit in `new_accounts` and the real goal in `goal`, present in every
+sheet. Because the goal line was derived from those invented bars, every month's
+goal was wrong too.
 
-The same mistake sat one layer down in `chart_perf`: the Enrollments VALUE LABELS
-were white too. On 1502 the five zero-enrollment months have no bar behind them
-(`new_checking_approx` is null, so the bar height derives from the enrollment
-count), and five real values printed white on white.
+On Austin 1075 the fabrication drew 1,036 new accounts for a month that actually
+had 873; on Marine 1539 it drew 236 where the truth was 341. **Figures move on
+every MRPC deck.** There is no fallback now — absent keys raise, because a chart
+that cannot be drawn from the client's data must not be drawn from a constant.
 
-Both are now navy with a white casing — `_overlay_line()` and `_cased_text()` in
-`mrpc_charts_gen.py`, one definition each. A casing removes the dependency on
-what happens to sit behind a given mark; choosing a different flat color would
-only move the failure to a different background. Making the labels navy exposed a
-collision the white had been hiding: they sat on their own line markers, because
-the offset was a fraction of the axis maximum while the marker stays 6pt. They
-now clear it by a fixed offset in POINTS.
+Enrollment counts also moved from the line to **above the bar**, matching
+Retention (Aaron).
 
-White is still correct where the ground is guaranteed, and those were left alone:
-marker faces with a colored ring, the white pad that masks a line running behind
-a label, the separator between stacked bar segments and pie wedges, and text on
-an opaque navy/orange patch. The other four chart renderers were swept and label
-above the mark in navy or orange on the open canvas, which is background-independent.
+### 2026-09-01 — every MRPC deck shipped the template's enrollment sentence
 
-**No client-facing figure moves — every MRPC deck renders differently.** The
-retention line and the Performance vs Goal labels appear where they previously
-did not. 1502's 2026.08 deck was rebuilt and redelivered (0 FAIL, gate PASS);
-other MRPC clients pick this up on their next build.
+The Enrollment-vs-Goal caption was resolved by POSITION: `txt_at(S[4], top=6.7)`
+with a 0.15" tolerance, against a box that sits at **6.40"**. `txt_at` returned
+`None`, the `if` fell through, and the caption was never swapped — silently, with
+no swap gate in the MRPC builder to catch it. Austin, Ideal, Summit, Capital and
+Marine all shipped the same sentence: *"averages ~55% of goal, peaking at 72% in
+Feb 2026"* — Union Financial's numbers.
 
-Standing-rule check added: `tests/test_chart_colors.py` reads the five chart
-renderers rather than the rendered PNGs — so it needs no client data and no
-fixture month — and fails if a mark is drawn in the canvas color again. It is
-verified against the exact lines of both defects and against six legitimate white
-usages it must not flag.
+It would not have worked anyway: the replacement read `penetration_summary` from
+the client sheet with a `''` default, and no sheet carries that key, so a caption
+that DID match would have read "Enrollment penetration ."
+
+Now resolved by CONTENT, derived from `pct_of_goal` (which is present), and it
+raises if either the shape or the series is missing. Marine reads "averages 58%
+of goal, peaking at 78% in Jun 26". Geometry drifts; the words do not.
+
+### 2026-09-01 — the ICS 12-month close rate was the client's NON-ICS rate
+
+The Comparisons row was inverted. `client` carried the client's **non-ICS**
+close rate program-to-date, while the client's own **ICS** rate sat in the
+*Velocity average* column — so the row compared a client against themselves and
+labelled neither side correctly. It went unnoticed because the first client it
+was checked against, CoastLife 1705, happened to have a 6.7% ICS rate identical
+to the Velocity benchmark.
+
+The Velocity average is a **constant**, like the 29% of openings and $1,828
+lifetime value beside it, read off the template's "Velocity Clients' Average"
+column: `VELOCITY_CLOSE_RATE_12M_PCT = 6.7`.
+
+The footnote had its own defect: it says "your Non-ICS accounts' **12-month**
+close rate" and was handed the program-to-date figure. **Figures move on every
+ICS deck with a current workbook:**
+
+| Client | Row was | Row now | Footnote was | now |
+| --- | --- | --- | --- | --- |
+| 1075 Austin | 5.4 vs 51.7 | 6.7 vs 5.4 | 51.7% | 6.5% |
+| 1509 Texas Bay | 8.3 vs 44.5 | 6.7 vs 8.3 | 44.5% | 15.3% |
+| 1539 Marine | 6.9 vs 35.5 | 6.7 vs 6.9 | 35.5% | 10.4% |
+| 1734 Altamaha | 7.9 vs 13.8 | 6.7 vs 7.9 | 13.8% | 9.0% |
+
+Austin's deck previously showed a 51.7% close rate for their ICS programme; it is
+5.4%, against a 6.7% benchmark. The stored `benchmark` block is written by
+`ics_workbook_extract`, so the client JSONs were re-extracted — the diff was
+exactly these three fields on all four clients.
+
+### 2026-09-01 — life-of-account metrics use Last 12 Months only
+
+Program-to-date spans the whole programme and answers a different question: on
+Austin it reports a 51.66% non-ICS close rate against 6.45% over the last year.
+Mixing the two windows in one table compares figures that are not comparable, so
+every metric off the *Life of Account Data* sheet now reads the **Last 12
+Months** row (Aaron). *% of Total Openings* moves with it — Austin from 25% to
+32% (3,609 of 11,109 openings).
+
+### 2026-09-01 — "a program high" was asserted, not found
+
+Two ICS captions declared a record without testing for one. The Power-of-
+Referrals line called the PREVIOUS month a programme high unconditionally, and
+the Referral Trend caption said the same of whatever sat at `[-2]`. Both were
+**false on every client checked**: Marine's July was 103 against a June of 129,
+Austin's July 363 against 423, Texas Bay's July 40 against a March of 73.
+
+The claim is now earned or dropped, and scoped to what the data can support —
+`trend` is a 14-month window, not the whole programme, so nothing there can prove
+a *programme* high. Marine reads "July brought 103; the last 13 months peaked at
+129 in Jun 26." This is also the "no superlatives or unsupported claims" rule in
+CLAUDE.md.
+
+### 2026-09-01 — canned claims that future data can falsify
+
+An audit of every string the three builders write into a deck, bucketed by how it
+goes stale: fully canned, fixed-index, and interpolated-but-unearned. Three MRPC
+sentences asserted something no one had checked:
+
+- *"Revenue has grown across the life of the program"* — Capital Bank 1502 peaked
+  at $8.4K and has fallen for three years. Now tested against the annual series;
+  1502 reads "Life-of-program revenue reached".
+- *"Monthly MRPC revenue has held around $XK"* — 1502 swings ±15% around its
+  mean. Now claims stability only within ±10%, else "has averaged". (The average
+  also printed at `,.0f`, so a $669 mean rendered "$1K" beside a "$0.6K–$0.7K"
+  range — an average outside its own range. One decimal now.)
+- *"Platinum ($14.95/mo) is the most-held card"* — both the leader and the price
+  were hardcoded. Both now come from `card_billing`, so a client whose Gold or
+  Business Platinum book overtakes Platinum is not told otherwise.
+
+### 2026-09-01 — the gate FAILs a slide whose text contradicts its own figures
+
+`validate_deck.claim_consistency_findings` reads one sentence at a time and
+matches each claim to its NEAREST figure pair: a stated percentage against that
+pair, a movement or flatness word against the change, a comparative against the
+ordering. Flatness is held to Aaron's ±2% band.
+
+Getting it to FAIL rather than advise took three corrections, each found by
+running it over shipped decks rather than invented examples: a COMPARISON is not
+a MOVEMENT ("lower balances than non-responders, $924 vs $2,477" is correct, and
+reading it as a change looks like a +168% rise — that failed six correct slides);
+a sentence carries more than one claim (testing every claim against the FIRST
+pair failed six more); and negation ("did not increase" is not an increase).
+
+A rule that flagged claims with no supporting figure was **dropped**: it produced
+156 findings across 20 files, almost all legitimate bullets whose evidence is the
+chart on the slide. A rule that cries wolf 156 times is a rule nobody reads.
+
+Separately, the validator was truncating its own output — findings quote slide
+text, and printing an em dash to a pipe on Windows raised `UnicodeEncodeError`
+part-way through the report, so the summary line landed and every finding after
+it was lost. A gate that cannot say what failed is not a gate.
+
+### 2026-09-01 — Average Ticket describes what the figures actually did
+
+The caption hardcoded "ticket **holds** through response" — true of the
+template's own $50→$50 example and of nothing else. It shipped over declines of
+5.2% to 8.6% on six 2026.08 decks (1509, 1537, 1539, 1549, 1676, 1705). The same
+sentence hardcoded "monthly swipes **rise**"; real clients do rise, so that never
+showed on a delivered deck until the golden deck's synthetic ODD fell 3.0% and
+said "rise" anyway. Both verbs now derive from the values they introduce, on the
+±2% band, as does the chart title above the bars in `ticket_chart.py`.
+
+The closing clause — "the gain is more transactions, not larger ones" — was
+dropped (Aaron, 2026-09-01). The two movements are stated; the reader can draw
+that themselves.
+
+### 2026-09-01 — one month format on every chart axis, and one overlay-line color
+
+**Axes.** Every month label is now `MMM'YY`, angled 45° — `periods.mon_yy()` /
+`axis_months()`. Three formats were in service and none agreed: ARS drew
+`Jun'25`, MRPC drew `Aug 25`, and the ICS quarter panels drew `Jul` —
+`mm.split()[0]` threw the YEAR away, so a 14-month axis read Jan…Dec…Jan. Fixing
+it exposed a gap in the shared parser: `parse_month` never handled `Jun 25` or
+`Jun'25`, the pipeline's two commonest forms, so every VIP series fell through to
+`None`.
+
+**Overlay lines.** Three goes at this. The MRPC Retention line was drawn plain
+WHITE on the assumption it never left a navy bar — it does, and the line was
+invisible for its whole length on the 2026.08 decks, legend swatch included.
+Then navy with a white casing, which was legible but rejected on looks. Now
+**teal `#0D9488`**, which needs no stroke: 4.02:1 against navy and 3.74:1 against
+white, both clear of WCAG's 3:1, and close to the best any flat color can manage
+against those two extremes (3.88:1). Orange reference lines are left alone —
+they already read at 5.5:1 on navy. `tests/test_chart_colors.py` still fails the
+build if a mark is drawn in the canvas color.
+
+### 2026-09-01 — ICS Billed Expense drops the account count
+
+"Billed Expense for 6,785 Accounts" wrapped onto the value beneath it. The count
+was already conditional on `fits_one_line`, which passed 6,785 and let it wrap
+anyway; it is now dropped unconditionally (Aaron). The same figure is already on
+the slide in the "ICS Accounts" callout.
 
 ### 2026-09-01 — the ODD's `<mon> MTD` column is NSF/OD ITEMS, not fee income
 
