@@ -657,22 +657,16 @@ if TICKET_PNG:
     # synthetic ODD fell 3.0% and said "rise" anyway. Latent, not harmless.
     _sverb = ("hold at" if abs(_smove) <= 2.0
               else "ease to" if _smove < 0 else "rise")
-    # The closing clause is a CONCLUSION about where the gain came from, so it
-    # only holds while swipes actually rose.
-    if _smove > 2.0:
-        _ttail = ("responders transact more often and spend more per swipe"
-                  if _tmove > 2.0
-                  else "the gain is more transactions, not larger ones")
-    elif abs(_smove) <= 2.0 and abs(_tmove) <= 2.0:
-        _ttail = "responder spending patterns are little changed"
-    else:
-        _ttail = "this window does not show that pattern"
+    # The caption ends at the figures. It used to close with a conclusion about
+    # where the gain came from ("the gain is more transactions, not larger
+    # ones"), dropped 2026-09-01 (Aaron) — the two movements are already stated
+    # and the reader can draw that themselves. Removing it also retires the
+    # branch that had to keep the conclusion true when swipes did not rise.
     set_shape_text(S[9], "Spend per swipe declines as usage rises — light users (1-5/mo) average $89 per swipe versus $44 for heavy users (26+/mo), around the $47 blend. For responders, ticket holds through response (mean $50→$50, median $45→$45) while monthly swipes rise 11.7→17.1: the gain is more transactions, not larger ones.",
         f"Spend per swipe declines as usage rises — light users ({light[0]}/mo) average ${light[1]:.0f} per swipe "
         f"versus ${heavy[1]:.0f} for heavy users ({heavy[0]}/mo), around the ${R['blended']:.0f} blend. "
         f"For responders, ticket {_tverb} response (mean ${R['base_mean']:.0f}→${R['resp_mean']:.0f}, "
-        f"median ${R['base_med']:.0f}→${R['resp_med']:.0f}) while monthly swipes {_sverb} {R['base_swpm']}→{R['resp_swpm']}: "
-        f"{_ttail}.")
+        f"median ${R['base_med']:.0f}→${R['resp_med']:.0f}) while monthly swipes {_sverb} {R['base_swpm']}→{R['resp_swpm']}.")
 
 # ============================ SLIDE 12 — Mailing Response Summary
 # Subtitle used to hardcode "Most recent 12 …" and name the revenue model. It now follows

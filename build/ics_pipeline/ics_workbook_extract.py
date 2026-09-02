@@ -37,6 +37,17 @@ import openpyxl
 
 warnings.filterwarnings("ignore")
 
+# Velocity's program-wide 12-month close rate, the benchmark the client's own ICS
+# rate is shown against on the Comparisons slide. A CONSTANT, like the 29% of
+# openings and $1,828 lifetime value beside it — all three are read off the
+# template's "Velocity Clients' Average" column and none is computed per client.
+#
+# It used to be filled with the client's OWN ICS close rate, which made the row
+# compare a client against themselves. That went unnoticed because the first
+# client it was checked against, CoastLife 1705, happened to have a 6.7% ICS rate
+# — identical to this benchmark, so the column looked right.
+VELOCITY_CLOSE_RATE_12M_PCT = 6.7
+
 CONTACTS = [
     {"name": "Aaron Burgard", "role": "Client Service Manager",
      "phone": "910-617-1984", "email": "aaron.burgard@csiweb.com"},
@@ -97,6 +108,24 @@ def extract(path):
         return round(sum(series(r)), 2) if r else 0.0
 
     r_open = row_of("Accounts Opened via Invitation")
+
+    # Program start = the FIRST month that opened an account via invitation
+    # (Aaron, 2026-09-01). `build_ics_gen` needs it to decide whether a programme
+    # is inside its first two years, in which case Present Value uses the 6.9-year
+    # Velocity life rather than the client's own modelled life. No client sheet
+    # has ever carried the field, so that rule had never once fired: every client
+    # fell through to "assume mature" and was valued on their modelled life —
+    # 11.58 years on 1537. Derived here because Monthly Detail is the programme's
+    # own record and needs no second source.
+    # Computed HERE, not in the return: the workbook is opened read_only and is
+    # closed before extract() returns, so a lazy read at return time raises
+    # "ZIP archive that was already closed".
+    program_start = None
+    if r_open:
+        for _m, _v in zip(months, series(r_open)):
+            if _v and isinstance(_m, datetime.datetime):
+                program_start = _m.strftime("%Y-%m")
+                break
     r_cum = row_of("Cumulative From Invitation")
     r_bal = row_of("Average Balance per Account")
     r_profit = row_of("Account Profit Contribution")
@@ -228,39 +257,61 @@ def extract(path):
 
     # ---- Life of Account Data -> benchmark
     lo = wb["Life of Account Data"]
-    ptd = _find_row(lo, "Program to Date", 10, 20)
     l12 = _find_row(lo, "Last 12 Months", 10, 20)
+    if not l12:
+        # Every life-of-account metric now comes from this one row, so losing it
+        # is not a degraded result, it is no result. Without this the six values
+        # stay 0 and the deck ships a 0.0% close rate and 0% of openings —
+        # figures a reader cannot tell from real ones. Missing source data is
+        # stated, never zeroed (CLAUDE.md).
+        raise SystemExit("ERROR: no 'Last 12 Months' row in 'Life of Account Data' "
+                         "(searched rows 10-20) — refusing to emit zeroed "
+                         "life-of-account metrics")
 
     def lrow(r):
         return [lo.cell(r, c).value for c in range(1, 9)]
 
-    non_open = non_closed = non_rate = ics_open = ics_rate12 = 0
-    if ptd:
-        v = [x for x in lrow(ptd) if isinstance(x, (int, float))]
-        if len(v) >= 6:
-            non_open, non_closed, non_rate, ics_open = v[0], v[1], v[2], v[3]
+    # 'Life of Account Data' columns B..G, per the sheet's own header row:
+    #   B Non-ICS Opened | C Non-ICS Closed | D Non-ICS Closed RATE
+    #   E ICS Opened     | F ICS Closed     | G ICS Closed RATE
+    # read on both the "Program to Date" and "Last 12 Months" rows.
+    # LAST 12 MONTHS ONLY for every life-of-account metric (Aaron, 2026-09-01).
+    # Program-to-date spans the whole programme and answers a different question:
+    # on Austin it reports a 51.66% non-ICS close rate against 6.45% over the
+    # last year, so mixing the two windows in one table compares figures that are
+    # not comparable. The Program-to-Date row is read only to be ignored here.
+    non_open12 = non_closed12 = non_rate12 = 0
+    ics_open12 = ics_closed12 = ics_rate12 = 0
     if l12:
         v = [x for x in lrow(l12) if isinstance(x, (int, float))]
         if len(v) >= 6:
-            ics_rate12 = v[5]
+            (non_open12, non_closed12, non_rate12,
+             ics_open12, ics_closed12, ics_rate12) = v[0], v[1], v[2], v[3], v[4], v[5]
 
-    tot_open = (non_open or 0) + (ics_open or 0)
+    tot_open = (non_open12 or 0) + (ics_open12 or 0)
     benchmark = {
-        "non_ics_close_rate_pct": round((non_rate or 0) * 100, 1),
+        # The footnote calls this "your Non-ICS accounts' 12-month close rate"
+        # and used to be handed the PROGRAM-TO-DATE figure — on Marine 1539 it
+        # printed 35.5% where the 12-month rate is 10.4%. A label that names a
+        # window has to be given that window.
+        "non_ics_close_rate_pct": round((non_rate12 or 0) * 100, 1),
         "metrics": [
             {"label": "% of Total Openings",
              "velocity_avg": 29,
-             "client": round(100 * (ics_open or 0) / tot_open) if tot_open else 0,
+             "client": round(100 * (ics_open12 or 0) / tot_open) if tot_open else 0,
              "fmt": "pct0"},
             {"label": "Lifetime Value", "velocity_avg": 1828,
              "client": round(performance["lifetime_value_per_account"]),
              "fmt": "usd0"},
-            # velocity_avg = the ICS close rate over the last 12 months; client =
-            # this client's non-ICS close rate program-to-date. Reproduces 1705
-            # (6.7 vs 21.0) — confirm the intended pairing with Aaron.
+            # The client column is this client's ICS accounts only (Aaron,
+            # 2026-09-01); the non-ICS rate belongs in the footnote and nowhere
+            # else. It used to be inverted: `client` carried the NON-ICS
+            # program-to-date rate while the client's own ICS rate sat in the
+            # Velocity-average column, so the row compared the client against
+            # themselves and labelled neither side correctly.
             {"label": "12 M Close Rate",
-             "velocity_avg": round((ics_rate12 or 0) * 100, 1),
-             "client": round((non_rate or 0) * 100, 1),
+             "velocity_avg": VELOCITY_CLOSE_RATE_12M_PCT,
+             "client": round((ics_rate12 or 0) * 100, 1),
              "fmt": "pct1", "lower_is_better": True},
             {"label": "Average Life of Account",
              "velocity_avg": performance["average_account_life_years"],
@@ -270,7 +321,8 @@ def extract(path):
     }
 
     wb.close()
-    return {"performance": performance, "revenue": revenue,
+    return {"_program_start": program_start,
+            "performance": performance, "revenue": revenue,
             "financial_summary": financial_summary,
             "monthly_detail": monthly_detail, "benchmark": benchmark,
             "contacts": CONTACTS,
@@ -307,6 +359,7 @@ def main():
     a = ap.parse_args()
 
     sections = extract(a.workbook)
+    program_start = sections.pop("_program_start", None)
     data = json.load(open(a.client_json, encoding="utf-8"))
 
     populated = [k for k in sections if data.get(k)]
@@ -323,6 +376,8 @@ def main():
         data.update(sections)
         meta = data.setdefault("meta", {})
         meta["workbook"] = os.path.basename(a.workbook)
+        if program_start:
+            meta["program_start"] = program_start
         json.dump(data, open(a.client_json, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
         print(f"  wrote {a.client_json}")
     else:

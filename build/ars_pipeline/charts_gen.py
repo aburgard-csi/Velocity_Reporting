@@ -11,6 +11,7 @@ B=json.load(open(sys.argv[2], encoding="utf-8"))
 OUT=sys.argv[3]; os.makedirs(OUT,exist_ok=True)
 from brand import (NAVY, ORANGE, LABEL as GREY, STEEL, TICK,
                    STEEL_SOFT as LIGHT, GOLD, MUTED, HAIRLINE)
+import periods as P
 use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def _fixacr(txt):
     """Collapse space-separated single capital letters: 'Individual H S A' -> 'Individual HSA'."""
@@ -50,7 +51,7 @@ def figfor(name,scale=5.2):
 def _xmonths(ax,x,cats,labels):
     """One x-axis style for the 36-mo combo charts: ~12 ticks, 9pt, 45deg (STYLE.md)."""
     step=max(1,round(len(cats)/12))
-    ax.set_xticks(x[::step]); ax.set_xticklabels([labels[i] for i in range(0,len(labels),step)],fontsize=9,rotation=45,ha="right")
+    ax.set_xticks(x[::step]); ax.set_xticklabels(P.axis_months([labels[i] for i in range(0,len(labels),step)]),fontsize=9,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
 
 # image5: monthly incremental revenue, navy bars + orange dashed avg
 def c_monthly():
@@ -278,7 +279,7 @@ def c_reach():
     ax.fill_between(x,vals,color=ORANGE,alpha=0.9); ax.plot(x,vals,color=ORANGE,lw=2)
     step=max(1,len(cats)//8)
     for i in range(0,len(cats),step): ax.text(i,vals[i]+max(vals)*0.02,f"{vals[i]:,}",ha="center",color=NAVY,fontweight="bold",fontsize=8)
-    ax.set_xticks(x[::step]); ax.set_xticklabels([cats[i].replace(' 20',"'").replace(' ',"'") for i in range(0,len(cats),step)],fontsize=8,rotation=0)
+    ax.set_xticks(x[::step]); ax.set_xticklabels(P.axis_months([cats[i] for i in range(0,len(cats),step)]),fontsize=8,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
     ax.set_ylim(0,max(vals)*1.14); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image17')
@@ -374,7 +375,7 @@ def c_openings():
         v=cum[i]; above=v>=0
         ax.text(i, v+(off if above else -off), f"{v:+,d}", ha="center",
                 va="bottom" if above else "top", color=NAVY, fontweight="bold", fontsize=9)
-    ax.set_xticks(x[::step]); ax.set_xticklabels([cats[i].replace(' ',"'") for i in range(0,len(cats),step)],fontsize=8)
+    ax.set_xticks(x[::step]); ax.set_xticklabels(P.axis_months([cats[i] for i in range(0,len(cats),step)]),fontsize=8,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
     ax.set_ylim(lo-span*0.16, hi+span*0.16); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image26')

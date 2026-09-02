@@ -13,6 +13,7 @@ from rpe_env import use_font
 
 from brand import (NAVY, ORANGE, STEEL_SOFT as STEEL, LIGHT, TICK,
                    MUTED as GREY)
+import periods as P
 
 use_font("Carlito"); plt.rcParams.update({"font.size": 16})
 
@@ -43,10 +44,10 @@ def c_referral_trend(d,out):
             ax.bar(i,ref[i],color=c,width=0.7)
         ax.text(i,ref[i]+max(ref)*0.02,str(ref[i]),ha="center",va="bottom",
                 color=(TICK if partial and i==len(mo)-1 else NAVY),fontweight="bold",fontsize=16)
-    ax.set_xticks(x); ax.set_xticklabels(mo,fontsize=16,color=TICK); ax.set_ylim(0,max(ref)*1.15)
+    ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA); ax.set_ylim(0,max(ref)*1.15)
     ax.get_yaxis().set_visible(False); clean(ax)
     h=[Patch(fc=NAVY,label="Referrals")]
-    if partial: h.append(Patch(fc=STEEL,alpha=0.6,hatch="//",label=f"{mo[-1]} (partial)"))
+    if partial: h.append(Patch(fc=STEEL,alpha=0.6,hatch="//",label=f"{P.mon_yy(mo[-1])} (partial)"))
     ax.legend(handles=h,loc="upper center",bbox_to_anchor=(0.5,1.1),ncol=len(h),frameon=False,fontsize=16)
     canvas(fig,2200,940,out)
 
@@ -108,7 +109,7 @@ def _monthly_bar(d,key,out,per_account):
     fig,ax=plt.subplots(figsize=(11.5,5.6)); bars_last_orange(ax,x,vals)
     fmt=(lambda v:f"${v:,.2f}") if per_account else (lambda v:f"${v:,.0f}")
     for i,v in enumerate(vals): ax.text(i,v+max(vals)*0.02,fmt(v),ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
-    ax.set_xticks(x); ax.set_xticklabels(mo,fontsize=16,color=TICK); ax.set_ylim(0,max(vals)*1.15); ax.get_yaxis().set_visible(False); clean(ax)
+    ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA); ax.set_ylim(0,max(vals)*1.15); ax.get_yaxis().set_visible(False); clean(ax)
     canvas(fig,1815,1000,out)
 
 def c_composition(d,out):
@@ -118,7 +119,7 @@ def c_composition(d,out):
     fig,ax=plt.subplots(figsize=(11.5,5.6)); b=np.zeros(len(mo))
     for vals,c,lab in series: ax.bar(x,vals,bottom=b,color=c,width=0.66,label=lab); b=b+np.array(vals)
     for i,t in enumerate(b): ax.text(i,t+max(b)*0.02,f"${t:,.0f}",ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
-    ax.set_xticks(x); ax.set_xticklabels(mo,fontsize=16,color=TICK); ax.set_ylim(0,max(b)*1.16); ax.get_yaxis().set_visible(False); clean(ax)
+    ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA); ax.set_ylim(0,max(b)*1.16); ax.get_yaxis().set_visible(False); clean(ax)
     ax.legend(loc="upper center",bbox_to_anchor=(0.5,1.12),ncol=4,frameon=False,fontsize=16)
     canvas(fig,1815,1000,out)
 
@@ -131,7 +132,7 @@ def c_perref(d,out):
     for ax,(vals,title,fmt) in zip(axes,for_ax):
         x=np.arange(len(mo)); bars_last_orange(ax,x,vals)
         ax.set_title(title,color=NAVY,fontsize=16,fontweight="bold",pad=8)
-        ax.set_xticks(x); ax.set_xticklabels([mm.split()[0] for mm in mo],fontsize=16,color=TICK,rotation=40,ha="right")
+        ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
         ax.set_ylim(0,max(vals)*1.18); ax.get_yaxis().set_visible(False); clean(ax)
         ax.text(len(mo)-1,vals[-1]+max(vals)*0.03,fmt.format(vals[-1]),ha="center",color=ORANGE,fontsize=16,fontweight="bold")
     canvas(fig,2100,800,out)

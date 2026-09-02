@@ -61,6 +61,13 @@ LIGHT      = "#C9D6E3"   # ICS + MRPC tertiary
 GOLD       = "#E7A93B"   # ARS Gold tier series (charts_gen)
 HAIRLINE   = "#D9DEE5"   # lightest axis spine (ARS + MRPC left spine)
 SLATE      = "#5A7590"   # MRPC 4th categorical series
+# A series line drawn OVER navy bars. Navy-on-navy is invisible, and the fix is
+# the LINE'S COLOUR, not a white stroke under it (Aaron, 2026-09-01 — casing was
+# tried and rejected). Teal clears WCAG's 3:1 non-text contrast against BOTH
+# backgrounds the line crosses: 4.02:1 on #00274C and 3.74:1 on white. That is
+# near the best any flat colour can manage against those two extremes (3.88:1),
+# which is why the earlier attempts reached for a stroke instead.
+TEAL       = "#0D9488"   # series line over navy bars (MRPC Enrollments, Still Active)
 
 # ----------------------------------------------------------------- ramps
 # Cold ramp for donut slices that are NOT program-eligible (product_mix_slide).
