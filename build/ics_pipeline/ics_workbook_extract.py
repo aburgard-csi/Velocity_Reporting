@@ -257,8 +257,16 @@ def extract(path):
 
     # ---- Life of Account Data -> benchmark
     lo = wb["Life of Account Data"]
-    ptd = _find_row(lo, "Program to Date", 10, 20)
     l12 = _find_row(lo, "Last 12 Months", 10, 20)
+    if not l12:
+        # Every life-of-account metric now comes from this one row, so losing it
+        # is not a degraded result, it is no result. Without this the six values
+        # stay 0 and the deck ships a 0.0% close rate and 0% of openings —
+        # figures a reader cannot tell from real ones. Missing source data is
+        # stated, never zeroed (CLAUDE.md).
+        raise SystemExit("ERROR: no 'Last 12 Months' row in 'Life of Account Data' "
+                         "(searched rows 10-20) — refusing to emit zeroed "
+                         "life-of-account metrics")
 
     def lrow(r):
         return [lo.cell(r, c).value for c in range(1, 9)]

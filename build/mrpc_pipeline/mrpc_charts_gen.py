@@ -180,10 +180,16 @@ def chart_perf(d, out, dims):
     crowded against the goal line; above the bar they read as one clean row.
     """
     p=d["performance_vs_goal"]; m=p["months"]; enr=p["enrollments"]
-    for k in ("new_accounts","goal"):
+    for k in ("new_accounts","goal","enrollments"):
+        # Presence AND length: a short series indexes out of range at `nc[i]`, or
+        # reaches matplotlib as a mismatched plot. chart_enroll above guards the
+        # same way.
         if not p.get(k):
             raise SystemExit(f"performance_vs_goal.{k} is missing — refusing to "
                              f"draw MRPC Enrollment Performance from a placeholder")
+        if len(p[k]) != len(m):
+            raise SystemExit(f"performance_vs_goal.{k} has {len(p[k])} values for "
+                             f"{len(m)} months — refusing to draw a misaligned chart")
     nc=p["new_accounts"]; goal=p["goal"]
     fig,ax=plt.subplots(figsize=(13,6.0)); x=np.arange(len(m))
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]

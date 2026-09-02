@@ -508,15 +508,27 @@ def build(d, static_path, out, referrals_only=False):
     # nothing here can prove a PROGRAMME high. The last entry is the partial
     # current month, so complete months are trend[:-1] and the previous month is
     # the last of those.
-    _tm, _tv = rf["trend"]["months"], rf["trend"]["referrals"]
-    _cm, _cv = _tm[:-1], _tv[:-1]
+    _tr = rf["trend"]
+    _tm, _tv = _tr["months"], _tr["referrals"]
+    # Drop the last entry ONLY when it is the partial current month. The chart
+    # renderer reads `partial_last` for exactly this; the caption used to assume
+    # it, so a pull taken after month close would have dropped a COMPLETE month
+    # from the peak search — and if that month were the peak, named an older and
+    # lower one instead.
+    _n = -1 if _tr.get("partial_last") else len(_tv)
+    _cm, _cv = _tm[:_n], _tv[:_n]
     if _cv:
         _pi = max(range(len(_cv)), key=lambda k: _cv[k])
-        if _cv[-1] >= _cv[_pi]:
+        # The claim is tested on the value it PRINTS. `previous_month.value` and
+        # `trend.referrals[-1]` are separate fields of the VIP pull and agree on
+        # every client today; asserting a record from one while testing the other
+        # would break silently the first time a restatement touched only one.
+        _last = _cv[-1]
+        if _last >= _cv[_pi]:
             _high = (f"{pm['label']} was the highest of the last {len(_cv)} months "
-                     f"at {pm['value']}.")
+                     f"at {_last}.")
         else:
-            _high = (f"{pm['label']} brought {pm['value']}; the last {len(_cv)} months "
+            _high = (f"{pm['label']} brought {_last}; the last {len(_cv)} months "
                      f"peaked at {_cv[_pi]} in {_cm[_pi]}.")
     else:
         _high = f"{pm['label']} brought {pm['value']}."
@@ -544,11 +556,14 @@ def build(d, static_path, out, referrals_only=False):
     # Same correction as the Power of Referrals caption: the peak is FOUND, not
     # assumed to be the second-to-last month. [-2] is merely the last complete
     # month, and naming it the high was wrong on every client checked.
-    _ccv = t['referrals'][:-1]; _ccm = t['months'][:-1]
+    _cn = -1 if t.get("partial_last") else len(t['referrals'])
+    _ccv = t['referrals'][:_cn]; _ccm = t['months'][:_cn]
     _pk = max(range(len(_ccv)), key=lambda k: _ccv[k]) if _ccv else None
     _peak_txt = (f"peak {_ccv[_pk]} in {_ccm[_pk]}" if _pk is not None else "no complete month yet")
     tb(s,1.2,6.72,9.8,0.5,
-       f"Monthly checking referrals, {t['months'][0]} – {t['months'][-1]}; {_peak_txt}, {t['months'][-1]} partial. Goal {rf['monthly_goal']:,}/mo.",
+       f"Monthly checking referrals, {t['months'][0]} – {t['months'][-1]}; {_peak_txt}"
+       + (f", {t['months'][-1]} partial" if t.get("partial_last") else "")
+       + f". Goal {rf['monthly_goal']:,}/mo.",
        16,GREYT,False)
     logo(s); pagenum(s,4)
     notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
