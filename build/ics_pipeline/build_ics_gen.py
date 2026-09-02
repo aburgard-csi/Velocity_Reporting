@@ -497,9 +497,32 @@ def build(d, static_path, out, referrals_only=False):
     total_ref=rf["program_to_date"]   # single source: the current program-to-date total shown in the callout
     callout(s,0.55,1.7,3.5,2.0,f"{total_ref:,}","Referrals Program-to-Date",big_size=44)
     pm=rf["previous_month"]
+    # The previous month used to be DECLARED "a program high" unconditionally.
+    # It usually is not: Marine's July was 103 against a June of 129, Austin's
+    # July 363 against 423, Texas Bay's July 40 against a March of 73 — every ICS
+    # deck asserted a record that the client's own trend contradicts, which is
+    # also the "no superlatives or unsupported claims" rule in CLAUDE.md.
+    #
+    # The claim is now earned or dropped, and it is scoped to what the data can
+    # actually support: `trend` is a 14-month window, not the whole programme, so
+    # nothing here can prove a PROGRAMME high. The last entry is the partial
+    # current month, so complete months are trend[:-1] and the previous month is
+    # the last of those.
+    _tm, _tv = rf["trend"]["months"], rf["trend"]["referrals"]
+    _cm, _cv = _tm[:-1], _tv[:-1]
+    if _cv:
+        _pi = max(range(len(_cv)), key=lambda k: _cv[k])
+        if _cv[-1] >= _cv[_pi]:
+            _high = (f"{pm['label']} was the highest of the last {len(_cv)} months "
+                     f"at {pm['value']}.")
+        else:
+            _high = (f"{pm['label']} brought {pm['value']}; the last {len(_cv)} months "
+                     f"peaked at {_cv[_pi]} in {_cm[_pi]}.")
+    else:
+        _high = f"{pm['label']} brought {pm['value']}."
     tb(s,4.35,1.7,8.45,2.4,
        f"{client} team members have generated {total_ref:,} checking referrals since "
-       f"program inception — {rf['year_to_date']:,} year-to-date in 2026. {pm['label']} was a program high at {pm['value']}.",
+       f"program inception — {rf['year_to_date']:,} year-to-date in 2026. {_high}",
        28,NAVY,False,anchor=MSO_ANCHOR.MIDDLE,font="Calibri")   # 28pt fills the space (Aaron 2026-07-24)
     # Previous-month-vs-goal is keyed generically; the month-named key (june_/july_)
     # is a leftover that only exists while that month happens to be the previous
@@ -518,8 +541,14 @@ def build(d, static_path, out, referrals_only=False):
     t=rf["trend"]; s=blank(prs); title(s,f"Referral Trend – Last {len(t['months'])} Months")
     pill(s,f"PTD · {data_date}")
     s.shapes.add_picture(a("ics_trend.png"),Inches(0.66),Inches(1.55),Inches(12.0))
+    # Same correction as the Power of Referrals caption: the peak is FOUND, not
+    # assumed to be the second-to-last month. [-2] is merely the last complete
+    # month, and naming it the high was wrong on every client checked.
+    _ccv = t['referrals'][:-1]; _ccm = t['months'][:-1]
+    _pk = max(range(len(_ccv)), key=lambda k: _ccv[k]) if _ccv else None
+    _peak_txt = (f"peak {_ccv[_pk]} in {_ccm[_pk]}" if _pk is not None else "no complete month yet")
     tb(s,1.2,6.72,9.8,0.5,
-       f"Monthly checking referrals, {t['months'][0]} – {t['months'][-1]}; {t['months'][-2]} a program high at {t['referrals'][-2]}, {t['months'][-1]} partial. Goal {rf['monthly_goal']:,}/mo.",
+       f"Monthly checking referrals, {t['months'][0]} – {t['months'][-1]}; {_peak_txt}, {t['months'][-1]} partial. Goal {rf['monthly_goal']:,}/mo.",
        16,GREYT,False)
     logo(s); pagenum(s,4)
     notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
@@ -771,13 +800,13 @@ def build(d, static_path, out, referrals_only=False):
         cpa=d["performance"]["cost_per_account"]; billed=cpa*fs["ics_accounts"]
         tb(s,0.75,BT0+0.1,3.8,0.4,"Program to Date",16,NAVY,True)
         yy=BT0+0.6
-        # "Billed Expense for 46,195 Accounts" wraps onto the value beneath it once the count
-        # is wide enough (Aaron, 2026-08-27). Drop the count when it will not fit on one
-        # line — the same figure is already on this slide in the "ICS Accounts" callout, so
-        # nothing is lost.
-        _billed_lab=f"Billed Expense for {fs['ics_accounts']:,} Accounts"
-        if not fits_one_line(_billed_lab,3.9,14,family="Montserrat",min_pt=MIN_PT):
-            _billed_lab="Billed Expense"
+        # Just "Billed Expense" — the account count is dropped unconditionally
+        # (Aaron, 2026-09-01). It was conditional on fits_one_line, which passed
+        # counts that then wrapped anyway: 6,785 measured as fitting and still
+        # ran onto the value beneath it. The count is already on this slide in
+        # the "ICS Accounts" callout, so the label never needed to carry it and
+        # a width test is not worth keeping for a figure that is redundant.
+        _billed_lab="Billed Expense"
         _labels=[("Account Profit Contribution",f"${fs['account_profit_contribution']:,.0f}"),
                  ("Amortized Program Expense",f"${fs['total_program_expense']:,.0f}"),
                  ("Net Profit",f"${fs['net_profit']:,.0f}"),
