@@ -16,7 +16,6 @@ import sys, os, json
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patheffects as pe
 import numpy as np
 from matplotlib.patches import Patch
 from PIL import Image
@@ -27,7 +26,8 @@ def _shadow_wedges(wedges):
 
 
 # ---- palette ---------------------------------------------------------------
-from brand import NAVY, STEEL_SOFT as STEEL, ORANGE, LIGHT
+from brand import NAVY, STEEL_SOFT as STEEL, ORANGE, LIGHT, TEAL
+import periods as P
 from brand import TICK, MUTED as GREY, HAIRLINE, SLATE
 # MRPC enrollment tier palette (Aaron 2026-07-16): Gold=orange, Platinum=navy, Business=steel.
 # Aaron 2026-07-24: Gold orange, Platinum GRAY, Business NAVY
@@ -49,41 +49,23 @@ def canvas(fig, CW, CH, path, pad=0.12):
     cv.paste(im.resize((nw,nh), Image.LANCZOS), ((CW-nw)//2,(CH-nh)//2))
     cv.save(path); os.remove(tmp); print("wrote", os.path.basename(path))
 
-def _overlay_line(ax, x, y, label, zorder=3, ms=6):
-    """A series line drawn OVER the bars. Navy core with a white casing, so it is
-    legible on navy bars AND on the white gaps between them.
+def _overlay_line(ax, x, y, label, zorder=3, ms=6, color=TEAL, ls='-', lw=2.2):
+    """A series line drawn OVER the bars, in a colour that reads on both
+    backgrounds it crosses: the navy bar, and the white gap between bars.
 
-    It used to be drawn plain white (STYLE.md, pre 2026-09-01) on the assumption
-    that it never left a navy bar. It does: every segment crossing the gap between
-    two bars, and any point above a bar top, rendered white-on-white and vanished.
-    The MRPC Retention line was invisible for its whole length on the 2026.08 decks.
-    A mark is never drawn in the canvas color -- see tests/test_chart_colors.py.
+    Three goes at this. It was drawn plain WHITE (STYLE.md, pre 2026-09-01) on
+    the assumption it never left a navy bar — it does, and the MRPC Retention
+    line was invisible for its whole length on the 2026.08 decks. Then navy with
+    a white stroke under it, which was legible but rejected on looks (Aaron,
+    2026-09-01). Now TEAL, which needs no stroke: 4.02:1 against #00274C and
+    3.74:1 against white, both clear of WCAG's 3:1 for non-text.
+
+    Orange callers (the Goal line) pass their own colour and are unaffected —
+    orange already reads at 5.5:1 on navy. A mark is never drawn in the canvas
+    colour: see tests/test_chart_colors.py.
     """
-    return ax.plot(x, y, color=NAVY, lw=2.2, marker='o', mfc='white', mec=NAVY,
-                   ms=ms, label=label, zorder=zorder,
-                   path_effects=[pe.withStroke(linewidth=6, foreground='white')])
-
-
-def _cased_text(ax, x, y, text, dy=9, **kw):
-    """A value label that may land on a bar OR on the canvas. Navy glyphs with a
-    white stroke, so it reads on both -- the text counterpart of _overlay_line.
-
-    The Enrollments labels were plain white, matching the line they annotate. On
-    Capital Bank 1502 the five zero-enrollment months have no bar behind them, so
-    five real values rendered white-on-white; a short bar would swallow a non-zero
-    one the same way. A label's color must not depend on what happens to be behind it.
-
-    `dy` clears the marker in POINTS, not in data units: these labels annotate a
-    point on a line, and an offset expressed as a fraction of the axis maximum
-    shrinks to nothing on a chart with one tall month. White-on-white hid that
-    collision; navy glyphs do not.
-    """
-    kw.setdefault("color", NAVY)
-    kw.setdefault("fontweight", "bold")
-    kw.setdefault("ha", "center")
-    kw.setdefault("va", "bottom")
-    return ax.annotate(text, (x, y), xytext=(0, dy), textcoords="offset points",
-                       path_effects=[pe.withStroke(linewidth=3, foreground='white')], **kw)
+    return ax.plot(x, y, color=color, lw=lw, ls=ls, marker='o', mfc='white', mec=color,
+                   ms=ms, label=label, zorder=zorder)
 
 
 def _clean(ax):
@@ -126,11 +108,11 @@ def chart_enroll(d, out, dims):
             ax.bar(i,biz[i],bottom=gold[i]+plat[i],color=BIZC,width=0.72,alpha=a,hatch=h,edgecolor='white',linewidth=0.5)
         ax.text(i,tot[i]+max(tot)*0.015,str(tot[i]),ha="center",va="bottom",
                 color=(TICK if partial[i] else NAVY),fontweight="bold",fontsize=13)
-    ax.set_xticks(range(len(m))); ax.set_xticklabels(m,fontsize=13,color=TICK,rotation=30,ha='right')
+    ax.set_xticks(range(len(m))); ax.set_xticklabels(P.axis_months(m),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
     ax.set_ylim(0,max(tot)*1.18); ax.get_yaxis().set_visible(False); _clean(ax)
     handles=[Patch(fc=GOLDC,label='Gold'),Patch(fc=PLATC,label='Platinum')]
     if hb: handles.append(Patch(fc=BIZC,label='Business'))
-    handles.append(Patch(fc=PLATC,alpha=0.42,hatch='//',label=f'{m[-1]} (partial)'))
+    handles.append(Patch(fc=PLATC,alpha=0.42,hatch='//',label=f'{P.mon_yy(m[-1])} (partial)'))
     ax.legend(handles=handles,loc='upper center',bbox_to_anchor=(0.5,1.10),
               ncol=len(handles),frameon=False,fontsize=13)
     canvas(fig,*dims,out)
@@ -181,21 +163,37 @@ def chart_channel(d, out, dims):
     canvas(fig,*dims,out)
 
 def chart_perf(d, out, dims):
-    # New-checking bars: navy, last complete month orange (standard format). The
-    # Enrollments line and its value labels are cased (see _overlay_line / _cased_text)
-    # -- a month with no new checking accounts has no bar behind them. The Goal
-    # reference is a dashed orange line.
+    """New-checking bars vs the enrollment goal, with the Enrollments line over them.
+
+    Bars and goal come STRAIGHT FROM THE DATA. They used to be invented: the code
+    read `new_checking_approx`, a key no client sheet has ever carried, and fell
+    back to `enrollments / 0.11` — a guessed 11% penetration. The real counts sit
+    in `new_accounts` and the real goal in `goal`, present in every sheet. On
+    Austin 1075 the fabrication drew 1,036 new accounts for a month that actually
+    had 873, and because the goal line was derived from those same invented bars,
+    every month's goal was wrong too. There is no fallback now: absent keys raise,
+    because a chart that cannot be drawn from the client's data must not be drawn
+    from a constant.
+
+    Enrollment counts are labelled ABOVE THE BAR (Aaron, 2026-09-01), matching
+    MRPC Retention. On the line they sat at the Enrollments y-value, low and
+    crowded against the goal line; above the bar they read as one clean row.
+    """
     p=d["performance_vs_goal"]; m=p["months"]; enr=p["enrollments"]
-    nc=p.get("new_checking_approx") or [e/0.11 for e in enr]
-    goal=[round(x*p["goal_pct"]/100) for x in nc]
+    for k in ("new_accounts","goal"):
+        if not p.get(k):
+            raise SystemExit(f"performance_vs_goal.{k} is missing — refusing to "
+                             f"draw MRPC Enrollment Performance from a placeholder")
+    nc=p["new_accounts"]; goal=p["goal"]
     fig,ax=plt.subplots(figsize=(13,6.0)); x=np.arange(len(m))
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,nc,color=cols,width=0.66,label='New Checking Accounts',zorder=1)
-    ax.plot(x,goal,color=ORANGE,lw=2,ls='--',marker='o',mfc='white',mec=ORANGE,ms=5,label=f'Goal ({p["goal_pct"]}%)',zorder=3)
+    _overlay_line(ax,x,goal,f'Goal ({p["goal_pct"]}%)',zorder=3,ms=5,color=ORANGE,ls='--',lw=2)
     _overlay_line(ax,x,enr,'Enrollments',zorder=4)
-    for i in range(len(m)): _cased_text(ax,i,enr[i],str(enr[i]),fontsize=13,zorder=5)
-    ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK)
-    ax.set_ylim(0,max(nc)*1.12); ax.get_yaxis().set_visible(False); _clean(ax)
+    for i in range(len(m)):
+        ax.text(i,nc[i]+max(nc)*0.02,str(enr[i]),ha='center',color=NAVY,fontsize=13,fontweight='bold')
+    ax.set_xticks(x); ax.set_xticklabels(P.axis_months(m),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
+    ax.set_ylim(0,max(nc)*1.15); ax.get_yaxis().set_visible(False); _clean(ax)
     ax.legend(loc='upper center',bbox_to_anchor=(0.5,1.10),ncol=3,frameon=False,fontsize=13)
     canvas(fig,*dims,out)
 
@@ -209,7 +207,7 @@ def chart_retention(d, out, dims):
     ax.bar(x,en,color=cols,width=0.68,label='Enrolled',zorder=1)
     _overlay_line(ax,x,ac,'Still Active',zorder=3)
     for i in range(len(m)): ax.text(i,en[i]+max(en)*0.02,str(en[i]),ha='center',color=NAVY,fontsize=13,fontweight='bold')
-    ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK,rotation=30,ha='right')
+    ax.set_xticks(x); ax.set_xticklabels(P.axis_months(m),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
     ax.set_ylim(0,max(en)*1.15); ax.get_yaxis().set_visible(False); _clean(ax)
     ax.legend(loc='upper center',bbox_to_anchor=(0.5,1.10),ncol=2,frameon=False,fontsize=13)
     canvas(fig,*dims,out)
@@ -269,7 +267,7 @@ def chart_revenue_month(d, out, dims):
     ax.bar(x,v,color=cols,width=0.7)
     for i,a in enumerate(v):
         ax.text(i,a+max(v)*0.015,f"${a/1000:.1f}K",ha='center',va='bottom',color=NAVY,fontsize=13,fontweight='bold')
-    ax.set_xticks(x); ax.set_xticklabels(m,fontsize=13,color=TICK)
+    ax.set_xticks(x); ax.set_xticklabels(P.axis_months(m),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
     ax.set_ylim(0,max(v)*1.14); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
 

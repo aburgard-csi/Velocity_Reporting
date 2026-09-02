@@ -228,10 +228,31 @@ def build(data, template, out):
 
     # Slide 5 — performance vs goal
     p=data["performance_vs_goal"]
-    sh_sub=txt_at(S[4], top=6.7)
-    if sh_sub:
-        set_text(sh_sub, f"New checking accounts (bars) vs the {p['goal_pct']}% enrollment "
-                         f"goal and actual enrollments. Enrollment penetration {p.get('penetration_summary','')}." )
+    # Resolved by CONTENT, not position. This looked for a box at top=6.7" with a
+    # 0.15" tolerance; the caption sits at 6.40", so txt_at returned None, the
+    # `if` fell through, and the caption was never swapped — silently. Every MRPC
+    # deck ever shipped therefore carried the TEMPLATE's sentence, "averages ~55%
+    # of goal, peaking at 72% in Feb 2026", identical for Austin, Ideal, Summit,
+    # Capital and Marine alike. Geometry drifts; the words do not.
+    sh_sub=txt_at(S[4], contains="New checking accounts")
+    if sh_sub is None:
+        raise SystemExit("slide 5: the enrollment-vs-goal caption was not found — "
+                         "refusing to ship the template's sentence")
+    # ...and the sentence is DERIVED. `penetration_summary` was read from the
+    # client sheet with a '' default, and no sheet has ever carried that key, so
+    # even a caption that swapped would have read "Enrollment penetration ."
+    # `pct_of_goal` is the real per-month series and is always present.
+    pog=p.get("pct_of_goal") or []
+    months=p.get("months") or []
+    if pog and months and len(pog)==len(months):
+        i=max(range(len(pog)), key=lambda k: pog[k])
+        pen=(f"averages {round(sum(pog)/len(pog))}% of goal, "
+             f"peaking at {round(pog[i])}% in {months[i]}")
+    else:
+        raise SystemExit("slide 5: performance_vs_goal.pct_of_goal is missing or "
+                         "does not line up with months — cannot state penetration")
+    set_text(sh_sub, f"New checking accounts (bars) vs the {p['goal_pct']}% enrollment "
+                     f"goal and actual enrollments. Enrollment penetration {pen}.")
     swap(S[4], max(pics(S[4]), key=lambda p2:p2.width*p2.height), A("mrpc_perf.png"))
 
     # Slide 6 — retention (left) + cancellations (right)
@@ -252,7 +273,14 @@ def build(data, template, out):
     t=txt_at(S[6], top=4.95)
     if t:
         ytd_txt=f" {ytd['year']} is at ${ytd['amount']/1000:,.1f}K through {ytd.get('ytd_through','')}." if ytd else ""
-        set_text(t, f"Revenue has grown across the life of the program to "
+        # "has grown" is tested against the annual series, not assumed. Capital
+        # Bank 1502 peaked at $8.4K and has fallen for three years — their deck
+        # still opened by telling them revenue had grown across the programme.
+        _yrs=[a["amount"] for a in (rv.get("annual") or []) if "YTD" not in str(a.get("year",""))]
+        _grew=len(_yrs) >= 2 and _yrs[-1] >= _yrs[-2]
+        _lead=("Revenue has grown across the life of the program to"
+               if _grew else "Life-of-program revenue reached")
+        set_text(t, f"{_lead} "
                     f"${rv['year_2025']/1000:,.1f}K in 2025 — ${rv['life_of_program']/1e6:,.2f}M "
                     f"life-of-program.{ytd_txt}")
     _rp=max(pics(S[6]), key=lambda p2:p2.width*p2.height)
@@ -270,7 +298,16 @@ def build(data, template, out):
     t=txt_at(S[7], top=3.55);  t and set_text(t, f"${bm_tot:,}")
     t=txt_at(S[7], top=4.14);  t and set_text(t, "Trailing-12 Revenue")
     t=txt_at(S[7], top=4.95)
-    if t: set_text(t, f"Monthly MRPC revenue has held around ${bm_avg/1000:,.0f}K, "
+    # "has held around" is a claim of stability and is only made when the series
+    # is actually stable. Capital Bank 1502 swings +/-15% around its mean and was
+    # still told its revenue "held around" the average.
+    _spread=(max(max(bmv)-bm_avg, bm_avg-min(bmv))/bm_avg*100) if bm_avg else 0
+    # One decimal, matching the range beside it. At ,.0f a $669 average printed
+    # as "$1K" next to a "$0.6K-$0.7K" range — an average outside its own range.
+    _rev_txt=(f"Monthly MRPC revenue has held around ${bm_avg/1000:,.1f}K"
+              if _spread <= 10 else
+              f"Monthly MRPC revenue has averaged ${bm_avg/1000:,.1f}K")
+    if t: set_text(t, f"{_rev_txt}, "
                       f"ranging ${min(bmv)/1000:,.1f}K–${max(bmv)/1000:,.1f}K over {bm['months'][0]} – {bm['months'][-1]}.")
     t=txt_at(S[7], top=6.75);  t and set_text(t, f"* Monthly revenue to {client}, {bm['months'][0]} – {bm['months'][-1]}.")
     _rp7=max(pics(S[7]), key=lambda p2:p2.width*p2.height)
@@ -293,7 +330,18 @@ def build(data, template, out):
     t=txt_at(S[8], top=2.62, left=9.06); t and set_text(t, "Avg Fee per Account")
     t=txt_at(S[8], top=3.95); t and set_text(t, f"{plat_share:.0f}%")
     t=txt_at(S[8], top=4.95); t and set_text(t, "Platinum Share")
-    t=txt_at(S[8], top=5.5);  t and set_text(t, f"Platinum ($14.95/mo) is the most-held card; "
+    # Which card leads, and at what price, are FOUND — both were hardcoded as
+    # "Platinum ($14.95/mo)". The price is per client in card_billing.prices, and
+    # the leader is whichever type holds the most accounts: a client whose Gold or
+    # Business Platinum book overtook Platinum would have been told otherwise.
+    _types=sorted(CH.card_types(b), key=lambda c: c["accounts"], reverse=True)
+    _lead=_types[0] if _types else None
+    _price=(b.get("prices") or {}).get(_lead["name"]) if _lead else None
+    _lead_txt=(f"{_lead['name']} (${_price:,.2f}/mo) is the most-held card"
+               if _lead and _price else
+               f"{_lead['name']} is the most-held card" if _lead else
+               "Card mix is shown at right")
+    t=txt_at(S[8], top=5.5);  t and set_text(t, f"{_lead_txt}; "
                                                 f"{cross:.1f}% of accounts hold more than one card.")
     for sh in list(autoshapes(S[8])):              # billing pie is NOT in a callout — free the space
         try: fh=str(sh.fill.fore_color.rgb).upper()
