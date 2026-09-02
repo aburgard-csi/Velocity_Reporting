@@ -372,8 +372,11 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
     # 0% bar, because a bar would read as a reason the data does not support.
     notes = []
     if data["zero_bal_elig"]:
+        # "carry one" left the reader to resolve what "one" referred to across a
+        # dash (Aaron, 2026-09-01). Named outright, matching the sibling sentence
+        # below, which already says "carry a $0 average balance".
         notes.append(f"$0 average balance is not an exclusion — {data['zero_bal_elig']:,} "
-                     f"eligible accounts carry one.")
+                     f"eligible accounts carry a $0 balance.")
     elif data["zero_bal_inelig"]:
         notes.append(f"{data['zero_bal_inelig']:,} excluded accounts carry a $0 average balance.")
     if data["not_mailable"]:
