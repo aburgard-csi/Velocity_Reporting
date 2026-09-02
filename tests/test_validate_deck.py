@@ -458,3 +458,112 @@ def test_the_years_format_is_one_decimal_in_the_builder():
         "build", "ics_pipeline", "build_ics_gen.py"), encoding="utf-8").read()
     assert 'if f=="years": return f"{v:.1f} Years"' in src, \
         "the Comparisons years format is no longer one decimal"
+
+
+# --- text drawn over text ---------------------------------------------------
+# Ported from the CashPlease project's cp_qa.py (2026-09-02). The Peer Comparison
+# footnote was authored at 6.62"; fit_layout pulled it up to 6.14" to clear the
+# number band, where it landed 0.56" on top of a row of capsule pills, and this
+# validator returned 0 FAIL, 0 REVIEW — every overlap rule it had looked for text
+# over a CHART. The rule compares estimated GLYPH boxes, not frames, which is what
+# keeps it quiet on the house stacking pattern (the other four tests here).
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+
+
+def _wide():
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    return prs, prs.slides.add_slide(prs.slide_layouts[6])
+
+
+def _text(slide, L, T, W, H, lines, pts, anchor=MSO_ANCHOR.TOP, align=PP_ALIGN.LEFT,
+          shape=None):
+    """A text box (or a filled rounded rectangle carrying text) with explicit run sizes."""
+    if shape:
+        sh = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                                    Inches(L), Inches(T), Inches(W), Inches(H))
+    else:
+        sh = slide.shapes.add_textbox(Inches(L), Inches(T), Inches(W), Inches(H))
+    tf = sh.text_frame
+    tf.word_wrap = True
+    tf.vertical_anchor = anchor
+    for i, (ln, pt) in enumerate(zip(lines, pts)):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.alignment = align
+        r = p.add_run()
+        r.text = ln
+        r.font.size = Pt(pt)
+    return sh
+
+
+def test_footnote_pulled_onto_a_row_of_pills_fails():
+    prs, s = _wide()
+    for i in range(4):
+        _text(s, 1.0 + i * 3.0, 6.05, 2.4, 0.5, ["6.7%"], [16],
+              anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, shape=True)
+    _text(s, 0.5, 6.14, 12.0, 0.6,
+          ["Cohort: the workbook's all-clients rollup — 96,014 CashPlease loans across all 73 "
+           "tabs, WesBanco Bank included."], [16])
+    out = vd.text_collision_findings(prs)
+    assert out and all(f[0] == "FAIL" for f in out), out
+    assert "text drawn over text" in out[0][2]
+
+
+def test_title_frame_touching_the_selection_line_is_quiet():
+    """Every ARS title box ends 0.10\" below the top of the selection line's box."""
+    prs, s = _wide()
+    _text(s, 0.5, 0.28, 12.33, 0.9, ["Overall Debit Swipes & Spend"], [26])
+    _text(s, 0.5, 1.12, 12.3, 0.5, ["Selection: all debit-card-holding accounts, program-wide."], [16])
+    assert vd.text_collision_findings(prs) == []
+
+
+def test_oversized_top_anchored_title_box_is_quiet():
+    """The ICS 'VIP Best Practices' title sits in a 2.61\" box; its one line does not."""
+    prs, s = _wide()
+    _text(s, 0.95, 0.33, 10.0, 2.61, ["VIP Best Practices"], [26])
+    _text(s, 0.5, 1.18, 12.3, 0.5, ["Five habits that keep referral performance consistent."], [16])
+    _text(s, 1.9, 1.98, 10.35, 0.68, ["Identify & Recognize Influencers", "Spotlight the staff who refer."],
+          [16, 16], anchor=MSO_ANCHOR.MIDDLE)
+    assert vd.text_collision_findings(prs) == []
+
+
+def test_stacked_callouts_priced_per_paragraph_are_quiet():
+    """An ICS callout stacks a 40 pt value over a 16 pt label; pricing both lines at
+    40 pt made two stacked callouts overlap by 0.60\" on every ICS deck."""
+    prs, s = _wide()
+    for i in range(3):
+        _text(s, 9.7, 1.6 + i * 1.65, 3.2, 1.45, ["46,979", "Referrals Program-to-Date"], [40, 16],
+              anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, shape=True)
+    assert vd.text_collision_findings(prs) == []
+
+
+def test_a_label_inside_its_own_capsule_is_quiet():
+    prs, s = _wide()
+    _text(s, 1.0, 2.0, 3.0, 1.5, ["Gold"], [30], anchor=MSO_ANCHOR.MIDDLE,
+          align=PP_ALIGN.CENTER, shape=True)
+    _text(s, 1.1, 2.1, 2.8, 0.4, ["callout label"], [12], align=PP_ALIGN.CENTER)
+    assert vd.text_collision_findings(prs) == []
+
+
+def test_slide_number_collisions_are_left_to_the_geometry_rule():
+    prs, s = _wide()
+    _text(s, 0.45, 7.05, 0.7, 0.3, ["12"], [10])
+    _text(s, 0.4, 6.95, 6.0, 0.4, ["A footnote that runs under the slide number."], [16])
+    assert vd.text_collision_findings(prs) == []
+    assert any("slide number" in f[2] for f in vd.geometry_findings(prs))
+
+
+# --- the runner -------------------------------------------------------------
+def test_every_rule_is_registered_and_named_as_a_finding():
+    assert all(r.__name__.endswith("_findings") for r in vd.RULES)
+    assert vd.text_collision_findings in vd.RULES
+
+
+def test_run_sorts_fails_before_reviews_on_a_shell():
+    tpl = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "templates", "mrpc_template.pptx")
+    out = vd.run(tpl)
+    levels = [f[0] for f in out]
+    assert levels == sorted(levels, key={"FAIL": 0, "REVIEW": 1}.get)
+    assert "FAIL" not in levels

@@ -159,8 +159,8 @@ def test_definitions_and_metadata_are_skipped():
 def test_the_check_runs_as_part_of_the_gate():
     """A rule nothing calls is a rule that does not exist."""
     import inspect
-    src = inspect.getsource(V.main)
-    assert "claim_consistency_findings" in src
+    assert V.claim_consistency_findings in V.RULES
+    assert "claim_consistency_findings" in inspect.getsource(V.run)
 
 
 def test_the_flat_band_is_aarons_two_percent():

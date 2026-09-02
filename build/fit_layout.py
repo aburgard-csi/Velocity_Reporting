@@ -1,10 +1,18 @@
-"""Shared layout-fit pass (all programs) — run right before prs.save().
-1. Slide numbers -> 10pt Calibri bold navy (consistent everywhere).
-2. Caption breathing room: bottom text finishes above the number band (estimated
-   glyph lines, not just the box), shrinking any chart it now touches.
-3. Pictures clamped onto the slide and clear of the number/logo band.
-4. Bottom footnotes cleared sideways off the number (left) and logo (right).
-Skips the Summit slide."""
+"""Shared layout-fit pass (all programs) — run by every builder right before
+prs.save(), AFTER slide_geometry.apply() and BEFORE the final numbering pass.
+
+0. Full-bleed slides (dividers, covers) lose their slide number; empty layout
+   placeholders ("Click to add title") are stripped everywhere.
+1. Slide numbers -> Calibri 10 pt bold navy (STYLE.md "Slide numbers").
+2. Caption breathing room: a text box starting below 5.5" is moved so its
+   ESTIMATED glyph lines (0.105"/char, 0.26"/line) finish above the number band
+   at 7.00"; any chart it now touches is shortened to clear it.
+3. Pictures are scaled down onto the slide (right edge 13.30") and clear of the
+   number/logo zones.
+4. Bottom footnotes wider than 4" are narrowed sideways off the number (left) and
+   logo (right); narrower ones are lifted above the zone.
+Skips the Executive Summit slide. validate_deck.geometry_findings FAILs anything
+this pass leaves behind."""
 import math
 from pptx.util import Emu, Inches, Pt
 from pptx.dml.color import RGBColor

@@ -1385,14 +1385,8 @@ for _sl in prs.slides:
 from pptx.oxml.ns import qn as _qn
 from pptx.oxml import parse_xml as _pxml
 from pptx.dml.color import RGBColor as _RGBc
-_SH=('<a:effectLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
-     '<a:outerShdw blurRad="63500" dist="38100" dir="5400000" rotWithShape="0">'
-     '<a:srgbClr val="000000"><a:alpha val="28000"/></a:srgbClr></a:outerShdw></a:effectLst>')
 def _qin(v): return Emu(v).inches if v is not None else None
-def _shadowsh(_sh):
-    _spPr=_sh._element.spPr
-    for _e in _spPr.findall(_qn('a:effectLst')): _spPr.remove(_e)
-    _spPr.append(_pxml(_SH))
+from shapes import shadow as _shadowsh      # the ONE callout shadow (build/shapes.py)
 # universal callout drop shadow: every solid-filled callout/tile/pill/badge on every slide (STYLE.md)
 for _sl in prs.slides:
     for _x in _sl.shapes:

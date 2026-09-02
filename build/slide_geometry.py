@@ -20,10 +20,20 @@ Adding an ICS or MRPC rule: match on its title in apply() alongside the ARS
 blocks. Do NOT start a second module — one contract, or the rule that says
 "fix the contract, never the deck" has two places to be fixed.
 
-Titles carrying a rule today (all ARS, Aaron 2026-07-24): Overall Debit Swipes /
-NSF/OD Activity (taller, never wider); 12-Month Eligible Take Rate (centered);
-Product Mix (donut ends above its legend); Program Reach (chart fills its space);
-Account Growth / Account Retention (identical chart geometry)."""
+Titles carrying a rule today (all ARS, Aaron 2026-07-24), in the order apply() tests them:
+  Overall Debit Swipes / NSF/OD Activity ... chart taller, never wider than the tile rail
+  12-Month Eligible Take Rate ............ chart and caption centered on the slide
+  Product Mix ............................ source line bottom-center
+  Reg E Opt-In (not Vintage) ............. donut <= 2.85" ending 4.45", legend rows from 4.60",
+                                           caption at 5.85"
+  Reg E Opt-In by Account Vintage /
+  First-Year Closure / ARS Response Movement  chart top >= 1.75" (below the 2-line subtitle)
+  Transaction Increase ................... caption (1.45, 6.02, 8.4 x 0.95); chart <= 4.1" tall,
+                                           centered between subtitle and caption
+  Who Responds ........................... caption starts below the chart bottom
+  Program Reach .......................... chart (1.2, 1.8, 8.3 x 4.58)
+  Account Growth / Account Retention ..... chart (1.0, 1.75, 8.4 x 4.38)
+STYLE.md "Per-slide geometry contract" is the human-readable copy of this list."""
 from pptx.util import Emu, Inches
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 def _in(v): return Emu(v).inches if v is not None else None

@@ -8,8 +8,12 @@ Font policy (Aaron, 2026-07-13):
     captions, footnotes, page numbers ......... Calibri
   * Charts (rendered images) ................... Carlito/Calibri (set in the chart renderers)
 
-Also floors explicit run sizes at 16 pt, except the dense ICS "2026 New Releases"
-reference table, which cannot fit its fixed content at 16.
+Also floors explicit run sizes at 16 pt, with two exceptions (STYLE.md "Type"):
+  * dense tables that cannot fit their fixed content at 16 — slides titled
+    "2026 New Releases", "Product Mix", "Program Results by Month Opened",
+    "Referred Accounts by Product" (the `dense` tuple in restyle());
+  * MRPC decks, which keep a deliberate 10-15 pt hierarchy (see _is_mrpc).
+The Executive Summit slide is never touched at all.
 
 Role is inferred so it works on both code-built and cloned/template slides:
   - AUTO_SHAPE with text -> callout/chip/badge -> Montserrat.

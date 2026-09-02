@@ -17,6 +17,60 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-02 — the style guide, the gate and its companions, cleaned up
+
+`templates/STYLE.md` was rewritten as one document with a scope table (Executive
+Reviews, the CashPlease module, the ILS review prep slides, the Summit one-pager),
+an enforcement map naming the file behind every rule, and a dated decision log
+replacing the per-date reversal notes that had accreted through the body. Stale
+content went: the 2026-07-10 Austin per-chart to-do list (all fixed by 07-24),
+`style_tables.py` and `kickoff_lib` (retired), `build_gen`/`build_gen_b`, the
+two contradictory MRPC tier-color sections, and a divider line the shells never
+carried ("Program Performance Review" — the ARS shell reads "Mailings · Debit Card ·
+Reg E"). `templates/TEMPLATES.md` lost the superseded 67-slide Marine map and now
+tables the three shells with their slide counts, plus the two families that have no
+shell (CashPlease, ILS prep). `tests/test_style_doc.py` fails the suite if either
+document cites a repo path that does not exist.
+
+`validation/validate_deck.py` was restructured: every rule is a named function
+listed in `RULES`, `run()` returns the findings, and the inline rules that lived in
+`main()` are now `text_rule_findings`, `geometry_findings`, `autofit_findings`,
+`mailing_table_findings`, `extract_findings` and `labelled_metric_findings`.
+**Output is byte-identical** on all four templates and all seventeen 2026.08 decks
+on Drive, checked by diff. One rule was added.
+
+**Text drawn over text now FAILs.** Ported from the CashPlease project's `cp_qa.py`:
+its Peer Comparison footnote was pulled up by `fit_layout` onto a row of capsule
+pills and this validator returned 0 FAIL, because every overlap rule it had looked
+for text over a CHART. The port compares estimated GLYPH boxes rather than frames —
+per paragraph, at that paragraph's size, placed by alignment and vertical anchor.
+A frame comparison flagged 109 places on the shipped decks (every ARS title box
+overlaps the selection line's box by 0.10"; the ICS education titles sit in boxes
+two inches tall; an ICS callout stacks 40 pt over 16 pt); the glyph comparison
+flags none of them and still catches the 0.56" footnote. `tests/test_validate_deck.py`
+carries both halves.
+
+`validation/qa_all.py`: argparse, and the unit suite is no longer skipped quietly.
+The Windows Store python has no pytest, so a gate started with plain `python`
+reported PASS having run zero tests; it now prefers the repo `.venv` interpreter
+for both pytest and the validator, and prints a banner when the suite could not run.
+
+**Every MRPC and ICS deck renders differently, by two alpha points, and no figure
+moves.** The callout drop shadow is now defined once, `shapes.shadow`, and the ARS,
+ICS and MRPC builders import it. The ICS builder had its own copy at alpha 26%
+against 28% everywhere else — a drift STYLE.md described as "matching".
+
+Docstrings in `build/fit_layout.py`, `build/restyle_fonts.py` and
+`build/slide_geometry.py` now state what the code does (the dense-table titles,
+the geometry rules per title, the numbers `fit_layout` uses), and `build/README.md`
+no longer lists the `data/` folders deleted 2026-08-29.
+
+Not fixed, reported: `build/assets/summit_slide.pptx` is gitignored by the blanket
+`*.pptx` rule and is absent on the Windows machine (no Drive `Inputs/Summit/`
+either), so the four `tests/test_summit.py` cases fail here and every ICS/MRPC
+build would. The asset needs committing (an ignore exception) or copying to Drive.
+
+
 ### 2026-09-01 — MRPC Enrollment Performance was drawn from an invented denominator
 
 `chart_perf` read `new_checking_approx`, a key **no client sheet has ever

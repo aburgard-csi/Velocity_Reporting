@@ -18,8 +18,9 @@ conventions (output folder, filename, validation, writing style).
 
 **Visual style — read `templates/STYLE.md` before building** and follow it for every slide:
 fonts (Montserrat headings/callouts, Calibri body/tables — run `build/restyle_fonts.py` last),
-drop shadows on all callouts and on pie/donut charts, table format (navy header / orange total
-/ Calibri cells), chart standards (fill the space, balanced whitespace, no label collisions),
+drop shadows on every callout, tile and pill (pies and donuts stay flat), table format (navy
+header / orange total / Calibri cells), chart standards (fill the space, balanced whitespace,
+no label collisions, `MMM'YY` axis months),
 **selection on the slide / data source in the notes**, and sequential page numbering with clear
 separation between bottom text and the page number. `templates/STYLE.md` is the single source
 of truth for visual style.

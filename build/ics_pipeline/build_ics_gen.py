@@ -68,13 +68,10 @@ from brand import (NAVY_RGB as NAVY, ORANGE_RGB as ORANGE,
                    STEEL_SOFT_RGB as STEEL)
 LIGHT=RGBColor(0xEC,0xF0,0xF4); WHITE=RGBColor(0xFF,0xFF,0xFF); GREYT=RGBColor(0x5A,0x66,0x70)
 NAVYX="00274C"
-SHADOW=('<a:effectLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
-        '<a:outerShdw blurRad="63500" dist="38100" dir="5400000" rotWithShape="0">'
-        '<a:srgbClr val="000000"><a:alpha val="26000"/></a:srgbClr></a:outerShdw></a:effectLst>')
-def shadow(sh):
-    spPr=sh._element.spPr
-    for e in spPr.findall(qn('a:effectLst')): spPr.remove(e)
-    spPr.append(parse_xml(SHADOW))
+# The standard callout drop shadow is defined ONCE, in build/shapes.py. This file
+# carried its own copy at alpha 26% while ARS, MRPC and shapes.py drew 28% — a drift
+# STYLE.md described as "matching" for six weeks (one definition since 2026-09-02).
+from shapes import shadow
 
 def _needs_two_lines(*labels, usable_in, pt=None):
     """True when any label is too wide for one line at the size it will RENDER at.

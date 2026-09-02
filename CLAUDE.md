@@ -14,6 +14,8 @@ Identify the program from the request, then dispatch to the one matching subagen
 | ARS, Account Revenue Solution, mailings, Lift Matrix, Reg E, debit take rate | ARS | `ars-deck` |
 | ICS, Invitation Checking, referrals, mystery shop, ROI per account | ICS | `ics-deck` |
 | MRPC, MyRewards Premium Cards, enrollments, Gold/Platinum tiers | MRPC | `mrpc-deck` |
+| CashPlease, CP, small-dollar loans, loans per 1,000 DDAs | CashPlease | no agent yet — the pipeline is `C:\Projects\CashPlease` (see `clients.md` "CashPlease") |
+| ILS analysis review, prep slides, matrix parameters / overrides | ILS prep (not an RPE build) | the `ils-prep-deck` skill |
 
 If a request names a client but not a program, ask which program before building. If it
 asks for a combined ARS+ICS+MRPC review, run each subagent in turn and assemble with
@@ -112,12 +114,16 @@ decks. Build each program's deck first (each must pass its own validation gate),
 assemble:
 
 ```
-python3 build/assemble_combined.py --ars <ars.pptx> [--ics <ics.pptx>] [--mrpc <mrpc.pptx>] \
-                                   --out <out.pptx>
+python3 build/assemble_combined.py [--ars <ars.pptx>] [--ics <ics.pptx>] [--mrpc <mrpc.pptx>] \
+                                   [--cashplease <cp.pptx>] --out <out.pptx>
 ```
 
-`--ars` is required — the ARS deck supplies the shared shell, Questions/Contact and the
-Appendix. `--ics` / `--mrpc` are optional, so the same tool builds a two-program deck:
+Any two or more programs make a combined deck. **`--ars` is no longer required** (Aaron,
+2026-09-01): the first program present in `BASE_PRECEDENCE` (ARS, ICS, CP, MRPC) supplies
+the shared shell and Questions/Contact, so 1632 WesBanco and 1734 Altamaha assemble as
+**ICS-CP** with no ARS at all. The ARS Appendix stays ARS-only — a deck with no ARS section
+has no appendix. `--ics` / `--mrpc` / `--cashplease` are optional, so the same tool builds
+a two-program deck:
 **most multi-product clients are on two programs, not three** (2026.08: five ARS+ICS, one
 ARS+MRPC, two all-three). The title slide lists only the included products and the agenda
 only the included sections — an unused agenda row is REMOVED, not blanked, because an empty
@@ -153,7 +159,8 @@ is a defect. The fix is a current workbook, not a carried-forward number.
 <clientid>-<yyyy.mm>-<PROGRAM>-<Client Name> <PROGRAM> Results.pptx
 ```
 
-- `<PROGRAM>` is one of `ARS`, `ICS`, `MRPC`, or `ARS-ICS-MRPC` for a combined deck.
+- `<PROGRAM>` is one of `ARS`, `ICS`, `MRPC`, `CP`, or the included tags joined in
+  section order for a combined deck (`ARS-ICS-MRPC`, `ICS-CP`, `ARS-ICS-MRPC-CP`).
 - `<yyyy.mm>` is the data/period month, e.g. `2026.07`.
 - Examples: `1204-2026.08-ARS-FSB Michigan ARS Results.pptx`,
   `1705-2026.08-ICS-CoastLife Credit Union ICS Results.pptx`,
@@ -229,6 +236,11 @@ python3 validation/qa_all.py [built_deck.pptx ...]        # gate: validates ever
 python3 validation/qa_all.py --snapshot ...               # accept INTENTIONAL layout changes as the new baseline
 python3 validation/qa_all.py --no-render ...              # skip the render smoke test (faster; use sparingly)
 ```
+
+Run it from the repo `.venv` (`.venv/Scripts/python` on Windows). The Windows Store
+`python` has python-pptx but no pytest, and a gate started under it used to skip the whole
+unit suite with one quiet line; it now looks for the venv itself and prints a banner when
+the suite could not run (2026-09-02).
 
 **Standing rule (Aaron, 2026-08-17): when a defect gets through the gate, add the check
 that would have caught it.** Fixing only the instance guarantees the next one ships too.
@@ -315,12 +327,15 @@ excluded (closed/business — not applicable); a blank status with no usable `St
 to `Other`. Any non-blank value that doesn't map — description OR code — is surfaced in the
 pack's `flags` block — **ask Aaron how to map it before building; do not guess.**
 
-**Visual style guide.** All decks (every product) follow `templates/STYLE.md` — fonts
-(Montserrat headings / Calibri detail, both embedded), title-slide rules (list only the
-included products; reporting month = generation month), callout/tile style (drop shadows on
-all callouts and on pie/donut charts), table format, chart standards, selection-on-slide /
-source-in-notes, and page renumbering. **Read `templates/STYLE.md` before building any deck,
-and keep it as the single source of truth for visual style across ARS / ICS / MRPC.**
+**Visual style guide.** Every client-facing deck — the ARS / ICS / MRPC / CashPlease
+Executive Reviews, the standalone CashPlease module and the ILS review prep slides — follows
+`templates/STYLE.md`: the palette and type roles (`build/brand.py`), the slide anatomy
+(numbers, logos, pills), the shell (title lists only the included products; reporting month
+= generation month), callouts with the one drop shadow (pies and donuts flat), tables, chart
+standards (`MMM'YY` axes, `TEAL` lines over navy, no mark in the canvas color), selection on
+the slide / source in the notes, and where each rule is enforced. **Read it before building
+any deck, and keep it as the single source of truth for visual style.** `tests/test_style_doc.py`
+fails if it cites a file that no longer exists.
 
 **Writing style.** All client-facing text follows Aaron's rules (Obsidian
 `Claude/Operating Instructions.md`). Banned words include: robust, comprehensive,

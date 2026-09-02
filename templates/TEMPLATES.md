@@ -1,118 +1,63 @@
-# Deck Templates — the three per-program shells
+# Deck Templates
 
-**Every deck is built by its builder from the stripped shell in this folder. No deck is ever
-cloned from another client's finished deck (Aaron, 2026-08-29 — see CLAUDE.md "Templates").**
+**Every deck is BUILT by its builder from the stripped shell in this folder. No deck
+is ever cloned from another client's finished deck** (Aaron, 2026-08-29 — `CLAUDE.md`
+"Templates"). If a slide is wrong, fix the builder or the shell and rebuild; do not
+hand-edit a deck.
 
-- `ars_template.pptx` — ARS shell, taken by `build/ars_pipeline/build_ars_gen.py` as argv[1]
-- `ics_template.pptx` — ICS shell, taken by `build/ics_pipeline/build_ics_gen.py`
-- `mrpc_template.pptx` — MRPC shell, taken by `build/mrpc_pipeline/build_mrpc_gen.py`
+## The shells
 
-Each is cleaned, styled, and carries the "Union Financial" dummy client — no real client's
-numbers, captions, branch names or speaker notes. The builder populates every slide from the
-data pack. If a slide is wrong, fix the builder or the shell and rebuild; do not hand-edit a
-deck, and do not start from a previous client's file. (Filenames here are generic — no client
-names; per-client specifics live in the build instructions, `.claude/agents/*-deck.md`.)
+| File | Program | Slides | What it holds |
+| --- | --- | --- | --- |
+| `ars_template.pptx` | ARS — `build/ars_pipeline/build_ars_gen.py` argv[1] | 47 | Title · About the Summit · Agenda · ARS section (divider, Product Mix, Program Overview … ARS Key Takeaways) · Questions · Contact · Appendix (15). A self-consistent Union Financial demo built from real, neutralized data (SM path). The builder's find-strings are this file's literals; the swap gate fails on any that no longer match. |
+| `ics_template.pptx` | ICS — `build/ics_pipeline/build_ics_gen.py` | 28 | Title · Summit image · divider · Agenda · content · education/reference slides · Questions · Contact. The builder selects the static education and Q&A slides **by title** and rebuilds everything else from the client JSON, so the demo cannot leak. |
+| `mrpc_template.pptx` | MRPC — `build/mrpc_pipeline/build_mrpc_gen.py` | 12 | Title · divider · eight content slides · Questions · Contact. No agenda and no Summit slide — the builder inserts the Summit, and this is why MRPC is last in `assemble_combined.BASE_PRECEDENCE`. |
+| `multi-product_reference_deck.pptx` | none — a STYLING reference | 79 | Title (three products) · Summit · combined Agenda · ARS 4–30 · ICS 31–53 · MRPC 54–62 · Questions · Contact · ARS Appendix 65–79. The source for re-materializing the three shells. **No build reads it.** |
 
-## Styling reference
+Each shell carries the "Union Financial" dummy client (id 999, branches "Branch
+1..N") — no real client's numbers, captions, branch names or speaker notes.
+`validation/qa_all.py` lints every shell on every run and diffs each slide's layout
+against `validation/layout_baseline.json`; an intentional change is accepted with
+`--snapshot`.
 
-- **File:** `templates/multi-product_reference_deck.pptx` — a client-neutral Union Financial
-  demo carrying ARS + ICS + MRPC sections, the shared shell and the ARS appendix.
-- **It is a STYLING reference and the source for re-materializing the three shells. It is
-  NOT a build input** — no build reads it, and nothing should.
-- Update it whenever the canonical look changes, then re-materialize the shells from it.
+**Programs without a shell yet.**
 
-## Section map — HISTORICAL (the 67-slide Marine-era reference; superseded, see v7 notes below)
+- **CashPlease** builds onto `ars_template.pptx` purely as a shell — theme, masters,
+  embedded fonts — drops its slides from `sldIdLst` and removes the parts with
+  `build/strip_dead.py`. It should get a materialized `cashplease_template.pptx` when
+  the pipeline moves into this repo (`C:\Projects\CashPlease\MIGRATION.md` §6).
+- **ILS review prep slides** start from a blank python-pptx presentation and are
+  drawn entirely by the `ils-prep-deck` skill's helpers, because they are inserted
+  into the consultant's `.pptm` and inherit that deck's masters.
 
-| Slides | Section | Belongs to |
-| --- | --- | --- |
-| 1–3 | Shared shell — Title, About the Summit, Agenda | all (adapt per program) |
-| 4 | ARS section divider | ARS |
-| 5–29 | ARS content — Program Overview, Financial Performance, **Lift Matrix (MM) / Monthly Summary (SM)**, Debit Usage Segmentation, Average Ticket, Mailing Insights (11–18), Debit Card Review (19–24), Reg E Review (25–28), ARS Key Takeaways (29) | ARS |
-| 30–44 | ICS content — divider (30), Power of Referrals, Referral Trend, Results by Branch, Performance of ICS Accounts, ICS Revenue, ICS Financial Summary, vs Velocity Benchmark, Mystery Shop, education/reference slides (39–44) | ICS |
-| 45–51 | MRPC content — divider (45), Enrollments by Month, Enrollments by Channel, Enrollment vs Goal, Retention, Revenue, Key Metrics | MRPC |
-| 52 | Questions & Discussion | all |
-| 53–67 | ARS Appendix — Additional ARS Respondent Insights | ARS (appendix module) |
+## Swap targets
 
-## How each program uses this
+What changes per client: client name and id, the period labels and pills, every
+headline figure and table value, chart images, branch names and counts, and every
+source line in the notes (ODD filename + pull stamp for ARS; workbook / VIP
+references for ICS, MRPC and CashPlease). Everything else — layout, colors,
+dividers, education slides — stays as the shell has it.
 
-- **ars-deck** keeps slides 1–29, 52, 53–67. Swaps the MM/SM performance slide per path.
-- **ics-deck** keeps the shell (1–3, adapted), 30–44, and a closing/discussion slide.
-- **mrpc-deck** keeps the shell (1–3, adapted), 45–51, and a closing/discussion slide.
+## Maintaining the shells
 
-Each single-program deck re-numbers its own agenda and slides after trimming.
+- Shells are updated **in place**; the files here are always the latest. Keep a
+  rollback copy under the Drive `archive/` if one is needed — not in the repo.
+- To rebuild a shell, trim `multi-product_reference_deck.pptx` to that program's
+  section plus the shared shell and save it under the program's name. Update the
+  reference first whenever the canonical look changes, then re-materialize.
+- After any shell change: run `validation/qa_all.py`, review the DRIFT lines, then
+  `--snapshot`. Post the change to `CHANGELOG.md` if a slide renders differently.
+- `templates/STYLE.md` is the style contract these shells embody; the per-slide
+  geometry that builders enforce on top of them is `build/slide_geometry.py`.
 
-## Swap targets (what changes per client)
+## Version log
 
-Client name and id, period label, all headline figures and table values, chart data,
-branch names/counts, and every source line (ODD filename + pull date for ARS; workbook /
-VIP dashboard references for ICS and MRPC). Everything else — layout, colors, section
-dividers, education/reference slides — stays as-is.
-
-## Materializing the stripped templates
-
-**Re-materializing a shell.** The styling reference is large (~6.5 MB). To rebuild a shell,
-trim it to that program's section plus the shared shell and save the result here as
-`ars_template.pptx` / `ics_template.pptx` / `mrpc_template.pptx`. This is maintenance on the
-shells, not a build step — builds read only the shells, never the reference.
-
-**Bundled templates already in this copy.** All three programs ship with a stripped template
-under the repo: `templates/ars_template.pptx` (46-slide ARS shell — cleaned + genericized
-2026-07-24; client-neutral "Union Financial" dummy client, standardized logos/slide numbers),
-`templates/ics_template.pptx`, `templates/mrpc_template.pptx`. Builds run
-from these directly; the full `multi-product_reference_deck.pptx` is only needed to re-materialize a
-template when the reference updates.
-
-## Version log (latest = files in this folder; updated in place)
-
-| Date | Files | Change |
-| --- | --- | --- |
-| 2026-07-24 v3 | `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx`, `multi-product_reference_deck.pptx` | Transaction Increase chart vertically centered; MRPC Card Portfolio donut+labels enlarged; MRPC Contact placeholder prompt boxes stripped (and globally via `fit_layout`); ICS E-Learning Library Guide text enlarged (24/18pt); all changes mirrored to the multi-product reference. All four validate 0 FAIL. |
-| 2026-07-24 v2 | same files | Per-slide geometry contract (Reg E stack, take-rate centered, Product Mix source bottom-center, equal Swipes/NSF), caption breathing-room + collision validation, styling pass on ICS/MRPC templates, Union Financial neutralization. |
-| ≤2026-07-17 v1 | originals | Marine-derived; pre-QA (backups in `archive/pre_qa_backup/`). |
-
-**Convention:** templates are updated **in place** — the files in `templates/` are always the
-latest. Superseded copies go to `archive/pre_qa_backup/` if a rollback point is needed.
-
-**2026-07-24 v4 (LATEST):** `ics_template.pptx` is now a **full 28-slide Union Financial demo
-deck** built from real client data (branches genericized to "Branch 1..N", client id 999) —
-no longer education-slides-only, so it's a true visual reference like the ARS/MRPC templates.
-`build_ics_gen.py` now selects its static education/Q&A slides **by title** from the template
-and rebuilds everything else from data, so the populated demo cannot leak into client builds
-(verified: 1676 rebuild from the new template = 28 slides, 0 FAIL, no demo leakage).
-E-Learning Library Guide text set explicitly to 26/20 pt (paragraph-level; inherited-size runs
-included). The reference deck carries the same E-Learning update (applied after it was unlocked).
-
-**2026-07-24 v5:** `ars_template.pptx` re-baked as a **fully self-consistent Union
-Financial demo built from real client data (Sugar River 1038)** — 47 slides incl. Product Mix,
-Contact, all current chart styles (unified swipes/NSF axes, taller charts, fixed Reg E stacks).
-`build_ars_gen.py`'s 109 find-strings were mechanically rewritten to the new template literals
-(recorded during an instrumented demo build); **equivalence proven**: a real 1038 build from the
-new template is text-identical on all 47 slides to the prior known-good build, 0 FAIL.
-`mrpc_template.pptx`: Tier Mix card baked into Key Metrics (was an empty backdrop), fixed
-Retention images, Contact Us added as the final slide; MRPC builder is idempotent (won't
-duplicate Contact/Tier Mix). ARS builder likewise skips Contact if baked. Gate PASS everywhere.
-Remaining: the multi-product reference still carries the older Marine-era ARS section and no
-Contact slide — refresh pending.
-
-**2026-07-24 v6: reference RE-MATERIALIZED from the three demo templates.**
-`multi-product_reference_deck.pptx` is now assembled from `ars_template` (base: shell + ARS
-section + Q&D/Contact/Appendix) + the ICS section (divider, content, education — from
-`ics_template`) + the MRPC section (divider + content — from `mrpc_template`), all Union
-Financial demo data. 79 slides: Title (3 products) · Summit · combined Agenda · ARS (4–30) ·
-ICS (31–53) · MRPC (54–62) · Q&D · Contact · ARS Appendix (65–79). Sequentially renumbered;
-images relinked across files; hyperlinks stripped. MRPC "Austin Bank" neutralized to Union
-Financial in mrpc_template + reference (safe — the MRPC builder swaps titles by position).
-**Cancellations by Reason is now ranked horizontal bars** (donut+legend scaled poorly with
-4–8 reasons; bars need no legend and fit any count) — renderer change, all builds get it.
-The OLD section map above (67-slide Marine reference) is historical.
-
-**2026-07-24 v7 (LATEST):** Ship-prep round. All 3 product **dividers** share one canonical
-layout (logo card TL, centered 52pt title, orange benefits line — ARS line now "Mailings ·
-Debit Card · Reg E" for symmetry); ICS **title slide** canonized to the ARS/MRPC layout
-(centered lockup + 40pt title + orange client/review lines) in builder + template. ICS builder
-now **STOPS with a clear missing-input message** on partial-data clients (null workbook
-sections) instead of a raw traceback. `fit_layout` strips slide numbers from all divider/cover
-slides (all programs). `mrpc_template_base.pptx` retired to archive — **one** MRPC template.
-Exportable **ARS Build Package.zip regenerated** from this state and verified self-contained
-(a real client build ran from inside the package, 0 FAIL; package carries its own qa baseline).
-GATE PASS across all templates + built ARS/ICS/MRPC decks.
+| Date | Change |
+| --- | --- |
+| 2026-07-24 v7 | One canonical divider layout on all three shells; ICS title slide canonized; ICS builder stops with a clear message on null workbook sections; `fit_layout` strips numbers from all dividers and covers; single MRPC template. |
+| 2026-07-24 v6 | Reference deck re-materialized from the three demo shells (79 slides, Union Financial throughout); Cancellations by Reason as ranked bars. |
+| 2026-07-24 v5 | ARS shell re-baked as a self-consistent demo from neutralized Sugar River data (47 slides); builder find-strings rewritten to its literals, equivalence proven text-identical on all slides; MRPC Tier Mix and Contact baked in. |
+| 2026-07-24 v4 | ICS shell became a full 28-slide demo deck; static slides selected by title. |
+| 2026-07-24 v3 | Transaction Increase chart centered; MRPC Card Portfolio donut enlarged; placeholder prompt boxes stripped. |
+| 2026-07-24 v2 | Per-slide geometry contract; caption breathing room and collision validation; Union Financial neutralization. |
+| ≤ 2026-07-17 v1 | Marine-derived originals, pre-QA. |

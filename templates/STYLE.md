@@ -1,435 +1,349 @@
-# Deck Style Guide — all products (ARS / ICS / MRPC)
+# Deck Style Guide
 
-The single source of truth for how every client deck looks, so settings carry forward
-across all builds and products. Referenced by `CLAUDE.md`. Based on Aaron's ARS build
-notes (2026-07-10).
+The single source of truth for how every client-facing deck looks: the monthly
+Executive Reviews (ARS, ICS, MRPC, CashPlease — single-product or combined), the
+standalone CashPlease module, and the ILS review prep slides. Referenced by
+`CLAUDE.md`; read it before building any deck. Writing rules (banned words, the
++/-2% band for describing movement, no unsupported claims) live in `CLAUDE.md`,
+not here.
 
-## Fonts (updated 2026-07-13 — role split)
-Two fonts, assigned by role (Aaron, 2026-07-13 — reversed the brief "Montserrat everywhere"):
+Every rule below names WHERE it is enforced. A rule with no enforcement is a wish,
+and this guide has carried wishes before — the ICS shadow it said "matched" the
+standard was two points lighter for six weeks. `tests/test_style_doc.py` checks
+that every repo path cited here exists.
 
-- **Montserrat** — **headings (slide titles)** and **callout boxes** (KPI/number tiles,
-  pills, section chips, badges, tier callouts). Display elements only.
-- **Calibri** — **subheadings**, **body text boxes**, **table cells**, captions,
-  footnotes, page numbers. Anything that reads as prose or data detail.
-- **Chart labels / legends / ticks** follow the body font: render charts in **Carlito**
-  (the metric-compatible Calibri substitute available in the sandbox / on the client's
-  machine). Chart renderers set `rcParams["font.family"]="Carlito"`.
+## 1. What this guide covers
 
-**One shared enforcement.** Names are assigned by role in a single post-processor,
-`build/restyle_fonts.py`, run **last** on every finished deck (all three programs) so the
-policy is identical across ARS / ICS / MRPC. It infers role from the shape: AUTO_SHAPE with
-text → Montserrat (callout/chip/badge); title placeholder → Montserrat; any other text box →
-Montserrat if its largest run is ≥ 22 pt (or inherited-size text at the very top), else
-Calibri; tables → Calibri. Build scripts should still set sensible fonts at creation, but the
-post-processor has final say. **Always run it after building.**
+| Deck family | Built by | Shell | Gate |
+| --- | --- | --- | --- |
+| **Executive Review** — ARS, ICS, MRPC single-product decks and the combined deck | `build/ars_pipeline/build_ars_gen.py`, `build/ics_pipeline/build_ics_gen.py`, `build/mrpc_pipeline/build_mrpc_gen.py`, `build/assemble_combined.py` | `templates/ars_template.pptx`, `templates/ics_template.pptx`, `templates/mrpc_template.pptx` | `validation/qa_all.py` (unit suite, `validation/validate_deck.py`, layout drift, render) |
+| **CashPlease** — a 10-slide single-product deck, or the same five slides as a section of the combined deck | `C:\Projects\CashPlease\build\build_cp_gen.py` (staged to move into `build/cashplease_pipeline/`) | `templates/ars_template.pptx` as a bare shell, own slides stripped | `validation/validate_deck.py`; `C:\Projects\CashPlease\build\cp_qa.py` until it is retired (its text-over-text rule is now in the validator) |
+| **ILS review prep slides** — recap, matrix updates, program detail, fee schedule, matrix parameters/overrides | the `ils-prep-deck` skill: `~/.claude/skills/ils-prep-deck/reference/build_deck.py` | none; blank python-pptx, later inserted into the consultant's `.pptm` | render with `reference/render.ps1` and look — the RPE validator does not run on it (§9) |
+| **Executive Summit one-pager** — hand-built, per attendee, never scheduled | `build/ars_pipeline/build_ars_onepager.py` | 8.5 x 11 print | deliberately none of the deck gates (it is not a 13.33 x 7.5 deck) |
 
-- **Minimum font size: 16 pt.** The post-processor (and each pipeline's size pass) bumps any
-  explicit run below 16 up to 16. **Exception:** a genuinely dense reference/data table that
-  cannot fit its fixed content at 16 pt may stay smaller (e.g. the ICS "2026 New Releases"
-  4-quarter grid) — skipped by the post-processor and noted.
-- **Build-environment note:** **Montserrat** lives at `fonts/Montserrat/` and in `~/.fonts`
-  (Cowork sandbox); **Carlito** ships with the sandbox (`crosextra`). Chart renderers register
-  Carlito and floor tuned label sizes for readability (dense monthly x-axes may drop to ~13 pt
-  and rotate rather than collide — chart labels are scaled images, not deck text).
-- **Embed the fonts in the .pptx** so the deck renders on any machine (OOXML
-  `p:embeddedFontLst`; python-pptx has no native embed).
+All four use one palette and one pair of typefaces. The Executive Review and
+CashPlease decks share one slide anatomy (§4). The ILS prep slides use the same
+palette on a different anatomy because they land inside someone else's deck.
 
-## Date / period pills (top-right)
-- **One format across all products: `PTD · {date}`** (Aaron, 2026-07-13). The middot `·`
-  separates the "PTD" label from the period.
-- **VIP-current slides** (data pulled live, current through the pull date) use the pull date
-  with the day: **"PTD · {Month D, YYYY}"** (e.g. "PTD · July 13, 2026").
-- **Workbook PTD slides** (figures program-to-date from a workbook ending at the last
-  complete month) use the workbook month: **"PTD · {Workbook Month}"** (e.g. "PTD · June
-  2026"), NOT the report/generation month.
-- Genuine analysis-window pills that are NOT program-to-date (e.g. ARS "Trailing 12
-  months …", "3-mo avg · …") keep their own descriptive label — do not relabel a window as PTD.
-- Carry both dates in the data sheet: `data_pull` (YYYY-MM-DD) and `workbook_month`.
+## 2. Enforcement map
 
-## Comparisons / benchmark slide
-- Client-vs-Velocity comparison uses the **pill layout** (modeled on the CSI/Velocity ICS
-  Review template): left column = **orange capsule pills** (Velocity Clients' Average),
-  center = metric label, right = **navy capsule pills** ({Client} Data). Optional footnote
-  (e.g. Non-ICS close rate). Velocity averages are program-wide benchmark constants.
+| Rule | Enforced by | A miss is caught by |
+| --- | --- | --- |
+| Palette and type roles | `build/brand.py` — the ONE declaration; builders and chart renderers import it | `tests/test_brand.py` |
+| Font by role, 16 pt floor | `build/restyle_fonts.py`, run last on every finished deck | `validation/validate_deck.py` overflow rules (a Montserrat label wider than its box) |
+| Measured text width (never eyeballed) | `build/textfit.py` against the bundled `fonts/` | `single_line_overflow_findings` |
+| Slide numbers, number/logo clearance, off-slide shapes | `build/fit_layout.py`, run by every builder before save | `geometry_findings` FAILs any survivor |
+| Per-title chart/caption geometry | `build/slide_geometry.py`, run before `fit_layout` | `tests/test_slide_geometry.py`; layout drift in `validation/layout_baseline.json` |
+| Callout / pill / tile / table primitives, the one drop shadow | `build/shapes.py` | `text_collision_findings` (text drawn over text) |
+| Date phrases, spans, `MMM'YY` axis labels | `build/periods.py` | `period_findings`; `tests/test_periods.py` |
+| A chart mark is never the canvas color | renderers | `tests/test_chart_colors.py` reads the renderers |
+| Chart aspect matches its picture box | each renderer's `DIM` / `_letterbox` | look — a stretched PNG is invisible to a linter |
+| Executive Summit slide, untouched | `build/summit_slide.py` | `tests/test_golden_deck.py` (every deck carries it) |
+| Title lists only included products; agenda rows removed, never blanked | `build/assemble_combined.py` | `tests/test_assemble_combined.py` |
+| One value per named measure | `build/figures.py` sidecar | `figure_sidecar_findings` |
+| Package opens; slide parts referenced once | never delete-then-add a slide | `package_findings`; the `qa_all` render step |
 
-## Per-account-per-month (cohort) metrics
-- When a workbook tab is **cohort data by opening month** reporting **revenue only**
-  (ICS "Monthly Detail"), per-account-per-month = **cohort revenue ÷ accounts opened ÷
-  months open** (not ÷ cumulative accounts). Do not label revenue as spend or item counts.
+`validation/qa_all.py` runs all of it. Run it after ANY change to `templates/`,
+`build/` or `validation/`, and run it from the repo `.venv` (the Windows Store
+python has no pytest; the gate now finds the venv itself and says loudly when the
+unit suite could not run).
 
-## Executive Summit slide (all results decks)
-- **Every results deck (ARS / ICS / MRPC) carries the Velocity Solutions Executive Summit
-  slide immediately after the title slide.** Pristine asset: `build/assets/summit_slide.pptx`
-  (trimmed from the Sugar River v20 base). Insert with
-  `build/summit_slide.py:insert_summit_after_title(prs)` before the page-number pass; the
-  builds already do this. ARS clones it from the base template.
-- **This slide is exempt from the font policy.** It keeps its own dense typography
-  (Montserrat / Montserrat SemiBold / Montserrat Medium at 9–14 pt, tight two-column
-  spacing). `build/restyle_fonts.py` and each pipeline's size-floor pass skip it — never
-  restyle or 16 pt-floor it.
+## 3. Palette and type
 
-## Closing slides (Aaron, 2026-07-24)
-- **Agenda** after the section divider (numbered list; **all badges orange** — Aaron, 2026-07-13).
-- **Every deck ends with a Contact Us slide** (navy contact card: name, role, phone, email,
-  orange role line) and carries a **Questions & Discussion slide at the end of the primary
-  material**. Builders add both idempotently (skipped if the template already carries them).
-- **Decks with an Appendix (ARS):** order is Questions & Discussion → **Contact Us → Appendix**
-  (Aaron 2026-07-24: the Appendix follows the Contact slide). Decks without an appendix
-  (ICS / MRPC): Questions & Discussion → Contact Us last.
+**Colors** — every value is a name in `build/brand.py`; never re-declare a hex.
 
-## Title slide
-- **List only the products included in this build** — not every product the client has.
-  (ARS+MRPC request → only ARS and MRPC on the cover.)
-- Product name(s) in **white**.
-- Client name, "Executive Review", and the reporting **month + year** in **orange**.
-- **Reporting month = the month the report is generated, not the data month.**
-  (Filename still uses the data/period month, e.g. `2026.07`.)
+| Name | Hex | Role |
+| --- | --- | --- |
+| `NAVY` | `#00274C` | titles, tiles, bars, table headers, slide numbers |
+| `ORANGE` | `#F47A29` | the current period, the highlighted row, pills, totals, agenda badges |
+| `TICK` | `#5A6670` | axis ticks, selection subtitles, body grey |
+| `ROWALT` | `#EEF2F7` | alternating table rows |
+| `GRID` / `HAIRLINE` / `MUTED` | `#E4EAF1` / `#D9DEE5` / `#B8C0CA` | gridlines, lightest spine, axis spine |
+| `LABEL` / `LIGHT` | `#CFDBE8` / `#C9D6E3` | light label on navy; ICS + MRPC tertiary series |
+| `STEEL` | `#7B9BB8` | ARS secondary series (ticket chart) |
+| `STEEL_SOFT` | `#9DB8CC` | ICS + MRPC secondary series, the MRPC Platinum tier, the partial-month bar |
+| `TEAL` | `#0D9488` | a line drawn over navy bars (MRPC Enrollments, Still Active) |
+| `GOLD` / `SLATE` / `PEACH` / `TILE` | `#E7A93B` / `#5A7590` / `#F6B284` / `#ECF0F4` | ARS Gold tier; MRPC 4th series; one-pager section text; light card fill |
 
-## Agenda
-- Standalone product deck → lists that product's sections.
-- Combined (ARS+ICS+MRPC) → lists each product section.
+`STEEL` and `STEEL_SOFT` are both kept on purpose: ARS drew one and ICS/MRPC the
+other, and collapsing them would silently restyle a chart. Which one wins is a
+decision to record here, not a refactor.
 
-## Callout boxes
-- Text centered **vertically and horizontally**.
-- **Drop shadow — all callout boxes carry the same subtle shadow.** Soft, low-opacity,
-  straight down: outer shadow `blurRad≈63500 EMU (~5pt)`, `dist≈38100 EMU (~3pt)`,
-  `dir=5400000 (90°, down)`, black at `alpha≈28%`. Applied uniformly to every number
-  callout and tier callout **and to the upper-right period/date pills** ("As of {date}",
-  "PTD · {month}", "{month} Data") — Aaron, 2026-07-13, reversing the earlier chip
-  exclusion. Not applied to chart backdrops. The MRPC builder (`build_mrpc_gen.add_shadow`)
-  applies this; ICS `shadow()`, `product_mix_slide._shadow` match it.
+**Type** — two faces, assigned by role (Aaron, 2026-07-13):
 
-## Pie / donut charts
-- **Pie and donut charts are flat — no drop shadow** (Aaron, 2026-07-15, reversing the
-  earlier raised-wedge treatment). Render wedges with no shadow so donuts read clean and
-  consistent across all products. Do **not** apply `patheffects` wedge shadows or an OOXML
-  picture `outerShdw` to donut/pie charts. (Drop shadows still apply to callout boxes, KPI/
-  number tiles, agenda badges, and the period/date pills — see "Callout boxes".)
-- **Callout boxes with a two-line label** (e.g. ARS "Overall Debit Swipes & Spend" and
-  "NSF/OD Activity Over Time" right-rail callouts) must be **tall enough for the wrapped
-  label** — ≥ ~1.55" box height with a ~0.7" label text box; the 1.4" default clips the
-  second line (Aaron, 2026-07-13).
-- On the **Key Metrics** slide the single most important metric is the **large** callout
-  (e.g. MRPC → **Active Enrollments**); secondary totals (e.g. PTD enrollments) sit in the
-  smaller upper tiles.
+- **Montserrat** (`brand.HEAD`): slide titles, callouts, KPI tiles, pills, chips,
+  badges, tier callouts, divider text. Display only.
+- **Calibri** (`brand.BODY`): subheadings, body text, table cells, captions,
+  footnotes, slide numbers. Charts render in **Carlito** (`brand.CHART_FONT`), the
+  metric-compatible face, so chart text matches the body.
+- `build/restyle_fonts.py` assigns the names by shape: an autoshape with text is
+  a callout (Montserrat); a title placeholder is a heading; any other text box is
+  a heading if its largest run is >= 22 pt or it is inherited-size text at the very
+  top, else body; 12+ words is always body; tables are body.
+- **Minimum 16 pt** for every explicit run — these decks are read from 15 feet.
+  Exceptions, all in `restyle_fonts.py`: slides titled "2026 New Releases",
+  "Product Mix", "Program Results by Month Opened", "Referred Accounts by Product"
+  (dense tables that cannot fit at 16); MRPC decks (a deliberate 10-15 pt
+  hierarchy); the Executive Summit slide (never touched). A subtitle that is too
+  long is shortened, not shrunk.
+- Both faces are **embedded** in the shell (`p:embeddedFontLst`) so a deck renders
+  the same on any machine; `rpe_env.use_font` RAISES rather than let matplotlib
+  substitute.
 
-## Structure
-- **Product Mix & ARS Eligibility slide** — **required on every ARS deck**, placed
-  **immediately before Program Overview** (matches the Marine combined reference). Built by
-  `build/product_mix_slide.py:add_product_mix_slide(prs, <clientid>_ODDD.zip, assets,
-  before_title="Program Overview", renumber=True)` — reads the ODD for open accounts,
-  ARS-eligibility (`<Mon><yy> Elig`), product mix, and business/personal split; extract the
-  CSI/Velocity logo from an existing content slide into `assets/logo.png` first. Runs as the
-  final ARS step (after build_gen/b, before restyle). It's a dense-table exception to the
-  16 pt floor. `build_gen`-built decks that predated this (Austin 1075, True Sky 1676,
-  CoastLife 1705) were back-filled 2026-07-13; combined ARS+ICS decks inherit it from the
-  ARS section.
+## 4. Slide anatomy (13.333 x 7.5")
 
-## Colors
-`NAVY #00274C` · `ORANGE #F47A29` · `STEEL #9DB8CC` · `LIGHT #C9D6E3` · `TICK #5A6670`
-· `GREY #B8C0CA`. Checking products highlight in orange; totals/summary bars in orange.
+The Executive Review and CashPlease decks share this exactly.
 
-## Tables (all products)
-Navy header row · **orange total row** · white grid lines · alternating white / light-gray
-data rows · Calibri cells (`style_tables.py` applies this — keep it as the standard).
-- **Debit Usage Segmentation by Swipe Tier** must include **% Accounts, % Swipes,
-  % Spend, % NSFs** columns (as on the Marine FCU sample).
+| Element | Geometry | Style |
+| --- | --- | --- |
+| **Title** | (0.50, 0.28) 0.9" tall, ~9.6–12.3" wide | Montserrat bold 26–30 pt navy, top-anchored |
+| **Selection subtitle** | (0.50, 1.12), full width | Calibri 16 pt `TICK` grey — WHAT population the slide covers, on the slide face |
+| **Period pill** | upper right (ARS `shapes.pill`: 10.5, 0.34, 2.35 x 0.5; ICS 9.9, 0.34, 2.95 x 0.62) | orange capsule, white Montserrat bold, drop shadow; must fit — shorten the label or drop to ~10 pt, never overflow |
+| **Content band** | ~1.6" to 6.9" | charts left, tile rail right where there is one |
+| **Bottom caption** | starts >= 5.8" | `fit_layout` parks it above 7.00" by estimated line count |
+| **Slide number** | (0.45, 7.05, 0.70 x 0.30) | Calibri 10 pt bold navy — every numbered slide identical |
+| **Logo, data slides** | (11.28, 6.78, 1.70 x 0.54) | the CSI \| Velocity lockup, `build/assets/logo.png` |
+| **Logo, dividers** | (0.71, 0.66, 1.90 x 0.60) on a white rounded card (0.55, 0.50, 2.22 x 0.92) | |
 
-## Charts (all products)
-- Fill the available **horizontal space**; keep balanced white space **above and below**.
-- **No label collisions** — labels never sit on top of / under bars, lines, or connectors.
-- **Consistent font sizes** across labels, legends, ticks. Calibri (Carlito) throughout.
-- Leave clear separation between the **subheading and the chart** (don't crowd the top).
-- **Render a chart at its slide box's aspect ratio** — the letterbox `DIM` (in `charts_gen.py`)
-  must match the picture box on the slide, or the image stretches. (New Accounts by Product
-  `image21` was 3.44:1 in a 2.13:1 box → stretched upward; fixed 2026-07-24 to 1660×780.)
+**Numbered:** content slides only, sequentially, from the ordinal. **Not numbered:**
+the title, the Executive Summit, every full-bleed divider and closing cover
+(`fit_layout` strips them). A trimmed or combined deck renumbers from scratch
+(`assemble_combined.renumber`). **No logo** on the Summit slide; the title and
+Questions covers keep their centered lockup.
 
-## Debit take-rate by-branch charts (ARS, Aaron 2026-07-24)
-The **Personal** (slide) and **Business** (slide) take-rate-by-branch charts must be the
-**same size and layout** — both rendered by the shared `build/ars_pipeline/chart_lib.py`
-`take_branch_chart()` (fixed 1383×540, y-axis 0–105, bar width 0.66, navy value labels), so
-they can't drift. **Only the colors differ: Personal = orange bars / navy dashed average;
-Business = navy bars / orange dashed average.** No embedded chart title (the caption below
-labels it).
+**Selection on the slide, source in the notes.** The selection is the subtitle.
+The data source — file, tab, dashboard, extract + pull stamp, period — goes in the
+speaker notes of every data slide, naming THIS client (`source_note_findings` FAILs
+a missing Source line or another client's provenance).
 
-## Known per-chart fixes (from the Austin 1075 review, 2026-07-10)
-Charts live in `build/ars_pipeline/charts_gen.py` unless noted.
-- **New Accounts by Product** — "Individual HSA" renders as "Individual **H S A**"
-  (acronym/title-case bug in `kickoff_lib.smart_titlecase` / ACR handling); fix so HSA
-  stays intact. Switch font to Calibri.
-- **First-Year Closure by Early Debit Use** — the 73% / 27% branch labels collide with the
-  connector lines; offset labels off the lines.
-- **Responder Activity: Before vs After (Mean)** and **(Median)** — widen both panels to
-  fill the space; set label fonts to **size 12**.
-- **12-Month Eligible Take Rate — Personal** — remove the on-chart "Avg %" label (it's in
-  the callout).
-- **12-Month Take Rate by Branch** — chart too close to the subheading; branch/axis fonts
-  too small — add top margin, enlarge fonts.
-- **Overall Debit Swipes & Spend** — make the chart taller.
-- **NSF/OD Activity Over Time** — make the chart taller.
-- **Reg E Opt-In by Account Vintage** — legend too close to the subheading; add spacing.
+## 5. The shell
 
+Every single-product deck carries its own shell; the combiner keeps exactly one of
+each (`assemble_combined.section_slides` drops the rest).
 
-## Selection / methodology text
-The **selection** (which population/accounts the slide covers) goes **on the slide face**,
-as the subheading under the title, so the audience sees exactly what they are looking at.
-The **data source(s)** — source file/tab, dashboard, ODD extract + pull date, and period —
-go in the **speaker notes** (see CLAUDE.md "Data sources in slide notes"). Every slide still
-carries a source line in its notes; the slide face shows the title, the selection subheading,
-the chart, and the insight/callout. (Updated 2026-07-15, Aaron — selection on the slide,
-source in the notes; reverses the earlier selection-in-notes rule.)
+- **Title slide.** Product name(s) in white; client, "Executive Review" and the
+  reporting month + year in orange. **Lists only the products in this build**
+  (ARS+MRPC → two lines). Reporting month = the month the deck is generated; the
+  filename carries the data month.
+- **Executive Summit slide**, immediately after the title, on every results deck.
+  Pristine asset `summit_slide.pptx` under `build/assets/` (gitignored — Drive
+  `Inputs/Summit/` wins when present); `build/summit_slide.py` inserts it. Own dense
+  typography (Montserrat 9–14 pt); no font floor, no restyle, no logo, no number.
+- **Agenda.** Numbered rows, **orange** badge circles, section name plus one detail
+  line, one row per product section plus Questions. A row for an absent product is
+  REMOVED, not blanked (an empty numbered row reads as a section that failed). Up to
+  four rows keep the template pitch; five re-space (1.60 / 2.54 / 3.48 / 4.41 / 5.35).
+  A referrals-only ICS section gets the referrals-only detail line.
+- **Section divider** — one layout for all four products: full-bleed navy; the
+  logo card top-left; product name centered, Montserrat bold 52 pt white in
+  (0.7, 2.25, 11.9 x 2.4); benefits line Montserrat bold 22 pt orange in
+  (0.7, 5.05, 11.9 x 0.9). ARS "Mailings · Debit Card · Reg E" · ICS "Referrals ·
+  Account Performance · Revenue" (referrals-only: "Referrals") · MRPC "Enrollments ·
+  Retention · Revenue" · CashPlease "Loan Volume · Portfolio Status · Peer Comparison".
+  No number. ARS/MRPC dividers are baked in the shells; ICS and CashPlease build theirs.
+- **Questions & Discussion** ends the primary material; **Contact Us** (navy contact
+  card: name, role, phone, email) follows it. **The ARS Appendix follows Contact**
+  (Aaron, 2026-07-24). Decks without ARS have no appendix — never synthesise one.
+- **Combined order:** shell (title, Summit, agenda) → ARS → ICS → MRPC → CashPlease
+  sections → Questions → Contact → ARS Appendix. The first program present supplies
+  the shell (`BASE_PRECEDENCE`: ARS, ICS, CP, MRPC — MRPC last because its deck has
+  no agenda or Summit). Slides are only ever ADDED and reordered, never deleted.
 
-## Callout tiles
-Big-number callout tiles: the number in **Montserrat**, text centered **v + h**. Match the
-Key Metrics tile style consistently across slides (e.g. the Revenue slide's 2025 / Life-of-
-Program tiles use the same treatment).
+## 6. Components
 
-## Slide numbers (Aaron, 2026-07-24)
-- **Font: Calibri 10 pt, bold, navy (`#00274C`) — every slide number, no exceptions.** They
-  must all be the same size; do not let the 16 pt font-floor touch them (the ARS builder
-  applies numbers in a final pass that runs *after* `restyle_fonts.py`).
-- **Position: bottom-left, `left 0.45"`, `top 7.05"` (box `0.70" × 0.30"`)** on a 13.33×7.5 slide.
-- **No slide number on: the title slide, the Executive Summit slide, and section-heading /
-  closing cover slides** (Reg E Review, Mailing Insights, Appendix, Questions & Discussion, etc.).
-- Numbered slides carry their ordinal (slide index + 1); unnumbered slides simply leave a gap.
-- When trimming a combined deck to a standalone deck, renumber from the ordinal — don't keep
-  the source deck's numbers.
+**Callouts, KPI tiles, pills, badges** (`build/shapes.py`). Text centered
+vertically and horizontally; value in Montserrat, label in Calibri. Every one of
+them — number tiles, tier callouts, agenda badges, the period pill — carries the
+ONE drop shadow: `outerShdw blurRad=63500 dist=38100 dir=5400000`, black at
+alpha 28%. `shapes.shadow` is the only definition; the ARS, ICS and MRPC builders
+import it. Not on chart backdrops. A callout with a two-line label is >= ~1.55"
+tall so the second line is not clipped.
 
-## Logos (Aaron, 2026-07-24)
-The CSI | Velocity Solutions lockup (`assets/logo.png`, transparent PNG) appears on **every
-slide except the Executive Summit slide**, at one fixed position/size per slide type:
-- **Data slides — bottom-right, identical on every slide: `left 11.28"`, `top 6.78"`, `1.70" × 0.54"`.**
-- **Section-heading slides — top-left, identical on every one: `left 0.71"`, `top 0.66"`, `1.90" × 0.60"`**
-  (sits on the slide's top-left white rounded card).
-- **Title slide and closing cover (Questions & Discussion)** keep their **centered** lockup on
-  the centered white card — left as-is.
-- **Executive Summit slide: no CSI lockup** (it carries its own Summit branding; drop the
-  corner CSI logo).
-The ARS builder normalizes all of this in the final branding pass (re-inserts a known-good
-logo so a broken image relationship can never blank a slide's logo, as happened on a data slide).
+**Tables** (`shapes.add_table`). Navy header row, white bold text; alternating
+white / `ROWALT` rows; the highlighted or total row orange; Calibri cells; white
+grid lines. The ARS Debit Usage Segmentation table carries % Accounts, % Swipes,
+% Spend and % NSFs. Dense tables fit to slide first; a smaller font only when the
+element is already maxed.
 
-## MRPC enrollment chart
-Single stacked chart with all tiers the client has: **Gold = orange, Platinum = gray,
-Business = navy**. Partial (current, incomplete) month is hatched + faded. Add a callout
-with the **last complete month** totals per tier + total. Include Business only if the
-client has business enrollments.
+**Charts** (all renderers).
 
-The three tier **callout boxes** (right of the chart) are colored **Gold = navy,
-Platinum = orange, Business = gray** — the Business box uses the same gray as the
-Platinum bars in the chart. For consumer-only clients the Business box is dropped.
+- Fill the horizontal space; balanced white space above and below; clear
+  separation from the subtitle; no label collisions; consistent label sizes; Carlito.
+- **Render at the picture box's aspect.** `DIM` in `build/ars_pipeline/charts_gen.py`
+  (and each renderer's letterbox size) must match the slide box or the PNG stretches.
+- **Month labels: `MMM'YY`, angled 45°, `ha="right"`** — `periods.mon_yy` /
+  `periods.axis_months` (Aaron, 2026-09-01). Three formats were in service and the
+  ICS quarter panels had thrown the year away.
+- **Time series:** navy bars, the last COMPLETE month orange, the partial month
+  hatched `STEEL_SOFT` at alpha 0.42 with `//`, white edge, value label in `TICK`,
+  annotated with the date it runs through.
+- **A mark is never drawn in the canvas color** (Aaron, 2026-09-01). A line over
+  navy bars is `TEAL`: 4.02:1 on navy, 3.74:1 on white — clear of WCAG 3:1 on both
+  grounds, which no other flat color manages, and which a white casing achieved at
+  the cost of looks. Value labels sit ABOVE the bar, navy. White stays right where the
+  ground is guaranteed: marker faces with a colored ring, the pad masking a line
+  behind a label, separators between stacked segments, text on an opaque patch.
+- **Pies and donuts are flat** — no wedge shadow, no picture `outerShdw`
+  (Aaron, 2026-07-15). Callouts keep theirs.
+- **Branch charts** show the largest 6–8 branches above the eligibility floors
+  (>= 40 eligible personal, >= 15 new-account, >= 5 business); fewer than 3
+  qualifying → show all and say so in the caption.
+- **Comparisons / benchmark slide:** orange capsule pills = Velocity clients'
+  average (left), navy capsule pills = this client (right), metric label between.
 
-## MRPC bar charts (standard format)
-On time-series bar charts (Enrollment Performance, Retention, Revenue by Month) the bars
-are **navy with the last completed month in orange**. Any line overlaid on the bars
-(Enrollments, Still-Active) is drawn in **teal `#0D9488`** — `_overlay_line()` in
-`mrpc_charts_gen.py`, one definition for all of them. Value labels for those series sit
-**above the bar**, navy and bold, matching Retention.
+## 7. Program specifics
 
-**A mark is never drawn in the canvas color** (Aaron, 2026-09-01). These lines used to be
-plain white on the assumption that they never left a navy bar. They do: every segment
-crossing the gap between two bars, and any point that rises above a bar top, rendered
-white-on-white. The MRPC Retention line was invisible for its whole length — markers only —
-on the 2026.08 decks, and so was its legend swatch; the Enrollments labels lost five real
-values on Capital Bank 1502 the same way.
-`tests/test_chart_colors.py` fails the build if a renderer draws a line or a label white again.
+### ARS
+- **Product Mix & ARS Eligibility** precedes Program Overview on every ARS deck
+  (`build/ars_pipeline/product_mix_slide.py`): donut + two tables, top 8 products
+  plus an "All other products (N)" roll-up, dense-table exception, source line
+  bottom-center. **Excluded Accounts** follows it.
+- **Take-rate by branch, Personal and Business:** identical size and layout from
+  `build/ars_pipeline/chart_lib.py`; Personal = orange bars / navy dashed average,
+  Business = navy bars / orange dashed average; no embedded title; chart and
+  caption centered on the slide.
+- **Overall Debit Swipes & Spend** and **NSF/OD Activity** charts are equal and
+  taller, never wider than the tile rail.
+- **Reg E donut slides** stack donut (<= 2.85", ends 4.45") → legend rows from 4.60"
+  → caption at 5.85".
+- **Average Ticket** and its caption derive their verbs from the figures (the
+  +/-2% band in `CLAUDE.md`); the chart title follows (`build/ars_pipeline/ticket_chart.py`).
+- Pills: "{Month YYYY} Data" for a snapshot slide; window pills ("Trailing 12
+  months …") keep their own label — never relabel a window as PTD.
+- Per-slide reference by title, front to back: Title · About the Summit · Agenda ·
+  divider · Product Mix & ARS Eligibility · Excluded Accounts · Program Overview ·
+  ARS Financial Performance · ARS Lift Matrix (MM) or Monthly Summary — Last 12
+  Months (SM) · Debit Usage Segmentation by Swipe Tier · Average Ticket by Swipe
+  Segment · Mailing Insights (divider, Response Summary, Ranking by Tier, ARS
+  Response — <mailer> and Movement, Transaction Increase Over the Ask, Sustained
+  Respondent Activity, Responder Activity Mean and Median) · Debit Card Review
+  (divider, Take Rate Personal and Business, Take Rate by Branch, Swipes & Spend,
+  NSF/OD) · Reg E Review (divider, All Personal Accounts, Opened in Last 12 Months,
+  Reg E Opt-In by Branch, by Account Vintage) · ARS Key Takeaways · Questions ·
+  Contact · Appendix (divider, Program Reach, Depth of Engagement, Responder Age
+  Profile, Who Responds, New Account Profile divider and six profile slides,
+  Account Growth, Account Retention, First-Year Closure).
 
-**The fix is the mark's COLOR, not a stroke under it.** A white casing was tried and
-rejected on looks (Aaron, 2026-09-01). A line over these bars crosses two grounds — navy
-bar and white gap — and teal is the rare flat color that clears WCAG's 3:1 non-text
-contrast against both: **4.02:1 on navy, 3.74:1 on white**. That is close to the best any
-flat color can manage against those two extremes (3.88:1), which is why white-stroking was
-reached for first. Orange lines (the Goal reference) need nothing: orange reads at 5.5:1 on
-navy and is left alone.
+### ICS
+- Data-driven from the client JSON (`rpe_env.resolve_client_json`): referral slides
+  from VIP, financial slides from the workbook, static education slides selected
+  from the shell **by title**. **Workbook slides ship only when the workbook is
+  for the deck's own period**; otherwise the referrals-only shape (`CLAUDE.md`).
+- **Date pills:** VIP-current slides "PTD · {Month D, YYYY}"; workbook slides
+  "PTD · {Workbook Month}" — the workbook's month, never the report month.
+- Monthly Detail is cohort revenue by opening month: per-account-per-month =
+  cohort revenue ÷ accounts opened ÷ months open. Life-of-account metrics read the
+  **Last 12 Months** row. The Velocity 12-month close rate is a constant (6.7%).
+- Referral bars: house time-series treatment; the goal line is dropped when the
+  network goal dwarfs current volume. A "program high" is claimed only when the
+  window proves it.
+- ICS revenue donut flat; Financial Summary callout block top = 1.85"; Power of
+  Referrals flavor text 28 pt; billed-expense labels measured with `textfit`.
 
-White stays correct where the ground is guaranteed: marker faces with a colored ring, the
-white pad that masks a line behind a label, the separator between stacked segments, and text
-on an opaque navy/orange patch. The rule is about marks on the open canvas.
+### MRPC
+- **Enrollments by Month:** one stacked chart of every tier the client has —
+  **Gold orange, Platinum `STEEL_SOFT`, Business navy** — with the tier callouts
+  the SAME colors (Platinum text navy on the grey card). Business appears only when
+  `meta.has_business`. Partial month hatched; a callout carries the last complete
+  month's totals.
+- **Enrollment Performance, Retention, Revenue by Month:** navy bars, last complete
+  month orange, `TEAL` overlay lines, counts above the bars; drawn from the sheet's
+  own `new_accounts` and `goal` — never a derived denominator.
+- **Cancellations by Reason:** ranked horizontal bars (top reason navy, rest steel,
+  % at bar ends, no legend) — a donut scales poorly with 4–8 reasons.
+- **Card Portfolio** (before Key Metrics): flat donut by card type, not boxed, at
+  (0.35, 3.3, 6.2 x 2.69); tiles for cards billed, monthly billing, avg fee,
+  Platinum share. **Key Metrics:** the large callout is Active Enrollments; the
+  **Tier Mix** rows are sized `min(18, max(11, (1.45/rows)·72·0.62))` pt so 3 tiers
+  fill the card and 5 still fit; cross-sale % is the footer line.
+- MRPC keeps its 10–15 pt hierarchy; `restyle_fonts` sets names only.
 
-## Month labels on chart axes
-**Every chart axis shows a month as `MMM'YY`, angled 45° with `ha="right"`** (Aaron,
-2026-09-01) — `periods.mon_yy()` / `periods.axis_months()`, with `AXIS_ROTATION` and
-`AXIS_HA` beside them. One helper, so the format cannot drift again.
+### CashPlease
+- **Five slides, built once, shipped two ways:** divider · CashPlease Program
+  Overview · Loan Volume by Month · Loan Portfolio by Status · Peer Comparison. Alone
+  they sit in a 10-slide single-product deck (shell + five + Questions + Contact);
+  in a combined deck they are the section, via `--cashplease`. A client whose
+  slides ship inside a combined deck does not also get a module.
+- Style comes from this repo's shared layer (`brand`, `shapes`, `periods`,
+  `fit_layout`), so a CashPlease slide matches the slide beside it. Titles are
+  Montserrat 30 pt at (0.6, 0.38); the selection line at (0.62, 1.06).
+- **Pill:** "PTD · {Month D, YYYY}" — the weekly workbook's generation date, the
+  VIP-current form, on every content slide. The cover and Questions slide carry the
+  month. **Always the newest workbook** (by filename stamp, not mtime), so the
+  section may be dated later than the ARS/ICS/MRPC sections beside it, and is never
+  re-dated to match.
+- Loan Volume by Month uses the house time-series treatment, partial month as a
+  hatched bar annotated with its through-date. Never render the workbook's
+  "Percentage of Active Accounts with Loans"; the rate is loans per 1,000 DDAs, and a
+  slide carrying both cohorts (73-tab rollup, 51-client DDA rate) names both.
+- Name the client — never "this client". Footnotes stay under two lines; a longer
+  one is pushed up by `fit_layout` into the content (the defect behind
+  `text_collision_findings`).
 
-Three formats were in service before this and none agreed: ARS drew `Jun'25` (built by
-stripping the space out of the data), MRPC drew `Aug 25` straight from the sheet, and the
-ICS quarter panels drew `Jul` — `mm.split()[0]` threw the YEAR away, so a 14-month axis read
-Jan…Dec…Jan with nothing to separate the two Januaries. Angling the labels is what lets the
-full `MMM'YY` fit without thinning or truncation.
+## 8. Data-size adaptation
 
-`mon_yy()` returns anything it cannot parse unchanged, so an axis of branches, tiers or fee
-buckets survives being passed through it.
+Client data varies widely; every build adapts by rule, never ad hoc.
 
-## MRPC Card Portfolio slide
-Card billing has its own slide (before Key Metrics): a **donut by card type** — Platinum
-($14.95/mo), Gold ($9.95/mo), Business Platinum ($19.95/mo), and **Multiple Cards**
-(accounts holding more than one card). KPI tiles: total cards billed, monthly card
-billing, avg fee/account, Platinum share. The **cross-sale %** (multi-card ÷ total) also
-appears as a callout on the Key Metrics slide.
+- **ODD size:** < 10 MB zips go straight through; large books use the two-stage
+  `metrics_gen` checkpoint and a pre-extracted CSV.
+- **Monthly series:** fixed windows (12-month summary, 36-month swipes & spend,
+  24-month growth); shorter histories render what exists (min 6) and the pill states
+  the actual span — never pad or extrapolate.
+- **Reg E vocabulary:** an unmapped value is surfaced in the pack's `flags` — ask
+  before mapping (`CLAUDE.md`).
+- **MRPC tiers:** 2–5; the chart stacks all of them, the Tier Mix rows size themselves.
+- **ICS partial data:** a null workbook section is a missing input — stop and name
+  it (or build `--referrals-only` deliberately). Never render a slide from null.
+- **Captions and tables:** bottom captions are auto-fitted; dense tables fit to
+  slide first.
 
-## ICS pipeline (data-driven)
-ICS decks build from a per-client JSON via `build/ics_pipeline/` (`ics_charts_gen.py` +
-`build_ics_gen.py`, static education slides from `templates/ics_template.pptx`). Referral data from the
-VIP ICS Referral dashboard; performance/revenue/financial from the Invitation Checking
-workbook. The **Monthly Detail** tab is cohort data by opening month and reports **revenue
-only** — per-account-per-month = cohort revenue ÷ accounts opened ÷ months open. Referral
-bars use the standard navy / last-complete-month-orange format (partial month hatched
-steel); the goal line is dropped when the network goal dwarfs current volume. See the
-`ics-deck` subagent for the schema and run steps.
+## 9. ILS review prep slides
 
-## MRPC pipeline (data-driven)
-MRPC decks build from a per-client JSON data sheet via `build/mrpc_pipeline/`
-(`mrpc_charts_gen.py` renders charts, `build_mrpc_gen.py` builds the deck from
-`mrpc_template.pptx`). VIP-pulled numbers go into `Inputs/VIP Data/MRPC/<id>-<Name>/<id>_mrpc.json` — never hand-edit
-charts. See the `mrpc-deck` subagent for the schema and run steps.
-## MRPC enrollment tier colors (Aaron, 2026-07-24 — callouts MATCH the bars)
-**Gold = orange, Platinum = GRAY (steel #9DB8CC), Business = NAVY — in the chart bars AND
-the tier callout boxes.** The Platinum callout text renders navy for contrast on the gray
-card. (Supersedes the 2026-07-16 note that had Platinum/Business swapped.)
+Built by the `ils-prep-deck` skill for the annual ILS analysis review and inserted
+into the consultant's macro-enabled review deck, so they follow the palette and
+type above on the ILS template's anatomy — not §4:
 
+- **Header:** title Montserrat 26 pt navy at (0.50, 0.30), subtitle Calibri 16 pt
+  `TICK` beneath, the dual-brand lockup (`velocity-csi-lockup.png` from
+  `Inputs/Logos/`) top-right at (10.98, 0.36) 1.85" wide, then a 0.05" orange rule
+  at 1.26". One logo per slide: the slides are re-pointed at the deck's empty layout
+  so the layout's own Velocity mark is not inherited.
+- **Section bars:** navy rounded bars 0.46" tall, white Montserrat label left,
+  `PEACH` (#F6B284) label right-aligned.
+- **Cards and tables:** card grey `TILE` (#ECF0F4) for non-highlight cards and
+  alternating rows; one orange highlight card (the maximum limit); table body ink
+  `#3F3F3F` (the ILS template's, not a palette entry); negatives in orange.
+- **Footer:** the ILS template's teal bar (`#1B7B8C` — the consultant deck's color,
+  deliberately NOT `brand.TEAL`) at 7.36" and its 10 pt "Confidential and proprietary
+  information" line, which is exempt from the floor. No RPE slide number, no
+  bottom-right lockup: the host deck supplies its own furniture.
+- **Type floor 16 pt** with the same dense-table exception, computed by `fit_rows`
+  (a table that will not fit at 16 drops as far as 7.5). Trend chips shorten their
+  label rather than shrink. No highlighting is carried from the matrix workbook.
+- **Verify by rendering** (`reference/render.ps1`) and looking; the RPE validator
+  is not run on these slides.
 
-On the MRPC **Enrollments by Month** slide the tier colors are fixed and the
-stacked-bar chart and the Gold/Platinum/Business callout tiles MUST match:
+## 10. Per-slide geometry contract
 
-- **Gold — orange** (`#F47A29`)
-- **Platinum — navy** (`#00274C`)
-- **Business — steel** (`#9DB8CC`)
+`build/slide_geometry.py`, keyed by TITLE (never slide index), applied by every
+builder before `fit_layout`. Today every rule is an ARS title: Overall Debit
+Swipes / NSF/OD Activity (taller, not wider); 12-Month Eligible Take Rate
+(centered); Product Mix (source bottom-center); Reg E Opt-In stack; Reg E by
+Account Vintage / First-Year Closure / ARS Response Movement (chart top >= 1.75");
+Transaction Increase (caption 1.45, 6.02, 8.4 x 0.95; chart <= 4.1" centered
+between); Who Responds (caption below the chart); Program Reach (1.2, 1.8,
+8.3 x 4.58); Account Growth and Account Retention (1.0, 1.75, 8.4 x 4.38). An ICS or
+MRPC layout fix goes in the same file — one contract, not one commit per deck.
 
-Applies to the chart series/legend (`mrpc_charts_gen.py`: `GOLDC`/`PLATC`/`BIZC`)
-and the callout fills (`build_mrpc_gen.py` tier list). Business appears only when
-`meta.has_business` is true.
+## 11. Decisions and reversals
 
-## Reading at distance & per-slide handling (Aaron, 2026-07-24)
-
-These decks are shown on a TV/projector and read from **15+ feet**. Rules:
-
-- **Identify slides by TITLE, not slide number** — numbers shift when slides are added or
-  removed. All per-slide handling below is keyed by title (the builder still swaps by find-
-  string; when practical prefer title-based lookups over fixed `S[index]`).
-- **Selection subtitles:** grey `#5A6670`, **16 pt**. If a subtitle is too long for its line,
-  **shorten it / use abbreviations** rather than drop below 16 pt.
-- **Dense tables & charts:** size the element as large as the slide allows (**fit to slide**).
-  A **smaller font is allowed only when the element is already maxed** and still won't fit.
-- **Top-right date/period pills:** must fit their box — if the label is long, **reduce the pill
-  font** (to ~10 pt) or shorten the label; never let it overflow or collide with the title.
-- **Charts:** the chart image aspect (`DIM` in `charts_gen.py`) must match its slide picture
-  box or it stretches. Personal take-rate = orange bars, Business = navy bars, identical size.
-- Every callout/tile/pill carries the standard drop shadow; donuts/pies stay flat.
-- **No shape runs off the slide or collides with the slide number/logo.** The shared
-  `build/fit_layout.py` pass (run by every builder before save) clears bottom footnotes
-  from the number/logo, clamps off-slide shapes, and sets all slide numbers to 10 pt;
-  `validation/validate_deck.py` FAILS the build if any collision/overflow remains.
-
-### ARS deck — per-slide reference (by title)
-
-**Front matter:** *Title* (centered lockup, no number) · *About the Summit* (own typography;
-no CSI corner logo, no number) · *Agenda* (section list, orange badges).
-
-**ARS section** — divider *Account Revenue Solution®*:
-- *Product Mix & ARS Eligibility* — donut + two tables; dense-table exception to the 16 pt
-  floor; built by `product_mix_slide.py`, placed before Program Overview.
-- *Program Overview* — "<client> has run…" narrative + 5 KPI tiles; PTD pill.
-- *ARS Financial Performance* — large PTD-Profitability callout + revenue/profit tiles.
-- *ARS Lift Matrix* (MM) **or** *Monthly Summary — Last 12 Months* (SM) — lift table + revenue
-  segmentation (MM) or a 12-month incremental-revenue bar (SM); window pill (shrink to fit).
-- *Debit Usage Segmentation by Swipe Tier* — 9-column table (% Accounts/Swipes/Spend/NSFs); "Avg" pill.
-- *Average Ticket by Swipe Segment* — two bar panels side by side.
-
-**Mailing Insights** — divider: *Mailing Response Summary* (table) · *Mailing Response Ranking
-by Tier* (stacked bars) · *ARS Response — <mailer>* (responders-by-tier bars) · *ARS Response —
-<mailer> Movement* (first/improved/same/declined) · *Transaction Increase Over the Ask*
-(histogram + tiles) · *Sustained Respondent Activity by Mailing* (bars) · *Responder Activity:
-Before vs After (Mean)* and *(Median)* (paired bar panels).
-
-**Debit Card Review** — divider: *12-Month Eligible Take Rate — Personal* (orange bars) &
-*— Business* (navy bars), same size via `chart_lib` · *12-Month Take Rate by Branch* (wide
-table) · *Overall Debit Swipes & Spend* (combo + tiles) · *NSF/OD Activity Over Time* (combo + tiles).
-
-**Reg E Review** — divider: *Reg E Opt-In — All Personal Accounts* · *— Opened in Last 12
-Months* (donut + branch bars) · *— by Account Vintage* (bars + line).
-
-*ARS Key Takeaways* — 3-column summary + orange opportunity bar.
-*Questions & Discussion* — closer (centered lockup, no number).
-*Contact Us* — navy contact cards. **Contact precedes the Appendix.**
-
-**Appendix** — divider *Appendix* → *Program Reach — Cumulative Responders* · *Depth of
-Engagement — Repeat Responders* · *Responder Age Profile* · *Who Responds — Balance Profile* ·
-divider *New Account Profile* · *New Accounts by Product* · *New Checking Balances vs. Existing
-Book* · *Debit Card Penetration — New vs. Book* · *Debit Card Usage — New vs. Existing Book* ·
-*New-Account Debit Adoption — Swipe Segmentation* · *New Account Profile — Summary* · *Account
-Growth — Openings vs. Closures* · *Account Retention — Survival by Tenure* · *First-Year Closure
-by Early Debit Use*.
-
-## Per-slide geometry contract (Aaron, 2026-07-24)
-Enforced by `build/ars_pipeline/slide_geometry.py` (run by the ARS builder before
-`fit_layout`; runnable standalone on a template). By slide TITLE:
-- **Reg E Opt-In donut slides** — the donut ends above its legend (donut ≤2.85").
-- **Reg E Vintage / First-Year Closure / ARS Response Movement** — chart top ≥1.75"
-  (below the two-line selection subtitle).
-- **Who Responds** — the caption starts below the chart bottom.
-- **Program Reach** — chart fills its space: (1.2, 1.8, 8.3 × 4.58) balanced against the right rail.
-- **Account Growth & Account Retention** — identical chart geometry (1.0, 1.75, 8.4 × 4.38).
-Other products: ICS revenue donut is FLAT (no ring shadow); ICS Financial Summary callout
-block top = 1.85 (balances the selection text); Power of Referrals flavor text = 28 pt;
-MRPC Key Metrics **Tier Mix** rows are dynamically sized to fill the card (3+ tiers,
-`min(18, max(11, (1.45/rows)*72*0.62))` pt), label on top, cross-sale as the footer line.
-`validate_deck.py` flags any text box overlapping a chart image as REVIEW (letterboxed
-whitespace can make small overlaps benign — check visually).
-
-## Data-size adaptation rules (Aaron, 2026-07-24 — from the client-deck survey)
-
-Client data varies widely; every build adapts by rule, never ad hoc:
-
-- **ARS ODD size.** Small/typical ODDs (<10 MB zip) pass the `.zip` straight through the
-  pipeline. Large books (e.g. 271k-row Austin 1075) use the 2-stage `metrics_gen`
-  checkpoint (`MG_DUMP`) and pre-extract the CSV once, passing the `.csv` to the builder.
-- **Branch charts.** Take-rate/opt-in by branch shows the **largest 6–8 branches** with
-  eligibility floors (≥40 eligible accounts personal, ≥15 new-account, ≥5 business). If
-  fewer than 3 branches qualify, show all qualifying branches and say so in the caption.
-- **Product mix.** Top 8 products by open accounts + an **"All other products (N)"** roll-up
-  row — never a table that grows with the client's product count.
-- **Monthly series.** Fixed windows (12-mo summary, 36-mo swipes & spend, 24-mo growth).
-  Clients with shorter history render the months available (min 6) and the window pill
-  states the actual span — never pad or extrapolate.
-- **Reg E vocabulary.** Any non-blank value that doesn't map to `Opt In / Opt Out / Default`
-  is surfaced in the pack `flags` — **ask before mapping** (Sugar River 1038 precedent:
-  Failed to Respond/Revoked → Default; Exempt/Ineligible → excluded).
-- **MRPC tiers.** Clients run 2–5 card tiers. The Key Metrics **Tier Mix** rows are
-  dynamically sized (`min(18, max(11, (1.45/rows)·72·0.62))` pt) so 3 tiers fill the card
-  and 5 still fit. Enrollment charts stack every tier the client has (Gold orange,
-  Platinum gray, Business navy).
-- **ICS partial data.** Several clients' JSON carries **null workbook sections** (VIP
-  referrals only, no workbook refresh yet). Build ICS **only when both** the workbook data
-  and VIP referral data are present; a null section is a missing-input error — stop and
-  name the missing input. Never render a slide from null (no empty charts, no phantom 0%).
-- **Captions & tables.** Bottom captions are auto-fitted by `fit_layout` (estimated line
-  count keeps glyphs above the number band; width stops before right-rail tiles). Dense
-  tables fit-to-slide first; a smaller font only when the element is already maxed.
-
-## Slide-check additions (Aaron, 2026-07-24, round 2)
-- **ARS Reg E donut slides** — left column stacks: donut (≤2.85", ends 4.45") → legend rows
-  (4.60"+, 0.36" apart) → caption (5.85", est-lines fit). No legend/caption collisions.
-- **ARS Product Mix** — the source line sits at the **bottom of the slide, centered**.
-- **ARS take-rate slides (Personal/Business)** — chart horizontally centered; caption
-  centered beneath it (both centered on the slide).
-- **ARS Overall Debit Swipes & Spend + NSF/OD Activity** — equal-size charts, taller
-  (target h 5.15", aspect-preserving; DIM 1740×1007 both).
-- **MRPC Retention** — **Cancellations by Reason renders as RANKED HORIZONTAL BARS**
-  (top reason navy, rest steel, % at bar ends, no legend) — a donut+legend scales poorly
-  with 4–8 reasons; bars fit any reason count with no label collisions (Aaron 2026-07-24).
-- **MRPC Revenue slides** — chart (0.4, 1.5, 7.55 × 4.85): taller, right edge clears the
-  rail text.
-- **MRPC Card Portfolio** — the billing donut is **not** boxed in a callout; pie at
-  (0.35, 3.3, 6.2 × 2.69) clear of the Platinum Share card.
-- Validator: caption-overflow check is **font-size- and alignment-aware** (estimates glyph
-  runs; FAILs only when estimated text reaches the number/logo corners).
-
-## Product section dividers — one canonical layout (Aaron, 2026-07-24)
-All three product dividers (ARS / ICS / MRPC) use the identical layout:
-- Full-bleed navy background; **white rounded logo card top-left** (0.55, 0.5, 2.22 × 0.92)
-  with the CSI|Velocity lockup at (0.71, 0.66, 1.9 × 0.6).
-- **Product name centered**, Montserrat bold 52 pt, box (0.7, 2.25, 11.9 × 2.4), middle-anchored.
-- **Program benefits line below**, Montserrat bold 22 pt **orange**, centered, box (0.7, 5.05, 11.9 × 0.9):
-  ARS "Program Performance Review" · ICS "Referrals · Account Performance · Revenue" ·
-  MRPC "Enrollments · Retention · Revenue".
-No slide number on dividers. The ICS builder generates this layout; the MRPC/ARS dividers are baked
-in their templates.
+| Date | Decision |
+| --- | --- |
+| 2026-07-13 | Fonts by role (reversed "Montserrat everywhere"); one pill format `PTD · {date}`; agenda badges all orange; shadows on pills too |
+| 2026-07-15 | Pies and donuts flat; selection on the slide face, source in the notes (reversed selection-in-notes) |
+| 2026-07-24 | Slide number 10 pt at (0.45, 7.05); logo positions fixed; Appendix after Contact; one divider layout; take-rate charts identical; Cancellations by Reason as ranked bars; MRPC tier colors match between chart and callouts (Platinum grey, Business navy — superseding a swapped 07-16 note); identify slides by title |
+| 2026-08-27 | Referrals-only ICS builds; combined decks assembled, never blended |
+| 2026-08-28 | ICS workbook slides only for the deck's own period |
+| 2026-08-29 | Build from the shell, never from a client deck; shared layer at `build/` root |
+| 2026-09-01 | `MMM'YY` on every axis; lines over navy bars are `TEAL` (a white casing was tried the same day and rejected on looks); MRPC enrollment counts above the bars; CashPlease is the fourth product |
+| 2026-09-02 | CashPlease ships WITH ICS or another RPE product, never inserted into the ILS deck; one shadow definition (ICS 26% → 28%); text-over-text collisions FAIL the gate |

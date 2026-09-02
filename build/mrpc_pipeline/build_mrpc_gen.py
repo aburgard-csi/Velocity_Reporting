@@ -23,16 +23,8 @@ from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 import mrpc_charts_gen as CH
 
-# Standard callout drop shadow (see STYLE.md "Callout boxes"): subtle, soft, straight down.
-_SHADOW_XML=('<a:effectLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
-             '<a:outerShdw blurRad="63500" dist="38100" dir="5400000" rotWithShape="0">'
-             '<a:srgbClr val="000000"><a:alpha val="28000"/></a:srgbClr>'
-             '</a:outerShdw></a:effectLst>')
-
-def add_shadow(shape):
-    spPr=shape._element.spPr
-    for e in spPr.findall(qn('a:effectLst')): spPr.remove(e)
-    spPr.append(parse_xml(_SHADOW_XML))
+# Standard callout drop shadow (STYLE.md "Callouts") — defined once, in build/shapes.py.
+from shapes import shadow as add_shadow
 
 NAVY=RGBColor(0x00,0x27,0x4C); ORANGE=RGBColor(0xF4,0x7A,0x29)
 STEEL=RGBColor(0x9D,0xB8,0xCC); WHITE=RGBColor(0xFF,0xFF,0xFF)

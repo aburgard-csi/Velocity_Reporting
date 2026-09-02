@@ -1,7 +1,10 @@
 # build/ — deck assembly machinery
 
 Requires `python-pptx`, `matplotlib`, `openpyxl`, `Pillow` (and `pyarrow` for `metrics_gen`).
-All ARS decks clone `templates/ars_template.pptx` (derived from the Marine 1539 reference).
+Every deck is BUILT from its program's shell in `templates/` (`ars_template.pptx`,
+`ics_template.pptx`, `mrpc_template.pptx`); no deck is cloned from a client deck
+(CLAUDE.md "Templates"). CashPlease (`C:\Projects\CashPlease`, staged to move here)
+builds onto `ars_template.pptx` as a bare shell and imports the shared layer below.
 
 ## Current layout (reorganized 2026-07-24)
 
@@ -13,14 +16,18 @@ One folder per program; shared post-processors at the root.
   `ticket_chart.py`, `base_tab_extract.py` (SM financials), `product_mix_slide.py`.
   `build_ars_gen.py` self-locates its helpers (`REF` = this dir; `BUILDDIR` = `build/`),
   overridable with `RPE_REF` / `RPE_BUILDDIR`.
-- **`ics_pipeline/`** — `build_ics_gen.py`, `ics_charts_gen.py`, `templates/ics_template.pptx`, `data/`.
-- **`mrpc_pipeline/`** — `build_mrpc_gen.py`, `mrpc_charts_gen.py`, `mrpc_template*.pptx`,
-  `setup_template.py` (one-time template bootstrap), `data/`.
-- **root (shared):** `restyle_fonts.py` (final font pass, used by all programs),
-  `summit_slide.py` (imported by ICS **and** MRPC).
-- **`strip_dead.py`** (build/ root) — zip-level dead-slide GC, called by `build_ars_gen.py`.
-- **`fit_layout.py`** (build/ root, shared) — final layout-fit run by all three builders before save: normalizes slide numbers to 10pt, clears bottom footnotes/captions from the number & logo, clamps off-slide shapes. (The rest of `Combined Deck/` and all of `ARS Deck Pipeline/`
-  were archived.)
+- **`ics_pipeline/`** — `build_ics_gen.py`, `ics_charts_gen.py`, `ics_workbook_extract.py`.
+  Per-client VIP data lives ONLY under `RPE_DATA_ROOT/Inputs/VIP Data/` (the repo `data/`
+  copies were deleted 2026-08-29).
+- **`mrpc_pipeline/`** — `build_mrpc_gen.py`, `mrpc_charts_gen.py`, `setup_template.py`
+  (one-time template bootstrap).
+- **root (shared, all programs)** — the style layer STYLE.md's enforcement map points at:
+  `brand.py` (palette + type roles), `shapes.py` (textbox / pill / tile / table / shadow),
+  `periods.py` (date phrases and the `MMM'YY` axis format), `textfit.py` (measured glyph
+  widths), `slide_geometry.py` (per-title geometry contract), `fit_layout.py` (layout-fit +
+  10 pt numbers), `restyle_fonts.py` (font roles + 16 pt floor, run last), `summit_slide.py`,
+  `figures.py` (the provenance sidecar), `strip_dead.py` (zip-level dead-slide GC),
+  `assemble_combined.py` (the combined deck), `branch_names.py`, `rpe_env.py`.
 
 The ODD optimizer is `../scripts/oddd_optimize.py`; the pre-ship validator is
 `../validation/validate_deck.py`. `metrics_gen.py` streams + column-projects the ODD `.zip`
