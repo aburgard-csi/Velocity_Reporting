@@ -70,10 +70,16 @@ template placeholder means SM. Verified 2026-08-28.
 
 ## CashPlease — the fourth program
 
-**CashPlease is a section of the combined Executive Review deck (Aaron, 2026-09-01)** —
-and, for clients who have no other RPE program, a standalone module for their ILS
-Analysis Review. Both, because neither path covers the roster on its own: five of the
-eight CashPlease clients have no other RPE program and so have no combined deck to join.
+**CashPlease ships WITH ICS or another RPE product, and that deck is what goes to the
+annual ILS review (Aaron, 2026-09-02).** CashPlease slides are never inserted into the
+data team's ILS Analysis Review deck — they ride in the client's own RPE deck, and that
+deck is included in the ILS review alongside it. For a client with no other RPE program
+the standalone single-product CashPlease deck plays that role.
+
+This **changes the earlier decision** (2026-09-01) that CashPlease slides would be added
+into the ILS review deck itself. The ILS deck is built by the data team and ships as a
+28 MB macro-enabled `.pptm`; editing it means a second pipeline writing into someone
+else's deliverable. Delivering a deck beside it does not.
 
 The slides are the same five either way — divider · Program Overview · Loan Volume by
 Month · Loan Portfolio by Status · Peer Comparison — built once by the module builder.
@@ -138,6 +144,17 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 - **2026-09-01 — CashPlease added as a fourth program** (Aaron). First recorded as an
   ILS-review-only module; **superseded the same day** by the combined-deck decision
   below. See the **CashPlease** section above.
+- **2026-09-02 — CashPlease is delivered WITH ICS, not inserted into the ILS deck**
+  (Aaron). "Ship CP with ICS or other RPE products, but I also want it included in our
+  annual ILS reviews... rather than insert the cashplease slides into the ILS deck, just
+  include them with ICS — this changes my past decision." So the CashPlease slides ride
+  in the client's own RPE deck and that deck accompanies the ILS review; nothing is
+  written into `ILS Program Analysis - <Client>.pptm`. Built 2026-09-02:
+  `1734-2026.08-ICS-CP-Altamaha Bank and Trust Company Results.pptx` (33 slides) and
+  `1632-2026.08-ICS-CP-WesBanco Results.pptx` (19 slides), both 0 FAIL.
+  **1539 Marine is not yet buildable as ARS-ICS-MRPC-CP**: only the already-combined
+  2026.08 deck is on Drive and a combined deck is never a build input, so the three
+  program decks have to be rebuilt from their own sources first.
 - **2026-09-01 — CashPlease is a section of the combined deck** (Aaron). It joins ARS,
   ICS and MRPC in the combined Executive Review. Two consequences decided with it:
   `assemble_combined.py`'s **`--ars` requirement is relaxed** so an ICS-CP deck can be
