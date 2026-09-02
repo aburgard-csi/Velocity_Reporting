@@ -150,10 +150,12 @@ def section_slides(slides):
 # so a two-program client must not advertise a section the deck does not contain.
 PRODUCT_NAME = {"ARS": "Account Revenue Solution®",
                 "ICS": "Invitation Checking® System",
-                "MRPC": "MyRewards Premium Cards®"}
+                "MRPC": "MyRewards Premium Cards®",
+                "CP": "CashPlease®"}
 AGENDA_DETAIL = {"ARS": "Program performance, mailing insights, debit card & Reg E review",
                  "ICS": "Referral trend, account value, ROI & financial results",
-                 "MRPC": "Enrollments, channel mix, retention & revenue"}
+                 "MRPC": "Enrollments, channel mix, retention & revenue",
+                 "CP": "Loan volume, portfolio status & peer comparison"}
 
 # A referrals-only ICS build has no account-value, ROI or financial slides at all, so the
 # combined agenda must not name them — the same rule the ICS deck's own agenda follows
@@ -251,12 +253,49 @@ def set_title_products(slide, programs):
     return False
 
 
-def set_agenda(slide, programs, detail_overrides=None):
-    """Rewrite the ARS-only agenda into the three-program agenda, in place.
+ROW_TOKENS = tuple(str(i) for i in range(1, 10))
 
-    Matched positionally: the agenda is a fixed 4-row grid of (number, heading, detail)
-    text boxes, so the boxes are taken in document order rather than by their current text
-    (which differs between the ARS deck and the reference)."""
+
+def _badge_of(slide, numbox):
+    """The decorative circle under a row's number.
+
+    Each badge is TWO stacked shapes: an AUTO_SHAPE carrying no text and the number
+    drawn on top of it. The circle has to travel with its row, or re-spacing leaves it
+    behind as an orphan bullet — the Wellworth 1549 defect, in a new place.
+    """
+    tol = Emu(20000)
+    for sh in slide.shapes:
+        if sh is numbox or sh.top is None or sh.left is None:
+            continue
+        if sh.has_text_frame and sh.text_frame.text.strip():
+            continue
+        if abs(sh.top - numbox.top) < tol and abs(sh.left - numbox.left) < tol:
+            return sh
+    return None
+
+
+def _clone(slide, shape):
+    el = copy.deepcopy(shape._element)
+    shape._element.getparent().append(el)
+    return slide.shapes[-1]
+
+
+def set_agenda(slide, programs, detail_overrides=None):
+    """Rewrite the agenda in place for however many programs the deck carries.
+
+    The grid used to be a FIXED four rows — three programs plus Questions & Discussion —
+    and anything else raised. CashPlease is a fourth product (Aaron, 2026-09-01), so five
+    rows are needed, and the template's four cannot simply be appended to: row five at
+    the template's 1.25" pitch lands at 6.60", where its heading runs under the logo at
+    6.78" and its detail line falls off the slide.
+
+    So rows are laid out INSIDE the band the template already defines — first row top to
+    last row top — with the pitch divided by however many rows are in use. At four rows
+    or fewer the pitch is unchanged and the geometry is byte-identical to before, which
+    is what keeps every existing ARS / ICS / MRPC agenda exactly as it shipped.
+
+    Matched positionally: the boxes are taken in document order rather than by their
+    current text, which differs between the ARS deck and the reference."""
     # The slide-number box is excluded by GEOMETRY, not by its text: on this deck it reads
     # "3", which is indistinguishable from the agenda's own row numbers.
     boxes = [sh for sh in slide.shapes
@@ -266,17 +305,56 @@ def set_agenda(slide, programs, detail_overrides=None):
     rows, i = [], 0
     while i < len(boxes):
         t = boxes[i].text_frame.text.strip()
-        if t in ("1", "2", "3", "4"):
+        if t in ROW_TOKENS:
             head = boxes[i + 1] if i + 1 < len(boxes) else None
             det = boxes[i + 2] if i + 2 < len(boxes) else None
-            if det is not None and det.text_frame.text.strip() in ("1", "2", "3", "4"):
+            if det is not None and det.text_frame.text.strip() in ROW_TOKENS:
                 det = None
             rows.append((boxes[i], head, det))
             i += 2 if det is None else 3
         else:
             i += 1
-    if len(rows) != 4:
-        raise SystemExit(f"agenda grid: expected 4 rows, found {len(rows)} — template changed")
+    if len(rows) < 2:
+        raise SystemExit(f"agenda grid: found {len(rows)} rows, need at least 2 — "
+                         f"template changed")
+
+    # The band and the row's internal offsets, read from the template rather than named
+    # as constants, so re-styling the agenda slide does not silently break this.
+    first_top, last_top = rows[0][0].top, rows[-1][0].top
+    src_num, src_head, src_det = next((r for r in rows if r[2] is not None), rows[0])
+    d_head = src_head.top - src_num.top if src_head is not None else 0
+    d_det = src_det.top - src_num.top if src_det is not None else 0
+
+    # The template's own pitch. It is KEPT whenever the deck fits the grid, so a two- or
+    # four-row agenda lands on exactly the coordinates it always has; only a deck that
+    # needs more rows than the template provides is re-spaced.
+    grid_n = len(rows)
+    grid_pitch = (last_top - first_top) / (grid_n - 1) if grid_n > 1 else 0
+
+    needed = len(programs) + 1
+    while len(rows) < needed:
+        numbox = _clone(slide, src_num)
+        head = _clone(slide, src_head) if src_head is not None else None
+        det = _clone(slide, src_det) if src_det is not None else None
+        badge = _badge_of(slide, src_num)
+        if badge is not None:
+            _clone(slide, badge)
+        rows.append((numbox, head, det))
+
+    used = rows[:needed]
+    pitch = (grid_pitch if needed <= grid_n
+             else (last_top - first_top) / (len(used) - 1))
+    for i, (numbox, head, det) in enumerate(used):
+        top = int(first_top + i * pitch)
+        badge = _badge_of(slide, numbox)
+        if badge is not None:
+            badge.top = top
+            badge.left = numbox.left
+        numbox.top = top
+        if head is not None:
+            head.top = int(top + d_head)
+        if det is not None:
+            det.top = int(top + d_det)
 
     detail = dict(AGENDA_DETAIL)
     detail.update(detail_overrides or {})
@@ -294,12 +372,23 @@ def set_agenda(slide, programs, detail_overrides=None):
         for extra in tf.paragraphs[1:]:
             extra._p.getparent().remove(extra._p)
 
+    # A detail box is added or removed to match the row, never left empty. The template's
+    # grid has a detail line on rows 1-3 and none on row 4, because row 4 was always
+    # Questions & Discussion. With a fourth product that assumption breaks: the product
+    # lands on the detail-less row and loses its line, while Questions inherits a box and
+    # renders an empty one under it.
     for (numbox, head, det), (n, title, detail) in zip(rows, agenda):
         _settext(numbox, n)
         if head is not None:
             _settext(head, title)
-        if det is not None:
-            _settext(det, detail if detail else "")
+        if detail:
+            if det is None and src_det is not None:
+                det = _clone(slide, src_det)
+                det.left, det.top = src_det.left, int(numbox.top + d_det)
+            if det is not None:
+                _settext(det, detail)
+        elif det is not None:
+            det._element.getparent().remove(det._element)
 
     # A two-program deck uses 3 of the grid's 4 rows. Remove the leftovers outright rather
     # than blanking them: an empty numbered row reads as a section that failed to render.

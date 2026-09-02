@@ -47,6 +47,12 @@ _SECTION_PATTERNS = [
     (re.compile(r"\*\*MRPC-only clients", re.I),     "mrpc_only"),
     (re.compile(r"\*\*ICS-only clients", re.I),      "ics_only"),
     (re.compile(r"\*\*Cancelled\s*/\s*ending", re.I), "cancelled"),
+    # CashPlease has its OWN roster table in this file, read by the CashPlease
+    # pipeline's `cp_roster.py`. It must be skipped here, not inherited from whatever
+    # section precedes it: it sits after the ICS-only table, so without this every
+    # CashPlease client was read as an ICS client — including 1658 Truliant, which has
+    # no RPE program at all and is exactly the row `clients.md` exists to keep unbuilt.
+    (re.compile(r"#{2,4}\s*CashPlease", re.I),      "cashplease"),
     (re.compile(r"##\s*Status changes", re.I),      "prose"),
     (re.compile(r"##\s*Gaps needing", re.I),        "prose"),
     (re.compile(r"##\s*What is NOT a signal", re.I), "prose"),
@@ -99,7 +105,7 @@ def read_roster(path=ROSTER_FILE):
                         else ["ICS"]))
         elif section == "cancelled":
             skipped.append((cid, name, "cancelled / ending"))
-        elif section in (None, "prose"):
+        elif section in (None, "prose", "cashplease"):
             continue
         else:
             unparsed.append((cid, name, f"unreadable row in the {section} table"))
