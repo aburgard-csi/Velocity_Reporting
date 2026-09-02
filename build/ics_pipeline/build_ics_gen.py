@@ -62,6 +62,7 @@ def _goal_months_elapsed(rf):
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import summit_slide
 from textfit import fits_one_line   # measured against the bundled TTFs, not estimated
+import periods as P
 
 from brand import (NAVY_RGB as NAVY, ORANGE_RGB as ORANGE,
                    STEEL_SOFT_RGB as STEEL)
@@ -529,7 +530,7 @@ def build(d, static_path, out, referrals_only=False):
                      f"at {_last}.")
         else:
             _high = (f"{pm['label']} brought {_last}; the last {len(_cv)} months "
-                     f"peaked at {_cv[_pi]} in {_cm[_pi]}.")
+                     f"peaked at {_cv[_pi]} in {P.mon_yy(_cm[_pi])}.")
     else:
         _high = f"{pm['label']} brought {pm['value']}."
     tb(s,4.35,1.7,8.45,2.4,
@@ -559,11 +560,19 @@ def build(d, static_path, out, referrals_only=False):
     _cn = -1 if t.get("partial_last") else len(t['referrals'])
     _ccv = t['referrals'][:_cn]; _ccm = t['months'][:_cn]
     _pk = max(range(len(_ccv)), key=lambda k: _ccv[k]) if _ccv else None
-    _peak_txt = (f"peak {_ccv[_pk]} in {_ccm[_pk]}" if _pk is not None else "no complete month yet")
+    _peak_txt = (f"peak {_ccv[_pk]} in {P.mon_yy(_ccm[_pk])}" if _pk is not None
+                 else "no complete month yet")
+    # Months in MMM'YY, matching the axis directly above, and the partial note
+    # folded into the range rather than repeated at the end. That repetition is
+    # what pushed this past one line: at 16pt MONTSERRAT the old wording measured
+    # 9.96" in a 9.8" box, wrapped to two, and overflowed into the page-number
+    # corner on Austin 1075. Measured, not eyeballed — this fits at 9.33" with
+    # four-digit values in both slots.
+    _span = (f"{P.mon_yy(t['months'][0])} – {P.mon_yy(t['months'][-1])}"
+             + (" (partial)" if t.get("partial_last") else ""))
     tb(s,1.2,6.72,9.8,0.5,
-       f"Monthly checking referrals, {t['months'][0]} – {t['months'][-1]}; {_peak_txt}"
-       + (f", {t['months'][-1]} partial" if t.get("partial_last") else "")
-       + f". Goal {rf['monthly_goal']:,}/mo.",
+       f"Monthly checking referrals, {_span}; {_peak_txt}. "
+       f"Goal {rf['monthly_goal']:,}/mo.",
        16,GREYT,False)
     logo(s); pagenum(s,4)
     notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
