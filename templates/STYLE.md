@@ -221,24 +221,43 @@ Platinum bars in the chart. For consumer-only clients the Business box is droppe
 ## MRPC bar charts (standard format)
 On time-series bar charts (Enrollment Performance, Retention, Revenue by Month) the bars
 are **navy with the last completed month in orange**. Any line overlaid on the bars
-(Enrollments, Still-Active) is drawn **navy with a white casing** — `_overlay_line()` in
-`mrpc_charts_gen.py`, one definition for all of them. Value labels that sit over the bars
-(the Enrollments counts) are cased the same way — `_cased_text()` — because a month with no
-accounts has no bar behind its label, and they clear the marker by a fixed offset in POINTS,
-not by a fraction of the axis maximum.
+(Enrollments, Still-Active) is drawn in **teal `#0D9488`** — `_overlay_line()` in
+`mrpc_charts_gen.py`, one definition for all of them. Value labels for those series sit
+**above the bar**, navy and bold, matching Retention.
 
 **A mark is never drawn in the canvas color** (Aaron, 2026-09-01). These lines used to be
 plain white on the assumption that they never left a navy bar. They do: every segment
 crossing the gap between two bars, and any point that rises above a bar top, rendered
 white-on-white. The MRPC Retention line was invisible for its whole length — markers only —
 on the 2026.08 decks, and so was its legend swatch; the Enrollments labels lost five real
-values on Capital Bank 1502 the same way. A casing removes the dependency on what happens to
-sit behind a given mark; picking a different flat color only moves the failure.
+values on Capital Bank 1502 the same way.
 `tests/test_chart_colors.py` fails the build if a renderer draws a line or a label white again.
+
+**The fix is the mark's COLOR, not a stroke under it.** A white casing was tried and
+rejected on looks (Aaron, 2026-09-01). A line over these bars crosses two grounds — navy
+bar and white gap — and teal is the rare flat color that clears WCAG's 3:1 non-text
+contrast against both: **4.02:1 on navy, 3.74:1 on white**. That is close to the best any
+flat color can manage against those two extremes (3.88:1), which is why white-stroking was
+reached for first. Orange lines (the Goal reference) need nothing: orange reads at 5.5:1 on
+navy and is left alone.
 
 White stays correct where the ground is guaranteed: marker faces with a colored ring, the
 white pad that masks a line behind a label, the separator between stacked segments, and text
 on an opaque navy/orange patch. The rule is about marks on the open canvas.
+
+## Month labels on chart axes
+**Every chart axis shows a month as `MMM'YY`, angled 45° with `ha="right"`** (Aaron,
+2026-09-01) — `periods.mon_yy()` / `periods.axis_months()`, with `AXIS_ROTATION` and
+`AXIS_HA` beside them. One helper, so the format cannot drift again.
+
+Three formats were in service before this and none agreed: ARS drew `Jun'25` (built by
+stripping the space out of the data), MRPC drew `Aug 25` straight from the sheet, and the
+ICS quarter panels drew `Jul` — `mm.split()[0]` threw the YEAR away, so a 14-month axis read
+Jan…Dec…Jan with nothing to separate the two Januaries. Angling the labels is what lets the
+full `MMM'YY` fit without thinning or truncation.
+
+`mon_yy()` returns anything it cannot parse unchanged, so an axis of branches, tiers or fee
+buckets survives being passed through it.
 
 ## MRPC Card Portfolio slide
 Card billing has its own slide (before Key Metrics): a **donut by card type** — Platinum

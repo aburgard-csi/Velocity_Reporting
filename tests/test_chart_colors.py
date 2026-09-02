@@ -10,8 +10,11 @@ The same mistake had a second form one layer down: the Enrollments VALUE LABELS
 on MRPC Performance vs Goal were white as well, so on Capital Bank 1502 the five
 zero-enrollment months -- which have no bar behind them -- printed white on white.
 
-Both fixed 2026-09-01 by casing the mark (navy core, white stroke) instead of
-coloring it. This test is the check that would have caught them: it reads the
+Both fixed 2026-09-01. The line is now TEAL -- a colour that reads on the navy
+bars AND on the white gaps (4.02:1 and 3.74:1), so it needs no stroke; a white
+stroke under a navy line was tried first and rejected on looks. The value labels
+moved above the bars, where they sit on canvas and are simply navy. This test is
+the check that would have caught them: it reads the
 renderers rather than the rendered PNGs, so it needs no client data and no
 fixture month.
 """

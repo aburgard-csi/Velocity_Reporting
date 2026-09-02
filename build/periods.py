@@ -51,6 +51,13 @@ def _num_month(n):
 _TOKEN_FORMS = (
     (re.compile(r"^([A-Za-z]{3})(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
     (re.compile(r"^([A-Za-z]{3,9})\.?\s+(\d{4})$"), lambda m: (int(m.group(2)), m.group(1))),
+    # "Jun 25" and "Jun'25" — the two forms this pipeline actually carries, and
+    # neither parsed until 2026-09-01. Every VIP series ("Jul 25", "Aug 25") and
+    # every axis label the charts already drew fell straight through to None.
+    # A two-digit year here is a YEAR: these tokens label monthly series, never
+    # a day of the month.
+    (re.compile(r"^([A-Za-z]{3,9})\.?\s+(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
+    (re.compile(r"^([A-Za-z]{3,9})'(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
     (re.compile(r"^(\d{4})-(\d{2})$"), lambda m: (int(m.group(1)), _num_month(int(m.group(2))))),
     (re.compile(r"^(\d{2})-(\d{4})$"), lambda m: (int(m.group(2)), _num_month(int(m.group(1))))),
 )
@@ -71,6 +78,33 @@ def parse_month(token):
             return None
         return datetime.date(year, i + 1, 1)
     return None
+
+
+AXIS_ROTATION = 45          # angled, so a full MMM'YY never has to be shortened
+AXIS_HA = "right"           # anchor the angled label under its own tick
+
+
+def mon_yy(token):
+    """A month as it appears on EVERY chart axis: MMM'YY (Aaron, 2026-09-01).
+
+    One format, everywhere. Three were in service and none of them agreed:
+    ARS drew "Jun'25" (built by stripping the space out of the data), MRPC drew
+    "Aug 25" straight from the sheet, and the ICS quarter charts drew "Jul" —
+    `mm.split()[0]` threw the YEAR AWAY, so a 14-month axis read Jan..Dec..Jan
+    with no way to tell the two Januaries apart.
+
+    Unparseable input is returned unchanged rather than mangled: an axis whose
+    categories are branches or tiers, not months, must survive being passed here.
+    """
+    d = parse_month(token)
+    if d is None:
+        return token
+    return "%s'%02d" % (MONTH_ABBR[d.month - 1], d.year % 100)
+
+
+def axis_months(tokens):
+    """Every label on one axis, in the house format."""
+    return [mon_yy(t) for t in tokens]
 
 
 def month_diff(a, b):
