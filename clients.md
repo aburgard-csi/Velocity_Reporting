@@ -68,16 +68,20 @@ template placeholder means SM. Verified 2026-08-28.
 
 ---
 
-## CashPlease — a fourth program, and NOT an Executive Review
+## CashPlease — the fourth program
 
-**CashPlease slides ride inside the ILS Analysis Review deck, not an RPE Executive
-Review (Aaron, 2026-09-01).** ARS, ICS and MRPC each ship a per-client monthly review
-built from `templates/`. CashPlease does not: it produces a five-slide MODULE
-(divider · Program Overview · Loan Volume by Month · Loan Portfolio by Status · Peer
-Comparison) that gets inserted into that client's ILS review. Nothing in this repo
-builds it — the pipeline lives in `C:\Projects\CashPlease\build\`, and it imports this
-repo's shared style layer (`brand`, `shapes`, `periods`, `fit_layout`) so a CashPlease
-slide matches the ARS/ICS/MRPC slides beside it. Modules are validated with
+**CashPlease is a section of the combined Executive Review deck (Aaron, 2026-09-01)** —
+and, for clients who have no other RPE program, a standalone module for their ILS
+Analysis Review. Both, because neither path covers the roster on its own: five of the
+eight CashPlease clients have no other RPE program and so have no combined deck to join.
+
+The slides are the same five either way — divider · Program Overview · Loan Volume by
+Month · Loan Portfolio by Status · Peer Comparison — built once by the module builder.
+The combined deck is a second consumer of that output, the way it already consumes the
+ICS and MRPC decks. The pipeline lives in `C:\Projects\CashPlease\build\` and imports
+this repo's shared style layer (`brand`, `shapes`, `periods`, `fit_layout`) so a
+CashPlease slide matches the ARS/ICS/MRPC slides beside it; it is staged to move into
+this repo (`C:\Projects\CashPlease\MIGRATION.md`). Everything is validated with
 `validation/validate_deck.py` like every other deck.
 
 **This file is the roster, like every other program here (Aaron, 2026-09-01).** An
@@ -101,20 +105,23 @@ Aaron's client book (Obsidian) intersected with the 2026-08-30 workbook. `Build`
 `build_all_cp.py` reads; a row marked `no` is parsed and deliberately skipped, so a
 cancelled client cannot come back just because their tab keeps arriving.
 
-| ID | Client | Build | Loans | Note |
-| --- | --- | --- | --- | --- |
-| 1131 | People's Bank AL | yes | 10,507 | |
-| 1539 | Marine FCU | yes | 6,705 | Obsidian `products` omits CashPlease — see gap 3 |
-| 1564 | OneUnited Bank | yes | 11,444 | |
-| 1632 | WesBanco Bank | yes | 11,869 | |
-| 1658 | Truliant FCU | **no** | 8,296 | CashPlease cancelled 2026-09-01 |
-| 1734 | Altamaha Bank and Trust Company | yes | 646 | |
-| 1750 | All In FCU | yes | 5,657 | |
-| 1770 | Central State Bank | yes | 27 | Obsidian `products` omits CashPlease — see gap 3 |
-| 1771 | Copper State CU | yes | 153 | Obsidian `products` omits CashPlease — see gap 3 |
+| ID | Client | Build | Loans | Ships as | Note |
+| --- | --- | --- | --- | --- | --- |
+| 1131 | People's Bank AL | yes | 10,507 | standalone module | no other RPE program |
+| 1539 | Marine FCU | yes | 6,705 | **ARS-ICS-MRPC-CP** section | Obsidian `products` omits CashPlease — see gap 3 |
+| 1564 | OneUnited Bank | yes | 11,444 | standalone module | no other RPE program |
+| 1632 | WesBanco Bank | yes | 11,869 | **ICS-CP** section | |
+| 1658 | Truliant FCU | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
+| 1734 | Altamaha Bank and Trust Company | yes | 646 | **ICS-CP** section | |
+| 1750 | All In FCU | yes | 5,657 | standalone module | no other RPE program |
+| 1770 | Central State Bank | yes | 27 | standalone module | Obsidian `products` omits CashPlease — see gap 3 |
+| 1771 | Copper State CU | yes | 153 | standalone module | Obsidian `products` omits CashPlease — see gap 3 |
 
-Eight modules per run. Loan counts are program-to-date as of the 2026-08-30 workbook and
-are a convenience, not an input — the builder reads them from the workbook.
+**Three combined decks and five standalone modules per run.** A client whose CashPlease
+slides ship inside a combined deck does NOT also get a standalone module (Aaron,
+2026-09-01) — the Executive Review and the ILS review would otherwise carry the same five
+slides. Loan counts are program-to-date as of the 2026-08-30 workbook and are a
+convenience, not an input; the builder reads them from the workbook.
 
 **1566 People's Bank NC is on this list's edge:** Obsidian says they are on CashPlease
 but they have **no tab in the workbook**, so no module can be built. They are left off
@@ -128,8 +135,19 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ## Status changes
 
-- **2026-09-01 — CashPlease added as a fourth program** (Aaron). Slides go into the ILS
-  review deck, not an Executive Review. See the **CashPlease** section above.
+- **2026-09-01 — CashPlease added as a fourth program** (Aaron). First recorded as an
+  ILS-review-only module; **superseded the same day** by the combined-deck decision
+  below. See the **CashPlease** section above.
+- **2026-09-01 — CashPlease is a section of the combined deck** (Aaron). It joins ARS,
+  ICS and MRPC in the combined Executive Review. Two consequences decided with it:
+  `assemble_combined.py`'s **`--ars` requirement is relaxed** so an ICS-CP deck can be
+  assembled for 1632 and 1734, and **a client whose CashPlease slides ship inside a
+  combined deck does not also get a standalone module**. The module remains for the five
+  CashPlease clients with no other RPE program, which is the ILS-review case the work
+  started from. Relaxing `--ars` does not move the shared shell out of the ARS deck —
+  every program deck already builds its own Title/Summit/Agenda/Q&A/Contact, so it is a
+  precedence rule (ARS → ICS → MRPC → CP) for which deck supplies them. The ARS Appendix
+  stays ARS-only.
 - **2026-09-01 — CashPlease builds only Aaron's clients** (Aaron). The first pass built
   all 71 client tabs in the workbook, on the reading that the modules would be handed to
   whichever CSM owned each ILS review. That is not wanted: **only Aaron's clients get a
