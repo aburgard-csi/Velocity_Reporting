@@ -38,17 +38,35 @@ from pptx.enum.shapes import MSO_SHAPE_TYPE
 BUILDDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BUILDDIR)
 
+# Which deck supplies the shared shell — cover, Executive Summit, agenda — plus
+# Questions & Contact. It used to be ARS, always, and `--ars` was required.
+#
+# CashPlease made that untenable: 1632 WesBanco and 1734 Altamaha are ICS + CashPlease
+# and have no ARS at all, so requiring ARS meant they could have no combined deck
+# (Aaron, 2026-09-01). Nothing had to move out of the ARS deck to fix it — every program
+# deck already builds its own cover/Summit/agenda/Q&A/Contact and `section_slides()`
+# drops them when that deck becomes a section. So this is a precedence rule, and the
+# first program present supplies the shell.
+#
+# MRPC is last because it is the one deck with NO agenda and no Summit slide (12 slides:
+# content, then Questions and Contact), so it cannot supply a shell. It only reaches the
+# front of this list for an MRPC-only deck, which is not a combined deck at all.
+BASE_PRECEDENCE = ("ARS", "ICS", "CP", "MRPC")
+_ARG = {"ARS": "ars", "ICS": "ics", "MRPC": "mrpc", "CP": "cashplease"}
+
 def _args():
     import argparse
     ap = argparse.ArgumentParser(description="Assemble a combined multi-product Executive Review.")
-    ap.add_argument("--ars", required=True,
-                    help="ARS deck: supplies the shared shell, Questions/Contact and the Appendix")
+    ap.add_argument("--ars", help="ARS deck. Supplies the shared shell, Questions/Contact "
+                                  "and the Appendix when present — but is no longer required")
     ap.add_argument("--ics")
     ap.add_argument("--mrpc")
+    ap.add_argument("--cashplease", help="CashPlease deck")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    if not (a.ics or a.mrpc):
-        ap.error("a combined deck needs at least one of --ics / --mrpc besides --ars")
+    given = [p for p in BASE_PRECEDENCE if getattr(a, _ARG[p])]
+    if len(given) < 2:
+        ap.error("a combined deck needs at least two of --ars / --ics / --mrpc / --cashplease")
     return a
 
 
@@ -62,9 +80,9 @@ ARS = ICS = MRPC = OUT = None
 
 
 def _init_args():
-    global _A, ARS, ICS, MRPC, OUT
+    global _A, ARS, ICS, MRPC, CP, OUT
     _A = _args()
-    ARS, ICS, MRPC, OUT = _A.ars, _A.ics, _A.mrpc, _A.out
+    ARS, ICS, MRPC, CP, OUT = _A.ars, _A.ics, _A.mrpc, _A.cashplease, _A.out
     return _A
 
 # The ARS section ends at "ARS Key Takeaways"; everything after it is the closing
@@ -88,6 +106,44 @@ def _ars_head(prs):
           f"falling back to the fixed index {ARS_HEAD_FALLBACK}. If the ARS deck has "
           f"changed length this WILL misplace slides; check the section order.")
     return ARS_HEAD_FALLBACK
+
+CLOSING_TITLE = "Questions & Discussion"
+
+
+def _head_end(prs, base):
+    """Index of the last slide of the BASE program's own section.
+
+    ARS keeps its own resolver, unchanged: its section ends at "ARS Key Takeaways" and
+    the Appendix sits after Contact, so the boundary is not simply "before Questions".
+    Every other base ends its section where the closing block starts. Both are resolved
+    by TITLE — never by index (CLAUDE.md).
+    """
+    if base == "ARS":
+        return _ars_head(prs)
+    for i, sl in enumerate(prs.slides, 1):
+        title = next((sh.text_frame.text.strip().splitlines()[0] for sh in sl.shapes
+                      if sh.has_text_frame and sh.text_frame.text.strip()), "")
+        if title.startswith(CLOSING_TITLE):
+            return i - 1
+    raise SystemExit(f"the {base} deck has no '{CLOSING_TITLE}' slide, so it cannot "
+                     f"supply the closing block for a combined deck.")
+
+
+def _slide_by_title(prs, prefix, what):
+    """The one slide whose title starts with `prefix`.
+
+    The agenda used to be taken as `slides[2]`. That is true of an ARS deck and false of
+    an ICS one, whose agenda is slide 4 — the divider sits at 3. A non-ARS base would
+    have rewritten the divider as an agenda.
+    """
+    for sl in prs.slides:
+        title = next((sh.text_frame.text.strip().splitlines()[0] for sh in sl.shapes
+                      if sh.has_text_frame and sh.text_frame.text.strip()), "")
+        if title.startswith(prefix):
+            return sl
+    raise SystemExit(f"no {what} slide found in the base deck (looked for a title "
+                     f"starting {prefix!r}).")
+
 
 # Slides dropped from a program deck when it becomes a SECTION of the combined deck: the
 # combined deck carries exactly one cover, Summit, agenda, Q&A and Contact, all from ARS.
@@ -231,7 +287,10 @@ def set_title_products(slide, programs):
     for sh in slide.shapes:
         if not sh.has_text_frame:
             continue
-        if "Account Revenue Solution" not in sh.text_frame.text:
+        # The base deck's cover carries ITS OWN product name — "Invitation Checking®
+        # System" on an ICS base, "CashPlease®" on a CashPlease one. Matching only the
+        # ARS string found nothing and the deck shipped unlabelled.
+        if not any(n.rstrip("®") in sh.text_frame.text for n in PRODUCT_NAME.values()):
             continue
         tf = sh.text_frame
         p0 = tf.paragraphs[0]
@@ -526,20 +585,25 @@ def merge_figure_sidecars(out_path, section_paths):
 
 def main():
     _init_args()
-    prs = Presentation(ARS)
-    n_ars = len(prs.slides._sldIdLst)
-    ars_head = _ars_head(prs)
-    print(f"ARS deck: {n_ars} slides; section ends at {ars_head} "
-          f"('{ARS_SECTION_END_TITLE}'), closing+appendix = {n_ars - ars_head}")
+    paths = {"ARS": ARS, "ICS": ICS, "MRPC": MRPC, "CP": CP}
+    programs = [p for p in BASE_PRECEDENCE if paths[p]]
+    base = programs[0]
 
-    programs = ["ARS"] + (["ICS"] if ICS else []) + (["MRPC"] if MRPC else [])
+    prs = Presentation(paths[base])
+    n_base = len(prs.slides._sldIdLst)
+    base_head = _head_end(prs, base)
+    # Name the title the boundary was resolved BY, not just the number. The log is the
+    # only place a silent fall back to the fixed index would show up, and a test asserts
+    # the title appears here for exactly that reason.
+    boundary = ARS_SECTION_END_TITLE if base == "ARS" else CLOSING_TITLE
+    print(f"{base} deck supplies the shell: {n_base} slides; section ends at "
+          f"{base_head} (by title, '{boundary}'), "
+          f"closing block = {n_base - base_head}")
+
     sources = {}
-    for prog, path in (("ICS", ICS), ("MRPC", MRPC)):
-        if path:
-            sl = list(Presentation(path).slides)
-            sources[prog] = (sl, section_slides(sl))
-        else:
-            sources[prog] = None
+    for prog in programs[1:]:
+        sl = list(Presentation(paths[prog]).slides)
+        sources[prog] = (sl, section_slides(sl))
     print(f"programs: {'+'.join(programs)}")
 
     # ICS financials are QUARTERLY (CLAUDE.md cadence): between workbooks an ICS build carries
@@ -552,10 +616,9 @@ def main():
         return next((sh.text_frame.text.strip().split("•")[-1].strip()
                      for sh in slides[0].shapes
                      if sh.has_text_frame and "•" in sh.text_frame.text), "?")
-    periods = {"ARS": _period(list(prs.slides))}
-    for prog in ("ICS", "MRPC"):
-        if sources[prog]:
-            periods[prog] = _period(sources[prog][0])
+    periods = {base: _period(list(prs.slides))}
+    for prog, src in sources.items():
+        periods[prog] = _period(src[0])
     for prog in programs:
         print(f"  {prog} section period: {periods[prog]}")
     if len(set(periods.values())) > 1:
@@ -563,9 +626,7 @@ def main():
               f"carrying a prior workbook forward; source notes keep it auditable")
 
     added, counts = 0, []
-    for prog in ("ICS", "MRPC"):
-        if not sources[prog]:
-            continue
+    for prog in programs[1:]:
         src, keep = sources[prog]
         for n in keep:
             copy_slide(src[n - 1], prs)
@@ -573,11 +634,11 @@ def main():
         counts.append(f"{len(keep)} {prog}")
     print(f"copied {added} slides ({' + '.join(counts)})")
 
-    # Reorder: ARS head, then the copied sections, then the ARS closing + appendix.
+    # Reorder: base head, then the copied sections, then the base's closing block.
     lst = prs.slides._sldIdLst
     els = list(lst)
-    assert len(els) == n_ars + added, "slide count drifted during copy"
-    head, tail, new = els[:ars_head], els[ars_head:n_ars], els[n_ars:]
+    assert len(els) == n_base + added, "slide count drifted during copy"
+    head, tail, new = els[:base_head], els[base_head:n_base], els[n_base:]
     for el in els:
         lst.remove(el)
     for el in head + new + tail:
@@ -593,7 +654,7 @@ def main():
         _overrides["ICS"] = AGENDA_DETAIL_ICS_REFERRALS
         print("  ICS section is referrals-only — agenda detail adjusted so it does not "
               "name account value, ROI or financial results")
-    set_agenda(slides[2], programs, _overrides)
+    set_agenda(_slide_by_title(prs, "Agenda", "agenda"), programs, _overrides)
     renumber(prs)
 
     import fit_layout

@@ -235,7 +235,11 @@ def test_ars_alone_is_rejected(tmp_path):
     r = subprocess.run([sys.executable, ASSEMBLE, "--ars", ARS_T, "--out", out],
                        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=REPO)
     assert r.returncode != 0
-    assert "at least one of" in (r.stderr + r.stdout)
+    # Asserted on the stable part of the message. The wording changed when --ars stopped
+    # being required (2026-09-02): a combined deck now needs at least TWO of four
+    # programs, rather than ARS plus one of two. The guarantee under test — a
+    # single-program deck is rejected with a message that says why — is unchanged.
+    assert "combined deck needs at least" in (r.stderr + r.stdout)
 
 
 # --- referrals-only ICS ---------------------------------------------------
