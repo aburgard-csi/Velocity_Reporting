@@ -17,6 +17,37 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-02 — STYLE.md reorganized, and three contradictions in it resolved
+
+The style guide had accreted chronologically — thirty flat sections with headings like
+"Slide-check additions (round 2)" — which reads as a changelog rather than something a
+colleague can look something up in. Reorganized into eight numbered sections plus an
+appendix, with a table of contents: foundations, slide anatomy, the two months, elements,
+deck structure, per-product rules, adapting to client data, enforcement.
+
+**The MRPC tier colours were stated three times and disagreed with each other**, and
+`build_mrpc_gen.py`'s own docstring stated a fourth, superseded version. The code is the
+truth — Gold = orange, Platinum = steel `#9DB8CC`, Business = navy, and the callouts MATCH
+the bars. Stated once now, as a table, and the docstring is corrected.
+
+The colour list also named `STEEL #9DB8CC`, but `brand.py` has `STEEL = #7B9BB8` (ARS) and
+`STEEL_SOFT = #9DB8CC` (ICS/MRPC). The palette now matches `brand.py` name for name, so a
+reader who copies a name gets the colour they read about.
+
+Promoted two things to their own sections because they are the mistakes that actually
+recur: **the two months** (reporting vs data, the distinction behind several defects) and
+**enforcement** (what runs, in what order, and the three rules learned the hard way).
+
+Dropped the nine "Known per-chart fixes (Austin 1075 review, 2026-07-10)" — one-off bug
+reports rather than style rules, and the builders have moved past them. Added this week's
+rules: Excluded Accounts is open-only, the ICS one-decimal comparison, chart striding and
+label halos, and a note that Product Mix, Excluded Accounts and Reg E by Branch are
+INSERTED by the builder, so they appear in a built deck but not in the template shell —
+which is not obvious from opening the shell.
+
+Divider lines, Reg E slide titles and Responder Activity titles were verified against the
+templates and a built deck rather than carried over on trust.
+
 ### 2026-09-01 — MRPC overlay lines and value labels are cased, not drawn white
 
 `STYLE.md` told the MRPC renderer to draw any line overlaid on the bars in white
