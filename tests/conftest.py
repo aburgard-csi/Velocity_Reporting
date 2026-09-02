@@ -27,10 +27,19 @@ def odd_csv():
 
     It is regenerated instead. `make_odd.py` is seeded, so every machine and
     every run produces a byte-identical file.
+
+    Regenerated when the GENERATOR is newer than the file, not only when the
+    file is missing. Pulling a change to `make_odd.py` otherwise leaves a stale
+    CSV in place, and the failures that follow point at the tests rather than at
+    the fixture: when MTD changed from fee dollars to NSF/OD item counts, a
+    cached CSV failed three correct tests with "non-integer MTD values".
     """
-    if not os.path.exists(ODD_CSV):
+    gen = os.path.join(FIXTURES, "make_odd.py")
+    stale = (not os.path.exists(ODD_CSV)
+             or os.path.getmtime(gen) > os.path.getmtime(ODD_CSV))
+    if stale:
         os.makedirs(FIXTURES, exist_ok=True)
-        r = subprocess.run([sys.executable, os.path.join(FIXTURES, "make_odd.py"), ODD_CSV],
+        r = subprocess.run([sys.executable, gen, ODD_CSV],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         assert r.returncode == 0, f"could not generate the ODD fixture:\n{r.stderr[-2000:]}"
     return ODD_CSV

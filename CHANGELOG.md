@@ -17,6 +17,14 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-02 — the ODD fixture regenerates when its generator changes
+
+`conftest` only built the synthetic ODD when the file was missing, so pulling a change to
+`make_odd.py` left a stale CSV in place. When MTD changed from fee dollars to NSF/OD item
+counts, a cached fixture failed three correct tests with "non-integer MTD values" — pointing
+at the tests rather than at the fixture. It now regenerates whenever the generator is newer
+than the file.
+
 ### 2026-09-02 — STYLE.md reorganized, and three contradictions in it resolved
 
 The style guide had accreted chronologically — thirty flat sections with headings like
