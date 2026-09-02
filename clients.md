@@ -80,37 +80,45 @@ repo's shared style layer (`brand`, `shapes`, `periods`, `fit_layout`) so a Cash
 slide matches the ARS/ICS/MRPC slides beside it. Modules are validated with
 `validation/validate_deck.py` like every other deck.
 
-**The roster is the workbook, not this file — the one deliberate exception.** Every
-other program on this page is built from confirmed intent. CashPlease modules are built
-for **every client tab in the weekly workbook** (Aaron, 2026-09-01: "any client with
-CashPlease"), including clients who are not Aaron's, because the modules are handed to
-whichever CSM owns the ILS review. The cancellation rule still applies and still comes
-from this file: a cancelled client keeps appearing in the workbook and must not be
-built.
+**This file is the roster, like every other program here (Aaron, 2026-09-01).** An
+earlier pass built a module for all 71 client tabs in the workbook. It no longer does:
+**only Aaron's clients get a CashPlease module.** The workbook carries every Velocity
+CashPlease client across all CSMs, so a tab in it says a client is live on the program —
+never that a deck is wanted. `build_all_cp.py` reads the table below and builds nothing
+that is not in it.
 
 | Source | Where |
 | --- | --- |
-| Weekly workbook | Bradford Sanders, subject "CashPlease Summary" — `CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx`, saved to `C:\Projects\CashPlease\Inputs\` |
+| Weekly workbook | Bradford Sanders, subject "CashPlease Summary" — `CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx` |
+| DDA denominator | the weekly "ILS Management Server DDA Count" email body, saved as `ILS-DDA-Count-<YYYY-MM-DD>.txt` |
+| Both land in | `<Drive>/Work/CashPlease Pipeline/Inputs/` — resolved from `CP_DATA_ROOT`, never hardcoded |
+| Decks go to | `<Drive>/Work/CashPlease Pipeline/Outputs/` |
 | Cadence | Weekly (the 2026-08-30 workbook is the current one) |
-| Peer benchmark | the workbook's `All Clients Summary - Loans` tab — the all-accounts cohort |
 
-**Aaron's clients on CashPlease** — the intersection of the Obsidian client book and the
-2026-08-30 workbook. Loan counts are program-to-date.
+### CashPlease roster — BUILD ONLY THESE
 
-| ID | Client | Loans | Obsidian `products` lists CashPlease? |
-| --- | --- | --- | --- |
-| 1131 | People's Bank AL | 10,507 | yes |
-| 1539 | Marine FCU | 6,705 | **no — see gap 3** |
-| 1564 | OneUnited Bank | 11,444 | yes |
-| 1632 | WesBanco Bank | 11,869 | yes |
-| 1658 | Truliant FCU | 8,296 | **cancelled — not built** |
-| 1734 | Altamaha Bank and Trust Company | 646 | yes |
-| 1750 | All In FCU | 5,657 | yes |
-| 1770 | Central State Bank | 27 | **no — see gap 3** |
-| 1771 | Copper State CU | 153 | **no — see gap 3** |
+Aaron's client book (Obsidian) intersected with the 2026-08-30 workbook. `Build` is what
+`build_all_cp.py` reads; a row marked `no` is parsed and deliberately skipped, so a
+cancelled client cannot come back just because their tab keeps arriving.
 
-The other 62 clients built for 2026.08 belong to other CSMs. 71 modules built, 0 FAIL;
-Truliant skipped by name.
+| ID | Client | Build | Loans | Note |
+| --- | --- | --- | --- | --- |
+| 1131 | People's Bank AL | yes | 10,507 | |
+| 1539 | Marine FCU | yes | 6,705 | Obsidian `products` omits CashPlease — see gap 3 |
+| 1564 | OneUnited Bank | yes | 11,444 | |
+| 1632 | WesBanco Bank | yes | 11,869 | |
+| 1658 | Truliant FCU | **no** | 8,296 | CashPlease cancelled 2026-09-01 |
+| 1734 | Altamaha Bank and Trust Company | yes | 646 | |
+| 1750 | All In FCU | yes | 5,657 | |
+| 1770 | Central State Bank | yes | 27 | Obsidian `products` omits CashPlease — see gap 3 |
+| 1771 | Copper State CU | yes | 153 | Obsidian `products` omits CashPlease — see gap 3 |
+
+Eight modules per run. Loan counts are program-to-date as of the 2026-08-30 workbook and
+are a convenience, not an input — the builder reads them from the workbook.
+
+**1566 People's Bank NC is on this list's edge:** Obsidian says they are on CashPlease
+but they have **no tab in the workbook**, so no module can be built. They are left off
+the table rather than added with `Build: yes`, which would fail every run. See gap 4.
 
 **Truliant 1658 has cancelled CashPlease (Aaron, 2026-09-01).** Their tab still carries
 8,296 loans and will keep arriving every week. It is not a signal to build — the same
@@ -121,8 +129,18 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 ## Status changes
 
 - **2026-09-01 — CashPlease added as a fourth program** (Aaron). Slides go into the ILS
-  review deck, not an Executive Review; the roster is the weekly workbook. See the
-  **CashPlease** section above.
+  review deck, not an Executive Review. See the **CashPlease** section above.
+- **2026-09-01 — CashPlease builds only Aaron's clients** (Aaron). The first pass built
+  all 71 client tabs in the workbook, on the reading that the modules would be handed to
+  whichever CSM owned each ILS review. That is not wanted: **only Aaron's clients get a
+  module**, and the roster table above is what the builder reads. The other 63 decks
+  from that run were removed from `Outputs/`. This puts CashPlease back under the same
+  rule as every other program on this page — a data file is never the roster.
+- **2026-09-01 — CashPlease outputs live on Drive** (Aaron). `G:\My Drive\Work\CashPlease
+  Pipeline\` holds `Inputs/`, `Outputs/` and `Build Artifacts/`, mirroring the RPE
+  pipeline folder. Resolved through `CP_DATA_ROOT` in the CashPlease project's `.env`;
+  the path is not written into any code. Create and delete both confirmed working on the
+  mount 2026-09-01.
 - **2026-09-01 — Truliant FCU 1658 cancelled CashPlease** (Aaron). They already had no
   ARS, ICS or MRPC (2026-08-28), so 1658 now has no RPE program and no CashPlease
   module. Their workbook tab and ICS data folder both stay on disk as the record of
