@@ -7,9 +7,12 @@ saves a finished MRPC Executive Review deck for ANY client.
 
     python3 build_mrpc_gen.py <client_mrpc.json> <template.pptx> <out.pptx>
 
-Tier callout colors on the Enrollments slide: Gold = navy, Platinum = orange,
-Business = gray (matches the gray Platinum bars in the chart). Business callout
-and the business series appear only when meta.has_business is true.
+Tier colours on the Enrollments slide: Gold = orange, Platinum = steel/gray,
+Business = navy — in the chart bars AND the tier callouts, which match.
+(An earlier revision had callouts inverted against the bars; the code below
+is the truth and this line used to contradict it.)
+
+The Business tier and its callout appear only when meta.has_business is true.
 """
 import sys, os, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

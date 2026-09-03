@@ -123,8 +123,15 @@ each (`assemble_combined.section_slides` drops the rest).
 
 - **Title slide.** Product name(s) in white; client, "Executive Review" and the
   reporting month + year in orange. **Lists only the products in this build**
-  (ARS+MRPC → two lines). Reporting month = the month the deck is generated; the
-  filename carries the data month.
+  (ARS+MRPC → two lines).
+- **The two months.** The **reporting month** is when the deck is presented and
+  appears once, on the title slide; it comes from the period tag (`ARS_PERIOD` /
+  `RPE_PERIOD`, or the `<yyyy.mm>` in the output filename) and **never from the
+  clock** — that is right only while a deck is built in the month it ships and
+  silently wrong on every rebuild after. The **data month** is what the figures run
+  through and appears in the pills, PTD figures and captions. Inverting them is one
+  of the commonest defects in this pipeline; the data sheet carries both
+  (`data_pull`, `workbook_month`).
 - **Executive Summit slide**, immediately after the title, on every results deck.
   Pristine asset `summit_slide.pptx` under `build/assets/` (gitignored — Drive
   `Inputs/Summit/` wins when present); `build/summit_slide.py` inserts it. Own dense
@@ -169,6 +176,11 @@ element is already maxed.
 
 - Fill the horizontal space; balanced white space above and below; clear
   separation from the subtitle; no label collisions; consistent label sizes; Carlito.
+  Where a value label crosses a reference line, give it a white halo so the line
+  passes behind it. Thin a crowded axis by striding and keep the newest period
+  labelled, but never leave two ticks adjacent when the stride is wider than one.
+  Dense axes may drop to ~13 pt and rotate: chart labels are scaled images, exempt
+  from the 16 pt floor.
 - **Render at the picture box's aspect.** `DIM` in `build/ars_pipeline/charts_gen.py`
   (and each renderer's letterbox size) must match the slide box or the PNG stretches.
 - **Month labels: `MMM'YY`, angled 45°, `ha="right"`** — `periods.mon_yy` /
@@ -197,7 +209,14 @@ element is already maxed.
 - **Product Mix & ARS Eligibility** precedes Program Overview on every ARS deck
   (`build/ars_pipeline/product_mix_slide.py`): donut + two tables, top 8 products
   plus an "All other products (N)" roll-up, dense-table exception, source line
-  bottom-center. **Excluded Accounts** follows it.
+  bottom-center. **Excluded Accounts** follows it and explains **open accounts
+  only** — a closed or charged-off account is outside ARS by definition and
+  explains nothing; reasons are product code, no debit card and an account-level
+  remainder, and the tiles reconcile (open = open-and-excluded + open-and-eligible).
+  Product Mix, Excluded Accounts and Reg E Opt-In by Branch are **inserted by the
+  builder** — they appear in a built deck but not in `templates/ars_template.pptx`.
+- **Monthly Summary — Last 12 Months** (SM path): navy bars with an orange dashed
+  average whose label sits just above the line, not centered on it.
 - **Take-rate by branch, Personal and Business:** identical size and layout from
   `build/ars_pipeline/chart_lib.py`; Personal = orange bars / navy dashed average,
   Business = navy bars / orange dashed average; no embedded title; chart and
@@ -219,7 +238,7 @@ element is already maxed.
   Respondent Activity, Responder Activity Mean and Median) · Debit Card Review
   (divider, Take Rate Personal and Business, Take Rate by Branch, Swipes & Spend,
   NSF/OD) · Reg E Review (divider, All Personal Accounts, Opened in Last 12 Months,
-  Reg E Opt-In by Branch, by Account Vintage) · ARS Key Takeaways · Questions ·
+  Reg E Opt-In by Branch — Last 12 Months, by Account Vintage) · ARS Key Takeaways · Questions ·
   Contact · Appendix (divider, Program Reach, Depth of Engagement, Responder Age
   Profile, Who Responds, New Account Profile divider and six profile slides,
   Account Growth, Account Retention, First-Year Closure).
@@ -234,6 +253,9 @@ element is already maxed.
 - Monthly Detail is cohort revenue by opening month: per-account-per-month =
   cohort revenue ÷ accounts opened ÷ months open. Life-of-account metrics read the
   **Last 12 Months** row. The Velocity 12-month close rate is a constant (6.7%).
+- **Both sides of a comparison row use one precision** — "6.9 Years" against
+  "7.0 Years", never "6.9" against "7.05". Column headers grow upward for a long
+  client name rather than shrinking (the font floor would undo a shrink anyway).
 - Referral bars: house time-series treatment; the goal line is dropped when the
   network goal dwarfs current volume. A "program high" is claimed only when the
   window proves it.

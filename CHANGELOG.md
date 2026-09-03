@@ -36,7 +36,7 @@ masters, embedded fonts and the five shell slides it always did.
 
 ### 2026-09-02 — the style guide, the gate and its companions, cleaned up
 
-`templates/STYLE.md` was rewritten as one document with a scope table (Executive
+`templates/STYLE.md` was rewritten as one document (this supersedes the 17:49 reorganization below, done in a parallel session and merged into it: its verified facts — Excluded Accounts open-only, the ICS one-decimal row, label halos and axis striding, the builder-inserted slides — are carried here) with a scope table (Executive
 Reviews, the CashPlease module, the ILS review prep slides, the Summit one-pager),
 an enforcement map naming the file behind every rule, and a dated decision log
 replacing the per-date reversal notes that had accreted through the body. Stale
@@ -87,6 +87,45 @@ Not fixed, reported: `build/assets/summit_slide.pptx` is gitignored by the blank
 either), so the four `tests/test_summit.py` cases fail here and every ICS/MRPC
 build would. The asset needs committing (an ignore exception) or copying to Drive.
 
+
+### 2026-09-02 — the ODD fixture regenerates when its generator changes
+
+`conftest` only built the synthetic ODD when the file was missing, so pulling a change to
+`make_odd.py` left a stale CSV in place. When MTD changed from fee dollars to NSF/OD item
+counts, a cached fixture failed three correct tests with "non-integer MTD values" — pointing
+at the tests rather than at the fixture. It now regenerates whenever the generator is newer
+than the file.
+
+### 2026-09-02 — STYLE.md reorganized, and three contradictions in it resolved
+
+The style guide had accreted chronologically — thirty flat sections with headings like
+"Slide-check additions (round 2)" — which reads as a changelog rather than something a
+colleague can look something up in. Reorganized into eight numbered sections plus an
+appendix, with a table of contents: foundations, slide anatomy, the two months, elements,
+deck structure, per-product rules, adapting to client data, enforcement.
+
+**The MRPC tier colours were stated three times and disagreed with each other**, and
+`build_mrpc_gen.py`'s own docstring stated a fourth, superseded version. The code is the
+truth — Gold = orange, Platinum = steel `#9DB8CC`, Business = navy, and the callouts MATCH
+the bars. Stated once now, as a table, and the docstring is corrected.
+
+The colour list also named `STEEL #9DB8CC`, but `brand.py` has `STEEL = #7B9BB8` (ARS) and
+`STEEL_SOFT = #9DB8CC` (ICS/MRPC). The palette now matches `brand.py` name for name, so a
+reader who copies a name gets the colour they read about.
+
+Promoted two things to their own sections because they are the mistakes that actually
+recur: **the two months** (reporting vs data, the distinction behind several defects) and
+**enforcement** (what runs, in what order, and the three rules learned the hard way).
+
+Dropped the nine "Known per-chart fixes (Austin 1075 review, 2026-07-10)" — one-off bug
+reports rather than style rules, and the builders have moved past them. Added this week's
+rules: Excluded Accounts is open-only, the ICS one-decimal comparison, chart striding and
+label halos, and a note that Product Mix, Excluded Accounts and Reg E by Branch are
+INSERTED by the builder, so they appear in a built deck but not in the template shell —
+which is not obvious from opening the shell.
+
+Divider lines, Reg E slide titles and Responder Activity titles were verified against the
+templates and a built deck rather than carried over on trust.
 
 ### 2026-09-01 — MRPC Enrollment Performance was drawn from an invented denominator
 
