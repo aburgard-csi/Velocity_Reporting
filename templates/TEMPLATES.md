@@ -11,6 +11,7 @@ hand-edit a deck.
 | --- | --- | --- | --- |
 | `ars_template.pptx` | ARS — `build/ars_pipeline/build_ars_gen.py` argv[1] | 47 | Title · About the Summit · Agenda · ARS section (divider, Product Mix, Program Overview … ARS Key Takeaways) · Questions · Contact · Appendix (15). A self-consistent Union Financial demo built from real, neutralized data (SM path). The builder's find-strings are this file's literals; the swap gate fails on any that no longer match. |
 | `ics_template.pptx` | ICS — `build/ics_pipeline/build_ics_gen.py` | 28 | Title · Summit image · divider · Agenda · content · education/reference slides · Questions · Contact. The builder selects the static education and Q&A slides **by title** and rebuilds everything else from the client JSON, so the demo cannot leak. |
+| `cashplease_template.pptx` | CashPlease — `C:\Projects\CashPlease\build\build_cp_gen.py` argv[2] | 10 | Title · Summit · Agenda (one row + Questions) · divider · Program Overview · Loan Volume by Month · Loan Portfolio by Status · Peer Comparison · Questions · Contact. Materialized 2026-09-02 by running the builder on a synthetic Union Financial pack (id 999, invented figures, dummy source filename). The builder keeps the five shell slides by meaning (cover, Summit, agenda, Questions, Contact), rebuilds the five CashPlease slides from the pack, and strips the rest with `build/strip_dead.py`. |
 | `mrpc_template.pptx` | MRPC — `build/mrpc_pipeline/build_mrpc_gen.py` | 12 | Title · divider · eight content slides · Questions · Contact. No agenda and no Summit slide — the builder inserts the Summit, and this is why MRPC is last in `assemble_combined.BASE_PRECEDENCE`. |
 | `multi-product_reference_deck.pptx` | none — a STYLING reference | 79 | Title (three products) · Summit · combined Agenda · ARS 4–30 · ICS 31–53 · MRPC 54–62 · Questions · Contact · ARS Appendix 65–79. The source for re-materializing the three shells. **No build reads it.** |
 
@@ -20,15 +21,15 @@ Each shell carries the "Union Financial" dummy client (id 999, branches "Branch
 against `validation/layout_baseline.json`; an intentional change is accepted with
 `--snapshot`.
 
-**Programs without a shell yet.**
+**The one family without a shell.** The **ILS review prep slides** start from a
+blank python-pptx presentation and are drawn entirely by the `ils-prep-deck` skill's
+helpers, because they are inserted into the consultant's `.pptm` and inherit that
+deck's masters.
 
-- **CashPlease** builds onto `ars_template.pptx` purely as a shell — theme, masters,
-  embedded fonts — drops its slides from `sldIdLst` and removes the parts with
-  `build/strip_dead.py`. It should get a materialized `cashplease_template.pptx` when
-  the pipeline moves into this repo (`C:\Projects\CashPlease\MIGRATION.md` §6).
-- **ILS review prep slides** start from a blank python-pptx presentation and are
-  drawn entirely by the `ils-prep-deck` skill's helpers, because they are inserted
-  into the consultant's `.pptm` and inherit that deck's masters.
+**Re-materializing the CashPlease shell.** Run the builder on a synthetic pack for
+client 999 "Union Financial" (no real client's figures or source filename) against
+the current shell, and save the 10-slide result here. Any shell with the five
+meaning-resolved slides works as the input, so the shell can rebuild itself.
 
 ## Swap targets
 

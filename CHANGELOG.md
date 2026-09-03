@@ -17,6 +17,23 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-02 — CashPlease gets its own shell
+
+`templates/cashplease_template.pptx`: a 10-slide Union Financial demo (cover, Summit,
+one-row agenda, divider, the four CashPlease content slides, Questions, Contact),
+materialized by running `build_cp_gen.py` on a synthetic pack for client 999 with
+invented figures and a dummy source filename. Until now the CashPlease builder
+started from `ars_template.pptx` as a bare shell and stripped 42 slides and 33 media
+files on every build, and the CashPlease look had no template of record to diff
+against. The shell now goes through the gate like the other three, and the layout
+baseline carries it. `build_all_cp.py` points at it. Verified: the dummy pack and
+1734 Altamaha both rebuild from the new shell at 0 FAIL, and an ICS-CP deck
+assembles from the shells.
+
+**No client-facing figure moves, nothing renders differently.** The five CashPlease
+slides are built from the pack either way; the shell only supplies the theme,
+masters, embedded fonts and the five shell slides it always did.
+
 ### 2026-09-02 — the style guide, the gate and its companions, cleaned up
 
 `templates/STYLE.md` was rewritten as one document with a scope table (Executive
