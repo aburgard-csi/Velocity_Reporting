@@ -48,7 +48,13 @@ def _rows(M, max_body):
     for b, i, o, n, tot, pct in shown:
         rows.append([str(b), f"{i:,}", f"{o:,}", f"{n:,}", f"{tot:,}", f"{pct}%"])
     rest = src[max_body:]
-    if rest:
+    if len(rest) == 1:
+        # A rollup of ONE is just that one, told less usefully (Aaron, 2026-09-02).
+        # "All other branches (1)" hides a branch number the reader can act on and
+        # costs exactly the same row.
+        b, i, o, n, tot, pct = rest[0]
+        rows.append([str(b), f"{i:,}", f"{o:,}", f"{n:,}", f"{tot:,}", f"{pct}%"])
+    elif rest:
         ri = sum(x[1] for x in rest); ro = sum(x[2] for x in rest)
         rn = sum(x[3] for x in rest); rt = sum(x[4] for x in rest)
         rows.append([f"All other branches ({len(rest)})", f"{ri:,}", f"{ro:,}",

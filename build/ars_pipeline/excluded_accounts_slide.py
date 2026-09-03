@@ -178,6 +178,12 @@ def extract_exclusions(odd_source):
     # still flags eligible — 147 on 1204 — and using it here left the three tiles
     # 147 apart with no way for a reader to see why.
     elig_open = int((o["isopen"] & o["elig"]).sum()) if len(o) else 0
+    # Eligible accounts that are NOT open — dormant or inactive, still flagged
+    # eligible by the core. This is the whole difference between this slide's
+    # eligible tile and Product Mix's (10,441 vs 10,588 on 1204), and it used to
+    # be silent: a reader saw two eligible counts on consecutive slides with
+    # nothing to bridge them. Stated on the slide now (Aaron, 2026-09-02).
+    elig_other = int((~o["isopen"] & o["elig"]).sum()) if len(o) else 0
     r0 = o[o["isopen"] & ~o["elig"]] if len(o) else o   # open and not eligible
     ie = r0
     in_excl = r0["Prod Code"].isin(excl_codes) if len(r0) else r0
@@ -218,7 +224,8 @@ def extract_exclusions(odd_source):
     return dict(
         month_label=month_label, elig_col=elig_col, mail_col=mail_col if has_mail else None,
         total=tot, closed=closed, open_total=open_n,
-        elig_total=elig_all, elig_open=elig_open, excluded_total=len(ie),
+        elig_total=elig_all, elig_open=elig_open, elig_other=elig_other,
+        excluded_total=len(ie),
         n_status_excluded=n_status,
         status_other=sorted(status.items(), key=lambda kv: -kv[1]),
         excl_products=excl_products, n_excl_codes=len(excl_codes),
@@ -287,7 +294,10 @@ def _product_rows(data, max_rows=5):
     for p in shown:
         rows.append([p["desc"], p["code"], f"{p['live']:,}"])
     rest = data["excl_products"][max_rows:]
-    if rest:
+    if len(rest) == 1:
+        # Same rule as the Reg E branch table: a rollup of one names it.
+        rows.append([rest[0]["desc"], rest[0]["code"], f"{rest[0]['live']:,}"])
+    elif rest:
         rows.append([f"All other excluded products ({len(rest)})", "—",
                      f"{sum(p['live'] for p in rest):,}"])
     rows.append(["Total — excluded products", "", f"{data['n_prod_excluded']:,}"])
@@ -311,9 +321,11 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
     _tb(s, 0.5, 0.28, 9.6, 0.9, "Excluded Accounts", 26, NAVY, True,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     _pill(s, f"{data['month_label']} Data")
-    _tb(s, 0.5, 1.12, 12.3, 0.5,
-        "Why OPEN accounts are outside ARS. Each account is counted once, under "
-        "the first reason that applies.",
+    _sub = ("Why OPEN accounts are outside ARS. Each counted once, first reason "
+            "that applies.")
+    if data.get("elig_other"):
+        _sub += f" Plus {data['elig_other']:,} eligible dormant/inactive accounts."
+    _tb(s, 0.5, 1.12, 12.3, 0.5, _sub,
         14, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     excl_all = data["excluded_total"]
@@ -377,6 +389,8 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
     src = (f"Source: client ODD, {data['month_label']} snapshot ({data['elig_col']}). "
            f"Population: the {data['open_total']:,} OPEN accounts on file. Outside this "
            f"slide: {data['closed']:,} closed or charged-off accounts, and "
+           f"{data['elig_other']:,} dormant/inactive accounts that ARE eligible "
+           f"(the difference against Product Mix's eligible count), and "
            f"{data['n_status_excluded']:,} dormant/inactive accounts that are not "
            f"eligible — both are a different book, not a reason an open account is "
            f"excluded. "
