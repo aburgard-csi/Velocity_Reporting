@@ -76,7 +76,15 @@ _MIDX  = {m: i for i, m in enumerate(MONTHS)}
 _MONFULL = ["January","February","March","April","May","June","July","August",
             "September","October","November","December"]
 _MONTH_RE = re.compile(r"^([A-Z][a-z]{2})(\d{2})\s+(.*)$")
-_CLOSED = {"Closed"}
+# Closed-ness comes from the SHARED classifier, not a local set. This was
+# `_CLOSED = {"Closed"}` matched against Stat Desc alone, so anything else counted
+# as open: on 1204 that put 90 CHARGE-OFF accounts inside a total labelled
+# "Total Accounts - Excl. Closed", and it would miss every closed account at a
+# client whose core leaves Stat Desc blank and fills Stat Code (1549 Wellworth
+# leaves it blank on 18,274 of 50,218 rows). Dormant and Inactive are still
+# counted here — they are not closed — which is the remaining, deliberate
+# difference against the Excluded Accounts slide's strictly-OPEN population.
+from odd_rows import status_class as _status_class
 
 # ----------------------------------------------------------------------------- ODD resolution
 def odd_zip_path(oddd_dir, client_id):
@@ -179,7 +187,7 @@ def extract_product_mix(odd_source):
                          encoding="latin-1", on_bad_lines="skip")
     for ch in reader:
         ch = ch.rename(columns=lambda c: c.strip())
-        for col in ("Prod Desc", "Business?", "Stat Desc"):
+        for col in ("Prod Desc", "Business?", "Stat Desc", "Stat Code"):
             if col not in ch:
                 ch[col] = ""
         if elig_col and elig_col not in ch:
@@ -190,7 +198,9 @@ def extract_product_mix(odd_source):
             "stat": norm(ch["Stat Desc"]),
             "elig": norm(ch[elig_col]) if elig_col else "",
         })
-        d["isopen"] = ~d["stat"].isin(_CLOSED)
+        d["isopen"] = [_status_class(a, b) != "closed"
+                       for a, b in zip(d["stat"], norm(ch["Stat Code"])
+                                       if "Stat Code" in ch else [""] * len(ch))]
         for name, g in d.groupby("prod"):
             a = agg[name]
             a["total"] += len(g)

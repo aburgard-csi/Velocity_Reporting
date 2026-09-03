@@ -76,43 +76,11 @@ def _text_w(t, pt):
     every run at 16pt, so measuring the nominal 10.5 understates every line."""
     return text_width_in(t, pt, "Calibri", False)
 
-# Status wording is the shared vocabulary from CLAUDE.md / oddd_optimize.classify_status.
-_CLOSED_PREFIX = ("closed", "charge", "purge", "pending close")
-_OPEN_PREFIX = ("open", "active")
-
-# Clients do not agree on which status field they populate. 1509 Texas Bay fills
-# `Stat Desc` and leaves `Stat Code` redundant; 1549 Wellworth fills `Stat Code`
-# (O / C / X) and leaves `Stat Desc` BLANK on every non-open account. Reading
-# Stat Desc alone put 11,438 closed Wellworth accounts into the dormant bucket.
-# So: use Stat Desc when it carries text, else fall back to the code.
-# One vocabulary, defined once. oddd_optimize.STAT_CODE_MAP is the shared classifier
-# CLAUDE.md names as the single source of truth for status values.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                os.pardir, os.pardir, "scripts"))
-from oddd_optimize import STAT_CODE_MAP
-
-_CODE_OPEN = {k for k, v in STAT_CODE_MAP.items() if v == "Open"}
-_CODE_CLOSED = {k for k, v in STAT_CODE_MAP.items()
-                if v in ("Closed", "Charged Off")}
-
-
-def _status_class(desc, code):
-    """-> 'open' | 'closed' | 'other'. `other` is deliberately NOT assumed to mean
-    dormant: an unmapped code is surfaced as a flag, never guessed (CLAUDE.md)."""
-    d = (desc or "").strip().lower()
-    if d:
-        if d.startswith(_CLOSED_PREFIX):
-            return "closed"
-        if d.startswith(_OPEN_PREFIX):
-            return "open"
-        return "other"
-    c = (code or "").strip().upper()
-    if c in _CODE_CLOSED:
-        return "closed"
-    if c in _CODE_OPEN:
-        return "open"
-    return "other"
-
+# Status classification is `odd_rows.status_class` — one vocabulary, defined once,
+# alongside the OPEN/CLOSED status sets it belongs to. It used to live here, which
+# is how `product_mix_slide` came to carry a different rule and count charged-off
+# accounts as open.
+from odd_rows import status_class as _status_class
 
 def _num(s):
     v = (s or "").replace(",", "").replace("$", "").strip()
