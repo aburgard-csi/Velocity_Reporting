@@ -280,7 +280,7 @@ if ODD:
 BIZ_PNG = None
 if BIZ and BIZ['branches']:
     import chart_lib   # SAME renderer as the personal take-rate chart (charts_gen image11)
-    br = chart_lib.branch_order(BIZ['branches'])   # largest branches, ordered by number
+    br = chart_lib.top_branches(BIZ['branches'])   # largest branches, best rate first
     BIZ_PNG = os.path.join(ASSETS, 'biz_branch.png')
     # business = navy bars / orange dashed avg; identical geometry to personal (orange/navy)
     chart_lib.take_branch_chart(BIZ_PNG, [str(b[0]) for b in br], [b[3] for b in br],

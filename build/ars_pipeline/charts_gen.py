@@ -227,7 +227,7 @@ def c_before_after(mean=True):
 def c_take_branch():
     import chart_lib   # shared renderer -> personal + business take-rate charts stay identical
     # top-N by size first, then ordered by branch number for display
-    tb=chart_lib.branch_order(M['take_branch'][:chart_lib.BRANCH_CAP])
+    tb=chart_lib.top_branches(M['take_branch'], chart_lib.BRANCH_CAP)
     labels=[str(b) for b,_,_,_ in tb]; vals=[p for _,_,_,p in tb]
     chart_lib.take_branch_chart(f"{OUT}/image11.png", labels, vals, M['take_new_pct'], ORANGE, NAVY, *DIM['image11'])
     print("wrote image11")
@@ -257,18 +257,28 @@ def c_donut(name,vin,vout,vno,pct):
 # rege branch image14/16
 def c_rege_branch(name,rows,avg):
     import chart_lib
-    rows=chart_lib.branch_order(rows[:6])   # keep the top 6, order them by number
+    # Largest branches by accounts, ranked best-to-worst on opt-in rate. This
+    # took rows[:6] off a list already sorted by RATE, so it showed the six best
+    # performers rather than the six biggest branches.
+    rows=chart_lib.top_branches(rows, chart_lib.BRANCH_CAP)
     labels=[str(b) for b,_,_,_ in rows]; vals=[p for _,_,_,p in rows]
     fig,ax=figfor(name,3.6)
-    ax.bar(range(len(vals)),vals,color=ORANGE,width=0.64)
-    for i,v in enumerate(vals): ax.text(i,v+0.6,f"{v}%",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=10)
+    ax.bar(range(len(vals)),vals,color=ORANGE,width=chart_lib._BAR_W)
+    # Same halo as the monthly-revenue chart: a bar sitting near the program
+    # average has its value label crossed by the dashed line, which strikes
+    # through the number instead of passing behind it. Ranking by rate makes this
+    # the common case, not the rare one — the bars now CLUSTER around the average.
+    _bhalo=dict(boxstyle="square,pad=0.10", facecolor="white", edgecolor="none")
+    for i,v in enumerate(vals):
+        ax.text(i,v+0.6,f"{v}%",ha="center",va="bottom",color=NAVY,
+                fontweight="bold",fontsize=10,bbox=_bhalo,zorder=5)
     # Dashed line = program average. The "Overall x%" caption that used to sit above it is
     # gone (Aaron, 2026-08-27): the same figure is already the centre of the donut beside
     # this chart, and the label overlapped it. Headroom drops with it — 1.42 was reserved
     # for that caption; the bars only need clearance for their own value labels.
     ax.axhline(avg,ls="--",color=NAVY,lw=1.5)
     ax.set_ylim(0,max(max(vals),avg)*1.20); ax.set_ylabel("% opted in",color=NAVY,fontsize=10)
-    ax.set_xticks(range(len(vals))); ax.set_xticklabels(labels,fontsize=10)
+    ax.set_xticks(range(len(vals))); ax.set_xticklabels(labels,fontsize=9)
     ax.tick_params(axis='y',labelsize=9); _clean(ax)
     save(fig,name)
 # reach area image17
