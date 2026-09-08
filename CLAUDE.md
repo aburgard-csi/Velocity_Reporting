@@ -510,6 +510,36 @@ toast needs a desktop), catching up a missed run when the laptop wakes.
 Registered on this machine 2026-09-08. `--notify` raises a Windows toast only when
 there is news or the shares were unreachable; a quiet day is silent.
 
+### The performance dashboard artifact — refreshed after each source check
+
+```
+python scripts/refresh_performance_dashboard.py [--period 2026.08] [--force]
+python scripts/refresh_performance_dashboard.py --mark-published
+```
+
+The "RPE Client Performance" artifact
+(`https://claude.ai/code/artifact/71e542f6-cb48-4386-ae73-708e513c854b`) is the
+cross-client, cross-product page Aaron asked for on 2026-09-08: one section per
+program (ARS, ICS, MRPC, CashPlease) with a ranked bar, a metrics table and trend
+sparklines, and a deck roster. It is a static page with its dataset embedded.
+`refresh_performance_dashboard.py` rebuilds that dataset from the same inputs the
+deck builders read (ARS workbooks + DCOs through the ARS extractors, mailing response
+from the shipped deck's figure sidecar, the VIP ICS / MRPC sheets, the newest
+MRPCEnrollmentSummary and CashPleaseSummary weeklies — the last through the
+CashPlease repo's own `cp_extract.py`, found via `CASHPLEASE_HOME` or the sibling
+checkout), injects it into `scripts/perf_dashboard_template.html`, and writes the
+page and its bookkeeping to `Build Artifacts/perf_dashboard/`. **The period is the
+newest ARS workbook on Drive**, so the page rolls forward when a month's workbooks are
+copied, not before. It ends with `STATUS: changed|unchanged`, comparing a content hash
+(generation date excluded) to the hash last published.
+
+Publishing needs the Artifact tool, so the script never publishes. The Claude
+scheduled task **`rpe-dashboard-refresh`** (daily 08:30, after the 08:00 source
+watch; stored under `~/.claude/scheduled-tasks/`) runs the script, republishes to the
+URL above only on `changed`, then runs `--mark-published`. It runs while the Claude
+desktop app is open and catches up on next launch. **Do not create a new artifact
+for this page** — republish to the URL, or the link people hold goes stale.
+
 ## Data sources by program (do not cross these)
 
 All inputs live under the **source-data location** Aaron names at the start of the session
@@ -552,6 +582,8 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
 - `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with Drive-copy state (see **Daily source watch**).
 - `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily.
+- `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
+- `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
 - `build_ars_gen.py` — the ARS deck assembler: populates the `ars_template.pptx` shell, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.

@@ -1,0 +1,456 @@
+<title>RPE Client Performance</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Carlito:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+:root{
+  --navy:#00274C; --orange:#F47A29; --teal:#0D9488; --gold:#E7A93B;
+  --ars:#00274C; --ics:#F47A29; --mrpc:#0D9488; --cp:#C9911F;
+  --bg:#F7F9FB; --surface:#FFFFFF; --tile:#ECF0F4; --rowalt:#EEF2F7;
+  --grid:#E4EAF1; --hair:#D9DEE5; --muted:#B8C0CA;
+  --ink:#0E1B2A; --ink2:#5A6670; --ink3:#8A96A3;
+  --head:#00274C; --accent:#F47A29; --accent-ink:#FFFFFF;
+  --good:#1E7F4F; --warn:#B7791F; --bad:#B42318;
+  --track:#E4EAF1; --shadow:0 1px 2px rgba(0,39,76,.08), 0 6px 18px rgba(0,39,76,.06);
+  --chip-bg:#FFFFFF; --chip-on:#00274C; --chip-on-ink:#FFFFFF; --focus:#F47A29;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
+    --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --rowalt:#15263400;
+    --grid:#233647; --hair:#2A3F52; --muted:#4A5E70;
+    --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99;
+    --head:#E8EEF4; --accent:#F79552; --accent-ink:#0B1620;
+    --good:#4CC38A; --warn:#E2B14A; --bad:#F27E75;
+    --track:#233647; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --chip-bg:#12212E; --chip-on:#E8EEF4; --chip-on-ink:#0B1620; --focus:#F79552;
+  }
+}
+:root[data-theme="dark"]{
+  --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
+  --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --rowalt:#15263400;
+  --grid:#233647; --hair:#2A3F52; --muted:#4A5E70;
+  --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99;
+  --head:#E8EEF4; --accent:#F79552; --accent-ink:#0B1620;
+  --good:#4CC38A; --warn:#E2B14A; --bad:#F27E75;
+  --track:#233647; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  --chip-bg:#12212E; --chip-on:#E8EEF4; --chip-on-ink:#0B1620; --focus:#F79552;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Carlito,Calibri,"Segoe UI",system-ui,sans-serif;font-size:15px;line-height:1.4}
+h1,h2,h3,.mont{font-family:Montserrat,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1380px;margin:0 auto;padding:22px 26px 60px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:18px}
+header.top h1{margin:0;font-size:24px;font-weight:700;color:var(--head);letter-spacing:-.01em;text-wrap:balance}
+header.top .sub{color:var(--ink2);margin-top:4px;font-size:14px}
+.pill{display:inline-block;background:var(--accent);color:var(--accent-ink);font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:.04em;padding:6px 14px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.eyebrow{font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+
+/* filters */
+.filters{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:14px 16px;display:grid;gap:12px;margin-bottom:18px}
+.frow{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.frow .eyebrow{width:74px;padding-top:7px;flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.chip{appearance:none;border:1px solid var(--hair);background:var(--chip-bg);color:var(--ink);font:inherit;font-size:13.5px;padding:5px 11px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background .12s,border-color .12s}
+.chip:hover{border-color:var(--muted)}
+.chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.chip .sw{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.chip.on{background:var(--chip-on);color:var(--chip-on-ink);border-color:var(--chip-on)}
+.chip.on .sw{outline:2px solid var(--chip-on-ink);outline-offset:-1px}
+.chip .tags{display:inline-flex;gap:3px}
+.chip .tags i{width:6px;height:6px;border-radius:50%;display:inline-block;background:var(--c)}
+.chip.off{opacity:.45}
+.chip.off:hover{opacity:.8}
+.fr-actions{display:flex;gap:10px;align-items:center;margin-left:auto}
+.link{background:none;border:none;color:var(--ink2);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:6px 2px}
+.link:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+
+/* summary strip */
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:26px}
+.stat{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:12px 14px 11px;position:relative;overflow:hidden}
+.stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c,var(--muted))}
+.stat .v{font-family:Montserrat,sans-serif;font-weight:700;font-size:22px;color:var(--head);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:4px}
+.stat .l{font-size:13px;color:var(--ink2);margin-top:3px}
+.stat .e{font-family:Montserrat,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--c,var(--ink3))}
+
+/* sections */
+section.prog{background:var(--surface);border:1px solid var(--hair);border-radius:12px;box-shadow:var(--shadow);margin-bottom:26px;overflow:hidden}
+section.prog>.hd{display:flex;align-items:baseline;gap:14px;padding:16px 20px 10px;border-bottom:1px solid var(--grid);flex-wrap:wrap}
+section.prog>.hd h2{margin:0;font-size:18px;font-weight:700;color:var(--head);display:flex;align-items:center;gap:10px}
+section.prog>.hd h2 .sw{width:12px;height:12px;border-radius:3px;background:var(--c)}
+section.prog>.hd .src{color:var(--ink3);font-size:13px;margin-left:auto}
+section.prog>.hd .n{color:var(--ink2);font-size:13.5px}
+.body{display:grid;grid-template-columns:minmax(300px,4fr) minmax(0,9fr);gap:0}
+@media (max-width:980px){.body{grid-template-columns:1fr}}
+.rank{padding:16px 20px;border-right:1px solid var(--grid)}
+@media (max-width:980px){.rank{border-right:none;border-bottom:1px solid var(--grid)}}
+.rank h3{margin:0 0 2px;font-size:13.5px;font-weight:600;color:var(--ink)}
+.rank .cap{color:var(--ink2);font-size:13px;margin-bottom:12px}
+.bars{display:grid;grid-template-columns:minmax(92px,auto) 1fr auto;column-gap:10px;row-gap:7px;align-items:center;font-variant-numeric:tabular-nums}
+.bars .nm{font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.bars .tr{height:9px;background:var(--track);border-radius:4px;position:relative}
+.bars .bar{position:absolute;left:0;top:0;bottom:0;background:var(--c);border-radius:0 4px 4px 0;min-width:2px}
+.bars .bar.neg{background:var(--bad)}
+.bars .mk{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink2);opacity:.8}
+.bars .vl{font-size:13px;color:var(--ink2);white-space:nowrap}
+.bars .hit{grid-column:1/-1;display:contents}
+.bars .hit:hover .tr{filter:brightness(.92)}
+.bars .hit:hover .nm{color:var(--head);font-weight:700}
+.legend{display:flex;gap:14px;align-items:center;margin-top:12px;color:var(--ink2);font-size:12.5px;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:3px;background:var(--ink2);vertical-align:middle;margin-right:5px}
+.legend b{display:inline-block;width:12px;height:9px;border-radius:2px;background:var(--c);vertical-align:middle;margin-right:5px}
+
+.tbl{overflow-x:auto;padding:6px 8px 12px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+th{font-family:Montserrat,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);text-align:right;padding:10px 10px 8px;border-bottom:1px solid var(--hair);white-space:nowrap;vertical-align:bottom}
+th.l,td.l{text-align:left}
+td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap;color:var(--ink);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--tile)}
+td .cl{font-weight:700;color:var(--head)}
+td .id{color:var(--ink3);font-size:12px;margin-left:5px}
+td .sub{display:block;color:var(--ink2);font-size:12px;margin-top:1px}
+td.dim,td .dim{color:var(--ink3)}
+td .neg{color:var(--bad)}
+.tag{display:inline-block;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--tile);color:var(--ink2);border:1px solid var(--hair)}
+.tag.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
+.spark{display:block;width:120px;height:32px}
+.spark path.ln{fill:none;stroke:var(--c);stroke-width:1.75;stroke-linejoin:round;stroke-linecap:round}
+.spark path.ar{fill:var(--c);opacity:.12}
+.spark path.gl{fill:none;stroke:var(--ink3);stroke-width:1;stroke-dasharray:2 3}
+.spark circle{fill:var(--c)}
+.spark circle.pt{fill:var(--surface);stroke:var(--c);stroke-width:1.5}
+.spark rect.hit{fill:transparent}
+.peer td{background:var(--rowalt);color:var(--ink2);font-style:italic}
+.peer td .cl{color:var(--ink2);font-weight:600;font-style:normal}
+.empty{padding:26px 20px;color:var(--ink2)}
+
+/* client roster table */
+.roster td .dots{display:inline-flex;gap:4px;vertical-align:middle}
+.roster td .dots i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block}
+.roster td .dots i.off{background:var(--track)}
+
+/* tooltip */
+#tip{position:fixed;pointer-events:none;z-index:50;background:var(--head);color:var(--bg);font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:280px;opacity:0;transition:opacity .08s;font-variant-numeric:tabular-nums}
+#tip.on{opacity:1}
+#tip b{font-family:Montserrat,sans-serif;font-size:12px;display:block;margin-bottom:2px}
+:root[data-theme="dark"] #tip, :root:not([data-theme="light"]) #tip{color:var(--bg)}
+footer{color:var(--ink3);font-size:12.5px;margin-top:10px;line-height:1.5;max-width:80ch}
+footer p{margin:4px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">CSI Velocity &middot; Retail Performance Engine</div>
+      <h1>RPE Client Performance</h1>
+      <div class="sub" id="subline"></div>
+    </div>
+    <div class="pill" id="periodpill"></div>
+  </header>
+
+  <div class="filters" role="group" aria-label="Filters">
+    <div class="frow">
+      <span class="eyebrow">Products</span>
+      <div class="chips" id="progchips"></div>
+      <div class="fr-actions"><button class="link" id="resetProg">All products</button></div>
+    </div>
+    <div class="frow">
+      <span class="eyebrow">Clients</span>
+      <div class="chips" id="clientchips"></div>
+      <div class="fr-actions"><button class="link" id="resetClient">All clients</button></div>
+    </div>
+  </div>
+
+  <div class="strip" id="strip"></div>
+  <div id="sections"></div>
+  <section class="prog roster" id="rostersec"></section>
+  <footer id="foot"></footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const DATA = __DATA__;
+const PROGS = [
+  {k:"ARS", name:"Account Revenue Solution", short:"ARS", c:"var(--ars)"},
+  {k:"ICS", name:"Invitation Checking System", short:"ICS", c:"var(--ics)"},
+  {k:"MRPC", name:"MyRewards Premium Cards", short:"MRPC", c:"var(--mrpc)"},
+  {k:"CP", name:"CashPlease", short:"CashPlease", c:"var(--cp)"},
+];
+const PK = Object.fromEntries(PROGS.map(p=>[p.k,p]));
+const clients = DATA.clients;
+
+// ---------- state
+let selProgs = new Set(PROGS.map(p=>p.k));
+let selClients = new Set(clients.map(c=>c.id));
+try {
+  const s = JSON.parse(localStorage.getItem("rpe-dash-filter")||"null");
+  if (s && Array.isArray(s.p) && Array.isArray(s.c)) {
+    const p = s.p.filter(k=>PK[k]); const c = s.c.filter(id=>clients.some(x=>x.id===id));
+    if (p.length) selProgs = new Set(p);
+    if (c.length) selClients = new Set(c);
+  }
+} catch(e){}
+function persist(){ try{ localStorage.setItem("rpe-dash-filter", JSON.stringify({p:[...selProgs], c:[...selClients]})); }catch(e){} }
+
+// ---------- formatters
+const nf0 = new Intl.NumberFormat("en-US",{maximumFractionDigits:0});
+const nf1 = new Intl.NumberFormat("en-US",{minimumFractionDigits:1,maximumFractionDigits:1});
+const nf2 = new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const N = v => v==null||isNaN(v) ? "\u2014" : nf0.format(v);
+const N1 = v => v==null||isNaN(v) ? "\u2014" : nf1.format(v);
+const USD = v => v==null||isNaN(v) ? "\u2014" : (v<0?"\u2212":"")+"$"+nf0.format(Math.abs(v));
+const USDk = v => { if(v==null||isNaN(v)) return "\u2014"; const a=Math.abs(v), s=v<0?"\u2212":""; if(a>=1e6) return s+"$"+nf2.format(a/1e6).replace(/\.?0+$/,"")+"M"; if(a>=1e4) return s+"$"+nf0.format(a/1e3)+"K"; return s+"$"+nf0.format(a); };
+const PCT = (v,d=1) => v==null||isNaN(v) ? "\u2014" : new Intl.NumberFormat("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}).format(v)+"%";
+const PCTf = (v,d=1) => v==null||isNaN(v) ? "\u2014" : PCT(v*100,d);
+const monLabel = m => { // "2026-08" -> "Aug '26"
+  if(!m) return ""; const [y,mm]=m.split("-"); const names=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return names[+mm-1]+" \u2019"+y.slice(2); };
+const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// ---------- tooltip
+const tip = document.getElementById("tip");
+function showTip(html, e){ tip.innerHTML = html; tip.classList.add("on"); moveTip(e); }
+function moveTip(e){ const x=e.clientX, y=e.clientY; const w=tip.offsetWidth, h=tip.offsetHeight;
+  tip.style.left = Math.min(x+14, window.innerWidth-w-8)+"px"; tip.style.top = (y+16+h>window.innerHeight? y-h-10 : y+16)+"px"; }
+function hideTip(){ tip.classList.remove("on"); }
+document.addEventListener("mouseover", e=>{ const t=e.target.closest("[data-tip]"); if(t) showTip(t.dataset.tip, e); });
+document.addEventListener("mousemove", e=>{ if(tip.classList.contains("on")) moveTip(e); });
+document.addEventListener("mouseout", e=>{ const t=e.target.closest("[data-tip]"); if(t && !t.contains(e.relatedTarget)) hideTip(); });
+
+// ---------- sparkline (SVG)
+function spark(series, opts={}){
+  // series: [{label, v}], opts: {c, goal:[..], partialLast}
+  const vals = series.map(s=>s.v).filter(v=>v!=null);
+  if(!vals.length) return `<span class="dim">\u2014</span>`;
+  const W=120,H=32,px=3,py=4; const n=series.length;
+  const gvals = opts.goal ? opts.goal.filter(v=>v!=null) : [];
+  const max = Math.max(...vals, ...gvals, 1), min = Math.min(0, ...vals);
+  const x = i => n===1 ? W/2 : px + i*(W-2*px)/(n-1);
+  const y = v => H-py - (v-min)/(max-min||1)*(H-2*py);
+  let d="", area="";
+  series.forEach((s,i)=>{ if(s.v==null) return; d += (d?" L":"M")+x(i).toFixed(1)+" "+y(s.v).toFixed(1); });
+  const first = series.findIndex(s=>s.v!=null), last = n-1-[...series].reverse().findIndex(s=>s.v!=null);
+  area = d + ` L${x(last).toFixed(1)} ${y(min).toFixed(1)} L${x(first).toFixed(1)} ${y(min).toFixed(1)} Z`;
+  let g="";
+  if(opts.goal){ let gd=""; opts.goal.forEach((v,i)=>{ if(v==null) return; gd += (gd?" L":"M")+x(i).toFixed(1)+" "+y(v).toFixed(1); }); g=`<path class="gl" d="${gd}"/>`; }
+  const lastV = series[last].v;
+  const end = `<circle class="${opts.partialLast?'pt':''}" cx="${x(last).toFixed(1)}" cy="${y(lastV).toFixed(1)}" r="2.6"/>`;
+  const step = n>1 ? (W-2*px)/(n-1) : W-2*px;
+  const hits = series.map((s,i)=> s.v==null?"" : `<rect class="hit" x="${(x(i)-step/2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${H}" data-tip="<b>${esc(s.label)}</b>${esc(opts.fmt?opts.fmt(s.v):N(s.v))}${opts.goal&&opts.goal[i]!=null?' \u00b7 goal '+esc(N(opts.goal[i])):''}${s.note?'<br>'+esc(s.note):''}"/>`).join("");
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" style="--c:${opts.c}" role="img" aria-label="${esc(opts.aria||'trend')}"><path class="ar" d="${area}"/>${g}<path class="ln" d="${d}"/>${end}${hits}</svg>`;
+}
+
+// ---------- ranked bars
+function bars(rows, opts={}){
+  // rows: [{name, id, v, tipHtml, marker?}] ; opts: {c, fmt, max}
+  const valid = rows.filter(r=>r.v!=null);
+  if(!valid.length) return `<div class="empty">No figures for the selected clients.</div>`;
+  const max = opts.max ?? Math.max(...valid.map(r=>Math.abs(r.v)), ...(valid.map(r=>r.marker??0)));
+  return `<div class="bars" style="--c:${opts.c}">` + valid.sort((a,b)=>b.v-a.v).map(r=>{
+    const w = Math.max(0, Math.abs(r.v)/(max||1)*100);
+    const mk = r.marker!=null ? `<span class="mk" style="left:${(r.marker/(max||1)*100).toFixed(1)}%"></span>` : "";
+    return `<div class="hit" data-tip="${esc(r.tipHtml||'')}"><span class="nm">${esc(r.name)}</span><span class="tr"><span class="bar ${r.v<0?'neg':''}" style="width:${w.toFixed(1)}%"></span>${mk}</span><span class="vl">${opts.fmt(r.v)}</span></div>`;
+  }).join("") + `</div>`;
+}
+
+// ---------- filters UI
+function renderChips(){
+  const pc = document.getElementById("progchips");
+  const allP = selProgs.size===PROGS.length, allC = selClients.size===clients.length;
+  pc.innerHTML = PROGS.map(p=>`<button class="chip ${selProgs.has(p.k)&&!allP?'on':''}" data-prog="${p.k}" style="--c:${p.c}" aria-pressed="${selProgs.has(p.k)}"><span class="sw"></span>${p.short}</button>`).join("");
+  const cc = document.getElementById("clientchips");
+  cc.innerHTML = clients.map(c=>{
+    const inProg = c.programs.some(k=>selProgs.has(k));
+    return `<button class="chip ${selClients.has(c.id)&&!allC?'on':''} ${inProg?'':'off'}" data-client="${c.id}" aria-pressed="${selClients.has(c.id)}" title="${esc(c.programs.join(' \u00b7 '))}">${esc(c.name)}<span class="tags">${c.programs.map(k=>`<i style="--c:${PK[k].c}"></i>`).join("")}</span></button>`;
+  }).join("");
+}
+document.getElementById("progchips").addEventListener("click", e=>{
+  const b=e.target.closest("[data-prog]"); if(!b) return;
+  const k=b.dataset.prog;
+  if(e.shiftKey || e.altKey){ selProgs = new Set([k]); }
+  else if(selProgs.has(k)){ if(selProgs.size>1) selProgs.delete(k); } else selProgs.add(k);
+  update();
+});
+document.getElementById("clientchips").addEventListener("click", e=>{
+  const b=e.target.closest("[data-client]"); if(!b) return;
+  const id=b.dataset.client;
+  const all = selClients.size===clients.length;
+  if(e.shiftKey || e.altKey || all){ selClients = new Set([id]); }
+  else if(selClients.has(id)){ if(selClients.size>1) selClients.delete(id); } else selClients.add(id);
+  update();
+});
+document.getElementById("resetProg").onclick = ()=>{ selProgs = new Set(PROGS.map(p=>p.k)); update(); };
+document.getElementById("resetClient").onclick = ()=>{ selClients = new Set(clients.map(c=>c.id)); update(); };
+
+// ---------- summary strip
+function renderStrip(vis){
+  const on = k => selProgs.has(k);
+  const sum = (arr,f) => arr.reduce((a,c)=>a+(f(c)||0),0);
+  const ars = vis.filter(c=>c.ars && !c.ars.missing && on("ARS"));
+  const ics = vis.filter(c=>c.ics && !c.ics.missing && on("ICS"));
+  const mrpc = vis.filter(c=>c.mrpc && on("MRPC"));
+  const cp = vis.filter(c=>c.cp && !c.cp.missing && on("CP"));
+  const tiles = [];
+  tiles.push({e:"Selection", v:`${vis.length}`, l:`client${vis.length===1?"":"s"} \u00b7 ${[...selProgs].length} of 4 products`, c:"var(--muted)"});
+  if(ars.length) tiles.push({e:"ARS", v:USDk(sum(ars,c=>c.ars.ltd_profit)), l:"incremental profit, program to date", c:"var(--ars)"},
+                            {e:"ARS", v:USDk(sum(ars,c=>c.ars.cur_revenue)), l:`incremental revenue, ${ars[0].ars.data_label.replace(" Data","")}`, c:"var(--ars)"});
+  if(ics.length) tiles.push({e:"ICS", v:N(sum(ics,c=>c.ics.prev_month?.value)), l:`referrals in ${ics[0].ics.prev_month?.label||"last month"} \u00b7 goal ${N(sum(ics,c=>c.ics.monthly_goal))}`, c:"var(--ics)"},
+                            {e:"ICS", v:N(sum(ics,c=>c.ics.ytd)), l:"referrals year to date", c:"var(--ics)"});
+  if(mrpc.length) tiles.push({e:"MRPC", v:N(sum(mrpc,c=>c.mrpc.weekly?.active_cardholders)), l:"active premium cardholders", c:"var(--mrpc)"},
+                             {e:"MRPC", v:N(sum(mrpc,c=>{const m=c.mrpc.weekly?.monthly; return m?.length?m[m.length-1].platinum+m[m.length-1].gold+m[m.length-1].business:0;})), l:`enrollments, ${monLabel(mrpc[0].mrpc.weekly?.monthly?.slice(-1)[0]?.month)}`, c:"var(--mrpc)"});
+  if(cp.length) tiles.push({e:"CashPlease", v:N(sum(cp,c=>c.cp.window_loans)), l:"loans, trailing 12 months", c:"var(--cp)"},
+                           {e:"CashPlease", v:USDk(sum(cp,c=>c.cp.active_principal)), l:"principal outstanding on active loans", c:"var(--cp)"});
+  document.getElementById("strip").innerHTML = tiles.map(t=>`<div class="stat" style="--c:${t.c}"><div class="e">${t.e}</div><div class="v">${t.v}</div><div class="l">${t.l}</div></div>`).join("");
+}
+
+// ---------- sections
+function secShell(p, n, src, rankHtml, tableHtml){
+  return `<section class="prog" style="--c:${p.c}">
+    <div class="hd"><h2><span class="sw"></span>${p.name}</h2><span class="n">${n} client${n===1?"":"s"}</span><span class="src">${esc(src)}</span></div>
+    <div class="body"><div class="rank">${rankHtml}</div><div class="tbl">${tableHtml}</div></div></section>`;
+}
+
+function secARS(vis){
+  const p = PK.ARS; const rows = vis.filter(c=>c.ars);
+  if(!rows.length) return "";
+  const ok = rows.filter(c=>!c.ars.missing);
+  const rank = `<h3>Revenue returned per dollar of program cost</h3><div class="cap">Program to date. A tenure-neutral read: Wellworth is three months live.</div>` +
+    bars(ok.map(c=>({name:c.name, v:c.ars.profitability, tipHtml:`<b>${esc(c.name)}</b>${USD(c.ars.ltd_revenue)} revenue on ${USD(Math.abs(c.ars.ltd_costs))} cost \u00b7 ${c.ars.months_live} months live`})), {c:p.c, fmt:v=>nf2.format(v)+" : 1"});
+  const table = `<table><thead><tr>
+      <th class="l">Client</th><th>Months live</th><th>Mailings</th><th class="l">Latest mailing</th><th>Response</th>
+      <th>Incremental revenue<br><span style="font-weight:500;text-transform:none;letter-spacing:0">current month</span></th><th>12-mo avg</th><th class="l">Last 12 months</th>
+      <th>Debit spend<br><span style="font-weight:500;text-transform:none;letter-spacing:0">$M, latest month</span></th><th>Cardholders</th>
+      <th>Revenue PTD</th><th>Profit PTD</th></tr></thead><tbody>` +
+    rows.map(c=>{ const a=c.ars;
+      if(a.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="11" class="l dim">${esc(a.missing)}</td></tr>`;
+      const lm=a.latest_mailing||{}; const sc=a.spend_cards?.slice(-1)[0];
+      const trend = spark(a.monthly_rev.map(([m,v])=>({label:m, v})), {c:p.c, fmt:USD, aria:"monthly incremental revenue, last 12 months"});
+      return `<tr>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span><span class="sub">${a.path==="MM"?"Lift Matrix":"Monthly Summary"} \u00b7 ${esc(a.data_label||"")}</span></td>
+        <td>${N(a.months_live)}</td><td>${N(a.mailings)}</td>
+        <td class="l">${lm.month?esc(lm.month):"<span class=dim>\u2014</span>"}<span class="sub">${lm.mailed?N(lm.mailed)+" mailed \u00b7 "+N(lm.responders)+" responded":""}</span></td>
+        <td>${PCT(lm.response_rate)}</td>
+        <td>${USD(a.cur_revenue)}</td><td>${USD(a.rev12_avg)}</td><td class="l">${trend}</td>
+        <td>${sc?nf2.format(sc[1]):"\u2014"}</td><td>${sc?N(sc[2]):"\u2014"}</td>
+        <td>${USDk(a.ltd_revenue)}</td><td>${a.ltd_profit<0?`<span class="neg">${USDk(a.ltd_profit)}</span>`:USDk(a.ltd_profit)}</td></tr>`;
+    }).join("") + `</tbody></table>`;
+  return secShell(p, rows.length, DATA.sources.ars, rank, table);
+}
+
+function secICS(vis){
+  const p = PK.ICS; const rows = vis.filter(c=>c.ics);
+  if(!rows.length) return "";
+  const ok = rows.filter(c=>!c.ics.missing && c.ics.prev_month);
+  const pcts = ok.map(c=>c.ics.prev_vs_goal_pct).filter(v=>v!=null);
+  const rank = `<h3>Referrals as a share of monthly goal</h3><div class="cap">${esc(ok[0]?.ics.prev_month?.label||"Last complete month")} 2026. The tick is 100% of goal.</div>` +
+    bars(ok.map(c=>({name:c.name, v:c.ics.prev_vs_goal_pct, marker:100, tipHtml:`<b>${esc(c.name)}</b>${N(c.ics.prev_month.value)} referrals \u00b7 goal ${N(c.ics.monthly_goal)} \u00b7 ${N(c.ics.prev_vs_goal_pct)}% of goal`})), {c:p.c, fmt:v=>N(v)+"%", max:Math.max(100, ...pcts)}) +
+    `<div class="legend"><span><b style="--c:${p.c}"></b>% of goal</span><span><i></i>goal</span></div>`;
+  const table = `<table><thead><tr>
+      <th class="l">Client</th><th>Live since</th><th class="l">Financials</th><th>Last month</th><th>Goal</th><th>% of goal</th><th>YTD</th><th>PTD</th><th class="l">Trend, 15 months</th>
+      <th>ROI</th><th>Lifetime value<br><span style="font-weight:500;text-transform:none;letter-spacing:0">per account</span></th><th>ICS accounts</th><th>Net profit PTD</th></tr></thead><tbody>` +
+    rows.map(c=>{ const i=c.ics;
+      if(i.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="12" class="l dim">${esc(i.missing)}</td></tr>`;
+      const t=i.trend||{months:[],referrals:[],goal:[]};
+      const trend = spark(t.months.map((m,k)=>({label:m, v:t.referrals[k], note:(k===t.months.length-1&&t.partial_last)?"partial month":""})), {c:p.c, goal:t.goal, partialLast:t.partial_last, aria:"monthly referrals vs goal"});
+      const fin = i.referrals_only ? `<span class="tag warn">referrals only</span><span class="sub">no ICS workbook yet</span>`
+                : `<span class="tag ${i.workbook_period===DATA.period?'good':''}">workbook ${esc(i.workbook_period||"")}</span>${i.workbook_period!==DATA.period?`<span class="sub">older than the ${DATA.period} decks</span>`:""}`;
+      const pct = i.prev_vs_goal_pct;
+      return `<tr>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
+        <td>${esc(i.program_start||"\u2014")}</td><td class="l">${fin}</td>
+        <td>${N(i.prev_month?.value)}</td><td>${N(i.monthly_goal)}</td>
+        <td><span style="color:${pct>=100?'var(--good)':pct<50?'var(--bad)':'inherit'}">${pct!=null?N(pct)+"%":"\u2014"}</span></td>
+        <td>${N(i.ytd)}</td><td>${N(i.ptd)}</td><td class="l">${trend}</td>
+        <td>${i.roi!=null?nf2.format(i.roi)+" : 1":"<span class=dim>\u2014</span>"}</td><td>${i.ltv!=null?USD(i.ltv):"<span class=dim>\u2014</span>"}</td>
+        <td>${i.ics_accounts!=null?N(i.ics_accounts):"<span class=dim>\u2014</span>"}</td><td>${i.net_profit!=null?USDk(i.net_profit):"<span class=dim>\u2014</span>"}</td></tr>`;
+    }).join("") + `</tbody></table>`;
+  return secShell(p, rows.length, DATA.sources.ics, rank, table);
+}
+
+function secMRPC(vis){
+  const p = PK.MRPC; const rows = vis.filter(c=>c.mrpc);
+  if(!rows.length) return "";
+  const ok = rows.filter(c=>c.mrpc.weekly);
+  const rank = `<h3>New-account take rate</h3><div class="cap">Share of newly opened accounts that enrolled, program to date. The tick is the latest month reported.</div>` +
+    bars(ok.map(c=>{const t=c.mrpc.weekly.new_account_take||{}; return {name:c.name, v:t.ptd_rate!=null?t.ptd_rate*100:null, marker:t.cur_rate!=null?t.cur_rate*100:null, tipHtml:`<b>${esc(c.name)}</b>PTD ${N(t.ptd_enrolled)} of ${N(t.ptd_opened)} new accounts (${PCTf(t.ptd_rate)})<br>${esc(t.cur_label||"")}: ${N(t.cur_enrolled)} of ${N(t.cur_opened)} (${PCTf(t.cur_rate)})`};}), {c:p.c, fmt:v=>PCT(v)}) +
+    `<div class="legend"><span><b style="--c:${p.c}"></b>program to date</span><span><i></i>latest month</span></div>`;
+  const table = `<table><thead><tr>
+      <th class="l">Client</th><th>Active cardholders</th><th>Take rate<br><span style="font-weight:500;text-transform:none;letter-spacing:0">all MRPC accts</span></th><th>Take rate<br><span style="font-weight:500;text-transform:none;letter-spacing:0">active accts</span></th>
+      <th>Enrollments<br><span style="font-weight:500;text-transform:none;letter-spacing:0">last month</span></th><th>Trailing 12</th><th class="l">Enrollments, 24 months</th><th>Tier mix<br><span style="font-weight:500;text-transform:none;letter-spacing:0">Plat / Gold / Bus, PTD</span></th>
+      <th>% of goal<br><span style="font-weight:500;text-transform:none;letter-spacing:0">latest VIP month</span></th><th>Revenue 2025</th><th>Avg monthly<br><span style="font-weight:500;text-transform:none;letter-spacing:0">revenue</span></th></tr></thead><tbody>` +
+    rows.map(c=>{ const m=c.mrpc, w=m.weekly;
+      if(!w) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="10" class="l dim">no tab in the weekly enrollment summary</td></tr>`;
+      const mon = w.monthly||[]; const last = mon[mon.length-1]||{};
+      const series = mon.map(r=>({label:monLabel(r.month), v:r.platinum+r.gold+r.business, note:`Platinum ${r.platinum} \u00b7 Gold ${r.gold}${r.business?" \u00b7 Business "+r.business:""}`}));
+      const t12 = mon.slice(-12).reduce((a,r)=>a+r.platinum+r.gold+r.business,0);
+      const km = m.key_metrics||{}; const pog = m.pct_of_goal?.slice(-1)[0]; const pogm = m.goal_months?.slice(-1)[0];
+      const tot = w.totals||{};
+      return `<tr>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span><span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span></td>
+        <td>${N(w.active_cardholders)}<span class="sub">${N(w.all_cardholders)} ever enrolled</span></td>
+        <td>${PCTf(w.take_rate_all)}</td><td>${PCTf(w.take_rate_active)}</td>
+        <td>${N(last.platinum+last.gold+last.business)}<span class="sub">${monLabel(last.month)}</span></td><td>${N(t12)}</td>
+        <td class="l">${spark(series,{c:p.c, aria:"monthly enrollments, 24 months"})}</td>
+        <td>${N(tot.platinum)} / ${N(tot.gold)} / ${N(tot.business)}</td>
+        <td>${pog!=null?`${N(pog)}%<span class="sub">${esc(pogm||"")} \u00b7 goal ${m.goal_pct}% of new accts</span>`:"<span class=dim>\u2014</span>"}</td>
+        <td>${USD(m.revenue_2025)}</td><td>${USD(km.avg_monthly_revenue)}</td></tr>`;
+    }).join("") + `</tbody></table>`;
+  return secShell(p, rows.length, DATA.sources.mrpc, rank, table);
+}
+
+function secCP(vis){
+  const p = PK.CP; const rows = vis.filter(c=>c.cp);
+  if(!rows.length) return "";
+  const ok = rows.filter(c=>!c.cp.missing);
+  const rank = `<h3>Loans booked, trailing 12 months</h3><div class="cap">Comparable across tenure; program-to-date volume is in the table.</div>` +
+    bars(ok.map(c=>({name:c.name, v:c.cp.window_loans, tipHtml:`<b>${esc(c.name)}</b>${N(c.cp.window_loans)} loans over ${c.cp.window_months} months \u00b7 ${N(c.cp.total_loans)} program to date`})), {c:p.c, fmt:N});
+  const peer = DATA.cp_peer;
+  const table = `<table><thead><tr>
+      <th class="l">Client</th><th>Loans PTD</th><th>Trailing 12</th><th>Last month</th><th class="l">Loans by month, 24 months</th><th>Active loans</th><th>Active principal</th>
+      <th>Avg loan</th><th>Avg interest<br><span style="font-weight:500;text-transform:none;letter-spacing:0">per loan</span></th><th>Charge-off %</th><th>Overdue</th><th>Accounts<br><span style="font-weight:500;text-transform:none;letter-spacing:0">with loans</span></th></tr></thead><tbody>` +
+    rows.map(c=>{ const k=c.cp;
+      if(k.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="11" class="l dim">${esc(k.missing)}</td></tr>`;
+      const last = k.monthly[k.monthly.length-1]||{};
+      const co = k.charge_off_pct;
+      return `<tr>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span><span class="sub">weekly as of ${esc((k.report_generated||"").split(" ")[0])}</span></td>
+        <td>${N(k.total_loans)}</td><td>${N(k.window_loans)}</td><td>${N(last.loans)}<span class="sub">${monLabel(last.month)}</span></td>
+        <td class="l">${spark(k.monthly.map(r=>({label:monLabel(r.month), v:r.loans, note:USD(r.principal)+" principal"})),{c:p.c, aria:"loans per month"})}</td>
+        <td>${N(k.active_loans)}</td><td>${USDk(k.active_principal)}</td><td>${USD(k.avg_loan_size)}</td><td>$${nf2.format(k.avg_interest_per_loan)}</td>
+        <td><span style="color:${co>peer.charge_off_pct*1.5?'var(--bad)':'inherit'}">${PCTf(co,2)}</span></td><td>${PCTf(k.pct_overdue,2)}</td><td>${PCTf(k.pct_active_accounts_with_loans,2)}</td></tr>`;
+    }).join("") +
+    `<tr class="peer"><td class="l"><span class="cl">All Velocity CashPlease clients</span><span class="sub">${peer.cohort_tabs} programs in the workbook</span></td>
+      <td>${N(peer.total_loans)}</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(peer.avg_loan_size)}</td><td>$${nf2.format(peer.avg_interest_per_loan)}</td>
+      <td>${PCTf(peer.charge_off_pct,2)}</td><td>${PCTf(peer.pct_loans_overdue,2)}</td><td>${PCTf(peer.pct_active_accounts_with_loans,2)}</td></tr>` +
+    `</tbody></table>`;
+  return secShell(p, rows.length, DATA.sources.cp, rank, table);
+}
+
+function secRoster(vis){
+  const h = `<div class="hd"><h2>Clients and decks \u00b7 ${DATA.period}</h2><span class="src">Outputs/ on Drive and the delivery log</span></div>`;
+  const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr><th class="l">Client</th><th class="l">Products</th><th class="l">Deck</th><th class="l">Built</th><th class="l">Sent</th></tr></thead><tbody>` +
+    vis.map(c=>`<tr>
+      <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
+      <td class="l"><span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span> <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span></td>
+      <td class="l" style="white-space:normal;max-width:460px">${c.decks.length?c.decks.map(esc).join("<br>"):"<span class=dim>none in Outputs/</span>"}</td>
+      <td class="l">${c.decks.length?`<span class="tag good">built</span>`:`<span class="tag warn">not built</span>`}</td>
+      <td class="l">${c.sent?`<span class="tag good">sent ${esc(c.sent)}</span>`:`<span class="tag">not recorded</span>`}</td></tr>`).join("") + `</tbody></table></div>`;
+  return h + t;
+}
+
+// ---------- update
+function update(){
+  persist(); renderChips();
+  const vis = clients.filter(c=>selClients.has(c.id) && c.programs.some(k=>selProgs.has(k)));
+  renderStrip(vis);
+  const secs = document.getElementById("sections");
+  const html = [selProgs.has("ARS")?secARS(vis):"", selProgs.has("ICS")?secICS(vis):"", selProgs.has("MRPC")?secMRPC(vis):"", selProgs.has("CP")?secCP(vis):""].join("");
+  secs.innerHTML = html || `<div class="empty">Nothing to show: the selected clients are not on the selected products.</div>`;
+  document.getElementById("rostersec").innerHTML = secRoster(vis);
+}
+document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
+document.getElementById("subline").textContent = `${clients.length} clients across four programs. Click a product or client to narrow; shift-click to isolate one.`;
+document.getElementById("foot").innerHTML = `<p><strong>Where each figure comes from.</strong> ARS: the ${DATA.period} ARS workbooks (Executive Financials and All Months Rollup) plus the mailing response figures from each shipped deck's provenance sidecar. ICS: the VIP referral dashboard pulled 2026-09-04; ROI, lifetime value and net profit from each client's newest Invitation Checking workbook, flagged when older than the period. MRPC: the 2026-09-06 weekly enrollment summary for take rates, cardholders and monthly enrollments; VIP for goal attainment and revenue. CashPlease: the 2026-09-06 weekly CashPlease summary, with the all-client rollup as the peer row.</p><p>Program to date is abbreviated PTD. Assembled ${DATA.generated}. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
+update();
+</script>

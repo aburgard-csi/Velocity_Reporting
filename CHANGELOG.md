@@ -17,6 +17,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-08 — the performance dashboard artifact refreshes itself after the source check
+
+`scripts/refresh_performance_dashboard.py` is the aggregator behind the "RPE Client
+Performance" artifact, promoted from a per-session scratchpad script into the repo
+so a refresh is reproducible: ARS figures through `extract_base_gen` / `base_tab_extract`
+and the shipped deck's figure sidecar, ICS and MRPC from the VIP sheets, MRPC and
+CashPlease from the newest weeklies (CashPlease through that repo's own `cp_extract.py`).
+It injects the dataset into `scripts/perf_dashboard_template.html` (the artifact's
+page, checked in) and reports `STATUS: changed|unchanged` against the hash last
+published. The Claude scheduled task `rpe-dashboard-refresh` runs it daily after the
+08:00 source watch and republishes the artifact in place only when figures moved.
+
+Verified: the scripted dataset reproduces the hand-built 2026-09-08 artifact figure for
+figure; the one addition is the CashPlease peer cohort's DDA fields, now populated
+because the extractor is given the DDA counts the CashPlease pipeline already keeps.
+The page does not render those fields, so nothing visible changed on the republish.
+The period is derived from the newest ARS workbook on Drive (2026.08 today) rather
+than assumed from the calendar — the same rule the monthly decks follow.
+
 ### 2026-09-08 — a daily check of the CSI shares for new inputs
 
 `scripts/watch_sources.py` scans this month's and last month's folders on
