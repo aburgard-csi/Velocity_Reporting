@@ -481,6 +481,35 @@ have no source-side signal, so their source column is `n/a` and a missing one
 does not block — without a workbook for the period the ICS section builds
 referrals-only, which is a valid deck.
 
+### Daily source watch
+
+```
+python scripts/watch_sources.py [--notify] [--dry-run] [--period 2026.09 ...]
+powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 [-Time 08:00] [-Unregister]
+```
+
+`deck_status.py` answers "is it there now"; `watch_sources.py` answers "what
+landed since I last looked" (Aaron, 2026-09-08). It scans this month's and last
+month's folders on both CSI shares — ODD extracts on `Velocity_company\Aburgard\ODDD`,
+DCOs / ARS workbooks / MRPCPM analyses on `Velocity_clientreports` — diffs the
+inventory against the one it saved last run, and reports files that are new,
+re-landed (same name, new bytes) or gone, roster clients first, each with whether
+the Drive copy the builders read is already current. Nothing is copied
+automatically. It reuses `deck_status`'s share roots (and their `RPE_SRC_*`
+overrides) and the `clients.md` roster.
+
+State is bookkeeping, so it lives in `Build Artifacts/` on Drive:
+`source_watch.json` (the last inventory), `source_watch.log` (appended per run),
+`source_watch_latest.md` (the latest report). The first run is a baseline and
+reports counts, not news. **Off VPN it exits 2 and leaves the saved inventory
+alone** — saving an empty one would make every file "new" the next morning.
+
+`register_watch_task.ps1` schedules it as the Windows task **"RPE Source Watch"**,
+daily at 08:00 as the logged-on user (the share needs those credentials and the
+toast needs a desktop), catching up a missed run when the laptop wakes.
+Registered on this machine 2026-09-08. `--notify` raises a Windows toast only when
+there is news or the shares were unreachable; a quiet day is silent.
+
 ## Data sources by program (do not cross these)
 
 All inputs live under the **source-data location** Aaron names at the start of the session
@@ -521,6 +550,8 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `build_month.py` — builds the monthly ARS/ICS/MRPC reviews for one period from the `clients.md` roster. Never emits Summit one-pagers.
 - `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
 - `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
+- `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with Drive-copy state (see **Daily source watch**).
+- `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily.
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
 - `build_ars_gen.py` — the ARS deck assembler: populates the `ars_template.pptx` shell, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.

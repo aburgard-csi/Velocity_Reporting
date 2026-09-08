@@ -17,6 +17,26 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-08 — a daily check of the CSI shares for new inputs
+
+`scripts/watch_sources.py` scans this month's and last month's folders on
+`\\PADMIS105\Velocity_company\Aburgard\ODDD` and `\\PADMIS105\Velocity_clientreports`,
+diffs the inventory against the one it saved last run (`Build Artifacts/source_watch.json`),
+and reports what is new, re-landed or gone — roster clients first, each with whether
+the Drive copy the builders read is already current. `scripts/register_watch_task.ps1`
+schedules it as the Windows task "RPE Source Watch", daily at 08:00, with a toast
+when there is news. Registered on Aaron's Windows machine the same day; the first run
+recorded a 309-file baseline.
+
+Why: `deck_status.py` says whether a file is there now, and a morning glance at the
+dashboard misses the straggler — 1174's 2026.08 extract landed four days after the
+batch, 1502's 2026.09 extract six days after, and a re-landed extract (1539, 2026.09)
+keeps its name. Two rules carried over from the dashboard: off VPN the shares are
+unknown, not empty (the run exits 2 and leaves the inventory alone), and a damaged
+inventory is refused rather than read as "nothing seen".
+
+**No client-facing figure moves; nothing is copied to Drive automatically.**
+
 ### 2026-09-02 — CashPlease gets its own shell
 
 `templates/cashplease_template.pptx`: a 10-slide Union Financial demo (cover, Summit,
