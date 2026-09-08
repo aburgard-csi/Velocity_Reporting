@@ -112,6 +112,47 @@ def derive_period(reports_dir, names=None):
     return max(periods) if periods else None
 
 
+def _newest_for(names, rx, period):
+    """(period, name) of the newest file matching `rx` with a period at or
+    before `period`, or (None, None). Ties go to the last name in sort order."""
+    best = (None, None)
+    for n in sorted(names):
+        if n.startswith("~$"):
+            continue
+        m = rx.match(n)
+        if m and m.group(1) <= period and (best[0] is None or m.group(1) >= best[0]):
+            best = (m.group(1), n)
+    return best
+
+
+def pick_workbook(names, cid, period):
+    """The client's newest ARS workbook at or before the cycle period.
+
+    Per client, not per cycle: the data team lands the month's workbooks over a
+    week or more, so on any given morning some clients have this month's and
+    some still only last month's. A page that showed "no workbook" for the
+    latter while the older one sat on Drive would be less informative than the
+    one it replaced. The period used is carried on the row so it is not mistaken
+    for the cycle's.
+    """
+    rx = re.compile(r"^%s-(\d{4}\.\d{2})-(?!.*invitation checking).*workbook.*\.xlsx$"
+                    % re.escape(cid), re.I)
+    return _newest_for(names, rx, period)
+
+
+def pick_sidecar(names, cid, period):
+    """The newest shipped ARS deck's figure sidecar for the client."""
+    rx = re.compile(r"^%s-(\d{4}\.\d{2})-ARS-.*ARS Results\.pptx\.figures\.json$"
+                    % re.escape(cid), re.I)
+    return _newest_for(names, rx, period)
+
+
+def newest_deck_period(names, cid, period):
+    """The most recent period with a built deck for the client, or None."""
+    rx = re.compile(r"^%s-(\d{4}\.\d{2})-.*\.pptx$" % re.escape(cid), re.I)
+    return _newest_for(names, rx, period)[0]
+
+
 # ------------------------------------------------------------------ roster
 def roster_clients():
     """{id: client record} for every roster client, CashPlease included."""
@@ -146,13 +187,21 @@ def cashplease_roster(text=None):
 
 
 # ------------------------------------------------------------------ ARS
+def uncalculated(base):
+    """True when an extracted base looks like the workbook template's defaults:
+    one month in the program, no mailings, no lifetime revenue. A live ARS
+    client has months and revenue; a workbook saved without evaluating its
+    formulas has neither, and reads as zeros rather than as an error."""
+    months = num(base.get("months")) or 0
+    return months <= 1 and not (num(base.get("ltd_revenue")) or 0) \
+        and not (num(base.get("cur_revenue")) or 0)
+
+
 def ars_section(cid, c, period, reports, ba, work):
-    wbs = sorted(f for f in glob.glob(str(reports / f"{cid}-{period}-*Workbook*.xlsx"))
-                 if "invitation checking" not in os.path.basename(f).lower()
-                 and not os.path.basename(f).startswith("~$"))
-    if not wbs:
-        return {"missing": "no ARS workbook for " + period}
-    wb = wbs[0]
+    wb_period, wb_name = pick_workbook(os.listdir(reports), cid, period)
+    if not wb_name:
+        return {"missing": "no ARS workbook on Drive"}
+    wb = str(reports / wb_name)
     if c["path"] == "MM":
         out = work / f"{cid}_base.json"
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/extract_base_gen.py"), wb, str(out)],
@@ -161,15 +210,23 @@ def ars_section(cid, c, period, reports, ba, work):
             return {"missing": "extract_base_gen failed: " + r.stderr.strip()[-300:]}
         b = json.load(open(out, encoding="utf-8"))
     else:
-        dco = sorted(glob.glob(str(reports / f"{cid}-{period}-*DCO*.xlsx")))
+        dco = sorted(glob.glob(str(reports / f"{cid}-{wb_period}-*DCO*.xlsx")))
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/base_tab_extract.py"), wb] + dco[:1],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         i = r.stdout.find("{")
         if r.returncode != 0 or i < 0:
             return {"missing": "base_tab_extract failed: " + r.stderr.strip()[-300:]}
         b = json.loads(r.stdout[i:])
+    if uncalculated(b):
+        # The data team's workbook can arrive with its formulas never evaluated,
+        # so the cached values openpyxl reads are the template's defaults. Zeros
+        # on the page would look like a client with no revenue; say what it is.
+        return {"missing": "workbook %s carries no calculated values — open it in "
+                           "Excel and save, then rebuild" % os.path.basename(wb),
+                "workbook": os.path.basename(wb), "workbook_period": wb_period}
     a = {
-        "workbook": os.path.basename(wb), "path": c["path"], "data_label": b.get("data_label"),
+        "workbook": os.path.basename(wb), "workbook_period": wb_period,
+        "path": c["path"], "data_label": b.get("data_label"),
         "months_live": b.get("months"), "mailings": b.get("mailings"),
         "cur_revenue": num(b.get("cur_revenue")), "ltd_revenue": num(b.get("ltd_revenue")),
         "cur_profit": num(b.get("cur_profit")), "ltd_profit": num(b.get("ltd_profit")),
@@ -181,10 +238,10 @@ def ars_section(cid, c, period, reports, ba, work):
     }
     # The shipped deck's figures are the audited numbers; the response rate comes
     # from there, not from the workbook's mailing tab.
-    sc = sorted(glob.glob(str(ba / f"{cid}-{period}-ARS-*ARS Results.pptx.figures.json")))
-    if sc:
+    sc_period, sc_name = pick_sidecar(os.listdir(ba), cid, period)
+    if sc_name:
         got = {}
-        for f in json.load(open(sc[-1], encoding="utf-8")).get("figures", []):
+        for f in json.load(open(ba / sc_name, encoding="utf-8")).get("figures", []):
             got.setdefault(f["measure"], f)
 
         def fv(k):
@@ -196,6 +253,7 @@ def ars_section(cid, c, period, reports, ba, work):
               "response_rate": fv("resprate_latest_mailing"), "reach_total": fv("reach_total")}
         m = re.search(r"—\s*(\w+ \d{4})", lm["slide"]) or re.search(r"-\s*(\w+ \d{4})", lm["slide"])
         lm["month"] = m.group(1) if m else None
+        lm["deck_period"] = sc_period
         a["latest_mailing"] = lm
     return a
 
@@ -392,23 +450,27 @@ def cp_section(cid, packs):
 
 # ------------------------------------------------------------------ decks / sent
 def decks_and_sent(cid, period, outputs, ba):
-    decks = [os.path.basename(f) for f in glob.glob(str(outputs / f"{cid}-{period}-*.pptx"))
-             if not os.path.basename(f).startswith("~$")]
+    """The client's most recently built deck(s) at or before the cycle period,
+    that period, and whether they were sent. Newest per client, for the same
+    reason as the workbook: early in a cycle nobody has this month's deck yet,
+    and "not built" for every client says nothing the date does not."""
+    names = [os.path.basename(f) for f in glob.glob(str(outputs / f"{cid}-*.pptx"))]
     try:
         import cp_env
-        decks += [os.path.basename(f)
-                  for f in glob.glob(str(cp_env.outputs() / f"{cid}-{period}-*.pptx"))]
+        names += [os.path.basename(f) for f in glob.glob(str(cp_env.outputs() / f"{cid}-*.pptx"))]
     except BaseException:
         pass
+    dp = newest_deck_period(names, cid, period)
+    decks = sorted({n for n in names if n.startswith(f"{cid}-{dp}-")}) if dp else []
     sent = None
-    dp = ba / "deliveries.json"
-    if dp.exists():
+    dpath = ba / "deliveries.json"
+    if dp and dpath.exists():
         try:
-            s = json.load(open(dp, encoding="utf-8")).get("sent", {}).get(f"{cid}|{period}")
+            s = json.load(open(dpath, encoding="utf-8")).get("sent", {}).get(f"{cid}|{dp}")
             sent = s["sent_at"] if s else None
         except (OSError, ValueError, KeyError, TypeError):
             sent = None
-    return sorted(set(decks)), sent
+    return decks, sent, dp
 
 
 def vip_pull_date(program):
@@ -446,13 +508,13 @@ def build_dataset(period, work, log=print):
         if "CP" in rp:
             c["cp"] = cp_section(cid, packs) if packs else {"missing": cp_note}
             c["programs"].append("CP")
-        c["decks"], c["sent"] = decks_and_sent(cid, period, O, BA)
+        c["decks"], c["sent"], c["deck_period"] = decks_and_sent(cid, period, O, BA)
 
     ics_pull, mrpc_pull = vip_pull_date("ICS"), vip_pull_date("MRPC")
     return {
         "generated": _dt.date.today().isoformat(), "period": period,
         "sources": {
-            "ars": f"ARS workbooks {period} (Inputs/ARS & MRPC Reports) + shipped-deck figure sidecars (Build Artifacts)",
+            "ars": f"each client's newest ARS workbook through {period} (Inputs/ARS & MRPC Reports) + the mailing response from their newest shipped deck's figure sidecar (Build Artifacts)",
             "ics": "VIP ICS sheets" + (f", pulled {ics_pull}" if ics_pull else "") + " (Inputs/VIP Data/ICS)",
             "mrpc": "VIP MRPC sheets" + (f", pulled {mrpc_pull}" if mrpc_pull else "")
                     + (f" + {weekly.name}" if weekly.name else ""),
@@ -501,9 +563,11 @@ def summarize(dataset):
     for c in dataset["clients"]:
         miss = [k for k in ("ars", "ics", "mrpc", "cp")
                 if isinstance(c.get(k), dict) and c[k].get("missing")]
-        lines.append("  %s %-30s %-16s decks %d  sent %s%s" % (
-            c["id"], c["name"][:30], "+".join(c["programs"]), len(c["decks"]),
-            c["sent"] or "-", ("  MISSING " + ",".join(miss)) if miss else ""))
+        wb = (c.get("ars") or {}).get("workbook_period") or "-"
+        lines.append("  %s %-30s %-16s wb %s  deck %s  sent %s%s" % (
+            c["id"], c["name"][:30], "+".join(c["programs"]), wb,
+            c.get("deck_period") or "-", c["sent"] or "-",
+            ("  MISSING " + ",".join(miss)) if miss else ""))
     return "\n".join(lines)
 
 

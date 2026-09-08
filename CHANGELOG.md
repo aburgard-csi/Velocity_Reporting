@@ -17,6 +17,60 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-08 — the copy step overwrote a recalculated workbook; it no longer can
+
+The first `--copy` run replaced Drive's `1539-2026.08-Marine FCU-Workbook_v2_1_0.xlsx`
+with the share's copy because the two differed in size. The share's copy had never
+had its formulas evaluated — Executive Financials MM read "Months in the Program: 1,
+Mailings to date: 0" and every revenue cell 0 — while the Drive copy had been opened
+and saved in Excel, which is what gives the extractors values to read. The dashboard
+rebuilt from it showed Marine FCU with $0 revenue; a deck built from it would have
+too. Recovered by recalculating the Drive copy in Excel (COM, `CalculateFullRebuild`,
+save): months 96, mailings 38, current revenue $154,881.24, matching the shipped deck.
+
+Two guards: `copy_plan` now overwrites a "differs" file only when the SOURCE is the
+newer write (a real re-landing); a Drive copy modified after the landing is a
+deliberate change and stays. And `refresh_performance_dashboard.uncalculated()` reports
+a workbook whose base extracts as one month, no mailings and no revenue as "carries no
+calculated values — open it in Excel and save", instead of rendering zeros.
+
+Open question for Aaron: whether other landed workbooks arrive unevaluated too. The
+seven September workbooks copied today all carry values; 1539's August one did not.
+
+### 2026-09-08 — the performance dashboard shows each client's newest figures, not one cycle's
+
+`refresh_performance_dashboard.py` picked the ARS workbook, the figure sidecar and
+the decks by the cycle period alone. The first September rebuild showed what that
+costs: three ARS clients (1075, 1539, 1549) lost their section because their
+September workbook had not landed, every client read "not built" because no
+September deck exists, and every mailing-response cell went blank. It now takes,
+per client, the newest ARS workbook, the newest shipped-deck sidecar and the newest
+built deck at or before the cycle period, and the page tags a row whose workbook or
+deck is older than the cycle ("workbook 2026.08", "built 2026.08 — no 2026.09 deck
+yet"). The footer reads its source lines from the dataset instead of carrying dates
+by hand. The scripted 2026.09 page: seven ARS clients on September workbooks, three
+tagged August, all decks tagged August.
+
+**Figures move on the page**: the seven September workbooks carry August data, one
+month on from what the page showed. Nothing client-facing is touched.
+
+### 2026-09-08 — superseded inputs are deleted from Drive
+
+`watch_sources.py --prune` (passed by the "RPE Source Watch" task after `--copy`)
+deletes a file in `Inputs/ARS & MRPC Reports/` when a newer version of the same thing
+is there: same client and kind with a later period, or the same weekly family with a
+later stamp. The newest is always kept, a lone file is never touched however old, a
+tie (a weekly and its "- Copy") keeps both, and the ICS Charts workbooks, ODD extracts
+and anything unpatterned are out of scope. The first run removed 53 files (the
+2026.07 and 2026.08 DCOs, ARS workbooks and MRPCPM analyses that 2026.09 landings
+superseded), leaving 55.
+
+Why: Aaron asked (2026-09-08) that old versions go once an updated input exists.
+Every builder resolves the newest file for its period, so nothing reads the pruned
+ones; the one visible effect is that the delivery dashboard's input columns for a
+past period now read "not copied" — that period's decks are built and sent, which is
+the column that matters.
+
 ### 2026-09-08 — the daily source check now copies roster clients' files to Drive
 
 `watch_sources.py --copy` (passed by the "RPE Source Watch" task) copies every file on

@@ -525,8 +525,34 @@ purest form. `copy_plan` is where that rule lives, and `tests/test_watch_sources
 pins it. A client not on the roster (1437 Canandaigua, ended) is never copied even
 though the data team keeps landing its files.
 
+**A "differs" file is overwritten only when the SOURCE is the newer write.** A Drive
+copy modified after the landing is a deliberate change, not a re-landing — a workbook
+opened and saved in Excel so its formulas carry values, which is what the extractors
+read. The first copy run clobbered 1539's recalculated 2026.08 workbook with the
+share's never-evaluated original and every ARS figure for Marine FCU read 0
+(2026-09-08; recovered by recalculating in Excel). **A landed workbook can arrive with
+its formulas unevaluated**: openpyxl then reads the template defaults (1 month, 0
+mailings, $0). The dashboard refresh reports that as "carries no calculated values"
+rather than rendering zeros; the ARS builder has no such guard yet — if a workbook's
+extract reads one month and no revenue for a live client, open it in Excel, save,
+and rebuild.
+
 Because the copy happens before the 08:30 dashboard refresh, a new month's
 workbooks reaching Drive roll the performance artifact forward the same morning.
+
+**...and prunes what a newer version supersedes (Aaron, 2026-09-08).** With
+`--prune`, also passed by the task, a file in `Inputs/ARS & MRPC Reports/` is deleted
+when a NEWER version of the same thing is there: same client id and kind (DCO, ARS
+workbook, MRPCPM analysis, ICS workbook) with a later period, or the same weekly family
+(MRPCEnrollmentSummary, CashPleaseSummary) with a later stamp. The newest of each group
+is always kept; a file that is the only one of its kind for a client is never touched
+however old (1174's lone 2026.07 DCO, 1537's 2026.06 ICS workbook); two files with the
+same version key (a weekly and its "- Copy") are ambiguous and both stay; the ICS Charts
+workbooks, the ODD extracts and anything unpatterned have no "newer version" this code
+can identify and are left alone. The newer file must exist and be non-empty at the
+moment of deletion. `prune_plan` holds the rule; the tests pin it. Consequence: the
+delivery dashboard's input columns for a PAST period read "not copied" once that
+period's inputs are pruned — the deck is built and that is the column that matters.
 
 ### The performance dashboard artifact — refreshed after each source check
 
@@ -548,8 +574,12 @@ CashPlease repo's own `cp_extract.py`, found via `CASHPLEASE_HOME` or the siblin
 checkout), injects it into `scripts/perf_dashboard_template.html`, and writes the
 page and its bookkeeping to `Build Artifacts/perf_dashboard/`. **The period is the
 newest ARS workbook on Drive**, so the page rolls forward when a month's workbooks are
-copied, not before. It ends with `STATUS: changed|unchanged`, comparing a content hash
-(generation date excluded) to the hash last published.
+copied, not before. **Within that cycle every client shows its own newest figures**
+(Aaron, 2026-09-08): the newest ARS workbook, shipped-deck sidecar and built deck at or
+before the cycle period, with the row tagged when that is older than the cycle. A
+cycle-only page went blank for three ARS clients and every deck the first morning of a
+month. It ends with `STATUS: changed|unchanged`, comparing a content hash (generation
+date excluded) to the hash last published.
 
 Publishing needs the Artifact tool, so the script never publishes. The Claude
 scheduled task **`rpe-dashboard-refresh`** (daily 08:30, after the 08:00 source

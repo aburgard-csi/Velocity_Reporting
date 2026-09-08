@@ -22,8 +22,11 @@ inventory to the one it saved last run, and reports files that are new, have
 been re-landed (size or mtime changed), or have disappeared. For each it says
 whether the Drive copy the builders read is already current. With `--copy` it
 then copies roster clients' files that Drive lacks into `Inputs/` (Aaron,
-2026-09-08): copy-only, never deleting, and the ODD extract only from the newest
-month on the share — see `copy_plan` for why that last rule exists.
+2026-09-08), the ODD extract only from the newest month on the share — see
+`copy_plan` for why that rule exists. With `--prune` it deletes Drive inputs that
+a newer period or weekly of the same client and kind supersedes (Aaron,
+2026-09-08); the newest is always kept and a file with no newer version is never
+touched — see `prune_plan`.
 
 State and reports live in `Build Artifacts/` on Drive (bookkeeping, not a
 deliverable, and one copy per pipeline rather than per machine):
@@ -43,6 +46,7 @@ Usage:
     python scripts/watch_sources.py                # check, report, save
     python scripts/watch_sources.py --notify       # + Windows toast when there is news
     python scripts/watch_sources.py --copy         # + copy roster clients' files to Drive
+    python scripts/watch_sources.py --prune        # + delete inputs a newer version supersedes
     python scripts/watch_sources.py --dry-run      # report only; save nothing
     python scripts/watch_sources.py --period 2026.09 --period 2026.08
 
@@ -240,22 +244,62 @@ def copy_plan(inventory, roster_ids, inputs_dir):
     """
     if inputs_dir is None:
         return []
-    newest_odd = {}
+    # Newest period on the share per (client, kind). The same rule for every
+    # kind, not only the ODD: with --prune removing what a newer period
+    # supersedes, copying last month's DCO back would have it deleted again the
+    # same run, every day.
+    newest = {}
     for rec in inventory.values():
-        if rec["kind"] == ODDD and rec["client"] in roster_ids and rec.get("period"):
-            cur = newest_odd.get(rec["client"])
-            if cur is None or rec["period"] > cur["period"]:
-                newest_odd[rec["client"]] = rec
+        if rec["kind"] != OTHER and rec["client"] in roster_ids and rec.get("period"):
+            k = (rec["client"], rec["kind"])
+            if k not in newest or rec["period"] > newest[k]["period"]:
+                newest[k] = rec
+    on_drive = _drive_periods(inputs_dir)
     plan = []
     for rec in sorted(inventory.values(), key=lambda r: (r["kind"], r["client"] or "", r["name"])):
         if rec["kind"] == OTHER or rec["client"] not in roster_ids:
             continue
-        if rec["kind"] == ODDD and newest_odd.get(rec["client"]) is not rec:
+        if newest.get((rec["client"], rec["kind"])) is not rec:
             continue
+        if rec["kind"] != ODDD and on_drive.get((rec["client"], rec["kind"]), "") > rec["period"]:
+            continue                       # Drive already holds a newer period
         if rec.get("drive") not in ("not copied", "differs"):
             continue
-        plan.append((rec, _dest_for(rec, inputs_dir)))
+        dest = _dest_for(rec, inputs_dir)
+        if rec.get("drive") == "differs" and not _source_is_newer(rec, dest):
+            # Same name, different bytes, and the Drive copy is the more recent
+            # write: that is a Drive copy someone changed on purpose — a workbook
+            # opened and saved in Excel so its formulas carry values — not a
+            # re-landing. Overwriting it hands the builders the uncalculated
+            # original; it did exactly that to 1539's 2026.08 workbook on
+            # 2026-09-08 (every ARS figure read 0 afterwards).
+            continue
+        plan.append((rec, dest))
     return plan
+
+
+def _drive_periods(inputs_dir):
+    """{(client, kind): newest period} for the period-stamped files on Drive."""
+    out = {}
+    try:
+        names = os.listdir(os.path.join(inputs_dir, "ARS & MRPC Reports"))
+    except OSError:
+        return out
+    for n in names:
+        rec = classify(n, "reports")
+        if rec and rec["kind"] != OTHER and rec["period"]:
+            k = (rec["client"], rec["kind"])
+            out[k] = max(out.get(k, ""), rec["period"])
+    return out
+
+
+def _source_is_newer(rec, dest):
+    if rec.get("mtime") is None:
+        return True
+    try:
+        return rec["mtime"] > os.path.getmtime(dest) + _MTIME_TOLERANCE
+    except OSError:
+        return True
 
 
 def apply_copies(plan):
@@ -288,6 +332,74 @@ def apply_copies(plan):
             out.append((rec, dest, "copied"))
         except OSError as e:
             out.append((rec, dest, "FAILED: %s" % e))
+    return out
+
+
+# ------------------------------------------------------------------ prune
+_WEEKLY_RX = re.compile(r"(MRPCEnrollmentSummary|CashPleaseSummary)", re.I)
+_STAMP_RX = re.compile(r"(\d{6}_\d{6})")
+
+
+def _prune_group(name):
+    """The group a Drive input belongs to, or None if it is never pruned.
+
+    Period-stamped client files group by (client, kind): a newer period of the
+    same kind supersedes the older. The weeklies group by family and are ordered
+    by the stamp in their name. Everything else — the ICS Charts workbooks, the
+    ODD extracts (one per client, overwritten in place), anything unrecognised —
+    has no "newer version" this code can identify, so it is left alone.
+    """
+    if name.startswith("~$"):
+        return None
+    m = _REPORT_RX.match(name)
+    if m:
+        rec = classify(name, "reports")
+        if rec and rec["kind"] != OTHER:
+            return ("client", rec["client"], rec["kind"]), rec["period"]
+        return None
+    m = _WEEKLY_RX.search(name)
+    if m:
+        st = _STAMP_RX.search(name)
+        return ("weekly", m.group(1).lower()), (st.group(1) if st else "")
+    return None
+
+
+def prune_plan(names):
+    """[(superseded name, the newer name that supersedes it)] for one folder.
+
+    Only when a newer version of the SAME thing exists (Aaron, 2026-09-08). One
+    file per group is always kept — the newest — and a file that is the only one
+    of its kind for a client is never touched, however old.
+    """
+    groups = {}
+    for n in names:
+        g = _prune_group(n)
+        if g:
+            groups.setdefault(g[0], []).append((g[1], n))
+    plan = []
+    for key, members in groups.items():
+        members.sort()
+        top, newest = members[-1]
+        # Two files with the same version key (a weekly and its "- Copy", say)
+        # are not one newer than the other; both stay.
+        plan += [(n, newest) for v, n in members[:-1] if v < top]
+    return sorted(plan)
+
+
+def apply_prune(folder, plan):
+    """Delete the superseded files. The newer file must exist and be non-empty
+    at the moment of deletion, or the older one stays. Returns
+    [(name, newer, outcome)], outcome "removed" or an error."""
+    out = []
+    for old, new in plan:
+        op, np_ = os.path.join(folder, old), os.path.join(folder, new)
+        try:
+            if not os.path.exists(np_) or os.path.getsize(np_) == 0:
+                raise OSError("newer file %s is missing or empty" % new)
+            os.remove(op)
+            out.append((old, new, "removed"))
+        except OSError as e:
+            out.append((old, new, "FAILED: %s" % e))
     return out
 
 
@@ -449,20 +561,27 @@ def render(result, roster):
 def _copies_section(result):
     """The copy step's outcome, appended to whichever report shape rendered."""
     done, planned = result.get("copies") or [], result.get("copy_plan") or []
-    if not done and not planned:
-        return []
-    out = [""]
+    out = []
     if done:
         ok = [x for x in done if x[2] == "copied"]
         bad = [x for x in done if x[2] != "copied"]
-        out.append("## Copied to Drive (%d)" % len(ok) + (", %d FAILED" % len(bad) if bad else ""))
-        out.append("")
+        out += ["", "## Copied to Drive (%d)" % len(ok) + (", %d FAILED" % len(bad) if bad else ""), ""]
         out += ["- **%s** %s — `%s` -> `%s`" % (r["kind"], r["client"], r["name"], d) for r, d, _ in ok]
         out += ["- **%s** %s — `%s` %s" % (r["kind"], r["client"], r["name"], o) for r, d, o in bad]
     elif planned:
-        out.append("## Would copy to Drive (%d) — dry run" % len(planned))
-        out.append("")
+        out += ["", "## Would copy to Drive (%d) — dry run" % len(planned), ""]
         out += ["- **%s** %s — `%s` -> `%s`" % (r["kind"], r["client"], r["name"], d) for r, d in planned]
+    pruned, prune_planned = result.get("pruned") or [], result.get("prune_plan") or []
+    if pruned:
+        ok = [x for x in pruned if x[2] == "removed"]
+        bad = [x for x in pruned if x[2] != "removed"]
+        out += ["", "## Removed superseded inputs from Drive (%d)" % len(ok)
+                + (", %d FAILED" % len(bad) if bad else ""), ""]
+        out += ["- `%s` — superseded by `%s`" % (o, n) for o, n, _ in ok]
+        out += ["- `%s` %s" % (o, r) for o, n, r in bad]
+    elif prune_planned:
+        out += ["", "## Would remove superseded inputs (%d) — dry run" % len(prune_planned), ""]
+        out += ["- `%s` — superseded by `%s`" % (o, n) for o, n in prune_planned]
     return out
 
 
@@ -476,6 +595,11 @@ def summary_line(result, roster):
     tail = ""
     if copies:
         tail = " Copied %d to Drive." % copied + (" %d FAILED." % failed if failed else "")
+    pruned = result.get("pruned") or []
+    if pruned:
+        removed = sum(1 for x in pruned if x[2] == "removed")
+        tail += " Removed %d superseded." % removed + (
+            " %d FAILED." % (len(pruned) - removed) if len(pruned) > removed else "")
     if result["baseline"]:
         return "Baseline recorded: %d files." % len(result["inventory"]) + tail
     new, changed, gone = result["new"], result["changed"], result["gone"]
@@ -565,6 +689,9 @@ def main(argv=None):
     ap.add_argument("--copy", action="store_true",
                     help="copy roster clients' files that Drive lacks into Inputs/ "
                          "(copy-only; the ODD extract only from the newest month)")
+    ap.add_argument("--prune", action="store_true",
+                    help="delete Drive inputs that a newer period / weekly of the same "
+                         "client and kind supersedes (the newest is always kept)")
     a = ap.parse_args(argv)
     # A cp1252 console must not kill a scheduled run over an em dash.
     if hasattr(sys.stdout, "reconfigure"):
@@ -583,6 +710,17 @@ def main(argv=None):
             result["copy_plan"] = plan
         else:
             result["copies"] = apply_copies(plan)
+    if a.prune and not a.no_drive and _inputs_dir():
+        folder = os.path.join(_inputs_dir(), "ARS & MRPC Reports")
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            names = []
+        plan = prune_plan(names)
+        if a.dry_run:
+            result["prune_plan"] = plan
+        else:
+            result["pruned"] = apply_prune(folder, plan)
     text = render(result, roster)
     line = summary_line(result, roster)
     print(text)

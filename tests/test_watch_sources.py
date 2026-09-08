@@ -309,3 +309,111 @@ def test_copy_flag_copies_only_when_not_dry_run(shares, tmp_path, monkeypatch, c
     assert W.main(["--period", "2026.09", "--copy"]) == 0
     out = capsys.readouterr().out
     assert dest.exists() and "Copied to Drive (1)" in out and "Copied 1 to Drive." in out
+
+
+# ------------------------------------------------------------------ prune step
+def test_prune_keeps_the_newest_period_per_client_and_kind():
+    names = [
+        "1038-2026.07-Sugar River-DCO v2_2.xlsx",
+        "1038-2026.08-Sugar River-DCO v2_2.xlsx",
+        "1038-2026.09-Sugar River-DCO v2_2.xlsx",
+        "1038-2026.08-Sugar River-Workbook_v2_1_0.xlsx",          # only workbook: kept
+        "1537-2026.08-FNBT Chickasha-Workbook_v2_1_0.xlsx",
+        "1537-2026.09-Brooks Bank-Workbook_v2_1_0.xlsx",          # renamed client, same id+kind
+        "1537-2026.06-FNBT Chickasha-Invitation Checking Workbook v1.7.1-DM.xlsx",  # only ICS wb
+        "1075-2026.08-MRPC-Austin-MRPCPM_Analysis_v10.xlsx",
+        "1075-2026.09-MRPC-Austin-MRPCPM_Analysis_v10.xlsx",
+        "~$1075-2026.09-MRPC-Austin-MRPCPM_Analysis_v10.xlsx",   # lock file
+        "Austin ICS Charts 2026.xlsx",                             # unpatterned: never
+        "1121_temp_ODD_completion_260904_164836.xlsx",             # 'other': never
+    ]
+    plan = W.prune_plan(names)
+    assert plan == [
+        ("1038-2026.07-Sugar River-DCO v2_2.xlsx", "1038-2026.09-Sugar River-DCO v2_2.xlsx"),
+        ("1038-2026.08-Sugar River-DCO v2_2.xlsx", "1038-2026.09-Sugar River-DCO v2_2.xlsx"),
+        ("1075-2026.08-MRPC-Austin-MRPCPM_Analysis_v10.xlsx", "1075-2026.09-MRPC-Austin-MRPCPM_Analysis_v10.xlsx"),
+        ("1537-2026.08-FNBT Chickasha-Workbook_v2_1_0.xlsx", "1537-2026.09-Brooks Bank-Workbook_v2_1_0.xlsx"),
+    ]
+
+
+def test_prune_keeps_the_newest_weekly_by_stamp():
+    names = ["260830_072636-MRPCEnrollmentSummary_v3_13.xlsx",
+             "260906_044753-MRPCEnrollmentSummary_v3_13.xlsx",
+             "CashPleaseSummaryV1_260830_072636.xlsx",
+             "CashPleaseSummaryV1_260906_063545.xlsx",
+             "CashPleaseSummaryV1_260906_063545 - Copy.xlsx"]
+    plan = W.prune_plan(names)
+    # Same stamp twice (a file and its "- Copy") is ambiguous: neither is pruned.
+    assert [o for o, _ in plan] == ["260830_072636-MRPCEnrollmentSummary_v3_13.xlsx",
+                                    "CashPleaseSummaryV1_260830_072636.xlsx"]
+
+
+def test_prune_never_plans_against_an_only_file():
+    assert W.prune_plan(["1174-2026.07-PointBank-DCO v2_2.xlsx",
+                         "1632-2026.07-WesBanco-Invitation Checking Workbook v1.7.1.xlsx"]) == []
+
+
+def test_apply_prune_removes_only_when_the_newer_file_is_real(tmp_path):
+    (tmp_path / "old.xlsx").write_bytes(b"o"); (tmp_path / "new.xlsx").write_bytes(b"n")
+    (tmp_path / "old2.xlsx").write_bytes(b"o"); (tmp_path / "empty.xlsx").write_bytes(b"")
+    (tmp_path / "old3.xlsx").write_bytes(b"o")
+    out = W.apply_prune(str(tmp_path), [("old.xlsx", "new.xlsx"), ("old2.xlsx", "empty.xlsx"),
+                                        ("old3.xlsx", "gone.xlsx")])
+    assert [o[2] for o in out][0] == "removed"
+    assert out[1][2].startswith("FAILED") and out[2][2].startswith("FAILED")
+    assert not (tmp_path / "old.xlsx").exists()
+    assert (tmp_path / "old2.xlsx").exists() and (tmp_path / "old3.xlsx").exists()
+
+
+def test_prune_flag_reports_and_deletes(shares, tmp_path, monkeypatch, capsys):
+    oddd, reports, drive = shares
+    rep = drive / "ARS & MRPC Reports"
+    _land(rep, "1038-2026.08-Sugar River-DCO v2_2.xlsx")
+    _land(rep, "1038-2026.09-Sugar River-DCO v2_2.xlsx")
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba"); (tmp_path / "ba").mkdir()
+    monkeypatch.setattr(W, "_roster", lambda: {"1038": "Sugar River Bank"})
+
+    assert W.main(["--period", "2026.09", "--prune", "--dry-run"]) == 0
+    assert "Would remove superseded inputs (1)" in capsys.readouterr().out
+    assert (rep / "1038-2026.08-Sugar River-DCO v2_2.xlsx").exists()
+
+    assert W.main(["--period", "2026.09", "--prune"]) == 0
+    out = capsys.readouterr().out
+    assert "Removed superseded inputs from Drive (1)" in out and "Removed 1 superseded." in out
+    assert not (rep / "1038-2026.08-Sugar River-DCO v2_2.xlsx").exists()
+    assert (rep / "1038-2026.09-Sugar River-DCO v2_2.xlsx").exists()
+
+
+def test_a_drive_copy_changed_after_landing_is_not_overwritten(tmp_path):
+    # Same name, different bytes, Drive written AFTER the source landed: that is a
+    # deliberate change (a workbook recalculated in Excel), not a re-landing.
+    src = tmp_path / "src.xlsx"; src.write_bytes(b"raw" * 4)
+    dest = tmp_path / "drive" / "ARS & MRPC Reports" / "1539-2026.08-Marine FCU-Workbook_v2_1_0.xlsx"
+    dest.parent.mkdir(parents=True); dest.write_bytes(b"recalculated")
+    st = src.stat(); os.utime(str(src), (st.st_atime, st.st_mtime - 3600))    # landed an hour before
+    rec = _rec(W.WORKBOOK, "1539", "2026.08", "differs", name=dest.name, path=str(src), size=12)
+    rec["mtime"] = os.path.getmtime(str(src))
+    assert W.copy_plan(_inv(rec), {"1539"}, str(tmp_path / "drive")) == []
+    # ...but a genuine re-landing (source newer) is copied.
+    os.utime(str(src), (st.st_atime, os.path.getmtime(str(dest)) + 3600))
+    rec["mtime"] = os.path.getmtime(str(src))
+    assert len(W.copy_plan(_inv(rec), {"1539"}, str(tmp_path / "drive"))) == 1
+
+
+def test_copy_plan_takes_only_the_newest_period_per_client_and_kind(tmp_path):
+    # Last month's DCO is still on the share; this month's supersedes it. Copying
+    # the old one would have --prune delete it again the same run, daily.
+    inv = _inv(
+        _rec(W.DCO, "1539", "2026.08", "not copied"),
+        _rec(W.DCO, "1539", "2026.09", "not copied"),
+        _rec(W.WORKBOOK, "1539", "2026.08", "not copied"),        # no September workbook: still newest
+    )
+    plan = W.copy_plan(inv, {"1539"}, str(tmp_path))
+    assert sorted((r["kind"], r["period"]) for r, _ in plan) == [(W.DCO, "2026.09"), (W.WORKBOOK, "2026.08")]
+
+
+def test_copy_plan_skips_when_drive_already_holds_a_newer_period(tmp_path):
+    rep = tmp_path / "ARS & MRPC Reports"; rep.mkdir()
+    _land(rep, "1539-2026.09-Marine FCU-DCO v2_2.xlsx")
+    inv = _inv(_rec(W.DCO, "1539", "2026.08", "not copied"))     # the share's newest is older
+    assert W.copy_plan(inv, {"1539"}, str(tmp_path)) == []

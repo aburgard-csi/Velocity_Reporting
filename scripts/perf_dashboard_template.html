@@ -327,7 +327,7 @@ function secARS(vis){
       const lm=a.latest_mailing||{}; const sc=a.spend_cards?.slice(-1)[0];
       const trend = spark(a.monthly_rev.map(([m,v])=>({label:m, v})), {c:p.c, fmt:USD, aria:"monthly incremental revenue, last 12 months"});
       return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span><span class="sub">${a.path==="MM"?"Lift Matrix":"Monthly Summary"} \u00b7 ${esc(a.data_label||"")}</span></td>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${a.workbook_period&&a.workbook_period!==DATA.period?` <span class="tag warn">workbook ${esc(a.workbook_period)}</span>`:""}<span class="sub">${a.path==="MM"?"Lift Matrix":"Monthly Summary"} \u00b7 ${esc(a.data_label||"")}</span></td>
         <td>${N(a.months_live)}</td><td>${N(a.mailings)}</td>
         <td class="l">${lm.month?esc(lm.month):"<span class=dim>\u2014</span>"}<span class="sub">${lm.mailed?N(lm.mailed)+" mailed \u00b7 "+N(lm.responders)+" responded":""}</span></td>
         <td>${PCT(lm.response_rate)}</td>
@@ -428,13 +428,13 @@ function secCP(vis){
 }
 
 function secRoster(vis){
-  const h = `<div class="hd"><h2>Clients and decks \u00b7 ${DATA.period}</h2><span class="src">Outputs/ on Drive and the delivery log</span></div>`;
+  const h = `<div class="hd"><h2>Clients and decks \u00b7 newest built, through ${DATA.period}</h2><span class="src">Outputs/ on Drive and the delivery log</span></div>`;
   const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr><th class="l">Client</th><th class="l">Products</th><th class="l">Deck</th><th class="l">Built</th><th class="l">Sent</th></tr></thead><tbody>` +
     vis.map(c=>`<tr>
       <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
       <td class="l"><span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span> <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span></td>
       <td class="l" style="white-space:normal;max-width:460px">${c.decks.length?c.decks.map(esc).join("<br>"):"<span class=dim>none in Outputs/</span>"}</td>
-      <td class="l">${c.decks.length?`<span class="tag good">built</span>`:`<span class="tag warn">not built</span>`}</td>
+      <td class="l">${c.decks.length?`<span class="tag ${c.deck_period===DATA.period?'good':''}">built ${esc(c.deck_period||"")}</span>${c.deck_period!==DATA.period?`<span class="sub">no ${esc(DATA.period)} deck yet</span>`:""}`:`<span class="tag warn">not built</span>`}</td>
       <td class="l">${c.sent?`<span class="tag good">sent ${esc(c.sent)}</span>`:`<span class="tag">not recorded</span>`}</td></tr>`).join("") + `</tbody></table></div>`;
   return h + t;
 }
@@ -451,6 +451,6 @@ function update(){
 }
 document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
 document.getElementById("subline").textContent = `${clients.length} clients across four programs. Click a product or client to narrow; shift-click to isolate one.`;
-document.getElementById("foot").innerHTML = `<p><strong>Where each figure comes from.</strong> ARS: the ${DATA.period} ARS workbooks (Executive Financials and All Months Rollup) plus the mailing response figures from each shipped deck's provenance sidecar. ICS: the VIP referral dashboard pulled 2026-09-04; ROI, lifetime value and net profit from each client's newest Invitation Checking workbook, flagged when older than the period. MRPC: the 2026-09-06 weekly enrollment summary for take rates, cardholders and monthly enrollments; VIP for goal attainment and revenue. CashPlease: the 2026-09-06 weekly CashPlease summary, with the all-client rollup as the peer row.</p><p>Program to date is abbreviated PTD. Assembled ${DATA.generated}. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
+document.getElementById("foot").innerHTML = `<p><strong>Where each figure comes from.</strong> ARS: ${esc(DATA.sources.ars)} — Executive Financials and All Months Rollup; a row is tagged with its workbook's period when that is older than the cycle. ICS: ${esc(DATA.sources.ics)}; ROI, lifetime value and net profit from each client's newest Invitation Checking workbook, flagged when older than the period. MRPC: ${esc(DATA.sources.mrpc)} — the weekly for take rates, cardholders and monthly enrollments, VIP for goal attainment and revenue. CashPlease: ${esc(DATA.sources.cp)}, with the all-client rollup as the peer row.</p><p>Program to date is abbreviated PTD. Assembled ${DATA.generated}. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
 update();
 </script>
