@@ -227,3 +227,85 @@ def test_quiet_day_says_so(shares):
     r = W.check(["2026.09"], previous=first)
     assert "Nothing new" in W.render(r, {})
     assert W.summary_line(r, {}) == "Nothing new on the CSI shares."
+
+
+# ------------------------------------------------------------------ copy step
+def _inv(*recs):
+    return {r["name"] + r.get("period", ""): r for r in recs}
+
+
+def _rec(kind, client, period, drive, name=None, path=None, size=10):
+    return {"kind": kind, "client": client, "period": period, "drive": drive,
+            "name": name or ("%s_ODDD.zip" % client if kind == W.ODDD
+                             else "%s-%s-X-%s.xlsx" % (client, period, kind)),
+            "path": path or "src", "size": size}
+
+
+def test_copy_plan_is_roster_only_and_skips_what_drive_already_has(tmp_path):
+    inv = _inv(
+        _rec(W.DCO, "1038", "2026.09", "not copied"),
+        _rec(W.WORKBOOK, "1038", "2026.09", "copied"),           # already there
+        _rec(W.MRPCPM, "1075", "2026.09", "differs"),             # re-landed
+        _rec(W.DCO, "9999", "2026.09", "not copied"),             # not on the roster
+        _rec(W.OTHER, "1038", "2026.09", "not copied", name="notes.pdf"),
+    )
+    plan = W.copy_plan(inv, {"1038", "1075"}, str(tmp_path))
+    names = sorted(r["name"] for r, _ in plan)
+    assert names == ["1038-2026.09-X-DCO.xlsx", "1075-2026.09-X-MRPCPM.xlsx"]
+    assert all(d.startswith(str(tmp_path / "ARS & MRPC Reports")) for _, d in plan)
+
+
+def test_copy_plan_never_copies_an_older_odd_over_a_newer_one(tmp_path):
+    # Drive holds this month's extract; last month's at source now "differs".
+    inv = _inv(
+        _rec(W.ODDD, "1075", "2026.08", "differs"),
+        _rec(W.ODDD, "1075", "2026.09", "copied"),
+    )
+    assert W.copy_plan(inv, {"1075"}, str(tmp_path)) == []
+    # Drive holds last month's: this month's is the one and only candidate.
+    inv = _inv(
+        _rec(W.ODDD, "1075", "2026.08", "copied"),
+        _rec(W.ODDD, "1075", "2026.09", "differs"),
+    )
+    plan = W.copy_plan(inv, {"1075"}, str(tmp_path))
+    assert [(r["period"], d) for r, d in plan] == [
+        ("2026.09", str(tmp_path / "ODDD" / "1075_ODDD.zip"))]
+
+
+def test_copy_plan_without_drive_is_empty():
+    assert W.copy_plan(_inv(_rec(W.DCO, "1038", "2026.09", "not copied")), {"1038"}, None) == []
+
+
+def test_apply_copies_writes_verifies_and_overwrites(tmp_path):
+    src = tmp_path / "src.xlsx"; src.write_bytes(b"new" * 5)
+    dest = tmp_path / "drive" / "ARS & MRPC Reports" / "1038-2026.09-X-DCO.xlsx"
+    dest.parent.mkdir(parents=True); dest.write_bytes(b"old")
+    rec = _rec(W.DCO, "1038", "2026.09", "differs", path=str(src), size=15)
+    out = W.apply_copies([(rec, str(dest))])
+    assert out[0][2] == "copied" and rec["drive"] == "copied"
+    assert dest.read_bytes() == b"new" * 5
+    assert not (tmp_path / "drive" / "ARS & MRPC Reports" / "1038-2026.09-X-DCO.xlsx.part").exists()
+
+
+def test_apply_copies_reports_a_failure_instead_of_raising(tmp_path):
+    rec = _rec(W.DCO, "1038", "2026.09", "not copied", path=str(tmp_path / "missing.xlsx"))
+    out = W.apply_copies([(rec, str(tmp_path / "d" / "x.xlsx"))])
+    assert out[0][2].startswith("FAILED")
+    assert rec["drive"] == "not copied"
+
+
+def test_copy_flag_copies_only_when_not_dry_run(shares, tmp_path, monkeypatch, capsys):
+    oddd, reports, drive = shares
+    _land(reports, "2026.09", "Aaron Burgard", "1038-2026.09-Sugar River-DCO v2_2.xlsx")
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba")
+    (tmp_path / "ba").mkdir()
+    monkeypatch.setattr(W, "_roster", lambda: {"1038": "Sugar River Bank"})
+    dest = drive / "ARS & MRPC Reports" / "1038-2026.09-Sugar River-DCO v2_2.xlsx"
+
+    assert W.main(["--period", "2026.09", "--copy", "--dry-run"]) == 0
+    assert "Would copy to Drive (1)" in capsys.readouterr().out
+    assert not dest.exists()
+
+    assert W.main(["--period", "2026.09", "--copy"]) == 0
+    out = capsys.readouterr().out
+    assert dest.exists() and "Copied to Drive (1)" in out and "Copied 1 to Drive." in out

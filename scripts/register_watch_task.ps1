@@ -5,12 +5,16 @@
 .DESCRIPTION
     Creates the task "RPE Source Watch", which runs
 
-        <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py --notify
+        <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py --notify --copy
 
     once a day at the given time, as the current user, only while that user is
     logged on. Logged-on matters twice over: the task needs this user's network
     credentials to read \\PADMIS105, and the Windows toast it raises has to land
     on a desktop someone can see.
+
+    --copy copies roster clients' new files from the shares into Inputs/ on Drive
+    (copy-only, never deletes; the ODD extract only from the newest month), so the
+    builds and the performance dashboard see them without a manual step.
 
     A missed run (laptop asleep, docked late) is started as soon as the machine
     is back, and the task waits for a network connection rather than failing on
@@ -64,7 +68,7 @@ if (-not (Test-Path $Script)) { throw "Missing $Script" }
 $parsed = [datetime]::ParseExact($Time, "HH:mm", $null)
 
 $action = New-ScheduledTaskAction -Execute $Python `
-    -Argument "`"$Script`" --notify" -WorkingDirectory $Repo
+    -Argument "`"$Script`" --notify --copy" -WorkingDirectory $Repo
 $trigger = New-ScheduledTaskTrigger -Daily -At $parsed
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -MultipleInstances IgnoreNew `
@@ -74,11 +78,11 @@ $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -Ru
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Settings $settings -Principal $principal -Force `
-    -Description ("Daily check of \\PADMIS105 for new ODDD extracts, DCOs and workbooks. " +
+    -Description ("Daily check of \\PADMIS105 for new ODDD extracts, DCOs and workbooks, copied to Drive Inputs. " +
                   "Report: RPE_DATA_ROOT\Build Artifacts\source_watch_latest.md") | Out-Null
 
 $t = Get-ScheduledTask -TaskName $TaskName
 Write-Host ("Registered '{0}': daily at {1}, as {2}, state {3}" -f $TaskName, $Time, $user, $t.State)
-Write-Host "  runs: $Python `"$Script`" --notify"
+Write-Host "  runs: $Python `"$Script`" --notify --copy"
 Write-Host "  run now:  Start-ScheduledTask -TaskName '$TaskName'"
 Write-Host "  remove:   powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 -Unregister"

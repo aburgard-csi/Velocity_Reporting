@@ -510,6 +510,24 @@ toast needs a desktop), catching up a missed run when the laptop wakes.
 Registered on this machine 2026-09-08. `--notify` raises a Windows toast only when
 there is news or the shares were unreachable; a quiet day is silent.
 
+**The daily run also copies (Aaron, 2026-09-08).** With `--copy`, which the scheduled
+task passes, every file on the shares for a **roster client** (`clients.md`) that Drive
+lacks, or holds a different landing of, is copied into `Inputs/` — DCOs, ARS
+workbooks, MRPCPM analyses and ICS workbooks to `ARS & MRPC Reports/`, the ODD extract
+to `ODDD/<id>_ODDD.zip`. Copy-only: nothing on Drive is ever deleted (some mounts
+refuse deletes anyway); a `.part` file is written and renamed over the target so a
+copy that dies half way never leaves a truncated extract under the real name, and the
+size is verified after. **The ODD extract is only ever copied from the newest month on
+the share for that client.** The watch scans two months and the Drive copy carries no
+period in its name, so once this month's extract is on Drive last month's at source
+"differs" from it forever — copying it back would be the stale-ODD failure in its
+purest form. `copy_plan` is where that rule lives, and `tests/test_watch_sources.py`
+pins it. A client not on the roster (1437 Canandaigua, ended) is never copied even
+though the data team keeps landing its files.
+
+Because the copy happens before the 08:30 dashboard refresh, a new month's
+workbooks reaching Drive roll the performance artifact forward the same morning.
+
 ### The performance dashboard artifact — refreshed after each source check
 
 ```

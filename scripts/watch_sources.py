@@ -20,9 +20,10 @@ the question a daily check actually asks.
 It scans this month's and last month's folders on both shares, compares the
 inventory to the one it saved last run, and reports files that are new, have
 been re-landed (size or mtime changed), or have disappeared. For each it says
-whether the Drive copy the builders read is already current, so the report
-doubles as the copy list. Nothing is copied automatically: which files move to
-Drive, and when, stays a decision.
+whether the Drive copy the builders read is already current. With `--copy` it
+then copies roster clients' files that Drive lacks into `Inputs/` (Aaron,
+2026-09-08): copy-only, never deleting, and the ODD extract only from the newest
+month on the share — see `copy_plan` for why that last rule exists.
 
 State and reports live in `Build Artifacts/` on Drive (bookkeeping, not a
 deliverable, and one copy per pipeline rather than per machine):
@@ -41,6 +42,7 @@ so the run records what is there and reports the counts, not sixty new files.
 Usage:
     python scripts/watch_sources.py                # check, report, save
     python scripts/watch_sources.py --notify       # + Windows toast when there is news
+    python scripts/watch_sources.py --copy         # + copy roster clients' files to Drive
     python scripts/watch_sources.py --dry-run      # report only; save nothing
     python scripts/watch_sources.py --period 2026.09 --period 2026.08
 
@@ -215,6 +217,80 @@ def _inputs_dir():
         return None
 
 
+# ------------------------------------------------------------------ copy
+def _dest_for(rec, inputs_dir):
+    if rec["kind"] == ODDD:
+        return os.path.join(inputs_dir, "ODDD", rec["client"] + "_ODDD.zip")
+    return os.path.join(inputs_dir, "ARS & MRPC Reports", rec["name"])
+
+
+def copy_plan(inventory, roster_ids, inputs_dir):
+    """Which source files should be copied to Drive: [(record, destination)].
+
+    Roster clients only — the shares carry every account manager's clients, and
+    a file on Drive for a client nobody builds is clutter at best. Only files
+    Drive does not hold, or holds a different landing of (`differs`).
+
+    The ODD extract needs one more rule. It lives on Drive as `<id>_ODDD.zip`
+    with no period in the name, and the watch scans two months, so last month's
+    extract at source ALWAYS "differs" from Drive once this month's has been
+    copied. Only the newest month on the share per client is ever a candidate;
+    copying an older one back over a newer one is the stale-ODD failure this
+    pipeline keeps guarding against, and this is where it would happen.
+    """
+    if inputs_dir is None:
+        return []
+    newest_odd = {}
+    for rec in inventory.values():
+        if rec["kind"] == ODDD and rec["client"] in roster_ids and rec.get("period"):
+            cur = newest_odd.get(rec["client"])
+            if cur is None or rec["period"] > cur["period"]:
+                newest_odd[rec["client"]] = rec
+    plan = []
+    for rec in sorted(inventory.values(), key=lambda r: (r["kind"], r["client"] or "", r["name"])):
+        if rec["kind"] == OTHER or rec["client"] not in roster_ids:
+            continue
+        if rec["kind"] == ODDD and newest_odd.get(rec["client"]) is not rec:
+            continue
+        if rec.get("drive") not in ("not copied", "differs"):
+            continue
+        plan.append((rec, _dest_for(rec, inputs_dir)))
+    return plan
+
+
+def apply_copies(plan):
+    """Copy each planned file. Copy-only: nothing at the destination is ever
+    deleted, and some mounts refuse deletes anyway. Writes to a `.part` file
+    first and renames it over the target so a copy that dies half way never
+    leaves a truncated extract under the real name; if the rename is refused,
+    falls back to writing the target directly. Size is verified after.
+
+    Returns [(record, destination, outcome)], outcome "copied" or an error."""
+    import shutil
+    out = []
+    for rec, dest in plan:
+        try:
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            part = dest + ".part"
+            shutil.copy2(rec["path"], part)
+            try:
+                os.replace(part, dest)
+            except OSError:
+                shutil.copy2(rec["path"], dest)
+                try:
+                    os.remove(part)
+                except OSError:
+                    pass
+            if os.path.getsize(dest) != rec["size"]:
+                raise OSError("size mismatch after copy (%d vs %d)"
+                              % (os.path.getsize(dest), rec["size"]))
+            rec["drive"] = "copied"
+            out.append((rec, dest, "copied"))
+        except OSError as e:
+            out.append((rec, dest, "FAILED: %s" % e))
+    return out
+
+
 # ------------------------------------------------------------------ diff
 def diff(previous, current, periods):
     """(new, changed, gone) records, comparing only the periods just scanned.
@@ -351,12 +427,12 @@ def render(result, roster):
         body = ["", "**First run — baseline recorded.** %d files on the shares for "
                 "these periods; the next check reports what changes." % len(r["inventory"]),
                 ""] + ["- %s: %d" % (k, counts[k]) for k in KIND_ORDER if k in counts]
-        return "\n".join(head + body)
+        return "\n".join(head + body + _copies_section(r))
     new, changed, gone = r["new"], r["changed"], r["gone"]
     if not (new or changed or gone):
         body = ["", "Nothing new since %s. %d files on the shares for these periods."
                 % (r.get("previous_checked") or "the last check", len(r["inventory"]))]
-        return "\n".join(head + body)
+        return "\n".join(head + body + _copies_section(r))
     body = ["", "Since %s: **%d new**, **%d re-landed**, **%d gone**." % (
         r.get("previous_checked") or "the last check", len(new), len(changed), len(gone))]
     to_copy = [x for x in new + changed
@@ -367,18 +443,44 @@ def render(result, roster):
     body += _section("New", new, roster)
     body += _section("Re-landed (same name, new bytes)", changed, roster)
     body += _section("Gone from the share", gone, roster)
-    return "\n".join(head + body)
+    return "\n".join(head + body + _copies_section(r))
+
+
+def _copies_section(result):
+    """The copy step's outcome, appended to whichever report shape rendered."""
+    done, planned = result.get("copies") or [], result.get("copy_plan") or []
+    if not done and not planned:
+        return []
+    out = [""]
+    if done:
+        ok = [x for x in done if x[2] == "copied"]
+        bad = [x for x in done if x[2] != "copied"]
+        out.append("## Copied to Drive (%d)" % len(ok) + (", %d FAILED" % len(bad) if bad else ""))
+        out.append("")
+        out += ["- **%s** %s — `%s` -> `%s`" % (r["kind"], r["client"], r["name"], d) for r, d, _ in ok]
+        out += ["- **%s** %s — `%s` %s" % (r["kind"], r["client"], r["name"], o) for r, d, o in bad]
+    elif planned:
+        out.append("## Would copy to Drive (%d) — dry run" % len(planned))
+        out.append("")
+        out += ["- **%s** %s — `%s` -> `%s`" % (r["kind"], r["client"], r["name"], d) for r, d in planned]
+    return out
 
 
 def summary_line(result, roster):
     """One line for the toast and the console."""
     if not result["reachable"]:
         return "Shares not reachable (VPN?) — nothing checked."
+    copies = result.get("copies") or []
+    copied = sum(1 for x in copies if x[2] == "copied")
+    failed = len(copies) - copied
+    tail = ""
+    if copies:
+        tail = " Copied %d to Drive." % copied + (" %d FAILED." % failed if failed else "")
     if result["baseline"]:
-        return "Baseline recorded: %d files." % len(result["inventory"])
+        return "Baseline recorded: %d files." % len(result["inventory"]) + tail
     new, changed, gone = result["new"], result["changed"], result["gone"]
     if not (new or changed or gone):
-        return "Nothing new on the CSI shares."
+        return "Nothing new on the CSI shares." + tail
     mine = [x for x in new + changed if x["client"] in roster]
     parts = []
     if new:
@@ -394,7 +496,7 @@ def summary_line(result, roster):
             kinds[x["kind"]] = kinds.get(x["kind"], 0) + 1
         s += " — roster: " + ", ".join(
             "%d %s" % (kinds[k], k) for k in KIND_ORDER if k in kinds)
-    return s
+    return s + tail
 
 
 # ------------------------------------------------------------------ notify
@@ -460,6 +562,9 @@ def main(argv=None):
                     help="report only; do not save the inventory, log or report")
     ap.add_argument("--no-drive", action="store_true",
                     help="skip the Drive-copy comparison")
+    ap.add_argument("--copy", action="store_true",
+                    help="copy roster clients' files that Drive lacks into Inputs/ "
+                         "(copy-only; the ODD extract only from the newest month)")
     a = ap.parse_args(argv)
     # A cp1252 console must not kill a scheduled run over an em dash.
     if hasattr(sys.stdout, "reconfigure"):
@@ -472,6 +577,12 @@ def main(argv=None):
     previous = read_state()
     result = check(periods, previous, use_drive=not a.no_drive)
     roster = _roster()
+    if a.copy and result["reachable"] and not a.no_drive:
+        plan = copy_plan(result["inventory"], set(roster), _inputs_dir())
+        if a.dry_run:
+            result["copy_plan"] = plan
+        else:
+            result["copies"] = apply_copies(plan)
     text = render(result, roster)
     line = summary_line(result, roster)
     print(text)

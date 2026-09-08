@@ -17,6 +17,26 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-08 — the daily source check now copies roster clients' files to Drive
+
+`watch_sources.py --copy` (passed by the "RPE Source Watch" task) copies every file on
+the CSI shares for a roster client that Drive lacks or holds a different landing of into
+`Inputs/`: DCOs, ARS workbooks, MRPCPM analyses and ICS workbooks to `ARS & MRPC Reports/`,
+the ODD extract to `ODDD/<id>_ODDD.zip`. Copy-only, `.part`-then-rename, size-verified.
+The ODD extract is copied only from the NEWEST month on the share per client: with two
+months scanned and no period in the Drive filename, last month's extract at source
+"differs" from Drive forever once this month's is copied, and copying it back would be
+the stale-ODD failure this pipeline guards against everywhere else.
+
+Why: Aaron found 26 September files sitting in his `Velocity_clientreports` folder that the
+watch had recorded at its baseline and nobody had copied; Drive held zero 2026.09 files
+and the performance dashboard was still on 2026.08. The first `--copy` run moved 37
+files (13 DCOs, 7 workbooks, 4 MRPCPM analyses, 13 ODD extracts) for the 15 roster
+clients; 1437 Canandaigua's files were left on the share because `clients.md` ends it.
+
+**A client-facing figure can move as a result** — that is the point: the next build and
+the next dashboard refresh read this month's inputs instead of last month's.
+
 ### 2026-09-08 — the performance dashboard artifact refreshes itself after the source check
 
 `scripts/refresh_performance_dashboard.py` is the aggregator behind the "RPE Client
