@@ -207,7 +207,10 @@ element is already maxed.
 - **Branch charts — volume in the bars, rate on the line** (Aaron, 2026-09-08). All
   four (personal take rate, business take rate, both Reg E) render through
   `chart_lib.branch_chart`: accounts set the bar height, the rate rides above on its
-  own axis, and the count sits under the axis beneath its branch number. A rate drawn
+  own axis, and the count sits under the axis beneath its branch number, and **the rate labels sit in one band
+  above the line**, not each above its own marker — riding the marker put them in the
+  gap between the line and the bars, which closes exactly where a branch is both large
+  and typical. A rate drawn
   without its denominator is not readable — a branch with 15 accounts stood as tall as
   one with 900 — and it hid the finding that matters most often: True Sky's largest
   branch is also its worst on Reg E opt-in. **No program-average line**: that figure is

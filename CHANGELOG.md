@@ -17,6 +17,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-09 — branch-chart rate labels moved into a band above the line
+
+They rode their own markers, which put them in the gap between the rate line and the
+bars — and that gap closes exactly where a branch is both large and typical. True Sky's
+377-account branch topped out a hair under its own 81% label on the personal take-rate
+slide, shipped this morning.
+
+The labels now sit at one constant height above the line. A bar cannot reach them,
+because the bars are held to the lower band by their own headroom, and each label is
+still directly above the branch it belongs to. The halo stays: on a chart whose rates
+run near the top, the line passes beneath the band and must pass behind a number rather
+than through it. `tests/test_branch_chart.py` watches where the text is actually drawn.
+
+Affects all four branch charts. **No figure moves**; the decks in `Outputs/` carry the
+old placement until they are rebuilt.
+
 ### 2026-09-09 — no backup copy; the original sources are the backup
 
 Reverses this morning's write-only-backup decision (Aaron, 2026-09-09). There is no

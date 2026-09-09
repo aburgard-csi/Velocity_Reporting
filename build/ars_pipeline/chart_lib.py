@@ -73,14 +73,23 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
     ax2 = ax.twinx()
     ax2.plot(x, rates, color=rate_color, lw=2.2, marker="o", mfc="white",
              mec=rate_color, ms=6, mew=2, zorder=6)
-    # White pad so the rate line passes BEHIND its own value labels rather than
-    # striking through them — the same treatment the monthly-revenue chart uses.
-    _halo = dict(boxstyle="square,pad=0.10", facecolor="white", edgecolor="none")
-    for i, v in enumerate(rates):
-        ax2.text(i, v, f"{v}%", ha="center", va="bottom", color=NAVY,
-                 fontweight="bold", fontsize=10, bbox=_halo, zorder=7)
     _rtop = max(rates) * 1.30
     ax2.set_ylim(0, _rtop)
+    # The value labels sit in ONE BAND ABOVE THE LINE, not each above its own
+    # marker (Aaron, 2026-09-09). Riding the marker put them in the gap between
+    # the line and the bars, and that gap closes exactly where a branch is both
+    # large and typical: True Sky's 377-account branch topped out a hair under
+    # its own 81% label. A constant height cannot collide with a bar, because the
+    # bars are held to the lower band by their own headroom, and each label is
+    # still directly above the branch it belongs to.
+    #
+    # A halo remains: the line runs beneath the band on a chart whose rates are
+    # near the top, and it must pass behind a number rather than through it.
+    _halo = dict(boxstyle="square,pad=0.10", facecolor="white", edgecolor="none")
+    _band = _rtop * 0.955
+    for i, v in enumerate(rates):
+        ax2.text(i, _band, f"{v}%", ha="center", va="center", color=NAVY,
+                 fontweight="bold", fontsize=10, bbox=_halo, zorder=7)
     ax2.set_ylabel(rate_label, color=NAVY, fontsize=10)
     ax2.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
     # Headroom for the value labels is not a claim that the rate can go there: the

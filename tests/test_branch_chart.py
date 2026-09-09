@@ -98,3 +98,30 @@ def test_every_branch_metric_has_the_four_tuple_shape():
         branch, num, den, pct = row
         assert 0 <= num <= den
         assert pct == round(100 * num / den)
+
+
+def test_rate_labels_sit_in_one_band_above_the_line(tmp_path):
+    """Riding each marker put the labels in the gap between the line and the
+    bars, and that gap closes exactly where a branch is both large and typical —
+    True Sky's 377-account branch topped out a hair under its own 81% label
+    (Aaron, 2026-09-09). Checked by watching where the text is drawn."""
+    from matplotlib.axes import Axes
+    placed = []
+    orig = Axes.text
+
+    def spy(self, x, y, s, *a, **kw):
+        placed.append((s, y))
+        return orig(self, x, y, s, *a, **kw)
+
+    rows = [("185", 36, 40, 90), ("186", 305, 377, 81), ("190", 33, 43, 77)]
+    Axes.text = spy
+    try:
+        chart_lib.branch_chart(_png(tmp_path, "band.png"), rows, ORANGE, NAVY)
+    finally:
+        Axes.text = orig
+
+    pct = [(s, y) for s, y in placed if s.endswith("%")]
+    assert len(pct) == len(rows), "one label per branch"
+    ys = {round(y, 6) for _s, y in pct}
+    assert len(ys) == 1, "every rate label sits at the same height"
+    assert ys.pop() > max(r[3] for r in rows), "the band is above the highest rate"
