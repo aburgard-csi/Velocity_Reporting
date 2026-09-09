@@ -133,7 +133,7 @@ each (`assemble_combined.section_slides` drops the rest).
   of the commonest defects in this pipeline; the data sheet carries both
   (`data_pull`, `workbook_month`).
 - **Executive Summit slide**, immediately after the title, on every results deck.
-  Pristine asset `summit_slide.pptx` under `build/assets/` (gitignored — Drive
+  Pristine asset `summit_slide.pptx` under `build/assets/` (gitignored — pipeline
   `Inputs/Summit/` wins when present); `build/summit_slide.py` inserts it. Own dense
   typography (Montserrat 9–14 pt); no font floor, no restyle, no logo, no number.
 - **Agenda.** Numbered rows, **orange** badge circles, section name plus one detail

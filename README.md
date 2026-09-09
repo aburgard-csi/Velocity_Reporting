@@ -27,7 +27,7 @@ pytest tests/                       # 392 tests, ~14s
 ## Where things live
 
 Data never lives in this repo. `RPE_DATA_ROOT` (see `.env.example`) points at the
-pipeline tree on Drive:
+pipeline tree under `RPE_DATA_ROOT`:
 
 | | |
 | --- | --- |

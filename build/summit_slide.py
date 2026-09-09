@@ -27,30 +27,30 @@ _REPO_ASSET = os.path.join(os.path.dirname(__file__), "assets", "summit_slide.pp
 
 
 def _asset():
-    """The Summit slide: `Inputs/Summit/summit_slide.pptx` on Drive if present,
+    """The Summit slide: `Inputs/Summit/summit_slide.pptx` if present,
     else the copy committed here.
 
     This one asset is replaced by hand before each Summit — Ft. Lauderdale is
     next — by whoever prepares it, who should not need a commit to ship it. So
-    Drive wins when a file is there.
+    The pipeline copy wins when a file is there.
 
     Everything else stays in the repo on purpose. Fonts are committed precisely
     so both machines render identically and cannot drift; the template shells are
     versioned build inputs whose geometry qa_all diffs against a baseline every
-    run. Moving those to a streamed Drive folder would trade the two properties
+    run. Moving those to a streamed network folder would trade the two properties
     this pipeline is built on — fast and identical everywhere — for a consistency
     it already has.
     """
     try:
         from rpe_env import inputs
-        drive = inputs() / "Summit" / "summit_slide.pptx"
-        if drive.is_file():
-            return str(drive)
+        shared = inputs() / "Summit" / "summit_slide.pptx"
+        if shared.is_file():
+            return str(shared)
     except (Exception, SystemExit):
         # SystemExit, not just Exception: rpe_env RAISES SystemExit when
         # RPE_DATA_ROOT is unset or its tree is missing, and SystemExit does not
         # inherit from Exception. Catching only Exception let an OPTIONAL lookup
-        # kill the build on a machine that had never configured Drive.
+        # kill the build on a machine that had never configured RPE_DATA_ROOT.
         pass
     return _REPO_ASSET
 

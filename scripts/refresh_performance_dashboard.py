@@ -28,7 +28,7 @@ Everything it writes is bookkeeping and goes to `Build Artifacts/perf_dashboard/
 
 **The period is derived, never assumed.** It is the newest `<yyyy.mm>` tagged on an
 ARS workbook in `Inputs/ARS Workbooks/` — the dashboard rolls forward the
-moment a new month's workbooks are copied to Drive, and not before. Override with
+moment a new month's workbooks are copied into `Inputs/`, and not before. Override with
 `--period` for a rebuild of an older month.
 
 **Changed means the figures moved.** The hash excludes the generation date, so a
@@ -142,7 +142,7 @@ def pick_workbook(names, cid, period):
     Per client, not per cycle: the data team lands the month's workbooks over a
     week or more, so on any given morning some clients have this month's and
     some still only last month's. A page that showed "no workbook" for the
-    latter while the older one sat on Drive would be less informative than the
+    latter while the older one sat unused would be less informative than the
     one it replaced. The period used is carried on the row so it is not mistaken
     for the cycle's.
     """
@@ -586,7 +586,7 @@ def summarize(dataset):
 # ------------------------------------------------------------------ main
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Rebuild the RPE performance dashboard page.")
-    ap.add_argument("--period", default=None, help="YYYY.MM (default: newest ARS workbook on Drive)")
+    ap.add_argument("--period", default=None, help="YYYY.MM (default: newest ARS workbook in Inputs/)")
     ap.add_argument("--force", action="store_true", help="report changed even if the hash matches")
     ap.add_argument("--mark-published", action="store_true",
                     help="record the current dataset hash as the published one, then exit")

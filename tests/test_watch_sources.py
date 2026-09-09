@@ -68,16 +68,16 @@ def test_odd_period_comes_from_the_month_folder(tmp_path):
 # ------------------------------------------------------------------ shares
 @pytest.fixture
 def shares(tmp_path, monkeypatch):
-    """Two fake share roots with one period populated, plus a fake Drive Inputs/."""
-    oddd = tmp_path / "oddd"; reports = tmp_path / "reports"; drive = tmp_path / "drive"
+    """Two fake share roots with one period populated, plus a fake local Inputs/."""
+    oddd = tmp_path / "oddd"; reports = tmp_path / "reports"; held = tmp_path / "local"
     (oddd / "2026.09 Sep").mkdir(parents=True)
     (reports / "2026.09" / "Aaron Burgard").mkdir(parents=True)
-    (drive / "ODDD").mkdir(parents=True)
-    (drive / "ARS & MRPC Reports").mkdir(parents=True)
+    (held / "ODDD").mkdir(parents=True)
+    (held / "ARS & MRPC Reports").mkdir(parents=True)
     monkeypatch.setattr(W, "SRC_ODDD", str(oddd))
     monkeypatch.setattr(W, "SRC_REPORTS", str(reports))
-    monkeypatch.setattr(W, "_inputs_dir", lambda: str(drive))
-    return oddd, reports, drive
+    monkeypatch.setattr(W, "_inputs_dir", lambda: str(held))
+    return oddd, reports, held
 
 
 def _land(root, *parts, size=10):
@@ -147,16 +147,16 @@ def test_same_landing_within_mtime_tolerance_is_not_a_change(shares):
     assert r["changed"] == []
 
 
-# ------------------------------------------------------------------ drive
+# ------------------------------------------------------------------ held
 def test_drive_copy_state(shares):
-    oddd, reports, drive = shares
+    oddd, reports, held = shares
     _land(oddd, "2026.09 Sep", "1038_ODDD.zip", size=10)
-    _land(drive, "ODDD", "1038_ODDD.zip", size=10)                 # same bytes -> copied
+    _land(held, "ODDD", "1038_ODDD.zip", size=10)                 # same bytes -> copied
     _land(oddd, "2026.09 Sep", "1075_ODDD.zip", size=30)
-    _land(drive, "ODDD", "1075_ODDD.zip", size=25)                 # last month's -> differs
+    _land(held, "ODDD", "1075_ODDD.zip", size=25)                 # last month's -> differs
     _land(reports, "2026.09", "Aaron Burgard", "1038-2026.09-Sugar River-DCO v2_2.xlsx")
     r = W.check(["2026.09"], previous=None)
-    by = {v["name"]: v["drive"] for v in r["inventory"].values()}
+    by = {v["name"]: v["local"] for v in r["inventory"].values()}
     assert by["1038_ODDD.zip"] == "copied"
     assert by["1075_ODDD.zip"] == "differs"
     assert by["1038-2026.09-Sugar River-DCO v2_2.xlsx"] == "not copied"
@@ -234,8 +234,8 @@ def _inv(*recs):
     return {r["name"] + r.get("period", ""): r for r in recs}
 
 
-def _rec(kind, client, period, drive, name=None, path=None, size=10):
-    return {"kind": kind, "client": client, "period": period, "drive": drive,
+def _rec(kind, client, period, held, name=None, path=None, size=10):
+    return {"kind": kind, "client": client, "period": period, "local": held,
             "name": name or ("%s_ODDD.zip" % client if kind == W.ODDD
                              else "%s-%s-X-%s.xlsx" % (client, period, kind)),
             "path": path or "src", "size": size}
@@ -259,13 +259,13 @@ def test_copy_plan_is_roster_only_and_skips_what_drive_already_has(tmp_path):
 
 
 def test_copy_plan_never_copies_an_older_odd_over_a_newer_one(tmp_path):
-    # Drive holds this month's extract; last month's at source now "differs".
+    # Inputs/ holds this month's extract; last month's at source now "differs".
     inv = _inv(
         _rec(W.ODDD, "1075", "2026.08", "differs"),
         _rec(W.ODDD, "1075", "2026.09", "copied"),
     )
     assert W.copy_plan(inv, {"1075"}, str(tmp_path)) == []
-    # Drive holds last month's: this month's is the one and only candidate.
+    # Inputs/ holds last month's: this month's is the one and only candidate.
     inv = _inv(
         _rec(W.ODDD, "1075", "2026.08", "copied"),
         _rec(W.ODDD, "1075", "2026.09", "differs"),
@@ -281,29 +281,29 @@ def test_copy_plan_without_drive_is_empty():
 
 def test_apply_copies_writes_verifies_and_overwrites(tmp_path):
     src = tmp_path / "src.xlsx"; src.write_bytes(b"new" * 5)
-    dest = tmp_path / "drive" / "DCOs" / "1038-2026.09-X-DCO.xlsx"
+    dest = tmp_path / "local" / "DCOs" / "1038-2026.09-X-DCO.xlsx"
     dest.parent.mkdir(parents=True); dest.write_bytes(b"old")
     rec = _rec(W.DCO, "1038", "2026.09", "differs", path=str(src), size=15)
     out = W.apply_copies([(rec, str(dest))])
-    assert out[0][2] == "copied" and rec["drive"] == "copied"
+    assert out[0][2] == "copied" and rec["local"] == "copied"
     assert dest.read_bytes() == b"new" * 5
-    assert not (tmp_path / "drive" / "ARS & MRPC Reports" / "1038-2026.09-X-DCO.xlsx.part").exists()
+    assert not (tmp_path / "local" / "ARS & MRPC Reports" / "1038-2026.09-X-DCO.xlsx.part").exists()
 
 
 def test_apply_copies_reports_a_failure_instead_of_raising(tmp_path):
     rec = _rec(W.DCO, "1038", "2026.09", "not copied", path=str(tmp_path / "missing.xlsx"))
     out = W.apply_copies([(rec, str(tmp_path / "d" / "x.xlsx"))])
     assert out[0][2].startswith("FAILED")
-    assert rec["drive"] == "not copied"
+    assert rec["local"] == "not copied"
 
 
 def test_copy_flag_copies_only_when_not_dry_run(shares, tmp_path, monkeypatch, capsys):
-    oddd, reports, drive = shares
+    oddd, reports, held = shares
     _land(reports, "2026.09", "Aaron Burgard", "1038-2026.09-Sugar River-DCO v2_2.xlsx")
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba")
     (tmp_path / "ba").mkdir()
     monkeypatch.setattr(W, "_roster", lambda: {"1038": "Sugar River Bank"})
-    dest = drive / "DCOs" / "1038-2026.09-Sugar River-DCO v2_2.xlsx"
+    dest = held / "DCOs" / "1038-2026.09-Sugar River-DCO v2_2.xlsx"
 
     assert W.main(["--period", "2026.09", "--copy", "--dry-run"]) == 0
     assert "Would copy into Inputs (1)" in capsys.readouterr().out
@@ -369,8 +369,8 @@ def test_apply_prune_removes_only_when_the_newer_file_is_real(tmp_path):
 
 
 def test_prune_flag_reports_and_deletes(shares, tmp_path, monkeypatch, capsys):
-    oddd, reports, drive = shares
-    rep = drive / "ARS & MRPC Reports"
+    oddd, reports, held = shares
+    rep = held / "ARS & MRPC Reports"
     _land(rep, "1038-2026.08-Sugar River-DCO v2_2.xlsx")
     _land(rep, "1038-2026.09-Sugar River-DCO v2_2.xlsx")
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba"); (tmp_path / "ba").mkdir()
@@ -388,19 +388,19 @@ def test_prune_flag_reports_and_deletes(shares, tmp_path, monkeypatch, capsys):
 
 
 def test_a_drive_copy_changed_after_landing_is_not_overwritten(tmp_path):
-    # Same name, different bytes, Drive written AFTER the source landed: that is a
+    # Same name, different bytes, Inputs/ written AFTER the source landed: that is a
     # deliberate change (a workbook recalculated in Excel), not a re-landing.
     src = tmp_path / "src.xlsx"; src.write_bytes(b"raw" * 4)
-    dest = tmp_path / "drive" / "ARS & MRPC Reports" / "1539-2026.08-Marine FCU-Workbook_v2_1_0.xlsx"
+    dest = tmp_path / "local" / "ARS & MRPC Reports" / "1539-2026.08-Marine FCU-Workbook_v2_1_0.xlsx"
     dest.parent.mkdir(parents=True); dest.write_bytes(b"recalculated")
     st = src.stat(); os.utime(str(src), (st.st_atime, st.st_mtime - 3600))    # landed an hour before
     rec = _rec(W.WORKBOOK, "1539", "2026.08", "differs", name=dest.name, path=str(src), size=12)
     rec["mtime"] = os.path.getmtime(str(src))
-    assert W.copy_plan(_inv(rec), {"1539"}, str(tmp_path / "drive")) == []
+    assert W.copy_plan(_inv(rec), {"1539"}, str(tmp_path / "local")) == []
     # ...but a genuine re-landing (source newer) is copied.
     os.utime(str(src), (st.st_atime, os.path.getmtime(str(dest)) + 3600))
     rec["mtime"] = os.path.getmtime(str(src))
-    assert len(W.copy_plan(_inv(rec), {"1539"}, str(tmp_path / "drive"))) == 1
+    assert len(W.copy_plan(_inv(rec), {"1539"}, str(tmp_path / "local"))) == 1
 
 
 def test_copy_plan_takes_only_the_newest_period_per_client_and_kind(tmp_path):

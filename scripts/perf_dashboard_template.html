@@ -428,7 +428,7 @@ function secCP(vis){
 }
 
 function secRoster(vis){
-  const h = `<div class="hd"><h2>Clients and decks \u00b7 newest built, through ${DATA.period}</h2><span class="src">Outputs/ on Drive and the delivery log</span></div>`;
+  const h = `<div class="hd"><h2>Clients and decks \u00b7 newest built, through ${DATA.period}</h2><span class="src">Outputs/ and the delivery log</span></div>`;
   const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr><th class="l">Client</th><th class="l">Products</th><th class="l">Deck</th><th class="l">Built</th><th class="l">Sent</th></tr></thead><tbody>` +
     vis.map(c=>`<tr>
       <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>

@@ -17,6 +17,33 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-09 — no backup copy; the original sources are the backup
+
+Reverses this morning's write-only-backup decision (Aaron, 2026-09-09). There is no
+second copy of the pipeline tree and nothing syncs it anywhere. Every input can be
+re-fetched from where it came from — the CSI shares hold the ODD extracts, DCOs, ARS
+workbooks and MRPCPM analyses; the mailbox holds the MRPC / CashPlease reports and the
+ICS workbooks — and `watch_sources.py --copy --mail` is how they come back. Outputs are
+rebuildable from those inputs by definition, and `Outputs/Archive/` keeps every
+superseded deck.
+
+Google Drive is gone from the project: **~236 references across 20 files**, including a
+set of code identifiers that had become actively misleading once the tree moved —
+`drive_glob`, `rec["drive"]`, `drive_odd`, `_drive_periods`, `--no-drive`, `drive_state`
+— all naming a location nothing used any more. Also removed: `.env.drive.bak`, the Mac
+Google-Drive example root, and the Drive-streaming hints in `rpe_env`'s error messages
+("mark it available offline"), which advised a fix for a problem that can no longer
+occur.
+
+**This file is deliberately untouched** (Aaron, 2026-09-09 — "keep the changelog, strip
+the rest"). Its purpose is that a reversal is findable, and the move off Drive is exactly
+such a reversal; scrubbing it would erase the account of how the pipeline got where it
+is. `docs/PRD-2026-08-26-…` is marked superseded at the top for the same reason — its
+body describes the Drive era accurately and rewriting it would falsify a dated document.
+
+**No figure moves**; `deck_status 2026.09` reports the same 15 clients / 11 ready / 10
+built, and the watch and mail steps run unchanged.
+
 ### 2026-09-09 — the daily run takes the inputs that arrive by email
 
 MRPC and CashPlease reports (Bradford Sanders) and ICS workbooks (Matt Milliman) never land

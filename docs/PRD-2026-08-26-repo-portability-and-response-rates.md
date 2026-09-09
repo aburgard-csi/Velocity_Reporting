@@ -1,3 +1,9 @@
+> **Superseded, 2026-09-09.** This PRD was written while the pipeline ran out of
+> Google Drive. It no longer does: `RPE_DATA_ROOT` is `C:\Data Pipelines\RPE Pipeline`,
+> there is no Drive copy, and the original sources — the CSI shares and the mailbox —
+> are the backup. Read the Drive references below as history. The portability goal it
+> describes is unchanged and is why the move cost one line in `.env`.
+
 # PRD — repo migration, cross-machine builds, response-rate fix, deck skills
 
 Date: 2026-08-26

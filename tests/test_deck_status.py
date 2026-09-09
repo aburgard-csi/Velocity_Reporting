@@ -3,14 +3,14 @@
 The rules pinned here are the ones that decide whether a build is allowed to run
 on data that looks fine and is not:
 
-  * A Drive ODD extract is only current if the SOURCE says so. It is overwritten
+  * A Inputs/ ODD extract is only current if the SOURCE says so. It is overwritten
     in place as `<id>_ODDD.zip` with no period in the name, so last month's file
     sits at the same path under the same name. Calling that "present" is how a
     deck ships a month of the wrong numbers and passes every check, because
     month-old figures are internally consistent.
-  * ...but a byte-identical copy is NOT stale. Google Drive stores mtime to whole
+  * ...but a byte-identical copy is NOT stale. Google Inputs/ stores mtime to whole
     seconds while the SMB share keeps sub-second, so a straight copy reads ~0.9s
-    older on Drive. A strict comparison flagged 1075's 2026.08 extract
+    older on Inputs/. A strict comparison flagged 1075's 2026.08 extract
     (229,507,542 bytes, same second) as a previous month's.
   * A damaged delivery log is not an empty one. Reading it as "nothing sent"
     would invite sending a client the same deck twice.
@@ -48,18 +48,18 @@ def test_odd_absent_from_drive_is_missing(tmp_path, monkeypatch):
     reports, oddd = _dirs(tmp_path)
     monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: None)
     rows = DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True)
-    assert _odd_row(rows)["drive"]["state"] == DS.MISSING
+    assert _odd_row(rows)["local"]["state"] == DS.MISSING
 
 
 def test_odd_on_drive_with_no_source_extract_is_stale(tmp_path, monkeypatch):
-    """The case that matters: Drive has a file, but no extract for THIS period
-    has landed, so what Drive holds is a previous month's."""
+    """The case that matters: Inputs/ has a file, but no extract for THIS period
+    has landed, so what Inputs/ holds is a previous month's."""
     reports, oddd = _dirs(tmp_path)
     (oddd / "1038_ODDD.zip").write_bytes(b"august")
     monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: None)
     row = _odd_row(DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True))
-    assert row["drive"]["state"] == DS.STALE
-    assert "2026.09" in row["drive"]["detail"]
+    assert row["local"]["state"] == DS.STALE
+    assert "2026.09" in row["local"]["detail"]
 
 
 def test_identical_copy_is_not_stale(tmp_path, monkeypatch):
@@ -67,27 +67,27 @@ def test_identical_copy_is_not_stale(tmp_path, monkeypatch):
     reports, oddd = _dirs(tmp_path)
     src = tmp_path / "src"; src.mkdir()
     (src / "1038_ODDD.zip").write_bytes(b"same-bytes")
-    drive = oddd / "1038_ODDD.zip"
-    drive.write_bytes(b"same-bytes")
-    # Drive reads ~1s OLDER than source, exactly as Google Drive vs SMB does.
+    held = oddd / "1038_ODDD.zip"
+    held.write_bytes(b"same-bytes")
+    # Inputs/ reads ~1s OLDER than source, exactly as Google Inputs/ vs SMB does.
     s = os.path.getmtime(src / "1038_ODDD.zip")
-    os.utime(drive, (s - 1.0, s - 1.0))
+    os.utime(held, (s - 1.0, s - 1.0))
     monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: str(src))
     row = _odd_row(DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True))
-    assert row["drive"]["state"] == DS.PRESENT, row["drive"]
+    assert row["local"]["state"] == DS.PRESENT, row["local"]
 
 
 def test_genuinely_older_drive_copy_is_stale(tmp_path, monkeypatch):
     reports, oddd = _dirs(tmp_path)
     src = tmp_path / "src"; src.mkdir()
     (src / "1038_ODDD.zip").write_bytes(b"september-extract")
-    drive = oddd / "1038_ODDD.zip"
-    drive.write_bytes(b"august")                      # different size AND older
+    held = oddd / "1038_ODDD.zip"
+    held.write_bytes(b"august")                      # different size AND older
     s = os.path.getmtime(src / "1038_ODDD.zip")
-    os.utime(drive, (s - 86400, s - 86400))
+    os.utime(held, (s - 86400, s - 86400))
     monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: str(src))
     row = _odd_row(DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True))
-    assert row["drive"]["state"] == DS.STALE
+    assert row["local"]["state"] == DS.STALE
 
 
 def test_off_vpn_is_unknown_not_missing(tmp_path, monkeypatch):
@@ -98,7 +98,7 @@ def test_off_vpn_is_unknown_not_missing(tmp_path, monkeypatch):
     rows = DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], False)
     for r in rows:
         assert r["src"]["state"] == DS.UNKNOWN, r["input"]
-    assert _odd_row(rows)["drive"]["state"] == DS.UNKNOWN
+    assert _odd_row(rows)["local"]["state"] == DS.UNKNOWN
 
 
 # ------------------------------------------------------------------ optional
@@ -106,13 +106,13 @@ def test_missing_ics_workbook_does_not_block(tmp_path, monkeypatch):
     """Without a workbook for the period the ICS section builds referrals-only,
     which is a valid deck — not a gap to chase."""
     reports, oddd = _dirs(tmp_path)
-    monkeypatch.setattr(DS, "_vip_sheet", lambda cid, prog: DS._stat(DS.PRESENT, "x", "drive"))
+    monkeypatch.setattr(DS, "_vip_sheet", lambda cid, prog: DS._stat(DS.PRESENT, "x", "local"))
     rows = DS.requirements("1509", ["ICS"], "2026.09", reports, oddd, [], True)
     wb = next(r for r in rows if r["input"] == DS.OPTIONAL_INPUT)
-    assert wb["drive"]["state"] == DS.MISSING
+    assert wb["local"]["state"] == DS.MISSING
     assert wb["src"]["state"] == DS.NA          # arrives by email, never at source
     blocked = [r["input"] for r in rows
-               if r["drive"]["state"] in (DS.MISSING, DS.STALE)
+               if r["local"]["state"] in (DS.MISSING, DS.STALE)
                and r["input"] != DS.OPTIONAL_INPUT]
     assert blocked == []
 

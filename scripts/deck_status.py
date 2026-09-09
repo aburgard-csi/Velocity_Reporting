@@ -5,10 +5,10 @@ deck_status.py — where every client's monthly review stands, for one period.
 Answers three questions that live in three different places:
 
   1. **Is the data ready?**  The data team lands files on the CSI shares; they are
-     then copied to Drive, which is what the builders read. Both are checked, and
+     then copied into `Inputs/`, which is what the builders read. Both are checked, and
      they are NOT the same fact: a file at source that nobody has copied yet is a
      five-minute task, while a file missing at source is a wait on someone else.
-  2. **Has the deck been built?**  `Outputs/` on Drive.
+  2. **Has the deck been built?**  `Outputs/`.
   3. **Has it been SENT?**  Nothing on disk knows this. A deck in `Outputs/` proves
      it was built and nothing more, so sent-state is recorded in its own file —
      `Build Artifacts/deliveries.json` (Aaron, 2026-08-31), written by the
@@ -28,7 +28,7 @@ Usage:
 
     period       YYYY.MM, e.g. 2026.09
     --json       write the status document here (default: stdout)
-    --no-source  skip the CSI shares entirely (fast, Drive-only)
+    --no-source  skip the CSI shares entirely (fast, local inputs only)
 """
 import argparse
 import datetime as _dt
@@ -45,7 +45,9 @@ sys.path.insert(0, os.path.join(REPO, "scripts"))
 import rpe_env as R                                              # noqa: E402
 from build_month import read_roster, deck_tag                    # noqa: E402
 
-# The data team's landing zones. These are the ORIGIN; Drive is a copy of them.
+# The data team's landing zones. These are the ORIGIN, and the backup: `Inputs/`
+# is a copy of them (Aaron, 2026-09-09 — no separate backup; if an input is lost,
+# it is re-copied from here or re-sent by email).
 # Overridable so a machine that mounts them differently needs no code edit — the
 # same rule as RPE_DATA_ROOT.
 SRC_ODDD = os.environ.get(
@@ -54,11 +56,11 @@ SRC_REPORTS = os.environ.get(
     "RPE_SRC_REPORTS", "\\\\PADMIS105\\Velocity_clientreports")
 
 PRESENT, MISSING, UNKNOWN, NA = "present", "missing", "unknown", "n/a"
-# The ODD extract is the one input Drive CANNOT date from its filename, so it gets
+# The ODD extract is the one input `Inputs/` CANNOT date from its filename, so it gets
 # a state of its own — see the ODD block in requirements() for why.
 STALE = "stale"
 
-# Absent from Drive this is not a gap: the ICS section simply builds
+# Absent this is not a gap: the ICS section simply builds
 # referrals-only, which is a valid deck. Everything else missing blocks the build.
 OPTIONAL_INPUT = "ICS workbook (email)"
 
@@ -114,9 +116,9 @@ def _mtime(path):
     return _dt.datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d")
 
 
-# Google Drive records mtime to whole seconds; the SMB share keeps sub-second
+# Some filesystems record mtime to whole seconds; the SMB share keeps sub-second
 # precision. A file copied straight across therefore reads as ~0.9s OLDER on
-# Drive than at source, which a strict comparison calls stale — it flagged
+# locally than at source, which a strict comparison calls stale — it flagged
 # 1075's 2026.08 extract (byte-identical, 229,507,542 bytes, same second) as a
 # previous month's. FAT-derived filesystems round to 2s, so the tolerance covers
 # both with room to spare; a genuinely stale extract is a MONTH out, not a minute.
@@ -145,16 +147,16 @@ def _vip_sheet(cid, program):
     try:
         p = str(R.resolve_client_json(cid, program))
     except BaseException:
-        return _stat(MISSING, "not pulled", "drive")
+        return _stat(MISSING, "not pulled", "local")
     if os.path.exists(p):
-        return _stat(PRESENT, _mtime(p), "drive")
-    return _stat(MISSING, "not pulled", "drive")
+        return _stat(PRESENT, _mtime(p), "local")
+    return _stat(MISSING, "not pulled", "local")
 
 
 def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
     """What this client needs for `period`, and whether each piece is there.
 
-    One row per required input. `src` is what the data team landed; `drive` is the
+    One row per required input. `src` is what the data team landed; `local` is the
     copy the builders actually read. Keeping them apart is the point — they fail
     for different reasons and the fix is different.
     """
@@ -170,27 +172,27 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
             return _stat(PRESENT, _mtime(_newest(hit)), "source")
         return _stat(MISSING, "not landed", "source")
 
-    def drive_glob(pattern, exclude=None):
+    def input_glob(pattern, exclude=None):
         # `reports_dir` is a LIST since inputs are sorted into a folder per kind
         # (Aaron, 2026-09-09). A pattern built against it is expanded per folder.
         pats = pattern if isinstance(pattern, (list, tuple)) else [pattern]
         hit = [f for p in pats for f in glob.glob(p)
                if not (exclude and exclude in os.path.basename(f).lower())]
         if hit:
-            return _stat(PRESENT, _mtime(_newest(hit)), "drive")
-        return _stat(MISSING, "not copied", "drive")
+            return _stat(PRESENT, _mtime(_newest(hit)), "local")
+        return _stat(MISSING, "not copied", "local")
 
     if "ARS" in progs:
         # The ODD extract is period-stamped at SOURCE (month folders) but NOT on
-        # Drive, where it is overwritten in place as `<id>_ODDD.zip`. So "a file
-        # exists on Drive" does NOT mean "this period's extract is on Drive" —
+        # in `Inputs/`, where it is overwritten in place as `<id>_ODDD.zip`. So
+        # "a file exists" does NOT mean "this period's extract is there" —
         # last month's sits at exactly the same path under exactly the same name.
         #
         # Reporting that as present is the stale-data failure this pipeline keeps
         # hitting: the build would run to completion on the previous month's ODD
         # and validate perfectly, because month-old figures are internally
         # consistent. So the source folder is treated as the authority on which
-        # month Drive is holding, and anything it cannot vouch for is STALE, not
+        # month `Inputs/` is holding, and anything it cannot vouch for is STALE, not
         # present. Off VPN there is no authority, so the period is unconfirmed and
         # says so rather than passing itself off as current.
         src_file = None
@@ -207,46 +209,46 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
 
         z = str(oddd_dir / (cid + "_ODDD.zip"))
         if not os.path.exists(z):
-            drive_odd = _stat(MISSING, "not copied", "drive")
+            local_odd = _stat(MISSING, "not copied", "local")
         elif not src_up:
-            drive_odd = _stat(UNKNOWN, "on Drive, period unconfirmed "
-                                       "(" + _mtime(z) + ")", "drive")
+            local_odd = _stat(UNKNOWN, "held, period unconfirmed "
+                                       "(" + _mtime(z) + ")", "local")
         elif src_file is None:
-            drive_odd = _stat(STALE, "previous month (" + _mtime(z) + "); no "
-                              + period + " extract at source", "drive")
+            local_odd = _stat(STALE, "previous month (" + _mtime(z) + "); no "
+                              + period + " extract at source", "local")
         elif _same_file(z, src_file):
-            drive_odd = _stat(PRESENT, _mtime(z), "drive")
+            local_odd = _stat(PRESENT, _mtime(z), "local")
         elif os.path.getmtime(z) + _MTIME_TOLERANCE < os.path.getmtime(src_file):
-            drive_odd = _stat(STALE, "older than source (" + _mtime(z) + ")", "drive")
+            local_odd = _stat(STALE, "older than source (" + _mtime(z) + ")", "local")
         else:
-            drive_odd = _stat(PRESENT, _mtime(z), "drive")
+            local_odd = _stat(PRESENT, _mtime(z), "local")
 
         rows.append({"program": "ARS", "input": "ODD extract",
-                     "src": src_odd, "drive": drive_odd})
+                     "src": src_odd, "local": local_odd})
         rows.append({
             "program": "ARS", "input": "ARS workbook",
             "src": src_match("^" + cid + "-" + re.escape(period) + "-.*workbook.*[.]xlsx$"),
-            "drive": drive_glob(
+            "local": input_glob(
                 [os.path.join(d, cid + "-" + period + "-*Workbook*.xlsx")
                  for d in reports_dir],
                 exclude="invitation checking")})
         rows.append({
             "program": "ARS", "input": "DCO",
             "src": src_match("^" + cid + "-" + re.escape(period) + "-.*dco.*[.]xlsx$"),
-            "drive": drive_glob(
+            "local": input_glob(
                 [os.path.join(d, cid + "-" + period + "-*DCO*.xlsx")
                  for d in reports_dir])})
 
     if any(p.startswith("ICS") for p in progs):
         rows.append({"program": "ICS", "input": "VIP referral sheet",
                      "src": _stat(NA, "VIP dashboard", "source"),
-                     "drive": _vip_sheet(cid, "ics")})
+                     "local": _vip_sheet(cid, "ics")})
         # ICS workbooks reach Aaron by EMAIL, not the CSI share (Aaron,
         # 2026-08-31). There is no source-side signal to wait on, so the source
         # column is n/a rather than a gap.
         rows.append({"program": "ICS", "input": OPTIONAL_INPUT,
                      "src": _stat(NA, "arrives by email", "source"),
-                     "drive": drive_glob(
+                     "local": input_glob(
                          [os.path.join(d, cid + "-" + period
                                        + "-*Invitation Checking*.xlsx")
                           for d in reports_dir])})
@@ -254,12 +256,12 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
     if "MRPC" in progs:
         rows.append({"program": "MRPC", "input": "VIP MRPC sheet",
                      "src": _stat(NA, "VIP dashboard", "source"),
-                     "drive": _vip_sheet(cid, "mrpc")})
+                     "local": _vip_sheet(cid, "mrpc")})
         rows.append({
             "program": "MRPC", "input": "MRPCPM analysis",
             "src": src_match("^" + cid + "-" + re.escape(period)
                              + "-mrpc-.*mrpcpm.*[.]xlsx$"),
-            "drive": drive_glob(
+            "local": input_glob(
                 [os.path.join(d, cid + "-" + period
                               + "-MRPC-*MRPCPM_Analysis*.xlsx")
                  for d in reports_dir])})
@@ -355,12 +357,12 @@ def collect(period, use_source=True):
         # deck that passes every check and reports the wrong month's numbers,
         # which is worse than a build that fails outright.
         blocked = [r["input"] for r in rows
-                   if r["drive"]["state"] in (MISSING, STALE)
+                   if r["local"]["state"] in (MISSING, STALE)
                    and r["input"] != OPTIONAL_INPUT]
         # Waiting on the data team is a different problem from waiting on a copy,
         # and only the second one is Aaron's to fix right now.
         at_source = [r["input"] for r in rows
-                     if r["drive"]["state"] == MISSING
+                     if r["local"]["state"] == MISSING
                      and r["src"]["state"] == PRESENT]
         clients.append({
             "id": cid, "name": name, "path": mmsm, "programs": progs,
@@ -391,7 +393,7 @@ def main():
     ap.add_argument("period")
     ap.add_argument("--json", default=None)
     ap.add_argument("--no-source", action="store_true",
-                    help="skip the CSI shares (Drive only)")
+                    help="skip the CSI shares (local inputs only)")
     a = ap.parse_args()
     if not _period_ok(a.period):
         raise SystemExit("period must be YYYY.MM, got %r" % a.period)

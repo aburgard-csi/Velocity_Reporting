@@ -191,8 +191,8 @@ def scan(periods):
     return found
 
 
-# ------------------------------------------------------------------ drive
-def drive_state(rec, inputs_dir):
+# ------------------------------------------------------------------ inputs
+def input_state(rec, inputs_dir):
     """Is the copy the builders read already this file?
 
     Same size means the same landing for these files (the rule deck_status
@@ -266,8 +266,8 @@ def copy_plan(inventory, roster_ids, inputs_dir):
     """Which source files should be copied into `Inputs/`: [(record, destination)].
 
     The destination is whatever `RPE_DATA_ROOT` resolves to — the local tree
-    since 2026-09-09, Drive before that. This code never knew which, and that is
-    the point: it asks `rpe_env`. Only the report wording had to change.
+    This code has never known where that is — it asks `rpe_env` — which is why
+    moving the tree needed no change here beyond the report wording.
 
     Roster clients only — the shares carry every account manager's clients, and
     an input for a client nobody builds is clutter at best. Only files `Inputs/`
@@ -292,7 +292,7 @@ def copy_plan(inventory, roster_ids, inputs_dir):
             k = (rec["client"], rec["kind"])
             if k not in newest or rec["period"] > newest[k]["period"]:
                 newest[k] = rec
-    on_drive = _drive_periods(inputs_dir)
+    on_drive = _input_periods(inputs_dir)
     plan = []
     for rec in sorted(inventory.values(), key=lambda r: (r["kind"], r["client"] or "", r["name"])):
         if rec["kind"] == OTHER or rec["client"] not in roster_ids:
@@ -301,7 +301,7 @@ def copy_plan(inventory, roster_ids, inputs_dir):
             continue
         if rec["kind"] != ODDD and on_drive.get((rec["client"], rec["kind"]), "") > rec["period"]:
             continue                       # Inputs/ already holds a newer period
-        if rec.get("drive") not in ("not copied", "differs"):
+        if rec.get("local") not in ("not copied", "differs"):
             continue
         # If Inputs/ already holds this file, replace it WHERE IT IS. Sorting
         # into kind folders must not create a second copy of a file that is
@@ -311,7 +311,7 @@ def copy_plan(inventory, roster_ids, inputs_dir):
         # actually exists.
         existing = None if rec["kind"] == ODDD else _find_input(inputs_dir, rec["name"])
         dest = existing if (existing and os.path.exists(existing))             else _dest_for(rec, inputs_dir)
-        if rec.get("drive") == "differs" and not _source_is_newer(rec, dest):
+        if rec.get("local") == "differs" and not _source_is_newer(rec, dest):
             # Same name, different bytes, and the copy in Inputs/ is the more
             # recent write: that is a copy someone changed on purpose — a workbook
             # opened and saved in Excel so its formulas carry values — not a
@@ -323,7 +323,7 @@ def copy_plan(inventory, roster_ids, inputs_dir):
     return plan
 
 
-def _drive_periods(inputs_dir):
+def _input_periods(inputs_dir):
     """{(client, kind): newest period} for the period-stamped files in Inputs/."""
     out = {}
     names = []
@@ -375,7 +375,7 @@ def apply_copies(plan):
             if os.path.getsize(dest) != rec["size"]:
                 raise OSError("size mismatch after copy (%d vs %d)"
                               % (os.path.getsize(dest), rec["size"]))
-            rec["drive"] = "copied"
+            rec["local"] = "copied"
             out.append((rec, dest, "copied"))
         except OSError as e:
             out.append((rec, dest, "FAILED: %s" % e))
@@ -547,11 +547,11 @@ def _line(rec, roster):
     who = rec["client"] or "—"
     name = roster.get(rec["client"], "")
     tag = " (%s)" % name if name else ""
-    drive = rec.get("drive", "")
-    drive_s = "" if not drive else "  · Inputs: " + drive
+    held = rec.get("local", "")
+    local_s = "" if not held else "  · Inputs: " + held
     return "- **%s** %s%s — `%s`  %s, landed %s%s" % (
         rec["kind"], who, tag, rec["name"], _fmt_size(rec.get("size")),
-        _fmt_when(rec.get("mtime")), drive_s)
+        _fmt_when(rec.get("mtime")), local_s)
 
 
 def _section(title, recs, roster):
@@ -600,7 +600,7 @@ def render(result, roster):
     body = ["", "Since %s: **%d new**, **%d re-landed**, **%d gone**." % (
         r.get("previous_checked") or "the last check", len(new), len(changed), len(gone))]
     to_copy = [x for x in new + changed
-               if x["client"] in roster and x.get("drive") in ("not copied", "differs")]
+               if x["client"] in roster and x.get("local") in ("not copied", "differs")]
     if to_copy:
         body += ["", "**%d of these are for roster clients and not yet in Inputs.**"
                  % len(to_copy)]
@@ -719,7 +719,7 @@ def check(periods, previous, use_drive=True):
     current = scan(periods)
     inputs_dir = _inputs_dir() if use_drive else None
     for rec in current.values():
-        rec["drive"] = drive_state(rec, inputs_dir)
+        rec["local"] = input_state(rec, inputs_dir)
     result["inventory"] = current
     if previous is not None:
         result["new"], result["changed"], result["gone"] = diff(previous, current, periods)
@@ -736,7 +736,7 @@ def main(argv=None):
                     help="Windows toast when there is news or the shares are unreachable")
     ap.add_argument("--dry-run", action="store_true",
                     help="report only; do not save the inventory, log or report")
-    ap.add_argument("--no-drive", action="store_true",
+    ap.add_argument("--no-inputs", action="store_true",
                     help="skip the Inputs-copy comparison")
     ap.add_argument("--copy", action="store_true",
                     help="copy roster clients' files that Inputs/ lacks into it "
@@ -759,15 +759,15 @@ def main(argv=None):
             raise SystemExit("period must be YYYY.MM, got %r" % p)
 
     previous = read_state()
-    result = check(periods, previous, use_drive=not a.no_drive)
+    result = check(periods, previous, use_drive=not a.no_inputs)
     roster = _roster()
-    if a.copy and result["reachable"] and not a.no_drive:
+    if a.copy and result["reachable"] and not a.no_inputs:
         plan = copy_plan(result["inventory"], set(roster), _inputs_dir())
         if a.dry_run:
             result["copy_plan"] = plan
         else:
             result["copies"] = apply_copies(plan)
-    if a.prune and not a.no_drive and _inputs_dir():
+    if a.prune and not a.no_inputs and _inputs_dir():
         # Across every kind folder, not one: a client's ARS workbook and the DCO
         # it supersedes now live apart, and prune compares them by name.
         inputs_dir = _inputs_dir()

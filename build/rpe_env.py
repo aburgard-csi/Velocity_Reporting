@@ -3,9 +3,8 @@
 Two things differ between Aaron's Mac and the CSI Windows machine, and both
 have failed silently before:
 
-  * The Google Drive mount root. Mac puts it under
-    ~/Library/CloudStorage/GoogleDrive-<account>/My Drive; Windows mounts it at
-    G:\\My Drive. Neither can be hardcoded.
+  * The pipeline data root. It differs per machine — this one keeps it at
+    C:\\Data Pipelines\\RPE Pipeline — and cannot be hardcoded.
 
   * Font availability. matplotlib SUBSTITUTES a missing font family rather than
     raising, so a chart renders in the wrong face and nothing tells you. The
@@ -39,7 +38,7 @@ _env_cache: dict[str, str] | None = None
 def _load_dotenv() -> dict[str, str]:
     """Parse the repo-root .env. Values are taken raw to the end of the line.
 
-    No unescaping: a Windows path like G:\\My Drive\\Work must survive intact,
+    No unescaping: a Windows path like C:\\Data Pipelines\\RPE Pipeline must survive,
     and values contain spaces, so nothing is stripped beyond surrounding
     whitespace and one optional layer of matching quotes.
     """
@@ -66,7 +65,7 @@ def _load_dotenv() -> dict[str, str]:
 
 
 def data_root() -> Path:
-    """The Drive-side pipeline folder: <Drive>/Work/RPE Pipeline."""
+    """The pipeline folder holding Inputs/, Outputs/ and Build Artifacts/."""
     raw = os.environ.get("RPE_DATA_ROOT") or _load_dotenv().get("RPE_DATA_ROOT")
 
     if not raw:
@@ -74,17 +73,15 @@ def data_root() -> Path:
             "RPE_DATA_ROOT is not set.\n"
             f"  Copy {REPO_ROOT / '.env.example'} to {REPO_ROOT / '.env'} and\n"
             "  set it to your machine's path, e.g.\n"
-            "    Mac:     /Users/<you>/Library/CloudStorage/"
-            "GoogleDrive-<account>/My Drive/Work/RPE Pipeline\n"
-            "    Windows: G:\\My Drive\\Work\\RPE Pipeline"
+            "    C:\\Data Pipelines\\RPE Pipeline"
         )
 
     root = Path(raw).expanduser()
     if not root.is_dir():
         raise SystemExit(
             f"RPE_DATA_ROOT points at {root!s}, which is not a directory.\n"
-            "  If the path looks right, Drive for Desktop may not be mounted "
-            "yet — open the folder in Finder/Explorer and try again."
+            "  If the path looks right, the folder may not exist yet — check "
+            "it in Explorer and try again."
         )
     return root
 
@@ -240,7 +237,7 @@ def _client_id_of(arg) -> str:
 
 
 def resolve_client_json(arg, program) -> Path:
-    """Find a client's ICS/MRPC data sheet in the Drive VIP store.
+    """Find a client's ICS/MRPC data sheet in the VIP store.
 
     Accepts a path (used as-is when it exists) or a bare `1705_ics.json` / `1705`.
 
@@ -256,7 +253,7 @@ def resolve_client_json(arg, program) -> Path:
     held copies that drifted: the store carried 2026-08-29 pulls while the repo
     still had 2026-08-10, and a build reading the repo shipped month-old figures
     that validated perfectly because they were internally consistent. Two stores
-    for one fact is the problem; the Drive store is the fact.
+    for one fact is the problem; `Inputs/VIP Data/` is the fact.
     """
     if not arg:
         raise SystemExit(f"resolve_client_json: no {program} client file given")
@@ -274,9 +271,8 @@ def resolve_client_json(arg, program) -> Path:
     if root is None:
         raise SystemExit(
             f"Inputs/VIP Data is not available, so {name!r} cannot be resolved.\n"
-            "  Set RPE_DATA_ROOT for this machine (see .env.example), and if the\n"
-            "  folder is visible in Finder/Explorer but not here, mark it\n"
-            "  available offline."
+            "  Set RPE_DATA_ROOT for this machine (see .env.example) and check\n"
+            "  that Inputs/VIP Data exists under it."
         )
 
     tried = []
@@ -297,9 +293,7 @@ def resolve_client_json(arg, program) -> Path:
     raise SystemExit(
         f"Could not find the {program.upper()} client file {name!r} in the VIP store.\n"
         f"  Looked in:\n  {where}\n"
-        "  Drive streams on demand: if it is visible in Finder/Explorer but not\n"
-        "  here, mark it available offline.\n"
-        "  Otherwise refresh it from VIP per Inputs/VIP Data/README.md, or check\n"
+        "  Refresh it from VIP per Inputs/VIP Data/README.md, or check\n"
         "  the client id."
     )
 
@@ -309,7 +303,7 @@ def client_logo(client_id) -> Path | None:
 
     Lives in `Inputs/Logos/<clientid>.<ext>`, alongside the other client inputs
     rather than in the repo: it is the client's brand asset and nothing
-    client-identifiable belongs in git (PRD, "Data in Drive, code in git").
+    client-identifiable belongs in git: data under RPE_DATA_ROOT, code in git.
 
     Filenames in that folder are not uniform — 1075 has both a .jpg and a .png, and
     1539 carries no extension at all while still being a valid PNG. So candidates are
@@ -452,8 +446,8 @@ def _require_subdir(name: str) -> Path:
     if not path.is_dir():
         raise SystemExit(
             f"Expected {path!s} to exist.\n"
-            "  Drive streams files on demand — if the folder is there in "
-            "Finder/Explorer but not here, mark it available offline."
+            "  Check RPE_DATA_ROOT in .env — this folder is created by the "
+            "pipeline, not by a build."
         )
     return path
 

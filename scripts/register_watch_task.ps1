@@ -12,9 +12,9 @@
     credentials to read \\PADMIS105, and the Windows toast it raises has to land
     on a desktop someone can see.
 
-    --copy copies roster clients' new files from the shares into Inputs/ on Drive
+    --copy copies roster clients' new files from the shares into Inputs/
     (the ODD extract only from the newest month), so the builds and the performance
-    dashboard see them without a manual step. --prune then deletes Drive inputs that a
+    dashboard see them without a manual step. --prune then deletes inputs that a
     newer period (or weekly) of the same client and kind supersedes; the newest of
     each is always kept, and a file with no newer version is never touched.
 
@@ -80,7 +80,7 @@ $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -Ru
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Settings $settings -Principal $principal -Force `
-    -Description ("Daily check of \\PADMIS105 for new ODDD extracts, DCOs and workbooks, copied to Drive Inputs. " +
+    -Description ("Daily check of \\PADMIS105 for new ODDD extracts, DCOs and workbooks, copied into Inputs. " +
                   "Report: RPE_DATA_ROOT\Build Artifacts\source_watch_latest.md") | Out-Null
 
 $t = Get-ScheduledTask -TaskName $TaskName

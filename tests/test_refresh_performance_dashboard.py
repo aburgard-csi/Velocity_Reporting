@@ -1,7 +1,7 @@
 """refresh_performance_dashboard — the rules that decide whether the artifact is
 republished, and what period it claims.
 
-  * The period is the newest ARS workbook on Drive, not today's month: the page
+  * The period is the newest ARS workbook on Inputs/, not today's month: the page
     rolls forward when the workbooks are copied, not before.
   * "Changed" means the figures moved. The generation date is excluded from the
     hash, or every daily rebuild would republish an identical page.

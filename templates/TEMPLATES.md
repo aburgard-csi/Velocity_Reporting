@@ -42,7 +42,7 @@ dividers, education slides — stays as the shell has it.
 ## Maintaining the shells
 
 - Shells are updated **in place**; the files here are always the latest. Keep a
-  rollback copy under the Drive `archive/` if one is needed — not in the repo.
+  rollback copy under the pipeline `archive/` if one is needed — not in the repo.
 - To rebuild a shell, trim `multi-product_reference_deck.pptx` to that program's
   section plus the shared shell and save it under the program's name. Update the
   reference first whenever the canonical look changes, then re-materialize.
