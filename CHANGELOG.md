@@ -17,6 +17,191 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-08 — the Summit one-pager and the monthly deck now share one before/after
+
+Aaron: "the Summits and the regular delivery decks should use the same logic." They did
+not. `responder_activity.py` (the one-pager) claimed in its own docstring to mirror
+`metrics_gen` (the deck) "so the one-pager agrees with the client's deck instead of
+restating it", and differed in four ways at once:
+
+| | deck | one-pager |
+| --- | --- | --- |
+| cohort | every personal responder | only those still `Elig=Yes` at the snapshot |
+| after window | 6 fixed months | every month to the end of the extract |
+| winsorizing | ONE cap over before+after | a separate cap per window |
+| headline | pooled over responder-observations | mean of the per-mailing means |
+
+Every difference pushed the same way. On True Sky 1676, measured against the same
+extract on the same day:
+
+| | one-pager (was) | deck, and one-pager now |
+| --- | --- | --- |
+| responder spend | $459 → $999 (**+118%**) | $467 → $947 (**+103%**) |
+| responders | 8,153 | **9,962** |
+| customers reached | ~510 / mailing | ~623 / mailing |
+| mailings | 15 | 12 |
+
+A Summit attendee could have been handed a one-pager saying +118% while their own
+monthly deck said +103%, and 1,809 responders — 22% of them — were missing from the
+one-pager because they had closed or gone ineligible since responding. That is the
+survivorship filter `metrics_gen` dropped on 2026-08-27; the one-pager kept it.
+
+**The fix is one function, not two matching ones.** `build/ars_pipeline/before_after.py`
+holds the measure — cohort, window ladder, winsorizing, pooling, the offer split and the
+NSF/OD figures — and both entry points call it. It is import-safe, like `odd_rows`:
+importing `metrics_gen` RUNS it (`sys.argv` at module scope), which is the hazard that
+made the one-pager re-implement everything in the first place.
+
+Verified behaviour-preserving for the deck: rebuilding 1676 before and after the
+extraction gives **121 metric keys identical, none differing**, plus one new key the
+one-pager needs. `tests/test_before_after.py` pins each decision and that neither caller
+keeps a copy. Also fixed while there: the one-pager's method note described the old
+window and cohort as fixed text, and its two headline tiles hardcoded a `+` sign that
+would have rendered "+-5%" on a decline. `responder_activity` now also keeps the `MTD`
+column, without which its NSF/OD figures would have come back 0 while the deck reported
+them.
+
+### 2026-09-08 — responder before/after now measures 6 months after the mailing
+
+Both Responder Activity charts (Before vs After Mean, and by Offer) compared a 3-month
+baseline against the **3** months after each mailing. They now compare it against the
+**6** months after (Aaron, 2026-09-08).
+
+Measured across all nine ARS clients first, on the mailings every window supports so
+that window length was the only difference. The gain decays, consistently, and three
+months does not show it:
+
+| Client | Threshold gain, 3 mo | 6 mo | all months after |
+| --- | --- | --- | --- |
+| 1038 Sugar River | +50% | +44% | +39% |
+| 1075 Austin | +50% | +45% | +40% |
+| 1204 FSB Michigan | +77% | +68% | +63% |
+| 1509 Texas Bay | +93% | +83% | +71% |
+| 1537 Brooks Bank | +83% | +73% | +69% |
+| 1539 Marine | +81% | +71% | +63% |
+| 1676 True Sky | +97% | +86% | +78% |
+| 1705 CoastLife | +71% | +62% | +55% |
+
+Six months still shows the lift holding well clear of baseline, which is the durable
+claim; three months reads closest to a spike. **"All months after" was rejected**: each
+bar's window is a different length — the oldest mailing averages 30-plus months, the
+newest one — so the bars decline left to right partly by arithmetic. That is the defect
+the fixed window was introduced to fix.
+
+Cost: the newest one or two mailings drop out (True Sky 14 → 12; the axis now ends Jan
+2026, not Mar 2026). A young program falls back down a ladder that shrinks the AFTER
+side first — the baseline is what the comparison is anchored to, so it gives ground
+last — and both lengths are recorded (`ba_before_months` / `ba_after_months`) and stated
+on the slide, so a 3-and-1 comparison is never passed off as a 3-and-6 one. The chart
+legend derives from them too; it read "After (3-mo window)" as a constant.
+
+True Sky 1676: pooled Threshold **$548 → $1,078 (+97%)** becomes **$547 → $1,015
+(+86%)**; the Mean slide's headline **$467 → $947 (+103%)**.
+
+### 2026-09-08 — "NSF/OD activity stayed roughly flat" was canned; it now carries figures
+
+That clause sat, as fixed template text, beside the NSF/OD panel of the very chart that
+measures it. It is the sentence behind the Marine FCU correction and Aaron's +/-2% rule
+(2026-08-31) — the rule was written, the sentence was not fixed.
+
+It now follows the data and states the figures: within +/-2% reads "almost flat", a rise
+states the increase, a fall says the mailings did not have an impact on NSF/OD activity.
+`metrics_gen` pools NSF/OD items per responder per month across every responder-mailing
+observation, unwinsorized, so the clause agrees with the panel beside it.
+
+**True Sky 1676 was not flat**: 0.33 → 0.36 items per responder per month, **+9%**. The
+slide had been saying otherwise.
+
+Also derived: "Debit spend rose after every mailing" is a claim about all of them, so it
+is now made only when it is true of all of them, and states the count when it is not.
+(True Sky: 12 of 12.)
+
+### 2026-09-08 — branch charts: no program-average line
+
+Removed from all four (Aaron, 2026-09-08). The figure is the donut on the Reg E slides
+and the 12-Mo Take Rate tile on the take-rate slides, so the dashed rule was a third
+rendering of a number already twice on the slide. The four captions dropped their
+"Dashed line = X% …" sentence in both `ars_template.pptx` and
+`multi-product_reference_deck.pptx`, and the builder swaps that filled that figure in
+are gone — a swap matching nothing fails the build, which is what would have caught a
+half-done version of this. `tests/test_branch_chart.py` watches for the `axhline` call
+rather than reading the source, so a line reintroduced by any route fails.
+
+### 2026-09-08 — branch charts: accounts in the bars, rate on the line
+
+The four branch charts — 12-Month Take Rate Personal (image11), Business
+(biz_branch), Reg E All Personal (image14), Reg E Last 12 Months (image16) — drew the
+RATE as the bars. A rate without its denominator is not readable: a branch with 15
+accounts and 4 opt-ins drew exactly as tall as one with 900 accounts at the same
+percentage. Accounts opened now set the bar height and the rate is a line on its own
+axis. (The program average was kept as a dashed reference at first and removed the
+same day — see the entry above.)
+
+What it surfaces: on True Sky 1676, branch **1004 is the largest by a distance — 513
+of the last twelve months' accounts, roughly twice the next branch — and the worst on
+new-account Reg E opt-in at 8%** against a 14% book. The old chart drew it as the
+shortest bar on the slide and said nothing about its size.
+
+Details: one renderer (`chart_lib.branch_chart`) now serves all four — `c_rege_branch`
+had its own near-copy that had already drifted on halo, headroom and tick sizes. The
+account count sits under the axis beneath its branch number rather than above the bar,
+because above is where the rate line lives and the two collide exactly when a big
+branch has a low rate. The average line was grey rather than the series colour so it did not
+read as a second line where the two cross — it was removed outright the same day (see
+above). The rate axis stops at 100%: 1.30x label headroom over a 99% peak
+had been printing a 120% tick. The business chart's line is TEAL over its navy bars
+(STYLE.md — a mark is never drawn in the canvas colour).
+
+**No figure moves**; the bars now carry a second measure that was not on the slide.
+
+### 2026-09-08 — five ARS charts never adopted `MMM'YY`; a render-time guard now enforces it
+
+`mon_yy` settled the axis format on 2026-09-01 and three ARS charts adopted it. Five
+did not, because they build their labels by string-slicing and so call no formatter
+for anything to check:
+
+| Chart | Slide | Drew | Now |
+| --- | --- | --- | --- |
+| `c_before_after_split` (image31) | Before vs After by Offer | `Feb24`, flat | `Feb'24`, 45° |
+| `c_before_after` (image10) | Before vs After (Mean) | `Feb24`, rotated 90° | `Feb'24`, 45° |
+| `c_sustained` (image9) | Sustained Respondent Activity | `Sep '23`, 30° | `Sep'23`, 45° |
+| `c_monthly` (image5) | Monthly incremental revenue | `Aug` — **year discarded** | `Aug'25` |
+| `c_ranking` (image6) | Ranking by Tier (y-axis) | `Sep 2023` | `Sep'23` |
+
+`c_monthly` was the one that could mislead: `m.split()[0]` threw the year away on a
+12-bar axis that spans two of them, so `Aug'25` and `Aug'26` would have been
+indistinguishable had the window ever covered both.
+
+**The check.** `periods.install_month_axis_guard()`, called at the top of all three
+chart modules, wraps `set_xticklabels` / `set_yticklabels`: a label `parse_month`
+recognises must already equal its `mon_yy` form, or the render raises
+`MonthAxisError` and the build stops. It runs where the label is DRAWN because that
+is the only place the value exists — a source lint sees `cats`, not `"Feb24"`.
+Categories that are not months (branch numbers, offer tiers, age bands, `2025 YTD`)
+pass through untouched. `tests/test_chart_axes.py` pins both directions.
+
+`periods.parse_month` also now reads `Sep '23` (space *and* apostrophe). It was the
+form Sustained actually drew and the one form the parser could not read, so the guard
+would have looked straight past the chart that prompted this.
+
+**No figure moves**; five axes change how they read.
+
+### 2026-09-08 — the ARS builder refuses an unevaluated workbook
+
+`build/ars_pipeline/base_guard.py` holds the one check (at most one month in the
+program, no lifetime revenue, no current revenue = the template's defaults). Both
+extractors (`extract_base_gen.py`, `base_tab_extract.py`) and `build_ars_gen.py` exit
+with `UNEVALUATED WORKBOOK: <file> ... open it in Excel, save, and rebuild` instead of
+producing a base of zeros; the dashboard refresh imports the same function and reports
+the row. `tests/test_base_guard.py` pins that every ARS entry point uses it.
+
+Why: the guard the dashboard got earlier today would have caught 1539's $0 page and
+let the same workbook build a deck saying Marine FCU has run ARS for 1 month with $0
+in revenue, in prose, on slide 6. Nothing on the deck would have flagged it — a
+month-1, $0 client is a shape the builder accepts.
+
+**No figure moves**; a build that would have shipped zeros now stops.
+
 ### 2026-09-08 — the copy step overwrote a recalculated workbook; it no longer can
 
 The first `--copy` run replaced Drive's `1539-2026.08-Marine FCU-Workbook_v2_1_0.xlsx`

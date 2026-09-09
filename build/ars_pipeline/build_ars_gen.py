@@ -45,7 +45,7 @@ _MODULE_NOTED = []
 # through the current eligibility snapshot. Naming a measure is opt-in and only
 # worth doing where the same measure reaches more than one slide.
 import figures as _figs
-from brand import NAVY as _BNAVY, ORANGE as _BORANGE, MUTED as _BMUTED
+from brand import (NAVY as _BNAVY, MUTED as _BMUTED, TEAL as _BTEAL)
 
 M = json.load(open(METRICS, encoding="utf-8")); B = json.load(open(BASEJ, encoding="utf-8")); L = json.load(open(LIFTJ, encoding="utf-8")); O = json.load(open(ODDDJ, encoding="utf-8"))
 # MM path = the lift matrix actually carries VALUES; else SM = monthly summary.
@@ -59,6 +59,10 @@ def _sm_mmyyyy(_v):
     try:
         _p=_v.strip().split(); return _dt0.datetime.strptime(_p[0][:3]+' '+_p[-1],'%b %Y').strftime('%m-%Y')
     except Exception: return _v
+# base.json can come from anywhere (build_month, a hand run, an older extract), so the
+# extractors' refusal of an unevaluated workbook is repeated at the point of use.
+import base_guard as _bg
+_bg.check(B, os.path.basename(BASEJ))
 NAME = B['client']; ID = str(O.get('client', '')).strip()   # no client-name default; id comes from the data pack
 ASSETS = tempfile.mkdtemp(prefix="ars_assets_")
 
@@ -282,9 +286,12 @@ if BIZ and BIZ['branches']:
     import chart_lib   # SAME renderer as the personal take-rate chart (charts_gen image11)
     br = chart_lib.top_branches(BIZ['branches'])   # largest branches, best rate first
     BIZ_PNG = os.path.join(ASSETS, 'biz_branch.png')
-    # business = navy bars / orange dashed avg; identical geometry to personal (orange/navy)
-    chart_lib.take_branch_chart(BIZ_PNG, [str(b[0]) for b in br], [b[3] for b in br],
-                                BIZ['new'], _BNAVY, _BORANGE, 1383, 540)
+    # Business = navy bars; identical geometry to personal. The rate line is TEAL
+    # rather than orange because it runs OVER navy bars, and STYLE.md's rule is that
+    # a mark is never drawn in the canvas colour — teal clears WCAG 3:1 on navy and
+    # on white, which is why it is the line colour everywhere else in the deck.
+    chart_lib.branch_chart(BIZ_PNG, br, _BNAVY, _BTEAL, 1383, 540,
+                           acct_label="Accounts opened", rate_label="Take rate")
     print("wrote", BIZ_PNG)
 
 # ------------------------------------------------------------------ open deck
@@ -745,16 +752,44 @@ repl(S[16], {"last bar not yet mature.":
              "attrition can only appear from the following month."}, optional=True)
 
 # ============================ SLIDE 18 — Before/After Mean
-_baw = M.get('ba_window_months', 3)
-_bawm = f"{_baw} month" + ("s" if _baw != 1 else "")   # a young program can fall back to 1
+# Both windows are DERIVED, never written as constants: the after side is 6 months
+# (Aaron, 2026-09-08) but a young program falls back down a ladder, and a caption that
+# said "6 months" over a 1-month comparison would be exactly the class of canned text
+# this pipeline keeps getting caught by. `_BAWIN` is the one phrase, used on both
+# slides.
+_bbw = M.get('ba_before_months', 3); _baw = M.get('ba_after_months', 6)
+_bbwm = f"{_bbw} month" + ("s" if _bbw != 1 else "")
+_bawm = f"{_baw} month" + ("s" if _baw != 1 else "")
+_BAWIN = f"{_bbw}-month pre-mailing baseline vs. the {_bawm} after the mailing"
+# "NSF/OD activity stayed roughly flat" was CANNED, and it sat beside the NSF/OD panel
+# of this very chart. It is the sentence behind the Marine FCU correction and Aaron's
+# +/-2% rule (2026-08-31): a claim with no figure is not checkable, so it carried none
+# and nothing contradicted it while NSF/OD had risen 27%. Derived now, with the figures.
+_nb0 = M.get('ba_nsf_before', 0); _na0 = M.get('ba_nsf_after', 0)
+_nfig = f"{_nb0:.2f} vs {_na0:.2f} NSF/OD items per responder per month"
+_nch = round(100 * (_na0 - _nb0) / _nb0) if _nb0 else 0
+if abs(_nch) <= 2:
+    _nsftxt = f"NSF/OD activity was almost flat — {_nfig}"
+elif _nch > 0:
+    _nsftxt = f"NSF/OD activity rose {_nch}% — {_nfig}"
+else:
+    _nsftxt = f"the mailings did not have an impact on NSF/OD activity — {_nfig}"
+# "rose after every mailing" is a claim about all of them, so it is only made when it
+# is true of all of them.
+_ba_rows = M.get('before_after', [])
+_ba_up = sum(1 for e in _ba_rows if e['sa_mean'] > e['sb_mean'])
+if _ba_rows and _ba_up < len(_ba_rows):
+    repl(S[17], {"Debit spend rose after every mailing":
+                 f"Debit spend rose after {_ba_up} of the {len(_ba_rows)} mailings"})
 repl(S[17], {"$644/mo before vs $1,027 after (+59%)": f"${M['ba_spend_before']:,}/mo before vs ${M['ba_spend_after']:,} after (+{sgain}%)",
+             "NSF/OD activity stayed roughly flat": _nsftxt,
              "Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}.",
-             # Windows are symmetric now (3 before vs 3 after); the old caption claimed the
-             # gain held across every later month, which the chart no longer measures.
+             # Fixed-length windows; the old caption claimed the gain held across every
+             # later month, which the chart does not measure.
              "held across all later months":
              f"held through the {_bawm} after",
              "3-month pre-mailing baseline vs. every month after the mailing (through June 2026)":
-             f"{_baw}-month pre-mailing baseline vs. the {_bawm} after the mailing"})
+             _BAWIN})
 # ============================ SLIDE 19 — Before/After by Offer Group
 # Was the median twin of slide 18. The deck now reports ONE statistic — the mean —
 # and splits it by the offer that was mailed instead (Aaron, 2026-08-28): NU asks a
@@ -778,7 +813,14 @@ set_shape_text(S[18], "On a median basis",
                optional=True)
 repl(S[18], {"Responder Activity: Before vs After (Median)":
              "Responder Activity: Before vs After by Offer"}, optional=True)
-repl(S[18], {"Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}."})
+repl(S[18], {"Mailings Oct 2023 – Apr 2026.": f"Mailings {ba0} – {ba1}.",
+             # This fragment was template text on BOTH before/after slides and only
+             # slide 18's was ever swapped. Slide 19 shipped "every month after the
+             # mailing (through July 2026)" while the chart measured a fixed window —
+             # and the global as-of sweep rolled the month forward each build, so the
+             # stale claim read as freshly derived (Aaron, 2026-09-08).
+             "3-month pre-mailing baseline vs. every month after the mailing (through June 2026)":
+             _BAWIN})
 repl(S[18], {"median monthly debit spend (all responders) and median NSF/OD items among overdraft participants":
              "average monthly debit spend per responder, split by the offer mailed "
              "(Non-User vs Threshold)"}, optional=True)
@@ -788,7 +830,8 @@ set_exact(S[20], "73.7%", take_new)
 set_exact(S[20], "71.0%", take)
 set_exact(S[20], "707", f"{M['take_new_total']:,}")
 set_exact(S[20], "186", f"{M['take_new_nocard']:,}")
-repl(S[20], {"Dashed line = 73.7% program average.": f"Dashed line = {take_new} program average."})
+# No dashed-line swap: the branch chart no longer draws a program average, because
+# that figure is the 12-Mo Take Rate tile on this same slide (Aaron, 2026-09-08).
 
 # ============================ SLIDE 22 — Business Take Rate
 if BIZ:
@@ -797,9 +840,7 @@ if BIZ:
     set_exact(S[21], "178", f"{BIZ['elig']:,}")
     set_exact(S[21], "86", f"{BIZ['nocard']:,}")
     repl(S[21], {"Selection: business accounts opened Jul 2025 – Jun 2026 (new take rate) and all ARS-eligible business accounts (historical). 0 business accounts are ARS-eligible in the current book.":
-                 f"Selection: business accounts opened {NEWWIN_TEXT} (new take rate) and all ARS-eligible business accounts (historical). {BIZ['hist_elig']} business accounts are ARS-eligible in the current book.",
-                 "Take rate by branch (new business accounts, largest branches). Dashed line = 52% program average.":
-                 f"Take rate by branch (new business accounts, largest branches). Dashed line = {BIZ['new']:.0f}% program average."})
+                 f"Selection: business accounts opened {NEWWIN_TEXT} (new take rate) and all ARS-eligible business accounts (historical). {BIZ['hist_elig']} business accounts are ARS-eligible in the current book."})
 
 # ---- take-rate window labels: the pill and the personal selection were template
 # literals the builder never swapped, so every deck shipped the TEMPLATE's window
@@ -862,17 +903,13 @@ set_exact(S[24], "-1%", f"{'+' if M['nsf_yoy']>=0 else ''}{M['nsf_yoy']}%")
 # ============================ SLIDE 27 — Reg E all
 repl(S[26], {"all open personal accounts holding a debit card (6,192)": f"all open personal accounts holding a debit card ({rege_pool})",
              "36.3% of open personal debit-card holders are opted in to overdraft — 2,247 of 6,192.":
-             f"{rege} of open personal debit-card holders are opted in to overdraft — {rege_in} of {rege_pool}.",
-             "branches with 40+ eligible accounts). Dashed line = 36.3% overall.":
-             f"branches with 40+ eligible accounts). Dashed line = {rege} overall."})
+             f"{rege} of open personal debit-card holders are opted in to overdraft — {rege_in} of {rege_pool}."})
 
 # ============================ SLIDE 28 — Reg E new
 reldir = updown(M['rege_new_pct'], M['rege_pct'], ("above the book", "below the book", "in line with the book"))
 repl(S[27], {"opened July 2025 – June 2026 and still open (519)": f"opened July 2025 – June 2026 and still open ({rege_new_pool})",
              "New-account opt-in runs below the book: 20.0% of accounts opened in the last 12 months — 104 of 519.":
-             f"New-account opt-in runs {reldir}: {rege_new} of accounts opened in the last 12 months — {rege_new_in} of {rege_new_pool}.",
-             # the branch-chart caption states what the chart plots and nothing else
-             "Dashed line = 20.0% overall.": f"Dashed line = {rege_new} overall."})
+             f"New-account opt-in runs {reldir}: {rege_new} of accounts opened in the last 12 months — {rege_new_in} of {rege_new_pool}."})
 # The template used to editorialise here — "Lower-staffed branches lag; higher-touch
 # branches lead on new-account opt-in." The ODD carries no staffing or contact data, so
 # neither half of that could be shown; it shipped on every ARS deck (Aaron, 2026-08-28,
@@ -880,7 +917,7 @@ repl(S[27], {"opened July 2025 – June 2026 and still open (519)": f"opened Jul
 # that brings the sentence back — the needle above misses first, which is the warning that
 # it did.
 repl(S[27], {"Lower-staffed branches lag; higher-touch branches lead on new-account opt-in.":
-             f"Dashed line = {rege_new} overall."}, optional=True)
+             "Opt-in rate by branch, last-12-month accounts."}, optional=True)
 
 # ============================ SLIDE 29 — Reg E vintage
 vpool = f"{M['rege_vintage_pool']:,}"; v = M['rege_vintage']; first = v[0]; last = v[-1]

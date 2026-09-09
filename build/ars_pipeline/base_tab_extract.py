@@ -64,6 +64,11 @@ def extract(wb):
     return out
 
 wb=load(sys.argv[1]); res=extract(wb)
+# A workbook saved without evaluating its formulas reads as the template's zeros.
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+import base_guard as _bg
+_bg.check(res, _os.path.basename(sys.argv[1]))
 if len(sys.argv)>2:
     dco=load(sys.argv[2]); ws=dco[dco.sheetnames[0]]
     def dcell(label):

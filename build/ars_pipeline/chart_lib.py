@@ -1,7 +1,8 @@
 """Shared ARS chart helpers — one styling source so charts_gen.py and build_ars_gen.py
-render matching charts. The take-rate-by-branch chart is used for BOTH the personal slide
-(orange bars / navy dashed avg) and the business slide (navy bars / orange dashed avg); they
-must be identical in size and layout — see templates/STYLE.md."""
+render matching charts. `branch_chart` draws all FOUR branch charts (personal take rate,
+business take rate, and both Reg E charts): accounts in the bars, rate on the line.
+Only the two colours differ — orange bars / navy line for personal and Reg E, navy bars /
+teal line for business. They must be identical in size and layout — see templates/STYLE.md."""
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
@@ -21,31 +22,76 @@ def _letterbox(fig, out_png, tw, th):
     canvas = Image.new("RGB", (tw, th), "white"); canvas.paste(im2, ((tw - nw) // 2, (th - nh) // 2))
     canvas.save(out_png); os.remove(tmp)
 
-def take_branch_chart(out_png, labels, vals, avg, bar_color, dash_color, w=1383, h=540):
-    """Take-rate-by-branch bar chart with identical geometry for personal & business.
-    Only the colors differ (personal orange/navy, business navy/orange)."""
+def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
+                 acct_label="Accounts opened", rate_label="Take rate"):
+    """Volume in the bars, rate on the line — all four branch charts (Aaron, 2026-09-08).
+
+    The bars used to BE the rate, and a rate drawn without its denominator is not
+    readable: a branch with 15 accounts and 4 opt-ins stood exactly as tall as one
+    with 900 accounts at the same percentage, so the chart said nothing about where
+    the book actually is. Accounts opened now set the bar height and the rate rides
+    above on its own axis, which is the comparison the slide is for.
+
+    `rows` are (branch, numerator, accounts, pct) — the shape every branch metric
+    carries — already selected and ordered by `top_branches`.
+
+    No program-average line: that figure is the donut beside the Reg E charts and
+    the tile beside the take-rate charts, so a dashed rule was a third rendering of
+    a number already twice on the slide (Aaron, 2026-09-08). The captions no longer
+    name one.
+
+    One renderer for the personal take rate, the business take rate and both Reg E
+    charts, so they cannot drift apart: only the two colours differ.
+    """
     # This geometry seats about eight bars; past that the branch labels run together and
     # the value labels touch (1549 arrived with 19, 1075 with 37 — Aaron, 2026-08-20).
     # Callers cap the list; this is the backstop so a new caller can't reintroduce it.
-    if len(vals) > BRANCH_CAP:
-        raise ValueError(f"take_branch_chart got {len(vals)} bars; cap the caller's list at "
+    if len(rows) > BRANCH_CAP:
+        raise ValueError(f"branch_chart got {len(rows)} bars; cap the caller's list at "
                          f"{BRANCH_CAP} or the branch labels will collide")
+    labels = [str(r[0]) for r in rows]
+    accts = [r[2] for r in rows]
+    rates = [r[3] for r in rows]
+    x = range(len(rows))
     a = w / h; H = 3.2
     fig, ax = plt.subplots(figsize=(H * a, H))
-    ax.bar(range(len(vals)), vals, color=bar_color, width=_BAR_W)
-    # White halo so the dashed average passes BEHIND a value label rather than
-    # striking through it — the bars cluster around the average once they are
-    # ranked by take rate.
-    _halo = dict(boxstyle="square,pad=0.10", facecolor="white", edgecolor="none")
-    for i, v in enumerate(vals):
-        ax.text(i, v + 1, f"{v}%", ha="center", va="bottom", color=NAVY,
-                fontweight="bold", fontsize=10, bbox=_halo, zorder=5)
-    ax.axhline(avg, ls="--", color=dash_color, lw=1.5)
-    ax.set_xticks(range(len(vals))); ax.set_xticklabels(labels, fontsize=10)
-    ax.set_ylim(0, 105); ax.get_yaxis().set_visible(False)
+
+    ax.bar(x, accts, color=bar_color, width=_BAR_W)
+    ax.set_ylim(0, max(accts) * 1.62)      # bottom ~62% for the bars, the rest for the line
+    ax.get_yaxis().set_visible(False)
+    # The count goes UNDER the axis, beneath its branch number, not above the bar
+    # or inside it. Above the bar is where the rate line and its labels live, and
+    # the two collide the moment a big branch has a low rate — which is the case
+    # worth reading: True Sky's branch 1004 is the largest at 513 accounts and the
+    # worst at 8%, so its bar and its rate label landed on each other.
+    ax.set_xticks(list(x))
+    ax.set_xticklabels([f"{b}\n{n:,}" for b, n in zip(labels, accts)], fontsize=10)
     for sp in ("top", "right", "left"): ax.spines[sp].set_visible(False)
     ax.spines["bottom"].set_color(MUTED); ax.tick_params(colors=TICK, length=0)
     for t in ax.get_xticklabels(): t.set_color(NAVY)
+
+    ax2 = ax.twinx()
+    ax2.plot(x, rates, color=rate_color, lw=2.2, marker="o", mfc="white",
+             mec=rate_color, ms=6, mew=2, zorder=6)
+    # White pad so the rate line passes BEHIND its own value labels rather than
+    # striking through them — the same treatment the monthly-revenue chart uses.
+    _halo = dict(boxstyle="square,pad=0.10", facecolor="white", edgecolor="none")
+    for i, v in enumerate(rates):
+        ax2.text(i, v, f"{v}%", ha="center", va="bottom", color=NAVY,
+                 fontweight="bold", fontsize=10, bbox=_halo, zorder=7)
+    _rtop = max(rates) * 1.30
+    ax2.set_ylim(0, _rtop)
+    ax2.set_ylabel(rate_label, color=NAVY, fontsize=10)
+    ax2.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
+    # Headroom for the value labels is not a claim that the rate can go there: the
+    # personal take rate peaks at 99%, and 1.30x headroom printed ticks up to 120%
+    # on an axis where 100% is the ceiling.
+    ax2.set_yticks([t for t in ax2.get_yticks() if 0 <= t <= min(100, _rtop)])
+    ax2.tick_params(colors=TICK, length=0, labelsize=9)
+    ax2.spines["top"].set_visible(False); ax2.spines["left"].set_visible(False)
+    ax2.spines["right"].set_color(MUTED)
+
+    ax.set_xlabel(f"Branch  ·  {acct_label.lower()} (bars)", color=TICK, fontsize=9)
     _letterbox(fig, out_png, w, h)
 
 def top_branches(rows, cap=None, acct=2, pct=3):

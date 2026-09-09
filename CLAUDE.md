@@ -208,8 +208,11 @@ all three programs can adopt it), plus the post-processors `restyle_fonts.py`,
 `summit_slide.py`, `fit_layout.py` (layout-fit + 10pt slide numbers, run by all builders
 before save), `strip_dead.py`, `textfit.py`, `branch_names.py` and `assemble_combined.py`.
 ARS-specific shared code stays in `build/ars_pipeline/` — `odd_rows.py` (the ODD row
-vocabulary: `g`, `fnum`, `swipes`, `spend`, `personal`, `hascard`, `isopen`) is there
-because the ODD is an ARS input.
+vocabulary: `g`, `fnum`, `swipes`, `spend`, `personal`, `hascard`, `isopen`) and
+`before_after.py` (the responder before/after measure) are there because the ODD is an
+ARS input. **Both are import-safe on purpose**: `metrics_gen` reads `sys.argv` at module
+scope, so importing it RUNS it, and that hazard is why each of these was re-implemented
+standalone and then drifted.
 
 The ODD optimizer is `scripts/oddd_optimize.py`; the validator is `validation/validate_deck.py`.
 Superseded one-offs, the deprecated pre-`build_ars_gen` ARS recipe (`build_gen`/`build_gen_b`/
@@ -532,10 +535,11 @@ read. The first copy run clobbered 1539's recalculated 2026.08 workbook with the
 share's never-evaluated original and every ARS figure for Marine FCU read 0
 (2026-09-08; recovered by recalculating in Excel). **A landed workbook can arrive with
 its formulas unevaluated**: openpyxl then reads the template defaults (1 month, 0
-mailings, $0). The dashboard refresh reports that as "carries no calculated values"
-rather than rendering zeros; the ARS builder has no such guard yet — if a workbook's
-extract reads one month and no revenue for a live client, open it in Excel, save,
-and rebuild.
+mailings, $0). `build/ars_pipeline/base_guard.py` is the one definition of that
+check: both ARS extractors and the ARS builder exit with `UNEVALUATED WORKBOOK: ...`
+on such a base, and the dashboard refresh reports the row as "carries no calculated
+values" rather than rendering zeros. The fix is to open the workbook in Excel, save,
+and rebuild. `tests/test_base_guard.py` pins that every ARS entry point uses it.
 
 Because the copy happens before the 08:30 dashboard refresh, a new month's
 workbooks reaching Drive roll the performance artifact forward the same morning.
@@ -639,6 +643,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `charts_gen.py` — renders the 28 chart PNGs; `DIM` = each chart's pixel size (must match its slide box aspect).
 - `chart_lib.py` — shared take-rate-by-branch renderer (personal orange / business navy; identical size).
 - `base_tab_extract.py` — SM financials from the workbook (+ DCO).
+- `base_guard.py` — refuses a workbook whose formulas were never evaluated (extracts as 1 month, 0 mailings, $0); called by both extractors, the builder and the dashboard refresh.
 - `extract_base_gen.py` / `extract_lift.py` — MM financials / Lift Matrix rows.
 - `render_lift.py`, `ticket_calc.py`, `ticket_chart.py` — Lift Matrix chart (MM); average-ticket calc + chart.
 - `product_mix_slide.py` — builds the Product Mix & ARS Eligibility slide from the ODD.
@@ -650,12 +655,19 @@ This is the readme index — update it whenever files are added, removed, or mov
   the per-client excluded product codes, derived as those with no eligible account. $0
   balance and address quality are reported as observations, NOT as exclusions — neither
   predicts the `Elig` flag (see the module docstring for the evidence).
+- `before_after.py` — the responder before/after measure (cohort, windows, winsorizing,
+  pooling), imported by BOTH `metrics_gen` (the monthly deck) and `responder_activity`
+  (the Summit one-pager). **The Summit and the monthly decks use the same logic**
+  (Aaron, 2026-09-08): the two used to compute it four different ways and the one-pager
+  reported True Sky at +118% while the client's own deck said +103%.
 - `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
   restyle_fonts / fit_layout / validate_deck, which enforce the 13.33x7.5 deck contract.
-- `responder_activity.py` — responder before/after activity from the raw ODD; feeds the one-pager.
+- `responder_activity.py` — reads the raw ODD for the one-pager: eligible count, reach,
+  depth, transactions over the ask. The before/after figures come from the shared
+  `before_after.compute`, not from this file.
 - `lift_extract.py` → `build_lift_matrix.py` — per-account ODD extract (`.pkl`) and the
   standalone ARS Lift Matrix workbook built from it (the file sent to Bradford).
 

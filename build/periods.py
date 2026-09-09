@@ -57,7 +57,10 @@ _TOKEN_FORMS = (
     # A two-digit year here is a YEAR: these tokens label monthly series, never
     # a day of the month.
     (re.compile(r"^([A-Za-z]{3,9})\.?\s+(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
-    (re.compile(r"^([A-Za-z]{3,9})'(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
+    # "Jun'25" and "Sep '23" — the space before the apostrophe is not decorative:
+    # the ARS Sustained chart drew exactly that form, and it fell through to None
+    # so the month-axis guard could not see it as a month at all (2026-09-08).
+    (re.compile(r"^([A-Za-z]{3,9})\.?\s*'(\d{2})$"), lambda m: (2000 + int(m.group(2)), m.group(1))),
     (re.compile(r"^(\d{4})-(\d{2})$"), lambda m: (int(m.group(1)), _num_month(int(m.group(2))))),
     (re.compile(r"^(\d{2})-(\d{4})$"), lambda m: (int(m.group(2)), _num_month(int(m.group(1))))),
 )
@@ -105,6 +108,56 @@ def mon_yy(token):
 def axis_months(tokens):
     """Every label on one axis, in the house format."""
     return [mon_yy(t) for t in tokens]
+
+
+class MonthAxisError(Exception):
+    """A chart drew a calendar month outside the house format."""
+
+
+def install_month_axis_guard():
+    """Fail any render that puts a calendar month on an axis un-formatted.
+
+    `mon_yy` settled the format; it did not make every chart adopt it, and the
+    ones that never did were invisible because they build their labels by
+    string-slicing instead of calling anything (Aaron, 2026-09-08). The ARS
+    before/after panels sliced "Feb 2024" into "Feb24", Sustained drew
+    "Sep '23", monthly revenue took `m.split()[0]` and threw the YEAR away, and
+    Ranking left "Sep 2023" full-length down the y-axis. Five charts, four
+    formats, none of them the standard.
+
+    A lint over the source cannot see this — the label is a runtime value — so
+    the check runs where the label is actually drawn. A category axis that is
+    not months passes straight through: only a label `parse_month` recognises
+    is held to the format, and it is held to being ALREADY correct, so the
+    guard never silently rewrites a chart.
+
+    Idempotent, so importing two chart modules in one process installs it once.
+    """
+    from matplotlib.axes import Axes
+
+    def _wrap(name):
+        orig = getattr(Axes, name)
+        if getattr(orig, "_rpe_month_guard", False):
+            return
+        axis = name[4]                      # 'x' or 'y'
+
+        def checked(self, labels, *a, **kw):
+            for t in labels or ():
+                s = str(t.get_text() if hasattr(t, "get_text") else t)
+                if parse_month(s) and s != mon_yy(s):
+                    raise MonthAxisError(
+                        "%s-axis label %r is a calendar month drawn outside the "
+                        "house format (%r). Pass it through "
+                        "periods.axis_months() — see STYLE.md, chart standards."
+                        % (axis, s, mon_yy(s)))
+            return orig(self, labels, *a, **kw)
+
+        checked._rpe_month_guard = True
+        checked.__name__ = name
+        setattr(Axes, name, checked)
+
+    _wrap("set_xticklabels")
+    _wrap("set_yticklabels")
 
 
 def month_diff(a, b):

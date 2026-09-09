@@ -297,119 +297,15 @@ M['sustained']=sust
 M['sustained_window']=max((x[3] for x in sust), default=0)
 
 # ---- before/after (slides 18/19) ----
-# Cohort = ALL personal responders to the mailing (Aaron, 2026-08-27). It used to be `elig`,
-# i.e. only those still ARS-eligible at the snapshot — a present-tense filter on a historical
-# cohort. On Austin 1075 that dropped 0.8% of the newest mailing's responders but 21.9% of the
-# oldest: precisely the accounts that closed or went quiet. It lifted the reported gain from
-# +53% to +62%, which is survivorship, not program lift.
-#
-# Windows are SYMMETRIC — the BA_W months before the mailing against the BA_W months after it.
-# "After" used to run to the end of the extract, so an old mailing compared 3 months against 32
-# while the newest compared 3 against 2; the bars were not measuring the same thing. A mailing
-# without a full post window is excluded rather than charted on a short one.
-# Target window is 3 months each side. A young program may not have 3 months after any
-# mailing yet (Wellworth 1549's only mailing is one month before the extract ends), so fall
-# back to the widest window that at least one mailing supports rather than charting nothing.
-# The window is recorded in ba_window_months and the slide caption states it, so a 1-month
-# comparison is never passed off as a 3-month one.
-ba_pop=[r for r in data if personal(r)]
-def _ba_window(w):
-    return [m for m in mature
-            if smonths.index(m)>=w and smonths.index(m)+1+w<=len(smonths)]
-for BA_W in (3,2,1):
-    ba_mailings=_ba_window(BA_W)
-    if ba_mailings: break
-if not ba_mailings:
-    print("WARNING before/after: no mailing has a full month on both sides — slides 18/19 "
-          "will report that the comparison is not available yet", file=sys.stderr)
-def _wins_pair(a,b):
-    """Winsorize both windows at ONE cap from their combined distribution.
-
-    Capping each window at its own mean+3sd gave before and after different thresholds, so
-    the cap itself moved the delta."""
-    allv=a+b
-    if not allv: return a,b
-    cap=statistics.mean(allv)+3*statistics.pstdev(allv)
-    return [min(v,cap) for v in a],[min(v,cap) for v in b]
-ba=[]; _pool_sb=[]; _pool_sa=[]
-for m in ba_mailings:
-    i=smonths.index(m)
-    rs=[r for r in ba_pop if g(r,f'{m} Resp') in RESP_MET]
-    if len(rs)<5: continue
-    pre=smonths[i-BA_W:i]; post=smonths[i+1:i+1+BA_W]
-    sb=[statistics.mean([spend(r,x) for x in pre]) for r in rs]
-    sa=[statistics.mean([spend(r,x) for x in post]) for r in rs]
-    nb=[statistics.mean([nsf(r,x) for x in pre]) for r in rs]
-    na=[statistics.mean([nsf(r,x) for x in post]) for r in rs]
-    sbw,saw=_wins_pair(sb,sa)
-    _pool_sb+=sb; _pool_sa+=sa
-    od=[i2 for i2 in range(len(rs)) if nb[i2]>0 or na[i2]>0]   # overdraft participants
-    ba.append({'m':lbl(m),'n':len(rs),
-       'sb_mean':round(statistics.mean(sbw)),'sa_mean':round(statistics.mean(saw)),
-       'sb_sd':round(statistics.pstdev(sbw)),'sa_sd':round(statistics.pstdev(saw)),
-       'nb_mean':round(statistics.mean(nb),2),'na_mean':round(statistics.mean(na),2),
-       'nb_sd':round(statistics.pstdev(nb),2),'na_sd':round(statistics.pstdev(na),2),
-       'sb_med':round(statistics.median(sb)),'sa_med':round(statistics.median(sa)),
-       'nb_med':round(statistics.median([nb[i2] for i2 in od]),2) if od else 0,
-       'na_med':round(statistics.median([na[i2] for i2 in od]),2) if od else 0})
-M['before_after']=ba
-
-# ---- before/after split by offer group (slide 19) ----
-# The two offers ask for different behaviour: NU asks a non-user to start using the
-# card, TH asks an existing user to reach a threshold. Pooling them hides which one
-# moves (Aaron, 2026-08-28). Grouping keys on what was MAILED ('<mon> Mail'), the
-# same key mail_summary uses — never on how they responded, which would put a
-# responder in a group whose baseline does not contain them.
-def _grp(r, m):
-    o = g(r, f'{m} Mail')
-    if o == 'NU': return 'nu'
-    if o.startswith('TH'): return 'th'
-    return None
-ba_split=[]; _pool={'nu':[[],[]], 'th':[[],[]]}
-for m in ba_mailings:
-    i=smonths.index(m)
-    pre=smonths[i-BA_W:i]; post=smonths[i+1:i+1+BA_W]
-    row={'m':lbl(m)}
-    for key in ('nu','th'):
-        rs=[r for r in ba_pop
-            if g(r,f'{m} Resp') in RESP_MET and _grp(r,m)==key]
-        if len(rs)<5:
-            row[key]={'n':len(rs),'before':0,'after':0,'gain':0}
-            continue
-        sb=[statistics.mean([spend(r,x) for x in pre]) for r in rs]
-        sa=[statistics.mean([spend(r,x) for x in post]) for r in rs]
-        sbw,saw=_wins_pair(sb,sa)
-        _pool[key][0]+=sb; _pool[key][1]+=sa
-        b=statistics.mean(sbw); a=statistics.mean(saw)
-        row[key]={'n':len(rs),'before':round(b),'after':round(a),
-                  'gain':round(100*(a-b)/b) if b else 0}
-    ba_split.append(row)
-M['before_after_split']=ba_split
-_hl={}
-for key in ('nu','th'):
-    pb,pa=_pool[key]
-    if pb:
-        b_,a_=_wins_pair(pb,pa)
-        mb=statistics.mean(b_); ma=statistics.mean(a_)
-        _hl[key]={'n':len(pb),'before':round(mb),'after':round(ma),
-                  'gain':round(100*(ma-mb)/mb) if mb else 0}
-    else:
-        _hl[key]={'n':0,'before':0,'after':0,'gain':0}
-M['ba_split_headline']=_hl
-
-M['ba_window_months']=BA_W
-
-# Headline pools every responder observation instead of averaging the per-mailing figures,
-# which let a 2,688-responder mailing count as much as a 5,065-responder one. (A responder who
-# answered several mailings contributes once per mailing — that is inherent to per-mailing
-# cohorts, and the pooled figure is still "per responder per mailing".)
-_hb,_ha=_wins_pair(_pool_sb,_pool_sa)
-M['ba_spend_before']=round(statistics.mean(_hb)) if _hb else 0
-M['ba_spend_after']=round(statistics.mean(_ha)) if _ha else 0
-# A TRUE median across responders. This was the mean of the per-mailing medians, which is not
-# the median of anything.
-M['ba_spend_med_before']=round(statistics.median(_pool_sb)) if _pool_sb else 0
-M['ba_spend_med_after']=round(statistics.median(_pool_sa)) if _pool_sa else 0
+# The measure itself lives in before_after.py, imported by BOTH this module and
+# responder_activity.py (the Summit one-pager), because the two used to compute it
+# four different ways and a Summit attendee could be shown a number their own
+# monthly deck contradicted (Aaron, 2026-09-08). Cohort, window, winsorizing and
+# pooling are all defined there, with the evidence for each choice.
+import before_after as _BA
+_ba_out = _BA.compute(data, _odd, smonths, mature,
+                      on_warning=lambda msg: print("WARNING " + msg, file=sys.stderr))
+M.update(_ba_out)
 
 # ============ STAGE 2 ============
 OPTIN='IN'; OPTOUT={'OUT'}; NOELECT={'NO'}
@@ -803,4 +699,6 @@ json.dump(M,open(sys.argv[2],'w', encoding="utf-8"),indent=1,default=str)
 print('\nsustained bars:',[(s[0],s[2]) for s in M['sustained']])
 print('ranking last 3:',M['ranking'][-3:])
 print('ba spend before/after mean:',M['ba_spend_before'],M['ba_spend_after'],'median:',M['ba_spend_med_before'],M['ba_spend_med_after'])
-print('ba n mailings:',len(ba))
+print('ba window: %d before / %d after | %d mailings'
+      % (M['ba_before_months'],M['ba_after_months'],M['ba_n_mailings']))
+print('ba nsf before/after:',M['ba_nsf_before'],M['ba_nsf_after'])

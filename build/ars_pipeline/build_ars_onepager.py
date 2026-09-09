@@ -196,8 +196,11 @@ def chart_spend36(series, out_png, w=5.25, h=2.15):
 
 
 def chart_before_after(ra, out_png, w=5.25, h=1.82):
-    """Responder debit spend, 3-month pre-mailing baseline vs after.
-    Before = steel, After = orange, mean and median side by side."""
+    """Responder debit spend, pre-mailing baseline vs after.
+
+    The window lengths come from the data (`before_after.py`, shared with the
+    monthly deck) and are stated in the source note — never written here as a
+    constant, because a young program falls back to a shorter one."""
     _prep()
     groups = [("Mean", ra["ba_spend_before"], ra["ba_spend_after"]),
               ("Median", ra["ba_spend_med_before"], ra["ba_spend_med_after"])]
@@ -390,10 +393,10 @@ def build(base, metrics, template, assets, out, ra=None):
     s.shapes.add_picture(chart_before_after(ra,
                                             os.path.join(assets, "op_ba.png")),
                          Inches(M), Inches(8.64), Inches(5.25), Inches(1.82))
-    _tile(s, 5.90, 8.64, 2.15, 0.85, f"+{ra['ba_pct_mean']:,.0f}%",
+    _tile(s, 5.90, 8.64, 2.15, 0.85, f"{ra['ba_pct_mean']:+,.0f}%",
           f"Responder spend, ${ra['ba_spend_before']:,} → "
           f"${ra['ba_spend_after']:,}", True, vsize=14, lsize=8)
-    _tile(s, 5.90, 9.61, 2.15, 0.85, f"+{ra['dot_mean']:,.1f}",
+    _tile(s, 5.90, 9.61, 2.15, 0.85, f"{ra['dot_mean']:+,.1f}",
           "Transactions over the ask, per month", False, vsize=14, lsize=8)
 
     # ---- footer
@@ -419,10 +422,12 @@ def build(base, metrics, template, assets, out, ra=None):
         f"36-month chart: Key Trends MM — total debit spend ($M) and "
         f"card-holding accounts, {ss[0][0]} – {ss[-1][0]}.\n"
         f"Responder before/after: ODD extract, method per "
-        f"build/ars_pipeline/metrics_gen.py — eligible personal responders "
-        f"across {ra['ba_n_mailings']} mature mailings; mean monthly debit "
-        f"spend over the 3 months before each mailing vs every month after, "
-        f"winsorized at 3 SD. Mean ${ra['ba_spend_before']:,} -> "
+        f"build/ars_pipeline/before_after.py — the same function the monthly "
+        f"deck uses — personal responders across {ra['ba_n_mailings']} "
+        f"mailings; mean monthly debit spend over the "
+        f"{ra['ba_before_months']} months before each mailing vs the "
+        f"{ra['ba_after_months']} months after, both winsorized at one 3 SD "
+        f"cap. Mean ${ra['ba_spend_before']:,} -> "
         f"${ra['ba_spend_after']:,} ({ra['ba_pct_mean']:+.1f}%); median "
         f"${ra['ba_spend_med_before']:,} -> ${ra['ba_spend_med_after']:,} "
         f"({ra['ba_pct_med']:+.1f}%). Transactions over the ask: swipes in the "

@@ -12,6 +12,7 @@ OUT=sys.argv[3]; os.makedirs(OUT,exist_ok=True)
 from brand import (NAVY, ORANGE, LABEL as GREY, STEEL, TICK,
                    STEEL_SOFT as LIGHT, GOLD, MUTED, HAIRLINE)
 import periods as P
+P.install_month_axis_guard()   # a month drawn outside MMM'YY fails the render
 use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def _fixacr(txt):
     """Collapse space-separated single capital letters: 'Individual H S A' -> 'Individual HSA'."""
@@ -48,17 +49,32 @@ def save(fig,name):
 def figfor(name,scale=5.2):
     w,h=DIM[name]; a=w/h; H=scale; return plt.subplots(figsize=(H*a,H))
 
+def _month_axis(ax,ticks,tokens,fontsize=9):
+    """EVERY calendar-month x-axis in this file goes through here.
+
+    MMM'YY, angled, anchored right — the one format (STYLE.md, periods.AXIS_*).
+    It is a function rather than a convention because four charts drew their own
+    labels by string-slicing and so never picked the standard up: the two
+    before/after panels sliced "Feb 2024" into "Feb24", Sustained drew "Sep '23",
+    and the monthly-revenue bars took `m.split()[0]` and threw the YEAR AWAY
+    (Aaron, 2026-09-08). `periods.install_month_axis_guard`, armed at the top of
+    this module, fails the render if a month reaches an axis any other way; the
+    y-axis equivalent is a bare `P.axis_months` call (see c_ranking)."""
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(P.axis_months(tokens),fontsize=fontsize,
+                       rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
+
 def _xmonths(ax,x,cats,labels):
     """One x-axis style for the 36-mo combo charts: ~12 ticks, 9pt, 45deg (STYLE.md)."""
     step=max(1,round(len(cats)/12))
-    ax.set_xticks(x[::step]); ax.set_xticklabels(P.axis_months([labels[i] for i in range(0,len(labels),step)]),fontsize=9,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
+    _month_axis(ax,x[::step],[labels[i] for i in range(0,len(labels),step)])
 
 # image5: monthly incremental revenue, navy bars + orange dashed avg
 def c_monthly():
-    data=B['monthly_rev_last12']; months=[m.split()[0] for m,_ in data]; rev=[v for _,v in data]
+    data=B['monthly_rev_last12']; months=[m for m,_ in data]; rev=[v for _,v in data]
     avg=sum(rev)/len(rev)
     fig,ax=figfor('image5',3.4)
-    ax.bar(months,rev,color=NAVY,width=0.68)
+    ax.bar(np.arange(len(rev)),rev,color=NAVY,width=0.68)
     mx=max(rev)
     # Same halo as the SM Monthly Summary chart: a bar near the average has its
     # label crossing the dashed avg line, and the dash would strike through the
@@ -69,6 +85,7 @@ def c_monthly():
         ax.text(i,v+off,f"${v/1000:.0f}K",ha="center",va="bottom",color=NAVY,
                 fontweight="bold",fontsize=8.5,bbox=_halo,zorder=5)
     ax.axhline(avg,ls="--",color=ORANGE,lw=2,zorder=2)
+    _month_axis(ax,np.arange(len(rev)),months)
     ax.set_ylim(0,mx*1.26); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image5')
@@ -86,7 +103,10 @@ def c_ranking():
         left+=vals
     for yi,tot in zip(y,left):
         ax.text(tot+left.max()*0.01,yi,f"{int(tot)}",va="center",ha="left",color=NAVY,fontweight="bold",fontsize=10)
-    ax.set_yticks(y); ax.set_yticklabels(labels,fontsize=10)
+    # Months, so the house format applies here too — this axis read "Sep 2023"
+    # full-length while every other month axis in the deck read MMM'YY. No
+    # rotation: these run down the side, one per row, with room to spare.
+    ax.set_yticks(y); ax.set_yticklabels(P.axis_months(labels),fontsize=10)
     ax.set_xlim(0,left.max()*1.1); ax.get_xaxis().set_visible(False)
     _clean(ax); ax.spines["bottom"].set_visible(False)
     ax.legend(ncol=5,frameon=False,fontsize=9,loc="lower center",bbox_to_anchor=(0.5,-0.13))
@@ -117,7 +137,7 @@ def c_movement():
     save(fig,'image8')
 # image9: sustained by mailing
 def c_sustained():
-    s=M['sustained']; cats=[f"{x[0].split()[0]} '{x[0].split()[1][2:]}" for x in s]  # Sep '23
+    s=M['sustained']; cats=[x[0] for x in s]        # "Sep 2023"; _month_axis formats
     pct=[x[2] for x in s]
     fig,ax=figfor('image9',3.4)
     # grey marks a definitional 100%: a mailing with no month after it yet (post
@@ -126,7 +146,7 @@ def c_sustained():
     ax.bar(range(len(pct)),pct,color=cols,width=0.62)
     for i,v in enumerate(pct):
         ax.text(i,v+1,f"{v:.0f}%",ha="center",va="bottom",color=NAVY,fontweight="bold",fontsize=11)
-    ax.set_xticks(range(len(pct))); ax.set_xticklabels(cats,fontsize=8.5,rotation=30,ha="right")
+    _month_axis(ax,range(len(pct)),cats,fontsize=8.5)
     ax.set_ylim(0,max(pct)*1.22); ax.get_yaxis().set_visible(False)
     _clean(ax); ax.spines["left"].set_visible(False)
     save(fig,'image9')
@@ -138,7 +158,7 @@ def c_before_after_split():
     sp=M.get('before_after_split') or []
     if not sp:
         print("skip image31 — no offer-group split available"); return
-    cats=[e['m'].split()[0]+e['m'].split()[1][2:] for e in sp]
+    cats=[e['m'] for e in sp]                       # "Feb 2024"; _month_axis formats
     name='image31'
     fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*4.2,4.2))
     x=np.arange(len(cats)); w=0.4
@@ -168,9 +188,7 @@ def c_before_after_split():
             if len(cats) - 1 - _keep[-1] < _step:
                 _keep.pop()
             _keep.append(len(cats) - 1)
-        ax.set_xticks([x[i] for i in _keep])
-        ax.set_xticklabels([cats[i] for i in _keep], fontsize=11,
-                           rotation=(90 if _step == 1 and len(cats) > 6 else 0))
+        _month_axis(ax,[x[i] for i in _keep],[cats[i] for i in _keep],fontsize=11)
         ax.set_title(f"{title} — Avg Monthly Debit Spend",color=NAVY,
                      fontweight="bold",fontsize=12,pad=6)
         _clean(ax)
@@ -192,27 +210,34 @@ def c_before_after_split():
     fig.subplots_adjust(top=0.80,wspace=0.16,bottom=0.16)
     save(fig,name)
 
+# The legend states the windows the bars actually cover. It read "3-mo window" as a
+# constant, so moving the after side to 6 months (Aaron, 2026-09-08) would have left a
+# chart labelled with the old window — the same shape of defect as a hardcoded caption,
+# except a validator cannot read a rendered legend.
+_BA_B=M.get('ba_before_months',3); _BA_A=M.get('ba_after_months',6)
+_BA_L1=f"Before ({_BA_B}-mo baseline)"; _BA_L2=f"After ({_BA_A}-mo window)"
+
 # before/after two-panel (mean) image10
 def c_before_after(mean=True):
-    ba=M['before_after']; cats=[e['m'].split()[0]+e['m'].split()[1][2:] for e in ba]
+    ba=M['before_after']; cats=[e['m'] for e in ba]   # "Feb 2024"; _month_axis formats
     if mean:
         sb=[e['sb_mean'] for e in ba]; sa=[e['sa_mean'] for e in ba]
         sbsd=[e['sb_sd'] for e in ba]; sasd=[e['sa_sd'] for e in ba]
         nb=[e['nb_mean'] for e in ba]; na=[e['na_mean'] for e in ba]
         nbsd=[e['nb_sd'] for e in ba]; nasd=[e['na_sd'] for e in ba]
         name='image10'; t1="Avg Monthly Debit Spend / Responder"; t2="Avg Monthly NSF/OD Items / Responder"
-        l1="Before (3-mo baseline)"; l2="After (3-mo window)"
+        l1=_BA_L1; l2=_BA_L2
     else:
         sb=[e['sb_med'] for e in ba]; sa=[e['sa_med'] for e in ba]; sbsd=sasd=None
         nb=[e['nb_med'] for e in ba]; na=[e['na_med'] for e in ba]; nbsd=nasd=None
         name='image31'; t1="Median Monthly Debit Spend / Responder"; t2="Median NSF/OD Items / Overdraft Participant"
-        l1="Before (3-mo baseline)"; l2="After (3-mo window)"
+        l1=_BA_L1; l2=_BA_L2
     fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*4.2,4.2))
     x=np.arange(len(cats)); w=0.4
     for ax,(bb,aa,bs,as_,title,isnsf) in zip(axes,[(sb,sa,sbsd,sasd,t1,False),(nb,na,nbsd,nasd,t2,True)]):
         ax.bar(x-w/2,bb,w,color=STEEL,label=l1,yerr=bs,error_kw=dict(ecolor='#333',lw=0.8,capsize=1.5) if bs else {})
         ax.bar(x+w/2,aa,w,color=ORANGE,label=l2,yerr=as_,error_kw=dict(ecolor='#333',lw=0.8,capsize=1.5) if as_ else {})
-        ax.set_xticks(x); ax.set_xticklabels(cats,fontsize=12,rotation=90)
+        _month_axis(ax,x,cats,fontsize=11)
         ax.set_title(title,color=NAVY,fontweight="bold",fontsize=12,pad=6)
         _clean(ax)
         if not isnsf: ax.yaxis.set_major_formatter(lambda v,p:f"${v:,.0f}")
@@ -228,8 +253,8 @@ def c_take_branch():
     import chart_lib   # shared renderer -> personal + business take-rate charts stay identical
     # top-N by size first, then ordered by branch number for display
     tb=chart_lib.top_branches(M['take_branch'], chart_lib.BRANCH_CAP)
-    labels=[str(b) for b,_,_,_ in tb]; vals=[p for _,_,_,p in tb]
-    chart_lib.take_branch_chart(f"{OUT}/image11.png", labels, vals, M['take_new_pct'], ORANGE, NAVY, *DIM['image11'])
+    chart_lib.branch_chart(f"{OUT}/image11.png", tb, ORANGE, NAVY,
+                           *DIM['image11'], rate_label="Take rate")
     print("wrote image11")
 # image12: swipes & spend combo (workbook 36mo)
 def c_swipespend():
@@ -255,32 +280,21 @@ def c_donut(name,vin,vout,vno,pct):
     ax.text(0,-0.22,"Opted In",ha="center",va="center",fontsize=17,color=NAVY)
     ax.set(aspect="equal"); save(fig,name)
 # rege branch image14/16
-def c_rege_branch(name,rows,avg):
+def c_rege_branch(name,rows,acct_label):
     import chart_lib
     # Largest branches by accounts, ranked best-to-worst on opt-in rate. This
     # took rows[:6] off a list already sorted by RATE, so it showed the six best
     # performers rather than the six biggest branches.
+    #
+    # It also drew its own bars, a near-copy of the take-rate renderer that had
+    # already drifted (its own halo dict, its own headroom, its own tick sizes).
+    # Both now go through chart_lib.branch_chart: accounts in the bars, opt-in
+    # rate on the line, the program average still the dashed reference the slide
+    # caption names.
     rows=chart_lib.top_branches(rows, chart_lib.BRANCH_CAP)
-    labels=[str(b) for b,_,_,_ in rows]; vals=[p for _,_,_,p in rows]
-    fig,ax=figfor(name,3.6)
-    ax.bar(range(len(vals)),vals,color=ORANGE,width=chart_lib._BAR_W)
-    # Same halo as the monthly-revenue chart: a bar sitting near the program
-    # average has its value label crossed by the dashed line, which strikes
-    # through the number instead of passing behind it. Ranking by rate makes this
-    # the common case, not the rare one — the bars now CLUSTER around the average.
-    _bhalo=dict(boxstyle="square,pad=0.10", facecolor="white", edgecolor="none")
-    for i,v in enumerate(vals):
-        ax.text(i,v+0.6,f"{v}%",ha="center",va="bottom",color=NAVY,
-                fontweight="bold",fontsize=10,bbox=_bhalo,zorder=5)
-    # Dashed line = program average. The "Overall x%" caption that used to sit above it is
-    # gone (Aaron, 2026-08-27): the same figure is already the centre of the donut beside
-    # this chart, and the label overlapped it. Headroom drops with it — 1.42 was reserved
-    # for that caption; the bars only need clearance for their own value labels.
-    ax.axhline(avg,ls="--",color=NAVY,lw=1.5)
-    ax.set_ylim(0,max(max(vals),avg)*1.20); ax.set_ylabel("% opted in",color=NAVY,fontsize=10)
-    ax.set_xticks(range(len(vals))); ax.set_xticklabels(labels,fontsize=9)
-    ax.tick_params(axis='y',labelsize=9); _clean(ax)
-    save(fig,name)
+    chart_lib.branch_chart(f"{OUT}/{name}.png", rows, ORANGE, NAVY, *DIM[name],
+                           acct_label=acct_label, rate_label="Opt-in rate")
+    print("wrote",name)
 # reach area image17
 def c_reach():
     rc=M['reach']; cats=[x[0] for x in rc]; vals=[x[1] for x in rc]
@@ -483,8 +497,10 @@ c_monthly(); c_ranking(); c_mailer(); c_movement(); c_sustained()
 c_before_after(True); c_before_after_split(); c_take_branch(); c_swipespend()
 c_donut('image13',M['rege_in'],M['rege_out'],M['rege_no'],M['rege_pct'])
 c_donut('image15',M['rege_new_in'],M['rege_new_out'],M['rege_new_no'],M['rege_new_pct'])
-c_rege_branch('image14',M['rege_branch'],M['rege_pct'])
-c_rege_branch('image16',M['rege_new_branch'],M['rege_new_pct'])
+# image14 is the whole eligible book, image16 only accounts opened in the last 12
+# months — so the bars mean different things and the axis has to say which.
+c_rege_branch('image14',M['rege_branch'],'Card-holding accounts')
+c_rege_branch('image16',M['rege_new_branch'],'Accounts opened')
 c_reach(); c_depth(); c_age(); c_balance(); c_new_product()
 c_twobar('image22',M['new_chk_avgbal'],M['open_chk_avgbal'],"New","Open book","Average checking balance",lambda v:f"${v:,}")
 c_twobar('image23',M['new_chk_debit_pct'],M['open_chk_debit_pct'],"New","Open book","% of checking accounts with a debit card",lambda v:f"{v:.1f}%")

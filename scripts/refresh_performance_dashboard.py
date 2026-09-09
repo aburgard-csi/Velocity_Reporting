@@ -187,14 +187,8 @@ def cashplease_roster(text=None):
 
 
 # ------------------------------------------------------------------ ARS
-def uncalculated(base):
-    """True when an extracted base looks like the workbook template's defaults:
-    one month in the program, no mailings, no lifetime revenue. A live ARS
-    client has months and revenue; a workbook saved without evaluating its
-    formulas has neither, and reads as zeros rather than as an error."""
-    months = num(base.get("months")) or 0
-    return months <= 1 and not (num(base.get("ltd_revenue")) or 0) \
-        and not (num(base.get("cur_revenue")) or 0)
+sys.path.insert(0, str(REPO / "build" / "ars_pipeline"))
+from base_guard import uncalculated                              # noqa: E402  (one definition, shared with the ARS builder)
 
 
 def ars_section(cid, c, period, reports, ba, work):
@@ -206,6 +200,9 @@ def ars_section(cid, c, period, reports, ba, work):
         out = work / f"{cid}_base.json"
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/extract_base_gen.py"), wb, str(out)],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if "UNEVALUATED WORKBOOK" in r.stderr:
+            return {"missing": r.stderr.strip().splitlines()[-1],
+                    "workbook": wb_name, "workbook_period": wb_period}
         if r.returncode != 0 or not out.exists():
             return {"missing": "extract_base_gen failed: " + r.stderr.strip()[-300:]}
         b = json.load(open(out, encoding="utf-8"))
@@ -213,6 +210,9 @@ def ars_section(cid, c, period, reports, ba, work):
         dco = sorted(glob.glob(str(reports / f"{cid}-{wb_period}-*DCO*.xlsx")))
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/base_tab_extract.py"), wb] + dco[:1],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if "UNEVALUATED WORKBOOK" in r.stderr:
+            return {"missing": r.stderr.strip().splitlines()[-1],
+                    "workbook": wb_name, "workbook_period": wb_period}
         i = r.stdout.find("{")
         if r.returncode != 0 or i < 0:
             return {"missing": "base_tab_extract failed: " + r.stderr.strip()[-300:]}
