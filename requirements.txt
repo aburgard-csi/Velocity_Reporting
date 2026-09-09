@@ -20,3 +20,7 @@ python-pptx==1.0.2
 six==1.17.0
 typing_extensions==4.16.0
 xlsxwriter==3.2.9
+# Windows only: the Outlook COM reader in scripts/mail_sources.py.
+# Everything else in the pipeline runs without it; the mail step reports
+# "pywin32 not installed" and is skipped rather than failing the run.
+pywin32==312; sys_platform == "win32"

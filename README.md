@@ -32,7 +32,7 @@ pipeline tree on Drive:
 | | |
 | --- | --- |
 | `Inputs/ODDD/` | raw ODD extracts, one zip per client |
-| `Inputs/ARS & MRPC Reports/` | workbooks and DCO files |
+| `Inputs/DCOs/`, `ARS Workbooks/`, `MRPC Analyses/`, `ICS Workbooks/`, `ICS Charts/`, `Weekly Summaries/` | one folder per kind of input, sorted on arrival (`rpe_env.INPUT_KIND_DIRS`) |
 | `Inputs/VIP Data/` | ICS and MRPC client sheets pulled from VIP |
 | `Inputs/Logos/` | client logos |
 | `Outputs/` | finished decks, and nothing else |

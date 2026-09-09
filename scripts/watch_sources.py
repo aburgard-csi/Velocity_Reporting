@@ -20,15 +20,15 @@ the question a daily check actually asks.
 It scans this month's and last month's folders on both shares, compares the
 inventory to the one it saved last run, and reports files that are new, have
 been re-landed (size or mtime changed), or have disappeared. For each it says
-whether the Drive copy the builders read is already current. With `--copy` it
-then copies roster clients' files that Drive lacks into `Inputs/` (Aaron,
+whether the copy the builders read is already current. With `--copy` it
+then copies roster clients' files that `Inputs/` lacks into it (Aaron,
 2026-09-08), the ODD extract only from the newest month on the share — see
-`copy_plan` for why that rule exists. With `--prune` it deletes Drive inputs that
+`copy_plan` for why that rule exists. With `--prune` it deletes inputs that
 a newer period or weekly of the same client and kind supersedes (Aaron,
 2026-09-08); the newest is always kept and a file with no newer version is never
 touched — see `prune_plan`.
 
-State and reports live in `Build Artifacts/` on Drive (bookkeeping, not a
+State and reports live in `Build Artifacts/` (bookkeeping, not a
 deliverable, and one copy per pipeline rather than per machine):
 
     source_watch.json        the inventory as of the last successful check
@@ -45,7 +45,7 @@ so the run records what is there and reports the counts, not sixty new files.
 Usage:
     python scripts/watch_sources.py                # check, report, save
     python scripts/watch_sources.py --notify       # + Windows toast when there is news
-    python scripts/watch_sources.py --copy         # + copy roster clients' files to Drive
+    python scripts/watch_sources.py --copy         # + copy roster clients' files into Inputs/
     python scripts/watch_sources.py --prune        # + delete inputs a newer version supersedes
     python scripts/watch_sources.py --dry-run      # report only; save nothing
     python scripts/watch_sources.py --period 2026.09 --period 2026.08
@@ -196,7 +196,7 @@ def drive_state(rec, inputs_dir):
     """Is the copy the builders read already this file?
 
     Same size means the same landing for these files (the rule deck_status
-    already uses for the ODD extracts). A different size means Drive holds an
+    already uses for the ODD extracts). A different size means Inputs/ holds an
     earlier landing of the same name — which for the ODD extract, overwritten
     in place as `<id>_ODDD.zip`, usually means last month's.
     """
@@ -205,7 +205,7 @@ def drive_state(rec, inputs_dir):
     if rec["kind"] == ODDD:
         cand = os.path.join(inputs_dir, "ODDD", rec["client"] + "_ODDD.zip")
     else:
-        cand = os.path.join(inputs_dir, "ARS & MRPC Reports", rec["name"])
+        cand = _find_input(inputs_dir, rec["name"])
     try:
         if not os.path.exists(cand):
             return "not copied"
@@ -222,22 +222,60 @@ def _inputs_dir():
 
 
 # ------------------------------------------------------------------ copy
+def _report_dirs(inputs_dir):
+    """Every folder under Inputs/ that can hold a workbook-ish file, newest
+    scheme first, then the legacy flat folder. Mirrors rpe_env.report_dirs() but
+    takes the directory as an argument so the tests can point it at a tmpdir."""
+    names = [v for k, v in R.INPUT_KIND_DIRS.items() if k != "ODDD"]
+    names.append(R.LEGACY_REPORTS_DIRNAME)
+    return [os.path.join(inputs_dir, n) for n in names
+            if os.path.isdir(os.path.join(inputs_dir, n))]
+
+
+def _find_input(inputs_dir, name):
+    """The existing copy of `name`, wherever it was sorted to. Falls back to the
+    path it WOULD take, so a caller can stat it and find it absent."""
+    for d in _report_dirs(inputs_dir):
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            return p
+    return os.path.join(inputs_dir, R.LEGACY_REPORTS_DIRNAME, name)
+
+
 def _dest_for(rec, inputs_dir):
+    """Where a copied file lands: one folder per KIND (Aaron, 2026-09-09).
+
+    Everything used to go into one flat "ARS & MRPC Reports" folder — DCOs, ARS
+    workbooks, MRPC analyses and ICS workbooks together, 55 files deep, with the
+    kind readable only from the filename. The folder names live in
+    `rpe_env.INPUT_KIND_DIRS` and nowhere else; readers resolve through
+    `rpe_env.report_dirs()`, which still includes the old flat folder so a file
+    left there is found.
+    """
     if rec["kind"] == ODDD:
-        return os.path.join(inputs_dir, "ODDD", rec["client"] + "_ODDD.zip")
-    return os.path.join(inputs_dir, "ARS & MRPC Reports", rec["name"])
+        d = os.path.join(inputs_dir, R.INPUT_KIND_DIRS["ODDD"])
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, rec["client"] + "_ODDD.zip")
+    d = os.path.join(inputs_dir, R.INPUT_KIND_DIRS.get(rec["kind"],
+                                                        R.LEGACY_REPORTS_DIRNAME))
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, rec["name"])
 
 
 def copy_plan(inventory, roster_ids, inputs_dir):
-    """Which source files should be copied to Drive: [(record, destination)].
+    """Which source files should be copied into `Inputs/`: [(record, destination)].
+
+    The destination is whatever `RPE_DATA_ROOT` resolves to — the local tree
+    since 2026-09-09, Drive before that. This code never knew which, and that is
+    the point: it asks `rpe_env`. Only the report wording had to change.
 
     Roster clients only — the shares carry every account manager's clients, and
-    a file on Drive for a client nobody builds is clutter at best. Only files
-    Drive does not hold, or holds a different landing of (`differs`).
+    an input for a client nobody builds is clutter at best. Only files `Inputs/`
+    does not hold, or holds a different landing of (`differs`).
 
-    The ODD extract needs one more rule. It lives on Drive as `<id>_ODDD.zip`
+    The ODD extract needs one more rule. It lives in `Inputs/` as `<id>_ODDD.zip`
     with no period in the name, and the watch scans two months, so last month's
-    extract at source ALWAYS "differs" from Drive once this month's has been
+    extract at source ALWAYS "differs" once this month's has been
     copied. Only the newest month on the share per client is ever a candidate;
     copying an older one back over a newer one is the stale-ODD failure this
     pipeline keeps guarding against, and this is where it would happen.
@@ -262,13 +300,20 @@ def copy_plan(inventory, roster_ids, inputs_dir):
         if newest.get((rec["client"], rec["kind"])) is not rec:
             continue
         if rec["kind"] != ODDD and on_drive.get((rec["client"], rec["kind"]), "") > rec["period"]:
-            continue                       # Drive already holds a newer period
+            continue                       # Inputs/ already holds a newer period
         if rec.get("drive") not in ("not copied", "differs"):
             continue
-        dest = _dest_for(rec, inputs_dir)
+        # If Inputs/ already holds this file, replace it WHERE IT IS. Sorting
+        # into kind folders must not create a second copy of a file that is
+        # sitting in the legacy flat folder — two copies of one workbook is the
+        # two-stores problem in miniature, and it would also defeat the
+        # changed-on-purpose guard below, which compares against the file that
+        # actually exists.
+        existing = None if rec["kind"] == ODDD else _find_input(inputs_dir, rec["name"])
+        dest = existing if (existing and os.path.exists(existing))             else _dest_for(rec, inputs_dir)
         if rec.get("drive") == "differs" and not _source_is_newer(rec, dest):
-            # Same name, different bytes, and the Drive copy is the more recent
-            # write: that is a Drive copy someone changed on purpose — a workbook
+            # Same name, different bytes, and the copy in Inputs/ is the more
+            # recent write: that is a copy someone changed on purpose — a workbook
             # opened and saved in Excel so its formulas carry values — not a
             # re-landing. Overwriting it hands the builders the uncalculated
             # original; it did exactly that to 1539's 2026.08 workbook on
@@ -279,12 +324,14 @@ def copy_plan(inventory, roster_ids, inputs_dir):
 
 
 def _drive_periods(inputs_dir):
-    """{(client, kind): newest period} for the period-stamped files on Drive."""
+    """{(client, kind): newest period} for the period-stamped files in Inputs/."""
     out = {}
-    try:
-        names = os.listdir(os.path.join(inputs_dir, "ARS & MRPC Reports"))
-    except OSError:
-        return out
+    names = []
+    for d in _report_dirs(inputs_dir):
+        try:
+            names += os.listdir(d)
+        except OSError:
+            continue
     for n in names:
         rec = classify(n, "reports")
         if rec and rec["kind"] != OTHER and rec["period"]:
@@ -341,7 +388,7 @@ _STAMP_RX = re.compile(r"(\d{6}_\d{6})")
 
 
 def _prune_group(name):
-    """The group a Drive input belongs to, or None if it is never pruned.
+    """The group an input belongs to, or None if it is never pruned.
 
     Period-stamped client files group by (client, kind): a newer period of the
     same kind supersedes the older. The weeklies group by family and are ordered
@@ -386,13 +433,18 @@ def prune_plan(names):
     return sorted(plan)
 
 
-def apply_prune(folder, plan):
+def apply_prune(folder, plan, locate=None):
     """Delete the superseded files. The newer file must exist and be non-empty
     at the moment of deletion, or the older one stays. Returns
-    [(name, newer, outcome)], outcome "removed" or an error."""
+    [(name, newer, outcome)], outcome "removed" or an error.
+
+    `locate` maps a filename to its full path — inputs are sorted into a folder
+    per kind, so the superseded file and its replacement are not necessarily in
+    the same one. Without it, names resolve inside `folder`."""
+    loc = locate or (lambda nm: os.path.join(folder, nm))
     out = []
     for old, new in plan:
-        op, np_ = os.path.join(folder, old), os.path.join(folder, new)
+        op, np_ = loc(old), loc(new)
         try:
             if not os.path.exists(np_) or os.path.getsize(np_) == 0:
                 raise OSError("newer file %s is missing or empty" % new)
@@ -496,7 +548,7 @@ def _line(rec, roster):
     name = roster.get(rec["client"], "")
     tag = " (%s)" % name if name else ""
     drive = rec.get("drive", "")
-    drive_s = "" if not drive else "  · Drive: " + drive
+    drive_s = "" if not drive else "  · Inputs: " + drive
     return "- **%s** %s%s — `%s`  %s, landed %s%s" % (
         rec["kind"], who, tag, rec["name"], _fmt_size(rec.get("size")),
         _fmt_when(rec.get("mtime")), drive_s)
@@ -550,7 +602,7 @@ def render(result, roster):
     to_copy = [x for x in new + changed
                if x["client"] in roster and x.get("drive") in ("not copied", "differs")]
     if to_copy:
-        body += ["", "**%d of these are for roster clients and not yet current on Drive.**"
+        body += ["", "**%d of these are for roster clients and not yet in Inputs.**"
                  % len(to_copy)]
     body += _section("New", new, roster)
     body += _section("Re-landed (same name, new bytes)", changed, roster)
@@ -565,17 +617,17 @@ def _copies_section(result):
     if done:
         ok = [x for x in done if x[2] == "copied"]
         bad = [x for x in done if x[2] != "copied"]
-        out += ["", "## Copied to Drive (%d)" % len(ok) + (", %d FAILED" % len(bad) if bad else ""), ""]
+        out += ["", "## Copied into Inputs (%d)" % len(ok) + (", %d FAILED" % len(bad) if bad else ""), ""]
         out += ["- **%s** %s — `%s` -> `%s`" % (r["kind"], r["client"], r["name"], d) for r, d, _ in ok]
         out += ["- **%s** %s — `%s` %s" % (r["kind"], r["client"], r["name"], o) for r, d, o in bad]
     elif planned:
-        out += ["", "## Would copy to Drive (%d) — dry run" % len(planned), ""]
+        out += ["", "## Would copy into Inputs (%d) — dry run" % len(planned), ""]
         out += ["- **%s** %s — `%s` -> `%s`" % (r["kind"], r["client"], r["name"], d) for r, d in planned]
     pruned, prune_planned = result.get("pruned") or [], result.get("prune_plan") or []
     if pruned:
         ok = [x for x in pruned if x[2] == "removed"]
         bad = [x for x in pruned if x[2] != "removed"]
-        out += ["", "## Removed superseded inputs from Drive (%d)" % len(ok)
+        out += ["", "## Removed superseded inputs (%d)" % len(ok)
                 + (", %d FAILED" % len(bad) if bad else ""), ""]
         out += ["- `%s` — superseded by `%s`" % (o, n) for o, n, _ in ok]
         out += ["- `%s` %s" % (o, r) for o, n, r in bad]
@@ -594,7 +646,7 @@ def summary_line(result, roster):
     failed = len(copies) - copied
     tail = ""
     if copies:
-        tail = " Copied %d to Drive." % copied + (" %d FAILED." % failed if failed else "")
+        tail = " Copied %d into Inputs." % copied + (" %d FAILED." % failed if failed else "")
     pruned = result.get("pruned") or []
     if pruned:
         removed = sum(1 for x in pruned if x[2] == "removed")
@@ -685,13 +737,18 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true",
                     help="report only; do not save the inventory, log or report")
     ap.add_argument("--no-drive", action="store_true",
-                    help="skip the Drive-copy comparison")
+                    help="skip the Inputs-copy comparison")
     ap.add_argument("--copy", action="store_true",
-                    help="copy roster clients' files that Drive lacks into Inputs/ "
+                    help="copy roster clients' files that Inputs/ lacks into it "
                          "(copy-only; the ODD extract only from the newest month)")
     ap.add_argument("--prune", action="store_true",
-                    help="delete Drive inputs that a newer period / weekly of the same "
+                    help="delete inputs that a newer period / weekly of the same "
                          "client and kind supersedes (the newest is always kept)")
+    ap.add_argument("--mail", action="store_true",
+                    help="also take MRPC/CashPlease reports and ICS workbooks from "
+                         "the two senders that email them (scripts/mail_sources.py)")
+    ap.add_argument("--mail-days", type=int, default=None,
+                    help="how far back to read the mailbox (default 30)")
     a = ap.parse_args(argv)
     # A cp1252 console must not kill a scheduled run over an em dash.
     if hasattr(sys.stdout, "reconfigure"):
@@ -711,17 +768,50 @@ def main(argv=None):
         else:
             result["copies"] = apply_copies(plan)
     if a.prune and not a.no_drive and _inputs_dir():
-        folder = os.path.join(_inputs_dir(), "ARS & MRPC Reports")
-        try:
-            names = os.listdir(folder)
-        except OSError:
-            names = []
-        plan = prune_plan(names)
+        # Across every kind folder, not one: a client's ARS workbook and the DCO
+        # it supersedes now live apart, and prune compares them by name.
+        inputs_dir = _inputs_dir()
+        where = {}
+        for d in _report_dirs(inputs_dir):
+            try:
+                for nm in os.listdir(d):
+                    where.setdefault(nm, os.path.join(d, nm))
+            except OSError:
+                continue
+        plan = prune_plan(sorted(where))
         if a.dry_run:
             result["prune_plan"] = plan
         else:
-            result["pruned"] = apply_prune(folder, plan)
+            result["pruned"] = apply_prune(
+                os.path.join(inputs_dir, R.LEGACY_REPORTS_DIRNAME), plan,
+                locate=lambda nm: where.get(
+                    nm, os.path.join(inputs_dir, R.LEGACY_REPORTS_DIRNAME, nm)))
+    # The inputs that arrive by EMAIL, not on a share: MRPC and CashPlease
+    # reports from Bradford, ICS workbooks from Matt (Aaron, 2026-09-09). A
+    # mailbox that cannot be reached is reported and skipped — it must not fail
+    # the share check, which is the part that runs every day regardless.
+    mail_text = ""
+    if a.mail:
+        try:
+            import mail_sources as MS
+            ok, why = MS.available()
+            if not ok:
+                mail_text = "## From email — skipped: " + why
+            else:
+                recs = MS.scan(a.mail_days or MS.DEFAULT_DAYS)
+                planned = MS.plan(recs)
+                mail_text = MS.render(planned, why)
+                if not a.dry_run:
+                    saved = MS.save(planned)
+                    result["mail_saved"] = [(nm, out) for nm, _d, out in saved]
+                    took = sum(1 for _nm, out in result["mail_saved"] if out == "saved")
+                    mail_text += "\n\n%d saved from email." % took
+        except Exception as e:                     # never fail the share check
+            mail_text = "## From email — FAILED: %s" % e
+
     text = render(result, roster)
+    if mail_text:
+        text += "\n\n" + mail_text
     line = summary_line(result, roster)
     print(text)
     print()

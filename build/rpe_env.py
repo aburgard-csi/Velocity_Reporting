@@ -97,6 +97,67 @@ def outputs() -> Path:
     return _require_subdir("Outputs")
 
 
+# ------------------------------------------------------------------ input kinds
+# One folder per kind of input, sorted on arrival by scripts/watch_sources.py
+# (Aaron, 2026-09-09). Everything used to land in one "ARS & MRPC Reports"
+# folder: DCOs, ARS workbooks, MRPC analyses, ICS workbooks, ICS Charts and the
+# weekly summaries, 55 files deep and growing, with the kind readable only from
+# the filename.
+#
+# THIS MAPPING IS THE ONLY PLACE THE FOLDER NAMES LIVE. Renaming a folder is a
+# one-line change here plus a move on disk; every reader and the copier resolve
+# through `input_dir()` / `report_dirs()`.
+INPUT_KIND_DIRS = {
+    "ODDD": "ODDD",                       # <id>_ODDD.zip, from the ODDD share
+    "DCO": "DCOs",
+    "Workbook": "ARS Workbooks",
+    "MRPCPM": "MRPC Analyses",
+    "ICS workbook": "ICS Workbooks",
+    "ICS charts": "ICS Charts",           # "<Client> Charts 2026.xlsx" — mystery shops
+    "weekly": "Weekly Summaries",         # MRPCEnrollmentSummary, CashPleaseSummary
+}
+
+# The flat folder everything used to land in. Kept as a READ location for good:
+# a file dropped there by hand still resolves, and the migration does not have to
+# be perfect for a build to work. Nothing is written here any more.
+LEGACY_REPORTS_DIRNAME = "ARS & MRPC Reports"
+
+
+def input_dir(kind: str, create: bool = True) -> Path:
+    """Where a file of this kind belongs. Unknown kinds go to the legacy folder,
+    which is where an unrecognised file would have landed anyway."""
+    name = INPUT_KIND_DIRS.get(kind, LEGACY_REPORTS_DIRNAME)
+    p = inputs() / name
+    if create:
+        p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def report_dirs() -> list:
+    """Every folder that can hold a workbook-ish input, newest scheme first.
+
+    Readers glob across all of them rather than one, so the sort can happen
+    incrementally and a stray file in the old folder is still found. `ODDD/` is
+    NOT here — extracts are resolved by exact path, not by scanning.
+    """
+    I = inputs()
+    names = [v for k, v in INPUT_KIND_DIRS.items() if k != "ODDD"]
+    names.append(LEGACY_REPORTS_DIRNAME)
+    return [I / n for n in names if (I / n).is_dir()]
+
+
+def report_files(pattern: str = "*") -> list:
+    """Every workbook-ish input matching `pattern`, across all report folders.
+
+    Sorted by name so callers that pick a "newest" by string comparison behave
+    the same as they did against one folder.
+    """
+    out = []
+    for d in report_dirs():
+        out.extend(d.glob(pattern))
+    return sorted(out, key=lambda p: p.name)
+
+
 BUILD_ARTIFACTS_DIRNAME = "Build Artifacts"
 
 

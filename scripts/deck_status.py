@@ -171,7 +171,10 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
         return _stat(MISSING, "not landed", "source")
 
     def drive_glob(pattern, exclude=None):
-        hit = [f for f in glob.glob(pattern)
+        # `reports_dir` is a LIST since inputs are sorted into a folder per kind
+        # (Aaron, 2026-09-09). A pattern built against it is expanded per folder.
+        pats = pattern if isinstance(pattern, (list, tuple)) else [pattern]
+        hit = [f for p in pats for f in glob.glob(p)
                if not (exclude and exclude in os.path.basename(f).lower())]
         if hit:
             return _stat(PRESENT, _mtime(_newest(hit)), "drive")
@@ -224,13 +227,15 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
             "program": "ARS", "input": "ARS workbook",
             "src": src_match("^" + cid + "-" + re.escape(period) + "-.*workbook.*[.]xlsx$"),
             "drive": drive_glob(
-                os.path.join(reports_dir, cid + "-" + period + "-*Workbook*.xlsx"),
+                [os.path.join(d, cid + "-" + period + "-*Workbook*.xlsx")
+                 for d in reports_dir],
                 exclude="invitation checking")})
         rows.append({
             "program": "ARS", "input": "DCO",
             "src": src_match("^" + cid + "-" + re.escape(period) + "-.*dco.*[.]xlsx$"),
             "drive": drive_glob(
-                os.path.join(reports_dir, cid + "-" + period + "-*DCO*.xlsx"))})
+                [os.path.join(d, cid + "-" + period + "-*DCO*.xlsx")
+                 for d in reports_dir])})
 
     if any(p.startswith("ICS") for p in progs):
         rows.append({"program": "ICS", "input": "VIP referral sheet",
@@ -241,9 +246,10 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
         # column is n/a rather than a gap.
         rows.append({"program": "ICS", "input": OPTIONAL_INPUT,
                      "src": _stat(NA, "arrives by email", "source"),
-                     "drive": drive_glob(os.path.join(
-                         reports_dir,
-                         cid + "-" + period + "-*Invitation Checking*.xlsx"))})
+                     "drive": drive_glob(
+                         [os.path.join(d, cid + "-" + period
+                                       + "-*Invitation Checking*.xlsx")
+                          for d in reports_dir])})
 
     if "MRPC" in progs:
         rows.append({"program": "MRPC", "input": "VIP MRPC sheet",
@@ -253,9 +259,10 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
             "program": "MRPC", "input": "MRPCPM analysis",
             "src": src_match("^" + cid + "-" + re.escape(period)
                              + "-mrpc-.*mrpcpm.*[.]xlsx$"),
-            "drive": drive_glob(os.path.join(
-                reports_dir,
-                cid + "-" + period + "-MRPC-*MRPCPM_Analysis*.xlsx"))})
+            "drive": drive_glob(
+                [os.path.join(d, cid + "-" + period
+                              + "-MRPC-*MRPCPM_Analysis*.xlsx")
+                 for d in reports_dir])})
     return rows
 
 
@@ -333,7 +340,7 @@ def clear_sent(cid, period):
 def collect(period, use_source=True):
     roster, skipped = read_roster()
     I = R.inputs()
-    reports_dir = str(I / "ARS & MRPC Reports")
+    reports_dir = [str(d) for d in R.report_dirs()]
     oddd_dir = I / "ODDD"
     outputs_dir = str(R.outputs())
 

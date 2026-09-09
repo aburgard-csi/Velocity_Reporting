@@ -17,6 +17,98 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-09 — the daily run takes the inputs that arrive by email
+
+MRPC and CashPlease reports (Bradford Sanders) and ICS workbooks (Matt Milliman) never land
+on the CSI shares. `deck_status` has said "arrives by email / n/a" for the ICS workbook
+since 2026-08-31 because there was no source-side signal to wait on. There is one now.
+
+`scripts/mail_sources.py` reads Outlook over COM — chosen over Graph because the scheduled
+task already runs as the logged-on user, so there is no app registration or consent to own
+— and `watch_sources.py --mail` runs it as part of the 08:00 check. The task now passes
+`--notify --copy --prune --mail`.
+
+Findings from building it, each of which is now a rule:
+
+- **The Inbox is not where these live.** A 45-day Inbox scan read 35 messages and 123
+  attachments and found neither sender: a rule files them into **Archive**. The scan covers
+  Inbox and Archive plus subfolders.
+- **An Exchange sender's `SenderEmailAddress` is an X500 `/o=` path**, not an address, so
+  matching on it accepts nobody. Resolved through the Exchange user, then
+  PR_SENT_REPRESENTING_SMTP_ADDRESS. Matching is on the SMTP address only — a display name
+  is spoofable — and each sender may supply only their own kinds.
+- **Only the newest of each thing.** A 120-day scan proposed 25 files; twenty were
+  superseded weeklies the pipeline never reads and `--prune` would have deleted the same
+  run, and one was a 2026.05 ICS workbook for a client already holding 2026.07. With the
+  rule applied: **1 file to take, 21 skipped, each with its reason.**
+- A local copy written after the message arrived is not clobbered — the same
+  recalculated-workbook guard the share copier has.
+- An attachment whose name does not match `<id>-<period>-<kind>` is parked in the legacy
+  folder and reported.
+
+Read-only throughout: nothing is marked read, moved or deleted. An unreachable mailbox is
+reported and skipped rather than failing the share check. 24 tests, all driving an injected
+message list so they run without Outlook.
+
+### 2026-09-09 — the pipeline runs locally; Drive is a write-only backup
+
+`RPE_DATA_ROOT` is now `C:\Data Pipelines\RPE Pipeline` (Aaron, 2026-09-09). The tree
+moved with robocopy — **308 files, 1.229 GB, 0 failed, 0 mismatch** — and was verified by
+file count, byte total per folder and hashes on a sample before `.env` was repointed.
+`deck_status 2026.09` reads identically from the new root.
+
+No code changed: every path resolves through `rpe_env`, which is the whole reason that
+indirection exists. What did change is the documentation that would have undone it —
+CLAUDE.md said "Google Drive is the source… on every machine" and, separately, **"do not
+point `RPE_DATA_ROOT` anywhere under `C:\Data Pipelines\`"**. Both are rewritten, with
+the old rule kept as dated history and labelled so it is not "corrected" back, plus a note
+that `Renewals Pipeline` is a different project sharing that parent. `.env.example` too.
+
+**One source, always**: the backup direction is local → Drive and never the reverse. A
+file read back from Drive recreates the two-stores problem that shipped month-old ICS
+figures in August. *Nothing pushes local → Drive yet — that mechanism is still to build.*
+
+### 2026-09-09 — inputs are sorted into a folder per kind
+
+Everything landed in one flat `Inputs/ARS & MRPC Reports/` — DCOs, ARS workbooks, MRPC
+analyses, ICS workbooks, ICS Charts and the weekly summaries together, 55 files deep, with
+the kind readable only from the filename. `scripts/watch_sources.py` now files each copy
+by kind on arrival:
+
+| Kind | Folder | Existing files moved |
+| --- | --- | --- |
+| DCO | `Inputs/DCOs/` | 17 |
+| ARS workbook | `Inputs/ARS Workbooks/` | 10 |
+| MRPCPM analysis | `Inputs/MRPC Analyses/` | 6 |
+| ICS workbook | `Inputs/ICS Workbooks/` | 8 |
+| ICS Charts | `Inputs/ICS Charts/` | 12 |
+| Weekly summaries | `Inputs/Weekly Summaries/` | 2 |
+
+All 55 classified, none unrecognised, moved rather than copied. `Inputs/ODDD/` is
+unchanged.
+
+**`rpe_env.INPUT_KIND_DIRS` is the only place the folder names live.** Readers resolve
+through `rpe_env.report_dirs()` / `report_files()` — `build_month`, `deck_status`,
+`build_ics_gen`'s workbook-period check and the dashboard refresh all changed from globbing
+one literal folder to globbing the set. The set still includes the old flat folder, for
+good, so a file dropped there by hand still resolves and the sort never had to be perfect.
+
+Two rules the copier keeps: a file Inputs/ already holds is replaced **where it is**, so
+sorting cannot create a second copy of a workbook sitting in the legacy folder; and prune
+compares names across every folder, since a superseded file and its replacement no longer
+share one.
+
+**No figure moves**; `deck_status 2026.09` reports the same 15 clients / 11 ready / 10
+built before and after.
+
+### 2026-09-09 — the source-watch report said "Drive" while writing to C:
+
+After the move the daily report still read *"not yet current on Drive"*, *"Drive: differs"*,
+*"Would copy to Drive"*, *"Copied 1 to Drive."* — describing a destination it no longer
+used. 19 strings corrected, four test assertions with them. The destination itself needed
+no change: it was always `rpe_env`'s answer, never a literal.
+
+
 ### 2026-09-08 — the Summit one-pager and the monthly deck now share one before/after
 
 Aaron: "the Summits and the regular delivery decks should use the same logic." They did

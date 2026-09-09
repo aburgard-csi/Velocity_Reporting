@@ -214,7 +214,7 @@ def test_report_puts_roster_clients_first_and_names_the_copy_list(shares):
     r = W.check(["2026.09"], previous=first)
     text = W.render(r, {"1038": "Sugar River Bank"})
     assert text.index("Roster clients (1)") < text.index("Other account managers' clients (1)")
-    assert "1 of these are for roster clients and not yet current on Drive" in text
+    assert "1 of these are for roster clients and not yet in Inputs" in text
     assert "Sugar River Bank" in text
     line = W.summary_line(r, {"1038": "Sugar River Bank"})
     assert line.startswith("2 new") and "roster: 1 DCO" in line
@@ -252,7 +252,10 @@ def test_copy_plan_is_roster_only_and_skips_what_drive_already_has(tmp_path):
     plan = W.copy_plan(inv, {"1038", "1075"}, str(tmp_path))
     names = sorted(r["name"] for r, _ in plan)
     assert names == ["1038-2026.09-X-DCO.xlsx", "1075-2026.09-X-MRPCPM.xlsx"]
-    assert all(d.startswith(str(tmp_path / "ARS & MRPC Reports")) for _, d in plan)
+    dests = {r["name"]: d for r, d in plan}
+    assert dests["1038-2026.09-X-DCO.xlsx"] == str(tmp_path / "DCOs" / "1038-2026.09-X-DCO.xlsx")
+    assert dests["1075-2026.09-X-MRPCPM.xlsx"] == str(
+        tmp_path / "MRPC Analyses" / "1075-2026.09-X-MRPCPM.xlsx")
 
 
 def test_copy_plan_never_copies_an_older_odd_over_a_newer_one(tmp_path):
@@ -278,7 +281,7 @@ def test_copy_plan_without_drive_is_empty():
 
 def test_apply_copies_writes_verifies_and_overwrites(tmp_path):
     src = tmp_path / "src.xlsx"; src.write_bytes(b"new" * 5)
-    dest = tmp_path / "drive" / "ARS & MRPC Reports" / "1038-2026.09-X-DCO.xlsx"
+    dest = tmp_path / "drive" / "DCOs" / "1038-2026.09-X-DCO.xlsx"
     dest.parent.mkdir(parents=True); dest.write_bytes(b"old")
     rec = _rec(W.DCO, "1038", "2026.09", "differs", path=str(src), size=15)
     out = W.apply_copies([(rec, str(dest))])
@@ -300,15 +303,15 @@ def test_copy_flag_copies_only_when_not_dry_run(shares, tmp_path, monkeypatch, c
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba")
     (tmp_path / "ba").mkdir()
     monkeypatch.setattr(W, "_roster", lambda: {"1038": "Sugar River Bank"})
-    dest = drive / "ARS & MRPC Reports" / "1038-2026.09-Sugar River-DCO v2_2.xlsx"
+    dest = drive / "DCOs" / "1038-2026.09-Sugar River-DCO v2_2.xlsx"
 
     assert W.main(["--period", "2026.09", "--copy", "--dry-run"]) == 0
-    assert "Would copy to Drive (1)" in capsys.readouterr().out
+    assert "Would copy into Inputs (1)" in capsys.readouterr().out
     assert not dest.exists()
 
     assert W.main(["--period", "2026.09", "--copy"]) == 0
     out = capsys.readouterr().out
-    assert dest.exists() and "Copied to Drive (1)" in out and "Copied 1 to Drive." in out
+    assert dest.exists() and "Copied into Inputs (1)" in out and "Copied 1 into Inputs." in out
 
 
 # ------------------------------------------------------------------ prune step
@@ -379,7 +382,7 @@ def test_prune_flag_reports_and_deletes(shares, tmp_path, monkeypatch, capsys):
 
     assert W.main(["--period", "2026.09", "--prune"]) == 0
     out = capsys.readouterr().out
-    assert "Removed superseded inputs from Drive (1)" in out and "Removed 1 superseded." in out
+    assert "Removed superseded inputs (1)" in out and "Removed 1 superseded." in out
     assert not (rep / "1038-2026.08-Sugar River-DCO v2_2.xlsx").exists()
     assert (rep / "1038-2026.09-Sugar River-DCO v2_2.xlsx").exists()
 

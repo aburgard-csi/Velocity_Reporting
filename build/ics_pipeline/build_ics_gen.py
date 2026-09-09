@@ -21,6 +21,23 @@ from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 import ics_charts_gen as CH
 
 
+def peak_month(values):
+    """-> (index of the high, indices of earlier months level with it).
+
+    LATEST month on a tie, and the tie is reported rather than hidden. Plain
+    max() takes the FIRST maximum, and the two referral captions each called it
+    independently: the first time a month landed level with an earlier one the
+    Power of Referrals slide said "August was the highest of the last 14 months
+    at 52" while the Referral Trend slide facing it said "peak 52 in Jul'26"
+    (True Sky 1676, Aug 26 = Jul 26 = 52; Aaron, 2026-09-09). Same data, two
+    answers. Both captions read this function now.
+    """
+    if not values:
+        return None, []
+    i = max(range(len(values)), key=lambda k: (values[k], k))
+    return i, [k for k in range(len(values)) if k != i and values[k] == values[i]]
+
+
 def _goal_months_elapsed(rf):
     """How many months of the goal year this program has actually run -> (n, caption).
 
@@ -278,11 +295,11 @@ def _latest_ics_workbook_period(client_id):
     import glob, re
     try:
         import rpe_env
-        folder = rpe_env.inputs() / "ARS & MRPC Reports"
+        folders = rpe_env.report_dirs()      # a folder per kind + the legacy flat one
     except Exception:
         return None
     best = None
-    for f in glob.glob(str(folder / f"{client_id}-*")):
+    for f in [g for d in folders for g in glob.glob(str(d / f"{client_id}-*"))]:
         b = os.path.basename(f)
         if "invitation checking" not in b.lower():
             continue
@@ -290,6 +307,17 @@ def _latest_ics_workbook_period(client_id):
         if m and (best is None or m.group(1) > best):
             best = m.group(1)
     return best
+
+
+def _period_label(period):
+    """'2026.07' -> 'July 2026'. Unparseable input is returned unchanged rather than
+    mangled — a pill is better wrong-looking than silently plausible."""
+    from datetime import datetime as _dtc   # `build()` imports it locally, not here
+    try:
+        y, mo = period.split(".")
+        return _dtc(int(y), int(mo), 1).strftime("%B %Y")
+    except Exception:
+        return period
 
 
 def build(d, static_path, out, referrals_only=False):
@@ -303,9 +331,24 @@ def build(d, static_path, out, referrals_only=False):
     # client with no workbook at all does.
     _meta = d.get("meta") or {}
     _cid, _period = _meta.get("client_id"), _meta.get("period")
+    _stale_wb_month = None
+    # OPT-IN override (Aaron, 2026-09-09): include the workbook sections even when the
+    # workbook is older than the deck, for a client who needs the financial slides
+    # before the next workbook lands. Off by default, so the rule below still governs
+    # every other build, and it does NOT re-date anything: the workbook-driven slides
+    # are stamped with the WORKBOOK's own month, so a July figure reads "PTD · July
+    # 2026" on a September deck rather than passing as current. Re-dating them is the
+    # defect the rule exists to prevent; showing them, labelled, is not.
+    _allow_stale = os.environ.get("ICS_ALLOW_STALE_WORKBOOK", "").strip() not in ("", "0")
     if not referrals_only and _cid and _period:
         _wbp = _latest_ics_workbook_period(_cid)
-        if _wbp != _period:
+        if _wbp != _period and _allow_stale and _wbp:
+            _stale_wb_month = _period_label(_wbp)
+            print(f"ICS financial detail INCLUDED FROM A {_wbp} WORKBOOK on a {_period} "
+                  f"deck, by ICS_ALLOW_STALE_WORKBOOK. Every workbook-driven slide is "
+                  f"stamped 'PTD · {_stale_wb_month}', not the deck period, so no figure "
+                  f"is presented as current. Referrals remain {_period}.")
+        elif _wbp != _period:
             print(f"ICS financial detail OMITTED: newest ICS workbook for {_cid} is "
                   f"{_wbp or 'none on file'}, deck period is {_period}. Carried-forward "
                   f"figures would be dated as current on the slide face, so the "
@@ -351,6 +394,9 @@ def build(d, static_path, out, referrals_only=False):
     except Exception:
         data_date=rm
     wbm=m.get("workbook_month",rm)   # last completed month in the workbook (PTD as-of)
+    # A workbook older than the deck stamps its OWN month on every slide it feeds.
+    if _stale_wb_month:
+        wbm=_stale_wb_month
     A=os.path.join(os.path.dirname(out) or ".","_ics_assets"); os.makedirs(A,exist_ok=True)
     CH.render_all(d, A, referrals_only=referrals_only); a=lambda n: os.path.join(A,n)
     prs=Presentation(static_path)
@@ -516,13 +562,23 @@ def build(d, static_path, out, referrals_only=False):
     _n = -1 if _tr.get("partial_last") else len(_tv)
     _cm, _cv = _tm[:_n], _tv[:_n]
     if _cv:
-        _pi = max(range(len(_cv)), key=lambda k: _cv[k])
+        _pi, _tie_ix = peak_month(_cv)
         # The claim is tested on the value it PRINTS. `previous_month.value` and
         # `trend.referrals[-1]` are separate fields of the VIP pull and agree on
         # every client today; asserting a record from one while testing the other
         # would break silently the first time a restatement touched only one.
         _last = _cv[-1]
-        if _last >= _cv[_pi]:
+        _tied = [_cm[k] for k in _tie_ix] if _last >= _cv[_pi] else []
+        if _last >= _cv[_pi] and _tied:
+            if len(_tied) == 1:
+                _lvl = f"level with {P.mon_yy(_tied[0])}"
+            elif len(_tied) == 2:
+                _lvl = f"level with {P.mon_yy(_tied[0])} and {P.mon_yy(_tied[1])}"
+            else:
+                _lvl = f"level with {len(_tied)} earlier months"
+            _high = (f"{pm['label']} tied the {len(_cv)}-month high at {_last}, "
+                     f"{_lvl}.")
+        elif _last >= _cv[_pi]:
             _high = (f"{pm['label']} was the highest of the last {len(_cv)} months "
                      f"at {_last}.")
         else:
@@ -556,7 +612,9 @@ def build(d, static_path, out, referrals_only=False):
     # month, and naming it the high was wrong on every client checked.
     _cn = -1 if t.get("partial_last") else len(t['referrals'])
     _ccv = t['referrals'][:_cn]; _ccm = t['months'][:_cn]
-    _pk = max(range(len(_ccv)), key=lambda k: _ccv[k]) if _ccv else None
+    # Same function as the Power of Referrals caption above, so the two cannot
+    # name different peak months again.
+    _pk, _ = peak_month(_ccv)
     _peak_txt = (f"peak {_ccv[_pk]} in {P.mon_yy(_ccm[_pk])}" if _pk is not None
                  else "no complete month yet")
     # Months in MMM'YY, matching the axis directly above, and the partial note

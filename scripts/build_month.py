@@ -162,19 +162,27 @@ def ars_workbook(reports, cid, period):
 
     Several clients carry both, and "Invitation" sorts first — handing the ICS
     workbook to the ARS extractor dies on a missing Executive Financials tab.
+
+    `reports` is one folder or several: inputs are sorted into a folder per kind
+    (Aaron, 2026-09-09) and the legacy flat folder is still read, so a caller
+    passes `rpe_env.report_dirs()`. A bare path still works.
     """
-    return sorted(f for f in glob.glob(os.path.join(reports, f"{cid}-{period}-*Workbook*.xlsx"))
-                  if "invitation checking" not in os.path.basename(f).lower())
+    dirs = [reports] if isinstance(reports, (str, os.PathLike)) else list(reports)
+    hits = []
+    for d in dirs:
+        hits += [f for f in glob.glob(os.path.join(str(d), f"{cid}-{period}-*Workbook*.xlsx"))
+                 if "invitation checking" not in os.path.basename(f).lower()]
+    return sorted(hits)
 
 
 def build_client(cid, name, mmsm, progs, period, stage):
     d = os.path.join(stage, cid); os.makedirs(d, exist_ok=True)
     log = os.path.join(d, "build.log"); open(log, "w", encoding="utf-8").close()
     made = {}
-    I = R.inputs(); REPORTS = I / "ARS & MRPC Reports"; ODDD = I / "ODDD"
+    I = R.inputs(); REPORTS = R.report_dirs(); ODDD = I / "ODDD"
 
     if "ARS" in progs:
-        wb = ars_workbook(str(REPORTS), cid, period)
+        wb = ars_workbook(REPORTS, cid, period)
         if not wb:
             return "no ARS workbook", made
         z = str(ODDD / f"{cid}_ODDD.zip")

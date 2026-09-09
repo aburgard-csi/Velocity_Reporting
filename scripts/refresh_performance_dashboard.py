@@ -10,7 +10,7 @@ and says whether anything changed since the version last published. It does NOT
 publish: the artifact is republished by the Claude scheduled task
 "rpe-dashboard-refresh", which runs this, and publishes only on `STATUS: changed`.
 
-    dataset  <-  ARS workbooks + DCOs (Inputs/ARS & MRPC Reports) via the ARS
+    dataset  <-  ARS workbooks + DCOs (Inputs, sorted by kind) via the ARS
                  extractors; mailing response from the shipped deck's figure sidecar
                  (Build Artifacts/*.figures.json) — the workbook's mailing rates are
                  NOT the response rate the deck prints;
@@ -27,7 +27,7 @@ Everything it writes is bookkeeping and goes to `Build Artifacts/perf_dashboard/
     cp/                 the CashPlease per-client packs cp_extract emitted
 
 **The period is derived, never assumed.** It is the newest `<yyyy.mm>` tagged on an
-ARS workbook in `Inputs/ARS & MRPC Reports/` — the dashboard rolls forward the
+ARS workbook in `Inputs/ARS Workbooks/` — the dashboard rolls forward the
 moment a new month's workbooks are copied to Drive, and not before. Override with
 `--period` for a rebuild of an older month.
 
@@ -97,10 +97,21 @@ def cashplease_home():
 
 
 # ------------------------------------------------------------------ period
+def report_glob(reports, pattern):
+    """Every match for `pattern` across the report folders.
+
+    `reports` is a LIST since inputs are sorted into a folder per kind
+    (Aaron, 2026-09-09); a single folder is still accepted.
+    """
+    dirs = [reports] if isinstance(reports, (str, os.PathLike)) else list(reports)
+    return sorted((f for d in dirs for f in glob.glob(os.path.join(str(d), pattern))),
+                  key=os.path.basename)
+
+
 def derive_period(reports_dir, names=None):
-    """Newest `<yyyy.mm>` on an ARS workbook in the reports folder, or None."""
+    """Newest `<yyyy.mm>` on an ARS workbook in the reports folders, or None."""
     if names is None:
-        names = [os.path.basename(f) for f in glob.glob(os.path.join(reports_dir, "*.xlsx"))]
+        names = [os.path.basename(f) for f in report_glob(reports_dir, "*.xlsx")]
     periods = []
     for n in names:
         if n.startswith("~$") or "workbook" not in n.lower() \
@@ -192,10 +203,11 @@ from base_guard import uncalculated                              # noqa: E402  (
 
 
 def ars_section(cid, c, period, reports, ba, work):
-    wb_period, wb_name = pick_workbook(os.listdir(reports), cid, period)
+    found = {os.path.basename(f): f for f in report_glob(reports, "*.xlsx")}
+    wb_period, wb_name = pick_workbook(sorted(found), cid, period)
     if not wb_name:
-        return {"missing": "no ARS workbook on Drive"}
-    wb = str(reports / wb_name)
+        return {"missing": "no ARS workbook in Inputs"}
+    wb = found[wb_name]
     if c["path"] == "MM":
         out = work / f"{cid}_base.json"
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/extract_base_gen.py"), wb, str(out)],
@@ -207,7 +219,7 @@ def ars_section(cid, c, period, reports, ba, work):
             return {"missing": "extract_base_gen failed: " + r.stderr.strip()[-300:]}
         b = json.load(open(out, encoding="utf-8"))
     else:
-        dco = sorted(glob.glob(str(reports / f"{cid}-{wb_period}-*DCO*.xlsx")))
+        dco = report_glob(reports, f"{cid}-{wb_period}-*DCO*.xlsx")
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/base_tab_extract.py"), wb] + dco[:1],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         if "UNEVALUATED WORKBOOK" in r.stderr:
@@ -305,7 +317,7 @@ class MrpcWeekly:
 
     def __init__(self, reports):
         import openpyxl
-        hits = sorted(glob.glob(str(reports / "*MRPCEnrollmentSummary*.xlsx")))
+        hits = report_glob(reports, "*MRPCEnrollmentSummary*.xlsx")
         self.path = hits[-1] if hits else None
         self.tabs = {}
         if self.path:
@@ -400,7 +412,7 @@ def cashplease_packs(reports, work):
     if home is None:
         return None, None, None, "CashPlease repo not found (set CASHPLEASE_HOME)"
     sys.path.insert(0, str(home / "build"))
-    cands = glob.glob(str(reports / "CashPleaseSummary*.xlsx"))
+    cands = report_glob(reports, "CashPleaseSummary*.xlsx")
     dda = None
     try:
         import cp_env
@@ -487,7 +499,7 @@ def vip_pull_date(program):
 # ------------------------------------------------------------------ assemble
 def build_dataset(period, work, log=print):
     I, O, BA = R.inputs(), R.outputs(), R.build_artifacts()
-    reports = I / "ARS & MRPC Reports"
+    reports = R.report_dirs()
     clients = roster_clients()
     weekly = MrpcWeekly(reports)
     packs, cp_weekly, peer, cp_note = cashplease_packs(reports, work)
@@ -514,11 +526,11 @@ def build_dataset(period, work, log=print):
     return {
         "generated": _dt.date.today().isoformat(), "period": period,
         "sources": {
-            "ars": f"each client's newest ARS workbook through {period} (Inputs/ARS & MRPC Reports) + the mailing response from their newest shipped deck's figure sidecar (Build Artifacts)",
+            "ars": f"each client's newest ARS workbook through {period} (Inputs/ARS Workbooks) + the mailing response from their newest shipped deck's figure sidecar (Build Artifacts)",
             "ics": "VIP ICS sheets" + (f", pulled {ics_pull}" if ics_pull else "") + " (Inputs/VIP Data/ICS)",
             "mrpc": "VIP MRPC sheets" + (f", pulled {mrpc_pull}" if mrpc_pull else "")
                     + (f" + {weekly.name}" if weekly.name else ""),
-            "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/ARS & MRPC Reports)",
+            "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/Weekly Summaries)",
         },
         "cp_peer": peer,
         "clients": sorted([c for c in clients.values() if c["programs"]], key=lambda c: c["id"]),
@@ -595,10 +607,11 @@ def main(argv=None):
         print("marked published: " + state["hash"][:12])
         return 0
 
-    reports = R.inputs() / "ARS & MRPC Reports"
-    period = a.period or derive_period(str(reports))
+    reports = R.report_dirs()
+    period = a.period or derive_period(reports)
     if not period:
-        raise SystemExit(f"no ARS workbook in {reports} to derive a period from; pass --period")
+        raise SystemExit("no ARS workbook in %s to derive a period from; pass --period"
+                         % ", ".join(str(d) for d in reports))
     if not re.fullmatch(r"\d{4}\.\d{2}", period):
         raise SystemExit("period must be YYYY.MM, got %r" % period)
 

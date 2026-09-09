@@ -29,27 +29,49 @@ set per machine in `.env`. Never hardcode a path or a Drive id in code — if a 
 aren't where `RPE_DATA_ROOT` says, ask Aaron to point at the specific file rather than
 guessing, but do not re-ask the whole walk-through each session.
 
-**Google Drive is the source for inputs AND outputs, on every machine (Aaron, 2026-08-31).**
-Point `RPE_DATA_ROOT` at the Drive copy of `Work/RPE Pipeline` and read and write everything
-there. Drive is where Aaron works, so it is the copy that is current; a local tree goes stale
-the moment a workbook or VIP pull lands on Drive and not on it.
+**The pipeline runs LOCALLY. `C:\Data Pipelines\RPE Pipeline\` is the source for inputs
+AND outputs; Drive is a WRITE-ONLY BACKUP (Aaron, 2026-09-09).** Point `RPE_DATA_ROOT` at
+the local tree and read and write everything there. **Nothing reads Drive.** This reverses
+the 2026-08-31 decision that Drive was the source, and reinstates the local root the
+2026-08-31 note had retired — read the paragraph below, which used to forbid exactly this
+path, as history.
 
 ```
-# Mac  (Google Drive for Desktop)
+# Windows — this machine, moved 2026-09-09 (308 files, 1.23 GB, verified by count,
+# bytes and hash against the Drive tree it replaced)
+RPE_DATA_ROOT=C:\Data Pipelines\RPE Pipeline
+# Mac  (Google Drive for Desktop) — if a Mac ever runs this again
 RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pipeline
-# Windows  (Drive mounted as a letter — this machine, confirmed 2026-08-31)
-RPE_DATA_ROOT=G:\My Drive\Work\RPE Pipeline
 ```
+
+**One source, always.** The backup direction is local -> Drive and never the reverse.
+Copying a file back from Drive, or letting a build read it, recreates the two-stores
+problem that shipped month-old ICS figures in August: `build/{ics,mrpc}_pipeline/data/`
+and the VIP store disagreed, and the deck that read the stale one validated perfectly
+because it was internally consistent. If Drive and local ever differ, local wins.
 
 Aaron may lose Drive access later, and if he does the answer is to repoint `RPE_DATA_ROOT`
 in `.env` — nothing else. That is the whole reason the path is resolved through
 `rpe_env` and never written into code: **do not hardcode a path or a Drive id anywhere,**
 and do not reintroduce a per-machine branch in the build code.
 
+**Inputs are sorted into a folder per KIND (Aaron, 2026-09-09).** Everything used to
+land in one flat `ARS & MRPC Reports/`. `scripts/watch_sources.py` now files each copy by
+kind on arrival. **The folder names live in `rpe_env.INPUT_KIND_DIRS` and nowhere else** —
+renaming one is a line there plus a move on disk. Readers glob
+`rpe_env.report_dirs()` / `report_files()`, never a literal folder, and that set still
+includes the old flat folder, so a file dropped there by hand is still found.
+
 | Input | Folder under `RPE_DATA_ROOT` |
 | --- | --- |
 | Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
-| ARS, MRPC, **and ICS** workbooks (all together) | `Inputs/ARS & MRPC Reports/` |
+| DCOs | `Inputs/DCOs/` |
+| ARS workbooks | `Inputs/ARS Workbooks/` |
+| MRPCPM analyses | `Inputs/MRPC Analyses/` |
+| ICS workbooks | `Inputs/ICS Workbooks/` |
+| ICS Charts (mystery shops) | `Inputs/ICS Charts/` |
+| MRPCEnrollmentSummary / CashPleaseSummary weeklies | `Inputs/Weekly Summaries/` |
+| Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
@@ -85,14 +107,16 @@ die for want of somewhere to put its bookkeeping.
 the old **Client Presentations** drop and the per-client `Clients/<Client Name> <clientid>/`
 copy — do not deliver to client folders.
 
-**There is no RPE tree on `C:` on this machine — Drive is the only source (2026-08-31).**
-`C:\Data Pipelines\RPE Pipeline\` was the CSI/Cowork root after the move off OneDrive
-(Aaron, 2026-07-17). It is gone: `C:\Data Pipelines\` now holds only `Renewals Pipeline`,
-a different project that has its own `Inputs\` and `Outputs\` and is easy to mistake for
-this one at a glance. Do not point `RPE_DATA_ROOT` anywhere under `C:\Data Pipelines\`.
-A wrong root here fails loudly rather than quietly — `rpe_env.data_root()` raises on a
-path that is not a directory — so the risk is not a silent stale build; it is wasting
-time looking for inputs that were never there.
+**`C:\Data Pipelines\` also holds `Renewals Pipeline` — a DIFFERENT project.** It has its
+own `Inputs\` and `Outputs\` and is easy to mistake for this one at a glance. RPE is the
+sibling folder `RPE Pipeline`, and nothing here ever reads or writes the Renewals tree.
+
+*History, so this does not get "corrected" back:* `C:\Data Pipelines\RPE Pipeline\` was
+the CSI/Cowork root after the move off OneDrive (Aaron, 2026-07-17); it was retired to
+Drive on 2026-08-31, and this file then said "do not point `RPE_DATA_ROOT` anywhere under
+`C:\Data Pipelines\`". That guard is spent — the local root is deliberate again as of
+2026-09-09. A wrong root still fails loudly rather than quietly, because
+`rpe_env.data_root()` raises on a path that is not a directory.
 
 **Write hazard on mounted folders.** Some mounts allow creating and copying files but NOT
 deleting — `rm` returns "Operation not permitted". Copy-to-deliver works; if a file must be
@@ -144,7 +168,7 @@ actually opens, which a 0-FAIL lint pass alone does not.
 quarterly, and a monthly build used to carry the previous workbook's figures forward. It no
 longer does: **if there is no workbook for the deck's own period, the workbook-driven ICS
 elements are not included at all.** The builder resolves the newest ICS workbook for the client
-from `Inputs/ARS & MRPC Reports/` and compares its period to the deck's; on a mismatch the ICS
+via `rpe_env.report_dirs()` and compares its period to the deck's; on a mismatch the ICS
 section falls back to the referrals-only shape — Referrals, Referral Trend, Results by Branch
 and the education slides — and the divider drops to "Referrals".
 
@@ -513,10 +537,32 @@ toast needs a desktop), catching up a missed run when the laptop wakes.
 Registered on this machine 2026-09-08. `--notify` raises a Windows toast only when
 there is news or the shares were unreachable; a quiet day is silent.
 
+**The daily run also reads the MAILBOX (Aaron, 2026-09-09).** Two kinds of input never
+land on a share: **MRPC and CashPlease reports from Bradford Sanders**, and **ICS workbooks
+from Matt Milliman**. `--mail`, which the scheduled task passes, takes them from Outlook
+via `scripts/mail_sources.py` and files them by kind alongside everything else.
+
+- **Outlook COM, not Graph** — the task already runs as the logged-on user, so the desktop
+  profile is signed in and there is no app registration, secret or consent to own. The cost
+  is that Outlook must be running when the task fires; an unreachable mailbox is REPORTED
+  and skipped, never fatal — the share check runs every day regardless.
+- **Read-only.** Nothing is marked read, moved, deleted or replied to.
+- **Senders are matched on the resolved SMTP address**, never the display name, and each
+  sender may only supply their own kinds — an ICS workbook from the MRPC sender is reported
+  and skipped. An Exchange sender's `SenderEmailAddress` is an X500 path, so the address is
+  resolved through the Exchange user first.
+- **Inbox AND Archive**, plus subfolders. A rule files both senders straight into Archive:
+  an Inbox-only scan read 35 messages and 123 attachments and found neither of them.
+- **Only the newest of each thing**, the same rule the share copier uses. A mailbox holds
+  every weekly ever sent — a 120-day scan turned up twenty, of which the pipeline reads one
+  — and it holds ICS workbooks four months older than the ones already in `Inputs/`.
+- An attachment whose filename does not match `<id>-<period>-<kind>` is **parked in the
+  legacy folder and reported**, never guessed at.
+
 **The daily run also copies (Aaron, 2026-09-08).** With `--copy`, which the scheduled
 task passes, every file on the shares for a **roster client** (`clients.md`) that Drive
 lacks, or holds a different landing of, is copied into `Inputs/` — DCOs, ARS
-workbooks, MRPCPM analyses and ICS workbooks to `ARS & MRPC Reports/`, the ODD extract
+workbooks, MRPCPM analyses and ICS workbooks each to their own folder, the ODD extract
 to `ODDD/<id>_ODDD.zip`. Copy-only: nothing on Drive is ever deleted (some mounts
 refuse deletes anyway); a `.part` file is written and renamed over the target so a
 copy that dies half way never leaves a truncated extract under the real name, and the
@@ -545,7 +591,7 @@ Because the copy happens before the 08:30 dashboard refresh, a new month's
 workbooks reaching Drive roll the performance artifact forward the same morning.
 
 **...and prunes what a newer version supersedes (Aaron, 2026-09-08).** With
-`--prune`, also passed by the task, a file in `Inputs/ARS & MRPC Reports/` is deleted
+`--prune`, also passed by the task, a workbook-ish file in `Inputs/` is deleted
 when a NEWER version of the same thing is there: same client id and kind (DCO, ARS
 workbook, MRPCPM analysis, ICS workbook) with a later period, or the same weekly family
 (MRPCEnrollmentSummary, CashPleaseSummary) with a later stamp. The newest of each group
