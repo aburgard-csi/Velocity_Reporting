@@ -496,6 +496,39 @@ def vip_pull_date(program):
     return max(pulls) if pulls else None
 
 
+# ------------------------------------------------------------------ readiness
+def readiness(period, log=print):
+    """{client id: {ready, blocked_on, inputs}} for THIS period, from deck_status.
+
+    The page used to answer "what has been built"; this answers "what can be
+    built", which is the question in front of you at the start of a cycle
+    (Aaron, 2026-09-09). deck_status already owns that answer — reusing it means
+    the dashboard and the delivery dashboard cannot disagree about whether a
+    client is ready.
+
+    Only the LOCAL state gates a build, so that is what is carried; the CSI-share
+    columns need the VPN and are reported separately. A failure here degrades the
+    section to empty rather than failing the refresh.
+    """
+    try:
+        import deck_status as DS
+        doc = DS.collect(period, use_source=False)
+    except Exception as e:                                   # never fail the page
+        log("readiness unavailable: %s" % e)
+        return {}, None
+    out = {}
+    for c in doc.get("clients", []):
+        out[c["id"]] = {
+            "ready": bool(c.get("ready")),
+            "blocked_on": c.get("blocked_on") or [],
+            "inputs": [{"program": r.get("program"), "input": r.get("input"),
+                        "state": (r.get("local") or {}).get("state"),
+                        "detail": (r.get("local") or {}).get("detail")}
+                       for r in c.get("inputs", [])],
+        }
+    return out, doc.get("generated")
+
+
 # ------------------------------------------------------------------ assemble
 def build_dataset(period, work, log=print):
     I, O, BA = R.inputs(), R.outputs(), R.build_artifacts()
@@ -522,9 +555,13 @@ def build_dataset(period, work, log=print):
             c["programs"].append("CP")
         c["decks"], c["sent"], c["deck_period"] = decks_and_sent(cid, period, O, BA)
 
+    ready, _checked = readiness(period, log)
+    for cid, c in clients.items():
+        c["readiness"] = ready.get(cid)
+
     ics_pull, mrpc_pull = vip_pull_date("ICS"), vip_pull_date("MRPC")
     return {
-        "generated": _dt.date.today().isoformat(), "period": period,
+        "generated": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "period": period,
         "sources": {
             "ars": f"each client's newest ARS workbook through {period} (Inputs/ARS Workbooks) + the mailing response from their newest shipped deck's figure sidecar (Build Artifacts)",
             "ics": "VIP ICS sheets" + (f", pulled {ics_pull}" if ics_pull else "") + " (Inputs/VIP Data/ICS)",

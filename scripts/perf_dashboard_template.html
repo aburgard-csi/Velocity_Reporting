@@ -41,6 +41,10 @@ h1,h2,h3,.mont{font-family:Montserrat,"Segoe UI",system-ui,sans-serif}
 header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:18px}
 header.top h1{margin:0;font-size:24px;font-weight:700;color:var(--head);letter-spacing:-.01em;text-wrap:balance}
 header.top .sub{color:var(--ink2);margin-top:4px;font-size:14px}
+header.top .updated{margin-top:6px;font-family:Montserrat,sans-serif;font-size:11.5px;font-weight:600;
+  letter-spacing:.03em;color:var(--ink2);display:inline-flex;align-items:center;gap:7px;
+  background:var(--tile);border:1px solid var(--hair);border-radius:999px;padding:4px 11px}
+header.top .updated i{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none}
 .pill{display:inline-block;background:var(--accent);color:var(--accent-ink);font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:.04em;padding:6px 14px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 .eyebrow{font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
 
@@ -124,6 +128,18 @@ td .neg{color:var(--bad)}
 .peer td .cl{color:var(--ink2);font-weight:600;font-style:normal}
 .empty{padding:26px 20px;color:var(--ink2)}
 
+/* readiness */
+.rdy td .st{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.rdy td .st i{width:9px;height:9px;border-radius:50%;flex:none}
+.rdy .ok i{background:var(--good)} .rdy .no i{background:var(--bad)} .rdy .unk i{background:var(--muted)}
+.rdy td .need{display:block;color:var(--ink2);font-size:12px;margin-top:2px;white-space:normal}
+.rdy td .ins{display:flex;flex-wrap:wrap;gap:4px}
+.rdy td .in{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 8px;
+  border-radius:999px;border:1px solid var(--hair);background:var(--chip-bg);color:var(--ink2);white-space:nowrap}
+.rdy td .in i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--c,var(--muted))}
+.rdy td .in.miss{border-color:color-mix(in srgb,var(--bad) 45%,transparent);color:var(--bad)}
+.rdy td .in.stale{border-color:color-mix(in srgb,var(--warn) 50%,transparent);color:var(--warn)}
+
 /* client roster table */
 .roster td .dots{display:inline-flex;gap:4px;vertical-align:middle}
 .roster td .dots i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block}
@@ -136,6 +152,9 @@ td .neg{color:var(--bad)}
 :root[data-theme="dark"] #tip, :root:not([data-theme="light"]) #tip{color:var(--bg)}
 footer{color:var(--ink3);font-size:12.5px;margin-top:10px;line-height:1.5;max-width:80ch}
 footer p{margin:4px 0}
+footer ul.prov{margin:6px 0 8px;padding-left:18px}
+footer ul.prov li{margin:3px 0}
+footer ul.prov b{color:var(--ink2);font-family:Montserrat,sans-serif;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -144,6 +163,7 @@ footer p{margin:4px 0}
     <div>
       <div class="eyebrow">CSI Velocity &middot; Retail Performance Engine</div>
       <h1>RPE Client Performance</h1>
+      <div class="updated" id="updated"></div>
       <div class="sub" id="subline"></div>
     </div>
     <div class="pill" id="periodpill"></div>
@@ -164,7 +184,7 @@ footer p{margin:4px 0}
 
   <div class="strip" id="strip"></div>
   <div id="sections"></div>
-  <section class="prog roster" id="rostersec"></section>
+  <section class="prog roster rdy" id="rostersec"></section>
   <footer id="foot"></footer>
 </div>
 <div id="tip" role="tooltip"></div>
@@ -427,16 +447,65 @@ function secCP(vis){
   return secShell(p, rows.length, DATA.sources.cp, rank, table);
 }
 
+// Which product an input belongs to, so its chip carries that product's colour.
+function inColour(program){
+  const k = String(program||"").toUpperCase().replace(/-.*$/,"");
+  return (PK[k]||{}).c || "var(--muted)";
+}
+
+// Build readiness for THIS period. The section used to list the newest deck
+// BUILT; what you need at the start of a cycle is what can be built and what is
+// missing (Aaron, 2026-09-09). deck_status owns the answer, so this page and the
+// delivery dashboard cannot disagree.
 function secRoster(vis){
-  const h = `<div class="hd"><h2>Clients and decks \u00b7 newest built, through ${DATA.period}</h2><span class="src">Outputs/ and the delivery log</span></div>`;
-  const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr><th class="l">Client</th><th class="l">Products</th><th class="l">Deck</th><th class="l">Built</th><th class="l">Sent</th></tr></thead><tbody>` +
-    vis.map(c=>`<tr>
+  const P = DATA.period;
+  const withR = vis.filter(c=>c.readiness);
+  const ready = withR.filter(c=>c.readiness.ready).length;
+  const built = vis.filter(c=>c.deck_period===P).length;
+  const h = `<div class="hd"><h2>Build readiness \u00b7 ${esc(P)}</h2>` +
+    `<span class="n">${ready} of ${withR.length} ready \u00b7 ${built} built</span>` +
+    `<span class="src">clients.md, Inputs/ and the delivery log</span></div>`;
+  const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr>` +
+    `<th class="l">Client</th><th class="l">Products</th><th class="l">Ready to build</th>` +
+    `<th class="l">Inputs for ${esc(P)}</th><th class="l">Deck</th><th class="l">Sent</th>` +
+    `</tr></thead><tbody>` +
+    vis.map(c=>{
+      const r = c.readiness;
+      const dots = `<span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span>` +
+        ` <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span>`;
+      let state, ins;
+      if (!r){
+        state = `<span class="st unk"><i></i>not checked</span>`;
+        ins = `<span class="dim">\u2014</span>`;
+      } else if (r.ready){
+        state = `<span class="st ok"><i></i>ready</span>`;
+        ins = `<div class="ins">${r.inputs.map(i=>chipFor(i)).join("")}</div>`;
+      } else {
+        state = `<span class="st no"><i></i>blocked</span>` +
+          (r.blocked_on.length?`<span class="need">${r.blocked_on.map(esc).join(", ")}</span>`:"");
+        ins = `<div class="ins">${r.inputs.map(i=>chipFor(i)).join("")}</div>`;
+      }
+      const deck = c.deck_period===P
+        ? `<span class="tag good">built ${esc(P)}</span>`
+        : (c.decks.length?`<span class="tag">newest ${esc(c.deck_period||"")}</span>`
+                         :`<span class="tag warn">none</span>`);
+      return `<tr>
       <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
-      <td class="l"><span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span> <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span></td>
-      <td class="l" style="white-space:normal;max-width:460px">${c.decks.length?c.decks.map(esc).join("<br>"):"<span class=dim>none in Outputs/</span>"}</td>
-      <td class="l">${c.decks.length?`<span class="tag ${c.deck_period===DATA.period?'good':''}">built ${esc(c.deck_period||"")}</span>${c.deck_period!==DATA.period?`<span class="sub">no ${esc(DATA.period)} deck yet</span>`:""}`:`<span class="tag warn">not built</span>`}</td>
-      <td class="l">${c.sent?`<span class="tag good">sent ${esc(c.sent)}</span>`:`<span class="tag">not recorded</span>`}</td></tr>`).join("") + `</tbody></table></div>`;
+      <td class="l">${dots}</td>
+      <td class="l">${state}</td>
+      <td class="l" style="white-space:normal;max-width:430px">${ins}</td>
+      <td class="l">${deck}</td>
+      <td class="l">${c.sent?`<span class="tag good">sent ${esc(c.sent)}</span>`:`<span class="tag">not recorded</span>`}</td></tr>`;
+    }).join("") + `</tbody></table></div>`;
   return h + t;
+}
+
+function chipFor(i){
+  const st = String(i.state||"").toLowerCase();
+  const cls = st==="missing" ? " miss" : (st==="stale" ? " stale" : "");
+  const mark = st==="present" ? "" : (st==="missing" ? " \u2717" : (st==="stale" ? " stale" : " ?"));
+  return `<span class="in${cls}" style="--c:${inColour(i.program)}" title="${esc((i.program||"")+" \u00b7 "+(i.detail||i.state||""))}">` +
+    `<i></i>${esc(i.input||"")}${mark}</span>`;
 }
 
 // ---------- update
@@ -451,6 +520,14 @@ function update(){
 }
 document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
 document.getElementById("subline").textContent = `${clients.length} clients across four programs. Click a product or client to narrow; shift-click to isolate one.`;
-document.getElementById("foot").innerHTML = `<p><strong>Where each figure comes from.</strong> ARS: ${esc(DATA.sources.ars)} — Executive Financials and All Months Rollup; a row is tagged with its workbook's period when that is older than the cycle. ICS: ${esc(DATA.sources.ics)}; ROI, lifetime value and net profit from each client's newest Invitation Checking workbook, flagged when older than the period. MRPC: ${esc(DATA.sources.mrpc)} — the weekly for take rates, cardholders and monthly enrollments, VIP for goal attainment and revenue. CashPlease: ${esc(DATA.sources.cp)}, with the all-client rollup as the peer row.</p><p>Program to date is abbreviated PTD. Assembled ${DATA.generated}. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
+document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
+document.getElementById("foot").innerHTML =
+  `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
+  `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook’s period when that is older than the cycle.</li>` +
+  `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client’s newest Invitation Checking workbook, flagged when older than the period.</li>` +
+  `<li><b>MRPC</b> \u2014 ${esc(DATA.sources.mrpc)}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +
+  `<li><b>CashPlease</b> \u2014 ${esc(DATA.sources.cp)}, with the all-client rollup as the peer row.</li>` +
+  `<li><b>Build readiness</b> \u2014 clients.md for who gets a deck, Inputs/ for what has landed, Outputs/ and Build Artifacts/deliveries.json for built and sent. The CSI shares are not checked here, so readiness reflects what is on this machine.</li>` +
+  `</ul><p>Program to date is abbreviated PTD. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
 update();
 </script>

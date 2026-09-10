@@ -17,6 +17,32 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-10 — the dashboard shows build READINESS, not just what was built
+
+Three changes to the "RPE Client Performance" artifact (Aaron, 2026-09-09/10).
+
+**"Clients and decks" became "Build readiness · <period>".** It listed the newest deck
+BUILT; what is in front of you at the start of a cycle is what CAN be built and what is
+missing. Each row now reads ready or blocked, names what it is blocked on, and shows one
+chip per required input — carrying that product's colour, red with a cross when missing,
+amber when stale, with the detail in its tooltip. The header counts `N of M ready · K
+built`. Austin reads "blocked: ARS workbook", which is the true answer for that client
+today.
+
+The readiness comes from `deck_status.collect()`, not a second implementation, so this
+page and the delivery dashboard cannot disagree about whether a client is ready. It
+degrades to "not checked" rather than failing the refresh — which is what the five
+CashPlease-only clients show, since they are not on the roster `deck_status` reads.
+
+**The provenance footer is a bulleted list**, one line per program, plus a new Build
+readiness line naming its sources and stating that the CSI shares are not checked there,
+so readiness reflects what is on this machine. It was a single dense paragraph carrying
+five different sourcing rules.
+
+**A "Last updated" pill sits under the title.** It carries the time as well as the date,
+because the page can be refreshed several times a day; `content_hash` already excludes
+`generated`, so the timestamp cannot cause a spurious republish.
+
 ### 2026-09-09 — branch-chart rate labels moved into a band above the line
 
 They rode their own markers, which put them in the gap between the rate line and the
