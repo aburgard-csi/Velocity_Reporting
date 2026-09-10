@@ -383,7 +383,11 @@ for r in opdh_c:
     v=vint[key]; v[0]+=1; v[1]+=(regd(r)==OPTIN)
     if part12(r):
         v[2]+=1; v[3]+=items12(r); v[4]+=(regd(r)==OPTIN)
-years=['Pre-2018']+[str(y) for y in range(2018,2027)]
+# The vintage axis is derived from the data. It used to be a typed
+# range(2018,2027): an account opened in 2027 landed under key '2027', which
+# was not in the list, so it counted toward the pool and then vanished from
+# the chart. Keys are 4-digit years, so a plain sort orders them.
+years=(['Pre-2018'] if 'Pre-2018' in vint else [])+sorted(k for k in vint if k!='Pre-2018')
 M['rege_vintage']=[[k,vint[k][0],round(100*vint[k][1]/vint[k][0]) if vint[k][0] else 0,
     round(vint[k][3]/vint[k][2]/12,2) if vint[k][2] else 0,
     round(100*vint[k][4]/vint[k][2]) if vint[k][2] else 0] for k in years if vint[k][0]>0]
@@ -432,9 +436,19 @@ for r in data:
 nsf_series=[[mkey(m).strftime("%b %y"),round(_items[m]),_accts[m]] for m in nmonths]
 M['nsf_series']=nsf_series
 M['nsf_last_items']=nsf_series[-1][1]; M['nsf_last_accts']=nsf_series[-1][2]
-# YoY
-jun25=next((x for x in nsf_series if x[0]=='Jun 25'),None); jun26=nsf_series[-1]
-M['nsf_yoy']=round(100*(jun26[1]-jun25[1])/jun25[1]) if jun25 else 0
+# YoY = this month against the SAME month a year earlier, found by month arithmetic.
+# It used to search for the literal 'Jun 25' row and compare it to the LAST row, so
+# the figure was year-over-year only for a June deck — a Jul-2026 deck compared
+# Jun 25 to Jul 26 and still called it YoY — and any client whose series starts
+# after Jun 2025 fell to the `else 0` branch and shipped a phantom 0%. Absent prior
+# month -> None, which the builder states on the tile; it is never zeroed.
+_nsf_by_tok=dict(zip(nmonths,nsf_series))
+_nsf_cur=nsf_series[-1]; _nsf_end=mkey(nmonths[-1])
+_nsf_prior=_nsf_by_tok.get(_nsf_end.replace(year=_nsf_end.year-1).strftime('%b%y'))
+M['nsf_yoy']=round(100*(_nsf_cur[1]-_nsf_prior[1])/_nsf_prior[1]) if (_nsf_prior and _nsf_prior[1]) else None
+# The two months actually compared, so the tile's own caption names them instead
+# of carrying the template's literal '(Jun 25 - Jun 26)'.
+M['nsf_yoy_window']=[_nsf_prior[0],_nsf_cur[0]] if _nsf_prior else None
 # ---- Reach cumulative responders (slide 30) ----
 reach=[]; seen=set();
 for m in mailmonths:

@@ -898,7 +898,22 @@ set_exact(S[23], "+11%", spend_yoy)
 # ============================ SLIDE 25 — NSF/OD
 set_exact(S[24], "2,360", f"{M['nsf_last_items']:,}")
 set_exact(S[24], "725", f"{M['nsf_last_accts']:,}")
-set_exact(S[24], "-1%", f"{'+' if M['nsf_yoy']>=0 else ''}{M['nsf_yoy']}%")
+# The two dated tile captions here are NOT reached by the as-of pass: "(June)" has
+# no year and "(Jun 25 \u2192 Jun 26)" uses two-digit years, so both slipped past the
+# stale-caption gate and shipped the reference client's months. They are swapped
+# from the snapshot and from the window the YoY figure actually compared.
+repl(S[24], {"NSF/OD (June)": f"NSF/OD ({AS_OF_LONG})"})
+_nsf_yoy = M.get('nsf_yoy')
+_nsf_win = M.get('nsf_yoy_window')
+if _nsf_yoy is None:
+    # Stated, never zeroed: this extract carries no same-month row a year back.
+    print("!! NSF/OD: no same-month-a-year-earlier row in this extract "
+          "(%d months) — the Items YoY tile reads n/a" % len(M['nsf_series']))
+    set_exact(S[24], "-1%", "n/a")
+    repl(S[24], {"(Jun 25 \u2192 Jun 26)": "(no prior year in extract)"})
+else:
+    set_exact(S[24], "-1%", f"{'+' if _nsf_yoy>=0 else ''}{_nsf_yoy}%")
+    repl(S[24], {"(Jun 25 \u2192 Jun 26)": f"({_nsf_win[0]} \u2192 {_nsf_win[1]})"})
 
 # ============================ SLIDE 27 — Reg E all
 repl(S[26], {"all open personal accounts holding a debit card (6,192)": f"all open personal accounts holding a debit card ({rege_pool})",

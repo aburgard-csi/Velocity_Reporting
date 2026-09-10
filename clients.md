@@ -82,55 +82,64 @@ into the ILS review deck itself. The ILS deck is built by the data team and ship
 else's deliverable. Delivering a deck beside it does not.
 
 The slides are the same five either way — divider · Program Overview · Loan Volume by
-Month · Loan Portfolio by Status · Peer Comparison — built once by the module builder.
-The combined deck is a second consumer of that output, the way it already consumes the
-ICS and MRPC decks. The pipeline lives in `C:\Projects\CashPlease\build\` and imports
-this repo's shared style layer (`brand`, `shapes`, `periods`, `fit_layout`) so a
-CashPlease slide matches the ARS/ICS/MRPC slides beside it; it is staged to move into
-this repo (`C:\Projects\CashPlease\MIGRATION.md`). Everything is validated with
-`validation/validate_deck.py` like every other deck.
+Month · Loan Portfolio by Status · Peer Comparison — built once. The combined deck is a
+second consumer of that output, the way it already consumes the ICS and MRPC decks.
+
+**The pipeline lives in this repo as of 2026-09-10**: `build/cashplease_pipeline/` and
+`scripts/build_cashplease.py`, dispatched by the `cashplease-deck` subagent, using the
+same `brand` / `shapes` / `periods` / `fit_layout` layer as every other program and
+validated by `validation/validate_deck.py` like every other deck. It ran out of
+`C:\Projects\CashPlease` until then; that tree is retired and builds nothing.
 
 **This file is the roster, like every other program here (Aaron, 2026-09-01).** An
-earlier pass built a module for all 71 client tabs in the workbook. It no longer does:
-**only Aaron's clients get a CashPlease module.** The workbook carries every Velocity
+earlier pass built a deck for all 71 client tabs in the workbook. It no longer does:
+**only Aaron's clients get a CashPlease deck.** The workbook carries every Velocity
 CashPlease client across all CSMs, so a tab in it says a client is live on the program —
-never that a deck is wanted. `build_all_cp.py` reads the table below and builds nothing
-that is not in it.
+never that a deck is wanted. `scripts/build_cashplease.py` reads the table below, via
+`build_month.read_cashplease_roster`, and builds nothing that is not in it.
 
 | Source | Where |
 | --- | --- |
 | Weekly workbook | Bradford Sanders, subject "CashPlease Summary" — `CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx` |
 | DDA denominator | the weekly "ILS Management Server DDA Count" email body, saved as `ILS-DDA-Count-<YYYY-MM-DD>.txt` |
-| Both land in | `<CP_DATA_ROOT>/Inputs/` — resolved, never hardcoded |
-| Decks go to | `<CP_DATA_ROOT>/Outputs/` |
-| Cadence | Weekly (the 2026-08-30 workbook is the current one) |
+| Both land in | `Inputs/Weekly Summaries/` under `RPE_DATA_ROOT` — resolved through `rpe_env`, never hardcoded |
+| Decks go to | `Outputs/`; packs and figures to `Build Artifacts/cashplease/` |
+| Cadence | **Weekly** — the build always uses the most recent workbook, currently 2026-09-06 |
 
 ### CashPlease roster — BUILD ONLY THESE
 
-Aaron's client book (Obsidian) intersected with the 2026-08-30 workbook. `Build` is what
-`build_all_cp.py` reads; a row marked `no` is parsed and deliberately skipped, so a
+Aaron's client book (Obsidian) intersected with the 2026-09-06 workbook. `Build` is what
+the builder reads; a row marked `no` is parsed and deliberately skipped, so a
 cancelled client cannot come back just because their tab keeps arriving.
 
 | ID | Client | Build | Loans | Ships as | Note |
 | --- | --- | --- | --- | --- | --- |
-| 1131 | People's Bank AL | yes | 10,507 | standalone module | no other RPE program |
-| 1539 | Marine FCU | yes | 6,705 | **ARS-ICS-MRPC-CP** section | Obsidian `products` omits CashPlease — see gap 3 |
-| 1564 | OneUnited Bank | yes | 11,444 | standalone module | no other RPE program |
-| 1632 | WesBanco Bank | yes | 11,869 | **ICS-CP** section | |
+| 1131 | People's Bank AL | yes | 10,540 | standalone deck   | no other RPE program |
+| 1539 | Marine FCU | yes | 6,745 | **ARS-ICS-MRPC-CP** section | Obsidian `products` omits CashPlease — see gap 3 |
+| 1564 | OneUnited Bank | yes | 11,495 | standalone deck   | no other RPE program |
+| 1632 | WesBanco Bank | yes | 11,927 | **ICS-CP** section | |
 | 1658 | Truliant FCU | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
-| 1734 | Altamaha Bank and Trust Company | yes | 646 | **ICS-CP** section | |
-| 1750 | All In FCU | yes | 5,657 | standalone module | no other RPE program |
-| 1770 | Central State Bank | yes | 27 | standalone module | Obsidian `products` omits CashPlease — see gap 3 |
-| 1771 | Copper State CU | yes | 153 | standalone module | Obsidian `products` omits CashPlease — see gap 3 |
+| 1734 | Altamaha Bank and Trust Company | yes | 651 | **ICS-CP** section | |
+| 1750 | All In FCU | yes | 5,701 | standalone deck   | no other RPE program |
+| 1770 | Central State Bank | yes | 27 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
+| 1771 | Copper State CU | yes | 156 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
 
-**Three combined decks and five standalone modules per run.** A client whose CashPlease
-slides ship inside a combined deck does NOT also get a standalone module (Aaron,
+**Three combined decks and five standalone decks per run.** A client whose CashPlease
+slides ship inside a combined deck does NOT also get a standalone deck (Aaron,
 2026-09-01) — the Executive Review and the ILS review would otherwise carry the same five
-slides. Loan counts are program-to-date as of the 2026-08-30 workbook and are a
-convenience, not an input; the builder reads them from the workbook.
+slides. Loan counts are program-to-date **as of the 2026-09-06 workbook** and are a
+convenience, not an input; the builder reads them from the workbook every run.
+
+**Two counts did not move over the week to 2026-09-06**, and both are worth knowing
+rather than smoothing over. **1658 Truliant is frozen at 8,296** — no new loans since the
+program was cancelled, which is what a closed book should look like and is independent
+corroboration of the `Build: no` row. **1770 Central State Bank is flat at 27**, and it is
+NOT cancelled: 27 loans program-to-date with none in a week is either a program that never
+took hold or one that has stopped. Worth asking before their next review, because the deck
+reports it either way.
 
 **1566 People's Bank NC is on this list's edge:** Obsidian says they are on CashPlease
-but they have **no tab in the workbook**, so no module can be built. They are left off
+but they have **no tab in the workbook**, so no deck can be built. They are left off
 the table rather than added with `Build: yes`, which would fail every run. See gap 4.
 
 **Truliant 1658 has cancelled CashPlease (Aaron, 2026-09-01).** Their tab still carries
@@ -144,6 +153,14 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 - **2026-09-01 — CashPlease added as a fourth program** (Aaron). First recorded as an
   ILS-review-only module; **superseded the same day** by the combined-deck decision
   below. See the **CashPlease** section above.
+- **2026-09-10 — the CashPlease pipeline moved into this repo.** It ran out of
+  `C:\Projects\CashPlease` against this repo's shared style layer; it is now
+  `build/cashplease_pipeline/` + `scripts/build_cashplease.py`, dispatched by the
+  `cashplease-deck` subagent. Paths resolve through `rpe_env` and **`CP_DATA_ROOT` no
+  longer exists** — inputs come from `Inputs/Weekly Summaries/`, decks go to `Outputs/`.
+  The standalone tree is retired and builds nothing; two working copies reading different
+  data roots is the two-stores problem this file's opening paragraph is about. The
+  2026-09-01 entry below describing `CP_DATA_ROOT` is superseded and kept as history.
 - **2026-09-02 — CashPlease is delivered WITH ICS, not inserted into the ILS deck**
   (Aaron). "Ship CP with ICS or other RPE products, but I also want it included in our
   annual ILS reviews... rather than insert the cashplease slides into the ILS deck, just
@@ -249,12 +266,12 @@ These are stated as open questions, not assumptions.
    CashPlease volume in the workbook**: 1539 Marine FCU (6,705 loans), 1771 Copper State
    CU (153) and 1770 Central State Bank (27). The modules are built regardless — the
    workbook is the CashPlease roster — but the vault entries look out of date. Marine in
-   particular is a 6,705-loan program recorded nowhere in its own client note.
+   particular is a 6,745-loan program recorded nowhere in its own client note.
 
 4. **1566 People's Bank NC is the mirror image**: Obsidian lists `products: [ILS,
-   CashPlease]` but the client has **no tab in the 2026-08-30 workbook**, so no module
-   could be built. Either they are sold but not yet live, or their data is missing from
-   the weekly pull — worth asking Bradford which.
+   CashPlease]` but the client has **no tab in the workbook** — still absent from the
+   2026-09-06 one, so this is not a one-week gap. Either they are sold but not yet live,
+   or their data is missing from the weekly pull; worth asking Bradford which.
 
 5. **1537 is still "FNB&T Chickasha" in Obsidian.** This file renamed 1537 to **Brooks
    Bank** effective 2026-08-31 and decks deliver under that name. The vault folder and

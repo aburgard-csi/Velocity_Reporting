@@ -111,3 +111,79 @@ def test_balance_bands_are_labelled_pairs(metrics):
 def test_responder_and_nonresponder_counts_are_positive(metrics):
     assert metrics["n_responders"] > 0
     assert metrics["n_nonresp"] > 0
+
+
+# --- dated windows are derived, not typed ---------------------------------
+# Both of these guard against a month literal in the source. metrics_gen used to
+# search nsf_series for the row labelled 'Jun 25' and compare it to the LAST row,
+# and to draw the Reg E vintage axis from range(2018, 2027).
+
+def test_nsf_yoy_compares_the_same_month_a_year_apart(metrics):
+    """The YoY window is 12 months, whatever month the extract ends on."""
+    import datetime
+    win = metrics["nsf_yoy_window"]
+    assert win, "nsf_yoy_window missing — the tile caption has nothing to name"
+    a, b = (datetime.datetime.strptime(w, "%b %y") for w in win)
+    assert (b.year - a.year) * 12 + (b.month - a.month) == 12, \
+        f"nsf_yoy compares {win[0]} to {win[1]} — not a year"
+    assert win[1] == metrics["nsf_series"][-1][0], \
+        "nsf_yoy must end at the newest month in the series"
+
+
+def test_nsf_yoy_is_never_a_phantom_zero(metrics):
+    """Absent prior year is None (stated on the slide), never 0."""
+    yoy = metrics["nsf_yoy"]
+    assert yoy is not None, "the fixture carries 36 months — a prior year exists"
+    if metrics["nsf_yoy_window"] is None:
+        assert yoy is None
+
+
+def test_rege_vintage_charts_every_account_it_counted(metrics):
+    """Pool in, pool out. A dropped bucket shows up here as a shortfall."""
+    charted = sum(r[1] for r in metrics["rege_vintage"])
+    assert charted == metrics["rege_vintage_pool"], (
+        f"{metrics['rege_vintage_pool'] - charted} accounts counted toward the "
+        f"Reg E vintage pool but appear in no bucket on the chart")
+    for k, *_ in metrics["rege_vintage"]:
+        assert k == "Pre-2018" or (k.isdigit() and len(k) == 4), f"odd axis key {k!r}"
+
+
+def test_rege_vintage_axis_is_not_capped_at_a_typed_year(odd_csv, tmp_path):
+    """Re-run the pack on an extract that opens accounts past the current year.
+
+    The axis was a typed `range(2018, 2027)`, so an account opened outside it was
+    counted into the pool and then silently dropped from the chart. Nothing in the
+    fixture's own year spread can catch that — the years all sat inside the range —
+    so this shifts the newest cohort forward and asserts it still lands on the axis.
+    """
+    import csv, json, subprocess, sys, os
+    from conftest import ARS
+
+    rows = list(csv.reader(open(odd_csv, encoding="utf-8", newline="")))
+    col = [c.strip() for c in rows[4]].index("Date Opened")
+    years = [r[col].strip()[-4:] for r in rows[5:]
+             if len(r) > col and r[col].strip()[-4:].isdigit()]
+    newest = max(years)
+    shifted = str(int(newest) + 1)
+    moved = 0
+    for r in rows[5:]:
+        if len(r) > col and r[col].strip().endswith(newest):
+            r[col] = r[col].strip()[:-4] + shifted
+            moved += 1
+    assert moved, f"no rows opened in {newest} to shift"
+
+    odd = tmp_path / "shifted_odd.csv"
+    with open(odd, "w", encoding="utf-8", newline="") as fh:
+        csv.writer(fh).writerows(rows)
+    out = tmp_path / "metrics.json"
+    r = subprocess.run([sys.executable, os.path.join(ARS, "metrics_gen.py"),
+                        str(odd), str(out)],
+                       capture_output=True, text=True, cwd=ARS)
+    assert r.returncode == 0, f"metrics_gen failed on the shifted extract:\n{r.stderr[-2000:]}"
+    m = json.loads(out.read_text())
+
+    shown = [k for k, *_ in m["rege_vintage"]]
+    assert shifted in shown, (
+        f"accounts opened in {shifted} are missing from the vintage axis {shown} — "
+        f"the axis is capped rather than derived from the data")
+    assert sum(r[1] for r in m["rege_vintage"]) == m["rege_vintage_pool"]
