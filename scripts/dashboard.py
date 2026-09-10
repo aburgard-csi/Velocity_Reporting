@@ -8,7 +8,7 @@ needs sending. Runs locally; nothing is published.
 Then open http://127.0.0.1:8787/ (the Browser pane in Claude Code will do).
 
 Why a server and not a static page. Marking a deck sent has to WRITE, and the
-record lives in `Build Artifacts/deliveries.json` on Drive (Aaron, 2026-08-31)
+record lives in `Build Artifacts/deliveries.json` (Aaron, 2026-08-31)
 so it is the same fact on every machine and needs no commit. A file:// page
 cannot write there. This is the smallest thing that can: stdlib `http.server`,
 bound to 127.0.0.1, no dependencies, no external calls.
@@ -113,13 +113,13 @@ _CHIP_CLASS = {DS.PRESENT: "ok", DS.MISSING: "no", DS.STALE: "st",
 
 
 def chip(row):
-    """One input, coloured by the state of the copy the BUILDERS read (Drive).
+    """One input, coloured by the state of the copy the BUILDERS read.
 
     The source column is shown in the tooltip rather than as a second chip: what
     matters at a glance is whether the build can run, and source only explains
     why it cannot.
     """
-    d, s = row["drive"], row["src"]
+    d, s = row["local"], row["src"]
     cls = _CHIP_CLASS.get(d["state"], "un")
     note = ""
     # The ICS workbook is the one input whose absence is not a gap: without one
@@ -150,13 +150,13 @@ def render(doc):
 
     if not doc["source_checked"]:
         banner = ('<div class="banner info">Source shares were skipped '
-                  '(<code>--no-source</code>). Readiness reflects Drive only, so a file '
+                  '(<code>--no-source</code>). Readiness reflects local inputs only, so a file '
                   'the data team has landed but nobody has copied looks the same as one '
                   'that never arrived.</div>')
     elif not doc["source_reachable"]:
         banner = ('<div class="banner warn"><b>Not on the CSI VPN.</b> The source shares '
                   'are unreachable, so &ldquo;has the data team landed it?&rdquo; is '
-                  '<b>unknown</b>, not answered. Drive columns below are still accurate. '
+                  '<b>unknown</b>, not answered. The input columns below are still accurate. '
                   'Connect the VPN and refresh to see what has landed.</div>')
     else:
         banner = ""
@@ -234,7 +234,7 @@ def render(doc):
 %(excluded)s
 <div class="foot">Sent state: <code>%(log)s</code>.
 Readiness is computed by <code>scripts/deck_status.py</code>; this page only displays it.
-Hover any chip for its Drive and source detail.</div>
+Hover any chip for its input and source detail.</div>
 </div>
 <script>
 const period = () => document.getElementById('period').value;
@@ -328,7 +328,7 @@ def main():
     ap.add_argument("--period", default=periods()[0])
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--no-source", action="store_true",
-                    help="skip the CSI shares (Drive only, faster)")
+                    help="skip the CSI shares (local inputs only, faster)")
     ap.add_argument("--open", action="store_true", help="open a browser")
     a = ap.parse_args()
     if not DS._period_ok(a.period):

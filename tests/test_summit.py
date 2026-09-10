@@ -3,7 +3,7 @@
 The Summit and the monthly client reviews are TWO DIFFERENT DELIVERIES: a Summit
 runs a couple of times a year and only for attendees, while the reviews go out
 monthly (Aaron, 2026-08-29). So this date describes the Summit slide and nothing
-else — in particular it does NOT drive a deck's reporting month, which comes from
+else — in particular it does NOT held a deck's reporting month, which comes from
 ARS_PERIOD or the output filename.
 """
 import datetime
@@ -88,12 +88,12 @@ def test_the_repo_copy_is_the_default():
     assert ss._asset() == ss._REPO_ASSET or "Inputs/Summit" in ss._asset()
 
 
-def test_drive_overrides_the_repo_copy(tmp_path, monkeypatch):
+def test_pipeline_copy_overrides_the_repo_copy(tmp_path, monkeypatch):
     """The slide is replaced by hand before each Summit, by someone who should
     not need a commit to ship it."""
     import summit_slide as ss
-    drive = tmp_path / "Summit"; drive.mkdir()
-    slide = drive / "summit_slide.pptx"
+    held = tmp_path / "Summit"; held.mkdir()
+    slide = held / "summit_slide.pptx"
     shutil_src = ss._REPO_ASSET
     import shutil; shutil.copy(shutil_src, slide)
     monkeypatch.setattr(ss, "inputs", lambda: tmp_path, raising=False)

@@ -45,6 +45,57 @@ CLOSED_STATUSES = {
 }
 
 
+
+# Status wording is the shared vocabulary from CLAUDE.md / oddd_optimize. Kept
+# HERE, with the status sets it belongs to, because more than one slide needs it
+# and a status rule copied into a second file is a rule that drifts — which is
+# exactly what happened. `product_mix_slide` carried its own `_CLOSED = {"Closed"}`
+# and so counted 90 CHARGED-OFF 1204 accounts inside a total labelled
+# "Excl. Closed", while `excluded_accounts_slide` classified the same rows closed.
+#
+# Clients do not agree on which status field they populate: 1509 Texas Bay fills
+# `Stat Desc`, 1549 Wellworth fills `Stat Code` (O/C/X) and leaves `Stat Desc`
+# BLANK on every non-open account. So use the description when it carries text,
+# else fall back to the code.
+_CLOSED_PREFIX = ("closed", "charge", "purge", "pending close")
+_OPEN_PREFIX = ("open", "active")
+
+
+def _code_sets():
+    """STAT_CODE_MAP lives in scripts/; import it lazily so importing this module
+    never depends on scripts/ being on the path."""
+    import os as _os
+    import sys as _sys
+    _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                      _os.pardir, _os.pardir, "scripts"))
+    from oddd_optimize import STAT_CODE_MAP
+    return ({k for k, v in STAT_CODE_MAP.items() if v == "Open"},
+            {k for k, v in STAT_CODE_MAP.items() if v in ("Closed", "Charged Off")})
+
+
+def status_class(desc, code):
+    """-> 'open' | 'closed' | 'other'.
+
+    'other' is deliberately NOT assumed to mean dormant: an unmapped code is
+    surfaced as a flag, never guessed (CLAUDE.md). Dormant and Inactive land here
+    — they are neither closed nor answering "why is this OPEN account excluded".
+    """
+    d = (desc or "").strip().lower()
+    if d:
+        if d.startswith(_CLOSED_PREFIX):
+            return "closed"
+        if d.startswith(_OPEN_PREFIX):
+            return "open"
+        return "other"
+    c = (code or "").strip().upper()
+    open_codes, closed_codes = _code_sets()
+    if c in closed_codes:
+        return "closed"
+    if c in open_codes:
+        return "open"
+    return "other"
+
+
 def accessors(H):
     """Bind the ODD vocabulary to one header map `H` = {column name: index}.
 

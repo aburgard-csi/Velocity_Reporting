@@ -25,31 +25,53 @@ and do not start from an existing combined deck.
 ## File locations
 
 Paths are resolved from **`RPE_DATA_ROOT`** (`build/rpe_env.py` → `inputs()` / `outputs()`),
-set per machine in `.env`. Never hardcode a path or a Drive id in code — if a build's inputs
+set per machine in `.env`. Never hardcode a path in code — if a build's inputs
 aren't where `RPE_DATA_ROOT` says, ask Aaron to point at the specific file rather than
 guessing, but do not re-ask the whole walk-through each session.
 
-**Google Drive is the source for inputs AND outputs, on every machine (Aaron, 2026-08-31).**
-Point `RPE_DATA_ROOT` at the Drive copy of `Work/RPE Pipeline` and read and write everything
-there. Drive is where Aaron works, so it is the copy that is current; a local tree goes stale
-the moment a workbook or VIP pull lands on Drive and not on it.
+**The pipeline runs LOCALLY, and `C:\Data Pipelines\RPE Pipeline\` is the ONE copy
+(Aaron, 2026-09-09).** Point `RPE_DATA_ROOT` at it and read and write everything there.
 
 ```
-# Mac  (Google Drive for Desktop)
-RPE_DATA_ROOT=~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Work/RPE Pipeline
-# Windows  (Drive mounted as a letter — this machine, confirmed 2026-08-31)
-RPE_DATA_ROOT=G:\My Drive\Work\RPE Pipeline
+# Windows — this machine, moved 2026-09-09 (308 files, 1.23 GB, verified by count,
+# bytes and hash before .env was repointed)
+RPE_DATA_ROOT=C:\Data Pipelines\RPE Pipeline
 ```
 
-Aaron may lose Drive access later, and if he does the answer is to repoint `RPE_DATA_ROOT`
-in `.env` — nothing else. That is the whole reason the path is resolved through
-`rpe_env` and never written into code: **do not hardcode a path or a Drive id anywhere,**
-and do not reintroduce a per-machine branch in the build code.
+**There is no second copy, and nothing syncs this tree anywhere. THE ORIGINAL SOURCES
+ARE THE BACKUP (Aaron, 2026-09-09).** Every input can be re-fetched from where it came
+from: the CSI shares hold the ODD extracts, DCOs, ARS workbooks and MRPCPM analyses, and
+the mailbox holds the MRPC / CashPlease reports and the ICS workbooks —
+`scripts/watch_sources.py --copy --mail` is how they come back. Outputs are rebuildable
+from those inputs by definition, and `Outputs/Archive/` keeps every superseded deck.
+
+Do not introduce a mirror. Two copies of one tree is the two-stores problem that shipped
+month-old ICS figures in August: `build/{ics,mrpc}_pipeline/data/` and the VIP store
+disagreed, and the deck that read the stale one validated perfectly because it was
+internally consistent.
+
+If the root ever moves again the answer is to repoint `RPE_DATA_ROOT` in `.env` — nothing
+else. That is the whole reason the path is resolved through `rpe_env` and never written
+into code: **do not hardcode a path anywhere,** and do not reintroduce a per-machine
+branch in the build code.
+
+**Inputs are sorted into a folder per KIND (Aaron, 2026-09-09).** Everything used to
+land in one flat `ARS & MRPC Reports/`. `scripts/watch_sources.py` now files each copy by
+kind on arrival. **The folder names live in `rpe_env.INPUT_KIND_DIRS` and nowhere else** —
+renaming one is a line there plus a move on disk. Readers glob
+`rpe_env.report_dirs()` / `report_files()`, never a literal folder, and that set still
+includes the old flat folder, so a file dropped there by hand is still found.
 
 | Input | Folder under `RPE_DATA_ROOT` |
 | --- | --- |
 | Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
-| ARS, MRPC, **and ICS** workbooks (all together) | `Inputs/ARS & MRPC Reports/` |
+| DCOs | `Inputs/DCOs/` |
+| ARS workbooks | `Inputs/ARS Workbooks/` |
+| MRPCPM analyses | `Inputs/MRPC Analyses/` |
+| ICS workbooks | `Inputs/ICS Workbooks/` |
+| ICS Charts (mystery shops) | `Inputs/ICS Charts/` |
+| MRPCEnrollmentSummary / CashPleaseSummary weeklies | `Inputs/Weekly Summaries/` |
+| Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
@@ -85,14 +107,16 @@ die for want of somewhere to put its bookkeeping.
 the old **Client Presentations** drop and the per-client `Clients/<Client Name> <clientid>/`
 copy — do not deliver to client folders.
 
-**There is no RPE tree on `C:` on this machine — Drive is the only source (2026-08-31).**
-`C:\Data Pipelines\RPE Pipeline\` was the CSI/Cowork root after the move off OneDrive
-(Aaron, 2026-07-17). It is gone: `C:\Data Pipelines\` now holds only `Renewals Pipeline`,
-a different project that has its own `Inputs\` and `Outputs\` and is easy to mistake for
-this one at a glance. Do not point `RPE_DATA_ROOT` anywhere under `C:\Data Pipelines\`.
-A wrong root here fails loudly rather than quietly — `rpe_env.data_root()` raises on a
-path that is not a directory — so the risk is not a silent stale build; it is wasting
-time looking for inputs that were never there.
+**`C:\Data Pipelines\` also holds `Renewals Pipeline` — a DIFFERENT project.** It has its
+own `Inputs\` and `Outputs\` and is easy to mistake for this one at a glance. RPE is the
+sibling folder `RPE Pipeline`, and nothing here ever reads or writes the Renewals tree.
+
+*History, so this does not get "corrected" back:* `C:\Data Pipelines\RPE Pipeline\` was
+the CSI/Cowork root after the move off OneDrive (Aaron, 2026-07-17); it was retired to
+elsewhere on 2026-08-31, and this file then said "do not point `RPE_DATA_ROOT` anywhere under
+`C:\Data Pipelines\`". That guard is spent — the local root is deliberate again as of
+2026-09-09. A wrong root still fails loudly rather than quietly, because
+`rpe_env.data_root()` raises on a path that is not a directory.
 
 **Write hazard on mounted folders.** Some mounts allow creating and copying files but NOT
 deleting — `rm` returns "Operation not permitted". Copy-to-deliver works; if a file must be
@@ -144,7 +168,7 @@ actually opens, which a 0-FAIL lint pass alone does not.
 quarterly, and a monthly build used to carry the previous workbook's figures forward. It no
 longer does: **if there is no workbook for the deck's own period, the workbook-driven ICS
 elements are not included at all.** The builder resolves the newest ICS workbook for the client
-from `Inputs/ARS & MRPC Reports/` and compares its period to the deck's; on a mismatch the ICS
+via `rpe_env.report_dirs()` and compares its period to the deck's; on a mismatch the ICS
 section falls back to the referrals-only shape — Referrals, Referral Trend, Results by Branch
 and the education slides — and the divider drops to "Referrals".
 
@@ -208,13 +232,16 @@ all three programs can adopt it), plus the post-processors `restyle_fonts.py`,
 `summit_slide.py`, `fit_layout.py` (layout-fit + 10pt slide numbers, run by all builders
 before save), `strip_dead.py`, `textfit.py`, `branch_names.py` and `assemble_combined.py`.
 ARS-specific shared code stays in `build/ars_pipeline/` — `odd_rows.py` (the ODD row
-vocabulary: `g`, `fnum`, `swipes`, `spend`, `personal`, `hascard`, `isopen`) is there
-because the ODD is an ARS input.
+vocabulary: `g`, `fnum`, `swipes`, `spend`, `personal`, `hascard`, `isopen`) and
+`before_after.py` (the responder before/after measure) are there because the ODD is an
+ARS input. **Both are import-safe on purpose**: `metrics_gen` reads `sys.argv` at module
+scope, so importing it RUNS it, and that hazard is why each of these was re-implemented
+standalone and then drifted.
 
 The ODD optimizer is `scripts/oddd_optimize.py`; the validator is `validation/validate_deck.py`.
 Superseded one-offs, the deprecated pre-`build_ars_gen` ARS recipe (`build_gen`/`build_gen_b`/
 `build_swipepct`/`style_tables`/`swap_imgs`), backups (`*_orig`), and the old combined-Marine
-helpers were left OUT of this repo (they remain in the Drive copy's `archive/`) — nothing here
+helpers were left OUT of this repo (they remain in the pipeline `archive/`) — nothing here
 imports them, and nothing should. See `build/README.md`. Requires python-pptx, matplotlib, openpyxl, Pillow.
 
 **Validation gate.** Run `validation/validate_deck.py <deck> [base.json]` on every built
@@ -451,16 +478,16 @@ endpoint and the delivery log is not public. `scripts/deck_status.py <period>
 | --- | --- |
 | Who gets a deck | `clients.md`, via `build_month.read_roster` — the same parser the builder uses |
 | Has the data team landed it | `\\PADMIS105\Velocity_company\Aburgard\ODDD\<YYYY.MM Mon>\` and `\\PADMIS105\Velocity_clientreports\<YYYY.MM>\<Account Manager>\` |
-| Can the build run | `Inputs/` on Drive — the copy the builders actually read |
+| Can the build run | `Inputs/` — the copy the builders actually read |
 | Built | `Outputs/<id>-<period>-*.pptx` |
-| Sent | `Build Artifacts/deliveries.json` on Drive |
+| Sent | `Build Artifacts/deliveries.json` |
 
 Override the share paths with `RPE_SRC_ODDD` / `RPE_SRC_REPORTS`; they are never
 hardcoded, for the same reason `RPE_DATA_ROOT` is not.
 
 **The CSI shares need the VPN (Aaron, 2026-08-31).** Off VPN they are not empty,
 they are *unknown*, and the dashboard says so rather than reporting a full cycle
-of phantom gaps. Drive columns stay accurate either way.
+of phantom gaps. The input columns stay accurate either way.
 
 **Sent is recorded, never inferred.** A deck in `Outputs/` proves it was BUILT.
 Nothing on disk knows whether it reached the client, so sent-state is written to
@@ -468,7 +495,7 @@ Nothing on disk knows whether it reached the client, so sent-state is written to
 2026-08-31) — bookkeeping, so it stays out of `Outputs/`. A damaged log raises
 rather than reading as "nothing sent", which would invite sending twice.
 
-**A Drive ODD extract is only current if the SOURCE says so.** `Inputs/ODDD/`
+**An ODD extract in `Inputs/` is only current if the SOURCE says so.** `Inputs/ODDD/`
 holds `<id>_ODDD.zip` with no period in the name, overwritten in place each
 month — so last month's extract sits at the same path under the same name and
 "a file is there" does NOT mean this period's data is there. The dashboard
@@ -480,6 +507,136 @@ Off VPN the period cannot be confirmed and is reported as unknown, not current.
 have no source-side signal, so their source column is `n/a` and a missing one
 does not block — without a workbook for the period the ICS section builds
 referrals-only, which is a valid deck.
+
+### Daily source watch
+
+```
+python scripts/watch_sources.py [--notify] [--dry-run] [--period 2026.09 ...]
+powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 [-Time 08:00] [-Unregister]
+```
+
+`deck_status.py` answers "is it there now"; `watch_sources.py` answers "what
+landed since I last looked" (Aaron, 2026-09-08). It scans this month's and last
+month's folders on both CSI shares — ODD extracts on `Velocity_company\Aburgard\ODDD`,
+DCOs / ARS workbooks / MRPCPM analyses on `Velocity_clientreports` — diffs the
+inventory against the one it saved last run, and reports files that are new,
+re-landed (same name, new bytes) or gone, roster clients first, each with whether
+the copy the builders read is already current. Nothing is copied
+automatically. It reuses `deck_status`'s share roots (and their `RPE_SRC_*`
+overrides) and the `clients.md` roster.
+
+State is bookkeeping, so it lives in `Build Artifacts/`:
+`source_watch.json` (the last inventory), `source_watch.log` (appended per run),
+`source_watch_latest.md` (the latest report). The first run is a baseline and
+reports counts, not news. **Off VPN it exits 2 and leaves the saved inventory
+alone** — saving an empty one would make every file "new" the next morning.
+
+`register_watch_task.ps1` schedules it as the Windows task **"RPE Source Watch"**,
+daily at 08:00 as the logged-on user (the share needs those credentials and the
+toast needs a desktop), catching up a missed run when the laptop wakes.
+Registered on this machine 2026-09-08. `--notify` raises a Windows toast only when
+there is news or the shares were unreachable; a quiet day is silent.
+
+**The daily run also reads the MAILBOX (Aaron, 2026-09-09).** Two kinds of input never
+land on a share: **MRPC and CashPlease reports from Bradford Sanders**, and **ICS workbooks
+from Matt Milliman**. `--mail`, which the scheduled task passes, takes them from Outlook
+via `scripts/mail_sources.py` and files them by kind alongside everything else.
+
+- **Outlook COM, not Graph** — the task already runs as the logged-on user, so the desktop
+  profile is signed in and there is no app registration, secret or consent to own. The cost
+  is that Outlook must be running when the task fires; an unreachable mailbox is REPORTED
+  and skipped, never fatal — the share check runs every day regardless.
+- **Read-only.** Nothing is marked read, moved, deleted or replied to.
+- **Senders are matched on the resolved SMTP address**, never the display name, and each
+  sender may only supply their own kinds — an ICS workbook from the MRPC sender is reported
+  and skipped. An Exchange sender's `SenderEmailAddress` is an X500 path, so the address is
+  resolved through the Exchange user first.
+- **Inbox AND Archive**, plus subfolders. A rule files both senders straight into Archive:
+  an Inbox-only scan read 35 messages and 123 attachments and found neither of them.
+- **Only the newest of each thing**, the same rule the share copier uses. A mailbox holds
+  every weekly ever sent — a 120-day scan turned up twenty, of which the pipeline reads one
+  — and it holds ICS workbooks four months older than the ones already in `Inputs/`.
+- An attachment whose filename does not match `<id>-<period>-<kind>` is **parked in the
+  legacy folder and reported**, never guessed at.
+
+**The daily run also copies (Aaron, 2026-09-08).** With `--copy`, which the scheduled
+task passes, every file on the shares for a **roster client** (`clients.md`) that `Inputs/`
+lacks, or holds a different landing of, is copied into `Inputs/` — DCOs, ARS
+workbooks, MRPCPM analyses and ICS workbooks each to their own folder, the ODD extract
+to `ODDD/<id>_ODDD.zip`. Copy-only: nothing in `Inputs/` is ever deleted by a copy (some mounts
+refuse deletes anyway); a `.part` file is written and renamed over the target so a
+copy that dies half way never leaves a truncated extract under the real name, and the
+size is verified after. **The ODD extract is only ever copied from the newest month on
+the share for that client.** The watch scans two months and the local copy carries no
+period in its name, so once this month's extract is in `Inputs/` last month's at source
+"differs" from it forever — copying it back would be the stale-ODD failure in its
+purest form. `copy_plan` is where that rule lives, and `tests/test_watch_sources.py`
+pins it. A client not on the roster (1437 Canandaigua, ended) is never copied even
+though the data team keeps landing its files.
+
+**A "differs" file is overwritten only when the SOURCE is the newer write.** A local
+copy modified after the landing is a deliberate change, not a re-landing — a workbook
+opened and saved in Excel so its formulas carry values, which is what the extractors
+read. The first copy run clobbered 1539's recalculated 2026.08 workbook with the
+share's never-evaluated original and every ARS figure for Marine FCU read 0
+(2026-09-08; recovered by recalculating in Excel). **A landed workbook can arrive with
+its formulas unevaluated**: openpyxl then reads the template defaults (1 month, 0
+mailings, $0). `build/ars_pipeline/base_guard.py` is the one definition of that
+check: both ARS extractors and the ARS builder exit with `UNEVALUATED WORKBOOK: ...`
+on such a base, and the dashboard refresh reports the row as "carries no calculated
+values" rather than rendering zeros. The fix is to open the workbook in Excel, save,
+and rebuild. `tests/test_base_guard.py` pins that every ARS entry point uses it.
+
+Because the copy happens before the 08:30 dashboard refresh, a new month's
+workbooks reaching `Inputs/` roll the performance artifact forward the same morning.
+
+**...and prunes what a newer version supersedes (Aaron, 2026-09-08).** With
+`--prune`, also passed by the task, a workbook-ish file in `Inputs/` is deleted
+when a NEWER version of the same thing is there: same client id and kind (DCO, ARS
+workbook, MRPCPM analysis, ICS workbook) with a later period, or the same weekly family
+(MRPCEnrollmentSummary, CashPleaseSummary) with a later stamp. The newest of each group
+is always kept; a file that is the only one of its kind for a client is never touched
+however old (1174's lone 2026.07 DCO, 1537's 2026.06 ICS workbook); two files with the
+same version key (a weekly and its "- Copy") are ambiguous and both stay; the ICS Charts
+workbooks, the ODD extracts and anything unpatterned have no "newer version" this code
+can identify and are left alone. The newer file must exist and be non-empty at the
+moment of deletion. `prune_plan` holds the rule; the tests pin it. Consequence: the
+delivery dashboard's input columns for a PAST period read "not copied" once that
+period's inputs are pruned — the deck is built and that is the column that matters.
+
+### The performance dashboard artifact — refreshed after each source check
+
+```
+python scripts/refresh_performance_dashboard.py [--period 2026.08] [--force]
+python scripts/refresh_performance_dashboard.py --mark-published
+```
+
+The "RPE Client Performance" artifact
+(`https://claude.ai/code/artifact/71e542f6-cb48-4386-ae73-708e513c854b`) is the
+cross-client, cross-product page Aaron asked for on 2026-09-08: one section per
+program (ARS, ICS, MRPC, CashPlease) with a ranked bar, a metrics table and trend
+sparklines, and a deck roster. It is a static page with its dataset embedded.
+`refresh_performance_dashboard.py` rebuilds that dataset from the same inputs the
+deck builders read (ARS workbooks + DCOs through the ARS extractors, mailing response
+from the shipped deck's figure sidecar, the VIP ICS / MRPC sheets, the newest
+MRPCEnrollmentSummary and CashPleaseSummary weeklies — the last through the
+CashPlease repo's own `cp_extract.py`, found via `CASHPLEASE_HOME` or the sibling
+checkout), injects it into `scripts/perf_dashboard_template.html`, and writes the
+page and its bookkeeping to `Build Artifacts/perf_dashboard/`. **The period is the
+newest ARS workbook in `Inputs/`**, so the page rolls forward when a month's workbooks are
+copied, not before. **Within that cycle every client shows its own newest figures**
+(Aaron, 2026-09-08): the newest ARS workbook, shipped-deck sidecar and built deck at or
+before the cycle period, with the row tagged when that is older than the cycle. A
+cycle-only page went blank for three ARS clients and every deck the first morning of a
+month. It ends with `STATUS: changed|unchanged`, comparing a content hash (generation
+date excluded) to the hash last published.
+
+Publishing needs the Artifact tool, so the script never publishes. The Claude
+scheduled task **`rpe-dashboard-refresh`** (daily 08:30, after the 08:00 source
+watch; stored under `~/.claude/scheduled-tasks/`) runs the script, republishes to the
+URL above only on `changed`, then runs `--mark-published`. It runs while the Claude
+desktop app is open and catches up on next launch. **Do not create a new artifact
+for this page** — republish to the URL, or the link people hold goes stale.
 
 ## Data sources by program (do not cross these)
 
@@ -521,6 +678,10 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `build_month.py` — builds the monthly ARS/ICS/MRPC reviews for one period from the `clients.md` roster. Never emits Summit one-pagers.
 - `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
 - `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
+- `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**).
+- `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily.
+- `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
+- `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
 - `build_ars_gen.py` — the ARS deck assembler: populates the `ars_template.pptx` shell, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.
@@ -528,6 +689,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `charts_gen.py` — renders the 28 chart PNGs; `DIM` = each chart's pixel size (must match its slide box aspect).
 - `chart_lib.py` — shared take-rate-by-branch renderer (personal orange / business navy; identical size).
 - `base_tab_extract.py` — SM financials from the workbook (+ DCO).
+- `base_guard.py` — refuses a workbook whose formulas were never evaluated (extracts as 1 month, 0 mailings, $0); called by both extractors, the builder and the dashboard refresh.
 - `extract_base_gen.py` / `extract_lift.py` — MM financials / Lift Matrix rows.
 - `render_lift.py`, `ticket_calc.py`, `ticket_chart.py` — Lift Matrix chart (MM); average-ticket calc + chart.
 - `product_mix_slide.py` — builds the Product Mix & ARS Eligibility slide from the ODD.
@@ -539,12 +701,19 @@ This is the readme index — update it whenever files are added, removed, or mov
   the per-client excluded product codes, derived as those with no eligible account. $0
   balance and address quality are reported as observations, NOT as exclusions — neither
   predicts the `Elig` flag (see the module docstring for the evidence).
+- `before_after.py` — the responder before/after measure (cohort, windows, winsorizing,
+  pooling), imported by BOTH `metrics_gen` (the monthly deck) and `responder_activity`
+  (the Summit one-pager). **The Summit and the monthly decks use the same logic**
+  (Aaron, 2026-09-08): the two used to compute it four different ways and the one-pager
+  reported True Sky at +118% while the client's own deck said +103%.
 - `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
   restyle_fonts / fit_layout / validate_deck, which enforce the 13.33x7.5 deck contract.
-- `responder_activity.py` — responder before/after activity from the raw ODD; feeds the one-pager.
+- `responder_activity.py` — reads the raw ODD for the one-pager: eligible count, reach,
+  depth, transactions over the ask. The before/after figures come from the shared
+  `before_after.compute`, not from this file.
 - `lift_extract.py` → `build_lift_matrix.py` — per-account ODD extract (`.pkl`) and the
   standalone ARS Lift Matrix workbook built from it (the file sent to Bradford).
 
@@ -582,4 +751,4 @@ drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accep
 embedded. `rpe_env.use_font` RAISES rather than let matplotlib substitute a missing face.
 
 `archive/` and `dashboards/` are NOT in this repo — the initial import excluded them. They
-live only in Drive. Nothing here references either.
+live only in the pipeline data root. Nothing here references either.

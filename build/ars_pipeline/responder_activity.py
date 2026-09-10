@@ -2,22 +2,30 @@
 """
 responder_activity.py — responder before/after activity from the raw ODDD.
 
-Mirrors the method in build/ars_pipeline/metrics_gen.py (the ARS deck's
-"Responder Activity: Before vs After" and "Transaction Increase Over the Ask"
-slides) so the one-pager agrees with the client's deck instead of restating it:
+Feeds the Executive Summit one-pager. The before/after measure is NOT computed
+here: it is `before_after.compute`, the same function the monthly deck's
+metrics_gen calls, so the one-pager and the client's own deck cannot disagree
+(Aaron, 2026-09-08 — "the Summits and the regular delivery decks should use the
+same logic").
+
+They did disagree. This file's docstring used to claim it mirrored metrics_gen
+while differing in four ways at once — the eligible-at-snapshot cohort, an
+after window running to the end of the extract, a separate winsorizing cap per
+window, and a headline that averaged the per-mailing means. `before_after.py`
+records what each of those cost. What remains here:
 
   * eligible cohort = personal accounts with <latest month> Elig == Yes
-  * a responder met the goal in any mailing month (Resp in RESP_MET)
-  * per mature mailing with >= 5 responders: mean monthly debit spend over the
-    3 months BEFORE the mailing vs every month AFTER, winsorized at 3 SD;
-    headline = the mean across mailings
+    (the count of who CAN be mailed — a present-tense question, so the
+    present-tense filter is right here and wrong on a historical cohort)
+  * responders / reach / depth = every personal account that met a goal, the
+    same historical cohort the deck's Reach and Depth slides count
   * transaction increase over the ask = swipes in the month after the latest
     met-goal offer, minus that offer's goal
 
-Written standalone rather than by importing metrics_gen because metrics_gen
-carries two stale-month assumptions ('Jun26 Elig', w3/NOW = Jun 2026) and picks
-the first .csv in the zip — which on several clients is the raw transaction
-file, not the ODD extract.
+Reads the extract itself rather than importing metrics_gen because importing
+metrics_gen RUNS it (it reads sys.argv at module scope) and it picks the first
+.csv in the zip — which on several clients is the raw transaction file, not the
+ODD extract. `before_after` and `odd_rows` are import-safe by design.
 
 Usage: python3 responder_activity.py <ODDD.zip|.csv> <out.json>
 """
@@ -30,6 +38,7 @@ import statistics
 import sys
 import zipfile
 
+import before_after
 from odd_rows import accessors
 
 csv.field_size_limit(10 ** 7)
@@ -78,7 +87,10 @@ def load(path):
     latest = smonths[-1]
 
     keep = {f"{latest} Elig", "Business?", "Debit?"}
-    fam = re.compile(r"^[A-Z][a-z]{2}\d{2} (Sig #|PIN #|Sig \$|PIN \$|Mail|Resp)$")
+    # MTD is the NSF/OD item count. It was not kept, so before_after's NSF
+    # figures would have come back 0 for the one-pager while the deck reported
+    # them — the same measure, two answers, which is the whole point of sharing.
+    fam = re.compile(r"^[A-Z][a-z]{2}\d{2} (Sig #|PIN #|Sig \$|PIN \$|MTD|Mail|Resp)$")
     need = [i for i, c in enumerate(hdr) if c in keep or fam.match(c)]
     redhdr = [hdr[i] for i in need]
     H = {h: j for j, h in enumerate(redhdr)}
@@ -106,9 +118,14 @@ def analyse(path):
     odd = accessors(H)
     g, fnum, spend, swipes = odd.g, odd.fnum, odd.spend, odd.swipes
 
-    elig = [r for r in rows
-            if odd.personal(r) and g(r, f"{latest} Elig") == "Yes"]
-    responders = [r for r in elig
+    # Two different cohorts, deliberately. `elig` answers "how many can we mail",
+    # which is a question about NOW. `responders` answers "who has ever responded",
+    # which is history — filtering that through today's eligibility silently drops
+    # everyone who responded and has since closed, and made the one-pager count 51
+    # fewer responders than the deck for the same Wellworth mailing.
+    personal_pop = [r for r in rows if odd.personal(r)]
+    elig = [r for r in personal_pop if g(r, f"{latest} Elig") == "Yes"]
+    responders = [r for r in personal_pop
                   if any(g(r, f"{m} Resp") in RESP_MET for m in mailmonths)]
 
     nextm = {}
@@ -118,49 +135,14 @@ def analyse(path):
             nextm[m] = smonths[i + 1]
     mature = [m for m in mailmonths if m in nextm]
 
-    # ---- before / after ----
-    ba = []
-    for m in mature:
-        if m not in smonths:
-            continue
-        idx = smonths.index(m)
-        if idx < 3 or idx + 1 >= len(smonths):
-            continue
-        rs = [r for r in elig if g(r, f"{m} Resp") in RESP_MET]
-        if len(rs) < 5:
-            continue
-        pre, post = smonths[idx - 3:idx], smonths[idx + 1:]
-        sb = [statistics.mean([spend(r, x) for x in pre]) for r in rs]
-        sa = [statistics.mean([spend(r, x) for x in post]) for r in rs]
-
-        def wins(vals):
-            mu = statistics.mean(vals)
-            cap = mu + 3 * statistics.pstdev(vals)
-            return [min(v, cap) for v in vals]
-
-        ba.append({"m": lbl(m), "n": len(rs),
-                   "sb_mean": round(statistics.mean(wins(sb))),
-                   "sa_mean": round(statistics.mean(wins(sa))),
-                   "sb_med": round(statistics.median(sb)),
-                   "sa_med": round(statistics.median(sa))})
-
+    # ---- before / after: the deck's function, not a second copy of it ----
     out = {"latest_month": latest, "n_eligible": len(elig),
-           "n_responders": len(responders), "before_after": ba}
-
-    if ba:
-        out["ba_spend_before"] = round(statistics.mean([e["sb_mean"] for e in ba]))
-        out["ba_spend_after"] = round(statistics.mean([e["sa_mean"] for e in ba]))
-        out["ba_spend_med_before"] = round(
-            statistics.mean([e["sb_med"] for e in ba]))
-        out["ba_spend_med_after"] = round(
-            statistics.mean([e["sa_med"] for e in ba]))
-        out["ba_pct_mean"] = round(
-            100 * (out["ba_spend_after"] - out["ba_spend_before"])
-            / out["ba_spend_before"], 1)
-        out["ba_pct_med"] = round(
-            100 * (out["ba_spend_med_after"] - out["ba_spend_med_before"])
-            / out["ba_spend_med_before"], 1)
-        out["ba_n_mailings"] = len(ba)
+           "n_responders": len(responders)}
+    out.update(before_after.compute(rows, odd, smonths, mature))
+    out["ba_pct_mean"] = before_after.pct_change(out["ba_spend_before"],
+                                                 out["ba_spend_after"])
+    out["ba_pct_med"] = before_after.pct_change(out["ba_spend_med_before"],
+                                                out["ba_spend_med_after"])
 
     # ---- transaction increase over the ask ----
     incs = []
@@ -181,7 +163,7 @@ def analyse(path):
 
     # ---- reach + repeat depth ----
     n_ml = len([m for m in mailmonths
-                if any(g(r, f"{m} Resp") in RESP_MET for r in elig)])
+                if any(g(r, f"{m} Resp") in RESP_MET for r in personal_pop)])
     out["reach_total"] = len(responders)
     out["reach_perml"] = round(len(responders) / max(1, n_ml))
     if responders:

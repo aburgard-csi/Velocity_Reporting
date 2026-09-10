@@ -6,6 +6,8 @@ from PIL import Image
 from rpe_env import use_font
 R=json.load(open(sys.argv[1], encoding="utf-8")); OUTPNG=sys.argv[2]
 from brand import NAVY, ORANGE, STEEL, TICK, MUTED
+import periods as P
+P.install_month_axis_guard()   # a month drawn outside MMM'YY fails the render
 use_font("Carlito"); plt.rcParams.update({"font.size":13})
 def clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)

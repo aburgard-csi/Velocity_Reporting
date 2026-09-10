@@ -133,7 +133,7 @@ each (`assemble_combined.section_slides` drops the rest).
   of the commonest defects in this pipeline; the data sheet carries both
   (`data_pull`, `workbook_month`).
 - **Executive Summit slide**, immediately after the title, on every results deck.
-  Pristine asset `summit_slide.pptx` under `build/assets/` (gitignored — Drive
+  Pristine asset `summit_slide.pptx` under `build/assets/` (gitignored — pipeline
   `Inputs/Summit/` wins when present); `build/summit_slide.py` inserts it. Own dense
   typography (Montserrat 9–14 pt); no font floor, no restyle, no logo, no number.
 - **Agenda.** Numbered rows, **orange** badge circles, section name plus one detail
@@ -185,7 +185,14 @@ element is already maxed.
   (and each renderer's letterbox size) must match the slide box or the PNG stretches.
 - **Month labels: `MMM'YY`, angled 45°, `ha="right"`** — `periods.mon_yy` /
   `periods.axis_months` (Aaron, 2026-09-01). Three formats were in service and the
-  ICS quarter panels had thrown the year away.
+  ICS quarter panels had thrown the year away. **Enforced at render time**
+  (2026-09-08): every chart module calls `periods.install_month_axis_guard()`, and a
+  month reaching either axis in any other format raises `MonthAxisError` and fails
+  the build. It has to be checked where the label is DRAWN — the five ARS charts that
+  never adopted the format built their labels by string-slicing, so they called no
+  formatter for a lint to find, and shipped "Feb24", "Sep '23", "Sep 2023" and "Jun"
+  (year discarded) for a week. Horizontal charts count: `c_ranking` puts its months
+  down the y-axis, un-rotated but still `MMM'YY`.
 - **Time series:** navy bars, the last COMPLETE month orange, the partial month
   hatched `STEEL_SOFT` at alpha 0.42 with `//`, white edge, value label in `TICK`,
   annotated with the date it runs through.
@@ -197,9 +204,25 @@ element is already maxed.
   behind a label, separators between stacked segments, text on an opaque patch.
 - **Pies and donuts are flat** — no wedge shadow, no picture `outerShdw`
   (Aaron, 2026-07-15). Callouts keep theirs.
-- **Branch charts** show the largest 6–8 branches above the eligibility floors
-  (>= 40 eligible personal, >= 15 new-account, >= 5 business); fewer than 3
-  qualifying → show all and say so in the caption.
+- **Branch charts — volume in the bars, rate on the line** (Aaron, 2026-09-08). All
+  four (personal take rate, business take rate, both Reg E) render through
+  `chart_lib.branch_chart`: accounts set the bar height, the rate rides above on its
+  own axis, and the count sits under the axis beneath its branch number, and **the rate labels sit in one band
+  above the line**, not each above its own marker — riding the marker put them in the
+  gap between the line and the bars, which closes exactly where a branch is both large
+  and typical. A rate drawn
+  without its denominator is not readable — a branch with 15 accounts stood as tall as
+  one with 900 — and it hid the finding that matters most often: True Sky's largest
+  branch is also its worst on Reg E opt-in. **No program-average line**: that figure is
+  the donut (Reg E) or the tile (take rate) beside the chart, so a dashed rule was a
+  third rendering of a number already twice on the slide, and the four captions no
+  longer name one. The rate axis never prints a tick above 100%. Colours: orange bars /
+  navy line (personal, Reg E), navy bars / **teal** line (business — a mark is never
+  drawn in the canvas colour).
+- **Branch charts** show the largest 12 branches above the eligibility floors
+  (>= 40 eligible personal, >= 15 new-account, >= 5 business), **selected by accounts
+  and ranked by rate, best to worst**; fewer than 3 qualifying → show all and say so
+  in the caption. `chart_lib.BRANCH_CAP` is the cap and the renderer raises above it.
 - **Comparisons / benchmark slide:** orange capsule pills = Velocity clients'
   average (left), navy capsule pills = this client (right), metric label between.
 

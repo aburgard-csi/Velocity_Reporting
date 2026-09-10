@@ -47,7 +47,7 @@ def test_client_id_is_read_from_any_form(arg, expected):
 def test_there_is_no_repo_fallback(tmp_path, monkeypatch):
     """One fact, one store (Aaron, 2026-08-29).
 
-    build/<program>_pipeline/data/ held copies that drifted — the Drive store
+    build/<program>_pipeline/data/ held copies that drifted — the Inputs/ store
     carried 2026-08-29 pulls while the repo still had 2026-08-10, and a build
     reading the repo shipped month-old figures that validated perfectly because
     they were internally consistent.
@@ -68,7 +68,7 @@ def test_absent_vip_store_says_how_to_fix_it(monkeypatch):
     with pytest.raises(SystemExit) as e:
         rpe_env.resolve_client_json("1705", "ics")
     msg = str(e.value)
-    assert "RPE_DATA_ROOT" in msg and "available offline" in msg
+    assert "RPE_DATA_ROOT" in msg and "Inputs/VIP Data" in msg
 
 
 def test_vip_store_resolves_by_glob(tmp_path, monkeypatch):
@@ -99,7 +99,7 @@ def test_missing_file_names_every_location_tried(tmp_path, monkeypatch):
     msg = str(e.value)
     assert "9999_ics.json" in msg
     assert "README" in msg, "the fix should point at the refresh procedure"
-    assert "available offline" in msg, "Drive streaming is the usual cause"
+    assert "VIP" in msg, "the fix is a refresh from VIP, and the message should say so"
 
 
 def test_empty_argument_is_refused():

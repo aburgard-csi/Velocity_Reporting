@@ -101,8 +101,8 @@ that is not in it.
 | --- | --- |
 | Weekly workbook | Bradford Sanders, subject "CashPlease Summary" — `CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx` |
 | DDA denominator | the weekly "ILS Management Server DDA Count" email body, saved as `ILS-DDA-Count-<YYYY-MM-DD>.txt` |
-| Both land in | `<Drive>/Work/CashPlease Pipeline/Inputs/` — resolved from `CP_DATA_ROOT`, never hardcoded |
-| Decks go to | `<Drive>/Work/CashPlease Pipeline/Outputs/` |
+| Both land in | `<CP_DATA_ROOT>/Inputs/` — resolved, never hardcoded |
+| Decks go to | `<CP_DATA_ROOT>/Outputs/` |
 | Cadence | Weekly (the 2026-08-30 workbook is the current one) |
 
 ### CashPlease roster — BUILD ONLY THESE
@@ -153,7 +153,7 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
   `1734-2026.08-ICS-CP-Altamaha Bank and Trust Company Results.pptx` (33 slides) and
   `1632-2026.08-ICS-CP-WesBanco Results.pptx` (19 slides), both 0 FAIL.
   **1539 Marine is not yet buildable as ARS-ICS-MRPC-CP**: only the already-combined
-  2026.08 deck is on Drive and a combined deck is never a build input, so the three
+  2026.08 deck is in `Outputs/` and a combined deck is never a build input, so the three
   program decks have to be rebuilt from their own sources first.
 - **2026-09-01 — CashPlease is a section of the combined deck** (Aaron). It joins ARS,
   ICS and MRPC in the combined Executive Review. Two consequences decided with it:
@@ -171,7 +171,7 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
   module**, and the roster table above is what the builder reads. The other 63 decks
   from that run were removed from `Outputs/`. This puts CashPlease back under the same
   rule as every other program on this page — a data file is never the roster.
-- **2026-09-01 — CashPlease outputs live on Drive** (Aaron). `G:\My Drive\Work\CashPlease
+- **2026-09-01 — CashPlease outputs live under `CP_DATA_ROOT`** (Aaron). `<CP_DATA_ROOT>\CashPlease
   Pipeline\` holds `Inputs/`, `Outputs/` and `Build Artifacts/`, mirroring the RPE
   pipeline folder. Resolved through `CP_DATA_ROOT` in the CashPlease project's `.env`;
   the path is not written into any code. Create and delete both confirmed working on the
@@ -193,11 +193,11 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 - **2026-08-31 — FNBT Chickasha 1537 rebranded to Brooks Bank** (Aaron). The rebrand
   took effect 2026-08-31, and the data team's 2026.09 DCO already lands as
   `1537-2026.09-Brooks Bank-DCO v2_2.xlsx`. 2026.09 forward delivers as **Brooks Bank**;
-  decks already shipped as FNBT Chickasha are not reissued. Files on Drive for 2026.08
+  decks already shipped as FNBT Chickasha are not reissued. Files for 2026.08
   and earlier keep the old name — match 1537 by ID, never by client name.
 - **2026-08-29 — VIP sheets live only in `Inputs/VIP Data/`** (Aaron). The repo copies
   under `build/{ics,mrpc}_pipeline/data/` are deleted; `resolve_client_json` reads the
-  Drive store and nothing else. Where a status note below points at a repo data folder as
+  VIP store and nothing else. Where a status note below points at a repo data folder as
   "the record of what shipped", that record is now the store's per-client folder.
 - **2026-08-28 — CoastLife 1705 cancelled ICS** (Aaron). They get an ARS-only deck from
   2026.08 forward. Their ICS data under `Inputs/VIP Data/ICS/1705-CoastLife Credit Union/`
@@ -214,7 +214,7 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
   are still on disk and must not be taken as a signal to build.
 - **2026-08-30 — 1732 is not an RPE client** (Aaron). It was named as ICS-only on
   2026-08-28 and no data for it ever existed on this machine — no ODD extract, no
-  workbook, no VIP sheet, no Drive folder. Confirmed as not on the RPE list at all, so the
+  workbook, no VIP sheet, no input folder. Confirmed as not on the RPE list at all, so the
   gap is closed rather than left open: nothing is built for it and nothing is missing.
 - **2026-08-29 — 1204 is "First State Bank - Michigan"** (Aaron). Was delivered as
   "FSB Michigan" for 2026.08 while its workbook said "First State Bank-MI". The roster

@@ -28,6 +28,7 @@ def _shadow_wedges(wedges):
 # ---- palette ---------------------------------------------------------------
 from brand import NAVY, STEEL_SOFT as STEEL, ORANGE, LIGHT, TEAL
 import periods as P
+P.install_month_axis_guard()   # a month drawn outside MMM'YY fails the render
 from brand import TICK, MUTED as GREY, HAIRLINE, SLATE
 # MRPC enrollment tier palette (Aaron 2026-07-16): Gold=orange, Platinum=navy, Business=steel.
 # Aaron 2026-07-24: Gold orange, Platinum GRAY, Business NAVY

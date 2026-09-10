@@ -27,12 +27,12 @@ pytest tests/                       # 392 tests, ~14s
 ## Where things live
 
 Data never lives in this repo. `RPE_DATA_ROOT` (see `.env.example`) points at the
-pipeline tree on Drive:
+pipeline tree under `RPE_DATA_ROOT`:
 
 | | |
 | --- | --- |
 | `Inputs/ODDD/` | raw ODD extracts, one zip per client |
-| `Inputs/ARS & MRPC Reports/` | workbooks and DCO files |
+| `Inputs/DCOs/`, `ARS Workbooks/`, `MRPC Analyses/`, `ICS Workbooks/`, `ICS Charts/`, `Weekly Summaries/` | one folder per kind of input, sorted on arrival (`rpe_env.INPUT_KIND_DIRS`) |
 | `Inputs/VIP Data/` | ICS and MRPC client sheets pulled from VIP |
 | `Inputs/Logos/` | client logos |
 | `Outputs/` | finished decks, and nothing else |

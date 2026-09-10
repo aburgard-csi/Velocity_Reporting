@@ -55,6 +55,12 @@ for r in range(9,mr.max_row+1):
     if isinstance(d,datetime.datetime):
         rows.append((ml(d), mr.cell(r,3).value, mr.cell(r,4).value))
 out['mailings_recent']=list(reversed(rows[-12:]))
+# A workbook saved without evaluating its formulas reads as the template's zeros.
+# Stop here rather than hand the builder a plausible base of nothing.
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+import base_guard as _bg
+_bg.check(out, _os.path.basename(sys.argv[1]))
 print(json.dumps(out,indent=1,default=str))
 # dco_eligible from DCO MM tab
 try:

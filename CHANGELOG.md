@@ -17,6 +17,465 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-10 — the dashboard shows build READINESS, not just what was built
+
+Three changes to the "RPE Client Performance" artifact (Aaron, 2026-09-09/10).
+
+**"Clients and decks" became "Build readiness · <period>".** It listed the newest deck
+BUILT; what is in front of you at the start of a cycle is what CAN be built and what is
+missing. Each row now reads ready or blocked, names what it is blocked on, and shows one
+chip per required input — carrying that product's colour, red with a cross when missing,
+amber when stale, with the detail in its tooltip. The header counts `N of M ready · K
+built`. Austin reads "blocked: ARS workbook", which is the true answer for that client
+today.
+
+The readiness comes from `deck_status.collect()`, not a second implementation, so this
+page and the delivery dashboard cannot disagree about whether a client is ready. It
+degrades to "not checked" rather than failing the refresh — which is what the five
+CashPlease-only clients show, since they are not on the roster `deck_status` reads.
+
+**The provenance footer is a bulleted list**, one line per program, plus a new Build
+readiness line naming its sources and stating that the CSI shares are not checked there,
+so readiness reflects what is on this machine. It was a single dense paragraph carrying
+five different sourcing rules.
+
+**A "Last updated" pill sits under the title.** It carries the time as well as the date,
+because the page can be refreshed several times a day; `content_hash` already excludes
+`generated`, so the timestamp cannot cause a spurious republish.
+
+### 2026-09-09 — branch-chart rate labels moved into a band above the line
+
+They rode their own markers, which put them in the gap between the rate line and the
+bars — and that gap closes exactly where a branch is both large and typical. True Sky's
+377-account branch topped out a hair under its own 81% label on the personal take-rate
+slide, shipped this morning.
+
+The labels now sit at one constant height above the line. A bar cannot reach them,
+because the bars are held to the lower band by their own headroom, and each label is
+still directly above the branch it belongs to. The halo stays: on a chart whose rates
+run near the top, the line passes beneath the band and must pass behind a number rather
+than through it. `tests/test_branch_chart.py` watches where the text is actually drawn.
+
+Affects all four branch charts. **No figure moves**; the decks in `Outputs/` carry the
+old placement until they are rebuilt.
+
+### 2026-09-09 — no backup copy; the original sources are the backup
+
+Reverses this morning's write-only-backup decision (Aaron, 2026-09-09). There is no
+second copy of the pipeline tree and nothing syncs it anywhere. Every input can be
+re-fetched from where it came from — the CSI shares hold the ODD extracts, DCOs, ARS
+workbooks and MRPCPM analyses; the mailbox holds the MRPC / CashPlease reports and the
+ICS workbooks — and `watch_sources.py --copy --mail` is how they come back. Outputs are
+rebuildable from those inputs by definition, and `Outputs/Archive/` keeps every
+superseded deck.
+
+Google Drive is gone from the project: **~236 references across 20 files**, including a
+set of code identifiers that had become actively misleading once the tree moved —
+`drive_glob`, `rec["drive"]`, `drive_odd`, `_drive_periods`, `--no-drive`, `drive_state`
+— all naming a location nothing used any more. Also removed: `.env.drive.bak`, the Mac
+Google-Drive example root, and the Drive-streaming hints in `rpe_env`'s error messages
+("mark it available offline"), which advised a fix for a problem that can no longer
+occur.
+
+**This file is deliberately untouched** (Aaron, 2026-09-09 — "keep the changelog, strip
+the rest"). Its purpose is that a reversal is findable, and the move off Drive is exactly
+such a reversal; scrubbing it would erase the account of how the pipeline got where it
+is. `docs/PRD-2026-08-26-…` is marked superseded at the top for the same reason — its
+body describes the Drive era accurately and rewriting it would falsify a dated document.
+
+**No figure moves**; `deck_status 2026.09` reports the same 15 clients / 11 ready / 10
+built, and the watch and mail steps run unchanged.
+
+### 2026-09-09 — the daily run takes the inputs that arrive by email
+
+MRPC and CashPlease reports (Bradford Sanders) and ICS workbooks (Matt Milliman) never land
+on the CSI shares. `deck_status` has said "arrives by email / n/a" for the ICS workbook
+since 2026-08-31 because there was no source-side signal to wait on. There is one now.
+
+`scripts/mail_sources.py` reads Outlook over COM — chosen over Graph because the scheduled
+task already runs as the logged-on user, so there is no app registration or consent to own
+— and `watch_sources.py --mail` runs it as part of the 08:00 check. The task now passes
+`--notify --copy --prune --mail`.
+
+Findings from building it, each of which is now a rule:
+
+- **The Inbox is not where these live.** A 45-day Inbox scan read 35 messages and 123
+  attachments and found neither sender: a rule files them into **Archive**. The scan covers
+  Inbox and Archive plus subfolders.
+- **An Exchange sender's `SenderEmailAddress` is an X500 `/o=` path**, not an address, so
+  matching on it accepts nobody. Resolved through the Exchange user, then
+  PR_SENT_REPRESENTING_SMTP_ADDRESS. Matching is on the SMTP address only — a display name
+  is spoofable — and each sender may supply only their own kinds.
+- **Only the newest of each thing.** A 120-day scan proposed 25 files; twenty were
+  superseded weeklies the pipeline never reads and `--prune` would have deleted the same
+  run, and one was a 2026.05 ICS workbook for a client already holding 2026.07. With the
+  rule applied: **1 file to take, 21 skipped, each with its reason.**
+- A local copy written after the message arrived is not clobbered — the same
+  recalculated-workbook guard the share copier has.
+- An attachment whose name does not match `<id>-<period>-<kind>` is parked in the legacy
+  folder and reported.
+
+Read-only throughout: nothing is marked read, moved or deleted. An unreachable mailbox is
+reported and skipped rather than failing the share check. 24 tests, all driving an injected
+message list so they run without Outlook.
+
+### 2026-09-09 — the pipeline runs locally; Drive is a write-only backup
+
+`RPE_DATA_ROOT` is now `C:\Data Pipelines\RPE Pipeline` (Aaron, 2026-09-09). The tree
+moved with robocopy — **308 files, 1.229 GB, 0 failed, 0 mismatch** — and was verified by
+file count, byte total per folder and hashes on a sample before `.env` was repointed.
+`deck_status 2026.09` reads identically from the new root.
+
+No code changed: every path resolves through `rpe_env`, which is the whole reason that
+indirection exists. What did change is the documentation that would have undone it —
+CLAUDE.md said "Google Drive is the source… on every machine" and, separately, **"do not
+point `RPE_DATA_ROOT` anywhere under `C:\Data Pipelines\`"**. Both are rewritten, with
+the old rule kept as dated history and labelled so it is not "corrected" back, plus a note
+that `Renewals Pipeline` is a different project sharing that parent. `.env.example` too.
+
+**One source, always**: the backup direction is local → Drive and never the reverse. A
+file read back from Drive recreates the two-stores problem that shipped month-old ICS
+figures in August. *Nothing pushes local → Drive yet — that mechanism is still to build.*
+
+### 2026-09-09 — inputs are sorted into a folder per kind
+
+Everything landed in one flat `Inputs/ARS & MRPC Reports/` — DCOs, ARS workbooks, MRPC
+analyses, ICS workbooks, ICS Charts and the weekly summaries together, 55 files deep, with
+the kind readable only from the filename. `scripts/watch_sources.py` now files each copy
+by kind on arrival:
+
+| Kind | Folder | Existing files moved |
+| --- | --- | --- |
+| DCO | `Inputs/DCOs/` | 17 |
+| ARS workbook | `Inputs/ARS Workbooks/` | 10 |
+| MRPCPM analysis | `Inputs/MRPC Analyses/` | 6 |
+| ICS workbook | `Inputs/ICS Workbooks/` | 8 |
+| ICS Charts | `Inputs/ICS Charts/` | 12 |
+| Weekly summaries | `Inputs/Weekly Summaries/` | 2 |
+
+All 55 classified, none unrecognised, moved rather than copied. `Inputs/ODDD/` is
+unchanged.
+
+**`rpe_env.INPUT_KIND_DIRS` is the only place the folder names live.** Readers resolve
+through `rpe_env.report_dirs()` / `report_files()` — `build_month`, `deck_status`,
+`build_ics_gen`'s workbook-period check and the dashboard refresh all changed from globbing
+one literal folder to globbing the set. The set still includes the old flat folder, for
+good, so a file dropped there by hand still resolves and the sort never had to be perfect.
+
+Two rules the copier keeps: a file Inputs/ already holds is replaced **where it is**, so
+sorting cannot create a second copy of a workbook sitting in the legacy folder; and prune
+compares names across every folder, since a superseded file and its replacement no longer
+share one.
+
+**No figure moves**; `deck_status 2026.09` reports the same 15 clients / 11 ready / 10
+built before and after.
+
+### 2026-09-09 — the source-watch report said "Drive" while writing to C:
+
+After the move the daily report still read *"not yet current on Drive"*, *"Drive: differs"*,
+*"Would copy to Drive"*, *"Copied 1 to Drive."* — describing a destination it no longer
+used. 19 strings corrected, four test assertions with them. The destination itself needed
+no change: it was always `rpe_env`'s answer, never a literal.
+
+
+### 2026-09-08 — the Summit one-pager and the monthly deck now share one before/after
+
+Aaron: "the Summits and the regular delivery decks should use the same logic." They did
+not. `responder_activity.py` (the one-pager) claimed in its own docstring to mirror
+`metrics_gen` (the deck) "so the one-pager agrees with the client's deck instead of
+restating it", and differed in four ways at once:
+
+| | deck | one-pager |
+| --- | --- | --- |
+| cohort | every personal responder | only those still `Elig=Yes` at the snapshot |
+| after window | 6 fixed months | every month to the end of the extract |
+| winsorizing | ONE cap over before+after | a separate cap per window |
+| headline | pooled over responder-observations | mean of the per-mailing means |
+
+Every difference pushed the same way. On True Sky 1676, measured against the same
+extract on the same day:
+
+| | one-pager (was) | deck, and one-pager now |
+| --- | --- | --- |
+| responder spend | $459 → $999 (**+118%**) | $467 → $947 (**+103%**) |
+| responders | 8,153 | **9,962** |
+| customers reached | ~510 / mailing | ~623 / mailing |
+| mailings | 15 | 12 |
+
+A Summit attendee could have been handed a one-pager saying +118% while their own
+monthly deck said +103%, and 1,809 responders — 22% of them — were missing from the
+one-pager because they had closed or gone ineligible since responding. That is the
+survivorship filter `metrics_gen` dropped on 2026-08-27; the one-pager kept it.
+
+**The fix is one function, not two matching ones.** `build/ars_pipeline/before_after.py`
+holds the measure — cohort, window ladder, winsorizing, pooling, the offer split and the
+NSF/OD figures — and both entry points call it. It is import-safe, like `odd_rows`:
+importing `metrics_gen` RUNS it (`sys.argv` at module scope), which is the hazard that
+made the one-pager re-implement everything in the first place.
+
+Verified behaviour-preserving for the deck: rebuilding 1676 before and after the
+extraction gives **121 metric keys identical, none differing**, plus one new key the
+one-pager needs. `tests/test_before_after.py` pins each decision and that neither caller
+keeps a copy. Also fixed while there: the one-pager's method note described the old
+window and cohort as fixed text, and its two headline tiles hardcoded a `+` sign that
+would have rendered "+-5%" on a decline. `responder_activity` now also keeps the `MTD`
+column, without which its NSF/OD figures would have come back 0 while the deck reported
+them.
+
+### 2026-09-08 — responder before/after now measures 6 months after the mailing
+
+Both Responder Activity charts (Before vs After Mean, and by Offer) compared a 3-month
+baseline against the **3** months after each mailing. They now compare it against the
+**6** months after (Aaron, 2026-09-08).
+
+Measured across all nine ARS clients first, on the mailings every window supports so
+that window length was the only difference. The gain decays, consistently, and three
+months does not show it:
+
+| Client | Threshold gain, 3 mo | 6 mo | all months after |
+| --- | --- | --- | --- |
+| 1038 Sugar River | +50% | +44% | +39% |
+| 1075 Austin | +50% | +45% | +40% |
+| 1204 FSB Michigan | +77% | +68% | +63% |
+| 1509 Texas Bay | +93% | +83% | +71% |
+| 1537 Brooks Bank | +83% | +73% | +69% |
+| 1539 Marine | +81% | +71% | +63% |
+| 1676 True Sky | +97% | +86% | +78% |
+| 1705 CoastLife | +71% | +62% | +55% |
+
+Six months still shows the lift holding well clear of baseline, which is the durable
+claim; three months reads closest to a spike. **"All months after" was rejected**: each
+bar's window is a different length — the oldest mailing averages 30-plus months, the
+newest one — so the bars decline left to right partly by arithmetic. That is the defect
+the fixed window was introduced to fix.
+
+Cost: the newest one or two mailings drop out (True Sky 14 → 12; the axis now ends Jan
+2026, not Mar 2026). A young program falls back down a ladder that shrinks the AFTER
+side first — the baseline is what the comparison is anchored to, so it gives ground
+last — and both lengths are recorded (`ba_before_months` / `ba_after_months`) and stated
+on the slide, so a 3-and-1 comparison is never passed off as a 3-and-6 one. The chart
+legend derives from them too; it read "After (3-mo window)" as a constant.
+
+True Sky 1676: pooled Threshold **$548 → $1,078 (+97%)** becomes **$547 → $1,015
+(+86%)**; the Mean slide's headline **$467 → $947 (+103%)**.
+
+### 2026-09-08 — "NSF/OD activity stayed roughly flat" was canned; it now carries figures
+
+That clause sat, as fixed template text, beside the NSF/OD panel of the very chart that
+measures it. It is the sentence behind the Marine FCU correction and Aaron's +/-2% rule
+(2026-08-31) — the rule was written, the sentence was not fixed.
+
+It now follows the data and states the figures: within +/-2% reads "almost flat", a rise
+states the increase, a fall says the mailings did not have an impact on NSF/OD activity.
+`metrics_gen` pools NSF/OD items per responder per month across every responder-mailing
+observation, unwinsorized, so the clause agrees with the panel beside it.
+
+**True Sky 1676 was not flat**: 0.33 → 0.36 items per responder per month, **+9%**. The
+slide had been saying otherwise.
+
+Also derived: "Debit spend rose after every mailing" is a claim about all of them, so it
+is now made only when it is true of all of them, and states the count when it is not.
+(True Sky: 12 of 12.)
+
+### 2026-09-08 — branch charts: no program-average line
+
+Removed from all four (Aaron, 2026-09-08). The figure is the donut on the Reg E slides
+and the 12-Mo Take Rate tile on the take-rate slides, so the dashed rule was a third
+rendering of a number already twice on the slide. The four captions dropped their
+"Dashed line = X% …" sentence in both `ars_template.pptx` and
+`multi-product_reference_deck.pptx`, and the builder swaps that filled that figure in
+are gone — a swap matching nothing fails the build, which is what would have caught a
+half-done version of this. `tests/test_branch_chart.py` watches for the `axhline` call
+rather than reading the source, so a line reintroduced by any route fails.
+
+### 2026-09-08 — branch charts: accounts in the bars, rate on the line
+
+The four branch charts — 12-Month Take Rate Personal (image11), Business
+(biz_branch), Reg E All Personal (image14), Reg E Last 12 Months (image16) — drew the
+RATE as the bars. A rate without its denominator is not readable: a branch with 15
+accounts and 4 opt-ins drew exactly as tall as one with 900 accounts at the same
+percentage. Accounts opened now set the bar height and the rate is a line on its own
+axis. (The program average was kept as a dashed reference at first and removed the
+same day — see the entry above.)
+
+What it surfaces: on True Sky 1676, branch **1004 is the largest by a distance — 513
+of the last twelve months' accounts, roughly twice the next branch — and the worst on
+new-account Reg E opt-in at 8%** against a 14% book. The old chart drew it as the
+shortest bar on the slide and said nothing about its size.
+
+Details: one renderer (`chart_lib.branch_chart`) now serves all four — `c_rege_branch`
+had its own near-copy that had already drifted on halo, headroom and tick sizes. The
+account count sits under the axis beneath its branch number rather than above the bar,
+because above is where the rate line lives and the two collide exactly when a big
+branch has a low rate. The average line was grey rather than the series colour so it did not
+read as a second line where the two cross — it was removed outright the same day (see
+above). The rate axis stops at 100%: 1.30x label headroom over a 99% peak
+had been printing a 120% tick. The business chart's line is TEAL over its navy bars
+(STYLE.md — a mark is never drawn in the canvas colour).
+
+**No figure moves**; the bars now carry a second measure that was not on the slide.
+
+### 2026-09-08 — five ARS charts never adopted `MMM'YY`; a render-time guard now enforces it
+
+`mon_yy` settled the axis format on 2026-09-01 and three ARS charts adopted it. Five
+did not, because they build their labels by string-slicing and so call no formatter
+for anything to check:
+
+| Chart | Slide | Drew | Now |
+| --- | --- | --- | --- |
+| `c_before_after_split` (image31) | Before vs After by Offer | `Feb24`, flat | `Feb'24`, 45° |
+| `c_before_after` (image10) | Before vs After (Mean) | `Feb24`, rotated 90° | `Feb'24`, 45° |
+| `c_sustained` (image9) | Sustained Respondent Activity | `Sep '23`, 30° | `Sep'23`, 45° |
+| `c_monthly` (image5) | Monthly incremental revenue | `Aug` — **year discarded** | `Aug'25` |
+| `c_ranking` (image6) | Ranking by Tier (y-axis) | `Sep 2023` | `Sep'23` |
+
+`c_monthly` was the one that could mislead: `m.split()[0]` threw the year away on a
+12-bar axis that spans two of them, so `Aug'25` and `Aug'26` would have been
+indistinguishable had the window ever covered both.
+
+**The check.** `periods.install_month_axis_guard()`, called at the top of all three
+chart modules, wraps `set_xticklabels` / `set_yticklabels`: a label `parse_month`
+recognises must already equal its `mon_yy` form, or the render raises
+`MonthAxisError` and the build stops. It runs where the label is DRAWN because that
+is the only place the value exists — a source lint sees `cats`, not `"Feb24"`.
+Categories that are not months (branch numbers, offer tiers, age bands, `2025 YTD`)
+pass through untouched. `tests/test_chart_axes.py` pins both directions.
+
+`periods.parse_month` also now reads `Sep '23` (space *and* apostrophe). It was the
+form Sustained actually drew and the one form the parser could not read, so the guard
+would have looked straight past the chart that prompted this.
+
+**No figure moves**; five axes change how they read.
+
+### 2026-09-08 — the ARS builder refuses an unevaluated workbook
+
+`build/ars_pipeline/base_guard.py` holds the one check (at most one month in the
+program, no lifetime revenue, no current revenue = the template's defaults). Both
+extractors (`extract_base_gen.py`, `base_tab_extract.py`) and `build_ars_gen.py` exit
+with `UNEVALUATED WORKBOOK: <file> ... open it in Excel, save, and rebuild` instead of
+producing a base of zeros; the dashboard refresh imports the same function and reports
+the row. `tests/test_base_guard.py` pins that every ARS entry point uses it.
+
+Why: the guard the dashboard got earlier today would have caught 1539's $0 page and
+let the same workbook build a deck saying Marine FCU has run ARS for 1 month with $0
+in revenue, in prose, on slide 6. Nothing on the deck would have flagged it — a
+month-1, $0 client is a shape the builder accepts.
+
+**No figure moves**; a build that would have shipped zeros now stops.
+
+### 2026-09-08 — the copy step overwrote a recalculated workbook; it no longer can
+
+The first `--copy` run replaced Drive's `1539-2026.08-Marine FCU-Workbook_v2_1_0.xlsx`
+with the share's copy because the two differed in size. The share's copy had never
+had its formulas evaluated — Executive Financials MM read "Months in the Program: 1,
+Mailings to date: 0" and every revenue cell 0 — while the Drive copy had been opened
+and saved in Excel, which is what gives the extractors values to read. The dashboard
+rebuilt from it showed Marine FCU with $0 revenue; a deck built from it would have
+too. Recovered by recalculating the Drive copy in Excel (COM, `CalculateFullRebuild`,
+save): months 96, mailings 38, current revenue $154,881.24, matching the shipped deck.
+
+Two guards: `copy_plan` now overwrites a "differs" file only when the SOURCE is the
+newer write (a real re-landing); a Drive copy modified after the landing is a
+deliberate change and stays. And `refresh_performance_dashboard.uncalculated()` reports
+a workbook whose base extracts as one month, no mailings and no revenue as "carries no
+calculated values — open it in Excel and save", instead of rendering zeros.
+
+Open question for Aaron: whether other landed workbooks arrive unevaluated too. The
+seven September workbooks copied today all carry values; 1539's August one did not.
+
+### 2026-09-08 — the performance dashboard shows each client's newest figures, not one cycle's
+
+`refresh_performance_dashboard.py` picked the ARS workbook, the figure sidecar and
+the decks by the cycle period alone. The first September rebuild showed what that
+costs: three ARS clients (1075, 1539, 1549) lost their section because their
+September workbook had not landed, every client read "not built" because no
+September deck exists, and every mailing-response cell went blank. It now takes,
+per client, the newest ARS workbook, the newest shipped-deck sidecar and the newest
+built deck at or before the cycle period, and the page tags a row whose workbook or
+deck is older than the cycle ("workbook 2026.08", "built 2026.08 — no 2026.09 deck
+yet"). The footer reads its source lines from the dataset instead of carrying dates
+by hand. The scripted 2026.09 page: seven ARS clients on September workbooks, three
+tagged August, all decks tagged August.
+
+**Figures move on the page**: the seven September workbooks carry August data, one
+month on from what the page showed. Nothing client-facing is touched.
+
+### 2026-09-08 — superseded inputs are deleted from Drive
+
+`watch_sources.py --prune` (passed by the "RPE Source Watch" task after `--copy`)
+deletes a file in `Inputs/ARS & MRPC Reports/` when a newer version of the same thing
+is there: same client and kind with a later period, or the same weekly family with a
+later stamp. The newest is always kept, a lone file is never touched however old, a
+tie (a weekly and its "- Copy") keeps both, and the ICS Charts workbooks, ODD extracts
+and anything unpatterned are out of scope. The first run removed 53 files (the
+2026.07 and 2026.08 DCOs, ARS workbooks and MRPCPM analyses that 2026.09 landings
+superseded), leaving 55.
+
+Why: Aaron asked (2026-09-08) that old versions go once an updated input exists.
+Every builder resolves the newest file for its period, so nothing reads the pruned
+ones; the one visible effect is that the delivery dashboard's input columns for a
+past period now read "not copied" — that period's decks are built and sent, which is
+the column that matters.
+
+### 2026-09-08 — the daily source check now copies roster clients' files to Drive
+
+`watch_sources.py --copy` (passed by the "RPE Source Watch" task) copies every file on
+the CSI shares for a roster client that Drive lacks or holds a different landing of into
+`Inputs/`: DCOs, ARS workbooks, MRPCPM analyses and ICS workbooks to `ARS & MRPC Reports/`,
+the ODD extract to `ODDD/<id>_ODDD.zip`. Copy-only, `.part`-then-rename, size-verified.
+The ODD extract is copied only from the NEWEST month on the share per client: with two
+months scanned and no period in the Drive filename, last month's extract at source
+"differs" from Drive forever once this month's is copied, and copying it back would be
+the stale-ODD failure this pipeline guards against everywhere else.
+
+Why: Aaron found 26 September files sitting in his `Velocity_clientreports` folder that the
+watch had recorded at its baseline and nobody had copied; Drive held zero 2026.09 files
+and the performance dashboard was still on 2026.08. The first `--copy` run moved 37
+files (13 DCOs, 7 workbooks, 4 MRPCPM analyses, 13 ODD extracts) for the 15 roster
+clients; 1437 Canandaigua's files were left on the share because `clients.md` ends it.
+
+**A client-facing figure can move as a result** — that is the point: the next build and
+the next dashboard refresh read this month's inputs instead of last month's.
+
+### 2026-09-08 — the performance dashboard artifact refreshes itself after the source check
+
+`scripts/refresh_performance_dashboard.py` is the aggregator behind the "RPE Client
+Performance" artifact, promoted from a per-session scratchpad script into the repo
+so a refresh is reproducible: ARS figures through `extract_base_gen` / `base_tab_extract`
+and the shipped deck's figure sidecar, ICS and MRPC from the VIP sheets, MRPC and
+CashPlease from the newest weeklies (CashPlease through that repo's own `cp_extract.py`).
+It injects the dataset into `scripts/perf_dashboard_template.html` (the artifact's
+page, checked in) and reports `STATUS: changed|unchanged` against the hash last
+published. The Claude scheduled task `rpe-dashboard-refresh` runs it daily after the
+08:00 source watch and republishes the artifact in place only when figures moved.
+
+Verified: the scripted dataset reproduces the hand-built 2026-09-08 artifact figure for
+figure; the one addition is the CashPlease peer cohort's DDA fields, now populated
+because the extractor is given the DDA counts the CashPlease pipeline already keeps.
+The page does not render those fields, so nothing visible changed on the republish.
+The period is derived from the newest ARS workbook on Drive (2026.08 today) rather
+than assumed from the calendar — the same rule the monthly decks follow.
+
+### 2026-09-08 — a daily check of the CSI shares for new inputs
+
+`scripts/watch_sources.py` scans this month's and last month's folders on
+`\\PADMIS105\Velocity_company\Aburgard\ODDD` and `\\PADMIS105\Velocity_clientreports`,
+diffs the inventory against the one it saved last run (`Build Artifacts/source_watch.json`),
+and reports what is new, re-landed or gone — roster clients first, each with whether
+the Drive copy the builders read is already current. `scripts/register_watch_task.ps1`
+schedules it as the Windows task "RPE Source Watch", daily at 08:00, with a toast
+when there is news. Registered on Aaron's Windows machine the same day; the first run
+recorded a 309-file baseline.
+
+Why: `deck_status.py` says whether a file is there now, and a morning glance at the
+dashboard misses the straggler — 1174's 2026.08 extract landed four days after the
+batch, 1502's 2026.09 extract six days after, and a re-landed extract (1539, 2026.09)
+keeps its name. Two rules carried over from the dashboard: off VPN the shares are
+unknown, not empty (the run exits 2 and leaves the inventory alone), and a damaged
+inventory is refused rather than read as "nothing seen".
+
+**No client-facing figure moves; nothing is copied to Drive automatically.**
+
 ### 2026-09-02 — CashPlease gets its own shell
 
 `templates/cashplease_template.pptx`: a 10-slide Union Financial demo (cover, Summit,

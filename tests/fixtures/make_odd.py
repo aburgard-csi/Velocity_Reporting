@@ -4,7 +4,7 @@ make_odd.py — generate a small, deterministic, synthetic ODD extract.
 
 The repo had no tests because every fix was verified by rebuilding a real client
 deck and eyeballing it. That needs a real ODDD (40-95 MB, real member data, and
-only on Aaron's Drive). This writes an 800-row ODD with the same SHAPE — 4-row
+only in the pipeline data root). This writes an 800-row ODD with the same SHAPE — 4-row
 preamble, header on row 5, the full month-column grid — carrying nothing but
 invented values, so it can live in git and run anywhere.
 

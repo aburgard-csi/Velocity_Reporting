@@ -14,6 +14,7 @@ from rpe_env import use_font
 from brand import (NAVY, ORANGE, STEEL_SOFT as STEEL, LIGHT, TICK,
                    MUTED as GREY)
 import periods as P
+P.install_month_axis_guard()   # a month drawn outside MMM'YY fails the render
 
 use_font("Carlito"); plt.rcParams.update({"font.size": 16})
 
