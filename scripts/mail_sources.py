@@ -98,13 +98,53 @@ def available():
     except Exception as e:
         return False, "pywin32 not installed (%s)" % e
     try:
-        import pythoncom
-        pythoncom.CoInitialize()
-        import win32com.client
-        win32com.client.Dispatch("Outlook.Application")
+        _outlook()
         return True, "Outlook reachable"
     except Exception as e:
-        return False, "Outlook not reachable — is it running? (%s)" % e
+        return False, "Outlook is not running (%s)" % e
+
+
+def _outlook():
+    """The user's running Outlook if there is one, else a launched one.
+
+    `GetActiveObject` attaches to the instance already running and fails at
+    once when there is none — including while Outlook is still starting up,
+    which is the state a `Dispatch` call blocks on with no timeout (the 08:00
+    runs of 2026-09-09 and -10 hung there for their full 30 minutes). Only when
+    nothing is running is `Dispatch` used to start a windowless instance for
+    this process; it exits with the process. The caller runs this in a
+    subprocess with a deadline, so even the launch path cannot hang a run.
+    """
+    global _APP, _LAUNCHED
+    if _APP is not None:
+        return _APP
+    import pythoncom
+    import win32com.client
+    pythoncom.CoInitialize()
+    try:
+        _APP = win32com.client.GetActiveObject("Outlook.Application")
+    except Exception:
+        _APP = win32com.client.Dispatch("Outlook.Application")
+        _LAUNCHED = True
+    return _APP
+
+
+_APP = None
+_LAUNCHED = False
+
+
+def close_if_launched():
+    """Quit the Outlook this process started, and only that one. An instance
+    the user had open is theirs and is left alone. A windowless instance left
+    behind is what the user's next Outlook launch would attach to, window and
+    all — tidier to end it with the scan."""
+    global _APP, _LAUNCHED
+    if _APP is not None and _LAUNCHED:
+        try:
+            _APP.Quit()
+        except Exception:
+            pass
+    _APP, _LAUNCHED = None, False
 
 
 def _smtp_of(msg):
@@ -168,10 +208,7 @@ def _folders(ns):
 
 def _iter_messages(days, folders=None):
     """Messages from the last `days` across MAIL_FOLDERS. Yields COM items."""
-    import pythoncom
-    import win32com.client
-    pythoncom.CoInitialize()
-    ns = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+    ns = _outlook().GetNamespace("MAPI")
     cutoff = _dt.datetime.now() - _dt.timedelta(days=days)
     for folder in (folders if folders is not None else _folders(ns)):
         try:
@@ -413,15 +450,18 @@ def main(argv=None):
     if not ok:
         print("mail step skipped: " + why)
         return 2
-    recs = scan(a.days)
-    planned = plan(recs, a.inputs)
-    print(render(planned, why))
-    if a.save:
-        print()
-        for name, dest, outcome in save(planned):
-            print("  %-9s %s" % (outcome.split(":")[0], name))
-    else:
-        print("\ndry run — nothing saved. Re-run with --save")
+    try:
+        recs = scan(a.days)
+        planned = plan(recs, a.inputs)
+        print(render(planned, why))
+        if a.save:
+            print()
+            for name, dest, outcome in save(planned):
+                print("  %-9s %s" % (outcome.split(":")[0], name))
+        else:
+            print("\ndry run — nothing saved. Re-run with --save")
+    finally:
+        close_if_launched()
     return 0
 
 

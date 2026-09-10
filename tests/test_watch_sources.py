@@ -420,3 +420,64 @@ def test_copy_plan_skips_when_drive_already_holds_a_newer_period(tmp_path):
     _land(rep, "1539-2026.09-Marine FCU-DCO v2_2.xlsx")
     inv = _inv(_rec(W.DCO, "1539", "2026.08", "not copied"))     # the share's newest is older
     assert W.copy_plan(inv, {"1539"}, str(tmp_path)) == []
+
+
+# ------------------------------------------------------------------ mail step
+class _Done:
+    def __init__(self, rc, out="", err=""):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+
+
+def test_mail_step_times_out_instead_of_hanging(monkeypatch):
+    import subprocess
+
+    def boom(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="x", timeout=k.get("timeout"))
+    monkeypatch.setattr(W.subprocess, "run", boom)
+    text, saved = W.mail_step(None, dry_run=False, timeout=7)
+    assert text.startswith("## From email — TIMED OUT after 7 s") and saved == []
+
+
+def test_mail_step_reports_skip_and_failure(monkeypatch):
+    monkeypatch.setattr(W.subprocess, "run",
+                        lambda *a, **k: _Done(2, "mail step skipped: Outlook is not running (x)"))
+    text, _ = W.mail_step(None, dry_run=True)
+    assert text == "## From email — skipped: Outlook is not running (x)"
+    monkeypatch.setattr(W.subprocess, "run", lambda *a, **k: _Done(1, "", "Traceback ... boom"))
+    text, _ = W.mail_step(None, dry_run=True)
+    assert text.startswith("## From email — FAILED (exit 1)") and "boom" in text
+
+
+def test_mail_step_passes_flags_and_reads_outcomes(monkeypatch):
+    seen = {}
+
+    def fake(cmd, **k):
+        seen["cmd"], seen["timeout"] = cmd, k.get("timeout")
+        # mail_sources.main prints "  %-9s %s" % (outcome before the colon, name)
+        return _Done(0, "## From email (2 to take, 0 skipped)\n\n  saved     a.xlsx\n  FAILED    b.xlsx\n")
+    monkeypatch.setattr(W.subprocess, "run", fake)
+    text, saved = W.mail_step(14, dry_run=False)
+    assert seen["cmd"][-3:] == ["--days", "14", "--save"] and seen["timeout"] == W.MAIL_TIMEOUT
+    assert saved == [("a.xlsx", "saved"), ("b.xlsx", "FAILED")]
+    text, _ = W.mail_step(None, dry_run=True)
+    assert "--save" not in seen["cmd"] and "--days" not in seen["cmd"]
+
+
+def test_share_results_are_saved_before_the_mail_step(shares, tmp_path, monkeypatch):
+    """A hung mailbox must not lose the share check: the log, report and
+    inventory are written first, then the mail block is appended."""
+    oddd, _, _ = shares
+    _land(oddd, "2026.09 Sep", "1038_ODDD.zip")
+    ba = tmp_path / "ba"; ba.mkdir()
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: ba)
+    monkeypatch.setattr(W, "_roster", lambda: {"1038": "Sugar River Bank"})
+    order = []
+
+    def fake_mail(days, dry_run, timeout=None):
+        order.append(("mail", (ba / W.STATE_NAME).exists(), (ba / W.REPORT_NAME).exists()))
+        return "## From email — TIMED OUT after 1 s.", []
+    monkeypatch.setattr(W, "mail_step", fake_mail)
+    assert W.main(["--period", "2026.09", "--mail"]) == 0
+    assert order == [("mail", True, True)]
+    report = (ba / W.REPORT_NAME).read_text(encoding="utf-8")
+    assert report.index("# Source check") < report.index("TIMED OUT")

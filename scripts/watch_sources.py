@@ -704,6 +704,45 @@ def notify(title, body):
         return False
 
 
+# ------------------------------------------------------------------ mail
+# A COM call into an Outlook that is starting up, syncing, or showing a modal
+# dialog blocks until Outlook is done — there is no timeout on the call and a
+# thread cannot interrupt it. So the mail step runs as its own process, which
+# CAN be killed. Ten minutes is generous: by hand the step takes seconds.
+MAIL_TIMEOUT = 600
+
+
+def mail_step(days, dry_run, timeout=MAIL_TIMEOUT):
+    """(report text, [(name, outcome)]) for the mailbox step, run in a
+    subprocess with a hard timeout. Never raises: an unreachable, hung or
+    failing mailbox is reported, and the share check has already been saved."""
+    cmd = [sys.executable, os.path.join(REPO, "scripts", "mail_sources.py")]
+    if days:
+        cmd += ["--days", str(days)]
+    if not dry_run:
+        cmd.append("--save")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=timeout,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except subprocess.TimeoutExpired:
+        return ("## From email — TIMED OUT after %d s. Outlook did not answer "
+                "(starting up, syncing, or waiting on a dialog?). The share check "
+                "above is unaffected; the mailbox is read again tomorrow." % timeout, [])
+    except OSError as e:
+        return "## From email — FAILED to start: %s" % e, []
+    out = (r.stdout or "").strip()
+    if r.returncode == 2:
+        return "## From email — skipped: " + out.replace("mail step skipped: ", ""), []
+    if r.returncode != 0:
+        return ("## From email — FAILED (exit %d): %s" % (
+            r.returncode, (r.stderr or out).strip()[-600:])), []
+    saved = [(ln.split(None, 1)[1], ln.split(None, 1)[0])
+             for ln in out.splitlines()
+             if ln.startswith("  ") and ln.split(None, 1)[0] in ("saved", "skipped", "FAILED")]
+    return out, saved
+
+
 # ------------------------------------------------------------------ run
 def check(periods, previous, use_drive=True):
     """Scan, diff and annotate. Pure with respect to the saved state — the
@@ -790,33 +829,16 @@ def main(argv=None):
     # reports from Bradford, ICS workbooks from Matt (Aaron, 2026-09-09). A
     # mailbox that cannot be reached is reported and skipped — it must not fail
     # the share check, which is the part that runs every day regardless.
-    mail_text = ""
-    if a.mail:
-        try:
-            import mail_sources as MS
-            ok, why = MS.available()
-            if not ok:
-                mail_text = "## From email — skipped: " + why
-            else:
-                recs = MS.scan(a.mail_days or MS.DEFAULT_DAYS)
-                planned = MS.plan(recs)
-                mail_text = MS.render(planned, why)
-                if not a.dry_run:
-                    saved = MS.save(planned)
-                    result["mail_saved"] = [(nm, out) for nm, _d, out in saved]
-                    took = sum(1 for _nm, out in result["mail_saved"] if out == "saved")
-                    mail_text += "\n\n%d saved from email." % took
-        except Exception as e:                     # never fail the share check
-            mail_text = "## From email — FAILED: %s" % e
-
     text = render(result, roster)
-    if mail_text:
-        text += "\n\n" + mail_text
     line = summary_line(result, roster)
     print(text)
     print()
     print(line)
 
+    # The share results are saved BEFORE the mail step. On 2026-09-09 and -10 the
+    # 08:00 run hung inside Outlook COM for the full 30 minutes and the scheduler
+    # killed it; the share check had finished in under a minute and every one of
+    # its findings died with the process, unwritten.
     if not a.dry_run:
         art = R.build_artifacts()
         with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
@@ -826,6 +848,18 @@ def main(argv=None):
         if result["reachable"]:
             write_state(result["next_state"])
             print("saved " + state_path())
+
+    mail_text = ""
+    if a.mail:
+        mail_text, result["mail_saved"] = mail_step(a.mail_days, a.dry_run)
+        print()
+        print(mail_text)
+        if not a.dry_run:
+            art = R.build_artifacts()
+            with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
+                fh.write(mail_text + "\n\n---\n\n")
+            with open(str(art / REPORT_NAME), "a", encoding="utf-8") as fh:
+                fh.write("\n" + mail_text + "\n")
 
     if a.notify and (not result["reachable"] or result["new"]
                      or result["changed"] or result["gone"]):

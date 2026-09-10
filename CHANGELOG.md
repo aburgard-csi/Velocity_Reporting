@@ -17,6 +17,30 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-10 — the daily source watch hung in Outlook two mornings running; it cannot now
+
+The 08:00 "RPE Source Watch" runs of 2026-09-09 and 2026-09-10 were killed by the
+scheduler at the 30-minute limit (Task Scheduler event 329), with nothing logged.
+By hand the whole run takes about two minutes, mail step included. The hang is a COM
+call into Outlook while it is starting up after login: `Dispatch` blocks with no
+timeout and a thread cannot interrupt it. Meanwhile eleven files had landed on the
+shares since 2026-09-08, six of them for roster clients, and none had been copied —
+the share check had finished in under a minute both mornings and died unwritten.
+
+Three changes in `scripts/watch_sources.py` and `scripts/mail_sources.py`: the share
+results are written before the mail step; the mail step runs as its own process with a
+ten-minute deadline (`mail_step`, `MAIL_TIMEOUT`) and a timeout is reported as
+"TIMED OUT" rather than lost; and `_outlook()` attaches to the running Outlook with
+`GetActiveObject`, which fails at once while Outlook is starting, and only launches a
+windowless instance with `Dispatch` when none is running. Pinned by four tests in
+`tests/test_watch_sources.py`, including that the report and inventory exist on disk
+before the mail step is entered.
+
+Run by hand today after the diagnosis: 6 copied (1218 and 1549 DCOs and ODD extracts,
+1539 and 1549 September workbooks), 4 superseded removed, mail step 0 to take.
+
+**No figure moves.** A morning's landings now reach `Inputs/` even when Outlook is busy.
+
 ### 2026-09-10 — the dashboard shows build READINESS, not just what was built
 
 Three changes to the "RPE Client Performance" artifact (Aaron, 2026-09-09/10).

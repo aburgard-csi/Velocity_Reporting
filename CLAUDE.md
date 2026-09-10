@@ -543,9 +543,21 @@ from Matt Milliman**. `--mail`, which the scheduled task passes, takes them from
 via `scripts/mail_sources.py` and files them by kind alongside everything else.
 
 - **Outlook COM, not Graph** — the task already runs as the logged-on user, so the desktop
-  profile is signed in and there is no app registration, secret or consent to own. The cost
-  is that Outlook must be running when the task fires; an unreachable mailbox is REPORTED
-  and skipped, never fatal — the share check runs every day regardless.
+  profile is signed in and there is no app registration, secret or consent to own. An
+  unreachable mailbox is REPORTED and skipped, never fatal — the share check runs every day
+  regardless.
+- **The mail step cannot hang the run (2026-09-10).** A COM call into an Outlook that is
+  still starting up, syncing, or showing a dialog blocks with no timeout and no way to
+  interrupt it from a thread: the 08:00 runs of 2026-09-09 and 2026-09-10 sat in it for the
+  full 30 minutes, the scheduler killed them, and the share check — finished in under a
+  minute — died unwritten with them. So: the share results (log, report, inventory) are
+  written BEFORE the mail step; the mail step runs as its own process
+  (`watch_sources.mail_step`, `MAIL_TIMEOUT` = 10 min) and a timeout is reported as
+  "TIMED OUT", not fatal; and `mail_sources._outlook()` attaches to the running Outlook
+  with `GetActiveObject` first — which fails at once while Outlook is starting, instead of
+  blocking — and only launches a windowless instance with `Dispatch` when none is running
+  (it exits with the process). Outlook does NOT have to be open for the task; it merely
+  goes faster when it is.
 - **Read-only.** Nothing is marked read, moved, deleted or replied to.
 - **Senders are matched on the resolved SMTP address**, never the display name, and each
   sender may only supply their own kinds — an ICS workbook from the MRPC sender is reported
