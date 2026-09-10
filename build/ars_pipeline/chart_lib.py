@@ -53,8 +53,15 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
     accts = [r[2] for r in rows]
     rates = [r[3] for r in rows]
     x = range(len(rows))
+    # The figure's WIDTH in inches is what decides how much room the tick labels
+    # have. Sizing it from the height alone (H * aspect) made the figure NARROWER
+    # when the Reg E box was made taller — same 10pt labels, less width — and
+    # "3,825" met "2,434" under the bars (Aaron, 2026-09-10). Never render
+    # narrower than the box the PNG lands in: DIM is chosen to match that box's
+    # aspect at 200 px/inch, so w/200 is its width.
     a = w / h; H = 3.2
-    fig, ax = plt.subplots(figsize=(H * a, H))
+    fig_w = max(H * a, w / 200.0)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_w / a))
 
     ax.bar(x, accts, color=bar_color, width=_BAR_W)
     ax.set_ylim(0, max(accts) * 1.62)      # bottom ~62% for the bars, the rest for the line

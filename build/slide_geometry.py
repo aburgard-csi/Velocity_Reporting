@@ -84,27 +84,47 @@ def apply(prs):
             # left column stacks: donut (<=2.85, ends 4.45) -> legend rows -> caption (Aaron 2026-07-24)
             for sh in _pics(sl,minw=2.5):
                 w=_in(sh.width); h=_in(sh.height)
-                if w and h and abs(w-h)<0.2 and w>2.9:      # the square donut
-                    sc=2.85/w
-                    sh.width=Inches(2.85); sh.height=Inches(round(h*sc,2))
+                if w and h and abs(w-h)<0.2 and w>2.4:      # the square donut
+                    sc=2.45/w
+                    sh.width=Inches(2.45); sh.height=Inches(round(h*sc,2))
             rows=[sh for sh in sl.shapes if sh.has_text_frame and sh.text_frame.text.strip() in
                   ("Opted In","Opted Out","No Election (default)")]
             rows.sort(key=lambda x:_in(x.top) or 9)
             for j,sh in enumerate(rows):
                 dy=(_in(sh.top) or 0)
-                sh.top=Inches(round(4.60+j*0.36,2))
+                sh.top=Inches(round(4.22+j*0.36,2))
             chips=[sh for sh in sl.shapes if sh.shape_type==1 and (_in(sh.width) or 9)<0.5
                    and (_in(sh.left) or 9)<2.0 and 4.2<(_in(sh.top) or 0)<6.6]
             chips.sort(key=lambda x:_in(x.top) or 9)
             for j,sh in enumerate(chips[:3]):
-                sh.top=Inches(round(4.62+j*0.36,2))
+                sh.top=Inches(round(4.24+j*0.36,2))
             for sh in sl.shapes:
                 if sh.has_text_frame and (_in(sh.left) or 9)<1.5 and sh.text_frame.text.strip()[:1].isdigit():
                     pass
             for sh in sl.shapes:
                 tx=sh.text_frame.text.strip() if sh.has_text_frame else ""
-                if tx and (_in(sh.left) or 9)<1.6 and (_in(sh.top) or 0)>5.5 and len(tx)>40:
-                    sh.top=Inches(5.85); sh.height=Inches(1.1)   # caption below the legend
+                if tx and (_in(sh.left) or 9)<1.6 and (_in(sh.top) or 0)>5.0 and len(tx)>40:
+                    # The sentence needs FOUR lines at 16pt in this 3.75" column
+                    # since the wording changed to "elected to extend their
+                    # overdraft access to the debit card" (Aaron, 2026-09-10), and
+                    # 1.10" holds three — the gate failed the build rather than
+                    # letting it wrap into the page number. The donut gives up
+                    # 0.40" and the legend moves up with it; nothing is shrunk
+                    # below the 16pt floor.
+                    sh.top=Inches(5.35); sh.height=Inches(1.60)
+            # RIGHT COLUMN: the branch chart runs the height of the left stack
+            # (Aaron, 2026-09-10). The template box was 3.40" tall ending at 5.35,
+            # which left ~1.4" of empty slide under the caption while the chart
+            # itself was squeezed — twelve bars and a rate line in half the space
+            # the donut column uses. Taller box, caption follows it down. The
+            # renderer's DIM must match this aspect or the PNG stretches
+            # (CLAUDE.md rule 2): 7.60 x 4.50 -> charts_gen DIM 1520 x 900.
+            for sh in _pics(sl, minw=6.0):
+                sh.left=Inches(4.40); sh.top=Inches(1.60)
+                sh.width=Inches(7.60); sh.height=Inches(4.50)
+            for sh in sl.shapes:
+                if sh.has_text_frame and (_in(sh.left) or 0)>4.0                    and sh.text_frame.text.strip().lower().startswith("opt-in rate by branch"):
+                    sh.left=Inches(4.68); sh.top=Inches(6.22); sh.width=Inches(7.2)
         if t.startswith(("Reg E Opt-In by Account Vintage","First-Year Closure")) or ("ARS Response" in t and "Movement" in t):
             # chart starts below the 2-line selection subtitle (bottom 1.57)
             for sh in _pics(sl):

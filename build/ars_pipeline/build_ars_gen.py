@@ -902,8 +902,11 @@ set_exact(S[24], "-1%", f"{'+' if M['nsf_yoy']>=0 else ''}{M['nsf_yoy']}%")
 
 # ============================ SLIDE 27 — Reg E all
 repl(S[26], {"all open personal accounts holding a debit card (6,192)": f"all open personal accounts holding a debit card ({rege_pool})",
-             "36.3% of open personal debit-card holders are opted in to overdraft — 2,247 of 6,192.":
-             f"{rege} of open personal debit-card holders are opted in to overdraft — {rege_in} of {rege_pool}."})
+             # "opted in to overdraft" reads as opting in to overdrafts themselves;
+             # the election is about extending existing overdraft access to the
+             # debit card (Aaron, 2026-09-10).
+             "36.3% of open personal debit-card holders have elected to extend their overdraft access to the debit card — 2,247 of 6,192.":
+             f"{rege} of open personal debit-card holders have elected to extend their overdraft access to the debit card — {rege_in} of {rege_pool}."})
 
 # ============================ SLIDE 28 — Reg E new
 reldir = updown(M['rege_new_pct'], M['rege_pct'], ("above the book", "below the book", "in line with the book"))
@@ -1693,12 +1696,16 @@ for _sl in prs.slides:
             if not _x.has_text_frame or _x.top is None: continue
             _tt=_x.text_frame.text.strip().lower()
             if _tt.startswith(("opted in","opted out","no election")):
-                _yy={"opted in":4.6,"opted out":4.95,"no election":5.3}[[k for k in ("opted in","opted out","no election") if _tt.startswith(k)][0]]
-                _x.left=Inches(1.32); _x.top=Inches(_yy)
+                # Vertical belongs to slide_geometry, which stacks the whole left
+                # column; setting it here too is how the stack drifts apart.
+                _x.left=Inches(1.32)
             elif _tt.startswith("opt-in rate by branch"):
-                _x.left=Inches(4.68); _x.top=Inches(5.45); _x.width=Inches(7.2)
-            elif _in(_x.top)>5.5 and _x.width is not None and _in(_x.width)>3:
-                _x.left=Inches(0.5); _x.top=Inches(5.83); _x.width=Inches(3.75)
+                # Vertical position belongs to slide_geometry, which also sizes the
+                # chart this caption sits under — two owners for one stack is how
+                # a caption ends up floating in the middle of a taller chart.
+                _x.left=Inches(4.68); _x.width=Inches(7.2)
+            elif _in(_x.top)>5.0 and _x.width is not None and _in(_x.width)>3:
+                _x.left=Inches(0.5); _x.width=Inches(3.75)
     elif _t0.startswith("Reg E Opt-In by Account Vintage"):
         for _x in _sl.shapes:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.top=Inches(2.0)

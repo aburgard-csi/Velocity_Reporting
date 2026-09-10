@@ -17,6 +17,37 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-10 — the Reg E slides are rebalanced, and the opt-in sentence reworded
+
+**The branch chart was 3.40" tall and stopped at 5.35**, leaving roughly 1.4" of empty
+slide under its caption while twelve bars and a rate line shared half the height the donut
+column used. It is now **7.60 x 4.50**, running 1.60 to 6.10 alongside the left-hand stack,
+with the caption following it down to 6.22. `charts_gen` DIM moved to 1520 x 900 to match
+the box aspect, or the PNG would stretch.
+
+Making the box taller made the chart WORSE at first: `chart_lib` sized the matplotlib
+figure from its height (`H x aspect`), so a taller box produced a NARROWER figure — 5.40"
+instead of 7.15" — with the same 10pt tick labels, and "3,825" met "2,434" under the bars.
+The figure is now never rendered narrower than the box it lands in. The take-rate chart is
+unaffected: identical figure at 8.20 x 3.20 before and after.
+
+**"…are opted in to overdraft" became "…have elected to extend their overdraft access to
+the debit card"** (Aaron, 2026-09-10) — the old phrasing reads as opting in to overdrafts
+themselves, when the election is about extending existing access to the card. Changed in
+both template shells and the builder swap.
+
+That sentence needs FOUR lines at 16pt in the 3.75" left column and the box held three, so
+**the gate failed the build** rather than letting it wrap into the page number. The donut
+gives up 0.40" (2.85 -> 2.45), the legend moves up with it, and the sentence gets 1.60".
+Nothing is shrunk below the 16pt floor.
+
+Three positions that `build_ars_gen` and `slide_geometry` both set — the branch caption,
+the legend rows and the summary sentence — now have **one owner**, `slide_geometry`. Two
+owners for one stack is how a caption ends up floating in the middle of a taller chart.
+
+All ten deliverable clients rebuilt at 0 FAIL and delivered; 12 Reg E charts verified at
+the new height, 6 sentences verified reworded.
+
 ### 2026-09-10 — the daily source watch hung in Outlook two mornings running; it cannot now
 
 The 08:00 "RPE Source Watch" runs of 2026-09-09 and 2026-09-10 were killed by the
