@@ -17,6 +17,50 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-10 — CashPlease is merged into this pipeline
+
+The CashPlease build ran out of `C:\Projects\CashPlease` against this repo's shared style
+layer. It now lives here, as the fourth program: `build/cashplease_pipeline/` and
+`scripts/build_cashplease.py`, dispatched by the new `cashplease-deck` subagent.
+
+**No ARS, ICS or MRPC behaviour changes.** The pieces this depended on had already landed
+— `--cashplease` and the four-product agenda in `assemble_combined`, the text-over-text
+rule in `validate_deck`, `templates/cashplease_template.pptx`, and the roster in
+`clients.md`. What moved is the build itself.
+
+**Paths resolve through `rpe_env`, and `CP_DATA_ROOT` is gone.** The workbook and the DDA
+count come from `Inputs/Weekly Summaries/` via `report_files()`, decks go to `Outputs/`,
+and packs and figures to `Build Artifacts/cashplease/`. The separate CashPlease pipeline
+folder on Drive is no longer read: two roots for one pipeline is the two-stores problem
+that deleted `build/{ics,mrpc}_pipeline/data/`.
+
+**Three deletions, each because the thing it duplicated now exists here.** `cp_qa.py` —
+its check is `validate_deck`'s text-over-text rule, and the port is better than the
+original: glyph boxes on both axes, priced per paragraph. `cp_env.py` — `rpe_env` resolves
+these paths. The mirrored `brand.TEAL` / `periods.mon_yy` fallbacks in `cp_charts.py` —
+they existed because `da20266` was not on `main`, and it is now. A fallback that can never
+fire is a second definition of the palette waiting to drift, which is what `brand.py`
+exists to prevent.
+
+**One roster parser.** `cp_roster.py` is folded into `build_month.read_cashplease_roster`,
+beside `read_roster`. Two parsers over one `clients.md` diverge, and these two already
+proved it: the CashPlease table sits between the ICS-only table and Status changes, and
+`read_roster` classifies a row by the section above it, so every CashPlease client was
+briefly read as an ICS client — 1658 Truliant included, which has no RPE program at all
+and is the exact row `clients.md` exists to keep unbuilt. A test now holds that shut.
+
+**CashPlease is WEEKLY**, the only program in the cadence table that is not monthly, and
+it always builds from the most recent workbook rather than the one nearest a deck's
+period. So a CashPlease section inside a monthly Executive Review can report a later date
+than the sections beside it. That is intended and visible: `assemble_combined` prints
+each section's period.
+
+Built on the 2026-09-06 workbook with the 2026-09-10 DDA counts: eight 2026.09 decks,
+1658 skipped with its reason, 0 FAIL. `tests/test_cashplease.py` adds 19 tests, each one
+a defect that shipped or nearly did — the 30-character sheet-name cap, the trailing-window
+rule, L8 never reaching a slide, a NULL DDA count never becoming a zero.
+
+
 ### 2026-09-10 — the Reg E slides are rebalanced, and the opt-in sentence reworded
 
 **The branch chart was 3.40" tall and stopped at 5.35**, leaving roughly 1.4" of empty

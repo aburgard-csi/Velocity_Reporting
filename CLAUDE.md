@@ -14,7 +14,7 @@ Identify the program from the request, then dispatch to the one matching subagen
 | ARS, Account Revenue Solution, mailings, Lift Matrix, Reg E, debit take rate | ARS | `ars-deck` |
 | ICS, Invitation Checking, referrals, mystery shop, ROI per account | ICS | `ics-deck` |
 | MRPC, MyRewards Premium Cards, enrollments, Gold/Platinum tiers | MRPC | `mrpc-deck` |
-| CashPlease, CP, small-dollar loans, loans per 1,000 DDAs | CashPlease | no agent yet — the pipeline is `C:\Projects\CashPlease` (see `clients.md` "CashPlease") |
+| CashPlease, CP, small-dollar loans, loans per 1,000 DDAs | CashPlease | `cashplease-deck` |
 | ILS analysis review, prep slides, matrix parameters / overrides | ILS prep (not an RPE build) | the `ils-prep-deck` skill |
 
 If a request names a client but not a program, ask which program before building. If it
@@ -402,8 +402,8 @@ where half the cases are the false positives that had to be designed out.
 
 ## Cadence
 
-All three programs deliver **monthly** — one deck per client per month, per the table
-below. Nothing in this table is quarterly: where a quarterly input exists (the ICS
+ARS, ICS and MRPC deliver **monthly** — one deck per client per month, per the table
+below. **CashPlease is weekly**, and is the exception to everything in this paragraph. Nothing in this table is quarterly: where a quarterly input exists (the ICS
 workbook) it gates which SECTIONS carry current figures, never whether the deck ships.
 The Executive Summit one-pagers are a separate, non-monthly delivery — see
 **Executive Summit one-pagers** below.
@@ -412,6 +412,7 @@ The Executive Summit one-pagers are a separate, non-monthly delivery — see
 | --- | --- | --- |
 | ARS | Monthly | Every ARS client, each month — MM or SM path per client |
 | MRPC | Monthly | Every MRPC client, each month |
+| CashPlease | **Weekly** | The one program that is not monthly. Bradford Sanders' "CashPlease Summary" workbook arrives weekly and the build **always uses the most recent one** (Aaron, 2026-09-01) — not the one nearest a deck's period. So a CashPlease section inside a monthly Executive Review can report a LATER date than the ARS/ICS/MRPC sections beside it, and that is intended: the CP pill keeps its own `PTD · <date>` and is never re-dated to match its neighbours. `assemble_combined.py` prints each section's period so the divergence is visible at build time. Scope is the `### CashPlease roster` table in `clients.md` — never the workbook, which carries every Velocity CashPlease client across all CSMs. |
 | ICS | Monthly | **The ICS deck ships monthly like the other two (Aaron, 2026-08-31)** — what is quarterly is the WORKBOOK, not the delivery. Referrals come from VIP monthly. **Financial detail ships ONLY when the ICS workbook is for the deck's own period (Aaron, 2026-08-28).** This REPLACES the previous carry-forward rule: a monthly build used to carry the last workbook's financial sections forward, which kept them auditable in the source notes but dated them as current on the slide face — 1537 and 1676 both stamped "PTD · August 2026" on figures from 2026.06 and 2026.07 workbooks. The builder now resolves the newest ICS workbook for the client from `Inputs/ARS & MRPC Reports/` and, if its period differs from the deck's, omits the workbook-driven sections entirely. Referrals, Referral Trend, Results by Branch and the education slides are unaffected. Missing-section guard still stops a build whose data sheet was never populated. |
 
 **ICS before the first workbook — referrals-only builds (Aaron, 2026-08-27).** A client can be

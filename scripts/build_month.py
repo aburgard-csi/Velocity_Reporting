@@ -129,6 +129,57 @@ def read_roster(path=ROSTER_FILE):
     return uniq, uniq_skip
 
 
+CASHPLEASE_HEADING = re.compile(r"^#{2,4}\s+CashPlease roster", re.I)
+
+
+def read_cashplease_roster(path=ROSTER_FILE):
+    """[{client_id, client_name, build, ships_as, note}] from the CashPlease table.
+
+    Lives here, beside `read_roster`, because two parsers over one `clients.md` diverge
+    — and this one already proved it. The CashPlease table was added between the
+    ICS-only table and Status changes, and `read_roster` classifies a row by the section
+    above it, so every CashPlease client was briefly read as an ICS client, 1658 Truliant
+    included. Same file, same module, one place to look.
+
+    Columns are found by HEADER NAME, not position: the table gained a `Ships as` column
+    on 2026-09-01 and a fixed index silently read the wrong cell, blanking every skip
+    reason — which is the one thing a skipped row exists to carry.
+    """
+    lines = open(path, encoding="utf-8").read().splitlines()
+    start = next((i for i, ln in enumerate(lines)
+                  if CASHPLEASE_HEADING.match(ln.strip())), None)
+    if start is None:
+        raise SystemExit(
+            f"{path} has no '### CashPlease roster' section. The roster is read, never "
+            f"inferred — the weekly workbook carries every Velocity CashPlease client "
+            f"across all CSMs and is not a roster.")
+
+    header, out = None, []
+    for ln in lines[start + 1:]:
+        s = ln.strip()
+        if s.startswith("#"):
+            break
+        if not s.startswith("|"):
+            continue
+        cells = [c.replace("*", "").strip() for c in _cells(s)]
+        if header is None:
+            if "ID" in cells:
+                header = [c.lower() for c in cells]
+            continue
+        if not re.fullmatch(r"\d{3,5}", cells[0]) or len(cells) != len(header):
+            continue
+        col = lambda n: cells[header.index(n)] if n in header else ""
+        out.append({"client_id": cells[0],
+                    "client_name": col("client"),
+                    "build": col("build").lower().startswith("y"),
+                    "ships_as": col("ships as"),
+                    "note": col("note")})
+    if not out:
+        raise SystemExit(f"{path}: the CashPlease roster table is empty — nothing to "
+                         f"build. Add rows rather than reporting success over 0 decks.")
+    return out
+
+
 def deck_name(cid, roster_name):
     """The name that goes on the deck and in its filename.
 
