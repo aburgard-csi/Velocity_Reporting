@@ -894,6 +894,13 @@ set_exact(S[23], "+4.3%", card_growth)
 repl(S[23], {"(6.8K → 7.1K)": card_range})
 set_exact(S[23], "$9.3M", monthly_spend)
 set_exact(S[23], "+11%", spend_yoy)
+# The Spend YoY FIGURE is derived (above); its caption was not, so the tile read
+# "(Jun 25 → Jun 26)" over a number comparing Aug 25 to Aug 26. Same shape as
+# the Items YoY caption on the next slide: two-digit years, so neither the as-of
+# pass nor the stale-caption gate could see it (Aaron, 2026-09-10).
+_sp_win = ("(%s → %s)" % (_ld.replace(year=_ld.year-1).strftime('%b %y'),
+                              _ld.strftime('%b %y'))) if jun25 else "(no prior year in extract)"
+repl(S[23], {"(Jun 25 → Jun 26)": _sp_win})
 
 # ============================ SLIDE 25 — NSF/OD
 set_exact(S[24], "2,360", f"{M['nsf_last_items']:,}")

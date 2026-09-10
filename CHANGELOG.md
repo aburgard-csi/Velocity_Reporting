@@ -17,6 +17,46 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-10 — the YoY tiles were not year-over-year, and their captions named the wrong months
+
+Cherry-picked from `claude/gallant-allen-dzs1zv` (`7a47b93`, written 2026-09-01 and never
+merged), plus one more instance found on the slide beside it.
+
+**The Items YoY figure was not a year.** `metrics_gen` searched the NSF series for the row
+labelled `'Jun 25'` and compared it to the LAST row — so it was year-over-year only for a
+June deck. On the 2026.09 decks delivered this week the last row is Aug 2026, making it a
+**14-month change presented as year-over-year**:
+
+| Client | Deck said | Aug'25 → Aug'26 |
+| --- | --- | --- |
+| 1038 Sugar River | −10% | **−1%** |
+| 1204 FSB Michigan | −3% | **+1%** (wrong sign) |
+| 1509 Texas Bay | +16% | **+13%** |
+| 1676 True Sky | −22% | **−26%** |
+| 1705 CoastLife | +13% | **+4%** |
+
+And a client whose series began after Jun 2025 found no row at all and fell to an `else 0`
+branch, shipping a **phantom 0%**. The comparison is now the same month a year earlier by
+month arithmetic; absent, it yields None and the tile reads "n/a" with a warning rather
+than a zero.
+
+**Three tile captions were template literals.** `(Jun 25 → Jun 26)` uses two-digit years
+and `NSF/OD (June)` carries no year, so neither the as-of caption pass nor the
+stale-caption gate could see them, and every deck shipped the reference client's months.
+All three now come from the data.
+
+The third — **Spend YoY** on the Debit Card Swipes & Spend slide — was not in the
+cherry-picked commit. Its FIGURE was already derived correctly; only its caption was
+stale, so the tile read "(Jun 25 → Jun 26)" over a number comparing Aug 25 to Aug 26. Same
+shape, one slide over.
+
+**The Reg E vintage axis was a typed `range(2018, 2027)`.** An account opened outside it
+counted toward the vintage pool and then vanished from the chart, so the chart and its own
+pool disagreed. The axis is the years present in the data now.
+
+Verified on 1038 and 1204: `nsf_yoy` −1 and +1 against a window of `['Aug 25','Aug 26']`,
+all three captions reading Aug. 721 tests pass.
+
 ### 2026-09-10 — CashPlease is merged into this pipeline
 
 The CashPlease build ran out of `C:\Projects\CashPlease` against this repo's shared style
