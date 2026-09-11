@@ -17,6 +17,24 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — promote_month could not see a colour change, and skipped the delivery
+
+**The navy Summit banner was silently not delivered.** True Sky was rebuilt with the
+recoloured banner, passed the gate at 0 FAIL, and `promote_month` reported it
+`unchanged` and left the old deck in `Outputs/`. `same()` compared slide TEXT and IMAGE
+blobs only — a shape's FILL is neither, so a rebuild whose only change is a colour was
+indistinguishable from no rebuild at all. A check that cannot see the change reports
+success, which is the failure mode this pipeline keeps paying for.
+
+`same()` now also compares how the shapes LOOK: kind, box, solid fill and line colour,
+per shape per slide. All of it is derived from shape properties, so it stays stable
+across rebuilds the way zip bytes are not — and zip bytes are still deliberately NOT
+compared, because they differ on every build and comparing them would re-archive an
+unchanged deck every run, which is the thing `same()` exists to prevent.
+
+Verified three ways before delivering: navy vs delivered -> False (the change is seen),
+each deck against itself -> True (no false positives).
+
 ### 2026-09-11 — the ODD accessors, measured: metrics_gen ~10%, and where the time really is
 
 `odd_rows` accessors run tens of millions of times per client, so the obvious per-row

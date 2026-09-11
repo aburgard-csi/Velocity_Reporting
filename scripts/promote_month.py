@@ -68,14 +68,51 @@ def deliverable(cdir):
     return max(decks, key=lambda f: len(Presentation(f).slides))
 
 
+def _shape_look(sh):
+    """What a shape LOOKS like: kind, box, solid fill, line colour.
+
+    Derived from shape properties, so it is stable across rebuilds the way the
+    zip bytes are not — no relationship ids, no timestamps.
+    """
+    def rgb(fmt):
+        try:
+            return str(fmt.fore_color.rgb) if fmt.type is not None else None
+        except (AttributeError, TypeError, ValueError):
+            return None          # scheme colour, gradient, inherited — not an RGB
+    try:
+        line = rgb(sh.line.fill) if hasattr(sh, "line") else None
+    except (AttributeError, TypeError, ValueError):
+        line = None
+    try:
+        fill = rgb(sh.fill)
+    except (AttributeError, TypeError, ValueError):
+        fill = None
+    return (int(sh.shape_type) if sh.shape_type is not None else -1,
+            sh.left, sh.top, sh.width, sh.height, fill, line)
+
+
 def same(a, b):
-    """Identical rendered content — text and images. Zip bytes differ per build."""
+    """Identical rendered content — text, images, AND how the shapes look.
+
+    It used to compare text and image blobs only, which cannot see a shape's FILL.
+    On 2026-09-11 the Summit banner was recoloured to navy, every figure and every
+    image stayed byte-identical, and this reported "unchanged" — so the rebuilt
+    deck was silently not delivered and the old one stayed in Outputs. A check that
+    cannot see the change reports success, which is the worst failure mode here.
+
+    Geometry and colour are included for the same reason: a rebuild whose only
+    change is a box, a font size or a colour is still a different deck. Zip bytes
+    are still NOT compared — they differ on every build, and comparing them would
+    re-archive an unchanged deck every run, which is what this function exists to
+    prevent.
+    """
     def fp(p):
         prs = Presentation(p)
         return ([[sh.text_frame.text.strip() for sh in s.shapes
                   if sh.has_text_frame and sh.text_frame.text.strip()] for s in prs.slides],
                 sorted(hashlib.md5(x.blob).hexdigest()
-                       for x in prs.part.package.iter_parts() if "image" in x.content_type))
+                       for x in prs.part.package.iter_parts() if "image" in x.content_type),
+                [[_shape_look(sh) for sh in s.shapes] for s in prs.slides])
     try:
         return fp(a) == fp(b)
     except Exception:
