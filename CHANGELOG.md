@@ -17,6 +17,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — the Summit slide's date banner is navy
+
+The band behind "Fort Lauderdale, FL · November 4-5, 2026" arrived a medium blue that is
+not in the palette (Aaron). It is now `brand.NAVY` (#00274C), read from `build/brand.py`
+rather than typed in, so it moves if the palette does. Both runs on it keep their colours
+and stay legible: the venue is orange, the date is BACKGROUND_1 (white).
+
+Only the fill changed — no geometry, no text. **Decks were NOT rebuilt** (Aaron: "on the
+next run"), so the eighteen delivered 2026.09 decks still carry the blue band and the next
+rebuild picks this up.
+
 ### 2026-09-11 — the LibreOffice render check is gone; the package check absorbs what it can
 
 **Removed, deliberately** (Aaron): LibreOffice is not going on the build machine, so
