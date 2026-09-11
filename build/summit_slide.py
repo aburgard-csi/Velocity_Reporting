@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Executive Summit slide — shared asset + helpers (all results decks).
 
-Every results deck (ARS / ICS / MRPC) carries the Velocity Solutions Executive Summit
-slide immediately after the title slide. This slide keeps its own dense typography
+Every results deck — ARS, ICS, MRPC and CashPlease — carries the Velocity Solutions
+Executive Summit slide immediately after the title slide, cloned from the one asset. This slide keeps its own dense typography
 (Montserrat / Montserrat SemiBold / Montserrat Medium at 9-14 pt, tight spacing) and is
 NEVER touched by build/restyle_fonts.py.
 
-The pristine slide lives in `build/assets/summit_slide.pptx` (trimmed from the Sugar River v20
-base template). Two helpers:
+The pristine slide lives in `build/assets/summit_slide.pptx`. **Replacing the Summit is
+that one file** — drop the new deck there (or at `Inputs/Summit/summit_slide.pptx`, which
+wins when present) and rebuild. Two helpers:
 
   insert_summit_after_title(prs)  — clone the Summit slide into `prs` at index 1.
   restore_summit_fonts(prs)       — copy the pristine run fonts/sizes back onto a Summit
@@ -83,8 +84,9 @@ def summit_date(asset=ASSET):
     month, as opposed to the data month on the period pills (STYLE.md:44).
 
     Read from `build/assets/summit_slide.pptx` rather than hardcoded, so it
-    moves when the Summit slide does. The asset currently reads
-    "Boston, MA  August 31-September 1, 2026"; a range takes its START.
+    moves when the Summit slide does. A range takes its START. The example is
+    deliberately not written down here: a docstring naming "the current Summit"
+    is a second place for it to go stale, and the file is the answer.
 
     Returns a date, or None when the slide carries no parseable date — callers
     decide whether that is fatal.
@@ -112,10 +114,13 @@ def summit_period(asset=ASSET, warn_if_past=True):
     """The Summit month as `YYYY.MM`, or None. Aug 31-Sep 1 2026 -> '2026.08'.
 
     Warns when the Summit it names has already happened. The slide is printed
-    ahead of each Summit and not revised until the next one — the August 2026
-    slides went to print 2026-08-29 and the asset will keep saying August until
-    the November Summit materials land (Aaron, 2026-08-29). So a build falling
-    back to this AFTER the Summit is reading a stale date, and should be told.
+    ahead of each Summit and not revised until the next one, so a build falling
+    back to this AFTER the Summit is reading a stale date and should be told.
+
+    This warning is NOT the gate. It fires only when a build calls this for a
+    reporting month, and a line on stderr is not a check: eighteen 2026.09 decks
+    shipped naming a Summit eleven days gone. `validate_deck.summit_date_findings`
+    is what actually reads the slide in every deck (2026-09-11).
 
     The clock is used only to raise the warning, never to derive the value —
     deriving a reporting month from `date.today()` is the bug this fallback

@@ -272,7 +272,12 @@ def build_client(cid, name, mmsm, progs, period, stage):
         out = os.path.join(d, f"{cid}-{period}-ARS-{name} ARS Results.pptx")
         if run([PY, f"{ARSP}/build_ars_gen.py", f"{TPL}/ars_template.pptx", met, base, lift,
                 os.path.join(oddd, "oddd_metrics.json"), charts, out, z], log): return "build_ars_gen", made
-        run([PY, os.path.join(REPO, "build/restyle_fonts.py"), out], log)
+        # NO restyle_fonts here. build_ars_gen already runs it (and then the branding,
+        # geometry and layout-fit passes) before it saves, so a second pass from the
+        # driver re-applied font roles AFTER fit_layout had clamped them. Measured on
+        # a finished 49-slide deck it changed nothing at all — a subprocess and a full
+        # load/save per ARS client for a no-op — and ICS and MRPC never had it, so ARS
+        # was the odd one out (2026-09-11).
         made["ARS"] = out
 
     for p in progs:

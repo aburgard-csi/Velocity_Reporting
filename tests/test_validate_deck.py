@@ -623,3 +623,53 @@ def test_a_corrupt_member_is_a_fail(tmp_path):
     open(bad, "wb").write(bytes(raw))
     out = vd.package_findings(bad)
     assert any(f[0] == "FAIL" for f in out), out
+
+
+# --- the Summit slide's date ------------------------------------------------
+def _summit_deck(text):
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    tb = s.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(0.5))
+    tb.text_frame.text = "Executive Summit is an action-packed event!"
+    tb2 = s.shapes.add_textbox(Inches(1), Inches(2), Inches(6), Inches(0.5))
+    tb2.text_frame.text = text
+    return prs
+
+
+def test_a_future_summit_is_silent():
+    import datetime
+    d = datetime.date.today() + datetime.timedelta(days=60)
+    months = ["January", "February", "March", "April", "May", "June", "July",
+              "August", "September", "October", "November", "December"]
+    txt = "Somewhere, XX  %s %d-%d, %d" % (months[d.month - 1], d.day, d.day, d.year)
+    assert vd.summit_date_findings(_summit_deck(txt)) == []
+
+
+def test_a_summit_that_has_passed_is_flagged():
+    """Eighteen delivered 2026.09 decks advertised a Summit eleven days gone and
+    nothing failed (2026-09-11). summit_period() warned on stderr, but only when a
+    build called it for a reporting month — a warning in a log is not a gate."""
+    import datetime
+    d = datetime.date.today() - datetime.timedelta(days=11)
+    months = ["January", "February", "March", "April", "May", "June", "July",
+              "August", "September", "October", "November", "December"]
+    txt = "Boston, MA  %s %d, %d" % (months[d.month - 1], d.day, d.year)
+    out = vd.summit_date_findings(_summit_deck(txt))
+    assert len(out) == 1 and out[0][0] == "REVIEW", out
+    assert "has passed" in out[0][2] and "11 days ago" in out[0][2], out[0][2]
+
+
+def test_the_summit_rule_is_review_not_fail():
+    """A deck built the day before an event is indistinguishable from one built the
+    day after it ended, and a rebuild of an older period must not be blocked."""
+    import datetime
+    d = datetime.date.today() - datetime.timedelta(days=400)
+    months = ["January", "February", "March", "April", "May", "June", "July",
+              "August", "September", "October", "November", "December"]
+    txt = "Old Town, XX  %s %d, %d" % (months[d.month - 1], d.day, d.year)
+    assert all(f[0] == "REVIEW" for f in vd.summit_date_findings(_summit_deck(txt)))
+
+
+def test_the_summit_rule_is_registered():
+    assert vd.summit_date_findings in vd.RULES

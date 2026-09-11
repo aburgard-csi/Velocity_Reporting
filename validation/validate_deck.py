@@ -766,6 +766,54 @@ def source_note_findings(path, prs):
     return out
 
 
+# ================================================================ summit date
+def summit_date_findings(prs):
+    """The Summit slide must not advertise a Summit that has already happened.
+
+    THE GAP THIS CLOSES: on 2026-09-11 all eighteen delivered 2026.09 decks carried
+    "Boston, MA — August 31-September 1, 2026", eleven days after that Summit ended.
+    Nothing failed. `summit_slide.summit_period()` warned on stderr when the date was
+    past, but only when a build happened to CALL it for a reporting month, and a
+    warning in a build log is not a gate. The slide is replaced by hand before each
+    Summit, so "the asset went stale" is the expected failure mode, not an exotic one.
+
+    REVIEW, not FAIL, and deliberately so: a deck legitimately built for an event that
+    starts tomorrow is indistinguishable from one built a day after it ended, and
+    blocking a rebuild of an older period would be wrong. It has to be visible, not
+    fatal.
+    """
+    import datetime
+    try:
+        from summit_slide import _SUMMIT_DATE_RE, _MONTHS
+    except Exception:
+        return []
+    today = datetime.date.today()
+    for idx, slide in enumerate(prs.slides, 1):
+        if not _is_summit(slide):
+            continue
+        for sh in slide.shapes:
+            if not sh.has_text_frame:
+                continue
+            m = _SUMMIT_DATE_RE.search(" ".join(sh.text_frame.text.split()))
+            if not m:
+                continue
+            mon = next((i for i, n in enumerate(_MONTHS)
+                        if n.lower().startswith(m.group(1).lower()[:3])), None)
+            if mon is None:
+                continue
+            d = datetime.date(int(m.group(3)), mon + 1, int(m.group(2)))
+            if d < today:
+                # Built by hand, not strftime: "%-d" is a GNU extension and raises
+                # ValueError on Windows, which is where this gate runs.
+                when = "%s %d, %d" % (_MONTHS[d.month - 1], d.day, d.year)
+                return [("REVIEW", idx,
+                         f"the Summit slide names {when}, which has passed "
+                         f"({(today - d).days} days ago) — replace "
+                         f"build/assets/summit_slide.pptx before shipping")]
+            return []
+    return []
+
+
 # ================================================================ figure sidecar
 def figure_sidecar_findings(deck_path):
     """FAIL when one NAMED measure rendered more than one value.
@@ -1378,7 +1426,7 @@ RULES = (package_findings, reference_leak_findings, single_line_overflow_finding
          source_note_findings, figure_sidecar_findings, claim_consistency_findings,
          text_rule_findings, geometry_findings, text_collision_findings,
          autofit_findings, mailing_table_findings, extract_findings,
-         labelled_metric_findings)
+         labelled_metric_findings, summit_date_findings)
 
 
 def main(argv=None):

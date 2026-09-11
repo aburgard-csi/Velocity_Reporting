@@ -17,6 +17,55 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — build-order audit: a duplicate pass, a stale deck picker, and the Summit gap
+
+**ARS decks were restyled twice.** `build_ars_gen` runs `restyle_fonts` and then its
+branding, geometry and layout-fit passes before saving; `build_month` ran `restyle_fonts`
+AGAIN on the finished file. Measured on a delivered 49-slide deck the second pass changed
+nothing on any slide — a subprocess and a full load/save per ARS client for a no-op — and
+it re-applied font roles after `fit_layout` had clamped them. ICS and MRPC never had it,
+so ARS was the odd one out. Removed.
+
+**`promote_month` could not pick a CashPlease combined deck.** Its combined-deck test was
+three literals — `("ARS-ICS", "ARS-MRPC", "ICS-MRPC")` — written before CashPlease became
+the fourth program. An `ICS-CP` deck matched none of them and fell through to the "most
+slides wins" tiebreak, which picked the right file for 1632 and 1734 by luck rather than
+by rule. `program_tags()` now derives them from the filename convention, and a combined
+deck with MORE programs wins, so `ARS-ICS-MRPC-CP` beats `ARS-ICS` when both are staged.
+
+**...and could not be imported, which is why that went unnoticed.** It read `sys.argv[1]`
+at module scope and did the whole job there, so importing it RAN it — the hazard CLAUDE.md
+names for `metrics_gen`. Nothing could import the module to test `deliverable()`, so the
+stale tag list had no test to fail. Restructured behind `main()`.
+`tests/test_entry_points.py` now pins the class rather than the instance across all eight
+drivers: resolve siblings from `__file__` and never the home directory, no `sys.argv` at
+module scope, and a `__main__` guard.
+
+**QA gap — nothing failed a deck advertising a Summit that had already happened.** All
+eighteen delivered 2026.09 decks named a Summit eleven days gone.
+`summit_slide.summit_period()` warned on stderr, but only when a build called it for a
+reporting month, and a warning in a build log is not a gate.
+`validate_deck.summit_date_findings` reads the slide in every deck. It is **REVIEW, not
+FAIL, deliberately**: a deck built the day before an event is indistinguishable from one
+built the day after it ended, and a rebuild of an older period must not be blocked.
+
+**The template shells still carried the Boston slide.** `ars_template.pptx`,
+`cashplease_template.pptx` and `multi-product_reference_deck.pptx` were stale on slide 2.
+Built decks were correct — the builders replace it from the asset — but the shells are
+what the gate validates, and the new rule caught all three. Refreshed through
+`insert_summit_after_title`, the same one source the builders use. Baseline re-snapshotted.
+
+**No checks were removed.** Counting findings per rule across eleven decks and templates,
+13 of 17 produced zero — which is the PASSING state for a FAIL-level rule on a clean
+corpus, not evidence of dead code. Deleting them would delete the checks that keep the
+corpus clean.
+
+**Known and NOT changed:** the ARS build streams the ODD three times — `oddd_optimize`
+(10s), `metrics_gen` (9s) and `build_ars_gen` again, on True Sky's 49 MB extract out of a
+70s build. Consolidating is a real refactor: these were re-implemented standalone once
+before and drifted, which is why they now share `odd_rows.py`. It needs a decision, not a
+drive-by.
+
 ### 2026-09-11 — the Summit slide's date banner is navy
 
 The band behind "Fort Lauderdale, FL · November 4-5, 2026" arrived a medium blue that is
