@@ -13,9 +13,17 @@ the archive and buries the copies that matter.
 """
 import datetime
 import glob, os, shutil, sys
-sys.path.insert(0, os.path.expanduser("~/Projects/RetailPerformanceEngine/build"))
-from pptx import Presentation
-import rpe_env as R
+from pathlib import Path
+
+# Relative to THIS file, never to a home directory. `~/Projects/RetailPerformanceEngine`
+# is not where the repo is on this machine — it sits at C:\Projects — so the import
+# raised ModuleNotFoundError and the script could not run at all (2026-09-11). Every
+# other entry point resolves its siblings this way; the reason `rpe_env` exists is that
+# a path written into code is a path that is wrong on the next machine.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "build"))
+
+from pptx import Presentation                                    # noqa: E402
+import rpe_env as R                                              # noqa: E402
 
 STAGE = sys.argv[1]; APPLY = "--apply" in sys.argv
 OUT = R.outputs(); ARCH = OUT/"Archive"

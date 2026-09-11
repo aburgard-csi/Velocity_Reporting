@@ -17,6 +17,75 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — one Summit slide, from one file: Fort Lauderdale replaces Boston
+
+**Every 2026.09 deck advertised a Summit that had already happened.** The slide read
+"Boston, MA — August 31-September 1, 2026"; the next Summit is Fort Lauderdale,
+November 4-5, 2026. Fourteen of the eighteen delivered decks carried it as text and the
+other four as a picture.
+
+**It was in two forms, and neither could be replaced from the pipeline.** ICS and MRPC
+decks got `assets/Velocity Executive Summit.jpg` — a flat PICTURE of the slide — while
+ARS and CashPlease carried the real one baked into their template shells. So replacing
+the Summit meant editing three template shells AND re-exporting a JPG, which needs
+PowerPoint or LibreOffice and therefore could not be done from here at all.
+`insert_summit_after_title` now clones `build/assets/summit_slide.pptx` into every deck,
+and the ARS and CashPlease builders call it like ICS and MRPC always did. That file is
+also the one `summit_date()` reads, so the slide on the page and the date the build
+derives cannot disagree. Replacing the Summit is now one file.
+
+**The asset had never been committed.** `build/assets/summit_slide.pptx` has no history
+before today: `summit_date()` returned None, `summit_period()` with it, and four tests
+failed on the missing file. The Fort Lauderdale slide is the first committed copy.
+
+**Cloning across decks corrupted the package until it was fixed.** Relating the asset's
+image Part into a deck carries that Part's OWN partname with it, so a deck that already
+had `/ppt/media/image2.png` wrote the entry twice — zipfile says "Duplicate name:" and
+the result is malformed while every text and geometry rule passes, which is exactly how
+the 2026.08 ICS decks shipped unopenable at 0 FAIL. Images are re-added from their bytes
+through `get_or_add_image_part`, which assigns a free partname and dedupes by hash.
+`tests/test_summit_insert.py` promotes that warning to an error and asserts no duplicate
+zip entries, that no cloned picture has a dangling relationship, that the slide count does
+not move when a Summit slide is already present, and that all four builders call the
+shared insert.
+
+The slide is replaced in PLACE when one is already there, never deleted and re-added —
+freeing a partname is what hands a later slide the same number.
+
+`test_summit_period_reads_the_current_slide` pinned `2026.08` and now pins `2026.11`.
+It is meant to fail when the asset changes: replacing the Summit should be a decision,
+not a side effect.
+
+### 2026-09-11 — the template shells had never had the geometry contract applied
+
+**The Reg E rewording fixed the built decks and left the shells failing.** Rewording the
+opt-in sentence to "have elected to extend their overdraft access to the debit card"
+(2026-09-10) made it four lines in a box that holds three. `slide_geometry.py` was
+rebalanced to give it the room, and every BUILT deck passed — the builders run that pass.
+The shells in `templates/` do not, so `ars_template.pptx` and
+`multi-product_reference_deck.pptx` sat at 1 FAIL each and the gate reported FAIL for
+anyone who ran it. CLAUDE.md's rule is to fix the builder AND the template shell; only
+half of that was done.
+
+Both shells now have `slide_geometry.apply()` applied and saved, so they carry the same
+geometry a built deck gets rather than a hand-measured approximation of it — one
+definition, per that module's own docstring. What moved, on both Reg E slides (27 and 28)
+of both shells: donut 2.85" -> 2.45", the three legend rows and their chips up by 0.38",
+the caption to 5.35" and 1.10" -> 1.60" tall, the branch chart to 1.60" and 3.40" -> 4.50"
+tall, its caption to 6.22". Plus a 0.02" nudge on "Who Responds — Balance Profile" from
+the existing caption-below-chart rule. The ICS, MRPC and CashPlease shells moved nothing:
+the contract is ARS-only, as its docstring says.
+
+Slide 28 was fixed in passing — it carries the same box as 27 and the gate had not
+flagged it, because the template's dummy sentence there happens to be shorter.
+
+**promote_month.py could not run at all.** Its `sys.path` insert was
+`os.path.expanduser("~/Projects/RetailPerformanceEngine/build")`, which is not where this
+repo is — it sits at `C:\Projects` — so the script raised ModuleNotFoundError on import
+and delivery had to be driven with a PYTHONPATH set by hand. It now resolves `build/`
+relative to its own file, the way every other entry point does. A path written into code
+is a path that is wrong on the next machine; that is the whole reason `rpe_env` exists.
+
 ### 2026-09-11 — the performance page lost every CashPlease figure, and gained a shareable export
 
 **The CashPlease section was blank for all eight clients and nothing failed.** CashPlease

@@ -168,30 +168,130 @@ def restore_summit_fonts(prs):
     return True
 
 
-def insert_summit_after_title(prs):
-    """Insert the Velocity Executive Summit slide (full-bleed image from
-    build/assets/Velocity Executive Summit.jpg) at index 1, right after the title.
-    The slide is picture-only and carries NO page number. Idempotent: if a
-    full-bleed summit picture is already at index 1 it is a no-op."""
-    img = os.path.join(os.path.dirname(__file__), "assets", "Velocity Executive Summit.jpg")
-    # no-op guard: index 1 already a single full-bleed picture
-    ids = list(prs.slides._sldIdLst)
-    if len(ids) > 1:
-        s1 = prs.slides[1]
-        pics = [sh for sh in s1.shapes if sh.shape_type == 13]
-        if len(pics) == 1 and pics[0].width is not None and pics[0].width >= prs.slide_width * 0.98 \
-           and not any(sh.has_text_frame and sh.text_frame.text.strip() for sh in s1.shapes):
-            return False
+_RNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+
+def _rebind_rels(el, src_part, dst_part):
+    """Point every r:embed / r:link inside `el` at a copy living in `dst_part`.
+
+    A cloned <p:pic> carries the SOURCE deck's relationship id. Dropped into
+    another deck that id means a different part or nothing at all, and the deck
+    opens with a red X where the logo was. Walks descendants, not just the
+    element itself: the Summit slide's event photos sit inside a <p:grpSp>.
+    """
+    for node in el.iter():
+        for attr in ("embed", "link"):
+            key = "{%s}%s" % (_RNS, attr)
+            rid = node.get(key)
+            if not rid or rid not in src_part.rels:
+                continue
+            rel = src_part.rels[rid]
+            if rel.is_external:
+                node.set(key, dst_part.relate_to(rel.target_ref, rel.reltype, is_external=True))
+                continue
+            # Re-add the image from its BYTES, never by relating to the source
+            # Part object. A Part carries its own partname: relating the asset's
+            # /ppt/media/image2.png into a deck that already has one writes the
+            # zip entry TWICE ("Duplicate name: ppt/media/image2.png"), which is
+            # the malformed-package failure that made the 2026.08 ICS decks
+            # unopenable while every lint rule passed. get_or_add_image_part
+            # assigns a free partname and dedupes identical images by hash.
+            if rel.reltype.endswith("/image"):
+                _img, new_rid = dst_part.get_or_add_image_part(BytesIO(rel.target_part.blob))
+                node.set(key, new_rid)
+            else:
+                node.set(key, dst_part.relate_to(rel.target_part, rel.reltype))
+
+
+def _blank_after_title(prs):
+    """A new empty slide at index 1. Slides are ADDED then reordered, never
+    deleted — freeing a partname makes python-pptx hand that number to a later
+    slide and the package ends up referencing parts twice (CLAUDE.md; the defect
+    behind the unopenable 2026.08 ICS decks)."""
     lay = prs.slide_layouts[6] if len(prs.slide_layouts) > 6 else prs.slide_layouts[-1]
     new = prs.slides.add_slide(lay)
     for sh in list(new.shapes):
         sh._element.getparent().remove(sh._element)
-    new.shapes.add_picture(img, 0, 0, width=prs.slide_width, height=prs.slide_height)
     lst = prs.slides._sldIdLst
     sid = list(lst)[-1]
     lst.remove(sid)
     lst.insert(1, sid)
+    return new
+
+
+def _is_summit(slide, prs):
+    """Either shape of the slide: the text one, or the full-bleed picture that
+    ICS and MRPC decks carried until 2026-09-11."""
+    for sh in slide.shapes:
+        if sh.has_text_frame and ("Executive Summit" in sh.text_frame.text
+                                  or "About the Summit" in sh.text_frame.text):
+            return True
+    pics = [sh for sh in slide.shapes if sh.shape_type == 13]
+    return (len(pics) == 1 and pics[0].width is not None
+            and pics[0].width >= prs.slide_width * 0.98
+            and not any(sh.has_text_frame and sh.text_frame.text.strip() for sh in slide.shapes))
+
+
+def insert_summit_after_title(prs, asset=None):
+    """Put the Summit slide at index 1, cloned from `build/assets/summit_slide.pptx`.
+
+    **It used to stamp a flat JPG** (`assets/Velocity Executive Summit.jpg`) —
+    a picture of the slide — so ICS and MRPC decks got an image while ARS and
+    CashPlease carried the real one from their template shells. Two renderings of
+    one slide, and replacing the Summit meant replacing both: the .pptx AND a
+    re-exported image, which needs PowerPoint or LibreOffice and so could not be
+    done from the pipeline at all (Aaron, 2026-09-11). Every deck now clones the
+    same .pptx, which is also the file `summit_date()` reads, so the slide on the
+    page and the date the build derives cannot disagree.
+
+    Replaces the CONTENT of an existing Summit slide in place when there is one —
+    it does not delete the slide. Returns True when a Summit slide is present
+    afterwards, and is safe to run twice: the second run rewrites the same
+    content.
+    """
+    src_prs = Presentation(asset or ASSET)
+    src = _summit_slide(src_prs) or (src_prs.slides[0] if len(src_prs.slides._sldIdLst) else None)
+    if src is None:
+        return False
+
+    dst = next((s for s in prs.slides if _is_summit(s, prs)), None)
+    if dst is None:
+        dst = _blank_after_title(prs)
+    else:
+        lst = prs.slides._sldIdLst
+        ids = list(lst)
+        cur = ids[list(prs.slides).index(dst)]
+        if ids.index(cur) != 1:
+            lst.remove(cur)
+            lst.insert(1, cur)
+
+    for sh in list(dst.shapes):
+        sh._element.getparent().remove(sh._element)
+
+    # The asset's background comes from its LAYOUT, not the slide, and the clone
+    # lands on a different deck's layout. Carrying it over explicitly means the
+    # slide does not depend on which layout it happens to sit on.
+    src_csld = src._element.find(qn("p:cSld"))
+    dst_csld = dst._element.find(qn("p:cSld"))
+    bg = src_csld.find(qn("p:bg"))
+    if bg is None:
+        bg = src.slide_layout._element.find(qn("p:cSld")).find(qn("p:bg"))
+    old_bg = dst_csld.find(qn("p:bg"))
+    if old_bg is not None:
+        dst_csld.remove(old_bg)
+    if bg is not None:
+        new_bg = copy.deepcopy(bg)
+        _rebind_rels(new_bg, src.slide_layout.part if src_csld.find(qn("p:bg")) is None else src.part,
+                     dst.part)
+        dst_csld.insert(0, new_bg)
+
+    spTree = dst.shapes._spTree
+    for sh in src.shapes:
+        el = copy.deepcopy(sh._element)
+        _rebind_rels(el, src.part, dst.part)
+        spTree.append(el)
     return True
+
 
 if __name__ == "__main__":
     mode = sys.argv[1]

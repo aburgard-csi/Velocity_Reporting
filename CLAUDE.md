@@ -745,7 +745,14 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
   substitute a missing face. Every chart renderer goes through it.
-- `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`, `Velocity Executive Summit.jpg`.
+- `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`.
+  **`summit_slide.pptx` is the ONE Summit slide** (Aaron, 2026-09-11): every builder
+  clones it, and `summit_date()` reads its printed date, so replacing the Summit is one
+  file. It used to be two — ICS/MRPC stamped a flat `Velocity Executive Summit.jpg`
+  while ARS/CashPlease carried their own copy in their template shells, so the slide
+  could only be replaced with PowerPoint, and every 2026.09 deck went out naming a
+  Summit that had already happened. Drop the new `.pptx` here (or at
+  `Inputs/Summit/summit_slide.pptx`, which wins when present) and rebuild.
 - `README.md` — build/ layout notes (incl. the SM-vs-MM revenue-model extractor notes).
 
 **`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`,

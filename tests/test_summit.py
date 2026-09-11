@@ -24,9 +24,18 @@ def test_summit_period_is_yyyy_dot_mm():
 
 
 def test_summit_period_reads_the_current_slide():
-    """Aug 31 - Sep 1 2026, per the slide as printed. That the 2026.08 decks share
-    the month is coincidence, not a relationship — the next Summit is November."""
-    assert summit_period() == "2026.08"
+    """Nov 4-5 2026, Fort Lauderdale, per the slide as printed.
+
+    Deliberately pinned to the slide currently in `build/assets/`: replacing the
+    asset must be a decision, not a side effect, so this test is meant to fail
+    when the slide changes and to be updated in the same commit. It did exactly
+    that on 2026-09-11 when the Boston slide (Aug 31 - Sep 1 2026, by then past)
+    was replaced with Fort Lauderdale.
+
+    That a deck's period sometimes matches this month is coincidence, not a
+    relationship — the reporting month comes from ARS_PERIOD or the filename.
+    """
+    assert summit_period() == "2026.11"
 
 
 @pytest.mark.parametrize("text,expected", [

@@ -1807,6 +1807,11 @@ import io as _io2
 from pptx.enum.shapes import MSO_SHAPE_TYPE as _MST
 from pptx.dml.color import RGBColor as _RGBn
 _bp = Presentation(OUT)
+# The Summit slide comes from build/assets/summit_slide.pptx like every other
+# program's, not from this shell's slide 2 (Aaron, 2026-09-11). The shells carried
+# their own copy, so replacing the Summit meant editing three templates and an
+# exported JPG, and the ARS decks kept advertising Boston after it had happened.
+import summit_slide as _ss; _ss.insert_summit_after_title(_bp)
 _NAVYnum = _RGBn(0x00, 0x27, 0x4C)
 LOGO_DATA = (11.28, 6.78, 1.70, 0.54)       # STYLE.md: data-slide logo (bottom-right)
 LOGO_SECTION = (0.71, 0.66, 1.90, 0.60)     # STYLE.md: section-heading logo (top-left)

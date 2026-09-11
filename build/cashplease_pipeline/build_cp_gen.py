@@ -810,6 +810,11 @@ def main():
         r.font.bold = True
         r.font.color.rgb = NAVY_RGB
 
+    # Same Summit slide as every other program, from build/assets/summit_slide.pptx
+    # rather than this shell's own copy (Aaron, 2026-09-11).
+    import summit_slide
+    summit_slide.insert_summit_after_title(prs)
+
     import fit_layout
     fit_layout.fit(prs)
     ac.renumber(prs)
