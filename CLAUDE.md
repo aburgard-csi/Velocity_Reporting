@@ -512,7 +512,9 @@ referrals-only, which is a valid deck.
 
 ```
 python scripts/watch_sources.py [--notify] [--dry-run] [--period 2026.09 ...]
-powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 [-Time 08:00] [-Unregister]
+python scripts/watch_sources.py --check-stale     # has the daily watch been running?
+powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 \
+        [-Time 08:00] [-Repo <checkout>] [-RetryHours 4] [-Unregister]
 ```
 
 `deck_status.py` answers "is it there now"; `watch_sources.py` answers "what
@@ -527,14 +529,43 @@ overrides) and the `clients.md` roster.
 
 State is bookkeeping, so it lives in `Build Artifacts/`:
 `source_watch.json` (the last inventory), `source_watch.log` (appended per run),
-`source_watch_latest.md` (the latest report). The first run is a baseline and
+`source_watch_latest.md` (the latest report), `source_watch_runs.json` (the run
+record — see below). The first run is a baseline and
 reports counts, not news. **Off VPN it exits 2 and leaves the saved inventory
 alone** — saving an empty one would make every file "new" the next morning.
+
+**A run that never happened writes nothing, so the check for it lives OUTSIDE the
+watch (2026-09-11).** On 09-09, -10 and -11 the 08:00 task was created by the
+scheduler and left SUSPENDED — zero CPU, no modules loaded, the interpreter never
+initialized — then killed at the execution limit. No log line, no report, no
+toast, and nothing in the pipeline knew for three days. A heartbeat inside the
+script could not have caught it; only something else asking could. So:
+
+- `watch_sources.run_health()` reads `source_watch_runs.json` and answers
+  `ok` / `stale` / `never`, measuring age from the last FINISH — a killed run
+  leaves a start with no finish, a run that never starts leaves neither.
+  **Outcome is ignored**: a run that found the shares down still RAN.
+- **`refresh_performance_dashboard.py` prints it every morning at 08:30**, on a
+  different scheduler, which is the point. The delivery dashboard banners it too.
+- `--check-stale` asks from anywhere and **scans nothing**, so it answers off VPN.
+- The trigger repeats hourly for four hours with `-WakeToRun`, and `--once-daily`
+  makes a repeat that follows a run which **reached the shares** exit at once. A
+  run that found the VPN down does not stop the later ones going to look.
+
+Do not "simplify" this by having the watch check its own health. That is the one
+thing it cannot do.
 
 `register_watch_task.ps1` schedules it as the Windows task **"RPE Source Watch"**,
 daily at 08:00 as the logged-on user (the share needs those credentials and the
 toast needs a desktop), catching up a missed run when the laptop wakes.
-Registered on this machine 2026-09-08. `--notify` raises a Windows toast only when
+Registered on this machine 2026-09-08, re-registered 2026-09-11 with the retry
+window, `-WakeToRun` and a 20-minute limit (short enough that a stuck fire is
+cleared before the next is due, or `MultipleInstances IgnoreNew` drops it).
+**`-Repo` points it at a checkout other than the one the script lives in** — a
+worktree has no `.venv` and no `.env` and cannot host the task. The script omits
+`--once-daily` when the target checkout does not know the flag, because it is
+routinely newer than the code it registers and an unrecognised argument would
+make every fire exit without checking anything. `--notify` raises a Windows toast only when
 there is news or the shares were unreachable; a quiet day is silent.
 
 **The daily run also reads the MAILBOX (Aaron, 2026-09-09).** Two kinds of input never
@@ -690,8 +721,8 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `build_month.py` — builds the monthly ARS/ICS/MRPC reviews for one period from the `clients.md` roster. Never emits Summit one-pagers.
 - `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
 - `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
-- `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**).
-- `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily.
+- `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**). Also keeps the run record and answers `--check-stale`.
+- `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily, with the morning retry window. `-Repo` targets a checkout other than its own.
 - `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
 - `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
 

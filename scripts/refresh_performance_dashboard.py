@@ -621,6 +621,25 @@ def summarize(dataset):
 
 
 # ------------------------------------------------------------------ main
+def watch_line():
+    """One line on whether the daily source watch is actually running.
+
+    This job and the source watch are on different schedulers — this one is a
+    Claude scheduled task, the watch is a Windows one — and that is the whole
+    point of reporting it here. On 2026-09-09, -10 and -11 the watch's 08:00
+    process was created and left suspended, never executing a line, so it wrote
+    no log, no report and no toast; three days passed before anyone noticed.
+    A check inside the watch cannot catch that. This one can, the next morning.
+    """
+    try:
+        import watch_sources as W
+        state, detail = W.run_health()
+    except BaseException as e:                       # never fail the refresh for it
+        return "source watch: unknown (%s: %s)" % (type(e).__name__, e)
+    label = {"ok": "ok", "stale": "STALE", "never": "NOT RUNNING"}.get(state, state)
+    return "source watch: %s — %s" % (label, detail)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Rebuild the RPE performance dashboard page.")
     ap.add_argument("--period", default=None, help="YYYY.MM (default: newest ARS workbook in Inputs/)")
@@ -667,6 +686,7 @@ def main(argv=None):
         period, len(dataset["clients"]), h[:12], (state.get("published_hash") or "-")[:12]))
     print(summarize(dataset))
     print("html " + str(work / "rpe_dashboard.html"))
+    print(watch_line())
     print("STATUS: " + ("changed" if changed else "unchanged"))
     return 0
 

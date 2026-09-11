@@ -82,6 +82,12 @@ KIND_ORDER = [ODDD, DCO, WORKBOOK, MRPCPM, ICS_WB, OTHER]
 STATE_NAME = "source_watch.json"
 LOG_NAME = "source_watch.log"
 REPORT_NAME = "source_watch_latest.md"
+RUNS_NAME = "source_watch_runs.json"
+
+# A daily run is late once the next morning's fire has come and gone. 26 hours
+# leaves room for the retry window and a drifting clock, and still flags a
+# single missed day rather than waiting for two.
+STALE_AFTER_HOURS = 26
 
 # SMB reports sub-second mtimes; a copy elsewhere may not. Anything under this
 # is the same landing, not a re-landing. A genuine re-land is hours or days apart.
@@ -521,6 +527,145 @@ def write_state(doc, path=None):
     return p
 
 
+# ------------------------------------------------------------------ run record
+# The run record is how anything OUTSIDE this process can tell "the watch ran
+# and there was no news" from "the watch did not run". In `source_watch.log`
+# those are the same thing: the log is only ever written by a run that got far
+# enough to write it.
+#
+# 2026-09-09, -10 and -11 is why it exists. The 08:00 task was created by the
+# scheduler and left SUSPENDED — zero CPU, no modules loaded, 2.4 MB peak
+# working set: the interpreter never initialized — and was killed at the
+# 30-minute limit three mornings running. Nothing was written because no code
+# ran, so nothing noticed for three days. An entry line inside this script
+# would not have caught that either; only a check somewhere else can, which is
+# what `run_health` is for. `refresh_performance_dashboard.py` (a separate
+# daily task, on a different scheduler) reports it every morning at 08:30.
+def runs_path():
+    return str(R.build_artifacts() / RUNS_NAME)
+
+
+def read_runs(path=None):
+    """The run record, or {} when there is none.
+
+    A damaged record is NOT fatal here, unlike a damaged inventory: this is
+    bookkeeping ABOUT runs, not data a report is derived from, and refusing to
+    run the daily check because its own logbook is corrupt would be the wrong
+    trade. It reads as unknown — never as healthy.
+    """
+    p = path or runs_path()
+    try:
+        with open(p, encoding="utf-8") as fh:
+            d = json.load(fh)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError):
+        return {"damaged": True}
+    return d if isinstance(d, dict) else {"damaged": True}
+
+
+def _write_runs(doc, path=None):
+    p = path or runs_path()
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=1, ensure_ascii=False)
+        fh.write("\n")
+    os.replace(tmp, p)
+    return p
+
+
+def _stamp(now=None):
+    return (now or _dt.datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def record_start(argv, path=None, now=None):
+    """Stamp the start of a run. Never raises: a check must not die for want of
+    somewhere to put its own bookkeeping (the same rule `build_artifacts` follows)."""
+    try:
+        doc = read_runs(path)
+        doc.pop("damaged", None)
+        doc["last_started"] = _stamp(now)
+        doc["last_started_argv"] = list(argv)
+        doc["last_started_pid"] = os.getpid()
+        return _write_runs(doc, path)
+    except (OSError, ValueError):
+        return None
+
+
+def record_finish(outcome, path=None, now=None):
+    """Stamp a run that got through the share check and wrote its report.
+
+    Written BEFORE the mail step, for the same reason the log and report are:
+    the mail step can time out, and a share check that finished is a run that
+    finished.
+    """
+    try:
+        doc = read_runs(path)
+        doc.pop("damaged", None)
+        doc["last_finished"] = _stamp(now)
+        doc["last_outcome"] = outcome
+        return _write_runs(doc, path)
+    except (OSError, ValueError):
+        return None
+
+
+def _parse_stamp(s):
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return _dt.datetime.strptime(s, fmt)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def run_health(now=None, path=None, stale_after=STALE_AFTER_HOURS):
+    """(state, detail) for "has the daily watch actually been running?"
+
+        ok      a run completed within `stale_after` hours
+        stale   the last completed run is older than that
+        never   no run has ever completed, or the record is unreadable
+
+    Age is measured from the last FINISH, not the last start: a run that is
+    killed part way leaves a start with no finish, and a run that never starts
+    at all leaves neither. Both must read as "not running".
+
+    Outcome is deliberately not consulted. A run that found the shares down
+    still RAN — that is the VPN's news, not this check's — and
+    `completed_today` is the one that cares about the outcome.
+    """
+    now = now or _dt.datetime.now()
+    doc = read_runs(path)
+    if doc.get("damaged"):
+        return "never", "the run record is unreadable"
+    fin = _parse_stamp(doc.get("last_finished"))
+    started = _parse_stamp(doc.get("last_started"))
+    if fin is None:
+        if started is not None:
+            return "never", ("a run started %s and never finished"
+                             % started.strftime("%Y-%m-%d %H:%M"))
+        return "never", "no run has ever been recorded"
+    hours = (now - fin).total_seconds() / 3600.0
+    detail = "last completed %s (%.1f h ago)" % (fin.strftime("%Y-%m-%d %H:%M"), hours)
+    if started is not None and started > fin:
+        detail += ("; a later run started %s and did not finish"
+                   % started.strftime("%Y-%m-%d %H:%M"))
+    return ("stale" if hours > stale_after else "ok"), detail
+
+
+def completed_today(now=None, path=None):
+    """Has a run already reached the shares today? The retry fires ask this.
+
+    Reaching the shares is the bar, not merely finishing: a run that found the
+    VPN down did its job and reported honestly, but it copied nothing, so the
+    later fires in the retry window must still go and look.
+    """
+    now = now or _dt.datetime.now()
+    doc = read_runs(path)
+    fin = _parse_stamp(doc.get("last_finished"))
+    return (fin is not None and fin.date() == now.date()
+            and doc.get("last_outcome") == "reachable")
+
+
 # ------------------------------------------------------------------ report
 def _roster():
     try:
@@ -788,14 +933,37 @@ def main(argv=None):
                          "the two senders that email them (scripts/mail_sources.py)")
     ap.add_argument("--mail-days", type=int, default=None,
                     help="how far back to read the mailbox (default 30)")
+    ap.add_argument("--once-daily", action="store_true",
+                    help="do nothing if a run already reached the shares today "
+                         "(what the retry fires after the 08:00 one pass)")
+    ap.add_argument("--check-stale", action="store_true",
+                    help="report whether the daily watch has been running, and "
+                         "exit non-zero if it has not; checks nothing else")
     a = ap.parse_args(argv)
     # A cp1252 console must not kill a scheduled run over an em dash.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
+    # Asks only "has this watch been running?", so it comes before everything
+    # that touches a share — it has to answer on a machine that is off the VPN.
+    if a.check_stale:
+        state, detail = run_health()
+        print("source watch: %s — %s" % (state, detail))
+        return 0 if state == "ok" else 1
+
     periods = a.period or periods_to_watch()
     for p in periods:
         if not DS._period_ok(p):
             raise SystemExit("period must be YYYY.MM, got %r" % p)
+
+    if a.once_daily and completed_today():
+        print("source watch already reached the shares today; nothing to do.")
+        return 0
+
+    # Before the first share call, so a run that is killed part way leaves a
+    # start with no finish rather than no trace at all. A dry run is not the
+    # daily run and does not stamp one.
+    if not a.dry_run:
+        record_start(sys.argv[1:] if argv is None else list(argv))
 
     previous = read_state()
     result = check(periods, previous, use_drive=not a.no_inputs)
@@ -848,6 +1016,7 @@ def main(argv=None):
         if result["reachable"]:
             write_state(result["next_state"])
             print("saved " + state_path())
+        record_finish("reachable" if result["reachable"] else "unreachable")
 
     mail_text = ""
     if a.mail:

@@ -136,6 +136,29 @@ def chip(row):
         cls, html.escape(tip), html.escape(row["input"]))
 
 
+def watch_banner():
+    """A banner when the daily source watch has stopped running, else "".
+
+    The watch cannot report its own silence — a run that never starts writes
+    nothing — so the check has to live outside it. See watch_sources.run_health.
+    """
+    try:
+        import watch_sources as W
+        state, detail = W.run_health()
+    except BaseException:
+        return ""                       # never break the dashboard over this
+    if state == "ok":
+        return ""
+    what = ("has never completed a run" if state == "never"
+            else "has stopped running")
+    return ('<div class="banner warn"><b>The daily source watch %s</b> &mdash; %s. '
+            'Nothing has been copied from the shares in the meantime, so an input '
+            'below may read as missing when the data team has in fact landed it. '
+            'Check the Windows task &ldquo;RPE Source Watch&rdquo;, or run '
+            '<code>scripts/watch_sources.py --check-stale</code>.</div>'
+            % (html.escape(what), html.escape(detail)))
+
+
 def render(doc):
     p = doc["period"]
     cs = doc["clients"]
@@ -160,6 +183,12 @@ def render(doc):
                   'Connect the VPN and refresh to see what has landed.</div>')
     else:
         banner = ""
+
+    # A stale watch is not the same complaint as a down VPN, and it changes what
+    # the input columns MEAN: if nothing has copied for days, "not copied" below
+    # may be the watch's silence rather than the data team's. Shown alongside,
+    # never instead — both can be true at once.
+    banner += watch_banner()
 
     rows = []
     for c in cs:
