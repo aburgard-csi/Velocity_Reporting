@@ -9,10 +9,12 @@ import os
 import re
 import pytest
 from pptx import Presentation
+from pptx.util import Inches
 import slide_geometry as sg
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPL = os.path.join(REPO, "templates")
+NUDGE = Inches(0.5)   # enough to move a shape out of every rule's target
 
 
 def geometry(prs):
@@ -21,7 +23,25 @@ def geometry(prs):
 
 
 def changed_slides(name):
+    """Slides a rule acts on, measured from a DELIBERATELY WRONG starting geometry.
+
+    This used to load the shell and count what `apply()` moved, which silently
+    depended on the shells being non-conformant. On 2026-09-11 the contract was
+    applied to `ars_template.pptx` and saved — the shells had never had it, so
+    they failed rules every built deck passed — and this read 0 and called it
+    "an ARS rule stopped matching". A conformant shell is the goal, not a defect.
+
+    Nudging every shape first separates the two questions. What it asks now is
+    whether the rules still FIRE — which is what the canary was ever for — and
+    the answer no longer moves when a shell is brought up to date.
+    """
     p = Presentation(os.path.join(TPL, f"{name}_template.pptx"))
+    for s in p.slides:
+        for sh in s.shapes:
+            if sh.left is not None:
+                sh.left = sh.left + NUDGE
+            if sh.top is not None:
+                sh.top = sh.top + NUDGE
     before = geometry(p)
     sg.apply(p)
     return sum(1 for a, b in zip(before, geometry(p)) if a != b)
@@ -32,6 +52,17 @@ def test_contract_acts_on_ars():
     assert changed_slides("ars") > 0
 
 
+def test_the_ars_shell_already_satisfies_the_contract():
+    """The shipped shell is what the gate validates, and the builders apply the
+    contract — so a shell that needs it is a shell that fails rules no built deck
+    fails. That is exactly how the reworded Reg E sentence left both shells at
+    1 FAIL while every deck passed (2026-09-11). Applying it must be a no-op."""
+    p = Presentation(os.path.join(TPL, "ars_template.pptx"))
+    before = geometry(p)
+    sg.apply(p)
+    assert geometry(p) == before, "ars_template.pptx is behind the geometry contract"
+
+
 @pytest.mark.parametrize("program", ["ics", "mrpc"])
 def test_contract_is_inert_on_other_programs_today(program):
     """Every rule is keyed on an ARS title, so ICS/MRPC are untouched.
@@ -39,6 +70,9 @@ def test_contract_is_inert_on_other_programs_today(program):
     This is not a rule that they MUST stay untouched — it records that the seam
     is safe to call. When an ICS or MRPC rule is added, update this test rather
     than routing around the contract.
+
+    Checked against perturbed geometry too, so it says "no rule fires here",
+    not merely "these shells happen to be in the right place already".
     """
     assert changed_slides(program) == 0
 

@@ -14,7 +14,7 @@ Identify the program from the request, then dispatch to the one matching subagen
 | ARS, Account Revenue Solution, mailings, Lift Matrix, Reg E, debit take rate | ARS | `ars-deck` |
 | ICS, Invitation Checking, referrals, mystery shop, ROI per account | ICS | `ics-deck` |
 | MRPC, MyRewards Premium Cards, enrollments, Gold/Platinum tiers | MRPC | `mrpc-deck` |
-| CashPlease, CP, small-dollar loans, loans per 1,000 DDAs | CashPlease | no agent yet — the pipeline is `C:\Projects\CashPlease` (see `clients.md` "CashPlease") |
+| CashPlease, CP, small-dollar loans, loans per 1,000 DDAs | CashPlease | `cashplease-deck` |
 | ILS analysis review, prep slides, matrix parameters / overrides | ILS prep (not an RPE build) | the `ils-prep-deck` skill |
 
 If a request names a client but not a program, ask which program before building. If it
@@ -261,7 +261,7 @@ data. Skip with `--no-tests` only when you know why.
 ```
 python3 validation/qa_all.py [built_deck.pptx ...]        # gate: validates every template + given decks
 python3 validation/qa_all.py --snapshot ...               # accept INTENTIONAL layout changes as the new baseline
-python3 validation/qa_all.py --no-render ...              # skip the render smoke test (faster; use sparingly)
+python3 validation/qa_all.py --no-tests ...               # skip the unit suite (know why)
 ```
 
 Run it from the repo `.venv` (`.venv/Scripts/python` on Windows). The Windows Store
@@ -277,23 +277,35 @@ caption overflow, PowerPoint autofit shrink, chart-vs-tile rail) AND compares ea
 layout fingerprint against `validation/layout_baseline.json` — **DRIFT warnings mean a shared
 pass touched slides you didn't intend to change** (the class of regression that otherwise
 only a human spots). Review drifts, then `--snapshot` to accept. It also runs an **OOXML
-package-integrity check** and a **render smoke test** (opens each deck in LibreOffice and
-compares the PDF page count to the slide count). The render test needs `soffice` on PATH;
-without it the gate now says so **loudly**, per deck and in a summary banner (2026-08-27 — it
-used to be silent on skip *and* on success, so a machine with no LibreOffice reported a clean
-gate while the one check that proves a deck opens had never run). Three hard-won rules:
-1. **LibreOffice renders are not PowerPoint.** `normAutofit` font-scaling is invisible in
-   soffice renders — the validator FAILs any frame with fontScale <90%; never trust nominal
-   font sizes on template-inherited frames.
+package-integrity check** (`validate_deck.package_findings`): the archive opens and every
+member passes its CRC, no part name is written twice, and slide parts are neither duplicated,
+dangling nor orphaned.
+
+**There WAS a render smoke test — LibreOffice opened each deck and its PDF page count was
+compared to the slide count. It was REMOVED on 2026-09-11 (Aaron): LibreOffice is not going
+on the build machine, so the check had never once run there** and every gate closed with a
+banner saying so. Do not add it back without the renderer to run it.
+
+**Know what its removal costs.** Nothing in the gate now proves a deck OPENS. The structural
+half is recovered by the package check above — including the duplicate-part case, added the
+same day after cloning the Summit slide wrote `/ppt/media/image2.png` twice. What is NOT
+recovered is everything past "structurally sound": a deck that opens but renders wrong, a
+font that does not resolve, an image that will not decode. **Open one deck before a batch
+goes to clients.** Three hard-won rules:
+1. **Nominal font size is not rendered font size.** `normAutofit` silently shrinks text to
+   fit its box, and that scaling is invisible in a render — which is part of why a renderer
+   was never the whole answer. The validator FAILs any frame with fontScale <90%; never trust
+   nominal font sizes on template-inherited frames.
 2. **Box geometry is not glyph geometry.** Text overflows its box silently; the validator
    estimates rendered glyph runs (font-size- and alignment-aware). When adding layout rules,
    fix the BUILDER/geometry contract (slide_geometry.py, fit_layout.py) — never hand-edit
    one deck.
 3. **python-pptx is not the file.** Every text/geometry rule reads the deck *through*
    python-pptx, which enumerates a duplicated slide reference as two real slides. All seven
-   2026.08 ICS decks passed at 0 FAIL while being unopenable in LibreOffice (50 parts, 28
-   references, six parts referenced twice). Package integrity and "does it actually open"
-   are now checked directly — added 2026-08-17 after that shipped.
+   2026.08 ICS decks passed at 0 FAIL while being unopenable (50 parts, 28 references, six
+   parts referenced twice). `package_findings` reads the ZIP directly and is the only thing
+   in the gate that can see that class of defect — added 2026-08-17 after it shipped, and
+   the last line of defence since the render test was removed.
 
 **Swap gate — a text swap that matches nothing FAILS the build (2026-07-25).** The ARS
 builder records every find-string that matched no shape and exits non-zero listing them. This
@@ -402,8 +414,8 @@ where half the cases are the false positives that had to be designed out.
 
 ## Cadence
 
-All three programs deliver **monthly** — one deck per client per month, per the table
-below. Nothing in this table is quarterly: where a quarterly input exists (the ICS
+ARS, ICS and MRPC deliver **monthly** — one deck per client per month, per the table
+below. **CashPlease is weekly**, and is the exception to everything in this paragraph. Nothing in this table is quarterly: where a quarterly input exists (the ICS
 workbook) it gates which SECTIONS carry current figures, never whether the deck ships.
 The Executive Summit one-pagers are a separate, non-monthly delivery — see
 **Executive Summit one-pagers** below.
@@ -412,6 +424,7 @@ The Executive Summit one-pagers are a separate, non-monthly delivery — see
 | --- | --- | --- |
 | ARS | Monthly | Every ARS client, each month — MM or SM path per client |
 | MRPC | Monthly | Every MRPC client, each month |
+| CashPlease | **Weekly** | The one program that is not monthly. Bradford Sanders' "CashPlease Summary" workbook arrives weekly and the build **always uses the most recent one** (Aaron, 2026-09-01) — not the one nearest a deck's period. So a CashPlease section inside a monthly Executive Review can report a LATER date than the ARS/ICS/MRPC sections beside it, and that is intended: the CP pill keeps its own `PTD · <date>` and is never re-dated to match its neighbours. `assemble_combined.py` prints each section's period so the divergence is visible at build time. Scope is the `### CashPlease roster` table in `clients.md` — never the workbook, which carries every Velocity CashPlease client across all CSMs. |
 | ICS | Monthly | **The ICS deck ships monthly like the other two (Aaron, 2026-08-31)** — what is quarterly is the WORKBOOK, not the delivery. Referrals come from VIP monthly. **Financial detail ships ONLY when the ICS workbook is for the deck's own period (Aaron, 2026-08-28).** This REPLACES the previous carry-forward rule: a monthly build used to carry the last workbook's financial sections forward, which kept them auditable in the source notes but dated them as current on the slide face — 1537 and 1676 both stamped "PTD · August 2026" on figures from 2026.06 and 2026.07 workbooks. The builder now resolves the newest ICS workbook for the client from `Inputs/ARS & MRPC Reports/` and, if its period differs from the deck's, omits the workbook-driven sections entirely. Referrals, Referral Trend, Results by Branch and the education slides are unaffected. Missing-section guard still stops a build whose data sheet was never populated. |
 
 **ICS before the first workbook — referrals-only builds (Aaron, 2026-08-27).** A client can be
@@ -674,8 +687,8 @@ sparklines, and a deck roster. It is a static page with its dataset embedded.
 deck builders read (ARS workbooks + DCOs through the ARS extractors, mailing response
 from the shipped deck's figure sidecar, the VIP ICS / MRPC sheets, the newest
 MRPCEnrollmentSummary and CashPleaseSummary weeklies — the last through the
-CashPlease repo's own `cp_extract.py`, found via `CASHPLEASE_HOME` or the sibling
-checkout), injects it into `scripts/perf_dashboard_template.html`, and writes the
+in-repo `build/cashplease_pipeline/cp_extract.py`, so the page and the CashPlease
+decks are computed once), injects it into `scripts/perf_dashboard_template.html`, and writes the
 page and its bookkeeping to `Build Artifacts/perf_dashboard/`. **The period is the
 newest ARS workbook in `Inputs/`**, so the page rolls forward when a month's workbooks are
 copied, not before. **Within that cycle every client shows its own newest figures**
@@ -725,7 +738,9 @@ This is the readme index — update it whenever files are added, removed, or mov
   move a client-facing number or its source", and that reading kept the MRPC
   invisible-retention-line fix out of the file entirely.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
-- `docs/` — `PRD-2026-08-26-repo-portability-and-response-rates.md`.
+- `docs/` — the PRDs: `PRD-2026-08-26-repo-portability-and-response-rates.md`,
+  `PRD-2026-09-11-rpe-client-performance-artifact.md` (the cross-client performance page:
+  what it is for, where each figure comes from, and why the script never publishes).
 
 **`scripts/`**
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
@@ -787,7 +802,14 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
   substitute a missing face. Every chart renderer goes through it.
-- `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`, `Velocity Executive Summit.jpg`.
+- `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`.
+  **`summit_slide.pptx` is the ONE Summit slide** (Aaron, 2026-09-11): every builder
+  clones it, and `summit_date()` reads its printed date, so replacing the Summit is one
+  file. It used to be two — ICS/MRPC stamped a flat `Velocity Executive Summit.jpg`
+  while ARS/CashPlease carried their own copy in their template shells, so the slide
+  could only be replaced with PowerPoint, and every 2026.09 deck went out naming a
+  Summit that had already happened. Drop the new `.pptx` here (or at
+  `Inputs/Summit/summit_slide.pptx`, which wins when present) and rebuild.
 - `README.md` — build/ layout notes (incl. the SM-vs-MM revenue-model extractor notes).
 
 **`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`,
@@ -802,8 +824,7 @@ from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data —
 
 
 **`validation/`** — `validate_deck.py` (pre-ship lint gate, 0 FAIL to ship), `qa_all.py`
-(the full gate: every template + given decks, package integrity, render smoke test, layout
-drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accept).
+(the full gate: every template + given decks, package integrity, layout drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accept).
 **`fonts/`** — Montserrat (headings) and Carlito (Calibri-metric, charts), both bundled and
 embedded. `rpe_env.use_font` RAISES rather than let matplotlib substitute a missing face.
 

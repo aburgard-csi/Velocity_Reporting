@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """qa_all.py — the one-command QA gate for the whole deck project.
 
-    python3 validation/qa_all.py [deck.pptx ...] [--snapshot] [--no-render] [--no-tests]
+    python3 validation/qa_all.py [deck.pptx ...] [--snapshot] [--no-tests]
                                  [--extract base.json]
 
-Runs on every template in templates/ plus any decks given, in four steps:
+Runs on every template in templates/ plus any decks given, in three steps:
 
   0. The unit suite (`pytest tests/`). Deck rules check a BUILT deck; these check
      the logic that builds it — classifiers, the ODD row vocabulary, metrics
@@ -18,16 +18,24 @@ Runs on every template in templates/ plus any decks given, in four steps:
   2. Layout-fingerprint drift: each slide's shape layout (kind, box, font sizes)
      against validation/layout_baseline.json. DRIFT means a shared pass touched a
      slide you did not intend to change — review, then --snapshot to accept.
-  3. Render smoke test: LibreOffice opens each deck and converts it to PDF, and
-     the page count is compared to the slide count. This is the only check that
-     proves the file actually OPENS — steps 1 and 2 read the deck through
-     python-pptx, which cannot see a malformed package. --no-render skips it.
+There WAS a fourth step: LibreOffice opened each deck and its PDF page count was
+compared to the slide count — the only check that proved a file actually OPENS.
+It was removed on 2026-09-11 because LibreOffice is not going on the build machine
+(Aaron), so it had never once run there and every gate closed with a banner saying
+so.
 
-A skipped step is reported LOUDLY, per deck and in a closing banner. The gate
-used to be silent on a skipped render, and a machine with no LibreOffice reported
-a clean gate while seven unopenable 2026.08 ICS decks sat at 0 FAIL (2026-08-27).
-The unit suite gets the same treatment: the Windows Store python has no pytest,
-so the gate looks for the repo's own .venv interpreter first.
+**Know what that costs.** Steps 1 and 2 read the deck THROUGH python-pptx, which
+cannot see a malformed package, and that is not a hypothetical: seven 2026.08 ICS
+decks passed at 0 FAIL while being unopenable. What is recoverable without a
+renderer now lives in validate_deck.package_findings — duplicate, dangling and
+orphaned slide parts, any part name written twice, and a CRC check on every member.
+What is NOT recoverable is everything past "structurally sound": a deck that opens
+but renders wrong, a font that does not resolve, an image that will not decode.
+Open a deck before it goes to a client.
+
+A skipped step is still reported LOUDLY, per deck and in a closing banner: the
+Windows Store python has no pytest, and a gate started under it used to skip the
+whole unit suite with one quiet line.
 
 Exit 0 = gate passed (no FAILs). Drift is a warning, never a failure.
 
@@ -38,7 +46,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -77,28 +84,6 @@ def _python():
     return sys.executable
 
 
-def _find_soffice():
-    """Locate LibreOffice. PATH first, then the standard install locations.
-
-    macOS ships it as an .app bundle and does NOT put `soffice` on PATH, so a
-    shutil.which() lookup alone reported "no soffice" on a machine that has
-    LibreOffice installed (Aaron, 2026-08-28). Override with RPE_SOFFICE.
-    """
-    env = os.environ.get("RPE_SOFFICE")
-    if env and os.path.exists(env):
-        return env
-    found = shutil.which("soffice") or shutil.which("libreoffice")
-    if found:
-        return found
-    for c in ("/Applications/LibreOffice.app/Contents/MacOS/soffice",
-              os.path.expanduser("~/Applications/LibreOffice.app/Contents/MacOS/soffice"),
-              "/opt/homebrew/bin/soffice", "/usr/local/bin/soffice",
-              "/usr/bin/soffice", "/usr/bin/libreoffice",
-              r"C:\Program Files\LibreOffice\program\soffice.exe",
-              r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"):
-        if os.path.exists(c):
-            return c
-    return None
 
 
 # ---------------------------------------------------------------- steps
@@ -183,49 +168,6 @@ def drift(old, new):
     return 0, ""
 
 
-def render_check(path):
-    """Step 3. Returns (ok, message); skipped (ok) when soffice is not installed.
-
-    Added 2026-08-17: every text/geometry rule reads the deck THROUGH python-pptx,
-    which will happily enumerate a duplicated slide reference twice — so seven
-    structurally broken ICS decks passed at 0 FAIL while LibreOffice could not
-    open them. Rendering is the only check that proves the file opens, and the
-    page count proves the deck contains the slides it claims.
-    """
-    soffice = _find_soffice()
-    if not soffice:
-        return True, "render skipped (no soffice)"
-    try:
-        from pptx import Presentation
-        n_slides = len(Presentation(path).slides)
-    except Exception as e:
-        return False, f"python-pptx cannot open the deck: {e}"
-    tmp = tempfile.mkdtemp(prefix="qa_render_")
-    try:
-        # copy to a plain ASCII path — soffice fails on some mounted/odd names
-        src = os.path.join(tmp, "deck.pptx")
-        shutil.copyfile(path, src)
-        p = subprocess.run([soffice, "-env:UserInstallation=file://" + os.path.join(tmp, "lo"),
-                            "--headless", "--convert-to", "pdf", "--outdir", tmp, src],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=300)
-        pdf = os.path.join(tmp, "deck.pdf")
-        if not os.path.exists(pdf):
-            err = (p.stderr or p.stdout or "").strip().splitlines()
-            return False, ("renderer could not open the deck"
-                           + (f" — {err[-1][:90]}" if err else ""))
-        try:
-            pages = len(re.findall(rb"/Type\s*/Page\b", open(pdf, "rb").read()))
-        except Exception:
-            pages = None
-        if pages and pages != n_slides:
-            return False, f"rendered {pages} pages but the deck reports {n_slides} slides"
-        return True, f"renders ({pages if pages else '?'} pages)"
-    except subprocess.TimeoutExpired:
-        return False, "renderer timed out"
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-
 
 # ---------------------------------------------------------------- main
 def _args(argv):
@@ -234,7 +176,6 @@ def _args(argv):
     ap.add_argument("decks", nargs="*", help="built decks to gate, in addition to every template")
     ap.add_argument("--snapshot", action="store_true",
                     help="accept the current layouts as the new drift baseline")
-    ap.add_argument("--no-render", action="store_true", help="skip the LibreOffice open/page-count check")
     ap.add_argument("--no-tests", action="store_true", help="skip the unit suite")
     ap.add_argument("--extract", help="base_extract.json to cross-check the given decks against")
     return ap.parse_args(argv)
@@ -251,7 +192,7 @@ def main(argv=None):
     targets = [os.path.join(TPL, f) for f in sorted(os.listdir(TPL)) if f.endswith(".pptx")] + a.decks
     baseline = json.load(open(BASE, encoding="utf-8")) if os.path.exists(BASE) else {}
     newbase, fails, drifts = {}, 0, 0
-    skipped_render = skipped_tests = False
+    skipped_tests = False
 
     if a.no_tests:
         print("unit suite: skipped by request (--no-tests)")
@@ -273,14 +214,6 @@ def main(argv=None):
             drifts += n
             if dmsg:
                 msg += "  " + dmsg
-        if not a.no_render:
-            ok, rmsg = render_check(t)
-            if not ok:
-                fails += 1
-                msg += f"  [RENDER FAIL: {rmsg}]"
-            elif rmsg.startswith("render skipped"):
-                skipped_render = True
-                msg += f"  [{rmsg}]"
         print(msg)
         for l in fail_lines:
             print("     " + l)
@@ -288,13 +221,6 @@ def main(argv=None):
     if a.snapshot:
         json.dump(newbase, open(BASE, "w", encoding="utf-8"), indent=0)
         print(f"\nbaseline snapshot saved ({len(newbase)} decks)")
-    if skipped_render:
-        print("\n!!  RENDER CHECK SKIPPED: LibreOffice (soffice) is not installed, so \"does this\n"
-              "    deck actually open\" was NOT verified. Every text and geometry rule reads the\n"
-              "    deck THROUGH python-pptx, which cannot see a malformed package. Install\n"
-              "    LibreOffice, or pass --no-render to skip it deliberately.")
-    elif a.no_render:
-        print("\n!!  --no-render: the deck-opens check was skipped by request.")
     if skipped_tests and not a.no_tests:
         print("\n!!  UNIT SUITE SKIPPED: no interpreter with pytest was found (tried this python\n"
               "    and the repo .venv). The gate proved nothing about the builders' logic.")

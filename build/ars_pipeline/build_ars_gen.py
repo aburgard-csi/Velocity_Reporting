@@ -894,11 +894,33 @@ set_exact(S[23], "+4.3%", card_growth)
 repl(S[23], {"(6.8K → 7.1K)": card_range})
 set_exact(S[23], "$9.3M", monthly_spend)
 set_exact(S[23], "+11%", spend_yoy)
+# The Spend YoY FIGURE is derived (above); its caption was not, so the tile read
+# "(Jun 25 → Jun 26)" over a number comparing Aug 25 to Aug 26. Same shape as
+# the Items YoY caption on the next slide: two-digit years, so neither the as-of
+# pass nor the stale-caption gate could see it (Aaron, 2026-09-10).
+_sp_win = ("(%s → %s)" % (_ld.replace(year=_ld.year-1).strftime('%b %y'),
+                              _ld.strftime('%b %y'))) if jun25 else "(no prior year in extract)"
+repl(S[23], {"(Jun 25 → Jun 26)": _sp_win})
 
 # ============================ SLIDE 25 — NSF/OD
 set_exact(S[24], "2,360", f"{M['nsf_last_items']:,}")
 set_exact(S[24], "725", f"{M['nsf_last_accts']:,}")
-set_exact(S[24], "-1%", f"{'+' if M['nsf_yoy']>=0 else ''}{M['nsf_yoy']}%")
+# The two dated tile captions here are NOT reached by the as-of pass: "(June)" has
+# no year and "(Jun 25 \u2192 Jun 26)" uses two-digit years, so both slipped past the
+# stale-caption gate and shipped the reference client's months. They are swapped
+# from the snapshot and from the window the YoY figure actually compared.
+repl(S[24], {"NSF/OD (June)": f"NSF/OD ({AS_OF_LONG})"})
+_nsf_yoy = M.get('nsf_yoy')
+_nsf_win = M.get('nsf_yoy_window')
+if _nsf_yoy is None:
+    # Stated, never zeroed: this extract carries no same-month row a year back.
+    print("!! NSF/OD: no same-month-a-year-earlier row in this extract "
+          "(%d months) — the Items YoY tile reads n/a" % len(M['nsf_series']))
+    set_exact(S[24], "-1%", "n/a")
+    repl(S[24], {"(Jun 25 \u2192 Jun 26)": "(no prior year in extract)"})
+else:
+    set_exact(S[24], "-1%", f"{'+' if _nsf_yoy>=0 else ''}{_nsf_yoy}%")
+    repl(S[24], {"(Jun 25 \u2192 Jun 26)": f"({_nsf_win[0]} \u2192 {_nsf_win[1]})"})
 
 # ============================ SLIDE 27 — Reg E all
 repl(S[26], {"all open personal accounts holding a debit card (6,192)": f"all open personal accounts holding a debit card ({rege_pool})",
@@ -1785,6 +1807,11 @@ import io as _io2
 from pptx.enum.shapes import MSO_SHAPE_TYPE as _MST
 from pptx.dml.color import RGBColor as _RGBn
 _bp = Presentation(OUT)
+# The Summit slide comes from build/assets/summit_slide.pptx like every other
+# program's, not from this shell's slide 2 (Aaron, 2026-09-11). The shells carried
+# their own copy, so replacing the Summit meant editing three templates and an
+# exported JPG, and the ARS decks kept advertising Boston after it had happened.
+import summit_slide as _ss; _ss.insert_summit_after_title(_bp)
 _NAVYnum = _RGBn(0x00, 0x27, 0x4C)
 LOGO_DATA = (11.28, 6.78, 1.70, 0.54)       # STYLE.md: data-slide logo (bottom-right)
 LOGO_SECTION = (0.71, 0.66, 1.90, 0.60)     # STYLE.md: section-heading logo (top-left)

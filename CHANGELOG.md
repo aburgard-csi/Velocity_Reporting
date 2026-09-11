@@ -17,6 +17,291 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — build-order audit: a duplicate pass, a stale deck picker, and the Summit gap
+
+**ARS decks were restyled twice.** `build_ars_gen` runs `restyle_fonts` and then its
+branding, geometry and layout-fit passes before saving; `build_month` ran `restyle_fonts`
+AGAIN on the finished file. Measured on a delivered 49-slide deck the second pass changed
+nothing on any slide — a subprocess and a full load/save per ARS client for a no-op — and
+it re-applied font roles after `fit_layout` had clamped them. ICS and MRPC never had it,
+so ARS was the odd one out. Removed.
+
+**`promote_month` could not pick a CashPlease combined deck.** Its combined-deck test was
+three literals — `("ARS-ICS", "ARS-MRPC", "ICS-MRPC")` — written before CashPlease became
+the fourth program. An `ICS-CP` deck matched none of them and fell through to the "most
+slides wins" tiebreak, which picked the right file for 1632 and 1734 by luck rather than
+by rule. `program_tags()` now derives them from the filename convention, and a combined
+deck with MORE programs wins, so `ARS-ICS-MRPC-CP` beats `ARS-ICS` when both are staged.
+
+**...and could not be imported, which is why that went unnoticed.** It read `sys.argv[1]`
+at module scope and did the whole job there, so importing it RAN it — the hazard CLAUDE.md
+names for `metrics_gen`. Nothing could import the module to test `deliverable()`, so the
+stale tag list had no test to fail. Restructured behind `main()`.
+`tests/test_entry_points.py` now pins the class rather than the instance across all eight
+drivers: resolve siblings from `__file__` and never the home directory, no `sys.argv` at
+module scope, and a `__main__` guard.
+
+**QA gap — nothing failed a deck advertising a Summit that had already happened.** All
+eighteen delivered 2026.09 decks named a Summit eleven days gone.
+`summit_slide.summit_period()` warned on stderr, but only when a build called it for a
+reporting month, and a warning in a build log is not a gate.
+`validate_deck.summit_date_findings` reads the slide in every deck. It is **REVIEW, not
+FAIL, deliberately**: a deck built the day before an event is indistinguishable from one
+built the day after it ended, and a rebuild of an older period must not be blocked.
+
+**The template shells still carried the Boston slide.** `ars_template.pptx`,
+`cashplease_template.pptx` and `multi-product_reference_deck.pptx` were stale on slide 2.
+Built decks were correct — the builders replace it from the asset — but the shells are
+what the gate validates, and the new rule caught all three. Refreshed through
+`insert_summit_after_title`, the same one source the builders use. Baseline re-snapshotted.
+
+**No checks were removed.** Counting findings per rule across eleven decks and templates,
+13 of 17 produced zero — which is the PASSING state for a FAIL-level rule on a clean
+corpus, not evidence of dead code. Deleting them would delete the checks that keep the
+corpus clean.
+
+**Known and NOT changed:** the ARS build streams the ODD three times — `oddd_optimize`
+(10s), `metrics_gen` (9s) and `build_ars_gen` again, on True Sky's 49 MB extract out of a
+70s build. Consolidating is a real refactor: these were re-implemented standalone once
+before and drifted, which is why they now share `odd_rows.py`. It needs a decision, not a
+drive-by.
+
+### 2026-09-11 — the Summit slide's date banner is navy
+
+The band behind "Fort Lauderdale, FL · November 4-5, 2026" arrived a medium blue that is
+not in the palette (Aaron). It is now `brand.NAVY` (#00274C), read from `build/brand.py`
+rather than typed in, so it moves if the palette does. Both runs on it keep their colours
+and stay legible: the venue is orange, the date is BACKGROUND_1 (white).
+
+Only the fill changed — no geometry, no text. **Decks were NOT rebuilt** (Aaron: "on the
+next run"), so the eighteen delivered 2026.09 decks still carry the blue band and the next
+rebuild picks this up.
+
+### 2026-09-11 — the LibreOffice render check is gone; the package check absorbs what it can
+
+**Removed, deliberately** (Aaron): LibreOffice is not going on the build machine, so
+`qa_all.py`'s render smoke test — open each deck, convert to PDF, compare the page count
+to the slide count — had never once run there. Every gate closed with a banner saying the
+one check that proves a deck OPENS had been skipped. A check that cannot run is not a
+check; it is a banner. Gone with it: `_find_soffice`, `render_check`, `--no-render` and
+both skip banners.
+
+**What it covered that nothing covers now.** Steps 1 and 2 read the deck THROUGH
+python-pptx, which cannot see a malformed package — not hypothetical: seven 2026.08 ICS
+decks passed at 0 FAIL while being unopenable. So the recoverable half moved into
+`validate_deck.package_findings`, which reads the ZIP directly and needs no renderer:
+
+- **any part name written twice.** Exactly the defect produced the same day by cloning the
+  Summit slide — relating the asset's image Part carried its partname along, so a deck
+  that already held `/ppt/media/image2.png` got the entry twice. The existing checks could
+  not see it: they look at SLIDE parts, and these are media.
+- **a CRC check on every member**, catching a truncated or corrupt part.
+
+What is NOT recovered is everything past "structurally sound": a deck that opens but
+renders wrong, a font that does not resolve, an image that will not decode. CLAUDE.md says
+so rather than implying the gate still proves a deck opens, and says to open one deck
+before a batch goes to clients.
+
+**The new test found a bug in the new check.** `testzip()` RETURNS the first bad name on a
+CRC mismatch but RAISES when a stream will not decompress at all, so a badly corrupted deck
+threw `zlib.error` out of the gate — which reads as a broken validator, not a broken deck.
+Caught and reported as a FAIL now. `tests/test_validate_deck.py` covers a sound package, a
+duplicated part and a corrupt member.
+
+All 18 delivered 2026.09 decks were re-checked against the stricter rules: 0 findings.
+
+### 2026-09-11 — one Summit slide, from one file: Fort Lauderdale replaces Boston
+
+**Every 2026.09 deck advertised a Summit that had already happened.** The slide read
+"Boston, MA — August 31-September 1, 2026"; the next Summit is Fort Lauderdale,
+November 4-5, 2026. Fourteen of the eighteen delivered decks carried it as text and the
+other four as a picture.
+
+**It was in two forms, and neither could be replaced from the pipeline.** ICS and MRPC
+decks got `assets/Velocity Executive Summit.jpg` — a flat PICTURE of the slide — while
+ARS and CashPlease carried the real one baked into their template shells. So replacing
+the Summit meant editing three template shells AND re-exporting a JPG, which needs
+PowerPoint or LibreOffice and therefore could not be done from here at all.
+`insert_summit_after_title` now clones `build/assets/summit_slide.pptx` into every deck,
+and the ARS and CashPlease builders call it like ICS and MRPC always did. That file is
+also the one `summit_date()` reads, so the slide on the page and the date the build
+derives cannot disagree. Replacing the Summit is now one file.
+
+**The asset had never been committed.** `build/assets/summit_slide.pptx` has no history
+before today: `summit_date()` returned None, `summit_period()` with it, and four tests
+failed on the missing file. The Fort Lauderdale slide is the first committed copy.
+
+**Cloning across decks corrupted the package until it was fixed.** Relating the asset's
+image Part into a deck carries that Part's OWN partname with it, so a deck that already
+had `/ppt/media/image2.png` wrote the entry twice — zipfile says "Duplicate name:" and
+the result is malformed while every text and geometry rule passes, which is exactly how
+the 2026.08 ICS decks shipped unopenable at 0 FAIL. Images are re-added from their bytes
+through `get_or_add_image_part`, which assigns a free partname and dedupes by hash.
+`tests/test_summit_insert.py` promotes that warning to an error and asserts no duplicate
+zip entries, that no cloned picture has a dangling relationship, that the slide count does
+not move when a Summit slide is already present, and that all four builders call the
+shared insert.
+
+The slide is replaced in PLACE when one is already there, never deleted and re-added —
+freeing a partname is what hands a later slide the same number.
+
+**The Summit slide had been exempt from the source-note rule by accident.** CLAUDE.md
+requires a source line in every slide's notes; while this one was a flat picture it
+carried no TEXT, so the validator's data-slide rule never reached it. The moment it
+became the real slide, all six ICS-only and MRPC-only decks failed on a missing note.
+The rule had always applied — the old shape hid it. `insert_summit_after_title` now
+writes one note on every deck, DERIVED from the date line printed on the slide rather
+than written as a constant, because a note naming last Summit's city is the stale caption
+this pipeline keeps re-learning. The ARS shells' own line called it "standard ARS
+Executive Review front matter", which stopped being true when every program began
+cloning the same file.
+
+`test_summit_period_reads_the_current_slide` pinned `2026.08` and now pins `2026.11`.
+It is meant to fail when the asset changes: replacing the Summit should be a decision,
+not a side effect.
+
+### 2026-09-11 — the template shells had never had the geometry contract applied
+
+**The Reg E rewording fixed the built decks and left the shells failing.** Rewording the
+opt-in sentence to "have elected to extend their overdraft access to the debit card"
+(2026-09-10) made it four lines in a box that holds three. `slide_geometry.py` was
+rebalanced to give it the room, and every BUILT deck passed — the builders run that pass.
+The shells in `templates/` do not, so `ars_template.pptx` and
+`multi-product_reference_deck.pptx` sat at 1 FAIL each and the gate reported FAIL for
+anyone who ran it. CLAUDE.md's rule is to fix the builder AND the template shell; only
+half of that was done.
+
+Both shells now have `slide_geometry.apply()` applied and saved, so they carry the same
+geometry a built deck gets rather than a hand-measured approximation of it — one
+definition, per that module's own docstring. What moved, on both Reg E slides (27 and 28)
+of both shells: donut 2.85" -> 2.45", the three legend rows and their chips up by 0.38",
+the caption to 5.35" and 1.10" -> 1.60" tall, the branch chart to 1.60" and 3.40" -> 4.50"
+tall, its caption to 6.22". Plus a 0.02" nudge on "Who Responds — Balance Profile" from
+the existing caption-below-chart rule. The ICS, MRPC and CashPlease shells moved nothing:
+the contract is ARS-only, as its docstring says.
+
+Slide 28 was fixed in passing — it carries the same box as 27 and the gate had not
+flagged it, because the template's dummy sentence there happens to be shorter.
+
+**promote_month.py could not run at all.** Its `sys.path` insert was
+`os.path.expanduser("~/Projects/RetailPerformanceEngine/build")`, which is not where this
+repo is — it sits at `C:\Projects` — so the script raised ModuleNotFoundError on import
+and delivery had to be driven with a PYTHONPATH set by hand. It now resolves `build/`
+relative to its own file, the way every other entry point does. A path written into code
+is a path that is wrong on the next machine; that is the whole reason `rpe_env` exists.
+
+### 2026-09-11 — the performance page lost every CashPlease figure, and gained a shareable export
+
+**The CashPlease section was blank for all eight clients and nothing failed.** CashPlease
+moved into this repo on 2026-09-10, and its build code was deleted from the standalone
+checkout in the move. `refresh_performance_dashboard.py` still resolved the extractor as
+`CASHPLEASE_HOME` or a sibling `CashPlease/build/cp_extract.py`, so it found nothing, and
+the CashPlease block for every one of 1131, 1539, 1564, 1632, 1734, 1750, 1770 and 1771
+reported missing. The run still exited `STATUS: changed`, which is what the scheduled task
+publishes on — the next 08:30 would have put a page with a hole in it at the live URL.
+The extractor is now resolved in-repo first (`build/cashplease_pipeline/cp_extract.py`),
+with `CASHPLEASE_HOME` kept as a fallback for a pre-migration checkout. The same move had
+left the DDA counts behind too: they are read from
+`Build Artifacts/cashplease/dda_counts.json`, where `build_cashplease.py` writes them,
+instead of through a `cp_env` import that no longer exists and whose failure was swallowed.
+
+`tests/test_perf_dashboard_export.py` pins the extractor's resolved PATH, not merely that
+one was found — asserting "not None" would have passed on the broken morning for anyone
+with the old checkout still beside the repo. It also pins cp_extract's argument count,
+since the refresh builds that command line by hand.
+
+**`--export` writes a copy that can be handed to someone.** The published artifact is
+wrapped in a document skeleton at publish time, so the template carries no
+`<!doctype>`/`<head>`/`<body>` of its own and a saved copy opened from a file share has no
+publisher to supply one. `--export [PATH]` emits the same rendered HTML inside that
+skeleton — charset first, or the em dashes arrive as mojibake — with a `<title>` (the
+template's lands in the body, where browsers ignore it) and a line on the page saying the
+copy is a static snapshot of its period. The page's own pill says "Last updated", which
+reads as something that keeps updating; a file passed around never will.
+
+### 2026-09-10 — the YoY tiles were not year-over-year, and their captions named the wrong months
+
+Cherry-picked from `claude/gallant-allen-dzs1zv` (`7a47b93`, written 2026-09-01 and never
+merged), plus one more instance found on the slide beside it.
+
+**The Items YoY figure was not a year.** `metrics_gen` searched the NSF series for the row
+labelled `'Jun 25'` and compared it to the LAST row — so it was year-over-year only for a
+June deck. On the 2026.09 decks delivered this week the last row is Aug 2026, making it a
+**14-month change presented as year-over-year**:
+
+| Client | Deck said | Aug'25 → Aug'26 |
+| --- | --- | --- |
+| 1038 Sugar River | −10% | **−1%** |
+| 1204 FSB Michigan | −3% | **+1%** (wrong sign) |
+| 1509 Texas Bay | +16% | **+13%** |
+| 1676 True Sky | −22% | **−26%** |
+| 1705 CoastLife | +13% | **+4%** |
+
+And a client whose series began after Jun 2025 found no row at all and fell to an `else 0`
+branch, shipping a **phantom 0%**. The comparison is now the same month a year earlier by
+month arithmetic; absent, it yields None and the tile reads "n/a" with a warning rather
+than a zero.
+
+**Three tile captions were template literals.** `(Jun 25 → Jun 26)` uses two-digit years
+and `NSF/OD (June)` carries no year, so neither the as-of caption pass nor the
+stale-caption gate could see them, and every deck shipped the reference client's months.
+All three now come from the data.
+
+The third — **Spend YoY** on the Debit Card Swipes & Spend slide — was not in the
+cherry-picked commit. Its FIGURE was already derived correctly; only its caption was
+stale, so the tile read "(Jun 25 → Jun 26)" over a number comparing Aug 25 to Aug 26. Same
+shape, one slide over.
+
+**The Reg E vintage axis was a typed `range(2018, 2027)`.** An account opened outside it
+counted toward the vintage pool and then vanished from the chart, so the chart and its own
+pool disagreed. The axis is the years present in the data now.
+
+Verified on 1038 and 1204: `nsf_yoy` −1 and +1 against a window of `['Aug 25','Aug 26']`,
+all three captions reading Aug. 721 tests pass.
+
+### 2026-09-10 — CashPlease is merged into this pipeline
+
+The CashPlease build ran out of `C:\Projects\CashPlease` against this repo's shared style
+layer. It now lives here, as the fourth program: `build/cashplease_pipeline/` and
+`scripts/build_cashplease.py`, dispatched by the new `cashplease-deck` subagent.
+
+**No ARS, ICS or MRPC behaviour changes.** The pieces this depended on had already landed
+— `--cashplease` and the four-product agenda in `assemble_combined`, the text-over-text
+rule in `validate_deck`, `templates/cashplease_template.pptx`, and the roster in
+`clients.md`. What moved is the build itself.
+
+**Paths resolve through `rpe_env`, and `CP_DATA_ROOT` is gone.** The workbook and the DDA
+count come from `Inputs/Weekly Summaries/` via `report_files()`, decks go to `Outputs/`,
+and packs and figures to `Build Artifacts/cashplease/`. The separate CashPlease pipeline
+folder on Drive is no longer read: two roots for one pipeline is the two-stores problem
+that deleted `build/{ics,mrpc}_pipeline/data/`.
+
+**Three deletions, each because the thing it duplicated now exists here.** `cp_qa.py` —
+its check is `validate_deck`'s text-over-text rule, and the port is better than the
+original: glyph boxes on both axes, priced per paragraph. `cp_env.py` — `rpe_env` resolves
+these paths. The mirrored `brand.TEAL` / `periods.mon_yy` fallbacks in `cp_charts.py` —
+they existed because `da20266` was not on `main`, and it is now. A fallback that can never
+fire is a second definition of the palette waiting to drift, which is what `brand.py`
+exists to prevent.
+
+**One roster parser.** `cp_roster.py` is folded into `build_month.read_cashplease_roster`,
+beside `read_roster`. Two parsers over one `clients.md` diverge, and these two already
+proved it: the CashPlease table sits between the ICS-only table and Status changes, and
+`read_roster` classifies a row by the section above it, so every CashPlease client was
+briefly read as an ICS client — 1658 Truliant included, which has no RPE program at all
+and is the exact row `clients.md` exists to keep unbuilt. A test now holds that shut.
+
+**CashPlease is WEEKLY**, the only program in the cadence table that is not monthly, and
+it always builds from the most recent workbook rather than the one nearest a deck's
+period. So a CashPlease section inside a monthly Executive Review can report a later date
+than the sections beside it. That is intended and visible: `assemble_combined` prints
+each section's period.
+
+Built on the 2026-09-06 workbook with the 2026-09-10 DDA counts: eight 2026.09 decks,
+1658 skipped with its reason, 0 FAIL. `tests/test_cashplease.py` adds 19 tests, each one
+a defect that shipped or nearly did — the 30-character sheet-name cap, the trailing-window
+rule, L8 never reaching a slide, a NULL DDA count never becoming a zero.
+
 ### 2026-09-11 — a watchdog for the daily source watch, and a registration drift fixed
 
 Three mornings running (2026-09-09, -10, -11) the unattended 08:00 fire of the "RPE
@@ -52,6 +337,7 @@ script would have silently dropped mail reading from a task that already had it.
 
 **No client-facing figure moves.** The point is that a morning's inputs reach
 `Inputs/` even when the unattended trigger is hit by whatever this is.
+
 
 ### 2026-09-10 — the Reg E slides are rebalanced, and the opt-in sentence reworded
 

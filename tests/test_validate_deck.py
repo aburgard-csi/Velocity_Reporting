@@ -567,3 +567,109 @@ def test_run_sorts_fails_before_reviews_on_a_shell():
     levels = [f[0] for f in out]
     assert levels == sorted(levels, key={"FAIL": 0, "REVIEW": 1}.get)
     assert "FAIL" not in levels
+
+
+# --- package integrity ------------------------------------------------------
+# These carry more weight since the LibreOffice render smoke test was removed on
+# 2026-09-11: it could never run on the build machine, so what it would have
+# caught has to be caught structurally or not at all.
+def _pptx(tmp_path, name="deck.pptx"):
+    tpl = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "templates", "mrpc_template.pptx")
+    out = str(tmp_path / name)
+    import shutil
+    shutil.copy2(tpl, out)
+    return out
+
+
+def test_a_sound_package_reports_nothing(tmp_path):
+    assert vd.package_findings(_pptx(tmp_path)) == []
+
+
+def test_a_part_written_twice_is_a_fail(tmp_path):
+    """python-pptx reads a duplicated part back without complaint, so every text
+    and geometry rule still passes. It happened on 2026-09-11 cloning the Summit
+    slide: relating the asset's image Part carried its partname along, and a deck
+    that already held /ppt/media/image2.png got the entry twice. The slide-part
+    checks above cannot see it — these are MEDIA parts.
+    """
+    import warnings, zipfile
+    good = _pptx(tmp_path)
+    bad = str(tmp_path / "dupe.pptx")
+    zin = zipfile.ZipFile(good)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)   # forging the defect on purpose
+        with zipfile.ZipFile(bad, "w", zipfile.ZIP_DEFLATED) as zout:
+            for n in zin.namelist():
+                zout.writestr(n, zin.read(n))
+            dupe = next(n for n in zin.namelist() if n.startswith("ppt/"))
+            zout.writestr(dupe, zin.read(dupe))
+    zin.close()
+    out = vd.package_findings(bad)
+    assert any(f[0] == "FAIL" and "more than once" in f[2] for f in out), out
+
+
+def test_a_corrupt_member_is_a_fail(tmp_path):
+    """testzip()'s CRC check — a truncated part opens as a zip and fails to read."""
+    import zipfile
+    good = _pptx(tmp_path)
+    bad = str(tmp_path / "corrupt.pptx")
+    raw = bytearray(open(good, "rb").read())
+    # Flip bytes inside the compressed payload, leaving the central directory intact.
+    first = zipfile.ZipFile(good).infolist()[0]
+    off = first.header_offset + 200
+    for i in range(off, min(off + 64, len(raw))):
+        raw[i] ^= 0xFF
+    open(bad, "wb").write(bytes(raw))
+    out = vd.package_findings(bad)
+    assert any(f[0] == "FAIL" for f in out), out
+
+
+# --- the Summit slide's date ------------------------------------------------
+def _summit_deck(text):
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    tb = s.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(0.5))
+    tb.text_frame.text = "Executive Summit is an action-packed event!"
+    tb2 = s.shapes.add_textbox(Inches(1), Inches(2), Inches(6), Inches(0.5))
+    tb2.text_frame.text = text
+    return prs
+
+
+def test_a_future_summit_is_silent():
+    import datetime
+    d = datetime.date.today() + datetime.timedelta(days=60)
+    months = ["January", "February", "March", "April", "May", "June", "July",
+              "August", "September", "October", "November", "December"]
+    txt = "Somewhere, XX  %s %d-%d, %d" % (months[d.month - 1], d.day, d.day, d.year)
+    assert vd.summit_date_findings(_summit_deck(txt)) == []
+
+
+def test_a_summit_that_has_passed_is_flagged():
+    """Eighteen delivered 2026.09 decks advertised a Summit eleven days gone and
+    nothing failed (2026-09-11). summit_period() warned on stderr, but only when a
+    build called it for a reporting month — a warning in a log is not a gate."""
+    import datetime
+    d = datetime.date.today() - datetime.timedelta(days=11)
+    months = ["January", "February", "March", "April", "May", "June", "July",
+              "August", "September", "October", "November", "December"]
+    txt = "Boston, MA  %s %d, %d" % (months[d.month - 1], d.day, d.year)
+    out = vd.summit_date_findings(_summit_deck(txt))
+    assert len(out) == 1 and out[0][0] == "REVIEW", out
+    assert "has passed" in out[0][2] and "11 days ago" in out[0][2], out[0][2]
+
+
+def test_the_summit_rule_is_review_not_fail():
+    """A deck built the day before an event is indistinguishable from one built the
+    day after it ended, and a rebuild of an older period must not be blocked."""
+    import datetime
+    d = datetime.date.today() - datetime.timedelta(days=400)
+    months = ["January", "February", "March", "April", "May", "June", "July",
+              "August", "September", "October", "November", "December"]
+    txt = "Old Town, XX  %s %d, %d" % (months[d.month - 1], d.day, d.year)
+    assert all(f[0] == "REVIEW" for f in vd.summit_date_findings(_summit_deck(txt)))
+
+
+def test_the_summit_rule_is_registered():
+    assert vd.summit_date_findings in vd.RULES

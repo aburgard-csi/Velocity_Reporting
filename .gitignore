@@ -46,11 +46,16 @@ lift*.json
 oddd*.json
 
 # ---------------------------------------------------------------- build outputs
-# Decks are outputs and belong in Drive at Work/RPE Pipeline/Outputs/.
+# Decks are outputs and live in the pipeline Outputs/ folder.
 # Templates are source and are the deliberate exception below.
 *.pptx
 !build/**/templates/*.pptx
 !templates/*.pptx
+# ...and so is the Summit slide, which is a build INPUT every deck clones. This
+# blanket *.pptx is why `build/assets/summit_slide.pptx` was never tracked: the
+# repo fallback the code documents did not exist, summit_date() returned None,
+# and the reporting-month fallback was dead (2026-09-11).
+!build/assets/*.pptx
 !build/**/templates/*.potx
 !templates/*.potx
 *.pdf
