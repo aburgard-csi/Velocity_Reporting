@@ -120,3 +120,32 @@ def test_every_builder_takes_the_summit_from_the_asset(path):
     src = open(os.path.join(REPO, path), encoding="utf-8").read()
     assert "insert_summit_after_title(" in src, \
         "%s does not insert the shared Summit slide" % path
+
+
+def test_the_summit_slide_carries_a_source_note():
+    """CLAUDE.md: no slide ships without a source line in its notes.
+
+    While this slide was a flat picture it carried no TEXT, so the validator's
+    data-slide rule never reached it. The moment it became the real slide, all six
+    ICS-only and MRPC-only decks failed on a missing note (2026-09-11) — the rule
+    had always applied, the old shape just hid it.
+    """
+    prs = _deck()
+    S.insert_summit_after_title(prs)
+    slide = prs.slides[1]
+    assert slide.has_notes_slide
+    note = slide.notes_slide.notes_text_frame.text
+    assert "summit_slide.pptx" in note, note
+    assert note.lower().startswith("source"), note
+
+
+def test_the_note_names_the_summit_on_the_slide():
+    """Derived from the slide's own date line, not written as a constant — a note
+    naming last Summit's city is the stale caption this pipeline keeps re-learning."""
+    prs = _deck()
+    S.insert_summit_after_title(prs)
+    note = prs.slides[1].notes_slide.notes_text_frame.text
+    shown = [" ".join(sh.text_frame.text.split()) for sh in prs.slides[1].shapes
+             if sh.has_text_frame and S._SUMMIT_DATE_RE.search(" ".join(sh.text_frame.text.split()))]
+    assert shown, "the Summit slide should print a date"
+    assert shown[0] in note, "note %r does not name %r" % (note, shown[0])

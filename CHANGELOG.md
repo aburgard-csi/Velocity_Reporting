@@ -52,6 +52,17 @@ shared insert.
 The slide is replaced in PLACE when one is already there, never deleted and re-added —
 freeing a partname is what hands a later slide the same number.
 
+**The Summit slide had been exempt from the source-note rule by accident.** CLAUDE.md
+requires a source line in every slide's notes; while this one was a flat picture it
+carried no TEXT, so the validator's data-slide rule never reached it. The moment it
+became the real slide, all six ICS-only and MRPC-only decks failed on a missing note.
+The rule had always applied — the old shape hid it. `insert_summit_after_title` now
+writes one note on every deck, DERIVED from the date line printed on the slide rather
+than written as a constant, because a note naming last Summit's city is the stale caption
+this pipeline keeps re-learning. The ARS shells' own line called it "standard ARS
+Executive Review front matter", which stopped being true when every program began
+cloning the same file.
+
 `test_summit_period_reads_the_current_slide` pinned `2026.08` and now pins `2026.11`.
 It is meant to fail when the asset changes: replacing the Summit should be a decision,
 not a side effect.

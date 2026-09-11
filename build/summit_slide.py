@@ -290,6 +290,21 @@ def insert_summit_after_title(prs, asset=None):
         el = copy.deepcopy(sh._element)
         _rebind_rels(el, src.part, dst.part)
         spTree.append(el)
+
+    # Source note, like every other slide (CLAUDE.md: no slide ships without one).
+    # It is not optional here: while the slide was a flat picture it carried no text,
+    # so the validator's data-slide rule never reached it — the moment it became the
+    # real slide, all six ICS-only and MRPC-only decks failed on a missing note
+    # (2026-09-11). The ARS shells had their own line calling it "standard ARS
+    # Executive Review front matter", which stopped being true when every program
+    # started cloning the same file. One slide, one note.
+    where = next((sh.text_frame.text.strip() for sh in dst.shapes
+                  if sh.has_text_frame and _SUMMIT_DATE_RE.search(
+                      " ".join(sh.text_frame.text.split()))), "")
+    dst.notes_slide.notes_text_frame.text = (
+        "Source — Executive Summit slide, build/assets/summit_slide.pptx"
+        + (" (%s)" % " ".join(where.split()) if where else "")
+        + ". Standing front matter, identical in every deck; carries no client data.")
     return True
 
 
