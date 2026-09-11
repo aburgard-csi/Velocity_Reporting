@@ -136,3 +136,94 @@ def test_an_uncalculated_workbook_is_reported_not_zeroed():
     assert P.uncalculated({"months": None, "ltd_revenue": None, "cur_revenue": None})
     assert not P.uncalculated({"months": 96, "ltd_revenue": 10677533.23, "cur_revenue": 154881.24})
     assert not P.uncalculated({"months": 1, "ltd_revenue": 0, "cur_revenue": 4200.0})   # a brand-new client
+
+
+# ------------------------------------------------------------------ merge-sent
+# A click on the artifact's "Mark sent" button parks a row in the artifact's own
+# store; merge_sent is where that row becomes the record. deliveries.json stays
+# the one ledger, so these rules matter more than the transport.
+def _log(tmp_path, sent):
+    (tmp_path / "deliveries.json").write_text(
+        json.dumps({"version": 1, "sent": sent}), encoding="utf-8")
+    return tmp_path
+
+
+def _export(tmp_path, rows):
+    d = tmp_path / "export"
+    d.mkdir()
+    for r in rows:
+        (d / ("%s-%s.json" % (r.get("client_id", "x"), r.get("period", "y")))).write_text(
+            json.dumps(r), encoding="utf-8")
+    return d
+
+
+def test_merge_sent_adds_a_page_recorded_send(tmp_path):
+    ba = _log(tmp_path, {})
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09",
+                              "sent_at": "2026-09-11", "by": "artifact page"}])
+    assert P.merge_sent(src, ba) == 1
+    log = json.loads((ba / "deliveries.json").read_text())
+    assert log["sent"]["1204|2026.09"]["sent_at"] == "2026-09-11"
+    assert log["sent"]["1204|2026.09"]["client_id"] == "1204"
+
+
+def test_merge_sent_never_rewrites_an_existing_entry(tmp_path):
+    """deliveries.json wins: a date corrected by hand survives a stale page row."""
+    ba = _log(tmp_path, {"1204|2026.09": {"client_id": "1204", "period": "2026.09",
+                                          "sent_at": "2026-09-02", "note": "", "by": "aaron.burgard"}})
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09", "sent_at": "2026-09-11"}])
+    assert P.merge_sent(src, ba) == 0
+    log = json.loads((ba / "deliveries.json").read_text())
+    assert log["sent"]["1204|2026.09"]["sent_at"] == "2026-09-02"
+    assert log["sent"]["1204|2026.09"]["by"] == "aaron.burgard"
+
+
+@pytest.mark.parametrize("row", [
+    {"client_id": "1204", "period": "2026.09", "sent_at": "9/11/2026"},   # not ISO
+    {"client_id": "1204", "period": "September 2026", "sent_at": "2026-09-11"},
+    {"client_id": "", "period": "2026.09", "sent_at": "2026-09-11"},
+    {"client_id": "1204", "period": "2026.09"},                            # no date
+])
+def test_merge_sent_skips_a_malformed_row_rather_than_guessing(tmp_path, row):
+    ba = _log(tmp_path, {})
+    assert P.merge_sent(_export(tmp_path, [row]), ba) == 0
+    assert json.loads((ba / "deliveries.json").read_text())["sent"] == {}
+
+
+def test_merge_sent_reads_a_single_file_export(tmp_path):
+    ba = _log(tmp_path, {})
+    f = tmp_path / "rows.json"
+    f.write_text(json.dumps([{"client_id": "1038", "period": "2026.08", "sent_at": "2026-09-11"},
+                             {"client_id": "1075", "period": "2026.08", "sent_at": "2026-09-11"}]),
+                 encoding="utf-8")
+    assert P.merge_sent(f, ba) == 2
+
+
+def test_merge_sent_leaves_a_damaged_log_alone(tmp_path):
+    """Raising beats merging over it: a log read as empty invites sending twice."""
+    (tmp_path / "deliveries.json").write_text("{ truncated", encoding="utf-8")
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09", "sent_at": "2026-09-11"}])
+    with pytest.raises(SystemExit):
+        P.merge_sent(src, tmp_path)
+    assert (tmp_path / "deliveries.json").read_text() == "{ truncated"
+
+
+def test_merge_sent_creates_the_log_when_there_is_none(tmp_path):
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09", "sent_at": "2026-09-11"}])
+    assert P.merge_sent(src, tmp_path) == 1
+    assert json.loads((tmp_path / "deliveries.json").read_text())["sent"]["1204|2026.09"]
+
+
+# ------------------------------------------------------------------ the button
+def test_template_marks_sent_against_the_deck_period_not_the_cycle():
+    """The log is keyed <client>|<deck period>; the button must use the same key,
+    or a send would be recorded against a period the deck does not belong to."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert "sentDoc = c => c.deck_period" in t
+    assert 'DB.doc("deliveries/"' in t
+
+
+def test_template_cannot_mark_a_client_with_no_deck():
+    """Sent is recorded, never inferred — and never for a deck that was not built."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert "if (!c.decks.length) return" in t
