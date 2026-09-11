@@ -102,12 +102,53 @@ def accessors(H):
     Returned as a namespace rather than module functions because each script
     builds its own header map (and responder_activity builds it inside a
     function), so there is no single global to close over.
+
+    **These run tens of millions of times per client and the ODD is not the cost.**
+    Decompressing and parsing a 49 MB / 52,853-row / 405-column extract takes 1.0s;
+    `metrics_gen` over the same file took 9s, and a profile put 11.3s of cumulative
+    time in `g` alone at 13.6M calls (2026-09-11). So the work here is arithmetic on
+    rows, not I/O, and the optimisations below are all about not redoing per ROW what
+    is constant per COLUMN:
+
+      * constant columns ("Business?", "Debit?", "Stat Desc") resolve their index
+        once, at bind time;
+      * `swipes`/`spend`/`nsf` used to build an f-string column name on EVERY call
+        ("Jul26 Sig #") and hash that long string into H. The five indices for a
+        month are now resolved once and cached under the short month key;
+      * `fnum` tries `float()` on the raw cell first, because the overwhelming
+        majority of cells are already plain numbers, and only falls back to the
+        strip/replace path when that raises.
+
+    Every one of these is output-identical by construction, and `tests/test_odd_rows.py`
+    pins the equivalence case by case. Do NOT "simplify" them back: this vocabulary
+    is shared by metrics_gen, the slide builders and responder_activity, and the
+    reason it exists at all is that three separate implementations drifted.
     """
+    _hget = H.get                      # bound once: attribute lookup is not free at 13M calls
 
     def g(r, name):
         """Stripped cell value, or '' when the column or cell is absent."""
-        i = H.get(name)
+        i = _hget(name)
         return r[i].strip() if i is not None and i < len(r) else ""
+
+    def _num_at(r, i):
+        """`fnum` by INDEX. The fast path is `float()` on the raw cell: it already
+        tolerates surrounding whitespace, and raises on exactly the inputs the slow
+        path exists for ('', '-', '1,234', '$50', anything unparseable)."""
+        if i is None or i >= len(r):
+            return 0.0
+        v = r[i]
+        try:
+            return float(v)
+        except ValueError:
+            pass
+        v = v.strip().replace(",", "").replace("$", "")
+        if v in ("", "-"):
+            return 0.0
+        try:
+            return float(v)
+        except ValueError:
+            return 0.0
 
     def fnum(r, name):
         """Numeric cell value, 0.0 for blank/absent/unparseable.
@@ -116,21 +157,31 @@ def accessors(H):
         agreed on every input, differing only in whether '-' was special-cased
         before float() or allowed to fail into the same 0.0.
         """
-        v = g(r, name).replace(",", "").replace("$", "")
-        if v in ("", "-"):
-            return 0.0
-        try:
-            return float(v)
-        except ValueError:
-            return 0.0
+        return _num_at(r, _hget(name))
+
+    # month key -> the per-month column indices, resolved once. Building
+    # "Jul26 Sig #" and hashing it was happening on every call, for every month,
+    # for every row.
+    _MC_SIGN, _MC_PINN, _MC_SIGD, _MC_PIND, _MC_MTD = range(5)
+    _moncols = {}
+
+    def _mc(m):
+        t = _moncols.get(m)
+        if t is None:
+            t = (_hget(f"{m} Sig #"), _hget(f"{m} PIN #"),
+                 _hget(f"{m} Sig $"), _hget(f"{m} PIN $"), _hget(f"{m} MTD"))
+            _moncols[m] = t
+        return t
 
     def swipes(r, m):
         """Signature + PIN transaction COUNT for month m ('Jul26')."""
-        return fnum(r, f"{m} Sig #") + fnum(r, f"{m} PIN #")
+        c = _mc(m)
+        return _num_at(r, c[_MC_SIGN]) + _num_at(r, c[_MC_PINN])
 
     def spend(r, m):
         """Signature + PIN purchase DOLLARS for month m."""
-        return fnum(r, f"{m} Sig $") + fnum(r, f"{m} PIN $")
+        c = _mc(m)
+        return _num_at(r, c[_MC_SIGD]) + _num_at(r, c[_MC_PIND])
 
     def nsf(r, m):
         """NSF/OD ITEM COUNT for month m (the MTD column).
@@ -147,7 +198,11 @@ def accessors(H):
         the calendar-year cumulative of the same integers (19,552 of 19,573
         sampled 1539 accounts reconcile exactly).
         """
-        return fnum(r, f"{m} MTD")
+        return _num_at(r, _mc(m)[_MC_MTD])
+
+    _i_business = _hget("Business?")
+    _i_debit = _hget("Debit?")
+    _i_stat = _hget("Stat Desc")
 
     def personal(r):
         """True only for an explicit 'No' in Business?.
@@ -158,17 +213,21 @@ def accessors(H):
         the old exact-case test would have silently reclassified the whole book
         on a processor that wrote 'NO'.
         """
-        return g(r, "Business?").lower() == "no"
+        i = _i_business
+        return (r[i].strip().lower() == "no") if i is not None and i < len(r) else False
 
     def business(r):
         """True only for an explicit 'Yes' in Business?. A blank is not business."""
-        return g(r, "Business?").lower() == "yes"
+        i = _i_business
+        return (r[i].strip().lower() == "yes") if i is not None and i < len(r) else False
 
     def hascard(r):
-        return g(r, "Debit?").lower() == "yes"
+        i = _i_debit
+        return (r[i].strip().lower() == "yes") if i is not None and i < len(r) else False
 
     def isopen(r):
-        sd = g(r, "Stat Desc")
+        i = _i_stat
+        sd = r[i].strip() if i is not None and i < len(r) else ""
         return sd.startswith("Open") or sd.startswith("Active") or sd in OPEN_STATUSES
 
     return SimpleNamespace(

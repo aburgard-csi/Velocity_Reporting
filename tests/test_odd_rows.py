@@ -96,3 +96,86 @@ def test_closed_statuses_are_not_open(odd, stat):
 
 def test_open_and_closed_vocabularies_do_not_overlap():
     assert not (OPEN_STATUSES & CLOSED_STATUSES)
+
+
+# --- the optimised accessors must behave exactly like the originals -----------
+# odd_rows is the ONE vocabulary shared by metrics_gen, the slide builders and
+# responder_activity, and it exists because three separate implementations of it
+# drifted. The accessors were made cheaper on 2026-09-11 (constant columns bound
+# once, per-month column indices cached, fnum trying float() first); these pin the
+# equivalence against a literal transcription of the pre-optimisation code, since
+# "it still runs" would not have caught a changed edge case.
+import pytest as _pytest
+
+_H = {"Business?": 0, "Debit?": 1, "Stat Desc": 2,
+      "Jul26 Sig #": 3, "Jul26 PIN #": 4, "Jul26 Sig $": 5, "Jul26 PIN $": 6,
+      "Jul26 MTD": 7, "Bal": 8}
+
+# Every shape a real ODD cell has come in, plus the ones that broke something once.
+_CELLS = ["", " ", "0", "1234", " 1234 ", "-", "1,234", "$50", "$1,234.56", "12.5",
+          "-3", "1e5", "abc", "  ", "0.0", "00012", "1 234", "--", "(500)", "12,",
+          ",5", "$", "1.2.3", "\t7\t"]
+
+
+def _ref_g(r, name):
+    """The original g(), transcribed."""
+    i = _H.get(name)
+    return r[i].strip() if i is not None and i < len(r) else ""
+
+
+def _ref_fnum(r, name):
+    """The original fnum(), transcribed."""
+    v = _ref_g(r, name).replace(",", "").replace("$", "")
+    if v in ("", "-"):
+        return 0.0
+    try:
+        return float(v)
+    except ValueError:
+        return 0.0
+
+
+@_pytest.mark.parametrize("cell", _CELLS)
+def test_g_and_fnum_match_the_originals(cell):
+    A = accessors(_H)
+    row = [cell] * 9
+    for name in list(_H) + ["Missing Col"]:
+        assert A.g(row, name) == _ref_g(row, name), (cell, name)
+        assert A.fnum(row, name) == _ref_fnum(row, name), (cell, name)
+
+
+@_pytest.mark.parametrize("cell", _CELLS)
+def test_month_helpers_match_their_original_composition(cell):
+    """swipes/spend/nsf used to build the column name with an f-string on every
+    call; they read a cached index now. Same sums, including for an absent month."""
+    A = accessors(_H)
+    row = [cell] * 9
+    assert A.swipes(row, "Jul26") == _ref_fnum(row, "Jul26 Sig #") + _ref_fnum(row, "Jul26 PIN #")
+    assert A.spend(row, "Jul26") == _ref_fnum(row, "Jul26 Sig $") + _ref_fnum(row, "Jul26 PIN $")
+    assert A.nsf(row, "Jul26") == _ref_fnum(row, "Jul26 MTD")
+    assert A.swipes(row, "Nov99") == 0.0      # month not in the header map at all
+
+
+@_pytest.mark.parametrize("cell", ["Yes", "yes", "YES", "No", "no", "", " no ", "Maybe"])
+def test_flags_match_the_originals(cell):
+    """These bind their column index once instead of looking it up per row."""
+    A = accessors(_H)
+    row = [cell, cell, cell]
+    assert A.personal(row) == (_ref_g(row, "Business?").lower() == "no")
+    assert A.business(row) == (_ref_g(row, "Business?").lower() == "yes")
+    assert A.hascard(row) == (_ref_g(row, "Debit?").lower() == "yes")
+
+
+def test_short_and_empty_rows_are_tolerated():
+    """A truncated row must not raise: the ODD does ship ragged lines."""
+    A = accessors(_H)
+    for row in (["Yes"], []):
+        A.g(row, "Bal"); A.fnum(row, "Bal")
+        A.swipes(row, "Jul26"); A.spend(row, "Jul26"); A.nsf(row, "Jul26")
+        A.personal(row); A.business(row); A.hascard(row); A.isopen(row)
+
+
+def test_a_missing_header_map_entry_is_not_an_error():
+    A = accessors({})
+    r = ["x", "y", "z"]
+    assert A.g(r, "Bal") == "" and A.fnum(r, "Bal") == 0.0
+    assert A.swipes(r, "Jul26") == 0.0 and A.personal(r) is False

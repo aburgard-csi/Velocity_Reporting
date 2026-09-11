@@ -67,7 +67,14 @@ else:
 from odd_rows import accessors as _accessors, OPEN_STATUSES as OPEN, CLOSED_STATUSES as CLOSED
 _odd=_accessors(H)
 g=_odd.g; fnum=_odd.fnum
-def mkey(t): return datetime.datetime.strptime(t,'%b%y')
+_MKEY={}
+def mkey(t):
+    # 185,000 calls for about three dozen distinct tokens ('Jul26'), and
+    # strptime is not cheap: it was 2.1s of a 25s run (2026-09-11).
+    d=_MKEY.get(t)
+    if d is None:
+        d=_MKEY[t]=datetime.datetime.strptime(t,'%b%y')
+    return d
 smonths=sorted({re.match(r'^([A-Z][a-z]{2}\d{2}) Sig #',h).group(1) for h in hdr if re.match(r'^[A-Z][a-z]{2}\d{2} Sig #',h)},key=mkey)
 mailmonths=sorted({re.match(r'^([A-Z][a-z]{2}\d{2}) Mail',h).group(1) for h in hdr if re.match(r'^[A-Z][a-z]{2}\d{2} Mail',h)},key=mkey)
 nextm={smonths[i]:smonths[i+1] for i in range(len(smonths)-1)}
@@ -264,9 +271,9 @@ M['dot_tail40']=hist.get(40,0)
 # whether or not they responded to it. For a repeat responder whose ask moved between
 # mailings that benchmarks the cohort against the wrong number.
 def _ask(r, m):
-    o = g(r, f'{m} Mail')
+    o = g(r,f'{m} Mail')
     if o in OFFER_GOAL: return OFFER_GOAL[o]
-    return RESP_GOAL.get(g(r, f'{m} Resp'), 5)
+    return RESP_GOAL.get(g(r,f'{m} Resp'), 5)
 # Sustained is measured on the months AFTER the mailing, not on a fixed current
 # window. sw3() is the trailing 3 months of the EXTRACT, so for a recent mailing it
 # averaged in months from BEFORE the customer ever responded and reported attrition

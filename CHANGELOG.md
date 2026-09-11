@@ -17,6 +17,45 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — the ODD accessors, measured: metrics_gen ~10%, and where the time really is
+
+`odd_rows` accessors run tens of millions of times per client, so the obvious per-row
+waste was removed: `mkey` memoised (185,000 `strptime` calls for about three dozen
+distinct month tokens), the constant columns (`Business?`, `Debit?`, `Stat Desc`) bound
+once instead of hashed per row, the per-month column indices cached so `swipes`/`spend`/
+`nsf` stop building `"Jul26 Sig #"` on every call, and `fnum` trying `float()` on the raw
+cell first — it already tolerates whitespace and raises on exactly the inputs the
+strip/replace path exists for.
+
+**Measured, not assumed.** `metrics_gen` 9179 -> 8262ms on 1676 and 16424 -> 15892ms on
+1539 (means of 2-3 runs): 3-10%. **`oddd_optimize` did not change at all** — it has its
+own classifiers and barely touches the shared accessors. Every metric is byte-identical:
+the `metrics.json` for 1038, 1204, 1676 and 1539 match their pre-change SHA-256 exactly.
+
+**A hypothesis that measured worse, and was removed.** `resp()`/`mail()` accessors were
+added to kill the `g(r, f"{m} Resp")` f-string in the hottest loop — 28 call sites. They
+made it SLOWER: one call plus a string build became two calls, and 1676 went 8882ms with
+them to 8262ms without. Reverted.
+
+**Where the build time actually is** (1676, ~70s): `build_ars_gen` 18.8s, `charts_gen`
+11.7s, `oddd_optimize` 10.0s, `metrics_gen` 8.9s, the rest in the extractors, the ICS
+build and assembly. The ODD stages are 27% of the build and the largest single stage
+touches no ODD row, so this whole change is worth about 1% end to end. Profile the chain
+before optimising a stage of it.
+
+**The one structural ODD lever left, NOT taken.** Building the retained row store costs
+~3.0s and reloading the same store costs 0.35s, and three processes each build it
+independently — about 5s per ARS client. If that cache is ever built it must be
+CONTENT-ADDRESSED, keyed on a hash of the zip (~0.2s for 49 MB) and never on path+mtime:
+a cache that can go stale manufactures precisely the stale-ODD failure this pipeline has
+shipped before, where the wrong month validates perfectly because it is internally
+consistent.
+
+`tests/test_odd_rows.py` gains 58 equivalence cases pinning every optimised accessor
+against a literal transcription of the original — 24 cell shapes against every column,
+the month helpers, the flags, short rows, empty rows and an empty header map. This is the
+vocabulary that drifted across three implementations once; "it still runs" is not the bar.
+
 ### 2026-09-11 — build-order audit: a duplicate pass, a stale deck picker, and the Summit gap
 
 **ARS decks were restyled twice.** `build_ars_gen` runs `restyle_fonts` and then its
