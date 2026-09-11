@@ -35,10 +35,22 @@ def _deck(n_slides=4):
 
 
 def test_the_asset_is_committed():
-    """It was never tracked at all until 2026-09-11: `summit_date()` returned None,
-    the reporting-month fallback was dead, and four tests failed on the missing file."""
-    p = os.path.join(REPO, "build", "assets", "summit_slide.pptx")
-    assert os.path.isfile(p), "build/assets/summit_slide.pptx is missing"
+    """Present on disk AND tracked by git.
+
+    "Is the file there" is not the check that was needed. `.gitignore` carries a
+    blanket `*.pptx` with exceptions only for the template folders, so the asset
+    could never be committed — which is why it was absent for the whole life of
+    the repo, `summit_date()` returned None, and the reporting-month fallback was
+    dead. A checkout on another machine would have had the file missing again
+    while this test passed locally (2026-09-11).
+    """
+    import subprocess
+    rel = "build/assets/summit_slide.pptx"
+    assert os.path.isfile(os.path.join(REPO, rel)), "%s is missing" % rel
+    tracked = subprocess.run(["git", "ls-files", "--error-unmatch", rel],
+                             cwd=REPO, capture_output=True, text=True)
+    assert tracked.returncode == 0, (
+        "%s is not tracked by git — check .gitignore's *.pptx exceptions" % rel)
 
 
 def test_insert_puts_the_summit_at_index_one():
