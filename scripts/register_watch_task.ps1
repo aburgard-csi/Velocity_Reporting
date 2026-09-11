@@ -5,7 +5,7 @@
 .DESCRIPTION
     Creates the task "RPE Source Watch", which runs
 
-        <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py --notify --copy --prune
+        <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py --notify --copy --prune --mail
 
     once a day at the given time, as the current user, only while that user is
     logged on. Logged-on matters twice over: the task needs this user's network
@@ -16,7 +16,8 @@
     (the ODD extract only from the newest month), so the builds and the performance
     dashboard see them without a manual step. --prune then deletes inputs that a
     newer period (or weekly) of the same client and kind supersedes; the newest of
-    each is always kept, and a file with no newer version is never touched.
+    each is always kept, and a file with no newer version is never touched. --mail
+    reads Bradford's and Matt's attachments out of Outlook (scripts/mail_sources.py).
 
     A missed run (laptop asleep, docked late) is started as soon as the machine
     is back, and the task waits for a network connection rather than failing on
@@ -25,6 +26,12 @@
     The venv interpreter is used, not the Windows Store python, for the same
     reason validation/qa_all.py insists on it: the Store python lacks the repo's
     dependencies and fails quietly.
+
+    This registration alone is not enough (2026-09-11): the unattended 08:00
+    fire of this task has, three mornings running, been created SUSPENDED by
+    something outside our code and never executed a single instruction — see
+    scripts\watch_task_watchdog.ps1 and register_watchdog_task.ps1, which must
+    also be registered to detect and recover from that.
 
 .PARAMETER Time
     Daily start time, HH:mm (24h). Default 08:00.
@@ -70,7 +77,7 @@ if (-not (Test-Path $Script)) { throw "Missing $Script" }
 $parsed = [datetime]::ParseExact($Time, "HH:mm", $null)
 
 $action = New-ScheduledTaskAction -Execute $Python `
-    -Argument "`"$Script`" --notify --copy --prune" -WorkingDirectory $Repo
+    -Argument "`"$Script`" --notify --copy --prune --mail" -WorkingDirectory $Repo
 $trigger = New-ScheduledTaskTrigger -Daily -At $parsed
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -MultipleInstances IgnoreNew `
@@ -85,6 +92,6 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
 
 $t = Get-ScheduledTask -TaskName $TaskName
 Write-Host ("Registered '{0}': daily at {1}, as {2}, state {3}" -f $TaskName, $Time, $user, $t.State)
-Write-Host "  runs: $Python `"$Script`" --notify --copy --prune"
+Write-Host "  runs: $Python `"$Script`" --notify --copy --prune --mail"
 Write-Host "  run now:  Start-ScheduledTask -TaskName '$TaskName'"
 Write-Host "  remove:   powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 -Unregister"

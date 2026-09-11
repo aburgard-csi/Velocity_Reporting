@@ -616,6 +616,48 @@ moment of deletion. `prune_plan` holds the rule; the tests pin it. Consequence: 
 delivery dashboard's input columns for a PAST period read "not copied" once that
 period's inputs are pruned — the deck is built and that is the column that matters.
 
+**The watchdog — the unattended 08:00 fire has to be watched from OUTSIDE (Aaron,
+2026-09-11).** Three mornings running (2026-09-09, -10, -11) the daily task fired at
+08:00 and produced nothing: no log entry, no report, killed by Task Scheduler at its
+30-minute limit. The process was not hung in our code — it was created SUSPENDED and
+never executed a single instruction (0 handles, 0 CPU, one thread parked in
+Wait/Suspended; a real block in SMB or Outlook COM has loaded modules and live CPU).
+Every run started by hand, on an awake machine, finished normally in 1-3 minutes,
+including immediately after diagnosing this — so a code-level timeout cannot be the
+fix: the process never gets far enough into our code to run one. The one plausible
+culprit (never positively confirmed) is Symantec Endpoint Protection, installed on
+this machine, intercepting process creation and relaunching under its own supervision
+— a manual retry showed every python launch in this pipeline appearing twice in the
+process list, the second a direct child of the first with an identical command line
+and creation timestamp, consistent with exactly that kind of hook.
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\register_watchdog_task.ps1 [-Time 08:15] [-Unregister]
+```
+
+`scripts/watch_task_watchdog.ps1` runs as its own scheduled task, **"RPE Source Watch
+Watchdog"**, a fixed offset after the main task (default 08:15, 15 minutes after the
+main task's 08:00). Not a background thread of the main task — if whatever suspends
+the main process can suspend it, a thread living inside that same process is exactly
+as stuck; a second, independently-triggered task is the only vantage point actually
+outside the failure. Each firing: if `source_watch_latest.md` is already fresh
+(within 3 hours), it exits silently — the common case, every healthy morning. Otherwise
+it looks for a `watch_sources.py` process matching the suspended signature (near-zero
+CPU, near-zero handles, old enough — 4+ minutes — that a healthy run would have
+finished), kills the whole process tree, and retries the main task; up to two
+kill-and-retry cycles before giving up and logging for a human. Every attempt is
+appended to `Build Artifacts/source_watch_watchdog.log`. Registered on this machine
+2026-09-11, verified end-to-end via `Start-ScheduledTask`. The kill-and-retry path
+is code-reviewed, not fire-tested against a genuinely OS-suspended process — this
+environment's sandboxing refused the `CREATE_SUSPENDED` P/Invoke needed to manufacture
+one (`ERROR_INVALID_NAME` even on a trivial `notepad.exe` control case), so treat that
+one path with a little more scrutiny before trusting it blind.
+
+`register_watch_task.ps1` had drifted from the live task it describes — the
+registered task already carried `--mail` (added when the mailbox step landed,
+2026-09-09) but the checked-in script's `Argument` string did not, so re-running it
+would have silently dropped mail reading. Fixed 2026-09-11; both now agree.
+
 ### The performance dashboard artifact — refreshed after each source check
 
 ```
@@ -691,7 +733,10 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
 - `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
 - `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**).
+- `mail_sources.py` — the `--mail` step: reads Bradford's and Matt's attachments out of Outlook via COM, files them by kind, newest-only (see **Daily source watch**).
 - `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily.
+- `watch_task_watchdog.ps1` — detects a "RPE Source Watch" run Windows created suspended and never executed, kills it, and retries (see **The watchdog**).
+- `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.
 - `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
 - `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
 

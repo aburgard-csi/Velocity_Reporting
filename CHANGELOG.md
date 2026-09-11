@@ -17,6 +17,42 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — a watchdog for the daily source watch, and a registration drift fixed
+
+Three mornings running (2026-09-09, -10, -11) the unattended 08:00 fire of the "RPE
+Source Watch" scheduled task produced nothing: no log entry, no report, killed by
+Task Scheduler at its 30-minute limit. The process was not hung in our code — it was
+created SUSPENDED and never executed a single instruction (0 handles, 0 CPU, one
+thread parked in Wait/Suspended). Every run started by hand on an awake machine
+finished normally in 1-3 minutes, including a manual retry today that also surfaced
+every python launch in this pipeline appearing twice in the process list — the
+second a direct child of the first, identical command line and creation timestamp —
+consistent with (never positively confirmed) Symantec Endpoint Protection
+intercepting process creation and relaunching under its own supervision. Because the
+process never gets far enough into our code to run a timeout, the fix cannot be a
+code-level one; it has to watch from outside.
+
+`scripts/watch_task_watchdog.ps1` + `scripts/register_watchdog_task.ps1` add a
+second scheduled task, "RPE Source Watch Watchdog", firing 15 minutes after the main
+task. A healthy morning is a silent no-op (checked: `Report-IsFresh`). Otherwise it
+finds any `watch_sources.py` process matching the suspended signature (near-zero CPU
+and handles, old enough a healthy run would be done), kills the whole process tree,
+and retries the main task — up to two cycles before logging for a human. Verified: a
+real idle-but-running process (handles ~123) is correctly NOT flagged; the
+stale-report-but-nothing-stuck branch correctly logs and exits for a human; the
+healthy-and-fresh branch is a confirmed silent no-op, including through
+`Start-ScheduledTask` end to end. The kill-and-retry branch itself is code-reviewed
+but not fire-tested against a genuine suspended process — this environment's
+sandboxing refused the `CREATE_SUSPENDED` process-creation call needed to manufacture
+one, even for a `notepad.exe` control case.
+
+Also fixed: `register_watch_task.ps1`'s checked-in `Argument` string had not been
+updated when `--mail` was added to the live task on 2026-09-09 — re-running the
+script would have silently dropped mail reading from a task that already had it.
+
+**No client-facing figure moves.** The point is that a morning's inputs reach
+`Inputs/` even when the unattended trigger is hit by whatever this is.
+
 ### 2026-09-10 — the Reg E slides are rebalanced, and the opt-in sentence reworded
 
 **The branch chart was 3.40" tall and stopped at 5.35**, leaving roughly 1.4" of empty
