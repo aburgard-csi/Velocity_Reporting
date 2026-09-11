@@ -223,8 +223,9 @@ def package_findings(path):
     the file and PowerPoint silently reordered it (title slide gone, Contact Us
     near the front). Nothing else in this file can see that class of defect.
 
-    Checks: no duplicate slide references, no dangling references, no orphaned
-    slide parts, and parts == entries == distinct targets.
+    Checks: the archive itself is readable, no part name is written twice, no
+    duplicate slide references, no dangling references, no orphaned slide parts,
+    and parts == entries == distinct targets.
     """
     import zipfile
     from collections import Counter
@@ -234,6 +235,36 @@ def package_findings(path):
     except Exception as e:
         return [("FAIL", 0, f"package will not open as a zip: {e}")]
     try:
+        # Two whole-archive checks that need no renderer. They carry more weight
+        # since the LibreOffice render smoke test was removed (2026-09-11): it
+        # could never run on this machine, so what it would have caught has to be
+        # caught structurally or not at all.
+        #
+        # A part name written TWICE is a malformed package that python-pptx reads
+        # back without complaint — it happened on 2026-09-11 cloning the Summit
+        # slide, where relating the asset's image Part carried its partname along
+        # and a deck that already had /ppt/media/image2.png got the entry twice.
+        # Nothing above sees it: these are media parts, not slide parts.
+        dup_names = {n: c for n, c in Counter(z.namelist()).items() if c > 1}
+        if dup_names:
+            out.append(("FAIL", 0,
+                        f"{len(dup_names)} part name(s) written more than once in the "
+                        f"package: "
+                        + ", ".join(f"{n}x{c}" for n, c in list(dup_names.items())[:6])
+                        + ("..." if len(dup_names) > 6 else "")))
+        # CRC check: catches a truncated or corrupt member. testzip() RETURNS the
+        # first bad name for a CRC mismatch but RAISES when the stream will not
+        # decompress at all — and an unhandled zlib.error here is a traceback out
+        # of the gate instead of a FAIL, which reads as a broken validator rather
+        # than a broken deck.
+        try:
+            bad = z.testzip()
+        except Exception as e:
+            out.append(("FAIL", 0, f"corrupt part in the package: {e}"))
+        else:
+            if bad:
+                out.append(("FAIL", 0, f"corrupt part in the package (bad CRC): {bad}"))
+
         parts = [n for n in z.namelist() if re.match(r"ppt/slides/slide\d+\.xml$", n)]
         pres = z.read("ppt/presentation.xml").decode("utf-8", "replace")
         rids = re.findall(r"<p:sldId[^>]*r:id=\"(rId\d+)\"", pres)

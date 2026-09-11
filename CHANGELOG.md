@@ -17,6 +17,39 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — the LibreOffice render check is gone; the package check absorbs what it can
+
+**Removed, deliberately** (Aaron): LibreOffice is not going on the build machine, so
+`qa_all.py`'s render smoke test — open each deck, convert to PDF, compare the page count
+to the slide count — had never once run there. Every gate closed with a banner saying the
+one check that proves a deck OPENS had been skipped. A check that cannot run is not a
+check; it is a banner. Gone with it: `_find_soffice`, `render_check`, `--no-render` and
+both skip banners.
+
+**What it covered that nothing covers now.** Steps 1 and 2 read the deck THROUGH
+python-pptx, which cannot see a malformed package — not hypothetical: seven 2026.08 ICS
+decks passed at 0 FAIL while being unopenable. So the recoverable half moved into
+`validate_deck.package_findings`, which reads the ZIP directly and needs no renderer:
+
+- **any part name written twice.** Exactly the defect produced the same day by cloning the
+  Summit slide — relating the asset's image Part carried its partname along, so a deck
+  that already held `/ppt/media/image2.png` got the entry twice. The existing checks could
+  not see it: they look at SLIDE parts, and these are media.
+- **a CRC check on every member**, catching a truncated or corrupt part.
+
+What is NOT recovered is everything past "structurally sound": a deck that opens but
+renders wrong, a font that does not resolve, an image that will not decode. CLAUDE.md says
+so rather than implying the gate still proves a deck opens, and says to open one deck
+before a batch goes to clients.
+
+**The new test found a bug in the new check.** `testzip()` RETURNS the first bad name on a
+CRC mismatch but RAISES when a stream will not decompress at all, so a badly corrupted deck
+threw `zlib.error` out of the gate — which reads as a broken validator, not a broken deck.
+Caught and reported as a FAIL now. `tests/test_validate_deck.py` covers a sound package, a
+duplicated part and a corrupt member.
+
+All 18 delivered 2026.09 decks were re-checked against the stricter rules: 0 findings.
+
 ### 2026-09-11 — one Summit slide, from one file: Fort Lauderdale replaces Boston
 
 **Every 2026.09 deck advertised a Summit that had already happened.** The slide read

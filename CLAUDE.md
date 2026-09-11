@@ -261,7 +261,7 @@ data. Skip with `--no-tests` only when you know why.
 ```
 python3 validation/qa_all.py [built_deck.pptx ...]        # gate: validates every template + given decks
 python3 validation/qa_all.py --snapshot ...               # accept INTENTIONAL layout changes as the new baseline
-python3 validation/qa_all.py --no-render ...              # skip the render smoke test (faster; use sparingly)
+python3 validation/qa_all.py --no-tests ...               # skip the unit suite (know why)
 ```
 
 Run it from the repo `.venv` (`.venv/Scripts/python` on Windows). The Windows Store
@@ -277,23 +277,35 @@ caption overflow, PowerPoint autofit shrink, chart-vs-tile rail) AND compares ea
 layout fingerprint against `validation/layout_baseline.json` — **DRIFT warnings mean a shared
 pass touched slides you didn't intend to change** (the class of regression that otherwise
 only a human spots). Review drifts, then `--snapshot` to accept. It also runs an **OOXML
-package-integrity check** and a **render smoke test** (opens each deck in LibreOffice and
-compares the PDF page count to the slide count). The render test needs `soffice` on PATH;
-without it the gate now says so **loudly**, per deck and in a summary banner (2026-08-27 — it
-used to be silent on skip *and* on success, so a machine with no LibreOffice reported a clean
-gate while the one check that proves a deck opens had never run). Three hard-won rules:
-1. **LibreOffice renders are not PowerPoint.** `normAutofit` font-scaling is invisible in
-   soffice renders — the validator FAILs any frame with fontScale <90%; never trust nominal
-   font sizes on template-inherited frames.
+package-integrity check** (`validate_deck.package_findings`): the archive opens and every
+member passes its CRC, no part name is written twice, and slide parts are neither duplicated,
+dangling nor orphaned.
+
+**There WAS a render smoke test — LibreOffice opened each deck and its PDF page count was
+compared to the slide count. It was REMOVED on 2026-09-11 (Aaron): LibreOffice is not going
+on the build machine, so the check had never once run there** and every gate closed with a
+banner saying so. Do not add it back without the renderer to run it.
+
+**Know what its removal costs.** Nothing in the gate now proves a deck OPENS. The structural
+half is recovered by the package check above — including the duplicate-part case, added the
+same day after cloning the Summit slide wrote `/ppt/media/image2.png` twice. What is NOT
+recovered is everything past "structurally sound": a deck that opens but renders wrong, a
+font that does not resolve, an image that will not decode. **Open one deck before a batch
+goes to clients.** Three hard-won rules:
+1. **Nominal font size is not rendered font size.** `normAutofit` silently shrinks text to
+   fit its box, and that scaling is invisible in a render — which is part of why a renderer
+   was never the whole answer. The validator FAILs any frame with fontScale <90%; never trust
+   nominal font sizes on template-inherited frames.
 2. **Box geometry is not glyph geometry.** Text overflows its box silently; the validator
    estimates rendered glyph runs (font-size- and alignment-aware). When adding layout rules,
    fix the BUILDER/geometry contract (slide_geometry.py, fit_layout.py) — never hand-edit
    one deck.
 3. **python-pptx is not the file.** Every text/geometry rule reads the deck *through*
    python-pptx, which enumerates a duplicated slide reference as two real slides. All seven
-   2026.08 ICS decks passed at 0 FAIL while being unopenable in LibreOffice (50 parts, 28
-   references, six parts referenced twice). Package integrity and "does it actually open"
-   are now checked directly — added 2026-08-17 after that shipped.
+   2026.08 ICS decks passed at 0 FAIL while being unopenable (50 parts, 28 references, six
+   parts referenced twice). `package_findings` reads the ZIP directly and is the only thing
+   in the gate that can see that class of defect — added 2026-08-17 after it shipped, and
+   the last line of defence since the render test was removed.
 
 **Swap gate — a text swap that matches nothing FAILS the build (2026-07-25).** The ARS
 builder records every find-string that matched no shape and exits non-zero listing them. This
@@ -767,8 +779,7 @@ from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data —
 
 
 **`validation/`** — `validate_deck.py` (pre-ship lint gate, 0 FAIL to ship), `qa_all.py`
-(the full gate: every template + given decks, package integrity, render smoke test, layout
-drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accept).
+(the full gate: every template + given decks, package integrity, layout drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accept).
 **`fonts/`** — Montserrat (headings) and Carlito (Calibri-metric, charts), both bundled and
 embedded. `rpe_env.use_font` RAISES rather than let matplotlib substitute a missing face.
 
