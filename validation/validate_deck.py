@@ -43,6 +43,9 @@ import sys
 from pptx import Presentation
 from pptx.util import Emu
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build"))
+from brand import usd_compact as _usd                            # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.path.join(os.path.dirname(HERE), "build")
 sys.path.insert(0, BUILD)
@@ -1362,10 +1365,15 @@ def extract_findings(prs, extract, texts=None):
     def want(label, s):
         if s not in allnum:
             out.append(("FAIL", 0, f"base_extract {label} = {s} not found verbatim in deck"))
+    # Formatted through brand.usd_compact, the SAME function the builders render
+    # with. This carried its own `/1e6:.2f}M` and became the fifth copy of that rule
+    # to disagree: the moment the decks started writing $830K under a million, the
+    # cross-check went looking for "$0.83M" and failed a correct deck (2026-09-11).
+    # An expected value formatted differently from the rendered one is not a check.
     if "ltd_revenue" in extract:
-        want("ltd_revenue", f"${extract['ltd_revenue']/1e6:.2f}M")
+        want("ltd_revenue", _usd(extract["ltd_revenue"]))
     if "ltd_profit" in extract:
-        want("ltd_profit", f"${extract['ltd_profit']/1e6:.2f}M")
+        want("ltd_profit", _usd(extract["ltd_profit"]))
     if "months" in extract:
         want("months", f"{extract['months']} months")
     if "mailings" in extract:

@@ -104,3 +104,30 @@ STEEL_SOFT_RGB = _rgb(STEEL_SOFT)
 HEAD = "Montserrat"
 BODY = "Calibri"
 CHART_FONT = "Carlito"
+
+
+# ---------------------------------------------------------------- money
+def usd_compact(v, decimals=2):
+    """A dollar figure at deck scale: `$1.24M` at a million and up, `$830K` below.
+
+    ONE definition, because there were four and they disagreed (Aaron, 2026-09-11).
+    `build_ics_gen`'s Present Value callout divided by a million unconditionally and
+    printed **$0.83M** for $830K; `ics_charts_gen` fell back to a full `$830,000`;
+    `build_ars_gen` had both an unconditional `m2()` and a correct `_fmtk` two
+    hundred lines apart. A reader should not have to learn which slide they are on
+    to read a number.
+
+    Below $1,000 the figure is written in full: "$0K" says nothing, and a rounded
+    "$1K" for $950 is worse than the four characters it saves.
+    """
+    a = abs(v)
+    sign = "−" if v < 0 else ""          # true minus, not a hyphen, and OUTSIDE the $
+    # Rounding decides the unit, not the raw value: $999,999 is "$1,000K" if you
+    # pick the unit first, which is a unit nobody writes.
+    if a < 1e6 and round(a / 1000) >= 1000:
+        a = 1e6
+    if a >= 1e6:
+        return f"{sign}${a/1e6:,.{decimals}f}M"
+    if a >= 1000:
+        return f"{sign}${a/1000:,.0f}K"
+    return f"{sign}${a:,.0f}"

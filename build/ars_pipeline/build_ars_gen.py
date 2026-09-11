@@ -67,7 +67,9 @@ NAME = B['client']; ID = str(O.get('client', '')).strip()   # no client-name def
 ASSETS = tempfile.mkdtemp(prefix="ars_assets_")
 
 # ------------------------------------------------------------------ derived values (from build_gen / build_gen_b)
-def m2(x): return f"${x/1e6:.2f}M"
+# Under $1M this reads in K rather than "$0.83M" (Aaron, 2026-09-11); brand owns
+# the one definition, since four of these had drifted apart.
+from brand import usd_compact as m2
 # Every number shown in a callout carries thousands separators (Aaron, 2026-08-27).
 months = f"{B['months']:,}"; mailings = f"{B['mailings']:,}"
 _nm_int = int(B['mailings'] or 0)
@@ -625,7 +627,10 @@ else:
     set_exact(S[7], "Monthly Summary — Last 12 Months", "Monthly Summary — Last 12 Months")
     repl(S[7], {"07-2025 · 06-2026": _win8})
     set_shape_text(S[7], "Selection: monthly incremental revenue, most recent 12 months (SM revenue model).", "Selection: monthly incremental revenue, most recent 12 months (SM revenue model).")
-    _fmtk=lambda _v: (f"${_v/1e6:.2f}M" if abs(_v)>=1e6 else f"${_v/1000:.0f}K")
+    # Was a second copy of the M/K rule, correct but separate. brand.usd_compact
+    # is the one definition (2026-09-11) — revenue is always positive here, so the
+    # only behavioural difference (a true minus outside the $) cannot arise.
+    _fmtk = m2
     set_shape_text(S[7], "Monthly incremental revenue averaged $53K over the last 12 months, totaling $632K in program contribution.",
         f"Monthly incremental revenue averaged {_fmtk(B['monthly_rev_avg12'])} over the last 12 months, "
         f"totaling {_fmtk(B['monthly_rev_sum12'])} in program contribution.")

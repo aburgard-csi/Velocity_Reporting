@@ -28,6 +28,7 @@ import mrpc_charts_gen as CH
 
 # Standard callout drop shadow (STYLE.md "Callouts") — defined once, in build/shapes.py.
 from shapes import shadow as add_shadow
+from brand import usd_compact as _usd   # one money format for every program
 
 NAVY=RGBColor(0x00,0x27,0x4C); ORANGE=RGBColor(0xF4,0x7A,0x29)
 STEEL=RGBColor(0x9D,0xB8,0xCC); WHITE=RGBColor(0xFF,0xFF,0xFF)
@@ -276,7 +277,7 @@ def build(data, template, out):
         _lead=("Revenue has grown across the life of the program to"
                if _grew else "Life-of-program revenue reached")
         set_text(t, f"{_lead} "
-                    f"${rv['year_2025']/1000:,.1f}K in 2025 — ${rv['life_of_program']/1e6:,.2f}M "
+                    f"${rv['year_2025']/1000:,.1f}K in 2025 — {_usd(rv['life_of_program'])} "
                     f"life-of-program.{ytd_txt}")
     _rp=max(pics(S[6]), key=lambda p2:p2.width*p2.height)
     place_pic(_rp, 0.4, 1.45, 7.55, 5.15)         # taller still (Aaron 2026-07-24); footnote sits below

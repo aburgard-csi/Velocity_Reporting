@@ -12,7 +12,7 @@ from PIL import Image
 from rpe_env import use_font
 
 from brand import (NAVY, ORANGE, STEEL_SOFT as STEEL, LIGHT, TICK,
-                   MUTED as GREY)
+                   MUTED as GREY, usd_compact as _usd)
 import periods as P
 P.install_month_axis_guard()   # a month drawn outside MMM'YY fails the render
 
@@ -64,7 +64,8 @@ def c_revenue_pie(d,out):
             wedgeprops=dict(width=0.42,edgecolor="white",linewidth=2))[0]
     for w in wed:                                   # STYLE.md: pie/donut charts are FLAT — no shadow
         w.set_clip_on(False)
-    ctr=(f"${tot/1e6:,.2f}M" if tot>=1e6 else f"${tot:,.0f}")
+    # Revenue under $1M reads in K, not as a full dollar figure (Aaron, 2026-09-11).
+    ctr=_usd(tot)
     axp.text(0,0.13,ctr,ha="center",va="center",color=NAVY,fontsize=24,fontweight="bold")
     axp.text(0,-0.17,"Total Program\nRevenue",ha="center",va="center",color=TICK,fontsize=13)
     # legend: components with $ amount and share

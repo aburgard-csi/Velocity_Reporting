@@ -17,6 +17,50 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — revenue under $1M reads in K, and promote_month stops being a trap
+
+**Five copies of the money rule, and they disagreed** (Aaron: "when revenue is less than
+$1M, state it in K"). The ICS Present Value callout divided by a million unconditionally
+and printed **$0.83M** for $830K; `ics_charts_gen`'s donut centre fell back to a full
+`$830,000`; `build_ars_gen` carried both an unconditional `m2()` and a correct `_fmtk` two
+hundred lines apart; `build_mrpc_gen` wrote life-of-program in M whatever its size. All
+now call `brand.usd_compact` — `$1.24M` at a million and up, `$830K` below, and the whole
+figure under a thousand because "$1K" for $950 is worse than the characters it saves.
+MRPC's "$95.6K in 2025" keeps its decimal: it already states K, and the rule is about the
+unit, not the precision.
+
+**The fifth copy was in the VALIDATOR, and it failed a correct deck.** `extract_findings`
+formatted the EXPECTED `ltd_profit` with its own `/1e6:.2f}M` and looked for it verbatim
+in the deck. The moment the builders started writing $830K the cross-check went hunting
+for "$0.83M" and the golden deck went red. An expected value formatted differently from
+the rendered one is not a check. `tests/test_brand.py` now scans all five files — code
+only, since it was flagging its own explanatory comment.
+
+**promote_month: two failures and the trap underneath them.**
+
+A deck open in PowerPoint raised PermissionError, **aborted the whole run at the first
+client**, and left that client's hand-made PDF in `Archive/` while its superseded deck
+stayed live. Promotion is now all-or-nothing per client — anything already moved is put
+back, and the orphan `shutil.move` leaves behind when it falls back to copy-then-delete is
+removed — and a blocked client is REPORTED while the run continues, with the exit code
+carrying it.
+
+Underneath both: **`main()` resolved its destination from `rpe_env.outputs()` and ignored
+its caller.** A test that built a temp `Outputs/` and passed the staging dir to `main()`
+wrote into the LIVE folder and delivered 1204's deck under 1038's filename. Recovered from
+`Outputs/Archive/` and rebuilt; nothing was sent, and an audit of every delivered 2026.09
+deck's title-slide client against its filename found no other mismatch. The destination is
+a `--outputs` parameter now, and `tests/test_promote_month.py` re-runs that exact scenario
+and asserts the real folder is untouched.
+
+That is three defects in one module from the same root: it reached for globals instead of
+taking parameters. Import-safe, parameterised, and covered now.
+
+**PDFs in `Outputs/` are deliberate** (Aaron, 2026-09-11): they are exported by hand before
+sending, so they are not strays to clean up. `promote_month` archiving them alongside the
+deck is correct — a PDF of a superseded deck is stale — and that move is now part of the
+same all-or-nothing group.
+
 ### 2026-09-11 — promote_month could not see a colour change, and skipped the delivery
 
 **The navy Summit banner was silently not delivered.** True Sky was rebuilt with the

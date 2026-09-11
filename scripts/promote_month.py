@@ -129,11 +129,83 @@ def plan(stage):
     return picks
 
 
+def promote_one(src, out, arch, stamp, apply=False, log=print):
+    """Archive whatever `src` supersedes, then deliver it. ALL OR NOTHING.
+
+    Every file for this deck moves or none does. It used to archive each match in
+    turn and then copy, so a lock part way left a SPLIT state: on 2026-09-11 a deck
+    was open in PowerPoint, its .pdf was archived, the .pptx move raised
+    PermissionError, and that client ended up with its PDF in Archive/ and its old
+    deck still live. Anything already moved is put back before the error leaves
+    here.
+
+    Returns (n_archived, delivered). Raises OSError if the deck could not be
+    promoted; the caller decides whether that stops the run.
+    """
+    name = os.path.basename(src)
+    stem = os.path.splitext(name)[0]
+    olds = sorted(glob.glob(str(out / f"{glob.escape(stem)}.*")))
+    plan_moves = []
+    for old in olds:
+        ext = os.path.splitext(old)[1]
+        dest = arch / f"{stem} (superseded {stamp}){ext}"
+        n = 1
+        while dest.exists() or dest in [d for _, d in plan_moves]:
+            n += 1
+            dest = arch / f"{stem} (superseded {stamp}-{n}){ext}"
+        plan_moves.append((old, dest))
+        log(f"{'archive':<9} {os.path.basename(old)[:62]:<62}")
+    log(f"{'deliver':<9} {name[:62]:<62}")
+    if not apply:
+        return len(plan_moves), True
+
+    arch.mkdir(parents=True, exist_ok=True)
+    moved = []
+    inflight = None
+    try:
+        for old, dest in plan_moves:
+            inflight = dest
+            shutil.move(old, dest)
+            moved.append((old, dest))
+            inflight = None
+        shutil.copy2(src, out / name)
+    except OSError:
+        # shutil.move falls back to copy-then-delete when os.rename fails, so a lock
+        # on the SOURCE still leaves a full copy at the destination before raising.
+        # Without this the rollback restored Outputs correctly and left an orphan in
+        # Archive/ that looks like a real superseded deck (2026-09-11).
+        if inflight is not None and os.path.exists(inflight):
+            try:
+                os.remove(inflight)
+            except OSError:
+                pass
+        # Put back exactly what this call moved, newest first, so a failure leaves
+        # Outputs as it was found. A rollback that itself fails is reported but does
+        # not mask the original error.
+        for old, dest in reversed(moved):
+            try:
+                shutil.move(dest, old)
+            except OSError as back:
+                log(f"{'!! ':<9} could not restore {os.path.basename(old)}: {back}")
+        raise
+    return len(moved), True
+
+
+def _why(e):
+    """A locked file is the common case and deserves to say so."""
+    if isinstance(e, PermissionError):
+        return "in use by another program (close it and re-run)"
+    return str(e)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("stage", help="staging directory built by build_month.py")
     ap.add_argument("--apply", action="store_true",
                     help="actually move and copy; without it this is a dry run")
+    ap.add_argument("--outputs", default=None, metavar="DIR",
+                    help="deliver HERE instead of the pipeline Outputs folder "
+                         "(for tests and rehearsals; the real run never passes it)")
     a = ap.parse_args(sys.argv[1:] if argv is None else argv)
     for s in (sys.stdout, sys.stderr):
         try:
@@ -141,7 +213,15 @@ def main(argv=None):
         except (AttributeError, ValueError):
             pass
 
-    out = R.outputs()
+    # The destination is a PARAMETER, not a constant this function reaches for.
+    # It used to be `R.outputs()` unconditionally: a caller could hand main() a
+    # staging dir and its own output dir, and main would quietly ignore the second
+    # and write to the real Outputs. That is not hypothetical — on 2026-09-11 a test
+    # did exactly that and delivered one client's deck under another client's
+    # filename into the live folder. A function that silently overrides where the
+    # caller said to write cannot be exercised safely, which is the same reason this
+    # module was made import-safe.
+    out = Path(a.outputs) if a.outputs else R.outputs()
     arch = out / "Archive"
     # Today, not a literal. A hardcoded stamp dated four archives to the wrong
     # day and collided with the previous run, producing "-2"/"-3" suffixes.
@@ -151,34 +231,36 @@ def main(argv=None):
     print(f"{'action':<9} {'file':<62}")
     print("-" * 88)
     archived = copied = skipped = 0
+    failed = []
     for src in picks:
         name = os.path.basename(src)
-        stem = os.path.splitext(name)[0]
         cur = out / name
         if cur.exists() and same(str(cur), src):
             print(f"{'unchanged':<9} {name[:62]:<62}")
             skipped += 1
             continue
-        for old in sorted(glob.glob(str(out / f"{glob.escape(stem)}.*"))):
-            ext = os.path.splitext(old)[1]
-            dest = arch / f"{stem} (superseded {stamp}){ext}"
-            n = 1
-            while dest.exists():
-                n += 1
-                dest = arch / f"{stem} (superseded {stamp}-{n}){ext}"
-            print(f"{'archive':<9} {os.path.basename(old)[:62]:<62}")
-            if a.apply:
-                arch.mkdir(parents=True, exist_ok=True)
-                shutil.move(old, dest)
-            archived += 1
-        print(f"{'deliver':<9} {name[:62]:<62}")
-        if a.apply:
-            shutil.copy2(src, out / name)
+        try:
+            n, _ = promote_one(src, out, arch, stamp, a.apply)
+        except OSError as e:
+            # One locked deck must not cost the other ten. It is REPORTED, the run
+            # continues, and the exit code carries the failure so a caller can gate
+            # on it (2026-09-11: a deck open in PowerPoint aborted the whole run at
+            # the first client and nothing was delivered).
+            print(f"{'BLOCKED':<9} {name[:62]:<62}")
+            print(f"{'':<9}   {_why(e)}")
+            failed.append(name)
+            continue
+        archived += n
         copied += 1
     print("-" * 88)
     print(f"{archived} archived, {copied} delivered, {skipped} unchanged"
+          + (f", {len(failed)} BLOCKED" if failed else "")
           + ("" if a.apply else "   [DRY RUN — nothing moved]"))
-    return 0
+    if failed:
+        print("\nnot delivered — close these and re-run (the run is idempotent):")
+        for f in failed:
+            print("  " + f)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

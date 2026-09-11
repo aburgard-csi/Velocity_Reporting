@@ -82,7 +82,7 @@ from textfit import fits_one_line   # measured against the bundled TTFs, not est
 import periods as P
 
 from brand import (NAVY_RGB as NAVY, ORANGE_RGB as ORANGE,
-                   STEEL_SOFT_RGB as STEEL)
+                   STEEL_SOFT_RGB as STEEL, usd_compact as _usd)
 LIGHT=RGBColor(0xEC,0xF0,0xF4); WHITE=RGBColor(0xFF,0xFF,0xFF); GREYT=RGBColor(0x5A,0x66,0x70)
 NAVYX="00274C"
 # The standard callout drop shadow is defined ONCE, in build/shapes.py. This file
@@ -899,7 +899,7 @@ def build(d, static_path, out, referrals_only=False):
         tb(s,0.5,6.5,12.6,0.5,f"Amortized expense: ${cpa:,.0f} ÷ 60 months = ${cpa/60:.2f} per account per month × time open.",16,GREYT,False)
         for i,(big,lab) in enumerate([(f"{fs['ics_accounts']:,}","ICS Accounts"),(f"${fs['average_balance']:,.0f}","Average Balance"),(f"{roi_calc:.2f} : 1","Return on Investment")]):
             callout(s,5.15,BT0+i*1.55,3.3,1.35,big,lab,big_size=24)
-        callout(s,8.7,BT0,4.15,4.6,f"${pv_total/1e6:,.2f}M","Present Value",
+        callout(s,8.7,BT0,4.15,4.6,_usd(pv_total),"Present Value",
                 "of New ICS Accounts",fill=ORANGE,big_size=44)
         logo(s); pagenum(s,14)
         notes(s,base+f" Contribution ${fs['account_profit_contribution']:,.0f} − expense ${fs['total_program_expense']:,.0f} = net ${fs['net_profit']:,.0f}; "
