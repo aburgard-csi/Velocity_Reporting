@@ -17,6 +17,35 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-11 — the performance page lost every CashPlease figure, and gained a shareable export
+
+**The CashPlease section was blank for all eight clients and nothing failed.** CashPlease
+moved into this repo on 2026-09-10, and its build code was deleted from the standalone
+checkout in the move. `refresh_performance_dashboard.py` still resolved the extractor as
+`CASHPLEASE_HOME` or a sibling `CashPlease/build/cp_extract.py`, so it found nothing, and
+the CashPlease block for every one of 1131, 1539, 1564, 1632, 1734, 1750, 1770 and 1771
+reported missing. The run still exited `STATUS: changed`, which is what the scheduled task
+publishes on — the next 08:30 would have put a page with a hole in it at the live URL.
+The extractor is now resolved in-repo first (`build/cashplease_pipeline/cp_extract.py`),
+with `CASHPLEASE_HOME` kept as a fallback for a pre-migration checkout. The same move had
+left the DDA counts behind too: they are read from
+`Build Artifacts/cashplease/dda_counts.json`, where `build_cashplease.py` writes them,
+instead of through a `cp_env` import that no longer exists and whose failure was swallowed.
+
+`tests/test_perf_dashboard_export.py` pins the extractor's resolved PATH, not merely that
+one was found — asserting "not None" would have passed on the broken morning for anyone
+with the old checkout still beside the repo. It also pins cp_extract's argument count,
+since the refresh builds that command line by hand.
+
+**`--export` writes a copy that can be handed to someone.** The published artifact is
+wrapped in a document skeleton at publish time, so the template carries no
+`<!doctype>`/`<head>`/`<body>` of its own and a saved copy opened from a file share has no
+publisher to supply one. `--export [PATH]` emits the same rendered HTML inside that
+skeleton — charset first, or the em dashes arrive as mojibake — with a `<title>` (the
+template's lands in the body, where browsers ignore it) and a line on the page saying the
+copy is a static snapshot of its period. The page's own pill says "Last updated", which
+reads as something that keeps updating; a file passed around never will.
+
 ### 2026-09-10 — the YoY tiles were not year-over-year, and their captions named the wrong months
 
 Cherry-picked from `claude/gallant-allen-dzs1zv` (`7a47b93`, written 2026-09-01 and never

@@ -633,8 +633,8 @@ sparklines, and a deck roster. It is a static page with its dataset embedded.
 deck builders read (ARS workbooks + DCOs through the ARS extractors, mailing response
 from the shipped deck's figure sidecar, the VIP ICS / MRPC sheets, the newest
 MRPCEnrollmentSummary and CashPleaseSummary weeklies — the last through the
-CashPlease repo's own `cp_extract.py`, found via `CASHPLEASE_HOME` or the sibling
-checkout), injects it into `scripts/perf_dashboard_template.html`, and writes the
+in-repo `build/cashplease_pipeline/cp_extract.py`, so the page and the CashPlease
+decks are computed once), injects it into `scripts/perf_dashboard_template.html`, and writes the
 page and its bookkeeping to `Build Artifacts/perf_dashboard/`. **The period is the
 newest ARS workbook in `Inputs/`**, so the page rolls forward when a month's workbooks are
 copied, not before. **Within that cycle every client shows its own newest figures**
@@ -684,7 +684,9 @@ This is the readme index — update it whenever files are added, removed, or mov
   move a client-facing number or its source", and that reading kept the MRPC
   invisible-retention-line fix out of the file entirely.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
-- `docs/` — `PRD-2026-08-26-repo-portability-and-response-rates.md`.
+- `docs/` — the PRDs: `PRD-2026-08-26-repo-portability-and-response-rates.md`,
+  `PRD-2026-09-11-rpe-client-performance-artifact.md` (the cross-client performance page:
+  what it is for, where each figure comes from, and why the script never publishes).
 
 **`scripts/`**
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.

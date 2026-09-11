@@ -16,8 +16,9 @@ publish: the artifact is republished by the Claude scheduled task
                  NOT the response rate the deck prints;
                  VIP ICS / MRPC sheets (Inputs/VIP Data, via the manifest);
                  the newest MRPCEnrollmentSummary weekly;
-                 the newest CashPleaseSummary weekly, through the CashPlease repo's
-                 own extractor (cp_extract.py) so its figures match its decks.
+                 the newest CashPleaseSummary weekly, through the CashPlease
+                 pipeline's own extractor (build/cashplease_pipeline/cp_extract.py)
+                 so its figures match its decks.
 
 Everything it writes is bookkeeping and goes to `Build Artifacts/perf_dashboard/`:
 
@@ -39,6 +40,10 @@ Usage:
     python scripts/refresh_performance_dashboard.py [--period 2026.08] [--force]
     python scripts/refresh_performance_dashboard.py --mark-published
         (after a successful publish: records the current hash as the live one)
+    python scripts/refresh_performance_dashboard.py --export [PATH]
+        (also write a self-contained copy to hand to someone: the same page plus the
+         document skeleton the publisher would have added, and a line saying it is a
+         snapshot. Default PATH is `RPE Client Performance <period>.html` beside the page.)
 """
 import argparse
 import datetime as _dt
@@ -80,19 +85,27 @@ def out_dir():
     return d
 
 
-def cashplease_home():
-    """The CashPlease repo, whose extractor produces the CashPlease figures.
+def cp_extractor():
+    """The extractor that produces the CashPlease figures.
 
-    Resolved, not hardcoded: CASHPLEASE_HOME in the environment or `.env`, else a
-    sibling checkout named CashPlease. Absent, the CashPlease section is reported as
-    missing rather than the whole refresh failing.
+    It lives in THIS repo now (`build/cashplease_pipeline/cp_extract.py`) — CashPlease
+    became the fourth program on 2026-09-10 and the standalone repo's build code was
+    deleted in the move. This function looked there first for a day after the migration,
+    which cost every CashPlease figure on the page: the extractor could not be found, the
+    section reported missing for all eight clients, and the refresh said `changed` and
+    was ready to publish a page with a hole in it.
+
+    CASHPLEASE_HOME is still honoured as a fallback so a pre-migration checkout keeps
+    working; absent both, the CashPlease section is reported missing rather than the
+    whole refresh failing.
     """
+    here = REPO / "build" / "cashplease_pipeline" / "cp_extract.py"
+    if here.exists():
+        return here
     raw = os.environ.get("CASHPLEASE_HOME") or R._load_dotenv().get("CASHPLEASE_HOME")
-    cands = [Path(raw)] if raw else []
-    cands.append(REPO.parent / "CashPlease")
-    for c in cands:
+    for c in ([Path(raw)] if raw else []) + [REPO.parent / "CashPlease"]:
         if (c / "build" / "cp_extract.py").exists():
-            return c
+            return c / "build" / "cp_extract.py"
     return None
 
 
@@ -406,28 +419,23 @@ def mrpc_section(cid, weekly):
 
 # ------------------------------------------------------------------ CashPlease
 def cashplease_packs(reports, work):
-    """Run the CashPlease repo's extractor on the newest weekly. Returns
+    """Run the CashPlease pipeline's extractor on the newest weekly. Returns
     (packs_dir, weekly_name, peer, note) — packs_dir None when it could not run."""
-    home = cashplease_home()
-    if home is None:
-        return None, None, None, "CashPlease repo not found (set CASHPLEASE_HOME)"
-    sys.path.insert(0, str(home / "build"))
+    extractor = cp_extractor()
+    if extractor is None:
+        return None, None, None, "cp_extract.py not found in build/cashplease_pipeline"
     cands = report_glob(reports, "CashPleaseSummary*.xlsx")
-    dda = None
-    try:
-        import cp_env
-        cands += glob.glob(str(cp_env.inputs() / "CashPleaseSummary*.xlsx"))
-        d = cp_env.build_artifacts() / "dda_counts.json"
-        dda = str(d) if d.exists() else None
-    except BaseException:
-        pass
+    # The DDA counts are what turn loans into loans per 1,000 DDAs. They are optional —
+    # cp_extract takes 3 args or 4 — so a missing file costs that one measure, not the run.
+    d = R.build_artifacts() / "cashplease" / "dda_counts.json"
+    dda = str(d) if d.exists() else None
     cands = [c for c in cands if not os.path.basename(c).startswith("~$")]
     if not cands:
         return None, None, None, "no CashPleaseSummary*.xlsx found"
     # The stamp in the name orders them; the newest weekly wins wherever it landed.
     wb = max(cands, key=os.path.basename)
     packs = work / "cp"
-    cmd = [PY, str(home / "build" / "cp_extract.py"), wb, str(packs)] + ([dda] if dda else [])
+    cmd = [PY, str(extractor), wb, str(packs)] + ([dda] if dda else [])
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0 or not (packs / "peer_benchmark.json").exists():
         return None, os.path.basename(wb), None, "cp_extract failed: " + r.stderr.strip()[-300:]
@@ -586,6 +594,52 @@ def render(dataset, template_text=None):
     return template_text.replace(PLACEHOLDER, js, 1)
 
 
+# The published artifact is wrapped in a document skeleton at publish time, so the
+# template carries no <!doctype>/<html>/<head>/<body> of its own. A copy someone opens
+# from a file share has no publisher, so an export has to supply that skeleton itself —
+# charset first, or the em dashes and the · separators render as mojibake.
+EXPORT_HEAD = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RPE Client Performance %(period)s</title>
+"""
+# The template's own <title> ends up inside <body>, where browsers ignore it and the tab
+# falls back to the filename — hence the one above. Its <link> and <style> are fine there:
+# a stylesheet found in the body still applies. Nothing else is hoisted, so a template that
+# grows new head content keeps working without this function being taught about it.
+
+# Said on the page itself, because a file passed around cannot be asked when it is from.
+# The "Last updated" pill alone reads as a page that keeps updating; this one never will.
+EXPORT_NOTE = """<div class="wrap" style="padding-top:0">
+  <p style="margin:0 0 28px;padding:11px 14px;border:1px solid var(--hair);border-left:3px solid var(--accent);
+     border-radius:8px;background:var(--tile);color:var(--ink2);font-size:13px">
+    <b style="color:var(--ink)">Static copy — %(period)s, exported %(exported)s.</b>
+    It does not refresh. Figures come from the same inputs as that period’s decks;
+    the live page is rebuilt each morning. Internal use — client figures.
+  </p>
+</div>
+"""
+
+
+def standalone(html, period, exported=None):
+    """The rendered page as a file a coworker can open — one self-contained document.
+
+    Same HTML the artifact publishes, so there is no second rendering to keep in step:
+    the skeleton the publisher would have added, plus a line saying the copy is a
+    snapshot. Everything else is already inline (the dataset is embedded and both charts
+    are hand-built SVG), so the only thing it fetches is the webfont, and the CSS names a
+    fallback stack for that.
+    """
+    y, m = period.split(".")
+    label = "%s %s" % (_dt.date(int(y), int(m), 1).strftime("%B"), y)
+    note = EXPORT_NOTE % {"period": label,
+                          "exported": exported or _dt.datetime.now().strftime("%Y-%m-%d %H:%M")}
+    return (EXPORT_HEAD % {"period": label} + "</head>\n<body>\n"
+            + html + "\n" + note + "</body>\n</html>\n")
+
+
 def content_hash(dataset):
     """Hash of the figures, not the run: `generated` is excluded so rebuilding the
     same inputs on another day reads as unchanged."""
@@ -627,6 +681,9 @@ def main(argv=None):
     ap.add_argument("--force", action="store_true", help="report changed even if the hash matches")
     ap.add_argument("--mark-published", action="store_true",
                     help="record the current dataset hash as the published one, then exit")
+    ap.add_argument("--export", nargs="?", const=True, default=None, metavar="PATH",
+                    help="also write a self-contained copy to share (default: a "
+                         "period-stamped file beside the page)")
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
@@ -656,6 +713,13 @@ def main(argv=None):
     html = render(dataset)
     (work / "dataset.json").write_text(json.dumps(dataset, indent=1, default=str), encoding="utf-8")
     (work / "rpe_dashboard.html").write_text(html, encoding="utf-8")
+
+    if a.export:
+        exp = (work / ("RPE Client Performance %s.html" % period)
+               if a.export is True else Path(a.export))
+        exp.parent.mkdir(parents=True, exist_ok=True)
+        exp.write_text(standalone(html, period), encoding="utf-8")
+        print("export " + str(exp))
 
     h = content_hash(dataset)
     changed = a.force or h != state.get("published_hash")
