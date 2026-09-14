@@ -81,7 +81,8 @@ making them run on Windows.
 
 ### Phase 1 — repo
 
-Create the repo (done: `aburgard/RetailPerformanceEngine`, private). Push
+Create the repo (done: `aburgard/RetailPerformanceEngine`, private; transferred to
+the CSI account and renamed `aburgard-csi/Velocity_Reporting` on 2026-09-14). Push
 `build/` from the Mac, which is authoritative. Exclude `.pyc` files, the July
 zips, and the two `data/` folders. Add `.gitignore`, `CHANGELOG.md`, this PRD,
 and `requirements.txt` before the first commit.
