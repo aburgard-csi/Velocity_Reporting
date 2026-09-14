@@ -17,6 +17,31 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the first four-program deck: a cover that overflowed, and a client with two names
+
+Marine FCU's September deck is the first combined Executive Review with all four programs
+(ARS-ICS-MRPC-CP), assembled alongside ICS-CP decks for 1632 WesBanco and 1734 Altamaha
+(Aaron). WesBanco and Altamaha passed the gate; Marine failed it three times, on two
+defects no earlier combined deck could reach.
+
+**The cover listed four products in a box that seats three.** `set_title_products` adds a
+paragraph per program at the shell's 40pt, and the product box is 2.0" deep — exactly three
+lines. Four ran about 2.7" deep and drew over "Marine FCU / Executive Review" beneath them.
+`_fit_product_lines` now shrinks the product lines only when they cannot fit at their own
+size, so two- and three-product covers keep exactly 40pt and no existing deck changes.
+
+**The leak checks treated one client's two names as two clients.** Marine FCU (1539) is the
+old reference client, so both "Marine FCU" and "Marine Federal Credit Union" are on
+`validate_deck.REFERENCE_CLIENTS`. A name is skipped only when it appears on the deck's own
+filename or cover — and the cover says "Marine FCU" while the CashPlease workbook, and so
+the CashPlease section's source notes, say "Marine Federal Credit Union". Slides 42 and 46
+failed as "a different client's provenance". `REFERENCE_ALIASES` now groups the two names,
+and both `reference_leak_findings` and `source_note_findings` count a name as the deck's own
+when any name in its group is. A genuinely different client still fails.
+
+`tests/test_combined_cover_and_names.py` pins both: four products fit, two and three keep
+40pt, the alias works in both directions, and True Sky's deck naming Marine is still a leak.
+
 ### 2026-09-14 — the Build readiness table sorts by every column
 
 Every column on the performance page's Build readiness section is now sortable (Aaron):

@@ -308,8 +308,32 @@ def set_title_products(slide, programs):
             par.runs[0].text = line
             for r in par.runs[1:]:
                 r.text = ""
+        _fit_product_lines(sh, len(product_lines))
         return True
     return False
+
+
+def _fit_product_lines(shape, n_lines):
+    """Shrink the cover's product lines ONLY when they cannot fit the box at their own size.
+
+    The shell's product box is 2.0" deep at 40pt, which seats three products - every
+    combined deck until 2026-09-14. Marine FCU's ARS-ICS-MRPC-CP cover was the first with
+    four: the lines ran about 2.7" deep and drew over the client name beneath them, and
+    the gate failed it. Two- and three-product covers keep exactly the template's 40pt,
+    so no existing deck changes.
+    """
+    import math
+    from pptx.util import Emu, Pt
+    runs = [r for p in shape.text_frame.paragraphs for r in p.runs]
+    size = next((r.font.size.pt for r in runs if r.font.size), None)
+    if not size or shape.height is None:
+        return
+    box = Emu(shape.height).pt
+    if n_lines * size * 1.2 <= box:          # 3 x 40pt x 1.2 = 144pt = the 2.0" box exactly
+        return
+    new = math.floor(box / (n_lines * 1.25))  # a little looser than the fit test, for glyph ascent
+    for r in runs:
+        r.font.size = Pt(new)
 
 
 ROW_TOKENS = tuple(str(i) for i in range(1, 10))

@@ -163,6 +163,20 @@ REFERENCE_CLIENTS = ["Union Financial", "Marine FCU", "Marine Federal Credit Uni
                      "Sugar River", "CoastLife", "Wellworth", "Canandaigua",
                      "Bank Name"]
 
+# One institution can reach a deck under more than one name, and the reference list has
+# to know they are ONE client. Marine FCU (1539) is the old reference client, so both of
+# its names are on the list above; the CashPlease workbook calls it "Marine Federal Credit
+# Union" while the roster, filename and cover say "Marine FCU". The first four-program
+# deck (ARS-ICS-MRPC-CP, 2026-09-14) therefore failed on its OWN CashPlease source notes
+# as "a different client's provenance". A name counts as the deck's own when any name in
+# its group is on the filename or cover; a genuinely different client still fails.
+REFERENCE_ALIASES = [("Marine FCU", "Marine Federal Credit Union")]
+
+
+def _is_own_name(name, own):
+    group = next((g for g in REFERENCE_ALIASES if name in g), (name,))
+    return any(n.lower() in own for n in group)
+
 # The program tags a filename can carry (CLAUDE.md filename convention).
 PROGRAM_TAGS = ("ARS", "ICS", "MRPC", "CP")
 
@@ -331,7 +345,7 @@ def reference_leak_findings(path, prs, texts=None):
         head_low = "  ".join(header).lower()
         body_join = "  ".join(body)
         for name in REFERENCE_CLIENTS:
-            if name.lower() in own or name.lower() in head_low:
+            if _is_own_name(name, own) or name.lower() in head_low:
                 continue
             m = re.search(r"[^\n]*\b" + re.escape(name) + r"\b[^\n]*", body_join, re.I)
             if m:
@@ -758,7 +772,7 @@ def source_note_findings(path, prs):
             out.append(("FAIL", idx,
                         f"speaker note carries no Source line: '{title[:44]}'"))
         for name in REFERENCE_CLIENTS:
-            if name.lower() in own:
+            if _is_own_name(name, own):
                 continue
             # Word-boundary match: a plain substring test flagged every "Credit
             # Union financials" note as naming "Union Financial".
