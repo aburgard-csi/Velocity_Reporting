@@ -24,6 +24,7 @@ out['ltd_revenue']=efv('Total Incremental Revenue',6)
 out['cur_profit']=efv('Incremental Profit',4)
 out['ltd_profit']=efv('Incremental Profit',6)
 out['ltd_costs']=efv('Total Costs',6)
+out['cur_costs']=efv('Total Costs',4)   # current-month ARS expense = revenue to CSI (perf page)
 out['ltd_plan_profit']=efv('Incremental Profit',7)
 # Always emit profitability; guard only the DENOMINATOR. Gating on revenue too
 # omitted the key for a young program with no revenue booked yet (1549 Wellworth),

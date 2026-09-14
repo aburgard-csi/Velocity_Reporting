@@ -11,8 +11,9 @@
   --good:#1E7F4F; --warn:#B7791F; --bad:#B42318;
   --track:#E4EAF1; --shadow:0 1px 2px rgba(0,39,76,.08), 0 6px 18px rgba(0,39,76,.06);
   --chip-bg:#FFFFFF; --chip-on:#245C8C; --chip-on-ink:#FFFFFF; --focus:#F47A29;
-  --chip-all:#E3F1EA; --chip-all-ink:#1E5E3D; --chip-all-line:#9CCBB1;
-  --mark-bg:#FFFFFF; --mono-bg:#5A7590; --mono-ink:#FFFFFF;
+  --chip-all:#FFFFFF; --chip-all-ink:#0E1B2A; --chip-all-line:#C5CDD6;
+  --chip-off:#E9EDF1; --chip-off-ink:#5A6670;
+  --ov:#5A7590;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -24,7 +25,9 @@
     --good:#4CC38A; --warn:#E2B14A; --bad:#F27E75;
     --track:#233647; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
     --chip-bg:#12212E; --chip-on:#6E93B4; --chip-on-ink:#0B1620; --focus:#F79552;
-    --chip-all:#173A2B; --chip-all-ink:#BFE6CF; --chip-all-line:#2F6B4D;
+    --chip-all:#1E3244; --chip-all-ink:#E8EEF4; --chip-all-line:#3A5168;
+    --chip-off:#0E1A24; --chip-off-ink:#8C9BA8;
+    --ov:#9DB4C8;
   }
 }
 :root[data-theme="dark"]{
@@ -36,7 +39,9 @@
   --good:#4CC38A; --warn:#E2B14A; --bad:#F27E75;
   --track:#233647; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --chip-bg:#12212E; --chip-on:#6E93B4; --chip-on-ink:#0B1620; --focus:#F79552;
-    --chip-all:#173A2B; --chip-all-ink:#BFE6CF; --chip-all-line:#2F6B4D;
+    --chip-all:#1E3244; --chip-all-ink:#E8EEF4; --chip-all-line:#3A5168;
+    --chip-off:#0E1A24; --chip-off-ink:#8C9BA8;
+    --ov:#9DB4C8;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:Carlito,Calibri,"Segoe UI",system-ui,sans-serif;font-size:15px;line-height:1.4}
@@ -57,16 +62,18 @@ header.top .updated i{width:7px;height:7px;border-radius:50%;background:var(--go
 .frow{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .frow .eyebrow{width:74px;padding-top:7px;flex:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1}
-.chip{appearance:none;border:1px solid var(--hair);background:var(--chip-bg);color:var(--ink);font:inherit;font-size:13.5px;padding:5px 11px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background .12s,border-color .12s}
+.chip{appearance:none;border:1px solid var(--hair);background:var(--chip-off);color:var(--chip-off-ink);font:inherit;font-size:13.5px;padding:5px 11px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background .12s,border-color .12s}
 .chip:hover{border-color:var(--muted)}
 .chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .chip .sw{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
 .chip.on{background:var(--chip-on);color:var(--chip-on-ink);border-color:var(--chip-on)}
 .chip.on .sw{outline:2px solid var(--chip-on-ink);outline-offset:-1px}
-/* three states (Aaron, 2026-09-14): green = the whole row is selected, blue = on, white = off */
+/* three states (Aaron, 2026-09-14): white = the whole row is selected, blue = on, light gray = off */
 .chip.in{background:var(--chip-all);color:var(--chip-all-ink);border-color:var(--chip-all-line)}
 .chip.all{font-weight:700}
 .chipset{display:contents}
+.chip.fold{background:none;border-style:dashed;color:var(--ink2)}
+.chip.fold:hover{color:var(--ink)}
 .fkey{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink2);padding-left:86px}
 .fkey i{display:inline-block;width:18px;height:11px;border-radius:999px;border:1px solid;vertical-align:-1px;margin-right:6px}
 @media (max-width:600px){.fkey{padding-left:0}}
@@ -103,16 +110,13 @@ section.prog>.hd .n{color:var(--ink2);font-size:13.5px}
 @media (max-width:980px){.rank{border-right:none;border-bottom:1px solid var(--grid)}}
 .rank h3{margin:0 0 2px;font-size:13.5px;font-weight:600;color:var(--ink)}
 .rank .cap{color:var(--ink2);font-size:13px;margin-bottom:12px}
-.bars{display:grid;grid-template-columns:22px minmax(92px,auto) 1fr auto;column-gap:10px;row-gap:7px;align-items:center;font-variant-numeric:tabular-nums}
+.bars{display:grid;grid-template-columns:minmax(92px,auto) 1fr auto;column-gap:10px;row-gap:7px;align-items:center;font-variant-numeric:tabular-nums}
 .bars .nm{font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
 .bars .tr{height:9px;background:var(--track);border-radius:4px;position:relative}
 .bars .bar{position:absolute;left:0;top:0;bottom:0;background:var(--c);border-radius:0 4px 4px 0;min-width:2px}
 .bars .bar.neg{background:var(--bad)}
 .bars .mk{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink2);opacity:.8}
 .bars .vl{font-size:13px;color:var(--ink2);white-space:nowrap}
-.bars .cm{width:22px;height:22px;border-radius:5px;border:1px solid var(--hair);background:var(--mark-bg);display:grid;place-items:center;overflow:hidden}
-.bars .cm img{width:100%;height:100%;object-fit:contain;padding:2px;display:block}
-.bars .cm.mono{background:var(--mono-bg);border-color:var(--mono-bg);color:var(--mono-ink);font-family:Montserrat,sans-serif;font-size:9.5px;font-weight:700;letter-spacing:.02em}
 .bars .hit{grid-column:1/-1;display:contents}
 .bars .hit:hover .tr{filter:brightness(.92)}
 .bars .hit:hover .nm{color:var(--head);font-weight:700}
@@ -179,6 +183,16 @@ button.tag.confirm,button.tag.confirm:hover{background:var(--bad);color:var(--ac
 .rdy th.sortable .arr{font-size:10px;letter-spacing:0;opacity:.4}
 .rdy th.sortable[aria-sort="ascending"] button,.rdy th.sortable[aria-sort="descending"] button{color:var(--head)}
 .rdy th.sortable[aria-sort="ascending"] .arr,.rdy th.sortable[aria-sort="descending"] .arr{opacity:1;color:var(--accent)}
+/* sortable product-section tables: the button keeps the header's own alignment and sub-label */
+section.prog th.sortable{padding:0}
+section.prog th.sortable button{appearance:none;background:none;border:0;margin:0;width:100%;font:inherit;
+  letter-spacing:inherit;text-transform:inherit;color:inherit;text-align:inherit;cursor:pointer;
+  padding:10px 10px 8px;display:block}
+section.prog th.sortable button:hover{color:var(--ink)}
+section.prog th.sortable button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:4px}
+section.prog th.sortable .arr{font-size:10px;letter-spacing:0;opacity:.4;margin-left:4px}
+section.prog th.sortable[aria-sort="ascending"] button,section.prog th.sortable[aria-sort="descending"] button{color:var(--head)}
+section.prog th.sortable[aria-sort="ascending"] .arr,section.prog th.sortable[aria-sort="descending"] .arr{opacity:1;color:var(--accent)}
 
 /* client roster table */
 .roster td .dots{display:inline-flex;gap:4px;vertical-align:middle}
@@ -221,9 +235,9 @@ footer ul.prov b{color:var(--ink2);font-family:Montserrat,sans-serif;font-size:1
     </div>
     <div class="frow">
       <span class="eyebrow">Clients</span>
-      <div class="chips"><button type="button" class="chip all" id="resetClient" aria-pressed="true">All</button><span class="chipset" id="clientchips"></span></div>
+      <div class="chips"><button type="button" class="chip all" id="resetClient" aria-pressed="true">All</button><button type="button" class="chip fold" id="toggleClients" aria-expanded="false" aria-controls="clientchips">Show clients</button><span class="chipset" id="clientchips" hidden></span></div>
     </div>
-    <div class="fkey"><span><i style="background:var(--chip-all);border-color:var(--chip-all-line)"></i>Whole row selected</span><span><i style="background:var(--chip-on);border-color:var(--chip-on)"></i>Selected</span><span><i style="background:var(--chip-bg);border-color:var(--hair)"></i>Not selected</span></div>
+    <div class="fkey"><span><i style="background:var(--chip-all);border-color:var(--chip-all-line)"></i>Whole row selected</span><span><i style="background:var(--chip-on);border-color:var(--chip-on)"></i>Selected</span><span><i style="background:var(--chip-off);border-color:var(--hair)"></i>Not selected</span></div>
   </div>
 
   <div class="strip" id="strip"></div>
@@ -489,14 +503,6 @@ function spark(series, opts={}){
 }
 
 // ---------- ranked bars
-// The client's square mark (Aaron, 2026-09-14: concept A). perf_marks chose it: a curated
-// mark, the logo's leading icon, the whole logo, or initials when none of those reads at 22px.
-const CLIENT_MARKS = DATA.marks || {};
-function markTile(id){
-  const m = CLIENT_MARKS[id];
-  if (m && m.src) return `<span class="cm"><img src="${m.src}" alt=""></span>`;
-  return `<span class="cm mono" aria-hidden="true">${esc((m && m.mono) || "")}</span>`;
-}
 function bars(rows, opts={}){
   // rows: [{name, id, v, tipHtml, marker?}] ; opts: {c, fmt, max}
   const valid = rows.filter(r=>r.v!=null);
@@ -505,7 +511,7 @@ function bars(rows, opts={}){
   return `<div class="bars" style="--c:${opts.c}">` + valid.sort((a,b)=>b.v-a.v).map(r=>{
     const w = Math.max(0, Math.abs(r.v)/(max||1)*100);
     const mk = r.marker!=null ? `<span class="mk" style="left:${(r.marker/(max||1)*100).toFixed(1)}%"></span>` : "";
-    return `<div class="hit" data-tip="${esc(r.tipHtml||'')}">${markTile(r.id)}<span class="nm">${esc(r.name)}</span><span class="tr"><span class="bar ${r.v<0?'neg':''}" style="width:${w.toFixed(1)}%"></span>${mk}</span><span class="vl">${opts.fmt(r.v)}</span></div>`;
+    return `<div class="hit" data-tip="${esc(r.tipHtml||'')}"><span class="nm">${esc(r.name)}</span><span class="tr"><span class="bar ${r.v<0?'neg':''}" style="width:${w.toFixed(1)}%"></span>${mk}</span><span class="vl">${opts.fmt(r.v)}</span></div>`;
   }).join("") + `</div>`;
 }
 
@@ -519,6 +525,24 @@ function markAllChips(){
     b.classList.toggle("in", on); b.setAttribute("aria-pressed", String(on));
   });
 }
+// The Clients row runs to ninety chips across every CSM, so it folds (Aaron, 2026-09-14).
+// Closed by default and remembered per viewer; closed, the toggle says how far the row is narrowed.
+const FOLD_KEY = "rpe-dash-clients-open";
+let clientsOpen = false;
+try { clientsOpen = localStorage.getItem(FOLD_KEY) === "1"; } catch(e){}
+function renderClientFold(){
+  const b = document.getElementById("toggleClients"), set = document.getElementById("clientchips");
+  const scoped = clients.filter(inCsm), picked = scoped.filter(c=>selClients.has(c.id)).length;
+  set.hidden = !clientsOpen;
+  b.setAttribute("aria-expanded", String(clientsOpen));
+  b.textContent = clientsOpen ? "Hide clients"
+    : (picked === scoped.length ? `Show ${scoped.length} clients` : `Show clients (${picked} of ${scoped.length} selected)`);
+}
+document.getElementById("toggleClients").onclick = ()=>{
+  clientsOpen = !clientsOpen;
+  try { localStorage.setItem(FOLD_KEY, clientsOpen ? "1" : "0"); } catch(e){}
+  renderClientFold();
+};
 function renderChips(){
   const mc = document.getElementById("csmchips");
   const allM = selCsms.size===CSMS.length;
@@ -585,10 +609,14 @@ function renderStrip(vis){
   const tiles = [];
   const csmLabel = selCsms.size===CSMS.length ? "" : (selCsms.size===1 ? [...selCsms][0] : `${selCsms.size} CSMs`) + " \u00b7 ";
   tiles.push({e:"Selection", v:`${vis.length}`, l:`client${vis.length===1?"":"s"} \u00b7 ${esc(csmLabel)}${[...selProgs].length} of 4 products`, c:"var(--muted)"});
-  if(ars.length) tiles.push({e:"ARS", v:USDk(sum(ars,c=>c.ars.ltd_profit)), l:"incremental profit, program to date", c:"var(--ars)"},
-                            {e:"ARS", v:USDk(sum(ars,c=>c.ars.cur_revenue)), l:`incremental revenue, ${ars[0].ars.data_label.replace(" Data","")}`, c:"var(--ars)"});
-  if(ics.length) tiles.push({e:"ICS", v:N(sum(ics,c=>c.ics.prev_month?.value)), l:`referrals in ${ics[0].ics.prev_month?.label||"last month"} \u00b7 goal ${N(sum(ics,c=>c.ics.monthly_goal))}`, c:"var(--ics)"},
-                            {e:"ICS", v:N(sum(ics,c=>c.ics.ytd)), l:"referrals year to date", c:"var(--ics)"});
+  const ov = vis.filter(c=>c.overview && !c.overview.missing);
+  if(ov.length) tiles.push({e:"Overview", v:N(sum(ov,c=>c.overview.open_total)), l:`open checking accounts \u00b7 ${ov.length} client${ov.length===1?"":"s"}`, c:"var(--ov)"});
+  // Only clients whose extract carries the figure: sum() reads a missing value as 0, and a $0 tile
+  // would pass for a month in which CSI earned nothing.
+  const csi = ars.filter(c=>c.ars.csi_revenue!=null);
+  if(csi.length) tiles.push({e:"ARS", v:USDk(sum(csi,c=>c.ars.csi_revenue)), l:`revenue to CSI, ${csi[0].ars.data_label.replace(" Data","")}`, c:"var(--ars)"});
+  if(ics.length) tiles.push({e:"ICS", v:N(sum(ics,c=>c.ics.ytd)), l:"referrals year to date", c:"var(--ics)"},
+                            {e:"ICS", v:N(sum(ics,c=>c.ics.prev_month?.value)), l:`referrals in ${ics[0].ics.prev_month?.label||"last month"} \u00b7 goal ${N(sum(ics,c=>c.ics.monthly_goal))}`, c:"var(--ics)"});
   if(mrpc.length) tiles.push({e:"MRPC", v:N(sum(mrpc,c=>c.mrpc.weekly?.active_cardholders)), l:"active premium cardholders", c:"var(--mrpc)"},
                              {e:"MRPC", v:N(sum(mrpc,c=>{const m=c.mrpc.weekly?.monthly; return m?.length?m[m.length-1].platinum+m[m.length-1].gold+m[m.length-1].business:0;})), l:`enrollments, ${monLabel(mrpc[0].mrpc.weekly?.monthly?.slice(-1)[0]?.month)}`, c:"var(--mrpc)"});
   if(cp.length) tiles.push({e:"CashPlease", v:N(sum(cp,c=>c.cp.window_loans)), l:"loans, trailing 12 months", c:"var(--cp)"},
@@ -598,9 +626,41 @@ function renderStrip(vis){
 
 // ---------- sections
 function secShell(p, n, src, rankHtml, tableHtml){
-  return `<section class="prog" style="--c:${p.c}">
+  return `<section class="prog" data-sec="${esc(p.k || p.name)}" style="--c:${p.c}">
     <div class="hd"><h2><span class="sw"></span>${p.name}</h2><span class="n">${n} client${n===1?"":"s"}</span><span class="src">${esc(src)}</span></div>
     <div class="body"><div class="rank">${rankHtml}</div><div class="tbl">${tableHtml}</div></div></section>`;
+}
+
+// ---------- client overview (Aaron, 2026-09-14)
+// Client-level, not a product, so it shows whichever products are selected. Figures come from
+// each client's ODD extract through scripts/perf_overview.py, with the decks' definitions.
+function secOverview(vis){
+  const p = {name:"Client overview", c:"var(--ov)"};
+  const rows = vis.filter(c=>c.overview);
+  if(!rows.length) return "";
+  const ok = rows.filter(c=>!c.overview.missing);
+  const sub = s => `<br><span style="font-weight:500;text-transform:none;letter-spacing:0">${s}</span>`;
+  const rank = `<h3>Open checking accounts</h3><div class="cap">Closed accounts excluded, as on each deck's Product Mix slide.</div>` +
+    bars(ok.map(c=>({id:c.id, name:c.name, v:c.overview.open_total,
+      tipHtml:`<b>${esc(c.name)}</b>${N(c.overview.open_business)} business \u00b7 ${N(c.overview.open_personal)} personal` +
+              (c.overview.open_other?` \u00b7 ${N(c.overview.open_other)} not marked either`:"")})), {c:p.c, fmt:N});
+  const table = `<table><thead><tr>
+      <th class="l">Client</th><th class="l">Extract</th><th>Open checking</th><th>Business</th><th>Personal</th>
+      <th>Personal swipes${sub("per month, 3-mo avg")}</th><th>NSF/OD items${sub("per month, 3-mo avg")}</th>
+      <th>Personal opened${sub("12 months")}</th><th>Personal closed${sub("12 months")}</th></tr></thead><tbody>` +
+    rows.map(c=>{ const o=c.overview;
+      if(o.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="8" class="l dim">${esc(o.missing)}</td></tr>`;
+      const stale = DATA.odd_month && o.month !== DATA.odd_month;
+      return `<tr>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
+        <td class="l">${stale?`<span class="tag warn">${esc(o.month_label)}</span><span class="sub">older than this cycle's extract</span>`:esc(o.month_label)}<span class="sub">3-mo: ${esc(o.w3_label)}</span></td>
+        <td>${N(o.open_total)}</td><td>${N(o.open_business)}</td>
+        <td>${N(o.open_personal)}${o.open_other?`<span class="sub">${N(o.open_other)} not marked either</span>`:""}</td>
+        <td>${N(o.personal_swipes_3mo_avg)}${o.swipes_per_open_personal!=null?`<span class="sub">${nf1.format(o.swipes_per_open_personal)} per open personal account</span>`:""}</td>
+        <td>${N(o.nsf_items_3mo_avg)}</td>
+        <td>${N(o.personal_opened_12)}</td><td>${N(o.personal_closed_12)}</td></tr>`;
+    }).join("") + `</tbody></table>`;
+  return secShell(p, rows.length, (DATA.sources && DATA.sources.overview) ? "each client's ODD extract (Inputs/ODDD)" : "", rank, table);
 }
 
 function secARS(vis){
@@ -610,22 +670,25 @@ function secARS(vis){
   const rank = `<h3>Revenue returned per dollar of program cost</h3><div class="cap">Program to date. A tenure-neutral read: Wellworth is three months live.</div>` +
     bars(ok.map(c=>({id:c.id, name:c.name, v:c.ars.profitability, tipHtml:`<b>${esc(c.name)}</b>${USD(c.ars.ltd_revenue)} revenue on ${USD(Math.abs(c.ars.ltd_costs))} cost \u00b7 ${c.ars.months_live} months live`})), {c:p.c, fmt:v=>nf2.format(v)+" : 1"});
   const table = `<table><thead><tr>
-      <th class="l">Client</th><th>Months live</th><th>Mailings</th><th class="l">Latest mailing</th><th>Response</th>
+      <th class="l">Client</th><th>Months live</th><th>Revenue PTD</th><th>Profit PTD</th>
       <th>Incremental revenue<br><span style="font-weight:500;text-transform:none;letter-spacing:0">current month</span></th><th>12-mo avg</th><th class="l">Last 12 months</th>
-      <th>Debit spend<br><span style="font-weight:500;text-transform:none;letter-spacing:0">$M, latest month</span></th><th>Cardholders</th>
-      <th>Revenue PTD</th><th>Profit PTD</th></tr></thead><tbody>` +
+      <th>Revenue to CSI<br><span style="font-weight:500;text-transform:none;letter-spacing:0">current month</span></th>
+      <th>Mailings</th><th class="l">Latest mailing</th><th>Response</th>
+      <th>Debit spend<br><span style="font-weight:500;text-transform:none;letter-spacing:0">$M, latest month</span></th><th>Cardholders</th></tr></thead><tbody>` +
     rows.map(c=>{ const a=c.ars;
-      if(a.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="11" class="l dim">${esc(a.missing)}</td></tr>`;
+      if(a.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="12" class="l dim">${esc(a.missing)}</td></tr>`;
       const lm=a.latest_mailing||{}; const sc=a.spend_cards?.slice(-1)[0];
       const trend = spark(a.monthly_rev.map(([m,v])=>({label:m, v})), {c:p.c, fmt:USD, aria:"monthly incremental revenue, last 12 months"});
       return `<tr>
         <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${a.workbook_period&&a.workbook_period!==DATA.period?` <span class="tag warn">workbook ${esc(a.workbook_period)}</span>`:""}<span class="sub">${a.path==="MM"?"Lift Matrix":"Monthly Summary"} \u00b7 ${esc(a.data_label||"")}</span></td>
-        <td>${N(a.months_live)}</td><td>${N(a.mailings)}</td>
+        <td>${N(a.months_live)}</td>
+        <td>${USDk(a.ltd_revenue)}</td><td>${a.ltd_profit<0?`<span class="neg">${USDk(a.ltd_profit)}</span>`:USDk(a.ltd_profit)}</td>
+        <td>${USD(a.cur_revenue)}</td><td>${USD(a.rev12_avg)}</td><td class="l">${trend}</td>
+        <td>${a.csi_revenue!=null?USD(a.csi_revenue):"\u2014"}</td>
+        <td>${N(a.mailings)}</td>
         <td class="l">${lm.month?esc(lm.month):"<span class=dim>\u2014</span>"}<span class="sub">${lm.mailed?N(lm.mailed)+" mailed \u00b7 "+N(lm.responders)+" responded":""}</span></td>
         <td>${PCT(lm.response_rate)}</td>
-        <td>${USD(a.cur_revenue)}</td><td>${USD(a.rev12_avg)}</td><td class="l">${trend}</td>
-        <td>${sc?nf2.format(sc[1]):"\u2014"}</td><td>${sc?N(sc[2]):"\u2014"}</td>
-        <td>${USDk(a.ltd_revenue)}</td><td>${a.ltd_profit<0?`<span class="neg">${USDk(a.ltd_profit)}</span>`:USDk(a.ltd_profit)}</td></tr>`;
+        <td>${sc?nf2.format(sc[1]):"\u2014"}</td><td>${sc?N(sc[2]):"\u2014"}</td></tr>`;
     }).join("") + `</tbody></table>`;
   return secShell(p, rows.length, DATA.sources.ars, rank, table);
 }
@@ -639,7 +702,7 @@ function secICS(vis){
     bars(ok.map(c=>({id:c.id, name:c.name, v:c.ics.prev_vs_goal_pct, marker:100, tipHtml:`<b>${esc(c.name)}</b>${N(c.ics.prev_month.value)} referrals \u00b7 goal ${N(c.ics.monthly_goal)} \u00b7 ${N(c.ics.prev_vs_goal_pct)}% of goal`})), {c:p.c, fmt:v=>N(v)+"%", max:Math.max(100, ...pcts)}) +
     `<div class="legend"><span><b style="--c:${p.c}"></b>% of goal</span><span><i></i>goal</span></div>`;
   const table = `<table><thead><tr>
-      <th class="l">Client</th><th>Live since</th><th class="l">Financials</th><th>Last month</th><th>Goal</th><th>% of goal</th><th>YTD</th><th>PTD</th><th class="l">Trend, 15 months</th>
+      <th class="l">Client</th><th>Live since</th><th class="l">Financials</th><th>PTD</th><th>YTD</th><th>Last month</th><th>Goal</th><th>% of goal</th><th class="l">Referrals by month</th>
       <th>ROI</th><th>Lifetime value<br><span style="font-weight:500;text-transform:none;letter-spacing:0">per account</span></th><th>ICS accounts</th><th>Net profit PTD</th></tr></thead><tbody>` +
     rows.map(c=>{ const i=c.ics;
       if(i.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="12" class="l dim">${esc(i.missing)}</td></tr>`;
@@ -651,9 +714,10 @@ function secICS(vis){
       return `<tr>
         <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
         <td>${esc(i.program_start||"\u2014")}</td><td class="l">${fin}</td>
+        <td>${N(i.ptd)}</td><td>${N(i.ytd)}</td>
         <td>${N(i.prev_month?.value)}</td><td>${N(i.monthly_goal)}</td>
         <td><span style="color:${pct>=100?'var(--good)':pct<50?'var(--bad)':'inherit'}">${pct!=null?N(pct)+"%":"\u2014"}</span></td>
-        <td>${N(i.ytd)}</td><td>${N(i.ptd)}</td><td class="l">${trend}</td>
+        <td class="l">${trend}</td>
         <td>${i.roi!=null?nf2.format(i.roi)+" : 1":"<span class=dim>\u2014</span>"}</td><td>${i.ltv!=null?USD(i.ltv):"<span class=dim>\u2014</span>"}</td>
         <td>${i.ics_accounts!=null?N(i.ics_accounts):"<span class=dim>\u2014</span>"}</td><td>${i.net_profit!=null?USDk(i.net_profit):"<span class=dim>\u2014</span>"}</td></tr>`;
     }).join("") + `</tbody></table>`;
@@ -669,7 +733,7 @@ function secMRPC(vis){
     `<div class="legend"><span><b style="--c:${p.c}"></b>program to date</span><span><i></i>latest month</span></div>`;
   const table = `<table><thead><tr>
       <th class="l">Client</th><th>Active cardholders</th><th>Take rate<br><span style="font-weight:500;text-transform:none;letter-spacing:0">all MRPC accts</span></th><th>Take rate<br><span style="font-weight:500;text-transform:none;letter-spacing:0">active accts</span></th>
-      <th>Enrollments<br><span style="font-weight:500;text-transform:none;letter-spacing:0">last month</span></th><th>Trailing 12</th><th class="l">Enrollments, 24 months</th><th>Tier mix<br><span style="font-weight:500;text-transform:none;letter-spacing:0">Plat / Gold / Bus, PTD</span></th>
+      <th>Trailing 12</th><th>Enrollments<br><span style="font-weight:500;text-transform:none;letter-spacing:0">last month</span></th><th class="l">Enrollments, 24 months</th><th>Tier mix<br><span style="font-weight:500;text-transform:none;letter-spacing:0">Plat / Gold / Bus, PTD</span></th>
       <th>% of goal<br><span style="font-weight:500;text-transform:none;letter-spacing:0">latest VIP month</span></th><th>Revenue 2025</th><th>Avg monthly<br><span style="font-weight:500;text-transform:none;letter-spacing:0">revenue</span></th></tr></thead><tbody>` +
     rows.map(c=>{ const m=c.mrpc, w=m.weekly;
       if(!w) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="10" class="l dim">no tab in the weekly enrollment summary</td></tr>`;
@@ -682,7 +746,7 @@ function secMRPC(vis){
         <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span><span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span></td>
         <td>${N(w.active_cardholders)}<span class="sub">${N(w.all_cardholders)} ever enrolled</span></td>
         <td>${PCTf(w.take_rate_all)}</td><td>${PCTf(w.take_rate_active)}</td>
-        <td>${N(last.platinum+last.gold+last.business)}<span class="sub">${monLabel(last.month)}</span></td><td>${N(t12)}</td>
+        <td>${N(t12)}</td><td>${N(last.platinum+last.gold+last.business)}<span class="sub">${monLabel(last.month)}</span></td>
         <td class="l">${spark(series,{c:p.c, aria:"monthly enrollments, 24 months"})}</td>
         <td>${N(tot.platinum)} / ${N(tot.gold)} / ${N(tot.business)}</td>
         <td>${pog!=null?`${N(pog)}%<span class="sub">${esc(pogm||"")} \u00b7 goal ${m.goal_pct}% of new accts</span>`:"<span class=dim>\u2014</span>"}</td>
@@ -781,9 +845,9 @@ function sortRoster(rows){
 function sortTh(k, label){
   const on = rSort.k===k;
   const aria = on ? (rSort.dir===1 ? "ascending" : "descending") : "none";
-  const arr = on ? (rSort.dir===1 ? "▲" : "▼") : "↕";
+  const arr = on ? (rSort.dir===1 ? "\u25b2" : "\u25bc") : "\u2195";
   const hint = !on ? "Click to sort"
-    : (rSort.dir===1 ? "Sorted ascending — click for descending" : "Sorted descending — click to clear the sort");
+    : (rSort.dir===1 ? "Sorted ascending \u2014 click for descending" : "Sorted descending \u2014 click to clear the sort");
   return `<th class="l sortable" aria-sort="${aria}"><button type="button" data-rsort="${k}" title="${hint}">` +
     `${label}<span class="arr" aria-hidden="true">${arr}</span></button></th>`;
 }
@@ -865,6 +929,84 @@ function chipFor(i){
 // could not read the rollup used to throw here, and the throw blanked the whole
 // dashboard - every section and the roster - over one missing figure. A section
 // that cannot render says so and the rest of the page stands.
+// ---------- sortable section tables (Aaron, 2026-09-14: "sort the product columns too, such as by loss rate")
+// Every column that carries a value sorts, one column per section, remembered per viewer. A
+// numeric column sorts highest first on the first click (so "by loss rate" is one click), a text
+// column A to Z; the next click reverses it and the third clears it. The value is read from what
+// the cell SHOWS ($1.6M, -$1.2M, 6.85%, 5.75 : 1, Aug 2026), never from its sub-label. A row that
+// spans the table (no figures for that client) and the peer row stay at the bottom both ways.
+const SSORT_KEY = "rpe-dash-ssort";
+let sSort = {};
+try { const s = JSON.parse(localStorage.getItem(SSORT_KEY)||"null"); if (s && typeof s === "object" && !Array.isArray(s)) sSort = s; } catch(e){}
+function persistSSort(){ try{ localStorage.setItem(SSORT_KEY, JSON.stringify(sSort)); }catch(e){} }
+const MON3 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function cellKey(td){
+  if (!td || td.colSpan > 1 || td.querySelector("svg")) return null;
+  const cl = td.querySelector(".cl");
+  if (cl) return cl.textContent.trim().toLowerCase();
+  let txt = "";
+  td.childNodes.forEach(n => {
+    if (n.nodeType === 3 || !(n.classList && (n.classList.contains("sub") || n.classList.contains("id")))) txt += n.textContent;
+  });
+  txt = txt.replace(/\u2212/g, "-").trim();
+  if (!txt || txt === "\u2014") return null;
+  const my = txt.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+[\u2019']?(\d{2,4})\b/);
+  if (my) return (my[2].length === 2 ? 2000 + Number(my[2]) : Number(my[2])) * 100 + MON3.indexOf(my[1]);
+  const m = txt.match(/-?\$?\d[\d,]*(\.\d+)?\s*([KkMm](?![a-z])|%)?/);
+  if (!m) return txt.toLowerCase();
+  let v = parseFloat(m[0].replace(/[$,\s%KkMm]/g, ""));
+  const u = (m[2] || "").toUpperCase();
+  if (u === "K") v *= 1e3; else if (u === "M") v *= 1e6;
+  return isNaN(v) ? txt.toLowerCase() : v;
+}
+function cmpCell(a, b){
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  if (typeof a === "number") return -1;
+  if (typeof b === "number") return 1;
+  return String(a).localeCompare(String(b));
+}
+function applySectionSorts(){
+  document.querySelectorAll("#sections section.prog[data-sec]").forEach(sec => {
+    const key = sec.dataset.sec, table = sec.querySelector(".tbl table");
+    if (!table || !table.tHead || !table.tBodies.length) return;
+    const ths = [...table.tHead.rows[0].cells], body = table.tBodies[0], rows = [...body.rows];
+    const sample = rows.find(r => r.cells.length === ths.length && !r.classList.contains("peer"));
+    const st = sSort[key];
+    let idx = -1;
+    ths.forEach((th, i) => {
+      const label = th.textContent.replace(/\s+/g, " ").trim();
+      if (!label || (sample && sample.cells[i] && sample.cells[i].querySelector("svg"))) return;
+      const on = !!(st && st.col === label);
+      if (on) idx = i;
+      th.classList.add("sortable");
+      th.setAttribute("aria-sort", on ? (st.dir === 1 ? "ascending" : "descending") : "none");
+      const hint = on ? "Sorted " + (st.dir === 1 ? "ascending" : "descending") + " \u2014 click to change" : "Click to sort";
+      th.innerHTML = `<button type="button" data-ssort="${esc(key)}" data-col="${esc(label)}" data-num="${th.classList.contains("l") ? 0 : 1}" title="${hint}">` +
+        `${th.innerHTML}<span class="arr" aria-hidden="true">${on ? (st.dir === 1 ? "\u25b2" : "\u25bc") : "\u2195"}</span></button>`;
+    });
+    if (idx < 0) return;
+    const keyed = rows.filter(r => !r.classList.contains("peer"))
+      .map((r, n) => ({r, n, k: r.cells.length === ths.length ? cellKey(r.cells[idx]) : null}));
+    keyed.sort((a, b) => {
+      if ((a.k === null) !== (b.k === null)) return a.k === null ? 1 : -1;
+      return (a.k === null ? 0 : cmpCell(a.k, b.k) * st.dir) || a.n - b.n;
+    });
+    keyed.forEach(x => body.appendChild(x.r));
+    rows.filter(r => r.classList.contains("peer")).forEach(r => body.appendChild(r));
+  });
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-ssort]");
+  if (!b) return;
+  const key = b.dataset.ssort, col = b.dataset.col, first = b.dataset.num === "1" ? -1 : 1, st = sSort[key];
+  if (!st || st.col !== col) sSort[key] = {col, dir: first};
+  else if (st.dir === first) sSort[key] = {col, dir: -first};
+  else delete sSort[key];
+  persistSSort(); update();
+  const again = [...document.querySelectorAll("[data-ssort]")].find(x => x.dataset.ssort === key && x.dataset.col === col);
+  if (again) again.focus();
+});
+
 function safe(label, fn){
   try { return fn(); }
   catch (e){
@@ -875,11 +1017,12 @@ function safe(label, fn){
 }
 
 function update(){
-  persist(); renderChips(); markAllChips();
+  persist(); renderChips(); markAllChips(); renderClientFold();
   const vis = clients.filter(c=>inCsm(c) && selClients.has(c.id) && inProducts(c));
   safe("Summary", ()=>renderStrip(vis));
   const secs = document.getElementById("sections");
-  const html = [selProgs.has("ARS")?safe("Account Revenue Solution",()=>secARS(vis)):"",
+  const html = [safe("Client overview",()=>secOverview(vis)),
+                selProgs.has("ARS")?safe("Account Revenue Solution",()=>secARS(vis)):"",
                 selProgs.has("ICS")?safe("Invitation Checking System",()=>secICS(vis)):"",
                 selProgs.has("MRPC")?safe("MyRewards Premium Cards",()=>secMRPC(vis)):"",
                 selProgs.has("CP")?safe("CashPlease",()=>secCP(vis)):""].join("");
@@ -888,6 +1031,7 @@ function update(){
     : !selClients.size ? "No client is selected. Pick one above, or click All."
     : "Nothing to show: the selected clients are not on the selected products.";
   secs.innerHTML = html || `<div class="empty">${why}</div>`;
+  applySectionSorts();
   document.getElementById("rostersec").innerHTML = safe("Clients and decks", ()=>secRoster(vis));
 }
 document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
@@ -896,9 +1040,9 @@ document.getElementById("subline").textContent = `${clients.length} clients, ${n
 document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
 document.getElementById("foot").innerHTML =
   `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
-  `<li><b>Client marks</b> - ${esc((DATA.sources && DATA.sources.marks) || "initials")}.</li>` +
+  `<li><b>Client overview</b> - ${esc((DATA.sources && DATA.sources.overview) || "ODD extracts")}.</li>` +
   `<li><b>Clients</b> - ${esc((DATA.sources && DATA.sources.clients) || "the clients.md roster")}.</li>` +
-  `<li><b>CSM</b> — ${esc((DATA.sources && DATA.sources.csm) || "not resolved in this build")}.</li>` +
+  `<li><b>CSM</b> \u2014 ${esc((DATA.sources && DATA.sources.csm) || "not resolved in this build")}.</li>` +
   `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook\u2019s period when that is older than the cycle.</li>` +
   `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client\u2019s newest Invitation Checking workbook, flagged when older than the period.</li>` +
   `<li><b>MRPC</b> \u2014 ${esc(DATA.sources.mrpc)}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +

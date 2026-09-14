@@ -449,10 +449,11 @@ def test_template_filters_allow_an_empty_selection():
 
 
 def test_template_chips_show_three_states_and_each_row_leads_with_all():
-    """Aaron, 2026-09-14: green while the whole row is selected, blue on, white off."""
+    """Aaron, 2026-09-14: white while the whole row is selected, blue on, light gray off."""
     t = P.TEMPLATE.read_text(encoding="utf-8")
-    for token in ("--chip-all:", "--chip-on:", "--chip-bg:"):
-        assert token in t
+    for token in ("--chip-all:#FFFFFF", "--chip-on:#245C8C", "--chip-off:#E9EDF1"):
+        assert token in t, token
+    assert ".chip{appearance:none;border:1px solid var(--hair);background:var(--chip-off);" in t
     assert "class=\"chip ${allM?'in':(selCsms.has(m)?'on':'')}\"" in t
     assert "class=\"chip ${allP?'in':(selProgs.has(p.k)?'on':'')}\"" in t
     assert "class=\"chip ${allC?'in':(selClients.has(c.id)?'on':'')}" in t
@@ -461,11 +462,110 @@ def test_template_chips_show_three_states_and_each_row_leads_with_all():
     assert "persist(); renderChips(); markAllChips();" in t
 
 
-def test_template_draws_each_clients_mark_on_the_ranked_bars():
+def test_a_refused_workbook_is_labelled_in_the_extractors_words():
+    """A workbook's own fault reads as the extractor's verdict, never "extract failed"."""
+    assert P._flagged("Traceback...\nSystemExit\nUNEVALUATED WORKBOOK: 1192-2026.09-Ascend FCU-Workbook.xlsx carries no calculated values\n") \
+        == "UNEVALUATED WORKBOOK: 1192-2026.09-Ascend FCU-Workbook.xlsx carries no calculated values"
+    assert P._flagged("POSSIBLE DATA ISSUE: Key Trends month Aug 2026 is blank\n") \
+        == "POSSIBLE DATA ISSUE: Key Trends month Aug 2026 is blank"
+    assert P._flagged("TypeError: type NoneType doesn't define __round__ method") is None
+    assert P._flagged("") is None
+
+
+def test_the_odd_data_month_is_the_month_before_the_cycle():
+    assert P.odd_data_month("2026.09") == "Aug26"
+    assert P.odd_data_month("2026.01") == "Dec25"
+
+
+def test_template_shows_the_client_overview_first_whatever_the_products():
+    """Client-level figures, so the section is not gated on a product chip."""
     t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "const CLIENT_MARKS = DATA.marks || {};" in t
-    assert "${markTile(r.id)}<span class=\"nm\">" in t
-    assert t.count("id:c.id, name:c.name, v:") == 4, "all four sections pass the client id to bars()"
+    assert "function secOverview(vis){" in t
+    assert 'const html = [safe("Client overview",()=>secOverview(vis)),' in t
+    assert "const stale = DATA.odd_month && o.month !== DATA.odd_month;" in t, "an older extract is tagged"
+
+
+def test_template_sorts_every_section_table_after_each_render():
+    """Aaron, 2026-09-14: sort the product columns too, such as by loss rate."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert "function applySectionSorts(){" in t
+    assert "  applySectionSorts();" in t, "the tables are rebuilt on every update, so the sort is re-applied"
+    assert 'data-sec="${esc(p.k || p.name)}"' in t, "each section keeps its own sort"
+    assert 'first = b.dataset.num === "1" ? -1 : 1' in t, "a numeric column sorts highest first on the first click"
+    assert 'rows.filter(r => r.classList.contains("peer")).forEach(r => body.appendChild(r));' in t
+
+
+def test_template_is_pure_ascii():
+    """A literal em dash rendered as "â€”" on the page (Aaron, 2026-09-14): the CSM source line
+    carried the UTF-8 character itself, and a copy read without a UTF-8 declaration mis-decodes
+    it. Non-ASCII goes in as \\uXXXX inside the script and as an entity outside it."""
+    raw = P.TEMPLATE.read_bytes()
+    bad = sorted({b for b in raw if b > 126})
+    assert not bad, "non-ASCII bytes in the template: %s" % [hex(b) for b in bad]
+
+
+def test_trend_lines_drop_the_month_in_progress():
+    """Aaron, 2026-09-14: ICS, MRPC and CashPlease trends show complete months only."""
+    ics = P.complete_trend({"months": ["Jul 26", "Aug 26", "Sep 26"], "referrals": [363, 351, 37],
+                            "goal": [331, 331, 331], "partial_last": True})
+    assert ics == {"months": ["Jul 26", "Aug 26"], "referrals": [363, 351], "goal": [331, 331],
+                   "partial_last": False}
+    whole = {"months": ["Aug 26"], "referrals": [351], "goal": [331], "partial_last": False}
+    assert P.complete_trend(whole) is whole, "a trend with no partial month is left alone"
+    rows = [{"month": "2026-07"}, {"month": "2026-08"}, {"month": "2026-09"}]
+    assert P.complete_months(rows, "9/13/2026 8:06:12 AM") == rows[:2]
+    assert P.complete_months(rows, "10/1/2026 7:00:00 AM") == rows, "September had ended by October"
+    assert P.complete_months(rows, "") == rows, "an unreadable stamp keeps every row"
+    cp = [{"period_month": "2026-08"}, {"period_month": "2026-09"}]
+    assert P.complete_months(cp, "9/13/2026 8:21:37 AM", key="period_month") == cp[:1]
+
+
+def test_ars_revenue_to_csi_is_the_current_month_expense_as_a_positive_figure():
+    assert P.csi_revenue({"cur_costs": -6077.98}) == 6077.98
+    assert P.csi_revenue({"cur_costs": 0}) == 0
+    assert P.csi_revenue({}) is None, "an extract without the key is not $0"
+
+
+def test_template_leads_with_the_total_before_the_month():
+    """Aaron, 2026-09-14: a total column, then the last-month figure; no ARS profit or revenue
+    callouts, and ARS revenue to CSI shown instead."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert "incremental profit, program to date" not in t
+    assert "revenue to CSI, ${csi[0].ars.data_label" in t
+    assert "const csi = ars.filter(c=>c.ars.csi_revenue!=null);" in t, "no $0 tile when the figure is absent"
+    assert t.index("<th>Revenue PTD</th><th>Profit PTD</th>") < t.index("<th>Incremental revenue")
+    assert t.index("<th>Incremental revenue") < t.index("<th>Revenue to CSI")
+    assert "<th>PTD</th><th>YTD</th><th>Last month</th>" in t
+    assert "<th>Trailing 12</th><th>Enrollments<br>" in t, "MRPC trailing 12 before last month"
+    ics_tiles = t[t.index("if(ics.length) tiles.push("):]
+    assert ics_tiles.index("c.ics.ytd") < ics_tiles.index("c.ics.prev_month"), "YTD tile before last month"
+
+
+def test_template_clients_row_folds_and_says_how_far_it_is_narrowed():
+    """Aaron, 2026-09-14: make the Clients filter collapsible. Closed by default."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert 'id="toggleClients" aria-expanded="false" aria-controls="clientchips"' in t
+    assert '<span class="chipset" id="clientchips" hidden></span>' in t, "closed on first load"
+    assert "persist(); renderChips(); markAllChips(); renderClientFold();" in t
+    assert "of ${scoped.length} selected)" in t
+
+
+def test_built_decks_are_found_in_csm_folders_and_the_flat_folder(tmp_path, monkeypatch):
+    """Outputs/ moves to Outputs/<CSM name>/ (2026-09-14); rpe_env.output_decks reads both
+    layouts. Before that helper exists the flat glob gives the same answer."""
+    out, ba = tmp_path / "Outputs", tmp_path / "ba"
+    (out / "Aaron Burgard").mkdir(parents=True)
+    ba.mkdir()
+    (out / "Aaron Burgard" / "1204-2026.09-ARS-First State Bank - Michigan ARS Results.pptx").write_text("x")
+    (out / "1204-2026.08-ARS-First State Bank - Michigan ARS Results.pptx").write_text("x")
+    monkeypatch.setattr(P.R, "output_decks",
+                        lambda pattern, root=None: sorted(p for p in out.rglob(pattern) if "Archive" not in p.parts),
+                        raising=False)
+    decks, sent, dp = P.decks_and_sent("1204", "2026.09", out, ba)
+    assert dp == "2026.09" and decks == ["1204-2026.09-ARS-First State Bank - Michigan ARS Results.pptx"]
+    monkeypatch.delattr(P.R, "output_decks", raising=False)
+    decks, sent, dp = P.decks_and_sent("1204", "2026.09", out, ba)
+    assert dp == "2026.08", "without the helper, only the flat folder is read"
 
 
 def test_template_declares_no_top_level_name_twice():

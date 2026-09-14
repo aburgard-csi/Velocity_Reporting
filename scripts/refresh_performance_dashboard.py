@@ -63,7 +63,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 import rpe_env as R                                              # noqa: E402
 from build_month import read_cashplease_roster, read_roster      # noqa: E402
 import perf_clients as PC                                        # noqa: E402
-import perf_marks as PM                                          # noqa: E402
+import perf_overview as PO                                       # noqa: E402
 
 TEMPLATE = REPO / "scripts" / "perf_dashboard_template.html"
 PLACEHOLDER = "__DATA__"
@@ -252,6 +252,44 @@ sys.path.insert(0, str(REPO / "build" / "ars_pipeline"))
 from base_guard import uncalculated                              # noqa: E402  (one definition, shared with the ARS builder)
 
 
+def odd_data_month(period):
+    """The month a current ODD extract describes for a cycle: the one before it.
+
+    The data team pulls a cycle's ODD after its month closes, so 2026.09's extracts end
+    with Aug26. The page tags an overview row whose extract ends earlier, because
+    Inputs/ODDD/<id>_ODDD.zip carries no period and last month's file looks the same.
+    """
+    y, m = (int(x) for x in period.split("."))
+    y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    return _dt.date(y, m, 1).strftime("%b%y")
+
+
+def _flagged(stderr):
+    """The ARS extractor's own one-line verdict on a workbook it refused, or None.
+
+    Two refusals are the WORKBOOK's fault, not the code's, and the row should say so in the
+    extractor's words: `UNEVALUATED WORKBOOK` (formulas never calculated) and, since
+    2026-09-14, `POSSIBLE DATA ISSUE` (a blank Key Trends month). Anything else is a real
+    failure and is reported with its traceback tail.
+    """
+    for line in reversed((stderr or "").strip().splitlines()):
+        if "UNEVALUATED WORKBOOK" in line or "POSSIBLE DATA ISSUE" in line:
+            return line.strip()
+    return None
+
+
+def csi_revenue(base):
+    """ARS revenue to CSI for the workbook's current completed month, or None.
+
+    It is the client's ARS EXPENSE: Executive Financials' "Total Costs" in the current-month
+    Actual column, which the ARS extractors emit as `cur_costs` (negative, as the workbook
+    carries it), so the page shows it as a positive figure (Aaron, 2026-09-14). An extract
+    that predates the key reports None, not $0.
+    """
+    v = num((base or {}).get("cur_costs"))
+    return None if v is None else abs(v)
+
+
 def ars_section(cid, c, period, reports, ba, work):
     found = {os.path.basename(f): f for f in report_glob(reports, "*.xlsx")}
     wb_period, wb_name = pick_workbook(sorted(found), cid, period)
@@ -268,9 +306,9 @@ def ars_section(cid, c, period, reports, ba, work):
         out = work / f"{cid}_base.json"
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/extract_base_gen.py"), wb, str(out)],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if "UNEVALUATED WORKBOOK" in r.stderr:
-            return {"missing": r.stderr.strip().splitlines()[-1],
-                    "workbook": wb_name, "workbook_period": wb_period}
+        flag = _flagged(r.stderr)
+        if flag:
+            return {"missing": flag, "workbook": wb_name, "workbook_period": wb_period}
         if r.returncode != 0 or not out.exists():
             return {"missing": "extract_base_gen failed: " + r.stderr.strip()[-300:]}
         b = json.load(open(out, encoding="utf-8"))
@@ -278,9 +316,9 @@ def ars_section(cid, c, period, reports, ba, work):
         dco = report_glob(reports, f"{cid}-{wb_period}-*DCO*.xlsx")
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/base_tab_extract.py"), wb] + dco[:1],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if "UNEVALUATED WORKBOOK" in r.stderr:
-            return {"missing": r.stderr.strip().splitlines()[-1],
-                    "workbook": wb_name, "workbook_period": wb_period}
+        flag = _flagged(r.stderr)
+        if flag:
+            return {"missing": flag, "workbook": wb_name, "workbook_period": wb_period}
         i = r.stdout.find("{")
         if r.returncode != 0 or i < 0:
             return {"missing": "base_tab_extract failed: " + r.stderr.strip()[-300:]}
@@ -299,6 +337,7 @@ def ars_section(cid, c, period, reports, ba, work):
         "cur_revenue": num(b.get("cur_revenue")), "ltd_revenue": num(b.get("ltd_revenue")),
         "cur_profit": num(b.get("cur_profit")), "ltd_profit": num(b.get("ltd_profit")),
         "ltd_costs": num(b.get("ltd_costs")), "profitability": num(b.get("profitability")),
+        "csi_revenue": csi_revenue(b),
         "rev12_sum": b.get("monthly_rev_sum12"), "rev12_avg": b.get("monthly_rev_avg12"),
         "monthly_rev": [[m, round(v or 0)] for m, v in b.get("monthly_rev_last12", [])],
         "spend_cards": [[m, s, k] for m, s, k in b.get("swipespend_36", [])][-1:],
@@ -332,6 +371,39 @@ def _wb_period(fn):
     return m.group(1) if m else None
 
 
+# Trend lines show complete months only (Aaron, 2026-09-14). A sparkline that ends on a
+# half month reads as a fall-off: 2026.09's ICS trends ended on 13 days of September.
+def complete_trend(trend):
+    """The VIP ICS referral trend without its month-to-date point.
+
+    VIP ends the trend with the month in progress and flags it `partial_last`; that last
+    month is dropped from every parallel series. Year-to-date and program-to-date figures
+    are VIP's own and are not touched.
+    """
+    if not isinstance(trend, dict) or not trend.get("partial_last"):
+        return trend
+    t = dict(trend)
+    for k in ("months", "referrals", "goal"):
+        if isinstance(t.get(k), list) and t[k]:
+            t[k] = t[k][:-1]
+    t["partial_last"] = False
+    return t
+
+
+def complete_months(rows, generated, key="month"):
+    """Rows for months that had ended when the report was generated.
+
+    `generated` is the weekly's stamp ("9/13/2026 8:06:12 AM"), `key` holds "YYYY-MM".
+    A month on or after the stamp's month is still in progress and is dropped. An
+    unreadable stamp keeps every row rather than guessing.
+    """
+    m = re.match(r"\s*(\d{1,2})/\d{1,2}/(\d{4})", str(generated or ""))
+    if not m:
+        return list(rows)
+    cutoff = "%s-%02d" % (m.group(2), int(m.group(1)))
+    return [r for r in rows if str(r.get(key, "")) < cutoff]
+
+
 def ics_section(cid, c):
     try:
         p = R.resolve_client_json(cid, "ics")
@@ -349,7 +421,7 @@ def ics_section(cid, c):
         "ptd": ref.get("program_to_date"), "ytd": ref.get("year_to_date"),
         "prev_month": ref.get("previous_month"), "mtd": ref.get("month_to_date"),
         "monthly_goal": ref.get("monthly_goal"), "prev_vs_goal_pct": ref.get("prev_month_vs_goal_pct"),
-        "trend": ref.get("trend"),
+        "trend": complete_trend(ref.get("trend")),
     }
     if has_wb:
         rev = d.get("revenue") or {}
@@ -436,7 +508,7 @@ class MrpcWeekly:
                        "employees": tot[17], "non_employees": tot[18]},
             "cardholders_active_buckets": ({"1-90": ah[10], "91-180": ah[11], "180+": ah[12],
                                             "inactive": ah[13]} if ah else None),
-            "monthly": monthly[-24:],
+            "monthly": complete_months(monthly, gen)[-24:],
         }
 
 
@@ -492,7 +564,8 @@ def cp_section(cid, packs):
         return {"missing": "no tab in the CashPlease workbook"}
     d = json.load(open(f, encoding="utf-8"))
     mt = d["metrics"]
-    mon = sorted(d["monthly"], key=lambda r: r["period_month"])[-24:]
+    mon = complete_months(sorted(d["monthly"], key=lambda r: r["period_month"]),
+                          d.get("report_generated"), key="period_month")[-24:]
     return {
         "file": d["source_file"], "report_generated": d["report_generated"],
         "cp_name": d["client_name"],
@@ -517,7 +590,14 @@ def decks_and_sent(cid, period, outputs, ba):
     that period, and whether they were sent. Newest per client, for the same
     reason as the workbook: early in a cycle nobody has this month's deck yet,
     and "not built" for every client says nothing the date does not."""
-    names = [os.path.basename(f) for f in glob.glob(str(outputs / f"{cid}-*.pptx"))]
+    # Outputs/ is moving from one flat folder to Outputs/<CSM name>/ (Aaron, 2026-09-14), and
+    # rpe_env.output_decks() is the one reader that knows both layouts and skips Archive/. Until
+    # that helper exists, the flat glob is the same answer, so the page works either side of the move.
+    finder = getattr(R, "output_decks", None)
+    if callable(finder):
+        names = [Path(f).name for f in finder(f"{cid}-*.pptx")]
+    else:
+        names = [os.path.basename(f) for f in glob.glob(str(outputs / f"{cid}-*.pptx"))]
     try:
         import cp_env
         names += [os.path.basename(f) for f in glob.glob(str(cp_env.outputs() / f"{cid}-*.pptx"))]
@@ -840,10 +920,12 @@ def build_dataset(period, work, log=print):
     for cid, c in clients.items():
         c["readiness"] = ready.get(cid)
         c["csm"] = csm.get(cid)
-    # The square mark beside each name on the ranked bars (Aaron, 2026-09-14: concept A).
-    # In the dataset, so a new or curated logo moves the hash and the page republishes.
-    marks = PM.client_marks([(cid, c["name"]) for cid, c in sorted(clients.items())],
-                            work / "marks", log=log)
+    # Client overview (Aaron, 2026-09-14): open checking, personal swipes, NSF/OD items,
+    # personal openings and closings, from each client's ODD extract with the decks'
+    # definitions. Cached per extract, so a refresh reads only a zip that changed.
+    overview = PO.client_overviews(sorted(clients), work / "odd", log=log)
+    for cid, c in clients.items():
+        c["overview"] = overview.get(cid)
 
     ics_pull, mrpc_pull = vip_pull_date("ICS"), vip_pull_date("MRPC")
     return {
@@ -856,8 +938,12 @@ def build_dataset(period, work, log=print):
             "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/Weekly Summaries)",
             # Static on purpose: whether the share was reachable this morning must not
             # move the content hash and republish an unchanged page.
-            "marks": "Inputs/Logos: a curated <id>_mark.png, else the icon leading the client's "
-                     "logo, else the whole logo when near square, else the client's initials",
+            "overview": "each client's ODD extract in Inputs/ODDD, read with the ARS decks' "
+                        "definitions: open checking excludes closed accounts (the Product Mix "
+                        "slide's book); swipes are personal accounts' signature and PIN counts and "
+                        "NSF/OD is item counts on every account, each averaged over the extract's "
+                        "last three months; openings and closings are personal accounts over the "
+                        "twelve months ending with the extract's month, which each row names",
             "clients": "the clients.md roster, plus every client with reports filed on the CSI "
                        "reports share for the newest month at or before the cycle, except those "
                        "clients.md marks as stopped; programs for a client not in clients.md are "
@@ -870,7 +956,7 @@ def build_dataset(period, work, log=print):
                    "record; a client nothing names is Unassigned",
         },
         "cp_peer": peer,
-        "marks": marks,
+        "odd_month": odd_data_month(period),
         # Every current client, including one with no program data this month (Aaron,
         # 2026-09-14): it is still a client, and the page lists it under all products.
         "clients": sorted(clients.values(), key=lambda c: c["id"]),

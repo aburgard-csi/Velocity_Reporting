@@ -45,6 +45,7 @@ def extract(wb):
     out["cur_profit"]=efv("Incremental Profit",4)
     out["ltd_profit"]=efv("Incremental Profit",6)
     out["ltd_costs"]=efv("Total Costs",6)
+    out["cur_costs"]=efv("Total Costs",4)   # current-month ARS expense = revenue to CSI (perf page)
     out["ltd_plan_profit"]=efv("Incremental Profit",7)
     if out["ltd_revenue"] and out["ltd_costs"]:
         out["profitability"]=round(out["ltd_revenue"]/abs(out["ltd_costs"]),2)

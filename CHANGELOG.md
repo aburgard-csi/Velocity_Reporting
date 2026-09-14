@@ -17,6 +17,148 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the performance page finds decks in per-CSM Outputs folders
+
+**`refresh_performance_dashboard.decks_and_sent` reads built decks through
+`rpe_env.output_decks()` when rpe_env has it.** `Outputs/` is moving from one flat folder to
+`Outputs/<CSM name>/` at Aaron's request. `output_decks` reads both layouts and never
+`Archive/`. Before the helper exists, the refresh uses the old flat glob, which gives the same
+answer. So the page's Deck and Sent columns stay right on both sides of the move. A test
+covers a deck in a CSM folder with the helper, and the flat folder without it.
+
+### 2026-09-14 — the Clients filter row folds
+
+**The Clients row on the performance page is collapsible** (Aaron: "make the Clients filter
+collapsible"). Across every CSM it runs to about ninety chips.
+- **Closed by default**, and each viewer's open or closed choice is remembered.
+- **The All chip stays visible**, beside a toggle. Closed, the toggle says how far the row
+  is narrowed: "Show 85 clients", or "Show clients (3 of 85 selected)".
+- **Unchanged:** narrowing works the same. The CSM and product rows still limit which clients
+  the page shows.
+
+### 2026-09-14 — ARS revenue to CSI on the performance page; totals before the month
+
+**The two ARS callouts are replaced by ARS revenue to CSI** (Aaron: "we don't need
+callouts for ARS incremental prof and ARS incremental revenue. I would like to see ARS
+Revenue to CSI for the currently completed month (that's the ARS expense in the
+workbook)").
+- **The figure.** Executive Financials' "Total Costs" in the current-month Actual column,
+  shown as a positive number. The ARS extractors emit it as `cur_costs`, and
+  `refresh_performance_dashboard.csi_revenue` carries it.
+- **Where it shows.** A summary tile, summed across the selection, and a "Revenue to CSI,
+  current month" column in the ARS table.
+- **What it includes.** For 2026.09, 1204 (Lift Matrix) reads $6,077.98 and 1038 (Monthly
+  Summary) $5,734.80, both the Program Fee alone. A Monthly Summary workbook's Total Costs
+  also counts spot and usage mail and points in months they occur.
+
+**A total column now comes before its last-month figure** ("always show the big number
+first"):
+- **ARS:** Revenue PTD and Profit PTD come before the current month's incremental revenue.
+- **ICS:** PTD and YTD come before last month, its goal and % of goal, and the YTD tile
+  leads the last-month tile.
+- **MRPC:** trailing-12 enrollments come before last month's.
+- **Already total-first:** CashPlease and the Client overview.
+
+### 2026-09-14 — trend lines on the performance page show complete months only
+
+**The ICS, MRPC and CashPlease sparklines no longer end on a month in progress** (Aaron:
+"on the trend line for ICS, MRPC and CashPlease don't include incomplete months"). A trend
+that ends on a partial month reads as a fall-off. In 2026.09, nine ICS trends ended on 13
+days of September.
+
+- **ICS.** The VIP trend's month-to-date point, which VIP flags `partial_last`, is dropped
+  from the referrals, goal and months series (`complete_trend`). The column header now reads
+  "Referrals by month", because the trend is no longer a fixed 15 months.
+- **MRPC and CashPlease.** A month on or after the month the weekly report was generated is
+  dropped (`complete_months`). The 2026-09-13 weeklies already ended in August, so today
+  that removes nothing, but it stops a mid-month weekly from adding a partial month. MRPC's
+  "last month" and "trailing 12" columns are read from the same series, so they count
+  complete months too.
+
+Year-to-date, program-to-date and CashPlease's trailing-12 loans still come from VIP and the
+CashPlease extractor, unchanged.
+
+### 2026-09-14 — every table on the performance page sorts by its columns
+
+**The product sections' tables sort, as the Build readiness table already did** (Aaron: "i
+want to be able to sort the product columns too, such as by loss rate"). This covers Client
+overview, ARS, ICS, MRPC and CashPlease. Every column that carries a value has a sort
+button; the sparkline trend columns do not.
+- **Clicks.** A numeric column sorts highest first on the first click, so CashPlease's
+  charge-off rate is one click. A text column sorts A to Z. The next click reverses, and the
+  third clears the sort.
+- **Scope.** Each section keeps its own sort, remembered per viewer.
+- **Values.** Each cell is sorted by what it shows (`$1.6M`, `−$1.2M`, `6.85%`, `5.75 : 1`,
+  `Aug 2026`), never by its sub-label.
+- **Rows that don't move.** A client with no figures and the CashPlease all-clients peer row
+  stay at the bottom in both directions.
+
+### 2026-09-14 — a Client overview section on the performance page, from each ODD extract
+
+**The page opens with a Client overview.** Aaron asked for "total open checking accounts,
+total business, total personal, 3-month average swipes per month for personal, 3-month
+average NSF/OD items per month, 12-month personal openings, 12-month personal closings".
+It has a ranked bar of open checking accounts, one table row per client, and a summary tile.
+The section is client-level, so it shows whatever products are selected.
+
+**Every figure uses the decks' definitions**, read by `scripts/perf_overview.py` through
+`build/ars_pipeline/odd_rows`:
+
+| Figure | Definition |
+| --- | --- |
+| Open checking | Accounts whose status is not closed: the Product Mix slide's "Excl. Closed" book, so the totals match that slide. Business and personal come from `Business?`; a blank is neither and counts in the total only. |
+| Personal swipes | Signature plus PIN counts on personal accounts over the extract's last three months, averaged. |
+| NSF/OD | Item counts, never dollars, on every account over the same three months. |
+| Openings and closings | Personal `Date Opened` / `Date Closed` in the twelve months ending with the extract's month: `metrics_gen`'s openings-vs-closures rule, over 12 months instead of 24. |
+
+**Each row names the month its extract describes and is tagged when that is older than the
+cycle's.** `Inputs/ODDD/<id>_ODDD.zip` has no period in its name, so last month's file looks
+like this month's. For 2026.09 a current extract ends in Aug 2026.
+
+Reading 83 extracts (3.9 GB) over the share is slow, so each result is cached in
+`Build Artifacts/perf_dashboard/odd/<id>.json`, keyed on the zip's size and time. A refresh
+reads only an extract that changed. A client with no extract (1002 Republic, 1095 Landmark
+Bank) says so. Tests: `tests/test_perf_overview.py`, plus new cases in
+`tests/test_refresh_performance_dashboard.py`.
+
+**The open counts are checked against the Product Mix slide's own extractor.** Run on the
+real 2026.09 extracts, `product_mix_slide.extract_product_mix` and the overview agree exactly
+for 1204 (19,933 open: 3,403 business, 16,465 personal, 65 unmarked). They also agree for
+1549 (31,949: 4,155 / 27,794 / 0), whose core leaves `Stat Desc` blank.
+`test_open_counts_match_the_product_mix_slide` pins that agreement, so the two cannot drift.
+
+The first pass read 78 extracts in 571 s. Seventy-seven end in Aug 2026. **1195 KEMBA CU's
+extract ends in Apr 2026** even though it was filed as 2026.09, and the page tags its row.
+
+### 2026-09-14 — filter chip colors: white for a whole row, blue for a pick, gray for off
+
+**The filter chips' three states now read white, blue and light gray** (Aaron: "go white for
+all selected, blue for individual selections, and add a slight gray for unselected
+options"). This replaces the green, blue and white set from earlier the same day.
+
+| State | Chip |
+| --- | --- |
+| Whole row selected | White, hairline border |
+| Selected | Blue `#245C8C` |
+| Not selected | Light gray `#E9EDF1` |
+
+Unselected filter chips have their own `--chip-off` tokens, so the white input chips in the
+Build readiness table are unchanged. The dark theme has the same three steps, and the key
+under the filters follows the tokens.
+
+### 2026-09-14 — client marks removed from the performance page
+
+**The per-client marks on the ranked bars are gone** (Aaron: "remove the favicon idea. Not
+enough clients have them."). A mark could be cut from their own logo for only 20 of the 85
+clients. The other 65 showed initials, and 58 of those would each have needed a hand-made
+square mark.
+
+Removed: `scripts/perf_marks.py`, its tests, the dataset's `marks` key, and the page's mark
+tiles. The bars render as they did before the marks. The three-state filter chips and the
+empty-selection filters stay, and so does the duplicate top-level name test, which guards the
+page script rather than the marks. The marks cache in `Build Artifacts/perf_dashboard/marks/`
+is no longer read.
+
 ### 2026-09-14 — SM builds had not been reading their DCO since the inputs were sorted
 
 **Every SM (Monthly Summary) client has built without its DCO since 2026-09-09.**

@@ -41,7 +41,13 @@ figure.
 
 **In**
 
-- One section per program: a ranked bar, a metrics table, trend sparklines.
+- A **Client overview** first *(2026-09-14)*, from each client's ODD extract. It shows open
+  checking accounts (total, business, personal), the 3-month average of personal swipes and
+  of NSF/OD items per month, and 12-month personal openings and closings, all with the decks'
+  definitions (`scripts/perf_overview.py`). Each row names its extract's month and is tagged
+  when that is older than the cycle's.
+- One section per program: a ranked bar, a metrics table, trend sparklines. Every table
+  sorts by any column with a value *(2026-09-14)*. A numeric column sorts highest first.
 - A **build readiness** section for the current period: ready or blocked per
   client, what it is blocked on, and one chip per required input. Every column
   sorts (ascending → descending → off), remembered per viewer (2026-09-14).
@@ -52,15 +58,14 @@ figure.
   "from data". A client with no program data this month is listed under all products.
 - A link to the pipeline workflow page: `workflow.html`, published beside the page from
   `scripts/perf_workflow.html`. The daily refresh does not republish it.
-- A square client mark beside each name on the ranked bars *(2026-09-14)*, chosen by
-  `scripts/perf_marks.py` in this order:
-  1. a curated `Inputs/Logos/<id>_mark.png`
-  2. the logo's leading icon
-  3. the whole logo, when near square
-  4. the client's initials
-- CSM, product and client filters, each row led by an All chip. While all are selected, a
+- ARS shows **revenue to CSI** for the current completed month *(2026-09-14)*: the workbook's
+  current-month "Total Costs", emitted by both ARS extractors as `cur_costs`. It replaces the
+  incremental profit and revenue callouts. In every table a total column comes before its
+  last-month figure.
+- CSM, product and client filters, each row led by an All chip. The Clients row folds, and is
+  closed by default. While all are selected, a
   click shows only that one; later clicks add or remove others, down to none. Chips are
-  green while their whole row is selected, blue when on and white when off. *(CSM added
+  white while their whole row is selected, blue when on and light gray when off. *(CSM added
   2026-09-14.)* A client's CSM is the account-manager folder its reports land in on
   `Velocity_clientreports`, else the `CSM` column of the CashPlease roster in `clients.md`,
   else the CSM on its CashPlease settings record; a client nothing names is shown as
