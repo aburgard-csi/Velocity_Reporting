@@ -179,10 +179,10 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--hair);color:v
         <div>
           <div class="when">When the gate passes</div>
           <h3>Saved to Outputs</h3>
-          <p>Finished decks only, as <code>.pptx</code> and never PDF, in one flat folder named by client, period and program. Anything a build writes to prove itself goes to <code>Build Artifacts/</code>. Superseded decks move to <code>Outputs/Archive/</code>.</p>
+          <p>Finished decks only, as <code>.pptx</code> and never PDF, in a folder per CSM, <code>Outputs/&lt;CSM name&gt;/</code>, named by client, period and program. Anything a build writes to prove itself goes to <code>Build Artifacts/</code>. Superseded decks move to <code>Outputs/Archive/</code>.</p>
         </div>
         <div class="io">
-          <div><span class="k">Writes</span><span class="v"><code>Outputs/&lt;id&gt;-&lt;yyyy.mm&gt;-&lt;PROGRAM&gt;-&hellip;.pptx</code></span></div>
+          <div><span class="k">Writes</span><span class="v"><code>Outputs/&lt;CSM name&gt;/&lt;id&gt;-&lt;yyyy.mm&gt;-&lt;PROGRAM&gt;-&hellip;.pptx</code></span></div>
         </div>
       </li>
       <li class="step" data-n="7">
@@ -287,7 +287,7 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--hair);color:v
           <tr><td class="p mono">Inputs/Product Settings/</td><td>CashPlease production settings, one record per client</td></tr>
           <tr><td class="p mono">Inputs/Logos/</td><td>Client logos, kept out of the repo</td></tr>
           <tr class="group"><td colspan="2">What the pipeline produces</td></tr>
-          <tr><td class="p mono">Outputs/</td><td>Finished decks only, in one flat folder</td></tr>
+          <tr><td class="p mono">Outputs/&lt;CSM name&gt;/</td><td>Finished decks only, one folder per CSM; a client with no CSM goes to <span class="mono">_Unassigned/</span></td></tr>
           <tr><td class="p mono">Outputs/Archive/</td><td>Superseded decks</td></tr>
           <tr><td class="p mono">Build Artifacts/</td><td>Build evidence and bookkeeping: figure sidecars, the delivery log, the source watch reports, this page's data</td></tr>
           <tr class="group"><td colspan="2">In the repo</td></tr>

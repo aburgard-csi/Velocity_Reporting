@@ -17,6 +17,13 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the workflow page describes Outputs by CSM
+
+**`workflow.html` now says decks go to `Outputs/<CSM name>/`**, where it used to say one flat
+folder. The decks moved there the same day. The page's Outputs step, its "Writes" path and the
+folder map follow the move, and the map names `_Unassigned/` for a client with no CSM. The
+daily refresh does not republish this page, so the page was republished by hand.
+
 ### 2026-09-14 — the performance page finds decks in per-CSM Outputs folders
 
 **`refresh_performance_dashboard.decks_and_sent` reads built decks through
