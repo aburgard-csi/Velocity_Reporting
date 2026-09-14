@@ -493,6 +493,91 @@ def decks_and_sent(cid, period, outputs, ba):
     return decks, sent, dp
 
 
+_SENT_DATE_RX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _sent_rows(src):
+    """Rows out of whatever the artifact's store was exported as.
+
+    `read_db` with `out_dir` writes one JSON file per document; a plain file
+    holding a list, or a {doc_id: row} object, is accepted too so the export
+    shape is not load-bearing.
+    """
+    p = Path(src)
+    if p.is_dir():
+        files = sorted(p.rglob("*.json"))
+    elif p.exists():
+        files = [p]
+    else:
+        raise SystemExit("--merge-sent: %s does not exist" % p)
+    rows = []
+    for f in files:
+        try:
+            doc = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            print("  skip %s: unreadable (%s)" % (f.name, e))
+            continue
+        if isinstance(doc, list):
+            rows += [r for r in doc if isinstance(r, dict)]
+        elif isinstance(doc, dict):
+            # {doc_id: row} or a single row
+            vals = list(doc.values())
+            if vals and all(isinstance(v, dict) for v in vals) and "client_id" not in doc:
+                rows += vals
+            else:
+                rows.append(doc)
+    return rows
+
+
+def merge_sent(src, ba):
+    """Fold sends recorded on the artifact page into deliveries.json.
+
+    The page cannot write to this machine, so a click there parks a row in the
+    artifact's own store and this is where the row becomes the record. Two rules
+    keep one ledger rather than two:
+
+      * deliveries.json WINS. An entry already there is never rewritten, so a
+        date corrected by hand survives a stale page row.
+      * A malformed row is reported and skipped, never repaired by guessing —
+        a wrong sent date is the failure that lets a client go unsent.
+    """
+    dpath = ba / "deliveries.json"
+    try:
+        log = json.loads(dpath.read_text(encoding="utf-8")) if dpath.exists() else {}
+    except (OSError, ValueError) as e:
+        raise SystemExit("deliveries.json is unreadable (%s); not merging over it" % e)
+    if not isinstance(log, dict):
+        raise SystemExit("deliveries.json is not an object; not merging over it")
+    log.setdefault("version", 1)
+    sent = log.setdefault("sent", {})
+    if not isinstance(sent, dict):
+        raise SystemExit("deliveries.json 'sent' is not an object; not merging over it")
+
+    added, already, bad = 0, 0, 0
+    for r in _sent_rows(src):
+        cid, period, at = (str(r.get(k) or "").strip() for k in ("client_id", "period", "sent_at"))
+        if not (re.fullmatch(r"\d{3,5}", cid) and re.fullmatch(r"\d{4}\.\d{2}", period)
+                and _SENT_DATE_RX.fullmatch(at)):
+            print("  skip malformed row: client_id=%r period=%r sent_at=%r" % (cid, period, at))
+            bad += 1
+            continue
+        key = "%s|%s" % (cid, period)
+        if key in sent:
+            already += 1
+            continue
+        sent[key] = {"client_id": cid, "period": period, "sent_at": at,
+                     "note": str(r.get("note") or ""), "by": str(r.get("by") or "artifact page")}
+        added += 1
+        print("  + %s sent %s" % (key, at))
+    if added:
+        log["updated"] = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+        tmp = dpath.with_suffix(".json.part")
+        tmp.write_text(json.dumps(log, indent=1) + "\n", encoding="utf-8")
+        tmp.replace(dpath)
+    print("merge-sent: %d added, %d already recorded, %d skipped" % (added, already, bad))
+    return added
+
+
 def vip_pull_date(program):
     """Newest data_pull in the VIP manifest for one program, or None."""
     try:
@@ -684,6 +769,10 @@ def main(argv=None):
     ap.add_argument("--export", nargs="?", const=True, default=None, metavar="PATH",
                     help="also write a self-contained copy to share (default: a "
                          "period-stamped file beside the page)")
+    ap.add_argument("--merge-sent", metavar="PATH", default=None,
+                    help="fold sends recorded on the artifact page (a read_db export: a "
+                         "directory of per-document JSON files, or one JSON file) into "
+                         "deliveries.json before rebuilding")
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
@@ -700,6 +789,11 @@ def main(argv=None):
         write_state(state_p, state)
         print("marked published: " + state["hash"][:12])
         return 0
+
+    # Before the rebuild, so a send recorded on the page is in deliveries.json by
+    # the time the dataset reads it and the republished page shows a plain date.
+    if a.merge_sent:
+        merge_sent(a.merge_sent, R.build_artifacts())
 
     reports = R.report_dirs()
     period = a.period or derive_period(reports)

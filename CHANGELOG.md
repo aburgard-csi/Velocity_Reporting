@@ -403,6 +403,32 @@ Built on the 2026-09-06 workbook with the 2026-09-10 DDA counts: eight 2026.09 d
 a defect that shipped or nearly did — the 30-character sheet-name cap, the trailing-window
 rule, L8 never reaching a slide, a NULL DDA count never becoming a zero.
 
+### 2026-09-11 — sent is recorded from the performance page, and one section can no longer blank it
+
+Aaron asked to mark a deck sent by clicking the "not recorded" chip on the RPE Client
+Performance artifact, with no date to type. That chip is now a **Mark sent** button
+(`scripts/perf_dashboard_template.html`) that records today's date against the deck named
+in the Deck column, keyed on that deck's period — the same `<client>|<period>` key
+`deliveries.json` uses, not the cycle period, which differ early in a month.
+
+The page cannot write to this machine, so a click writes a row to the artifact's own
+store (the `db` capability, declared on the artifact) and the daily refresh folds it into
+the log: `refresh_performance_dashboard.py --merge-sent <read_db export>` merges before
+rebuilding, so the republished page shows a plain sent date. **deliveries.json stays the
+one ledger** — an entry already there is never rewritten, so a date corrected by hand
+survives a stale page row, and a malformed row is reported and skipped rather than
+repaired by guessing. A wrong sent date is the failure that lets a client go unsent, and
+a second ledger is the two-stores problem that shipped month-old ICS figures in August.
+A client with no built deck has no button at all: sent is recorded, never inferred.
+Recorded-from-the-page sends carry an `undo` until they are merged, because a misclick
+otherwise had no way back.
+
+Also here, found while testing the above: **one failing section took the whole page
+down.** A build that could not read the CashPlease rollup left `cp_peer` null, the peer
+row threw on it, and the throw blanked every section AND the roster over one missing
+figure. The peer row now states its absence, and `update()` renders each section behind a
+guard so a section that cannot render says so while the rest of the page stands.
+
 ### 2026-09-11 — a watchdog for the daily source watch, and a registration drift fixed
 
 Three mornings running (2026-09-09, -10, -11) the unattended 08:00 fire of the "RPE

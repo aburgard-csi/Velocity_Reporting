@@ -117,6 +117,16 @@ td .neg{color:var(--bad)}
 .tag{display:inline-block;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--tile);color:var(--ink2);border:1px solid var(--hair)}
 .tag.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
 .tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
+/* mark-sent control - the one place the page writes anything */
+button.tag{cursor:pointer;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;background:var(--surface);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);transition:background .12s,color .12s,border-color .12s}
+button.tag:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.tag:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+button.tag[disabled]{cursor:default;background:var(--tile);color:var(--ink3);border-color:var(--hair)}
+button.undo{background:none;border:none;color:var(--ink3);font:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer;padding:2px 4px;margin-left:6px}
+button.undo:hover{color:var(--ink)}
+button.undo:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+#note{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;background:var(--head);color:var(--bg);font-size:13px;line-height:1.4;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.28);max-width:min(520px,88vw);opacity:0;pointer-events:none;transition:opacity .15s}
+#note.on{opacity:1}
 .spark{display:block;width:120px;height:32px}
 .spark path.ln{fill:none;stroke:var(--c);stroke-width:1.75;stroke-linejoin:round;stroke-linecap:round}
 .spark path.ar{fill:var(--c);opacity:.12}
@@ -188,6 +198,7 @@ footer ul.prov b{color:var(--ink2);font-family:Montserrat,sans-serif;font-size:1
   <footer id="foot"></footer>
 </div>
 <div id="tip" role="tooltip"></div>
+<div id="note" role="status" aria-live="polite"></div>
 
 <script>
 const DATA = __DATA__;
@@ -199,6 +210,96 @@ const PROGS = [
 ];
 const PK = Object.fromEntries(PROGS.map(p=>[p.k,p]));
 const clients = DATA.clients;
+
+// ---------- sent state
+// deliveries.json is the record, and DATA carries it. A click here writes a row
+// to this artifact's own store instead of guessing: the morning refresh folds
+// those rows into deliveries.json, so the page never becomes a second ledger.
+// Sent is keyed on the DECK's period, not the cycle's - the same key the log uses.
+let DB = null;            // db namespace once it resolves; null = this view cannot write
+let MARKS = new Map();    // docId -> row recorded from the page
+const BUSY = new Set();   // docId mid-write
+
+function today(){ const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+const sentDoc = c => c.deck_period ? `${c.id}-${c.deck_period}` : null;
+function sentState(c){
+  if (c.sent) return {date:c.sent, src:"log"};
+  const k = sentDoc(c), m = k && MARKS.get(k);
+  return (m && m.sent_at) ? {date:String(m.sent_at), src:"page"} : null;
+}
+
+let noteTimer = null;
+function note(msg){
+  const n = document.getElementById("note");
+  n.textContent = msg; n.classList.add("on");
+  clearTimeout(noteTimer); noteTimer = setTimeout(()=>n.classList.remove("on"), 6000);
+}
+function whyFailed(err){
+  switch (err && err.code){
+    case "not_granted": case "capability_disabled": case "capability_removed":
+      return "This view cannot record sends.";
+    case "invalid_argument": return "The record was rejected as malformed.";
+    case "resource_exhausted": return "Too many writes at once \u2014 wait a moment and click again.";
+    case "quota_exceeded": return "The page's store is full.";
+    case "revoked": return "Access was withdrawn \u2014 reload the page.";
+    case "unavailable": return "The store is briefly unreachable \u2014 click again.";
+    default: return "Nothing was recorded.";
+  }
+}
+
+function sentCell(c){
+  const s = sentState(c), k = sentDoc(c);
+  if (s) return `<span class="tag good">sent ${esc(s.date)}</span>` +
+    (s.src==="page" && DB && !BUSY.has(k)
+      ? `<button class="undo" data-undo="${esc(k)}" title="Remove this record">undo</button>` : "");
+  if (k && BUSY.has(k)) return `<button class="tag" disabled>recording\u2026</button>`;
+  if (!c.decks.length) return `<span class="tag" title="no deck has been built for this client yet">not recorded</span>`;
+  if (!DB) return `<span class="tag">not recorded</span>`;
+  return `<button class="tag" data-mark="${esc(k)}" title="Not recorded \u2014 click to record this deck as sent today">Mark sent</button>`;
+}
+
+document.addEventListener("click", async e => {
+  const el = e.target.closest("[data-mark],[data-undo]");
+  if (!el || !DB) return;
+  const id = el.dataset.mark || el.dataset.undo, marking = !!el.dataset.mark;
+  const c = clients.find(x => sentDoc(x) === id);
+  if (!c || BUSY.has(id)) return;
+  BUSY.add(id); update();
+  try {
+    if (marking){
+      const row = {client_id:c.id, period:c.deck_period, sent_at:today(),
+                   deck:c.decks[0] || "", by:"artifact page",
+                   recorded_at:new Date().toISOString()};
+      await DB.doc("deliveries/"+id).set(row);
+      MARKS.set(id, row);
+      note(`${c.name} recorded as sent ${row.sent_at}.`);
+    } else {
+      await DB.doc("deliveries/"+id).delete();
+      MARKS.delete(id);
+      note(`${c.name} is back to not recorded.`);
+    }
+  } catch (err) {
+    note(`${marking ? "Could not record" : "Could not undo"} ${c.name}. ${whyFailed(err)}`);
+  } finally { BUSY.delete(id); update(); }
+});
+
+(async function initDb(){
+  const use = (typeof window !== "undefined" && window.claude && window.claude.use);
+  if (typeof use !== "function") return;          // saved copy or plain host: read-only
+  let db = null;
+  try { db = await window.claude.use("db"); } catch(e){ db = null; }
+  if (!db) return;                                 // not granted / not served: read-only
+  DB = db;
+  try {
+    db.collection("deliveries").onSnapshot(
+      snap => { MARKS = new Map(snap.docs.filter(d=>d.exists).map(d => [d.id, d.data()||{}]));
+                update(); },
+      err  => note(`Sent records could not be loaded (${(err&&err.code)||"unknown"}); what you see may be out of date.`)
+    );
+  } catch(e){ /* no live updates; the buttons still write */ }
+  update();                                        // reveal the buttons
+})();
 
 // ---------- state
 let selProgs = new Set(PROGS.map(p=>p.k));
@@ -438,11 +539,13 @@ function secCP(vis){
         <td>${N(k.total_loans)}</td><td>${N(k.window_loans)}</td><td>${N(last.loans)}<span class="sub">${monLabel(last.month)}</span></td>
         <td class="l">${spark(k.monthly.map(r=>({label:monLabel(r.month), v:r.loans, note:USD(r.principal)+" principal"})),{c:p.c, aria:"loans per month"})}</td>
         <td>${N(k.active_loans)}</td><td>${USDk(k.active_principal)}</td><td>${USD(k.avg_loan_size)}</td><td>$${nf2.format(k.avg_interest_per_loan)}</td>
-        <td><span style="color:${co>peer.charge_off_pct*1.5?'var(--bad)':'inherit'}">${PCTf(co,2)}</span></td><td>${PCTf(k.pct_overdue,2)}</td><td>${PCTf(k.pct_active_accounts_with_loans,2)}</td></tr>`;
+        <td><span style="color:${(peer&&co>peer.charge_off_pct*1.5)?'var(--bad)':'inherit'}">${PCTf(co,2)}</span></td><td>${PCTf(k.pct_overdue,2)}</td><td>${PCTf(k.pct_active_accounts_with_loans,2)}</td></tr>`;
     }).join("") +
-    `<tr class="peer"><td class="l"><span class="cl">All Velocity CashPlease clients</span><span class="sub">${peer.cohort_tabs} programs in the workbook</span></td>
+    (peer
+      ? `<tr class="peer"><td class="l"><span class="cl">All Velocity CashPlease clients</span><span class="sub">${peer.cohort_tabs} programs in the workbook</span></td>
       <td>${N(peer.total_loans)}</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(peer.avg_loan_size)}</td><td>$${nf2.format(peer.avg_interest_per_loan)}</td>
-      <td>${PCTf(peer.charge_off_pct,2)}</td><td>${PCTf(peer.pct_loans_overdue,2)}</td><td>${PCTf(peer.pct_active_accounts_with_loans,2)}</td></tr>` +
+      <td>${PCTf(peer.charge_off_pct,2)}</td><td>${PCTf(peer.pct_loans_overdue,2)}</td><td>${PCTf(peer.pct_active_accounts_with_loans,2)}</td></tr>`
+      : `<tr class="peer"><td class="l" colspan="12">The all-client peer comparison is not in this build \u2014 the CashPlease rollup was not read.</td></tr>`) +
     `</tbody></table>`;
   return secShell(p, rows.length, DATA.sources.cp, rank, table);
 }
@@ -495,7 +598,7 @@ function secRoster(vis){
       <td class="l">${state}</td>
       <td class="l" style="white-space:normal;max-width:430px">${ins}</td>
       <td class="l">${deck}</td>
-      <td class="l">${c.sent?`<span class="tag good">sent ${esc(c.sent)}</span>`:`<span class="tag">not recorded</span>`}</td></tr>`;
+      <td class="l">${sentCell(c)}</td></tr>`;
     }).join("") + `</tbody></table></div>`;
   return h + t;
 }
@@ -509,25 +612,42 @@ function chipFor(i){
 }
 
 // ---------- update
+// One section must never take the page down with it. A CashPlease build that
+// could not read the rollup used to throw here, and the throw blanked the whole
+// dashboard - every section and the roster - over one missing figure. A section
+// that cannot render says so and the rest of the page stands.
+function safe(label, fn){
+  try { return fn(); }
+  catch (e){
+    console.error(label + " failed to render", e);
+    return `<section class="prog"><div class="hd"><h2>${label}</h2></div>` +
+      `<div class="empty">This section could not be rendered from the data in this build.</div></section>`;
+  }
+}
+
 function update(){
   persist(); renderChips();
   const vis = clients.filter(c=>selClients.has(c.id) && c.programs.some(k=>selProgs.has(k)));
-  renderStrip(vis);
+  safe("Summary", ()=>renderStrip(vis));
   const secs = document.getElementById("sections");
-  const html = [selProgs.has("ARS")?secARS(vis):"", selProgs.has("ICS")?secICS(vis):"", selProgs.has("MRPC")?secMRPC(vis):"", selProgs.has("CP")?secCP(vis):""].join("");
+  const html = [selProgs.has("ARS")?safe("Account Revenue Solution",()=>secARS(vis)):"",
+                selProgs.has("ICS")?safe("Invitation Checking System",()=>secICS(vis)):"",
+                selProgs.has("MRPC")?safe("MyRewards Premium Cards",()=>secMRPC(vis)):"",
+                selProgs.has("CP")?safe("CashPlease",()=>secCP(vis)):""].join("");
   secs.innerHTML = html || `<div class="empty">Nothing to show: the selected clients are not on the selected products.</div>`;
-  document.getElementById("rostersec").innerHTML = secRoster(vis);
+  document.getElementById("rostersec").innerHTML = safe("Clients and decks", ()=>secRoster(vis));
 }
 document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
 document.getElementById("subline").textContent = `${clients.length} clients across four programs. Click a product or client to narrow; shift-click to isolate one.`;
 document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
 document.getElementById("foot").innerHTML =
   `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
-  `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook’s period when that is older than the cycle.</li>` +
-  `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client’s newest Invitation Checking workbook, flagged when older than the period.</li>` +
+  `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook\u2019s period when that is older than the cycle.</li>` +
+  `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client\u2019s newest Invitation Checking workbook, flagged when older than the period.</li>` +
   `<li><b>MRPC</b> \u2014 ${esc(DATA.sources.mrpc)}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +
   `<li><b>CashPlease</b> \u2014 ${esc(DATA.sources.cp)}, with the all-client rollup as the peer row.</li>` +
   `<li><b>Build readiness</b> \u2014 clients.md for who gets a deck, Inputs/ for what has landed, Outputs/ and Build Artifacts/deliveries.json for built and sent. The CSI shares are not checked here, so readiness reflects what is on this machine.</li>` +
+  `<li><b>Mark sent</b> \u2014 records the deck named in the Deck column as sent today, against that deck\u2019s period. It is kept with the page and folded into deliveries.json by the next morning\u2019s refresh, after which it reads as a plain sent date. A client with no built deck cannot be marked.</li>` +
   `</ul><p>Program to date is abbreviated PTD. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
 update();
 </script>
