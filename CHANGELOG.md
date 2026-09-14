@@ -17,6 +17,57 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — client marks on the performance page's bars, and filter chips that show their state
+
+**Each name on the four ranked bar charts has the client's mark beside it** (Aaron picked
+concept A from four drawn on the real ARS bars). Client logos are wordmarks far more often
+than square icons, so `scripts/perf_marks.py` chooses a mark in this order:
+1. A curated `Inputs/Logos/<id>_mark.png`, which always wins.
+2. The icon leading the logo, when a clear gap sets it apart from the wordmark.
+3. The whole logo, when it is no wider than 1.6:1.
+4. Otherwise, the client's initials.
+
+A pure wordmark is never cropped, because a crop of its left edge cuts a letter in half.
+The marks are part of the dataset, so a new or curated logo moves the hash and republishes
+the page. They are cached by logo file size and time in
+`Build Artifacts/perf_dashboard/marks/`. The first run over 85 clients took about three
+minutes.
+
+On 2026-09-14 the result was 11 icons, 9 whole logos and 65 monograms. 58 of those 65 have
+a logo on file, and each refresh lists them by id: they need a curated square mark.
+
+**The filter chips show three states** (Aaron: "use a 3rd color for when all of a row is
+selected, blue for on, white for off"):
+- Green (`#E3F1EA`): the whole row is selected.
+- Blue (`#245C8C`): selected.
+- White: not selected.
+
+Before, a whole-row selection left every chip unmarked, so "all" and "none" looked the same.
+Each row now leads with an All chip, which replaces the "All CSMs / products / clients" links
+at the right, and a key under the filters names the three colors. Green was picked because
+the product chips already carry the program colors. Tests: `tests/test_perf_marks.py`, plus
+new template cases in `tests/test_refresh_performance_dashboard.py`.
+
+**A top-level name declared twice in the page's script now fails the suite.** The marks
+were first added as `const MARKS` beside Mark sent's `let MARKS`. That is a SyntaxError,
+and the page rendered only its filter rows, while every string check in the tests still
+passed. The preview caught it before it was published.
+`test_template_declares_no_top_level_name_twice` reads the script's column-0
+declarations.
+
+### 2026-09-14 — the performance page's filters allow an empty selection
+
+**Any chip can be clicked off, including the last one in its row** (Aaron: "allow zero
+selection for CSM, client, etc at the top"). The CSM, product and client rows each used to
+keep at least one chip selected. With a row empty, the page says which filter is empty and
+points to its All link, instead of showing a blank page. An empty selection is saved as
+empty and survives a reload, while "all" is still saved as all.
+
+The page used to reset an empty client selection to all on every render. That reset was
+meant for a stale saved selection, so it now runs once, on load, and only when saved
+clients match none of the saved CSMs. `tests/test_refresh_performance_dashboard.py` pins
+all three rows and the reload.
+
 ### 2026-09-14 — the performance page lists every current client and links the workflow
 
 **The page shows all current clients across the five CSMs** (Aaron: "i want the artifact

@@ -63,6 +63,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 import rpe_env as R                                              # noqa: E402
 from build_month import read_cashplease_roster, read_roster      # noqa: E402
 import perf_clients as PC                                        # noqa: E402
+import perf_marks as PM                                          # noqa: E402
 
 TEMPLATE = REPO / "scripts" / "perf_dashboard_template.html"
 PLACEHOLDER = "__DATA__"
@@ -839,6 +840,10 @@ def build_dataset(period, work, log=print):
     for cid, c in clients.items():
         c["readiness"] = ready.get(cid)
         c["csm"] = csm.get(cid)
+    # The square mark beside each name on the ranked bars (Aaron, 2026-09-14: concept A).
+    # In the dataset, so a new or curated logo moves the hash and the page republishes.
+    marks = PM.client_marks([(cid, c["name"]) for cid, c in sorted(clients.items())],
+                            work / "marks", log=log)
 
     ics_pull, mrpc_pull = vip_pull_date("ICS"), vip_pull_date("MRPC")
     return {
@@ -851,6 +856,8 @@ def build_dataset(period, work, log=print):
             "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/Weekly Summaries)",
             # Static on purpose: whether the share was reachable this morning must not
             # move the content hash and republish an unchanged page.
+            "marks": "Inputs/Logos: a curated <id>_mark.png, else the icon leading the client's "
+                     "logo, else the whole logo when near square, else the client's initials",
             "clients": "the clients.md roster, plus every client with reports filed on the CSI "
                        "reports share for the newest month at or before the cycle, except those "
                        "clients.md marks as stopped; programs for a client not in clients.md are "
@@ -863,6 +870,7 @@ def build_dataset(period, work, log=print):
                    "record; a client nothing names is Unassigned",
         },
         "cp_peer": peer,
+        "marks": marks,
         # Every current client, including one with no program data this month (Aaron,
         # 2026-09-14): it is still a client, and the page lists it under all products.
         "clients": sorted(clients.values(), key=lambda c: c["id"]),

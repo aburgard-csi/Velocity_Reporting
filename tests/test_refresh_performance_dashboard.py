@@ -437,6 +437,51 @@ def test_template_saves_all_as_all_so_new_clients_are_not_hidden():
     assert 'localStorage.getItem("rpe-dash-filter")' not in t
 
 
+def test_template_filters_allow_an_empty_selection():
+    """Aaron, 2026-09-14: the last selected chip in a row can be clicked off too."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    for sel in ("selProgs", "selCsms", "selClients"):
+        assert "if(%s.size>1)" % sel not in t, sel
+    assert "if (!saved.length) return new Set();" in t, "an empty selection must survive a reload"
+    assert "No CSM is selected." in t
+    # the per-render reset that silently turned an empty client selection back into all
+    assert "if (!clients.some(c=>inCsm(c) && selClients.has(c.id))) selClients" not in t
+
+
+def test_template_chips_show_three_states_and_each_row_leads_with_all():
+    """Aaron, 2026-09-14: green while the whole row is selected, blue on, white off."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    for token in ("--chip-all:", "--chip-on:", "--chip-bg:"):
+        assert token in t
+    assert "class=\"chip ${allM?'in':(selCsms.has(m)?'on':'')}\"" in t
+    assert "class=\"chip ${allP?'in':(selProgs.has(p.k)?'on':'')}\"" in t
+    assert "class=\"chip ${allC?'in':(selClients.has(c.id)?'on':'')}" in t
+    for rid in ("resetCsm", "resetProg", "resetClient"):
+        assert 'class="chip all" id="%s"' % rid in t, rid
+    assert "persist(); renderChips(); markAllChips();" in t
+
+
+def test_template_draws_each_clients_mark_on_the_ranked_bars():
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert "const CLIENT_MARKS = DATA.marks || {};" in t
+    assert "${markTile(r.id)}<span class=\"nm\">" in t
+    assert t.count("id:c.id, name:c.name, v:") == 4, "all four sections pass the client id to bars()"
+
+
+def test_template_declares_no_top_level_name_twice():
+    """A repeated top-level `const`/`let` is a SyntaxError that blanks the whole page.
+
+    It shipped past every string check here on 2026-09-14: the client marks were added as
+    `const MARKS` beside the Mark sent code's `let MARKS`, and the page rendered only its
+    filter rows. The check reads the one inline script's column-0 declarations.
+    """
+    import re
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    names = re.findall(r"^(?:const|let|var|function|async function)\s+([A-Za-z_$][\w$]*)", t, flags=re.M)
+    dups = sorted({n for n in names if names.count(n) > 1})
+    assert names and not dups, "declared more than once at top level: %s" % dups
+
+
 def test_template_links_the_workflow_page_published_beside_it():
     """Published as workflow.html in the same artifact; it links back to index.html."""
     assert 'href="workflow.html"' in P.TEMPLATE.read_text(encoding="utf-8")

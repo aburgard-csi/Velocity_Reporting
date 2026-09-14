@@ -52,8 +52,15 @@ figure.
   "from data". A client with no program data this month is listed under all products.
 - A link to the pipeline workflow page: `workflow.html`, published beside the page from
   `scripts/perf_workflow.html`. The daily refresh does not republish it.
-- CSM, product and client filters. While all are selected, a click shows only that one;
-  later clicks add or remove others. *(CSM added
+- A square client mark beside each name on the ranked bars *(2026-09-14)*, chosen by
+  `scripts/perf_marks.py` in this order:
+  1. a curated `Inputs/Logos/<id>_mark.png`
+  2. the logo's leading icon
+  3. the whole logo, when near square
+  4. the client's initials
+- CSM, product and client filters, each row led by an All chip. While all are selected, a
+  click shows only that one; later clicks add or remove others, down to none. Chips are
+  green while their whole row is selected, blue when on and white when off. *(CSM added
   2026-09-14.)* A client's CSM is the account-manager folder its reports land in on
   `Velocity_clientreports`, else the `CSM` column of the CashPlease roster in `clients.md`,
   else the CSM on its CashPlease settings record; a client nothing names is shown as
