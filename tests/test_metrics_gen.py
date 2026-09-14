@@ -187,3 +187,54 @@ def test_rege_vintage_axis_is_not_capped_at_a_typed_year(odd_csv, tmp_path):
         f"accounts opened in {shifted} are missing from the vintage axis {shown} — "
         f"the axis is capped rather than derived from the data")
     assert sum(r[1] for r in m["rege_vintage"]) == m["rege_vintage_pool"]
+
+
+def test_the_fixture_has_no_mailing_in_progress(metrics):
+    """Its last mailing (Jun26) has a following month, so nothing is pending."""
+    assert metrics["mail_in_progress"] == []
+
+
+def test_a_mailing_in_the_last_month_is_listed_as_in_progress(odd_csv, tmp_path, metrics):
+    """A mailing in the extract's own last month has offers and no response yet.
+
+    `mature` rightly keeps it out of every rate, but the Mailing Response Summary used
+    to drop it without a word — 1549 Wellworth's Aug 2026 drop, 9,643 accounts mailed,
+    was on no slide (2026-09-14). Add a mailing to the fixture's last month and assert
+    it is reported as in progress, and that the completed rows and their total do not
+    move.
+    """
+    import csv, json, subprocess, sys, os
+    from conftest import ARS
+
+    rows = list(csv.reader(open(odd_csv, encoding="utf-8", newline="")))
+    hdr = [c.strip() for c in rows[4]]
+    months = [h.split()[0] for h in hdr if h.endswith(" Sig #")]
+    last, prior_mail = months[-1], next(h for h in reversed(hdr) if h.endswith(" Mail"))
+    assert f"{last} Mail" not in hdr, "fixture already mails its last month"
+    src = hdr.index(prior_mail)
+    rows[4] += [f"{last} Mail", f"{last} Resp"]
+    mailed = 0
+    for r in rows[5:]:
+        offer = r[src].strip() if len(r) > src else ""
+        r.extend([""] * (len(rows[4]) - 2 - len(r)))
+        r += [offer, ""]                        # same offers again; no response yet
+        mailed += bool(offer)
+    odd = tmp_path / "mailing_in_progress.csv"
+    with open(odd, "w", encoding="utf-8", newline="") as fh:
+        csv.writer(fh).writerows(rows)
+    out = tmp_path / "metrics.json"
+    r = subprocess.run([sys.executable, os.path.join(ARS, "metrics_gen.py"), str(odd), str(out)],
+                       capture_output=True, text=True, cwd=ARS)
+    assert r.returncode == 0, f"metrics_gen failed:\n{r.stderr[-2000:]}"
+    m = json.loads(out.read_text())
+
+    import datetime
+    label = datetime.datetime.strptime(last, "%b%y").strftime("%b %Y")
+    assert [x[0] for x in m["mail_in_progress"]] == [label]
+    offers = m["mail_in_progress"][0][1]
+    assert 0 < offers <= mailed, "offers are personal accounts carrying a value"
+    # The completed mailing it copied its offers from counted the same personal accounts.
+    assert offers == m["mail_summary"][0][1]
+    assert label not in [x[0] for x in m["mail_summary"]]
+    assert m["mail_summary"] == metrics["mail_summary"]
+    assert m["mail_summary_total"] == metrics["mail_summary_total"]

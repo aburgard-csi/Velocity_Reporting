@@ -71,6 +71,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | ICS workbooks | `Inputs/ICS Workbooks/` |
 | ICS Charts (mystery shops) | `Inputs/ICS Charts/` |
 | MRPCEnrollmentSummary / CashPleaseSummary weeklies | `Inputs/Weekly Summaries/` |
+| CashPlease production settings (Velocity Product Settings Power BI app, one record per client) | `Inputs/Product Settings/<id>_cp_settings.json` |
 | Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |

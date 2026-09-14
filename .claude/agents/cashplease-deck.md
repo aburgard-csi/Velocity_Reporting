@@ -34,6 +34,7 @@ says to build, and runs each deck through `validation/validate_deck.py`. One cli
 | Weekly workbook | `Inputs/Weekly Summaries/CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx` — Bradford Sanders, subject "CashPlease Summary" |
 | DDA denominator | `Inputs/Weekly Summaries/ILS-DDA-Count-<YYYY-MM-DD>.txt` — the body of the weekly "ILS Management Server DDA Count" email, saved as text |
 | Roster | the `### CashPlease roster` table in `clients.md`, read by `build_month.read_cashplease_roster` |
+| Program settings (optional) | `Inputs/Product Settings/<id>_cp_settings.json` — the client's record from the CashPlease page of the Velocity Product Settings Power BI app, with a `_source` naming the app and its data-updated stamp. Resolved by `rpe_env.cp_settings_file`. |
 | Shell | `templates/cashplease_template.pptx` |
 
 **Always the most recent workbook.** Not the one nearest a deck's period — the newest,
@@ -58,6 +59,12 @@ read-out) · **Loan Volume by Month** (navy bars, last complete month orange, pa
 hatched steel, principal as a teal line) · **Loan Portfolio by Status** (status table with
 an orange total row, ranked status bars) · **Peer Comparison** (pill layout plus an index
 chart where the cohort is 100).
+
+**Program Settings** — only for a client with a settings record, placed after the
+Overview (eleven slides). Loan terms beside eligibility and controls, production values
+only. Never add recommendations to it, and never let the record's internal fields (Loan
+Notes, contract type, core, CSM, pricing) onto the slide or into its notes — notes ship
+inside the file. The build lists clients with no record; do not invent one for them.
 
 ## Multi-product clients
 

@@ -104,6 +104,9 @@ def _branch_label(b):
 
 
 MS = M['mail_summary']; MST = M['mail_summary_total']
+# Mailings with offers in the extract's last month and no response measured yet. Listed on
+# the Mailing Response Summary, never counted into any rate or the trailing total.
+MIP = M.get('mail_in_progress', [])
 mail_resp = f"{MST[4]:.1f}%"
 cf = B['swipespend_36'][0][2]; cl = B['swipespend_36'][-1][2]
 cardg = 100*(cl-cf)/cf; card_growth = f"{cardg:+.1f}%"
@@ -690,22 +693,45 @@ _nmail = len(MS)
 # ODD extract, its pull stamp and the workbook. It stays there; only the on-slide
 # line loses it.
 if _nmail <= 1:
-    _sub12 = "The program's first mailing."
+    _sub12 = "The program's first " + ("completed mailing" if MIP else "mailing")
 elif _nmail < int(mailings or 0):
-    _sub12 = f"Most recent {_nmail} of the program's {mailings} mailings."
+    _sub12 = f"Most recent {_nmail} of the program's {mailings} mailings"
 else:
-    _sub12 = f"All {_nmail} mailings to date."
+    _sub12 = f"All {_nmail} " + ("completed " if MIP else "") + "mailings to date"
+# A mailing in progress is named on the slide face, so the row reads as a drop still
+# accruing responses rather than one that drew none (Aaron, 2026-09-14).
+if MIP:
+    _sub12 += "; " + " and ".join(lab for lab, _ in MIP) + " still in progress"
+_sub12 += "."
 repl(S[11], {"Most recent 12 of the program's 81 mailings (MM revenue model).": _sub12})
 # First column carries "Trailing 12-Mailing Total", which wraps to two lines under ~2.7in.
 # Right edge stays left of the corner logo at 11.28in.
 add_table_columns(S[11], 2, widths=[2.80, 1.55, 1.55, 1.40, 1.70, 1.45])
 rows = [["Mailing", "Offers Sent", "Responders", "NU 5+", "Threshold Met", "Response %"]]
+# Newest first, so an in-progress mailing leads. Its response cells say "Pending" — a
+# blank or a 0.0% would read as a mailing that drew nobody, and CLAUDE.md forbids a
+# phantom zero. The label does not match "Mon YYYY" on its own, so the validator's
+# mailing count (completed mailings) is not asked to include it.
+for _lab, _sent in MIP:
+    rows.append([f"{_lab} (in progress)", f"{_sent:,}", "Pending", "Pending", "Pending", "Pending"])
 for _lab, _sent, _rsp, _nu, _th, _tot in MS:
     rows.append([_lab, f"{_sent:,}", f"{_rsp:,}", f"{_nu:.1f}%", f"{_th:.1f}%", f"{_tot:.1f}%"])
 # A total over a single mailing just restates that mailing — skip the row.
 if _nmail > 1:
     rows.append([f"Trailing {_nmail}-Mailing Total", f"{MST[0]:,}", f"{MST[1]:,}",
                  f"{MST[2]:.1f}%", f"{MST[3]:.1f}%", f"{MST[4]:.1f}%"])
+# Twelve completed mailings plus the total already fill the template's 14 rows, and
+# set_table stops at the last row — an in-progress row would push the TOTAL off the
+# table. Add the rows and hold the table to its template rows' height (14 x 0.40in =
+# 5.60in, ending at 7.10in — where the delivered 12-mailing decks already end, beside
+# the logo and above the slide number): 15 rows at 0.373in still seat 16pt text.
+_t12 = tables(S[11])[0]
+if len(rows) > len(_t12.rows):
+    _box_h = sum(r.height for r in _t12.rows)
+    add_table_rows(S[11], len(rows) - len(_t12.rows))
+    _t12 = tables(S[11])[0]
+    for _r in _t12.rows:
+        _r.height = int(_box_h / len(rows))
 set_table(S[11], rows, trim=True)
 
 # ============================ SLIDE 14 — Latest Mailer
@@ -1337,6 +1363,15 @@ def _note_for(t, idx):
     if "monthly summary" in tl: return "Source: %s — All Months Rollup / Executive Financials (monthly incremental revenue, most recent 12 months)." % WB_SRC
     if "lift matrix" in tl: return "Source: %s — Lift Matrix MM tab (12-month lift window; segments on 3-month average swipes); Revenue Segmentation block." % WB_SRC
     if "average ticket" in tl or "debit usage" in tl: return "Source: %s — debit swipes/spend by tier." % ODD_SRC
+    if tl.startswith("mailing response summary") and MIP:
+        return ("Source: %s — Mail Response Summary%s + %s mailing/response fields. "
+                "In progress: %s. Offers sent = personal accounts carrying a '<Mon> Mail' "
+                "offer in the extract's last month; that month's '<Mon> Resp' is not filled "
+                "until the following month's activity lands, so no responder count or rate "
+                "exists yet ('Pending'), and the mailing is excluded from every rate and "
+                "from the trailing total. The workbook's Mail Response Summary does not "
+                "list it either." % (WB_SRC, _mm, ODD_SRC,
+                                     "; ".join("%s, %s offers sent" % (l, format(n, ",")) for l, n in MIP)))
     if "mailing" in tl or "response" in tl or "movement" in tl or "transaction increase" in tl or "sustained" in tl or "responder activity" in tl: return "Source: %s — Mail Response Summary%s + %s mailing/response fields." % (WB_SRC, _mm, ODD_SRC)
     if "take rate" in tl or "debit card review" in tl or "swipes & spend" in tl or "nsf" in tl: return "Source: %s — debit take rate (personal/business/by branch), swipes & spend, NSF/OD." % ODD_SRC
     if "reg e" in tl: return "Source: %s — Reg E opt-in (standardized Opt In/Opt Out/Default); all personal / opened last 12 mo / by vintage." % ODD_SRC

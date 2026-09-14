@@ -429,6 +429,53 @@ def single_line_overflow_findings(prs):
     return out
 
 
+PILL_WRAP_RATIO = 0.955
+
+
+def pill_wrap_findings(prs):
+    """REVIEW a top-right date pill whose text needs a second line.
+
+    Added 2026-09-14. The pill's box is tall enough for two lines and nothing sits
+    under it, so `single_line_overflow_findings` — which fails only a spill onto other
+    text — never sees a wrapped pill.
+
+    PowerPoint wraps BEFORE textfit's width reaches the box. Twelve 12pt Montserrat
+    pills rendered through PowerPoint (2026-09-14): every one at or below 0.940 of the
+    usable width held one line, every one at or above 0.974 took two — including
+    "As of September 14, 2026" at 0.993, which is how this rule came to exist. Hence
+    PILL_WRAP_RATIO, between the two. REVIEW, not FAIL: most 2026.09 CashPlease and ICS
+    pills wrap, and the fix (shorter date or wider pill) is a style decision across
+    programs, not something the gate should impose mid-cycle.
+    """
+    if text_width_in is None:
+        return []
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        for sh in slide.shapes:
+            if (not sh.has_text_frame or sh.top is None or sh.left is None
+                    or sh.shape_type != 1               # MSO_SHAPE_TYPE.AUTO_SHAPE
+                    or _in(sh.top) > 0.9 or _in(sh.left) < 9.0):
+                continue
+            tf = sh.text_frame
+            paras = [p for p in tf.paragraphs if p.runs]
+            if len(paras) != 1:
+                continue
+            runs = paras[0].runs
+            text = "".join(r.text for r in runs).strip()
+            pt = next((r.font.size.pt for r in runs if r.font.size), None)
+            fam = next((r.font.name for r in runs if r.font.name), None)
+            if not text or not pt or not fam:
+                continue
+            usable = _in(sh.width) - (_in(tf.margin_left) or 0) - (_in(tf.margin_right) or 0)
+            w = text_width_in(text, pt, fam, bool(runs[0].font.bold))
+            if w > usable * PILL_WRAP_RATIO:
+                out.append(("REVIEW", idx,
+                            f"date pill wraps to two lines: '{text}' is {w:.2f}in of "
+                            f"{fam} {pt:.0f}pt in {usable:.2f}in (PowerPoint wraps "
+                            f"past {PILL_WRAP_RATIO:.0%})"))
+    return out
+
+
 # ================================================================ stale template caption
 def stale_template_caption_findings(prs, deck_path=None, template_path=None):
     """FAIL a dated caption still byte-identical to the TEMPLATE's.
@@ -1425,6 +1472,7 @@ def run(path, extract=None):
     findings += package_findings(path)
     findings += reference_leak_findings(path, prs)
     findings += single_line_overflow_findings(prs)
+    findings += pill_wrap_findings(prs)
     findings += stale_template_caption_findings(prs, path)
     findings += figure_identity_findings(prs)
     findings += period_findings(prs, find_period_pack(path))

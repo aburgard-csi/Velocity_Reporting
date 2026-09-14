@@ -309,6 +309,15 @@ element is already maxed.
   they sit in a 10-slide single-product deck (shell + five + Questions + Contact);
   in a combined deck they are the section, via `--cashplease`. A client whose
   slides ship inside a combined deck does not also get a module.
+- **Program Settings (2026-09-14):** a client with
+  `Inputs/Product Settings/<id>_cp_settings.json` gets a sixth slide after the Overview —
+  two tables (Loan terms · Eligibility & controls, `add_table` at 12 pt) over a one-line
+  program strip (site, launch dates, processing, online banking). Production values only:
+  recommendations belong to the ops meeting, and the record's internal fields (Loan
+  Notes, contract, CSM, pricing) reach neither the slide nor its notes, which ship in
+  the file. Pill "As of {Mon D, YYYY}" — the app's data-updated date, short month so it
+  holds one line. A blank field reads "Not recorded". No record, no slide; the build
+  lists those clients.
 - Style comes from this repo's shared layer (`brand`, `shapes`, `periods`,
   `fit_layout`), so a CashPlease slide matches the slide beside it. Titles are
   Montserrat 30 pt at (0.6, 0.38); the selection line at (0.62, 1.06).

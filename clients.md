@@ -82,7 +82,8 @@ into the ILS review deck itself. The ILS deck is built by the data team and ship
 else's deliverable. Delivering a deck beside it does not.
 
 The slides are the same five either way — divider · Program Overview · Loan Volume by
-Month · Loan Portfolio by Status · Peer Comparison — built once. The combined deck is a
+Month · Loan Portfolio by Status · Peer Comparison — built once, plus a Program Settings
+slide after the Overview for a client with a settings record in `Inputs/Product Settings/`. The combined deck is a
 second consumer of that output, the way it already consumes the ICS and MRPC decks.
 
 **The pipeline lives in this repo as of 2026-09-10**: `build/cashplease_pipeline/` and

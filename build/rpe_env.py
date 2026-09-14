@@ -112,7 +112,12 @@ INPUT_KIND_DIRS = {
     "ICS workbook": "ICS Workbooks",
     "ICS charts": "ICS Charts",           # "<Client> Charts 2026.xlsx" — mystery shops
     "weekly": "Weekly Summaries",         # MRPCEnrollmentSummary, CashPleaseSummary
+    "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
 }
+
+# Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
+# report_dirs() nor the copier/pruner in watch_sources.py looks inside these.
+NOT_SCANNED_KINDS = ("ODDD", "CP settings")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
@@ -134,13 +139,26 @@ def report_dirs() -> list:
     """Every folder that can hold a workbook-ish input, newest scheme first.
 
     Readers glob across all of them rather than one, so the sort can happen
-    incrementally and a stray file in the old folder is still found. `ODDD/` is
-    NOT here — extracts are resolved by exact path, not by scanning.
+    incrementally and a stray file in the old folder is still found. `ODDD/` and
+    `Product Settings/` are NOT here — both are resolved by exact path.
     """
     I = inputs()
-    names = [v for k, v in INPUT_KIND_DIRS.items() if k != "ODDD"]
+    names = [v for k, v in INPUT_KIND_DIRS.items() if k not in NOT_SCANNED_KINDS]
     names.append(LEGACY_REPORTS_DIRNAME)
     return [I / n for n in names if (I / n).is_dir()]
+
+
+def cp_settings_file(client_id):
+    """A CashPlease client's production settings, or None when none are on file.
+
+    `Inputs/Product Settings/<id>_cp_settings.json` — one client's record from the
+    CashPlease page of the Velocity Product Settings Power BI app, with a `_source`
+    key naming the app and its data-updated stamp (Aaron, 2026-09-14). It is a
+    snapshot of configuration, not a period's figures, so it carries no period in
+    its name and is replaced in place when re-pulled.
+    """
+    p = inputs() / INPUT_KIND_DIRS["CP settings"] / f"{client_id}_cp_settings.json"
+    return p if p.is_file() else None
 
 
 def report_files(pattern: str = "*") -> list:

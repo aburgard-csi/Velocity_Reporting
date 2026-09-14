@@ -26,12 +26,17 @@ while linting clean (CLAUDE.md, validation gate rule 3). Any shell carrying thos
 five slides works, which is how the shell re-materializes itself from a synthetic
 Union Financial pack (RPE `templates/TEMPLATES.md`).
 
+A client with a production settings record (`Inputs/Product Settings/<id>_cp_settings.json`,
+passed as the optional fourth argument) also gets a CashPlease Program Settings slide
+after the Program Overview — eleven slides, six in the section (Aaron, 2026-09-14).
+
 Usage:
-    python build_cp_gen.py <pack.json> <cashplease_template.pptx> <out.pptx>
+    python build_cp_gen.py <pack.json> <cashplease_template.pptx> <out.pptx> [<settings.json>]
 """
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -531,6 +536,215 @@ def slide_overview(prs, d, pill_text, art_dir):
     return s
 
 
+# ------------------------------------------------------------------ program settings
+# The CashPlease page of the Velocity Product Settings Power BI app, one client's record
+# (Aaron, 2026-09-14). The record also carries fields that must never reach a client:
+# the free-text Loan Notes (internal — WesBanco's reads "Declined Best Practices"), the
+# contract type, core, CSM, pricing and the regulator address. Speaker notes ship inside
+# the .pptx, so "internal" means off the slide AND out of the notes. Only the fields
+# named in SETTINGS_SHOWN are ever read into the deck; anything else is ignored by
+# construction rather than filtered out, so a new internal field cannot leak.
+SETTINGS_SHOWN = (
+    "Customer #", "Record Type", "_source",
+    "CP - Loan Calculation", "Loan Minimum", "Loan Maximum", "Loan Payment Structure",
+    "Interest (Easy, Std)", "Interest (Manual, Std)",
+    "Interest (Easy, MLA)", "Interest (Manual, MLA)",
+    "Prepaid Finance (Easy, Std)", "Prepaid Finance (Manual, Std)",
+    "Prepaid Finance (Easy, MLA)", "Prepaid Finance (Manual, MLA)",
+    "Application Fee (Std)", "Application Fee (MLA)", "Year Base for Loan",
+    "Allowed to Originate", "Minimum Age for Loan",
+    "Loan Waiting Period for New Accounts", "Limit User's 1st Loan to Min",
+    "Loan Cool Off Period", "Volume Cap", "Email Reminders (Days in Advance)",
+    "End of Month Payments",
+    "URL", "Soft Launch", "Full Launch", "Loan Processing Time", "Online Banking Vendor",
+)
+NOT_RECORDED = "Not recorded"
+
+
+def load_settings(path, client_id):
+    """Read a settings record, refusing one that belongs to another client or program."""
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if str(raw.get("Customer #", "")).strip() != str(client_id):
+        raise SystemExit(f"{path}: Customer # is {raw.get('Customer #')!r}, not "
+                         f"{client_id} — refusing another client's settings.")
+    if str(raw.get("Record Type", "")).strip() != "CashPlease":
+        raise SystemExit(f"{path}: Record Type is {raw.get('Record Type')!r}, not "
+                         f"'CashPlease'.")
+    if not str(raw.get("_source", "")).strip():
+        raise SystemExit(f"{path}: no _source — a slide cannot ship without its source.")
+    return {k: str(raw.get(k, "") or "").strip() for k in SETTINGS_SHOWN}
+
+
+def settings_as_of(S):
+    """'... data updated 9/14/26 11:35 AM CST' -> datetime, or None."""
+    m = re.search(r"updated\s+(\d{1,2}/\d{1,2}/\d{2,4})", S["_source"])
+    if not m:
+        return None
+    for fmt in ("%m/%d/%y", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(m.group(1), fmt)
+        except ValueError:
+            pass
+    return None
+
+
+def _long_date(dt):
+    return f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+
+
+def _us_date(v):
+    """'12/12/2023' -> 'Dec 12, 2023'; anything else unchanged."""
+    try:
+        dt = datetime.strptime(v, "%m/%d/%Y")
+    except ValueError:
+        return v
+    return f"{dt.strftime('%b')} {dt.day}, {dt.year}"
+
+
+def _as_pct(v):
+    return v if v.endswith("%") else f"{v}%"
+
+
+def _as_fee(v):
+    return "None" if v.upper() in ("N/A", "NA", "NONE", "0", "$0", "$0.00") else v
+
+
+def _lower_units(v):
+    """'90 Days' -> '90 days'. Power BI title-cases units mid-sentence."""
+    return re.sub(r"\b(Days?|Months?|Weeks?)\b", lambda m: m.group(0).lower(), v)
+
+
+def _sentence_case_lead(v):
+    """'ALL account holders…' -> 'All account holders…'. Only a shouted first word."""
+    head, _, rest = v.partition(" ")
+    if len(head) >= 3 and head.isalpha() and head.isupper():
+        head = head.capitalize()
+    return f"{head} {rest}".strip()
+
+
+def _by_loan_type(S, field, fmt):
+    """One value when every loan type agrees; otherwise standard and MLA side by side.
+
+    The app records Easy/Manual × Standard/MLA separately. They agree for every client
+    seen so far, and a row reading '17% · 17% · 17% · 17%' would say nothing four times.
+    """
+    keys = ("Easy, Std", "Manual, Std", "Easy, MLA", "Manual, MLA")
+    vals = {k: S[f"{field} ({k})"] for k in keys if S.get(f"{field} ({k})")}
+    if not vals:
+        return NOT_RECORDED
+    if len(set(vals.values())) == 1:
+        return f"{fmt(next(iter(vals.values())))} (standard & MLA)"
+    std = {vals[k] for k in keys[:2] if k in vals}
+    mla = {vals[k] for k in keys[2:] if k in vals}
+    if len(std) == 1 and len(mla) == 1:
+        return f"{fmt(std.pop())} standard · {fmt(mla.pop())} MLA"
+    return " · ".join(f"{fmt(v)} {k.replace(', ', ' ').lower()}" for k, v in vals.items())
+
+
+def _yes_no(v):
+    return {"true": "Yes", "false": "No"}.get(v.lower(), NOT_RECORDED if not v else v)
+
+
+def settings_rows(S):
+    """(loan terms, eligibility & controls, program line) from a loaded record.
+
+    A blank field reads "Not recorded" — stated, never guessed at and never left as an
+    empty cell that looks like a rendering failure.
+    """
+    def val(v, fmt=lambda x: x):
+        return fmt(v) if v else NOT_RECORDED
+
+    fees = {S["Application Fee (Std)"], S["Application Fee (MLA)"]} - {""}
+    if not fees:
+        app_fee = NOT_RECORDED
+    elif len(fees) == 1:
+        app_fee = _as_fee(fees.pop())
+    else:
+        app_fee = (f"{_as_fee(S['Application Fee (Std)'])} standard · "
+                   f"{_as_fee(S['Application Fee (MLA)'])} MLA")
+
+    reminder = S["Email Reminders (Days in Advance)"]
+    cap = S["Volume Cap"]
+    # "Standard - No more than 3 loans…": the leading word is the app's option name,
+    # the rest is what the option does. The client needs the second half.
+    if " - " in cap:
+        cap = cap.split(" - ", 1)[1]
+
+    terms = [
+        ["Loan terms", "Setting"],
+        ["Loan amount", val(S["CP - Loan Calculation"])],
+        ["Minimum loan", val(S["Loan Minimum"])],
+        ["Maximum loan", val(S["Loan Maximum"])],
+        ["Repayment", val(S["Loan Payment Structure"])],
+        ["Interest rate", _by_loan_type(S, "Interest", _as_pct)],
+        ["Prepaid finance charge", _by_loan_type(S, "Prepaid Finance", _as_pct)],
+        ["Application fee", app_fee],
+        ["Year base", val(S["Year Base for Loan"])],
+    ]
+    controls = [
+        ["Eligibility & controls", "Setting"],
+        ["Eligible borrowers", val(S["Allowed to Originate"], _sentence_case_lead)],
+        ["Minimum age", val(S["Minimum Age for Loan"])],
+        ["New-account waiting period",
+         val(S["Loan Waiting Period for New Accounts"], _lower_units)],
+        ["First loan limited to minimum", _yes_no(S["Limit User's 1st Loan to Min"])],
+        ["Cool-off between loans", val(S["Loan Cool Off Period"], _lower_units)],
+        ["Volume cap", val(cap)],
+        ["Payment reminder email",
+         f"{reminder} days before due" if reminder else NOT_RECORDED],
+        ["End-of-month payments", val(S["End of Month Payments"])],
+    ]
+    program = []
+    if S["URL"]:
+        program.append(re.sub(r"^https?://", "", S["URL"]).rstrip("/"))
+    if S["Soft Launch"]:
+        program.append(f"Soft launch {_us_date(S['Soft Launch'])}")
+    if S["Full Launch"]:
+        program.append(f"Full launch {_us_date(S['Full Launch'])}")
+    if S["Loan Processing Time"]:
+        program.append(f"Loan processing: {S['Loan Processing Time']}")
+    if S["Online Banking Vendor"]:
+        program.append(f"Online banking: {S['Online Banking Vendor'].replace(' - ', ' – ')}")
+    return terms, controls, program
+
+
+def slide_settings(prs, d, S, settings_name):
+    """The client's CashPlease configuration: loan terms beside eligibility and controls.
+
+    Current production settings only. Recommendations to change them belong to the
+    client's ops meeting, not to a results review, and are never on this slide.
+    """
+    as_of = settings_as_of(S)
+    s = new_slide(prs)
+    head(s, "CashPlease Program Settings",
+         f"{d['client_name']}'s production CashPlease settings"
+         + (f", as recorded {_long_date(as_of)}." if as_of else "."),
+         # Short month: "As of September 14, 2026" wraps to two lines in the 2.35" pill.
+         f"As of {as_of.strftime('%b')} {as_of.day}, {as_of.year}" if as_of
+         else "Current settings")
+
+    terms, controls, program = settings_rows(S)
+    T, H, W, GAP = 1.72, 4.05, 5.98, 0.14
+    add_table(s, 0.62, T, W, H, terms, [2.15, 3.83], fs=12)
+    add_table(s, 0.62 + W + GAP, T, W, H, controls, [2.45, 3.53], fs=12)
+    if program:
+        textbox(s, 0.62, 6.02, 12.1, 0.40, "     ·     ".join(program),
+                12, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+
+    interest = "; ".join(f"{k}: {S[k]}" for k in SETTINGS_SHOWN
+                         if k.startswith(("Interest (", "Prepaid Finance (",
+                                          "Application Fee (")) and S[k])
+    notes(s, f"Source: {S['_source']} — client {d['client_id']} {d['client_name']} "
+             f"(file {settings_name}). Selection: the one production settings record "
+             f"for this client; it is configuration as of that date, not a period's "
+             f"figures, so it is not dated to the workbook beside it. Values as recorded: "
+             f"{interest}. Loan calculation: {S['CP - Loan Calculation'] or 'blank'}. "
+             f"Allowed to originate: {S['Allowed to Originate'] or 'blank'}. Volume cap: "
+             f"{S['Volume Cap'] or 'blank'}. 'None' for an application fee is the app's "
+             f"N/A. 'Not recorded' marks a field that is blank in the app.")
+    return s
+
+
 def slide_volume(prs, d, pill_text, art_dir):
     """Loans booked by month. The partial month is a bar too, marked as partial.
 
@@ -748,10 +962,12 @@ def slide_peer(prs, d, pill_text, art_dir):
 
 # ------------------------------------------------------------------ assembly
 def main():
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         raise SystemExit(__doc__.strip())
     pack_path, template, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
     d = json.loads(pack_path.read_text(encoding="utf-8"))
+    settings_path = Path(sys.argv[4]) if len(sys.argv) == 5 else None
+    S = load_settings(settings_path, d["client_id"]) if settings_path else None
 
     if d.get("cancelled"):
         raise SystemExit(f"{d['client_id']} {d['client_name']}: {d['cancelled']} — "
@@ -778,11 +994,17 @@ def main():
     keep = adapt_shell(prs, d)
 
     pill_text = f"PTD · {pull_label(d['report_generated'])}"
+    # Program Settings follows the Overview when the client has a settings record on
+    # file (Inputs/Product Settings/, resolved by scripts/build_cashplease.py). A client
+    # without one gets no settings slide rather than a slide of "Not recorded" — the
+    # build prints which clients those are, so the gap is visible, not silent.
     made = [slide_divider(prs, d),
-            slide_overview(prs, d, pill_text, art_dir),
-            slide_volume(prs, d, pill_text, art_dir),
-            slide_status(prs, d, pill_text, art_dir),
-            slide_peer(prs, d, pill_text, art_dir)]
+            slide_overview(prs, d, pill_text, art_dir)]
+    if S is not None:
+        made.append(slide_settings(prs, d, S, settings_path.name))
+    made += [slide_volume(prs, d, pill_text, art_dir),
+             slide_status(prs, d, pill_text, art_dir),
+             slide_peer(prs, d, pill_text, art_dir)]
 
     lst = prs.slides._sldIdLst
     order = [sldid_of(prs, s) for s in
@@ -792,8 +1014,9 @@ def main():
         lst.remove(el)
     for el in order:
         lst.append(el)
-    assert len(list(lst)) == 10, f"single-product deck should be 10 slides, got {len(list(lst))}"
-    assert len({id(e) for e in lst}) == 10, "a slide is referenced twice"
+    want = 5 + len(made)
+    assert len(list(lst)) == want, f"single-product deck should be {want} slides, got {len(list(lst))}"
+    assert len({id(e) for e in lst}) == want, "a slide is referenced twice"
 
     # Slide numbers, last — the order the ARS builder uses, so nothing downstream
     # resizes them. STYLE.md: numbers on content slides, none on the cover, the Summit,

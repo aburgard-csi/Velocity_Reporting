@@ -205,6 +205,19 @@ M['mail_summary_total']=[_tot_sent, _tot_rs,
                          round(100*_th_r/_th_s,1) if _th_s else 0.0,
                          round(100*_tot_rs/_tot_sent,1) if _tot_sent else 0.0]
 
+# ---- mailings in progress (slide 12) ----
+# A mailing in the extract's own last month has offers but no measured response: its
+# '<mon> Resp' is filled only once the following month's activity lands. `mature` drops
+# it, which is right for every rate on the deck, but it also left the drop off the
+# Mailing Response Summary entirely — 1549 Wellworth's Aug 2026 mailing was on 9,643
+# accounts and appeared nowhere (Aaron, 2026-09-14: "if the client has a mailing in
+# process but incomplete, list it here"). Offers are counted exactly as the completed
+# rows count them — personal accounts carrying a value. No response figure is produced,
+# because none exists yet, and these never enter mail_summary_total.
+M['mail_in_progress']=[[lbl(m), sum(1 for r in data if personal(r) and g(r,f'{m} Mail'))]
+                       for m in reversed([x for x in mailmonths if x not in nextm])]
+M['mail_in_progress']=[x for x in M['mail_in_progress'] if x[1]]
+
 # ---- latest mailer (slide 12/13) ----
 latest=mature[-1]
 mailed=[r for r in data if g(r,f'{latest} Mail')]  # anyone mailed

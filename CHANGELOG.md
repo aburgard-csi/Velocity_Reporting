@@ -17,6 +17,80 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the Mailing Response Summary lists a mailing still in progress
+
+**A mailing whose response is not yet measured was on no slide.** 1549 Wellworth's
+September deck showed "The program's first mailing" — Jun 2026 — while its ODD extract
+(Mar26–Aug26) also carries an Aug 2026 mailing on 9,643 accounts with `Aug26 Resp`
+blank for every one. `metrics_gen` keeps only "mature" mailings (those with a following
+month of activity), which is right for every rate, and dropped the rest without a word.
+The workbook does not list it either: its Mail Response Summary MM ("August 2026 Data")
+carries Jun 2026 only (Aaron: "if the client has a mailing in process but incomplete,
+list it here").
+
+`metrics_gen` now emits `mail_in_progress` — each mailing with no following month and at
+least one offer, counted the way the completed rows count (personal accounts carrying a
+`<Mon> Mail` value). The builder lists it first as "<Mon YYYY> (in progress)" with the
+offers sent and "Pending" in every response column — never a blank or 0.0%, which would
+read as a drop that drew nobody. It never enters a rate or the trailing total. The
+subtitle names it ("The program's first completed mailing; Aug 2026 still in progress.")
+and the notes say why the figures are pending. The label does not match "Mon YYYY", so
+`mailing_table_findings` still compares only completed mailings with the count the deck
+states. When twelve completed mailings, the total and an in-progress row exceed the
+template's 14 rows, rows are added and the table held to the template rows' 5.60in, so
+it ends at 7.10in exactly as the delivered 12-mailing decks do (checked in a PowerPoint
+render of 1204: fifteen rows, total last, nothing clipped).
+
+**It also lists a mailing dated AFTER the extract's last month.** Five extracts ending
+Aug26 already carry populated `Sep26 Mail` offers with no response (1204, 1509, 1537,
+1539, 1676), and by the same rule those read "Sep 2026 (in progress)". Of the delivered
+2026.09 decks, eight would change: 1038, 1549, 1705 (Aug 2026) and those five (Sep 2026).
+Only 1549 has been rebuilt (staged; gate PASS, slide 13 the only difference).
+
+`tests/test_metrics_gen.py` adds a mailing to the synthetic ODD's last month and asserts
+it is listed as in progress with the completed rows and total unchanged.
+
+### 2026-09-14 — CashPlease Program Settings in the review, and pills that wrap
+
+**The CashPlease section gains a Program Settings slide** for a client whose production
+settings are on file (Aaron: "add those to the CashPlease section of the RPE review").
+The record is the client's row on the CashPlease page of the Velocity Product Settings
+Power BI app, first pulled for 1632 WesBanco on 2026-09-14 for their ops meeting. It now
+lives at `Inputs/Product Settings/<id>_cp_settings.json` (a copy of
+`C:\Data Pipelines\Product Settings\Inputs\1632 WesBanco\wesbanco_cp_settings.json`),
+resolved by `rpe_env.cp_settings_file` — never read from the other project's tree.
+`build_cashplease.py` passes it to `build_cp_gen.py`, which places the slide after the
+Program Overview: loan terms beside eligibility and controls, and a program strip. The
+module goes from ten slides to eleven and the combined section from five to six.
+
+- **Production values only.** The ops deck's orange recommendations (a 120-day waiting
+  period, a $150 first loan) are agenda items for that meeting, not settings, and are
+  not on this slide.
+- **Internal fields never reach the file.** The record carries Loan Notes ("Declined
+  Best Practices…"), contract type, core, CSM, pricing and the regulator address.
+  Speaker notes ship inside the `.pptx`, so the builder reads only the fields named in
+  `SETTINGS_SHOWN`; a field added to the app later is ignored by construction.
+  `tests/test_cp_settings_slide.py` plants sentinel values in every internal field and
+  fails if any reaches the slide or its notes.
+- **A record for another client or program is refused** (`Customer #`, `Record Type`),
+  and so is one with no `_source`, since the slide's source note is built from it.
+- **No record, no slide.** Seven of the eight CashPlease clients have no settings file
+  yet. A slide of "Not recorded" would say nothing, so they keep the five-slide section
+  and `build_cashplease.py` lists them by name at the end of every run.
+- `Product Settings/` is excluded from `report_dirs()` and the watch's copy/prune scan
+  (`rpe_env.NOT_SCANNED_KINDS`), like `ODDD/`: it is resolved by exact path.
+
+**Every September CashPlease and ICS date pill wraps to two lines, and nothing said so.**
+The settings slide's first pill, "As of September 14, 2026", rendered on two lines in
+PowerPoint. The validator missed it because the pill box holds two lines and nothing
+sits beneath it, and `single_line_overflow_findings` only fails a spill onto other text.
+Worse, PowerPoint wraps before the measured text reaches the box: twelve pills rendered
+through PowerPoint held one line at up to 0.940 of the usable width and took two from
+0.974 — the settings pill was 0.993, "PTD · September 4, 2026" is 0.984.
+`pill_wrap_findings` now REPORTS any pill past 0.955 (`PILL_WRAP_RATIO`). It is REVIEW,
+not FAIL, because the fix is a cross-program style decision (a shorter date or a wider
+pill) and is not made here. The settings pill uses the short month ("As of Sep 14, 2026").
+
 ### 2026-09-14 — the first four-program deck: a cover that overflowed, and a client with two names
 
 Marine FCU's September deck is the first combined Executive Review with all four programs

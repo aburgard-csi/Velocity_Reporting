@@ -106,7 +106,7 @@ def main():
     absent = [f"{r['client_id']} {r['client_name']}" for r in roster.values()
               if r["build"] and r["client_id"] not in packed]
 
-    built, skipped, failed = [], [], []
+    built, skipped, failed, no_settings = [], [], [], []
     for rec in idx["clients"]:
         cid, name = rec["client_id"], rec["client_name"]
         if only and cid not in only:
@@ -122,10 +122,14 @@ def main():
             skipped.append(f"{cid} {name} — {rec['cancelled']}")
             continue
         out = OUT / f"{cid}-{a.period}-CP-{safe(name)} CashPlease Module.pptx"
+        settings = rpe_env.cp_settings_file(cid)
+        if settings is None:
+            no_settings.append(f"{cid} {name}")
         r = subprocess.run([sys.executable,
                             str(PIPELINE / "build_cp_gen.py"),
                             str(PACKS / f"{cid}_cashplease.json"),
-                            str(TEMPLATE), str(out)],
+                            str(TEMPLATE), str(out)]
+                           + ([str(settings)] if settings else []),
                            capture_output=True, text=True)
         if r.returncode != 0:
             failed.append(f"{cid} {name}: {r.stderr.strip().splitlines()[-1:]}")
@@ -146,6 +150,12 @@ def main():
     for x in absent:
         print(f"  MISSING: {x} is on the roster but has no tab in this workbook — "
               f"no module built. Ask the data team, do not drop the row.")
+    if no_settings:
+        where = rpe_env.inputs() / rpe_env.INPUT_KIND_DIRS["CP settings"]
+        print(f"\nno Program Settings slide ({len(no_settings)}) — no "
+              f"<id>_cp_settings.json under {where}:")
+        for x in no_settings:
+            print("  ", x)
     for f in failed:
         print("  FAIL:", f)
     if idx["flags"]:
