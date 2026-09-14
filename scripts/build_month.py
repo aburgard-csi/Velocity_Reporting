@@ -227,6 +227,23 @@ def ars_workbook(reports, cid, period):
     return sorted(hits)
 
 
+def dco_file(reports, cid, period):
+    """The client's DCO for `period`, searched in every report folder.
+
+    `build_client` used to join the DCO pattern onto the string form of REPORTS — but
+    REPORTS became a LIST when inputs were sorted into a folder per kind (2026-09-09),
+    and the string of a list is not a folder, so the pattern never matched. Every SM
+    client built since then went to `base_tab_extract` without its DCO and came back
+    with `dco_eligible: null` (1038 Sugar River, three staged builds on 2026-09-14).
+    Same shape as `ars_workbook`, for the same reason.
+    """
+    dirs = [reports] if isinstance(reports, (str, os.PathLike)) else list(reports)
+    hits = []
+    for d in dirs:
+        hits += glob.glob(os.path.join(str(d), f"{cid}-{period}-*DCO*.xlsx"))
+    return sorted(hits)
+
+
 def build_client(cid, name, mmsm, progs, period, stage):
     d = os.path.join(stage, cid); os.makedirs(d, exist_ok=True)
     log = os.path.join(d, "build.log"); open(log, "w", encoding="utf-8").close()
@@ -245,7 +262,7 @@ def build_client(cid, name, mmsm, progs, period, stage):
             if run([PY, f"{ARSP}/extract_base_gen.py", wb[0], base], log): return "extract_base_gen", made
             if run([PY, f"{ARSP}/extract_lift.py", wb[0]], log, stdout_to=lift): return "extract_lift", made
         else:
-            dco = sorted(glob.glob(os.path.join(str(REPORTS), f"{cid}-{period}-*DCO*.xlsx")))
+            dco = dco_file(REPORTS, cid, period)
             if run([PY, f"{ARSP}/base_tab_extract.py", wb[0]] + ([dco[0]] if dco else []),
                    log, stdout_to=base): return "base_tab_extract", made
             open(lift, "w", encoding="utf-8").write("{}")

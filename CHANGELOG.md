@@ -17,6 +17,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — SM builds had not been reading their DCO since the inputs were sorted
+
+**Every SM (Monthly Summary) client has built without its DCO since 2026-09-09.**
+`build_month.build_client` looked for the DCO with `glob(os.path.join(str(REPORTS), …))`.
+`REPORTS` became a LIST of per-kind folders when Inputs were sorted by kind, and the string
+of a list is not a folder, so the pattern matched nothing and `base_tab_extract` ran with no
+DCO argument. Nothing failed — the DCO is optional to the extractor — so it went unseen:
+1038 Sugar River's three staged builds on 2026-09-14 all carry `dco_eligible: null`. Found
+while preparing staged ARS builds for every CSM's clients. No slide figure moves (the deck's
+ARS eligibility comes from the ODD); the DCO's `Eligible ARS Accounts` now reaches
+`base.json` again.
+
+`build_month.dco_file()` searches every report folder, the same shape as `ars_workbook()`.
+`tests/test_build_month_inputs.py` pins the multi-folder lookup, the period match, the
+legacy folder, and that `build_client` no longer joins a pattern onto a list.
+
 ### 2026-09-14 — a blank Key Trends month is called out as a possible data issue, not a crash
 
 **1657 Marine Credit Union's ARS extraction crashed, and the crash hid the real problem.**
