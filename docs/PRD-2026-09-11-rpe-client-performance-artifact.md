@@ -43,7 +43,8 @@ figure.
 
 - One section per program: a ranked bar, a metrics table, trend sparklines.
 - A **build readiness** section for the current period: ready or blocked per
-  client, what it is blocked on, and one chip per required input.
+  client, what it is blocked on, and one chip per required input. Every column
+  sorts (ascending → descending → off), remembered per viewer (2026-09-14).
 - Product and client filters (click to narrow, shift-click to isolate).
 - A provenance block naming the source of every figure on the page.
 - A last-updated stamp, carrying the time as well as the date.
@@ -54,10 +55,14 @@ figure.
 - **Not client-facing.** Nothing here is built to the deck style contract, and no
   figure on it should be pasted into a deck. The builders remain the source for
   anything a client sees.
-- **Not a replacement for the delivery dashboard.** Sent-state is recorded by
-  `scripts/dashboard.py`'s Mark sent button; this page displays it, never writes it.
+- **Not a replacement for the delivery dashboard.** `Build Artifacts/deliveries.json`
+  stays the record of what was sent. This page's Mark sent button writes a row to the
+  artifact's own store, and the refresh's `--merge-sent` folds those rows into
+  `deliveries.json`, where an existing entry always wins. *(Corrected 2026-09-14: this
+  used to say the page never writes sent-state, which stopped being true when Mark sent
+  merged to main.)*
 - **Not self-publishing.** See Constraints.
-- No editing, no data entry, no write path of any kind.
+- No editing and no data entry beyond Mark sent.
 
 ## Constraints
 

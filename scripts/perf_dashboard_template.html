@@ -149,6 +149,17 @@ button.undo:focus-visible{outline:2px solid var(--focus);outline-offset:2px;bord
 .rdy td .in i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--c,var(--muted))}
 .rdy td .in.miss{border-color:color-mix(in srgb,var(--bad) 45%,transparent);color:var(--bad)}
 .rdy td .in.stale{border-color:color-mix(in srgb,var(--warn) 50%,transparent);color:var(--warn)}
+/* sortable readiness headers - the button carries the th's padding so the header
+   looks exactly as it did, and the whole cell is the click and keyboard target */
+.rdy th.sortable{padding:0}
+.rdy th.sortable button{appearance:none;background:none;border:0;margin:0;width:100%;font:inherit;
+  letter-spacing:inherit;text-transform:inherit;color:inherit;text-align:left;cursor:pointer;
+  padding:10px 10px 8px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.rdy th.sortable button:hover{color:var(--ink)}
+.rdy th.sortable button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:4px}
+.rdy th.sortable .arr{font-size:10px;letter-spacing:0;opacity:.4}
+.rdy th.sortable[aria-sort="ascending"] button,.rdy th.sortable[aria-sort="descending"] button{color:var(--head)}
+.rdy th.sortable[aria-sort="ascending"] .arr,.rdy th.sortable[aria-sort="descending"] .arr{opacity:1;color:var(--accent)}
 
 /* client roster table */
 .roster td .dots{display:inline-flex;gap:4px;vertical-align:middle}
@@ -313,6 +324,18 @@ try {
   }
 } catch(e){}
 function persist(){ try{ localStorage.setItem("rpe-dash-filter", JSON.stringify({p:[...selProgs], c:[...selClients]})); }catch(e){} }
+
+// Build readiness sort: one column at a time, ascending -> descending -> off.
+// Off is client id order, the order the data arrives in, so the table can always
+// be put back the way it was. Per viewer, so it lives in localStorage, and a stored
+// value this page does not recognise is ignored rather than trusted.
+const RSORT_KEYS = ["client","products","ready","inputs","deck","sent"];
+let rSort = {k:null, dir:1};
+try {
+  const s = JSON.parse(localStorage.getItem("rpe-dash-rsort")||"null");
+  if (s && RSORT_KEYS.includes(s.k) && (s.dir===1 || s.dir===-1)) rSort = {k:s.k, dir:s.dir};
+} catch(e){}
+function persistSort(){ try{ localStorage.setItem("rpe-dash-rsort", JSON.stringify(rSort)); }catch(e){} }
 
 // ---------- formatters
 const nf0 = new Intl.NumberFormat("en-US",{maximumFractionDigits:0});
@@ -556,6 +579,81 @@ function inColour(program){
   return (PK[k]||{}).c || "var(--muted)";
 }
 
+// Each column sorts on what it MEANS, not on its markup: Ready puts ready before
+// blocked, Inputs counts what is missing, Deck puts this period's build first, Sent
+// puts what still needs sending first. A row the column does not apply to - no
+// readiness check (the CashPlease-only clients), no deck to send - returns null and
+// stays at the bottom in BOTH directions, so flipping a sort never floods the top of
+// the table with blanks.
+function rosterKey(c, k){
+  const P = DATA.period, r = c.readiness;
+  switch (k){
+    case "client":   return [String(c.name||"").toLowerCase()];
+    case "products": return [...PROGS.map(p=>c.programs.includes(p.k)?0:1), -c.programs.length];
+    case "ready":    return r ? [r.ready?0:1, r.blocked_on.length] : null;
+    case "inputs": {
+      if (!r) return null;
+      const n = st => r.inputs.filter(i=>String(i.state||"").toLowerCase()===st).length;
+      return [n("missing"), n("stale"), r.inputs.length - n("present") - n("missing") - n("stale")];
+    }
+    // No deck at all is NOT "not applicable" here - it is the state this column exists
+    // to show - so it is the last rank rather than null, and descending puts it first.
+    // Treated as null it sat at the bottom both ways, and since every built deck ties,
+    // descending rendered exactly like ascending and the click looked broken.
+    case "deck":     return c.deck_period===P ? [0, ""] : (c.decks.length ? [1, String(c.deck_period||"")] : [2, ""]);
+    case "sent": {
+      const s = sentState(c);
+      if (s) return [1, String(s.date)];
+      return c.decks.length ? [0, ""] : null;
+    }
+  }
+  return [0];
+}
+function cmpKeys(a, b){
+  for (let i=0; i<Math.max(a.length, b.length); i++){
+    const x=a[i], y=b[i];
+    if (x===y) continue;
+    if (x===undefined) return -1;
+    if (y===undefined) return 1;
+    return (typeof x==="number" && typeof y==="number") ? x-y : String(x).localeCompare(String(y));
+  }
+  return 0;
+}
+function sortRoster(rows){
+  if (!rSort.k) return rows;
+  const byId = (a,b)=>String(a.id).localeCompare(String(b.id), undefined, {numeric:true});
+  return rows.map(c=>({c, key:rosterKey(c, rSort.k)})).sort((a,b)=>{
+    if (!a.key !== !b.key) return a.key ? -1 : 1;             // not applicable: always last
+    const d = a.key ? cmpKeys(a.key, b.key) * rSort.dir : 0;
+    // Ties fall back to the client's name, then id, in a fixed direction, so rows that
+    // compare equal do not reshuffle every time the column is flipped.
+    return d || String(a.c.name).localeCompare(String(b.c.name)) || byId(a.c, b.c);
+  }).map(x=>x.c);
+}
+function sortTh(k, label){
+  const on = rSort.k===k;
+  const aria = on ? (rSort.dir===1 ? "ascending" : "descending") : "none";
+  const arr = on ? (rSort.dir===1 ? "▲" : "▼") : "↕";
+  const hint = !on ? "Click to sort"
+    : (rSort.dir===1 ? "Sorted ascending — click for descending" : "Sorted descending — click to clear the sort");
+  return `<th class="l sortable" aria-sort="${aria}"><button type="button" data-rsort="${k}" title="${hint}">` +
+    `${label}<span class="arr" aria-hidden="true">${arr}</span></button></th>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-rsort]");
+  if (!b) return;
+  const k = b.dataset.rsort;
+  if (!RSORT_KEYS.includes(k)) return;
+  if (rSort.k !== k) rSort = {k, dir:1};
+  else if (rSort.dir === 1) rSort = {k, dir:-1};
+  else rSort = {k:null, dir:1};
+  persistSort(); update();
+  // The table is re-rendered, so the button that was clicked no longer exists; put
+  // keyboard focus back on its replacement or a keyboard user is dropped to the top.
+  const again = document.querySelector(`[data-rsort="${k}"]`);
+  if (again) again.focus();
+});
+
 // Build readiness for THIS period. The section used to list the newest deck
 // BUILT; what you need at the start of a cycle is what can be built and what is
 // missing (Aaron, 2026-09-09). deck_status owns the answer, so this page and the
@@ -569,10 +667,10 @@ function secRoster(vis){
     `<span class="n">${ready} of ${withR.length} ready \u00b7 ${built} built</span>` +
     `<span class="src">clients.md, Inputs/ and the delivery log</span></div>`;
   const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr>` +
-    `<th class="l">Client</th><th class="l">Products</th><th class="l">Ready to build</th>` +
-    `<th class="l">Inputs for ${esc(P)}</th><th class="l">Deck</th><th class="l">Sent</th>` +
+    sortTh("client", "Client") + sortTh("products", "Products") + sortTh("ready", "Ready to build") +
+    sortTh("inputs", `Inputs for ${esc(P)}`) + sortTh("deck", "Deck") + sortTh("sent", "Sent") +
     `</tr></thead><tbody>` +
-    vis.map(c=>{
+    sortRoster(vis).map(c=>{
       const r = c.readiness;
       const dots = `<span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span>` +
         ` <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span>`;

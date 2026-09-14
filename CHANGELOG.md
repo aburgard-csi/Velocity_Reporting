@@ -17,6 +17,26 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the Build readiness table sorts by every column
+
+Every column on the performance page's Build readiness section is now sortable (Aaron):
+click a header for ascending, again for descending, a third time to clear back to client
+id order. The choice is remembered per viewer in `localStorage`; a stored value the page
+does not recognise is ignored. Headers are buttons inside the `th`, so they work from the
+keyboard and carry `aria-sort`, and focus returns to the clicked header after re-render.
+
+Each column sorts on what it means, not on its markup: **Ready** puts ready before blocked;
+**Inputs** orders by missing, then stale, then unconfirmed inputs; **Deck** puts this
+period's build first; **Sent** puts decks still to send before sent ones. A row the column
+does not apply to — no readiness check (the CashPlease-only clients), or no deck to send —
+stays at the bottom in both directions, so flipping a sort never floods the top with blanks.
+Ties fall back to client name in a fixed direction so equal rows do not reshuffle.
+
+**Caught in testing:** Deck first treated "no deck" as not-applicable. Every built deck
+ties, so the unbuilt rows sat at the bottom both ways and descending rendered exactly like
+ascending — the click looked broken. No deck is the state that column exists to show, so it
+is now the last rank and descending puts it first.
+
 ### 2026-09-11 — revenue under $1M reads in K, and promote_month stops being a trap
 
 **Five copies of the money rule, and they disagreed** (Aaron: "when revenue is less than
