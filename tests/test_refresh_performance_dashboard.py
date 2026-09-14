@@ -378,3 +378,67 @@ def test_template_filters_by_csm_and_never_assigns_a_default():
     assert 'id="csmchips"' in t
     assert "const csmOf = c => c.csm || UNASSIGNED" in t
     assert "inCsm(c) && selClients.has(c.id)" in t
+
+
+# ------------------------------------------------------------------ every current client
+def test_page_lists_current_clients_beyond_the_roster_but_not_stopped_ones(tmp_path, monkeypatch):
+    root = _share(tmp_path, ["2026.09/Daniel Wood/1095-2026.09-Landmark Bank-DCO.xlsx",
+                             "2026.09/Daniel Wood/1095-2026.09-Landmark Bank-Workbook_v2.xlsx",
+                             "2026.09/Aaron Burgard/1204-2026.09-First State Bank-MI-DCO.xlsx",
+                             "2026.09/Aaron Burgard/1437-2026.09-Canandaigua-DCO.xlsx",
+                             "2026.09/Gregg Miller/1147-2026.09-Sutton-DCO.xlsx",
+                             "2026.09/Gregg Miller/1156-2026.09-BancFirst-DCO.xlsx"])
+    work = tmp_path / "work"
+    work.mkdir()
+    packs = tmp_path / "cp"
+    packs.mkdir()
+    (packs / "1147_cashplease.json").write_text("{}")
+    monkeypatch.setattr(P, "roster_clients", lambda: {"1204": {
+        "id": "1204", "name": "First State Bank - Michigan", "path": "MM", "programs": [],
+        "roster_programs": ["ARS"]}})
+    monkeypatch.setattr(P, "read_roster", lambda path: ([], [("1437", "Canandaigua National Bank", "cancelled / ending")]))
+    monkeypatch.setattr(P, "reports_share", lambda: root)
+
+    def no_sheet(cid, program):
+        raise SystemExit("no VIP sheet for %s" % cid)
+    monkeypatch.setattr(P.R, "resolve_client_json", no_sheet)
+    weekly = type("Weekly", (), {"tabs": {}})()
+
+    clients, folder = P.page_clients("2026.09", work, weekly, packs, log=_quiet)
+    assert folder == "2026.09"
+    assert sorted(clients) == ["1095", "1147", "1156", "1204"], "1437 is stopped in clients.md"
+    assert clients["1204"]["programs_from"] == "clients.md" and clients["1204"]["roster_programs"] == ["ARS"]
+    assert clients["1095"] == {"id": "1095", "name": "Landmark Bank", "path": None, "programs": [],
+                               "roster_programs": ["ARS"], "programs_from": "data",
+                               "share_kinds": ["DCO", "WORKBOOK"]}
+    assert clients["1147"]["roster_programs"] == ["CP"]
+    assert clients["1156"]["roster_programs"] == [], "a DCO alone implies no program"
+
+
+def test_template_product_chips_isolate_from_all_like_the_other_filters():
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert "const all = selProgs.size===PROGS.length;" in t
+    assert "if(e.shiftKey || e.altKey || all){ selProgs = new Set([k]); }" in t
+
+
+def test_template_lists_a_client_with_no_program_data_under_all_products():
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert ("const inProducts = c => c.programs.length ? c.programs.some(k=>selProgs.has(k))"
+            " : selProgs.size===PROGS.length;") in t
+    assert "inCsm(c) && selClients.has(c.id) && inProducts(c)" in t
+    assert 'c.programs_from === "data"' in t
+
+
+def test_template_saves_all_as_all_so_new_clients_are_not_hidden():
+    """A saved list of yesterday's "all" narrows today's page to yesterday's clients."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert 'const FILTER_KEY = "rpe-dash-filter-v2";' in t
+    assert "set.size===n ? null : [...set]" in t
+    assert 'localStorage.getItem("rpe-dash-filter")' not in t
+
+
+def test_template_links_the_workflow_page_published_beside_it():
+    """Published as workflow.html in the same artifact; it links back to index.html."""
+    assert 'href="workflow.html"' in P.TEMPLATE.read_text(encoding="utf-8")
+    w = (P.REPO / "scripts" / "perf_workflow.html").read_text(encoding="utf-8")
+    assert "<title>" in w[:8000] and 'href="index.html"' in w

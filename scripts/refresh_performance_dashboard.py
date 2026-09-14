@@ -62,6 +62,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 import rpe_env as R                                              # noqa: E402
 from build_month import read_cashplease_roster, read_roster      # noqa: E402
+import perf_clients as PC                                        # noqa: E402
 
 TEMPLATE = REPO / "scripts" / "perf_dashboard_template.html"
 PLACEHOLDER = "__DATA__"
@@ -193,6 +194,41 @@ def roster_clients():
     return clients
 
 
+def page_clients(period, work, weekly, packs, log=print):
+    """({id: client record}, folder period) for every client the page lists.
+
+    The clients.md roster, plus every current client on the reports share (Aaron,
+    2026-09-14: show ALL current clients, then filter by CSM), except the ones clients.md
+    marks as stopped, whose files the data team keeps landing. A roster client's programs
+    come from clients.md; anyone else's are inferred from this month's data by
+    perf_clients and tagged `programs_from: "data"` so the page can say so.
+    """
+    clients = roster_clients()
+    for c in clients.values():
+        c["programs_from"] = "clients.md"
+    _active, skipped = read_roster(str(REPO / "clients.md"))
+    stopped = {row[0] for row in skipped} - set(clients)
+    current, folder = PC.current_clients(period, work, reports_share(), log=log)
+    cp_ids = {f.name.split("_")[0] for f in Path(packs).glob("*_cashplease.json")} if packs else set()
+    for cid, rec in sorted(current.items()):
+        if cid in clients or cid in stopped:
+            continue
+        try:
+            R.resolve_client_json(cid, "ics")
+            has_ics = True
+        except BaseException:
+            has_ics = False
+        kinds = rec.get("kinds") or []
+        clients[cid] = {"id": cid, "name": rec.get("name") or cid, "path": None, "programs": [],
+                        "roster_programs": PC.infer_programs(cid, kinds, weekly.tabs, cp_ids, has_ics),
+                        "programs_from": "data", "share_kinds": kinds}
+    log("clients: %d from clients.md, %d more current on the reports share (%s), %d stopped left out"
+        % (sum(c["programs_from"] == "clients.md" for c in clients.values()),
+           sum(c["programs_from"] == "data" for c in clients.values()), folder or "no list",
+           len(stopped & set(current))))
+    return clients, folder
+
+
 def cashplease_roster(path=None):
     """{id: {"name", "csm"}} for `Build = yes` rows of the CashPlease roster in clients.md.
 
@@ -219,8 +255,14 @@ def ars_section(cid, c, period, reports, ba, work):
     found = {os.path.basename(f): f for f in report_glob(reports, "*.xlsx")}
     wb_period, wb_name = pick_workbook(sorted(found), cid, period)
     if not wb_name:
+        if "WORKBOOK" in (c.get("share_kinds") or []):
+            return {"missing": "ARS workbook is on the reports share, not yet copied to Inputs"}
         return {"missing": "no ARS workbook in Inputs"}
     wb = found[wb_name]
+    if not c["path"]:
+        # clients.md has no Path for a client it does not list: read it off the workbook,
+        # the way that column was set.
+        c["path"] = PC.detect_path(wb) or "SM"
     if c["path"] == "MM":
         out = work / f"{cid}_base.json"
         r = subprocess.run([PY, str(REPO / "build/ars_pipeline/extract_base_gen.py"), wb, str(out)],
@@ -769,11 +811,11 @@ def csm_assignments(cids, period, work, root=None, roster=None, log=print):
 def build_dataset(period, work, log=print):
     I, O, BA = R.inputs(), R.outputs(), R.build_artifacts()
     reports = R.report_dirs()
-    clients = roster_clients()
     weekly = MrpcWeekly(reports)
     packs, cp_weekly, peer, cp_note = cashplease_packs(reports, work)
     if cp_note:
         log("CashPlease: " + cp_note)
+    clients, _folder = page_clients(period, work, weekly, packs, log=log)
 
     for cid, c in clients.items():
         rp = c["roster_programs"]
@@ -809,6 +851,11 @@ def build_dataset(period, work, log=print):
             "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/Weekly Summaries)",
             # Static on purpose: whether the share was reachable this morning must not
             # move the content hash and republish an unchanged page.
+            "clients": "the clients.md roster, plus every client with reports filed on the CSI "
+                       "reports share for the newest month at or before the cycle, except those "
+                       "clients.md marks as stopped; programs for a client not in clients.md are "
+                       "inferred from that month's files (ARS workbook, VIP ICS sheet, MRPCPM "
+                       "analysis or MRPC weekly tab, CashPlease weekly tab) and tagged from data",
             "csm": "the account-manager folder each client's reports land in on the CSI "
                    "reports share (newest of the last two months; the last answer read is "
                    "kept for mornings off the VPN), else the CSM column of the CashPlease "
@@ -816,7 +863,9 @@ def build_dataset(period, work, log=print):
                    "record; a client nothing names is Unassigned",
         },
         "cp_peer": peer,
-        "clients": sorted([c for c in clients.values() if c["programs"]], key=lambda c: c["id"]),
+        # Every current client, including one with no program data this month (Aaron,
+        # 2026-09-14): it is still a client, and the page lists it under all products.
+        "clients": sorted(clients.values(), key=lambda c: c["id"]),
     }
 
 

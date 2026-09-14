@@ -67,6 +67,9 @@ header.top .updated i{width:7px;height:7px;border-radius:50%;background:var(--go
 .fr-actions{display:flex;gap:10px;align-items:center;margin-left:auto}
 .link{background:none;border:none;color:var(--ink2);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:6px 2px}
 .link:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+header.top .doclink{display:inline-block;margin-top:8px;font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:600;color:var(--head);text-underline-offset:3px}
+header.top .doclink:hover{color:var(--accent)}
+header.top .doclink:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
 
 /* summary strip */
 .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:26px}
@@ -188,6 +191,7 @@ footer ul.prov b{color:var(--ink2);font-family:Montserrat,sans-serif;font-size:1
       <h1>RPE Client Performance</h1>
       <div class="updated" id="updated"></div>
       <div class="sub" id="subline"></div>
+      <a class="doclink" href="workflow.html">How the decks are made &rarr;</a>
     </div>
     <div class="pill" id="periodpill"></div>
   </header>
@@ -377,18 +381,30 @@ const CSMS = [...new Set(clients.map(csmOf))]
 let selCsms = new Set(CSMS);
 let selProgs = new Set(PROGS.map(p=>p.k));
 let selClients = new Set(clients.map(c=>c.id));
+// "All" is saved as null, never as the list it happened to be. The page gains clients and
+// CSMs over time, and a saved list of yesterday's "all" would silently hide every newcomer:
+// the first all-clients build opened on Aaron's 20 because "all" had been saved as those 20.
+// The key is versioned so selections saved under the old rule are ignored.
+const FILTER_KEY = "rpe-dash-filter-v2";
 try {
-  const s = JSON.parse(localStorage.getItem("rpe-dash-filter")||"null");
-  if (s && Array.isArray(s.p) && Array.isArray(s.c)) {
-    const p = s.p.filter(k=>PK[k]); const c = s.c.filter(id=>clients.some(x=>x.id===id));
+  const s = JSON.parse(localStorage.getItem(FILTER_KEY)||"null");
+  if (s) {
+    const p = Array.isArray(s.p) ? s.p.filter(k=>PK[k]) : [];
+    const c = Array.isArray(s.c) ? s.c.filter(id=>clients.some(x=>x.id===id)) : [];
     const m = Array.isArray(s.m) ? s.m.filter(k=>CSMS.includes(k)) : [];
     if (p.length) selProgs = new Set(p);
     if (c.length) selClients = new Set(c);
     if (m.length) selCsms = new Set(m);
   }
 } catch(e){}
-function persist(){ try{ localStorage.setItem("rpe-dash-filter", JSON.stringify({m:[...selCsms], p:[...selProgs], c:[...selClients]})); }catch(e){} }
+function persist(){
+  const pick = (set, n) => set.size===n ? null : [...set];
+  try{ localStorage.setItem(FILTER_KEY, JSON.stringify({m:pick(selCsms, CSMS.length), p:pick(selProgs, PROGS.length), c:pick(selClients, clients.length)})); }catch(e){}
+}
 const inCsm = c => selCsms.has(csmOf(c));
+// A client with no program data this month is still a current client: it is listed while
+// every product is selected, and has no product to match once products are narrowed.
+const inProducts = c => c.programs.length ? c.programs.some(k=>selProgs.has(k)) : selProgs.size===PROGS.length;
 
 // Build readiness sort: one column at a time, ascending -> descending -> off.
 // Off is client id order, the order the data arrives in, so the table can always
@@ -480,14 +496,18 @@ function renderChips(){
   // Only the selected CSMs' clients are offered: across every CSM the full list is
   // around ninety chips, and a client outside the selection could not be shown anyway.
   cc.innerHTML = scoped.map(c=>{
-    const inProg = c.programs.some(k=>selProgs.has(k));
+    const inProg = inProducts(c);
     return `<button class="chip ${selClients.has(c.id)&&!allC?'on':''} ${inProg?'':'off'}" data-client="${c.id}" aria-pressed="${selClients.has(c.id)}" title="${esc(c.programs.join(' \u00b7 '))}">${esc(c.name)}<span class="tags">${c.programs.map(k=>`<i style="--c:${PK[k].c}"></i>`).join("")}</span></button>`;
   }).join("");
 }
 document.getElementById("progchips").addEventListener("click", e=>{
   const b=e.target.closest("[data-prog]"); if(!b) return;
   const k=b.dataset.prog;
-  if(e.shiftKey || e.altKey){ selProgs = new Set([k]); }
+  // Same model as the CSM and client chips (Aaron, 2026-09-14): from "all", a click shows
+  // only that product; later clicks add or remove others. It used to REMOVE the clicked
+  // product from "all", the opposite of every other filter row.
+  const all = selProgs.size===PROGS.length;
+  if(e.shiftKey || e.altKey || all){ selProgs = new Set([k]); }
   else if(selProgs.has(k)){ if(selProgs.size>1) selProgs.delete(k); } else selProgs.add(k);
   update();
 });
@@ -763,6 +783,9 @@ function secRoster(vis){
       const r = c.readiness;
       const dots = `<span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span>` +
         ` <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span>`;
+      // Programs for a client clients.md does not list are inferred from this month's files.
+      const progNote = (c.programs.length ? "" : `<span class="dim">no program data this month</span>`) +
+        (c.programs_from === "data" ? ` <span class="tag" title="Not in clients.md: programs inferred from this month's files on the reports share">from data</span>` : "");
       let state, ins;
       if (!r){
         state = `<span class="st unk"><i></i>not checked</span>`;
@@ -781,7 +804,7 @@ function secRoster(vis){
                          :`<span class="tag warn">none</span>`);
       return `<tr>
       <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
-      <td class="l">${dots}</td>
+      <td class="l">${dots}${progNote}</td>
       <td class="l">${state}</td>
       <td class="l" style="white-space:normal;max-width:430px">${ins}</td>
       <td class="l">${deck}</td>
@@ -817,7 +840,7 @@ function update(){
   // empty page with no obvious cause; fall back to all of that CSM's clients instead.
   if (!clients.some(c=>inCsm(c) && selClients.has(c.id))) selClients = new Set(clients.map(c=>c.id));
   persist(); renderChips();
-  const vis = clients.filter(c=>inCsm(c) && selClients.has(c.id) && c.programs.some(k=>selProgs.has(k)));
+  const vis = clients.filter(c=>inCsm(c) && selClients.has(c.id) && inProducts(c));
   safe("Summary", ()=>renderStrip(vis));
   const secs = document.getElementById("sections");
   const html = [selProgs.has("ARS")?safe("Account Revenue Solution",()=>secARS(vis)):"",
@@ -829,10 +852,11 @@ function update(){
 }
 document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
 const nCsm = CSMS.filter(m=>m!==UNASSIGNED).length;
-document.getElementById("subline").textContent = `${clients.length} clients, ${nCsm} CSM${nCsm===1?"":"s"}, across four programs. Click a CSM, product or client to narrow; shift-click to isolate one.`;
+document.getElementById("subline").textContent = `${clients.length} clients, ${nCsm} CSM${nCsm===1?"":"s"}, across four programs. Click a CSM, product or client to show only that one; click others to add them.`;
 document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
 document.getElementById("foot").innerHTML =
   `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
+  `<li><b>Clients</b> - ${esc((DATA.sources && DATA.sources.clients) || "the clients.md roster")}.</li>` +
   `<li><b>CSM</b> — ${esc((DATA.sources && DATA.sources.csm) || "not resolved in this build")}.</li>` +
   `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook\u2019s period when that is older than the cycle.</li>` +
   `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client\u2019s newest Invitation Checking workbook, flagged when older than the period.</li>` +

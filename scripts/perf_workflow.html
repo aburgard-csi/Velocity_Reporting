@@ -1,0 +1,346 @@
+<title>RPE Deck Pipeline</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Carlito:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ars:#00274C; --ics:#F47A29; --mrpc:#0D9488; --cp:#C9911F;
+  --bg:#F7F9FB; --surface:#FFFFFF; --tile:#EEF2F6; --hair:#D9DEE5; --grid:#E4EAF1;
+  --ink:#0E1B2A; --ink2:#526170; --ink3:#7E8B98; --head:#00274C;
+  --block:#C2410C; --block-bg:#FDF1EA; --ok:#1E7F4F; --opt:#6A7784;
+  --focus:#F47A29;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
+    --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --hair:#2A3F52; --grid:#233647;
+    --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99; --head:#E8EEF4;
+    --block:#F79552; --block-bg:#2A1C14; --ok:#4CC38A; --opt:#93A2B0;
+    --focus:#F79552;
+  }
+}
+:root[data-theme="dark"]{
+  --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
+  --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --hair:#2A3F52; --grid:#233647;
+  --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99; --head:#E8EEF4;
+  --block:#F79552; --block-bg:#2A1C14; --ok:#4CC38A; --opt:#93A2B0;
+  --focus:#F79552;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Carlito,Calibri,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:22px 64px}
+h1,h2,h3,.lab{font-family:Montserrat,"Segoe UI",system-ui,sans-serif;color:var(--head)}
+h1{font-size:30px;font-weight:700;letter-spacing:-.01em;margin:6px 0 8px;text-wrap:balance}
+h2{font-size:19px;font-weight:700;margin:0 0 4px;text-wrap:balance}
+h3{font-size:15px;font-weight:700;margin:0}
+p{margin:0}
+code,.mono{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-size:.84em}
+code{background:var(--tile);border:1px solid var(--hair);border-radius:4px;padding:0 5px;white-space:nowrap}
+a{color:var(--head)}
+a:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+.eyebrow{font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+.back{display:inline-flex;align-items:center;gap:6px;font:600 13px Montserrat,"Segoe UI",sans-serif;color:var(--ink2);text-decoration:none;padding:4px 0}
+.back:hover{color:var(--head);text-decoration:underline}
+header{display:grid;gap:4px;margin-bottom:34px}
+.lede{color:var(--ink2);font-size:17px;max-width:66ch}
+section{margin-top:40px}
+.sechead{display:grid;gap:4px;margin-bottom:16px;max-width:70ch}
+.sechead p{color:var(--ink2)}
+
+/* the cycle: a real sequence, so it is numbered */
+.cycle{list-style:none;margin:0;padding:0;display:grid;border-left:2px solid var(--hair);margin-left:14px}
+.step{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,300px);gap:6px 28px;padding:0 0 26px 30px}
+.step:last-child{padding-bottom:0}
+.step::before{content:attr(data-n);position:absolute;left:-15px;top:-2px;width:28px;height:28px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--head);color:var(--head);display:grid;place-items:center;
+  font:700 12px Montserrat,"Segoe UI",sans-serif}
+.step .when{font:600 11.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.04em;color:var(--ink3);margin-bottom:2px}
+.step p{color:var(--ink2);max-width:62ch;margin-top:4px}
+.io{display:grid;gap:8px;align-content:start;font-size:14px}
+.io div{display:grid;gap:2px}
+.io .k{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.io .v{color:var(--ink);overflow-wrap:anywhere}
+.io code,.prog .where{white-space:normal;overflow-wrap:anywhere}
+@media (max-width:720px){.step{grid-template-columns:1fr}}
+
+/* programs */
+.progs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}
+.prog{background:var(--surface);border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+.prog>.ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:14px 16px 10px;border-top:4px solid var(--c)}
+.prog>.ph .cad{margin-left:auto;font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.prog>.ph .note{flex-basis:100%;color:var(--ink2);font-size:14px}
+.prog table{width:100%;border-collapse:collapse;font-size:14px}
+.prog th{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:8px 16px 6px;border-top:1px solid var(--grid)}
+.prog td{padding:8px 16px;border-top:1px solid var(--grid);vertical-align:top}
+.prog td:first-child{width:42%}
+.prog td .where{display:block;color:var(--ink3);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
+.need{display:inline-block;font:600 10px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-bottom:3px;white-space:nowrap}
+.need.req{color:var(--block);background:var(--block-bg)}
+.need.opt{color:var(--opt);background:var(--tile)}
+.prog td .miss{display:block;color:var(--ink2)}
+
+/* folder map */
+.map{overflow-x:auto;background:var(--surface);border:1px solid var(--hair);border-radius:10px}
+.map table{width:100%;min-width:560px;border-collapse:collapse;font-size:14.5px}
+.map th{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:10px 16px 8px;border-bottom:1px solid var(--hair)}
+.map td{padding:8px 16px;border-top:1px solid var(--grid);vertical-align:top}
+.map tr.group td{background:var(--tile);font:600 12px Montserrat,"Segoe UI",sans-serif;color:var(--head);letter-spacing:.02em}
+.map td.p{white-space:nowrap}
+
+/* rules */
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:0 28px;margin:0;padding:0;list-style:none}
+.rules li{padding:12px 0 12px 18px;border-top:1px solid var(--hair);position:relative}
+.rules li::before{content:"";position:absolute;left:0;top:19px;width:8px;height:8px;background:var(--block);border-radius:2px}
+.rules b{font-family:Montserrat,"Segoe UI",sans-serif;font-size:14.5px;color:var(--head);display:block;margin-bottom:2px}
+.rules span{color:var(--ink2)}
+
+/* filename anatomy */
+.anat{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:18px 16px;overflow-x:auto}
+.fname{display:flex;flex-wrap:wrap;gap:0;font-family:"IBM Plex Mono",Consolas,monospace;font-size:15px;line-height:1.2}
+.part{display:grid;gap:6px;justify-items:start;padding-right:2px}
+.part .t{padding:5px 3px;border-bottom:3px solid var(--c,var(--hair));color:var(--ink);white-space:pre}
+.part .n{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding-left:3px}
+.anat .ex{margin-top:14px;display:grid;gap:4px;font-size:14px;color:var(--ink2)}
+.anat .ex code{white-space:normal}
+
+footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--hair);color:var(--ink3);font-size:13.5px;max-width:78ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <a class="back" href="index.html">&larr; RPE Client Performance</a>
+    <div class="eyebrow">CSI Velocity &middot; Retail Performance Engine</div>
+    <h1>How an Executive Review gets made</h1>
+    <p class="lede">From a file landing on a CSI share to a deck recorded as sent: what runs, what it reads, what it writes, and what stops a deck from shipping. Everything lives under one pipeline root, <code>\\PADMIS105\Velocity_company\CSM_Reporting</code>, which needs the VPN off-site.</p>
+  </header>
+
+  <section aria-labelledby="cycle">
+    <div class="sechead">
+      <h2 id="cycle">The cycle</h2>
+      <p>ARS, ICS and MRPC ship one deck per client per month. CashPlease runs weekly and always uses the newest weekly workbook.</p>
+    </div>
+    <ol class="cycle">
+      <li class="step" data-n="1">
+        <div>
+          <div class="when">As the data team lands files</div>
+          <h3>Data lands at the source</h3>
+          <p>ODD extracts go to each CSM's own folder on the company share. DCOs, ARS workbooks and MRPCPM analyses go to the client-reports share, filed by account manager. The MRPC and CashPlease weeklies and the ICS workbooks arrive by email. ICS and MRPC client sheets are pulled from the VIP dashboards.</p>
+        </div>
+        <div class="io">
+          <div><span class="k">Sources</span><span class="v"><code>Velocity_company\&lt;CSM&gt;\&hellip;ODDD</code> (five CSM folders)</span></div>
+          <div><span class="v"><code>Velocity_clientreports\&lt;yyyy.mm&gt;\&lt;Account Manager&gt;</code></span></div>
+          <div><span class="v">Mailbox: Bradford Sanders (MRPC, CashPlease), Matt Milliman (ICS)</span></div>
+        </div>
+      </li>
+      <li class="step" data-n="2">
+        <div>
+          <div class="when">Daily 08:00 &middot; "RPE Source Watch" &middot; watchdog at 08:15</div>
+          <h3>Copied into Inputs</h3>
+          <p>The watch compares this month's and last month's source folders to what it saw yesterday, reads the mailbox, and copies each new or re-landed file into its folder under <code>Inputs/</code>, for every client except those <code>clients.md</code> marks as stopped. It keeps only the newest version of each file, and never overwrites a workbook that was opened and re-saved locally. Off the VPN it stops and saves nothing.</p>
+        </div>
+        <div class="io">
+          <div><span class="k">Runs</span><span class="v"><code>scripts/watch_sources.py</code></span></div>
+          <div><span class="k">Writes</span><span class="v"><code>Inputs/&lt;kind&gt;/</code>, <code>Build Artifacts/source_watch_latest.md</code></span></div>
+        </div>
+      </li>
+      <li class="step" data-n="3">
+        <div>
+          <div class="when">Monthly per client &middot; CashPlease weekly</div>
+          <h3>Each program's deck is built</h3>
+          <p>A builder fills its program's stripped template shell from the data, never from another client's deck. ARS runs the ODD optimizer first to turn a 400&nbsp;MB extract into a compact data pack. Who gets which program comes from <code>clients.md</code>, never from which files happen to exist.</p>
+        </div>
+        <div class="io">
+          <div><span class="k">Runs</span><span class="v"><code>scripts/build_month.py</code>, <code>scripts/build_cashplease.py</code></span></div>
+          <div><span class="k">Reads</span><span class="v"><code>Inputs/</code>, <code>templates/*_template.pptx</code>, <code>clients.md</code></span></div>
+        </div>
+      </li>
+      <li class="step" data-n="4">
+        <div>
+          <div class="when">For a client on two or more programs</div>
+          <h3>Program decks become one Executive Review</h3>
+          <p>Each program deck passes its own gate first, then they are assembled into a single deck with one title, agenda, Q&amp;A and contact slide. The ARS Appendix stays with ARS.</p>
+        </div>
+        <div class="io">
+          <div><span class="k">Runs</span><span class="v"><code>build/assemble_combined.py</code></span></div>
+          <div><span class="k">Section order</span><span class="v">ARS &middot; ICS &middot; MRPC &middot; CP</span></div>
+        </div>
+      </li>
+      <li class="step" data-n="5">
+        <div>
+          <div class="when">Every deck, before it ships</div>
+          <h3>The validation gate</h3>
+          <p>A non-zero exit blocks delivery. The fix is in the builder, then a rebuild, never a hand-edit of the deck. Nothing in the gate proves a deck opens and renders correctly, so open one deck before a batch goes to clients.</p>
+        </div>
+        <div class="io">
+          <div><span class="k">Runs</span><span class="v"><code>validation/validate_deck.py</code>, <code>validation/qa_all.py</code></span></div>
+          <div><span class="k">Checks</span><span class="v">unit suite, text fit and autofit, claims against their figures, reference-client leaks, source notes, package integrity</span></div>
+        </div>
+      </li>
+      <li class="step" data-n="6">
+        <div>
+          <div class="when">When the gate passes</div>
+          <h3>Saved to Outputs</h3>
+          <p>Finished decks only, as <code>.pptx</code> and never PDF, in one flat folder named by client, period and program. Anything a build writes to prove itself goes to <code>Build Artifacts/</code>. Superseded decks move to <code>Outputs/Archive/</code>.</p>
+        </div>
+        <div class="io">
+          <div><span class="k">Writes</span><span class="v"><code>Outputs/&lt;id&gt;-&lt;yyyy.mm&gt;-&lt;PROGRAM&gt;-&hellip;.pptx</code></span></div>
+        </div>
+      </li>
+      <li class="step" data-n="7">
+        <div>
+          <div class="when">When the deck reaches the client &middot; page refresh daily 08:30</div>
+          <h3>Recorded as sent</h3>
+          <p>A deck in <code>Outputs/</code> proves it was built, not that it was sent. Sending is recorded by hand with Mark sent, on this page or on the local delivery dashboard. The 08:30 refresh folds the page's records into the delivery log and republishes the performance page when its figures change.</p>
+        </div>
+        <div class="io">
+          <div><span class="k">Writes</span><span class="v"><code>Build Artifacts/deliveries.json</code></span></div>
+          <div><span class="k">Runs</span><span class="v"><code>scripts/refresh_performance_dashboard.py</code></span></div>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="needs">
+    <div class="sechead">
+      <h2 id="needs">What each program needs</h2>
+      <p>A required input that is missing or out of date blocks that client's build. An optional one changes what the deck contains.</p>
+    </div>
+    <div class="progs">
+      <article class="prog" style="--c:var(--ars)">
+        <div class="ph"><h3>Account Revenue Solution</h3><span class="cad">Monthly</span>
+          <span class="note">ODD-driven. The workbook's format decides the extractor: Lift Matrix (MM) or Monthly Summary (SM).</span></div>
+        <table>
+          <thead><tr><th scope="col">Input</th><th scope="col">If it is missing</th></tr></thead>
+          <tbody>
+            <tr><td>ODD extract<span class="where mono">Inputs/ODDD/&lt;id&gt;_ODDD.zip</span></td>
+                <td><span class="need req">Blocks</span><span class="miss">Also blocks when stale: the file keeps its name each month, so last month's extract looks present.</span></td></tr>
+            <tr><td>ARS workbook<span class="where mono">Inputs/ARS Workbooks/</span></td>
+                <td><span class="need req">Blocks</span><span class="miss">Also blocks if its formulas were never calculated. Open it in Excel, save, and rebuild.</span></td></tr>
+            <tr><td>DCO<span class="where mono">Inputs/DCOs/</span></td>
+                <td><span class="need req">Blocks</span><span class="miss">Needed for the eligibility figures.</span></td></tr>
+          </tbody>
+        </table>
+      </article>
+      <article class="prog" style="--c:var(--ics)">
+        <div class="ph"><h3>Invitation Checking System</h3><span class="cad">Monthly</span>
+          <span class="note">The ICS workbook is quarterly, but the deck ships every month.</span></div>
+        <table>
+          <thead><tr><th scope="col">Input</th><th scope="col">If it is missing</th></tr></thead>
+          <tbody>
+            <tr><td>VIP referral sheet<span class="where mono">Inputs/VIP Data/ICS/</span></td>
+                <td><span class="need req">Blocks</span><span class="miss">Referral counts, trend and results by branch.</span></td></tr>
+            <tr><td>ICS workbook for the deck's month<span class="where mono">Inputs/ICS Workbooks/</span></td>
+                <td><span class="need opt">Optional</span><span class="miss">Without it the section is referrals only. An older workbook's figures are never carried forward.</span></td></tr>
+            <tr><td>ICS Charts<span class="where mono">Inputs/ICS Charts/</span></td>
+                <td><span class="need opt">Read</span><span class="miss">Mystery shop results.</span></td></tr>
+          </tbody>
+        </table>
+      </article>
+      <article class="prog" style="--c:var(--mrpc)">
+        <div class="ph"><h3>MyRewards Premium Cards</h3><span class="cad">Monthly</span>
+          <span class="note">Enrollments, channel mix, retention and revenue.</span></div>
+        <table>
+          <thead><tr><th scope="col">Input</th><th scope="col">If it is missing</th></tr></thead>
+          <tbody>
+            <tr><td>VIP MRPC sheet<span class="where mono">Inputs/VIP Data/MRPC/</span></td>
+                <td><span class="need req">Blocks</span><span class="miss">Goal attainment and revenue.</span></td></tr>
+            <tr><td>MRPCPM analysis<span class="where mono">Inputs/MRPC Analyses/</span></td>
+                <td><span class="need req">Blocks</span><span class="miss">The month's enrollment detail.</span></td></tr>
+          </tbody>
+        </table>
+      </article>
+      <article class="prog" style="--c:var(--cp)">
+        <div class="ph"><h3>CashPlease</h3><span class="cad">Weekly</span>
+          <span class="note">Five slides, standalone or as a section of the client's Executive Review. Roster: the CashPlease table in <code>clients.md</code>.</span></div>
+        <table>
+          <thead><tr><th scope="col">Input</th><th scope="col">If it is missing</th></tr></thead>
+          <tbody>
+            <tr><td>CashPlease Summary weekly<span class="where mono">Inputs/Weekly Summaries/</span></td>
+                <td><span class="need req">Blocks</span><span class="miss">The newest one is always used, even when it is dated later than the other sections.</span></td></tr>
+            <tr><td>ILS DDA count<span class="where mono">Inputs/Weekly Summaries/</span></td>
+                <td><span class="need opt">Optional</span><span class="miss">Without it, loans per 1,000 DDAs is not shown.</span></td></tr>
+            <tr><td>Product settings record<span class="where mono">Inputs/Product Settings/&lt;id&gt;_cp_settings.json</span></td>
+                <td><span class="need opt">Optional</span><span class="miss">With it, the deck adds a Program Settings slide.</span></td></tr>
+          </tbody>
+        </table>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="where">
+    <div class="sechead">
+      <h2 id="where">Where everything lives</h2>
+      <p>Paths are resolved from <code>RPE_DATA_ROOT</code> and never written into code. If the root moves, repointing that one setting is the whole change.</p>
+    </div>
+    <div class="map">
+      <table>
+        <thead><tr><th scope="col">Folder</th><th scope="col">Holds</th></tr></thead>
+        <tbody>
+          <tr class="group"><td colspan="2">Inputs, sorted into one folder per kind</td></tr>
+          <tr><td class="p mono">Inputs/ODDD/</td><td>Raw ODD extracts, one zip per client</td></tr>
+          <tr><td class="p mono">Inputs/DCOs/</td><td>DCOs</td></tr>
+          <tr><td class="p mono">Inputs/ARS Workbooks/</td><td>ARS workbooks</td></tr>
+          <tr><td class="p mono">Inputs/MRPC Analyses/</td><td>MRPCPM analyses</td></tr>
+          <tr><td class="p mono">Inputs/ICS Workbooks/</td><td>ICS workbooks</td></tr>
+          <tr><td class="p mono">Inputs/ICS Charts/</td><td>Mystery shop results</td></tr>
+          <tr><td class="p mono">Inputs/Weekly Summaries/</td><td>MRPC Enrollment Summary and CashPlease Summary weeklies, DDA counts</td></tr>
+          <tr><td class="p mono">Inputs/VIP Data/</td><td>ICS and MRPC client sheets from the VIP dashboards, indexed by a manifest</td></tr>
+          <tr><td class="p mono">Inputs/Product Settings/</td><td>CashPlease production settings, one record per client</td></tr>
+          <tr><td class="p mono">Inputs/Logos/</td><td>Client logos, kept out of the repo</td></tr>
+          <tr class="group"><td colspan="2">What the pipeline produces</td></tr>
+          <tr><td class="p mono">Outputs/</td><td>Finished decks only, in one flat folder</td></tr>
+          <tr><td class="p mono">Outputs/Archive/</td><td>Superseded decks</td></tr>
+          <tr><td class="p mono">Build Artifacts/</td><td>Build evidence and bookkeeping: figure sidecars, the delivery log, the source watch reports, this page's data</td></tr>
+          <tr class="group"><td colspan="2">In the repo</td></tr>
+          <tr><td class="p mono">clients.md</td><td>Who gets which program. The only roster</td></tr>
+          <tr><td class="p mono">templates/</td><td>One stripped shell per program, and the style guide</td></tr>
+          <tr><td class="p mono">build/</td><td>One pipeline folder per program, plus the shared brand, shapes and layout code</td></tr>
+          <tr><td class="p mono">validation/</td><td>The deck validator and the full QA gate</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="stops">
+    <div class="sechead">
+      <h2 id="stops">What stops a deck</h2>
+      <p>Each rule exists because its absence once shipped a wrong deck that looked right.</p>
+    </div>
+    <ul class="rules">
+      <li><b>A program not in clients.md</b><span>Leftover files are not a signal. A cancelled program's data stays on disk and must not rebuild its section.</span></li>
+      <li><b>An input from the wrong month</b><span>A stale ODD extract, or an ICS workbook older than the deck, would validate cleanly and report the wrong month.</span></li>
+      <li><b>A value the pipeline cannot map</b><span>An unmapped Reg E or account status is flagged and asked about before building, never guessed.</span></li>
+      <li><b>A text swap that matched nothing</b><span>The slide would keep the template's placeholder figures and look plausible, so the ARS build fails instead.</span></li>
+      <li><b>A slide without its source</b><span>Every slide's notes name the source file, pull date and selection for this client, never the template's client.</span></li>
+      <li><b>A claim its figures contradict</b><span>A change within &plusmn;2% is described as almost flat, and "rose" over a decline fails the gate.</span></li>
+      <li><b>Missing data shown as zero</b><span>The deck says the data isn't in this extract. It never renders 0%, an empty chart, or drops the slide.</span></li>
+      <li><b>A package that will not open</b><span>Duplicate or orphaned slide parts pass every text rule. Only the package check reads the file directly.</span></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="file">
+    <div class="sechead">
+      <h2 id="file">The finished file</h2>
+      <p>The period is the data month, and a combined deck joins its program tags in section order.</p>
+    </div>
+    <div class="anat">
+      <div class="fname" aria-label="1204-2026.09-ARS-First State Bank - Michigan ARS Results.pptx">
+        <span class="part" style="--c:var(--ink3)"><span class="t">1204</span><span class="n">Client id</span></span>
+        <span class="part"><span class="t">-</span><span class="n">&nbsp;</span></span>
+        <span class="part" style="--c:var(--mrpc)"><span class="t">2026.09</span><span class="n">Period</span></span>
+        <span class="part"><span class="t">-</span><span class="n">&nbsp;</span></span>
+        <span class="part" style="--c:var(--ars)"><span class="t">ARS</span><span class="n">Programs</span></span>
+        <span class="part"><span class="t">-</span><span class="n">&nbsp;</span></span>
+        <span class="part" style="--c:var(--ics)"><span class="t">First State Bank - Michigan</span><span class="n">Delivery name, from clients.md</span></span>
+        <span class="part" style="--c:var(--hair)"><span class="t"> ARS Results.pptx</span><span class="n">&nbsp;</span></span>
+      </div>
+      <div class="ex">
+        <span>Combined: <code>1539-2026.09-ARS-ICS-MRPC-CP-Marine FCU Results.pptx</code></span>
+        <span>Two programs, no ARS: <code>1632-2026.09-ICS-CP-WesBanco Results.pptx</code></span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    This page summarizes <span class="mono">CLAUDE.md</span> in the Velocity_Reporting repo as of 14 September 2026. Where the two disagree, CLAUDE.md is right.
+  </footer>
+</div>

@@ -17,6 +17,53 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the performance page lists every current client and links the workflow
+
+**The page shows all current clients across the five CSMs** (Aaron: "i want the artifact
+to show ALL current clients, and then be able to filter by CSM"). It lists the
+`clients.md` roster plus every client with reports filed on `Velocity_clientreports` for
+the newest month at or before the cycle, except the clients `clients.md` marks as stopped.
+1437 Canandaigua is one of those and still lands reports. `scripts/perf_clients.py` reads
+the share, and its last answer is kept in `Build Artifacts/perf_dashboard/current.json` for
+mornings off the VPN.
+
+**Programs for a client `clients.md` does not list are inferred from that month's files**
+(Aaron chose this over recording all 81 current clients in `clients.md`):
+
+| File on hand | Program |
+| --- | --- |
+| ARS workbook on the share | ARS |
+| VIP ICS sheet | ICS |
+| MRPCPM analysis, or a tab in the MRPC weekly | MRPC |
+| Tab in the CashPlease weekly | CP |
+
+A DCO alone implies nothing. The page tags those clients "from data" and lists a client
+with no program data this month under all products. The ARS format (Lift Matrix or Monthly
+Summary) is read off the workbook, the same test that set `clients.md`'s Path column. This
+is for reading only: `clients.md` still decides what gets built. On 2026-09-14 only 1 of
+the 35 non-roster ARS workbooks on the share had been copied to `Inputs`, so the rest show
+"not yet copied" until the daily copy picks them up.
+
+**A click on a product chip now shows only that product**, the same as the CSM and client
+chips. It used to remove the clicked product from the selection.
+
+**A saved filter of "all" now stays "all".** The page remembered each filter as the exact
+list selected, so "all" was saved as that day's 20 clients. The first all-clients build
+therefore opened on Aaron's 20 and hid the other 65. "All" is now saved as all, under a new
+storage key, so selections saved the old way are ignored.
+
+**The page links a workflow page**, `scripts/perf_workflow.html`, published as
+`workflow.html` in the same artifact. It covers:
+- the cycle from files landing to a deck recorded as sent
+- each program's inputs, and what happens when one is missing
+- where everything lives
+- what stops a deck
+- the filename convention
+
+The daily refresh republishes only the main page, so a change to the workflow page has to
+be published by hand. Tests: `tests/test_perf_clients.py`, plus new cases in
+`tests/test_refresh_performance_dashboard.py`.
+
 ### 2026-09-14 — the archive keeps one deck per period and kind, in a folder per client
 
 **`Outputs/Archive/` had become a flat pile of every rebuild.** 97 files for 15 clients,

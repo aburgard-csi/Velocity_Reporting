@@ -45,7 +45,15 @@ figure.
 - A **build readiness** section for the current period: ready or blocked per
   client, what it is blocked on, and one chip per required input. Every column
   sorts (ascending → descending → off), remembered per viewer (2026-09-14).
-- CSM, product and client filters (click to narrow, shift-click to isolate). *(CSM added
+- **Every current client across the five CSMs** *(2026-09-14)*. That is the `clients.md`
+  roster plus every client with reports filed on `Velocity_clientreports` for the newest
+  month at or before the cycle, less the clients `clients.md` marks as stopped. Programs
+  for a client `clients.md` does not list are inferred from that month's files and tagged
+  "from data". A client with no program data this month is listed under all products.
+- A link to the pipeline workflow page: `workflow.html`, published beside the page from
+  `scripts/perf_workflow.html`. The daily refresh does not republish it.
+- CSM, product and client filters. While all are selected, a click shows only that one;
+  later clicks add or remove others. *(CSM added
   2026-09-14.)* A client's CSM is the account-manager folder its reports land in on
   `Velocity_clientreports`, else the `CSM` column of the CashPlease roster in `clients.md`,
   else the CSM on its CashPlease settings record; a client nothing names is shown as
