@@ -11,6 +11,13 @@ A deck whose rendered content is identical to the delivered copy is left alone
 rather than re-archived — otherwise a rebuild that changed nothing still churns
 the archive and buries the copies that matter.
 
+**The archive is one folder per client, and keeps the newest deck of each kind per
+period (Aaron, 2026-09-14).** A superseded deck goes to `Outputs/Archive/<id> <client>/`.
+After a delivery, any OLDER archived deck with the same period and program tags is
+moved to `Outputs/Archive/_older decks - delete after review/<id> <client>/` — moved,
+never deleted: the share has no Recycle Bin, so removing them is a person's call. A
+hand-made PDF is never moved by that rule.
+
 **Import-safe on purpose.** This used to read `sys.argv[1]` at module scope and do
 the whole job there, so importing it RAN it — and an IndexError was all you got
 without arguments. That is the hazard CLAUDE.md calls out for `metrics_gen`, and
@@ -39,6 +46,13 @@ import rpe_env as R                                              # noqa: E402
 
 PROGRAM_TAGS = ("ARS", "ICS", "MRPC", "CP")   # the filename tags, per CLAUDE.md
 PHASE_SUFFIXES = (".A.pptx", ".B.pptx", ".C.pptx", ".D.pptx")
+REVIEW_DIRNAME = "_older decks - delete after review"
+
+_DECK_NAME_RX = re.compile(
+    r"^(\d{3,5})-(\d{4}\.\d{2})-((?:(?:%s)-)+)(.+?)(?: \(superseded [\d-]+\))?\.(pptx|pdf)$"
+    % "|".join(PROGRAM_TAGS), re.I)
+_TITLE_TAIL_RX = re.compile(
+    r"\s+(?:(?:(?:%s)\s+)?Results|CashPlease Module)$" % "|".join(PROGRAM_TAGS), re.I)
 
 
 def program_tags(name):
@@ -52,6 +66,76 @@ def program_tags(name):
     """
     m = re.match(r"^\d{3,5}-\d{4}\.\d{2}-((?:(?:%s)-)+)" % "|".join(PROGRAM_TAGS), name)
     return tuple(t for t in m.group(1).split("-") if t) if m else ()
+
+
+def parse_deck_name(name):
+    """{client_id, period, tags, client, ext} for a delivered or archived deck/PDF name.
+
+    Accepts the "(superseded <date>)" suffix the archive adds. None for anything that
+    does not follow the filename convention — such a file is left where it is.
+    """
+    m = _DECK_NAME_RX.match(os.path.basename(name))
+    if not m:
+        return None
+    cid, period, tags, rest, ext = m.groups()
+    return {"client_id": cid, "period": period,
+            "tags": tuple(t.upper() for t in tags.split("-") if t),
+            "client": _TITLE_TAIL_RX.sub("", rest).strip(), "ext": ext.lower()}
+
+
+def client_folder(arch, client_id, client_name=""):
+    """`Archive/<id> <client>` — and an existing folder for that id, whatever its name.
+
+    The id is the key. Delivery names differ between programs (the CashPlease module
+    for 1539 says "Marine Federal Credit Union", the Executive Review "Marine FCU"), so
+    naming the folder from each deck would split one client across two folders. The
+    first name wins and every later deck for that id lands beside it.
+    """
+    arch = Path(arch)
+    if arch.is_dir():
+        for d in sorted(arch.iterdir()):
+            if d.is_dir() and d.name != REVIEW_DIRNAME and d.name.split(" ", 1)[0] == client_id:
+                return d
+    safe = re.sub(r'[<>:"/\\|?*]', "", client_name or "").strip()
+    return arch / (("%s %s" % (client_id, safe)) if safe else client_id)
+
+
+def _free(dest):
+    """`dest`, or `dest (2)`, `(3)`… — never overwrite a file already there."""
+    dest = Path(dest)
+    n = 1
+    cand = dest
+    while cand.exists():
+        n += 1
+        cand = dest.with_name("%s (%d)%s" % (dest.stem, n, dest.suffix))
+    return cand
+
+
+def tidy_client_archive(folder, review_root, apply=False, log=print):
+    """Keep only the newest deck per (period, program tags) in one client's folder.
+
+    Newest is the deck's own modified time — when it was built — which a move keeps.
+    The rest go to `review_root/<folder name>/`, never deleted. PDFs are never moved:
+    they are exported by hand, on purpose (Aaron, 2026-09-14). Returns [(src, dest)].
+    """
+    folder, review_root = Path(folder), Path(review_root)
+    groups = {}
+    for p in sorted(folder.glob("*.pptx")):
+        info = parse_deck_name(p.name)
+        if info:
+            groups.setdefault((info["period"], info["tags"]), []).append(p)
+    moves = []
+    for decks in groups.values():
+        keep = max(decks, key=lambda p: (p.stat().st_mtime, p.name))
+        for p in decks:
+            if p != keep:
+                moves.append((p, review_root / folder.name / p.name))
+    for src, dest in moves:
+        log(f"{'older':<9} {src.name[:62]:<62}")
+        if apply:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(_free(dest)))
+    return moves
 
 
 def deliverable(cdir):
@@ -137,29 +221,39 @@ def promote_one(src, out, arch, stamp, apply=False, log=print):
     was open in PowerPoint, its .pdf was archived, the .pptx move raised
     PermissionError, and that client ended up with its PDF in Archive/ and its old
     deck still live. Anything already moved is put back before the error leaves
-    here.
+    here, and a client folder this call created is removed again if it is empty.
+
+    The superseded files go to the CLIENT's folder under `arch`. Once the new deck is
+    delivered, older archived decks of the same period and kind are moved to the
+    review folder (`tidy_client_archive`) — after delivery, so a failure there can
+    never cost a delivery; it is reported instead.
 
     Returns (n_archived, delivered). Raises OSError if the deck could not be
     promoted; the caller decides whether that stops the run.
     """
+    out, arch = Path(out), Path(arch)
     name = os.path.basename(src)
     stem = os.path.splitext(name)[0]
+    info = parse_deck_name(name)
+    target = client_folder(arch, info["client_id"], info["client"]) if info else arch
     olds = sorted(glob.glob(str(out / f"{glob.escape(stem)}.*")))
     plan_moves = []
     for old in olds:
         ext = os.path.splitext(old)[1]
-        dest = arch / f"{stem} (superseded {stamp}){ext}"
+        dest = target / f"{stem} (superseded {stamp}){ext}"
         n = 1
         while dest.exists() or dest in [d for _, d in plan_moves]:
             n += 1
-            dest = arch / f"{stem} (superseded {stamp}-{n}){ext}"
+            dest = target / f"{stem} (superseded {stamp}-{n}){ext}"
         plan_moves.append((old, dest))
         log(f"{'archive':<9} {os.path.basename(old)[:62]:<62}")
     log(f"{'deliver':<9} {name[:62]:<62}")
     if not apply:
         return len(plan_moves), True
 
-    arch.mkdir(parents=True, exist_ok=True)
+    created = not target.exists()
+    if plan_moves:
+        target.mkdir(parents=True, exist_ok=True)
     moved = []
     inflight = None
     try:
@@ -187,7 +281,17 @@ def promote_one(src, out, arch, stamp, apply=False, log=print):
                 shutil.move(dest, old)
             except OSError as back:
                 log(f"{'!! ':<9} could not restore {os.path.basename(old)}: {back}")
+        if created and target != arch and target.is_dir() and not any(target.iterdir()):
+            try:
+                target.rmdir()
+            except OSError:
+                pass
         raise
+    if moved and target != arch:
+        try:
+            tidy_client_archive(target, arch / REVIEW_DIRNAME, apply=True, log=log)
+        except OSError as e:
+            log(f"{'!! ':<9} could not tidy {target.name}: {_why(e)}")
     return len(moved), True
 
 

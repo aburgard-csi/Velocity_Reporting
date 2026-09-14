@@ -156,3 +156,90 @@ def test_main_writes_where_it_is_told(tmp_path):
     assert "new" in Presentation(str(out / name)).slides[0].shapes[0].text_frame.text
     assert sorted(p.name for p in real.iterdir() if p.is_file()) == before, \
         "the real Outputs folder must not be touched when --outputs is given"
+
+
+# --- the archive: a folder per client, newest per period and kind -----------------
+# Aaron, 2026-09-14: "in the archive, only keep the last deck created for each individual
+# period per client, and organize them into folders per client." Older decks are MOVED to
+# a review folder, never deleted — the share has no Recycle Bin — and PDFs never move.
+@pytest.mark.parametrize("name,expect", [
+    ("1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-09-11-2).pptx",
+     ("1038", "2026.09", ("ARS",), "Sugar River Bank", "pptx")),
+    ("1509-2026.09-ARS-ICS-Texas Bay Credit Union Results.pptx",
+     ("1509", "2026.09", ("ARS", "ICS"), "Texas Bay Credit Union", "pptx")),
+    ("1539-2026.09-CP-Marine Federal Credit Union CashPlease Module (superseded 2026-09-14).pdf",
+     ("1539", "2026.09", ("CP",), "Marine Federal Credit Union", "pdf")),
+])
+def test_archive_names_are_parsed(name, expect):
+    i = P.parse_deck_name(name)
+    assert (i["client_id"], i["period"], i["tags"], i["client"], i["ext"]) == expect
+    assert P.parse_deck_name("notes.txt") is None
+
+
+def test_a_superseded_deck_is_archived_in_its_clients_folder(tmp_path):
+    out = _outputs(tmp_path)
+    name = "1038-2026.09-ARS-Sugar River Bank ARS Results.pptx"
+    _deck(out / name, "old")
+    src = _stage(tmp_path, "1038", name, _deck(tmp_path / "new.pptx", "new"))
+    n, _ = P.promote_one(str(src), out, out / "Archive", "2026-09-14", apply=True, log=lambda *_: None)
+    assert n == 1
+    folder = out / "Archive" / "1038 Sugar River Bank"
+    assert [p.name for p in folder.iterdir()] == [
+        "1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-09-14).pptx"]
+    assert not any(p.is_file() for p in (out / "Archive").iterdir()), "nothing flat in Archive/"
+
+
+def test_an_existing_client_folder_is_reused_whatever_its_name(tmp_path):
+    """Delivery names differ by program ("Marine FCU" vs "Marine Federal Credit Union");
+    the id is the key, so one client never splits across two folders."""
+    out = _outputs(tmp_path)
+    (out / "Archive" / "1539 Marine FCU").mkdir()
+    name = "1539-2026.09-CP-Marine Federal Credit Union CashPlease Module.pptx"
+    _deck(out / name, "old")
+    src = _stage(tmp_path, "1539", name, _deck(tmp_path / "new.pptx", "new"))
+    P.promote_one(str(src), out, out / "Archive", "2026-09-14", apply=True, log=lambda *_: None)
+    assert sorted(d.name for d in (out / "Archive").iterdir()) == ["1539 Marine FCU"]
+    assert len(list((out / "Archive" / "1539 Marine FCU").iterdir())) == 1
+
+
+def test_only_the_newest_deck_per_period_and_kind_is_kept(tmp_path):
+    folder = tmp_path / "Archive" / "1204 First State Bank"
+    folder.mkdir(parents=True)
+    review = tmp_path / "Archive" / P.REVIEW_DIRNAME
+    base = "1204-2026.09-ARS-First State Bank - Michigan ARS Results"
+    files = {
+        base + " (superseded 2026-09-09).pptx": 100,
+        base + " (superseded 2026-09-10).pptx": 200,
+        base + " (superseded 2026-09-11).pptx": 300,      # newest of Sept ARS: kept
+        base + " (superseded 2026-09-10).pdf": 150,       # a PDF: never moved
+        "1204-2026.08-ARS-First State Bank - Michigan ARS Results (superseded 2026-09-04).pptx": 50,
+        "1204-2026.09-CP-First State CashPlease Module (superseded 2026-09-10).pptx": 120,  # other kind
+    }
+    for nm, t in files.items():
+        (folder / nm).write_bytes(b"x")
+        os.utime(folder / nm, (t, t))
+    moves = P.tidy_client_archive(folder, review, apply=True, log=lambda *_: None)
+    assert sorted(s.name for s, _ in moves) == sorted([base + " (superseded 2026-09-09).pptx",
+                                                      base + " (superseded 2026-09-10).pptx"])
+    assert sorted(p.name for p in folder.iterdir()) == sorted([
+        base + " (superseded 2026-09-11).pptx", base + " (superseded 2026-09-10).pdf",
+        "1204-2026.08-ARS-First State Bank - Michigan ARS Results (superseded 2026-09-04).pptx",
+        "1204-2026.09-CP-First State CashPlease Module (superseded 2026-09-10).pptx"])
+    assert sorted(p.name for p in (review / folder.name).iterdir()) == sorted(s.name for s, _ in moves)
+
+
+def test_promotion_tidies_older_decks_of_the_same_period_after_delivering(tmp_path):
+    out = _outputs(tmp_path)
+    name = "1038-2026.09-ARS-Sugar River Bank ARS Results.pptx"
+    folder = out / "Archive" / "1038 Sugar River Bank"
+    folder.mkdir()
+    old = folder / "1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-09-10).pptx"
+    _deck(old, "oldest")
+    os.utime(old, (1000, 1000))
+    _deck(out / name, "live")
+    src = _stage(tmp_path, "1038", name, _deck(tmp_path / "new.pptx", "new"))
+    P.promote_one(str(src), out, out / "Archive", "2026-09-14", apply=True, log=lambda *_: None)
+    assert [p.name for p in folder.iterdir()] == [
+        "1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-09-14).pptx"]
+    assert (out / "Archive" / P.REVIEW_DIRNAME / "1038 Sugar River Bank" / old.name).exists()
+    assert "new" in Presentation(str(out / name)).slides[0].shapes[0].text_frame.text

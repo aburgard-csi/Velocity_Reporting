@@ -17,6 +17,89 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the archive keeps one deck per period and kind, in a folder per client
+
+**`Outputs/Archive/` had become a flat pile of every rebuild.** 97 files for 15 clients,
+nine copies of 1038's September ARS deck among them — each rebuild during the month
+archived the one before (Aaron: "in the archive, only keep the last deck created for each
+individual period per client, and organize them into folders per client").
+
+- **A folder per client.** `promote_month` archives a superseded deck to
+  `Archive/<id> <client>/`. The id is the key: an existing folder for that id is reused
+  whatever its name, because delivery names differ by program ("Marine FCU" on the
+  Executive Review, "Marine Federal Credit Union" on the CashPlease module).
+- **The newest deck of each kind per period is kept** — kind being the program tags, so a
+  client's September CP module and its September ICS-CP deck both survive (Aaron's choice
+  over one deck per period). Newest is the deck's own build time.
+- **Older ones are moved, never deleted**, to
+  `Archive/_older decks - delete after review/<id> <client>/`. The share has no Recycle
+  Bin, so emptying that folder is a person's decision. The tidy runs only after a
+  successful delivery, so it can never cost one.
+- **PDFs never move** — they are exported by hand before sending.
+- A failed promotion still leaves Outputs as it found it, and now also removes a client
+  folder it had just created.
+
+The existing archive was reorganised the same way, through the same functions.
+`tests/test_promote_month.py` pins the name parsing, the client folder, folder reuse,
+the keep rule with PDFs left alone, and the tidy after delivery.
+
+### 2026-09-14 — the pipeline root moved to the CSM_Reporting share
+
+**`RPE_DATA_ROOT` is `\\PADMIS105\Velocity_company\CSM_Reporting`** (Aaron: "we have a new
+folder for imports, exports, and other project files … repoint everything"). With the ODD,
+DCO and workbook copy now covering all five CSMs' books, a root on one laptop was the wrong
+home for it. No code path changed: every reader already resolves through `rpe_env`, so the
+move was a copy and one `.env` line — the reason the path was never hardcoded.
+
+- **Copied, then proven, then switched.** A full robocopy (1,926 files, 2.365 GB, 0
+  failures), a SHA-256 comparison of every file, and a catch-up pass for the files other
+  sessions wrote during the copy (247 more, 0 failures) — ICS Charts workbooks re-saved at
+  15:38, 67 CSM client logos, and the 16:00 performance-page rebuild including its
+  `published_hash`, so the 08:30 refresh does not republish an unchanged page. Nothing on
+  either side was deleted.
+- **The old local root is retired, not deleted.** `C:\Data Pipelines\RPE Pipeline` was
+  renamed to `C:\Data Pipelines\RPE Pipeline (retired 2026-09-14 - use CSM_Reporting)`
+  after verification (all 2,050 files intact), so nothing can keep writing to a copy
+  nobody reads; the share is the one copy.
+- **The share needs the VPN off-site**, the same as the source shares it copies from.
+- `.env.example`, the example path in `rpe_env`'s "RPE_DATA_ROOT is not set" message, and
+  CLAUDE.md **File locations** name the share.
+
+### 2026-09-14 — the ODD copy pulls from all five CSMs' folders
+
+**The daily watch only ever looked in Aaron's ODD folder.** The data team lands each
+CSM's extracts in that CSM's own folder on `Velocity_company`, so the 08:00 copy and the
+delivery dashboard's "has it landed" check saw one book out of five (Aaron: "update the
+ODD copy to pull from all 5 CSM folders"). `deck_status.SRC_ODDD` now lists all five as
+`CSM=path` entries — Aaron Burgard, Daniel Wood, Gregg Miller, James Gilmore, Jordan
+Berkowitz — overridable with `RPE_SRC_ODDD` in the same format; a bare path still works.
+
+- **Five naming conventions for one month.** `2026.09 Sep` (Aaron), `2026.09` (James),
+  `September, 2026` (Jordan, Gregg), `090126` (Dan, the first of the month).
+  `deck_status.odd_folder_period` reads all four and nothing else, so `Archive`, `2025`
+  or a folder named after a client's core migration is skipped rather than guessed at.
+  The old code globbed `<period>*`, which matched only Aaron's naming.
+- **Every client's files, not only the roster's.** `copy_plan(..., stopped=...)` copies
+  ODD extracts, DCOs, ARS workbooks, MRPCPM analyses and ICS workbooks for any client on
+  the shares — every CSM's book (Aaron: "update the DCO and workbook copy to pull all
+  clients too") — except the clients `clients.md` marks as stopped (1437, 1174, 1658
+  today). The reports share was already scanned across all five account-manager folders;
+  only the roster filter kept the other books out. With `clients.md` unreadable the
+  stopped set is unknown and the copy falls back to the roster rule, which copies nothing
+  rather than everything.
+- **A client in two folders.** Same client and month in two CSM folders (a handover —
+  1808 Summit Choice sits in both James's and Jordan's) takes the more recent write.
+- **One unreachable folder is off VPN.** The run exits 2 and saves nothing, and the
+  report names which folder failed. Scanning the four that answered would have reported
+  every extract in the fifth as gone.
+- The report tags each ODD line with the CSM folder it came from.
+
+The first run after this lists the other four CSMs' extracts as new once; that is the
+inventory catching up, not a landing. `tests/test_watch_sources.py` pins the four
+namings, the named/bare root parsing, the tagged scan, the unreachable-folder rule, the
+stopped-client exclusion and the tie-break; `tests/test_deck_status.py` follows the
+month-folder lookup.
+
 ### 2026-09-14 — filter the performance page by CSM
 
 **The RPE Client Performance page has a CSM filter at the top** (Aaron: "the RPE artifact
@@ -51,6 +134,28 @@ header name) instead of its own parser. That parser took Build from the third ce
 the new column would have dropped every CashPlease client from the page. Who appears on
 the page is still decided by `clients.md`, so it shows only Aaron's clients; other CSMs'
 clients appear only if they are added there.
+
+### 2026-09-14 — undo a recorded send from the performance page, with a confirming click
+
+**A recorded send can now be undone on the page** (Aaron: "click the Sent button to undo
+the recorded date, add a click to confirm"). The sent date in the Build readiness table is a
+button: one click turns it into "Undo send?", a second click within five seconds removes
+the record, and a click elsewhere or Esc keeps it. The old "undo" link only reached sends
+recorded on the page and not yet folded into `deliveries.json`; a send already in the log
+showed as plain text and could not be undone at all.
+
+**An undo is a row, never a deletion.** The page cannot change `deliveries.json`, and a send
+recorded on the page may already have been folded in by the time someone undoes it — so
+deleting the page's row would have left the log's copy standing and the date would come back
+at the next refresh. The page now writes `{"unsent": true, "undo_of": "<date>"}`, and Mark
+sent after an undo writes a send row carrying `undo_of` too. `merge_sent` applies either one
+only while `deliveries.json` still holds exactly that date: an undo removes the entry, a send
+replaces it, and a row naming any other date is reported as stale and left alone, so an
+older undo can never erase a send recorded after it. "deliveries.json wins" still holds for
+every plain row. The page reads its own rows by the same rule, so it shows the result
+before the refresh does. `tests/test_refresh_performance_dashboard.py` pins removal,
+replacement, the stale cases and malformed undo rows; the `rpe-dashboard-refresh` task
+instructions describe the exception.
 
 ### 2026-09-14 — the Mailing Response Summary lists a mailing still in progress
 

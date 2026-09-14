@@ -29,21 +29,33 @@ set per machine in `.env`. Never hardcode a path in code — if a build's inputs
 aren't where `RPE_DATA_ROOT` says, ask Aaron to point at the specific file rather than
 guessing, but do not re-ask the whole walk-through each session.
 
-**The pipeline runs LOCALLY, and `C:\Data Pipelines\RPE Pipeline\` is the ONE copy
-(Aaron, 2026-09-09).** Point `RPE_DATA_ROOT` at it and read and write everything there.
+**The pipeline root is `\\PADMIS105\Velocity_company\CSM_Reporting\` on the CSI share,
+and it is the ONE copy (Aaron, 2026-09-14)** — one place for every CSM's imports, exports
+and project files, now that the pipeline covers all five CSMs' books. Point
+`RPE_DATA_ROOT` at it and read and write everything there. It needs the VPN off-site.
 
 ```
-# Windows — this machine, moved 2026-09-09 (308 files, 1.23 GB, verified by count,
-# bytes and hash before .env was repointed)
-RPE_DATA_ROOT=C:\Data Pipelines\RPE Pipeline
+# Every machine — moved 2026-09-14 from C:\Data Pipelines\RPE Pipeline (a full robocopy,
+# a SHA-256 comparison of every file, then a catch-up pass for files written during the
+# copy, verified before .env was repointed)
+RPE_DATA_ROOT=\\PADMIS105\Velocity_company\CSM_Reporting
 ```
+
+*History:* `C:\Data Pipelines\RPE Pipeline\` was the local root from 2026-09-09 to
+2026-09-14. It was renamed to `C:\Data Pipelines\RPE Pipeline (retired 2026-09-14 - use
+CSM_Reporting)\` once the share copy was verified, so nothing can keep reading or writing
+it; nothing in it was deleted. Do not point anything back at it.
 
 **There is no second copy, and nothing syncs this tree anywhere. THE ORIGINAL SOURCES
 ARE THE BACKUP (Aaron, 2026-09-09).** Every input can be re-fetched from where it came
 from: the CSI shares hold the ODD extracts, DCOs, ARS workbooks and MRPCPM analyses, and
 the mailbox holds the MRPC / CashPlease reports and the ICS workbooks —
 `scripts/watch_sources.py --copy --mail` is how they come back. Outputs are rebuildable
-from those inputs by definition, and `Outputs/Archive/` keeps every superseded deck.
+from those inputs by definition, and `Outputs/Archive/` keeps the newest superseded deck
+of each kind per client per period, in a folder per client (`Archive/<id> <client>/`,
+Aaron 2026-09-14). `promote_month` moves older decks of the same period and kind to
+`Archive/_older decks - delete after review/<id> <client>/` — never deletes them — and
+never moves a hand-made PDF.
 
 Do not introduce a mirror. Two copies of one tree is the two-stores problem that shipped
 month-old ICS figures in August: `build/{ics,mrpc}_pipeline/data/` and the VIP store
@@ -491,7 +503,7 @@ endpoint and the delivery log is not public. `scripts/deck_status.py <period>
 | Fact | Source |
 | --- | --- |
 | Who gets a deck | `clients.md`, via `build_month.read_roster` — the same parser the builder uses |
-| Has the data team landed it | `\\PADMIS105\Velocity_company\Aburgard\ODDD\<YYYY.MM Mon>\` and `\\PADMIS105\Velocity_clientreports\<YYYY.MM>\<Account Manager>\` |
+| Has the data team landed it | every CSM's ODD folder (`deck_status.SRC_ODDD` — all five, each with its own month-folder naming; see **Daily source watch**) and `\\PADMIS105\Velocity_clientreports\<YYYY.MM>\<Account Manager>\` |
 | Can the build run | `Inputs/` — the copy the builders actually read |
 | Built | `Outputs/<id>-<period>-*.pptx` |
 | Sent | `Build Artifacts/deliveries.json` |
@@ -531,8 +543,9 @@ powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 [-Time 
 
 `deck_status.py` answers "is it there now"; `watch_sources.py` answers "what
 landed since I last looked" (Aaron, 2026-09-08). It scans this month's and last
-month's folders on both CSI shares — ODD extracts on `Velocity_company\Aburgard\ODDD`,
-DCOs / ARS workbooks / MRPCPM analyses on `Velocity_clientreports` — diffs the
+month's folders on the CSI shares — ODD extracts in all five CSMs' folders on
+`Velocity_company` (see the 2026-09-14 paragraph below), DCOs / ARS workbooks / MRPCPM
+analyses on `Velocity_clientreports` — diffs the
 inventory against the one it saved last run, and reports files that are new,
 re-landed (same name, new bytes) or gone, roster clients first, each with whether
 the copy the builders read is already current. Nothing is copied
@@ -586,10 +599,30 @@ via `scripts/mail_sources.py` and files them by kind alongside everything else.
   legacy folder and reported**, never guessed at.
 
 **The daily run also copies (Aaron, 2026-09-08).** With `--copy`, which the scheduled
-task passes, every file on the shares for a **roster client** (`clients.md`) that `Inputs/`
+task passes, every file on the shares for **every client except a stopped one** (see the
+2026-09-14 paragraph below) that `Inputs/`
 lacks, or holds a different landing of, is copied into `Inputs/` — DCOs, ARS
 workbooks, MRPCPM analyses and ICS workbooks each to their own folder, the ODD extract
-to `ODDD/<id>_ODDD.zip`. Copy-only: nothing in `Inputs/` is ever deleted by a copy (some mounts
+to `ODDD/<id>_ODDD.zip`.
+
+**ODD extracts come from ALL FIVE CSMs' folders (Aaron, 2026-09-14).** The data team
+lands each CSM's extracts in that CSM's own folder, so `deck_status.SRC_ODDD` lists all
+five as `CSM=path` entries (override with `RPE_SRC_ODDD`, same format; a bare path still
+works): Aaron `Velocity_company\Aburgard\ODDD`, Daniel Wood `Dan Wood\OD Data Dumps`,
+Gregg Miller `GMiller\OD Data Dumps`, James Gilmore `JamesG\OD Data Dumps`, Jordan
+Berkowitz `JBerkowitz\OD Data Dumps`. **Each CSM names month folders differently** —
+`2026.09 Sep` (Aaron), `2026.09` (James), `September, 2026` (Jordan, Gregg), `090126`
+(Dan, the first of the month) — and `deck_status.odd_folder_period` is the one place
+that reads them; a folder it cannot read (`Archive`, `2025`) is not a month and is
+skipped. **Every client's files are copied — ODD extracts, DCOs and workbooks alike, for
+all five CSMs' books, not only roster clients** — except the clients `clients.md` marks
+as stopped (`read_roster`'s skipped rows: 1437 Canandaigua, 1174 PointBank, 1658
+Truliant), whose files the data team keeps landing. `clients.md` still decides what gets
+BUILT; the copy only decides what is on hand. If `clients.md` cannot be read the copy
+falls back to roster clients only, which copies nothing rather than everything. If two
+CSM folders hold the same client and month (a handover), the more recent write is
+taken. **One unreachable CSM folder counts as off VPN**: the run exits 2 and saves
+nothing, because otherwise every extract in that folder would read as gone. Copy-only: nothing in `Inputs/` is ever deleted by a copy (some mounts
 refuse deletes anyway); a `.part` file is written and renamed over the target so a
 copy that dies half way never leaves a truncated extract under the real name, and the
 size is verified after. **The ODD extract is only ever copied from the newest month on
@@ -597,8 +630,9 @@ the share for that client.** The watch scans two months and the local copy carri
 period in its name, so once this month's extract is in `Inputs/` last month's at source
 "differs" from it forever — copying it back would be the stale-ODD failure in its
 purest form. `copy_plan` is where that rule lives, and `tests/test_watch_sources.py`
-pins it. A client not on the roster (1437 Canandaigua, ended) is never copied even
-though the data team keeps landing its files.
+pins it. A client `clients.md` marks as stopped (1437 Canandaigua, ended) gets nothing
+copied at all — no extract, DCO or workbook — even though the data team keeps landing its
+files.
 
 **A "differs" file is overwritten only when the SOURCE is the newer write.** A local
 copy modified after the landing is a deliberate change, not a re-landing — a workbook

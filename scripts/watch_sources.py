@@ -2,9 +2,10 @@
 """
 watch_sources.py — what the data team landed on the CSI shares since last time.
 
-The monthly inputs arrive on two shares, on nobody's schedule:
+The monthly inputs arrive on the CSI shares, on nobody's schedule:
 
-    \\\\PADMIS105\\Velocity_company\\Aburgard\\ODDD\\<YYYY.MM Mon>\\<id>_ODDD.zip
+    <each CSM's ODD folder>\\<month folder>\\<id>_ODDD.zip   (all five CSMs, see
+        deck_status.SRC_ODDD; each CSM names the month folder differently)
     \\\\PADMIS105\\Velocity_clientreports\\<YYYY.MM>\\<Account Manager>\\
         <id>-<YYYY.MM>-<Client>-DCO v2_2.xlsx
         <id>-<YYYY.MM>-<Client>-Workbook_v2_1_0.xlsx
@@ -21,9 +22,10 @@ It scans this month's and last month's folders on both shares, compares the
 inventory to the one it saved last run, and reports files that are new, have
 been re-landed (size or mtime changed), or have disappeared. For each it says
 whether the copy the builders read is already current. With `--copy` it
-then copies roster clients' files that `Inputs/` lacks into it (Aaron,
-2026-09-08), the ODD extract only from the newest month on the share — see
-`copy_plan` for why that rule exists. With `--prune` it deletes inputs that
+then copies what `Inputs/` lacks into it (Aaron, 2026-09-08): ODD extracts,
+DCOs and workbooks for EVERY client on the shares — every CSM's book — except those
+clients.md marks as stopped (Aaron, 2026-09-14), each only from the newest month on
+the share; see `copy_plan` for why that rule exists. With `--prune` it deletes inputs that
 a newer period or weekly of the same client and kind supersedes (Aaron,
 2026-09-08); the newest is always kept and a file with no newer version is never
 touched — see `prune_plan`.
@@ -45,7 +47,7 @@ so the run records what is there and reports the counts, not sixty new files.
 Usage:
     python scripts/watch_sources.py                # check, report, save
     python scripts/watch_sources.py --notify       # + Windows toast when there is news
-    python scripts/watch_sources.py --copy         # + copy roster clients' files into Inputs/
+    python scripts/watch_sources.py --copy         # + copy what Inputs/ lacks (see --copy)
     python scripts/watch_sources.py --prune        # + delete inputs a newer version supersedes
     python scripts/watch_sources.py --dry-run      # report only; save nothing
     python scripts/watch_sources.py --period 2026.09 --period 2026.08
@@ -125,8 +127,12 @@ def classify(path, share):
     folder = os.path.basename(os.path.dirname(path))
     rec = {"path": path, "name": name, "folder": folder, "share": share,
            "kind": OTHER, "client": None, "period": None}
-    m = _PERIOD_RX.search(folder)
-    rec["period"] = m.group(1) if m else None
+    if share == "oddd":
+        # Every CSM names ODD month folders differently; deck_status reads them all.
+        rec["period"] = DS.odd_folder_period(folder)
+    else:
+        m = _PERIOD_RX.search(folder)
+        rec["period"] = m.group(1) if m else None
 
     if share == "oddd":
         m = _ODDD_RX.match(name)
@@ -162,20 +168,23 @@ def _key(path):
 
 # ------------------------------------------------------------------ scan
 def reachable():
-    return DS._reachable(SRC_ODDD) and DS._reachable(SRC_REPORTS)
+    return DS.odd_reachable(SRC_ODDD) and DS._reachable(SRC_REPORTS)
 
 
 def scan(periods):
-    """{key: record} for every file on either share in the given periods."""
+    """{key: record} for every file on either share in the given periods.
+
+    The ODD side is every CSM's folder (Aaron, 2026-09-14), and each record is
+    tagged with the CSM whose folder it came from.
+    """
     found = {}
     for p in periods:
-        for month in glob.glob(os.path.join(SRC_ODDD, p + "*")):
-            if not os.path.isdir(month):
-                continue
+        for csm, month in DS._oddd_month_dirs(p, SRC_ODDD):
             for f in glob.glob(os.path.join(month, "*")):
                 if os.path.isfile(f):
                     rec = classify(f, "oddd")
                     if rec:
+                        rec["csm"] = csm
                         found[_key(f)] = _stat_into(rec)
         root = os.path.join(SRC_REPORTS, p)
         if not os.path.isdir(root):
@@ -262,16 +271,20 @@ def _dest_for(rec, inputs_dir):
     return os.path.join(d, rec["name"])
 
 
-def copy_plan(inventory, roster_ids, inputs_dir):
+def copy_plan(inventory, roster_ids, inputs_dir, stopped=None):
     """Which source files should be copied into `Inputs/`: [(record, destination)].
 
     The destination is whatever `RPE_DATA_ROOT` resolves to — the local tree
     This code has never known where that is — it asks `rpe_env` — which is why
     moving the tree needed no change here beyond the report wording.
 
-    Roster clients only — the shares carry every account manager's clients, and
-    an input for a client nobody builds is clutter at best. Only files `Inputs/`
-    does not hold, or holds a different landing of (`differs`).
+    Which clients (Aaron, 2026-09-14): with `stopped` given, EVERY client on the
+    shares — all five CSMs' books, ODD extracts, DCOs and workbooks alike — except the
+    ids in `stopped`, the clients clients.md marks as ended or cancelled, whose files
+    the data team keeps landing (1437 Canandaigua). Without it only `roster_ids` are
+    copied, which is what an unreadable clients.md falls back to. Only files `Inputs/`
+    does not hold, or holds a different landing of (`differs`). If two CSM folders
+    hold the same client and month, the more recent write is taken.
 
     The ODD extract needs one more rule. It lives in `Inputs/` as `<id>_ODDD.zip`
     with no period in the name, and the watch scans two months, so last month's
@@ -282,20 +295,28 @@ def copy_plan(inventory, roster_ids, inputs_dir):
     """
     if inputs_dir is None:
         return []
+
+    def wanted(rec):
+        if rec["kind"] == OTHER or not rec.get("client"):
+            return False
+        if stopped is not None:
+            return rec["client"] not in stopped
+        return rec["client"] in roster_ids
     # Newest period on the share per (client, kind). The same rule for every
     # kind, not only the ODD: with --prune removing what a newer period
     # supersedes, copying last month's DCO back would have it deleted again the
     # same run, every day.
     newest = {}
     for rec in inventory.values():
-        if rec["kind"] != OTHER and rec["client"] in roster_ids and rec.get("period"):
+        if wanted(rec) and rec.get("period"):
             k = (rec["client"], rec["kind"])
-            if k not in newest or rec["period"] > newest[k]["period"]:
+            if k not in newest or ((rec["period"], rec.get("mtime") or 0)
+                                   > (newest[k]["period"], newest[k].get("mtime") or 0)):
                 newest[k] = rec
     on_drive = _input_periods(inputs_dir)
     plan = []
     for rec in sorted(inventory.values(), key=lambda r: (r["kind"], r["client"] or "", r["name"])):
-        if rec["kind"] == OTHER or rec["client"] not in roster_ids:
+        if not wanted(rec):
             continue
         if newest.get((rec["client"], rec["kind"])) is not rec:
             continue
@@ -530,6 +551,19 @@ def _roster():
     return {cid: name for cid, name, _mmsm, _progs in active}
 
 
+def _roster_stopped():
+    """Client ids clients.md marks as stopped (ended, cancelled, no active program).
+
+    None when clients.md cannot be read, which keeps the copy on the roster rule — and
+    an unreadable roster is an empty one, so nothing is copied rather than everything.
+    """
+    try:
+        _active, skipped = read_roster()
+    except BaseException:
+        return None
+    return {cid for cid, _name, _why in skipped}
+
+
 def _fmt_size(n):
     if n is None:
         return "?"
@@ -547,6 +581,8 @@ def _line(rec, roster):
     who = rec["client"] or "—"
     name = roster.get(rec["client"], "")
     tag = " (%s)" % name if name else ""
+    if rec["kind"] == ODDD and rec.get("csm"):
+        tag += " · %s's folder" % rec["csm"]
     held = rec.get("local", "")
     local_s = "" if not held else "  · Inputs: " + held
     return "- **%s** %s%s — `%s`  %s, landed %s%s" % (
@@ -578,12 +614,18 @@ def render(result, roster):
     r = result
     head = ["# Source check — %s" % r["checked"],
             "",
-            "Periods: %s  ·  ODDD: `%s`  ·  Reports: `%s`" % (
-                ", ".join(r["periods"]), SRC_ODDD, SRC_REPORTS)]
+            "Periods: %s  ·  ODD folders: %s  ·  Reports: `%s`" % (
+                ", ".join(r["periods"]),
+                ", ".join("%s `%s`" % (c, p) for c, p in DS.odd_roots(SRC_ODDD)),
+                SRC_REPORTS)]
     if not r["reachable"]:
+        down = ["%s's ODD folder" % c for c, p in DS.odd_roots(SRC_ODDD) if not DS._reachable(p)]
+        if not DS._reachable(SRC_REPORTS):
+            down.append("the client reports share")
         return "\n".join(head + [
             "", "**Shares not reachable (VPN?).** Nothing checked; the saved "
-            "inventory from %s was left as it is." % (r.get("previous_checked") or "never")])
+            "inventory from %s was left as it is." % (r.get("previous_checked") or "never")]
+            + (["", "Not reachable: " + ", ".join(down) + "."] if down else []))
     if r["baseline"]:
         counts = {}
         for rec in r["inventory"].values():
@@ -778,8 +820,9 @@ def main(argv=None):
     ap.add_argument("--no-inputs", action="store_true",
                     help="skip the Inputs-copy comparison")
     ap.add_argument("--copy", action="store_true",
-                    help="copy roster clients' files that Inputs/ lacks into it "
-                         "(copy-only; the ODD extract only from the newest month)")
+                    help="copy what Inputs/ lacks into it: ODD extracts, DCOs and "
+                         "workbooks for every client on the shares except stopped ones "
+                         "(copy-only; newest month only)")
     ap.add_argument("--prune", action="store_true",
                     help="delete inputs that a newer period / weekly of the same "
                          "client and kind supersedes (the newest is always kept)")
@@ -801,7 +844,8 @@ def main(argv=None):
     result = check(periods, previous, use_drive=not a.no_inputs)
     roster = _roster()
     if a.copy and result["reachable"] and not a.no_inputs:
-        plan = copy_plan(result["inventory"], set(roster), _inputs_dir())
+        plan = copy_plan(result["inventory"], set(roster), _inputs_dir(),
+                         stopped=_roster_stopped())
         if a.dry_run:
             result["copy_plan"] = plan
         else:

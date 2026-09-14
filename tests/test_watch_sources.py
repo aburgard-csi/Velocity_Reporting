@@ -481,3 +481,93 @@ def test_share_results_are_saved_before_the_mail_step(shares, tmp_path, monkeypa
     assert order == [("mail", True, True)]
     report = (ba / W.REPORT_NAME).read_text(encoding="utf-8")
     assert report.index("# Source check") < report.index("TIMED OUT")
+
+
+# ------------------------------------------------------------------ every CSM's ODD folder
+# ODD extracts land in each CSM's own folder, and each CSM names the month folder
+# differently (Aaron, 2026-09-14). The copy pulls from all five.
+@pytest.mark.parametrize("folder,period", [
+    ("2026.09 Sep", "2026.09"),          # Aaron
+    ("2026.09", "2026.09"),              # James
+    ("September, 2026", "2026.09"),      # Jordan, Gregg
+    ("090126", "2026.09"),               # Dan: the first of the month, MMDDYY
+    ("Archive", None), ("2025", None), ("i hate arizona", None), ("131326", None),
+])
+def test_every_csms_month_folder_naming_is_read(folder, period):
+    assert W.DS.odd_folder_period(folder) == period
+
+
+def test_odd_roots_parse_named_and_bare_entries(tmp_path):
+    spec = "Aaron Burgard=%s;Dan Wood=%s" % (tmp_path / "a", tmp_path / "d")
+    assert W.DS.odd_roots(spec) == [("Aaron Burgard", str(tmp_path / "a")),
+                                    ("Dan Wood", str(tmp_path / "d"))]
+    assert W.DS.odd_roots(str(tmp_path / "ODDD")) == [("ODDD", str(tmp_path / "ODDD"))]
+
+
+@pytest.fixture
+def csm_shares(tmp_path, monkeypatch):
+    roots = {"Aaron Burgard": tmp_path / "aaron", "Dan Wood": tmp_path / "dan",
+             "Jordan Berkowitz": tmp_path / "jordan"}
+    (roots["Aaron Burgard"] / "2026.09 Sep").mkdir(parents=True)
+    (roots["Dan Wood"] / "090126").mkdir(parents=True)
+    (roots["Dan Wood"] / "2025").mkdir(parents=True)
+    (roots["Jordan Berkowitz"] / "September, 2026").mkdir(parents=True)
+    reports = tmp_path / "reports"
+    (reports / "2026.09").mkdir(parents=True)
+    held = tmp_path / "local"
+    (held / "ODDD").mkdir(parents=True)
+    monkeypatch.setattr(W, "SRC_ODDD", ";".join("%s=%s" % (c, p) for c, p in roots.items()))
+    monkeypatch.setattr(W, "SRC_REPORTS", str(reports))
+    monkeypatch.setattr(W, "_inputs_dir", lambda: str(held))
+    return roots, held
+
+
+def test_scan_reads_every_csm_folder_and_tags_it(csm_shares):
+    roots, _ = csm_shares
+    _land(roots["Aaron Burgard"], "2026.09 Sep", "1038_ODDD.zip")
+    _land(roots["Dan Wood"], "090126", "1100_ODDD.zip")
+    _land(roots["Dan Wood"], "2025", "1100_ODDD.zip")                  # a year folder, not a month
+    _land(roots["Jordan Berkowitz"], "September, 2026", "1121_ODDD.zip")
+    r = W.check(["2026.09"], previous=None)
+    got = sorted((rec["client"], rec["csm"], rec["period"]) for rec in r["inventory"].values())
+    assert got == [("1038", "Aaron Burgard", "2026.09"), ("1100", "Dan Wood", "2026.09"),
+                   ("1121", "Jordan Berkowitz", "2026.09")]
+
+
+def test_one_unreachable_csm_folder_counts_as_off_vpn(csm_shares, monkeypatch, tmp_path):
+    """Otherwise every extract in that CSM's folder would be reported as gone."""
+    monkeypatch.setattr(W, "SRC_ODDD", W.SRC_ODDD + ";Gregg Miller=%s" % (tmp_path / "missing"))
+    assert W.reachable() is False
+    assert "Gregg Miller's ODD folder" in W.render(W.check(["2026.09"], previous=None), {})
+
+
+def test_copy_plan_takes_every_clients_files_except_stopped_ones(tmp_path):
+    """All five CSMs' books (Aaron, 2026-09-14): extracts, DCOs and workbooks alike."""
+    inv = _inv(
+        _rec(W.ODDD, "1100", "2026.09", "not copied"),      # another CSM's client
+        _rec(W.DCO, "1100", "2026.09", "not copied"),       # ...and that client's DCO
+        _rec(W.WORKBOOK, "1156", "2026.09", "not copied"),  # another CSM's workbook
+        _rec(W.ODDD, "1437", "2026.09", "not copied"),      # landed, but clients.md says ended
+        _rec(W.DCO, "1437", "2026.09", "not copied"),
+        _rec(W.ODDD, "1038", "2026.09", "not copied"),
+    )
+    plan = W.copy_plan(inv, {"1038"}, str(tmp_path), stopped={"1437"})
+    assert sorted((r["client"], r["kind"]) for r, _ in plan) == [
+        ("1038", W.ODDD), ("1100", W.DCO), ("1100", W.ODDD), ("1156", W.WORKBOOK)]
+    # Without the stopped set (clients.md unreadable) only the roster is copied.
+    assert [r["client"] for r, _ in W.copy_plan(inv, {"1038"}, str(tmp_path))] == ["1038"]
+
+
+def test_same_month_in_two_csm_folders_takes_the_newer_write(tmp_path):
+    older = dict(_rec(W.ODDD, "1808", "2026.09", "not copied", path="james"), mtime=100.0)
+    newer = dict(_rec(W.ODDD, "1808", "2026.09", "not copied", path="jordan"), mtime=200.0)
+    plan = W.copy_plan({"james": older, "jordan": newer}, set(), str(tmp_path), stopped=set())
+    assert [r["path"] for r, _ in plan] == ["jordan"]
+
+
+def test_the_status_check_finds_an_extract_in_any_csm_folder(csm_shares):
+    roots, _ = csm_shares
+    _land(roots["Dan Wood"], "090126", "1100_ODDD.zip")
+    path, csm = W.DS.find_source_odd("1100", "2026.09", W.SRC_ODDD)
+    assert csm == "Dan Wood" and path.endswith("1100_ODDD.zip")
+    assert W.DS.find_source_odd("9999", "2026.09", W.SRC_ODDD) == (None, None)

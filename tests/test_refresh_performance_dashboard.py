@@ -222,6 +222,68 @@ def test_merge_sent_creates_the_log_when_there_is_none(tmp_path):
     assert json.loads((tmp_path / "deliveries.json").read_text())["sent"]["1204|2026.09"]
 
 
+# ------------------------------------------------------------------ undo from the page
+# Clicking a sent date on the page (and confirming) writes an undo row naming the date it
+# cancels (Aaron, 2026-09-14). It may only remove THAT date: an undo recorded before the
+# send was re-recorded must not erase the newer one.
+_LOGGED = {"1204|2026.09": {"client_id": "1204", "period": "2026.09",
+                            "sent_at": "2026-09-11", "note": "", "by": "aaron.burgard"}}
+
+
+def test_an_undo_removes_the_send_it_names(tmp_path):
+    ba = _log(tmp_path, dict(_LOGGED))
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09",
+                              "unsent": True, "undo_of": "2026-09-11"}])
+    assert P.merge_sent(src, ba) == 1
+    assert "1204|2026.09" not in json.loads((ba / "deliveries.json").read_text())["sent"]
+
+
+def test_a_stale_undo_never_erases_a_newer_send(tmp_path):
+    ba = _log(tmp_path, dict(_LOGGED))
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09",
+                              "unsent": True, "undo_of": "2026-09-02"}])
+    assert P.merge_sent(src, ba) == 0
+    assert json.loads((ba / "deliveries.json").read_text())["sent"]["1204|2026.09"]["sent_at"] == "2026-09-11"
+
+
+def test_an_undo_of_something_never_logged_changes_nothing(tmp_path):
+    """A send recorded on the page and undone before any refresh leaves the log empty."""
+    ba = _log(tmp_path, {})
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09",
+                              "unsent": True, "undo_of": "2026-09-14"}])
+    assert P.merge_sent(src, ba) == 0
+    assert json.loads((ba / "deliveries.json").read_text())["sent"] == {}
+
+
+def test_marking_again_after_an_undo_replaces_the_logged_date(tmp_path):
+    """Undo then Mark sent overwrites the undo row with a send naming the date it replaces."""
+    ba = _log(tmp_path, dict(_LOGGED))
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09",
+                              "sent_at": "2026-09-14", "undo_of": "2026-09-11", "by": "artifact page"}])
+    assert P.merge_sent(src, ba) == 1
+    row = json.loads((ba / "deliveries.json").read_text())["sent"]["1204|2026.09"]
+    assert row["sent_at"] == "2026-09-14" and row["by"] == "artifact page"
+
+
+def test_a_replacement_naming_another_date_is_stale(tmp_path):
+    ba = _log(tmp_path, dict(_LOGGED))
+    src = _export(tmp_path, [{"client_id": "1204", "period": "2026.09",
+                              "sent_at": "2026-09-14", "undo_of": "2026-09-02"}])
+    assert P.merge_sent(src, ba) == 0
+    assert json.loads((ba / "deliveries.json").read_text())["sent"]["1204|2026.09"]["sent_at"] == "2026-09-11"
+
+
+@pytest.mark.parametrize("row", [
+    {"client_id": "1204", "period": "2026.09", "unsent": True},                          # no date named
+    {"client_id": "1204", "period": "2026.09", "unsent": True, "undo_of": "9/11/2026"},  # not ISO
+    {"client_id": "1204", "period": "2026.09", "unsent": "yes", "undo_of": "2026-09-11"},  # not a real flag
+])
+def test_a_malformed_undo_is_skipped(tmp_path, row):
+    ba = _log(tmp_path, dict(_LOGGED))
+    assert P.merge_sent(_export(tmp_path, [row]), ba) == 0
+    assert json.loads((ba / "deliveries.json").read_text())["sent"]["1204|2026.09"]["sent_at"] == "2026-09-11"
+
+
 # ------------------------------------------------------------------ the button
 def test_template_marks_sent_against_the_deck_period_not_the_cycle():
     """The log is keyed <client>|<deck period>; the button must use the same key,

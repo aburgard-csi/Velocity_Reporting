@@ -50,8 +50,18 @@ from build_month import read_roster, deck_tag                    # noqa: E402
 # it is re-copied from here or re-sent by email).
 # Overridable so a machine that mounts them differently needs no code edit — the
 # same rule as RPE_DATA_ROOT.
-SRC_ODDD = os.environ.get(
-    "RPE_SRC_ODDD", "\\\\PADMIS105\\Velocity_company\\Aburgard\\ODDD")
+#
+# ODD extracts land in EACH CSM's own folder (Aaron, 2026-09-14), so RPE_SRC_ODDD
+# holds all five as "CSM=path" entries separated by ";". A bare path (the old
+# single-folder form) still works and is labelled by its folder name.
+_DEFAULT_SRC_ODDD = ";".join([
+    "Aaron Burgard=\\\\PADMIS105\\Velocity_company\\Aburgard\\ODDD",
+    "Daniel Wood=\\\\PADMIS105\\Velocity_company\\Dan Wood\\OD Data Dumps",
+    "Gregg Miller=\\\\PADMIS105\\Velocity_company\\GMiller\\OD Data Dumps",
+    "James Gilmore=\\\\PADMIS105\\Velocity_company\\JamesG\\OD Data Dumps",
+    "Jordan Berkowitz=\\\\PADMIS105\\Velocity_company\\JBerkowitz\\OD Data Dumps",
+])
+SRC_ODDD = os.environ.get("RPE_SRC_ODDD", _DEFAULT_SRC_ODDD)
 SRC_REPORTS = os.environ.get(
     "RPE_SRC_REPORTS", "\\\\PADMIS105\\Velocity_clientreports")
 
@@ -77,10 +87,77 @@ def _reachable(path):
         return False
 
 
-def _oddd_month_dir(period):
-    """`<share>/2026.08 Aug` — the folder carries the month name after the tag."""
-    hits = sorted(glob.glob(os.path.join(SRC_ODDD, period + "*")))
-    return hits[0] if hits else None
+def odd_roots(spec=None):
+    """[(csm, folder)] from an RPE_SRC_ODDD value ("CSM=path;CSM=path" or a bare path)."""
+    out = []
+    for part in (SRC_ODDD if spec is None else spec).split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        name, sep, path = part.partition("=")
+        if not sep:
+            name, path = os.path.basename(part.rstrip("\\/")) or part, part
+        out.append((name.strip(), path.strip()))
+    return out
+
+
+def odd_folder_period(name):
+    """'YYYY.MM' for an ODD month folder, or None for anything else ('Archive', '2025').
+
+    Every CSM names these differently (2026-09-14): Aaron '2026.09 Sep', James
+    '2026.09', Jordan and Gregg 'September, 2026', Dan '090126' (the first of the
+    month, MMDDYY). A folder that fits none of them is not a month and is not read.
+    """
+    n = name.strip()
+    m = re.fullmatch(r"(\d{4})\.(\d{2})(?:\s+[A-Za-z]{3})?", n)
+    if m:
+        return "%s.%s" % m.groups()
+    for rx, fmt in ((r"[A-Za-z]+, \d{4}", "%B, %Y"), (r"\d{6}", "%m%d%y")):
+        if re.fullmatch(rx, n):
+            try:
+                return _dt.datetime.strptime(n, fmt).strftime("%Y.%m")
+            except ValueError:
+                return None
+    return None
+
+
+def odd_reachable(spec=None):
+    """Every CSM's ODD folder is reachable. One unreachable folder counts as off VPN:
+    otherwise that CSM's extracts would read as missing, or as gone from the share."""
+    roots = odd_roots(spec)
+    return bool(roots) and all(_reachable(p) for _, p in roots)
+
+
+def _oddd_month_dirs(period, spec=None):
+    """[(csm, folder)]: every CSM's month folder for `period`."""
+    out = []
+    for csm, root in odd_roots(spec):
+        try:
+            names = os.listdir(root)
+        except OSError:
+            continue
+        for d in sorted(names):
+            p = os.path.join(root, d)
+            if odd_folder_period(d) == period and os.path.isdir(p):
+                out.append((csm, p))
+    return out
+
+
+def find_source_odd(cid, period, spec=None):
+    """(path, csm) of the client's `period` extract in whichever CSM folder holds it.
+
+    A client normally sits in one CSM's folder. If two hold the same month (a
+    handover), the most recent write wins — the same choice the copy makes.
+    """
+    hits = []
+    for csm, month in _oddd_month_dirs(period, spec):
+        p = os.path.join(month, cid + "_ODDD.zip")
+        if os.path.exists(p):
+            hits.append((os.path.getmtime(p), p, csm))
+    if not hits:
+        return None, None
+    _, p, csm = max(hits)
+    return p, csm
 
 
 def _source_reports(period):
@@ -199,11 +276,10 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
         if not src_up:
             src_odd = _stat(UNKNOWN, "VPN not connected", "source")
         else:
-            month = _oddd_month_dir(period)
-            cand = os.path.join(month, cid + "_ODDD.zip") if month else None
-            if cand and os.path.exists(cand):
-                src_file = cand
-                src_odd = _stat(PRESENT, _mtime(cand), "source")
+            # Whichever CSM's folder holds it (Aaron, 2026-09-14).
+            src_file, _csm = find_source_odd(cid, period)
+            if src_file:
+                src_odd = _stat(PRESENT, _mtime(src_file), "source")
             else:
                 src_odd = _stat(MISSING, "not landed", "source")
 
@@ -346,7 +422,7 @@ def collect(period, use_source=True):
     oddd_dir = I / "ODDD"
     outputs_dir = str(R.outputs())
 
-    src_up = bool(use_source) and _reachable(SRC_REPORTS) and _reachable(SRC_ODDD)
+    src_up = bool(use_source) and _reachable(SRC_REPORTS) and odd_reachable()
     src_files = _source_reports(period) if src_up else []
     sent = read_deliveries()["sent"]
 

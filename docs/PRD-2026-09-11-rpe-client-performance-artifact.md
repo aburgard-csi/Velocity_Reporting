@@ -62,11 +62,15 @@ figure.
 - **Not a replacement for the delivery dashboard.** `Build Artifacts/deliveries.json`
   stays the record of what was sent. This page's Mark sent button writes a row to the
   artifact's own store, and the refresh's `--merge-sent` folds those rows into
-  `deliveries.json`, where an existing entry always wins. *(Corrected 2026-09-14: this
-  used to say the page never writes sent-state, which stopped being true when Mark sent
-  merged to main.)*
+  `deliveries.json`, where an existing entry wins over any plain row. *(Corrected
+  2026-09-14: this used to say the page never writes sent-state, which stopped being true
+  when Mark sent merged to main.)* The one exception is an undo (2026-09-14): clicking a
+  sent date and confirming writes a row naming the date it cancels, and marking sent again
+  afterwards writes a send naming the date it replaces. `--merge-sent` removes or replaces
+  the entry only while `deliveries.json` still holds exactly that date, so a stale row
+  can never erase a newer send.
 - **Not self-publishing.** See Constraints.
-- No editing and no data entry beyond Mark sent.
+- No editing and no data entry beyond Mark sent and its confirmed undo.
 
 ## Constraints
 

@@ -264,8 +264,14 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 These are stated as open questions, not assumptions.
 
-1. **Client logos** exist for 1075, 1509, 1537, 1539, 1549, 1676 only. Every other client
-   builds its Agenda slide without one — see CLAUDE.md **File locations**.
+1. **Client logos** (updated 2026-09-14). `Inputs/Logos/` (and the copy on
+   `\\PADMIS105\Velocity_company\CSM_Reporting\Inputs\Logos\`) covers 74 of the 81 current
+   clients across all CSMs — current clients only, per Aaron. **Deferred for now (Aaron,
+   2026-09-14):** 1038 Sugar River, 1192 Ascend and 1487 orsa (white-only — need the
+   brand-kit file); 1195 KEMBA CU and 1799 Central Bank (several institutions share the
+   name — which one?); 1403 Adirondack (→ Arrow Bank) and 1795 Premier Members
+   (→ Meritrust) need a brand call after a merger. A client without a file still builds,
+   just without a logo — see CLAUDE.md **File locations**.
 
 2. **Obsidian disagrees with this file on three clients' program membership.** In every
    case this file is the one that shipped decks, so it is left as-is pending Aaron:

@@ -533,13 +533,21 @@ def merge_sent(src, ba):
     """Fold sends recorded on the artifact page into deliveries.json.
 
     The page cannot write to this machine, so a click there parks a row in the
-    artifact's own store and this is where the row becomes the record. Two rules
+    artifact's own store and this is where the row becomes the record. Three rules
     keep one ledger rather than two:
 
-      * deliveries.json WINS. An entry already there is never rewritten, so a
-        date corrected by hand survives a stale page row.
+      * deliveries.json WINS by default. An entry already there is never rewritten
+        by a plain page row, so a date corrected by hand survives a stale one.
+      * ...unless the row names the date it supersedes (Aaron, 2026-09-14: undo a
+        recorded send from the page). An undo row ({"unsent": true, "undo_of":
+        "<date>"}) removes the entry, and a send row carrying "undo_of" replaces it
+        — but ONLY while the log still holds exactly that date. A row naming a
+        different date is stale (the send was re-recorded since) and is reported and
+        left alone, so an old undo can never erase a newer send.
       * A malformed row is reported and skipped, never repaired by guessing —
         a wrong sent date is the failure that lets a client go unsent.
+
+    Returns the number of entries changed (added + replaced + undone).
     """
     dpath = ba / "deliveries.json"
     try:
@@ -553,29 +561,61 @@ def merge_sent(src, ba):
     if not isinstance(sent, dict):
         raise SystemExit("deliveries.json 'sent' is not an object; not merging over it")
 
-    added, already, bad = 0, 0, 0
+    added = replaced = undone = already = stale = bad = 0
     for r in _sent_rows(src):
-        cid, period, at = (str(r.get(k) or "").strip() for k in ("client_id", "period", "sent_at"))
-        if not (re.fullmatch(r"\d{3,5}", cid) and re.fullmatch(r"\d{4}\.\d{2}", period)
-                and _SENT_DATE_RX.fullmatch(at)):
-            print("  skip malformed row: client_id=%r period=%r sent_at=%r" % (cid, period, at))
+        cid, period, at, undo_of = (str(r.get(k) or "").strip()
+                                    for k in ("client_id", "period", "sent_at", "undo_of"))
+        unsent = r.get("unsent") is True
+        ok = re.fullmatch(r"\d{3,5}", cid) and re.fullmatch(r"\d{4}\.\d{2}", period)
+        ok = ok and (_SENT_DATE_RX.fullmatch(undo_of) if unsent else _SENT_DATE_RX.fullmatch(at))
+        ok = ok and (not undo_of or _SENT_DATE_RX.fullmatch(undo_of))
+        if not ok:
+            print("  skip malformed row: client_id=%r period=%r sent_at=%r undo_of=%r unsent=%r"
+                  % (cid, period, at, undo_of, r.get("unsent")))
             bad += 1
             continue
         key = "%s|%s" % (cid, period)
-        if key in sent:
-            already += 1
+        cur = sent.get(key)
+        cur_at = str(cur.get("sent_at") or "") if isinstance(cur, dict) else None
+
+        if unsent:
+            if cur is None:
+                already += 1                       # nothing recorded: the undo is already true
+            elif cur_at == undo_of:
+                del sent[key]
+                undone += 1
+                print("  - %s undone (was sent %s)" % (key, undo_of))
+            else:
+                stale += 1
+                print("  ! %s: the page undid %s but the log records %s - kept" % (key, undo_of, cur_at))
+            continue
+
+        if cur is not None:
+            if undo_of and cur_at == undo_of and at != cur_at:
+                sent[key] = {"client_id": cid, "period": period, "sent_at": at,
+                             "note": str(r.get("note") or ""), "by": str(r.get("by") or "artifact page")}
+                replaced += 1
+                print("  ~ %s sent %s (replaces %s)" % (key, at, undo_of))
+            elif undo_of and cur_at != undo_of:
+                stale += 1
+                print("  ! %s: the page replaced %s but the log records %s - kept" % (key, undo_of, cur_at))
+            else:
+                already += 1
             continue
         sent[key] = {"client_id": cid, "period": period, "sent_at": at,
                      "note": str(r.get("note") or ""), "by": str(r.get("by") or "artifact page")}
         added += 1
         print("  + %s sent %s" % (key, at))
-    if added:
+
+    changed = added + replaced + undone
+    if changed:
         log["updated"] = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
         tmp = dpath.with_suffix(".json.part")
         tmp.write_text(json.dumps(log, indent=1) + "\n", encoding="utf-8")
         tmp.replace(dpath)
-    print("merge-sent: %d added, %d already recorded, %d skipped" % (added, already, bad))
-    return added
+    print("merge-sent: %d added, %d replaced, %d undone, %d already as recorded, %d stale, %d skipped"
+          % (added, replaced, undone, already, stale, bad))
+    return changed
 
 
 def vip_pull_date(program):

@@ -3,8 +3,9 @@
 Two things differ between Aaron's Mac and the CSI Windows machine, and both
 have failed silently before:
 
-  * The pipeline data root. It differs per machine — this one keeps it at
-    C:\\Data Pipelines\\RPE Pipeline — and cannot be hardcoded.
+  * The pipeline data root. It is set in .env — the CSI share folder
+    \\\\PADMIS105\\Velocity_company\\CSM_Reporting since 2026-09-14 — and cannot be
+    hardcoded.
 
   * Font availability. matplotlib SUBSTITUTES a missing font family rather than
     raising, so a chart renders in the wrong face and nothing tells you. The
@@ -72,8 +73,8 @@ def data_root() -> Path:
         raise SystemExit(
             "RPE_DATA_ROOT is not set.\n"
             f"  Copy {REPO_ROOT / '.env.example'} to {REPO_ROOT / '.env'} and\n"
-            "  set it to your machine's path, e.g.\n"
-            "    C:\\Data Pipelines\\RPE Pipeline"
+            "  set it to the pipeline root, e.g.\n"
+            "    \\\\PADMIS105\\Velocity_company\\CSM_Reporting"
         )
 
     root = Path(raw).expanduser()

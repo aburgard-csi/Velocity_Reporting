@@ -123,9 +123,10 @@ button.tag{cursor:pointer;font-family:Montserrat,sans-serif;font-size:10px;font-
 button.tag:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 button.tag:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 button.tag[disabled]{cursor:default;background:var(--tile);color:var(--ink3);border-color:var(--hair)}
-button.undo{background:none;border:none;color:var(--ink3);font:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer;padding:2px 4px;margin-left:6px}
-button.undo:hover{color:var(--ink)}
-button.undo:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+/* a recorded send is a button too: one click arms "Undo send?", a second confirms */
+button.tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
+button.tag.good:hover{background:var(--good);color:var(--accent-ink);border-color:var(--good)}
+button.tag.confirm,button.tag.confirm:hover{background:var(--bad);color:var(--accent-ink);border-color:var(--bad)}
 #note{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;background:var(--head);color:var(--bg);font-size:13px;line-height:1.4;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.28);max-width:min(520px,88vw);opacity:0;pointer-events:none;transition:opacity .15s}
 #note.on{opacity:1}
 .spark{display:block;width:120px;height:32px}
@@ -234,16 +235,32 @@ const clients = DATA.clients;
 // those rows into deliveries.json, so the page never becomes a second ledger.
 // Sent is keyed on the DECK's period, not the cycle's - the same key the log uses.
 let DB = null;            // db namespace once it resolves; null = this view cannot write
-let MARKS = new Map();    // docId -> row recorded from the page
+let MARKS = new Map();    // docId -> row recorded from the page (a send, or an undo)
 const BUSY = new Set();   // docId mid-write
+let ARMED = null;         // docId whose sent date was clicked once and awaits the confirming click
+let armTimer = null;
+const ARM_MS = 5000;
 
 function today(){ const d=new Date(), p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 const sentDoc = c => c.deck_period ? `${c.id}-${c.deck_period}` : null;
+// A page row that names the logged date it supersedes ("undo_of") overrides that date:
+// an undo row clears it, a send row replaces it. A row naming any OTHER date is stale
+// and the log stands - the refresh applies exactly the same rule to deliveries.json.
 function sentState(c){
-  if (c.sent) return {date:c.sent, src:"log"};
-  const k = sentDoc(c), m = k && MARKS.get(k);
-  return (m && m.sent_at) ? {date:String(m.sent_at), src:"page"} : null;
+  const k = sentDoc(c), m = (k && MARKS.get(k)) || null;
+  const supersedes = !!(m && c.sent && m.undo_of != null && String(m.undo_of) === String(c.sent));
+  if (c.sent && !supersedes) return {date:String(c.sent), src:"log"};
+  if (m && !m.unsent && m.sent_at) return {date:String(m.sent_at), src:"page"};
+  return null;
+}
+function disarm(){
+  clearTimeout(armTimer); armTimer = null;
+  if (ARMED !== null){ ARMED = null; update(); }
+}
+function refocus(attr, id){
+  const el = [...document.querySelectorAll(`[${attr}]`)].find(b => b.getAttribute(attr) === id);
+  if (el) el.focus();
 }
 
 let noteTimer = null;
@@ -267,38 +284,67 @@ function whyFailed(err){
 
 function sentCell(c){
   const s = sentState(c), k = sentDoc(c);
-  if (s) return `<span class="tag good">sent ${esc(s.date)}</span>` +
-    (s.src==="page" && DB && !BUSY.has(k)
-      ? `<button class="undo" data-undo="${esc(k)}" title="Remove this record">undo</button>` : "");
-  if (k && BUSY.has(k)) return `<button class="tag" disabled>recording\u2026</button>`;
+  if (k && BUSY.has(k)) return `<button class="tag" disabled>saving\u2026</button>`;
+  if (s){
+    if (!DB) return `<span class="tag good">sent ${esc(s.date)}</span>`;
+    if (ARMED === k) return `<button class="tag confirm" data-unsend="${esc(k)}" ` +
+      `title="Click again to remove the ${esc(s.date)} send record. Click anywhere else or press Esc to keep it.">Undo send?</button>`;
+    return `<button class="tag good" data-unsend="${esc(k)}" ` +
+      `title="Sent ${esc(s.date)} \u2014 click to undo">sent ${esc(s.date)}</button>`;
+  }
   if (!c.decks.length) return `<span class="tag" title="no deck has been built for this client yet">not recorded</span>`;
   if (!DB) return `<span class="tag">not recorded</span>`;
   return `<button class="tag" data-mark="${esc(k)}" title="Not recorded \u2014 click to record this deck as sent today">Mark sent</button>`;
 }
 
+document.addEventListener("keydown", e => { if (e.key === "Escape" && ARMED !== null) disarm(); });
+
 document.addEventListener("click", async e => {
-  const el = e.target.closest("[data-mark],[data-undo]");
-  if (!el || !DB) return;
-  const id = el.dataset.mark || el.dataset.undo, marking = !!el.dataset.mark;
+  const el = e.target.closest("[data-mark],[data-unsend]");
+  if (!el){ if (ARMED !== null) disarm(); return; }
+  if (!DB) return;
+  const id = el.dataset.mark || el.dataset.unsend, marking = !!el.dataset.mark;
   const c = clients.find(x => sentDoc(x) === id);
   if (!c || BUSY.has(id)) return;
+
+  // Undo takes two clicks. The first only arms the button - nothing is written - and it
+  // disarms on its own after ARM_MS, on Esc, or on a click anywhere else.
+  if (!marking && ARMED !== id){
+    clearTimeout(armTimer);
+    ARMED = id; update(); refocus("data-unsend", id);
+    armTimer = setTimeout(disarm, ARM_MS);
+    return;
+  }
+  const s = sentState(c);
+  clearTimeout(armTimer); armTimer = null; ARMED = null;
   BUSY.add(id); update();
+  const stamp = {client_id:c.id, period:c.deck_period, deck:c.decks[0] || "",
+                 by:"artifact page", recorded_at:new Date().toISOString()};
   try {
+    let row;
     if (marking){
-      const row = {client_id:c.id, period:c.deck_period, sent_at:today(),
-                   deck:c.decks[0] || "", by:"artifact page",
-                   recorded_at:new Date().toISOString()};
+      row = Object.assign({sent_at:today()}, stamp);
+      // Marking over a logged date that was undone: name that date, so the refresh
+      // replaces it rather than keeping the old one because an entry already exists.
+      if (c.sent) row.undo_of = String(c.sent);
       await DB.doc("deliveries/"+id).set(row);
-      MARKS.set(id, row);
       note(`${c.name} recorded as sent ${row.sent_at}.`);
     } else {
-      await DB.doc("deliveries/"+id).delete();
-      MARKS.delete(id);
-      note(`${c.name} is back to not recorded.`);
+      // An undo is a row, not a deletion: the send may already be in deliveries.json,
+      // which only the refresh can change. It names the date it cancels - the logged date
+      // when there is one - so it can never remove a send recorded after it.
+      const was = String(c.sent || (s && s.date) || "");
+      row = Object.assign({unsent:true, undo_of:was}, stamp);
+      await DB.doc("deliveries/"+id).set(row);
+      note(`${c.name}: the ${was} send record is removed.`);
     }
+    MARKS.set(id, row);
   } catch (err) {
     note(`${marking ? "Could not record" : "Could not undo"} ${c.name}. ${whyFailed(err)}`);
-  } finally { BUSY.delete(id); update(); }
+  } finally {
+    BUSY.delete(id); update();
+    refocus(marking ? "data-unsend" : "data-mark", id);
+  }
 });
 
 (async function initDb(){
@@ -794,6 +840,7 @@ document.getElementById("foot").innerHTML =
   `<li><b>CashPlease</b> \u2014 ${esc(DATA.sources.cp)}, with the all-client rollup as the peer row.</li>` +
   `<li><b>Build readiness</b> \u2014 clients.md for who gets a deck, Inputs/ for what has landed, Outputs/ and Build Artifacts/deliveries.json for built and sent. The CSI shares are not checked here, so readiness reflects what is on this machine.</li>` +
   `<li><b>Mark sent</b> \u2014 records the deck named in the Deck column as sent today, against that deck\u2019s period. It is kept with the page and folded into deliveries.json by the next morning\u2019s refresh, after which it reads as a plain sent date. A client with no built deck cannot be marked.</li>` +
+  `<li><b>Undo a send</b> \u2014 click a sent date: it turns into \u201cUndo send?\u201d, and a second click within five seconds removes the record (click anywhere else or press Esc to keep it). The next refresh takes the date out of deliveries.json, but only while it still holds that same date, so an older undo never erases a send recorded after it.</li>` +
   `</ul><p>Program to date is abbreviated PTD. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
 update();
 </script>

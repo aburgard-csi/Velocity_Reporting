@@ -46,7 +46,7 @@ def _odd_row(rows):
 
 def test_odd_absent_from_drive_is_missing(tmp_path, monkeypatch):
     reports, oddd = _dirs(tmp_path)
-    monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: None)
+    monkeypatch.setattr(DS, "_oddd_month_dirs", lambda p, spec=None: [])
     rows = DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True)
     assert _odd_row(rows)["local"]["state"] == DS.MISSING
 
@@ -56,7 +56,7 @@ def test_odd_on_drive_with_no_source_extract_is_stale(tmp_path, monkeypatch):
     has landed, so what Inputs/ holds is a previous month's."""
     reports, oddd = _dirs(tmp_path)
     (oddd / "1038_ODDD.zip").write_bytes(b"august")
-    monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: None)
+    monkeypatch.setattr(DS, "_oddd_month_dirs", lambda p, spec=None: [])
     row = _odd_row(DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True))
     assert row["local"]["state"] == DS.STALE
     assert "2026.09" in row["local"]["detail"]
@@ -72,7 +72,7 @@ def test_identical_copy_is_not_stale(tmp_path, monkeypatch):
     # Inputs/ reads ~1s OLDER than source, exactly as Google Inputs/ vs SMB does.
     s = os.path.getmtime(src / "1038_ODDD.zip")
     os.utime(held, (s - 1.0, s - 1.0))
-    monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: str(src))
+    monkeypatch.setattr(DS, "_oddd_month_dirs", lambda p, spec=None: [("Aaron Burgard", str(src))])
     row = _odd_row(DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True))
     assert row["local"]["state"] == DS.PRESENT, row["local"]
 
@@ -85,7 +85,7 @@ def test_genuinely_older_drive_copy_is_stale(tmp_path, monkeypatch):
     held.write_bytes(b"august")                      # different size AND older
     s = os.path.getmtime(src / "1038_ODDD.zip")
     os.utime(held, (s - 86400, s - 86400))
-    monkeypatch.setattr(DS, "_oddd_month_dir", lambda p: str(src))
+    monkeypatch.setattr(DS, "_oddd_month_dirs", lambda p, spec=None: [("Aaron Burgard", str(src))])
     row = _odd_row(DS.requirements("1038", ["ARS"], "2026.09", reports, oddd, [], True))
     assert row["local"]["state"] == DS.STALE
 
