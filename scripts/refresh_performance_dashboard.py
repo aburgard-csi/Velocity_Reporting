@@ -404,6 +404,75 @@ def complete_months(rows, generated, key="month"):
     return [r for r in rows if str(r.get(key, "")) < cutoff]
 
 
+def current_peer(packs, ids):
+    """The CashPlease peer row over CURRENT clients only (Aaron, 2026-09-14: "only show current
+    clients").
+
+    cp_extract's benchmark is the workbook's rollup tab: every CashPlease tab, and on 2026-09-14
+    51 of its 72 client tabs were not current clients. It stays the CashPlease decks' peer slide.
+    The page rebuilds its row from the current clients' own packs with cp_extract's formulas.
+    Summed over every tab, those reproduce the rollup (loans, average loan size and interest,
+    status shares; checked 2026-09-14). Charge-off % and the share of active accounts with loans
+    are values the workbook REPORTS, and no weighting of the per-client values reproduces the
+    rollup's, so they are None: stated as absent, never approximated. Cancelled programs and
+    tabs with no loans are left out, as cp_extract leaves them out of its own cohort rate.
+    """
+    rows = []
+    for cid in sorted(set(ids)):
+        f = Path(packs) / ("%s_cashplease.json" % cid)
+        if not f.exists():
+            continue
+        d = json.loads(f.read_text(encoding="utf-8"))
+        if d.get("cancelled") or not d["total"]["loans"]:
+            continue
+        rows.append(d)
+    if not rows:
+        return None
+    loans = sum(d["total"]["loans"] for d in rows)
+    principal = sum(d["total"]["principal"] for d in rows)
+    interest = sum(d["total"]["interest"] for d in rows)
+
+    def share(status):
+        return sum(d["status"][status]["loans"] for d in rows) / loans
+
+    inc = [d for d in rows if d["metrics"].get("peer_comparable")]
+    dda = sum(d["metrics"]["dda_accounts"] for d in inc)
+    win = sum(d["metrics"]["window_loans"] for d in inc)
+    return {
+        "cohort": "Current Velocity CashPlease clients", "cohort_clients": len(rows),
+        "total_loans": loans, "total_principal": principal,
+        "avg_loan_size": principal / loans, "avg_interest_per_loan": interest / loans,
+        "pct_loans_overdue": share("Overdue"), "pct_loans_charged_off": share("Charged Off"),
+        "pct_loans_paid_off": share("Paid Off"),
+        "charge_off_pct": None, "pct_active_accounts_with_loans": None,
+        "cohort_dda_clients": len(inc), "cohort_dda_accounts": dda, "cohort_window_loans": win,
+        "loans_per_1k_dda": (win / dda * 1000) if dda else None,
+    }
+
+
+def inactive_since(rows, generated, value, key="month", window=6):
+    """None when a program was active in the last `window` complete months, else its last
+    active "YYYY-MM" ("" when it never was).
+
+    The window is the `window` months before the report's own month: a weekly stamped
+    "9/13/2026" looks at Mar-Aug 2026. An unreadable stamp counts as active, so a program is
+    never hidden on a guess.
+    """
+    m = re.match(r"\s*(\d{1,2})/\d{1,2}/(\d{4})", str(generated or ""))
+    if not m:
+        return None
+    y, mo = int(m.group(2)), int(m.group(1)) - window
+    while mo <= 0:
+        mo += 12
+        y -= 1
+    report = "%s-%02d" % (m.group(2), int(m.group(1)))
+    cutoff = "%d-%02d" % (y, mo)
+    active = [str(r.get(key, "")) for r in rows if value(r) and str(r.get(key, "")) < report]
+    if any(a >= cutoff for a in active):
+        return None
+    return max(active) if active else ""
+
+
 def ics_section(cid, c):
     try:
         p = R.resolve_client_json(cid, "ics")
@@ -926,6 +995,27 @@ def build_dataset(period, work, log=print):
     overview = PO.client_overviews(sorted(clients), work / "odd", log=log)
     for cid, c in clients.items():
         c["overview"] = overview.get(cid)
+    # Only current programs (Aaron, 2026-09-14). A program INFERRED from data with no loans or
+    # enrollments in six complete months is dropped: 1487 Orsa's CashPlease last booked a loan
+    # in Sep 2025. A clients.md program stays, because that file decides, and is tagged.
+    for cid, c in clients.items():
+        for prog, key, rows, gen, val in (
+                ("CP", "cp", (c.get("cp") or {}).get("monthly"), (c.get("cp") or {}).get("report_generated"),
+                 lambda r: r.get("loans")),
+                ("MRPC", "mrpc", ((c.get("mrpc") or {}).get("weekly") or {}).get("monthly"),
+                 ((c.get("mrpc") or {}).get("weekly") or {}).get("report_generated"),
+                 lambda r: (r.get("platinum") or 0) + (r.get("gold") or 0) + (r.get("business") or 0))):
+            if prog not in c["programs"] or not rows:
+                continue
+            since = inactive_since(rows, gen, val)
+            if since is None:
+                continue
+            if c.get("programs_from") == "data":
+                c["programs"].remove(prog)
+                c.pop(key, None)
+                log("%s %s: %s dropped, no activity since %s" % (cid, c["name"], prog, since or "ever"))
+            else:
+                c[key]["inactive_since"] = since or "never"
 
     ics_pull, mrpc_pull = vip_pull_date("ICS"), vip_pull_date("MRPC")
     return {
@@ -955,7 +1045,9 @@ def build_dataset(period, work, log=print):
                    "roster in clients.md, else the CSM on the client's CashPlease settings "
                    "record; a client nothing names is Unassigned",
         },
-        "cp_peer": peer,
+        # The peer row over current clients' own programs, not the workbook's every-tab rollup.
+        "cp_peer": current_peer(packs, [cid for cid, c in clients.items() if "CP" in c["programs"]])
+                   if packs else None,
         "odd_month": odd_data_month(period),
         # Every current client, including one with no program data this month (Aaron,
         # 2026-09-14): it is still a client, and the page lists it under all products.

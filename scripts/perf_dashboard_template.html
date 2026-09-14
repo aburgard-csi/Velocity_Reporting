@@ -743,7 +743,7 @@ function secMRPC(vis){
       const km = m.key_metrics||{}; const pog = m.pct_of_goal?.slice(-1)[0]; const pogm = m.goal_months?.slice(-1)[0];
       const tot = w.totals||{};
       return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span><span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span></td>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${m.inactive_since?` <span class="tag warn">${m.inactive_since==="never"?"no enrollments yet":"no enrollments since "+esc(monLabel(m.inactive_since))}</span>`:""}<span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span></td>
         <td>${N(w.active_cardholders)}<span class="sub">${N(w.all_cardholders)} ever enrolled</span></td>
         <td>${PCTf(w.take_rate_all)}</td><td>${PCTf(w.take_rate_active)}</td>
         <td>${N(t12)}</td><td>${N(last.platinum+last.gold+last.business)}<span class="sub">${monLabel(last.month)}</span></td>
@@ -770,14 +770,14 @@ function secCP(vis){
       const last = k.monthly[k.monthly.length-1]||{};
       const co = k.charge_off_pct;
       return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span><span class="sub">weekly as of ${esc((k.report_generated||"").split(" ")[0])}</span></td>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${k.inactive_since?` <span class="tag warn">${k.inactive_since==="never"?"no loans yet":"no loans since "+esc(monLabel(k.inactive_since))}</span>`:""}<span class="sub">weekly as of ${esc((k.report_generated||"").split(" ")[0])}</span></td>
         <td>${N(k.total_loans)}</td><td>${N(k.window_loans)}</td><td>${N(last.loans)}<span class="sub">${monLabel(last.month)}</span></td>
         <td class="l">${spark(k.monthly.map(r=>({label:monLabel(r.month), v:r.loans, note:USD(r.principal)+" principal"})),{c:p.c, aria:"loans per month"})}</td>
         <td>${N(k.active_loans)}</td><td>${USDk(k.active_principal)}</td><td>${USD(k.avg_loan_size)}</td><td>$${nf2.format(k.avg_interest_per_loan)}</td>
         <td><span style="color:${(peer&&co>peer.charge_off_pct*1.5)?'var(--bad)':'inherit'}">${PCTf(co,2)}</span></td><td>${PCTf(k.pct_overdue,2)}</td><td>${PCTf(k.pct_active_accounts_with_loans,2)}</td></tr>`;
     }).join("") +
     (peer
-      ? `<tr class="peer"><td class="l"><span class="cl">All Velocity CashPlease clients</span><span class="sub">${peer.cohort_tabs} programs in the workbook</span></td>
+      ? `<tr class="peer"><td class="l"><span class="cl">Current Velocity CashPlease clients</span><span class="sub">${peer.cohort_clients} current client${peer.cohort_clients===1?"":"s"}; charge-off and accounts with loans are not derivable per client</span></td>
       <td>${N(peer.total_loans)}</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(peer.avg_loan_size)}</td><td>$${nf2.format(peer.avg_interest_per_loan)}</td>
       <td>${PCTf(peer.charge_off_pct,2)}</td><td>${PCTf(peer.pct_loans_overdue,2)}</td><td>${PCTf(peer.pct_active_accounts_with_loans,2)}</td></tr>`
       : `<tr class="peer"><td class="l" colspan="12">The all-client peer comparison is not in this build \u2014 the CashPlease rollup was not read.</td></tr>`) +
@@ -1046,7 +1046,7 @@ document.getElementById("foot").innerHTML =
   `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook\u2019s period when that is older than the cycle.</li>` +
   `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client\u2019s newest Invitation Checking workbook, flagged when older than the period.</li>` +
   `<li><b>MRPC</b> \u2014 ${esc(DATA.sources.mrpc)}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +
-  `<li><b>CashPlease</b> \u2014 ${esc(DATA.sources.cp)}, with the all-client rollup as the peer row.</li>` +
+  `<li><b>CashPlease</b> \u2014 ${esc(DATA.sources.cp)}, with current clients' own programs as the peer row.</li>` +
   `<li><b>Build readiness</b> \u2014 clients.md for who gets a deck, Inputs/ for what has landed, Outputs/ and Build Artifacts/deliveries.json for built and sent. The CSI shares are not checked here, so readiness reflects what is on this machine.</li>` +
   `<li><b>Mark sent</b> \u2014 records the deck named in the Deck column as sent today, against that deck\u2019s period. It is kept with the page and folded into deliveries.json by the next morning\u2019s refresh, after which it reads as a plain sent date. A client with no built deck cannot be marked.</li>` +
   `<li><b>Undo a send</b> \u2014 click a sent date: it turns into \u201cUndo send?\u201d, and a second click within five seconds removes the record (click anywhere else or press Esc to keep it). The next refresh takes the date out of deliveries.json, but only while it still holds that same date, so an older undo never erases a send recorded after it.</li>` +

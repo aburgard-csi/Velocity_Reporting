@@ -17,6 +17,55 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the performance page's summaries cover current clients only
+
+**The CashPlease peer row is rebuilt over current clients** (Aaron: "For any of these summary
+sections, or the client's statistics, only show current clients"). It was
+`cp_extract`'s rollup of every tab in the weekly workbook, and on 2026-09-14 51 of those 72
+client tabs were not current clients.
+- **How it is built.** `refresh_performance_dashboard.current_peer` uses `cp_extract`'s
+  formulas on the current clients' own packs. Cancelled programs and tabs with no loans are
+  left out. Summed over every tab, those formulas reproduce the rollup's loans, average loan
+  size and interest, and status shares.
+- **What is left blank.** Charge-off % and the share of active accounts with loans are values
+  the workbook reports, and no weighting of the per-client values reproduces them (the
+  rollup's 6.26% against 4.72% principal-weighted, for example). The row shows them as absent,
+  not approximated.
+- **The decks are unchanged.** The CashPlease decks' own peer slide still uses the rollup.
+
+**A program with no activity in six complete months is no longer shown as current.**
+`inactive_since` looks at the six months before the weekly report's month: loans for
+CashPlease, enrollments for MRPC.
+- **Inferred from data.** The program is dropped and the refresh logs it. 1487 Orsa CU's
+  CashPlease last booked a loan in Sep 2025.
+- **Listed in `clients.md`.** The program stays, because that file decides, tagged "no loans
+  since …". 1770 Central State Bank's CashPlease last booked a loan in Dec 2025.
+
+### 2026-09-14 — the workflow page describes Outputs by CSM
+
+### 2026-09-14 — a malformed ODD row is skipped, and an empty base is named as a data issue
+
+Found in the all-client ARS trial builds.
+
+- **1147 Sutton died in `oddd_optimize`.** Three of its 28,930 ODD rows have one extra field,
+  from an unquoted comma in a text cell. pandas keeps a row like that and shifts its cells,
+  so "Customer Opt In" landed in `Sep23 OD Limit`. The fast (pyarrow) money path cast
+  strictly and died, while the pandas fallback had always treated such a cell as missing.
+  Both paths now agree: a non-numeric cell in a money or count column counts as missing, and
+  the pack's `flags.non_numeric_cells` records how many there were and in which columns, so
+  the defect is visible rather than silent. A well-formed extract gives identical figures.
+  (`index_col=False` was tried first and does not stop the shift, so it was reverted.)
+- **1226 Ellafi died dividing by zero** in the Reg E rate. Its Stat Desc is blank on every
+  row, and the status is only in Stat Code (ACTIVE / DORMANT / INACTIVE), so no account read
+  as open. **1121 Timberland died on an empty `mean()`**: its newer accounts carry numbers
+  (`1`, `39`) in Prod Desc, so no new checking account was found. Neither is fixed by
+  guessing. `metrics_gen` now stops with a `POSSIBLE DATA ISSUE` message that names the
+  missing base and what the extract carries instead. Mapping word-valued Stat Codes is
+  Aaron's call (CLAUDE.md: never guess a status mapping).
+
+`tests/test_odd_malformed.py` covers the flagged non-numeric cells, a clean extract flagging
+none, and both data-issue exits, all on the synthetic fixture.
+
 ### 2026-09-14 — Outputs is filed by CSM
 
 **Finished decks now go to `Outputs/<CSM>/`, not the flat `Outputs/`** (Aaron: "sort the

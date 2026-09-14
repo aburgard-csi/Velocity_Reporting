@@ -568,6 +568,48 @@ def test_built_decks_are_found_in_csm_folders_and_the_flat_folder(tmp_path, monk
     assert dp == "2026.08", "without the helper, only the flat folder is read"
 
 
+def _cp_pack(folder, cid, loans, principal, interest, status, cancelled=None, dda=None, window=0, comparable=False):
+    st = {k: {"loans": 0, "principal": 0.0, "interest": 0.0} for k in ("Overdue", "Charged Off", "Paid Off", "Funded")}
+    for k, n in status.items():
+        st[k]["loans"] = n
+    (folder / ("%s_cashplease.json" % cid)).write_text(json.dumps({
+        "client_id": cid, "cancelled": cancelled, "charge_off_pct": 0.05,
+        "total": {"loans": loans, "principal": principal, "interest": interest}, "status": st,
+        "metrics": {"peer_comparable": comparable, "dda_accounts": dda, "window_loans": window}}), encoding="utf-8")
+
+
+def test_the_cashplease_peer_row_covers_current_clients_only(tmp_path):
+    """Aaron, 2026-09-14: only show current clients. Reproducible figures are rebuilt from the
+    current clients' packs; reported-only ones are absent, never approximated."""
+    _cp_pack(tmp_path, "1131", 100, 50000.0, 5000.0, {"Overdue": 5, "Charged Off": 10, "Paid Off": 80},
+             dda=4000, window=40, comparable=True)
+    _cp_pack(tmp_path, "1750", 300, 150000.0, 9000.0, {"Overdue": 3, "Charged Off": 30, "Paid Off": 250})
+    _cp_pack(tmp_path, "1658", 999, 1.0, 1.0, {}, cancelled="2026-09-01")         # cancelled: out
+    _cp_pack(tmp_path, "9999", 5000, 1.0, 1.0, {})                                  # not current: out
+    peer = P.current_peer(tmp_path, ["1131", "1750", "1658"])
+    assert peer["cohort_clients"] == 2 and peer["total_loans"] == 400
+    assert peer["avg_loan_size"] == 500.0 and peer["avg_interest_per_loan"] == 35.0
+    assert peer["pct_loans_overdue"] == 8 / 400 and peer["pct_loans_charged_off"] == 40 / 400
+    assert peer["charge_off_pct"] is None and peer["pct_active_accounts_with_loans"] is None
+    assert peer["loans_per_1k_dda"] == 10.0 and peer["cohort_dda_clients"] == 1
+    assert P.current_peer(tmp_path, []) is None
+
+
+def test_a_program_is_inactive_with_no_activity_in_six_complete_months():
+    rows = [{"month": "2025-08", "loans": 4}, {"month": "2025-09", "loans": 2}, {"month": "2026-08", "loans": 0}]
+    assert P.inactive_since(rows, "9/13/2026 8:21:37 AM", lambda r: r["loans"]) == "2025-09"
+    rows.append({"month": "2026-03", "loans": 1})
+    assert P.inactive_since(rows, "9/13/2026 8:21:37 AM", lambda r: r["loans"]) is None, "Mar 2026 is inside the window"
+    assert P.inactive_since([{"month": "2026-09", "loans": 9}], "9/13/2026", lambda r: r["loans"]) == "",         "the month in progress does not count as activity"
+    assert P.inactive_since(rows[:2], "", lambda r: r["loans"]) is None, "an unreadable stamp never hides a program"
+
+
+def test_template_labels_the_current_peer_row_and_tags_inactive_programs():
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert "Current Velocity CashPlease clients" in t and "All Velocity CashPlease clients" not in t
+    assert "no loans since " in t and "no enrollments since " in t
+
+
 def test_template_declares_no_top_level_name_twice():
     """A repeated top-level `const`/`let` is a SyntaxError that blanks the whole page.
 

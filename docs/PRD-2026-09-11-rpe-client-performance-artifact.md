@@ -72,7 +72,10 @@ figure.
   Unassigned, never given a default CSM.
 - A provenance block naming the source of every figure on the page.
 - A last-updated stamp, carrying the time as well as the date.
-- CashPlease peer comparison from the all-client rollup.
+- CashPlease peer comparison over **current clients only** *(2026-09-14)*, rebuilt from their
+  own packs with `cp_extract`'s formulas. Charge-off % and the share of accounts with loans
+  cannot be derived that way and are shown as absent. A program inferred from data with no
+  activity in six complete months is not shown; a `clients.md` program is tagged instead.
 
 **Out**
 
