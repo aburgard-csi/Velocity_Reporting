@@ -45,3 +45,45 @@ def check(base, workbook):
     if uncalculated(base):
         raise SystemExit("UNEVALUATED WORKBOOK: " + message(workbook))
     return base
+
+
+# ---------------------------------------------------------------- Key Trends
+def _value(v):
+    """A number from a cell, or None — never a 0 standing in for a blank."""
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def key_trends(spend, accounts, non_card, months):
+    """(swipespend series, blank months) over `months`, oldest first.
+
+    Each series entry is (month, spend $M rounded to 2dp, card-holding accounts). A blank
+    cell stays None and its month is listed: a month with no figures is not a month of $0
+    spend and zero cardholders (2026-09-14). One definition for both ARS extractors — the
+    SM one crashed on a blank (1657) while the MM one silently charted it as $0.
+    """
+    series, blank = [], []
+    for m in months:
+        s, t, n = _value(spend.get(m)), _value(accounts.get(m)), _value(non_card.get(m))
+        card = round((t - (n or 0)) * 1000) if t is not None else None
+        series.append((m, round(s, 2) if s is not None else None, card))
+        if s is None or t is None:
+            blank.append(m)
+    return series, blank
+
+
+def data_issue(base, workbook):
+    """The POSSIBLE DATA ISSUE message for blank Key Trends months, or None.
+
+    Checked AFTER `check`: an unevaluated workbook is the likelier cause of blank months
+    and has its own, more specific message.
+    """
+    blank = base.get("key_trends_blank") or []
+    if not blank:
+        return None
+    tail = base.get("swipespend_36") or []
+    shown = ", ".join(blank[:6]) + (" …" if len(blank) > 6 else "")
+    return ("POSSIBLE DATA ISSUE: %s has no Key Trends spend or card-holding figures for "
+            "%d of its last %d month(s) (%s). Blank months are not zeros, so nothing was "
+            "extracted. Check the workbook with the data team — open it in Excel and save "
+            "if its formulas were never calculated — then rebuild."
+            % (workbook, len(blank), len(tail), shown))

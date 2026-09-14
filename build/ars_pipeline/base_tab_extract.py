@@ -17,6 +17,8 @@ workbook and the months — so a gap is called out, not charted as $0.
 Import-safe: the work happens in `main()`, so `extract()` can be tested directly.
 """
 import sys,json,datetime,os,openpyxl
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from base_guard import data_issue, key_trends   # one definition, shared with extract_base_gen
 def load(p): return openpyxl.load_workbook(p,read_only=True,data_only=True)
 def ml(v): return v.strftime("%b %Y") if isinstance(v,datetime.datetime) else v
 def rowvals(ws,r): return [ws.cell(r,c).value for c in range(1,ws.max_column+1)]
@@ -25,7 +27,6 @@ def find_row(ws,label,c=3,r1=8,r2=60):
         v=ws.cell(r,c).value
         if isinstance(v,str) and v.strip()==label: return r
     return None
-def _num(v): return v if isinstance(v,(int,float)) and not isinstance(v,bool) else None
 
 def extract(wb):
     out={}
@@ -66,17 +67,9 @@ def extract(wb):
     spend=kseries("Total Spend (millions)"); tot=kseries("Total Accounts (000)"); non=kseries("Non Card Holding Accounts (000)")
     mos=[ml(v) for v in khdr if isinstance(v,datetime.datetime)]
     tail=mos[-36:]
-    # A blank cell is None and stays None: a month with no figures is not a month
-    # of $0 spend and zero cardholders. The months are listed so main() can say so.
-    series=[]; blank=[]
-    for m in tail:
-        s=_num(spend.get(m)); t=_num(tot.get(m)); n=_num(non.get(m))
-        card=round((t-(n or 0))*1000) if t is not None else None
-        series.append((m,round(s,2) if s is not None else None,card))
-        if s is None or t is None:
-            blank.append(m)
-    out["swipespend_36"]=series
-    out["key_trends_blank"]=blank
+    # A blank cell stays None and its month is listed: a month with no figures is not a
+    # month of $0 spend and zero cardholders (base_guard.key_trends, shared with MM).
+    out["swipespend_36"], out["key_trends_blank"] = key_trends(spend, tot, non, tail)
     # Mail Response Summary (recent mailings): month, NU5+, threshold-met
     mr=wb["Mail Response Summary"]; rows=[]
     for r in range(9,mr.max_row+1):
@@ -85,20 +78,6 @@ def extract(wb):
             rows.append((ml(d), mr.cell(r,4).value, mr.cell(r,6).value))  # NU5+, ThresholdMet
     out["mailings_recent"]=list(reversed(rows[-12:]))   # rows are oldest-first; take newest 12
     return out
-
-
-def data_issue(res, workbook):
-    """The POSSIBLE DATA ISSUE message for blank Key Trends months, or None."""
-    blank=res.get("key_trends_blank") or []
-    if not blank:
-        return None
-    tail=res.get("swipespend_36") or []
-    shown=", ".join(blank[:6])+(" …" if len(blank)>6 else "")
-    return ("POSSIBLE DATA ISSUE: %s has no Key Trends spend or card-holding figures for "
-            "%d of its last %d month(s) (%s). Blank months are not zeros, so nothing was "
-            "extracted. Check the workbook with the data team — open it in Excel and save "
-            "if its formulas were never calculated — then rebuild."
-            % (workbook, len(blank), len(tail), shown))
 
 
 def main(argv=None):

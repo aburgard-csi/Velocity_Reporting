@@ -115,10 +115,15 @@ to `Build Artifacts/` or is cleaned up. `rpe_env.build_artifacts()` resolves tha
 creates it on demand; unlike `inputs()`/`outputs()` it never raises, because a build must not
 die for want of somewhere to put its bookkeeping.
 
-**Output — ONE destination (Aaron, 2026-07-25).** Every finished deck goes to `Outputs/`
-(flat; program is distinguished by the filename tag, not by subfolder). This replaced both
-the old **Client Presentations** drop and the per-client `Clients/<Client Name> <clientid>/`
-copy — do not deliver to client folders.
+**Output — ONE destination (Aaron, 2026-07-25), filed by CSM (Aaron, 2026-09-14).** Every
+finished deck goes to `Outputs/<CSM>/` — e.g. `Outputs/Aaron Burgard/` — now that the project
+covers all five CSMs' books. Program is still distinguished by the filename tag, not by
+subfolder. Writers resolve the folder with `rpe_env.client_outputs(id)` (the CSM from
+`<RPE_DATA_ROOT>/Client CSM List.csv`, else the CashPlease roster's CSM column, else
+`Outputs/_Unassigned/` — never a guessed CSM); readers use `rpe_env.output_decks(pattern)`,
+which searches every CSM folder and the flat root but never `Archive/`. `Outputs/Archive/`
+stays one folder per client. This replaced both the old **Client Presentations** drop and
+the per-client `Clients/<Client Name> <clientid>/` copy — do not deliver to client folders.
 
 **`C:\Data Pipelines\` also holds `Renewals Pipeline` — a DIFFERENT project.** It has its
 own `Inputs\` and `Outputs\` and is easy to mistake for this one at a glance. RPE is the
@@ -137,9 +142,10 @@ replaced or removed, ask Aaron. Confirm the writable target per session.
 
 ## Shared conventions (all programs)
 
-**Output — one destination.** Every finished deck is saved to the pipeline `Outputs\`
-folder only (see **File locations** above). Program is distinguished by the filename tag,
-not by subfolder. No per-client Delivery copies (Aaron, 2026-07-25).
+**Output — one destination.** Every finished deck is saved to the client's CSM folder in
+the pipeline `Outputs\` only — `Outputs\<CSM>\` (see **File locations** above). Program is
+distinguished by the filename tag, not by subfolder. No per-client Delivery copies (Aaron,
+2026-07-25).
 
 **Decks ship as `.pptx` only — do not generate a PDF** (Aaron, 2026-07-24). PDF is not part
 of the pipeline; do not add a LibreOffice/`soffice` conversion step or deliver a `.pdf`
@@ -505,7 +511,7 @@ endpoint and the delivery log is not public. `scripts/deck_status.py <period>
 | Who gets a deck | `clients.md`, via `build_month.read_roster` — the same parser the builder uses |
 | Has the data team landed it | every CSM's ODD folder (`deck_status.SRC_ODDD` — all five, each with its own month-folder naming; see **Daily source watch**) and `\\PADMIS105\Velocity_clientreports\<YYYY.MM>\<Account Manager>\` |
 | Can the build run | `Inputs/` — the copy the builders actually read |
-| Built | `Outputs/<id>-<period>-*.pptx` |
+| Built | `Outputs/<CSM>/<id>-<period>-*.pptx` (via `rpe_env.output_decks`) |
 | Sent | `Build Artifacts/deliveries.json` |
 
 Override the share paths with `RPE_SRC_ODDD` / `RPE_SRC_REPORTS`; they are never

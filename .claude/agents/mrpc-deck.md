@@ -127,7 +127,8 @@ slide → Card Portfolio). Re-run `setup_template.py` only if the base structure
    swapping enrollment, channel, retention, revenue and key-metric figures from the
    workbook + dashboards.
 3. Run `validation/validate_deck.py`; 0 FAIL to ship.
-4. Save to the pipeline **`Outputs/`** folder as
+4. Save to the client's CSM folder under the pipeline **`Outputs/`** —
+   `rpe_env.client_outputs(<clientid>, create=True)`, i.e. `Outputs/<CSM>/` — as
    `<clientid>-<yyyy.mm>-MRPC-<Name> MRPC Results.pptx`.
    **Do not deliver to Client Presentations or to a per-client folder** — that drop was
    retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").

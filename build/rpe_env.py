@@ -95,6 +95,82 @@ def outputs() -> Path:
     return _require_subdir("Outputs")
 
 
+# ------------------------------------------------------------------ outputs by CSM
+# Finished decks are filed in a folder per CSM, `Outputs/<CSM>/` (Aaron, 2026-09-14:
+# "sort the Outputs folder by CSM"), now that the project covers all five CSMs' books.
+# `Outputs/Archive/` stays where it is, one folder per client. Readers go through
+# `output_decks()`, which also still reads the flat root, so a deck dropped there by
+# hand is found; writers go through `client_outputs()`.
+CSM_LIST_NAME = "Client CSM List.csv"
+UNASSIGNED_CSM = "_Unassigned"
+_OUTPUT_SKIP_DIRS = {"Archive"}
+_csm_cache = {}
+
+
+def csm_list_file() -> Path | None:
+    """`<RPE_DATA_ROOT>/Client CSM List.csv` — client id to CSM for every CSM's book."""
+    try:
+        return data_root() / CSM_LIST_NAME
+    except SystemExit:
+        return None
+
+
+def client_csm(client_id) -> str | None:
+    """The CSM for a client: the Client CSM List, else the CashPlease roster's CSM
+    column in clients.md (CashPlease-only clients are not on the reports share the list
+    is built from), else None. Never a default CSM: a deck filed under whoever seems
+    likely is lost to the CSM who owns it."""
+    cid = str(client_id).strip()
+    p = csm_list_file()
+    key = str(p)
+    if key not in _csm_cache:
+        found = {}
+        if p is not None and p.is_file():
+            import csv
+            with open(p, encoding="utf-8-sig", newline="") as fh:
+                for row in csv.DictReader(fh):
+                    if (row.get("client_id") or "").strip() and (row.get("csm") or "").strip():
+                        found[row["client_id"].strip()] = row["csm"].strip()
+        try:
+            import sys as _sys
+            _scripts = str(REPO_ROOT / "scripts")
+            if _scripts not in _sys.path:
+                _sys.path.append(_scripts)
+            from build_month import read_cashplease_roster
+            for r in read_cashplease_roster():
+                if r.get("csm"):
+                    found.setdefault(r["client_id"], r["csm"])
+        except Exception:
+            pass
+        _csm_cache[key] = found
+    return _csm_cache[key].get(cid)
+
+
+def client_outputs(client_id, root=None, create=False) -> Path:
+    """The folder a client's finished decks are delivered to: `Outputs/<CSM>/`,
+    or `Outputs/_Unassigned/` when nothing names the CSM. `root` replaces Outputs/
+    (promote_month's --outputs); `create` makes the folder."""
+    base = Path(root) if root is not None else outputs()
+    csm = re.sub(r'[<>:"/\\|?*]', "", client_csm(client_id) or "").strip()
+    d = base / (csm or UNASSIGNED_CSM)
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def output_decks(pattern, root=None) -> list[Path]:
+    """Finished files matching `pattern` in Outputs/ and every `Outputs/<CSM>/` folder —
+    never Archive/, never an Office lock file (`~$`)."""
+    base = Path(root) if root is not None else outputs()
+    dirs = [base]
+    if base.is_dir():
+        dirs += [d for d in sorted(base.iterdir())
+                 if d.is_dir() and d.name not in _OUTPUT_SKIP_DIRS and not d.name.startswith(".")]
+    hits = [p for d in dirs for p in d.glob(pattern)
+            if p.is_file() and not p.name.startswith("~$")]
+    return sorted(hits, key=lambda p: (p.name, str(p)))
+
+
 # ------------------------------------------------------------------ input kinds
 # One folder per kind of input, sorted on arrival by scripts/watch_sources.py
 # (Aaron, 2026-09-09). Everything used to land in one "ARS & MRPC Reports"

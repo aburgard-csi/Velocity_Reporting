@@ -213,7 +213,7 @@ def plan(stage):
     return picks
 
 
-def promote_one(src, out, arch, stamp, apply=False, log=print):
+def promote_one(src, out, arch, stamp, apply=False, log=print, legacy=()):
     """Archive whatever `src` supersedes, then deliver it. ALL OR NOTHING.
 
     Every file for this deck moves or none does. It used to archive each match in
@@ -228,6 +228,10 @@ def promote_one(src, out, arch, stamp, apply=False, log=print):
     review folder (`tidy_client_archive`) — after delivery, so a failure there can
     never cost a delivery; it is reported instead.
 
+    `out` is the client's delivery folder (`Outputs/<CSM>/`). A copy of the same deck
+    still sitting in any `legacy` folder — the flat Outputs/ root from before decks were
+    filed by CSM — is superseded too, so a client never has a live deck in two places.
+
     Returns (n_archived, delivered). Raises OSError if the deck could not be
     promoted; the caller decides whether that stops the run.
     """
@@ -236,7 +240,8 @@ def promote_one(src, out, arch, stamp, apply=False, log=print):
     stem = os.path.splitext(name)[0]
     info = parse_deck_name(name)
     target = client_folder(arch, info["client_id"], info["client"]) if info else arch
-    olds = sorted(glob.glob(str(out / f"{glob.escape(stem)}.*")))
+    olds = sorted({f for d in [out, *map(Path, legacy)]
+                   for f in glob.glob(str(d / f"{glob.escape(stem)}.*")) if os.path.isfile(f)})
     plan_moves = []
     for old in olds:
         ext = os.path.splitext(old)[1]
@@ -262,6 +267,7 @@ def promote_one(src, out, arch, stamp, apply=False, log=print):
             shutil.move(old, dest)
             moved.append((old, dest))
             inflight = None
+        out.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, out / name)
     except OSError:
         # shutil.move falls back to copy-then-delete when os.rename fails, so a lock
@@ -327,6 +333,8 @@ def main(argv=None):
     # module was made import-safe.
     out = Path(a.outputs) if a.outputs else R.outputs()
     arch = out / "Archive"
+    # Each deck is delivered to its CSM's folder (Aaron, 2026-09-14); the flat root is
+    # read as a legacy location so a deck left there is superseded, not duplicated.
     # Today, not a literal. A hardcoded stamp dated four archives to the wrong
     # day and collided with the previous run, producing "-2"/"-3" suffixes.
     stamp = datetime.date.today().isoformat()
@@ -338,13 +346,16 @@ def main(argv=None):
     failed = []
     for src in picks:
         name = os.path.basename(src)
-        cur = out / name
+        info = parse_deck_name(name)
+        dest = R.client_outputs(info["client_id"], root=out) if info else out
+        cur = dest / name
         if cur.exists() and same(str(cur), src):
             print(f"{'unchanged':<9} {name[:62]:<62}")
             skipped += 1
             continue
         try:
-            n, _ = promote_one(src, out, arch, stamp, a.apply)
+            n, _ = promote_one(src, dest, arch, stamp, a.apply,
+                               legacy=(out,) if dest != out else ())
         except OSError as e:
             # One locked deck must not cost the other ten. It is REPORTED, the run
             # continues, and the exit code carries the failure so a caller can gate

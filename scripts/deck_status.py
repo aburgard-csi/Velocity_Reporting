@@ -351,9 +351,11 @@ def built_deck(cid, period, outputs_dir):
     Matched on the `<id>-<period>-` prefix only. The program tag and the client
     name both vary — and the name CHANGES (1537 became Brooks Bank on
     2026-08-31) — so the id and period are the only stable parts of the filename.
+
+    Decks are filed in a folder per CSM (2026-09-14), so every `Outputs/<CSM>/` is
+    searched, plus the flat root; never Archive/.
     """
-    hits = [f for f in glob.glob(os.path.join(outputs_dir, cid + "-" + period + "-*.pptx"))
-            if not os.path.basename(f).startswith("~$")]
+    hits = [str(p) for p in R.output_decks(cid + "-" + period + "-*.pptx", root=outputs_dir)]
     if not hits:
         return None
     f = _newest(hits)

@@ -140,8 +140,10 @@ accounts are 0/blank — do not ship survivorship artifacts.
    16 pt). Charts already render in Carlito. See `templates/STYLE.md` "Fonts".
 6. Run `validation/validate_deck.py <deck> <base.json>`; 0 FAIL to ship. Passing
    `base.json` switches on the data-vs-deck cross-check — do not omit it.
-7. Save to the pipeline **`Outputs/`** folder (flat; the program tag in the filename is
-   what distinguishes it) as `<clientid>-<yyyy.mm>-ARS-<Name> ARS Results.pptx`.
+7. Save to the client's CSM folder under the pipeline **`Outputs/`** —
+   `rpe_env.client_outputs(<clientid>, create=True)`, i.e. `Outputs/<CSM>/` (filed by CSM
+   since 2026-09-14; the program tag in the filename distinguishes programs) — as
+   `<clientid>-<yyyy.mm>-ARS-<Name> ARS Results.pptx`.
    **Do not deliver to Client Presentations or to a per-client folder** — that drop was
    retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
    For a multi-program client, hand this deck to `build/assemble_combined.py --ars <deck>`

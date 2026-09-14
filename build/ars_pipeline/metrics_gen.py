@@ -526,14 +526,19 @@ M['balance']=balrows
 M['bal_resp_med']=round(statistics.median([curbal(r) for r in scored if id(r) in resp_set]))
 M['bal_non_med']=round(statistics.median([curbal(r) for r in scored if id(r) not in resp_set]))
 # ============ STAGE 3: NEW ACCOUNTS / RETENTION / BAYES ============
-def ischecking(r): return 'checking' in g(r,'Prod Desc').lower()
+# A credit union's checking account is a SHARE DRAFT (1200 Guardians: 'Share Draft',
+# 'Share Draft Aspire'). Matching 'checking' alone found no new checking accounts
+# there and mean() of nothing crashed the build (2026-09-14).
+CHECKING_WORDS = ('checking', 'share draft')
+def is_checking_name(p): return any(w in (p or '').lower() for w in CHECKING_WORDS)
+def ischecking(r): return is_checking_name(g(r,'Prod Desc'))
 newp=[r for r in data if personal(r) and opened_in(r,J25,J26)]
 M['new_total']=len(newp)
 M['new_stillopen_pct']=round(100*sum(1 for r in newp if isopen(r))/len(newp))
 prodc=Counter(g(r,'Prod Desc') for r in newp)
 M['new_products']=prodc.most_common(12)
 M['new_checking_pct']=round(100*sum(1 for r in newp if ischecking(r))/len(newp))
-chk=[p for p in prodc if 'Checking' in p]
+chk=[p for p in prodc if is_checking_name(p)]
 topchk=max(chk,key=lambda p:prodc[p]) if chk else ''
 M['new_topcheck']=topchk; M['new_topcheck_pct']=round(100*prodc.get(topchk,0)/len(newp))
 # new checking balances (slide 36)

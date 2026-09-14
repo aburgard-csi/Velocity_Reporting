@@ -25,6 +25,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 sys.path.insert(0, os.path.join(REPO, "build"))
 import promote_month as P  # noqa: E402
+import rpe_env as R        # noqa: E402
 
 
 # --- which deck ships --------------------------------------------------------
@@ -135,7 +136,8 @@ def test_one_blocked_client_does_not_stop_the_others(tmp_path, monkeypatch):
     rc = P.main([str(tmp_path / "stage"), "--apply", "--outputs", str(out)])
     assert rc == 1, "a blocked client must be carried in the exit code"
     assert "Sugar River" in Presentation(str(out / n1)).slides[0].shapes[0].text_frame.text
-    assert "First State v2" in Presentation(str(out / n2)).slides[0].shapes[0].text_frame.text
+    delivered = R.client_outputs("1204", root=out) / n2
+    assert "First State v2" in Presentation(str(delivered)).slides[0].shapes[0].text_frame.text
 
 
 def test_main_writes_where_it_is_told(tmp_path):
@@ -153,7 +155,9 @@ def test_main_writes_where_it_is_told(tmp_path):
 
     P.main([str(tmp_path / "stage"), "--apply", "--outputs", str(out)])
 
-    assert "new" in Presentation(str(out / name)).slides[0].shapes[0].text_frame.text
+    delivered = R.client_outputs("1038", root=out) / name
+    assert "new" in Presentation(str(delivered)).slides[0].shapes[0].text_frame.text
+    assert not (out / name).exists(), "the flat copy is superseded, not left live beside it"
     assert sorted(p.name for p in real.iterdir() if p.is_file()) == before, \
         "the real Outputs folder must not be touched when --outputs is given"
 

@@ -17,6 +17,105 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — Outputs is filed by CSM
+
+**Finished decks now go to `Outputs/<CSM>/`, not the flat `Outputs/`** (Aaron: "sort the
+Outputs folder by CSM"). The project covers all five CSMs' books now, and one flat folder
+of every client's decks would not stay readable.
+
+- `rpe_env.client_outputs(id)` is the one place the folder is decided. The CSM comes from
+  `<RPE_DATA_ROOT>/Client CSM List.csv`, else the CashPlease roster's CSM column (the
+  CashPlease-only clients 1131, 1564, 1750, 1770 and 1771 are not on the reports share the
+  list is built from), else `Outputs/_Unassigned/`. It never guesses a CSM.
+- `rpe_env.output_decks(pattern)` is how readers find decks. It searches every CSM folder
+  and the flat root, never `Archive/`. `deck_status.built_deck` and b4's
+  `refresh_performance_dashboard.decks_and_sent` use it; a reader left globbing the flat
+  root would have shown every deck as not built.
+- `promote_month` delivers into the CSM folder and archives a copy of the same deck still
+  in the flat root, so a client never has a live deck in two places. `build_cashplease`
+  writes into the CSM folder. `Outputs/Archive/` is unchanged, one folder per client.
+- The 28 files already in Outputs (19 decks and 9 hand-made PDFs, all Aaron Burgard's
+  clients) were moved into `Outputs/Aaron Burgard/`: moved, not copied or deleted.
+
+`tests/test_outputs_by_csm.py` covers the CSM lookup, the Unassigned fallback, the roster
+fallback, what the readers search (CSM folders and the root, not Archive, not lock files)
+and the delivery dashboard finding a deck in a CSM folder. Two `test_promote_month` tests
+now expect delivery into the CSM folder.
+
+### 2026-09-14 — credit-union checking accounts count as checking
+
+**`metrics_gen` found no new checking accounts at 1200 Guardians Credit Union and crashed.**
+It counted an account as checking only when `Prod Desc` contained "checking". A credit
+union's checking account is a *share draft* (Guardians: "Share Draft", "Share Draft
+Aspire"), so the new-checking pool was empty and `mean()` of nothing stopped the build. The
+match is now "checking" or "share draft", for both the new-checking pool and the top
+checking product. **At a bank the figures do not change. At a credit union, the New Checking
+Balances and debit-penetration slides now use its share drafts, where before they used
+nothing or crashed.**
+
+### 2026-09-14 — the MM extractor stops charting a blank Key Trends month as $0
+
+**`extract_base_gen.py` turned a blank month into zero, silently.** It read each Key Trends
+MM month as `round(spend.get(m, 0) or 0, 2)` and the card-holding count as
+`(tot or 0) - (non or 0)`, so a month with no figures became $0 spend and zero
+cardholders — a collapse on the Debit Card Swipes & Spend chart that nothing flagged. It
+never crashed, which is why it went unseen; the SM extractor's version of the same read
+crashed on 1657 and was fixed first (Aaron: "fix the extract_base_gen zeroing too").
+
+- **One definition for both extractors.** `base_guard.key_trends` builds the 36-month
+  series with a blank kept as None and its month listed, and `base_guard.data_issue`
+  writes the POSSIBLE DATA ISSUE message. `base_tab_extract.py` now uses both instead of
+  its own copy.
+- **Same order as SM:** the unevaluated-workbook guard first, then any blank month stops
+  the run with the workbook and months named and no `base.json` written.
+- `extract_base_gen.py` is now import-safe (`main()`), with `extract()` and
+  `dco_eligible()` testable directly; its output is otherwise unchanged.
+
+`tests/test_extract_base_gen.py` pins None-not-zero, the data-issue exit, an uncalculated
+MM workbook named as such, a populated workbook still extracting with its DCO, and that
+neither extractor defaults a blank month any more.
+
+### 2026-09-14 — SM builds had not been reading their DCO since the inputs were sorted
+
+**Every SM (Monthly Summary) client has built without its DCO since 2026-09-09.**
+`build_month.build_client` looked for the DCO with `glob(os.path.join(str(REPORTS), …))`.
+`REPORTS` became a LIST of per-kind folders when Inputs were sorted by kind, and the string
+of a list is not a folder, so the pattern matched nothing and `base_tab_extract` ran with no
+DCO argument. Nothing failed — the DCO is optional to the extractor — so it went unseen:
+1038 Sugar River's three staged builds on 2026-09-14 all carry `dco_eligible: null`. Found
+while preparing staged ARS builds for every CSM's clients. No slide figure moves (the deck's
+ARS eligibility comes from the ODD); the DCO's `Eligible ARS Accounts` now reaches
+`base.json` again.
+
+`build_month.dco_file()` searches every report folder, the same shape as `ars_workbook()`.
+`tests/test_build_month_inputs.py` pins the multi-folder lookup, the period match, the
+legacy folder, and that `build_client` no longer joins a pattern onto a list.
+
+### 2026-09-14 — a blank Key Trends month is called out as a possible data issue, not a crash
+
+**1657 Marine Credit Union's ARS extraction crashed, and the crash hid the real problem.**
+`base_tab_extract.py` read each Key Trends month with `round(spend.get(m, 0), 2)`, which
+defaults only a month that is ABSENT; a blank cell came back as None and raised
+TypeError. The crash came before `base_guard`, so the performance page showed a Python
+traceback for 1657 when the workbook was simply never calculated — one month, dated Sep
+2007 (the template's), with no revenue: the same shape as 1192 Ascend and 1673
+Neighborhood, which the guard did name (Aaron: "that should be called out as a possible
+data issue").
+
+- **Blank is None, never zero.** A blank spend or account cell now extracts as None and
+  its month is listed in `key_trends_blank`; the old default would have charted a gap as
+  $0 spend had the cell been absent rather than blank.
+- **The guard runs first,** so an uncalculated workbook — the likeliest cause — is named
+  as UNEVALUATED WORKBOOK with the Excel fix. 1657 now reports exactly that.
+- **Any blank month left over stops the run** with `POSSIBLE DATA ISSUE: <workbook> has no
+  Key Trends spend or card-holding figures for N of its last M month(s) (<months>)`,
+  nothing extracted, so neither the deck builder nor the page receives a gap as data.
+- The script is now import-safe (`main()`), so `extract()` is tested directly.
+
+`tests/test_base_tab_extract.py` pins the None-not-zero extraction, the data-issue exit
+(no traceback, workbook and month named), 1657's template shape reported as unevaluated,
+and that a fully populated workbook still extracts.
+
 ### 2026-09-14 — the workflow page describes Outputs by CSM
 
 **`workflow.html` now says decks go to `Outputs/<CSM name>/`**, where it used to say one flat
@@ -165,47 +264,6 @@ tiles. The bars render as they did before the marks. The three-state filter chip
 empty-selection filters stay, and so does the duplicate top-level name test, which guards the
 page script rather than the marks. The marks cache in `Build Artifacts/perf_dashboard/marks/`
 is no longer read.
-
-### 2026-09-14 — SM builds had not been reading their DCO since the inputs were sorted
-
-**Every SM (Monthly Summary) client has built without its DCO since 2026-09-09.**
-`build_month.build_client` looked for the DCO with `glob(os.path.join(str(REPORTS), …))`.
-`REPORTS` became a LIST of per-kind folders when Inputs were sorted by kind, and the string
-of a list is not a folder, so the pattern matched nothing and `base_tab_extract` ran with no
-DCO argument. Nothing failed — the DCO is optional to the extractor — so it went unseen:
-1038 Sugar River's three staged builds on 2026-09-14 all carry `dco_eligible: null`. Found
-while preparing staged ARS builds for every CSM's clients. No slide figure moves (the deck's
-ARS eligibility comes from the ODD); the DCO's `Eligible ARS Accounts` now reaches
-`base.json` again.
-
-`build_month.dco_file()` searches every report folder, the same shape as `ars_workbook()`.
-`tests/test_build_month_inputs.py` pins the multi-folder lookup, the period match, the
-legacy folder, and that `build_client` no longer joins a pattern onto a list.
-
-### 2026-09-14 — a blank Key Trends month is called out as a possible data issue, not a crash
-
-**1657 Marine Credit Union's ARS extraction crashed, and the crash hid the real problem.**
-`base_tab_extract.py` read each Key Trends month with `round(spend.get(m, 0), 2)`, which
-defaults only a month that is ABSENT; a blank cell came back as None and raised
-TypeError. The crash came before `base_guard`, so the performance page showed a Python
-traceback for 1657 when the workbook was simply never calculated — one month, dated Sep
-2007 (the template's), with no revenue: the same shape as 1192 Ascend and 1673
-Neighborhood, which the guard did name (Aaron: "that should be called out as a possible
-data issue").
-
-- **Blank is None, never zero.** A blank spend or account cell now extracts as None and
-  its month is listed in `key_trends_blank`; the old default would have charted a gap as
-  $0 spend had the cell been absent rather than blank.
-- **The guard runs first,** so an uncalculated workbook — the likeliest cause — is named
-  as UNEVALUATED WORKBOOK with the Excel fix. 1657 now reports exactly that.
-- **Any blank month left over stops the run** with `POSSIBLE DATA ISSUE: <workbook> has no
-  Key Trends spend or card-holding figures for N of its last M month(s) (<months>)`,
-  nothing extracted, so neither the deck builder nor the page receives a gap as data.
-- The script is now import-safe (`main()`), so `extract()` is tested directly.
-
-`tests/test_base_tab_extract.py` pins the None-not-zero extraction, the data-issue exit
-(no traceback, workbook and month named), 1657's template shape reported as unevaluated,
-and that a fully populated workbook still extracts.
 
 ### 2026-09-14 — client marks on the performance page's bars, and filter chips that show their state
 

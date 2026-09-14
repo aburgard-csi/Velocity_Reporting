@@ -121,7 +121,8 @@ def main():
         if rec.get("cancelled"):
             skipped.append(f"{cid} {name} — {rec['cancelled']}")
             continue
-        out = OUT / f"{cid}-{a.period}-CP-{safe(name)} CashPlease Module.pptx"
+        # Filed under the client's CSM (Aaron, 2026-09-14), like every finished deck.
+        out = rpe_env.client_outputs(cid, create=True) / f"{cid}-{a.period}-CP-{safe(name)} CashPlease Module.pptx"
         settings = rpe_env.cp_settings_file(cid)
         if settings is None:
             no_settings.append(f"{cid} {name}")

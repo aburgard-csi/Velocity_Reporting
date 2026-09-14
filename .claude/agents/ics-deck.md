@@ -148,7 +148,8 @@ ICS Revenue (PTD breakdown) → ICS Financial Summary → Marine/client vs Veloc
    referrals-only section: `build_ics_gen.py --referrals-only <client_ics.json> ...`.
 3. Decide whether to include the mystery-shop slide.
 4. Run `validation/validate_deck.py`; 0 FAIL to ship.
-5. Save to the pipeline **`Outputs/`** folder as
+5. Save to the client's CSM folder under the pipeline **`Outputs/`** —
+   `rpe_env.client_outputs(<clientid>, create=True)`, i.e. `Outputs/<CSM>/` — as
    `<clientid>-<yyyy.mm>-ICS-<Name> ICS Results.pptx`.
    **Do not deliver to Client Presentations or to a per-client folder** — that drop was
    retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
