@@ -17,6 +17,31 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — a blank Key Trends month is called out as a possible data issue, not a crash
+
+**1657 Marine Credit Union's ARS extraction crashed, and the crash hid the real problem.**
+`base_tab_extract.py` read each Key Trends month with `round(spend.get(m, 0), 2)`, which
+defaults only a month that is ABSENT; a blank cell came back as None and raised
+TypeError. The crash came before `base_guard`, so the performance page showed a Python
+traceback for 1657 when the workbook was simply never calculated — one month, dated Sep
+2007 (the template's), with no revenue: the same shape as 1192 Ascend and 1673
+Neighborhood, which the guard did name (Aaron: "that should be called out as a possible
+data issue").
+
+- **Blank is None, never zero.** A blank spend or account cell now extracts as None and
+  its month is listed in `key_trends_blank`; the old default would have charted a gap as
+  $0 spend had the cell been absent rather than blank.
+- **The guard runs first,** so an uncalculated workbook — the likeliest cause — is named
+  as UNEVALUATED WORKBOOK with the Excel fix. 1657 now reports exactly that.
+- **Any blank month left over stops the run** with `POSSIBLE DATA ISSUE: <workbook> has no
+  Key Trends spend or card-holding figures for N of its last M month(s) (<months>)`,
+  nothing extracted, so neither the deck builder nor the page receives a gap as data.
+- The script is now import-safe (`main()`), so `extract()` is tested directly.
+
+`tests/test_base_tab_extract.py` pins the None-not-zero extraction, the data-issue exit
+(no traceback, workbook and month named), 1657's template shape reported as unevaluated,
+and that a fully populated workbook still extracts.
+
 ### 2026-09-14 — client marks on the performance page's bars, and filter chips that show their state
 
 **Each name on the four ranked bar charts has the client's mark beside it** (Aaron picked
