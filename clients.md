@@ -113,17 +113,24 @@ Aaron's client book (Obsidian) intersected with the 2026-09-06 workbook. `Build`
 the builder reads; a row marked `no` is parsed and deliberately skipped, so a
 cancelled client cannot come back just because their tab keeps arriving.
 
-| ID | Client | Build | Loans | Ships as | Note |
-| --- | --- | --- | --- | --- | --- |
-| 1131 | People's Bank AL | yes | 10,540 | standalone deck   | no other RPE program |
-| 1539 | Marine FCU | yes | 6,745 | **ARS-ICS-MRPC-CP** section | Obsidian `products` omits CashPlease — see gap 3 |
-| 1564 | OneUnited Bank | yes | 11,495 | standalone deck   | no other RPE program |
-| 1632 | WesBanco Bank | yes | 11,927 | **ICS-CP** section | |
-| 1658 | Truliant FCU | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
-| 1734 | Altamaha Bank and Trust Company | yes | 651 | **ICS-CP** section | |
-| 1750 | All In FCU | yes | 5,701 | standalone deck   | no other RPE program |
-| 1770 | Central State Bank | yes | 27 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
-| 1771 | Copper State CU | yes | 156 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
+`CSM` is the client's CSM on the RPE Client Performance page (Aaron, 2026-09-14). The page
+takes each client's CSM from the account-manager folder its reports land in on
+`Velocity_clientreports`, and the CashPlease-only clients never land there, so this column
+is the only place their CSM is recorded. Where the share names a CSM it wins, and the
+refresh logs a disagreement with this column. Columns are read by header name, so the
+column's position is free.
+
+| ID | Client | CSM | Build | Loans | Ships as | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1131 | People's Bank AL | Aaron Burgard | yes | 10,540 | standalone deck   | no other RPE program |
+| 1539 | Marine FCU | Aaron Burgard | yes | 6,745 | **ARS-ICS-MRPC-CP** section | Obsidian `products` omits CashPlease — see gap 3 |
+| 1564 | OneUnited Bank | Aaron Burgard | yes | 11,495 | standalone deck   | no other RPE program |
+| 1632 | WesBanco Bank | Aaron Burgard | yes | 11,927 | **ICS-CP** section | |
+| 1658 | Truliant FCU | Aaron Burgard | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
+| 1734 | Altamaha Bank and Trust Company | Aaron Burgard | yes | 651 | **ICS-CP** section | |
+| 1750 | All In FCU | Aaron Burgard | yes | 5,701 | standalone deck   | no other RPE program |
+| 1770 | Central State Bank | Aaron Burgard | yes | 27 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
+| 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
 
 **Three combined decks and five standalone decks per run.** A client whose CashPlease
 slides ship inside a combined deck does NOT also get a standalone deck (Aaron,
@@ -151,6 +158,13 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ## Status changes
 
+- **2026-09-14 — the CashPlease roster carries a `CSM` column** (Aaron). The RPE Client
+  Performance page filters by CSM and reads each client's CSM from its account-manager
+  folder on `Velocity_clientreports`. The five CashPlease-only clients (1131, 1564, 1750,
+  1770, 1771) never land there, so they showed as Unassigned. Every row is Aaron Burgard,
+  which is what this table already was: Aaron's client book intersected with the workbook.
+  A new row needs its CSM filled in; `tests/test_cashplease.py` fails on a CashPlease-only
+  client without one.
 - **2026-09-01 — CashPlease added as a fourth program** (Aaron). First recorded as an
   ILS-review-only module; **superseded the same day** by the combined-deck decision
   below. See the **CashPlease** section above.

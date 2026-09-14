@@ -61,7 +61,7 @@ sys.path.insert(0, str(REPO / "build"))
 sys.path.insert(0, str(REPO / "scripts"))
 
 import rpe_env as R                                              # noqa: E402
-from build_month import read_roster                              # noqa: E402
+from build_month import read_cashplease_roster, read_roster      # noqa: E402
 
 TEMPLATE = REPO / "scripts" / "perf_dashboard_template.html"
 PLACEHOLDER = "__DATA__"
@@ -185,29 +185,29 @@ def roster_clients():
     for cid, name, mmsm, progs in roster:
         clients[cid] = {"id": cid, "name": name, "path": mmsm, "programs": [],
                         "roster_programs": list(progs)}
-    for cid, nm in cashplease_roster().items():
-        c = clients.setdefault(cid, {"id": cid, "name": nm, "path": None,
+    for cid, r in cashplease_roster().items():
+        c = clients.setdefault(cid, {"id": cid, "name": r["name"], "path": None,
                                      "programs": [], "roster_programs": []})
         if "CP" not in c["roster_programs"]:
             c["roster_programs"].append("CP")
     return clients
 
 
-def cashplease_roster(text=None):
-    """{id: name} for `Build = yes` rows of the CashPlease roster in clients.md."""
-    if text is None:
-        text = (REPO / "clients.md").read_text(encoding="utf-8")
-    if "### CashPlease roster" not in text:
+def cashplease_roster(path=None):
+    """{id: {"name", "csm"}} for `Build = yes` rows of the CashPlease roster in clients.md.
+
+    Read through `build_month.read_cashplease_roster`, the one parser for that table,
+    which finds columns by header name. This script used to split the table itself and
+    take Build from the third cell — so the CSM column added after Client on 2026-09-14
+    would have read "Aaron Burgard" as the Build flag and dropped every CashPlease client
+    from the page. A missing or empty table is no CashPlease clients, not a failed refresh.
+    """
+    try:
+        rows = read_cashplease_roster(str(path or REPO / "clients.md"))
+    except SystemExit:
         return {}
-    sec = text.split("### CashPlease roster", 1)[1]
-    out = {}
-    for line in sec.splitlines():
-        if line.startswith("## ") or line.startswith("### "):
-            break
-        c = [x.strip() for x in line.strip().strip("|").split("|")]
-        if len(c) >= 3 and re.fullmatch(r"\d{3,5}", c[0]) and c[2].lower().startswith("yes"):
-            out[c[0]] = c[1]
-    return out
+    return {r["client_id"]: {"name": r["client_name"], "csm": r.get("csm") or None}
+            for r in rows if r["build"]}
 
 
 # ------------------------------------------------------------------ ARS
@@ -622,6 +622,109 @@ def readiness(period, log=print):
     return out, doc.get("generated")
 
 
+# ------------------------------------------------------------------ CSM
+_PERIOD_DIR_RX = re.compile(r"^\d{4}\.\d{2}$")
+_CLIENT_FILE_RX = re.compile(r"^(\d{3,5})-")
+
+
+def reports_share():
+    """The reports share root. deck_status owns it, with its RPE_SRC_REPORTS override."""
+    import deck_status as DS
+    return DS.SRC_REPORTS
+
+
+def share_csms(root, period, months=2, log=print):
+    """{client id: CSM} from the reports share, or None when the share cannot be read.
+
+    The data team files every client's reports under `<period>/<Account Manager>/`, so
+    the folder a client's files land in IS its CSM: kept by the people who assign
+    clients, for every CSM, with no second list here to fall out of step (Aaron,
+    2026-09-14: filter the performance page by CSM). The newest of the last `months`
+    period folders at or before `period` wins, so a client moved between CSMs follows
+    the move (1805: Matt Lindsey in 2026.08, Jordan Berkowitz in 2026.09) and a client
+    whose files have not landed yet this month keeps last month's owner.
+    """
+    try:
+        pdirs = sorted(d for d in os.listdir(root) if _PERIOD_DIR_RX.match(d) and d <= period)
+    except OSError:
+        return None
+    out = {}
+    for pd in pdirs[-months:]:                     # oldest first: the newest overwrites
+        base = os.path.join(root, pd)
+        seen = {}
+        try:
+            ams = sorted(e for e in os.listdir(base) if os.path.isdir(os.path.join(base, e)))
+        except OSError:
+            continue
+        for am in ams:
+            try:
+                names = os.listdir(os.path.join(base, am))
+            except OSError:
+                continue
+            for cid in sorted({m.group(1) for m in map(_CLIENT_FILE_RX.match, names) if m}):
+                if cid in seen:
+                    log("CSM: %s has files under both %s and %s in %s - using %s"
+                        % (cid, seen[cid], am, pd, am))
+                seen[cid] = am
+        out.update(seen)
+    return out
+
+
+def settings_csm(cid):
+    """The CSM on the client's CashPlease settings record, or None.
+
+    The fallback for the CashPlease-only clients, whose reports never land on the
+    share. The record is internal (it never reaches a slide); this page is internal too.
+    """
+    try:
+        p = R.cp_settings_file(cid)                # None when no record is on file
+        v = json.loads(Path(p).read_text(encoding="utf-8")).get("CSM") if p else None
+    except (OSError, ValueError, AttributeError, SystemExit):
+        return None
+    v = str(v or "").strip()
+    return v or None
+
+
+def csm_assignments(cids, period, work, root=None, roster=None, log=print):
+    """{client id: CSM, or None when nothing names one}.
+
+    Precedence: the reports share; the answer the share gave on the last run that
+    could reach it; `roster` — the CSM column of the CashPlease roster in clients.md,
+    the only record for the CashPlease-only clients, whose reports never land on the
+    share; the client's CashPlease settings record; else None, which the page shows as
+    Unassigned. Never a default CSM: a client filed under whoever seems likely
+    disappears from the view of the CSM who actually owns it.
+
+    Where the share and the roster column disagree the share wins, since it is kept by
+    the people who assign clients, and the disagreement is logged so clients.md can be
+    corrected rather than drifting unseen.
+
+    The share's last answer is kept in `csm.json` because the share needs the VPN.
+    Without it an off-VPN morning would blank every CSM, move the content hash, and
+    republish a page nobody could filter.
+    """
+    cache_p = work / "csm.json"
+    cache = read_state(cache_p).get("share") or {}
+    live = share_csms(reports_share() if root is None else root, period, log=log)
+    if live is None:
+        log("CSM: reports share not reachable - using the assignments last read from it")
+    else:
+        for cid in cids:
+            if cid in live:
+                cache[cid] = {"csm": live[cid], "seen": period}
+        write_state(cache_p, {"share": cache,
+                              "updated": _dt.datetime.now().strftime("%Y-%m-%d %H:%M")})
+    roster = roster or {}
+    out = {}
+    for cid in cids:
+        shared, listed = (cache.get(cid) or {}).get("csm"), roster.get(cid)
+        if shared and listed and shared.casefold() != listed.casefold():
+            log("CSM: %s is under %s on the reports share but clients.md says %s - using the share"
+                % (cid, shared, listed))
+        out[cid] = shared or listed or settings_csm(cid)
+    return out
+
+
 # ------------------------------------------------------------------ assemble
 def build_dataset(period, work, log=print):
     I, O, BA = R.inputs(), R.outputs(), R.build_artifacts()
@@ -649,8 +752,11 @@ def build_dataset(period, work, log=print):
         c["decks"], c["sent"], c["deck_period"] = decks_and_sent(cid, period, O, BA)
 
     ready, _checked = readiness(period, log)
+    csm = csm_assignments(sorted(clients), period, work, log=log,
+                          roster={cid: r["csm"] for cid, r in cashplease_roster().items()})
     for cid, c in clients.items():
         c["readiness"] = ready.get(cid)
+        c["csm"] = csm.get(cid)
 
     ics_pull, mrpc_pull = vip_pull_date("ICS"), vip_pull_date("MRPC")
     return {
@@ -661,6 +767,13 @@ def build_dataset(period, work, log=print):
             "mrpc": "VIP MRPC sheets" + (f", pulled {mrpc_pull}" if mrpc_pull else "")
                     + (f" + {weekly.name}" if weekly.name else ""),
             "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/Weekly Summaries)",
+            # Static on purpose: whether the share was reachable this morning must not
+            # move the content hash and republish an unchanged page.
+            "csm": "the account-manager folder each client's reports land in on the CSI "
+                   "reports share (newest of the last two months; the last answer read is "
+                   "kept for mornings off the VPN), else the CSM column of the CashPlease "
+                   "roster in clients.md, else the CSM on the client's CashPlease settings "
+                   "record; a client nothing names is Unassigned",
         },
         "cp_peer": peer,
         "clients": sorted([c for c in clients.values() if c["programs"]], key=lambda c: c["id"]),
@@ -752,9 +865,9 @@ def summarize(dataset):
         miss = [k for k in ("ars", "ics", "mrpc", "cp")
                 if isinstance(c.get(k), dict) and c[k].get("missing")]
         wb = (c.get("ars") or {}).get("workbook_period") or "-"
-        lines.append("  %s %-30s %-16s wb %s  deck %s  sent %s%s" % (
+        lines.append("  %s %-30s %-16s wb %s  deck %s  sent %s  csm %s%s" % (
             c["id"], c["name"][:30], "+".join(c["programs"]), wb,
-            c.get("deck_period") or "-", c["sent"] or "-",
+            c.get("deck_period") or "-", c["sent"] or "-", c.get("csm") or "Unassigned",
             ("  MISSING " + ",".join(miss)) if miss else ""))
     return "\n".join(lines)
 

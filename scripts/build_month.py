@@ -133,7 +133,7 @@ CASHPLEASE_HEADING = re.compile(r"^#{2,4}\s+CashPlease roster", re.I)
 
 
 def read_cashplease_roster(path=ROSTER_FILE):
-    """[{client_id, client_name, build, ships_as, note}] from the CashPlease table.
+    """[{client_id, client_name, build, ships_as, csm, note}] from the CashPlease table.
 
     Lives here, beside `read_roster`, because two parsers over one `clients.md` diverge
     — and this one already proved it. The CashPlease table was added between the
@@ -173,6 +173,7 @@ def read_cashplease_roster(path=ROSTER_FILE):
                     "client_name": col("client"),
                     "build": col("build").lower().startswith("y"),
                     "ships_as": col("ships as"),
+                    "csm": col("csm"),
                     "note": col("note")})
     if not out:
         raise SystemExit(f"{path}: the CashPlease roster table is empty — nothing to "

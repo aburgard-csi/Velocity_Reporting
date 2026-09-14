@@ -154,6 +154,15 @@ def test_the_cashplease_roster_reads_from_clients_md():
     assert all(r["client_id"] and r["client_name"] for r in rows)
 
 
+def test_the_cashplease_only_clients_name_their_csm():
+    """Their reports never land on the share the performance page reads CSMs from, so
+    the roster's CSM column is the only record; a blank one files them as Unassigned."""
+    rpe_ids = {row[0] for row in read_roster()[0]}
+    blank = [r["client_id"] for r in read_cashplease_roster()
+             if r["client_id"] not in rpe_ids and not r["csm"]]
+    assert not blank, "CashPlease-only clients with no CSM in clients.md: %s" % blank
+
+
 def test_a_cancelled_client_is_kept_with_its_reason_not_dropped():
     """1658 Truliant's tab arrives every week with 8,296 loans on it."""
     rows = {r["client_id"]: r for r in read_cashplease_roster()}

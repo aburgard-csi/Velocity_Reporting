@@ -45,7 +45,11 @@ figure.
 - A **build readiness** section for the current period: ready or blocked per
   client, what it is blocked on, and one chip per required input. Every column
   sorts (ascending → descending → off), remembered per viewer (2026-09-14).
-- Product and client filters (click to narrow, shift-click to isolate).
+- CSM, product and client filters (click to narrow, shift-click to isolate). *(CSM added
+  2026-09-14.)* A client's CSM is the account-manager folder its reports land in on
+  `Velocity_clientreports`, else the `CSM` column of the CashPlease roster in `clients.md`,
+  else the CSM on its CashPlease settings record; a client nothing names is shown as
+  Unassigned, never given a default CSM.
 - A provenance block naming the source of every figure on the page.
 - A last-updated stamp, carrying the time as well as the date.
 - CashPlease peer comparison from the all-client rollup.

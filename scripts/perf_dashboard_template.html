@@ -61,6 +61,7 @@ header.top .updated i{width:7px;height:7px;border-radius:50%;background:var(--go
 .chip.on .sw{outline:2px solid var(--chip-on-ink);outline-offset:-1px}
 .chip .tags{display:inline-flex;gap:3px}
 .chip .tags i{width:6px;height:6px;border-radius:50%;display:inline-block;background:var(--c)}
+.chip .ct{font-size:12px;opacity:.7;font-variant-numeric:tabular-nums}
 .chip.off{opacity:.45}
 .chip.off:hover{opacity:.8}
 .fr-actions{display:flex;gap:10px;align-items:center;margin-left:auto}
@@ -192,6 +193,11 @@ footer ul.prov b{color:var(--ink2);font-family:Montserrat,sans-serif;font-size:1
 
   <div class="filters" role="group" aria-label="Filters">
     <div class="frow">
+      <span class="eyebrow">CSM</span>
+      <div class="chips" id="csmchips"></div>
+      <div class="fr-actions"><button class="link" id="resetCsm">All CSMs</button></div>
+    </div>
+    <div class="frow">
       <span class="eyebrow">Products</span>
       <div class="chips" id="progchips"></div>
       <div class="fr-actions"><button class="link" id="resetProg">All products</button></div>
@@ -312,18 +318,31 @@ document.addEventListener("click", async e => {
   update();                                        // reveal the buttons
 })();
 
+// ---------- CSM
+// Who owns a client comes from the data - the reports share's account-manager folders,
+// resolved by the refresh - never from this page. A client with no known CSM is grouped
+// as Unassigned and says so, rather than being filed under whoever seems likely.
+const UNASSIGNED = "Unassigned";
+const csmOf = c => c.csm || UNASSIGNED;
+const CSMS = [...new Set(clients.map(csmOf))]
+  .sort((a,b)=>(a===UNASSIGNED)-(b===UNASSIGNED) || a.localeCompare(b));
+
 // ---------- state
+let selCsms = new Set(CSMS);
 let selProgs = new Set(PROGS.map(p=>p.k));
 let selClients = new Set(clients.map(c=>c.id));
 try {
   const s = JSON.parse(localStorage.getItem("rpe-dash-filter")||"null");
   if (s && Array.isArray(s.p) && Array.isArray(s.c)) {
     const p = s.p.filter(k=>PK[k]); const c = s.c.filter(id=>clients.some(x=>x.id===id));
+    const m = Array.isArray(s.m) ? s.m.filter(k=>CSMS.includes(k)) : [];
     if (p.length) selProgs = new Set(p);
     if (c.length) selClients = new Set(c);
+    if (m.length) selCsms = new Set(m);
   }
 } catch(e){}
-function persist(){ try{ localStorage.setItem("rpe-dash-filter", JSON.stringify({p:[...selProgs], c:[...selClients]})); }catch(e){} }
+function persist(){ try{ localStorage.setItem("rpe-dash-filter", JSON.stringify({m:[...selCsms], p:[...selProgs], c:[...selClients]})); }catch(e){} }
+const inCsm = c => selCsms.has(csmOf(c));
 
 // Build readiness sort: one column at a time, ascending -> descending -> off.
 // Off is client id order, the order the data arrives in, so the table can always
@@ -400,11 +419,21 @@ function bars(rows, opts={}){
 
 // ---------- filters UI
 function renderChips(){
+  const mc = document.getElementById("csmchips");
+  const allM = selCsms.size===CSMS.length;
+  mc.innerHTML = CSMS.map(m=>{
+    const n = clients.filter(c=>csmOf(c)===m).length;
+    const tip = m===UNASSIGNED ? "No account-manager folder, clients.md CSM column or settings record names a CSM for these clients" : `${n} client${n===1?"":"s"}`;
+    return `<button class="chip ${selCsms.has(m)&&!allM?'on':''}" data-csm="${esc(m)}" aria-pressed="${selCsms.has(m)}" title="${esc(tip)}">${esc(m)}<span class="ct">${n}</span></button>`;
+  }).join("");
   const pc = document.getElementById("progchips");
-  const allP = selProgs.size===PROGS.length, allC = selClients.size===clients.length;
+  const scoped = clients.filter(inCsm);
+  const allP = selProgs.size===PROGS.length, allC = scoped.every(c=>selClients.has(c.id));
   pc.innerHTML = PROGS.map(p=>`<button class="chip ${selProgs.has(p.k)&&!allP?'on':''}" data-prog="${p.k}" style="--c:${p.c}" aria-pressed="${selProgs.has(p.k)}"><span class="sw"></span>${p.short}</button>`).join("");
   const cc = document.getElementById("clientchips");
-  cc.innerHTML = clients.map(c=>{
+  // Only the selected CSMs' clients are offered: across every CSM the full list is
+  // around ninety chips, and a client outside the selection could not be shown anyway.
+  cc.innerHTML = scoped.map(c=>{
     const inProg = c.programs.some(k=>selProgs.has(k));
     return `<button class="chip ${selClients.has(c.id)&&!allC?'on':''} ${inProg?'':'off'}" data-client="${c.id}" aria-pressed="${selClients.has(c.id)}" title="${esc(c.programs.join(' \u00b7 '))}">${esc(c.name)}<span class="tags">${c.programs.map(k=>`<i style="--c:${PK[k].c}"></i>`).join("")}</span></button>`;
   }).join("");
@@ -416,10 +445,23 @@ document.getElementById("progchips").addEventListener("click", e=>{
   else if(selProgs.has(k)){ if(selProgs.size>1) selProgs.delete(k); } else selProgs.add(k);
   update();
 });
+// CSM chips work like the client chips: from "all", a click isolates that CSM; after
+// that, clicks add and remove. Changing the CSM resets the client selection, because a
+// client picked under one CSM would otherwise leave another CSM's view empty.
+document.getElementById("csmchips").addEventListener("click", e=>{
+  const b=e.target.closest("[data-csm]"); if(!b) return;
+  const m=b.dataset.csm;
+  const all = selCsms.size===CSMS.length;
+  if(e.shiftKey || e.altKey || all){ selCsms = new Set([m]); }
+  else if(selCsms.has(m)){ if(selCsms.size>1) selCsms.delete(m); } else selCsms.add(m);
+  selClients = new Set(clients.map(c=>c.id));
+  update();
+});
+document.getElementById("resetCsm").onclick = ()=>{ selCsms = new Set(CSMS); selClients = new Set(clients.map(c=>c.id)); update(); };
 document.getElementById("clientchips").addEventListener("click", e=>{
   const b=e.target.closest("[data-client]"); if(!b) return;
   const id=b.dataset.client;
-  const all = selClients.size===clients.length;
+  const all = clients.filter(inCsm).every(c=>selClients.has(c.id));
   if(e.shiftKey || e.altKey || all){ selClients = new Set([id]); }
   else if(selClients.has(id)){ if(selClients.size>1) selClients.delete(id); } else selClients.add(id);
   update();
@@ -436,7 +478,8 @@ function renderStrip(vis){
   const mrpc = vis.filter(c=>c.mrpc && on("MRPC"));
   const cp = vis.filter(c=>c.cp && !c.cp.missing && on("CP"));
   const tiles = [];
-  tiles.push({e:"Selection", v:`${vis.length}`, l:`client${vis.length===1?"":"s"} \u00b7 ${[...selProgs].length} of 4 products`, c:"var(--muted)"});
+  const csmLabel = selCsms.size===CSMS.length ? "" : (selCsms.size===1 ? [...selCsms][0] : `${selCsms.size} CSMs`) + " \u00b7 ";
+  tiles.push({e:"Selection", v:`${vis.length}`, l:`client${vis.length===1?"":"s"} \u00b7 ${esc(csmLabel)}${[...selProgs].length} of 4 products`, c:"var(--muted)"});
   if(ars.length) tiles.push({e:"ARS", v:USDk(sum(ars,c=>c.ars.ltd_profit)), l:"incremental profit, program to date", c:"var(--ars)"},
                             {e:"ARS", v:USDk(sum(ars,c=>c.ars.cur_revenue)), l:`incremental revenue, ${ars[0].ars.data_label.replace(" Data","")}`, c:"var(--ars)"});
   if(ics.length) tiles.push({e:"ICS", v:N(sum(ics,c=>c.ics.prev_month?.value)), l:`referrals in ${ics[0].ics.prev_month?.label||"last month"} \u00b7 goal ${N(sum(ics,c=>c.ics.monthly_goal))}`, c:"var(--ics)"},
@@ -724,8 +767,11 @@ function safe(label, fn){
 }
 
 function update(){
+  // A remembered client selection with nobody under the selected CSMs would render an
+  // empty page with no obvious cause; fall back to all of that CSM's clients instead.
+  if (!clients.some(c=>inCsm(c) && selClients.has(c.id))) selClients = new Set(clients.map(c=>c.id));
   persist(); renderChips();
-  const vis = clients.filter(c=>selClients.has(c.id) && c.programs.some(k=>selProgs.has(k)));
+  const vis = clients.filter(c=>inCsm(c) && selClients.has(c.id) && c.programs.some(k=>selProgs.has(k)));
   safe("Summary", ()=>renderStrip(vis));
   const secs = document.getElementById("sections");
   const html = [selProgs.has("ARS")?safe("Account Revenue Solution",()=>secARS(vis)):"",
@@ -736,10 +782,12 @@ function update(){
   document.getElementById("rostersec").innerHTML = safe("Clients and decks", ()=>secRoster(vis));
 }
 document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
-document.getElementById("subline").textContent = `${clients.length} clients across four programs. Click a product or client to narrow; shift-click to isolate one.`;
+const nCsm = CSMS.filter(m=>m!==UNASSIGNED).length;
+document.getElementById("subline").textContent = `${clients.length} clients, ${nCsm} CSM${nCsm===1?"":"s"}, across four programs. Click a CSM, product or client to narrow; shift-click to isolate one.`;
 document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
 document.getElementById("foot").innerHTML =
   `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
+  `<li><b>CSM</b> — ${esc((DATA.sources && DATA.sources.csm) || "not resolved in this build")}.</li>` +
   `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook\u2019s period when that is older than the cycle.</li>` +
   `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client\u2019s newest Invitation Checking workbook, flagged when older than the period.</li>` +
   `<li><b>MRPC</b> \u2014 ${esc(DATA.sources.mrpc)}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +

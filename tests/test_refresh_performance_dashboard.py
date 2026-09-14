@@ -37,24 +37,32 @@ ROSTER = """
 
 ### CashPlease roster — BUILD ONLY THESE
 
-| ID | Client | Build | Loans | Ships as | Note |
-| --- | --- | --- | --- | --- | --- |
-| 1131 | People's Bank AL | yes | 10,507 | standalone module | |
-| 1658 | Truliant FCU | **no** | 8,296 | — | cancelled |
-| 1734 | Altamaha Bank and Trust Company | yes | 646 | ICS-CP | |
+| ID | Client | CSM | Build | Loans | Ships as | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1131 | People's Bank AL | Aaron Burgard | yes | 10,507 | standalone module | |
+| 1658 | Truliant FCU | Aaron Burgard | **no** | 8,296 | — | cancelled |
+| 1734 | Altamaha Bank and Trust Company | | yes | 646 | ICS-CP | |
 
 ## Something else
-| 9999 | Not a CashPlease client | yes | | | |
+| 9999 | Not a CashPlease client | | yes | | | |
 """
 
 
-def test_cashplease_roster_reads_build_yes_rows_only():
-    assert P.cashplease_roster(ROSTER) == {"1131": "People's Bank AL",
-                                           "1734": "Altamaha Bank and Trust Company"}
+def _roster_file(tmp_path, text):
+    f = tmp_path / "clients.md"
+    f.write_text(text, encoding="utf-8")
+    return f
 
 
-def test_cashplease_roster_absent_is_empty():
-    assert P.cashplease_roster("# nothing here") == {}
+def test_cashplease_roster_reads_build_yes_rows_only(tmp_path):
+    """Build is found by header, not position: the CSM column sits where Build used to."""
+    assert P.cashplease_roster(_roster_file(tmp_path, ROSTER)) == {
+        "1131": {"name": "People's Bank AL", "csm": "Aaron Burgard"},
+        "1734": {"name": "Altamaha Bank and Trust Company", "csm": None}}
+
+
+def test_cashplease_roster_absent_is_empty(tmp_path):
+    assert P.cashplease_roster(_roster_file(tmp_path, "# nothing here")) == {}
 
 
 # ------------------------------------------------------------------ render / hash
@@ -227,3 +235,84 @@ def test_template_cannot_mark_a_client_with_no_deck():
     """Sent is recorded, never inferred — and never for a deck that was not built."""
     t = P.TEMPLATE.read_text(encoding="utf-8")
     assert "if (!c.decks.length) return" in t
+
+
+# ------------------------------------------------------------------ CSM
+def _quiet(*_a):
+    pass
+
+
+def _share(tmp_path, files):
+    root = tmp_path / "share"
+    for rel in files:
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x")
+    return str(root)
+
+
+def test_csm_is_the_account_manager_folder_the_reports_land_in(tmp_path):
+    root = _share(tmp_path, ["2026.09/Aaron Burgard/1204-2026.09-First State Bank-DCO.xlsx",
+                             "2026.09/Daniel Wood/1095-2026.09-Workbook.xlsx",
+                             "2026.09/Daniel Wood/readme.txt",
+                             "OIS Pricing Reports/2010.02/9999-old.xlsx"])
+    assert P.share_csms(root, "2026.09", log=_quiet) == {"1204": "Aaron Burgard",
+                                                          "1095": "Daniel Wood"}
+
+
+def test_the_newest_month_wins_and_a_late_landing_keeps_last_months_csm(tmp_path):
+    root = _share(tmp_path, ["2026.08/Matt Lindsey/1805-2026.08-a.xlsx",
+                             "2026.09/Jordan Berkowitz/1805-2026.09-a.xlsx",
+                             "2026.08/Gregg Miller/1147-2026.08-a.xlsx",
+                             "2026.10/Someone Else/1147-2026.10-a.xlsx",   # after the cycle
+                             "2026.06/Old Owner/1200-2026.06-a.xlsx"])     # outside the window
+    assert P.share_csms(root, "2026.09", log=_quiet) == {"1805": "Jordan Berkowitz",
+                                                          "1147": "Gregg Miller"}
+
+
+def test_an_unreachable_share_is_none_not_an_empty_answer(tmp_path):
+    assert P.share_csms(str(tmp_path / "offline"), "2026.09", log=_quiet) is None
+
+
+def test_csm_falls_back_to_the_last_share_answer_then_settings_then_nobody(tmp_path, monkeypatch):
+    root = _share(tmp_path, ["2026.09/Aaron Burgard/1204-2026.09-a.xlsx"])
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setattr(P, "settings_csm", lambda cid: {"1131": "Aaron Burgard"}.get(cid))
+    ids = ["1131", "1204", "1771"]
+    assert P.csm_assignments(ids, "2026.09", work, root=root, log=_quiet) == {
+        "1131": "Aaron Burgard", "1204": "Aaron Burgard", "1771": None}
+    # Off the VPN the share's last answer stands, so the page (and its hash) do not move.
+    assert P.csm_assignments(ids, "2026.09", work, root=str(tmp_path / "offline"),
+                             log=_quiet)["1204"] == "Aaron Burgard"
+
+
+def test_the_share_outranks_the_roster_csm_column_and_a_disagreement_is_logged(tmp_path, monkeypatch):
+    """The roster column fills in for clients the share never names (the CashPlease-only
+    ones) and outranks the settings record; where the share names someone, it wins."""
+    root = _share(tmp_path, ["2026.09/Aaron Burgard/1204-2026.09-a.xlsx"])
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setattr(P, "settings_csm", lambda cid: "From Settings")
+    said = []
+    got = P.csm_assignments(["1204", "1771", "1750"], "2026.09", work, root=root,
+                            roster={"1204": "Daniel Wood", "1771": "Aaron Burgard"},
+                            log=said.append)
+    assert got == {"1204": "Aaron Burgard", "1771": "Aaron Burgard", "1750": "From Settings"}
+    assert any("1204" in s and "Daniel Wood" in s for s in said)
+
+
+def test_settings_csm_reads_the_record_and_is_none_without_one(tmp_path, monkeypatch):
+    rec = tmp_path / "1632_cp_settings.json"
+    rec.write_text(json.dumps({"CSM": " Aaron Burgard "}))
+    monkeypatch.setattr(P.R, "cp_settings_file", lambda cid: rec if cid == "1632" else None)
+    assert P.settings_csm("1632") == "Aaron Burgard"
+    assert P.settings_csm("1771") is None
+
+
+def test_template_filters_by_csm_and_never_assigns_a_default():
+    """A client with no CSM is Unassigned on the page, never filed under a guess."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert 'id="csmchips"' in t
+    assert "const csmOf = c => c.csm || UNASSIGNED" in t
+    assert "inCsm(c) && selClients.has(c.id)" in t

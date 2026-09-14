@@ -17,6 +17,41 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — filter the performance page by CSM
+
+**The RPE Client Performance page has a CSM filter at the top** (Aaron: "the RPE artifact
+is going to need the ability to filter by CSM at the top"), above Products and Clients.
+It uses the same chips: from "All CSMs" a click isolates one CSM, later clicks add or
+remove, and shift-click isolates. The Clients row then offers only that CSM's clients,
+the summary tiles and every section follow, and the choice is remembered per viewer.
+Changing CSM resets the client selection, so a client picked under one CSM cannot leave
+another CSM's view empty.
+
+**Where the CSM comes from.** The data team files every client's reports under
+`Velocity_clientreports\<period>\<Account Manager>\`, so the refresh reads that folder as
+the client's CSM. It uses the newest of the last two months at or before the cycle: a
+client moved between CSMs follows the move (1805 went from Matt Lindsey in 2026.08 to
+Jordan Berkowitz in 2026.09), and a client whose files have not landed yet keeps last
+month's CSM. The share needs the VPN, so the last answer read is kept in
+`Build Artifacts/perf_dashboard/csm.json`. Without it, a morning off the VPN would blank
+every CSM, move the content hash and republish.
+
+**When the share names nobody**, the refresh uses the new `CSM` column of the CashPlease
+roster in `clients.md`, then the CSM on the client's CashPlease settings record. The column
+exists for the five CashPlease-only clients (1131, 1564, 1750, 1770, 1771): their reports
+never land on the share and none has a settings record, so the first build showed them as
+Unassigned. If the share and the column disagree, the share wins and the refresh logs the
+disagreement, because the share is kept by the people who assign clients. **A client
+nothing names is shown as Unassigned, never given a default CSM**: a guessed CSM hides the
+client from the CSM who actually owns it. As of 2026.09 every roster client resolves to
+Aaron Burgard.
+
+The refresh now reads the roster through `build_month.read_cashplease_roster` (columns by
+header name) instead of its own parser. That parser took Build from the third cell, so
+the new column would have dropped every CashPlease client from the page. Who appears on
+the page is still decided by `clients.md`, so it shows only Aaron's clients; other CSMs'
+clients appear only if they are added there.
+
 ### 2026-09-14 — the Mailing Response Summary lists a mailing still in progress
 
 **A mailing whose response is not yet measured was on no slide.** 1549 Wellworth's
