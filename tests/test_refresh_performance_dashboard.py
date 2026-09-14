@@ -610,6 +610,13 @@ def test_template_labels_the_current_peer_row_and_tags_inactive_programs():
     assert "no loans since " in t and "no enrollments since " in t
 
 
+def test_template_has_no_subheading_under_the_title():
+    """Aaron, 2026-09-14: remove the "85 clients, 5 CSMs, across four programs. Click a CSM..."
+    line under the title."""
+    t = P.TEMPLATE.read_text(encoding="utf-8")
+    assert 'id="subline"' not in t and "across four programs" not in t
+
+
 def test_template_declares_no_top_level_name_twice():
     """A repeated top-level `const`/`let` is a SyntaxError that blanks the whole page.
 

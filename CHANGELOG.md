@@ -17,6 +17,13 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-14 — the performance page drops its subheading
+
+**The line under the title is gone** (Aaron: remove "85 clients, 5 CSMs, across four programs.
+Click a CSM, product or client to show only that one, click others to add them, or click All
+for the whole row."). The element and the two script lines that filled it are removed. The
+"How the decks are made" link stays in the header.
+
 ### 2026-09-14 — the performance page's summaries cover current clients only
 
 **The CashPlease peer row is rebuilt over current clients** (Aaron: "For any of these summary

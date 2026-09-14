@@ -218,7 +218,6 @@ footer ul.prov b{color:var(--ink2);font-family:Montserrat,sans-serif;font-size:1
       <div class="eyebrow">CSI Velocity &middot; Retail Performance Engine</div>
       <h1>RPE Client Performance</h1>
       <div class="updated" id="updated"></div>
-      <div class="sub" id="subline"></div>
       <a class="doclink" href="workflow.html">How the decks are made &rarr;</a>
     </div>
     <div class="pill" id="periodpill"></div>
@@ -1035,8 +1034,6 @@ function update(){
   document.getElementById("rostersec").innerHTML = safe("Clients and decks", ()=>secRoster(vis));
 }
 document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
-const nCsm = CSMS.filter(m=>m!==UNASSIGNED).length;
-document.getElementById("subline").textContent = `${clients.length} clients, ${nCsm} CSM${nCsm===1?"":"s"}, across four programs. Click a CSM, product or client to show only that one, click others to add them, or click All for the whole row.`;
 document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
 document.getElementById("foot").innerHTML =
   `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
