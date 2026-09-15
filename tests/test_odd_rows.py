@@ -98,6 +98,44 @@ def test_open_and_closed_vocabularies_do_not_overlap():
     assert not (OPEN_STATUSES & CLOSED_STATUSES)
 
 
+# Stat Desc case and the Stat Code fallback (2026-09-14). isopen was case-sensitive and never
+# read the code, so 1637 ('open'), 1680 ('ACTIVE'), 1759 ('OPEN/ACTIVE') and 1743/1746/1815
+# (blank Stat Desc, code A/O) had no open account at all, while status_class and the pack
+# classifier beside it read them correctly.
+HC = dict(H, **{"Stat Code": 8})
+
+
+def crow(stat="", code=""):
+    return row(stat=stat) + [code]
+
+
+@pytest.mark.parametrize("stat", ["open", "ACTIVE", "OPEN/ACTIVE", "inactive", "DORMANT", "Open - Restricted"])
+def test_open_wording_is_read_in_any_case(stat):
+    assert accessors(HC).isopen(crow(stat=stat))
+
+
+@pytest.mark.parametrize("stat", ["closed", "CLOSED", "CHARGEOFF", "Account Closed"])
+def test_closed_wording_is_not_open_in_any_case(stat):
+    assert not accessors(HC).isopen(crow(stat=stat))
+
+
+@pytest.mark.parametrize("code,is_open", [("A", True), ("O", True), ("a", True),
+                                          ("C", False), ("X", False),
+                                          ("D", False), ("I", False), ("0", False), ("", False)])
+def test_a_blank_description_falls_back_to_the_confirmed_codes_only(code, is_open):
+    """O / A = Open are Aaron-confirmed (STAT_CODE_MAP). An unmapped code is not guessed open."""
+    assert accessors(HC).isopen(crow(stat="", code=code)) is is_open
+
+
+def test_the_description_wins_over_the_code():
+    assert not accessors(HC).isopen(crow(stat="Closed", code="A"))
+    assert accessors(HC).isopen(crow(stat="Open", code="C"))
+
+
+def test_no_stat_code_column_leaves_a_blank_description_not_open(odd):
+    assert not odd.isopen(row(stat=""))
+
+
 # --- the optimised accessors must behave exactly like the originals -----------
 # odd_rows is the ONE vocabulary shared by metrics_gen, the slide builders and
 # responder_activity, and it exists because three separate implementations of it

@@ -44,7 +44,7 @@ else:
     # project to the columns metrics_gen actually uses (cuts ~1/3 of the file from memory
     # so a big client fits; logic below is unchanged, H just maps to the kept columns)
     _LATEST=_latest_month(hdr)
-    _STATIC={f'{_LATEST} Elig','Debit?','Stat Desc','Business?',
+    _STATIC={f'{_LATEST} Elig','Debit?','Stat Desc','Stat Code','Business?',
              f'{_LATEST} Reg E Desc','Branch',
              'Date Opened','Date Closed','DOB','Avg Bal','Curr Bal','Prod Desc'}
     _MFAM=re.compile(r'^[A-Z][a-z]{2}\d{2} (Sig #|PIN #|Sig \$|PIN \$|MTD|Mail|Resp)$')
@@ -351,7 +351,7 @@ opdh=[r for r in data if personal(r) and isopen(r) and hascard(r)]
 if not opdh:
     _pers=[r for r in data if personal(r)]
     _data_issue("has no open personal debit-card holders, so there is no Reg E base",
-                "Of %s personal accounts, %s read as open from Stat Desc (%s have a blank Stat Desc) "
+                "Of %s personal accounts, %s read as open from Stat Desc, or Stat Code where the description is blank (%s have a blank Stat Desc) "
                 "and %s carry a debit card." % (f"{len(_pers):,}", f"{sum(1 for r in _pers if isopen(r)):,}",
                 f"{sum(1 for r in _pers if not g(r,'Stat Desc')):,}", f"{sum(1 for r in _pers if hascard(r)):,}"))
 n_in=sum(1 for r in opdh if regd(r)==OPTIN)

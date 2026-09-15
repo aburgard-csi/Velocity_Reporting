@@ -50,6 +50,33 @@ CashPlease, enrollments for MRPC.
 
 ### 2026-09-14 — the workflow page describes Outputs by CSM
 
+### 2026-09-14 — an open account is open in any case, and by Stat Code when Stat Desc is blank
+
+**`odd_rows.isopen`, which decides "open" for every ARS metric, disagreed with the two other status
+readers beside it.** It matched Stat Desc case-sensitively and never read Stat Code, while
+`odd_rows.status_class` (Product Mix, Excluded Accounts, the client overview) and `oddd_optimize`'s
+classifier are case-insensitive and fall back to the code. In the all-client trial builds six clients
+had no open account at all, and `metrics_gen` stopped with POSSIBLE DATA ISSUE:
+
+- 1637 writes `open`, 1680 `ACTIVE` / `DORMANT`, 1759 `OPEN/ACTIVE`;
+- 1743, 1746 and 1815 leave Stat Desc blank on every row and carry Stat Code `A` / `O`.
+
+`isopen` now compares the description case-insensitively and, only when it is blank, reads the
+Aaron-confirmed `STAT_CODE_MAP` (O / A = Open). An unmapped code (D, I, F, 0, word codes) is not
+guessed open. `metrics_gen` now loads Stat Code.
+
+**One delivered client's figures move: 1509 Texas Bay.** 1,755 of its accounts read `inactive` in
+lower case. `Inactive` is in the open vocabulary, so the Product Mix slide already counted them open.
+The ARS metrics did not, until now. The other roster ARS clients (1038, 1075, 1204, 1537, 1539,
+1549, 1676, 1705) do not change by a single account. **1509's September deck has not been rebuilt.**
+
+Still undecided and still stopping the build: 1226 (blank Stat Desc, word codes ACTIVE / DORMANT /
+INACTIVE), 1585 (`File Maintenance` on 16,398 accounts and 11,396 blanks) and 1615 (18,912 blanks
+with code `0`).
+
+`tests/test_odd_rows.py` covers case-insensitive open and closed wording, the code fallback for the
+confirmed codes only, the description winning over the code, and no fallback when Stat Code is absent.
+
 ### 2026-09-14 — a malformed ODD row is counted and flagged, and an empty base is named as a data issue
 
 Found in the all-client ARS trial builds.

@@ -203,6 +203,10 @@ def accessors(H):
     _i_business = _hget("Business?")
     _i_debit = _hget("Debit?")
     _i_stat = _hget("Stat Desc")
+    _i_code = _hget("Stat Code")
+    _open_lower = frozenset(s.lower() for s in OPEN_STATUSES)
+    # Only resolved when the extract carries Stat Code; importing oddd_optimize is not free.
+    _open_codes = frozenset(_code_sets()[0]) if _i_code is not None else frozenset()
 
     def personal(r):
         """True only for an explicit 'No' in Business?.
@@ -226,9 +230,22 @@ def accessors(H):
         return (r[i].strip().lower() == "yes") if i is not None and i < len(r) else False
 
     def isopen(r):
+        """Open by Stat Desc, compared case-insensitively; by Stat Code only when the
+        description is blank, using the Aaron-confirmed STAT_CODE_MAP (O / A = Open).
+
+        It used to be case-sensitive and never read the code, unlike `status_class` and
+        oddd_optimize's classifier beside it. On 2026-09-14 that left six clients with no
+        open account at all: 1637 writes 'open', 1680 'ACTIVE', 1759 'OPEN/ACTIVE', and
+        1743, 1746 and 1815 leave Stat Desc blank with codes A / O. It also dropped 1,755
+        'inactive' (lower case) 1509 Texas Bay accounts that its Product Mix slide counted.
+        """
         i = _i_stat
         sd = r[i].strip() if i is not None and i < len(r) else ""
-        return sd.startswith("Open") or sd.startswith("Active") or sd in OPEN_STATUSES
+        if sd:
+            low = sd.lower()
+            return low.startswith("open") or low.startswith("active") or low in _open_lower
+        j = _i_code
+        return j is not None and j < len(r) and r[j].strip().upper() in _open_codes
 
     return SimpleNamespace(
         g=g, fnum=fnum, swipes=swipes, spend=spend, nsf=nsf,

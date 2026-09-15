@@ -90,10 +90,12 @@ def test_a_clean_extract_flags_no_non_numeric_cells(tmp_path):
 
 def test_no_open_accounts_is_a_possible_data_issue_not_a_zero_division(tmp_path):
     def edit(header, data):
-        i = _column(header, "Stat Desc")
+        # Both status fields: a blank Stat Desc now falls back to Stat Code (O / A = Open).
+        cols = [_column(header, "Stat Desc")] + [k for k, c in enumerate(header) if c.strip() == "Stat Code"]
         for row in data:
-            if i < len(row):
-                row[i] = ""
+            for i in cols:
+                if i < len(row):
+                    row[i] = ""
     p = _fixture(tmp_path, edit)
     r = _run("build/ars_pipeline/metrics_gen.py", p, tmp_path / "metrics.json")
     assert r.returncode != 0 and "Traceback" not in r.stderr, r.stderr[-3000:]
