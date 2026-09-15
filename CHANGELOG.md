@@ -50,7 +50,7 @@ CashPlease, enrollments for MRPC.
 
 ### 2026-09-14 — the workflow page describes Outputs by CSM
 
-### 2026-09-14 — a malformed ODD row is skipped, and an empty base is named as a data issue
+### 2026-09-14 — a malformed ODD row is counted and flagged, and an empty base is named as a data issue
 
 Found in the all-client ARS trial builds.
 

@@ -110,6 +110,17 @@ def parsed(r,f):
 _lm=mkey(LATEST)
 NOW=(_lm.replace(day=28)+datetime.timedelta(days=4)).replace(day=1)-datetime.timedelta(days=1)
 M=out={}
+def _data_issue(what, detail=""):
+    """Stop with a named data problem instead of a ZeroDivisionError or an empty mean().
+
+    A slide cannot be built on a base of nothing, and a traceback says nothing about
+    why the base is empty. The cause is in the extract, so the message says what is
+    missing and what the extract carries instead (2026-09-14: 1226 Ellafi writes its
+    status only to Stat Code; 1121 Timberland writes numbers into Prod Desc).
+    """
+    raise SystemExit("POSSIBLE DATA ISSUE: %s %s.%s Nothing was computed from it. Check the "
+                     "extract with the data team, then rebuild."
+                     % (_os.path.basename(F), what, (" " + detail) if detail else ""))
 # cohorts
 elig=[r for r in data if personal(r) and g(r,f'{LATEST} Elig')=='Yes']
 # HISTORICAL response cohort — every personal account, NOT filtered by current
@@ -337,6 +348,12 @@ def regd(r):
     return 'NO'
 # ---- Reg E all personal (slide 24): open personal debit-card holders ----
 opdh=[r for r in data if personal(r) and isopen(r) and hascard(r)]
+if not opdh:
+    _pers=[r for r in data if personal(r)]
+    _data_issue("has no open personal debit-card holders, so there is no Reg E base",
+                "Of %s personal accounts, %s read as open from Stat Desc (%s have a blank Stat Desc) "
+                "and %s carry a debit card." % (f"{len(_pers):,}", f"{sum(1 for r in _pers if isopen(r)):,}",
+                f"{sum(1 for r in _pers if not g(r,'Stat Desc')):,}", f"{sum(1 for r in _pers if hascard(r)):,}"))
 n_in=sum(1 for r in opdh if regd(r)==OPTIN)
 n_out=sum(1 for r in opdh if regd(r) in OPTOUT)
 n_no=sum(1 for r in opdh if regd(r) in NOELECT)
@@ -533,6 +550,9 @@ CHECKING_WORDS = ('checking', 'share draft')
 def is_checking_name(p): return any(w in (p or '').lower() for w in CHECKING_WORDS)
 def ischecking(r): return is_checking_name(g(r,'Prod Desc'))
 newp=[r for r in data if personal(r) and opened_in(r,J25,J26)]
+if not newp:
+    _data_issue("has no personal accounts opened in its last 12 months (%s to %s)" % (J25.strftime('%b %Y'), J26.strftime('%b %Y')),
+                "Check Date Opened.")
 M['new_total']=len(newp)
 M['new_stillopen_pct']=round(100*sum(1 for r in newp if isopen(r))/len(newp))
 prodc=Counter(g(r,'Prod Desc') for r in newp)
@@ -544,6 +564,13 @@ M['new_topcheck']=topchk; M['new_topcheck_pct']=round(100*prodc.get(topchk,0)/le
 # new checking balances (slide 36)
 new_chk=[r for r in newp if ischecking(r)]
 open_chk=[r for r in data if personal(r) and ischecking(r) and isopen(r)]
+if not new_chk or not open_chk:
+    _noname=Counter(g(r,'Prod Desc') or '(blank)' for r in newp if not re.search('[A-Za-z]', g(r,'Prod Desc')))
+    _data_issue("has no %s checking accounts to compare" % ("new" if not new_chk else "open"),
+                "Checking means 'checking' or 'share draft' in Prod Desc. %s personal accounts opened since %s "
+                "include %s such accounts; %s of them carry a Prod Desc with no product name in it (most common: %s)."
+                % (f"{len(newp):,}", J25.strftime('%b %Y'), f"{len(new_chk):,}", f"{sum(_noname.values()):,}",
+                   ", ".join(repr(k) for k, _ in _noname.most_common(4)) or "none"))
 def bal(r):
     ab=fnum(r,'Avg Bal'); return ab if ab!=0 else fnum(r,'Curr Bal')
 M['new_chk_avgbal']=round(statistics.mean([bal(r) for r in new_chk]))

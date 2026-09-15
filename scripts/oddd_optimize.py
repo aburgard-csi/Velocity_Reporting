@@ -44,6 +44,14 @@ MIDX = {m: i for i, m in enumerate(MONTHS)}
 MONTH_RE = re.compile(r"^([A-Z][a-z]{2})(\d{2})\s+(.*)$")
 CHUNK = 100_000
 
+# Cells in money/count columns that are not numbers, per column. A row with one extra
+# field (an unquoted comma in a text cell) is kept by pandas with its cells shifted, so
+# text such as 'Customer Opt In' lands in a numeric column: 3 of 28,930 rows in 1147
+# Sutton's 2026.09 extract. Such a cell counts as missing and is reported in the pack's
+# flags, never silently summed and never fatal (2026-09-14).
+NON_NUMERIC = defaultdict(int)
+_NUMBER_RX = r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$"
+
 
 def month_key(mon, yy):
     """Sortable key: 20YY*12 + monthindex."""
@@ -80,6 +88,13 @@ def money_block(df, names):
             for chx in ("$", ",", "(", ")"):
                 a = pc.replace_substring(a, chx, "")
             a = pc.if_else(pc.equal(a, ""), pa.scalar(None, pa.string()), a)
+            # The strict cast died on shifted text; the pandas path below always coerced
+            # it to missing. Same rule on both paths now, and the cells are counted.
+            isnum = pc.match_substring_regex(a, pattern=_NUMBER_RX)
+            nbad = pc.sum(pc.and_kleene(pc.is_valid(a), pc.invert(isnum))).as_py() or 0
+            if nbad:
+                NON_NUMERIC[name] += int(nbad)
+            a = pc.if_else(isnum, a, pa.scalar(None, pa.string()))
             f = pc.cast(a, pa.float64(), safe=False)
             f = pc.if_else(neg, pc.multiply(f, pa.scalar(-1.0)), f)
             f = pc.fill_null(f, 0.0)
@@ -88,6 +103,11 @@ def money_block(df, names):
         return csum, cgt0
     csum, cgt0 = {}, {}
     for name in names:
+        s = df[name].fillna("").astype(str).str.replace("\x00", "", regex=False).str.strip()
+        s = s.str.replace(r"[\$,()]", "", regex=True)
+        nbad = int(((s != "") & pd.to_numeric(s, errors="coerce").isna()).sum())
+        if nbad:
+            NON_NUMERIC[name] += nbad
         v = clean_money(df[name])
         csum[name] = float(v.sum()); cgt0[name] = int((v > 0).sum())
     return csum, cgt0
@@ -421,6 +441,9 @@ def main():
         "flags": {
             "regE_unmapped": dict(sorted(rege_unmapped.items(), key=lambda x: -x[1])),
             "status_other_raw": dict(sorted(status_other_raw.items(), key=lambda x: -x[1])),
+            # Text in money/count columns (shifted malformed rows), counted as missing.
+            "non_numeric_cells": {"total": int(sum(NON_NUMERIC.values())),
+                                  "columns": dict(sorted(NON_NUMERIC.items(), key=lambda x: -x[1])[:12])},
         },
     }
 
