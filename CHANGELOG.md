@@ -46,6 +46,12 @@ List name comes from a workbook filename and had picked up the flag: 1780 read "
 USF CU". That list entry is now "USF CU" (backup in `Build Artifacts/`). The builder's list also
 drops the program tags and dates its Outputs tag: "In Outputs 2026.09".
 
+**The launcher no longer tells anyone to mark a deck sent** (Aaron: "the other CSM don't have an
+artifact to mark those, and i don't have to do that part for them"). The builder's "Sent" chips,
+its "tell Aaron it went out" line, the console's "Mark it sent" line and the user guide's step are
+gone. Rebuilding a deck already recorded as sent still asks first. Only Aaron's decks are ever
+recorded, so other CSMs never see that question.
+
 ### 2026-09-15 — ARS Deck Builder: the launcher in a browser
 
 **`ARS Deck Builder.bat` opens the ARS launcher as a page in the browser** (Aaron: "would it be

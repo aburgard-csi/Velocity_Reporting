@@ -386,7 +386,6 @@ def cmd_build(a):
         indent=1), encoding="utf-8")
     if delivered:
         print(f"\nDone. The deck is in Outputs, ready to review, save as PDF and email.")
-        print("Mark it sent on the delivery dashboard once it has gone to the client.")
         return 0
     print("\nNot put in Outputs. Details are in " + str(work / "build.log"))
     return 1

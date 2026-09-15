@@ -417,8 +417,8 @@ function renderList() {
   let html = "", last = null;
   for (const c of shown) {
     if (!csm && c.csm !== last) { html += `<div class="grouphead">${esc(c.csm)}</div>`; last = c.csm; }
+    // No "Sent" chip: only Aaron records sends, and other CSMs have nowhere to mark theirs (2026-09-15).
     const chips = [c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
-                   c.sent ? `<span class="chip sent">Sent ${esc(shortDate(c.sent))}</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span><span class="meta">${chips}</span></button>`;
@@ -519,7 +519,7 @@ function renderJob(j) {
   if (j.done && !j.code && j.deck) {
     const name = j.deck.split(/[\\/]/).pop();
     html += `<div class="result good"><h3>Done. The deck is in Outputs.</h3><p class="mono">${esc(name)}</p>
-      <p>Review it, save it as a PDF and email it as usual. Then tell Aaron it went out so it's marked sent.</p>
+      <p>Review it, save it as a PDF and email it as usual.</p>
       <p><button class="link" id="reveal">Show it in File Explorer</button></p></div>`;
   } else if (j.done) {
     html += `<div class="result bad"><h3>Not put in Outputs.</h3><p>${esc(stop ? stop.text : "The build stopped.")}</p>
