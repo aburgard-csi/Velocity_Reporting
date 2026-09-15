@@ -16,8 +16,9 @@ import ars_launcher_web as W  # noqa: E402
 @pytest.fixture
 def server(monkeypatch):
     monkeypatch.setattr(W, "clients_doc", lambda: {"period": "2026.09", "clients": [{"id": "1441", "name": "FNB Alaska"}]})
-    monkeypatch.setattr(W, "status_doc", lambda cid: {"client": cid, "state": "ready", "checks": []})
+    monkeypatch.setattr(W, "compute_status", lambda cid: {"client": cid, "state": "ready", "checks": []})
     W._jobs.clear()
+    W._status_cache.clear()
     srv = W.make_server(0)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield srv.server_address[1]
@@ -79,6 +80,25 @@ def test_a_build_job_streams_its_lines_and_names_the_deck(server, monkeypatch):
     assert job["done"] and job["code"] == 0
     assert any("Reading the ODD extract" in l for l in job["lines"])
     assert job["deck"] == deck
+
+
+def test_a_status_is_served_from_the_cache_until_fresh_is_asked_or_a_build_finishes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(W, "compute_status", lambda cid: calls.append(cid) or {"client": cid, "state": "ready", "checks": []})
+    W._status_cache.clear()
+    W._jobs.clear()
+    W.status_doc("1441")
+    second = W.status_doc("1441")
+    assert calls == ["1441"] and second["age_seconds"] >= 0 and "job" in second
+    W.status_doc("1441", fresh=True)
+    assert calls == ["1441", "1441"], "Check again must re-read"
+    W.forget_status("1441")
+    W.status_doc("1441")
+    assert len(calls) == 3, "a finished build drops the cached status"
+    monkeypatch.setattr(W, "STATUS_TTL", 0)
+    W.status_doc("1441")
+    assert len(calls) == 4, "an entry older than the TTL is re-read"
+    W._status_cache.clear()
 
 
 def test_reveal_only_opens_a_deck_under_outputs(tmp_path, monkeypatch):

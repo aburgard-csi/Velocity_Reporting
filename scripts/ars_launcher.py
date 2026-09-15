@@ -17,8 +17,8 @@ plain English what is wrong and who fixes it:
     (`deck_status.requirements`, the same check as the delivery dashboard);
   * an MM client's Lift Matrix is current: the workbook's data month is inside its window and the
     data team hasn't flagged it in the filename (`lift_checks`);
-  * a deck already recorded as SENT is rebuilt only when the person running it says so: the
-    launcher asks, and on the command line it takes --rebuild;
+  * a deck already in Outputs for the period (or recorded as sent) is rebuilt only when the person
+    running it says so: the launcher asks, and on the command line it takes --rebuild;
   * one person at a time per client: a lock file in the client's work folder.
 
 A build works in `Build Artifacts/launcher/<period>/<id>/`, where its log, charts and data stay
@@ -72,7 +72,7 @@ STEPS = {
 
 # ------------------------------------------------------------------ small helpers
 def say(level, text):
-    mark = {OK: "  [ok]  ", WARN: "  [!!]  ", ASK: "  [sent]", STOP: "  [STOP]"}[level]
+    mark = {OK: "  [ok]  ", WARN: "  [!!]  ", ASK: " [built]", STOP: "  [STOP]"}[level]
     # Wrapped at the window's width on word boundaries: the console otherwise splits a word
     # across lines ("for exampl / e"). Paths are never broken.
     width = max(60, shutil.get_terminal_size((100, 24)).columns - 1)
@@ -112,7 +112,7 @@ def newest_workbook_period(cid):
 
 
 # ------------------------------------------------------------------ the checks
-def rule_checks(cid, period, row, roster, sent, rebuild=False):
+def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=()):
     """The launcher's rules, independent of the filesystem so they can be tested.
 
     `row` is the Client CSM List row, `roster` the build_month.read_roster() active list,
@@ -147,14 +147,25 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False):
             out.append((STOP, f"This client ships a combined {'-'.join(entry[3])} deck, which this launcher "
                               "does not build. Ask Aaron."))
 
+    # A deck already in Outputs, or already recorded as sent, is rebuilt only when the person running it
+    # says so (Aaron, 2026-09-15: "The deck is already in Outputs, but it says Build and put in Outputs.
+    # It should ask if we need to rebuild"). Outputs is what every CSM has; only Aaron records sends.
     key = f"{cid}|{period}"
+    when = None
     if key in sent:
         when = (sent[key] or {}).get("sent_at", "") if isinstance(sent[key], dict) else sent[key]
-        if rebuild:
-            out.append((WARN, f"The {period} deck was already sent ({when}). Rebuilding it, as asked."))
-        else:
-            out.append((ASK, f"The {period} deck was already sent ({when})."))
+    if in_outputs or when:
+        what = (f"The {period} deck is already in Outputs ({in_outputs[0]})" if in_outputs
+                else f"The {period} deck was already made")
+        if when:
+            what += f" and was sent {when}"
+        out.append((WARN, what + ". Rebuilding it, as asked.") if rebuild else (ASK, what + "."))
     return out
+
+
+def decks_in_outputs(cid, period):
+    """This client's ARS-bearing decks for `period` in Outputs (any CSM folder), by name."""
+    return sorted(p.name for p in R.output_decks(f"{cid}-{period}-ARS*.pptx") if not p.name.startswith("~$"))
 
 
 def input_checks(cid, period):
@@ -184,6 +195,24 @@ def input_checks(cid, period):
     return out
 
 
+_WINDOWS = {}
+
+
+def _window(path):
+    """workbook_window, remembered per file landing (path + mtime). Opening a workbook over the share
+    takes 0.4-2s; ARS Deck Builder checks the same workbooks over and over (2026-09-15)."""
+    try:
+        key = (str(path), os.stat(path).st_mtime_ns)
+    except OSError:
+        key = None
+    if key in _WINDOWS:
+        return _WINDOWS[key]
+    w = workbook_window(path)
+    if key:
+        _WINDOWS[key] = w
+    return w
+
+
 def lift_checks(cid, period, roster):
     """An expired Lift Matrix stops an MM client's build (Aaron, 2026-09-15: "Add the lift matrix date
     check to the build criteria").
@@ -208,7 +237,7 @@ def lift_checks(cid, period, roster):
     except ImportError:
         flag = None
     try:
-        w = workbook_window(wbs[0])
+        w = _window(wbs[0])
     except Exception as e:     # an unreadable workbook is reported, never guessed at
         return [(WARN, f"Lift Matrix: couldn't read its dates from {name} ({type(e).__name__}).")]
     fix = "CSM: create a new Lift Matrix, then build again."
@@ -227,7 +256,8 @@ def lift_checks(cid, period, roster):
 
 def all_checks(cid, period, row, roster, sent, rebuild=False):
     """Every pre-build check, in the order they print: the rules, the inputs, the Lift Matrix."""
-    return (rule_checks(cid, period, row, roster, sent, rebuild=rebuild) + input_checks(cid, period)
+    return (rule_checks(cid, period, row, roster, sent, rebuild=rebuild, in_outputs=decks_in_outputs(cid, period))
+            + input_checks(cid, period)
             + lift_checks(cid, period, roster))
 
 
@@ -274,7 +304,7 @@ def cmd_status(a):
         print("\nNot ready to build.")
         return 1
     if any(l == ASK for l, _ in checks):
-        print("\nReady to rebuild, if something has changed since it was sent (a formatting change, a corrected input).")
+        print("\nReady to rebuild, if something has changed since it was built (a formatting change, a corrected input).")
         return ASKED_EXIT
     print("\nReady to build.")
     return 0
@@ -324,7 +354,7 @@ def to_outputs(cid, deck):
     if cur.exists() and P.same(str(cur), deck):
         return OK, f"The deck in Outputs is already identical to this build: {cur}"
     try:
-        n, _ = P.promote_one(deck, dest, out / "Archive", dt.date.today().isoformat(), apply=True,
+        n, _ = P.promote_one(deck, dest, out / R.ARCHIVE_DIRNAME, dt.date.today().isoformat(), apply=True,
                              legacy=(out,), log=lambda m: print("         " + m.strip(), flush=True))
     except OSError as e:
         return STOP, (f"The deck built clean but could not be put in Outputs ({e}). If this client's deck "
@@ -342,7 +372,7 @@ def cmd_build(a):
         print("\nNot built. Fix the items marked STOP, then run it again.")
         return 1
     if any(l == ASK for l, _ in checks):
-        print("\nNot built. To rebuild a deck that was already sent, answer Y when Build ARS Deck asks, or pass --rebuild.")
+        print("\nNot built: this month's deck is already in Outputs. To rebuild it, answer Y when Build ARS Deck asks, or pass --rebuild.")
         return ASKED_EXIT
 
     entry = next(r for r in roster if r[0] == a.client)

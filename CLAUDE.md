@@ -51,12 +51,14 @@ ARE THE BACKUP (Aaron, 2026-09-09).** Every input can be re-fetched from where i
 from: the CSI shares hold the ODD extracts, DCOs, ARS workbooks and MRPCPM analyses, and
 the mailbox holds the MRPC / CashPlease reports and the ICS workbooks —
 `scripts/watch_sources.py --copy --mail` is how they come back. Outputs are rebuildable
-from those inputs by definition, and `Outputs/Archive/` keeps the newest superseded deck
+from those inputs by definition, and `Outputs/_Archive/` keeps the newest superseded deck
 of each kind per client per period, in a folder per client filed under its CSM
-(`Archive/<CSM>/<id> <client>/`, Aaron 2026-09-14; by CSM 2026-09-15). `promote_month` moves
+(`_Archive/<CSM>/<id> <client>/`, Aaron 2026-09-14; by CSM 2026-09-15). `promote_month` moves
 older decks of the same period and kind to
-`Archive/_older decks - delete after review/<CSM>/<id> <client>/` — never deletes them — and
-never moves a hand-made PDF. An existing client folder is reused wherever it sits.
+`_Archive/_older decks - delete after review/<CSM>/<id> <client>/` — never deletes them — and
+never moves a hand-made PDF. An existing client folder is reused wherever it sits. The folder
+name lives in `rpe_env.ARCHIVE_DIRNAME`; its underscore keeps it above the CSM folders (it was
+`Archive/` until 2026-09-15).
 
 Do not introduce a mirror. Two copies of one tree is the two-stores problem that shipped
 month-old ICS figures in August: `build/{ics,mrpc}_pipeline/data/` and the VIP store
@@ -125,8 +127,8 @@ covers all five CSMs' books. Program is still distinguished by the filename tag,
 subfolder. Writers resolve the folder with `rpe_env.client_outputs(id)` (the CSM from
 `<RPE_DATA_ROOT>/Client CSM List.csv`, else the CashPlease roster's CSM column, else
 `Outputs/_Unassigned/` — never a guessed CSM); readers use `rpe_env.output_decks(pattern)`,
-which searches every CSM folder and the flat root but never `Archive/`. `Outputs/Archive/`
-stays one folder per client. This replaced both the old **Client Presentations** drop and
+which searches every CSM folder and the flat root but never `_Archive/`. `Outputs/_Archive/`
+keeps a folder per client under each CSM. This replaced both the old **Client Presentations** drop and
 the per-client `Clients/<Client Name> <clientid>/` copy — do not deliver to client folders.
 
 **`C:\Data Pipelines\` also holds `Renewals Pipeline` — a DIFFERENT project.** It has its
@@ -803,6 +805,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `ars_launcher_web.py` — ARS Deck Builder, the browser front end for `ars_launcher.py`: a 127.0.0.1-only server whose page lists the `clients.md` ARS clients, shows the launcher's checks and runs `ars_launcher.py build` as a child process, streaming its steps. Every API call needs the token baked into the page and a localhost Host header; "Show in File Explorer" opens only a file under Outputs. It decides nothing itself.
 - `launchers/` — `Build ARS Deck.bat`, `ARS Deck Builder.bat` (starts `ars_launcher_web.py`), `ARS Deck User Guide.html` (released to the CSM_Reporting root) and `runtime.cmd`, which unpacks the released Python to `%LOCALAPPDATA%\RPE` on first use.
 - `release_launcher.ps1` — copies the code to `<root>\Tools\RPE` and the .bat files to the root; `-Runtime` also ships the zipped Python. **The launcher runs the released copy: re-run after any change, `clients.md` included.**
+- `issue_pages/` — the two team issue pages, **ODD and Workbook Issues** and **CSM Data Gaps** (published as Claude artifacts, copied to `Notes/`). `build_issue_pages.py [--no-scan] [--no-notes]` runs the chain after `refresh_performance_dashboard.py`: `gaps_matrix.py` (per-client gaps -> gaps.json), `noprog_odd_dates.py`, `missing_wb_history.py` (every month on the reports share for the Missing Workbook clients), `business_flags.py` / `mail_flags.py` (full ODD scans; `--no-scan` reuses them), `odd_wb_by_csm.py` (the ODD page, with the Lift Matrix date check), `gaps_inject.py` + `gaps_template.html` (the Data Gaps page). `clients_products.py <export.csv>` loads a new Velocity client/product export. Paths come from `common.py` via rpe_env; working data and pages live in `Build Artifacts/issue_pages/` because they carry client names and products. Publishing the artifacts needs Claude.
 - `perf_workflow.html` — the page's linked "How the decks are made" page (inputs, outputs, folder map), published beside it as `workflow.html`.
 - `perf_clients.py` — which clients the page lists: every current client on the reports share, with programs inferred for clients `clients.md` does not cover.
 - `perf_overview.py` — the page's Client overview figures, and the per-client code counts, from each ODD extract (cached per extract).

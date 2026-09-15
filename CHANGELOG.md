@@ -17,6 +17,57 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-15 — the archive is `Outputs/_Archive/`
+
+**`Outputs/Archive/` is renamed `Outputs/_Archive/`** (Aaron: "add to the archive folder names so they
+stay at the top, above my name"). "Archive" sorted between "Aaron Burgard" and the other CSM
+folders. The underscore puts it at the top of Outputs, beside `_Unassigned`. The name lives in
+`rpe_env.ARCHIVE_DIRNAME`, which `promote_month` and `ars_launcher` archive into.
+`output_decks` skips both the new and the old name, so a leftover `Archive/` is never read as a
+CSM's folder. The folder on the share was renamed, not copied. `tests/test_archive_dirname.py`
+covers the name, the skip of both names and the two writers.
+
+### 2026-09-15 — client logos were clipped on the slide
+
+**`rpe_env.trim_logo` cut into 26 of 122 client logos** (Aaron: "CoastHills needs a corrected
+logo"). The logo file was fine. The CoastHills site's SVG renders pixel-identical to
+`Inputs/Logos/1776.png`, but the deck's agenda slide carried a 1600x294 slice of the 1600x384 logo,
+with the tops of the letters gone.
+
+The cause: a transparent logo whose artwork touches the canvas edges has a full-canvas alpha box.
+trim_logo took that as an opaque canvas, sampled the border (the lettering itself) as the
+background colour, and subtracted it. The worst cases kept a fragment: 1183 came out 632x28,
+1072 133x134 of 1195x258, 1526 166x166 of 1200x437, 1204 320x314 of 1200x314. The opaque-canvas
+pass now runs only when at least 90% of the border ring is opaque. Those 26 now keep their full
+artwork, and the other 95 trim exactly as before, including the white-canvas logos the pass exists
+for (1549). `tests/test_trim_logo.py` covers the opaque canvas, transparent padding and the
+edge-to-edge transparent logo.
+
+Decks built before this carry the clipped logo until they are rebuilt. 2026.09 decks in Outputs
+affected: 1156, 1204, 1218, 1673, 1734, 1759, 1776 and 1798.
+
+### 2026-09-15 — the issue pages are built from the repo
+
+**The ODD and Workbook Issues and CSM Data Gaps pages are now built by `scripts/issue_pages/`**
+(Aaron: "move the issue page scripts into the repo"). They had been built from scripts in a Claude
+session scratchpad, with the share and the repo checkout written into them. Every path now
+resolves through rpe_env (`common.py`). Working data and both pages live in `Build Artifacts/issue_pages/`,
+because they carry client names and products. `build_issue_pages.py` runs the chain in order and
+copies both pages to `Notes/`. `tests/test_issue_pages.py` fails on a written-in share or machine
+path, and covers the share-history scan and the Notes charset.
+
+What changed on the way in:
+- `missing_wb_history.py` is new. Nothing in the scratchpad had written that file; it scans every
+  month on the client-reports share for the Missing Workbook clients.
+- The ODD page no longer carries a separate "Missing Workbook" table above the CSM sections. A
+  Missing Workbook client is listed in its CSM's section only (Aaron: "Jordan's missing Texar
+  workbook should be in his section").
+- Stale one-day patches came out: the "recalculated, rebuild in progress" note for 1192 and 1673,
+  the hand-added uncalculated-workbook finding for 1673 (it has since built clean) and an empty
+  ARS-confirmed override. The Data Gaps page drops from 120 to 119 issues as a result.
+- "September" and the 20-client roster count are derived from the period and clients.md, not
+  written in.
+
 ### 2026-09-15 — an expired Lift Matrix stops the launcher's build
 
 **The launcher now checks the Lift Matrix before an MM client's build** (Aaron: "flag it as having
@@ -45,6 +96,24 @@ then the launcher refuses to build them.
 List name comes from a workbook filename and had picked up the flag: 1780 read "LM EXPIRED-USF CU /
 USF CU". That list entry is now "USF CU" (backup in `Build Artifacts/`). The builder's list also
 drops the program tags and dates its Outputs tag: "In Outputs 2026.09".
+
+**ARS Deck Builder caches what it has checked** (Aaron: "can we speed up the UI by caching
+information?"). A client's status cost 3-6 seconds, mostly the share and Inputs checks (about 2s)
+and opening the workbook for its Lift Matrix (0.4-2s). Now:
+- each status is kept for 10 minutes, and the page says how old it is;
+- "Check again" re-reads it, and a finished build drops that client's entry;
+- every client is checked once in the background when the builder starts, so a click is usually
+  instant;
+- the launcher remembers each workbook's Lift Matrix window until the file changes.
+
+`ars_launcher.py build` never uses the builder's cache: its checks run fresh right before the build.
+
+**A deck already in Outputs asks before it is rebuilt** (Aaron: "The deck is already in Outputs, but
+it says Build and put in Outputs. It should ask if we need to rebuild"). The rebuild question used
+to follow the delivery log, and only Aaron records sends, so another CSM's client with a deck in
+Outputs (1815 FedChoice) was offered a plain build. It now follows Outputs: any ARS-bearing deck
+for the client and period in any CSM folder. The builder says "This month's deck is already in
+Outputs", the console marks it `[built]`, and the .bat asks "Rebuild it and replace it".
 
 **The launcher no longer tells anyone to mark a deck sent** (Aaron: "the other CSM don't have an
 artifact to mark those, and i don't have to do that part for them"). The builder's "Sent" chips,

@@ -145,7 +145,7 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
         <tbody>
           <tr><td><span class="tag ok">[ok]</span></td><td>This check passed.</td><td>Nothing.</td></tr>
           <tr><td><span class="tag warn">[!!]</span></td><td>A warning. The build can still run.</td><td>Read it. A missing DCO, for example, leaves the DCO's eligible accounts blank.</td></tr>
-          <tr><td><span class="tag sent">[sent]</span></td><td>This month's deck was already sent to the client.</td><td>It asks <em>"Rebuild it and replace the one in Outputs?"</em> Say <kbd>Y</kbd> only if something changed, such as a formatting fix or a corrected input.</td></tr>
+          <tr><td><span class="tag sent">[built]</span></td><td>This month's deck is already in Outputs.</td><td>It asks whether to rebuild it and replace the one in Outputs. Say <kbd>Y</kbd> only if something changed, such as a formatting fix or a corrected input.</td></tr>
           <tr><td><span class="tag stop">[STOP]</span></td><td>The deck can't be built yet. The line says why.</td><td>See the table below.</td></tr>
         </tbody>
       </table>
@@ -174,7 +174,7 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
       <li><strong>Save it as a PDF</strong> and <strong>email it</strong> to the client as usual.</li>
     </ol>
     <div class="note caution">If a slide looks wrong, don't fix it by hand in PowerPoint. Tell Aaron what's wrong so the build is fixed and every client's deck gets the correction.</div>
-    <p>Any older deck for the same client and month is moved to <span class="path">Outputs\Archive\</span>. Nothing is deleted.</p>
+    <p>Any older deck for the same client and month is moved to <span class="path">Outputs\_Archive\</span>. Nothing is deleted.</p>
   </section>
 
   <section id="problems">
@@ -200,7 +200,7 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
           <tr><td><span class="path">Build ARS Deck.bat</span></td><td>The launcher. Double-click it.</td></tr>
           <tr><td><span class="path">ARS Deck Builder.bat</span></td><td>The same launcher in your browser.</td></tr>
           <tr><td><span class="path">Outputs\&lt;CSM&gt;\</span></td><td>Your finished decks.</td></tr>
-          <tr><td><span class="path">Outputs\Archive\</span></td><td>Decks replaced by a newer build.</td></tr>
+          <tr><td><span class="path">Outputs\_Archive\</span></td><td>Decks replaced by a newer build. It stays at the top of Outputs.</td></tr>
           <tr><td><span class="path">Inputs\</span></td><td>The ODD extracts and workbooks the build reads. Leave these alone.</td></tr>
           <tr><td><span class="path">Build Artifacts\launcher\</span></td><td>A build's log, charts and data files. You only need these if Aaron asks for a <code>build.log</code>.</td></tr>
           <tr><td><span class="path">Tools\</span></td><td>The launcher's code and Python. Don't change anything here.</td></tr>

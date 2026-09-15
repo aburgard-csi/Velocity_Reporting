@@ -1,0 +1,244 @@
+<meta charset="utf-8">
+<title>CSM Reporting Data Gaps</title>
+<meta name="description" content="What is missing, stale or undecided for every current client across the five CSMs' books.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --paper:#F6F8FB; --surface:#FFFFFF; --ink:#14202E; --muted:#5A6670; --rule:#D9DEE5; --soft:#EEF2F7;
+  --navy:#00274C; --accent:#F47A29; --heading:#00274C;
+  --blocker:#B42318; --blocker-bg:#FDECEA; --gap:#9A6212; --gap-bg:#FDF3E1;
+  --warning:#3F5F7D; --warning-bg:#E8EFF6; --decision:#6A3FA0; --decision-bg:#F1EAF9;
+  --ok:#0B7A5A; --ok-bg:#E3F4EE;
+  --head:"Montserrat","Segoe UI",Arial,sans-serif; --body:"Source Sans 3","Calibri","Segoe UI",Arial,sans-serif; --mono:"IBM Plex Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0C1622; --surface:#132131; --ink:#E4EAF1; --muted:#9AA8B6; --rule:#26384B; --soft:#182a3d;
+  --navy:#9DB8CC; --heading:#DCE6EF;
+  --blocker:#FF8A7A; --blocker-bg:#3A1C1A; --gap:#F2B45A; --gap-bg:#35280F;
+  --warning:#9DB8CC; --warning-bg:#1B2C3E; --decision:#C7A6F2; --decision-bg:#2A1F3B; --ok:#5ED3A6; --ok-bg:#12302A;
+}}
+:root[data-theme="dark"]{
+  --paper:#0C1622; --surface:#132131; --ink:#E4EAF1; --muted:#9AA8B6; --rule:#26384B; --soft:#182a3d;
+  --navy:#9DB8CC; --heading:#DCE6EF;
+  --blocker:#FF8A7A; --blocker-bg:#3A1C1A; --gap:#F2B45A; --gap-bg:#35280F;
+  --warning:#9DB8CC; --warning-bg:#1B2C3E; --decision:#C7A6F2; --decision-bg:#2A1F3B; --ok:#5ED3A6; --ok-bg:#12302A;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:16px/1.5 var(--body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:36px 24px 72px;display:grid;gap:40px}
+header{display:grid;gap:10px;border-bottom:3px solid var(--navy);padding-bottom:22px}
+.eyebrow{font:700 12px/1 var(--head);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font:800 clamp(30px,4vw,44px)/1.05 var(--head);color:var(--heading);margin:0;text-wrap:balance}
+h2{font:700 21px/1.2 var(--head);color:var(--heading);margin:0 0 4px;text-wrap:balance}
+.lede{max-width:74ch;color:var(--muted);margin:0}
+.section-note{color:var(--muted);margin:0 0 16px;max-width:80ch}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:14px 16px;display:grid;gap:2px}
+.kpi b{font:800 30px/1 var(--head);font-variant-numeric:tabular-nums;color:var(--heading)}
+.kpi span{font-size:13px;color:var(--muted)}
+.kpi.blocker b{color:var(--blocker)} .kpi.gap b{color:var(--gap)} .kpi.decision b{color:var(--decision)} .kpi.ok b{color:var(--ok)}
+.pill{display:inline-block;font:700 11px/1 var(--head);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:999px;white-space:nowrap}
+.pill.blocker{color:var(--blocker);background:var(--blocker-bg)} .pill.gap{color:var(--gap);background:var(--gap-bg)}
+.pill.warning{color:var(--warning);background:var(--warning-bg)} .pill.decision{color:var(--decision);background:var(--decision-bg)}
+.groups{display:grid;gap:10px}
+.group{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--sev);border-radius:6px;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px}
+.group h3{font:600 16px/1.35 var(--body);margin:0;color:var(--ink)}
+.group .meta{display:flex;gap:8px;align-items:center;justify-self:end}
+.group .count{font:800 20px/1 var(--head);font-variant-numeric:tabular-nums;color:var(--heading)}
+.group .fix{grid-column:1/-1;color:var(--muted);font-size:14px}
+.group .fix::before{content:"Next step: ";font-weight:700;color:var(--ink)}
+.chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 12px/1 var(--mono);background:var(--soft);color:var(--ink);border-radius:4px;padding:5px 6px}
+.chip[title]{cursor:help}
+.filters{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-bottom:14px}
+.filters .label{font:700 11px/1 var(--head);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.fgroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button.f{font:600 13px/1 var(--body);border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 11px;cursor:pointer}
+button.f[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:var(--paper)}
+button.f:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--rule);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font:700 11px/1.2 var(--head);letter-spacing:.08em;text-transform:uppercase;text-align:left;color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--rule);position:sticky;top:0;background:var(--surface)}
+td{padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.id{font:500 13px/1.4 var(--mono);white-space:nowrap}
+td.name{min-width:160px} td.issue{min-width:320px} td.fixc{color:var(--muted);min-width:220px}
+.count-line{font-size:13px;color:var(--muted);margin:8px 2px 0}
+.cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:16px 18px}
+.card h3{font:700 15px/1.3 var(--head);margin:0 0 8px;color:var(--heading)}
+.card p,.card li{margin:0;color:var(--ink)} .card ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}
+.card .muted{color:var(--muted);font-size:14px}
+details{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font:700 15px/1.3 var(--head);color:var(--heading)}
+.src td:first-child{font-weight:600;white-space:nowrap}
+footer{color:var(--muted);font-size:13px;border-top:1px solid var(--rule);padding-top:16px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow" id="eyebrow">CSM Reporting</div>
+    <h1>Data Gaps</h1>
+    <p class="lede" id="lede"></p>
+    <div class="kpis" id="kpis"></div>
+  </header>
+
+  <section>
+    <h2>What stops a deck</h2>
+    <p class="section-note">Each problem once, with every client it affects. Hover a client number for the name and CSM. Blockers stop a build; gaps build a shorter or partial section; warnings build but need checking; decisions are yours.</p>
+    <div class="groups" id="groups"></div>
+  </section>
+
+  <section>
+    <h2>Decisions and code-sheet corrections</h2>
+    <p class="section-note">Codes are never mapped by the pipeline: they are corrected on each client's code sheet (Aaron, 2026-09-15). Roster and naming calls stay with Aaron.</p>
+    <div class="cols2" id="decisions"></div>
+  </section>
+
+  <section>
+    <h2>Every finding, by client</h2>
+    <div class="filters" id="filters"></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Client</th><th>Name</th><th>CSM</th><th>Program</th><th>Severity</th><th>Finding</th><th>Next step</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <p class="count-line" id="countline"></p>
+  </section>
+
+  <section>
+    <h2>What we cannot see yet</h2>
+    <p class="section-note">Gaps that are not one client's missing file, but a missing way to know.</p>
+    <div class="cols2" id="unknowns"></div>
+  </section>
+
+  <section>
+    <h2>Where each missing piece comes from</h2>
+    <div class="tablewrap"><table class="src">
+      <thead><tr><th>Input</th><th>Source</th><th>On hand</th><th>Used for</th></tr></thead>
+      <tbody id="sources"></tbody>
+    </table></div>
+  </section>
+
+  <details id="formerbox">
+    <summary id="formersum">Former clients</summary>
+    <p class="muted" style="color:var(--muted);margin:10px 0">Clients with ODD extracts only in older months. Nothing is built for them; listed so a returning client is noticed.</p>
+    <div class="chips" id="former"></div>
+  </details>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const SEV = ["blocker","gap","warning","decision"];
+const SEVLABEL = {blocker:"Blocker",gap:"Gap",warning:"Warning",decision:"Decision"};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const S = DATA.summary, I = DATA.issues, C = Object.fromEntries(DATA.clients.map(c => [c.id, c]));
+const fmt = n => Number(n).toLocaleString("en-US");
+
+document.getElementById("eyebrow").textContent = `CSM Reporting · ${S.period}`;
+document.getElementById("lede").textContent =
+  `${S.current_clients} current clients across ${Object.keys(S.by_csm).length} CSMs. Gathered ${S.generated} from Inputs, the VIP store, the CashPlease weekly, the performance dataset and the all-client ARS trial builds (${S.trial_done} clients built).`;
+
+const count = sev => I.filter(i => i.severity === sev).length;
+const clientsWith = sev => new Set(I.filter(i => i.severity === sev).map(i => i.id)).size;
+const clean = (S.trial_classes.clean || 0);
+document.getElementById("kpis").innerHTML = [
+  ["", S.current_clients, "current clients"],
+  ["blocker", clientsWith("blocker"), `clients with a blocker (${count("blocker")} findings)`],
+  ["gap", clientsWith("gap"), `clients with a gap (${count("gap")} findings)`],
+  ["decision", count("decision"), "decisions waiting on Aaron"],
+  ["ok", `${clean}/${S.trial_done}`, "ARS trial builds clean so far"],
+].map(([cls, n, label]) => `<div class="kpi ${cls}"><b>${esc(n)}</b><span>${esc(label)}</span></div>`).join("");
+
+// ---- groups: one row per kind of problem
+const kind = t => t.replace(/\(newest [^)]*\)/g, "").replace(/\b\d{4}\.\d{2}\b/g, "this month's")
+  .replace(/:\s.*$/, "").replace(/\s{2,}/g, " ").trim();
+const groups = new Map();
+for (const i of I) {
+  const k = `${i.program}|${i.severity}|${kind(i.issue)}`;
+  if (!groups.has(k)) groups.set(k, {program: i.program, severity: i.severity, title: kind(i.issue), fix: i.fix, items: []});
+  groups.get(k).items.push(i);
+}
+const sevColor = {blocker:"var(--blocker)",gap:"var(--gap)",warning:"var(--warning)",decision:"var(--decision)"};
+document.getElementById("groups").innerHTML = [...groups.values()]
+  .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity) || b.items.length - a.items.length)
+  .map(g => `<div class="group" style="--sev:${sevColor[g.severity]}">
+      <h3>${g.program === "All" ? "" : esc(g.program) + " · "}${esc(g.title)}</h3>
+      <div class="meta"><span class="pill ${g.severity}">${SEVLABEL[g.severity]}</span><span class="count">${g.items.length}</span></div>
+      <div class="chips">${g.items.map(i => `<span class="chip" title="${esc(i.name)} · ${esc(i.csm)}${i.issue.includes(":") ? " · " + esc(i.issue.split(": ").slice(1).join(": ")) : ""}">${esc(i.id)}</span>`).join("")}</div>
+      <div class="fix">${esc(g.fix)}</div>
+    </div>`).join("");
+
+// ---- decisions
+const flagRows = key => I.filter(i => i.issue.startsWith(`ODD pack flag ${key}`))
+  .map(i => `<li><span class="chip">${esc(i.id)}</span> ${esc(i.issue.replace(`ODD pack flag ${key}: `, ""))}</li>`).join("");
+const roster = I.filter(i => i.severity === "decision");
+document.getElementById("decisions").innerHTML = `
+  <div class="card"><h3>Account Status Codes for 1226, 1585 and 1615</h3>
+    <p class="muted">The pipeline does not map codes: each is corrected on the client's code sheet to the VIP Data Specification's Account Status (O Open/Active, C Closed, X Charged-Off, I Inactive, F Frozen, R Restricted, D Dormant, Z Other). Open accounts are read in any letter case, and from Account Status Codes O / A when the description is blank. These three still stop the build:</p>
+    <ul><li><span class="chip">1226</span> Description blank on every row; the Account Status Codes are words (ACTIVE, DORMANT, INACTIVE), not specification codes.</li>
+    <li><span class="chip">1585</span> "File Maintenance" (code 2) on 16,398 accounts, and 11,396 with neither field filled.</li>
+    <li><span class="chip">1615</span> 18,912 accounts with a blank description and Account Status Code "0".</li></ul></div>
+  <div class="card"><h3>Rebuild 1509 Texas Bay?</h3>
+    <p>1,755 of its accounts read "inactive" in lower case. The Product Mix slide already counted them open; the ARS metrics now do too, so its figures move. Its September deck has not been rebuilt.</p></div>
+  <div class="card"><h3>Reg E Codes not mapped</h3>
+    <p class="muted">Codes that match no Reg E Opt-In Value (Y = Opted In, N = Opted Out, D = No response). Correct on the client's code sheet.</p><ul>${flagRows("regE_unmapped") || "<li>None found</li>"}</ul></div>
+  <div class="card"><h3>Account Status Codes not mapped</h3>
+    <p class="muted">Codes that match no Account Status, so they fall to Other. Correct on the client's code sheet.</p><ul>${flagRows("status_other_raw") || "<li>None found</li>"}</ul></div>
+  <div class="card"><h3>CashPlease delivery names</h3>
+    <p class="muted">The CashPlease workbook and the other sources name these clients differently. Which name goes on the deck?</p>
+    <ul>${DATA.name_mismatches.map(m => `<li><span class="chip">${esc(m.id)}</span> ${esc(m.a)} <span class="muted">vs</span> ${esc(m.b)}</li>`).join("")}</ul></div>
+  <div class="card" style="grid-column:1/-1"><h3>Roster: ${roster.length} clients with program data but no clients.md row</h3>
+    <p class="muted">They build in trials but are never delivered until clients.md says which programs they are on.</p>
+    <div class="chips" style="margin-top:8px">${roster.map(i => `<span class="chip" title="${esc(i.name)} · ${esc(i.csm)}">${esc(i.id)}</span>`).join("")}</div></div>`;
+
+// ---- filters + table
+const state = {csm: "All", program: "All", severity: "All"};
+const opts = {
+  csm: ["All", ...Object.keys(S.by_csm).sort()],
+  program: ["All", ...[...new Set(I.map(i => i.program))].sort()],
+  severity: ["All", ...SEV],
+};
+const labels = {csm: "CSM", program: "Program", severity: "Severity"};
+function renderFilters() {
+  document.getElementById("filters").innerHTML = Object.entries(opts).map(([k, vals]) =>
+    `<div class="fgroup"><span class="label">${labels[k]}</span>${vals.map(v =>
+      `<button class="f" data-k="${k}" data-v="${esc(v)}" aria-pressed="${state[k] === v}">${esc(k === "severity" && v !== "All" ? SEVLABEL[v] : v)}</button>`).join("")}</div>`).join("");
+}
+function renderRows() {
+  const rows = I.filter(i => (state.csm === "All" || i.csm === state.csm) &&
+    (state.program === "All" || i.program === state.program) && (state.severity === "All" || i.severity === state.severity))
+    .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity) || a.id.localeCompare(b.id));
+  document.getElementById("rows").innerHTML = rows.map(i => `<tr>
+    <td class="id">${esc(i.id)}</td><td class="name">${esc(i.name)}</td><td>${esc(i.csm)}</td><td>${esc(i.program)}</td>
+    <td><span class="pill ${i.severity}">${SEVLABEL[i.severity]}</span></td><td class="issue">${esc(i.issue)}</td><td class="fixc">${esc(i.fix)}</td></tr>`).join("")
+    || `<tr><td colspan="7">Nothing matches these filters.</td></tr>`;
+  const n = new Set(rows.map(r => r.id)).size;
+  document.getElementById("countline").textContent = `${fmt(rows.length)} finding${rows.length === 1 ? "" : "s"} across ${n} client${n === 1 ? "" : "s"}.`;
+}
+document.getElementById("filters").addEventListener("click", e => {
+  const b = e.target.closest("button.f"); if (!b) return;
+  state[b.dataset.k] = b.dataset.v; renderFilters(); renderRows();
+});
+renderFilters(); renderRows();
+
+// ---- unknowns
+const inp = S.inputs, vip = S.vip_sheets;
+document.getElementById("unknowns").innerHTML = DATA.unknowns.map(u =>
+  `<div class="card"><h3>${esc(u.title)}</h3><p>${esc(u.body)}</p>${u.next ? `<p class="muted" style="margin-top:8px"><b>Next step:</b> ${esc(u.next)}</p>` : ""}</div>`).join("");
+
+// ---- sources
+document.getElementById("sources").innerHTML = DATA.sources.map(s =>
+  `<tr><td>${esc(s.input)}</td><td>${esc(s.source)}</td><td style="font-variant-numeric:tabular-nums">${esc(s.have)}</td><td>${esc(s.use)}</td></tr>`).join("");
+
+// ---- former
+document.getElementById("formersum").textContent = `Former clients (${DATA.former.length})`;
+document.getElementById("former").innerHTML = DATA.former.map(f =>
+  `<span class="chip" title="${esc(f.name)} · ${esc(f.csm)} · newest ODD ${esc(f.odd_month)}">${esc(f.id)}</span>`).join("");
+
+document.getElementById("foot").textContent =
+  `Built from Client CSM List.csv, Inputs/ (${fmt(inp.ODDD)} ODD extracts, ${fmt(inp.DCO)} DCOs, ${fmt(inp.Workbook)} ARS workbooks, ${fmt(inp.MRPCPM)} MRPCPM analyses, ${fmt(inp["ICS workbook"])} ICS workbooks), ${fmt(vip.ICS || 0)} VIP ICS and ${fmt(vip.MRPC || 0)} VIP MRPC sheets, ${fmt(S.cp_tabs_total)} CashPlease tabs, and the ARS trial builds. A snapshot, not live: it changes when inputs land or decisions are made.`;
+</script>

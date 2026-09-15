@@ -12,9 +12,9 @@ rather than re-archived — otherwise a rebuild that changed nothing still churn
 the archive and buries the copies that matter.
 
 **The archive is one folder per client, and keeps the newest deck of each kind per
-period (Aaron, 2026-09-14).** A superseded deck goes to `Outputs/Archive/<id> <client>/`.
+period (Aaron, 2026-09-14).** A superseded deck goes to `Outputs/_Archive/<CSM>/<id> <client>/`.
 After a delivery, any OLDER archived deck with the same period and program tags is
-moved to `Outputs/Archive/_older decks - delete after review/<id> <client>/` — moved,
+moved to `Outputs/_Archive/_older decks - delete after review/<CSM>/<id> <client>/` — moved,
 never deleted: the share has no Recycle Bin, so removing them is a person's call. A
 hand-made PDF is never moved by that rule.
 
@@ -354,7 +354,7 @@ def main(argv=None):
     # caller said to write cannot be exercised safely, which is the same reason this
     # module was made import-safe.
     out = Path(a.outputs) if a.outputs else R.outputs()
-    arch = out / "Archive"
+    arch = out / R.ARCHIVE_DIRNAME
     # Each deck is delivered to its CSM's folder (Aaron, 2026-09-14); the flat root is
     # read as a legacy location so a deck left there is superseded, not duplicated.
     # Today, not a literal. A hardcoded stamp dated four archives to the wrong

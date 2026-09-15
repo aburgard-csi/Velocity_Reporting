@@ -98,12 +98,15 @@ def outputs() -> Path:
 # ------------------------------------------------------------------ outputs by CSM
 # Finished decks are filed in a folder per CSM, `Outputs/<CSM>/` (Aaron, 2026-09-14:
 # "sort the Outputs folder by CSM"), now that the project covers all five CSMs' books.
-# `Outputs/Archive/` stays where it is, one folder per client. Readers go through
-# `output_decks()`, which also still reads the flat root, so a deck dropped there by
-# hand is found; writers go through `client_outputs()`.
+# The archive is `Outputs/_Archive/`: the underscore keeps it at the top of Outputs, above the
+# CSM folders (Aaron, 2026-09-15: "add to the archive folder names so they stay at the top,
+# above my name"); it was `Outputs/Archive/`, which sorted between "Aaron Burgard" and the rest.
+# Readers go through `output_decks()`, which also still reads the flat root, so a deck
+# dropped there by hand is found; writers go through `client_outputs()`.
 CSM_LIST_NAME = "Client CSM List.csv"
 UNASSIGNED_CSM = "_Unassigned"
-_OUTPUT_SKIP_DIRS = {"Archive"}
+ARCHIVE_DIRNAME = "_Archive"
+_OUTPUT_SKIP_DIRS = {ARCHIVE_DIRNAME, "Archive"}   # the old name too, so a leftover is never read as a CSM
 _csm_cache = {}
 
 
@@ -160,7 +163,7 @@ def client_outputs(client_id, root=None, create=False) -> Path:
 
 def output_decks(pattern, root=None) -> list[Path]:
     """Finished files matching `pattern` in Outputs/ and every `Outputs/<CSM>/` folder —
-    never Archive/, never an Office lock file (`~$`)."""
+    never the archive (`_Archive/`, or `Archive/` from before), never an Office lock file (`~$`)."""
     base = Path(root) if root is not None else outputs()
     dirs = [base]
     if base.is_dir():
@@ -482,7 +485,13 @@ def trim_logo(img_path, out_dir):
             ring.append(px[x, 0]); ring.append(px[x, h - 1])
         for y in range(0, h, step):
             ring.append(px[0, y]); ring.append(px[w - 1, y])
-        ring = [c for c in ring if c[3] > 200]
+        # Only a mostly OPAQUE border is a canvas. A transparent logo whose artwork merely touches the
+        # edges also spans the full alpha box (1776 CoastHills: the lettering runs to all four sides).
+        # Its ring is mostly transparent, and the opaque pixels in it are ARTWORK, so taking their
+        # colour as the background cut the logo's own colour out of it: 21 of 122 logos were clipped,
+        # 1183 to 632x28 and 1072 to 133x134 of 1195x258 (2026-09-15).
+        opaque = [c for c in ring if c[3] > 200]
+        ring = opaque if len(opaque) >= len(ring) * 0.9 else []
         if ring:
             bg = max(set(ring), key=ring.count)
             # only trust it if the border is genuinely uniform

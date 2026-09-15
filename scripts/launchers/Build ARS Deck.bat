@@ -17,7 +17,7 @@ set "CID="
 set /p "CID= Client number: "
 if "%CID%"=="" goto end
 "%PY%" "%APP%" status %CID%
-rem 3 = ready, but this period's deck was already sent: ask instead of stopping.
+rem 3 = ready, but this period's deck is already in Outputs: ask instead of stopping.
 if errorlevel 3 goto sent
 if errorlevel 1 goto end
 echo.
@@ -28,7 +28,7 @@ if errorlevel 2 goto end
 goto end
 :sent
 echo.
-choice /C YN /M " This deck was already sent. Rebuild it and replace the one in Outputs"
+choice /C YN /M " This month's deck is already in Outputs. Rebuild it and replace it"
 if errorlevel 2 goto end
 "%PY%" "%APP%" build %CID% --rebuild
 :end

@@ -46,6 +46,17 @@ def test_a_sent_deck_asks_rather_than_stops():
     assert L.ASK not in lv and L.STOP not in lv
 
 
+def test_a_deck_already_in_outputs_asks_before_it_is_rebuilt():
+    # FedChoice 1815 (2026-09-15): in Outputs, never marked sent, and the builder offered a plain build.
+    deck = ["1815-2026.09-ARS-FedChoice FCU ARS Results.pptx"]
+    checks = L.rule_checks("1441", "2026.09", ROW, ROSTER, {}, in_outputs=deck)
+    asks = [m for l, m in checks if l == L.ASK]
+    assert asks and "already in Outputs" in asks[0] and L.STOP not in levels(checks)
+    checks = L.rule_checks("1441", "2026.09", ROW, ROSTER, {}, rebuild=True, in_outputs=deck)
+    assert L.ASK not in levels(checks) and any("as asked" in m for l, m in checks if l == L.WARN)
+    assert L.ASK not in levels(L.rule_checks("1441", "2026.09", ROW, ROSTER, {}, in_outputs=[]))
+
+
 def test_the_ask_exit_code_is_the_one_the_launcher_bat_tests_first():
     bat = open(os.path.join(REPO, "scripts", "launchers", "Build ARS Deck.bat"), encoding="ascii").read()
     assert L.ASKED_EXIT == 3 and "if errorlevel 3 goto sent" in bat
@@ -131,7 +142,7 @@ def test_a_clean_deck_goes_straight_to_outputs_and_archives_what_it_replaces(tmp
     make_deck(deck, "rebuilt")
     lvl, msg = L.to_outputs("1441", str(deck))
     assert lvl == L.OK and text_of(live) == "rebuilt"
-    archived = list((tmp_path / "Outputs" / "Archive").rglob("*superseded*"))
+    archived = list((tmp_path / "Outputs" / R.ARCHIVE_DIRNAME).rglob("*superseded*"))
     assert len(archived) == 1 and text_of(archived[0]) == "first build"
 
 

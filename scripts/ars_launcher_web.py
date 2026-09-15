@@ -41,7 +41,7 @@ import ars_launcher as L      # noqa: E402
 TOKEN = secrets.token_urlsafe(24)
 CID_RX = re.compile(r"^\d{3,5}$")
 DECK_RX = re.compile(r"(?:In Outputs:|already identical to this build:)\s*(.+?\.pptx)")
-LINE_RX = re.compile(r"^\s*\[(ok|!!|sent|STOP|\.\.)\]\s+(.*)$")
+LINE_RX = re.compile(r"^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$")
 
 _jobs = {}
 _jobs_lock = threading.Lock()
@@ -68,6 +68,18 @@ def prewarm_lift():
             _lift[cid] = L.STOP if any(l == L.STOP for l, _ in checks) else L.OK
     finally:
         _lift_state["done"] = True
+
+
+def prewarm():
+    """Background warm-up when the builder starts: Lift Matrix tags for the list, then every client's status."""
+    import build_month as BM
+    prewarm_lift()
+    for cid, _, _, progs in BM.read_roster()[0]:
+        if "ARS" in progs:
+            try:
+                status_doc(cid)
+            except Exception:
+                continue
 
 
 # ------------------------------------------------------------------ data for the page
@@ -107,8 +119,38 @@ def clients_doc():
             "lift_pending": _lift_state["started"] and not _lift_state["done"]}
 
 
-def status_doc(cid):
-    """ars_launcher's own checks for one client, plus its last launcher build and any running job."""
+# Each client's status is kept for STATUS_TTL seconds (Aaron, 2026-09-15: "can we speed up the UI by caching
+# information?"). A check reads the shares and the workbook (about 3-6s); served from here it is instant.
+# "Check again" asks for a fresh one, a finished build drops its client's entry, and every client is checked
+# once in the background when the builder starts. The pre-build checks in `ars_launcher.py build` itself
+# are never cached.
+STATUS_TTL = 600
+_status_cache = {}
+_status_lock = threading.Lock()
+
+
+def status_doc(cid, fresh=False):
+    """The client's status, from the cache unless it is older than STATUS_TTL or `fresh` is asked for."""
+    with _status_lock:
+        hit = _status_cache.get(cid)
+    if fresh or not hit or time.time() - hit[0] >= STATUS_TTL:
+        doc = compute_status(cid)
+        hit = (time.time(), doc)
+        with _status_lock:
+            _status_cache[cid] = hit
+    out = dict(hit[1])
+    out["age_seconds"] = round(time.time() - hit[0])
+    out["job"] = job_doc(cid)
+    return out
+
+
+def forget_status(cid):
+    with _status_lock:
+        _status_cache.pop(cid, None)
+
+
+def compute_status(cid):
+    """ars_launcher's own checks for one client, plus its last launcher build."""
     import build_month as BM
     import deck_status as DS
     period = L.cycle_period()
@@ -127,8 +169,7 @@ def status_doc(cid):
     last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
     entry = next((r for r in roster if r[0] == cid), None)
     return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"), "csm": row.get("csm"), "period": period,
-            "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
-            "job": job_doc(cid)}
+            "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last}
 
 
 # ------------------------------------------------------------------ build jobs
@@ -158,6 +199,7 @@ class Job:
             self.code = 1
         self.finished = time.time()
         self.done = True
+        forget_status(self.cid)     # the deck in Outputs and the last-build line have changed
 
     def to_json(self):
         deck = next((m.group(1) for m in map(DECK_RX.search, self.lines) if m), None)
@@ -237,7 +279,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path in ("/api/status", "/api/job"):
                 if not CID_RX.match(cid):
                     return self._send(400, {"error": "not a client number"})
-                return self._send(200, status_doc(cid) if u.path == "/api/status" else (job_doc(cid) or {}))
+                if u.path == "/api/status":
+                    return self._send(200, status_doc(cid, fresh=(q.get("fresh") or [""])[0] == "1"))
+                return self._send(200, job_doc(cid) or {})
         except (OSError, SystemExit, ValueError, KeyError) as e:
             return self._send(500, {"error": f"{type(e).__name__}: {e}"})
         return self._send(404, {"error": "not found"})
@@ -273,7 +317,7 @@ def main(argv=None):
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
     print(f"\n ARS Deck Builder is running at {url}")
     print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
-    threading.Thread(target=prewarm_lift, daemon=True).start()
+    threading.Thread(target=prewarm, daemon=True).start()
     if not a.no_open:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:
@@ -442,14 +486,14 @@ async function loadClients() {
   }
 }
 
-const LEVEL = {ok: ["ok", "ok"], warn: ["warn", "!!"], ask: ["ask", "sent"], stop: ["stop", "stop"]};
+const LEVEL = {ok: ["ok", "ok"], warn: ["warn", "!!"], ask: ["ask", "built"], stop: ["stop", "stop"]};
 
-async function select(id) {
+async function select(id, fresh) {
   current = id; armed = false; clearInterval(poller); renderList();
   const c = CLIENTS.find(x => x.id === id) || {id};
   $("#main").innerHTML = `<div class="head"><h2>${esc(c.name || id)}</h2><span class="sub">${esc(id)} · ${esc(c.csm || "")}</span></div><p class="note">Checking the client and this month's data…</p>`;
   try {
-    const {body} = await api("/api/status?client=" + encodeURIComponent(id));
+    const {body} = await api("/api/status?client=" + encodeURIComponent(id) + (fresh ? "&fresh=1" : ""));
     if (current !== id) return;
     renderStatus(body);
     if (body.job && !body.job.done) follow(id);
@@ -465,13 +509,16 @@ function renderStatus(s) {
     return `<li><span class="tag ${cls}">${label}</span><span>${esc(k.text)}</span></li>`; }).join("");
   let verdict;
   if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.</p><button class="primary" id="go">Build and put in Outputs</button></div>`;
-  else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck was already sent.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.</p><button class="primary warn" id="go">Rebuild and replace the one in Outputs</button></div>`;
+  else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck is already in Outputs.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.</p><button class="primary warn" id="go">Rebuild and replace the one in Outputs</button></div>`;
   else verdict = `<div class="verdict stop"><p><b>Can't build yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="recheck">Check again</button></div>`;
   const last = s.last ? `<div class="last"><h3>Last build from this tool</h3>${esc(s.last.finished)} by ${esc(s.last.by)}: ${esc(s.last.result)}${s.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
-  $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span></div>
+  const age = s.age_seconds == null ? "" : s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`;
+  $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
+      <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
     <ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
   const go = $("#go"); if (go) go.addEventListener("click", () => build(s));
-  const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client));
+  const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client, true));
+  const rf = $("#refresh"); if (rf) rf.addEventListener("click", () => select(s.client, true));
 }
 
 async function build(s) {
@@ -504,7 +551,7 @@ function renderJob(j) {
   const go = $("#go"); if (go && !j.done) { go.disabled = true; go.textContent = "Building…"; }
   const steps = [], marks = [];
   for (const line of j.lines) {
-    const m = line.match(/^\s*\[(ok|!!|sent|STOP|\.\.)\]\s+(.*)$/);
+    const m = line.match(/^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$/);
     if (!m) continue;
     if (m[1] === "..") { const sm = m[2].match(/^(.*?)\s+\((\d+) min\)$/); steps.push({name: sm ? sm[1] : m[2], min: sm ? sm[2] : ""}); }
     else if (steps.length) marks.push({level: m[1], text: m[2]});
