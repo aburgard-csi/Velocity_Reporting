@@ -32,14 +32,56 @@ template placeholder means SM. Verified 2026-08-28.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1038 | Sugar River Bank | SM | yes | — | — | ARS |
 | 1075 | Austin Bank | SM | yes | yes | yes | ARS-ICS-MRPC |
+| 1156 | BancFirst | SM | yes | — | — | ARS |
+| 1192 | Ascend FCU | MM | yes | — | — | ARS |
+| 1200 | Guardians Credit Union | MM | yes | — | — | ARS |
 | 1204 | First State Bank - Michigan | MM | yes | — | — | ARS |
+| 1217 | Pioneer FCU | MM | yes | — | — | ARS |
+| 1226 | Ellafi FCU | MM | yes | — | — | ARS |
 | 1437 | Canandaigua National Bank | MM | ended | — | ended | **none — no further reviews** |
+| 1441 | FNB Alaska | MM | yes | — | — | ARS |
+| 1453 | Connex CU | MM | yes | — | yes | ARS-MRPC |
+| 1487 | Orsa CU | MM | yes | — | — | ARS |
 | 1509 | Texas Bay Credit Union | MM | yes | yes | — | ARS-ICS |
+| 1520 | Cashmere Valley Bank | MM | yes | — | yes | ARS-MRPC |
+| 1526 | Create CU | MM | yes | — | — | ARS |
+| 1529 | Vantage West CU | MM | yes | — | — | ARS |
 | 1537 | Brooks Bank | MM | yes | yes | — | ARS-ICS |
 | 1539 | Marine FCU | MM | yes | yes | yes | ARS-ICS-MRPC |
+| 1542 | The Friendship SB | MM | yes | — | yes | ARS-MRPC |
 | 1549 | Wellworth Bank | MM | yes | referrals-only | — | ARS-ICS |
+| 1615 | Cape & Coast Bank | MM | yes | — | yes | ARS-MRPC |
+| 1637 | Ouachita Valley FCU | MM | yes | — | yes | ARS-MRPC |
+| 1652 | Security CU | SM | yes | — | yes | ARS-MRPC |
+| 1657 | Marine Credit Union | SM | yes | — | — | ARS |
+| 1673 | Neighborhood CU | MM | yes | — | yes | ARS-MRPC |
 | 1676 | True Sky CU | MM | yes | yes | — | ARS-ICS |
+| 1680 | Great Lakes CU | MM | yes | — | — | ARS |
+| 1681 | First Financial CU | MM | yes | — | — | ARS |
 | 1705 | CoastLife Credit Union | MM | yes | **cancelled** | — | ARS |
+| 1745 | Leading Edge CU | MM | yes | — | yes | ARS-MRPC |
+| 1746 | PrimeTrust FCU | MM | yes | — | — | ARS |
+| 1748 | Clearview FCU | MM | yes | — | — | ARS |
+| 1759 | First Central CU | MM | yes | — | — | ARS |
+| 1761 | Capital Educators FCU | MM | yes | — | — | ARS |
+| 1765 | Foothills CU | MM | yes | — | — | ARS |
+| 1766 | Fort Sill FCU | MM | yes | — | — | ARS |
+| 1776 | CoastHills CU | MM | yes | — | yes | ARS-MRPC |
+| 1777 | West-Aircomm FCU | MM | yes | — | — | ARS |
+| 1780 | USF CU | MM | yes | — | yes | ARS-MRPC |
+| 1798 | FirstLight FCU | MM | yes | — | — | ARS |
+| 1799 | Central Bank | MM | yes | — | — | ARS |
+| 1800 | First American Bank | MM | yes | — | — | ARS |
+| 1807 | Patriot FCU | MM | yes | — | — | ARS |
+| 1815 | FedChoice FCU | MM | yes | — | — | ARS |
+
+**ARS added for every client with a 2026.09 ARS workbook (Aaron, 2026-09-15)** — 34 clients
+across the other four CSMs' books. `Client` is the DCO's spelling (the house name; the workbook
+often spells it out, e.g. "Guardians Credit Union" / "Leading Edge Credit Union") and `Path` was
+detected from each workbook. **MRPC and CashPlease are recorded where their data exists (Aaron, 2026-09-15):** MRPC for
+1453, 1520, 1542, 1615, 1637, 1652, 1673, 1745, 1776 and 1780, and CashPlease roster rows
+for 1192, 1217, 1526, 1529, 1542, 1652, 1681, 1748, 1761 and 1776. None of the ten MRPC
+clients has a VIP MRPC sheet yet, so their MRPC builds stop until one is pulled.
 
 **MRPC-only clients** — confirmed by Aaron 2026-08-28.
 
@@ -98,6 +140,8 @@ earlier pass built a deck for all 71 client tabs in the workbook. It no longer d
 CashPlease client across all CSMs, so a tab in it says a client is live on the program —
 never that a deck is wanted. `scripts/build_cashplease.py` reads the table below, via
 `build_month.read_cashplease_roster`, and builds nothing that is not in it.
+*Widened 2026-09-15 (Aaron): the table also carries the other CSMs' ARS clients that run
+CashPlease. A tab in the workbook still says nothing on its own.*
 
 | Source | Where |
 | --- | --- |
@@ -109,7 +153,8 @@ never that a deck is wanted. `scripts/build_cashplease.py` reads the table below
 
 ### CashPlease roster — BUILD ONLY THESE
 
-Aaron's client book (Obsidian) intersected with the 2026-09-06 workbook. `Build` is what
+Aaron's client book (Obsidian) intersected with the 2026-09-06 workbook. Since 2026-09-15 it also
+carries the other CSMs' ARS clients that run CashPlease, with loans from the 2026-09-13 weekly. `Build` is what
 the builder reads; a row marked `no` is parsed and deliberately skipped, so a
 cancelled client cannot come back just because their tab keeps arriving.
 
@@ -123,16 +168,26 @@ column's position is free.
 | ID | Client | CSM | Build | Loans | Ships as | Note |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1131 | People's Bank AL | Aaron Burgard | yes | 10,540 | standalone deck   | no other RPE program |
+| 1192 | Ascend FCU | Jordan Berkowitz | yes | 6,325 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
+| 1217 | Pioneer FCU | James Gilmore | yes | 750 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Pioneer Federal Credit Union" |
+| 1526 | Create CU | Gregg Miller | yes | 64 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clark County Credit Union" |
+| 1529 | Vantage West CU | Jordan Berkowitz | yes | 13,494 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
 | 1539 | Marine FCU | Aaron Burgard | yes | 6,745 | **ARS-ICS-MRPC-CP** section | Obsidian `products` omits CashPlease — see gap 3 |
+| 1542 | The Friendship SB | Daniel Wood | yes | 401 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Friendship State Bank" |
 | 1564 | OneUnited Bank | Aaron Burgard | yes | 11,495 | standalone deck   | no other RPE program |
 | 1632 | WesBanco Bank | Aaron Burgard | yes | 11,927 | **ICS-CP** section | |
+| 1652 | Security CU | Gregg Miller | yes | 51 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Security Rewards" |
 | 1658 | Truliant FCU | Aaron Burgard | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
+| 1681 | First Financial CU | Jordan Berkowitz | yes | 24,715 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
 | 1734 | Altamaha Bank and Trust Company | Aaron Burgard | yes | 651 | **ICS-CP** section | |
+| 1748 | Clearview FCU | Jordan Berkowitz | yes | 10,886 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clearview Federal Credit Union" |
 | 1750 | All In FCU | Aaron Burgard | yes | 5,701 | standalone deck   | no other RPE program |
+| 1761 | Capital Educators FCU | James Gilmore | yes | 223 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "CapEd CU" |
 | 1770 | Central State Bank | Aaron Burgard | yes | 27 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
 | 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
+| 1776 | CoastHills CU | James Gilmore | yes | 1,246 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster |
 
-**Three combined decks and five standalone decks per run.** A client whose CashPlease
+**Thirteen combined decks and five standalone decks per run.** A client whose CashPlease
 slides ship inside a combined deck does NOT also get a standalone deck (Aaron,
 2026-09-01) — the Executive Review and the ILS review would otherwise carry the same five
 slides. Loan counts are program-to-date **as of the 2026-09-06 workbook** and are a
@@ -158,6 +213,24 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ## Status changes
 
+- **2026-09-15 — MRPC and CashPlease recorded for the new ARS clients that run them** (Aaron
+  chose this over leaving them ARS-only, where the performance page would have dropped the
+  sections). MRPC = yes for 1453, 1520, 1542, 1615, 1637, 1652, 1673, 1745, 1776 and 1780
+  (each has an MRPCPM analysis). CashPlease roster rows, Build: yes, for 1192, 1217, 1526,
+  1529, 1542, 1652, 1681, 1748, 1761 and 1776 (each has a tab in the 2026-09-13 weekly). That
+  puts them in the monthly MRPC and weekly CashPlease builds and widens the 2026-09-01 rule
+  that only Aaron's clients get a CashPlease deck. **None of the ten MRPC clients has a VIP
+  MRPC sheet**, so those builds stop on the missing sheet until one is pulled.
+- **2026-09-15 — ARS roster extended to every client with a 2026.09 ARS workbook** (Aaron:
+  "Add all clients with a september ARS workbook to clients.md"). 34 clients from the other
+  four CSMs' books join the active table as ARS-only: 1156, 1192, 1200, 1217, 1226, 1441,
+  1453, 1487, 1520, 1526, 1529, 1542, 1615, 1637, 1652, 1657, 1673, 1680, 1681, 1745, 1746,
+  1748, 1759, 1761, 1765, 1766, 1776, 1777, 1780, 1798, 1799, 1800, 1807, 1815. Names are
+  the DCO spelling; paths were detected from each workbook. **Not yet buildable as of this
+  date:** 1226, 1615 (account status needs a mapping), 1637, 1748 (no product names on new
+  accounts in the ODD) and 1657 (workbook never calculated); 1192 and 1673 were
+  recalculated today and are being rebuilt. MRPC and CashPlease were then recorded where
+  their data exists; see the entry above.
 - **2026-09-14 — the CashPlease roster carries a `CSM` column** (Aaron). The RPE Client
   Performance page filters by CSM and reads each client's CSM from its account-manager
   folder on `Velocity_clientreports`. The five CashPlease-only clients (1131, 1564, 1750,
