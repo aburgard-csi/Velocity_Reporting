@@ -17,6 +17,26 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-15 — ARS Deck Builder: the launcher in a browser
+
+**`ARS Deck Builder.bat` opens the ARS launcher as a page in the browser** (Aaron: "would it be
+possible to run Build ARS Deck.bat in an application or browser?"). A browser cannot start a
+program, so the .bat starts `scripts/ars_launcher_web.py`, a small server on 127.0.0.1, and opens
+its page. The page lists the `clients.md` ARS clients by CSM, with sent and in-Outputs chips.
+Picking a client runs `ars_launcher`'s own `rule_checks` and `input_checks`. The button is Build,
+Rebuild (after a second click, when the deck was already sent), or Check again when something
+stops it. The build is `ars_launcher.py build` run as a child process, and its step lines are
+shown as they arrive. A finished deck gets a "Show it in File Explorer" link. The rules, the build
+and the delivery to Outputs are unchanged, because the page only calls the launcher. One build
+runs at a time per PC.
+
+Only the page this server served can use it: every API call needs the random token baked into
+that page and a 127.0.0.1 or localhost Host header, so another site open in the same browser
+cannot start a build through localhost. The reveal call opens only a file under Outputs.
+`Build ARS Deck.bat` stays as the plain-console fallback. `tests/test_ars_launcher_web.py` covers
+the token and Host checks, a bad client number, a build job's lines and deck, the
+one-build-at-a-time rule, and the Outputs-only reveal.
+
 ### 2026-09-15 — the MM lift matrix slide is titled "ARS Revenue Lift Matrix"
 
 **The MM slide is now titled for what it shows** (Aaron: "This slide should be titled ARS
