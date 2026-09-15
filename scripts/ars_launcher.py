@@ -15,6 +15,8 @@ plain English what is wrong and who fixes it:
     does not build;
   * the ODD extract is this period's, and this period's ARS workbook is in Inputs
     (`deck_status.requirements`, the same check as the delivery dashboard);
+  * an MM client's Lift Matrix is current: the workbook's data month is inside its window and the
+    data team hasn't flagged it in the filename (`lift_checks`);
   * a deck already recorded as SENT is rebuilt only when the person running it says so: the
     launcher asks, and on the command line it takes --rebuild;
   * one person at a time per client: a lock file in the client's work folder.
@@ -39,11 +41,12 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-for _p in (REPO / "build", REPO / "scripts"):
+for _p in (REPO / "build", REPO / "build" / "ars_pipeline", REPO / "scripts"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
 import rpe_env as R          # noqa: E402
+from lift_window import workbook_window   # noqa: E402
 
 LOCK_STALE_HOURS = 3
 AARON = "Aaron Burgard"
@@ -119,7 +122,10 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False):
     if not row:
         out.append((STOP, f"{cid} is not in Client CSM List.csv. Check the client number."))
         return out
-    name = row.get("client_name") or cid
+    entry = next((r for r in roster if r[0] == cid), None)
+    # clients.md names the client, as it names the deck. The Client CSM List name is taken from a
+    # workbook filename and can carry a data-team flag ("LM EXPIRED-USF CU / USF CU", 2026-09-15).
+    name = (entry[1] if entry else None) or row.get("client_name") or cid
     csm = row.get("csm") or "no CSM"
     out.append((OK, f"{cid} {name} (CSM: {csm})"))
 
@@ -130,7 +136,6 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False):
         out.append((STOP, f"Not an ARS client: the Velocity product list shows {', '.join(products)}. "
                           "Only ARS clients get ARS decks."))
 
-    entry = next((r for r in roster if r[0] == cid), None)
     if entry is None or "ARS" not in entry[3]:
         out.append((STOP, "clients.md does not list this client for ARS, and that file decides what gets built. "
                           "Ask Aaron to add it."))
@@ -179,6 +184,53 @@ def input_checks(cid, period):
     return out
 
 
+def lift_checks(cid, period, roster):
+    """An expired Lift Matrix stops an MM client's build (Aaron, 2026-09-15: "Add the lift matrix date
+    check to the build criteria").
+
+    Expired = the workbook's data month is past the Lift Matrix MM End Date (`lift_window`, the same
+    reading extract_lift puts in the deck), or the data team's filename flag ("LM EXPIRED", "NEEDS
+    LIFT MATRIX"; `perf_actions.lift_matrix_flag`) says so. Either way the per-segment revenue the
+    deck charts was set for an earlier window. SM clients have no Lift Matrix and are not checked; a
+    missing workbook is input_checks' STOP, not this one's.
+    """
+    import build_month as BM
+    entry = next((r for r in roster if r[0] == cid), None)
+    if not entry or entry[2] != "MM":
+        return []
+    wbs = BM.ars_workbook(R.report_dirs(), cid, period)
+    if not wbs:
+        return []
+    name = os.path.basename(wbs[0])
+    try:
+        from perf_actions import lift_matrix_flag
+        flag = lift_matrix_flag(name)
+    except ImportError:
+        flag = None
+    try:
+        w = workbook_window(wbs[0])
+    except Exception as e:     # an unreadable workbook is reported, never guessed at
+        return [(WARN, f"Lift Matrix: couldn't read its dates from {name} ({type(e).__name__}).")]
+    fix = "CSM: create a new Lift Matrix, then build again."
+    if w is None:
+        return [(WARN, f"Lift Matrix: {name} has no Lift Matrix MM tab.")]
+    if w["data_past_end"]:
+        return [(STOP, f"Lift Matrix expired: its window is {w['window']}, and the workbook's data is "
+                       f"{w['data_date']}. {fix}")]
+    if flag:
+        return [(STOP, f"Lift Matrix flagged as out of date by the data team (the workbook is named "
+                       f"\"{flag}\"). {fix}")]
+    if not w["in_window"]:
+        return [(WARN, f"Lift Matrix window is {w['window'] or 'undated'}; the workbook's data is {w['data_date']}.")]
+    return [(OK, f"Lift Matrix: current ({w['window']}; data {w['data_date']})")]
+
+
+def all_checks(cid, period, row, roster, sent, rebuild=False):
+    """Every pre-build check, in the order they print: the rules, the inputs, the Lift Matrix."""
+    return (rule_checks(cid, period, row, roster, sent, rebuild=rebuild) + input_checks(cid, period)
+            + lift_checks(cid, period, roster))
+
+
 # ------------------------------------------------------------------ locking
 def lock(work_dir):
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -210,7 +262,7 @@ def _context(cid, period):
 def cmd_status(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
     print(f"\nARS deck status: client {a.client}, period {period}\n")
-    checks = rule_checks(a.client, period, row, roster, sent) + input_checks(a.client, period)
+    checks = all_checks(a.client, period, row, roster, sent)
     for lvl, msg in checks:
         say(lvl, msg)
     res = work / "_launcher_result.json"
@@ -283,7 +335,7 @@ def to_outputs(cid, deck):
 def cmd_build(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
     print(f"\nBuilding the ARS deck: client {a.client}, period {period}\n")
-    checks = rule_checks(a.client, period, row, roster, sent, rebuild=a.rebuild) + input_checks(a.client, period)
+    checks = all_checks(a.client, period, row, roster, sent, rebuild=a.rebuild)
     for lvl, msg in checks:
         say(lvl, msg)
     if any(l == STOP for l, _ in checks):

@@ -135,6 +135,44 @@ def test_a_clean_deck_goes_straight_to_outputs_and_archives_what_it_replaces(tmp
     assert len(archived) == 1 and text_of(archived[0]) == "first build"
 
 
+def test_the_client_is_named_from_clients_md_not_a_flagged_list_name():
+    roster = ROSTER + [("1780", "USF CU", "MM", ["ARS", "MRPC"])]
+    row = {"client_id": "1780", "client_name": "LM EXPIRED-USF CU / USF CU", "csm": "James Gilmore", "products": "ARS"}
+    msgs = [m for _, m in L.rule_checks("1780", "2026.09", row, roster, {})]
+    assert msgs[0].startswith("1780 USF CU (CSM")
+
+
+def _lift(monkeypatch, workbook, window):
+    import build_month as BM
+    monkeypatch.setattr(BM, "ars_workbook", lambda dirs, cid, period: [workbook] if workbook else [])
+    monkeypatch.setattr(L, "workbook_window", lambda path: window)
+
+
+EXPIRED = {"window": "Mar 2025 – Feb 2026", "data_date": "Aug 2026", "data_past_end": True, "in_window": False}
+CURRENT = {"window": "May 2026 – Apr 2027", "data_date": "Aug 2026", "data_past_end": False, "in_window": True}
+MM_ROSTER = ROSTER + [("1780", "USF CU", "MM", ["ARS"]), ("1038", "Sugar River Bank", "SM", ["ARS"])]
+
+
+def test_an_expired_lift_matrix_stops_the_build(monkeypatch):
+    _lift(monkeypatch, r"x\1780-2026.09-USF CU-Workbook_v2_1_0.xlsx", EXPIRED)
+    checks = L.lift_checks("1780", "2026.09", MM_ROSTER)
+    assert levels(checks) == [L.STOP] and "Lift Matrix expired" in checks[0][1] and "Feb 2026" in checks[0][1]
+
+
+def test_the_data_teams_filename_flag_stops_the_build_even_inside_the_window(monkeypatch):
+    _lift(monkeypatch, r"x\1453-2026.09-Connex CU-Workbook_v2_1_0_LM EXPIRED.xlsx", CURRENT)
+    checks = L.lift_checks("1780", "2026.09", MM_ROSTER)
+    assert levels(checks) == [L.STOP] and "LM EXPIRED" in checks[0][1]
+
+
+def test_a_current_lift_matrix_passes_and_sm_clients_are_not_checked(monkeypatch):
+    _lift(monkeypatch, r"x\1780-2026.09-USF CU-Workbook_v2_1_0.xlsx", CURRENT)
+    assert levels(L.lift_checks("1780", "2026.09", MM_ROSTER)) == [L.OK]
+    assert L.lift_checks("1038", "2026.09", MM_ROSTER) == []
+    _lift(monkeypatch, None, CURRENT)
+    assert L.lift_checks("1780", "2026.09", MM_ROSTER) == [], "a missing workbook is input_checks' STOP"
+
+
 def test_bad_arguments_stop_with_a_plain_message(capsys):
     assert L.main(["status", "abc"]) == 2
     assert "not a client number" in capsys.readouterr().out

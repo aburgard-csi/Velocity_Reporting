@@ -817,6 +817,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `base_tab_extract.py` — SM financials from the workbook (+ DCO).
 - `base_guard.py` — refuses a workbook whose formulas were never evaluated (extracts as 1 month, 0 mailings, $0); called by both extractors, the builder and the dashboard refresh.
 - `extract_base_gen.py` / `extract_lift.py` — MM financials / Lift Matrix rows.
+- `lift_window.py` — the ONE reading of the Lift Matrix MM window (Start/End Date, the data month, `in_window` / `data_past_end`), import-safe. `extract_lift` puts it in lift.json; `ars_launcher.lift_checks` stops an MM client's build when the data month is past the End Date or the workbook filename carries the data team's Lift Matrix flag.
 - `render_lift.py`, `ticket_calc.py`, `ticket_chart.py` — Lift Matrix chart (MM); average-ticket calc + chart.
 - `product_mix_slide.py` — builds the Product Mix & ARS Eligibility slide from the ODD.
 - `rege_branch_slide.py` — builds the Reg E Opt-In by Branch table slide (the table

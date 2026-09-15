@@ -17,6 +17,35 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-15 — an expired Lift Matrix stops the launcher's build
+
+**The launcher now checks the Lift Matrix before an MM client's build** (Aaron: "flag it as having
+an expired lift matrix. Add the lift matrix date check to the build criteria"). It stops when the
+workbook's data month is past the Lift Matrix MM End Date. It also stops when the workbook filename
+carries the data team's flag ("LM EXPIRED", "NEEDS LIFT MATRIX", "NEW LIFT MATRIX NEEDED"; the
+same `perf_actions.lift_matrix_flag` the performance page uses). The fix it names is the CSM's: a
+new Lift Matrix. SM clients have no Lift Matrix and are not checked. `status`, `build` and ARS Deck
+Builder all run it. The builder's client list tags an expired matrix "Lift Matrix expired", read in
+the background when the builder starts.
+
+The window reading moved out of `extract_lift.py`, which runs as a script, into import-safe
+`build/ars_pipeline/lift_window.py`. The launcher reads the same definition the deck does.
+extract_lift's output is byte-identical on 1780, 1441 and 1520. On the 2026.09 batch the dates
+expire seven MM clients: 1453, 1487, 1526, 1529, 1637, 1681 and 1780. Five of those workbooks were
+already flagged by filename. 1526 and 1681 were not flagged, but their windows ended May 2026 and
+Feb 2026.
+
+**The six 2026.09 decks already in Outputs on an expired matrix were taken out of Outputs**
+(Aaron, 2026-09-15: move all six): 1453, 1487, 1526, 1529, 1681 and 1780. Each is in
+`Outputs/Archive/_older decks - delete after review/<CSM>/<id> <client>/`, named "(expired lift
+matrix 2026-09-15)". Nothing was deleted. They are rebuilt once a new Lift Matrix lands, and until
+then the launcher refuses to build them.
+
+**The launcher and the builder name a client from `clients.md`**, as its deck does. The Client CSM
+List name comes from a workbook filename and had picked up the flag: 1780 read "LM EXPIRED-USF CU /
+USF CU". That list entry is now "USF CU" (backup in `Build Artifacts/`). The builder's list also
+drops the program tags and dates its Outputs tag: "In Outputs 2026.09".
+
 ### 2026-09-15 — ARS Deck Builder: the launcher in a browser
 
 **`ARS Deck Builder.bat` opens the ARS launcher as a page in the browser** (Aaron: "would it be

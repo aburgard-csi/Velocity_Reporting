@@ -15,22 +15,12 @@ for r in range(hdr_r+1,hdr_r+7):
     vals=[lm.cell(r,c).value for c in range(3,9)]
     rows.append([seg]+[(round(v,2) if isinstance(v,(int,float)) else None) for v in vals])
 out['matrix_cols']=cols; out['matrix_rows']=rows
-# window dates (Start/End above header)
-sd=ed=None
-for r in range(hdr_r-8,hdr_r):
-    if lm.cell(r,2).value=='Start Date': sd=lm.cell(r,3).value
-    if lm.cell(r,2).value=='End Date': ed=lm.cell(r,3).value
-out['window']=f"{ml(sd)} – {ml(ed)}" if sd and ed else ""
-# --- lift-window validity: data must fall within [Start, End], else revenue is stale ---
-import re as _re, datetime as _dt
-def _pdd(lbl):
-    m=_re.match(r'([A-Za-z]+)\s+(\d{4})',str(lbl))
-    return _dt.datetime.strptime(m.group(1)[:3]+' '+m.group(2),'%b %Y') if m else None
-_dd=_pdd(lm.cell(6,2).value)
-out['data_date']=ml(_dd)
-out['window_start']=ml(sd); out['window_end']=ml(ed)
-out['data_past_end']= bool(_dd and ed and _dd>ed)
-out['in_window']= bool(_dd and sd and ed and sd<=_dd<=ed)
+# window dates (Start/End above header) and validity: data must fall within [Start, End], else
+# revenue is stale. One definition in lift_window, shared with the launcher's pre-build check.
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from lift_window import window as _lift_window
+out.update(_lift_window(lm, hdr_r))
 # --- DCO MM distribution + spend (card-holding buckets) ---
 dco=wb['DCO MM']
 def findrow(label,c=4):

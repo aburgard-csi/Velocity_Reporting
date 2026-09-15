@@ -45,6 +45,29 @@ LINE_RX = re.compile(r"^\s*\[(ok|!!|sent|STOP|\.\.)\]\s+(.*)$")
 
 _jobs = {}
 _jobs_lock = threading.Lock()
+# Lift Matrix state per MM client for the list's "Lift Matrix expired" tag. Reading 30-odd workbooks
+# over the share takes a minute, so it runs once in the background when the builder starts and the
+# page re-asks until it is done; the pre-build check itself is always read fresh.
+_lift = {}
+_lift_state = {"started": False, "done": False}
+
+
+def prewarm_lift():
+    import build_month as BM
+    _lift_state["started"] = True
+    try:
+        period = L.cycle_period()
+        roster, _ = BM.read_roster()
+        for cid, _, path, progs in roster:
+            if "ARS" not in progs or path != "MM" or not period:
+                continue
+            try:
+                checks = L.lift_checks(cid, period, roster)
+            except Exception:
+                continue
+            _lift[cid] = L.STOP if any(l == L.STOP for l, _ in checks) else L.OK
+    finally:
+        _lift_state["done"] = True
 
 
 # ------------------------------------------------------------------ data for the page
@@ -70,15 +93,18 @@ def clients_doc():
         s = sent.get(f"{cid}|{period}")
         out.append({
             "id": cid,
-            "name": row.get("client_name") or name,
+            # clients.md's name, as on the deck; the CSM List's can carry a filename flag.
+            "name": name or row.get("client_name"),
             "csm": row.get("csm") or "Unassigned",
             "programs": progs,
             "path": path,
             "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
             "decks": sorted(decks.get(cid, [])),
+            "lift_expired": _lift.get(cid) == L.STOP,
         })
     out.sort(key=lambda c: (c["csm"], (c["name"] or "").lower()))
-    return {"period": period, "clients": out}
+    return {"period": period, "clients": out,
+            "lift_pending": _lift_state["started"] and not _lift_state["done"]}
 
 
 def status_doc(cid):
@@ -92,11 +118,15 @@ def status_doc(cid):
                 "checks": [{"level": L.STOP, "text": "No ARS workbooks are in Inputs at all, so there is no period to build."}]}
     roster, _ = BM.read_roster()
     sent = DS.read_deliveries()["sent"]
-    checks = L.rule_checks(cid, period, row, roster, sent) + L.input_checks(cid, period)
+    checks = L.all_checks(cid, period, row, roster, sent)
+    lift = [l for l, m in checks if m.startswith("Lift Matrix")]
+    if lift:
+        _lift[cid] = L.STOP if L.STOP in lift else L.OK
     state = "stop" if any(l == L.STOP for l, _ in checks) else "ask" if any(l == L.ASK for l, _ in checks) else "ready"
     res = R.build_artifacts() / "launcher" / period / cid / "_launcher_result.json"
     last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
-    return {"client": cid, "name": row.get("client_name"), "csm": row.get("csm"), "period": period,
+    entry = next((r for r in roster if r[0] == cid), None)
+    return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"), "csm": row.get("csm"), "period": period,
             "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
             "job": job_doc(cid)}
 
@@ -243,6 +273,7 @@ def main(argv=None):
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
     print(f"\n ARS Deck Builder is running at {url}")
     print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
+    threading.Thread(target=prewarm_lift, daemon=True).start()
     if not a.no_open:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:
@@ -293,6 +324,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .grouphead{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);padding:12px 9px 4px}
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap}
 .chip.sent{background:var(--sent-bg);color:var(--sent)} .chip.out{background:var(--ok-bg);color:var(--ok)}
+.chip.stop{background:var(--stop-bg);color:var(--stop)}
 main{padding:22px 24px;min-height:420px}
 .empty{color:var(--ink2);max-width:60ch}
 .empty h2{color:var(--ink);font-size:18px;margin:0 0 6px}
@@ -385,9 +417,9 @@ function renderList() {
   let html = "", last = null;
   for (const c of shown) {
     if (!csm && c.csm !== last) { html += `<div class="grouphead">${esc(c.csm)}</div>`; last = c.csm; }
-    const chips = [c.programs.length > 1 ? `<span class="chip">${esc(c.programs.join("-"))}</span>` : "",
+    const chips = [c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.sent ? `<span class="chip sent">Sent ${esc(shortDate(c.sent))}</span>` : "",
-                   c.decks.length ? `<span class="chip out">In Outputs</span>` : ""].join("");
+                   c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span><span class="meta">${chips}</span></button>`;
   }
@@ -401,8 +433,10 @@ async function loadClients() {
     $("#period").textContent = PERIOD ? "Cycle " + PERIOD : "No period";
     const csms = [...new Set(CLIENTS.map(c => c.csm))];
     $("#csm").innerHTML = `<option value="">All CSMs</option>` + csms.map(c => `<option>${esc(c)}</option>`).join("");
-    const saved = recall("ars-builder-csm"); if (saved && csms.includes(saved)) $("#csm").value = saved;
+    const saved = recall("ars-builder-csm"); if (saved && csms.includes(saved) && !$("#csm").dataset.touched) $("#csm").value = saved;
     renderList();
+    // Lift Matrix dates are still being read in the background: ask again shortly.
+    if (body.lift_pending) setTimeout(loadClients, 8000);
   } catch (e) {
     $("#list").innerHTML = `<p class="err" style="padding:10px">Couldn't load clients: ${esc(e.message)}. Check the VPN and reload.</p>`;
   }
