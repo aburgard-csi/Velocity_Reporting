@@ -190,11 +190,13 @@ INPUT_KIND_DIRS = {
     "ICS charts": "ICS Charts",           # "<Client> Charts 2026.xlsx" — mystery shops
     "weekly": "Weekly Summaries",         # MRPCEnrollmentSummary, CashPleaseSummary
     "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
+    "ARS codes": "ARS Settings",          # ars_code_tables.json, the ARS database's code tables
+    "Code sheets": "Code Sheets",         # clients' code sheets, saved by the data team
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
 # report_dirs() nor the copier/pruner in watch_sources.py looks inside these.
-NOT_SCANNED_KINDS = ("ODDD", "CP settings")
+NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to

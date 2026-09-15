@@ -139,6 +139,13 @@ td .neg{color:var(--bad)}
 .tag{display:inline-block;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--tile);color:var(--ink2);border:1px solid var(--hair)}
 .tag.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
 .tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
+.av{display:block;font-size:12px;line-height:1.5;white-space:nowrap}
+.av code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:var(--tile);border:1px solid var(--hair);padding:0 4px;border-radius:3px;color:var(--ink)}
+ul.acts{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}
+ul.acts li{display:grid;grid-template-columns:3.2em 1fr;align-items:baseline;column-gap:8px}
+ul.acts b{font-family:Montserrat,sans-serif;font-size:20px;font-variant-numeric:tabular-nums;text-align:right;color:var(--ink)}
+ul.acts b.zero{color:var(--ink3)}
+ul.acts .sub{grid-column:2;display:block;color:var(--ink2);font-size:12px}
 /* mark-sent control - the one place the page writes anything */
 button.tag{cursor:pointer;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;background:var(--surface);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);transition:background .12s,color .12s,border-color .12s}
 button.tag:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -630,6 +637,56 @@ function secShell(p, n, src, rankHtml, tableHtml){
     <div class="body"><div class="rank">${rankHtml}</div><div class="tbl">${tableHtml}</div></div></section>`;
 }
 
+// ---------- CSM action items (Aaron, 2026-09-15)
+// Current ARS clients only: a Lift Matrix the data team flags as out of date in the workbook's
+// filename, and ODD codes the client's code tables in the ARS database do not list. Nothing is
+// mapped here or in the pipeline; the CSM has the client correct the code sheet
+// (scripts/perf_actions.py). Terms follow the VIP Data Specification.
+// Product (with its Personal/Business flag) and Account Status decide ARS eligibility, so they come
+// first; Mail Flag decides who is mailed, not eligibility (tested on 12 clients); Reg E neither
+// (Aaron, 2026-09-15).
+const ACT_KINDS = [
+  ["product", "Product Codes not mapped", "correct the product mapping on the client's code sheet; it determines ARS eligibility"],
+  ["pb_flag", "Product codes with no Personal/Business flag", "correct the product mapping on the client's code sheet; it determines ARS eligibility"],
+  ["status", "Account Status Codes not mapped", "correct on the client's code sheet; it determines ARS eligibility"],
+  ["mail", "Mail Flags not mapped", "correct on the client's code sheet; it decides who is mailed"],
+  ["reg_e", "Reg E Codes not mapped", "correct on the client's code sheet"]];
+function actCell(item){
+  if(!item) return `<span class="dim">&mdash;</span>`;
+  const label = v => v.value === "" ? "(blank)" : v.value;
+  const shown = item.values.slice(0, 4), more = item.values.length - shown.length;
+  const all = item.values.map(v => `${label(v)}: ${v.accounts} accounts, ${v.open} open${v.desc ? " (" + v.desc + ")" : ""}`).join("; ");
+  return (item.no_table ? `<span class="tag warn" title="The ARS database has no table of these codes for this client, so every value is listed">no table</span>` : "") +
+    shown.map(v => `<span class="av" title="${esc(N(v.open))} open"><code>${esc(label(v))}</code> ${N(v.accounts)}${v.desc ? ` <span class="dim">${esc(v.desc)}</span>` : ""}</span>`).join("") +
+    (more > 0 ? `<span class="sub" title="${esc(all)}">+${more} more</span>` : "");
+}
+function secActions(vis){
+  const p = {name:"CSM action items", c:"var(--warn)"};
+  const ars = vis.filter(c=>c.actions);
+  if(!ars.length) return "";
+  const has = (c,k) => k === "lm" ? !!c.actions.lift_matrix : c.actions.codes.some(x=>x.kind===k);
+  const rows = ars.filter(c=>c.actions.count || c.actions.unchecked.length);
+  const unchecked = ars.filter(c=>c.actions.unchecked.length).length;
+  const count = k => ars.filter(c=>has(c,k)).length;
+  const li = (k, label, todo) => { const n = count(k);
+    return `<li><b class="${n?"":"zero"}">${n}</b><span>${label}</span><span class="sub">CSM: ${todo}</span></li>`; };
+  const rank = `<h3>What needs a CSM</h3><div class="cap">Clients with each item, of ${ars.length} current ARS client${ars.length===1?"":"s"} checked. A count is value by value against the client's code tables in the ARS database; nothing is mapped for them.</div>` +
+    `<ul class="acts">${li("lm", "Lift Matrix out of date", "create a new lift matrix")}${ACT_KINDS.map(([k,l,t])=>li(k,l,t)).join("")}</ul>` +
+    (unchecked ? `<div class="cap" style="margin-top:12px">${unchecked} client${unchecked===1?"":"s"} could not be checked for codes; each row says why.</div>` : "");
+  const sub = s => `<br><span style="font-weight:500;text-transform:none;letter-spacing:0">${s}</span>`;
+  const table = !rows.length ? `<div class="empty">Nothing to act on for the selected clients.</div>` :
+    `<table><thead><tr><th class="l">Client</th><th class="l">CSM</th><th class="l">Lift Matrix</th>` +
+    ACT_KINDS.map(([k,l])=>`<th class="l">${l}${sub("value, accounts")}</th>`).join("") + `</tr></thead><tbody>` +
+    rows.map(c=>{ const a = c.actions, by = Object.fromEntries(a.codes.map(x=>[x.kind, x]));
+      return `<tr>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${a.odd_month?`<span class="sub">ODD ${esc(a.odd_month)}</span>`:""}${a.unchecked.map(u=>`<span class="sub dim">${esc(u)}</span>`).join("")}</td>
+        <td class="l">${esc(c.csm || "Unassigned")}</td>
+        <td class="l">${a.lift_matrix ? `<span class="tag warn" title="${esc(a.lift_matrix.workbook)}">${esc(a.lift_matrix.flag)}</span><span class="sub">create a new lift matrix</span>` : `<span class="dim">&mdash;</span>`}</td>
+        ${ACT_KINDS.map(([k])=>`<td class="l">${actCell(by[k])}</td>`).join("")}</tr>`;
+    }).join("") + `</tbody></table>`;
+  return secShell(p, rows.length, "ARS workbook filenames + the ARS database code tables", rank, table);
+}
+
 // ---------- client overview (Aaron, 2026-09-14)
 // Client-level, not a product, so it shows whichever products are selected. Figures come from
 // each client's ODD extract through scripts/perf_overview.py, with the decks' definitions.
@@ -742,7 +799,7 @@ function secMRPC(vis){
       const km = m.key_metrics||{}; const pog = m.pct_of_goal?.slice(-1)[0]; const pogm = m.goal_months?.slice(-1)[0];
       const tot = w.totals||{};
       return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${m.inactive_since?` <span class="tag warn">${m.inactive_since==="never"?"no enrollments yet":"no enrollments since "+esc(monLabel(m.inactive_since))}</span>`:""}<span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span></td>
+        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${m.inactive_since?` <span class="tag warn">${m.inactive_since==="never"?"no enrollments yet":"no enrollments since "+esc(monLabel(m.inactive_since))}</span>`:""}${m.period&&m.period!==DATA.period?` <span class="tag warn">VIP ${esc(m.period)}</span>`:""}<span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span></td>
         <td>${N(w.active_cardholders)}<span class="sub">${N(w.all_cardholders)} ever enrolled</span></td>
         <td>${PCTf(w.take_rate_all)}</td><td>${PCTf(w.take_rate_active)}</td>
         <td>${N(t12)}</td><td>${N(last.platinum+last.gold+last.business)}<span class="sub">${monLabel(last.month)}</span></td>
@@ -1020,7 +1077,8 @@ function update(){
   const vis = clients.filter(c=>inCsm(c) && selClients.has(c.id) && inProducts(c));
   safe("Summary", ()=>renderStrip(vis));
   const secs = document.getElementById("sections");
-  const html = [safe("Client overview",()=>secOverview(vis)),
+  const html = [selProgs.has("ARS")?safe("CSM action items",()=>secActions(vis)):"",
+                safe("Client overview",()=>secOverview(vis)),
                 selProgs.has("ARS")?safe("Account Revenue Solution",()=>secARS(vis)):"",
                 selProgs.has("ICS")?safe("Invitation Checking System",()=>secICS(vis)):"",
                 selProgs.has("MRPC")?safe("MyRewards Premium Cards",()=>secMRPC(vis)):"",
@@ -1037,6 +1095,7 @@ document.getElementById("periodpill").textContent = "Reporting period " + DATA.p
 document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
 document.getElementById("foot").innerHTML =
   `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
+  `<li><b>CSM action items</b> - ${esc((DATA.sources && DATA.sources.actions) || "not built in this refresh")}.</li>` +
   `<li><b>Client overview</b> - ${esc((DATA.sources && DATA.sources.overview) || "ODD extracts")}.</li>` +
   `<li><b>Clients</b> - ${esc((DATA.sources && DATA.sources.clients) || "the clients.md roster")}.</li>` +
   `<li><b>CSM</b> \u2014 ${esc((DATA.sources && DATA.sources.csm) || "not resolved in this build")}.</li>` +

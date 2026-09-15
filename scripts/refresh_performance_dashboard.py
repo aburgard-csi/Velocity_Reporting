@@ -64,6 +64,8 @@ import rpe_env as R                                              # noqa: E402
 from build_month import read_cashplease_roster, read_roster      # noqa: E402
 import perf_clients as PC                                        # noqa: E402
 import perf_overview as PO                                       # noqa: E402
+import perf_actions as PA                                        # noqa: E402
+import ars_code_tables as ACT                                    # noqa: E402
 
 TEMPLATE = REPO / "scripts" / "perf_dashboard_template.html"
 PLACEHOLDER = "__DATA__"
@@ -195,14 +197,31 @@ def roster_clients():
     return clients
 
 
-def page_clients(period, work, weekly, packs, log=print):
+ARS_WORKBOOK_LAG = 2    # an inferred client's ARS workbook may trail the cycle by this many months
+
+
+def months_before(period, older):
+    """How many months `older` (yyyy.mm) precedes `period`; negative when it is later."""
+    (y1, m1), (y0, m0) = ((int(x) for x in p.split(".")) for p in (period, older))
+    return (y1 - y0) * 12 + (m1 - m0)
+
+
+def page_clients(period, work, weekly, packs, log=print, workbook_names=None):
     """({id: client record}, folder period) for every client the page lists.
 
     The clients.md roster, plus every current client on the reports share (Aaron,
     2026-09-14: show ALL current clients, then filter by CSM), except the ones clients.md
     marks as stopped, whose files the data team keeps landing. A roster client's programs
-    come from clients.md; anyone else's are inferred from this month's data by
-    perf_clients and tagged `programs_from: "data"` so the page can say so.
+    come from clients.md; anyone else's are inferred from the data by perf_clients and
+    tagged `programs_from: "data"` so the page can say so.
+
+    An inferred client is on ARS when this month's share carries its workbook OR Inputs
+    holds one from the last ARS_WORKBOOK_LAG months (Aaron, 2026-09-15). The data team
+    lands a cycle's workbooks over days, and a roster client without this month's (1075
+    Austin Bank) already shows last month's, tagged with its period. Reading this month's
+    share alone dropped the ARS row for seven clients in exactly that state (1100, 1121,
+    1126, 1147, 1403, 1554, 1743). The window keeps a client whose ARS ended long ago, and
+    whose lone old workbook the pruner never removes, off the ARS section.
     """
     clients = roster_clients()
     for c in clients.values():
@@ -211,6 +230,9 @@ def page_clients(period, work, weekly, packs, log=print):
     stopped = {row[0] for row in skipped} - set(clients)
     current, folder = PC.current_clients(period, work, reports_share(), log=log)
     cp_ids = {f.name.split("_")[0] for f in Path(packs).glob("*_cashplease.json")} if packs else set()
+    if workbook_names is None:
+        workbook_names = [os.path.basename(f) for f in report_glob(R.report_dirs(), "*.xlsx")]
+    names = sorted(workbook_names)
     for cid, rec in sorted(current.items()):
         if cid in clients or cid in stopped:
             continue
@@ -220,8 +242,11 @@ def page_clients(period, work, weekly, packs, log=print):
         except BaseException:
             has_ics = False
         kinds = rec.get("kinds") or []
+        wb_period = pick_workbook(names, cid, period)[0]
+        recent_wb = bool(wb_period) and months_before(period, wb_period) <= ARS_WORKBOOK_LAG
         clients[cid] = {"id": cid, "name": rec.get("name") or cid, "path": None, "programs": [],
-                        "roster_programs": PC.infer_programs(cid, kinds, weekly.tabs, cp_ids, has_ics),
+                        "roster_programs": PC.infer_programs(cid, kinds, weekly.tabs, cp_ids, has_ics,
+                                                             has_ars_workbook=recent_wb),
                         "programs_from": "data", "share_kinds": kinds}
     log("clients: %d from clients.md, %d more current on the reports share (%s), %d stopped left out"
         % (sum(c["programs_from"] == "clients.md" for c in clients.values()),
@@ -1017,6 +1042,22 @@ def build_dataset(period, work, log=print):
             else:
                 c[key]["inactive_since"] = since or "never"
 
+    # CSM action items (Aaron, 2026-09-15), for current ARS clients: an out-of-date Lift Matrix
+    # flagged in the workbook's filename, and ODD codes the client's ARS database code tables
+    # do not list. The per-code counts only feed this; they are not carried on the page.
+    tables = ACT.load()
+    log("action items: %s" % ("ARS code tables from %s (exported %s)"
+                              % (tables["_source"]["export"], tables["_source"]["exported"])
+                              if tables else "no ARS code tables in Inputs/ARS Settings"))
+    for cid, c in clients.items():
+        ov = c.get("overview")
+        if "ARS" in c["programs"]:
+            c["actions"] = PA.client_actions(cid, ov, tables, c.get("ars"))
+            if isinstance(ov, dict) and ov.get("month_label"):
+                c["actions"]["odd_month"] = ov["month_label"]
+        if isinstance(ov, dict):
+            ov.pop("codes", None)
+
     ics_pull, mrpc_pull = vip_pull_date("ICS"), vip_pull_date("MRPC")
     return {
         "generated": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "period": period,
@@ -1037,8 +1078,14 @@ def build_dataset(period, work, log=print):
             "clients": "the clients.md roster, plus every client with reports filed on the CSI "
                        "reports share for the newest month at or before the cycle, except those "
                        "clients.md marks as stopped; programs for a client not in clients.md are "
-                       "inferred from that month's files (ARS workbook, VIP ICS sheet, MRPCPM "
-                       "analysis or MRPC weekly tab, CashPlease weekly tab) and tagged from data",
+                       "inferred from that month's files (ARS workbook, or one in Inputs from the "
+                       "last two months; VIP ICS sheet, MRPCPM analysis or MRPC weekly tab, "
+                       "CashPlease weekly tab) and tagged from data",
+            "actions": "for current ARS clients: a Lift Matrix the data team flags as out of date "
+                       "in the ARS workbook's filename, and codes in the client's ODD extract "
+                       "(Prod Code, Stat Code, the newest Reg E Code column) that the client's "
+                       "code tables in the ARS database do not list; a CSM corrects them on the "
+                       "client's code sheet, and nothing is mapped in the pipeline",
             "csm": "the account-manager folder each client's reports land in on the CSI "
                    "reports share (newest of the last two months; the last answer read is "
                    "kept for mornings off the VPN), else the CSM column of the CashPlease "

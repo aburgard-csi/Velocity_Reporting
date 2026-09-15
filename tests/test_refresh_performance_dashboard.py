@@ -404,7 +404,7 @@ def test_page_lists_current_clients_beyond_the_roster_but_not_stopped_ones(tmp_p
     monkeypatch.setattr(P.R, "resolve_client_json", no_sheet)
     weekly = type("Weekly", (), {"tabs": {}})()
 
-    clients, folder = P.page_clients("2026.09", work, weekly, packs, log=_quiet)
+    clients, folder = P.page_clients("2026.09", work, weekly, packs, log=_quiet, workbook_names=[])
     assert folder == "2026.09"
     assert sorted(clients) == ["1095", "1147", "1156", "1204"], "1437 is stopped in clients.md"
     assert clients["1204"]["programs_from"] == "clients.md" and clients["1204"]["roster_programs"] == ["ARS"]
@@ -413,6 +413,20 @@ def test_page_lists_current_clients_beyond_the_roster_but_not_stopped_ones(tmp_p
                                "share_kinds": ["DCO", "WORKBOOK"]}
     assert clients["1147"]["roster_programs"] == ["CP"]
     assert clients["1156"]["roster_programs"] == [], "a DCO alone implies no program"
+
+    # Last month's workbook in Inputs keeps an inferred client on ARS, the way a roster
+    # client without this month's workbook (1075 Austin Bank) shows last month's, tagged.
+    # One that ended long ago does not come back.
+    clients, _ = P.page_clients("2026.09", work, weekly, packs, log=_quiet, workbook_names=[
+        "1147-2026.08-Sutton-Workbook_v2_1_0.xlsx", "1156-2026.03-BancFirst-Workbook_v2_1_0.xlsx"])
+    assert clients["1147"]["roster_programs"] == ["ARS", "CP"]
+    assert clients["1156"]["roster_programs"] == [], "a workbook six months old is not a current ARS client"
+
+
+def test_months_before_counts_across_a_year_end():
+    assert P.months_before("2026.09", "2026.07") == 2
+    assert P.months_before("2026.01", "2025.12") == 1
+    assert P.months_before("2026.09", "2026.10") == -1
 
 
 def test_template_product_chips_isolate_from_all_like_the_other_filters():
@@ -478,10 +492,12 @@ def test_the_odd_data_month_is_the_month_before_the_cycle():
 
 
 def test_template_shows_the_client_overview_first_whatever_the_products():
-    """Client-level figures, so the section is not gated on a product chip."""
+    """Client-level figures, so the section is not gated on a product chip. Only the CSM
+    action items, which are ARS-only and are what a CSM acts on, come before it."""
     t = P.TEMPLATE.read_text(encoding="utf-8")
     assert "function secOverview(vis){" in t
-    assert 'const html = [safe("Client overview",()=>secOverview(vis)),' in t
+    assert ('const html = [selProgs.has("ARS")?safe("CSM action items",()=>secActions(vis)):"",\n'
+            '                safe("Client overview",()=>secOverview(vis)),') in t
     assert "const stale = DATA.odd_month && o.month !== DATA.odd_month;" in t, "an older extract is tagged"
 
 

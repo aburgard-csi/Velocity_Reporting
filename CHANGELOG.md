@@ -17,6 +17,59 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-15 — CSM action items on the performance page
+
+**A new first section lists what a CSM has to take to the client** (Aaron: "If we have unmapped
+values for current ARS clients the CSM needs to contact the client to get those fixed. The CSM
+also needs to create a new lift matrix if the current one is out of date."). It covers current
+ARS clients and follows the CSM, product and client filters.
+- **Lift Matrix out of date** is the data team's flag in the ARS workbook's filename ("LM
+  EXPIRED", "NEEDS LIFT MATRIX", "NEW LIFT MATRIX NEEDED"), as Aaron chose over the Lift Matrix
+  tab's end date. On 2026.09: 1453, 1529, 1780, 1487, 1637; 1743's flag is on its 2026.08 workbook.
+- **Codes not mapped** compare each client's ODD (Prod Code, Stat Code, the newest `<Mon><yy>
+  Reg E Code` column) with that client's code tables in the ARS database. The terms are the VIP
+  Data Specification's: "Product Codes not mapped", "Product codes with no Personal/Business
+  flag" (a listed product code whose `is_business` is blank; Personal/Business is set per
+  product code, Aaron), "Account Status Codes not mapped", "Mail Flags not mapped" and "Reg E
+  Codes not mapped". The ODD carries no raw mail code, only `Mailable?`, which the database has
+  already mapped, so a Mail Flag is flagged when that value is anything but Yes or No. Product
+  and Account Status decide ARS eligibility, so those items list first and say so. Mail Flag
+  decides who is mailed, not eligibility: on 12 clients about 99% of otherwise-eligible
+  Mailable?=No accounts are Elig=Yes (1075 514 of 514). Reg E decides neither (Aaron). Each value shows its account count. **Nothing is mapped:** a CSM has the client correct the code
+  sheet; no value is added to `STAT_CODE_MAP` or the Reg E classifier (Aaron: "don't force any
+  mapping").
+- **What cannot be checked is said.** No ODD extract, no code tables, or a column the extract
+  lacks is written on the row, never read as "all mapped". A client with no table of a kind in
+  the database gets every value listed with a "no table" tag.
+- **Where the tables come from.** `scripts/ars_code_tables.py` reads the ARS database export
+  (SQL Server text output) and writes only the product, Reg E and status code tables to
+  `Inputs/ARS Settings/ars_code_tables.json` (new rpe_env kind "ARS codes", not scanned). The
+  clients' code sheets themselves go in `Inputs/Code Sheets/` (kind "Code sheets", also not
+  scanned, so the watch and the pruner leave it alone). The
+  export's client SETTINGS table carries plaintext FTP passwords and salts: tables are found by
+  their id column and only named columns are read, so it is never parsed past its header, copied
+  or committed. The mail code table is left out; the ODD has no raw mail code to check against it.
+- **No extract is read twice.** The codes are counted in the Client overview's pass
+  (`perf_overview`, cache version 3, so every extract is re-read once) and dropped from the page
+  data after the check.
+
+### 2026-09-15 — an ARS workbook a month behind is shown the same way for every client
+
+**Seven clients lost their ARS row for want of this month's workbook** (Aaron: "if that's the
+case for austin isn't the same with others? make sure that behavior is consistent"). 1075
+Austin Bank has no 2026.09 ARS workbook on the share. It is on the clients.md roster, so the
+page showed its 2026.08 workbook tagged "workbook 2026.08". A client not on the roster had its
+programs inferred from THIS month's share files only, so 1100 Rally, 1121 Timberland, 1126
+Legend, 1147 Sutton, 1403 Adirondack, 1554 Isabella and 1743 Mid American all had a 2026.09
+DCO, a 2026.08 workbook in Inputs, and no ARS row at all.
+- **The rule now.** `page_clients` also puts an inferred client on ARS when Inputs holds its
+  ARS workbook from the last two months (`ARS_WORKBOOK_LAG`). The row carries that workbook's
+  period and the page tags it, exactly as for Austin Bank. An older lone workbook (the pruner
+  never removes the last one) does not bring a client whose ARS ended back onto the page.
+- **MRPC rows get the same tag.** A row whose VIP sheet is for an earlier period than the
+  cycle now says "VIP <period>". ICS and the Client overview already tagged theirs;
+  CashPlease and the MRPC weekly always use the newest weekly by design.
+
 ### 2026-09-14 — the performance page drops its subheading
 
 **The line under the title is gone** (Aaron: remove "85 clients, 5 CSMs, across four programs.

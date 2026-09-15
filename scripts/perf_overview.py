@@ -46,8 +46,9 @@ for _p in (REPO / "build", REPO / "build" / "ars_pipeline"):
 import rpe_env as R                                              # noqa: E402
 from odd_rows import accessors, status_class                     # noqa: E402
 
-OVERVIEW_VERSION = "1"      # bump when a definition changes, so cached results are recomputed
+OVERVIEW_VERSION = "3"      # bump when a definition changes, so cached results are recomputed
 _SIG_RX = re.compile(r"^([A-Z][a-z]{2}\d{2}) Sig #$")
+_REGE_RX = re.compile(r"^[A-Z][a-z]{2}\d{2} Reg E Code$")
 _DATE_FORMATS = ("%m/%d/%Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%y")   # metrics_gen.parsed
 
 
@@ -106,10 +107,16 @@ def _setup(hdr):
     latest = datetime.datetime.strptime(months[-1], "%b%y")
     now = _month_start(latest, -1) - datetime.timedelta(days=1)     # last day of the snapshot month
     H = {h: i for i, h in enumerate(hdr)}
+    rege = sorted((h for h in hdr if _REGE_RX.match(h)),
+                  key=lambda h: datetime.datetime.strptime(h[:5], "%b%y"))
     return {
         "odd": accessors(H), "months": months, "w3": months[-3:],
         "latest": latest, "now": now, "start12": _month_start(latest, 11),
         "i_desc": H.get("Stat Desc"), "i_code": H.get("Stat Code"),
+        "i_prod": H.get("Prod Code"), "i_pdesc": H.get("Prod Desc"),
+        "rege_col": rege[-1] if rege else None, "i_rege": H.get(rege[-1]) if rege else None,
+        "i_mail": H.get("Mailable?"),
+        "codes": {"product": {}, "status": {}, "reg_e": {}, "mail": {}},
         "status": {}, "dates": {},
         "rows": 0, "open": 0, "biz": 0, "per": 0, "sw": 0.0, "nsf": 0.0, "opened": 0, "closed": 0,
     }
@@ -141,8 +148,23 @@ def _tally(s, row):
     cls = s["status"].get(key)
     if cls is None:                          # a few dozen distinct pairs, looked up per row
         cls = s["status"][key] = status_class(*key)
+    is_open = cls != "closed"
+    codes = s["codes"]
+    for kind, value in (("status", key[1] if s["i_code"] is not None else None),
+                        ("product", _cell(row, s["i_prod"]) if s["i_prod"] is not None else None),
+                        ("reg_e", _cell(row, s["i_rege"]) if s["i_rege"] is not None else None)):
+        if value:                            # a blank is not a code (closed / business Reg E)
+            n = codes[kind].get(value)
+            if n is None:
+                n = codes[kind][value] = [0, 0, _cell(row, s["i_pdesc"]) if kind == "product" else ""]
+            n[0] += 1
+            n[1] += is_open
+    if s["i_mail"] is not None:               # Mailable? — a blank is counted: it is not Yes or No
+        n = codes["mail"].setdefault(_cell(row, s["i_mail"]), [0, 0, ""])
+        n[0] += 1
+        n[1] += is_open
     personal = odd.personal(row)
-    if cls != "closed":
+    if is_open:
         s["open"] += 1
         if odd.business(row):
             s["biz"] += 1
@@ -178,6 +200,15 @@ def _result(s, member):
         "swipes_per_open_personal": round(s["sw"] / n3 / s["per"], 1) if s["per"] else None,
         "nsf_items_3mo_avg": round(s["nsf"] / n3),
         "personal_opened_12": s["opened"], "personal_closed_12": s["closed"],
+        # value -> [accounts, open accounts, Prod Desc of the first row seen], for the CSM
+        # action items. A column the extract lacks is None, never an empty "all mapped".
+        "codes": {
+            "status": s["codes"]["status"] if s["i_code"] is not None else None,
+            "product": s["codes"]["product"] if s["i_prod"] is not None else None,
+            "reg_e": s["codes"]["reg_e"] if s["i_rege"] is not None else None,
+            "mail": s["codes"]["mail"] if s["i_mail"] is not None else None,
+            "reg_e_column": s["rege_col"],
+        },
     }
 
 

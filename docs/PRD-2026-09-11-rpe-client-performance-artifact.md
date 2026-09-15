@@ -183,6 +183,24 @@ there cannot cause a spurious republish.
 **Change detection compares figures, not runs.** The hash excludes the generation
 date, so rebuilding the same inputs tomorrow reports `unchanged`.
 
+**2026-09-15 — a workbook a month behind is shown the same way for every client.** 1075
+Austin Bank (on the roster) showed its 2026.08 workbook, tagged, while seven clients not on
+the roster in the same state lost their ARS row, because their programs were inferred from
+this month's share files alone. An inferred client is now on ARS when Inputs holds its
+workbook from the last two months. MRPC rows are tagged when their VIP sheet is older than
+the cycle, like ARS, ICS and the Client overview.
+
+**2026-09-15 — CSM action items come first, and nothing is mapped for them.** For current
+ARS clients: a Lift Matrix the data team flags out of date in the workbook filename (Aaron
+chose that flag over the Lift Matrix tab's end date), and ODD codes the client's code tables
+in the ARS database do not list. The items that decide ARS eligibility (Product, its
+Personal/Business flag, Account Status) list first; Mail Flag, which decides who is mailed but
+not eligibility, and Reg E follow. The pipeline never
+maps a value; the CSM has the client correct the code sheet. The code tables come from a
+database export whose settings table holds plaintext FTP credentials, so
+`scripts/ars_code_tables.py` keeps only the code tables, found by id column, and the export
+itself is never copied or committed.
+
 ## Open
 
 1. **Five CashPlease-only clients show "not checked"** for readiness. They are not

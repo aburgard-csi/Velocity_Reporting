@@ -84,6 +84,8 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | ICS Charts (mystery shops) | `Inputs/ICS Charts/` |
 | MRPCEnrollmentSummary / CashPleaseSummary weeklies | `Inputs/Weekly Summaries/` |
 | CashPlease production settings (Velocity Product Settings Power BI app, one record per client) | `Inputs/Product Settings/<id>_cp_settings.json` |
+| ARS database code tables (product, Reg E, account status codes per client; written by `scripts/ars_code_tables.py` from a database export — the export's settings table holds plaintext FTP credentials and is never copied) | `Inputs/ARS Settings/ars_code_tables.json` |
+| Client code sheets (product with its Personal/Business flag, account status, mail flag and Reg E mappings per client; saved by the data team, where a CSM's corrections land) | `Inputs/Code Sheets/` |
 | Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
@@ -795,6 +797,11 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.
 - `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
 - `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
+- `perf_workflow.html` — the page's linked "How the decks are made" page (inputs, outputs, folder map), published beside it as `workflow.html`.
+- `perf_clients.py` — which clients the page lists: every current client on the reports share, with programs inferred for clients `clients.md` does not cover.
+- `perf_overview.py` — the page's Client overview figures, and the per-client code counts, from each ODD extract (cached per extract).
+- `perf_actions.py` — the page's CSM action items: Lift Matrix flags in workbook filenames, and ODD codes the client's ARS code tables do not list. Never maps a code; the CSM corrects the client's code sheet.
+- `ars_code_tables.py` — extracts ONLY the product, Reg E and status code tables from an ARS database export into `Inputs/ARS Settings/`; the settings table (plaintext credentials) is never parsed past its header.
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
 - `build_ars_gen.py` — the ARS deck assembler: populates the `ars_template.pptx` shell, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.

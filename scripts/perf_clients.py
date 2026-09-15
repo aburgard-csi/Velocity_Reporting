@@ -140,10 +140,13 @@ def current_clients(period, work, root, log=print):
     return clients, folder
 
 
-def infer_programs(cid, kinds, mrpc_tabs=(), cp_ids=(), has_ics_sheet=False):
-    """Programs for a client clients.md does not cover, in page order (ARS, ICS, MRPC, CP)."""
+def infer_programs(cid, kinds, mrpc_tabs=(), cp_ids=(), has_ics_sheet=False, has_ars_workbook=False):
+    """Programs for a client clients.md does not cover, in page order (ARS, ICS, MRPC, CP).
+
+    `has_ars_workbook`: Inputs holds a recent ARS workbook for the client even though this
+    month's share does not carry one yet (the caller decides what "recent" is)."""
     progs = []
-    if WORKBOOK in kinds:
+    if WORKBOOK in kinds or has_ars_workbook:
         progs.append("ARS")
     if has_ics_sheet:
         progs.append("ICS")
