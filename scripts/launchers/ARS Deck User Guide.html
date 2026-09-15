@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARS Deck User Guide</title>
+<style>
+  :root {
+    --navy: #16325c;
+    --teal: #13808a;
+    --ink: #1d2733;
+    --muted: #5a6675;
+    --rule: #d9e0e8;
+    --ground: #f6f8fa;
+    --paper: #ffffff;
+    --ok: #1d7a46;
+    --warn: #9a6400;
+    --sent: #2a5aa8;
+    --stop: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 15px/1.6 "Segoe UI", Calibri, Carlito, Arial, sans-serif;
+  }
+  header { background: var(--navy); color: #fff; padding: 28px 24px 24px; }
+  header .wrap { max-width: 880px; margin: 0 auto; }
+  header .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin: 0 0 6px; }
+  header h1 { margin: 0; font-size: 28px; line-height: 1.2; text-wrap: balance; }
+  header p { margin: 8px 0 0; max-width: 62ch; opacity: .9; }
+  main { max-width: 880px; margin: 0 auto; padding: 8px 24px 48px; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 14px 0; border-bottom: 1px solid var(--rule); font-size: 14px; }
+  nav a { color: var(--teal); text-decoration: none; }
+  nav a:hover, nav a:focus-visible { text-decoration: underline; }
+  section { padding-top: 28px; }
+  h2 { font-size: 20px; color: var(--navy); margin: 0 0 10px; text-wrap: balance; }
+  h3 { font-size: 16px; margin: 20px 0 6px; }
+  p, li { max-width: 70ch; }
+  code, kbd, .path { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13.5px; }
+  .path { background: #eef2f6; border: 1px solid var(--rule); border-radius: 4px; padding: 1px 6px; word-break: break-all; }
+  kbd { background: var(--paper); border: 1px solid #b9c3ce; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .steps li { display: grid; grid-template-columns: 36px 1fr; gap: 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; max-width: none; }
+  .steps li > div { min-width: 0; }
+  .steps .n { width: 30px; height: 30px; border-radius: 50%; background: var(--teal); color: #fff; font-weight: 600; display: grid; place-items: center; }
+  .steps h3 { margin: 2px 0 4px; }
+  .steps p { margin: 4px 0; }
+  .console { background: #0f1b2b; color: #d7e0ea; border-radius: 6px; padding: 14px 16px; overflow-x: auto; font: 13px/1.5 Consolas, "Cascadia Mono", monospace; white-space: pre; margin: 10px 0; }
+  .console .ok { color: #7fd6a0; } .console .warn { color: #f0c060; } .console .sent { color: #8fb4ff; } .console .stop { color: #ff8a80; } .console .dim { color: #8b98a8; }
+  .table-wrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+  th { background: #eef2f6; color: var(--navy); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .tag { display: inline-block; font: 600 12.5px/1 Consolas, monospace; padding: 4px 6px; border-radius: 4px; color: #fff; white-space: nowrap; }
+  .tag.ok { background: var(--ok); } .tag.warn { background: var(--warn); } .tag.sent { background: var(--sent); } .tag.stop { background: var(--stop); }
+  .note { border-left: 4px solid var(--teal); background: var(--paper); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; max-width: 70ch; }
+  .note.caution { border-left-color: var(--warn); }
+  footer { max-width: 880px; margin: 0 auto; padding: 0 24px 32px; color: var(--muted); font-size: 13px; }
+  a:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  @media print { header { background: none; color: var(--navy); } nav { display: none; } .console { white-space: pre-wrap; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <p class="eyebrow">CSM Reporting · Account Revenue Solution</p>
+    <h1>ARS Deck User Guide</h1>
+    <p>How to build a client's monthly ARS Executive Review yourself, straight into your Outputs folder, with <strong>Build ARS Deck</strong>.</p>
+  </div>
+</header>
+
+<main>
+  <nav aria-label="Contents">
+    <a href="#before">Before you start</a>
+    <a href="#build">Build a deck</a>
+    <a href="#checks">What the checks mean</a>
+    <a href="#after">After it builds</a>
+    <a href="#problems">If something goes wrong</a>
+    <a href="#where">Where things are</a>
+  </nav>
+
+  <section id="before">
+    <h2>Before you start</h2>
+    <p>There is nothing to install. You need:</p>
+    <ul>
+      <li><strong>The CSM_Reporting folder</strong> open in File Explorer: <span class="path">\\PADMIS105\Velocity_company\CSM_Reporting</span>. Connect to the <strong>VPN</strong> first if you are off site.</li>
+      <li><strong>The client number</strong>, for example <code>1441</code>.</li>
+      <li><strong>About 650 MB free</strong> on your PC the first time. The launcher sets up its own copy of Python there, which takes a few minutes, once.</li>
+    </ul>
+    <div class="note">Close the client's deck in PowerPoint before you build. A new build replaces the deck in Outputs, and it can't do that while the file is open.</div>
+  </section>
+
+  <section id="build">
+    <h2>Build a deck</h2>
+    <ol class="steps">
+      <li><span class="n" aria-hidden="true">1</span><div>
+        <h3>Double-click <code>Build ARS Deck.bat</code></h3>
+        <p>It's in the CSM_Reporting folder. If Windows asks whether to run a file from the network, choose <strong>Run</strong>. You don't need to run it as administrator.</p>
+      </div></li>
+      <li><span class="n" aria-hidden="true">2</span><div>
+        <h3>Type the client number and press <kbd>Enter</kbd></h3>
+        <p>It checks the client and this month's data before building anything:</p>
+<div class="console">ARS deck status: client 1441, period 2026.09
+
+<span class="ok">  [ok]  </span> 1441 FNB Alaska (CSM: James Gilmore)
+<span class="ok">  [ok]  </span> clients.md: ARS, MM workbook
+<span class="ok">  [ok]  </span> ODD extract: in Inputs (2026-09-03)
+<span class="ok">  [ok]  </span> ARS workbook: in Inputs (2026-09-03)
+<span class="ok">  [ok]  </span> DCO: in Inputs (2026-09-14)
+
+Ready to build.
+
+ Build the ARS deck and put it in Outputs [Y,N]?</div>
+      </div></li>
+      <li><span class="n" aria-hidden="true">3</span><div>
+        <h3>Press <kbd>Y</kbd> to build</h3>
+        <p>A build takes 3 to 15 minutes. It names each step as it goes, so you can see it working:</p>
+<div class="console">Building (this takes 3 to 15 minutes)...
+<span class="dim">  [..]  </span> Reading the ARS workbook  (0 min)
+<span class="dim">  [..]  </span> Reading the ODD extract  (1 min)
+<span class="dim">  [..]  </span> Computing the ODD metrics  (2 min)
+<span class="dim">  [..]  </span> Drawing the charts  (3 min)
+<span class="dim">  [..]  </span> Assembling the deck  (4 min)
+<span class="dim">  [..]  </span> Validating the deck  (9 min)
+<span class="ok">  [ok]  </span> Validation: 0 FAIL, 28 REVIEW
+<span class="ok">  [ok]  </span> In Outputs: ...\Outputs\James Gilmore\1441-2026.09-ARS-FNB Alaska ARS Results.pptx
+
+Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
+        <p>"REVIEW" items are normal notes from the quality check. Only a <strong>FAIL</strong> stops a deck.</p>
+      </div></li>
+      <li><span class="n" aria-hidden="true">4</span><div>
+        <h3>Press any key to close the window</h3>
+        <p>Then go to your folder in Outputs. See <a href="#after">After it builds</a>.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section id="checks">
+    <h2>What the checks mean</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Mark</th><th scope="col">Meaning</th><th scope="col">What to do</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag ok">[ok]</span></td><td>This check passed.</td><td>Nothing.</td></tr>
+          <tr><td><span class="tag warn">[!!]</span></td><td>A warning. The build can still run.</td><td>Read it. A missing DCO, for example, leaves the DCO's eligible accounts blank.</td></tr>
+          <tr><td><span class="tag sent">[sent]</span></td><td>This month's deck was already sent to the client.</td><td>It asks <em>"Rebuild it and replace the one in Outputs?"</em> Say <kbd>Y</kbd> only if something changed, such as a formatting fix or a corrected input.</td></tr>
+          <tr><td><span class="tag stop">[STOP]</span></td><td>The deck can't be built yet. The line says why.</td><td>See the table below.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Why a build stops, and who fixes it</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">The STOP line says</th><th scope="col">Who fixes it</th></tr></thead>
+        <tbody>
+          <tr><td>Not in Client CSM List</td><td>Check the client number. If it's right, ask Aaron.</td></tr>
+          <tr><td>Not an ARS client</td><td>No ARS deck is needed. The Velocity product list doesn't show ARS for this client.</td></tr>
+          <tr><td>clients.md does not list this client for ARS</td><td>Ask Aaron to add it.</td></tr>
+          <tr><td>This client ships a combined deck</td><td>Aaron builds combined decks. Ask him.</td></tr>
+          <tr><td>ODD extract: not copied / from an earlier month</td><td>The data team lands this month's ODD extract. It's copied into Inputs each morning at 08:00.</td></tr>
+          <tr><td>ARS workbook: not copied / from an earlier month</td><td>The data team lands this month's ARS workbook on the client reports share.</td></tr>
+          <tr><td>Someone is already building this client</td><td>Wait for their build to finish, then try again.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="after">
+    <h2>After it builds</h2>
+    <ol>
+      <li><strong>Open the deck</strong> in <span class="path">Outputs\&lt;your name&gt;\</span> and review it.</li>
+      <li><strong>Save it as a PDF</strong> and <strong>email it</strong> to the client as usual.</li>
+      <li><strong>Tell Aaron it went out</strong>, so it's marked sent on the delivery dashboard and doesn't get rebuilt by mistake.</li>
+    </ol>
+    <div class="note caution">If a slide looks wrong, don't fix it by hand in PowerPoint. Tell Aaron what's wrong so the build is fixed and every client's deck gets the correction.</div>
+    <p>Any older deck for the same client and month is moved to <span class="path">Outputs\Archive\</span>. Nothing is deleted.</p>
+  </section>
+
+  <section id="problems">
+    <h2>If something goes wrong</h2>
+    <h3>The first run sits on "Setting up Python on this PC"</h3>
+    <p>That's normal the first time, and after Aaron releases an update. It takes a few minutes, once.</p>
+    <h3>"The deck built clean but could not be put in Outputs"</h3>
+    <p>The client's deck in Outputs is open, probably in PowerPoint. Close it and run <code>Build ARS Deck.bat</code> again.</p>
+    <h3>"The build stopped at ..." or "POSSIBLE DATA ISSUE"</h3>
+    <p>The client's data has a problem the deck can't work around, such as account status codes that aren't mapped. These are usually corrected on the client's code sheet. Send Aaron the client number and the <code>build.log</code> path the window shows.</p>
+    <h3>"Validation: 1 FAIL" (or more)</h3>
+    <p>The deck didn't pass the quality check, so it wasn't put in Outputs. Send Aaron the client number.</p>
+    <h3>"The launcher runtime is missing"</h3>
+    <p>The launcher isn't fully installed on the share. Ask Aaron to run the launcher release.</p>
+  </section>
+
+  <section id="where">
+    <h2>Where things are</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Folder in CSM_Reporting</th><th scope="col">What's there</th></tr></thead>
+        <tbody>
+          <tr><td><span class="path">Build ARS Deck.bat</span></td><td>The launcher. Double-click it.</td></tr>
+          <tr><td><span class="path">Outputs\&lt;CSM&gt;\</span></td><td>Your finished decks.</td></tr>
+          <tr><td><span class="path">Outputs\Archive\</span></td><td>Decks replaced by a newer build.</td></tr>
+          <tr><td><span class="path">Inputs\</span></td><td>The ODD extracts and workbooks the build reads. Leave these alone.</td></tr>
+          <tr><td><span class="path">Build Artifacts\launcher\</span></td><td>A build's log, charts and data files. You only need these if Aaron asks for a <code>build.log</code>.</td></tr>
+          <tr><td><span class="path">Tools\</span></td><td>The launcher's code and Python. Don't change anything here.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<footer>Questions or a build that won't finish: contact Aaron Burgard with the client number.</footer>
+</body>
+</html>

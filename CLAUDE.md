@@ -91,6 +91,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
+| A launcher build's working files (log, charts, data, result) — its clean deck goes straight to `Outputs/<CSM>/` | `Build Artifacts/launcher/<period>/<id>/` |
 | Per-program template shells (`*_template.pptx`) | the project `templates/` folder |
 
 **VIP Data.** `Inputs/VIP Data/` holds the per-client ICS and MRPC sheets pulled from the
@@ -798,6 +799,9 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.
 - `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
 - `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
+- `ars_launcher.py` — builds one client's ARS deck into Outputs without Claude (`status | build <id>`): checks the product list, `clients.md`, the combined-deck rule, sent state and input currency first, works in `Build Artifacts/launcher/<period>/<id>/`, and puts a 0-FAIL deck straight into `Outputs/<CSM>/`, archiving what it supersedes. No staging step: each CSM reviews, PDFs and emails the deck from Outputs (Aaron, 2026-09-15).
+- `launchers/` — `Build ARS Deck.bat`, `ARS Deck User Guide.html` (released to the CSM_Reporting root) and `runtime.cmd`, which unpacks the released Python to `%LOCALAPPDATA%\RPE` on first use.
+- `release_launcher.ps1` — copies the code to `<root>\Tools\RPE` and the .bat files to the root; `-Runtime` also ships the zipped Python. **The launcher runs the released copy: re-run after any change, `clients.md` included.**
 - `perf_workflow.html` — the page's linked "How the decks are made" page (inputs, outputs, folder map), published beside it as `workflow.html`.
 - `perf_clients.py` — which clients the page lists: every current client on the reports share, with programs inferred for clients `clients.md` does not cover.
 - `perf_overview.py` — the page's Client overview figures, and the per-client code counts, from each ODD extract (cached per extract).

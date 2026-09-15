@@ -17,6 +17,49 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-15 — an ARS deck can be built without Claude
+
+**`Build ARS Deck.bat` in the CSM_Reporting folder** (Aaron: "i'd like to develop a way where
+anyone can run an ARS deck so long as the inputs are in place"). It asks for a client number
+and runs `scripts/ars_launcher.py`, which applies the checks that used to be done by hand, all
+of them BEFORE the build:
+
+- the client is on the Client CSM List, its product list includes ARS (a blank list warns),
+  and `clients.md` lists it for ARS;
+- a client of Aaron's on more than one program stops, because it ships a combined deck;
+- a deck already marked sent for the period is a question, not a stop (Aaron: "can the script
+  prompt whether the user wants the presentation re-run rather than failing?"). `status` exits
+  3 when that is the only thing in the way, and the .bat asks "Rebuild it and replace the one
+  in Outputs". On the command line it takes `--rebuild`;
+- the ODD extract and ARS workbook are there and current for the cycle period (the newest ARS
+  workbook in `Inputs/`), through the same `deck_status.requirements` the dashboard uses. A
+  missing DCO warns. A stale or missing input stops with the fix named for the data team;
+- one build per client at a time (a lock in the work folder, taken over after 3 hours).
+
+The build works in `Build Artifacts/launcher/<period>/<id>/`, where its log, charts and data stay
+out of sight. A deck that validates with 0 FAIL goes straight to `Outputs/<CSM>/`, and what it
+supersedes is archived by `promote_month.promote_one`. If the Outputs deck is open, nothing
+moves and the launcher says to close it. There is no staging folder and no separate deliver
+step. A `Staging/` folder and a `Deliver ARS Deck.bat` with a typed-YES prompt were built and
+dropped the same day (Aaron: "Each CSM will manually review, PDF, and email these
+presentations. We can skip staging altogether and go straight to Output.").
+
+The build's own output goes to `build.log`, so the launcher watches that log and prints each
+step as it starts. Without that, the window sat silent for up to 15 minutes.
+`ARS Deck User Guide.html` sits beside the .bat file.
+
+That exposed a `build.log` defect that affects every build, not only the launcher.
+`build_month.run` wrote each step's command line without flushing before the step started, and
+the step writes straight to the file. So each command line landed AFTER its own output. A
+traceback therefore read as belonging to the step before: 1615's metrics_gen error sat under
+the oddd_optimize command. It also meant the launcher named each step when it ended. `run` now
+flushes first, and a test checks the order.
+
+`scripts/release_launcher.ps1` copies the code to `Tools\RPE` on the share and, with `-Runtime`,
+a zipped Python with the libraries that each PC unpacks to `%LOCALAPPDATA%\RPE` on first use.
+The launcher runs the released copy, so a change in the repo reaches it only after a release.
+`tests/test_ars_launcher.py` covers the rules.
+
 ### 2026-09-15 — the archive is filed by CSM
 
 **`Outputs/Archive/` now has a folder per CSM, like `Outputs/`** (Aaron: "sort the archive by

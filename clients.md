@@ -53,7 +53,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1615 | Cape & Coast Bank | MM | yes | — | yes | ARS-MRPC |
 | 1637 | Ouachita Valley FCU | MM | yes | — | yes | ARS-MRPC |
 | 1652 | Security CU | SM | yes | — | yes | ARS-MRPC |
-| 1657 | Marine Credit Union | SM | yes | — | — | ARS |
+| 1657 | Marine Credit Union | SM | — | — | — | **none — ICS only, not built (see Status changes)** |
 | 1673 | Neighborhood CU | MM | yes | — | yes | ARS-MRPC |
 | 1676 | True Sky CU | MM | yes | yes | — | ARS-ICS |
 | 1680 | Great Lakes CU | MM | yes | — | — | ARS |
@@ -213,6 +213,12 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ## Status changes
 
+- **2026-09-15 — 1657 Marine Credit Union is ICS only, not ARS** (Aaron). It was added to the
+  active table as ARS earlier the same day because a 2026.09 ARS workbook for it is on the
+  client-reports share (a workbook saved with no calculated figures). The Velocity client/product
+  export lists ICS and ILS only, and Aaron confirmed ICS only. ARS is removed, so no ARS deck is
+  built for it; ICS is not recorded here because no ICS build for the other CSMs' clients has been
+  asked for.
 - **2026-09-15 — MRPC and CashPlease recorded for the new ARS clients that run them** (Aaron
   chose this over leaving them ARS-only, where the performance page would have dropped the
   sections). MRPC = yes for 1453, 1520, 1542, 1615, 1637, 1652, 1673, 1745, 1776 and 1780

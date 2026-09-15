@@ -201,6 +201,10 @@ def deck_tag(progs):
 def run(cmd, log, stdout_to=None):
     with open(log, "a", encoding="utf-8") as lf:
         lf.write("\n$ " + " ".join(str(c) for c in cmd) + "\n")
+        # The child writes straight to the file, past Python's buffer: without this the
+        # command line landed AFTER its own output, so a traceback read as belonging to the
+        # previous step (1615's metrics_gen error sat under oddd_optimize, 2026-09-15).
+        lf.flush()
         if stdout_to:
             with open(stdout_to, "w", encoding="utf-8") as out:
                 r = subprocess.run([str(c) for c in cmd], stdout=out, stderr=lf)
