@@ -65,6 +65,42 @@ def ars_mrpc(tmp_path_factory):
     return build(str(tmp_path_factory.mktemp("arsmrpc")), mrpc=MRPC_T)
 
 
+def test_a_five_row_agenda_shows_every_number_and_clones_get_their_own_ids():
+    """Four programs need a fifth agenda row, cloned from the template's four.
+
+    The clone's badge circle was left on ROW 1, drawn over the "1", and row 1's own circle
+    moved to row 5; the clones also kept their source's shape ids (1539 Marine FCU,
+    2026-09-15). No test assembled more than three programs, so none saw it.
+    """
+    sys.path.insert(0, os.path.join(REPO, "build"))
+    import assemble_combined as AC
+    from collections import Counter
+    prs = Presentation(ARS_T)
+    slide = next(s for s in prs.slides
+                 if any(sh.has_text_frame and sh.text_frame.text.strip() == "Agenda" for sh in s.shapes))
+    AC.set_agenda(slide, ["ARS", "ICS", "CP", "MRPC"])
+    shapes = list(slide.shapes)
+
+    ids = Counter(sh.shape_id for sh in shapes)
+    assert not [i for i, n in ids.items() if n > 1], "cloned agenda shapes reuse an existing shape id"
+
+    nums = {sh.text_frame.text.strip(): k for k, sh in enumerate(shapes)
+            if sh.has_text_frame and sh.text_frame.text.strip() in {"1", "2", "3", "4", "5"}
+            and not AC._is_numbox(sh)}
+    assert set(nums) == {"1", "2", "3", "4", "5"}
+    tol = 60000
+    for n, k in nums.items():
+        num = shapes[k]
+        covering = [sh for sh in shapes[k + 1:]
+                    if not (sh.has_text_frame and sh.text_frame.text.strip())
+                    and sh.top is not None and abs(sh.top - num.top) < tol and abs(sh.left - num.left) < tol]
+        assert not covering, f"agenda number {n} is drawn under an empty shape"
+        under = [sh for sh in shapes[:k]
+                 if not (sh.has_text_frame and sh.text_frame.text.strip())
+                 and sh.top is not None and abs(sh.top - num.top) < tol and abs(sh.left - num.left) < tol]
+        assert len(under) == 1, f"agenda number {n} has {len(under)} badge circles under it"
+
+
 # ARS alone is not a combined deck — assemble_combined rejects it by design
 # ("a combined deck needs at least one of --ics / --mrpc besides --ars"), so the
 # matrix is the three real multi-product shapes.

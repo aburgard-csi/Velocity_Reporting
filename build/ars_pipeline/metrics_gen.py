@@ -585,8 +585,19 @@ def active_jun(r): return swipes(r,LATEST)>=1
 new_card=[r for r in newp if hascard(r)]
 open_pers_card=[r for r in data if personal(r) and isopen(r) and hascard(r)]
 def act_rate(pool): return round(100*sum(1 for r in pool if active_jun(r))/len(pool),1)
-M['new_active_pct']=act_rate(new_card); M['book_active_pct']=act_rate(open_pers_card)
 new_act=[r for r in new_card if active_jun(r)]; book_act=[r for r in open_pers_card if active_jun(r)]
+if not new_act or not book_act:
+    # 1615 Cape & Coast (2026-09-15): 18,912 personal accounts carry Stat Code '0' and a blank
+    # Stat Desc, so only 720 read as open, and none of their 287 card holders swiped in Aug26.
+    # mean() of nothing crashed the build with a StatisticsError that named no cause.
+    _notopen=Counter(g(r,'Stat Desc') or "blank description, Stat Code %r" % g(r,'Stat Code')
+                     for r in data if personal(r) and not isopen(r))
+    _data_issue("has no %s debit-card holders who used the card in %s" % ("new" if not new_act else "open", lbl(LATEST)),
+                "%s new and %s open personal accounts carry a card. Personal accounts that do not read as open "
+                "most often show: %s."
+                % (f"{len(new_card):,}", f"{len(open_pers_card):,}",
+                   "; ".join(f"{k} ({v:,})" for k, v in _notopen.most_common(3)) or "none"))
+M['new_active_pct']=act_rate(new_card); M['book_active_pct']=act_rate(open_pers_card)
 M['new_spend_active']=round(statistics.mean([spend(r,LATEST) for r in new_act]))
 M['book_spend_active']=round(statistics.mean([spend(r,LATEST) for r in book_act]))
 def ever_swiped(r): return any(swipes(r,m)>0 for m in smonths)

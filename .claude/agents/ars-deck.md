@@ -105,7 +105,7 @@ Lift-Matrix path (`extract_base_gen` + `extract_lift`, populated `lift.json`).
 ## Deck structure
 
 Shell (title, about, agenda) → Program Overview → ARS Financial Performance →
-**[MM: ARS Lift Matrix | SM: Monthly Summary — Last 12 Months]** → Debit Usage
+**[MM: ARS Revenue Lift Matrix | SM: Monthly Summary — Last 12 Months]** → Debit Usage
 Segmentation → Average Ticket → Mailing Insights (response summary, ranking, latest
 mailer, movement, transaction increase, sustained activity, before/after mean & median) →
 Debit Card Review (take rate personal/business/by branch, swipes & spend, NSF/OD) →

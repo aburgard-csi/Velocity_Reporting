@@ -254,7 +254,7 @@ element is already maxed.
   months …") keep their own label — never relabel a window as PTD.
 - Per-slide reference by title, front to back: Title · About the Summit · Agenda ·
   divider · Product Mix & ARS Eligibility · Excluded Accounts · Program Overview ·
-  ARS Financial Performance · ARS Lift Matrix (MM) or Monthly Summary — Last 12
+  ARS Financial Performance · ARS Revenue Lift Matrix (MM) or Monthly Summary — Last 12
   Months (SM) · Debit Usage Segmentation by Swipe Tier · Average Ticket by Swipe
   Segment · Mailing Insights (divider, Response Summary, Ranking by Tier, ARS
   Response — <mailer> and Movement, Transaction Increase Over the Ask, Sustained

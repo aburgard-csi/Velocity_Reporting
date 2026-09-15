@@ -17,6 +17,59 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-15 — the MM lift matrix slide is titled "ARS Revenue Lift Matrix"
+
+**The MM slide is now titled for what it shows** (Aaron: "This slide should be titled ARS
+Revenue Lift Matrix"). It still read "Monthly Summary — Last 12 Months" over a lift matrix
+table, because on 2026-08-20 both revenue models kept one title. That decision is reversed for
+the MM path only. The SM slide is a 12-month revenue chart and keeps its title. The ARS agenda
+line on MM decks names the slide the same way. The speaker note now sources the Lift Matrix
+MM tab, because `_note_for` matches "lift matrix". The banned-word check already allows "lift"
+inside the named Lift Matrix slide. The date pill still shows the matrix's own 12-month window
+from the workbook's Start/End cells.
+
+**The delivered 2026.09 MM decks were rebuilt with the new title** (Aaron: "put it in Outputs as a
+v2, then fix the other decks"). Each ARS deck was re-assembled from its batch's staged metrics,
+charts and extract; the inputs had not changed, only the builder. Aaron's combined clients were
+re-assembled with the ICS section they shipped with. A deck already recorded as sent (1509, 1537,
+1676, 1705), and 1539 as asked, went in as "<name> v2.pptx", with the deck it replaced moved to
+Archive. Every other deck replaced its copy through `promote_month`. SM decks (1038, 1156, 1652)
+have no lift matrix slide and were left alone. The original 1539 deck stays beside its v2 until
+the person who has it open closes it.
+
+**1676 True Sky was rebuilt in full on a re-pulled ODD** (`1676_ODDD_Code updated.zip`, 09/15
+13:13). It carries the same 52,848 rows and columns as the 09/01 pull. The difference is the 6 open
+accounts whose `Business?` flag was blank (product codes CBMM and BMM1); all 6 now read "Yes".
+The zip also drops the monthly debit-card transaction file, which no reader opens: every reader
+takes only the `.csv` member. The source watch did not copy it, because its name does not match
+`<id>_ODDD.zip`; it was copied into `Inputs/ODDD/1676_ODDD.zip` by hand. The v2 built from it
+replaced the title-batch v2 built on the old extract.
+
+### 2026-09-15 — the four-program agenda hid its "1"
+
+**Row 1's number was drawn under an orange circle on the Marine FCU 1539 ARS-ICS-MRPC-CP deck**
+(Aaron: "the first bullet on the Agenda is missing the number 1"). The template's agenda has
+four rows, so a fourth program clones a fifth. `set_agenda` cloned the number, then the badge
+circle, so the circle sat above its number. During layout it then looked each row's circle
+up by position. A clone sits exactly on its source until it is moved, so row 5 found ROW 1's
+circle and carried it down. The clone's circle stayed on row 1, covering the "1". The clones
+also kept their source's shape ids (119-122 twice on one slide). Each row's circle is now
+resolved once, before cloning, and moves with its row. A clone's circle is cloned before its
+number, and `_clone` gives every copy a new shape id. Only 1539 was affected: every other
+combined deck has four rows or fewer and never clones. A new test assembles a four-program
+agenda and checks that every number shows, sits on exactly one circle, and that no shape id
+repeats. No earlier test assembled more than three programs.
+
+### 2026-09-15 — 1615's empty debit-usage base stops with a named cause
+
+`metrics_gen` averaged spend over the card holders who swiped in the latest month, for new
+accounts and for the open book. 1615 Cape & Coast has no such open card holders: 18,912 personal
+accounts carry Stat Code `0` with a blank Stat Desc, so only 720 read as open, and none of
+those 287 card holders swiped in Aug26. `mean()` of nothing crashed the build with a
+`StatisticsError` that named no cause. It now stops with POSSIBLE DATA ISSUE, giving the counts
+and the most common status values on accounts that don't read as open. `0` is not mapped: it
+is a code-sheet correction for the client, already on the Data Gaps page.
+
 ### 2026-09-15 — an ARS deck can be built without Claude
 
 **`Build ARS Deck.bat` in the CSM_Reporting folder** (Aaron: "i'd like to develop a way where

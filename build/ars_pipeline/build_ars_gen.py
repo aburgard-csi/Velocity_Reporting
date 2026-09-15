@@ -576,7 +576,7 @@ set_exact(S[2], "Response summary, movement, sustained activity, before vs. afte
 set_exact(S[2], "Debit Card & Reg E Review", "Debit Card & Reg E Review")
 set_exact(S[2], "Take rate, swipes & spend, overdraft opt-in", "Take rate, swipes & spend, overdraft opt-in")
 set_exact(S[2], "Program Performance", "Program Performance")
-set_exact(S[2], "Overview, financial results, Monthly Summary, debit segmentation", "Overview, financial results, " + ("Monthly Summary — Last 12 Months" if MM else "Monthly Summary") + ", debit segmentation")
+set_exact(S[2], "Overview, financial results, Monthly Summary, debit segmentation", "Overview, financial results, " + ("ARS Revenue Lift Matrix" if MM else "Monthly Summary") + ", debit segmentation")
 
 # ============================ SLIDE 6 — Program Overview
 set_shape_text(S[5], "Union Financial has run Account Revenue Solution® for 226 months across 81 mailings since 2007.",
@@ -614,8 +614,13 @@ set_shape_text(S[6], "•  Account Revenue Solution® has generated $6.89M in in
 # ============================ SLIDE 8 — Lift Matrix (MM) or Monthly Summary (SM)
 if MM:
     repl(S[7], {"07-2025 · 06-2026": f"12-month lift window: {L['window']}"})
-    # Title stays "Monthly Summary — Last 12 Months" on both paths (Aaron, 2026-08-20:
-    # the revenue model doesn't change the title; clients aren't aware of other models).
+    # The MM slide is the lift matrix, so it is titled for what it shows (Aaron, 2026-09-15:
+    # "This slide should be titled ARS Revenue Lift Matrix"). That reverses 2026-08-20, when
+    # both paths kept "Monthly Summary — Last 12 Months" so the title never named a revenue
+    # model; the SM slide, a 12-month revenue chart, keeps that title. "Lift Matrix" is the
+    # named-slide allowance in validate_deck's banned-word check, and _note_for sources a
+    # "lift matrix" title from the Lift Matrix MM tab.
+    set_exact(S[7], "Monthly Summary — Last 12 Months", "ARS Revenue Lift Matrix")
     # The subtitle did leak the internal model name and claimed a trailing window the MM
     # slide doesn't draw, so it's replaced with what the matrix actually shows.
     set_shape_text(S[7], "Selection: monthly incremental revenue, most recent 12 months (SM revenue model).",

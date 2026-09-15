@@ -358,8 +358,17 @@ def _badge_of(slide, numbox):
 
 
 def _clone(slide, shape):
+    """Append a copy of `shape` (top of the z-order) with a shape id of its own.
+
+    A deep copy keeps the source's `cNvPr id`, and a slide with two shapes on one id is
+    a repair prompt waiting to happen: the five-row 1539 agenda carried ids 119-122 twice
+    (2026-09-15)."""
     el = copy.deepcopy(shape._element)
-    shape._element.getparent().append(el)
+    tree = shape._element.getparent()
+    used = [int(i) for i in tree.xpath("//p:cNvPr/@id") if str(i).isdigit()]
+    for c in el.xpath("./*/p:cNvPr"):
+        c.set("id", str(max(used, default=0) + 1))
+    tree.append(el)
     return slide.shapes[-1]
 
 
@@ -414,14 +423,22 @@ def set_agenda(slide, programs, detail_overrides=None):
     grid_n = len(rows)
     grid_pitch = (last_top - first_top) / (grid_n - 1) if grid_n > 1 else 0
 
+    # Each row's badge circle is resolved ONCE, before anything is cloned, and travels with
+    # its row from then on. It used to be looked up by position during layout, but a cloned
+    # row sits exactly on its source until it is moved: row 5's lookup found ROW 1's circle
+    # and carried it down, leaving the clone's circle behind on row 1, drawn OVER the "1"
+    # (1539 Marine FCU's four-program agenda, Aaron 2026-09-15).
+    badges = {id(r[0]): _badge_of(slide, r[0]) for r in rows}
+    src_badge = badges[id(src_num)]
+
     needed = len(programs) + 1
     while len(rows) < needed:
+        # Circle first, so the number cloned after it is drawn on top.
+        badge = _clone(slide, src_badge) if src_badge is not None else None
         numbox = _clone(slide, src_num)
         head = _clone(slide, src_head) if src_head is not None else None
         det = _clone(slide, src_det) if src_det is not None else None
-        badge = _badge_of(slide, src_num)
-        if badge is not None:
-            _clone(slide, badge)
+        badges[id(numbox)] = badge
         rows.append((numbox, head, det))
 
     used = rows[:needed]
@@ -429,7 +446,7 @@ def set_agenda(slide, programs, detail_overrides=None):
              else (last_top - first_top) / (len(used) - 1))
     for i, (numbox, head, det) in enumerate(used):
         top = int(first_top + i * pitch)
-        badge = _badge_of(slide, numbox)
+        badge = badges.get(id(numbox))
         if badge is not None:
             badge.top = top
             badge.left = numbox.left
