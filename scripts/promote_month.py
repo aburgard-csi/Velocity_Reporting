@@ -83,21 +83,36 @@ def parse_deck_name(name):
             "client": _TITLE_TAIL_RX.sub("", rest).strip(), "ext": ext.lower()}
 
 
+def _is_client_dir(d, client_id):
+    return d.is_dir() and d.name.split(" ", 1)[0] == client_id
+
+
 def client_folder(arch, client_id, client_name=""):
-    """`Archive/<id> <client>` — and an existing folder for that id, whatever its name.
+    """`Archive/<CSM>/<id> <client>` — and an existing folder for that id, whatever its name.
+
+    The archive is filed by CSM, like Outputs (Aaron, 2026-09-15: "sort the archive by
+    CSM"); the CSM comes from `rpe_env.client_csm`, else `_Unassigned`.
 
     The id is the key. Delivery names differ between programs (the CashPlease module
     for 1539 says "Marine Federal Credit Union", the Executive Review "Marine FCU"), so
     naming the folder from each deck would split one client across two folders. The
-    first name wins and every later deck for that id lands beside it.
+    first name wins and every later deck for that id lands beside it. An existing folder
+    is reused wherever it is: under any CSM, or flat in Archive/ from before the sort.
     """
     arch = Path(arch)
     if arch.is_dir():
-        for d in sorted(arch.iterdir()):
-            if d.is_dir() and d.name != REVIEW_DIRNAME and d.name.split(" ", 1)[0] == client_id:
-                return d
+        for c in sorted(arch.iterdir()):
+            if not c.is_dir() or c.name == REVIEW_DIRNAME:
+                continue
+            if _is_client_dir(c, client_id):          # a flat folder from before the CSM sort
+                return c
+            if not c.name[:1].isdigit():              # a CSM folder
+                for d in sorted(c.iterdir()):
+                    if _is_client_dir(d, client_id):
+                        return d
     safe = re.sub(r'[<>:"/\\|?*]', "", client_name or "").strip()
-    return arch / (("%s %s" % (client_id, safe)) if safe else client_id)
+    csm = re.sub(r'[<>:"/\\|?*]', "", R.client_csm(client_id) or "").strip() or R.UNASSIGNED_CSM
+    return arch / csm / (("%s %s" % (client_id, safe)) if safe else client_id)
 
 
 def _free(dest):
@@ -119,6 +134,11 @@ def tidy_client_archive(folder, review_root, apply=False, log=print):
     they are exported by hand, on purpose (Aaron, 2026-09-14). Returns [(src, dest)].
     """
     folder, review_root = Path(folder), Path(review_root)
+    # The review folder mirrors the archive's layout: <CSM>/<id> <client> for a CSM-filed folder.
+    try:
+        sub = folder.relative_to(review_root.parent)
+    except ValueError:
+        sub = Path(folder.name)
     groups = {}
     for p in sorted(folder.glob("*.pptx")):
         info = parse_deck_name(p.name)
@@ -129,7 +149,7 @@ def tidy_client_archive(folder, review_root, apply=False, log=print):
         keep = max(decks, key=lambda p: (p.stat().st_mtime, p.name))
         for p in decks:
             if p != keep:
-                moves.append((p, review_root / folder.name / p.name))
+                moves.append((p, review_root / sub / p.name))
     for src, dest in moves:
         log(f"{'older':<9} {src.name[:62]:<62}")
         if apply:
@@ -287,11 +307,13 @@ def promote_one(src, out, arch, stamp, apply=False, log=print, legacy=()):
                 shutil.move(dest, old)
             except OSError as back:
                 log(f"{'!! ':<9} could not restore {os.path.basename(old)}: {back}")
-        if created and target != arch and target.is_dir() and not any(target.iterdir()):
-            try:
-                target.rmdir()
-            except OSError:
-                pass
+        # Remove the client folder this call created, and its CSM folder if that is now empty.
+        for d in (target, target.parent):
+            if created and d != arch and d.is_dir() and not any(d.iterdir()):
+                try:
+                    d.rmdir()
+                except OSError:
+                    pass
         raise
     if moved and target != arch:
         try:

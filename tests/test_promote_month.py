@@ -187,10 +187,32 @@ def test_a_superseded_deck_is_archived_in_its_clients_folder(tmp_path):
     src = _stage(tmp_path, "1038", name, _deck(tmp_path / "new.pptx", "new"))
     n, _ = P.promote_one(str(src), out, out / "Archive", "2026-09-14", apply=True, log=lambda *_: None)
     assert n == 1
-    folder = out / "Archive" / "1038 Sugar River Bank"
+    # Filed under the client's CSM (Aaron, 2026-09-15: "sort the archive by CSM").
+    folder = out / "Archive" / (R.client_csm("1038") or R.UNASSIGNED_CSM) / "1038 Sugar River Bank"
     assert [p.name for p in folder.iterdir()] == [
         "1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-09-14).pptx"]
     assert not any(p.is_file() for p in (out / "Archive").iterdir()), "nothing flat in Archive/"
+
+
+def test_an_existing_client_folder_under_a_csm_is_reused(tmp_path):
+    out = _outputs(tmp_path)
+    existing = out / "Archive" / "Some CSM" / "1539 Marine FCU"
+    existing.mkdir(parents=True)
+    assert P.client_folder(out / "Archive", "1539", "Marine Federal Credit Union") == existing
+
+
+def test_the_review_folder_mirrors_the_csm_layout(tmp_path):
+    arch = tmp_path / "Archive"
+    folder = arch / "Aaron Burgard" / "1204 First State Bank"
+    folder.mkdir(parents=True)
+    base = "1204-2026.09-ARS-First State Bank - Michigan ARS Results"
+    for nm, t in ((base + " (superseded 2026-09-10).pptx", 100), (base + " (superseded 2026-09-11).pptx", 200)):
+        (folder / nm).write_bytes(b"x")
+        os.utime(folder / nm, (t, t))
+    moves = P.tidy_client_archive(folder, arch / P.REVIEW_DIRNAME, apply=True, log=lambda *_: None)
+    assert [d for _, d in moves] == [arch / P.REVIEW_DIRNAME / "Aaron Burgard" / "1204 First State Bank"
+                                     / (base + " (superseded 2026-09-10).pptx")]
+    assert (moves[0][1]).exists()
 
 
 def test_an_existing_client_folder_is_reused_whatever_its_name(tmp_path):

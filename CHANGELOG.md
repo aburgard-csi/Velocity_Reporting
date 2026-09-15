@@ -17,6 +17,21 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-15 — the archive is filed by CSM
+
+**`Outputs/Archive/` now has a folder per CSM, like `Outputs/`** (Aaron: "sort the archive by
+CSM"). A superseded deck goes to `Archive/<CSM>/<id> <client>/`, and older decks of the same
+period and kind go to `Archive/_older decks - delete after review/<CSM>/<id> <client>/`.
+`promote_month.client_folder` takes the CSM from `rpe_env.client_csm` (else `_Unassigned`) and
+still reuses an existing client folder wherever it is, including a flat one from before. A
+rolled-back delivery removes the CSM folder it created if it is left empty. The existing
+client folders, 15 in Archive plus those in the review folder, were moved, not copied. Nothing
+was deleted. Folders for Max Willett (a CSM with no accounts yet) were created in `Outputs/` and
+`Outputs/Archive/`.
+
+`tests/test_promote_month.py` checks that archiving files under the CSM, that an existing
+CSM-filed folder is reused, and that the review folder mirrors the CSM layout.
+
 ### 2026-09-15 — CSM action items on the performance page
 
 **A new first section lists what a CSM has to take to the client** (Aaron: "If we have unmapped

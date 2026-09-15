@@ -52,10 +52,11 @@ from: the CSI shares hold the ODD extracts, DCOs, ARS workbooks and MRPCPM analy
 the mailbox holds the MRPC / CashPlease reports and the ICS workbooks —
 `scripts/watch_sources.py --copy --mail` is how they come back. Outputs are rebuildable
 from those inputs by definition, and `Outputs/Archive/` keeps the newest superseded deck
-of each kind per client per period, in a folder per client (`Archive/<id> <client>/`,
-Aaron 2026-09-14). `promote_month` moves older decks of the same period and kind to
-`Archive/_older decks - delete after review/<id> <client>/` — never deletes them — and
-never moves a hand-made PDF.
+of each kind per client per period, in a folder per client filed under its CSM
+(`Archive/<CSM>/<id> <client>/`, Aaron 2026-09-14; by CSM 2026-09-15). `promote_month` moves
+older decks of the same period and kind to
+`Archive/_older decks - delete after review/<CSM>/<id> <client>/` — never deletes them — and
+never moves a hand-made PDF. An existing client folder is reused wherever it sits.
 
 Do not introduce a mirror. Two copies of one tree is the two-stores problem that shipped
 month-old ICS figures in August: `build/{ics,mrpc}_pipeline/data/` and the VIP store
