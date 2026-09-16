@@ -32,6 +32,7 @@ template placeholder means SM. Verified 2026-08-28.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1038 | Sugar River Bank | SM | yes | — | — | ARS |
 | 1075 | Austin Bank | SM | yes | yes | yes | ARS-ICS-MRPC |
+| 1121 | Timberland Bank | SM | yes | — | — | ARS |
 | 1156 | BancFirst | SM | yes | — | — | ARS |
 | 1192 | Ascend FCU | MM | yes | — | — | ARS |
 | 1200 | Guardians Credit Union | MM | yes | — | — | ARS |
@@ -50,6 +51,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1539 | Marine FCU | MM | yes | yes | yes | ARS-ICS-MRPC |
 | 1542 | The Friendship SB | MM | yes | — | yes | ARS-MRPC |
 | 1549 | Wellworth Bank | MM | yes | referrals-only | — | ARS-ICS |
+| 1554 | Isabella Bank | MM | yes | — | — | ARS |
 | 1615 | Cape & Coast Bank | MM | yes | — | yes | ARS-MRPC |
 | 1637 | Ouachita Valley FCU | MM | yes | — | yes | ARS-MRPC |
 | 1652 | Security CU | SM | yes | — | yes | ARS-MRPC |
@@ -72,6 +74,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1798 | FirstLight FCU | MM | yes | — | — | ARS |
 | 1799 | Central Bank | MM | yes | — | — | ARS |
 | 1800 | First American Bank | MM | yes | — | — | ARS |
+| 1805 | Texar FCU | — | yes | — | — | ARS |
 | 1807 | Patriot FCU | MM | yes | — | — | ARS |
 | 1815 | FedChoice FCU | MM | yes | — | — | ARS |
 
@@ -213,6 +216,13 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ## Status changes
 
+- **2026-09-16 — ARS added for three of Jordan Berkowitz's clients: 1121 Timberland Bank, 1554
+  Isabella Bank and 1805 Texar FCU** (Aaron: "all 3 have ARS"). Path was read from each workbook's
+  `Executive Financials MM` tab: 1121's carries the `Bank Name` placeholder (SM), and 1554's is
+  filled in (MM, 101 months, 40 mailings). 1805 has a 2026.09 DCO but no ARS workbook yet, so its
+  Path is open and its build stops at the missing workbook until one lands. Names follow the DCOs.
+  Only ARS is recorded. The Velocity export also lists ICS and MRPC for 1121 and 1554 (and
+  CashPlease for 1121), but those programs were not asked for.
 - **2026-09-15 — 1657 Marine Credit Union is ICS only, not ARS** (Aaron). It was added to the
   active table as ARS earlier the same day because a 2026.09 ARS workbook for it is on the
   client-reports share (a workbook saved with no calculated figures). The Velocity client/product
