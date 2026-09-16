@@ -149,7 +149,11 @@ each (`assemble_combined.section_slides` drops the rest).
   Retention · Revenue" · CashPlease "Loan Volume · Portfolio Status · Peer Comparison".
   No number. ARS/MRPC dividers are baked in the shells; ICS and CashPlease build theirs.
 - **Questions & Discussion** ends the primary material; **Contact Us** (navy contact
-  card: name, role, phone, email) follows it. **The ARS Appendix follows Contact**
+  card: name, role, phone, email) follows it. The card is **the client's managing CSM**
+  (Aaron, 2026-09-16), from `CSM Contacts.csv` via `rpe_env.csm_contact`; the line slots
+  live in `build/shapes.py` (`contact_card_lines`, `fill_contact_card` for a shell's card).
+  No phone on file: no phone line, and the other three are re-spaced. No CSM, or no row:
+  the build stops — the card never names another CSM. **The ARS Appendix follows Contact**
   (Aaron, 2026-07-24). Decks without ARS have no appendix — never synthesise one.
 - **Combined order:** shell (title, Summit, agenda) → ARS → ICS → MRPC → CashPlease
   sections → Questions → Contact → ARS Appendix. The first program present supplies
@@ -289,6 +293,11 @@ element is already maxed.
 - Referral bars: house time-series treatment; the goal line is dropped when the
   network goal dwarfs current volume. A "program high" is claimed only when the
   window proves it.
+- **Direct Mail New Accounts** (2026-09-16) follows Results by Branch when the sheet
+  carries a `direct_mail` block with accounts: house time-series chart left
+  (`ics_charts_gen.c_direct_mail_trend`, canvas at the 8.05 x 4.95" box's aspect), two
+  callouts (program-to-date, latest complete month) and a top-3 branch table right, pill
+  "PTD · {last month}". Never added to referral figures; the notes say so.
 - ICS revenue donut flat; Financial Summary callout block top = 1.85"; Power of
   Referrals flavor text 28 pt; billed-expense labels measured with `textfit`.
 

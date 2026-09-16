@@ -111,7 +111,10 @@ _csm_cache = {}
 
 
 def csm_list_file() -> Path | None:
-    """`<RPE_DATA_ROOT>/Client CSM List.csv` — client id to CSM for every CSM's book."""
+    """`<RPE_DATA_ROOT>/Client CSM List.csv` — client id to CSM for every CSM's book.
+    `RPE_CSM_LIST` replaces the path (a subprocess test build points it at a synthetic list)."""
+    if os.environ.get("RPE_CSM_LIST"):
+        return Path(os.environ["RPE_CSM_LIST"])
     try:
         return data_root() / CSM_LIST_NAME
     except SystemExit:
@@ -147,6 +150,92 @@ def client_csm(client_id) -> str | None:
             pass
         _csm_cache[key] = found
     return _csm_cache[key].get(cid)
+
+
+# ------------------------------------------------------------------ the Contact Us card
+# Every deck's Contact Us card names the client's MANAGING CSM (Aaron, 2026-09-16: "James's
+# name would go on the contact card. The contact card should always show the managing
+# CSM."). The builders used to print one CSM's card on every deck, whoever managed the
+# client. The card comes from `<RPE_DATA_ROOT>/CSM Contacts.csv` (one row per CSM, taken
+# from their email signatures) for the CSM `client_csm` names — and never falls back to
+# another CSM: a card naming the wrong person sends the client to the wrong person.
+CSM_CONTACTS_NAME = "CSM Contacts.csv"
+_contacts_cache = {}
+
+
+def csm_contacts_file() -> Path:
+    """`<RPE_DATA_ROOT>/CSM Contacts.csv`; `RPE_CSM_CONTACTS` replaces the path."""
+    if os.environ.get("RPE_CSM_CONTACTS"):
+        return Path(os.environ["RPE_CSM_CONTACTS"])
+    return data_root() / CSM_CONTACTS_NAME
+
+
+def format_phone(raw) -> str:
+    """'(NNN) NNN-NNNN' -> 'NNN-NNN-NNNN'; an 'ext. N' is kept; '' when blank.
+    A number that is not ten digits is returned as written rather than reshaped."""
+    raw = str(raw or "").strip()
+    if not raw:
+        return ""
+    m = re.search(r"(?i)\b(?:ext\.?|x)\s*(\d+)\s*$", raw)
+    main, ext = (raw[:m.start()], m.group(1)) if m else (raw, "")
+    digits = re.sub(r"\D", "", main)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    out = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}" if len(digits) == 10 else main.strip()
+    return f"{out} ext. {ext}" if ext else out
+
+
+def csm_contact(client_id) -> dict:
+    """{'name', 'role', 'phone', 'email'} for the client's managing CSM.
+
+    role is the CSM's title; phone is the cell, else the office line (with any extension),
+    else '' — the card then has no phone line; email is lowercased. Raises SystemExit with a
+    plain sentence when the client has no CSM on file, the contacts file is missing, or the
+    CSM has no row (or no title/email) in it. The file is read once per process.
+    """
+    cid = str(client_id).strip()
+    csm = client_csm(cid)
+    if not csm:
+        raise SystemExit(
+            f"Client {cid or '(no id)'} has no managing CSM in {CSM_LIST_NAME}, so its Contact Us "
+            f"card cannot be filled. Add the client to the list; the card never names another CSM.")
+    return contact_by_name(csm, cid)
+
+
+# The ICS program's own contact, a second card on standalone ICS decks after the managing CSM
+# (Aaron, 2026-09-16: "Add Cindy on ICS"). Her row lives in CSM Contacts.csv like every card.
+ICS_PROGRAM_CONTACT = "Cindy Draper"
+
+
+def contact_by_name(csm, client_id="") -> dict:
+    """{'name', 'role', 'phone', 'email'} for the person named `csm` in CSM Contacts.csv (see csm_contact)."""
+    cid = str(client_id).strip()
+    path = csm_contacts_file()
+    key = str(path)
+    if key not in _contacts_cache:
+        if not path.is_file():
+            raise SystemExit(f"{CSM_CONTACTS_NAME} was not found at {path}, so no Contact Us card "
+                             f"can be filled for client {cid} ({csm}).")
+        import csv
+        rows = {}
+        with open(path, encoding="utf-8-sig", newline="") as fh:
+            for row in csv.DictReader(fh):
+                name = (row.get("csm") or "").strip()
+                if name:
+                    rows[name.casefold()] = {k: (v or "").strip() for k, v in row.items() if k}
+        _contacts_cache[key] = rows
+    row = _contacts_cache[key].get(csm.casefold())
+    if row is None:
+        raise SystemExit(f"{csm}, the managing CSM for client {cid}, has no row in {CSM_CONTACTS_NAME} "
+                         f"({path}). Add their title, phone and email there; the card never falls "
+                         f"back to another CSM.")
+    missing = [f for f in ("title", "email") if not row.get(f)]
+    if missing:
+        raise SystemExit(f"{csm}'s row in {CSM_CONTACTS_NAME} has no {' or '.join(missing)}, so the "
+                         f"Contact Us card for client {cid} cannot be filled.")
+    return {"name": row["csm"], "role": row["title"],
+            "phone": format_phone(row.get("cell") or row.get("office")),
+            "email": row["email"].lower()}
 
 
 def client_outputs(client_id, root=None, create=False) -> Path:

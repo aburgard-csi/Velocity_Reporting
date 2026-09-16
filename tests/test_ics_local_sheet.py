@@ -152,6 +152,12 @@ def root(tmp_path, monkeypatch):
     monkeypatch.setattr(R, "data_root", lambda: tmp_path)
     monkeypatch.setattr(R, "build_artifacts", lambda: arts)
     monkeypatch.setattr(R, "client_csm", lambda cid: "Some Other CSM")
+    # The Contact Us card is looked up for every ICS deck (rpe_env.csm_contact): a synthetic row.
+    (tmp_path / R.CSM_CONTACTS_NAME).write_text(
+        "csm,title,company,address,office,cell,email,source\n"
+        "Some Other CSM,Client Service Manager,CSI,,,,Some.Other@example.com,test\n"
+        f"{R.ICS_PROGRAM_CONTACT},ICS Program Manager,CSI,,,,program.contact@example.com,test\n", encoding="utf-8")
+    monkeypatch.delenv("RPE_CSM_CONTACTS", raising=False)
 
     def no_vip(arg, program):
         raise SystemExit("no VIP sheet in this test")
@@ -327,13 +333,12 @@ def test_full_shape_and_provenance(root, tmp_path, monkeypatch):
     assert roles["workbook"]["workbook_period"] == PERIOD
     # direct mail is recorded, never added to referrals
     dm = d["direct_mail"]
-    assert dm["accounts_opened_ptd"] == 3 and dm["_rendered"] is False
+    assert dm["accounts_opened_ptd"] == 3 and "_rendered" not in dm
+    assert dm["source_file"] == dm_file(root).name and dm["source_folder"]
     assert dm["report_date"] == "2026-09-09"
     assert d["referrals"]["program_to_date"] == sum(range(1, 15))
-    # the standing contact card names Aaron — kept only for Aaron's clients
-    assert "contacts" not in d and "contacts" in prov["omitted"]
-    monkeypatch.setattr(R, "client_csm", lambda cid: "Aaron Burgard")
-    assert _sheet(root, tmp_path)["contacts"]
+    # no contact card in the sheet: build_ics_gen looks up the managing CSM itself
+    assert "contacts" not in d and "contacts" not in prov["omitted"]
 
 
 def test_legacy_xls_is_read_from_a_converted_copy(root, tmp_path, monkeypatch):
@@ -421,8 +426,9 @@ def test_mrpc_has_no_local_fallback(bm, monkeypatch):
 
 # ------------------------------------------------------------------ the deck
 def test_local_sheet_deck_names_its_files_and_opens(root, tmp_path):
-    """A FULL build with no Contact slide: the case that wrote slide27.xml twice (the Summit
-    slide took a static slide's partname). Notes must name the local files, not VIP."""
+    """A FULL local build: the case that wrote slide27.xml twice (the Summit slide took a
+    static slide's partname) when it had no Contact slide. Every ICS deck has one now, naming
+    the managing CSM. Notes must name the local files, not VIP."""
     import build_ics_gen as G
     from validate_deck import package_findings
     write_referrals(referral_file(root))
@@ -441,7 +447,8 @@ def test_local_sheet_deck_names_its_files_and_opens(root, tmp_path):
     joined = " ".join(notes).replace("not VIP", "")
     assert "VIP ICS Referral" not in joined and "pulled" not in joined
     text = " ".join(sh.text_frame.text for s in prs.slides for sh in s.shapes if sh.has_text_frame)
-    assert "PTD · August 14, 2026" in text and "Contact Us" not in text
+    assert "PTD · August 14, 2026" in text and "Contact Us" in text and "Some Other CSM" in text
+    assert "Direct Mail New Accounts" not in text              # no direct-mail file, no slide
 
 
 def test_referrals_only_deck_without_goals_shows_no_goal(root, tmp_path):
@@ -460,3 +467,76 @@ def test_referrals_only_deck_without_goals_shows_no_goal(root, tmp_path):
                      for r in sh.table.rows for c in r.cells)
     assert "vs Goal" not in text and "% of Goal" not in text and "Goal" not in cells
     assert "0%" not in text
+
+
+# ------------------------------------------------------------------ direct mail slide
+def _titles(prs):
+    return [next((sh.text_frame.text.strip().split("\n")[0] for sh in s.shapes
+                  if sh.has_text_frame and sh.text_frame.text.strip()), "") for s in prs.slides]
+
+
+def _build_deck(root, tmp_path, d, referrals_only=False):
+    import build_ics_gen as G
+    out = str(tmp_path / "deck" / f"{CID}-{PERIOD}-ICS-{NAME} ICS Results.pptx")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    G.build(d, os.path.join(REPO, "templates", "ics_template.pptx"), out, referrals_only=referrals_only)
+    from pptx import Presentation
+    return out, Presentation(out)
+
+
+def test_direct_mail_slide_follows_results_by_branch(root, tmp_path):
+    """Aaron, 2026-09-16: "Direct mail should get its own slide." Right after the referral
+    slides, dated by the last month, its figures stated and never mixed into referrals."""
+    from validate_deck import package_findings
+    write_referrals(referral_file(root))
+    write_charts(charts_file(root))
+    write_direct_mail(dm_file(root))
+    d = _sheet(root, tmp_path)
+    ref_ptd = d["referrals"]["program_to_date"]
+    out, prs = _build_deck(root, tmp_path, d, referrals_only=True)
+    assert package_findings(out) == []
+    ts = _titles(prs)
+    i = ts.index("Direct Mail New Accounts")
+    assert ts[i - 1].startswith("Results by Branch")
+    s = prs.slides[i]
+    text = " ".join(sh.text_frame.text for sh in s.shapes if sh.has_text_frame)
+    cells = [c.text for sh in s.shapes if sh.has_table for r in sh.table.rows for c in r.cells]
+    assert "PTD · August 2026" in text                     # last month, Month YYYY
+    assert "Opened Program-to-Date" in text and "Opened in August 2026" in text
+    assert "Hilltop" in cells and "All 2 Branches" in cells   # branch 20 named from the Goals tab
+    assert "Jul'26 – Aug'26" in text and "peak 2 in Jul'26" in text
+    assert any(sh.shape_type == 13 and sh.left < 914400 for sh in s.shapes), "no chart picture"
+    n = s.notes_slide.notes_text_frame.text
+    assert dm_file(root).name in n and f"({CID})" in n and "NOT referral counts" in n
+    assert d["referrals"]["program_to_date"] == ref_ptd      # DM never added to referrals
+    agenda = " ".join(sh.text_frame.text for sh in prs.slides[ts.index("Agenda")].shapes if sh.has_text_frame)
+    assert "Direct Mail" in agenda
+
+
+def test_no_direct_mail_block_no_slide(root, tmp_path):
+    write_referrals(referral_file(root))
+    d = _sheet(root, tmp_path)
+    assert "direct_mail" not in d
+    _, prs = _build_deck(root, tmp_path, d, referrals_only=True)
+    assert "Direct Mail New Accounts" not in _titles(prs)
+    d["direct_mail"] = {"accounts_opened_ptd": 0, "last_month": "2026-08",
+                        "by_month": {"months": [], "accounts": []}, "by_branch": []}
+    _, prs = _build_deck(root, tmp_path, d, referrals_only=True)
+    assert "Direct Mail New Accounts" not in _titles(prs)
+
+
+def test_direct_mail_chart_renders(tmp_path):
+    import ics_charts_gen as CH
+    from PIL import Image
+    d = {"direct_mail": {"accounts_opened_ptd": 30, "report_date": "2026-09-09", "last_month": "2026-09",
+                         "by_month": {"months": ["Jul 26", "Aug 26", "Sep 26"], "accounts": [10, 15, 5]},
+                         "by_branch": [{"branch": "10", "accounts": 30}]}}
+    assert CH.has_direct_mail(d) and CH.dm_partial_last(d["direct_mail"])      # Sep report, Sep month
+    out = str(tmp_path / "dm.png")
+    CH.c_direct_mail_trend(d, out)
+    w, h = Image.open(out).size
+    assert (w, h) == CH.DM_CANVAS
+    bw, bh = CH.DM_BOX_IN
+    assert abs(w / h - bw / bh) < 0.01, "chart aspect must match its picture box"
+    d["direct_mail"]["report_date"] = "2026-10-02"
+    assert not CH.dm_partial_last(d["direct_mail"])

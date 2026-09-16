@@ -15,7 +15,7 @@ VIP ... Run the ICS slides using what's available"). The CSM put these in `Input
   * `Inputs/ICS Charts/<Client> ICS Charts 2026.xlsx` — its Goals tab gives branch names
     and each branch's MONTHLY goal (the same tab VIP branch names are reconciled to).
   * `Inputs/ICS Direct Mail/<id>-<yyyy.mm>-ICS-...Direct Mail New Accounts Opened PTD.xlsx`
-    — the direct-mail channel's new accounts. Recorded in the sheet's `direct_mail` block,
+    — the direct-mail channel's new accounts, in the sheet's `direct_mail` block (its own ICS slide),
     NEVER added to the referral counts: it is a different channel (3 of 1776's 384 DM
     account holders also appear in the referral file).
 
@@ -27,7 +27,10 @@ absence — never zeroed, never invented:
   * no Charts Goals tab -> no goals anywhere (build_ics_gen drops the goal tiles/columns);
   * no referrals dated in the deck's own month -> no `month_to_date` (a file with no rows
     for a month cannot tell "zero referrals" from "not extracted yet");
-  * mystery shops, "Referred Accounts by Product", contacts -> see `build_sheet`.
+  * mystery shops, "Referred Accounts by Product" -> see `build_sheet`.
+
+The Contact Us card is not in the sheet: build_ics_gen looks up the client's managing CSM
+(rpe_env.csm_contact) for every ICS deck.
 
 The sheet names its own sources in `meta.referral_source` / `meta.workbook`, which
 build_ics_gen writes into every slide's notes in place of the VIP dashboard, and in a
@@ -461,9 +464,10 @@ def read_direct_mail(path, cid, period):
         months.append((y, m))
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
     block = {
-        "_rendered": False,
-        "_note": ("Direct-mail channel new accounts. NOT included in any referral figure; "
-                  "build_ics_gen has no direct-mail slide."),
+        "_note": ("Direct-mail channel new accounts. Shown on their own ICS slide, 'Direct Mail "
+                  "New Accounts', when accounts_opened_ptd > 0; NEVER added to any referral figure."),
+        "source_file": os.path.basename(str(path)),
+        "source_folder": _folder_of(path),
         "report_date": report_date.isoformat() if report_date else None,
         "accounts_opened_ptd": sum(by_month.values()),
         "first_month": f"{first[0]}-{first[1]:02d}", "last_month": f"{last[0]}-{last[1]:02d}",
@@ -638,7 +642,7 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
 
     if av["direct_mail"]:
         dm, dinfo = read_direct_mail(av["direct_mail"], cid, period)
-        files.append(dict({"role": "direct mail (recorded, not rendered)",
+        files.append(dict({"role": "direct mail (its own slide; not referrals)",
                            "file": os.path.basename(av["direct_mail"]),
                            "folder": _folder_of(av["direct_mail"]),
                            "file_date": _file_date(av["direct_mail"])}, **dinfo))
@@ -650,7 +654,7 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
         sections = X.extract(av["workbook"])
         program_start = sections.pop("_program_start", None)
         sections.pop("mystery_shop", None)
-        contacts = sections.pop("contacts", None)
+        sections.pop("contacts", None)          # an older extractor's standing card; never used
         sheet.update(sections)
         meta["workbook"] = os.path.basename(av["workbook"])
         wbm = _workbook_month(av["workbook"])
@@ -662,21 +666,10 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
                       "file_date": _file_date(av["workbook"]), "workbook_period": av["workbook_period"],
                       "sheets": ["Monthly Detail", "Value of ICS Accts", "Life of Account Data"],
                       "read_via": "ics_workbook_extract.extract"})
-        try:
-            csm = R.client_csm(cid)
-        except BaseException:
-            csm = None
-        if contacts and csm and csm == contacts[0].get("name"):
-            sheet["contacts"] = contacts
-        else:
-            omitted["contacts"] = (f"The standing ICS contact card names {contacts[0]['name'] if contacts else 'no one'}, "
-                                   f"but this client's CSM is {csm or 'not on file'}; no Contact slide "
-                                   f"rather than the wrong person.")
     else:
         omitted["performance, revenue, financial_summary, monthly_detail, benchmark"] = (
             f"The newest ICS workbook is for {av['workbook_period'] or 'no period (none on file)'}, "
             f"not {period}; workbook figures ship only for the deck's own period.")
-        omitted["contacts"] = "Contacts come with the workbook sections; not included."
     omitted["mystery_shop"] = ("Not built from local files: the Charts Mystery Shop Results tab "
                                "carries no per-month results this reader can total.")
     omitted["referred_by_product"] = (

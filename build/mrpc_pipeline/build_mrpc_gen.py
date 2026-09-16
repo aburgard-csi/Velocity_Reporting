@@ -142,12 +142,15 @@ def txt_at(slide, top=None, left=None, contains=None, tol=0.15):
 def autoshapes(slide):
     return [sh for sh in slide.shapes if sh.shape_type==1]
 
-def add_contact_slide(prs):
+def add_contact_slide(prs, contact):
     """Contact Us slide at the very end (Aaron 2026-07-16; mirrors the ARS/ICS design).
-    Idempotent: skips if the template already carries a Contact slide."""
-    for _s in prs.slides:
-        if any(sh.has_text_frame and sh.text_frame.text.strip()=="Contact Us" for sh in _s.shapes):
-            return
+    `contact` is the client's managing CSM, from rpe_env.csm_contact (Aaron, 2026-09-16).
+    The MRPC shell CARRIES a Contact slide whose card is static text for one CSM; that card is
+    rewritten in place rather than a second slide added."""
+    from shapes import find_contact_slide, fill_contact_card
+    shell = find_contact_slide(prs)
+    if shell is not None:
+        return fill_contact_card(shell, contact)
     blank=next((ly for ly in prs.slide_layouts if len(ly.placeholders)==0), prs.slide_layouts[-1])
     cs=prs.slides.add_slide(blank)
     for ph in list(cs.placeholders):               # no PowerPoint prompt boxes (Aaron 2026-07-24)
@@ -158,31 +161,36 @@ def add_contact_slide(prs):
         r.font.name="Montserrat"; r.font.size=Pt(sz); r.font.bold=bold; r.font.color.rgb=col
         return t
     ctb(0.5,0.28,12.33,0.9,"Contact Us",30,NAVY,True,align=PP_ALIGN.LEFT)
-    contacts=[{"name":"Aaron Burgard","role":"Client Service Manager","phone":"910-617-1984","email":"aaron.burgard@csiweb.com"}]
-    ncc=len(contacts); cw=5.6; gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
+    from shapes import contact_card_lines, CONTACT_CARD_TOP, CONTACT_CARD_W as cw, CONTACT_CARD_H
+    contacts=[contact]
+    ncc=len(contacts); gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
+    style={"name":(26,WHITE,True),"role":(15,ORANGE,False),"phone":(17,WHITE,False),"email":(15,WHITE,False)}
     for i,cc in enumerate(contacts):
         l=x0+i*(cw+gap)
-        card=cs.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(1.95),Inches(cw),Inches(3.55))
+        card=cs.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(CONTACT_CARD_TOP),Inches(cw),Inches(CONTACT_CARD_H))
         card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
         try: card.adjustments[0]=0.05
         except Exception: pass
         add_shadow(card)
-        ctb(l+0.35,2.45,cw-0.7,0.7,cc["name"],26,WHITE,True)
-        ctb(l+0.35,3.25,cw-0.7,1.0,cc["role"],15,ORANGE,False)
-        ctb(l+0.35,4.5,cw-0.7,0.5,cc["phone"],17,WHITE,False)
-        ctb(l+0.35,5.02,cw-0.7,0.5,cc["email"],15,WHITE,False)
+        for field,txt,top,hh in contact_card_lines(cc):
+            ctb(l+0.35,top,cw-0.7,hh,txt,*style[field])
     logo=os.path.join(os.path.dirname(os.path.dirname(__file__)),"assets","logo.png")
     if os.path.exists(logo):
         try: cs.shapes.add_picture(logo,Inches(11.28),Inches(6.78),Inches(1.7))
         except Exception: pass
     pn=cs.shapes.add_textbox(Inches(0.45),Inches(7.04),Inches(0.7),Inches(0.32)); pp=pn.text_frame.paragraphs[0]
     rr=pp.add_run(); rr.text=str(len(prs.slides._sldIdLst)); rr.font.name="Calibri"; rr.font.size=Pt(11); rr.font.bold=True; rr.font.color.rgb=NAVY
-    cs.notes_slide.notes_text_frame.text="Source: CSI / Velocity Solutions contact information (static)."
+    from shapes import contact_card_note
+    cs.notes_slide.notes_text_frame.text=contact_card_note(contact)
     return cs
 
 # ---- build -----------------------------------------------------------------
 def build(data, template, out):
     m=data["meta"]; client=m["client_name"]; rm=m["report_month"]; hb=m["has_business"]
+    # The Contact Us card is the client's managing CSM (Aaron, 2026-09-16) — resolved first,
+    # so a client with no CSM on file stops before anything is rendered.
+    import rpe_env
+    contact=rpe_env.csm_contact(m["client_id"])
     assets=os.path.join(os.path.dirname(out) or ".","_mrpc_assets")
     CH.render_all(data, assets)
     A=lambda n: os.path.join(assets,n)
@@ -485,7 +493,7 @@ def build(data, template, out):
                 _ch.height = Inches(max(3.5, (_capt - 0.2) - Emu(_ch.top).inches))
 
 
-    add_contact_slide(prs)   # Contact Us at the very end (Aaron)
+    add_contact_slide(prs, contact)   # Contact Us at the very end: the managing CSM
     summit_slide.insert_summit_after_title(prs)   # Executive Summit after the title (all decks)
     renumber_pages(prs)
     restyle_fonts(prs)   # size floor only; names/skips handled by build/restyle_fonts.py post-processor

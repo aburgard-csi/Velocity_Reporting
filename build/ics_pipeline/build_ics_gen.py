@@ -284,6 +284,87 @@ def extract_logo(ref, path):
                 except Exception: pass
     return None
 
+# ============================ direct mail ============================
+def _dm_month_label(token):
+    """'2026-08' or 'Aug 26' -> 'August 2026', through periods (never hand-parsed)."""
+    d0 = P.parse_month(token)
+    return f"{P.MONTH_FULL[d0.month-1]} {d0.year}" if d0 else str(token)
+
+
+def direct_mail_slide(prs, d, client, m, rf, chart_png):
+    """Direct Mail New Accounts: the monthly chart on the left, two callouts and the top
+    branches on the right, a caption derived from the figures. Widths are MEASURED (textfit
+    at the 16pt floor) and the wording steps down until it fits."""
+    dm = d["direct_mail"]
+    months, vals = dm["by_month"]["months"], dm["by_month"]["accounts"]
+    ptd = dm["accounts_opened_ptd"]
+    partial = CH.dm_partial_last(dm)
+    # Complete months only for the peak and the latest-month callout: a month still running is
+    # on the chart, hatched, but is not named as the latest result.
+    n_c = len(vals) - 1 if partial else len(vals)
+    c_m, c_v = months[:n_c], vals[:n_c]
+    s = blank(prs); title(s, "Direct Mail New Accounts")
+    pill(s, f"PTD · {_dm_month_label(dm['last_month'])}")
+    sub(s, "Selection: checking accounts opened through the ICS direct-mail channel, by open date.")
+    bw, bh = CH.DM_BOX_IN
+    s.shapes.add_picture(chart_png, Inches(0.35), Inches(1.65), Inches(bw), Inches(bh))
+
+    RX, RW = 8.7, 4.15
+    callout(s, RX, 1.75, RW, 1.35, f"{ptd:,}", "Opened Program-to-Date", big_size=40)
+    if c_v:
+        callout(s, RX, 3.25, RW, 1.35, f"{c_v[-1]:,}", f"Opened in {_dm_month_label(c_m[-1])}", big_size=40)
+
+    # Top branches. Names come from the referral branch list (the Charts Goals tab) where the
+    # number matches; otherwise the branch is shown by number, never guessed.
+    names = {str(b.get("number")): b.get("name")
+             for b in (rf.get("by_branch") or {}).get("branches", [])
+             if b.get("number") is not None and b.get("name")}
+    branches = [b for b in (dm.get("by_branch") or []) if b.get("accounts")]
+    col_w = [2.55, 1.6]
+    name_in = RW * col_w[0] / sum(col_w) - 0.18          # cell width less its margins
+
+    def _bname(k):
+        nm = names.get(str(k))
+        if nm and fits_one_line(nm, name_in, MIN_PT, family="Montserrat", bold=True, margins_in=0):
+            return nm
+        return f"Branch {k}" if str(k) else "No branch"
+    if len(branches) > 1:
+        rows = [["Top Branches", "Accounts"]]
+        rows += [[_bname(b["branch"]), f"{b['accounts']:,}"] for b in branches[:3]]
+        rows.append([f"All {len(branches)} Branches", f"{sum(b['accounts'] for b in branches):,}"])
+        std_table(s, rows, RX, 4.8, RW, col_w, highlight_last=True, fs=16, rowh=0.36)
+    elif branches:
+        callout(s, RX, 4.75, RW, 1.35, _bname(branches[0]["branch"]), "Branch with DM Accounts", big_size=28)
+
+    span = f"{P.mon_yy(months[0])} – {P.mon_yy(months[-1])}" + (" (partial)" if partial else "")
+    pk, _ = peak_month(c_v)
+    peak = f"peak {c_v[pk]:,} in {P.mon_yy(c_m[pk])}" if pk is not None else ""
+    options = [f"Direct-mail new accounts by month opened, {span}; {peak}.",
+               f"Direct-mail new accounts, {span}; {peak}.",
+               f"Direct-mail new accounts, {span}."]
+    options = [o.replace("; .", ".") for o in options]
+    cap = next((o for o in options if fits_one_line(o, 9.8, 16, family="Montserrat", min_pt=MIN_PT)),
+               options[-1])
+    tb(s, 1.2, 6.72, 9.8, 0.5, cap, 16, GREYT, False)
+    logo(s); pagenum(s, 5)
+
+    src_file = dm.get("source_file") or "the ICS direct-mail new-accounts report"
+    where = ", ".join(x for x in (dm.get("source_folder"),
+                                 f"report date {dm['report_date']}" if dm.get("report_date") else None) if x)
+    top_txt = ", ".join(f"{_bname(b['branch'])} (branch {b['branch']}) {b['accounts']:,}" for b in branches[:3])
+    notes(s, f"Source — ICS direct-mail new-accounts file {src_file}"
+             + (f" ({where})" if where else "")
+             + f" for {client} ({m['client_id']}). Selection: checking accounts opened through the "
+             f"direct-mail channel, counted by Open Date and Branch Number, "
+             f"{P.mon_yy(months[0])}–{P.mon_yy(months[-1])}: {ptd:,} accounts program-to-date"
+             + (f"; {P.mon_yy(c_m[-1])} {c_v[-1]:,}" if c_v else "")
+             + (f"; {peak}" if peak else "")
+             + (f"; {len(branches)} branches, top {top_txt}" if branches else "")
+             + ". These are direct-mail accounts, NOT referral counts, and are not included in any "
+             "referral figure in this deck. Bars navy, last complete month orange"
+             + (", the running month hatched." if partial else "."))
+
+
 # ============================ build ============================
 def _latest_ics_workbook_period(client_id):
     """Period of the newest ICS workbook on file for this client, e.g. '2026.08'.
@@ -331,6 +412,15 @@ def build(d, static_path, out, referrals_only=False):
     # client with no workbook at all does.
     _meta = d.get("meta") or {}
     _cid, _period = _meta.get("client_id"), _meta.get("period")
+    # The Contact Us card is the client's managing CSM (Aaron, 2026-09-16), resolved before
+    # anything is rendered so a client with no CSM on file stops with a sentence. Any
+    # `contacts` list in the sheet is ignored: it named one CSM for every client.
+    import rpe_env as _rpe_c
+    contact = _rpe_c.csm_contact(_cid)
+    # Standalone ICS decks also carry the ICS program contact beside the CSM (Aaron, 2026-09-16).
+    # A combined deck keeps its base program's Contact slide, so this card appears only here.
+    _program_contact = (None if contact["name"].casefold() == _rpe_c.ICS_PROGRAM_CONTACT.casefold()
+                        else _rpe_c.contact_by_name(_rpe_c.ICS_PROGRAM_CONTACT, _cid))
     _stale_wb_month = None
     # OPT-IN override (Aaron, 2026-09-09): include the workbook sections even when the
     # workbook is older than the deck, for a client who needs the financial slides
@@ -503,7 +593,10 @@ def build(d, static_path, out, referrals_only=False):
     # 2026-08-28). Rows are REMOVED, not blanked, for the same reason the combined-deck
     # assembler removes them: an empty numbered row reads as a section that failed.
     s=blank(prs); title(s,"Agenda")
-    items=["The Power of Referrals","Referral Trend & Results by Branch"]
+    _dm_slide=CH.has_direct_mail(d)
+    items=["The Power of Referrals",
+           "Referral Trend, Results by Branch & Direct Mail" if _dm_slide
+           else "Referral Trend & Results by Branch"]
     if not referrals_only:
         items+=["Performance of ICS Accounts","ICS Revenue & Revenue Detail",
                 "ICS Financial Summary","Comparisons"]
@@ -737,7 +830,15 @@ def build(d, static_path, out, referrals_only=False):
                  f"(annual goal / 12 x {_elapsed}); the VIP file carries the ANNUAL goal. "
                  f"Top branches by referrals. VIP; branch names reconciled to the Charts 'Goals' tab.")
 
-    # 5a Referred Accounts by Product (workbook 'Referred Accounts by Product' tab, participating products only)
+    # 5a Direct Mail New Accounts (Aaron, 2026-09-16: "Direct mail should get its own slide").
+    # Accounts opened through the ICS DIRECT-MAIL channel, from the sheet's `direct_mail` block
+    # (ics_local_sheet reads the CSM's "Direct Mail New Accounts Opened PTD" file). A different
+    # channel from referrals: these counts are never added to any referral figure. Built only
+    # when the block carries accounts; a sheet without one gets no slide, not a slide of zeros.
+    if _dm_slide:
+        direct_mail_slide(prs, d, client, m, rf, a("ics_direct_mail.png"))
+
+    # 5b Referred Accounts by Product (workbook 'Referred Accounts by Product' tab, participating products only)
     rbp=d.get("referred_by_product")
     if rbp:
         prods=rbp["products"]; tot_ref=sum(p["referred"] for p in prods); tot_acc=sum(p["total"] for p in prods)
@@ -1003,23 +1104,26 @@ def build(d, static_path, out, referrals_only=False):
             callout(s,0.55+i*4.1,1.5,3.8,1.5,big,lab,fill=fill)
         logo(s); pagenum(s,16); notes(s,base+" Mystery shops YTD, pass rate, referral-offered rate. ICS Charts.")
 
-    # Contact slide (built last so it lands at the very end, after Q&A)
-    contacts=d.get("contacts",[])
-    if contacts:
-        s=blank(prs); title(s,"Contact Us")
-        ncc=len(contacts); cw=5.6; gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
-        for i,cc in enumerate(contacts):
-            l=x0+i*(cw+gap)
-            card=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(1.95),Inches(cw),Inches(3.55))
-            card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
-            try: card.adjustments[0]=0.05
-            except Exception: pass
-            shadow(card)
-            tb(s,l+0.35,2.45,cw-0.7,0.7,cc["name"],26,WHITE,True,align=PP_ALIGN.CENTER)
-            tb(s,l+0.35,3.25,cw-0.7,1.0,cc["role"],15,ORANGE,False,align=PP_ALIGN.CENTER)
-            tb(s,l+0.35,4.5,cw-0.7,0.5,cc["phone"],17,WHITE,False,align=PP_ALIGN.CENTER)
-            tb(s,l+0.35,5.02,cw-0.7,0.5,cc["email"],15,WHITE,False,align=PP_ALIGN.CENTER)
-        logo(s); pagenum(s,99); notes(s,"Contact information.")
+    # Contact slide (built last so it lands at the very end, after Q&A). Every ICS deck has
+    # one, and its card is the client's managing CSM (rpe_env.csm_contact, resolved above).
+    from shapes import (contact_card_lines, contact_card_note, CONTACT_CARD_TOP,
+                        CONTACT_CARD_W as cw, CONTACT_CARD_H)
+    s=blank(prs); title(s,"Contact Us")
+    contacts=[contact] + ([_program_contact] if _program_contact else [])
+    ncc=len(contacts); gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
+    _cstyle={"name":(26,WHITE,True),"role":(15,ORANGE,False),"phone":(17,WHITE,False),"email":(15,WHITE,False)}
+    for i,cc in enumerate(contacts):
+        l=x0+i*(cw+gap)
+        card=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(CONTACT_CARD_TOP),Inches(cw),Inches(CONTACT_CARD_H))
+        card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
+        try: card.adjustments[0]=0.05
+        except Exception: pass
+        shadow(card)
+        for _f,_txt,_top,_hh in contact_card_lines(cc):
+            _sz,_col,_b=_cstyle[_f]
+            tb(s,l+0.35,_top,cw-0.7,_hh,_txt,_sz,_col,_b,align=PP_ALIGN.CENTER)
+    logo(s); pagenum(s,99)
+    notes(s,contact_card_note(contact) + (f" ICS program contact: {_program_contact['name']}." if _program_contact else ""))
 
     # ---- reorder: data slides move to the front; static education + Q&A stay last;
     # the contact slide (last-built data slide) goes to the very end ----
@@ -1037,7 +1141,7 @@ def build(d, static_path, out, referrals_only=False):
     static_ids=[e for e in ids if e in _static_els]
     data_ids=[e for e in ids if e not in _static_els]
     tail=[]
-    if contacts and data_ids: tail=[data_ids.pop()]   # contact slide -> very end
+    if data_ids: tail=[data_ids.pop()]   # contact slide (always built) -> very end
     for sid in ids: lst.remove(sid)
     for sid in data_ids+static_ids+tail: lst.append(sid)
     # invariant: every slide referenced exactly once

@@ -65,6 +65,10 @@ import base_guard as _bg
 _bg.check(B, os.path.basename(BASEJ))
 NAME = B['client']; ID = str(O.get('client', '')).strip()   # no client-name default; id comes from the data pack
 import rpe_env as _renv_assets
+# The Contact Us card names the client's managing CSM (Aaron, 2026-09-16). Resolved before
+# any work, so a client with no CSM (or a CSM with no contact row) stops here with a sentence
+# instead of after minutes of charts; the card never falls back to another CSM.
+CONTACT = _renv_assets.csm_contact(ID)
 ASSETS = _renv_assets.temp_dir("ars_assets_")     # removed at exit (it used to be left behind)
 
 # ------------------------------------------------------------------ derived values (from build_gen / build_gen_b)
@@ -1514,13 +1518,19 @@ for _sl in prs.slides:
                 if _x.fill.type is not None and _x.fill.fore_color is not None and _x.fill.fore_color.type is not None:
                     _shadowsh(_x)
             except Exception: pass
-# Contact slide at the very end (Aaron 2026-07-16; mirrors the ICS Contact Us design)
+# Contact slide at the very end (Aaron 2026-07-16; mirrors the ICS Contact Us design).
+# The card is the client's managing CSM (rpe_env.csm_contact, resolved at the top; Aaron,
+# 2026-09-16). The ARS shell CARRIES a Contact slide whose card is static text for one CSM —
+# which shipped on every ARS deck — so that card is rewritten in place. Outside the try: a
+# card that cannot be filled must stop the build, never print "skip" and ship the shell's.
+from shapes import find_contact_slide as _find_contact, fill_contact_card as _fill_contact
+_shell_contact = _find_contact(prs)
+if _shell_contact is not None:
+    _fill_contact(_shell_contact, CONTACT)
+    print("contact card: managing CSM", CONTACT["name"])
 try:
-    _has_contact = any(
-        any(sh.has_text_frame and sh.text_frame.text.strip()=="Contact Us" for sh in _s0.shapes)
-        for _s0 in prs.slides)
-    if _has_contact:
-        raise RuntimeError("skip: template already carries the Contact slide")
+    if _shell_contact is not None:
+        raise RuntimeError("skip: template already carries the Contact slide (card filled above)")
     from pptx.enum.shapes import MSO_SHAPE as _MSH
     from pptx.enum.text import PP_ALIGN as _PA
     from pptx.dml.color import RGBColor as _RGBk
@@ -1528,25 +1538,27 @@ try:
     _blank=next((_ly for _ly in prs.slide_layouts if len(_ly.placeholders)==0), prs.slide_layouts[-1])
     _cs=prs.slides.add_slide(_blank)
     _b=_cs.shapes.add_textbox(Inches(0.5),Inches(0.28),Inches(12.33),Inches(0.9)); _p=_b.text_frame.paragraphs[0]; _r=_p.add_run(); _r.text="Contact Us"; _r.font.name="Montserrat"; _r.font.size=Pt(30); _r.font.bold=True; _r.font.color.rgb=_NAVYk
-    _contacts=[{"name":"Aaron Burgard","role":"Client Service Manager","phone":"910-617-1984","email":"aaron.burgard@csiweb.com"}]
-    _ncc=len(_contacts); _cw=5.6; _gap=0.5; _x0=(13.333-(_ncc*_cw+(_ncc-1)*_gap))/2
+    from shapes import (contact_card_lines as _ccl, CONTACT_CARD_TOP as _cct,
+                        CONTACT_CARD_W as _cw, CONTACT_CARD_H as _cch)
+    _contacts=[CONTACT]
+    _ncc=len(_contacts); _gap=0.5; _x0=(13.333-(_ncc*_cw+(_ncc-1)*_gap))/2
     def _ctb(_x,_y,_w,_h,_txt,_sz,_col,_bold):
         _t=_cs.shapes.add_textbox(Inches(_x),Inches(_y),Inches(_w),Inches(_h)); _pp=_t.text_frame.paragraphs[0]; _pp.alignment=_PA.CENTER; _rr=_pp.add_run(); _rr.text=_txt; _rr.font.name="Montserrat"; _rr.font.size=Pt(_sz); _rr.font.bold=_bold; _rr.font.color.rgb=_col
     for _i,_cc in enumerate(_contacts):
         _l=_x0+_i*(_cw+_gap)
-        _card=_cs.shapes.add_shape(_MSH.ROUNDED_RECTANGLE,Inches(_l),Inches(1.95),Inches(_cw),Inches(3.55))
+        _card=_cs.shapes.add_shape(_MSH.ROUNDED_RECTANGLE,Inches(_l),Inches(_cct),Inches(_cw),Inches(_cch))
         _card.fill.solid(); _card.fill.fore_color.rgb=_NAVYk; _card.line.fill.background()
         try: _card.adjustments[0]=0.05
         except Exception: pass
         _shadowsh(_card)
-        _ctb(_l+0.35,2.45,_cw-0.7,0.7,_cc["name"],26,_WHk,True)
-        _ctb(_l+0.35,3.25,_cw-0.7,1.0,_cc["role"],15,_ORk,False)
-        _ctb(_l+0.35,4.5,_cw-0.7,0.5,_cc["phone"],17,_WHk,False)
-        _ctb(_l+0.35,5.02,_cw-0.7,0.5,_cc["email"],15,_WHk,False)
+        _cstyle={"name":(26,_WHk,True),"role":(15,_ORk,False),"phone":(17,_WHk,False),"email":(15,_WHk,False)}
+        for _f,_txt,_top,_hh in _ccl(_cc):
+            _ctb(_l+0.35,_top,_cw-0.7,_hh,_txt,*_cstyle[_f])
     _logo=os.path.join(BUILDDIR,"assets","logo.png")
     if os.path.exists(_logo): _cs.shapes.add_picture(_logo,Inches(11.28),Inches(6.78),Inches(1.7))
     _pn=_cs.shapes.add_textbox(Inches(0.45),Inches(7.04),Inches(0.7),Inches(0.32)); _pp=_pn.text_frame.paragraphs[0]; _rr=_pp.add_run(); _rr.text=str(len(prs.slides._sldIdLst)); _rr.font.name="Calibri"; _rr.font.size=Pt(11); _rr.font.bold=True; _rr.font.color.rgb=_NAVYk
-    _cs.notes_slide.notes_text_frame.text="Source: CSI / Velocity Solutions contact information (static)."
+    from shapes import contact_card_note as _ccn
+    _cs.notes_slide.notes_text_frame.text=_ccn(CONTACT)
     print("contact slide added")
 except Exception as _e:
     print("contact slide skip:", repr(_e))

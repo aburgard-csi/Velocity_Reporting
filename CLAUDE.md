@@ -205,6 +205,16 @@ ICS section that reports an older month than ARS and MRPC is no longer an expect
 is a defect. The fix is a current workbook, not a carried-forward number.
 `assemble_combined.py` prints each section's period so any divergence is visible at build time.
 
+**Contact Us = the managing CSM (Aaron, 2026-09-16).** Every deck's Contact card is the client's CSM
+(`Client CSM List.csv`) with that CSM's row in `<RPE_DATA_ROOT>/CSM Contacts.csv`, resolved by
+`rpe_env.csm_contact` and drawn or filled through `build/shapes.py`. Never hardcode a person's card; the
+template shells' static cards are overwritten at build time. No CSM, or no contacts row, stops the build —
+add the row, never fall back to another CSM. Standalone ICS decks add the ICS program contact
+(`rpe_env.ICS_PROGRAM_CONTACT`, Cindy Draper) as a second card.
+
+**ICS direct mail.** A sheet's `direct_mail` block (from `Inputs/ICS Direct Mail/`) renders as its own
+"Direct Mail New Accounts" slide after Results by Branch; those accounts are never added to referral counts.
+
 **Filename convention:**
 
 ```

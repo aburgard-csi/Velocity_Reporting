@@ -192,6 +192,90 @@ def renumber(prs):
                     PP_ALIGN.LEFT, BODY, MSO_ANCHOR.MIDDLE)
 
 
+# The Contact Us card (STYLE.md §5): a navy rounded card, 5.6 x 3.55in from 1.95in, centred,
+# holding name / role / phone / email. Every program drew it with these same numbers in its
+# own copy; the line slots live here so the four cards cannot drift.
+CONTACT_CARD_TOP, CONTACT_CARD_W, CONTACT_CARD_H = 1.95, 5.6, 3.55
+CONTACT_LINE_SLOTS = (("name", 2.45, 0.7), ("role", 3.25, 1.0),
+                      ("phone", 4.5, 0.5), ("email", 5.02, 0.5))
+# Three lines (no phone on file) sit 0.8in apart and centred on the card, measured on a
+# PowerPoint render: the email in the phone's old slot left a hole under the role line.
+CONTACT_LINE_SLOTS_NO_PHONE = (("name", 2.6, 0.7), ("role", 3.4, 1.0), ("email", 4.2, 0.5))
+
+
+def contact_card_lines(contact):
+    """-> [(field, text, top_in, height_in)] for `rpe_env.csm_contact(...)`'s card.
+
+    A CSM with no phone on file gets no phone line — not a blank box, not a dash — and the
+    other three lines are re-spaced so the card has no hole where a line was.
+    """
+    slots = CONTACT_LINE_SLOTS if contact.get("phone") else CONTACT_LINE_SLOTS_NO_PHONE
+    return [(field, contact[field], top, h) for field, top, h in slots]
+
+
+def contact_card_note(contact):
+    """The Contact Us slide's source line."""
+    return f"Source: CSM Contacts.csv (managing CSM {contact['name']})."
+
+
+def find_contact_slide(prs):
+    """The deck's Contact Us slide, by TITLE, or None."""
+    for s in prs.slides:
+        if any(sh.has_text_frame and sh.text_frame.text.strip() == "Contact Us" for sh in s.shapes):
+            return s
+    return None
+
+
+def fill_contact_card(slide, contact):
+    """Rewrite a SHELL's Contact Us card with `contact` (rpe_env.csm_contact).
+
+    The ARS, MRPC and CashPlease shells each carry a Contact Us slide whose card holds static
+    text for one CSM, and that text shipped on every deck built from them. The four lines are
+    found by POSITION inside the one navy card — the text boxes lying within it, top to bottom:
+    name, role, phone, email — never by their text, which changes whenever a shell is
+    re-baked. Each line keeps its own run formatting. With no phone on file the phone box is
+    removed and the other lines re-spaced (`contact_card_lines`). Anything other than one card
+    holding exactly four lines stops the build: the shell changed and the card cannot be
+    filled safely. Sets the slide's source note too.
+    """
+    from pptx.util import Emu
+    cards = [sh for sh in slide.shapes
+             if sh.shape_type == 1 and sh.width is not None and Emu(sh.width).inches > 4
+             and Emu(sh.height).inches > 2.5]
+    if len(cards) != 1:
+        raise SystemExit(f"Contact Us slide: expected one contact card, found {len(cards)}; the "
+                         f"template shell changed, so the card cannot be filled safely.")
+    card = cards[0]
+
+    def inside(sh):
+        return (sh.shape_type == 17 and sh.has_text_frame
+                and sh.left >= card.left and sh.top >= card.top
+                and sh.left + sh.width <= card.left + card.width
+                and sh.top < card.top + card.height)
+    lines = sorted((sh for sh in slide.shapes if inside(sh)), key=lambda sh: sh.top)
+    if len(lines) != 4:
+        raise SystemExit(f"Contact Us slide: expected 4 text lines in the card (name, role, phone, "
+                         f"email), found {len(lines)}; the template shell changed.")
+    placed = {f: (txt, top) for f, txt, top, _ in contact_card_lines(contact)}
+    for field, sh in zip(("name", "role", "phone", "email"), lines):
+        if field not in placed:
+            sh._element.getparent().remove(sh._element)
+            continue
+        txt, top = placed[field]
+        tf = sh.text_frame
+        p0 = tf.paragraphs[0]
+        for extra in tf.paragraphs[1:]:
+            extra._p.getparent().remove(extra._p)
+        if not p0.runs:
+            p0.add_run()
+        p0.runs[0].text = txt
+        for r in p0.runs[1:]:
+            r._r.getparent().remove(r._r)
+        sh.top = Inches(top)
+    slide.notes_slide.notes_text_frame.text = contact_card_note(contact)
+    return slide
+
+
 # Aliases for the pre-promotion call sites.
 _shadow = shadow
 _tb = textbox

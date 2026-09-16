@@ -17,6 +17,24 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — Contact Us card names the managing CSM; ICS Direct Mail New Accounts slide
+
+**Contact card** (Aaron: "The contact card should always show the managing CSM"). Every deck's Contact Us
+card was one CSM's static card: the ARS, MRPC and CashPlease template shells carried it and the builders
+kept it, and ICS read it from the sheet. The card is now the client's managing CSM (`Client CSM List.csv`),
+with that CSM's row in `CSM Contacts.csv`, resolved by `rpe_env.csm_contact` and written into the shell
+cards by `shapes.fill_contact_card`. A CSM with no phone gets no phone line. A client with no CSM, or a CSM
+with no row, stops the build rather than falling back to another CSM. Standalone ICS decks always carry the
+Contact slide and add the ICS program contact, Cindy Draper, as a second card (Aaron: "Add Cindy on ICS";
+her row added to `CSM Contacts.csv`); combined decks keep the base program's single card. The 24 2026.09
+ARS decks in Outputs for other CSMs' clients carried Aaron's card and were rebuilt.
+
+**ICS direct mail** (Aaron: "Direct mail should get its own slide"). A sheet's `direct_mail` block (from
+`Inputs/ICS Direct Mail/`) renders as "Direct Mail New Accounts" after Results by Branch: a monthly chart,
+program-to-date and latest-month callouts, and the top branches. Those accounts are a different channel and
+are never added to referral figures (1776 CoastHills CU: 384 accounts, Apr'25 – Aug'26). VIP decks without
+direct-mail data are unchanged (1676, 1549, 1075 rebuilt before and after).
+
 ### 2026-09-16 — ICS section from local files when there is no VIP sheet (1776 CoastHills CU)
 
 New `build/ics_pipeline/ics_local_sheet.py` builds the ICS client sheet from the referral detail export
