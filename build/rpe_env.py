@@ -191,7 +191,8 @@ INPUT_KIND_DIRS = {
     "MRPCPM": "MRPC Analyses",
     "ICS workbook": "ICS Workbooks",
     "ICS charts": "ICS Charts",           # "<Client> Charts 2026.xlsx" — mystery shops
-    "weekly": "Weekly Summaries",         # MRPCEnrollmentSummary, CashPleaseSummary
+    "weekly": "Weekly Summaries",         # MRPCEnrollmentSummary weeklies
+    "CP weekly": "CashPlease",            # CashPleaseSummary weeklies + ILS-DDA-Count-<date>.txt (Aaron, 2026-09-16)
     "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
     "ARS codes": "ARS Settings",          # ars_code_tables.json, the ARS database's code tables
     "Code sheets": "Code Sheets",         # clients' code sheets, saved by the data team

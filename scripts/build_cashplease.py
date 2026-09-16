@@ -67,7 +67,7 @@ def main():
     if wb is None:
         raise SystemExit(f"no CashPleaseSummary*.xlsx under {rpe_env.inputs()} — save "
                          f"Bradford Sanders' weekly 'CashPlease Summary' attachment to "
-                         f"{rpe_env.input_dir('weekly', create=False)} first")
+                         f"{rpe_env.input_dir('CP weekly', create=False)} first")
     print(f"workbook: {wb.name}")
 
     # The DDA denominator. Without it every client silently loses its loans-per-DDA
@@ -85,7 +85,8 @@ def main():
     else:
         print(f"DDA counts: NONE under {rpe_env.inputs()} — no loans-per-DDA rate will be "
               f"shown on any deck. Save the weekly 'ILS Management Server DDA Count' "
-              f"email body as Inputs/ILS-DDA-Count-<YYYY-MM-DD>.txt to enable it.")
+              f"email body as {rpe_env.input_dir('CP weekly', create=False)}/ILS-DDA-Count-<YYYY-MM-DD>.txt "
+              f"to enable it.")
 
     cmd = [sys.executable, str(PIPELINE / "cp_extract.py"),
            str(wb), str(PACKS)]

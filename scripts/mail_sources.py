@@ -47,10 +47,14 @@ import rpe_env as R                                          # noqa: E402
 # Kind names are watch_sources' vocabulary; imported lazily so this module can be
 # unit-tested without the share paths existing.
 MRPCPM, ICS_WB, WEEKLY, OTHER = "MRPCPM", "ICS workbook", "weekly", "other"
+# CashPlease weeklies have their own Inputs folder (Aaron, 2026-09-16: "add inputs folder for
+# CashPlease data"); the MRPC enrollment weeklies stay in Weekly Summaries.
+CP_WEEKLY = "CP weekly"
+_WEEKLIES = (WEEKLY, CP_WEEKLY)
 
 # Who may send what. An address here is the ONLY thing that admits a file.
 SENDERS = {
-    "bradford.sanders@csiweb.com": {MRPCPM, WEEKLY},
+    "bradford.sanders@csiweb.com": {MRPCPM, WEEKLY, CP_WEEKLY},
     "matt.milliman@csiweb.com": {ICS_WB},
 }
 
@@ -77,8 +81,9 @@ def classify_attachment(name):
     The same reading `watch_sources.classify` applies to a file on the share, plus
     the weekly families, whose names carry a stamp instead of an id and period.
     """
-    if _WEEKLY_RX.search(name):
-        return WEEKLY, None, None
+    w = _WEEKLY_RX.search(name)
+    if w:
+        return (CP_WEEKLY if w.group(1).lower() == "cashpleasesummary" else WEEKLY), None, None
     m = _REPORT_RX.match(name)
     if not m:
         return OTHER, None, None
@@ -282,7 +287,7 @@ def _version_key(rec):
     ('weekly', family) for the weeklies, whose names carry a stamp instead of a
     client and period; (kind, client) for everything else.
     """
-    if rec["kind"] == WEEKLY:
+    if rec["kind"] in _WEEKLIES:
         m = _WEEKLY_RX.search(rec["name"])
         return (WEEKLY, m.group(1).lower() if m else rec["name"].lower())
     return (rec["kind"], rec["client"])
@@ -290,7 +295,7 @@ def _version_key(rec):
 
 def _version_of(rec):
     """The comparable version within a group: the period, or the weekly stamp."""
-    if rec["kind"] == WEEKLY:
+    if rec["kind"] in _WEEKLIES:
         m = _STAMP_RX.search(rec["name"])
         return m.group(1) if m else ""
     return rec["period"] or ""

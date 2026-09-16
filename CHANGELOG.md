@@ -17,6 +17,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — CashPlease inputs have their own folder
+
+**CashPlease data now lands in `Inputs/CashPlease/`** (Aaron: "add inputs folder for CashPlease
+data"). Bradford Sanders' CashPleaseSummary weeklies and the weekly `ILS-DDA-Count-<date>.txt`
+used to share `Inputs/Weekly Summaries/` with the MRPC enrollment weeklies. The folder is the new
+`"CP weekly"` kind in `rpe_env.INPUT_KIND_DIRS`. `mail_sources` files a CashPleaseSummary
+attachment there, and still keeps only the newest. `build_cashplease` and the dashboard refresh
+already search every scanned input folder, so they find it unchanged; their "save it here"
+messages and the dashboard's source line name the new folder. The per-client production settings
+stay in `Inputs/Product Settings/`, which is the Velocity Product Settings app's folder rather than
+a CashPlease one. The two CashPlease files already on hand were moved, not copied.
+
 ### 2026-09-15 — the archive is `Outputs/_Archive/`
 
 **`Outputs/Archive/` is renamed `Outputs/_Archive/`** (Aaron: "add to the archive folder names so they

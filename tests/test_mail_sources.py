@@ -45,7 +45,7 @@ class Msg:
     ("1676-2026.09-True Sky CU-Invitation Checking Workbook v1.7.1-DM.xlsx",
      M.ICS_WB, "1676", "2026.09"),
     ("260906_044753-MRPCEnrollmentSummary_v3_13.xlsx", M.WEEKLY, None, None),
-    ("CashPleaseSummaryV1_260906_063545.xlsx", M.WEEKLY, None, None),
+    ("CashPleaseSummaryV1_260906_063545.xlsx", M.CP_WEEKLY, None, None),
     ("Q3 numbers.xlsx", M.OTHER, None, None),
 ])
 def test_attachment_classification(name, kind, client, period):
@@ -102,9 +102,13 @@ def test_the_same_attachment_twice_is_taken_once():
 # ------------------------------------------------------------------ destinations
 def test_each_kind_lands_in_its_own_folder(tmp_path):
     msgs = [Msg(BRAD, [Att("1218-2026.09-MRPC-X-MRPCPM_Analysis_v10.xlsx"),
-                       Att("260906_044753-MRPCEnrollmentSummary_v3_13.xlsx")]),
+                       Att("260906_044753-MRPCEnrollmentSummary_v3_13.xlsx"),
+                       Att("CashPleaseSummaryV1_260906_063545.xlsx")]),
             Msg(MATT, [Att("1676-2026.09-X-Invitation Checking Workbook v1.7.1.xlsx")])]
     dests = {r["name"]: d for r, d, _ in M.plan(M.scan(messages=msgs), str(tmp_path))}
+    # CashPlease weeklies have their own folder; MRPC enrollment weeklies stay in Weekly Summaries.
+    assert dests["CashPleaseSummaryV1_260906_063545.xlsx"].endswith(
+        os.path.join("CashPlease", "CashPleaseSummaryV1_260906_063545.xlsx"))
     assert dests["1218-2026.09-MRPC-X-MRPCPM_Analysis_v10.xlsx"].endswith(
         os.path.join("MRPC Analyses", "1218-2026.09-MRPC-X-MRPCPM_Analysis_v10.xlsx"))
     assert dests["260906_044753-MRPCEnrollmentSummary_v3_13.xlsx"].endswith(

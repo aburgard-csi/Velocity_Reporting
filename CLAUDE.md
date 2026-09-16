@@ -85,7 +85,8 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | MRPCPM analyses | `Inputs/MRPC Analyses/` |
 | ICS workbooks | `Inputs/ICS Workbooks/` |
 | ICS Charts (mystery shops) | `Inputs/ICS Charts/` |
-| MRPCEnrollmentSummary / CashPleaseSummary weeklies | `Inputs/Weekly Summaries/` |
+| MRPCEnrollmentSummary weeklies | `Inputs/Weekly Summaries/` |
+| CashPlease data: CashPleaseSummary weeklies and the weekly `ILS-DDA-Count-<YYYY-MM-DD>.txt` (Aaron, 2026-09-16) | `Inputs/CashPlease/` |
 | CashPlease production settings (Velocity Product Settings Power BI app, one record per client) | `Inputs/Product Settings/<id>_cp_settings.json` |
 | ARS database code tables (product, Reg E, account status codes per client; written by `scripts/ars_code_tables.py` from a database export — the export's settings table holds plaintext FTP credentials and is never copied) | `Inputs/ARS Settings/ars_code_tables.json` |
 | Client code sheets (product with its Personal/Business flag, account status, mail flag and Reg E mappings per client; saved by the data team, where a CSM's corrections land) | `Inputs/Code Sheets/` |

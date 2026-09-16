@@ -1066,7 +1066,7 @@ def build_dataset(period, work, log=print):
             "ics": "VIP ICS sheets" + (f", pulled {ics_pull}" if ics_pull else "") + " (Inputs/VIP Data/ICS)",
             "mrpc": "VIP MRPC sheets" + (f", pulled {mrpc_pull}" if mrpc_pull else "")
                     + (f" + {weekly.name}" if weekly.name else ""),
-            "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/Weekly Summaries)",
+            "cp": (cp_weekly or "CashPlease weekly") + " (Inputs/" + R.INPUT_KIND_DIRS["CP weekly"] + ")",
             # Static on purpose: whether the share was reachable this morning must not
             # move the content hash and republish an unchanged page.
             "overview": "each client's ODD extract in Inputs/ODDD, read with the ARS decks' "
