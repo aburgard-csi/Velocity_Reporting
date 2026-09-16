@@ -137,6 +137,12 @@ if MM:
     nu_dda = rev['NU'][1]; top_dda = rev['26 Plus'][1]
     dist26 = round(100*rev['26 Plus'][0]); lift_top = L['matrix_rows'][0][-1]
     dist_str = ', '.join(f"{n} {round(100*d)}%" for n, d, v in L['revseg'])
+    # The caption's worked example is the cell render_lift outlines in orange (one definition, so the
+    # sentence and the chart cannot name different moves). 1-5 -> 11-15 by default (Aaron, 2026-09-16).
+    import render_lift as _rl
+    ex_from, ex_to, _, _, ex_add = _rl.example_move(L)
+    ex_from_val, ex_to_val = rev[ex_from][1], rev[ex_to][1]
+    ex_from_lab, ex_to_lab = _rl.tier_label(ex_from), _rl.tier_label(ex_to)
 
 # latest mailer / movement / dot
 lm = M['latest_mailing']; lmailed = f"{M['latest_mailed']:,}"; lresp = f"{M['latest_responders']:,}"; lrr = f"{M['latest_resprate']:.1f}%"
@@ -621,14 +627,20 @@ if MM:
     # named-slide allowance in validate_deck's banned-word check, and _note_for sources a
     # "lift matrix" title from the Lift Matrix MM tab.
     set_exact(S[7], "Monthly Summary — Last 12 Months", "ARS Revenue Lift Matrix")
-    # The subtitle did leak the internal model name and claimed a trailing window the MM
-    # slide doesn't draw, so it's replaced with what the matrix actually shows.
-    set_shape_text(S[7], "Selection: monthly incremental revenue, most recent 12 months (SM revenue model).",
-        "Selection: monthly incremental revenue per account by swipe segment.")
+    # No selection line on this slide (Aaron, 2026-09-16: "remove the selection text on the lift
+    # matrix slide"): the two chart titles in the picture say what the grid and the bars show, and
+    # the window is on the pill. The template's SM subtitle is removed outright, not blanked, so no
+    # empty text box is left behind.
+    _sel = [sh for sh in S[7].shapes if sh.has_text_frame and sh.text_frame.text.strip() ==
+            "Selection: monthly incremental revenue, most recent 12 months (SM revenue model)."]
+    if not _sel:
+        raise SystemExit("ARS Revenue Lift Matrix: the template's selection line was not found to remove")
+    for _sh in _sel:
+        _sh._element.getparent().remove(_sh._element)
     set_shape_text(S[7], "Monthly incremental revenue averaged $53K over the last 12 months, totaling $632K in program contribution.",
         f"Per-account monthly value climbs from ${nu_dda:,.2f} (Non-User) to ${top_dda:,.2f} at 26+ swipes; "
-        f"heavy users (26+) are {dist26}% of card accounts. The ARS Lift Matrix is the difference between segments — "
-        f"e.g., Non-User → 26+ = ${top_dda:,.2f} – ${nu_dda:,.2f} = ${lift_top:,.2f} per account per month.")
+        f"heavy users (26+) are {dist26}% of card accounts. In the ARS Lift Matrix, a {ex_from_lab} account "
+        f"(${ex_from_val:,.2f} a month) that moves to {ex_to_lab} (${ex_to_val:,.2f}) adds ${ex_add:,.2f} a month.")
 else:
     _lab8=[m for m,_ in B.get('monthly_rev_last12',[])]
     _win8=(_sm_mmyyyy(_lab8[0])+" \u00b7 "+_sm_mmyyyy(_lab8[-1])) if _lab8 else ""

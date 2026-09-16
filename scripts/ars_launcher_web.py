@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WILL, the Workbook Intake & Layout Launcher — the browser front end for ars_launcher (named 2026-09-16; it was ARS Deck Builder).
+"""CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics — the browser front end for ars_launcher (named 2026-09-16; it was ARS Deck Builder, then briefly WILL).
 
     python scripts/ars_launcher_web.py [--port 0] [--no-open]
 
@@ -374,13 +374,13 @@ def make_server(port=0):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="WILL, the Workbook Intake & Layout Launcher: the browser front end for ars_launcher.")
+    ap = argparse.ArgumentParser(description="CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics: the browser front end for ars_launcher.")
     ap.add_argument("--port", type=int, default=0, help="default: any free port")
     ap.add_argument("--no-open", action="store_true", help="don't open a browser")
     a = ap.parse_args(argv)
     srv = make_server(a.port)
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
-    print(f"\n WILL (Workbook Intake & Layout Launcher) is running at {url}")
+    print(f"\n CSM Sheila is running at {url}")
     print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
     threading.Thread(target=prewarm, daemon=True).start()
     if not a.no_open:
@@ -397,7 +397,7 @@ PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WILL · Workbook Intake &amp; Layout Launcher</title>
+<title>CSM Sheila · Smart Helper for Executive Insights, Layouts &amp; Analytics</title>
 <style>
 :root{
   --navy:#00274C; --orange:#F47A29; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
@@ -487,7 +487,7 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
 </style>
 </head>
 <body>
-<header class="top"><h1>WILL <span style="font-weight:400;opacity:.8">· Workbook Intake &amp; Layout Launcher</span></h1><span class="period" id="period">Loading…</span></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><span class="period" id="period">Loading…</span></header>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -507,7 +507,7 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
         <li>Build takes 3 to 15 minutes and shows each step as it goes.</li>
         <li>A deck that passes validation goes straight to your folder in Outputs. Review it, save it as a PDF and email it as usual.</li>
       </ol>
-      <p class="note">Keep WILL's black window open while you build.</p>
+      <p class="note">Keep CSM Sheila's black window open while you build.</p>
     </div>
   </main>
 </div>
@@ -663,7 +663,7 @@ function renderJob(j) {
   }
   const mins = Math.floor(j.seconds / 60), secs = String(j.seconds % 60).padStart(2, "0");
   let html = `<div class="progress"><h3>Build${j.rebuild ? " (rebuild)" : ""} · ${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
-  if (j.queued) html += `<li><span class="dot"></span><span>Queued #${j.queued}. It starts on its own when ${j.queued > 1 ? "the builds ahead of it finish" : `the build for ${esc(j.after || "another client")} finishes`}. Keep WILL's black window open.</span></li>`;
+  if (j.queued) html += `<li><span class="dot"></span><span>Queued #${j.queued}. It starts on its own when ${j.queued > 1 ? "the builds ahead of it finish" : `the build for ${esc(j.after || "another client")} finishes`}. Keep CSM Sheila's black window open.</span></li>`;
   steps.forEach((st, i) => { const done = j.done || i < steps.length - 1;
     html += `<li><span class="dot ${done ? "done" : "now"}"></span><span>${esc(st.name)}</span><span class="t">${st.min !== "" ? esc(st.min) + " min" : ""}</span></li>`; });
   if (!steps.length && !j.done && !j.queued) html += `<li><span class="dot now"></span><span>Starting the build…</span></li>`;
@@ -684,7 +684,7 @@ function renderJob(j) {
   const box = $("#job");
   if (!box.querySelector("#jobview")) {
     box.innerHTML = `<div id="jobview"></div><details class="log" id="log"${logOpen ? " open" : ""}><summary>Full output</summary>
-      <div class="term"><div class="bar"><span class="ttl">WILL: build ${esc(current || "")}</span><span class="ctl" aria-hidden="true"><span>&#x2014;</span><span>&#x2610;</span><span>&#x2715;</span></span></div>
+      <div class="term"><div class="bar"><span class="ttl">CSM Sheila: build ${esc(current || "")}</span><span class="ctl" aria-hidden="true"><span>&#x2014;</span><span>&#x2610;</span><span>&#x2715;</span></span></div>
       <pre id="termtext" tabindex="0"></pre></div></details>`;
     $("#log").addEventListener("toggle", () => { logOpen = $("#log").open; });
   }

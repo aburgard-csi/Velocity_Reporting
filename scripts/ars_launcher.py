@@ -200,7 +200,7 @@ _WINDOWS = {}
 
 def _window(path):
     """workbook_window, remembered per file landing (path + mtime). Opening a workbook over the share
-    takes 0.4-2s; WILL (the browser builder) checks the same workbooks over and over (2026-09-15)."""
+    takes 0.4-2s; CSM Sheila (the browser builder) checks the same workbooks over and over (2026-09-15)."""
     try:
         key = (str(path), os.stat(path).st_mtime_ns)
     except OSError:

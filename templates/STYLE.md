@@ -240,6 +240,13 @@ element is already maxed.
   builder** — they appear in a built deck but not in `templates/ars_template.pptx`.
 - **Monthly Summary — Last 12 Months** (SM path): navy bars with an orange dashed
   average whose label sits just above the line, not centered on it.
+- **ARS Revenue Lift Matrix** (MM path, `build/ars_pipeline/render_lift.py`, 2026-09-16): the
+  matrix is a heat grid, starting tier down and tier now across, one `COLD_RAMP` navy ramp; an
+  impossible move is a dash, never a blank or $0. Beside it, monthly value per card account by tier
+  as bars with each tier's share of card accounts, the largest share in orange. The caption's worked
+  example (1-5 → 11-15) is the cell outlined in orange — `render_lift.example_move` is the one
+  definition both use. This slide carries **no selection line** (Aaron, 2026-09-16) — the exception to
+  "selection on the slide": the chart titles inside the picture carry it.
 - **Take-rate by branch, Personal and Business:** identical size and layout from
   `build/ars_pipeline/chart_lib.py`; Personal = orange bars / navy dashed average,
   Business = navy bars / orange dashed average; no embedded title; chart and

@@ -17,6 +17,27 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — ARS Revenue Lift Matrix drawn as a heat grid; caption example is 1-5 → 11-15
+
+**What the slide renders changed (every MM deck).** `render_lift.py` drew two plain tables (the matrix
+and the Revenue Segmentation block). It now draws the matrix as a heat grid in the house chart style,
+with impossible moves shown as a dash, and the segmentation block as bars of monthly value per card
+account with each tier's share of cards (Aaron: "swap the heat grid into render_lift.py for all MM
+decks"). No figure moved: both halves read the same lift.json as before, at the slide's picture aspect.
+
+**The caption's worked example changed** (Aaron: "use 1-5 to 11-15 as the example in the bottom
+text"). It was Non-User → 26+ written as an equation; it is now "a 1-5 account ($x a month) that moves
+to 11-15 ($y) adds $z a month", and that cell is outlined orange on the chart. `render_lift.example_move`
+is the one definition; a matrix without that cell falls back to its largest move. `render_lift.py` is
+import-safe now so `build_ars_gen` can share it. Tests: `tests/test_render_lift.py`.
+
+**No selection line on the slide** (Aaron: "remove the selection text on the lift matrix slide"). The two
+chart titles inside the picture say what the grid and the bars show, and the window is on the pill; the
+template's subtitle shape is removed, not blanked, and the build stops if it cannot be found.
+
+**The browser builder is CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics.** WILL was renamed again the same day; `ARS Deck Builder GUI.bat`
+still starts it.
+
 ### 2026-09-16 — The browser builder is WILL; a failed build shows a red Error pill
 
 **Name.** ARS Deck Builder is now **WILL, the Workbook Intake & Layout Launcher** (Aaron). Its
