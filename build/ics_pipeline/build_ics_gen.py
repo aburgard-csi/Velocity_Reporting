@@ -389,8 +389,13 @@ def build(d, static_path, out, referrals_only=False):
     # slides are built into this package and reordered to the front.
     m=d["meta"]; client=m["client_name"]; rm=m["report_month"]
     from datetime import datetime
+    # A sheet built from LOCAL files (ics_local_sheet.py, 1776 CoastHills CU) carries the
+    # last referral date as `data_through`. Its pull date is only the day the file was
+    # copied, so the pill names the date the referrals actually run to. VIP sheets carry no
+    # data_through and keep their pull date.
+    _local = m.get("source_kind") == "local"
     try:
-        _dd=datetime.strptime(m.get("data_pull",""),"%Y-%m-%d"); data_date=f"{_dd.strftime('%B')} {_dd.day}, {_dd.year}"
+        _dd=datetime.strptime(m.get("data_through") or m.get("data_pull",""),"%Y-%m-%d"); data_date=f"{_dd.strftime('%B')} {_dd.day}, {_dd.year}"
     except Exception:
         data_date=rm
     wbm=m.get("workbook_month",rm)   # last completed month in the workbook (PTD as-of)
@@ -534,6 +539,15 @@ def build(d, static_path, out, referrals_only=False):
     logo(s); pagenum(s,3); notes(s,"Agenda. No data.")
 
     rf=d["referrals"]; base=f"Source — {m.get('vip_source','VIP ICS Referral Data')} and {m.get('workbook','ICS workbook')} for {client} ({m['client_id']}), pulled {m['data_pull']}."
+    if _local:
+        # Local-file sheet: name the files it was built from, never the VIP dashboard, and
+        # name a workbook only when the sheet carries one.
+        base=(f"Source — {m['referral_source']}"
+              + (f"; financial figures from {m['workbook']}" if m.get("workbook") else "")
+              + f"; for {client} ({m['client_id']}).")
+    # No goal on file (a local sheet without a Charts Goals tab): goal tiles, captions and
+    # columns are left out rather than shown as 0% or a dash.
+    _goal=rf.get("monthly_goal")
 
     # 3 Power of Referrals
     s=blank(prs); title(s,"The Power of Referrals"); pill(s,f"PTD · {data_date}")
@@ -595,13 +609,21 @@ def build(d, static_path, out, referrals_only=False):
     # one, so reading it directly KeyErrors on every later pull.
     _vs_goal = rf.get('prev_month_vs_goal_pct',
                       rf.get(f"{pm['label'].lower()}_vs_goal_pct", 0))
-    for i,(big,lab) in enumerate([(f"{rf['year_to_date']:,}","2026 Year-to-Date"),
-                                   (f"{pm['value']}",f"Previous Month ({pm['label']})"),
-                                   (f"{_vs_goal}%",f"{pm['label']} vs Goal")]):
-        callout(s,0.55+i*4.1,4.15,3.8,1.5,big,lab)
+    _tiles=[(f"{rf['year_to_date']:,}","2026 Year-to-Date"),
+            (f"{pm['value']}",f"Previous Month ({pm['label']})")]
+    if _goal is not None:
+        _tiles.append((f"{_vs_goal}%",f"{pm['label']} vs Goal"))
+    # Three tiles keep their original positions; two are centred as a pair.
+    _tx0=0.55 if len(_tiles)==3 else (13.333-(len(_tiles)*3.8+(len(_tiles)-1)*0.3))/2
+    for i,(big,lab) in enumerate(_tiles):
+        callout(s,_tx0+i*4.1,4.15,3.8,1.5,big,lab)
     logo(s); pagenum(s,3)
+    _goal_note=(f"monthly goal {_goal:,} ({pm['label']} vs goal {_vs_goal}%)" if _goal is not None
+                else "no referral goal on file, so none is shown")
+    _thru_note=(f"Referral detail file, counted by Issue Date, referrals through {m.get('data_through')}."
+                if _local else f"VIP, current thru {rf['month_to_date']['label']} (partial).")
     notes(s,base+f" Referrals PTD {rf['program_to_date']:,}, YTD {rf['year_to_date']:,}, {pm['label']} {pm['value']}, "
-                f"monthly goal {rf['monthly_goal']:,} ({pm['label']} vs goal {_vs_goal}%). VIP, current thru {rf['month_to_date']['label']} (partial).")
+                f"{_goal_note}. {_thru_note}")
 
     # 4 Referral Trend
     t=rf["trend"]; s=blank(prs); title(s,f"Referral Trend – Last {len(t['months'])} Months")
@@ -626,11 +648,17 @@ def build(d, static_path, out, referrals_only=False):
     _span = (f"{P.mon_yy(t['months'][0])} – {P.mon_yy(t['months'][-1])}"
              + (" (partial)" if t.get("partial_last") else ""))
     tb(s,1.2,6.72,9.8,0.5,
-       f"Monthly checking referrals, {_span}; {_peak_txt}. "
-       f"Goal {rf['monthly_goal']:,}/mo.",
+       f"Monthly checking referrals, {_span}; {_peak_txt}."
+       + (f" Goal {_goal:,}/mo." if _goal is not None else ""),
        16,GREYT,False)
     logo(s); pagenum(s,4)
-    notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
+    if _local:
+        notes(s,base+(f" Monthly referrals vs the {_goal:,}/mo goal." if _goal is not None else " Monthly referrals.")
+                    +" Bars navy, last complete month orange"
+                    +(", partial month hatched." if t.get("partial_last") else ".")
+                    +" Referral detail file, counted by Issue Date.")
+    else:
+        notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
 
     # 5 Results by Branch
     # Branch goals in the VIP data are ANNUAL, but a program that started partway
@@ -642,6 +670,7 @@ def build(d, static_path, out, referrals_only=False):
     _elapsed, _elapsed_txt = _goal_months_elapsed(rf)
     bb=rf["by_branch"]
     _gh = "Goal to Date" if _elapsed < 12 else "Goal"
+    _has_goals = any(b.get("goal") for b in bb["branches"])
     rows=[["Branch","Referrals YTD",_gh,"% of Goal"]]
     shown=bb["branches"][:8]
     def _prorate(annual):
@@ -658,9 +687,12 @@ def build(d, static_path, out, referrals_only=False):
     tg=sum(_prorate(b["goal"]) for b in shown if b.get("goal"))
     rows.append([f"Top {len(shown)} Total",f"{tr}",f"{tg}",
                  f"{round(tr/tg*100)}%" if tg else "—"])
+    if not _has_goals:
+        # No branch carries a goal: drop the goal columns rather than print a column of dashes.
+        rows=[r[:2] for r in rows]
     # widened to fill the space the callouts left — at 6.95in the table stopped at
     # 10.3in and the right third of the slide sat empty
-    std_table(s,rows,3.35,1.45,9.45,[2.4,1.1,0.9,0.9],highlight_last=True,fs=16,rowh=0.5)
+    std_table(s,rows,3.35,1.45,9.45,[2.4,1.1,0.9,0.9][:len(rows[0])],highlight_last=True,fs=16,rowh=0.5)
 
     # Callouts in the empty left column (Aaron, 2026-08-28). The table shows the top 8;
     # these read across EVERY branch, so participation and overall pace are visible
@@ -673,8 +705,8 @@ def build(d, static_path, out, referrals_only=False):
     _apct = f"{round(_ar/_ag*100)}%" if _ag else "—"
     for _i, (_big, _lab) in enumerate([
             (f"{_rep}", "Branches Reporting Referrals"),
-            (f"{_none}", "Branches Without Referrals"),
-            (_apct, "% of Goal — All Branches")]):
+            (f"{_none}", "Branches Without Referrals")]
+            + ([(_apct, "% of Goal — All Branches")] if _has_goals else [])):
         callout(s, 0.5, 1.55 + _i*1.62, 2.65, 1.42, _big, _lab,
                 fill=(ORANGE if _i == 2 else NAVY), big_size=34)
 
@@ -684,7 +716,21 @@ def build(d, static_path, out, referrals_only=False):
     # the branch counts and the pro-rating basis are all in the notes, which is where
     # STYLE.md puts the source anyway.
     logo(s); pagenum(s,5)
-    notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
+    if _local and not _has_goals:
+        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none. "
+                     f"Referrals by branch, YTD ({_ar:,} in total); no branch goals on file, so no "
+                     f"goal or % of goal is shown. Top branches by referrals. Referral detail file, "
+                     f"counted by Issue Date and Branch.")
+    elif _local:
+        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
+                     f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
+                     f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
+                     f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
+                     f"(monthly goal x {_elapsed}); the Charts 'Goals' tab carries a MONTHLY goal per branch. "
+                     f"Top branches by referrals. Referral detail file, counted by Issue Date and Branch; "
+                     f"branch names from the Charts 'Goals' tab.")
+    else:
+        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
                  f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
                  f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
                  f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
@@ -724,7 +770,9 @@ def build(d, static_path, out, referrals_only=False):
             r2=pp.add_run(); r2.text=it; r2.font.size=Pt(22); r2.font.name="Calibri"; r2.font.color.rgb=NAVY
         s.shapes.add_picture(a("ics_perfintro.png"),Inches(6.55),Inches(1.75),Inches(5.85))
         logo(s); pagenum(s,6)
-        notes(s,"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly referrals (bars) + cumulative referrals (line), from the VIP referral trend. No figures on the slide face.")
+        notes(s,"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly referrals (bars) + cumulative referrals (line), from the "
+                +(f"referral trend in {m['referral_source'].split(' (')[0]}" if _local else "VIP referral trend")
+                +". No figures on the slide face.")
 
         # --- ROI / Present Value recalculated per client (the workbook ROI is not used) ---
         # PV per account = annual profit × life; life = velocity avg 6.9 yrs for the program's
@@ -996,6 +1044,13 @@ def build(d, static_path, out, referrals_only=False):
     _seen=[e.get(qn('r:id')) for e in list(lst)]
     if len(_seen)!=len(set(_seen)):
         raise SystemExit("ERROR: duplicate slide references in sldIdLst")
+    # Renumber every kept slide part 1..N in deck order BEFORE anything else adds a slide.
+    # The retained static slides still hold the template's partnames (slide22-slide27), and
+    # python-pptx names a new slide slide<count+1>.xml. The Summit slide inserted below
+    # therefore landed on slide27.xml — already a static's name — whenever this deck held 20
+    # data slides: a full build with no Contact slide (1776 CoastHills CU, 2026-09-16), which
+    # wrote slide27.xml twice and failed the package check. Sequential names leave count+1 free.
+    prs.part.rename_slide_parts([e.get(qn('r:id')) for e in list(lst)])
 
     enforce_min_font(prs, MIN_PT)   # minimum size across the deck
     summit_slide.insert_summit_after_title(prs)   # Executive Summit after the title (all decks)

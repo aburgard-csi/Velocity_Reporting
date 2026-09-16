@@ -2,7 +2,13 @@
 """ARS deck launcher — build one client's ARS deck into Outputs without Claude.
 
     python scripts/ars_launcher.py status <client id> [--period 2026.09]
-    python scripts/ars_launcher.py build  <client id> [--period 2026.09] [--rebuild]
+    python scripts/ars_launcher.py build  <client id> [--period 2026.09] [--rebuild] [--combined]
+
+`--combined` builds one deck with ARS plus every other clients.md program that has the data it
+needs this period (`program_availability`): ICS from its VIP sheet or, without one, from the ICS
+workbook and referral files in Inputs; MRPC from its VIP sheet. The CSM chooses in CSM Sheila
+(Aaron, 2026-09-16: "add a second Create button so the CSM can elect to build an ARS only deck, or a
+combined deck for whichever products have the appropriate data").
 
 Anyone can run it, from `Build ARS Deck.bat` in the CSM_Reporting folder (Aaron, 2026-09-15: "a
 way where anyone can run an ARS deck so long as the inputs are in place ... without Claude").
@@ -11,8 +17,8 @@ plain English what is wrong and who fixes it:
 
   * the client has the ARS product (Client CSM List `products`, from the Velocity export);
   * clients.md lists the client for ARS — that file decides what gets built;
-  * a client of Aaron's with more than one program ships a combined deck, which this launcher
-    does not build;
+  * a client of Aaron's with more than one program ships a combined deck, so an ARS-only build
+    stops there and only `--combined` is offered;
   * the ODD extract is this period's, and this period's ARS workbook is in Inputs
     (`deck_status.requirements`, the same check as the delivery dashboard);
   * an MM client's Lift Matrix is current: the workbook's data month is inside its window and the
@@ -67,6 +73,9 @@ STEPS = {
     "metrics_gen.py": "Computing the ODD metrics",
     "charts_gen.py": "Drawing the charts",
     "build_ars_gen.py": "Assembling the deck",
+    "build_ics_gen.py": "Building the ICS section",
+    "build_mrpc_gen.py": "Building the MRPC section",
+    "assemble_combined.py": "Combining the sections",
 }
 
 
@@ -112,11 +121,55 @@ def newest_workbook_period(cid):
 
 
 # ------------------------------------------------------------------ the checks
-def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=()):
+def program_availability(cid, period, programs):
+    """For each clients.md program other than ARS: (ok, how or why not).
+
+    ICS: the client's VIP sheet, else the local ICS files (`ics_local_sheet.available`: the ICS workbook,
+    referral detail and direct-mail lists James and the mailbox land in Inputs). MRPC: its VIP sheet.
+    Anything else (CashPlease) is not built by the launcher and is left out.
+    """
+    out = {}
+    for p in programs:
+        if p == "ARS":
+            continue
+        if p.startswith("ICS"):
+            try:
+                R.resolve_client_json(cid, "ics")
+                out["ICS"] = (True, "VIP ICS sheet")
+                continue
+            except SystemExit:
+                pass
+            try:
+                sys.path.insert(0, str(REPO / "build" / "ics_pipeline"))
+                import ics_local_sheet as ILS
+                a = ILS.available(cid, period)
+            except ImportError:
+                out["ICS"] = (False, "no VIP ICS sheet, and the local ICS builder is not installed")
+                continue
+            except Exception as e:          # an unreadable file is reported, not guessed at
+                out["ICS"] = (False, f"the local ICS files could not be read ({type(e).__name__}: {e})")
+                continue
+            out["ICS"] = (bool(a.get("ok")), a.get("reason") or ("local ICS files" if a.get("ok") else "no ICS data"))
+        elif p == "MRPC":
+            try:
+                R.resolve_client_json(cid, "mrpc")
+                out["MRPC"] = (True, "VIP MRPC sheet")
+            except SystemExit:
+                out["MRPC"] = (False, "no VIP MRPC sheet")
+    return out
+
+
+def combined_programs(availability):
+    """The programs a combined deck would carry besides ARS, in section order."""
+    return [p for p in ("ICS", "MRPC") if availability.get(p, (False,))[0]]
+
+
+def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), combined=False):
     """The launcher's rules, independent of the filesystem so they can be tested.
 
     `row` is the Client CSM List row, `roster` the build_month.read_roster() active list,
-    `sent` the deliveries.json "sent" map. Returns [(level, message)].
+    `sent` the deliveries.json "sent" map. Returns [(level, message)]. `combined` is a combined-deck
+    build, which lifts the stop on an ARS-only deck for Aaron's multi-program clients.
     """
     out = []
     if not row:
@@ -142,10 +195,11 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=()):
     else:
         out.append((OK, f"clients.md: {'-'.join(entry[3])}, {entry[2] or 'path unknown'} workbook"))
         # Checked before the build now that a clean build goes straight to Outputs: a lone ARS
-        # deck must never replace a combined one (combined decks are Aaron's clients only).
-        if csm == AARON and len(entry[3]) > 1:
-            out.append((STOP, f"This client ships a combined {'-'.join(entry[3])} deck, which this launcher "
-                              "does not build. Ask Aaron."))
+        # deck must never replace one of Aaron's combined decks. Any CSM may build a combined deck
+        # (Aaron, 2026-09-16), so for his clients that is the build on offer.
+        if csm == AARON and len(entry[3]) > 1 and not combined:
+            out.append((STOP, f"This client ships a combined {'-'.join(entry[3])} deck, so build the combined "
+                              "deck instead of an ARS-only one."))
 
     # A deck already in Outputs, or already recorded as sent, is rebuilt only when the person running it
     # says so (Aaron, 2026-09-15: "The deck is already in Outputs, but it says Build and put in Outputs.
@@ -254,11 +308,28 @@ def lift_checks(cid, period, roster):
     return [(OK, f"Lift Matrix: current ({w['window']}; data {w['data_date']})")]
 
 
-def all_checks(cid, period, row, roster, sent, rebuild=False):
-    """Every pre-build check, in the order they print: the rules, the inputs, the Lift Matrix."""
-    return (rule_checks(cid, period, row, roster, sent, rebuild=rebuild, in_outputs=decks_in_outputs(cid, period))
-            + input_checks(cid, period)
-            + lift_checks(cid, period, roster))
+def all_checks(cid, period, row, roster, sent, rebuild=False, combined=False):
+    """Every pre-build check, in the order they print: the rules, the inputs, the Lift Matrix, and for a
+    combined deck the other programs' data."""
+    checks = (rule_checks(cid, period, row, roster, sent, rebuild=rebuild, in_outputs=decks_in_outputs(cid, period),
+                          combined=combined)
+              + input_checks(cid, period)
+              + lift_checks(cid, period, roster))
+    if combined:
+        checks += combined_checks(cid, period, roster)
+    return checks
+
+
+def combined_checks(cid, period, roster):
+    """What a combined deck would carry: each other program's data, and a stop when none has any."""
+    entry = next((r for r in roster if r[0] == cid), None)
+    avail = program_availability(cid, period, entry[3] if entry else [])
+    out = [(OK if ok else WARN, f"{p}: {'in the combined deck' if ok else 'left out'} ({why})")
+           for p, (ok, why) in avail.items()]
+    if not combined_programs(avail):
+        out.append((STOP, "No other program has the data it needs this period, so there is no combined deck "
+                          "to build. Build the ARS-only deck."))
+    return out
 
 
 # ------------------------------------------------------------------ locking
@@ -359,13 +430,44 @@ def to_outputs(cid, deck):
     except OSError as e:
         return STOP, (f"The deck built clean but could not be put in Outputs ({e}). If this client's deck "
                       "is open in PowerPoint, close it and run Build ARS Deck again.")
+    # One deck per client per month: a combined deck supersedes the ARS-only one and the other way round,
+    # which promote_one (same filename only) does not see. Moved to the archive, never deleted.
+    n += supersede_other_ars_decks(cid, deck, out)
     return OK, f"In Outputs: {cur}" + (f" ({n} older file(s) archived, none deleted)" if n else "")
+
+
+def supersede_other_ars_decks(cid, deck, out):
+    """Archive this client's other ARS-bearing decks for the same period (a different program mix)."""
+    import promote_month as P
+    info = P.parse_deck_name(os.path.basename(deck))
+    if not info:
+        return 0
+    stamp = dt.date.today().isoformat()
+    moved = 0
+    for other in R.output_decks(f"{cid}-{info['period']}-ARS*.pptx"):
+        if other.name.startswith("~$") or other.name == os.path.basename(deck):
+            continue
+        folder = P.client_folder(out / R.ARCHIVE_DIRNAME, cid, info.get("client") or "")
+        folder.mkdir(parents=True, exist_ok=True)
+        dest = folder / f"{other.stem} (superseded {stamp}){other.suffix}"
+        k = 1
+        while dest.exists():
+            k += 1
+            dest = folder / f"{other.stem} (superseded {stamp}-{k}){other.suffix}"
+        try:
+            shutil.move(str(other), str(dest))
+            moved += 1
+            print(f"         archive   {other.name} (replaced by a different program mix)", flush=True)
+        except OSError as e:
+            print(f"         !! could not archive {other.name} ({e}); it is still in Outputs", flush=True)
+    return moved
 
 
 def cmd_build(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
-    print(f"\nBuilding the ARS deck: client {a.client}, period {period}\n")
-    checks = all_checks(a.client, period, row, roster, sent, rebuild=a.rebuild)
+    combined = getattr(a, "combined", False)
+    print(f"\nBuilding the {'combined' if combined else 'ARS'} deck: client {a.client}, period {period}\n")
+    checks = all_checks(a.client, period, row, roster, sent, rebuild=a.rebuild, combined=combined)
     for lvl, msg in checks:
         say(lvl, msg)
     if any(l == STOP for l, _ in checks):
@@ -377,18 +479,23 @@ def cmd_build(a):
 
     entry = next(r for r in roster if r[0] == a.client)
     name = BM.deck_name(a.client, entry[1])
+    progs = ["ARS"]
+    if combined:
+        extra = combined_programs(program_availability(a.client, period, entry[3]))
+        # keep clients.md's own token (e.g. ICS-REFERRALS) so build_month builds the right shape
+        progs += [next(t for t in entry[3] if t.startswith(p)) for p in extra]
     lk = lock(work)
     t0 = time.time()
     made, result, delivered, where = {}, "did not finish", False, None
     stop = threading.Event()
     try:
-        print(f"\nBuilding (this takes 3 to 15 minutes)...", flush=True)
+        print(f"\nBuilding {'-'.join(progs)} (this takes 3 to 20 minutes)...", flush=True)
         threading.Thread(target=watch_steps, args=(work / "build.log", stop, t0), daemon=True).start()
         try:
-            err, made = BM.build_client(a.client, name, entry[2], ["ARS"], period, str(work.parent))
+            err, made = BM.build_client(a.client, name, entry[2], progs, period, str(work.parent))
         finally:
             stop.set()
-        deck = made.get("ARS")
+        deck = made.get("DELIVERABLE") if combined else made.get("ARS")
         if err or not deck:
             reason = _log_reason(work / "build.log") or err
             say(STOP, f"The build stopped at '{err}': {reason}")
@@ -396,6 +503,13 @@ def cmd_build(a):
         else:
             print(f"  [..]   Validating the deck  ({(time.time() - t0) / 60:.0f} min)", flush=True)
             gate = BM.validate(deck, str(work / "base.json"))
+            if combined and gate.startswith("0 FAIL"):
+                # A combined deck is assembled from parts; check the package, which the text rules can't see.
+                sys.path.insert(0, str(REPO / "validation"))
+                import validate_deck as V
+                pkg = V.package_findings(deck)
+                if pkg:
+                    gate = f"package check failed ({len(pkg)} finding(s): {pkg[0]})"
             result = gate
             if not gate.startswith("0 FAIL"):
                 say(STOP, f"Validation: {gate}. Only a deck with 0 FAIL goes to Outputs.")
@@ -410,7 +524,8 @@ def cmd_build(a):
     finally:
         lk.unlink(missing_ok=True)
     (work / "_launcher_result.json").write_text(json.dumps({
-        "client": a.client, "period": period, "deck": made.get("ARS"), "result": result,
+        "client": a.client, "period": period, "deck": made.get("DELIVERABLE") if combined else made.get("ARS"),
+        "programs": progs, "combined": combined, "result": result,
         "delivered": delivered, "by": getpass.getuser(),
         "finished": f"{dt.datetime.now():%Y-%m-%d %H:%M}", "minutes": round((time.time() - t0) / 60, 1)},
         indent=1), encoding="utf-8")
@@ -446,6 +561,8 @@ def main(argv=None):
         sp.add_argument("--period", default=None, help="YYYY.MM; default: the newest ARS workbook period in Inputs")
         if c == "build":
             sp.add_argument("--rebuild", action="store_true", help="rebuild a deck already recorded as sent")
+            sp.add_argument("--combined", action="store_true",
+                            help="one deck with ARS plus every other clients.md program that has its data")
     a = ap.parse_args(argv)
     a.client = a.client.strip()
     if not re.fullmatch(r"\d{3,5}", a.client):

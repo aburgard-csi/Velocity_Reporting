@@ -107,6 +107,50 @@ def test_aarons_multi_program_client_stops_before_the_build():
     assert msgs and "combined ARS-ICS" in msgs[0]
     other = dict(row, csm="James Gilmore")
     assert L.STOP not in levels(L.rule_checks("1509", "2026.09", other, ROSTER, {}))
+    # a combined build is what's on offer for Aaron's multi-program clients (2026-09-16)
+    assert L.STOP not in levels(L.rule_checks("1509", "2026.09", row, ROSTER, {}, combined=True))
+
+
+def test_program_availability_prefers_vip_then_local_ics_files(monkeypatch):
+    import rpe_env as R
+    import types
+
+    def resolve(cid, prog):
+        if (cid, prog) == ("1509", "ics"):
+            return "vip.json"
+        raise SystemExit("no sheet")
+    monkeypatch.setattr(R, "resolve_client_json", resolve)
+    fake = types.SimpleNamespace(available=lambda cid, period: {"ok": cid == "1776", "reason": "ICS workbook and referral files"})
+    monkeypatch.setitem(sys.modules, "ics_local_sheet", fake)
+    a = L.program_availability("1509", "2026.09", ["ARS", "ICS", "MRPC"])
+    assert a == {"ICS": (True, "VIP ICS sheet"), "MRPC": (False, "no VIP MRPC sheet")}
+    b = L.program_availability("1776", "2026.09", ["ARS", "ICS", "MRPC"])
+    assert b["ICS"] == (True, "ICS workbook and referral files") and L.combined_programs(b) == ["ICS"]
+    assert L.combined_programs(L.program_availability("1441", "2026.09", ["ARS"])) == []
+
+
+def test_combined_checks_stop_when_no_other_program_has_data(monkeypatch):
+    monkeypatch.setattr(L, "program_availability", lambda cid, period, progs: {"MRPC": (False, "no VIP MRPC sheet")})
+    checks = L.combined_checks("1509", "2026.09", ROSTER)
+    assert L.STOP in levels(checks) and any("left out" in m for l, m in checks if l == L.WARN)
+    monkeypatch.setattr(L, "program_availability", lambda cid, period, progs: {"ICS": (True, "VIP ICS sheet")})
+    assert L.STOP not in levels(L.combined_checks("1509", "2026.09", ROSTER))
+
+
+def test_a_different_program_mix_supersedes_the_other_deck_in_outputs(tmp_path, monkeypatch):
+    import rpe_env as R
+    monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    monkeypatch.setattr(R, "client_csm", lambda cid: "James Gilmore")
+    out = tmp_path / "Outputs"
+    (out / "James Gilmore").mkdir(parents=True)
+    ars_only = out / "James Gilmore" / "1776-2026.09-ARS-CoastHills CU ARS Results.pptx"
+    ars_only.write_bytes(b"x")
+    combined = tmp_path / "1776-2026.09-ARS-ICS-CoastHills CU Results.pptx"
+    combined.write_bytes(b"y")
+    assert L.supersede_other_ars_decks("1776", str(combined), out) == 1
+    assert not ars_only.exists()
+    archived = list((out / R.ARCHIVE_DIRNAME).rglob("*.pptx"))
+    assert len(archived) == 1 and "(superseded" in archived[0].name
 
 
 def test_a_clean_deck_goes_straight_to_outputs_and_archives_what_it_replaces(tmp_path, monkeypatch):

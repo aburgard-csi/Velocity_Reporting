@@ -196,11 +196,19 @@ INPUT_KIND_DIRS = {
     "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
     "ARS codes": "ARS Settings",          # ars_code_tables.json, the ARS database's code tables
     "Code sheets": "Code Sheets",         # clients' code sheets, saved by the data team
+    # A client with no VIP ICS sheet (1776 CoastHills CU, Aaron 2026-09-16): the CSM lands the
+    # detailed referral export and the direct-mail new-accounts list here by hand, and
+    # build/ics_pipeline/ics_local_sheet.py builds the ICS sheet from them.
+    "ICS referrals": "ICS Referrals",     # <id>_ics_detailed referral_v<N>.xls
+    "ICS direct mail": "ICS Direct Mail", # <id>-<yyyy.mm>-ICS-<Client>-Direct Mail New Accounts Opened PTD.xlsx
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
 # report_dirs() nor the copier/pruner in watch_sources.py looks inside these.
-NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets")
+# The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
+# "newer version" the watcher's copier or pruner understands, so neither may touch them.
+NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets",
+                     "ICS referrals", "ICS direct mail")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to

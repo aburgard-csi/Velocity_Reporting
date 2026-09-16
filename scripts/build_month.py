@@ -26,6 +26,8 @@ import argparse, glob, json, os, re, subprocess, sys, time
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "build"))
 import rpe_env as R                                            # noqa: E402
+sys.path.insert(0, os.path.join(REPO, "build", "ics_pipeline"))
+import ics_local_sheet as LOCAL_ICS                            # noqa: E402
 
 PY = sys.executable
 ARSP = os.path.join(REPO, "build", "ars_pipeline")
@@ -312,13 +314,41 @@ def build_client(cid, name, mmsm, progs, period, stage):
         if p.startswith("ICS") or p == "MRPC":
             prog = "ics" if p.startswith("ICS") else "mrpc"
             U = prog.upper()
+            local_shape = None
             try:
                 sheet = str(R.resolve_client_json(cid, prog))
             except SystemExit as e:
-                return f"no {U} sheet ({str(e).splitlines()[0]})", made
+                # ICS with no VIP sheet: build the sheet from the local files the CSM landed
+                # (referral detail, current ICS workbook, Charts Goals tab), when there are
+                # any (1776 CoastHills CU, Aaron 2026-09-16). VIP stays first and unchanged;
+                # MRPC has no local path.
+                if prog != "ics":
+                    return f"no {U} sheet ({str(e).splitlines()[0]})", made
+                av = LOCAL_ICS.available(cid, period, name)
+                if not av["ok"]:
+                    return f"no {U} sheet ({str(e).splitlines()[0]}; {av['reason']})", made
+                try:
+                    sheet = LOCAL_ICS.build_sheet(cid, name, period,
+                                                  os.path.join(d, "ics_local_sheet.json"))
+                except SystemExit as le:
+                    return f"ics_local_sheet ({str(le).splitlines()[0]})", made
+                local_shape = av["shape"]
+                msg = (f"ICS section built from LOCAL files, not VIP ({local_shape}): "
+                       f"referrals {os.path.basename(av['referrals'])}"
+                       + (f", workbook {os.path.basename(av['workbook'])}" if local_shape == "full" else "")
+                       + f" -> {sheet}")
+                with open(sheet, encoding="utf-8") as fh:
+                    flags = json.load(fh).get("_flags") or []
+                print(f"    {cid}: {msg}")
+                with open(log, "a", encoding="utf-8") as fh:
+                    fh.write(msg + "\n")
+                    for fl in flags:
+                        fh.write(f"  ics_local_sheet flag: {fl}\n")
+                for fl in flags:
+                    print(f"    {cid}: ICS local-sheet flag: {fl}")
             out = os.path.join(d, f"{cid}-{period}-{U}-{name} {U} Results.pptx")
             cmd = [PY, os.path.join(REPO, f"build/{prog}_pipeline/build_{prog}_gen.py")]
-            if p.endswith("REFERRALS"):
+            if p.endswith("REFERRALS") or local_shape == "referrals-only":
                 cmd.append("--referrals-only")
             if run(cmd + [sheet, f"{TPL}/{prog}_template.pptx", out], log):
                 return f"build_{prog}_gen", made

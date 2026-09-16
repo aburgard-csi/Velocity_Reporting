@@ -68,7 +68,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1761 | Capital Educators FCU | MM | yes | — | — | ARS |
 | 1765 | Foothills CU | MM | yes | — | — | ARS |
 | 1766 | Fort Sill FCU | MM | yes | — | — | ARS |
-| 1776 | CoastHills CU | MM | yes | — | yes | ARS-MRPC |
+| 1776 | CoastHills CU | MM | yes | yes (local files, no VIP) | yes | ARS-ICS-MRPC |
 | 1777 | West-Aircomm FCU | MM | yes | — | — | ARS |
 | 1780 | USF CU | MM | yes | — | yes | ARS-MRPC |
 | 1798 | FirstLight FCU | MM | yes | — | — | ARS |
@@ -216,6 +216,12 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ## Status changes
 
+- **2026-09-16 — 1776 CoastHills CU is on ICS** (Aaron: "Add ICS, but don't pull from VIP since I
+  don't have access to their clients"). James Gilmore landed a 2026.09 ICS workbook, a detailed referral
+  file and a direct-mail new-accounts list in Inputs. There is no VIP ICS sheet and none will be pulled:
+  the ICS section is built from those local files (uild/ics_pipeline/ics_local_sheet.py), with any
+  section they cannot supply left out. James's client, so the CSM chooses an ARS-only or a combined deck
+  in CSM Sheila.
 - **2026-09-16 — ARS added for three of Jordan Berkowitz's clients: 1121 Timberland Bank, 1554
   Isabella Bank and 1805 Texar FCU** (Aaron: "all 3 have ARS"). Path was read from each workbook's
   `Executive Financials MM` tab: 1121's carries the `Bank Name` placeholder (SM), and 1554's is
