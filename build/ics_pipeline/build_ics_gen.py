@@ -38,6 +38,22 @@ def peak_month(values):
     return i, [k for k in range(len(values)) if k != i and values[k] == values[i]]
 
 
+def cohort_example(d, dollars):
+    """-> "Dec 25: $3,693.10 / 103 / 9 = $3.98", the worked example in a per-account
+    subtitle, read from the sheet's FIRST cohort.
+
+    `dollars` is that cohort's revenue for the slide's own series. The label, account
+    count and months open used to be literals ("Nov 25 ... / 19 / 8") left from the
+    reference client, so every full ICS deck printed them over its own dollar figure:
+    1776 CoastHills (2026.08) said "Nov 25: $3,693.10 / 19 / 8 = $24.30" while its first
+    cohort was Dec 25 with 103 accounts. Months open is `ics_charts_gen._months_open`,
+    the same count the chart beside the caption divides by.
+    """
+    md = d["monthly_detail"]
+    label, accounts, months = md["months"][0], md["accounts_opened"][0], CH._months_open(d)[0]
+    return f"{label}: ${dollars:,.2f} / {accounts:,} / {months} = ${dollars/accounts/months:,.2f}"
+
+
 def _goal_months_elapsed(rf):
     """How many months of the goal year this program has actually run -> (n, caption).
 
@@ -972,7 +988,7 @@ def build(d, static_path, out, referrals_only=False):
         md=d["monthly_detail"]; icPTD=sum(md["interchange"]); nsPTD=sum(md["nsf_od"]); acc=md["cumulative_accounts"][-1]
         am=CH.acct_months(d)
         nsoPTD=sum(md["nsf_od"])+sum(md["other_fees"]); spPTD=sum(md["spread"])
-        nso_nov=(md["nsf_od"][0]+md["other_fees"][0])
+        nso_first=(md["nsf_od"][0]+md["other_fees"][0])
         SPREAD_DEF="Spread = 2.75% × avg month-end balance/account, summed monthly, net of interest paid."
         def mdslide(pg,ttl,subt,img,tiles,note,foot=None):
             s=blank(prs); title(s,ttl); sub(s,subt); s.shapes.add_picture(img,Inches(0.4),Inches(1.7),Inches(8.6))
@@ -986,7 +1002,7 @@ def build(d, static_path, out, referrals_only=False):
                 a("ics_ic_tot.png"),[(f"${icPTD:,.0f}","Interchange PTD"),(f"{acc:,}","ICS accounts")],
                 base+" Interchange revenue by cohort. Workbook 'Monthly Detail' (revenue only).",foot=IC_DEF)
         mdslide(9,"Interchange Revenue per Account per Month",
-                "Interchange revenue ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: $398.47 / 19 / 8 = $2.62).",
+                f"Interchange revenue ÷ accounts opened ÷ months open, by cohort (e.g. {cohort_example(d, md['interchange'][0])}).",
                 a("ics_ic_pam.png"),[(f"${icPTD/am:.2f}","Blended / account / month"),(f"${icPTD/acc:.2f}","Per account, life-to-date")],
                 base+" Interchange per account per month, cohort-normalized. Workbook 'Monthly Detail'.",foot=IC_DEF)
         mdslide(10,"Total NSF/OD & Other Fee Revenue",
@@ -996,7 +1012,7 @@ def build(d, static_path, out, referrals_only=False):
                 a("ics_nsf_tot.png"),[(f"${nsoPTD:,.0f}","NSF/OD & Other PTD"),(f"{acc:,}","ICS accounts")],
                 base+" NSF/OD + other service charges by cohort. Workbook 'Monthly Detail' (revenue only).")
         mdslide(11,"NSF/OD & Other Fees per Account per Month",
-                f"(NSF/OD + other charges) ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: ${nso_nov:,.2f} / 19 / 8 = ${nso_nov/19/8:.2f}).",
+                f"NSF/OD + other fees ÷ accounts opened ÷ months open, by cohort (e.g. {cohort_example(d, nso_first)}).",
                 a("ics_nsf_pam.png"),[(f"${nsoPTD/am:.2f}","Blended / account / month"),(f"${nsoPTD/acc:.2f}","Per account, life-to-date")],
                 base+" NSF/OD + other charges per account per month, cohort-normalized. Workbook 'Monthly Detail'.")
         mdslide(12,"Total Spread Revenue",
@@ -1004,7 +1020,7 @@ def build(d, static_path, out, referrals_only=False):
                 a("ics_spread_tot.png"),[(f"${spPTD:,.0f}","Spread PTD"),(f"{acc:,}","ICS accounts")],
                 base+" Spread revenue by cohort. Workbook 'Monthly Detail'.",foot=SPREAD_DEF)
         mdslide(13,"Spread Revenue per Account per Month",
-                f"Spread revenue ÷ accounts opened ÷ months open, by cohort (e.g. Nov 25: ${md['spread'][0]:,.2f} / 19 / 8 = ${md['spread'][0]/19/8:.2f}).",
+                f"Spread revenue ÷ accounts opened ÷ months open, by cohort (e.g. {cohort_example(d, md['spread'][0])}).",
                 a("ics_spread_pam.png"),[(f"${spPTD/am:.2f}","Blended / account / month"),(f"${spPTD/acc:.2f}","Per account, life-to-date")],
                 base+" Spread per account per month, cohort-normalized. Workbook 'Monthly Detail'.",foot=SPREAD_DEF)
         mdslide(14,"Revenue Composition by Month",
