@@ -17,6 +17,27 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — Reg E opt-in read as zero for "Opted In / Opted Out" extracts (correction)
+
+**A client-facing number was wrong.** `metrics_gen.regd` recognised only "opt in / opt-in / optin",
+so extracts worded "Opted In" / "Opted Out" put every open personal card holder in "no election".
+1776 CoastHills shipped Reg E opt-in at 0.0% on all five Reg E slides and Program Overview (the
+extract's latest month has 12,967 opted in, 30,941 opted out, 8,892 default); James Gilmore's deck
+for the same client showed 21.1%, which is how it surfaced. `oddd_optimize.classify_rege` read the
+same files correctly: two definitions of one rule that had drifted. 16 decks in Outputs carried a
+misread Reg E base: 1038, 1192, 1217, 1520, 1537, 1542, 1554, 1652, 1673, 1745, 1759, 1765, 1766,
+1776, 1798, 1799.
+
+**Fix.** `build/ars_pipeline/odd_rows.rege_label` is now the one reading, used by both. New wording
+mapped with Aaron (2026-09-16): Yes/Y → Opt In; No/N, Revoked → Opt Out; Failed to Respond, No
+Decision, Did Not Reply, D → Default; Ineligible, Exempt, "Tracking Type N Does Not Exist", "No
+Vaule - No Reg E", "Anything else" → not applicable.
+
+**The check that would have caught it.** `metrics_gen` now stops with a POSSIBLE DATA ISSUE when the
+latest Reg E column carries wording no mapping covers, instead of counting it as no election; and
+`tests/test_rege_label.py` fails if either file carries its own wording rule again. The synthetic
+fixture's unmapped "Undetermined" became "Opted In" (unmapped handling is tested directly).
+
 ### 2026-09-16 — ARS Revenue Lift Matrix drawn as a heat grid; caption example is 1-5 → 11-15
 
 **What the slide renders changed (every MM deck).** `render_lift.py` drew two plain tables (the matrix

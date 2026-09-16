@@ -29,7 +29,48 @@ Usage:
     if odd.personal(row) and odd.hascard(row):
         n += odd.swipes(row, "Jul26")
 """
+import re
 from types import SimpleNamespace
+
+# ---------------------------------------------------------------- Reg E election
+# ONE reading of the `<Mon> Reg E Desc` wording, shared by oddd_optimize (the pack and
+# its unmapped-value flags) and metrics_gen (every Reg E figure in the deck). There
+# were two, and they disagreed: metrics_gen matched only "opt in / opt-in / optin",
+# so extracts worded "Opted In" / "Opted Out" (1776 CoastHills and about a dozen
+# others) put every account in "no election" and the decks showed Reg E opt-in at
+# 0.0% while the optimizer, reading the same file, found both (2026-09-16).
+#
+# Returns the canonical label, "" for not applicable (blank, ineligible, exempt —
+# excluded like a blank), or None for wording no rule covers, which the caller must
+# stop on and ask about rather than guess. Confirmed by Aaron, 2026-09-16: Yes/Y → in;
+# No/N, Revoked → out; Failed to Respond, No Decision, Did Not Reply (1121), D (1147)
+# → default; Ineligible, Exempt, "Tracking Type N Does Not Exist" (1807), "No Vaule -
+# No Reg E" (1798), "Anything else" (1217) → not applicable.
+REGE_IN, REGE_OUT, REGE_DEFAULT = "Reg E Opt In", "Reg E Opt Out", "Reg E Default"
+_REGE_EXACT = {"yes": REGE_IN, "y": REGE_IN, "no": REGE_OUT, "n": REGE_OUT, "d": REGE_DEFAULT,
+               "ineligible": "", "exempt": "", "no vaule no reg e": "", "anything else": ""}
+_REGE_NA = re.compile(r"^tracking type \d+ does not exist$")
+_REGE_OUT_RX = re.compile(r"declin|opt out|optout|opted out|revoked")
+_REGE_IN_RX = re.compile(r"accept|opt in|optin|opted in")
+_REGE_DEFAULT_RX = re.compile(r"default|no response|no election|no elect|recevied|failed to respond|no decision|did not reply")
+
+
+def rege_label(text):
+    """Canonical Reg E label for one cell: REGE_IN / REGE_OUT / REGE_DEFAULT, "" (not applicable), or None (unmapped)."""
+    t = " ".join(str(text or "").replace("\x00", "").lower().replace("-", " ").split())
+    if not t:
+        return ""
+    if t in _REGE_EXACT:
+        return _REGE_EXACT[t]
+    if _REGE_NA.match(t):
+        return ""
+    if _REGE_OUT_RX.search(t):
+        return REGE_OUT
+    if _REGE_IN_RX.search(t):
+        return REGE_IN
+    if _REGE_DEFAULT_RX.search(t):
+        return REGE_DEFAULT
+    return None
 
 # Stat Desc wording that counts as an open account. Core lifecycle vocabulary
 # varies by processor; both spellings of each phrase are carried.

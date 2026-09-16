@@ -43,9 +43,10 @@ STATUSES = [("O", "Open"), ("A", "Active"), ("C", "Closed"), ("X", "Charged Off"
             ("C", "Purge at Yearend"), ("C", "Pending Closeout"),
             ("O", "Manually Controlled")]                        # explicit Other
 
-# Two cores' Reg E vocabularies, plus blank and an unmapped value.
+# Two cores' Reg E vocabularies, plus blank and the "Opted In" wording metrics_gen once misread
+# (2026-09-16). Unmapped wording now stops metrics_gen; test_classifiers covers it directly.
 REGE = ["Opt-In Accepted", "Opt-In Declined", "No Response Recevied",
-        "Reg E Opt In", "Reg E Opt Out", "Reg E Default", "", "Undetermined"]
+        "Reg E Opt In", "Reg E Opt Out", "Reg E Default", "", "Opted In"]
 
 # Business? — the blank is the point of this fixture.
 BUSINESS = ["No", "No", "No", "No", "Yes", ""]

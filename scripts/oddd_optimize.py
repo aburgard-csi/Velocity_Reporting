@@ -124,20 +124,17 @@ def norm_text(series):
 # Default"). Every core is normalized to these three canonical values. A non-blank
 # value that matches no rule is passed through unchanged so the caller flags it and
 # ASKS Aaron before guessing. Blank = not applicable (closed/business) -> excluded.
-REGE_IN, REGE_OUT, REGE_DEFAULT = "Reg E Opt In", "Reg E Opt Out", "Reg E Default"
+# The wording rules themselves live in build/ars_pipeline/odd_rows.rege_label, the one
+# definition metrics_gen also reads (2026-09-16: the two had drifted apart).
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "build", "ars_pipeline"))
+from odd_rows import rege_label, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
+
 
 def classify_rege(series):
     raw = norm_text(series)
-    t = raw.str.lower().str.replace("-", " ", regex=False)
-    t = t.str.replace(r"\s+", " ", regex=True).str.strip()
-    out = raw.copy()
-    out = out.mask(t == "", "")
-    out = out.mask(t.str.contains(r"declin|opt out|optout|opted out", regex=True), REGE_OUT)
-    out = out.mask(~out.isin([REGE_OUT]) & (t != "") &
-                   t.str.contains(r"accept|opt in|optin|opted in", regex=True), REGE_IN)
-    out = out.mask(~out.isin([REGE_OUT, REGE_IN]) & (t != "") &
-                   t.str.contains(r"default|no response|no election|no elect|recevied", regex=True), REGE_DEFAULT)
-    return out
+    labels = {v: rege_label(v) for v in raw.unique()}
+    # Unmapped wording passes through unchanged so the pack's flags surface it.
+    return raw.map(lambda v: v if labels[v] is None else labels[v])
 
 # Account status. Normalized to these seven buckets for every client. Unknown
 # non-blank values fall to "Other" and are surfaced (with their raw text) so they

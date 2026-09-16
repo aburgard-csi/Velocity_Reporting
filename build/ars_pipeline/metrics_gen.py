@@ -340,12 +340,18 @@ M.update(_ba_out)
 
 # ============ STAGE 2 ============
 OPTIN='IN'; OPTOUT={'OUT'}; NOELECT={'NO'}
+# Reg E wording is read by odd_rows.rege_label, the same rule oddd_optimize uses. This
+# function had its own copy that knew only "opt in", and "Opted In" / "Opted Out"
+# extracts shipped Reg E at 0.0% (2026-09-16). Wording no rule covers stops the build.
+from odd_rows import rege_label as _rege_label, REGE_IN as _RG_IN, REGE_OUT as _RG_OUT
+from collections import Counter as _Counter
+_rege_unmapped = _Counter()
 def regd(r):
-    v=g(r,f'{LATEST} Reg E Desc'); low=v.lower()
-    if not v or 'default' in low: return 'NO'
-    if 'opt-in' in low or 'opt in' in low or 'optin' in low: return 'IN'
-    if 'opt-out' in low or 'opt out' in low or 'optout' in low: return 'OUT'
-    return 'NO'
+    v=g(r,f'{LATEST} Reg E Desc'); lab=_rege_label(v)
+    if lab is None:
+        _rege_unmapped[v] += 1
+        return 'NO'
+    return 'IN' if lab == _RG_IN else 'OUT' if lab == _RG_OUT else 'NO'
 # ---- Reg E all personal (slide 24): open personal debit-card holders ----
 opdh=[r for r in data if personal(r) and isopen(r) and hascard(r)]
 if not opdh:
@@ -355,6 +361,10 @@ if not opdh:
                 "and %s carry a debit card." % (f"{len(_pers):,}", f"{sum(1 for r in _pers if isopen(r)):,}",
                 f"{sum(1 for r in _pers if not g(r,'Stat Desc')):,}", f"{sum(1 for r in _pers if hascard(r)):,}"))
 n_in=sum(1 for r in opdh if regd(r)==OPTIN)
+if _rege_unmapped:
+    _data_issue("carries Reg E wording no mapping covers",
+                "%s Reg E Desc values: %s. Ask how to map them (odd_rows.rege_label)." % (
+                    LATEST, ", ".join("'%s' (%s)" % (k, f"{n:,}") for k, n in _rege_unmapped.most_common(8))))
 n_out=sum(1 for r in opdh if regd(r) in OPTOUT)
 n_no=sum(1 for r in opdh if regd(r) in NOELECT)
 M['rege_pool']=len(opdh); M['rege_in']=n_in; M['rege_out']=n_out; M['rege_no']=n_no
