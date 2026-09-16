@@ -17,6 +17,27 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — The last two build files left in the temp folder are removed too
+
+A 1539 Marine FCU build died in `build_ars_gen.py` with "OSError: [Errno 28] No space left on
+device" while saving its phase deck, with C: at about 6 MB free and several ARS builds running.
+The fix below covered the scratch *directories*, but two scratch *files* were still written
+straight into `%TEMP%`, where `temp_dir` never sees them and `sweep_temp` (directories only)
+never removes them:
+
+- `build_ars_gen.py` copied the template shell to `%TEMP%\_<id>_ars_work.pptx` and never deleted
+  it. It now lives in the build's `ars_assets_` scratch dir, removed at exit.
+- `build_cp_gen.py` saved `<deck>.__full.pptx` to `%TEMP%` and deleted it only if `strip_dead.py`
+  succeeded, so a failed strip left it behind. It is now written inside a `TemporaryDirectory`
+  block, removed however the block ends.
+
+`tests/test_temp_cleanup.py` only looked for `tempfile.mkdtemp(`, which is why neither was caught.
+It now also fails on `mkstemp`, `gettempdir()`, `NamedTemporaryFile(delete=False)`, a
+`TemporaryDirectory` outside a `with` block, and `extractall` (whole-zip extraction) anywhere in
+`build/` or `scripts/`; and it checks that the extracted ODD is gone once the process exits and
+that both `resolve_csv` functions go through `rpe_env.extract_odd_csv`. Path-only change: no
+slide, figure or source note moves.
+
 ### 2026-09-16 — Build scratch is removed; every build sweeps the temp folder first
 
 The C: drive reached 0.11 GB free and two Reg E rebuilds (1192, 1554) died with "No space left on

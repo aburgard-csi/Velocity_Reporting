@@ -1043,14 +1043,16 @@ def main():
     ac.renumber(prs)
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(tempfile.gettempdir()) / f"{out.stem}.__full.pptx"
-    prs.save(str(tmp))
+    # The pre-strip deck goes in a scratch dir removed however this block ends; it used to be
+    # unlinked only on success, so a failed strip left it in %TEMP% (2026-09-16).
+    with tempfile.TemporaryDirectory(prefix="cp_full_") as scratch:
+        tmp = Path(scratch) / f"{out.stem}.__full.pptx"
+        prs.save(str(tmp))
 
-    # Physically drop the shell's orphaned slide parts and now-unused media. Leaving
-    # them in the package is what made the 2026.08 ICS decks unopenable.
-    subprocess.run([sys.executable, str(BUILD / "strip_dead.py"),
-                    str(tmp), str(out)], check=True)
-    tmp.unlink(missing_ok=True)
+        # Physically drop the shell's orphaned slide parts and now-unused media. Leaving
+        # them in the package is what made the 2026.08 ICS decks unopenable.
+        subprocess.run([sys.executable, str(BUILD / "strip_dead.py"),
+                        str(tmp), str(out)], check=True)
     print(f"built {out} -> {len(list(prs.slides._sldIdLst))} slides ({d['client_id']} {d['client_name']})")
 
 

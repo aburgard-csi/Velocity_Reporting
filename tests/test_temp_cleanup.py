@@ -52,16 +52,58 @@ def test_extract_takes_only_the_odd_member(tmp_path):
     assert [p.name for p in Path(path).parent.iterdir()] == ["1234-odd-extract.csv"]
 
 
-def test_no_pipeline_code_makes_an_unmanaged_temp_dir():
-    """Every build scratch dir must come from rpe_env.temp_dir, or it leaks again."""
-    hits = []
-    for p in list((REPO / "build").rglob("*.py")) + list((REPO / "scripts").rglob("*.py")):
+# Every way a pipeline module can put something in the system temp folder that nothing removes.
+# `tempfile.TemporaryDirectory` is allowed only as a `with` block, which removes it however the
+# block ends. `gettempdir()` is here because a file joined onto it is a leak with no mkdtemp in
+# sight: `_<id>_ars_work.pptx` and CashPlease's `.__full.pptx` both lived there (2026-09-16).
+_UNMANAGED = [
+    (re.compile(r"\b(mkdtemp|mkstemp|gettempdir)\s*\("), "use rpe_env.temp_dir"),
+    (re.compile(r"NamedTemporaryFile\([^)]*delete\s*=\s*False"), "use rpe_env.temp_dir"),
+    (re.compile(r"\bextractall\s*\("), "extract only the member you read (rpe_env.extract_odd_csv)"),
+]
+
+
+def _pipeline_lines():
+    for p in sorted(list((REPO / "build").rglob("*.py")) + list((REPO / "scripts").rglob("*.py"))):
         if p.name == "rpe_env.py":
             continue
         for i, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-            if re.search(r"tempfile\.mkdtemp\(", line):
-                hits.append(f"{p.relative_to(REPO)}:{i}: {line.strip()}")
-    assert not hits, "use rpe_env.temp_dir instead:\n  " + "\n  ".join(hits)
+            if not line.lstrip().startswith("#"):
+                yield f"{p.relative_to(REPO)}:{i}", line
+
+
+def test_no_pipeline_code_makes_an_unmanaged_temp_dir():
+    """Every build scratch dir must come from rpe_env.temp_dir, or it leaks again."""
+    hits = []
+    for where, line in _pipeline_lines():
+        for rx, fix in _UNMANAGED:
+            if rx.search(line):
+                hits.append(f"{where}: {line.strip()}  ({fix})")
+        if "TemporaryDirectory(" in line and not re.search(r"\bwith\b", line):
+            hits.append(f"{where}: {line.strip()}  (use it as a `with` block)")
+    assert not hits, "build scratch with no cleanup path:\n  " + "\n  ".join(hits)
+
+
+def test_extracted_odd_is_removed_when_the_process_exits(tmp_path):
+    """The resolve_csv path: the unzipped ODD (165 MB for 1539) does not outlive the build."""
+    z = tmp_path / "1234_ODDD.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        zf.writestr("1234-odd-extract.csv", "Acct ID\n1\n")
+        zf.writestr("1234_monthlytran.csv", "t" * 5000)
+    code = ("import sys; sys.path.insert(0, %r); import rpe_env as R; "
+            "print(R.extract_odd_csv(%r, prefix='oddcsv_'))") % (str(REPO / "build"), str(z))
+    csv = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
+    assert Path(csv).name == "1234-odd-extract.csv"
+    assert not os.path.exists(csv) and not os.path.exists(os.path.dirname(csv))
+
+
+@pytest.mark.parametrize("module, func", [("build_ars_gen.py", "def resolve_csv"),
+                                          ("product_mix_slide.py", "def _resolve_csv")])
+def test_resolve_csv_goes_through_the_managed_extract(module, func):
+    # build_ars_gen runs its whole build at import, so its resolve_csv is checked by source.
+    src = (REPO / "build" / "ars_pipeline" / module).read_text(encoding="utf-8")
+    body = src.split(func, 1)[1].split("\ndef ", 1)[0]
+    assert "extract_odd_csv(" in body and "extract(" not in body.replace("extract_odd_csv(", "")
 
 
 def test_build_client_sweeps_first():

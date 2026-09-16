@@ -306,7 +306,7 @@ if BIZ and BIZ['branches']:
     print("wrote", BIZ_PNG)
 
 # ------------------------------------------------------------------ open deck
-WORK = os.path.join(tempfile.gettempdir(), f'_{ID}_ars_work.pptx')
+WORK = os.path.join(ASSETS, f'_{ID}_ars_work.pptx')   # in the scratch dir, removed at exit (it used to sit in %TEMP% forever)
 shutil.copy(BASE, WORK); prs = Presentation(WORK); S = list(prs.slides)
 
 # --- Slide resolution by TITLE (project rule: titles, not indices) -------------
