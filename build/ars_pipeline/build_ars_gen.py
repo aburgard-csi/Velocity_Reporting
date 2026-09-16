@@ -64,7 +64,8 @@ def _sm_mmyyyy(_v):
 import base_guard as _bg
 _bg.check(B, os.path.basename(BASEJ))
 NAME = B['client']; ID = str(O.get('client', '')).strip()   # no client-name default; id comes from the data pack
-ASSETS = tempfile.mkdtemp(prefix="ars_assets_")
+import rpe_env as _renv_assets
+ASSETS = _renv_assets.temp_dir("ars_assets_")     # removed at exit (it used to be left behind)
 
 # ------------------------------------------------------------------ derived values (from build_gen / build_gen_b)
 # Under $1M this reads in K rather than "$0.83M" (Aaron, 2026-09-11); brand owns
@@ -164,13 +165,12 @@ def resolve_csv(src):
     select the ODD by name and only fall back to the largest file.
     """
     if src.lower().endswith('.csv'): return src
-    tmp = tempfile.mkdtemp(prefix="oddcsv_")
-    with zipfile.ZipFile(src) as z: z.extractall(tmp)
-    cands = glob.glob(os.path.join(tmp, '**', '*.csv'), recursive=True)
-    if not cands: raise SystemExit(f'ERROR: no .csv inside {src}')
-    odd = [c for c in cands
-           if '-odd' in os.path.basename(c).lower() or '_v2_' in os.path.basename(c).lower()]
-    return odd[0] if odd else max(cands, key=os.path.getsize)
+    # Only the ODD member, into a scratch dir removed at exit (rpe_env.extract_odd_csv, 2026-09-16).
+    import rpe_env as _renv
+    try:
+        return _renv.extract_odd_csv(src, prefix="oddcsv_")
+    except FileNotFoundError:
+        raise SystemExit(f'ERROR: no .csv inside {src}')
 
 
 def odd_snapshot(hdr):
@@ -1290,7 +1290,7 @@ STRIP = os.path.join(BUILDDIR, "strip_dead.py")   # shared post-processor, next 
 # creating and copying but NOT deleting — `rm` returns "Operation not
 # permitted" — so no amount of cleanup would have removed them there.
 # A temp dir is local, always deletable, and never inside Outputs.
-_PHASE_DIR = tempfile.mkdtemp(prefix="ars_phase_")
+_PHASE_DIR = _renv_assets.temp_dir("ars_phase_")
 _ob = os.path.basename(OUT)
 _A = os.path.join(_PHASE_DIR, _ob + ".A.pptx")
 _B = os.path.join(_PHASE_DIR, _ob + ".B.pptx")

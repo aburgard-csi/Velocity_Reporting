@@ -858,7 +858,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
   used by the ICS builder and the validator. Never eyeball whether a label fits.
 - `branch_names.py` — branch id → name lookup shared by the ARS chart renderers.
-- `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`) and
+- `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`), build scratch (`temp_dir`, removed at exit; `sweep_temp`, run first by every `build_client`, clears scratch a crashed build left in the temp folder — 2026-09-16, after ~180 GB of it filled C:) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
   substitute a missing face. Every chart renderer goes through it.
 - `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`.

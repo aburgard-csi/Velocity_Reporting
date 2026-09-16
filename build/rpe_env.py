@@ -256,6 +256,76 @@ def report_files(pattern: str = "*") -> list:
     return sorted(out, key=lambda p: p.name)
 
 
+# ------------------------------------------------------------------ build scratch in the system temp folder
+# A build unzips the ODD extract (up to 1.8 GB) and renders images into the system temp
+# folder. Those directories were never removed: on 2026-09-16 the C: drive reached 0.11 GB
+# free with 1,241 of them (about 180 GB) left over since 2026-08-31, and two builds died with
+# "No space left on device". Every build scratch directory now comes from `temp_dir`, which
+# removes it when the process exits, and every build starts with `sweep_temp`, which removes
+# what a crashed or killed build left behind (Aaron: "make sure temp drive cleanup is part of
+# the process").
+TEMP_PREFIXES = ("oddd_", "oddcsv_", "ars_assets_", "ars_phase_")
+TEMP_MAX_AGE_HOURS = 6      # a build takes minutes; older scratch belongs to no live build
+
+
+def temp_dir(prefix: str) -> str:
+    """A scratch directory in the system temp folder, removed when this process exits."""
+    import atexit
+    import shutil
+    import tempfile
+    if not prefix.startswith(TEMP_PREFIXES):
+        raise ValueError(f"temp_dir prefix {prefix!r} is not in TEMP_PREFIXES, so sweep_temp would never clean it")
+    path = tempfile.mkdtemp(prefix=prefix)
+    atexit.register(shutil.rmtree, path, True)
+    return path
+
+
+def sweep_temp(max_age_hours: float = TEMP_MAX_AGE_HOURS, root=None, now=None) -> tuple:
+    """Remove pipeline scratch directories older than `max_age_hours`. Returns (removed, bytes freed).
+
+    Only directories named with a TEMP_PREFIXES prefix, directly in the temp folder, are touched;
+    anything younger than the cutoff may belong to a build still running and is left alone.
+    """
+    import shutil
+    import tempfile
+    import time
+    root = Path(root or tempfile.gettempdir())
+    cutoff = (now or time.time()) - max_age_hours * 3600
+    removed = freed = 0
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return 0, 0
+    for d in entries:
+        try:
+            if not d.is_dir() or not d.name.startswith(TEMP_PREFIXES) or d.stat().st_mtime >= cutoff:
+                continue
+            size = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+            shutil.rmtree(d)
+            removed += 1
+            freed += size
+        except OSError:
+            continue            # in use or already gone: the next sweep tries again
+    return removed, freed
+
+
+def extract_odd_csv(zip_path, prefix: str = "oddd_") -> str:
+    """Extract ONLY the ODD extract from an ODDD zip into a `temp_dir`, and return its path.
+
+    Several zips also carry the month's transaction file as a .csv, sometimes the larger of the two,
+    so the ODD member is chosen by name ("-odd" or "_v2_") and only falls back to the largest .csv.
+    Extracting the whole zip wrote the transaction file to disk too, for nothing.
+    """
+    import zipfile
+    with zipfile.ZipFile(zip_path) as z:
+        members = [i for i in z.infolist() if i.filename.lower().endswith(".csv") and not i.is_dir()]
+        if not members:
+            raise FileNotFoundError(f"no .csv inside {zip_path}")
+        named = [i for i in members if "-odd" in Path(i.filename).name.lower() or "_v2_" in Path(i.filename).name.lower()]
+        pick = named[0] if named else max(members, key=lambda i: i.file_size)
+        return z.extract(pick, temp_dir(prefix))
+
+
 BUILD_ARTIFACTS_DIRNAME = "Build Artifacts"
 
 

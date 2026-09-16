@@ -17,6 +17,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — Build scratch is removed; every build sweeps the temp folder first
+
+The C: drive reached 0.11 GB free and two Reg E rebuilds (1192, 1554) died with "No space left on
+device". Every ARS build unzipped the ODD extract (up to 1.8 GB, plus the month's transaction file
+beside it) into `oddd_*` / `oddcsv_*` folders and rendered images into `ars_assets_*` /
+`ars_phase_*`, and none of them was ever deleted: 1,241 folders, about 180 GB, back to 2026-08-31.
+They were cleared by hand (older than 2 hours only).
+
+- `rpe_env.temp_dir(prefix)` is now the only way the pipeline makes build scratch; it is removed
+  when the process exits.
+- `rpe_env.extract_odd_csv` extracts only the ODD member of the zip, not the transaction file.
+- `rpe_env.sweep_temp()` removes pipeline scratch older than 6 hours (left by a crashed or killed
+  build); `build_month.build_client` — and so `ars_launcher` and CSM Sheila — run it first and log
+  what they removed (Aaron: "make sure temp drive cleanup is part of the process").
+- `tests/test_temp_cleanup.py` fails if any build or scripts file calls `tempfile.mkdtemp` directly.
+
 ### 2026-09-16 — Reg E opt-in read as zero for "Opted In / Opted Out" extracts (correction)
 
 **A client-facing number was wrong.** `metrics_gen.regd` recognised only "opt in / opt-in / optin",

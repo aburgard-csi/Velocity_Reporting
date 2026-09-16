@@ -251,6 +251,12 @@ def dco_file(reports, cid, period):
 def build_client(cid, name, mmsm, progs, period, stage):
     d = os.path.join(stage, cid); os.makedirs(d, exist_ok=True)
     log = os.path.join(d, "build.log"); open(log, "w", encoding="utf-8").close()
+    # Clear scratch that crashed or killed builds left in the temp folder (2026-09-16: the C:
+    # drive filled with ~180 GB of it). Scratch younger than TEMP_MAX_AGE_HOURS is left alone.
+    swept, freed = R.sweep_temp()
+    if swept:
+        with open(log, "a", encoding="utf-8") as fh:
+            fh.write(f"temp cleanup: removed {swept} stale build scratch folder(s), {freed / 1e9:.1f} GB\n")
     made = {}
     I = R.inputs(); REPORTS = R.report_dirs(); ODDD = I / "ODDD"
 
