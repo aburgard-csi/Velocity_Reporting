@@ -17,6 +17,31 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — TEST BRANCH: six views from James Gilmore's deck, opt-in (`RPE_JAMES_SLIDES=1`)
+
+**Branch `test/james-aaron-combined` only; not for delivery.** Aaron: "create a test branch that
+combines ideas from both my and James's decks, produce a sample." With `RPE_JAMES_SLIDES=1`,
+`build_ars_gen` adds six slides; without it the build is unchanged (the template baseline does
+not move). Figures come from the ODD and the ARS workbook the build already reads:
+
+- **Revenue by Mailing** (after Mailing Response Summary) — each mailing's booked incremental
+  revenue from the workbook's All Months Rollup MM sheet, with revenue per month booked; a
+  workbook without the sheet says so on the slide.
+- **Responders vs Mailed Non-Responders** (after Before vs After by Offer) — difference in
+  differences. The responder side is the Responder Activity slide's own figure (the build stops
+  if the two drift); the control is accounts mailed the same drop that did not meet the goal.
+- **Card Account Health** (after NSF/OD Activity) — eligible personal accounts by card-spend state
+  (active, declining, cooling, dormant, never used, no card), ratios of the last 3 months to the 3
+  before.
+- **Take Rate and Reg E Opt-In by Branch** and **Branch Scorecard** (after Reg E by Vintage) — on
+  the deck's own definitions, so the Total row reconciles to Program Overview and First-Year
+  Closure (pinned in `tests/test_combined_insights.py` against the synthetic ODD).
+- **ARS Scorecard** (before Key Takeaways) — each measure against its own comparator; status
+  ahead / within 2% / behind from Aaron's +/-2% band, glyph plus colour.
+
+New: `build/ars_pipeline/combined_insights.py` (import-safe computations),
+`insight_charts.py` (renderers), `combined_insight_slides.py` (slide insertion).
+
 ### 2026-09-16 — Reg E opt-in read as zero for "Opted In / Opted Out" extracts (correction)
 
 **A client-facing number was wrong.** `metrics_gen.regd` recognised only "opt in / opt-in / optin",

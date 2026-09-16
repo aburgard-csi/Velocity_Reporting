@@ -1798,6 +1798,42 @@ for _sl in prs.slides:
         for _x in _sl.shapes:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.left=Inches(1.03); _x.top=Inches(1.81); _x.width=Inches(8.4); _x.height=Inches(4.38)
 
+# ---- 2b'. TEST BRANCH: views taken from James Gilmore's deck (opt-in) ----
+# test/james-aaron-combined (2026-09-16). OFF unless RPE_JAMES_SLIDES=1, so the monthly build
+# and the template baseline are unchanged. Placed here, after every index-based pass above
+# (the Swipes & Spend / NSF enlarge reads slides 24 and 25 BY INDEX), so inserting six slides
+# cannot shift those passes onto the wrong slide. Each slide writes its own source note.
+if os.environ.get("RPE_JAMES_SLIDES") == "1":
+    if not ODD:
+        raise SystemExit("RPE_JAMES_SLIDES=1 needs the ODD extract argument")
+    import combined_insights as _ci_mod
+    import combined_insight_slides as _cis
+    _wb_path = os.environ.get("RPE_JAMES_WORKBOOK", "").strip()
+    if not _wb_path:
+        import rpe_env as _rpe_j
+        _hits = sorted(str(p) for d in _rpe_j.report_dirs()
+                       for p in glob.glob(os.path.join(str(d), f"{ID}-{_per}-*Workbook*.xlsx"))
+                       if "invitation checking" not in os.path.basename(str(p)).lower())
+        _wb_path = _hits[0] if _hits else ""
+    _CI = _ci_mod.compute(ODD, _wb_path or None, M=M, B=B)
+    _ci_json = os.path.join(os.path.dirname(os.path.abspath(METRICS)), "combined_insights.json")
+    with open(_ci_json, "w", encoding="utf-8") as _fh:
+        json.dump(_CI, _fh, indent=1)
+    _rc = _CI["responder_control"]
+    if _rc.get("available") and (_rc["responders"]["before"], _rc["responders"]["after"]) != \
+            (M.get("ba_spend_before"), M.get("ba_spend_after")):
+        raise SystemExit("insight slides: the responder side (%s -> %s) does not reproduce the "
+                         "Responder Activity slide (%s -> %s) — before_after and combined_insights "
+                         "have drifted" % (_rc["responders"]["before"], _rc["responders"]["after"],
+                                           M.get("ba_spend_before"), M.get("ba_spend_after")))
+    _ins = _cis.add_insight_slides(prs, _CI, {
+        "id": ID, "name": NAME, "odd_src": ODD_SRC, "wb_src": WB_SRC,
+        "wb_file": os.path.basename(_wb_path), "latest": LATEST_MON, "as_of_long": AS_OF_LONG,
+        "data_month": DATA_MONTH,
+        "data_month_short": datetime.datetime.strptime(DATA_MONTH, "%B %Y").strftime("%b %Y"),
+        "ltd_revenue": B.get("ltd_revenue"), "assets": ASSETS})
+    print(f"insight slides (RPE_JAMES_SLIDES): {len(_ins)} added -> {_ci_json}")
+
 # ---- 2c. Save -> chart swap -> letterbox -> fonts ----
 # --- figure gate: one measure, ONE value -------------------------------------
 # The swap gate above fails a build whose swap string matched nothing. This fails
