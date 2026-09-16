@@ -168,3 +168,23 @@ def test_the_combined_button_runs_the_launcher_with_combined():
     assert "--combined" not in W.build_cmd("1776", True)
     job = W.Job("1776", False, True)
     assert job.to_json()["combined"] is True
+
+def test_the_changelog_shows_the_newest_five_entries(tmp_path):
+    """Header "What's new" and the /changelog page (Aaron, 2026-09-16)."""
+    md = tmp_path / "CHANGELOG.md"
+    md.write_text("# Changelog\n\n## Unreleased\n\n"
+                  + "".join(f"### 2026-09-{d:02d} — Entry **{d}**\n\nFirst `para` {d}.\nstill first.\n\nSecond para.\n\n"
+                            for d in range(20, 13, -1)), encoding="utf-8")
+    e = W.changelog_entries(5, md)
+    assert [x["date"] for x in e] == ["2026-09-20", "2026-09-19", "2026-09-18", "2026-09-17", "2026-09-16"]
+    assert e[0]["title"] == "Entry 20" and e[0]["summary"] == "First para 20. still first." and e[0]["anchor"] == "e0"
+    page = W.changelog_page(md)
+    assert '<h3 id="e0">' in page and "<code>para</code>" in page and "<b>20</b>" in page
+
+
+def test_the_changelog_page_is_served_without_the_token(server):
+    status, data = call(server, "GET", "/changelog", token=False)
+    assert status == 200 and b"Change log" in data
+    assert call(server, "GET", "/api/changelog", token=False)[0] == 403
+    status, data = call(server, "GET", "/api/changelog")
+    assert status == 200 and len(json.loads(data)["entries"]) <= 5

@@ -17,6 +17,13 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — CSM Sheila shows what's new and links the change log
+
+The page header has a "What's new" menu with the five newest entries of this file (date, title and the first
+paragraph) and a "Change log" link to the whole file, rendered at `/changelog` (Aaron: "Add a link to the
+change log at the top of Sheila's page, and show the last 5 updates"). `release_launcher.ps1` now copies
+`CHANGELOG.md` beside the released code so the page reads the released version.
+
 ### 2026-09-16 — Contact Us card names the managing CSM; ICS Direct Mail New Accounts slide
 
 **Contact card** (Aaron: "The contact card should always show the managing CSM"). Every deck's Contact Us

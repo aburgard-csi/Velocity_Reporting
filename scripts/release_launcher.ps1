@@ -39,7 +39,7 @@ foreach ($d in 'build', 'scripts', 'validation', 'templates', 'fonts') {
     robocopy (Join-Path $repo $d) (Join-Path $code $d) /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 /XD __pycache__ .pytest_cache | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed for $d ($LASTEXITCODE)" }
 }
-foreach ($f in 'clients.md', 'requirements.txt') { Copy-Item (Join-Path $repo $f) (Join-Path $code $f) -Force }
+foreach ($f in 'clients.md', 'requirements.txt', 'CHANGELOG.md') { Copy-Item (Join-Path $repo $f) (Join-Path $code $f) -Force }
 $commit = (git -C $repo rev-parse --short HEAD) 2>$null
 $dirty = (git -C $repo status --porcelain) 2>$null
 "released $(Get-Date -Format 'yyyy-MM-dd HH:mm') by $env:USERNAME from $repo at $commit$(if ($dirty) { ' (with uncommitted changes)' })" |

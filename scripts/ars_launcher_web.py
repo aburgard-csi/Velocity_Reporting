@@ -303,6 +303,112 @@ def queue_doc():
             "queued": [j.cid for j in queue if not j.started]}
 
 
+# ------------------------------------------------------------------ change log
+# The page links the change log and shows the last five updates (Aaron, 2026-09-16: "Add a link to the change
+# log at the top of Sheila's page, and show the last 5 updates"). CHANGELOG.md is released beside the code.
+CHANGELOG = REPO / "CHANGELOG.md"
+_ENTRY_RX = re.compile(r"^###\s+(\d{4}-\d{2}-\d{2})\s+[—-]+\s+(.+?)\s*$")
+
+
+def _plain(md):
+    """Markdown inline marks stripped for a one-line summary."""
+    t = re.sub(r"`([^`]*)`", r"\1", md)
+    t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def changelog_entries(n=5, path=None):
+    """The newest `n` dated entries of CHANGELOG.md (newest first): [{date, title, summary, anchor}].
+
+    summary is the entry's first paragraph as plain text, cut at 260 characters; anchor matches the
+    heading id on /changelog.
+    """
+    try:
+        lines = Path(path or CHANGELOG).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out, i = [], 0
+    while i < len(lines) and len(out) < n:
+        m = _ENTRY_RX.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        para = []
+        while j < len(lines) and lines[j].strip() and not lines[j].startswith("#"):
+            para.append(lines[j].strip())
+            j += 1
+        s = _plain(" ".join(para))
+        out.append({"date": m.group(1), "title": _plain(m.group(2)),
+                    "summary": s[:260].rstrip() + ("\u2026" if len(s) > 260 else ""), "anchor": f"e{len(out)}"})
+        i = j
+    return out
+
+
+def _md_inline(text):
+    import html as _h
+    t = _h.escape(text)
+    t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+    t = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
+    return t
+
+
+def changelog_page(path=None):
+    """CHANGELOG.md as a readable page: headings, paragraphs, lists, bold and code."""
+    try:
+        lines = Path(path or CHANGELOG).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = ["The change log is not available in this copy."]
+    body, para, items, n = [], [], [], 0
+
+    def flush():
+        if para:
+            body.append("<p>" + _md_inline(" ".join(para)) + "</p>")
+            para.clear()
+        if items:
+            body.append("<ul>" + "".join("<li>" + _md_inline(i) + "</li>" for i in items) + "</ul>")
+            items.clear()
+    for ln in lines:
+        s = ln.rstrip()
+        h = re.match(r"^(#{1,4})\s+(.*)$", s)
+        if h:
+            flush()
+            lvl = len(h.group(1))
+            ident = ""
+            if lvl == 3 and _ENTRY_RX.match(s):
+                ident = f' id="e{n}"'
+                n += 1
+            body.append(f"<h{lvl}{ident}>{_md_inline(h.group(2))}</h{lvl}>")
+        elif re.match(r"^\s*[-*]\s+", s):
+            if para:
+                flush()
+            items.append(re.sub(r"^\s*[-*]\s+", "", s))
+        elif s.startswith("  ") and items:
+            items[-1] += " " + s.strip()
+        elif s.strip() in ("", "---"):
+            flush()
+        elif s.startswith(">"):
+            para.append(s.lstrip("> "))
+        else:
+            if items:
+                flush()
+            para.append(s.strip())
+    flush()
+    return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            "<title>CSM Sheila · Change log</title><style>"
+            "body{margin:0;background:#F4F6F9;color:#0E1B2A;font:15.5px/1.55 'Segoe UI',Arial,sans-serif}"
+            "header{background:#00274C;color:#fff;padding:14px 24px;font-weight:700;font-size:19px}"
+            "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
+            "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F47A29;padding-bottom:4px}"
+            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
+            "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}}"
+            "</style></head><body><header>CSM Sheila · Change log</header><main>"
+            + "\n".join(body) + "</main></body></html>")
+
+
 def reveal(path):
     """Show a deck in File Explorer — only a file under Outputs."""
     try:
@@ -346,6 +452,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden"})
         if u.path == "/":
             return self._send(200, PAGE.replace("__TOKEN__", TOKEN).encode("utf-8"), "text/html; charset=utf-8")
+        if u.path == "/changelog":
+            return self._send(200, changelog_page().encode("utf-8"), "text/html; charset=utf-8")
         if not self._api_ok():
             return self._send(403, {"error": "forbidden"})
         q = parse_qs(u.query)
@@ -355,6 +463,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, clients_doc())
             if u.path == "/api/queue":
                 return self._send(200, queue_doc())
+            if u.path == "/api/changelog":
+                return self._send(200, {"entries": changelog_entries(5)})
             if u.path in ("/api/status", "/api/job"):
                 if not CID_RX.match(cid):
                     return self._send(400, {"error": "not a client number"})
@@ -428,7 +538,19 @@ PAGE = r"""<!doctype html>
 body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.45 "Segoe UI",Calibri,Arial,sans-serif}
 header.top{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 header.top h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.01em}
-header.top .period{margin-left:auto;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px}
+header.top .news{margin-left:auto;position:relative}
+header.top .news summary{cursor:pointer;list-style:none;font-weight:600;font-size:13.5px;padding:5px 12px;border:1px solid rgba(255,255,255,.45);border-radius:999px}
+header.top .news summary::-webkit-details-marker{display:none}
+header.top .news[open] summary{background:rgba(255,255,255,.12)}
+header.top .newsbox{position:absolute;right:0;top:36px;z-index:20;width:min(460px,92vw);background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);padding:12px 14px;max-height:70vh;overflow:auto}
+header.top .newsbox ol{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+header.top .newsbox li a{color:var(--ink);text-decoration:none;display:block}
+header.top .newsbox li a:hover b{text-decoration:underline}
+header.top .newsbox .d{color:var(--ink3);font-size:12px;font-variant-numeric:tabular-nums}
+header.top .newsbox .s{color:var(--ink2);font-size:12.5px;display:block;margin-top:2px}
+header.top .newsbox .all{display:inline-block;margin-top:10px;font-weight:600;color:var(--sent)}
+header.top .loglink{color:#fff;font-size:13.5px;font-weight:600;text-decoration:underline}
+header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px}
 .app{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:18px;max-width:1240px;margin:18px auto;padding:0 18px}
 @media (max-width:820px){.app{grid-template-columns:1fr}}
 aside,main{background:var(--surface);border:1px solid var(--rule);border-radius:10px}
@@ -502,7 +624,7 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><span class="period" id="period">Loading…</span></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><span class="period" id="period">Loading…</span></header>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -737,6 +859,15 @@ $("#csm").addEventListener("change", () => { store("ars-builder-csm", $("#csm").
 $("#q").addEventListener("input", renderList);
 loadClients();
 pollQueue(); setInterval(pollQueue, 3000);
+document.addEventListener("click", e => { const n = $("#news"); if (n && n.open && !n.contains(e.target)) n.open = false; });
+// The last five change-log entries in the header (Aaron, 2026-09-16).
+(async function loadNews() {
+  try {
+    const {body} = await api("/api/changelog");
+    const items = (body.entries || []).map(e => `<li><a href="/changelog#${esc(e.anchor)}" target="_blank" rel="noopener"><span class="d">${esc(e.date)}</span><br><b>${esc(e.title)}</b><span class="s">${esc(e.summary)}</span></a></li>`);
+    $("#newslist").innerHTML = items.join("") || `<li class="small">No entries yet.</li>`;
+  } catch (e) { $("#newslist").innerHTML = `<li class="small">The change log could not be read.</li>`; }
+})();
 </script>
 </body>
 </html>
