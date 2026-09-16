@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""ARS Deck Builder — the browser front end for ars_launcher.
+"""WILL, the Workbook Intake & Layout Launcher — the browser front end for ars_launcher (named 2026-09-16; it was ARS Deck Builder).
 
     python scripts/ars_launcher_web.py [--port 0] [--no-open]
 
 Aaron, 2026-09-15: "would it be possible to run Build ARS Deck.bat in an application or browser?"
-A browser cannot start a program by itself, so `ARS Deck Builder.bat` starts this small server on
+A browser cannot start a program by itself, so `ARS Deck Builder GUI.bat` starts this small server on
 127.0.0.1 and opens the page. The page lists the clients.md ARS clients, runs the same checks as
 `ars_launcher.py status`, and starts `ars_launcher.py build` as a child process, showing its step
 lines as they arrive. Every rule, the build and the delivery to Outputs stay in ars_launcher —
@@ -98,7 +98,7 @@ def clients_doc():
     sent = DS.read_deliveries()["sent"] if period else {}
     decks = {}
     for d in (R.output_decks(f"*-{period}-*ARS*.pptx") if period else []):
-        decks.setdefault(d.name.split("-", 1)[0], []).append(d.name)
+        decks.setdefault(d.name.split("-", 1)[0], []).append(d)
     out = []
     for cid, (_, name, path, progs) in ars.items():
         row = rows.get(cid, {})
@@ -111,12 +111,37 @@ def clients_doc():
             "programs": progs,
             "path": path,
             "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
-            "decks": sorted(decks.get(cid, [])),
+            "decks": sorted(d.name for d in decks.get(cid, [])),
             "lift_expired": _lift.get(cid) == L.STOP,
+            "error": bool(period) and last_build_failed(cid, period, decks.get(cid, [])),
         })
     out.sort(key=lambda c: (c["csm"], (c["name"] or "").lower()))
     return {"period": period, "clients": out,
             "lift_pending": _lift_state["started"] and not _lift_state["done"]}
+
+
+def last_build_failed(cid, period, decks=()):
+    """Did this client's last build for `period` fail? Drives the list's red "Error <period>" pill.
+
+    A build this server ran decides it while it is remembered: still running or queued is not an
+    error, and a finished one failed when it exited non-zero. Otherwise the launcher's own record
+    (`_launcher_result.json`) decides: a build that was not put in Outputs failed — unless a deck
+    for the period reached Outputs after that record was written, by any route.
+    """
+    with _jobs_lock:
+        job = _jobs.get(cid)
+    if job:
+        return job.done and bool(job.code)
+    res = R.build_artifacts() / "launcher" / period / cid / "_launcher_result.json"
+    try:
+        rec = json.loads(res.read_text(encoding="utf-8"))
+        written = res.stat().st_mtime
+    except (OSError, ValueError):
+        return False
+    if rec.get("delivered") or rec.get("clean"):     # "clean": the pre-2026-09-15 staging record
+        return False
+    newest = max((Path(d).stat().st_mtime for d in decks if Path(d).exists()), default=0)
+    return newest <= written
 
 
 # Each client's status is kept for STATUS_TTL seconds (Aaron, 2026-09-15: "can we speed up the UI by caching
@@ -181,10 +206,12 @@ class Job:
     def __init__(self, cid, rebuild):
         self.cid, self.rebuild = cid, rebuild
         self.lines, self.done, self.code = [], False, None
-        self.started = time.time()
+        self.queued_at = time.time()
+        self.started = None          # set when it leaves the queue
         self.finished = None
 
     def run(self):
+        self.started = time.time()
         # COLUMNS keeps ars_launcher.say from wrapping a long Outputs path across two lines.
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1", COLUMNS="1000")
         try:
@@ -203,9 +230,12 @@ class Job:
 
     def to_json(self):
         deck = next((m.group(1) for m in map(DECK_RX.search, self.lines) if m), None)
+        waiting = [j for j in list(_queue) if not j.started]
+        position = waiting.index(self) + 1 if self in waiting else None
+        running = next((j.cid for j in list(_jobs.values()) if j.started and not j.done), None)
         return {"client": self.cid, "rebuild": self.rebuild, "lines": self.lines, "done": self.done,
-                "code": self.code, "deck": deck,
-                "seconds": round((self.finished or time.time()) - self.started)}
+                "code": self.code, "deck": deck, "queued": position, "after": running if position else None,
+                "seconds": round((self.finished or time.time()) - self.started) if self.started else 0}
 
 
 def job_doc(cid):
@@ -214,16 +244,49 @@ def job_doc(cid):
     return j.to_json() if j else None
 
 
+# Builds run one at a time — two at once would fight over the share and the CPU. A build asked for while
+# another runs waits in this queue, first in first out, and the list shows its place (Aaron, 2026-09-16:
+# a second build used to be refused with "Start the next one when it finishes").
+_queue = []
+_worker = {"thread": None}
+
+
+def _drain():
+    while True:
+        with _jobs_lock:
+            if not _queue:
+                _worker["thread"] = None
+                return
+            job = _queue[0]
+        try:
+            job.run()
+        finally:
+            with _jobs_lock:
+                _queue.remove(job)
+
+
 def start_build(cid, rebuild):
-    """Start a build unless one is already running on this PC. Returns (http status, body)."""
+    """Queue a build; it starts at once when nothing else is building. Returns (http status, body)."""
     with _jobs_lock:
-        running = [j for j in _jobs.values() if not j.done]
-        if running:
-            return 409, {"error": f"A build for {running[0].cid} is still running. Start the next one when it finishes."}
+        cur = _jobs.get(cid)
+        if cur and not cur.done:
+            where = "building" if cur.started else f"queued #{[j for j in _queue if not j.started].index(cur) + 1}"
+            return 409, {"error": f"{cid} is already {where}."}
         job = Job(cid, rebuild)
         _jobs[cid] = job
-    threading.Thread(target=job.run, daemon=True).start()
+        _queue.append(job)
+        if _worker["thread"] is None:
+            _worker["thread"] = threading.Thread(target=_drain, daemon=True)
+            _worker["thread"].start()
     return 202, job.to_json()
+
+
+def queue_doc():
+    """What is building and what waits, in order — cheap enough for the list to poll."""
+    with _jobs_lock:
+        queue = list(_queue)
+    return {"building": next((j.cid for j in queue if j.started and not j.done), None),
+            "queued": [j.cid for j in queue if not j.started]}
 
 
 def reveal(path):
@@ -276,6 +339,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path == "/api/clients":
                 return self._send(200, clients_doc())
+            if u.path == "/api/queue":
+                return self._send(200, queue_doc())
             if u.path in ("/api/status", "/api/job"):
                 if not CID_RX.match(cid):
                     return self._send(400, {"error": "not a client number"})
@@ -309,13 +374,13 @@ def make_server(port=0):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="ARS Deck Builder: the browser front end for ars_launcher.")
+    ap = argparse.ArgumentParser(description="WILL, the Workbook Intake & Layout Launcher: the browser front end for ars_launcher.")
     ap.add_argument("--port", type=int, default=0, help="default: any free port")
     ap.add_argument("--no-open", action="store_true", help="don't open a browser")
     a = ap.parse_args(argv)
     srv = make_server(a.port)
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
-    print(f"\n ARS Deck Builder is running at {url}")
+    print(f"\n WILL (Workbook Intake & Layout Launcher) is running at {url}")
     print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
     threading.Thread(target=prewarm, daemon=True).start()
     if not a.no_open:
@@ -332,7 +397,7 @@ PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ARS Deck Builder</title>
+<title>WILL · Workbook Intake &amp; Layout Launcher</title>
 <style>
 :root{
   --navy:#00274C; --orange:#F47A29; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
@@ -369,6 +434,8 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap}
 .chip.sent{background:var(--sent-bg);color:var(--sent)} .chip.out{background:var(--ok-bg);color:var(--ok)}
 .chip.stop{background:var(--stop-bg);color:var(--stop)}
+.chip.queue{background:var(--warn-bg);color:var(--warn)} .chip.building{background:var(--orange);color:#fff}
+.chip.error{background:#C62828;color:#fff}
 main{padding:22px 24px;min-height:420px}
 .empty{color:var(--ink2);max-width:60ch}
 .empty h2{color:var(--ink);font-size:18px;margin:0 0 6px}
@@ -405,15 +472,22 @@ button.link{font:inherit;background:none;border:0;color:var(--sent);text-decorat
 .result h3{margin:0 0 4px;font-size:16px;text-transform:none;letter-spacing:0;color:var(--ink)}
 .result p{margin:4px 0}
 .mono{font-family:Consolas,monospace;font-size:13px;word-break:break-all}
-details.log{margin-top:12px} details.log summary{cursor:pointer;color:var(--ink2);font-size:13px}
-details.log pre{background:var(--soft);border-radius:6px;padding:10px;overflow-x:auto;font-size:12.5px;max-height:260px}
+details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2);font-size:13px;width:max-content}
+.term{margin-top:8px;border-radius:8px;overflow:hidden;background:#0C0C0C;border:1px solid #2B2B2B;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.term .bar{display:flex;align-items:center;gap:8px;height:32px;padding-left:12px;background:#1F1F1F;color:#CCCCCC;font:12px/1 "Segoe UI",Arial,sans-serif}
+.term .bar .ttl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.term .bar .ctl{display:flex;height:100%} .term .bar .ctl span{width:42px;display:grid;place-items:center;color:#9D9D9D}
+.term pre{margin:0;padding:10px 14px 14px;color:#CCCCCC;font:13px/1.45 "Cascadia Mono",Consolas,"Courier New",monospace;max-height:340px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.term .g{color:#16C60C} .term .y{color:#F9F1A5} .term .r{color:#E74856} .term .c{color:#61D6D6} .term .b{color:#3B78FF}
+.term .cursor{animation:blink 1s steps(1) infinite} @keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.term .cursor{animation:none}}
 .last{margin-top:18px;color:var(--ink2);font-size:14px}
 .note{color:var(--ink2);font-size:13px;margin-top:14px}
 .err{color:var(--stop)}
 </style>
 </head>
 <body>
-<header class="top"><h1>ARS Deck Builder</h1><span class="period" id="period">Loading…</span></header>
+<header class="top"><h1>WILL <span style="font-weight:400;opacity:.8">· Workbook Intake &amp; Layout Launcher</span></h1><span class="period" id="period">Loading…</span></header>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -433,7 +507,7 @@ details.log pre{background:var(--soft);border-radius:6px;padding:10px;overflow-x
         <li>Build takes 3 to 15 minutes and shows each step as it goes.</li>
         <li>A deck that passes validation goes straight to your folder in Outputs. Review it, save it as a PDF and email it as usual.</li>
       </ol>
-      <p class="note">Keep the black ARS Deck Builder window open while you build.</p>
+      <p class="note">Keep WILL's black window open while you build.</p>
     </div>
   </main>
 </div>
@@ -443,6 +517,20 @@ const STEP_ORDER = ["Reading the ARS workbook","Reading the ARS workbook and DCO
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let CLIENTS = [], PERIOD = null, current = null, poller = null, armed = false;
+let QUEUE = {building: null, queued: []};
+
+// What is building and what waits. Cheap, so the list keeps it current every few seconds; when a
+// build finishes the client list is re-read so its "In Outputs" chip appears.
+async function pollQueue() {
+  try {
+    const {body} = await api("/api/queue");
+    const before = QUEUE;
+    QUEUE = {building: body.building || null, queued: body.queued || []};
+    if (JSON.stringify(before) !== JSON.stringify(QUEUE)) {
+      if (before.building && before.building !== QUEUE.building) loadClients(); else renderList();
+    }
+  } catch (e) {}
+}
 
 async function api(path, opts = {}) {
   const r = await fetch(path, {...opts, headers: {"X-Token": TOKEN, "Content-Type": "application/json", ...(opts.headers || {})}});
@@ -462,7 +550,11 @@ function renderList() {
   for (const c of shown) {
     if (!csm && c.csm !== last) { html += `<div class="grouphead">${esc(c.csm)}</div>`; last = c.csm; }
     // No "Sent" chip: only Aaron records sends, and other CSMs have nowhere to mark theirs (2026-09-15).
-    const chips = [c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
+    const place = QUEUE.queued.indexOf(c.id);
+    const chips = [QUEUE.building === c.id ? `<span class="chip building">Building</span>` : "",
+                   place >= 0 ? `<span class="chip queue">Queued #${place + 1}</span>` : "",
+                   c.error && QUEUE.building !== c.id && place < 0 ? `<span class="chip error">Error ${esc(PERIOD || "")}</span>` : "",
+                   c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span><span class="meta">${chips}</span></button>`;
@@ -507,9 +599,12 @@ function renderStatus(s) {
   const c = CLIENTS.find(x => x.id === s.client) || {};
   const checks = s.checks.map(k => { const [cls, label] = LEVEL[k.level] || ["step", k.level];
     return `<li><span class="tag ${cls}">${label}</span><span>${esc(k.text)}</span></li>`; }).join("");
+  // The last build failed: the list shows the red Error pill, and the button offers the retry.
+  const failed = c.error || (s.job && s.job.done && s.job.code);
+  const failNote = failed ? ` <span class="err">The last build failed; see why below.</span>` : "";
   let verdict;
-  if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.</p><button class="primary" id="go">Build and put in Outputs</button></div>`;
-  else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck is already in Outputs.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.</p><button class="primary warn" id="go">Rebuild and replace the one in Outputs</button></div>`;
+  if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.${failNote}</p><button class="primary" id="go">${failed ? "Retry build" : "Build and put in Outputs"}</button></div>`;
+  else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck is already in Outputs.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.${failNote}</p><button class="primary warn" id="go">${failed ? "Retry rebuild" : "Rebuild and replace the one in Outputs"}</button></div>`;
   else verdict = `<div class="verdict stop"><p><b>Can't build yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="recheck">Check again</button></div>`;
   const last = s.last ? `<div class="last"><h3>Last build from this tool</h3>${esc(s.last.finished)} by ${esc(s.last.by)}: ${esc(s.last.result)}${s.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
   const age = s.age_seconds == null ? "" : s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`;
@@ -528,7 +623,8 @@ async function build(s) {
   try {
     const {status, body} = await api("/api/build", {method: "POST", body: JSON.stringify({client: s.client, rebuild: s.state === "ask"})});
     if (status === 409) { go.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(body.error)}</p>`; return; }
-    go.textContent = "Building…";
+    go.textContent = body.queued ? `Queued #${body.queued}` : "Building…";
+    pollQueue();
     follow(s.client);
   } catch (e) { go.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
@@ -546,9 +642,18 @@ function follow(id) {
   tick(); poller = setInterval(tick, 1500);
 }
 
+let logOpen = false;
+const TERM_CLS = {ok: "g", "!!": "y", built: "b", STOP: "r", "..": "c"};
+function termLine(l) {
+  const m = l.match(/^(\s*)\[(ok|!!|built|STOP|\.\.)\](.*)$/);
+  return m ? `${esc(m[1])}<span class="${TERM_CLS[m[2]]}">[${esc(m[2])}]</span>${esc(m[3])}` : esc(l);
+}
+
 function renderJob(j) {
   if (!j || !j.lines) return;
-  const go = $("#go"); if (go && !j.done) { go.disabled = true; go.textContent = "Building…"; }
+  const go = $("#go");
+  if (go && !j.done) { go.disabled = true; go.textContent = j.queued ? `Queued #${j.queued}` : "Building…"; }
+  else if (go && j.code) { go.disabled = false; go.textContent = j.rebuild ? "Retry rebuild" : "Retry build"; }
   const steps = [], marks = [];
   for (const line of j.lines) {
     const m = line.match(/^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$/);
@@ -557,10 +662,11 @@ function renderJob(j) {
     else if (steps.length) marks.push({level: m[1], text: m[2]});
   }
   const mins = Math.floor(j.seconds / 60), secs = String(j.seconds % 60).padStart(2, "0");
-  let html = `<div class="progress"><h3>Build${j.rebuild ? " (rebuild)" : ""} · ${mins}:${secs}</h3><ul class="steps">`;
+  let html = `<div class="progress"><h3>Build${j.rebuild ? " (rebuild)" : ""} · ${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
+  if (j.queued) html += `<li><span class="dot"></span><span>Queued #${j.queued}. It starts on its own when ${j.queued > 1 ? "the builds ahead of it finish" : `the build for ${esc(j.after || "another client")} finishes`}. Keep WILL's black window open.</span></li>`;
   steps.forEach((st, i) => { const done = j.done || i < steps.length - 1;
     html += `<li><span class="dot ${done ? "done" : "now"}"></span><span>${esc(st.name)}</span><span class="t">${st.min !== "" ? esc(st.min) + " min" : ""}</span></li>`; });
-  if (!steps.length && !j.done) html += `<li><span class="dot now"></span><span>Starting the build…</span></li>`;
+  if (!steps.length && !j.done && !j.queued) html += `<li><span class="dot now"></span><span>Starting the build…</span></li>`;
   html += `</ul>`;
   const stop = marks.find(x => x.level === "STOP") || (j.done && j.code ? {text: [...j.lines].reverse().find(l => l.trim()) || "The build stopped."} : null);
   if (j.done && !j.code && j.deck) {
@@ -572,8 +678,24 @@ function renderJob(j) {
     html += `<div class="result bad"><h3>Not put in Outputs.</h3><p>${esc(stop ? stop.text : "The build stopped.")}</p>
       <p>If it's not clear what to do, send Aaron the client number.</p></div>`;
   }
-  html += `<details class="log"><summary>Full output</summary><pre>${esc(j.lines.join("\n"))}</pre></details></div>`;
-  $("#job").innerHTML = html;
+  html += `</div>`;
+  // The output panel is built once per build and only its text is updated after that. Rebuilding it
+  // on every poll (every 1.5 s) closed it again as soon as someone opened it.
+  const box = $("#job");
+  if (!box.querySelector("#jobview")) {
+    box.innerHTML = `<div id="jobview"></div><details class="log" id="log"${logOpen ? " open" : ""}><summary>Full output</summary>
+      <div class="term"><div class="bar"><span class="ttl">WILL: build ${esc(current || "")}</span><span class="ctl" aria-hidden="true"><span>&#x2014;</span><span>&#x2610;</span><span>&#x2715;</span></span></div>
+      <pre id="termtext" tabindex="0"></pre></div></details>`;
+    $("#log").addEventListener("toggle", () => { logOpen = $("#log").open; });
+  }
+  $("#jobview").innerHTML = html;
+  const pre = $("#termtext"), key = j.lines.length + ":" + j.done;
+  if (pre.dataset.key !== key) {
+    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
+    pre.innerHTML = j.lines.map(termLine).join("\n") + (j.done ? "" : `\n<span class="cursor">&#x2588;</span>`);
+    pre.dataset.key = key;
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+  }
   const rv = $("#reveal");
   if (rv) rv.addEventListener("click", async () => { try { await api("/api/reveal", {method: "POST", body: JSON.stringify({path: j.deck})}); } catch (e) { rv.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); } });
 }
@@ -582,6 +704,7 @@ $("#list").addEventListener("click", e => { const b = e.target.closest(".client"
 $("#csm").addEventListener("change", () => { store("ars-builder-csm", $("#csm").value); renderList(); });
 $("#q").addEventListener("input", renderList);
 loadClients();
+pollQueue(); setInterval(pollQueue, 3000);
 </script>
 </body>
 </html>

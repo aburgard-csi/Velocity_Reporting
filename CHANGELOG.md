@@ -17,6 +17,40 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-16 — The browser builder is WILL; a failed build shows a red Error pill
+
+**Name.** ARS Deck Builder is now **WILL, the Workbook Intake & Layout Launcher** (Aaron). Its
+launcher file is `ARS Deck Builder GUI.bat`; the old `ARS Deck Builder.bat` on the share was moved to
+`Tools\_retired launchers - delete after review\`. The page title, header, console window and user
+guide carry the new name.
+
+**Error pill.** When a client's last build for the cycle was not put in Outputs, the client list
+shows a red **Error 2026.09** pill (the cycle period) and the client's button reads **Retry build**
+(or **Retry rebuild** when a deck is already in Outputs). `last_build_failed` decides it: a job this
+server ran and still remembers wins (running or queued is never an error); otherwise the launcher's
+`_launcher_result.json` for the period, unless a deck for the period reached Outputs after that record
+was written. On the first run it flagged 1121 Timberland, 1615 Cape & Coast and 1748 Clearview.
+A failed build followed live also turns its button back on as Retry. No deck output changes.
+
+### 2026-09-16 — ARS Deck Builder: a second build queues instead of being refused
+
+Starting a build while another ran on the same PC returned "A build for … is still running. Start the
+next one when it finishes", so a CSM had to watch for the first to end. `start_build` now puts the job
+in a first-in, first-out queue and one worker runs them one at a time, as before. The client list
+polls `/api/queue` every 3 seconds and shows **Building** on the running client and **Queued #N** on
+each waiting one, where N is its place in the line. A queued client's page and button say the same.
+Asking to build a client that is already building or queued still returns 409. No deck output changes.
+
+### 2026-09-16 — ARS Deck Builder: Full output stays open, shown as a terminal
+
+Clicking "Full output" during a build opened the panel for at most 1.5 seconds: every
+job poll rebuilt the whole build area with `innerHTML`, which replaced the open
+`<details>` with a closed one. `renderJob` in `scripts/ars_launcher_web.py` now creates
+the panel once per build and afterwards only updates the step list and the output
+text. The open state survives switching clients, and the output stays scrolled to the
+bottom unless someone has scrolled up. The output is drawn as a Windows Terminal
+window with `[ok]`, `[!!]`, `[built]`, `[STOP]` and `[..]` in color. No deck output changes.
+
 ### 2026-09-16 — CashPlease inputs have their own folder
 
 **CashPlease data now lands in `Inputs/CashPlease/`** (Aaron: "add inputs folder for CashPlease

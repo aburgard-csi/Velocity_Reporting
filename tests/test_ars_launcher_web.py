@@ -18,6 +18,7 @@ def server(monkeypatch):
     monkeypatch.setattr(W, "clients_doc", lambda: {"period": "2026.09", "clients": [{"id": "1441", "name": "FNB Alaska"}]})
     monkeypatch.setattr(W, "compute_status", lambda cid: {"client": cid, "state": "ready", "checks": []})
     W._jobs.clear()
+    W._queue.clear()
     W._status_cache.clear()
     srv = W.make_server(0)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -71,7 +72,6 @@ def test_a_build_job_streams_its_lines_and_names_the_deck(server, monkeypatch):
     monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild: [sys.executable, "-c", script])
     status, data = call(server, "POST", "/api/build", {"client": "1441"})
     assert status == 202
-    assert call(server, "POST", "/api/build", {"client": "1453"})[0] == 409, "a second build must wait"
     for _ in range(100):
         job = json.loads(call(server, "GET", "/api/job?client=1441")[1])
         if job.get("done"):
@@ -80,6 +80,52 @@ def test_a_build_job_streams_its_lines_and_names_the_deck(server, monkeypatch):
     assert job["done"] and job["code"] == 0
     assert any("Reading the ODD extract" in l for l in job["lines"])
     assert job["deck"] == deck
+
+
+def test_a_second_build_queues_behind_the_running_one(server, monkeypatch):
+    """Builds run one at a time; the next waits its turn instead of being refused (2026-09-16)."""
+    script = "import time, sys\ntime.sleep(0.6)\nprint('  [ok]   built', sys.argv[1], flush=True)\n"
+    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild: [sys.executable, "-c", script, cid])
+    assert call(server, "POST", "/api/build", {"client": "1441"})[0] == 202
+    status, data = call(server, "POST", "/api/build", {"client": "1453"})
+    assert status == 202 and json.loads(data)["queued"] == 1
+    third = json.loads(call(server, "POST", "/api/build", {"client": "1487"})[1])
+    assert third["queued"] == 2
+    assert call(server, "POST", "/api/build", {"client": "1453"})[0] == 409, "a client already queued is not queued twice"
+    q = json.loads(call(server, "GET", "/api/queue")[1])
+    assert q["queued"] == ["1453", "1487"] and q["building"] in ("1441", None)
+    for _ in range(100):
+        jobs = [json.loads(call(server, "GET", f"/api/job?client={c}")[1]) for c in ("1441", "1453", "1487")]
+        if all(j.get("done") for j in jobs):
+            break
+        time.sleep(0.1)
+    assert all(j["done"] and j["code"] == 0 for j in jobs)
+    first_end = [W._jobs[c] for c in ("1441", "1453", "1487")]
+    assert first_end[0].finished <= first_end[1].started and first_end[1].finished <= first_end[2].started, "one at a time, in order"
+    assert json.loads(call(server, "GET", "/api/queue")[1]) == {"building": None, "queued": []}
+
+
+def test_the_error_pill_follows_the_last_build(tmp_path, monkeypatch):
+    """Red "Error <period>" in the list: the last build was not put in Outputs (2026-09-16)."""
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    W._jobs.clear()
+    rec = tmp_path / "launcher" / "2026.09" / "1121" / "_launcher_result.json"
+    assert not W.last_build_failed("1121", "2026.09"), "no build yet is not an error"
+    rec.parent.mkdir(parents=True)
+    rec.write_text(json.dumps({"result": "stopped at metrics_gen", "delivered": False}), encoding="utf-8")
+    assert W.last_build_failed("1121", "2026.09")
+    deck = tmp_path / "1121-2026.09-ARS-Timberland Bank ARS Results.pptx"
+    deck.write_bytes(b"x")
+    os.utime(deck, (rec.stat().st_mtime + 60,) * 2)
+    assert not W.last_build_failed("1121", "2026.09", [deck]), "a deck that reached Outputs later clears it"
+    rec.write_text(json.dumps({"result": "0 FAIL", "delivered": True}), encoding="utf-8")
+    assert not W.last_build_failed("1121", "2026.09")
+    job = W.Job("1121", False)
+    W._jobs["1121"] = job
+    assert not W.last_build_failed("1121", "2026.09"), "queued or running is not an error"
+    job.done, job.code = True, 1
+    assert W.last_build_failed("1121", "2026.09"), "a remembered failed job wins over the record"
+    W._jobs.clear()
 
 
 def test_a_status_is_served_from_the_cache_until_fresh_is_asked_or_a_build_finishes(monkeypatch):
