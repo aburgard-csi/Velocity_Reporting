@@ -104,16 +104,24 @@ def test_no_open_accounts_is_a_possible_data_issue_not_a_zero_division(tmp_path)
 
 def test_no_card_holder_swiping_in_the_latest_month_is_a_possible_data_issue_not_an_empty_mean(tmp_path):
     """1615 Cape & Coast (2026-09-15): no open card holder swiped in the latest month, and
-    mean() of nothing crashed with a StatisticsError that named no cause."""
+    mean() of nothing crashed with a StatisticsError that named no cause.
+
+    1615's book as a whole swiped normally that month; only its PERSONAL card holders did
+    not. So the fixture keeps the month's total swipes up on the non-personal rows. Zeroing
+    every row's swipes instead makes the whole month read as an unfinished extract, which
+    month_complete (2026-09-17) rightly leaves out, and the case under test never arises.
+    """
     def edit(header, data):
         months = sorted({c.strip()[:5] for c in header if c.strip().endswith(" Sig #")},
                         key=lambda t: (t[3:], "JanFebMarAprMayJunJulAugSepOctNovDec".index(t[:3])))
         latest = months[-1]
         cols = [k for k, c in enumerate(header) if c.strip() in (f"{latest} Sig #", f"{latest} PIN #")]
+        biz = _column(header, "Business?")
         for row in data:
+            personal = biz < len(row) and row[biz].strip() == "No"
             for i in cols:
                 if i < len(row):
-                    row[i] = "0"
+                    row[i] = "0" if personal else "400"
     p = _fixture(tmp_path, edit)
     r = _run("build/ars_pipeline/metrics_gen.py", p, tmp_path / "metrics.json")
     assert r.returncode != 0 and "Traceback" not in r.stderr, r.stderr[-3000:]

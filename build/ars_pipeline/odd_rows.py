@@ -45,10 +45,12 @@ from types import SimpleNamespace
 # stop on and ask about rather than guess. Confirmed by Aaron, 2026-09-16: Yes/Y → in;
 # No/N, Revoked → out; Failed to Respond, No Decision, Did Not Reply (1121), D (1147)
 # → default; Ineligible, Exempt, "Tracking Type N Does Not Exist" (1807), "No Vaule -
-# No Reg E" (1798), "Anything else" (1217) → not applicable.
+# No Reg E" (1798) → not applicable. Aaron, 2026-09-17: "Anything else" (1217) → opt OUT
+# (it was not applicable); Accepted → in, Declined → out.
 REGE_IN, REGE_OUT, REGE_DEFAULT = "Reg E Opt In", "Reg E Opt Out", "Reg E Default"
 _REGE_EXACT = {"yes": REGE_IN, "y": REGE_IN, "no": REGE_OUT, "n": REGE_OUT, "d": REGE_DEFAULT,
-               "ineligible": "", "exempt": "", "no vaule no reg e": "", "anything else": ""}
+               "ineligible": "", "exempt": "", "no vaule no reg e": "", "anything else": REGE_OUT,
+               "accepted": REGE_IN, "declined": REGE_OUT}
 _REGE_NA = re.compile(r"^tracking type \d+ does not exist$")
 _REGE_OUT_RX = re.compile(r"declin|opt out|optout|opted out|revoked")
 _REGE_IN_RX = re.compile(r"accept|opt in|optin|opted in")

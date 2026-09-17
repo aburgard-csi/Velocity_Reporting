@@ -24,13 +24,16 @@ def _fixacr(txt):
             out.append(t)
     if buf: out.append("".join(buf))
     return " ".join(out)
+# image11/14/16: the full-width take rate and Reg E branch charts, slide_geometry.CHART_DIMS
+# (Aaron, 2026-09-17).
 DIM={'image5':(1365,705),'image6':(1432,672),'image7':(1035,549),'image8':(1099,683),
- 'image9':(1732,675),'image10':(2639,1003),'image11':(1383,540),'image12':(1740,1064),
- 'image13':(491,491),'image14':(1520,900),'image15':(491,491),'image16':(1520,900),
+ 'image9':(1732,675),'image10':(2639,1003),'image11':(2460,740),'image12':(1740,1064),
+ 'image13':(491,491),'image14':(2460,620),'image15':(491,491),'image16':(2460,620),
  'image17':(1368,453),'image18':(1006,612),'image19':(1446,681),'image20':(1446,825),
  'image21':(1660,780),'image22':(978,598),'image23':(946,598),'image24':(1834,740),
  'image25':(1700,754),'image26':(1725,900),'image27':(1533,800),'image28':(1740,1007),
  'image29':(1740,1064),'image30':(2047,816),'image31':(2639,1003),'image32':(2050,790)}
+
 def _clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)
     ax.spines["left"].set_color(HAIRLINE); ax.spines["bottom"].set_color(MUTED)
@@ -258,7 +261,10 @@ def c_take_branch():
     print("wrote image11")
 # image12: swipes & spend combo (workbook 36mo)
 def c_swipespend():
-    d=B['swipespend_36']; cats=[m.split()[0]+m.split()[1][2:] for m,_,_ in d]
+    # Complete months only — the same month_complete call build_ars_gen makes for the
+    # tiles, so the chart and the Spend YoY beside it end on the same month (2026-09-17).
+    import month_complete as _MC
+    d,_=_MC.complete_rows(B["swipespend_36"],1,"$M debit spend",min_volume=0); cats=[m.split()[0]+m.split()[1][2:] for m,_,_ in d]
     spend=[s for _,s,_ in d]; cards=[c for _,_,c in d]
     fig,ax=figfor('image12',4.0); x=np.arange(len(cats))
     ax.bar(x,spend,color=STEEL,width=0.66,label="Debit Spend ($M)")

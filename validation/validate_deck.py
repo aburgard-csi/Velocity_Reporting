@@ -21,6 +21,8 @@ rules, and the shipped defect each one exists for:
     figure_identity_findings      one labelled measure, two values (REVIEW — inferred)
     period_findings               span arithmetic, and captions dated after the snapshot
     source_note_findings          a data slide with no Source line, or another client's source
+    closing_month_findings        Questions & Discussion month/client differs from the cover (2026.09 ARS decks)
+table_label_fit_findings      a wrapped table row label pushes the table off the slide (branch names, 2026-09-17)
     figure_sidecar_findings       one NAMED measure, two values (FAIL — the builder said so)
     claim_consistency_findings    "flat" / "rose" / "lower" against the figures beside them
     text_rule_findings            banned words, plurals, thresholds, impossible counts, superlatives
@@ -878,6 +880,140 @@ def summit_date_findings(prs):
     return []
 
 
+# ================================================================ closing month
+_MONTH_YEAR = re.compile(r"\b(January|February|March|April|May|June|July|August|September|"
+                         r"October|November|December)\s+(\d{4})\b")
+
+
+def _cover_client_and_month(prs):
+    """(client, 'Month YYYY') from the cover's "<client> / Executive Review • <month>" lines.
+
+    The cover is the one slide carrying "Executive Review" (the same test
+    assemble_combined uses). The client is the non-empty paragraph just before the
+    Executive Review line in the same text frame, or None when the builder drew it as
+    a separate box.
+    """
+    for slide in prs.slides:
+        for sh in slide.shapes:
+            if not sh.has_text_frame:
+                continue
+            paras = [" ".join(p.text.split()) for p in sh.text_frame.paragraphs]
+            for i, para in enumerate(paras):
+                if "Executive Review" not in para or "•" not in para:
+                    continue
+                m = _MONTH_YEAR.search(para.split("•")[-1])
+                if not m:
+                    continue
+                prior = [x for x in paras[:i] if x]
+                head = para.split("Executive Review")[0].strip(" |•")
+                client = head or (prior[-1] if prior else None)
+                return client, m.group(0)
+    return None, None
+
+
+def table_label_fit_findings(prs):
+    """FAIL when a table's row label cannot fit its column on one line and the table would
+    then run past the bottom of the slide.
+
+    THE GAP THIS CLOSES: branch names reached the take-rate-by-branch table (Aaron,
+    2026-09-17) in a first column sized for branch NUMBERS. Great Lakes' "Member Contact
+    Center" wrapped to three lines, every long name to two, and the table ran off the
+    slide under the logo. Nothing failed: python-pptx reports the row heights as set, not
+    as PowerPoint grows them to fit wrapped text.
+
+    For each table, the first column's labels are measured in the bundled font
+    (textfit); each label that is wider than its cell adds lines to its row. The table's
+    rendered bottom is estimated from those lines, and a table ending past 7.40" FAILs.
+    """
+    try:
+        from textfit import text_width_in
+    except Exception:
+        return []
+    import math
+    from pptx.util import Emu
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        for sh in slide.shapes:
+            if not sh.has_table or sh.top is None:
+                continue
+            tbl = sh.table
+            cols = list(tbl.columns)
+            if not cols:
+                continue
+            col_in = Emu(cols[0].width).inches - 0.20          # cell margins
+            bottom = Emu(sh.top).inches
+            worst = None
+            for row in tbl.rows:
+                cell = row.cells[0]
+                size, bold = 16.0, False
+                for pa in cell.text_frame.paragraphs:
+                    for r in pa.runs:
+                        if r.font.size:
+                            size = r.font.size.pt
+                        bold = bool(r.font.bold) or bold
+                text = " ".join(cell.text_frame.text.split())
+                row_in = Emu(row.height).inches
+                lines = 1
+                if text and col_in > 0:
+                    lines = max(1, math.ceil(text_width_in(text, size, "Carlito", bold) / col_in))
+                if lines > 1:
+                    row_in = max(row_in, lines * size * 1.2 / 72 + 0.08)
+                    worst = worst or text
+                bottom += row_in
+            if worst and bottom > 7.40:
+                out.append(("FAIL", idx,
+                            f"table row label '{worst}' wraps in a {col_in + 0.20:.2f}\" first column "
+                            f"and the table runs to ~{bottom:.2f}\" (slide ends 7.50\"): widen the "
+                            f"label column in the builder"))
+    return out
+
+
+def closing_month_findings(prs):
+    """FAIL when the Questions & Discussion slide names a different month or client
+    than the cover.
+
+    THE GAP THIS CLOSES: every 2026.09 ARS deck in Outputs — 33 of them, the combined
+    decks built on an ARS shell included — carried "<Client>  •  July 2026" on the
+    Questions & Discussion slide under a cover reading September 2026 (Aaron,
+    2026-09-17). build_ars_gen swapped the cover's month and only the client NAME on
+    the closing slide, so the template shell's month rode through. Nothing failed:
+    the reference-leak rule looks for another client's name, and "July 2026" is a
+    perfectly valid month.
+
+    Both slides are built from one reporting month, so the rule is exact, not
+    inferred: the closing line's month must equal the cover's. The template shells
+    carry the same dummy month on both slides, so they pass as they should; the rule
+    only fires when a builder swaps one slide and not the other.
+    """
+    client, month = _cover_client_and_month(prs)
+    if not month:
+        return []
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        if not _title(slide).startswith("Questions & Discussion"):
+            continue
+        for sh in slide.shapes:
+            if not sh.has_text_frame:
+                continue
+            for p in sh.text_frame.paragraphs:
+                line = " ".join(p.text.split())
+                if "•" not in line or line.startswith("Questions & Discussion"):
+                    continue
+                who, _, when = line.rpartition("•")
+                who = who.strip()
+                m = _MONTH_YEAR.search(when)
+                if m and m.group(0) != month:
+                    out.append(("FAIL", idx,
+                                f"Questions & Discussion reads '{line}' but the cover says "
+                                f"{month} — the closing slide carries the template's month; "
+                                f"fix the builder so both use the reporting month"))
+                if client and who and who != client:
+                    out.append(("FAIL", idx,
+                                f"Questions & Discussion names '{who}' but the cover names "
+                                f"'{client}'"))
+    return out
+
+
 # ================================================================ figure sidecar
 def figure_sidecar_findings(deck_path):
     """FAIL when one NAMED measure rendered more than one value.
@@ -1477,6 +1613,8 @@ def run(path, extract=None):
     findings += figure_identity_findings(prs)
     findings += period_findings(prs, find_period_pack(path))
     findings += source_note_findings(path, prs)
+    findings += closing_month_findings(prs)
+    findings += table_label_fit_findings(prs)
     findings += figure_sidecar_findings(path)
     findings += claim_consistency_findings(prs)
     findings += text_rule_findings(prs, texts)
@@ -1496,7 +1634,8 @@ RULES = (package_findings, reference_leak_findings, single_line_overflow_finding
          source_note_findings, figure_sidecar_findings, claim_consistency_findings,
          text_rule_findings, geometry_findings, text_collision_findings,
          autofit_findings, mailing_table_findings, extract_findings,
-         labelled_metric_findings, summit_date_findings)
+         labelled_metric_findings, summit_date_findings, closing_month_findings,
+         table_label_fit_findings)
 
 
 def main(argv=None):

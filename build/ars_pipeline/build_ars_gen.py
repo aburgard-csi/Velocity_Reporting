@@ -113,17 +113,26 @@ MS = M['mail_summary']; MST = M['mail_summary_total']
 # the Mailing Response Summary, never counted into any rate or the trailing total.
 MIP = M.get('mail_in_progress', [])
 mail_resp = f"{MST[4]:.1f}%"
-cf = B['swipespend_36'][0][2]; cl = B['swipespend_36'][-1][2]
+# Complete months only (Aaron, 2026-09-17: "Don't calculate YoY or comparisons on partial
+# months, only use complete months"). month_complete decides; the tiles, the YoY, the card
+# growth, the chart (charts_gen, same call) and the span caption all end on the last month
+# whose spend is complete, and a month left out is stated in the notes.
+import month_complete as _MC
+SS, SS_COMPLETE = _MC.complete_rows(B["swipespend_36"], 1, "$M debit spend", min_volume=0)
+if not SS:
+    raise SystemExit("POSSIBLE DATA ISSUE: the workbook's Key Trends carry no complete month of spend")
+SPEND_MONTH_LONG = datetime.datetime.strptime(SS[-1][0], '%b %Y').strftime('%B %Y')
+cf = SS[0][2]; cl = SS[-1][2]
 cardg = 100*(cl-cf)/cf; card_growth = f"{cardg:+.1f}%"
 cardverb = "grown" if cardg > 2 else ("held steady" if cardg > -2 else "declined")
 card_range = f"({cf/1000:.1f}K → {cl/1000:.1f}K)"
-jun_spend = B['swipespend_36'][-1][1]
+jun_spend = SS[-1][1]
 # Year-on-year spend: compare the latest month against the SAME month a year
 # earlier, derived from the series (was pinned to the literal 'Jun 2025', which
 # IndexErrors on any client whose history doesn't reach it — e.g. 1549 Wellworth,
 # whose series starts May 2026).
-_ss = {x[0]: x[1] for x in B['swipespend_36']}
-_last_lbl = B['swipespend_36'][-1][0]
+_ss = {x[0]: x[1] for x in SS}
+_last_lbl = SS[-1][0]
 _ld = datetime.datetime.strptime(_last_lbl, '%b %Y')
 _yago = _ld.replace(year=_ld.year - 1).strftime('%b %Y')
 jun25 = _ss.get(_yago)
@@ -299,13 +308,16 @@ if ODD:
 BIZ_PNG = None
 if BIZ and BIZ['branches']:
     import chart_lib   # SAME renderer as the personal take-rate chart (charts_gen image11)
+    _bnames = M.get('branch_name_of') or {}      # names on the charts (Aaron, 2026-09-17)
+    BIZ['branches'] = [(_bnames.get(str(b[0]), b[0]),) + tuple(b[1:]) for b in BIZ['branches']]
     br = chart_lib.top_branches(BIZ['branches'])   # largest branches, best rate first
     BIZ_PNG = os.path.join(ASSETS, 'biz_branch.png')
     # Business = navy bars; identical geometry to personal. The rate line is TEAL
     # rather than orange because it runs OVER navy bars, and STYLE.md's rule is that
     # a mark is never drawn in the canvas colour — teal clears WCAG 3:1 on navy and
     # on white, which is why it is the line colour everywhere else in the deck.
-    chart_lib.branch_chart(BIZ_PNG, br, _BNAVY, _BTEAL, 1383, 540,
+    import slide_geometry as _sg_dims    # full-width box (Aaron, 2026-09-17)
+    chart_lib.branch_chart(BIZ_PNG, br, _BNAVY, _BTEAL, *_sg_dims.CHART_DIMS['take'],
                            acct_label="Accounts opened", rate_label="Take rate")
     print("wrote", BIZ_PNG)
 
@@ -666,6 +678,12 @@ for seg, a, sw, sp, ns in st:
     rows.append([seg, f"{a:,}", pc(a, tt[0]), f"{sw:,}", pc(sw, tt[1]), fk(sp), pc(sp, tt[2]), f"{ns:,}", pc(ns, tt[3])])
 rows.append(["Total", f"{tt[0]:,}", "100%", f"{tt[1]:,}", "100%", fk(tt[2]), "100%", f"{tt[3]:,}", "100%"])
 set_table(S[8], rows)
+# The 3-month window ends on the last month complete in swipes, spend AND NSF/OD; a month
+# left out is said on the slide rather than averaged in (Aaron, 2026-09-17).
+_ALL_OUT = ", ".join(_MC.excluded_months((M.get('month_completeness') or {}).get('all')))
+if _ALL_OUT:
+    repl(S[8], {"the most recent transaction data available.":
+                f"the most recent complete months; {_ALL_OUT} left out as incomplete."})
 
 # ============================ SLIDE 10 — Average Ticket
 if TICKET_PNG:
@@ -673,7 +691,8 @@ if TICKET_PNG:
     w0 = R['win'][0]; w1 = R['win'][-1]; win_pretty = f"{w0[:3]}–{w1[:3]} 20{w1[3:]}"
     set_shape_text(S[9], "Selection: ARS-eligible personal accounts with debit activity. Left: average spend per swipe by monthly-swipe tier (3-mo avg, Apr–Jun 2026). Right: mailing responders, ticket before vs. after response.",
         f"Selection: ARS-eligible personal accounts with debit activity. Left: average spend per swipe by monthly-swipe tier "
-        f"(3-mo avg, {win_pretty}). Right: mailing responders, ticket before vs. after response.")
+        f"(3-mo avg, {win_pretty}" + (f"; {_ALL_OUT} left out as incomplete" if _ALL_OUT else "")
+        + "). Right: mailing responders, ticket before vs. after response.")
     segs = R['segments']; light = segs[0]; heavy = segs[-1]
     # The verb FOLLOWS the figures it introduces. It used to be a constant
     # "holds", which was true of the template's own $50→$50 example and of
@@ -916,7 +935,8 @@ import chart_lib as _cl_ord
 _TBL_TOP, _ROW_H, _TBL_BOTTOM = 2.35, 0.34, 6.60
 _max_body = int((_TBL_BOTTOM - _TBL_TOP) / _ROW_H) - 2      # minus header and Total
 _nbranch = min(len(M['take_branch_monthly']), max(6, _max_body))
-tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch])
+_num_of = {v: k for k, v in (M.get('branch_name_of') or {}).items()}   # names on charts: keep number order
+tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch], key=lambda r: _num_of.get(r[0], r[0]))
 rows = [["Branch"]+tm+["Cards", "Elig", "Take%"]]
 for row in tbm:
     b = row[0]; monthly = row[1:1+len(tm)]
@@ -928,6 +948,25 @@ if len(rows) > _have:
     add_table_rows(S[22], len(rows) - _have)
     print(f"take-by-branch: grew table {_have} -> {len(rows)} rows ({len(tbm)} branches)")
 set_table(S[22], rows, trim=True)
+# Branch NAMES (Aaron, 2026-09-17) need a wider first column than the numbers it was sized for:
+# Wellworth's "Westmoreland" wrapped to "Westmorelan / d". Widen it to the longest branch label,
+# measured in the bundled font, and take the width back evenly from the other columns.
+try:
+    from textfit import text_width_in as _tw
+    _tbl = tables(S[22])[0]
+    _pt = next((r.font.size.pt for c in _tbl.rows[1].cells for pa in c.text_frame.paragraphs
+                for r in pa.runs if r.font.size), 16.0)
+    _need = max(_tw(str(r[0]), _pt, "Carlito", True) for r in rows[1:-1]) + 0.24   # cell margins
+    _cols = list(_tbl.columns)
+    _w0 = Emu(_cols[0].width).inches
+    if _need > _w0 and len(_cols) > 1:
+        _each = (_need - _w0) / (len(_cols) - 1)
+        _cols[0].width = Inches(_need)
+        for _c in _cols[1:]:
+            _c.width = Emu(int(_c.width - Inches(_each)))
+        print(f"take-by-branch: branch column {_w0:.2f} -> {_need:.2f} in for the longest name")
+except Exception as _e:
+    print("take-by-branch: branch column fit skipped:", repr(_e))
 repl(S[22], {"six largest branches shown": f"{len(tbm)} largest branches shown"}, optional=True)
 # The monthly COLUMNS span the activity months this extract carries, which is not the
 # same as the 12-month new-account window. Wellworth's caption read "monthly Aug 2025 –
@@ -945,6 +984,9 @@ if tm:
 set_exact(S[23], "+4.3%", card_growth)
 repl(S[23], {"(6.8K → 7.1K)": card_range})
 set_exact(S[23], "$9.3M", monthly_spend)
+# The tile names the month it shows — the last complete spend month, which the generic
+# as-of pass (the ODD snapshot month) would get wrong when that month was left out.
+repl(S[23], {"(June 2026)": f"({SPEND_MONTH_LONG})"})
 set_exact(S[23], "+11%", spend_yoy)
 # The Spend YoY FIGURE is derived (above); its caption was not, so the tile read
 # "(Jun 25 → Jun 26)" over a number comparing Aug 25 to Aug 26. Same shape as
@@ -961,7 +1003,9 @@ set_exact(S[24], "725", f"{M['nsf_last_accts']:,}")
 # no year and "(Jun 25 \u2192 Jun 26)" uses two-digit years, so both slipped past the
 # stale-caption gate and shipped the reference client's months. They are swapped
 # from the snapshot and from the window the YoY figure actually compared.
-repl(S[24], {"NSF/OD (June)": f"NSF/OD ({AS_OF_LONG})"})
+_NSF_LONG = datetime.datetime.strptime(M.get('nsf_last_month') or AS_OF_SHORT, '%b %Y').strftime('%B %Y')
+repl(S[24], {"NSF/OD (June)": f"NSF/OD ({_NSF_LONG})",
+             "(June 2026)": f"({_NSF_LONG})"})
 _nsf_yoy = M.get('nsf_yoy')
 _nsf_win = M.get('nsf_yoy_window')
 if _nsf_yoy is None:
@@ -1017,7 +1061,12 @@ set_shape_text(S[29], "• 36.3% opt-in (personal accounts)\n• Best branches ~
     f"• {rege} opt-in (personal accounts)\n• Best branches ~{bb[3]}% ({_branch_label(bb[0])} {bb[3]}%)\n• Opportunity at low-opt-in branches\n• New-account opt-in {rege_new}")
 
 # ============================ SLIDE 31 — Q&A
-repl(S[30], {"Union Financial": NAME})
+# The closing slide carries the SAME client and month as the cover. It used to swap only
+# the client name, so every 2026.09 ARS deck (and every combined deck built on one) read
+# "<Client>  •  July 2026" here under a cover saying September 2026 (Aaron, 2026-09-17).
+# Resolved by title, and swapped as the whole "<client>  •  <month>" line so a template
+# re-baked with a different month misses loudly instead of shipping its own.
+repl(SB("Questions & Discussion"), {"Union Financial  •  July 2026": f"{NAME}  •  {PRESENT_MONTH}"})
 
 # ============================ SLIDE 33 — Reach
 set_exact(SB("Program Reach"), "3,030", f"{M['reach_total']:,}", measure="reach_total")
@@ -1178,7 +1227,7 @@ def _span(rows, i=0):
         return t
     return _pretty(rows[0][i]), _pretty(rows[-1][i]), len(rows)
 
-_ss = _span(B.get('swipespend_36') or [])
+_ss = _span(SS)
 if _ss:
     repl(SB("Debit Card Swipes & Spend") if any(_slide_has(x, "Debit Card Swipes & Spend") for x in prs.slides) else S[23],
          {"Monthly totals, Jul 2023 – Jun 2026 (36 months).":
@@ -1191,8 +1240,13 @@ if _ss:
 
 _ns = _span(M.get('nsf_series') or [])
 if _ns:
+    # A month left out as incomplete is SAID on the slide, never charted as a collapse
+    # (Aaron, 2026-09-17); the figures behind that call are in the notes.
+    _nsf_out = ", ".join(_MC.excluded_months(M.get('month_completeness', {}).get('nsf')))
     repl(S[24], {"accounts with activity (line), Sep 2023 – Jun 2026.":
-                 f"accounts with activity (line), {_ns[0]} – {_ns[1]}."}, optional=True)
+                 f"accounts with activity (line), {_ns[0]} – {_ns[1]}."
+                 + (f" {_nsf_out} left out: incomplete in this extract." if _nsf_out else "")},
+         optional=True)
 
 _op = _span(M.get('openings') or [])
 if _op:
@@ -1247,8 +1301,13 @@ except Exception as _e:
 # "Monthly debit spend (June 2026)" and "opt-in status as of June 2026" (Aaron,
 # 2026-08-28). These phrases are point-in-time captions ONLY — a mailing month is
 # never written this way, so rewriting them cannot corrupt a "Jun 2026 Mailer" label.
+ACT_LONG = (datetime.datetime.strptime(M['activity_month'], '%b %Y').strftime('%B %Y')
+            if M.get('activity_month') else AS_OF_LONG)
 _ASOF_SWAPS = {
     "(June 2026)": f"({AS_OF_LONG})",
+    # Usage in the latest month reads the last COMPLETE activity month (Aaron, 2026-09-17).
+    "active in June 2026": f"active in {ACT_LONG}",
+    "Swipe activity for June 2026": f"Swipe activity for {ACT_LONG}",
     "as of June 2026": f"as of {AS_OF_LONG}",
     "through June 2026": f"through {AS_OF_LONG}",
     "in June 2026": f"in {AS_OF_LONG}",
@@ -1261,7 +1320,13 @@ _ASOF_SWAPS = {
     "Apr–Jun 2026": M["w3_label"],
 }
 _asof_hits = {k: 0 for k in _ASOF_SWAPS}
+# These two slides name the last COMPLETE month of their own measure, swapped above
+# (Aaron, 2026-09-17). When that month happens to be the template's own ("June 2026"),
+# the swap is a no-op and this pass would re-date it to the snapshot month.
+_ASOF_OWN_MONTH = ("NSF/OD Activity", "Overall Debit Swipes & Spend")
 for _s in prs.slides:
+    if any(_slide_has(_s, _t) for _t in _ASOF_OWN_MONTH):
+        continue
     for _sh in frames(_s.shapes):
         for _para in _sh.text_frame.paragraphs:
             _full = "".join(r.text for r in _para.runs)
@@ -1408,6 +1473,31 @@ for _i, _sl in enumerate(_S2):
     _sl.notes_slide.notes_text_frame.text = _note_for(_title_of(_sl), _i)
     _written += 1
 print(f"source notes written: {_written} ({len(_keep)} kept from their own module)")
+
+# Complete months (Aaron, 2026-09-17). Every slide that compares months names the months
+# it compares; a month left out as incomplete is stated with the figures behind that
+# call, so the exclusion is auditable and never silent.
+_MCOMP = M.get('month_completeness') or {}
+_notes_mc = {
+    "NSF/OD": _MC.excluded_sentence(_MCOMP.get('nsf')),
+    "Swipes & Spend": _MC.excluded_sentence(SS_COMPLETE),
+}
+_act_note = _MC.excluded_sentence(_MCOMP.get('activity'))
+for _sl in _S2:
+    _t = _title_of(_sl)
+    _add = []
+    if _t.startswith("NSF/OD"):
+        _add.append("Complete months only: the tiles and chart end on %s%s." % (
+            M.get('nsf_last_month'),
+            (", Items YoY compares %s to %s" % tuple(M['nsf_yoy_window'])) if M.get('nsf_yoy_window') else ""))
+        if _notes_mc["NSF/OD"]: _add.append(_notes_mc["NSF/OD"])
+    elif "swipes & spend" in _t.lower():
+        _add.append("Complete months only: monthly spend, Spend YoY and card growth end on %s." % SS[-1][0])
+        if _notes_mc["Swipes & Spend"]: _add.append(_notes_mc["Swipes & Spend"])
+    elif _act_note and any(k in _t.lower() for k in ("swipe", "average ticket", "card usage")):
+        _add.append(_act_note)
+    if _add:
+        _sl.notes_slide.notes_text_frame.text += " " + " ".join(_add)
 
 # Per-mailing respondent counts for the by-Offer slide. They used to sit under each
 # x-axis label as "(n=...)", which was unreadable the moment a client had more than a
@@ -1810,6 +1900,55 @@ for _sl in prs.slides:
         for _x in _sl.shapes:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.left=Inches(1.03); _x.top=Inches(1.81); _x.width=Inches(8.4); _x.height=Inches(4.38)
 
+# ---- 2b'. TEST BRANCH: views taken from James Gilmore's deck (opt-in) ----
+# test/james-aaron-combined (2026-09-16). OFF unless RPE_JAMES_SLIDES=1, so the monthly build
+# and the template baseline are unchanged. Placed here, after every index-based pass above
+# (the Swipes & Spend / NSF enlarge reads slides 24 and 25 BY INDEX), so inserting six slides
+# cannot shift those passes onto the wrong slide. Each slide writes its own source note.
+if os.environ.get("RPE_JAMES_SLIDES") == "1":
+    if not ODD:
+        raise SystemExit("RPE_JAMES_SLIDES=1 needs the ODD extract argument")
+    import combined_insights as _ci_mod
+    import combined_insight_slides as _cis
+    _wb_path = os.environ.get("RPE_JAMES_WORKBOOK", "").strip()
+    if not _wb_path:
+        import rpe_env as _rpe_j
+        _hits = sorted(str(p) for d in _rpe_j.report_dirs()
+                       for p in glob.glob(os.path.join(str(d), f"{ID}-{_per}-*Workbook*.xlsx"))
+                       if "invitation checking" not in os.path.basename(str(p)).lower())
+        _wb_path = _hits[0] if _hits else ""
+    _CI = _ci_mod.compute(ODD, _wb_path or None, M=M, B=B)
+    _ci_json = os.path.join(os.path.dirname(os.path.abspath(METRICS)), "combined_insights.json")
+    with open(_ci_json, "w", encoding="utf-8") as _fh:
+        json.dump(_CI, _fh, indent=1)
+    _rc = _CI["responder_control"]
+    if _rc.get("available") and (_rc["responders"]["before"], _rc["responders"]["after"]) != \
+            (M.get("ba_spend_before"), M.get("ba_spend_after")):
+        raise SystemExit("insight slides: the responder side (%s -> %s) does not reproduce the "
+                         "Responder Activity slide (%s -> %s) — before_after and combined_insights "
+                         "have drifted" % (_rc["responders"]["before"], _rc["responders"]["after"],
+                                           M.get("ba_spend_before"), M.get("ba_spend_after")))
+    _ins = _cis.add_insight_slides(prs, _CI, {
+        "id": ID, "name": NAME, "odd_src": ODD_SRC, "wb_src": WB_SRC,
+        "wb_file": os.path.basename(_wb_path), "latest": LATEST_MON, "as_of_long": AS_OF_LONG,
+        "data_month": DATA_MONTH,
+        "data_month_short": datetime.datetime.strptime(DATA_MONTH, "%B %Y").strftime("%b %Y"),
+        "ltd_revenue": B.get("ltd_revenue"), "assets": ASSETS})
+    print(f"insight slides (RPE_JAMES_SLIDES): {len(_ins)} added -> {_ci_json}")
+
+# Branch names on the charts (Aaron 2026-09-17): every slide that shows a
+# branch says where the names came from.
+if M.get("branch_name_of"):
+    _bn_note = ("Branch names: Inputs/Branch Names/branch_names.csv (the client's Charts workbook, "
+                "Branch Results tab, then VIP branch names from the ICS referrals pull); a branch "
+                "with no name keeps its number.")
+    for _sl in prs.slides:
+        _t = next((sh.text_frame.text for sh in _sl.shapes if sh.has_text_frame and sh.text_frame.text.strip()), "")
+        if "branch" in _t.split("\n")[0].lower():
+            _tf = _sl.notes_slide.notes_text_frame
+            if "branch_names.csv" not in _tf.text:
+                _tf.text = (_tf.text + " " + _bn_note).strip()
+
 # ---- 2c. Save -> chart swap -> letterbox -> fonts ----
 # --- figure gate: one measure, ONE value -------------------------------------
 # The swap gate above fails a build whose swap string matched nothing. This fails
@@ -1949,6 +2088,7 @@ for _i, _sl in enumerate(list(_bp.slides)):
             if _is_logo_pic(sh) and _in_corner(sh): _drop(sh)
         _add_logo(_sl, LOGO_DATA); _put_num(_sl, _i + 1)
 import slide_geometry as _sg; _sg.apply(_bp)   # per-title geometry contract (build/)
+_sg.selection_to_notes(_bp)                   # take rate / Reg E: selection sentence to the notes (Aaron, 2026-09-17)
 import fit_layout as _fl; _fl.fit(_bp)   # final layout-fit: clear number/logo, clamp off-slide (shared)
 _bp.save(OUT)
 _sidecar = _figs.log.dump(_figs.sidecar_path(OUT))

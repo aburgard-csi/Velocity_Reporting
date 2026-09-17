@@ -3,7 +3,7 @@ render matching charts. `branch_chart` draws all FOUR branch charts (personal ta
 business take rate, and both Reg E charts): accounts in the bars, rate on the line.
 Only the two colours differ — orange bars / navy line for personal and Reg E, navy bars /
 teal line for business. They must be identical in size and layout — see templates/STYLE.md."""
-import os, sys
+import os, re, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))  # build/
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -49,6 +49,11 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
     if len(rows) > BRANCH_CAP:
         raise ValueError(f"branch_chart got {len(rows)} bars; cap the caller's list at "
                          f"{BRANCH_CAP} or the branch labels will collide")
+    # The renderer sets its own face. The business take-rate chart is drawn from
+    # build_ars_gen, which set Carlito only on the SM path, so every MM deck's business
+    # chart rendered in matplotlib's DejaVu fallback (found 2026-09-17).
+    from rpe_env import use_font
+    use_font("Carlito")
     labels = [str(r[0]) for r in rows]
     accts = [r[2] for r in rows]
     rates = [r[3] for r in rows]
@@ -72,7 +77,9 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
     # worth reading: True Sky's branch 1004 is the largest at 513 accounts and the
     # worst at 8%, so its bar and its rate label landed on each other.
     ax.set_xticks(list(x))
-    ax.set_xticklabels([f"{b}\n{n:,}" for b, n in zip(labels, accts)], fontsize=10)
+    _ax_w = ax.get_position().width * fig_w             # the plot area, measured, not assumed
+    _ticks, _tsize = branch_tick_labels(labels, accts, _ax_w / max(1, len(rows)))
+    ax.set_xticklabels(_ticks, fontsize=_tsize)
     for sp in ("top", "right", "left"): ax.spines[sp].set_visible(False)
     ax.spines["bottom"].set_color(MUTED); ax.tick_params(colors=TICK, length=0)
     for t in ax.get_xticklabels(): t.set_color(NAVY)
@@ -109,6 +116,75 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
 
     ax.set_xlabel(f"Branch  ·  {acct_label.lower()} (bars)", color=TICK, fontsize=9)
     _letterbox(fig, out_png, w, h)
+
+def short_branch_name(name):
+    """A branch name short enough for an axis label: drop a parenthetical code ("(SAR)"), a
+    leading "Br"/"Branch" marker and a trailing "Branch"/"Office" word when other words remain
+    ("Triangle Branch" -> "Triangle", "Main Office" -> "Main"). A number stays as it is."""
+    n = re.sub(r"\s*\([^)]*\)", "", str(name)).strip() or str(name)
+    n = re.sub(r"^(?:br|branch)\.?[\s\-]+", "", n, flags=re.I).strip() or n
+    words = n.split()
+    if len(words) > 1 and words[-1].lower() in ("branch", "office"):
+        n = " ".join(words[:-1])
+    return n
+
+
+def _fit_line(line, size, room, measure, family):
+    if measure(line, size, family) <= room:
+        return line
+    while len(line) > 1 and measure(line + "\u2026", size, family) > room:
+        line = line[:-1].rstrip()
+    return line + "\u2026"
+
+
+def branch_tick_labels(names, counts, slot_in, pt=10.0, min_pt=7.0, family="Carlito"):
+    """(tick labels, font size) for branch bars whose labels may be NAMES, not numbers.
+
+    Aaron, 2026-09-17: branch names on the branch charts; "long names will need to be
+    shortened to fit the slide axis labels" (short_branch_name, then an ellipsis at the floor). A number fits under
+    its bar; "North Stafford" or "Camp Lejeune" does not, and twelve of them ran into one
+    another. Each name is set on one line when it fits the bar's slot, else split at the word
+    break that makes the longer line shortest (two lines at most); one font size for every
+    label, the largest from `pt` down to `min_pt` at which all of them fit, measured with the
+    bundled font (textfit), never guessed. The account count stays on the last line.
+    """
+    try:
+        from textfit import text_width_in
+    except Exception:                                   # pragma: no cover
+        text_width_in = lambda t, size, family=None: len(t) * size / 72.0 * 0.5
+    room = slot_in * 0.82                             # a clear gap between neighbours
+    names = [short_branch_name(n) for n in names]
+
+    def lines_for(name, size):
+        name = str(name)
+        if text_width_in(name, size, family) <= room or " " not in name:
+            return [name]
+        words = name.split()
+        best = None
+        for i in range(1, len(words)):
+            a, b = " ".join(words[:i]), " ".join(words[i:])
+            wide = max(text_width_in(a, size, family), text_width_in(b, size, family))
+            if best is None or wide < best[0]:
+                best = (wide, [a, b])
+        return best[1]
+
+    size = pt
+    while True:
+        wrapped = [lines_for(n, size) for n in names]
+        widest = max((text_width_in(l, size, family) for ls in wrapped for l in ls), default=0)
+        if widest <= room or size <= min_pt:
+            break
+        size = round(size - 0.5, 1)
+    # Still too wide at the floor size: cut the line with an ellipsis, so a label can never
+    # run into its neighbour.
+    wrapped = [[_fit_line(l, size, room, text_width_in, family) for l in ls] for ls in wrapped]
+    tall = max(len(ls) for ls in wrapped) if wrapped else 1
+    labels = []
+    for ls, n in zip(wrapped, counts):
+        ls = ls + [""] * (tall - len(ls))              # counts line up across bars
+        labels.append("\n".join(ls + [f"{n:,}"]))
+    return labels, size
+
 
 def top_branches(rows, cap=None, acct=2, pct=3):
     """The branches a branch chart should show, in the order it should show them.

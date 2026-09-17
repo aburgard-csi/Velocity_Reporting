@@ -57,6 +57,232 @@ runs on the share today, so the call counts are the steadier figure):
 | A client's status, later views | 0 calls within 10 min, then 286 calls while the page waits | 0 calls (13 ms over HTTP); past 10 min shown in 66 ms while 53-88 calls re-check it behind the page |
 | "Check again" | 286 calls; 2-24 s | 97 calls; 2.6-30 s |
 
+### 2026-09-17 — Take rate and Reg E slides: full-width branch charts; branch names on every branch chart
+
+Aaron approved both on the test branch, then: "Yes, add to main" and "Main decks use names (numbers
+where no name is known), wrapped to fit ... Long names will need to be shortened to fit the slide
+axis labels."
+
+**Layout** (`build/slide_geometry.py`, the one geometry contract). 12-Month Eligible Take Rate
+(Personal, Business): the selection sentence moves from the slide face to the notes, the tiles are
+1.05" tall instead of 1.45", and the branch chart runs the full width (12.3 x 3.70). Reg E Opt-In —
+All Personal / Opened in Last 12 Months: donut, legend and sentence share one band across the top
+and the branch chart runs full width beneath (12.3 x 3.10); selection sentence to the notes. The
+charts render at those boxes' aspect (`charts_gen` DIM image11/14/16, the business chart via
+`slide_geometry.CHART_DIMS`). STYLE.md's "selection on the slide" gives way on these four slides
+at Aaron's direction; the selection is still on record in the notes.
+
+**Branch names** (`metrics_gen`). Every branch series is relabelled from
+`Inputs/Branch Names/branch_names.csv` when most of the deck's branch ids have a name; a branch with
+no name keeps its number, and the monthly take-rate table keeps branch-number order. Names are
+shortened once (`chart_lib.short_branch_name`), so charts, tables and captions agree, and the axis
+labels wrap to two lines and size to the bar slot, with an ellipsis as the last resort
+(`chart_lib.branch_tick_labels`). With names on the charts, the Branch Reference appendix slide is
+no longer added.
+The 12-Month Take Rate by Branch table widens its Branch column to the longest name, measured in the
+bundled font. **New gate check** `validate_deck.table_label_fit_findings`: a table whose first-column
+label wraps and pushes the table past the slide FAILs. It is the defect the first names build shipped
+without failing: Great Lakes' "Member Contact Center" wrapped to three lines and the table ran to
+about 8.6". Placeholder names from a source ("N/A", "NULL", "NONE") are never used. The geometry
+contract parks the selection line at the foot of these slides and `slide_geometry.selection_to_notes`,
+called by the builder, moves it to the notes, so the template shell still satisfies the contract.
+Tests: `tests/test_table_label_fit.py`.
+
+### 2026-09-17 — Transaction files stored zipped
+
+Aaron: "Zip all the txn files so they read faster." `Inputs/Txn Files/<id>/` held 405 raw
+transaction files, about 48 GB, read over the share. Each is now `<original name>.zip` beside
+where it was, one file per zip with its original timestamp (`scripts/zip_txn_files.py`). A zip
+replaces its original only after its size and CRC match the original and it decompresses cleanly.
+On 1785's files, the zips are 34% of the raw size, and a full read took 4.2s instead of 7.4s.
+
+No deck reads these files, and no slide or figure changes. The only scripts that open them are in
+`z-legacy - do not use`, and they were left alone. Any new reader goes through
+`rpe_env.txn_files()` / `rpe_env.open_txn()`, which read the zipped or the raw form, and an old
+raw path still opens its zip. `Txn Files` is a new input kind, `Txn`, in `NOT_SCANNED_KINDS`, so
+neither `report_dirs()` nor the watcher's copier and pruner looks inside it. Test:
+`tests/test_txn_files.py`.
+
+### 2026-09-17 — The business take-rate chart renders in Carlito on every deck
+
+`build_ars_gen` set the chart face only on the Monthly Summary path, so on every MM deck the
+"12-Month Eligible Take Rate — Business" chart (drawn by `chart_lib.branch_chart` from the builder,
+not from `charts_gen`) fell back to matplotlib's DejaVu Sans. `branch_chart` now sets Carlito
+itself through `rpe_env.use_font`, which raises rather than substitute.
+
+### 2026-09-17 — Reg E "Anything else" reads as opted out (correction)
+
+**A client-facing number moves.** Aaron: "Reg E Anything Else assigned to Opt-Out, Accepted = Opt-In,
+Declined = Opt-Out." `odd_rows.rege_label` counted 1217 Pioneer FCU's "Anything else" as not
+applicable, which left those card holders out of the opt-in rate's base; they now count as opted
+out, so Pioneer's opt-in rate falls. "Accepted" and "Declined" were already read that way by
+pattern; they are now exact entries. Test: `tests/test_rege_label.py`.
+
+### 2026-09-17 — No trend line over a partial month; white space under the CashPlease Overview tiles
+
+Aaron: "don't draw trend lines over partial months." The CashPlease Loan Volume by Month chart
+hatched the part-month bar but ran the principal-advanced line into it, so September 1-11 read as a
+drop from $9K to about $4K. The line now stops at the last complete month; the partial month keeps
+its hatched bar and count (`cp_charts.monthly_volume_chart`). The ICS section-intro motif's
+cumulative line stops the same way when the referral trend's last month is partial. The ARS, MRPC
+and dashboard series already end on the last complete month (`build/month_complete.py`). Test:
+`tests/test_partial_month_lines.py`.
+
+Aaron: "add whitespace below the navy callout boxes by moving everything down 1/4"." On the
+CashPlease Program Overview slide the chart label, cumulative chart, commentary box and cohort note
+all sit 0.25" lower (`build_cp_gen.py`, `OV_DROP`).
+
+### 2026-09-17 — CashPlease settings for 68 clients; prepaid finance no longer reads "N/A%"; September pill fits
+
+Settings records: `Inputs/Product Settings/` went from one file (1632) to 68, exported from an
+all-clients pull of the Business Utilities CashPlease records (`C:\Data Pipelines\Product
+Settings\Inputs\CashPlease`, Aaron: "copy it to Sheila's inputs folder"). Test accounts and the 18
+clients with no loan settings recorded get no file, so they keep getting no settings slide.
+
+Three rendering defects that the wider data exposed on the first 2026.09 modules (Aaron: "build
+the CashPlease modules for my clients"), all in `build_cp_gen.py`:
+- **Prepaid finance charge** appended "%" to anything not ending in one, so slides read "N/A%
+  (standard & MLA)" (1750, 1771), "6% / $25 max%" (1131), "6% up to $25 MAX%" (1770) and "$20%
+  standard · $0% MLA" (1564). `_as_pct` now signs a bare number only, and the new `_as_charge`
+  shows N/A/0 as "None" (a lone "None" drops the "(standard & MLA)" tail).
+- **Four differing loan types** were lower-cased ("22% easy std · 23% manual mla"); they now keep
+  "Easy Std / Manual MLA".
+- **The content-slide date pill** is 2.70" wide (was the 2.35" `shapes.pill` default): "PTD ·
+  September 13, 2026" is 2.16" of Montserrat 12pt in 2.15" usable and wrapped onto two lines on
+  every content slide. It grows leftward into the gap after the title.
+Tests: `test_cp_settings_slide.py` pins all three. Rebuilt 1131, 1564, 1750, 1770, 1771 — 0 FAIL,
+0 REVIEW. Re-assembled the combined decks 1539 (ARS-ICS-MRPC-CP, 72 -> 73 slides), 1632 and 1734
+(ICS-CP, 1734 19 -> 20) from the same ARS/ICS/MRPC decks they shipped with and a fresh CP section
+(`Build Artifacts/cp_settings_2026.09/`): the only validator differences are the four CP pill
+wraps gone; qa_all GATE PASS.
+
+### 2026-09-17 — Comparisons use complete months only
+
+Aaron: "Don't calculate YoY or comparisons on partial months, only use complete months." Marine FCU
+1539's 2026.09 NSF/OD Activity slide said "-98% Items YoY (Aug 25 → Aug 26)". Its ODD extract was pulled
+09/04/26 and carried whole August swipes and spend (1,104,224 swipes against 1,103,258 in July), but only
+390 NSF/OD items on 290 accounts for August against 19,451 on 4,480 in July. The YoY, both NSF/OD tiles and
+the chart's last bar all read that half-loaded month as a collapse.
+
+**One definition, `build/month_complete.py`.** A month is incomplete for a measure when the data was
+pulled before it ended (the ODD member's `(MMDDYY_HHMMSS)` stamp, a weekly's "Report Generated" date, a VIP
+sheet's `data_pull`), or when its total is below half the median of the six months before it. Only
+trailing months are judged, at most two, and only where the baseline median is 50 or more (a count floor;
+small MRPC enrollment counts have real zeros). Evidence: over every ODD extract on hand (83), the trailing
+three months of swipes, spend, NSF/OD items and NSF/OD accounts read 51% of baseline or more everywhere
+except 1539 (2%) and 1774 (5%), both August NSF/OD.
+
+**What moved.**
+- ARS `metrics_gen`: judged per measure family. NSF/OD series, `nsf_last_*` tiles and `nsf_yoy` end on
+  the last complete NSF/OD month; the left-out month is kept as `nsf_excluded`, never charted. The swipe-tier
+  3-month window and the before/after windows use months complete in swipes, spend AND NSF/OD; the dot plot,
+  sustained windows and the new-vs-book usage tiles use the last complete swipes+spend month
+  (`activity_month`); Reg E vintage NSF/OD items per month use the last 12 complete NSF/OD months.
+- ARS `ticket_calc`: the same call, so the Average Ticket window equals the swipe-tier window; a response
+  window cut short now divides by the months it has, not by 3.
+- ARS `build_ars_gen` / `charts_gen` / one-pager / performance dashboard: the workbook's Key Trends spend
+  series (Spend YoY, monthly spend, card growth, the chart, the span caption) ends on its last complete month.
+- Slides say it: the NSF/OD caption adds "<Mon YYYY> left out: incomplete in this extract.", its tiles name
+  the month they show, the swipe-tier and Average Ticket captions name a left-out month, and the notes carry
+  the figures behind the call and the months each YoY compares. No slide is dropped or zeroed.
+- CashPlease `cp_extract`: a `*` month roll-up for a month that had not ended at report generation is held
+  out of `monthly` (`monthly_in_progress`). None does today. The dashboard's `complete_months` now calls the
+  shared rule.
+- MRPC: `performance_vs_goal` and `revenue.by_month` are trimmed to complete months before slides 5 and 8
+  average, peak and range them, with the exclusion in the notes (none today: the Sep pulls end Jul 26 / May 26).
+  The enrollments subtitle, notes and chart legend said the last month "is a partial month" unconditionally;
+  they now say it only when VIP flags `partial_last`.
+- ICS: Results by Branch notes state that the YTD referrals include the month to date. VIP's branch counts
+  cannot be split by month, so the pace figure is unchanged; this is the one comparison still on a partial month.
+
+**Marine 1539, 2026.09 extract (rebuilt metrics in `Build Artifacts/complete_months_check_2026-09-17/`):**
+Items YoY -98% (Aug 25 → Aug 26) → +10% (Jul 25 → Jul 26); tiles 390 items / 290 accounts → 19,451 / 4,480
+(July 2026); swipe-tier window Jun–Aug → May–Jul 2026 (NSF/OD column 10,944 → 15,872); Average Ticket window
+Jun–Aug → May–Jul; Reg E vintage items per participant up 0.02-0.10 per band. Before/after, dot plot and
+usage tiles unchanged. No other 2026.09 ARS deck has a month this rule excludes.
+
+### 2026-09-17 — Questions & Discussion carries the cover's month
+
+Every 2026.09 ARS deck in Outputs — 33, the combined decks built on an ARS shell included — read
+"<Client>  •  July 2026" on Questions & Discussion under a cover reading September 2026. `build_ars_gen`
+swapped the cover's month but only the client NAME on the closing slide (by index, `S[30]`), so the template
+shell's month rode through. It now swaps the whole "<client>  •  <month>" line to `PRESENT_MONTH`, resolved by
+title, and a template that changes that line misses the swap gate. ICS, MRPC and CashPlease already wrote the
+same month on both slides, and `assemble_combined` keeps the base program's cover and closing slide, so
+fixing ARS fixes the combined decks.
+
+New gate check, `validate_deck.closing_month_findings`: FAILs a deck whose Questions & Discussion line names
+a different month or client than the cover. It FAILs all 33 of those decks, and passes every template shell
+(both slides carry the dummy July 2026) and the 16 ICS / MRPC / CashPlease 2026.09 decks. The 33 decks need a
+rebuild to pick up the fix.
+### 2026-09-17 — The ILS DDA count is saved from Charles's weekly email automatically
+
+Aaron: "Update the ILS DDA count from Charles's email with subject 'ILS Management Server DDA
+Count'. Our CSI Email Monitor task can do this as part of its checks." `scripts/ils_dda_count_mail.py`
+takes the newest such email (from charles.baker or velocityalerts) out of Outlook over COM and saves
+its body as `Inputs/CashPlease/ILS-DDA-Count-<sent date>.txt`, the file `build_cashplease.py` reads
+for the loans-per-DDA denominator. The CSI Email Monitor's runner calls it before its Claude step,
+so the ~280 counts are copied, not retyped by a model. It saves only a body that parses to a table,
+and a week already saved with a different table is reported and left alone (compared as parsed
+counts, so `&amp;` versus `&` in a client name is not a difference). 2026-09-17 saved: 232 clients
+with a count, 45 NULL.
+
+### 2026-09-17 — A branch-name dataset in Inputs, kept by the morning source check
+
+Aaron: "create a branch mapping data set in inputs and update it when new branch names are
+discovered." `Inputs/Branch Names/branch_names.csv` holds one row per name a source has given a
+client's branch number (client, number, name, source, source file, first and last seen); nothing
+is removed. `watch_sources.py --branch-names` (now in the scheduled task) adds names from each
+client's Charts workbook, Branch Results tab, and from the ICS referrals pull's VIP branch names.
+A Charts file is tied to a client only when exactly one client's whole name fits its filename
+("federal credit union" read as FCU, "credit union" as CU); the rest are reported for a row in
+`charts_files.csv`. `branch_names.client_map(id)` reads it back: the Charts name wins, VIP fills
+numbers the Charts file lacks, and a number one source names two different ways is left unnamed
+("North Shore" and "North Shore Branch" count as one). First run: 1,638 names for 78 clients;
+Marine FCU gets names for all 18 branch numbers its ODD uses, where its Charts file had 15.
+Nothing in the monthly decks reads it yet. Tests: `tests/test_branch_name_dataset.py`.
+
+### 2026-09-17 — The morning source check keeps the ICS referrals query current
+
+Aaron: "For the ICS query we need to pull that list periodically. Automatically update the query
+during the morning file scan to only pull from the last scan to now, then dedup any overlap."
+`watch_sources.py --ics-referrals` (now in the scheduled task) runs `scripts/ics_referrals_pull.py`:
+each result saved as `Inputs/ICS Referrals/ics_referrals <date>.csv` is merged into
+`ics_referrals.csv`, and `ICS Referrals - new since last pull.sql` is rewritten with `@since` set
+to the day of the newest referral merged. Overlap is removed per referral (client, account, issue
+date): the newer pull's rows replace the older's, which also keeps the query's branch-join
+duplicates from stacking up across pulls. A result whose header or column count is not the
+query's (SSMS does not quote a comma in a name) is reported and not merged. The query moved into
+the repo as `scripts/sql/ics_referrals_all_clients.sql`. Tests: `tests/test_ics_referrals_pull.py`.
+
+### 2026-09-16 — Six views from James Gilmore's deck, opt-in (`RPE_JAMES_SLIDES=1`)
+
+*Merged into main 2026-09-17 (Aaron: "merge the test branch into main"). Still opt-in: without
+`RPE_JAMES_SLIDES=1` no deck changes. Its take rate / Reg E layout and branch names were already
+on main by then, in `slide_geometry` and `metrics_gen`, so the branch's own copies were dropped.*
+
+**Branch `test/james-aaron-combined` only; not for delivery.** Aaron: "create a test branch that
+combines ideas from both my and James's decks, produce a sample." With `RPE_JAMES_SLIDES=1`,
+`build_ars_gen` adds six slides; without it the build is unchanged (the template baseline does
+not move). Figures come from the ODD and the ARS workbook the build already reads:
+
+- **Revenue by Mailing** (after Mailing Response Summary) — each mailing's booked incremental
+  revenue from the workbook's All Months Rollup MM sheet, with revenue per month booked; a
+  workbook without the sheet says so on the slide.
+- **Responders vs Mailed Non-Responders** (after Before vs After by Offer) — difference in
+  differences. The responder side is the Responder Activity slide's own figure (the build stops
+  if the two drift); the control is accounts mailed the same drop that did not meet the goal.
+- **Card Account Health** (after NSF/OD Activity) — eligible personal accounts by card-spend state
+  (active, declining, cooling, dormant, never used, no card), ratios of the last 3 months to the 3
+  before.
+- **Take Rate and Reg E Opt-In by Branch** and **Branch Scorecard** (after Reg E by Vintage) — on
+  the deck's own definitions, so the Total row reconciles to Program Overview and First-Year
+  Closure (pinned in `tests/test_combined_insights.py` against the synthetic ODD).
+- **ARS Scorecard** (before Key Takeaways) — each measure against its own comparator; status
+  ahead / within 2% / behind from Aaron's +/-2% band, glyph plus colour.
+
+New: `build/ars_pipeline/combined_insights.py` (import-safe computations),
+`insight_charts.py` (renderers), `combined_insight_slides.py` (slide insertion).
 ### 2026-09-16 — CSM Sheila shows what's new and links the change log
 
 The page header has a "What's new" menu with the five newest entries of this file (date, title and the first

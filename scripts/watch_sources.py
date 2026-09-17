@@ -676,7 +676,7 @@ def _copies_section(result):
     elif prune_planned:
         out += ["", "## Would remove superseded inputs (%d) — dry run" % len(prune_planned), ""]
         out += ["- `%s` — superseded by `%s`" % (o, n) for o, n in prune_planned]
-    return out
+    return out + (result.get("ics_referrals") or []) + (result.get("branch_names") or [])
 
 
 def summary_line(result, roster):
@@ -694,6 +694,12 @@ def summary_line(result, roster):
         removed = sum(1 for x in pruned if x[2] == "removed")
         tail += " Removed %d superseded." % removed + (
             " %d FAILED." % (len(pruned) - removed) if len(pruned) > removed else "")
+    ics = result.get("ics_referrals") or []
+    merged = sum(1 for ln in ics if ln.startswith("- merged "))
+    if merged:
+        tail += " Merged %d ICS referral pull%s." % (merged, "" if merged == 1 else "s")
+    if any(ln.startswith(("- NOT merged", "- FAILED")) for ln in ics):
+        tail += " ICS referrals need a look."
     if result["baseline"]:
         return "Baseline recorded: %d files." % len(result["inventory"]) + tail
     new, changed, gone = result["new"], result["changed"], result["gone"]
@@ -829,6 +835,13 @@ def main(argv=None):
     ap.add_argument("--mail", action="store_true",
                     help="also take MRPC/CashPlease reports and ICS workbooks from "
                          "the two senders that email them (scripts/mail_sources.py)")
+    ap.add_argument("--ics-referrals", action="store_true",
+                    help="merge ICS referral query results landed in Inputs/ICS Referrals and "
+                         "point the query at referrals since the last pull "
+                         "(scripts/ics_referrals_pull.py)")
+    ap.add_argument("--branch-names", action="store_true",
+                    help="add branch names found in the Charts workbooks and the ICS referrals "
+                         "pull to Inputs/Branch Names/branch_names.csv")
     ap.add_argument("--mail-days", type=int, default=None,
                     help="how far back to read the mailbox (default 30)")
     a = ap.parse_args(argv)
@@ -869,6 +882,16 @@ def main(argv=None):
                 os.path.join(inputs_dir, R.LEGACY_REPORTS_DIRNAME), plan,
                 locate=lambda nm: where.get(
                     nm, os.path.join(inputs_dir, R.LEGACY_REPORTS_DIRNAME, nm)))
+    # The ICS referrals list (Aaron, 2026-09-17): a person runs the query, so this
+    # merges whatever result landed since the last check and rewrites the query to
+    # start at the newest referral merged. Reported, never fatal.
+    if a.ics_referrals and not a.no_inputs and _inputs_dir():
+        import ics_referrals_pull
+        result["ics_referrals"] = ics_referrals_pull.run(dry_run=a.dry_run)
+    # Branch names (Aaron, 2026-09-17), after the referrals merge so a new pull's names count.
+    if a.branch_names and not a.no_inputs and _inputs_dir():
+        import branch_names
+        result["branch_names"] = branch_names.morning_update(dry_run=a.dry_run)
     # The inputs that arrive by EMAIL, not on a share: MRPC and CashPlease
     # reports from Bradford, ICS workbooks from Matt (Aaron, 2026-09-09). A
     # mailbox that cannot be reached is reported and skipped — it must not fail

@@ -184,9 +184,47 @@ def add_contact_slide(prs, contact):
     cs.notes_slide.notes_text_frame.text=contact_card_note(contact)
     return cs
 
+def complete_series(data):
+    """Trim the monthly VIP series the slides COMPARE to their complete months, in place.
+
+    Aaron, 2026-09-17: "Don't calculate YoY or comparisons on partial months, only use
+    complete months." Slide 5 averages and peaks `performance_vs_goal`, slide 8 averages,
+    totals and ranges `revenue.by_month`, and both charts colour the last bar as the
+    latest month. Neither series has ended on a month in progress so far (the Sep 2026
+    pulls end Jul 26 and May 26), but nothing held them to it. month_complete decides —
+    a month that had not ended at the pull date, or one whose volume is below half its
+    six-month median — and what it leaves out is returned for the notes, never dropped
+    silently. The enrollments series keeps its own `partial_last` / `last_complete`
+    handling, which VIP supplies.
+    """
+    import datetime
+    import month_complete
+    try:
+        as_of = datetime.date.fromisoformat(str(data["meta"].get("data_pull") or "")[:10])
+    except ValueError:
+        as_of = None
+    notes = {}
+    for key, block, measure, value_key in (
+            ("performance_vs_goal", data.get("performance_vs_goal"), "new checking accounts", "new_accounts"),
+            ("revenue.by_month", (data.get("revenue") or {}).get("by_month"), "revenue", "revenue")):
+        if not block or not block.get("months") or not block.get(value_key):
+            continue
+        months = block["months"]
+        res = month_complete.assess(months, block[value_key], as_of, measure)
+        if res["complete"] < len(months):
+            n = len(months)
+            for k, v in list(block.items()):
+                if isinstance(v, list) and len(v) == n:
+                    block[k] = v[:res["complete"]]
+            notes[key] = month_complete.excluded_sentence(
+                res, fmt=(lambda v: f"${v:,.0f}") if value_key == "revenue" else None)
+    return notes
+
+
 # ---- build -----------------------------------------------------------------
 def build(data, template, out):
     m=data["meta"]; client=m["client_name"]; rm=m["report_month"]; hb=m["has_business"]
+    _left_out=complete_series(data)
     # The Contact Us card is the client's managing CSM (Aaron, 2026-09-16) — resolved first,
     # so a client with no CSM on file stops before anything is rendered.
     import rpe_env
@@ -207,8 +245,10 @@ def build(data, template, out):
     if sh_sub:
         biz_txt=" and Business" if hb else ""
         set_text(sh_sub, f"Gold + Platinum (personal){biz_txt} enrollments by month, "
-                         f"last {len(e['months'])} months ({e['months'][0]} – {e['months'][-1]}); "
-                         f"{e['months'][-1]} is a partial month." )
+                         f"last {len(e['months'])} months ({e['months'][0]} – {e['months'][-1]})"
+                         # Said only when it is so: VIP flags the running month, and a
+                         # sheet pulled after the month closed has none (2026-09-17).
+                         + (f"; {e['months'][-1]} is a partial month." if e.get("partial_last") else "."))
     swap(S[2], max(pics(S[2]), key=lambda p:p.width*p.height), A("mrpc_enroll.png"))
     boxes=sorted(autoshapes(S[2]), key=lambda sh: Emu(sh.top).inches)
     # boxes top->bottom: Gold, Platinum, Business
@@ -427,7 +467,9 @@ def build(data, template, out):
     set_notes(S[0], "Title slide. No data.")
     set_notes(S[1], "Section divider (MyRewards Premium Cards®). No data.")
     set_notes(S[2], base+f" Enrollments by month, tiers {'Gold/Platinum/Business' if hb else 'Gold/Platinum'}; "
-                        f"callout = {lc['label']} (last complete month); {e['months'][-1]} partial. "
+                        f"callout = {lc['label']} (last complete month)"
+                        + (f"; {e['months'][-1]} partial. " if e.get("partial_last") else ". ")
+                        +
                         f"{'Monthly tier split apportioned from the last-complete-month ratio pending exact VIP tiers. ' if e.get('tier_split_approx') else ''}"
                         f"Selection: enrollments by month, last {len(e['months'])} months.")
     set_notes(S[3], base+f" Enrollments by channel, program-to-date: "
@@ -435,7 +477,8 @@ def build(data, template, out):
     set_notes(S[4], base+f" Enrollment performance vs the {p['goal_pct']}% goal, "
                         f"{len(p['months'])} months ({p['months'][0]} – {p['months'][-1]}). Bars navy, last month orange. "
                         f"{'New-checking bars seeded/derived pending exact VIP values. ' if p.get('new_checking_approx') else ''}"
-                        "Selection: new checking accounts vs. goal and actual enrollments.")
+                        "Selection: new checking accounts vs. goal and actual enrollments."
+                        + (" " + _left_out["performance_vs_goal"] if _left_out.get("performance_vs_goal") else ""))
     set_notes(S[5], base+" Retention by enrollment-cohort month + cancellations by reason. Bars navy, last cohort orange. "
                         f"{'Still-active line seeded/approx pending exact VIP values. ' if data['retention'].get('still_active_approx') else ''}"
                         "Selection: enrolled members by cohort month, with count still active now.")
@@ -443,7 +486,8 @@ def build(data, template, out):
                         f"life-of-program ${rv['life_of_program']:,}"+(f", {ytd['year']} ${ytd['amount']:,}" if ytd else "")+
                         ". Full annual series pulled from VIP; sums to life-of-program.")
     set_notes(S[7], base+f" Revenue by month (VIP MRPC Revenue by Month), {bm['months'][0]} – {bm['months'][-1]}; "
-                        f"avg ${bm_avg:,}/mo, trailing-12 ${bm_tot:,}. Bars navy, last month orange.")
+                        f"avg ${bm_avg:,}/mo, trailing-12 ${bm_tot:,}. Bars navy, last month orange."
+                        + (" " + _left_out["revenue.by_month"] if _left_out.get("revenue.by_month") else ""))
     set_notes(S[8], base+f" Card portfolio by type: Platinum ($14.95/mo), Gold ($9.95/mo), Business Platinum "
                         f"($19.95/mo), and Multiple Cards (accounts with >1 card). Total {tot:,} cards, "
                         f"monthly billing ${mbill:,.2f}, cross-sale {cross:.1f}%. Fee tiers above the three base "

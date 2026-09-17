@@ -17,6 +17,12 @@ Rows are laid out to cover the cases that have actually broken:
   * responders and non-responders across several mailings
 
 Regenerate with:  python3 tests/fixtures/make_odd.py tests/fixtures/synthetic_odd.csv
+
+Partial final month (2026-09-17). `--partial-nsf` keeps the NSF/OD items of only one
+row in 40 in the latest month — the shape of Marine FCU 1539's 2026.09 extract, whose
+August held 390 NSF/OD items against 19,451 in July while its swipes were whole.
+`--partial-activity` does the same to that month's swipes and spend. Both are applied
+AFTER every random draw, so the default fixture stays byte-identical.
 """
 import csv, datetime, random, sys
 
@@ -65,7 +71,10 @@ def months(n, latest):
     return list(reversed(out))
 
 
-def build(path):
+PARTIAL_KEEP = 40   # a partial month keeps one row in this many
+
+
+def build(path, partial_nsf=False, partial_activity=False):
     rng = random.Random(SEED)
     ms = months(N_MONTHS, LATEST)
     latest = ms[-1]
@@ -162,16 +171,22 @@ def build(path):
         for mi, m in enumerate(ms):
             sw = rng.randint(lo, hi) if has_card else 0
             sig = sw // 2; pin = sw - sig
+            sig_d = sig * rng.uniform(18, 55)
+            pin_d = pin * rng.uniform(12, 40)
+            if partial_activity and m == latest and i % PARTIAL_KEEP:
+                sig = pin = 0; sig_d = pin_d = 0.0
             r[f"{m} Sig #"] = str(sig)
             r[f"{m} PIN #"] = str(pin)
-            r[f"{m} Sig $"] = f"{sig * rng.uniform(18, 55):.2f}"
-            r[f"{m} PIN $"] = f"{pin * rng.uniform(12, 40):.2f}"
+            r[f"{m} Sig $"] = f"{sig_d:.2f}"
+            r[f"{m} PIN $"] = f"{pin_d:.2f}"
             # MTD/YTD are NSF/OD ITEM COUNTS, not dollars — integers, with a
             # smoothly decaying 0/1/2/3/... frequency, matching every real
             # extract (see odd_rows.nsf and tests/test_nsf_is_items.py). The
             # fixture used to write '35.00'/'70.00', which looked like two
             # $35 fees and taught the wrong meaning.
             nsf_items = rng.choice([0, 0, 0, 0, 1, 1, 1, 2, 2, 3, 4, 6, 9])
+            if partial_nsf and m == latest and i % PARTIAL_KEEP:
+                nsf_items = 0
             r[f"{m} MTD"] = str(nsf_items)
             # YTD is the calendar-year cumulative of MTD, so it is an integer
             # of the same unit and never smaller than the month's own count.
@@ -208,6 +223,8 @@ def build(path):
 
 
 if __name__ == "__main__":
-    out = sys.argv[1] if len(sys.argv) > 1 else "synthetic_odd.csv"
-    hdr, ms, rows = build(out)
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    out = args[0] if args else "synthetic_odd.csv"
+    hdr, ms, rows = build(out, partial_nsf="--partial-nsf" in sys.argv,
+                          partial_activity="--partial-activity" in sys.argv)
     print(f"wrote {out}\n  rows {len(rows)}  cols {len(hdr)}  months {ms[0]}..{ms[-1]}")

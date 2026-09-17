@@ -113,7 +113,8 @@ def chart_enroll(d, out, dims):
     ax.set_ylim(0,max(tot)*1.18); ax.get_yaxis().set_visible(False); _clean(ax)
     handles=[Patch(fc=GOLDC,label='Gold'),Patch(fc=PLATC,label='Platinum')]
     if hb: handles.append(Patch(fc=BIZC,label='Business'))
-    handles.append(Patch(fc=PLATC,alpha=0.42,hatch='//',label=f'{P.mon_yy(m[-1])} (partial)'))
+    if partial[-1]:   # the legend names a partial month only when there is one (2026-09-17)
+        handles.append(Patch(fc=PLATC,alpha=0.42,hatch='//',label=f'{P.mon_yy(m[-1])} (partial)'))
     ax.legend(handles=handles,loc='upper center',bbox_to_anchor=(0.5,1.10),
               ncol=len(handles),frameon=False,fontsize=13)
     canvas(fig,*dims,out)

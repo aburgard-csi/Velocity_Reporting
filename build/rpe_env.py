@@ -313,6 +313,13 @@ INPUT_KIND_DIRS = {
     # build/ics_pipeline/ics_local_sheet.py builds the ICS sheet from them.
     "ICS referrals": "ICS Referrals",     # <id>_ics_detailed referral_v<N>.xls
     "ICS direct mail": "ICS Direct Mail", # <id>-<yyyy.mm>-ICS-<Client>-Direct Mail New Accounts Opened PTD.xlsx
+    # One row per name a source has given a client's branch number (Aaron, 2026-09-17);
+    # kept by the morning source check, read by branch_names.client_map.
+    "Branch names": "Branch Names",       # branch_names.csv
+    # Clients' monthly debit-card transaction files, one folder per client (`<id>/`), stored
+    # zipped (Aaron, 2026-09-17): one .zip per file, named the original plus ".zip". Read them
+    # through txn_files() / open_txn(), which take either form.
+    "Txn": "Txn Files",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -320,7 +327,7 @@ INPUT_KIND_DIRS = {
 # The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets",
-                     "ICS referrals", "ICS direct mail")
+                     "ICS referrals", "ICS direct mail", "Branch names", "Txn")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
@@ -451,6 +458,67 @@ def extract_odd_csv(zip_path, prefix: str = "oddd_") -> str:
         named = [i for i in members if "-odd" in Path(i.filename).name.lower() or "_v2_" in Path(i.filename).name.lower()]
         pick = named[0] if named else max(members, key=lambda i: i.file_size)
         return z.extract(pick, temp_dir(prefix))
+
+
+# Analysis output written beside the data (1441's output_txn/), not transaction files.
+TXN_SKIP_DIRS = ("output_txn",)
+
+
+def txn_files(client_id=None, root=None) -> list[Path]:
+    """Every transaction file on hand, zipped or not, sorted by path.
+
+    `Inputs/Txn Files/<id>/`, or every client's folder when `client_id` is None. A file
+    and its `.zip` side by side (the moment between zipping and removing the original)
+    are listed once, as the zip. Empty files, `.part` files and anything under
+    TXN_SKIP_DIRS are left out.
+    """
+    base = Path(root) if root is not None else inputs() / INPUT_KIND_DIRS["Txn"]
+    if client_id is not None:
+        base = base / str(client_id)
+    if not base.is_dir():
+        return []
+    hits = []
+    for p in base.rglob("*"):
+        rel = p.relative_to(base).parts
+        if (not p.is_file() or p.name.endswith(".part") or p.name.startswith("~$")
+                or any(d in TXN_SKIP_DIRS for d in rel[:-1])):
+            continue
+        if p.stat().st_size == 0:
+            continue
+        if p.suffix.lower() != ".zip" and p.with_name(p.name + ".zip").is_file():
+            continue
+        hits.append(p)
+    return sorted(hits, key=str)
+
+
+def open_txn(path, mode: str = "rb", encoding: str = "utf-8", errors: str = "replace"):
+    """Open a transaction file for reading, whether it is stored zipped or not.
+
+    Takes the `.zip` or the original name: `x.csv` opens `x.csv.zip` when only the zip is
+    there, so a caller holding a pre-zip path keeps working. The zip is read in place,
+    never extracted to disk. `mode` is "rb" or "r"; "r" decodes with `encoding`/`errors`
+    and leaves newlines untranslated, as `open(newline="")` would for the csv module.
+    """
+    import io
+    import zipfile
+    if mode not in ("r", "rb"):
+        raise ValueError(f"open_txn reads only ('r' or 'rb'), not {mode!r}")
+    p = Path(path)
+    if p.suffix.lower() != ".zip" and not p.is_file() and p.with_name(p.name + ".zip").is_file():
+        p = p.with_name(p.name + ".zip")
+    if p.suffix.lower() == ".zip":
+        # Closing the ZipFile here is safe: the archive's file handle is shared and
+        # reference-counted, so it stays open until the member is closed too.
+        with zipfile.ZipFile(p) as z:
+            members = [i for i in z.infolist() if not i.is_dir()]
+            if len(members) != 1:
+                raise ValueError(f"{p} holds {len(members)} files; a transaction zip holds exactly one")
+            raw = z.open(members[0])
+    else:
+        raw = open(p, "rb")
+    if mode == "rb":
+        return raw
+    return io.TextIOWrapper(raw, encoding=encoding, errors=errors, newline="")
 
 
 BUILD_ARTIFACTS_DIRNAME = "Build Artifacts"

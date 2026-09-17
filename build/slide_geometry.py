@@ -22,10 +22,12 @@ blocks. Do NOT start a second module — one contract, or the rule that says
 
 Titles carrying a rule today (all ARS, Aaron 2026-07-24), in the order apply() tests them:
   Overall Debit Swipes / NSF/OD Activity ... chart taller, never wider than the tile rail
-  12-Month Eligible Take Rate ............ chart and caption centered on the slide
+  12-Month Eligible Take Rate ............ selection to notes; tiles 1.30-2.35; chart full width
+                                           (0.5, 2.60, 12.3 x 3.70); caption centered at 6.36
   Product Mix ............................ source line bottom-center
-  Reg E Opt-In (not Vintage) ............. donut <= 2.85" ending 4.45", legend rows from 4.60",
-                                           caption at 5.85"
+  Reg E Opt-In All Personal / Opened ..... selection to notes; donut, legend, sentence in one band
+                                           (1.28-3.08); chart full width (0.5, 3.20, 12.3 x 3.10)
+  Reg E Opt-In (other, not Vintage) ...... donut <= 2.85" ending 4.45", legend rows from 4.60"
   Reg E Opt-In by Account Vintage /
   First-Year Closure / ARS Response Movement  chart top >= 1.75" (below the 2-line subtitle)
   Transaction Increase ................... caption (1.45, 6.02, 8.4 x 0.95); chart <= 4.1" tall,
@@ -45,6 +47,44 @@ def _title(sl):
 def _pics(sl,minw=3.0):
     return [sh for sh in sl.shapes if sh.shape_type==MSO_SHAPE_TYPE.PICTURE
             and (_in(sh.width) or 0)>minw]
+# The take rate and Reg E branch charts, full width (Aaron, 2026-09-17). The renderers draw
+# at these boxes' aspect (charts_gen DIM image11/14/16, build_ars_gen's business chart via
+# CHART_DIMS) so nothing stretches.
+TAKE_CHART = (0.5, 2.60, 12.3, 3.70)
+REGE_CHART = (0.5, 3.20, 12.3, 3.10)
+CHART_DIMS = {"take": (2460, 740), "rege": (2460, 620)}
+CAPTION_TOP = 6.36
+def _box(sh, b):
+    sh.left, sh.top, sh.width, sh.height = (Inches(v) for v in b)
+# Where the contract PARKS the selection line on these slides: a clear strip under the caption,
+# right of the slide number, left of the corner logo. The contract only moves shapes, so the
+# template shell can satisfy it and the builder's selection swaps still find their text; the
+# builder then takes the parked line off the slide into the notes (selection_to_notes).
+SELECTION_PARK = (1.30, 6.86, 9.80, 0.34)
+SELECTION_IN_NOTES = ("12-Month Eligible Take Rate", "Reg E Opt-In — All Personal", "Reg E Opt-In — Opened in Last 12")
+def _park_selection(sl):
+    for sh in sl.shapes:
+        if sh.has_text_frame and sh.text_frame.text.strip().startswith("Selection:"):
+            _box(sh, SELECTION_PARK)
+def selection_to_notes(prs):
+    """Move the selection sentence into the notes on the slides whose face no longer carries it
+    (Aaron, 2026-09-17). Called by the builder after apply(); never by apply() itself."""
+    for sl in prs.slides:
+        if not _title(sl).startswith(SELECTION_IN_NOTES):
+            continue
+        for sh in list(sl.shapes):
+            if sh.has_text_frame and sh.text_frame.text.strip().startswith("Selection:"):
+                sel=sh.text_frame.text.strip()
+                tf=sl.notes_slide.notes_text_frame
+                if sel not in tf.text:
+                    tf.text=(sel+" "+tf.text).strip()
+                sh._element.getparent().remove(sh._element)
+def _center_caption(sl, starts):
+    from pptx.enum.text import PP_ALIGN as _PA
+    for sh in sl.shapes:
+        if sh.has_text_frame and sh.text_frame.text.strip().lower().startswith(starts):
+            _box(sh, (0.5, CAPTION_TOP, 12.3, 0.45))
+            for pa in sh.text_frame.paragraphs: pa.alignment=_PA.CENTER
 def apply(prs):
     for sl in prs.slides:
         t=_title(sl)
@@ -64,15 +104,22 @@ def apply(prs):
                 sh.left=Inches(0.6); sh.top=Inches(1.6)
                 sh.width=Inches(nw); sh.height=Inches(nh)
         if t.startswith("12-Month Eligible Take Rate"):
-            # chart + caption centered on the slide (Aaron 2026-07-24)
-            from pptx.enum.text import PP_ALIGN as _PAL
-            for sh in _pics(sl):
-                w=_in(sh.width)
-                if w: sh.left=Inches(round((13.333-w)/2,2))
-            for sh in sl.shapes:
-                if sh.has_text_frame and sh.text_frame.text.strip().startswith("Take rate by branch"):
-                    sh.left=Inches(2.32); sh.width=Inches(8.7)
-                    for pa in sh.text_frame.paragraphs: pa.alignment=_PAL.CENTER
+            # Aaron 2026-09-17 (approved on the test branch): the selection line moves to the
+            # notes, the tiles are shorter (1.30-2.35) and the branch chart runs the full width
+            # like the Take Rate and Reg E Opt-In by Branch view. Was: chart + caption centered.
+            _park_selection(sl)
+            for rect in [sh for sh in sl.shapes if sh.shape_type==MSO_SHAPE_TYPE.AUTO_SHAPE
+                         and 1.6<(_in(sh.top) or 0)<1.9 and (_in(sh.width) or 0)>2.0]:
+                rect.top=Inches(1.30); rect.height=Inches(1.05)
+                inside=sorted([sh for sh in sl.shapes if sh.has_text_frame and sh.text_frame.text.strip()
+                               and abs((_in(sh.left) or 0)-(_in(rect.left) or 0)-0.05)<0.02
+                               and 1.8<(_in(sh.top) or 0)<2.8], key=lambda x:x.top)
+                if len(inside)==2:
+                    inside[0].top=Inches(1.34); inside[0].height=Inches(0.60)
+                    inside[1].top=Inches(1.86); inside[1].height=Inches(0.42)
+            for sh in _pics(sl, minw=6.0):
+                _box(sh, TAKE_CHART)
+            _center_caption(sl, "take rate by branch")
         if t.startswith("Product Mix"):
             # source line bottom-center (Aaron 2026-07-24)
             from pptx.enum.text import PP_ALIGN as _PAL2
@@ -80,7 +127,30 @@ def apply(prs):
                 if sh.has_text_frame and sh.text_frame.text.strip().lower().startswith("source:"):
                     sh.left=Inches(0.5); sh.top=Inches(7.02); sh.width=Inches(12.33); sh.height=Inches(0.32)
                     for pa in sh.text_frame.paragraphs: pa.alignment=_PAL2.CENTER
-        if t.startswith("Reg E Opt-In") and "Vintage" not in t:
+        if t.startswith("Reg E Opt-In") and ("All Personal" in t or "Opened in Last 12" in t):
+            # Aaron 2026-09-17 (approved on the test branch): donut, legend and sentence share
+            # one band across the top; the branch chart runs full width beneath; the selection
+            # line moves to the notes.
+            _park_selection(sl)
+            for sh in _pics(sl, minw=2.0):
+                w=_in(sh.width); h=_in(sh.height)
+                if w and h and abs(w-h)<0.2 and w<4:
+                    _box(sh, (0.55, 1.28, 1.80, 1.80))
+            rows=sorted([sh for sh in sl.shapes if sh.has_text_frame and sh.text_frame.text.strip() in
+                         ("Opted In","Opted Out","No Election (default)")], key=lambda x:x.top)
+            chips=sorted([sh for sh in sl.shapes if sh.shape_type==MSO_SHAPE_TYPE.AUTO_SHAPE
+                          and (_in(sh.width) or 9)<0.5 and 1.4<(_in(sh.top) or 0)<6.6], key=lambda x:x.top)
+            for j,sh in enumerate(rows): _box(sh, (2.92, 1.55+j*0.42, 2.4, 0.32))
+            for j,sh in enumerate(chips[:3]): _box(sh, (2.60, 1.57+j*0.42, 0.22, 0.22))
+            for sh in sl.shapes:
+                tx=sh.text_frame.text.strip() if sh.has_text_frame else ""
+                if tx and len(tx)>40 and not tx.lower().startswith("opt-in rate by branch") \
+                        and (_in(sh.left) or 9)<1.6 and (_in(sh.top) or 0)>4.5:
+                    _box(sh, (5.55, 1.40, 7.25, 1.55))
+            for sh in _pics(sl, minw=6.0):
+                _box(sh, REGE_CHART)
+            _center_caption(sl, "opt-in rate by branch")
+        elif t.startswith("Reg E Opt-In") and "Vintage" not in t:
             # left column stacks: donut (<=2.85, ends 4.45) -> legend rows -> caption (Aaron 2026-07-24)
             for sh in _pics(sl,minw=2.5):
                 w=_in(sh.width); h=_in(sh.height)

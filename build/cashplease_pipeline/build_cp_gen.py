@@ -286,7 +286,10 @@ def head(slide, title, selection, pill_text):
             PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     textbox(slide, 0.62, 1.06, 9.6, 0.46, selection, 16, TICK_RGB, False,
             PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-    pill(slide, pill_text)
+    # Wider than the shapes.pill default (2.35"): "PTD · September 13, 2026" is 2.16" of
+    # Montserrat 12pt and wrapped onto two lines in 2.15" usable (2026.09 modules,
+    # Aaron 2026-09-17). Grows leftward into the gap after the 9.9"-wide title.
+    pill(slide, pill_text, L=10.15, W=2.70)
 
 
 def logo(slide, L, T, W, H):
@@ -500,6 +503,7 @@ def slide_overview(prs, d, pill_text, art_dir):
         rate_tile,
     ]
     L, W, GAP, T, H = 0.62, 2.30, 0.15, 1.78, 1.32
+    OV_DROP = 0.25
     for i, (val, lab) in enumerate(tiles):
         callout(s, L + i * (W + GAP), T, W, H, val, lab)
 
@@ -508,11 +512,13 @@ def slide_overview(prs, d, pill_text, art_dir):
         png = str(Path(art_dir) / f"{d['client_id']}_cp_cumulative.png")
         cp_charts.cumulative_growth_chart(
             png, [r["period_month"] for r in months], [r["loans"] for r in months])
-        fit_picture(s, png, 0.62, 3.42, 7.40, 2.80)
-        textbox(s, 0.62, 3.14, 7.40, 0.30, "Cumulative loans booked, by month",
+        # Everything below the callouts sits 1/4" lower than it did, for white space under
+        # the navy tiles (Aaron, 2026-09-17): OV_DROP.
+        fit_picture(s, png, 0.62, 3.42 + OV_DROP, 7.40, 2.80)
+        textbox(s, 0.62, 3.14 + OV_DROP, 7.40, 0.30, "Cumulative loans booked, by month",
                 13, TICK_RGB, True, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     else:
-        textbox(s, 0.62, 3.42, 7.40, 2.80,
+        textbox(s, 0.62, 3.42 + OV_DROP, 7.40, 2.80,
                 "No completed month in the workbook yet, so there is no growth "
                 "curve to draw. It appears here once the first month closes.",
                 16, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
@@ -527,17 +533,17 @@ def slide_overview(prs, d, pill_text, art_dir):
                      peer["charge_off_pct"], "rate"),
     ]
     box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                             Inches(8.25), Inches(3.14), Inches(4.47), Inches(3.08))
+                             Inches(8.25), Inches(3.14 + OV_DROP), Inches(4.47), Inches(3.08))
     box.fill.solid(); box.fill.fore_color.rgb = WHITE_RGB
     box.line.color.rgb = LABEL_RGB; box.line.width = Pt(1)
     box.shadow.inherit = False; shadow(box)
-    textbox(s, 8.45, 3.30, 4.07, 2.76, lines, 13, NAVY_RGB, False,
+    textbox(s, 8.45, 3.30 + OV_DROP, 4.07, 2.76, lines, 13, NAVY_RGB, False,
             PP_ALIGN.LEFT, BODY, MSO_ANCHOR.MIDDLE)
 
     cohort_note = COHORT_NOTE.format(client=d["client_name"], **peer)
     if m["loans_per_1k_dda"] is not None:
         cohort_note += DDA_COHORT_NOTE.format(client=d["client_name"], **peer)
-    textbox(s, 0.62, 6.36, 12.1, 0.40, cohort_note,
+    textbox(s, 0.62, 6.36 + OV_DROP, 12.1, 0.40, cohort_note,
             11, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     notes(s, f"Source: {d['source_file']}, tab '{d['sheet_name']}' "
@@ -618,7 +624,17 @@ def _us_date(v):
 
 
 def _as_pct(v):
-    return v if v.endswith("%") else f"{v}%"
+    """'17' -> '17%'. Only a bare number gets the sign: the app also records charges as
+    '$20', 'N/A' or '6% / $25 max', and appending to those shipped 'N/A%' and
+    '$20% standard' on the 2026.09 modules (Aaron, 2026-09-17)."""
+    return f"{v}%" if re.fullmatch(r"\d+(?:\.\d+)?", v.strip()) else v
+
+
+def _as_charge(v):
+    """A prepaid finance charge: a bare number is a percent, no charge reads 'None',
+    anything else ('$20', '6% / $25 max') is shown as recorded."""
+    none = ("N/A", "NA", "NONE", "0", "0%", "$0", "$0.00")
+    return "None" if v.strip().upper() in none else _as_pct(v)
 
 
 def _as_fee(v):
@@ -649,12 +665,13 @@ def _by_loan_type(S, field, fmt):
     if not vals:
         return NOT_RECORDED
     if len(set(vals.values())) == 1:
-        return f"{fmt(next(iter(vals.values())))} (standard & MLA)"
+        one = fmt(next(iter(vals.values())))
+        return one if one == "None" else f"{one} (standard & MLA)"
     std = {vals[k] for k in keys[:2] if k in vals}
     mla = {vals[k] for k in keys[2:] if k in vals}
     if len(std) == 1 and len(mla) == 1:
         return f"{fmt(std.pop())} standard · {fmt(mla.pop())} MLA"
-    return " · ".join(f"{fmt(v)} {k.replace(', ', ' ').lower()}" for k, v in vals.items())
+    return " · ".join(f"{fmt(v)} {k.replace(', ', ' ')}" for k, v in vals.items())
 
 
 def _yes_no(v):
@@ -693,7 +710,7 @@ def settings_rows(S):
         ["Maximum loan", val(S["Loan Maximum"])],
         ["Repayment", val(S["Loan Payment Structure"])],
         ["Interest rate", _by_loan_type(S, "Interest", _as_pct)],
-        ["Prepaid finance charge", _by_loan_type(S, "Prepaid Finance", _as_pct)],
+        ["Prepaid finance charge", _by_loan_type(S, "Prepaid Finance", _as_charge)],
         ["Application fee", app_fee],
         ["Year base", val(S["Year Base for Loan"])],
     ]
