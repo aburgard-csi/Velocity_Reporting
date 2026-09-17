@@ -213,6 +213,10 @@ def match_charts_client(filename, clients):
     return None if tie else best
 
 
+# Placeholders a source writes where it has no name; never a branch name.
+_NOT_A_NAME = {"NULL", "N/A", "NA", "NONE", "-", "UNKNOWN"}
+
+
 def _num(v):
     v = _norm(v)
     return str(int(v)) if v.isdigit() else v
@@ -283,7 +287,7 @@ def referral_observations(referrals_csv):
     with open(referrals_csv, newline="", encoding="utf-8-sig") as fh:
         for row in csv.DictReader(fh):
             num, name = _num(row.get("branch_number")), _norm(row.get("branch_name"))
-            if not num or num == "NULL" or not name or name == "NULL":
+            if not num or num == "NULL" or not name or name.upper() in _NOT_A_NAME:
                 continue
             found.setdefault((row["client_id"], num, _strip_prefix(name)), row.get("client_name", ""))
     fname = os.path.basename(referrals_csv)
@@ -336,7 +340,7 @@ def client_map(client_id, path=None, rows=None):
     rows = rows if rows is not None else read_dataset(path)
     by = {}
     for r in rows:
-        if r["client_id"] == str(client_id):
+        if r["client_id"] == str(client_id) and r["branch_name"].strip().upper() not in _NOT_A_NAME:
             by.setdefault(r["branch_number"], {}).setdefault(r["source"], []).append(r["branch_name"])
     out = {}
     for num, sources in by.items():

@@ -308,13 +308,16 @@ if ODD:
 BIZ_PNG = None
 if BIZ and BIZ['branches']:
     import chart_lib   # SAME renderer as the personal take-rate chart (charts_gen image11)
+    _bnames = M.get('branch_name_of') or {}      # names on the charts (Aaron, 2026-09-17)
+    BIZ['branches'] = [(_bnames.get(str(b[0]), b[0]),) + tuple(b[1:]) for b in BIZ['branches']]
     br = chart_lib.top_branches(BIZ['branches'])   # largest branches, best rate first
     BIZ_PNG = os.path.join(ASSETS, 'biz_branch.png')
     # Business = navy bars; identical geometry to personal. The rate line is TEAL
     # rather than orange because it runs OVER navy bars, and STYLE.md's rule is that
     # a mark is never drawn in the canvas colour — teal clears WCAG 3:1 on navy and
     # on white, which is why it is the line colour everywhere else in the deck.
-    chart_lib.branch_chart(BIZ_PNG, br, _BNAVY, _BTEAL, 1383, 540,
+    import slide_geometry as _sg_dims    # full-width box (Aaron, 2026-09-17)
+    chart_lib.branch_chart(BIZ_PNG, br, _BNAVY, _BTEAL, *_sg_dims.CHART_DIMS['take'],
                            acct_label="Accounts opened", rate_label="Take rate")
     print("wrote", BIZ_PNG)
 
@@ -932,7 +935,8 @@ import chart_lib as _cl_ord
 _TBL_TOP, _ROW_H, _TBL_BOTTOM = 2.35, 0.34, 6.60
 _max_body = int((_TBL_BOTTOM - _TBL_TOP) / _ROW_H) - 2      # minus header and Total
 _nbranch = min(len(M['take_branch_monthly']), max(6, _max_body))
-tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch])
+_num_of = {v: k for k, v in (M.get('branch_name_of') or {}).items()}   # names on charts: keep number order
+tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch], key=lambda r: _num_of.get(r[0], r[0]))
 rows = [["Branch"]+tm+["Cards", "Elig", "Take%"]]
 for row in tbm:
     b = row[0]; monthly = row[1:1+len(tm)]
@@ -944,6 +948,25 @@ if len(rows) > _have:
     add_table_rows(S[22], len(rows) - _have)
     print(f"take-by-branch: grew table {_have} -> {len(rows)} rows ({len(tbm)} branches)")
 set_table(S[22], rows, trim=True)
+# Branch NAMES (Aaron, 2026-09-17) need a wider first column than the numbers it was sized for:
+# Wellworth's "Westmoreland" wrapped to "Westmorelan / d". Widen it to the longest branch label,
+# measured in the bundled font, and take the width back evenly from the other columns.
+try:
+    from textfit import text_width_in as _tw
+    _tbl = tables(S[22])[0]
+    _pt = next((r.font.size.pt for c in _tbl.rows[1].cells for pa in c.text_frame.paragraphs
+                for r in pa.runs if r.font.size), 16.0)
+    _need = max(_tw(str(r[0]), _pt, "Carlito", True) for r in rows[1:-1]) + 0.24   # cell margins
+    _cols = list(_tbl.columns)
+    _w0 = Emu(_cols[0].width).inches
+    if _need > _w0 and len(_cols) > 1:
+        _each = (_need - _w0) / (len(_cols) - 1)
+        _cols[0].width = Inches(_need)
+        for _c in _cols[1:]:
+            _c.width = Emu(int(_c.width - Inches(_each)))
+        print(f"take-by-branch: branch column {_w0:.2f} -> {_need:.2f} in for the longest name")
+except Exception as _e:
+    print("take-by-branch: branch column fit skipped:", repr(_e))
 repl(S[22], {"six largest branches shown": f"{len(tbm)} largest branches shown"}, optional=True)
 # The monthly COLUMNS span the activity months this extract carries, which is not the
 # same as the 12-month new-account window. Wellworth's caption read "monthly Aug 2025 –
@@ -2016,6 +2039,7 @@ for _i, _sl in enumerate(list(_bp.slides)):
             if _is_logo_pic(sh) and _in_corner(sh): _drop(sh)
         _add_logo(_sl, LOGO_DATA); _put_num(_sl, _i + 1)
 import slide_geometry as _sg; _sg.apply(_bp)   # per-title geometry contract (build/)
+_sg.selection_to_notes(_bp)                   # take rate / Reg E: selection sentence to the notes (Aaron, 2026-09-17)
 import fit_layout as _fl; _fl.fit(_bp)   # final layout-fit: clear number/logo, clamp off-slide (shared)
 _bp.save(OUT)
 _sidecar = _figs.log.dump(_figs.sidecar_path(OUT))

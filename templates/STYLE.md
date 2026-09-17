@@ -253,12 +253,18 @@ element is already maxed.
   "selection on the slide": the chart titles inside the picture carry it.
 - **Take-rate by branch, Personal and Business:** identical size and layout from
   `build/ars_pipeline/chart_lib.py`; Personal = orange bars / navy dashed average,
-  Business = navy bars / orange dashed average; no embedded title; chart and
-  caption centered on the slide.
+  Business = navy bars / orange dashed average; no embedded title. Since 2026-09-17
+  the chart runs full width (0.5, 2.60, 12.3 x 3.70) under shorter tiles (1.30-2.35), the
+  caption centered at 6.36, and the selection sentence lives in the notes (Aaron).
 - **Overall Debit Swipes & Spend** and **NSF/OD Activity** charts are equal and
   taller, never wider than the tile rail.
-- **Reg E donut slides** stack donut (<= 2.85", ends 4.45") → legend rows from 4.60"
-  → caption at 5.85".
+- **Reg E donut slides** (All Personal, Opened in Last 12 Months), since 2026-09-17: donut,
+  legend and opt-in sentence in one band (1.28-3.08), the branch chart full width beneath
+  (0.5, 3.20, 12.3 x 3.10), caption centered at 6.36, selection sentence in the notes.
+- **Branch charts carry branch NAMES** (Aaron, 2026-09-17) from `Inputs/Branch Names/`, shortened
+  (`chart_lib.short_branch_name`: no parenthetical code, no trailing Branch/Office), wrapped to two
+  lines and sized to the bar slot; a branch with no name keeps its number, and a client whose
+  ODD ids mostly have no name keeps numbers throughout.
 - **Average Ticket** and its caption derive their verbs from the figures (the
   +/-2% band in `CLAUDE.md`); the chart title follows (`build/ars_pipeline/ticket_chart.py`).
 - Pills: "{Month YYYY} Data" for a snapshot slide; window pills ("Trailing 12
@@ -398,7 +404,7 @@ type above on the ILS template's anatomy — not §4:
 `build/slide_geometry.py`, keyed by TITLE (never slide index), applied by every
 builder before `fit_layout`. Today every rule is an ARS title: Overall Debit
 Swipes / NSF/OD Activity (taller, not wider); 12-Month Eligible Take Rate
-(centered); Product Mix (source bottom-center); Reg E Opt-In stack; Reg E by
+(full-width chart, short tiles, selection in notes); Product Mix (source bottom-center); Reg E Opt-In (top band + full-width chart); Reg E by
 Account Vintage / First-Year Closure / ARS Response Movement (chart top >= 1.75");
 Transaction Increase (caption 1.45, 6.02, 8.4 x 0.95; chart <= 4.1" centered
 between); Who Responds (caption below the chart); Program Reach (1.2, 1.8,

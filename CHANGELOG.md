@@ -17,6 +17,67 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-17 — Take rate and Reg E slides: full-width branch charts; branch names on every branch chart
+
+Aaron approved both on the test branch, then: "Yes, add to main" and "Main decks use names (numbers
+where no name is known), wrapped to fit ... Long names will need to be shortened to fit the slide
+axis labels."
+
+**Layout** (`build/slide_geometry.py`, the one geometry contract). 12-Month Eligible Take Rate
+(Personal, Business): the selection sentence moves from the slide face to the notes, the tiles are
+1.05" tall instead of 1.45", and the branch chart runs the full width (12.3 x 3.70). Reg E Opt-In —
+All Personal / Opened in Last 12 Months: donut, legend and sentence share one band across the top
+and the branch chart runs full width beneath (12.3 x 3.10); selection sentence to the notes. The
+charts render at those boxes' aspect (`charts_gen` DIM image11/14/16, the business chart via
+`slide_geometry.CHART_DIMS`). STYLE.md's "selection on the slide" gives way on these four slides
+at Aaron's direction; the selection is still on record in the notes.
+
+**Branch names** (`metrics_gen`). Every branch series is relabelled from
+`Inputs/Branch Names/branch_names.csv` when most of the deck's branch ids have a name; a branch with
+no name keeps its number, and the monthly take-rate table keeps branch-number order. Names are
+shortened once (`chart_lib.short_branch_name`), so charts, tables and captions agree, and the axis
+labels wrap to two lines and size to the bar slot, with an ellipsis as the last resort
+(`chart_lib.branch_tick_labels`). With names on the charts, the Branch Reference appendix slide is
+no longer added.
+The 12-Month Take Rate by Branch table widens its Branch column to the longest name, measured in the
+bundled font. **New gate check** `validate_deck.table_label_fit_findings`: a table whose first-column
+label wraps and pushes the table past the slide FAILs. It is the defect the first names build shipped
+without failing: Great Lakes' "Member Contact Center" wrapped to three lines and the table ran to
+about 8.6". Placeholder names from a source ("N/A", "NULL", "NONE") are never used. The geometry
+contract parks the selection line at the foot of these slides and `slide_geometry.selection_to_notes`,
+called by the builder, moves it to the notes, so the template shell still satisfies the contract.
+Tests: `tests/test_table_label_fit.py`.
+
+### 2026-09-17 — Transaction files stored zipped
+
+Aaron: "Zip all the txn files so they read faster." `Inputs/Txn Files/<id>/` held 405 raw
+transaction files, about 48 GB, read over the share. Each is now `<original name>.zip` beside
+where it was, one file per zip with its original timestamp (`scripts/zip_txn_files.py`). A zip
+replaces its original only after its size and CRC match the original and it decompresses cleanly.
+On 1785's files, the zips are 34% of the raw size, and a full read took 4.2s instead of 7.4s.
+
+No deck reads these files, and no slide or figure changes. The only scripts that open them are in
+`z-legacy - do not use`, and they were left alone. Any new reader goes through
+`rpe_env.txn_files()` / `rpe_env.open_txn()`, which read the zipped or the raw form, and an old
+raw path still opens its zip. `Txn Files` is a new input kind, `Txn`, in `NOT_SCANNED_KINDS`, so
+neither `report_dirs()` nor the watcher's copier and pruner looks inside it. Test:
+`tests/test_txn_files.py`.
+
+### 2026-09-17 — The business take-rate chart renders in Carlito on every deck
+
+`build_ars_gen` set the chart face only on the Monthly Summary path, so on every MM deck the
+"12-Month Eligible Take Rate — Business" chart (drawn by `chart_lib.branch_chart` from the builder,
+not from `charts_gen`) fell back to matplotlib's DejaVu Sans. `branch_chart` now sets Carlito
+itself through `rpe_env.use_font`, which raises rather than substitute.
+
+### 2026-09-17 — Reg E "Anything else" reads as opted out (correction)
+
+**A client-facing number moves.** Aaron: "Reg E Anything Else assigned to Opt-Out, Accepted = Opt-In,
+Declined = Opt-Out." `odd_rows.rege_label` counted 1217 Pioneer FCU's "Anything else" as not
+applicable, which left those card holders out of the opt-in rate's base; they now count as opted
+out, so Pioneer's opt-in rate falls. "Accepted" and "Declined" were already read that way by
+pattern; they are now exact entries. Test: `tests/test_rege_label.py`.
+
 ### 2026-09-17 — No trend line over a partial month; white space under the CashPlease Overview tiles
 
 Aaron: "don't draw trend lines over partial months." The CashPlease Loan Volume by Month chart

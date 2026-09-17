@@ -26,7 +26,9 @@ from odd_rows import rege_label, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
     ("Yes", REGE_IN), ("Y", REGE_IN), ("No", REGE_OUT), ("N", REGE_OUT),
     ("Revoked", REGE_OUT), ("Failed to Respond", REGE_DEFAULT), ("No Decision", REGE_DEFAULT),
     ("Ineligible", ""), ("Exempt", ""), ("Tracking Type 56 Does Not Exist", ""),
-    ("Did Not Reply", REGE_DEFAULT), ("D", REGE_DEFAULT), ("No Vaule - No Reg E", ""), ("Anything else", ""),
+    ("Did Not Reply", REGE_DEFAULT), ("D", REGE_DEFAULT), ("No Vaule - No Reg E", ""),
+    # confirmed by Aaron, 2026-09-17
+    ("Anything else", REGE_OUT), ("Accepted", REGE_IN), ("Declined", REGE_OUT),
     ("Bank Revoked", REGE_OUT),
     # blank is not applicable
     ("", ""), (None, ""), ("\x00", ""),

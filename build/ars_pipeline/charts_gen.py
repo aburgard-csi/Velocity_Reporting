@@ -24,9 +24,11 @@ def _fixacr(txt):
             out.append(t)
     if buf: out.append("".join(buf))
     return " ".join(out)
+# image11/14/16: the full-width take rate and Reg E branch charts, slide_geometry.CHART_DIMS
+# (Aaron, 2026-09-17).
 DIM={'image5':(1365,705),'image6':(1432,672),'image7':(1035,549),'image8':(1099,683),
- 'image9':(1732,675),'image10':(2639,1003),'image11':(1383,540),'image12':(1740,1064),
- 'image13':(491,491),'image14':(1520,900),'image15':(491,491),'image16':(1520,900),
+ 'image9':(1732,675),'image10':(2639,1003),'image11':(2460,740),'image12':(1740,1064),
+ 'image13':(491,491),'image14':(2460,620),'image15':(491,491),'image16':(2460,620),
  'image17':(1368,453),'image18':(1006,612),'image19':(1446,681),'image20':(1446,825),
  'image21':(1660,780),'image22':(978,598),'image23':(946,598),'image24':(1834,740),
  'image25':(1700,754),'image26':(1725,900),'image27':(1533,800),'image28':(1740,1007),

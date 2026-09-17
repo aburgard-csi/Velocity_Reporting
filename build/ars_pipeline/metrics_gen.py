@@ -833,6 +833,33 @@ if _charts:
             print(f"branch names: {len(_pairs)} of {_tot} branches named ({_cov:.0%})"
                   + (f"; no name in file for {sorted(_unmapped)[:8]}" if _unmapped else ""))
 
+# ---- branch names on the branch charts (Aaron, 2026-09-17) --------------------------------
+# "Main decks use names (numbers where no name is known), wrapped to fit." Names come
+# from Inputs/Branch Names/branch_names.csv (branch_names.client_map), applied only when most
+# of the deck's branch ids resolve, the same coverage rule as the Charts-file path above. An
+# unnamed branch keeps its number. M['branch_name_of'] keeps number -> name so tables that
+# order branches by number still can.
+_bdir=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir)
+if _bdir not in sys.path: sys.path.insert(0, _bdir)
+import branch_names as _bn2
+_cid=_os.environ.get('RPE_CLIENT_ID','').strip() or (re.match(r'(\d+)', _os.path.basename(F)) or [None, ''])[1]
+try:
+    _nm=_bn2.client_map(_cid) if _cid else {}
+except (Exception, SystemExit):   # no data root (unit tests): numbers stay
+    _nm={}
+_ids=sorted({str(_r[0]) for _k in _bn2.BRANCH_KEYS for _r in (M.get(_k) or [])})
+_hit={_i:_nm[_i] for _i in _ids if _i in _nm}
+import chart_lib as _cl_n   # shortened once, so charts, tables and captions agree
+_hit={_i:_cl_n.short_branch_name(_v) for _i,_v in _hit.items()}
+if _ids and len(_hit)/len(_ids)>=0.5:
+    _bn2.apply_to_metrics(M, _hit)
+    M['branch_name_of']=_hit
+    M['branch_names']=[]      # the charts carry names now; no number lookup slide
+    print(f"branch names on charts: {len(_hit)} of {len(_ids)} branch ids named from branch_names.csv")
+else:
+    print(f"branch names on charts: only {len(_hit)} of {len(_ids)} branch ids named; charts keep numbers",
+          file=sys.stderr)
+
 json.dump(M,open(sys.argv[2],'w', encoding="utf-8"),indent=1,default=str)
 print('\nsustained bars:',[(s[0],s[2]) for s in M['sustained']])
 print('ranking last 3:',M['ranking'][-3:])

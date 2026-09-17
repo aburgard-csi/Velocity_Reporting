@@ -95,6 +95,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | ICS direct-mail new-accounts lists | `Inputs/ICS Direct Mail/` |
 | Branch names: `branch_names.csv` (one row per name a source gave a client's branch number, with first/last seen; kept by the morning source check) and `charts_files.csv` (Charts workbooks matched to a client id by hand) | `Inputs/Branch Names/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
+| Monthly debit-card transaction files, one folder per client, **stored zipped**: `<original name>.zip`, one file each (Aaron, 2026-09-17). No deck reads them yet; any reader goes through `rpe_env.txn_files()` / `open_txn()`, which take either form. `scripts/zip_txn_files.py` zips new arrivals (safe to re-run) | `Inputs/Txn Files/<id>/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
 | A launcher build's working files (log, charts, data, result) — its clean deck goes straight to `Outputs/<CSM>/` | `Build Artifacts/launcher/<period>/<id>/` |
@@ -874,6 +875,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `perf_clients.py` — which clients the page lists: every current client on the reports share, with programs inferred for clients `clients.md` does not cover.
 - `perf_overview.py` — the page's Client overview figures, and the per-client code counts, from each ODD extract (cached per extract).
 - `perf_actions.py` — the page's CSM action items: Lift Matrix flags in workbook filenames, and ODD codes the client's ARS code tables do not list. Never maps a code; the CSM corrects the client's code sheet.
+- `zip_txn_files.py` — zips each file in `Inputs/Txn Files/` to `<name>.zip` beside it, checks the zip's size and CRC against the original, then deletes the original (a refused delete is reported). Re-run it after landing new transaction files.
 - `ars_code_tables.py` — extracts ONLY the product, Reg E and status code tables from an ARS database export into `Inputs/ARS Settings/`; the settings table (plaintext credentials) is never parsed past its header.
 
 **`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
@@ -920,7 +922,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `fit_layout.py` — layout-fit pass + 10pt slide numbers; run by every builder before save.
 - `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
   used by the ICS builder and the validator. Never eyeball whether a label fits.
-- `branch_names.py` — branch id → name lookup shared by the ARS chart renderers, and the branch-name dataset in `Inputs/Branch Names/` (Aaron, 2026-09-17): `morning_update` adds names from each client's Charts workbook (Branch Results tab, the file matched to one client by name or by `charts_files.csv`) and from the ICS referrals pull (VIP branch table), never removing one; `client_map(id)` reads it back, Charts name first, and leaves a number unnamed when one source gives it two different names.
+- `branch_names.py` — branch id → name lookup shared by the ARS chart renderers (since 2026-09-17 `metrics_gen` puts the names on every branch chart, table and caption when most of a deck's branch ids resolve; numbers otherwise), and the branch-name dataset in `Inputs/Branch Names/` (Aaron, 2026-09-17): `morning_update` adds names from each client's Charts workbook (Branch Results tab, the file matched to one client by name or by `charts_files.csv`) and from the ICS referrals pull (VIP branch table), never removing one; `client_map(id)` reads it back, Charts name first, and leaves a number unnamed when one source gives it two different names.
 - `month_complete.py` — the one definition of a complete month (pull/generation date, and a trailing month below half its six-month median), per measure; import-safe. Every YoY, latest-month and trailing-window comparison in every program goes through it (Aaron, 2026-09-17).
 - `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`), build scratch (`temp_dir`, removed at exit; `sweep_temp`, run first by every `build_client`, clears scratch a crashed build left in the temp folder — 2026-09-16, after ~180 GB of it filled C:) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
