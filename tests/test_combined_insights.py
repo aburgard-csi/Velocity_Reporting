@@ -167,3 +167,17 @@ def test_movement_words_follow_the_figures():
 def test_the_slides_are_opt_in():
     src = open(os.path.join(os.path.dirname(CI.__file__), "build_ars_gen.py"), encoding="utf-8").read()
     assert 'os.environ.get("RPE_JAMES_SLIDES") == "1"' in src
+
+
+def test_scorecard_names_need_most_numbers_to_resolve():
+    """Branch Scorecard: names beside numbers (Aaron, 2026-09-17), but only when most of the shown
+    numbers have a name, so a client whose ODD numbers branches differently is not mislabelled."""
+    import branch_names as BN
+    import combined_insight_slides as CIS
+    row = lambda n, nm, src: dict(client_id="9001", client_name="", branch_number=n, branch_name=nm,
+                                  source=src, source_file="f", first_seen="", last_seen="")
+    data = [row("01", "Main", BN.SRC_CHARTS), row("4", "Gum Branch", BN.SRC_REFERRALS)]
+    names, src = CIS.scorecard_branch_names("9001", ["1", "4", "7"], rows=data)
+    assert names == {"1": "Main", "4": "Gum Branch"}
+    assert src["1"].startswith(BN.SRC_CHARTS) and src["4"].startswith(BN.SRC_REFERRALS)
+    assert CIS.scorecard_branch_names("9001", ["1", "7", "8"], rows=data) == ({}, {})

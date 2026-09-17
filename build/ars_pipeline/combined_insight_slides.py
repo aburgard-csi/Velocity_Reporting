@@ -37,6 +37,7 @@ from brand import (NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, TICK_RGB as GREYT,   
 import shapes as SH                                                       # noqa: E402
 import combined_insights as CI                                            # noqa: E402
 import insight_charts as IC                                               # noqa: E402
+import branch_names as BN                                                 # noqa: E402
 
 try:
     from textfit import text_width_in
@@ -228,9 +229,38 @@ def branch_kpi_slide(prs, ci, ctx):
     return s
 
 
+def scorecard_branch_names(client_id, numbers, rows=None):
+    """({number: name}, {number: source}) for the scorecard, from Inputs/Branch Names.
+
+    Aaron, 2026-09-17: "use Branch Names on the Branch Scorecard, but we also need to show the
+    branch number here. This will help us translate branch numbers on other charts." Names are
+    used only when most of the shown numbers resolve: a client whose ODD numbers branches
+    differently from its Charts file and VIP (Texas Bay 1509) would otherwise get a name that
+    matches by coincidence. Returns ({}, {}) then, and the table keeps numbers only.
+    """
+    try:
+        rows = rows if rows is not None else BN.read_dataset()
+    except Exception:
+        return {}, {}
+    names = BN.client_map(client_id, rows=rows)
+    hit = {n: names[n] for n in numbers if n in names}
+    if not numbers or len(hit) / len(numbers) < 0.5:
+        return {}, {}
+    src = {}
+    for n, name in hit.items():
+        for want in (BN.SRC_CHARTS, BN.SRC_REFERRALS):
+            r = next((r for r in rows if r["client_id"] == str(client_id) and r["source"] == want
+                      and BN._num(r["branch_number"]) == BN._num(n) and BN._same_name(r["branch_name"], name)), None)
+            if r:
+                src[n] = "%s (%s)" % (want, r["source_file"])
+                break
+    return hit, src
+
+
 def branch_scorecard_slide(prs, ci, ctx):
     bk = ci["branch_kpis"]
     shown = bk["branches"][:BRANCH_TABLE_ROWS]
+    names, name_src = scorecard_branch_names(ctx["id"], [b["branch"] for b in shown])
     rest = bk["branches"][BRANCH_TABLE_ROWS:] + ([bk["other"]] if bk.get("other") else [])
     s = _new_slide(prs, _find(prs, "Reg E Opt-In by Account Vintage"))
     cw, fy = bk["closure_window"], bk["first_year_window"]
@@ -238,21 +268,27 @@ def branch_scorecard_slide(prs, ci, ctx):
         f"Selection: personal accounts, {ctx['as_of_long']}; the {len(shown)} branches with the most eligible accounts.",
         f"Selection: personal accounts; the {len(shown)} branches with the most eligible accounts."])
     f = lambda v: "–" if v is None else f"{v:.1f}%"
-    data = [["Branch", "Eligible", "Take Rate", "Reg E Opt-In", "Closed, 12 Mo", "First-Year Closure"]]
+    # With names: the number stays in its own column so the other branch charts, which print
+    # numbers, can be read against this table.
+    label = (lambda num, name: [num, name]) if names else (lambda num, name: [name or num])
+    head = ["Branch #", "Branch"] if names else ["Branch"]
+    data = [head + ["Eligible", "Take Rate", "Reg E Opt-In", "Closed, 12 Mo", "First-Year Closure"]]
     for b in shown:
-        data.append([b["branch"], f"{b['eligible']:,}", f(b["take"]), f(b["rege"]),
-                     f(b["closed12"]), f(b["first_year"])])
+        data.append(label(b["branch"], names.get(b["branch"], "–") if names else None)
+                    + [f"{b['eligible']:,}", f(b["take"]), f(b["rege"]), f(b["closed12"]), f(b["first_year"])])
     if rest:
         n_rest = len(bk["branches"]) - len(shown) + bk.get("other_count", 0)
         o = CI.roll_up(f"All other branches ({n_rest})", rest)
-        data.append([o["branch"], f"{o['eligible']:,}", f(o["take"]), f(o["rege"]),
-                     f(o["closed12"]), f(o["first_year"])])
+        data.append(label("", o["branch"]) + [f"{o['eligible']:,}", f(o["take"]), f(o["rege"]),
+                                            f(o["closed12"]), f(o["first_year"])])
     t = bk["total"]
-    data.append(["Total", f"{t['eligible']:,}", f(t["take"]), f(t["rege"]), f(t["closed12"]),
-                 f(t["first_year"])])
+    data.append(label("", "Total") + [f"{t['eligible']:,}", f(t["take"]), f(t["rege"]),
+                                      f(t["closed12"]), f(t["first_year"])])
     rh = 0.40
-    SH.add_table(s, 0.5, 1.72, 12.3, rh * len(data), data, [3.0, 1.6, 1.7, 1.9, 2.0, 2.3],
-                 highlight=(len(data) - 1,), fs=16)
+    widths = ([1.15, 2.75, 1.35, 1.45, 1.7, 1.75, 2.15] if names
+              else [3.0, 1.6, 1.7, 1.9, 2.0, 2.3])
+    SH.add_table(s, 0.5, 1.72, 12.3, rh * len(data), data, widths,
+                 highlight=(len(data) - 1,), fs=15 if names else 16)
     s.notes_slide.notes_text_frame.text = (
         f"Source: {ctx['odd_src']} — personal accounts (Business? = No) by Branch. Eligible = "
         f"'{ctx['latest']} Elig' = Yes. Take rate = eligible accounts holding a debit card / eligible. "
@@ -262,7 +298,13 @@ def branch_scorecard_slide(prs, ci, ctx):
         f"opening (the First-Year Closure slide's cohort; a dash means the branch opened no "
         f"personal account in that window). Branches with fewer than {bk['min_eligible']} eligible "
         f"accounts are in the roll-up row with the branches not shown; the roll-up and Total are "
-        f"recomputed from account counts, never averaged from branch rates.")
+        f"recomputed from account counts, never averaged from branch rates. "
+        + (("Branch names: Inputs/Branch Names/branch_names.csv — "
+            + "; ".join(f"{n} {names[n]} from {name_src.get(n, 'the dataset')}" for n in names)
+            + (". Not named: " + ", ".join(b["branch"] for b in shown if b["branch"] not in names)
+               if any(b["branch"] not in names for b in shown) else "") + ".")
+           if names else "Branch names: fewer than half of these branch numbers have a name in "
+                         "Inputs/Branch Names/branch_names.csv, so the table shows numbers only."))
     _place(prs, s, after="Take Rate and Reg E Opt-In by Branch", before="ARS Key Takeaways")
     return s
 
