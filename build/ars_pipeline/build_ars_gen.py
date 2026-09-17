@@ -299,6 +299,8 @@ if ODD:
 BIZ_PNG = None
 if BIZ and BIZ['branches']:
     import chart_lib   # SAME renderer as the personal take-rate chart (charts_gen image11)
+    _bnames = M.get('branch_name_of') or {}      # test branch: names on charts (RPE_JAMES_SLIDES)
+    BIZ['branches'] = [(_bnames.get(str(b[0]), b[0]),) + tuple(b[1:]) for b in BIZ['branches']]
     br = chart_lib.top_branches(BIZ['branches'])   # largest branches, best rate first
     BIZ_PNG = os.path.join(ASSETS, 'biz_branch.png')
     # Business = navy bars; identical geometry to personal. The rate line is TEAL
@@ -916,7 +918,8 @@ import chart_lib as _cl_ord
 _TBL_TOP, _ROW_H, _TBL_BOTTOM = 2.35, 0.34, 6.60
 _max_body = int((_TBL_BOTTOM - _TBL_TOP) / _ROW_H) - 2      # minus header and Total
 _nbranch = min(len(M['take_branch_monthly']), max(6, _max_body))
-tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch])
+_num_of = {v: k for k, v in (M.get('branch_name_of') or {}).items()}   # test branch: names on charts
+tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch], key=lambda r: _num_of.get(r[0], r[0]))
 rows = [["Branch"]+tm+["Cards", "Elig", "Take%"]]
 for row in tbm:
     b = row[0]; monthly = row[1:1+len(tm)]
@@ -1845,6 +1848,18 @@ if os.environ.get("RPE_JAMES_SLIDES") == "1":
         "data_month_short": datetime.datetime.strptime(DATA_MONTH, "%B %Y").strftime("%b %Y"),
         "ltd_revenue": B.get("ltd_revenue"), "assets": ASSETS})
     print(f"insight slides (RPE_JAMES_SLIDES): {len(_ins)} added -> {_ci_json}")
+    # Branch names on the charts (test branch, Aaron 2026-09-17): every slide that shows a
+    # branch says where the names came from.
+    if M.get("branch_name_of"):
+        _bn_note = ("Branch names: Inputs/Branch Names/branch_names.csv (the client's Charts workbook, "
+                    "Branch Results tab, then VIP branch names from the ICS referrals pull); a branch "
+                    "with no name keeps its number.")
+        for _sl in prs.slides:
+            _t = next((sh.text_frame.text for sh in _sl.shapes if sh.has_text_frame and sh.text_frame.text.strip()), "")
+            if "branch" in _t.split("\n")[0].lower():
+                _tf = _sl.notes_slide.notes_text_frame
+                if "branch_names.csv" not in _tf.text:
+                    _tf.text = (_tf.text + " " + _bn_note).strip()
 
 # ---- 2c. Save -> chart swap -> letterbox -> fonts ----
 # --- figure gate: one measure, ONE value -------------------------------------

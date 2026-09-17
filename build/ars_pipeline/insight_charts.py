@@ -132,7 +132,10 @@ def branch_kpi_chart(out, rows, take_book, rege_book, w_in=12.3, h_in=4.15):
     ax.set_ylim(0, min(112, max([r[2] for r in rows] + [r[3] for r in rows]) * 1.16))
     ax.get_yaxis().set_visible(False)
     ax.set_xticks(x)
-    ax.set_xticklabels([f"{b}\n{n:,}" for b, n, _, _ in rows], fontsize=12, color=NAVY)
+    import chart_lib
+    _ticks, _tsize = chart_lib.branch_tick_labels([r[0] for r in rows], [r[1] for r in rows],
+                                                  w_in * 0.97 / max(1, len(rows)), pt=12, min_pt=9)
+    ax.set_xticklabels(_ticks, fontsize=_tsize, color=NAVY)
     ax.set_xlabel("Branch  ·  ARS-eligible personal accounts", fontsize=12, color=TICK)
     _spines(ax)
     handles = [Patch(color=NAVY), Patch(color=ORANGE),

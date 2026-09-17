@@ -204,13 +204,15 @@ def branch_kpi_slide(prs, ci, ctx):
         f"Selection: the {len(rows)} branches with the most ARS-eligible personal accounts, {ctx['as_of_long']}.",
         f"Selection: the {len(rows)} largest branches by eligible personal accounts."])
     png = os.path.join(ctx["assets"], "insight_branch_kpi.png")
-    IC.branch_kpi_chart(png, [(b["branch"], b["eligible"], b["take"], b["rege"]) for b in rows],
+    names, _src = scorecard_branch_names(ctx["id"], [b["branch"] for b in rows])
+    lab = lambda n: names.get(n, n)
+    IC.branch_kpi_chart(png, [(lab(b["branch"]), b["eligible"], b["take"], b["rege"]) for b in rows],
                         tot["take"], tot["rege"], 12.3, 4.15)
     _picture(s, png, 0.5, 1.7, 12.3, 4.15)
     t_at = sum(1 for b in rows if CI.band(b["take"], tot["take"]) != "behind")
     r_at = sum(1 for b in rows if CI.band(b["rege"], tot["rege"]) != "behind")
-    t_low = [b["branch"] for b in rows if CI.band(b["take"], tot["take"]) == "behind"]
-    r_low = [b["branch"] for b in rows if CI.band(b["rege"], tot["rege"]) == "behind"]
+    t_low = [lab(b["branch"]) for b in rows if CI.band(b["take"], tot["take"]) == "behind"]
+    r_low = [lab(b["branch"]) for b in rows if CI.band(b["rege"], tot["rege"]) == "behind"]
     _caption(s, (f"Take rate is within 2% of the {tot['take']:.1f}% all-eligible rate or ahead of it "
                  f"at {t_at} of the {len(rows)} branches; Reg E opt-in is at {r_at} of {len(rows)} "
                  f"against {tot['rege']:.1f}%."
