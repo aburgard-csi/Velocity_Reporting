@@ -325,7 +325,9 @@ def build(base, metrics, template, assets, out, ra=None):
     rg = rege_counts(metrics)
     f = metrics["funnel"]
     rev12 = base["monthly_rev_last12"]
-    ss = base["swipespend_36"]
+    # Complete months only (Aaron, 2026-09-17) — the deck's own call, so both end alike.
+    import month_complete
+    ss, _ = month_complete.complete_rows(base["swipespend_36"], 1, "$M debit spend", min_volume=0)
     sp0, sp1 = ss[0][1], ss[-1][1]
     cd0, cd1 = ss[0][2], ss[-1][2]
     spend_growth = 100.0 * (sp1 - sp0) / sp0

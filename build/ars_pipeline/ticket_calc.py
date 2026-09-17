@@ -19,7 +19,16 @@ from odd_rows import accessors
 _odd=accessors(idx)
 sw=_odd.swipes; sp=_odd.spend; personal=_odd.personal
 RESPM=[m for m in MONTHS if (m+' Resp') in idx]
-WIN=MONTHS[-3:]  # trailing quarter
+# Complete months only (Aaron, 2026-09-17: "Don't calculate YoY or comparisons on partial
+# months"). The decision is month_complete's, the same call metrics_gen makes, so this
+# window and the swipe-tier window the caption names are the same three months.
+import os as _os
+sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir))
+import month_complete as _MC
+_COMPLETE=_MC.odd_completeness(data,_odd,MONTHS,_MC.pull_date(_os.path.basename(F)))
+_ALL=MONTHS[:_COMPLETE['all']['complete']]
+_ACT=set(MONTHS[:_COMPLETE['activity']['complete']])
+WIN=_ALL[-3:]  # trailing COMPLETE quarter
 
 # cross-sectional avg ticket by monthly-swipe tier
 segdef=[('1-5',1,5),('6-10',6,10),('11-15',11,15),('16-20',16,20),('21-25',21,25),('26+',26,10**9)]
@@ -36,20 +45,24 @@ segments=[[n, round(seg_sp[n]/seg_sw[n],2)] for n,_,_ in segdef if seg_sw[n]>0]
 blended=round(tot_sp/tot_sw,2)
 
 # responder baseline vs response ticket
-base_tk=[]; resp_tk=[]; bsw_t=bsp_t=rsw_t=rsp_t=0.0
+base_tk=[]; resp_tk=[]; bsw_t=bsp_t=rsw_t=rsp_t=0.0; rmo_t=0
 for row in data:
     if not personal(row): continue
     for rm in RESPM:
         if not row[idx[rm+' Resp']].strip(): continue
-        p=mpos[rm]; bms=MONTHS[max(0,p-6):p]; rms=MONTHS[p:p+3]
+        p=mpos[rm]; bms=MONTHS[max(0,p-6):p]; rms=[m for m in MONTHS[p:p+3] if m in _ACT]
+        if not rms: continue
         bsw=sum(sw(row,m) for m in bms); bsp=sum(sp(row,m) for m in bms)
         rsw=sum(sw(row,m) for m in rms); rsp=sum(sp(row,m) for m in rms)
         if bsw>0 and rsw>0:
             base_tk.append(bsp/bsw); resp_tk.append(rsp/rsw)
-            bsw_t+=bsw; bsp_t+=bsp; rsw_t+=rsw; rsp_t+=rsp
+            bsw_t+=bsw; bsp_t+=bsp; rsw_t+=rsw; rsp_t+=rsp; rmo_t+=len(rms)
 R={'segments':segments,'blended':blended,'win':WIN,
    'base_mean':round(bsp_t/bsw_t,2),'resp_mean':round(rsp_t/rsw_t,2),
    'base_med':round(statistics.median(base_tk),2),'resp_med':round(statistics.median(resp_tk),2),
-   'base_swpm':round(bsw_t/len(base_tk)/6,1),'resp_swpm':round(rsw_t/len(resp_tk)/3,1),
-   'n_resp':len(base_tk),'win_label':f"{WIN[0]}–{WIN[-1]}"}
+   'base_swpm':round(bsw_t/len(base_tk)/6,1),# per response MONTH actually observed: a response window cut short by the end of the
+   # complete months holds fewer than three, and dividing by 3 understated it
+   'resp_swpm':round(rsw_t/rmo_t,1),
+   'n_resp':len(base_tk),'win_label':f"{WIN[0]}–{WIN[-1]}",
+   'month_completeness':_COMPLETE}
 json.dump(R,open(OUT,'w', encoding="utf-8"),indent=1); print(json.dumps(R,indent=1))

@@ -3,6 +3,9 @@ from collections import defaultdict, Counter
 csv.field_size_limit(10**7)
 import sys
 F=sys.argv[1]
+# The file the rows come from — the ODD member inside a zip, else the path itself. Its
+# name carries the pull stamp "(MMDDYY_HHMMSS)" that month_complete reads.
+_SRC_NAME=__import__('os').path.basename(F)
 def _linesrc(path):
     """Decoded latin-1 lines from a .zip (in-stream) or plain CSV.
 
@@ -19,6 +22,8 @@ def _linesrc(path):
         if not _csvs: raise SystemExit(f'ERROR: no .csv inside {path}')
         _odd=[n for n in _csvs if '-odd' in n.lower() or '_v2_' in n.lower()]
         name=_odd[0] if _odd else max(_csvs,key=lambda n: zf.getinfo(n).file_size)
+        global _SRC_NAME
+        _SRC_NAME=name
         return io.TextIOWrapper(zf.open(name),encoding='latin-1',errors='replace',newline='')
     return open(path,encoding='latin-1',errors='replace')
 
@@ -110,6 +115,34 @@ def parsed(r,f):
 _lm=mkey(LATEST)
 NOW=(_lm.replace(day=28)+datetime.timedelta(days=4)).replace(day=1)-datetime.timedelta(days=1)
 M=out={}
+# ---- complete months (Aaron, 2026-09-17) ----
+# "Don't calculate YoY or comparisons on partial months, only use complete months."
+# Marine FCU 1539's 2026.09 extract carried whole August swipes and spend but only 390
+# NSF/OD items (19,451 in July), and the NSF/OD slide reported "-98% Items YoY". Which
+# months are complete is decided ONCE, per measure family, in build/month_complete.py;
+# every activity comparison below reads only the months that family allows:
+#   ACT_MONTHS  swipes and spend complete   (usage tiles, dot plot, sustained)
+#   NSF_MONTHS  NSF/OD complete             (NSF/OD series, YoY, vintage items)
+#   ALL_MONTHS  every activity measure      (windows that read several: swipe tiers,
+#                                            before/after)
+# Status snapshots (Elig, Reg E, Stat Desc) are not activity and still read LATEST.
+_bdir0=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir)
+if _bdir0 not in sys.path: sys.path.insert(0,_bdir0)
+import month_complete as _MC
+_COMPLETE=_MC.odd_completeness(data,_odd,smonths,_MC.pull_date(_SRC_NAME))
+ACT_MONTHS=smonths[:_COMPLETE['activity']['complete']]
+NSF_MONTHS=smonths[:_COMPLETE['nsf']['complete']]
+ALL_MONTHS=smonths[:_COMPLETE['all']['complete']]
+if not ACT_MONTHS or not NSF_MONTHS:
+    _data_issue_early=("POSSIBLE DATA ISSUE: %s has no complete month of activity. Nothing was computed from it."
+                       % _os.path.basename(F))
+    raise SystemExit(_data_issue_early)
+ACT_LAST=ACT_MONTHS[-1]
+M['month_completeness']=_COMPLETE
+M['activity_month']=lbl(ACT_LAST)
+for _fam in ('activity','nsf'):
+    if _COMPLETE[_fam]['excluded']:
+        print("NOTE complete months: " + _MC.excluded_sentence(_COMPLETE[_fam]), file=sys.stderr)
 def _data_issue(what, detail=""):
     """Stop with a named data problem instead of a ZeroDivisionError or an empty mean().
 
@@ -139,7 +172,9 @@ M['n_eligible']=len(elig); M['n_responders']=len(responders); M['n_nonresp']=len
 M['overall_take']=round(100*sum(1 for r in elig if hascard(r))/len(elig),1)
 
 # ---- swipe tier (slide 8) ----
-w3=smonths[-3:]   # trailing 3 months of THIS extract
+# Trailing 3 COMPLETE months: the tier table averages swipes, spend AND NSF/OD over
+# one window, so every one of them must be complete in it (Aaron, 2026-09-17).
+w3=ALL_MONTHS[-3:]
 # Label for the slides that quote this window. It was hardcoded in the template as
 # "(Apr–Jun 2026)" and never swapped, so every client shipped the reference client's window.
 M['w3_label']=f"{mkey(w3[0]).strftime('%b')}\u2013{mkey(w3[-1]).strftime('%b %Y')}" 
@@ -261,10 +296,13 @@ def first_offer_tier(r):
         if v: return v
     return None
 incs=[]
+_ACT_SET=set(ACT_MONTHS)
 for r in responders:
     # latest met-goal mailing that has a following month
     lm=None
     for m in mature:
+        # the response month's swipes must be a complete month's swipes
+        if nextm[m] not in _ACT_SET: continue
         if g(r,f'{m} Resp') in RESP_MET: lm=m
     if not lm: continue
     offer=g(r,f'{lm} Mail')
@@ -314,7 +352,8 @@ for m in recent:  # recent 12 mailings
     # confirms it: 44% of the Jun 2026 responders cleared their ask in June, 100% in
     # July. So the RESPONSE month is mailing+1 and attrition can only show from
     # mailing+2 onward (Aaron, 2026-08-28).
-    post = smonths[smonths.index(m)+2:] if m in smonths else []
+    # Complete months only: a half-loaded final month reads as attrition.
+    post = [x for x in smonths[smonths.index(m)+2:] if x in _ACT_SET] if m in smonths else []
     if not post:
         # the response month itself: every responder met the ask there by definition,
         # so this reads 100% and no attrition window exists yet
@@ -334,7 +373,8 @@ M['sustained_window']=max((x[3] for x in sust), default=0)
 # monthly deck contradicted (Aaron, 2026-09-08). Cohort, window, winsorizing and
 # pooling are all defined there, with the evidence for each choice.
 import before_after as _BA
-_ba_out = _BA.compute(data, _odd, smonths, mature,
+# Spend and NSF/OD share each window, so both must be complete in every month of it.
+_ba_out = _BA.compute(data, _odd, ALL_MONTHS, mature,
                       on_warning=lambda msg: print("WARNING " + msg, file=sys.stderr))
 M.update(_ba_out)
 
@@ -418,7 +458,7 @@ M['rege_branch_table_total']=[sum(x[1] for x in _bt), sum(x[2] for x in _bt),
 M['rege_new_window']=[J25.strftime('%b %Y'), J26.strftime('%b %Y'), len(smonths[-12:])]
 # ---- Reg E by vintage (slide 26) ----
 opdh_c=[r for r in data if personal(r) and isopen(r) and hascard(r)]
-last12=smonths[-12:]
+last12=NSF_MONTHS[-12:]   # 12 complete NSF/OD months (Aaron, 2026-09-17)
 def part12(r): return sum(nsf(r,m) for m in last12)>0
 def items12(r): return sum(nsf(r,m) for m in last12)
 vint=defaultdict(lambda:[0,0,0,0.0,0])  # total, optin_all, participants, items, optin_participants
@@ -480,17 +520,27 @@ for r in data:
         if v:
             _items[m]+=v
             if v>0: _accts[m]+=1
-nsf_series=[[mkey(m).strftime("%b %y"),round(_items[m]),_accts[m]] for m in nmonths]
+_nsf_all=[[mkey(m).strftime("%b %y"),round(_items[m]),_accts[m]] for m in nmonths]
+# Complete months only (Aaron, 2026-09-17). The series, the latest-month tiles and the
+# YoY all end on the last month NSF/OD is complete in; an excluded month is carried
+# separately so the slide can say it was left out, never charted as a collapse.
+_nsf_set=set(NSF_MONTHS)
+nsf_series=[row for m,row in zip(nmonths,_nsf_all) if m in _nsf_set]
+M['nsf_excluded']=[row for m,row in zip(nmonths,_nsf_all) if m not in _nsf_set]
+M['nsf_excluded_note']=_MC.excluded_sentence(_COMPLETE['nsf'])
+if not nsf_series:
+    _data_issue("has no complete month of NSF/OD activity in its series")
 M['nsf_series']=nsf_series
 M['nsf_last_items']=nsf_series[-1][1]; M['nsf_last_accts']=nsf_series[-1][2]
-# YoY = this month against the SAME month a year earlier, found by month arithmetic.
-# It used to search for the literal 'Jun 25' row and compare it to the LAST row, so
-# the figure was year-over-year only for a June deck — a Jul-2026 deck compared
-# Jun 25 to Jul 26 and still called it YoY — and any client whose series starts
-# after Jun 2025 fell to the `else 0` branch and shipped a phantom 0%. Absent prior
-# month -> None, which the builder states on the tile; it is never zeroed.
-_nsf_by_tok=dict(zip(nmonths,nsf_series))
-_nsf_cur=nsf_series[-1]; _nsf_end=mkey(nmonths[-1])
+M['nsf_last_month']=lbl(NSF_MONTHS[-1])
+# YoY = the last COMPLETE month against the SAME month a year earlier, found by month
+# arithmetic. It used to search for the literal 'Jun 25' row and compare it to the LAST
+# row, so the figure was year-over-year only for a June deck, and any client whose
+# series starts after Jun 2025 fell to the `else 0` branch and shipped a phantom 0%.
+# Absent prior month -> None, which the builder states on the tile; it is never zeroed.
+_nsf_months=[m for m in nmonths if m in _nsf_set]
+_nsf_by_tok=dict(zip(_nsf_months,nsf_series))
+_nsf_cur=nsf_series[-1]; _nsf_end=mkey(_nsf_months[-1])
 _nsf_prior=_nsf_by_tok.get(_nsf_end.replace(year=_nsf_end.year-1).strftime('%b%y'))
 M['nsf_yoy']=round(100*(_nsf_cur[1]-_nsf_prior[1])/_nsf_prior[1]) if (_nsf_prior and _nsf_prior[1]) else None
 # The two months actually compared, so the tile's own caption names them instead
@@ -591,7 +641,8 @@ M['new_chk_debit_pct']=round(100*sum(1 for r in new_chk if hascard(r))/len(new_c
 M['open_chk_debit_pct']=round(100*sum(1 for r in open_chk if hascard(r))/len(open_chk),1)
 M['debit_pen_gap']=round(M['new_chk_debit_pct']-M['open_chk_debit_pct'],1)
 # debit usage new vs book (slide 38) — per active card in the latest month
-def active_jun(r): return swipes(r,LATEST)>=1
+# The latest COMPLETE activity month, not the snapshot month (Aaron, 2026-09-17).
+def active_jun(r): return swipes(r,ACT_LAST)>=1
 new_card=[r for r in newp if hascard(r)]
 open_pers_card=[r for r in data if personal(r) and isopen(r) and hascard(r)]
 def act_rate(pool): return round(100*sum(1 for r in pool if active_jun(r))/len(pool),1)
@@ -602,19 +653,19 @@ if not new_act or not book_act:
     # mean() of nothing crashed the build with a StatisticsError that named no cause.
     _notopen=Counter(g(r,'Stat Desc') or "blank description, Stat Code %r" % g(r,'Stat Code')
                      for r in data if personal(r) and not isopen(r))
-    _data_issue("has no %s debit-card holders who used the card in %s" % ("new" if not new_act else "open", lbl(LATEST)),
+    _data_issue("has no %s debit-card holders who used the card in %s" % ("new" if not new_act else "open", lbl(ACT_LAST)),
                 "%s new and %s open personal accounts carry a card. Personal accounts that do not read as open "
                 "most often show: %s."
                 % (f"{len(new_card):,}", f"{len(open_pers_card):,}",
                    "; ".join(f"{k} ({v:,})" for k, v in _notopen.most_common(3)) or "none"))
 M['new_active_pct']=act_rate(new_card); M['book_active_pct']=act_rate(open_pers_card)
-M['new_spend_active']=round(statistics.mean([spend(r,LATEST) for r in new_act]))
-M['book_spend_active']=round(statistics.mean([spend(r,LATEST) for r in book_act]))
+M['new_spend_active']=round(statistics.mean([spend(r,ACT_LAST) for r in new_act]))
+M['book_spend_active']=round(statistics.mean([spend(r,ACT_LAST) for r in book_act]))
 def ever_swiped(r): return any(swipes(r,m)>0 for m in smonths)
 M['new_ever_swiped_pct']=round(100*sum(1 for r in new_card if ever_swiped(r))/len(new_card))
 # new-account swipe segmentation (slide 39), latest month
 def tier_jun(r):
-    s=swipes(r,LATEST)
+    s=swipes(r,ACT_LAST)
     if s<1: return 'Non-User'
     for lo,hi,nm in [(1,5,'1-5'),(6,10,'6-10'),(11,25,'11-25'),(26,1e9,'26+')]:
         if lo<=s<=hi: return nm

@@ -38,8 +38,13 @@ import statistics
 import sys
 import zipfile
 
+import os
+
 import before_after
 from odd_rows import accessors
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
+import month_complete  # noqa: E402  (build/)
 
 csv.field_size_limit(10 ** 7)
 
@@ -56,6 +61,9 @@ def lbl(t):
     return mkey(t).strftime("%b %Y")
 
 
+SOURCE_NAME = [None]   # the ODD member read, whose name carries the pull stamp
+
+
 def linesrc(path):
     if path.lower().endswith(".zip"):
         zf = zipfile.ZipFile(path)
@@ -63,6 +71,7 @@ def linesrc(path):
         odd = [n for n in members if "-odd" in n.lower() or "_v2_" in n.lower()]
         name = odd[0] if odd else max(members,
                                       key=lambda n: zf.getinfo(n).file_size)
+        SOURCE_NAME[0] = name
         return io.TextIOWrapper(zf.open(name), encoding="latin-1",
                                 errors="replace", newline="")
     return open(path, encoding="latin-1", errors="replace")
@@ -135,10 +144,19 @@ def analyse(path):
             nextm[m] = smonths[i + 1]
     mature = [m for m in mailmonths if m in nextm]
 
+    # Complete months only — the same month_complete call metrics_gen makes, so the
+    # one-pager and the monthly deck leave out the same months (Aaron, 2026-09-17).
+    complete = month_complete.odd_completeness(
+        rows, odd, smonths,
+        month_complete.pull_date(SOURCE_NAME[0] or os.path.basename(path)))
+    all_months = smonths[:complete["all"]["complete"]]
+    act_set = set(smonths[:complete["activity"]["complete"]])
+
     # ---- before / after: the deck's function, not a second copy of it ----
     out = {"latest_month": latest, "n_eligible": len(elig),
            "n_responders": len(responders)}
-    out.update(before_after.compute(rows, odd, smonths, mature))
+    out["month_completeness"] = complete
+    out.update(before_after.compute(rows, odd, all_months, mature))
     out["ba_pct_mean"] = before_after.pct_change(out["ba_spend_before"],
                                                  out["ba_spend_after"])
     out["ba_pct_med"] = before_after.pct_change(out["ba_spend_med_before"],
@@ -149,7 +167,7 @@ def analyse(path):
     for r in responders:
         lm = None
         for m in mature:
-            if g(r, f"{m} Resp") in RESP_MET:
+            if nextm[m] in act_set and g(r, f"{m} Resp") in RESP_MET:
                 lm = m
         if not lm:
             continue

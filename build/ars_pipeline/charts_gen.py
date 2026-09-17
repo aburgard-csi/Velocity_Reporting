@@ -258,7 +258,10 @@ def c_take_branch():
     print("wrote image11")
 # image12: swipes & spend combo (workbook 36mo)
 def c_swipespend():
-    d=B['swipespend_36']; cats=[m.split()[0]+m.split()[1][2:] for m,_,_ in d]
+    # Complete months only — the same month_complete call build_ars_gen makes for the
+    # tiles, so the chart and the Spend YoY beside it end on the same month (2026-09-17).
+    import month_complete as _MC
+    d,_=_MC.complete_rows(B["swipespend_36"],1,"$M debit spend",min_volume=0); cats=[m.split()[0]+m.split()[1][2:] for m,_,_ in d]
     spend=[s for _,s,_ in d]; cards=[c for _,_,c in d]
     fig,ax=figfor('image12',4.0); x=np.arange(len(cats))
     ax.bar(x,spend,color=STEEL,width=0.66,label="Debit Spend ($M)")
