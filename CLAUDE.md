@@ -93,6 +93,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
 | ICS detailed referral exports (`<id>_ics_detailed referral_v<N>.xls`), for a client with no VIP sheet (hand-landed, member-level, never scanned) | `Inputs/ICS Referrals/` |
 | ICS direct-mail new-accounts lists | `Inputs/ICS Direct Mail/` |
+| Branch names: `branch_names.csv` (one row per name a source gave a client's branch number, with first/last seen; kept by the morning source check) and `charts_files.csv` (Charts workbooks matched to a client id by hand) | `Inputs/Branch Names/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
@@ -658,6 +659,19 @@ via `scripts/mail_sources.py` and files them by kind alongside everything else.
 - An attachment whose filename does not match `<id>-<period>-<kind>` is **parked in the
   legacy folder and reported**, never guessed at.
 
+**The daily run also keeps the ICS referrals query current (Aaron, 2026-09-17).** With
+`--ics-referrals`, which the scheduled task passes, `scripts/ics_referrals_pull.py` merges any
+result of the all-clients ICS referrals query saved in `Inputs/ICS Referrals/` into
+`ics_referrals.csv` and rewrites the query there to pull only referrals issued since the newest
+one merged. The start is that referral's DAY, so the window overlaps the last pull on purpose;
+the merge replaces a referral's rows (client + account + issue date) with the newer pull's, so
+nothing counts twice. A morning nobody ran the query leaves the start where it was — a skipped
+day widens the next window, never leaves a gap. Older referrals keep the account, spend and
+balance columns of the pull that brought them in; a full pull (`@since = null`) refreshes them.
+With `--branch-names` (also in the task) it then adds any new branch name from the Charts
+workbooks and that pull to `Inputs/Branch Names/branch_names.csv`; a Charts file whose name does
+not identify one client is listed in the report for a row in `charts_files.csv`.
+
 **The daily run also copies (Aaron, 2026-09-08).** With `--copy`, which the scheduled
 task passes, every file on the shares for **every client except a stopped one** (see the
 2026-09-14 paragraph below) that `Inputs/`
@@ -843,6 +857,8 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
 - `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
 - `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**).
+- `ics_referrals_pull.py` — the `--ics-referrals` step: merges each ICS referrals query result saved as `Inputs/ICS Referrals/ics_referrals <date>.csv` into one `ics_referrals.csv` (a referral = client, account, issue date; a newer pull replaces an older pull's rows for the same referral) and rewrites `ICS Referrals - new since last pull.sql` beside it with `@since` = the day of the newest referral merged. The query itself (`sql/ics_referrals_all_clients.sql`) is run by a person; Claude cannot reach that database.
+- `ils_dda_count_mail.py` — saves the newest "ILS Management Server DDA Count" email body (Charles Baker's weekly forward) word for word from Outlook as `Inputs/CashPlease/ILS-DDA-Count-<sent date>.txt`, the CashPlease loans-per-DDA denominator. Run by the CSI Email Monitor task (`C:\Data Pipelines\Email Pipeline\run-monitor.ps1`) before its Claude step (Aaron, 2026-09-17); never overwrites a saved week whose table differs.
 - `mail_sources.py` — the `--mail` step: reads Bradford's and Matt's attachments out of Outlook via COM, files them by kind, newest-only (see **Daily source watch**).
 - `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily.
 - `watch_task_watchdog.ps1` — detects a "RPE Source Watch" run Windows created suspended and never executed, kills it, and retries (see **The watchdog**).
@@ -904,7 +920,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `fit_layout.py` — layout-fit pass + 10pt slide numbers; run by every builder before save.
 - `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
   used by the ICS builder and the validator. Never eyeball whether a label fits.
-- `branch_names.py` — branch id → name lookup shared by the ARS chart renderers.
+- `branch_names.py` — branch id → name lookup shared by the ARS chart renderers, and the branch-name dataset in `Inputs/Branch Names/` (Aaron, 2026-09-17): `morning_update` adds names from each client's Charts workbook (Branch Results tab, the file matched to one client by name or by `charts_files.csv`) and from the ICS referrals pull (VIP branch table), never removing one; `client_map(id)` reads it back, Charts name first, and leaves a number unnamed when one source gives it two different names.
 - `month_complete.py` — the one definition of a complete month (pull/generation date, and a trailing month below half its six-month median), per measure; import-safe. Every YoY, latest-month and trailing-window comparison in every program goes through it (Aaron, 2026-09-17).
 - `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`), build scratch (`temp_dir`, removed at exit; `sweep_temp`, run first by every `build_client`, clears scratch a crashed build left in the temp folder — 2026-09-16, after ~180 GB of it filled C:) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib

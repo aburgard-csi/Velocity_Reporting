@@ -290,6 +290,9 @@ INPUT_KIND_DIRS = {
     # build/ics_pipeline/ics_local_sheet.py builds the ICS sheet from them.
     "ICS referrals": "ICS Referrals",     # <id>_ics_detailed referral_v<N>.xls
     "ICS direct mail": "ICS Direct Mail", # <id>-<yyyy.mm>-ICS-<Client>-Direct Mail New Accounts Opened PTD.xlsx
+    # One row per name a source has given a client's branch number (Aaron, 2026-09-17);
+    # kept by the morning source check, read by branch_names.client_map.
+    "Branch names": "Branch Names",       # branch_names.csv
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -297,7 +300,7 @@ INPUT_KIND_DIRS = {
 # The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets",
-                     "ICS referrals", "ICS direct mail")
+                     "ICS referrals", "ICS direct mail", "Branch names")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
