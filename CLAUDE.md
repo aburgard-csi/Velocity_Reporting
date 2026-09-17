@@ -903,6 +903,11 @@ This is the readme index — update it whenever files are added, removed, or mov
   (Aaron, 2026-09-08): the two used to compute it four different ways and the one-pager
   reported True Sky at +118% while the client's own deck said +103%.
 - `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
+- `combined_insights.py`, `insight_charts.py`, `combined_insight_slides.py` — six views from James
+  Gilmore's deck (revenue by mailing, responders vs mailed non-responders, card account health,
+  take rate and Reg E by branch, Branch Scorecard with number and name, ARS scorecard), merged from
+  `test/james-aaron-combined` 2026-09-17 and still OPT-IN: `build_ars_gen` adds them only when
+  `RPE_JAMES_SLIDES=1`.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

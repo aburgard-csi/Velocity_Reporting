@@ -33,6 +33,7 @@ DIM={'image5':(1365,705),'image6':(1432,672),'image7':(1035,549),'image8':(1099,
  'image21':(1660,780),'image22':(978,598),'image23':(946,598),'image24':(1834,740),
  'image25':(1700,754),'image26':(1725,900),'image27':(1533,800),'image28':(1740,1007),
  'image29':(1740,1064),'image30':(2047,816),'image31':(2639,1003),'image32':(2050,790)}
+
 def _clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)
     ax.spines["left"].set_color(HAIRLINE); ax.spines["bottom"].set_color(MUTED)
