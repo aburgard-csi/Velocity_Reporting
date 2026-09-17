@@ -17,6 +17,14 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-17 — A branch named Marshall is not March (correction)
+
+`periods.parse_month` accepted any 3-9 letter word with a year and checked only its first three
+letters, so "Marshall" read as March. With branch names now on the charts, Leading Edge CU's label
+"Marshall\n74" parsed as Mar'74 and the month-axis guard stopped the build (`charts_gen`,
+2026-09-17). A word must now be a month name (abbreviation, full name, or "Sept"). Nothing that
+parsed as a real month before parses differently. Test: `tests/test_periods.py`.
+
 ### 2026-09-17 — CSM Sheila answers from memory and refreshes behind the page
 
 Aaron: "work on ways to make Sheila's GUI refresh faster." The data root is a network share where every stat,
@@ -94,7 +102,16 @@ Aaron: "Zip all the txn files so they read faster." `Inputs/Txn Files/<id>/` hel
 transaction files, about 48 GB, read over the share. Each is now `<original name>.zip` beside
 where it was, one file per zip with its original timestamp (`scripts/zip_txn_files.py`). A zip
 replaces its original only after its size and CRC match the original and it decompresses cleanly.
-On 1785's files, the zips are 34% of the raw size, and a full read took 4.2s instead of 7.4s.
+402 of the 406 files are stored zipped, 48.2 GB down to 11.6 GB (24%); a full read of one took
+4.2s instead of 7.4s.
+
+**Four files could not be stored zipped and are still raw** (1200's 2025.02.07 and 2026.06.01
+monthlytran, 1745's 2025.10.03 and 2026.03.02 transaction). Every byte of those archives reaches
+the file handle and `fsync` returns, and the file is 0 bytes the moment it is closed on the share.
+A zip built locally and copied over is emptied the same way, whatever its extension, and so are
+bzip2 and lzma archives of the same rows, so it is the content being rejected by a security agent
+on this machine or the share — nothing in this code, and nothing a retry fixes. The originals are
+kept, the script reports each one, and `open_txn` reads them as they are.
 
 No deck reads these files, and no slide or figure changes. The only scripts that open them are in
 `z-legacy - do not use`, and they were left alone. Any new reader goes through

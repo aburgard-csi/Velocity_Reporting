@@ -142,3 +142,15 @@ def test_reporting_month_env_overrides_everything(monkeypatch):
     import build_ars_onepager as op
     monkeypatch.setenv("RPE_PERIOD", "2027.03")
     assert op._reporting_month("/x/1204-2026.08-ARS-Client.pdf") == "March 2027"
+
+
+@pytest.mark.parametrize("label", ["Marshall\n74", "Decatur\n12", "Augusta\n12", "Mayfield\n26", "Junction\n5"])
+def test_a_branch_name_is_not_a_month(label):
+    """A word is a month only when it IS one: "Marshall" read as March, and Leading Edge CU's
+    branch label stopped the build through the month-axis guard (Aaron, 2026-09-17)."""
+    assert parse_month(label) is None
+
+
+@pytest.mark.parametrize("token", ["Sept 2024", "September 2024", "May\n2024", "Mar'24", "Jun 25"])
+def test_real_months_still_parse(token):
+    assert parse_month(token) is not None

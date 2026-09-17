@@ -66,6 +66,14 @@ _TOKEN_FORMS = (
 )
 
 
+# A month word is a month NAME, not merely something starting with one. The word forms above
+# take 3-9 letters and only the first three were checked, so "Marshall" read as March: Leading
+# Edge CU's branch label "Marshall\n74" parsed as Mar'74 and the month-axis guard failed the
+# build (2026-09-17, after branch names reached the charts).
+_MONTH_WORDS = {w.lower() for i, ab in enumerate(MONTH_ABBR)
+                for w in (ab, datetime.date(2000, i + 1, 1).strftime("%B"))} | {"sept"}
+
+
 def parse_month(token):
     """Any of the forms the pipeline uses -> date(y, m, 1). None if unparseable."""
     t = (token or "").strip()
@@ -76,7 +84,10 @@ def parse_month(token):
         year, mon = take(m)
         if mon is None:
             return None
-        i = _ABBR_IDX.get(str(mon)[:3].lower())
+        word = str(mon).strip().rstrip(".").lower()
+        if word.isalpha() and word not in _MONTH_WORDS:
+            return None
+        i = _ABBR_IDX.get(word[:3])
         if i is None:
             return None
         return datetime.date(year, i + 1, 1)
