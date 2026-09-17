@@ -85,6 +85,42 @@ def test_differing_standard_and_mla_are_both_shown(tmp_path):
     assert rows(S)[0]["Interest rate"] == "17% standard · 18% MLA"
 
 
+PREPAID = ("Prepaid Finance (Easy, Std)", "Prepaid Finance (Manual, Std)",
+           "Prepaid Finance (Easy, MLA)", "Prepaid Finance (Manual, MLA)")
+
+
+@pytest.mark.parametrize("std,mla,shown", [
+    # The 2026.09 modules shipped "N/A%", "6% / $25 max%" and "$20% standard · $0% MLA"
+    # (Aaron, 2026-09-17): the sign goes on a bare number only.
+    ("N/A", "N/A", "None"),
+    ("6% / $25 max", "6% / $25 max", "6% / $25 max (standard & MLA)"),
+    ("$20", "$0", "$20 standard · None MLA"),
+    ("4", "4", "4% (standard & MLA)"),
+])
+def test_a_prepaid_charge_gets_a_percent_sign_only_when_it_is_a_bare_number(
+        tmp_path, std, mla, shown):
+    over = dict(zip(PREPAID, (std, std, mla, mla)))
+    assert rows(load(tmp_path, **over))[0]["Prepaid finance charge"] == shown
+
+
+def test_four_differing_loan_types_keep_their_names_capitalised(tmp_path):
+    S = load(tmp_path, **{"Interest (Easy, Std)": "22", "Interest (Manual, Std)": "23",
+                          "Interest (Easy, MLA)": "22", "Interest (Manual, MLA)": "24"})
+    assert rows(S)[0]["Interest rate"] == \
+        "22% Easy Std · 23% Manual Std · 22% Easy MLA · 24% Manual MLA"
+
+
+def test_the_content_slide_pill_holds_a_september_date(tmp_path):
+    from pptx import Presentation
+    sys.path.insert(0, str(REPO / "validation"))
+    import validate_deck
+    prs = Presentation(str(REPO / "templates" / "cashplease_template.pptx"))
+    G.head(G.new_slide(prs), "CashPlease Peer Comparison", "Union Financial",
+           "PTD · September 13, 2026")
+    assert not [f for f in validate_deck.pill_wrap_findings(prs)
+                if f[1] == len(prs.slides) and "date pill" in f[2]]
+
+
 def test_a_blank_field_is_stated_not_left_empty(tmp_path):
     S = load(tmp_path, **{"Loan Maximum": "", "Limit User's 1st Loan to Min": ""})
     terms, controls, _ = rows(S)

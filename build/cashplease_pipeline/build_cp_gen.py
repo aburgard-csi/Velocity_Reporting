@@ -286,7 +286,10 @@ def head(slide, title, selection, pill_text):
             PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     textbox(slide, 0.62, 1.06, 9.6, 0.46, selection, 16, TICK_RGB, False,
             PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-    pill(slide, pill_text)
+    # Wider than the shapes.pill default (2.35"): "PTD · September 13, 2026" is 2.16" of
+    # Montserrat 12pt and wrapped onto two lines in 2.15" usable (2026.09 modules,
+    # Aaron 2026-09-17). Grows leftward into the gap after the 9.9"-wide title.
+    pill(slide, pill_text, L=10.15, W=2.70)
 
 
 def logo(slide, L, T, W, H):
@@ -618,7 +621,17 @@ def _us_date(v):
 
 
 def _as_pct(v):
-    return v if v.endswith("%") else f"{v}%"
+    """'17' -> '17%'. Only a bare number gets the sign: the app also records charges as
+    '$20', 'N/A' or '6% / $25 max', and appending to those shipped 'N/A%' and
+    '$20% standard' on the 2026.09 modules (Aaron, 2026-09-17)."""
+    return f"{v}%" if re.fullmatch(r"\d+(?:\.\d+)?", v.strip()) else v
+
+
+def _as_charge(v):
+    """A prepaid finance charge: a bare number is a percent, no charge reads 'None',
+    anything else ('$20', '6% / $25 max') is shown as recorded."""
+    none = ("N/A", "NA", "NONE", "0", "0%", "$0", "$0.00")
+    return "None" if v.strip().upper() in none else _as_pct(v)
 
 
 def _as_fee(v):
@@ -649,12 +662,13 @@ def _by_loan_type(S, field, fmt):
     if not vals:
         return NOT_RECORDED
     if len(set(vals.values())) == 1:
-        return f"{fmt(next(iter(vals.values())))} (standard & MLA)"
+        one = fmt(next(iter(vals.values())))
+        return one if one == "None" else f"{one} (standard & MLA)"
     std = {vals[k] for k in keys[:2] if k in vals}
     mla = {vals[k] for k in keys[2:] if k in vals}
     if len(std) == 1 and len(mla) == 1:
         return f"{fmt(std.pop())} standard · {fmt(mla.pop())} MLA"
-    return " · ".join(f"{fmt(v)} {k.replace(', ', ' ').lower()}" for k, v in vals.items())
+    return " · ".join(f"{fmt(v)} {k.replace(', ', ' ')}" for k, v in vals.items())
 
 
 def _yes_no(v):
@@ -693,7 +707,7 @@ def settings_rows(S):
         ["Maximum loan", val(S["Loan Maximum"])],
         ["Repayment", val(S["Loan Payment Structure"])],
         ["Interest rate", _by_loan_type(S, "Interest", _as_pct)],
-        ["Prepaid finance charge", _by_loan_type(S, "Prepaid Finance", _as_pct)],
+        ["Prepaid finance charge", _by_loan_type(S, "Prepaid Finance", _as_charge)],
         ["Application fee", app_fee],
         ["Year base", val(S["Year Base for Loan"])],
     ]

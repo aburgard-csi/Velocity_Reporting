@@ -17,6 +17,30 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-17 — CashPlease settings for 68 clients; prepaid finance no longer reads "N/A%"; September pill fits
+
+Settings records: `Inputs/Product Settings/` went from one file (1632) to 68, exported from an
+all-clients pull of the Business Utilities CashPlease records (`C:\Data Pipelines\Product
+Settings\Inputs\CashPlease`, Aaron: "copy it to Sheila's inputs folder"). Test accounts and the 18
+clients with no loan settings recorded get no file, so they keep getting no settings slide.
+
+Three rendering defects that the wider data exposed on the first 2026.09 modules (Aaron: "build
+the CashPlease modules for my clients"), all in `build_cp_gen.py`:
+- **Prepaid finance charge** appended "%" to anything not ending in one, so slides read "N/A%
+  (standard & MLA)" (1750, 1771), "6% / $25 max%" (1131), "6% up to $25 MAX%" (1770) and "$20%
+  standard · $0% MLA" (1564). `_as_pct` now signs a bare number only, and the new `_as_charge`
+  shows N/A/0 as "None" (a lone "None" drops the "(standard & MLA)" tail).
+- **Four differing loan types** were lower-cased ("22% easy std · 23% manual mla"); they now keep
+  "Easy Std / Manual MLA".
+- **The content-slide date pill** is 2.70" wide (was the 2.35" `shapes.pill` default): "PTD ·
+  September 13, 2026" is 2.16" of Montserrat 12pt in 2.15" usable and wrapped onto two lines on
+  every content slide. It grows leftward into the gap after the title.
+Tests: `test_cp_settings_slide.py` pins all three. Rebuilt 1131, 1564, 1750, 1770, 1771 — 0 FAIL,
+0 REVIEW. Re-assembled the combined decks 1539 (ARS-ICS-MRPC-CP, 72 -> 73 slides), 1632 and 1734
+(ICS-CP, 1734 19 -> 20) from the same ARS/ICS/MRPC decks they shipped with and a fresh CP section
+(`Build Artifacts/cp_settings_2026.09/`): the only validator differences are the four CP pill
+wraps gone; qa_all GATE PASS.
+
 ### 2026-09-17 — The ILS DDA count is saved from Charles's weekly email automatically
 
 Aaron: "Update the ILS DDA count from Charles's email with subject 'ILS Management Server DDA
