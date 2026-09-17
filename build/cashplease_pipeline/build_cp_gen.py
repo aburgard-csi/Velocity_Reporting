@@ -423,6 +423,8 @@ def adapt_shell(prs, d):
         if sh.has_text_frame and "Union Financial" in sh.text_frame.text:
             _settext(sh, f"{d['client_name']}  •  {label}")
 
+    fill_contact(found["contact"], d["client_id"])
+
     notes(found["cover"],
           f"Source: {d['source_file']}, tab '{d['sheet_name']}' (report generated "
           f"{d['report_generated']}). Cover for client {d['client_id']} "
@@ -431,6 +433,20 @@ def adapt_shell(prs, d):
           f"snapshot and always uses the most recent workbook (Aaron, 2026-09-01), so "
           f"a month label would misstate what the figures cover.")
     return found
+
+
+def fill_contact(slide, client_id):
+    """Rewrite the shell's Contact Us card with the client's managing CSM (Aaron, 2026-09-16).
+
+    The template card carries static text for one CSM; `shapes.fill_contact_card` finds its
+    four lines by position inside the card, replaces them, drops the phone line when the CSM
+    has none, and writes the source note.
+    """
+    import rpe_env
+    from shapes import fill_contact_card
+    contact = rpe_env.csm_contact(client_id)
+    fill_contact_card(slide, contact)
+    return contact
 
 
 # ------------------------------------------------------------------ the slides
@@ -1043,14 +1059,16 @@ def main():
     ac.renumber(prs)
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(tempfile.gettempdir()) / f"{out.stem}.__full.pptx"
-    prs.save(str(tmp))
+    # The pre-strip deck goes in a scratch dir removed however this block ends; it used to be
+    # unlinked only on success, so a failed strip left it in %TEMP% (2026-09-16).
+    with tempfile.TemporaryDirectory(prefix="cp_full_") as scratch:
+        tmp = Path(scratch) / f"{out.stem}.__full.pptx"
+        prs.save(str(tmp))
 
-    # Physically drop the shell's orphaned slide parts and now-unused media. Leaving
-    # them in the package is what made the 2026.08 ICS decks unopenable.
-    subprocess.run([sys.executable, str(BUILD / "strip_dead.py"),
-                    str(tmp), str(out)], check=True)
-    tmp.unlink(missing_ok=True)
+        # Physically drop the shell's orphaned slide parts and now-unused media. Leaving
+        # them in the package is what made the 2026.08 ICS decks unopenable.
+        subprocess.run([sys.executable, str(BUILD / "strip_dead.py"),
+                        str(tmp), str(out)], check=True)
     print(f"built {out} -> {len(list(prs.slides._sldIdLst))} slides ({d['client_id']} {d['client_name']})")
 
 

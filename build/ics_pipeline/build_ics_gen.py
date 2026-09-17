@@ -284,6 +284,87 @@ def extract_logo(ref, path):
                 except Exception: pass
     return None
 
+# ============================ direct mail ============================
+def _dm_month_label(token):
+    """'2026-08' or 'Aug 26' -> 'August 2026', through periods (never hand-parsed)."""
+    d0 = P.parse_month(token)
+    return f"{P.MONTH_FULL[d0.month-1]} {d0.year}" if d0 else str(token)
+
+
+def direct_mail_slide(prs, d, client, m, rf, chart_png):
+    """Direct Mail New Accounts: the monthly chart on the left, two callouts and the top
+    branches on the right, a caption derived from the figures. Widths are MEASURED (textfit
+    at the 16pt floor) and the wording steps down until it fits."""
+    dm = d["direct_mail"]
+    months, vals = dm["by_month"]["months"], dm["by_month"]["accounts"]
+    ptd = dm["accounts_opened_ptd"]
+    partial = CH.dm_partial_last(dm)
+    # Complete months only for the peak and the latest-month callout: a month still running is
+    # on the chart, hatched, but is not named as the latest result.
+    n_c = len(vals) - 1 if partial else len(vals)
+    c_m, c_v = months[:n_c], vals[:n_c]
+    s = blank(prs); title(s, "Direct Mail New Accounts")
+    pill(s, f"PTD · {_dm_month_label(dm['last_month'])}")
+    sub(s, "Selection: checking accounts opened through the ICS direct-mail channel, by open date.")
+    bw, bh = CH.DM_BOX_IN
+    s.shapes.add_picture(chart_png, Inches(0.35), Inches(1.65), Inches(bw), Inches(bh))
+
+    RX, RW = 8.7, 4.15
+    callout(s, RX, 1.75, RW, 1.35, f"{ptd:,}", "Opened Program-to-Date", big_size=40)
+    if c_v:
+        callout(s, RX, 3.25, RW, 1.35, f"{c_v[-1]:,}", f"Opened in {_dm_month_label(c_m[-1])}", big_size=40)
+
+    # Top branches. Names come from the referral branch list (the Charts Goals tab) where the
+    # number matches; otherwise the branch is shown by number, never guessed.
+    names = {str(b.get("number")): b.get("name")
+             for b in (rf.get("by_branch") or {}).get("branches", [])
+             if b.get("number") is not None and b.get("name")}
+    branches = [b for b in (dm.get("by_branch") or []) if b.get("accounts")]
+    col_w = [2.55, 1.6]
+    name_in = RW * col_w[0] / sum(col_w) - 0.18          # cell width less its margins
+
+    def _bname(k):
+        nm = names.get(str(k))
+        if nm and fits_one_line(nm, name_in, MIN_PT, family="Montserrat", bold=True, margins_in=0):
+            return nm
+        return f"Branch {k}" if str(k) else "No branch"
+    if len(branches) > 1:
+        rows = [["Top Branches", "Accounts"]]
+        rows += [[_bname(b["branch"]), f"{b['accounts']:,}"] for b in branches[:3]]
+        rows.append([f"All {len(branches)} Branches", f"{sum(b['accounts'] for b in branches):,}"])
+        std_table(s, rows, RX, 4.8, RW, col_w, highlight_last=True, fs=16, rowh=0.36)
+    elif branches:
+        callout(s, RX, 4.75, RW, 1.35, _bname(branches[0]["branch"]), "Branch with DM Accounts", big_size=28)
+
+    span = f"{P.mon_yy(months[0])} – {P.mon_yy(months[-1])}" + (" (partial)" if partial else "")
+    pk, _ = peak_month(c_v)
+    peak = f"peak {c_v[pk]:,} in {P.mon_yy(c_m[pk])}" if pk is not None else ""
+    options = [f"Direct-mail new accounts by month opened, {span}; {peak}.",
+               f"Direct-mail new accounts, {span}; {peak}.",
+               f"Direct-mail new accounts, {span}."]
+    options = [o.replace("; .", ".") for o in options]
+    cap = next((o for o in options if fits_one_line(o, 9.8, 16, family="Montserrat", min_pt=MIN_PT)),
+               options[-1])
+    tb(s, 1.2, 6.72, 9.8, 0.5, cap, 16, GREYT, False)
+    logo(s); pagenum(s, 5)
+
+    src_file = dm.get("source_file") or "the ICS direct-mail new-accounts report"
+    where = ", ".join(x for x in (dm.get("source_folder"),
+                                 f"report date {dm['report_date']}" if dm.get("report_date") else None) if x)
+    top_txt = ", ".join(f"{_bname(b['branch'])} (branch {b['branch']}) {b['accounts']:,}" for b in branches[:3])
+    notes(s, f"Source — ICS direct-mail new-accounts file {src_file}"
+             + (f" ({where})" if where else "")
+             + f" for {client} ({m['client_id']}). Selection: checking accounts opened through the "
+             f"direct-mail channel, counted by Open Date and Branch Number, "
+             f"{P.mon_yy(months[0])}–{P.mon_yy(months[-1])}: {ptd:,} accounts program-to-date"
+             + (f"; {P.mon_yy(c_m[-1])} {c_v[-1]:,}" if c_v else "")
+             + (f"; {peak}" if peak else "")
+             + (f"; {len(branches)} branches, top {top_txt}" if branches else "")
+             + ". These are direct-mail accounts, NOT referral counts, and are not included in any "
+             "referral figure in this deck. Bars navy, last complete month orange"
+             + (", the running month hatched." if partial else "."))
+
+
 # ============================ build ============================
 def _latest_ics_workbook_period(client_id):
     """Period of the newest ICS workbook on file for this client, e.g. '2026.08'.
@@ -331,6 +412,15 @@ def build(d, static_path, out, referrals_only=False):
     # client with no workbook at all does.
     _meta = d.get("meta") or {}
     _cid, _period = _meta.get("client_id"), _meta.get("period")
+    # The Contact Us card is the client's managing CSM (Aaron, 2026-09-16), resolved before
+    # anything is rendered so a client with no CSM on file stops with a sentence. Any
+    # `contacts` list in the sheet is ignored: it named one CSM for every client.
+    import rpe_env as _rpe_c
+    contact = _rpe_c.csm_contact(_cid)
+    # Standalone ICS decks also carry the ICS program contact beside the CSM (Aaron, 2026-09-16).
+    # A combined deck keeps its base program's Contact slide, so this card appears only here.
+    _program_contact = (None if contact["name"].casefold() == _rpe_c.ICS_PROGRAM_CONTACT.casefold()
+                        else _rpe_c.contact_by_name(_rpe_c.ICS_PROGRAM_CONTACT, _cid))
     _stale_wb_month = None
     # OPT-IN override (Aaron, 2026-09-09): include the workbook sections even when the
     # workbook is older than the deck, for a client who needs the financial slides
@@ -389,8 +479,13 @@ def build(d, static_path, out, referrals_only=False):
     # slides are built into this package and reordered to the front.
     m=d["meta"]; client=m["client_name"]; rm=m["report_month"]
     from datetime import datetime
+    # A sheet built from LOCAL files (ics_local_sheet.py, 1776 CoastHills CU) carries the
+    # last referral date as `data_through`. Its pull date is only the day the file was
+    # copied, so the pill names the date the referrals actually run to. VIP sheets carry no
+    # data_through and keep their pull date.
+    _local = m.get("source_kind") == "local"
     try:
-        _dd=datetime.strptime(m.get("data_pull",""),"%Y-%m-%d"); data_date=f"{_dd.strftime('%B')} {_dd.day}, {_dd.year}"
+        _dd=datetime.strptime(m.get("data_through") or m.get("data_pull",""),"%Y-%m-%d"); data_date=f"{_dd.strftime('%B')} {_dd.day}, {_dd.year}"
     except Exception:
         data_date=rm
     wbm=m.get("workbook_month",rm)   # last completed month in the workbook (PTD as-of)
@@ -498,7 +593,10 @@ def build(d, static_path, out, referrals_only=False):
     # 2026-08-28). Rows are REMOVED, not blanked, for the same reason the combined-deck
     # assembler removes them: an empty numbered row reads as a section that failed.
     s=blank(prs); title(s,"Agenda")
-    items=["The Power of Referrals","Referral Trend & Results by Branch"]
+    _dm_slide=CH.has_direct_mail(d)
+    items=["The Power of Referrals",
+           "Referral Trend, Results by Branch & Direct Mail" if _dm_slide
+           else "Referral Trend & Results by Branch"]
     if not referrals_only:
         items+=["Performance of ICS Accounts","ICS Revenue & Revenue Detail",
                 "ICS Financial Summary","Comparisons"]
@@ -534,6 +632,15 @@ def build(d, static_path, out, referrals_only=False):
     logo(s); pagenum(s,3); notes(s,"Agenda. No data.")
 
     rf=d["referrals"]; base=f"Source — {m.get('vip_source','VIP ICS Referral Data')} and {m.get('workbook','ICS workbook')} for {client} ({m['client_id']}), pulled {m['data_pull']}."
+    if _local:
+        # Local-file sheet: name the files it was built from, never the VIP dashboard, and
+        # name a workbook only when the sheet carries one.
+        base=(f"Source — {m['referral_source']}"
+              + (f"; financial figures from {m['workbook']}" if m.get("workbook") else "")
+              + f"; for {client} ({m['client_id']}).")
+    # No goal on file (a local sheet without a Charts Goals tab): goal tiles, captions and
+    # columns are left out rather than shown as 0% or a dash.
+    _goal=rf.get("monthly_goal")
 
     # 3 Power of Referrals
     s=blank(prs); title(s,"The Power of Referrals"); pill(s,f"PTD · {data_date}")
@@ -595,13 +702,21 @@ def build(d, static_path, out, referrals_only=False):
     # one, so reading it directly KeyErrors on every later pull.
     _vs_goal = rf.get('prev_month_vs_goal_pct',
                       rf.get(f"{pm['label'].lower()}_vs_goal_pct", 0))
-    for i,(big,lab) in enumerate([(f"{rf['year_to_date']:,}","2026 Year-to-Date"),
-                                   (f"{pm['value']}",f"Previous Month ({pm['label']})"),
-                                   (f"{_vs_goal}%",f"{pm['label']} vs Goal")]):
-        callout(s,0.55+i*4.1,4.15,3.8,1.5,big,lab)
+    _tiles=[(f"{rf['year_to_date']:,}","2026 Year-to-Date"),
+            (f"{pm['value']}",f"Previous Month ({pm['label']})")]
+    if _goal is not None:
+        _tiles.append((f"{_vs_goal}%",f"{pm['label']} vs Goal"))
+    # Three tiles keep their original positions; two are centred as a pair.
+    _tx0=0.55 if len(_tiles)==3 else (13.333-(len(_tiles)*3.8+(len(_tiles)-1)*0.3))/2
+    for i,(big,lab) in enumerate(_tiles):
+        callout(s,_tx0+i*4.1,4.15,3.8,1.5,big,lab)
     logo(s); pagenum(s,3)
+    _goal_note=(f"monthly goal {_goal:,} ({pm['label']} vs goal {_vs_goal}%)" if _goal is not None
+                else "no referral goal on file, so none is shown")
+    _thru_note=(f"Referral detail file, counted by Issue Date, referrals through {m.get('data_through')}."
+                if _local else f"VIP, current thru {rf['month_to_date']['label']} (partial).")
     notes(s,base+f" Referrals PTD {rf['program_to_date']:,}, YTD {rf['year_to_date']:,}, {pm['label']} {pm['value']}, "
-                f"monthly goal {rf['monthly_goal']:,} ({pm['label']} vs goal {_vs_goal}%). VIP, current thru {rf['month_to_date']['label']} (partial).")
+                f"{_goal_note}. {_thru_note}")
 
     # 4 Referral Trend
     t=rf["trend"]; s=blank(prs); title(s,f"Referral Trend – Last {len(t['months'])} Months")
@@ -626,11 +741,17 @@ def build(d, static_path, out, referrals_only=False):
     _span = (f"{P.mon_yy(t['months'][0])} – {P.mon_yy(t['months'][-1])}"
              + (" (partial)" if t.get("partial_last") else ""))
     tb(s,1.2,6.72,9.8,0.5,
-       f"Monthly checking referrals, {_span}; {_peak_txt}. "
-       f"Goal {rf['monthly_goal']:,}/mo.",
+       f"Monthly checking referrals, {_span}; {_peak_txt}."
+       + (f" Goal {_goal:,}/mo." if _goal is not None else ""),
        16,GREYT,False)
     logo(s); pagenum(s,4)
-    notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
+    if _local:
+        notes(s,base+(f" Monthly referrals vs the {_goal:,}/mo goal." if _goal is not None else " Monthly referrals.")
+                    +" Bars navy, last complete month orange"
+                    +(", partial month hatched." if t.get("partial_last") else ".")
+                    +" Referral detail file, counted by Issue Date.")
+    else:
+        notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
 
     # 5 Results by Branch
     # Branch goals in the VIP data are ANNUAL, but a program that started partway
@@ -642,6 +763,7 @@ def build(d, static_path, out, referrals_only=False):
     _elapsed, _elapsed_txt = _goal_months_elapsed(rf)
     bb=rf["by_branch"]
     _gh = "Goal to Date" if _elapsed < 12 else "Goal"
+    _has_goals = any(b.get("goal") for b in bb["branches"])
     rows=[["Branch","Referrals YTD",_gh,"% of Goal"]]
     shown=bb["branches"][:8]
     def _prorate(annual):
@@ -658,9 +780,12 @@ def build(d, static_path, out, referrals_only=False):
     tg=sum(_prorate(b["goal"]) for b in shown if b.get("goal"))
     rows.append([f"Top {len(shown)} Total",f"{tr}",f"{tg}",
                  f"{round(tr/tg*100)}%" if tg else "—"])
+    if not _has_goals:
+        # No branch carries a goal: drop the goal columns rather than print a column of dashes.
+        rows=[r[:2] for r in rows]
     # widened to fill the space the callouts left — at 6.95in the table stopped at
     # 10.3in and the right third of the slide sat empty
-    std_table(s,rows,3.35,1.45,9.45,[2.4,1.1,0.9,0.9],highlight_last=True,fs=16,rowh=0.5)
+    std_table(s,rows,3.35,1.45,9.45,[2.4,1.1,0.9,0.9][:len(rows[0])],highlight_last=True,fs=16,rowh=0.5)
 
     # Callouts in the empty left column (Aaron, 2026-08-28). The table shows the top 8;
     # these read across EVERY branch, so participation and overall pace are visible
@@ -673,8 +798,8 @@ def build(d, static_path, out, referrals_only=False):
     _apct = f"{round(_ar/_ag*100)}%" if _ag else "—"
     for _i, (_big, _lab) in enumerate([
             (f"{_rep}", "Branches Reporting Referrals"),
-            (f"{_none}", "Branches Without Referrals"),
-            (_apct, "% of Goal — All Branches")]):
+            (f"{_none}", "Branches Without Referrals")]
+            + ([(_apct, "% of Goal — All Branches")] if _has_goals else [])):
         callout(s, 0.5, 1.55 + _i*1.62, 2.65, 1.42, _big, _lab,
                 fill=(ORANGE if _i == 2 else NAVY), big_size=34)
 
@@ -684,14 +809,36 @@ def build(d, static_path, out, referrals_only=False):
     # the branch counts and the pro-rating basis are all in the notes, which is where
     # STYLE.md puts the source anyway.
     logo(s); pagenum(s,5)
-    notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
+    if _local and not _has_goals:
+        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none. "
+                     f"Referrals by branch, YTD ({_ar:,} in total); no branch goals on file, so no "
+                     f"goal or % of goal is shown. Top branches by referrals. Referral detail file, "
+                     f"counted by Issue Date and Branch.")
+    elif _local:
+        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
+                     f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
+                     f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
+                     f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
+                     f"(monthly goal x {_elapsed}); the Charts 'Goals' tab carries a MONTHLY goal per branch. "
+                     f"Top branches by referrals. Referral detail file, counted by Issue Date and Branch; "
+                     f"branch names from the Charts 'Goals' tab.")
+    else:
+        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
                  f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
                  f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
                  f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
                  f"(annual goal / 12 x {_elapsed}); the VIP file carries the ANNUAL goal. "
                  f"Top branches by referrals. VIP; branch names reconciled to the Charts 'Goals' tab.")
 
-    # 5a Referred Accounts by Product (workbook 'Referred Accounts by Product' tab, participating products only)
+    # 5a Direct Mail New Accounts (Aaron, 2026-09-16: "Direct mail should get its own slide").
+    # Accounts opened through the ICS DIRECT-MAIL channel, from the sheet's `direct_mail` block
+    # (ics_local_sheet reads the CSM's "Direct Mail New Accounts Opened PTD" file). A different
+    # channel from referrals: these counts are never added to any referral figure. Built only
+    # when the block carries accounts; a sheet without one gets no slide, not a slide of zeros.
+    if _dm_slide:
+        direct_mail_slide(prs, d, client, m, rf, a("ics_direct_mail.png"))
+
+    # 5b Referred Accounts by Product (workbook 'Referred Accounts by Product' tab, participating products only)
     rbp=d.get("referred_by_product")
     if rbp:
         prods=rbp["products"]; tot_ref=sum(p["referred"] for p in prods); tot_acc=sum(p["total"] for p in prods)
@@ -724,7 +871,9 @@ def build(d, static_path, out, referrals_only=False):
             r2=pp.add_run(); r2.text=it; r2.font.size=Pt(22); r2.font.name="Calibri"; r2.font.color.rgb=NAVY
         s.shapes.add_picture(a("ics_perfintro.png"),Inches(6.55),Inches(1.75),Inches(5.85))
         logo(s); pagenum(s,6)
-        notes(s,"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly referrals (bars) + cumulative referrals (line), from the VIP referral trend. No figures on the slide face.")
+        notes(s,"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly referrals (bars) + cumulative referrals (line), from the "
+                +(f"referral trend in {m['referral_source'].split(' (')[0]}" if _local else "VIP referral trend")
+                +". No figures on the slide face.")
 
         # --- ROI / Present Value recalculated per client (the workbook ROI is not used) ---
         # PV per account = annual profit × life; life = velocity avg 6.9 yrs for the program's
@@ -955,23 +1104,26 @@ def build(d, static_path, out, referrals_only=False):
             callout(s,0.55+i*4.1,1.5,3.8,1.5,big,lab,fill=fill)
         logo(s); pagenum(s,16); notes(s,base+" Mystery shops YTD, pass rate, referral-offered rate. ICS Charts.")
 
-    # Contact slide (built last so it lands at the very end, after Q&A)
-    contacts=d.get("contacts",[])
-    if contacts:
-        s=blank(prs); title(s,"Contact Us")
-        ncc=len(contacts); cw=5.6; gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
-        for i,cc in enumerate(contacts):
-            l=x0+i*(cw+gap)
-            card=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(1.95),Inches(cw),Inches(3.55))
-            card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
-            try: card.adjustments[0]=0.05
-            except Exception: pass
-            shadow(card)
-            tb(s,l+0.35,2.45,cw-0.7,0.7,cc["name"],26,WHITE,True,align=PP_ALIGN.CENTER)
-            tb(s,l+0.35,3.25,cw-0.7,1.0,cc["role"],15,ORANGE,False,align=PP_ALIGN.CENTER)
-            tb(s,l+0.35,4.5,cw-0.7,0.5,cc["phone"],17,WHITE,False,align=PP_ALIGN.CENTER)
-            tb(s,l+0.35,5.02,cw-0.7,0.5,cc["email"],15,WHITE,False,align=PP_ALIGN.CENTER)
-        logo(s); pagenum(s,99); notes(s,"Contact information.")
+    # Contact slide (built last so it lands at the very end, after Q&A). Every ICS deck has
+    # one, and its card is the client's managing CSM (rpe_env.csm_contact, resolved above).
+    from shapes import (contact_card_lines, contact_card_note, CONTACT_CARD_TOP,
+                        CONTACT_CARD_W as cw, CONTACT_CARD_H)
+    s=blank(prs); title(s,"Contact Us")
+    contacts=[contact] + ([_program_contact] if _program_contact else [])
+    ncc=len(contacts); gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
+    _cstyle={"name":(26,WHITE,True),"role":(15,ORANGE,False),"phone":(17,WHITE,False),"email":(15,WHITE,False)}
+    for i,cc in enumerate(contacts):
+        l=x0+i*(cw+gap)
+        card=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(CONTACT_CARD_TOP),Inches(cw),Inches(CONTACT_CARD_H))
+        card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
+        try: card.adjustments[0]=0.05
+        except Exception: pass
+        shadow(card)
+        for _f,_txt,_top,_hh in contact_card_lines(cc):
+            _sz,_col,_b=_cstyle[_f]
+            tb(s,l+0.35,_top,cw-0.7,_hh,_txt,_sz,_col,_b,align=PP_ALIGN.CENTER)
+    logo(s); pagenum(s,99)
+    notes(s,contact_card_note(contact) + (f" ICS program contact: {_program_contact['name']}." if _program_contact else ""))
 
     # ---- reorder: data slides move to the front; static education + Q&A stay last;
     # the contact slide (last-built data slide) goes to the very end ----
@@ -989,13 +1141,20 @@ def build(d, static_path, out, referrals_only=False):
     static_ids=[e for e in ids if e in _static_els]
     data_ids=[e for e in ids if e not in _static_els]
     tail=[]
-    if contacts and data_ids: tail=[data_ids.pop()]   # contact slide -> very end
+    if data_ids: tail=[data_ids.pop()]   # contact slide (always built) -> very end
     for sid in ids: lst.remove(sid)
     for sid in data_ids+static_ids+tail: lst.append(sid)
     # invariant: every slide referenced exactly once
     _seen=[e.get(qn('r:id')) for e in list(lst)]
     if len(_seen)!=len(set(_seen)):
         raise SystemExit("ERROR: duplicate slide references in sldIdLst")
+    # Renumber every kept slide part 1..N in deck order BEFORE anything else adds a slide.
+    # The retained static slides still hold the template's partnames (slide22-slide27), and
+    # python-pptx names a new slide slide<count+1>.xml. The Summit slide inserted below
+    # therefore landed on slide27.xml — already a static's name — whenever this deck held 20
+    # data slides: a full build with no Contact slide (1776 CoastHills CU, 2026-09-16), which
+    # wrote slide27.xml twice and failed the package check. Sequential names leave count+1 free.
+    prs.part.rename_slide_parts([e.get(qn('r:id')) for e in list(lst)])
 
     enforce_min_font(prs, MIN_PT)   # minimum size across the deck
     summit_slide.insert_summit_after_title(prs)   # Executive Summit after the title (all decks)

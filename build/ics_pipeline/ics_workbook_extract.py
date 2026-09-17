@@ -48,13 +48,10 @@ warnings.filterwarnings("ignore")
 # — identical to this benchmark, so the column looked right.
 VELOCITY_CLOSE_RATE_12M_PCT = 6.7
 
-CONTACTS = [
-    {"name": "Aaron Burgard", "role": "Client Service Manager",
-     "phone": "910-617-1984", "email": "aaron.burgard@csiweb.com"},
-    {"name": "Cindy Draper",
-     "role": "Strategist and Program Manager for Invitation Checking® System",
-     "phone": "910-386-8287", "email": "cindy.draper@csiweb.com"},
-]
+# No contact list here. The workbook sections used to carry a standing `contacts` card that
+# named one CSM for every client; the Contact Us card is now the client's managing CSM, looked
+# up at build time by rpe_env.csm_contact (Aaron, 2026-09-16), and build_ics_gen ignores any
+# `contacts` a sheet still carries.
 
 
 def _label(ws, r, maxc=4):
@@ -325,7 +322,6 @@ def extract(path):
             "performance": performance, "revenue": revenue,
             "financial_summary": financial_summary,
             "monthly_detail": monthly_detail, "benchmark": benchmark,
-            "contacts": CONTACTS,
             "mystery_shop": {"include": False, "_status": "skip"}}
 
 

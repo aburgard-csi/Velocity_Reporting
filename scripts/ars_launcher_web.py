@@ -185,26 +185,40 @@ def compute_status(cid):
                 "checks": [{"level": L.STOP, "text": "No ARS workbooks are in Inputs at all, so there is no period to build."}]}
     roster, _ = BM.read_roster()
     sent = DS.read_deliveries()["sent"]
-    checks = L.all_checks(cid, period, row, roster, sent)
+    entry = next((r for r in roster if r[0] == cid), None)
+    # Two builds can be on offer (Aaron, 2026-09-16): ARS only, and a combined deck with every other
+    # clients.md program whose data is on hand. The checks are the combined-build rules; whether the
+    # ARS-only build is allowed (not for Aaron's multi-program clients) is decided separately.
+    checks = L.all_checks(cid, period, row, roster, sent, combined=True)
+    avail = L.program_availability(cid, period, entry[3]) if entry else {}
+    extra = L.combined_programs(avail)
+    checks = [(l, m) for l, m in checks if not m.startswith("No other program has the data")]
+    multi = bool(entry and len(entry[3]) > 1)
+    ars_only = not (multi and row and row.get("csm") == L.AARON)
+    if not ars_only and not extra:
+        checks.append((L.STOP, "This client ships a combined deck, but no other program has its data this period."))
     lift = [l for l, m in checks if m.startswith("Lift Matrix")]
     if lift:
         _lift[cid] = L.STOP if L.STOP in lift else L.OK
     state = "stop" if any(l == L.STOP for l, _ in checks) else "ask" if any(l == L.ASK for l, _ in checks) else "ready"
     res = R.build_artifacts() / "launcher" / period / cid / "_launcher_result.json"
     last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
-    entry = next((r for r in roster if r[0] == cid), None)
     return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"), "csm": row.get("csm"), "period": period,
-            "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last}
+            "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
+            "builds": {"ars_only": ars_only,
+                       "combined": ["ARS"] + extra if extra else None,
+                       "left_out": {p: why for p, (ok, why) in avail.items() if not ok}}}
 
 
 # ------------------------------------------------------------------ build jobs
-def build_cmd(cid, rebuild):
-    return [sys.executable, str(HERE / "ars_launcher.py"), "build", cid] + (["--rebuild"] if rebuild else [])
+def build_cmd(cid, rebuild, combined=False):
+    return ([sys.executable, str(HERE / "ars_launcher.py"), "build", cid]
+            + (["--rebuild"] if rebuild else []) + (["--combined"] if combined else []))
 
 
 class Job:
-    def __init__(self, cid, rebuild):
-        self.cid, self.rebuild = cid, rebuild
+    def __init__(self, cid, rebuild, combined=False):
+        self.cid, self.rebuild, self.combined = cid, rebuild, combined
         self.lines, self.done, self.code = [], False, None
         self.queued_at = time.time()
         self.started = None          # set when it leaves the queue
@@ -215,7 +229,7 @@ class Job:
         # COLUMNS keeps ars_launcher.say from wrapping a long Outputs path across two lines.
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1", COLUMNS="1000")
         try:
-            proc = subprocess.Popen(build_cmd(self.cid, self.rebuild), stdout=subprocess.PIPE,
+            proc = subprocess.Popen(build_cmd(self.cid, self.rebuild, self.combined), stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                                     env=env, cwd=str(REPO))
             for line in proc.stdout:
@@ -233,7 +247,7 @@ class Job:
         waiting = [j for j in list(_queue) if not j.started]
         position = waiting.index(self) + 1 if self in waiting else None
         running = next((j.cid for j in list(_jobs.values()) if j.started and not j.done), None)
-        return {"client": self.cid, "rebuild": self.rebuild, "lines": self.lines, "done": self.done,
+        return {"client": self.cid, "rebuild": self.rebuild, "combined": self.combined, "lines": self.lines, "done": self.done,
                 "code": self.code, "deck": deck, "queued": position, "after": running if position else None,
                 "seconds": round((self.finished or time.time()) - self.started) if self.started else 0}
 
@@ -265,14 +279,14 @@ def _drain():
                 _queue.remove(job)
 
 
-def start_build(cid, rebuild):
+def start_build(cid, rebuild, combined=False):
     """Queue a build; it starts at once when nothing else is building. Returns (http status, body)."""
     with _jobs_lock:
         cur = _jobs.get(cid)
         if cur and not cur.done:
             where = "building" if cur.started else f"queued #{[j for j in _queue if not j.started].index(cur) + 1}"
             return 409, {"error": f"{cid} is already {where}."}
-        job = Job(cid, rebuild)
+        job = Job(cid, rebuild, combined)
         _jobs[cid] = job
         _queue.append(job)
         if _worker["thread"] is None:
@@ -287,6 +301,112 @@ def queue_doc():
         queue = list(_queue)
     return {"building": next((j.cid for j in queue if j.started and not j.done), None),
             "queued": [j.cid for j in queue if not j.started]}
+
+
+# ------------------------------------------------------------------ change log
+# The page links the change log and shows the last five updates (Aaron, 2026-09-16: "Add a link to the change
+# log at the top of Sheila's page, and show the last 5 updates"). CHANGELOG.md is released beside the code.
+CHANGELOG = REPO / "CHANGELOG.md"
+_ENTRY_RX = re.compile(r"^###\s+(\d{4}-\d{2}-\d{2})\s+[—-]+\s+(.+?)\s*$")
+
+
+def _plain(md):
+    """Markdown inline marks stripped for a one-line summary."""
+    t = re.sub(r"`([^`]*)`", r"\1", md)
+    t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def changelog_entries(n=5, path=None):
+    """The newest `n` dated entries of CHANGELOG.md (newest first): [{date, title, summary, anchor}].
+
+    summary is the entry's first paragraph as plain text, cut at 260 characters; anchor matches the
+    heading id on /changelog.
+    """
+    try:
+        lines = Path(path or CHANGELOG).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out, i = [], 0
+    while i < len(lines) and len(out) < n:
+        m = _ENTRY_RX.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        para = []
+        while j < len(lines) and lines[j].strip() and not lines[j].startswith("#"):
+            para.append(lines[j].strip())
+            j += 1
+        s = _plain(" ".join(para))
+        out.append({"date": m.group(1), "title": _plain(m.group(2)),
+                    "summary": s[:260].rstrip() + ("\u2026" if len(s) > 260 else ""), "anchor": f"e{len(out)}"})
+        i = j
+    return out
+
+
+def _md_inline(text):
+    import html as _h
+    t = _h.escape(text)
+    t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+    t = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
+    return t
+
+
+def changelog_page(path=None):
+    """CHANGELOG.md as a readable page: headings, paragraphs, lists, bold and code."""
+    try:
+        lines = Path(path or CHANGELOG).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = ["The change log is not available in this copy."]
+    body, para, items, n = [], [], [], 0
+
+    def flush():
+        if para:
+            body.append("<p>" + _md_inline(" ".join(para)) + "</p>")
+            para.clear()
+        if items:
+            body.append("<ul>" + "".join("<li>" + _md_inline(i) + "</li>" for i in items) + "</ul>")
+            items.clear()
+    for ln in lines:
+        s = ln.rstrip()
+        h = re.match(r"^(#{1,4})\s+(.*)$", s)
+        if h:
+            flush()
+            lvl = len(h.group(1))
+            ident = ""
+            if lvl == 3 and _ENTRY_RX.match(s):
+                ident = f' id="e{n}"'
+                n += 1
+            body.append(f"<h{lvl}{ident}>{_md_inline(h.group(2))}</h{lvl}>")
+        elif re.match(r"^\s*[-*]\s+", s):
+            if para:
+                flush()
+            items.append(re.sub(r"^\s*[-*]\s+", "", s))
+        elif s.startswith("  ") and items:
+            items[-1] += " " + s.strip()
+        elif s.strip() in ("", "---"):
+            flush()
+        elif s.startswith(">"):
+            para.append(s.lstrip("> "))
+        else:
+            if items:
+                flush()
+            para.append(s.strip())
+    flush()
+    return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            "<title>CSM Sheila · Change log</title><style>"
+            "body{margin:0;background:#F4F6F9;color:#0E1B2A;font:15.5px/1.55 'Segoe UI',Arial,sans-serif}"
+            "header{background:#00274C;color:#fff;padding:14px 24px;font-weight:700;font-size:19px}"
+            "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
+            "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F47A29;padding-bottom:4px}"
+            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
+            "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}}"
+            "</style></head><body><header>CSM Sheila · Change log</header><main>"
+            + "\n".join(body) + "</main></body></html>")
 
 
 def reveal(path):
@@ -332,6 +452,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden"})
         if u.path == "/":
             return self._send(200, PAGE.replace("__TOKEN__", TOKEN).encode("utf-8"), "text/html; charset=utf-8")
+        if u.path == "/changelog":
+            return self._send(200, changelog_page().encode("utf-8"), "text/html; charset=utf-8")
         if not self._api_ok():
             return self._send(403, {"error": "forbidden"})
         q = parse_qs(u.query)
@@ -341,6 +463,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, clients_doc())
             if u.path == "/api/queue":
                 return self._send(200, queue_doc())
+            if u.path == "/api/changelog":
+                return self._send(200, {"entries": changelog_entries(5)})
             if u.path in ("/api/status", "/api/job"):
                 if not CID_RX.match(cid):
                     return self._send(400, {"error": "not a client number"})
@@ -363,7 +487,7 @@ class Handler(BaseHTTPRequestHandler):
             cid = str(body.get("client", "")).strip()
             if not CID_RX.match(cid):
                 return self._send(400, {"error": "not a client number"})
-            return self._send(*start_build(cid, bool(body.get("rebuild"))))
+            return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined"))))
         if path == "/api/reveal":
             return self._send(*reveal(str(body.get("path", ""))))
         return self._send(404, {"error": "not found"})
@@ -414,7 +538,19 @@ PAGE = r"""<!doctype html>
 body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.45 "Segoe UI",Calibri,Arial,sans-serif}
 header.top{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 header.top h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.01em}
-header.top .period{margin-left:auto;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px}
+header.top .news{margin-left:auto;position:relative}
+header.top .news summary{cursor:pointer;list-style:none;font-weight:600;font-size:13.5px;padding:5px 12px;border:1px solid rgba(255,255,255,.45);border-radius:999px}
+header.top .news summary::-webkit-details-marker{display:none}
+header.top .news[open] summary{background:rgba(255,255,255,.12)}
+header.top .newsbox{position:absolute;right:0;top:36px;z-index:20;width:min(460px,92vw);background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);padding:12px 14px;max-height:70vh;overflow:auto}
+header.top .newsbox ol{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+header.top .newsbox li a{color:var(--ink);text-decoration:none;display:block}
+header.top .newsbox li a:hover b{text-decoration:underline}
+header.top .newsbox .d{color:var(--ink3);font-size:12px;font-variant-numeric:tabular-nums}
+header.top .newsbox .s{color:var(--ink2);font-size:12.5px;display:block;margin-top:2px}
+header.top .newsbox .all{display:inline-block;margin-top:10px;font-weight:600;color:var(--sent)}
+header.top .loglink{color:#fff;font-size:13.5px;font-weight:600;text-decoration:underline}
+header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px}
 .app{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:18px;max-width:1240px;margin:18px auto;padding:0 18px}
 @media (max-width:820px){.app{grid-template-columns:1fr}}
 aside,main{background:var(--surface);border:1px solid var(--rule);border-radius:10px}
@@ -453,6 +589,7 @@ main{padding:22px 24px;min-height:420px}
 .verdict.ready{background:var(--ok-bg);border-color:transparent} .verdict.ask{background:var(--sent-bg);border-color:transparent}
 .verdict.stop{background:var(--stop-bg);border-color:transparent}
 .verdict p{margin:0;flex:1;min-width:220px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
 button.primary{font:600 15px/1 "Segoe UI",Arial,sans-serif;background:var(--navy);color:#fff;border:0;border-radius:8px;padding:11px 16px;cursor:pointer}
 button.primary.warn{background:var(--orange)}
 button.primary:disabled{background:var(--ink3);cursor:not-allowed}
@@ -487,7 +624,7 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><span class="period" id="period">Loading…</span></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><span class="period" id="period">Loading…</span></header>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -602,31 +739,48 @@ function renderStatus(s) {
   // The last build failed: the list shows the red Error pill, and the button offers the retry.
   const failed = c.error || (s.job && s.job.done && s.job.code);
   const failNote = failed ? ` <span class="err">The last build failed; see why below.</span>` : "";
+  // Up to two builds (Aaron, 2026-09-16): ARS only, and a combined deck with every other program whose
+  // data is on hand. Aaron's multi-program clients get only the combined one.
+  const b = s.builds || {ars_only: true, combined: null, left_out: {}};
+  const combo = b.combined ? b.combined.join(" + ") : "";
+  const leftOut = Object.entries(b.left_out || {}).map(([p, why]) => `${p} left out: ${why}`).join(" · ");
+  const btns = (ask) => {
+    const cls = ask ? "primary warn" : "primary", verb = failed ? (ask ? "Retry rebuild" : "Retry build") : (ask ? "Rebuild" : "Build");
+    let h = "";
+    if (b.ars_only) h += `<button class="${cls}" id="go">${verb} ${b.combined ? "ARS only" : (ask ? "and replace the one in Outputs" : "and put in Outputs")}</button>`;
+    if (b.combined) h += `<button class="${cls}" id="go2">${verb} combined (${esc(combo)})</button>`;
+    return `<span class="btns">${h}</span>`;
+  };
+  const choose = b.combined && b.ars_only ? " Choose an ARS-only deck or a combined deck." : b.combined ? ` This client's deck is combined (${esc(combo)}).` : "";
+  const note = leftOut ? `<br><span class="small">${esc(leftOut)}</span>` : "";
   let verdict;
-  if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.${failNote}</p><button class="primary" id="go">${failed ? "Retry build" : "Build and put in Outputs"}</button></div>`;
-  else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck is already in Outputs.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.${failNote}</p><button class="primary warn" id="go">${failed ? "Retry rebuild" : "Rebuild and replace the one in Outputs"}</button></div>`;
+  if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.${choose}${failNote}${note}</p>${btns(false)}</div>`;
+  else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck is already in Outputs.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.${choose}${failNote}${note}</p>${btns(true)}</div>`;
   else verdict = `<div class="verdict stop"><p><b>Can't build yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="recheck">Check again</button></div>`;
   const last = s.last ? `<div class="last"><h3>Last build from this tool</h3>${esc(s.last.finished)} by ${esc(s.last.by)}: ${esc(s.last.result)}${s.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
   const age = s.age_seconds == null ? "" : s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`;
   $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
       <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
     <ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
-  const go = $("#go"); if (go) go.addEventListener("click", () => build(s));
+  const go = $("#go"); if (go) go.addEventListener("click", () => build(s, false));
+  const go2 = $("#go2"); if (go2) go2.addEventListener("click", () => build(s, true));
   const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client, true));
   const rf = $("#refresh"); if (rf) rf.addEventListener("click", () => select(s.client, true));
 }
 
-async function build(s) {
-  const go = $("#go");
-  if (s.state === "ask" && !armed) { armed = true; go.textContent = "Yes, rebuild it"; return; }
+async function build(s, combined) {
+  const go = $(combined ? "#go2" : "#go"), other = $(combined ? "#go" : "#go2");
+  const kind = combined ? "combined" : "ars";
+  if (s.state === "ask" && armed !== kind) { armed = kind; go.textContent = combined ? "Yes, rebuild the combined deck" : "Yes, rebuild ARS only"; return; }
   go.disabled = true; go.textContent = "Starting…";
+  if (other) other.disabled = true;
   try {
-    const {status, body} = await api("/api/build", {method: "POST", body: JSON.stringify({client: s.client, rebuild: s.state === "ask"})});
-    if (status === 409) { go.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(body.error)}</p>`; return; }
+    const {status, body} = await api("/api/build", {method: "POST", body: JSON.stringify({client: s.client, rebuild: s.state === "ask", combined})});
+    if (status === 409) { go.disabled = false; if (other) other.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(body.error)}</p>`; return; }
     go.textContent = body.queued ? `Queued #${body.queued}` : "Building…";
     pollQueue();
     follow(s.client);
-  } catch (e) { go.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  } catch (e) { go.disabled = false; if (other) other.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
 function follow(id) {
@@ -651,9 +805,9 @@ function termLine(l) {
 
 function renderJob(j) {
   if (!j || !j.lines) return;
-  const go = $("#go");
-  if (go && !j.done) { go.disabled = true; go.textContent = j.queued ? `Queued #${j.queued}` : "Building…"; }
-  else if (go && j.code) { go.disabled = false; go.textContent = j.rebuild ? "Retry rebuild" : "Retry build"; }
+  const go = $(j.combined ? "#go2" : "#go"), other = $(j.combined ? "#go" : "#go2");
+  if (go && !j.done) { go.disabled = true; if (other) other.disabled = true; go.textContent = j.queued ? `Queued #${j.queued}` : "Building…"; }
+  else if (go && j.code) { go.disabled = false; if (other) other.disabled = false; go.textContent = (j.rebuild ? "Retry rebuild" : "Retry build") + (j.combined ? " (combined)" : ""); }
   const steps = [], marks = [];
   for (const line of j.lines) {
     const m = line.match(/^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$/);
@@ -662,7 +816,7 @@ function renderJob(j) {
     else if (steps.length) marks.push({level: m[1], text: m[2]});
   }
   const mins = Math.floor(j.seconds / 60), secs = String(j.seconds % 60).padStart(2, "0");
-  let html = `<div class="progress"><h3>Build${j.rebuild ? " (rebuild)" : ""} · ${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
+  let html = `<div class="progress"><h3>${j.combined ? "Combined build" : "Build"}${j.rebuild ? " (rebuild)" : ""} ·${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
   if (j.queued) html += `<li><span class="dot"></span><span>Queued #${j.queued}. It starts on its own when ${j.queued > 1 ? "the builds ahead of it finish" : `the build for ${esc(j.after || "another client")} finishes`}. Keep CSM Sheila's black window open.</span></li>`;
   steps.forEach((st, i) => { const done = j.done || i < steps.length - 1;
     html += `<li><span class="dot ${done ? "done" : "now"}"></span><span>${esc(st.name)}</span><span class="t">${st.min !== "" ? esc(st.min) + " min" : ""}</span></li>`; });
@@ -705,6 +859,15 @@ $("#csm").addEventListener("change", () => { store("ars-builder-csm", $("#csm").
 $("#q").addEventListener("input", renderList);
 loadClients();
 pollQueue(); setInterval(pollQueue, 3000);
+document.addEventListener("click", e => { const n = $("#news"); if (n && n.open && !n.contains(e.target)) n.open = false; });
+// The last five change-log entries in the header (Aaron, 2026-09-16).
+(async function loadNews() {
+  try {
+    const {body} = await api("/api/changelog");
+    const items = (body.entries || []).map(e => `<li><a href="/changelog#${esc(e.anchor)}" target="_blank" rel="noopener"><span class="d">${esc(e.date)}</span><br><b>${esc(e.title)}</b><span class="s">${esc(e.summary)}</span></a></li>`);
+    $("#newslist").innerHTML = items.join("") || `<li class="small">No entries yet.</li>`;
+  } catch (e) { $("#newslist").innerHTML = `<li class="small">The change log could not be read.</li>`; }
+})();
 </script>
 </body>
 </html>

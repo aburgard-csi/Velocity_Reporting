@@ -111,7 +111,10 @@ _csm_cache = {}
 
 
 def csm_list_file() -> Path | None:
-    """`<RPE_DATA_ROOT>/Client CSM List.csv` — client id to CSM for every CSM's book."""
+    """`<RPE_DATA_ROOT>/Client CSM List.csv` — client id to CSM for every CSM's book.
+    `RPE_CSM_LIST` replaces the path (a subprocess test build points it at a synthetic list)."""
+    if os.environ.get("RPE_CSM_LIST"):
+        return Path(os.environ["RPE_CSM_LIST"])
     try:
         return data_root() / CSM_LIST_NAME
     except SystemExit:
@@ -147,6 +150,92 @@ def client_csm(client_id) -> str | None:
             pass
         _csm_cache[key] = found
     return _csm_cache[key].get(cid)
+
+
+# ------------------------------------------------------------------ the Contact Us card
+# Every deck's Contact Us card names the client's MANAGING CSM (Aaron, 2026-09-16: "James's
+# name would go on the contact card. The contact card should always show the managing
+# CSM."). The builders used to print one CSM's card on every deck, whoever managed the
+# client. The card comes from `<RPE_DATA_ROOT>/CSM Contacts.csv` (one row per CSM, taken
+# from their email signatures) for the CSM `client_csm` names — and never falls back to
+# another CSM: a card naming the wrong person sends the client to the wrong person.
+CSM_CONTACTS_NAME = "CSM Contacts.csv"
+_contacts_cache = {}
+
+
+def csm_contacts_file() -> Path:
+    """`<RPE_DATA_ROOT>/CSM Contacts.csv`; `RPE_CSM_CONTACTS` replaces the path."""
+    if os.environ.get("RPE_CSM_CONTACTS"):
+        return Path(os.environ["RPE_CSM_CONTACTS"])
+    return data_root() / CSM_CONTACTS_NAME
+
+
+def format_phone(raw) -> str:
+    """'(NNN) NNN-NNNN' -> 'NNN-NNN-NNNN'; an 'ext. N' is kept; '' when blank.
+    A number that is not ten digits is returned as written rather than reshaped."""
+    raw = str(raw or "").strip()
+    if not raw:
+        return ""
+    m = re.search(r"(?i)\b(?:ext\.?|x)\s*(\d+)\s*$", raw)
+    main, ext = (raw[:m.start()], m.group(1)) if m else (raw, "")
+    digits = re.sub(r"\D", "", main)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    out = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}" if len(digits) == 10 else main.strip()
+    return f"{out} ext. {ext}" if ext else out
+
+
+def csm_contact(client_id) -> dict:
+    """{'name', 'role', 'phone', 'email'} for the client's managing CSM.
+
+    role is the CSM's title; phone is the cell, else the office line (with any extension),
+    else '' — the card then has no phone line; email is lowercased. Raises SystemExit with a
+    plain sentence when the client has no CSM on file, the contacts file is missing, or the
+    CSM has no row (or no title/email) in it. The file is read once per process.
+    """
+    cid = str(client_id).strip()
+    csm = client_csm(cid)
+    if not csm:
+        raise SystemExit(
+            f"Client {cid or '(no id)'} has no managing CSM in {CSM_LIST_NAME}, so its Contact Us "
+            f"card cannot be filled. Add the client to the list; the card never names another CSM.")
+    return contact_by_name(csm, cid)
+
+
+# The ICS program's own contact, a second card on standalone ICS decks after the managing CSM
+# (Aaron, 2026-09-16: "Add Cindy on ICS"). Her row lives in CSM Contacts.csv like every card.
+ICS_PROGRAM_CONTACT = "Cindy Draper"
+
+
+def contact_by_name(csm, client_id="") -> dict:
+    """{'name', 'role', 'phone', 'email'} for the person named `csm` in CSM Contacts.csv (see csm_contact)."""
+    cid = str(client_id).strip()
+    path = csm_contacts_file()
+    key = str(path)
+    if key not in _contacts_cache:
+        if not path.is_file():
+            raise SystemExit(f"{CSM_CONTACTS_NAME} was not found at {path}, so no Contact Us card "
+                             f"can be filled for client {cid} ({csm}).")
+        import csv
+        rows = {}
+        with open(path, encoding="utf-8-sig", newline="") as fh:
+            for row in csv.DictReader(fh):
+                name = (row.get("csm") or "").strip()
+                if name:
+                    rows[name.casefold()] = {k: (v or "").strip() for k, v in row.items() if k}
+        _contacts_cache[key] = rows
+    row = _contacts_cache[key].get(csm.casefold())
+    if row is None:
+        raise SystemExit(f"{csm}, the managing CSM for client {cid}, has no row in {CSM_CONTACTS_NAME} "
+                         f"({path}). Add their title, phone and email there; the card never falls "
+                         f"back to another CSM.")
+    missing = [f for f in ("title", "email") if not row.get(f)]
+    if missing:
+        raise SystemExit(f"{csm}'s row in {CSM_CONTACTS_NAME} has no {' or '.join(missing)}, so the "
+                         f"Contact Us card for client {cid} cannot be filled.")
+    return {"name": row["csm"], "role": row["title"],
+            "phone": format_phone(row.get("cell") or row.get("office")),
+            "email": row["email"].lower()}
 
 
 def client_outputs(client_id, root=None, create=False) -> Path:
@@ -196,11 +285,19 @@ INPUT_KIND_DIRS = {
     "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
     "ARS codes": "ARS Settings",          # ars_code_tables.json, the ARS database's code tables
     "Code sheets": "Code Sheets",         # clients' code sheets, saved by the data team
+    # A client with no VIP ICS sheet (1776 CoastHills CU, Aaron 2026-09-16): the CSM lands the
+    # detailed referral export and the direct-mail new-accounts list here by hand, and
+    # build/ics_pipeline/ics_local_sheet.py builds the ICS sheet from them.
+    "ICS referrals": "ICS Referrals",     # <id>_ics_detailed referral_v<N>.xls
+    "ICS direct mail": "ICS Direct Mail", # <id>-<yyyy.mm>-ICS-<Client>-Direct Mail New Accounts Opened PTD.xlsx
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
 # report_dirs() nor the copier/pruner in watch_sources.py looks inside these.
-NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets")
+# The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
+# "newer version" the watcher's copier or pruner understands, so neither may touch them.
+NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets",
+                     "ICS referrals", "ICS direct mail")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
@@ -254,6 +351,76 @@ def report_files(pattern: str = "*") -> list:
     for d in report_dirs():
         out.extend(d.glob(pattern))
     return sorted(out, key=lambda p: p.name)
+
+
+# ------------------------------------------------------------------ build scratch in the system temp folder
+# A build unzips the ODD extract (up to 1.8 GB) and renders images into the system temp
+# folder. Those directories were never removed: on 2026-09-16 the C: drive reached 0.11 GB
+# free with 1,241 of them (about 180 GB) left over since 2026-08-31, and two builds died with
+# "No space left on device". Every build scratch directory now comes from `temp_dir`, which
+# removes it when the process exits, and every build starts with `sweep_temp`, which removes
+# what a crashed or killed build left behind (Aaron: "make sure temp drive cleanup is part of
+# the process").
+TEMP_PREFIXES = ("oddd_", "oddcsv_", "ars_assets_", "ars_phase_")
+TEMP_MAX_AGE_HOURS = 6      # a build takes minutes; older scratch belongs to no live build
+
+
+def temp_dir(prefix: str) -> str:
+    """A scratch directory in the system temp folder, removed when this process exits."""
+    import atexit
+    import shutil
+    import tempfile
+    if not prefix.startswith(TEMP_PREFIXES):
+        raise ValueError(f"temp_dir prefix {prefix!r} is not in TEMP_PREFIXES, so sweep_temp would never clean it")
+    path = tempfile.mkdtemp(prefix=prefix)
+    atexit.register(shutil.rmtree, path, True)
+    return path
+
+
+def sweep_temp(max_age_hours: float = TEMP_MAX_AGE_HOURS, root=None, now=None) -> tuple:
+    """Remove pipeline scratch directories older than `max_age_hours`. Returns (removed, bytes freed).
+
+    Only directories named with a TEMP_PREFIXES prefix, directly in the temp folder, are touched;
+    anything younger than the cutoff may belong to a build still running and is left alone.
+    """
+    import shutil
+    import tempfile
+    import time
+    root = Path(root or tempfile.gettempdir())
+    cutoff = (now or time.time()) - max_age_hours * 3600
+    removed = freed = 0
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return 0, 0
+    for d in entries:
+        try:
+            if not d.is_dir() or not d.name.startswith(TEMP_PREFIXES) or d.stat().st_mtime >= cutoff:
+                continue
+            size = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+            shutil.rmtree(d)
+            removed += 1
+            freed += size
+        except OSError:
+            continue            # in use or already gone: the next sweep tries again
+    return removed, freed
+
+
+def extract_odd_csv(zip_path, prefix: str = "oddd_") -> str:
+    """Extract ONLY the ODD extract from an ODDD zip into a `temp_dir`, and return its path.
+
+    Several zips also carry the month's transaction file as a .csv, sometimes the larger of the two,
+    so the ODD member is chosen by name ("-odd" or "_v2_") and only falls back to the largest .csv.
+    Extracting the whole zip wrote the transaction file to disk too, for nothing.
+    """
+    import zipfile
+    with zipfile.ZipFile(zip_path) as z:
+        members = [i for i in z.infolist() if i.filename.lower().endswith(".csv") and not i.is_dir()]
+        if not members:
+            raise FileNotFoundError(f"no .csv inside {zip_path}")
+        named = [i for i in members if "-odd" in Path(i.filename).name.lower() or "_v2_" in Path(i.filename).name.lower()]
+        pick = named[0] if named else max(members, key=lambda i: i.file_size)
+        return z.extract(pick, temp_dir(prefix))
 
 
 BUILD_ARTIFACTS_DIRNAME = "Build Artifacts"

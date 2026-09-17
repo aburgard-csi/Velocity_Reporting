@@ -91,6 +91,8 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | ARS database code tables (product, Reg E, account status codes per client; written by `scripts/ars_code_tables.py` from a database export — the export's settings table holds plaintext FTP credentials and is never copied) | `Inputs/ARS Settings/ars_code_tables.json` |
 | Client code sheets (product with its Personal/Business flag, account status, mail flag and Reg E mappings per client; saved by the data team, where a CSM's corrections land) | `Inputs/Code Sheets/` |
 | Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
+| ICS detailed referral exports (`<id>_ics_detailed referral_v<N>.xls`), for a client with no VIP sheet (hand-landed, member-level, never scanned) | `Inputs/ICS Referrals/` |
+| ICS direct-mail new-accounts lists | `Inputs/ICS Direct Mail/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
@@ -202,6 +204,16 @@ Do not carry an older workbook's figures forward, and do not re-date, align or z
 ICS section that reports an older month than ARS and MRPC is no longer an expected outcome; it
 is a defect. The fix is a current workbook, not a carried-forward number.
 `assemble_combined.py` prints each section's period so any divergence is visible at build time.
+
+**Contact Us = the managing CSM (Aaron, 2026-09-16).** Every deck's Contact card is the client's CSM
+(`Client CSM List.csv`) with that CSM's row in `<RPE_DATA_ROOT>/CSM Contacts.csv`, resolved by
+`rpe_env.csm_contact` and drawn or filled through `build/shapes.py`. Never hardcode a person's card; the
+template shells' static cards are overwritten at build time. No CSM, or no contacts row, stops the build —
+add the row, never fall back to another CSM. Standalone ICS decks add the ICS program contact
+(`rpe_env.ICS_PROGRAM_CONTACT`, Cindy Draper) as a second card.
+
+**ICS direct mail.** A sheet's `direct_mail` block (from `Inputs/ICS Direct Mail/`) renders as its own
+"Direct Mail New Accounts" slide after Results by Branch; those accounts are never added to referral counts.
 
 **Filename convention:**
 
@@ -802,8 +814,8 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.
 - `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
 - `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
-- `ars_launcher.py` — builds one client's ARS deck into Outputs without Claude (`status | build <id>`): checks the product list, `clients.md`, the combined-deck rule, sent state and input currency first, works in `Build Artifacts/launcher/<period>/<id>/`, and puts a 0-FAIL deck straight into `Outputs/<CSM>/`, archiving what it supersedes. No staging step: each CSM reviews, PDFs and emails the deck from Outputs (Aaron, 2026-09-15).
-- `ars_launcher_web.py` — CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics (was ARS Deck Builder until 2026-09-16, then briefly WILL), the browser front end for `ars_launcher.py`: a 127.0.0.1-only server whose page lists the `clients.md` ARS clients, shows the launcher's checks and runs `ars_launcher.py build` as a child process, streaming its steps. Builds run one at a time; one asked for while another runs waits in a first-in, first-out queue, and the list shows Building / Queued #N, or a red Error <period> pill when the client's last build was not put in Outputs (its button then reads Retry build). Every API call needs the token baked into the page and a localhost Host header; "Show in File Explorer" opens only a file under Outputs. It decides nothing itself.
+- `ars_launcher.py` — builds one client's ARS deck, or with `--combined` one deck with ARS plus every other clients.md program whose data is on hand (`program_availability`: ICS from VIP or the local ICS files, MRPC from VIP), into Outputs without Claude (`status | build <id> [--combined]`): checks the product list, `clients.md`, the combined-deck rule, sent state and input currency first, works in `Build Artifacts/launcher/<period>/<id>/`, and puts a 0-FAIL deck straight into `Outputs/<CSM>/`, archiving what it supersedes. No staging step: each CSM reviews, PDFs and emails the deck from Outputs (Aaron, 2026-09-15).
+- `ars_launcher_web.py` — CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics (was ARS Deck Builder until 2026-09-16, then briefly WILL), the browser front end for `ars_launcher.py`: a 127.0.0.1-only server whose page lists the `clients.md` ARS clients, shows the launcher's checks and runs `ars_launcher.py build` as a child process, streaming its steps. Builds run one at a time; one asked for while another runs waits in a first-in, first-out queue, the client page offers "Build ARS only" and, when another program has data, "Build combined (ARS + …)" (Aaron's multi-program clients get only the combined one), and the list shows Building / Queued #N, or a red Error <period> pill when the client's last build was not put in Outputs (its button then reads Retry build). Every API call needs the token baked into the page and a localhost Host header; "Show in File Explorer" opens only a file under Outputs. The header shows the five newest CHANGELOG.md entries and links the full log (`/changelog`). It decides nothing itself.
 - `launchers/` — `Build ARS Deck.bat`, `ARS Deck Builder GUI.bat` (starts `ars_launcher_web.py`), `ARS Deck User Guide.html` (released to the CSM_Reporting root) and `runtime.cmd`, which unpacks the released Python to `%LOCALAPPDATA%\RPE` on first use.
 - `release_launcher.ps1` — copies the code to `<root>\Tools\RPE` and the .bat files to the root; `-Runtime` also ships the zipped Python. **The launcher runs the released copy: re-run after any change, `clients.md` included.**
 - `issue_pages/` — the two team issue pages, **ODD and Workbook Issues** and **CSM Data Gaps** (published as Claude artifacts, copied to `Notes/`). `build_issue_pages.py [--no-scan] [--no-notes]` runs the chain after `refresh_performance_dashboard.py`: `gaps_matrix.py` (per-client gaps -> gaps.json), `noprog_odd_dates.py`, `missing_wb_history.py` (every month on the reports share for the Missing Workbook clients), `business_flags.py` / `mail_flags.py` (full ODD scans; `--no-scan` reuses them), `odd_wb_by_csm.py` (the ODD page, with the Lift Matrix date check), `gaps_inject.py` + `gaps_template.html` (the Data Gaps page). `clients_products.py <export.csv>` loads a new Velocity client/product export. Paths come from `common.py` via rpe_env; working data and pages live in `Build Artifacts/issue_pages/` because they carry client names and products. Publishing the artifacts needs Claude.
@@ -862,7 +874,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
   used by the ICS builder and the validator. Never eyeball whether a label fits.
 - `branch_names.py` — branch id → name lookup shared by the ARS chart renderers.
-- `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`) and
+- `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`), build scratch (`temp_dir`, removed at exit; `sweep_temp`, run first by every `build_client`, clears scratch a crashed build left in the temp folder — 2026-09-16, after ~180 GB of it filled C:) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
   substitute a missing face. Every chart renderer goes through it.
 - `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`.
@@ -876,7 +888,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `README.md` — build/ layout notes (incl. the SM-vs-MM revenue-model extractor notes).
 
 **`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`,
-`ics_workbook_extract.py` (the quarterly step: populates a client JSON's workbook sections
+`ics_local_sheet.py` (builds the ICS client sheet from local files — referral export, current workbook, Charts Goals tab, direct-mail list — when there is no VIP sheet; `build_month` uses it only then, 2026-09-16), `ics_workbook_extract.py` (the quarterly step: populates a client JSON's workbook sections
 from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data — one folder per client; keep client-named).
 **`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py`, `setup_template.py` (one-time template bootstrap; needs `mrpc_template_base.pptx`, which is NOT in the repo — ask Aaron for it if the template must be rebuilt), `data/` (per-client VIP MRPC data).
 

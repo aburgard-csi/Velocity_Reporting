@@ -41,6 +41,104 @@ not move). Figures come from the ODD and the ARS workbook the build already read
 
 New: `build/ars_pipeline/combined_insights.py` (import-safe computations),
 `insight_charts.py` (renderers), `combined_insight_slides.py` (slide insertion).
+### 2026-09-16 — CSM Sheila shows what's new and links the change log
+
+The page header has a "What's new" menu with the five newest entries of this file (date, title and the first
+paragraph) and a "Change log" link to the whole file, rendered at `/changelog` (Aaron: "Add a link to the
+change log at the top of Sheila's page, and show the last 5 updates"). `release_launcher.ps1` now copies
+`CHANGELOG.md` beside the released code so the page reads the released version.
+
+### 2026-09-16 — Contact Us card names the managing CSM; ICS Direct Mail New Accounts slide
+
+**Contact card** (Aaron: "The contact card should always show the managing CSM"). Every deck's Contact Us
+card was one CSM's static card: the ARS, MRPC and CashPlease template shells carried it and the builders
+kept it, and ICS read it from the sheet. The card is now the client's managing CSM (`Client CSM List.csv`),
+with that CSM's row in `CSM Contacts.csv`, resolved by `rpe_env.csm_contact` and written into the shell
+cards by `shapes.fill_contact_card`. A CSM with no phone gets no phone line. A client with no CSM, or a CSM
+with no row, stops the build rather than falling back to another CSM. Standalone ICS decks always carry the
+Contact slide and add the ICS program contact, Cindy Draper, as a second card (Aaron: "Add Cindy on ICS";
+her row added to `CSM Contacts.csv`); combined decks keep the base program's single card. The 24 2026.09
+ARS decks in Outputs for other CSMs' clients carried Aaron's card and were rebuilt.
+
+**ICS direct mail** (Aaron: "Direct mail should get its own slide"). A sheet's `direct_mail` block (from
+`Inputs/ICS Direct Mail/`) renders as "Direct Mail New Accounts" after Results by Branch: a monthly chart,
+program-to-date and latest-month callouts, and the top branches. Those accounts are a different channel and
+are never added to referral figures (1776 CoastHills CU: 384 accounts, Apr'25 – Aug'26). VIP decks without
+direct-mail data are unchanged (1676, 1549, 1075 rebuilt before and after).
+
+### 2026-09-16 — ICS section from local files when there is no VIP sheet (1776 CoastHills CU)
+
+New `build/ics_pipeline/ics_local_sheet.py` builds the ICS client sheet from the referral detail export
+(`Inputs/ICS Referrals`), the current-period ICS workbook, the ICS Charts Goals tab and the direct-mail
+list (`Inputs/ICS Direct Mail`, recorded, not rendered). `build_month.build_client` falls back to it only
+when the VIP sheet is missing; what the files cannot supply (month to date, mystery shop, referred
+accounts by product, contacts) is omitted, never zeroed, with the reason in the sheet's provenance.
+`build_ics_gen` notes name those files and say "not VIP", the date pill uses the last referral date, and
+goal tiles and columns are dropped when no goal is on file. VIP decks are unchanged (1676 and 1549
+rebuilt before and after, identical). New `rpe_env.INPUT_KIND_DIRS` kinds `ICS referrals` and `ICS
+direct mail`, both unscanned (hand-landed, member-level). The legacy `.xls` referral export is read with
+xlrd or, without it, an Excel-converted copy in `Build Artifacts/ics_local_sheet/<id>/`.
+
+**Fix (every ICS build):** a full ICS build with no Contact slide wrote `slide27.xml` twice — the Summit
+slide took a static slide's part name, which the package check caught on 1776. Slide parts are now
+renumbered before the Summit is inserted; `tests/test_ics_local_sheet.py` pins it.
+
+Open for Aaron (1776): the Charts Goals Total row says 48/month but the branch goals sum to 80 (80 used);
+169 pre-2025 referrals on the Charts tab are not in the referral file; the workbook's 2,575 accounts do
+not reconcile to 2,280 referrals + 384 direct-mail accounts; whether direct mail gets its own slide.
+
+### 2026-09-16 — CSM Sheila offers an ARS-only or a combined deck; 1776 is on ICS
+
+**Two builds** (Aaron: "add a second Create button so the CSM can elect to build an ARS only deck, or a
+combined deck for whichever products have the appropriate data"). `ars_launcher.program_availability`
+decides, per clients.md program, whether its data is on hand this period: ICS from its VIP sheet or,
+without one, the local ICS workbook and referral files (`ics_local_sheet.available`); MRPC from its
+VIP sheet. When any is available the client page shows a second button, "Build combined (ARS + …)",
+which runs `ars_launcher.py build <id> --combined`; programs without data are named as left out.
+Any CSM may now choose a combined deck; for Aaron's multi-program clients the combined deck is the
+only build offered (an ARS-only deck must not replace his combined one). A combined deck also passes
+the package-integrity check before it goes to Outputs, and delivering either kind archives the
+client's other ARS-bearing deck for the month, so a client has one deck per period.
+
+**1776 CoastHills CU is on ICS** in clients.md (Aaron: "Add ICS, but don't pull from VIP"), built from
+James Gilmore's ICS workbook, referral detail and direct-mail files rather than a VIP sheet.
+
+### 2026-09-16 — The last two build files left in the temp folder are removed too
+
+A 1539 Marine FCU build died in `build_ars_gen.py` with "OSError: [Errno 28] No space left on
+device" while saving its phase deck, with C: at about 6 MB free and several ARS builds running.
+The fix below covered the scratch *directories*, but two scratch *files* were still written
+straight into `%TEMP%`, where `temp_dir` never sees them and `sweep_temp` (directories only)
+never removes them:
+
+- `build_ars_gen.py` copied the template shell to `%TEMP%\_<id>_ars_work.pptx` and never deleted
+  it. It now lives in the build's `ars_assets_` scratch dir, removed at exit.
+- `build_cp_gen.py` saved `<deck>.__full.pptx` to `%TEMP%` and deleted it only if `strip_dead.py`
+  succeeded, so a failed strip left it behind. It is now written inside a `TemporaryDirectory`
+  block, removed however the block ends.
+
+`tests/test_temp_cleanup.py` only looked for `tempfile.mkdtemp(`, which is why neither was caught.
+It now also fails on `mkstemp`, `gettempdir()`, `NamedTemporaryFile(delete=False)`, a
+`TemporaryDirectory` outside a `with` block, and `extractall` (whole-zip extraction) anywhere in
+`build/` or `scripts/`; and it checks that the extracted ODD is gone once the process exits and
+that both `resolve_csv` functions go through `rpe_env.extract_odd_csv`. Path-only change: no
+slide, figure or source note moves.
+
+### 2026-09-16 — Build scratch is removed; every build sweeps the temp folder first
+
+The C: drive reached 0.11 GB free and two Reg E rebuilds (1192, 1554) died with "No space left on
+device". Every ARS build unzipped the ODD extract (up to 1.8 GB, plus the month's transaction file
+beside it) into `oddd_*` / `oddcsv_*` folders and rendered images into `ars_assets_*` /
+`ars_phase_*`, and none of them was ever deleted: 1,241 folders, about 180 GB, back to 2026-08-31.
+They were cleared by hand (older than 2 hours only).
+
+- `rpe_env.temp_dir(prefix)` is now the only way the pipeline makes build scratch; it is removed
+  when the process exits.
+- `rpe_env.extract_odd_csv` extracts only the ODD member of the zip, not the transaction file.
+- `rpe_env.sweep_temp()` removes pipeline scratch older than 6 hours (left by a crashed or killed
+  build); `build_month.build_client` — and so `ars_launcher` and CSM Sheila — run it first and log
+  what they removed (Aaron: "make sure temp drive cleanup is part of the process").
+- `tests/test_temp_cleanup.py` fails if any build or scripts file calls `tempfile.mkdtemp` directly.
 
 ### 2026-09-16 — Reg E opt-in read as zero for "Opted In / Opted Out" extracts (correction)
 

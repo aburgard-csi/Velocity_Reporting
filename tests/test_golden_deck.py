@@ -32,13 +32,13 @@ CLIENT, PERIOD = "9999", "2026.08"
 NAME = "Union Financial"
 
 
-def sh(cmd, cwd=None, stdout_to=None):
+def sh(cmd, cwd=None, stdout_to=None, env=None):
     if stdout_to:
         with open(stdout_to, "w", encoding="utf-8") as out:
             r = subprocess.run([str(c) for c in cmd], stdout=out,
-                               stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", cwd=cwd)
+                               stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", cwd=cwd, env=env)
     else:
-        r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd)
+        r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd, env=env)
     assert r.returncode == 0, (
         f"{os.path.basename(str(cmd[1]))} failed:\n{(r.stderr or '')[-2500:]}")
     return r
@@ -60,9 +60,16 @@ def deck(tmp_path_factory, odd_csv):
     sh([PY, f"{ARSP}/charts_gen.py", str(metrics), str(base), str(charts)])
 
     out = w / f"{CLIENT}-{PERIOD}-ARS-{NAME} ARS Results.pptx"
+    # The Contact Us card names the client's managing CSM (rpe_env.csm_contact), and 9999 is
+    # on no real list: point the lookup at a synthetic list and contact row.
+    (w / "csm_list.csv").write_text(f"client_id,client_name,csm\n{CLIENT},{NAME},Test CSM\n", encoding="utf-8")
+    (w / "csm_contacts.csv").write_text("csm,title,company,address,office,cell,email,source\n"
+                                        "Test CSM,Client Service Manager,CSI,,,(555) 010-0001,"
+                                        "Test.CSM@example.com,synthetic\n", encoding="utf-8")
+    env = dict(os.environ, RPE_CSM_LIST=str(w / "csm_list.csv"), RPE_CSM_CONTACTS=str(w / "csm_contacts.csv"))
     sh([PY, f"{ARSP}/build_ars_gen.py", os.path.join(REPO, "templates/ars_template.pptx"),
         str(metrics), str(base), str(lift), str(oddd / "oddd_metrics.json"),
-        str(charts), str(out), odd_csv])
+        str(charts), str(out), odd_csv], env=env)
     sh([PY, os.path.join(REPO, "build/restyle_fonts.py"), str(out)])
     return dict(path=str(out), dir=w, base=str(base), metrics=str(metrics),
                 charts=charts, prs=Presentation(str(out)))
@@ -142,3 +149,12 @@ def test_no_real_client_name_appears(name, deck):
     notes = " ".join(s.notes_slide.notes_text_frame.text
                      for s in prs.slides if s.has_notes_slide)
     assert name not in joined + notes
+
+
+def test_contact_card_names_the_managing_csm(deck):
+    """Aaron, 2026-09-16: the Contact Us card always shows the client's managing CSM."""
+    s = next(s for s in deck["prs"].slides
+             if any(sh.has_text_frame and sh.text_frame.text.strip() == "Contact Us" for sh in s.shapes))
+    text = [sh.text_frame.text for sh in s.shapes if sh.has_text_frame]
+    assert "Test CSM" in text and "555-010-0001" in text and "test.csm@example.com" in text
+    assert "managing CSM Test CSM" in s.notes_slide.notes_text_frame.text

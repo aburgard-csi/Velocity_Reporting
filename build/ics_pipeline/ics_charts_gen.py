@@ -52,6 +52,52 @@ def c_referral_trend(d,out):
     ax.legend(handles=h,loc="upper center",bbox_to_anchor=(0.5,1.1),ncol=len(h),frameon=False,fontsize=16)
     canvas(fig,2200,940,out)
 
+# ---- direct-mail new accounts by month (house time-series treatment) ----
+# The canvas matches the picture box on the "Direct Mail New Accounts" slide (8.05 x 4.95in),
+# so the PNG is never stretched. Same marks as c_referral_trend: navy bars, the last COMPLETE
+# month orange, a partial month hatched STEEL_SOFT, value labels above the bars, MMM'YY axis.
+DM_BOX_IN = (8.05, 4.95)
+DM_CANVAS = (1950, 1199)
+
+
+def dm_partial_last(dm):
+    """True when the newest month in the direct-mail block is still running: the report was
+    drawn inside that month. A report dated after the month ends makes it complete."""
+    import datetime as _dt
+    rd, last = dm.get("report_date"), dm.get("last_month")
+    try:
+        r = _dt.date.fromisoformat(rd)
+        y, m = (int(x) for x in last.split("-")[:2])
+    except Exception:
+        return False
+    return (r.year, r.month) == (y, m)
+
+
+def c_direct_mail_trend(d,out):
+    dm=d["direct_mail"]; mo=dm["by_month"]["months"]; v=dm["by_month"]["accounts"]
+    partial=dm_partial_last(dm); x=np.arange(len(mo)); top=max(v) or 1
+    fig,ax=plt.subplots(figsize=(11,6.2))
+    for i in range(len(mo)):
+        if partial and i==len(mo)-1:
+            ax.bar(i,v[i],color=STEEL,width=0.7,hatch="//",edgecolor="white",alpha=0.42)
+        else:
+            c=ORANGE if (i==len(mo)-2 and partial) or (i==len(mo)-1 and not partial) else NAVY
+            ax.bar(i,v[i],color=c,width=0.7)
+        ax.text(i,v[i]+top*0.02,f"{v[i]:,}",ha="center",va="bottom",
+                color=(TICK if partial and i==len(mo)-1 else NAVY),fontweight="bold",fontsize=16)
+    ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
+    ax.set_ylim(0,top*1.15); ax.get_yaxis().set_visible(False); clean(ax)
+    h=[Patch(fc=NAVY,label="Direct-mail accounts opened")]
+    if partial: h.append(Patch(fc=STEEL,alpha=0.42,hatch="//",label=f"{P.mon_yy(mo[-1])} (partial)"))
+    ax.legend(handles=h,loc="upper center",bbox_to_anchor=(0.5,1.1),ncol=len(h),frameon=False,fontsize=16)
+    canvas(fig,DM_CANVAS[0],DM_CANVAS[1],out)
+
+
+def has_direct_mail(d):
+    """The Direct Mail New Accounts slide (and its chart) exists only for a block with accounts."""
+    dm=d.get("direct_mail") or {}
+    return bool((dm.get("accounts_opened_ptd") or 0) > 0 and (dm.get("by_month") or {}).get("months"))
+
 # ---- ICS revenue pie (PTD components) ----
 def c_revenue_pie(d,out):
     comp=d["revenue"]["components"]; labels=[c["name"] for c in comp]; vals=[c["amount"] for c in comp]
@@ -187,6 +233,7 @@ def render_all(d, A, referrals_only=False):
         # Client with no ICS workbook yet: only the VIP referral charts have data. Every
         # other chart reads monthly_detail / revenue / performance and would raise here.
         c_referral_trend(d,j("ics_trend.png"))
+        if has_direct_mail(d): c_direct_mail_trend(d,j("ics_direct_mail.png"))
         if d.get("referred_by_product"): c_referred_products(d,j("ics_refprod.png"))
         print("ICS charts (referrals only) ->",A)
         return
@@ -194,6 +241,7 @@ def render_all(d, A, referrals_only=False):
     # NSF/OD slides include NSF/OD fees + other charges (service charges)
     md.setdefault("nsf_other",[md["nsf_od"][i]+md["other_fees"][i] for i in range(len(md["months"]))])
     c_referral_trend(d,j("ics_trend.png"))
+    if has_direct_mail(d): c_direct_mail_trend(d,j("ics_direct_mail.png"))
     if d.get("referred_by_product"): c_referred_products(d,j("ics_refprod.png"))
     c_perf_intro(d,j("ics_perfintro.png"))
     c_revenue_pie(d,j("ics_revpie.png"))

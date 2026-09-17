@@ -107,16 +107,9 @@ def _resolve_csv(odd_source):
     if odd_source.lower().endswith(".zip"):
         if not os.path.exists(odd_source):
             raise FileNotFoundError(f"ODD zip not found: {odd_source}")
-        tmp = tempfile.mkdtemp(prefix="oddd_")
-        with zipfile.ZipFile(odd_source) as z:
-            z.extractall(tmp)
-        csvs = glob.glob(os.path.join(tmp, "**", "*.csv"), recursive=True)
-        if not csvs:
-            raise FileNotFoundError(f"no .csv inside {odd_source}")
-        odd = [c for c in csvs
-               if "-odd" in os.path.basename(c).lower()
-               or "_v2_" in os.path.basename(c).lower()]
-        return odd[0] if odd else max(csvs, key=os.path.getsize)
+        # Only the ODD member, into a scratch dir removed at exit (rpe_env.extract_odd_csv, 2026-09-16).
+        import rpe_env
+        return rpe_env.extract_odd_csv(odd_source, prefix="oddd_")
     raise ValueError(f"unrecognized ODD source (want .zip or .csv): {odd_source}")
 
 

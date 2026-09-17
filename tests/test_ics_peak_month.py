@@ -68,6 +68,7 @@ def test_both_captions_call_it():
     src = open(os.path.join(_HERE, os.pardir, "build", "ics_pipeline",
                             "build_ics_gen.py"), encoding="utf-8").read()
     body = src.split("def peak_month", 1)[1].split("def _goal_months_elapsed", 1)[1]
-    assert body.count("peak_month(") == 2, "both referral captions must use it"
+    # Both referral captions, plus the Direct Mail New Accounts caption (2026-09-16).
+    assert body.count("peak_month(") == 3, "both referral captions and the direct-mail caption must use it"
     assert "key=lambda k: _cv[k]" not in body
     assert "key=lambda k: _ccv[k]" not in body
