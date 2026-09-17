@@ -142,7 +142,10 @@ def monthly_volume_chart(out_png, months, counts, principal, partial=None,
     _frame(ax)
 
     ax2 = ax.twinx()
-    ax2.plot(range(len(principal)), principal, color=TEAL, linewidth=2.4,
+    # The line stops at the last COMPLETE month (Aaron, 2026-09-17: "don't draw trend lines
+    # over partial months"). A part-month point reads as a collapse however the bar beneath
+    # it is hatched; the partial month keeps its hatched bar and its count, not a point.
+    ax2.plot(range(n_full), principal[:n_full], color=TEAL, linewidth=2.4,
              marker="o", markersize=4, zorder=3, label="Principal advanced")
     ax2.set_ylim(0, (max(principal) if principal else 1) * 1.20)
     ax2.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _money(v)))

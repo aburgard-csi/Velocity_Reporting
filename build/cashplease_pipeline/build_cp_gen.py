@@ -503,6 +503,7 @@ def slide_overview(prs, d, pill_text, art_dir):
         rate_tile,
     ]
     L, W, GAP, T, H = 0.62, 2.30, 0.15, 1.78, 1.32
+    OV_DROP = 0.25
     for i, (val, lab) in enumerate(tiles):
         callout(s, L + i * (W + GAP), T, W, H, val, lab)
 
@@ -511,11 +512,13 @@ def slide_overview(prs, d, pill_text, art_dir):
         png = str(Path(art_dir) / f"{d['client_id']}_cp_cumulative.png")
         cp_charts.cumulative_growth_chart(
             png, [r["period_month"] for r in months], [r["loans"] for r in months])
-        fit_picture(s, png, 0.62, 3.42, 7.40, 2.80)
-        textbox(s, 0.62, 3.14, 7.40, 0.30, "Cumulative loans booked, by month",
+        # Everything below the callouts sits 1/4" lower than it did, for white space under
+        # the navy tiles (Aaron, 2026-09-17): OV_DROP.
+        fit_picture(s, png, 0.62, 3.42 + OV_DROP, 7.40, 2.80)
+        textbox(s, 0.62, 3.14 + OV_DROP, 7.40, 0.30, "Cumulative loans booked, by month",
                 13, TICK_RGB, True, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     else:
-        textbox(s, 0.62, 3.42, 7.40, 2.80,
+        textbox(s, 0.62, 3.42 + OV_DROP, 7.40, 2.80,
                 "No completed month in the workbook yet, so there is no growth "
                 "curve to draw. It appears here once the first month closes.",
                 16, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
@@ -530,17 +533,17 @@ def slide_overview(prs, d, pill_text, art_dir):
                      peer["charge_off_pct"], "rate"),
     ]
     box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                             Inches(8.25), Inches(3.14), Inches(4.47), Inches(3.08))
+                             Inches(8.25), Inches(3.14 + OV_DROP), Inches(4.47), Inches(3.08))
     box.fill.solid(); box.fill.fore_color.rgb = WHITE_RGB
     box.line.color.rgb = LABEL_RGB; box.line.width = Pt(1)
     box.shadow.inherit = False; shadow(box)
-    textbox(s, 8.45, 3.30, 4.07, 2.76, lines, 13, NAVY_RGB, False,
+    textbox(s, 8.45, 3.30 + OV_DROP, 4.07, 2.76, lines, 13, NAVY_RGB, False,
             PP_ALIGN.LEFT, BODY, MSO_ANCHOR.MIDDLE)
 
     cohort_note = COHORT_NOTE.format(client=d["client_name"], **peer)
     if m["loans_per_1k_dda"] is not None:
         cohort_note += DDA_COHORT_NOTE.format(client=d["client_name"], **peer)
-    textbox(s, 0.62, 6.36, 12.1, 0.40, cohort_note,
+    textbox(s, 0.62, 6.36 + OV_DROP, 12.1, 0.40, cohort_note,
             11, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     notes(s, f"Source: {d['source_file']}, tab '{d['sheet_name']}' "

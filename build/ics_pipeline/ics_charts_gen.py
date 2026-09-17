@@ -220,10 +220,13 @@ def c_perf_intro(d,out):
     monthly referrals (navy bars) + cumulative referrals (orange line), axes stripped."""
     ref=d["referrals"]["trend"]["referrals"]; x=np.arange(len(ref))
     cum=np.cumsum(ref)
+    # No trend line over a partial month (Aaron, 2026-09-17), decorative or not.
+    if d["referrals"]["trend"].get("partial_last") and len(ref)>1:
+        cum=cum[:-1]
     fig,ax=plt.subplots(figsize=(6.3,5.0))
     ax.bar(x,ref,color=NAVY,width=0.64,alpha=0.92,zorder=1)
     ax2=ax.twinx()
-    ax2.plot(x,cum,color=ORANGE,lw=3.2,marker="o",mfc="white",mec=ORANGE,ms=7,zorder=3)
+    ax2.plot(x[:len(cum)],cum,color=ORANGE,lw=3.2,marker="o",mfc="white",mec=ORANGE,ms=7,zorder=3)
     for a in (ax,ax2): a.axis("off")
     fig.savefig(out,dpi=200,transparent=True,bbox_inches="tight",pad_inches=0.1); plt.close(fig)
 

@@ -17,6 +17,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-17 — No trend line over a partial month; white space under the CashPlease Overview tiles
+
+Aaron: "don't draw trend lines over partial months." The CashPlease Loan Volume by Month chart
+hatched the part-month bar but ran the principal-advanced line into it, so September 1-11 read as a
+drop from $9K to about $4K. The line now stops at the last complete month; the partial month keeps
+its hatched bar and count (`cp_charts.monthly_volume_chart`). The ICS section-intro motif's
+cumulative line stops the same way when the referral trend's last month is partial. The ARS, MRPC
+and dashboard series already end on the last complete month (`build/month_complete.py`). Test:
+`tests/test_partial_month_lines.py`.
+
+Aaron: "add whitespace below the navy callout boxes by moving everything down 1/4"." On the
+CashPlease Program Overview slide the chart label, cumulative chart, commentary box and cohort note
+all sit 0.25" lower (`build_cp_gen.py`, `OV_DROP`).
+
 ### 2026-09-17 — CashPlease settings for 68 clients; prepaid finance no longer reads "N/A%"; September pill fits
 
 Settings records: `Inputs/Product Settings/` went from one file (1632) to 68, exported from an
