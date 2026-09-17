@@ -17,6 +17,46 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-17 — The ILS DDA count is saved from Charles's weekly email automatically
+
+Aaron: "Update the ILS DDA count from Charles's email with subject 'ILS Management Server DDA
+Count'. Our CSI Email Monitor task can do this as part of its checks." `scripts/ils_dda_count_mail.py`
+takes the newest such email (from charles.baker or velocityalerts) out of Outlook over COM and saves
+its body as `Inputs/CashPlease/ILS-DDA-Count-<sent date>.txt`, the file `build_cashplease.py` reads
+for the loans-per-DDA denominator. The CSI Email Monitor's runner calls it before its Claude step,
+so the ~280 counts are copied, not retyped by a model. It saves only a body that parses to a table,
+and a week already saved with a different table is reported and left alone (compared as parsed
+counts, so `&amp;` versus `&` in a client name is not a difference). 2026-09-17 saved: 232 clients
+with a count, 45 NULL.
+
+### 2026-09-17 — A branch-name dataset in Inputs, kept by the morning source check
+
+Aaron: "create a branch mapping data set in inputs and update it when new branch names are
+discovered." `Inputs/Branch Names/branch_names.csv` holds one row per name a source has given a
+client's branch number (client, number, name, source, source file, first and last seen); nothing
+is removed. `watch_sources.py --branch-names` (now in the scheduled task) adds names from each
+client's Charts workbook, Branch Results tab, and from the ICS referrals pull's VIP branch names.
+A Charts file is tied to a client only when exactly one client's whole name fits its filename
+("federal credit union" read as FCU, "credit union" as CU); the rest are reported for a row in
+`charts_files.csv`. `branch_names.client_map(id)` reads it back: the Charts name wins, VIP fills
+numbers the Charts file lacks, and a number one source names two different ways is left unnamed
+("North Shore" and "North Shore Branch" count as one). First run: 1,638 names for 78 clients;
+Marine FCU gets names for all 18 branch numbers its ODD uses, where its Charts file had 15.
+Nothing in the monthly decks reads it yet. Tests: `tests/test_branch_name_dataset.py`.
+
+### 2026-09-17 — The morning source check keeps the ICS referrals query current
+
+Aaron: "For the ICS query we need to pull that list periodically. Automatically update the query
+during the morning file scan to only pull from the last scan to now, then dedup any overlap."
+`watch_sources.py --ics-referrals` (now in the scheduled task) runs `scripts/ics_referrals_pull.py`:
+each result saved as `Inputs/ICS Referrals/ics_referrals <date>.csv` is merged into
+`ics_referrals.csv`, and `ICS Referrals - new since last pull.sql` is rewritten with `@since` set
+to the day of the newest referral merged. Overlap is removed per referral (client, account, issue
+date): the newer pull's rows replace the older's, which also keeps the query's branch-join
+duplicates from stacking up across pulls. A result whose header or column count is not the
+query's (SSMS does not quote a comma in a name) is reported and not merged. The query moved into
+the repo as `scripts/sql/ics_referrals_all_clients.sql`. Tests: `tests/test_ics_referrals_pull.py`.
+
 ### 2026-09-16 — CSM Sheila shows what's new and links the change log
 
 The page header has a "What's new" menu with the five newest entries of this file (date, title and the first

@@ -32,13 +32,17 @@ template placeholder means SM. Verified 2026-08-28.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1038 | Sugar River Bank | SM | yes | — | — | ARS |
 | 1075 | Austin Bank | SM | yes | yes | yes | ARS-ICS-MRPC |
+| 1100 | Rally CU | SM | yes | yes (no ICS data on file yet) | — | ARS-ICS |
 | 1121 | Timberland Bank | SM | yes | — | — | ARS |
+| 1126 | Legend Bank | SM | yes | yes (no ICS data on file yet) | yes | ARS-ICS-MRPC |
+| 1147 | Sutton | SM | yes | — | — | ARS |
 | 1156 | BancFirst | SM | yes | — | — | ARS |
 | 1192 | Ascend FCU | MM | yes | — | — | ARS |
 | 1200 | Guardians Credit Union | MM | yes | — | — | ARS |
 | 1204 | First State Bank - Michigan | MM | yes | — | — | ARS |
 | 1217 | Pioneer FCU | MM | yes | — | — | ARS |
 | 1226 | Ellafi FCU | MM | yes | — | — | ARS |
+| 1403 | Adirondack Bank | SM | yes | yes (no ICS data on file yet) | yes | ARS-ICS-MRPC |
 | 1437 | Canandaigua National Bank | MM | ended | — | ended | **none — no further reviews** |
 | 1441 | FNB Alaska | MM | yes | — | — | ARS |
 | 1453 | Connex CU | MM | yes | — | yes | ARS-MRPC |
@@ -85,6 +89,18 @@ detected from each workbook. **MRPC and CashPlease are recorded where their data
 1453, 1520, 1542, 1615, 1637, 1652, 1673, 1745, 1776 and 1780, and CashPlease roster rows
 for 1192, 1217, 1526, 1529, 1542, 1652, 1681, 1748, 1761 and 1776. None of the ten MRPC
 clients has a VIP MRPC sheet yet, so their MRPC builds stop until one is pulled.
+
+**1100 Rally CU (ARS, ICS) and 1126 Legend Bank (ARS, ICS, MRPC) added (Aaron, 2026-09-17)** —
+both Daniel Wood's. Their 2026.09 ARS workbooks landed after the 2026-09-15 pass (Rally's on
+2026-09-16), so they were missed. Both workbooks are Monthly Summary (SM: `Executive Financials MM`
+carries the `Bank Name` placeholder). Neither has a VIP ICS sheet, an ICS workbook or a detailed
+referral export yet, and Legend has no VIP MRPC sheet, so CSM Sheila offers ARS only until that
+data lands.
+
+**1147 Sutton (ARS; Gregg Miller) and 1403 Adirondack Bank (ARS, ICS, MRPC; Daniel Wood) added
+(Aaron, 2026-09-17)** — their 2026.09 ARS workbooks landed 2026-09-16 evening and were copied by
+the 2026-09-17 08:00 source check. Both workbooks are Monthly Summary (SM). Adirondack has no VIP
+ICS or MRPC sheet, ICS workbook or referral export yet, so CSM Sheila offers ARS only until one lands.
 
 **MRPC-only clients** — confirmed by Aaron 2026-08-28.
 
