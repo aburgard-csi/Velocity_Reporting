@@ -365,7 +365,8 @@ def ars_section(cid, c, period, reports, ba, work):
         "csi_revenue": csi_revenue(b),
         "rev12_sum": b.get("monthly_rev_sum12"), "rev12_avg": b.get("monthly_rev_avg12"),
         "monthly_rev": [[m, round(v or 0)] for m, v in b.get("monthly_rev_last12", [])],
-        "spend_cards": [[m, s, k] for m, s, k in b.get("swipespend_36", [])][-1:],
+        # the last COMPLETE month, the same call the ARS deck's spend tiles make (2026-09-17)
+        "spend_cards": [[m, s, k] for m, s, k in _complete_spend(b.get("swipespend_36", []))][-1:],
         "dco_eligible": b.get("dco_eligible"),
     }
     # The shipped deck's figures are the audited numbers; the response rate comes
@@ -415,6 +416,12 @@ def complete_trend(trend):
     return t
 
 
+def _complete_spend(series):
+    """The workbook's Key Trends rows through the last month whose spend is complete."""
+    import month_complete
+    return month_complete.complete_rows(series or [], 1, "$M debit spend", min_volume=0)[0]
+
+
 def complete_months(rows, generated, key="month"):
     """Rows for months that had ended when the report was generated.
 
@@ -422,11 +429,13 @@ def complete_months(rows, generated, key="month"):
     A month on or after the stamp's month is still in progress and is dropped. An
     unreadable stamp keeps every row rather than guessing.
     """
-    m = re.match(r"\s*(\d{1,2})/\d{1,2}/(\d{4})", str(generated or ""))
-    if not m:
+    # The one definition of "had the month ended" lives in build/month_complete.py
+    # (Aaron, 2026-09-17), shared with the deck builders.
+    import month_complete
+    as_of = month_complete.report_date(generated)
+    if as_of is None:
         return list(rows)
-    cutoff = "%s-%02d" % (m.group(2), int(m.group(1)))
-    return [r for r in rows if str(r.get(key, "")) < cutoff]
+    return [r for r in rows if month_complete.month_ended(str(r.get(key, "")), as_of) is not False]
 
 
 def current_peer(packs, ids):

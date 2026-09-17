@@ -673,3 +673,79 @@ def test_the_summit_rule_is_review_not_fail():
 
 def test_the_summit_rule_is_registered():
     assert vd.summit_date_findings in vd.RULES
+
+
+# --- the closing slide carries the cover's month (Aaron, 2026-09-17) ---------------
+def _closing_deck(cover_lines, closing_line, one_frame=True):
+    """Cover + Questions & Discussion, the way the program shells lay them out."""
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    cov = prs.slides.add_slide(prs.slide_layouts[6])
+    tb = cov.shapes.add_textbox(Inches(1), Inches(1), Inches(10), Inches(0.8))
+    tb.text_frame.text = "Account Revenue Solution®"
+    if one_frame:
+        box = cov.shapes.add_textbox(Inches(1), Inches(5), Inches(10), Inches(1.2))
+        box.text_frame.text = cover_lines[0]
+        for line in cover_lines[1:]:
+            box.text_frame.add_paragraph().text = line
+    else:
+        for i, line in enumerate(cover_lines):
+            cov.shapes.add_textbox(Inches(1), Inches(4 + i), Inches(10), Inches(0.6)).text_frame.text = line
+    q = prs.slides.add_slide(prs.slide_layouts[6])
+    qb = q.shapes.add_textbox(Inches(1), Inches(3), Inches(10), Inches(1.2))
+    qb.text_frame.text = "Questions & Discussion"
+    qb.text_frame.add_paragraph().text = closing_line
+    return prs
+
+
+def test_the_2026_09_ars_closing_slide_is_caught():
+    """Every 2026.09 ARS deck: September cover, "<Client>  •  July 2026" closing slide."""
+    prs = _closing_deck(["Sugar River Bank", "Executive Review  •  September 2026"],
+                        "Sugar River Bank  •  July 2026")
+    out = vd.closing_month_findings(prs)
+    assert len(out) == 1 and out[0][0] == "FAIL" and out[0][1] == 2, out
+    assert "July 2026" in out[0][2] and "September 2026" in out[0][2]
+
+
+def test_a_matching_closing_slide_is_clean():
+    prs = _closing_deck(["Sugar River Bank", "Executive Review  •  September 2026"],
+                        "Sugar River Bank  •  September 2026")
+    assert vd.closing_month_findings(prs) == []
+
+
+def test_the_mrpc_single_line_cover_is_read():
+    """MRPC writes the cover as one line: "<client> | Executive Review  •  <month>"."""
+    prs = _closing_deck(["Capital Bank | Executive Review  •  September 2026"],
+                        "Capital Bank  •  September 2026")
+    assert vd.closing_month_findings(prs) == []
+    prs = _closing_deck(["Capital Bank | Executive Review  •  September 2026"],
+                        "Capital Bank  •  August 2026")
+    assert [f[0] for f in vd.closing_month_findings(prs)] == ["FAIL"]
+
+
+def test_a_closing_slide_naming_another_client_fails():
+    prs = _closing_deck(["Sugar River Bank", "Executive Review  •  September 2026"],
+                        "Union Financial  •  September 2026")
+    out = vd.closing_month_findings(prs)
+    assert any("names 'Union Financial'" in f[2] for f in out), out
+
+
+def test_a_deck_without_a_cover_line_is_not_judged():
+    prs = _closing_deck(["Sugar River Bank"], "Sugar River Bank  •  July 2026")
+    assert vd.closing_month_findings(prs) == []
+
+
+@pytest.mark.parametrize("shell", ["ars_template.pptx", "ics_template.pptx", "mrpc_template.pptx",
+                                   "cashplease_template.pptx", "multi-product_reference_deck.pptx"])
+def test_every_template_shell_passes_the_closing_month_rule(shell):
+    """The shells carry the same dummy month on both slides, so they must stay clean."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", shell)
+    prs = Presentation(path)
+    assert vd._cover_client_and_month(prs) == ("Union Financial", "July 2026")
+    assert vd.closing_month_findings(prs) == []
+
+
+def test_the_closing_month_rule_is_registered_and_run():
+    assert vd.closing_month_findings in vd.RULES
+    import inspect
+    assert "closing_month_findings(prs)" in inspect.getsource(vd.run)

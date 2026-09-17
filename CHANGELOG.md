@@ -41,6 +41,65 @@ Tests: `test_cp_settings_slide.py` pins all three. Rebuilt 1131, 1564, 1750, 177
 (`Build Artifacts/cp_settings_2026.09/`): the only validator differences are the four CP pill
 wraps gone; qa_all GATE PASS.
 
+### 2026-09-17 — Comparisons use complete months only
+
+Aaron: "Don't calculate YoY or comparisons on partial months, only use complete months." Marine FCU
+1539's 2026.09 NSF/OD Activity slide said "-98% Items YoY (Aug 25 → Aug 26)". Its ODD extract was pulled
+09/04/26 and carried whole August swipes and spend (1,104,224 swipes against 1,103,258 in July), but only
+390 NSF/OD items on 290 accounts for August against 19,451 on 4,480 in July. The YoY, both NSF/OD tiles and
+the chart's last bar all read that half-loaded month as a collapse.
+
+**One definition, `build/month_complete.py`.** A month is incomplete for a measure when the data was
+pulled before it ended (the ODD member's `(MMDDYY_HHMMSS)` stamp, a weekly's "Report Generated" date, a VIP
+sheet's `data_pull`), or when its total is below half the median of the six months before it. Only
+trailing months are judged, at most two, and only where the baseline median is 50 or more (a count floor;
+small MRPC enrollment counts have real zeros). Evidence: over every ODD extract on hand (83), the trailing
+three months of swipes, spend, NSF/OD items and NSF/OD accounts read 51% of baseline or more everywhere
+except 1539 (2%) and 1774 (5%), both August NSF/OD.
+
+**What moved.**
+- ARS `metrics_gen`: judged per measure family. NSF/OD series, `nsf_last_*` tiles and `nsf_yoy` end on
+  the last complete NSF/OD month; the left-out month is kept as `nsf_excluded`, never charted. The swipe-tier
+  3-month window and the before/after windows use months complete in swipes, spend AND NSF/OD; the dot plot,
+  sustained windows and the new-vs-book usage tiles use the last complete swipes+spend month
+  (`activity_month`); Reg E vintage NSF/OD items per month use the last 12 complete NSF/OD months.
+- ARS `ticket_calc`: the same call, so the Average Ticket window equals the swipe-tier window; a response
+  window cut short now divides by the months it has, not by 3.
+- ARS `build_ars_gen` / `charts_gen` / one-pager / performance dashboard: the workbook's Key Trends spend
+  series (Spend YoY, monthly spend, card growth, the chart, the span caption) ends on its last complete month.
+- Slides say it: the NSF/OD caption adds "<Mon YYYY> left out: incomplete in this extract.", its tiles name
+  the month they show, the swipe-tier and Average Ticket captions name a left-out month, and the notes carry
+  the figures behind the call and the months each YoY compares. No slide is dropped or zeroed.
+- CashPlease `cp_extract`: a `*` month roll-up for a month that had not ended at report generation is held
+  out of `monthly` (`monthly_in_progress`). None does today. The dashboard's `complete_months` now calls the
+  shared rule.
+- MRPC: `performance_vs_goal` and `revenue.by_month` are trimmed to complete months before slides 5 and 8
+  average, peak and range them, with the exclusion in the notes (none today: the Sep pulls end Jul 26 / May 26).
+  The enrollments subtitle, notes and chart legend said the last month "is a partial month" unconditionally;
+  they now say it only when VIP flags `partial_last`.
+- ICS: Results by Branch notes state that the YTD referrals include the month to date. VIP's branch counts
+  cannot be split by month, so the pace figure is unchanged; this is the one comparison still on a partial month.
+
+**Marine 1539, 2026.09 extract (rebuilt metrics in `Build Artifacts/complete_months_check_2026-09-17/`):**
+Items YoY -98% (Aug 25 → Aug 26) → +10% (Jul 25 → Jul 26); tiles 390 items / 290 accounts → 19,451 / 4,480
+(July 2026); swipe-tier window Jun–Aug → May–Jul 2026 (NSF/OD column 10,944 → 15,872); Average Ticket window
+Jun–Aug → May–Jul; Reg E vintage items per participant up 0.02-0.10 per band. Before/after, dot plot and
+usage tiles unchanged. No other 2026.09 ARS deck has a month this rule excludes.
+
+### 2026-09-17 — Questions & Discussion carries the cover's month
+
+Every 2026.09 ARS deck in Outputs — 33, the combined decks built on an ARS shell included — read
+"<Client>  •  July 2026" on Questions & Discussion under a cover reading September 2026. `build_ars_gen`
+swapped the cover's month but only the client NAME on the closing slide (by index, `S[30]`), so the template
+shell's month rode through. It now swaps the whole "<client>  •  <month>" line to `PRESENT_MONTH`, resolved by
+title, and a template that changes that line misses the swap gate. ICS, MRPC and CashPlease already wrote the
+same month on both slides, and `assemble_combined` keeps the base program's cover and closing slide, so
+fixing ARS fixes the combined decks.
+
+New gate check, `validate_deck.closing_month_findings`: FAILs a deck whose Questions & Discussion line names
+a different month or client than the cover. It FAILs all 33 of those decks, and passes every template shell
+(both slides carry the dummy July 2026) and the 16 ICS / MRPC / CashPlease 2026.09 decks. The 33 decks need a
+rebuild to pick up the fix.
 ### 2026-09-17 — The ILS DDA count is saved from Charles's weekly email automatically
 
 Aaron: "Update the ILS DDA count from Charles's email with subject 'ILS Management Server DDA

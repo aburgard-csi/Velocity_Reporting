@@ -809,6 +809,12 @@ def build(d, static_path, out, referrals_only=False):
     # the branch counts and the pro-rating basis are all in the notes, which is where
     # STYLE.md puts the source anyway.
     logo(s); pagenum(s,5)
+    # The branch counts are VIP's year-to-date, which runs into the month in progress and
+    # cannot be split by month; the goal is pro-rated through that month. Stated, so the
+    # pace is read knowing it (Aaron, 2026-09-17: comparisons on complete months only).
+    _partial_ytd = ((" Year-to-date referrals include the month to date of " + rf["month_to_date"]["label"]
+                     + ", which is not complete.")
+                    if ((rf.get("month_to_date") or {}).get("partial") and _has_goals) else "")
     if _local and not _has_goals:
         notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none. "
                      f"Referrals by branch, YTD ({_ar:,} in total); no branch goals on file, so no "
@@ -821,14 +827,14 @@ def build(d, static_path, out, referrals_only=False):
                      f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
                      f"(monthly goal x {_elapsed}); the Charts 'Goals' tab carries a MONTHLY goal per branch. "
                      f"Top branches by referrals. Referral detail file, counted by Issue Date and Branch; "
-                     f"branch names from the Charts 'Goals' tab.")
+                     f"branch names from the Charts 'Goals' tab." + _partial_ytd)
     else:
         notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
                  f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
                  f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
                  f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
                  f"(annual goal / 12 x {_elapsed}); the VIP file carries the ANNUAL goal. "
-                 f"Top branches by referrals. VIP; branch names reconciled to the Charts 'Goals' tab.")
+                 f"Top branches by referrals. VIP; branch names reconciled to the Charts 'Goals' tab." + _partial_ytd)
 
     # 5a Direct Mail New Accounts (Aaron, 2026-09-16: "Direct mail should get its own slide").
     # Accounts opened through the ICS DIRECT-MAIL channel, from the sheet's `direct_mail` block

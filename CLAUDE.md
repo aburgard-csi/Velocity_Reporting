@@ -266,6 +266,8 @@ blank_slide, move_before, renumber; these used to live inside `product_mix_slide
 module about one slide, where ICS and MRPC could not reach them),
 `periods.py` (every derived date phrase — windows, spans, month counts; a literal month is
 fine when it IS the month being described, but never hand-derive a span or a count),
+`month_complete.py` (the ONE definition of a complete month — see **Comparisons use
+complete months only**),
 `slide_geometry.py` (the per-title geometry contract, promoted out of `ars_pipeline/` so
 all three programs can adopt it), plus the post-processors `restyle_fonts.py`,
 `summit_slide.py`, `fit_layout.py` (layout-fit + 10pt slide numbers, run by all builders
@@ -355,6 +357,12 @@ TEMPLATE's numbers and ships looking perfectly plausible. It is how the entire A
 raises if the title is absent, whereas `S[n]` silently points at the wrong slide the moment the
 template gains or loses one.
 
+**The closing slide carries the cover's month (2026-09-17).** Questions & Discussion reads
+"<client>  •  <reporting month>", the same client and month as the cover. Every 2026.09 ARS deck
+(33, combined decks included) shipped "<Client>  •  July 2026" there under a September cover,
+because `build_ars_gen` swapped only the client name on that slide. `validate_deck.closing_month_findings`
+FAILs any deck whose closing line names a different month or client than the cover.
+
 **Missing source data is stated, never zeroed.** If a field the deck needs is absent from the
 extract (e.g. an all-blank `DOB` column → no age profile), the builder writes a plain sentence
 saying the data isn't carried in this extract and flags it — it does not render a 0% or an
@@ -420,6 +428,33 @@ fails if it cites a file that no longer exists.
 leverage, seamless, delve, and the banker-deck list — engine, lever, lift (as prose;
 "ARS Lift Matrix" as a proper slide name is fine), ramping, healthy, predominantly,
 companion, seasoned book, annuity. No superlatives or unsupported higher/lower claims.
+
+**Comparisons use complete months only (Aaron, 2026-09-17).** "Don't calculate YoY or
+comparisons on partial months, only use complete months." Marine FCU 1539's 2026.09 NSF/OD
+slide said "-98% Items YoY (Aug 25 → Aug 26)": the extract was pulled 09/04/26 with whole
+August swipes and spend, but only 390 NSF/OD items for August against 19,451 in July.
+
+`build/month_complete.py` is the one definition, shared by every program. A month is
+incomplete for a MEASURE when the data was pulled before it ended (the ODD member's
+`(MMDDYY_HHMMSS)` stamp, a weekly's "Report Generated" date, a VIP sheet's `data_pull`), or
+when its total is below half the median of the six months before it (trailing months only,
+at most two, baseline median 50 or more). Completeness is per measure: Marine's August is
+complete for swipes and spend and incomplete for NSF/OD.
+
+- Every YoY, month-over-month, latest-month tile, trend endpoint and trailing window uses the
+  last complete month of the measures it reads. A computation that reads several measures
+  (the swipe-tier window, before/after) uses months complete in all of them.
+- A left-out month is STATED — on the slide ("Aug 2026 left out: incomplete in this
+  extract.") and with its figures in the notes — never zeroed, never charted as a collapse,
+  and its slide is never dropped. Status snapshots (Elig, Reg E, account status) are not
+  activity and still read the snapshot month.
+- ARS: `metrics_gen` and `ticket_calc` call `month_complete.odd_completeness`; the workbook's
+  Key Trends spend goes through `complete_rows` (in `build_ars_gen`, `charts_gen`, the
+  one-pager and the performance dashboard). CashPlease: `cp_extract` holds a `*` roll-up for a
+  month not yet ended out of `monthly`. MRPC: `build_mrpc_gen.complete_series` trims
+  `performance_vs_goal` and `revenue.by_month`. ICS branch YTD referrals cannot be split by
+  month, so the notes say they include the month to date.
+- Do not write a new "latest month" read of an activity series without going through it.
 
 **Describing movement — the +/-2% band (Aaron, 2026-08-31).** A sentence that says a
 measure moved must agree with the figures beside it:
@@ -886,6 +921,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
   used by the ICS builder and the validator. Never eyeball whether a label fits.
 - `branch_names.py` — branch id → name lookup shared by the ARS chart renderers, and the branch-name dataset in `Inputs/Branch Names/` (Aaron, 2026-09-17): `morning_update` adds names from each client's Charts workbook (Branch Results tab, the file matched to one client by name or by `charts_files.csv`) and from the ICS referrals pull (VIP branch table), never removing one; `client_map(id)` reads it back, Charts name first, and leaves a number unnamed when one source gives it two different names.
+- `month_complete.py` — the one definition of a complete month (pull/generation date, and a trailing month below half its six-month median), per measure; import-safe. Every YoY, latest-month and trailing-window comparison in every program goes through it (Aaron, 2026-09-17).
 - `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`), build scratch (`temp_dir`, removed at exit; `sweep_temp`, run first by every `build_client`, clears scratch a crashed build left in the temp folder — 2026-09-16, after ~180 GB of it filled C:) and
   `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
   substitute a missing face. Every chart renderer goes through it.

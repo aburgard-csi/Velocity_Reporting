@@ -113,17 +113,26 @@ MS = M['mail_summary']; MST = M['mail_summary_total']
 # the Mailing Response Summary, never counted into any rate or the trailing total.
 MIP = M.get('mail_in_progress', [])
 mail_resp = f"{MST[4]:.1f}%"
-cf = B['swipespend_36'][0][2]; cl = B['swipespend_36'][-1][2]
+# Complete months only (Aaron, 2026-09-17: "Don't calculate YoY or comparisons on partial
+# months, only use complete months"). month_complete decides; the tiles, the YoY, the card
+# growth, the chart (charts_gen, same call) and the span caption all end on the last month
+# whose spend is complete, and a month left out is stated in the notes.
+import month_complete as _MC
+SS, SS_COMPLETE = _MC.complete_rows(B["swipespend_36"], 1, "$M debit spend", min_volume=0)
+if not SS:
+    raise SystemExit("POSSIBLE DATA ISSUE: the workbook's Key Trends carry no complete month of spend")
+SPEND_MONTH_LONG = datetime.datetime.strptime(SS[-1][0], '%b %Y').strftime('%B %Y')
+cf = SS[0][2]; cl = SS[-1][2]
 cardg = 100*(cl-cf)/cf; card_growth = f"{cardg:+.1f}%"
 cardverb = "grown" if cardg > 2 else ("held steady" if cardg > -2 else "declined")
 card_range = f"({cf/1000:.1f}K → {cl/1000:.1f}K)"
-jun_spend = B['swipespend_36'][-1][1]
+jun_spend = SS[-1][1]
 # Year-on-year spend: compare the latest month against the SAME month a year
 # earlier, derived from the series (was pinned to the literal 'Jun 2025', which
 # IndexErrors on any client whose history doesn't reach it — e.g. 1549 Wellworth,
 # whose series starts May 2026).
-_ss = {x[0]: x[1] for x in B['swipespend_36']}
-_last_lbl = B['swipespend_36'][-1][0]
+_ss = {x[0]: x[1] for x in SS}
+_last_lbl = SS[-1][0]
 _ld = datetime.datetime.strptime(_last_lbl, '%b %Y')
 _yago = _ld.replace(year=_ld.year - 1).strftime('%b %Y')
 jun25 = _ss.get(_yago)
@@ -666,6 +675,12 @@ for seg, a, sw, sp, ns in st:
     rows.append([seg, f"{a:,}", pc(a, tt[0]), f"{sw:,}", pc(sw, tt[1]), fk(sp), pc(sp, tt[2]), f"{ns:,}", pc(ns, tt[3])])
 rows.append(["Total", f"{tt[0]:,}", "100%", f"{tt[1]:,}", "100%", fk(tt[2]), "100%", f"{tt[3]:,}", "100%"])
 set_table(S[8], rows)
+# The 3-month window ends on the last month complete in swipes, spend AND NSF/OD; a month
+# left out is said on the slide rather than averaged in (Aaron, 2026-09-17).
+_ALL_OUT = ", ".join(_MC.excluded_months((M.get('month_completeness') or {}).get('all')))
+if _ALL_OUT:
+    repl(S[8], {"the most recent transaction data available.":
+                f"the most recent complete months; {_ALL_OUT} left out as incomplete."})
 
 # ============================ SLIDE 10 — Average Ticket
 if TICKET_PNG:
@@ -673,7 +688,8 @@ if TICKET_PNG:
     w0 = R['win'][0]; w1 = R['win'][-1]; win_pretty = f"{w0[:3]}–{w1[:3]} 20{w1[3:]}"
     set_shape_text(S[9], "Selection: ARS-eligible personal accounts with debit activity. Left: average spend per swipe by monthly-swipe tier (3-mo avg, Apr–Jun 2026). Right: mailing responders, ticket before vs. after response.",
         f"Selection: ARS-eligible personal accounts with debit activity. Left: average spend per swipe by monthly-swipe tier "
-        f"(3-mo avg, {win_pretty}). Right: mailing responders, ticket before vs. after response.")
+        f"(3-mo avg, {win_pretty}" + (f"; {_ALL_OUT} left out as incomplete" if _ALL_OUT else "")
+        + "). Right: mailing responders, ticket before vs. after response.")
     segs = R['segments']; light = segs[0]; heavy = segs[-1]
     # The verb FOLLOWS the figures it introduces. It used to be a constant
     # "holds", which was true of the template's own $50→$50 example and of
@@ -945,6 +961,9 @@ if tm:
 set_exact(S[23], "+4.3%", card_growth)
 repl(S[23], {"(6.8K → 7.1K)": card_range})
 set_exact(S[23], "$9.3M", monthly_spend)
+# The tile names the month it shows — the last complete spend month, which the generic
+# as-of pass (the ODD snapshot month) would get wrong when that month was left out.
+repl(S[23], {"(June 2026)": f"({SPEND_MONTH_LONG})"})
 set_exact(S[23], "+11%", spend_yoy)
 # The Spend YoY FIGURE is derived (above); its caption was not, so the tile read
 # "(Jun 25 → Jun 26)" over a number comparing Aug 25 to Aug 26. Same shape as
@@ -961,7 +980,9 @@ set_exact(S[24], "725", f"{M['nsf_last_accts']:,}")
 # no year and "(Jun 25 \u2192 Jun 26)" uses two-digit years, so both slipped past the
 # stale-caption gate and shipped the reference client's months. They are swapped
 # from the snapshot and from the window the YoY figure actually compared.
-repl(S[24], {"NSF/OD (June)": f"NSF/OD ({AS_OF_LONG})"})
+_NSF_LONG = datetime.datetime.strptime(M.get('nsf_last_month') or AS_OF_SHORT, '%b %Y').strftime('%B %Y')
+repl(S[24], {"NSF/OD (June)": f"NSF/OD ({_NSF_LONG})",
+             "(June 2026)": f"({_NSF_LONG})"})
 _nsf_yoy = M.get('nsf_yoy')
 _nsf_win = M.get('nsf_yoy_window')
 if _nsf_yoy is None:
@@ -1017,7 +1038,12 @@ set_shape_text(S[29], "• 36.3% opt-in (personal accounts)\n• Best branches ~
     f"• {rege} opt-in (personal accounts)\n• Best branches ~{bb[3]}% ({_branch_label(bb[0])} {bb[3]}%)\n• Opportunity at low-opt-in branches\n• New-account opt-in {rege_new}")
 
 # ============================ SLIDE 31 — Q&A
-repl(S[30], {"Union Financial": NAME})
+# The closing slide carries the SAME client and month as the cover. It used to swap only
+# the client name, so every 2026.09 ARS deck (and every combined deck built on one) read
+# "<Client>  •  July 2026" here under a cover saying September 2026 (Aaron, 2026-09-17).
+# Resolved by title, and swapped as the whole "<client>  •  <month>" line so a template
+# re-baked with a different month misses loudly instead of shipping its own.
+repl(SB("Questions & Discussion"), {"Union Financial  •  July 2026": f"{NAME}  •  {PRESENT_MONTH}"})
 
 # ============================ SLIDE 33 — Reach
 set_exact(SB("Program Reach"), "3,030", f"{M['reach_total']:,}", measure="reach_total")
@@ -1178,7 +1204,7 @@ def _span(rows, i=0):
         return t
     return _pretty(rows[0][i]), _pretty(rows[-1][i]), len(rows)
 
-_ss = _span(B.get('swipespend_36') or [])
+_ss = _span(SS)
 if _ss:
     repl(SB("Debit Card Swipes & Spend") if any(_slide_has(x, "Debit Card Swipes & Spend") for x in prs.slides) else S[23],
          {"Monthly totals, Jul 2023 – Jun 2026 (36 months).":
@@ -1191,8 +1217,13 @@ if _ss:
 
 _ns = _span(M.get('nsf_series') or [])
 if _ns:
+    # A month left out as incomplete is SAID on the slide, never charted as a collapse
+    # (Aaron, 2026-09-17); the figures behind that call are in the notes.
+    _nsf_out = ", ".join(_MC.excluded_months(M.get('month_completeness', {}).get('nsf')))
     repl(S[24], {"accounts with activity (line), Sep 2023 – Jun 2026.":
-                 f"accounts with activity (line), {_ns[0]} – {_ns[1]}."}, optional=True)
+                 f"accounts with activity (line), {_ns[0]} – {_ns[1]}."
+                 + (f" {_nsf_out} left out: incomplete in this extract." if _nsf_out else "")},
+         optional=True)
 
 _op = _span(M.get('openings') or [])
 if _op:
@@ -1247,8 +1278,13 @@ except Exception as _e:
 # "Monthly debit spend (June 2026)" and "opt-in status as of June 2026" (Aaron,
 # 2026-08-28). These phrases are point-in-time captions ONLY — a mailing month is
 # never written this way, so rewriting them cannot corrupt a "Jun 2026 Mailer" label.
+ACT_LONG = (datetime.datetime.strptime(M['activity_month'], '%b %Y').strftime('%B %Y')
+            if M.get('activity_month') else AS_OF_LONG)
 _ASOF_SWAPS = {
     "(June 2026)": f"({AS_OF_LONG})",
+    # Usage in the latest month reads the last COMPLETE activity month (Aaron, 2026-09-17).
+    "active in June 2026": f"active in {ACT_LONG}",
+    "Swipe activity for June 2026": f"Swipe activity for {ACT_LONG}",
     "as of June 2026": f"as of {AS_OF_LONG}",
     "through June 2026": f"through {AS_OF_LONG}",
     "in June 2026": f"in {AS_OF_LONG}",
@@ -1261,7 +1297,13 @@ _ASOF_SWAPS = {
     "Apr–Jun 2026": M["w3_label"],
 }
 _asof_hits = {k: 0 for k in _ASOF_SWAPS}
+# These two slides name the last COMPLETE month of their own measure, swapped above
+# (Aaron, 2026-09-17). When that month happens to be the template's own ("June 2026"),
+# the swap is a no-op and this pass would re-date it to the snapshot month.
+_ASOF_OWN_MONTH = ("NSF/OD Activity", "Overall Debit Swipes & Spend")
 for _s in prs.slides:
+    if any(_slide_has(_s, _t) for _t in _ASOF_OWN_MONTH):
+        continue
     for _sh in frames(_s.shapes):
         for _para in _sh.text_frame.paragraphs:
             _full = "".join(r.text for r in _para.runs)
@@ -1408,6 +1450,31 @@ for _i, _sl in enumerate(_S2):
     _sl.notes_slide.notes_text_frame.text = _note_for(_title_of(_sl), _i)
     _written += 1
 print(f"source notes written: {_written} ({len(_keep)} kept from their own module)")
+
+# Complete months (Aaron, 2026-09-17). Every slide that compares months names the months
+# it compares; a month left out as incomplete is stated with the figures behind that
+# call, so the exclusion is auditable and never silent.
+_MCOMP = M.get('month_completeness') or {}
+_notes_mc = {
+    "NSF/OD": _MC.excluded_sentence(_MCOMP.get('nsf')),
+    "Swipes & Spend": _MC.excluded_sentence(SS_COMPLETE),
+}
+_act_note = _MC.excluded_sentence(_MCOMP.get('activity'))
+for _sl in _S2:
+    _t = _title_of(_sl)
+    _add = []
+    if _t.startswith("NSF/OD"):
+        _add.append("Complete months only: the tiles and chart end on %s%s." % (
+            M.get('nsf_last_month'),
+            (", Items YoY compares %s to %s" % tuple(M['nsf_yoy_window'])) if M.get('nsf_yoy_window') else ""))
+        if _notes_mc["NSF/OD"]: _add.append(_notes_mc["NSF/OD"])
+    elif "swipes & spend" in _t.lower():
+        _add.append("Complete months only: monthly spend, Spend YoY and card growth end on %s." % SS[-1][0])
+        if _notes_mc["Swipes & Spend"]: _add.append(_notes_mc["Swipes & Spend"])
+    elif _act_note and any(k in _t.lower() for k in ("swipe", "average ticket", "card usage")):
+        _add.append(_act_note)
+    if _add:
+        _sl.notes_slide.notes_text_frame.text += " " + " ".join(_add)
 
 # Per-mailing respondent counts for the by-Offer slide. They used to sit under each
 # x-axis label as "(n=...)", which was unreadable the moment a client had more than a

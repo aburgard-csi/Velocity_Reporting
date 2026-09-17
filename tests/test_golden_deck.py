@@ -47,7 +47,20 @@ def sh(cmd, cwd=None, stdout_to=None, env=None):
 @pytest.fixture(scope="module")
 def deck(tmp_path_factory, odd_csv):
     """Build one ARS deck from fixtures and hand back its parts."""
-    w = tmp_path_factory.mktemp("golden")
+    return _build(tmp_path_factory.mktemp("golden"), odd_csv)
+
+
+@pytest.fixture(scope="module")
+def partial_deck(tmp_path_factory):
+    """The same deck on an ODD whose final month carries a partial NSF/OD column — the
+    Marine FCU 1539 2026.09 shape (Aaron, 2026-09-17)."""
+    w = tmp_path_factory.mktemp("golden_partial")
+    odd = w / "partial_odd.csv"
+    sh([PY, os.path.join(FIXTURES, "make_odd.py"), str(odd), "--partial-nsf"])
+    return _build(w, str(odd))
+
+
+def _build(w, odd_csv):
     charts = w / "charts"; charts.mkdir()
     base, lift = w / "base.json", w / "lift.json"
     metrics, oddd = w / "metrics.json", w / "oddd"
@@ -73,6 +86,15 @@ def deck(tmp_path_factory, odd_csv):
     sh([PY, os.path.join(REPO, "build/restyle_fonts.py"), str(out)])
     return dict(path=str(out), dir=w, base=str(base), metrics=str(metrics),
                 charts=charts, prs=Presentation(str(out)))
+
+
+def titles_of(slide):
+    return next((sh.text_frame.text.strip().split("\n")[0] for sh in slide.shapes
+                 if sh.has_text_frame and sh.text_frame.text.strip()), "")
+
+
+def _build_titles(d):
+    return [titles_of(s) for s in d["prs"].slides]
 
 
 def titles(prs):
@@ -158,3 +180,52 @@ def test_contact_card_names_the_managing_csm(deck):
     text = [sh.text_frame.text for sh in s.shapes if sh.has_text_frame]
     assert "Test CSM" in text and "555-010-0001" in text and "test.csm@example.com" in text
     assert "managing CSM Test CSM" in s.notes_slide.notes_text_frame.text
+
+
+# --- the closing slide carries the cover's month (Aaron, 2026-09-17) ------
+def test_questions_slide_carries_the_reporting_month(deck):
+    """Every 2026.09 ARS deck read "<Client>  •  July 2026" on Questions & Discussion
+    under a September cover: the builder swapped only the client name there."""
+    s = next(s for s in deck["prs"].slides if titles_of(s).startswith("Questions & Discussion"))
+    lines = [p.text for sh in s.shapes if sh.has_text_frame for p in sh.text_frame.paragraphs]
+    assert f"{NAME}  \u2022  August 2026" in lines, lines
+    sys.path.insert(0, os.path.join(REPO, "validation"))
+    import validate_deck
+    assert validate_deck.closing_month_findings(deck["prs"]) == []
+
+
+# --- complete months only (Aaron, 2026-09-17) -----------------------------
+def _slide(prs, title):
+    return next(s for s in prs.slides if titles_of(s).startswith(title))
+
+
+def _text(s):
+    return " ".join(" ".join(sh.text_frame.text.split()) for sh in s.shapes if sh.has_text_frame)
+
+
+def test_partial_month_deck_still_passes_its_gate(partial_deck):
+    r = subprocess.run([PY, os.path.join(REPO, "validation/validate_deck.py"),
+                        partial_deck["path"], partial_deck["base"]],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    line = next((l for l in r.stdout.splitlines() if "FAIL," in l), "")
+    assert line.strip().startswith("0 FAIL"), \
+        "\n".join(l for l in r.stdout.splitlines() if "[FAIL" in l) or line
+
+
+def test_nsf_slide_compares_complete_months_and_says_what_was_left_out(partial_deck):
+    s = _slide(partial_deck["prs"], "NSF/OD Activity")
+    t = _text(s)
+    assert "(Jun 25 \u2192 Jun 26)" in t, t
+    assert "Jul 25 \u2192 Jul 26" not in t
+    assert "NSF/OD items (June 2026)" in t and "NSF/OD (June 2026)" in t, t
+    assert "Jul 2026 left out: incomplete in this extract." in t, t
+    notes = s.notes_slide.notes_text_frame.text
+    assert "Jul 2026 is left out as incomplete in this extract" in notes, notes
+    assert "Items YoY compares Jun 25 to Jun 26" in notes, notes
+    assert len(partial_deck["prs"].slides) == 49, "a partial month never drops a slide"
+
+
+def test_nsf_slide_on_complete_data_says_nothing_was_left_out(deck):
+    s = _slide(deck["prs"], "NSF/OD Activity")
+    assert "left out" not in _text(s)
+    assert "(Jul 25 \u2192 Jul 26)" in _text(s)

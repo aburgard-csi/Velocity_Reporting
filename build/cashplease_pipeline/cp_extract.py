@@ -41,6 +41,8 @@ from pathlib import Path
 
 import openpyxl
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # build/ (month_complete)
+
 ROLLUP_SHEET = "All Clients Summary - Loans"
 STATUSES = ["Pending", "Processing", "Funded", "Paid Off",
             "Overdue", "Charged Off", "Closed"]
@@ -162,6 +164,18 @@ def read_sheet(ws):
         }
         (monthly if label.endswith("*") else daily).append(row)
 
+    # A '*' roll-up is a completed month by the workbook's convention — held to the
+    # calendar anyway, through the one shared definition (Aaron, 2026-09-17: "Don't
+    # calculate YoY or comparisons on partial months, only use complete months"). A
+    # roll-up for a month that had not ended when the report was generated feeds the
+    # latest-month tiles, the 12-month loan window and the peer comparison, so it is
+    # kept out of `monthly` and carried separately, never dropped silently.
+    import month_complete
+    _as_of = month_complete.report_date(gen)
+    in_progress = [r_ for r_ in monthly
+                   if month_complete.month_ended(r_["period_month"], _as_of) is False]
+    monthly = [r_ for r_ in monthly if r_ not in in_progress]
+
     return {
         "report_generated": gen,
         "pct_active_accounts_with_loans": _num(ws["L8"].value),
@@ -170,6 +184,7 @@ def read_sheet(ws):
         "total": total,
         "daily": daily,       # current partial month, newest first
         "monthly": monthly,   # completed months, newest first
+        "monthly_in_progress": in_progress,   # '*' roll-ups for a month not yet ended
     }
 
 
