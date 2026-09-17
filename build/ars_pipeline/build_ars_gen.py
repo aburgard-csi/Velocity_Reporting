@@ -307,7 +307,9 @@ if BIZ and BIZ['branches']:
     # rather than orange because it runs OVER navy bars, and STYLE.md's rule is that
     # a mark is never drawn in the canvas colour — teal clears WCAG 3:1 on navy and
     # on white, which is why it is the line colour everywhere else in the deck.
-    chart_lib.branch_chart(BIZ_PNG, br, _BNAVY, _BTEAL, 1383, 540,
+    import insight_layout as _il_d
+    _bw, _bh = _il_d.CHART_DIMS['take'] if os.environ.get('RPE_JAMES_SLIDES') == '1' else (1383, 540)
+    chart_lib.branch_chart(BIZ_PNG, br, _BNAVY, _BTEAL, _bw, _bh,
                            acct_label="Accounts opened", rate_label="Take rate")
     print("wrote", BIZ_PNG)
 
@@ -2000,6 +2002,8 @@ for _i, _sl in enumerate(list(_bp.slides)):
             if _is_logo_pic(sh) and _in_corner(sh): _drop(sh)
         _add_logo(_sl, LOGO_DATA); _put_num(_sl, _i + 1)
 import slide_geometry as _sg; _sg.apply(_bp)   # per-title geometry contract (build/)
+if os.environ.get('RPE_JAMES_SLIDES') == '1':           # test branch: larger take rate / Reg E charts
+    import insight_layout as _il; _il.apply(_bp)
 import fit_layout as _fl; _fl.fit(_bp)   # final layout-fit: clear number/logo, clamp off-slide (shared)
 _bp.save(OUT)
 _sidecar = _figs.log.dump(_figs.sidecar_path(OUT))

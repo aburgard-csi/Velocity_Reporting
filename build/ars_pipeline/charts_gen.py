@@ -31,6 +31,14 @@ DIM={'image5':(1365,705),'image6':(1432,672),'image7':(1035,549),'image8':(1099,
  'image21':(1660,780),'image22':(978,598),'image23':(946,598),'image24':(1834,740),
  'image25':(1700,754),'image26':(1725,900),'image27':(1533,800),'image28':(1740,1007),
  'image29':(1740,1064),'image30':(2047,816),'image31':(2639,1003),'image32':(2050,790)}
+# TEST BRANCH (RPE_JAMES_SLIDES=1): the take rate and Reg E branch charts render at the larger
+# boxes insight_layout places them in (Aaron, 2026-09-17).
+import os as _os_j
+if _os_j.environ.get('RPE_JAMES_SLIDES')=='1':
+    sys.path.insert(0, _os_j.path.dirname(_os_j.path.abspath(__file__)))
+    import insight_layout as _il
+    DIM.update({'image11': _il.CHART_DIMS['take'], 'image14': _il.CHART_DIMS['rege'], 'image16': _il.CHART_DIMS['rege']})
+
 def _clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)
     ax.spines["left"].set_color(HAIRLINE); ax.spines["bottom"].set_color(MUTED)

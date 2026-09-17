@@ -49,6 +49,11 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
     if len(rows) > BRANCH_CAP:
         raise ValueError(f"branch_chart got {len(rows)} bars; cap the caller's list at "
                          f"{BRANCH_CAP} or the branch labels will collide")
+    # The renderer sets its own face. The business take-rate chart is drawn from
+    # build_ars_gen, which set Carlito only on the SM path, so every MM deck's business
+    # chart rendered in matplotlib's DejaVu fallback (found 2026-09-17).
+    from rpe_env import use_font
+    use_font("Carlito")
     labels = [str(r[0]) for r in rows]
     accts = [r[2] for r in rows]
     rates = [r[3] for r in rows]
