@@ -254,13 +254,36 @@ def output_decks(pattern, root=None) -> list[Path]:
     """Finished files matching `pattern` in Outputs/ and every `Outputs/<CSM>/` folder —
     never the archive (`_Archive/`, or `Archive/` from before), never an Office lock file (`~$`)."""
     base = Path(root) if root is not None else outputs()
-    dirs = [base]
-    if base.is_dir():
-        dirs += [d for d in sorted(base.iterdir())
-                 if d.is_dir() and d.name not in _OUTPUT_SKIP_DIRS and not d.name.startswith(".")]
-    hits = [p for d in dirs for p in d.glob(pattern)
-            if p.is_file() and not p.name.startswith("~$")]
+    if any(s in pattern for s in ("/", "\\", "**")):
+        dirs = [base]
+        if base.is_dir():
+            dirs += [d for d in sorted(base.iterdir())
+                     if d.is_dir() and d.name not in _OUTPUT_SKIP_DIRS and not d.name.startswith(".")]
+        hits = [p for d in dirs for p in d.glob(pattern)
+                if p.is_file() and not p.name.startswith("~$")]
+        return sorted(hits, key=lambda p: (p.name, str(p)))
+    # One directory listing per folder, with the file/folder type read from the listing itself: on the
+    # share a separate is_dir()/is_file() per entry is a round trip each (2026-09-17). fnmatch folds case
+    # on Windows, as glob does.
+    import fnmatch
+    hits = []
+    for d in [base] + _output_csm_dirs(base):
+        try:
+            with os.scandir(d) as it:
+                hits += [d / e.name for e in it
+                         if fnmatch.fnmatch(e.name, pattern) and not e.name.startswith("~$") and e.is_file()]
+        except OSError:
+            continue
     return sorted(hits, key=lambda p: (p.name, str(p)))
+
+
+def _output_csm_dirs(base) -> list[Path]:
+    try:
+        with os.scandir(base) as it:
+            return [base / e.name for e in sorted(it, key=lambda e: e.name)
+                    if e.is_dir() and e.name not in _OUTPUT_SKIP_DIRS and not e.name.startswith(".")]
+    except OSError:
+        return []
 
 
 # ------------------------------------------------------------------ input kinds
@@ -325,7 +348,14 @@ def report_dirs() -> list:
     I = inputs()
     names = [v for k, v in INPUT_KIND_DIRS.items() if k not in NOT_SCANNED_KINDS]
     names.append(LEGACY_REPORTS_DIRNAME)
-    return [I / n for n in names if (I / n).is_dir()]
+    # One listing of Inputs rather than an is_dir() per kind: each is a round trip on the share (2026-09-17).
+    fold = str.casefold if os.name == "nt" else (lambda s: s)
+    try:
+        with os.scandir(I) as it:
+            present = {fold(e.name) for e in it if e.is_dir()}
+    except OSError:
+        return [I / n for n in names if (I / n).is_dir()]
+    return [I / n for n in names if fold(n) in present]
 
 
 def cp_settings_file(client_id):
@@ -442,11 +472,20 @@ def build_artifacts() -> Path:
         path = data_root() / BUILD_ARTIFACTS_DIRNAME
     except SystemExit:
         path = REPO_ROOT / "build_artifacts"
+    # The mkdir runs once per folder per process (2026-09-17). On the share every mkdir is a round
+    # trip, and CSM Sheila's client list called this once per client: 50 mkdirs, 2.3 s, for a folder
+    # that already existed.
+    if str(path) in _ARTIFACTS_MADE:
+        return path
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError:
         return REPO_ROOT / "build_artifacts"
+    _ARTIFACTS_MADE.add(str(path))
     return path
+
+
+_ARTIFACTS_MADE: set = set()
 
 
 VIP_DATA_DIRNAME = "VIP Data"

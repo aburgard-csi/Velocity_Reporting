@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -50,6 +51,9 @@ _jobs_lock = threading.Lock()
 # page re-asks until it is done; the pre-build check itself is always read fresh.
 _lift = {}
 _lift_state = {"started": False, "done": False}
+# Share calls run this many at a time when the server warms up. Every stat on the share is a network round
+# trip (20-150 ms, and far worse on a bad day), so waiting on four at once is close to four times faster.
+PREWARM_WORKERS = 4
 
 
 def prewarm_lift():
@@ -58,33 +62,126 @@ def prewarm_lift():
     try:
         period = L.cycle_period()
         roster, _ = BM.read_roster()
-        for cid, _, path, progs in roster:
-            if "ARS" not in progs or path != "MM" or not period:
-                continue
+        mm = [cid for cid, _, path, progs in roster if "ARS" in progs and path == "MM"] if period else []
+
+        def one(cid):
             try:
                 checks = L.lift_checks(cid, period, roster)
             except Exception:
-                continue
+                return
             _lift[cid] = L.STOP if any(l == L.STOP for l, _ in checks) else L.OK
+        with ThreadPoolExecutor(PREWARM_WORKERS) as ex:
+            list(ex.map(one, mm))
     finally:
         _lift_state["done"] = True
 
 
 def prewarm():
-    """Background warm-up when the builder starts: Lift Matrix tags for the list, then every client's status."""
+    """Background warm-up when the builder starts: the client list, Lift Matrix tags, then every client's status."""
     import build_month as BM
+    refresh_clients()
     prewarm_lift()
-    for cid, _, _, progs in BM.read_roster()[0]:
-        if "ARS" in progs:
-            try:
-                status_doc(cid)
-            except Exception:
-                continue
+    ars = [cid for cid, _, _, progs in BM.read_roster()[0] if "ARS" in progs]
+
+    def one(cid):
+        try:
+            status_doc(cid)
+        except (Exception, SystemExit):
+            pass
+    with ThreadPoolExecutor(PREWARM_WORKERS) as ex:
+        list(ex.map(one, ars))
+
+
+# ------------------------------------------------------------------ share caches (this process only)
+# Aaron, 2026-09-17: "work on ways to make Sheila's GUI refresh faster." The data root is a network share where
+# every stat, listing or open is a round trip, and one client's checks made hundreds of them — many asking the
+# same thing again (is the share reachable, which report folders exist, the VIP manifest, the cycle period).
+# Inside this server those answers are kept for SHARE_TTL seconds. The build itself runs `ars_launcher.py
+# build` as a separate process, which never sees these caches: its pre-build checks are always read fresh.
+# "Check again" (fresh=1) bypasses them too.
+SHARE_TTL = 60
+_share_cache = {}
+_share_lock = threading.Lock()
+_bypass = threading.local()
+_installed = []
+
+
+def _ttl(fn, seconds):
+    """`fn` with its answers kept for `seconds` per argument list. Exceptions are never kept."""
+    def cached(*a, **kw):
+        try:
+            key = (fn.__module__, fn.__qualname__, a, tuple(sorted(kw.items())))
+            hash(key)
+        except TypeError:
+            return fn(*a, **kw)
+        if not getattr(_bypass, "on", False):
+            with _share_lock:
+                hit = _share_cache.get(key)
+            if hit and time.monotonic() - hit[0] < seconds:
+                return hit[1]
+        val = fn(*a, **kw)
+        with _share_lock:
+            _share_cache[key] = (time.monotonic(), val)
+        return val
+    cached.__wrapped__ = fn
+    return cached
+
+
+def _share_targets():
+    import build_month as BM    # noqa: F401  (deck_status imports it; load it first, as the launcher does)
+    import deck_status as DS
+    return [(R, "data_root"), (R, "report_dirs"), (R, "vip_data"), (R, "vip_manifest"), (R, "csm_list_file"),
+            (DS, "_reachable"), (DS, "odd_reachable"), (DS, "_oddd_month_dirs"), (DS, "_source_reports"),
+            (L, "cycle_period"), (L, "csm_list_row")]
+
+
+def install_share_caches(seconds=None):
+    """Keep the share answers above for `seconds` (default SHARE_TTL) in this process. Idempotent."""
+    if _installed:
+        return
+    for mod, name in _share_targets():
+        orig = getattr(mod, name)
+        _installed.append((mod, name, orig))
+        setattr(mod, name, _ttl(orig, SHARE_TTL if seconds is None else seconds))
+
+
+def uninstall_share_caches():
+    while _installed:
+        mod, name, orig = _installed.pop()
+        setattr(mod, name, orig)
+    with _share_lock:
+        _share_cache.clear()
+
+
+class _fresh_reads:
+    """Within this block, on this thread, the share caches are read past (and refilled)."""
+    def __init__(self, on=True):
+        self.on = on
+
+    def __enter__(self):
+        self.prev = getattr(_bypass, "on", False)
+        _bypass.on = self.prev or self.on
+
+    def __exit__(self, *exc):
+        _bypass.on = self.prev
 
 
 # ------------------------------------------------------------------ data for the page
-def clients_doc():
-    """The clients.md ARS clients, with their CSM, products, sent state and deck in Outputs."""
+# The list is served from memory and refreshed behind the page (Aaron, 2026-09-17). Building it reads the CSM
+# list, deliveries.json, every CSM folder in Outputs and each client's last launcher result over the share —
+# 10 s on a good day, 110 s measured on a bad one — so a request never waits for it once a list exists. A
+# list older than CLIENTS_TTL, or invalidated by a finished build, is served as it is while a fresh one is
+# built in the background; the page shows its age and asks again. What this server knows live — builds it
+# ran (Building, Queued, Error, the deck a finished build put in Outputs) and Lift Matrix tags — is laid over
+# the stored list on every request, so those never wait for the refresh.
+CLIENTS_TTL = 60
+RESULT_NAME = "_launcher_result.json"
+_clients = {"doc": None, "at": 0.0, "gen": 0, "clean_gen": -1, "busy": None, "error": None}
+_clients_lock = threading.Lock()
+
+
+def compute_clients():
+    """The clients.md ARS clients, with their CSM, products, sent state, deck in Outputs and last build failure."""
     import build_month as BM
     import deck_status as DS
     period = L.cycle_period()
@@ -99,10 +196,12 @@ def clients_doc():
     decks = {}
     for d in (R.output_decks(f"*-{period}-*ARS*.pptx") if period else []):
         decks.setdefault(d.name.split("-", 1)[0], []).append(d)
+    results = launcher_results(period, list(ars)) if period else {}
     out = []
     for cid, (_, name, path, progs) in ars.items():
         row = rows.get(cid, {})
         s = sent.get(f"{cid}|{period}")
+        res = results.get(cid, (None, None))
         out.append({
             "id": cid,
             # clients.md's name, as on the deck; the CSM List's can carry a filename flag.
@@ -113,34 +212,227 @@ def clients_doc():
             "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
             "decks": sorted(d.name for d in decks.get(cid, [])),
             "lift_expired": _lift.get(cid) == L.STOP,
-            "error": bool(period) and last_build_failed(cid, period, decks.get(cid, [])),
+            "error": bool(period) and last_build_failed(cid, period, decks.get(cid, []), result=res),
+            "result_written": res[1],
         })
     out.sort(key=lambda c: (c["csm"], (c["name"] or "").lower()))
     return {"period": period, "clients": out,
             "lift_pending": _lift_state["started"] and not _lift_state["done"]}
 
 
-def last_build_failed(cid, period, decks=()):
+def refresh_clients(fresh=False):
+    """Rebuild the stored list now. One refresh at a time: a caller arriving while one runs waits for it.
+
+    Returns the exception that stopped it, or None. A client whose sent state, decks or last build changed has
+    its cached status dropped, so a deck built or marked sent elsewhere is re-checked on its next view.
+    """
+    claim = _claim_refresh()
+    if claim is None:
+        with _clients_lock:
+            busy = _clients["busy"]
+        if busy is not None:
+            busy.wait()
+        with _clients_lock:
+            return _clients["error"]
+    return _run_refresh(claim, fresh)
+
+
+def _claim_refresh():
+    """(event, generation) when this caller now owns the refresh, or None when one is already running."""
+    with _clients_lock:
+        if _clients["busy"] is not None:
+            return None
+        _clients["busy"] = threading.Event()
+        return _clients["busy"], _clients["gen"]
+
+
+def _run_refresh(claim, fresh):
+    busy, gen = claim
+    err = None
+    try:
+        with _fresh_reads(fresh):
+            doc = compute_clients()
+        with _clients_lock:
+            old = _clients["doc"]
+        if old and old.get("period") and not doc.get("period"):
+            # Workbooks do not vanish from Inputs between two refreshes a minute apart; the share failed to list
+            # them. Keep the list that had a period, and say the update failed, rather than blank every row.
+            raise OSError("no ARS workbooks could be listed in Inputs (share not answering?)")
+        with _clients_lock:
+            _clients.update(doc=doc, at=time.time(), clean_gen=gen, error=None)
+        if old and old.get("period") == doc.get("period"):
+            before = {c["id"]: _signature(c) for c in old["clients"]}
+            for c in doc["clients"]:
+                if before.get(c["id"]) != _signature(c):
+                    forget_status(c["id"])
+        elif old:
+            with _status_lock:
+                for cid in list(_status_cache):
+                    forget_status_locked(cid)
+    except (Exception, SystemExit) as e:
+        err = e
+        with _clients_lock:
+            _clients["error"] = e
+    finally:
+        with _clients_lock:
+            _clients["busy"] = None
+        busy.set()
+    return err
+
+
+def _signature(c):
+    return (c.get("sent"), tuple(c.get("decks") or ()), c.get("error"), c.get("result_written"))
+
+
+def _refresh_clients_later(fresh=False):
+    """Start a refresh behind the page, unless one is running. Claimed before the thread starts, so the
+    response that asked for it already says `refreshing`."""
+    claim = _claim_refresh()
+    if claim is not None:
+        threading.Thread(target=_run_refresh, args=(claim, fresh), daemon=True).start()
+
+
+def invalidate_clients():
+    """Something the list shows has changed (a build finished): serve the stored list, and rebuild it now."""
+    with _clients_lock:
+        _clients["gen"] += 1
+        have = _clients["doc"] is not None
+    if have:        # nothing stored yet: the first request builds it
+        _refresh_clients_later()
+
+
+def clients_doc(fresh=False):
+    """The list for the page: the stored one at once, refreshed in the background when old or asked for.
+
+    Only the very first request waits, because there is nothing to show before it.
+    """
+    with _clients_lock:
+        have = _clients["doc"] is not None
+    if not have:
+        err = refresh_clients(fresh)
+        with _clients_lock:
+            have = _clients["doc"] is not None
+        if not have:
+            raise err if err else OSError("the client list could not be read")
+    else:
+        with _clients_lock:
+            stale = (_clients["clean_gen"] != _clients["gen"] or time.time() - _clients["at"] >= CLIENTS_TTL)
+        if fresh or stale:
+            _refresh_clients_later(fresh)
+    return _served_clients()
+
+
+def _served_clients():
+    with _clients_lock:
+        doc, at, refreshing, err = _clients["doc"], _clients["at"], _clients["busy"] is not None, _clients["error"]
+    with _jobs_lock:
+        jobs = dict(_jobs)
+    period = doc["period"]
+    clients = []
+    for c in doc["clients"]:
+        c = dict(c)
+        c.pop("result_written", None)
+        c["lift_expired"] = _lift.get(c["id"]) == L.STOP
+        job = jobs.get(c["id"])
+        if job:
+            # A build this server ran is known now, not at the next refresh.
+            c["error"] = job.done and bool(job.code)
+            deck = job.deck_name() if job.done and not job.code else None
+            if (deck and period and deck.startswith(f"{c['id']}-{period}-") and "ARS" in deck
+                    and deck not in c["decks"]):
+                c["decks"] = sorted(c["decks"] + [deck])
+        clients.append(c)
+    return {"period": period, "clients": clients,
+            "lift_pending": _lift_state["started"] and not _lift_state["done"],
+            "age_seconds": max(0, round(time.time() - at)), "refreshing": refreshing,
+            "refresh_error": f"{type(err).__name__}: {err}" if err else None}
+
+
+def launcher_dir(period):
+    return R.build_artifacts() / "launcher" / period
+
+
+_results = {}
+_results_lock = threading.Lock()
+
+
+def result_record(path):
+    """(record, written) of a launcher result file, or (None, None) when it is absent or unreadable.
+
+    The file is re-read only when its size or modification time changed since the last read. A share that
+    fails to answer (anything but "not there") gives the last record read rather than none, so one dropped
+    call does not make the list's Error pill blink off and on.
+    """
+    with _results_lock:
+        hit = _results.get(str(path))
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        return None, None
+    except OSError:
+        return (hit[1], hit[2]) if hit else (None, None)
+    key = (st.st_mtime_ns, st.st_size)
+    if hit and hit[0] == key:
+        return hit[1], hit[2]
+    try:
+        rec = json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, None
+    except (OSError, ValueError):     # includes a record caught half written
+        return (hit[1], hit[2]) if hit else (None, None)
+    if not isinstance(rec, dict):
+        return None, None
+    with _results_lock:
+        _results[str(path)] = (key, rec, st.st_mtime)
+    return rec, st.st_mtime
+
+
+def launcher_results(period, cids):
+    """{cid: (record, written)} for these clients' last launcher builds in `period`.
+
+    One listing of the period folder finds which clients have a build at all; only those are read, several at
+    a time. If the folder cannot be listed, every client is read on its own rather than reported as no build.
+    """
+    base = launcher_dir(period)
+    try:
+        with os.scandir(base) as it:
+            have = {e.name for e in it if e.is_dir()}
+        want = [c for c in cids if c in have]
+    except FileNotFoundError:
+        want = []
+    except OSError:
+        want = list(cids)
+    out = {c: (None, None) for c in cids}
+    if want:
+        with ThreadPoolExecutor(min(8, len(want))) as ex:
+            out.update(zip(want, ex.map(lambda c: result_record(base / c / RESULT_NAME), want)))
+    return out
+
+
+def last_build_failed(cid, period, decks=(), result=None):
     """Did this client's last build for `period` fail? Drives the list's red "Error <period>" pill.
 
     A build this server ran decides it while it is remembered: still running or queued is not an
     error, and a finished one failed when it exited non-zero. Otherwise the launcher's own record
     (`_launcher_result.json`) decides: a build that was not put in Outputs failed — unless a deck
-    for the period reached Outputs after that record was written, by any route.
+    for the period reached Outputs after that record was written, by any route. `result` is the
+    (record, written) pair when the caller has already read it.
     """
     with _jobs_lock:
         job = _jobs.get(cid)
     if job:
         return job.done and bool(job.code)
-    res = R.build_artifacts() / "launcher" / period / cid / "_launcher_result.json"
-    try:
-        rec = json.loads(res.read_text(encoding="utf-8"))
-        written = res.stat().st_mtime
-    except (OSError, ValueError):
+    rec, written = result if result is not None else result_record(launcher_dir(period) / cid / RESULT_NAME)
+    if rec is None:
         return False
     if rec.get("delivered") or rec.get("clean"):     # "clean": the pre-2026-09-15 staging record
         return False
-    newest = max((Path(d).stat().st_mtime for d in decks if Path(d).exists()), default=0)
+    newest = 0
+    for d in decks:
+        try:
+            newest = max(newest, Path(d).stat().st_mtime)
+        except OSError:
+            continue
     return newest <= written
 
 
@@ -149,29 +441,97 @@ def last_build_failed(cid, period, decks=()):
 # "Check again" asks for a fresh one, a finished build drops its client's entry, and every client is checked
 # once in the background when the builder starts. The pre-build checks in `ars_launcher.py build` itself
 # are never cached.
+#
+# 2026-09-17: a status older than STATUS_TTL is no longer re-read while the page waits (5 s on a good day,
+# 58 s observed). The page gets the stored one at once, marked `refreshing`, with its Build buttons held
+# until the fresh one arrives — so an old "ready" can never be built from while a STOP may be on its way.
+# A client whose list row changed (a deck built or marked sent from anywhere) has its entry dropped.
 STATUS_TTL = 600
 _status_cache = {}
 _status_lock = threading.Lock()
+_status_gen = {}       # cid -> bumped by forget_status, so a check that started before it is not stored
+_status_busy = {}      # cid -> Event while a non-fresh check for that client runs
 
 
-def status_doc(cid, fresh=False):
-    """The client's status, from the cache unless it is older than STATUS_TTL or `fresh` is asked for."""
+def _check_status(cid, fresh=False):
+    """Run the client's checks and store them. A non-fresh check already running for the client is joined."""
+    if not fresh:
+        with _status_lock:
+            busy = _status_busy.get(cid)
+            mine = busy is None
+            if mine:
+                busy = _status_busy[cid] = threading.Event()
+        if not mine:
+            busy.wait()
+            with _status_lock:
+                hit = _status_cache.get(cid)
+            if hit:
+                return hit
+            return _check_status(cid, fresh=True)
+    try:
+        with _status_lock:
+            gen = _status_gen.get(cid, 0)
+        with _fresh_reads(fresh):
+            doc = compute_status(cid)
+            hit = (time.time(), doc)        # stamped when the check finished: on a slow share it can take minutes
+        with _status_lock:
+            if _status_gen.get(cid, 0) == gen:
+                _status_cache[cid] = hit
+        return hit
+    finally:
+        if not fresh:
+            with _status_lock:
+                _status_busy.pop(cid, None)
+            busy.set()
+
+
+def _check_status_later(cid):
+    with _status_lock:
+        if cid in _status_busy:
+            return
+    threading.Thread(target=lambda: _swallow(_check_status, cid), daemon=True).start()
+
+
+def _swallow(fn, *a):
+    try:
+        fn(*a)
+    except (Exception, SystemExit):
+        pass
+
+
+def status_doc(cid, fresh=False, background=False):
+    """The client's status, from the cache unless it is older than STATUS_TTL or `fresh` is asked for.
+
+    With `background` (the page's own requests), an entry older than STATUS_TTL is returned as it is, marked
+    `refreshing`, while it is re-read behind the page; without it the re-read is waited for.
+    """
     with _status_lock:
         hit = _status_cache.get(cid)
-    if fresh or not hit or time.time() - hit[0] >= STATUS_TTL:
-        doc = compute_status(cid)
-        hit = (time.time(), doc)
-        with _status_lock:
-            _status_cache[cid] = hit
+    refreshing = False
+    if fresh or not hit:
+        hit = _check_status(cid, fresh=fresh)
+    elif time.time() - hit[0] >= STATUS_TTL:
+        if background:
+            _check_status_later(cid)
+            refreshing = True
+        else:
+            hit = _check_status(cid)
     out = dict(hit[1])
     out["age_seconds"] = round(time.time() - hit[0])
+    with _status_lock:
+        out["refreshing"] = refreshing or cid in _status_busy
     out["job"] = job_doc(cid)
     return out
 
 
 def forget_status(cid):
     with _status_lock:
-        _status_cache.pop(cid, None)
+        forget_status_locked(cid)
+
+
+def forget_status_locked(cid):
+    _status_cache.pop(cid, None)
+    _status_gen[cid] = _status_gen.get(cid, 0) + 1
 
 
 def compute_status(cid):
@@ -239,11 +599,19 @@ class Job:
             self.lines.append(f"  [STOP] The build could not start: {e}")
             self.code = 1
         self.finished = time.time()
-        self.done = True
         forget_status(self.cid)     # the deck in Outputs and the last-build line have changed
+        self.done = True
+        invalidate_clients()        # and the list: rebuilt behind the page, this job laid over it meanwhile
+
+    def deck(self):
+        return next((m.group(1) for m in map(DECK_RX.search, list(self.lines)) if m), None)
+
+    def deck_name(self):
+        d = self.deck()
+        return re.split(r"[\\/]", d)[-1] if d else None
 
     def to_json(self):
-        deck = next((m.group(1) for m in map(DECK_RX.search, self.lines) if m), None)
+        deck = self.deck()
         waiting = [j for j in list(_queue) if not j.started]
         position = waiting.index(self) + 1 if self in waiting else None
         running = next((j.cid for j in list(_jobs.values()) if j.started and not j.done), None)
@@ -460,7 +828,8 @@ class Handler(BaseHTTPRequestHandler):
         cid = (q.get("client") or [""])[0].strip()
         try:
             if u.path == "/api/clients":
-                return self._send(200, clients_doc())
+                fresh = (q.get("fresh") or [""])[0] == "1"
+                return self._send(200, clients_doc(fresh=True) if fresh else clients_doc())
             if u.path == "/api/queue":
                 return self._send(200, queue_doc())
             if u.path == "/api/changelog":
@@ -469,7 +838,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not CID_RX.match(cid):
                     return self._send(400, {"error": "not a client number"})
                 if u.path == "/api/status":
-                    return self._send(200, status_doc(cid, fresh=(q.get("fresh") or [""])[0] == "1"))
+                    return self._send(200, status_doc(cid, fresh=(q.get("fresh") or [""])[0] == "1", background=True))
                 return self._send(200, job_doc(cid) or {})
         except (OSError, SystemExit, ValueError, KeyError) as e:
             return self._send(500, {"error": f"{type(e).__name__}: {e}"})
@@ -503,6 +872,7 @@ def main(argv=None):
     ap.add_argument("--no-open", action="store_true", help="don't open a browser")
     a = ap.parse_args(argv)
     srv = make_server(a.port)
+    install_share_caches()
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
     print(f"\n CSM Sheila is running at {url}")
     print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
@@ -621,6 +991,7 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
 .last{margin-top:18px;color:var(--ink2);font-size:14px}
 .note{color:var(--ink2);font-size:13px;margin-top:14px}
 .err{color:var(--stop)}
+.asof{margin:2px 0 0;font-size:12px;color:var(--ink3)} .asof .link{font-size:12px}
 </style>
 </head>
 <body>
@@ -632,6 +1003,7 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
       <select id="csm"><option value="">All CSMs</option></select>
       <label class="small" for="q">Find a client</label>
       <input id="q" type="search" placeholder="Name or number" autocomplete="off">
+      <p class="asof" id="asof" aria-live="polite"></p>
     </div>
     <div class="list" id="list" role="list"></div>
   </aside>
@@ -653,7 +1025,7 @@ const TOKEN = "__TOKEN__";
 const STEP_ORDER = ["Reading the ARS workbook","Reading the ARS workbook and DCO","Reading the Lift Matrix","Reading the ODD extract","Computing the ODD metrics","Drawing the charts","Assembling the deck","Validating the deck"];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let CLIENTS = [], PERIOD = null, current = null, poller = null, armed = false;
+let CLIENTS = [], PERIOD = null, current = null, poller = null, armed = false, statusTimer = null, HOLD = false;
 let QUEUE = {building: null, queued: []};
 
 // What is building and what waits. Cheap, so the list keeps it current every few seconds; when a
@@ -699,26 +1071,53 @@ function renderList() {
   $("#list").innerHTML = html || `<p class="note" style="padding:10px">No clients match.</p>`;
 }
 
-async function loadClients() {
+// The list is served from the server's memory and rebuilt behind it (2026-09-17). The page shows the last
+// list it had at once (sessionStorage, labelled as saved), then the server's, with its age.
+const LIST_KEY = "sheila-clients";
+let clientsTimer = null;
+
+function ago(sec) { return sec == null ? "" : sec < 60 ? "just now" : sec < 3600 ? Math.round(sec / 60) + " min ago" : Math.round(sec / 3600) + " h ago"; }
+
+function applyClients(body, saved) {
+  CLIENTS = body.clients || []; PERIOD = body.period;
+  $("#period").textContent = PERIOD ? "Cycle " + PERIOD : "No period";
+  const csms = [...new Set(CLIENTS.map(c => c.csm))];
+  const keep = $("#csm").value;
+  $("#csm").innerHTML = `<option value="">All CSMs</option>` + csms.map(c => `<option>${esc(c)}</option>`).join("");
+  const want = $("#csm").dataset.touched ? keep : (recall("ars-builder-csm") || keep);
+  if (want && csms.includes(want)) $("#csm").value = want;
+  renderList();
+  let note;
+  if (saved) note = "Saved list from earlier. Updating…";
+  else if (body.refreshing) note = `List as of ${ago(body.age_seconds)}. Updating…`;
+  else note = `List as of ${ago(body.age_seconds)} · <button class="link" id="relist">Refresh</button>`;
+  if (!saved && body.refresh_error) note += ` <span class="err">Last update failed: ${esc(body.refresh_error)}</span>`;
+  $("#asof").innerHTML = note;
+  const rl = $("#relist"); if (rl) rl.addEventListener("click", () => loadClients(true));
+}
+
+async function loadClients(fresh) {
+  clearTimeout(clientsTimer);
+  let wait = 60000;
   try {
-    const {body} = await api("/api/clients");
-    CLIENTS = body.clients; PERIOD = body.period;
-    $("#period").textContent = PERIOD ? "Cycle " + PERIOD : "No period";
-    const csms = [...new Set(CLIENTS.map(c => c.csm))];
-    $("#csm").innerHTML = `<option value="">All CSMs</option>` + csms.map(c => `<option>${esc(c)}</option>`).join("");
-    const saved = recall("ars-builder-csm"); if (saved && csms.includes(saved) && !$("#csm").dataset.touched) $("#csm").value = saved;
-    renderList();
-    // Lift Matrix dates are still being read in the background: ask again shortly.
-    if (body.lift_pending) setTimeout(loadClients, 8000);
+    const {body} = await api("/api/clients" + (fresh ? "?fresh=1" : ""));
+    applyClients(body, false);
+    try { sessionStorage.setItem(LIST_KEY, JSON.stringify(body)); } catch (e) {}
+    // Still being rebuilt, or Lift Matrix dates still being read in the background: ask again shortly.
+    wait = (body.refreshing || fresh) ? 2500 : body.lift_pending ? 8000 : 60000;
   } catch (e) {
     $("#list").innerHTML = `<p class="err" style="padding:10px">Couldn't load clients: ${esc(e.message)}. Check the VPN and reload.</p>`;
+    wait = 15000;
+  } finally {
+    clearTimeout(clientsTimer);
+    clientsTimer = setTimeout(() => loadClients(), wait);
   }
 }
 
 const LEVEL = {ok: ["ok", "ok"], warn: ["warn", "!!"], ask: ["ask", "built"], stop: ["stop", "stop"]};
 
 async function select(id, fresh) {
-  current = id; armed = false; clearInterval(poller); renderList();
+  current = id; armed = false; clearInterval(poller); clearTimeout(statusTimer); renderList();
   const c = CLIENTS.find(x => x.id === id) || {id};
   $("#main").innerHTML = `<div class="head"><h2>${esc(c.name || id)}</h2><span class="sub">${esc(id)} · ${esc(c.csm || "")}</span></div><p class="note">Checking the client and this month's data…</p>`;
   try {
@@ -727,9 +1126,23 @@ async function select(id, fresh) {
     renderStatus(body);
     if (body.job && !body.job.done) follow(id);
     else if (body.job) renderJob(body.job);
+    if (body.refreshing) statusTimer = setTimeout(() => recheckQuietly(id), 2000);
   } catch (e) {
     $("#main").innerHTML += `<p class="err">Couldn't check ${esc(id)}: ${esc(e.message)}</p>`;
   }
+}
+
+// A stored status older than ten minutes is shown at once while the server checks again; the Build buttons
+// wait for the fresh one, which replaces it here without clearing the page.
+async function recheckQuietly(id) {
+  try {
+    const {body} = await api("/api/status?client=" + encodeURIComponent(id));
+    if (current !== id) return;
+    if (body.refreshing) { statusTimer = setTimeout(() => recheckQuietly(id), 2000); return; }
+    if (poller && body.job && !body.job.done) return;     // a build started meanwhile owns the panel
+    renderStatus(body);
+    if (body.job) renderJob(body.job);
+  } catch (e) { statusTimer = setTimeout(() => recheckQuietly(id), 5000); }
 }
 
 function renderStatus(s) {
@@ -758,7 +1171,7 @@ function renderStatus(s) {
   else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck is already in Outputs.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.${choose}${failNote}${note}</p>${btns(true)}</div>`;
   else verdict = `<div class="verdict stop"><p><b>Can't build yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="recheck">Check again</button></div>`;
   const last = s.last ? `<div class="last"><h3>Last build from this tool</h3>${esc(s.last.finished)} by ${esc(s.last.by)}: ${esc(s.last.result)}${s.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
-  const age = s.age_seconds == null ? "" : s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`;
+  const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
   $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
       <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
     <ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
@@ -766,6 +1179,8 @@ function renderStatus(s) {
   const go2 = $("#go2"); if (go2) go2.addEventListener("click", () => build(s, true));
   const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client, true));
   const rf = $("#refresh"); if (rf) rf.addEventListener("click", () => select(s.client, true));
+  HOLD = !!s.refreshing;
+  if (HOLD) for (const b of [go, go2]) if (b) { b.disabled = true; b.title = "Waiting for the fresh check"; }
 }
 
 async function build(s, combined) {
@@ -807,7 +1222,7 @@ function renderJob(j) {
   if (!j || !j.lines) return;
   const go = $(j.combined ? "#go2" : "#go"), other = $(j.combined ? "#go" : "#go2");
   if (go && !j.done) { go.disabled = true; if (other) other.disabled = true; go.textContent = j.queued ? `Queued #${j.queued}` : "Building…"; }
-  else if (go && j.code) { go.disabled = false; if (other) other.disabled = false; go.textContent = (j.rebuild ? "Retry rebuild" : "Retry build") + (j.combined ? " (combined)" : ""); }
+  else if (go && j.code && !HOLD) { go.disabled = false; if (other) other.disabled = false; go.textContent = (j.rebuild ? "Retry rebuild" : "Retry build") + (j.combined ? " (combined)" : ""); }
   const steps = [], marks = [];
   for (const line of j.lines) {
     const m = line.match(/^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$/);
@@ -855,8 +1270,11 @@ function renderJob(j) {
 }
 
 $("#list").addEventListener("click", e => { const b = e.target.closest(".client"); if (b) select(b.dataset.id); });
-$("#csm").addEventListener("change", () => { store("ars-builder-csm", $("#csm").value); renderList(); });
+$("#csm").addEventListener("change", () => { $("#csm").dataset.touched = "1"; store("ars-builder-csm", $("#csm").value); renderList(); });
 $("#q").addEventListener("input", renderList);
+(function showSaved() {
+  try { const saved = JSON.parse(sessionStorage.getItem(LIST_KEY) || "null"); if (saved && saved.clients) applyClients(saved, true); } catch (e) {}
+})();
 loadClients();
 pollQueue(); setInterval(pollQueue, 3000);
 document.addEventListener("click", e => { const n = $("#news"); if (n && n.open && !n.contains(e.target)) n.open = false; });

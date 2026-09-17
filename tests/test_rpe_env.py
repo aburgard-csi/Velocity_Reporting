@@ -129,3 +129,30 @@ def test_build_artifacts_never_raises(monkeypatch):
     monkeypatch.setattr(rpe_env, "data_root",
                         lambda: (_ for _ in ()).throw(SystemExit("no root")))
     assert rpe_env.build_artifacts().name == "build_artifacts"
+
+
+def test_build_artifacts_makes_its_folder_once_per_process(tmp_path, monkeypatch):
+    """CSM Sheila's list called this once per client, and every call was a mkdir on the share (2026-09-17)."""
+    import pathlib
+    monkeypatch.setattr(rpe_env, "data_root", lambda: tmp_path)
+    monkeypatch.setattr(rpe_env, "_ARTIFACTS_MADE", set())
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    made = []
+    real = pathlib.Path.mkdir
+    monkeypatch.setattr(pathlib.Path, "mkdir", lambda self, *a, **kw: made.append(self) or real(self, *a, **kw))
+    first = rpe_env.build_artifacts()
+    assert first == tmp_path / rpe_env.BUILD_ARTIFACTS_DIRNAME and first.is_dir()
+    assert rpe_env.build_artifacts() == first
+    assert made == [first], "the second call trusts the folder it already made"
+    monkeypatch.setattr(rpe_env, "data_root", lambda: other)
+    assert rpe_env.build_artifacts().is_dir() and len(made) == 2, "a different root is made on its own"
+
+
+def test_report_dirs_lists_inputs_once(tmp_path, monkeypatch):
+    """The folders that exist, newest scheme first and the legacy folder last, from one listing of Inputs."""
+    for name in ("ARS Workbooks", "DCOs", rpe_env.LEGACY_REPORTS_DIRNAME, "ODDD"):
+        (tmp_path / name).mkdir()
+    (tmp_path / "ICS Workbooks").write_bytes(b"not a folder")
+    monkeypatch.setattr(rpe_env, "inputs", lambda: tmp_path)
+    assert [p.name for p in rpe_env.report_dirs()] == ["DCOs", "ARS Workbooks", rpe_env.LEGACY_REPORTS_DIRNAME]

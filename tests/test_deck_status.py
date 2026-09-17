@@ -164,3 +164,18 @@ def test_the_dashboard_uses_the_same_roster_as_the_builder():
     assert DS.read_roster is read_roster
     active, _skipped = read_roster()
     assert active, "clients.md parsed to an empty roster"
+
+
+def test_source_reports_lists_every_account_manager_folder_without_a_stat_per_file(tmp_path, monkeypatch):
+    """One listing per folder (2026-09-17): an isfile() per landed file was a share round trip each."""
+    period = tmp_path / "2026.09"
+    for rel in ("Aaron Burgard/1038-2026.09-Sugar River-Workbook.xlsx", "James Gilmore/1441-2026.09-DCO.xlsx",
+                "James Gilmore/.hidden.xlsx", "loose-file.xlsx"):
+        (period / rel).parent.mkdir(parents=True, exist_ok=True)
+        (period / rel).write_bytes(b"x")
+    (period / "James Gilmore" / "a folder").mkdir()
+    monkeypatch.setattr(DS, "SRC_REPORTS", str(tmp_path))
+    monkeypatch.setattr(DS.os.path, "isfile", lambda p: pytest.fail("no isfile per file"))
+    got = sorted(os.path.relpath(f, period).replace(os.sep, "/") for f in DS._source_reports("2026.09"))
+    assert got == ["Aaron Burgard/1038-2026.09-Sugar River-Workbook.xlsx", "James Gilmore/1441-2026.09-DCO.xlsx"]
+    assert DS._source_reports("2026.10") == []

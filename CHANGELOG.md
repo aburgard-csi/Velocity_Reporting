@@ -17,6 +17,46 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-17 — CSM Sheila answers from memory and refreshes behind the page
+
+Aaron: "work on ways to make Sheila's GUI refresh faster." The data root is a network share where every stat,
+listing and open is a round trip, and the client list and a client's checks asked it the same questions over
+and over: the list ran a `mkdir` on `Build Artifacts` and read a launcher result once per client (50 mkdirs,
+2.3 s, for a folder that already existed), and one client's checks made 286 share calls, 157 of them an
+`isfile` per file landed on the client reports share. Nothing changes what the page reports, or what a build
+checks: `ars_launcher.py build` runs as its own process and reads everything fresh, as before.
+
+- **The client list is served from memory.** Only the first request waits. After that the stored list comes
+  back at once with its age ("List as of …", and a Refresh link), and it is rebuilt in the background when it
+  is older than 60 s, when Refresh is clicked, or when a build finishes. Builds this server ran — Building,
+  Queued, Error and the deck a finished build put in Outputs — and the Lift Matrix tags are laid over the
+  stored list on every request, so they never wait for the rebuild. The page shows the last list it had
+  (sessionStorage, labelled "Saved list … Updating…") while it loads. A rebuild that fails, or that suddenly
+  finds no ARS workbooks at all, keeps the previous list and says the update failed.
+- **A status older than ten minutes is shown at once, marked "checking again", with its Build buttons held**
+  until the fresh check replaces it, so an old "ready" cannot be built from while a STOP may be on its way.
+  "Check again" is still a full fresh read. A client whose list row changes (a deck in Outputs, a send
+  recorded, a last build) has its stored status dropped; a check that started before a build finished is
+  not stored.
+- **Share answers repeated within a check are kept for 60 s, in the web server only**: reachability of the
+  shares and the CSM ODD folders, the report folders in Inputs, the VIP manifest, the cycle period and the
+  CSM List row. "Check again" reads past them.
+- **Fewer round trips everywhere:** `rpe_env.build_artifacts` makes its folder once per process;
+  `output_decks`, `report_dirs` and `deck_status._source_reports` read each folder with one listing instead
+  of a stat per entry; launcher results are read only for clients with a launcher folder, several at once,
+  and re-read only when the file changed. The server's warm-up checks four clients at a time.
+
+Measured on Aaron's machine, same session, share calls counted in every thread (wall times swung 10x between
+runs on the share today, so the call counts are the steadier figure):
+
+| | Before | After |
+| --- | --- | --- |
+| Client list, first request | 267 calls; 34-91 s | 45 calls; 1.1-50 s (once per server start) |
+| Client list, every later request | 267 calls; 8-160 s | 0 calls; 0.00 s (4-6 ms over HTTP); rebuilt behind the page with 23-24 calls |
+| A client's status, first view | 286 calls; 6-45 s | 82-88 calls; 2-30 s (usually already done by the warm-up) |
+| A client's status, later views | 0 calls within 10 min, then 286 calls while the page waits | 0 calls (13 ms over HTTP); past 10 min shown in 66 ms while 53-88 calls re-check it behind the page |
+| "Check again" | 286 calls; 2-24 s | 97 calls; 2.6-30 s |
+
 ### 2026-09-16 — CSM Sheila shows what's new and links the change log
 
 The page header has a "What's new" menu with the five newest entries of this file (date, title and the first

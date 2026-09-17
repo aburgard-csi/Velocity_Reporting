@@ -140,7 +140,8 @@ def program_availability(cid, period, programs):
             except SystemExit:
                 pass
             try:
-                sys.path.insert(0, str(REPO / "build" / "ics_pipeline"))
+                if str(REPO / "build" / "ics_pipeline") not in sys.path:   # once, not once per check
+                    sys.path.insert(0, str(REPO / "build" / "ics_pipeline"))
                 import ics_local_sheet as ILS
                 a = ILS.available(cid, period)
             except ImportError:

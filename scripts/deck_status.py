@@ -171,10 +171,22 @@ def _source_reports(period):
     root = os.path.join(SRC_REPORTS, period)
     if not _reachable(root):
         return out
-    for am in sorted(glob.glob(os.path.join(root, "*"))):
-        if os.path.isdir(am):
-            out += [f for f in glob.glob(os.path.join(am, "*")) if os.path.isfile(f)]
+    # One listing per folder, the entry types read from the listing (2026-09-17): an isfile() per file was a
+    # round trip each on the share, 157 of them for one client's check in CSM Sheila. Dot-names are skipped,
+    # as glob("*") skipped them.
+    for am in _listed(root, dirs=True):
+        out += _listed(am, dirs=False)
     return out
+
+
+def _listed(folder, dirs):
+    """Sorted full paths of the sub-folders (dirs=True) or files in `folder`; [] when it cannot be listed."""
+    try:
+        with os.scandir(folder) as it:
+            return sorted(os.path.join(folder, e.name) for e in it
+                          if not e.name.startswith(".") and (e.is_dir() if dirs else e.is_file()))
+    except OSError:
+        return []
 
 
 # --------------------------------------------------------------- requirements

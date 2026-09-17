@@ -74,3 +74,27 @@ def test_the_delivery_dashboard_sees_a_deck_in_a_csm_folder(tmp_path):
     got = DS.built_deck("1038", "2026.09", str(out))
     assert got and got["file"] == "1038-2026.09-ARS-Sugar River ARS Results.pptx"
     assert DS.built_deck("1038", "2026.08", str(out)) is None
+
+
+def test_readers_list_each_folder_once_and_match_as_glob_did(tmp_path, monkeypatch):
+    """output_decks reads each folder with one listing (2026-09-17): on the share a stat per entry is a round
+    trip. Case folds on Windows as glob's did; a folder named like a deck is not a deck."""
+    out = tmp_path / "Outputs"
+    for rel in ("Aaron Burgard/1038-2026.09-ARS-Sugar River ARS Results.pptx",
+                "Aaron Burgard/1038-2026.09-ars-lower case ARS Results.PPTX",
+                ".hidden/1038-2026.09-ARS-Hidden ARS Results.pptx",
+                "_Archive/1038-2026.09-ARS-Sugar River ARS Results.pptx"):
+        (out / rel).parent.mkdir(parents=True, exist_ok=True)
+        (out / rel).write_bytes(b"x")
+    (out / "Aaron Burgard" / "1038-2026.09-ARS-a folder.pptx").mkdir()
+    calls = []
+    real = os.stat
+    monkeypatch.setattr(os, "stat", lambda *a, **kw: calls.append(a[0]) or real(*a, **kw))
+    got = [p.relative_to(out).as_posix() for p in R.output_decks("1038-2026.09-ARS*.pptx", root=out)]
+    want = ["Aaron Burgard/1038-2026.09-ARS-Sugar River ARS Results.pptx"]
+    if os.name == "nt":
+        want.insert(0, "Aaron Burgard/1038-2026.09-ars-lower case ARS Results.PPTX")
+    assert sorted(got) == sorted(want)
+    if os.name == "nt":
+        assert calls == [], "the listing carries each entry's type; no stat per entry"
+    assert R.output_decks("1038-*.pptx", root=tmp_path / "missing") == []
