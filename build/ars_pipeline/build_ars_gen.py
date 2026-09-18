@@ -1937,6 +1937,35 @@ if os.environ.get("RPE_JAMES_SLIDES") == "1":
         "ltd_revenue": B.get("ltd_revenue"), "assets": ASSETS})
     print(f"insight slides (RPE_JAMES_SLIDES): {len(_ins)} added -> {_ci_json}")
 
+# ---- 2b''. The analysis engine beside the build (opt-in) ----
+# test/unified-analysis (2026-09-18). OFF unless RPE_ANALYSIS=1: no slide changes, the
+# template baseline does not move. The engine (build/ars_pipeline/engine, from James
+# Gilmore's v5) reads the same ODD through the same odd_rows predicates and writes its
+# evidence to Build Artifacts/analysis/<period>/<id>/. Then the seam is checked the way
+# the James block checks its responder side: the engine must reproduce the deck's own
+# eligible base and take rate exactly, or the build stops. Two readings of one file that
+# disagree is the CoastHills Reg E defect, and this is where it would show first.
+if os.environ.get("RPE_ANALYSIS") == "1":
+    if not ODD:
+        raise SystemExit("RPE_ANALYSIS=1 needs the ODD extract argument")
+    import run_analysis as _ra
+    import rpe_env as _rpe_a
+    _wb_a = os.environ.get("RPE_JAMES_WORKBOOK", "").strip() or next(
+        (str(p) for d in _rpe_a.report_dirs()
+         for p in sorted(glob.glob(os.path.join(str(d), f"{ID}-{_per}-*Workbook*.xlsx")))
+         if "invitation checking" not in os.path.basename(str(p)).lower()), "")
+    _ar = _ra.run(ODD, ID, _per, workbook=_wb_a or None, name=NAME)
+    _fails, _lines = _ra.reconcile(_ar.metrics, M, O)
+    print(f"analysis engine (RPE_ANALYSIS): {_ar.status}, {len(_ar.warnings)} warning(s) -> "
+          f"{_ar.outputs.get('metrics', '?')}")
+    for _l in _lines:
+        print(_l)
+    if _ar.status == "error":
+        raise SystemExit("analysis engine failed: " + "; ".join(_ar.errors))
+    if _fails:
+        raise SystemExit("analysis engine does not reproduce the deck's own figures: "
+                         + "; ".join(_fails) + " — one of the two readings is wrong; fix the reader, not the deck")
+
 # Branch names on the charts (Aaron 2026-09-17): every slide that shows a
 # branch says where the names came from.
 if M.get("branch_name_of"):

@@ -20,7 +20,8 @@ from .periods import Month
 # Debit and business are read through odd_rows, the one place those rules live in the
 # pipeline (the deck's builders read the same functions). v5 accepted Y / D / DC / TRUE / 1
 # as well; every ODD seen writes Yes / No exactly, and one reading beats a wider one.
-from odd_rows import flag_yes_series as _flag_yes_series, business_class_series as _business_class_series
+from odd_rows import (flag_yes_series as _flag_yes_series, business_class_series as _business_class_series,
+                      latest_elig_col as _latest_elig_col)
 
 
 def norm(series) -> pd.Series | None:
@@ -37,6 +38,15 @@ def has_debit(df: pd.DataFrame) -> pd.Series:
     if col is None:
         return pd.Series(False, index=df.index)
     return _flag_yes_series(col)
+
+
+def is_personal(df: pd.DataFrame) -> pd.Series:
+    """odd_rows.is_personal over `Business?`: an explicit No. A blank is not personal either
+    (the deck's three-way rule), so the personal base here is the deck's personal base."""
+    col = df.get("Business?")
+    if col is None:
+        return pd.Series(False, index=df.index)
+    return _business_class_series(col).eq("personal")
 
 
 def is_business(df: pd.DataFrame) -> pd.Series:
@@ -75,6 +85,7 @@ class Subsets:
     l12m_start: pd.Timestamp = None
     funnel: list[FunnelStage] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    elig_flag_divergence_pct: float | None = None
 
     def named(self, label: str) -> pd.DataFrame:
         """Look a base up by its denominator-law label."""
@@ -106,6 +117,7 @@ class Subsets:
             "n_l12m_eligible": len(self.l12m_eligible),
             "n_responders": len(self.responders),
             "n_non_responders": len(self.non_responders),
+            "elig_flag_divergence_pct": self.elig_flag_divergence_pct,
         }
 
 
@@ -171,6 +183,29 @@ def build_subsets(df: pd.DataFrame, config: dict, anchor: Month) -> Subsets:
         mask = mask & mailable.str.upper().eq(mail_ok)
         stage("+ Mailable", int(mask.sum()), prev)
 
+    # ---- The eligibility of record is the ODD's own flag ------------------------
+    # The deck reads `<Mon><yy> Elig` = Yes (odd_rows.is_eligible), and so does the pack's
+    # funnel count; the ARS database sets that flag from the same code tables the config
+    # funnel above applies. So when the extract carries the flag it is the base, and the
+    # config-derived funnel becomes a reconciliation: `elig_flag_divergence_pct` says how far
+    # the two readings are apart, and a warning fires above 2%. Only an extract with no
+    # Elig column (a non-ARS dump) falls back to the config funnel.
+    elig_flag_divergence_pct = None
+    elig_col = _latest_elig_col(df.columns)
+    if elig_col is not None:
+        flag = _flag_yes_series(df[elig_col])
+        n_cfg, n_flag = int(mask.sum()), int(flag.sum())
+        stage("ODD Elig flag (of record)", n_flag, len(open_accounts))
+        if n_flag:
+            elig_flag_divergence_pct = round(100.0 * abs(n_cfg - n_flag) / n_flag, 1)
+            if elig_flag_divergence_pct > 2.0:
+                warnings.append(f"config funnel ({n_cfg:,}) and the ODD's Elig flag ({n_flag:,}) "
+                                f"differ by {elig_flag_divergence_pct}%; the flag is the base, "
+                                f"check the code tables")
+        mask = flag
+    else:
+        warnings.append("no Elig column in the extract; eligibility is the config funnel")
+
     eligible = df[mask]
     if not len(eligible):
         warnings.append("eligible set is empty; check status and product codes "
@@ -178,7 +213,8 @@ def build_subsets(df: pd.DataFrame, config: dict, anchor: Month) -> Subsets:
 
     # ---- Personal / business ------------------------------------------
     biz = is_business(df)
-    eligible_personal = eligible[~biz.reindex(eligible.index, fill_value=False)]
+    per = is_personal(df)
+    eligible_personal = eligible[per.reindex(eligible.index, fill_value=False)]    # explicit No only
     eligible_business = eligible[biz.reindex(eligible.index, fill_value=False)]
 
     # ---- Debit ---------------------------------------------------------
@@ -219,6 +255,7 @@ def build_subsets(df: pd.DataFrame, config: dict, anchor: Month) -> Subsets:
         responders=responders, non_responders=non_responders,
         anchor=anchor, l12m_start=l12m_start,
         funnel=funnel, warnings=warnings,
+        elig_flag_divergence_pct=elig_flag_divergence_pct,
     )
 
 

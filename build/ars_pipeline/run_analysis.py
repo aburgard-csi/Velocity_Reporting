@@ -201,6 +201,42 @@ def run(odd, client_id, period, workbook=None, out_dir=None, name=None, txn=True
     return result
 
 
+# ---- reconciliation with the deck's own figures ------------------------------------------
+# Only measures whose DEFINITIONS are identical on both sides can fail a build: the eligible
+# base (the ODD flag, all rows) against the pack's funnel; eligible personal against
+# metrics_gen's n_eligible (flag + Business? = No); the personal take rate against
+# overall_take (cards / eligible personal). The rest are reported: their bases differ by
+# design (his Reg E pool is open personal card holders; the engine's is eligible ones).
+MUST_MATCH = (
+    ("n_eligible", "pack funnel eligible", lambda E, M, O: (E.get("n_eligible"), (O.get("funnel") or {}).get("eligible")), 0),
+    ("n_eligible_personal", "M n_eligible", lambda E, M, O: (E.get("n_eligible_personal"), M.get("n_eligible")), 0),
+    ("dctr_personal", "M take_hist_pct", lambda E, M, O: (E.get("dctr_personal"), M.get("take_hist_pct")), 0.15),
+)
+REPORT_ONLY = (
+    ("rege_pct", "M rege_pct", lambda E, M, O: (E.get("rege_pct"), M.get("rege_pct"))),
+    ("n_responders", "M n_responders", lambda E, M, O: (E.get("n_responders"), M.get("n_responders"))),
+)
+
+
+def reconcile(engine_metrics, M, O):
+    """-> (failures, report lines). A failure is a MUST_MATCH measure whose two values differ
+    beyond its tolerance; a value missing on either side is reported, never a failure."""
+    fails, lines = [], []
+    for key, other, pick, tol in MUST_MATCH:
+        a, b = pick(engine_metrics or {}, M or {}, O or {})
+        if a is None or b is None:
+            lines.append(f"  {key:<22} engine {a!s:>10}  deck {b!s:>10}  (not compared)")
+            continue
+        ok = abs(float(a) - float(b)) <= tol
+        lines.append(f"  {key:<22} engine {a!s:>10}  deck {b!s:>10}  {'ok' if ok else 'DRIFT'} vs {other}")
+        if not ok:
+            fails.append(f"{key}: engine {a} vs {other} {b}")
+    for key, other, pick in REPORT_ONLY:
+        a, b = pick(engine_metrics or {}, M or {}, O or {})
+        lines.append(f"  {key:<22} engine {a!s:>10}  deck {b!s:>10}  (bases differ; reported)")
+    return fails, lines
+
+
 def _txn_dirs(client_id):
     """Inputs/Txn Files/<id>/ when it holds files, else []. Resolved through rpe_env."""
     try:
