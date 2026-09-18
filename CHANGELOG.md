@@ -17,6 +17,57 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-18 — The v5 analysis engine beside the build, opt-in (`RPE_ANALYSIS=1`, `RPE_ANALYSIS_SLIDES=1`)
+
+**Branch `test/unified-analysis` only; not for delivery.** James Gilmore: "create a new branch
+which creates the optimized and complete analysis." Without either flag no deck changes and the
+template baseline does not move. Every commit on the branch starts with `TEST:`.
+
+**One reading per rule, first.** Ten files each chose which .csv inside an ODDD zip is the
+ODD, and they disagreed (the pack matched the upper-case name only and fell back to the FIRST
+member; the deck readers matched any case and fell back to the largest). Nine files compared
+the `Debit?`, `Business?` and `Elig` columns to a literal, four of them case-sensitively. Both
+are now one function each in `odd_rows` (`odd_member` / `open_odd` / `odd_source` /
+`extract_odd`; `flag_yes`, `has_debit`, `is_eligible`, `is_business`, `is_personal`,
+`business_class`, `latest_elig_col`, and `rege_state` for Reg E), every reader calls them, and
+`tests/test_odd_source.py` and `tests/test_odd_predicates.py` fail if a second copy appears.
+Two figures moved by this: the pack's `Eligible =` and `Enrolled =` counts now read Yes in any
+case, as the deck always did.
+
+**The engine.** `build/ars_pipeline/engine/` is James's v5 analysis engine as one package: the
+ODD transform, the subset layer (every denominator built once), account facts and conditions,
+the ODD sections (`monthly_analysis/metrics.SECTIONS`, minus ICS and deposits), the
+transaction sections, the workbook and 2:1 tracker readers, and the metrics-to-text helpers.
+`run_analysis.py` runs it on the ODD the build already reads and on `Inputs/Txn Files/<id>/`
+through `rpe_env.open_txn`, and writes evidence to `Build Artifacts/analysis/<period>/<id>/`
+(`metrics.json`, `txn_metrics.json`, `enriched.parquet`, `report.md`, the tables, a manifest).
+The client record comes from the ARS code tables and the workbook's Key Assumptions
+(`engine_config.py`); a client absent from the tables gets skipped funnel stages with a
+warning, never zeros; a missing NSF fee is left absent.
+
+**The ODD's own `Elig` flag is the eligibility of record in the engine**, as it is the deck's
+and the pack's; the code-derived funnel is published as `elig_flag_divergence_pct` and warns
+above 2%. The engine's personal base is the deck's three-way reading (an explicit No). With
+that, under `RPE_ANALYSIS=1` `build_ars_gen` runs the engine after the James block and
+**stops the build** when the engine's eligible base, eligible personal base or personal take
+rate differ from `metrics_gen`'s and the pack's (`run_analysis.reconcile`). Reg E and
+responders are reported, not compared: their bases differ by design (open personal card
+holders on the deck; eligible ones in the engine). The Reg E section reports wording no
+mapping covers as a POSSIBLE DATA ISSUE and keeps it as its own state.
+
+**Nine slides, with `RPE_ANALYSIS_SLIDES=1` as well** (`ti_slides.py`, `ti_charts.py`), James's
+Transaction Intelligence chapter by name, placed before "Reg E Review": How the money moves ·
+Where the money goes · Their financial life · Who they pay · What leakers hold with us · Who
+competes for our members · Which competitors to work first · Where the outflow goes · How
+members spend. Each has a source note naming the files, the rows and the ODD join; every tile
+is in the figure sidecar; a view with no rows says so on the slide. A client with no
+transaction folder gets none, and a line saying why.
+
+Not in this branch: ICS behaviour views, the deposits file, the market scan, ILS, CashPlease's
+v5 side, and the four ODD-depth slides (they overlap the James views; one health classifier
+first). Tests: `test_engine_imports.py`, `test_engine_config.py`, `test_run_analysis.py`,
+`test_engine_reconciliation.py`, `test_engine_guards.py`, `test_ti_slides.py`.
+
 ### 2026-09-17 — A branch named Marshall is not March (correction)
 
 `periods.parse_month` accepted any 3-9 letter word with a year and checked only its first three

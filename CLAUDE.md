@@ -908,6 +908,14 @@ This is the readme index — update it whenever files are added, removed, or mov
   take rate and Reg E by branch, Branch Scorecard with number and name, ARS scorecard), merged from
   `test/james-aaron-combined` 2026-09-17 and still OPT-IN: `build_ars_gen` adds them only when
   `RPE_JAMES_SLIDES=1`.
+- `engine/` — James Gilmore's v5 analysis engine as one package (`core/`, `monthly_analysis/`,
+  `transaction_intelligence/`, `text/`, `config/`), branch `test/unified-analysis` 2026-09-18.
+  Reads every shared classification through `odd_rows`; writes no slide. `run_analysis.py` runs
+  it on the ODD and `Inputs/Txn Files/<id>/` and writes evidence to `Build Artifacts/analysis/`;
+  `engine_config.py` builds its client record from the ARS code tables and the workbook;
+  `ti_slides.py` / `ti_charts.py` are the nine Transaction Intelligence views. OPT-IN:
+  `RPE_ANALYSIS=1` runs the engine and stops the build if it does not reproduce the deck's
+  figures; `RPE_ANALYSIS_SLIDES=1` adds the nine slides. See CHANGELOG 2026-09-18.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

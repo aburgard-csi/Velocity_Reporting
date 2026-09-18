@@ -202,3 +202,11 @@ FNBT Chickasha (1537) has an entirely empty `DOB` column, so the Responder Age P
 source. `metrics_gen` sets `age_missing` (no divide-by-zero, no 0%) and the builder states that
 age isn't carried in the extract. Fix at source: re-pull the ODD with DOB, or source age from
 core/VIP. Do not fabricate the band mix.
+
+## The analysis engine (branch `test/unified-analysis`, opt-in)
+`RPE_ANALYSIS=1` runs James Gilmore's v5 engine (`build/ars_pipeline/engine`) beside the build
+and stops it when the engine's eligible base or take rate differs from the deck's own; its
+evidence lands in `Build Artifacts/analysis/<period>/<id>/`. `RPE_ANALYSIS_SLIDES=1` also adds
+the nine Transaction Intelligence slides from `Inputs/Txn Files/<id>/`. Neither flag is set on
+the monthly run. If the engine stops a build, the two readings of one file disagree: fix the
+reader (`odd_rows` or the engine), never the deck.
