@@ -48,7 +48,7 @@ for _p in (HERE, os.path.join(HERE, os.pardir)):
         sys.path.insert(0, _p)
 
 import before_after as BA                                               # noqa: E402
-from odd_rows import accessors, rege_label, REGE_IN, REGE_OUT           # noqa: E402
+from odd_rows import accessors, rege_label, open_odd, REGE_IN, REGE_OUT  # noqa: E402
 
 csv.field_size_limit(10 ** 7)
 
@@ -77,16 +77,12 @@ def mkey(token):
 # ============================================================== reading the ODD
 def _open_lines(path):
     """Decoded lines of the ODD member of a zip (never the transaction file some zips also
-    carry — the same selection metrics_gen makes), or of a plain CSV."""
-    if path.lower().endswith(".zip"):
-        zf = zipfile.ZipFile(path)
-        csvs = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        if not csvs:
-            raise SystemExit(f"ERROR: no .csv inside {path}")
-        odd = [n for n in csvs if "-odd" in n.lower() or "_v2_" in n.lower()]
-        name = odd[0] if odd else max(csvs, key=lambda n: zf.getinfo(n).file_size)
-        return io.TextIOWrapper(zf.open(name), encoding="latin-1", errors="replace", newline="")
-    return open(path, encoding="latin-1", errors="replace", newline="")
+    carry), or of a plain CSV. The member is odd_rows.odd_member's decision, the same one
+    metrics_gen makes, because it is the same function."""
+    try:
+        return open_odd(path)[0]
+    except FileNotFoundError as e:
+        raise SystemExit(f"ERROR: {e}")
 
 
 def read_odd(path):

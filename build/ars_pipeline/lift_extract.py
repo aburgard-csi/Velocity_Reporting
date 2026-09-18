@@ -27,28 +27,21 @@ VAL_MONTHS = 12    # segment values reflect the last 12 months of activity
 
 
 def open_source(src):
-    """Return a factory yielding a fresh text stream over the ODD csv."""
-    if src.lower().endswith(".zip"):
-        zf = zipfile.ZipFile(src)
-        members = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        if not members:
-            raise SystemExit(f"ERROR: no .csv inside {src}")
-        # Some ODDD zips also carry the raw monthly transaction file, which is
-        # also a .csv — pick the ODD extract, not the transaction dump.
-        odd = [n for n in members if "-odd" in n.lower() or "_v2_" in n.lower()]
-        member = odd[0] if odd else max(
-            members, key=lambda n: zf.getinfo(n).file_size)
+    """Return a factory yielding a fresh NUL-stripped text stream over the ODD csv.
 
-        def factory():
-            raw = io.TextIOWrapper(zf.open(member), encoding="utf-8",
-                                   errors="replace", newline="")
-            return (line.replace("\0", "") for line in raw)
-        return factory, os.path.basename(member)
+    Which zip member is the ODD (some zips also carry the transaction file) is
+    odd_rows.odd_member's decision, shared by every reader. utf-8 is kept here as it
+    was; the deck readers decode latin-1, and that difference is a separate matter.
+    """
+    from odd_rows import odd_source
+    try:
+        raw_factory, base = odd_source(src, encoding="utf-8")
+    except FileNotFoundError as e:
+        raise SystemExit(f"ERROR: {e}")
 
     def factory():
-        raw = open(src, encoding="utf-8", errors="replace", newline="")
-        return (line.replace("\0", "") for line in raw)
-    return factory, os.path.basename(src)
+        return (line.replace("\0", "") for line in raw_factory())
+    return factory, base
 
 
 def find_header(factory):

@@ -447,17 +447,18 @@ def extract_odd_csv(zip_path, prefix: str = "oddd_") -> str:
     """Extract ONLY the ODD extract from an ODDD zip into a `temp_dir`, and return its path.
 
     Several zips also carry the month's transaction file as a .csv, sometimes the larger of the two,
-    so the ODD member is chosen by name ("-odd" or "_v2_") and only falls back to the largest .csv.
+    so the ODD member is chosen by name and only falls back to the largest .csv.
     Extracting the whole zip wrote the transaction file to disk too, for nothing.
     """
-    import zipfile
-    with zipfile.ZipFile(zip_path) as z:
-        members = [i for i in z.infolist() if i.filename.lower().endswith(".csv") and not i.is_dir()]
-        if not members:
-            raise FileNotFoundError(f"no .csv inside {zip_path}")
-        named = [i for i in members if "-odd" in Path(i.filename).name.lower() or "_v2_" in Path(i.filename).name.lower()]
-        pick = named[0] if named else max(members, key=lambda i: i.file_size)
-        return z.extract(pick, temp_dir(prefix))
+    # Which member is the ODD is odd_rows.odd_member's decision, shared by every reader.
+    # odd_rows lives in the ARS pipeline (the ODD is an ARS input); imported here lazily so
+    # this shared module never depends on it at import time.
+    import sys
+    _ars = str(REPO_ROOT / "build" / "ars_pipeline")
+    if _ars not in sys.path:
+        sys.path.append(_ars)
+    from odd_rows import extract_odd
+    return extract_odd(zip_path, temp_dir(prefix))
 
 
 # Analysis output written beside the data (1441's output_txn/), not transaction files.

@@ -11,7 +11,7 @@ import collections, io, json, sys, zipfile
 import pandas as pd
 
 from common import R, work_dir  # noqa: E402
-from odd_rows import status_class  # noqa: E402
+from odd_rows import status_class, odd_member  # noqa: E402
 
 S = work_dir()
 ODDD = R.inputs() / "ODDD"
@@ -23,8 +23,9 @@ for cid in ids:
     if not z.exists():
         continue
     zf = zipfile.ZipFile(z)
-    member = next((n for n in zf.namelist() if "-ODD" in n or "_v2_" in n.lower()), None)
-    if not member:
+    try:
+        member = odd_member(zf)          # the one rule for which member is the ODD
+    except FileNotFoundError:
         continue
     # The flag is part of the product mapping on the client's code sheet (Aaron, 2026-09-15), so count
     # by product code: that is the row a CSM corrects. Only accounts that could be eligible count: a

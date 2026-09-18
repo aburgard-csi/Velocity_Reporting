@@ -127,7 +127,7 @@ def norm_text(series):
 # The wording rules themselves live in build/ars_pipeline/odd_rows.rege_label, the one
 # definition metrics_gen also reads (2026-09-16: the two had drifted apart).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "build", "ars_pipeline"))
-from odd_rows import rege_label, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
+from odd_rows import rege_label, odd_source, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
 
 
 def classify_rege(series):
@@ -187,26 +187,14 @@ def open_source(src):
     .zip we stream the single CSV member directly (pandas decompresses on the fly —
     no full CSV is ever written to disk), which is faster and lighter than unzipping.
     """
-    if src.lower().endswith(".zip"):
-        zf = zipfile.ZipFile(src)
-        members = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        if not members:
-            raise SystemExit(f"ERROR: no .csv inside {src}")
-        # Prefer the ODD dump if several CSVs are bundled.
-        member = next((m for m in members if "-ODD" in os.path.basename(m)), members[0])
-        base = os.path.basename(member)
-
-        def factory():
-            return io.TextIOWrapper(zf.open(member), encoding="latin-1", newline="")
-
-        return factory, base
-
-    base = os.path.basename(src)
-
-    def factory():
-        return open(src, "r", encoding="latin-1", newline="")
-
-    return factory, base
+    # Which member is the ODD (several zips also carry the transaction file) is
+    # odd_rows.odd_member's decision, the same one the deck's readers make. This file
+    # used to match the upper-case spelling only and fall back to the FIRST member, so a
+    # lower-case ODD member was read by the deck and skipped by the pack (2026-09-18).
+    try:
+        return odd_source(src)
+    except FileNotFoundError as e:
+        raise SystemExit(f"ERROR: {e}")
 
 
 def find_header_row(stream_factory):

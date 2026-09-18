@@ -7,25 +7,17 @@ F=sys.argv[1]
 # name carries the pull stamp "(MMDDYY_HHMMSS)" that month_complete reads.
 _SRC_NAME=__import__('os').path.basename(F)
 def _linesrc(path):
-    """Decoded latin-1 lines from a .zip (in-stream) or plain CSV.
-
-    Several ODDD zips carry the raw monthly transaction file as a SECOND .csv
-    (1038, 1549, ...). Taking the first .csv picks that transaction dump instead
-    of the ODD extract, and metrics_gen then dies with
-    'itemgetter expected 1 argument, got 0' because no expected column matches.
-    Select the ODD member by name; fall back to the largest .csv.
-    """
-    if path.lower().endswith('.zip'):
-        import zipfile, io
-        zf=zipfile.ZipFile(path)
-        _csvs=[n for n in zf.namelist() if n.lower().endswith('.csv')]
-        if not _csvs: raise SystemExit(f'ERROR: no .csv inside {path}')
-        _odd=[n for n in _csvs if '-odd' in n.lower() or '_v2_' in n.lower()]
-        name=_odd[0] if _odd else max(_csvs,key=lambda n: zf.getinfo(n).file_size)
-        global _SRC_NAME
-        _SRC_NAME=name
-        return io.TextIOWrapper(zf.open(name),encoding='latin-1',errors='replace',newline='')
-    return open(path,encoding='latin-1',errors='replace')
+    """Decoded latin-1 lines of the ODD extract: the ODD member of a .zip (in-stream) or
+    the plain CSV. Which member IS the ODD is odd_rows.odd_member's decision, shared by
+    every reader; this file used to carry its own copy of that rule (2026-09-18)."""
+    from odd_rows import open_odd
+    try:
+        fh, name = open_odd(path)
+    except FileNotFoundError as e:
+        raise SystemExit(f'ERROR: {e}')
+    global _SRC_NAME
+    _SRC_NAME=name
+    return fh
 
 def _latest_month(hdr):
     """Latest monthly column present, e.g. 'Jul26'. Derived per extract — the

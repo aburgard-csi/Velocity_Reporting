@@ -44,7 +44,7 @@ for _p in (REPO / "build", REPO / "build" / "ars_pipeline"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 import rpe_env as R                                              # noqa: E402
-from odd_rows import accessors, status_class                     # noqa: E402
+from odd_rows import accessors, status_class, odd_member as _odd_member  # noqa: E402
 
 OVERVIEW_VERSION = "3"      # bump when a definition changes, so cached results are recomputed
 _SIG_RX = re.compile(r"^([A-Z][a-z]{2}\d{2}) Sig #$")
@@ -53,14 +53,12 @@ _DATE_FORMATS = ("%m/%d/%Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%y")   # me
 
 
 def odd_member(zf):
-    """The ODD extract inside a zip. Some zips also carry the monthly transaction file as a
-    second CSV (1038, 1549): pick by name ("-odd" or "_v2_"), else the largest CSV — the rule
-    metrics_gen._linesrc uses."""
-    csvs = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-    if not csvs:
-        raise ValueError("no .csv inside the zip")
-    named = [n for n in csvs if "-odd" in n.lower() or "_v2_" in n.lower()]
-    return named[0] if named else max(csvs, key=lambda n: zf.getinfo(n).file_size)
+    """The ODD extract inside a zip: odd_rows.odd_member's decision, the rule every reader
+    shares. Raised as ValueError here because that is what this file's callers catch."""
+    try:
+        return _odd_member(zf)
+    except FileNotFoundError as e:
+        raise ValueError(str(e))
 
 
 def _month_start(d, back):

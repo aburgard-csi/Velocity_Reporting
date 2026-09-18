@@ -41,7 +41,7 @@ import zipfile
 import os
 
 import before_after
-from odd_rows import accessors
+from odd_rows import accessors, open_odd
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
 import month_complete  # noqa: E402  (build/)
@@ -65,16 +65,10 @@ SOURCE_NAME = [None]   # the ODD member read, whose name carries the pull stamp
 
 
 def linesrc(path):
-    if path.lower().endswith(".zip"):
-        zf = zipfile.ZipFile(path)
-        members = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        odd = [n for n in members if "-odd" in n.lower() or "_v2_" in n.lower()]
-        name = odd[0] if odd else max(members,
-                                      key=lambda n: zf.getinfo(n).file_size)
-        SOURCE_NAME[0] = name
-        return io.TextIOWrapper(zf.open(name), encoding="latin-1",
-                                errors="replace", newline="")
-    return open(path, encoding="latin-1", errors="replace")
+    """The ODD extract's lines; which zip member that is, is odd_rows.odd_member's decision."""
+    fh, name = open_odd(path)
+    SOURCE_NAME[0] = name
+    return fh
 
 
 def load(path):

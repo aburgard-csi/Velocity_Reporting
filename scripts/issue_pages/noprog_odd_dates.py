@@ -10,6 +10,7 @@ import csv, datetime, json, os, re, zipfile
 
 from common import R, work_dir  # noqa: E402
 import deck_status as DS  # noqa: E402
+from odd_rows import odd_member  # noqa: E402
 
 S = work_dir()
 d = json.load(open(S / "gaps.json", encoding="utf-8"))
@@ -26,7 +27,10 @@ for cid in ids:
         rec["inputs_copied"] = datetime.datetime.fromtimestamp(z.stat().st_mtime).strftime("%Y-%m-%d")
         zf = zipfile.ZipFile(z)
         mem = [n for n in zf.namelist() if not n.endswith("/")]
-        odd = next((n for n in mem if "-ODD" in n or "_v2_" in n.lower()), None)
+        try:
+            odd = odd_member(zf)         # the one rule for which member is the ODD
+        except FileNotFoundError:
+            odd = None
         rec["files"] = len(mem)
         if odd:
             info = zf.getinfo(odd)

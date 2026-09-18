@@ -93,25 +93,17 @@ def num(s):
 
 
 def _open_source(src):
-    """Yield a fresh text stream over the ODD csv (mirrors lift_extract)."""
-    if src.lower().endswith(".zip"):
-        zf = zipfile.ZipFile(src)
-        members = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        if not members:
-            raise SystemExit(f"ERROR: no .csv inside {src}")
-        odd = [n for n in members if "-odd" in n.lower() or "_v2_" in n.lower()]
-        member = odd[0] if odd else max(members, key=lambda n: zf.getinfo(n).file_size)
-
-        def factory():
-            raw = io.TextIOWrapper(zf.open(member), encoding="utf-8",
-                                   errors="replace", newline="")
-            return (line.replace("\0", "") for line in raw)
-        return factory, os.path.basename(member)
+    """Yield a fresh NUL-stripped text stream over the ODD csv (mirrors lift_extract).
+    Which zip member is the ODD is odd_rows.odd_member's decision."""
+    from odd_rows import odd_source
+    try:
+        raw_factory, base = odd_source(src, encoding="utf-8")
+    except FileNotFoundError as e:
+        raise SystemExit(f"ERROR: {e}")
 
     def factory():
-        raw = open(src, encoding="utf-8", errors="replace", newline="")
-        return (line.replace("\0", "") for line in raw)
-    return factory, os.path.basename(src)
+        return (line.replace("\0", "") for line in raw_factory())
+    return factory, base
 
 
 def _find_header(factory):

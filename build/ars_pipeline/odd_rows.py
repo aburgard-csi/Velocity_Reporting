@@ -29,8 +29,67 @@ Usage:
     if odd.personal(row) and odd.hascard(row):
         n += odd.swipes(row, "Jul26")
 """
+import io
+import os
 import re
+import zipfile
 from types import SimpleNamespace
+
+
+# ---------------------------------------------------------------- the ODD member
+# ONE rule for which file inside an ODDD zip is the ODD extract. Several zips also carry
+# the month's transaction file as a second .csv (1038, 1549, ...), sometimes the larger of
+# the two; taking the first or the largest .csv reads the transaction dump instead and
+# metrics_gen dies with 'itemgetter expected 1 argument, got 0'. Ten files each carried
+# their own version of this rule and they disagreed (oddd_optimize matched "-ODD" in one
+# case only and fell back to the FIRST member; the issue pages gave up without a fallback),
+# so a zip whose ODD member is named in lower case would have been read by the deck and
+# skipped by the pack. Pick by name ("-odd" or "_v2_", case-insensitive), else the
+# largest .csv. `tests/test_odd_source.py` fails if the literal reappears anywhere else.
+_ODD_NAME_MARKS = ("-odd", "_v2_")
+
+
+def odd_member(zf):
+    """The ODD extract member of an open ZipFile. Raises FileNotFoundError when it has no .csv."""
+    members = [i for i in zf.infolist() if i.filename.lower().endswith(".csv") and not i.is_dir()]
+    if not members:
+        raise FileNotFoundError(f"no .csv inside {getattr(zf, 'filename', zf)}")
+    named = [i for i in members
+             if any(mark in os.path.basename(i.filename).lower() for mark in _ODD_NAME_MARKS)]
+    pick = named[0] if named else max(members, key=lambda i: i.file_size)
+    return pick.filename
+
+
+def odd_source(path, encoding="latin-1"):
+    """-> (factory, source_name). factory() opens a FRESH decoded text stream over the ODD
+    extract: the member of a .zip, read in place and never extracted, or the plain file.
+    `source_name` is the file's basename, whose "(MMDDYY_HHMMSS)" stamp month_complete reads."""
+    path = str(path)
+    if path.lower().endswith(".zip"):
+        zf = zipfile.ZipFile(path)
+        member = odd_member(zf)
+
+        def factory():
+            return io.TextIOWrapper(zf.open(member), encoding=encoding, errors="replace", newline="")
+        return factory, os.path.basename(member)
+
+    def factory():
+        return open(path, encoding=encoding, errors="replace", newline="")
+    return factory, os.path.basename(path)
+
+
+def open_odd(path, encoding="latin-1"):
+    """-> (open text handle, source_name). One-shot form of `odd_source`."""
+    factory, name = odd_source(path, encoding=encoding)
+    return factory(), name
+
+
+def extract_odd(path, out_dir):
+    """Extract ONLY the ODD member of a zip into `out_dir` and return its path. The other
+    members (the transaction file) are never written to disk."""
+    with zipfile.ZipFile(str(path)) as zf:
+        return zf.extract(odd_member(zf), str(out_dir))
+
 
 # ---------------------------------------------------------------- Reg E election
 # ONE reading of the `<Mon> Reg E Desc` wording, shared by oddd_optimize (the pack and

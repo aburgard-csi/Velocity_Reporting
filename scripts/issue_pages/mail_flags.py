@@ -11,6 +11,7 @@ import collections, io, json, sys, zipfile
 import pandas as pd
 
 from common import R, work_dir  # noqa: E402
+from odd_rows import odd_member  # noqa: E402
 
 S = work_dir()
 ODDD = R.inputs() / "ODDD"
@@ -22,8 +23,9 @@ for cid in ids:
     if not z.exists():
         continue
     zf = zipfile.ZipFile(z)
-    member = next((n for n in zf.namelist() if "-ODD" in n or "_v2_" in n.lower()), None)
-    if not member:
+    try:
+        member = odd_member(zf)          # the one rule for which member is the ODD
+    except FileNotFoundError:
         continue
     counts, total = collections.Counter(), 0
     try:
