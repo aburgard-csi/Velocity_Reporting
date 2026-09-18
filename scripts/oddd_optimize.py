@@ -127,7 +127,7 @@ def norm_text(series):
 # The wording rules themselves live in build/ars_pipeline/odd_rows.rege_label, the one
 # definition metrics_gen also reads (2026-09-16: the two had drifted apart).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "build", "ars_pipeline"))
-from odd_rows import rege_label, odd_source, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
+from odd_rows import rege_label, odd_source, flag_yes, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
 
 
 def classify_rege(series):
@@ -386,8 +386,9 @@ def main():
                      if k not in (REGE_IN, REGE_OUT, REGE_DEFAULT)}
     optin_base = accepted + declined
     optin_rate = (accepted / optin_base * 100) if optin_base else 0.0
-    eligible = counts["Elig"].get("Yes", 0)
-    enrolled = counts["Prog"].get("Yes", 0)
+    # Yes in any case, the reading every deck reader shares (odd_rows.flag_yes)
+    eligible = sum(v for k, v in counts["Elig"].items() if flag_yes(k))
+    enrolled = sum(v for k, v in counts["Prog"].items() if flag_yes(k))
     open_ct = status_ct.get("Open", 0)
 
     metrics = {

@@ -85,7 +85,7 @@ OFFER_GOAL={'NU':5,'TH-10':10,'TH-15':15,'TH-20':20,'TH-25':25}
 RESP_GOAL={'NU 5+':5,'TH-10':10,'TH-15':15,'TH-20':20,'TH-25':25}
 TIER_ORDER=['NU 5+','TH-10','TH-15','TH-20','TH-25']
 swipes=_odd.swipes; spend=_odd.spend; nsf=_odd.nsf
-hascard=_odd.hascard; isopen=_odd.isopen; personal=_odd.personal
+hascard=_odd.hascard; isopen=_odd.isopen; personal=_odd.personal; iselig=_odd.iselig
 # strptime dominated this script: 3.8M calls, ~24s of a 100s run, almost all of it
 # re-parsing the same handful of date strings. Cache on the STRING (not on the row) — a
 # few thousand distinct dates, and no dependence on row object identity.
@@ -147,7 +147,7 @@ def _data_issue(what, detail=""):
                      "extract with the data team, then rebuild."
                      % (_os.path.basename(F), what, (" " + detail) if detail else ""))
 # cohorts
-elig=[r for r in data if personal(r) and g(r,f'{LATEST} Elig')=='Yes']
+elig=[r for r in data if personal(r) and iselig(r)]   # the ODD's own Elig flag, read through odd_rows
 # HISTORICAL response cohort — every personal account, NOT filtered by current
 # eligibility. Counting a past mailing's responders through the `{LATEST} Elig`
 # snapshot is a survivorship filter: it silently drops anyone who responded and has

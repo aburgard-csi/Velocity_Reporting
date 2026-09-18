@@ -91,6 +91,88 @@ def extract_odd(path, out_dir):
         return zf.extract(odd_member(zf), str(out_dir))
 
 
+# ---------------------------------------------------------------- the flag columns
+# ONE reading of the ODD's yes/no columns: `Debit?`, `Business?`, `Mailable?` and the
+# `<Mon><yy> Elig` snapshot. Nine files compared these to a literal; most read "Yes" in
+# any case, but product_mix_slide, build_ars_gen, build_lift_matrix and
+# excluded_accounts_slide compared to "Yes" exactly, so a core writing YES would have
+# been eligible on one slide and not the next (2026-09-18). A blank `Business?` is
+# NEITHER personal nor business (the rule product_mix_slide settled, see below).
+# `tests/test_odd_predicates.py` fails if a flag column is compared to a literal
+# anywhere else, and pins the row accessors below to these scalars.
+_MON_ELIG_RE = re.compile(r"^([A-Z][a-z]{2})(\d{2}) Elig$")
+_MIDX = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
+
+
+def _flag(v):
+    return str(v if v is not None else "").replace("\x00", "").strip().lower()
+
+
+def flag_yes(v):
+    """True for 'Yes' in any case, with NULs and whitespace ignored; False for anything else."""
+    return _flag(v) == "yes"
+
+
+def has_debit(v):
+    """`Debit?` = Yes."""
+    return _flag(v) == "yes"
+
+
+def is_eligible(v):
+    """The ODD's own `<Mon><yy> Elig` flag = Yes: the eligibility of record for every
+    published figure. A config-derived funnel may reconcile against it, never replace it."""
+    return _flag(v) == "yes"
+
+
+def is_business(v):
+    """`Business?` = Yes. A blank is not business."""
+    return _flag(v) == "yes"
+
+
+def is_personal(v):
+    """`Business?` = No. A blank is not personal either."""
+    return _flag(v) == "no"
+
+
+def business_class(v):
+    """-> 'business' | 'personal' | 'other' (blank or anything unmapped)."""
+    f = _flag(v)
+    return "business" if f == "yes" else "personal" if f == "no" else "other"
+
+
+def _flag_series(s):
+    return (s.astype(object).where(s.notna(), "").astype(str)
+             .str.replace("\x00", "", regex=False).str.strip().str.lower())
+
+
+def flag_yes_series(s):
+    """`flag_yes` over a pandas Series (NaN and NA read as neither)."""
+    return _flag_series(s).eq("yes")
+
+
+def business_class_series(s):
+    """`business_class` over a pandas Series."""
+    f = _flag_series(s)
+    out = f.map(lambda x: "business" if x == "yes" else "personal" if x == "no" else "other")
+    return out.astype(object)
+
+
+def latest_elig_col(columns):
+    """The newest '<Mon><yy> Elig' column among `columns`, by DATE. Sorting the names as
+    text puts Aug25 after Jul26; the snapshot month moves with every pull, so it is
+    derived per extract and never hardcoded. None when the extract carries no Elig column
+    (a non-ARS dump)."""
+    best = None
+    for c in columns:
+        m = _MON_ELIG_RE.match(str(c).strip())
+        if m:
+            key = (2000 + int(m.group(2))) * 12 + _MIDX[m.group(1)]
+            if best is None or key > best[0]:
+                best = (key, str(c).strip())
+    return best[1] if best else None
+
+
 # ---------------------------------------------------------------- Reg E election
 # ONE reading of the `<Mon> Reg E Desc` wording, shared by oddd_optimize (the pack and
 # its unmapped-value flags) and metrics_gen (every Reg E figure in the deck). There
@@ -306,6 +388,7 @@ def accessors(H):
     _i_debit = _hget("Debit?")
     _i_stat = _hget("Stat Desc")
     _i_code = _hget("Stat Code")
+    _i_elig = _hget(latest_elig_col(H))     # newest '<Mon><yy> Elig' in this header, by date
     _open_lower = frozenset(s.lower() for s in OPEN_STATUSES)
     # Only resolved when the extract carries Stat Code; importing oddd_optimize is not free.
     _open_codes = frozenset(_code_sets()[0]) if _i_code is not None else frozenset()
@@ -331,6 +414,12 @@ def accessors(H):
         i = _i_debit
         return (r[i].strip().lower() == "yes") if i is not None and i < len(r) else False
 
+    def iselig(r):
+        """The ODD's own eligibility flag for the snapshot month, 'Yes' in any case.
+        False when the extract carries no Elig column (a non-ARS dump)."""
+        i = _i_elig
+        return (r[i].strip().lower() == "yes") if i is not None and i < len(r) else False
+
     def isopen(r):
         """Open by Stat Desc, compared case-insensitively; by Stat Code only when the
         description is blank, using the Aaron-confirmed STAT_CODE_MAP (O / A = Open).
@@ -351,5 +440,5 @@ def accessors(H):
 
     return SimpleNamespace(
         g=g, fnum=fnum, swipes=swipes, spend=spend, nsf=nsf,
-        personal=personal, business=business, hascard=hascard, isopen=isopen,
+        personal=personal, business=business, hascard=hascard, isopen=isopen, iselig=iselig,
     )

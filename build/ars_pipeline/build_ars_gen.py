@@ -245,9 +245,10 @@ if ODD:
     d = pd.concat(frames, ignore_index=True)
     for c in d.columns: d[c] = d[c].fillna('').str.replace('\x00', '', regex=False).str.strip()
     d['do'] = pd.to_datetime(d['Date Opened'], format='%m/%d/%Y', errors='coerce')
-    d['card'] = d['Debit?'].eq('Yes'); d['biz'] = d['Business?'].eq('Yes')
+    from odd_rows import flag_yes_series as _yes   # the one reading of the flag columns
+    d['card'] = _yes(d['Debit?']); d['biz'] = _yes(d['Business?']); d['elig'] = _yes(d[ELIG_COL])
     d['new'] = (d['do'] >= pd.Timestamp(_start)) & (d['do'] <= pd.Timestamp(_end))
-    be = d[d['biz'] & (d[ELIG_COL] == 'Yes')]
+    be = d[d['biz'] & d['elig']]
     bn = d[d['biz'] & d['new']]
     bh_take = round(100*be['card'].sum()/len(be), 1) if len(be) else 0
     bn_take = round(100*bn['card'].sum()/len(bn), 1) if len(bn) else 0

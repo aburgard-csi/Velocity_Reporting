@@ -310,7 +310,7 @@ def branch_kpis(rows, odd, smonths, latest, min_eligible=MIN_BRANCH_ELIGIBLE):
             continue
         b = by[g(r, "Branch") or "(blank)"]
         op = isopen(r)
-        if g(r, elig_col) == "Yes":
+        if odd.iselig(r):
             b["elig"] += 1
             b["cards"] += hascard(r)
         if op:
@@ -391,7 +391,7 @@ def account_health(rows, odd, smonths, latest):
     prior_spend = defaultdict(float)
     recent_spend = defaultdict(float)
     for r in rows:
-        if not (personal(r) and g(r, elig_col) == "Yes"):
+        if not (personal(r) and odd.iselig(r)):
             continue
         carded = hascard(r)
         series = [spend(r, m) for m in smonths] if carded else []

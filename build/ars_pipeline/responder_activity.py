@@ -127,7 +127,7 @@ def analyse(path):
     # everyone who responded and has since closed, and made the one-pager count 51
     # fewer responders than the deck for the same Wellworth mailing.
     personal_pop = [r for r in rows if odd.personal(r)]
-    elig = [r for r in personal_pop if g(r, f"{latest} Elig") == "Yes"]
+    elig = [r for r in personal_pop if odd.iselig(r)]
     responders = [r for r in personal_pop
                   if any(g(r, f"{m} Resp") in RESP_MET for m in mailmonths)]
 

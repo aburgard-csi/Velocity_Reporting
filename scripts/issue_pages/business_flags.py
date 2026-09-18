@@ -11,7 +11,7 @@ import collections, io, json, sys, zipfile
 import pandas as pd
 
 from common import R, work_dir  # noqa: E402
-from odd_rows import status_class, odd_member  # noqa: E402
+from odd_rows import status_class, odd_member, business_class_series  # noqa: E402
 
 S = work_dir()
 ODDD = R.inputs() / "ODDD"
@@ -47,7 +47,7 @@ for cid in ids:
             live_of = {p: status_class(*p.split("\x1f", 1)) != "closed" for p in pairs.unique()}
             live = pairs.map(live_of).astype(bool)
             total += int(live.sum())
-            unflag = ~ch["Business?"].str.lower().isin(["yes", "no"])
+            unflag = business_class_series(ch["Business?"]).eq("other")   # neither Yes nor No
             closed_skipped += int((unflag & ~live).sum())
             bad = ch[unflag & live]
             counts.update(v if v else "(blank)" for v in bad["Business?"])

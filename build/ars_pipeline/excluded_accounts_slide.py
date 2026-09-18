@@ -69,6 +69,7 @@ from product_mix_slide import (
 from rpe_env import use_font
 from periods import Period
 from textfit import text_width_in
+from odd_rows import flag_yes_series as _yes      # the one reading of the flag columns
 
 
 def _text_w(t, pt):
@@ -146,7 +147,7 @@ def extract_exclusions(odd_source):
         d["isopen"] = d["cls"].eq("open")
         d["label"] = [(a.strip() or (f"status code {b.strip()}" if b.strip() else "(blank)"))
                       for a, b in zip(d["Stat Desc"], d["Stat Code"])]
-        d["elig"] = d[elig_col].eq("Yes")
+        d["elig"] = _yes(d[elig_col])
         tot += len(d)
         closed += int(d["isclosed"].sum())
         elig_all += int(d["elig"].sum())
@@ -189,7 +190,7 @@ def extract_exclusions(odd_source):
     in_excl = r0["Prod Code"].isin(excl_codes) if len(r0) else r0
     n_prod = int(in_excl.sum()) if len(r0) else 0
     rest = r0[~in_excl] if len(r0) else r0
-    no_debit = rest["Debit?"].ne("Yes") if len(rest) else rest
+    no_debit = ~_yes(rest["Debit?"]) if len(rest) else rest
     n_nodebit = int(no_debit.sum()) if len(rest) else 0
     rem = rest[~no_debit] if len(rest) else rest
     n_rem = len(rem)

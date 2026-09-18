@@ -89,7 +89,8 @@ def compute(recs, rate, nsf_fee, collection=1.0, trim="none", pct=0.05,
     step. Distribution still counts EVERY account in the segment; only the
     valuation basis is bounded. 0 disables.
     """
-    pop = [r for r in recs if r["Debit?"] == "Yes" and r["elig"] == "Yes"]
+    from odd_rows import has_debit, is_eligible     # the one reading of the flag columns
+    pop = [r for r in recs if has_debit(r["Debit?"]) and is_eligible(r["elig"])]
     n = len(pop)
     if not n:
         raise SystemExit("ERROR: empty eligible card-holding population")

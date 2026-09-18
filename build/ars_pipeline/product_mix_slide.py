@@ -52,6 +52,7 @@ from pptx.oxml import parse_xml
 
 from rpe_env import use_font
 from periods import Period
+from odd_rows import flag_yes_series, business_class_series, latest_elig_col   # the one reading of the flags
 
 # Palette, type roles and shape primitives now live at build/ level so ICS and
 # MRPC can reach them too. Re-exported here under their old names because
@@ -125,17 +126,13 @@ def _find_header_row(path):
 
 
 def _latest_elig_col(cols):
-    """Return (colname, 'Mon', 'yy') of the most recent '<Mon><yy> Elig' column."""
-    best = None
-    for c in cols:
-        m = _MONTH_RE.match(c)
-        if m and m.group(3).strip() == "Elig":
-            key = (2000 + int(m.group(2))) * 12 + _MIDX[m.group(1)]
-            if best is None or key > best[0]:
-                best = (key, c, m.group(1), m.group(2))
-    if best is None:
+    """Return (colname, 'Mon', 'yy') of the most recent '<Mon><yy> Elig' column —
+    odd_rows.latest_elig_col's pick, by date, shared with every other reader."""
+    c = latest_elig_col(cols)
+    if c is None:
         return None, None, None
-    return best[1], best[2], best[3]
+    m = _MONTH_RE.match(c)
+    return c, m.group(1), m.group(2)
 
 
 def _fixacr(s):
@@ -199,10 +196,12 @@ def extract_product_mix(odd_source):
             a["total"] += len(g)
             go = g[g["isopen"]]
             a["open"] += len(go)
-            a["elig"] += int((go["elig"] == "Yes").sum())
-            a["biz"]  += int((go["biz"] == "Yes").sum())
-            a["per"]  += int((go["biz"] == "No").sum())
-            a["oth"]  += int((~go["biz"].isin(["Yes", "No"])).sum())
+            # the one reading of the flag columns (odd_rows): Yes in any case, blank is neither
+            bc = business_class_series(go["biz"])
+            a["elig"] += int(flag_yes_series(go["elig"]).sum())
+            a["biz"]  += int((bc == "business").sum())
+            a["per"]  += int((bc == "personal").sum())
+            a["oth"]  += int((bc == "other").sum())
 
     products = []
     for name, a in agg.items():
