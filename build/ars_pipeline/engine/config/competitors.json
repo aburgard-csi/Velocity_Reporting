@@ -1,0 +1,851 @@
+{
+ "_about": "Named-institution detection for transaction_intelligence/competition. Patterns match the cleaned merchant core (card prefix, date and time stripped, upper-cased) as whole tokens; the longest matching pattern wins. Tiers carry a kind: competitor (counted in penetration and dollars) or adjacency (payment ecosystems, reported apart and counted only on ACH/check). Per-client local banks and credit unions go under LocalCompetitors in clients_config.json -- a list of names, or {name: [aliases]}; they land in the Local Bank / CU tier. No Fed-district tables: the data names the counterparties, the CSM names the locals.",
+ "_source": "legacy analytics/competition/01_competitor_config.py (universal + ecosystems only) cut to ~50 institutions, plus the issuers, captives, mortgage servicers and brokerages 1615's first runs surfaced; 2026-08-19",
+ "tiers": {
+  "National Bank": {
+   "kind": "competitor"
+  },
+  "Card Issuer": {
+   "kind": "competitor"
+  },
+  "Digital Bank / Fintech Lender": {
+   "kind": "competitor"
+  },
+  "Captive Auto Finance": {
+   "kind": "competitor"
+  },
+  "Mortgage Lender": {
+   "kind": "competitor"
+  },
+  "Brokerage / Wealth": {
+   "kind": "competitor"
+  },
+  "Regional Bank": {
+   "kind": "competitor"
+  },
+  "Local Bank / CU": {
+   "kind": "competitor"
+  },
+  "Payment Ecosystem": {
+   "kind": "adjacency"
+  }
+ },
+ "institutions": {
+  "Chase": {
+   "tier": "National Bank",
+   "patterns": [
+    "CHASE",
+    "JPMORGAN",
+    "JPMORGAN CHASE",
+    "JP MORGAN",
+    "CHASE CREDIT CRD",
+    "CHASE CARD",
+    "CHASE AUTO",
+    "CHASE MTG",
+    "CHASE HOME"
+   ]
+  },
+  "Bank of America": {
+   "tier": "National Bank",
+   "patterns": [
+    "BANK OF AMERICA",
+    "BOFA",
+    "B OF A",
+    "BK OF AMER",
+    "BANKAMERICA",
+    "BAC HOME LOANS"
+   ]
+  },
+  "Wells Fargo": {
+   "tier": "National Bank",
+   "patterns": [
+    "WELLS FARGO",
+    "WFB",
+    "WF HOME MTG",
+    "WELLS FARGO HM",
+    "WF CARD",
+    "WF AUTO"
+   ]
+  },
+  "Citi": {
+   "tier": "National Bank",
+   "patterns": [
+    "CITI",
+    "CITIBANK",
+    "CITICARDS",
+    "CITICARD",
+    "CITI CARD",
+    "CITIGROUP",
+    "CITI AUTOPAY"
+   ]
+  },
+  "Capital One": {
+   "tier": "National Bank",
+   "patterns": [
+    "CAPITAL ONE",
+    "CAPITALONE",
+    "CAP ONE",
+    "CAPONE",
+    "CAPITAL ONE AUTO",
+    "CAPITAL ONE BANK"
+   ]
+  },
+  "US Bank": {
+   "tier": "National Bank",
+   "patterns": [
+    "US BANK",
+    "U.S. BANK",
+    "U S BANK",
+    "USBANK",
+    "USB CARDMEMBER",
+    "US BK"
+   ]
+  },
+  "PNC": {
+   "tier": "National Bank",
+   "patterns": [
+    "PNC",
+    "PNC BANK",
+    "PNC MORTGAGE"
+   ]
+  },
+  "Truist": {
+   "tier": "National Bank",
+   "patterns": [
+    "TRUIST",
+    "BB&T",
+    "BBT",
+    "SUNTRUST"
+   ]
+  },
+  "TD Bank": {
+   "tier": "National Bank",
+   "patterns": [
+    "TD BANK",
+    "TDBANK",
+    "TD BANKNORTH",
+    "TD AUTO FINANCE",
+    "TD BANK NA"
+   ]
+  },
+  "USAA": {
+   "tier": "National Bank",
+   "patterns": [
+    "USAA",
+    "USAA FSB"
+   ]
+  },
+  "Citizens": {
+   "tier": "National Bank",
+   "patterns": [
+    "CITIZENS BANK",
+    "CITIZENS MTG",
+    "CITIZENS ONE",
+    "CITIZENS PAY",
+    "CITIZENS AUTO"
+   ]
+  },
+  "Santander": {
+   "tier": "National Bank",
+   "patterns": [
+    "SANTANDER",
+    "SANTANDER BANK",
+    "SANTANDER CONSUMER",
+    "CHRYSLER CAPITAL"
+   ]
+  },
+  "M&T Bank": {
+   "tier": "National Bank",
+   "patterns": [
+    "M&T",
+    "M & T",
+    "M&T BANK",
+    "M & T MORTGAGE",
+    "MTB"
+   ]
+  },
+  "KeyBank": {
+   "tier": "National Bank",
+   "patterns": [
+    "KEYBANK",
+    "KEY BANK"
+   ]
+  },
+  "Fifth Third": {
+   "tier": "National Bank",
+   "patterns": [
+    "FIFTH THIRD",
+    "53 BANK"
+   ]
+  },
+  "Huntington": {
+   "tier": "National Bank",
+   "patterns": [
+    "HUNTINGTON NATL",
+    "HUNTINGTON BANK",
+    "HUNTINGTON"
+   ]
+  },
+  "Regions": {
+   "tier": "National Bank",
+   "patterns": [
+    "REGIONS BANK",
+    "REGIONS"
+   ]
+  },
+  "BMO": {
+   "tier": "National Bank",
+   "patterns": [
+    "BMO",
+    "BMO HARRIS"
+   ]
+  },
+  "Navy Federal": {
+   "tier": "National Bank",
+   "patterns": [
+    "NAVY FEDERAL",
+    "NAVY FCU",
+    "NFCU"
+   ]
+  },
+  "American Express": {
+   "tier": "Card Issuer",
+   "patterns": [
+    "AMERICAN EXPRESS",
+    "AMEX",
+    "AMEX EPAYMENT"
+   ]
+  },
+  "Discover": {
+   "tier": "Card Issuer",
+   "patterns": [
+    "DISCOVER",
+    "DISCOVER E-PAYMENT",
+    "DISCOVER BANK",
+    "DISCOVER CARD",
+    "DISCOVER PERS LOANS",
+    "DFS"
+   ]
+  },
+  "Barclays": {
+   "tier": "Card Issuer",
+   "patterns": [
+    "BARCLAYS",
+    "BARCLAYCARD",
+    "BARCLAYCARD US",
+    "BARCLAYS BANK"
+   ]
+  },
+  "Synchrony": {
+   "tier": "Card Issuer",
+   "patterns": [
+    "SYNCHRONY",
+    "SYNCHRONY BANK",
+    "SYNCB",
+    "SYNCHRONY CAR CARE"
+   ]
+  },
+  "Comenity / Bread": {
+   "tier": "Card Issuer",
+   "patterns": [
+    "COMENITY",
+    "COMENITY CAPITAL",
+    "COMENITY BANK",
+    "BREAD FINANCIAL",
+    "BREAD PAYMENTS"
+   ]
+  },
+  "Credit One": {
+   "tier": "Card Issuer",
+   "patterns": [
+    "CREDIT ONE",
+    "CREDIT ONE BANK"
+   ]
+  },
+  "Goldman Sachs / Marcus": {
+   "tier": "Card Issuer",
+   "patterns": [
+    "MARCUS BY GOLDMAN",
+    "MARCUS GOLDMAN",
+    "GOLDMAN SACHS",
+    "GS BANK",
+    "APPLE CARD",
+    "APPLECARD"
+   ]
+  },
+  "Ally": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "ALLY",
+    "ALLY BANK",
+    "ALLY FINANCIAL",
+    "ALLY AUTO",
+    "ALLY ALLY PAYMT"
+   ]
+  },
+  "SoFi": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "SOFI",
+    "SOFI BANK",
+    "SOFI LENDING",
+    "SOFI MONEY"
+   ]
+  },
+  "Chime": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "CHIME"
+   ]
+  },
+  "Varo": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "VARO",
+    "VARO BANK"
+   ]
+  },
+  "Current": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "CURRENT MOBILE",
+    "CURRENT BANK",
+    "CURRENT FINANCIAL"
+   ]
+  },
+  "Dave": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "DAVE INC",
+    "DAVE BANKING"
+   ]
+  },
+  "Axos": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "AXOS",
+    "AXOS BANK"
+   ]
+  },
+  "Upstart": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "UPSTART"
+   ]
+  },
+  "Best Egg": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "BEST EGG"
+   ]
+  },
+  "LendingClub": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "LENDINGCLUB",
+    "LENDING CLUB"
+   ]
+  },
+  "Prosper": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "PROSPER MARKETPLACE",
+    "PROSPER FUNDING",
+    "PROSPER LOAN"
+   ]
+  },
+  "Avant": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "AVANT",
+    "AVANT INC"
+   ]
+  },
+  "LightStream": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "LIGHTSTREAM"
+   ]
+  },
+  "OneMain": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "ONEMAIN",
+    "ONE MAIN FINANCIAL"
+   ]
+  },
+  "Oportun": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "OPORTUN"
+   ]
+  },
+  "LendingPoint": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "LENDINGPOINT",
+    "LENDING POINT"
+   ]
+  },
+  "Figure": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "FIGURE LENDING"
+   ]
+  },
+  "VW Credit": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "VW CREDIT",
+    "VOLKSWAGEN CREDIT",
+    "AUDI FINANCIAL",
+    "VW CR"
+   ]
+  },
+  "GM Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "GM FINANCIAL",
+    "GMF",
+    "AMERICREDIT"
+   ]
+  },
+  "Toyota Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "TOYOTA MOTOR CREDIT",
+    "TOYOTA FINANCIAL",
+    "TMCC",
+    "LEXUS FINANCIAL"
+   ]
+  },
+  "Ford Credit": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "FORD CREDIT",
+    "FORD MOTOR CREDIT",
+    "FORD MOTOR CR",
+    "LINCOLN AUTOMOTIVE FIN"
+   ]
+  },
+  "Honda Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "HONDA FINANCIAL",
+    "AMERICAN HONDA FIN",
+    "AHFC",
+    "ACURA FINANCIAL",
+    "HONDA FIN SVCS",
+    "HONDA PMT"
+   ]
+  },
+  "Nissan Motor Acceptance": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "NISSAN MOTOR",
+    "NMAC",
+    "NISSAN INFINITI",
+    "INFINITI FINANCIAL"
+   ]
+  },
+  "Hyundai Capital": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "HYUNDAI CAPITAL",
+    "HYUNDAI MOTOR FIN",
+    "HYUNDAI FINANCE",
+    "KIA MOTORS FIN",
+    "KIA FINANCE"
+   ]
+  },
+  "Mazda Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "MAZDA FINANCIAL"
+   ]
+  },
+  "Subaru Motors Finance": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "SUBARU MOTORS FIN",
+    "SUBARU MOTORS FINANCE"
+   ]
+  },
+  "Mercedes-Benz Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "MBFS",
+    "MERCEDES BENZ FIN",
+    "MERCEDES-BENZ FIN",
+    "DAIMLER"
+   ]
+  },
+  "BMW Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "BMW FINANCIAL",
+    "BMW FIN SVCS",
+    "BMW BANK"
+   ]
+  },
+  "Bridgecrest": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "BRIDGECREST",
+    "DRIVETIME"
+   ]
+  },
+  "Westlake": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "WESTLAKE FINANCIAL",
+    "WESTLAKE SERVICES"
+   ]
+  },
+  "Exeter": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "EXETER FINANCE"
+   ]
+  },
+  "Credit Acceptance": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "CREDIT ACCEPTANCE"
+   ]
+  },
+  "Rocket Mortgage": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "ROCKET MORTGAGE",
+    "ROCKET MTG",
+    "QUICKEN LOANS"
+   ]
+  },
+  "Mr. Cooper": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "MR COOPER",
+    "MR. COOPER",
+    "NATIONSTAR"
+   ]
+  },
+  "NewRez": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "NEWREZ",
+    "NEWREZ LLC",
+    "SHELLPOINT"
+   ]
+  },
+  "PennyMac": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "PENNYMAC"
+   ]
+  },
+  "Freedom Mortgage": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "FREEDOM MTG",
+    "FREEDOM MORTGAGE"
+   ]
+  },
+  "loanDepot": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "LOANDEPOT",
+    "LOAN DEPOT"
+   ]
+  },
+  "Carrington": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "CARRINGTON MORTGAGE",
+    "CARRINGTON MTG"
+   ]
+  },
+  "Lakeview": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "LAKEVIEW LN SRV",
+    "LAKEVIEW LOAN"
+   ]
+  },
+  "RoundPoint": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "ROUNDPOINT",
+    "ROUNDPOINT MTG"
+   ]
+  },
+  "CrossCountry Mortgage": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "CROSSCOUNTRY MORTGAGE",
+    "CROSSCOUNTRY MTG"
+   ]
+  },
+  "United Wholesale Mortgage": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "UWM",
+    "UNITED WHOLESALE"
+   ]
+  },
+  "Guild Mortgage": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "GUILD MORTGAGE"
+   ]
+  },
+  "Fairway": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "FAIRWAY INDEPENDENT",
+    "FAIRWAY MTG"
+   ]
+  },
+  "Cenlar": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "CENLAR"
+   ]
+  },
+  "Better": {
+   "tier": "Mortgage Lender",
+   "patterns": [
+    "BETTER MORTGAGE",
+    "BETTER.COM",
+    "BETTER COM"
+   ]
+  },
+  "Charles Schwab": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "SCHWAB",
+    "CHARLES SCHWAB",
+    "SCHWAB BROKERAGE",
+    "TD AMERITRADE",
+    "AMERITRADE"
+   ]
+  },
+  "Fidelity": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "FIDELITY",
+    "FIDELITY INVESTMENTS",
+    "FID BKG",
+    "FIDELITY BROKERAGE",
+    "NATL FIN SVC"
+   ]
+  },
+  "Vanguard": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "VANGUARD"
+   ]
+  },
+  "Morgan Stanley": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "MORGAN STANLEY",
+    "E*TRADE",
+    "ETRADE",
+    "E TRADE"
+   ]
+  },
+  "Merrill": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "MERRILL LYNCH",
+    "MERRILL EDGE",
+    "MERRILL"
+   ]
+  },
+  "Edward Jones": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "EDWARD JONES",
+    "EDWARD D JONES"
+   ]
+  },
+  "Raymond James": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "RAYMOND JAMES"
+   ]
+  },
+  "T. Rowe Price": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "T ROWE PRICE",
+    "T. ROWE PRICE",
+    "TROWEPRICE"
+   ]
+  },
+  "American Funds": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "AMERICAN FUNDS",
+    "CAPITAL GROUP"
+   ]
+  },
+  "Robinhood": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "ROBINHOOD"
+   ]
+  },
+  "Ameriprise": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "AMERIPRISE"
+   ]
+  },
+  "LPL Financial": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "LPL FINANCIAL"
+   ]
+  },
+  "Betterment": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "BETTERMENT"
+   ]
+  },
+  "Wealthfront": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "WEALTHFRONT"
+   ]
+  },
+  "Acorns": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "ACORNS"
+   ]
+  },
+  "Coinbase": {
+   "tier": "Brokerage / Wealth",
+   "patterns": [
+    "COINBASE"
+   ]
+  },
+  "Venmo": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "VENMO"
+   ]
+  },
+  "Zelle": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "ZELLE"
+   ]
+  },
+  "Cash App": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "CASH APP",
+    "CASHAPP",
+    "SQUARE CASH"
+   ]
+  },
+  "PayPal": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "PAYPAL",
+    "PAYPAL INST XFER",
+    "PAYPAL TRANSFER",
+    "PAYPAL PAYMENT"
+   ]
+  },
+  "Apple Cash": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "APPLE CASH"
+   ]
+  },
+  "Google Pay": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "GOOGLE PAY",
+    "GOOGLE WALLET"
+   ]
+  },
+  "Affirm": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "AFFIRM"
+   ]
+  },
+  "Klarna": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "KLARNA"
+   ]
+  },
+  "Afterpay": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "AFTERPAY"
+   ]
+  },
+  "Sezzle": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "SEZZLE"
+   ]
+  },
+  "Zip": {
+   "tier": "Payment Ecosystem",
+   "patterns": [
+    "ZIP CO",
+    "QUADPAY"
+   ]
+  }
+ },
+ "false_positives": [
+  "NEIMAN MARCUS",
+  "CHASE CENTER",
+  "CHASE FIELD",
+  "PAPER CHASE",
+  "KEY FOOD",
+  "KEY WEST",
+  "CURRENT ELECTRIC",
+  "ALLY LOGISTICS",
+  "DAVE & BUSTERS",
+  "DISCOVERY",
+  "CITI FIELD",
+  "REGIONS HOSPITAL",
+  "HUNTINGTON LEARNING",
+  "CAPITAL GRILLE",
+  "PROSPER ISD"
+ ],
+ "review_tokens": [
+  "BANK",
+  "BK",
+  "BANCORP",
+  "BANKING",
+  "FCU",
+  "CU",
+  "CREDIT UNION",
+  "FED CU",
+  "SAVINGS",
+  "TRUST",
+  "FSB",
+  "MORTGAGE",
+  "MTG",
+  "LENDING",
+  "FINANCIAL"
+ ],
+ "recency_days": {
+  "active": 30,
+  "cooling": 90,
+  "dormant": 365
+ },
+ "new_days": 90,
+ "stopped_after_days": 90
+}

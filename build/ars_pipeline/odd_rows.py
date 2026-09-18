@@ -215,6 +215,53 @@ def rege_label(text):
         return REGE_DEFAULT
     return None
 
+def _code_key(value):
+    """A Reg E code's identity, free of how the extract spells a number ("1" and "1.0")."""
+    v = str(value if value is not None else "").replace("\x00", "").strip().upper()
+    if not v:
+        return ""
+    try:
+        f = float(v)
+    except ValueError:
+        return v
+    return str(int(f)) if f == int(f) else str(f)
+
+
+def rege_state(code, desc, config=None):
+    """One Reg E reading for a row: the description's WORDING first, through `rege_label`
+    (the deck's own reading), then the client's configured code sets (`RegEOptInCode`,
+    `RegEOptOutCode`, `RegEDefaultCode`, as the engine's client record carries them) when
+    the wording is blank or unmapped. Returns REGE_IN / REGE_OUT / REGE_DEFAULT, "" (no
+    election / not applicable) or None (wording no rule covers: stop and ask)."""
+    label = rege_label(desc)
+    if label:
+        return label
+    key = _code_key(code)
+    if config and key:
+        for field, out in (("RegEOptInCode", REGE_IN), ("RegEOptOutCode", REGE_OUT),
+                           ("RegEDefaultCode", REGE_DEFAULT)):
+            if key in {_code_key(x) for x in (config.get(field) or [])}:
+                return out
+    return label
+
+
+def rege_state_series(codes, descs, config=None):
+    """`rege_state` over pandas Series (codes may be None). Unmapped wording is None."""
+    import pandas as pd
+    descs = pd.Series(descs)
+    codes = pd.Series([""] * len(descs), index=descs.index) if codes is None else pd.Series(codes).reindex(descs.index)
+    cache = {}
+    out = []
+    for c, d in zip(codes.tolist(), descs.tolist()):
+        c = "" if c is None or (isinstance(c, float) and c != c) else c
+        d = "" if d is None or (isinstance(d, float) and d != d) else d
+        k = (str(c), str(d))
+        if k not in cache:
+            cache[k] = rege_state(c, d, config)
+        out.append(cache[k])
+    return pd.Series(out, index=descs.index, dtype=object)
+
+
 # Stat Desc wording that counts as an open account. Core lifecycle vocabulary
 # varies by processor; both spellings of each phrase are carried.
 OPEN_STATUSES = {
