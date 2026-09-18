@@ -38,11 +38,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MONTHS = 12
 
 
+CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"    # the dictionaries ship with the engine
+
+
 def run(client_id: str, period: str, data_root=None, output_root=None,
-        config_dir=None, months: int = DEFAULT_MONTHS) -> AnalysisResult:
+        config_dir=None, months: int = DEFAULT_MONTHS, *,
+        txn_dirs=None, cache_dir=None, out_dir=None, odd=None, client_cfg=None) -> AnalysisResult:
+    """In the pipeline the caller (build/ars_pipeline/run_analysis.py) names everything:
+    `txn_dirs` (rpe_env's Inputs/Txn Files/<id>/), `cache_dir` and `out_dir` under
+    Build Artifacts/, the enriched ODD frame `odd` it already holds, and the client
+    record `client_cfg` from engine_config. The v5 root arguments remain for the tests."""
     data_root = Path(data_root) if data_root else PROJECT_ROOT / "01-Data"
     output_root = Path(output_root) if output_root else PROJECT_ROOT / "03-Output"
-    config_dir = Path(config_dir) if config_dir else PROJECT_ROOT / "0_Config"
+    config_dir = Path(config_dir) if config_dir else CONFIG_DIR
     parsed = Month.parse(period)
     result = AnalysisResult(analysis=ANALYSIS, client_id=str(client_id),
                             period=parsed.iso if parsed else str(period))
@@ -56,11 +64,10 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
         if not result.ok:
             return result
 
-        txn_dir = loader.find_txn_dirs(data_root, client_id)
+        txn_dir = [Path(d) for d in txn_dirs] if txn_dirs else loader.find_txn_dirs(data_root, client_id)
         if not txn_dir:
             result.fail(f"no transaction folder for {client_id}; looked under "
-                        f"{data_root} for TXN/{{month}}/{client_id} and "
-                        f"{list(loader.TXN_DIRS)}/{client_id}")
+                        f"{data_root} for Inputs/Txn Files/{client_id}")
             return result
         result.outputs["source"] = "; ".join(str(d) for d in txn_dir)
 
@@ -68,7 +75,7 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
         # lag on the file period, and we want the same window end.
         data_month = parsed.shift(-1)
         anchor_ts = pd.Timestamp(data_month.year, data_month.month, 1) + pd.offsets.MonthEnd(0)
-        cache_dir = output_root / "_cache" / "txn" / str(client_id)
+        cache_dir = Path(cache_dir) if cache_dir else output_root / "_cache" / "txn" / str(client_id)
         _step("loading transaction files (cached files read fast; new ones re-read in chunks)...")
         df, rpt = loader.load(txn_dir, cache_dir, months=months, anchor=anchor_ts)
         _step(f"{rpt.rows:,} rows loaded ({rpt.cached} cached, {rpt.read} read)")
@@ -92,9 +99,10 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
             result.warn(f"transaction data runs {-lag} month(s) past the ODD data "
                         f"month {data_month.iso}")
 
-        odd = None
         enriched = output_root / parsed.iso / str(client_id) / "enriched.parquet"
-        if enriched.exists():
+        if odd is not None:
+            result.outputs["odd"] = "enriched frame from the ODD run"
+        elif enriched.exists():
             try:
                 odd = pd.read_parquet(enriched, columns=None)
                 result.outputs["odd"] = str(enriched)
@@ -116,18 +124,19 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
         }
         metrics.update(portfolio.compute(df, odd, result.warn))
 
-        out_dir = output_root / parsed.iso / str(client_id)
+        out_dir = Path(out_dir) if out_dir else output_root / parsed.iso / str(client_id)
         out_dir.mkdir(parents=True, exist_ok=True)
 
         # ---- lenses from the ODD, then the sections ---------------------------
-        # The client config is read HERE rather than below: the branch family
+        # The client record is read HERE rather than below: the branch family
         # needs BranchMapping to group by display name, and the lens attrs are
-        # built once.
-        client_cfg = {}
-        cfg_path = config_dir / "clients_config.json"
-        if cfg_path.exists():
-            client_cfg = json.loads(
-                cfg_path.read_text(encoding="utf-8-sig")).get(str(client_id), {}) or {}
+        # built once. In the pipeline it arrives from engine_config.
+        if client_cfg is None:
+            client_cfg = {}
+            cfg_path = config_dir / "clients_config.json"
+            if cfg_path.exists():
+                client_cfg = json.loads(
+                    cfg_path.read_text(encoding="utf-8-sig")).get(str(client_id), {}) or {}
         lenses = (lens.build(odd, anchor_ts, result.warn,
                              branch_map=client_cfg.get("BranchMapping"))
                   if odd is not None else None)
