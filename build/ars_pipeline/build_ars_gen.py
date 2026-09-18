@@ -1965,6 +1965,19 @@ if os.environ.get("RPE_ANALYSIS") == "1":
     if _fails:
         raise SystemExit("analysis engine does not reproduce the deck's own figures: "
                          + "; ".join(_fails) + " — one of the two readings is wrong; fix the reader, not the deck")
+    # The nine Transaction Intelligence views, only when asked for AND the client has files.
+    if os.environ.get("RPE_ANALYSIS_SLIDES") == "1":
+        _tp = _ar.outputs.get("txn_metrics")
+        if _tp and os.path.exists(_tp):
+            import ti_slides as _ti
+            with open(_tp, encoding="utf-8") as _fh:
+                _txn = json.load(_fh)
+            _made = _ti.add_ti_slides(prs, _txn, {"as_of_long": AS_OF_LONG, "assets": ASSETS,
+                                                  "txn_src": f"Inputs/Txn Files/{ID}/"})
+            _MODULE_NOTED.extend(_made)
+            print(f"transaction slides (RPE_ANALYSIS_SLIDES): {len(_made)} added")
+        else:
+            print(f"transaction slides (RPE_ANALYSIS_SLIDES): no transaction files for {ID}; none added")
 
 # Branch names on the charts (Aaron 2026-09-17): every slide that shows a
 # branch says where the names came from.
