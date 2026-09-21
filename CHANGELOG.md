@@ -341,6 +341,23 @@ not move). Figures come from the ODD and the ARS workbook the build already read
 
 New: `build/ars_pipeline/combined_insights.py` (import-safe computations),
 `insight_charts.py` (renderers), `combined_insight_slides.py` (slide insertion).
+### 2026-09-16 — ICS per-account subtitles: the worked example is the client's first cohort
+
+The subtitles on "Interchange Revenue per Account per Month", "NSF/OD & Other Fees per Account per
+Month" and "Spread Revenue per Account per Month" explain the chart with one cohort. Its label,
+account count and months open were literals from the reference client — "Nov 25 ... / 19 / 8" — on
+every full (non-referrals-only) ICS deck; the interchange one was literal down to "$398.47 = $2.62",
+and the other two put the client's own dollars over the literal divisors. 1776 CoastHills (2026.08)
+printed "Nov 25: $3,693.10 / 19 / 8 = $24.30" while its first cohort was Dec 25 with 103 accounts.
+New `build_ics_gen.cohort_example` reads the label, accounts opened and months open from the sheet's
+first cohort (months open is `ics_charts_gen._months_open`, what the chart divides by), with each
+slide's own series for the dollars. Because the caption's length now follows the data, the NSF/OD
+subtitle opens "NSF/OD + other fees ÷ ..." instead of "(NSF/OD + other charges) ÷ ...": at
+$123,456.78 / 1,234 the old wording overran its box and the validator failed the deck. Charts and
+tiles are unchanged. `tests/test_ics_cohort_example.py` builds a synthetic full deck and checks each
+example against the sheet, and checks a wide first cohort still passes `validate_deck`. Full ICS decks
+already built carry the literal example and need a rebuild to correct it.
+
 ### 2026-09-16 — CSM Sheila shows what's new and links the change log
 
 The page header has a "What's new" menu with the five newest entries of this file (date, title and the first
