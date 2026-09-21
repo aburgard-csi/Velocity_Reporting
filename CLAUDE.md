@@ -95,7 +95,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | ICS direct-mail new-accounts lists | `Inputs/ICS Direct Mail/` |
 | Branch names: `branch_names.csv` (one row per name a source gave a client's branch number, with first/last seen; kept by the morning source check) and `charts_files.csv` (Charts workbooks matched to a client id by hand) | `Inputs/Branch Names/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
-| Monthly debit-card transaction files, one folder per client, **stored zipped**: `<original name>.zip`, one file each (Aaron, 2026-09-17). No deck reads them yet; any reader goes through `rpe_env.txn_files()` / `open_txn()`, which take either form. `scripts/zip_txn_files.py` zips new arrivals (safe to re-run) | `Inputs/Txn Files/<id>/` |
+| Monthly debit-card transaction files, one folder per client, **stored zipped**: `<original name>.zip`, one file each (Aaron, 2026-09-17). No deck reads them yet; any reader goes through `rpe_env.txn_files()` / `open_txn()`, which take either form — four files a security agent refuses to let the share hold zipped are still raw, and read the same way. `scripts/zip_txn_files.py` zips new arrivals (safe to re-run) | `Inputs/Txn Files/<id>/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
 | A launcher build's working files (log, charts, data, result) — its clean deck goes straight to `Outputs/<CSM>/` | `Build Artifacts/launcher/<period>/<id>/` |

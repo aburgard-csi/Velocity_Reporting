@@ -90,6 +90,17 @@ def test_a_zip_that_does_not_match_its_original_keeps_the_original(root):
     assert r["status"] == "FAILED" and src.read_bytes() == BODY
 
 
+def test_an_emptied_zip_is_reported_and_the_original_kept(root, monkeypatch):
+    """The CSI share emptied four of 404 zips as they were closed (2026-09-17). Every byte
+    reached the handle; the file was 0 bytes the moment it was closed. The file stays raw."""
+    src = next(p for p in Z.plan(root) if p.suffix == ".csv")
+    real = os.path.getsize
+    monkeypatch.setattr(Z.os.path, "getsize", lambda p: 0 if str(p).endswith(".part") else real(p))
+    r = Z.zip_one(src)
+    assert r["status"] == "FAILED" and "discarded the archive" in r["error"]
+    assert src.read_bytes() == BODY and not src.with_name(src.name + ".zip").exists()
+
+
 def test_open_txn_reads_either_form_the_same(root):
     raw = root / "1562" / "1562_19776_[2026.09.01][09.52.33]_velocity.ars.transactions"
     with R.open_txn(raw) as fh:

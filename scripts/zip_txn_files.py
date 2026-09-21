@@ -105,14 +105,31 @@ def zip_one(path) -> dict:
             info = zipfile.ZipInfo.from_file(path, arcname=path.name)
             info.compress_type = zipfile.ZIP_DEFLATED
             crc = 0
-            with zipfile.ZipFile(part, "w", zipfile.ZIP_DEFLATED, compresslevel=COMPRESSLEVEL) as z, \
-                    open(path, "rb") as src, z.open(info, "w") as dst:
-                while True:
-                    b = src.read(CHUNK)
-                    if not b:
-                        break
-                    crc = zlib.crc32(b, crc)
-                    dst.write(b)
+            # The archive is written through a file object we hold open so it can be
+            # flushed to the server, and its size read from the handle, before it is read
+            # back — which is how the next check can tell an archive the share threw away
+            # from a zip this code got wrong.
+            with open(part, "wb") as fp:
+                with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED, compresslevel=COMPRESSLEVEL) as z, \
+                        open(path, "rb") as src, z.open(info, "w") as dst:
+                    while True:
+                        b = src.read(CHUNK)
+                        if not b:
+                            break
+                        crc = zlib.crc32(b, crc)
+                        dst.write(b)
+                fp.flush()
+                os.fsync(fp.fileno())
+                written = os.fstat(fp.fileno()).st_size
+            if os.path.getsize(part) == 0 < written:
+                # Four of 404 files did this on the CSI share (2026-09-17): every byte
+                # reaches the handle and fsync returns, and the moment the file is closed
+                # it is 0 bytes on the share. A locally built zip copied over is emptied
+                # the same way, whatever its extension or compression, so it is the
+                # content being rejected — by a security agent on this machine or on the
+                # share, not by anything here. Nothing to retry; the file stays raw.
+                raise OSError(f"the share discarded the archive: {written:,} bytes written, "
+                              "0 bytes on close (a security agent is emptying it)")
             _check(part, path.name, st.st_size, crc)
             os.replace(part, target)
             os.utime(target, (st.st_atime, st.st_mtime))
