@@ -17,6 +17,28 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-21 — The morning check saves its scan before the copy, and gets two hours
+
+The 08:00 source check produced NOTHING on 2026-09-18, -19 and -20: no report, no log entry,
+no inventory. Two faults, not one. Windows created the 09-18 and 09-19 runs SUSPENDED (the
+watchdog found them at 0 CPU / 0 handles and killed them — the 09-18 one was still sitting
+there 24 hours later); the runs that did execute outran the task's 30-minute execution limit
+on a slow share, and because the report was written only AFTER the copy, prune, referrals and
+branch-name steps, a kill part way left no trace at all — indistinguishable from never having
+started.
+
+- `watch_sources.save_report` now writes the report, the log block and the inventory as soon
+  as the SCAN is done, before the copy. The steps append to the log when they finish and the
+  report is rewritten whole. Tests: a run killed mid-copy still leaves its report and
+  inventory; the finished report carries one header, not two.
+- The task's execution limit goes from 30 minutes to 2 hours (`register_watch_task.ps1`); today's
+  run took 14 minutes, and a weekend's copy is slower.
+- The watchdog moves from 08:15 to 08:45 (`register_watchdog_task.ps1`) and treats a report up
+  to 2 hours old as fresh, so it judges a run that has had time to write its scan rather than
+  one still in the copy.
+
+Both tasks re-registered on this machine 2026-09-21.
+
 ### 2026-09-17 — A branch named Marshall is not March (correction)
 
 `periods.parse_month` accepted any 3-9 letter word with a year and checked only its first three

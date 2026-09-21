@@ -571,3 +571,36 @@ def test_the_status_check_finds_an_extract_in_any_csm_folder(csm_shares):
     path, csm = W.DS.find_source_odd("1100", "2026.09", W.SRC_ODDD)
     assert csm == "Dan Wood" and path.endswith("1100_ODDD.zip")
     assert W.DS.find_source_odd("9999", "2026.09", W.SRC_ODDD) == (None, None)
+
+
+# ------------------------------------------------------------------ the scan survives a kill
+def test_the_scan_is_saved_before_the_copy(tmp_path, monkeypatch, shares):
+    """A run killed during the copy still leaves its report (Aaron, 2026-09-21).
+
+    The 08:00 runs of 2026-09-18 through 2026-09-20 were killed part way on a slow share and
+    wrote NOTHING, which the watchdog cannot tell from a run that never executed.
+    """
+    oddd, reports, _ = shares
+    _land(oddd, "2026.09 Sep", "1038_ODDD.zip")
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+
+    def killed(_plan):
+        raise KeyboardInterrupt("scheduler killed the run mid-copy")
+
+    monkeypatch.setattr(W, "apply_copies", killed)
+    with pytest.raises(KeyboardInterrupt):
+        W.main(["--period", "2026.09", "--copy"])
+    report = (tmp_path / W.REPORT_NAME).read_text(encoding="utf-8")
+    assert "Source check" in report
+    assert (tmp_path / W.LOG_NAME).exists()
+    assert json.loads((tmp_path / "source_watch.json").read_text(encoding="utf-8"))["files"]
+
+
+def test_the_report_is_rewritten_whole_when_the_steps_finish(tmp_path, monkeypatch, shares):
+    oddd, _, _ = shares
+    _land(oddd, "2026.09 Sep", "1038_ODDD.zip")
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    monkeypatch.setattr(W, "apply_copies", lambda plan: [])
+    assert W.main(["--period", "2026.09", "--copy"]) == 0
+    report = (tmp_path / W.REPORT_NAME).read_text(encoding="utf-8")
+    assert report.count("# Source check") == 1

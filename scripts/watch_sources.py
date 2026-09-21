@@ -791,6 +791,28 @@ def mail_step(days, dry_run, timeout=MAIL_TIMEOUT):
     return out, saved
 
 
+def save_report(text, result, log_text=None):
+    """Write the report, append to the log, and save the inventory when the shares answered.
+
+    Called TWICE in a run (Aaron, 2026-09-21): once as soon as the scan is done, again when the
+    copy, prune, referrals and branch-name steps have finished. Until then the only write came
+    after all of them, and on a slow share those outrun the task's execution limit: the 08:00
+    runs of 2026-09-18 through 2026-09-20 were killed part way and left NO report, which the
+    watchdog cannot tell apart from a run that never executed. The scan is the part that must
+    survive; the rest is appended when it lands.
+    """
+    art = R.build_artifacts()
+    if log_text:
+        with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
+            fh.write(log_text + "\n\n---\n\n")
+    with open(str(art / REPORT_NAME), "w", encoding="utf-8") as fh:
+        fh.write(text + "\n")
+    if result["reachable"] and not result.get("_state_saved"):
+        write_state(result["next_state"])
+        result["_state_saved"] = True
+        print("saved " + state_path())
+
+
 # ------------------------------------------------------------------ run
 def check(periods, previous, use_drive=True):
     """Scan, diff and annotate. Pure with respect to the saved state — the
@@ -856,6 +878,9 @@ def main(argv=None):
     previous = read_state()
     result = check(periods, previous, use_drive=not a.no_inputs)
     roster = _roster()
+    # The scan is saved HERE, before the copy and the steps after it: see save_report.
+    if not a.dry_run:
+        save_report(render(result, roster), result, log_text=render(result, roster))
     if a.copy and result["reachable"] and not a.no_inputs:
         plan = copy_plan(result["inventory"], set(roster), _inputs_dir(),
                          stopped=_roster_stopped())
@@ -907,14 +932,10 @@ def main(argv=None):
     # killed it; the share check had finished in under a minute and every one of
     # its findings died with the process, unwritten.
     if not a.dry_run:
-        art = R.build_artifacts()
-        with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
-            fh.write(text + "\n\n---\n\n")
-        with open(str(art / REPORT_NAME), "w", encoding="utf-8") as fh:
-            fh.write(text + "\n")
-        if result["reachable"]:
-            write_state(result["next_state"])
-            print("saved " + state_path())
+        # The report is rewritten whole; the LOG gets only what the steps added, since the scan
+        # went in above.
+        steps = "\n".join(_copies_section(result)).strip()
+        save_report(text, result, log_text=steps or None)
 
     mail_text = ""
     if a.mail:

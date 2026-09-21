@@ -66,7 +66,7 @@
 [CmdletBinding()]
 param(
     [string]$MainTaskName = "RPE Source Watch",
-    [int]$FreshWithinMinutes = 180,
+    [int]$FreshWithinMinutes = 120,
     [int]$MinAgeSecondsToJudge = 240,
     [int]$MaxAttempts = 3,
     [int]$WaitBetweenAttemptsSeconds = 200

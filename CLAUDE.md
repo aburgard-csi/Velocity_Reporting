@@ -617,7 +617,12 @@ overrides) and the `clients.md` roster.
 State is bookkeeping, so it lives in `Build Artifacts/`:
 `source_watch.json` (the last inventory), `source_watch.log` (appended per run),
 `source_watch_latest.md` (the latest report). The first run is a baseline and
-reports counts, not news. **Off VPN it exits 2 and leaves the saved inventory
+reports counts, not news. **The scan's report, log block and inventory are saved
+BEFORE the copy and the steps after it (Aaron, 2026-09-21)** — `save_report` is called
+twice, and the report is rewritten whole when the steps finish. A run killed part way
+(the 08:00 runs of 2026-09-18 through -20 were, on a slow share, under the old
+30-minute execution limit — now 2 hours) leaves its scan rather than nothing at all,
+which is what the watchdog reads. **Off VPN it exits 2 and leaves the saved inventory
 alone** — saving an empty one would make every file "new" the next morning.
 
 `register_watch_task.ps1` schedules it as the Windows task **"RPE Source Watch"**,

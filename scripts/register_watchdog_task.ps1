@@ -40,7 +40,7 @@
     register_watch_task.ps1's own settings assume is on PATH for this user.
 
 .PARAMETER Time
-    Daily start time, HH:mm (24h). Default: 08:15 -- 15 minutes after the main
+    Daily start time, HH:mm (24h). Default: 08:45 -- 45 minutes after the main
     task's own default of 08:00. If the main task runs at a different time,
     pass that time here plus your own margin; this script does not read the
     other task's trigger.
@@ -55,7 +55,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Time = "08:15",
+    [string]$Time = "08:45",
     [switch]$Unregister
 )
 

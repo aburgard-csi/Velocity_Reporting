@@ -26,6 +26,11 @@
     is back, and the task waits for a network connection rather than failing on
     a machine that has not finished connecting.
 
+    The execution limit is 2 HOURS (Aaron, 2026-09-21). It was 30 minutes, and on a slow
+    share the copy step outran it: the 08:00 runs of 2026-09-18 through 2026-09-20 were
+    killed part way. watch_sources now saves the scan's report before the copy starts, so a
+    kill costs the copy, not the report - but the limit has to leave room for the copy too.
+
     The venv interpreter is used, not the Windows Store python, for the same
     reason validation/qa_all.py insists on it: the Store python lacks the repo's
     dependencies and fails quietly.
@@ -83,7 +88,7 @@ $action = New-ScheduledTaskAction -Execute $Python `
     -Argument "`"$Script`" --notify --copy --prune --ics-referrals --branch-names --mail" -WorkingDirectory $Repo
 $trigger = New-ScheduledTaskTrigger -Daily -At $parsed
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -MultipleInstances IgnoreNew `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 120) -MultipleInstances IgnoreNew `
     -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $user = "$env:USERDOMAIN\$env:USERNAME"
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
