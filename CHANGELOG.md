@@ -17,6 +17,37 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-21 — The CashPlease marketing emails are their own input kind
+
+Aaron: "add a kind for the loan marketing emails." Eight `<id>_<Client>_Loan_Marketing_Emails.xlsx`
+attachments from Bradford's "CashPlease Marketing eMails" thread were reported by the morning mail
+step and left in the mailbox, one per client, because their names carry no period and so read as
+"does not match the `<id>-<period>-<kind>` convention".
+
+That thread carries TWO families, and the reported eight were the smaller one. The monthly data is
+`<id>_<Client>_<MM.YYYY>_Loan_Marketing_Emails.csv`, 0.3 to 30 MB per client per month, and the mail
+step could not see those at all: it takes only `.xlsx`/`.xlsm` attachments.
+
+Both now classify as kind `CP marketing` (`mail_sources.CP_MARKETING`) and file to
+`Inputs/CashPlease Marketing/`; only Bradford may send them, as with his other kinds. A `.csv` is
+accepted only when it is one of these (`CSV_KINDS`) — every other CSV these senders attach is not an
+input. `cp_marketing_parts` is the one reading of both names, and reads `09.2026` as period
+`2026.09`. Inputs holds the newest month per client, as it does for every other input: 10 CSVs
+(September for eight clients, August for 1131 and 1734, who had no September send) and the eight
+workbooks, 46 MB in all.
+
+The folder stays in `NOT_SCANNED_KINDS` — no reader globs it — so `watch_sources` prune reaches it
+through `PRUNE_ALSO_KINDS` instead, and drops a superseded month the same way it drops an old DCO.
+The undated workbook has no newer version and is never pruned.
+
+Two smaller fixes in the same pass. `newest_only` could not order two files that carry no period or
+stamp, so it kept whichever the scan reached first — Inbox or Archive, by luck; `_is_newer` breaks
+that tie on when the message was SENT. And a failed save printed the bare word FAILED
+(`outcome.split(":")[0]`), so the error was dropped and nothing recorded why — it now carries its
+reason into the morning report.
+
+No deck reads these files yet, so no slide changes. Tests: `tests/test_mail_sources.py`,
+`tests/test_watch_sources.py`.
 ### 2026-09-21 — The watchdog asks the run record, and looks every half hour
 
 Watched live: the 09:01 and 09:06 fires of the morning task were both created SUSPENDED (zero

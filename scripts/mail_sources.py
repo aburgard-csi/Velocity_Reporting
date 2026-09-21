@@ -2,9 +2,10 @@
 """
 mail_sources.py — the inputs that arrive by EMAIL, not on the CSI shares.
 
-Two kinds of file never land on `\\\\PADMIS105`:
+These inputs never land on `\\\\PADMIS105`:
 
   * **MRPC and CashPlease reports** from Bradford Sanders
+  * **the per-client CashPlease marketing emails** from Bradford Sanders
   * **ICS workbooks** from Matt Milliman
 
 `deck_status` has said "arrives by email / n/a" for the ICS workbook since
@@ -51,14 +52,23 @@ MRPCPM, ICS_WB, WEEKLY, OTHER = "MRPCPM", "ICS workbook", "weekly", "other"
 # CashPlease data"); the MRPC enrollment weeklies stay in Weekly Summaries.
 CP_WEEKLY = "CP weekly"
 _WEEKLIES = (WEEKLY, CP_WEEKLY)
+# The per-client CashPlease marketing emails, `<id>_<Client>_Loan_Marketing_Emails.xlsx`
+# (Aaron, 2026-09-21). Eight of them arrived on Bradford's "CashPlease Marketing eMails"
+# thread and parked in the legacy folder, because their names carry no period and read as
+# unclassifiable. They are one per client and replaced in place, so the newest SENT one wins.
+CP_MARKETING = "CP marketing"
 
 # Who may send what. An address here is the ONLY thing that admits a file.
 SENDERS = {
-    "bradford.sanders@csiweb.com": {MRPCPM, WEEKLY, CP_WEEKLY},
+    "bradford.sanders@csiweb.com": {MRPCPM, WEEKLY, CP_WEEKLY, CP_MARKETING},
     "matt.milliman@csiweb.com": {ICS_WB},
 }
 
 WANTED_EXT = (".xlsx", ".xlsm")
+# A .csv is taken ONLY when it is a CashPlease marketing file (Aaron, 2026-09-21): those
+# arrive as CSV, one per client per month, and every other .csv these senders attach —
+# exports, extracts, anything pasted into a reply — is not an input.
+CSV_KINDS = (CP_MARKETING,)
 DEFAULT_DAYS = 30
 
 # Which folders to read, by name in the default store, plus their subfolders.
@@ -70,6 +80,26 @@ MAIL_FOLDERS = ("Inbox", "Archive")
 MAX_FOLDER_DEPTH = 3
 
 _WEEKLY_RX = re.compile(r"(MRPCEnrollmentSummary|CashPleaseSummary)", re.I)
+# `<id>_<Client>_Loan_Marketing_Emails.xlsx` (one per client, no month) and
+# `<id>_<Client>_<MM.YYYY>_Loan_Marketing_Emails.csv` (one per client per month). THE one
+# reading of these names: watch_sources' pruner resolves them through cp_marketing_parts too.
+_CP_MARKETING_RX = re.compile(
+    r"^(?P<client>\d{3,5})_(?P<rest>.*?)(?:_(?P<mm>\d{2})\.(?P<yyyy>\d{4}))?"
+    r"_loan[ _]marketing[ _]emails\.(?:xlsx|xlsm|csv)$", re.I)
+
+
+def cp_marketing_parts(name):
+    """(client, period) for a CashPlease marketing file, else None.
+
+    The period is `YYYY.MM` for the monthly CSVs — their names carry it the other way
+    round, `09.2026` — and None for the per-client workbook, which carries no month and
+    is replaced in place.
+    """
+    m = _CP_MARKETING_RX.match(name)
+    if not m:
+        return None
+    period = "%s.%s" % (m.group("yyyy"), m.group("mm")) if m.group("mm") else None
+    return m.group("client"), period
 _STAMP_RX = re.compile(r"(\d{6}_\d{6})")
 _REPORT_RX = re.compile(r"^(\d{3,5})-(\d{4}\.\d{2})-(.+)$", re.I)
 
@@ -84,6 +114,9 @@ def classify_attachment(name):
     w = _WEEKLY_RX.search(name)
     if w:
         return (CP_WEEKLY if w.group(1).lower() == "cashpleasesummary" else WEEKLY), None, None
+    c = cp_marketing_parts(name)
+    if c:
+        return (CP_MARKETING,) + c
     m = _REPORT_RX.match(name)
     if not m:
         return OTHER, None, None
@@ -257,9 +290,12 @@ def scan(days=DEFAULT_DAYS, messages=None):
             received, subject = None, ""
         for att in m.Attachments:
             name = getattr(att, "FileName", None) or getattr(att, "name", "")
-            if not name.lower().endswith(WANTED_EXT) or name.startswith("~$"):
+            low = name.lower()
+            if not low.endswith(WANTED_EXT + (".csv",)) or name.startswith("~$"):
                 continue
             kind, client, period = classify_attachment(name)
+            if low.endswith(".csv") and kind not in CSV_KINDS:
+                continue                                      # not an input, not worth reporting
             rec = {"name": name, "kind": kind, "client": client, "period": period,
                    "sender": smtp, "subject": subject, "received": received,
                    "att": att,
@@ -290,6 +326,11 @@ def _version_key(rec):
     if rec["kind"] in _WEEKLIES:
         m = _WEEKLY_RX.search(rec["name"])
         return (WEEKLY, m.group(1).lower() if m else rec["name"].lower())
+    if rec["kind"] == CP_MARKETING:
+        # A client gets TWO of these: a monthly .csv and a workbook with no month.
+        # Grouped together, the dated CSV would look like a newer version of the
+        # workbook and the workbook would never be taken.
+        return (CP_MARKETING, rec["client"], os.path.splitext(rec["name"])[1].lower())
     return (rec["kind"], rec["client"])
 
 
@@ -299,6 +340,22 @@ def _version_of(rec):
         m = _STAMP_RX.search(rec["name"])
         return m.group(1) if m else ""
     return rec["period"] or ""
+
+
+def _is_newer(rec, other):
+    """Is `rec` a later version of the same thing than `other`?
+
+    The later period or weekly stamp wins. The CashPlease marketing emails carry
+    neither, so every one of a client's ties, and the later-SENT message decides —
+    otherwise which copy is kept depends on the order Inbox and Archive were read in.
+    """
+    v, ov = _version_of(rec), _version_of(other)
+    if v != ov:
+        return v > ov
+    floor = _dt.datetime.min
+    mine = _to_naive(rec["received"]) if rec.get("received") is not None else floor
+    theirs = _to_naive(other["received"]) if other.get("received") is not None else floor
+    return mine > theirs
 
 
 def newest_only(records):
@@ -321,7 +378,7 @@ def newest_only(records):
             keep_all.append(rec)
             continue
         k = _version_key(rec)
-        if k not in best or _version_of(rec) > _version_of(best[k]):
+        if k not in best or _is_newer(rec, best[k]):
             best[k] = rec
     return list(best.values()) + keep_all
 
@@ -444,6 +501,14 @@ def render(planned, ok_reason="Outlook reachable"):
     return "\n".join(lines)
 
 
+def format_outcome(name, outcome):
+    """One line per attachment written. A FAILED save keeps its reason (2026-09-21):
+    it was printed as the bare word FAILED, so the one thing that would say what to do
+    about it — the error — was dropped, and nothing else recorded it."""
+    status, _, detail = outcome.partition(": ")
+    return "  %-9s %s%s" % (status, name, ("  — " + detail) if status == "FAILED" else "")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=DEFAULT_DAYS)
@@ -462,7 +527,7 @@ def main(argv=None):
         if a.save:
             print()
             for name, dest, outcome in save(planned):
-                print("  %-9s %s" % (outcome.split(":")[0], name))
+                print(format_outcome(name, outcome))
         else:
             print("\ndry run — nothing saved. Re-run with --save")
     finally:

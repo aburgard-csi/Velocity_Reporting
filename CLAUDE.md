@@ -88,6 +88,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | MRPCEnrollmentSummary weeklies | `Inputs/Weekly Summaries/` |
 | CashPlease data: CashPleaseSummary weeklies and the weekly `ILS-DDA-Count-<YYYY-MM-DD>.txt` (Aaron, 2026-09-16) | `Inputs/CashPlease/` |
 | CashPlease production settings (Velocity Product Settings Power BI app, one record per client) | `Inputs/Product Settings/<id>_cp_settings.json` |
+| CashPlease marketing emails from Bradford's "CashPlease Marketing eMails" thread (Aaron, 2026-09-21): the monthly per-client data `<id>_<Client>_<MM.YYYY>_Loan_Marketing_Emails.csv` — the ONE `.csv` the mail step accepts — and the undated per-client `<id>_<Client>_Loan_Marketing_Emails.xlsx`. Newest month per client; `mail_sources.cp_marketing_parts` reads both names, and `watch_sources.PRUNE_ALSO_KINDS` is how prune reaches a folder no reader globs | `Inputs/CashPlease Marketing/` |
 | ARS database code tables (product, Reg E, account status codes per client; written by `scripts/ars_code_tables.py` from a database export — the export's settings table holds plaintext FTP credentials and is never copied) | `Inputs/ARS Settings/ars_code_tables.json` |
 | Client code sheets (product with its Personal/Business flag, account status, mail flag and Reg E mappings per client; saved by the data team, where a CSM's corrections land) | `Inputs/Code Sheets/` |
 | Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
@@ -664,10 +665,13 @@ routinely newer than the code it registers and an unrecognised argument would
 make every fire exit without checking anything. `--notify` raises a Windows toast only when
 there is news or the shares were unreachable; a quiet day is silent.
 
-**The daily run also reads the MAILBOX (Aaron, 2026-09-09).** Two kinds of input never
-land on a share: **MRPC and CashPlease reports from Bradford Sanders**, and **ICS workbooks
-from Matt Milliman**. `--mail`, which the scheduled task passes, takes them from Outlook
-via `scripts/mail_sources.py` and files them by kind alongside everything else.
+**The daily run also reads the MAILBOX (Aaron, 2026-09-09).** Some inputs never land on a
+share: **MRPC and CashPlease reports from Bradford Sanders**, **the per-client CashPlease
+marketing emails from him** (`<id>_<Client>_Loan_Marketing_Emails.xlsx`, their own kind since
+2026-09-21 — eight of them had been reported and left where they were, because a name with no
+period reads as unclassifiable), and **ICS workbooks from Matt Milliman**. `--mail`, which the
+scheduled task passes, takes them from Outlook via `scripts/mail_sources.py` and files them by
+kind alongside everything else.
 
 - **Outlook COM, not Graph** — the task already runs as the logged-on user, so the desktop
   profile is signed in and there is no app registration, secret or consent to own. An
@@ -902,7 +906,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**).
 - `ics_referrals_pull.py` — the `--ics-referrals` step: merges each ICS referrals query result saved as `Inputs/ICS Referrals/ics_referrals <date>.csv` into one `ics_referrals.csv` (a referral = client, account, issue date; a newer pull replaces an older pull's rows for the same referral) and rewrites `ICS Referrals - new since last pull.sql` beside it with `@since` = the day of the newest referral merged. The query itself (`sql/ics_referrals_all_clients.sql`) is run by a person; Claude cannot reach that database.
 - `ils_dda_count_mail.py` — saves the newest "ILS Management Server DDA Count" email body (Charles Baker's weekly forward) word for word from Outlook as `Inputs/CashPlease/ILS-DDA-Count-<sent date>.txt`, the CashPlease loans-per-DDA denominator. Run by the CSI Email Monitor task (`C:\Data Pipelines\Email Pipeline\run-monitor.ps1`) before its Claude step (Aaron, 2026-09-17); never overwrites a saved week whose table differs.
-- `mail_sources.py` — the `--mail` step: reads Bradford's and Matt's attachments out of Outlook via COM, files them by kind, newest-only (see **Daily source watch**).
+- `mail_sources.py` — the `--mail` step: reads Bradford's and Matt's attachments out of Outlook via COM, files them by kind, newest-only (see **Daily source watch**). `.xlsx`/`.xlsm` only, except the CashPlease marketing CSVs (`CSV_KINDS`).
 - `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily.
 - `watch_task_watchdog.ps1` — detects a "RPE Source Watch" run Windows created suspended and never executed, kills it, and retries (see **The watchdog**).
 - `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.

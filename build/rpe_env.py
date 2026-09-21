@@ -306,6 +306,10 @@ INPUT_KIND_DIRS = {
     "weekly": "Weekly Summaries",         # MRPCEnrollmentSummary weeklies
     "CP weekly": "CashPlease",            # CashPleaseSummary weeklies + ILS-DDA-Count-<date>.txt (Aaron, 2026-09-16)
     "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
+    # <id>_<Client>_Loan_Marketing_Emails.xlsx, one per client, from Bradford's "CashPlease
+    # Marketing eMails" thread (Aaron, 2026-09-21). They carry no period and are replaced in
+    # place when re-sent, so they are never scanned or pruned as a workbook-ish input.
+    "CP marketing": "CashPlease Marketing",
     "ARS codes": "ARS Settings",          # ars_code_tables.json, the ARS database's code tables
     "Code sheets": "Code Sheets",         # clients' code sheets, saved by the data team
     # A client with no VIP ICS sheet (1776 CoastHills CU, Aaron 2026-09-16): the CSM lands the
@@ -326,7 +330,7 @@ INPUT_KIND_DIRS = {
 # report_dirs() nor the copier/pruner in watch_sources.py looks inside these.
 # The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
-NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets",
+NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
                      "ICS referrals", "ICS direct mail", "Branch names", "Txn")
 
 # The flat folder everything used to land in. Kept as a READ location for good:

@@ -47,9 +47,78 @@ class Msg:
     ("260906_044753-MRPCEnrollmentSummary_v3_13.xlsx", M.WEEKLY, None, None),
     ("CashPleaseSummaryV1_260906_063545.xlsx", M.CP_WEEKLY, None, None),
     ("Q3 numbers.xlsx", M.OTHER, None, None),
+    ("1539_Marine FCU_Loan_Marketing_Emails.xlsx", M.CP_MARKETING, "1539", None),
+    ("1585_FIRST COMMUNITY BANK HEARTLAND_Loan_Marketing_Emails.xlsx",
+     M.CP_MARKETING, "1585", None),
+    ("Loan_Marketing_Emails.xlsx", M.OTHER, None, None),     # no client id: still parked
+    ("1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv",
+     M.CP_MARKETING, "1539", "2026.09"),                     # the month reads MM.YYYY
+    ("1186_Members First Federal Credit Union_08.2026_Loan_Marketing_Emails.csv",
+     M.CP_MARKETING, "1186", "2026.08"),
 ])
 def test_attachment_classification(name, kind, client, period):
     assert M.classify_attachment(name) == (kind, client, period)
+
+
+# ------------------------------------------------------------------ CashPlease marketing
+def test_the_marketing_emails_are_filed_per_client(tmp_path):
+    """Eight of them parked in the legacy folder on 2026-09-21 because their names carry
+    no period. They are their own kind now, one file per client (Aaron, 2026-09-21)."""
+    names = ["1539_Marine FCU_Loan_Marketing_Emails.xlsx",
+             "1806_SOCU_Loan_Marketing_Emails.xlsx"]
+    m = Msg(BRAD, [Att(n) for n in names], subject="Re: Cashplease Marketing eMails")
+    recs = M.scan(messages=[m])
+    assert {r["client"] for r in recs} == {"1539", "1806"}
+    assert all(r["kind"] == M.CP_MARKETING and "skip" not in r for r in recs)
+    for rec, dest, reason in M.plan(recs, inputs_dir=str(tmp_path)):
+        assert reason is None
+        assert os.path.dirname(dest) == str(tmp_path / "CashPlease Marketing")
+        assert os.path.basename(dest) == rec["name"]
+
+
+def test_the_monthly_csvs_are_taken_but_other_csvs_are_not(tmp_path):
+    """The monthly files arrive as CSV (Aaron, 2026-09-21). No other .csv is an input."""
+    m = Msg(BRAD, [Att("1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv", size=5_326_283),
+                   Att("Velocity numbers.csv", size=400)])
+    recs = M.scan(messages=[m])
+    assert [r["name"] for r in recs] == ["1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv"]
+    rec, dest, reason = M.plan(recs, inputs_dir=str(tmp_path))[0]
+    assert reason is None and os.path.dirname(dest) == str(tmp_path / "CashPlease Marketing")
+
+
+def test_the_newest_month_wins_and_the_workbook_is_kept_beside_it():
+    """A client's dated CSV must not read as a newer version of their undated workbook."""
+    m = Msg(BRAD, [Att("1539_Marine FCU_08.2026_Loan_Marketing_Emails.csv"),
+                   Att("1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv"),
+                   Att("1539_Marine FCU_Loan_Marketing_Emails.xlsx")])
+    got = sorted(r["name"] for r in M.scan(messages=[m]))
+    assert got == ["1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv",
+                   "1539_Marine FCU_Loan_Marketing_Emails.xlsx"]
+
+
+def test_a_failed_save_keeps_its_reason():
+    """It printed the bare word FAILED, so nothing anywhere said why (2026-09-21)."""
+    line = M.format_outcome("x.xlsx", "FAILED: [WinError 59] an unexpected network error")
+    assert "FAILED" in line and "WinError 59" in line
+    assert M.format_outcome("x.xlsx", "saved").split() == ["saved", "x.xlsx"]
+
+
+def test_only_bradford_may_send_them():
+    m = Msg(MATT, [Att("1539_Marine FCU_Loan_Marketing_Emails.xlsx")])
+    rec = M.scan(messages=[m])[0]
+    assert "not expected from" in rec["skip"]
+
+
+def test_a_client_keeps_the_latest_sent_marketing_email():
+    """Their names carry no period, so the tie is broken by when it was sent, not by
+    whether Inbox or Archive was read first."""
+    old = Msg(BRAD, [Att("1539_Marine FCU_Loan_Marketing_Emails.xlsx", size=1000)],
+              received=_dt.datetime(2026, 8, 1, 9, 0))
+    new = Msg(BRAD, [Att("1539_Marine FCU_Loan Marketing Emails.xlsx", size=2000)],
+              received=_dt.datetime(2026, 9, 20, 9, 0))
+    for order in ([old, new], [new, old]):
+        recs = M.scan(messages=order)
+        assert len(recs) == 1 and recs[0]["size"] == 2000
 
 
 # ------------------------------------------------------------------ senders

@@ -351,6 +351,32 @@ def test_prune_keeps_the_newest_weekly_by_stamp():
                                     "CashPleaseSummaryV1_260830_072636.xlsx"]
 
 
+def test_prune_keeps_the_newest_cashplease_marketing_month_per_client():
+    """One per client per month, named `MM.YYYY` (Aaron, 2026-09-21). The undated
+    per-client workbook has no newer version and is never pruned."""
+    names = ["1539_Marine FCU_07.2026_Loan_Marketing_Emails.csv",
+             "1539_Marine FCU_08.2026_Loan_Marketing_Emails.csv",
+             "1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv",
+             "1539_Marine FCU_Loan_Marketing_Emails.xlsx",
+             "1806_SOCU_09.2026_Loan_Marketing_Emails.csv"]           # only month: kept
+    assert W.prune_plan(names) == [
+        ("1539_Marine FCU_07.2026_Loan_Marketing_Emails.csv",
+         "1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv"),
+        ("1539_Marine FCU_08.2026_Loan_Marketing_Emails.csv",
+         "1539_Marine FCU_09.2026_Loan_Marketing_Emails.csv"),
+    ]
+
+
+def test_the_marketing_folder_is_pruned_though_no_reader_globs_it(tmp_path):
+    """It is not a workbook-ish folder, so `_report_dirs` leaves it out; prune still has
+    to see it or a superseded month would sit there for good."""
+    import rpe_env as R
+    d = tmp_path / R.INPUT_KIND_DIRS["CP marketing"]
+    d.mkdir(parents=True)
+    assert str(d) not in W._report_dirs(str(tmp_path))
+    assert W._prune_also_dirs(str(tmp_path)) == [str(d)]
+
+
 def test_prune_never_plans_against_an_only_file():
     assert W.prune_plan(["1174-2026.07-PointBank-DCO v2_2.xlsx",
                          "1632-2026.07-WesBanco-Invitation Checking Workbook v1.7.1.xlsx"]) == []

@@ -247,6 +247,21 @@ def _report_dirs(inputs_dir):
             if os.path.isdir(os.path.join(inputs_dir, n))]
 
 
+# Folders outside the workbook-ish set that still hold one-per-client-per-month files, so
+# prune has a newer version to compare (Aaron, 2026-09-21). They stay out of `_report_dirs`
+# because no reader globs them: the CashPlease marketing files are resolved by exact path.
+PRUNE_ALSO_KINDS = ("CP marketing",)
+
+
+def _prune_also_dirs(inputs_dir):
+    out = []
+    for kind in PRUNE_ALSO_KINDS:
+        d = os.path.join(inputs_dir, R.INPUT_KIND_DIRS[kind])
+        if os.path.isdir(d):
+            out.append(d)
+    return out
+
+
 def _find_input(inputs_dir, name):
     """The existing copy of `name`, wherever it was sorted to. Falls back to the
     path it WOULD take, so a caller can stat it and find it absent."""
@@ -435,6 +450,14 @@ def _prune_group(name):
     if m:
         st = _STAMP_RX.search(name)
         return ("weekly", m.group(1).lower()), (st.group(1) if st else "")
+    # The CashPlease marketing CSVs, one per client per month (Aaron, 2026-09-21). Their
+    # names carry `MM.YYYY` rather than the `<id>-<period>-` convention, so mail_sources
+    # — which is where these names are read — resolves them. The per-client workbook has
+    # no month, so it has no newer version and is never pruned.
+    import mail_sources
+    parts = mail_sources.cp_marketing_parts(name)
+    if parts and parts[1]:
+        return ("client", parts[0], mail_sources.CP_MARKETING), parts[1]
     return None
 
 
@@ -1078,7 +1101,7 @@ def main(argv=None):
         # it supersedes now live apart, and prune compares them by name.
         inputs_dir = _inputs_dir()
         where = {}
-        for d in _report_dirs(inputs_dir):
+        for d in _report_dirs(inputs_dir) + _prune_also_dirs(inputs_dir):
             try:
                 for nm in os.listdir(d):
                     where.setdefault(nm, os.path.join(d, nm))
