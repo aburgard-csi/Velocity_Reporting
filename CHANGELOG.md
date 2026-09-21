@@ -17,6 +17,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-21 — The watchdog asks the run record, and looks every half hour
+
+Watched live: the 09:01 and 09:06 fires of the morning task were both created SUSPENDED (zero
+CPU, zero handles, 1.8 MB — the interpreter never started), while the same command started by
+hand ran fine. The watchdog would not have touched either: it judged by the report's age, and
+the 08:00 run's report was 52 minutes old — perfectly fresh — so the morning's copy would simply
+never have happened.
+
+- `watch_sources --check-today` exits 0 when a run REACHED THE SHARES today, read from the run
+  record the runs stamp themselves. `--check-stale` (26-hour view) is unchanged.
+- The watchdog asks that instead of reading the report's mtime, and falls back to the report
+  when a checkout has no such flag. Its messages say "no run has reached the shares today".
+- It now fires every 30 minutes for 4 hours from 08:20 (`register_watchdog_task.ps1
+  -RepeatHours`), so a fire created suspended at 09:00 is cleared within half an hour rather
+  than waiting for tomorrow.
+
+Tests: `--check-today` over the record (including "off VPN today does not count"), and that the
+watchdog asks it and still carries the report fallback.
+
 ### 2026-09-21 — The morning check saves its scan before the copy, and gets two hours
 
 The 08:00 source check produced NOTHING on 2026-09-18, -19 and -20: no report, no log entry,

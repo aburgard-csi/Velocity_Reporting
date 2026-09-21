@@ -1017,6 +1017,9 @@ def main(argv=None):
     ap.add_argument("--check-stale", action="store_true",
                     help="report whether the daily watch has been running, and "
                          "exit non-zero if it has not; checks nothing else")
+    ap.add_argument("--check-today", action="store_true",
+                    help="exit 0 if a run reached the shares TODAY, 1 if not; checks "
+                         "nothing else (what the watchdog asks before it intervenes)")
     a = ap.parse_args(argv)
     # A cp1252 console must not kill a scheduled run over an em dash.
     if hasattr(sys.stdout, "reconfigure"):
@@ -1027,6 +1030,15 @@ def main(argv=None):
         state, detail = run_health()
         print("source watch: %s — %s" % (state, detail))
         return 0 if state == "ok" else 1
+
+    # The watchdog's question (Aaron, 2026-09-21). Report freshness cannot answer it: a report
+    # written at 08:14 is fresh at 09:00 while the 09:00 fire sits suspended and the morning's
+    # copy never happens. The run record can — it is stamped by the run itself, and only when
+    # the share check got through.
+    if a.check_today:
+        done = completed_today()
+        print("source watch reached the shares today: %s" % ("yes" if done else "no"))
+        return 0 if done else 1
 
     periods = a.period or periods_to_watch()
     for p in periods:

@@ -753,3 +753,26 @@ def test_an_off_vpn_run_still_counts_as_a_run(tmp_path, monkeypatch):
     assert W.main(["--period", "2026.09"]) == 2
     assert W.read_runs(_runs(tmp_path))["last_outcome"] == "unreachable"
     assert W.run_health(path=_runs(tmp_path))[0] == "ok"
+
+
+def test_check_today_reads_the_run_record(tmp_path, monkeypatch, capsys):
+    """The watchdog asks this, not the report's age (Aaron, 2026-09-21): on 2026-09-21 the
+    08:00 run's report was 52 minutes old — perfectly fresh — while the 09:01 fire sat
+    suspended and that morning's copy was never going to happen."""
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    assert W.main(["--check-today"]) == 1
+    assert "reached the shares today: no" in capsys.readouterr().out
+    W.record_finish("reachable", path=str(tmp_path / W.RUNS_NAME))
+    assert W.main(["--check-today"]) == 0
+    W.record_finish("unreachable", path=str(tmp_path / W.RUNS_NAME))
+    assert W.main(["--check-today"]) == 1      # off VPN: the later fires must still go and look
+
+
+def test_the_watchdog_asks_the_run_record():
+    import os
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dog = open(os.path.join(repo, "scripts", "watch_task_watchdog.ps1"), encoding="utf-8").read()
+    reg = open(os.path.join(repo, "scripts", "register_watchdog_task.ps1"), encoding="utf-8").read()
+    assert "--check-today" in dog and "Watch-RanToday" in dog
+    assert "Report-IsFresh" in dog                 # still the fallback for an older checkout
+    assert "RepetitionInterval" in reg             # it repeats through the morning

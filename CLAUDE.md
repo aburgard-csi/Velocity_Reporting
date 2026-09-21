@@ -797,8 +797,12 @@ powershell -ExecutionPolicy Bypass -File scripts\register_watchdog_task.ps1 [-Ti
 ```
 
 `scripts/watch_task_watchdog.ps1` runs as its own scheduled task, **"RPE Source Watch
-Watchdog"**, a fixed offset after the main task (default 08:15, 15 minutes after the
-main task's 08:00). Not a background thread of the main task — if whatever suspends
+Watchdog"**, from 08:20 and **every 30 minutes for four hours** (Aaron, 2026-09-21), so a
+fire created suspended at 09:00 or 10:00 is cleared while the morning still matters. It asks
+`watch_sources.py --check-today` — has a run REACHED THE SHARES today, from the run record —
+rather than reading the report's age: on 2026-09-21 the 08:00 report was 52 minutes old and
+fresh while the 09:01 fire sat suspended and that morning's copy was never going to happen.
+(An older checkout without the flag falls back to the report's age.) Not a background thread of the main task — if whatever suspends
 the main process can suspend it, a thread living inside that same process is exactly
 as stuck; a second, independently-triggered task is the only vantage point actually
 outside the failure. Each firing: if `source_watch_latest.md` is already fresh

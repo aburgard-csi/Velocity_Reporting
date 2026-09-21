@@ -40,7 +40,9 @@
     register_watch_task.ps1's own settings assume is on PATH for this user.
 
 .PARAMETER Time
-    Daily start time, HH:mm (24h). Default: 08:45 -- 45 minutes after the main
+    Daily start time, HH:mm (24h). Default: 08:20, repeating every 30 minutes for
+    -RepeatHours (4) -- so a fire created suspended at 09:00 or 10:00 is cleared
+    within half an hour, not left until tomorrow. It was one fire after the main
     task's own default of 08:00. If the main task runs at a different time,
     pass that time here plus your own margin; this script does not read the
     other task's trigger.
@@ -55,7 +57,8 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Time = "08:45",
+    [string]$Time = "08:20",
+    [int]$RepeatHours = 4,
     [switch]$Unregister
 )
 
@@ -87,6 +90,16 @@ $parsed = [datetime]::ParseExact($Time, "HH:mm", $null)
 $action = New-ScheduledTaskAction -Execute $PowerShellExe `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$Script`"" -WorkingDirectory $Repo
 $trigger = New-ScheduledTaskTrigger -Daily -At $parsed
+
+if ($RepeatHours -gt 0) {
+    # A daily trigger carries no repetition of its own; borrow one from a throwaway -Once
+    # trigger, the same way register_watch_task.ps1 does. Half-hourly through the morning
+    # (Aaron, 2026-09-21): a fire created suspended at 09:00 has to be cleared while the
+    # morning still matters, not at tomorrow's 08:20.
+    $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At $parsed `
+        -RepetitionInterval (New-TimeSpan -Minutes 30) `
+        -RepetitionDuration (New-TimeSpan -Hours $RepeatHours)).Repetition
+}
 # 20 minutes is generous: the watchdog itself waits up to
 # (MaxAttempts-1) * WaitBetweenAttemptsSeconds internally (default ~6-7 minutes
 # for two retries) before giving up, and this ceiling is only a backstop against
@@ -104,6 +117,8 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
 
 $t = Get-ScheduledTask -TaskName $TaskName
 Write-Host ("Registered '{0}': daily at {1}, as {2}, state {3}" -f $TaskName, $Time, $user, $t.State)
+if ($RepeatHours -gt 0) { Write-Host ("  repeats: every 30 min for {0} h after {1}" -f $RepeatHours, $Time) }
+Write-Host "  asks: watch_sources.py --check-today (the run record), else the report's age"
 Write-Host "  runs: $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File `"$Script`""
 Write-Host "  run now:  Start-ScheduledTask -TaskName '$TaskName'"
 Write-Host "  remove:   powershell -ExecutionPolicy Bypass -File scripts\register_watchdog_task.ps1 -Unregister"

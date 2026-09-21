@@ -110,6 +110,24 @@ function Report-IsFresh {
     return $age.TotalMinutes -le $FreshWithinMinutes
 }
 
+# What the watchdog actually wants to know (Aaron, 2026-09-21): has a run reached the shares
+# TODAY? The report's own freshness cannot say - on 2026-09-21 the 08:00 run wrote its report at
+# 08:14 and the 09:01 fire was then created suspended, so at 09:06 the report was 52 minutes old
+# and perfectly fresh while that morning's later copy was never going to happen. watch_sources
+# --check-today reads the run record the runs themselves stamp. A checkout that does not carry
+# the flag (argparse exits 2) falls back to the report.
+function Watch-RanToday {
+    $py = Join-Path $Repo ".venv\Scripts\python.exe"
+    $script = Join-Path $Repo "scripts\watch_sources.py"
+    if (-not (Test-Path $py) -or -not (Test-Path $script)) { return (Report-IsFresh) }
+    $null = & $py $script --check-today 2>&1
+    switch ($LASTEXITCODE) {
+        0 { return $true }
+        1 { return $false }
+        default { return (Report-IsFresh) }      # flag not supported in this checkout
+    }
+}
+
 # ---------------------------------------------------------------- signature
 # The one fact that distinguishes "created suspended, will NEVER run" from
 # "running slowly" or "genuinely blocked in I/O with modules loaded": zero
@@ -153,12 +171,12 @@ function Kill-ProcessTree([int]$rootPid) {
 }
 
 # ---------------------------------------------------------------- main
-if (Report-IsFresh) {
+if (Watch-RanToday) {
     # The common case, every healthy morning: say nothing, touch nothing.
     exit 0
 }
 
-Write-Log "=== watchdog: $ReportPath is stale (or missing) ==="
+Write-Log "=== watchdog: no run has reached the shares today ==="
 $attempt = 1
 while ($attempt -le $MaxAttempts) {
     $stuck = Find-StuckWatchProcesses
@@ -193,12 +211,12 @@ while ($attempt -le $MaxAttempts) {
     }
 
     Start-Sleep -Seconds $WaitBetweenAttemptsSeconds
-    if (Report-IsFresh) {
-        Write-Log "attempt ${attempt}: recovered -- $ReportPath is fresh again"
+    if (Watch-RanToday) {
+        Write-Log "attempt ${attempt}: recovered -- a run reached the shares"
         exit 0
     }
     $attempt++
 }
 
-Write-Log ("gave up after {0} attempts -- {1} is still stale. Manual intervention needed." -f $MaxAttempts, $ReportPath)
+Write-Log ("gave up after {0} attempts -- no run has reached the shares today. Manual intervention needed." -f $MaxAttempts)
 exit 1
