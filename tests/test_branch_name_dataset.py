@@ -87,4 +87,5 @@ def test_the_morning_task_runs_it():
     watch = open(os.path.join(repo, "scripts", "watch_sources.py"), encoding="utf-8").read()
     task = open(os.path.join(repo, "scripts", "register_watch_task.ps1"), encoding="utf-8").read()
     assert '"--branch-names"' in watch and "branch_names.morning_update(" in watch
-    assert "--branch-names" in task.split("-Argument", 1)[1].split("\n", 1)[0]
+    # the task's argument string is built into $TaskArgs (the retry fires were added 2026-09-21)
+    assert "--branch-names" in next(l for l in task.splitlines() if l.strip().startswith("$TaskArgs ="))

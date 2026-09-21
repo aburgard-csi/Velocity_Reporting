@@ -604,3 +604,152 @@ def test_the_report_is_rewritten_whole_when_the_steps_finish(tmp_path, monkeypat
     assert W.main(["--period", "2026.09", "--copy"]) == 0
     report = (tmp_path / W.REPORT_NAME).read_text(encoding="utf-8")
     assert report.count("# Source check") == 1
+# ------------------------------------------------------------------ run record
+# The check that would have caught 2026-09-09..11, when the 08:00 scheduled task
+# was created and left suspended three mornings running: the interpreter never
+# initialized, so no log line, no report and no toast were written, and nothing
+# in the pipeline knew the watch had stopped. A heartbeat inside the run cannot
+# catch a run that never starts. Age measured from the last FINISH can.
+def _runs(tmp_path):
+    return str(tmp_path / W.RUNS_NAME)
+
+
+def test_run_health_never_when_nothing_recorded(tmp_path):
+    state, detail = W.run_health(path=_runs(tmp_path))
+    assert state == "never"
+    assert "no run has ever been recorded" in detail
+
+
+def test_run_health_ok_after_a_finished_run(tmp_path):
+    p = _runs(tmp_path)
+    now = dt.datetime(2026, 9, 11, 8, 2)
+    W.record_start(["--copy"], path=p, now=now)
+    W.record_finish("reachable", path=p, now=now)
+    state, detail = W.run_health(now=now + dt.timedelta(hours=2), path=p)
+    assert state == "ok"
+    assert "2026-09-11 08:02" in detail
+
+
+def test_run_health_goes_stale_after_a_missed_day(tmp_path):
+    p = _runs(tmp_path)
+    fin = dt.datetime(2026, 9, 8, 8, 2)
+    W.record_start(["--copy"], path=p, now=fin)
+    W.record_finish("reachable", path=p, now=fin)
+    # The next morning's fire is due; 26 h is the line.
+    assert W.run_health(now=fin + dt.timedelta(hours=25), path=p)[0] == "ok"
+    state, detail = W.run_health(now=fin + dt.timedelta(hours=27), path=p)
+    assert state == "stale"
+    assert "27.0 h ago" in detail
+
+
+def test_a_started_run_that_never_finished_is_not_healthy(tmp_path):
+    """The 2026-09-09 shape exactly: a start on the record, no finish after it."""
+    p = _runs(tmp_path)
+    W.record_start(["--copy"], path=p, now=dt.datetime(2026, 9, 9, 8, 0))
+    state, detail = W.run_health(now=dt.datetime(2026, 9, 9, 9, 0), path=p)
+    assert state == "never"
+    assert "started 2026-09-09 08:00 and never finished" in detail
+
+
+def test_a_later_unfinished_run_is_named_even_when_an_older_one_finished(tmp_path):
+    p = _runs(tmp_path)
+    W.record_start(["--copy"], path=p, now=dt.datetime(2026, 9, 8, 8, 0))
+    W.record_finish("reachable", path=p, now=dt.datetime(2026, 9, 8, 8, 3))
+    W.record_start(["--copy"], path=p, now=dt.datetime(2026, 9, 9, 8, 0))
+    state, detail = W.run_health(now=dt.datetime(2026, 9, 9, 9, 0), path=p)
+    assert state == "ok"                       # 25 h is still inside the window
+    assert "a later run started 2026-09-09 08:00 and did not finish" in detail
+
+
+def test_damaged_run_record_reads_as_unknown_never_as_healthy(tmp_path):
+    """The opposite trade to the inventory: bookkeeping about runs must not stop
+    a run, but it must never be mistaken for a clean bill of health."""
+    p = _runs(tmp_path)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("{not json")
+    assert W.read_runs(p) == {"damaged": True}
+    assert W.run_health(path=p)[0] == "never"
+    # ...and the next run overwrites it rather than dying on it.
+    assert W.record_start(["--copy"], path=p) is not None
+    assert "damaged" not in W.read_runs(p)
+
+
+def test_record_start_never_raises_when_it_cannot_write(tmp_path):
+    bad = str(tmp_path / "no-such-dir" / W.RUNS_NAME)
+    assert W.record_start(["--copy"], path=bad) is None
+    assert W.record_finish("reachable", path=bad) is None
+
+
+# ------------------------------------------------- the retry guard (--once-daily)
+def test_completed_today_is_false_until_a_run_reaches_the_shares(tmp_path):
+    p = _runs(tmp_path)
+    now = dt.datetime(2026, 9, 11, 9, 0)
+    assert W.completed_today(now=now, path=p) is False
+    W.record_finish("reachable", path=p, now=now.replace(hour=8))
+    assert W.completed_today(now=now, path=p) is True
+
+
+def test_an_off_vpn_run_does_not_stop_the_later_fires_going_to_look(tmp_path):
+    """A run that found the shares down did its job and reported honestly, but it
+    copied nothing. The 09:00 fire must still go, or a VPN that connects at 08:15
+    costs the whole day."""
+    p = _runs(tmp_path)
+    now = dt.datetime(2026, 9, 11, 9, 0)
+    W.record_finish("unreachable", path=p, now=now.replace(hour=8))
+    assert W.completed_today(now=now, path=p) is False
+    # ...and it is still a run that RAN, so health is fine: that is the VPN's news.
+    assert W.run_health(now=now, path=p)[0] == "ok"
+
+
+def test_yesterdays_success_does_not_satisfy_today(tmp_path):
+    p = _runs(tmp_path)
+    W.record_finish("reachable", path=p, now=dt.datetime(2026, 9, 10, 8, 2))
+    assert W.completed_today(now=dt.datetime(2026, 9, 11, 8, 0), path=p) is False
+
+
+def test_check_stale_exits_non_zero_and_touches_no_share(tmp_path, monkeypatch, capsys):
+    """It has to answer on a machine that is off the VPN, so it must not scan."""
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    monkeypatch.setattr(W, "scan", lambda periods: pytest.fail("--check-stale scanned"))
+    assert W.main(["--check-stale"]) == 1
+    assert "source watch: never" in capsys.readouterr().out
+    W.record_finish("reachable", path=_runs(tmp_path))
+    assert W.main(["--check-stale"]) == 0
+
+
+def test_once_daily_skips_after_a_successful_run(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    monkeypatch.setattr(W, "scan", lambda periods: pytest.fail("--once-daily scanned"))
+    W.record_finish("reachable", path=_runs(tmp_path))
+    assert W.main(["--once-daily", "--period", "2026.09"]) == 0
+    assert "already reached the shares today" in capsys.readouterr().out
+
+
+def test_a_real_run_records_start_and_finish(tmp_path, monkeypatch, shares):
+    oddd, _reports, _ = shares
+    _land(oddd, "2026.09 Sep", "1038_ODDD.zip")
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    assert W.main(["--period", "2026.09", "--no-inputs"]) == 0
+    doc = W.read_runs(_runs(tmp_path))
+    assert doc["last_outcome"] == "reachable"
+    assert W._parse_stamp(doc["last_finished"]) >= W._parse_stamp(doc["last_started"])
+    assert W.run_health(path=_runs(tmp_path))[0] == "ok"
+
+
+def test_a_dry_run_is_not_a_daily_run(tmp_path, monkeypatch, shares):
+    """It stamps neither end, or a --dry-run would leave a start with no finish
+    and make a healthy watch look killed."""
+    oddd, _reports, _ = shares
+    _land(oddd, "2026.09 Sep", "1038_ODDD.zip")
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    W.main(["--period", "2026.09", "--no-inputs", "--dry-run"])
+    assert W.read_runs(_runs(tmp_path)) == {}
+
+
+def test_an_off_vpn_run_still_counts_as_a_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(W, "SRC_ODDD", str(tmp_path / "nope"))
+    monkeypatch.setattr(W, "SRC_REPORTS", str(tmp_path / "nope2"))
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
+    assert W.main(["--period", "2026.09"]) == 2
+    assert W.read_runs(_runs(tmp_path))["last_outcome"] == "unreachable"
+    assert W.run_health(path=_runs(tmp_path))[0] == "ok"

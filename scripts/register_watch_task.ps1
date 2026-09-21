@@ -5,7 +5,8 @@
 .DESCRIPTION
     Creates the task "RPE Source Watch", which runs
 
-        <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py --notify --copy --prune --ics-referrals --branch-names --mail
+        <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py `
+            --notify --copy --prune --ics-referrals --branch-names --mail --once-daily
 
     once a day at the given time, as the current user, only while that user is
     logged on. Logged-on matters twice over: the task needs this user's network
@@ -22,14 +23,38 @@
     start at the newest referral merged (scripts/ics_referrals_pull.py). --branch-names adds branch
     names found in the Charts workbooks and that pull to Inputs\Branch Names\branch_names.csv.
 
+    --mail also takes the MRPC / CashPlease reports and the ICS workbooks from
+    Outlook, which never land on a share.
+
     A missed run (laptop asleep, docked late) is started as soon as the machine
     is back, and the task waits for a network connection rather than failing on
     a machine that has not finished connecting.
 
-    The execution limit is 2 HOURS (Aaron, 2026-09-21). It was 30 minutes, and on a slow
-    share the copy step outran it: the 08:00 runs of 2026-09-18 through 2026-09-20 were
-    killed part way. watch_sources now saves the scan's report before the copy starts, so a
-    kill costs the copy, not the report - but the limit has to leave room for the copy too.
+    THE FIRE IS RETRIED, and that is not belt-and-braces. On 2026-09-09, -10 and
+    -11 - and again on 2026-09-18 and -19 - the 08:00 process was created by the
+    scheduler and left SUSPENDED: zero CPU, no modules loaded, the interpreter
+    never initialized, killed at the execution limit. Those mornings produced no
+    check and no trace. Only the unattended time-triggered fires did this; every
+    run started by hand on an awake machine finished in minutes. So the trigger
+    repeats hourly through the morning, on the reasoning that a later fire meets
+    a machine that is properly awake, and -WakeToRun asks for one at the start.
+    The repeats are cheap: --once-daily makes a fire that follows a successful
+    run exit immediately. "Successful" there means it reached the shares, so a
+    fire that found the VPN down does not stop the later ones going to look.
+
+    The execution limit is 50 minutes (Aaron, 2026-09-21). It has to clear
+    before the next hourly fire, or MultipleInstances IgnoreNew would drop that
+    one - so not the 2 hours a slow share's copy might want - and it has to
+    leave room for more than the 20 minutes a healthy run takes: the 08:00 runs
+    of 2026-09-18 through -20 were killed inside the copy at 30. watch_sources
+    now writes the scan's report before the copy begins, so a fire killed at 50
+    minutes still leaves the morning's findings and its run record.
+
+    Whether any of this actually happened is a separate question, and the task
+    cannot answer it - a fire that never runs writes nothing. Ask the watch
+    itself, from anywhere:
+
+        <repo>\.venv\Scripts\python.exe scripts\watch_sources.py --check-stale
 
     The venv interpreter is used, not the Windows Store python, for the same
     reason validation/qa_all.py insists on it: the Store python lacks the repo's
@@ -44,6 +69,15 @@
 .PARAMETER Time
     Daily start time, HH:mm (24h). Default 08:00.
 
+.PARAMETER Repo
+    Which checkout the task should run. Defaults to the one this script lives
+    in, which is wrong in a worktree: a worktree has no .venv and no .env, and
+    the task needs both. Point it at the checkout that does.
+
+.PARAMETER RetryHours
+    How long to keep re-firing hourly after Time. Default 4 (08:00 to 12:00).
+    0 registers a single daily fire with no retries.
+
 .PARAMETER Unregister
     Remove the task instead of creating it.
 
@@ -55,12 +89,15 @@
 [CmdletBinding()]
 param(
     [string]$Time = "08:00",
+    [string]$Repo = "",
+    [int]$RetryHours = 4,
     [switch]$Unregister
 )
 
 $ErrorActionPreference = "Stop"
 $TaskName = "RPE Source Watch"
-$Repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+if (-not $Repo) { $Repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path) }
+if (-not (Test-Path $Repo)) { throw "No such checkout: $Repo" }
 
 if ($Unregister) {
     if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
@@ -84,12 +121,33 @@ if (-not (Test-Path $Script)) { throw "Missing $Script" }
 
 $parsed = [datetime]::ParseExact($Time, "HH:mm", $null)
 
+$TaskArgs = "`"$Script`" --notify --copy --prune --ics-referrals --branch-names --mail"
+# Only pass --once-daily if the code being registered actually knows it. This
+# script is routinely newer than the checkout it points at - an unmerged branch,
+# a worktree, a -Repo somewhere else - and an argument argparse does not
+# recognise would make every fire exit 2 without checking anything. The retries
+# still work without it; they just do the full scan each time.
+if (Select-String -Path $Script -Pattern '--once-daily' -Quiet -SimpleMatch) {
+    $TaskArgs += " --once-daily"
+} else {
+    Write-Warning ("{0} has no --once-daily; registering without it. Each retry " -f $Script)
+    Write-Warning "         will do a full scan instead of exiting early."
+}
 $action = New-ScheduledTaskAction -Execute $Python `
-    -Argument "`"$Script`" --notify --copy --prune --ics-referrals --branch-names --mail" -WorkingDirectory $Repo
+    -Argument $TaskArgs -WorkingDirectory $Repo
+
 $trigger = New-ScheduledTaskTrigger -Daily -At $parsed
+if ($RetryHours -gt 0) {
+    # A daily trigger carries no repetition of its own; borrow one from a
+    # throwaway -Once trigger. Why it repeats at all is in .DESCRIPTION.
+    $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At $parsed `
+        -RepetitionInterval (New-TimeSpan -Hours 1) `
+        -RepetitionDuration (New-TimeSpan -Hours $RetryHours)).Repetition
+}
+
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 120) -MultipleInstances IgnoreNew `
-    -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 50) -MultipleInstances IgnoreNew `
+    -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun
 $user = "$env:USERDOMAIN\$env:USERNAME"
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
@@ -100,6 +158,16 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
 
 $t = Get-ScheduledTask -TaskName $TaskName
 Write-Host ("Registered '{0}': daily at {1}, as {2}, state {3}" -f $TaskName, $Time, $user, $t.State)
-Write-Host "  runs: $Python `"$Script`" --notify --copy --prune --ics-referrals --branch-names --mail"
+if ($RetryHours -gt 0) {
+    Write-Host ("  retries: hourly for {0} h after {1}; --once-daily makes a fire" -f $RetryHours, $Time)
+    Write-Host "           that follows a successful run exit immediately"
+} else {
+    Write-Host "  retries: none (-RetryHours 0)"
+}
+Write-Host "  runs: $Python $TaskArgs"
+# python.exe, not pythonw: --check-stale exists to print, and pythonw has no
+# stdout to print to.
+$Console = Join-Path $Repo ".venv\Scripts\python.exe"
+Write-Host "  did it run?  $Console `"$Script`" --check-stale"
 Write-Host "  run now:  Start-ScheduledTask -TaskName '$TaskName'"
 Write-Host "  remove:   powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 -Unregister"

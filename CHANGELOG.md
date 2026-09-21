@@ -1933,6 +1933,56 @@ script would have silently dropped mail reading from a task that already had it.
 **No client-facing figure moves.** The point is that a morning's inputs reach
 `Inputs/` even when the unattended trigger is hit by whatever this is.
 
+### 2026-09-11 — the daily source watch had not run for three days, and nothing knew
+
+**The 08:00 scheduled task produced no check on 09-09, 09-10 or 09-11.** Not a slow
+run, not a hang: the process never executed a single instruction. All three were still
+resident when this was diagnosed, each showing **zero CPU time ever, zero handles, zero
+modules loaded, 2.4 MB peak working set and 7.7 MB peak virtual** against 89 handles and
+4 GB peak virtual for a healthy venv interpreter. They were created by the scheduler and
+left SUSPENDED, then killed at the 30-minute execution limit.
+
+So it was none of the things it looked like. Not the Outlook hang fixed in `6b61c27` —
+the 09-09 run predates `--mail` and failed identically. Not the share scan blocking off
+VPN, not `copy_plan`, not prune: `import` never ran, let alone `check()`. Task Scheduler's
+own log splits it cleanly — **every unattended time-triggered fire was killed at the
+limit; every run started by hand on an awake machine finished in two to three minutes.**
+
+Nothing landed on the shares during the three dead mornings, so no input was missed. What
+was missed is that nobody noticed for three days.
+
+**`watch_sources.py` now keeps a run record** (`Build Artifacts/source_watch_runs.json`):
+a start stamped before the first share call, a finish stamped after the report is written
+and before the mail step. `run_health()` reads it and answers one question — has the daily
+watch actually been running — measuring age from the last FINISH, because a killed run
+leaves a start with no finish and a run that never starts leaves neither. A damaged record
+reads as unknown, never as healthy, and never stops a run: this is bookkeeping about runs,
+the opposite trade to the inventory, which is still refused rather than read as empty.
+
+**The check that would have caught this had to live outside the process.** A heartbeat
+inside the watch cannot report a run that never starts — nothing in this script could have
+caught it. So `refresh_performance_dashboard.py`, which runs at 08:30 on a different
+scheduler, prints `source watch: ok|STALE|NOT RUNNING` every morning, and the delivery
+dashboard raises a banner: a watch that has stopped means "not copied" below may be the
+watch's silence rather than the data team's. `--check-stale` asks the same question from
+anywhere, and scans nothing, so it answers off VPN.
+
+**The fire is retried.** `register_watch_task.ps1` registers hourly repeats for four hours
+after 08:00 with `-WakeToRun`, on the reasoning that a later fire meets a machine that is
+properly awake. The execution limit drops 30 -> 20 minutes so a stuck fire is cleared
+before the next one is due, or `MultipleInstances IgnoreNew` would drop it. The repeats
+are cheap: `--once-daily` exits at once after a run that **reached the shares** — a run
+that found the VPN down does not stop the later ones going to look, which is also why
+`run_health` ignores outcome and `completed_today` does not.
+
+The script also gained `-Repo`, because it could only ever register the checkout it lived
+in, and it now omits `--once-daily` when the target checkout's `watch_sources.py` does not
+know the flag. This script is routinely newer than the code it registers; an unrecognised
+argument would make every fire exit without checking anything — trading three silent
+mornings for a permanent silent failure.
+
+`--mail` was also added to the registration, which had drifted: the live task passed it,
+the script that writes the task did not.
 
 ### 2026-09-10 — the Reg E slides are rebalanced, and the opt-in sentence reworded
 
