@@ -1464,6 +1464,24 @@ def _note_for(t, idx):
     if "key takeaways" in tl: return "Source: summary of %s financials + %s metrics shown in this deck." % (WB_SRC, ODD_SRC)
     if "questions" in tl or "agenda" in tl or tl.strip()=="appendix": return "Source: section slide (static)."
     return "Source: %s — responder / new-account analytics; associational, not causal where noted." % ODD_SRC
+# ---- Revenue Guarantee, directly after Financial Performance (Aaron, 2026-09-21) ----
+# The 2 : 1 guarantee had no figures of its own anywhere in the deck — only the adjective
+# "well above the 2 : 1 threshold" in a Financial Performance bullet. This slide carries
+# the cost, the guaranteed minimum and the revenue, so the claim is checkable. Built here
+# rather than with the other module slides because it sources its own note and needs
+# WB_SRC. Not wrapped in try/except: its figures are the ones slide 7 already shows, so a
+# failure is a real defect, and CLAUDE.md forbids dropping a slide quietly.
+import revenue_guarantee_slide
+_rg_slide, _RG = revenue_guarantee_slide.add_revenue_guarantee_slide(
+    prs, B, ASSETS, AS_OF_LONG, after_title="Financial Performance",
+    wb_src=WB_SRC, tab=_mm)
+_MODULE_NOTED.append(_rg_slide)
+print("revenue guarantee slide built (%s : 1 against a %s minimum; %s)"
+      % (f"{_RG['ratio']:.2f}" if _RG["ratio"] is not None else "n/a",
+         m2(_RG["minimum"]),
+         "met" if _RG["met"] else ("short " + m2(_RG["gap"]) if _RG["gap"] is not None
+                                   else "not measurable")))
+
 _S2 = list(prs.slides)
 _keep = {id(x) for x in _MODULE_NOTED}
 _written = 0
