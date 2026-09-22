@@ -163,10 +163,16 @@ def health_chart(out, states, w_in=8.7, h_in=4.1):
     y = list(range(len(states)))[::-1]
     ax.barh(y, counts, color=[HEALTH_COLORS.get(n, NAVY) for n in names], height=0.62, zorder=2)
     mx = max(counts) or 1
-    for yi, (n, cnt, pct, *_rest) in zip(y, states):
-        ax.text(cnt + mx * 0.012, yi, f"{cnt:,}  ·  {pct:.1f}%", va="center", ha="left",
+    for yi, row in zip(y, states):
+        cnt, pct = row[1], row[2]
+        # index 5 is the share of CARD HOLDERS, present for every state but "No card",
+        # which has no card-holder denominator and is labelled as a share of eligible.
+        of_carded = row[5] if len(row) > 5 else None
+        txt = (f"{cnt:,}  ·  {of_carded:.1f}%" if of_carded is not None
+               else f"{cnt:,}  ·  {pct:.1f}% of eligible")
+        ax.text(cnt + mx * 0.012, yi, txt, va="center", ha="left",
                 fontsize=13, color=NAVY, fontweight="bold")
-    ax.set_xlim(0, mx * 1.30)
+    ax.set_xlim(0, mx * 1.44)
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontsize=13, color=NAVY)
     ax.get_xaxis().set_visible(False)
@@ -207,9 +213,17 @@ def wave_revenue_chart(out, waves, w_in=12.3, h_in=4.1, young_months=6):
     ax.set_xlim(-0.7, len(x) - 0.3)
     _spines(ax, left=True)
     ax2 = ax.twinx()
-    ax2.plot(x, per, color=TEAL, lw=2.4, marker="o", ms=4, mfc="white", mec=TEAL, mew=1.6,
-             zorder=6)
-    ax2.set_ylim(0, max(per) * 1.18)
+    # The line carries MATURE mailings only (Aaron, 2026-09-21). Revenue per responder is
+    # highest in a mailing's first months, so a 2-month-old mailing peaks the line and reads
+    # as the best offer the client ever ran; the caption already limited itself to 6+ months
+    # while the line did not, which is the sort of disagreement between a chart and its own
+    # caption nobody catches on the call.
+    mature_x = [i for i in x if waves[i]["months"] >= young_months]
+    mature_per = [per[i] for i in mature_x]
+    if mature_per:
+        ax2.plot(mature_x, mature_per, color=TEAL, lw=2.4, marker="o", ms=4, mfc="white",
+                 mec=TEAL, mew=1.6, zorder=6)
+    ax2.set_ylim(0, (max(mature_per) if mature_per else max(per)) * 1.18)
     ax2.yaxis.set_major_formatter(lambda v, _p: _money(v))
     ax2.tick_params(colors=TICK, length=0, labelsize=11)
     ax2.set_ylabel("Per month booked (line)", fontsize=12, color=TICK)
@@ -220,7 +234,7 @@ def wave_revenue_chart(out, waves, w_in=12.3, h_in=4.1, young_months=6):
                                         edgecolor="white"),
                Line2D([], [], color=TEAL, lw=2.4, marker="o", mfc="white", mec=TEAL)]
     fig.legend(handles, ["Booked to date", f"Fewer than {young_months} months booked",
-                         "Booked per month since the mailing"],
+                         f"Booked per month ({young_months}+ months only)"],
                loc="upper center", ncol=3, frameon=False, fontsize=12,
                bbox_to_anchor=(0.5, 0.995), labelcolor=TICK)
     return _save(fig, out)

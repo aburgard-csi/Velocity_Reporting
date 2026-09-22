@@ -113,15 +113,16 @@ def test_all_charts_render(deck):
 
 
 def test_slide_count(deck):
-    """49 for an SM-path ARS deck. If this moves, assemble_combined's section
-    boundary is the next thing to check — adding two slides broke it before."""
-    assert len(deck["prs"].slides) == 49
+    """50 for an SM-path ARS deck — 49 until Revenue Guarantee landed (2026-09-21).
+    If this moves, assemble_combined's section boundary is the next thing to check —
+    adding two slides broke it before."""
+    assert len(deck["prs"].slides) == 50
 
 
 # --- it has the right shape ----------------------------------------------
 @pytest.mark.parametrize("title", [
     "Product Mix & ARS Eligibility", "Excluded Accounts", "Program Overview",
-    "ARS Financial Performance", "Monthly Summary — Last 12 Months",
+    "ARS Financial Performance", "Revenue Guarantee", "Monthly Summary — Last 12 Months",
     "Mailing Response Summary", "Reg E Opt-In by Account Vintage",
     "ARS Key Takeaways", "Questions & Discussion", "Contact Us", "Appendix",
 ])
@@ -222,7 +223,7 @@ def test_nsf_slide_compares_complete_months_and_says_what_was_left_out(partial_d
     notes = s.notes_slide.notes_text_frame.text
     assert "Jul 2026 is left out as incomplete in this extract" in notes, notes
     assert "Items YoY compares Jun 25 to Jun 26" in notes, notes
-    assert len(partial_deck["prs"].slides) == 49, "a partial month never drops a slide"
+    assert len(partial_deck["prs"].slides) == 50, "a partial month never drops a slide"
 
 
 def test_nsf_slide_on_complete_data_says_nothing_was_left_out(deck):

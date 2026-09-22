@@ -102,6 +102,29 @@ def _picture(s, png, L, T, W, H):
     s.shapes.add_picture(png, Inches(L), Inches(T), Inches(W), Inches(H))
 
 
+def _notes(s, source, method=None, issues=(), caveats=()):
+    """Write the slide's notes: source, how it is measured, then the open issues IN FULL.
+
+    These views ship in a REVIEW deck, not to a client (Aaron, 2026-09-21: "you can be
+    obvious about issues"), so anything known to be shaky is written on the slide's notes
+    rather than kept in a commit message nobody opens next to the deck. A view with no open
+    issue says so, because an empty section reads as "nobody looked".
+    """
+    parts = [f"Source: {source}"]
+    if method:
+        parts.append(f"Method: {method}")
+    issues = [i for i in issues if i]
+    if issues:
+        parts.append("REVIEW — OPEN ISSUES:" + "".join("\n  !! " + i for i in issues))
+    else:
+        parts.append("REVIEW — OPEN ISSUES: none known. Figures and wording both derive "
+                     "from the data on this slide.")
+    if caveats:
+        parts.append("Reading it: " + " ".join(caveats))
+    s.notes_slide.notes_text_frame.text = "\n\n".join(parts)
+    return s
+
+
 def _money_mo(v):
     return ("+" if v >= 0 else "−") + f"${abs(v):,}/mo"
 
@@ -336,10 +359,12 @@ def health_slide(prs, ci, ctx):
         for i, (v, lab, fill) in enumerate(tiles):
             SH.shadow(SH.tile(s, 9.5, 1.75 + i * 1.4, 3.3, 1.25, v, lab, fill=fill))
         _caption(s, (f"Of {hk['carded']:,} card holders, {hk['at_risk']:,} show falling or no card "
-                     f"spend: {st['Declining'][1]:,} declining, {st['Cooling'][1]:,} cooling, "
-                     f"{st['Dormant'][1]:,} dormant and {st['Never used'][1]:,} never used. Their "
-                     f"spend was {usd_compact(hk['at_risk_prior_monthly_spend'], 1)} a month in "
-                     f"{span(pw)}."))
+                     f"spend ({hk['at_risk_pct_of_carded']:.1f}%): {st['Declining'][1]:,} declining, "
+                     f"{st['Cooling'][1]:,} cooling, {st['Dormant'][1]:,} dormant and "
+                     f"{st['Never used'][1]:,} never used. Their spend was "
+                     f"{usd_compact(hk['at_risk_prior_monthly_spend'], 1)} a month in {span(pw)}. "
+                     f"Bar shares are of card holders; No card is of all "
+                     f"{hk['eligible']:,} eligible accounts."))
         detail = (
             f"ARS-eligible personal accounts ('{ctx['latest']} Elig' = Yes, Business? = No): "
             f"{hk['eligible']:,}, of which {hk['carded']:,} hold a debit card. Monthly card spend = "
@@ -350,8 +375,18 @@ def health_slide(prs, ci, ctx):
             f"dollar amounts, so the state means the same at every spend level. At risk = declining + "
             f"cooling + dormant + never used; their card spend {usd_compact(hk['at_risk_prior_monthly_spend'], 1)} "
             f"a month in {pw[0]} – {pw[1]} and {usd_compact(hk['at_risk_recent_monthly_spend'], 1)} "
-            f"in {rw[0]} – {rw[1]}. Seasonal spending moves accounts between Active and Declining.")
-    s.notes_slide.notes_text_frame.text = f"Source: {ctx['odd_src']} — {detail}"
+            f"in {rw[0]} – {rw[1]}.")
+    _notes(s, ctx["odd_src"], method=detail, issues=[
+        "The 50% / 80% cut-offs between Cooling, Declining and Active are OURS. They were "
+        "not checked against James's code, which has its own thresholds, so a state's "
+        "population is not comparable to his figure for the same client.",
+        "Seasonal spending moves accounts between Active and Declining with no change in "
+        "behaviour: a client whose card spend peaks in December reads worse every January. "
+        "No seasonal adjustment is applied.",
+        "FIXED 2026-09-21 (was an open issue): the bars' shares were of every eligible "
+        "account while the tile was of card holders. Card states are now shares of card "
+        "holders and the No card bar says it is a share of eligible accounts.",
+    ])
     _place(prs, s, after="NSF/OD Activity", before="Reg E Review")
     return s
 
@@ -398,7 +433,25 @@ def wave_revenue_slide(prs, ci, ctx):
                   f"booked figure. Summary block total {usd_compact(wr['summary_total'] or 0)}.{rec} "
                   "Newer mailings carry fewer, earlier months, and revenue per responder is "
                   "typically highest in the first months, so per-month figures favour young mailings.")
-    s.notes_slide.notes_text_frame.text = f"Source: ARS Workbook {ctx['id']} ({wb}) — {detail}"
+        _notes(s, f"{wb} — '{CI.ROLLUP_SHEET}'", method=detail, issues=[
+            (f"The mailing rows sum to {usd_compact(wr['total'])} against "
+             f"{usd_compact(ctx['ltd_revenue'])} program-to-date on Executive Financials MM "
+             f"({100.0 * (wr['total'] - ctx['ltd_revenue']) / ctx['ltd_revenue']:+.1f}%). "
+             "Reconcile before this goes anywhere near a client.")
+            if ctx.get("ltd_revenue") else
+            "No program-to-date revenue was passed in, so the mailing rows are not reconciled "
+            "against Executive Financials MM.",
+            "A mailing's revenue is what the WORKBOOK booked to it. Where two mailings overlap "
+            "in a month, the split is the workbook's, not ours, and we do not re-derive it.",
+            "FIXED 2026-09-21 (was an open issue): the per-month line ranked mailings with "
+            f"1-5 booked months above mature ones. It now plots mailings with 6+ months only, "
+            "which is what the caption always said.",
+        ])
+        _place(prs, s, after="Mailing Response Summary", before="Debit Card Review")
+        return s
+    _notes(s, f"ARS Workbook {ctx['id']} ({wb})", method=detail,
+           issues=["The view is not available for this client, so nothing on this slide is "
+                   "measured. " + str(wr.get("reason"))])
     _place(prs, s, after="Mailing Response Summary", before="Debit Card Review")
     return s
 

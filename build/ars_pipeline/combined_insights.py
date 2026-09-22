@@ -410,8 +410,16 @@ def account_health(rows, odd, smonths, latest):
     return {
         "available": True,
         "eligible": total, "carded": carded_n,
+        # Two shares per state, because the slide used to mix them: the tile read
+        # "card holders at risk" (of carded) above bars whose percentages were of every
+        # eligible account, so the numbers on one slide did not add up to each other
+        # (Aaron, 2026-09-21). A card state is a share of CARD HOLDERS; "No card" can only
+        # be a share of eligible accounts, and its bar now says so.
         "states": [[s, n[s], round(100 * n[s] / total, 1) if total else 0.0,
-                    round(recent_spend[s]), round(prior_spend[s])] for s in HEALTH_ORDER],
+                    round(recent_spend[s]), round(prior_spend[s]),
+                    (None if s == "No card" else
+                     (round(100 * n[s] / carded_n, 1) if carded_n else 0.0))]
+                   for s in HEALTH_ORDER],
         "at_risk": at_risk,
         "at_risk_pct_of_carded": round(100 * at_risk / carded_n, 1) if carded_n else 0.0,
         # monthly card spend these accounts carried in the 3 months BEFORE the recent window
@@ -540,9 +548,18 @@ def scorecard(M, B, rc, hk, bk):
         add("Personal openings vs closures, 24 months", M["open_24"], f"{M['open_24']:,} opened",
             M["close_24"], f"{M['close_24']:,} closed")
     t = bk.get("total") or {}
-    if t.get("first_year") is not None and t.get("closed12") is not None:
+    # First-year closure was compared with closed12 — the 12-month closure rate of ALL
+    # accounts. Two different rates on different populations (18.0% against 7.1% on Marine),
+    # so "behind" was never a like-for-like reading (Aaron, 2026-09-21). Compared now with
+    # the SAME measure at the median reporting branch: same definition, same window, a
+    # population the client can act on. With fewer than three reporting branches there is no
+    # median worth the name and the row is left off rather than compared to something else.
+    fy_branches = sorted(b["first_year"] for b in (bk.get("branches") or [])
+                         if b.get("first_year") is not None)
+    if t.get("first_year") is not None and len(fy_branches) >= 3:
+        med = statistics.median(fy_branches)
         add("First-year closure rate", t["first_year"], f"{t['first_year']:.1f}%",
-            t["closed12"], f"{t['closed12']:.1f}% all accounts, last 12 months", higher=False)
+            med, f"{med:.1f}% median branch", higher=False)
     return rows
 
 
