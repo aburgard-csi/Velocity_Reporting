@@ -35,6 +35,7 @@ import csv
 import datetime
 import io
 import json
+import math
 import os
 import re
 import statistics
@@ -707,20 +708,25 @@ def lagging(cuts, measure, floor=MIN_BAND, n=3):
 # what that is worth. A snapshot cannot answer "are these accounts getting better or worse",
 # and two clients with identical tier tables can be moving in opposite directions.
 TIER_ORDER = ["Non-User", "1-5", "6-10", "11-15", "16-20", "21-25", "26+"]
-TIER_BANDS = [(1, 6, "1-5"), (6, 11, "6-10"), (11, 16, "11-15"), (16, 21, "16-20"),
-              (21, 26, "21-25")]
+TIER_BANDS = [(1, 5, "1-5"), (6, 10, "6-10"), (11, 15, "11-15"), (16, 20, "16-20"),
+              (21, 25, "21-25")]
 MIGRATION_WINDOW = 3      # months averaged at each end, the deck's own tier window
 MIGRATION_SPAN = 12       # months between the two windows
 
 
 def swipe_tier(avg):
-    """The deck's tier for an average monthly swipe count — half-open bands, so an average
-    between two bands lands in the lower one instead of falling through to '26+'
-    (metrics_gen carried that defect until 2026-09-21)."""
-    if avg < 1:
+    """The deck's tier for an average monthly swipe count.
+
+    The average is ROUNDED DOWN into its segment (Aaron, 2026-09-22) — 5.5 swipes is a
+    5-swipe account — which is also what stops an average between two integer bands falling
+    through to the '26+' catch-all, the defect metrics_gen carried until 2026-09-21. Same
+    rule as metrics_gen.tier; the two are deliberately identical.
+    """
+    s = math.floor(avg)
+    if s < 1:
         return "Non-User"
     for lo, hi, name in TIER_BANDS:
-        if lo <= avg < hi:
+        if lo <= s <= hi:
             return name
     return "26+"
 

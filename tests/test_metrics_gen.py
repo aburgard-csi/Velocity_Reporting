@@ -241,21 +241,26 @@ def test_a_mailing_in_the_last_month_is_listed_as_in_progress(odd_csv, tmp_path,
 
 
 # ---------------------------------------------------- swipe tiers, 2026-09-21
-def test_swipe_tiers_have_no_gaps_between_them():
-    """The tier bands are tested against a THREE-MONTH MEAN, so they have to be half-open.
-    As inclusive integer ranges (1..5, 6..10) an average of 5.5 matched no band and fell
-    through to the '26+' catch-all: on 1539 Marine, 1,381 of the 15,676 accounts in '26+'
-    averaged fewer than 26 swipes. This reproduces the banding without importing
-    metrics_gen, which runs on import."""
-    def tier(s):
-        if s < 1:
-            return "Non-User"
-        for lo, hi, nm in [(1, 6, "1-5"), (6, 11, "6-10"), (11, 16, "11-15"),
-                           (16, 21, "16-20"), (21, 26, "21-25")]:
-            if lo <= s < hi:
-                return nm
-        return "26+"
+def _tier(s):
+    """The shipped rule, reproduced: floor the average into its segment, then inclusive
+    integer bands. metrics_gen reads sys.argv at module scope, so it cannot be imported."""
+    import math
+    s = math.floor(s)
+    if s < 1:
+        return "Non-User"
+    for lo, hi, nm in [(1, 5, "1-5"), (6, 10, "6-10"), (11, 15, "11-15"),
+                       (16, 20, "16-20"), (21, 25, "21-25")]:
+        if lo <= s <= hi:
+            return nm
+    return "26+"
 
+
+def test_swipe_tiers_round_down_into_their_segment():
+    """Aaron, 2026-09-22: "round swipes down into the nearest segment". The bands are
+    inclusive integer ranges tested against a THREE-MONTH MEAN, so without the floor an
+    average of 5.5 matched no band and fell through to the '26+' catch-all: on 1539 Marine
+    that was 1,381 of the 15,676 accounts in '26+' averaging fewer than 26 swipes."""
+    tier = _tier
     assert tier(5.5) == "1-5"
     assert tier(10.4) == "6-10"
     assert tier(15.9) == "11-15"
@@ -270,8 +275,16 @@ def test_swipe_tiers_have_no_gaps_between_them():
 
 def test_the_shipped_banding_matches_that_rule():
     import os
-    import re
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "build", "ars_pipeline", "metrics_gen.py"), encoding="utf-8").read()
-    band = re.search(r"for lo,hi,nm in \[\(1,6,'1-5'\).*?\]:\n\s+if lo<=s<hi", src, re.S)
-    assert band, "the 3-month-average tier bands are no longer half-open"
+    assert "s=math.floor(sw3(r))" in src, "the 3-month average is no longer floored into a tier"
+    assert "if lo<=s<=hi: return nm" in src
+
+
+def test_the_two_tier_definitions_agree():
+    """metrics_gen owns the deck's tiers; combined_insights re-implements them for the
+    migration and by-tier views, because metrics_gen runs on import. They have to give the
+    same answer, or two slides in one deck bucket the same account differently."""
+    import combined_insights as CI
+    for v in (0, 0.4, 0.99, 1, 1.5, 5, 5.5, 6, 10.9, 11, 15.9, 16, 20.2, 21, 25.99, 26, 99.9):
+        assert CI.swipe_tier(v) == _tier(v), v
