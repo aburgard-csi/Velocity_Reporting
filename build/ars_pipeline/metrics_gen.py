@@ -1,4 +1,4 @@
-import csv, statistics, json, datetime, re
+import csv, math, statistics, json, datetime, re
 from collections import defaultdict, Counter
 csv.field_size_limit(10**7)
 import sys
@@ -182,8 +182,16 @@ def sw3(r): return sum(swipes(r,m) for m in w3)/3
 def sp3(r): return sum(spend(r,m) for m in w3)/3
 def ns3(r): return sum(nsf(r,m) for m in w3)/3
 def tier(r):
+    # The average is ROUNDED DOWN into its segment (Aaron, 2026-09-22: "round swipes down
+    # into the nearest segment"). The bands are inclusive integer ranges tested against a
+    # 3-month MEAN, so without the floor every account whose average landed between two
+    # bands -- 5.5, 10.4, 20.2 -- matched none of them and fell through to the '26+'
+    # catch-all at the end of the loop. On 1539 Marine that was 1,381 of the 15,676
+    # accounts in '26+' (8.8%) averaging fewer than 26 swipes: the top tier inflated, the
+    # middle tiers short by those same accounts, and the Lift Matrix reads its per-tier
+    # values off these buckets. 5.5 swipes is a 5-swipe account.
     if not hascard(r): return 'No Debit Card'
-    s=sw3(r)
+    s=math.floor(sw3(r))
     if s<1: return 'Non-User'
     for lo,hi,nm in [(1,5,'1-5'),(6,10,'6-10'),(11,15,'11-15'),(16,20,'16-20'),(21,25,'21-25')]:
         if lo<=s<=hi: return nm

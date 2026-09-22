@@ -238,3 +238,45 @@ def test_a_mailing_in_the_last_month_is_listed_as_in_progress(odd_csv, tmp_path,
     assert label not in [x[0] for x in m["mail_summary"]]
     assert m["mail_summary"] == metrics["mail_summary"]
     assert m["mail_summary_total"] == metrics["mail_summary_total"]
+
+
+# ---------------------------------------------------- swipe tiers, 2026-09-22
+def _tier(s):
+    """The shipped rule, reproduced: floor the average into its segment, then inclusive
+    integer bands. metrics_gen reads sys.argv at module scope, so it cannot be imported."""
+    import math
+    s = math.floor(s)
+    if s < 1:
+        return "Non-User"
+    for lo, hi, nm in [(1, 5, "1-5"), (6, 10, "6-10"), (11, 15, "11-15"),
+                       (16, 20, "16-20"), (21, 25, "21-25")]:
+        if lo <= s <= hi:
+            return nm
+    return "26+"
+
+
+def test_swipe_tiers_round_down_into_their_segment():
+    """Aaron, 2026-09-22: "round swipes down into the nearest segment". The bands are
+    inclusive integer ranges tested against a THREE-MONTH MEAN, so without the floor an
+    average of 5.5 matched no band and fell through to the '26+' catch-all: on 1539 Marine
+    that was 1,381 of the 15,676 accounts in '26+' averaging fewer than 26 swipes, with the
+    middle tiers short by those same accounts."""
+    assert _tier(5.5) == "1-5"
+    assert _tier(10.4) == "6-10"
+    assert _tier(15.9) == "11-15"
+    assert _tier(20.2) == "16-20"
+    assert _tier(25.99) == "21-25"
+    assert _tier(26.0) == "26+"
+    assert _tier(0.9) == "Non-User"
+    # and the integer boundaries still mean what they say
+    assert [_tier(n) for n in (1, 5, 6, 10, 11, 15, 16, 20, 21, 25, 26)] == [
+        "1-5", "1-5", "6-10", "6-10", "11-15", "11-15", "16-20", "16-20",
+        "21-25", "21-25", "26+"]
+
+
+def test_the_shipped_banding_matches_that_rule():
+    import os
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "build", "ars_pipeline", "metrics_gen.py"), encoding="utf-8").read()
+    assert "s=math.floor(sw3(r))" in src, "the 3-month average is no longer floored into a tier"
+    assert "if lo<=s<=hi: return nm" in src

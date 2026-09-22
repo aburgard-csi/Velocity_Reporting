@@ -17,6 +17,24 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-22 — Swipe averages round down into their segment
+
+Aaron: "round swipes down into the nearest segment."
+
+`metrics_gen.tier` bands an account on its THREE-MONTH MEAN swipe count, against inclusive
+integer ranges (`1..5`, `6..10`, …). An average between two bands — 5.5, 10.4, 20.2 — matched
+none of them and fell through to the `26+` catch-all at the end of the loop. On 1539 Marine
+that is **1,381 of the 15,676 accounts in `26+`, 8.8% of the top tier**, averaging fewer than
+26 swipes, with the middle tiers short by those same accounts. The Lift Matrix reads its
+per-tier values off these buckets, so the effect is not confined to the tier table.
+
+The mean is floored into its segment first. 5.5 swipes is a 5-swipe account, and the bands
+stay the plain integer ranges they read as.
+
+**This moves client-facing numbers** on the swipe-tier table, the ranking by tier and anything
+read off them. Every 2026.09 ARS deck was rebuilt the same night.
+
+
 ### 2026-09-21 — The CashPlease marketing emails are their own input kind
 
 Aaron: "add a kind for the loan marketing emails." Eight `<id>_<Client>_Loan_Marketing_Emails.xlsx`
