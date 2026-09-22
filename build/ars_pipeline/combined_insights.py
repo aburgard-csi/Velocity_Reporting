@@ -974,6 +974,72 @@ def sizing(rc, B, points=SIZING_POINTS):
         out["cards"] = cards
     return out
 
+
+# ============================================================== responders by segment
+# responder_control answers "did the mailings move spend" for the book as a whole. James asks
+# it per segment: a non-user who starts swiping and a 26+ user who swipes a little more are
+# not the same result, and a single pooled figure hides which one a client is buying. Same
+# cohorts, same windows, same winsorizing — split by where the account sat BEFORE the mailing.
+def responder_by_tier(rows, odd, smonths, mature, min_cohort=BA.MIN_RESPONDERS):
+    """Difference in differences per pre-mailing swipe tier.
+
+    For each mailing: tier every mailed account on its pre-window swipe average, then track
+    responders and mailed non-responders inside that tier. Pooled across mailings.
+    """
+    g, spend, swipes, personal = odd.g, odd.spend, odd.swipes, odd.personal
+    bw, aw, mailings = BA.windows(smonths, mature)
+    pop = [r for r in rows if personal(r)]
+    pools = {t: {"responders": [[], []], "control": [[], []]} for t in TIER_ORDER}
+    used = []
+    for m in mailings:
+        i = smonths.index(m)
+        pre, post = smonths[i - bw:i], smonths[i + 1:i + 1 + aw]
+        resp = [r for r in pop if g(r, f"{m} Resp") in BA.RESP_MET]
+        if len(resp) < min_cohort:
+            continue
+        used.append(BA.label(m))
+        mailed = [r for r in pop if g(r, f"{m} Mail")]
+        ctrl = [r for r in mailed if g(r, f"{m} Resp") not in BA.RESP_MET]
+        for key, cohort in (("responders", resp), ("control", ctrl)):
+            for r in cohort:
+                t = swipe_tier(sum(swipes(r, x) for x in pre) / bw)
+                b = statistics.mean(spend(r, x) for x in pre)
+                a = statistics.mean(spend(r, x) for x in post)
+                pools[t][key][0].append(b)
+                pools[t][key][1].append(a)
+
+    out_rows = []
+    for t in TIER_ORDER:
+        p = pools[t]
+        n_r, n_c = len(p["responders"][0]), len(p["control"][0])
+        if n_r < min_cohort or n_c < min_cohort:
+            # Reported as thin rather than dropped: a tier with too few responders to measure
+            # is itself worth seeing on the slide.
+            out_rows.append({"tier": t, "responders": n_r, "control": n_c, "thin": True,
+                             "resp_change": None, "control_change": None, "net": None})
+            continue
+        rb, ra = BA.wins_pair(*p["responders"])
+        cb, ca = BA.wins_pair(*p["control"])
+        r_change = round(statistics.mean(ra) - statistics.mean(rb))
+        c_change = round(statistics.mean(ca) - statistics.mean(cb))
+        out_rows.append({
+            "tier": t, "responders": n_r, "control": n_c, "thin": False,
+            "resp_before": round(statistics.mean(rb)), "resp_after": round(statistics.mean(ra)),
+            "control_before": round(statistics.mean(cb)),
+            "control_after": round(statistics.mean(ca)),
+            "resp_change": r_change, "control_change": c_change, "net": r_change - c_change,
+        })
+    measured = [r for r in out_rows if not r["thin"]]
+    return {
+        "available": bool(measured),
+        "rows": out_rows,
+        "mailings": used,
+        "before_months": bw, "after_months": aw,
+        "min_cohort": min_cohort,
+        "best": max(measured, key=lambda r: r["net"])["tier"] if measured else None,
+        "worst": min(measured, key=lambda r: r["net"])["tier"] if measured else None,
+    }
+
 # ============================================================== scorecard
 def scorecard(M, B, rc, hk, bk):
     """[[measure, value text, comparator text, status]] — each measure against its own comparator.
@@ -1046,6 +1112,7 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
         "responder_control": responder_control(d["rows"], odd, smonths, mature),
         "branch_kpis": branch_kpis(d["rows"], odd, smonths, latest),
         "account_health": account_health(d["rows"], odd, smonths, latest),
+        "responder_by_tier": responder_by_tier(d["rows"], odd, smonths, mature),
         "wave_revenue": wave_revenue(workbook_path),
         "rate_cuts": rate_cuts(d["rows"], odd, latest),
         "tier_migration": tier_migration(d["rows"], odd, smonths, latest),

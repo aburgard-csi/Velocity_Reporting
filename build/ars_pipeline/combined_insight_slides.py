@@ -1063,6 +1063,72 @@ def sizing_slide(prs, ci, ctx):
     return s
 
 
+def by_tier_slide(prs, ci, ctx):
+    """Responders against their own segment — the pooled control, split by tier."""
+    bt = ci.get("responder_by_tier") or {}
+    s = _new_slide(prs, _find(prs, "Responders vs Mailed Non-Responders") or prs.slides[0])
+    if not bt.get("available"):
+        _header(s, "Responders vs Their Own Segment", f"{ctx['as_of_long']} Data",
+                "Selection: personal accounts mailed by the program, by pre-mailing tier.")
+        _caption(s, "No tier has both enough responders and enough mailed non-responders to "
+                    "compare, so the view is not shown for this period.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — every tier was "
+                                          "below the cohort floor."])
+        _place(prs, s, after="Responders vs Mailed Non-Responders", before="Reg E Review")
+        return s
+
+    rows = bt["rows"]
+    measured = [r for r in rows if not r["thin"]]
+    _header(s, "Responders vs Their Own Segment", f"{ctx['as_of_long']} Data", [
+        f"Selection: {len(bt['mailings'])} mailings; monthly spend {bt['before_months']} months "
+        f"before against {bt['after_months']} after, by the tier each account sat in before.",
+        "Selection: mailed personal accounts, by the tier they sat in before the mailing."])
+    png = os.path.join(ctx["assets"], "insight_by_tier.png")
+    IC.by_tier_chart(png, rows, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    best = max(measured, key=lambda r: r["net"])
+    tiles = [(_money_mo(best["net"]), f"Best net: {best['tier']}", ORANGE),
+             (f"{sum(r['responders'] for r in measured):,}", "Responders measured", NAVY),
+             (f"{len(measured)} of {len(rows)}", "Tiers with enough to compare", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    pos = [r for r in measured if r["net"] > 0]
+    _caption(s, (f"Responders beat their own segment in {len(pos)} of {len(measured)} tiers. "
+                 f"{best['tier']} shows the widest gap: responders "
+                 f"{_money_mo(best['resp_change'])} against "
+                 f"{_money_mo(best['control_change'])} for mailed non-responders in the same "
+                 f"tier, a net {_money_mo(best['net'])}."), width=CAPTION_W_FULL)
+
+    thin = [r["tier"] for r in rows if r["thin"]]
+    _notes(s, ctx["odd_src"],
+           method=(f"Same cohorts, windows and winsorizing as Responders vs Mailed "
+                   f"Non-Responders ({bt['before_months']} months before, "
+                   f"{bt['after_months']} after, pooled over {len(bt['mailings'])} mailings: "
+                   f"{', '.join(bt['mailings'])}). Each account is tiered on its average "
+                   f"swipes in the BEFORE window, so the tier is where it sat when the offer "
+                   f"arrived. Net = the responders' change less the same tier's non-responder "
+                   f"change."),
+           issues=[
+               "RESPONDERS SELECT THEMSELVES. Within a tier they are still the accounts that "
+               "chose to act, so the net gap is an association, not the effect of the mailing "
+               "on a random account.",
+               "REGRESSION TO THE MEAN runs the other way in the low tiers: an account tiered "
+               "Non-User on three quiet months tends to rise whatever we send it. The control "
+               "absorbs some of that, not all.",
+               (f"Tiers with too few accounts on one side to compare ({bt['min_cohort']} is "
+                f"the floor): {', '.join(thin)}. They are listed rather than dropped, because "
+                f"a tier nobody responds in is itself a finding.") if thin else
+               "Every tier had enough responders and non-responders to compare.",
+               "Spend is debit spend only. An account that moved its direct deposit but not "
+               "its card looks unchanged here.",
+           ])
+    _place(prs, s, after="Responders vs Mailed Non-Responders", before="Reg E Review")
+    return s
+
+
 def add_insight_slides(prs, ci, ctx):
     """Build and place all six. `ctx`: id, name, odd_src, wb_src, wb_file, latest ('Aug26'),
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
@@ -1077,6 +1143,7 @@ def add_insight_slides(prs, ci, ctx):
         overdraft_slide(prs, ci, ctx),
         efficiency_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
+        by_tier_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
         branch_kpi_slide(prs, ci, ctx),
         branch_scorecard_slide(prs, ci, ctx),

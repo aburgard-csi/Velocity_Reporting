@@ -508,3 +508,37 @@ def efficiency_chart(out, rows, w_in=12.3, h_in=3.6):
     ax.set_ylabel("Booked per 1,000 offers", fontsize=12, color=TICK)
     _spines(ax, left=True)
     return _save(fig, out)
+
+
+# ----------------------------------------------------------------- responders by segment
+def by_tier_chart(out, rows, w_in=8.0, h_in=4.0):
+    """Per pre-mailing tier: what responders' monthly spend did, against what mailed
+    non-responders in the SAME tier did. The gap between the pair is the claim."""
+    rows = [r for r in rows if not r["thin"]]
+    x = list(range(len(rows)))
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.13, right=0.98, top=0.88, bottom=0.16)
+    w = 0.38
+    ax.bar([i - w / 2 for i in x], [r["resp_change"] for r in rows], width=w, color=ORANGE,
+           label="Responders", zorder=3)
+    ax.bar([i + w / 2 for i in x], [r["control_change"] for r in rows], width=w, color=STEEL,
+           label="Mailed non-responders", zorder=3)
+    ax.axhline(0, color=TICK, lw=1.0, zorder=4)
+    vals = [v for r in rows for v in (r["resp_change"], r["control_change"])]
+    span = (max(vals) - min(vals)) or 1
+    for i, r in enumerate(rows):
+        for off, v in ((-w / 2, r["resp_change"]), (w / 2, r["control_change"])):
+            ax.text(i + off, v + (span * 0.03 if v >= 0 else -span * 0.03),
+                    ("+" if v >= 0 else "−") + f"${abs(v):,}",
+                    ha="center", va="bottom" if v >= 0 else "top", fontsize=10, color=NAVY)
+    ax.set_xticks(x)
+    ax.set_xticklabels([r["tier"] for r in rows], fontsize=11, color=NAVY)
+    ax.set_ylabel("Change in monthly spend", fontsize=12, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: ("−" if v < 0 else "") + _money(abs(v)))
+    ax.set_ylim(min(vals) - span * 0.18, max(vals) + span * 0.18)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_xlabel("Swipe tier before the mailing", fontsize=12, color=TICK)
+    _spines(ax, left=True)
+    ax.legend(loc="upper left", frameon=False, fontsize=11.5, labelcolor=TICK, ncol=2,
+              bbox_to_anchor=(0.0, 1.10))
+    return _save(fig, out)
