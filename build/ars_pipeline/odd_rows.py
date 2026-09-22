@@ -226,6 +226,20 @@ def accessors(H):
         c = _mc(m)
         return _num_at(r, c[_MC_SIGD]) + _num_at(r, c[_MC_PIND])
 
+    _odl = {}
+
+    def od_limit(r, m):
+        """The account's overdraft LIMIT in month m, as a number (0 when blank).
+
+        A separate cache from _mc: the five swipe/spend columns are read on every account
+        for every month, this one only by the overdraft view, and adding it to that tuple
+        would resolve a sixth column for every client whether or not anything reads it.
+        """
+        i = _odl.get(m)
+        if i is None:
+            i = _odl[m] = _hget(f"{m} OD Limit")
+        return _num_at(r, i)
+
     def routing(r, m):
         """(signature count, signature $, PIN count, PIN $) for month m.
 
@@ -305,5 +319,6 @@ def accessors(H):
 
     return SimpleNamespace(
         g=g, fnum=fnum, swipes=swipes, spend=spend, nsf=nsf, routing=routing,
+        od_limit=od_limit,
         personal=personal, business=business, hascard=hascard, isopen=isopen,
     )

@@ -449,3 +449,35 @@ def routing_chart(out, mix, w_in=8.0, h_in=4.0):
         ax2.spines[sp].set_visible(False)
     ax2.spines["right"].set_color(MUTED)
     return _save(fig, out)
+
+
+# ----------------------------------------------------------------- overdraft limits
+def overdraft_chart(out, od, w_in=8.0, h_in=4.0):
+    """Two panels on one population: the share carrying a limit, and NSF/OD items per account
+    per month, each by Reg E election. Two measures on one axis would have hidden one of
+    them — a share runs 0-100, items per account runs 0-2."""
+    groups = [g for g in od["groups"] if g["accounts"]]
+    labels = [g["election"].replace("Reg E ", "") for g in groups]
+    fig, axes = plt.subplots(1, 2, figsize=(w_in, h_in))
+    use_font(CHART_FONT)
+    fig.subplots_adjust(left=0.11, right=0.98, top=0.86, bottom=0.12, wspace=0.42)
+    panels = [("Carrying an overdraft limit", [g["with_limit_pct"] for g in groups],
+               "{:.0f}%", NAVY),
+              ("NSF/OD items per account, a month",
+               [g["items_per_account"] for g in groups], "{:.2f}", ORANGE)]
+    for ax, (title, vals, fmt, color) in zip(axes, panels):
+        vals = [v if v is not None else 0 for v in vals]
+        y = list(range(len(vals)))[::-1]
+        ax.barh(y, vals, color=color, height=0.6, zorder=3)
+        top = (max(vals) or 1) * 1.32
+        for yi, v in zip(y, vals):
+            ax.text(v + top * 0.02, yi, fmt.format(v), va="center", ha="left", fontsize=12,
+                    color=NAVY, fontweight="bold")
+        ax.set_xlim(0, top)
+        ax.set_yticks(y)
+        ax.set_yticklabels(labels, fontsize=11.5, color=NAVY)
+        ax.get_xaxis().set_visible(False)
+        ax.set_title(title, fontsize=12, color=TICK, pad=8)
+        _spines(ax)
+        ax.spines["bottom"].set_visible(False)
+    return _save(fig, out)

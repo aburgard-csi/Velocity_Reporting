@@ -649,8 +649,8 @@ def _cut_slide(prs, ci, ctx, measure, title, after, before, png_name, subject, p
         f"Selection: {subject} ({pool:,} {pool_word}), by tenure, age, balance and product.",
         f"Selection: {subject} ({pool:,} {pool_word})."])
     png = os.path.join(ctx["assets"], png_name)
-    IC.cut_panel_chart(png, rc["cuts"], measure, book, 12.3, 3.9, rc.get("min_band", 25))
-    _picture(s, png, 0.5, 1.68, 12.3, 3.9)
+    IC.cut_panel_chart(png, rc["cuts"], measure, book, 12.3, 3.45, rc.get("min_band", 25))
+    _picture(s, png, 0.5, 1.68, 12.3, 3.45)
 
     lags = CI.lagging(rc, measure)
     tiles = [(f"{book:.1f}%", f"{'Take rate' if measure == 'take' else 'Opt-in'}, whole book",
@@ -660,20 +660,20 @@ def _cut_slide(prs, ci, ctx, measure, title, after, before, png_name, subject, p
     while len(tiles) < 3:
         tiles.append(("—", "No band below the book", NAVY))
     for i, (v, lab, fill) in enumerate(tiles):
-        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.70, 3.9, 0.95, v, lab, fill=fill))
+        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.22, 3.9, 0.92, v, lab, fill=fill))
 
     if lags:
         worst = lags[0]
-        cap = (f"The widest gap is {worst['band'].lower()} ({worst['cut'].lower()}) at "
+        cap = (f"The widest gap sits in {worst['band']} ({worst['cut'].lower()}) at "
                f"{worst['value']:.1f}%, {abs(worst['gap']):.1f} points below the book's "
                f"{book:.1f}% across {worst['n']:,} {pool_word}.")
         if len(lags) > 1:
-            cap += (" Then " + _and([f"{d['band'].lower()} ({abs(d['gap']):.1f} points)"
+            cap += (" Then " + _and([f"{d['band']} ({abs(d['gap']):.1f} points)"
                                      for d in lags[1:]]) + ".")
     else:
         cap = (f"No band of {rc.get('min_band', 25)} accounts or more sits below the book's "
                f"{book:.1f}%.")
-    _caption(s, cap, width=CAPTION_W_FULL, top=6.72, height=0.6)
+    _caption(s, cap, width=CAPTION_W_FULL, top=6.26, height=0.95)
 
     miss = rc.get("missing") or {}
     _notes(s, ctx["odd_src"],
@@ -804,9 +804,15 @@ def routing_slide(prs, ci, ctx):
     IC.routing_chart(png, mix, 8.0, 4.0)
     _picture(s, png, 0.5, 1.70, 8.0, 4.0)
 
+    # A rail with no transactions has no ticket. 1038 Sugar River is signature-only, and
+    # formatting None as a dollar figure killed the build (2026-09-21); an em dash says
+    # "this book does not do that" without inventing a $0.00 ticket nobody charged.
+    def _tick(v):
+        return f"${v:,.2f}" if v is not None else "—"
+
     tiles = [(f"{mix['pin_share']:.0f}%", "PIN share of swipes", ORANGE),
-             (f"${mix['sig_ticket']:,.2f}", "Signature ticket", NAVY),
-             (f"${mix['pin_ticket']:,.2f}", "PIN ticket", NAVY)]
+             (_tick(mix["sig_ticket"]), "Signature ticket", NAVY),
+             (_tick(mix["pin_ticket"]), "PIN ticket", NAVY)]
     for i, (v, lab, fill) in enumerate(tiles):
         SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
 
@@ -821,9 +827,15 @@ def routing_slide(prs, ci, ctx):
         verb = "rose" if ch > 0 else "fell"
         move = (f"It {verb} from {mix['first_share']:.1f}% to {mix['last_share']:.1f}%, "
                 f"{abs(ch):.1f} points")
-    _caption(s, (f"{mix['pin_share']:.0f}% of swipes and {mix['pin_share_usd']:.0f}% of spend "
-                 f"went over PIN across the window. {move}."),
-             width=CAPTION_W_FULL)
+    if mix["pin_ticket"] is None or mix["sig_ticket"] is None:
+        rail = "PIN" if mix["pin_ticket"] is None else "signature"
+        cap = (f"Every transaction in this window ran over "
+               f"{'signature' if rail == 'PIN' else 'PIN'}: the book records no {rail} "
+               f"activity at all, so there is no mix to compare.")
+    else:
+        cap = (f"{mix['pin_share']:.0f}% of swipes and {mix['pin_share_usd']:.0f}% of spend "
+               f"went over PIN across the window. {move}.")
+    _caption(s, cap, width=CAPTION_W_FULL)
 
     _notes(s, ctx["odd_src"],
            method=(f"Personal accounts holding a debit card. Per month: Sig # / Sig $ and "
@@ -832,6 +844,10 @@ def routing_slide(prs, ci, ctx):
                    f"line is PIN share of transaction COUNT; the spend share is in the "
                    f"caption because the two differ whenever the tickets differ."),
            issues=[
+               ("One rail carries no transactions in this window. That is either a book that "
+                "genuinely runs one way or a column the extract did not fill — worth "
+                "checking with the data team before reading anything into it.")
+               if (mix["pin_ticket"] is None or mix["sig_ticket"] is None) else "",
                "THE MIX IS NOT REVENUE. Signature and PIN earn different interchange, but the "
                "ODD carries no interchange rate and neither does this deck, so nothing here "
                "says what the mix is worth. Do not let the slide imply it.",
@@ -847,6 +863,75 @@ def routing_slide(prs, ci, ctx):
     return s
 
 
+def overdraft_slide(prs, ci, ctx):
+    """Does the Reg E election show up in overdraft behaviour? The deck never asked."""
+    od = ci.get("overdraft_limits") or {}
+    s = _new_slide(prs, _find(prs, "Reg E Opt-In by Account Vintage") or prs.slides[0])
+    if not od.get("available"):
+        _header(s, "Overdraft Limits by Reg E Election", f"{ctx['as_of_long']} Data",
+                "Selection: open personal accounts holding a debit card.")
+        _caption(s, "This extract carries no open card holders with a readable Reg E election, "
+                    "so the view is not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured."])
+        _place(prs, s, after="Reg E Opt-In by Account Vintage", before="Take Rate and Reg E")
+        return s
+
+    _header(s, "Overdraft Limits by Reg E Election", f"{ctx['as_of_long']} Data", [
+        f"Selection: {od['accounts']:,} open personal card holders; limits at "
+        f"{ctx['as_of_long']}, items averaged over {od['window'][0]} to {od['window'][1]}.",
+        f"Selection: open personal card holders ({od['accounts']:,})."])
+    png = os.path.join(ctx["assets"], "insight_overdraft.png")
+    IC.overdraft_chart(png, od, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    by = {g["election"]: g for g in od["groups"]}
+    opted = by.get(CI.REGE_IN, {})
+    out = by.get(CI.REGE_OUT, {})
+    tiles = [(f"{opted.get('items_per_account') or 0:.2f}", "Items a month, opted in", ORANGE),
+             (f"{out.get('items_per_account') or 0:.2f}", "Items a month, opted out", NAVY),
+             (f"${opted.get('avg_limit'):,}" if opted.get("avg_limit") else "—",
+              "Average limit, opted in", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    a, b = opted.get("items_per_account"), out.get("items_per_account")
+    if a is not None and b is not None and b:
+        times = a / b if b else None
+        rel = (f"{times:.1f} times" if times and times >= 1.1 else
+               ("about the same as" if times and times > 0.9 else f"{times:.1f} times"))
+        line = (f"Opted-in card holders record {a:.2f} NSF/OD items a month against {b:.2f} for "
+                f"opted-out — {rel} the opted-out rate.")
+    else:
+        line = "One election has no accounts to compare, so no comparison is drawn."
+    if not od.get("carries_limits"):
+        line += (" No account in this extract carries an overdraft limit figure, so the limit "
+                 "panel is empty rather than zero.")
+    _caption(s, line, width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"Open personal accounts holding a debit card, by the standardized Reg E "
+                   f"election ({CI.REGE_IN} / {CI.REGE_OUT} / {CI.REGE_DEFAULT}). Limit = the "
+                   f"'{ctx['latest']} OD Limit' column, counted as carried when above zero. "
+                   f"Items = the monthly MTD NSF/OD ITEM count averaged over "
+                   f"{od['window'][0]} to {od['window'][1]}."),
+           issues=[
+               "CORRELATION, NOT CAUSE, and the direction is not obvious: a customer who "
+               "overdraws is also the customer most likely to have been asked to opt in. "
+               "Nothing here says opting in causes overdrafts or the reverse.",
+               "ITEMS, NOT FEES. The ODD carries no overdraft fee dollars at all — fee income "
+               "comes from the workbook — so no dollar figure on this slide is fee revenue.",
+               ("Reg E values the classifier could not map, left out of every group: "
+                + ", ".join(f"{k!r} ({v:,})" for k, v in od["unmapped"].items())
+                + ". Ask Aaron how to map them before this is read as a full population.")
+               if od.get("unmapped") else
+               "Every Reg E value in this extract mapped to one of the three standard elections.",
+               "The limit is read at the snapshot month only. An account whose limit was "
+               "removed last month reads the same as one that never had one.",
+           ])
+    _place(prs, s, after="Reg E Opt-In by Account Vintage", before="Take Rate and Reg E")
+    return s
+
+
 def add_insight_slides(prs, ci, ctx):
     """Build and place all six. `ctx`: id, name, odd_src, wb_src, wb_file, latest ('Aug26'),
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
@@ -858,6 +943,7 @@ def add_insight_slides(prs, ci, ctx):
         rege_cuts_slide(prs, ci, ctx),
         migration_slide(prs, ci, ctx),
         routing_slide(prs, ci, ctx),
+        overdraft_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
         branch_kpi_slide(prs, ci, ctx),

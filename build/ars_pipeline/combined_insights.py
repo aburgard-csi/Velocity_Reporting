@@ -48,7 +48,8 @@ for _p in (HERE, os.path.join(HERE, os.pardir)):
         sys.path.insert(0, _p)
 
 import before_after as BA                                               # noqa: E402
-from odd_rows import accessors, rege_label, REGE_IN, REGE_OUT           # noqa: E402
+from odd_rows import (accessors, rege_label, REGE_IN, REGE_OUT,          # noqa: E402
+                      REGE_DEFAULT)
 
 csv.field_size_limit(10 ** 7)
 
@@ -67,7 +68,11 @@ AT_RISK = ("Declining", "Cooling", "Dormant", "Never used")
 KPI_BRANCHES = 8          # the grouped-column chart seats eight branches
 MIN_BRANCH_ELIGIBLE = 40  # the deck's own Reg E branch floor (metrics_gen rege_branch)
 
-_MON_COL = re.compile(r"^([A-Z][a-z]{2}\d{2}) (Sig #|PIN #|Sig \$|PIN \$|Mail|Resp)$")
+# MTD (the NSF/OD item count) and OD Limit joined the projection for the overdraft view
+# (2026-09-21). Until then odd.nsf() and odd.od_limit() read columns read_odd had not kept,
+# and returned 0.0 for every account — a whole slide of zeros that looked like a client with
+# no overdrafts rather than a reader with no columns.
+_MON_COL = re.compile(r"^([A-Z][a-z]{2}\d{2}) (Sig #|PIN #|Sig \$|PIN \$|Mail|Resp|MTD|OD Limit)$")
 
 
 def mkey(token):
@@ -811,6 +816,71 @@ def routing_mix(rows, odd, smonths, months=12):
         "first_share": live[0]["pin_share"], "last_share": live[-1]["pin_share"],
     }
 
+
+# ============================================================== overdraft limits
+# The deck reports the Reg E election and, separately, NSF/OD item volume. It never puts them
+# together, so the question the election exists to answer — do opted-in accounts actually
+# overdraw, and do they carry a limit — has no slide. James keeps it as a metric
+# ("eligibility, items and fees opted in vs not"); the ODD carries the limit per month.
+OD_WINDOW = 3
+
+
+def overdraft_limits(rows, odd, smonths, latest, win=OD_WINDOW):
+    """Limit coverage and NSF/OD items per account, split by Reg E election.
+
+    Population: OPEN personal debit-card holders — the same population the Reg E slides use,
+    so the group sizes reconcile with them.
+    """
+    g, personal, hascard, isopen = odd.g, odd.personal, odd.hascard, odd.isopen
+    rege_col = f"{latest} Reg E Desc"
+    window = smonths[-win:]
+    groups = {}
+    order = [REGE_IN, REGE_OUT, REGE_DEFAULT]
+    for k in order:
+        groups[k] = {"n": 0, "with_limit": 0, "limit_sum": 0.0, "items": 0.0,
+                     "items_accounts": 0}
+    unmapped = defaultdict(int)
+    for r in rows:
+        if not (personal(r) and isopen(r) and hascard(r)):
+            continue
+        lab = rege_label(g(r, rege_col))
+        if lab not in groups:
+            unmapped[g(r, rege_col)] += 1
+            continue
+        b = groups[lab]
+        b["n"] += 1
+        lim = odd.od_limit(r, latest)
+        if lim > 0:
+            b["with_limit"] += 1
+            b["limit_sum"] += lim
+        items = sum(odd.nsf(r, m) for m in window) / win
+        b["items"] += items
+        if items > 0:
+            b["items_accounts"] += 1
+
+    out = []
+    for k in order:
+        b = groups[k]
+        out.append({
+            "election": k,
+            "accounts": b["n"],
+            "with_limit": b["with_limit"],
+            "with_limit_pct": round(100 * b["with_limit"] / b["n"], 1) if b["n"] else None,
+            "avg_limit": round(b["limit_sum"] / b["with_limit"]) if b["with_limit"] else None,
+            "items_per_account": round(b["items"] / b["n"], 2) if b["n"] else None,
+            "overdrawing_pct": round(100 * b["items_accounts"] / b["n"], 1) if b["n"] else None,
+        })
+    total = sum(b["n"] for b in groups.values())
+    any_limit = any(x["with_limit"] for x in out)
+    return {
+        "available": bool(total),
+        "carries_limits": any_limit,
+        "groups": out,
+        "accounts": total,
+        "window": [BA.label(window[0]), BA.label(window[-1])],
+        "unmapped": dict(unmapped),
+    }
+
 # ============================================================== scorecard
 def scorecard(M, B, rc, hk, bk):
     """[[measure, value text, comparator text, status]] — each measure against its own comparator.
@@ -887,6 +957,7 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
         "rate_cuts": rate_cuts(d["rows"], odd, latest),
         "tier_migration": tier_migration(d["rows"], odd, smonths, latest),
         "routing_mix": routing_mix(d["rows"], odd, smonths),
+        "overdraft_limits": overdraft_limits(d["rows"], odd, smonths, latest),
     }
     if M is not None and B is not None:
         out["scorecard"] = scorecard(M, B, out["responder_control"], out["account_health"],
