@@ -104,23 +104,31 @@ def _picture(s, png, L, T, W, H):
     s.shapes.add_picture(png, Inches(L), Inches(T), Inches(W), Inches(H))
 
 
-def _notes(s, source, method=None, issues=(), caveats=()):
-    """Write the slide's notes: source, how it is measured, then the open issues IN FULL.
+def _notes(s, source, method=None, issues=(), caveats=(), checks=()):
+    """Write the slide's notes: source, how it is measured, the open issues, then the checks
+    that came back clean.
 
     These views ship in a REVIEW deck, not to a client (Aaron, 2026-09-21: "you can be
     obvious about issues"), so anything known to be shaky is written on the slide's notes
     rather than kept in a commit message nobody opens next to the deck. A view with no open
     issue says so, because an empty section reads as "nobody looked".
+
+    `checks` is separate on purpose. "Every Reg E value in this extract mapped" is the
+    OPPOSITE of a problem, and it was being printed under the same "!!" as the real ones —
+    which teaches a reader to skim the marks that matter.
     """
     parts = [f"Source: {source}"]
     if method:
         parts.append(f"Method: {method}")
     issues = [i for i in issues if i]
+    checks = [c for c in checks if c]
     if issues:
         parts.append("REVIEW — OPEN ISSUES:" + "".join("\n  !! " + i for i in issues))
     else:
         parts.append("REVIEW — OPEN ISSUES: none known. Figures and wording both derive "
                      "from the data on this slide.")
+    if checks:
+        parts.append("Checked, clean:" + "".join("\n  ok " + c for c in checks))
     if caveats:
         parts.append("Reading it: " + " ".join(caveats))
     s.notes_slide.notes_text_frame.text = "\n\n".join(parts)
@@ -720,8 +728,7 @@ def _cut_slide(prs, ci, ctx, measure, title, after, before, png_name, subject, p
                (f"Bands the extract could not place are shown as 'Not on file': "
                 + ", ".join(f"{k} on {v:,} accounts" for k, v in sorted(miss.items()))
                 + ". Those accounts are IN the book rate but cannot be attributed to a band, "
-                  "so the bands do not sum to the book.") if miss else
-               "Every account landed in a band on all four cuts.",
+                  "so the bands do not sum to the book.") if miss else "",
                "These are cross-sections at one snapshot, not causes. A product with a low "
                "rate may simply be sold at a branch that does not ask, and nothing here "
                "separates the two.",
@@ -729,7 +736,8 @@ def _cut_slide(prs, ci, ctx, measure, title, after, before, png_name, subject, p
                "larger balance, so the same pocket can appear three times under three names.",
                "Bands are ours, not James's. His cuts use his own boundaries, so a band's "
                "population is not comparable to his figure for the same client.",
-           ])
+           ],
+           checks=["Every account landed in a band on all four cuts." if not miss else ""])
     _place(prs, s, after=after, before=before)
     return s
 
@@ -956,11 +964,12 @@ def overdraft_slide(prs, ci, ctx):
                ("Reg E values the classifier could not map, left out of every group: "
                 + ", ".join(f"{k!r} ({v:,})" for k, v in od["unmapped"].items())
                 + ". Ask Aaron how to map them before this is read as a full population.")
-               if od.get("unmapped") else
-               "Every Reg E value in this extract mapped to one of the three standard elections.",
+               if od.get("unmapped") else "",
                "The limit is read at the snapshot month only. An account whose limit was "
                "removed last month reads the same as one that never had one.",
-           ])
+           ],
+           checks=["Every Reg E value in this extract mapped to one of the three standard "
+                   "elections." if not od.get("unmapped") else ""])
     _place(prs, s, after="Reg E Opt-In by Account Vintage", before="Take Rate and Reg E")
     return s
 
@@ -1017,14 +1026,15 @@ def efficiency_slide(prs, ci, ctx):
                "young mailings the other way.",
                ("Mailings the workbook books revenue for with no offers in the extract: "
                 + ", ".join(eff["unmatched_revenue"]) + ". They are left out of every figure "
-                "on this slide.") if eff.get("unmatched_revenue") else
-               "Every mailing with booked revenue matched an offer month in the extract.",
+                "on this slide.") if eff.get("unmatched_revenue") else "",
                ("Mailings the extract carries offers for with no booked revenue: "
                 + ", ".join(eff["unmatched_offers"]) + ".") if eff.get("unmatched_offers") else "",
                "The two halves come from different files with different owners. A month "
                "labelled differently in one of them silently drops that mailing rather than "
                "mismatching it — check the counts above against the Mailing Response Summary.",
-           ])
+           ],
+           checks=["Every mailing with booked revenue matched an offer month in the extract."
+                   if not eff.get("unmatched_revenue") else ""])
     _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
     return s
 
@@ -1153,11 +1163,12 @@ def by_tier_slide(prs, ci, ctx):
                "absorbs some of that, not all.",
                (f"Tiers with too few accounts on one side to compare ({bt['min_cohort']} is "
                 f"the floor): {', '.join(thin)}. They are listed rather than dropped, because "
-                f"a tier nobody responds in is itself a finding.") if thin else
-               "Every tier had enough responders and non-responders to compare.",
+                f"a tier nobody responds in is itself a finding.") if thin else "",
                "Spend is debit spend only. An account that moved its direct deposit but not "
                "its card looks unchanged here.",
-           ])
+           ],
+           checks=["Every tier had enough responders and non-responders to compare."
+                   if not thin else ""])
     _place(prs, s, after="Responders vs Mailed Non-Responders", before="Reg E Review")
     return s
 
