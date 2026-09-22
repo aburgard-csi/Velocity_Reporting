@@ -1,8 +1,12 @@
-"""The ARS 2 : 1 revenue guarantee (Aaron, 2026-09-21).
+"""The ARS 2 : 1 revenue guarantee (Aaron, 2026-09-21; reworked 2026-09-22).
 
-The arithmetic is the point of these tests: a months-to-cover figure that ignores the
-cost accruing over those same months would print a number no client will ever see come
-true, and the caption must never describe a shortfall as room above the guarantee.
+Two rules from Aaron shape this: the figures come from the workbook's **Actuals tab**, month
+by month, and the slide is built **only for clients under 3 : 1** — a client comfortably
+clear of the guarantee does not need a slide about a floor they cleared years ago.
+
+The arithmetic is the point of these tests: a months-to-cover figure that ignores the cost
+accruing over those same months would print a date no client will ever see come true, and
+the caption must never describe a shortfall as room above the guarantee.
 
 Synthetic clients, round numbers.
 """
@@ -13,98 +17,171 @@ import pytest
 import revenue_guarantee_slide as RG
 
 
-def base(cost, revenue, monthly=None, months=24, cur_costs=None):
-    """A base.json-shaped dict with only the keys the guarantee reads."""
-    return {
-        "ltd_costs": -cost,                       # the workbook carries cost negative
-        "ltd_revenue": revenue,
-        "months": months,
-        "cur_costs": cur_costs,
-        "monthly_rev_last12": monthly or [],
-    }
+def months(n, rev, cost, start=(2025, 1)):
+    """n months of flat revenue and cost, oldest first, as the Actuals reader returns them."""
+    names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    out, y, m = [], start[0], start[1] - 1
+    for _ in range(n):
+        out.append([f"{names[m]} {y}", rev, cost])
+        m += 1
+        if m == 12:
+            m, y = 0, y + 1
+    return out
 
 
-def months(vals, start=1):
-    labels = ["Jan 2026", "Feb 2026", "Mar 2026", "Apr 2026", "May 2026", "Jun 2026",
-              "Jul 2026", "Aug 2026", "Sep 2026", "Oct 2026", "Nov 2026", "Dec 2026"]
-    return list(zip(labels[start - 1:start - 1 + len(vals)], vals))
+def base(month_rows=None, profitability=None, **kw):
+    B = dict(kw)
+    if month_rows is not None:
+        B["actuals"] = {"available": True, "sheet": "Actuals MM", "months": month_rows,
+                        "window": [month_rows[0][0], month_rows[-1][0]], "total_column": None}
+    if profitability is not None:
+        B["profitability"] = profitability
+    return B
 
 
-def test_the_minimum_is_twice_cost_and_the_ratio_is_recomputed():
-    g = RG.guarantee(base(100_000, 570_000))
-    assert g["minimum"] == 200_000
-    assert g["ratio"] == pytest.approx(5.7)
-    assert g["met"] is True
-    assert g["surplus"] == 370_000
-    assert g["gap"] is None
+# ------------------------------------------------------------------ who gets the slide
+@pytest.mark.parametrize("ratio, built", [
+    (1.58, True), (2.99, True), (3.0, False), (3.01, False), (5.72, False)])
+def test_only_a_client_under_three_to_one_gets_the_slide(ratio, built):
+    assert RG.should_build(base(profitability=ratio)) is built
+
+
+def test_the_gate_reads_the_ratio_the_deck_itself_states():
+    """A client cannot see "5.7 : 1" on Financial Performance and a guarantee slide on the
+    next one, so the gate reads the same figure that bullet does."""
+    B = base(months(24, 9_000, 1_000), profitability=5.72)
+    assert RG.ratio_of(B) == 5.72
+    assert RG.should_build(B) is False
+
+
+def test_without_a_stated_ratio_the_gate_falls_back_to_the_actuals():
+    B = base(months(24, 9_000, 5_000))
+    assert RG.ratio_of(B) == pytest.approx(1.8)
+    assert RG.should_build(B) is True
+
+
+def test_a_client_with_no_cost_is_not_measured_and_not_built():
+    assert RG.should_build(base(months(6, 1_000, 0))) is False
+
+
+# ------------------------------------------------------------------ the figures
+def test_the_figures_come_from_the_actuals_months():
+    g = RG.guarantee(base(months(12, 10_000, 2_000)))
+    assert g["source"] == "actuals" and g["sheet"] == "Actuals MM"
+    assert (g["revenue"], g["cost"], g["minimum"]) == (120_000, 24_000, 48_000)
+    assert g["ratio"] == pytest.approx(5.0)
+    assert g["met"] is True and g["surplus"] == 72_000
+
+
+def test_it_falls_back_to_the_rollup_when_a_workbook_has_no_actuals_tab():
+    g = RG.guarantee({"ltd_revenue": 150_000, "ltd_costs": -100_000, "months": 24})
+    assert g["source"] == "rollup"
+    assert (g["revenue"], g["cost"]) == (150_000, 100_000)
+    assert g["gap"] == 50_000
 
 
 def test_a_short_program_reports_the_gap_not_a_surplus():
-    g = RG.guarantee(base(100_000, 150_000))
+    g = RG.guarantee(base(months(12, 12_000, 8_000)))
     assert g["met"] is False
-    assert g["gap"] == 50_000
-    assert g["surplus"] is None
+    assert g["gap"] == 48_000 and g["surplus"] is None
     cap = RG._caption(g)
-    assert "short of the guaranteed minimum" in cap
-    assert "above" not in cap
+    assert "short of the guaranteed minimum" in cap and "above" not in cap
+
+
+def lean_then_good(lean=24, good=12):
+    """A program that started badly and is now earning: short of the guarantee overall, with
+    a recent run rate that closes the gap. Flat-good months alone would be ABOVE 2 : 1 and
+    the guarantee would be met, which answers a different question."""
+    return (months(lean, 1_000, 5_000)
+            + months(good, 12_000, 4_000, start=(2027, 1)))
 
 
 def test_months_to_cover_accrues_cost_over_the_same_months():
-    # revenue $12k/mo, cost $4k/mo: each month closes 12k - 2*4k = 4k of a 50k gap.
-    g = RG.guarantee(base(100_000, 150_000, monthly=months([12_000] * 12), cur_costs=4_000))
+    # recent months: $12k of revenue against $4k of cost, so each closes 12k - 2*4k = 4k
+    g = RG.guarantee(base(lean_then_good()))
+    assert g["met"] is False
     assert g["run_rate"] == pytest.approx(12_000)
     assert g["monthly_cost"] == pytest.approx(4_000)
-    assert g["months_to_cover"] == math.ceil(50_000 / 4_000) == 13
-    # gap / run rate alone would have said 5 months — the number that ignores cost
-    assert g["months_to_cover"] > math.ceil(50_000 / 12_000)
+    assert g["months_to_cover"] == math.ceil(g["gap"] / 4_000)
+    # gap / run rate alone would have said a third of that — the number that ignores cost
+    assert g["months_to_cover"] > math.ceil(g["gap"] / 12_000)
 
 
 def test_a_gap_that_never_closes_says_so():
-    # revenue $7k/mo against cost $4k/mo: the minimum rises $8k a month, faster than revenue
-    g = RG.guarantee(base(100_000, 150_000, monthly=months([7_000] * 12), cur_costs=4_000))
+    # $7k of revenue a month against $4k of cost: the minimum rises $8k over the same month
+    g = RG.guarantee(base(months(24, 7_000, 4_000)))
     assert g["months_to_cover"] is None
     cap = RG._caption(g)
-    assert "does not close" in cap
-    assert "closes in about" not in cap
+    assert "does not close" in cap and "closes in about" not in cap
 
 
-def test_monthly_cost_falls_back_to_the_program_to_date_average():
-    g = RG.guarantee(base(96_000, 150_000, monthly=months([12_000] * 12), months=24))
-    assert g["monthly_cost"] == pytest.approx(4_000)          # 96,000 / 24
-    assert g["monthly_cost_from"] == "the program-to-date average monthly cost"
+def test_the_run_rate_reads_the_last_twelve_complete_months():
+    rows = months(24, 1_000, 5_000) + months(12, 8_000, 4_000, start=(2027, 1))
+    rows[-6:] = [[m[0], 16_000, 4_000] for m in rows[-6:]]     # a recent step up
+    g = RG.guarantee(base(rows))
+    assert g["met"] is False
+    assert g["run_months"] == 12
+    assert g["run_rate"] == pytest.approx((6 * 8_000 + 6 * 16_000) / 12)
+    # the 24 lean months before the window are in the TOTALS but not in the run rate
+    assert g["revenue"] == 24 * 1_000 + 6 * 8_000 + 6 * 16_000
 
 
-def test_the_run_rate_uses_complete_months_only_and_states_the_one_left_out():
-    # eleven months at 12k, then a partial month far below half the median
-    g = RG.guarantee(base(100_000, 150_000,
-                          monthly=months([12_000] * 11 + [400]), cur_costs=4_000))
-    assert g["run_months"] == 11
-    assert g["run_rate"] == pytest.approx(12_000)
-    assert g["left_out"] == ["Dec 2026"]
-    assert "Dec 2026 left out: incomplete in this extract." in RG._caption(g)
+def test_a_partial_final_month_is_left_out_and_stated():
+    rows = months(24, 1_000, 5_000) + months(12, 12_000, 4_000, start=(2027, 1))
+    rows[-1][1] = 200                                          # the month the pull cut short
+    g = RG.guarantee(base(rows))
+    assert g["left_out"] == [rows[-1][0]]
+    assert f"{rows[-1][0]} left out: incomplete in this extract." in RG._caption(g)
+
+
+def test_the_crossing_month_is_the_latest_one():
+    """A program can meet the guarantee, slip under it and meet it again. The earlier
+    crossings are history the client has already banked."""
+    rows = (months(6, 10_000, 1_000)
+            + months(6, 1_000, 20_000, start=(2025, 7))
+            + months(12, 40_000, 1_000, start=(2026, 1)))
+    g = RG.guarantee(base(rows))
+    assert g["met"] is True
+    assert g["met_month"] is not None and g["met_month"].endswith("2026")
 
 
 def test_no_cost_booked_is_stated_never_zeroed():
-    g = RG.guarantee(base(0, 0))
+    g = RG.guarantee(base(months(6, 0, 0)))
     assert g["measurable"] is False
     assert g["ratio"] is None and g["met"] is None
     cap = RG._caption(g)
-    assert "no program cost to date" in cap
-    assert "0 : 1" not in cap
+    assert "no program cost to date" in cap and "0 : 1" not in cap
 
 
-def test_the_multiple_lives_in_one_place():
-    assert RG.MULTIPLE == 2.0
-    g = RG.guarantee(base(50_000, 80_000))
+def test_the_multiple_and_the_threshold_live_in_one_place():
+    assert (RG.MULTIPLE, RG.SHOW_BELOW) == (2.0, 3.0)
+    g = RG.guarantee(base(months(6, 5_000, 1_000)))
     assert g["minimum"] == RG.MULTIPLE * g["cost"]
 
 
-def test_the_builder_inserts_it_after_financial_performance():
+# ------------------------------------------------------------------ the slide
+def test_every_tile_label_fits_inside_its_tile():
+    """Three labels wrapped out of their tiles onto the slide behind them, on a deck the
+    gate passed at 0 FAIL. A label is measured at what is DRAWN — 16pt after restyle_fonts,
+    inside PowerPoint's own margins — not at what it is authored as."""
+    for label in ("Program cost, to date", "Guaranteed minimum", "Revenue, to date",
+                  "Short of the guarantee", "Above the guarantee", "Not measurable yet"):
+        assert RG._fits(label), label
+
+
+def test_the_chart_renders_from_months_and_from_totals(tmp_path):
+    import os
+    lines = RG.render_chart(RG.guarantee(base(months(24, 10_000, 3_000))), str(tmp_path))
+    assert os.path.getsize(lines) > 5000
+    bars = RG.render_chart(RG.guarantee({"ltd_revenue": 9.0, "ltd_costs": -4.0}), str(tmp_path))
+    assert os.path.getsize(bars) > 3000
+
+
+def test_the_builder_gates_on_should_build():
     import os
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "build", "ars_pipeline", "build_ars_gen.py"),
                encoding="utf-8").read()
-    assert "revenue_guarantee_slide.add_revenue_guarantee_slide(" in src
+    assert "if revenue_guarantee_slide.should_build(B):" in src
     assert 'after_title="Financial Performance"' in src
-    # its note is written by the module, so the generic note pass must skip it
-    assert "_MODULE_NOTED.append(_rg_slide)" in src
+    assert "_MODULE_NOTED.append(_rg_slide)" in src       # its note is its own

@@ -1466,21 +1466,31 @@ def _note_for(t, idx):
     return "Source: %s — responder / new-account analytics; associational, not causal where noted." % ODD_SRC
 # ---- Revenue Guarantee, directly after Financial Performance (Aaron, 2026-09-21) ----
 # The 2 : 1 guarantee had no figures of its own anywhere in the deck — only the adjective
-# "well above the 2 : 1 threshold" in a Financial Performance bullet. This slide carries
-# the cost, the guaranteed minimum and the revenue, so the claim is checkable. Built here
-# rather than with the other module slides because it sources its own note and needs
-# WB_SRC. Not wrapped in try/except: its figures are the ones slide 7 already shows, so a
-# failure is a real defect, and CLAUDE.md forbids dropping a slide quietly.
+# "well above the 2 : 1 threshold" in a Financial Performance bullet. This slide carries the
+# cost, the guaranteed minimum and the revenue, so the claim is checkable, drawn from the
+# workbook's Actuals tab month by month (Aaron, 2026-09-22).
+#
+# ONLY for a client under 3 : 1 (Aaron, 2026-09-22). A client at 5.7 : 1 does not need a
+# slide to be told the guarantee holds, and a whole slide about a floor they cleared years
+# ago invites a question nobody was asking. `should_build` owns that rule; this is not a
+# slide dropped quietly — the absence IS the decision, and the skip is printed.
 import revenue_guarantee_slide
-_rg_slide, _RG = revenue_guarantee_slide.add_revenue_guarantee_slide(
-    prs, B, ASSETS, AS_OF_LONG, after_title="Financial Performance",
-    wb_src=WB_SRC, tab=_mm)
-_MODULE_NOTED.append(_rg_slide)
-print("revenue guarantee slide built (%s : 1 against a %s minimum; %s)"
-      % (f"{_RG['ratio']:.2f}" if _RG["ratio"] is not None else "n/a",
-         m2(_RG["minimum"]),
-         "met" if _RG["met"] else ("short " + m2(_RG["gap"]) if _RG["gap"] is not None
-                                   else "not measurable")))
+if revenue_guarantee_slide.should_build(B):
+    _rg_slide, _RG = revenue_guarantee_slide.add_revenue_guarantee_slide(
+        prs, B, ASSETS, AS_OF_LONG, after_title="Financial Performance",
+        wb_src=WB_SRC, tab=_mm)
+    _MODULE_NOTED.append(_rg_slide)
+    print("revenue guarantee slide built from %s (%s : 1 against a %s minimum; %s)"
+          % (_RG["sheet"] or "Executive Financials",
+             f"{_RG['ratio']:.2f}" if _RG["ratio"] is not None else "n/a",
+             m2(_RG["minimum"]),
+             "met" if _RG["met"] else ("short " + m2(_RG["gap"]) if _RG["gap"] is not None
+                                       else "not measurable")))
+else:
+    _rg_ratio = revenue_guarantee_slide.ratio_of(B)
+    print("revenue guarantee slide skipped: %s is at or above %.0f : 1"
+          % (f"{_rg_ratio:.2f} : 1" if _rg_ratio is not None else "this client",
+             revenue_guarantee_slide.SHOW_BELOW))
 
 _S2 = list(prs.slides)
 _keep = {id(x) for x in _MODULE_NOTED}

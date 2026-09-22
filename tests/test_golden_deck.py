@@ -80,9 +80,11 @@ def _build(w, odd_csv):
                                         "Test CSM,Client Service Manager,CSI,,,(555) 010-0001,"
                                         "Test.CSM@example.com,synthetic\n", encoding="utf-8")
     env = dict(os.environ, RPE_CSM_LIST=str(w / "csm_list.csv"), RPE_CSM_CONTACTS=str(w / "csm_contacts.csv"))
+    # The builder's own output is kept: it is where decisions like "revenue guarantee slide
+    # skipped" are stated, and a test that reads them beats one that infers them.
     sh([PY, f"{ARSP}/build_ars_gen.py", os.path.join(REPO, "templates/ars_template.pptx"),
         str(metrics), str(base), str(lift), str(oddd / "oddd_metrics.json"),
-        str(charts), str(out), odd_csv], env=env)
+        str(charts), str(out), odd_csv], env=env, stdout_to=str(w / "build.log"))
     sh([PY, os.path.join(REPO, "build/restyle_fonts.py"), str(out)])
     return dict(path=str(out), dir=w, base=str(base), metrics=str(metrics),
                 charts=charts, prs=Presentation(str(out)))
@@ -113,16 +115,17 @@ def test_all_charts_render(deck):
 
 
 def test_slide_count(deck):
-    """50 for an SM-path ARS deck — 49 until Revenue Guarantee landed (2026-09-21).
-    If this moves, assemble_combined's section boundary is the next thing to check —
-    adding two slides broke it before."""
-    assert len(deck["prs"].slides) == 50
+    """49 for an SM-path ARS deck. The golden client runs at 5.75 : 1, so it does NOT get a
+    Revenue Guarantee slide — that one is built only below 3 : 1 (Aaron, 2026-09-22). If this
+    moves, assemble_combined's section boundary is the next thing to check — adding two
+    slides broke it before."""
+    assert len(deck["prs"].slides) == 49
 
 
 # --- it has the right shape ----------------------------------------------
 @pytest.mark.parametrize("title", [
     "Product Mix & ARS Eligibility", "Excluded Accounts", "Program Overview",
-    "ARS Financial Performance", "Revenue Guarantee", "Monthly Summary — Last 12 Months",
+    "ARS Financial Performance", "Monthly Summary — Last 12 Months",
     "Mailing Response Summary", "Reg E Opt-In by Account Vintage",
     "ARS Key Takeaways", "Questions & Discussion", "Contact Us", "Appendix",
 ])
@@ -223,10 +226,18 @@ def test_nsf_slide_compares_complete_months_and_says_what_was_left_out(partial_d
     notes = s.notes_slide.notes_text_frame.text
     assert "Jul 2026 is left out as incomplete in this extract" in notes, notes
     assert "Items YoY compares Jun 25 to Jun 26" in notes, notes
-    assert len(partial_deck["prs"].slides) == 50, "a partial month never drops a slide"
+    assert len(partial_deck["prs"].slides) == 49, "a partial month never drops a slide"
 
 
 def test_nsf_slide_on_complete_data_says_nothing_was_left_out(deck):
     s = _slide(deck["prs"], "NSF/OD Activity")
     assert "left out" not in _text(s)
     assert "(Jul 25 \u2192 Jul 26)" in _text(s)
+
+
+def test_a_comfortable_client_gets_no_revenue_guarantee_slide(deck):
+    """The golden client is at 5.75 : 1. Its guarantee slide is absent BY RULE, not by
+    failure (Aaron, 2026-09-22: only build it under 3 : 1), and the build log says so."""
+    assert not any(t.startswith("Revenue Guarantee") for t in titles(deck["prs"]))
+    log = (deck["dir"] / "build.log").read_text(encoding="utf-8", errors="replace")
+    assert "revenue guarantee slide skipped" in log
