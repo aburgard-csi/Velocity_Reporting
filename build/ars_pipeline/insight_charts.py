@@ -542,3 +542,27 @@ def by_tier_chart(out, rows, w_in=8.0, h_in=4.0):
     ax.legend(loc="upper left", frameon=False, fontsize=11.5, labelcolor=TICK, ncol=2,
               bbox_to_anchor=(0.0, 1.10))
     return _save(fig, out)
+
+
+# ----------------------------------------------------------------- balance concentration
+def balance_chart(out, bc, w_in=8.0, h_in=4.0):
+    """Share of balances against share of swipes, by balance decile — the gap between the two
+    bars in the top deciles is the money that is not being used."""
+    d = bc["deciles"]
+    x = list(range(len(d)))
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.11, right=0.98, top=0.88, bottom=0.17)
+    w = 0.38
+    ax.bar([i - w / 2 for i in x], [r["balance_share"] for r in d], width=w, color=NAVY,
+           label="Share of balances", zorder=3)
+    ax.bar([i + w / 2 for i in x], [r["swipe_share"] or 0 for r in d], width=w, color=ORANGE,
+           label="Share of swipes", zorder=3)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{r['decile']}" for r in d], fontsize=11, color=NAVY)
+    ax.set_xlabel("Balance decile  ·  1 = the largest balances", fontsize=12, color=TICK)
+    ax.set_ylabel("Share of the book", fontsize=12, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    _spines(ax, left=True)
+    ax.legend(loc="upper right", frameon=False, fontsize=11.5, labelcolor=TICK)
+    return _save(fig, out)

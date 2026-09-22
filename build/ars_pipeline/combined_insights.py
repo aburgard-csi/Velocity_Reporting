@@ -1040,6 +1040,74 @@ def responder_by_tier(rows, odd, smonths, mature, min_cohort=BA.MIN_RESPONDERS):
         "worst": min(measured, key=lambda r: r["net"])["tier"] if measured else None,
     }
 
+
+# ============================================================== where the balances sit
+# The deck has a balance profile of responders and nothing about the book's balances. James
+# keeps top-decile share and a "sleeping giants" list (big balance, no card use) as targeting
+# metrics. Both come out of columns already in the extract, and the second one is a list a
+# branch can actually work.
+QUIET_SWIPES = 1.0        # a month, averaged over the window — below this is "not swiping"
+QUIET_WINDOW = 3
+
+
+def balance_concentration(rows, odd, smonths, latest, win=QUIET_WINDOW, quiet=QUIET_SWIPES):
+    """Balance concentration across eligible personal accounts, and the quiet top decile."""
+    g, personal, hascard = odd.g, odd.personal, odd.hascard
+    elig_col = f"{latest} Elig"
+    window = smonths[-win:]
+    accounts = []
+    for r in rows:
+        if not (personal(r) and g(r, elig_col) == "Yes"):
+            continue
+        bal = odd.fnum(r, "Avg Bal")
+        sw = sum(odd.swipes(r, m) for m in window) / win
+        accounts.append((bal, sw, hascard(r)))
+    if not accounts:
+        return {"available": False}
+    accounts.sort(key=lambda t: -t[0])
+    n = len(accounts)
+    total_bal = sum(b for b, _s, _c in accounts)
+    total_sw = sum(s for _b, s, _c in accounts)
+    if total_bal <= 0:
+        return {"available": False, "reason": "this extract carries no average balances"}
+
+    cut = max(1, round(n * 0.10))
+    top = accounts[:cut]
+    top_bal = sum(b for b, _s, _c in top)
+    top_sw = sum(s for _b, s, _c in top)
+    quiet_rows = [t for t in top if t[1] < quiet]
+    quiet_carded = [t for t in quiet_rows if t[2]]
+
+    deciles = []
+    for i in range(10):
+        chunk = accounts[round(n * i / 10):round(n * (i + 1) / 10)]
+        if not chunk:
+            continue
+        deciles.append({
+            "decile": i + 1,
+            "accounts": len(chunk),
+            "balance_share": round(100 * sum(b for b, _s, _c in chunk) / total_bal, 1),
+            "swipe_share": round(100 * sum(s for _b, s, _c in chunk) / total_sw, 1)
+                           if total_sw else None,
+            "avg_balance": round(sum(b for b, _s, _c in chunk) / len(chunk)),
+            "take": round(100 * sum(1 for _b, _s, c in chunk if c) / len(chunk), 1),
+        })
+    return {
+        "available": True,
+        "accounts": n,
+        "total_balance": round(total_bal),
+        "top_decile_accounts": cut,
+        "top_decile_share": round(100 * top_bal / total_bal, 1),
+        "top_decile_swipe_share": round(100 * top_sw / total_sw, 1) if total_sw else None,
+        "top_decile_floor": round(top[-1][0]),
+        "quiet": len(quiet_rows),
+        "quiet_carded": len(quiet_carded),
+        "quiet_balance": round(sum(b for b, _s, _c in quiet_rows)),
+        "quiet_threshold": quiet,
+        "deciles": deciles,
+        "window": [BA.label(window[0]), BA.label(window[-1])],
+    }
+
 # ============================================================== scorecard
 def scorecard(M, B, rc, hk, bk):
     """[[measure, value text, comparator text, status]] — each measure against its own comparator.
@@ -1122,6 +1190,7 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
     out["offer_efficiency"] = offer_efficiency(d["rows"], odd, d["mailmonths"],
                                                out["wave_revenue"])
     out["sizing"] = sizing(out["rate_cuts"], B or {})
+    out["balance_concentration"] = balance_concentration(d["rows"], odd, smonths, latest)
     if M is not None and B is not None:
         out["scorecard"] = scorecard(M, B, out["responder_control"], out["account_health"],
                                      out["branch_kpis"])

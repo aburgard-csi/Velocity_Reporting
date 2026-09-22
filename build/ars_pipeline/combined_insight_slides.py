@@ -1129,6 +1129,65 @@ def by_tier_slide(prs, ci, ctx):
     return s
 
 
+def balance_slide(prs, ci, ctx):
+    """Where the book's balances sit, and how much of that money never swipes."""
+    bc = ci.get("balance_concentration") or {}
+    s = _new_slide(prs, _find(prs, "Responder Balance Profile") or _find(prs, "Program Reach")
+                   or prs.slides[0])
+    if not bc.get("available"):
+        _header(s, "Where the Balances Sit", f"{ctx['as_of_long']} Data",
+                "Selection: ARS-eligible personal accounts.")
+        _caption(s, "This extract carries no average balances, so the view is not shown for "
+                    f"this period. {bc.get('reason', '')}".strip(),
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the Avg Bal "
+                                          "column is empty in this extract."])
+        _place(prs, s, after="Responder Balance Profile", before="Appendix")
+        return s
+
+    _header(s, "Where the Balances Sit", f"{ctx['as_of_long']} Data", [
+        f"Selection: {bc['accounts']:,} ARS-eligible personal accounts by average balance; "
+        f"swipes averaged over {bc['window'][0]} to {bc['window'][1]}.",
+        f"Selection: ARS-eligible personal accounts by average balance."])
+    png = os.path.join(ctx["assets"], "insight_balances.png")
+    IC.balance_chart(png, bc, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    tiles = [(f"{bc['top_decile_share']:.0f}%", "Of balances, top decile", ORANGE),
+             (f"{bc['quiet_carded']:,}", "Top-decile cards barely swiping", NAVY),
+             (usd_compact(bc["quiet_balance"]), "Balances behind them", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    _caption(s, (f"The largest {bc['top_decile_accounts']:,} accounts — balances of "
+                 f"{usd_compact(bc['top_decile_floor'])} and up — hold "
+                 f"{bc['top_decile_share']:.0f}% of the book's balances and make "
+                 f"{bc['top_decile_swipe_share']:.0f}% of its swipes. "
+                 f"{bc['quiet_carded']:,} of them hold a card and average fewer than "
+                 f"{bc['quiet_threshold']:.0f} swipes a month."), width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"ARS-eligible personal accounts, sorted by the Avg Bal column and cut into "
+                   f"deciles. Swipes are Sig # + PIN # averaged over {bc['window'][0]} to "
+                   f"{bc['window'][1]}. 'Barely swiping' is an average below "
+                   f"{bc['quiet_threshold']:.0f} a month WITH a card on file."),
+           issues=[
+               "AVG BAL IS ONE COLUMN AND WE DO NOT KNOW ITS WINDOW. The extract does not say "
+               "what period it averages, so treat the deciles as a ranking rather than as a "
+               "statement about any particular month.",
+               "One account is not one customer. A household with three accounts appears "
+               "three times, and a large balance parked in one of them can make an otherwise "
+               "ordinary customer look like a whale.",
+               "A big balance that does not swipe is not automatically an opportunity: it can "
+               "be an escrow, an estate or a business account miscoded personal. The list is "
+               "a starting point for a branch, not a campaign.",
+               "No dollar value is attached to the quiet accounts. Converting them is worth "
+               "whatever their swipes would earn, which this pipeline has no rate for.",
+           ])
+    _place(prs, s, after="Responder Balance Profile", before="Appendix")
+    return s
+
+
 def add_insight_slides(prs, ci, ctx):
     """Build and place all six. `ctx`: id, name, odd_src, wb_src, wb_file, latest ('Aug26'),
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
@@ -1142,6 +1201,7 @@ def add_insight_slides(prs, ci, ctx):
         routing_slide(prs, ci, ctx),
         overdraft_slide(prs, ci, ctx),
         efficiency_slide(prs, ci, ctx),
+        balance_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
         by_tier_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
