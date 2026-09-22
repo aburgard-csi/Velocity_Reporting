@@ -212,9 +212,18 @@ def responder_control_slide(prs, ci, ctx):
             f"Per mailing (mailed / responders / non-responders): "
             + "; ".join(f"{x['m']} {x['mailed']:,} / {x['responders']:,} / {x['control']:,}"
                         for x in rc["counts"]) + ".")
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']} — '<Mon> Mail', '<Mon> Resp' and monthly Sig $ + PIN $ fields; "
-        f"personal accounts. {note_detail}")
+    _notes(s, f"{ctx['odd_src']} — '<Mon> Mail', '<Mon> Resp' and monthly Sig $ + PIN $ fields",
+           method=note_detail,
+           issues=[
+               "RESPONDERS SELECT THEMSELVES. The control fixes the market — both groups lived "
+               "through the same months — but not the choice to act, so the net figure is an "
+               "association and not the effect of mailing a random account.",
+               "The windows are 3 months before and 6 after, pooled across mailings. James runs "
+               "6 before and 3 after and corrects for the dip in the month before the drop; the "
+               "two answers are therefore not comparable figure for figure.",
+               "Spend is debit spend. An account that moved its direct deposit but not its card "
+               "reads as unchanged.",
+           ])
     _place(prs, s, after="Responder Activity: Before vs After by Offer",
            before="Debit Card Review")
     return s
@@ -243,15 +252,24 @@ def branch_kpi_slide(prs, ci, ctx):
                  f"against {tot['rege']:.1f}%."
                  + (f" Branches behind on opt-in: {', '.join(r_low)}." if r_low else "")),
              width=CAPTION_W_FULL, top=5.95, height=0.95)
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']} — Branch, Business?, Debit?, '{ctx['latest']} Elig', Stat Desc / "
+    _notes(s, ctx["odd_src"], issues=[
+        "Branches are labelled by NUMBER on this chart. The Branch Scorecard that follows lists "
+        "each number beside its name, from the branch-name dataset; a number with no name there "
+        "cannot be resolved from this slide.",
+        "Only the largest branches by eligible accounts are shown, so a small branch with a bad "
+        "rate is invisible here — it is in the scorecard's roll-up row.",
+        "Take rate and opt-in read different populations (eligible accounts, and open card "
+        "holders), so a branch can sit above the book on one and below on the other for reasons "
+        "of mix rather than behaviour.",
+    ], method=(
+        f"{ctx['odd_src']} — Branch, Business?, Debit?, '{ctx['latest']} Elig', Stat Desc / "
         f"Stat Code and '{ctx['latest']} Reg E Desc'. Take rate = ARS-eligible personal accounts "
         f"holding a debit card / ARS-eligible personal accounts (the Program Overview definition; "
         f"all branches {tot['take']:.1f}%). Reg E opt-in = opted in / open personal debit-card "
         f"holders, election read by odd_rows.rege_label (all branches {tot['rege']:.1f}%). Branches "
         f"shown: the {len(rows)} with the most eligible accounts. 'Within 2%' is Aaron's band: a "
         f"branch rate within 2% of the program rate, relative. Behind on take rate: "
-        f"{', '.join(t_low) or 'none'}; behind on opt-in: {', '.join(r_low) or 'none'}.")
+        f"{', '.join(t_low) or 'none'}; behind on opt-in: {', '.join(r_low) or 'none'}."))
     _place(prs, s, after="Reg E Opt-In by Account Vintage", before="ARS Key Takeaways")
     return s
 
@@ -316,8 +334,15 @@ def branch_scorecard_slide(prs, ci, ctx):
               else [3.0, 1.6, 1.7, 1.9, 2.0, 2.3])
     SH.add_table(s, 0.5, 1.72, 12.3, rh * len(data), data, widths,
                  highlight=(len(data) - 1,), fs=15 if names else 16)
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']} — personal accounts (Business? = No) by Branch. Eligible = "
+    _notes(s, ctx["odd_src"], issues=[
+        "First-year closure is a SMALL-NUMBERS measure at branch level: one branch with a dozen "
+        "accounts in the cohort can show 25% from three closures.",
+        "The roll-up row mixes branches that are small for different reasons — a new branch, a "
+        "closing branch and a drive-through all land in it.",
+        "A branch number with no name is one the branch-name dataset does not cover for this "
+        "client, not a branch that has no name.",
+    ], method=(
+        f"{ctx['odd_src']} — personal accounts (Business? = No) by Branch. Eligible = "
         f"'{ctx['latest']} Elig' = Yes. Take rate = eligible accounts holding a debit card / eligible. "
         f"Reg E opt-in = opted in / open personal debit-card holders. Closed, 12 Mo = personal "
         f"accounts with a Date Closed {cw[0]} – {cw[1]} / (open personal accounts + those closures). "
@@ -331,7 +356,7 @@ def branch_scorecard_slide(prs, ci, ctx):
             + (". Not named: " + ", ".join(b["branch"] for b in shown if b["branch"] not in names)
                if any(b["branch"] not in names for b in shown) else "") + ".")
            if names else "Branch names: fewer than half of these branch numbers have a name in "
-                         "Inputs/Branch Names/branch_names.csv, so the table shows numbers only."))
+                         "Inputs/Branch Names/branch_names.csv, so the table shows numbers only.")))
     _place(prs, s, after="Take Rate and Reg E Opt-In by Branch", before="ARS Key Takeaways")
     return s
 
@@ -486,14 +511,22 @@ def scorecard_slide(prs, ci, ctx):
     _caption(s, f"{n['ahead']} of {len(rows)} measures ahead of their comparator, {n['level']} within "
                 f"2% and {n['behind']} behind.", width=CAPTION_W_FULL, top=top + rh * len(data) + 0.12,
              height=0.45)
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']}; {ctx['wb_src']} (Executive Financials MM profitability, "
+    _notes(s, f"{ctx['odd_src']}; {ctx['wb_src']}", issues=[
+        "Each measure is compared with ITS OWN comparator — some are the book, some a trailing "
+        "average, one is the median branch. A row reading 'behind' is behind that comparator, "
+        "not behind a target anyone set.",
+        "James's version carries talking points per row. These are figures only; the story is "
+        "still the CSM's to tell.",
+        "Nine measures on one card invites a score. There is no score here, and averaging these "
+        "rows would not produce one worth having.",
+    ], method=(
+        f"{ctx['odd_src']}; {ctx['wb_src']} (Executive Financials MM profitability, "
         f"Swipe/Spend history); figures as shown elsewhere in this deck. Status: ahead / behind "
         f"when the value differs from its comparator by more than 2% of the comparator, else level "
         f"(Aaron's +/-2% band); for a change measured against zero the band is 2% of the baseline "
         f"(the non-responders' before spend for the responder difference, 2 points for a % change); "
         f"for first-year closure lower is better. Rows: "
-        + "; ".join(f"{m}: {v} vs {c} ({st})" for m, v, c, st in rows) + ".")
+        + "; ".join(f"{m}: {v} vs {c} ({st})" for m, v, c, st in rows) + "."))
     _place(prs, s, before="ARS Key Takeaways")
     return s
 

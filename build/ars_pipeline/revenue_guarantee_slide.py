@@ -285,6 +285,15 @@ def add_revenue_guarantee_slide(prs, B, assets_dir, month_label,
                              for m, v in (B.get("monthly_rev_last12") or [])
                              if m in g["left_out"])
             note += f" Left out as incomplete: {excl or ', '.join(g['left_out'])}."
+    # The same blunt review block the insight slides carry (Aaron, 2026-09-21). This slide is
+    # built on every ARS deck, so the block names what the figures assume rather than defects.
+    note += ("\n\nREVIEW — WHAT THIS ASSUMES:"
+             "\n  !! Months to cover is an ESTIMATE at the current run rate, not a forecast: it "
+             "holds revenue and cost flat at their recent levels for every month of the count."
+             "\n  !! Cost to date is the workbook's Total Costs, which is what the client is "
+             "billed. It is not CSI's cost of running the program."
+             "\n  !! The guarantee is measured program-to-date. A program strong years ago and "
+             "thin now still reads as met; the trailing-12-month view is on the next slides.")
     s.notes_slide.notes_text_frame.text = note
 
     logo = os.path.join(assets_dir, "logo.png")
