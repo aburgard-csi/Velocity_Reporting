@@ -21,6 +21,7 @@ Public entry point
     add_insight_slides(prs, ci, M, B, ctx) -> [slides]
 """
 import os
+import statistics
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -496,11 +497,144 @@ def scorecard_slide(prs, ci, ctx):
     return s
 
 
+def wave_build_slide(prs, ci, ctx):
+    """Each mailing's month-by-month build — James's slide 5, which we had no answer to."""
+    wr = ci["wave_revenue"]
+    s = _new_slide(prs, _find(prs, "Revenue by Mailing") or _find(prs, "Mailing Response Summary"))
+    wb = wr.get("workbook") or ctx.get("wb_file") or "the ARS workbook"
+    waves = [w for w in (wr.get("waves") or []) if w.get("build")]
+    if not wr.get("available") or not waves:
+        _header(s, "Revenue Build by Mailing", f"PTD · {ctx['data_month_short']}",
+                "Selection: booked revenue by month since each mailing.")
+        _caption(s, "The month-by-month build is not available for this client: "
+                    f"{wr.get('reason', 'the workbook carries no mailing months')}.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, f"ARS Workbook {ctx['id']} ({wb})",
+               issues=["Nothing on this slide is measured — the workbook carried no "
+                       "month-by-month figures for any mailing."])
+        _place(prs, s, after="Revenue by Mailing", before="Debit Card Review")
+        return s
+
+    _header(s, "Revenue Build by Mailing", f"PTD · {ctx['data_month_short']}", [
+        f"Selection: cumulative booked revenue by month since each of the {len(waves)} mailings, "
+        f"through {wr['through']}.",
+        "Selection: cumulative booked revenue by month since each mailing."])
+    png = os.path.join(ctx["assets"], "insight_wave_build.png")
+    IC.wave_build_chart(png, waves, 12.3, 4.0)
+    _picture(s, png, 0.5, 1.72, 12.3, 4.0)
+
+    mature = [w for w in waves if w["months"] >= 6]
+
+    def first6(w):
+        """Share of a mailing's revenue booked within six months — the curve's shape in one
+        number, derived from the points on the slide rather than asserted."""
+        pts = [p for p in w["build"] if p[0] <= 6]
+        return (pts[-1][2] / w["revenue"]) if pts and w["revenue"] else None
+
+    shares = [f for f in (first6(w) for w in mature) if f is not None]
+    newest = waves[-1]
+    lead = max(mature, key=lambda w: w["revenue"]) if mature else newest
+    cap = (f"{newest['m']} has booked {usd_compact(newest['revenue'])} over {newest['months']} "
+           f"month{'s' if newest['months'] != 1 else ''}; {lead['m']} has booked the most of any "
+           f"mailing with 6 or more months, {usd_compact(lead['revenue'])} over {lead['months']}.")
+    if shares:
+        med = statistics.median(shares) * 100
+        cap += (f" Half of the mature mailings had booked {med:.0f}% or more of their revenue "
+                f"within six months of the drop.")
+    _caption(s, cap, width=CAPTION_W_FULL)
+
+    _notes(s, f"ARS Workbook {ctx['id']} ({wb}) — '{CI.ROLLUP_SHEET}'",
+           method=("Each '<Month Year> Mailing' block's Total Incremental Income row, read by "
+                   "month and accumulated. The x axis is MONTHS SINCE THAT MAILING, computed "
+                   "from the mailing's own month, so a month the workbook never booked leaves a "
+                   "gap instead of pulling the curve left. The five most recent mailings are "
+                   "coloured; earlier ones are the grey band."),
+           issues=[
+               "The curve is BOOKED revenue, which is the workbook's attribution of a month's "
+               "income to a mailing. Where mailings overlap, that split is the workbook's and "
+               "we do not re-derive it — two curves can therefore share the same dollar.",
+               "A mailing's first point is its first BOOKED month, which is not always the "
+               "month of the drop. Read the x axis as months since the mailing, not as the "
+               "mailing's age in market.",
+               "Curves are not adjusted for how many accounts each mailing reached, so a big "
+               "drop and a small one sit on the same scale. Offers per mailing are on the "
+               "Mailing Response Summary.",
+           ])
+    _place(prs, s, after="Revenue by Mailing", before="Debit Card Review")
+    return s
+
+
+def month_split_slide(prs, ci, ctx):
+    """Where the newest month's revenue came from, by mailing — James's slide 6."""
+    wr = ci["wave_revenue"]
+    s = _new_slide(prs, _find(prs, "Revenue by Mailing") or _find(prs, "Mailing Response Summary"))
+    wb = wr.get("workbook") or ctx.get("wb_file") or "the ARS workbook"
+    rows = wr.get("by_mailing_latest") or []
+    label = wr.get("latest_month_label")
+    if not wr.get("available") or not rows:
+        _header(s, "Where This Month's Revenue Came From", f"PTD · {ctx['data_month_short']}",
+                "Selection: the newest booked month, split by mailing.")
+        _caption(s, "The month's revenue cannot be split by mailing for this client: "
+                    f"{wr.get('reason', 'no mailing booked a figure in the newest month')}.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, f"ARS Workbook {ctx['id']} ({wb})",
+               issues=["Nothing on this slide is measured — no mailing booked revenue in the "
+                       "newest month on the rollup sheet."])
+        _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+        return s
+
+    _header(s, "Where This Month's Revenue Came From", f"PTD · {ctx['data_month_short']}", [
+        f"Selection: incremental revenue booked in {label}, by the mailing it is booked to.",
+        f"Selection: revenue booked in {label}, by mailing."])
+    png = os.path.join(ctx["assets"], "insight_month_split.png")
+    IC.month_split_chart(png, rows, 12.3, 3.5)
+    _picture(s, png, 0.5, 1.72, 12.3, 3.5)
+
+    total = wr.get("latest_total") or 0.0
+    top = rows[0]
+    older = [r for r in rows if r[2] >= 12]
+    tiles = [(usd_compact(total), f"Booked in {label}", ORANGE),
+             (f"{len(rows)}", "Mailings still earning", NAVY),
+             (f"{100.0 * sum(v for _m, v, n in older) / total:.0f}%" if total else "—",
+              "From mailings 12+ months old", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.35, 3.9, 1.0, v, lab, fill=fill))
+    _caption(s, (f"{len(rows)} mailings booked revenue in {label}, {usd_compact(total)} together. "
+                 f"The largest single contributor is the {top[0]} mailing at "
+                 f"{usd_compact(top[1])} ({100.0 * top[1] / total:.0f}% of the month)."),
+             width=CAPTION_W_FULL, top=6.45, height=0.7)
+
+    rec = ""
+    if wr.get("summary_latest"):
+        gap = 100.0 * (total - wr["summary_latest"]) / wr["summary_latest"]
+        rec = (f" The mailing rows sum to {usd_compact(total)} against "
+               f"{usd_compact(wr['summary_latest'])} on the sheet's own Summary block "
+               f"({gap:+.1f}%).")
+    _notes(s, f"ARS Workbook {ctx['id']} ({wb}) — '{CI.ROLLUP_SHEET}'",
+           method=(f"The newest month any mailing booked ({label}); each '<Month Year> Mailing' "
+                   f"block's Total Incremental Income cell for that month, largest first. "
+                   f"Bars are orange where the mailing has fewer than 6 booked months.{rec}"),
+           issues=[
+               f"{label} is the newest month the WORKBOOK has booked. It is not necessarily a "
+               "complete month of activity, and it can be older than the ODD extract's month — "
+               "check it against the cover month before reading it as 'this month'.",
+               "The split is the workbook's attribution. A response booked to an older mailing "
+               "may have been prompted by a newer one; nothing here can separate them.",
+               "Mailings with no revenue booked in the month are absent from the chart rather "
+               "than drawn at zero, so the bar count is 'mailings still earning', not all "
+               "mailings the client has run.",
+           ])
+    _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+    return s
+
+
 def add_insight_slides(prs, ci, ctx):
     """Build and place all six. `ctx`: id, name, odd_src, wb_src, wb_file, latest ('Aug26'),
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
     made = [
         wave_revenue_slide(prs, ci, ctx),
+        wave_build_slide(prs, ci, ctx),
+        month_split_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
         branch_kpi_slide(prs, ci, ctx),

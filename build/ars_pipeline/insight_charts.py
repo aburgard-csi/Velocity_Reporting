@@ -238,3 +238,91 @@ def wave_revenue_chart(out, waves, w_in=12.3, h_in=4.1, young_months=6):
                loc="upper center", ncol=3, frameon=False, fontsize=12,
                bbox_to_anchor=(0.5, 0.995), labelcolor=TICK)
     return _save(fig, out)
+
+
+# ----------------------------------------------------------------- revenue build by mailing
+def wave_build_chart(out, waves, w_in=12.3, h_in=4.0, named=5):
+    """Cumulative booked revenue against MONTHS SINCE THE MAILING, one line per mailing.
+
+    James's slide 5 ("the Apr25 offer has returned $274K to date") reads each offer's
+    month-by-month build; our Revenue by Mailing showed only the endpoint, so two mailings
+    that ended in the same place looked identical however differently they got there.
+
+    Every mailing is drawn on one x-axis of AGE, not of calendar months, which is the only
+    way a 2019 mailing and a 2026 one are comparable. The `named` most recent are coloured
+    and labelled; the rest are the grey band they belong to.
+    """
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.07, right=0.80, top=0.93, bottom=0.14)
+    ramp = [ORANGE, NAVY, TEAL, STEEL, MUTED]
+    recent = waves[-named:] if named else []
+    recent_keys = {w["key"] for w in recent}
+    for w in waves:
+        if not w.get("build"):
+            continue
+        xs = [p[0] for p in w["build"]]
+        ys = [p[2] for p in w["build"]]
+        if w["key"] in recent_keys:
+            continue
+        ax.plot(xs, ys, color=STEEL_SOFT, lw=1.1, alpha=0.55, zorder=2)
+    handles = []
+    for i, w in enumerate(recent):
+        if not w.get("build"):
+            continue
+        c = ramp[i % len(ramp)]
+        xs = [p[0] for p in w["build"]]
+        ys = [p[2] for p in w["build"]]
+        ax.plot(xs, ys, color=c, lw=2.4, zorder=5)
+        ax.plot(xs[-1:], ys[-1:], marker="o", ms=5, mfc="white", mec=c, mew=1.8, zorder=6)
+        handles.append(Line2D([], [], color=c, lw=2.4,
+                              label=f"{w['m']}  ·  {_money(ys[-1])} over {w['months']} mo"))
+    if any(w.get("build") for w in waves if w["key"] not in recent_keys):
+        handles.append(Line2D([], [], color=STEEL_SOFT, lw=1.1, label="Earlier mailings"))
+    ax.set_xlabel("Months since the mailing", fontsize=12, color=TICK)
+    ax.set_ylabel("Booked, cumulative", fontsize=12, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: _money(v))
+    ax.tick_params(labelsize=11)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+    _spines(ax, left=True)
+    if handles:
+        ax.legend(handles=handles, loc="center left", bbox_to_anchor=(1.01, 0.5),
+                  frameon=False, fontsize=11.5, labelcolor=TICK, handlelength=1.6)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- this month, by mailing
+def month_split_chart(out, rows, w_in=12.3, h_in=3.6, young_months=6):
+    """Bars: what each mailing booked in the newest month, largest first.
+
+    James's slide 6 ("8 offers earned together: $100K booked in the month") answers a
+    question our deck never did — a client sees one revenue figure for the month and cannot
+    tell whether it came from the offer they just paid for or from one that ran in 2019.
+    """
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.90, bottom=0.26)
+    x = list(range(len(rows)))
+    vals = [v for _m, v, _n in rows]
+    colors = [ORANGE if n < young_months else NAVY for _m, _v, n in rows]
+    ax.bar(x, vals, width=0.66, color=colors, zorder=2)
+    mx = max(vals) if vals else 1
+    for i, v in zip(x, vals):
+        ax.text(i, v + mx * 0.02, _money(v), ha="center", va="bottom", fontsize=11.5,
+                color=NAVY, fontweight="bold")
+    ax.set_xticks(x)
+    # House month format, via periods.axis_months — the axis guard raises on "Mar 2026".
+    ax.set_xticklabels(periods.axis_months([m for m, _v, _n in rows]),
+                       rotation=periods.AXIS_ROTATION, ha=periods.AXIS_HA, fontsize=11,
+                       color=NAVY)
+    ax.set_ylim(0, mx * 1.18)
+    ax.yaxis.set_major_formatter(lambda v, _p: _money(v))
+    ax.tick_params(axis="y", labelsize=11)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_ylabel("Booked this month", fontsize=12, color=TICK)
+    _spines(ax, left=True)
+    if any(n < young_months for _m, _v, n in rows):
+        ax.legend(handles=[Patch(color=NAVY, label=f"{young_months}+ months booked"),
+                           Patch(color=ORANGE, label=f"Fewer than {young_months} months booked")],
+                  loc="upper right", frameon=False, fontsize=11.5, labelcolor=TICK)
+    return _save(fig, out)

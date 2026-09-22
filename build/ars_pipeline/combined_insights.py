@@ -487,9 +487,21 @@ def wave_revenue(workbook_path):
         except ValueError:
             continue
         booked = {k: v for k, v in series.items()}
+        # The month-by-month build, which is what James's slide 5 shows and ours did not:
+        # [months since the mailing, that month's booked revenue, cumulative]. Age is
+        # measured from the mailing's own month, not the position in the list, so a month
+        # the workbook never booked leaves a GAP rather than pulling the curve left.
+        run, build = 0.0, []
+        for k in sorted(booked):
+            y, mo = int(k[:4]), int(k[5:7])
+            age = (y * 12 + mo) - (d.year * 12 + d.month)
+            run += booked[k]
+            build.append([age, round(booked[k], 2), round(run, 2)])
         waves.append({"m": d.strftime("%b %Y"), "key": d.strftime("%Y-%m"),
                       "revenue": round(sum(booked.values()), 2),
                       "months": len(booked),
+                      "build": build,
+                      "by_month": {k: round(v, 2) for k, v in booked.items()},
                       "per_month": round(sum(booked.values()) / len(booked), 2) if booked else 0.0})
     waves.sort(key=lambda w: w["key"])
     if not waves:
@@ -497,9 +509,22 @@ def wave_revenue(workbook_path):
                 "reason": f"the '{ROLLUP_SHEET}' sheet carries no readable mailing sections"}
     rolled = sum(w["revenue"] for w in waves)
     through = max((k for w in sections.values() for k in w), default=None)
+    # Where THIS month's revenue came from, by mailing (James's slide 6). The month is the
+    # newest one any mailing booked, which is not always the newest column on the sheet: a
+    # mailing block can carry a trailing empty month.
+    latest = max((k for w in waves for k in w["by_month"]), default=None)
+    by_mailing_latest = sorted(
+        ((w["m"], w["by_month"][latest], w["months"]) for w in waves if latest in w["by_month"]),
+        key=lambda t: -t[1]) if latest else []
     return {"available": True, "workbook": os.path.basename(str(workbook_path)),
             "waves": waves, "total": round(rolled, 2),
             "summary_total": round(sum(summary.values()), 2) if summary else None,
+            "latest_month": latest,
+            "latest_month_label": (datetime.datetime.strptime(latest, "%Y-%m").strftime("%b %Y")
+                                   if latest else None),
+            "by_mailing_latest": by_mailing_latest,
+            "latest_total": round(sum(v for _, v, _ in by_mailing_latest), 2),
+            "summary_latest": round(summary.get(latest, 0.0), 2) if (summary and latest) else None,
             "through": (datetime.datetime.strptime(through, "%Y-%m").strftime("%b %Y")
                         if through else None)}
 
