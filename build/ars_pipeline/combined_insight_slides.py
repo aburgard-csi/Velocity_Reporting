@@ -48,6 +48,7 @@ except Exception:                                   # pragma: no cover
 TEAL_RGB, GOLD_RGB = _rgb(TEAL), _rgb(GOLD)
 CAPTION_W_RAIL, CAPTION_W_FULL = 8.75, 10.6
 BRANCH_TABLE_ROWS = 9          # branches shown before the roll-up row, at 16 pt rows
+MIGRATION_W = CI.MIGRATION_WINDOW
 
 
 # ----------------------------------------------------------------- slide plumbing
@@ -721,6 +722,131 @@ def rege_cuts_slide(prs, ci, ctx):
                       pool_word="card holders")
 
 
+def migration_slide(prs, ci, ctx):
+    """Where the book's card holders moved between swipe tiers over a year."""
+    mig = ci.get("tier_migration") or {}
+    s = _new_slide(prs, _find(prs, "Debit Usage Segmentation") or prs.slides[0])
+    if not mig.get("available"):
+        _header(s, "Swipe Tier Migration", f"{ctx['as_of_long']} Data",
+                "Selection: ARS-eligible personal card holders.")
+        _caption(s, f"This extract carries {mig.get('months', 0)} activity months; the migration "
+                    f"view needs {mig.get('needs', 15)}, so it is not shown for this period.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the extract is "
+                                          "too short to compare two windows a year apart."])
+        _place(prs, s, after="Debit Usage Segmentation", before="Average Ticket")
+        return s
+
+    _header(s, "Swipe Tier Migration", f"{ctx['as_of_long']} Data", [
+        f"Selection: {mig['accounts']:,} ARS-eligible personal card holders, "
+        f"{' to '.join(mig['then_window'])} against {' to '.join(mig['now_window'])}.",
+        f"Selection: ARS-eligible personal card holders, a year apart."])
+    png = os.path.join(ctx["assets"], "insight_migration.png")
+    IC.migration_chart(png, mig, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    tiles = [(f"{mig['pct_up']:.0f}%", "Climbed a tier", ORANGE),
+             (f"{mig['pct_down']:.0f}%", "Slipped a tier", NAVY),
+             (f"${mig['spend_up']:,}" if mig["spend_up"] is not None else "—",
+              "Monthly spend, climbers", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    gap = ""
+    if mig["spend_up"] is not None and mig["spend_down"] is not None:
+        gap = (f" Climbers now spend ${mig['spend_up']:,} a month against ${mig['spend_down']:,} "
+               f"for accounts that slipped.")
+    _caption(s, (f"{mig['moved_up']:,} of {mig['accounts']:,} card holders sit in a higher tier "
+                 f"than a year ago and {mig['moved_down']:,} in a lower one; {mig['same']:,} "
+                 f"have not moved.{gap}"), width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"ARS-eligible personal card holders at the snapshot. Each end is a "
+                   f"{mig.get('span', 12)}-month-apart {MIGRATION_W}-month average of Sig # + PIN #, "
+                   f"banded on the deck's own tiers. Rows are the tier a year ago, columns the "
+                   f"tier now; the diagonal is bold. Spend figures are the average monthly "
+                   f"Sig $ + PIN $ in the recent window."),
+           issues=[
+               "Only accounts open and eligible AT THE SNAPSHOT are in the matrix. Accounts "
+               "closed during the year are not, so this reads better than the book actually "
+               "did — attrition is on the Account Retention slides, not here.",
+               "Tier boundaries are swipe counts, so a client whose customers spend more per "
+               "swipe can slip tiers while spending more. Read it beside Average Ticket.",
+               "A year apart is one comparison, not a trend: a seasonal book (tax refunds, "
+               "tourism) can show migration that reverses next quarter.",
+               "The window ends on the extract's last months, which may include an incomplete "
+               "month. Nothing here applies the complete-month rule yet — that is the next "
+               "thing to fix on this slide.",
+           ])
+    _place(prs, s, after="Debit Usage Segmentation", before="Average Ticket")
+    return s
+
+
+def routing_slide(prs, ci, ctx):
+    """PIN versus signature — the mix, and what each rail's ticket looks like."""
+    mix = ci.get("routing_mix") or {}
+    s = _new_slide(prs, _find(prs, "Average Ticket") or prs.slides[0])
+    if not mix.get("available"):
+        _header(s, "PIN and Signature Mix", f"{ctx['as_of_long']} Data",
+                "Selection: personal card holders' transactions.")
+        _caption(s, "This extract carries no signature or PIN transactions to split, so the "
+                    "view is not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — no Sig # or "
+                                          "PIN # columns carried a figure."])
+        _place(prs, s, after="Average Ticket", before="Reg E Review")
+        return s
+
+    _header(s, "PIN and Signature Mix", f"{ctx['as_of_long']} Data", [
+        f"Selection: personal card holders' transactions, {mix['window'][0]} to "
+        f"{mix['window'][1]}.",
+        f"Selection: personal card holders' transactions."])
+    png = os.path.join(ctx["assets"], "insight_routing.png")
+    IC.routing_chart(png, mix, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    tiles = [(f"{mix['pin_share']:.0f}%", "PIN share of swipes", ORANGE),
+             (f"${mix['sig_ticket']:,.2f}", "Signature ticket", NAVY),
+             (f"${mix['pin_ticket']:,.2f}", "PIN ticket", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    # A share moves in POINTS, and nobody at the client moved it: movement() would have
+    # said "the mailings did not have an impact on the pin share of swipes", which is both
+    # the wrong unit and the wrong subject.
+    ch = mix["last_share"] - mix["first_share"]
+    if abs(ch) <= CI.BAND_PCT:
+        move = (f"It was almost flat across the window, {mix['first_share']:.1f}% to "
+                f"{mix['last_share']:.1f}%")
+    else:
+        verb = "rose" if ch > 0 else "fell"
+        move = (f"It {verb} from {mix['first_share']:.1f}% to {mix['last_share']:.1f}%, "
+                f"{abs(ch):.1f} points")
+    _caption(s, (f"{mix['pin_share']:.0f}% of swipes and {mix['pin_share_usd']:.0f}% of spend "
+                 f"went over PIN across the window. {move}."),
+             width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"Personal accounts holding a debit card. Per month: Sig # / Sig $ and "
+                   f"PIN # / PIN $ summed across the book, {mix['window'][0]} to "
+                   f"{mix['window'][1]}. Ticket = dollars / transactions on that rail. The "
+                   f"line is PIN share of transaction COUNT; the spend share is in the "
+                   f"caption because the two differ whenever the tickets differ."),
+           issues=[
+               "THE MIX IS NOT REVENUE. Signature and PIN earn different interchange, but the "
+               "ODD carries no interchange rate and neither does this deck, so nothing here "
+               "says what the mix is worth. Do not let the slide imply it.",
+               "Routing is decided at the terminal by the merchant and the network, not by "
+               "the client, so this is context for a conversation rather than something a "
+               "branch can move.",
+               "The window ends on the extract's last month, which may be incomplete; the "
+               "final point can dip for that reason alone.",
+               "James keeps this as a metric with interchange scenarios attached. Without his "
+               "rate table, the scenarios are not reproduced here.",
+           ])
+    _place(prs, s, after="Average Ticket", before="Reg E Review")
+    return s
+
+
 def add_insight_slides(prs, ci, ctx):
     """Build and place all six. `ctx`: id, name, odd_src, wb_src, wb_file, latest ('Aug26'),
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
@@ -730,6 +856,8 @@ def add_insight_slides(prs, ci, ctx):
         month_split_slide(prs, ci, ctx),
         take_cuts_slide(prs, ci, ctx),
         rege_cuts_slide(prs, ci, ctx),
+        migration_slide(prs, ci, ctx),
+        routing_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
         branch_kpi_slide(prs, ci, ctx),

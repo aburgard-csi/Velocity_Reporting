@@ -695,6 +695,122 @@ def lagging(cuts, measure, floor=MIN_BAND, n=3):
                         "n": b[pool_key], "gap": round(b[measure] - book, 1)})
     return sorted(out, key=lambda d: d["gap"])[:n]
 
+
+# ============================================================== swipe tier migration
+# The deck shows the tier table as a snapshot and "movement" for the latest mailing's
+# responders only. James reads migration across the whole book: who climbed, who slipped, and
+# what that is worth. A snapshot cannot answer "are these accounts getting better or worse",
+# and two clients with identical tier tables can be moving in opposite directions.
+TIER_ORDER = ["Non-User", "1-5", "6-10", "11-15", "16-20", "21-25", "26+"]
+TIER_BANDS = [(1, 6, "1-5"), (6, 11, "6-10"), (11, 16, "11-15"), (16, 21, "16-20"),
+              (21, 26, "21-25")]
+MIGRATION_WINDOW = 3      # months averaged at each end, the deck's own tier window
+MIGRATION_SPAN = 12       # months between the two windows
+
+
+def swipe_tier(avg):
+    """The deck's tier for an average monthly swipe count — half-open bands, so an average
+    between two bands lands in the lower one instead of falling through to '26+'
+    (metrics_gen carried that defect until 2026-09-21)."""
+    if avg < 1:
+        return "Non-User"
+    for lo, hi, name in TIER_BANDS:
+        if lo <= avg < hi:
+            return name
+    return "26+"
+
+
+def tier_migration(rows, odd, smonths, latest, span=MIGRATION_SPAN, win=MIGRATION_WINDOW):
+    """Where eligible card holders sat a year ago against where they sit now.
+
+    Both ends are `win`-month averages, the same window the tier table uses, so a single
+    unusual month cannot move an account across the matrix on its own.
+    """
+    if len(smonths) < span + win:
+        return {"available": False, "months": len(smonths),
+                "needs": span + win}
+    g, personal, hascard = odd.g, odd.personal, odd.hascard
+    elig_col = f"{latest} Elig"
+    now_w = smonths[-win:]
+    then_w = smonths[-(span + win):-span]
+
+    matrix = {a: {b: 0 for b in TIER_ORDER} for a in TIER_ORDER}
+    spend_now = {"up": 0.0, "same": 0.0, "down": 0.0}
+    n = {"up": 0, "same": 0, "down": 0}
+    rank = {t: i for i, t in enumerate(TIER_ORDER)}
+    for r in rows:
+        if not (personal(r) and hascard(r) and g(r, elig_col) == "Yes"):
+            continue
+        a = swipe_tier(sum(odd.swipes(r, m) for m in then_w) / win)
+        b = swipe_tier(sum(odd.swipes(r, m) for m in now_w) / win)
+        matrix[a][b] += 1
+        key = "up" if rank[b] > rank[a] else ("down" if rank[b] < rank[a] else "same")
+        n[key] += 1
+        spend_now[key] += sum(odd.spend(r, m) for m in now_w) / win
+    total = sum(n.values())
+    return {
+        "available": bool(total),
+        "accounts": total,
+        "matrix": [[a] + [matrix[a][b] for b in TIER_ORDER] for a in TIER_ORDER],
+        "tiers": TIER_ORDER,
+        "moved_up": n["up"], "same": n["same"], "moved_down": n["down"],
+        "pct_up": round(100 * n["up"] / total, 1) if total else None,
+        "pct_down": round(100 * n["down"] / total, 1) if total else None,
+        "spend_up": round(spend_now["up"] / n["up"]) if n["up"] else None,
+        "spend_down": round(spend_now["down"] / n["down"]) if n["down"] else None,
+        "spend_same": round(spend_now["same"] / n["same"]) if n["same"] else None,
+        "now_window": [BA.label(now_w[0]), BA.label(now_w[-1])],
+        "then_window": [BA.label(then_w[0]), BA.label(then_w[-1])],
+        "span": span,
+    }
+
+
+# ============================================================== interchange routing
+# Signature and PIN transactions earn the client different interchange, and the ODD carries
+# them in separate columns that every existing measure adds together. James keeps the mix as
+# a metric and never puts it in a deck; it belongs in one, because the mix moves with what
+# the client's card does at the terminal and it is worth real money.
+def routing_mix(rows, odd, smonths, months=12):
+    """Signature vs PIN share of swipes and spend, by month, over the trailing `months`."""
+    g, personal, hascard = odd.g, odd.personal, odd.hascard
+    window = smonths[-months:]
+    series = []
+    for m in window:
+        sc = sd = pc = pd = 0.0
+        for r in rows:
+            if not (personal(r) and hascard(r)):
+                continue
+            a, b, c, d = odd.routing(r, m)
+            sc += a; sd += b; pc += c; pd += d
+        swipes = sc + pc
+        series.append({
+            "month": BA.label(m),
+            "sig_n": round(sc), "sig_usd": round(sd),
+            "pin_n": round(pc), "pin_usd": round(pd),
+            "pin_share": round(100 * pc / swipes, 1) if swipes else None,
+            "sig_ticket": round(sd / sc, 2) if sc else None,
+            "pin_ticket": round(pd / pc, 2) if pc else None,
+        })
+    live = [s for s in series if s["pin_share"] is not None]
+    if not live:
+        return {"available": False, "months": len(window)}
+    tot_sig_n = sum(s["sig_n"] for s in series)
+    tot_pin_n = sum(s["pin_n"] for s in series)
+    tot_sig_d = sum(s["sig_usd"] for s in series)
+    tot_pin_d = sum(s["pin_usd"] for s in series)
+    swipes = tot_sig_n + tot_pin_n
+    return {
+        "available": True,
+        "series": series,
+        "window": [series[0]["month"], series[-1]["month"]],
+        "pin_share": round(100 * tot_pin_n / swipes, 1) if swipes else None,
+        "pin_share_usd": round(100 * tot_pin_d / (tot_sig_d + tot_pin_d), 1)
+                         if (tot_sig_d + tot_pin_d) else None,
+        "sig_ticket": round(tot_sig_d / tot_sig_n, 2) if tot_sig_n else None,
+        "pin_ticket": round(tot_pin_d / tot_pin_n, 2) if tot_pin_n else None,
+        "first_share": live[0]["pin_share"], "last_share": live[-1]["pin_share"],
+    }
+
 # ============================================================== scorecard
 def scorecard(M, B, rc, hk, bk):
     """[[measure, value text, comparator text, status]] — each measure against its own comparator.
@@ -769,6 +885,8 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
         "account_health": account_health(d["rows"], odd, smonths, latest),
         "wave_revenue": wave_revenue(workbook_path),
         "rate_cuts": rate_cuts(d["rows"], odd, latest),
+        "tier_migration": tier_migration(d["rows"], odd, smonths, latest),
+        "routing_mix": routing_mix(d["rows"], odd, smonths),
     }
     if M is not None and B is not None:
         out["scorecard"] = scorecard(M, B, out["responder_control"], out["account_health"],

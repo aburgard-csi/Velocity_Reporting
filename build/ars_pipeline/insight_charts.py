@@ -26,6 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt                                          # noqa: E402
 from matplotlib.lines import Line2D                                      # noqa: E402
 from matplotlib.patches import Patch                                     # noqa: E402
+from matplotlib.colors import LinearSegmentedColormap                    # noqa: E402
 
 from brand import (NAVY, ORANGE, TICK, MUTED, GRID, TEAL, STEEL,        # noqa: E402
                    STEEL_SOFT, CHART_FONT, ROWALT)
@@ -34,6 +35,8 @@ from rpe_env import use_font                                             # noqa:
 
 periods.install_month_axis_guard()
 DPI = 200
+# The house cold ramp as a colormap, for the one grid that needs a scale rather than a series.
+_COLD_CMAP = LinearSegmentedColormap.from_list("rpe_cold", ["#FFFFFF", "#9DB4C8", NAVY])
 HALO = dict(boxstyle="square,pad=0.12", facecolor="white", edgecolor="none")
 
 
@@ -379,3 +382,70 @@ def cut_panel_chart(out, cuts, measure, book, w_in=12.3, h_in=3.9, min_band=25):
 
 def _clip(s, n):
     return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+
+
+# ----------------------------------------------------------------- tier migration
+def migration_chart(out, mig, w_in=8.0, h_in=4.0):
+    """The migration matrix as a heat grid: a year ago down the side, now across the top.
+
+    A grid rather than a flow diagram because the question a CSM asks is "how many of my
+    heavy users are still heavy users", which is one cell, not a ribbon.
+    """
+    tiers = mig["tiers"]
+    counts = [[c for c in row[1:]] for row in mig["matrix"]]
+    mx = max((max(r) for r in counts), default=0) or 1
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.13, right=0.99, top=0.97, bottom=0.14)
+    ax.imshow(counts, cmap=_COLD_CMAP, vmin=0, vmax=mx, aspect="auto")
+    for i, row in enumerate(counts):
+        for j, v in enumerate(row):
+            if not v:
+                continue
+            ax.text(j, i, f"{v:,}", ha="center", va="center", fontsize=10,
+                    color="white" if v > mx * 0.55 else NAVY,
+                    fontweight="bold" if i == j else "normal")
+    ax.set_xticks(range(len(tiers)))
+    ax.set_xticklabels(tiers, fontsize=10.5, color=NAVY)
+    ax.set_yticks(range(len(tiers)))
+    ax.set_yticklabels(tiers, fontsize=10.5, color=NAVY)
+    ax.set_xlabel("Now  ·  " + " to ".join(mig["now_window"]), fontsize=11.5, color=TICK)
+    ax.set_ylabel("A year ago  ·  " + " to ".join(mig["then_window"]), fontsize=11.5,
+                  color=TICK)
+    ax.tick_params(length=0)
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- PIN / signature mix
+def routing_chart(out, mix, w_in=8.0, h_in=4.0):
+    """PIN share of swipes by month (line) over the month's swipe count (bars)."""
+    series = mix["series"]
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.09, right=0.90, top=0.90, bottom=0.20)
+    x = list(range(len(series)))
+    swipes = [s["sig_n"] + s["pin_n"] for s in series]
+    ax.bar(x, swipes, width=0.66, color=ROWALT, zorder=2)
+    ax.set_ylabel("Swipes in the month", fontsize=11.5, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: f"{v/1000:,.0f}K" if v >= 1000 else f"{v:,.0f}")
+    ax.set_xticks(x)
+    ax.set_xticklabels(periods.axis_months([s["month"] for s in series]),
+                       rotation=periods.AXIS_ROTATION, ha=periods.AXIS_HA, fontsize=10.5,
+                       color=NAVY)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    _spines(ax, left=True)
+    ax2 = ax.twinx()
+    shares = [s["pin_share"] for s in series]
+    ax2.plot(x, shares, color=TEAL, lw=2.4, marker="o", ms=4, mfc="white", mec=TEAL, mew=1.6,
+             zorder=6)
+    lo = min(v for v in shares if v is not None)
+    hi = max(v for v in shares if v is not None)
+    pad = max(2.0, (hi - lo) * 0.4)
+    ax2.set_ylim(max(0, lo - pad), min(100, hi + pad))
+    ax2.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
+    ax2.set_ylabel("PIN share of swipes", fontsize=11.5, color=TICK)
+    ax2.tick_params(colors=TICK, length=0, labelsize=10.5)
+    for sp in ("top", "left"):
+        ax2.spines[sp].set_visible(False)
+    ax2.spines["right"].set_color(MUTED)
+    return _save(fig, out)
