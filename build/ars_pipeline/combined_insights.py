@@ -881,6 +881,99 @@ def overdraft_limits(rows, odd, smonths, latest, win=OD_WINDOW):
         "unmapped": dict(unmapped),
     }
 
+
+# ============================================================== offer efficiency
+# Revenue by Mailing answers "what did this offer earn". It cannot answer "was it worth
+# sending", because a mailing that earned twice as much may simply have gone to twice as many
+# people. James keeps interchange per 1,000 mailed as a metric; joining the workbook's booked
+# revenue to the ODD's offer counts is the version this pipeline can actually produce.
+def offers_by_month(rows, odd, mailmonths):
+    """{mail month token: accounts carrying an offer code that month}."""
+    g = odd.g
+    out = {}
+    for m in mailmonths:
+        col = f"{m} Mail"
+        out[m] = sum(1 for r in rows if (g(r, col) or "").strip())
+    return out
+
+
+def offer_efficiency(rows, odd, mailmonths, wave):
+    """Booked revenue per 1,000 offers sent, per mailing.
+
+    The two halves come from different files — offers from the ODD, revenue from the
+    workbook — so a mailing that only one of them knows about is reported as unmatched
+    rather than divided by a count from the wrong month.
+    """
+    if not wave.get("available"):
+        return {"available": False, "reason": wave.get("reason", "no workbook revenue")}
+    offers = offers_by_month(rows, odd, mailmonths)
+    by_token = {}
+    for m, n in offers.items():
+        by_token[m] = n
+    out, unmatched_rev, unmatched_mail = [], [], []
+    for w in wave["waves"]:
+        token = datetime.datetime.strptime(w["key"], "%Y-%m").strftime("%b%y")
+        n = by_token.get(token)
+        if not n:
+            unmatched_rev.append(w["m"])
+            continue
+        out.append({
+            "month": w["m"], "offers": n, "revenue": w["revenue"], "months": w["months"],
+            "per_1k": round(1000 * w["revenue"] / n, 2),
+            "per_1k_month": round(1000 * w["revenue"] / n / w["months"], 2) if w["months"] else None,
+        })
+    matched = {datetime.datetime.strptime(w["key"], "%Y-%m").strftime("%b%y")
+               for w in wave["waves"]}
+    for m, n in offers.items():
+        if n and m not in matched:
+            unmatched_mail.append(BA.label(m))
+    return {
+        "available": bool(out),
+        "mailings": out,
+        "unmatched_revenue": unmatched_rev,
+        "unmatched_offers": unmatched_mail,
+        "total_offers": sum(x["offers"] for x in out),
+        "total_revenue": round(sum(x["revenue"] for x in out), 2),
+    }
+
+
+# ============================================================== opportunity sizing
+# James ends his deck with what-ifs: five points more take rate, five points more opt-in.
+# Ours ends with takeaways and no arithmetic behind them. The sizing here is deliberately
+# austere — the accounts are exact, the money carries one stated assumption, and the Reg E
+# what-if carries NO money at all because this pipeline holds no fee rate to apply.
+SIZING_POINTS = 5.0
+
+
+def sizing(rc, B, points=SIZING_POINTS):
+    """What five more points of take rate and of Reg E opt-in would be, in accounts.
+
+    `rc` is rate_cuts' output (the book's own rates and populations); `B` the workbook base.
+    """
+    if not rc.get("available"):
+        return {"available": False}
+    elig = rc.get("eligible") or 0
+    pool = rc.get("rege_pool") or 0
+    take, rege = rc.get("take_all"), rc.get("rege_all")
+    out = {
+        "available": bool(elig or pool),
+        "points": points,
+        "eligible": elig, "take_now": take,
+        "take_accounts": int(round(elig * points / 100)) if elig else 0,
+        "take_headroom": round(100 - take, 1) if take is not None else None,
+        "rege_pool": pool, "rege_now": rege,
+        "rege_accounts": int(round(pool * points / 100)) if pool else 0,
+        "rege_headroom": round(100 - rege, 1) if rege is not None else None,
+        "per_card_month": None, "take_annual": None,
+    }
+    cards = round(elig * take / 100) if (elig and take is not None) else 0
+    months, ltd = B.get("months") or 0, B.get("ltd_revenue") or 0
+    if cards and months and ltd:
+        out["per_card_month"] = round(ltd / months / cards, 2)
+        out["take_annual"] = round(out["take_accounts"] * out["per_card_month"] * 12)
+        out["cards"] = cards
+    return out
+
 # ============================================================== scorecard
 def scorecard(M, B, rc, hk, bk):
     """[[measure, value text, comparator text, status]] — each measure against its own comparator.
@@ -959,6 +1052,9 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
         "routing_mix": routing_mix(d["rows"], odd, smonths),
         "overdraft_limits": overdraft_limits(d["rows"], odd, smonths, latest),
     }
+    out["offer_efficiency"] = offer_efficiency(d["rows"], odd, d["mailmonths"],
+                                               out["wave_revenue"])
+    out["sizing"] = sizing(out["rate_cuts"], B or {})
     if M is not None and B is not None:
         out["scorecard"] = scorecard(M, B, out["responder_control"], out["account_health"],
                                      out["branch_kpis"])

@@ -481,3 +481,30 @@ def overdraft_chart(out, od, w_in=8.0, h_in=4.0):
         _spines(ax)
         ax.spines["bottom"].set_visible(False)
     return _save(fig, out)
+
+
+# ----------------------------------------------------------------- offer efficiency
+def efficiency_chart(out, rows, w_in=12.3, h_in=3.6):
+    """Booked revenue per 1,000 offers, per mailing, oldest first — the bar a mailing earns
+    for the same number of doors knocked on."""
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.07, right=0.98, top=0.93, bottom=0.26)
+    x = list(range(len(rows)))
+    vals = [r["per_1k"] for r in rows]
+    med = sorted(vals)[len(vals) // 2] if vals else 0
+    ax.bar(x, vals, width=0.66, color=[ORANGE if v >= med else NAVY for v in vals], zorder=2)
+    mx = max(vals) if vals else 1
+    ax.axhline(med, color=TICK, lw=1.2, ls=(0, (3, 3)), zorder=4)
+    ax.text(len(x) - 0.4, med, f"  median {_money(med)}", va="center", ha="left",
+            fontsize=11, color=TICK)
+    ax.set_xticks(x)
+    ax.set_xticklabels(periods.axis_months([r["month"] for r in rows]),
+                       rotation=periods.AXIS_ROTATION, ha=periods.AXIS_HA, fontsize=11,
+                       color=NAVY)
+    ax.set_ylim(0, mx * 1.16)
+    ax.yaxis.set_major_formatter(lambda v, _p: _money(v))
+    ax.tick_params(axis="y", labelsize=11)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_ylabel("Booked per 1,000 offers", fontsize=12, color=TICK)
+    _spines(ax, left=True)
+    return _save(fig, out)

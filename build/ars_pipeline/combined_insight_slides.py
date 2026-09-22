@@ -932,6 +932,137 @@ def overdraft_slide(prs, ci, ctx):
     return s
 
 
+def efficiency_slide(prs, ci, ctx):
+    """What a mailing earned for the offers it sent — the question Revenue by Mailing leaves."""
+    eff = ci.get("offer_efficiency") or {}
+    s = _new_slide(prs, _find(prs, "Revenue Build by Mailing") or _find(prs, "Revenue by Mailing")
+                   or prs.slides[0])
+    if not eff.get("available"):
+        _header(s, "Revenue per 1,000 Offers", f"PTD · {ctx['data_month_short']}",
+                "Selection: booked revenue against the offers each mailing sent.")
+        _caption(s, "This client's revenue and offer counts cannot be matched by mailing "
+                    f"month: {eff.get('reason', 'no mailing appears in both the workbook and the extract')}.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — no mailing "
+                                          "matched between the workbook and the extract."])
+        _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+        return s
+
+    rows = eff["mailings"]
+    _header(s, "Revenue per 1,000 Offers", f"PTD · {ctx['data_month_short']}", [
+        f"Selection: {len(rows)} mailings, booked revenue to date against the offers sent.",
+        f"Selection: booked revenue against offers sent, per mailing."])
+    png = os.path.join(ctx["assets"], "insight_efficiency.png")
+    IC.efficiency_chart(png, rows, 12.3, 3.5)
+    _picture(s, png, 0.5, 1.70, 12.3, 3.5)
+
+    best = max(rows, key=lambda r: r["per_1k"])
+    worst = min(rows, key=lambda r: r["per_1k"])
+    tiles = [(usd_compact(eff["total_revenue"] * 1000 / eff["total_offers"]),
+              "Per 1,000 offers, all mailings", ORANGE),
+             (f"{eff['total_offers']:,}", "Offers sent, matched mailings", NAVY),
+             (usd_compact(best["per_1k"]), f"Best: {best['month']}", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.35, 3.9, 0.92, v, lab, fill=fill))
+    _caption(s, (f"Across {len(rows)} matched mailings, {eff['total_offers']:,} offers have "
+                 f"booked {usd_compact(eff['total_revenue'])} — "
+                 f"{usd_compact(eff['total_revenue'] * 1000 / eff['total_offers'])} per 1,000 "
+                 f"offers. {best['month']} is the strongest at "
+                 f"{usd_compact(best['per_1k'])} and {worst['month']} the weakest at "
+                 f"{usd_compact(worst['per_1k'])}."),
+             width=CAPTION_W_FULL, top=6.38, height=0.85)
+
+    _notes(s, f"{ctx['odd_src']}; {ctx['wb_src']}",
+           method=("Offers = accounts carrying a code in that month's Mail column of the ODD. "
+                   "Revenue = the workbook's booked incremental revenue for that mailing, to "
+                   "date. Per 1,000 = revenue / offers x 1,000. Bars above the median are "
+                   "orange."),
+           issues=[
+               "NOT A LIKE-FOR-LIKE RACE. An older mailing has had years to book revenue and "
+               "a recent one has had months, so the ranking favours age. The per-month figure "
+               "is in the data but is not drawn, because dividing again by months flatters "
+               "young mailings the other way.",
+               ("Mailings the workbook books revenue for with no offers in the extract: "
+                + ", ".join(eff["unmatched_revenue"]) + ". They are left out of every figure "
+                "on this slide.") if eff.get("unmatched_revenue") else
+               "Every mailing with booked revenue matched an offer month in the extract.",
+               ("Mailings the extract carries offers for with no booked revenue: "
+                + ", ".join(eff["unmatched_offers"]) + ".") if eff.get("unmatched_offers") else "",
+               "The two halves come from different files with different owners. A month "
+               "labelled differently in one of them silently drops that mailing rather than "
+               "mismatching it — check the counts above against the Mailing Response Summary.",
+           ])
+    _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+    return s
+
+
+def sizing_slide(prs, ci, ctx):
+    """Five more points of take rate and of opt-in, in accounts — and in money only where
+    there is a figure honest enough to multiply by."""
+    sz = ci.get("sizing") or {}
+    s = _new_slide(prs, _find(prs, "ARS Key Takeaways") or prs.slides[0])
+    if not sz.get("available"):
+        _header(s, "What Five Points Would Be Worth", f"{ctx['as_of_long']} Data",
+                "Selection: ARS-eligible personal accounts and open card holders.")
+        _caption(s, "The book's own rates are not available for this period, so the sizing is "
+                    "not shown.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured."])
+        _place(prs, s, before="ARS Key Takeaways", after="ARS Scorecard")
+        return s
+
+    pts = sz["points"]
+    _header(s, "What Five Points Would Be Worth", f"{ctx['as_of_long']} Data", [
+        f"Selection: {sz['eligible']:,} ARS-eligible personal accounts and "
+        f"{sz['rege_pool']:,} open card holders, at today's rates.",
+        f"Selection: eligible accounts and open card holders, at today's rates."])
+
+    money = (usd_compact(sz["take_annual"]) if sz.get("take_annual") else "—")
+    rows = [["", "Today", f"+{pts:.0f} points", "Accounts"],
+            ["Debit take rate", f"{sz['take_now']:.1f}%", f"{sz['take_now'] + pts:.1f}%",
+             f"+{sz['take_accounts']:,} cards"],
+            ["Reg E opt-in", f"{sz['rege_now']:.1f}%", f"{sz['rege_now'] + pts:.1f}%",
+             f"+{sz['rege_accounts']:,} opted in"]]
+    SH.add_table(s, 0.5, 1.75, 7.4, 1.35, rows, [2.2, 1.0, 1.2, 1.4], fs=13)
+
+    tiles = [(f"+{sz['take_accounts']:,}", "Cards, +5 points", ORANGE),
+             (money, "A year, at today's revenue per card", NAVY),
+             (f"+{sz['rege_accounts']:,}", "Opt-ins, +5 points", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.2, 1.75 + i * 1.35, 4.6, 1.2, v, lab, fill=fill))
+
+    cap = (f"Five points of take rate is {sz['take_accounts']:,} more card-holding accounts "
+           f"out of {sz['eligible']:,} eligible; five points of opt-in is "
+           f"{sz['rege_accounts']:,} more opted-in card holders out of {sz['rege_pool']:,}.")
+    if sz.get("per_card_month"):
+        cap += (f" At the program's own revenue per card — ${sz['per_card_month']:,.2f} a "
+                f"month across {sz['cards']:,} cards — those cards would be about {money} a "
+                f"year. The opt-in figure carries no dollar value: this pipeline holds no "
+                f"fee rate to apply to it.")
+    _caption(s, cap, width=CAPTION_W_FULL, top=5.75, height=1.3)
+
+    _notes(s, f"{ctx['odd_src']}; {ctx['wb_src']}",
+           method=(f"Accounts are exact: {pts:.0f}% of the eligible population and of the open "
+                   f"card-holder pool at the snapshot. Revenue per card per month = the "
+                   f"workbook's program-to-date incremental revenue / months live / today's "
+                   f"card count. The annual figure multiplies that by the extra cards and by "
+                   f"12."),
+           issues=[
+               "THE MONEY IS AN ILLUSTRATION, NOT A FORECAST. It assumes an account that "
+               "takes a card behaves like the average account that already has one. The "
+               "accounts without a card today are, by definition, the ones that did not want "
+               "one — they will almost certainly earn less.",
+               "Revenue per card is a PROGRAM-TO-DATE average over the whole life of the "
+               "program, including years at different balances, rates and fee schedules. A "
+               "recent-12-month figure would be a better basis and is not computed here.",
+               "The Reg E what-if is stated in accounts only. Sizing it in money needs a "
+               "per-item fee and an overdraft rate per opted-in account; the ODD carries "
+               "items but no fee dollars, so any figure here would be invented.",
+               "Five points is a round number, not a target anyone has agreed to.",
+           ])
+    _place(prs, s, before="ARS Key Takeaways", after="ARS Scorecard")
+    return s
+
+
 def add_insight_slides(prs, ci, ctx):
     """Build and place all six. `ctx`: id, name, odd_src, wb_src, wb_file, latest ('Aug26'),
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
@@ -944,6 +1075,7 @@ def add_insight_slides(prs, ci, ctx):
         migration_slide(prs, ci, ctx),
         routing_slide(prs, ci, ctx),
         overdraft_slide(prs, ci, ctx),
+        efficiency_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
         branch_kpi_slide(prs, ci, ctx),
@@ -951,4 +1083,6 @@ def add_insight_slides(prs, ci, ctx):
     ]
     if ci.get("scorecard"):
         made.append(scorecard_slide(prs, ci, ctx))
+    # after the scorecard, because it sizes what the scorecard just measured
+    made.append(sizing_slide(prs, ci, ctx))
     return made
