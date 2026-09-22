@@ -628,6 +628,99 @@ def month_split_slide(prs, ci, ctx):
     return s
 
 
+def _cut_slide(prs, ci, ctx, measure, title, after, before, png_name, subject, pool_word):
+    """One rate, cut four ways, with the lagging pockets named. Shared by take rate and Reg E
+    because the only differences are the measure, the population and the words."""
+    rc = ci.get("rate_cuts") or {}
+    s = _new_slide(prs, _find(prs, after) or prs.slides[0])
+    book = rc.get("take_all" if measure == "take" else "rege_all")
+    pool = rc.get("eligible" if measure == "take" else "rege_pool", 0)
+    if not rc.get("available") or book is None:
+        _header(s, title, f"{ctx['as_of_long']} Data", f"Selection: {subject}.")
+        _caption(s, "This extract does not carry the columns the cuts need, so the view is "
+                    "not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the extract "
+                                          "carried no eligible population to cut."])
+        _place(prs, s, after=after, before=before)
+        return s
+
+    _header(s, title, f"{ctx['as_of_long']} Data", [
+        f"Selection: {subject} ({pool:,} {pool_word}), by tenure, age, balance and product.",
+        f"Selection: {subject} ({pool:,} {pool_word})."])
+    png = os.path.join(ctx["assets"], png_name)
+    IC.cut_panel_chart(png, rc["cuts"], measure, book, 12.3, 3.9, rc.get("min_band", 25))
+    _picture(s, png, 0.5, 1.68, 12.3, 3.9)
+
+    lags = CI.lagging(rc, measure)
+    tiles = [(f"{book:.1f}%", f"{'Take rate' if measure == 'take' else 'Opt-in'}, whole book",
+              ORANGE)]
+    for d in lags[:2]:
+        tiles.append((f"{d['value']:.1f}%", _clip_label(f"{d['band']} ({d['cut'].lower()})"), NAVY))
+    while len(tiles) < 3:
+        tiles.append(("—", "No band below the book", NAVY))
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.70, 3.9, 0.95, v, lab, fill=fill))
+
+    if lags:
+        worst = lags[0]
+        cap = (f"The widest gap is {worst['band'].lower()} ({worst['cut'].lower()}) at "
+               f"{worst['value']:.1f}%, {abs(worst['gap']):.1f} points below the book's "
+               f"{book:.1f}% across {worst['n']:,} {pool_word}.")
+        if len(lags) > 1:
+            cap += (" Then " + _and([f"{d['band'].lower()} ({abs(d['gap']):.1f} points)"
+                                     for d in lags[1:]]) + ".")
+    else:
+        cap = (f"No band of {rc.get('min_band', 25)} accounts or more sits below the book's "
+               f"{book:.1f}%.")
+    _caption(s, cap, width=CAPTION_W_FULL, top=6.72, height=0.6)
+
+    miss = rc.get("missing") or {}
+    _notes(s, ctx["odd_src"],
+           method=(f"{subject}. Bands are fixed, not quantiles: tenure from Date Opened, age "
+                   f"from DOB, balance from Avg Bal, product from Prod Desc (the "
+                   f"{CI.TOP_PRODUCTS} largest by population, the rest rolled into one row). "
+                   f"Book rate {book:.1f}% over {pool:,} {pool_word}. A pocket is a band at "
+                   f"least {rc.get('min_band', 25)} accounts wide, ranked by points below the "
+                   f"book."),
+           issues=[
+               (f"Bands the extract could not place are shown as 'Not on file': "
+                + ", ".join(f"{k} on {v:,} accounts" for k, v in sorted(miss.items()))
+                + ". Those accounts are IN the book rate but cannot be attributed to a band, "
+                  "so the bands do not sum to the book.") if miss else
+               "Every account landed in a band on all four cuts.",
+               "These are cross-sections at one snapshot, not causes. A product with a low "
+               "rate may simply be sold at a branch that does not ask, and nothing here "
+               "separates the two.",
+               "The cuts are not independent: an older customer holds an older account and a "
+               "larger balance, so the same pocket can appear three times under three names.",
+               "Bands are ours, not James's. His cuts use his own boundaries, so a band's "
+               "population is not comparable to his figure for the same client.",
+           ])
+    _place(prs, s, after=after, before=before)
+    return s
+
+
+def _clip_label(s, n=26):
+    return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+
+
+def take_cuts_slide(prs, ci, ctx):
+    return _cut_slide(prs, ci, ctx, "take", "Where Take Rate Lags",
+                      after="12-Month Eligible Take Rate", before="Reg E Review",
+                      png_name="insight_take_cuts.png",
+                      subject="ARS-eligible personal accounts",
+                      pool_word="accounts")
+
+
+def rege_cuts_slide(prs, ci, ctx):
+    return _cut_slide(prs, ci, ctx, "rege", "Where Reg E Opt-In Lags",
+                      after="Reg E Opt-In by Account Vintage",
+                      before="Take Rate and Reg E Opt-In by Branch",
+                      png_name="insight_rege_cuts.png",
+                      subject="open personal accounts holding a debit card",
+                      pool_word="card holders")
+
+
 def add_insight_slides(prs, ci, ctx):
     """Build and place all six. `ctx`: id, name, odd_src, wb_src, wb_file, latest ('Aug26'),
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
@@ -635,6 +728,8 @@ def add_insight_slides(prs, ci, ctx):
         wave_revenue_slide(prs, ci, ctx),
         wave_build_slide(prs, ci, ctx),
         month_split_slide(prs, ci, ctx),
+        take_cuts_slide(prs, ci, ctx),
+        rege_cuts_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
         branch_kpi_slide(prs, ci, ctx),

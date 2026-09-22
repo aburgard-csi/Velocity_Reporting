@@ -326,3 +326,56 @@ def month_split_chart(out, rows, w_in=12.3, h_in=3.6, young_months=6):
                            Patch(color=ORANGE, label=f"Fewer than {young_months} months booked")],
                   loc="upper right", frameon=False, fontsize=11.5, labelcolor=TICK)
     return _save(fig, out)
+
+
+# ----------------------------------------------------------------- where a rate lags
+def cut_panel_chart(out, cuts, measure, book, w_in=12.3, h_in=3.9, min_band=25):
+    """Four small multiples — tenure, age, balance, product — each a rate per band against
+    the book's own rate (the dashed line). James shows "where opt-in lags" as pockets; the
+    panels keep every band visible, so a reader sees the shape, not only the worst three.
+
+    A band below `min_band` accounts is drawn in the light grey that means "too few to read",
+    and a band the ODD could not place ("Not on file") keeps its row rather than vanishing.
+    """
+    names = [n for n in ("Tenure", "Age", "Balance", "Product") if cuts.get(n)]
+    fig, axes = plt.subplots(1, len(names), figsize=(w_in, h_in))
+    use_font(CHART_FONT)
+    if len(names) == 1:
+        axes = [axes]
+    fig.subplots_adjust(left=0.085, right=0.99, top=0.90, bottom=0.14, wspace=0.62)
+    pool_key = "eligible" if measure == "take" else "rege_pool"
+    for ax, name in zip(axes, names):
+        rows = [b for b in cuts[name] if b[measure] is not None]
+        y = list(range(len(rows)))[::-1]
+        vals = [b[measure] for b in rows]
+        colors = [(ROWALT if b[pool_key] < min_band else
+                   (ORANGE if book is not None and b[measure] < book else NAVY)) for b in rows]
+        ax.barh(y, vals, color=colors, height=0.66, zorder=3)
+        top = max(vals + ([book] if book else [])) * 1.38 or 1
+        for yi, b in zip(y, rows):
+            ax.text(b[measure] + top * 0.02, yi, f"{b[measure]:.0f}%", va="center", ha="left",
+                    fontsize=10.5, color=NAVY, fontweight="bold")
+        if book is not None:
+            ax.axvline(book, color=TICK, lw=1.2, ls=(0, (3, 3)), zorder=4)
+        ax.set_yticks(y)
+        # Escape the dollar signs: matplotlib reads $...$ as mathtext, and "$1 to $499"
+        # rendered as italic algebra ("1to499") until this was caught in a render.
+        ax.set_yticklabels([_clip(b["band"], 22).replace("$", r"\$") for b in rows],
+                           fontsize=10.5, color=NAVY)
+        ax.set_xlim(0, top)
+        ax.get_xaxis().set_visible(False)
+        ax.set_title(name, fontsize=12.5, color=TICK, pad=6)
+        _spines(ax)
+        ax.spines["bottom"].set_visible(False)
+    fig.legend(handles=[Patch(color=NAVY, label="At or above the book"),
+                        Patch(color=ORANGE, label="Below the book"),
+                        Patch(color=ROWALT, label=f"Fewer than {min_band} accounts"),
+                        Line2D([], [], color=TICK, lw=1.2, ls=(0, (3, 3)),
+                               label=f"Book {book:.1f}%" if book is not None else "Book")],
+               loc="lower center", ncol=4, frameon=False, fontsize=11, labelcolor=TICK,
+               bbox_to_anchor=(0.5, -0.01))
+    return _save(fig, out)
+
+
+def _clip(s, n):
+    return s if len(s) <= n else s[:n - 1].rstrip() + "…"

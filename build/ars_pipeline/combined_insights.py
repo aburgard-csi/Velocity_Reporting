@@ -107,8 +107,13 @@ def read_odd(path):
         latest = smonths[-1]
         mailmonths = sorted({m.group(1) for m in (re.match(r"^([A-Z][a-z]{2}\d{2}) Mail$", c)
                                                   for c in hdr) if m}, key=mkey)
+        # DOB, Avg Bal and the product columns joined the projection for the rate-cut views
+        # (2026-09-21). An extract that does not carry one of them is not an error: the cut
+        # reports "Not on file" and the slide says so, which is how the age profile already
+        # behaves when a client's DOB column is blank.
         static = {f"{latest} Elig", "Debit?", "Stat Desc", "Stat Code", "Business?",
-                  f"{latest} Reg E Desc", "Branch", "Date Opened", "Date Closed"}
+                  f"{latest} Reg E Desc", "Branch", "Date Opened", "Date Closed",
+                  "DOB", "Avg Bal", "Curr Bal", "Prod Code", "Prod Desc", "Mailable?"}
         need = [i for i, c in enumerate(hdr) if c in static or _MON_COL.match(c)]
         H = {hdr[i]: j for j, i in enumerate(need)}
         pad = max(need) + 1
@@ -529,6 +534,167 @@ def wave_revenue(workbook_path):
                         if through else None)}
 
 
+
+# ============================================================== where a rate lags
+# James cuts take rate and Reg E opt-in by tenure, age, balance and product and shows where
+# each one lags the book; our deck only ever showed the two program rates and a branch chart,
+# so a client could see THAT opt-in was 29% and never where the 29% comes from.
+#
+# One pass computes both rates on every cut, because they read the same row and the ODD is
+# large. Each cut's bands are fixed, not quantiles: a band that means something to a banker
+# ("opened in the last year") survives a client whose distribution is nothing like the last
+# client's, and quantile bands would silently redefine themselves per client.
+MIN_BAND = 25           # a band below this is reported but never called a lagging pocket
+TOP_PRODUCTS = 6        # products shown by population; the rest roll into one band
+
+TENURE_BANDS = [(0, 12, "Under 1 year"), (12, 36, "1 to 3 years"), (36, 60, "3 to 5 years"),
+                (60, 120, "5 to 10 years"), (120, None, "10 years or more")]
+AGE_BANDS = [(18, 25, "18 to 24"), (25, 35, "25 to 34"), (35, 50, "35 to 49"),
+             (50, 65, "50 to 64"), (65, None, "65 or older")]
+BALANCE_BANDS = [(None, 1, "$0"), (1, 500, "$1 to $499"), (500, 2000, "$500 to $1,999"),
+                 (2000, 5000, "$2,000 to $4,999"), (5000, None, "$5,000 or more")]
+NOT_ON_FILE = "Not on file"
+
+
+def _band(value, bands):
+    """The band `value` falls in, or None when the ODD does not carry it. A missing value is
+    NEVER folded into the lowest band — that is how a client with no DOB column reads as a
+    book full of 18-year-olds (CLAUDE.md: missing data is stated, never zeroed)."""
+    if value is None:
+        return None
+    for lo, hi, label in bands:
+        if (lo is None or value >= lo) and (hi is None or value < hi):
+            return label
+    return None
+
+
+def _months_between(then, now):
+    return (now.year - then.year) * 12 + (now.month - then.month)
+
+
+def rate_cuts(rows, odd, latest, top_products=TOP_PRODUCTS):
+    """Take rate and Reg E opt-in by tenure, age, balance and product, in one pass.
+
+    Definitions are the deck's own, so a cut's Total equals the figure on the program slides:
+      take rate     eligible accounts holding a debit card / eligible personal accounts
+      Reg E opt-in  opted in / open personal debit-card holders
+    """
+    g, personal, hascard, isopen = odd.g, odd.personal, odd.hascard, odd.isopen
+    elig_col, rege_col = f"{latest} Elig", f"{latest} Reg E Desc"
+    now = month_end(latest)
+
+    cuts = {c: defaultdict(lambda: {"elig": 0, "cards": 0, "rege_pool": 0, "rege_in": 0})
+            for c in ("Tenure", "Age", "Balance", "Product")}
+    prod_n = defaultdict(int)
+    missing = defaultdict(int)
+
+    for r in rows:
+        if not personal(r):
+            continue
+        elig = g(r, elig_col) == "Yes"
+        carded = hascard(r)
+        op = isopen(r)
+        in_rege_pool = op and carded
+        if not (elig or in_rege_pool):
+            continue
+
+        do = parse_date(g(r, "Date Opened"))
+        tenure = _band(_months_between(do, now) if do else None, TENURE_BANDS)
+        dob = parse_date(g(r, "DOB"))
+        age = _band(((now - dob).days / 365.25) if dob else None, AGE_BANDS)
+        bal = _band(odd.fnum(r, "Avg Bal"), BALANCE_BANDS)
+        prod = (g(r, "Prod Desc") or g(r, "Prod Code") or "").strip() or None
+
+        for name, key in (("Tenure", tenure), ("Age", age), ("Balance", bal),
+                          ("Product", prod)):
+            if key is None:
+                missing[name] += 1
+                key = NOT_ON_FILE
+            b = cuts[name][key]
+            if elig:
+                b["elig"] += 1
+                b["cards"] += carded
+            if in_rege_pool:
+                lab = rege_label(g(r, rege_col))
+                b["rege_pool"] += 1
+                b["rege_in"] += lab == REGE_IN
+            if name == "Product":
+                prod_n[key] += 1
+
+    # Products: the biggest by population, the rest in one honest roll-up.
+    keep = {p for p, _n in sorted(prod_n.items(), key=lambda kv: -kv[1])[:top_products]}
+    rolled = {"elig": 0, "cards": 0, "rege_pool": 0, "rege_in": 0}
+    n_rolled = 0
+    for p in [p for p in list(cuts["Product"]) if p not in keep]:
+        b = cuts["Product"].pop(p)
+        n_rolled += 1
+        for k in rolled:
+            rolled[k] += b[k]
+    if n_rolled:
+        cuts["Product"][f"All other products ({n_rolled})"] = rolled
+
+    def order(name, keys):
+        if name == "Tenure":
+            seq = [b[2] for b in TENURE_BANDS]
+        elif name == "Age":
+            seq = [b[2] for b in AGE_BANDS]
+        elif name == "Balance":
+            seq = [b[2] for b in BALANCE_BANDS]
+        else:
+            return sorted(keys, key=lambda k: -(cuts[name][k]["elig"] or 0))
+        rank = {lab: i for i, lab in enumerate(seq)}
+        return sorted(keys, key=lambda k: rank.get(k, len(seq)))
+
+    out = {}
+    for name, bands in cuts.items():
+        rowsout = []
+        for key in order(name, bands):
+            b = bands[key]
+            rowsout.append({
+                "band": key,
+                "eligible": b["elig"],
+                "take": round(100 * b["cards"] / b["elig"], 1) if b["elig"] else None,
+                "rege_pool": b["rege_pool"],
+                "rege": round(100 * b["rege_in"] / b["rege_pool"], 1) if b["rege_pool"] else None,
+            })
+        out[name] = rowsout
+
+    tot_elig = sum(b["elig"] for b in cuts["Tenure"].values())
+    tot_cards = sum(b["cards"] for b in cuts["Tenure"].values())
+    tot_pool = sum(b["rege_pool"] for b in cuts["Tenure"].values())
+    tot_in = sum(b["rege_in"] for b in cuts["Tenure"].values())
+    return {
+        "available": bool(tot_elig or tot_pool),
+        "cuts": out,
+        "take_all": round(100 * tot_cards / tot_elig, 1) if tot_elig else None,
+        "rege_all": round(100 * tot_in / tot_pool, 1) if tot_pool else None,
+        "eligible": tot_elig, "rege_pool": tot_pool,
+        "missing": dict(missing),
+        "min_band": MIN_BAND,
+    }
+
+
+def lagging(cuts, measure, floor=MIN_BAND, n=3):
+    """The bands furthest BELOW the book on `measure` ('take' or 'rege'), biggest gap first.
+
+    A band under `floor` accounts is left out of the ranking, not out of the slide: a 4-account
+    band at 0% is arithmetic, not a coaching problem. "Not on file" is never a pocket either —
+    it is a data gap, and it is reported as one.
+    """
+    all_key = "take_all" if measure == "take" else "rege_all"
+    book = cuts.get(all_key)
+    if book is None:
+        return []
+    pool_key = "eligible" if measure == "take" else "rege_pool"
+    out = []
+    for name, bands in cuts["cuts"].items():
+        for b in bands:
+            if b["band"] == NOT_ON_FILE or b[measure] is None or b[pool_key] < floor:
+                continue
+            out.append({"cut": name, "band": b["band"], "value": b[measure],
+                        "n": b[pool_key], "gap": round(b[measure] - book, 1)})
+    return sorted(out, key=lambda d: d["gap"])[:n]
+
 # ============================================================== scorecard
 def scorecard(M, B, rc, hk, bk):
     """[[measure, value text, comparator text, status]] — each measure against its own comparator.
@@ -602,6 +768,7 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
         "branch_kpis": branch_kpis(d["rows"], odd, smonths, latest),
         "account_health": account_health(d["rows"], odd, smonths, latest),
         "wave_revenue": wave_revenue(workbook_path),
+        "rate_cuts": rate_cuts(d["rows"], odd, latest),
     }
     if M is not None and B is not None:
         out["scorecard"] = scorecard(M, B, out["responder_control"], out["account_health"],
