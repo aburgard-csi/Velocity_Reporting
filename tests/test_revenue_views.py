@@ -119,3 +119,27 @@ def test_both_slides_are_in_the_opt_in_set():
     src = inspect.getsource(CIS.add_insight_slides)
     assert "wave_build_slide(prs, ci, ctx)" in src
     assert "month_split_slide(prs, ci, ctx)" in src
+
+
+def test_one_mailing_is_a_mailing_not_one_mailings():
+    """1549 Wellworth has run exactly ONE mailing, and every view that counted them said
+    "1 mailings" — seven FAILs from validate_deck's plural check, on a client whose whole
+    program is one drop. build_ars_gen has carried MAILING_W for this since the first deck;
+    these views did not."""
+    import combined_insight_slides as CIS
+    assert CIS._n(1, "mailing") == "1 mailing"
+    assert CIS._n(0, "mailing") == "0 mailings"
+    assert CIS._n(7, "mailing") == "7 mailings"
+    assert CIS._n(1_200, "mailing") == "1,200 mailings"
+    assert CIS._n(1, "matched mailing") == "1 matched mailing"
+
+
+def test_no_view_speaks_a_bare_count_of_mailings():
+    """A literal "{...} mailings" in an f-string is the shape of the defect."""
+    import inspect
+    import re
+    import combined_insight_slides as CIS
+    src = inspect.getsource(CIS)
+    bad = [ln.strip() for ln in src.splitlines()
+           if re.search(r"\{[^{}]+\} mailings", ln) and "_n(" not in ln]
+    assert not bad, bad

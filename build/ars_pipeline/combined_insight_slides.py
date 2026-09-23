@@ -139,6 +139,14 @@ def _money_mo(v):
     return ("+" if v >= 0 else "−") + f"${abs(v):,}/mo"
 
 
+def _n(count, singular, plural=None):
+    """"1 mailing", "7 mailings". 1549 Wellworth has run exactly ONE mailing, and every one
+    of these slides said "1 mailings" — seven FAILs from validate_deck's plural check, on a
+    client whose whole program is one drop. build_ars_gen has carried MAILING_W for this
+    since the first deck; these views did not."""
+    return f"{count:,} {singular if count == 1 else (plural or singular + 's')}"
+
+
 def _and(items):
     items = list(items)
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
@@ -187,8 +195,9 @@ def responder_control_slide(prs, ci, ctx):
         r, c = rc["responders"], rc["control"]
         span = f"{rc['mailings'][0]} to {rc['mailings'][-1]}"
         _header(s, "Responders vs Mailed Non-Responders", f"{ctx['as_of_long']} Data", [
-            f"Selection: personal accounts mailed in the {n} mailings from {span}; 3 months before vs the 6 after.",
-            f"Selection: personal accounts mailed in {n} mailings, {span}.",
+            f"Selection: personal accounts mailed in the {_n(n, 'mailing')} from {span}; "
+            f"3 months before vs the 6 after.",
+            f"Selection: personal accounts mailed in {_n(n, 'mailing')}, {span}.",
         ])
         png = os.path.join(ctx["assets"], "insight_responder_control.png")
         IC.responder_control_chart(png, rc, 8.7, 4.1)
@@ -440,7 +449,8 @@ def wave_revenue_slide(prs, ci, ctx):
         waves = wr["waves"]
         # short month: "PTD · August 2026" wraps in the 2.35in pill at 16 pt (validate_deck REVIEW)
         _header(s, "Revenue by Mailing", f"PTD · {ctx['data_month_short']}", [
-            f"Selection: incremental revenue booked to each of the {len(waves)} mailings, through {wr['through']}.",
+            f"Selection: incremental revenue booked to each of the {_n(len(waves), 'mailing')}, "
+            f"through {wr['through']}.",
             f"Selection: revenue booked to each mailing, through {wr['through']}."])
         png = os.path.join(ctx["assets"], "insight_wave_revenue.png")
         IC.wave_revenue_chart(png, waves, 12.3, 4.1)
@@ -448,7 +458,7 @@ def wave_revenue_slide(prs, ci, ctx):
         mature = [w for w in waves if w["months"] >= 6]
         lead = max(mature or waves, key=lambda w: w["per_month"])
         young = [w for w in waves if w["months"] < 6]
-        _caption(s, (f"The {len(waves)} mailings have booked {usd_compact(wr['total'])} in incremental "
+        _caption(s, (f"{_n(len(waves), 'mailing')} have booked {usd_compact(wr['total'])} in incremental "
                      f"revenue through {wr['through']}. Among mailings with 6 or more months booked, "
                      f"{lead['m']} books the most per month, {usd_compact(lead['per_month'])} over "
                      f"{lead['months']} months"
@@ -558,8 +568,8 @@ def wave_build_slide(prs, ci, ctx):
         return s
 
     _header(s, "Revenue Build by Mailing", f"PTD · {ctx['data_month_short']}", [
-        f"Selection: cumulative booked revenue by month since each of the {len(waves)} mailings, "
-        f"through {wr['through']}.",
+        f"Selection: cumulative booked revenue by month since each of the "
+        f"{_n(len(waves), 'mailing')}, through {wr['through']}.",
         "Selection: cumulative booked revenue by month since each mailing."])
     png = os.path.join(ctx["assets"], "insight_wave_build.png")
     IC.wave_build_chart(png, waves, 12.3, 4.0)
@@ -576,9 +586,9 @@ def wave_build_slide(prs, ci, ctx):
     shares = [f for f in (first6(w) for w in mature) if f is not None]
     newest = waves[-1]
     lead = max(mature, key=lambda w: w["revenue"]) if mature else newest
-    cap = (f"{newest['m']} has booked {usd_compact(newest['revenue'])} over {newest['months']} "
-           f"month{'s' if newest['months'] != 1 else ''}; {lead['m']} has booked the most of any "
-           f"mailing with 6 or more months, {usd_compact(lead['revenue'])} over {lead['months']}.")
+    cap = (f"{newest['m']} has booked {usd_compact(newest['revenue'])} over "
+           f"{_n(newest['months'], 'month')}; {lead['m']} has booked the most of any mailing with "
+           f"6 or more months, {usd_compact(lead['revenue'])} over {lead['months']}.")
     if shares:
         med = statistics.median(shares) * 100
         cap += (f" Half of the mature mailings had booked {med:.0f}% or more of their revenue "
@@ -641,7 +651,8 @@ def month_split_slide(prs, ci, ctx):
               "From mailings 12+ months old", NAVY)]
     for i, (v, lab, fill) in enumerate(tiles):
         SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.35, 3.9, 1.0, v, lab, fill=fill))
-    _caption(s, (f"{len(rows)} mailings booked revenue in {label}, {usd_compact(total)} together. "
+    _caption(s, (f"{_n(len(rows), 'mailing')} booked revenue in {label}, {usd_compact(total)} "
+                 f"together. "
                  f"The largest single contributor is the {top[0]} mailing at "
                  f"{usd_compact(top[1])} ({100.0 * top[1] / total:.0f}% of the month)."),
              width=CAPTION_W_FULL, top=6.45, height=0.7)
@@ -992,7 +1003,7 @@ def efficiency_slide(prs, ci, ctx):
 
     rows = eff["mailings"]
     _header(s, "Revenue per 1,000 Offers", f"PTD · {ctx['data_month_short']}", [
-        f"Selection: {len(rows)} mailings, booked revenue to date against the offers sent.",
+        f"Selection: {_n(len(rows), 'mailing')}, booked revenue to date against the offers sent.",
         f"Selection: booked revenue against offers sent, per mailing."])
     png = os.path.join(ctx["assets"], "insight_efficiency.png")
     IC.efficiency_chart(png, rows, 12.3, 3.5)
@@ -1006,7 +1017,7 @@ def efficiency_slide(prs, ci, ctx):
              (usd_compact(best["per_1k"]), f"Best: {best['month']}", NAVY)]
     for i, (v, lab, fill) in enumerate(tiles):
         SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.35, 3.9, 0.92, v, lab, fill=fill))
-    _caption(s, (f"Across {len(rows)} matched mailings, {eff['total_offers']:,} offers have "
+    _caption(s, (f"Across {_n(len(rows), 'matched mailing')}, {eff['total_offers']:,} offers have "
                  f"booked {usd_compact(eff['total_revenue'])} — "
                  f"{usd_compact(eff['total_revenue'] * 1000 / eff['total_offers'])} per 1,000 "
                  f"offers. {best['month']} is the strongest at "
@@ -1124,7 +1135,7 @@ def by_tier_slide(prs, ci, ctx):
     rows = bt["rows"]
     measured = [r for r in rows if not r["thin"]]
     _header(s, "Responders vs Their Own Segment", f"{ctx['as_of_long']} Data", [
-        f"Selection: {len(bt['mailings'])} mailings; monthly spend {bt['before_months']} months "
+        f"Selection: {_n(len(bt['mailings']), 'mailing')}; monthly spend {bt['before_months']} months "
         f"before against {bt['after_months']} after, by the tier each account sat in before.",
         "Selection: mailed personal accounts, by the tier they sat in before the mailing."])
     png = os.path.join(ctx["assets"], "insight_by_tier.png")
@@ -1149,7 +1160,7 @@ def by_tier_slide(prs, ci, ctx):
     _notes(s, ctx["odd_src"],
            method=(f"Same cohorts, windows and winsorizing as Responders vs Mailed "
                    f"Non-Responders ({bt['before_months']} months before, "
-                   f"{bt['after_months']} after, pooled over {len(bt['mailings'])} mailings: "
+                   f"{bt['after_months']} after, pooled over {_n(len(bt['mailings']), 'mailing')}: "
                    f"{', '.join(bt['mailings'])}). Each account is tiered on its average "
                    f"swipes in the BEFORE window, so the tier is where it sat when the offer "
                    f"arrived. Net = the responders' change less the same tier's non-responder "

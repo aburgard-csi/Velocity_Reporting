@@ -98,6 +98,11 @@ def _fits(text):
     return text_width_in(text, LABEL_PT, "Calibri", False) <= LABEL_USABLE
 
 
+def _n(count, singular, plural=None):
+    """"1 month", "13 months" — a client with one mailing or one month is a real client."""
+    return f"{count:,} {singular if count == 1 else (plural or singular + 's')}"
+
+
 def _label(*candidates):
     """The first wording that fits one line inside a tile; the shortest otherwise."""
     for c in candidates:
@@ -317,11 +322,11 @@ def _caption(g):
     line = (f"Revenue to date is {ratio} against program cost, {usd_compact(g['gap'])} short "
             f"of the guaranteed minimum of {usd_compact(g['minimum'])}. ")
     if g["months_to_cover"] is not None:
-        line += (f"At the last {g['run_months']} complete months — ${g['run_rate']:,.0f} of "
-                 f"revenue a month against ${g['monthly_cost']:,.0f} of cost — the gap closes "
-                 f"in about {g['months_to_cover']} months.")
+        line += (f"At the last {_n(g['run_months'], 'complete month')} — ${g['run_rate']:,.0f} "
+                 f"of revenue a month against ${g['monthly_cost']:,.0f} of cost — the gap "
+                 f"closes in about {_n(g['months_to_cover'], 'month')}.")
     elif g["run_rate"] is not None and g["monthly_cost"] is not None:
-        line += (f"At the last {g['run_months']} complete months' revenue of "
+        line += (f"At the last {_n(g['run_months'], 'complete month')} of revenue, "
                  f"${g['run_rate']:,.0f} a month, the gap does not close: cost raises the "
                  f"minimum by ${MULTIPLE * g['monthly_cost']:,.0f} over the same month.")
     else:
