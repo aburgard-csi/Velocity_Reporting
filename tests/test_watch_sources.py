@@ -20,6 +20,19 @@ import pytest
 import watch_sources as W
 
 
+@pytest.fixture(autouse=True)
+def isolate_run_record(tmp_path, monkeypatch):
+    """Seal every test off from this machine's own run record (2026-09-23).
+
+    The record moved to %LOCALAPPDATA% so that a run which finds the VPN down can still
+    record that it ran. That also means an un-isolated test would read the DEVELOPER's real
+    record — and pass or fail depending on whether the morning task had run today, which is
+    the least reproducible thing in this repo.
+    """
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "localappdata"))
+    monkeypatch.setattr(W, "shared_runs_path", lambda: str(tmp_path / "shared" / W.RUNS_NAME))
+
+
 # ------------------------------------------------------------------ periods
 @pytest.mark.parametrize("today,expect", [
     (dt.date(2026, 9, 8), ["2026.09", "2026.08"]),
@@ -739,14 +752,14 @@ def test_check_stale_exits_non_zero_and_touches_no_share(tmp_path, monkeypatch, 
     monkeypatch.setattr(W, "scan", lambda periods: pytest.fail("--check-stale scanned"))
     assert W.main(["--check-stale"]) == 1
     assert "source watch: never" in capsys.readouterr().out
-    W.record_finish("reachable", path=_runs(tmp_path))
+    W.record_finish("reachable")
     assert W.main(["--check-stale"]) == 0
 
 
 def test_once_daily_skips_after_a_successful_run(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
     monkeypatch.setattr(W, "scan", lambda periods: pytest.fail("--once-daily scanned"))
-    W.record_finish("reachable", path=_runs(tmp_path))
+    W.record_finish("reachable")
     assert W.main(["--once-daily", "--period", "2026.09"]) == 0
     assert "already reached the shares today" in capsys.readouterr().out
 
@@ -756,10 +769,10 @@ def test_a_real_run_records_start_and_finish(tmp_path, monkeypatch, shares):
     _land(oddd, "2026.09 Sep", "1038_ODDD.zip")
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
     assert W.main(["--period", "2026.09", "--no-inputs"]) == 0
-    doc = W.read_runs(_runs(tmp_path))
+    doc = W.read_runs()
     assert doc["last_outcome"] == "reachable"
     assert W._parse_stamp(doc["last_finished"]) >= W._parse_stamp(doc["last_started"])
-    assert W.run_health(path=_runs(tmp_path))[0] == "ok"
+    assert W.run_health()[0] == "ok"
 
 
 def test_a_dry_run_is_not_a_daily_run(tmp_path, monkeypatch, shares):
@@ -769,7 +782,7 @@ def test_a_dry_run_is_not_a_daily_run(tmp_path, monkeypatch, shares):
     _land(oddd, "2026.09 Sep", "1038_ODDD.zip")
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
     W.main(["--period", "2026.09", "--no-inputs", "--dry-run"])
-    assert W.read_runs(_runs(tmp_path)) == {}
+    assert W.read_runs() == {}
 
 
 def test_an_off_vpn_run_still_counts_as_a_run(tmp_path, monkeypatch):
@@ -777,8 +790,8 @@ def test_an_off_vpn_run_still_counts_as_a_run(tmp_path, monkeypatch):
     monkeypatch.setattr(W, "SRC_REPORTS", str(tmp_path / "nope2"))
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
     assert W.main(["--period", "2026.09"]) == 2
-    assert W.read_runs(_runs(tmp_path))["last_outcome"] == "unreachable"
-    assert W.run_health(path=_runs(tmp_path))[0] == "ok"
+    assert W.read_runs()["last_outcome"] == "unreachable"
+    assert W.run_health()[0] == "ok"
 
 
 def test_check_today_reads_the_run_record(tmp_path, monkeypatch, capsys):
@@ -788,9 +801,9 @@ def test_check_today_reads_the_run_record(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path)
     assert W.main(["--check-today"]) == 1
     assert "reached the shares today: no" in capsys.readouterr().out
-    W.record_finish("reachable", path=str(tmp_path / W.RUNS_NAME))
+    W.record_finish("reachable")
     assert W.main(["--check-today"]) == 0
-    W.record_finish("unreachable", path=str(tmp_path / W.RUNS_NAME))
+    W.record_finish("unreachable")
     assert W.main(["--check-today"]) == 1      # off VPN: the later fires must still go and look
 
 
@@ -802,3 +815,81 @@ def test_the_watchdog_asks_the_run_record():
     assert "--check-today" in dog and "Watch-RanToday" in dog
     assert "Report-IsFresh" in dog                 # still the fallback for an older checkout
     assert "RepetitionInterval" in reg             # it repeats through the morning
+
+
+# ---------------------------------------------- the run record lives off the share, 2026-09-23
+def test_the_record_is_written_locally_not_on_the_share(tmp_path, monkeypatch):
+    """Aaron, 2026-09-23: fix the run record flaw. On 09-22 and 09-23 the 08:00 runs found
+    the VPN down, could not write a byte, and left no trace that they had run — so the
+    watchdog hunted for a suspended process that did not exist and logged "needs a human
+    look" twice, when the answer was "off VPN, nothing to do"."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    monkeypatch.setattr(W, "shared_runs_path", lambda: str(tmp_path / "gone" / W.RUNS_NAME))
+    now = dt.datetime(2026, 9, 23, 8, 0)
+    assert W.record_start(["--copy"], now=now) == W.local_runs_path()
+    W.record_finish("unreachable", now=now)
+    assert os.path.exists(W.local_runs_path())
+    assert W.run_health(now=now + dt.timedelta(hours=1))[0] == "ok"
+
+
+def test_an_unreachable_share_does_not_stop_the_record(tmp_path, monkeypatch):
+    """The mirror is best effort. A share that raises on every write must not take the
+    local record down with it."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+
+    def explode():
+        raise OSError("the network path was not found")
+
+    monkeypatch.setattr(W, "shared_runs_path", explode)
+    now = dt.datetime(2026, 9, 23, 8, 0)
+    assert W.record_start(["--copy"], now=now) is not None
+    assert W.record_finish("unreachable", now=now) is not None
+    assert W.run_health(now=now)[0] == "ok"
+
+
+def test_the_share_copy_is_still_written_when_the_share_answers(tmp_path, monkeypatch):
+    """Other machines and the dashboard read the shared copy, so it is kept in step."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    shared = tmp_path / "share" / W.RUNS_NAME
+    shared.parent.mkdir(parents=True)
+    monkeypatch.setattr(W, "shared_runs_path", lambda: str(shared))
+    W.record_start(["--copy"], now=dt.datetime(2026, 9, 23, 8, 0))
+    W.record_finish("reachable", now=dt.datetime(2026, 9, 23, 8, 2))
+    assert json.loads(shared.read_text(encoding="utf-8"))["last_outcome"] == "reachable"
+
+
+def test_the_newer_of_the_two_copies_wins(tmp_path, monkeypatch):
+    """A machine off the VPN for a day holds the newer local record; a fresh checkout has
+    only the shared one. Neither is authoritative by itself."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    shared = tmp_path / "share" / W.RUNS_NAME
+    shared.parent.mkdir(parents=True)
+    monkeypatch.setattr(W, "shared_runs_path", lambda: str(shared))
+
+    W._write_one({"last_finished": "2026-09-20 08:02", "last_outcome": "reachable"}, str(shared))
+    W._write_one({"last_finished": "2026-09-23 08:02", "last_outcome": "unreachable"},
+                 W.local_runs_path())
+    assert W.read_runs()["last_outcome"] == "unreachable"
+
+    W._write_one({"last_finished": "2026-09-24 08:02", "last_outcome": "reachable"}, str(shared))
+    assert W.read_runs()["last_outcome"] == "reachable"
+
+
+def test_only_the_shared_copy_still_answers_on_a_fresh_machine(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "empty"))
+    shared = tmp_path / "share" / W.RUNS_NAME
+    shared.parent.mkdir(parents=True)
+    monkeypatch.setattr(W, "shared_runs_path", lambda: str(shared))
+    W._write_one({"last_finished": "2026-09-24 08:02", "last_outcome": "reachable"}, str(shared))
+    assert W.read_runs()["last_finished"] == "2026-09-24 08:02"
+
+
+def test_a_report_the_share_refuses_does_not_kill_the_run(tmp_path, monkeypatch, capsys):
+    """The other half of the same flaw: save_report wrote to the share unguarded, so an
+    off-VPN run died there — one line BEFORE the stamp that would have recorded it."""
+    def explode():
+        raise OSError("the network path was not found")
+
+    monkeypatch.setattr(W.R, "build_artifacts", explode)
+    W.save_report("the scan", {"reachable": False}, log_text="the scan")
+    assert "could not write the report to the share" in capsys.readouterr().err

@@ -17,6 +17,32 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-23 — The run record does not live on the share any more
+
+Aaron: "fix the run record flaw."
+
+`source_watch_runs.json` was kept in `Build Artifacts/` with the rest of the morning check's
+bookkeeping — on the share. On 2026-09-22 and -23 the 08:00 runs found the VPN down, could not
+write a byte anywhere, and left no trace that they had run at all. `run_health` then read
+"never", and the watchdog went hunting for a suspended process that did not exist and logged
+**"needs a human look"** twice, when the true answer was "off VPN, nothing to do".
+
+A record of WHETHER SOMETHING RAN cannot be stored on the resource whose absence is the most
+common reason it did not.
+
+- The record is written to `%LOCALAPPDATA%\RPE\` (the home directory elsewhere; never a temp
+  dir, which is swept), and mirrored to the share when the share answers, for the dashboard and
+  for anyone reading from another machine.
+- `read_runs()` takes the NEWER of the two: a machine off the VPN for a day holds the newer
+  local record, a fresh checkout has only the shared one, and neither is authoritative alone.
+- `save_report` no longer dies on a share it cannot write to. That was the other half of the
+  same flaw: the unguarded write killed the run one line BEFORE the stamp that would have
+  recorded it, so the morning that most needed recording was the one that recorded nothing.
+
+The tests are sealed off from the machine's own record: an un-isolated test would read the
+developer's real one and pass or fail on whether the morning task had run today.
+
+
 ### 2026-09-22 — Swipe averages round down into their segment
 
 Aaron: "round swipes down into the nearest segment."

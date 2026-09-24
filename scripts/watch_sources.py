@@ -585,8 +585,37 @@ def write_state(doc, path=None):
 # would not have caught that either; only a check somewhere else can, which is
 # what `run_health` is for. `refresh_performance_dashboard.py` (a separate
 # daily task, on a different scheduler) reports it every morning at 08:30.
-def runs_path():
+def local_runs_path():
+    r"""Where the run record REALLY lives: on this machine, not on the share.
+
+    Aaron, 2026-09-23: fix the run record flaw. The record was kept in `Build Artifacts/`
+    with everything else, so on 2026-09-22 and -23 the 08:00 runs found the VPN down, could
+    not write a single byte anywhere, and left no trace that they had run at all. The
+    watchdog then read "no run has reached the shares today", went hunting for a suspended
+    process, found none, and logged "needs a human look" twice — when the true answer was
+    "off VPN, nothing to do". A record of WHETHER SOMETHING RAN cannot be stored on the
+    resource whose absence is the most common reason it did not.
+
+    %LOCALAPPDATA%\RPE is the same place the released launcher unpacks its runtime to, so
+    it exists on every machine that runs this task, and it is writable with the VPN down.
+    """
+    # NOT a temp dir, deliberately: rpe_env.temp_dir is build scratch and is swept, and a
+    # record of "did this run?" that a cleaner can delete answers the question wrongly the
+    # one week nobody looks. %LOCALAPPDATA% on Windows, the home directory elsewhere.
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~")
+    d = os.path.join(base, "RPE")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, RUNS_NAME)
+
+
+def shared_runs_path():
+    """The copy on the share — for the dashboard and for anyone reading from another
+    machine. Best effort: written when the share answers, never depended on."""
     return str(R.build_artifacts() / RUNS_NAME)
+
+
+def runs_path():
+    return local_runs_path()
 
 
 def read_runs(path=None):
@@ -597,7 +626,26 @@ def read_runs(path=None):
     run the daily check because its own logbook is corrupt would be the wrong
     trade. It reads as unknown — never as healthy.
     """
-    p = path or runs_path()
+    if path:
+        return _read_one(path)
+    # Local first, then the share, and the NEWER of the two wins. A machine that has been
+    # off the VPN for a day has the newer local record; a fresh checkout has only the shared
+    # one. Neither is authoritative on its own.
+    local, shared = _read_one(local_runs_path()), _read_one_quietly(shared_runs_path)
+    if not shared:
+        return local
+    if not local:
+        return shared
+    return max((local, shared), key=_recorded_at)
+
+
+def _recorded_at(doc):
+    """The latest moment a record knows about — for choosing between two copies."""
+    stamps = [_parse_stamp(doc.get(k)) for k in ("last_finished", "last_started")]
+    return max([s for s in stamps if s] or [_dt.datetime.min])
+
+
+def _read_one(p):
     try:
         with open(p, encoding="utf-8") as fh:
             d = json.load(fh)
@@ -608,8 +656,31 @@ def read_runs(path=None):
     return d if isinstance(d, dict) else {"damaged": True}
 
 
+def _read_one_quietly(path_fn):
+    """The share copy, or {} — resolving its path can itself fail off VPN."""
+    try:
+        return _read_one(path_fn())
+    except (OSError, ValueError, SystemExit):
+        return {}
+
+
 def _write_runs(doc, path=None):
-    p = path or runs_path()
+    """Write the record locally, then mirror it to the share if the share is there.
+
+    The local write is the one that matters and the one that must not be skipped: it is the
+    only write that still works on the morning this record exists to describe.
+    """
+    p = path or local_runs_path()
+    _write_one(doc, p)
+    if not path:
+        try:
+            _write_one(doc, shared_runs_path())
+        except (OSError, ValueError, SystemExit):
+            pass                   # off VPN: the local copy is the record
+    return p
+
+
+def _write_one(doc, p):
     tmp = p + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(doc, fh, indent=1, ensure_ascii=False)
@@ -969,12 +1040,22 @@ def save_report(text, result, log_text=None):
     watchdog cannot tell apart from a run that never executed. The scan is the part that must
     survive; the rest is appended when it lands.
     """
-    art = R.build_artifacts()
-    if log_text:
-        with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
-            fh.write(log_text + "\n\n---\n\n")
-    with open(str(art / REPORT_NAME), "w", encoding="utf-8") as fh:
-        fh.write(text + "\n")
+    # Off VPN every one of these writes fails, and an unguarded failure killed the run
+    # BEFORE it could stamp the run record — so the morning that most needed recording was
+    # the one that recorded nothing (Aaron, 2026-09-23). The report is share-only by nature:
+    # if it cannot be written, say so and carry on to the parts that still work.
+    try:
+        art = R.build_artifacts()
+        if log_text:
+            with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
+                fh.write(log_text + "\n\n---\n\n")
+        with open(str(art / REPORT_NAME), "w", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+    except (OSError, SystemExit) as e:
+        print("!! could not write the report to the share (%s). The run is still recorded "
+              "locally; %s --check-stale can answer for it." % (e, os.path.basename(__file__)),
+              file=sys.stderr)
+        return
     if result["reachable"] and not result.get("_state_saved"):
         write_state(result["next_state"])
         result["_state_saved"] = True
