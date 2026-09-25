@@ -19,6 +19,8 @@ Import-safe: the work happens in `main()`, so `extract()` can be tested directly
 import sys,json,datetime,os,openpyxl
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from base_guard import data_issue, key_trends   # one definition, shared with extract_base_gen
+import base_guard as _bg
+import actuals_tab
 def load(p): return openpyxl.load_workbook(p,read_only=True,data_only=True)
 def ml(v): return v.strftime("%b %Y") if isinstance(v,datetime.datetime) else v
 def rowvals(ws,r): return [ws.cell(r,c).value for c in range(1,ws.max_column+1)]
@@ -77,6 +79,10 @@ def extract(wb):
         if isinstance(d,datetime.datetime):
             rows.append((ml(d), mr.cell(r,4).value, mr.cell(r,6).value))  # NU5+, ThresholdMet
     out["mailings_recent"]=list(reversed(rows[-12:]))   # rows are oldest-first; take newest 12
+    # The Actuals tab's month-by-month revenue and cost (2026-09-22) — the SM shape, whose
+    # cost rows are spot mailings, points and a program fee rather than a respondent fee.
+    # Only the two totals rows are read, and those exist in both shapes.
+    out["actuals"]=actuals_tab.read(wb, mm=False)
     return out
 
 
@@ -86,8 +92,6 @@ def main(argv=None):
     name=os.path.basename(argv[0])
     # A workbook saved without evaluating its formulas reads as the template's zeros.
     # Checked FIRST: it names the likelier cause of blank months too.
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import base_guard as _bg
     _bg.check(res, name)
     issue=data_issue(res, name)
     if issue:

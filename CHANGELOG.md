@@ -64,6 +64,59 @@ link on the individual client pages that links to the code sheet saved in the in
   team's stamp in the name, and Excel lock files are skipped. The folder listing is kept until the
   folder changes.
 
+### 2026-09-25 — Eighteen more of James's views, and the gap branch merged (opt-in; merged to main 2026-09-25)
+
+Aaron: "work on incorporating more of James's slides. We'll need to add in as many as possible
+and then we'll edit down from the maximized copy."
+
+`feature/james-deck-gaps` (through 8320b88) is merged onto main. The swipe-tier floor was
+already on main (276d115), so main's `metrics_gen` is kept. **The Revenue Guarantee slide is now
+opt-in with the James views too**: the branch built it on every ARS deck under 3 : 1, which would
+have changed the default monthly build before Aaron signed it off. Remove the `RPE_JAMES_SLIDES`
+test in `build_ars_gen` to put it back on every deck.
+
+Eighteen new REVIEW slides under `RPE_JAMES_SLIDES=1`, taken from the gap list in the "James vs
+Aaron Decks" comparison and James's slide catalogue (`ars/deck/headlines.py`). They are in
+`james_views.py` (figures), `james_view_charts.py` and `james_view_slides.py`:
+
+| Slide | James's view | Source |
+| --- | --- | --- |
+| Revenue per Fee Dollar by Mailing | pnl | Workbook rollup: income, respondent fees and responders per mailing |
+| Offer Segments per 1,000 Mailed | segments / segment_traj | ODD Mail/Resp codes; interchange at the workbook rate |
+| Response by Offer Number | ladder_waves | ODD: first-time vs repeat met goals, rate by offer number, rung climbed |
+| Responders vs Non-Responders by Mailing | per_mailer | ODD, before_after windows per mailing |
+| What a Response Is Worth | responder_value / revenue_frames | Pooled difference x workbook Interchange Rate, beside booked revenue |
+| Tier Movement by Response | tier_movement | ODD, a year apart, by response group |
+| First Swipes: Program and Organic | activation_split | ODD first swipes, new vs mailed-first vs on their own |
+| Where Card Spend Goes | card merchants | The ODD zip's monthly transaction file, SIG/PIN by MCC group |
+| How the Money Moves | book and flow | Same file, every rail (1539's carries ACH and check) |
+| Where Cards Lag | leaks / no_card | ODD by branch; value at the workbook rates |
+| What a Card and an Opt-In Earn | value | ODD x workbook Interchange Rate and NSF Fee, 100% collection |
+| Value by Account Age | value_ladder | Same, by tenure |
+| Accounts Under Stress | concurrent_stressors | ODD: fading card spend, NSF/OD, balance drawdown |
+| Branch Value per Account | branch_value / divergence | Same rates, by branch |
+| Reg E Elections Over Time | Reg E 24-month trend, opt-in flips | Every month's Reg E Desc (now projected by `read_odd`) |
+| Program Cascade | cascade | ODD counts, workbook booked revenue beside them |
+| Where Accounts Close | attrition_branch | ODD, 12-month closure by product and branch (150+ floor) |
+| Card Spend Before a Close | months_of_warning | ODD, closers vs open card holders in the same months |
+
+Money is priced only at the workbook's own Interchange Rate and NSF Fee
+(`lift_values.workbook_assumptions`); a client without them gets the slide saying so. Activity
+windows read `month_complete` (1539's Aug 2026 NSF/OD month is left out and stated). A closer is a
+card user by spend, not by the snapshot's Debit? flag: only 44 of 1539's year of closers still
+carried the flag against 2,019 that swiped in the year before closing.
+
+**Not built, and why:** the guarantee deferral tracker, outside-product / competitor / flight-risk
+views and their lists (James's dictionaries and competitor config are not on the share), the
+deposits chapter (`Inputs\Deposits` empty), interchange scenarios by rail (no per-rail rate), ICS
+behaviour vs non-ICS (no ICS account list matched to the ODD), the penalty box (the suppression rule
+is in no file this pipeline reads), PFI tiers (no definition to follow), account-level lists
+(privacy; not deck content). Cumulative reach and repeat-responder depth were not rebuilt: the
+appendix's Program Reach and Depth of Engagement slides already carry them.
+
+Sample: `Build Artifacts\james_max_2026.09\1539\`, 84 slides, 0 FAIL / 43 REVIEW. Default builds
+are unchanged: the golden deck still has 49 slides.
+
 ### 2026-09-25 — The Lift Matrix distribution counts NH
 
 Aaron: "recalculate the distribution including NH accounts."
@@ -280,6 +333,65 @@ stay the plain integer ranges they read as.
 
 **This moves client-facing numbers** on the swipe-tier table, the ranking by tier and anything
 read off them. Every 2026.09 ARS deck was rebuilt the same night.
+
+### 2026-09-21/22 — Filling the gaps against James's deck (branch `feature/james-deck-gaps`)
+
+A night's work on the gap list from the "James vs Aaron Decks" comparison. Everything below is
+on the branch and **opt-in**: `build_ars_gen` adds these slides only under `RPE_JAMES_SLIDES=1`,
+so the monthly build is unchanged. They are REVIEW slides — each one's speaker notes carry the
+source, the method and the open issues in full, deliberately blunt (Aaron: "you can be obvious
+about issues").
+
+**One defect found that moves client-facing numbers, and needs a decision.** The swipe-tier
+bands in `metrics_gen` are inclusive integer ranges (`1..5`, `6..10`) tested against a
+THREE-MONTH MEAN, so an account averaging 5.5 swipes matched no band and fell through to the
+`26+` catch-all at the end of the loop. On 1539 Marine that is **1,381 of the 15,676 accounts
+in `26+` — 8.8% of the top tier — averaging fewer than 26 swipes**, with the middle tiers short
+by those same accounts. The Lift Matrix reads its per-tier values off these buckets. Fixed
+by flooring the mean into its segment — the 2026-09-22 entry above, which reached main ahead of
+the rest of this branch; `combined_insights.swipe_tier` re-implements the same rule and a test
+pins that the two agree.
+
+Three defects from the comparison's own issue list, fixed:
+
+- **Revenue by Mailing's per-month line** ranked mailings with 1–5 booked months above mature
+  ones — revenue per responder is highest in a mailing's first months, so the newest offer
+  peaked the line while the caption beside it read "6 or more months booked". The line now plots
+  mature mailings only.
+- **Card Account Health** put two denominators on one slide: the tile read "card holders at
+  risk" over bars whose shares were of every eligible account. Card states are now shares of
+  card holders; "No card" says on the bar that it is a share of eligible accounts.
+- **The ARS Scorecard's first-year closure row** was compared with the 12-month closure rate of
+  all accounts — a different measure on a different population, so "behind" meant nothing. It is
+  compared with the same measure at the median reporting branch, and left off below three
+  reporting branches.
+
+Nine new views, each with tests:
+
+| View | What it answers | Source |
+| --- | --- | --- |
+| Revenue Guarantee | The 2:1 guarantee as figures: program cost, the guaranteed minimum, revenue, the surplus or the gap and the months to cover it | ARS workbook |
+| Revenue Build by Mailing | How each mailing got to its total, by months since the drop | Workbook rollup |
+| Where This Month's Revenue Came From | Which mailings the newest booked month's revenue came from | Workbook rollup |
+| Revenue per 1,000 Offers | What a mailing earned for the offers it sent | Workbook + ODD |
+| Where Take Rate Lags / Where Reg E Opt-In Lags | The book cut by tenure, age, balance and product, with the lagging pockets named | ODD |
+| Swipe Tier Migration | Where card holders sat a year ago against where they sit now | ODD |
+| PIN and Signature Mix | The routing mix by month and each rail's ticket | ODD |
+| Overdraft Limits by Reg E Election | Limit coverage and NSF/OD items, by election | ODD |
+| Responders vs Their Own Segment | The control comparison split by pre-mailing tier | ODD |
+| Where the Balances Sit | Balance concentration, and the top-decile cards that barely swipe | ODD |
+
+Supporting changes: `read_odd`'s column projection now keeps DOB, Avg Bal, the product columns,
+MTD and OD Limit (without MTD and OD Limit the overdraft view read 0.0 for every account — a
+slide of zeros that reads as a client with no overdrafts rather than a reader with no columns);
+`odd_rows` gained `routing()` and `od_limit()` accessors; the golden deck is 50 slides.
+
+**Deliberately not built:** anything needing files that are not on the share — the deferred
+expense tracker behind James's monthly guarantee table, the transaction-file views (dictionary
+and competitor config absent), the deposits chapter (`Inputs\Deposits` empty), and his
+interchange scenarios (no rate table). The Reg E what-if is stated in accounts only for the same
+reason: the ODD carries overdraft ITEMS but no fee dollars, so a money figure there would be
+invented.
 
 
 ### 2026-09-21 — The CashPlease marketing emails are their own input kind

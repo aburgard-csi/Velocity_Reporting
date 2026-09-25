@@ -280,3 +280,12 @@ def test_the_shipped_banding_matches_that_rule():
                             "build", "ars_pipeline", "metrics_gen.py"), encoding="utf-8").read()
     assert "s=math.floor(sw3(r))" in src, "the 3-month average is no longer floored into a tier"
     assert "if lo<=s<=hi: return nm" in src
+
+
+def test_the_two_tier_definitions_agree():
+    """metrics_gen owns the deck's tiers; combined_insights re-implements them for the
+    migration and by-tier views, because metrics_gen runs on import. They have to give the
+    same answer, or two slides in one deck bucket the same account differently."""
+    import combined_insights as CI
+    for v in (0, 0.4, 0.99, 1, 1.5, 5, 5.5, 6, 10.9, 11, 15.9, 16, 20.2, 21, 25.99, 26, 99.9):
+        assert CI.swipe_tier(v) == _tier(v), v

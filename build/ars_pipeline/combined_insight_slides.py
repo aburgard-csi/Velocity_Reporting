@@ -21,6 +21,7 @@ Public entry point
     add_insight_slides(prs, ci, M, B, ctx) -> [slides]
 """
 import os
+import statistics
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +48,7 @@ except Exception:                                   # pragma: no cover
 TEAL_RGB, GOLD_RGB = _rgb(TEAL), _rgb(GOLD)
 CAPTION_W_RAIL, CAPTION_W_FULL = 8.75, 10.6
 BRANCH_TABLE_ROWS = 9          # branches shown before the roll-up row, at 16 pt rows
+MIGRATION_W = CI.MIGRATION_WINDOW
 
 
 # ----------------------------------------------------------------- slide plumbing
@@ -102,8 +104,47 @@ def _picture(s, png, L, T, W, H):
     s.shapes.add_picture(png, Inches(L), Inches(T), Inches(W), Inches(H))
 
 
+def _notes(s, source, method=None, issues=(), caveats=(), checks=()):
+    """Write the slide's notes: source, how it is measured, the open issues, then the checks
+    that came back clean.
+
+    These views ship in a REVIEW deck, not to a client (Aaron, 2026-09-21: "you can be
+    obvious about issues"), so anything known to be shaky is written on the slide's notes
+    rather than kept in a commit message nobody opens next to the deck. A view with no open
+    issue says so, because an empty section reads as "nobody looked".
+
+    `checks` is separate on purpose. "Every Reg E value in this extract mapped" is the
+    OPPOSITE of a problem, and it was being printed under the same "!!" as the real ones —
+    which teaches a reader to skim the marks that matter.
+    """
+    parts = [f"Source: {source}"]
+    if method:
+        parts.append(f"Method: {method}")
+    issues = [i for i in issues if i]
+    checks = [c for c in checks if c]
+    if issues:
+        parts.append("REVIEW — OPEN ISSUES:" + "".join("\n  !! " + i for i in issues))
+    else:
+        parts.append("REVIEW — OPEN ISSUES: none known. Figures and wording both derive "
+                     "from the data on this slide.")
+    if checks:
+        parts.append("Checked, clean:" + "".join("\n  ok " + c for c in checks))
+    if caveats:
+        parts.append("Reading it: " + " ".join(caveats))
+    s.notes_slide.notes_text_frame.text = "\n\n".join(parts)
+    return s
+
+
 def _money_mo(v):
     return ("+" if v >= 0 else "−") + f"${abs(v):,}/mo"
+
+
+def _n(count, singular, plural=None):
+    """"1 mailing", "7 mailings". 1549 Wellworth has run exactly ONE mailing, and every one
+    of these slides said "1 mailings" — seven FAILs from validate_deck's plural check, on a
+    client whose whole program is one drop. build_ars_gen has carried MAILING_W for this
+    since the first deck; these views did not."""
+    return f"{count:,} {singular if count == 1 else (plural or singular + 's')}"
 
 
 def _and(items):
@@ -154,8 +195,9 @@ def responder_control_slide(prs, ci, ctx):
         r, c = rc["responders"], rc["control"]
         span = f"{rc['mailings'][0]} to {rc['mailings'][-1]}"
         _header(s, "Responders vs Mailed Non-Responders", f"{ctx['as_of_long']} Data", [
-            f"Selection: personal accounts mailed in the {n} mailings from {span}; 3 months before vs the 6 after.",
-            f"Selection: personal accounts mailed in {n} mailings, {span}.",
+            f"Selection: personal accounts mailed in the {_n(n, 'mailing')} from {span}; "
+            f"3 months before vs the 6 after.",
+            f"Selection: personal accounts mailed in {_n(n, 'mailing')}, {span}.",
         ])
         png = os.path.join(ctx["assets"], "insight_responder_control.png")
         IC.responder_control_chart(png, rc, 8.7, 4.1)
@@ -187,9 +229,18 @@ def responder_control_slide(prs, ci, ctx):
             f"Per mailing (mailed / responders / non-responders): "
             + "; ".join(f"{x['m']} {x['mailed']:,} / {x['responders']:,} / {x['control']:,}"
                         for x in rc["counts"]) + ".")
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']} — '<Mon> Mail', '<Mon> Resp' and monthly Sig $ + PIN $ fields; "
-        f"personal accounts. {note_detail}")
+    _notes(s, f"{ctx['odd_src']} — '<Mon> Mail', '<Mon> Resp' and monthly Sig $ + PIN $ fields",
+           method=note_detail,
+           issues=[
+               "RESPONDERS SELECT THEMSELVES. The control fixes the market — both groups lived "
+               "through the same months — but not the choice to act, so the net figure is an "
+               "association and not the effect of mailing a random account.",
+               "The windows are 3 months before and 6 after, pooled across mailings. James runs "
+               "6 before and 3 after and corrects for the dip in the month before the drop; the "
+               "two answers are therefore not comparable figure for figure.",
+               "Spend is debit spend. An account that moved its direct deposit but not its card "
+               "reads as unchanged.",
+           ])
     _place(prs, s, after="Responder Activity: Before vs After by Offer",
            before="Debit Card Review")
     return s
@@ -218,15 +269,24 @@ def branch_kpi_slide(prs, ci, ctx):
                  f"against {tot['rege']:.1f}%."
                  + (f" Branches behind on opt-in: {', '.join(r_low)}." if r_low else "")),
              width=CAPTION_W_FULL, top=5.95, height=0.95)
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']} — Branch, Business?, Debit?, '{ctx['latest']} Elig', Stat Desc / "
+    _notes(s, ctx["odd_src"], issues=[
+        "Branches are labelled by NUMBER on this chart. The Branch Scorecard that follows lists "
+        "each number beside its name, from the branch-name dataset; a number with no name there "
+        "cannot be resolved from this slide.",
+        "Only the largest branches by eligible accounts are shown, so a small branch with a bad "
+        "rate is invisible here — it is in the scorecard's roll-up row.",
+        "Take rate and opt-in read different populations (eligible accounts, and open card "
+        "holders), so a branch can sit above the book on one and below on the other for reasons "
+        "of mix rather than behaviour.",
+    ], method=(
+        f"{ctx['odd_src']} — Branch, Business?, Debit?, '{ctx['latest']} Elig', Stat Desc / "
         f"Stat Code and '{ctx['latest']} Reg E Desc'. Take rate = ARS-eligible personal accounts "
         f"holding a debit card / ARS-eligible personal accounts (the Program Overview definition; "
         f"all branches {tot['take']:.1f}%). Reg E opt-in = opted in / open personal debit-card "
         f"holders, election read by odd_rows.rege_label (all branches {tot['rege']:.1f}%). Branches "
         f"shown: the {len(rows)} with the most eligible accounts. 'Within 2%' is Aaron's band: a "
         f"branch rate within 2% of the program rate, relative. Behind on take rate: "
-        f"{', '.join(t_low) or 'none'}; behind on opt-in: {', '.join(r_low) or 'none'}.")
+        f"{', '.join(t_low) or 'none'}; behind on opt-in: {', '.join(r_low) or 'none'}."))
     _place(prs, s, after="Reg E Opt-In by Account Vintage", before="ARS Key Takeaways")
     return s
 
@@ -291,8 +351,15 @@ def branch_scorecard_slide(prs, ci, ctx):
               else [3.0, 1.6, 1.7, 1.9, 2.0, 2.3])
     SH.add_table(s, 0.5, 1.72, 12.3, rh * len(data), data, widths,
                  highlight=(len(data) - 1,), fs=15 if names else 16)
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']} — personal accounts (Business? = No) by Branch. Eligible = "
+    _notes(s, ctx["odd_src"], issues=[
+        "First-year closure is a SMALL-NUMBERS measure at branch level: one branch with a dozen "
+        "accounts in the cohort can show 25% from three closures.",
+        "The roll-up row mixes branches that are small for different reasons — a new branch, a "
+        "closing branch and a drive-through all land in it.",
+        "A branch number with no name is one the branch-name dataset does not cover for this "
+        "client, not a branch that has no name.",
+    ], method=(
+        f"{ctx['odd_src']} — personal accounts (Business? = No) by Branch. Eligible = "
         f"'{ctx['latest']} Elig' = Yes. Take rate = eligible accounts holding a debit card / eligible. "
         f"Reg E opt-in = opted in / open personal debit-card holders. Closed, 12 Mo = personal "
         f"accounts with a Date Closed {cw[0]} – {cw[1]} / (open personal accounts + those closures). "
@@ -306,7 +373,7 @@ def branch_scorecard_slide(prs, ci, ctx):
             + (". Not named: " + ", ".join(b["branch"] for b in shown if b["branch"] not in names)
                if any(b["branch"] not in names for b in shown) else "") + ".")
            if names else "Branch names: fewer than half of these branch numbers have a name in "
-                         "Inputs/Branch Names/branch_names.csv, so the table shows numbers only."))
+                         "Inputs/Branch Names/branch_names.csv, so the table shows numbers only.")))
     _place(prs, s, after="Take Rate and Reg E Opt-In by Branch", before="ARS Key Takeaways")
     return s
 
@@ -336,10 +403,12 @@ def health_slide(prs, ci, ctx):
         for i, (v, lab, fill) in enumerate(tiles):
             SH.shadow(SH.tile(s, 9.5, 1.75 + i * 1.4, 3.3, 1.25, v, lab, fill=fill))
         _caption(s, (f"Of {hk['carded']:,} card holders, {hk['at_risk']:,} show falling or no card "
-                     f"spend: {st['Declining'][1]:,} declining, {st['Cooling'][1]:,} cooling, "
-                     f"{st['Dormant'][1]:,} dormant and {st['Never used'][1]:,} never used. Their "
-                     f"spend was {usd_compact(hk['at_risk_prior_monthly_spend'], 1)} a month in "
-                     f"{span(pw)}."))
+                     f"spend ({hk['at_risk_pct_of_carded']:.1f}%): {st['Declining'][1]:,} declining, "
+                     f"{st['Cooling'][1]:,} cooling, {st['Dormant'][1]:,} dormant and "
+                     f"{st['Never used'][1]:,} never used. Their spend was "
+                     f"{usd_compact(hk['at_risk_prior_monthly_spend'], 1)} a month in {span(pw)}. "
+                     f"Bar shares are of card holders; No card is of all "
+                     f"{hk['eligible']:,} eligible accounts."))
         detail = (
             f"ARS-eligible personal accounts ('{ctx['latest']} Elig' = Yes, Business? = No): "
             f"{hk['eligible']:,}, of which {hk['carded']:,} hold a debit card. Monthly card spend = "
@@ -350,8 +419,18 @@ def health_slide(prs, ci, ctx):
             f"dollar amounts, so the state means the same at every spend level. At risk = declining + "
             f"cooling + dormant + never used; their card spend {usd_compact(hk['at_risk_prior_monthly_spend'], 1)} "
             f"a month in {pw[0]} – {pw[1]} and {usd_compact(hk['at_risk_recent_monthly_spend'], 1)} "
-            f"in {rw[0]} – {rw[1]}. Seasonal spending moves accounts between Active and Declining.")
-    s.notes_slide.notes_text_frame.text = f"Source: {ctx['odd_src']} — {detail}"
+            f"in {rw[0]} – {rw[1]}.")
+    _notes(s, ctx["odd_src"], method=detail, issues=[
+        "The 50% / 80% cut-offs between Cooling, Declining and Active are OURS. They were "
+        "not checked against James's code, which has its own thresholds, so a state's "
+        "population is not comparable to his figure for the same client.",
+        "Seasonal spending moves accounts between Active and Declining with no change in "
+        "behaviour: a client whose card spend peaks in December reads worse every January. "
+        "No seasonal adjustment is applied.",
+        "FIXED 2026-09-21 (was an open issue): the bars' shares were of every eligible "
+        "account while the tile was of card holders. Card states are now shares of card "
+        "holders and the No card bar says it is a share of eligible accounts.",
+    ])
     _place(prs, s, after="NSF/OD Activity", before="Reg E Review")
     return s
 
@@ -370,7 +449,8 @@ def wave_revenue_slide(prs, ci, ctx):
         waves = wr["waves"]
         # short month: "PTD · August 2026" wraps in the 2.35in pill at 16 pt (validate_deck REVIEW)
         _header(s, "Revenue by Mailing", f"PTD · {ctx['data_month_short']}", [
-            f"Selection: incremental revenue booked to each of the {len(waves)} mailings, through {wr['through']}.",
+            f"Selection: incremental revenue booked to each of the {_n(len(waves), 'mailing')}, "
+            f"through {wr['through']}.",
             f"Selection: revenue booked to each mailing, through {wr['through']}."])
         png = os.path.join(ctx["assets"], "insight_wave_revenue.png")
         IC.wave_revenue_chart(png, waves, 12.3, 4.1)
@@ -378,7 +458,7 @@ def wave_revenue_slide(prs, ci, ctx):
         mature = [w for w in waves if w["months"] >= 6]
         lead = max(mature or waves, key=lambda w: w["per_month"])
         young = [w for w in waves if w["months"] < 6]
-        _caption(s, (f"The {len(waves)} mailings have booked {usd_compact(wr['total'])} in incremental "
+        _caption(s, (f"{_n(len(waves), 'mailing')} have booked {usd_compact(wr['total'])} in incremental "
                      f"revenue through {wr['through']}. Among mailings with 6 or more months booked, "
                      f"{lead['m']} books the most per month, {usd_compact(lead['per_month'])} over "
                      f"{lead['months']} months"
@@ -398,7 +478,25 @@ def wave_revenue_slide(prs, ci, ctx):
                   f"booked figure. Summary block total {usd_compact(wr['summary_total'] or 0)}.{rec} "
                   "Newer mailings carry fewer, earlier months, and revenue per responder is "
                   "typically highest in the first months, so per-month figures favour young mailings.")
-    s.notes_slide.notes_text_frame.text = f"Source: ARS Workbook {ctx['id']} ({wb}) — {detail}"
+        _notes(s, f"{wb} — '{CI.ROLLUP_SHEET}'", method=detail, issues=[
+            (f"The mailing rows sum to {usd_compact(wr['total'])} against "
+             f"{usd_compact(ctx['ltd_revenue'])} program-to-date on Executive Financials MM "
+             f"({100.0 * (wr['total'] - ctx['ltd_revenue']) / ctx['ltd_revenue']:+.1f}%). "
+             "Reconcile before this goes anywhere near a client.")
+            if ctx.get("ltd_revenue") else
+            "No program-to-date revenue was passed in, so the mailing rows are not reconciled "
+            "against Executive Financials MM.",
+            "A mailing's revenue is what the WORKBOOK booked to it. Where two mailings overlap "
+            "in a month, the split is the workbook's, not ours, and we do not re-derive it.",
+            "FIXED 2026-09-21 (was an open issue): the per-month line ranked mailings with "
+            f"1-5 booked months above mature ones. It now plots mailings with 6+ months only, "
+            "which is what the caption always said.",
+        ])
+        _place(prs, s, after="Mailing Response Summary", before="Debit Card Review")
+        return s
+    _notes(s, f"ARS Workbook {ctx['id']} ({wb})", method=detail,
+           issues=["The view is not available for this client, so nothing on this slide is "
+                   "measured. " + str(wr.get("reason"))])
     _place(prs, s, after="Mailing Response Summary", before="Debit Card Review")
     return s
 
@@ -431,15 +529,717 @@ def scorecard_slide(prs, ci, ctx):
     _caption(s, f"{n['ahead']} of {len(rows)} measures ahead of their comparator, {n['level']} within "
                 f"2% and {n['behind']} behind.", width=CAPTION_W_FULL, top=top + rh * len(data) + 0.12,
              height=0.45)
-    s.notes_slide.notes_text_frame.text = (
-        f"Source: {ctx['odd_src']}; {ctx['wb_src']} (Executive Financials MM profitability, "
+    _notes(s, f"{ctx['odd_src']}; {ctx['wb_src']}", issues=[
+        "Each measure is compared with ITS OWN comparator — some are the book, some a trailing "
+        "average, one is the median branch. A row reading 'behind' is behind that comparator, "
+        "not behind a target anyone set.",
+        "James's version carries talking points per row. These are figures only; the story is "
+        "still the CSM's to tell.",
+        "Nine measures on one card invites a score. There is no score here, and averaging these "
+        "rows would not produce one worth having.",
+    ], method=(
+        f"{ctx['odd_src']}; {ctx['wb_src']} (Executive Financials MM profitability, "
         f"Swipe/Spend history); figures as shown elsewhere in this deck. Status: ahead / behind "
         f"when the value differs from its comparator by more than 2% of the comparator, else level "
         f"(Aaron's +/-2% band); for a change measured against zero the band is 2% of the baseline "
         f"(the non-responders' before spend for the responder difference, 2 points for a % change); "
         f"for first-year closure lower is better. Rows: "
-        + "; ".join(f"{m}: {v} vs {c} ({st})" for m, v, c, st in rows) + ".")
+        + "; ".join(f"{m}: {v} vs {c} ({st})" for m, v, c, st in rows) + "."))
     _place(prs, s, before="ARS Key Takeaways")
+    return s
+
+
+def wave_build_slide(prs, ci, ctx):
+    """Each mailing's month-by-month build — James's slide 5, which we had no answer to."""
+    wr = ci["wave_revenue"]
+    s = _new_slide(prs, _find(prs, "Revenue by Mailing") or _find(prs, "Mailing Response Summary"))
+    wb = wr.get("workbook") or ctx.get("wb_file") or "the ARS workbook"
+    waves = [w for w in (wr.get("waves") or []) if w.get("build")]
+    if not wr.get("available") or not waves:
+        _header(s, "Revenue Build by Mailing", f"PTD · {ctx['data_month_short']}",
+                "Selection: booked revenue by month since each mailing.")
+        _caption(s, "The month-by-month build is not available for this client: "
+                    f"{wr.get('reason', 'the workbook carries no mailing months')}.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, f"ARS Workbook {ctx['id']} ({wb})",
+               issues=["Nothing on this slide is measured — the workbook carried no "
+                       "month-by-month figures for any mailing."])
+        _place(prs, s, after="Revenue by Mailing", before="Debit Card Review")
+        return s
+
+    _header(s, "Revenue Build by Mailing", f"PTD · {ctx['data_month_short']}", [
+        f"Selection: cumulative booked revenue by month since each of the "
+        f"{_n(len(waves), 'mailing')}, through {wr['through']}.",
+        "Selection: cumulative booked revenue by month since each mailing."])
+    png = os.path.join(ctx["assets"], "insight_wave_build.png")
+    IC.wave_build_chart(png, waves, 12.3, 4.0)
+    _picture(s, png, 0.5, 1.72, 12.3, 4.0)
+
+    mature = [w for w in waves if w["months"] >= 6]
+
+    def first6(w):
+        """Share of a mailing's revenue booked within six months — the curve's shape in one
+        number, derived from the points on the slide rather than asserted."""
+        pts = [p for p in w["build"] if p[0] <= 6]
+        return (pts[-1][2] / w["revenue"]) if pts and w["revenue"] else None
+
+    shares = [f for f in (first6(w) for w in mature) if f is not None]
+    newest = waves[-1]
+    lead = max(mature, key=lambda w: w["revenue"]) if mature else newest
+    cap = (f"{newest['m']} has booked {usd_compact(newest['revenue'])} over "
+           f"{_n(newest['months'], 'month')}; {lead['m']} has booked the most of any mailing with "
+           f"6 or more months, {usd_compact(lead['revenue'])} over {lead['months']}.")
+    if shares:
+        med = statistics.median(shares) * 100
+        cap += (f" Half of the mature mailings had booked {med:.0f}% or more of their revenue "
+                f"within six months of the drop.")
+    _caption(s, cap, width=CAPTION_W_FULL)
+
+    _notes(s, f"ARS Workbook {ctx['id']} ({wb}) — '{CI.ROLLUP_SHEET}'",
+           method=("Each '<Month Year> Mailing' block's Total Incremental Income row, read by "
+                   "month and accumulated. The x axis is MONTHS SINCE THAT MAILING, computed "
+                   "from the mailing's own month, so a month the workbook never booked leaves a "
+                   "gap instead of pulling the curve left. The five most recent mailings are "
+                   "coloured; earlier ones are the grey band."),
+           issues=[
+               "The curve is BOOKED revenue, which is the workbook's attribution of a month's "
+               "income to a mailing. Where mailings overlap, that split is the workbook's and "
+               "we do not re-derive it — two curves can therefore share the same dollar.",
+               "A mailing's first point is its first BOOKED month, which is not always the "
+               "month of the drop. Read the x axis as months since the mailing, not as the "
+               "mailing's age in market.",
+               "Curves are not adjusted for how many accounts each mailing reached, so a big "
+               "drop and a small one sit on the same scale. Offers per mailing are on the "
+               "Mailing Response Summary.",
+           ])
+    _place(prs, s, after="Revenue by Mailing", before="Debit Card Review")
+    return s
+
+
+def month_split_slide(prs, ci, ctx):
+    """Where the newest month's revenue came from, by mailing — James's slide 6."""
+    wr = ci["wave_revenue"]
+    s = _new_slide(prs, _find(prs, "Revenue by Mailing") or _find(prs, "Mailing Response Summary"))
+    wb = wr.get("workbook") or ctx.get("wb_file") or "the ARS workbook"
+    rows = wr.get("by_mailing_latest") or []
+    label = wr.get("latest_month_label")
+    if not wr.get("available") or not rows:
+        _header(s, "Where This Month's Revenue Came From", f"PTD · {ctx['data_month_short']}",
+                "Selection: the newest booked month, split by mailing.")
+        _caption(s, "The month's revenue cannot be split by mailing for this client: "
+                    f"{wr.get('reason', 'no mailing booked a figure in the newest month')}.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, f"ARS Workbook {ctx['id']} ({wb})",
+               issues=["Nothing on this slide is measured — no mailing booked revenue in the "
+                       "newest month on the rollup sheet."])
+        _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+        return s
+
+    _header(s, "Where This Month's Revenue Came From", f"PTD · {ctx['data_month_short']}", [
+        f"Selection: incremental revenue booked in {label}, by the mailing it is booked to.",
+        f"Selection: revenue booked in {label}, by mailing."])
+    png = os.path.join(ctx["assets"], "insight_month_split.png")
+    IC.month_split_chart(png, rows, 12.3, 3.5)
+    _picture(s, png, 0.5, 1.72, 12.3, 3.5)
+
+    total = wr.get("latest_total") or 0.0
+    top = rows[0]
+    older = [r for r in rows if r[2] >= 12]
+    tiles = [(usd_compact(total), f"Booked in {label}", ORANGE),
+             (f"{len(rows)}", "Mailings still earning", NAVY),
+             (f"{100.0 * sum(v for _m, v, n in older) / total:.0f}%" if total else "—",
+              "From mailings 12+ months old", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.35, 3.9, 1.0, v, lab, fill=fill))
+    _caption(s, (f"{_n(len(rows), 'mailing')} booked revenue in {label}, {usd_compact(total)} "
+                 f"together. "
+                 f"The largest single contributor is the {top[0]} mailing at "
+                 f"{usd_compact(top[1])} ({100.0 * top[1] / total:.0f}% of the month)."),
+             width=CAPTION_W_FULL, top=6.45, height=0.7)
+
+    rec = ""
+    if wr.get("summary_latest"):
+        gap = 100.0 * (total - wr["summary_latest"]) / wr["summary_latest"]
+        rec = (f" The mailing rows sum to {usd_compact(total)} against "
+               f"{usd_compact(wr['summary_latest'])} on the sheet's own Summary block "
+               f"({gap:+.1f}%).")
+    _notes(s, f"ARS Workbook {ctx['id']} ({wb}) — '{CI.ROLLUP_SHEET}'",
+           method=(f"The newest month any mailing booked ({label}); each '<Month Year> Mailing' "
+                   f"block's Total Incremental Income cell for that month, largest first. "
+                   f"Bars are orange where the mailing has fewer than 6 booked months.{rec}"),
+           issues=[
+               f"{label} is the newest month the WORKBOOK has booked. It is not necessarily a "
+               "complete month of activity, and it can be older than the ODD extract's month — "
+               "check it against the cover month before reading it as 'this month'.",
+               "The split is the workbook's attribution. A response booked to an older mailing "
+               "may have been prompted by a newer one; nothing here can separate them.",
+               "Mailings with no revenue booked in the month are absent from the chart rather "
+               "than drawn at zero, so the bar count is 'mailings still earning', not all "
+               "mailings the client has run.",
+           ])
+    _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+    return s
+
+
+def _cut_slide(prs, ci, ctx, measure, title, after, before, png_name, subject, pool_word):
+    """One rate, cut four ways, with the lagging pockets named. Shared by take rate and Reg E
+    because the only differences are the measure, the population and the words."""
+    rc = ci.get("rate_cuts") or {}
+    s = _new_slide(prs, _find(prs, after) or prs.slides[0])
+    book = rc.get("take_all" if measure == "take" else "rege_all")
+    pool = rc.get("eligible" if measure == "take" else "rege_pool", 0)
+    if not rc.get("available") or book is None:
+        _header(s, title, f"{ctx['as_of_long']} Data", f"Selection: {subject}.")
+        _caption(s, "This extract does not carry the columns the cuts need, so the view is "
+                    "not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the extract "
+                                          "carried no eligible population to cut."])
+        _place(prs, s, after=after, before=before)
+        return s
+
+    _header(s, title, f"{ctx['as_of_long']} Data", [
+        f"Selection: {subject} ({pool:,} {pool_word}), by tenure, age, balance and product.",
+        f"Selection: {subject} ({pool:,} {pool_word})."])
+    png = os.path.join(ctx["assets"], png_name)
+    IC.cut_panel_chart(png, rc["cuts"], measure, book, 12.3, 3.45, rc.get("min_band", 25))
+    _picture(s, png, 0.5, 1.68, 12.3, 3.45)
+
+    lags = CI.lagging(rc, measure)
+    tiles = [(f"{book:.1f}%", f"{'Take rate' if measure == 'take' else 'Opt-in'}, whole book",
+              ORANGE)]
+    for d in lags[:2]:
+        tiles.append((f"{d['value']:.1f}%", _clip_label(f"{d['band']} ({d['cut'].lower()})"), NAVY))
+    while len(tiles) < 3:
+        tiles.append(("—", "No band below the book", NAVY))
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.22, 3.9, 0.92, v, lab, fill=fill))
+
+    if lags:
+        worst = lags[0]
+        cap = (f"The widest gap sits in {worst['band']} ({worst['cut'].lower()}) at "
+               f"{worst['value']:.1f}%, {abs(worst['gap']):.1f} points below the book's "
+               f"{book:.1f}% across {worst['n']:,} {pool_word}.")
+        if len(lags) > 1:
+            cap += (" Then " + _and([f"{d['band']} ({abs(d['gap']):.1f} points)"
+                                     for d in lags[1:]]) + ".")
+    else:
+        cap = (f"No band of {rc.get('min_band', 25)} accounts or more sits below the book's "
+               f"{book:.1f}%.")
+    _caption(s, cap, width=CAPTION_W_FULL, top=6.26, height=0.95)
+
+    miss = rc.get("missing") or {}
+    _notes(s, ctx["odd_src"],
+           method=(f"{subject}. Bands are fixed, not quantiles: tenure from Date Opened, age "
+                   f"from DOB, balance from Avg Bal, product from Prod Desc (the "
+                   f"{CI.TOP_PRODUCTS} largest by population, the rest rolled into one row). "
+                   f"Book rate {book:.1f}% over {pool:,} {pool_word}. A pocket is a band at "
+                   f"least {rc.get('min_band', 25)} accounts wide, ranked by points below the "
+                   f"book."),
+           issues=[
+               (f"Bands the extract could not place are shown as 'Not on file': "
+                + ", ".join(f"{k} on {v:,} accounts" for k, v in sorted(miss.items()))
+                + ". Those accounts are IN the book rate but cannot be attributed to a band, "
+                  "so the bands do not sum to the book.") if miss else "",
+               "These are cross-sections at one snapshot, not causes. A product with a low "
+               "rate may simply be sold at a branch that does not ask, and nothing here "
+               "separates the two.",
+               "The cuts are not independent: an older customer holds an older account and a "
+               "larger balance, so the same pocket can appear three times under three names.",
+               "Bands are ours, not James's. His cuts use his own boundaries, so a band's "
+               "population is not comparable to his figure for the same client.",
+           ],
+           checks=["Every account landed in a band on all four cuts." if not miss else ""])
+    _place(prs, s, after=after, before=before)
+    return s
+
+
+def _clip_label(s, n=26):
+    return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+
+
+def take_cuts_slide(prs, ci, ctx):
+    return _cut_slide(prs, ci, ctx, "take", "Where Take Rate Lags",
+                      after="12-Month Eligible Take Rate", before="Reg E Review",
+                      png_name="insight_take_cuts.png",
+                      subject="ARS-eligible personal accounts",
+                      pool_word="accounts")
+
+
+def rege_cuts_slide(prs, ci, ctx):
+    return _cut_slide(prs, ci, ctx, "rege", "Where Reg E Opt-In Lags",
+                      after="Reg E Opt-In by Account Vintage",
+                      before="Take Rate and Reg E Opt-In by Branch",
+                      png_name="insight_rege_cuts.png",
+                      subject="open personal accounts holding a debit card",
+                      pool_word="card holders")
+
+
+def migration_slide(prs, ci, ctx):
+    """Where the book's card holders moved between swipe tiers over a year."""
+    mig = ci.get("tier_migration") or {}
+    s = _new_slide(prs, _find(prs, "Debit Usage Segmentation") or prs.slides[0])
+    if not mig.get("available"):
+        _header(s, "Swipe Tier Migration", f"{ctx['as_of_long']} Data",
+                "Selection: ARS-eligible personal card holders.")
+        _caption(s, f"This extract carries {mig.get('months', 0)} activity months; the migration "
+                    f"view needs {mig.get('needs', 15)}, so it is not shown for this period.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the extract is "
+                                          "too short to compare two windows a year apart."])
+        _place(prs, s, after="Debit Usage Segmentation", before="Average Ticket")
+        return s
+
+    _header(s, "Swipe Tier Migration", f"{ctx['as_of_long']} Data", [
+        f"Selection: {mig['accounts']:,} ARS-eligible personal card holders, "
+        f"{' to '.join(mig['then_window'])} against {' to '.join(mig['now_window'])}.",
+        f"Selection: ARS-eligible personal card holders, a year apart."])
+    png = os.path.join(ctx["assets"], "insight_migration.png")
+    IC.migration_chart(png, mig, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    tiles = [(f"{mig['pct_up']:.0f}%", "Climbed a tier", ORANGE),
+             (f"{mig['pct_down']:.0f}%", "Slipped a tier", NAVY),
+             (f"${mig['spend_up']:,}" if mig["spend_up"] is not None else "—",
+              "Monthly spend, climbers", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    gap = ""
+    if mig["spend_up"] is not None and mig["spend_down"] is not None:
+        gap = (f" Climbers now spend ${mig['spend_up']:,} a month against ${mig['spend_down']:,} "
+               f"for accounts that slipped.")
+    _caption(s, (f"{mig['moved_up']:,} of {mig['accounts']:,} card holders sit in a higher tier "
+                 f"than a year ago and {mig['moved_down']:,} in a lower one; {mig['same']:,} "
+                 f"have not moved.{gap}"), width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"ARS-eligible personal card holders at the snapshot. Each end is a "
+                   f"{mig.get('span', 12)}-month-apart {MIGRATION_W}-month average of Sig # + PIN #, "
+                   f"banded on the deck's own tiers. Rows are the tier a year ago, columns the "
+                   f"tier now; the diagonal is bold. Spend figures are the average monthly "
+                   f"Sig $ + PIN $ in the recent window."),
+           issues=[
+               "Only accounts open and eligible AT THE SNAPSHOT are in the matrix. Accounts "
+               "closed during the year are not, so this reads better than the book actually "
+               "did — attrition is on the Account Retention slides, not here.",
+               "Tier boundaries are swipe counts, so a client whose customers spend more per "
+               "swipe can slip tiers while spending more. Read it beside Average Ticket.",
+               "A year apart is one comparison, not a trend: a seasonal book (tax refunds, "
+               "tourism) can show migration that reverses next quarter.",
+               "The window ends on the extract's last months, which may include an incomplete "
+               "month. Nothing here applies the complete-month rule yet — that is the next "
+               "thing to fix on this slide.",
+           ])
+    _place(prs, s, after="Debit Usage Segmentation", before="Average Ticket")
+    return s
+
+
+def routing_slide(prs, ci, ctx):
+    """PIN versus signature — the mix, and what each rail's ticket looks like."""
+    mix = ci.get("routing_mix") or {}
+    s = _new_slide(prs, _find(prs, "Average Ticket") or prs.slides[0])
+    if not mix.get("available"):
+        _header(s, "PIN and Signature Mix", f"{ctx['as_of_long']} Data",
+                "Selection: personal card holders' transactions.")
+        _caption(s, "This extract carries no signature or PIN transactions to split, so the "
+                    "view is not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — no Sig # or "
+                                          "PIN # columns carried a figure."])
+        _place(prs, s, after="Average Ticket", before="Reg E Review")
+        return s
+
+    _header(s, "PIN and Signature Mix", f"{ctx['as_of_long']} Data", [
+        f"Selection: personal card holders' transactions, {mix['window'][0]} to "
+        f"{mix['window'][1]}.",
+        f"Selection: personal card holders' transactions."])
+    png = os.path.join(ctx["assets"], "insight_routing.png")
+    IC.routing_chart(png, mix, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    # A rail with no transactions has no ticket. 1038 Sugar River is signature-only, and
+    # formatting None as a dollar figure killed the build (2026-09-21); an em dash says
+    # "this book does not do that" without inventing a $0.00 ticket nobody charged.
+    def _tick(v):
+        return f"${v:,.2f}" if v is not None else "—"
+
+    tiles = [(f"{mix['pin_share']:.0f}%", "PIN share of swipes", ORANGE),
+             (_tick(mix["sig_ticket"]), "Signature ticket", NAVY),
+             (_tick(mix["pin_ticket"]), "PIN ticket", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    # A share moves in POINTS, and nobody at the client moved it: movement() would have
+    # said "the mailings did not have an impact on the pin share of swipes", which is both
+    # the wrong unit and the wrong subject.
+    ch = mix["last_share"] - mix["first_share"]
+    if abs(ch) <= CI.BAND_PCT:
+        move = (f"It was almost flat across the window, {mix['first_share']:.1f}% to "
+                f"{mix['last_share']:.1f}%")
+    else:
+        verb = "rose" if ch > 0 else "fell"
+        move = (f"It {verb} from {mix['first_share']:.1f}% to {mix['last_share']:.1f}%, "
+                f"{abs(ch):.1f} points")
+    if mix["pin_ticket"] is None or mix["sig_ticket"] is None:
+        rail = "PIN" if mix["pin_ticket"] is None else "signature"
+        cap = (f"Every transaction in this window ran over "
+               f"{'signature' if rail == 'PIN' else 'PIN'}: the book records no {rail} "
+               f"activity at all, so there is no mix to compare.")
+    else:
+        cap = (f"{mix['pin_share']:.0f}% of swipes and {mix['pin_share_usd']:.0f}% of spend "
+               f"went over PIN across the window. {move}.")
+    _caption(s, cap, width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"Personal accounts holding a debit card. Per month: Sig # / Sig $ and "
+                   f"PIN # / PIN $ summed across the book, {mix['window'][0]} to "
+                   f"{mix['window'][1]}. Ticket = dollars / transactions on that rail. The "
+                   f"line is PIN share of transaction COUNT; the spend share is in the "
+                   f"caption because the two differ whenever the tickets differ."),
+           issues=[
+               ("One rail carries no transactions in this window. That is either a book that "
+                "genuinely runs one way or a column the extract did not fill — worth "
+                "checking with the data team before reading anything into it.")
+               if (mix["pin_ticket"] is None or mix["sig_ticket"] is None) else "",
+               "THE MIX IS NOT REVENUE. Signature and PIN earn different interchange, but the "
+               "ODD carries no interchange rate and neither does this deck, so nothing here "
+               "says what the mix is worth. Do not let the slide imply it.",
+               "Routing is decided at the terminal by the merchant and the network, not by "
+               "the client, so this is context for a conversation rather than something a "
+               "branch can move.",
+               "The window ends on the extract's last month, which may be incomplete; the "
+               "final point can dip for that reason alone.",
+               "James keeps this as a metric with interchange scenarios attached. Without his "
+               "rate table, the scenarios are not reproduced here.",
+           ])
+    _place(prs, s, after="Average Ticket", before="Reg E Review")
+    return s
+
+
+def overdraft_slide(prs, ci, ctx):
+    """Does the Reg E election show up in overdraft behaviour? The deck never asked."""
+    od = ci.get("overdraft_limits") or {}
+    s = _new_slide(prs, _find(prs, "Reg E Opt-In by Account Vintage") or prs.slides[0])
+    if not od.get("available"):
+        _header(s, "Overdraft Limits by Reg E Election", f"{ctx['as_of_long']} Data",
+                "Selection: open personal accounts holding a debit card.")
+        _caption(s, "This extract carries no open card holders with a readable Reg E election, "
+                    "so the view is not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured."])
+        _place(prs, s, after="Reg E Opt-In by Account Vintage", before="Take Rate and Reg E")
+        return s
+
+    _header(s, "Overdraft Limits by Reg E Election", f"{ctx['as_of_long']} Data", [
+        f"Selection: {od['accounts']:,} open personal card holders; limits at "
+        f"{ctx['as_of_long']}, items averaged over {od['window'][0]} to {od['window'][1]}.",
+        f"Selection: open personal card holders ({od['accounts']:,})."])
+    png = os.path.join(ctx["assets"], "insight_overdraft.png")
+    IC.overdraft_chart(png, od, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    by = {g["election"]: g for g in od["groups"]}
+    opted = by.get(CI.REGE_IN, {})
+    out = by.get(CI.REGE_OUT, {})
+    tiles = [(f"{opted.get('items_per_account') or 0:.2f}", "Items a month, opted in", ORANGE),
+             (f"{out.get('items_per_account') or 0:.2f}", "Items a month, opted out", NAVY),
+             (f"${opted.get('avg_limit'):,}" if opted.get("avg_limit") else "—",
+              "Average limit, opted in", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    a, b = opted.get("items_per_account"), out.get("items_per_account")
+    if a is not None and b is not None and b:
+        times = a / b if b else None
+        rel = (f"{times:.1f} times" if times and times >= 1.1 else
+               ("about the same as" if times and times > 0.9 else f"{times:.1f} times"))
+        line = (f"Opted-in card holders record {a:.2f} NSF/OD items a month against {b:.2f} for "
+                f"opted-out — {rel} the opted-out rate.")
+    else:
+        line = "One election has no accounts to compare, so no comparison is drawn."
+    if not od.get("carries_limits"):
+        line += (" No account in this extract carries an overdraft limit figure, so the limit "
+                 "panel is empty rather than zero.")
+    _caption(s, line, width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"Open personal accounts holding a debit card, by the standardized Reg E "
+                   f"election ({CI.REGE_IN} / {CI.REGE_OUT} / {CI.REGE_DEFAULT}). Limit = the "
+                   f"'{ctx['latest']} OD Limit' column, counted as carried when above zero. "
+                   f"Items = the monthly MTD NSF/OD ITEM count averaged over "
+                   f"{od['window'][0]} to {od['window'][1]}."),
+           issues=[
+               "CORRELATION, NOT CAUSE, and the direction is not obvious: a customer who "
+               "overdraws is also the customer most likely to have been asked to opt in. "
+               "Nothing here says opting in causes overdrafts or the reverse.",
+               "ITEMS, NOT FEES. The ODD carries no overdraft fee dollars at all — fee income "
+               "comes from the workbook — so no dollar figure on this slide is fee revenue.",
+               ("Reg E values the classifier could not map, left out of every group: "
+                + ", ".join(f"{k!r} ({v:,})" for k, v in od["unmapped"].items())
+                + ". Ask Aaron how to map them before this is read as a full population.")
+               if od.get("unmapped") else "",
+               "The limit is read at the snapshot month only. An account whose limit was "
+               "removed last month reads the same as one that never had one.",
+           ],
+           checks=["Every Reg E value in this extract mapped to one of the three standard "
+                   "elections." if not od.get("unmapped") else ""])
+    _place(prs, s, after="Reg E Opt-In by Account Vintage", before="Take Rate and Reg E")
+    return s
+
+
+def efficiency_slide(prs, ci, ctx):
+    """What a mailing earned for the offers it sent — the question Revenue by Mailing leaves."""
+    eff = ci.get("offer_efficiency") or {}
+    s = _new_slide(prs, _find(prs, "Revenue Build by Mailing") or _find(prs, "Revenue by Mailing")
+                   or prs.slides[0])
+    if not eff.get("available"):
+        _header(s, "Revenue per 1,000 Offers", f"PTD · {ctx['data_month_short']}",
+                "Selection: booked revenue against the offers each mailing sent.")
+        _caption(s, "This client's revenue and offer counts cannot be matched by mailing "
+                    f"month: {eff.get('reason', 'no mailing appears in both the workbook and the extract')}.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — no mailing "
+                                          "matched between the workbook and the extract."])
+        _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+        return s
+
+    rows = eff["mailings"]
+    _header(s, "Revenue per 1,000 Offers", f"PTD · {ctx['data_month_short']}", [
+        f"Selection: {_n(len(rows), 'mailing')}, booked revenue to date against the offers sent.",
+        f"Selection: booked revenue against offers sent, per mailing."])
+    png = os.path.join(ctx["assets"], "insight_efficiency.png")
+    IC.efficiency_chart(png, rows, 12.3, 3.5)
+    _picture(s, png, 0.5, 1.70, 12.3, 3.5)
+
+    best = max(rows, key=lambda r: r["per_1k"])
+    worst = min(rows, key=lambda r: r["per_1k"])
+    tiles = [(usd_compact(eff["total_revenue"] * 1000 / eff["total_offers"]),
+              "Per 1,000 offers, all mailings", ORANGE),
+             (f"{eff['total_offers']:,}", "Offers sent, matched mailings", NAVY),
+             (usd_compact(best["per_1k"]), f"Best: {best['month']}", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 0.5 + i * 4.2, 5.35, 3.9, 0.92, v, lab, fill=fill))
+    _caption(s, (f"Across {_n(len(rows), 'matched mailing')}, {eff['total_offers']:,} offers have "
+                 f"booked {usd_compact(eff['total_revenue'])} — "
+                 f"{usd_compact(eff['total_revenue'] * 1000 / eff['total_offers'])} per 1,000 "
+                 f"offers. {best['month']} is the strongest at "
+                 f"{usd_compact(best['per_1k'])} and {worst['month']} the weakest at "
+                 f"{usd_compact(worst['per_1k'])}."),
+             width=CAPTION_W_FULL, top=6.38, height=0.85)
+
+    _notes(s, f"{ctx['odd_src']}; {ctx['wb_src']}",
+           method=("Offers = accounts carrying a code in that month's Mail column of the ODD. "
+                   "Revenue = the workbook's booked incremental revenue for that mailing, to "
+                   "date. Per 1,000 = revenue / offers x 1,000. Bars above the median are "
+                   "orange."),
+           issues=[
+               "NOT A LIKE-FOR-LIKE RACE. An older mailing has had years to book revenue and "
+               "a recent one has had months, so the ranking favours age. The per-month figure "
+               "is in the data but is not drawn, because dividing again by months flatters "
+               "young mailings the other way.",
+               ("Mailings the workbook books revenue for with no offers in the extract: "
+                + ", ".join(eff["unmatched_revenue"]) + ". They are left out of every figure "
+                "on this slide.") if eff.get("unmatched_revenue") else "",
+               ("Mailings the extract carries offers for with no booked revenue: "
+                + ", ".join(eff["unmatched_offers"]) + ".") if eff.get("unmatched_offers") else "",
+               "The two halves come from different files with different owners. A month "
+               "labelled differently in one of them silently drops that mailing rather than "
+               "mismatching it — check the counts above against the Mailing Response Summary.",
+           ],
+           checks=["Every mailing with booked revenue matched an offer month in the extract."
+                   if not eff.get("unmatched_revenue") else ""])
+    _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
+    return s
+
+
+def sizing_slide(prs, ci, ctx):
+    """Five more points of take rate and of opt-in, in accounts — and in money only where
+    there is a figure honest enough to multiply by."""
+    sz = ci.get("sizing") or {}
+    s = _new_slide(prs, _find(prs, "ARS Key Takeaways") or prs.slides[0])
+    if not sz.get("available"):
+        _header(s, "What Five Points Would Be Worth", f"{ctx['as_of_long']} Data",
+                "Selection: ARS-eligible personal accounts and open card holders.")
+        _caption(s, "The book's own rates are not available for this period, so the sizing is "
+                    "not shown.", width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured."])
+        _place(prs, s, before="ARS Key Takeaways", after="ARS Scorecard")
+        return s
+
+    pts = sz["points"]
+    _header(s, "What Five Points Would Be Worth", f"{ctx['as_of_long']} Data", [
+        f"Selection: {sz['eligible']:,} ARS-eligible personal accounts and "
+        f"{sz['rege_pool']:,} open card holders, at today's rates.",
+        f"Selection: eligible accounts and open card holders, at today's rates."])
+
+    money = (usd_compact(sz["take_annual"]) if sz.get("take_annual") else "—")
+    rows = [["", "Today", f"+{pts:.0f} points", "Accounts"],
+            ["Debit take rate", f"{sz['take_now']:.1f}%", f"{sz['take_now'] + pts:.1f}%",
+             f"+{sz['take_accounts']:,} cards"],
+            ["Reg E opt-in", f"{sz['rege_now']:.1f}%", f"{sz['rege_now'] + pts:.1f}%",
+             f"+{sz['rege_accounts']:,} opted in"]]
+    SH.add_table(s, 0.5, 1.75, 7.4, 1.35, rows, [2.2, 1.0, 1.2, 1.4], fs=13)
+
+    tiles = [(f"+{sz['take_accounts']:,}", "Cards, +5 points", ORANGE),
+             (money, "A year, at today's revenue per card", NAVY),
+             (f"+{sz['rege_accounts']:,}", "Opt-ins, +5 points", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.2, 1.75 + i * 1.35, 4.6, 1.2, v, lab, fill=fill))
+
+    cap = (f"Five points of take rate is {sz['take_accounts']:,} more card-holding accounts "
+           f"out of {sz['eligible']:,} eligible; five points of opt-in is "
+           f"{sz['rege_accounts']:,} more opted-in card holders out of {sz['rege_pool']:,}.")
+    if sz.get("per_card_month"):
+        cap += (f" At the program's own revenue per card — ${sz['per_card_month']:,.2f} a "
+                f"month across {sz['cards']:,} cards — those cards would be about {money} a "
+                f"year. The opt-in figure carries no dollar value: this pipeline holds no "
+                f"fee rate to apply to it.")
+    _caption(s, cap, width=CAPTION_W_FULL, top=5.75, height=1.3)
+
+    _notes(s, f"{ctx['odd_src']}; {ctx['wb_src']}",
+           method=(f"Accounts are exact: {pts:.0f}% of the eligible population and of the open "
+                   f"card-holder pool at the snapshot. Revenue per card per month = the "
+                   f"workbook's program-to-date incremental revenue / months live / today's "
+                   f"card count. The annual figure multiplies that by the extra cards and by "
+                   f"12."),
+           issues=[
+               "THE MONEY IS AN ILLUSTRATION, NOT A FORECAST. It assumes an account that "
+               "takes a card behaves like the average account that already has one. The "
+               "accounts without a card today are, by definition, the ones that did not want "
+               "one — they will almost certainly earn less.",
+               "Revenue per card is a PROGRAM-TO-DATE average over the whole life of the "
+               "program, including years at different balances, rates and fee schedules. A "
+               "recent-12-month figure would be a better basis and is not computed here.",
+               "The Reg E what-if is stated in accounts only. Sizing it in money needs a "
+               "per-item fee and an overdraft rate per opted-in account; the ODD carries "
+               "items but no fee dollars, so any figure here would be invented.",
+               "Five points is a round number, not a target anyone has agreed to.",
+           ])
+    _place(prs, s, before="ARS Key Takeaways", after="ARS Scorecard")
+    return s
+
+
+def by_tier_slide(prs, ci, ctx):
+    """Responders against their own segment — the pooled control, split by tier."""
+    bt = ci.get("responder_by_tier") or {}
+    s = _new_slide(prs, _find(prs, "Responders vs Mailed Non-Responders") or prs.slides[0])
+    if not bt.get("available"):
+        _header(s, "Responders vs Their Own Segment", f"{ctx['as_of_long']} Data",
+                "Selection: personal accounts mailed by the program, by pre-mailing tier.")
+        _caption(s, "No tier has both enough responders and enough mailed non-responders to "
+                    "compare, so the view is not shown for this period.",
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — every tier was "
+                                          "below the cohort floor."])
+        _place(prs, s, after="Responders vs Mailed Non-Responders", before="Reg E Review")
+        return s
+
+    rows = bt["rows"]
+    measured = [r for r in rows if not r["thin"]]
+    _header(s, "Responders vs Their Own Segment", f"{ctx['as_of_long']} Data", [
+        f"Selection: {_n(len(bt['mailings']), 'mailing')}; monthly spend {bt['before_months']} months "
+        f"before against {bt['after_months']} after, by the tier each account sat in before.",
+        "Selection: mailed personal accounts, by the tier they sat in before the mailing."])
+    png = os.path.join(ctx["assets"], "insight_by_tier.png")
+    IC.by_tier_chart(png, rows, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    best = max(measured, key=lambda r: r["net"])
+    tiles = [(_money_mo(best["net"]), f"Best net: {best['tier']}", ORANGE),
+             (f"{sum(r['responders'] for r in measured):,}", "Responders measured", NAVY),
+             (f"{len(measured)} of {len(rows)}", "Tiers with enough to compare", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    pos = [r for r in measured if r["net"] > 0]
+    _caption(s, (f"Responders beat their own segment in {len(pos)} of {len(measured)} tiers. "
+                 f"{best['tier']} shows the widest gap: responders "
+                 f"{_money_mo(best['resp_change'])} against "
+                 f"{_money_mo(best['control_change'])} for mailed non-responders in the same "
+                 f"tier, a net {_money_mo(best['net'])}."), width=CAPTION_W_FULL)
+
+    thin = [r["tier"] for r in rows if r["thin"]]
+    _notes(s, ctx["odd_src"],
+           method=(f"Same cohorts, windows and winsorizing as Responders vs Mailed "
+                   f"Non-Responders ({bt['before_months']} months before, "
+                   f"{bt['after_months']} after, pooled over {_n(len(bt['mailings']), 'mailing')}: "
+                   f"{', '.join(bt['mailings'])}). Each account is tiered on its average "
+                   f"swipes in the BEFORE window, so the tier is where it sat when the offer "
+                   f"arrived. Net = the responders' change less the same tier's non-responder "
+                   f"change."),
+           issues=[
+               "RESPONDERS SELECT THEMSELVES. Within a tier they are still the accounts that "
+               "chose to act, so the net gap is an association, not the effect of the mailing "
+               "on a random account.",
+               "REGRESSION TO THE MEAN runs the other way in the low tiers: an account tiered "
+               "Non-User on three quiet months tends to rise whatever we send it. The control "
+               "absorbs some of that, not all.",
+               (f"Tiers with too few accounts on one side to compare ({bt['min_cohort']} is "
+                f"the floor): {', '.join(thin)}. They are listed rather than dropped, because "
+                f"a tier nobody responds in is itself a finding.") if thin else "",
+               "Spend is debit spend only. An account that moved its direct deposit but not "
+               "its card looks unchanged here.",
+           ],
+           checks=["Every tier had enough responders and non-responders to compare."
+                   if not thin else ""])
+    _place(prs, s, after="Responders vs Mailed Non-Responders", before="Reg E Review")
+    return s
+
+
+def balance_slide(prs, ci, ctx):
+    """Where the book's balances sit, and how much of that money never swipes."""
+    bc = ci.get("balance_concentration") or {}
+    s = _new_slide(prs, _find(prs, "Responder Balance Profile") or _find(prs, "Program Reach")
+                   or prs.slides[0])
+    if not bc.get("available"):
+        _header(s, "Where the Balances Sit", f"{ctx['as_of_long']} Data",
+                "Selection: ARS-eligible personal accounts.")
+        _caption(s, "This extract carries no average balances, so the view is not shown for "
+                    f"this period. {bc.get('reason', '')}".strip(),
+                 width=12.3, top=2.4, height=1.2)
+        _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the Avg Bal "
+                                          "column is empty in this extract."])
+        _place(prs, s, after="Who Responds", before="ARS Key Takeaways")   # "Who Responds — Balance Profile"
+        return s
+
+    _header(s, "Where the Balances Sit", f"{ctx['as_of_long']} Data", [
+        f"Selection: {bc['accounts']:,} ARS-eligible personal accounts by average balance; "
+        f"swipes averaged over {bc['window'][0]} to {bc['window'][1]}.",
+        f"Selection: ARS-eligible personal accounts by average balance."])
+    png = os.path.join(ctx["assets"], "insight_balances.png")
+    IC.balance_chart(png, bc, 8.0, 4.0)
+    _picture(s, png, 0.5, 1.70, 8.0, 4.0)
+
+    tiles = [(f"{bc['top_decile_share']:.0f}%", "Of balances, top decile", ORANGE),
+             (f"{bc['quiet_carded']:,}", "Top-decile cards barely swiping", NAVY),
+             (usd_compact(bc["quiet_balance"]), "Balances behind them", NAVY)]
+    for i, (v, lab, fill) in enumerate(tiles):
+        SH.shadow(SH.tile(s, 8.9, 1.75 + i * 1.4, 3.9, 1.25, v, lab, fill=fill))
+
+    _caption(s, (f"The largest {bc['top_decile_accounts']:,} accounts — balances of "
+                 f"{usd_compact(bc['top_decile_floor'])} and up — hold "
+                 f"{bc['top_decile_share']:.0f}% of the book's balances and make "
+                 f"{bc['top_decile_swipe_share']:.0f}% of its swipes. "
+                 f"{bc['quiet_carded']:,} of them hold a card and average fewer than "
+                 f"{bc['quiet_threshold']:.0f} swipes a month."), width=CAPTION_W_FULL)
+
+    _notes(s, ctx["odd_src"],
+           method=(f"ARS-eligible personal accounts, sorted by the Avg Bal column and cut into "
+                   f"deciles. Swipes are Sig # + PIN # averaged over {bc['window'][0]} to "
+                   f"{bc['window'][1]}. 'Barely swiping' is an average below "
+                   f"{bc['quiet_threshold']:.0f} a month WITH a card on file."),
+           issues=[
+               "AVG BAL IS ONE COLUMN AND WE DO NOT KNOW ITS WINDOW. The extract does not say "
+               "what period it averages, so treat the deciles as a ranking rather than as a "
+               "statement about any particular month.",
+               "One account is not one customer. A household with three accounts appears "
+               "three times, and a large balance parked in one of them can make an otherwise "
+               "ordinary customer look like a whale.",
+               "A big balance that does not swipe is not automatically an opportunity: it can "
+               "be an escrow, an estate or a business account miscoded personal. The list is "
+               "a starting point for a branch, not a campaign.",
+               "No dollar value is attached to the quiet accounts. Converting them is worth "
+               "whatever their swipes would earn, which this pipeline has no rate for.",
+           ])
+    _place(prs, s, after="Who Responds", before="ARS Key Takeaways")   # "Who Responds — Balance Profile"
     return s
 
 
@@ -448,11 +1248,27 @@ def add_insight_slides(prs, ci, ctx):
     as_of_long ('August 2026'), data_month, ltd_revenue, assets."""
     made = [
         wave_revenue_slide(prs, ci, ctx),
+        wave_build_slide(prs, ci, ctx),
+        month_split_slide(prs, ci, ctx),
+        take_cuts_slide(prs, ci, ctx),
+        rege_cuts_slide(prs, ci, ctx),
+        migration_slide(prs, ci, ctx),
+        routing_slide(prs, ci, ctx),
+        overdraft_slide(prs, ci, ctx),
+        efficiency_slide(prs, ci, ctx),
+        balance_slide(prs, ci, ctx),
         responder_control_slide(prs, ci, ctx),
+        by_tier_slide(prs, ci, ctx),
         health_slide(prs, ci, ctx),
         branch_kpi_slide(prs, ci, ctx),
         branch_scorecard_slide(prs, ci, ctx),
     ]
     if ci.get("scorecard"):
         made.append(scorecard_slide(prs, ci, ctx))
+    # after the scorecard, because it sizes what the scorecard just measured
+    made.append(sizing_slide(prs, ci, ctx))
+    # The second round of James's views (2026-09-25, james_view_slides) — placed last because
+    # several of them anchor on slides the first round just added.
+    import james_view_slides as JVS
+    made.extend(JVS.add_more_slides(prs, ci, ctx))
     return made

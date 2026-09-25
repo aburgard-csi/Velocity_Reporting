@@ -26,6 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt                                          # noqa: E402
 from matplotlib.lines import Line2D                                      # noqa: E402
 from matplotlib.patches import Patch                                     # noqa: E402
+from matplotlib.colors import LinearSegmentedColormap                    # noqa: E402
 
 from brand import (NAVY, ORANGE, TICK, MUTED, GRID, TEAL, STEEL,        # noqa: E402
                    STEEL_SOFT, CHART_FONT, ROWALT)
@@ -34,6 +35,8 @@ from rpe_env import use_font                                             # noqa:
 
 periods.install_month_axis_guard()
 DPI = 200
+# The house cold ramp as a colormap, for the one grid that needs a scale rather than a series.
+_COLD_CMAP = LinearSegmentedColormap.from_list("rpe_cold", ["#FFFFFF", "#9DB4C8", NAVY])
 HALO = dict(boxstyle="square,pad=0.12", facecolor="white", edgecolor="none")
 
 
@@ -163,10 +166,16 @@ def health_chart(out, states, w_in=8.7, h_in=4.1):
     y = list(range(len(states)))[::-1]
     ax.barh(y, counts, color=[HEALTH_COLORS.get(n, NAVY) for n in names], height=0.62, zorder=2)
     mx = max(counts) or 1
-    for yi, (n, cnt, pct, *_rest) in zip(y, states):
-        ax.text(cnt + mx * 0.012, yi, f"{cnt:,}  ·  {pct:.1f}%", va="center", ha="left",
+    for yi, row in zip(y, states):
+        cnt, pct = row[1], row[2]
+        # index 5 is the share of CARD HOLDERS, present for every state but "No card",
+        # which has no card-holder denominator and is labelled as a share of eligible.
+        of_carded = row[5] if len(row) > 5 else None
+        txt = (f"{cnt:,}  ·  {of_carded:.1f}%" if of_carded is not None
+               else f"{cnt:,}  ·  {pct:.1f}% of eligible")
+        ax.text(cnt + mx * 0.012, yi, txt, va="center", ha="left",
                 fontsize=13, color=NAVY, fontweight="bold")
-    ax.set_xlim(0, mx * 1.30)
+    ax.set_xlim(0, mx * 1.44)
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontsize=13, color=NAVY)
     ax.get_xaxis().set_visible(False)
@@ -207,9 +216,17 @@ def wave_revenue_chart(out, waves, w_in=12.3, h_in=4.1, young_months=6):
     ax.set_xlim(-0.7, len(x) - 0.3)
     _spines(ax, left=True)
     ax2 = ax.twinx()
-    ax2.plot(x, per, color=TEAL, lw=2.4, marker="o", ms=4, mfc="white", mec=TEAL, mew=1.6,
-             zorder=6)
-    ax2.set_ylim(0, max(per) * 1.18)
+    # The line carries MATURE mailings only (Aaron, 2026-09-21). Revenue per responder is
+    # highest in a mailing's first months, so a 2-month-old mailing peaks the line and reads
+    # as the best offer the client ever ran; the caption already limited itself to 6+ months
+    # while the line did not, which is the sort of disagreement between a chart and its own
+    # caption nobody catches on the call.
+    mature_x = [i for i in x if waves[i]["months"] >= young_months]
+    mature_per = [per[i] for i in mature_x]
+    if mature_per:
+        ax2.plot(mature_x, mature_per, color=TEAL, lw=2.4, marker="o", ms=4, mfc="white",
+                 mec=TEAL, mew=1.6, zorder=6)
+    ax2.set_ylim(0, (max(mature_per) if mature_per else max(per)) * 1.18)
     ax2.yaxis.set_major_formatter(lambda v, _p: _money(v))
     ax2.tick_params(colors=TICK, length=0, labelsize=11)
     ax2.set_ylabel("Per month booked (line)", fontsize=12, color=TICK)
@@ -220,7 +237,332 @@ def wave_revenue_chart(out, waves, w_in=12.3, h_in=4.1, young_months=6):
                                         edgecolor="white"),
                Line2D([], [], color=TEAL, lw=2.4, marker="o", mfc="white", mec=TEAL)]
     fig.legend(handles, ["Booked to date", f"Fewer than {young_months} months booked",
-                         "Booked per month since the mailing"],
+                         f"Booked per month ({young_months}+ months only)"],
                loc="upper center", ncol=3, frameon=False, fontsize=12,
                bbox_to_anchor=(0.5, 0.995), labelcolor=TICK)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- revenue build by mailing
+def wave_build_chart(out, waves, w_in=12.3, h_in=4.0, named=5):
+    """Cumulative booked revenue against MONTHS SINCE THE MAILING, one line per mailing.
+
+    James's slide 5 ("the Apr25 offer has returned $274K to date") reads each offer's
+    month-by-month build; our Revenue by Mailing showed only the endpoint, so two mailings
+    that ended in the same place looked identical however differently they got there.
+
+    Every mailing is drawn on one x-axis of AGE, not of calendar months, which is the only
+    way a 2019 mailing and a 2026 one are comparable. The `named` most recent are coloured
+    and labelled; the rest are the grey band they belong to.
+    """
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.07, right=0.80, top=0.93, bottom=0.14)
+    ramp = [ORANGE, NAVY, TEAL, STEEL, MUTED]
+    recent = waves[-named:] if named else []
+    recent_keys = {w["key"] for w in recent}
+    for w in waves:
+        if not w.get("build"):
+            continue
+        xs = [p[0] for p in w["build"]]
+        ys = [p[2] for p in w["build"]]
+        if w["key"] in recent_keys:
+            continue
+        ax.plot(xs, ys, color=STEEL_SOFT, lw=1.1, alpha=0.55, zorder=2)
+    handles = []
+    for i, w in enumerate(recent):
+        if not w.get("build"):
+            continue
+        c = ramp[i % len(ramp)]
+        xs = [p[0] for p in w["build"]]
+        ys = [p[2] for p in w["build"]]
+        ax.plot(xs, ys, color=c, lw=2.4, zorder=5)
+        ax.plot(xs[-1:], ys[-1:], marker="o", ms=5, mfc="white", mec=c, mew=1.8, zorder=6)
+        handles.append(Line2D([], [], color=c, lw=2.4,
+                              label=f"{w['m']}  ·  {_money(ys[-1])} over {w['months']} mo"))
+    if any(w.get("build") for w in waves if w["key"] not in recent_keys):
+        handles.append(Line2D([], [], color=STEEL_SOFT, lw=1.1, label="Earlier mailings"))
+    ax.set_xlabel("Months since the mailing", fontsize=12, color=TICK)
+    ax.set_ylabel("Booked, cumulative", fontsize=12, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: _money(v))
+    ax.tick_params(labelsize=11)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+    _spines(ax, left=True)
+    if handles:
+        ax.legend(handles=handles, loc="center left", bbox_to_anchor=(1.01, 0.5),
+                  frameon=False, fontsize=11.5, labelcolor=TICK, handlelength=1.6)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- this month, by mailing
+def month_split_chart(out, rows, w_in=12.3, h_in=3.6, young_months=6):
+    """Bars: what each mailing booked in the newest month, largest first.
+
+    James's slide 6 ("8 offers earned together: $100K booked in the month") answers a
+    question our deck never did — a client sees one revenue figure for the month and cannot
+    tell whether it came from the offer they just paid for or from one that ran in 2019.
+    """
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.90, bottom=0.26)
+    x = list(range(len(rows)))
+    vals = [v for _m, v, _n in rows]
+    colors = [ORANGE if n < young_months else NAVY for _m, _v, n in rows]
+    ax.bar(x, vals, width=0.66, color=colors, zorder=2)
+    mx = max(vals) if vals else 1
+    for i, v in zip(x, vals):
+        ax.text(i, v + mx * 0.02, _money(v), ha="center", va="bottom", fontsize=11.5,
+                color=NAVY, fontweight="bold")
+    ax.set_xticks(x)
+    # House month format, via periods.axis_months — the axis guard raises on "Mar 2026".
+    ax.set_xticklabels(periods.axis_months([m for m, _v, _n in rows]),
+                       rotation=periods.AXIS_ROTATION, ha=periods.AXIS_HA, fontsize=11,
+                       color=NAVY)
+    ax.set_ylim(0, mx * 1.18)
+    ax.yaxis.set_major_formatter(lambda v, _p: _money(v))
+    ax.tick_params(axis="y", labelsize=11)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_ylabel("Booked this month", fontsize=12, color=TICK)
+    _spines(ax, left=True)
+    if any(n < young_months for _m, _v, n in rows):
+        ax.legend(handles=[Patch(color=NAVY, label=f"{young_months}+ months booked"),
+                           Patch(color=ORANGE, label=f"Fewer than {young_months} months booked")],
+                  loc="upper right", frameon=False, fontsize=11.5, labelcolor=TICK)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- where a rate lags
+def cut_panel_chart(out, cuts, measure, book, w_in=12.3, h_in=3.9, min_band=25):
+    """Four small multiples — tenure, age, balance, product — each a rate per band against
+    the book's own rate (the dashed line). James shows "where opt-in lags" as pockets; the
+    panels keep every band visible, so a reader sees the shape, not only the worst three.
+
+    A band below `min_band` accounts is drawn in the light grey that means "too few to read",
+    and a band the ODD could not place ("Not on file") keeps its row rather than vanishing.
+    """
+    names = [n for n in ("Tenure", "Age", "Balance", "Product") if cuts.get(n)]
+    fig, axes = plt.subplots(1, len(names), figsize=(w_in, h_in))
+    use_font(CHART_FONT)
+    if len(names) == 1:
+        axes = [axes]
+    fig.subplots_adjust(left=0.085, right=0.99, top=0.90, bottom=0.14, wspace=0.62)
+    pool_key = "eligible" if measure == "take" else "rege_pool"
+    for ax, name in zip(axes, names):
+        rows = [b for b in cuts[name] if b[measure] is not None]
+        y = list(range(len(rows)))[::-1]
+        vals = [b[measure] for b in rows]
+        colors = [(ROWALT if b[pool_key] < min_band else
+                   (ORANGE if book is not None and b[measure] < book else NAVY)) for b in rows]
+        ax.barh(y, vals, color=colors, height=0.66, zorder=3)
+        top = max(vals + ([book] if book else [])) * 1.38 or 1
+        for yi, b in zip(y, rows):
+            ax.text(b[measure] + top * 0.02, yi, f"{b[measure]:.0f}%", va="center", ha="left",
+                    fontsize=10.5, color=NAVY, fontweight="bold")
+        if book is not None:
+            ax.axvline(book, color=TICK, lw=1.2, ls=(0, (3, 3)), zorder=4)
+        ax.set_yticks(y)
+        # Escape the dollar signs: matplotlib reads $...$ as mathtext, and "$1 to $499"
+        # rendered as italic algebra ("1to499") until this was caught in a render.
+        ax.set_yticklabels([_clip(b["band"], 22).replace("$", r"\$") for b in rows],
+                           fontsize=10.5, color=NAVY)
+        ax.set_xlim(0, top)
+        ax.get_xaxis().set_visible(False)
+        ax.set_title(name, fontsize=12.5, color=TICK, pad=6)
+        _spines(ax)
+        ax.spines["bottom"].set_visible(False)
+    fig.legend(handles=[Patch(color=NAVY, label="At or above the book"),
+                        Patch(color=ORANGE, label="Below the book"),
+                        Patch(color=ROWALT, label=f"Fewer than {min_band} accounts"),
+                        Line2D([], [], color=TICK, lw=1.2, ls=(0, (3, 3)),
+                               label=f"Book {book:.1f}%" if book is not None else "Book")],
+               loc="lower center", ncol=4, frameon=False, fontsize=11, labelcolor=TICK,
+               bbox_to_anchor=(0.5, -0.01))
+    return _save(fig, out)
+
+
+def _clip(s, n):
+    return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+
+
+# ----------------------------------------------------------------- tier migration
+def migration_chart(out, mig, w_in=8.0, h_in=4.0):
+    """The migration matrix as a heat grid: a year ago down the side, now across the top.
+
+    A grid rather than a flow diagram because the question a CSM asks is "how many of my
+    heavy users are still heavy users", which is one cell, not a ribbon.
+    """
+    tiers = mig["tiers"]
+    counts = [[c for c in row[1:]] for row in mig["matrix"]]
+    mx = max((max(r) for r in counts), default=0) or 1
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.13, right=0.99, top=0.97, bottom=0.14)
+    ax.imshow(counts, cmap=_COLD_CMAP, vmin=0, vmax=mx, aspect="auto")
+    for i, row in enumerate(counts):
+        for j, v in enumerate(row):
+            if not v:
+                continue
+            ax.text(j, i, f"{v:,}", ha="center", va="center", fontsize=10,
+                    color="white" if v > mx * 0.55 else NAVY,
+                    fontweight="bold" if i == j else "normal")
+    ax.set_xticks(range(len(tiers)))
+    ax.set_xticklabels(tiers, fontsize=10.5, color=NAVY)
+    ax.set_yticks(range(len(tiers)))
+    ax.set_yticklabels(tiers, fontsize=10.5, color=NAVY)
+    ax.set_xlabel("Now  ·  " + " to ".join(mig["now_window"]), fontsize=11.5, color=TICK)
+    ax.set_ylabel("A year ago  ·  " + " to ".join(mig["then_window"]), fontsize=11.5,
+                  color=TICK)
+    ax.tick_params(length=0)
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- PIN / signature mix
+def routing_chart(out, mix, w_in=8.0, h_in=4.0):
+    """PIN share of swipes by month (line) over the month's swipe count (bars)."""
+    series = mix["series"]
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.09, right=0.90, top=0.90, bottom=0.20)
+    x = list(range(len(series)))
+    swipes = [s["sig_n"] + s["pin_n"] for s in series]
+    ax.bar(x, swipes, width=0.66, color=ROWALT, zorder=2)
+    ax.set_ylabel("Swipes in the month", fontsize=11.5, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: f"{v/1000:,.0f}K" if v >= 1000 else f"{v:,.0f}")
+    ax.set_xticks(x)
+    ax.set_xticklabels(periods.axis_months([s["month"] for s in series]),
+                       rotation=periods.AXIS_ROTATION, ha=periods.AXIS_HA, fontsize=10.5,
+                       color=NAVY)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    _spines(ax, left=True)
+    ax2 = ax.twinx()
+    shares = [s["pin_share"] for s in series]
+    ax2.plot(x, shares, color=TEAL, lw=2.4, marker="o", ms=4, mfc="white", mec=TEAL, mew=1.6,
+             zorder=6)
+    lo = min(v for v in shares if v is not None)
+    hi = max(v for v in shares if v is not None)
+    pad = max(2.0, (hi - lo) * 0.4)
+    ax2.set_ylim(max(0, lo - pad), min(100, hi + pad))
+    ax2.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
+    ax2.set_ylabel("PIN share of swipes", fontsize=11.5, color=TICK)
+    ax2.tick_params(colors=TICK, length=0, labelsize=10.5)
+    for sp in ("top", "left"):
+        ax2.spines[sp].set_visible(False)
+    ax2.spines["right"].set_color(MUTED)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- overdraft limits
+def overdraft_chart(out, od, w_in=8.0, h_in=4.0):
+    """Two panels on one population: the share carrying a limit, and NSF/OD items per account
+    per month, each by Reg E election. Two measures on one axis would have hidden one of
+    them — a share runs 0-100, items per account runs 0-2."""
+    groups = [g for g in od["groups"] if g["accounts"]]
+    labels = [g["election"].replace("Reg E ", "") for g in groups]
+    fig, axes = plt.subplots(1, 2, figsize=(w_in, h_in))
+    use_font(CHART_FONT)
+    fig.subplots_adjust(left=0.11, right=0.98, top=0.86, bottom=0.12, wspace=0.42)
+    panels = [("Carrying an overdraft limit", [g["with_limit_pct"] for g in groups],
+               "{:.0f}%", NAVY),
+              ("NSF/OD items per account, a month",
+               [g["items_per_account"] for g in groups], "{:.2f}", ORANGE)]
+    for ax, (title, vals, fmt, color) in zip(axes, panels):
+        vals = [v if v is not None else 0 for v in vals]
+        y = list(range(len(vals)))[::-1]
+        ax.barh(y, vals, color=color, height=0.6, zorder=3)
+        top = (max(vals) or 1) * 1.32
+        for yi, v in zip(y, vals):
+            ax.text(v + top * 0.02, yi, fmt.format(v), va="center", ha="left", fontsize=12,
+                    color=NAVY, fontweight="bold")
+        ax.set_xlim(0, top)
+        ax.set_yticks(y)
+        ax.set_yticklabels(labels, fontsize=11.5, color=NAVY)
+        ax.get_xaxis().set_visible(False)
+        ax.set_title(title, fontsize=12, color=TICK, pad=8)
+        _spines(ax)
+        ax.spines["bottom"].set_visible(False)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- offer efficiency
+def efficiency_chart(out, rows, w_in=12.3, h_in=3.6):
+    """Booked revenue per 1,000 offers, per mailing, oldest first — the bar a mailing earns
+    for the same number of doors knocked on."""
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.07, right=0.98, top=0.93, bottom=0.26)
+    x = list(range(len(rows)))
+    vals = [r["per_1k"] for r in rows]
+    med = sorted(vals)[len(vals) // 2] if vals else 0
+    ax.bar(x, vals, width=0.66, color=[ORANGE if v >= med else NAVY for v in vals], zorder=2)
+    mx = max(vals) if vals else 1
+    ax.axhline(med, color=TICK, lw=1.2, ls=(0, (3, 3)), zorder=4)
+    ax.text(len(x) - 0.4, med, f"  median {_money(med)}", va="center", ha="left",
+            fontsize=11, color=TICK)
+    ax.set_xticks(x)
+    ax.set_xticklabels(periods.axis_months([r["month"] for r in rows]),
+                       rotation=periods.AXIS_ROTATION, ha=periods.AXIS_HA, fontsize=11,
+                       color=NAVY)
+    ax.set_ylim(0, mx * 1.16)
+    ax.yaxis.set_major_formatter(lambda v, _p: _money(v))
+    ax.tick_params(axis="y", labelsize=11)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_ylabel("Booked per 1,000 offers", fontsize=12, color=TICK)
+    _spines(ax, left=True)
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- responders by segment
+def by_tier_chart(out, rows, w_in=8.0, h_in=4.0):
+    """Per pre-mailing tier: what responders' monthly spend did, against what mailed
+    non-responders in the SAME tier did. The gap between the pair is the claim."""
+    rows = [r for r in rows if not r["thin"]]
+    x = list(range(len(rows)))
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.13, right=0.98, top=0.88, bottom=0.16)
+    w = 0.38
+    ax.bar([i - w / 2 for i in x], [r["resp_change"] for r in rows], width=w, color=ORANGE,
+           label="Responders", zorder=3)
+    ax.bar([i + w / 2 for i in x], [r["control_change"] for r in rows], width=w, color=STEEL,
+           label="Mailed non-responders", zorder=3)
+    ax.axhline(0, color=TICK, lw=1.0, zorder=4)
+    vals = [v for r in rows for v in (r["resp_change"], r["control_change"])]
+    span = (max(vals) - min(vals)) or 1
+    for i, r in enumerate(rows):
+        for off, v in ((-w / 2, r["resp_change"]), (w / 2, r["control_change"])):
+            ax.text(i + off, v + (span * 0.03 if v >= 0 else -span * 0.03),
+                    ("+" if v >= 0 else "−") + f"${abs(v):,}",
+                    ha="center", va="bottom" if v >= 0 else "top", fontsize=10, color=NAVY)
+    ax.set_xticks(x)
+    ax.set_xticklabels([r["tier"] for r in rows], fontsize=11, color=NAVY)
+    ax.set_ylabel("Change in monthly spend", fontsize=12, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: ("−" if v < 0 else "") + _money(abs(v)))
+    ax.set_ylim(min(vals) - span * 0.18, max(vals) + span * 0.18)
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    ax.set_xlabel("Swipe tier before the mailing", fontsize=12, color=TICK)
+    _spines(ax, left=True)
+    ax.legend(loc="upper left", frameon=False, fontsize=11.5, labelcolor=TICK, ncol=2,
+              bbox_to_anchor=(0.0, 1.10))
+    return _save(fig, out)
+
+
+# ----------------------------------------------------------------- balance concentration
+def balance_chart(out, bc, w_in=8.0, h_in=4.0):
+    """Share of balances against share of swipes, by balance decile — the gap between the two
+    bars in the top deciles is the money that is not being used."""
+    d = bc["deciles"]
+    x = list(range(len(d)))
+    fig, ax = _fig(w_in, h_in)
+    fig.subplots_adjust(left=0.11, right=0.98, top=0.88, bottom=0.17)
+    w = 0.38
+    ax.bar([i - w / 2 for i in x], [r["balance_share"] for r in d], width=w, color=NAVY,
+           label="Share of balances", zorder=3)
+    ax.bar([i + w / 2 for i in x], [r["swipe_share"] or 0 for r in d], width=w, color=ORANGE,
+           label="Share of swipes", zorder=3)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{r['decile']}" for r in d], fontsize=11, color=NAVY)
+    ax.set_xlabel("Balance decile  ·  1 = the largest balances", fontsize=12, color=TICK)
+    ax.set_ylabel("Share of the book", fontsize=12, color=TICK)
+    ax.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
+    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
+    _spines(ax, left=True)
+    ax.legend(loc="upper right", frameon=False, fontsize=11.5, labelcolor=TICK)
     return _save(fig, out)

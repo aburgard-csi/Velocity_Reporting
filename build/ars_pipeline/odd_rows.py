@@ -226,6 +226,33 @@ def accessors(H):
         c = _mc(m)
         return _num_at(r, c[_MC_SIGD]) + _num_at(r, c[_MC_PIND])
 
+    _odl = {}
+
+    def od_limit(r, m):
+        """The account's overdraft LIMIT in month m, as a number (0 when blank).
+
+        A separate cache from _mc: the five swipe/spend columns are read on every account
+        for every month, this one only by the overdraft view, and adding it to that tuple
+        would resolve a sixth column for every client whether or not anything reads it.
+        """
+        i = _odl.get(m)
+        if i is None:
+            i = _odl[m] = _hget(f"{m} OD Limit")
+        return _num_at(r, i)
+
+    def routing(r, m):
+        """(signature count, signature $, PIN count, PIN $) for month m.
+
+        The vocabulary carried only the SUM of the two rails, because every deck measure so
+        far wanted total swipes and total spend. Interchange does not work that way — a
+        signature transaction and a PIN transaction earn the client different amounts — so
+        the routing view needs them apart (2026-09-21). Same cached column indices; no
+        second pass over the row.
+        """
+        c = _mc(m)
+        return (_num_at(r, c[_MC_SIGN]), _num_at(r, c[_MC_SIGD]),
+                _num_at(r, c[_MC_PINN]), _num_at(r, c[_MC_PIND]))
+
     def nsf(r, m):
         """NSF/OD ITEM COUNT for month m (the MTD column).
 
@@ -291,6 +318,7 @@ def accessors(H):
         return j is not None and j < len(r) and r[j].strip().upper() in _open_codes
 
     return SimpleNamespace(
-        g=g, fnum=fnum, swipes=swipes, spend=spend, nsf=nsf,
+        g=g, fnum=fnum, swipes=swipes, spend=spend, nsf=nsf, routing=routing,
+        od_limit=od_limit,
         personal=personal, business=business, hascard=hascard, isopen=isopen,
     )
