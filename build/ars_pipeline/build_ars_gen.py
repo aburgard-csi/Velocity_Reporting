@@ -1951,7 +1951,7 @@ if os.environ.get("RPE_JAMES_SLIDES") == "1":
                        for p in glob.glob(os.path.join(str(d), f"{ID}-{_per}-*Workbook*.xlsx"))
                        if "invitation checking" not in os.path.basename(str(p)).lower())
         _wb_path = _hits[0] if _hits else ""
-    _CI = _ci_mod.compute(ODD, _wb_path or None, M=M, B=B)
+    _CI = _ci_mod.compute(ODD, _wb_path or None, M=M, B=B, client_id=ID)
     _ci_json = os.path.join(os.path.dirname(os.path.abspath(METRICS)), "combined_insights.json")
     with open(_ci_json, "w", encoding="utf-8") as _fh:
         json.dump(_CI, _fh, indent=1)

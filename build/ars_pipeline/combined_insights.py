@@ -73,7 +73,10 @@ MIN_BRANCH_ELIGIBLE = 40  # the deck's own Reg E branch floor (metrics_gen rege_
 # (2026-09-21). Until then odd.nsf() and odd.od_limit() read columns read_odd had not kept,
 # and returned 0.0 for every account — a whole slide of zeros that looked like a client with
 # no overdrafts rather than a reader with no columns.
-_MON_COL = re.compile(r"^([A-Z][a-z]{2}\d{2}) (Sig #|PIN #|Sig \$|PIN \$|Mail|Resp|MTD|OD Limit)$")
+# Each month's Reg E Desc joined it for the Reg E trend view (james_views.rege_trend,
+# 2026-09-25): the election is a status the extract carries month by month, and only the
+# snapshot month's column was being kept.
+_MON_COL = re.compile(r"^([A-Z][a-z]{2}\d{2}) (Sig #|PIN #|Sig \$|PIN \$|Mail|Resp|MTD|OD Limit|Reg E Desc)$")
 
 
 def mkey(token):
@@ -1174,7 +1177,7 @@ def scorecard(M, B, rc, hk, bk):
 
 
 # ============================================================== entry point
-def compute(odd_path, workbook_path=None, M=None, B=None):
+def compute(odd_path, workbook_path=None, M=None, B=None, client_id=None):
     """Everything the slides need, as one JSON-ready dict."""
     d = read_odd(odd_path)
     odd = accessors(d["H"])
@@ -1200,6 +1203,10 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
     if M is not None and B is not None:
         out["scorecard"] = scorecard(M, B, out["responder_control"], out["account_health"],
                                      out["branch_kpis"])
+    # The second round of James's views (2026-09-25), from the same rows.
+    import james_views as JV
+    out["more"] = JV.compute(d, odd, odd_path=odd_path, workbook_path=workbook_path, M=M, B=B,
+                             ci=out, client_id=client_id)
     return out
 
 

@@ -1267,4 +1267,8 @@ def add_insight_slides(prs, ci, ctx):
         made.append(scorecard_slide(prs, ci, ctx))
     # after the scorecard, because it sizes what the scorecard just measured
     made.append(sizing_slide(prs, ci, ctx))
+    # The second round of James's views (2026-09-25, james_view_slides) — placed last because
+    # several of them anchor on slides the first round just added.
+    import james_view_slides as JVS
+    made.extend(JVS.add_more_slides(prs, ci, ctx))
     return made

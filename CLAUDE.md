@@ -975,6 +975,17 @@ This is the readme index — update it whenever files are added, removed, or mov
   Be Worth. **These are REVIEW slides**: each one's speaker notes carry its source, its method
   and its open issues in full (`_notes` in `combined_insight_slides`), which is why they are not
   worded for a client.
+- `james_views.py`, `james_view_charts.py`, `james_view_slides.py` — the SECOND round of James
+  views (Aaron, 2026-09-25: "add in as many as possible and then we'll edit down from the
+  maximized copy"), same opt-in, reached through `combined_insights.compute` (`ci["more"]`) and
+  `combined_insight_slides.add_insight_slides`: Revenue per Fee Dollar by Mailing, Offer Segments
+  per 1,000 Mailed, Response by Offer Number, Responders vs Non-Responders by Mailing, What a
+  Response Is Worth, Tier Movement by Response, First Swipes: Program and Organic, Where Card
+  Spend Goes, How the Money Moves (the ODD zip's monthly transaction file), Where Cards Lag, What
+  a Card and an Opt-In Earn, Value by Account Age, Accounts Under Stress, Branch Value per
+  Account, Reg E Elections Over Time, Program Cascade, Where Accounts Close, Card Spend Before a
+  Close. Money is priced only at the WORKBOOK's own Interchange Rate and NSF Fee
+  (`lift_values.workbook_assumptions`); activity windows go through `month_complete`.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

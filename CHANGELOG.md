@@ -17,6 +17,59 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Eighteen more of James's views, and the gap branch merged (opt-in, branch `feature/james-max-views`)
+
+Aaron: "work on incorporating more of James's slides. We'll need to add in as many as possible
+and then we'll edit down from the maximized copy."
+
+`feature/james-deck-gaps` (through 8320b88) is merged onto main. The swipe-tier floor was
+already on main (276d115), so main's `metrics_gen` is kept. **The Revenue Guarantee slide is now
+opt-in with the James views too**: the branch built it on every ARS deck under 3 : 1, which would
+have changed the default monthly build before Aaron signed it off. Remove the `RPE_JAMES_SLIDES`
+test in `build_ars_gen` to put it back on every deck.
+
+Eighteen new REVIEW slides under `RPE_JAMES_SLIDES=1`, taken from the gap list in the "James vs
+Aaron Decks" comparison and James's slide catalogue (`ars/deck/headlines.py`). They are in
+`james_views.py` (figures), `james_view_charts.py` and `james_view_slides.py`:
+
+| Slide | James's view | Source |
+| --- | --- | --- |
+| Revenue per Fee Dollar by Mailing | pnl | Workbook rollup: income, respondent fees and responders per mailing |
+| Offer Segments per 1,000 Mailed | segments / segment_traj | ODD Mail/Resp codes; interchange at the workbook rate |
+| Response by Offer Number | ladder_waves | ODD: first-time vs repeat met goals, rate by offer number, rung climbed |
+| Responders vs Non-Responders by Mailing | per_mailer | ODD, before_after windows per mailing |
+| What a Response Is Worth | responder_value / revenue_frames | Pooled difference x workbook Interchange Rate, beside booked revenue |
+| Tier Movement by Response | tier_movement | ODD, a year apart, by response group |
+| First Swipes: Program and Organic | activation_split | ODD first swipes, new vs mailed-first vs on their own |
+| Where Card Spend Goes | card merchants | The ODD zip's monthly transaction file, SIG/PIN by MCC group |
+| How the Money Moves | book and flow | Same file, every rail (1539's carries ACH and check) |
+| Where Cards Lag | leaks / no_card | ODD by branch; value at the workbook rates |
+| What a Card and an Opt-In Earn | value | ODD x workbook Interchange Rate and NSF Fee, 100% collection |
+| Value by Account Age | value_ladder | Same, by tenure |
+| Accounts Under Stress | concurrent_stressors | ODD: fading card spend, NSF/OD, balance drawdown |
+| Branch Value per Account | branch_value / divergence | Same rates, by branch |
+| Reg E Elections Over Time | Reg E 24-month trend, opt-in flips | Every month's Reg E Desc (now projected by `read_odd`) |
+| Program Cascade | cascade | ODD counts, workbook booked revenue beside them |
+| Where Accounts Close | attrition_branch | ODD, 12-month closure by product and branch (150+ floor) |
+| Card Spend Before a Close | months_of_warning | ODD, closers vs open card holders in the same months |
+
+Money is priced only at the workbook's own Interchange Rate and NSF Fee
+(`lift_values.workbook_assumptions`); a client without them gets the slide saying so. Activity
+windows read `month_complete` (1539's Aug 2026 NSF/OD month is left out and stated). A closer is a
+card user by spend, not by the snapshot's Debit? flag: only 44 of 1539's year of closers still
+carried the flag against 2,019 that swiped in the year before closing.
+
+**Not built, and why:** the guarantee deferral tracker, outside-product / competitor / flight-risk
+views and their lists (James's dictionaries and competitor config are not on the share), the
+deposits chapter (`Inputs\Deposits` empty), interchange scenarios by rail (no per-rail rate), ICS
+behaviour vs non-ICS (no ICS account list matched to the ODD), the penalty box (the suppression rule
+is in no file this pipeline reads), PFI tiers (no definition to follow), account-level lists
+(privacy; not deck content). Cumulative reach and repeat-responder depth were not rebuilt: the
+appendix's Program Reach and Depth of Engagement slides already carry them.
+
+Sample: `Build Artifacts\james_max_2026.09\1539\`, 84 slides, 0 FAIL / 43 REVIEW. Default builds
+are unchanged: the golden deck still has 49 slides.
+
 ### 2026-09-25 — The Lift Matrix distribution counts NH
 
 Aaron: "recalculate the distribution including NH accounts."
