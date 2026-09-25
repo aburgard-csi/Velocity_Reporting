@@ -172,3 +172,17 @@ def test_the_workbook_lift_grid_is_read_as_written(tmp_path):
     wb.save(path)
     grid = LV.read_workbook(path)["matrix"]["grid"]
     assert grid["NU"] == {"1-5": 5.22, "26 Plus": 26.42} and grid["1-5"] == {"6-10": 7.3}
+
+
+def test_build_lift_matrix_is_a_wrapper_over_lift_values(odd_csv, tmp_path):
+    # Aaron, 2026-09-25: "retire build_lift_matrix.py and have it use lift_values". A hand run and
+    # Sheila must give the same file.
+    import build_lift_matrix
+    assert not hasattr(build_lift_matrix, "compute"), "the old valuation is retired"
+    assert build_lift_matrix.main([odd_csv, "9999", "Union Financial", "2026.09", str(tmp_path),
+                                   "--nsf-fee", "30"]) == 0
+    got = openpyxl.load_workbook(tmp_path / "9999-2026.09-ARS-Union Financial ARS Lift Matrix.xlsx").active
+    want = LV.values(LV.scan(odd_csv), LV.DEFAULT_IC_RATE, 30.0, LV.DEFAULT_COLLECTION)
+    assert [got[f"C{r}"].value for r in range(6, 13)] == [x["dda"] for x in want["segments"]]
+    with pytest.raises(SystemExit, match="--nsf-fee"):
+        build_lift_matrix.main([odd_csv, "9999", "Union Financial", "2026.09", str(tmp_path)])

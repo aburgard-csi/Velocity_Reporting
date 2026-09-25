@@ -32,8 +32,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Every module that reads or republishes the MTD column.
 MTD_READERS = [
     "build/ars_pipeline/odd_rows.py",
-    "build/ars_pipeline/lift_extract.py",
-    "build/ars_pipeline/build_lift_matrix.py",
+    "build/ars_pipeline/lift_values.py",
     "build/ars_pipeline/charts_gen.py",
     "scripts/oddd_optimize.py",
 ]
@@ -163,27 +162,20 @@ def test_the_guard_would_catch_the_original_defect():
 
 
 # --- the Lift Matrix contract: items in, fee applied once -----------------
-def test_lift_extract_publishes_items_not_a_fee():
-    import lift_extract
-    src = open(lift_extract.__file__, encoding="utf-8").read()
-    assert 'rec["items12"]' in src, "lift_extract must publish items12"
-    assert 'rec["fee12"]' not in src, "fee12 was renamed — it was never fee income"
+# build_lift_matrix and lift_extract carried their own valuation until 2026-09-25; build_lift_matrix
+# now wraps lift_values (the one definition) and lift_extract is gone, so the contract is pinned there.
+def test_lift_values_reads_mtd_as_items():
+    import lift_values
+    src = open(lift_values.__file__, encoding="utf-8").read()
+    assert "odd.nsf(r, m)" in src, "lift_values must read NSF/OD through odd_rows.nsf (items)"
 
 
 def test_lift_matrix_multiplies_items_by_the_fee_exactly_once():
     """If MTD were already dollars, this would price the fee twice."""
-    import build_lift_matrix as blm
-    recs = [{"Debit?": "Yes", "elig": "Yes", "spend12": 0.0,
-             "swipes12": 0.0, "items12": 2.0}]
-    seg, diag = blm.compute(recs, rate=0.006, nsf_fee=30.0, collection=1.0)
-    assert diag["wavg_items"] == 2.0
-    assert seg["NU"]["nsf"] == pytest.approx(60.0)      # 2 items x $30, once
-    assert seg["NU"]["dda"] == pytest.approx(60.0)
+    import lift_values
+    seg = {s: {"n": 1, "dist": 1 / 7, "spend": 0.0, "items": 2.0} for s in lift_values.SEGMENTS}
+    v = lift_values.values({"segments": seg}, ic_rate=0.006, nsf_fee=30.0, collection=1.0)
+    nu = next(r for r in v["segments"] if r["segment"] == "NU")
+    assert nu["nsf"] == pytest.approx(60.0)      # 2 items x $30, once
+    assert nu["dda"] == pytest.approx(60.0)
 
-
-def test_lift_matrix_rejects_a_pickle_from_before_the_rename():
-    import build_lift_matrix as blm
-    stale = [{"Debit?": "Yes", "elig": "Yes", "spend12": 0.0,
-              "swipes12": 0.0, "fee12": 2.0}]
-    with pytest.raises(SystemExit, match="items12"):
-        blm.compute(stale, rate=0.006, nsf_fee=30.0)

@@ -17,6 +17,26 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — build_lift_matrix is a wrapper over lift_values; lift_extract retired
+
+Aaron: "retire build_lift_matrix.py and have it use lift_values."
+
+`build_lift_matrix.py` carried its own valuation: a `.pkl` from `lift_extract.py`, every
+card-holding eligible account with business included, 12 months with no completeness check, an
+optional book-wide trim and 100% collection by default. Next to Sheila's `lift_values` that was two
+valuations of one matrix. It is now a command-line wrapper over `lift_values`:
+
+    python build/ars_pipeline/build_lift_matrix.py <ODDD.zip> <id> "<client>" <yyyy.mm> <out dir|.xlsx>
+        [--workbook <ARS workbook>] [--ic-rate] [--nsf-fee] [--collection]
+
+The rates default as in Sheila, and with no NSF/OD fee from any source it stops and asks for
+`--nsf-fee`. On 1705 it writes the same values Sheila shows, to the cent. A hand run has no approval
+step, so check the values it prints against the current matrix before sending.
+
+`lift_extract.py` is deleted. Its ODD reader (`open_source`, `find_header`) moved into
+`lift_values`, the only thing still using it. `tests/test_nsf_is_items.py` now pins the
+"MTD is items, priced once" contract on `lift_values`.
+
 ### 2026-09-25 — Lift Matrix: current and new side by side, approve, then download
 
 Aaron: "When the lift matrix is calculated, I want it shown side by side with the previous matrix,

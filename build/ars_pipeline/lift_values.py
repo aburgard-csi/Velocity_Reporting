@@ -119,6 +119,43 @@ def _pctile(sorted_vals, q):
     return sorted_vals[min(len(sorted_vals) - 1, max(0, int(math.ceil(q * len(sorted_vals))) - 1))]
 
 
+def open_source(src):
+    """(factory, member name): `factory()` yields a fresh text stream over the ODD csv, from a .zip or a .csv.
+
+    Some ODDD zips also carry the raw monthly transaction file, itself sometimes a .csv, so the ODD
+    extract is picked by name ('-ODD' / '_V2_') before falling back to the largest .csv. NUL bytes are
+    dropped: a few cores pad fields with them and csv refuses the line."""
+    import io
+    import zipfile
+    if src.lower().endswith(".zip"):
+        zf = zipfile.ZipFile(src)
+        members = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+        if not members:
+            raise SystemExit(f"ERROR: no .csv inside {src}")
+        odd = [n for n in members if "-odd" in n.lower() or "_v2_" in n.lower()]
+        member = odd[0] if odd else max(members, key=lambda n: zf.getinfo(n).file_size)
+
+        def factory():
+            raw = io.TextIOWrapper(zf.open(member), encoding="utf-8", errors="replace", newline="")
+            return (line.replace("\0", "") for line in raw)
+        return factory, os.path.basename(member)
+
+    def factory():
+        raw = open(src, encoding="utf-8", errors="replace", newline="")
+        return (line.replace("\0", "") for line in raw)
+    return factory, os.path.basename(src)
+
+
+def find_header(factory):
+    """(row index, header) — the ODD carries preamble rows; the real header is the 'Acct ID' row."""
+    for i, row in enumerate(csv.reader(factory())):
+        if any(str(c).strip() == "Acct ID" for c in row):
+            return i, [str(c).strip() for c in row]
+        if i > 25:
+            break
+    raise SystemExit("ERROR: could not locate the 'Acct ID' header row")
+
+
 def _rows(factory, hdr_idx, ncol):
     rd = csv.reader(factory())
     for _ in range(hdr_idx + 1):
@@ -131,7 +168,6 @@ def _rows(factory, hdr_idx, ncol):
 def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
     """Segment-level figures from one ODD extract (.zip or .csv). JSON-safe; no member data."""
     import month_complete as MC
-    from lift_extract import find_header, open_source
     from odd_rows import accessors
 
     factory, member = open_source(odd_path)

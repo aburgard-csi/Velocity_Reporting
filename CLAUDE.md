@@ -964,8 +964,9 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `responder_activity.py` — reads the raw ODD for the one-pager: eligible count, reach,
   depth, transactions over the ask. The before/after figures come from the shared
   `before_after.compute`, not from this file.
-- `lift_extract.py` → `build_lift_matrix.py` — per-account ODD extract (`.pkl`) and the
-  standalone ARS Lift Matrix workbook built from it (the file sent to Bradford).
+- `build_lift_matrix.py` — the Lift Matrix file for Bradford from the command line, without Sheila: a
+  thin wrapper over `lift_values` (Aaron, 2026-09-25), same accounts, rates and file. `lift_extract.py`,
+  its old `.pkl` step, is retired.
 
 **`build/` (shared)**
 - `restyle_fonts.py` — font-role post-processor, run last on every deck (all programs).

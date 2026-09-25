@@ -93,7 +93,7 @@ def num(s):
 
 
 def _open_source(src):
-    """Yield a fresh text stream over the ODD csv (mirrors lift_extract)."""
+    """Yield a fresh text stream over the ODD csv (mirrors lift_values.open_source)."""
     if src.lower().endswith(".zip"):
         zf = zipfile.ZipFile(src)
         members = [n for n in zf.namelist() if n.lower().endswith(".csv")]
