@@ -17,6 +17,46 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Lift Matrix: business accounts, an independent NH, 100% collection, the outlier cap as a variable, Recalculate, Export
+
+Six changes from Aaron the same afternoon, all in `lift_values` and Sheila's Lift Matrix tab.
+
+- **Business accounts are valued; eligibility is the only account filter** ("change the calculate
+  to include business accounts, but base the calculation only on ARS eligible accounts"). It was
+  consumer only. The debit card is still required for the seven swipe segments, on purpose: counting
+  eligible accounts with no card (1,809 on 1705, 3,370 on 1539) put them all in NU, which then read
+  27% / 30% against the workbooks' 15% / 23%. Adding the eligible business card holders (135 and 921)
+  keeps every segment within about a point of the workbook's distribution. Sheila shows the
+  consumer / business split.
+- **NH has its own value** ("with the ODD we should be able to calculate an independent NH value").
+  NH is the eligible accounts with no debit card, valued on their own spend and NSF/OD items under the
+  same cap, at 0% distribution as in Bradford's file. It carried NU's value before; workbooks already
+  differ (1204: NH $0.84, NU $1.55). A client with no card-less eligible account falls back to NU's
+  value and the page says so.
+- **Collection defaults to 100%** ("default the collection rate to 100%"). It was 80%.
+- **The outlier cap is a variable** ("Add the 99% percentile option as a variable at the top"):
+  `WINSOR_PCT` (0.99) at the top of `lift_values`, and an Outlier cap field beside the three rates:
+  95th, 97.5th, 98th, 99th, 99.5th percentile or no cap. The scan values every segment at each option,
+  so choosing one never re-reads the ODD and no account-level figure is stored. `build_lift_matrix`
+  takes `--winsor`.
+- **Recalculate** ("we need an option to recalculate when the variables are changed too"). The page
+  recalculated on every keystroke. Now a change greys the figures out, says they are for the previous
+  values and holds Export until Recalculate (or Enter), so a matrix is never exported at values other
+  than the ones shown.
+- **Export this matrix replaces Approve** ("Instead of Approve this matrix, use Export this matrix").
+  One click records the export in `Build Artifacts/lift_values/<id>-<period>-exported.json` and
+  downloads the Excel file; the page then shows when it was exported, with Download again. The server
+  still serves the file only for exactly what was recorded. An `-approved.json` written by the
+  previous release (1526 has one) is not read as an export; export it again.
+
+Measured at the new defaults (workbook rates, 100% collection, 99th percentile), new vs the current
+workbook matrix. 1705: NH $0.52 ($1.92), NU $1.29 ($1.92), 1-5 $6.66 ($7.14), 6-10 $14.76 ($14.44),
+11-15 $13.35 ($15.41), 16-20 $19.43 ($16.83), 21-25 $21.95 ($24.02), 26 Plus $28.89 ($28.34). 1539:
+NH $2.38 ($0.92), NU $0.73 ($0.92), 1-5 $5.03 ($4.95), 6-10 $12.28 ($11.86), 11-15 $18.37 ($17.21),
+16-20 $23.38 ($21.59), 21-25 $26.44 ($24.63), 26 Plus $31.21 ($28.66). 1539's NH sits above its NU:
+its eligible card-less accounts carry more NSF/OD items than its card holders who do not swipe.
+`SCAN_VERSION` is 4, so every stored ODD scan is read again.
+
 ### 2026-09-25 — build_lift_matrix is a wrapper over lift_values; lift_extract retired
 
 Aaron: "retire build_lift_matrix.py and have it use lift_values."

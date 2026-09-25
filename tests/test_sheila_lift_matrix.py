@@ -38,8 +38,8 @@ def test_the_odd_is_read_once_and_kept_against_that_landing(lift, tmp_path):
     assert W.lift_cached_scan("9999") is not None
     doc = W.lift_client_doc("9999")
     assert doc["scan_state"] == "ready"
-    # No workbook: 60 BP and 80% by default, and no NSF/OD fee is guessed.
-    assert doc["rates"] == {"ic_rate": 0.006, "nsf_fee": None, "collection": 0.8}
+    # No workbook: 60 BP and 100% by default, and no NSF/OD fee is guessed.
+    assert doc["rates"] == {"ic_rate": 0.006, "nsf_fee": None, "collection": 1.0, "winsor": 0.99}
     assert "calculated" not in doc
     # A different ODD landing is a different scan.
     data = json.loads((tmp_path / "9999.json").read_text(encoding="utf-8"))
@@ -50,8 +50,11 @@ def test_the_odd_is_read_once_and_kept_against_that_landing(lift, tmp_path):
 
 def test_edited_rates_are_applied_and_bad_ones_refused(lift):
     W._run_scan("9999")
-    doc = W.lift_client_doc("9999", {"ic_rate": "0.0085", "nsf_fee": "35", "collection": "0.9"})
-    assert doc["rates"] == {"ic_rate": 0.0085, "nsf_fee": 35.0, "collection": 0.9}
+    doc = W.lift_client_doc("9999", {"ic_rate": "0.0085", "nsf_fee": "35", "collection": "0.9", "winsor": "0.95"})
+    assert doc["rates"] == {"ic_rate": 0.0085, "nsf_fee": 35.0, "collection": 0.9, "winsor": 0.95}
+    assert doc["segments"]["6-10"]["cap_spend"] <= W.lift_client_doc("9999", {"nsf_fee": "35"})["segments"]["6-10"]["cap_spend"]
+    with pytest.raises(ValueError):
+        W.lift_client_doc("9999", {"nsf_fee": "35", "winsor": "0.9"})           # not an offered cap
     s = doc["segments"]["6-10"]
     got = next(r for r in doc["calculated"]["segments"] if r["segment"] == "6-10")
     assert got["dda"] == round(0.0085 * s["spend"] + 35 * s["items"] * 0.9, 2)
@@ -59,22 +62,23 @@ def test_edited_rates_are_applied_and_bad_ones_refused(lift):
         W.lift_client_doc("9999", {"nsf_fee": "35", "collection": "80"})   # 80 is not a share
 
 
-def test_the_file_downloads_only_once_approved_at_those_rates(lift, tmp_path):
-    # Aaron, 2026-09-25: "when the matrix is approved it'll allow you to download the file".
+def test_the_file_downloads_only_once_exported_at_those_rates(lift, tmp_path):
+    # Aaron, 2026-09-25: an approval step, then "Instead of Approve this matrix, use Export this matrix".
     import io
     W._run_scan("9999")
-    assert W.lift_approve("9999", {})[0] == 400                      # no fee yet: nothing to approve
-    assert W.lift_download("9999", {"nsf_fee": "30"})[0] == 409      # not approved
-    code, body = W.lift_approve("9999", {"nsf_fee": "30"})
+    assert W.lift_export("9999", {})[0] == 400                       # no fee yet: nothing to export
+    assert W.lift_download("9999", {"nsf_fee": "30"})[0] == 409      # not exported
+    code, body = W.lift_export("9999", {"nsf_fee": "30"})
     assert code == 200 and body["file_name"] == "9999-2026.09-ARS-Union Financial ARS Lift Matrix.xlsx"
-    assert W.lift_client_doc("9999", {"nsf_fee": "30"})["approved"]["rates"]["nsf_fee"] == 30.0
+    assert W.lift_client_doc("9999", {"nsf_fee": "30"})["exported"]["rates"]["nsf_fee"] == 30.0
     code, data, name = W.lift_download("9999", {"nsf_fee": "30"})
     assert code == 200 and name == body["file_name"]
     ws = openpyxl.load_workbook(io.BytesIO(data)).active
     assert ws["A5"].value == "NH" and ws["A18"].value == "Baseline Segment"
-    # A rate changed after approval needs approving again.
+    # A rate or the outlier cap changed after the export needs exporting again.
     assert W.lift_download("9999", {"nsf_fee": "31"})[0] == 409
-    rec = json.loads((tmp_path / "9999-2026.09-approved.json").read_text(encoding="utf-8"))
+    assert W.lift_download("9999", {"nsf_fee": "30", "winsor": "0.95"})[0] == 409
+    rec = json.loads((tmp_path / "9999-2026.09-exported.json").read_text(encoding="utf-8"))
     assert rec["rates"]["nsf_fee"] == 30.0 and rec["odd"]["odd"]
     assert not list(lift.iterdir())                                  # nothing written to Outputs
 
@@ -86,7 +90,7 @@ def test_the_lift_endpoints_check_the_client_number(monkeypatch):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         for method, path, body in (("GET", "/api/lift/client?client=12;x", None),
-                                   ("POST", "/api/lift/approve", {"client": "../x"}),
+                                   ("POST", "/api/lift/export", {"client": "../x"}),
                                    ("POST", "/api/lift/download", {"client": "1;x"}),
                                    ("POST", "/api/lift/rescan", {"client": ""})):
             c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=10)
@@ -104,6 +108,6 @@ def test_an_sm_client_is_shown_but_never_scanned_or_saved(lift, monkeypatch):
     queued = []
     monkeypatch.setattr(W, "lift_queue_scan", lambda cid, force=False: queued.append(cid))
     assert W.lift_client_doc("1075")["scan_state"] == "sm"
-    assert W.lift_approve("1075", {"nsf_fee": "30"})[0] == 400
+    assert W.lift_export("1075", {"nsf_fee": "30"})[0] == 400
     assert W.lift_download("1075", {"nsf_fee": "30"})[0] == 400
     assert queued == [] and not list(lift.iterdir())

@@ -1,6 +1,6 @@
 """lift_values — a client's ARS Lift Matrix valued from its own ODD (Aaron, 2026-09-25).
 
-Pins the method: consumer card-holding eligible accounts only, swipe averages rounded DOWN into
+Pins the method: ARS-eligible card-holding accounts, consumer and business, swipe averages rounded DOWN into
 their band, per-segment winsorizing, the NSF/OD fee taken as the MOST COMMON per-item fee when the
 ODD carries `Fees1`, the rate defaults (workbook, else 60 BP / no fee), and the file Bradford loads.
 """
@@ -29,19 +29,46 @@ def scan(odd_csv):
     return LV.scan(odd_csv)
 
 
-def test_only_consumer_card_holding_eligible_accounts_are_valued(odd_rows_raw, scan):
+def test_every_eligible_card_holding_account_is_valued_business_included(odd_rows_raw, scan):
+    # Aaron, 2026-09-25: "include business accounts, but base the calculation only on ARS eligible accounts".
     hdr, rows = odd_rows_raw
     H = {h: i for i, h in enumerate(hdr)}
     odd = accessors(H)
     latest = [h.split()[0] for h in hdr if h.endswith(" Sig #")][-1]
-    want = sum(1 for r in rows if len(r) >= len(hdr) and odd.personal(r) and odd.hascard(r)
-               and r[H[f"{latest} Elig"]].strip() == "Yes")
+    valued = [r for r in rows if len(r) >= len(hdr) and odd.hascard(r)
+              and r[H[f"{latest} Elig"]].strip() == "Yes"]
+    want = len(valued)
     assert scan["population"] == want
-    assert sum(s["n"] for s in scan["segments"].values()) == want
+    assert sum(scan["segments"][s]["n"] for s in LV.SEGMENTS) == want
     assert math.isclose(sum(s["dist"] for s in scan["segments"].values()), 1.0)
-    # blank Business? is not consumer (odd_rows.personal), so business AND blanks are left out
-    assert scan["counts"]["not consumer"] == sum(
-        1 for r in rows if len(r) >= len(hdr) and r[H["Business?"]].strip().lower() != "no")
+    # business accounts are in, and counted as such
+    assert scan["counts"]["business"] == sum(1 for r in valued if odd.business(r)) > 0
+    assert scan["counts"]["consumer"] == sum(1 for r in valued if odd.personal(r)) > 0
+    assert (scan["counts"]["consumer"] + scan["counts"]["business"]
+            + scan["counts"].get("business? blank", 0)) == want
+    # an ineligible account is never valued, card or not
+    assert scan["counts"]["not eligible"] == sum(
+        1 for r in rows if len(r) >= len(hdr) and r[H[f"{latest} Elig"]].strip() != "Yes")
+
+
+def test_nh_is_valued_on_the_eligible_accounts_with_no_card(odd_rows_raw, scan):
+    # Aaron, 2026-09-25: "with the ODD we should be able to calculate an independent NH value".
+    hdr, rows = odd_rows_raw
+    H = {h: i for i, h in enumerate(hdr)}
+    odd = accessors(H)
+    latest = [h.split()[0] for h in hdr if h.endswith(" Sig #")][-1]
+    nh = sum(1 for r in rows if len(r) >= len(hdr) and not odd.hascard(r)
+             and r[H[f"{latest} Elig"]].strip() == "Yes")
+    assert nh and scan["segments"]["NH"]["n"] == nh == scan["counts"]["no card"]
+    assert scan["segments"]["NH"]["dist"] == 0
+    v = {r["segment"]: r for r in LV.values(scan, 0.006, 25, 0.8)["segments"]}
+    g = scan["segments"]["NH"]
+    assert not v["NH"]["from_nu"]
+    assert v["NH"]["dda"] == round(0.006 * g["spend"] + 25 * g["items"] * 0.8, 2)
+    # a client with no card-less eligible account falls back to NU's value, and says so
+    bare = dict(scan, segments=dict(scan["segments"], NH=dict(g, n=0)))
+    v = {r["segment"]: r for r in LV.values(bare, 0.006, 25, 0.8)["segments"]}
+    assert v["NH"]["from_nu"] and v["NH"]["dda"] == v["NU"]["dda"]
 
 
 def test_the_window_is_complete_months_only(scan):
@@ -55,10 +82,24 @@ def test_winsorizing_caps_and_never_raises_a_mean(scan):
         assert s["items"] <= s["items_raw"] + 1e-9
 
 
+def test_every_offered_outlier_cap_is_valued_and_a_higher_cap_trims_less(scan):
+    # Aaron, 2026-09-25: the 99th percentile as a variable. Each option is precomputed, so choosing one
+    # never re-reads the ODD; the default is WINSOR_PCT, and 1.0 is no cap at all.
+    assert set(scan["by_cap"]) == {LV.cap_key(p) for p in LV.WINSOR_OPTIONS}
+    assert scan["segments"] == scan["by_cap"][LV.cap_key(LV.WINSOR_PCT)]
+    for s in LV.SEGMENTS:
+        spend = [scan["by_cap"][LV.cap_key(p)][s]["spend"] for p in LV.WINSOR_OPTIONS]
+        assert spend == sorted(spend)
+        assert scan["by_cap"]["1"][s]["spend"] == pytest.approx(scan["by_cap"]["1"][s]["spend_raw"])
+    lo, hi = LV.values(scan, 0.006, 25, 0.8, 0.95), LV.values(scan, 0.006, 25, 0.8, 1.0)
+    assert sum(r["dda"] for r in lo["segments"]) <= sum(r["dda"] for r in hi["segments"])
+    assert LV.cap_label(0.975) == "97.5th percentile" and LV.cap_label(1.0) == "no cap"
+
+
 def test_no_fee_column_means_the_fee_comes_from_the_workbook(scan):
     assert scan["fee"] is None
     d = LV.default_rates(scan, {"ic_rate": 0.0085, "nsf_fee": 35.0, "sheet": "Actuals MM"})
-    assert (d["ic_rate"], d["nsf_fee"], d["collection"]) == (0.0085, 35.0, 0.80)
+    assert (d["ic_rate"], d["nsf_fee"], d["collection"]) == (0.0085, 35.0, 1.00)
     assert "workbook" in d["nsf_source"]
 
 
@@ -120,7 +161,7 @@ def test_the_file_bradford_loads_keeps_his_layout(scan, tmp_path):
         "Interchange and NSF", "Revenue Segmentation", "Monthly Incremental Revenue Lift")
     assert [ws[f"A{r}"].value for r in range(4, 13)] == ["Segments", "NH"] + LV.SEGMENTS
     dda = {r["segment"]: r["dda"] for r in v["segments"]}
-    assert ws["B5"].value == 0 and ws["C5"].value == dda["NU"]         # NH carries NU's value
+    assert ws["B5"].value == 0 and ws["C5"].value == dda["NH"]         # NH: its own value, 0 distribution
     assert ws["C12"].value == dda["26 Plus"] and ws["B6"].number_format == "0%"
     assert [ws.cell(18, c).value for c in range(1, 8)] == ["Baseline Segment"] + LV.CURRENTS
     assert [ws.cell(r, 1).value for r in range(19, 24)] == LV.BASELINES
@@ -183,6 +224,6 @@ def test_build_lift_matrix_is_a_wrapper_over_lift_values(odd_csv, tmp_path):
                                    "--nsf-fee", "30"]) == 0
     got = openpyxl.load_workbook(tmp_path / "9999-2026.09-ARS-Union Financial ARS Lift Matrix.xlsx").active
     want = LV.values(LV.scan(odd_csv), LV.DEFAULT_IC_RATE, 30.0, LV.DEFAULT_COLLECTION)
-    assert [got[f"C{r}"].value for r in range(6, 13)] == [x["dda"] for x in want["segments"]]
+    assert [got[f"C{r}"].value for r in range(5, 13)] == [x["dda"] for x in want["segments"]]
     with pytest.raises(SystemExit, match="--nsf-fee"):
         build_lift_matrix.main([odd_csv, "9999", "Union Financial", "2026.09", str(tmp_path)])

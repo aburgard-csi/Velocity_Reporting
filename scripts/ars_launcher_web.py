@@ -889,7 +889,7 @@ def _roster_entry(cid):
 
 
 def lift_rates(body, defaults):
-    """The three rates from a request, each falling back to its default. ValueError on a bad one."""
+    """The rates and the outlier cap from a request, each falling back to its default. ValueError on a bad one."""
     def num(k, lo, hi):
         v = body.get(k)
         if v in (None, ""):
@@ -898,8 +898,11 @@ def lift_rates(body, defaults):
         if not lo <= v <= hi:
             raise ValueError(f"{k} {v} is outside {lo}-{hi}")
         return v
+    winsor = num("winsor", 0.0, 1.0)
+    if winsor not in _lv().WINSOR_OPTIONS:
+        raise ValueError(f"outlier cap {winsor} is not one of {_lv().WINSOR_OPTIONS}")
     return {"ic_rate": num("ic_rate", 0.0, 0.05), "nsf_fee": num("nsf_fee", 0.0, 200.0),
-            "collection": num("collection", 0.0, 1.0)}
+            "collection": num("collection", 0.0, 1.0), "winsor": winsor}
 
 
 def lift_client_doc(cid, body=None):
@@ -935,24 +938,27 @@ def lift_client_doc(cid, body=None):
     doc["scan_state"] = "ready"
     defaults = LV.default_rates(scan, assumptions)
     rates = lift_rates(body or {}, defaults)
-    doc.update(defaults=defaults, rates=rates, scan={k: v for k, v in scan.items() if k != "segments"},
-               segments=scan["segments"], winsor_pct=scan["winsor_pct"])
+    doc.update(defaults=defaults, rates=rates,
+               scan={k: v for k, v in scan.items() if k not in ("segments", "by_cap")},
+               segments=scan["by_cap"][LV.cap_key(rates["winsor"])],
+               winsor_options=[{"value": p, "label": LV.cap_label(p)} for p in LV.WINSOR_OPTIONS])
     if rates["nsf_fee"] is not None:
-        doc["calculated"] = LV.values(scan, rates["ic_rate"], rates["nsf_fee"], rates["collection"])
+        doc["calculated"] = LV.values(scan, rates["ic_rate"], rates["nsf_fee"], rates["collection"],
+                                      rates["winsor"])
     if doc["period"] and doc["name"]:
         doc["file_name"] = LV.out_name(cid, doc["period"], doc["name"])
-        ap = _approval_path(cid, doc["period"])
+        ap = _export_path(cid, doc["period"])
         try:
             rec = json.loads(ap.read_text(encoding="utf-8")) if ap.is_file() else None
         except (OSError, ValueError):
             rec = None
         if rec and rec.get("odd") == _odd_key(cid):
-            doc["approved"] = {"rates": rec.get("rates"), "at": rec.get("approved_at"), "by": rec.get("approved_by")}
+            doc["exported"] = {"rates": rec.get("rates"), "at": rec.get("exported_at"), "by": rec.get("exported_by")}
     return doc
 
 
 def _lift_ready(cid, body):
-    """(doc, None) when the calculated matrix can be approved at these rates, else (None, (code, error))."""
+    """(doc, None) when the calculated matrix can be exported at these rates, else (None, (code, error))."""
     doc = lift_client_doc(cid, body)
     if doc.get("scan_state") == "sm":
         return None, (400, {"error": "This client is on the SM model, which does not use a Lift Matrix."})
@@ -965,35 +971,36 @@ def _lift_ready(cid, body):
     return doc, None
 
 
-def _approval_path(cid, period):
-    return _lift_dir() / f"{cid}-{period}-approved.json"
+def _export_path(cid, period):
+    return _lift_dir() / f"{cid}-{period}-exported.json"
 
 
-def lift_approve(cid, body):
-    """Approve the calculated matrix at these rates (Aaron, 2026-09-25: "when the matrix is approved it'll
-    allow you to download the file"). The record — rates, the ODD landing, the values — is kept in Build
-    Artifacts; the download is only served for exactly what was approved."""
+def lift_export(cid, body):
+    """Record the calculated matrix as exported at these rates, just before its download (Aaron, 2026-09-25:
+    "Instead of Approve this matrix, use Export this matrix"; it was an approval step). The record — rates,
+    the ODD landing, the values — is kept in Build Artifacts, and the download is only served for exactly
+    what was recorded."""
     doc, err = _lift_ready(cid, body)
     if err:
         return err
     rec = {k: doc.get(k) for k in ("client", "name", "period", "workbook", "rates", "defaults", "scan", "calculated")}
-    rec.update(odd=_odd_key(cid), approved_at=time.strftime("%Y-%m-%d %H:%M:%S"),
-               approved_by=os.environ.get("USERNAME") or os.environ.get("USER") or "")
-    _approval_path(cid, doc["period"]).write_text(json.dumps(rec, indent=1), encoding="utf-8")
-    return 200, {"ok": True, "approved_at": rec["approved_at"], "file_name": doc["file_name"]}
+    rec.update(odd=_odd_key(cid), exported_at=time.strftime("%Y-%m-%d %H:%M:%S"),
+               exported_by=os.environ.get("USERNAME") or os.environ.get("USER") or "")
+    _export_path(cid, doc["period"]).write_text(json.dumps(rec, indent=1), encoding="utf-8")
+    return 200, {"ok": True, "exported_at": rec["exported_at"], "file_name": doc["file_name"]}
 
 
 def lift_download(cid, body):
-    """(code, xlsx bytes | error, file name). Refused unless the matrix was approved at these very rates
-    from the ODD that is in Inputs now — an edit after approval needs approving again."""
+    """(code, xlsx bytes | error, file name). Refused unless the matrix was exported at these very rates
+    from the ODD that is in Inputs now — the page records the export and downloads in one click."""
     import io
     doc, err = _lift_ready(cid, body)
     if err:
         return err[0], err[1], None
-    p = _approval_path(cid, doc["period"])
+    p = _export_path(cid, doc["period"])
     rec = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
     if not rec or rec.get("rates") != doc["rates"] or rec.get("odd") != _odd_key(cid):
-        return 409, {"error": "Approve the matrix at these rates first."}, None
+        return 409, {"error": "Export the matrix at these rates first."}, None
     buf = io.BytesIO()
     _lv().write_xlsx(doc["calculated"], buf)
     return 200, buf.getvalue(), doc["file_name"]
@@ -1032,9 +1039,8 @@ def compute_lift_overview():
         if scan:
             d = LV.default_rates(scan, wb["assumptions"] if wb else {})
             if d["nsf_fee"] is not None:
-                v = LV.values(scan, d["ic_rate"], d["nsf_fee"], d["collection"])
-                calc = {r["segment"]: r["dda"] for r in v["segments"]}
-                c["calculated"] = dict(NH=calc["NU"], **calc)
+                v = LV.values(scan, d["ic_rate"], d["nsf_fee"], d["collection"], d["winsor"])
+                c["calculated"] = {r["segment"]: r["dda"] for r in v["segments"]}
         return c
 
     ars = [r for r in roster if "ARS" in r[3]]
@@ -1160,7 +1166,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined"))))
         if path == "/api/reveal":
             return self._send(*reveal(str(body.get("path", ""))))
-        if path in ("/api/lift/approve", "/api/lift/download", "/api/lift/rescan"):
+        if path in ("/api/lift/export", "/api/lift/download", "/api/lift/rescan"):
             cid = str(body.get("client", "")).strip()
             if not CID_RX.match(cid):
                 return self._send(400, {"error": "not a client number"})
@@ -1173,7 +1179,7 @@ class Handler(BaseHTTPRequestHandler):
                     if code != 200:
                         return self._send(code, data)
                     return self._send(200, data, XLSX, filename=name)
-                return self._send(*lift_approve(cid, body))
+                return self._send(*lift_export(cid, body))
             except ValueError as e:
                 return self._send(400, {"error": str(e)})
             except (OSError, SystemExit, KeyError) as e:
@@ -1331,6 +1337,8 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
 .panel{margin-top:18px} .panel h3{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:0 0 6px}
 .grids{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}
 .gridbox h4{margin:0 0 4px;font-size:13.5px;color:var(--ink2)}
+.recalc{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-4px 0 6px}
+#lm-out.stale{opacity:.45}
 .method{font-size:13px;color:var(--ink2);margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
 </style>
 </head>
@@ -1659,6 +1667,8 @@ function liftQuery(id) {
   if (bp && bp.value !== "") q.set("ic_rate", String(Number(bp.value) / 10000));
   if (fee && fee.value !== "") q.set("nsf_fee", fee.value);
   if (col && col.value !== "") q.set("collection", String(Number(col.value) / 100));
+  const cap = $("#lm-cap");
+  if (cap) q.set("winsor", cap.value);
   return q.toString();
 }
 
@@ -1678,7 +1688,10 @@ async function liftSelect(id, keep) {
     return;
   }
   if (n !== liftReq || current !== id || MODE !== "lift") return;
-  if (keep && $("#lm-out") && d.scan_state === "ready") { $("#lm-out").innerHTML = liftBody(d); wireSave(d); return; }
+  if (keep && $("#lm-out") && d.scan_state === "ready") {
+    $("#lm-out").innerHTML = liftBody(d); $("#lm-out").classList.remove("stale"); $("#lmstale").textContent = "";
+    wireSave(d); return;
+  }
   liftRender(d);
 }
 
@@ -1700,14 +1713,27 @@ function liftRender(d) {
       <label>Interchange rate<span class="fld"><input id="lm-ic" type="number" step="0.5" min="0" max="500" value="${+(r.ic_rate * 10000).toFixed(2)}"><span>BP</span></span><span class="src">${esc(df.ic_source)}</span></label>
       <label>NSF/OD fee<span class="fld"><span>$</span><input id="lm-fee" type="number" step="0.01" min="0" max="200" value="${r.nsf_fee ?? ""}" placeholder="Enter the fee"></span><span class="src">${esc(df.nsf_source)}</span></label>
       <label>OD collection rate<span class="fld"><input id="lm-col" type="number" step="1" min="0" max="100" value="${+(r.collection * 100).toFixed(1)}"><span>%</span></span><span class="src">${esc(df.collection_source)}</span></label>
-    </div><p class="note" style="margin-top:-6px"><button class="link" id="lmreset">Reset to these defaults</button></p><div id="lm-out">${liftBody(d)}</div>`;
+      <label>Outlier cap<span class="fld"><select id="lm-cap">${d.winsor_options.map(o => `<option value="${o.value}"${o.value === r.winsor ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></span><span class="src">${esc(df.winsor_source)}</span></label>
+    </div><p class="recalc"><button class="primary" id="lmcalc">Recalculate</button> <span id="lmstale" class="note"></span> <button class="link" id="lmreset">Reset to the defaults</button></p><div id="lm-out">${liftBody(d)}</div>`;
   }
   $("#main").innerHTML = html;
   $("#lmback").addEventListener("click", liftOverview);
   const re = $("#lmre"); if (re) re.addEventListener("click", async () => { await api("/api/lift/rescan", {method: "POST", body: JSON.stringify({client: d.client})}); liftSelect(d.client); });
   if (d.scan_state !== "ready") return;
-  let t = null;
-  for (const el of ["#lm-ic", "#lm-fee", "#lm-col"]) $(el).addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => liftSelect(d.client, true), 250); });
+  // Aaron, 2026-09-25: "we need an option to recalculate when the variables are changed". A change marks the
+  // figures below out of date and holds Export until Recalculate (or Enter) applies it, so a matrix is never
+  // exported at values other than the ones on screen.
+  const stale = () => {
+    $("#lm-out").classList.add("stale");
+    $("#lmstale").textContent = "The figures below are for the previous values. Recalculate to update them.";
+    for (const b of ["#lmok", "#lmdl"]) { const x = $(b); if (x) { x.disabled = true; x.title = "Recalculate first"; } }
+  };
+  const recalc = () => liftSelect(d.client, true);
+  for (const el of ["#lm-ic", "#lm-fee", "#lm-col", "#lm-cap"]) {
+    $(el).addEventListener(el === "#lm-cap" ? "change" : "input", stale);
+    $(el).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); recalc(); } });
+  }
+  $("#lmcalc").addEventListener("click", recalc);
   $("#lmreset").addEventListener("click", () => liftSelect(d.client));
   wireSave(d);
 }
@@ -1717,13 +1743,13 @@ function liftRender(d) {
 function liftBody(d) {
   const segs = d.segments, calc = d.calculated, cur = d.current || {}, curSeg = cur.segments || {}, curGrid = cur.grid || {};
   const bySeg = calc ? Object.fromEntries(calc.segments.map(x => [x.segment, x])) : {};
-  const newV = s => { const c = s === "NH" ? bySeg.NU : bySeg[s]; return c ? c.dda : null; };
+  const newV = s => { const c = bySeg[s]; return c ? c.dda : null; };
   const curV = s => curSeg[s] ? curSeg[s].dda : null;
   const signed = v => v == null ? "" : (v > 0 ? "+" : "") + money(v);
   const cls = v => v == null ? "" : v > 0 ? "up" : v < 0 ? "down" : "";
   const step = (f, i) => i < 2 || f(SEGS[i]) == null || f(SEGS[i - 1]) == null ? null : f(SEGS[i]) - f(SEGS[i - 1]);
   const rows = SEGS.map((s, i) => {
-    const g = s === "NH" ? null : segs[s], nv = newV(s), cv = curV(s), dlt = nv != null && cv != null ? nv - cv : null;
+    const g = segs[s], nv = newV(s), cv = curV(s), dlt = nv != null && cv != null ? nv - cv : null;
     const cd = curSeg[s] && curSeg[s].dist != null ? pct(curSeg[s].dist) : "–";
     return `<tr><td class="l"><b>${esc(s)}</b></td><td>${g ? g.n.toLocaleString() : ""}</td>
       <td>${s === "NH" ? "0%" : cd}</td><td>${s === "NH" ? "0%" : pct(g.dist)}</td>
@@ -1735,7 +1761,7 @@ function liftBody(d) {
     <tr><th>Current</th><th>New</th><th>Current</th><th>New</th><th>Change</th><th>Current</th><th>New</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="note">Current is the matrix in ${esc(d.workbook || "the workbook")}${cur.window ? " (" + esc(cur.window) + ")" : ""}. A step is a segment's DDA value less the one above it.</p></div>`;
   const detail = `<details class="log"><summary>How each new value is made up</summary><div class="lmwrap"><table class="lm"><thead><tr><th>Segment</th><th>Avg spend / mo</th><th>NSF/OD items / mo</th><th>Interchange</th><th>NSF/OD</th><th>DDA value</th></tr></thead><tbody>${
-    SEGS.slice(1).map(s => { const g = segs[s], c = bySeg[s]; return `<tr><td class="l"><b>${esc(s)}</b></td><td>${money(g.spend)}</td><td>${g.items.toFixed(3)}</td><td>${c ? money(c.interchange) : ""}</td><td>${c ? money(c.nsf) : ""}</td><td>${c ? money(c.dda) : ""}</td></tr>`; }).join("")
+    SEGS.map(s => { const g = segs[s], c = bySeg[s]; return `<tr><td class="l"><b>${esc(s)}</b></td><td>${money(g.spend)}</td><td>${g.items.toFixed(3)}</td><td>${c ? money(c.interchange) : ""}</td><td>${c ? money(c.nsf) : ""}</td><td>${c ? money(c.dda) : ""}</td></tr>`; }).join("")
   }</tbody></table></div></details>`;
   if (!calc) return seg + `<p class="err">Enter the client's NSF/OD fee to calculate the new matrix.</p>`;
   const cols = SEGS.slice(2), bases = SEGS.slice(1, 6);
@@ -1753,43 +1779,51 @@ function liftBody(d) {
   const feeLine = fee ? (fee.values.length ? `NSF/OD fee in the ODD (${esc(fee.columns.join(", "))}): ${fee.values.map(x => `${money(x.fee)} on ${pct(x.share, 0)} of items`).join(", ")}. The most common is the default.` : `The ODD has ${esc(fee.columns.join(", "))} but no fee on any NSF/OD item, so the fee comes from the workbook.`)
     : `This ODD carries no NSF/OD fee column (Fees1), so NSF/OD is valued as the monthly OD item count × the fee.`;
   const method = `<div class="panel"><h3>How it was calculated</h3><ul class="method">
-    <li>${sc.population.toLocaleString()} consumer accounts with a debit card that are ARS eligible. Business accounts are left out.</li>
+    <li>${sc.population.toLocaleString()} ARS-eligible accounts with a debit card, consumer and business (${(sc.counts.consumer || 0).toLocaleString()} consumer, ${(sc.counts.business || 0).toLocaleString()} business${sc.counts["business? blank"] ? ", " + sc.counts["business? blank"].toLocaleString() + " with Business? blank" : ""}).</li>
     <li>Swipes, spend and NSF/OD items averaged over ${esc(sc.window_label)} (${sc.window.length} complete months), from ${esc(sc.source_file)}.${sc.excluded_months ? " " + esc(sc.excluded_months) : ""}</li>
     <li>Segment: average swipes per month, rounded down into its band.</li>
-    <li>Outliers: each account's spend and NSF/OD items are capped at the ${Math.round(sc.winsor_pct * 100)}th percentile of its segment. 26 Plus is valued on its accounts averaging 26 to ${25 + sc.top_band} swipes; its distribution counts all of them.</li>
-    <li>DDA value = interchange rate × spend + NSF/OD fee × items × collection rate. NH carries NU's value. Lift = DDA of the new segment − DDA of the baseline.</li>
+    <li>Outliers: ${d.rates.winsor >= 1 ? "no cap on spend or NSF/OD items" : `each account's spend and NSF/OD items are capped at the ${+(d.rates.winsor * 100).toFixed(1)}th percentile of its segment`}. 26 Plus is valued on its accounts averaging 26 to ${25 + sc.top_band} swipes; its distribution counts all of them.</li>
+    <li>DDA value = interchange rate × spend + NSF/OD fee × items × collection rate. Lift = DDA of the new segment − DDA of the baseline.</li>
+    <li>NH: ${bySeg.NH && bySeg.NH.from_nu ? "this client has no eligible account without a debit card, so NH carries NU's value" : `the ${(segs.NH ? segs.NH.n : 0).toLocaleString()} eligible accounts with no debit card, valued on their own spend and NSF/OD items`}. It has 0% of the distribution, which is of card holders.</li>
     <li>${feeLine}</li></ul></div>`;
-  const ok = d.approved && JSON.stringify(d.approved.rates) === JSON.stringify(d.rates);
-  const approve = ok
-    ? `<div class="verdict ready"><p><b>Approved</b> ${esc(d.approved.at)}${d.approved.by ? " by " + esc(d.approved.by) : ""} at these rates. Download <span class="mono">${esc(d.file_name)}</span> and email it to Bradford to have it loaded.</p><span class="btns"><button class="primary" id="lmdl">Download the Excel file</button></span></div>`
-    : `<div class="verdict ask"><p><b>Review the new matrix against the current one, then approve it.</b> Approving unlocks the Excel file for Bradford.${d.approved ? " An earlier approval was at different rates." : ""}</p><span class="btns"><button class="primary" id="lmok">Approve this matrix</button></span></div>`;
-  return seg + detail + grids + approve + `<div id="lmmsg"></div>` + method;
+  const done = d.exported && JSON.stringify(d.exported.rates) === JSON.stringify(d.rates);
+  const exp = done
+    ? `<div class="verdict ready"><p><b>Exported</b> ${esc(d.exported.at)}${d.exported.by ? " by " + esc(d.exported.by) : ""} at these values as <span class="mono">${esc(d.file_name)}</span>. Email it to Bradford to have it loaded.</p><span class="btns"><button class="primary" id="lmdl">Download again</button></span></div>`
+    : `<div class="verdict ask"><p><b>Review the new matrix against the current one, then export it.</b> Export this matrix downloads <span class="mono">${esc(d.file_name)}</span>, the Excel file for Bradford.${d.exported ? " The last export was at different values." : ""}</p><span class="btns"><button class="primary" id="lmok">Export this matrix</button></span></div>`;
+  return seg + detail + grids + exp + `<div id="lmmsg"></div>` + method;
 }
 
 function liftRatesBody(d) {
   const q = new URLSearchParams(liftQuery(d.client)), body = {client: d.client};
-  for (const k of ["ic_rate", "nsf_fee", "collection"]) if (q.has(k)) body[k] = q.get(k);
+  for (const k of ["ic_rate", "nsf_fee", "collection", "winsor"]) if (q.has(k)) body[k] = q.get(k);
   return body;
 }
 
+async function liftDownload(d) {
+  const r = await fetch("/api/lift/download", {method: "POST", headers: {"X-Token": TOKEN, "Content-Type": "application/json"}, body: JSON.stringify(liftRatesBody(d))});
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "HTTP " + r.status); }
+  const url = URL.createObjectURL(await r.blob()), a = document.createElement("a");
+  a.href = url; a.download = d.file_name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// Export this matrix: record what is exported, then download it — one click (Aaron, 2026-09-25).
 function wireSave(d) {
   const ok = $("#lmok"), dl = $("#lmdl");
   if (ok) ok.addEventListener("click", async () => {
-    ok.disabled = true; ok.textContent = "Approving…";
+    ok.disabled = true; ok.textContent = "Exporting…";
     try {
-      const {status, body: r} = await api("/api/lift/approve", {method: "POST", body: JSON.stringify(liftRatesBody(d))});
-      if (status !== 200) throw new Error(r.error || "not approved");
-      liftSelect(d.client, true);
+      const {status, body: r} = await api("/api/lift/export", {method: "POST", body: JSON.stringify(liftRatesBody(d))});
+      if (status !== 200) throw new Error(r.error || "not exported");
+      await liftDownload(d);
+      await liftSelect(d.client, true);
+      const m = $("#lmmsg"); if (m) m.innerHTML = `<p class="note">Downloaded <span class="mono">${esc(d.file_name)}</span> to your Downloads folder.</p>`;
     } catch (e) { ok.disabled = false; ok.textContent = "Try again"; $("#lmmsg").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
   });
   if (dl) dl.addEventListener("click", async () => {
     dl.disabled = true;
     try {
-      const r = await fetch("/api/lift/download", {method: "POST", headers: {"X-Token": TOKEN, "Content-Type": "application/json"}, body: JSON.stringify(liftRatesBody(d))});
-      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "HTTP " + r.status); }
-      const url = URL.createObjectURL(await r.blob()), a = document.createElement("a");
-      a.href = url; a.download = d.file_name; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      await liftDownload(d);
       $("#lmmsg").innerHTML = `<p class="note">Downloaded <span class="mono">${esc(d.file_name)}</span> to your Downloads folder.</p>`;
     } catch (e) { $("#lmmsg").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
     dl.disabled = false;
