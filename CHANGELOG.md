@@ -17,6 +17,29 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Sheila: a Data Issues tab, and each client's code sheet one click away
+
+Aaron: "build a new tab into Sheila with the data issues identified for each client" and "create a
+link on the individual client pages that links to the code sheet saved in the inputs folder."
+
+- **Data Issues tab.** One card per client, filtered by the CSM picker and the search box, with
+  All / Blockers / Decisions / Gaps / Warnings / Codes and Lift Matrix chips. It finds nothing
+  itself; it shows what two existing checks wrote, each with its own date, because they refresh on
+  different days:
+  - the issue pages' list (`Build Artifacts/issue_pages/gaps.json`: severity, program, issue, fix),
+    as of the last `build_issue_pages.py` run (2026-09-21 today);
+  - the morning dashboard's checks (`perf_dashboard/dataset.json` `actions`, from `perf_actions`):
+    codes the client's code tables do not map, Lift Matrix filename flags, and what could not be
+    checked.
+  It re-reads either file only when it changes.
+- **Code sheet link.** The Decks and Lift Matrix client pages, and every Data Issues card, carry
+  "Open code sheet" (opens the client's newest sheet in `Inputs/Code Sheets` in Excel) and "Show it
+  in File Explorer", plus a link to the client's data issues. A browser page cannot open a local
+  file itself, so Sheila opens it, as it already shows decks in File Explorer. The file is found by
+  client number on the server, never from a path the page sends; the newest is chosen by the data
+  team's stamp in the name, and Excel lock files are skipped. The folder listing is kept until the
+  folder changes.
+
 ### 2026-09-25 — The Lift Matrix distribution counts NH
 
 Aaron: "recalculate the distribution including NH accounts."

@@ -1127,6 +1127,110 @@ def lift_scan_all():
     return 200, {"queued": n}
 
 
+# ------------------------------------------------------------------ data issues and code sheets (Aaron, 2026-09-25)
+# "build a new tab into Sheila with the data issues identified for each client" and "create a link on the individual
+# client pages that links to the code sheet saved in the inputs folder". Nothing here finds an issue: the Data Issues
+# tab shows what two existing checks already wrote, each with its own date, because they refresh on different days.
+#   Build Artifacts/issue_pages/gaps.json       the issue pages' per-client list (severity, program, issue, fix)
+#   Build Artifacts/perf_dashboard/dataset.json the morning dashboard's checks: codes the client's code tables do not
+#                                               map (perf_actions), Lift Matrix flags, and what could not be checked
+SEVERITY_ORDER = {"blocker": 0, "decision": 1, "gap": 2, "warning": 3}
+CODE_SHEET_EXTS = (".xls", ".xlsx", ".xlsm")
+_CODE_STAMP_RX = re.compile(r"-(\d{6}_\d{6})-")
+_issues_cache = {"key": None, "doc": None}
+
+
+def _read_json(p):
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+_code_sheets = {"key": None, "map": {}}
+
+
+def code_sheets_by_client():
+    """{client id: newest code sheet Path} from Inputs/Code Sheets (newest by the data team's stamp, else mtime).
+    Listed again only when the folder changes: a file saved, replaced or removed there changes its modified time."""
+    d = R.inputs() / R.INPUT_KIND_DIRS["Code sheets"]
+    if not d.is_dir():
+        return {}
+    key = d.stat().st_mtime_ns
+    if _code_sheets["key"] == key:
+        return _code_sheets["map"]
+    best = {}
+    for p in d.iterdir():
+        m = re.match(r"^(\d{3,5})-", p.name)
+        if not m or p.name.startswith("~$") or p.suffix.lower() not in CODE_SHEET_EXTS:
+            continue
+        s = _CODE_STAMP_RX.search(p.name)
+        rank = (s.group(1), 0.0) if s else ("", p.stat().st_mtime)     # a stamped name needs no stat
+        if m.group(1) not in best or rank > best[m.group(1)][0]:
+            best[m.group(1)] = (rank, p)
+    _code_sheets.update(key=key, map={cid: p for cid, (_, p) in best.items()})
+    return _code_sheets["map"]
+
+
+def code_sheet(cid):
+    return code_sheets_by_client().get(cid)
+
+
+def open_code_sheet(cid, action):
+    """Open the client's newest code sheet in its program, or show it in File Explorer. Only a file in
+    Inputs/Code Sheets named for this client can be opened; the path never comes from the page."""
+    p = code_sheet(cid)
+    if not p:
+        return 404, {"error": f"No code sheet for {cid} in Inputs/Code Sheets."}
+    if action == "reveal":
+        subprocess.Popen(["explorer", "/select,", str(p)])
+    else:
+        os.startfile(str(p))                 # noqa: S606 — a file this server found, by client id
+    return 200, {"ok": True, "file": p.name}
+
+
+def issues_doc():
+    """Every client's data issues from both sources, grouped by client. Re-read only when either file changes."""
+    ba = R.build_artifacts()
+    gp, dp = ba / "issue_pages" / "gaps.json", ba / "perf_dashboard" / "dataset.json"
+    key = tuple((str(p), p.stat().st_mtime_ns if p.is_file() else None) for p in (gp, dp))
+    if _issues_cache["key"] == key:
+        doc = _issues_cache["doc"]
+    else:
+        gaps, ds = _read_json(gp) or {}, _read_json(dp) or {}
+        clients = {}
+
+        def entry(cid, name, csm):
+            e = clients.setdefault(cid, {"id": cid, "name": name, "csm": csm or "Unassigned", "issues": [],
+                                         "codes": [], "lift_matrix": None, "unchecked": []})
+            e["name"] = e["name"] or name
+            if csm and e["csm"] == "Unassigned":
+                e["csm"] = csm
+            return e
+        for c in gaps.get("clients", []):
+            entry(c["id"], c.get("name"), c.get("csm"))
+        for i in gaps.get("issues", []):
+            entry(i["id"], i.get("name"), i.get("csm"))["issues"].append(
+                {k: i.get(k) for k in ("severity", "program", "issue", "fix")})
+        for c in ds.get("clients", []):
+            e = entry(c["id"], c.get("name"), c.get("csm"))
+            a = c.get("actions") or {}
+            e["codes"] = [{k: x.get(k) for k in ("label", "values", "no_table", "eligibility")}
+                          for x in a.get("codes", [])]
+            e["lift_matrix"], e["unchecked"] = a.get("lift_matrix"), a.get("unchecked") or []
+        for e in clients.values():
+            e["issues"].sort(key=lambda i: (SEVERITY_ORDER.get(i["severity"], 9), i.get("program") or ""))
+            e["count"] = len(e["issues"]) + len(e["codes"]) + (1 if e["lift_matrix"] else 0)
+        doc = {"clients": sorted(clients.values(), key=lambda e: (e["csm"], (e["name"] or "").lower())),
+               "sources": {"issue_pages": (gaps.get("summary") or {}).get("generated"),
+                           "dashboard": ds.get("generated")}}
+        _issues_cache.update(key=key, doc=doc)
+    sheets = code_sheets_by_client()
+    out = dict(doc, clients=[dict(e, code_sheet=sheets[e["id"]].name if e["id"] in sheets else None)
+                             for e in doc["clients"]])
+    return out
+
+
 # ------------------------------------------------------------------ HTTP
 class Handler(BaseHTTPRequestHandler):
     server_version = "ARSDeckBuilder"
@@ -1180,6 +1284,8 @@ class Handler(BaseHTTPRequestHandler):
                 if u.path == "/api/status":
                     return self._send(200, status_doc(cid, fresh=(q.get("fresh") or [""])[0] == "1", background=True))
                 return self._send(200, job_doc(cid) or {})
+            if u.path == "/api/issues":
+                return self._send(200, issues_doc())
             if u.path == "/api/lift/overview":
                 return self._send(200, lift_overview_doc())
             if u.path == "/api/lift/client":
@@ -1222,6 +1328,14 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 return self._send(400, {"error": str(e)})
             except (OSError, SystemExit, KeyError) as e:
+                return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+        if path == "/api/code-sheet":
+            cid = str(body.get("client", "")).strip()
+            if not CID_RX.match(cid):
+                return self._send(400, {"error": "not a client number"})
+            try:
+                return self._send(*open_code_sheet(cid, "reveal" if body.get("action") == "reveal" else "open"))
+            except OSError as e:
                 return self._send(500, {"error": f"{type(e).__name__}: {e}"})
         if path == "/api/lift/scan-all":
             return self._send(*lift_scan_all())
@@ -1380,11 +1494,16 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
 .gridbox h4{margin:0 0 4px;font-size:13.5px;color:var(--ink2)}
 .recalc{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-4px 0 6px}
 #lm-out.stale{opacity:.45}
+.icard{border:1px solid var(--rule);border-radius:8px;padding:10px 14px;margin:10px 0}
+.ihead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer}
+.chipbtn[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
 .method{font-size:13px;color:var(--ink2);margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button></nav><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><span class="period" id="period">Loading…</span></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button></nav><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><span class="period" id="period">Loading…</span></header>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -1563,7 +1682,8 @@ function renderStatus(s) {
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
   $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
       <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
-    <ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
+    <p class="note" id="clientlinks" style="margin:-6px 0 12px">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
+  clientLinks(s.client);
   const go = $("#go"); if (go) go.addEventListener("click", () => build(s, false));
   const go2 = $("#go2"); if (go2) go2.addEventListener("click", () => build(s, true));
   const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client, true));
@@ -1666,12 +1786,13 @@ const SEGS = ["NH", "NU", "1-5", "6-10", "11-15", "16-20", "21-25", "26 Plus"];
 const money = v => v == null ? "–" : (v < 0 ? "−$" : "$") + Math.abs(Number(v)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
 
-function setMode(m) {
+function setMode(m, focus) {
   MODE = m; clearTimeout(liftTimer); clearInterval(poller); clearTimeout(statusTimer);
-  document.querySelector(".app").classList.toggle("wide", m === "lift");
-  $("#tab-decks").setAttribute("aria-selected", m === "decks"); $("#tab-lift").setAttribute("aria-selected", m === "lift");
+  document.querySelector(".app").classList.toggle("wide", m === "lift" || m === "issues");
+  for (const t of ["decks", "lift", "issues"]) $("#tab-" + t).setAttribute("aria-selected", m === t);
   current = null; renderList();
   if (m === "lift") liftOverview();
+  else if (m === "issues") issuesView(focus);
   else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their ARS deck can be built this month.</p></div>`;
 }
 
@@ -1742,7 +1863,7 @@ function liftRender(d) {
     <span class="sub" style="margin-left:auto"><button class="link" id="lmback">All clients</button></span></div>`;
   const cur = d.current ? `Current matrix: ${esc(d.current.window)} (${d.current.data_past_end ? "expired" : "data " + esc(d.current.data_date)}) in ${esc(d.workbook)}.`
     : d.workbook ? `${esc(d.workbook)} carries no Lift Matrix (SM).` : d.workbook_error ? `The workbook could not be read: ${esc(d.workbook_error)}` : "No ARS workbook in Inputs.";
-  let html = head + `<p class="note" style="margin-top:0">${cur}</p>`;
+  let html = head + `<p class="note" id="clientlinks" style="margin:-6px 0 8px">&nbsp;</p><p class="note" style="margin-top:0">${cur}</p>`;
   if (d.scan_state === "sm") html += `<p class="note">${esc(d.name || d.client)} is on the SM model, which does not use a Lift Matrix.</p>`;
   else if (d.scan_state === "no-odd") html += `<p class="err">No ODD extract for ${esc(d.client)} in Inputs, so nothing can be calculated.</p>`;
   else if (d.scan_state !== "ready") {
@@ -1759,6 +1880,7 @@ function liftRender(d) {
     </div><p class="recalc"><button class="primary" id="lmcalc">Recalculate</button> <span id="lmstale" class="note"></span> <button class="link" id="lmreset">Reset to the defaults</button></p><div id="lm-out">${liftBody(d)}</div>`;
   }
   $("#main").innerHTML = html;
+  clientLinks(d.client);
   $("#lmback").addEventListener("click", liftOverview);
   const re = $("#lmre"); if (re) re.addEventListener("click", async () => { await api("/api/lift/rescan", {method: "POST", body: JSON.stringify({client: d.client})}); liftSelect(d.client); });
   if (d.scan_state !== "ready") return;
@@ -1874,10 +1996,88 @@ function wireSave(d) {
 
 $("#tab-decks").addEventListener("click", () => setMode("decks"));
 $("#tab-lift").addEventListener("click", () => setMode("lift"));
+$("#tab-issues").addEventListener("click", () => setMode("issues"));
+// ------------------------------------------------------------------ Data Issues (Aaron, 2026-09-25)
+// Each client's data issues from the issue pages and the morning dashboard's checks, with a link to its code sheet.
+let ISSUES = null, ISSUES_AT = 0, SEV = "";
+const SEV_TAG = {blocker: ["stop", "blocker"], decision: ["ask", "decision"], gap: ["warn", "gap"], warning: ["step", "warning"]};
 
-$("#list").addEventListener("click", e => { const b = e.target.closest(".client"); if (b) (MODE === "lift" ? liftSelect : select)(b.dataset.id); });
-$("#csm").addEventListener("change", () => { $("#csm").dataset.touched = "1"; store("ars-builder-csm", $("#csm").value); renderList(); if (MODE === "lift" && !current) liftOverview(); });
-$("#q").addEventListener("input", renderList);
+async function loadIssues(fresh) {
+  if (ISSUES && !fresh && Date.now() - ISSUES_AT < 60000) return ISSUES;
+  const {body} = await api("/api/issues"); ISSUES = body; ISSUES_AT = Date.now(); return ISSUES;
+}
+
+function codeSheetLinks(cid, name) {
+  return name ? `<button class="link" data-cs="${esc(cid)}" title="${esc(name)}">Open code sheet</button> · <button class="link" data-csr="${esc(cid)}">Show it in File Explorer</button>`
+              : `<span class="sub">No code sheet in Inputs/Code Sheets</span>`;
+}
+
+// The line under a client's name on the Decks and Lift Matrix pages: its code sheet and its data issues.
+async function clientLinks(cid) {
+  const box = $("#clientlinks"); if (!box) return;
+  try {
+    const d = await loadIssues(), e = (d.clients || []).find(x => x.id === cid);
+    if ($("#clientlinks") !== box) return;
+    const n = e ? e.count : 0;
+    box.innerHTML = codeSheetLinks(cid, e && e.code_sheet) + ` · <button class="link" data-issues="${esc(cid)}">${n ? n + " data issue" + (n === 1 ? "" : "s") : "No data issues"}</button>`;
+  } catch (err) { box.innerHTML = `<span class="err">Couldn't read the data issues: ${esc(err.message)}</span>`; }
+}
+
+function issueCard(e) {
+  const rows = [];
+  for (const i of e.issues) {
+    if (SEV && SEV !== i.severity) continue;
+    const [cls, lab] = SEV_TAG[i.severity] || ["step", i.severity];
+    rows.push(`<li><span class="tag ${cls}">${esc(lab)}</span><span><b>${esc(i.program || "")}</b> ${esc(i.issue)}${i.fix ? `<br><span class="sub">Fix: ${esc(i.fix)}</span>` : ""}</span></li>`);
+  }
+  if (!SEV || SEV === "codes") {
+    if (e.lift_matrix) rows.push(`<li><span class="tag stop">lift</span><span><b>ARS</b> Lift Matrix flagged "${esc(e.lift_matrix.flag)}" in ${esc(e.lift_matrix.workbook)}<br><span class="sub">Fix: create a new Lift Matrix (the Lift Matrix tab), then send it to Bradford</span></span></li>`);
+    for (const c of e.codes) {
+      const vals = (c.values || []).map(v => `${esc(v.value)}${v.desc ? " (" + esc(v.desc) + ")" : ""}: ${(v.accounts || 0).toLocaleString()} account${v.accounts === 1 ? "" : "s"}${v.open != null ? ", " + v.open.toLocaleString() + " open" : ""}`).join("; ");
+      rows.push(`<li><span class="tag warn">codes</span><span><b>ARS</b> ${esc(c.label)}${c.eligibility ? " (decides eligibility)" : ""}: ${vals}${c.no_table ? " <span class=\"sub\">(no code table for this kind)</span>" : ""}<br><span class="sub">Fix: correct the client's code sheet</span></span></li>`);
+    }
+  }
+  if (!rows.length) return "";
+  const unchecked = !SEV && e.unchecked.length ? `<p class="sub" style="margin:6px 0 0">Not checked: ${esc(e.unchecked.join("; "))}</p>` : "";
+  return `<section class="icard" id="issue-${esc(e.id)}"><div class="ihead"><b>${esc(e.name || e.id)}</b> <span class="sub">${esc(e.id)} · ${esc(e.csm)}</span>
+    <span class="sub" style="margin-left:auto">${codeSheetLinks(e.id, e.code_sheet)}</span></div><ul class="checks">${rows.join("")}</ul>${unchecked}</section>`;
+}
+
+async function issuesView(focus) {
+  current = focus || null; renderList();
+  if (!ISSUES) $("#main").innerHTML = `<div class="head"><h2>Data Issues</h2></div><p class="note">Reading the data issues…</p>`;
+  let d;
+  try { d = await loadIssues(); } catch (e) { $("#main").innerHTML = `<p class="err">Couldn't read the data issues: ${esc(e.message)}</p>`; return; }
+  if (MODE !== "issues") return;
+  const csm = $("#csm").value, q = $("#q").value.trim().toLowerCase();
+  const shown = d.clients.filter(e => (focus ? e.id === focus : (!csm || e.csm === csm) && (!q || e.id.includes(q) || (e.name || "").toLowerCase().includes(q))));
+  const cards = shown.map(issueCard).filter(Boolean);
+  const count = k => shown.reduce((n, e) => n + (k === "codes" ? e.codes.length + (e.lift_matrix ? 1 : 0) : e.issues.filter(i => i.severity === k).length), 0);
+  const chip = (k, lab) => `<button class="chipbtn" data-sev="${k}" aria-pressed="${SEV === k}">${lab} ${k ? count(k) : ""}</button>`;
+  const src = d.sources || {};
+  $("#main").innerHTML = `<div class="head"><h2>Data Issues</h2><span class="sub">${focus ? esc((shown[0] || {}).name || focus) + " · " : ""}${shown.length} client${shown.length === 1 ? "" : "s"}</span>
+      <span class="sub" style="margin-left:auto">${focus ? `<button class="link" id="iall">All clients</button>` : ""}</span></div>
+    <div class="chips">${chip("", "All")}${chip("blocker", "Blockers")}${chip("decision", "Decisions")}${chip("gap", "Gaps")}${chip("warning", "Warnings")}${chip("codes", "Codes and Lift Matrix")}</div>
+    <p class="note" style="margin-top:6px">Issue list as of ${esc(src.issue_pages || "never")} (the ODD and Workbook Issues and CSM Data Gaps pages). Code and Lift Matrix checks as of ${esc(src.dashboard || "never")} (the morning dashboard refresh).</p>
+    ${cards.join("") || `<p class="note">No data issues${SEV ? " of this kind" : ""} for ${focus ? "this client" : "these clients"}.</p>`}`;
+  $("#main").querySelectorAll("[data-sev]").forEach(b => b.addEventListener("click", () => { SEV = b.dataset.sev; issuesView(focus); }));
+  const ia = $("#iall"); if (ia) ia.addEventListener("click", () => issuesView());
+}
+
+// Code sheet and issue links work wherever they are drawn.
+document.addEventListener("click", async ev => {
+  const cs = ev.target.closest("[data-cs],[data-csr]"), iss = ev.target.closest("[data-issues]");
+  if (cs) {
+    const cid = cs.dataset.cs || cs.dataset.csr;
+    try { await api("/api/code-sheet", {method: "POST", body: JSON.stringify({client: cid, action: cs.dataset.csr ? "reveal" : "open"})}); }
+    catch (e) { cs.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); }
+  } else if (iss) { setMode("issues", iss.dataset.issues); }
+});
+
+
+$("#list").addEventListener("click", e => { const b = e.target.closest(".client"); if (b) (MODE === "lift" ? liftSelect : MODE === "issues" ? issuesView : select)(b.dataset.id); });
+$("#csm").addEventListener("change", () => { $("#csm").dataset.touched = "1"; store("ars-builder-csm", $("#csm").value); renderList(); if (MODE === "lift" && !current) liftOverview(); if (MODE === "issues" && !current) issuesView(); });
+$("#q").addEventListener("input", () => { renderList(); if (MODE === "issues" && !current) issuesView(); });
 (function showSaved() {
   try { const saved = JSON.parse(sessionStorage.getItem(LIST_KEY) || "null"); if (saved && saved.clients) applyClients(saved, true); } catch (e) {}
 })();
