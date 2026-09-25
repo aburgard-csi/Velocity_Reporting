@@ -603,7 +603,7 @@ referrals-only, which is a valid deck.
 python scripts/watch_sources.py [--notify] [--dry-run] [--period 2026.09 ...]
 python scripts/watch_sources.py --check-stale     # has the daily watch been running?
 powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 \
-        [-Time 08:00] [-Repo <checkout>] [-RetryHours 4] [-Unregister]
+        [-Time 08:00] [-Repo <checkout>] [-RetryHours 0] [-Unregister]
 ```
 
 `deck_status.py` answers "is it there now"; `watch_sources.py` answers "what
@@ -645,9 +645,15 @@ script could not have caught it; only something else asking could. So:
 - **`refresh_performance_dashboard.py` prints it every morning at 08:30**, on a
   different scheduler, which is the point. The delivery dashboard banners it too.
 - `--check-stale` asks from anywhere and **scans nothing**, so it answers off VPN.
-- The trigger repeats hourly for four hours with `-WakeToRun`, and `--once-daily`
-  makes a repeat that follows a run which **reached the shares** exit at once. A
-  run that found the VPN down does not stop the later ones going to look.
+- **The trigger fires ONCE, at 08:00, with `-WakeToRun` (Aaron, 2026-09-25).** It
+  used to repeat hourly for four hours, with `--once-daily` making a repeat that
+  followed a run which **reached the shares** exit at once. `-RetryHours 4` puts
+  that window back. Know what one fire gives up: the watchdog still recovers a
+  fire Windows created suspended, but a morning off the VPN now gets no copy at
+  all — the run goes, reports the shares unreachable and finishes, so there is
+  nothing stuck to recover and no later fire to go and look. Run it by hand once
+  the VPN is up. `--once-daily` is still passed, so a hand-run after a successful
+  one exits at once.
 
 Do not "simplify" this by having the watch check its own health. That is the one
 thing it cannot do.
@@ -657,7 +663,8 @@ daily at 08:00 as the logged-on user (the share needs those credentials and the
 toast needs a desktop), catching up a missed run when the laptop wakes.
 Registered on this machine 2026-09-08, re-registered 2026-09-11 with the retry
 window, `-WakeToRun` and a 20-minute limit (short enough that a stuck fire is
-cleared before the next is due, or `MultipleInstances IgnoreNew` drops it).
+cleared before the next is due, or `MultipleInstances IgnoreNew` drops it), and
+re-registered 2026-09-25 with **no retry window at all** — one fire a morning.
 **`-Repo` points it at a checkout other than the one the script lives in** — a
 worktree has no `.venv` and no `.env` and cannot host the task. The script omits
 `--once-daily` when the target checkout does not know the flag, because it is
@@ -911,7 +918,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `watch_task_watchdog.ps1` — detects a "RPE Source Watch" run Windows created suspended and never executed, kills it, and retries (see **The watchdog**).
 - `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.
 - `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**). Also keeps the run record and answers `--check-stale`.
-- `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily, with the morning retry window. `-Repo` targets a checkout other than its own.
+- `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily, one fire at 08:00 (`-RetryHours 4` restores the old morning retry window). `-Repo` targets a checkout other than its own.
 - `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
 - `perf_dashboard_template.html` — that artifact's page, with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy.
 - `ars_launcher.py` — builds one client's ARS deck, or with `--combined` one deck with ARS plus every other clients.md program whose data is on hand (`program_availability`: ICS from VIP or the local ICS files, MRPC from VIP), into Outputs without Claude (`status | build <id> [--combined]`): checks the product list, `clients.md`, the combined-deck rule, sent state and input currency first, works in `Build Artifacts/launcher/<period>/<id>/`, and puts a 0-FAIL deck straight into `Outputs/<CSM>/`, archiving what it supersedes. No staging step: each CSM reviews, PDFs and emails the deck from Outputs (Aaron, 2026-09-15).

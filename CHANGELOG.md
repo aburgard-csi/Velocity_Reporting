@@ -139,6 +139,32 @@ $11.57 under 6-10 at $12.55: fewer NSF/OD items per account) puts a negative lif
 that is allowed (Aaron: "Negative lift between segments is allowed"). Live workbook matrices carry
 the same thing (Foothills 16-20 under 11-15, FNB Alaska 26 Plus under 21-25).
 
+### 2026-09-25 — The source watch fires once a morning
+
+Aaron: "let's run this source watch just once per day in the morning."
+
+"RPE Source Watch" fired at 08:00 and then hourly for four hours — five fires a morning, with
+`--once-daily` making every fire after a successful one exit at once. It now fires once, at
+08:00. `register_watch_task.ps1 -RetryHours` defaults to 0 instead of 4, so the checked-in
+script and the registered task agree; `-RetryHours 4` puts the old window back.
+
+The retries were not decoration, so what they covered is worth naming:
+
+- **A fire Windows created suspended** (2026-09-09, -10, -11, -18, -19: zero CPU, no modules
+  loaded, killed at the execution limit) is still covered — by the watchdog, which recognises
+  that signature, kills the tree and restarts the task.
+- **A morning off the VPN is not covered any more.** The run goes, finds the shares
+  unreachable, reports it and finishes, so there is no stuck process for the watchdog to
+  recover — it logs "needs a human look" and stops — and no later fire to go and look. That
+  day gets no copy, and `Inputs/` stays where yesterday left it. Run the watch by hand once
+  the VPN is up. This is the case that had just happened: on 2026-09-25 the 08:00, 09:00 and
+  10:00 fires all found the shares down, and under the new schedule only the first would have
+  gone.
+
+The 50-minute execution limit is unchanged. It was sized to clear before the next hourly fire;
+with no next fire it is kept because a run that has not finished in 50 minutes is stuck rather
+than slow, and the watchdog wants the slot cleared.
+
 ### 2026-09-23 — The run record does not live on the share any more
 
 Aaron: "fix the run record flaw."

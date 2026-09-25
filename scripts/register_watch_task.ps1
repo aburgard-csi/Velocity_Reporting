@@ -30,25 +30,38 @@
     is back, and the task waits for a network connection rather than failing on
     a machine that has not finished connecting.
 
-    THE FIRE IS RETRIED, and that is not belt-and-braces. On 2026-09-09, -10 and
-    -11 - and again on 2026-09-18 and -19 - the 08:00 process was created by the
-    scheduler and left SUSPENDED: zero CPU, no modules loaded, the interpreter
-    never initialized, killed at the execution limit. Those mornings produced no
-    check and no trace. Only the unattended time-triggered fires did this; every
-    run started by hand on an awake machine finished in minutes. So the trigger
-    repeats hourly through the morning, on the reasoning that a later fire meets
-    a machine that is properly awake, and -WakeToRun asks for one at the start.
-    The repeats are cheap: --once-daily makes a fire that follows a successful
-    run exit immediately. "Successful" there means it reached the shares, so a
-    fire that found the VPN down does not stop the later ones going to look.
+    ONE FIRE A MORNING (Aaron, 2026-09-25). -RetryHours defaults to 0, so the task
+    fires once at Time and that is the whole day's check. -WakeToRun still asks for
+    a machine that is awake to take it.
 
-    The execution limit is 50 minutes (Aaron, 2026-09-21). It has to clear
-    before the next hourly fire, or MultipleInstances IgnoreNew would drop that
-    one - so not the 2 hours a slow share's copy might want - and it has to
-    leave room for more than the 20 minutes a healthy run takes: the 08:00 runs
+    Know what the single fire gives up. On 2026-09-09, -10 and -11 - and again on
+    2026-09-18 and -19 - the 08:00 process was created by the scheduler and left
+    SUSPENDED: zero CPU, no modules loaded, the interpreter never initialized,
+    killed at the execution limit. Those mornings produced no check and no trace.
+    Only the unattended time-triggered fires did this; every run started by hand on
+    an awake machine finished in minutes. The hourly repeats were the answer to it,
+    on the reasoning that a later fire meets a machine that is properly awake. What
+    still covers that case is the watchdog, which spots a suspended fire and
+    restarts the task (scripts\watch_task_watchdog.ps1).
+
+    What nothing covers now is a morning off the VPN. The run goes, finds the
+    shares unreachable, reports it and exits - so there is no stuck process for the
+    watchdog to recover, and no second fire to go and look. That day gets no copy.
+    Run it by hand once the VPN is up, or pass -RetryHours 4 to put the hourly
+    window back; --once-daily then makes a fire that follows a run which REACHED
+    THE SHARES exit at once, so a fire that found the VPN down does not stop the
+    later ones going to look.
+
+    The execution limit is 50 minutes (Aaron, 2026-09-21). It was sized to clear
+    before the next hourly fire, or MultipleInstances IgnoreNew would have dropped
+    that one - so not the 2 hours a slow share's copy might want - and to leave
+    room for more than the 20 minutes a healthy run takes: the 08:00 runs
     of 2026-09-18 through -20 were killed inside the copy at 30. watch_sources
     now writes the scan's report before the copy begins, so a fire killed at 50
-    minutes still leaves the morning's findings and its run record.
+    minutes still leaves the morning's findings and its run record. With no hourly
+    fire behind it, the 50 minutes is no longer forced by the next one; it is kept
+    because a run that has not finished in 50 minutes is stuck rather than slow,
+    and the watchdog wants the slot cleared.
 
     Whether any of this actually happened is a separate question, and the task
     cannot answer it - a fire that never runs writes nothing. Ask the watch
@@ -75,8 +88,9 @@
     the task needs both. Point it at the checkout that does.
 
 .PARAMETER RetryHours
-    How long to keep re-firing hourly after Time. Default 4 (08:00 to 12:00).
-    0 registers a single daily fire with no retries.
+    How long to keep re-firing hourly after Time. Default 0: one fire a morning and
+    no retries (Aaron, 2026-09-25). 4 puts the old 08:00-to-12:00 window back - the
+    description above says what the single fire gives up.
 
 .PARAMETER Unregister
     Remove the task instead of creating it.
@@ -84,13 +98,14 @@
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1
     powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 -Time 07:30
+    powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 -RetryHours 4
     powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 -Unregister
 #>
 [CmdletBinding()]
 param(
     [string]$Time = "08:00",
     [string]$Repo = "",
-    [int]$RetryHours = 4,
+    [int]$RetryHours = 0,
     [switch]$Unregister
 )
 
