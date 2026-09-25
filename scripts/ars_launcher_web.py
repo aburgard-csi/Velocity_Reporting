@@ -803,6 +803,7 @@ _lm_pool = ThreadPoolExecutor(1)
 _lm_overview = {"doc": None, "at": 0.0, "busy": False}
 _lm_books = {}                     # (path, mtime) -> read_workbook()
 LIFT_TTL = 300
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _lv():
@@ -939,33 +940,63 @@ def lift_client_doc(cid, body=None):
     if rates["nsf_fee"] is not None:
         doc["calculated"] = LV.values(scan, rates["ic_rate"], rates["nsf_fee"], rates["collection"])
     if doc["period"] and doc["name"]:
-        out = R.client_outputs(cid) / LV.out_name(cid, doc["period"], doc["name"])
-        doc["file_name"] = out.name
-        doc["saved"] = str(out) if out.is_file() else None
+        doc["file_name"] = LV.out_name(cid, doc["period"], doc["name"])
+        ap = _approval_path(cid, doc["period"])
+        try:
+            rec = json.loads(ap.read_text(encoding="utf-8")) if ap.is_file() else None
+        except (OSError, ValueError):
+            rec = None
+        if rec and rec.get("odd") == _odd_key(cid):
+            doc["approved"] = {"rates": rec.get("rates"), "at": rec.get("approved_at"), "by": rec.get("approved_by")}
     return doc
 
 
-def lift_save(cid, body):
-    """Write the Bradford file to the client's Outputs folder, and its inputs beside the scan."""
+def _lift_ready(cid, body):
+    """(doc, None) when the calculated matrix can be approved at these rates, else (None, (code, error))."""
     doc = lift_client_doc(cid, body)
     if doc.get("scan_state") == "sm":
-        return 400, {"error": "This client is on the SM model, which does not use a Lift Matrix."}
+        return None, (400, {"error": "This client is on the SM model, which does not use a Lift Matrix."})
     if doc.get("scan_state") != "ready":
-        return 409, {"error": "The ODD is still being read. Try again in a moment."}
+        return None, (409, {"error": "The ODD is still being read. Try again in a moment."})
     if "calculated" not in doc:
-        return 400, {"error": "Enter the client's NSF/OD fee first."}
+        return None, (400, {"error": "Enter the client's NSF/OD fee first."})
     if not doc.get("period") or not doc.get("name"):
-        return 400, {"error": "No cycle period or client name, so the file cannot be named."}
-    LV = _lv()
-    out = R.client_outputs(cid, create=True) / LV.out_name(cid, doc["period"], doc["name"])
-    LV.write_xlsx(doc["calculated"], str(out))
-    # What the file was made from, beside the scan (Build Artifacts, never Outputs).
+        return None, (400, {"error": "No cycle period or client name, so the file cannot be named."})
+    return doc, None
+
+
+def _approval_path(cid, period):
+    return _lift_dir() / f"{cid}-{period}-approved.json"
+
+
+def lift_approve(cid, body):
+    """Approve the calculated matrix at these rates (Aaron, 2026-09-25: "when the matrix is approved it'll
+    allow you to download the file"). The record — rates, the ODD landing, the values — is kept in Build
+    Artifacts; the download is only served for exactly what was approved."""
+    doc, err = _lift_ready(cid, body)
+    if err:
+        return err
     rec = {k: doc.get(k) for k in ("client", "name", "period", "workbook", "rates", "defaults", "scan", "calculated")}
-    rec.update(saved=str(out), saved_at=time.strftime("%Y-%m-%d %H:%M:%S"))
-    (_lift_dir() / f"{cid}-{doc['period']}-saved.json").write_text(json.dumps(rec, indent=1), encoding="utf-8")
-    with _lm_lock:
-        _lm_overview["at"] = 0.0
-    return 200, {"ok": True, "saved": str(out), "file_name": out.name}
+    rec.update(odd=_odd_key(cid), approved_at=time.strftime("%Y-%m-%d %H:%M:%S"),
+               approved_by=os.environ.get("USERNAME") or os.environ.get("USER") or "")
+    _approval_path(cid, doc["period"]).write_text(json.dumps(rec, indent=1), encoding="utf-8")
+    return 200, {"ok": True, "approved_at": rec["approved_at"], "file_name": doc["file_name"]}
+
+
+def lift_download(cid, body):
+    """(code, xlsx bytes | error, file name). Refused unless the matrix was approved at these very rates
+    from the ODD that is in Inputs now — an edit after approval needs approving again."""
+    import io
+    doc, err = _lift_ready(cid, body)
+    if err:
+        return err[0], err[1], None
+    p = _approval_path(cid, doc["period"])
+    rec = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
+    if not rec or rec.get("rates") != doc["rates"] or rec.get("odd") != _odd_key(cid):
+        return 409, {"error": "Approve the matrix at these rates first."}, None
+    buf = io.BytesIO()
+    _lv().write_xlsx(doc["calculated"], buf)
+    return 200, buf.getvalue(), doc["file_name"]
 
 
 def compute_lift_overview():
@@ -1058,10 +1089,13 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+    def _send(self, code, body, ctype="application/json; charset=utf-8", filename=None):
         data = body if isinstance(body, bytes) else json.dumps(body).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        if filename:
+            from urllib.parse import quote
+            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(filename)}")
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Length", str(len(data)))
@@ -1126,7 +1160,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined"))))
         if path == "/api/reveal":
             return self._send(*reveal(str(body.get("path", ""))))
-        if path in ("/api/lift/save", "/api/lift/rescan"):
+        if path in ("/api/lift/approve", "/api/lift/download", "/api/lift/rescan"):
             cid = str(body.get("client", "")).strip()
             if not CID_RX.match(cid):
                 return self._send(400, {"error": "not a client number"})
@@ -1134,7 +1168,12 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/api/lift/rescan":
                     lift_queue_scan(cid, force=True)
                     return self._send(200, {"ok": True})
-                return self._send(*lift_save(cid, body))
+                if path == "/api/lift/download":
+                    code, data, name = lift_download(cid, body)
+                    if code != 200:
+                        return self._send(code, data)
+                    return self._send(200, data, XLSX, filename=name)
+                return self._send(*lift_approve(cid, body))
             except ValueError as e:
                 return self._send(400, {"error": str(e)})
             except (OSError, SystemExit, KeyError) as e:
@@ -1290,6 +1329,8 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
 .rates .src{font-weight:400;font-size:12px;color:var(--ink3)}
 .rates .fld{display:flex;align-items:center;gap:6px} .rates .fld span{color:var(--ink2);font-size:13px}
 .panel{margin-top:18px} .panel h3{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:0 0 6px}
+.grids{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}
+.gridbox h4{margin:0 0 4px;font-size:13.5px;color:var(--ink2)}
 .method{font-size:13px;color:var(--ink2);margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
 </style>
 </head>
@@ -1671,22 +1712,43 @@ function liftRender(d) {
   wireSave(d);
 }
 
+// Current (the workbook's) and new (calculated) side by side (Aaron, 2026-09-25): each segment's DDA value in
+// both, the change, and the step from the segment before it; then both lift grids.
 function liftBody(d) {
-  const segs = d.segments, calc = d.calculated, cur = (d.current || {}).segments || {};
+  const segs = d.segments, calc = d.calculated, cur = d.current || {}, curSeg = cur.segments || {}, curGrid = cur.grid || {};
   const bySeg = calc ? Object.fromEntries(calc.segments.map(x => [x.segment, x])) : {};
-  const rows = SEGS.map(s => {
-    const g = s === "NH" ? null : segs[s], c = s === "NH" ? (bySeg.NU || null) : bySeg[s];
-    const now = cur[s] ? cur[s].dda : null, v = c ? c.dda : null, dlt = v != null && now != null ? v - now : null;
-    return `<tr><td class="l"><b>${esc(s)}</b></td><td>${g ? g.n.toLocaleString() : ""}</td><td>${s === "NH" ? "0%" : pct(g.dist)}</td>
-      <td>${g ? money(g.spend) : ""}</td><td>${g ? g.items.toFixed(3) : ""}</td><td>${c ? money(c.interchange) : ""}</td><td>${c ? money(c.nsf) : ""}</td>
-      <td><b>${money(v)}</b></td><td>${money(now)}</td><td class="${dlt > 0 ? "up" : dlt < 0 ? "down" : ""}">${dlt == null ? "" : (dlt >= 0 ? "+" : "−") + money(Math.abs(dlt))}</td></tr>`;
+  const newV = s => { const c = s === "NH" ? bySeg.NU : bySeg[s]; return c ? c.dda : null; };
+  const curV = s => curSeg[s] ? curSeg[s].dda : null;
+  const signed = v => v == null ? "" : (v > 0 ? "+" : "") + money(v);
+  const cls = v => v == null ? "" : v > 0 ? "up" : v < 0 ? "down" : "";
+  const step = (f, i) => i < 2 || f(SEGS[i]) == null || f(SEGS[i - 1]) == null ? null : f(SEGS[i]) - f(SEGS[i - 1]);
+  const rows = SEGS.map((s, i) => {
+    const g = s === "NH" ? null : segs[s], nv = newV(s), cv = curV(s), dlt = nv != null && cv != null ? nv - cv : null;
+    const cd = curSeg[s] && curSeg[s].dist != null ? pct(curSeg[s].dist) : "–";
+    return `<tr><td class="l"><b>${esc(s)}</b></td><td>${g ? g.n.toLocaleString() : ""}</td>
+      <td>${s === "NH" ? "0%" : cd}</td><td>${s === "NH" ? "0%" : pct(g.dist)}</td>
+      <td>${money(cv)}</td><td><b>${money(nv)}</b></td><td class="${cls(dlt)}">${signed(dlt)}</td>
+      <td>${signed(step(curV, i))}</td><td>${signed(step(newV, i))}</td></tr>`;
   }).join("");
-  const seg = `<div class="panel"><h3>Revenue segmentation</h3><div class="lmwrap"><table class="lm"><thead><tr><th>Segment</th><th>Accounts</th><th>Distribution</th><th>Avg spend / mo</th><th>NSF/OD items / mo</th><th>Interchange</th><th>NSF/OD</th><th>DDA value</th><th>Current</th><th>Change</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-  if (!calc) return seg + `<p class="err">Enter the client's NSF/OD fee to calculate the matrix.</p>`;
+  const seg = `<div class="panel"><h3>Revenue segmentation: current and new</h3><div class="lmwrap"><table class="lm">
+    <thead><tr><th rowspan="2">Segment</th><th rowspan="2">Accounts</th><th colspan="2">Distribution</th><th colspan="3">DDA value</th><th colspan="2">Step from the segment before</th></tr>
+    <tr><th>Current</th><th>New</th><th>Current</th><th>New</th><th>Change</th><th>Current</th><th>New</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">Current is the matrix in ${esc(d.workbook || "the workbook")}${cur.window ? " (" + esc(cur.window) + ")" : ""}. A step is a segment's DDA value less the one above it.</p></div>`;
+  const detail = `<details class="log"><summary>How each new value is made up</summary><div class="lmwrap"><table class="lm"><thead><tr><th>Segment</th><th>Avg spend / mo</th><th>NSF/OD items / mo</th><th>Interchange</th><th>NSF/OD</th><th>DDA value</th></tr></thead><tbody>${
+    SEGS.slice(1).map(s => { const g = segs[s], c = bySeg[s]; return `<tr><td class="l"><b>${esc(s)}</b></td><td>${money(g.spend)}</td><td>${g.items.toFixed(3)}</td><td>${c ? money(c.interchange) : ""}</td><td>${c ? money(c.nsf) : ""}</td><td>${c ? money(c.dda) : ""}</td></tr>`; }).join("")
+  }</tbody></table></div></details>`;
+  if (!calc) return seg + `<p class="err">Enter the client's NSF/OD fee to calculate the new matrix.</p>`;
   const cols = SEGS.slice(2), bases = SEGS.slice(1, 6);
-  const grid = bases.map(b => `<tr><td class="l"><b>${esc(b)}</b></td>${cols.map(c => { const v = calc.matrix[b][c]; return `<td>${v == null ? "" : money(v)}</td>`; }).join("")}</tr>`).join("");
-  // A segment valued below the one before it gives a negative lift; that is allowed (Aaron, 2026-09-25).
-  const mat = `<div class="panel"><h3>Monthly incremental revenue lift</h3><div class="lmwrap"><table class="lm"><thead><tr><th>Baseline segment</th>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${grid}</tbody></table></div></div>`;
+  const grid = (title, get, compare) => `<div class="gridbox"><h4>${title}</h4><table class="lm"><thead><tr><th>Baseline</th>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${
+    bases.map(b => `<tr><td class="l"><b>${esc(b)}</b></td>${cols.map(c => {
+      const v = get(b, c); if (v == null) return "<td></td>";
+      const was = compare ? compare(b, c) : null;
+      return `<td class="${was == null ? "" : cls(Math.round((v - was) * 100))}"${was == null ? "" : ` title="Current ${money(was)}"`}>${money(v)}</td>`;
+    }).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const curGet = (b, c) => (curGrid[b] || {})[c] ?? null, newGet = (b, c) => calc.matrix[b][c] ?? null;
+  const grids = `<div class="panel"><h3>Monthly incremental revenue lift</h3><div class="grids">
+    ${grid("Current" + (cur.window ? " · " + esc(cur.window) : ""), curGet)}${grid("New", newGet, Object.keys(curGrid).length ? curGet : null)}</div>
+    <p class="note">New cells are green where they are above the current matrix and red where they are below. Hover a cell for the current value.</p></div>`;
   const sc = d.scan, fee = sc.fee;
   const feeLine = fee ? (fee.values.length ? `NSF/OD fee in the ODD (${esc(fee.columns.join(", "))}): ${fee.values.map(x => `${money(x.fee)} on ${pct(x.share, 0)} of items`).join(", ")}. The most common is the default.` : `The ODD has ${esc(fee.columns.join(", "))} but no fee on any NSF/OD item, so the fee comes from the workbook.`)
     : `This ODD carries no NSF/OD fee column (Fees1), so NSF/OD is valued as the monthly OD item count × the fee.`;
@@ -1697,23 +1759,40 @@ function liftBody(d) {
     <li>Outliers: each account's spend and NSF/OD items are capped at the ${Math.round(sc.winsor_pct * 100)}th percentile of its segment. 26 Plus is valued on its accounts averaging 26 to ${25 + sc.top_band} swipes; its distribution counts all of them.</li>
     <li>DDA value = interchange rate × spend + NSF/OD fee × items × collection rate. NH carries NU's value. Lift = DDA of the new segment − DDA of the baseline.</li>
     <li>${feeLine}</li></ul></div>`;
-  const save = `<div class="verdict ready"><p><b>Save for Bradford.</b> <span class="mono">${esc(d.file_name || "")}</span> goes to your folder in Outputs${d.saved ? ", replacing the one saved earlier" : ""}. Email it to Bradford to have it loaded.</p><span class="btns"><button class="primary" id="lmsave">Save the Lift Matrix</button></span></div><div id="lmsaved"></div>`;
-  return seg + mat + save + method;
+  const ok = d.approved && JSON.stringify(d.approved.rates) === JSON.stringify(d.rates);
+  const approve = ok
+    ? `<div class="verdict ready"><p><b>Approved</b> ${esc(d.approved.at)}${d.approved.by ? " by " + esc(d.approved.by) : ""} at these rates. Download <span class="mono">${esc(d.file_name)}</span> and email it to Bradford to have it loaded.</p><span class="btns"><button class="primary" id="lmdl">Download the Excel file</button></span></div>`
+    : `<div class="verdict ask"><p><b>Review the new matrix against the current one, then approve it.</b> Approving unlocks the Excel file for Bradford.${d.approved ? " An earlier approval was at different rates." : ""}</p><span class="btns"><button class="primary" id="lmok">Approve this matrix</button></span></div>`;
+  return seg + detail + grids + approve + `<div id="lmmsg"></div>` + method;
+}
+
+function liftRatesBody(d) {
+  const q = new URLSearchParams(liftQuery(d.client)), body = {client: d.client};
+  for (const k of ["ic_rate", "nsf_fee", "collection"]) if (q.has(k)) body[k] = q.get(k);
+  return body;
 }
 
 function wireSave(d) {
-  const b = $("#lmsave"); if (!b) return;
-  b.addEventListener("click", async () => {
-    b.disabled = true; b.textContent = "Saving…";
-    const q = new URLSearchParams(liftQuery(d.client)), body = {client: d.client};
-    for (const k of ["ic_rate", "nsf_fee", "collection"]) if (q.has(k)) body[k] = q.get(k);
+  const ok = $("#lmok"), dl = $("#lmdl");
+  if (ok) ok.addEventListener("click", async () => {
+    ok.disabled = true; ok.textContent = "Approving…";
     try {
-      const {status, body: r} = await api("/api/lift/save", {method: "POST", body: JSON.stringify(body)});
-      if (status !== 200) throw new Error(r.error || "not saved");
-      b.textContent = "Saved";
-      $("#lmsaved").innerHTML = `<div class="result good"><h3>Saved to Outputs.</h3><p class="mono">${esc(r.file_name)}</p><p><button class="link" id="lmreveal">Show it in File Explorer</button></p></div>`;
-      $("#lmreveal").addEventListener("click", () => api("/api/reveal", {method: "POST", body: JSON.stringify({path: r.saved})}));
-    } catch (e) { b.disabled = false; b.textContent = "Try again"; $("#lmsaved").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+      const {status, body: r} = await api("/api/lift/approve", {method: "POST", body: JSON.stringify(liftRatesBody(d))});
+      if (status !== 200) throw new Error(r.error || "not approved");
+      liftSelect(d.client, true);
+    } catch (e) { ok.disabled = false; ok.textContent = "Try again"; $("#lmmsg").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  });
+  if (dl) dl.addEventListener("click", async () => {
+    dl.disabled = true;
+    try {
+      const r = await fetch("/api/lift/download", {method: "POST", headers: {"X-Token": TOKEN, "Content-Type": "application/json"}, body: JSON.stringify(liftRatesBody(d))});
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "HTTP " + r.status); }
+      const url = URL.createObjectURL(await r.blob()), a = document.createElement("a");
+      a.href = url; a.download = d.file_name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      $("#lmmsg").innerHTML = `<p class="note">Downloaded <span class="mono">${esc(d.file_name)}</span> to your Downloads folder.</p>`;
+    } catch (e) { $("#lmmsg").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+    dl.disabled = false;
   });
 }
 

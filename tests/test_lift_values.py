@@ -159,3 +159,16 @@ def test_the_workbook_gives_its_newest_rates_and_current_matrix(tmp_path):
     assert m["in_window"] and not m["data_past_end"]
     assert m["segments"]["NU"]["dda"] == 14.5
     assert m["segments"]["26 Plus"]["dda"] == 16.5        # '26+' read as the segment it is
+
+
+def test_the_workbook_lift_grid_is_read_as_written(tmp_path):
+    path = _workbook(tmp_path / "wb.xlsx")
+    wb = openpyxl.load_workbook(path)
+    lm = wb["Lift Matrix MM"]
+    for j, c in enumerate(LV.CURRENTS, start=3):
+        lm.cell(11, j, c)
+    lm["B12"], lm["C12"], lm["H12"] = "NU", 5.22, 26.42
+    lm["B13"], lm["D13"] = "1-5", 7.3
+    wb.save(path)
+    grid = LV.read_workbook(path)["matrix"]["grid"]
+    assert grid["NU"] == {"1-5": 5.22, "26 Plus": 26.42} and grid["1-5"] == {"6-10": 7.3}

@@ -291,7 +291,22 @@ def _matrix(wb):
         return None
     rows = [list(r) for r in wb[SHEET].iter_rows(min_row=1, max_row=40, max_col=16, values_only=True)]
     g = _Grid(rows)
-    out = window(g, header_row(g))
+    hdr = header_row(g)
+    out = window(g, hdr)
+    # The lift grid the workbook carries now, as written (not re-derived from its DDA values):
+    # 'Baseline Segment' in column B, the current segments across, a baseline per row below.
+    grid = {}
+    if hdr:
+        cols = [str(g.cell(hdr, c).value or "").strip() for c in range(3, 9)]
+        cols = ["26 Plus" if c.lower() in ("26+", "25+", "26 plus") else c for c in cols]
+        for r in range(hdr + 1, hdr + 8):
+            base = g.cell(r, 2).value
+            if not base:
+                break
+            grid[str(base).strip()] = {c: round(v, 2) for c, v in
+                                       ((c, g.cell(r, j).value) for j, c in zip(range(3, 9), cols))
+                                       if c and isinstance(v, (int, float))}
+    out["grid"] = grid
     segs = {}
     for r in range(1, len(rows) + 1):
         c = next((c for c in range(1, 17) if g.cell(r, c).value == "Segments"), None)
@@ -399,7 +414,7 @@ def write_xlsx(vals, out):
             v = vals["matrix"][base].get(cur)
             if v is not None:
                 ws[f"{c}{i}"] = v
-                ws[f"{c}{i}"].number_format = acct
+            ws[f"{c}{i}"].number_format = acct     # the empty triangle too, as in Bradford's file
     for c, w in (("A", 19.71), ("B", 12.86), ("C", 11.57), ("D", 8.71)):
         ws.column_dimensions[c].width = w
     wb.save(out)

@@ -17,6 +17,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Lift Matrix: current and new side by side, approve, then download
+
+Aaron: "When the lift matrix is calculated, I want it shown side by side with the previous matrix,
+and the value difference between segments shown, and also show the current and new lift grids.
+When the matrix is approved it'll allow you to download the file with the lift matrix values."
+
+- The client page shows each segment's distribution and DDA value, current and new, the change, and
+  the **step from the segment before** in both. Below it, the **current and new lift grids** side by
+  side. The current grid is read from the workbook's Lift Matrix MM block as written, not re-derived.
+  New cells are coloured against the current ones.
+- **Approve this matrix** records the rates, the ODD landing and the values in
+  `Build Artifacts/lift_values/<id>-<period>-approved.json`. Only then does **Download the Excel
+  file** appear, and the server serves it only for exactly the approved rates from the ODD now in
+  Inputs. Change a rate after approving and it has to be approved again.
+- The file is **downloaded, no longer written to `Outputs/`**, which holds finished decks only.
+  Its layout matches the CoastLife example cell for cell (text, number formats, bold, merges), now
+  including the accounting format on the empty half of the lift triangle.
+- Negative lift between segments is allowed (Aaron), so the page no longer warns about it.
+
 ### 2026-09-25 — Sheila builds a client's Lift Matrix
 
 Aaron: "add functionality to Sheila to build client Lift Matrix for ARS", and "create a tab in
