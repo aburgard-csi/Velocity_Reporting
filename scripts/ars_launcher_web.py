@@ -790,6 +790,267 @@ def reveal(path):
     return 200, {"ok": True}
 
 
+# ------------------------------------------------------------------ Lift Matrix (Aaron, 2026-09-25)
+# "Add functionality to Sheila to build client Lift Matrix for ARS" and "create a tab in Sheila showing the lift
+# matrices across clients, and the current calculated lift matrix." The valuation is build/ars_pipeline/
+# lift_values.py; nothing here decides a number. Reading an ODD takes 5-60 s, so each client's scan runs once in
+# the background (one at a time, so a "calculate all" does not flood the share) and its segment figures are kept
+# in Build Artifacts/lift_values/<id>.json against that ODD landing. The rates are applied per request, so
+# editing them never re-reads the extract.
+_lm_lock = threading.Lock()
+_lm_scans = {}                     # cid -> {"state": "queued"|"scanning"|"error", "error"}
+_lm_pool = ThreadPoolExecutor(1)
+_lm_overview = {"doc": None, "at": 0.0, "busy": False}
+_lm_books = {}                     # (path, mtime) -> read_workbook()
+LIFT_TTL = 300
+
+
+def _lv():
+    p = str(REPO / "build" / "ars_pipeline")
+    if p not in sys.path:
+        sys.path.insert(0, p)
+    import lift_values
+    return lift_values
+
+
+def _lift_dir():
+    d = R.build_artifacts() / "lift_values"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _odd_path(cid):
+    return R.inputs() / "ODDD" / f"{cid}_ODDD.zip"
+
+
+def _odd_key(cid):
+    st = os.stat(_odd_path(cid))
+    return {"odd": str(_odd_path(cid)), "mtime": st.st_mtime_ns, "size": st.st_size, "version": _lv().SCAN_VERSION}
+
+
+def lift_cached_scan(cid):
+    """The stored scan when it was made from the ODD now in Inputs, else None."""
+    p = _lift_dir() / f"{cid}.json"
+    if not p.is_file():
+        return None
+    try:
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        return doc["scan"] if doc.get("key") == _odd_key(cid) else None
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _run_scan(cid):
+    with _lm_lock:
+        _lm_scans[cid] = {"state": "scanning"}
+    try:
+        key = _odd_key(cid)
+        scan = _lv().scan(str(_odd_path(cid)))
+        (_lift_dir() / f"{cid}.json").write_text(json.dumps({"key": key, "scan": scan, "at": time.time()}),
+                                                  encoding="utf-8")
+        with _lm_lock:
+            _lm_scans.pop(cid, None)
+            _lm_overview["at"] = 0.0          # the overview's calculated row is due
+    except (Exception, SystemExit) as e:
+        with _lm_lock:
+            _lm_scans[cid] = {"state": "error", "error": str(e) or type(e).__name__}
+
+
+def lift_queue_scan(cid, force=False):
+    """Queue a scan unless one is queued or running, or (without `force`) a current one is stored."""
+    with _lm_lock:
+        if _lm_scans.get(cid, {}).get("state") in ("queued", "scanning"):
+            return
+    if not force and lift_cached_scan(cid) is not None:
+        return
+    with _lm_lock:
+        _lm_scans[cid] = {"state": "queued"}
+    _lm_pool.submit(_run_scan, cid)
+
+
+def _lift_workbook(cid):
+    """(path, read_workbook()) for the client's newest ARS workbook in Inputs, or (None, None)."""
+    import build_month as BM
+    per = L.newest_workbook_period(cid)
+    wbs = BM.ars_workbook(R.report_dirs(), cid, per) if per else []
+    if not wbs:
+        return None, None
+    path = wbs[-1]
+    key = (path, os.stat(path).st_mtime_ns)
+    if key not in _lm_books:
+        _lm_books[key] = _lv().read_workbook(path)
+    return path, _lm_books[key]
+
+
+def _roster_entry(cid):
+    import build_month as BM
+    return next((r for r in BM.read_roster()[0] if r[0] == cid), None)
+
+
+def lift_rates(body, defaults):
+    """The three rates from a request, each falling back to its default. ValueError on a bad one."""
+    def num(k, lo, hi):
+        v = body.get(k)
+        if v in (None, ""):
+            return defaults.get(k)
+        v = float(v)
+        if not lo <= v <= hi:
+            raise ValueError(f"{k} {v} is outside {lo}-{hi}")
+        return v
+    return {"ic_rate": num("ic_rate", 0.0, 0.05), "nsf_fee": num("nsf_fee", 0.0, 200.0),
+            "collection": num("collection", 0.0, 1.0)}
+
+
+def lift_client_doc(cid, body=None):
+    """One client's current Lift Matrix (from its workbook) and the calculated one, at the rates in `body`
+    (defaults when absent). Starts the ODD scan when there is no current one."""
+    LV = _lv()
+    entry = _roster_entry(cid)
+    row = L.csm_list_row(cid)
+    doc = {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"),
+           "csm": row.get("csm"), "path": entry[2] if entry else None, "period": L.cycle_period()}
+    try:
+        wb_path, wb = _lift_workbook(cid)
+    except Exception as e:                  # an unreadable workbook is reported, never guessed at
+        wb_path, wb = None, None
+        doc["workbook_error"] = f"{type(e).__name__}: {e}"
+    doc["workbook"] = os.path.basename(wb_path) if wb_path else None
+    doc["current"] = wb["matrix"] if wb else None
+    assumptions = wb["assumptions"] if wb else {}
+    if doc["path"] == "SM":
+        # Aaron, 2026-09-25: SM clients are on the model that does not use the Lift Matrix. Shown, never built.
+        doc["scan_state"] = "sm"
+        return doc
+    if not _odd_path(cid).is_file():
+        doc["scan_state"] = "no-odd"
+        return doc
+    scan = lift_cached_scan(cid)
+    if scan is None:
+        lift_queue_scan(cid)
+        with _lm_lock:
+            st = dict(_lm_scans.get(cid) or {"state": "queued"})
+        doc["scan_state"], doc["scan_error"] = st["state"], st.get("error")
+        return doc
+    doc["scan_state"] = "ready"
+    defaults = LV.default_rates(scan, assumptions)
+    rates = lift_rates(body or {}, defaults)
+    doc.update(defaults=defaults, rates=rates, scan={k: v for k, v in scan.items() if k != "segments"},
+               segments=scan["segments"], winsor_pct=scan["winsor_pct"])
+    if rates["nsf_fee"] is not None:
+        doc["calculated"] = LV.values(scan, rates["ic_rate"], rates["nsf_fee"], rates["collection"])
+    if doc["period"] and doc["name"]:
+        out = R.client_outputs(cid) / LV.out_name(cid, doc["period"], doc["name"])
+        doc["file_name"] = out.name
+        doc["saved"] = str(out) if out.is_file() else None
+    return doc
+
+
+def lift_save(cid, body):
+    """Write the Bradford file to the client's Outputs folder, and its inputs beside the scan."""
+    doc = lift_client_doc(cid, body)
+    if doc.get("scan_state") == "sm":
+        return 400, {"error": "This client is on the SM model, which does not use a Lift Matrix."}
+    if doc.get("scan_state") != "ready":
+        return 409, {"error": "The ODD is still being read. Try again in a moment."}
+    if "calculated" not in doc:
+        return 400, {"error": "Enter the client's NSF/OD fee first."}
+    if not doc.get("period") or not doc.get("name"):
+        return 400, {"error": "No cycle period or client name, so the file cannot be named."}
+    LV = _lv()
+    out = R.client_outputs(cid, create=True) / LV.out_name(cid, doc["period"], doc["name"])
+    LV.write_xlsx(doc["calculated"], str(out))
+    # What the file was made from, beside the scan (Build Artifacts, never Outputs).
+    rec = {k: doc.get(k) for k in ("client", "name", "period", "workbook", "rates", "defaults", "scan", "calculated")}
+    rec.update(saved=str(out), saved_at=time.strftime("%Y-%m-%d %H:%M:%S"))
+    (_lift_dir() / f"{cid}-{doc['period']}-saved.json").write_text(json.dumps(rec, indent=1), encoding="utf-8")
+    with _lm_lock:
+        _lm_overview["at"] = 0.0
+    return 200, {"ok": True, "saved": str(out), "file_name": out.name}
+
+
+def compute_lift_overview():
+    """Every ARS client's current workbook Lift Matrix, and the calculated one at default rates where the
+    ODD has been read."""
+    import build_month as BM
+    LV = _lv()
+    roster, _ = BM.read_roster()
+    rows = {}
+    p = R.csm_list_file()
+    if p and p.is_file():
+        with open(p, encoding="utf-8-sig", newline="") as fh:
+            rows = {r.get("client_id", "").strip(): r for r in csv.DictReader(fh)}
+
+    def one(entry):
+        cid, name, path, _ = entry
+        c = {"id": cid, "name": name or rows.get(cid, {}).get("client_name"),
+             "csm": rows.get(cid, {}).get("csm") or "Unassigned", "path": path}
+        try:
+            wb_path, wb = _lift_workbook(cid)
+        except Exception as e:
+            wb_path, wb = None, None
+            c["error"] = f"{type(e).__name__}"
+        m = wb["matrix"] if wb else None
+        c["workbook"] = os.path.basename(wb_path) if wb_path else None
+        if m:
+            c.update(window=m["window"], data_date=m["data_date"], expired=m["data_past_end"],
+                     current={s: (m["segments"].get(s) or {}).get("dda") for s in ["NH"] + LV.SEGMENTS})
+        try:
+            scan = lift_cached_scan(cid) if path == "MM" and _odd_path(cid).is_file() else None
+        except OSError:
+            scan = None
+        if scan:
+            d = LV.default_rates(scan, wb["assumptions"] if wb else {})
+            if d["nsf_fee"] is not None:
+                v = LV.values(scan, d["ic_rate"], d["nsf_fee"], d["collection"])
+                calc = {r["segment"]: r["dda"] for r in v["segments"]}
+                c["calculated"] = dict(NH=calc["NU"], **calc)
+        return c
+
+    ars = [r for r in roster if "ARS" in r[3]]
+    with ThreadPoolExecutor(PREWARM_WORKERS) as ex:
+        out = list(ex.map(one, ars))
+    out.sort(key=lambda c: (c["csm"], (c["name"] or "").lower()))
+    return {"period": L.cycle_period(), "segments": ["NH"] + LV.SEGMENTS, "clients": out}
+
+
+def _refresh_lift_overview():
+    try:
+        doc = compute_lift_overview()
+        with _lm_lock:
+            _lm_overview.update(doc=doc, at=time.time())
+    finally:
+        with _lm_lock:
+            _lm_overview["busy"] = False
+
+
+def lift_overview_doc():
+    """Served from memory; rebuilt in the background when older than LIFT_TTL or after a save/scan."""
+    with _lm_lock:
+        doc, at, busy = _lm_overview["doc"], _lm_overview["at"], _lm_overview["busy"]
+        scans = {k: v["state"] for k, v in _lm_scans.items()}
+        start = not busy and (doc is None or time.time() - at >= LIFT_TTL)
+        if start:
+            _lm_overview["busy"] = True
+    if start:
+        threading.Thread(target=_refresh_lift_overview, daemon=True).start()
+    return {"doc": doc, "refreshing": busy or start, "scans": scans,
+            "age_seconds": round(time.time() - at) if doc else None}
+
+
+def lift_scan_all():
+    """Queue an ODD scan for every MM ARS client whose ODD is in Inputs and has no current scan. SM clients
+    do not use a Lift Matrix."""
+    import build_month as BM
+    n = 0
+    for cid, _, path, progs in BM.read_roster()[0]:
+        if "ARS" in progs and path == "MM" and _odd_path(cid).is_file() and lift_cached_scan(cid) is None:
+            lift_queue_scan(cid)
+            n += 1
+    with _lm_lock:
+        _lm_overview["at"] = 0.0
+    return 200, {"queued": n}
+
+
 # ------------------------------------------------------------------ HTTP
 class Handler(BaseHTTPRequestHandler):
     server_version = "ARSDeckBuilder"
@@ -840,6 +1101,12 @@ class Handler(BaseHTTPRequestHandler):
                 if u.path == "/api/status":
                     return self._send(200, status_doc(cid, fresh=(q.get("fresh") or [""])[0] == "1", background=True))
                 return self._send(200, job_doc(cid) or {})
+            if u.path == "/api/lift/overview":
+                return self._send(200, lift_overview_doc())
+            if u.path == "/api/lift/client":
+                if not CID_RX.match(cid):
+                    return self._send(400, {"error": "not a client number"})
+                return self._send(200, lift_client_doc(cid, {k: v[0] for k, v in q.items()}))
         except (OSError, SystemExit, ValueError, KeyError) as e:
             return self._send(500, {"error": f"{type(e).__name__}: {e}"})
         return self._send(404, {"error": "not found"})
@@ -859,6 +1126,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined"))))
         if path == "/api/reveal":
             return self._send(*reveal(str(body.get("path", ""))))
+        if path in ("/api/lift/save", "/api/lift/rescan"):
+            cid = str(body.get("client", "")).strip()
+            if not CID_RX.match(cid):
+                return self._send(400, {"error": "not a client number"})
+            try:
+                if path == "/api/lift/rescan":
+                    lift_queue_scan(cid, force=True)
+                    return self._send(200, {"ok": True})
+                return self._send(*lift_save(cid, body))
+            except ValueError as e:
+                return self._send(400, {"error": str(e)})
+            except (OSError, SystemExit, KeyError) as e:
+                return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+        if path == "/api/lift/scan-all":
+            return self._send(*lift_scan_all())
         return self._send(404, {"error": "not found"})
 
 
@@ -992,10 +1274,27 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
 .note{color:var(--ink2);font-size:13px;margin-top:14px}
 .err{color:var(--stop)}
 .asof{margin:2px 0 0;font-size:12px;color:var(--ink3)} .asof .link{font-size:12px}
+.tabs{display:flex;gap:4px;background:rgba(255,255,255,.1);border-radius:999px;padding:3px}
+.tabs button{font:600 13.5px/1 "Segoe UI",Arial,sans-serif;color:#fff;background:none;border:0;border-radius:999px;padding:6px 14px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:#fff;color:var(--navy)}
+.lmwrap{overflow-x:auto;margin-top:10px}
+table.lm{border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums;width:100%}
+table.lm th,table.lm td{padding:5px 8px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap}
+table.lm th{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);background:var(--soft)}
+table.lm th:first-child,table.lm td:first-child,table.lm td.l{text-align:left}
+table.lm tr.calc td{color:var(--sent)} table.lm tr.grp td{border-bottom:0}
+table.lm tr.pick{cursor:pointer} table.lm tr.pick:hover td{background:var(--soft)}
+table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
+.rates{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:6px 0 14px}
+.rates label{display:grid;gap:4px;font-size:13px;font-weight:600}
+.rates .src{font-weight:400;font-size:12px;color:var(--ink3)}
+.rates .fld{display:flex;align-items:center;gap:6px} .rates .fld span{color:var(--ink2);font-size:13px}
+.panel{margin-top:18px} .panel h3{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:0 0 6px}
+.method{font-size:13px;color:var(--ink2);margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><span class="period" id="period">Loading…</span></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button></nav><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><span class="period" id="period">Loading…</span></header>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -1269,8 +1568,160 @@ function renderJob(j) {
   if (rv) rv.addEventListener("click", async () => { try { await api("/api/reveal", {method: "POST", body: JSON.stringify({path: j.deck})}); } catch (e) { rv.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); } });
 }
 
-$("#list").addEventListener("click", e => { const b = e.target.closest(".client"); if (b) select(b.dataset.id); });
-$("#csm").addEventListener("change", () => { $("#csm").dataset.touched = "1"; store("ars-builder-csm", $("#csm").value); renderList(); });
+// ------------------------------------------------------------------ Lift Matrix (Aaron, 2026-09-25)
+// Every ARS client's current matrix (from its workbook) and the one calculated from its ODD. The numbers come
+// from the server (build/ars_pipeline/lift_values.py); this page only shows them and passes the three rates.
+let MODE = "decks", liftTimer = null, liftReq = 0;
+const SEGS = ["NH", "NU", "1-5", "6-10", "11-15", "16-20", "21-25", "26 Plus"];
+const money = v => v == null ? "–" : (v < 0 ? "−$" : "$") + Math.abs(Number(v)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
+
+function setMode(m) {
+  MODE = m; clearTimeout(liftTimer); clearInterval(poller); clearTimeout(statusTimer);
+  $("#tab-decks").setAttribute("aria-selected", m === "decks"); $("#tab-lift").setAttribute("aria-selected", m === "lift");
+  current = null; renderList();
+  if (m === "lift") liftOverview();
+  else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their ARS deck can be built this month.</p></div>`;
+}
+
+async function liftOverview() {
+  clearTimeout(liftTimer); current = null; renderList();
+  let body;
+  try { ({body} = await api("/api/lift/overview")); } catch (e) { $("#main").innerHTML = `<p class="err">Couldn't read the Lift Matrices: ${esc(e.message)}</p>`; return; }
+  if (MODE !== "lift" || current) return;
+  const d = body.doc, scanning = Object.values(body.scans || {}).filter(x => x === "queued" || x === "scanning").length;
+  if (!d) { $("#main").innerHTML = `<div class="head"><h2>Lift Matrices</h2></div><p class="note">Reading every ARS client's workbook. This takes about a minute the first time.</p>`; liftTimer = setTimeout(liftOverview, 3000); return; }
+  const csm = $("#csm").value;
+  const rows = d.clients.filter(c => !csm || c.csm === csm).map(c => {
+    const st = c.current ? (c.expired ? `<span class="chip stop">Expired</span>` : `<span class="chip out">Current</span>`) : `<span class="chip">${c.path === "SM" ? "SM model: no Lift Matrix" : c.workbook ? "No matrix in the workbook" : "No workbook"}</span>`;
+    const cur = SEGS.map(s => `<td>${c.current ? money(c.current[s]) : ""}</td>`).join("");
+    const calc = c.calculated ? `<tr class="calc pick" data-id="${esc(c.id)}"><td class="l"></td><td class="l">Calculated</td><td class="l"></td>${SEGS.map(s => `<td>${money(c.calculated[s])}</td>`).join("")}</tr>` : "";
+    return `<tr class="pick${calc ? " grp" : ""}" data-id="${esc(c.id)}"><td class="l"><b>${esc(c.name)}</b> <span class="sub">${esc(c.id)}</span></td><td class="l">${c.current ? "Workbook" : ""}</td>
+      <td class="l">${st} <span class="sub">${esc(c.window || "")}</span></td>${cur}</tr>${calc}`;
+  }).join("");
+  const age = body.refreshing ? "Updating…" : `As of ${ago(body.age_seconds)}`;
+  $("#main").innerHTML = `<div class="head"><h2>Lift Matrices</h2><span class="sub">DDA value per account per month, by swipe segment · ${esc(age)}</span>
+      <span class="sub" style="margin-left:auto"><button class="link" id="lmall">Calculate every MM client from its ODD</button></span></div>
+    <p class="note" style="margin-top:0">Workbook rows are the matrix each client's newest ARS workbook carries. Calculated rows use the client's own rates and appear once its ODD has been read${scanning ? ` (${scanning} being read now)` : ""}. Pick a client to see the full matrix, change the rates and save the file for Bradford.</p>
+    <div class="lmwrap"><table class="lm"><thead><tr><th>Client</th><th></th><th>Matrix</th>${SEGS.map(s => `<th>${esc(s)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  $("#main").querySelectorAll("tr.pick").forEach(tr => tr.addEventListener("click", () => liftSelect(tr.dataset.id)));
+  $("#lmall").addEventListener("click", async () => {
+    try { const {body: b} = await api("/api/lift/scan-all", {method: "POST", body: "{}"}); $("#lmall").textContent = `${b.queued} queued. The table fills in as each one finishes.`; }
+    catch (e) { $("#lmall").insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); }
+  });
+  liftTimer = setTimeout(liftOverview, body.refreshing || scanning ? 5000 : 60000);
+}
+
+function liftQuery(id) {
+  const q = new URLSearchParams({client: id});
+  const bp = $("#lm-ic"), fee = $("#lm-fee"), col = $("#lm-col");
+  if (bp && bp.value !== "") q.set("ic_rate", String(Number(bp.value) / 10000));
+  if (fee && fee.value !== "") q.set("nsf_fee", fee.value);
+  if (col && col.value !== "") q.set("collection", String(Number(col.value) / 100));
+  return q.toString();
+}
+
+// keep = the rates were edited: re-read the figures at the typed rates and redraw below the fields only,
+// so the field being typed in keeps its focus.
+async function liftSelect(id, keep) {
+  clearTimeout(liftTimer); current = id; renderList();
+  const c = CLIENTS.find(x => x.id === id) || {id};
+  if (!keep) $("#main").innerHTML = `<div class="head"><h2>${esc(c.name || id)}</h2><span class="sub">${esc(id)}</span></div><p class="note">Reading the workbook and the ODD…</p>`;
+  const n = ++liftReq;
+  let d;
+  try { ({body: d} = await api("/api/lift/client?" + (keep ? liftQuery(id) : "client=" + encodeURIComponent(id)))); }
+  catch (e) {
+    if (n !== liftReq) return;
+    const box = $("#lm-out");
+    if (box) box.innerHTML = `<p class="err">${esc(e.message)}</p>`; else $("#main").insertAdjacentHTML("beforeend", `<p class="err">${esc(e.message)}</p>`);
+    return;
+  }
+  if (n !== liftReq || current !== id || MODE !== "lift") return;
+  if (keep && $("#lm-out") && d.scan_state === "ready") { $("#lm-out").innerHTML = liftBody(d); wireSave(d); return; }
+  liftRender(d);
+}
+
+function liftRender(d) {
+  const head = `<div class="head"><h2>${esc(d.name || d.client)}</h2><span class="sub">${esc(d.client)} · ${esc(d.csm || "")} · ${esc(d.period || "")}</span>
+    <span class="sub" style="margin-left:auto"><button class="link" id="lmback">All clients</button></span></div>`;
+  const cur = d.current ? `Current matrix: ${esc(d.current.window)} (${d.current.data_past_end ? "expired" : "data " + esc(d.current.data_date)}) in ${esc(d.workbook)}.`
+    : d.workbook ? `${esc(d.workbook)} carries no Lift Matrix (SM).` : d.workbook_error ? `The workbook could not be read: ${esc(d.workbook_error)}` : "No ARS workbook in Inputs.";
+  let html = head + `<p class="note" style="margin-top:0">${cur}</p>`;
+  if (d.scan_state === "sm") html += `<p class="note">${esc(d.name || d.client)} is on the SM model, which does not use a Lift Matrix.</p>`;
+  else if (d.scan_state === "no-odd") html += `<p class="err">No ODD extract for ${esc(d.client)} in Inputs, so nothing can be calculated.</p>`;
+  else if (d.scan_state !== "ready") {
+    html += d.scan_state === "error" ? `<p class="err">Reading the ODD stopped: ${esc(d.scan_error)}</p><button class="primary" id="lmre">Try again</button>`
+      : `<p class="note"><span class="dot now" style="display:inline-block;vertical-align:middle"></span> Reading the ODD (${esc(d.scan_state)}). This takes up to a minute.</p>`;
+    if (d.scan_state !== "error") liftTimer = setTimeout(() => liftSelect(d.client), 3000);
+  } else {
+    const df = d.defaults, r = d.rates;
+    html += `<div class="rates">
+      <label>Interchange rate<span class="fld"><input id="lm-ic" type="number" step="0.5" min="0" max="500" value="${+(r.ic_rate * 10000).toFixed(2)}"><span>BP</span></span><span class="src">${esc(df.ic_source)}</span></label>
+      <label>NSF/OD fee<span class="fld"><span>$</span><input id="lm-fee" type="number" step="0.01" min="0" max="200" value="${r.nsf_fee ?? ""}" placeholder="Enter the fee"></span><span class="src">${esc(df.nsf_source)}</span></label>
+      <label>OD collection rate<span class="fld"><input id="lm-col" type="number" step="1" min="0" max="100" value="${+(r.collection * 100).toFixed(1)}"><span>%</span></span><span class="src">${esc(df.collection_source)}</span></label>
+    </div><p class="note" style="margin-top:-6px"><button class="link" id="lmreset">Reset to these defaults</button></p><div id="lm-out">${liftBody(d)}</div>`;
+  }
+  $("#main").innerHTML = html;
+  $("#lmback").addEventListener("click", liftOverview);
+  const re = $("#lmre"); if (re) re.addEventListener("click", async () => { await api("/api/lift/rescan", {method: "POST", body: JSON.stringify({client: d.client})}); liftSelect(d.client); });
+  if (d.scan_state !== "ready") return;
+  let t = null;
+  for (const el of ["#lm-ic", "#lm-fee", "#lm-col"]) $(el).addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => liftSelect(d.client, true), 250); });
+  $("#lmreset").addEventListener("click", () => liftSelect(d.client));
+  wireSave(d);
+}
+
+function liftBody(d) {
+  const segs = d.segments, calc = d.calculated, cur = (d.current || {}).segments || {};
+  const bySeg = calc ? Object.fromEntries(calc.segments.map(x => [x.segment, x])) : {};
+  const rows = SEGS.map(s => {
+    const g = s === "NH" ? null : segs[s], c = s === "NH" ? (bySeg.NU || null) : bySeg[s];
+    const now = cur[s] ? cur[s].dda : null, v = c ? c.dda : null, dlt = v != null && now != null ? v - now : null;
+    return `<tr><td class="l"><b>${esc(s)}</b></td><td>${g ? g.n.toLocaleString() : ""}</td><td>${s === "NH" ? "0%" : pct(g.dist)}</td>
+      <td>${g ? money(g.spend) : ""}</td><td>${g ? g.items.toFixed(3) : ""}</td><td>${c ? money(c.interchange) : ""}</td><td>${c ? money(c.nsf) : ""}</td>
+      <td><b>${money(v)}</b></td><td>${money(now)}</td><td class="${dlt > 0 ? "up" : dlt < 0 ? "down" : ""}">${dlt == null ? "" : (dlt >= 0 ? "+" : "−") + money(Math.abs(dlt))}</td></tr>`;
+  }).join("");
+  const seg = `<div class="panel"><h3>Revenue segmentation</h3><div class="lmwrap"><table class="lm"><thead><tr><th>Segment</th><th>Accounts</th><th>Distribution</th><th>Avg spend / mo</th><th>NSF/OD items / mo</th><th>Interchange</th><th>NSF/OD</th><th>DDA value</th><th>Current</th><th>Change</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  if (!calc) return seg + `<p class="err">Enter the client's NSF/OD fee to calculate the matrix.</p>`;
+  const cols = SEGS.slice(2), bases = SEGS.slice(1, 6);
+  const grid = bases.map(b => `<tr><td class="l"><b>${esc(b)}</b></td>${cols.map(c => { const v = calc.matrix[b][c]; return `<td>${v == null ? "" : money(v)}</td>`; }).join("")}</tr>`).join("");
+  // A segment valued below the one before it gives a negative lift; that is allowed (Aaron, 2026-09-25).
+  const mat = `<div class="panel"><h3>Monthly incremental revenue lift</h3><div class="lmwrap"><table class="lm"><thead><tr><th>Baseline segment</th>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${grid}</tbody></table></div></div>`;
+  const sc = d.scan, fee = sc.fee;
+  const feeLine = fee ? (fee.values.length ? `NSF/OD fee in the ODD (${esc(fee.columns.join(", "))}): ${fee.values.map(x => `${money(x.fee)} on ${pct(x.share, 0)} of items`).join(", ")}. The most common is the default.` : `The ODD has ${esc(fee.columns.join(", "))} but no fee on any NSF/OD item, so the fee comes from the workbook.`)
+    : `This ODD carries no NSF/OD fee column (Fees1), so NSF/OD is valued as the monthly OD item count × the fee.`;
+  const method = `<div class="panel"><h3>How it was calculated</h3><ul class="method">
+    <li>${sc.population.toLocaleString()} consumer accounts with a debit card that are ARS eligible. Business accounts are left out.</li>
+    <li>Swipes, spend and NSF/OD items averaged over ${esc(sc.window_label)} (${sc.window.length} complete months), from ${esc(sc.source_file)}.${sc.excluded_months ? " " + esc(sc.excluded_months) : ""}</li>
+    <li>Segment: average swipes per month, rounded down into its band.</li>
+    <li>Outliers: each account's spend and NSF/OD items are capped at the ${Math.round(sc.winsor_pct * 100)}th percentile of its segment. 26 Plus is valued on its accounts averaging 26 to ${25 + sc.top_band} swipes; its distribution counts all of them.</li>
+    <li>DDA value = interchange rate × spend + NSF/OD fee × items × collection rate. NH carries NU's value. Lift = DDA of the new segment − DDA of the baseline.</li>
+    <li>${feeLine}</li></ul></div>`;
+  const save = `<div class="verdict ready"><p><b>Save for Bradford.</b> <span class="mono">${esc(d.file_name || "")}</span> goes to your folder in Outputs${d.saved ? ", replacing the one saved earlier" : ""}. Email it to Bradford to have it loaded.</p><span class="btns"><button class="primary" id="lmsave">Save the Lift Matrix</button></span></div><div id="lmsaved"></div>`;
+  return seg + mat + save + method;
+}
+
+function wireSave(d) {
+  const b = $("#lmsave"); if (!b) return;
+  b.addEventListener("click", async () => {
+    b.disabled = true; b.textContent = "Saving…";
+    const q = new URLSearchParams(liftQuery(d.client)), body = {client: d.client};
+    for (const k of ["ic_rate", "nsf_fee", "collection"]) if (q.has(k)) body[k] = q.get(k);
+    try {
+      const {status, body: r} = await api("/api/lift/save", {method: "POST", body: JSON.stringify(body)});
+      if (status !== 200) throw new Error(r.error || "not saved");
+      b.textContent = "Saved";
+      $("#lmsaved").innerHTML = `<div class="result good"><h3>Saved to Outputs.</h3><p class="mono">${esc(r.file_name)}</p><p><button class="link" id="lmreveal">Show it in File Explorer</button></p></div>`;
+      $("#lmreveal").addEventListener("click", () => api("/api/reveal", {method: "POST", body: JSON.stringify({path: r.saved})}));
+    } catch (e) { b.disabled = false; b.textContent = "Try again"; $("#lmsaved").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  });
+}
+
+$("#tab-decks").addEventListener("click", () => setMode("decks"));
+$("#tab-lift").addEventListener("click", () => setMode("lift"));
+
+$("#list").addEventListener("click", e => { const b = e.target.closest(".client"); if (b) (MODE === "lift" ? liftSelect : select)(b.dataset.id); });
+$("#csm").addEventListener("change", () => { $("#csm").dataset.touched = "1"; store("ars-builder-csm", $("#csm").value); renderList(); if (MODE === "lift" && !current) liftOverview(); });
 $("#q").addEventListener("input", renderList);
 (function showSaved() {
   try { const saved = JSON.parse(sessionStorage.getItem(LIST_KEY) || "null"); if (saved && saved.clients) applyClients(saved, true); } catch (e) {}

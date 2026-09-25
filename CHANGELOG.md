@@ -17,6 +17,49 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Sheila builds a client's Lift Matrix
+
+Aaron: "add functionality to Sheila to build client Lift Matrix for ARS", and "create a tab in
+Sheila showing the lift matrices across clients, and the current calculated lift matrix. To have
+the lift matrix implemented we email them to Bradford in this format (but use our standard naming
+convention)."
+
+Sheila has a **Lift Matrix** tab next to Decks. It lists every ARS client's current matrix (the
+Revenue Segmentation DDA values its newest workbook carries, with the window and an Expired tag)
+and, once the client's ODD has been read, the matrix calculated from it. A client's page shows the
+calculated segmentation beside the current one, the lift triangle, and three editable rates, and
+**Save the Lift Matrix** writes `<id>-<yyyy.mm>-ARS-<Client> ARS Lift Matrix.xlsx` to the client's
+`Outputs/<CSM>/` folder in the layout of the file Bradford loads (CoastLife CU Lift Matrix
+Values.xlsx). What it was made from goes to `Build Artifacts/lift_values/<id>-<period>-saved.json`.
+SM clients are listed as "SM model: no Lift Matrix" and are never read or saved (Aaron: "Austin and
+Sugar River are on the SM model that doesn't use the lift matrix"); their workbooks carry an empty
+template Lift Matrix MM tab, which now reads as no matrix rather than a current one.
+
+The valuation is `build/ars_pipeline/lift_values.py`, one definition:
+
+- **Consumer accounts only** — `Business? = No`, debit card, ARS eligible. Business accounts are
+  neither valued nor counted in the distribution.
+- **Segment** on mean swipes per month over the last 12 **complete** months, rounded down into the
+  band (the deck's rule, 2026-09-22).
+- **Outliers**: each account's spend and NSF/OD items are capped at the **99th percentile of its
+  own segment**. The 95th was tried and rejected: NSF/OD items sit on few accounts, and on 1539 and
+  1705 it took 26-48% off each segment's items where the 99th takes 2-13% (spend 1-4%). 26 Plus is
+  valued on its 26-30 swipe accounts, as `build_lift_matrix` already did.
+- **Rates**, each editable and each shown with its source: IC rate = the workbook's Interchange
+  Rate (Actuals MM, newest month), else 60 BP; NSF/OD fee = the **most common per-item fee** in the
+  ODD's `Fees1` column when the extract carries it (Aaron: "For clients with tiered or multiple OD
+  rates, we need to use the most common value"), else the workbook's NSF Fee × the monthly OD item
+  counts, else nothing — Sheila asks rather than guess; OD collection rate = 80%.
+
+None of the 83 extracts in `Inputs/ODDD/` on 2026-09-25 carries a `Fees1` column (nor does any
+transaction file), so every client is valued from the workbook's NSF Fee today. The reader takes
+either a dated `<Mon> Fees1` per month or one undated `Fees1`.
+
+The calculated matrix is NOT smoothed. A segment valued below the one before it (CoastLife 11-15 at
+$11.57 under 6-10 at $12.55: fewer NSF/OD items per account) puts a negative lift in the file, and
+that is allowed (Aaron: "Negative lift between segments is allowed"). Live workbook matrices carry
+the same thing (Foothills 16-20 under 11-15, FNB Alaska 26 Plus under 21-25).
+
 ### 2026-09-23 — The run record does not live on the share any more
 
 Aaron: "fix the run record flaw."
