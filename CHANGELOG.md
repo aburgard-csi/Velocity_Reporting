@@ -17,6 +17,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Sheila reads a workbook's Lift Matrix again only when the file has changed
+
+Aaron: "only rescan workbook lift matrix values if the file has changed since the last scan, that
+should speed things up."
+
+The Lift Matrix tab reads every ARS client's newest workbook (0.4-2 s each over the share). Sheila
+kept those reads only while it ran, so each start, and each CSM's own copy, read all of them again.
+Each read is now stored in `Build Artifacts/lift_values/workbooks.json` against the file's size and
+modified time, and a workbook is read again only when either changes, or when the reader itself
+changes (`lift_values.WORKBOOK_VERSION`). The file is on the share, so one CSM's reads serve every
+copy of Sheila. Measured on 2026-09-25 across 49 ARS clients: 75.7 s for the overview with nothing
+stored, 9.4 s from a fresh start with the reads stored. What remains is listing each client's files
+on the share, not reading workbooks.
+
 ### 2026-09-25 — Lift Matrix: business accounts, an independent NH, 100% collection, the outlier cap as a variable, Recalculate, Export
 
 Six changes from Aaron the same afternoon, all in `lift_values` and Sheila's Lift Matrix tab.

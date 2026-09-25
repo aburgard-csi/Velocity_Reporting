@@ -83,6 +83,27 @@ def test_the_file_downloads_only_once_exported_at_those_rates(lift, tmp_path):
     assert not list(lift.iterdir())                                  # nothing written to Outputs
 
 
+def test_a_workbook_is_read_again_only_when_it_has_changed(tmp_path, monkeypatch):
+    # Aaron, 2026-09-25: "only rescan workbook lift matrix values if the file has changed since the last scan".
+    wb = tmp_path / "9999-2026.09-Union Financial-Workbook_v2_1_0.xlsx"
+    wb.write_bytes(b"one")
+    monkeypatch.setattr(W, "_lift_dir", lambda: tmp_path)
+    monkeypatch.setattr(W.L, "newest_workbook_period", lambda cid: "2026.09")
+    import build_month
+    monkeypatch.setattr(build_month, "ars_workbook", lambda dirs, cid, per: [str(wb)])
+    reads = []
+    monkeypatch.setattr(W._lv(), "read_workbook", lambda p: reads.append(p) or {"n": len(reads)})
+    W._lm_books.clear(); W._lm_books_loaded.clear()
+    assert W._lift_workbook("9999")[1] == {"n": 1}
+    assert W._lift_workbook("9999")[1] == {"n": 1} and len(reads) == 1          # unchanged: not read
+    W._lm_books.clear(); W._lm_books_loaded.clear()                          # a restart, or another CSM's Sheila
+    assert W._lift_workbook("9999")[1] == {"n": 1} and len(reads) == 1          # served from workbooks.json
+    wb.write_bytes(b"changed")
+    os.utime(wb, ns=(1, 1))
+    assert W._lift_workbook("9999")[1] == {"n": 2} and len(reads) == 2          # changed: read again
+    W._lm_books.clear(); W._lm_books_loaded.clear()
+
+
 def test_the_lift_endpoints_check_the_client_number(monkeypatch):
     import threading
     import http.client

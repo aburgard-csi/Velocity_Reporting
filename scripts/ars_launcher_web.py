@@ -801,7 +801,14 @@ _lm_lock = threading.Lock()
 _lm_scans = {}                     # cid -> {"state": "queued"|"scanning"|"error", "error"}
 _lm_pool = ThreadPoolExecutor(1)
 _lm_overview = {"doc": None, "at": 0.0, "busy": False}
-_lm_books = {}                     # (path, mtime) -> read_workbook()
+# Each workbook's read_workbook(), kept in Build Artifacts/lift_values/workbooks.json against that file's size
+# and modified time (Aaron, 2026-09-25: "only rescan workbook lift matrix values if the file has changed since the
+# last scan"). A read is 0.4-2 s over the share and the overview needs ~40 of them, so a restart, or another CSM's
+# Sheila, reads only the workbooks that changed. It lives beside the scans on the share, shared by every copy.
+_lm_books = {}                     # path -> {"mtime", "size", "version", "data"}
+_lm_books_lock = threading.Lock()
+_lm_books_loaded = []
+WORKBOOK_CACHE = "workbooks.json"
 LIFT_TTL = 300
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -877,10 +884,42 @@ def _lift_workbook(cid):
     if not wbs:
         return None, None
     path = wbs[-1]
-    key = (path, os.stat(path).st_mtime_ns)
-    if key not in _lm_books:
-        _lm_books[key] = _lv().read_workbook(path)
-    return path, _lm_books[key]
+    st = os.stat(path)
+    want = {"mtime": st.st_mtime_ns, "size": st.st_size, "version": _lv().WORKBOOK_VERSION}
+    with _lm_books_lock:
+        if not _lm_books_loaded:
+            _lm_books.update(_load_workbook_cache())
+            _lm_books_loaded.append(True)
+        hit = _lm_books.get(path)
+    if hit and all(hit.get(k) == v for k, v in want.items()):
+        return path, hit["data"]
+    data = _lv().read_workbook(path)             # new or changed since the last read
+    with _lm_books_lock:
+        _lm_books[path] = dict(want, data=data)
+    _save_workbook_cache(path, _lm_books[path])
+    return path, data
+
+
+def _load_workbook_cache():
+    try:
+        doc = json.loads((_lift_dir() / WORKBOOK_CACHE).read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_workbook_cache(path, entry):
+    """Merge one entry into the stored file. Another Sheila may be writing it too, so the file is re-read
+    first and replaced whole; a write that fails only means that workbook is read again next time."""
+    try:
+        with _lm_books_lock:
+            doc = _load_workbook_cache()
+            doc[path] = entry
+            tmp = _lift_dir() / f"{WORKBOOK_CACHE}.{os.getpid()}.part"
+            tmp.write_text(json.dumps(doc), encoding="utf-8")
+            os.replace(tmp, _lift_dir() / WORKBOOK_CACHE)
+    except OSError:
+        pass
 
 
 def _roster_entry(cid):

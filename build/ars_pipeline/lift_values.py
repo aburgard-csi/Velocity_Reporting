@@ -95,6 +95,7 @@ TOP_BAND = 5
 DEFAULT_IC_RATE = 0.0060           # 60 BP
 DEFAULT_COLLECTION = 1.00
 FEE_BOUNDS = (1.0, 100.0)          # a per-item fee outside this is not an OD fee
+WORKBOOK_VERSION = 1              # bump when read_workbook()'s output changes, so stored reads are redone
 SCAN_VERSION = 4                   # bump when scan()'s output changes, so caches are re-read
 
 _MONTH_RX = re.compile(r"^([A-Z][a-z]{2}\d{2}) Sig #$")
