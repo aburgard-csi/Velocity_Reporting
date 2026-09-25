@@ -1323,8 +1323,10 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
 .tabs button{font:600 13.5px/1 "Segoe UI",Arial,sans-serif;color:#fff;background:none;border:0;border-radius:999px;padding:6px 14px;cursor:pointer}
 .tabs button[aria-selected="true"]{background:#fff;color:var(--navy)}
 .lmwrap{overflow-x:auto;margin-top:10px}
+.app.wide{max-width:1640px;grid-template-columns:minmax(220px,270px) minmax(0,1fr)}
+@media (max-width:820px){.app.wide{grid-template-columns:1fr}}
 table.lm{border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums;width:100%}
-table.lm th,table.lm td{padding:5px 8px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap}
+table.lm th,table.lm td{padding:5px 7px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap}
 table.lm th{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);background:var(--soft)}
 table.lm th:first-child,table.lm td:first-child,table.lm td.l{text-align:left}
 table.lm tr.calc td{color:var(--sent)} table.lm tr.grp td{border-bottom:0}
@@ -1627,6 +1629,7 @@ const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
 
 function setMode(m) {
   MODE = m; clearTimeout(liftTimer); clearInterval(poller); clearTimeout(statusTimer);
+  document.querySelector(".app").classList.toggle("wide", m === "lift");
   $("#tab-decks").setAttribute("aria-selected", m === "decks"); $("#tab-lift").setAttribute("aria-selected", m === "lift");
   current = null; renderList();
   if (m === "lift") liftOverview();
@@ -1646,12 +1649,12 @@ async function liftOverview() {
     const cur = SEGS.map(s => `<td>${c.current ? money(c.current[s]) : ""}</td>`).join("");
     const calc = c.calculated ? `<tr class="calc pick" data-id="${esc(c.id)}"><td class="l"></td><td class="l">Calculated</td><td class="l"></td>${SEGS.map(s => `<td>${money(c.calculated[s])}</td>`).join("")}</tr>` : "";
     return `<tr class="pick${calc ? " grp" : ""}" data-id="${esc(c.id)}"><td class="l"><b>${esc(c.name)}</b> <span class="sub">${esc(c.id)}</span></td><td class="l">${c.current ? "Workbook" : ""}</td>
-      <td class="l">${st} <span class="sub">${esc(c.window || "")}</span></td>${cur}</tr>${calc}`;
+      <td class="l">${st}${c.window ? `<br><span class="sub" style="font-size:12px">${esc(c.window)}</span>` : ""}</td>${cur}</tr>${calc}`;
   }).join("");
   const age = body.refreshing ? "Updating…" : `As of ${ago(body.age_seconds)}`;
   $("#main").innerHTML = `<div class="head"><h2>Lift Matrices</h2><span class="sub">DDA value per account per month, by swipe segment · ${esc(age)}</span>
       <span class="sub" style="margin-left:auto"><button class="link" id="lmall">Calculate every MM client from its ODD</button></span></div>
-    <p class="note" style="margin-top:0">Workbook rows are the matrix each client's newest ARS workbook carries. Calculated rows use the client's own rates and appear once its ODD has been read${scanning ? ` (${scanning} being read now)` : ""}. Pick a client to see the full matrix, change the rates and save the file for Bradford.</p>
+    <p class="note" style="margin-top:0">Workbook rows are the matrix each client's newest ARS workbook carries. Calculated rows use the client's own rates and appear once its ODD has been read${scanning ? ` (${scanning} being read now)` : ""}. Pick a client to compare the full matrices, change the values and export the file for Bradford.</p>
     <div class="lmwrap"><table class="lm"><thead><tr><th>Client</th><th></th><th>Matrix</th>${SEGS.map(s => `<th>${esc(s)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
   $("#main").querySelectorAll("tr.pick").forEach(tr => tr.addEventListener("click", () => liftSelect(tr.dataset.id)));
   $("#lmall").addEventListener("click", async () => {
