@@ -38,9 +38,13 @@ def test_every_eligible_card_holding_account_is_valued_business_included(odd_row
     valued = [r for r in rows if len(r) >= len(hdr) and odd.hascard(r)
               and r[H[f"{latest} Elig"]].strip() == "Yes"]
     want = len(valued)
-    assert scan["population"] == want
+    assert scan["card_holders"] == want
     assert sum(scan["segments"][s]["n"] for s in LV.SEGMENTS) == want
-    assert math.isclose(sum(s["dist"] for s in scan["segments"].values()), 1.0)
+    # Aaron, 2026-09-25: "recalculate the distribution including NH accounts" -- all eight add to 100%
+    assert scan["population"] == want + scan["segments"]["NH"]["n"]
+    assert math.isclose(sum(scan["segments"][s]["dist"] for s in LV.ALL_SEGMENTS), 1.0)
+    for s in LV.ALL_SEGMENTS:
+        assert scan["segments"][s]["dist"] == scan["segments"][s]["n"] / scan["population"]
     # business accounts are in, and counted as such
     assert scan["counts"]["business"] == sum(1 for r in valued if odd.business(r)) > 0
     assert scan["counts"]["consumer"] == sum(1 for r in valued if odd.personal(r)) > 0
@@ -60,7 +64,7 @@ def test_nh_is_valued_on_the_eligible_accounts_with_no_card(odd_rows_raw, scan):
     nh = sum(1 for r in rows if len(r) >= len(hdr) and not odd.hascard(r)
              and r[H[f"{latest} Elig"]].strip() == "Yes")
     assert nh and scan["segments"]["NH"]["n"] == nh == scan["counts"]["no card"]
-    assert scan["segments"]["NH"]["dist"] == 0
+    assert scan["segments"]["NH"]["dist"] == nh / scan["population"] > 0
     v = {r["segment"]: r for r in LV.values(scan, 0.006, 25, 0.8)["segments"]}
     g = scan["segments"]["NH"]
     assert not v["NH"]["from_nu"]
@@ -161,7 +165,8 @@ def test_the_file_bradford_loads_keeps_his_layout(scan, tmp_path):
         "Interchange and NSF", "Revenue Segmentation", "Monthly Incremental Revenue Lift")
     assert [ws[f"A{r}"].value for r in range(4, 13)] == ["Segments", "NH"] + LV.SEGMENTS
     dda = {r["segment"]: r["dda"] for r in v["segments"]}
-    assert ws["B5"].value == 0 and ws["C5"].value == dda["NH"]         # NH: its own value, 0 distribution
+    nh = next(r for r in v["segments"] if r["segment"] == "NH")
+    assert ws["B5"].value == pytest.approx(nh["dist"]) and nh["dist"] > 0 and ws["C5"].value == dda["NH"]   # NH: its own value and share
     assert ws["C12"].value == dda["26 Plus"] and ws["B6"].number_format == "0%"
     assert [ws.cell(18, c).value for c in range(1, 8)] == ["Baseline Segment"] + LV.CURRENTS
     assert [ws.cell(r, 1).value for r in range(19, 24)] == LV.BASELINES

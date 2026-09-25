@@ -17,6 +17,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — The Lift Matrix distribution counts NH
+
+Aaron: "recalculate the distribution including NH accounts."
+
+The distribution was each segment's share of the card holders, with NH at 0% as in the workbook's
+file. It is now each segment's share of every ARS-eligible account, NH (eligible, no debit card)
+included, so the eight shares add to 100%, and NH's share goes into the file Bradford loads instead
+of 0%. The DDA values and the matrix do not change; the seven card-holder segments' shares read
+lower than the workbook's by NH's share. 1705: 13,534 eligible accounts, NH 13.4%, NU 16.0% -> 13.8%,
+26 Plus 46.6% -> 40.4%. 1539: 37,629, NH 9.0%, NU 23.3% -> 21.2%, 26 Plus 39.0% -> 35.5%.
+`SCAN_VERSION` is 5.
+
 ### 2026-09-25 — Sheila reads a workbook's Lift Matrix again only when the file has changed
 
 Aaron: "only rescan workbook lift matrix values if the file has changed since the last scan, that

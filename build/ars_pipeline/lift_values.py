@@ -36,14 +36,18 @@ THE METHOD
                The open-ended 26 Plus segment is valued on its first TOP_BAND swipes (26-30)
                so it steps like every other segment instead of carrying the whole right tail
                (Marine: 26 to 455 swipes/month). Distribution still counts every account.
+  Distribution each segment's share of EVERY eligible account, NH included, so the eight shares
+               add to 100% (Aaron, 2026-09-25: "recalculate the distribution including NH
+               accounts"). It was the share of card holders only, with NH at 0% as in the
+               workbook's file; the seven card-holder segments' shares now read lower than the
+               workbook's by NH's share (1705: NH 13.4%, NU 16.0% -> 13.8%).
   DDA Value    per account per month, for a segment:
                    interchange  = IC rate x mean monthly debit spend (Sig $ + PIN $)
                    NSF/OD       = NSF/OD fee x mean monthly NSF/OD items (MTD) x collection rate
                NH is valued on its OWN accounts (Aaron, 2026-09-25: "with the ODD we should be able
                to calculate an independent NH value"): the eligible accounts with NO debit card,
-               their own spend and NSF/OD items, under the same outlier cap. It carries 0
-               distribution in the file, as Bradford's does, because the distribution is of card
-               holders. It used to carry NU's value; the workbooks already differ (1204: NH $0.84,
+               their own spend and NSF/OD items, under the same outlier cap. It used to carry NU's
+               value; the workbooks already differ (1204: NH $0.84,
                NU $1.55). Only a client with no eligible card-less account falls back to NU's value,
                and says so. Values are rounded to the cent and the
                matrix is the difference of the rounded values, as in the file Bradford loads:
@@ -81,7 +85,7 @@ for _p in (HERE, os.path.join(HERE, os.pardir)):
         sys.path.insert(0, _p)
 
 SEGMENTS = ["NU", "1-5", "6-10", "11-15", "16-20", "21-25", "26 Plus"]
-# NH (no debit card) is valued too but holds no share of the distribution, which is of card holders.
+# NH (eligible, no debit card) is valued on its own accounts and counted in the distribution.
 ALL_SEGMENTS = ["NH"] + SEGMENTS
 BASELINES = SEGMENTS[:-2]          # NU .. 16-20, the rows of the file Bradford loads
 CURRENTS = SEGMENTS[1:]            # 1-5 .. 26 Plus, its columns
@@ -96,7 +100,7 @@ DEFAULT_IC_RATE = 0.0060           # 60 BP
 DEFAULT_COLLECTION = 1.00
 FEE_BOUNDS = (1.0, 100.0)          # a per-item fee outside this is not an OD fee
 WORKBOOK_VERSION = 1              # bump when read_workbook()'s output changes, so stored reads are redone
-SCAN_VERSION = 4                   # bump when scan()'s output changes, so caches are re-read
+SCAN_VERSION = 5                   # bump when scan()'s output changes, so caches are re-read
 
 _MONTH_RX = re.compile(r"^([A-Z][a-z]{2}\d{2}) Sig #$")
 _FEE_RX = re.compile(r"^(?:([A-Z][a-z]{2}\d{2})\s+)?fees\s*1$", re.I)
@@ -240,8 +244,9 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
         counts["business" if odd.business(r) else "consumer" if odd.personal(r) else "business? blank"] += 1
         per[segment(sw)].append((sw, sp, it))
 
-    pop = sum(len(per[s]) for s in SEGMENTS)
-    if not pop:
+    holders = sum(len(per[s]) for s in SEGMENTS)
+    pop = holders + len(per["NH"])             # the distribution is of every eligible account, NH included
+    if not holders:
         raise SystemExit(f"POSSIBLE DATA ISSUE: {member} has no card-holding, ARS-eligible account.")
     caps = sorted(set(WINSOR_OPTIONS) | {winsor})
     by_cap = {cap_key(p): {} for p in caps}
@@ -254,7 +259,7 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
         sp = sorted(a[1] for a in valued)
         it = sorted(a[2] for a in valued)
         k = len(valued)
-        base = {"n": len(accts), "n_valued": k, "dist": 0.0 if s == "NH" else len(accts) / pop,
+        base = {"n": len(accts), "n_valued": k, "dist": len(accts) / pop,
                 "spend_raw": sum(sp) / k if k else 0.0, "items_raw": sum(it) / k if k else 0.0}
         for p in caps:
             cap_sp, cap_it = _pctile(sp, p), _pctile(it, p)
@@ -278,7 +283,7 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
         "pull_date": (MC.pull_date(member).isoformat() if MC.pull_date(member) else None),
         "window": win, "window_label": f"{MC.label(win[0])} - {MC.label(win[-1])}",
         "excluded_months": MC.excluded_sentence(comp["all"]),
-        "population": pop, "counts": dict(counts),
+        "population": pop, "card_holders": holders, "counts": dict(counts),
         "winsor_pct": winsor, "top_band": top_band,
         "segments": seg, "by_cap": by_cap, "fee": fee,
     }
@@ -425,7 +430,7 @@ def values(scan_doc, ic_rate, nsf_fee, collection, winsor=None):
         d = segs["NU"] if s == "NH" and not segs.get("NH", {}).get("n") else segs[s]
         ic = ic_rate * d["spend"]
         od = nsf_fee * d["items"] * collection
-        rows.append({"segment": s, "dist": 0.0 if s == "NH" else d["dist"],
+        rows.append({"segment": s, "dist": segs.get(s, {}).get("dist", 0.0),
                      "n": segs.get(s, {}).get("n", 0), "interchange": ic, "nsf": od,
                      "dda": round(ic + od, 2), "from_nu": s == "NH" and d is segs["NU"]})
     dda = {r["segment"]: r["dda"] for r in rows}

@@ -64,7 +64,7 @@ def main(argv=None):
 
     src = lambda given, key: "given" if given is not None else d[key]  # noqa: E731
     print(f"wrote {out}")
-    print(f"  {scan['population']:,} ARS-eligible card-holding accounts (consumer and business), {scan['window_label']}, "
+    print(f"  {scan['population']:,} ARS-eligible accounts (consumer and business; {scan['card_holders']:,} with a debit card), {scan['window_label']}, "
           f"from {scan['source_file']}")
     if scan["excluded_months"]:
         print(f"  {scan['excluded_months']}")

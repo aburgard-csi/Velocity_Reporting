@@ -1794,7 +1794,7 @@ function liftBody(d) {
     const g = segs[s], nv = newV(s), cv = curV(s), dlt = nv != null && cv != null ? nv - cv : null;
     const cd = curSeg[s] && curSeg[s].dist != null ? pct(curSeg[s].dist) : "–";
     return `<tr><td class="l"><b>${esc(s)}</b></td><td>${g ? g.n.toLocaleString() : ""}</td>
-      <td>${s === "NH" ? "0%" : cd}</td><td>${s === "NH" ? "0%" : pct(g.dist)}</td>
+      <td>${cd}</td><td>${pct(g.dist)}</td>
       <td>${money(cv)}</td><td><b>${money(nv)}</b></td><td class="${cls(dlt)}">${signed(dlt)}</td>
       <td>${signed(step(curV, i))}</td><td>${signed(step(newV, i))}</td></tr>`;
   }).join("");
@@ -1821,12 +1821,12 @@ function liftBody(d) {
   const feeLine = fee ? (fee.values.length ? `NSF/OD fee in the ODD (${esc(fee.columns.join(", "))}): ${fee.values.map(x => `${money(x.fee)} on ${pct(x.share, 0)} of items`).join(", ")}. The most common is the default.` : `The ODD has ${esc(fee.columns.join(", "))} but no fee on any NSF/OD item, so the fee comes from the workbook.`)
     : `This ODD carries no NSF/OD fee column (Fees1), so NSF/OD is valued as the monthly OD item count × the fee.`;
   const method = `<div class="panel"><h3>How it was calculated</h3><ul class="method">
-    <li>${sc.population.toLocaleString()} ARS-eligible accounts with a debit card, consumer and business (${(sc.counts.consumer || 0).toLocaleString()} consumer, ${(sc.counts.business || 0).toLocaleString()} business${sc.counts["business? blank"] ? ", " + sc.counts["business? blank"].toLocaleString() + " with Business? blank" : ""}).</li>
+    <li>${sc.population.toLocaleString()} ARS-eligible accounts, consumer and business: ${sc.card_holders.toLocaleString()} with a debit card in the seven swipe segments (${(sc.counts.consumer || 0).toLocaleString()} consumer, ${(sc.counts.business || 0).toLocaleString()} business${sc.counts["business? blank"] ? ", " + sc.counts["business? blank"].toLocaleString() + " with Business? blank" : ""}) and ${(segs.NH ? segs.NH.n : 0).toLocaleString()} without one in NH. The distribution is of all of them.</li>
     <li>Swipes, spend and NSF/OD items averaged over ${esc(sc.window_label)} (${sc.window.length} complete months), from ${esc(sc.source_file)}.${sc.excluded_months ? " " + esc(sc.excluded_months) : ""}</li>
     <li>Segment: average swipes per month, rounded down into its band.</li>
     <li>Outliers: ${d.rates.winsor >= 1 ? "no cap on spend or NSF/OD items" : `each account's spend and NSF/OD items are capped at the ${+(d.rates.winsor * 100).toFixed(1)}th percentile of its segment`}. 26 Plus is valued on its accounts averaging 26 to ${25 + sc.top_band} swipes; its distribution counts all of them.</li>
     <li>DDA value = interchange rate × spend + NSF/OD fee × items × collection rate. Lift = DDA of the new segment − DDA of the baseline.</li>
-    <li>NH: ${bySeg.NH && bySeg.NH.from_nu ? "this client has no eligible account without a debit card, so NH carries NU's value" : `the ${(segs.NH ? segs.NH.n : 0).toLocaleString()} eligible accounts with no debit card, valued on their own spend and NSF/OD items`}. It has 0% of the distribution, which is of card holders.</li>
+    <li>NH: ${bySeg.NH && bySeg.NH.from_nu ? "this client has no eligible account without a debit card, so NH carries NU's value" : `the ${(segs.NH ? segs.NH.n : 0).toLocaleString()} eligible accounts with no debit card, valued on their own spend and NSF/OD items`}.</li>
     <li>${feeLine}</li></ul></div>`;
   const done = d.exported && JSON.stringify(d.exported.rates) === JSON.stringify(d.rates);
   const exp = done
