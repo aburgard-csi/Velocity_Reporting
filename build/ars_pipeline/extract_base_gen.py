@@ -22,6 +22,7 @@ import sys
 import openpyxl
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import actuals_tab
 import base_guard as _bg                        # noqa: E402  (one definition, shared)
 from base_guard import data_issue, key_trends   # noqa: E402
 
@@ -91,6 +92,11 @@ def extract(wb):
         if isinstance(d, datetime.datetime):
             rows.append((ml(d), mr.cell(r, 3).value, mr.cell(r, 4).value))
     out['mailings_recent'] = list(reversed(rows[-12:]))
+    # The Actuals tab's month-by-month revenue and cost (2026-09-22). Executive Financials
+    # carries the same arithmetic already summed; the Revenue Guarantee slide needs the
+    # months, because a guarantee is a statement about revenue against cost over the life of
+    # the program and only the months show whether a client is closing on it or drifting.
+    out['actuals'] = actuals_tab.read(wb, mm=True)
     return out
 
 

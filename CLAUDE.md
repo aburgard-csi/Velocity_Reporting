@@ -959,11 +959,22 @@ This is the readme index — update it whenever files are added, removed, or mov
   (Aaron, 2026-09-08): the two used to compute it four different ways and the one-pager
   reported True Sky at +118% while the client's own deck said +103%.
 - `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
-- `combined_insights.py`, `insight_charts.py`, `combined_insight_slides.py` — six views from James
-  Gilmore's deck (revenue by mailing, responders vs mailed non-responders, card account health,
-  take rate and Reg E by branch, Branch Scorecard with number and name, ARS scorecard), merged from
-  `test/james-aaron-combined` 2026-09-17 and still OPT-IN: `build_ars_gen` adds them only when
-  `RPE_JAMES_SLIDES=1`.
+- `revenue_guarantee_slide.py` — the Revenue Guarantee slide, inserted after ARS Financial
+  Performance: program cost to date, the 2 : 1 guaranteed minimum, revenue, and either the
+  surplus or the gap with the months to cover it (the months account for cost accruing over
+  those same months). Run rate reads complete months only. OPT-IN with the James views
+  (`RPE_JAMES_SLIDES=1`) until signed off for the monthly run, and then only under 3 : 1.
+- `combined_insights.py`, `insight_charts.py`, `combined_insight_slides.py` — the views from James
+  Gilmore's deck, merged from `test/james-aaron-combined` 2026-09-17 and still OPT-IN:
+  `build_ars_gen` adds them only when `RPE_JAMES_SLIDES=1`. The original six (revenue by mailing,
+  responders vs mailed non-responders, card account health, take rate and Reg E by branch, Branch
+  Scorecard with number and name, ARS scorecard) plus, from 2026-09-21: Revenue Build by Mailing,
+  Where This Month's Revenue Came From, Revenue per 1,000 Offers, Where Take Rate Lags, Where
+  Reg E Opt-In Lags, Swipe Tier Migration, PIN and Signature Mix, Overdraft Limits by Reg E
+  Election, Responders vs Their Own Segment, Where the Balances Sit, and What Five Points Would
+  Be Worth. **These are REVIEW slides**: each one's speaker notes carry its source, its method
+  and its open issues in full (`_notes` in `combined_insight_slides`), which is why they are not
+  worded for a client.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

@@ -1489,6 +1489,102 @@ def text_collision_findings(prs):
     return out
 
 
+
+# ================================================================ tile labels
+TILE_ESCAPE_TOL = 0.04          # inches of slack before a label counts as escaping
+# PowerPoint's own defaults, applied when a frame leaves its margins unset (python-pptx
+# reports those as None). single_line_overflow_findings still reads an unset margin as zero
+# and so measures 0.2in more width than a label really has — worth fixing there too, with a
+# run over the shipped decks to see what it starts catching.
+DEFAULT_MARGIN_X, DEFAULT_MARGIN_Y = 0.1, 0.05
+
+
+def tile_label_findings(prs):
+    """FAIL a label whose wrapped text runs out of the bottom of the tile it sits on.
+
+    Added 2026-09-22, after the Revenue Guarantee slide shipped three tile labels wrapping
+    onto the slide behind them — grey text on white, below the navy box, on a deck the gate
+    had passed at 0 FAIL.
+
+    Nothing caught it. `single_line_overflow_findings` measures exactly this overflow but
+    only FAILs when the spill lands on ANOTHER TEXT SHAPE, and here it landed on empty
+    background; `text_collision_findings` deliberately excludes a label nested inside its own
+    tile, which is what this is. So a label could leave its tile as long as it left it into
+    white space.
+
+    The trap underneath is the one from single_line_overflow_findings' own docstring: a label
+    authored at 12pt is floored to 16pt by restyle_fonts and rewritten into a wider face, so
+    what fit when it was written does not fit when it is drawn. Measured here at the run's
+    ACTUAL font and size, against the TILE's bottom edge rather than the text box's.
+    """
+    if text_width_in is None:
+        return []
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        # shape_type 1 is MSO_SHAPE_TYPE.AUTO_SHAPE — compared as the int this file already
+        # uses for it (see pill_wrap_findings), so no new import.
+        tiles = [sh for sh in slide.shapes
+                 if sh.shape_type == 1 and sh.width and sh.height
+                 and _in(sh.height) <= 2.0 and not _has_text(sh)]
+        if not tiles:
+            continue
+        for sh in slide.shapes:
+            if not _has_text(sh) or sh.width is None or sh.height is None:
+                continue
+            box = _box(sh)
+            host = None
+            for t in tiles:
+                tb = _box(t)
+                ox = min(box[2], tb[2]) - max(box[0], tb[0])
+                oy = min(box[3], tb[3]) - max(box[1], tb[1])
+                if ox <= 0 or oy <= 0:
+                    continue
+                area = (box[2] - box[0]) * (box[3] - box[1])
+                if area > 0 and (ox * oy) / area >= 0.9:
+                    host = tb
+                    break
+            if host is None:
+                continue
+            tf = sh.text_frame
+            # An UNSET margin is not a zero margin: python-pptx reports None and PowerPoint
+            # then applies its own 0.1in left/right, 0.05in top/bottom. Treating None as 0
+            # gave every label 0.2in of width it does not have, which is exactly the slack
+            # that let "Incremental revenue, to date" wrap on the shipped slide and still
+            # measure as fitting here.
+            ml = _in(tf.margin_left) if tf.margin_left is not None else DEFAULT_MARGIN_X
+            mr = _in(tf.margin_right) if tf.margin_right is not None else DEFAULT_MARGIN_X
+            mt = _in(tf.margin_top) if tf.margin_top is not None else DEFAULT_MARGIN_Y
+            usable = _in(sh.width) - ml - mr
+            if usable <= 0:
+                continue
+            need_in = 0.0
+            for p in tf.paragraphs:
+                runs = [r for r in p.runs if r.text]
+                text = "".join(r.text for r in runs).strip()
+                if not text:
+                    continue
+                pt = next((r.font.size.pt for r in runs if r.font.size), None)
+                fam = next((r.font.name for r in runs if r.font.name), None)
+                if not pt or not fam:
+                    continue
+                bold = bool(runs[0].font.bold)
+                w = text_width_in(text, pt, fam, bold)
+                # No slack. PowerPoint lays these out a shade wider than the TTF estimate, so
+                # the 2% forgiveness single_line_overflow_findings allows itself is the exact
+                # width that let "Incremental revenue, to date" (2.56in in 2.55in of usable
+                # box) wrap on the slide and measure as fitting here.
+                lines = max(1, math.ceil(w / usable))
+                need_in += lines * pt / 72.0 * 1.22
+            if not need_in:
+                continue
+            bottom = box[1] + mt + need_in
+            if bottom > host[3] + TILE_ESCAPE_TOL:
+                out.append(("FAIL", idx,
+                            f"tile label runs out of its tile by "
+                            f"{bottom - host[3]:.2f}\" — {_lbl(sh)!r} needs {need_in:.2f}\" "
+                            f"below {box[1]:.2f}\" and the tile ends at {host[3]:.2f}\""))
+    return out
+
 # ================================================================ autofit
 def autofit_findings(prs):
     """FAIL a frame PowerPoint shrinks below 90%.
@@ -1615,6 +1711,7 @@ def run(path, extract=None):
     findings += source_note_findings(path, prs)
     findings += closing_month_findings(prs)
     findings += table_label_fit_findings(prs)
+    findings += tile_label_findings(prs)
     findings += figure_sidecar_findings(path)
     findings += claim_consistency_findings(prs)
     findings += text_rule_findings(prs, texts)
@@ -1635,7 +1732,7 @@ RULES = (package_findings, reference_leak_findings, single_line_overflow_finding
          text_rule_findings, geometry_findings, text_collision_findings,
          autofit_findings, mailing_table_findings, extract_findings,
          labelled_metric_findings, summit_date_findings, closing_month_findings,
-         table_label_fit_findings)
+         table_label_fit_findings, tile_label_findings)
 
 
 def main(argv=None):

@@ -35,6 +35,7 @@ import csv
 import datetime
 import io
 import json
+import math
 import os
 import re
 import statistics
@@ -48,7 +49,8 @@ for _p in (HERE, os.path.join(HERE, os.pardir)):
         sys.path.insert(0, _p)
 
 import before_after as BA                                               # noqa: E402
-from odd_rows import accessors, rege_label, REGE_IN, REGE_OUT           # noqa: E402
+from odd_rows import (accessors, rege_label, REGE_IN, REGE_OUT,          # noqa: E402
+                      REGE_DEFAULT)
 
 csv.field_size_limit(10 ** 7)
 
@@ -67,7 +69,11 @@ AT_RISK = ("Declining", "Cooling", "Dormant", "Never used")
 KPI_BRANCHES = 8          # the grouped-column chart seats eight branches
 MIN_BRANCH_ELIGIBLE = 40  # the deck's own Reg E branch floor (metrics_gen rege_branch)
 
-_MON_COL = re.compile(r"^([A-Z][a-z]{2}\d{2}) (Sig #|PIN #|Sig \$|PIN \$|Mail|Resp)$")
+# MTD (the NSF/OD item count) and OD Limit joined the projection for the overdraft view
+# (2026-09-21). Until then odd.nsf() and odd.od_limit() read columns read_odd had not kept,
+# and returned 0.0 for every account — a whole slide of zeros that looked like a client with
+# no overdrafts rather than a reader with no columns.
+_MON_COL = re.compile(r"^([A-Z][a-z]{2}\d{2}) (Sig #|PIN #|Sig \$|PIN \$|Mail|Resp|MTD|OD Limit)$")
 
 
 def mkey(token):
@@ -107,8 +113,13 @@ def read_odd(path):
         latest = smonths[-1]
         mailmonths = sorted({m.group(1) for m in (re.match(r"^([A-Z][a-z]{2}\d{2}) Mail$", c)
                                                   for c in hdr) if m}, key=mkey)
+        # DOB, Avg Bal and the product columns joined the projection for the rate-cut views
+        # (2026-09-21). An extract that does not carry one of them is not an error: the cut
+        # reports "Not on file" and the slide says so, which is how the age profile already
+        # behaves when a client's DOB column is blank.
         static = {f"{latest} Elig", "Debit?", "Stat Desc", "Stat Code", "Business?",
-                  f"{latest} Reg E Desc", "Branch", "Date Opened", "Date Closed"}
+                  f"{latest} Reg E Desc", "Branch", "Date Opened", "Date Closed",
+                  "DOB", "Avg Bal", "Curr Bal", "Prod Code", "Prod Desc", "Mailable?"}
         need = [i for i, c in enumerate(hdr) if c in static or _MON_COL.match(c)]
         H = {hdr[i]: j for j, i in enumerate(need)}
         pad = max(need) + 1
@@ -410,8 +421,16 @@ def account_health(rows, odd, smonths, latest):
     return {
         "available": True,
         "eligible": total, "carded": carded_n,
+        # Two shares per state, because the slide used to mix them: the tile read
+        # "card holders at risk" (of carded) above bars whose percentages were of every
+        # eligible account, so the numbers on one slide did not add up to each other
+        # (Aaron, 2026-09-21). A card state is a share of CARD HOLDERS; "No card" can only
+        # be a share of eligible accounts, and its bar now says so.
         "states": [[s, n[s], round(100 * n[s] / total, 1) if total else 0.0,
-                    round(recent_spend[s]), round(prior_spend[s])] for s in HEALTH_ORDER],
+                    round(recent_spend[s]), round(prior_spend[s]),
+                    (None if s == "No card" else
+                     (round(100 * n[s] / carded_n, 1) if carded_n else 0.0))]
+                   for s in HEALTH_ORDER],
         "at_risk": at_risk,
         "at_risk_pct_of_carded": round(100 * at_risk / carded_n, 1) if carded_n else 0.0,
         # monthly card spend these accounts carried in the 3 months BEFORE the recent window
@@ -479,9 +498,21 @@ def wave_revenue(workbook_path):
         except ValueError:
             continue
         booked = {k: v for k, v in series.items()}
+        # The month-by-month build, which is what James's slide 5 shows and ours did not:
+        # [months since the mailing, that month's booked revenue, cumulative]. Age is
+        # measured from the mailing's own month, not the position in the list, so a month
+        # the workbook never booked leaves a GAP rather than pulling the curve left.
+        run, build = 0.0, []
+        for k in sorted(booked):
+            y, mo = int(k[:4]), int(k[5:7])
+            age = (y * 12 + mo) - (d.year * 12 + d.month)
+            run += booked[k]
+            build.append([age, round(booked[k], 2), round(run, 2)])
         waves.append({"m": d.strftime("%b %Y"), "key": d.strftime("%Y-%m"),
                       "revenue": round(sum(booked.values()), 2),
                       "months": len(booked),
+                      "build": build,
+                      "by_month": {k: round(v, 2) for k, v in booked.items()},
                       "per_month": round(sum(booked.values()) / len(booked), 2) if booked else 0.0})
     waves.sort(key=lambda w: w["key"])
     if not waves:
@@ -489,12 +520,599 @@ def wave_revenue(workbook_path):
                 "reason": f"the '{ROLLUP_SHEET}' sheet carries no readable mailing sections"}
     rolled = sum(w["revenue"] for w in waves)
     through = max((k for w in sections.values() for k in w), default=None)
+    # Where THIS month's revenue came from, by mailing (James's slide 6). The month is the
+    # newest one any mailing booked, which is not always the newest column on the sheet: a
+    # mailing block can carry a trailing empty month.
+    latest = max((k for w in waves for k in w["by_month"]), default=None)
+    by_mailing_latest = sorted(
+        ((w["m"], w["by_month"][latest], w["months"]) for w in waves if latest in w["by_month"]),
+        key=lambda t: -t[1]) if latest else []
     return {"available": True, "workbook": os.path.basename(str(workbook_path)),
             "waves": waves, "total": round(rolled, 2),
             "summary_total": round(sum(summary.values()), 2) if summary else None,
+            "latest_month": latest,
+            "latest_month_label": (datetime.datetime.strptime(latest, "%Y-%m").strftime("%b %Y")
+                                   if latest else None),
+            "by_mailing_latest": by_mailing_latest,
+            "latest_total": round(sum(v for _, v, _ in by_mailing_latest), 2),
+            "summary_latest": round(summary.get(latest, 0.0), 2) if (summary and latest) else None,
             "through": (datetime.datetime.strptime(through, "%Y-%m").strftime("%b %Y")
                         if through else None)}
 
+
+
+# ============================================================== where a rate lags
+# James cuts take rate and Reg E opt-in by tenure, age, balance and product and shows where
+# each one lags the book; our deck only ever showed the two program rates and a branch chart,
+# so a client could see THAT opt-in was 29% and never where the 29% comes from.
+#
+# One pass computes both rates on every cut, because they read the same row and the ODD is
+# large. Each cut's bands are fixed, not quantiles: a band that means something to a banker
+# ("opened in the last year") survives a client whose distribution is nothing like the last
+# client's, and quantile bands would silently redefine themselves per client.
+MIN_BAND = 25           # a band below this is reported but never called a lagging pocket
+TOP_PRODUCTS = 6        # products shown by population; the rest roll into one band
+
+TENURE_BANDS = [(0, 12, "Under 1 year"), (12, 36, "1 to 3 years"), (36, 60, "3 to 5 years"),
+                (60, 120, "5 to 10 years"), (120, None, "10 years or more")]
+AGE_BANDS = [(18, 25, "18 to 24"), (25, 35, "25 to 34"), (35, 50, "35 to 49"),
+             (50, 65, "50 to 64"), (65, None, "65 or older")]
+BALANCE_BANDS = [(None, 1, "$0"), (1, 500, "$1 to $499"), (500, 2000, "$500 to $1,999"),
+                 (2000, 5000, "$2,000 to $4,999"), (5000, None, "$5,000 or more")]
+NOT_ON_FILE = "Not on file"
+
+
+def _band(value, bands):
+    """The band `value` falls in, or None when the ODD does not carry it. A missing value is
+    NEVER folded into the lowest band — that is how a client with no DOB column reads as a
+    book full of 18-year-olds (CLAUDE.md: missing data is stated, never zeroed)."""
+    if value is None:
+        return None
+    for lo, hi, label in bands:
+        if (lo is None or value >= lo) and (hi is None or value < hi):
+            return label
+    return None
+
+
+def _months_between(then, now):
+    return (now.year - then.year) * 12 + (now.month - then.month)
+
+
+def rate_cuts(rows, odd, latest, top_products=TOP_PRODUCTS):
+    """Take rate and Reg E opt-in by tenure, age, balance and product, in one pass.
+
+    Definitions are the deck's own, so a cut's Total equals the figure on the program slides:
+      take rate     eligible accounts holding a debit card / eligible personal accounts
+      Reg E opt-in  opted in / open personal debit-card holders
+    """
+    g, personal, hascard, isopen = odd.g, odd.personal, odd.hascard, odd.isopen
+    elig_col, rege_col = f"{latest} Elig", f"{latest} Reg E Desc"
+    now = month_end(latest)
+
+    cuts = {c: defaultdict(lambda: {"elig": 0, "cards": 0, "rege_pool": 0, "rege_in": 0})
+            for c in ("Tenure", "Age", "Balance", "Product")}
+    prod_n = defaultdict(int)
+    missing = defaultdict(int)
+
+    for r in rows:
+        if not personal(r):
+            continue
+        elig = g(r, elig_col) == "Yes"
+        carded = hascard(r)
+        op = isopen(r)
+        in_rege_pool = op and carded
+        if not (elig or in_rege_pool):
+            continue
+
+        do = parse_date(g(r, "Date Opened"))
+        tenure = _band(_months_between(do, now) if do else None, TENURE_BANDS)
+        dob = parse_date(g(r, "DOB"))
+        age = _band(((now - dob).days / 365.25) if dob else None, AGE_BANDS)
+        bal = _band(odd.fnum(r, "Avg Bal"), BALANCE_BANDS)
+        prod = (g(r, "Prod Desc") or g(r, "Prod Code") or "").strip() or None
+
+        for name, key in (("Tenure", tenure), ("Age", age), ("Balance", bal),
+                          ("Product", prod)):
+            if key is None:
+                missing[name] += 1
+                key = NOT_ON_FILE
+            b = cuts[name][key]
+            if elig:
+                b["elig"] += 1
+                b["cards"] += carded
+            if in_rege_pool:
+                lab = rege_label(g(r, rege_col))
+                b["rege_pool"] += 1
+                b["rege_in"] += lab == REGE_IN
+            if name == "Product":
+                prod_n[key] += 1
+
+    # Products: the biggest by population, the rest in one honest roll-up.
+    keep = {p for p, _n in sorted(prod_n.items(), key=lambda kv: -kv[1])[:top_products]}
+    rolled = {"elig": 0, "cards": 0, "rege_pool": 0, "rege_in": 0}
+    n_rolled = 0
+    for p in [p for p in list(cuts["Product"]) if p not in keep]:
+        b = cuts["Product"].pop(p)
+        n_rolled += 1
+        for k in rolled:
+            rolled[k] += b[k]
+    if n_rolled:
+        cuts["Product"][f"All other products ({n_rolled})"] = rolled
+
+    def order(name, keys):
+        if name == "Tenure":
+            seq = [b[2] for b in TENURE_BANDS]
+        elif name == "Age":
+            seq = [b[2] for b in AGE_BANDS]
+        elif name == "Balance":
+            seq = [b[2] for b in BALANCE_BANDS]
+        else:
+            return sorted(keys, key=lambda k: -(cuts[name][k]["elig"] or 0))
+        rank = {lab: i for i, lab in enumerate(seq)}
+        return sorted(keys, key=lambda k: rank.get(k, len(seq)))
+
+    out = {}
+    for name, bands in cuts.items():
+        rowsout = []
+        for key in order(name, bands):
+            b = bands[key]
+            rowsout.append({
+                "band": key,
+                "eligible": b["elig"],
+                "take": round(100 * b["cards"] / b["elig"], 1) if b["elig"] else None,
+                "rege_pool": b["rege_pool"],
+                "rege": round(100 * b["rege_in"] / b["rege_pool"], 1) if b["rege_pool"] else None,
+            })
+        out[name] = rowsout
+
+    tot_elig = sum(b["elig"] for b in cuts["Tenure"].values())
+    tot_cards = sum(b["cards"] for b in cuts["Tenure"].values())
+    tot_pool = sum(b["rege_pool"] for b in cuts["Tenure"].values())
+    tot_in = sum(b["rege_in"] for b in cuts["Tenure"].values())
+    return {
+        "available": bool(tot_elig or tot_pool),
+        "cuts": out,
+        "take_all": round(100 * tot_cards / tot_elig, 1) if tot_elig else None,
+        "rege_all": round(100 * tot_in / tot_pool, 1) if tot_pool else None,
+        "eligible": tot_elig, "rege_pool": tot_pool,
+        "missing": dict(missing),
+        "min_band": MIN_BAND,
+    }
+
+
+def lagging(cuts, measure, floor=MIN_BAND, n=3):
+    """The bands furthest BELOW the book on `measure` ('take' or 'rege'), biggest gap first.
+
+    A band under `floor` accounts is left out of the ranking, not out of the slide: a 4-account
+    band at 0% is arithmetic, not a coaching problem. "Not on file" is never a pocket either —
+    it is a data gap, and it is reported as one.
+    """
+    all_key = "take_all" if measure == "take" else "rege_all"
+    book = cuts.get(all_key)
+    if book is None:
+        return []
+    pool_key = "eligible" if measure == "take" else "rege_pool"
+    out = []
+    for name, bands in cuts["cuts"].items():
+        for b in bands:
+            if b["band"] == NOT_ON_FILE or b[measure] is None or b[pool_key] < floor:
+                continue
+            out.append({"cut": name, "band": b["band"], "value": b[measure],
+                        "n": b[pool_key], "gap": round(b[measure] - book, 1)})
+    return sorted(out, key=lambda d: d["gap"])[:n]
+
+
+# ============================================================== swipe tier migration
+# The deck shows the tier table as a snapshot and "movement" for the latest mailing's
+# responders only. James reads migration across the whole book: who climbed, who slipped, and
+# what that is worth. A snapshot cannot answer "are these accounts getting better or worse",
+# and two clients with identical tier tables can be moving in opposite directions.
+TIER_ORDER = ["Non-User", "1-5", "6-10", "11-15", "16-20", "21-25", "26+"]
+TIER_BANDS = [(1, 5, "1-5"), (6, 10, "6-10"), (11, 15, "11-15"), (16, 20, "16-20"),
+              (21, 25, "21-25")]
+MIGRATION_WINDOW = 3      # months averaged at each end, the deck's own tier window
+MIGRATION_SPAN = 12       # months between the two windows
+
+
+def swipe_tier(avg):
+    """The deck's tier for an average monthly swipe count.
+
+    The average is ROUNDED DOWN into its segment (Aaron, 2026-09-22) — 5.5 swipes is a
+    5-swipe account — which is also what stops an average between two integer bands falling
+    through to the '26+' catch-all, the defect metrics_gen carried until 2026-09-21. Same
+    rule as metrics_gen.tier; the two are deliberately identical.
+    """
+    s = math.floor(avg)
+    if s < 1:
+        return "Non-User"
+    for lo, hi, name in TIER_BANDS:
+        if lo <= s <= hi:
+            return name
+    return "26+"
+
+
+def tier_migration(rows, odd, smonths, latest, span=MIGRATION_SPAN, win=MIGRATION_WINDOW):
+    """Where eligible card holders sat a year ago against where they sit now.
+
+    Both ends are `win`-month averages, the same window the tier table uses, so a single
+    unusual month cannot move an account across the matrix on its own.
+    """
+    if len(smonths) < span + win:
+        return {"available": False, "months": len(smonths),
+                "needs": span + win}
+    g, personal, hascard = odd.g, odd.personal, odd.hascard
+    elig_col = f"{latest} Elig"
+    now_w = smonths[-win:]
+    then_w = smonths[-(span + win):-span]
+
+    matrix = {a: {b: 0 for b in TIER_ORDER} for a in TIER_ORDER}
+    spend_now = {"up": 0.0, "same": 0.0, "down": 0.0}
+    n = {"up": 0, "same": 0, "down": 0}
+    rank = {t: i for i, t in enumerate(TIER_ORDER)}
+    for r in rows:
+        if not (personal(r) and hascard(r) and g(r, elig_col) == "Yes"):
+            continue
+        a = swipe_tier(sum(odd.swipes(r, m) for m in then_w) / win)
+        b = swipe_tier(sum(odd.swipes(r, m) for m in now_w) / win)
+        matrix[a][b] += 1
+        key = "up" if rank[b] > rank[a] else ("down" if rank[b] < rank[a] else "same")
+        n[key] += 1
+        spend_now[key] += sum(odd.spend(r, m) for m in now_w) / win
+    total = sum(n.values())
+    return {
+        "available": bool(total),
+        "accounts": total,
+        "matrix": [[a] + [matrix[a][b] for b in TIER_ORDER] for a in TIER_ORDER],
+        "tiers": TIER_ORDER,
+        "moved_up": n["up"], "same": n["same"], "moved_down": n["down"],
+        "pct_up": round(100 * n["up"] / total, 1) if total else None,
+        "pct_down": round(100 * n["down"] / total, 1) if total else None,
+        "spend_up": round(spend_now["up"] / n["up"]) if n["up"] else None,
+        "spend_down": round(spend_now["down"] / n["down"]) if n["down"] else None,
+        "spend_same": round(spend_now["same"] / n["same"]) if n["same"] else None,
+        "now_window": [BA.label(now_w[0]), BA.label(now_w[-1])],
+        "then_window": [BA.label(then_w[0]), BA.label(then_w[-1])],
+        "span": span,
+    }
+
+
+# ============================================================== interchange routing
+# Signature and PIN transactions earn the client different interchange, and the ODD carries
+# them in separate columns that every existing measure adds together. James keeps the mix as
+# a metric and never puts it in a deck; it belongs in one, because the mix moves with what
+# the client's card does at the terminal and it is worth real money.
+def routing_mix(rows, odd, smonths, months=12):
+    """Signature vs PIN share of swipes and spend, by month, over the trailing `months`."""
+    g, personal, hascard = odd.g, odd.personal, odd.hascard
+    window = smonths[-months:]
+    series = []
+    for m in window:
+        sc = sd = pc = pd = 0.0
+        for r in rows:
+            if not (personal(r) and hascard(r)):
+                continue
+            a, b, c, d = odd.routing(r, m)
+            sc += a; sd += b; pc += c; pd += d
+        swipes = sc + pc
+        series.append({
+            "month": BA.label(m),
+            "sig_n": round(sc), "sig_usd": round(sd),
+            "pin_n": round(pc), "pin_usd": round(pd),
+            "pin_share": round(100 * pc / swipes, 1) if swipes else None,
+            "sig_ticket": round(sd / sc, 2) if sc else None,
+            "pin_ticket": round(pd / pc, 2) if pc else None,
+        })
+    live = [s for s in series if s["pin_share"] is not None]
+    if not live:
+        return {"available": False, "months": len(window)}
+    tot_sig_n = sum(s["sig_n"] for s in series)
+    tot_pin_n = sum(s["pin_n"] for s in series)
+    tot_sig_d = sum(s["sig_usd"] for s in series)
+    tot_pin_d = sum(s["pin_usd"] for s in series)
+    swipes = tot_sig_n + tot_pin_n
+    return {
+        "available": True,
+        "series": series,
+        "window": [series[0]["month"], series[-1]["month"]],
+        "pin_share": round(100 * tot_pin_n / swipes, 1) if swipes else None,
+        "pin_share_usd": round(100 * tot_pin_d / (tot_sig_d + tot_pin_d), 1)
+                         if (tot_sig_d + tot_pin_d) else None,
+        "sig_ticket": round(tot_sig_d / tot_sig_n, 2) if tot_sig_n else None,
+        "pin_ticket": round(tot_pin_d / tot_pin_n, 2) if tot_pin_n else None,
+        "first_share": live[0]["pin_share"], "last_share": live[-1]["pin_share"],
+    }
+
+
+# ============================================================== overdraft limits
+# The deck reports the Reg E election and, separately, NSF/OD item volume. It never puts them
+# together, so the question the election exists to answer — do opted-in accounts actually
+# overdraw, and do they carry a limit — has no slide. James keeps it as a metric
+# ("eligibility, items and fees opted in vs not"); the ODD carries the limit per month.
+OD_WINDOW = 3
+
+
+def overdraft_limits(rows, odd, smonths, latest, win=OD_WINDOW):
+    """Limit coverage and NSF/OD items per account, split by Reg E election.
+
+    Population: OPEN personal debit-card holders — the same population the Reg E slides use,
+    so the group sizes reconcile with them.
+    """
+    g, personal, hascard, isopen = odd.g, odd.personal, odd.hascard, odd.isopen
+    rege_col = f"{latest} Reg E Desc"
+    window = smonths[-win:]
+    groups = {}
+    order = [REGE_IN, REGE_OUT, REGE_DEFAULT]
+    for k in order:
+        groups[k] = {"n": 0, "with_limit": 0, "limit_sum": 0.0, "items": 0.0,
+                     "items_accounts": 0}
+    unmapped = defaultdict(int)
+    for r in rows:
+        if not (personal(r) and isopen(r) and hascard(r)):
+            continue
+        lab = rege_label(g(r, rege_col))
+        if lab not in groups:
+            unmapped[g(r, rege_col)] += 1
+            continue
+        b = groups[lab]
+        b["n"] += 1
+        lim = odd.od_limit(r, latest)
+        if lim > 0:
+            b["with_limit"] += 1
+            b["limit_sum"] += lim
+        items = sum(odd.nsf(r, m) for m in window) / win
+        b["items"] += items
+        if items > 0:
+            b["items_accounts"] += 1
+
+    out = []
+    for k in order:
+        b = groups[k]
+        out.append({
+            "election": k,
+            "accounts": b["n"],
+            "with_limit": b["with_limit"],
+            "with_limit_pct": round(100 * b["with_limit"] / b["n"], 1) if b["n"] else None,
+            "avg_limit": round(b["limit_sum"] / b["with_limit"]) if b["with_limit"] else None,
+            "items_per_account": round(b["items"] / b["n"], 2) if b["n"] else None,
+            "overdrawing_pct": round(100 * b["items_accounts"] / b["n"], 1) if b["n"] else None,
+        })
+    total = sum(b["n"] for b in groups.values())
+    any_limit = any(x["with_limit"] for x in out)
+    return {
+        "available": bool(total),
+        "carries_limits": any_limit,
+        "groups": out,
+        "accounts": total,
+        "window": [BA.label(window[0]), BA.label(window[-1])],
+        "unmapped": dict(unmapped),
+    }
+
+
+# ============================================================== offer efficiency
+# Revenue by Mailing answers "what did this offer earn". It cannot answer "was it worth
+# sending", because a mailing that earned twice as much may simply have gone to twice as many
+# people. James keeps interchange per 1,000 mailed as a metric; joining the workbook's booked
+# revenue to the ODD's offer counts is the version this pipeline can actually produce.
+def offers_by_month(rows, odd, mailmonths):
+    """{mail month token: accounts carrying an offer code that month}."""
+    g = odd.g
+    out = {}
+    for m in mailmonths:
+        col = f"{m} Mail"
+        out[m] = sum(1 for r in rows if (g(r, col) or "").strip())
+    return out
+
+
+def offer_efficiency(rows, odd, mailmonths, wave):
+    """Booked revenue per 1,000 offers sent, per mailing.
+
+    The two halves come from different files — offers from the ODD, revenue from the
+    workbook — so a mailing that only one of them knows about is reported as unmatched
+    rather than divided by a count from the wrong month.
+    """
+    if not wave.get("available"):
+        return {"available": False, "reason": wave.get("reason", "no workbook revenue")}
+    offers = offers_by_month(rows, odd, mailmonths)
+    by_token = {}
+    for m, n in offers.items():
+        by_token[m] = n
+    out, unmatched_rev, unmatched_mail = [], [], []
+    for w in wave["waves"]:
+        token = datetime.datetime.strptime(w["key"], "%Y-%m").strftime("%b%y")
+        n = by_token.get(token)
+        if not n:
+            unmatched_rev.append(w["m"])
+            continue
+        out.append({
+            "month": w["m"], "offers": n, "revenue": w["revenue"], "months": w["months"],
+            "per_1k": round(1000 * w["revenue"] / n, 2),
+            "per_1k_month": round(1000 * w["revenue"] / n / w["months"], 2) if w["months"] else None,
+        })
+    matched = {datetime.datetime.strptime(w["key"], "%Y-%m").strftime("%b%y")
+               for w in wave["waves"]}
+    for m, n in offers.items():
+        if n and m not in matched:
+            unmatched_mail.append(BA.label(m))
+    return {
+        "available": bool(out),
+        "mailings": out,
+        "unmatched_revenue": unmatched_rev,
+        "unmatched_offers": unmatched_mail,
+        "total_offers": sum(x["offers"] for x in out),
+        "total_revenue": round(sum(x["revenue"] for x in out), 2),
+    }
+
+
+# ============================================================== opportunity sizing
+# James ends his deck with what-ifs: five points more take rate, five points more opt-in.
+# Ours ends with takeaways and no arithmetic behind them. The sizing here is deliberately
+# austere — the accounts are exact, the money carries one stated assumption, and the Reg E
+# what-if carries NO money at all because this pipeline holds no fee rate to apply.
+SIZING_POINTS = 5.0
+
+
+def sizing(rc, B, points=SIZING_POINTS):
+    """What five more points of take rate and of Reg E opt-in would be, in accounts.
+
+    `rc` is rate_cuts' output (the book's own rates and populations); `B` the workbook base.
+    """
+    if not rc.get("available"):
+        return {"available": False}
+    elig = rc.get("eligible") or 0
+    pool = rc.get("rege_pool") or 0
+    take, rege = rc.get("take_all"), rc.get("rege_all")
+    out = {
+        "available": bool(elig or pool),
+        "points": points,
+        "eligible": elig, "take_now": take,
+        "take_accounts": int(round(elig * points / 100)) if elig else 0,
+        "take_headroom": round(100 - take, 1) if take is not None else None,
+        "rege_pool": pool, "rege_now": rege,
+        "rege_accounts": int(round(pool * points / 100)) if pool else 0,
+        "rege_headroom": round(100 - rege, 1) if rege is not None else None,
+        "per_card_month": None, "take_annual": None,
+    }
+    cards = round(elig * take / 100) if (elig and take is not None) else 0
+    months, ltd = B.get("months") or 0, B.get("ltd_revenue") or 0
+    if cards and months and ltd:
+        out["per_card_month"] = round(ltd / months / cards, 2)
+        out["take_annual"] = round(out["take_accounts"] * out["per_card_month"] * 12)
+        out["cards"] = cards
+    return out
+
+
+# ============================================================== responders by segment
+# responder_control answers "did the mailings move spend" for the book as a whole. James asks
+# it per segment: a non-user who starts swiping and a 26+ user who swipes a little more are
+# not the same result, and a single pooled figure hides which one a client is buying. Same
+# cohorts, same windows, same winsorizing — split by where the account sat BEFORE the mailing.
+def responder_by_tier(rows, odd, smonths, mature, min_cohort=BA.MIN_RESPONDERS):
+    """Difference in differences per pre-mailing swipe tier.
+
+    For each mailing: tier every mailed account on its pre-window swipe average, then track
+    responders and mailed non-responders inside that tier. Pooled across mailings.
+    """
+    g, spend, swipes, personal = odd.g, odd.spend, odd.swipes, odd.personal
+    bw, aw, mailings = BA.windows(smonths, mature)
+    pop = [r for r in rows if personal(r)]
+    pools = {t: {"responders": [[], []], "control": [[], []]} for t in TIER_ORDER}
+    used = []
+    for m in mailings:
+        i = smonths.index(m)
+        pre, post = smonths[i - bw:i], smonths[i + 1:i + 1 + aw]
+        resp = [r for r in pop if g(r, f"{m} Resp") in BA.RESP_MET]
+        if len(resp) < min_cohort:
+            continue
+        used.append(BA.label(m))
+        mailed = [r for r in pop if g(r, f"{m} Mail")]
+        ctrl = [r for r in mailed if g(r, f"{m} Resp") not in BA.RESP_MET]
+        for key, cohort in (("responders", resp), ("control", ctrl)):
+            for r in cohort:
+                t = swipe_tier(sum(swipes(r, x) for x in pre) / bw)
+                b = statistics.mean(spend(r, x) for x in pre)
+                a = statistics.mean(spend(r, x) for x in post)
+                pools[t][key][0].append(b)
+                pools[t][key][1].append(a)
+
+    out_rows = []
+    for t in TIER_ORDER:
+        p = pools[t]
+        n_r, n_c = len(p["responders"][0]), len(p["control"][0])
+        if n_r < min_cohort or n_c < min_cohort:
+            # Reported as thin rather than dropped: a tier with too few responders to measure
+            # is itself worth seeing on the slide.
+            out_rows.append({"tier": t, "responders": n_r, "control": n_c, "thin": True,
+                             "resp_change": None, "control_change": None, "net": None})
+            continue
+        rb, ra = BA.wins_pair(*p["responders"])
+        cb, ca = BA.wins_pair(*p["control"])
+        r_change = round(statistics.mean(ra) - statistics.mean(rb))
+        c_change = round(statistics.mean(ca) - statistics.mean(cb))
+        out_rows.append({
+            "tier": t, "responders": n_r, "control": n_c, "thin": False,
+            "resp_before": round(statistics.mean(rb)), "resp_after": round(statistics.mean(ra)),
+            "control_before": round(statistics.mean(cb)),
+            "control_after": round(statistics.mean(ca)),
+            "resp_change": r_change, "control_change": c_change, "net": r_change - c_change,
+        })
+    measured = [r for r in out_rows if not r["thin"]]
+    return {
+        "available": bool(measured),
+        "rows": out_rows,
+        "mailings": used,
+        "before_months": bw, "after_months": aw,
+        "min_cohort": min_cohort,
+        "best": max(measured, key=lambda r: r["net"])["tier"] if measured else None,
+        "worst": min(measured, key=lambda r: r["net"])["tier"] if measured else None,
+    }
+
+
+# ============================================================== where the balances sit
+# The deck has a balance profile of responders and nothing about the book's balances. James
+# keeps top-decile share and a "sleeping giants" list (big balance, no card use) as targeting
+# metrics. Both come out of columns already in the extract, and the second one is a list a
+# branch can actually work.
+QUIET_SWIPES = 1.0        # a month, averaged over the window — below this is "not swiping"
+QUIET_WINDOW = 3
+
+
+def balance_concentration(rows, odd, smonths, latest, win=QUIET_WINDOW, quiet=QUIET_SWIPES):
+    """Balance concentration across eligible personal accounts, and the quiet top decile."""
+    g, personal, hascard = odd.g, odd.personal, odd.hascard
+    elig_col = f"{latest} Elig"
+    window = smonths[-win:]
+    accounts = []
+    for r in rows:
+        if not (personal(r) and g(r, elig_col) == "Yes"):
+            continue
+        bal = odd.fnum(r, "Avg Bal")
+        sw = sum(odd.swipes(r, m) for m in window) / win
+        accounts.append((bal, sw, hascard(r)))
+    if not accounts:
+        return {"available": False}
+    accounts.sort(key=lambda t: -t[0])
+    n = len(accounts)
+    total_bal = sum(b for b, _s, _c in accounts)
+    total_sw = sum(s for _b, s, _c in accounts)
+    if total_bal <= 0:
+        return {"available": False, "reason": "this extract carries no average balances"}
+
+    cut = max(1, round(n * 0.10))
+    top = accounts[:cut]
+    top_bal = sum(b for b, _s, _c in top)
+    top_sw = sum(s for _b, s, _c in top)
+    quiet_rows = [t for t in top if t[1] < quiet]
+    quiet_carded = [t for t in quiet_rows if t[2]]
+
+    deciles = []
+    for i in range(10):
+        chunk = accounts[round(n * i / 10):round(n * (i + 1) / 10)]
+        if not chunk:
+            continue
+        deciles.append({
+            "decile": i + 1,
+            "accounts": len(chunk),
+            "balance_share": round(100 * sum(b for b, _s, _c in chunk) / total_bal, 1),
+            "swipe_share": round(100 * sum(s for _b, s, _c in chunk) / total_sw, 1)
+                           if total_sw else None,
+            "avg_balance": round(sum(b for b, _s, _c in chunk) / len(chunk)),
+            "take": round(100 * sum(1 for _b, _s, c in chunk if c) / len(chunk), 1),
+        })
+    return {
+        "available": True,
+        "accounts": n,
+        "total_balance": round(total_bal),
+        "top_decile_accounts": cut,
+        "top_decile_share": round(100 * top_bal / total_bal, 1),
+        "top_decile_swipe_share": round(100 * top_sw / total_sw, 1) if total_sw else None,
+        "top_decile_floor": round(top[-1][0]),
+        "quiet": len(quiet_rows),
+        "quiet_carded": len(quiet_carded),
+        "quiet_balance": round(sum(b for b, _s, _c in quiet_rows)),
+        "quiet_threshold": quiet,
+        "deciles": deciles,
+        "window": [BA.label(window[0]), BA.label(window[-1])],
+    }
 
 # ============================================================== scorecard
 def scorecard(M, B, rc, hk, bk):
@@ -540,9 +1158,18 @@ def scorecard(M, B, rc, hk, bk):
         add("Personal openings vs closures, 24 months", M["open_24"], f"{M['open_24']:,} opened",
             M["close_24"], f"{M['close_24']:,} closed")
     t = bk.get("total") or {}
-    if t.get("first_year") is not None and t.get("closed12") is not None:
+    # First-year closure was compared with closed12 — the 12-month closure rate of ALL
+    # accounts. Two different rates on different populations (18.0% against 7.1% on Marine),
+    # so "behind" was never a like-for-like reading (Aaron, 2026-09-21). Compared now with
+    # the SAME measure at the median reporting branch: same definition, same window, a
+    # population the client can act on. With fewer than three reporting branches there is no
+    # median worth the name and the row is left off rather than compared to something else.
+    fy_branches = sorted(b["first_year"] for b in (bk.get("branches") or [])
+                         if b.get("first_year") is not None)
+    if t.get("first_year") is not None and len(fy_branches) >= 3:
+        med = statistics.median(fy_branches)
         add("First-year closure rate", t["first_year"], f"{t['first_year']:.1f}%",
-            t["closed12"], f"{t['closed12']:.1f}% all accounts, last 12 months", higher=False)
+            med, f"{med:.1f}% median branch", higher=False)
     return rows
 
 
@@ -559,8 +1186,17 @@ def compute(odd_path, workbook_path=None, M=None, B=None):
         "responder_control": responder_control(d["rows"], odd, smonths, mature),
         "branch_kpis": branch_kpis(d["rows"], odd, smonths, latest),
         "account_health": account_health(d["rows"], odd, smonths, latest),
+        "responder_by_tier": responder_by_tier(d["rows"], odd, smonths, mature),
         "wave_revenue": wave_revenue(workbook_path),
+        "rate_cuts": rate_cuts(d["rows"], odd, latest),
+        "tier_migration": tier_migration(d["rows"], odd, smonths, latest),
+        "routing_mix": routing_mix(d["rows"], odd, smonths),
+        "overdraft_limits": overdraft_limits(d["rows"], odd, smonths, latest),
     }
+    out["offer_efficiency"] = offer_efficiency(d["rows"], odd, d["mailmonths"],
+                                               out["wave_revenue"])
+    out["sizing"] = sizing(out["rate_cuts"], B or {})
+    out["balance_concentration"] = balance_concentration(d["rows"], odd, smonths, latest)
     if M is not None and B is not None:
         out["scorecard"] = scorecard(M, B, out["responder_control"], out["account_health"],
                                      out["branch_kpis"])

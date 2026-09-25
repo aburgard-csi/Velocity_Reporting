@@ -181,3 +181,56 @@ def test_scorecard_names_need_most_numbers_to_resolve():
     assert names == {"1": "Main", "4": "Gum Branch"}
     assert src["1"].startswith(BN.SRC_CHARTS) and src["4"].startswith(BN.SRC_REFERRALS)
     assert CIS.scorecard_branch_names("9001", ["1", "7", "8"], rows=data) == ({}, {})
+
+
+# ------------------------------------------- 2026-09-21: the three defects the deck review found
+def test_card_states_carry_a_card_holder_share_and_no_card_does_not(odd_csv, metrics):
+    """The tile read "card holders at risk" over bars whose shares were of every eligible
+    account, so two denominators sat on one slide. Every card state now carries its share of
+    CARD HOLDERS; "No card", which has no card-holder denominator, carries None and its bar
+    is labelled as a share of eligible."""
+    d = CI.read_odd(odd_csv)
+    hk = CI.account_health(d["rows"], accessors(d["H"]), d["smonths"], d["latest"])
+    by = {s[0]: s for s in hk["states"]}
+    assert by["No card"][5] is None
+    carded_states = [s for s in hk["states"] if s[0] != "No card"]
+    assert all(s[5] is not None for s in carded_states)
+    assert sum(s[5] for s in carded_states) == pytest.approx(100.0, abs=0.3)
+    # and the at-risk tile is the sum of the at-risk states on that same base
+    at_risk = sum(s[5] for s in carded_states if s[0] in CI.AT_RISK)
+    assert at_risk == pytest.approx(hk["at_risk_pct_of_carded"], abs=0.3)
+
+
+def test_first_year_closure_is_compared_with_the_same_measure():
+    """It was compared with closed12 — a different rate on a different population. The
+    comparator is now the median reporting branch's first-year closure."""
+    def branch(name, fy):
+        return {"branch": name, "first_year": fy, "closed12": 7.1}
+    bk = {"total": {"first_year": 18.0, "closed12": 7.1},
+          "branches": [branch("1", 12.0), branch("2", 16.0), branch("3", 24.0)]}
+    rows = CI.scorecard({}, {}, {"available": False}, {}, bk)
+    fy = [r for r in rows if r[0] == "First-year closure rate"]
+    assert len(fy) == 1
+    assert "16.0% median branch" in fy[0][2]
+    assert "all accounts" not in fy[0][2]
+
+
+def test_first_year_closure_is_left_off_without_enough_branches():
+    bk = {"total": {"first_year": 18.0, "closed12": 7.1},
+          "branches": [{"branch": "1", "first_year": 12.0}]}
+    assert not [r for r in CI.scorecard({}, {}, {"available": False}, {}, bk)
+                if r[0] == "First-year closure rate"]
+
+
+def test_the_per_month_line_skips_mailings_that_have_barely_booked(tmp_path):
+    """A 2-month-old mailing books its best months first and peaked the line; the caption
+    already read "6 or more months booked" while the line did not."""
+    import insight_charts as IC
+    waves = [{"m": "Jan 2025", "key": "2025-01", "revenue": 120000, "months": 12, "per_month": 10000},
+             {"m": "Jul 2026", "key": "2026-07", "revenue": 60000, "months": 2, "per_month": 30000}]
+    png = str(tmp_path / "waves.png")
+    IC.wave_revenue_chart(png, waves, 12.3, 4.1)
+    assert os.path.getsize(png) > 5000
+    # the young mailing's 30,000 must not set the line's scale: only the mature 10,000 does
+    import matplotlib.pyplot as plt
+    plt.close("all")
