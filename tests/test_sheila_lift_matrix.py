@@ -132,3 +132,15 @@ def test_an_sm_client_is_shown_but_never_scanned_or_saved(lift, monkeypatch):
     assert W.lift_export("1075", {"nsf_fee": "30"})[0] == 400
     assert W.lift_download("1075", {"nsf_fee": "30"})[0] == 400
     assert queued == [] and not list(lift.iterdir())
+
+
+def test_the_date_check_reads_the_stored_workbook_only_inside_sheila():
+    # The Lift Matrix date check and the lift views share one stored read in Sheila (2026-09-25). The build runs
+    # `ars_launcher.py build` as its own process, which never installs this: its checks always open the file.
+    orig = W.L._window
+    W.install_share_caches()
+    try:
+        assert W.L._window is W._sheila_window
+    finally:
+        W.uninstall_share_caches()
+    assert W.L._window is orig

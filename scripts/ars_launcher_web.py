@@ -132,6 +132,7 @@ def _share_targets():
     import deck_status as DS
     return [(R, "data_root"), (R, "report_dirs"), (R, "vip_data"), (R, "vip_manifest"), (R, "csm_list_file"),
             (DS, "_reachable"), (DS, "odd_reachable"), (DS, "_oddd_month_dirs"), (DS, "_source_reports"),
+            (DS, "_mtime"), (DS, "_same_file"),
             (L, "cycle_period"), (L, "csm_list_row")]
 
 
@@ -143,6 +144,8 @@ def install_share_caches(seconds=None):
         orig = getattr(mod, name)
         _installed.append((mod, name, orig))
         setattr(mod, name, _ttl(orig, SHARE_TTL if seconds is None else seconds))
+    _installed.append((L, "_window", L._window))
+    L._window = _sheila_window
 
 
 def uninstall_share_caches():
@@ -821,9 +824,14 @@ def _lv():
     return lift_values
 
 
+_lift_dir_made = set()
+
+
 def _lift_dir():
     d = R.build_artifacts() / "lift_values"
-    d.mkdir(parents=True, exist_ok=True)
+    if str(d) not in _lift_dir_made:       # a mkdir on the share is a round trip; the overview asked 39 times
+        d.mkdir(parents=True, exist_ok=True)
+        _lift_dir_made.add(str(d))
     return d
 
 
@@ -884,6 +892,12 @@ def _lift_workbook(cid):
     if not wbs:
         return None, None
     path = wbs[-1]
+    return path, _cached_workbook(path)
+
+
+def _cached_workbook(path):
+    """read_workbook(path), from the stored read when the file's size and modified time are unchanged."""
+    path = str(path)
     st = os.stat(path)
     want = {"mtime": st.st_mtime_ns, "size": st.st_size, "version": _lv().WORKBOOK_VERSION}
     with _lm_books_lock:
@@ -892,12 +906,18 @@ def _lift_workbook(cid):
             _lm_books_loaded.append(True)
         hit = _lm_books.get(path)
     if hit and all(hit.get(k) == v for k, v in want.items()):
-        return path, hit["data"]
+        return hit["data"]
     data = _lv().read_workbook(path)             # new or changed since the last read
     with _lm_books_lock:
         _lm_books[path] = dict(want, data=data)
     _save_workbook_cache(path, _lm_books[path])
-    return path, data
+    return data
+
+
+def _sheila_window(path):
+    """ars_launcher._window for this server: the Lift Matrix window from the stored workbook read, so a client's
+    status check does not open the workbook a second time with openpyxl (2.9 s cold, measured 2026-09-25)."""
+    return _cached_workbook(path)["window"]
 
 
 def _load_workbook_cache():

@@ -907,7 +907,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 
 **`scripts/`**
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
-- `build_month.py` — builds the monthly ARS/ICS/MRPC reviews for one period from the `clients.md` roster. Never emits Summit one-pagers.
+- `build_month.py` — builds the monthly ARS/ICS/MRPC reviews for one period from the `clients.md` roster, `--jobs` clients at once (default 3; the share's ~3 MB/s is the limit). Never emits Summit one-pagers.
 - `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
 - `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
 - `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**).

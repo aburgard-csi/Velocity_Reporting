@@ -22,6 +22,7 @@ Usage:
 Exit code is the number of clients that failed, so it can gate a delivery.
 """
 import argparse, glob, json, os, re, subprocess, sys, time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "build"))
@@ -33,6 +34,9 @@ PY = sys.executable
 ARSP = os.path.join(REPO, "build", "ars_pipeline")
 TPL = os.path.join(REPO, "templates")
 ROSTER_FILE = os.path.join(REPO, "clients.md")
+# Clients built at once by main() (2026-09-25). Three, not the 22 cores: every build reads its ODD
+# extract from the share, which delivers about 3 MB/s, so the big extracts compete for it.
+JOBS = 3
 
 
 # ----------------------------------------------------------------- roster
@@ -381,6 +385,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("period"); ap.add_argument("out")
     ap.add_argument("--only", help="comma-separated client ids")
+    ap.add_argument("--jobs", type=int, default=JOBS,
+                    help=f"clients built at once (default {JOBS}; 1 = one after another)")
     a = ap.parse_args()
     if not re.fullmatch(r"20\d\d\.\d\d", a.period):
         raise SystemExit(f"period must be YYYY.MM, got {a.period!r}")
@@ -395,17 +401,30 @@ def main():
         print(f"    skip {cid} {name} — {why}")
     print()
 
-    results = []
-    for i, (cid, roster_name, mmsm, progs) in enumerate(roster, 1):
+    def one(entry):
+        cid, roster_name, mmsm, progs = entry
         t = time.time()
         name = deck_name(cid, roster_name)
         err, made = build_client(cid, name, mmsm, progs, a.period, a.out)
         deck = made.get("DELIVERABLE")
         gate = validate(deck, os.path.join(a.out, cid, "base.json")) if (not err and deck) else "-"
-        status = err or gate
-        print(f"[{i:>2}/{len(roster)}] {cid} {name[:26]:<26} {deck_tag(progs):<12} "
-              f"{status:<26} {time.time()-t:>5.0f}s", flush=True)
-        results.append((cid, name, progs, err, gate, deck))
+        return (cid, name, progs, err, gate, deck), time.time() - t
+
+    # Several clients at once (2026-09-25). A build is mostly CPU in its child processes (metrics_gen,
+    # charts, the assembler), and clients share nothing: each has its own folder and log under `out`,
+    # and sweep_temp only removes scratch older than TEMP_MAX_AGE_HOURS. Threads suffice because the
+    # work runs in subprocesses. Results are reported as they finish and kept in roster order.
+    done, by_id = 0, {}
+    jobs = max(1, a.jobs)
+    with ThreadPoolExecutor(jobs) as ex:
+        futs = {ex.submit(one, r): r for r in roster}
+        for f in as_completed(futs):
+            (cid, name, progs, err, gate, deck), secs = f.result()
+            done += 1
+            print(f"[{done:>2}/{len(roster)}] {cid} {name[:26]:<26} {deck_tag(progs):<12} "
+                  f"{(err or gate):<26} {secs:>5.0f}s", flush=True)
+            by_id[cid] = (cid, name, progs, err, gate, deck)
+    results = [by_id[r[0]] for r in roster]
 
     json.dump([(c, n, p, e, g, d) for c, n, p, e, g, d in results],
               open(os.path.join(a.out, "_results.json"), "w", encoding="utf-8"), indent=1)

@@ -99,7 +99,7 @@ TOP_BAND = 5
 DEFAULT_IC_RATE = 0.0060           # 60 BP
 DEFAULT_COLLECTION = 1.00
 FEE_BOUNDS = (1.0, 100.0)          # a per-item fee outside this is not an OD fee
-WORKBOOK_VERSION = 1              # bump when read_workbook()'s output changes, so stored reads are redone
+WORKBOOK_VERSION = 2              # bump when read_workbook()'s output changes, so stored reads are redone
 SCAN_VERSION = 5                   # bump when scan()'s output changes, so caches are re-read
 
 _MONTH_RX = re.compile(r"^([A-Z][a-z]{2}\d{2}) Sig #$")
@@ -289,13 +289,20 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
     }
 
 
+WINDOW_KEYS = ("window", "data_date", "window_start", "window_end", "data_past_end", "in_window")
+
+
 def read_workbook(path):
-    """{'assumptions': workbook_assumptions, 'matrix': workbook_matrix} from ONE open of the file —
-    opening a workbook over the share takes 0.4-2 s."""
+    """{'assumptions', 'matrix', 'window'} from ONE open of the file — opening a workbook over the share takes
+    0.4-2 s. 'window' is lift_window.window() of the Lift Matrix MM tab (None without the tab), the same
+    reading ars_launcher.lift_checks makes, so CSM Sheila answers both from one read (2026-09-25)."""
     import openpyxl
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     try:
-        return {"assumptions": _assumptions(wb), "matrix": _matrix(wb)}
+        m = _matrix(wb)
+        return {"assumptions": _assumptions(wb),
+                "matrix": m if m and any(v["dda"] for v in m["segments"].values()) else None,
+                "window": {k: m[k] for k in WINDOW_KEYS} if m else None}
     finally:
         wb.close()
 
@@ -308,7 +315,8 @@ def workbook_assumptions(path):
 
 def workbook_matrix(path):
     """The Lift Matrix a workbook currently carries (its Revenue Segmentation DDA values, window and
-    data month), or None when it has no 'Lift Matrix MM' tab or the tab holds no values (SM workbooks)."""
+    data month), or None when it has no 'Lift Matrix MM' tab or the tab holds no values (SM workbooks).
+    ONE reading: read_workbook() decides "no values", _matrix() only reads."""
     return read_workbook(path)["matrix"]
 
 
@@ -384,8 +392,8 @@ def _matrix(wb):
                           "dda": round(dda, 2) if isinstance(dda, (int, float)) else None}
         break
     out["segments"] = segs
-    # An SM workbook can carry the template's empty 'Lift Matrix MM' tab: no values, no matrix.
-    return out if any(v["dda"] for v in segs.values()) else None
+    # read_workbook drops a matrix with no values: an SM workbook can carry the template's empty tab.
+    return out
 
 
 def default_rates(scan_doc, assumptions):

@@ -17,6 +17,30 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Faster: Sheila's status checks, and the monthly build three clients at a time
+
+Aaron: "continue to find ways to optimize Sheila and the entire RPE build process." A profiling pass
+(1705 CoastLife and 1156 BancFirst, the largest extract, 251 MB) found a client build is mostly CPU
+in about twelve child processes that each read the ODD again, not share I/O (metrics_gen: 118 s
+from a local copy of 1156's extract against 126 s from the share), and that Sheila opened each
+workbook twice through two readers. Two changes now; the in-build ones wait for the James-slides
+merge, which touches the same files.
+
+- **Sheila reads a workbook once for both the Lift Matrix date check and the lift views.**
+  `lift_values.read_workbook` now also returns the `lift_window` reading, and inside Sheila
+  `ars_launcher._window` answers from the stored read (`workbooks.json`, keyed by size and modified
+  time), installed with the share caches. `ars_launcher.py build` runs as its own process and never
+  sees it, so a build's checks still open the file. The lift folder on the share is made once rather
+  than on every call (39 times per overview), and `deck_status._mtime` / `_same_file` join the
+  60-second share cache. Measured on 1705, 1539, 1204 and 1453: a cold status check 3.8-6.5 s ->
+  2.2-3.4 s, a repeat 1.7-2.6 s -> 0.7-0.9 s; the lift overview 5.5 s -> 4.5 s. `WORKBOOK_VERSION`
+  is 2, so every stored read was redone once (64 s, the first time only).
+- **`build_month.py --jobs N` builds N clients at once (default 3).** Clients share nothing: each
+  has its own folder and log, and `sweep_temp` only removes scratch older than six hours. Three, not
+  the machine's 22 cores, because every build reads its extract from the share at about 3 MB/s.
+  Progress prints as each finishes; `_results.json` keeps roster order. `--jobs 1` is the old
+  one-at-a-time run.
+
 ### 2026-09-25 — Sheila: a Data Issues tab, and each client's code sheet one click away
 
 Aaron: "build a new tab into Sheila with the data issues identified for each client" and "create a

@@ -130,3 +130,26 @@ def test_roster_names_match_what_is_delivered(cid, name, roster):
     is not stable across periods.
     """
     assert next(r[1] for r in roster if r[0] == cid) == name
+
+
+def test_clients_build_at_once_and_report_in_roster_order(tmp_path, monkeypatch, capsys):
+    # 2026-09-25: `--jobs` builds several clients at once; the results file keeps roster order.
+    import json, threading, time
+    import build_month as BM
+    roster = [("1001", "A", "MM", ["ARS"]), ("1002", "B", "MM", ["ARS"]), ("1003", "C", "SM", ["ARS"])]
+    monkeypatch.setattr(BM, "read_roster", lambda *a, **k: (roster, []))
+    live, peak, lock = [0], [0], threading.Lock()
+
+    def fake_build(cid, name, mmsm, progs, period, stage):
+        with lock:
+            live[0] += 1; peak[0] = max(peak[0], live[0])
+        time.sleep(0.3 if cid == "1001" else 0.05)          # the first finishes last
+        with lock:
+            live[0] -= 1
+        return None, {"DELIVERABLE": f"{cid}.pptx"}
+    monkeypatch.setattr(BM, "build_client", fake_build)
+    monkeypatch.setattr(BM, "validate", lambda deck, base=None: "0 FAIL, 0 REVIEW")
+    monkeypatch.setattr(BM.sys, "argv", ["build_month.py", "2026.09", str(tmp_path), "--jobs", "3"])
+    assert BM.main() == 0
+    assert peak[0] == 3
+    assert [r[0] for r in json.load(open(tmp_path / "_results.json", encoding="utf-8"))] == ["1001", "1002", "1003"]
