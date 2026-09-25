@@ -1475,13 +1475,11 @@ def _note_for(t, idx):
 # ago invites a question nobody was asking. `should_build` owns that rule; this is not a
 # slide dropped quietly — the absence IS the decision, and the skip is printed.
 #
-# OPT-IN with the James views (2026-09-25): it came in on the same branch, and until Aaron
-# signs it off for the monthly run it must not change the default deck. Remove the
-# RPE_JAMES_SLIDES test below to build it on every ARS deck under 3 : 1.
+# EVERY ARS deck under 3 : 1 (Aaron, 2026-09-25: "I do still want the two-to-one guarantee
+# slide included for clients less than three-to-one, period"). It is not one of the opt-in
+# James views: RPE_JAMES_SLIDES does not gate it.
 import revenue_guarantee_slide
-if os.environ.get("RPE_JAMES_SLIDES") != "1":
-    print("revenue guarantee slide skipped: opt-in (RPE_JAMES_SLIDES=1)")
-elif revenue_guarantee_slide.should_build(B):
+if revenue_guarantee_slide.should_build(B):
     _rg_slide, _RG = revenue_guarantee_slide.add_revenue_guarantee_slide(
         prs, B, ASSETS, AS_OF_LONG, after_title="Financial Performance",
         wb_src=WB_SRC, tab=_mm)

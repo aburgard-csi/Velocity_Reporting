@@ -182,8 +182,17 @@ def test_the_builder_gates_on_should_build():
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "build", "ars_pipeline", "build_ars_gen.py"),
                encoding="utf-8").read()
-    assert "elif revenue_guarantee_slide.should_build(B):" in src
-    # opt-in with the James views until it is signed off for the monthly run (2026-09-25)
-    assert 'if os.environ.get("RPE_JAMES_SLIDES") != "1":' in src
+    assert "if revenue_guarantee_slide.should_build(B):" in src
     assert 'after_title="Financial Performance"' in src
     assert "_MODULE_NOTED.append(_rg_slide)" in src       # its note is its own
+
+
+def test_the_guarantee_slide_is_on_every_ars_deck_under_three_to_one():
+    """Aaron, 2026-09-25: "I do still want the two-to-one guarantee slide included for clients less
+    than three-to-one, period." It is not one of the opt-in James views."""
+    import os
+    src = open(os.path.join(os.path.dirname(RG.__file__), "build_ars_gen.py"), encoding="utf-8").read()
+    block = src[src.index("import revenue_guarantee_slide"):src.index("_S2 = list(prs.slides)")]
+    assert "RPE_JAMES_SLIDES" not in block
+    assert "if revenue_guarantee_slide.should_build(B):" in block
+    assert RG.SHOW_BELOW == 3.0

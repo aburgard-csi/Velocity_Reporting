@@ -17,7 +17,28 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — The 2 : 1 guarantee slide is back on every deck under 3 : 1; Sheila's change log shows summaries
+
+Summary: Clients below 3 : 1 get the Revenue Guarantee slide in every ARS deck again, and Sheila's change log now shows a short summary of each update.
+
+Aaron: "I do still want the two-to-one guarantee slide included for clients less than three-to-one,
+period. Also, rewrite the change log shown in Sheila to show a summary of what was updated, not my
+verbatim instructions."
+
+- **Revenue Guarantee.** The merge earlier today had put the slide behind `RPE_JAMES_SLIDES` with
+  the James views. It is not one of them: `build_ars_gen` builds it whenever
+  `revenue_guarantee_slide.should_build` finds the client's ratio below 3 : 1, and skips it (and
+  says so in the build log) at or above. The golden deck is unchanged (its synthetic client is
+  above 3 : 1). A test pins that nothing gates it on the James switch.
+- **Change log in Sheila.** Every entry now starts with a `Summary:` line in plain language, and
+  Sheila shows that line: in the header's What's new and at the head of each entry on its change
+  log page. Sheila's page also leaves out the quoted request paragraph and the inline attributions
+  ("(Aaron, …)"), which stay in CHANGELOG.md as the record. An older entry without a Summary line
+  shows its first paragraph that is not a quote. Entries from 2026-09-21 on were given summaries.
+
 ### 2026-09-25 — Faster: Sheila's status checks, and the monthly build three clients at a time
+
+Summary: Sheila's client status checks are about twice as fast (a workbook is read once and remembered), and the monthly batch build now builds three clients at a time.
 
 Aaron: "continue to find ways to optimize Sheila and the entire RPE build process." A profiling pass
 (1705 CoastLife and 1156 BancFirst, the largest extract, 251 MB) found a client build is mostly CPU
@@ -43,6 +64,8 @@ merge, which touches the same files.
 
 ### 2026-09-25 — Sheila: a Data Issues tab, and each client's code sheet one click away
 
+Summary: New Data Issues tab listing each client's known data problems and their fixes, and an "Open code sheet" link on every client page.
+
 Aaron: "build a new tab into Sheila with the data issues identified for each client" and "create a
 link on the individual client pages that links to the code sheet saved in the inputs folder."
 
@@ -66,12 +89,14 @@ link on the individual client pages that links to the code sheet saved in the in
 
 ### 2026-09-25 — Eighteen more of James's views, and the gap branch merged (opt-in; merged to main 2026-09-25)
 
+Summary: 29 of James Gilmore's views are now available in the ARS deck (18 of them new), switched on only for review builds while we choose which to keep.
+
 Aaron: "work on incorporating more of James's slides. We'll need to add in as many as possible
 and then we'll edit down from the maximized copy."
 
 `feature/james-deck-gaps` (through 8320b88) is merged onto main. The swipe-tier floor was
-already on main (276d115), so main's `metrics_gen` is kept. **The Revenue Guarantee slide is now
-opt-in with the James views too**: the branch built it on every ARS deck under 3 : 1, which would
+already on main (276d115), so main's `metrics_gen` is kept. **The Revenue Guarantee slide was made
+opt-in with the James views too** (reversed the same day: see the entry above): the branch built it on every ARS deck under 3 : 1, which would
 have changed the default monthly build before Aaron signed it off. Remove the `RPE_JAMES_SLIDES`
 test in `build_ars_gen` to put it back on every deck.
 
@@ -119,6 +144,8 @@ are unchanged: the golden deck still has 49 slides.
 
 ### 2026-09-25 — The Lift Matrix distribution counts NH
 
+Summary: In the calculated Lift Matrix, NH accounts (eligible, no debit card) now count in the distribution, so the eight segment shares add to 100%.
+
 Aaron: "recalculate the distribution including NH accounts."
 
 The distribution was each segment's share of the card holders, with NH at 0% as in the workbook's
@@ -130,6 +157,8 @@ lower than the workbook's by NH's share. 1705: 13,534 eligible accounts, NH 13.4
 `SCAN_VERSION` is 5.
 
 ### 2026-09-25 — Sheila reads a workbook's Lift Matrix again only when the file has changed
+
+Summary: The Lift Matrix tab opens in seconds instead of over a minute: a workbook is re-read only when the file has changed.
 
 Aaron: "only rescan workbook lift matrix values if the file has changed since the last scan, that
 should speed things up."
@@ -144,6 +173,8 @@ stored, 9.4 s from a fresh start with the reads stored. What remains is listing 
 on the share, not reading workbooks.
 
 ### 2026-09-25 — Lift Matrix: business accounts, an independent NH, 100% collection, the outlier cap as a variable, Recalculate, Export
+
+Summary: The Lift Matrix now values business accounts too, gives NH its own value, defaults OD collection to 100%, lets you choose the outlier cap, and has Recalculate and Export this matrix buttons.
 
 Six changes from Aaron the same afternoon, all in `lift_values` and Sheila's Lift Matrix tab.
 
@@ -185,6 +216,8 @@ its eligible card-less accounts carry more NSF/OD items than its card holders wh
 
 ### 2026-09-25 — build_lift_matrix is a wrapper over lift_values; lift_extract retired
 
+Summary: The command-line Lift Matrix tool now uses the same calculation as Sheila, so both give the same file.
+
 Aaron: "retire build_lift_matrix.py and have it use lift_values."
 
 `build_lift_matrix.py` carried its own valuation: a `.pkl` from `lift_extract.py`, every
@@ -205,6 +238,8 @@ step, so check the values it prints against the current matrix before sending.
 
 ### 2026-09-25 — Lift Matrix: current and new side by side, approve, then download
 
+Summary: A client's Lift Matrix page shows the current and new matrices side by side with the change and the step between segments, and the Excel file for Bradford is downloaded from the page.
+
 Aaron: "When the lift matrix is calculated, I want it shown side by side with the previous matrix,
 and the value difference between segments shown, and also show the current and new lift grids.
 When the matrix is approved it'll allow you to download the file with the lift matrix values."
@@ -223,6 +258,8 @@ When the matrix is approved it'll allow you to download the file with the lift m
 - Negative lift between segments is allowed (Aaron), so the page no longer warns about it.
 
 ### 2026-09-25 — Sheila builds a client's Lift Matrix
+
+Summary: New Lift Matrix tab: every client's current matrix, a new one calculated from the client's ODD with editable interchange rate, NSF/OD fee and collection rate, and the file for Bradford in his format.
 
 Aaron: "add functionality to Sheila to build client Lift Matrix for ARS", and "create a tab in
 Sheila showing the lift matrices across clients, and the current calculated lift matrix. To have
@@ -267,6 +304,8 @@ the same thing (Foothills 16-20 under 11-15, FNB Alaska 26 Plus under 21-25).
 
 ### 2026-09-25 — The source watch fires once a morning
 
+Summary: The morning source check now runs once at 08:00 instead of hourly until noon. If the VPN is down at 08:00, run it by hand once it is up.
+
 Aaron: "let's run this source watch just once per day in the morning."
 
 "RPE Source Watch" fired at 08:00 and then hourly for four hours — five fires a morning, with
@@ -292,6 +331,8 @@ with no next fire it is kept because a run that has not finished in 50 minutes i
 than slow, and the watchdog wants the slot cleared.
 
 ### 2026-09-23 — The run record does not live on the share any more
+
+Summary: The morning check now records that it ran even when the VPN is down, so an off-VPN morning is no longer mistaken for a stuck run.
 
 Aaron: "fix the run record flaw."
 
@@ -319,6 +360,8 @@ developer's real one and pass or fail on whether the morning task had run today.
 
 ### 2026-09-22 — Swipe averages round down into their segment
 
+Summary: Accounts averaging between two swipe tiers (5.5 swipes, say) now land in the lower tier instead of 26+. This changed the swipe-tier figures on every 2026.09 ARS deck, which were rebuilt.
+
 Aaron: "round swipes down into the nearest segment."
 
 `metrics_gen.tier` bands an account on its THREE-MONTH MEAN swipe count, against inclusive
@@ -335,6 +378,8 @@ stay the plain integer ranges they read as.
 read off them. Every 2026.09 ARS deck was rebuilt the same night.
 
 ### 2026-09-21/22 — Filling the gaps against James's deck (branch `feature/james-deck-gaps`)
+
+Summary: Ten views from James Gilmore's deck built for review (revenue guarantee, revenue build by mailing, swipe tier migration and others), plus three fixes to earlier James views.
 
 A night's work on the gap list from the "James vs Aaron Decks" comparison. Everything below is
 on the branch and **opt-in**: `build_ars_gen` adds these slides only under `RPE_JAMES_SLIDES=1`,
@@ -396,6 +441,8 @@ invented.
 
 ### 2026-09-21 — The CashPlease marketing emails are their own input kind
 
+Summary: Bradford's CashPlease marketing emails (monthly CSVs and per-client workbooks) are now collected automatically into Inputs/CashPlease Marketing.
+
 Aaron: "add a kind for the loan marketing emails." Eight `<id>_<Client>_Loan_Marketing_Emails.xlsx`
 attachments from Bradford's "CashPlease Marketing eMails" thread were reported by the morning mail
 step and left in the mailbox, one per client, because their names carry no period and so read as
@@ -427,6 +474,8 @@ No deck reads these files yet, so no slide changes. Tests: `tests/test_mail_sour
 `tests/test_watch_sources.py`.
 ### 2026-09-21 — The watchdog asks the run record, and looks every half hour
 
+Summary: The watchdog now checks every 30 minutes each morning whether the source check actually ran, and restarts it if Windows left it stuck.
+
 Watched live: the 09:01 and 09:06 fires of the morning task were both created SUSPENDED (zero
 CPU, zero handles, 1.8 MB — the interpreter never started), while the same command started by
 hand ran fine. The watchdog would not have touched either: it judged by the report's age, and
@@ -445,6 +494,8 @@ Tests: `--check-today` over the record (including "off VPN today does not count"
 watchdog asks it and still carries the report fallback.
 
 ### 2026-09-21 — The morning check saves its scan before the copy, and gets two hours
+
+Summary: The morning source check saves its findings before copying files and may run up to two hours, so a slow morning no longer leaves no record at all.
 
 The 08:00 source check produced NOTHING on 2026-09-18, -19 and -20: no report, no log entry,
 no inventory. Two faults, not one. Windows created the 09-18 and 09-19 runs SUSPENDED (the

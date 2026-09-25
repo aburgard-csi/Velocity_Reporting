@@ -437,3 +437,24 @@ def test_a_slow_list_rebuild_never_holds_up_the_page(server, monkeypatch, clean_
     assert json.loads(call(server, "GET", "/api/clients")[1])["refreshing"] is True
     assert time.time() - t0 < 2, "served while the rebuild waits on the share"
     gate.set()
+
+def test_the_changelog_shows_what_changed_not_the_request(tmp_path):
+    """Aaron, 2026-09-25: "rewrite the change log shown in Sheila to show a summary of what was updated,
+    not my verbatim instructions." CHANGELOG.md keeps the request; Sheila shows the Summary line."""
+    md = tmp_path / "CHANGELOG.md"
+    md.write_text(
+        "# Changelog\n\n## Unreleased\n\n"
+        "### 2026-09-25 — With a summary\n\nSummary: The Lift Matrix tab opens faster.\n\n"
+        'Aaron: "only rescan workbook lift matrix values if the file has changed."\n\n'
+        "Each read is stored (Aaron, 2026-09-25) and reused, Aaron: \"make it fast\". Done.\n\n"
+        "### 2026-09-24 — Without one\n\n"
+        'Aaron, 2026-09-24: "fix the thing."\n\nThe thing was fixed (Aaron: "thanks (really)") today.\n\n',
+        encoding="utf-8")
+    e = W.changelog_entries(5, md)
+    assert e[0]["summary"] == "The Lift Matrix tab opens faster."
+    assert e[1]["summary"].startswith("The thing was fixed") and "Aaron" not in e[1]["summary"]
+    page = W.changelog_page(md)
+    assert '<p class="sum">The Lift Matrix tab opens faster.</p>' in page
+    assert "only rescan" not in page and "fix the thing" not in page and "make it fast" not in page
+    assert "Each read is stored and reused. Done." in page
+    assert "Aaron" not in page.split("<main>", 1)[1]

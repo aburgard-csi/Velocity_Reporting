@@ -899,7 +899,10 @@ This is the readme index — update it whenever files are added, removed, or mov
   moved number or source, a changed claim, AND a change to what a slide renders.
   Post to it whenever you change pipeline behavior. This used to say "changes that
   move a client-facing number or its source", and that reading kept the MRPC
-  invisible-retention-line fix out of the file entirely.
+  invisible-retention-line fix out of the file entirely. **Every entry starts with a
+  `Summary:` line** — one or two plain sentences saying what changed, for a CSM (2026-09-25).
+  CSM Sheila shows that line in What's new and on its change log page, and leaves out the
+  quoted request and inline "(Aaron, …)" attributions, which stay here as the record.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
 - `docs/` — the PRDs: `PRD-2026-08-26-repo-portability-and-response-rates.md`,
   `PRD-2026-09-11-rpe-client-performance-artifact.md` (the cross-client performance page:

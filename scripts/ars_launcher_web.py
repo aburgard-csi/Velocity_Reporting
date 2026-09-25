@@ -689,11 +689,40 @@ def _plain(md):
     return re.sub(r"\s+", " ", t).strip()
 
 
+# Sheila shows what changed, not the request behind it (Aaron, 2026-09-25: "rewrite the change log shown in
+# Sheila to show a summary of what was updated, not my verbatim instructions"). CHANGELOG.md keeps both: each
+# entry leads with a `Summary:` line, then the request as asked, then the detail. Sheila shows the summary,
+# leaves out a paragraph that is the quoted request, and drops inline attributions such as "(Aaron, 2026-09-17)".
+_QUOTE_PARA_RX = re.compile(r'^Aaron(?:[ ,][^:"]{0,60})?:\s*["\u201c]')
+_ATTRIB_RX = re.compile(r'\s*\((?:Aaron\b[^()]*|["\u201c][^()]*?["\u201d])\)')
+# A quote inside a sentence: '(Aaron: "...")' whole; ', Aaron: "..."' leaving the sentence's own full stop;
+# or 'Aaron: "...".' standing as a sentence of its own, full stop and all.
+_Q = r'["\u201c][^"\u201d]*["\u201d]'
+_WHO = r'\bAaron(?:,\s*[^:"()]{0,40})?:\s*'
+_INLINE_QUOTE_RX = re.compile(r'\s*\(' + _WHO + _Q + r'\)'
+                              r'|,\s*' + _WHO + _Q
+                              + r'|(?<![,\w])\s*' + _WHO + _Q + r'\.?')
+SUMMARY_PREFIX = "Summary:"
+
+
+def _for_sheila(text):
+    """A line of the change log as Sheila shows it: inline attributions and quoted asides removed."""
+    return re.sub(r"\s{2,}", " ", _ATTRIB_RX.sub("", _INLINE_QUOTE_RX.sub("", text))).strip()
+
+
+def _entry_summary(paras):
+    """The entry's `Summary:` line, else its first paragraph that is not the quoted request."""
+    for p in paras:
+        if p.startswith(SUMMARY_PREFIX):
+            return p[len(SUMMARY_PREFIX):].strip()
+    return next((p for p in paras if not _QUOTE_PARA_RX.match(p)), "")
+
+
 def changelog_entries(n=5, path=None):
     """The newest `n` dated entries of CHANGELOG.md (newest first): [{date, title, summary, anchor}].
 
-    summary is the entry's first paragraph as plain text, cut at 260 characters; anchor matches the
-    heading id on /changelog.
+    summary is the entry's Summary line (else its first paragraph that is not the quoted request) as
+    plain text, cut at 260 characters; anchor matches the heading id on /changelog.
     """
     try:
         lines = Path(path or CHANGELOG).read_text(encoding="utf-8").splitlines()
@@ -705,14 +734,17 @@ def changelog_entries(n=5, path=None):
         if not m:
             i += 1
             continue
-        j = i + 1
-        while j < len(lines) and not lines[j].strip():
+        j, paras, cur = i + 1, [], []
+        while j < len(lines) and not lines[j].startswith("#"):
+            if lines[j].strip():
+                cur.append(lines[j].strip())
+            elif cur:
+                paras.append(" ".join(cur))
+                cur = []
             j += 1
-        para = []
-        while j < len(lines) and lines[j].strip() and not lines[j].startswith("#"):
-            para.append(lines[j].strip())
-            j += 1
-        s = _plain(" ".join(para))
+        if cur:
+            paras.append(" ".join(cur))
+        s = _plain(_for_sheila(_entry_summary(paras)))
         out.append({"date": m.group(1), "title": _plain(m.group(2)),
                     "summary": s[:260].rstrip() + ("\u2026" if len(s) > 260 else ""), "anchor": f"e{len(out)}"})
         i = j
@@ -737,10 +769,14 @@ def changelog_page(path=None):
 
     def flush():
         if para:
-            body.append("<p>" + _md_inline(" ".join(para)) + "</p>")
+            text = " ".join(para)
+            if text.startswith(SUMMARY_PREFIX):
+                body.append('<p class="sum">' + _md_inline(_for_sheila(text[len(SUMMARY_PREFIX):])) + "</p>")
+            elif not _QUOTE_PARA_RX.match(text):
+                body.append("<p>" + _md_inline(_for_sheila(text)) + "</p>")
             para.clear()
         if items:
-            body.append("<ul>" + "".join("<li>" + _md_inline(i) + "</li>" for i in items) + "</ul>")
+            body.append("<ul>" + "".join("<li>" + _md_inline(_for_sheila(i)) + "</li>" for i in items) + "</ul>")
             items.clear()
     for ln in lines:
         s = ln.rstrip()
@@ -752,7 +788,7 @@ def changelog_page(path=None):
             if lvl == 3 and _ENTRY_RX.match(s):
                 ident = f' id="e{n}"'
                 n += 1
-            body.append(f"<h{lvl}{ident}>{_md_inline(h.group(2))}</h{lvl}>")
+            body.append(f"<h{lvl}{ident}>{_md_inline(_for_sheila(h.group(2)))}</h{lvl}>")
         elif re.match(r"^\s*[-*]\s+", s):
             if para:
                 flush()
@@ -774,8 +810,8 @@ def changelog_page(path=None):
             "header{background:#00274C;color:#fff;padding:14px 24px;font-weight:700;font-size:19px}"
             "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
             "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F47A29;padding-bottom:4px}"
-            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
-            "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}}"
+            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}p.sum{font-weight:600;background:#E9EFF6;border-left:3px solid #F47A29;padding:6px 10px;border-radius:4px}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
+            "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}p.sum{background:#16283A}}"
             "</style></head><body><header>CSM Sheila · Change log</header><main>"
             + "\n".join(body) + "</main></body></html>")
 
