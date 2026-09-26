@@ -256,7 +256,10 @@ def wave_build_chart(out, waves, w_in=12.3, h_in=4.0, named=5):
     and labelled; the rest are the grey band they belong to.
     """
     fig, ax = _fig(w_in, h_in)
-    fig.subplots_adjust(left=0.07, right=0.80, top=0.93, bottom=0.14)
+    # The legend sits INSIDE the plot's empty upper-left corner (young mailings are low and to the
+    # left, the long curves run right), so the plot keeps the full width. Outside on the right it was
+    # clipped at the figure edge ("$203K over 13 mo" lost its end) and squeezed the plot (2026-09-25).
+    fig.subplots_adjust(left=0.075, right=0.985, top=0.95, bottom=0.14)
     ramp = [ORANGE, NAVY, TEAL, STEEL, MUTED]
     recent = waves[-named:] if named else []
     recent_keys = {w["key"] for w in recent}
@@ -278,7 +281,7 @@ def wave_build_chart(out, waves, w_in=12.3, h_in=4.0, named=5):
         ax.plot(xs, ys, color=c, lw=2.4, zorder=5)
         ax.plot(xs[-1:], ys[-1:], marker="o", ms=5, mfc="white", mec=c, mew=1.8, zorder=6)
         handles.append(Line2D([], [], color=c, lw=2.4,
-                              label=f"{w['m']}  ·  {_money(ys[-1])} over {w['months']} mo"))
+                              label=f"{w['m']}  ·  {_money(ys[-1])}, {w['months']} mo"))
     if any(w.get("build") for w in waves if w["key"] not in recent_keys):
         handles.append(Line2D([], [], color=STEEL_SOFT, lw=1.1, label="Earlier mailings"))
     ax.set_xlabel("Months since the mailing", fontsize=12, color=TICK)
@@ -290,8 +293,9 @@ def wave_build_chart(out, waves, w_in=12.3, h_in=4.0, named=5):
     ax.set_ylim(bottom=0)
     _spines(ax, left=True)
     if handles:
-        ax.legend(handles=handles, loc="center left", bbox_to_anchor=(1.01, 0.5),
-                  frameon=False, fontsize=11.5, labelcolor=TICK, handlelength=1.6)
+        ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.01, 1.0),
+                  frameon=True, facecolor="white", edgecolor="none", framealpha=0.92,
+                  fontsize=12.5, labelcolor=TICK, handlelength=1.8)
     return _save(fig, out)
 
 
@@ -564,5 +568,6 @@ def balance_chart(out, bc, w_in=8.0, h_in=4.0):
     ax.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
     ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
     _spines(ax, left=True)
-    ax.legend(loc="upper right", frameon=False, fontsize=11.5, labelcolor=TICK)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False,
+              fontsize=12.5, labelcolor=TICK)   # above the plot: at upper right it sat on the bars (2026-09-25)
     return _save(fig, out)

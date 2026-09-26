@@ -965,8 +965,8 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `revenue_guarantee_slide.py` — the Revenue Guarantee slide, inserted after ARS Financial
   Performance: program cost to date, the 2 : 1 guaranteed minimum, revenue, and either the
   surplus or the gap with the months to cover it (the months account for cost accruing over
-  those same months). Run rate reads complete months only. OPT-IN with the James views
-  (`RPE_JAMES_SLIDES=1`) until signed off for the monthly run, and then only under 3 : 1.
+  those same months). Run rate reads complete months only. On EVERY ARS deck whose ratio is
+  below 3 : 1 (Aaron, 2026-09-25) — not one of the opt-in James views.
 - `combined_insights.py`, `insight_charts.py`, `combined_insight_slides.py` — the views from James
   Gilmore's deck, merged from `test/james-aaron-combined` 2026-09-17 and still OPT-IN:
   `build_ars_gen` adds them only when `RPE_JAMES_SLIDES=1`. The original six (revenue by mailing,

@@ -17,6 +17,28 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-25 — Two James-view charts: a clipped legend and a legend over the bars
+
+Summary: On the Revenue Build by Mailing and Where the Balances Sit review slides, the legend no longer gets cut off or covers the bars, and the charts use the full width.
+
+Aaron: "work on additional optimizations ... making the slides clearer and easier to read, making
+the charts large and balanced with the text." A read of every slide of the maximized 1539 deck,
+rendered through PowerPoint, found:
+
+- **Revenue Build by Mailing** (`insight_charts.build_chart`): the legend sat outside the plot on
+  the right, was clipped at the figure edge ("$203K over 13 mo" lost its end) and squeezed the
+  plot to 73% of the width. It now sits inside the plot's empty upper-left corner, on a white
+  ground, at 12.5 pt, with labels shortened to "Jul 2025 · $203K, 13 mo"; the plot takes the full
+  width.
+- **Where the Balances Sit** (`insight_charts.balance_chart`): the legend sat on top of the
+  bars. It now sits above the plot, in one row, at 12.5 pt.
+
+Found and NOT changed in this pass, for a decision: the standard Responder Activity: Before vs
+After (Mean) slide draws its two charts in about 60% of the slide width under a wide empty band
+(its picture box comes from the ARS template, so the fix is a template and layout-baseline
+change), and Overdraft Limits by Reg E Election and Where Reg E Opt-In Lags draw small panels
+with much white space.
+
 ### 2026-09-25 — The 2 : 1 guarantee slide is back on every deck under 3 : 1; Sheila's change log shows summaries
 
 Summary: Clients below 3 : 1 get the Revenue Guarantee slide in every ARS deck again, and Sheila's change log now shows a short summary of each update.
