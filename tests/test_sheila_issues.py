@@ -89,3 +89,44 @@ def test_the_code_sheet_endpoint_checks_the_client_number(root):
         c.close()
     finally:
         srv.shutdown()
+
+
+def test_a_marked_item_stays_complete_until_a_new_workbook_arrives(root, monkeypatch):
+    # Aaron, 2026-09-28: "They should stay marked complete until we see a new workbook for that client, and then
+    # the status can be evaluated."
+    wbdir = root / "Inputs" / "ARS Workbooks"
+    wbdir.mkdir(parents=True)
+    (wbdir / "1453-2026.08-Connex CU-Workbook_v2_1_0.xlsx").write_bytes(b"aug")
+    W._wb_names.update(key=None, map={})
+    W._done_cache.update(key=None, doc={})
+    monkeypatch.setenv("USERNAME", "aaron.burgard")
+
+    def connex():
+        return next(e for e in W.issues_doc()["clients"] if e["id"] == "1453")
+    first = connex()
+    assert first["count"] == 4 and first["done_count"] == 0
+    key = first["issues"][0]["key"]                                 # the MRPC blocker
+    assert W.mark_issue("1453", key, True)[0] == 200
+    c = connex()
+    assert c["issues"][0]["done"]["by"] == "aaron.burgard" and c["count"] == 3 and c["done_count"] == 1
+    assert "done" not in c["issues"][1]                             # only that item
+    # the same workbook again changes nothing
+    assert connex()["issues"][0].get("done")
+    # a newer workbook for the client brings it back, saying when it was marked and what arrived
+    (wbdir / "1453-2026.09-Connex CU-Workbook_v2_1_0.xlsx").write_bytes(b"sep")
+    os.utime(wbdir, ns=(1, 1))                                      # make the folder's change visible at once
+    W._wb_names.update(key=None, map={})
+    c = connex()
+    assert "done" not in c["issues"][0] and c["count"] == 4
+    assert c["issues"][0]["reopened"]["new"] == ["1453-2026.09-Connex CU-Workbook_v2_1_0.xlsx"]
+    # marking it again records the new workbook; Undo clears it
+    assert W.mark_issue("1453", key, True)[0] == 200 and connex()["issues"][0].get("done")
+    assert W.mark_issue("1453", key, False)[0] == 200
+    c = connex()
+    assert "done" not in c["issues"][0] and "reopened" not in c["issues"][0]
+
+
+def test_only_a_current_item_can_be_marked(root):
+    W._done_cache.update(key=None, doc={})
+    assert W.mark_issue("1453", "0" * 16, True)[0] == 404
+    assert W.mark_issue("9999", "0" * 16, True)[0] == 404

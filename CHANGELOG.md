@@ -17,6 +17,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-28 — Data Issues: mark an item complete until a new workbook arrives
+
+Summary: On Sheila's Data Issues tab each item can be marked complete. It stays complete until a new workbook arrives for that client, then comes back to be checked again.
+
+Aaron: "on the Data Issues tab, I'd like to option to mark those items complete. They should stay
+marked complete until we see a new workbook for that client, and then the status can be evaluated."
+
+- Every item (issue-page issue, unmapped codes, Lift Matrix flag) has **Mark complete**. A mark
+  records who, when, and the client's newest workbook in each of `Inputs/ARS Workbooks`,
+  `Inputs/MRPC Analyses` and `Inputs/ICS Workbooks` at that moment.
+- A marked item is left out of the list and the counts, and shown under a **Completed** chip with
+  Undo. While the client's newest workbooks are unchanged it stays complete; when any is replaced
+  by a newer file it comes back with "Marked complete <when> by <who>; a new workbook has arrived
+  since (<file>). Check it again." Marking it again records the new workbook.
+- An item is identified by the client, its kind and its own wording, so an issue re-worded by the
+  next issue-page run is a new item.
+- Marks are kept in `Build Artifacts/issue_pages/done.json` on the share, so every CSM's copy of
+  Sheila sees the same marks; the file is merged on write. Tests: `tests/test_sheila_issues.py`.
+
 ### 2026-09-25 — Two James-view charts: a clipped legend and a legend over the bars
 
 Summary: On the Revenue Build by Mailing and Where the Balances Sit review slides, the legend no longer gets cut off or covers the bars, and the charts use the full width.

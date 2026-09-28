@@ -1281,10 +1281,130 @@ def issues_doc():
                "sources": {"issue_pages": (gaps.get("summary") or {}).get("generated"),
                            "dashboard": ds.get("generated")}}
         _issues_cache.update(key=key, doc=doc)
-    sheets = code_sheets_by_client()
-    out = dict(doc, clients=[dict(e, code_sheet=sheets[e["id"]].name if e["id"] in sheets else None)
+    sheets, done, wbs = code_sheets_by_client(), _load_done(), workbooks_by_client()
+    out = dict(doc, clients=[dict(_with_marks(e, done, wbs),
+                                  code_sheet=sheets[e["id"]].name if e["id"] in sheets else None)
                              for e in doc["clients"]])
     return out
+
+
+# ------------------------------------------------------------------ marking an issue complete (Aaron, 2026-09-28)
+# "on the Data Issues tab, I'd like to option to mark those items complete. They should stay marked complete until
+# we see a new workbook for that client, and then the status can be evaluated." A mark records the client's newest
+# workbooks at that moment (ARS workbook, MRPCPM analysis, ICS workbook); while those are unchanged the item stays
+# complete, and when any of them is replaced by a newer file the item comes back, saying when it was marked and which
+# workbook arrived since. Marks live on the share beside the issue pages' data, so every copy of Sheila sees them.
+WORKBOOK_KINDS = ("Workbook", "MRPCPM", "ICS workbook")
+DONE_FILE = "done.json"
+_wb_names = {"key": None, "map": {}}
+_done_cache = {"key": None, "doc": {}}
+
+
+def issue_key(cid, kind, *parts):
+    """A stable id for one item: the client, what kind of item, and its own text. New wording is a new item."""
+    import hashlib
+    raw = "\x1f".join([cid, kind] + [str(p or "") for p in parts])
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def workbooks_by_client():
+    """{client id: sorted newest workbook file name per kind}, from the three workbook folders in Inputs.
+    Listed again only when a folder changes."""
+    dirs = [R.inputs() / R.INPUT_KIND_DIRS[k] for k in WORKBOOK_KINDS]
+    key = tuple(d.stat().st_mtime_ns if d.is_dir() else None for d in dirs)
+    if _wb_names["key"] == key:
+        return _wb_names["map"]
+    best = {}
+    for kind, d in zip(WORKBOOK_KINDS, dirs):
+        if not d.is_dir():
+            continue
+        for p in d.iterdir():
+            m = re.match(r"^(\d{3,5})-(\d{4}\.\d{2})-", p.name)
+            if not m or p.name.startswith("~$") or p.suffix.lower() not in (".xlsx", ".xlsm", ".xls"):
+                continue
+            k = (m.group(1), kind)
+            if k not in best or (m.group(2), p.name) > best[k]:
+                best[k] = (m.group(2), p.name)
+    out = {}
+    for (cid, _kind), (_per, name) in best.items():
+        out.setdefault(cid, []).append(name)
+    _wb_names.update(key=key, map={cid: sorted(v) for cid, v in out.items()})
+    return _wb_names["map"]
+
+
+def _done_path():
+    d = R.build_artifacts() / "issue_pages"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / DONE_FILE
+
+
+def _load_done():
+    p = _done_path()
+    try:
+        key = p.stat().st_mtime_ns
+    except OSError:
+        return {}
+    if _done_cache["key"] != key:
+        _done_cache.update(key=key, doc=_read_json(p) or {})
+    return _done_cache["doc"]
+
+
+def _items(e):
+    """(key, short text) for every item of one client, as the page lists them."""
+    cid = e["id"]
+    for i in e["issues"]:
+        yield issue_key(cid, "issue", i.get("program"), i.get("issue")), f"{i.get('program') or ''} {i.get('issue') or ''}".strip()
+    for c in e["codes"]:
+        vals = sorted(str(v.get("value")) for v in (c.get("values") or []))
+        yield issue_key(cid, "codes", c.get("label"), *vals), f"{c.get('label')}: {', '.join(vals)}"
+    if e.get("lift_matrix"):
+        lm = e["lift_matrix"]
+        yield issue_key(cid, "lift", lm.get("flag"), lm.get("workbook")), f"Lift Matrix flagged \"{lm.get('flag')}\""
+
+
+def _with_marks(e, done, wbs):
+    """One client's entry with each item's key and state: open, complete, or reopened by a newer workbook."""
+    e = dict(e, issues=[dict(i) for i in e["issues"]], codes=[dict(c) for c in e["codes"]],
+             lift_matrix=dict(e["lift_matrix"]) if e.get("lift_matrix") else None)
+    now = wbs.get(e["id"], [])
+    targets = e["issues"] + e["codes"] + ([e["lift_matrix"]] if e["lift_matrix"] else [])
+    open_n = done_n = 0
+    for item, (key, _text) in zip(targets, _items(e)):
+        item["key"] = key
+        rec = done.get(key)
+        if rec and rec.get("workbooks") == now:
+            item["done"] = {"by": rec.get("by"), "at": rec.get("at")}
+            done_n += 1
+        else:
+            if rec:     # marked, but a workbook has changed since: evaluate it again
+                item["reopened"] = {"by": rec.get("by"), "at": rec.get("at"),
+                                    "new": [w for w in now if w not in (rec.get("workbooks") or [])]}
+            open_n += 1
+    e["count"], e["done_count"] = open_n, done_n
+    return e
+
+
+def mark_issue(cid, key, done):
+    """Mark one item complete (or not). The key must be one of this client's current items."""
+    d = issues_doc()
+    e = next((x for x in d["clients"] if x["id"] == cid), None)
+    items = dict(_items(e)) if e else {}
+    if key not in items:
+        return 404, {"error": "That item is not on this client's list any more. Reload the page."}
+    with _lm_books_lock:
+        doc = dict(_read_json(_done_path()) or {})
+        if done:
+            doc[key] = {"client": cid, "item": items[key],
+                        "by": os.environ.get("USERNAME") or os.environ.get("USER") or "",
+                        "at": time.strftime("%Y-%m-%d %H:%M"),
+                        "workbooks": workbooks_by_client().get(cid, [])}
+        else:
+            doc.pop(key, None)
+        tmp = _done_path().with_name(f"{DONE_FILE}.{os.getpid()}.part")
+        tmp.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+        os.replace(tmp, _done_path())
+        _done_cache.update(key=None)
+    return 200, {"ok": True}
 
 
 # ------------------------------------------------------------------ HTTP
@@ -1384,6 +1504,14 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 return self._send(400, {"error": str(e)})
             except (OSError, SystemExit, KeyError) as e:
+                return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+        if path == "/api/issues/mark":
+            cid, key = str(body.get("client", "")).strip(), str(body.get("key", "")).strip()
+            if not CID_RX.match(cid) or not re.fullmatch(r"[0-9a-f]{16}", key):
+                return self._send(400, {"error": "bad request"})
+            try:
+                return self._send(*mark_issue(cid, key, bool(body.get("done"))))
+            except OSError as e:
                 return self._send(500, {"error": f"{type(e).__name__}: {e}"})
         if path == "/api/code-sheet":
             cid = str(body.get("client", "")).strip()
@@ -1551,6 +1679,9 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
 .recalc{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-4px 0 6px}
 #lm-out.stale{opacity:.45}
 .icard{border:1px solid var(--rule);border-radius:8px;padding:10px 14px;margin:10px 0}
+.icard li.irow{grid-template-columns:4.2em 1fr auto}
+.icard .imark{align-self:center;white-space:nowrap}
+.icard li.idone > span:nth-child(2){color:var(--ink3)}
 .ihead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:8px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer}
@@ -2079,21 +2210,39 @@ async function clientLinks(cid) {
   } catch (err) { box.innerHTML = `<span class="err">Couldn't read the data issues: ${esc(err.message)}</span>`; }
 }
 
+// Marking an item complete (Aaron, 2026-09-28): it stays complete until a newer workbook lands for the client, then
+// comes back with the date it was marked and the workbook that arrived since.
+function issueRow(e, item, tag, body) {
+  if (SEV === "done" ? !item.done : !!item.done) return "";
+  const btn = item.done
+    ? `<button class="link" data-mark="${esc(item.key)}" data-client="${esc(e.id)}" data-done="0">Undo</button>`
+    : `<button class="chipbtn" data-mark="${esc(item.key)}" data-client="${esc(e.id)}" data-done="1">Mark complete</button>`;
+  const state = item.done
+    ? `<br><span class="sub">Marked complete ${esc(item.done.at)}${item.done.by ? " by " + esc(item.done.by) : ""}. It stays complete until a new workbook arrives for this client.</span>`
+    : item.reopened
+      ? `<br><span class="sub" style="color:var(--warn)">Marked complete ${esc(item.reopened.at)}${item.reopened.by ? " by " + esc(item.reopened.by) : ""}; a new workbook has arrived since${item.reopened.new && item.reopened.new.length ? " (" + esc(item.reopened.new.join(", ")) + ")" : ""}. Check it again.</span>`
+      : "";
+  return `<li class="irow${item.done ? " idone" : ""}">${tag}<span>${body}${state}</span><span class="imark">${btn}</span></li>`;
+}
+
 function issueCard(e) {
   const rows = [];
   for (const i of e.issues) {
-    if (SEV && SEV !== i.severity) continue;
+    if (SEV && SEV !== "done" && SEV !== i.severity) continue;
     const [cls, lab] = SEV_TAG[i.severity] || ["step", i.severity];
-    rows.push(`<li><span class="tag ${cls}">${esc(lab)}</span><span><b>${esc(i.program || "")}</b> ${esc(i.issue)}${i.fix ? `<br><span class="sub">Fix: ${esc(i.fix)}</span>` : ""}</span></li>`);
+    rows.push(issueRow(e, i, `<span class="tag ${cls}">${esc(lab)}</span>`,
+      `<b>${esc(i.program || "")}</b> ${esc(i.issue)}${i.fix ? `<br><span class="sub">Fix: ${esc(i.fix)}</span>` : ""}`));
   }
-  if (!SEV || SEV === "codes") {
-    if (e.lift_matrix) rows.push(`<li><span class="tag stop">lift</span><span><b>ARS</b> Lift Matrix flagged "${esc(e.lift_matrix.flag)}" in ${esc(e.lift_matrix.workbook)}<br><span class="sub">Fix: create a new Lift Matrix (the Lift Matrix tab), then send it to Bradford</span></span></li>`);
+  if (!SEV || SEV === "codes" || SEV === "done") {
+    if (e.lift_matrix) rows.push(issueRow(e, e.lift_matrix, `<span class="tag stop">lift</span>`,
+      `<b>ARS</b> Lift Matrix flagged "${esc(e.lift_matrix.flag)}" in ${esc(e.lift_matrix.workbook)}<br><span class="sub">Fix: create a new Lift Matrix (the Lift Matrix tab), then send it to Bradford</span>`));
     for (const c of e.codes) {
       const vals = (c.values || []).map(v => `${esc(v.value)}${v.desc ? " (" + esc(v.desc) + ")" : ""}: ${(v.accounts || 0).toLocaleString()} account${v.accounts === 1 ? "" : "s"}${v.open != null ? ", " + v.open.toLocaleString() + " open" : ""}`).join("; ");
-      rows.push(`<li><span class="tag warn">codes</span><span><b>ARS</b> ${esc(c.label)}${c.eligibility ? " (decides eligibility)" : ""}: ${vals}${c.no_table ? " <span class=\"sub\">(no code table for this kind)</span>" : ""}<br><span class="sub">Fix: correct the client's code sheet</span></span></li>`);
+      rows.push(issueRow(e, c, `<span class="tag warn">codes</span>`,
+        `<b>ARS</b> ${esc(c.label)}${c.eligibility ? " (decides eligibility)" : ""}: ${vals}${c.no_table ? " <span class=\"sub\">(no code table for this kind)</span>" : ""}<br><span class="sub">Fix: correct the client's code sheet</span>`));
     }
   }
-  if (!rows.length) return "";
+  if (!rows.some(Boolean)) return "";
   const unchecked = !SEV && e.unchecked.length ? `<p class="sub" style="margin:6px 0 0">Not checked: ${esc(e.unchecked.join("; "))}</p>` : "";
   return `<section class="icard" id="issue-${esc(e.id)}"><div class="ihead"><b>${esc(e.name || e.id)}</b> <span class="sub">${esc(e.id)} · ${esc(e.csm)}</span>
     <span class="sub" style="margin-left:auto">${codeSheetLinks(e.id, e.code_sheet)}</span></div><ul class="checks">${rows.join("")}</ul>${unchecked}</section>`;
@@ -2108,16 +2257,26 @@ async function issuesView(focus) {
   const csm = $("#csm").value, q = $("#q").value.trim().toLowerCase();
   const shown = d.clients.filter(e => (focus ? e.id === focus : (!csm || e.csm === csm) && (!q || e.id.includes(q) || (e.name || "").toLowerCase().includes(q))));
   const cards = shown.map(issueCard).filter(Boolean);
-  const count = k => shown.reduce((n, e) => n + (k === "codes" ? e.codes.length + (e.lift_matrix ? 1 : 0) : e.issues.filter(i => i.severity === k).length), 0);
+  const open = x => x && !x.done;
+  const count = k => shown.reduce((n, e) => n + (k === "done" ? (e.done_count || 0)
+    : k === "codes" ? e.codes.filter(open).length + (open(e.lift_matrix) ? 1 : 0)
+    : e.issues.filter(i => open(i) && i.severity === k).length), 0);
   const chip = (k, lab) => `<button class="chipbtn" data-sev="${k}" aria-pressed="${SEV === k}">${lab} ${k ? count(k) : ""}</button>`;
   const src = d.sources || {};
   $("#main").innerHTML = `<div class="head"><h2>Data Issues</h2><span class="sub">${focus ? esc((shown[0] || {}).name || focus) + " · " : ""}${shown.length} client${shown.length === 1 ? "" : "s"}</span>
       <span class="sub" style="margin-left:auto">${focus ? `<button class="link" id="iall">All clients</button>` : ""}</span></div>
-    <div class="chips">${chip("", "All")}${chip("blocker", "Blockers")}${chip("decision", "Decisions")}${chip("gap", "Gaps")}${chip("warning", "Warnings")}${chip("codes", "Codes and Lift Matrix")}</div>
+    <div class="chips">${chip("", "All")}${chip("blocker", "Blockers")}${chip("decision", "Decisions")}${chip("gap", "Gaps")}${chip("warning", "Warnings")}${chip("codes", "Codes and Lift Matrix")}${chip("done", "Completed")}</div>
     <p class="note" style="margin-top:6px">Issue list as of ${esc(src.issue_pages || "never")} (the ODD and Workbook Issues and CSM Data Gaps pages). Code and Lift Matrix checks as of ${esc(src.dashboard || "never")} (the morning dashboard refresh).</p>
-    ${cards.join("") || `<p class="note">No data issues${SEV ? " of this kind" : ""} for ${focus ? "this client" : "these clients"}.</p>`}`;
+    ${cards.join("") || `<p class="note">${SEV === "done" ? "Nothing marked complete" : "No open data issues" + (SEV ? " of this kind" : "")} for ${focus ? "this client" : "these clients"}.</p>`}`;
   $("#main").querySelectorAll("[data-sev]").forEach(b => b.addEventListener("click", () => { SEV = b.dataset.sev; issuesView(focus); }));
   const ia = $("#iall"); if (ia) ia.addEventListener("click", () => issuesView());
+  $("#main").querySelectorAll("[data-mark]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true; b.textContent = "Saving…";      // the mark is written to the share, a few seconds
+    try {
+      await api("/api/issues/mark", {method: "POST", body: JSON.stringify({client: b.dataset.client, key: b.dataset.mark, done: b.dataset.done === "1"})});
+      await loadIssues(true); issuesView(focus);
+    } catch (err) { b.disabled = false; b.insertAdjacentHTML("afterend", ` <span class="err">${esc(err.message)}</span>`); }
+  }));
 }
 
 // Code sheet and issue links work wherever they are drawn.
