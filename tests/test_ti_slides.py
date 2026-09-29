@@ -88,3 +88,36 @@ def test_the_slides_are_opt_in():
     src = (REPO / "build" / "ars_pipeline" / "build_ars_gen.py").read_text(encoding="utf-8")
     assert 'os.environ.get("RPE_ANALYSIS_SLIDES") == "1"' in src
     assert "_MODULE_NOTED.extend(_made)" in src
+
+
+def test_every_tile_label_fits_one_line_at_the_16pt_floor():
+    """restyle_fonts floors every run at 16pt (STYLE.md), so a 12pt label that fits at 12pt
+    can wrap at 16pt and spill onto the shape below. On 1441 FNB Alaska (2026-09-29) two
+    did, onto the no-rows caption. Measured with Aaron's own textfit at the floor."""
+    import textfit
+    import ti_slides
+    width = 3.3 - 0.1                      # SH.tile's label textbox
+    bad = [label for _, _, tiles, _, _ in ti_slides.VIEWS for _, label, _ in tiles
+           if not textfit.fits_one_line(label, width, 12, "Calibri", min_pt=16)]
+    assert bad == []
+
+
+def test_a_view_with_no_rows_passes_the_wrap_rule_after_the_16pt_floor(tmp_path):
+    """Every view empty: the no-rows caption stays clear of the tile column, and no tile
+    label wraps into it once restyle_fonts has floored the deck to 16pt."""
+    from pptx import Presentation
+    import figures
+    import restyle_fonts
+    import ti_slides
+    import validate_deck as V
+    prs = Presentation(str(REPO / "templates" / "ars_template.pptx"))
+    figures.log.__init__()
+    (tmp_path / "assets").mkdir()
+    made = ti_slides.add_ti_slides(prs, {"txn_accounts": 100, "txn_rows": 0},
+                                   {"as_of_long": "July 2026", "assets": str(tmp_path / "assets"), "txn_src": "x"})
+    assert len(made) == 9
+    out = tmp_path / "empty.pptx"
+    prs.save(str(out))
+    restyle_fonts.restyle(str(out))
+    fails = [f for f in V.single_line_overflow_findings(Presentation(str(out))) if f[0] == "FAIL"]
+    assert fails == []
