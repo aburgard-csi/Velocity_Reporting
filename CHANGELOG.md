@@ -17,6 +17,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-29 — TI tile labels shortened to fit one line at the 16pt floor; no-rows caption chart-width (branch `test/unified-analysis`)
+
+**Renders only; no figure moves.** First real-data run (1441 FNB Alaska, work PC): `validate_deck`
+failed two of the nine TI slides. `restyle_fonts` floors every run at 16pt, so tile labels set at
+12pt ("Accounts paying another institution", "Base: transacting personal accounts") wrapped to two
+lines and spilled onto the "no rows for this view" caption, which was drawn full-width under the
+tile column. Eight labels are shorter now (measured with `textfit.fits_one_line` at the floor) and
+the no-rows caption is 8.7in wide like the chart. The golden chain never drew the wide caption:
+the synthetic fixture has rows for every view. Tests: `tests/test_ti_slides.py`
+`::test_every_tile_label_fits_one_line_at_the_16pt_floor`,
+`::test_a_view_with_no_rows_passes_the_wrap_rule_after_the_16pt_floor`. Also on the branch:
+`scripts/bakeoff/` (review tool, never part of a build: render two decks, pair by question).
+
 ### 2026-09-18 — The v5 analysis engine beside the build, opt-in (`RPE_ANALYSIS=1`, `RPE_ANALYSIS_SLIDES=1`)
 
 **Branch `test/unified-analysis` only; not for delivery.** James Gilmore: "create a new branch
