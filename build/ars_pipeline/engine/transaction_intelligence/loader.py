@@ -37,9 +37,10 @@ except ImportError:                       # pragma: no cover - only when build/ 
     _sys.path.append(str(Path(__file__).resolve().parents[3]))
     from rpe_env import open_txn
 
+from .txn_common import norm_accounts
 from .merchant import merchant_key
 
-CACHE_VERSION = 6  # v6: QUOTE_NONE -- every v5 cache was parsed with quoting on
+CACHE_VERSION = 7  # v7: account ids normalised at read (norm_accounts); v6: QUOTE_NONE
                    # bump when the cached frame's columns OR the parse change
 
 COLUMNS = ["transaction_date", "primary_account_num", "transaction_type", "amount",
@@ -195,7 +196,11 @@ HEADER_MAP = {
     "TRANSACTION DATE": "transaction_date", "DATE": "transaction_date",
     "PRIMARY ACCOUNT NUMBER": "primary_account_num",
     "ACCOUNT NUMBER": "primary_account_num",
+    "DDA ACCOUNT": "primary_account_num",              # 1441 FNB Alaska (2026-09-29)
     "TRANSACTION TYPE": "transaction_type",
+    "EXTERNAL TRANSACTION CODE": "transaction_type",   # 1441: CHK / PIN / SIG; a SECOND one is the code
+    "DESCRIPTION1": "merchant_name", "DESCRIPTION 1": "merchant_name", "DESCRIPTION": "merchant_name",
+    "INSTITUTION NUMBER": "institution",
     "TRANSACTION AMOUNT": "amount", "AMOUNT": "amount",
     "MCC CODE": "mcc_code", "MCC": "mcc_code",
     "MERCHANT NAME": "merchant_name",
@@ -210,7 +215,7 @@ HEADER_MAP = {
 # Header cells whose presence marks a line as a NAMED header row (a data
 # cell can never equal one of these).
 _HEADER_MARKERS = {"TRANSACTION TYPE", "TRANSACTION AMOUNT",
-                   "DDA POSTING DATE", "MCC CODE", "MERCHANT NAME"}
+                   "DDA POSTING DATE", "MCC CODE", "MERCHANT NAME", "DDA ACCOUNT"}
 _HASH_HEADER_RE = re.compile(r"^[0-9A-F]{20,}$")
 
 
@@ -219,7 +224,10 @@ def _names_from_header(cells: list[str]) -> list[str]:
     for i, cell in enumerate(cells):
         u = str(cell).strip().upper()
         if u in HEADER_MAP:
-            names.append(HEADER_MAP[u])
+            name = HEADER_MAP[u]
+            if name == "transaction_type" and "transaction_type" in names:
+                name = "transaction_code"      # 1441 carries External Transaction Code twice
+            names.append(name)
         elif _HASH_HEADER_RE.fullmatch(u):
             names.append("primary_account_num")
         else:
@@ -331,6 +339,11 @@ def read_file(path: Path, cache_dir: Path, rpt: LoadReport) -> pd.DataFrame:
                 return frame
 
     skip, delim, header_names = _sniff(path)
+    if header_names is not None and "primary_account_num" not in header_names:
+        # Stated, never silent: every account would read as None and nothing would join the ODD.
+        known = ", ".join(n for n in header_names if not n.startswith("extra_")) or "nothing"
+        rpt.warnings.append(f"{path.name}: named header carries no account column the loader knows "
+                            f"(mapped: {known}); add its name to loader.HEADER_MAP")
     rpt.banner_lines += skip
     parts = []
     ncols = None
@@ -365,7 +378,7 @@ def read_file(path: Path, cache_dir: Path, rpt: LoadReport) -> pd.DataFrame:
         chunk["transaction_date"] = pd.to_datetime(chunk["transaction_date"],
                                                    errors="coerce", format="mixed")
         chunk["merchant_name"] = chunk["merchant_name"].str.strip()
-        chunk["primary_account_num"] = chunk["primary_account_num"].str.strip()
+        chunk["primary_account_num"] = norm_accounts(chunk["primary_account_num"]).values
         parts.append(chunk)
     frame = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=KEEP)
     # The raw field is a description; the key is the grouping label.

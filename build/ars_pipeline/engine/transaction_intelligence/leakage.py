@@ -28,6 +28,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .txn_common import norm_accounts, odd_account_key
+
 from ..core.periods import Month
 from ..monthly_analysis import lifecycle as L
 
@@ -43,7 +45,7 @@ def _monthly(txn: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute(odd: pd.DataFrame | None, txn: pd.DataFrame | None,
-            anchor: Month, warn) -> dict:
+            anchor: Month, warn, acct_key: str | None = None) -> dict:
     """anchor is the Month the ODD chapter used."""
     out: dict = {}
     if odd is None or txn is None or not len(txn):
@@ -68,11 +70,11 @@ def compute(odd: pd.DataFrame | None, txn: pd.DataFrame | None,
     months = [Month(pd.Timestamp(m).year, pd.Timestamp(m).month)
               for m in months_present]
 
-    key = "Acct Number" if "Acct Number" in odd.columns else "Acct ID"
-    if key not in odd.columns:
+    key = acct_key if acct_key in odd.columns else odd_account_key(odd)[0]
+    if key is None:
         warn("leakage: ODD carries no account id; curve skipped")
         return out
-    ids = odd[key].astype(str).str.strip()
+    ids = norm_accounts(odd[key])
     closed = (pd.to_datetime(odd["Date Closed"], errors="coerce")
               if "Date Closed" in odd.columns
               else pd.Series(pd.NaT, index=odd.index))

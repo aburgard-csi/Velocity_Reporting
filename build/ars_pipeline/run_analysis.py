@@ -73,7 +73,8 @@ def read_odd(path):
 
 
 def analysis_dir(period, client_id, root=None):
-    """Build Artifacts/analysis/<period>/<id>/ — evidence, never a deliverable."""
+    """Build Artifacts/analysis/<YYYY.MM>/<id>/ — evidence, never a deliverable. The period is
+    spelled the way the pipeline spells it everywhere (2026.09), not ISO."""
     if root is None:
         import rpe_env
         root = rpe_env.build_artifacts()
@@ -94,7 +95,7 @@ def run(odd, client_id, period, workbook=None, out_dir=None, name=None, txn=True
         if parsed is None:
             result.fail(f"could not parse period {period!r}")
             return result
-        out = Path(out_dir) if out_dir else analysis_dir(parsed.iso, client_id)
+        out = Path(out_dir) if out_dir else analysis_dir(f"{parsed.year}.{parsed.month:02d}", client_id)
 
         # ---- the ODD, read once, transformed once -------------------------------------
         try:

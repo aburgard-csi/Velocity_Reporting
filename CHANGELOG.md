@@ -17,6 +17,24 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-29 — Transaction file joins the ODD again: the 1441 header, one account-id reading, one ODD key (branch `test/unified-analysis`)
+
+**Moves every transaction figure for a client whose file names its account column "DDA Account".**
+First real-data run, 1441 FNB Alaska: 10,928,371 rows read, 0 accounts joined, so every TI slide
+that needs a personal-account base drew empty. Two reader defects. (1) The loader maps header
+names it knows and the 1441 header ("DDA Account", "Description1", "External Transaction Code"
+twice, "Institution Number") was unknown, so every account read as None, silently. Those names
+are mapped now, a second "External Transaction Code" is the code, and a named header with no
+account column the loader knows is a stated warning. (2) The ODD id column was chosen by presence
+("Acct Number" first) in three chapters (portfolio, lenses, leakage), never by what matched.
+`txn_common.odd_account_key` now chooses ONCE per run the candidate matching the most transaction
+accounts (Acct Number / Acct ID, plus any hash column when the file is hashed) and every chapter
+uses it; `txn_common.norm_accounts` is the one spelling of an id on both sides (trimmed, no float
+tail, no leading zeros on a number). Cache version 6 → 7 so caches parsed before this are rebuilt.
+Also: the evidence folder is `Build Artifacts/analysis/<YYYY.MM>/<id>/` (the pipeline's spelling),
+not `<YYYY-MM>`. Tests: `tests/test_txn_join.py` (the 1441 header verbatim; key choice; nothing
+matching is said).
+
 ### 2026-09-29 — TI tile labels shortened to fit one line at the 16pt floor; no-rows caption chart-width (branch `test/unified-analysis`)
 
 **Renders only; no figure moves.** First real-data run (1441 FNB Alaska, work PC): `validate_deck`

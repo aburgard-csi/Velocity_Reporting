@@ -11,7 +11,7 @@ nothing is flipped.
 
 from __future__ import annotations
 
-from .txn_common import ranked
+from .txn_common import ranked, norm_accounts, odd_account_key
 
 import pandas as pd
 
@@ -25,7 +25,7 @@ def _pct(n, d) -> float:
     return round(100 * n / d, 1) if d else 0.0
 
 
-def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn) -> dict:
+def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn, acct_key=None) -> dict:
     out: dict = {}
     if df.empty:
         return out
@@ -80,13 +80,12 @@ def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn) -> dict:
 
     # ---- ODD join: can transaction accounts be found in the ODD? ------------
     if odd is not None:
-        key = None
-        for cand in ("Acct Number", " Acct Number", "Acct ID"):
-            if cand in odd.columns:
-                key = cand
-                break
+        key, ids, info = odd_account_key(odd, acct.unique(), warn)
+        if acct_key is not None and acct_key in odd.columns and acct_key != key:
+            key, ids = acct_key, norm_accounts(odd[acct_key])   # the run's one choice wins
+        out.update(info)
         if key is not None:
-            odd_keys = set(odd[key].astype(str).str.strip().str.replace(r"\.0$", "", regex=True))
+            odd_keys = set(ids)
             txn_keys = pd.Index(acct.unique())
             matched = int(txn_keys.isin(odd_keys).sum())
             out["txn_odd_join_key"] = key

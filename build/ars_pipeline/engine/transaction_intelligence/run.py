@@ -28,6 +28,7 @@ def _step(msg: str) -> None:
     file reads as a hang and gets Ctrl+C'd. Never on stdout (the Desktop
     tools own stdout)."""
     print(f"  [txn] {msg}", file=sys.stderr, flush=True)
+from .txn_common import odd_account_key
 from . import (card_behavior, competition, competition_report, financial_services,
                hotspots, lens, loader, mapping_audit, merchants, overlay,
                portfolio, relationship, sections_report, stressors_txn)
@@ -122,7 +123,10 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
             "txn_window_months": months,
             "txn_anchor": data_month.iso,
         }
-        metrics.update(portfolio.compute(df, odd, result.warn))
+        # ONE choice of the ODD id column for every chapter (txn_common.odd_account_key).
+        acct_key = (odd_account_key(odd, df["primary_account_num"].unique(), result.warn)[0]
+                    if odd is not None else None)
+        metrics.update(portfolio.compute(df, odd, result.warn, acct_key=acct_key))
 
         out_dir = Path(out_dir) if out_dir else output_root / parsed.iso / str(client_id)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -138,7 +142,7 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
                 client_cfg = json.loads(
                     cfg_path.read_text(encoding="utf-8-sig")).get(str(client_id), {}) or {}
         lenses = (lens.build(odd, anchor_ts, result.warn,
-                             branch_map=client_cfg.get("BranchMapping"))
+                             branch_map=client_cfg.get("BranchMapping"), acct_key=acct_key)
                   if odd is not None else None)
         if lenses is not None:
             metrics["lenses"] = [[n, lenses.label(n), int(lenses.masks[n].sum())] for n in lenses.names()]
@@ -265,7 +269,7 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
             # event-time alignment as the ODD's lifecycle curve, on the one
             # series only the transaction file can see.
             metrics.update(leakage.compute(odd, comp_monthly, data_month,
-                                           result.warn))
+                                           result.warn, acct_key=acct_key))
         except Exception as exc:
             result.warn(f"leakage failed: {type(exc).__name__}: {exc}")
         try:

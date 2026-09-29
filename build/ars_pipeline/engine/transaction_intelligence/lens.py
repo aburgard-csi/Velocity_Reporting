@@ -32,6 +32,7 @@ from ..core.account_lenses import (EXTRA, FAMILY_COLUMNS, ICS_FLAG_COLUMN,
                                   STANDARD, YES_VALUES, family_of, ics_masks,
                                   ics_warning, masks_for)
 from ..core.subsets import branch_names, norm
+from .txn_common import norm_accounts, odd_account_key
 
 # STANDARD, EXTRA, LABELS, YES_VALUES, PROGRAM_FLAGS, FAMILY_COLUMNS and
 # ics_masks now live in core/account_lenses.py so monthly_analysis -- which
@@ -85,20 +86,15 @@ def family_table(df: pd.DataFrame, lenses: "Lenses", family: str, top: int = 15)
     return rows[:top]
 
 
-def _key(odd: pd.DataFrame) -> str | None:
-    for c in ("Acct Number", " Acct Number", "Acct ID"):
-        if c in odd.columns:
-            return c
-    return None
-
-
 def build(odd: pd.DataFrame, anchor_end: pd.Timestamp, warn,
-          branch_map: dict | None = None) -> Lenses | None:
-    key = _key(odd)
+          branch_map: dict | None = None, acct_key: str | None = None) -> Lenses | None:
+    """`acct_key` is the run's one choice of ODD id column (txn_common.odd_account_key);
+    without it the first candidate present is used."""
+    key = acct_key if acct_key in odd.columns else odd_account_key(odd)[0]
     if key is None:
         warn("ODD has no Acct Number / Acct ID; lenses unavailable")
         return None
-    ids = odd[key].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+    ids = norm_accounts(odd[key])
     df = odd.copy()
     df.index = ids
     df = df[~df.index.duplicated(keep="first")]
