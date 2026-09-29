@@ -1,0 +1,20 @@
+{
+  "_comment": "Which of Aaron's ARS slides answers the same question as which v5 slide. Matched on the start of the title, case-insensitive. Edit freely; slides with no pair are still shown, unpaired, at the end of the page.",
+  "pairs": [
+    ["Transaction Increase Over the Ask",           "Lift by response segment",                 "Lift matrix (issue #8)"],
+    ["Mailing Response Summary",                     "Per-offer summary",                        "Mail summary"],
+    ["Mailing Insights",                             "Response and reach by offer",              "Mail summary"],
+    ["Mailing Response Ranking by Tier",             "Ladder and NU conversion by offer",        "Mail summary"],
+    ["Responder Activity: Before vs After (Mean)",   "Tier movement by response status",         "Spend and swipe behaviour of responders"],
+    ["Responder Activity: Before vs After (Median)", "Organic versus program activation",        "Spend and swipe behaviour of responders"],
+    ["Sustained Respondent Activity by Mailing",     "The most recent mailer trajectory",        "Spend and swipe behaviour of responders"],
+    ["ARS Response —",                          "The most recent mailer",                   "Most recent mailer"],
+    ["Program Reach",                                "Program reach",                            "Reach"],
+    ["Depth of Engagement",                          "Depth of engagement",                      "Reach"],
+    ["ARS Financial Performance",                    "The campaign hero",                        "Headline"],
+    ["Program Overview",                             "The 2:1 guarantee",                        "Headline"],
+    ["12-Month Eligible Take Rate — Personal",  "Debit card take rate",                     "Debit card"],
+    ["12-Month Take Rate by Branch",                 "Take rate by branch",                      "Debit card"],
+    ["Reg E Opt-In — All Personal Accounts",    "Reg E opt-in",                             "Reg E"]
+  ]
+}
