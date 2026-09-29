@@ -69,7 +69,9 @@ def test_open_odd_reads_the_member_in_stream_and_names_it(tmp_path):
 
 def test_open_odd_on_a_plain_csv_names_the_file(tmp_path):
     p = tmp_path / "1441-ODD (090126_154106).csv"
-    p.write_text(HEADER, encoding="latin-1")
+    # Bytes, not write_text: on Windows write_text turns "\n" into "\r\n" and the
+    # reader (newline="") faithfully hands it back, so the test failed there (2026-09-29).
+    p.write_bytes(HEADER.encode("latin-1"))
     fh, name = odd_rows.open_odd(str(p))
     with fh:
         assert fh.read() == HEADER
