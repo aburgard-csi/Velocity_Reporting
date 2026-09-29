@@ -1,0 +1,540 @@
+<title>Two Pipelines</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #f7f5f0;
+    --surface: #ffffff;
+    --surface-2: #efece5;
+    --ink: #1d2733;
+    --ink-2: #4f5b68;
+    --muted: #7a8490;
+    --rule: #d8d3c8;
+    --his: #0f766e;
+    --his-soft: #d8efec;
+    --yours: #b45309;
+    --yours-soft: #f6e6d2;
+    --good: #2f7d4a;
+    --warn: #b7791f;
+    --bad: #b3423a;
+    --good-soft: #dcefe2;
+    --warn-soft: #f7ebcf;
+    --bad-soft: #f5dcd9;
+    --code-bg: #eeebe4;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #15181c;
+      --surface: #1c2026;
+      --surface-2: #232830;
+      --ink: #e7e3da;
+      --ink-2: #b7b1a6;
+      --muted: #858d97;
+      --rule: #333a44;
+      --his: #4fc3b8;
+      --his-soft: #163c39;
+      --yours: #f0a04b;
+      --yours-soft: #3f2a12;
+      --good: #6cc48a;
+      --warn: #e0b45a;
+      --bad: #ee8a82;
+      --good-soft: #1f3a29;
+      --warn-soft: #3d3117;
+      --bad-soft: #3f2220;
+      --code-bg: #262b33;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #15181c;
+    --surface: #1c2026;
+    --surface-2: #232830;
+    --ink: #e7e3da;
+    --ink-2: #b7b1a6;
+    --muted: #858d97;
+    --rule: #333a44;
+    --his: #4fc3b8;
+    --his-soft: #163c39;
+    --yours: #f0a04b;
+    --yours-soft: #3f2a12;
+    --good: #6cc48a;
+    --warn: #e0b45a;
+    --bad: #ee8a82;
+    --good-soft: #1f3a29;
+    --warn-soft: #3d3117;
+    --bad-soft: #3f2220;
+    --code-bg: #262b33;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    padding-block: 40px 80px;
+    padding-inline: 20px;
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1, h2, h3 {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    line-height: 1.15;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 { font-size: clamp(38px, 6vw, 60px); letter-spacing: -0.01em; }
+  h2 { font-size: 30px; margin-block: 64px 12px; }
+  h3 { font-size: 21px; font-weight: 500; margin-block: 28px 8px; }
+  p { max-width: 68ch; margin-block: 0 14px; }
+  .lede { font-size: 20px; color: var(--ink-2); max-width: 62ch; }
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  code, .path {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.85em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .path { white-space: normal; word-break: break-all; }
+
+  .header { border-bottom: 1px solid var(--rule); padding-bottom: 28px; }
+  .header .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 16px; color: var(--muted); font-size: 15px; }
+  .tag { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+  .tag.his { background: var(--his-soft); color: var(--his); }
+  .tag.yours { background: var(--yours-soft); color: var(--yours); }
+
+  .verdict {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 24px;
+  }
+  .verdict .side { padding: 20px 22px; border-radius: 6px; background: var(--surface); border-top: 4px solid var(--his); }
+  .verdict .side.yours { border-top-color: var(--yours); }
+  .verdict .side h3 { margin-top: 0; }
+  .verdict .side p { margin-bottom: 0; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+  th { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+  tr:last-child td { border-bottom: none; }
+  td.num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+  th.his, td.hiscol { border-left: 3px solid var(--his); }
+  th.yours, td.yourscol { border-left: 3px solid var(--yours); }
+  td.edge { font-weight: 600; white-space: nowrap; }
+  td.edge.his { color: var(--his); }
+  td.edge.yours { color: var(--yours); }
+  td.edge.even { color: var(--muted); }
+  .dim { color: var(--muted); }
+
+  figure { margin: 18px 0 8px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; overflow-x: auto; }
+  figure svg { display: block; max-width: 100%; height: auto; min-width: 640px; color: var(--ink); }
+  figcaption { font-size: 14.5px; color: var(--ink-2); margin-top: 10px; max-width: 80ch; }
+  .flow-title { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  .practices { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 18px; }
+  .practice { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 20px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .practice .n { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: var(--muted); letter-spacing: 0.1em; }
+  .practice h3 { margin: 0; font-size: 20px; }
+  .practice p { font-size: 15.5px; margin: 0; max-width: none; }
+  .practice .why { color: var(--ink-2); }
+  .practice .ev { font-size: 13.5px; color: var(--muted); }
+  .practice .foot { margin-top: auto; padding-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+  .pill.yes { background: var(--good-soft); color: var(--good); }
+  .pill.part { background: var(--warn-soft); color: var(--warn); }
+  .pill.no { background: var(--bad-soft); color: var(--bad); }
+
+  .rank td:first-child { font-family: "Fraunces", Georgia, serif; font-size: 22px; font-weight: 700; color: var(--his); width: 44px; }
+  .rank .payoff, .rank .effort { white-space: nowrap; font-weight: 600; }
+  .hi { color: var(--good); } .md { color: var(--warn); } .lo { color: var(--muted); }
+  .rank td.step { color: var(--ink-2); }
+
+  ul { padding-left: 20px; max-width: 72ch; }
+  li { margin-bottom: 6px; }
+  .sources { font-size: 14px; color: var(--ink-2); columns: 2; column-gap: 32px; }
+  .sources li { break-inside: avoid; margin-bottom: 4px; }
+  .callout { background: var(--his-soft); border-left: 4px solid var(--his); padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 22px 0; max-width: 78ch; }
+  .callout.yours { background: var(--yours-soft); border-left-color: var(--yours); }
+  .callout p { margin: 0; }
+
+  @media (max-width: 720px) {
+    body { font-size: 16px; }
+    .verdict { grid-template-columns: 1fr; }
+    .sources { columns: 1; }
+    h2 { font-size: 26px; margin-top: 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<main>
+  <header class="header">
+    <div class="eyebrow">Repo comparison · 2026-09-17</div>
+    <h1>Two Pipelines</h1>
+    <p class="lede">Aaron's Retail Performance Engine against your Velocity Analysis Platform v5: how each works, what makes his improve after every review cycle, and what you can add to yours. Written for you only, so it is blunt in both directions.</p>
+    <div class="meta">
+      <span><span class="tag his">His</span> &nbsp;<span class="path">github.com/aburgard-csi/Velocity_Reporting</span> at <code>6258712</code></span>
+      <span><span class="tag yours">Yours</span> &nbsp;<span class="path">Desktop/Claude Automation - v5</span> on branch <code>staging</code></span>
+    </div>
+  </header>
+
+  <section>
+    <h2>The verdict in one screen</h2>
+    <p>These are not two versions of the same thing. His is a <strong>deck delivery pipeline with an operating loop around it</strong>. Yours is an <strong>analytics platform with a much bigger engine and test surface</strong>. He ships a narrower product with a tighter process. You have built more capability with a thinner process around shipping it. The gap you asked about is almost entirely the loop, not the analysis.</p>
+    <div class="verdict">
+      <div class="side">
+        <h3>His, in a sentence</h3>
+        <p>Watch the shares and the mailbox every morning, build every roster client from a blank template shell, refuse to ship anything that fails an 18-rule gate, file the deck by CSM, record when it was sent, and write down every change that moved a number and the check that would have caught it.</p>
+      </div>
+      <div class="side yours">
+        <h3>Yours, in a sentence</h3>
+        <p>Fetch a month from every CSM's dump folder, gate each client by its delivery window, run a 35-section ODD analysis plus transaction, deposit, and market intelligence, build the deck from a manifest, and expose all of it as 30 MCP tools and 7 skills so Claude can drive it in plain language.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>At a glance</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Measure</th><th class="his">His</th><th class="yours">Yours</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td>Commits / span</td><td class="num hiscol">165 / 22 days</td><td class="num yourscol">617 / 24 days</td><td class="dim">Both single-author, both written with Claude Code.</td></tr>
+          <tr><td>Active Python</td><td class="num hiscol">~29,800 lines</td><td class="num yourscol">~89,000 lines</td><td class="dim">Yours also carries 87,600 lines of legacy code excluded from tests.</td></tr>
+          <tr><td>Test suite</td><td class="num hiscol">~750 functions, 74 files</td><td class="num yourscol">~1,500 functions, 131 files</td><td class="dim">His README still says 392; the tree has grown past it.</td></tr>
+          <tr><td>Programs shipping</td><td class="hiscol">ARS, ICS, MRPC, CashPlease, combined decks</td><td class="yourscol">ARS, ARS transactions, ILS pre-go-live, ILS kickoff, CashPlease</td><td class="dim">Your ICS is a chapter inside ARS. Your MRPC is a name only. His has no ILS or transaction intelligence.</td></tr>
+          <tr><td>Clients on roster</td><td class="num hiscol">80 rows in clients.md</td><td class="num yourscol">316 in clients_config.json</td><td class="dim">His is hand-kept intent. Yours is generated from Client-Master.xlsx.</td></tr>
+          <tr><td>Validation</td><td class="hiscol">18-rule deck validator + layout baseline + package check</td><td class="yourscol">config validator, extract check, verify_suite, formaudit, polish, render-guard tests</td><td class="dim">His is one gate with an exit code. Yours is several checks with no single gate.</td></tr>
+          <tr><td>Operating loop</td><td class="hiscol">Daily source watch, delivery dashboard, performance page, browser launcher</td><td class="yourscol">One-click GO, fetch script, receipts folder (empty)</td><td class="dim">Your delivery board is designed but not built.</td></tr>
+          <tr><td>Agent surface</td><td class="hiscol">CLAUDE.md router + 5 subagents</td><td class="yourscol">7 skills + 30 MCP tools, no CLAUDE.md</td><td class="dim">Different bets: he routes by program, you expose tools.</td></tr>
+          <tr><td>Change record</td><td class="num hiscol">CHANGELOG, 166 entries</td><td class="num yourscol">none</td><td class="dim">You have records/, specs, handoffs, and REFERENCE.md, but no single ledger of what changed a number.</td></tr>
+          <tr><td>Remote branches</td><td class="num hiscol">6</td><td class="num yourscol">~30</td><td class="dim">Your branching.md says delete after merge.</td></tr>
+          <tr><td>CI</td><td class="hiscol">none</td><td class="yourscol">compiles 3 modules, runs 1 test file</td><td class="dim">Neither runs the full suite on push.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>How his works</h2>
+    <p>The build is in the middle of the picture, not at the end of it. Everything to the left tells him what arrived, everything to the right tells him what shipped, and the changelog closes the loop back into the next build.</p>
+    <figure>
+      <div class="flow-title" style="color: var(--his)">His: inputs to changelog and back</div>
+      <svg viewBox="0 0 1000 250" role="img" aria-label="Aaron's pipeline: CSI shares and Outlook feed a daily source watch, which files inputs by kind; per-program builders build from template shells; a validation gate blocks delivery; outputs are filed by CSM; a delivery dashboard records sent; a performance page republishes on change; and every correction is written to the changelog, which feeds new rules back into the gate.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="10" y="70" width="120" height="54" rx="4"/>
+          <rect x="170" y="70" width="130" height="54" rx="4"/>
+          <rect x="340" y="70" width="120" height="54" rx="4"/>
+          <rect x="500" y="70" width="130" height="54" rx="4" stroke="#0f766e" stroke-width="2"/>
+          <rect x="670" y="70" width="120" height="54" rx="4"/>
+          <rect x="830" y="70" width="160" height="54" rx="4"/>
+          <rect x="500" y="170" width="130" height="54" rx="4" stroke="#0f766e" stroke-width="2"/>
+        </g>
+        <g fill="currentColor" font-size="12.5" text-anchor="middle" font-family="Source Sans 3, system-ui, sans-serif">
+          <text x="70" y="92">CSI shares</text><text x="70" y="108">+ Outlook</text>
+          <text x="235" y="92">watch_sources.py</text><text x="235" y="108">daily 08:00, diffs</text>
+          <text x="400" y="92">Inputs/ by kind</text><text x="400" y="108">RPE_DATA_ROOT</text>
+          <text x="565" y="92">Builders from</text><text x="565" y="108">template shells</text>
+          <text x="730" y="92">Outputs/&lt;CSM&gt;</text><text x="730" y="108">sent recorded</text>
+          <text x="910" y="92">Dashboards</text><text x="910" y="108">republish on change</text>
+          <text x="565" y="192">validate_deck.py</text><text x="565" y="208">18 rules, exit 1 blocks</text>
+        </g>
+        <g fill="none" stroke="currentColor" stroke-width="1.2" marker-end="url(#ah)">
+          <line x1="130" y1="97" x2="168" y2="97"/>
+          <line x1="300" y1="97" x2="338" y2="97"/>
+          <line x1="460" y1="97" x2="498" y2="97"/>
+          <line x1="630" y1="97" x2="668" y2="97"/>
+          <line x1="790" y1="97" x2="828" y2="97"/>
+          <line x1="565" y1="124" x2="565" y2="168"/>
+        </g>
+        <g fill="none" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ah)">
+          <path d="M630,197 L910,197 L910,126"/>
+          <path d="M500,197 L400,197 L400,126"/>
+        </g>
+        <g font-size="11.5" font-family="Source Sans 3, system-ui, sans-serif" fill="#0f766e">
+          <text x="770" y="190" text-anchor="middle">pass: ship</text>
+          <text x="450" y="190" text-anchor="middle">fail: fix builder, rebuild</text>
+          <text x="235" y="150" text-anchor="middle">new, re-landed, gone, stale</text>
+          <text x="70" y="150" text-anchor="middle">the only backup</text>
+        </g>
+        <g fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 3" marker-end="url(#ah)">
+          <path d="M910,124 L910,235 L235,235 L235,126"/>
+        </g>
+        <text x="572" y="230" font-size="11.5" fill="currentColor" text-anchor="middle" font-family="Source Sans 3, system-ui, sans-serif">CHANGELOG.md: every change that moved a number, and the rule that would have caught it</text>
+      </svg>
+      <figcaption>His build sits between a daily watcher that reports what changed on the shares and a gate that refuses to ship. The dotted return path is the practice you asked about: a defect that gets through becomes a changelog entry and a new validator rule.</figcaption>
+    </figure>
+    <ul>
+      <li><strong>Inputs.</strong> One environment variable names the data root. The daily watcher diffs the CSI shares and the Outlook mailbox against the inventory it saved last time, then files each new file into a folder per kind. He treats the original sources as the backup and keeps no mirror.</li>
+      <li><strong>Build.</strong> Four per-program builders, each behind its own subagent, each starting from a stripped template shell. A combined deck is assembled from the individual decks, never blended.</li>
+      <li><strong>Gate.</strong> Unit suite, then the deck validator, then a layout-fingerprint diff against a baseline, then a package-integrity check. A non-zero exit blocks delivery and the fix goes in the builder.</li>
+      <li><strong>After the build.</strong> Decks are filed by CSM. A dashboard shows readiness per client and records "sent" from a button, because nothing on disk knows whether a deck reached the client. A performance page across all clients is refreshed daily and republished only when its content hash changes.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>How yours works</h2>
+    <p>Yours is a wider engine with the same left-to-right shape, but the loop after the build is thinner. The strength is in the middle: the depth of analysis and the size of the test suite around it.</p>
+    <figure>
+      <div class="flow-title" style="color: var(--yours)">Yours: fetch to receipts</div>
+      <svg viewBox="0 0 1000 200" role="img" aria-label="Your pipeline: fetch_data.py pulls from CSM dump folders and the workbooks share into 01-Data; monthly.py gates each client by delivery window; monthly_analysis and transaction_intelligence produce metrics; deck/build.py reads deck_manifest.json and polish.py enforces copy rules; outputs land in 03-Output; batch and GO write receipts; MCP tools and skills expose the whole chain to Claude.">
+        <defs>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="10" y="60" width="120" height="54" rx="4"/>
+          <rect x="170" y="60" width="130" height="54" rx="4"/>
+          <rect x="340" y="60" width="120" height="54" rx="4"/>
+          <rect x="500" y="60" width="130" height="54" rx="4" stroke="#b45309" stroke-width="2"/>
+          <rect x="670" y="60" width="120" height="54" rx="4"/>
+          <rect x="830" y="60" width="160" height="54" rx="4"/>
+          <rect x="340" y="150" width="290" height="40" rx="4" stroke-dasharray="4 3"/>
+        </g>
+        <g fill="currentColor" font-size="12.5" text-anchor="middle" font-family="Source Sans 3, system-ui, sans-serif">
+          <text x="70" y="82">M: and R: shares</text><text x="70" y="98">5 CSM dump folders</text>
+          <text x="235" y="82">fetch_data.py</text><text x="235" y="98">month discovered per CSM</text>
+          <text x="400" y="82">monthly.py gate</text><text x="400" y="98">7th / 10th / 15th</text>
+          <text x="565" y="82">monthly_analysis</text><text x="565" y="98">+ transactions, 35 sections</text>
+          <text x="730" y="82">deck/build.py</text><text x="730" y="98">manifest + polish</text>
+          <text x="910" y="82">03-Output + receipts</text><text x="910" y="98">GO, batch, 30 MCP tools</text>
+          <text x="485" y="175">config validator · extract_check · verify_suite · formaudit · 1,500 tests</text>
+        </g>
+        <g fill="none" stroke="currentColor" stroke-width="1.2" marker-end="url(#ah2)">
+          <line x1="130" y1="87" x2="168" y2="87"/>
+          <line x1="300" y1="87" x2="338" y2="87"/>
+          <line x1="460" y1="87" x2="498" y2="87"/>
+          <line x1="630" y1="87" x2="668" y2="87"/>
+          <line x1="790" y1="87" x2="828" y2="87"/>
+        </g>
+        <g font-size="11.5" font-family="Source Sans 3, system-ui, sans-serif" fill="#b45309">
+          <text x="235" y="135" text-anchor="middle">on demand, no diff, no stale check</text>
+          <text x="910" y="135" text-anchor="middle">receipts/ is empty; no sent state</text>
+          <text x="485" y="148" text-anchor="middle" fill="currentColor" font-size="11">checks exist but nothing chains them into one gate with an exit code</text>
+        </g>
+      </svg>
+      <figcaption>Your chain has the same stages but no return path. Checks are scattered under the build rather than standing in front of delivery, and nothing after 03-Output records what happened to a deck.</figcaption>
+    </figure>
+    <ul>
+      <li><strong>Inputs.</strong> The fetch script already does something his does not: it discovers each CSM's month folder however they spelled it. But it runs on demand, keeps no inventory, and cannot tell you a file was re-landed with new bytes.</li>
+      <li><strong>Engine.</strong> This is where you are far ahead. The ODD analysis, transaction intelligence, deposits, market and competition, ILS, and CashPlease engines have no counterpart in his repo.</li>
+      <li><strong>Checks.</strong> You have more kinds of check than he does: a config validator, an extract-shape check, a post-run checklist, a form audit, copy-rule enforcement, and guard tests for month literals, drive letters, doc drift, and privacy. They are not chained into one gate, and none blocks delivery with an exit code.</li>
+      <li><strong>After the build.</strong> Output lands in 03-Output. The receipts model is designed and the folder is empty. The delivery board is specified in a design doc and not built.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Side by side, by dimension</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Dimension</th><th class="his">His</th><th class="yours">Yours</th><th>Edge</th></tr></thead>
+        <tbody>
+          <tr><td>Routing a request</td><td class="hiscol">CLAUDE.md routing table sends each ask to one of five subagents. Programs never share logic.</td><td class="yourscol">7 skills with routing rules in csm-prep, plus 30 MCP tools. No CLAUDE.md at all.</td><td class="edge his">His</td></tr>
+          <tr><td>Who gets built</td><td class="hiscol">clients.md is intent, hand-kept, dated, attributed. A data file on disk is never a signal.</td><td class="yourscol">clients_config.json, 316 clients from Client-Master.xlsx, validated, with per-client codes and competitors.</td><td class="edge even">Different</td></tr>
+          <tr><td>Where data lives</td><td class="hiscol">One env var, resolved through rpe_env.py. No path in code. No mirrors.</td><td class="yourscol">datapaths.py is the authority; drive letters live in csm_sources.json; three dead Mac paths in lab mockups.</td><td class="edge his">His</td></tr>
+          <tr><td>Building a deck</td><td class="hiscol">From a stripped template shell, slides found by title, never by index, never cloned from a client deck.</td><td class="yourscol">deck_manifest.json drives slide cuts; polish.py enforces copy rules deterministically.</td><td class="edge even">Even</td></tr>
+          <tr><td>Pre-ship gate</td><td class="hiscol">validate_deck.py: 18 rules, each named beside the shipped defect it exists for. Layout baseline with snapshot. Package integrity. Exit 1 blocks.</td><td class="yourscol">formaudit, polish, verify_suite, render-guard tests. Nothing single, nothing blocking.</td><td class="edge his">His</td></tr>
+          <tr><td>Tests</td><td class="hiscol">~750 functions on a synthetic 800-row ODD. Runs as step 0 of the gate.</td><td class="yourscol">~1,500 functions. Meta-guards: no month literals in code, no drive letters in tests, manual promises match code, no client data tracked.</td><td class="edge yours">Yours</td></tr>
+          <tr><td>Documentation</td><td class="hiscol">CLAUDE.md (75 KB), CHANGELOG, STYLE, TEMPLATES, clients.md, 2 PRDs. Every rule says who decided it and when.</td><td class="yourscol">README, REFERENCE, 38-chapter manual compiled to HTML and held true by a test, records/ with a naming scheme, 6 specs, SPEC files beside code.</td><td class="edge even">Even</td></tr>
+          <tr><td>Decision memory</td><td class="hiscol">Inline "(Aaron, 2026-09-14)" on every rule. A reversals table in STYLE.md. Reversals are kept, not overwritten.</td><td class="yourscol">records/ for one-offs, REFERENCE.md for living decisions, specs for designs. Good scheme, no dates on rules in the READMEs.</td><td class="edge his">His</td></tr>
+          <tr><td>Operating loop</td><td class="hiscol">Daily watcher with saved inventory, Outlook pull, stale detection, Windows toast. Delivery dashboard. Performance page on a daily task.</td><td class="yourscol">None. Delivery board designed on 2026-09-11, not built. No notifications, no scheduler in repo.</td><td class="edge his">His</td></tr>
+          <tr><td>Delivery state</td><td class="hiscol">Outputs/&lt;CSM&gt;, _Archive by CSM, deliveries.json written by a button. Sent is recorded, never inferred.</td><td class="yourscol">03-Output per period. Receipts model is privacy-safe and two-step by design, but zero receipts exist.</td><td class="edge his">His</td></tr>
+          <tr><td>Git hygiene</td><td class="hiscol">Work on main with short-lived worktrees, 6 remote branches, commit bodies read as changelog paragraphs and name their test.</td><td class="yourscol">Conventional commits with issue numbers, PR flow, but ~30 remote branches, two stale worktrees, a stale lock file, and README says 29 tools where 30 exist.</td><td class="edge his">His</td></tr>
+          <tr><td>Privacy boundary</td><td class="hiscol">Logos and all data outside the repo by rule; FTP credentials in a DB export explicitly never copied.</td><td class="yourscol">Formal boundary in README, gitignore holds, and a test fails if client data is ever tracked.</td><td class="edge yours">Yours</td></tr>
+          <tr><td>Reach</td><td class="hiscol">One CSM's tool, now pointed at all five CSMs' books.</td><td class="yourscol">Built as a shared plane from the start: per-CSM identity, Client-Master roster, MCP surface.</td><td class="edge yours">Yours</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>The iterative loop: his practices</h2>
+    <p>These are the habits that make his product better after each review cycle. They are not clever code. They are rules about what happens when something goes wrong, and each one traces to a specific shipped defect. The badge on each card says whether v5 already has it.</p>
+    <div class="callout">
+      <p><strong>The one that matters most.</strong> Standing rule, Aaron, 2026-08-17: <em>when a defect gets through the gate, add the check that would have caught it.</em> Fixing only the instance guarantees the next one ships too. Everything else on this page is scaffolding around that sentence.</p>
+    </div>
+    <div class="practices">
+      <div class="practice">
+        <div class="n">01</div>
+        <h3>Defect becomes rule</h3>
+        <p class="why">The validator docstring lists every rule beside the defect it exists for: reference leak ("Union Financial" on a Q&amp;A slide), closing-month mismatch (2026.09 ARS decks), table label fit (branch names, yesterday). The file is a history of what got through.</p>
+        <p class="ev">validation/validate_deck.py, CLAUDE.md "Standing rule"</p>
+        <div class="foot"><span class="pill part">v5: partial</span> You have render-guard tests but no rule ledger and no single gate they feed.</div>
+      </div>
+      <div class="practice">
+        <div class="n">02</div>
+        <h3>Changelog with an inclusion rule</h3>
+        <p class="why">Anything that changes a number, its source, what a slide claims, or what it renders. Newest first, dated, with the reason. A correction entry names the affected decks, the fix, the check that would have caught it, and the test. 166 entries in three weeks.</p>
+        <p class="ev">CHANGELOG.md, entry 2026-09-16 "Reg E opt-in read as zero"</p>
+        <div class="foot"><span class="pill no">v5: no</span> Records, specs, handoffs, and REFERENCE exist, but no ledger of what moved a number.</div>
+      </div>
+      <div class="practice">
+        <div class="n">03</div>
+        <h3>Fix the builder, never the deck</h3>
+        <p class="why">A layout or number defect is fixed in the builder, the geometry contract, or the template shell, then rebuilt. Editing a delivered deck fixes one client and leaves the rest broken.</p>
+        <p class="ev">README.md, CLAUDE.md "Templates"</p>
+        <div class="foot"><span class="pill yes">v5: yes</span> Manifest-driven build implies it, though it is not written down as a rule.</div>
+      </div>
+      <div class="practice">
+        <div class="n">04</div>
+        <h3>Build from the shell, never clone</h3>
+        <p class="why">A deck cloned from another client's carries that client's numbers, captions, and notes forward, and a figure that was never swapped looks identical to one that was. So the gate has to hunt for leaks, and the rule exists to make that rare.</p>
+        <p class="ev">Decision 2026-08-29, STYLE.md section 11</p>
+        <div class="foot"><span class="pill yes">v5: yes</span> ars_template.pptx plus manifest.</div>
+      </div>
+      <div class="practice">
+        <div class="n">05</div>
+        <h3>Decisions dated and attributed inline</h3>
+        <p class="why">"(Aaron, 2026-09-14)" sits on the rule itself, in the file the agent reads. Reversals go into a table and the old decision stays visible. A future session cannot re-litigate what was settled, and cannot mistake an old rule for a current one.</p>
+        <p class="ev">CLAUDE.md throughout, templates/STYLE.md section 11</p>
+        <div class="foot"><span class="pill part">v5: partial</span> records/ carries dates; rules in README and REFERENCE mostly do not.</div>
+      </div>
+      <div class="practice">
+        <div class="n">06</div>
+        <h3>Roster is intent, not file presence</h3>
+        <p class="why">CoastLife 1705 kept getting an ICS section after cancelling because their ICS data was still on disk. Now clients.md decides what gets built, and a missing input for a listed program is a sourcing task, not a reason to drop the section.</p>
+        <p class="ev">clients.md preamble</p>
+        <div class="foot"><span class="pill yes">v5: yes</span> clients_config.json Products plus monthly.py assess.</div>
+      </div>
+      <div class="practice">
+        <div class="n">07</div>
+        <h3>One root, no mirrors</h3>
+        <p class="why">Two copies of the VIP data disagreed by three weeks, and the deck that read the stale one validated perfectly because it was internally consistent. The repo copies were deleted and the rule became: one env var, no hardcoded path, no second store.</p>
+        <p class="ev">CLAUDE.md "File locations", build/rpe_env.py</p>
+        <div class="foot"><span class="pill part">v5: partial</span> datapaths.py is the authority, but drive letters and one OneDrive path are in config and code.</div>
+      </div>
+      <div class="practice">
+        <div class="n">08</div>
+        <h3>Missing data is stated, never zeroed</h3>
+        <p class="why">An absent field is reported on the slide and in the notes, never charted as a collapse. Unknown wording in a classification column stops the build with a named POSSIBLE DATA ISSUE rather than counting as "no election". Slides are never dropped silently.</p>
+        <p class="ev">CLAUDE.md shared conventions, metrics_gen.py</p>
+        <div class="foot"><span class="pill yes">v5: yes</span> "a section whose config is missing declines with a warning rather than assuming."</div>
+      </div>
+      <div class="practice">
+        <div class="n">09</div>
+        <h3>Layered gate with a drift baseline</h3>
+        <p class="why">Unit suite, then deck rules, then each slide's shape fingerprint against a baseline, then package integrity. DRIFT means a shared pass touched a slide you did not mean to change, and --snapshot is how you accept it on purpose.</p>
+        <p class="ev">validation/qa_all.py, validation/layout_baseline.json</p>
+        <div class="foot"><span class="pill no">v5: no</span> test_deck_layout.py checks geometry but there is no baseline diff or snapshot step.</div>
+      </div>
+      <div class="practice">
+        <div class="n">10</div>
+        <h3>Honest removal of a dead check</h3>
+        <p class="why">A LibreOffice render check had never once run on the build machine, and every gate closed with a banner saying so. He removed it on 2026-09-11 and wrote down what that costs: seven ICS decks passed at 0 FAIL while being unopenable. The package check exists because of that.</p>
+        <p class="ev">qa_all.py docstring, CHANGELOG</p>
+        <div class="foot"><span class="pill part">v5: partial</span> CI compiles three modules and runs one test file; that is a check that mostly does not run.</div>
+      </div>
+      <div class="practice">
+        <div class="n">11</div>
+        <h3>One reading per rule</h3>
+        <p class="why">Two copies of the Reg E mapping drifted. One read "Opted In", the other did not, and 16 decks shipped 0.0% opt-in. It surfaced because your CoastHills deck showed 21.1%. The fix collapsed both into odd_rows.rege_label and added a test that fails if either file grows its own wording again.</p>
+        <p class="ev">CHANGELOG 2026-09-16, tests/test_rege_label.py</p>
+        <div class="foot"><span class="pill part">v5: partial</span> core/ is shared and shimmed well; no test guards against a second copy of a rule appearing.</div>
+      </div>
+      <div class="practice">
+        <div class="n">12</div>
+        <h3>Experiments behind a flag</h3>
+        <p class="why">Six slides from your deck went in on a test branch behind RPE_JAMES_SLIDES=1. Without the flag no deck changes and the template baseline does not move. Once proven, the branch merged and the shared parts moved into the main geometry.</p>
+        <p class="ev">CHANGELOG 2026-09-16 "Six views from James Gilmore's deck"</p>
+        <div class="foot"><span class="pill part">v5: partial</span> feature branches exist; no opt-in flag pattern for slide experiments.</div>
+      </div>
+      <div class="practice">
+        <div class="n">13</div>
+        <h3>Watch, then build</h3>
+        <p class="why">The daily watcher answers "what landed since I last looked", not "is it there now". It saves an inventory, reports new, re-landed, and gone files, reads the mailbox, and refuses to save an empty inventory when the VPN is off so nothing looks new tomorrow.</p>
+        <p class="ev">scripts/watch_sources.py, scripts/mail_sources.py</p>
+        <div class="foot"><span class="pill no">v5: no</span> fetch_data.py is on demand with no saved state.</div>
+      </div>
+      <div class="practice">
+        <div class="n">14</div>
+        <h3>Sent is recorded, never inferred</h3>
+        <p class="why">A deck in Outputs proves it was built. Nothing on disk knows if it reached the client, so sent-state is written by a button to a log that raises if damaged, because reading a broken log as "nothing sent" invites sending twice.</p>
+        <p class="ev">scripts/dashboard.py, Build Artifacts/deliveries.json</p>
+        <div class="foot"><span class="pill no">v5: no</span> Designed in the my-book board spec, not built.</div>
+      </div>
+      <div class="practice">
+        <div class="n">15</div>
+        <h3>Commit messages are changelog paragraphs</h3>
+        <p class="why">The subject is a sentence about behaviour ("A branch named Marshall is not March"). The body explains the mechanism and the reason, and ends with "Test: tests/test_periods.py". You can read the log as prose.</p>
+        <p class="ev">git log, last 20 commits</p>
+        <div class="foot"><span class="pill part">v5: partial</span> Conventional commits with issue numbers; bodies are shorter and rarely name a test.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What to add to v5, ranked</h2>
+    <p>Ranked by payoff against effort. The first three cost a day between them and change how every later session behaves. Items 5 and 6 are the operating loop. Item 11 is housekeeping you will thank yourself for.</p>
+    <div class="tablewrap">
+      <table class="rank">
+        <thead><tr><th>#</th><th>Practice</th><th>Payoff</th><th>Effort</th><th>v5 files touched</th><th>First step</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>CHANGELOG.md</strong> with his inclusion rule and correction shape</td><td class="payoff hi">High</td><td class="effort lo">Low</td><td><span class="path">CHANGELOG.md</span> (new), link from <span class="path">README.md</span></td><td class="step">Copy his preamble verbatim, then write entries for the last five merged PRs (#235 to #239) in his shape: what, which clients, the fix, the check.</td></tr>
+          <tr><td>2</td><td><strong>CLAUDE.md router</strong> at the repo root</td><td class="payoff hi">High</td><td class="effort lo">Low</td><td><span class="path">CLAUDE.md</span> (new)</td><td class="step">Routing table to your 7 skills, the data root rule, the standing rules, and the one gate command. Move nothing out of README; CLAUDE.md is what the agent loads, README is for people.</td></tr>
+          <tr><td>3</td><td><strong>One gate, rule-per-defect, exit code</strong></td><td class="payoff hi">High</td><td class="effort md">Medium</td><td><span class="path">02-Scripts/ars/deck/validate_deck.py</span> (new), pulling from <span class="path">formaudit.py</span>, <span class="path">polish.py</span>, <span class="path">02-Scripts/tools/verify_suite.py</span>; wire into <span class="path">batch.py</span> and <span class="path">go.py</span></td><td class="step">Create the RULES list with what you already have, a docstring naming the defect each rule exists for, and make GO refuse to open the output folder on exit 1. Then adopt the standing rule.</td></tr>
+          <tr><td>4</td><td><strong>Layout baseline with snapshot</strong></td><td class="payoff md">Medium</td><td class="effort md">Medium</td><td><span class="path">02-Scripts/tests/test_deck_layout.py</span>, new <span class="path">layout_baseline.json</span></td><td class="step">Fingerprint each slide as (shape kind, box, font sizes) from ars_template.pptx and the golden 1441 deck; add --snapshot to accept intentional drift.</td></tr>
+          <tr><td>5</td><td><strong>Daily source watch</strong> with saved inventory</td><td class="payoff hi">High</td><td class="effort md">Medium</td><td><span class="path">02-Scripts/tools/fetch_data.py</span>, new <span class="path">watch_sources.py</span>, a register task script</td><td class="step">fetch_data.py already discovers month folders per CSM. Add a saved inventory (name, size, mtime), diff on each run, report new / re-landed / gone, and exit 2 without saving when off VPN.</td></tr>
+          <tr><td>6</td><td><strong>Build the delivery board you specified</strong></td><td class="payoff hi">High</td><td class="effort md">Medium</td><td><span class="path">docs/superpowers/specs/2026-09-11-my-book-board-design.md</span>, new <span class="path">00-Instructions/my-book.html</span>, new <span class="path">deliveries.json</span></td><td class="step">Implement the spec as a static page from a collect() function like his deck_status.py. Add a Mark sent button that writes a log which raises when damaged.</td></tr>
+          <tr><td>7</td><td><strong>Dated, attributed rules and a reversals table</strong></td><td class="payoff md">Medium</td><td class="effort lo">Low</td><td><span class="path">02-Scripts/ars/deck/DESIGN/copy-rules.md</span>, <span class="path">README.md</span>, <span class="path">REFERENCE.md</span></td><td class="step">Add "(James, YYYY-MM-DD)" to every rule you can still date from git blame; start a Decisions and reversals table at the bottom of copy-rules.md.</td></tr>
+          <tr><td>8</td><td><strong>Opt-in flags for slide experiments</strong></td><td class="payoff md">Medium</td><td class="effort lo">Low</td><td><span class="path">02-Scripts/ars/deck/build.py</span>, <span class="path">0_Config/deck_manifest.json</span></td><td class="step">Let the manifest mark a slide "experimental: FLAG_NAME" so the baseline does not move until the flag is set. Use it for the next deck idea instead of a branch.</td></tr>
+          <tr><td>9</td><td><strong>One reading per classification rule</strong></td><td class="payoff hi">High</td><td class="effort md">Medium</td><td><span class="path">02-Scripts/core/odd_transform.py</span>, <span class="path">02-Scripts/core/conditions.py</span>, <span class="path">02-Scripts/ars/monthly_analysis/*</span></td><td class="step">Grep for every place Reg E, eligibility, and account status codes are interpreted. Pin each to one function, then add a test in the style of his test_rege_label.py that fails if a second copy appears.</td></tr>
+          <tr><td>10</td><td><strong>Stale-input detection</strong></td><td class="payoff md">Medium</td><td class="effort md">Medium</td><td><span class="path">02-Scripts/tools/fetch_data.py</span>, <span class="path">02-Scripts/ars/monthly.py</span></td><td class="step">When a file is overwritten in place, confirm its period from the source before a build treats it as current. Stale should block exactly as hard as missing.</td></tr>
+          <tr><td>11</td><td><strong>Housekeeping</strong></td><td class="payoff md">Medium</td><td class="effort lo">Low</td><td><span class="path">02-Scripts/z_legacy-*</span>, <span class="path">.claude/worktrees/</span>, <span class="path">.claude/scheduled_tasks.lock</span>, <span class="path">README.md</span></td><td class="step">Move legacy (87,600 lines) to an archive/ with a MANIFEST like his; delete merged remote branches; remove the two worktrees and the lock; fix the tool count to 30.</td></tr>
+          <tr><td>12</td><td><strong>CI runs the full suite</strong></td><td class="payoff md">Medium</td><td class="effort lo">Low</td><td><span class="path">.github/workflows/reliability-contracts.yml</span></td><td class="step">Replace the single test file with pytest 02-Scripts/tests. If it is too slow, split into fast and full jobs rather than running one file.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>What his could take from yours</h2>
+    <p>For perspective, since the page is blunt about v5. He is not ahead everywhere, and the Reg E bug was found because your deck disagreed with his.</p>
+    <div class="callout yours">
+      <p>Your tests are double his and guard things his do not: no month literal in executable code, no test may touch a drive letter, the manual's promises must match the code, no client data may ever be tracked. Your config validator, your privacy boundary with a test behind it, your MCP surface, your ILS and transaction engines, and your Client-Master-driven roster have no counterpart in his repo. If the two were ever merged, the engine would be yours and the loop would be his.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sources</h2>
+    <p>Every claim above rests on one of these files, read on 2026-09-17.</p>
+    <h3>His</h3>
+    <ul class="sources">
+      <li>README.md, CLAUDE.md, CHANGELOG.md, clients.md</li>
+      <li>templates/STYLE.md section 11, templates/TEMPLATES.md</li>
+      <li>validation/validate_deck.py, validation/qa_all.py, validation/layout_baseline.json</li>
+      <li>build/rpe_env.py, build/figures.py, build/ars_pipeline/odd_rows.py</li>
+      <li>scripts/watch_sources.py, scripts/mail_sources.py, scripts/dashboard.py, scripts/deck_status.py</li>
+      <li>scripts/refresh_performance_dashboard.py, scripts/ars_launcher_web.py, scripts/build_month.py</li>
+      <li>.claude/agents/ars-deck.md, ics-deck.md, mrpc-deck.md, cashplease-deck.md, oddd-optimizer.md</li>
+      <li>docs/PRD-2026-08-26 and PRD-2026-09-11; git log, 165 commits</li>
+    </ul>
+    <h3>Yours</h3>
+    <ul class="sources">
+      <li>README.md, REFERENCE.md, SYNC.md, 02-Scripts/README.md, 0_Config/README.md</li>
+      <li>0_Config/clients_config.json, deck_manifest.json, csm_sources.json</li>
+      <li>02-Scripts/tools/fetch_data.py, verify_suite.py; 02-Scripts/ars/monthly.py, batch.py, go.py, receipt.py</li>
+      <li>02-Scripts/ars/monthly_analysis/run.py, transaction_intelligence/run.py</li>
+      <li>02-Scripts/ars/deck/build.py, polish.py, formaudit.py, DESIGN/copy-rules.md</li>
+      <li>02-Scripts/core/datapaths.py, odd_transform.py, conditions.py, validate_clients_config.py</li>
+      <li>02-Scripts/tests/conftest.py, test_deck_layout.py, test_month_independence.py; pytest.ini</li>
+      <li>docs/superpowers/specs/2026-09-11-my-book-board-design.md, docs/records/README.md, docs/branching.md</li>
+      <li>.claude/skills/*, tools/velocity_tools.py, tools/products/*, .github/workflows/reliability-contracts.yml</li>
+      <li>git log, 617 commits on staging</li>
+    </ul>
+  </section>
+</main>

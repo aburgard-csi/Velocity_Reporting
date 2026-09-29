@@ -1,0 +1,976 @@
+<title>One Pipeline</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #f3f2ee;
+    --surface: #ffffff;
+    --surface-2: #e9e8e2;
+    --ink: #1b232c;
+    --ink-2: #4c5764;
+    --muted: #7b8591;
+    --rule: #d5d3cc;
+    --his: #0f766e;
+    --his-fill: #d3ebe8;
+    --yours: #b45309;
+    --yours-fill: #f5e3cf;
+    --new: #6d4fc4;
+    --new-fill: #e4ddf7;
+    --ok: #2f7d4a;
+    --tip-bg: #1b232c;
+    --tip-ink: #f3f2ee;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14171b; --surface: #1b1f25; --surface-2: #232830;
+      --ink: #e6e3dc; --ink-2: #b6b0a6; --muted: #838b95; --rule: #333941;
+      --his: #45c2b5; --his-fill: #163b38;
+      --yours: #efa24e; --yours-fill: #3e2a12;
+      --new: #a48cf0; --new-fill: #2c2347;
+      --ok: #6cc48a; --tip-bg: #e6e3dc; --tip-ink: #14171b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #14171b; --surface: #1b1f25; --surface-2: #232830;
+    --ink: #e6e3dc; --ink-2: #b6b0a6; --muted: #838b95; --rule: #333941;
+    --his: #45c2b5; --his-fill: #163b38;
+    --yours: #efa24e; --yours-fill: #3e2a12;
+    --new: #a48cf0; --new-fill: #2c2347;
+    --ok: #6cc48a; --tip-bg: #e6e3dc; --tip-ink: #14171b;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.5;
+    padding-block: 36px 90px; padding-inline: 20px;
+  }
+  main { max-width: 1240px; margin: 0 auto; }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 700; line-height: 1.1; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(40px, 6vw, 64px); letter-spacing: -0.015em; }
+  h2 { font-size: 28px; margin-block: 70px 6px; }
+  .sub { color: var(--ink-2); font-size: 17px; max-width: 60ch; margin: 6px 0 0; }
+  .eyebrow { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  .legend {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 999px;
+    padding: 8px 16px; margin-top: 22px; width: fit-content; font-size: 14px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .dot.his { background: var(--his); } .dot.yours { background: var(--yours); } .dot.new { background: var(--new); }
+
+  figure { margin: 16px 0 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px; overflow-x: auto; }
+  figure svg { display: block; height: auto; color: var(--ink); font-family: "Source Sans 3", system-ui, sans-serif; }
+  figcaption { font-size: 14px; color: var(--ink-2); margin-top: 8px; max-width: 80ch; }
+  .lbl { font-size: 12.5px; fill: currentColor; }
+  .lbl.b { font-weight: 600; font-size: 13.5px; }
+  .lbl.m { font-family: "JetBrains Mono", monospace; font-size: 11px; fill: var(--ink-2); }
+  .lbl.h { fill: var(--his); } .lbl.y { fill: var(--yours); } .lbl.n { fill: var(--new); }
+  .box { stroke-width: 1.4; }
+  .box.his { fill: var(--his-fill); stroke: var(--his); }
+  .box.yours { fill: var(--yours-fill); stroke: var(--yours); }
+  .box.new { fill: var(--new-fill); stroke: var(--new); }
+  .box.plain { fill: var(--surface-2); stroke: var(--rule); }
+  .wire { fill: none; stroke: currentColor; stroke-width: 1.3; }
+  .wire.soft { stroke: var(--muted); }
+  .wire.loop { stroke: var(--new); stroke-width: 1.8; stroke-dasharray: 6 5; }
+  .node { cursor: help; }
+  .node:hover .box, .node:focus .box { stroke-width: 2.4; }
+
+  #tip {
+    position: fixed; z-index: 20; pointer-events: none; display: none;
+    max-width: 320px; background: var(--tip-bg); color: var(--tip-ink);
+    padding: 9px 12px; border-radius: 6px; font-size: 13.5px; line-height: 1.4;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  }
+  #tip b { display: block; font-weight: 600; margin-bottom: 2px; }
+
+  /* Repo tree: a trunk with fourteen branches, detail panel beside it */
+  .tree { display: grid; grid-template-columns: 290px 1fr; gap: 28px; align-items: start; }
+  .tree .rootbox { display: inline-block; border: 1.5px solid var(--ink); border-radius: 6px; padding: 7px 14px; font-family: "JetBrains Mono", monospace; font-size: 14px; background: var(--surface); }
+  .branches { list-style: none; margin: 0; padding: 8px 0 0 26px; position: relative; }
+  .branches::before { content: ""; position: absolute; left: 12px; top: 0; bottom: 19px; width: 2px; background: var(--ink); }
+  .branches li { position: relative; margin: 0 0 6px; }
+  .branches li::before { content: ""; position: absolute; left: -14px; top: 50%; width: 14px; height: 2px; background: var(--ink); }
+  .tree button {
+    all: unset; cursor: pointer; box-sizing: border-box; width: 100%;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    border: 1.5px solid var(--rule); border-radius: 6px; padding: 6px 10px;
+    font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.3;
+    background: var(--surface); color: var(--ink); white-space: nowrap;
+  }
+  .tree button:focus-visible { outline: 2px solid var(--new); outline-offset: 2px; }
+  .tree button.his { border-color: var(--his); background: var(--his-fill); }
+  .tree button.yours { border-color: var(--yours); background: var(--yours-fill); }
+  .tree button.new { border-color: var(--new); background: var(--new-fill); }
+  .tree button.mixed { border-color: var(--ink-2); background: linear-gradient(100deg, var(--his-fill) 50%, var(--yours-fill) 50%); }
+  .tree button.on { box-shadow: 0 0 0 2px var(--ink); }
+  .tree .dots { display: flex; gap: 4px; }
+  .tree .dots i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+  .tree .dots i.his { background: var(--his); } .tree .dots i.yours { background: var(--yours); } .tree .dots i.new { background: var(--new); }
+  .treepanel { position: sticky; top: 70px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface-2); padding: 18px 20px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; font-size: 14px; }
+  .treepanel h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .treepanel h4.his { color: var(--his); } .treepanel h4.yours { color: var(--yours); } .treepanel h4.new { color: var(--new); }
+  .treepanel ul { margin: 0; padding-left: 16px; }
+  .treepanel li { margin-bottom: 4px; }
+  .treepanel .empty { color: var(--muted); }
+  .treepanel .name { grid-column: 1 / -1; font-family: "JetBrains Mono", monospace; font-size: 17px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  .treepanel .name span { color: var(--muted); font-family: "Source Sans 3", sans-serif; font-size: 14px; }
+
+  /* CSM cards */
+  .csms { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 16px; }
+  .csm { border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); padding: 14px 14px 12px; display: grid; gap: 10px; }
+  .csm.ghost { border-style: dashed; opacity: 0.6; }
+  .csm .who { font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 500; }
+  .csm .folder { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-2); background: var(--surface-2); padding: 5px 8px; border-radius: 4px; line-height: 1.5; }
+  .csm .folder b { color: var(--yours); font-weight: 500; display: block; font-size: 12.5px; }
+  .csm .go { border: 1.5px solid var(--his); color: var(--his); background: var(--his-fill); border-radius: 6px; padding: 7px; text-align: center; font-weight: 600; font-size: 14px; }
+  .csm .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; font-size: 12.5px; }
+  .csm .lights { display: flex; gap: 5px; }
+  .csm .lights i { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); display: block; }
+  .csm .lights i.w { background: var(--yours); }
+  .csm .sent { border: 1px solid var(--rule); border-radius: 4px; padding: 2px 7px; font-size: 11.5px; color: var(--ink-2); }
+  .csm .out { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--his); }
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .chip { font-family: "JetBrains Mono", monospace; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--new); color: var(--new); background: var(--new-fill); }
+  .chips .say { align-self: center; font-size: 14px; color: var(--ink-2); }
+
+  .band { fill-opacity: 0.38; stroke: none; }
+  .band.his { fill: var(--his); } .band.yours { fill: var(--yours); }
+  .band:hover { fill-opacity: 0.7; }
+
+
+  /* Storyboard: a CSM's month in six screens */
+  .story { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
+  .shot { border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); padding: 14px 14px 12px; display: grid; gap: 10px; grid-template-rows: auto auto 1fr auto; }
+  .shot .when { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .shot h3 { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 500; }
+  .screen { border: 1px solid var(--rule); border-radius: 6px; background: var(--surface-2); padding: 10px; font-size: 12px; display: grid; gap: 6px; min-height: 118px; align-content: start; }
+  .screen .bar { display: flex; gap: 5px; margin-bottom: 2px; }
+  .screen .bar i { width: 7px; height: 7px; border-radius: 50%; background: var(--rule); display: block; }
+  .screen .ttl { font-weight: 600; font-size: 12.5px; }
+  .screen .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 4px; background: var(--surface); }
+  .screen .row.dim { color: var(--muted); }
+  .screen .row .dots { display: flex; gap: 4px; }
+  .screen .row .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: block; }
+  .screen .row .dots i.w { background: var(--yours); }
+  .screen .row .dots i.x { background: var(--rule); }
+  .screen .mono { font-family: "JetBrains Mono", monospace; font-size: 11px; }
+  .screen .btn { display: inline-block; border: 1.5px solid var(--his); color: var(--his); background: var(--his-fill); border-radius: 5px; padding: 3px 10px; font-weight: 600; font-size: 12px; }
+  .screen .btn.new { border-color: var(--new); color: var(--new); background: var(--new-fill); }
+  .screen .toast { border-left: 3px solid var(--his); background: var(--surface); padding: 6px 8px; border-radius: 4px; }
+  .screen .pass { color: var(--ok); font-weight: 600; }
+  .screen .fail { color: var(--yours); font-weight: 600; }
+  .screen .log { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--ink-2); line-height: 1.5; }
+  .shot .does { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; font-size: 13px; align-items: baseline; }
+  .shot .does b { font-family: "JetBrains Mono", monospace; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  .shot .does .you { color: var(--ink); font-weight: 600; }
+  .never { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 14px; font-size: 14px; color: var(--ink-2); }
+  .never s { text-decoration-color: var(--yours); text-decoration-thickness: 2px; color: var(--ink); }
+
+  /* Analysis lanes */
+  .lanes { margin-top: 16px; display: grid; gap: 10px; }
+  .lanehead { display: grid; grid-template-columns: 190px 1fr 2.2fr 1.3fr; gap: 12px; padding: 0 12px; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .lane { display: grid; grid-template-columns: 190px 1fr 2.2fr 1.3fr; gap: 12px; padding: 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); border-left-width: 6px; }
+  .lane.ars { border-left-color: #2f6fb3; } .lane.txn { border-left-color: #5b8fd0; } .lane.ics { border-left-color: #2c9a7a; } .lane.mrpc { border-left-color: #d0862e; } .lane.cp { border-left-color: #b74a7c; } .lane.ils { border-left-color: #7a6bd4; } .lane.dep { border-left-color: #8a8f99; } .lane.all { border-left-color: var(--ink); }
+  .lane .lp { display: grid; gap: 3px; align-content: start; }
+  .lane .lp b { font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 500; }
+  .lane .lp span { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--muted); }
+  .lane .lp .tagline { font-family: "Source Sans 3", sans-serif; font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+  .lane .lc { display: flex; flex-wrap: wrap; gap: 5px; align-content: start; }
+  .lane .lc i { font-style: normal; font-size: 12px; line-height: 1.3; padding: 3px 8px; border-radius: 4px; background: var(--surface-2); color: var(--ink-2); border: 1px solid transparent; cursor: default; }
+  .lane .lc i[data-tip] { cursor: help; }
+  .lane .lc i.h { border-color: var(--his); color: var(--his); background: var(--his-fill); }
+  .lane .lc i.y { border-color: var(--yours); color: var(--yours); background: var(--yours-fill); }
+  .lane .lc i.n { border-color: var(--new); color: var(--new); background: var(--new-fill); }
+  .lane .lc.out i { font-weight: 600; }
+  .lanekey { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .lanekey span { display: inline-flex; align-items: center; gap: 6px; }
+  .lanekey i { width: 14px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid; }
+  .lanekey i.h { border-color: var(--his); background: var(--his-fill); } .lanekey i.y { border-color: var(--yours); background: var(--yours-fill); } .lanekey i.n { border-color: var(--new); background: var(--new-fill); } .lanekey i.p { border-color: transparent; background: var(--surface-2); }
+  @media (max-width: 1000px) { .lanehead { display: none; } .lane { grid-template-columns: 1fr; } .lane .lc::before { content: attr(data-col); font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); width: 100%; } }
+  @media (max-width: 760px) { .story { grid-template-columns: 1fr; } }
+
+  @media (max-width: 900px) {
+    .tree { grid-template-columns: 1fr; }
+    .treepanel { grid-template-columns: 1fr; position: static; }
+  }
+  @media (max-width: 720px) { h2 { font-size: 24px; margin-top: 52px; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Unified repo mockup · five CSM books · 2026-09-17</div>
+    <h1>One Pipeline</h1>
+    <p class="sub">What the shared repo looks like when the engine from v5 and the operating loop from Aaron's pipeline become one system that every CSM runs the same way. Hover anything to see where it comes from.</p>
+    <div class="legend" aria-label="Colour legend">
+      <span><i class="dot his"></i>from Aaron's repo</span>
+      <span><i class="dot yours"></i>from your v5</span>
+      <span><i class="dot new"></i>new, in neither today</span>
+    </div>
+  </header>
+
+  <!-- 1. SYSTEM MAP -->
+  <section>
+    <h2>The system, end to end</h2>
+    <p class="sub">Eight origin systems in, one root, one engine, one gate, six books out, and a loop that feeds every defect back into the gate.</p>
+    <figure>
+      <svg viewBox="0 0 1240 660" role="img" aria-label="System map: eight origin systems converge on one data root, pass through one analysis engine and deck builders, are stopped or released by one gate, land in per-CSM output folders, feed a delivery board and performance page, and every defect returns through the changelog as a new gate rule." style="min-width: 900px">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--new)"/></marker>
+        </defs>
+
+        <!-- column headers -->
+        <text x="20" y="40" class="lbl m">ORIGIN SYSTEMS</text>
+        <text x="300" y="40" class="lbl m">WATCH</text>
+        <text x="490" y="40" class="lbl m">ONE ROOT</text>
+        <text x="700" y="40" class="lbl m">ONE ENGINE</text>
+        <text x="960" y="40" class="lbl m">ONE GATE</text>
+        <text x="1110" y="40" class="lbl m">OUTPUTS BY CSM</text>
+
+        <!-- origin systems -->
+        <g class="node" tabindex="0" data-tip="<b>CSI share: Velocity_company</b>Each CSM's own ODD folder (Aburgard\ODDD, Dan Wood\OD Data Dumps, GMiller\…, JamesG\…, JBerkowitz\…). One zip per client, and the month folder is spelled differently by each CSM. Your dumps also carry the TXN files.">
+          <rect x="20" y="60" width="230" height="60" rx="4" class="box plain"/><text x="32" y="79" class="lbl b">CSI share · Velocity_company</text><text x="32" y="95" class="lbl m">&lt;CSM&gt;\OD Data Dumps\ · ODD zips</text><text x="32" y="111" class="lbl m" fill="var(--muted)">ARS · transactions</text></g>
+        <g class="node" tabindex="0" data-tip="<b>CSI share: Velocity_clientreports</b>\\PADMIS105\Velocity_clientreports\&lt;YYYY.MM&gt;\&lt;Account Manager&gt;\ — the R: drive in your fetch. DCOs, ARS workbooks (Lift Matrix MM or Monthly Summary SM), MRPCPM analyses.">
+          <rect x="20" y="130" width="230" height="60" rx="4" class="box plain"/><text x="32" y="149" class="lbl b">CSI share · Velocity_clientreports</text><text x="32" y="165" class="lbl m">DCO · ARS workbook · MRPCPM</text><text x="32" y="181" class="lbl m" fill="var(--muted)">ARS · MRPC</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Outlook mailbox</b>Never lands on a share. MRPC enrollment summaries and CashPlease summaries from Bradford Sanders weekly, ICS workbooks from Matt Milliman quarterly, the ILS DDA count from Charles weekly. His mail_sources.py reads them through Outlook COM; an unreachable mailbox is reported, never fatal.">
+          <rect x="20" y="200" width="230" height="60" rx="4" class="box plain"/><text x="32" y="219" class="lbl b">Outlook mailbox</text><text x="32" y="235" class="lbl m">weeklies · ICS workbooks · DDA</text><text x="32" y="251" class="lbl m" fill="var(--muted)">MRPC · CashPlease · ICS</text></g>
+        <g class="node" tabindex="0" data-tip="<b>VIP dashboards</b>Velocity Intelligent Platform. Per-client ICS referral sheets and MRPC sheets, pulled into Inputs/VIP Data/&lt;PROGRAM&gt;/&lt;id&gt;-&lt;Name&gt;/ and indexed by manifest.json. The only copy; the repo copies were deleted after they shipped month-old figures.">
+          <rect x="20" y="270" width="230" height="60" rx="4" class="box plain"/><text x="32" y="289" class="lbl b">VIP dashboards</text><text x="32" y="305" class="lbl m">ICS referrals · MRPC sheets</text><text x="32" y="321" class="lbl m" fill="var(--muted)">ICS · MRPC</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Settings and code tables</b>CashPlease production settings from the Velocity Product Settings Power BI app, one record per client. ARS database code tables (product, Reg E, status codes) written by ars_code_tables.py from a DB export. Client code sheets saved by the data team, where a CSM's corrections land.">
+          <rect x="20" y="340" width="230" height="60" rx="4" class="box plain"/><text x="32" y="359" class="lbl b">Product settings · code tables</text><text x="32" y="375" class="lbl m">settings · code tables · sheets</text><text x="32" y="391" class="lbl m" fill="var(--muted)">CashPlease · ARS</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Core extracts and trackers</b>PGL extracts from the client's core for ILS pre-go-live and kickoff. The 2:1 ROI guarantee deferral tracker per CSM, which supersedes billed fees while a deferred balance is live.">
+          <rect x="20" y="410" width="230" height="60" rx="4" class="box plain"/><text x="32" y="429" class="lbl b">Core extracts · guarantee trackers</text><text x="32" y="445" class="lbl m">PGL extract · 2:1 trackers</text><text x="32" y="461" class="lbl m" fill="var(--muted)">ILS · ARS</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Lists and shops</b>ICS direct-mail new-account lists, detailed referral exports for clients with no VIP sheet, and the ICS Charts workbook with the mystery-shop tab.">
+          <rect x="20" y="480" width="230" height="60" rx="4" class="box plain"/><text x="32" y="499" class="lbl b">Lists · mystery shops</text><text x="32" y="515" class="lbl m">DM lists · exports · ICS Charts</text><text x="32" y="531" class="lbl m" fill="var(--muted)">ICS</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Reference data</b>Client-Master.xlsx, the roster of record with one row per client-product. FDIC and NCUA institution and branch files plus ZIP centroids for the competition scan. Client logos, kept outside the repo.">
+          <rect x="20" y="550" width="230" height="60" rx="4" class="box plain"/><text x="32" y="569" class="lbl b">Reference · roster</text><text x="32" y="585" class="lbl m">roster · FDIC / NCUA · logos</text><text x="32" y="601" class="lbl m" fill="var(--muted)">every program</text></g>
+
+        <!-- wires from origins to watch -->
+        <g class="wire soft">
+          <path d="M250,90 C280,90 275,290 300,290"/>
+          <path d="M250,160 C280,160 275,290 300,290"/>
+          <path d="M250,230 C280,230 275,290 300,290"/>
+          <path d="M250,300 L300,290"/>
+          <path d="M250,370 C280,370 275,290 300,290"/>
+          <path d="M250,440 C280,440 275,290 300,290"/>
+          <path d="M250,510 C280,510 275,290 300,290"/>
+          <path d="M250,580 C280,580 275,290 300,290"/>
+        </g>
+
+        <!-- watch -->
+        <g class="node" tabindex="0" data-tip="<b>ops/watch_sources.py (his)</b>Daily 08:00. Diffs every CSM folder against the inventory it saved last run, reports new / re-landed / gone / stale, pulls the mailbox, files each copy by kind. Off VPN it exits 2 and saves nothing. Gets your fetch_data.py trick of discovering the month folder however it is spelled.">
+          <rect x="300" y="250" width="150" height="80" rx="5" class="box his"/>
+          <text x="375" y="276" class="lbl b" text-anchor="middle">Source watch</text>
+          <text x="375" y="294" class="lbl" text-anchor="middle">daily 08:00, diff + mail</text>
+          <text x="375" y="312" class="lbl m" text-anchor="middle">shares · mailbox · VIP</text>
+        </g>
+        <path d="M450,290 L488,290" class="wire" marker-end="url(#a1)"/>
+
+        <!-- one root -->
+        <g class="node" tabindex="0" data-tip="<b>CSM_Reporting (his)</b>One share, one env var, no mirrors. Inputs/ is a folder per kind: ODDD, DCOs, ARS Workbooks, MRPC Analyses, ICS Workbooks, Weekly Summaries, CashPlease, Txn Files, VIP Data, Logos. Your datapaths.py becomes the reader; his rpe_env.py names the root.">
+          <rect x="490" y="200" width="170" height="180" rx="5" class="box his"/>
+          <text x="575" y="226" class="lbl b" text-anchor="middle">CSM_Reporting</text>
+          <text x="575" y="243" class="lbl m" text-anchor="middle">RPE_DATA_ROOT</text>
+          <g class="lbl m" fill="var(--ink-2)">
+            <text x="504" y="268">Inputs/ODDD/</text>
+            <text x="504" y="284">Inputs/DCOs/</text>
+            <text x="504" y="300">Inputs/ARS Workbooks/</text>
+            <text x="504" y="316">Inputs/ICS Workbooks/</text>
+            <text x="504" y="332">Inputs/CashPlease/</text>
+            <text x="504" y="348">Inputs/Txn Files/</text>
+            <text x="504" y="364">Inputs/VIP Data/  …</text>
+          </g>
+        </g>
+        <path d="M660,290 L698,290" class="wire" marker-end="url(#a1)"/>
+
+        <!-- engine -->
+        <rect x="700" y="140" width="230" height="300" rx="6" fill="none" stroke="var(--rule)" stroke-dasharray="3 3"/>
+        <g class="node" tabindex="0" data-tip="<b>engine/ (yours)</b>02-Scripts/ars/monthly_analysis (35 sections), transaction_intelligence, core/deposits, core/market, ils/pre_go_live, ils/kickoff_analysis, cashplease/. Produces metrics.json, enriched.parquet, the written report. Nothing in his repo does this.">
+          <rect x="712" y="156" width="206" height="128" rx="5" class="box yours"/>
+          <text x="815" y="180" class="lbl b" text-anchor="middle">Analysis engine</text>
+          <text x="815" y="199" class="lbl" text-anchor="middle">ODD · transactions · deposits</text>
+          <text x="815" y="216" class="lbl" text-anchor="middle">market · ILS · CashPlease</text>
+          <text x="815" y="240" class="lbl m" text-anchor="middle">metrics.json · parquet</text>
+          <text x="815" y="256" class="lbl m" text-anchor="middle">35 sections, 1,500 tests</text>
+        </g>
+        <path d="M815,284 L815,298" class="wire" marker-end="url(#a1)"/>
+        <g class="node" tabindex="0" data-tip="<b>decks/ (his builders, your manifest)</b>build/ars_pipeline, ics_pipeline, mrpc_pipeline, cashplease_pipeline from template shells, assembled by assemble_combined.py. Your deck_manifest.json and polish.py copy rules sit on top. Slides found by title, never by index; never cloned from a client deck.">
+          <rect x="712" y="300" width="206" height="124" rx="5" class="box his"/>
+          <text x="815" y="324" class="lbl b" text-anchor="middle">Deck builders</text>
+          <text x="815" y="343" class="lbl" text-anchor="middle">ARS · ICS · MRPC · CashPlease</text>
+          <text x="815" y="360" class="lbl" text-anchor="middle">combined, from template shells</text>
+          <text x="815" y="384" class="lbl m" text-anchor="middle">deck_manifest.json · polish.py</text>
+          <text x="815" y="400" class="lbl m" text-anchor="middle" fill="var(--yours)">manifest + copy rules: yours</text>
+        </g>
+        <path d="M930,290 L958,290" class="wire" marker-end="url(#a1)"/>
+
+        <!-- gate -->
+        <g class="node" tabindex="0" data-tip="<b>gate/ (new)</b>One command, one exit code. Step 0 your test suite and guard tests. Step 1 his 18 deck rules, each named beside the defect it exists for. Step 2 layout fingerprint against a baseline, --snapshot to accept. Step 3 package integrity. Exit 1 and GO does not open the output folder.">
+          <rect x="960" y="200" width="120" height="180" rx="5" class="box new"/>
+          <text x="1020" y="226" class="lbl b" text-anchor="middle">Gate</text>
+          <text x="1020" y="243" class="lbl m" text-anchor="middle">one exit code</text>
+          <text x="1020" y="272" class="lbl" text-anchor="middle" fill="var(--yours)">guard tests</text>
+          <text x="1020" y="292" class="lbl" text-anchor="middle" fill="var(--his)">18 deck rules</text>
+          <text x="1020" y="312" class="lbl" text-anchor="middle" fill="var(--his)">layout baseline</text>
+          <text x="1020" y="332" class="lbl" text-anchor="middle" fill="var(--his)">package check</text>
+          <text x="1020" y="362" class="lbl m" text-anchor="middle">fail = fix builder</text>
+        </g>
+
+        <!-- outputs -->
+        <g class="wire soft">
+          <path d="M1080,290 C1100,290 1090,83 1110,83"/>
+          <path d="M1080,290 C1100,290 1090,153 1110,153"/>
+          <path d="M1080,290 C1100,290 1090,223 1110,223"/>
+          <path d="M1080,290 L1110,293"/>
+          <path d="M1080,290 C1100,290 1090,363 1110,363"/>
+          <path d="M1080,290 C1100,290 1090,433 1110,433" stroke-dasharray="4 3"/>
+        </g>
+        <g class="node" tabindex="0" data-tip="<b>Outputs/&lt;CSM&gt;/ (his)</b>Every finished deck goes to the client's CSM folder. Program is in the filename, not a subfolder. _Archive/&lt;CSM&gt;/ keeps the newest superseded deck; nothing is deleted.">
+          <rect x="1110" y="60" width="120" height="46" rx="4" class="box his"/><text x="1170" y="79" class="lbl b" text-anchor="middle">Outputs/</text><text x="1170" y="97" class="lbl m" text-anchor="middle">Aaron Burgard/</text>
+          <rect x="1110" y="130" width="120" height="46" rx="4" class="box his"/><text x="1170" y="149" class="lbl b" text-anchor="middle">Outputs/</text><text x="1170" y="167" class="lbl m" text-anchor="middle">Daniel Wood/</text>
+          <rect x="1110" y="200" width="120" height="46" rx="4" class="box his"/><text x="1170" y="219" class="lbl b" text-anchor="middle">Outputs/</text><text x="1170" y="237" class="lbl m" text-anchor="middle">Gregg Miller/</text>
+          <rect x="1110" y="270" width="120" height="46" rx="4" class="box his"/><text x="1170" y="289" class="lbl b" text-anchor="middle">Outputs/</text><text x="1170" y="307" class="lbl m" text-anchor="middle">James Gilmore/</text>
+          <rect x="1110" y="340" width="120" height="46" rx="4" class="box his"/><text x="1170" y="359" class="lbl b" text-anchor="middle">Outputs/</text><text x="1170" y="377" class="lbl m" text-anchor="middle">Jordan Berkowitz/</text>
+          <rect x="1110" y="410" width="120" height="46" rx="4" class="box his" stroke-dasharray="4 3"/><text x="1170" y="429" class="lbl b" text-anchor="middle" fill="var(--muted)">Outputs/</text><text x="1170" y="447" class="lbl m" text-anchor="middle">Max Willet/</text>
+        </g>
+
+        <!-- after the build -->
+        <path d="M1170,456 L1170,478" class="wire" marker-end="url(#a1)"/>
+        <g class="node" tabindex="0" data-tip="<b>Delivery board (his, widened to five books)</b>scripts/dashboard.py + deck_status.py: per client, has the data landed, is it stale, is it built, was it sent. Sent is written by a button to deliveries.json, never inferred from disk. Your my-book spec becomes one tab of this.">
+          <rect x="960" y="480" width="130" height="60" rx="5" class="box his"/>
+          <text x="1025" y="504" class="lbl b" text-anchor="middle">Delivery board</text>
+          <text x="1025" y="522" class="lbl m" text-anchor="middle">sent: recorded</text>
+        </g>
+        <g class="node" tabindex="0" data-tip="<b>Performance page (his)</b>refresh_performance_dashboard.py rebuilds the cross-client dataset from the same inputs the builders read, republishes only when the content hash changes. Daily at 08:30 after the watch.">
+          <rect x="1104" y="480" width="126" height="60" rx="5" class="box his"/>
+          <text x="1167" y="504" class="lbl b" text-anchor="middle">Performance page</text>
+          <text x="1167" y="522" class="lbl m" text-anchor="middle">republish on change</text>
+        </g>
+
+        <!-- loop -->
+        <g class="node" tabindex="0" data-tip="<b>CHANGELOG.md (his)</b>Anything that changes a number, its source, what a slide claims, or what it renders. A correction names the decks affected, the fix, the check that would have caught it, and the test. Standing rule: when a defect gets through the gate, add the rule that would have caught it.">
+          <rect x="560" y="570" width="240" height="56" rx="5" class="box his"/>
+          <text x="680" y="592" class="lbl b" text-anchor="middle">CHANGELOG.md</text>
+          <text x="680" y="611" class="lbl m" text-anchor="middle">defect → entry → new gate rule</text>
+        </g>
+        <path d="M1025,540 L1025,598 L802,598" class="wire loop" marker-end="url(#a2)"/>
+        <path d="M680,570 L680,470 L1020,470 L1020,382" class="wire loop" marker-end="url(#a2)"/>
+        <text x="900" y="618" class="lbl n" text-anchor="middle">a CSM finds a wrong figure</text>
+        <text x="850" y="462" class="lbl n" text-anchor="middle">the rule that would have caught it</text>
+        <text x="135" y="640" class="lbl m" text-anchor="middle" fill="var(--muted)">eight origins, one Inputs/ tree</text>
+      </svg>
+      <figcaption>The left column is every place data originates today, and none of it moves. The watcher reads all eight and files by kind. From the watcher onward everything is shared: one Inputs/ tree, one engine, one gate, one Outputs/ folder per CSM. The violet return path is the practice that makes the system improve after each review: a wrong figure becomes a changelog entry and then a rule the gate enforces for all six books.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 2. REPO TREE -->
+  <section>
+    <h2>The repo, as a tree</h2>
+    <p class="sub">Fourteen top-level nodes. Click one to see what moves into it from each repo.</p>
+    <figure style="overflow: visible">
+      <div class="tree" id="tree">
+        <div>
+          <div class="rootbox">velocity-pipeline/</div>
+          <ul class="branches">
+            <li><button class="his" data-k="claude">CLAUDE.md<span class="dots"><i class="his"></i></span></button></li>
+            <li><button class="his" data-k="changelog">CHANGELOG.md<span class="dots"><i class="his"></i></span></button></li>
+            <li><button class="mixed" data-k="clients">clients/<span class="dots"><i class="yours"></i><i class="his"></i></span></button></li>
+            <li><button class="yours" data-k="config">config/<span class="dots"><i class="yours"></i></span></button></li>
+            <li><button class="yours" data-k="engine">engine/<span class="dots"><i class="yours"></i></span></button></li>
+            <li><button class="mixed" data-k="decks">decks/<span class="dots"><i class="his"></i><i class="yours"></i></span></button></li>
+            <li><button class="new" data-k="gate">gate/<span class="dots"><i class="new"></i><i class="his"></i><i class="yours"></i></span></button></li>
+            <li><button class="his" data-k="ops">ops/<span class="dots"><i class="his"></i></span></button></li>
+            <li><button class="mixed" data-k="tests">tests/<span class="dots"><i class="yours"></i><i class="his"></i></span></button></li>
+            <li><button class="his" data-k="templates">templates/<span class="dots"><i class="his"></i></span></button></li>
+            <li><button class="yours" data-k="docs">docs/<span class="dots"><i class="yours"></i><i class="his"></i></span></button></li>
+            <li><button class="mixed" data-k="dotclaude">.claude/<span class="dots"><i class="his"></i><i class="yours"></i></span></button></li>
+            <li><button class="yours" data-k="mcp">tools/mcp/<span class="dots"><i class="yours"></i></span></button></li>
+            <li><button class="mixed" data-k="archive">archive/<span class="dots"><i class="his"></i><i class="yours"></i></span></button></li>
+          </ul>
+        </div>
+        <div class="treepanel" id="treepanel">
+          <div class="name">gate/ <span>· the one piece neither repo has: a single command in front of delivery</span></div>
+          <div><h4 class="his">from Aaron's</h4><ul><li>validation/validate_deck.py, 18 rules</li><li>validation/qa_all.py, the runner</li><li>validation/layout_baseline.json + --snapshot</li></ul></div>
+          <div><h4 class="yours">from v5</h4><ul><li>tests/ guard tests as step 0</li><li>core/validate_clients_config.py</li><li>ars/monthly_analysis/extract_check.py</li><li>ars/deck/formaudit.py, polish.py checks</li></ul></div>
+          <div><h4 class="new">new</h4><ul><li>one gate.py with one RULES list and one exit code</li><li>rule-per-defect docstring, kept forever</li><li>GO refuses to open Outputs on exit 1</li></ul></div>
+        </div>
+      </div>
+      <figcaption style="grid-column: 1 / -1">Colour is origin. A split node takes from both repos. The tree is flat on purpose: fourteen names a new CSM can hold in their head.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 2b. THE ANALYSIS -->
+  <section>
+    <h2>What the engine analyzes, by product</h2>
+    <p class="sub">One lane per product. Left to right: what comes in, what is computed, what goes out. Chip colour is where the analysis lives today. Hover an analysis chip for the question it answers.</p>
+    <div class="lanes">
+      <div class="lanehead"><span>Product</span><span>Inputs</span><span>Analysis</span><span>Outputs</span></div>
+
+      <div class="lane ars">
+        <div class="lp"><b>ARS</b><span>monthly · every ARS client</span><span class="tagline">Account Revenue Solution: overdraft and debit mailings</span></div>
+        <div class="lc" data-col="inputs"><i>ODD extract</i><i>ARS workbook MM or SM</i><i>DCO</i><i>code tables</i><i>2:1 tracker</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="y" data-tip="<b>overview</b>Accounts by status code and the product mix of open accounts, split personal/business.">overview</i><i class="y" data-tip="<b>profile</b>Swipe-tier segmentation, average ticket, NSF trend, responder age and balance, the new-account chapter: growth, survival, first-year closure.">profile</i><i class="y" data-tip="<b>dctr</b>Card penetration for every named subset, denominator stamped on each result.">card penetration</i><i class="y" data-tip="<b>interchange</b>PIN vs signature routing mix and what it is worth, calibrated to the client's ICRate.">interchange</i><i class="y" data-tip="<b>value</b>What a debit card and a Reg E opt-in are each worth over 12 months, and the pricing applied to every leak.">value</i><i class="y" data-tip="<b>rege</b>Opt-in on the eligible personal-with-debit base in three states: Opt In, Opt Out, Default. Never collapses never-elected into declined.">Reg E</i><i class="y" data-tip="<b>od_limit</b>OD-eligible share, limits granted, opt-in among OD-eligible cardholders, the two gaps, fee revenue the items represent.">OD limit</i><i class="y" data-tip="<b>mailer</b>Wave months from the Resp tags, reach and depth, response rate per campaign, activation, responder profile. In-flight campaigns reported as in flight, not 0%.">mailer</i><i class="y" data-tip="<b>ladder</b>Numeric tier rules, movement against best prior tier, the penalty-box rule.">ladder</i><i class="y" data-tip="<b>cohort</b>Every account-wave pair aligned on offsets from its mail month: responders, mailed non-responders, never mailed. Lift, not coincidence.">cohort</i><i class="y" data-tip="<b>migration</b>Where each cardholder sat on the ladder 12 months ago vs now, split by response status.">migration</i><i class="y" data-tip="<b>attrition</b>Who leaves, when, what it costs, plus the debit and mailer retention-lift bridges.">attrition</i><i class="y" data-tip="<b>retention</b>Spend trajectory classified Active / Declining / Cooling / Dormant against the account's own baseline.">retention</i><i class="y" data-tip="<b>leaks</b>Segments holding a large share of eligible accounts but a smaller share of cards or opt-ins, ranked by accounts lost, priced by value.">leaks</i><i class="y" data-tip="<b>balance</b>Balance bands, top-10 concentration, flight risk, sleeping giants, ideal members, PFI tiers and quadrants.">balance</i><i class="y" data-tip="<b>guarantee</b>The 2:1 ROI guarantee tracked outside the workbook. While a deferred balance is live, tracker math supersedes billed fees; an in-guarantee client never reads as a loss.">guarantee</i><i class="y" data-tip="<b>synthesis</b>What the CSM says in the room: the cascade, what-if, ranked opportunity map, branch scorecard, RAG scorecard, three talking points.">synthesis</i>
+          <i class="h" data-tip="<b>extract_base_gen / base_tab_extract</b>Headline financials from the workbook's MM tab (Lift Matrix clients) or the SM tabs (Interchange + NSF split) plus the DCO eligible base.">base extract MM / SM</i><i class="h" data-tip="<b>extract_lift / render_lift</b>The ARS Revenue Lift Matrix as a heat grid: per-account monthly value by baseline tier.">lift matrix</i><i class="h" data-tip="<b>metrics_gen</b>Streams the ODD zip in place. Eligible take rate 12-month, Reg E opt-in by branch and by vintage, account status, first-year closure.">take rate · Reg E by branch</i><i class="h" data-tip="<b>before_after / responder_activity</b>Before vs after by offer, responder activity, average ticket, mailing response summary.">before / after by offer</i><i class="n" data-tip="<b>combined_insights</b>Six views from your deck rebuilt on his ODD reader: revenue by mailing, responders vs mailed non-responders, card account health, take rate and Reg E by branch, branch scorecard, ARS scorecard. Merged 2026-09-17, still opt-in.">combined insights</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="h" data-tip="<b>His ARS deck, 27 slides</b>Program Reach · Who Responds · Responder Age Profile · Debit Card Penetration · Debit Card Usage · Swipes &amp; Spend · Depth of Engagement · 12-Month Eligible Take Rate · Reg E by branch and vintage · Account Growth · Openings &amp; Closures · Account Retention · First-Year Closure · New Account Profile · New Accounts by Product · New Checking Balances · New-Account Debit Adoption · Lift Matrix · Key Takeaways · Appendix.">ARS Executive Review · 27 slides</i>
+          <i class="y" data-tip="<b>Your ARS deck, 28 slides in four chapters</b>Campaign performance: the campaign hero, the 2:1 guarantee, P&amp;L by offer, what each offer has earned, where the month's revenue came from, per-offer summary, response and reach, the most recent mailer, what a response does to spend. Debit card performance: operational KPIs. Reg E review. Transaction intelligence: nine slides. Then the responder profile, behaviour by segment, responders vs control, key takeaways, scorecard.">ARS deck · 28 slides · 4 chapters</i>
+          <i class="y" data-tip="<b>metrics.json + enriched.parquet</b>Every figure with its denominator. The written report. slide_register.json naming the source of every slide.">metrics.json · report</i>
+          <i class="h" data-tip="<b>figures sidecar</b>build/figures.py records every named measure the deck carries so the gate can prove one measure has one value.">figure sidecar</i>
+          <i class="h" data-tip="<b>Executive Summit one-pager</b>Hand-built per attendee, twice a year, never on the monthly run. The figures come from the pipeline; which story it tells is a CSM's call.">Summit one-pager (by hand)</i>
+        </div>
+      </div>
+
+      <div class="lane txn">
+        <div class="lp"><b>ARS transactions</b><span>monthly · with ARS</span><span class="tagline">Where the money moves, and who else holds the member</span></div>
+        <div class="lc" data-col="inputs"><i>debit transaction files</i><i>merchant categories</i><i>competitors.json</i><i>financial services patterns</i><i>FDIC / NCUA</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="y" data-tip="<b>portfolio</b>What loaded: files, rows, months, lag vs ODD. Volume by channel PIN / SIG / ACH / CHK, active accounts, ODD join rate, top merchants.">portfolio</i><i class="y" data-tip="<b>financial_services</b>Money leaving for someone else's financial products, plus adjacent flows that are not leakage (P2P, wallets). Name-based detection with per-client additions.">financial services leakage</i><i class="y" data-tip="<b>competition</b>Which named institutions hold relationships with our members: penetration, multi-banking, depth, momentum, tiers, locals, ecosystems.">competition</i><i class="y" data-tip="<b>merchants</b>The card rail: top merchants, categories, what is new or faded. 30 groups under 7 parents, from MCC when populated, keywords otherwise.">merchants</i><i class="y" data-tip="<b>card_behavior</b>Ticket bands, intensity, weekday-by-hour timing, recurring charges, PIN/SIG routing, the responder-vs-control campaign tail.">card behavior</i><i class="y" data-tip="<b>relationship</b>Channels used per account, single-channel thinness, recurring billers, depth by breadth, the primary-like activity read.">relationship</i><i class="y" data-tip="<b>overlay</b>Where the declining deposits actually go: joins the flight-risk mask to each account's competitor and leakage rows.">overlay</i><i class="y" data-tip="<b>mapping_audit</b>Reports only. Every MCC reaching Other ranked by dollars, dictionary disagreements, configured categories that never matched.">mapping audit</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="y" data-tip="<b>Transaction intelligence chapter, 9 slides</b>How the money moves · Where the money goes · Their financial life · Who they pay · What leakers hold with us · Who competes for our members · Which competitors to work first · Where the outflow goes · How members spend.">TI chapter · 9 slides</i>
+          <i class="y" data-tip="<b>txn_metrics.json</b>Plus the competitor map and competitor book pages under 00-Instructions/.">txn_metrics.json · competitor map</i>
+          <i class="n" data-tip="<b>Not in his repo</b>He stores the transaction files zipped under Inputs/Txn Files/ but no deck reads them yet. This lane is the largest single thing the unified engine gains.">nothing on his side yet</i>
+        </div>
+      </div>
+
+      <div class="lane ics">
+        <div class="lp"><b>ICS</b><span>monthly · workbook quarterly</span><span class="tagline">Invitation Checking System: referrals and new accounts</span></div>
+        <div class="lc" data-col="inputs"><i>VIP referral sheet</i><i>ICS workbook (email)</i><i>ICS Charts · mystery shops</i><i>direct-mail + referral lists</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="h" data-tip="<b>Referrals</b>PTD, YTD, prior month, vs goal. Referral trend over 14 months. Results by branch YTD.">referrals vs goal</i><i class="h" data-tip="<b>ROI and present value, recalculated</b>The workbook ROI is wrong and is not used. PV per account = annual profit contribution × 6.9-year Velocity average life.">ROI · lifetime value</i><i class="h" data-tip="<b>Revenue composition</b>Interchange and NSF/OD fee revenue, total and per account per month, six monthly-detail views.">revenue composition</i><i class="h" data-tip="<b>Benchmark and mystery shop</b>Client vs Velocity benchmark; mystery shops conducted, pass rate, referral-offered rate, shown selectively.">benchmark · mystery shop</i>
+          <i class="y" data-tip="<b>ics chapter, 15 behaviour views</b>Lists joined to the ODD by its own MRDB hash column: acquisition, activation, time to first swipe, habit, monthly milestones, usage, first-year closure, closure hazard, branch quadrant, DM vs referral channel, retention, RAG closer. Always against same-window non-ICS openings.">15 behaviour views</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="h" data-tip="<b>ICS section, up to 21 slides</b>Power of Referrals · Referral Trend · Results by Branch · Direct Mail New Accounts · Performance of ICS Accounts · ICS Revenue · six monthly-detail slides · Financial Summary · vs Velocity Benchmark · Mystery Shop · five education slides · Q&amp;A.">ICS section · 21 slides</i>
+          <i class="h" data-tip="<b>Referrals-only build</b>For a client live on ICS before its first workbook lands. Keeps the referral slides, omits the workbook-driven ones, and says so on the divider.">referrals-only variant</i>
+          <i class="y" data-tip="<b>ICS chapter inside the ARS deck</b>Behaviour only. Money measures were removed on purpose; the workbook owns them.">ICS chapter in ARS deck</i>
+        </div>
+      </div>
+
+      <div class="lane mrpc">
+        <div class="lp"><b>MRPC</b><span>monthly · every MRPC client</span><span class="tagline">MyRewards Premium Cards: Gold and Platinum enrollments</span></div>
+        <div class="lc" data-col="inputs"><i>VIP MRPC sheet</i><i>MRPCPM analysis workbook</i><i>enrollment summary weeklies</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="h" data-tip="<b>Enrollments</b>By month, Gold / Platinum / Business, partial month hatched. By channel PTD. Performance vs goal.">enrollments · channel · vs goal</i><i class="h" data-tip="<b>Retention</b>By cohort month, cancellations by reason as ranked bars.">retention · cancellations</i><i class="h" data-tip="<b>Revenue to the client</b>By year since 2016 with current YTD, by month with average-monthly and trailing-12 tiles.">revenue by year · by month</i><i class="h" data-tip="<b>Card portfolio</b>Donut by card type from the fee tier: Platinum $14.95, Gold $9.95, Business Platinum $19.95, multiples. Cross-sale = multi-card accounts ÷ cards billed.">card portfolio · cross-sale</i>
+          <i class="n" data-tip="<b>Nothing in v5</b>MRPC is a name only in your repo: a manual chapter and a blocked intake entry waiting on ODD flag columns.">v5: name only</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="h" data-tip="<b>MRPC section, 11 slides</b>Enrollments by Month · Enrollments by Channel · Performance vs Goal · Retention · Revenue by Year · Revenue by Month · Card Portfolio · Key Metrics · Q&amp;A.">MRPC section · 11 slides</i>
+        </div>
+      </div>
+
+      <div class="lane cp">
+        <div class="lp"><b>CashPlease</b><span>weekly · the one non-monthly program</span><span class="tagline">Small-dollar loans</span></div>
+        <div class="lc" data-col="inputs"><i>CashPlease Summary weekly</i><i>ILS DDA count email</i><i>product settings record</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="h" data-tip="<b>Loan volume and portfolio</b>Loans and principal by month, cumulative growth, portfolio by status. Loans per 1,000 DDAs from the weekly DDA count.">loan volume · per 1,000 DDAs</i><i class="h" data-tip="<b>Peer comparison</b>Index chart where the cohort is 100.">peer index</i>
+          <i class="y" data-tip="<b>Delinquency vs size-matched peers</b>Peers are a stated volume band. Two gates: twelve seasoned cohort months and twenty-five loans in each.">delinquency vs peers</i><i class="y" data-tip="<b>Cohort seasoning</b>Loans need time to go bad. Excluding cohorts younger than six months turned 31 improving institutions into 8.">seasoned cohorts</i><i class="y" data-tip="<b>Template-shift detection</b>Seven labels verified in order and totals reconciled; a shifted block leads every report with TEMPLATE SHIFTED rather than being absorbed.">template-shift guard</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="h" data-tip="<b>CashPlease section, 4 or 5 slides</b>Program Overview · Program Settings (when a record exists) · Loan Volume by Month · Loan Portfolio by Status · Peer Comparison. Ships inside the combined deck for multi-product clients, on its own weekly date.">CP section · 5 slides</i>
+          <i class="y" data-tip="<b>Your CashPlease decks</b>Six-slide client deck, seven-slide book deck across all institutions, and the chat report. Both read the same InstitutionView.">client deck · book deck · report</i>
+        </div>
+      </div>
+
+      <div class="lane ils">
+        <div class="lp"><b>ILS</b><span>per engagement · not a monthly review</span><span class="tagline">Overdraft program, pre-go-live and kickoff</span></div>
+        <div class="lc" data-col="inputs"><i>PGL extract from the core</i><i>fee tiers config</i><i>codes confirmed with the client</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="y" data-tip="<b>ils_core_state</b>The overdraft program as the core runs it: limit distribution by can-overdraft status with exposure dollars, the $0 pocket, usage, Reg E by limit.">core state</i><i class="y" data-tip="<b>ils_status / ils_od_status</b>Status mix, open accounts split personal / business, OD status codes with the confirmed eligible codes flagged.">status · OD status</i><i class="y" data-tip="<b>ils_limits</b>Zero-limit accounts by deposit activity, current core limits, proposed ILS limits on eligibles, NULL-limit integrity drill-down.">limits</i><i class="y" data-tip="<b>ils_rege</b>Opt-in mix on open personal / business / eligible bases, and opt-in of newly opened accounts by month across 24 months.">Reg E</i><i class="y" data-tip="<b>ils_fees</b>An implied pay ratio from 12-month actual fees reprices each tier scenario against a real baseline.">fee tiers</i><i class="y" data-tip="<b>ils_waterfall / ils_reconcile</b>Every step from file to base made visible, and whether the extract agrees with the ILS system's own integrity numbers row for row.">waterfall · reconcile</i><i class="y" data-tip="<b>ils_score / ils_readiness</b>What happens to the limit when the ILS proposal replaces the core's; can this extract support each analysis, graded ok / thin / blocked.">score · readiness</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="y" data-tip="<b>Pre-go-live</b>Written report plus the board deck.">pre-go-live report + board deck</i>
+          <i class="y" data-tip="<b>Kickoff</b>19-tab workbook, one tab per analysis, and on request a 45-slide deck: cover, provenance, three dividers, 19 analysis slides, an appendix table per analysis, a warnings slide. A test fails if a sheet exists with no slide or a slide with no sheet.">kickoff · 19-tab workbook · 45 slides</i>
+          <i class="n" data-tip="<b>Not in his repo</b>He has an ils-prep-deck skill for review prep slides only.">his side: prep slides only</i>
+        </div>
+      </div>
+
+      <div class="lane dep">
+        <div class="lp"><b>Deposits · market</b><span>cross-product</span><span class="tagline">Where balances go, and who is nearby</span></div>
+        <div class="lc" data-col="inputs"><i>ODD balances</i><i>FDIC / NCUA / ZIP</i><i>Client-Master.xlsx</i><i>market/ research per client</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="y" data-tip="<b>core/deposits</b>Streams, behaviour, trend: balance bands, flight risk, sleeping giants, PFI quadrants.">streams · behaviour · trend</i><i class="y" data-tip="<b>core/market</b>Charters to a radius scan to a per-client competitor config, stamped with a vintage. Refreshed quarterly.">competitor scan · radius · identity</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="y" data-tip="<b>Deposit slides and the competitor map</b>deposit_slides.py in the ARS deck; competitor-map.html and competitor-book.html under 00-Instructions/.">deposit slides · competitor map + book</i>
+        </div>
+      </div>
+
+      <div class="lane all">
+        <div class="lp"><b>Across the book</b><span>every client · every program</span><span class="tagline">What a CSM sees without opening a deck</span></div>
+        <div class="lc" data-col="inputs"><i>every deck's figure sidecar</i><i>every metrics.json</i><i>deliveries.json</i></div>
+        <div class="lc" data-col="analysis">
+          <i class="h" data-tip="<b>Performance page dataset</b>Rebuilt from the same inputs the builders read; within a cycle every client shows its own newest figures. Republished only when the content hash changes.">cross-client ranking · trends</i><i class="y" data-tip="<b>peer_kpis.json</b>Longitudinal client × period headline KPIs, refreshed by every batch, local by design. Feeds quartile placement and trend vs the book's median.">peer KPIs · quartiles</i><i class="y" data-tip="<b>Receipts</b>Privacy-safe per-period per-CSM run receipts. Writing and committing are two steps.">run receipts</i>
+        </div>
+        <div class="lc out" data-col="outputs">
+          <i class="h" data-tip="<b>RPE Client Performance page</b>One section per program with a ranked bar, a metrics table, trend sparklines, CSM action items and a deck roster.">performance page</i><i class="h" data-tip="<b>Delivery board</b>Per client: has the data landed, is it stale, is it built, was it sent.">delivery board</i><i class="h" data-tip="<b>Combined Executive Review</b>Up to 79 slides: shell, ARS 4-30, ICS 31-53, MRPC 54-62, Q&amp;A and Contact, ARS Appendix. Sections selected by exclusion, so a shorter section just works.">combined deck · up to 79 slides</i>
+        </div>
+      </div>
+    </div>
+    <div class="lanekey"><span><i class="h"></i>his analysis</span><span><i class="y"></i>your analysis</span><span><i class="n"></i>new or missing</span><span><i class="p"></i>input</span></div>
+    <div class="callout" style="margin-top: 18px; background: var(--new-fill); border-left: 4px solid var(--new); padding: 14px 18px; border-radius: 0 6px 6px 0; max-width: none;">
+      <p style="margin:0; max-width: 90ch"><strong>What the lanes show.</strong> ARS is where the two repos overlap and where the unification pays: your 17 sections become the depth behind his 27 slides, and his figure sidecar proves each number once. Transactions, deposits, market and ILS exist only on your side. MRPC exists only on his. CashPlease is split down the middle. The Reg E disagreement of 2026-09-16 happened in the ARS lane, in the one column both repos already fill, which is why every classification rule there is defined once in the unified engine and guarded by a test.</p>
+    </div>
+  </section>
+
+  <!-- 3. TIMELINE -->
+  <section>
+    <h2>One day, one month</h2>
+    <p class="sub">The machine runs on a clock. The CSM only presses Build and Mark sent.</p>
+    <figure>
+      <svg viewBox="0 0 1200 370" role="img" aria-label="Timeline: each day the source watch runs at 08:00 and the performance page refreshes at 08:30; each month dumps land by the 5th, builds run in windows on the 7th, 10th and 18th, decks are delivered and marked sent after each window, and CashPlease runs weekly on its own track." style="min-width: 800px">
+        <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <!-- day: pills above the line, ticks and labels below -->
+        <text x="20" y="30" class="lbl m">EVERY DAY</text>
+        <line x1="20" y1="96" x2="1180" y2="96" class="wire soft"/>
+        <g stroke="var(--muted)" stroke-width="1.2">
+          <line x1="20" y1="92" x2="20" y2="100"/><line x1="410" y1="92" x2="410" y2="100"/><line x1="434" y1="92" x2="434" y2="100"/><line x1="600" y1="92" x2="600" y2="100"/><line x1="890" y1="92" x2="890" y2="100"/><line x1="1180" y1="92" x2="1180" y2="100"/>
+        </g>
+        <g fill="var(--muted)" font-size="11" font-family="JetBrains Mono, monospace">
+          <text x="20" y="116">00:00</text><text x="402" y="116" text-anchor="end">08:00</text><text x="442" y="116">08:30</text><text x="600" y="116" text-anchor="middle">12:00</text><text x="890" y="116" text-anchor="middle">18:00</text><text x="1180" y="116" text-anchor="end">24:00</text>
+        </g>
+        <g class="node" tabindex="0" data-tip="<b>08:00 Source watch</b>ops/watch_sources.py --copy --mail as a Windows task for the logged-on user. Toast only when there is news or the shares were unreachable.">
+          <line x1="410" y1="80" x2="410" y2="92" class="wire soft"/>
+          <rect x="330" y="44" width="80" height="36" rx="18" class="box his"/><text x="370" y="66" class="lbl b" text-anchor="middle">watch</text></g>
+        <g class="node" tabindex="0" data-tip="<b>08:30 Performance refresh</b>ops/refresh_performance_dashboard.py, republished only on STATUS: changed.">
+          <line x1="434" y1="80" x2="434" y2="92" class="wire soft"/>
+          <rect x="434" y="44" width="84" height="36" rx="18" class="box his"/><text x="476" y="66" class="lbl b" text-anchor="middle">refresh</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Any time: a CSM presses Build</b>The browser launcher (his ars_launcher_web.py, renamed CSM Sheila) or GO.bat (yours). Same checks, same gate, same Outputs folder.">
+          <rect x="640" y="44" width="150" height="36" rx="18" class="box new"/><text x="715" y="66" class="lbl b" text-anchor="middle">CSM presses Build</text>
+          <text x="715" y="116" class="lbl m" text-anchor="middle" fill="var(--muted)">any time</text></g>
+
+        <!-- month -->
+        <text x="20" y="166" class="lbl m">EVERY MONTH</text>
+        <line x1="20" y1="232" x2="1180" y2="232" class="wire soft"/>
+        <g stroke="var(--muted)" stroke-width="1.2">
+          <line x1="20" y1="228" x2="20" y2="236"/><line x1="170" y1="228" x2="170" y2="236"/><line x1="1180" y1="228" x2="1180" y2="236"/>
+        </g>
+        <g fill="var(--muted)" font-size="11" font-family="JetBrains Mono, monospace">
+          <text x="20" y="252">1st</text><text x="170" y="252" text-anchor="middle">5th</text><text x="245" y="252" text-anchor="middle">7th</text><text x="357" y="252" text-anchor="middle">10th</text><text x="657" y="252" text-anchor="middle">18th</text><text x="1180" y="252" text-anchor="end">31st</text>
+        </g>
+        <g class="node" tabindex="0" data-tip="<b>1st to 5th: dumps land</b>ODD extracts arrive in each CSM's folder on nobody's schedule. Some come days late; the watcher reports them the morning they do.">
+          <rect x="20" y="180" width="150" height="36" rx="6" class="box plain"/><text x="95" y="202" class="lbl" text-anchor="middle">dumps land</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Window 7th</b>From your ars/monthly.py: the first window a client passes is its run for the month. ODD required; workbook and tracker optional this early.">
+          <line x1="245" y1="216" x2="245" y2="228" class="wire soft"/>
+          <rect x="221" y="180" width="48" height="36" rx="18" class="box yours"/><text x="245" y="202" class="lbl b" text-anchor="middle">7th</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Window 10th</b>Workbook and 2:1 guarantee tracker now required. Clients not ready on the 7th run here.">
+          <line x1="357" y1="216" x2="357" y2="228" class="wire soft"/>
+          <rect x="333" y="180" width="48" height="36" rx="18" class="box yours"/><text x="357" y="202" class="lbl b" text-anchor="middle">10th</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Window 18th</b>ICS lists exist from the 15th, so ICS clients cannot complete before this window. Last fallback.">
+          <line x1="657" y1="216" x2="657" y2="228" class="wire soft"/>
+          <rect x="633" y="180" width="48" height="36" rx="18" class="box yours"/><text x="657" y="202" class="lbl b" text-anchor="middle">18th</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Deliver, then Mark sent</b>After each window: decks in Outputs/&lt;CSM&gt;/ pass the gate, the CSM sends them, and presses Mark sent on the delivery board. Nothing infers sent from disk.">
+          <rect x="740" y="180" width="200" height="36" rx="18" class="box his"/><text x="840" y="202" class="lbl b" text-anchor="middle">deliver · mark sent</text></g>
+        <path d="M269,198 L331,198" class="wire soft" marker-end="url(#a3)"/>
+        <path d="M381,198 L631,198" class="wire soft" marker-end="url(#a3)"/>
+        <path d="M681,198 L738,198" class="wire soft" marker-end="url(#a3)"/>
+        <text x="506" y="190" class="lbl m" text-anchor="middle" fill="var(--muted)">fallbacks, not stages</text>
+
+        <!-- weekly -->
+        <text x="20" y="302" class="lbl m">EVERY WEEK · CASHPLEASE ONLY</text>
+        <line x1="20" y1="336" x2="1180" y2="336" class="wire soft"/>
+        <g class="node" tabindex="0" data-tip="<b>CashPlease is weekly</b>The CashPlease Summary workbook arrives by email each week and the build always uses the newest one. Its section in a monthly deck can carry a later date than its neighbours, on purpose.">
+          <circle cx="60" cy="336" r="9" class="box his"/><circle cx="326" cy="336" r="9" class="box his"/><circle cx="592" cy="336" r="9" class="box his"/><circle cx="858" cy="336" r="9" class="box his"/><circle cx="1124" cy="336" r="9" class="box his"/>
+          <text x="326" y="360" class="lbl m" text-anchor="middle" fill="var(--muted)">newest workbook wins</text>
+        </g>
+      </svg>
+      <figcaption>The daily row is Aaron's. The month windows are yours, and they are fallbacks, not stages: the first window a client passes is its run. Together they mean a CSM never asks "is it there yet".</figcaption>
+    </figure>
+  </section>
+
+  <!-- 4. THE LOOP -->
+  <section>
+    <h2>The loop</h2>
+    <p class="sub">Six stations. The sixth is the only one with a sentence, because it is the one that makes the other five get better.</p>
+    <figure>
+      <svg viewBox="0 0 1000 540" role="img" aria-label="A six-station cycle: build, gate, ship, record, defect surfaces, rule added, and back to build. The rule-added station carries the standing rule: when a defect gets through the gate, add the check that would have caught it." style="min-width: 640px">
+        <defs><marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g transform="translate(270,270)">
+          <!-- arcs r=190 between stations at 60 degree steps, trimmed -->
+          <g class="wire" marker-end="url(#a4)">
+            <path d="M 27,-188 A 190,190 0 0 1 150,-117"/>
+            <path d="M 178,-73 A 190,190 0 0 1 178,73"/>
+            <path d="M 150,117 A 190,190 0 0 1 27,188"/>
+            <path d="M -27,188 A 190,190 0 0 1 -150,117"/>
+            <path d="M -178,73 A 190,190 0 0 1 -178,-73"/>
+            <path d="M -150,-117 A 190,190 0 0 1 -27,-188"/>
+          </g>
+          <!-- stations -->
+          <g class="node" tabindex="0" data-tip="<b>Build</b>From the template shell, by title, from one root. decks/ and engine/.">
+            <circle cx="0" cy="-190" r="34" class="box his"/><text x="0" y="-186" class="lbl b" text-anchor="middle">Build</text></g>
+          <g class="node" tabindex="0" data-tip="<b>Gate</b>gate/ runs tests, the deck rules, the layout baseline, the package check. Exit 1 blocks.">
+            <circle cx="164.5" cy="-95" r="34" class="box new"/><text x="164.5" y="-91" class="lbl b" text-anchor="middle">Gate</text></g>
+          <g class="node" tabindex="0" data-tip="<b>Ship</b>Outputs/&lt;CSM&gt;/, program in the filename, older deck to _Archive.">
+            <circle cx="164.5" cy="95" r="34" class="box his"/><text x="164.5" y="99" class="lbl b" text-anchor="middle">Ship</text></g>
+          <g class="node" tabindex="0" data-tip="<b>Record</b>Mark sent on the board writes deliveries.json. A receipt (yours) records the run without client data.">
+            <circle cx="0" cy="190" r="34" class="box his"/><text x="0" y="194" class="lbl b" text-anchor="middle">Record</text></g>
+          <g class="node" tabindex="0" data-tip="<b>Defect surfaces</b>A CSM, a client, or a cross-check between two builders finds a wrong figure. The Reg E bug surfaced because your deck disagreed with his.">
+            <circle cx="-164.5" cy="95" r="34" class="box plain"/><text x="-164.5" y="91" class="lbl b" text-anchor="middle">Defect</text><text x="-164.5" y="106" class="lbl" text-anchor="middle">surfaces</text></g>
+          <g class="node" tabindex="0" data-tip="<b>Rule added</b>CHANGELOG entry names the decks, the fix, the check, the test. The check goes into gate/ so it holds for every CSM's book from now on.">
+            <circle cx="-164.5" cy="-95" r="34" class="box new"/><text x="-164.5" y="-99" class="lbl b" text-anchor="middle">Rule</text><text x="-164.5" y="-84" class="lbl" text-anchor="middle">added</text></g>
+        </g>
+        <!-- the sentence -->
+        <g>
+          <rect x="560" y="200" width="400" height="140" rx="6" class="box new"/>
+          <text x="580" y="232" class="lbl m" fill="var(--new)">STANDING RULE · AARON, 2026-08-17</text>
+          <text x="580" y="266" font-family="Fraunces, Georgia, serif" font-size="20" fill="currentColor">When a defect gets through the gate,</text>
+          <text x="580" y="292" font-family="Fraunces, Georgia, serif" font-size="20" fill="currentColor">add the check that would have caught it.</text>
+          <text x="580" y="322" class="lbl" fill="var(--ink-2)">Fixing only the instance guarantees the next one ships too.</text>
+        </g>
+        <path d="M 470,175 C 510,175 530,215 558,240" class="wire loop" marker-end="url(#a2)"/>
+        <text x="270" y="522" class="lbl m" fill="var(--muted)" text-anchor="middle">once a rule is in gate/, every CSM's next build is checked for it</text>
+      </svg>
+      <figcaption>Two of the six stations are new. Neither repo has a gate that blocks every builder with one exit code, and neither has the rule-added station wired into the gate for all five books. Everything else already exists in one repo or the other.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 5. A CSM'S MONTH -->
+  <section>
+    <h2>A CSM's month, in six screens</h2>
+    <p class="sub">This is the experience. First who does what across a month, then the six screens a CSM actually sees. Four actions per client: glance, Build, send, Mark sent. Everything else is the machine, and it works the same way for all six books.</p>
+    <figure>
+      <svg viewBox="0 0 1240 400" role="img" aria-label="Swimlane of one month: the data team lands files early in the month and weekly; the machine watches every morning, assesses windows on the 7th, 10th and 18th, builds on request, gates, files and refreshes; the CSM glances, presses Build, reviews, sends and marks sent; the client receives the deck and holds the review." style="min-width: 900px">
+        <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+        <!-- day axis: x = 150 + (day-1)*35 -->
+        <g fill="var(--muted)" font-size="10.5" font-family="JetBrains Mono, monospace" text-anchor="middle">
+          <text x="150" y="30">1</text><text x="290" y="30">5</text><text x="360" y="30">7</text><text x="465" y="30">10</text><text x="640" y="30">15</text><text x="745" y="30">18</text><text x="885" y="30">22</text><text x="1200" y="30">31</text>
+        </g>
+        <g stroke="var(--rule)" stroke-width="1">
+          <line x1="150" y1="36" x2="150" y2="380"/><line x1="360" y1="36" x2="360" y2="380" stroke-dasharray="3 3"/><line x1="465" y1="36" x2="465" y2="380" stroke-dasharray="3 3"/><line x1="745" y1="36" x2="745" y2="380" stroke-dasharray="3 3"/><line x1="1200" y1="36" x2="1200" y2="380"/>
+        </g>
+        <!-- lanes -->
+        <g stroke="var(--rule)" stroke-width="1"><line x1="20" y1="120" x2="1220" y2="120"/><line x1="20" y1="205" x2="1220" y2="205"/><line x1="20" y1="290" x2="1220" y2="290"/></g>
+        <g class="lbl b"><text x="20" y="80">Data team</text><text x="20" y="165">Machine</text><text x="20" y="250">CSM</text><text x="20" y="335">Client</text></g>
+        <g class="lbl m" fill="var(--muted)"><text x="20" y="97">+ Bradford · Matt · Charles</text><text x="20" y="182">watch · build · gate · file</text><text x="20" y="267">four actions per client</text><text x="20" y="352">receives · reviews</text></g>
+
+        <!-- data team -->
+        <g class="node" tabindex="0" data-tip="<b>1st to 5th</b>ODD extracts land in each CSM's folder on Velocity_company. Most in one batch, some days late.">
+          <rect x="150" y="52" width="150" height="26" rx="13" class="box plain"/><text x="225" y="69" class="lbl" text-anchor="middle">ODD extracts land</text></g>
+        <g class="node" tabindex="0" data-tip="<b>5th to 7th</b>DCOs, ARS workbooks and MRPCPM analyses on Velocity_clientreports. The 2:1 trackers too.">
+          <rect x="290" y="52" width="140" height="26" rx="13" class="box plain"/><text x="360" y="69" class="lbl" text-anchor="middle">workbooks · DCOs</text></g>
+        <g class="node" tabindex="0" data-tip="<b>By the 15th</b>ICS lists exist. This is why an ICS client cannot complete before the 18th window.">
+          <rect x="590" y="52" width="100" height="26" rx="13" class="box plain"/><text x="640" y="69" class="lbl" text-anchor="middle">ICS lists</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Weekly</b>CashPlease and MRPC summaries from Bradford Sanders, the DDA count from Charles, by email.">
+          <circle cx="150" cy="108" r="6" class="box plain"/><circle cx="395" cy="108" r="6" class="box plain"/><circle cx="640" cy="108" r="6" class="box plain"/><circle cx="885" cy="108" r="6" class="box plain"/><circle cx="1130" cy="108" r="6" class="box plain"/>
+          <text x="1150" y="112" class="lbl m" fill="var(--muted)">weekly emails</text></g>
+
+        <!-- machine -->
+        <g class="node" tabindex="0" data-tip="<b>Every day 08:00 and 08:30</b>Source watch diffs all eight origins and files by kind; the performance page refreshes and republishes only on change.">
+          <rect x="150" y="132" width="1050" height="18" rx="9" class="box his"/><text x="675" y="145" class="lbl m" text-anchor="middle">every morning: watch 08:00 · refresh 08:30 · toast only if news</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Windows 7th, 10th, 18th</b>assess() checks each client's inputs against the window's rules. The first window a client passes is its run.">
+          <rect x="345" y="160" width="30" height="22" rx="11" class="box yours"/><text x="360" y="175" class="lbl b" text-anchor="middle" font-size="11">7</text>
+          <rect x="450" y="160" width="30" height="22" rx="11" class="box yours"/><text x="465" y="175" class="lbl b" text-anchor="middle" font-size="11">10</text>
+          <rect x="730" y="160" width="30" height="22" rx="11" class="box yours"/><text x="745" y="175" class="lbl b" text-anchor="middle" font-size="11">18</text>
+          <text x="560" y="175" class="lbl m" fill="var(--muted)">assess windows</text></g>
+        <g class="node" tabindex="0" data-tip="<b>On Build</b>Engine, builders, gate, file to Outputs/&lt;CSM&gt;/, older deck to _Archive. About a minute per client; the whole book in minutes.">
+          <rect x="368" y="186" width="84" height="16" rx="8" class="box new"/><text x="410" y="198" class="lbl m" text-anchor="middle" fill="var(--new)">build · gate</text>
+          <rect x="473" y="186" width="84" height="16" rx="8" class="box new"/><text x="515" y="198" class="lbl m" text-anchor="middle" fill="var(--new)">build · gate</text>
+          <rect x="753" y="186" width="84" height="16" rx="8" class="box new"/><text x="795" y="198" class="lbl m" text-anchor="middle" fill="var(--new)">build · gate</text></g>
+
+        <!-- CSM -->
+        <g class="node" tabindex="0" data-tip="<b>Glance</b>Open the delivery board. Green rows are ready; amber is stale; grey is waiting on the data team.">
+          <rect x="330" y="218" width="60" height="24" rx="12" class="box plain"/><text x="360" y="234" class="lbl" text-anchor="middle">glance</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Build</b>One click per client in the browser launcher, or GO for the whole book. Most clients pass on the 7th; ICS clients on the 18th.">
+          <rect x="336" y="248" width="48" height="24" rx="12" class="box his"/><text x="360" y="264" class="lbl b" text-anchor="middle">Build</text>
+          <rect x="441" y="248" width="48" height="24" rx="12" class="box his"/><text x="465" y="264" class="lbl b" text-anchor="middle">Build</text>
+          <rect x="721" y="248" width="48" height="24" rx="12" class="box his"/><text x="745" y="264" class="lbl b" text-anchor="middle">Build</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Review, send, Mark sent</b>Read the REVIEW items, open the deck, email it, press Mark sent. Same day as the build, usually.">
+          <rect x="392" y="248" width="44" height="24" rx="12" class="box new"/><text x="414" y="264" class="lbl" text-anchor="middle" font-size="11">send</text>
+          <rect x="497" y="248" width="44" height="24" rx="12" class="box new"/><text x="519" y="264" class="lbl" text-anchor="middle" font-size="11">send</text>
+          <rect x="777" y="248" width="44" height="24" rx="12" class="box new"/><text x="799" y="264" class="lbl" text-anchor="middle" font-size="11">send</text>
+          <text x="850" y="264" class="lbl m" fill="var(--muted)">then Mark sent</text></g>
+        <g class="node" tabindex="0" data-tip="<b>Weekly CashPlease</b>The CP section rebuilds from the newest weekly. For a CP-only client that is the whole deck.">
+          <text x="880" y="284" class="lbl m" fill="var(--muted)">weekly: CashPlease rebuilds on the newest summary</text></g>
+
+        <!-- client -->
+        <g class="node" tabindex="0" data-tip="<b>The client</b>Receives one deck per program set, reads it, and holds the review call with the CSM later in the month. The deck's speaker notes carry every source and selection.">
+          <path d="M414,272 L414,318" class="wire soft" marker-end="url(#a5)"/><path d="M519,272 L519,318" class="wire soft" marker-end="url(#a5)"/><path d="M799,272 L799,318" class="wire soft" marker-end="url(#a5)"/>
+          <rect x="384" y="320" width="60" height="22" rx="11" class="box plain"/><text x="414" y="335" class="lbl" text-anchor="middle" font-size="11">receives</text>
+          <rect x="489" y="320" width="60" height="22" rx="11" class="box plain"/><text x="519" y="335" class="lbl" text-anchor="middle" font-size="11">receives</text>
+          <rect x="769" y="320" width="60" height="22" rx="11" class="box plain"/><text x="799" y="335" class="lbl" text-anchor="middle" font-size="11">receives</text>
+          <rect x="900" y="320" width="200" height="22" rx="11" class="box plain"/><text x="1000" y="335" class="lbl" text-anchor="middle" font-size="11">review call, later in the month</text></g>
+        <text x="675" y="392" class="lbl m" fill="var(--muted)" text-anchor="middle">the CSM's row is the only one with hands on it: glance, Build, send, Mark sent</text>
+      </svg>
+      <figcaption>Who does what, over one month, for one CSM's book. The data team's row is unchanged from today. The machine's row is the shared pipeline. The CSM's row is four actions per client, and the third window exists because ICS lists do not.</figcaption>
+    </figure>
+    <div class="story">
+
+      <div class="shot">
+        <div class="when">1 · any morning, 08:05</div>
+        <h3>A toast, or nothing</h3>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <div class="toast"><div class="ttl">RPE Source Watch</div><div>3 new for your book · 1 re-landed</div><div class="mono">1441 ODDD.zip · 1615 DCO · 1776 workbook</div></div>
+          <div class="row dim"><span>Filed into Inputs/ by kind</span><span class="mono">08:00</span></div>
+        </div>
+        <div class="does"><b>you</b><span class="you">read it, or ignore it. A quiet day is silent.</span><b>machine</b><span>diffed every landing folder and the mailbox against yesterday's inventory, copied what was new.</span></div>
+      </div>
+
+      <div class="shot">
+        <div class="when">2 · the 7th</div>
+        <h3>The board, your book</h3>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <div class="ttl">2026.09 · James Gilmore · 18 clients</div>
+          <div class="row"><span>1441 FNB Alaska</span><span class="dots"><i></i><i></i><i></i><i class="x"></i></span></div>
+          <div class="row"><span>1615 Cape &amp; Coast</span><span class="dots"><i></i><i class="w"></i><i class="x"></i><i class="x"></i></span></div>
+          <div class="row"><span>1776 CoastHills</span><span class="dots"><i></i><i></i><i class="x"></i><i class="x"></i></span></div>
+          <div class="row dim"><span class="mono">data · current · built · sent</span><span></span></div>
+        </div>
+        <div class="does"><b>you</b><span class="you">glance. Amber means stale: last month's file at the same name.</span><b>machine</b><span>checked each client against its window (7th, 10th, 18th) and the source's own date, not just whether a file exists.</span></div>
+      </div>
+
+      <div class="shot">
+        <div class="when">3 · when the row is green</div>
+        <h3>Press Build</h3>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <div class="row"><span>1441 FNB Alaska · ARS</span><span class="btn">Build</span></div>
+          <div class="log">01 ODD read · 118,204 rows<br>02 workbook · Lift Matrix MM<br>03 35 sections · metrics.json<br>04 27 slides from the shell<br>05 gate …</div>
+        </div>
+        <div class="does"><b>you</b><span class="you">one click, or GO for the whole book.</span><b>machine</b><span>engine, then builders, then the gate. Step lines stream as they happen. A second click queues instead of refusing.</span></div>
+      </div>
+
+      <div class="shot">
+        <div class="when">4 · about a minute later</div>
+        <h3>The gate speaks</h3>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <div class="row"><span class="pass">PASS · 0 FAIL · 2 REVIEW</span><span class="mono">1441</span></div>
+          <div class="log">REVIEW s14 figure_identity: two values for "Reg E opt-in", inferred<br>REVIEW s22 labelled_metric: 3 values</div>
+          <div class="row"><span class="fail">FAIL · table_label_fit s9</span><span class="mono">1615</span></div>
+          <div class="log">fix: slide_geometry.py, not the deck</div>
+        </div>
+        <div class="does"><b>you</b><span class="you">look at REVIEW items with your eyes. A FAIL never reaches Outputs.</span><b>machine</b><span>tests, 18 deck rules, layout baseline, package check. One exit code.</span></div>
+      </div>
+
+      <div class="shot">
+        <div class="when">5 · same day</div>
+        <h3>Open, send</h3>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <div class="ttl">Outputs/James Gilmore/</div>
+          <div class="row"><span class="mono">1441-2026.09-FNB Alaska-ARS.pptx</span><span class="mono">2.1 MB</span></div>
+          <div class="row"><span class="mono">1776-2026.09-CoastHills-ARS-ICS.pptx</span><span class="mono">3.4 MB</span></div>
+          <div class="row dim"><span>source note on every data slide</span><span></span></div>
+        </div>
+        <div class="does"><b>you</b><span class="you">open it in PowerPoint, read it, email it. The deck is the deliverable; no PDF step.</span><b>machine</b><span>filed by CSM, older deck of the same period moved to _Archive, never deleted.</span></div>
+      </div>
+
+      <div class="shot">
+        <div class="when">6 · after the email</div>
+        <h3>Mark sent</h3>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <div class="row"><span>1441 FNB Alaska</span><span class="btn new">Mark sent</span></div>
+          <div class="row"><span>1441 FNB Alaska</span><span class="dots"><i></i><i></i><i></i><i></i></span></div>
+          <div class="row dim"><span class="mono">deliveries.json · 2026-09-09 14:12 · James</span><span></span></div>
+        </div>
+        <div class="does"><b>you</b><span class="you">one click. Nothing infers "sent" from a file on disk.</span><b>machine</b><span>writes the log, and the next morning's performance page shows the book's newest figures.</span></div>
+      </div>
+    </div>
+    <div class="never">
+      <span>What a CSM never does again:</span>
+      <s>open a share folder</s><s>guess a month folder</s><s>copy a file by hand</s><s>clone last month's deck</s><s>edit a slide</s><s>wonder if it was sent</s>
+    </div>
+  </section>
+
+  <!-- 6. HOW IT COMES TOGETHER -->
+  <section>
+    <h2>How it comes together</h2>
+    <p class="sub">Three phases. Band width is how much each phase takes from each repo. Violet is what has to be written fresh.</p>
+    <figure>
+      <svg viewBox="0 0 1240 500" role="img" aria-label="Flow bands from two source repos into three phases. Phase one, one root one roster one changelog, draws mostly from v5 with some of Aaron's. Phase two, one gate, draws more from Aaron's than v5 with a new core. Phase three, one operating loop for five books, draws almost entirely from Aaron's with a new multi-CSM layer." style="min-width: 820px">
+        <!-- source labels sit above their bars, clear of the bands -->
+        <text x="60" y="36" class="lbl b h">Velocity_Reporting</text>
+        <text x="60" y="52" class="lbl m">~30k lines · ops, gate, decks, rules</text>
+        <text x="60" y="442" class="lbl b y">v5</text>
+        <text x="60" y="458" class="lbl m">~89k lines · engine, config, tests, MCP</text>
+
+        <!-- phase headers -->
+        <text x="533" y="36" class="lbl b" text-anchor="middle">Phase 1</text>
+        <text x="533" y="54" class="lbl m" text-anchor="middle">one root · one roster · one changelog</text>
+        <text x="813" y="36" class="lbl b" text-anchor="middle">Phase 2</text>
+        <text x="813" y="54" class="lbl m" text-anchor="middle">one gate in front of every builder</text>
+        <text x="1093" y="36" class="lbl b" text-anchor="middle">Phase 3</text>
+        <text x="1093" y="54" class="lbl m" text-anchor="middle">one operating loop for five books</text>
+
+        <!-- bands: his -->
+        <path class="band his node" tabindex="0" data-tip="<b>Phase 1 from Aaron's</b>CLAUDE.md as the router. CHANGELOG.md with its inclusion rule. clients.md intent rule folded into clients_config. rpe_env.py naming one root. STYLE.md reversals table." d="M86,60 C300,60 300,100 520,100 L520,140 C300,140 300,100 86,100 Z"/>
+        <path class="band his node" tabindex="0" data-tip="<b>Phase 2 from Aaron's</b>validate_deck.py's 18 rules and their defect history. qa_all.py runner. layout_baseline.json and --snapshot. package_findings. figures.py provenance sidecars." d="M86,100 C440,100 440,80 800,80 L800,150 C440,150 440,170 86,170 Z"/>
+        <path class="band his node" tabindex="0" data-tip="<b>Phase 3 from Aaron's</b>watch_sources.py and mail_sources.py. dashboard.py and deck_status.py. refresh_performance_dashboard.py. ars_launcher_web.py. promote_month.py archive rules. The Windows task scripts." d="M86,170 C580,170 580,70 1080,70 L1080,160 C580,160 580,260 86,260 Z"/>
+        <!-- bands: yours -->
+        <path class="band yours node" tabindex="0" data-tip="<b>Phase 1 from v5</b>clients_config.json from Client-Master with per-client codes and competitors. core/datapaths.py as the reader. csm_sources.json spellings. docs/records naming scheme. The manual." d="M86,290 C300,290 300,140 520,140 L520,200 C300,200 300,350 86,350 Z"/>
+        <path class="band yours node" tabindex="0" data-tip="<b>Phase 2 from v5</b>The 1,500-test suite as gate step 0. Guard tests: month independence, no drive letters, doc drift, no client data. validate_clients_config. extract_check. formaudit and polish." d="M86,350 C440,350 440,150 800,150 L800,200 C440,200 440,400 86,400 Z"/>
+        <path class="band yours node" tabindex="0" data-tip="<b>Phase 3 from v5</b>go.py and go_identity.py per-CSM identity. receipt.py privacy-safe receipts. fetch_data.py month-folder discovery folded into the watcher. The my-book board spec." d="M86,400 C580,400 580,160 1080,160 L1080,180 C580,180 580,420 86,420 Z"/>
+
+        <!-- source bars and phase columns, drawn over the bands -->
+        <rect x="60" y="60" width="26" height="200" fill="var(--his)"/>
+        <rect x="60" y="290" width="26" height="130" fill="var(--yours)"/>
+        <rect x="520" y="100" width="26" height="40" fill="var(--his)"/>
+        <rect x="520" y="140" width="26" height="60" fill="var(--yours)"/>
+        <rect x="520" y="200" width="26" height="10" fill="var(--new)"/>
+        <rect x="800" y="80" width="26" height="70" fill="var(--his)"/>
+        <rect x="800" y="150" width="26" height="50" fill="var(--yours)"/>
+        <rect x="800" y="200" width="26" height="20" fill="var(--new)"/>
+        <rect x="1080" y="70" width="26" height="90" fill="var(--his)"/>
+        <rect x="1080" y="160" width="26" height="20" fill="var(--yours)"/>
+        <rect x="1080" y="180" width="26" height="30" fill="var(--new)"/>
+
+        <!-- new labels, below each column -->
+        <g class="node" tabindex="0" data-tip="<b>New in phase 1</b>One repo. One .env with RPE_DATA_ROOT and VELOCITY_CSM. Both legacies into archive/ behind a manifest.">
+          <text x="533" y="238" class="lbl n" text-anchor="middle">new: one repo, one .env</text></g>
+        <g class="node" tabindex="0" data-tip="<b>New in phase 2</b>gate.py: one RULES list, one exit code, every builder behind it. GO and the launcher refuse to open Outputs on failure.">
+          <text x="813" y="238" class="lbl n" text-anchor="middle">new: gate.py, one exit code</text></g>
+        <g class="node" tabindex="0" data-tip="<b>New in phase 3</b>The watcher, board and performance page read all five books by VELOCITY_CSM. One scheduled task per machine. Mark sent per CSM.">
+          <text x="1093" y="238" class="lbl n" text-anchor="middle">new: five-book board</text></g>
+
+        <!-- what each phase proves -->
+        <g class="lbl" fill="var(--ink-2)">
+          <text x="533" y="264" text-anchor="middle">proves: every CSM builds</text>
+          <text x="533" y="281" text-anchor="middle">from the same root and roster</text>
+          <text x="813" y="264" text-anchor="middle">proves: nothing ships</text>
+          <text x="813" y="281" text-anchor="middle">that fails one command</text>
+          <text x="1093" y="264" text-anchor="middle">proves: a CSM never asks</text>
+          <text x="1093" y="281" text-anchor="middle">"is it there yet" or "did I send it"</text>
+        </g>
+        <text x="813" y="488" class="lbl m" fill="var(--muted)" text-anchor="middle">each phase ships on its own and is usable before the next starts</text>
+      </svg>
+      <figcaption>Phase one is mostly moving files. Phase two is where the two repos meet, and where the new code is. Phase three is Aaron's loop pointed at five books instead of one, which his repo already started doing on 2026-09-14.</figcaption>
+    </figure>
+  </section>
+</main>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function () {
+  var tip = document.getElementById('tip');
+  function show(el, x, y) {
+    tip.innerHTML = el.getAttribute('data-tip');
+    tip.style.display = 'block';
+    move(x, y);
+  }
+  function move(x, y) {
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    var left = x + 14, top = y + 14;
+    if (left + w > window.innerWidth - 12) left = x - w - 14;
+    if (top + h > window.innerHeight - 12) top = y - h - 14;
+    tip.style.left = Math.max(8, left) + 'px';
+    tip.style.top = Math.max(8, top) + 'px';
+  }
+  function hide() { tip.style.display = 'none'; }
+  var nodes = document.querySelectorAll('[data-tip]');
+  for (var i = 0; i < nodes.length; i++) {
+    (function (el) {
+      el.addEventListener('mouseenter', function (e) { show(el, e.clientX, e.clientY); });
+      el.addEventListener('mousemove', function (e) { move(e.clientX, e.clientY); });
+      el.addEventListener('mouseleave', hide);
+      el.addEventListener('focus', function () {
+        var r = el.getBoundingClientRect();
+        show(el, r.left + r.width / 2, r.bottom);
+      });
+      el.addEventListener('blur', hide);
+      el.addEventListener('touchstart', function (e) {
+        var t = e.touches[0];
+        show(el, t.clientX, t.clientY);
+      }, { passive: true });
+    })(nodes[i]);
+  }
+  document.addEventListener('touchstart', function (e) {
+    if (!e.target.closest('[data-tip]')) hide();
+  }, { passive: true });
+
+  var TREE = {
+    claude: ['CLAUDE.md', 'the router the agent loads first',
+      ['Routing table: program → subagent', 'File locations and the one-root rule', 'Standing rules with who decided and when', 'The gate command'],
+      ['Nothing; v5 has no CLAUDE.md today'],
+      ['Routes to your 7 skills and 30 MCP tools too']],
+    changelog: ['CHANGELOG.md', 'every change that moved a number, newest first',
+      ['The inclusion rule (Aaron, 2026-09-01)', 'The correction-entry shape: decks, fix, check, test', '166 existing entries as the seed'],
+      ['Nothing; v5 has no changelog today'],
+      ['Entries carry the CSM whose book surfaced the defect']],
+    clients: ['clients/', 'who gets built, and what they are called',
+      ['The rule: this file decides, not a data file on disk', 'Delivery name decided here, not read from a workbook', 'Dated, attributed changes'],
+      ['clients_config.json from Client-Master.xlsx, 316 clients', 'Per-client codes, competitors, branch mapping', 'core/roster.py and validate_clients_config.py'],
+      ['One roster for five books, with Profile.CSM as owner']],
+    config: ['config/', 'business memory: facts only a person can supply',
+      ['ars_code_tables.json and code sheets, per client'],
+      ['deck_manifest.json', 'competitors.json, merchant_categories.json, ils_fee_tiers.json', 'csm_sources.json with the folder spellings', 'market/ research per client'],
+      ['csm_sources.json also carries each CSM\'s Outputs name']],
+    engine: ['engine/', 'the analysis; nothing here writes a slide',
+      ['metrics_gen.py streams the ODD zip; oddd_optimize.py packs it'],
+      ['monthly_analysis/ 35 sections', 'transaction_intelligence/', 'core/deposits, core/market', 'ils/pre_go_live, ils/kickoff_analysis', 'cashplease/'],
+      ['One reading per classification rule, with a test that fails if a second copy appears']],
+    decks: ['decks/', 'builders from template shells, by title, never cloned',
+      ['ars_pipeline, ics_pipeline, mrpc_pipeline, cashplease_pipeline', 'assemble_combined.py', 'brand.py, shapes.py, textfit.py, slide_geometry.py, fit_layout.py', 'figures.py provenance sidecars'],
+      ['deck_manifest.json drives slide cuts', 'polish.py copy rules, labels.py money grammar', 'Your six ARS views, already merged into his on 2026-09-17'],
+      ['Opt-in flags for slide experiments so the baseline holds']],
+    gate: ['gate/', 'the one piece neither repo has: a single command in front of delivery',
+      ['validate_deck.py, 18 rules', 'qa_all.py runner', 'layout_baseline.json and --snapshot'],
+      ['tests/ guard tests as step 0', 'validate_clients_config.py', 'extract_check.py', 'formaudit.py and polish.py checks'],
+      ['gate.py: one RULES list, one exit code', 'Rule-per-defect docstring, kept forever', 'GO refuses to open Outputs on exit 1']],
+    ops: ['ops/', 'everything that runs on a clock or a button',
+      ['watch_sources.py, mail_sources.py', 'dashboard.py, deck_status.py', 'refresh_performance_dashboard.py', 'ars_launcher_web.py, the browser launcher', 'promote_month.py, the archive rules', 'register_watch_task.ps1'],
+      ['GO.bat and GO.command', 'go_identity.py: which CSM am I', 'receipt.py'],
+      ['Every script takes VELOCITY_CSM and serves five books']],
+    tests: ['tests/', 'his synthetic ODD plus your guard tests',
+      ['~750 functions on an 800-row synthetic ODD', 'test_rege_label.py, the one-reading guard', 'test_golden_deck.py'],
+      ['~1,500 functions', 'test_month_independence.py', 'conftest.py: no test touches a drive letter', 'test_no_client_data_tracked.py', 'test_manual_promises.py'],
+      ['CI runs all of it, not one file']],
+    templates: ['templates/', 'the stripped shells and the style guide',
+      ['ars_template.pptx, ics_template.pptx, mrpc_template.pptx, cashplease_template.pptx', 'multi-product_reference_deck.pptx', 'STYLE.md with the enforcement map and reversals table', 'TEMPLATES.md, the slide inventory'],
+      ['Your ars_template.pptx retired; its slides live as manifest cuts'],
+      ['Nothing new']],
+    docs: ['docs/', 'the manual, the records, the specs',
+      ['PRD-*.md', 'The dated decision paragraphs, moved out of CLAUDE.md as it grows'],
+      ['manual/ 38 chapters compiled to HTML, held true by a test', 'records/ with the naming scheme', 'superpowers/specs and plans', 'branching.md'],
+      ['A decisions-and-reversals table per area']],
+    dotclaude: ['.claude/', 'agents route, skills act',
+      ['agents/ars-deck, ics-deck, mrpc-deck, cashplease-deck, oddd-optimizer'],
+      ['skills/ars-run, cashplease, csm-prep, fetch, ils-kickoff, ils-pregolive, refresh-competition', 'export_skills.py keeps docs/skills in sync'],
+      ['CLAUDE.md names which one answers which ask']],
+    mcp: ['tools/mcp/', 'the 30 tools Claude drives in plain language',
+      ['Nothing; his repo has no MCP surface'],
+      ['velocity_tools.py registering products/*', 'ars_*, ils_*, cashplease_*, client_*, market_*, velocity_*', 'TOOL_ACCEPTANCE prompts'],
+      ['Tools call gate/ before returning a deck path']],
+    archive: ['archive/', 'retired code behind a manifest, never imported',
+      ['archive/MANIFEST.md pattern: what it was, when retired, why'],
+      ['z_legacy-Analysis, 87,600 lines', 'z_legacy-Formatting'],
+      ['Nothing new; the point is that nothing here is on the path']]
+  };
+  var panel = document.getElementById('treepanel');
+  var buttons = document.querySelectorAll('#tree button[data-k]');
+  function li(items, cls) {
+    if (!items.length) return '<li class="empty">nothing</li>';
+    var out = '';
+    for (var i = 0; i < items.length; i++) out += '<li>' + items[i] + '</li>';
+    return out;
+  }
+  function render(k) {
+    var d = TREE[k];
+    panel.innerHTML =
+      '<div class="name">' + d[0] + ' <span>· ' + d[1] + '</span></div>' +
+      '<div><h4 class="his">from Aaron\'s</h4><ul>' + li(d[2]) + '</ul></div>' +
+      '<div><h4 class="yours">from v5</h4><ul>' + li(d[3]) + '</ul></div>' +
+      '<div><h4 class="new">new</h4><ul>' + li(d[4]) + '</ul></div>';
+    for (var i = 0; i < buttons.length; i++) buttons[i].classList.toggle('on', buttons[i].getAttribute('data-k') === k);
+  }
+  for (var j = 0; j < buttons.length; j++) {
+    (function (b) { b.addEventListener('click', function () { render(b.getAttribute('data-k')); }); })(buttons[j]);
+  }
+  render('gate');
+})();
+</script>
