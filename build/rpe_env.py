@@ -106,7 +106,11 @@ def outputs() -> Path:
 CSM_LIST_NAME = "Client CSM List.csv"
 UNASSIGNED_CSM = "_Unassigned"
 ARCHIVE_DIRNAME = "_Archive"
-_OUTPUT_SKIP_DIRS = {ARCHIVE_DIRNAME, "Archive"}   # the old name too, so a leftover is never read as a CSM
+# Test and review decks (Aaron, 2026-09-29: "i added a folder for test builds"), e.g. the Aaron & James mashups.
+# They carry real client ids and periods in their names, so without this a test deck read as that client's
+# delivered deck: Sheila's "In Outputs", the delivery dashboard's Built, and month archiving.
+TEST_BUILDS_DIRNAME = "Test Builds"
+_OUTPUT_SKIP_DIRS = {ARCHIVE_DIRNAME, "Archive", TEST_BUILDS_DIRNAME}   # the old archive name too, so a leftover is never read as a CSM
 _csm_cache = {}
 
 

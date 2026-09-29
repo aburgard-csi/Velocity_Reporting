@@ -17,6 +17,26 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-29 — Outputs/Test Builds is for test decks, and never counts as a delivered deck
+
+Summary: Test decks, such as the Aaron & James mashups, go in Outputs/Test Builds. Sheila, the delivery dashboard and month archiving ignore that folder, so a test deck never shows as a client's delivered deck.
+
+Aaron: "i added a folder for test builds. Push the Aaron & James mashup tests here."
+
+Every reader of `Outputs/` treats each subfolder as a CSM's (`rpe_env.output_decks`). A test deck
+is named like a real one (`1539-2026.09-ARS-...`), so in a folder of its own it would have read
+as Marine's delivered September deck: "In Outputs" in Sheila, Built on the dashboard, and a
+candidate for `promote_month`'s archiving. `rpe_env.TEST_BUILDS_DIRNAME` ("Test Builds") joins
+`_OUTPUT_SKIP_DIRS` with the archive folders. Test: `tests/test_outputs_by_csm.py`.
+
+### 2026-09-29 — "fewer than 1 swipe a month", not "1 swipes"
+
+Summary: The Where the Balances Sit caption now reads "fewer than 1 swipe a month" instead of "1 swipes".
+
+Found checking the rebuilt 1539 sample. The caption wrote its threshold with a fixed "swipes";
+`combined_insight_slides.per_month` now makes the noun follow the number. Test:
+`tests/test_balance_view.py`.
+
 ### 2026-09-28 — Data Issues: mark an item complete until a new workbook arrives
 
 Summary: On Sheila's Data Issues tab each item can be marked complete. It stays complete until a new workbook arrives for that client, then comes back to be checked again.

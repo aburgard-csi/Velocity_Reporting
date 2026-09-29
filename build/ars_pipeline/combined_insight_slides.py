@@ -80,6 +80,12 @@ def _place(prs, slide, after=None, before=None):
     raise RuntimeError(f"insight slide: no anchor slide {after or before!r} to place it by")
 
 
+def per_month(n, noun):
+    """"1 swipe a month", "3 swipes a month": the noun follows the number (2026-09-29: the Balances caption
+    read "fewer than 1 swipes a month")."""
+    return f"{n:.0f} {noun}{'' if round(n) == 1 else 's'} a month"
+
+
 def _one_line(candidates, width_in, pt=16):
     """The first wording that fits one line at `pt` Calibri in `width_in` (measured against the
     bundled TTF, never eyeballed); the last candidate otherwise."""
@@ -1219,7 +1225,7 @@ def balance_slide(prs, ci, ctx):
                  f"{bc['top_decile_share']:.0f}% of the book's balances and make "
                  f"{bc['top_decile_swipe_share']:.0f}% of its swipes. "
                  f"{bc['quiet_carded']:,} of them hold a card and average fewer than "
-                 f"{bc['quiet_threshold']:.0f} swipes a month."), width=CAPTION_W_FULL)
+                 f"{per_month(bc['quiet_threshold'], 'swipe')}."), width=CAPTION_W_FULL)
 
     _notes(s, ctx["odd_src"],
            method=(f"ARS-eligible personal accounts, sorted by the Avg Bal column and cut into "

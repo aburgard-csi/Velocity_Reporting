@@ -81,3 +81,12 @@ def test_the_slide_is_in_the_opt_in_set():
     import inspect
     import combined_insight_slides as CIS
     assert "balance_slide(prs, ci, ctx)" in inspect.getsource(CIS.add_insight_slides)
+
+
+def test_the_quiet_threshold_reads_as_one_swipe_not_one_swipes():
+    # 2026-09-29: the Where the Balances Sit caption read "fewer than 1 swipes a month".
+    import combined_insight_slides as CIS
+    assert CIS.per_month(1, "swipe") == "1 swipe a month"
+    assert CIS.per_month(1.0, "swipe") == "1 swipe a month"
+    assert CIS.per_month(3, "swipe") == "3 swipes a month"
+    assert CIS.per_month(0, "swipe") == "0 swipes a month"

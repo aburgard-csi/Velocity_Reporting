@@ -98,3 +98,15 @@ def test_readers_list_each_folder_once_and_match_as_glob_did(tmp_path, monkeypat
     if os.name == "nt":
         assert calls == [], "the listing carries each entry's type; no stat per entry"
     assert R.output_decks("1038-*.pptx", root=tmp_path / "missing") == []
+
+
+def test_a_test_build_is_never_read_as_a_delivered_deck(tmp_path):
+    # Aaron, 2026-09-29: Outputs/Test Builds holds test decks (the Aaron & James mashups). Their names carry real
+    # client ids and periods, so they must never count as that client's deck in Outputs.
+    out = tmp_path / "Outputs"
+    (out / "Aaron Burgard").mkdir(parents=True)
+    (out / R.TEST_BUILDS_DIRNAME).mkdir()
+    (out / "Aaron Burgard" / "1539-2026.09-ARS-Marine FCU ARS Results.pptx").write_bytes(b"x")
+    (out / R.TEST_BUILDS_DIRNAME / "1539-2026.09-ARS-Marine FCU ARS Results - James views.pptx").write_bytes(b"x")
+    got = [p.relative_to(out).as_posix() for p in R.output_decks("1539-2026.09-*ARS*.pptx", root=out)]
+    assert got == ["Aaron Burgard/1539-2026.09-ARS-Marine FCU ARS Results.pptx"]
