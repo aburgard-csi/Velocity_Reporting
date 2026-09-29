@@ -361,3 +361,16 @@ def test_the_charts_render(tmp_path):
     JC.rails_chart(str(tmp_path / "g.png"), {"SIG": {"spend": 10}, "ACH": {"spend": 5}})
     for n in "abcdefg":
         assert os.path.getsize(tmp_path / f"{n}.png") > 3000
+
+
+def test_no_fee_on_any_mailing_is_stated_not_charted(monkeypatch):
+    # 2026-09-29: 1549 Wellworth and 1800 First American book no respondent fees, so the ratio is None and the
+    # caption crashed formatting it; an empty chart would break "never an empty chart" as well.
+    calls = []
+    monkeypatch.setattr(JVS, "_unavailable", lambda prs, ctx, title, sel, reason, *a, **k: calls.append((title, reason)) or "stated")
+    ci = {"more": {"mailing_pnl": {"available": True, "income": 1000.0, "fees": 0.0, "per_fee_dollar": None,
+                                   "per_responder": None, "unbilled": ["Jul 2026"],
+                                   "mailings": [{"m": "Jul 2026", "per_fee_dollar": None}]}}}
+    ctx = {"id": "1549", "wb_file": "1549-2026.09-Wellworth Bank-Workbook.xlsx", "data_month_short": "Aug 2026"}
+    assert JVS.pnl_slide(None, ci, ctx) == "stated"
+    assert calls == [("Revenue per Fee Dollar by Mailing", "the workbook books no respondent fees against any mailing")]

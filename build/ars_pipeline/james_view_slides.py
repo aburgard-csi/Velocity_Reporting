@@ -81,6 +81,13 @@ def pnl_slide(prs, ci, ctx):
                             p.get("reason", "the workbook rollup is not available"), after,
                             before="Debit Card Review", source=src)
     rows = p["mailings"]
+    if not any(r.get("per_fee_dollar") is not None for r in rows):
+        # Never an empty chart: a workbook with no respondent fee booked on any mailing says so instead
+        # (1549 Wellworth and 1800 First American, 2026-09-29, where the caption crashed on a missing ratio).
+        return _unavailable(prs, ctx, "Revenue per Fee Dollar by Mailing",
+                            "Selection: each mailing's booked revenue against its fees.",
+                            "the workbook books no respondent fees against any mailing", after,
+                            before="Debit Card Review", source=src)
     s = CIS._new_slide(prs, CIS._find(prs, after))
     CIS._header(s, "Revenue per Fee Dollar by Mailing", f"PTD · {ctx['data_month_short']}", [
         f"Selection: {CIS._n(len(rows), 'mailing')}, booked revenue to date against the "
@@ -97,9 +104,16 @@ def pnl_slide(prs, ci, ctx):
     billed = [r for r in rows if r["per_fee_dollar"] is not None]
     lo = min(billed, key=lambda r: r["per_fee_dollar"]) if billed else None
     under = [r["m"] for r in billed if r["per_fee_dollar"] < 2.0]
-    cap = (f"Across {CIS._n(len(rows), 'mailing')} the workbook books "
-           f"{usd_compact(p['income'])} against {usd_compact(p['fees'])} in respondent fees, "
-           f"${p['per_fee_dollar']:,.2f} per fee dollar.")
+    if p["per_fee_dollar"] is None:
+        # No respondent fee booked anywhere in the rollup (1549 Wellworth, 1800 First American, 2026-09-29):
+        # say so rather than print a ratio with nothing to divide by.
+        cap = (f"Across {CIS._n(len(rows), 'mailing')} the workbook books "
+               f"{usd_compact(p['income'])}; it carries no respondent fees, so there is no revenue per "
+               f"fee dollar to show.")
+    else:
+        cap = (f"Across {CIS._n(len(rows), 'mailing')} the workbook books "
+               f"{usd_compact(p['income'])} against {usd_compact(p['fees'])} in respondent fees, "
+               f"${p['per_fee_dollar']:,.2f} per fee dollar.")
     if under:
         cap += (f" {CIS._n(len(under), 'mailing')} sit below 2 : 1 so far: "
                 f"{CIS._and(under[:4])}{' and others' if len(under) > 4 else ''}.")
@@ -266,9 +280,17 @@ def per_mailing_slide(prs, ci, ctx):
     _tiles_row(s, [(f"{pm['positive']} of {pm['measured']}", "Mailings with a positive net", ORANGE),
                    (_signed(hi["did"]) + "/mo", f"Net, {hi['m']}", NAVY),
                    (_signed(lo["did"]) + "/mo", f"Net, {lo['m']}", NAVY)], top=5.4, h=0.9)
-    cap = (f"In {pm['positive']} of {pm['measured']} mailings responders' monthly spend moved "
-           f"more than mailed non-responders' did; the net per responder runs from "
-           f"{_signed(lo['did'])} ({lo['m']}) to {_signed(hi['did'])} ({hi['m']}).")
+    if pm["measured"] == 1:
+        # One mailing measured (1549 Wellworth, 2026-09-29): "1 of 1 mailings" and a range from a figure to itself
+        # read wrong. Say it once, with the one figure.
+        cap = (f"In the one mailing measured ({hi['m']}), responders' monthly spend "
+               + ("moved more than mailed non-responders' did" if pm["positive"] else
+                  "did not move more than mailed non-responders' did")
+               + f": a net {_signed(hi['did'])} a month per responder.")
+    else:
+        cap = (f"In {pm['positive']} of {pm['measured']} mailings responders' monthly spend moved "
+               f"more than mailed non-responders' did; the net per responder runs from "
+               f"{_signed(lo['did'])} ({lo['m']}) to {_signed(hi['did'])} ({hi['m']}).")
     CIS._caption(s, cap, width=W_FULL, top=6.4, height=0.85)
     CIS._notes(s, f"{ctx['odd_src']} — '<Mon> Mail', '<Mon> Resp' and monthly Sig $ + PIN $",
                method=("The pooled comparison on Responders vs Mailed Non-Responders, one mailing "

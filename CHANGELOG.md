@@ -17,6 +17,23 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-29 — Two James views that broke on clients other than Marine
+
+Summary: Two James review slides now handle clients with no respondent fees or only one measured mailing, so every sample client builds.
+
+Building the Aaron & James mashups for 1549 Wellworth and 1800 First American (the new views had only
+been built for 1539 Marine):
+
+- **Revenue per Fee Dollar by Mailing** stopped both builds: neither workbook books a respondent
+  fee against any mailing, so the ratio was empty and the caption crashed formatting it. The
+  slide now states "the workbook books no respondent fees against any mailing" instead, never an
+  empty chart. Test: `tests/test_james_views.py`.
+- **Responders vs Non-Responders by Mailing** read "In 1 of 1 mailings … runs from X to X" for
+  Wellworth, which has one mailing old enough to measure; the validator failed it ("1 mailings").
+  One mailing now gets its own sentence with its one figure.
+
+The four mashups (1539, 1038, 1549, 1800) all build at 0 FAIL.
+
 ### 2026-09-29 — Outputs/Test Builds is for test decks, and never counts as a delivered deck
 
 Summary: Test decks, such as the Aaron & James mashups, go in Outputs/Test Builds. Sheila, the delivery dashboard and month archiving ignore that folder, so a test deck never shows as a client's delivered deck.
