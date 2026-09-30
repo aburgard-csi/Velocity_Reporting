@@ -307,6 +307,7 @@ INPUT_KIND_DIRS = {
     "CP weekly": "CashPlease",            # CashPleaseSummary weeklies + ILS-DDA-Count-<date>.txt (Aaron, 2026-09-16)
     "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
     "ARS codes": "ARS Settings",          # ars_code_tables.json, the ARS database's code tables
+    "Guarantee": "Guarantee Trackers",    # <id>*Deferred*.xlsx, the 2:1 guarantee deferral tracker (James, 2026-09-30)
     "Code sheets": "Code Sheets",         # clients' code sheets, saved by the data team
     # A client with no VIP ICS sheet (1776 CoastHills CU, Aaron 2026-09-16): the CSM lands the
     # detailed referral export and the direct-mail new-accounts list here by hand, and
@@ -327,7 +328,7 @@ INPUT_KIND_DIRS = {
 # The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "ARS codes", "Code sheets",
-                     "ICS referrals", "ICS direct mail", "Branch names", "Txn")
+                     "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Guarantee")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to

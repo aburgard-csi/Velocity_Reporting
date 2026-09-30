@@ -17,6 +17,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-30 — The 2:1 guarantee deferral tracker reaches the engine (branch `test/unified-analysis`)
+
+**Adds the `gt_*` figures (deferred balance, state, months, revenue/charges/paid to date) to
+`metrics.json`; no slide draws them yet.** `engine/guarantee.py` was ported on 2026-09-18 but
+nothing called it and Inputs had no folder for the file, so the branch never produced a
+guarantee figure (James, 2026-09-30: "it's not pulling in the 2 to 1 guarantee stuff"). New
+input kind `Guarantee` → `Inputs/Guarantee Trackers/<id>*Deferred*.xlsx` (rpe_env, not scanned
+as a workbook, landed by hand for now); `run_analysis.load_tracker` reads the newest file for
+the client, ignores Excel lock stubs, and merges the figures. James's rule from v5 (#42/#43):
+when the tracker exists its math IS the client's economics; when it does not, the run warns
+and the workbook's billed figures stand. Also fixed: the ODD-only run never created its output
+folder. Tests: `tests/test_guarantee_tracker.py`.
+
 ### 2026-09-30 — Three TI views draw again; James's per-client inputs carried into the engine record (branch `test/unified-analysis`)
 
 **Moves three slides and the competition figures for every client.** On 1441, "Their financial

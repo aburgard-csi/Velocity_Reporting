@@ -83,8 +83,39 @@ def analysis_dir(period, client_id, root=None):
     return d
 
 
+TRACKER_GLOB = "Deferred*.xls*"      # matched as <id>*Deferred*.xls*
+
+
+def find_tracker(client_id, root=None):
+    """The client's 2:1 guarantee deferral tracker under Inputs/Guarantee Trackers/, newest
+    name last, Excel lock stubs ignored; None when there is none."""
+    import rpe_env
+    base = Path(root) if root is not None else rpe_env.input_dir("Guarantee", create=False)
+    if not base.is_dir():
+        return None
+    hits = sorted(p for p in base.glob(f"{client_id}*{TRACKER_GLOB}") if not p.name.startswith("~$"))
+    return hits[-1] if hits else None
+
+
+def load_tracker(client_id, warn, path=None):
+    """gt_* figures from the tracker, or {} with a warning. James's rule (v5 issues #42/#43):
+    when the tracker exists its math IS the client's economics; when it does not, the
+    workbook's billed figures stand, and the run says so."""
+    from engine import guarantee as _gt
+    p = Path(path) if path else find_tracker(client_id)
+    if p is None:
+        warn("no 2:1 guarantee deferral tracker for this client (Inputs/Guarantee Trackers/"
+             f"{client_id}*Deferred*.xlsx); guarantee math skipped, the workbook's billed figures stand")
+        return {}
+    try:
+        return _gt.read(p, warn)
+    except Exception as exc:
+        warn(f"deferral tracker read failed: {type(exc).__name__}: {exc}")
+        return {}
+
+
 def run(odd, client_id, period, workbook=None, out_dir=None, name=None, txn=True,
-        txn_dirs=None, tables=None, overrides=None):
+        txn_dirs=None, tables=None, overrides=None, tracker=None):
     """-> AnalysisResult. `tables` and `txn_dirs` are for the tests; the pipeline resolves
     both through rpe_env."""
     parsed = Month.parse(str(period))
@@ -96,6 +127,7 @@ def run(odd, client_id, period, workbook=None, out_dir=None, name=None, txn=True
             result.fail(f"could not parse period {period!r}")
             return result
         out = Path(out_dir) if out_dir else analysis_dir(f"{parsed.year}.{parsed.month:02d}", client_id)
+        out.mkdir(parents=True, exist_ok=True)   # the ODD-only path never created it (2026-09-30)
 
         # ---- the ODD, read once, transformed once -------------------------------------
         try:
@@ -160,6 +192,7 @@ def run(odd, client_id, period, workbook=None, out_dir=None, name=None, txn=True
         stress_frame = metrics.pop("_stress_frame", None)
         if wb_m:
             metrics.update({k: v for k, v in wb_m.items() if k.startswith("wb_")})
+        metrics.update(load_tracker(client_id, result.warn, path=tracker))
         metrics["config_source"] = config.get("_config_source")
         for w in warnings:
             result.warn(w)
