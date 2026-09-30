@@ -17,6 +17,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-30 — TI slides: two money views drew the wrong column; five tiles read n/a; base label; account holders (branch `test/unified-analysis`)
+
+**Moves figures on TI slides 28, 29, 32, 33, 34 and the selection line on all nine.** From the
+first populated 1441 deck: "Who competes" drew the accounts column formatted as money (Bank of
+America "$12K" for 11,518 accounts) and "Where the money goes" drew pct-of-accounts as money;
+both now take the engine's `dollars` column, and a test checks every money view against the
+engine's own `<key>_columns` names. Five tiles read n/a because the key was misspelled, absent
+or a table (`fin_provider_concentration`, `comp_multi_bank_pct`, `comp_momentum`,
+`hot_branches_n`, `leak_pre_close_rise_pct`); replaced with scalars the engine writes, guarded
+by `test_every_tile_key_is_one_the_engine_writes`. The selection line said "transacting
+personal accounts" over the all-accounts figure; it names the base it shows. 1441 is a bank:
+"account holders", not "members" (two titles, two captions; bake-off pairs unaffected).
+Tests: `tests/test_ti_slides.py`.
+
 ### 2026-09-30 — The 2:1 guarantee deferral tracker reaches the engine (branch `test/unified-analysis`)
 
 **Adds the `gt_*` figures (deferred balance, state, months, revenue/charges/paid to date) to
