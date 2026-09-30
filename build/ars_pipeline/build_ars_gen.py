@@ -1985,7 +1985,26 @@ if os.environ.get("RPE_ANALYSIS") == "1":
                 print(_l)
             print(f"transaction slides (RPE_ANALYSIS_SLIDES): {len(_made)} added; inventory -> {_inv_path}")
         else:
+            _txn, _inv = None, []
             print(f"transaction slides (RPE_ANALYSIS_SLIDES): no transaction files for {ID}; none added")
+        # James's ODD chapters (campaign, debit card, Reg E, synthesis, offer detail, new accounts,
+        # deposits, attrition warnings), drawn by this deck's rules; placed after the transaction
+        # chapter so the debit-card main path can sit in front of it.
+        _mp = _ar.outputs.get("metrics")
+        if _mp and os.path.exists(_mp):
+            import ars_chapters as _ac
+            with open(_mp, encoding="utf-8") as _fh:
+                _m = json.load(_fh)
+            _made2, _inv2 = _ac.add_ars_chapters(prs, _m, _txn, {"as_of_long": AS_OF_LONG, "assets": ASSETS,
+                                                                 "odd_src": ODD_SRC, "client_name": NAME,
+                                                                 "out": os.path.dirname(_mp)})
+            _MODULE_NOTED.extend(_made2)
+            _inv_path = os.path.join(os.path.dirname(_mp), "ars_slides.json")
+            with open(_inv_path, "w", encoding="utf-8") as _fh:
+                json.dump({"client": ID, "slides": _inv2}, _fh, indent=1)
+            for _l in _ac.summary_lines(_inv2):
+                print(_l)
+            print(f"ODD chapter slides (RPE_ANALYSIS_SLIDES): {len(_made2)} added; inventory -> {_inv_path}")
 
 # Branch names on the charts (Aaron 2026-09-17): every slide that shows a
 # branch says where the names came from.

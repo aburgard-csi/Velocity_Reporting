@@ -17,6 +17,58 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-30 — Every remaining v5 ODD slide (campaign, debit card, Reg E, synthesis, offer detail, new accounts, deposits, attrition warnings), drawn by this deck's rules (branch `test/unified-analysis`)
+
+**Changes what `RPE_ANALYSIS_SLIDES=1` renders: after the transaction chapter, the build now
+draws every other slide of James's v5 ODD deck — 103 v5 slide labels on the fixture, 78 drawn,
+24 declined for a stated data reason, 1 drawn with a statement that it has no figures.** James's
+goal (2026-09-30): "build all", keep it on the branch, see everything, whittle after.
+
+- `engine/deck/ars_deck.py` is v5 `ars/deck/build.py`'s slide body (lines 945–2442 and
+  2459–3063, everything but the cover, agenda, transaction chapter and closer), verbatim, as
+  one function; `headlines.py`, `polish.py`, `attrition_slides.py`, `deposit_slides.py` copied
+  beside it. What changed is what it draws WITH: `ars_layout.py` supplies its `_text`,
+  `_table`, `_kpi`, `_kpi_flat`, `_tile`, `_rail`, `_picture`, `_fit_picture`, `_chart_left`
+  as Aaron's textbox, table, tile and picture on Aaron's grid; `chapter_base.py` (shared with
+  the transaction chapter, which now subclasses it) supplies `slide`, `chart`, `register`,
+  `divider`, `skip`, `n`, `_title`, `_headed`.
+- The rules the primitives keep, each because the fixture broke it once: no run under 16pt,
+  and a box grows to the lines its text needs by BOTH the measured width and the validator's
+  own estimate (the validator is the judge); a small-type footnote at the foot of a slide goes
+  to the speaker note (no room at 16pt); a table is his `add_table` at 16pt rows, cut to what
+  fits, each row sized to its widest cell, and everything v5 stacked below it moves down by the
+  height it grew; nothing the primitives draw lands on something they drew (a tile with no
+  room below a note sends the note to the speaker note); a chart stops at the caption band; a
+  tile stops above his data-slide logo; a slide v5 left blank says so in its caption band; the
+  v5 headline goes in the caption band under whatever the slide drew, or in the note.
+- Banned words: every text the chapters write goes through `chapter_base.house_words`, so
+  v5's "lift" reads "gain" here ("Lift by response segment" → "Gain by Response Segment"),
+  with the rest of the CLAUDE.md list mapped the same way.
+- Month axes: v5 charts label them from the engine's tags ("Aug24"); every tick label now
+  passes through `periods.mon_yy` on top of Aaron's guard (`install_house_month_axes`), so
+  seven charts that his guard refused draw in his MMM'YY.
+- Per-offer summary: pre and post spend are their own columns; "17.2% | $480 → $471" in one
+  row read as a movement claim to `claim_consistency_findings`.
+- KPI and tile values are recorded in the figure sidecar under the slide's own title (the
+  same label is a different population on different v5 slides).
+- Placement: each v5 chapter's main path (the v5 manifest's 17 non-transaction rows) goes
+  before the Aaron section that follows the same subject — campaign before "Debit Card
+  Review", debit card before the transaction chapter, Reg E and the synthesis before "ARS Key
+  Takeaways" — and everything else lands at the end of the appendix under one divider per
+  chapter (Campaign Detail, Debit Card Detail, Reg E Detail, Summary Detail, Offer Detail,
+  Account Profile Detail, Eligibility Detail). `ars_slides.json` beside `metrics.json` lists
+  every slide, drawn or declined with the reason and where it sits.
+- Not drawn on any client yet: the 11 deposits slides (no deposits file under `Inputs`),
+  the ARS-workbook slides (P&L by offer, revenue frames, what an account earns) when the
+  workbook is absent, the 2:1 guarantee without a tracker — each listed as skipped with the
+  reason, never blank.
+
+Verified on the synthetic fixture: the chapters pass every validator rule at 0 FAIL after the
+16pt floor (overflow, geometry, collision, autofit, text, pill, table, claim, source);
+sidecar without conflicts; templates and layout baseline unchanged. The golden chain's
+slide-count tests pin the DEFAULT deck and run without the flags; with both flags on, its
+validator and sidecar tests hold. Tests: `tests/test_ars_chapters.py`.
+
 ### 2026-09-30 — James's whole transaction chapter, drawn by this deck's rules (branch `test/unified-analysis`)
 
 **Changes what `RPE_ANALYSIS_SLIDES=1` renders: the nine Transaction Intelligence views are

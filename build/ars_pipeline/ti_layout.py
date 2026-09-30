@@ -39,13 +39,14 @@ CAPTION_TOP, CAPTION_H = 5.95, 0.95
 CAPTION_W_RAIL, CAPTION_W_FULL = 8.75, 10.6
 TILE_L, TILE_W = 9.5, 3.3     # the tile column of the TI slides on main
 RAIL_EDGE = TILE_L - 0.25     # what a chart beside the rail must stop at
-RAIL_TOP, RAIL_BOTTOM = 1.72, 6.9
+RAIL_TOP, RAIL_BOTTOM = 1.72, 6.72   # the rail ends above the data-slide logo (STYLE.md: 11.28, 6.78)
+LOGO_LEFT = 11.2              # anything reaching past this must also end above the logo
 BOX_MARGINS = 0.2             # python-pptx default insets, left + right
 FLOOR_PT = 16                 # restyle_fonts.MIN
 LINE_FACTOR = 1.22            # validate_deck's line height per point
 MAX_TILES = 5
 # (tile height, value pt, value box h, label box h, gap) for a stack of n tiles from RAIL_TOP
-_STACK = {4: (1.2, 28, 0.5, 0.6, 0.1), 5: (0.98, 22, 0.38, 0.54, 0.06)}
+_STACK = {4: (1.17, 28, 0.52, 0.58, 0.1), 5: (0.95, 22, 0.38, 0.52, 0.06)}
 
 
 def _line_in(pt):
@@ -70,13 +71,27 @@ def lines_needed(text, width_in, pt=FLOOR_PT, family=BODY, bold=False):
     return lines
 
 
+CHAR_W, LINE_H = 0.0066, 0.0163     # validate_deck's own per-point glyph estimate
+
+
+def lines_estimated(text, width_in, pt=FLOOR_PT):
+    """validate_deck's cruder line count (CHAR_W per point). Wider than the measured one for
+    most text, and it is the judge, so a box is sized for whichever needs more."""
+    usable = max(0.3, width_in - BOX_MARGINS)
+    return max(1, math.ceil(len(str(text)) * CHAR_W * pt / usable))
+
+
+def lines_for(text, width_in, pt=FLOOR_PT, family=BODY, bold=False):
+    return max(lines_needed(text, width_in, pt, family, bold), lines_estimated(text, width_in, pt))
+
+
 def box_holds(height_in, pt=FLOOR_PT):
     return max(1, int(height_in / _line_in(pt) + 0.15))
 
 
 def caption_fit(text, width_in):
     """(lines needed, lines the caption band holds) at the floor."""
-    return lines_needed(text, width_in), box_holds(CAPTION_H)
+    return lines_for(text, width_in), box_holds(CAPTION_H)
 
 
 def _value_pt(value, start_pt, width_in):
@@ -114,14 +129,14 @@ def rail_tiles(s, items, top=RAIL_TOP, scope=None, record=None):
     detail, y = [], top
     for i, (label, value, note) in enumerate(items):
         label, note = str(label), (str(note) if note else "")
-        need = lines_needed(label, usable_w)
+        need = lines_for(label, usable_w)
         if need > holds:
             shown = label
-            while lines_needed(shown + "…", usable_w) > holds and len(shown) > 4:
+            while lines_for(shown + "…", usable_w) > holds and len(shown) > 4:
                 shown = shown[:-2].rstrip()
             lines = [shown + "…"]
             detail.append(f"{label}: {value}" + (f" ({note})" if note else ""))
-        elif note and need + lines_needed(note, usable_w) <= holds:
+        elif note and need + lines_for(note, usable_w) <= holds:
             lines = [label, note]
         else:
             lines = [label]
@@ -193,6 +208,48 @@ def move_before(prs, slide, target):
     src = SH.sldid_of(prs, slide)
     lst.remove(src)
     SH.sldid_of(prs, target).addprevious(src)
+
+
+# Per-slide detail the primitives could not fit on the slide; the chapter drains it into the
+# speaker note when it finishes the slide.
+NOTES = {}
+
+
+def note(slide, text):
+    NOTES.setdefault(id(slide), []).append(str(text))
+
+
+def drain_notes(slide):
+    return NOTES.pop(id(slide), [])
+
+
+def content_bottom(slide, right_edge, above=1.4):
+    """The lowest edge of anything drawn in the content column below the header."""
+    from pptx.util import Emu
+    bottom = 0.0
+    for sh in slide.shapes:
+        if sh.top is None or sh.height is None or sh.left is None:
+            continue
+        t, l = Emu(sh.top).inches, Emu(sh.left).inches
+        if t < above or l >= right_edge - 0.05:
+            continue
+        bottom = max(bottom, t + Emu(sh.height).inches)
+    return bottom
+
+
+def has_chart_picture(slide):
+    """A picture wider than a logo is a chart (validate_deck's own threshold)."""
+    from pptx.util import Emu
+    return any(sh.shape_type == MSO_SHAPE_TYPE.PICTURE and sh.width is not None
+               and Emu(sh.width).inches > 2.5 for sh in slide.shapes)
+
+
+def has_figure_shape(slide):
+    """A table, a tile (an autoshape) or a picture: the slide carries a figure."""
+    from pptx.util import Emu
+    return any((sh.has_table or sh.shape_type in (MSO_SHAPE_TYPE.AUTO_SHAPE, MSO_SHAPE_TYPE.PICTURE))
+               and sh.top is not None and Emu(sh.top).inches >= 1.4      # below the header and pill
+               for sh in slide.shapes if (sh.width or 0) > 0)
 
 
 def est_caption_bottom(text, width_in, top=CAPTION_TOP, pt=FLOOR_PT):

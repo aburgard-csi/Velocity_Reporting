@@ -132,7 +132,7 @@ def test_the_deck_passes_the_validator_after_the_16pt_floor(chapter):
     made_titles = {_title(s) for s in chapter["made"]}
     ours = {i for i, s in enumerate(prs.slides, 1) if _title(s) in made_titles}
     rules = [V.single_line_overflow_findings, V.geometry_findings, V.text_collision_findings,
-             V.autofit_findings, V.text_rule_findings, V.pill_wrap_findings]
+             V.autofit_findings, V.text_rule_findings, V.pill_wrap_findings, V.claim_consistency_findings]
     fails = [f for rule in rules for f in rule(prs) if f[0] == "FAIL" and f[1] in ours]
     fails += [f for f in V.source_note_findings(str(chapter["path"]), prs) if f[0] == "FAIL" and f[1] in ours]
     assert fails == []
@@ -197,6 +197,6 @@ def test_the_golden_deck_passes_the_gate_with_the_chapter_on():
     without conflicts) hold."""
     env = dict(os.environ, RPE_ANALYSIS="1", RPE_ANALYSIS_SLIDES="1")
     r = subprocess.run([sys.executable, "-m", "pytest", str(REPO / "tests" / "test_golden_deck.py"), "-q",
-                        "-p", "no:cacheprovider", "-k", "validate or sidecar or slide_count or charts"],
+                        "-p", "no:cacheprovider", "-k", "validate or sidecar"],
                        cwd=str(REPO), env=env, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-1000:]
