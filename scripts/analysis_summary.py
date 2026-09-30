@@ -51,6 +51,9 @@ def summarise(folder, log=None):
         out += [f"  {w}" for w in warns[:25]]
     m = _load(folder / "metrics.json")
     if m is not None:
+        gt = {k: m[k] for k in sorted(m) if k.startswith("gt_") and k != "gt_months"}
+        out.append("2:1 guarantee tracker:" if gt else "2:1 guarantee tracker: none read (see ODD warnings)")
+        out += [f"  {k:<28} {json.dumps(v)}" for k, v in gt.items()]
         warns = m.get("warnings") or []
         out.append(f"ODD warnings ({len(warns)}):")
         out += [f"  {w}" for w in warns[:25]]
