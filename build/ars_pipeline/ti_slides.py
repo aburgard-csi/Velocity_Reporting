@@ -79,8 +79,8 @@ VIEWS = [
     ("Their financial life", ("fin_top_providers", 0, 2, "money"),
      [("fin_accounts_total", "Transacting personal accounts", _n),
       ("fin_leaking_accounts", "With an outside product", _n),
-      ("fin_provider_concentration", "Top-provider concentration", _pct)],
-     "The named providers our members pay, ranked by dollars.",
+      ("fin_addressable_pct", "Addressable share", _pct)],
+     "The named providers our account holders pay, ranked by dollars.",
      "Providers matched by name in the payee field; unmatched large payees are listed in fin_unmatched_top."),
     ("Who they pay", ("rel_by_channel", 0, 1, "count"),
      [("rel_primary_like_pct", "Primary-like activity", _pct), ("rel_single_channel_pct", "Single-channel accounts", _pct),
@@ -92,22 +92,22 @@ VIEWS = [
       ("ovl_named_destination_deposits", "With a named destination", _money)],
      "Where the declining balances actually go: the flight-risk accounts joined to their competitor and leakage rows.",
      "Overlay of balance.flight_mask (the ODD) on the competitor rows (the transaction file); nothing is reclassified."),
-    ("Who competes for our members", ("comp_institutions", 0, 2, "money"),
+    ("Who competes for our account holders", ("comp_institutions", 0, 2, "money"),
      [("comp_with_competitor_pct", "Accounts banking elsewhere", _pct), ("comp_competitor_dollars", "Dollars to competitors", _money),
       ("comp_accounts_total", "Transacting personal accounts", _n)],
-     "Named institutions holding a relationship with our members, ranked by dollars.",
+     "Named institutions holding a relationship with our account holders, ranked by dollars.",
      "Competitors from the shared dictionary plus the client's local and regional lists."),
     ("Which competitors to work first", ("comp_local.institutions", 0, 2, "money"),
-     [("comp_multi_bank_pct", "Multi-banked accounts", _pct), ("comp_momentum", "Momentum", _n),
-      ("hot_branches_n", "Branches with a hotspot", _n)],
+     [("comp_multi_banked_pct", "Multi-banked accounts", _pct), ("comp_institutions_n", "Competitors detected", _n),
+      ("hot_both_above_median", "Branches above median", _n)],
      "Local competitors first: the ones a branch can answer. Momentum says who is growing.",
      "comp_local and the attrition-by-competition hotspots per branch."),
     ("Where the outflow goes", ("txn_top_ach_chk", 0, 2, "money"),
-     [("leak_depth_months", "Months of history", _n), ("leak_pre_close_rise_pct", "Spend rise before close", _pct),
+     [("leak_depth_months", "Months of history", _n), ("leak_divergence_month", "Months before close it diverges", _n),
       ("txn_top15_share_pct", "Top-15 payee share", _pct)],
      "The largest ACH and check payees, ranked by dollars.",
      "ACH and check rows only; card spend is on the next slide."),
-    ("How members spend", ("mch_top", 0, 3, "money"),
+    ("How account holders spend", ("mch_top", 0, 3, "money"),
      [("mch_card_accounts", "Card-active accounts", _n), ("mch_card_spend", "Card spend", _money),
       ("mch_merchants_for_80pct", "Merchants for 80% of spend", _n)],
      "The card rail: top merchants by dollars, with the category method the file supports.",
@@ -129,9 +129,13 @@ def add_ti_slides(prs, txn, ctx):
     for k, (title, (key, li, vi, kind), tiles, caption, detail) in enumerate(VIEWS, 1):
         s = _new_slide(prs, _find(prs, ANCHOR_AFTER))
         rows = _rows(txn, key, li, vi)
-        base = txn.get("txn_accounts")
+        # The base is the personal count when the ODD join gave one, else every transacting
+        # account, and the label says which (1441: the line said "personal" over the all-accounts figure).
+        personal, every = txn.get("fin_accounts_total"), txn.get("txn_accounts")
+        base, base_label = ((personal, "transacting personal accounts") if isinstance(personal, int) and personal
+                            else (every, "transacting accounts"))
         _header(s, title, PILL.format(as_of=ctx["as_of_long"]), [
-            f"Selection: transacting personal accounts ({base:,}); {txn.get('txn_window_months', 12)}-month window "
+            f"Selection: {base_label} ({base:,}); {txn.get('txn_window_months', 12)}-month window "
             f"ending {txn.get('txn_anchor', '')}." if isinstance(base, int) else "Selection: transacting accounts.",
             "Selection: transacting accounts."])
         if rows:

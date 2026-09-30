@@ -16,8 +16,8 @@ sys.path[:0] = [str(REPO / "build" / "ars_pipeline"), str(REPO / "build"), str(R
 from test_run_analysis import _write_txn_zip  # noqa: E402
 
 TITLES = ["How the money moves", "Where the money goes", "Their financial life", "Who they pay",
-          "What leakers hold with us", "Who competes for our members", "Which competitors to work first",
-          "Where the outflow goes", "How members spend"]
+          "What leakers hold with us", "Who competes for our account holders", "Which competitors to work first",
+          "Where the outflow goes", "How account holders spend"]
 
 
 @pytest.fixture(scope="module")
@@ -145,3 +145,23 @@ def test_every_view_draws_rows_from_what_the_engine_writes(odd_csv, tmp_path):
     empty = [title for title, (key, li, vi, _), _, _, _ in ti_slides.VIEWS
              if not ti_slides._rows(txn, key, li, vi) and title not in MAY_BE_EMPTY_ON_FIXTURE]
     assert empty == []
+
+
+def test_every_tile_key_is_one_the_engine_writes(odd_csv, tmp_path):
+    """1441 (2026-09-30): five tiles read n/a because the key was misspelled, absent, or a table.
+    Every tile key must be a scalar the engine writes on the fixture, unless the fixture cannot
+    produce it (listed here with the reason)."""
+    pd = pytest.importorskip("pandas")
+    import run_analysis as RA
+    import ti_slides
+    fixture_cannot = {"leak_divergence_month": "needs closed accounts with competitor spend",
+                      "ovl_named_destination_deposits": "needs flight-risk accounts",
+                      "hot_both_above_median": "needs branches with joined rows"}
+    ids = pd.read_csv(odd_csv, skiprows=4, dtype=str, usecols=["Acct Number"])["Acct Number"].dropna().tolist()[:120]
+    txn_dir = _write_txn_zip(tmp_path / "Txn Files" / "1441", ids)
+    RA.run(odd_csv, "1441", "2026.08", out_dir=tmp_path / "out", txn=True, txn_dirs=[txn_dir], tables=None,
+           overrides={"LocalCompetitors": {"Capital One": ["CAPITAL ONE"]}})
+    txn = json.loads((tmp_path / "out" / "txn_metrics.json").read_text(encoding="utf-8"))
+    bad = [k for _, _, tiles, _, _ in ti_slides.VIEWS for k, _, _ in tiles
+           if not isinstance(txn.get(k), (int, float)) and k not in fixture_cannot]
+    assert bad == []
