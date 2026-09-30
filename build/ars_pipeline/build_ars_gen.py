@@ -1965,17 +1965,25 @@ if os.environ.get("RPE_ANALYSIS") == "1":
     if _fails:
         raise SystemExit("analysis engine does not reproduce the deck's own figures: "
                          + "; ".join(_fails) + " — one of the two readings is wrong; fix the reader, not the deck")
-    # The nine Transaction Intelligence views, only when asked for AND the client has files.
+    # James's transaction chapter (every v5 transaction slide the data supports, drawn by this
+    # deck's rules), only when asked for AND the client has files. The inventory of what was
+    # drawn, where it went and what declined is written beside txn_metrics.json.
     if os.environ.get("RPE_ANALYSIS_SLIDES") == "1":
         _tp = _ar.outputs.get("txn_metrics")
         if _tp and os.path.exists(_tp):
-            import ti_slides as _ti
+            import ti_chapter as _ti
             with open(_tp, encoding="utf-8") as _fh:
                 _txn = json.load(_fh)
-            _made = _ti.add_ti_slides(prs, _txn, {"as_of_long": AS_OF_LONG, "assets": ASSETS,
-                                                  "txn_src": f"Inputs/Txn Files/{ID}/"})
+            _made, _inv = _ti.add_ti_chapter(prs, _txn, {"as_of_long": AS_OF_LONG, "assets": ASSETS,
+                                                         "txn_src": f"Inputs/Txn Files/{ID}/",
+                                                         "client_name": NAME})
             _MODULE_NOTED.extend(_made)
-            print(f"transaction slides (RPE_ANALYSIS_SLIDES): {len(_made)} added")
+            _inv_path = os.path.join(os.path.dirname(_tp), "ti_slides.json")
+            with open(_inv_path, "w", encoding="utf-8") as _fh:
+                json.dump({"client": ID, "slides": _inv}, _fh, indent=1)
+            for _l in _ti.summary_lines(_inv):
+                print(_l)
+            print(f"transaction slides (RPE_ANALYSIS_SLIDES): {len(_made)} added; inventory -> {_inv_path}")
         else:
             print(f"transaction slides (RPE_ANALYSIS_SLIDES): no transaction files for {ID}; none added")
 

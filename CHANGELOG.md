@@ -17,6 +17,45 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-30 — James's whole transaction chapter, drawn by this deck's rules (branch `test/unified-analysis`)
+
+**Changes what `RPE_ANALYSIS_SLIDES=1` renders: the nine Transaction Intelligence views are
+replaced by the 34 slides of James's v5 transaction chapter, each drawn on this deck's grid.**
+James (2026-09-30): "Aaron's deck is the gold standard … we're not bringing over my slides
+exactly, the data, the charts, yeah, but they have to meet his rules," and "I need to see
+everything that is created and then we can whittle it down."
+
+- `build/ars_pipeline/engine/deck/` is v5's chapter code as of 2026-09-30 (`txn_slides`,
+  `txn_leakage`, `txn_compete`, `txn_cards`, the `charts*` renderers, `labels`), palette
+  pointed at `brand.py`. The builders draw through seven helpers; `ti_chapter.py` supplies
+  them on Aaron's grid and `ti_layout.py` holds the primitives: his header, pill and
+  selection line; v5's headline and sub-line as his 16pt caption band, measured with
+  `textfit` and sent to the notes when the band cannot hold them; v5's callout rail as his
+  tiles (first orange), every line measured at the 16pt floor before it is written; the
+  chapter dividers cloned from the template's own "Debit Card Review" section slide; a
+  source note on every slide naming the files, the join, the chart form and any text moved
+  off the slide; every tile in the figure sidecar (branch rails namespaced by slide so two
+  branch tables cannot collide). A bank reads "account holders", a credit union "members"
+  (`member_term`, from the client name). Titles are Title Case, so the bake-off pairs them
+  with v5's by name.
+- Placement: the v5 main path (`MAIN_CUT`, 11 titles from the v5 deck manifest) goes before
+  "Reg E Review" under "Transaction Intelligence"; every other slide is still built and lands
+  at the end of the appendix under "Transaction Intelligence Detail". `RPE_ANALYSIS_CUT=main`
+  keeps the main path only. The build writes `ti_slides.json` beside `txn_metrics.json`:
+  every builder, drawn or skipped, with its reason and where it sits — the review list for
+  the whittling.
+- Three v5 defects found by drawing every slide on the fixture: six builders declined with
+  no reason (they now say why); `Who leads each product` and `Recurring payments on the card`
+  called `branch_bars` with rows it cannot read, so neither ever drew its chart in v5 (now
+  `tier_bars`); "mean breadth 0.82 of 4" tripped the impossible-count rule (reworded).
+- Removed: `ti_slides.py`, `ti_charts.py`, `tests/test_ti_slides.py` (the nine views are
+  nine of the 34, by title).
+
+Verified on the synthetic fixture: 24 of 34 drawn (the rest decline for stated data reasons
+the fixture cannot meet), validator 0 FAIL on the chapter after the 16pt floor, sidecar
+without conflicts, golden chain with both flags 31 passed, templates and layout baseline
+unchanged. Tests: `tests/test_ti_chapter.py`.
+
 ### 2026-09-30 — Super-Regional Bank tier in the shared competitor dictionary (branch `test/unified-analysis`)
 
 **Moves the competition figures for any client whose account holders pay one of these banks.**

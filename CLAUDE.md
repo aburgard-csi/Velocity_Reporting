@@ -915,9 +915,12 @@ This is the readme index — update it whenever files are added, removed, or mov
   Reads every shared classification through `odd_rows`; writes no slide. `run_analysis.py` runs
   it on the ODD and `Inputs/Txn Files/<id>/` and writes evidence to `Build Artifacts/analysis/`;
   `engine_config.py` builds its client record from the ARS code tables and the workbook;
-  `ti_slides.py` / `ti_charts.py` are the nine Transaction Intelligence views. OPT-IN:
-  `RPE_ANALYSIS=1` runs the engine and stops the build if it does not reproduce the deck's
-  figures; `RPE_ANALYSIS_SLIDES=1` adds the nine slides. See CHANGELOG 2026-09-18.
+  `engine/deck/` is v5's transaction chapter (34 slides) and `ti_chapter.py` /
+  `ti_layout.py` draw it on this deck's grid by this deck's rules (main path before
+  "Reg E Review", the rest at the end of the appendix, inventory in `ti_slides.json`).
+  OPT-IN: `RPE_ANALYSIS=1` runs the engine and stops the build if it does not reproduce
+  the deck's figures; `RPE_ANALYSIS_SLIDES=1` adds the chapter (`RPE_ANALYSIS_CUT=main`
+  for the main path only). See CHANGELOG 2026-09-18 and 2026-09-30.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

@@ -207,6 +207,7 @@ core/VIP. Do not fabricate the band mix.
 `RPE_ANALYSIS=1` runs James Gilmore's v5 engine (`build/ars_pipeline/engine`) beside the build
 and stops it when the engine's eligible base or take rate differs from the deck's own; its
 evidence lands in `Build Artifacts/analysis/<period>/<id>/`. `RPE_ANALYSIS_SLIDES=1` also adds
-the nine Transaction Intelligence slides from `Inputs/Txn Files/<id>/`. Neither flag is set on
+James's transaction chapter (34 slides, drawn by this deck's rules; main path before
+"Reg E Review", the rest in the appendix) from `Inputs/Txn Files/<id>/`. Neither flag is set on
 the monthly run. If the engine stops a build, the two readings of one file disagree: fix the
 reader (`odd_rows` or the engine), never the deck.
