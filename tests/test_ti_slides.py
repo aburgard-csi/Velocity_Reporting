@@ -165,3 +165,27 @@ def test_every_tile_key_is_one_the_engine_writes(odd_csv, tmp_path):
     bad = [k for _, _, tiles, _, _ in ti_slides.VIEWS for k, _, _ in tiles
            if not isinstance(txn.get(k), (int, float)) and k not in fixture_cannot]
     assert bad == []
+
+
+def test_a_money_view_draws_the_dollars_column_the_engine_names(odd_csv, tmp_path):
+    """1441 slide 32 (2026-09-30) drew Bank of America as "$12K": the view took column 2 of
+    comp_institutions (accounts, 11,518) and formatted it as money. When the engine publishes
+    a `<key>_columns` list, a money view's value column must be a dollars column and a count
+    view's must not."""
+    pd = pytest.importorskip("pandas")
+    import run_analysis as RA
+    import ti_slides
+    ids = pd.read_csv(odd_csv, skiprows=4, dtype=str, usecols=["Acct Number"])["Acct Number"].dropna().tolist()[:120]
+    txn_dir = _write_txn_zip(tmp_path / "Txn Files" / "1441", ids)
+    RA.run(odd_csv, "1441", "2026.08", out_dir=tmp_path / "out", txn=True, txn_dirs=[txn_dir], tables=None,
+           overrides={"LocalCompetitors": {"Capital One": ["CAPITAL ONE"]}})
+    txn = json.loads((tmp_path / "out" / "txn_metrics.json").read_text(encoding="utf-8"))
+    wrong = []
+    for title, (key, li, vi, kind), _, _, _ in ti_slides.VIEWS:
+        cols = txn.get(key.split(".")[0] + "_columns")
+        if not isinstance(cols, list) or vi >= len(cols):
+            continue
+        name = str(cols[vi]).lower()
+        if (kind == "money") != ("dollar" in name):
+            wrong.append((title, kind, cols[vi]))
+    assert wrong == []

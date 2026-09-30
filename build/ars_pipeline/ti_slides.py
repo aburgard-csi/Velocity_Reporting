@@ -92,7 +92,7 @@ VIEWS = [
       ("ovl_named_destination_deposits", "With a named destination", _money)],
      "Where the declining balances actually go: the flight-risk accounts joined to their competitor and leakage rows.",
      "Overlay of balance.flight_mask (the ODD) on the competitor rows (the transaction file); nothing is reclassified."),
-    ("Who competes for our account holders", ("comp_institutions", 0, 2, "money"),
+    ("Who competes for our account holders", ("comp_institutions", 0, 5, "money"),
      [("comp_with_competitor_pct", "Accounts banking elsewhere", _pct), ("comp_competitor_dollars", "Dollars to competitors", _money),
       ("comp_accounts_total", "Transacting personal accounts", _n)],
      "Named institutions holding a relationship with our account holders, ranked by dollars.",
