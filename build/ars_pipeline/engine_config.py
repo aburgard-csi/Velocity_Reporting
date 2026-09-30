@@ -74,6 +74,28 @@ def rege_code_sets(rege_codes, warn=None):
     return sets
 
 
+PROFILES = Path(__file__).resolve().parent / "engine" / "config" / "client_profiles.json"
+PROFILE_KEYS = ("LocalCompetitors", "RegionalCompetitors", "SelfNames", "BranchMapping", "Profile")
+
+
+def client_profile(client_id, warn=None, path=None):
+    """The per-client keys above for `client_id`, or {} with a warning when the client has none."""
+    import json
+    warn = warn or (lambda m: None)
+    p = Path(path) if path else PROFILES
+    try:
+        doc = json.loads(p.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        warn(f"client profiles file missing ({p.name}); competitor lists and branch names unavailable")
+        return {}
+    rec = doc.get(str(client_id)) or {}
+    out = {k: rec[k] for k in PROFILE_KEYS if k in rec}
+    if "LocalCompetitors" not in out:
+        warn(f"client {client_id}: no LocalCompetitors in {p.name}; only national and regional "
+             "competitors are ranked")
+    return out
+
+
 def record_for(client_id, tables=None, workbook=None, name=None, overrides=None, warn=None):
     """The engine's client record.
 
@@ -86,6 +108,11 @@ def record_for(client_id, tables=None, workbook=None, name=None, overrides=None,
     cid = str(client_id)
     products, rege, statuses = _client_tables(tables, cid)
     rec = {"ClientID": cid, "ClientName": name, "Products": ["ARS"], "EligibleMailCode": "Yes"}
+    # James's per-client analysis inputs (engine/config/client_profiles.json, from v5): local
+    # and regional competitor lists, self-names, branch display names, profile. Aaron's code
+    # tables have no equivalent, so these are the reading of record (2026-09-30: without them
+    # "Which competitors to work first" drew empty for every client).
+    rec.update(client_profile(cid, warn))
 
     if statuses:
         rec["EligibleStatusCodes"] = sorted(c for c, r in statuses.items() if _truthy((r or {}).get("active")))

@@ -121,3 +121,27 @@ def test_a_view_with_no_rows_passes_the_wrap_rule_after_the_16pt_floor(tmp_path)
     restyle_fonts.restyle(str(out))
     fails = [f for f in V.single_line_overflow_findings(Presentation(str(out))) if f[0] == "FAIL"]
     assert fails == []
+
+
+# "What leakers hold with us" needs flight-risk accounts that also pay a competitor; the
+# synthetic fixture has none, so it is the one view allowed to draw its no-rows caption here.
+MAY_BE_EMPTY_ON_FIXTURE = {"What leakers hold with us"}
+
+
+def test_every_view_draws_rows_from_what_the_engine_writes(odd_csv, tmp_path):
+    """1441 (2026-09-30): three of nine views drew empty on real data while the engine had the
+    numbers, because the view asked for a key or a shape the engine does not write
+    (fin_top_providers is a dict by category, ovl_destinations was misnamed, comp_local holds
+    its list under 'institutions') and because the client record carried no LocalCompetitors.
+    This fails if a view and the engine drift apart again."""
+    pd = pytest.importorskip("pandas")
+    import run_analysis as RA
+    import ti_slides
+    ids = pd.read_csv(odd_csv, skiprows=4, dtype=str, usecols=["Acct Number"])["Acct Number"].dropna().tolist()[:120]
+    txn_dir = _write_txn_zip(tmp_path / "Txn Files" / "1441", ids)
+    RA.run(odd_csv, "1441", "2026.08", out_dir=tmp_path / "out", txn=True, txn_dirs=[txn_dir], tables=None,
+           overrides={"LocalCompetitors": {"Capital One": ["CAPITAL ONE"]}})
+    txn = json.loads((tmp_path / "out" / "txn_metrics.json").read_text(encoding="utf-8"))
+    empty = [title for title, (key, li, vi, _), _, _, _ in ti_slides.VIEWS
+             if not ti_slides._rows(txn, key, li, vi) and title not in MAY_BE_EMPTY_ON_FIXTURE]
+    assert empty == []

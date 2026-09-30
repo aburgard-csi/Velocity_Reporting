@@ -88,3 +88,20 @@ def test_the_engine_funnel_skips_a_missing_stage_rather_than_emptying_the_base()
     assert len(bare.eligible) == 2 and any("skipped" in w for w in bare.warnings)
     coded = build_subsets(df, EC.record_for("1441", TABLES), Month(2026, 7))
     assert len(coded.eligible) == 1                                   # OLD is not an offered product
+
+
+def test_the_client_profile_carries_james_per_client_inputs_and_says_when_absent(tmp_path):
+    """LocalCompetitors / RegionalCompetitors / SelfNames / BranchMapping / Profile come from
+    engine/config/client_profiles.json (v5); Aaron's code tables have no equivalent (2026-09-30)."""
+    import json
+    import engine_config as EC
+    prof = EC.client_profile("1441")
+    assert set(prof) >= {"LocalCompetitors", "RegionalCompetitors", "SelfNames", "BranchMapping"}
+    assert len(prof["LocalCompetitors"]) >= 10
+    rec = EC.record_for("1441", tables=None, workbook=None, name="FNB Alaska", warn=lambda m: None)
+    assert rec["LocalCompetitors"] == prof["LocalCompetitors"] and rec["BranchMapping"] == prof["BranchMapping"]
+    notes = []
+    p = tmp_path / "profiles.json"; p.write_text(json.dumps({"_meta": {}, "9999": {"SelfNames": ["X"]}}))
+    assert EC.client_profile("9999", notes.append, path=p) == {"SelfNames": ["X"]}
+    assert notes and "no LocalCompetitors" in notes[0]
+    assert EC.client_profile("1", notes.append, path=p) == {}

@@ -17,6 +17,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-30 — Three TI views draw again; James's per-client inputs carried into the engine record (branch `test/unified-analysis`)
+
+**Moves three slides and the competition figures for every client.** On 1441, "Their financial
+life", "What leakers hold with us" and "Which competitors to work first" drew their no-rows
+caption while the engine had the numbers: the view asked for the wrong key (`ovl_by_destination`
+for `ovl_destinations`) or the wrong shape (`fin_top_providers` is a dict by category;
+`comp_local` holds its ranking under `institutions`). `ti_slides._rows` now reads dotted keys
+and flattens a dict of lists. Separately, `engine_config.record_for` built the record from
+Aaron's code tables only, so the per-client inputs v5's `clients_config.json` carries
+(LocalCompetitors, RegionalCompetitors, SelfNames, BranchMapping, Profile) were absent and no
+local competitor could be ranked for any client. They are extracted to
+`engine/config/client_profiles.json` (315 clients, those five keys only) and merged by
+`engine_config.client_profile`; a client with no LocalCompetitors is warned. Tests:
+`tests/test_ti_slides.py::test_every_view_draws_rows_from_what_the_engine_writes`,
+`tests/test_engine_config.py::test_the_client_profile_carries_james_per_client_inputs_and_says_when_absent`.
+
 ### 2026-09-29 — Transaction file joins the ODD again: the 1441 header, one account-id reading, one ODD key (branch `test/unified-analysis`)
 
 **Moves every transaction figure for a client whose file names its account column "DDA Account".**

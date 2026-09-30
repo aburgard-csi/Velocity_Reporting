@@ -32,12 +32,22 @@ PILL = "{as_of} Data"
 
 def _rows(txn, key, li, vi, n=10):
     """(label, number) pairs from a list-of-rows metric; anything that is not a labelled
-    numeric row is left out rather than drawn as a zero."""
+    numeric row is left out rather than drawn as a zero. `key` may be dotted
+    ("comp_local.institutions") for a list inside a dict, and a dict of lists keyed by
+    category (fin_top_providers) is flattened and ranked by the value column. 1441
+    (2026-09-30): three of nine views drew empty because the key or the shape was wrong here,
+    while the engine had the numbers."""
+    v = txn
+    for part in key.split("."):
+        v = v.get(part) if isinstance(v, dict) else None
+    if isinstance(v, dict):
+        v = [r for rows in v.values() if isinstance(rows, list) for r in rows]
     out = []
-    for r in (txn.get(key) or []):
+    for r in (v or []):
         if (isinstance(r, (list, tuple)) and len(r) > max(li, vi)
                 and isinstance(r[vi], (int, float)) and not isinstance(r[vi], bool)):
             out.append((r[li], r[vi]))
+    out.sort(key=lambda t: -t[1])
     return out[:n]
 
 
@@ -77,7 +87,7 @@ VIEWS = [
       ("rel_breadth_mean", "Channels per account", _n)],
      "Channels used per account, and how many accounts look primary: two or more channels and ten or more transactions a month.",
      "rel_* section: channel breadth, recurring billers, depth by breadth."),
-    ("What leakers hold with us", ("ovl_by_destination", 0, 2, "money"),
+    ("What leakers hold with us", ("ovl_destinations", 0, 2, "money"),
      [("ovl_flight_n", "Accounts with falling deposits", _n), ("ovl_flight_deposits", "Their balances", _money),
       ("ovl_named_destination_deposits", "With a named destination", _money)],
      "Where the declining balances actually go: the flight-risk accounts joined to their competitor and leakage rows.",
@@ -87,7 +97,7 @@ VIEWS = [
       ("comp_accounts_total", "Transacting personal accounts", _n)],
      "Named institutions holding a relationship with our members, ranked by dollars.",
      "Competitors from the shared dictionary plus the client's local and regional lists."),
-    ("Which competitors to work first", ("comp_local", 0, 2, "money"),
+    ("Which competitors to work first", ("comp_local.institutions", 0, 2, "money"),
      [("comp_multi_bank_pct", "Multi-banked accounts", _pct), ("comp_momentum", "Momentum", _n),
       ("hot_branches_n", "Branches with a hotspot", _n)],
      "Local competitors first: the ones a branch can answer. Momentum says who is growing.",
