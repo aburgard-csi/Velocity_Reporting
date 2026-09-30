@@ -70,7 +70,7 @@ VIEWS = [
       ("txn_per_account", "Transactions per account", _n)],
      "Dollars by channel over the window: card (PIN and signature), ACH and check. Transactions per account are a monthly average.",
      "Every row of the monthly transaction files in the window, by transaction type."),
-    ("Where the money goes", ("fin_by_category", 0, 2, "money"),
+    ("Where the money goes", ("fin_by_category", 0, 4, "money"),
      [("fin_leaking_pct", "Accounts paying elsewhere", _pct),
       ("fin_leakage_dollars", "Dollars to outside products", _money),
       ("fin_addressable_dollars", "Of which addressable", _money)],
