@@ -46,6 +46,18 @@ def summarise(folder, log=None):
         for k in sorted(txn):
             if k.startswith("fin_") and not isinstance(txn[k], (list, dict)):
                 out.append(f"  {k:<28} {json.dumps(txn[k])}")
+        out.append("competition (scalars):")
+        for k in sorted(txn):
+            if k.startswith(("comp_", "ovl_")) and not isinstance(txn[k], (list, dict)):
+                out.append(f"  {k:<36} {json.dumps(txn[k])}")
+        for label, rows in (("competitors ranked (comp_institutions)", txn.get("comp_institutions")),
+                            ("local competitors (comp_local.institutions)", (txn.get("comp_local") or {}).get("institutions")),
+                            ("providers (fin_top_providers, by category)", txn.get("fin_top_providers")),
+                            ("flight-risk destinations (ovl_destinations)", txn.get("ovl_destinations"))):
+            if isinstance(rows, dict):
+                rows = [[cat] + list(r) for cat, rs in rows.items() for r in (rs or [])[:3]]
+            out.append(f"{label}: {len(rows) if rows else 0} rows")
+            out += [f"  {json.dumps(r)[:150]}" for r in (rows or [])[:15]]
         warns = txn.get("warnings") or []
         out.append(f"transaction warnings ({len(warns)}):")
         out += [f"  {w}" for w in warns[:25]]

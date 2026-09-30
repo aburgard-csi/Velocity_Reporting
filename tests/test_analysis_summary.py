@@ -15,7 +15,9 @@ def test_the_summary_names_the_join_the_warnings_and_the_reconciliation(tmp_path
     (f / "txn_metrics.json").write_text(json.dumps({
         "txn_files_read": 11, "txn_rows": 10928371, "txn_odd_join_key": " Acct Number",
         "txn_odd_match_pct": 97.4, "txn_odd_join_candidates": [["Acct ID", 0], [" Acct Number", 31000]],
-        "fin_leaking_pct": 12.5, "fin_by_category": [["x", 1]], "warnings": ["one warning"]}))
+        "fin_leaking_pct": 12.5, "fin_by_category": [["x", 1]], "warnings": ["one warning"],
+        "comp_institutions": [["Chase", "National Bank", 30, 49.2]], "comp_local": {"institutions": [["Northrim Bank", 12, 5000]]},
+        "comp_with_competitor_pct": 41.0, "fin_top_providers": {"Credit Cards": [["CAPITAL ONE", 30, 3141]]}}))
     (f / "metrics.json").write_text(json.dumps({"warnings": [], "gt_state": "deferring", "gt_deferred_balance": 3000.0}))
     (f / "report.md").write_text("# r\nall good\nPOSSIBLE DATA ISSUE: reg e wording\n")
     log = tmp_path / "build.log"
@@ -26,6 +28,7 @@ def test_the_summary_names_the_join_the_warnings_and_the_reconciliation(tmp_path
     assert "fin_leaking_pct" in text and "fin_by_category" not in text
     assert "one warning" in text and "POSSIBLE DATA ISSUE" in text and "ok vs funnel" in text
     assert "gt_deferred_balance" in text and "3000.0" in text
+    assert "Northrim Bank" in text and "Chase" in text and "CAPITAL ONE" in text and "comp_with_competitor_pct" in text
 
 
 def test_a_missing_folder_is_stated(tmp_path):
