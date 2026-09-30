@@ -17,6 +17,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-09-30 — Super-Regional Bank tier in the shared competitor dictionary (branch `test/unified-analysis`)
+
+**Moves the competition figures for any client whose account holders pay one of these banks.**
+James, on 1441: "19 national banks seems wrong." `engine/config/competitors.json` gains a
+`Super-Regional Bank` tier (kind: competitor) with 31 banks between the national tier and a
+client's own RegionalCompetitors list (Comerica, First Citizens, First Horizon, Synovus, Frost,
+BOK, Webster, Valley, Old National, Flagstar, Associated, Prosperity, Wintrust, UMB, Pinnacle,
+Texas Capital, Popular, Cadence, Hancock Whitney, Arvest, BankUnited, Simmons, United Community,
+Atlantic Union, Commerce, FNBO, Fulton, Trustmark, Ameris, SouthState, FirstBank). A client's
+Regional / Local lists still win by name. Test: `tests/test_super_regional_tier.py`.
+
 ### 2026-09-30 — TI slides: two money views drew the wrong column; five tiles read n/a; base label; account holders (branch `test/unified-analysis`)
 
 **Moves figures on TI slides 28, 29, 32, 33, 34 and the selection line on all nine.** From the
