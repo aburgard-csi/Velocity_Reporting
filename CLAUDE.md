@@ -425,8 +425,8 @@ the slide / source in the notes, and where each rule is enforced. **Read it befo
 any deck, and keep it as the single source of truth for visual style.** `tests/test_style_doc.py`
 fails if it cites a file that no longer exists.
 
-**Writing style.** All client-facing text follows Aaron's rules (Obsidian
-`Claude/Operating Instructions.md`). Banned words include: robust, comprehensive,
+**Writing style.** All client-facing text follows Aaron's writing rules, recorded
+here in full rather than pointed at elsewhere. Banned words include: robust, comprehensive,
 leverage, seamless, delve, and the banker-deck list — engine, lever, lift (as prose;
 "ARS Lift Matrix" as a proper slide name is fine), ramping, healthy, predominantly,
 companion, seasoned book, annuity. No superlatives or unsupported higher/lower claims.

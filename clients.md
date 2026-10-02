@@ -172,7 +172,7 @@ CashPlease. A tab in the workbook still says nothing on its own.*
 
 ### CashPlease roster — BUILD ONLY THESE
 
-Aaron's client book (Obsidian) intersected with the 2026-09-06 workbook. Since 2026-09-15 it also
+Aaron's client book intersected with the 2026-09-06 workbook. Since 2026-09-15 it also
 carries the other CSMs' ARS clients that run CashPlease, with loans from the 2026-09-13 weekly. `Build` is what
 the builder reads; a row marked `no` is parsed and deliberately skipped, so a
 cancelled client cannot come back just because their tab keeps arriving.
@@ -191,7 +191,7 @@ column's position is free.
 | 1217 | Pioneer FCU | James Gilmore | yes | 750 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Pioneer Federal Credit Union" |
 | 1526 | Create CU | Gregg Miller | yes | 64 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clark County Credit Union" |
 | 1529 | Vantage West CU | Jordan Berkowitz | yes | 13,494 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
-| 1539 | Marine FCU | Aaron Burgard | yes | 6,745 | **ARS-ICS-MRPC-CP** section | Obsidian `products` omits CashPlease — see gap 3 |
+| 1539 | Marine FCU | Aaron Burgard | yes | 6,745 | **ARS-ICS-MRPC-CP** section | the client book's product list omits CashPlease — see gap 3 |
 | 1542 | The Friendship SB | Daniel Wood | yes | 401 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Friendship State Bank" |
 | 1564 | OneUnited Bank | Aaron Burgard | yes | 11,495 | standalone deck   | no other RPE program |
 | 1632 | WesBanco Bank | Aaron Burgard | yes | 11,927 | **ICS-CP** section | |
@@ -202,8 +202,8 @@ column's position is free.
 | 1748 | Clearview FCU | Jordan Berkowitz | yes | 10,886 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clearview Federal Credit Union" |
 | 1750 | All In FCU | Aaron Burgard | yes | 5,701 | standalone deck   | no other RPE program |
 | 1761 | Capital Educators FCU | James Gilmore | yes | 223 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "CapEd CU" |
-| 1770 | Central State Bank | Aaron Burgard | yes | 27 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
-| 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | Obsidian `products` omits CashPlease — see gap 3 |
+| 1770 | Central State Bank | Aaron Burgard | yes | 27 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
+| 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
 | 1776 | CoastHills CU | James Gilmore | yes | 1,246 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster |
 
 **Thirteen combined decks and five standalone decks per run.** A client whose CashPlease
@@ -220,7 +220,7 @@ NOT cancelled: 27 loans program-to-date with none in a week is either a program 
 took hold or one that has stopped. Worth asking before their next review, because the deck
 reports it either way.
 
-**1566 People's Bank NC is on this list's edge:** Obsidian says they are on CashPlease
+**1566 People's Bank NC is on this list's edge:** the client book says they are on CashPlease
 but they have **no tab in the workbook**, so no deck can be built. They are left off
 the table rather than added with `Build: yes`, which would fail every run. See gap 4.
 
@@ -323,12 +323,12 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
   ARS, ICS or MRPC (2026-08-28), so 1658 now has no RPE program and no CashPlease
   module. Their workbook tab and ICS data folder both stay on disk as the record of
   what shipped.
-- **2026-09-01 — this file reconciled against the Obsidian client book** (Claude, from
-  `C:\Obsidian\My Vault\Work\Clients` — 61 client folders, read via
-  `C:\Projects\CashPlease\build\obsidian_roster.py`). **No ARS/ICS/MRPC membership was
-  changed:** every program row here still reflects Aaron's confirmations, and the vault
-  is contract/CRM notes, not a build roster. The check found **no client with an
-  ARS/ICS/MRPC product in Obsidian that is missing from this file** — the RPE roster is
+- **2026-09-01 — this file reconciled against Aaron's client book** (Claude, a one-time
+  read of 61 client records; the reader that did it was removed on 2026-10-02 and nothing
+  in deck production reads that book). **No ARS/ICS/MRPC membership was
+  changed:** every program row here still reflects Aaron's confirmations, and the client
+  book is contract/CRM notes, not a build roster. The check found **no client with an
+  ARS/ICS/MRPC product there that is missing from this file** — the RPE roster is
   complete. Four disagreements were found and are recorded as gaps below rather than
   applied, because a note is evidence a program *was* running, never proof it still is
   — the same rule that made this file exist.
@@ -384,38 +384,39 @@ These are stated as open questions, not assumptions.
    (→ Meritrust) need a brand call after a merger. A client without a file still builds,
    just without a logo — see CLAUDE.md **File locations**.
 
-2. **Obsidian disagrees with this file on three clients' program membership.** In every
+2. **The client book disagreed with this file on three clients' program membership**
+   at that check. In every
    case this file is the one that shipped decks, so it is left as-is pending Aaron:
-   - **1174 PointBank** — here: ICS cancelled, no programs (2026-08-28). Obsidian: still
-     `products: [ILS, ICS]`. Is the vault simply stale, or did ICS come back?
-   - **1705 CoastLife CU** — here: ARS active. Obsidian: `products: []`, status "Pending
+   - **1174 PointBank** — here: ICS cancelled, no programs (2026-08-28). There: still
+     `products: [ILS, ICS]`. Is that record simply stale, or did ICS come back?
+   - **1705 CoastLife CU** — here: ARS active. There: `products: []`, status "Pending
      contract review". CoastLife's 2026.08 ARS deck shipped, so this file looks right and
-     the vault looks unfilled — confirm.
-   - **1738 Rosedale Bank** — here: ICS, referrals-only until a workbook lands. Obsidian:
+     that record looks unfilled — confirm.
+   - **1738 Rosedale Bank** — here: ICS, referrals-only until a workbook lands. There:
      `products: []`, status "Pending contract review". Same question.
 
-3. **Obsidian's `products` does not list CashPlease for three clients who have real
+3. **The client book's product list does not carry CashPlease for three clients who have real
    CashPlease volume in the workbook**: 1539 Marine FCU (6,705 loans), 1771 Copper State
    CU (153) and 1770 Central State Bank (27). The modules are built regardless — the
-   workbook is the CashPlease roster — but the vault entries look out of date. Marine in
+   workbook is the CashPlease roster — but those records look out of date. Marine in
    particular is a 6,745-loan program recorded nowhere in its own client note.
 
-4. **1566 People's Bank NC is the mirror image**: Obsidian lists `products: [ILS,
+4. **1566 People's Bank NC is the mirror image**: the client book lists `products: [ILS,
    CashPlease]` but the client has **no tab in the workbook** — still absent from the
    2026-09-06 one, so this is not a one-week gap. Either they are sold but not yet live,
    or their data is missing from the weekly pull; worth asking Bradford which.
 
-5. **1537 is still "FNB&T Chickasha" in Obsidian.** This file renamed 1537 to **Brooks
-   Bank** effective 2026-08-31 and decks deliver under that name. The vault folder and
-   note were not renamed. Match 1537 by ID, never by name.
+5. **1537 is still "FNB&T Chickasha" in the client book.** This file renamed 1537 to
+   **Brooks Bank** effective 2026-08-31 and decks deliver under that name. That record was
+   not renamed. Match 1537 by ID, never by name.
 
-6. **Obsidian tracks ILS on nearly every client; this file does not track ILS at all.**
+6. **The client book tracks ILS on nearly every client; this file does not track ILS at all.**
    That was harmless while the three programs were the only deliverables. Now that
    CashPlease modules are inserted into ILS review decks, the ILS review schedule is a
    real dependency and it lives in William Ferra's weekly email, not here. Worth deciding
    whether this file should carry an ILS column.
 
-7. **1549 Wellworth carries a fourth product in Obsidian — "Account Engagement"** — which
+7. **1549 Wellworth carries a fourth product in the client book — "Account Engagement"** — which
    this file does not track and no pipeline builds. Is it a deliverable?
 
 ## What is NOT a signal to build

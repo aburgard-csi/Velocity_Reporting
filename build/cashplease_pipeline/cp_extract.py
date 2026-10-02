@@ -48,8 +48,8 @@ STATUSES = ["Pending", "Processing", "Funded", "Paid Off",
             "Overdue", "Charged Off", "Closed"]
 
 # Sheet names are capped at 31 chars by Excel. Full delivery names, keyed by client
-# id, for every tab whose sheet name is truncated. Sourced from the Obsidian client
-# folders and the weekly ILS Program Review schedule.
+# id, for every tab whose sheet name is truncated. Sourced from Aaron's client book
+# and the weekly ILS Program Review schedule.
 NAME_OVERRIDES = {
     "1838": "American Eagle Financial Credit Union",
     "1803": "First Source Federal Credit Union",

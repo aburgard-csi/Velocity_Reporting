@@ -17,6 +17,30 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — Obsidian is out of deck production
+
+Summary: The project no longer names Aaron's Obsidian vault, its paths, or the script that
+read it. The facts those notes carried are unchanged — they are about Aaron's client book,
+which is a real record whatever application holds it — and nothing in a build ever read it.
+
+Aaron, 2026-10-02: "remove references to Obsidian from the RPE project deck production."
+
+- `scripts/obsidian_roster.py` removed. It read 61 client folders out of the vault for a
+  one-time reconciliation on 2026-09-01 and nothing imports it; it is in git history if the
+  check is ever wanted again.
+- `CLAUDE.md`'s writing-style rule pointed at `Claude/Operating Instructions.md` in the
+  vault. The banned words were already listed here in full, so the pointer bought nothing
+  and a rule whose source sits outside the repo cannot be checked from inside it.
+- `clients.md`: the CashPlease roster's provenance, three roster notes, the 2026-09-01
+  reconciliation record and gaps 2 through 7 now say "the client book" and name no
+  application, no vault path and no reader script. No fact changed, no gap was dropped —
+  they are open questions about a client record, and they stay open.
+- `build/cashplease_pipeline/cp_extract.py`: the `NAME_OVERRIDES` provenance comment.
+
+Verified after the edits: `read_roster` still parses 55 clients and `read_cashplease_roster`
+19 rows, with 1539 still carrying its "ARS-ICS-MRPC-CP section" row. `clients.md` is a build
+input, so a wording pass over it is not a documentation-only change.
+
 ### 2026-10-02 — Sheila answers a refused request instead of dropping the connection
 
 Summary: When Sheila refused a request (for example one without its access token), the
