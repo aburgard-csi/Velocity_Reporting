@@ -284,6 +284,11 @@ def copy_slide(src, dst_prs):
 def set_title_products(slide, programs):
     """Title slide lists exactly the included products (templates/STYLE.md)."""
     product_lines = [PRODUCT_NAME[p] for p in programs]
+    # A cover drawn by build/cover_divider.py (2026-10-02) lists its products as chips;
+    # the shell's cover (and the templates the tests feed in) as lines in one box.
+    import cover_divider
+    if cover_divider.is_new_cover(slide):
+        return cover_divider.set_cover_products(slide, product_lines)
     for sh in slide.shapes:
         if not sh.has_text_frame:
             continue
@@ -334,6 +339,26 @@ def _fit_product_lines(shape, n_lines):
     new = math.floor(box / (n_lines * 1.25))  # a little looser than the fit test, for glyph ascent
     for r in runs:
         r.font.size = Pt(new)
+
+
+def set_divider_tracks(prs, programs):
+    """Every program divider drawn by build/cover_divider.py gets the progress track —
+    all the deck's programs, the divider's own in orange (2026-10-02). A program deck
+    draws no track on its own (a one-item track says nothing), so the combiner is the one
+    place that knows the list. Shell dividers from the templates are left alone."""
+    import cover_divider
+    names = [PRODUCT_NAME[p] for p in programs]
+    done = 0
+    for sl in prs.slides:
+        if not cover_divider.is_new_divider(sl):
+            continue
+        title = cover_divider.slide_title(sl)
+        own = next((n for n in names if title.startswith(n.rstrip("®"))), None)
+        if own and cover_divider.set_divider_track(sl, names, own):
+            done += 1
+    if done:
+        print(f"  progress track on {done} divider(s): {' · '.join(programs)}")
+    return done
 
 
 ROW_TOKENS = tuple(str(i) for i in range(1, 10))
@@ -697,6 +722,7 @@ def main():
         print("  ICS section is referrals-only — agenda detail adjusted so it does not "
               "name account value, ROI or financial results")
     set_agenda(_slide_by_title(prs, "Agenda", "agenda"), programs, _overrides)
+    set_divider_tracks(prs, programs)
     renumber(prs)
 
     import fit_layout

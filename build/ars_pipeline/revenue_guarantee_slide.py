@@ -303,13 +303,23 @@ def pnl(g):
         return [pick(i), round(sum(pick(k) for k in ytd), 2), ptd_val]
 
     out = [("Incremental revenue", cols(lambda k: months[k][1], g["revenue"]), "revenue")]
-    dropped = []
+    dropped, kept = [], []
     for label, vals in g.get("lines") or []:
         if not any(vals):
             dropped.append(label)
             continue
-        out.append((label, cols(lambda k, v=vals: v[k], round(sum(vals), 2)), "line"))
-    out.append(("Total costs", cols(lambda k: months[k][2], g["cost"]), "total"))
+        kept.append((label, vals))
+    # ONE cost line is its own total (Aaron, 2026-10-02): "if we have just one fee line, we
+    # don't need that and a total line". Marine carries only a Respondent Fee, so the itemised
+    # row and Total costs were the same three figures twice. The surviving row keeps the fee's
+    # NAME — which "Total costs" does not say — and is styled as the total.
+    if len(kept) == 1:
+        label, vals = kept[0]
+        out.append((label, cols(lambda k, v=vals: v[k], round(sum(vals), 2)), "total"))
+    else:
+        for label, vals in kept:
+            out.append((label, cols(lambda k, v=vals: v[k], round(sum(vals), 2)), "line"))
+        out.append(("Total costs", cols(lambda k: months[k][2], g["cost"]), "total"))
     out.append(("Incremental profit",
                 cols(lambda k: months[k][1] - months[k][2],
                      round(g["revenue"] - g["cost"], 2)), "profit"))

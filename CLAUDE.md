@@ -1021,6 +1021,13 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `assemble_combined.py` — builds the combined ARS+ICS+MRPC deck from the three finished
   program decks (see **Combined decks** above).
 - `fit_layout.py` — layout-fit pass + 10pt slide numbers; run by every builder before save.
+- `cover_divider.py` — the cover and the section dividers, drawn the same way by all four
+  builders (Aaron, 2026-10-02: "move the section dividers and title slides into main"):
+  left-aligned navy, the client's logo, the month at 84 pt, product chips; a program divider
+  carries its three headline figures and, in a combined deck, the progress track
+  `assemble_combined.set_divider_tracks` draws. Keeps every invariant the pipeline reads off
+  those slides (the "Executive Review  •  <month>" line, first text shape = title, the
+  full-bleed rectangle, the 16 pt floor, no shadow). `tests/test_cover_divider.py` pins them.
 - `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
   used by the ICS builder and the validator. Never eyeball whether a label fits.
 - `branch_names.py` — branch id → name lookup shared by the ARS chart renderers (since 2026-09-17 `metrics_gen` puts the names on every branch chart, table and caption when most of a deck's branch ids resolve; numbers otherwise), and the branch-name dataset in `Inputs/Branch Names/` (Aaron, 2026-09-17): `morning_update` adds names from each client's Charts workbook (Branch Results tab, the file matched to one client by name or by `charts_files.csv`) and from the ICS referrals pull (VIP branch table), never removing one; `client_map(id)` reads it back, Charts name first, and leaves a number unnamed when one source gives it two different names.
@@ -1048,6 +1055,13 @@ from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data —
 - `multi-product_reference_deck.pptx` — combined ARS+ICS+MRPC reference (Union Financial demo, styled); source for re-materializing the stripped templates.
 - `STYLE.md` — visual style guide (single source of truth). `TEMPLATES.md` — reference section map + template materialization.
 
+
+**`prototype/`** — test-only deck experiments, never part of the pipeline or the gate:
+`build_prototype.py` builds the redesigned Executive Review of
+`docs/STYLE-PROPOSAL-2026-10-02.md` from a client's launcher data pack and VIP sheets into
+the session scratchpad, so a change can be judged on real figures before any builder work.
+The cover and dividers were moved into `build/cover_divider.py` from it (2026-10-02); the
+rest is still a proposal.
 
 **`validation/`** — `validate_deck.py` (pre-ship lint gate, 0 FAIL to ship), `qa_all.py`
 (the full gate: every template + given decks, package integrity, layout drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accept).

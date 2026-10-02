@@ -71,7 +71,9 @@ CHART_L, CHART_W, GAP_CHART = 0.5, 12.3, 0.20
 # and the figure is RENDERED at that height so it always runs the full width. A constant
 # height left white space under a captionless slide and shrank the chart off the table's
 # left edge when a caption ran to two lines.
-CHART_MIN_H, CHART_MAX_H, CHART_FLOOR = 1.05, 2.05, 6.74
+CHART_MIN_H, CHART_MAX_H, CHART_FLOOR = 1.05, 2.50, 6.74
+# The ceiling went 2.05 -> 2.50 when a lone fee line stopped needing a Total costs row
+# (Aaron, 2026-10-02): one row fewer freed half an inch the strip was not taking.
 CHART_MONTHS = 12
 
 
@@ -189,7 +191,10 @@ def _empty(slide):
 
 def notes_text(P, g, B, wb_src, tab, month_label):
     cols = " / ".join(P["columns"])
-    lines = [l for l, _v, k in P["rows"] if k == "line"]
+    # A lone cost line is emitted as the TOTAL row under its own name (there is no separate
+    # "Total costs" row then), so the notes read both kinds or they would say a client with
+    # one fee has no itemised cost at all.
+    lines = [l for l, _v, k in P["rows"] if k == "line"] or             [l for l, _v, k in P["rows"] if k == "total" and l != "Total costs"]
     return (
         f"Source: {wb_src}{(' — ' + tab) if tab else ''}, the Actuals tab, read by "
         f"actuals_tab.py and carried in base.json. Columns: {cols}. "

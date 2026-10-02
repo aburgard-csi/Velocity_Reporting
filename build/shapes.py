@@ -17,6 +17,7 @@ Public names are unprefixed. The old underscore names are kept as aliases so the
 existing `from product_mix_slide import _tb, _tile, ...` call sites keep working
 during the migration.
 """
+import os
 from PIL import Image
 
 from pptx.util import Inches, Pt
@@ -287,3 +288,47 @@ _slide_title = slide_title
 _sldid_of = sldid_of
 _move_before = move_before
 _renumber = renumber
+
+
+# ----------------------------------------------------------------- data-slide logo
+DATA_LOGO_BOX = (11.28, 6.78, 1.70, 0.54)      # STYLE.md: bottom-right of every data slide
+
+
+def data_logo(slide, client_id=None, assets_dir=None, lockup=None, box=DATA_LOGO_BOX):
+    """The bottom-right mark on a data slide: the CLIENT's logo, else the lockup.
+
+    The client's logo (Aaron, 2026-10-02). FITTED inside the box and centred in it, never
+    stamped at the box's own size: client logos run 1.50 to 8.77 wide-to-tall and most
+    would be stretched by a fixed 1.70 x 0.54. Cropped to the ink first, because the files
+    carry white or transparent padding and fitting the raw canvas renders a right-sized box
+    holding a tiny mark (rpe_env.trim_logo).
+
+    `lockup` is the fallback for a client with no logo on file — a path or the image bytes.
+    A missing logo is never an error: the slide is built without one.
+    """
+    import rpe_env as _R
+    l, t, w, h = box
+    path = None
+    if client_id:
+        try:
+            path = _R.client_logo(client_id)
+            if path is not None and assets_dir:
+                path = _R.trim_logo(path, assets_dir)
+        except Exception as e:                  # an unreadable logo must not fail a build
+            print(f"!! data logo: {client_id} ({type(e).__name__}: {e}) — using the lockup")
+            path = None
+    if path is not None:
+        fit = _R.fit_box(path, w, h)
+        if fit:
+            fw, fh = fit
+            return slide.shapes.add_picture(str(path), Inches(l + (w - fw) / 2),
+                                            Inches(t + (h - fh) / 2), Inches(fw), Inches(fh))
+    if lockup is None:
+        return None
+    src = lockup if isinstance(lockup, (bytes, bytearray)) else str(lockup)
+    if isinstance(src, str) and not os.path.exists(src):
+        return None
+    if isinstance(src, (bytes, bytearray)):
+        import io as _io
+        src = _io.BytesIO(src)
+    return slide.shapes.add_picture(src, Inches(l), Inches(t), Inches(w), Inches(h))

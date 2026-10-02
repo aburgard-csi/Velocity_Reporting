@@ -160,9 +160,11 @@ def cap_pill(s,l,t,w,h,txt,fill,size=22):
     shadow(shp); return shp
 
 LOGO=[None]
+CLIENT=[None,None]          # (client id, assets dir) for the data-slide logo
 def logo(s):
-    if LOGO[0] and os.path.exists(LOGO[0]):
-        s.shapes.add_picture(LOGO[0],Inches(11.28),Inches(6.78),Inches(1.7))
+    # The client's logo bottom-right, the lockup where there is none (Aaron, 2026-10-02).
+    from shapes import data_logo as _data_logo
+    _data_logo(s, client_id=CLIENT[0], assets_dir=CLIENT[1], lockup=LOGO[0])
 
 def blank(prs):
     lay=prs.slide_layouts[6] if len(prs.slide_layouts)>6 else prs.slide_layouts[-1]
@@ -428,6 +430,8 @@ def build(d, static_path, out, referrals_only=False):
     # client with no workbook at all does.
     _meta = d.get("meta") or {}
     _cid, _period = _meta.get("client_id"), _meta.get("period")
+    # The data-slide mark is this client's logo (Aaron, 2026-10-02); `logo()` reads it here.
+    CLIENT[0] = _cid
     # The Contact Us card is the client's managing CSM (Aaron, 2026-09-16), resolved before
     # anything is rendered so a client with no CSM on file stops with a sentence. Any
     # `contacts` list in the sheet is ignored: it named one CSM for every client.
@@ -509,6 +513,7 @@ def build(d, static_path, out, referrals_only=False):
     if _stale_wb_month:
         wbm=_stale_wb_month
     A=os.path.join(os.path.dirname(out) or ".","_ics_assets"); os.makedirs(A,exist_ok=True)
+    CLIENT[1] = A          # where the client logo is cropped to its ink before placing
     CH.render_all(d, A, referrals_only=referrals_only); a=lambda n: os.path.join(A,n)
     prs=Presentation(static_path)
     prs.slide_width=Inches(13.333); prs.slide_height=Inches(7.5)
@@ -569,36 +574,27 @@ def build(d, static_path, out, referrals_only=False):
             "  Unswapped, the deck ships the TEMPLATE client's name on the Q&A slide.\n"
             "  Fix the builder/template pair — do not ship.")
 
-    # 1 cover
-    # CANONICAL title layout (matches ARS/MRPC): centered lockup card, centered 40pt title,
-    # orange centered client + review lines (STYLE.md, Aaron 2026-07-24)
+    # 1 cover and 2 divider — the shared left-aligned layout (build/cover_divider.py,
+    # 2026-10-02): the cover carries the client's logo, the month, the client and the one
+    # product chip; the divider carries the referral headline figures from the VIP block.
+    import cover_divider as CD
+    _clogo = CD.client_logo_for(_meta.get("client_id"), A)
     s=blank(prs)
-    r=s.shapes.add_shape(MSO_SHAPE.RECTANGLE,0,0,prs.slide_width,prs.slide_height); r.fill.solid(); r.fill.fore_color.rgb=NAVY; r.line.fill.background()
-    _tcard=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(5.01),Inches(0.7),Inches(3.32),Inches(1.27))
-    _tcard.fill.solid(); _tcard.fill.fore_color.rgb=WHITE; _tcard.line.fill.background()
-    try: _tcard.adjustments[0]=0.25
-    except Exception: pass
-    if LOGO[0] and os.path.exists(LOGO[0]):
-        s.shapes.add_picture(LOGO[0],Inches(5.17),Inches(0.86),Inches(3.0),Inches(0.95))
-    tb(s,0.8,2.7,11.7,2.0,"Invitation Checking® System",40,WHITE,True,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,font="Montserrat")
-    tb(s,0.8,5.0,11.7,1.2,[client,f"Executive Review  •  {rm}"],20,ORANGE,True,align=PP_ALIGN.CENTER,font="Montserrat")
-    notes(s,"Title slide. No data.")
-
-    # 2 divider — CANONICAL product-divider layout (STYLE.md, Aaron 2026-07-24):
-    # white logo card top-left, centered 52pt title, orange centered benefits line
+    CD.draw_cover(s, [CD.PRODUCT_ICS], client, rm, client_logo=_clogo, note="Title slide. No data.")
+    _rf = d.get("referrals") or {}
+    _stats = []
+    if _rf.get("program_to_date") is not None:
+        _stats.append((f"{_rf['program_to_date']:,}", "referrals, program to date"))
+    if _rf.get("year_to_date") is not None:
+        _stats.append((f"{_rf['year_to_date']:,}", "referrals, year to date"))
+    _pm = _rf.get("previous_month") or {}
+    if _rf.get("prev_month_vs_goal_pct") is not None and _pm.get("label"):
+        _stats.append((f"{_rf['prev_month_vs_goal_pct']:.0f}%", f"{_pm['label']} against the monthly goal"))
     s=blank(prs)
-    r=s.shapes.add_shape(MSO_SHAPE.RECTANGLE,0,0,prs.slide_width,prs.slide_height); r.fill.solid(); r.fill.fore_color.rgb=NAVY; r.line.fill.background()
-    _card=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(0.55),Inches(0.5),Inches(2.22),Inches(0.92))
-    _card.fill.solid(); _card.fill.fore_color.rgb=WHITE; _card.line.fill.background()
-    try: _card.adjustments[0]=0.25
-    except Exception: pass
-    if LOGO[0] and os.path.exists(LOGO[0]):
-        s.shapes.add_picture(LOGO[0],Inches(0.71),Inches(0.66),Inches(1.9),Inches(0.6))
-    tb(s,0.7,2.25,11.9,2.4,"Invitation Checking® System",52,WHITE,True,align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,font="Montserrat")
-    tb(s,0.7,5.05,11.9,0.9,
-       "Referrals" if referrals_only else "Referrals · Account Performance · Revenue",
-       22,ORANGE,True,align=PP_ALIGN.CENTER,font="Montserrat")
-    notes(s,"Section divider. No data.")
+    CD.draw_divider(s, CD.PRODUCT_ICS,
+                    "Referrals" if referrals_only else "Referrals · Account Performance · Revenue",
+                    stats=_stats, note="Section divider. Figures: VIP referrals block (program to date, "
+                                       "year to date, previous month against goal).")
 
     # Agenda (after the ICS section header)
     #
@@ -625,26 +621,11 @@ def build(d, static_path, out, referrals_only=False):
         br=bp.add_run(); br.text=str(i); br.font.size=Pt(16); br.font.bold=True; br.font.name="Montserrat"; br.font.color.rgb=WHITE
         tb(s,2.45,yy+0.02,9.5,0.5,it,20,NAVY,False,anchor=MSO_ANCHOR.MIDDLE)
         yy+=0.66
-    # Client logo, right-hand third. The agenda's own text reaches at most 7.31in
-    # (measured against the bundled TTFs), so a logo from 8.60in clears it. Centred on
-    # the agenda block, which is shorter in a referrals-only build.
-    try:
-        import rpe_env as _rpe
-        _lp=_rpe.client_logo(m.get("client_id"))
-        if _lp is None:
-            print(f"agenda logo: none on file for client {m.get('client_id')} "
-                  f"(Inputs/Logos/<id>.png) — slide built without it")
-        else:
-            _lp=_rpe.trim_logo(_lp,A)
-            _fit=_rpe.fit_box(_lp,3.90,1.70)
-            if _fit:
-                _lw,_lh=_fit
-                _cy=(1.55+yy-0.66+0.5)/2.0     # centre of the agenda block
-                s.shapes.add_picture(str(_lp),Inches(8.60+(3.90-_lw)/2.0),
-                                     Inches(_cy-_lh/2.0),Inches(_lw),Inches(_lh))
-                print(f"agenda logo: {os.path.basename(str(_lp))} placed {_lw:.2f}x{_lh:.2f}in")
-    except Exception as _e:
-        print("!! agenda logo skipped:",repr(_e))
+    # ---- client logo on the Agenda slide: REMOVED (Aaron, 2026-10-02) ---------------
+    # "with the bank logo moved to the lower right corner, the larger logo can be removed
+    # from the agenda slide." The client's mark is on every data slide bottom-right and on
+    # the cover at cover size, so a third, larger copy on the agenda said nothing new. The
+    # right-hand third of the agenda is empty again by design, not by oversight.
     logo(s); pagenum(s,3); notes(s,"Agenda. No data.")
 
     rf=d["referrals"]; base=f"Source — {m.get('vip_source','VIP ICS Referral Data')} and {m.get('workbook','ICS workbook')} for {client} ({m['client_id']}), pulled {m['data_pull']}."

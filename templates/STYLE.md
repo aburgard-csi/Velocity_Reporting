@@ -121,9 +121,15 @@ a missing Source line or another client's provenance).
 Every single-product deck carries its own shell; the combiner keeps exactly one of
 each (`assemble_combined.section_slides` drops the rest).
 
-- **Title slide.** Product name(s) in white; client, "Executive Review" and the
-  reporting month + year in orange. **Lists only the products in this build**
-  (ARS+MRPC → two lines).
+- **Title slide (2026-10-02, `build/cover_divider.py`).** Full-bleed navy, left-aligned:
+  the client's own logo (`Inputs/Logos/`, trimmed) on a white card top-left; the reporting
+  month at 84 pt Montserrat ExtraBold white; under it one text frame with the client name
+  (32 pt orange) and "Executive Review  •  <month>" (18 pt) — the line the combiner and
+  validator read; the included products as outline chips (16 pt, wrapping to a second row
+  for four); the lockup bottom-right on a white card. **Lists only the products in this
+  build** — the combiner replaces the chips (`set_cover_products`). The first chip is the
+  slide's title. Every builder draws it; the shells still carry the old centered cover and
+  are redrawn at build time.
 - **The two months.** The **reporting month** is when the deck is presented and
   appears once, on the title slide; it comes from the period tag (`ARS_PERIOD` /
   `RPE_PERIOD`, or the `<yyyy.mm>` in the output filename) and **never from the
@@ -141,13 +147,21 @@ each (`assemble_combined.section_slides` drops the rest).
   REMOVED, not blanked (an empty numbered row reads as a section that failed). Up to
   four rows keep the template pitch; five re-space (1.60 / 2.54 / 3.48 / 4.41 / 5.35).
   A referrals-only ICS section gets the referrals-only detail line.
-- **Section divider** — one layout for all four products: full-bleed navy; the
-  logo card top-left; product name centered, Montserrat bold 52 pt white in
-  (0.7, 2.25, 11.9 x 2.4); benefits line Montserrat bold 22 pt orange in
-  (0.7, 5.05, 11.9 x 0.9). ARS "Mailings · Debit Card · Reg E" · ICS "Referrals ·
-  Account Performance · Revenue" (referrals-only: "Referrals") · MRPC "Enrollments ·
-  Retention · Revenue" · CashPlease "Loan Volume · Portfolio Status · Peer Comparison".
-  No number. ARS/MRPC dividers are baked in the shells; ICS and CashPlease build theirs.
+- **Section divider (2026-10-02, `build/cover_divider.py`)** — one layout for all four
+  products and the ARS sub-sections: full-bleed navy, left-aligned; "SECTION" kicker
+  (16 pt, `STEEL_SOFT`); the section name at 52 pt Montserrat ExtraBold white (stepping
+  down to 36 when it will not fit one line); the benefits line 18 pt orange. ARS
+  "Mailings · Debit Card · Reg E" · ICS "Referrals · Account Performance · Revenue"
+  (referrals-only: "Referrals") · MRPC "Enrollments · Retention · Revenue" · CashPlease
+  "Loan Volume · Portfolio Status · Peer Comparison". A **program** divider carries up to
+  three headline figures at 40 pt with 16 pt labels (ARS: revenue to fees, profit PTD,
+  latest response · ICS: referrals PTD, YTD, previous month vs goal · MRPC: enrollments
+  PTD, last complete month, trailing 12 · CashPlease: loans booked, principal, loans per
+  1,000 DDAs). In a **combined deck only**, a progress track along the bottom names every
+  section (ARS · ICS · CASHPLEASE · MRPC) with the current one in orange —
+  `assemble_combined.set_divider_tracks`; a standalone deck draws none. The lockup sits
+  top-right. No number. The ARS builder redraws the shell's dividers in place; ICS, MRPC
+  and CashPlease draw theirs. Nothing below the 16 pt floor and no shadow.
 - **Questions & Discussion** ends the primary material; **Contact Us** (navy contact
   card: name, role, phone, email) follows it. The card is **the client's managing CSM**
   (Aaron, 2026-09-16), from `CSM Contacts.csv` via `rpe_env.csm_contact`; the line slots
@@ -423,3 +437,4 @@ MRPC layout fix goes in the same file — one contract, not one commit per deck.
 | 2026-08-29 | Build from the shell, never from a client deck; shared layer at `build/` root |
 | 2026-09-01 | `MMM'YY` on every axis; lines over navy bars are `TEAL` (a white casing was tried the same day and rejected on looks); MRPC enrollment counts above the bars; CashPlease is the fourth product |
 | 2026-09-02 | CashPlease ships WITH ICS or another RPE product, never inserted into the ILS deck; one shadow definition (ICS 26% → 28%); text-over-text collisions FAIL the gate |
+| 2026-10-02 | Cover and section dividers redrawn left-aligned by `build/cover_divider.py` (client logo, month at 84 pt, product chips; dividers carry the section's figures and, combined, a progress track); the rest of the redesign proposal (`docs/STYLE-PROPOSAL-2026-10-02.md`) is still a proposal |

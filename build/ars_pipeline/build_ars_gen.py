@@ -1252,34 +1252,11 @@ if M.get('km_cut'):
         repl(_sl, {"accounts opened since Jul 2021": f"accounts opened since {M['km_cut']}"},
              optional=True)
 
-# ---- client logo on the Agenda slide -------------------------------------------
-# Placed in the right-hand third, which is empty: the agenda's own text reaches at
-# most 8.80in (measured against the bundled TTFs at the 16pt floor, longest
-# sub-line in Montserrat), so a logo from 9.30in clears it. Sized to FIT rather than
-# to a fixed width — client logos run from 1.50 to 4.47 in aspect, so a fixed width
-# would stretch one client and overflow another. A missing logo is not an error.
-try:
-    import rpe_env as _rpe          # phase 2 imports it later; the agenda runs in phase 1
-    _logo_p = _rpe.client_logo(ID)
-    if _logo_p is None:
-        print(f"agenda logo: none on file for client {ID} "
-              f"(Inputs/Logos/{ID}.png) — slide built without it")
-    else:
-        _ag = SB("Agenda")
-        _LZ_L, _LZ_W, _LZ_CY, _LZ_H = 9.30, 3.60, 3.75, 1.60   # zone: left, width, centre-y, height
-        # crop to the ink first — the raw files carry white or transparent padding,
-        # and fitting the canvas renders a right-sized box holding a tiny logo
-        _logo_p = _rpe.trim_logo(_logo_p, ASSETS)
-        _fit = _rpe.fit_box(_logo_p, _LZ_W, _LZ_H)
-        if _fit:
-            _lw, _lh = _fit
-            _ag.shapes.add_picture(str(_logo_p),
-                                   Inches(_LZ_L + (_LZ_W - _lw) / 2.0),
-                                   Inches(_LZ_CY - _lh / 2.0),
-                                   Inches(_lw), Inches(_lh))
-            print(f"agenda logo: {os.path.basename(str(_logo_p))} placed {_lw:.2f}x{_lh:.2f}in")
-except Exception as _e:
-    print("!! agenda logo skipped:", repr(_e))
+# ---- client logo on the Agenda slide: REMOVED (Aaron, 2026-10-02) ---------------
+# "with the bank logo moved to the lower right corner, the larger logo can be removed
+# from the agenda slide." The client's mark is on every data slide bottom-right and on
+# the cover at cover size, so a third, larger copy on the agenda said nothing new. The
+# right-hand third of the agenda is empty again by design, not by oversight.
 
 # ---- point-in-time caption pass -------------------------------------------------
 # The template's captions carry the REFERENCE client's month. Slide-specific swaps
@@ -2088,6 +2065,27 @@ def _bigfont(sl):
     return max([ (r.font.size.pt if r.font.size else 0)
                  for sh in sl.shapes if sh.has_text_frame
                  for p in sh.text_frame.paragraphs for r in p.runs ] + [0])
+# Cover and section dividers in the shared left-aligned layout (build/cover_divider.py,
+# 2026-10-02): the cover lists this deck's one product, the client and the reporting month;
+# the ARS divider carries the program's three headline figures; the sub-section dividers
+# (Mailing Insights, Debit Card Review, Reg E Review, Appendix, New Account Profile) keep
+# their own title and second line, already swapped above. Drawn here, AFTER restyle_fonts,
+# because the cover and divider type is set on purpose and nothing here is below the floor.
+import cover_divider as _cd
+_cd_logo = _cd.client_logo_for(ID, os.path.dirname(OUT) or ".")
+_cd.draw_cover(list(_bp.slides)[0], [_cd.PRODUCT_ARS], NAME, PRESENT_MONTH, client_logo=_cd_logo)
+_cd_n = 0
+for _sl in list(_bp.slides):
+    if _cd.is_divider(_sl):
+        _stats = ([(prof, "revenue to fees, program to date"),
+                   (ltd_profit, "incremental profit, program to date"),
+                   (lrr, f"response to the {lm} mailing")]
+                  if _cd.slide_title(_sl).startswith("Account Revenue Solution") else ())
+        _cd.redraw_divider_in_place(_sl, stats=_stats); _cd_n += 1
+if not _cd_n:
+    raise SystemExit("MISS: no section divider found to redraw — the template changed")
+print(f"cover + {_cd_n} dividers drawn (cover_divider)")
+
 # canonical CSI|Velocity lockup: grab the small pic off a section-heading slide (>=44pt title)
 _logo_blob = None
 for _s in _bp.slides:
@@ -2100,6 +2098,12 @@ for _s in _bp.slides:
 if _logo_blob is None:
     _logo_blob = open(os.path.join(BUILDDIR, "assets", "logo.png"), "rb").read()
 def _add_logo(sl, g):
+    # The DATA box takes the client's logo (Aaron, 2026-10-02); the section box keeps the
+    # CSI | Velocity lockup, which is what a section divider's top-left mark has always been.
+    if g == LOGO_DATA:
+        from shapes import data_logo as _data_logo
+        if _data_logo(sl, client_id=ID, assets_dir=ASSETS, lockup=_logo_blob, box=g):
+            return
     l, t, w, h = g
     sl.shapes.add_picture(_io2.BytesIO(_logo_blob), Inches(l), Inches(t), Inches(w), Inches(h))
 def _put_num(sl, n):

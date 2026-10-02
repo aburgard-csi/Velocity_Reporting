@@ -292,8 +292,16 @@ def head(slide, title, selection, pill_text):
     pill(slide, pill_text, L=10.15, W=2.70)
 
 
+CLIENT = [None, None]       # (client id, assets dir) for the data-slide logo
+
+
 def logo(slide, L, T, W, H):
+    # The client's logo bottom-right, the lockup where there is none (Aaron, 2026-10-02).
+    from shapes import data_logo as _data_logo
     path = BUILD / "assets" / "logo.png"
+    if _data_logo(slide, client_id=CLIENT[0], assets_dir=CLIENT[1],
+                  lockup=str(path) if path.exists() else None, box=(L, T, W, H)):
+        return
     if path.exists():
         fit_picture(slide, str(path), L, T, W, H)
 
@@ -405,14 +413,13 @@ def adapt_shell(prs, d):
     #
     # The client name keeps its own line, as in the shell: the box is two paragraphs and
     # collapsing it to one changes the cover's shape.
-    for sh in found["cover"].shapes:
-        if not sh.has_text_frame:
-            continue
-        txt = sh.text_frame.text.strip()
-        if txt == ac.PRODUCT_NAME["ARS"]:
-            _settext(sh, "CashPlease®")
-        elif "Executive Review" in txt:
-            _set_lines(sh, [d["client_name"], f"Executive Review  •  {label}"])
+    # Drawn by the shared cover module (build/cover_divider.py, 2026-10-02): the client's
+    # logo, the month, the client, the one product chip. The month label is the workbook's
+    # own, as before, and still sits in the "Executive Review  •  <label>" line the
+    # combiner and validator read.
+    import cover_divider as CD
+    CD.draw_cover(found["cover"], [CD.PRODUCT_CP], d["client_name"], label,
+                  client_logo=CD.client_logo_for(d["client_id"], str(_art_dir_for(d))))
 
     # Agenda: one product row plus Questions. `set_agenda` REMOVES the unused rows and
     # their orphan badge circles — blanking them reads as a section that failed to
@@ -453,25 +460,30 @@ def fill_contact(slide, client_id):
 
 
 # ------------------------------------------------------------------ the slides
+def _art_dir_for(d):
+    """Where a build's working files go — the trimmed client logo lands beside the charts.
+    `main` records its art_dir on the pack under `_art_dir`; a caller without one gets the
+    temp folder, and a missing folder only costs the cover its client logo."""
+    p = d.get("_art_dir") or os.environ.get("CP_ARTIFACTS")
+    return Path(p) if p else None
+
+
 def slide_divider(prs, d):
+    """The CashPlease section divider in the shared left-aligned layout
+    (build/cover_divider.py, 2026-10-02), carrying three program-to-date figures."""
+    import cover_divider as CD
+    m = d["metrics"]
+    stats = [(f"{m['total_loans']:,}", "loans booked, program to date"),
+             (money_short(m["total_principal"]), "principal advanced")]
+    if m.get("loans_per_1k_dda") is not None:
+        stats.append((f"{m['loans_per_1k_dda']:.1f}", "loans per 1,000 DDAs, last 12 months"))
+    else:
+        stats.append((money_short(m["total_interest"]), "interest earned"))
     s = new_slide(prs)
-    bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0,
-                            Inches(SLIDE_W), Inches(SLIDE_H))
-    bg.fill.solid(); bg.fill.fore_color.rgb = NAVY_RGB
-    bg.line.fill.background(); bg.shadow.inherit = False
-
-    card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                              Inches(0.55), Inches(0.5), Inches(2.22), Inches(0.92))
-    card.fill.solid(); card.fill.fore_color.rgb = WHITE_RGB
-    card.line.fill.background(); card.shadow.inherit = False
-    logo(s, 0.71, 0.66, 1.9, 0.6)
-
-    textbox(s, 0.7, 2.25, 11.9, 2.4, "CashPlease®", 52, WHITE_RGB, True,
-            PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
-    textbox(s, 0.7, 5.05, 11.9, 0.9, BENEFITS, 22, ORANGE_RGB, True,
-            PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
-    notes(s, f"Section divider. No figures. Client {d['client_id']} "
-             f"{d['client_name']}.")
+    CD.draw_divider(s, CD.PRODUCT_CP, BENEFITS, stats=stats,
+                    note=f"Section divider. Figures from the workbook rollup for client "
+                         f"{d['client_id']} {d['client_name']}: loans booked, principal advanced, "
+                         f"and loans per 1,000 DDAs (or interest earned when no DDA count is on hand).")
     return s
 
 
@@ -1015,6 +1027,9 @@ def main():
 
     art_dir = Path(os.environ.get("CP_ARTIFACTS", pack_path.parent.parent / "figures"))
     art_dir.mkdir(parents=True, exist_ok=True)
+    d["_art_dir"] = str(art_dir)          # for the cover's trimmed client logo
+    # ...and for the data-slide mark, which is this client's logo (Aaron, 2026-10-02).
+    CLIENT[0], CLIENT[1] = d["client_id"], str(art_dir)
 
     prs = Presentation(str(template))
     shell = list(prs.slides._sldIdLst)          # the template's own slides

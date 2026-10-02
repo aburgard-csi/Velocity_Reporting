@@ -258,12 +258,34 @@ def build(data, template, out):
 
     prs=Presentation(template); S=list(prs.slides)
 
-    # Slide 1 — title
-    sub=txt_at(S[0], top=5.0)
-    if sub: set_text(sub, f"{client} | Executive Review  •  {rm}")
+    # Slides 1 and 2 — cover and divider in the shared left-aligned layout
+    # (build/cover_divider.py, 2026-10-02). The divider carries three figures from the
+    # sheet: enrollments program to date, the last complete month, the trailing 12.
+    e=data["enrollments_by_month"]; lc=e["last_complete"]
+    import cover_divider as CD
+    CD.draw_cover(S[0], [CD.PRODUCT_MRPC], client, rm,
+                  client_logo=CD.client_logo_for(m["client_id"], assets))
+    # The divider's program-to-date and 12-month figures come from the MRPC Enrollment
+    # Summary weekly when it is on hand — the same source as the Program to Date and
+    # Current Program Status slides, so the deck carries ONE cardholder count — and from
+    # the VIP sheet's key_metrics only when it is not.
+    _w=mrpc_weekly.MrpcWeekly().client(m["client_id"])
+    _f=status_slides.figures(_w) if _w else None
+    _km=data.get("key_metrics") or {}
+    _lc_n=(lc.get("gold") or 0)+(lc.get("platinum") or 0)+(lc.get("business") or 0)
+    _stats=[]
+    if _f and _f.get("cardholders") is not None:
+        _stats.append((f"{_f['cardholders']:,}", "cardholders enrolled, program to date"))
+    elif _km.get("ptd_total") is not None:
+        _stats.append((f"{_km['ptd_total']:,}", "enrollments, program to date (VIP)"))
+    _stats.append((f"{_lc_n:,}", f"enrollments in {lc['label']}"))
+    if _f and _f.get("enrolled_12") is not None:
+        _stats.append((f"{_f['enrolled_12']:,}", "enrolled over the last 12 months"))
+    elif _km.get("enrollments_trailing_12") is not None:
+        _stats.append((f"{_km['enrollments_trailing_12']:,}", "enrollments, last 12 months (VIP)"))
+    CD.draw_divider(S[1], CD.PRODUCT_MRPC, "Enrollments · Retention · Revenue", stats=_stats)
 
     # Slide 3 — enrollments by month + tier callouts
-    e=data["enrollments_by_month"]; lc=e["last_complete"]
     sh_sub=txt_at(S[2], top=1.12)
     if sh_sub:
         biz_txt=" and Business" if hb else ""
@@ -391,8 +413,7 @@ def build(data, template, out):
     # MRPC Enrollment Summary weekly (Aaron, 2026-10-02). They replace Card Portfolio and Key
     # Metrics, whose VIP figures (Active Enrollments, Total Cards Billed) did not reconcile;
     # status_slides.py says why, and its notes keep those figures with the reason.
-    _w=mrpc_weekly.MrpcWeekly().client(m["client_id"])
-    _f=status_slides.figures(_w) if _w else None
+    # _w / _f were read once, above, for the divider
     _ptd_note=status_slides.fill_program_to_date(S[8], _f, _w, assets, client)
     _now_note=status_slides.fill_current_status(S[9], _f, _w, assets, client, data)
 

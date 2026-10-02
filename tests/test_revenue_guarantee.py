@@ -187,12 +187,26 @@ def test_the_pnl_reads_the_last_complete_month_and_the_program_to_date():
     got = {label: vals for label, vals, _k in P["rows"]}
     # Every month of this fixture is in one calendar year, so year to date IS the program.
     assert got["Incremental revenue"] == [10_000, 120_000, 120_000]
+    # ONE cost line survives (Respondent Fee is zero throughout and is dropped), so it IS the
+    # total row, under its own name — there is no separate "Total costs" (Aaron, 2026-10-02).
     assert got["Program Fee"] == [3_000, 36_000, 36_000]
-    assert got["Total costs"] == [3_000, 36_000, 36_000]
+    assert "Total costs" not in got
     assert got["Incremental profit"] == [7_000, 84_000, 84_000]
-    assert [k for _l, _v, k in P["rows"]] == ["revenue", "line", "total", "profit", "ratio"]
+    assert [k for _l, _v, k in P["rows"]] == ["revenue", "total", "profit", "ratio"]
     # Revenue over cost, per column (Aaron, 2026-10-02).
     assert got["Profitability"] == [10_000 / 3_000, 120_000 / 36_000, 120_000 / 36_000]
+
+
+def test_two_cost_lines_keep_their_own_total_row():
+    """The collapse is only for a lone fee: itemised lines still need something to add to."""
+    rows = months(12, 10_000, 4_000)
+    g = RG.guarantee(lined(rows, [["Program Fee", [3_000.0] * 12],
+                                  ["Consulting Fee / Other", [1_000.0] * 12]]))
+    P = RG.pnl(g)
+    assert [k for _l, _v, k in P["rows"]] == ["revenue", "line", "line", "total", "profit", "ratio"]
+    got = {label: vals for label, vals, _k in P["rows"]}
+    assert got["Total costs"] == [4_000, 48_000, 48_000]
+    assert got["Program Fee"][0] + got["Consulting Fee / Other"][0] == got["Total costs"][0]
 
 
 def test_year_to_date_is_the_last_complete_month_s_own_year():

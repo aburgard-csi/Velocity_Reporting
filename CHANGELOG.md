@@ -17,6 +17,40 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — The client's logo on every data slide, and three slides tightened
+
+Summary: The bank's logo is now the bottom-right mark on every data slide, deliberately. The
+agenda's large copy of it is gone, the section dividers no longer say "SECTION" above the
+section name, and a client with a single fee line gets one cost row instead of that line and
+an identical total.
+
+Aaron, 2026-10-02: "Use the client logo on the data slides"; "with the bank logo moved to the
+lower right corner, the larger logo can be removed from the agenda slide"; "remove SECTION
+from heading slides"; "if we have just one fee line, we don't need that and a total line".
+
+- **`shapes.data_logo`** is the one placement, because the box was stated in six slide modules
+  and four builders. The logo is FITTED and centred in the 1.70 x 0.54 box, never stamped at
+  the box's size: client logos run 1.50 to 8.77 wide-to-tall, so Marine comes out 1.70 x 0.52
+  and Wellworth 1.70 x 0.19. Cropped to its ink first; a client with no logo, or an unreadable
+  one, falls back to the CSI | Velocity lockup and never fails a build. Wired into the ARS
+  branding pass (which re-stamps every data slide, so it covers the slide modules too), the
+  ICS builder and the CashPlease builder. Section dividers keep the lockup top-left.
+  This also makes the placement DELIBERATE: it had become a side effect of the redesigned
+  cover, because the branding pass picks "the canonical lockup" by grabbing the first
+  logo-shaped picture off the first big-title slide, which is now the cover.
+- **The agenda's client logo is removed** from the ARS and ICS builders (MRPC decks have no
+  agenda). It was the only slide carrying the client's mark before today; now every data slide
+  does, and the cover carries it at cover size, so the agenda's was the third copy in four
+  slides.
+- **No "SECTION" kicker** on the dividers: the slide is full-bleed navy with the section name
+  at 52 pt, so a label announcing that it is a section said nothing.
+- **A lone fee line is its own total.** Marine carries only a Respondent Fee, so the itemised
+  row and Total costs were the same three figures twice. The surviving row keeps the fee's
+  NAME, which "Total costs" never said, and is styled as the total; two or more lines still
+  get a total row to add them up. The notes read both kinds, or a one-fee client would have
+  been described as having no itemised cost at all. One row fewer let the chart's ceiling go
+  from 2.05in to 2.50in.
+
 ### 2026-10-02 — Gregg Miller's accounts reassigned
 
 Summary: Gregg Miller is leaving Velocity. 58 of his clients move to other CSMs per the
@@ -86,6 +120,35 @@ way. Two of them (1632, 1734) have no ARS at all.
 
 Marine's deck was rebuilt by hand through the pipeline before this landed; the fix is what makes
 the next one come out right without that.
+
+### 2026-10-02 — The cover and the section dividers are redrawn, left-aligned, with the section's figures
+
+Summary: Every deck's cover and section dividers now use one shared layout: the cover
+shows the client's logo, the reporting month large, the client name and the products as
+chips; each program divider carries that program's three headline figures, and in a
+combined deck a progress track along the bottom shows every section with the current one
+in orange. Nothing else on any slide changes.
+
+Aaron, 2026-10-02: "Move the section dividers and title slides into main", from the
+redesign prototype (`prototype/build_prototype.py`, `docs/STYLE-PROPOSAL-2026-10-02.md`).
+
+`build/cover_divider.py` draws both for all four programs, and each builder calls it:
+ARS redraws the shell's cover and every full-bleed divider in place at the end of the
+build (sub-section dividers keep their own title and second line, which the builder has
+already swapped); ICS, MRPC and CashPlease draw theirs directly. `assemble_combined`
+replaces the cover's chips with the included products and draws the track on each program
+divider. The slides keep everything the rest of the pipeline reads: the cover is still the
+one slide with an "Executive Review" line and still yields the client and month to
+`validate_deck` and the combiner's period check; the first text shape is still the title;
+the full-bleed rectangle still marks the slide as un-numbered; nothing is below the 16 pt
+floor and no shadow is drawn. `restyle_fonts` now leaves a Montserrat weight
+("Montserrat ExtraBold") in place rather than flattening it to "Montserrat".
+
+Figures on the dividers: ARS revenue-to-fees, profit PTD and the latest mailing's
+response; ICS referrals PTD, YTD and the previous month against goal; MRPC enrollments
+PTD, last complete month and trailing 12; CashPlease loans booked, principal advanced and
+loans per 1,000 DDAs. The templates are unchanged (the shells still carry the old slides;
+the builders redraw them), so the layout baseline did not move.
 
 ### 2026-10-02 — The ICS referrals landing says what is actually wrong with it
 

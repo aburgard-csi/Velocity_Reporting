@@ -54,7 +54,11 @@ def _runs(tf):
 
 def _apply(runs, name, floor=True):
     for r in runs:
-        r.font.name = name
+        # A Montserrat WEIGHT ("Montserrat ExtraBold", "Montserrat SemiBold") is still the
+        # heading face: the cover and dividers (build/cover_divider.py) set one on purpose,
+        # and flattening it to "Montserrat" would quietly change their look (2026-10-02).
+        if not (name == HEAD and (r.font.name or "").startswith(HEAD)):
+            r.font.name = name
         if floor and r.font.size is not None and r.font.size.pt < MIN:
             r.font.size = Pt(MIN)
 
