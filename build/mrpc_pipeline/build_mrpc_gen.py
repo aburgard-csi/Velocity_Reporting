@@ -26,6 +26,8 @@ from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 import mrpc_charts_gen as CH
 import revenue_projection as RPJ
+import mrpc_weekly
+import status_slides
 
 # Standard callout drop shadow (STYLE.md "Callouts") — defined once, in build/shapes.py.
 from shapes import shadow as add_shadow
@@ -385,97 +387,14 @@ def build(data, template, out):
     place_pic(_rp7, 0.4, 1.45, 7.55, 5.15)
     swap(S[7], _rp7, A("mrpc_revmonth.png"))
 
-    # Slide 9 (S[8]) — Card Portfolio (NEW). Cloned from Key Metrics: 3 top tiles + big
-    # box (right) + chart slot (left). Pie replaces the chart; tiles/box repurposed.
-    b=data["card_billing"]; tot=b["total_accounts"]; mbill=b["monthly_billing"]
-    plat=next((c for c in CH.card_types(b) if c["name"]=="Platinum"), None)
-    plat_share=round(plat["accounts"]/tot*100,1) if plat else 0
-    cross=round(b["multi_card_accounts"]/tot*100,1)
-    avg_fee=mbill/tot
-    t=txt_at(S[8], top=0.28);  t and set_text(t, "MRPC Card Portfolio")
-    t=txt_at(S[8], top=1.91, left=0.8);  t and set_text(t, f"{tot:,}")
-    t=txt_at(S[8], top=2.62, left=0.8);  t and set_text(t, "Total Cards Billed")
-    t=txt_at(S[8], top=1.91, left=4.93); t and set_text(t, f"${mbill/1000:,.0f}K")
-    t=txt_at(S[8], top=2.62, left=4.93); t and set_text(t, "Monthly Card Billing")
-    t=txt_at(S[8], top=1.91, left=9.06); t and set_text(t, f"${avg_fee:,.2f}")
-    t=txt_at(S[8], top=2.62, left=9.06); t and set_text(t, "Avg Fee per Account")
-    t=txt_at(S[8], top=3.95); t and set_text(t, f"{plat_share:.0f}%")
-    t=txt_at(S[8], top=4.95); t and set_text(t, "Platinum Share")
-    # Which card leads, and at what price, are FOUND — both were hardcoded as
-    # "Platinum ($14.95/mo)". The price is per client in card_billing.prices, and
-    # the leader is whichever type holds the most accounts: a client whose Gold or
-    # Business Platinum book overtook Platinum would have been told otherwise.
-    _types=sorted(CH.card_types(b), key=lambda c: c["accounts"], reverse=True)
-    _lead=_types[0] if _types else None
-    _price=(b.get("prices") or {}).get(_lead["name"]) if _lead else None
-    _lead_txt=(f"{_lead['name']} (${_price:,.2f}/mo) is the most-held card"
-               if _lead and _price else
-               f"{_lead['name']} is the most-held card" if _lead else
-               "Card mix is shown at right")
-    t=txt_at(S[8], top=5.5);  t and set_text(t, f"{_lead_txt}; "
-                                                f"{cross:.1f}% of accounts hold more than one card.")
-    for sh in list(autoshapes(S[8])):              # billing pie is NOT in a callout — free the space
-        try: fh=str(sh.fill.fore_color.rgb).upper()
-        except Exception: fh=""
-        if fh in ("ECF0F4","F2F5F8"): sh._element.getparent().remove(sh._element)
-    cardpic=max(pics(S[8]), key=lambda p2:p2.width*p2.height)
-    place_pic(cardpic, 0.3, 3.42, 6.5, 2.82)       # below the tiles (3.3) and clear of the Platinum card (6.95)
-    swap(S[8], cardpic, A("mrpc_cardpie.png"))
-
-    # Slide 10 (S[9]) — Key Metrics. Active Enrollments is the LARGE callout; PTD upper-
-    # right. Card billing has moved to its own slide; the freed lower-left now carries a
-    # cross-sale callout.
-    k=data["key_metrics"]
-    t=txt_at(S[9], top=1.91, left=0.8);  t and set_text(t, f"${k['avg_monthly_revenue']:,}")
-    t=txt_at(S[9], top=1.91, left=4.93); t and set_text(t, f"{k['enrollments_trailing_12']:,}")
-    t=txt_at(S[9], top=1.91, left=9.06); t and set_text(t, f"{k['ptd_total']:,}")
-    t=txt_at(S[9], top=2.62, left=9.06); t and set_text(t, "Enrollments, Program-to-Date")
-    t=txt_at(S[9], top=3.95); t and set_text(t, f"{k['active_enrollments']:,}")
-    t=txt_at(S[9], top=4.95); t and set_text(t, "Active Enrollments")
-    t=txt_at(S[9], top=5.5);  t and set_text(t, "Members currently active in the MRPC program.")
-    # remove the old billing chart (+ its light backdrop) and add the cross-sale callout
-    for pic in list(pics(S[9])): pic._element.getparent().remove(pic._element)
-    for sh in list(autoshapes(S[9])):
-        try: fh=str(sh.fill.fore_color.rgb).upper()
-        except Exception: fh=""
-        if fh=="ECF0F4": sh._element.getparent().remove(sh._element)   # billing backdrop
-    # Tier Mix (Program to Date) — dynamic rows (some clients have 3 tiers, some more);
-    # font scales to fill the callout (Aaron 2026-07-24). Cross-sale rides as the footer line.
-    _ct=CH.card_types(data["card_billing"]); _tt=sum(c["accounts"] for c in _ct) or 1
-    _rows=[f"{c['name']} — {c['accounts']:,} ({c['accounts']/_tt*100:.0f}%)" for c in _ct]
-    _n=len(_rows)
-    # refresh: remove any baked Tier Mix content from the template first (idempotent)
-    from pptx.util import Emu as _E
-    for _sh in list(S[9].shapes):
-        _tx=_sh.text_frame.text if _sh.has_text_frame else ""
-        _isnavycard=(_sh.shape_type==1 and _sh.left is not None and abs(_E(_sh.left).inches-0.7)<0.05
-                     and _sh.top is not None and abs(_E(_sh.top).inches-3.65)<0.05)
-        if ("Tier Mix (Program to Date)" in _tx) or ("Cross-sale:" in _tx) or _isnavycard or ("— " in _tx and "%" in _tx and _sh.left is not None and _E(_sh.left).inches<6.5 and _sh.top is not None and _E(_sh.top).inches>4.0):
-            _sh._element.getparent().remove(_sh._element)
-    # navy card drawn manually: label (top) / tier rows (middle, dynamic size) / cross-sale (bottom)
-    from pptx.util import Inches as _I, Pt as _P
-    from pptx.dml.color import RGBColor as _RC
-    from pptx.enum.shapes import MSO_SHAPE as _MS
-    from pptx.enum.text import PP_ALIGN as _AL
-    _NV=_RC(0x00,0x27,0x4C); _WH=_RC(0xFF,0xFF,0xFF); _OR=_RC(0xF4,0x7A,0x29)
-    _card=S[9].shapes.add_shape(_MS.ROUNDED_RECTANGLE,_I(0.7),_I(3.65),_I(6.0),_I(2.65))
-    _card.fill.solid(); _card.fill.fore_color.rgb=_NV; _card.line.fill.background()
-    try: _card.adjustments[0]=0.05
-    except Exception: pass
-    add_shadow(_card)
-    def _wtb(x,y,w,h,txt,sz,col,bold,align=_AL.LEFT):
-        b=S[9].shapes.add_textbox(_I(x),_I(y),_I(w),_I(h)); tf=b.text_frame; tf.word_wrap=True
-        pa=tf.paragraphs[0]; pa.alignment=align; r=pa.add_run(); r.text=txt
-        r.font.size=_P(sz); r.font.bold=bold; r.font.name="Montserrat"; r.font.color.rgb=col
-        return b,tf
-    _wtb(1.0,3.78,5.4,0.4,"Tier Mix (Program to Date)",14,_OR,True)
-    _avail=1.45
-    _fs=int(min(18, max(11, (_avail/_n)*72*0.62)))   # dynamic: fill the rows area, floor 11pt
-    _b,_tf=_wtb(1.0,4.22,5.4,_avail,_rows[0],_fs,_WH,True)
-    for _r in _rows[1:]:
-        _pa=_tf.add_paragraph(); _rn=_pa.add_run(); _rn.text=_r
-        _rn.font.size=_P(_fs); _rn.font.bold=True; _rn.font.name="Montserrat"; _rn.font.color.rgb=_WH
-    _wtb(1.0,5.82,5.4,0.4,f"Cross-sale: {cross:.1f}% of accounts hold more than one card.",11,_RC(0xCF,0xDB,0xE8),False)
+    # Slides 9-10 (S[8], S[9]) — MRPC Program to Date and MRPC Current Program Status, from the
+    # MRPC Enrollment Summary weekly (Aaron, 2026-10-02). They replace Card Portfolio and Key
+    # Metrics, whose VIP figures (Active Enrollments, Total Cards Billed) did not reconcile;
+    # status_slides.py says why, and its notes keep those figures with the reason.
+    _w=mrpc_weekly.MrpcWeekly().client(m["client_id"])
+    _f=status_slides.figures(_w) if _w else None
+    _ptd_note=status_slides.fill_program_to_date(S[8], _f, _w, assets, client)
+    _now_note=status_slides.fill_current_status(S[9], _f, _w, assets, client, data)
 
     # Slide 11 (S[10]) — closing
     sub=txt_at(S[10], top=5.1)
@@ -483,7 +402,7 @@ def build(data, template, out):
 
     # ---- date callout: orange "As of {rm}" pill, top-right of every content slide ----
     # (STYLE.md: reporting month = generation month). Reuses the template pill on the
-    # Card Portfolio / Key Metrics slides; creates a matching one on the others.
+    # Program to Date / Current Program Status slides; creates a matching one on the others.
     for _i in (2, 3, 4, 5, 6, 7, 8, 9):
         date_pill(S[_i], f"As of {rm}")
 
@@ -520,13 +439,8 @@ def build(data, template, out):
     set_notes(S[7], base+f" Revenue by month (VIP MRPC Revenue by Month), {bm['months'][0]} – {bm['months'][-1]}; "
                         f"avg ${bm_avg:,}/mo, trailing-12 ${bm_tot:,}. Bars navy, last month orange."
                         + (" " + _left_out["revenue.by_month"] if _left_out.get("revenue.by_month") else ""))
-    set_notes(S[8], base+f" Card portfolio by type: Platinum ($14.95/mo), Gold ($9.95/mo), Business Platinum "
-                        f"($19.95/mo), and Multiple Cards (accounts with >1 card). Total {tot:,} cards, "
-                        f"monthly billing ${mbill:,.2f}, cross-sale {cross:.1f}%. Fee tiers above the three base "
-                        "prices are multi-card accounts.")
-    set_notes(S[9], base+f" Key metrics: avg monthly revenue ${k['avg_monthly_revenue']:,}; trailing-12 "
-                        f"{k['enrollments_trailing_12']:,}; active {k['active_enrollments']:,}; PTD "
-                        f"{k['ptd_total']:,}{' (VERIFY)' if k.get('ptd_total_verify') else ''}; cross-sale {cross:.1f}%.")
+    set_notes(S[8], _ptd_note)
+    set_notes(S[9], _now_note)
     set_notes(S[10], "Discussion slide. No data.")
 
     # ---- callout polish: clear baked-in tile text, then a UNIFORM shadow on every callout ----

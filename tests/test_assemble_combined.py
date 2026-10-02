@@ -332,13 +332,14 @@ def test_mrpc_shell_titles_describe_what_they_become():
     """The shell titled two slides "Revenue to ..." and two "Key Metrics".
 
     build_mrpc_gen retitles all four by position — Revenue by Year, Revenue by
-    Month, Card Portfolio, Key Metrics — so client decks were always correct.
+    Month, Program to Date, Current Program Status (Card Portfolio and Key Metrics
+    until 2026-10-02) — so client decks were always correct.
     But a shell that does not describe what it becomes reads as duplicate slides
     and hides a real duplicate if one ever appears.
     """
     ts = titles(Presentation(MRPC_T))
     for want in ("MRPC Revenue by Year", "MRPC Revenue by Month",
-                 "MRPC Card Portfolio", "MRPC Key Metrics"):
+                 "MRPC Program to Date", "MRPC Current Program Status"):
         n = sum(1 for t in ts if t.startswith(want))
         assert n == 1, f"mrpc_template should carry exactly one {want!r} slide, found {n}"
 

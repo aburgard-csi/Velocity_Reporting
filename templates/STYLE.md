@@ -318,11 +318,11 @@ element is already maxed.
   own `new_accounts` and `goal` — never a derived denominator.
 - **Cancellations by Reason:** ranked horizontal bars (top reason navy, rest steel,
   % at bar ends, no legend) — a donut scales poorly with 4–8 reasons.
-- **Card Portfolio** (before Key Metrics): flat donut by card type, not boxed, at
-  (0.35, 3.3, 6.2 x 2.69); tiles for cards billed, monthly billing, avg fee,
-  Platinum share. **Key Metrics:** the large callout is Active Enrollments; the
-  **Tier Mix** rows are sized `min(18, max(11, (1.45/rows)·72·0.62))` pt so 3 tiers
-  fill the card and 5 still fit; cross-sale % is the footer line.
+- **Program to Date** and **Current Program Status** (replaced Card Portfolio and Key
+  Metrics, 2026-10-02): three navy tiles (36 pt figure, 16 pt label), a chart at lower left
+  in a 6.3 x 3.2 box — a flat tier donut, or status bars with inactive in steel — and a navy
+  callout at lower right (orange heading, white 16 pt lines). Selection line under the
+  title names the weekly's date.
 - MRPC keeps its 10–15 pt hierarchy; `restyle_fonts` sets names only.
 
 ### CashPlease

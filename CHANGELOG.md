@@ -17,6 +17,53 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — MRPC Program to Date and Current Program Status, from the weekly
+
+Summary: MRPC Card Portfolio and Key Metrics are replaced by two slides built from the MRPC
+Enrollment Summary weekly. "Program to Date" shows everyone enrolled since the start.
+"Current Program Status" shows who is active now. The figures the old slides showed did not
+agree with each other or with any current count.
+
+Aaron: "what's the gap between Active Enrollments and Total Cards billed? Create one slide with
+Program to Date Totals and another with current program status." Then: "go ahead with the two
+new MRPC slides using the weekly."
+
+The gap could not be explained, because neither figure was current. For Marine FCU 1539:
+- Key Metrics' "Active Enrollments" (VIP `key_metrics.active_enrollments`, 4,396) carried no
+  date or source.
+- Card Portfolio's "Total Cards Billed" (VIP "Total Fees by Fee Charged", 6,729) counts
+  accounts per fee amount over a window VIP does not state.
+- Key Metrics' "Tier Mix (Program to Date)" was that same billing breakdown.
+
+The weekly's own figures reconcile: 7,942 cardholders and 7,408 accounts enrolled to date;
+2,755 active accounts and 2,825 active cardholders as of 9/27/2026.
+
+- **Program to Date** (`status_slides.fill_program_to_date`): cardholders and accounts
+  enrolled, and the take rate over open debit accounts (19.1%). Also the Platinum / Gold /
+  Business mix from the weekly's TOTAL row (6,808 / 1,134 for Marine). A "Who enrolled" panel
+  shows primary / joint, new / existing account and employees (each pair sums to the
+  cardholders), and new accounts opened that enrolled (3,019 of 26,898).
+- **Current Program Status** (`status_slides.fill_current_status`): active accounts and
+  cardholders, and cardholders enrolled in the last 12 complete calendar months (1,412,
+  Sep'25–Aug'26). The weekly lists only months with an enrollment, so a missing month counts
+  as none, not as a step back in the window. A chart shows every enrolled cardholder by status
+  (active 1–90 / 91–180 / over 180 days, inactive). The callout gives the share still active
+  (36%), the count past the 90-day trial (2,466) and the last complete month's new-account
+  take rate. The notes state the one-count difference between the weekly's status rows and
+  its own totals.
+- **What is no longer on a slide.** VIP's active enrollments, program-to-date and trailing-12
+  enrollments, and the card-billing breakdown (cards billed, monthly billing, average fee,
+  cross-sale %) are kept in the Current Program Status notes, with the reason they are not
+  shown. This replaces the 2026-07-25 rule to show VIP's Active Enrollments as-is. That rule
+  defined active as past the 90-day trial, which the slide now shows from the weekly.
+- **One reader.** `mrpc_weekly.py` holds the weekly reader that used to live inside
+  `refresh_performance_dashboard.py`. The dashboard imports it, so the page and the deck read
+  the weekly one way. `mrpc_charts_gen` swaps `chart_card_pie` / `card_types` for
+  `chart_tier_donut` and `chart_status_bars`, drawn at their slot size. The MRPC template
+  shell's two slides are retitled to match. A client with no tab in the weekly gets both
+  slides with a sentence saying so, never zeros.
+  Tests: `tests/test_mrpc_status_slides.py`.
+
 ### 2026-10-02 — Changing the cycle in Sheila threw an error
 
 Summary: Picking a different cycle in CSM Sheila showed "Could not change cycle: Cannot set

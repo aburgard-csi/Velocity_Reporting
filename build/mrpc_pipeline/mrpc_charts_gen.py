@@ -301,58 +301,50 @@ def chart_revenue_month(d, out, dims):
     ax.set_ylim(0,max(v)*1.14); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
 
-def card_types(cb):
-    """Normalise card_billing into the [{name, accounts, price}] shape.
-
-    The 2026-08-10 VIP rescan replaced the old `card_types` list with a richer
-    `by_fee` breakdown (fee / accounts / amount / label) plus `prices` and
-    `multi_card_accounts`. Accept either: pass `card_types` through when present,
-    otherwise fold `by_fee` into single-card tiers plus one "Multiple Cards"
-    segment (STYLE.md: Platinum / Gold / Business Platinum / Multiple Cards).
-    """
-    if cb.get("card_types"):
-        return cb["card_types"]
-    prices = cb.get("prices") or {}
-    singles, multi = [], 0
-    for row in cb.get("by_fee") or []:
-        label = str(row.get("label", "")).strip()
-        acct = int(row.get("accounts") or 0)
-        if label in prices:
-            singles.append({"name": label, "accounts": acct,
-                            "price": prices[label]})
-        else:                      # "2x Platinum", "2x Gold", ... = multi-card
-            multi += acct
-    singles.sort(key=lambda c: -c["accounts"])
-    if not multi:
-        multi = int(cb.get("multi_card_accounts") or 0)
-    if multi:
-        singles.append({"name": "Multiple Cards", "accounts": multi,
-                        "price": None})
-    return singles
+def chart_tier_donut(names, vals, center_value, center_label, out, dims):
+    """MRPC Program to Date: cardholders by tier (Platinum / Gold / Business), a flat donut with
+    a legend of count and share. Replaced chart_card_pie (2026-10-02), which drew VIP's card
+    billing breakdown on the retired Card Portfolio slide."""
+    total = sum(vals) or 1
+    cols = [NAVY, ORANGE, STEEL, SLATE][:len(vals)]
+    fig = plt.figure(figsize=SLOT_IN["tiers"])
+    axd = fig.add_axes([0.00, 0.02, 0.48, 0.96]); axl = fig.add_axes([0.52, 0.02, 0.46, 0.96])
+    axl.axis('off')
+    _shadow_wedges(axd.pie(vals, colors=cols, startangle=90, counterclock=False,
+                           wedgeprops=dict(width=0.42, edgecolor='white', linewidth=2))[0])
+    axd.text(0, 0.10, center_value, ha='center', va='center', color=NAVY, fontsize=24,
+             fontweight='bold')
+    axd.text(0, -0.18, center_label, ha='center', va='center', color=TICK, fontsize=13)
+    y = 0.80
+    for name, val, c in zip(names, vals, cols):
+        axl.add_patch(plt.Rectangle((0.0, y - 0.035), 0.05, 0.07, color=c,
+                                    transform=axl.transAxes, clip_on=False))
+        axl.text(0.09, y, name, fontsize=16, color=NAVY, fontweight='bold', va='center',
+                 transform=axl.transAxes)
+        axl.text(0.09, y - 0.12, f"{val:,}  ({val / total * 100:.1f}%)", fontsize=14,
+                 color=TICK, va='center', transform=axl.transAxes)
+        y -= 0.32
+    canvas(fig, *dims, out)
 
 
-def chart_card_pie(d, out, dims):
-    # Donut of the card portfolio (single-card types + a Multiple Cards segment) with a
-    # legend showing count, share, and monthly price.
-    cb=d["card_billing"]; types=card_types(cb); total=cb["total_accounts"]
-    names=[t["name"] for t in types]; vals=[t["accounts"] for t in types]
-    prices=[t.get("price") for t in types]
-    cols=[NAVY,ORANGE,STEEL,SLATE][:len(types)]
-    fig=plt.figure(figsize=SLOT_IN["cardpie"])
-    axd=fig.add_axes([0.00,0.02,0.46,0.96]); axl=fig.add_axes([0.50,0.02,0.48,0.96]); axl.axis('off')
-    _shadow_wedges(axd.pie(vals,colors=cols,startangle=90,counterclock=False,
-            wedgeprops=dict(width=0.42,edgecolor='white',linewidth=2))[0])
-    axd.text(0,0.10,f"{total:,}",ha='center',va='center',color=NAVY,fontsize=22,fontweight='bold')
-    axd.text(0,-0.16,"cards billed",ha='center',va='center',color=TICK,fontsize=12)
-    y=0.88
-    for name,val,pr,c in zip(names,vals,prices,cols):
-        pct=val/total*100
-        axl.add_patch(plt.Rectangle((0.0,y-0.035),0.045,0.06,color=c,transform=axl.transAxes,clip_on=False))
-        price=f"   ·   ${pr:.2f}/mo" if pr else "   ·   multiple cards"
-        axl.text(0.075,y+0.005,name,fontsize=14,color=NAVY,fontweight='bold',va='center',transform=axl.transAxes)
-        axl.text(0.075,y-0.105,f"{val:,}  ({pct:.1f}%){price}",fontsize=12.5,color=TICK,va='center',transform=axl.transAxes)
-        y-=0.29
-    canvas(fig,*dims,out)
+def chart_status_bars(labels, vals, out, dims):
+    """MRPC Current Program Status: every enrolled cardholder by status -- active by days since
+    enrollment (navy), or inactive (light steel) -- ranked as the weekly lists them."""
+    total = sum(vals) or 1
+    fig, ax = plt.subplots(figsize=SLOT_IN["status"])
+    y = list(range(len(vals)))[::-1]
+    cols = [STEEL if lab.lower().startswith("inactive") else NAVY for lab in labels]
+    ax.barh(y, vals, color=cols, height=0.62)
+    for yy, v in zip(y, vals):
+        ax.text(v + max(vals) * 0.02, yy, f"{v:,}  ({v / total * 100:.0f}%)", va='center',
+                color=NAVY, fontweight='bold', fontsize=14)
+    ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=14, color=NAVY)
+    ax.set_xlim(0, max(vals) * 1.42); ax.get_xaxis().set_visible(False)
+    for sp in ("top", "right", "bottom"):
+        ax.spines[sp].set_visible(False)
+    ax.spines["left"].set_color(HAIRLINE); ax.tick_params(length=0)
+    canvas(fig, *dims, out)
+
 
 # The inches each chart occupies on its slide (2026-10-02). Every figure used to be drawn
 # 1.2-1.9x larger than its slot and then shrunk into it, so 13pt text landed at 7-11pt on the
@@ -367,7 +359,8 @@ SLOT_IN={
     "cancel":   (6.2, 4.6),
     "revenue":  (7.55, 5.15),
     "revmonth": (7.55, 5.15),
-    "cardpie":  (6.5, 2.82),
+    "tiers":    (6.3, 3.2),
+    "status":   (6.3, 3.2),
 }
 
 # slot pixel targets (match the Marine MRPC template slot aspect ratios)
@@ -379,7 +372,8 @@ DIMS={
     "cancel":   (1360,1009),
     "revenue":  (1740,1187),
     "revmonth": (1740,1187),
-    "cardpie":  (1980,860),
+    "tiers":    (1386,704),
+    "status":   (1386,704),
     "billing":  (1875,750),
 }
 
@@ -393,7 +387,6 @@ def render_all(data, out_dir):
     chart_cancel(data,   j("mrpc_cancel.png"),    DIMS["cancel"])
     chart_revenue(data,  j("mrpc_revenue.png"),   DIMS["revenue"])
     chart_revenue_month(data, j("mrpc_revmonth.png"), DIMS["revmonth"])
-    chart_card_pie(data, j("mrpc_cardpie.png"),   DIMS["cardpie"])
     chart_billing(data,  j("mrpc_billing.png"),   DIMS["billing"])
     print("all mrpc charts done ->", out_dir)
 

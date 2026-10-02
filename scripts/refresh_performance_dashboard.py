@@ -62,6 +62,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "build"))
 sys.path.insert(0, str(REPO / "scripts"))
+sys.path.insert(0, str(REPO / "build" / "mrpc_pipeline"))
 
 import rpe_env as R                                              # noqa: E402
 from build_month import read_cashplease_roster, read_roster      # noqa: E402
@@ -430,20 +431,9 @@ def _complete_spend(series):
     return month_complete.complete_rows(series or [], 1, "$M debit spend", min_volume=0)[0]
 
 
-def complete_months(rows, generated, key="month"):
-    """Rows for months that had ended when the report was generated.
-
-    `generated` is the weekly's stamp ("9/13/2026 8:06:12 AM"), `key` holds "YYYY-MM".
-    A month on or after the stamp's month is still in progress and is dropped. An
-    unreadable stamp keeps every row rather than guessing.
-    """
-    # The one definition of "had the month ended" lives in build/month_complete.py
-    # (Aaron, 2026-09-17), shared with the deck builders.
-    import month_complete
-    as_of = month_complete.report_date(generated)
-    if as_of is None:
-        return list(rows)
-    return [r for r in rows if month_complete.month_ended(str(r.get(key, "")), as_of) is not False]
+# One reading of the MRPC weekly and of "had the month ended", shared with the MRPC deck
+# (2026-10-02): both used to live here, where the deck could not reach them.
+from mrpc_weekly import MrpcWeekly, complete_months  # noqa: E402
 
 
 def current_peer(packs, ids):
@@ -551,78 +541,6 @@ def ics_section(cid, c):
 
 
 # ------------------------------------------------------------------ MRPC
-class MrpcWeekly:
-    """The newest MRPCEnrollmentSummary weekly, one tab per client."""
-
-    def __init__(self, reports):
-        import openpyxl
-        hits = report_glob(reports, "*MRPCEnrollmentSummary*.xlsx")
-        self.path = hits[-1] if hits else None
-        self.tabs = {}
-        if self.path:
-            self.wb = openpyxl.load_workbook(self.path, read_only=True, data_only=True)
-            self.tabs = {s[:4]: s for s in self.wb.sheetnames
-                         if s[:4].isdigit() and not s.endswith(("-Loans", "-Issues"))}
-
-    @property
-    def name(self):
-        return os.path.basename(self.path) if self.path else None
-
-    def client(self, cid):
-        if cid not in self.tabs:
-            return None
-        ws = self.wb[self.tabs[cid]]
-        rows = list(ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True))
-        gen = str(rows[5][1] or "").replace("Report Generated:", "").strip()
-        kv, take = {}, {}
-        for r in rows[7:60]:
-            if isinstance(r[15], str) and r[21] is not None:
-                kv[r[15].strip()] = r[21]
-            if r[15] == "New Account Take Rates":
-                take["ptd_label"], take["cur_label"] = r[18], r[21]
-            if r[15] == "New Accounts Opened":
-                take["ptd_opened"], take["cur_opened"] = r[18], r[20]
-            if r[15] == "New Accounts Enrolled":
-                take["ptd_enrolled"], take["ptd_rate"] = r[18], r[19]
-                take["cur_enrolled"], take["cur_rate"] = r[20], r[21]
-        hdr_i = next(i for i, r in enumerate(rows) if r[1] == "Enroll Date")
-        tot = next(r for r in rows if r[1] == "TOTAL ")
-        ah = next((r for r in rows if r[1] == "TOTAL ACCOUNTHOLDERS"), None)
-        monthly = []
-        for r in rows[hdr_i + 1:]:
-            lab = r[1]
-            if not isinstance(lab, str) or not lab.endswith("*") or "roll-up" in lab.lower():
-                continue
-            mm, dd, yy = lab.rstrip("*").split("/")
-            monthly.append({
-                "platinum": r[2] or 0, "gold": r[3] or 0, "business": r[4] or 0,
-                "primary": r[6] or 0, "joint": r[7] or 0, "web_branch": r[9] or 0,
-                "web_enduser": r[10] or 0, "phone": r[11] or 0, "paper": r[12] or 0,
-                "existing": r[14] or 0, "new": r[15] or 0, "employees": r[17] or 0,
-                "non_employees": r[18] or 0, "month": f"{yy}-{mm}"})
-        monthly.sort(key=lambda r: r["month"])
-        return {
-            "file": self.name, "report_generated": gen,
-            "open_with_debit": kv.get("Open/Active Accounts w/ Debit Card"),
-            "open_without_debit": kv.get("Open/Active Accounts w/o Debit Card (Not Factored in Rates Below)"),
-            "all_mrpc_accounts": kv.get("All MRPC Accounts"),
-            "take_rate_all": kv.get("Take Rate - All MRPC Accounts"),
-            "active_mrpc_accounts": kv.get("Active/Signed MRPC Accounts"),
-            "take_rate_active": kv.get("Take Rate - Active MRPC Accounts"),
-            "all_cardholders": kv.get("All MRPC Primary and Joint Card Holders"),
-            "active_cardholders": kv.get("Active MRPC Primary and Joint Card Holders"),
-            "take_rate_active_cardholders": kv.get("Take Rate - Active MRPC Primary and Joint Card Holders"),
-            "new_account_take": take,
-            "totals": {"platinum": tot[2], "gold": tot[3], "business": tot[4], "primary": tot[6],
-                       "joint": tot[7], "web_branch": tot[9], "web_enduser": tot[10],
-                       "phone": tot[11], "paper": tot[12], "existing": tot[14], "new": tot[15],
-                       "employees": tot[17], "non_employees": tot[18]},
-            "cardholders_active_buckets": ({"1-90": ah[10], "91-180": ah[11], "180+": ah[12],
-                                            "inactive": ah[13]} if ah else None),
-            "monthly": complete_months(monthly, gen)[-24:],
-        }
-
-
 def mrpc_section(cid, weekly):
     m = {"weekly": weekly.client(cid)}
     try:

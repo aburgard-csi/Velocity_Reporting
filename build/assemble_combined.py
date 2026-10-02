@@ -8,7 +8,7 @@ Target order is the canonical combined reference (templates/multi-product_refere
     1-3    shared shell: Title, About the Summit, Agenda      (from the ARS deck, adapted)
     4-30   ARS section: divider .. ARS Key Takeaways          (ARS deck 4-30)
     31-53  ICS section: divider, content, education/reference (ICS deck 3, 5-26)
-    54-62  MRPC section: divider .. MRPC Key Metrics          (MRPC deck 3-11)
+    54-62  MRPC section: divider .. MRPC Current Program Status (MRPC deck 3-11)
     63-64  Questions & Discussion, Contact Us                 (ARS deck 31-32)
     65-79  ARS Appendix                                       (ARS deck 33-47)
 
@@ -564,7 +564,8 @@ def renumber(prs):
     Do NOT re-derive it from a font-size heuristic: ">=44pt means section heading" is true
     for the ARS deck but strips the number off four legitimately-numbered data slides —
     ICS "The Power of Referrals" and "ICS Financial Summary" (44pt), MRPC "Card Portfolio"
-    and "Key Metrics" (46pt), all of which carry 44pt+ KPI text.
+    and "Key Metrics" (46pt; "Program to Date" and "Current Program Status" since 2026-10-02),
+    all of which carried 44pt+ KPI text.
     """
     slides = list(prs.slides)
     had = [any(_is_numbox(sh) for sh in s.shapes) for s in slides]
