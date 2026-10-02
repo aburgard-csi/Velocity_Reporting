@@ -62,14 +62,40 @@ def is_landing(name):
     return bool(_LANDING_RX.match(name))
 
 
+# The query emits more than one result grid, and the per-client summary is the one most
+# easily saved by mistake — it is the readable one. Named here so the report says which
+# grid arrived instead of only that the header was wrong (Aaron, 2026-10-02: the old
+# wording, "save the first grid with column headers", read as "you forgot the headers"
+# on a file that had them).
+SUMMARY_COLUMNS = ["client_id", "client_name", "referrals", "accounts_found",
+                   "first_issue", "last_issue"]
+
+
+def _why(header):
+    """Why this file is not the query's first grid, in terms of what it actually is."""
+    if not header:
+        return "the file is empty"
+    if header == SUMMARY_COLUMNS:
+        return ("this is the per-client SUMMARY grid (one row per client), not the "
+                "member-level first grid (one row per referred account). Re-run the query "
+                "and save the FIRST result grid")
+    missing = [c for c in COLUMNS if c not in header]
+    if len(header) == 1 and "," in (header[0] or ""):
+        return ("the header is one field — the file is not comma-separated. Save as CSV, "
+                "not tab-delimited")
+    return ("header is not the query's first grid: %d columns, expected %d%s. Re-run the "
+            "query and save the FIRST result grid with column headers"
+            % (len(header), len(COLUMNS),
+               " (missing " + ", ".join(missing[:4]) + ")" if missing else ""))
+
+
 def read_rows(path):
     """The rows of one result file, checked against the query's columns."""
     with open(path, newline="", encoding="utf-8-sig") as fh:
         r = csv.reader(fh)
         header = next(r, None)
         if header != COLUMNS:
-            raise BadLanding("%s: header is not the ICS referrals query's first result "
-                             "(save the first grid with column headers)" % os.path.basename(path))
+            raise BadLanding("%s: %s" % (os.path.basename(path), _why(header)))
         rows = []
         for n, row in enumerate(r, start=2):
             if not row:
