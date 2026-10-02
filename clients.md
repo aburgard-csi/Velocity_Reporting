@@ -189,13 +189,13 @@ column's position is free.
 | 1131 | People's Bank AL | Aaron Burgard | yes | 10,540 | standalone deck   | no other RPE program |
 | 1192 | Ascend FCU | Jordan Berkowitz | yes | 6,325 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
 | 1217 | Pioneer FCU | James Gilmore | yes | 750 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Pioneer Federal Credit Union" |
-| 1526 | Create CU | Gregg Miller | yes | 64 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clark County Credit Union" |
+| 1526 | Create CU | Max Willett | yes | 64 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clark County Credit Union" |
 | 1529 | Vantage West CU | Jordan Berkowitz | yes | 13,494 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
 | 1539 | Marine FCU | Aaron Burgard | yes | 6,745 | **ARS-ICS-MRPC-CP** section | the client book's product list omits CashPlease — see gap 3 |
 | 1542 | The Friendship SB | Daniel Wood | yes | 401 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Friendship State Bank" |
 | 1564 | OneUnited Bank | Aaron Burgard | yes | 11,495 | standalone deck   | no other RPE program |
 | 1632 | WesBanco Bank | Aaron Burgard | yes | 11,927 | **ICS-CP** section | |
-| 1652 | Security CU | Gregg Miller | yes | 51 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Security Rewards" |
+| 1652 | Security CU | Max Willett | yes | 51 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Security Rewards" |
 | 1658 | Truliant FCU | Aaron Burgard | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
 | 1681 | First Financial CU | Jordan Berkowitz | yes | 24,715 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
 | 1734 | Altamaha Bank and Trust Company | Aaron Burgard | yes | 651 | **ICS-CP** section | |

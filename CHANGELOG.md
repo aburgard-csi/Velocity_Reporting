@@ -17,6 +17,44 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — Gregg Miller's accounts reassigned
+
+Summary: Gregg Miller is leaving Velocity. 58 of his clients move to other CSMs per the
+assignment sheet, so their decks now file under the new owner's Outputs folder and carry the
+new owner's Contact card. Max Willett takes 27 of them and is now in CSM Contacts.csv, without
+which his clients' builds would have stopped.
+
+Source: "Gregg Miller Account Assignments final 10-2-26.xlsx" (Aaron, 2026-10-02). Split:
+Max Willett 27, Aaron Burgard 11, Jordan Berkowitz 10, James Gilmore 8, Daniel Wood 2; 17 of
+them interim, the rest permanent.
+
+- `Client CSM List.csv`: the `csm` column for all 58, with `csm_source` recording the
+  reassignment and marking an interim owner as interim. That file is what
+  `rpe_env.client_outputs` reads to file a deck and `rpe_env.csm_contact` reads to draw the
+  Contact card, so this one column moves both. The previous file is in
+  `Build Artifacts/csm-reassignment/`.
+- `clients.md`: the CashPlease roster's CSM column for 1526 Create CU and 1652 Security CU.
+- **Six clients build decks**: 1147 Sutton, 1487 Orsa CU, 1526 Create CU, 1637 Ouachita Valley
+  FCU and 1652 Security CU to Max Willett; 1156 BancFirst to James Gilmore.
+- `CSM Contacts.csv`: a row for Max Willett, from his signature block. **Five builds were
+  blocked without it** — the Contact card is the managing CSM and never falls back to another
+  one, so `csm_contact` raises rather than drawing the wrong person. His row carries a cell and
+  no office line, like Daniel's and James's.
+- Three built decks and five archived ones moved from Gregg's Outputs and `_Archive` folders to
+  the new owners'. Each was copied, size-checked and only then removed.
+
+**Gregg's ODD folder stays in the scan** (Aaron, 2026-10-02: "still scan gregg's folders"): his
+clients' extracts are still landing there, and `deck_status.SRC_ODDD` keeps his entry.
+
+**Max Willett has no ODD folder yet.** `\\PADMIS105\Velocity_company\MaxWillett` holds client
+folders and no OD Data Dumps folder, so he is still not in `SRC_ODDD`. Nothing is broken while
+his clients' extracts land in Gregg's folder; the morning watch stops seeing them the day the
+data team switches. Add him to `SRC_ODDD` when the folder exists.
+
+**Eight of Gregg's clients have no new CSM in the sheet** — 1088, 1092, 1119, 1122, 1139, 1447,
+1455, 1664 — and are still recorded as his. None of them is on the build or CashPlease roster,
+so no deck is blocked, but they are unowned.
+
 ### 2026-10-02 — A combined deck carries its CashPlease section
 
 Summary: Asked for a combined deck, the launcher and CSM Sheila now include CashPlease for the
