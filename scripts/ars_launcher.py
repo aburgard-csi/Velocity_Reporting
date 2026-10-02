@@ -181,6 +181,11 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), co
     build, which lifts the stop on an ARS-only deck for Aaron's multi-program clients.
     """
     out = []
+    # FIRST, before the client's own name: it is the one fact that decides whether anything
+    # else on this page matters (Aaron, 2026-10-02).
+    _built = built_line(cid, period, sent, in_outputs, rebuild)
+    if _built:
+        out.append(_built)
     if not row:
         out.append((STOP, f"{cid} is not in Client CSM List.csv. Check the client number."))
         return out
@@ -210,20 +215,28 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), co
             out.append((STOP, f"This client ships a combined {'-'.join(entry[3])} deck, so build the combined "
                               "deck instead of an ARS-only one."))
 
-    # A deck already in Outputs, or already recorded as sent, is rebuilt only when the person running it
-    # says so (Aaron, 2026-09-15: "The deck is already in Outputs, but it says Build and put in Outputs.
-    # It should ask if we need to rebuild"). Outputs is what every CSM has; only Aaron records sends.
+    return out
+
+
+def built_line(cid, period, sent, in_outputs, rebuild=False):
+    """The BUILT / rebuilding line, or None when this period has no deck yet.
+
+    A deck already in Outputs, or already recorded as sent, is rebuilt only when the person
+    running it says so (Aaron, 2026-09-15: "The deck is already in Outputs, but it says Build
+    and put in Outputs. It should ask if we need to rebuild"). Outputs is what every CSM has;
+    only Aaron records sends.
+    """
     key = f"{cid}|{period}"
     when = None
     if key in sent:
         when = (sent[key] or {}).get("sent_at", "") if isinstance(sent[key], dict) else sent[key]
-    if in_outputs or when:
-        what = (f"The {period} deck is already in Outputs ({in_outputs[0]})" if in_outputs
-                else f"The {period} deck was already made")
-        if when:
-            what += f" and was sent {when}"
-        out.append((WARN, what + ". Rebuilding it, as asked.") if rebuild else (ASK, what + "."))
-    return out
+    if not (in_outputs or when):
+        return None
+    what = (f"The {period} deck is already in Outputs ({in_outputs[0]})" if in_outputs
+            else f"The {period} deck was already made")
+    if when:
+        what += f" and was sent {when}"
+    return (WARN, what + ". Rebuilding it, as asked.") if rebuild else (ASK, what + ".")
 
 
 def decks_in_outputs(cid, period):
@@ -320,10 +333,15 @@ def lift_checks(cid, period, roster):
 def all_checks(cid, period, row, roster, sent, rebuild=False, combined=False):
     """Every pre-build check, in the order they print: the rules, the inputs, the Lift Matrix, and for a
     combined deck the other programs' data."""
-    checks = (rule_checks(cid, period, row, roster, sent, rebuild=rebuild, in_outputs=decks_in_outputs(cid, period),
-                          combined=combined)
-              + input_checks(cid, period)
-              + lift_checks(cid, period, roster))
+    checks = rule_checks(cid, period, row, roster, sent, rebuild=rebuild,
+                         in_outputs=decks_in_outputs(cid, period), combined=combined)
+    # Already built and nobody has asked for a rebuild: the inputs are not going to be read,
+    # so do not go to the share and ask about them (Aaron, 2026-10-02). These three are the
+    # slow checks — the ODD extract's month, the workbook, the Lift Matrix window, and for a
+    # combined deck every other program's data. A rebuild re-runs all of them.
+    if not rebuild and any(l == ASK for l, _ in checks):
+        return checks
+    checks += input_checks(cid, period) + lift_checks(cid, period, roster)
     if combined:
         checks += combined_checks(cid, period, roster)
     return checks
