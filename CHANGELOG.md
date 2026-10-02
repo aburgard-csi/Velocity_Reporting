@@ -17,6 +17,38 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — A combined deck carries its CashPlease section
+
+Summary: Asked for a combined deck, the launcher and CSM Sheila now include CashPlease for the
+clients who ship it as a section. They did not before, so a combined rebuild produced a deck
+without it and archived the four-product one as "replaced by a different program mix".
+
+Found by rebuilding 1539 Marine FCU, whose deck is ARS-ICS-MRPC-CP: the rebuild came out
+ARS-ICS-MRPC and the four-product deck went to the archive. `program_availability` reads the
+programs in clients.md's MAIN roster row, and CashPlease is not there — it has its own table in
+that file, because the weekly workbook carries every Velocity CashPlease client across all CSMs
+and a tab proves a client is live on the program, never that a deck is wanted.
+
+**Thirteen clients ship CashPlease as a combined section** — 1192, 1217, 1526, 1529, 1539, 1542,
+1632, 1652, 1681, 1734, 1748, 1761, 1776 — and every one would have lost that section the same
+way. Two of them (1632, 1734) have no ARS at all.
+
+- `ars_launcher.cashplease_availability` reads the CashPlease ROSTER, never the workbook. Only a
+  row that ships CashPlease AS A SECTION joins a combined deck: one marked "standalone deck"
+  gets its own module, and a client whose slides ship inside a combined deck does not also get
+  one (CLAUDE.md). A roster row with no weekly workbook in Inputs is REPORTED, not dropped.
+- `combined_programs` returns CashPlease last, which is both its section order and how
+  `deck_tag` names the file: 1539's is `ARS-ICS-MRPC-CP`.
+- `build_month.build_cashplease_section` builds the slides in the build chain — cp_extract then
+  build_cp_gen, always from the NEWEST weekly workbook, so the section can carry a later date
+  than the sections beside it and is never re-dated to match them. A client on the roster with
+  no tab in that week's workbook is named in the error, never guessed at.
+- The launcher carried clients.md's own token for each extra program (`ICS-REFERRALS`);
+  CashPlease has no token in the main row, so it now falls back to its own name.
+
+Marine's deck was rebuilt by hand through the pipeline before this landed; the fix is what makes
+the next one come out right without that.
+
 ### 2026-10-02 — The ICS referrals landing says what is actually wrong with it
 
 Summary: When a saved query result cannot be merged, the report now names what arrived —

@@ -134,7 +134,9 @@ def program_availability(cid, period, programs):
 
     ICS: the client's VIP sheet, else the local ICS files (`ics_local_sheet.available`: the ICS workbook,
     referral detail and direct-mail lists James and the mailbox land in Inputs). MRPC: its VIP sheet.
-    Anything else (CashPlease) is not built by the launcher and is left out.
+    CashPlease: its OWN roster table in clients.md, because it is not in the main roster row this
+    is given — which is why a combined rebuild of 1539 Marine built ARS-ICS-MRPC and archived
+    the four-product deck as a different program mix (Aaron, 2026-10-02).
     """
     out = {}
     for p in programs:
@@ -165,12 +167,45 @@ def program_availability(cid, period, programs):
                 out["MRPC"] = (True, "VIP MRPC sheet")
             except SystemExit:
                 out["MRPC"] = (False, "no VIP MRPC sheet")
+    cp = cashplease_availability(cid)
+    if cp is not None:
+        out["CP"] = cp
     return out
 
 
+def cashplease_availability(cid):
+    """(ok, how or why not) for this client's CashPlease section, or None if they have none.
+
+    Read from the CashPlease ROSTER in clients.md, never from the weekly workbook, which
+    carries every Velocity CashPlease client across all CSMs: a tab proves a client is live
+    on the program and proves nothing about whether a deck is wanted (CLAUDE.md).
+
+    Only a client whose roster row ships CashPlease AS A SECTION joins a combined deck. One
+    marked "standalone deck" gets its own module instead, and a client whose slides ship
+    inside a combined deck does not also get one.
+    """
+    try:
+        import build_month as BM
+        row = next((r for r in BM.read_cashplease_roster() if r["client_id"] == cid), None)
+    except SystemExit as e:                 # no roster table at all — say so, do not guess
+        return (False, f"the CashPlease roster could not be read ({e})")
+    if row is None or not row.get("build"):
+        return None
+    if "section" not in (row.get("ships_as") or "").lower():
+        return None                         # a standalone module, not part of this deck
+    wb = R.report_files("CashPleaseSummary*.xlsx")
+    if not wb:
+        return (False, "no CashPleaseSummary workbook in Inputs")
+    return (True, f"CashPlease roster, {wb[-1].name}")
+
+
 def combined_programs(availability):
-    """The programs a combined deck would carry besides ARS, in section order."""
-    return [p for p in ("ICS", "MRPC") if availability.get(p, (False,))[0]]
+    """The programs a combined deck would carry besides ARS, in SECTION order.
+
+    CashPlease is last: the deck runs ARS, ICS, MRPC, CashPlease, and deck_tag names the
+    file from this order (1539's is ARS-ICS-MRPC-CP).
+    """
+    return [p for p in ("ICS", "MRPC", "CP") if availability.get(p, (False,))[0]]
 
 
 def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), combined=False):
@@ -510,7 +545,9 @@ def cmd_build(a):
     if combined:
         extra = combined_programs(program_availability(a.client, period, entry[3]))
         # keep clients.md's own token (e.g. ICS-REFERRALS) so build_month builds the right shape
-        progs += [next(t for t in entry[3] if t.startswith(p)) for p in extra]
+        # keep clients.md's own token (e.g. ICS-REFERRALS) where there is one; CashPlease
+        # has no token in the main roster row, so it carries its own name.
+        progs += [next((t for t in entry[3] if t.startswith(p)), p) for p in extra]
     lk = lock(work)
     t0 = time.time()
     made, result, delivered, where = {}, "did not finish", False, None

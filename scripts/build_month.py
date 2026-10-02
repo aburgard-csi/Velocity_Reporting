@@ -358,18 +358,65 @@ def build_client(cid, name, mmsm, progs, period, stage):
                 return f"build_{prog}_gen", made
             made[U] = out
 
+    if "CP" in progs:
+        err = build_cashplease_section(cid, name, d, period, log, made)
+        if err:
+            return err, made
+
     if len(made) > 1:
         combo = os.path.join(d, f"{cid}-{period}-{deck_tag(progs)}-{name} Results.pptx")
         cmd = [PY, os.path.join(REPO, "build/assemble_combined.py"), "--ars", made["ARS"]]
-        for U in ("ICS", "MRPC"):
+        for U in ("ICS", "MRPC", "CP"):
             if U in made:
-                cmd += [f"--{U.lower()}", made[U]]
+                cmd += [f"--{'cashplease' if U == 'CP' else U.lower()}", made[U]]
         if run(cmd + ["--out", combo], log):
             return "assemble_combined", made
         made["DELIVERABLE"] = combo
     else:
         made["DELIVERABLE"] = next(iter(made.values()), None)
     return None, made
+
+
+def build_cashplease_section(cid, name, d, period, log, made):
+    """Build this client's CashPlease slides into `made["CP"]`. -> an error label, or None.
+
+    Always the NEWEST weekly workbook, never the one nearest the deck's period (CLAUDE.md),
+    so this section can carry a later date than the ARS/ICS/MRPC sections beside it and is
+    never re-dated to match them.
+    """
+    PIPE = os.path.join(REPO, "build", "cashplease_pipeline")
+    packs = R.build_artifacts() / "cashplease" / "packs"
+    wb = newest_report("CashPleaseSummary*.xlsx")
+    if wb is None:
+        return "no CashPleaseSummary workbook"
+    dda = newest_report("ILS-DDA-Count-*.txt")
+    dda_json = None
+    if dda is not None:
+        dda_json = R.build_artifacts() / "cashplease" / "dda_counts.json"
+        dda_json.parent.mkdir(parents=True, exist_ok=True)
+        if run([PY, os.path.join(PIPE, "dda_counts.py"), dda, dda_json], log):
+            return "dda_counts"
+    if run([PY, os.path.join(PIPE, "cp_extract.py"), wb, packs]
+           + ([dda_json] if dda_json else []), log):
+        return "cp_extract"
+    pack = packs / f"{cid}_cashplease.json"
+    if not pack.exists():
+        # On the roster but with no tab in this week's workbook: named, never guessed at.
+        return f"no CashPlease tab for {cid} in {os.path.basename(str(wb))}"
+    out = os.path.join(d, f"{cid}-{period}-CP-{name} CashPlease Module.pptx")
+    settings = R.cp_settings_file(cid)
+    if run([PY, os.path.join(PIPE, "build_cp_gen.py"), pack,
+            f"{TPL}/cashplease_template.pptx", out] + ([settings] if settings else []), log):
+        return "build_cp_gen"
+    made["CP"] = out
+    return None
+
+
+def newest_report(pattern):
+    """The newest matching input, by FILENAME — both carry a sortable stamp, and copying a
+    file onto the pipeline rewrites its mtime."""
+    found = R.report_files(pattern)
+    return found[-1] if found else None
 
 
 def validate(deck, base=None):

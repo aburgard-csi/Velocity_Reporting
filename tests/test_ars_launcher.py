@@ -122,11 +122,71 @@ def test_program_availability_prefers_vip_then_local_ics_files(monkeypatch):
     monkeypatch.setattr(R, "resolve_client_json", resolve)
     fake = types.SimpleNamespace(available=lambda cid, period: {"ok": cid == "1776", "reason": "ICS workbook and referral files"})
     monkeypatch.setitem(sys.modules, "ics_local_sheet", fake)
+    # CashPlease comes from its own roster table and is tested below; this test is about
+    # which ICS source wins.
+    monkeypatch.setattr(L, "cashplease_availability", lambda cid: None)
     a = L.program_availability("1509", "2026.09", ["ARS", "ICS", "MRPC"])
     assert a == {"ICS": (True, "VIP ICS sheet"), "MRPC": (False, "no VIP MRPC sheet")}
     b = L.program_availability("1776", "2026.09", ["ARS", "ICS", "MRPC"])
     assert b["ICS"] == (True, "ICS workbook and referral files") and L.combined_programs(b) == ["ICS"]
     assert L.combined_programs(L.program_availability("1441", "2026.09", ["ARS"])) == []
+
+
+# ------------------------------------------------------------------ CashPlease in the combined deck
+def _cp_roster(monkeypatch, rows, workbook=True):
+    import types, pathlib
+    import build_month as BM
+    monkeypatch.setattr(BM, "read_cashplease_roster", lambda *a, **k: rows)
+    import rpe_env as R
+    monkeypatch.setattr(R, "report_files",
+                        lambda pat: [pathlib.Path("CashPleaseSummaryV1_260927_081811.xlsx")]
+                        if workbook else [])
+
+
+def _row(cid, build=True, ships_as="ARS-ICS-MRPC-CP section"):
+    return {"client_id": cid, "client_name": "X", "build": build,
+            "ships_as": ships_as, "csm": "Aaron Burgard", "note": ""}
+
+
+def test_a_client_who_ships_cashplease_as_a_section_gets_it_in_the_combined_deck(monkeypatch):
+    """1539 Marine's deck is ARS-ICS-MRPC-CP. A combined rebuild built ARS-ICS-MRPC and
+    archived the four-product deck as "a different program mix", because CashPlease is not in
+    clients.md's MAIN roster row — it has its own table (Aaron, 2026-10-02)."""
+    _cp_roster(monkeypatch, [_row("1539")])
+    ok, why = L.cashplease_availability("1539")
+    assert ok and "CashPlease roster" in why
+
+
+def test_a_standalone_cashplease_client_is_not_folded_into_a_combined_deck(monkeypatch):
+    """A client whose slides ship inside a combined deck does not also get a module, and the
+    reverse: a module client's slides do not join someone's combined deck (CLAUDE.md)."""
+    _cp_roster(monkeypatch, [_row("1770", ships_as="standalone deck")])
+    assert L.cashplease_availability("1770") is None
+
+
+def test_a_roster_row_marked_no_build_is_not_offered(monkeypatch):
+    _cp_roster(monkeypatch, [_row("1658", build=False)])
+    assert L.cashplease_availability("1658") is None
+
+
+def test_a_client_off_the_cashplease_roster_has_no_cashplease(monkeypatch):
+    _cp_roster(monkeypatch, [_row("1539")])
+    assert L.cashplease_availability("1075") is None
+
+
+def test_no_weekly_workbook_is_reported_not_silently_dropped(monkeypatch):
+    _cp_roster(monkeypatch, [_row("1539")], workbook=False)
+    ok, why = L.cashplease_availability("1539")
+    assert not ok and "no CashPleaseSummary workbook" in why
+
+
+def test_cashplease_is_last_in_section_order():
+    """The deck runs ARS, ICS, MRPC, CashPlease, and deck_tag names the file from this
+    order — 1539's is ARS-ICS-MRPC-CP."""
+    avail = {"ICS": (True, ""), "MRPC": (True, ""), "CP": (True, "")}
+    assert L.combined_programs(avail) == ["ICS", "MRPC", "CP"]
+    import build_month as BM
+    assert BM.deck_tag(["ARS"] + L.combined_programs(avail)) == "ARS-ICS-MRPC-CP"
 
 
 def test_combined_checks_stop_when_no_other_program_has_data(monkeypatch):
