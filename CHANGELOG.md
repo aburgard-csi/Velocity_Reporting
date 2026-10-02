@@ -17,6 +17,30 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — Changing the cycle in Sheila threw an error
+
+Summary: Picking a different cycle in CSM Sheila showed "Could not change cycle: Cannot set
+properties of null". The cycle had actually changed; the error came from the redraw afterwards.
+Fixed, and the page's own names are now checked by the test suite.
+
+Two names in the new cycle code were only ever resolved when a CSM clicked, and both were
+wrong: `$("#detail")`, an id this page does not have, and `load(true)`, where the function is
+called `loadClients`. Each threw AFTER the switch had already happened, so the cycle moved and
+the page then said it had failed.
+
+`pickCycle` now reloads the list and re-draws the current tab through `setMode`, rather than
+poking at one element — the open client's checks, the lift overview and the issue list were all
+about the other cycle anyway.
+
+Two checks were added, because this class of mistake is invisible to Python: the page is a
+string, and a bad name costs nothing until someone clicks. One collects every id the script
+asks for by name and fails if the page never creates it; the other reads the cycle functions
+and fails on a call to a name the page does not define. Both were confirmed to fail on the two
+real bugs and to be silent on the shipped page. The name check is deliberately scoped to those
+functions: a regex cannot tell a call from CSS or an object key, and a check that cries wolf
+over 2,000 lines of script would be switched off within a week.
+
+
 ### 2026-10-02 — MRPC 2026 revenue projection; MRPC chart text at slide size
 
 Summary: MRPC Revenue by Year now projects the current year from the trend of the last six

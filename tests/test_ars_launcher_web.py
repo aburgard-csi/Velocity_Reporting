@@ -635,3 +635,47 @@ def test_serving_the_list_never_touches_the_share(monkeypatch):
     finally:
         with W._clients_lock:
             W._clients["doc"] = None
+
+
+def test_every_element_the_page_script_asks_for_exists():
+    """$("#detail") was an id this page does not have, so every cycle change threw
+    "Cannot set properties of null" after the switch had already happened (Aaron, 2026-10-02).
+    Nothing in Python could see it: the page is a string, and the id was only ever read at
+    runtime. Collect the ids the script asks for by name and check each one is written
+    somewhere in the page — in the static HTML or by the script itself."""
+    import re
+    page = W.PAGE
+    have = set(re.findall(r'id="([A-Za-z][\w-]*)"', page))        # static and script-built alike
+    have |= set(re.findall(r'\.id = "([A-Za-z][\w-]*)"', page))     # ...and ids set as a property
+    asked = set(re.findall(r'\$\("#([A-Za-z][\w-]*)"\)', page))
+    asked |= set(re.findall(r'querySelector\("#([A-Za-z][\w-]*)"\)', page))
+    missing = sorted(asked - have)
+    assert not missing, f"the page script reads ids that are never created: {missing}"
+
+
+def test_the_cycle_code_calls_nothing_it_never_defines():
+    """The id check caught $("#detail"); the very next run of the same code threw
+    "load is not defined", because the function is called loadClients (Aaron, 2026-10-02).
+    Both are the same mistake — a name that only resolves when a CSM clicks.
+
+    Scoped to the cycle functions rather than the whole script: a regex cannot tell a call
+    from CSS or an object key, and a check that cries wolf over the other 2,000 lines would
+    be switched off within a week. These are the functions that were wrong twice.
+    """
+    import re
+    page = W.PAGE
+    defined = set(re.findall(r'function\s+([A-Za-z_]\w*)\s*\(', page))
+    defined |= set(re.findall(r'(?:const|let|var)\s+([A-Za-z_]\w*)\s*=\s*(?:async\s*)?(?:\(|function)', page))
+    allowed = defined | {"fetch", "alert", "setTimeout", "clearTimeout", "encodeURIComponent",
+                         "JSON", "Date", "Math", "Object", "Array", "String", "Number"}
+    missing = {}
+    for name in ("pickCycle", "openCycles", "closeCycles", "paintPeriod"):
+        m = re.search(r"function %s\(.*?\n\}" % name, page, re.S)
+        assert m, f"{name} is no longer in the page"
+        body = m.group(0)
+        called = set(re.findall(r'(?<![.\w$"])([a-z][A-Za-z0-9_]*)\s*\(', body))
+        unknown = sorted(called - allowed - {"if", "for", "while", "catch", "return", "await",
+                                             "function", "switch"})
+        if unknown:
+            missing[name] = unknown
+    assert not missing, f"the cycle code calls names it never defines: {missing}"

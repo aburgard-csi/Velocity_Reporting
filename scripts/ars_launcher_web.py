@@ -1857,9 +1857,11 @@ async function pickCycle(period) {
     const {body} = await api("/api/cycle", {method: "POST", body: JSON.stringify({period})});
     PERIOD = body.period; PERIODS = body.periods || PERIODS; CYCLE_NOW = body.cycle_now || CYCLE_NOW;
     paintPeriod();
-    current = null;
-    $("#detail").innerHTML = '<p class="small">Pick a client.</p>';
-    await load(true);
+    // Re-draw the tab rather than poking at one element: the open client's checks, the lift
+    // overview and the issue list were all about the other cycle. (It read an id named
+    // "detail" that this page does not have, so every cycle change threw after switching.)
+    await loadClients(true);
+    setMode(MODE);
   } catch (e) {
     paintPeriod();
     alert("Could not change cycle: " + e.message);
