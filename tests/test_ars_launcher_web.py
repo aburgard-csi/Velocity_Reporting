@@ -578,3 +578,60 @@ def test_the_list_carries_the_menu_for_the_page(monkeypatch):
     assert doc["period"] == "2026.10"
     assert doc["periods"] == ["2026.10", "2026.09"]
     assert doc["cycle_now"] == "2026.10"
+
+
+def test_a_check_that_finishes_after_a_cycle_change_is_not_stored(monkeypatch):
+    """A check already in flight when the cycle changes finishes against the OLD cycle. Stored,
+    it would read as the new cycle's answer — the one stale figure a CSM has no way to spot."""
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    try:
+        W._selected["period"] = None
+
+        def slow(cid):
+            W._selected["period"] = "2026.09"      # the cycle moves while this check runs
+            return {"client": cid, "period": "2026.10", "state": "ready", "checks": []}
+
+        monkeypatch.setattr(W, "compute_status", slow)
+        W._check_status("1038", fresh=True)
+        assert "1038" not in W._status_cache
+    finally:
+        W._selected["period"] = None
+        W._status_cache.clear()
+
+
+def test_changing_cycle_warms_the_new_one(monkeypatch):
+    """Without this the first click on each client after a cycle change pays the full check
+    again — 3.4 s against the share, where a warmed one answers in 5 ms."""
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    started = []
+    monkeypatch.setattr(W, "prewarm", lambda: started.append(W.current_period()))
+    try:
+        W.select_period("2026.09")
+        for _ in range(50):
+            if started:
+                break
+            time.sleep(0.05)
+        assert started == ["2026.09"]
+    finally:
+        W._selected["period"] = None
+
+
+def test_serving_the_list_never_touches_the_share(monkeypatch):
+    """_served_clients runs on every poll of the page. Listing Outputs and Inputs for the cycle
+    menu there cost seconds of share reads per request — the menu belongs to the stored list,
+    which is rebuilt in the background."""
+    monkeypatch.setattr(W, "available_periods", lambda *a, **k: pytest.fail("served the list off the share"))
+    with W._clients_lock:
+        W._clients["doc"] = {"period": "2026.10", "clients": [], "periods": ["2026.10", "2026.09"],
+                             "cycle_now": "2026.10"}
+        W._clients["at"] = time.time()
+    try:
+        doc = W._served_clients()
+        assert doc["periods"] == ["2026.10", "2026.09"] and doc["cycle_now"] == "2026.10"
+        # a list stored before the menu existed falls back to its own cycle, still no share read
+        with W._clients_lock:
+            W._clients["doc"] = {"period": "2026.08", "clients": []}
+        assert W._served_clients()["periods"] == ["2026.08"]
+    finally:
+        with W._clients_lock:
+            W._clients["doc"] = None

@@ -229,12 +229,16 @@ def select_period(period):
     if not same:
         # Everything cached is about the old cycle: its decks, its sent state, its checks.
         with _status_lock:
-            for cid in list(_status_cache):
+            for cid in list(_status_cache) + list(_status_gen):
                 forget_status_locked(cid)
         with _clients_lock:
             _clients["doc"] = None
             _clients["at"] = 0.0
         invalidate_clients()
+        # ...and warm the new one the way startup does. Without this the first click on each
+        # client after a cycle change costs the full check again: 3.4 s against this share,
+        # where a warmed one answers in 5 ms.
+        threading.Thread(target=lambda: _swallow(prewarm), daemon=True).start()
     return current_period()
 _clients = {"doc": None, "at": 0.0, "gen": 0, "clean_gen": -1, "busy": None, "error": None}
 _clients_lock = threading.Lock()
@@ -404,11 +408,12 @@ def _served_clients():
                 c["decks"] = sorted(c["decks"] + [deck])
         clients.append(c)
     return {"period": period, "clients": clients,
-            # The cycle menu rides with the list: it is what the page draws when the pill is
-            # clicked, and computing it here means a cycle that gains its first deck shows up
-            # on the next refresh rather than on the next restart.
-            "periods": doc.get("periods") or available_periods(),
-            "cycle_now": doc.get("cycle_now") or L.cycle_period(),
+            # The cycle menu rides with the stored list, built by compute_clients. NOT computed
+            # here: this is the hot path — every poll of the page serves through it — and
+            # available_periods() lists Outputs and Inputs, which is seconds of share reads.
+            # A list built before the menu existed simply offers the cycle it is about.
+            "periods": doc.get("periods") or [period],
+            "cycle_now": doc.get("cycle_now") or period,
             "lift_pending": _lift_state["started"] and not _lift_state["done"],
             "age_seconds": max(0, round(time.time() - at)), "refreshing": refreshing,
             "refresh_error": f"{type(err).__name__}: {err}" if err else None}
@@ -537,11 +542,12 @@ def _check_status(cid, fresh=False):
     try:
         with _status_lock:
             gen = _status_gen.get(cid, 0)
+        started_for = current_period()
         with _fresh_reads(fresh):
             doc = compute_status(cid)
             hit = (time.time(), doc)        # stamped when the check finished: on a slow share it can take minutes
         with _status_lock:
-            if _status_gen.get(cid, 0) == gen:
+            if _status_gen.get(cid, 0) == gen and started_for == current_period():
                 _status_cache[cid] = hit
         return hit
     finally:
@@ -1798,7 +1804,7 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
   <main id="main" aria-live="polite">
     <div class="empty">
       <h2>Pick a client</h2>
-      <p>Choose a client on the left to see whether their ARS deck can be built this month.</p>
+      <p>Choose a client on the left to see whether their ARS deck can be built this cycle.</p>
       <ol>
         <li>The checks run first: ARS product, clients.md, and this month's ODD extract and workbook.</li>
         <li>Build takes 3 to 15 minutes and shows each step as it goes.</li>
@@ -1865,6 +1871,9 @@ function openCycles() {
   setTimeout(() => document.addEventListener("click", function off(ev) {
     if (!ev.target.closest("#cycles") && ev.target.id !== "period") { closeCycles(); document.removeEventListener("click", off); }
   }), 0);
+  document.addEventListener("keydown", function esc(ev) {
+    if (ev.key === "Escape") { closeCycles(); $("#period").focus(); document.removeEventListener("keydown", esc); }
+  });
 }
 let QUEUE = {building: null, queued: []};
 
@@ -2130,7 +2139,7 @@ function setMode(m, focus) {
   if (m === "lift") focus ? liftSelect(focus) : liftOverview();
   else if (m === "issues") issuesView(focus);
   else if (focus) select(focus);
-  else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their ARS deck can be built this month.</p></div>`;
+  else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their ARS deck can be built for ${esc(PERIOD || "this cycle")}.</p></div>`;
 }
 
 async function liftOverview() {
