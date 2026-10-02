@@ -510,11 +510,15 @@ def slide_overview(prs, d, pill_text, art_dir):
     months = list(reversed(d["monthly"]))
     if months:
         png = str(Path(art_dir) / f"{d['client_id']}_cp_cumulative.png")
+        # The chart is drawn at its box's size, so its fonts are on-slide points
+        # (Aaron, 2026-10-02) — one tuple feeds both the renderer and the placement.
+        box = (7.40, 2.80)
         cp_charts.cumulative_growth_chart(
-            png, [r["period_month"] for r in months], [r["loans"] for r in months])
+            png, [r["period_month"] for r in months], [r["loans"] for r in months],
+            box=box)
         # Everything below the callouts sits 1/4" lower than it did, for white space under
         # the navy tiles (Aaron, 2026-09-17): OV_DROP.
-        fit_picture(s, png, 0.62, 3.42 + OV_DROP, 7.40, 2.80)
+        fit_picture(s, png, 0.62, 3.42 + OV_DROP, *box)
         textbox(s, 0.62, 3.14 + OV_DROP, 7.40, 0.30, "Cumulative loans booked, by month",
                 13, TICK_RGB, True, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     else:
@@ -830,7 +834,7 @@ def slide_volume(prs, d, pill_text, art_dir):
         [r["period_month"] for r in months],
         [r["loans"] for r in months],
         [r["principal"] for r in months],
-        partial=partial)
+        partial=partial, box=(8.50, 4.71))
     fit_picture(s, png, 0.72, 1.72, 8.50, 4.71)
 
     if months:
@@ -882,7 +886,8 @@ def slide_status(prs, d, pill_text, art_dir):
 
     png = str(Path(art_dir) / f"{d['client_id']}_cp_status.png")
     cp_charts.status_mix_chart(png, list(d["status"].keys()),
-                               [v["loans"] for v in d["status"].values()])
+                               [v["loans"] for v in d["status"].values()],
+                               box=(4.52, 2.52))
     fit_picture(s, png, 8.20, 3.24, 4.52, 2.52)
 
     textbox(s, 0.62, 5.90, 7.30, 0.62,
@@ -951,7 +956,8 @@ def slide_peer(prs, d, pill_text, art_dir):
     png = str(Path(art_dir) / f"{d['client_id']}_cp_peer.png")
     cp_charts.peer_index_chart(
         png, [r[0] for r in rows],
-        [(r[2] / r[1] * 100) if r[1] else 0.0 for r in rows])
+        [(r[2] / r[1] * 100) if r[1] else 0.0 for r in rows],
+        box=(5.75, 4.02))
     fit_picture(s, png, 6.95, 1.98, 5.75, 4.02)
     textbox(s, 6.95, 1.54, 5.75, 0.40,
             f"{d['client_name']} relative to the cohort", 11,

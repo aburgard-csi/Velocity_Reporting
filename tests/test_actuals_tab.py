@@ -3,7 +3,8 @@
 The tab is the program's month-by-month P&L and comes in three shapes in one workbook —
 `Actuals MM`, `Actuals SM` and plain `Actuals` — whose COST ROWS DIFFER: an MM client is
 billed a respondent fee, an SM client carries spot mailings, points and a program fee. Only
-the two totals rows are read, because those exist in every shape.
+the two totals rows are relied on, because those exist in every shape; the cost lines between them
+are carried under the sheet's own labels for the Revenue Guarantee P&L (2026-10-02).
 
 Synthetic workbooks; no client data.
 """
@@ -22,7 +23,7 @@ COST = [-60, -70, -80, -90, -100, -110]
 
 def workbook(path, sheet, cost_rows=("Respondent Fee",), rev=REV, cost=COST,
              total_col=True, generated="9/9/2026 1:37:40 PM", months=MONTHS,
-             rev_label="Total Marginal Revenues", cost_label="Total Cost"):
+             rev_label="Total Marginal Revenues", cost_label="Total Cost", line_values=None):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = sheet
@@ -36,9 +37,12 @@ def workbook(path, sheet, cost_rows=("Respondent Fee",), rev=REV, cost=COST,
             ws.cell(11, 4 + j, v)
     if total_col:
         ws.cell(11, 4 + len(months), sum(v for v in rev if v is not None))
+    ws.cell(12, 2, "Costs")
     r = 13
     for lab in cost_rows:
         ws.cell(r, 3, lab)
+        for j, v in enumerate((line_values or {}).get(lab, [])):
+            ws.cell(r, 4 + j, v)
         r += 1
     ws.cell(r, 3, cost_label)
     for j, v in enumerate(cost):
@@ -67,6 +71,19 @@ def test_the_sm_shape_reads_the_same_two_rows(tmp_path):
     out = A.read(p, mm=False)
     assert out["available"] is True and out["sheet"] == "Actuals"
     assert (out["revenue"], out["cost"]) == (2100.0, 510.0)
+
+
+def test_the_cost_lines_are_carried_under_the_sheets_own_labels(tmp_path):
+    """The P&L on the Revenue Guarantee slide itemises cost (Aaron, 2026-10-02). Each line is
+    positive like Total Cost, a discount (positive in the sheet) reads as a negative cost, and
+    a line with no figures at all is not carried."""
+    p = workbook(tmp_path / "sm.xlsx", "Actuals",
+                 cost_rows=("Spot Mailings", "Program Fee", "Multi-Product Discount", "Unused"),
+                 line_values={"Spot Mailings": [-10] * 6, "Program Fee": [-50] * 6,
+                              "Multi-Product Discount": [5, 0, 0, 0, 0, 0]})
+    out = A.read(p, mm=False)
+    assert out["lines"] == [["Spot Mailings", [10.0] * 6], ["Program Fee", [50.0] * 6],
+                            ["Multi-Product Discount", [-5.0, 0.0, 0.0, 0.0, 0.0, 0.0]]]
 
 
 def test_an_mm_client_is_never_read_off_the_sm_tab(tmp_path):

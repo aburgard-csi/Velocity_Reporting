@@ -25,6 +25,7 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 import mrpc_charts_gen as CH
+import revenue_projection as RPJ
 
 # Standard callout drop shadow (STYLE.md "Callouts") — defined once, in build/shapes.py.
 from shapes import shadow as add_shadow
@@ -221,10 +222,30 @@ def complete_series(data):
     return notes
 
 
+def revenue_projection(data):
+    """The projected full year for Revenue by Year (Aaron, 2026-10-02), computed ONCE so the
+    chart, the caption and the notes read the same figures. Runs after complete_series, so
+    the trend reads complete months only. Stored as data["revenue"]["projection"]."""
+    rv = data.get("revenue") or {}
+    bm = rv.get("by_month") or {}
+    ytd = next((a for a in rv.get("annual") or [] if "YTD" in str(a.get("year", ""))), None)
+    if not ytd:
+        p = {"ok": False, "year": None, "reason": "the sheet carries no year-to-date bar"}
+    else:
+        year = int(str(ytd["year"]).split()[0])
+        prior = next((a["amount"] for a in rv.get("annual") or []
+                      if str(a.get("year")) == str(year - 1)), None)
+        p = RPJ.project_year(bm.get("months"), bm.get("revenue"), ytd["amount"],
+                             ytd.get("ytd_through"), year, prior, str(year - 1))
+    rv["projection"] = p
+    return p
+
+
 # ---- build -----------------------------------------------------------------
 def build(data, template, out):
     m=data["meta"]; client=m["client_name"]; rm=m["report_month"]; hb=m["has_business"]
     _left_out=complete_series(data)
+    _proj=revenue_projection(data)
     # The Contact Us card is the client's managing CSM (Aaron, 2026-09-16) — resolved first,
     # so a client with no CSM on file stops before anything is rendered.
     import rpe_env
@@ -324,6 +345,9 @@ def build(data, template, out):
         _grew=len(_yrs) >= 2 and _yrs[-1] >= _yrs[-2]
         _lead=("Revenue has grown across the life of the program to"
                if _grew else "Life-of-program revenue reached")
+        # The projection sentence replaces the YTD one: it carries the YTD actual itself.
+        if _proj.get("ok"):
+            ytd_txt=" "+RPJ.caption(_proj)
         set_text(t, f"{_lead} "
                     f"${rv['year_2025']/1000:,.1f}K in 2025 — {_usd(rv['life_of_program'])} "
                     f"life-of-program.{ytd_txt}")
@@ -331,7 +355,10 @@ def build(data, template, out):
     place_pic(_rp, 0.4, 1.45, 7.55, 5.15)         # taller still (Aaron 2026-07-24); footnote sits below
     swap(S[6], _rp, A("mrpc_revenue.png"))
     t=txt_at(S[6], top=6.75)
-    if t and ytd: set_text(t, f"* {ytd['year'].replace(' YTD','').strip()} is year-to-date through {ytd.get('ytd_through','')}.")
+    if t and ytd:
+        _y=ytd['year'].replace(' YTD','').strip()
+        set_text(t, f"* {_y} is year-to-date through {ytd.get('ytd_through','')}"
+                    + ("; the hatched segment is projected, not actual." if _proj.get("ok") else "."))
 
     # Slide 8 (S[7]) — Revenue by Month (after the yearly slide). Same cloned layout:
     # chart left, two tiles right (Avg Monthly, Trailing-12), narrative.
@@ -481,10 +508,15 @@ def build(data, template, out):
                         + (" " + _left_out["performance_vs_goal"] if _left_out.get("performance_vs_goal") else ""))
     set_notes(S[5], base+" Retention by enrollment-cohort month + cancellations by reason. Bars navy, last cohort orange. "
                         f"{'Still-active line seeded/approx pending exact VIP values. ' if data['retention'].get('still_active_approx') else ''}"
-                        "Selection: enrolled members by cohort month, with count still active now.")
+                        "Selection: enrolled members by cohort month, with count still active now. "
+                        "Still active / enrolled by cohort: "
+                        + "; ".join(f"{mm} {sa}/{en}" for mm, sa, en in zip(
+                            data['retention']['cohort_months'], data['retention'].get('still_active') or [],
+                            data['retention']['enrolled'])) + ".")
     set_notes(S[6], base+f" Revenue by year 2016–{ytd['year'] if ytd else ''}; 2025 ${rv['year_2025']:,}, "
                         f"life-of-program ${rv['life_of_program']:,}"+(f", {ytd['year']} ${ytd['amount']:,}" if ytd else "")+
-                        ". Full annual series pulled from VIP; sums to life-of-program.")
+                        ". Full annual series pulled from VIP; sums to life-of-program. "
+                        + RPJ.notes(_proj, as_of=m.get("data_pull")))
     set_notes(S[7], base+f" Revenue by month (VIP MRPC Revenue by Month), {bm['months'][0]} – {bm['months'][-1]}; "
                         f"avg ${bm_avg:,}/mo, trailing-12 ${bm_tot:,}. Bars navy, last month orange."
                         + (" " + _left_out["revenue.by_month"] if _left_out.get("revenue.by_month") else ""))

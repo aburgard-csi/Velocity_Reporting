@@ -351,26 +351,22 @@ def _ask(r, m):
 # definition, so that month is 100% and attrition can only appear afterwards
 # (Aaron, 2026-08-28). Each row carries its own post-window length so the caption
 # can state what was actually measured rather than claiming a 3-month window.
-sust=[]
-for m in recent:  # recent 12 mailings
-    rs=[r for r in resp_pop if g(r,f'{m} Resp') in RESP_MET]
-    if not rs: continue
-    # A response is measured in the month AFTER the offer — the same convention the
-    # dot plot uses ("swipes in the month after the latest met-goal offer"). Wellworth
-    # confirms it: 44% of the Jun 2026 responders cleared their ask in June, 100% in
-    # July. So the RESPONSE month is mailing+1 and attrition can only show from
-    # mailing+2 onward (Aaron, 2026-08-28).
-    # Complete months only: a half-loaded final month reads as attrition.
-    post = [x for x in smonths[smonths.index(m)+2:] if x in _ACT_SET] if m in smonths else []
-    if not post:
-        # the response month itself: every responder met the ask there by definition,
-        # so this reads 100% and no attrition window exists yet
-        sust.append([lbl(m), len(rs), 100.0, 0])
-        continue
-    ok=sum(1 for r in rs
-           if sum(swipes(r,x) for x in post)/len(post) >= _ask(r,m))
-    sust.append([lbl(m),len(rs),round(100*ok/len(rs),1),len(post)])
+# A response is measured in the month AFTER the offer — the same convention the
+# dot plot uses ("swipes in the month after the latest met-goal offer"). Wellworth
+# confirms it: 44% of the Jun 2026 responders cleared their ask in June, 100% in
+# July. So the RESPONSE month is mailing+1 and attrition can only show from
+# mailing+2 onward (Aaron, 2026-08-28). Complete months only: a half-loaded final
+# month reads as attrition. A mailing with no post month yet reads 100% by definition.
+#
+# The loop lives in sustained_split.by_mailing (2026-10-02), which computes the total
+# AND the Non-User / Threshold split in one pass, so the opt-in split slide can never
+# disagree with this one. M['sustained'] keeps its old shape: [label, n, pct, post].
+import sustained_split as _SS
+_sust_split=_SS.by_mailing(resp_pop, recent, smonths, ACT_MONTHS, g, swipes, _ask,
+                           RESP_MET, label=lbl)
+sust=_SS.total_rows(_sust_split)
 M['sustained']=sust
+M['sustained_split']=_sust_split
 # widest post-window any bar uses, for the slide caption
 M['sustained_window']=max((x[3] for x in sust), default=0)
 

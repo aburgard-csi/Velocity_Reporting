@@ -162,19 +162,49 @@ def test_the_multiple_and_the_threshold_live_in_one_place():
 # ------------------------------------------------------------------ the slide
 def test_every_tile_label_fits_inside_its_tile():
     """Three labels wrapped out of their tiles onto the slide behind them, on a deck the
-    gate passed at 0 FAIL. A label is measured at what is DRAWN — 16pt after restyle_fonts,
-    inside PowerPoint's own margins — not at what it is authored as."""
-    for label in ("Program cost, to date", "Guaranteed minimum", "Revenue, to date",
-                  "Short of the guarantee", "Above the guarantee", "Not measurable yet"):
+    gate passed at 0 FAIL. A label is measured at what is DRAWN - 16pt after restyle_fonts,
+    inside PowerPoint's own margins - not at what it is authored as."""
+    for label in ("Profitability, to date", "Short of the 2 : 1 guarantee",
+                  "Above the 2 : 1 guarantee", "Not measurable yet"):
         assert RG._fits(label), label
 
 
-def test_the_chart_renders_from_months_and_from_totals(tmp_path):
-    import os
-    lines = RG.render_chart(RG.guarantee(base(months(24, 10_000, 3_000))), str(tmp_path))
-    assert os.path.getsize(lines) > 5000
-    bars = RG.render_chart(RG.guarantee({"ltd_revenue": 9.0, "ltd_costs": -4.0}), str(tmp_path))
-    assert os.path.getsize(bars) > 3000
+def lined(month_rows, lines):
+    B = base(month_rows)
+    B["actuals"]["lines"] = lines
+    return B
+
+
+def test_the_pnl_reads_the_last_complete_month_and_the_program_to_date():
+    """Aaron, 2026-10-02: the slide is a typical P&L. Its cost lines are the tab's own, a line
+    that is zero for the whole program is left off, and the rows add up."""
+    rows = months(12, 10_000, 3_000)
+    g = RG.guarantee(lined(rows, [["Respondent Fee", [0.0] * 12],
+                                  ["Program Fee", [3_000.0] * 12]]))
+    P = RG.pnl(g)
+    assert P["columns"] == [rows[-1][0], "Program to date"]
+    assert P["dropped"] == ["Respondent Fee"]
+    got = {label: vals for label, vals, _k in P["rows"]}
+    assert got["Incremental revenue"] == [10_000, 120_000]
+    assert got["Program Fee"] == [3_000, 36_000]
+    assert got["Total costs"] == [3_000, 36_000]
+    assert got["Incremental profit"] == [7_000, 84_000]
+    assert [k for _l, _v, k in P["rows"]] == ["revenue", "line", "total", "profit"]
+
+
+def test_without_an_actuals_tab_the_pnl_is_program_to_date_totals():
+    P = RG.pnl(RG.guarantee({"ltd_revenue": 150_000, "ltd_costs": -100_000, "months": 24}))
+    assert P["columns"] == ["Program to date"]
+    assert [(l, v) for l, v, _k in P["rows"]] == [
+        ("Incremental revenue", [150_000]), ("Total costs", [100_000]),
+        ("Incremental profit", [50_000])]
+
+
+def test_costs_and_losses_read_in_parentheses_and_a_discount_as_a_credit():
+    assert RG.money(609_284.94, "total") == "($609,285)"
+    assert RG.money(-1_200, "line") == "$1,200"
+    assert RG.money(-5_000, "profit") == "($5,000)"
+    assert RG.money(1_484_349.7, "revenue") == "$1,484,350"
 
 
 def test_the_builder_gates_on_should_build():

@@ -12,8 +12,15 @@ stretching to fill it.
 Every renderer takes its target pixel size from the caller, and the caller passes the
 size that matches the slide's picture box. A chart rendered at one aspect and placed
 in a box of another is the stretch defect in STYLE.md ("Charts").
+
+Every renderer takes that box in INCHES (`box`) and draws its figure at exactly that
+size (Aaron, 2026-10-02). The figures used to be drawn 8-11" wide and shrunk into boxes
+of 4.5-8.5", so a 10-11 pt label landed on the slide at 5-7 pt beside 11-14 pt table
+text. Drawn at the box's own size, a font size here IS its size on the slide, and the
+pixel size follows from the box (`_px`), so the aspect cannot drift from it either.
 """
 import os
+import textwrap
 import sys
 
 # `build/` for the shared layer and `build/ars_pipeline/` for `chart_lib`. Neither is a
@@ -41,6 +48,20 @@ from chart_lib import _letterbox
 
 plt.rcParams["font.family"] = CHART_FONT
 
+# `_letterbox` saves at 200 dpi; a target at the same density is pasted 1:1, not resampled.
+PX_PER_IN = 200
+
+# On-slide point sizes. The figure is drawn at its box's size, so these are what the
+# reader sees: axis and category labels at 12 pt, value labels a point larger and bold.
+AXIS_PT = 12
+LABEL_PT = 12
+VALUE_PT = 13
+
+
+def _px(box):
+    """Target pixel size for a box given in inches (width, height)."""
+    return round(box[0] * PX_PER_IN), round(box[1] * PX_PER_IN)
+
 
 def _money(v):
     if abs(v) >= 1_000_000:
@@ -64,7 +85,7 @@ def _thin(labels, keep=12):
             for i, lb in enumerate(labels)]
 
 
-def _frame(ax):
+def _frame(ax, size=AXIS_PT):
     ax.set_axisbelow(True)
     ax.yaxis.grid(True, color=GRID, linewidth=0.8)
     ax.xaxis.grid(False)
@@ -72,11 +93,11 @@ def _frame(ax):
         ax.spines[side].set_visible(False)
     ax.spines["left"].set_color(MUTED)
     ax.spines["bottom"].set_color(MUTED)
-    ax.tick_params(axis="both", labelsize=9, colors=TICK, length=0)
+    ax.tick_params(axis="both", labelsize=size, colors=TICK, length=0)
 
 
 def monthly_volume_chart(out_png, months, counts, principal, partial=None,
-                         w=1660, h=920):
+                         box=(8.50, 4.71)):
     """Loans booked per completed month (navy bars) with principal advanced (line).
 
     The line is TEAL, not navy: a navy line over navy bars is invisible, and
@@ -99,7 +120,7 @@ def monthly_volume_chart(out_png, months, counts, principal, partial=None,
         counts.append(partial["loans"])
         principal.append(partial["principal"])
 
-    fig, ax = plt.subplots(figsize=(11.0, 11.0 * h / w))
+    fig, ax = plt.subplots(figsize=box)
     n_full = len(counts) - (1 if partial else 0)
     colors = [NAVY] * n_full
     if colors:
@@ -125,7 +146,7 @@ def monthly_volume_chart(out_png, months, counts, principal, partial=None,
             # partial month's label for the same reason.
             is_partial = partial and i == len(counts) - 1
             ax.text(b.get_x() + b.get_width() / 2, top * 0.035, f"{v:,}",
-                    ha="center", va="bottom", fontsize=9,
+                    ha="center", va="bottom", fontsize=LABEL_PT,
                     color=TICK if is_partial else "white",
                     weight="bold", zorder=4)
     if partial:
@@ -133,11 +154,11 @@ def monthly_volume_chart(out_png, months, counts, principal, partial=None,
         ax.annotate(f"to {partial['through']}",
                     (pbar.get_x() + pbar.get_width() / 2, counts[-1]),
                     textcoords="offset points", xytext=(0, 7),
-                    ha="center", fontsize=9, color=TICK, zorder=4)
+                    ha="center", fontsize=AXIS_PT, color=TICK, zorder=4)
 
     ax.set_xticks(range(len(months)))
     ax.set_xticklabels(_thin([mon_yy(m) for m in months]),
-                       rotation=AXIS_ROTATION, ha=AXIS_HA, fontsize=9, color=TICK)
+                       rotation=AXIS_ROTATION, ha=AXIS_HA, fontsize=AXIS_PT, color=TICK)
     ax.set_ylim(0, top * 1.16)
     _frame(ax)
 
@@ -149,7 +170,7 @@ def monthly_volume_chart(out_png, months, counts, principal, partial=None,
              marker="o", markersize=4, zorder=3, label="Principal advanced")
     ax2.set_ylim(0, (max(principal) if principal else 1) * 1.20)
     ax2.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _money(v)))
-    ax2.tick_params(axis="y", labelsize=9, colors=TEAL, length=0)
+    ax2.tick_params(axis="y", labelsize=AXIS_PT, colors=TEAL, length=0)
     for side in ("top", "left", "right"):
         ax2.spines[side].set_visible(False)
     ax2.grid(False)
@@ -159,22 +180,22 @@ def monthly_volume_chart(out_png, months, counts, principal, partial=None,
     h1, l1 = ax.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
     ax.legend(h1 + h2, l1 + l2, loc="lower left", bbox_to_anchor=(0, 1.01, 1, 0.12),
-              mode="expand", frameon=False, fontsize=9, labelcolor=TICK,
+              mode="expand", frameon=False, fontsize=AXIS_PT, labelcolor=TICK,
               ncol=len(l1 + l2), borderaxespad=0)
 
     fig.tight_layout()
-    _letterbox(fig, out_png, w, h)
+    _letterbox(fig, out_png, *_px(box))
     return out_png
 
 
-def cumulative_growth_chart(out_png, months, counts, w=1660, h=630):
+def cumulative_growth_chart(out_png, months, counts, box=(7.40, 2.80)):
     """Cumulative loans booked since the program started — the adoption curve."""
     cum, run = [], 0
     for c in counts:
         run += c
         cum.append(run)
 
-    fig, ax = plt.subplots(figsize=(11.0, 11.0 * h / w))
+    fig, ax = plt.subplots(figsize=box)
     ax.fill_between(range(len(cum)), cum, color=LIGHT, alpha=0.65, zorder=2)
     ax.plot(range(len(cum)), cum, color=NAVY, linewidth=2.4, zorder=3)
     if cum:
@@ -182,20 +203,20 @@ def cumulative_growth_chart(out_png, months, counts, w=1660, h=630):
                 color=ORANGE, zorder=4)
         ax.annotate(f"{cum[-1]:,}", (len(cum) - 1, cum[-1]),
                     textcoords="offset points", xytext=(-6, 10),
-                    ha="right", fontsize=11, color=NAVY, weight="bold")
+                    ha="right", fontsize=VALUE_PT + 1, color=NAVY, weight="bold")
 
     ax.set_xticks(range(len(months)))
     ax.set_xticklabels(_thin([mon_yy(m) for m in months]),
-                       rotation=AXIS_ROTATION, ha=AXIS_HA, fontsize=9, color=TICK)
+                       rotation=AXIS_ROTATION, ha=AXIS_HA, fontsize=AXIS_PT, color=TICK)
     ax.set_ylim(0, (max(cum) if cum else 1) * 1.18)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{int(v):,}"))
     _frame(ax)
     fig.tight_layout()
-    _letterbox(fig, out_png, w, h)
+    _letterbox(fig, out_png, *_px(box))
     return out_png
 
 
-def status_mix_chart(out_png, labels, counts, w=1400, h=780):
+def status_mix_chart(out_png, labels, counts, box=(4.52, 2.52)):
     """Loans by status as ranked horizontal bars.
 
     Ranked bars rather than a donut: the status set runs to seven categories and a
@@ -208,7 +229,7 @@ def status_mix_chart(out_png, labels, counts, w=1400, h=780):
     labels = [p[0] for p in pairs]
     counts = [p[1] for p in pairs]
 
-    fig, ax = plt.subplots(figsize=(10.0, 10.0 * h / w))
+    fig, ax = plt.subplots(figsize=box)
     colors = [ORANGE if lb in ("Funded", "Overdue") else NAVY for lb in labels]
     bars = ax.barh(range(len(counts)), counts, color=colors, height=0.62)
 
@@ -217,22 +238,24 @@ def status_mix_chart(out_png, labels, counts, w=1400, h=780):
     for b, v in zip(bars, counts):
         ax.text(v + top * 0.02, b.get_y() + b.get_height() / 2,
                 f"{v:,}  ({v/total:.1%})", va="center", ha="left",
-                fontsize=10, color=NAVY)
+                fontsize=LABEL_PT, color=NAVY)
 
     ax.set_yticks(range(len(labels)))
-    ax.set_yticklabels(labels, fontsize=11, color=TICK)
-    ax.set_xlim(0, top * 1.30)
+    ax.set_yticklabels(labels, fontsize=LABEL_PT, color=TICK)
+    # Room right of the longest bar for its "6,005  (88.7%)" label, which at 12 pt on a
+    # 4.5" box takes about a third of the plot width.
+    ax.set_xlim(0, top * 1.62)
     ax.set_xticks([])
     for side in ("top", "right", "bottom"):
         ax.spines[side].set_visible(False)
     ax.spines["left"].set_color(MUTED)
     ax.tick_params(axis="y", length=0)
     fig.tight_layout()
-    _letterbox(fig, out_png, w, h)
+    _letterbox(fig, out_png, *_px(box))
     return out_png
 
 
-def peer_index_chart(out_png, labels, ratios, w=1180, h=880):
+def peer_index_chart(out_png, labels, ratios, box=(5.75, 4.02), wrap=18):
     """Client measured against the cohort, cohort = 100.
 
     One axis for metrics that do not share a unit (rates and dollars), which a
@@ -240,7 +263,10 @@ def peer_index_chart(out_png, labels, ratios, w=1180, h=880):
     carries the accent: colouring "above" and "below" differently would assert that
     higher is better, which is false for the charge-off rate.
     """
-    fig, ax = plt.subplots(figsize=(8.0, 8.0 * h / w))
+    # Metric labels wrap rather than shrink: "Loans per 1,000 DDAs (12 mo)" at 12 pt is
+    # wider on one line than a third of the box.
+    labels = [textwrap.fill(lb, wrap) for lb in labels]
+    fig, ax = plt.subplots(figsize=box)
     y = list(range(len(labels)))
     ax.barh(y, ratios, color=NAVY, height=0.5, zorder=2)
     ax.axvline(100, color=ORANGE, linewidth=2.2, zorder=3)
@@ -252,19 +278,19 @@ def peer_index_chart(out_png, labels, ratios, w=1180, h=880):
     # 100 lands its label on the reference line (WesBanco's "96" did exactly that).
     for i, v in zip(y, ratios):
         ax.text(xmax, i, f"{v:.0f}", va="center", ha="right",
-                fontsize=11, color=NAVY, weight="bold")
+                fontsize=VALUE_PT, color=NAVY, weight="bold")
 
     ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=10, color=TICK)
+    ax.set_yticklabels(labels, fontsize=LABEL_PT, color=TICK)
     ax.set_ylim(len(labels) - 0.5, -0.9)     # inverted, with headroom for the caption
     ax.set_xlim(0, xmax)
     ax.set_xticks([])
     ax.text(100, 1.0, "cohort = 100", transform=ax.get_xaxis_transform(),
-            ha="center", va="bottom", fontsize=9, color=ORANGE)
+            ha="center", va="bottom", fontsize=AXIS_PT, color=ORANGE)
     for side in ("top", "right", "bottom"):
         ax.spines[side].set_visible(False)
     ax.spines["left"].set_color(MUTED)
     ax.tick_params(axis="y", length=0)
     fig.tight_layout()
-    _letterbox(fig, out_png, w, h)
+    _letterbox(fig, out_png, *_px(box))
     return out_png

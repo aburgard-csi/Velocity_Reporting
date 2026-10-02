@@ -17,6 +17,63 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — MRPC "Still Active" line drawn from real counts; Non-User vs Threshold test slide
+
+Summary: The Still Active line on the MRPC Retention chart was invented. It is now drawn from
+the VIP sheet's actual counts. A new opt-in test slide splits sustained ARS responder activity
+into Non-User and Threshold offers, mailing by mailing.
+
+- **MRPC Retention** (`mrpc_charts_gen.chart_retention`). The line read `still_active_approx`, a
+  True/False flag, where it needed the `still_active` counts. Because that flag is False on
+  every current sheet, the line fell back to 60% of enrolled on EVERY MRPC deck. For Marine FCU
+  1539, Jun'26 showed about 92 still active where the sheet says 124 of 153. It now draws
+  `still_active`. A sheet without a count for every cohort month stops the build instead of
+  getting an invented line. The notes list still-active / enrolled for each cohort. Found while
+  answering Aaron's 90-day retention question; he approved the fix 2026-10-02. Tests in
+  `tests/test_mrpc_charts.py` check the line against the sheet and check that a missing count
+  stops the build.
+- **Sustained Activity: Non-User vs Threshold** (`sustained_split.py`,
+  `sustained_split_slide.py`). Aaron: "create a test slide showing Non User sustained usage and
+  Threshold sustained usage split out." It sits after Sustained Respondent Activity by Mailing
+  and uses the same definition of sustained, now in import-safe `sustained_split.by_mailing`,
+  which `metrics_gen` also calls. The existing slide's figures are unchanged. The segment is the
+  offer the account was sent (`<Mon> Mail`: NU, or TH-nn). If that is blank it falls back to
+  `<Mon> Resp`. An unknown code goes into "other", is listed in the notes, and is never put in
+  a segment. If NU + TH + other does not equal the mailing's total, the build stops. A mailing
+  with no month after it yet is left off and stated. A segment under 30 responders is hatched.
+  OPT-IN: the slide is added only with `RPE_TEST_SLIDES=1` or `RPE_JAMES_SLIDES=1`, so a normal
+  monthly build is unchanged.
+
+### 2026-10-02 — Revenue Guarantee becomes a P&L; CashPlease chart text at slide size
+
+Summary: The Revenue Guarantee slide is now a standard P&L — revenue, each cost line, total
+costs and profit, for the last complete month and the program to date — next to the
+profitability callout and the gap to (or room above) the 2 : 1 guarantee. The CashPlease
+charts' labels now read at about 12–14pt on the slide; before, they were 5–7pt.
+
+Aaron: "The Revenue Guarantee slide needs its spacing improved." Then: "Redo this slide as a
+typical P&L, but keep callout for profitability." And for CashPlease Loan Portfolio by Status
+and Peer Comparison: "the chart fonts on this slide are too small."
+
+- **Revenue Guarantee** (`revenue_guarantee_slide.py`). The cumulative-lines / two-bar chart and
+  its four tiles are replaced by a P&L table and two callouts. The callouts show the
+  profitability ratio and the surplus or gap, with the guaranteed minimum beneath them. The
+  caption sentence (run rate, months to cover) is unchanged. The figures still come from the
+  Actuals tab. `actuals_tab.read` now also returns each cost line between the "Costs" heading
+  and Total Cost (`lines`), under the sheet's own labels, because the MM and SM shapes carry
+  different ones. A line that is zero for the whole program is left off the table and named in
+  the notes. A workbook with no Actuals tab gives a program-to-date P&L of revenue, total costs
+  and profit. Spacing: the old subtitle wrapped onto a second line and ran into the tiles. It
+  is shorter now, and every element is placed from the measured height at 16pt (the restyle
+  floor), not from a fixed top. Carlito measures about 3% narrower than PowerPoint draws
+  Calibri, so wraps are measured against a shorter line (`WRAP_SLACK`).
+- **CashPlease charts** (`cp_charts.py`, `build_cp_gen.py`). Each figure was drawn 8–11" wide
+  and then shrunk into a 4.5–8.5" slide box, so 10–11pt text landed at 5–7pt. The renderers
+  now take the slide box in inches and draw at exactly that size (`AXIS_PT` 12, `LABEL_PT` 12,
+  `VALUE_PT` 13). The Peer Comparison chart wraps long metric names. Loan Volume and the
+  Overview cumulative chart had the same scaling and are fixed the same way. Picture positions
+  are unchanged.
+
 ### 2026-10-02 — Sheila's cycle advances on the 1st, and you can look back
 
 Summary: CSM Sheila now shows the current month as its cycle from the 1st, and the cycle pill

@@ -15,10 +15,15 @@ is closing on it or drifting away from it is to draw both lines.
 The tab comes in three shapes in the same workbook — `Actuals MM`, `Actuals SM` and plain
 `Actuals` — matching the three Executive Financials tabs, and their COST ROWS DIFFER (an MM
 client is billed a respondent fee; an SM client carries spot mailings, points and a program
-fee). Only two rows are read here, and both exist in every shape:
+fee). Two rows are read here, and both exist in every shape:
 
     Total Marginal Revenues     the month's revenue
     Total Cost                  the month's cost, negative in the sheet
+
+and so are the cost lines between the "Costs" heading and Total Cost, whatever this shape
+calls them, so the Revenue Guarantee slide can lay the program out as a P&L (Aaron,
+2026-10-02). Their labels are taken from the sheet, never from a list kept here, because the
+MM and SM shapes carry different ones.
 
 Read once, here, because two extractors need it and a second copy of this parsing is how
 `metrics_gen` and `responder_activity` drifted apart for a year.
@@ -63,7 +68,9 @@ def read(source, mm=True):
     """Read the Actuals tab. `source` is a path or an already-open openpyxl workbook.
 
     Returns {"available": True, "sheet", "months": [[label, revenue, cost], ...],
-             "revenue", "cost", "generated", "total_column"} with cost POSITIVE, or
+             "lines": [[label, [cost per month, aligned with months]], ...],
+             "revenue", "cost", "generated", "total_column"} with cost POSITIVE (a discount
+    is therefore negative), or
     {"available": False, "reason": ...} — never a partial dict, so a caller cannot read a
     total that was never found.
     """
@@ -95,13 +102,14 @@ def read(source, mm=True):
     cols = [(j, c) for j, c in enumerate(hdr) if isinstance(c, datetime.datetime)]
 
     rev_row = cost_row = None
+    cost_at = None
     generated = None
-    for r in rows:
+    for i, r in enumerate(rows):
         lab = _label_of(r).lower()
         if lab == REV_LABEL and rev_row is None:
             rev_row = r
         elif lab == COST_LABEL and cost_row is None:
-            cost_row = r
+            cost_row, cost_at = r, i
         for c in r:
             if isinstance(c, str) and generated is None:
                 m = _GENERATED.search(c)
@@ -116,12 +124,22 @@ def read(source, mm=True):
         v = row[j] if j < len(row) else None
         return float(v) if isinstance(v, (int, float)) else None
 
-    months = []
+    months, kept = [], []
     for j, dt in cols:
         rev, cost = num(rev_row, j), num(cost_row, j)
         if rev is None and cost is None:
             continue                        # a month the sheet carries no figures for
         months.append([_label(dt), round(rev or 0.0, 2), round(abs(cost or 0.0), 2)])
+        kept.append(j)
+
+    # The cost lines: every labelled row above Total Cost, back to the "Costs" heading.
+    lines = []
+    for r in reversed(rows[:cost_at]):
+        lab = _label_of(r)
+        if lab.lower() == "costs":
+            break
+        if lab and any(num(r, j) is not None for j in kept):
+            lines.insert(0, [lab, [round(-(num(r, j) or 0.0), 2) + 0.0 for j in kept]])
     if not months:
         return {"available": False, "reason": f"'{sheet}' carries no month with figures"}
 
@@ -136,6 +154,7 @@ def read(source, mm=True):
         "available": True,
         "sheet": sheet,
         "months": months,
+        "lines": lines,
         "revenue": round(sum(m[1] for m in months), 2),
         "cost": round(sum(m[2] for m in months), 2),
         "total_column": round(total_col, 2) if total_col is not None else None,

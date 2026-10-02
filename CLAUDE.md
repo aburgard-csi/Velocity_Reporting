@@ -964,8 +964,9 @@ This is the readme index — update it whenever files are added, removed, or mov
   reported True Sky at +118% while the client's own deck said +103%.
 - `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
 - `revenue_guarantee_slide.py` — the Revenue Guarantee slide, inserted after ARS Financial
-  Performance: program cost to date, the 2 : 1 guaranteed minimum, revenue, and either the
-  surplus or the gap with the months to cover it (the months account for cost accruing over
+  Performance: a P&L from the Actuals tab (revenue, each cost line, total costs, profit — last
+  complete month and program to date; Aaron, 2026-10-02) beside the profitability callout, and
+  either the surplus over the 2 : 1 guaranteed minimum or the gap with the months to cover it (the months account for cost accruing over
   those same months). Run rate reads complete months only. On EVERY ARS deck whose ratio is
   below 3 : 1 (Aaron, 2026-09-25) — not one of the opt-in James views.
 - `combined_insights.py`, `insight_charts.py`, `combined_insight_slides.py` — the views from James
@@ -990,6 +991,10 @@ This is the readme index — update it whenever files are added, removed, or mov
   Account, Reg E Elections Over Time, Program Cascade, Where Accounts Close, Card Spend Before a
   Close. Money is priced only at the WORKBOOK's own Interchange Rate and NSF Fee
   (`lift_values.workbook_assumptions`); activity windows go through `month_complete`.
+
+- `sustained_split.py`, `sustained_split_slide.py` — the ONE sustained-responder measure
+  (`by_mailing`, also used by `metrics_gen`) split by offer, Non-User vs Threshold, and the
+  opt-in test slide that shows it (`RPE_TEST_SLIDES=1` or `RPE_JAMES_SLIDES=1`; Aaron, 2026-10-02).
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

@@ -22,10 +22,20 @@ Where the figures come from (Aaron, 2026-09-22)
 The **Actuals tab**, month by month, read by `actuals_tab` and carried in `base.json` by
 both extractors — not the Executive Financials roll-up this slide first used. A guarantee is
 a statement about revenue against cost over the life of the program, and only the months
-show whether a client is closing on it or drifting away from it. The chart draws cumulative
-revenue against twice cumulative cost; where those two lines cross is the month the program
-met its guarantee. Falls back to the roll-up totals when a workbook carries no Actuals tab,
+show whether a client is closing on it or drifting away from it. The month the program met its
+guarantee is where cumulative revenue first covers twice cumulative cost. Falls back to the roll-up totals when a workbook carries no Actuals tab,
 and the notes say which was used.
+
+The slide is a P&L (Aaron, 2026-10-02)
+-------------------------------------
+"Redo this slide as a typical P&L, but keep the callout for profitability." The left of the
+slide is the program's P&L from the same Actuals tab: incremental revenue, each cost line the
+sheet carries (labels taken from the sheet - MM and SM shapes differ), total costs and
+incremental profit, for the last complete month and the program to date. A cost line that is
+zero for the whole program is left off and named in the notes. The right is the callout: the
+profitability ratio, and the gap to (or room above) the 2 : 1 guaranteed minimum. The
+cumulative-lines chart this replaced is gone. Without an Actuals tab the P&L falls back to the
+Executive Financials program-to-date totals: revenue, total costs and profit only.
 
 Below the guarantee
 -------------------
@@ -55,21 +65,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 from pptx.util import Inches
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
-from brand import usd_compact, GRID, TICK
-from rpe_env import use_font
+from brand import usd_compact
+from shapes import add_table as _add_table
 import month_complete as _MC
 
 from product_mix_slide import (
-    _tb, _pill, _tile, _fit_picture, _blank_slide, _slide_title,
-    _sldid_of, _renumber,
-    NAVY, ORANGE, GREYT, HEAD, BODY, _NAVY_HX, _ORANGE_HX, _TICK_HX,
+    _tb, _pill, _tile, _blank_slide, _slide_title, _sldid_of, _renumber,
+    NAVY, ORANGE, GREYT, HEAD, BODY,
 )
 
 try:
@@ -84,18 +89,48 @@ MULTIPLE = 2.0
 SHOW_BELOW = 3.0
 RUN_MONTHS = 12
 _RUNRATE_MEASURE = "monthly incremental revenue"
-# Tile geometry, and the label width a wording has to fit. PowerPoint applies 0.1in of
+# Callout geometry, and the label width a wording has to fit. PowerPoint applies 0.1in of
 # margin each side that python-pptx reports as None, and restyle_fonts floors label runs at
-# 16pt — so a wording is measured at what is DRAWN, not at what it is authored as. Three
+# 16pt - so a wording is measured at what is DRAWN, not at what it is authored as. Three
 # labels escaped their tiles onto the slide behind them before this was measured at all.
-TILE_W, TILE_H, LABEL_PT = 2.85, 0.92, 16
+TILE_W, LABEL_PT = 4.05, 16
 LABEL_USABLE = TILE_W - 0.1 - 0.2
+# The vertical stack (Aaron, 2026-10-02): the subtitle and caption are measured at the size
+# they are DRAWN (16pt, restyle_fonts' floor) and each element is placed under the one above
+# it, because a subtitle that wrapped at a fixed top ran into the row below it.
+TEXT_PT, TEXT_W, LINE_IN = 16, 12.3, 0.29
+SUB_T, GAP_SUB, GAP_CAPTION = 1.08, 0.24, 0.30
+TABLE_L, TABLE_W, ROW_H = 0.5, 7.85, 0.46
+CONTENT_BOTTOM, MAX_DROP = 6.62, 0.45
+CALLOUT_L = 8.75
+# Carlito measures ~3% narrower than PowerPoint draws Calibri: a subtitle measured at
+# 11.88in of a 12.1in line still wrapped. Wrap against a line this much shorter.
+WRAP_SLACK = 0.45
 
 
 def _fits(text):
     if text_width_in is None:
         return True
     return text_width_in(text, LABEL_PT, "Calibri", False) <= LABEL_USABLE
+
+
+def _lines(text, width=TEXT_W - 0.2 - WRAP_SLACK, pt=TEXT_PT):
+    """How many lines `text` wraps to in a box `width` wide, word by word, at `pt`."""
+    if text_width_in is None:
+        return max(1, math.ceil(len(text) * pt / 72.0 * 0.5 / width))
+    n, cur = 1, ""
+    for word in text.split():
+        trial = f"{cur} {word}".strip()
+        if cur and text_width_in(trial, pt, "Calibri", False) > width:
+            n, cur = n + 1, word
+        else:
+            cur = trial
+    return n
+
+
+def _text_h(text):
+    """Height of a wrapped 16pt text box: its lines plus PowerPoint's 0.05in margins."""
+    return _lines(text) * LINE_IN + 0.1
 
 
 def _n(count, singular, plural=None):
@@ -163,6 +198,7 @@ def guarantee(B):
         "months_to_cover": None, "run_rate": None, "monthly_cost": None,
         "monthly_cost_from": None, "run_months": 0, "left_out": [],
         "met_month": None, "total_column": act.get("total_column"),
+        "lines": act.get("lines") or [],
         "window": act.get("window"),
     }
     if not cost:
@@ -226,86 +262,59 @@ def guarantee(B):
     return out
 
 
-def render_chart(g, assets_dir):
-    """Cumulative revenue against the guaranteed minimum, month by month.
+def pnl(g):
+    """The P&L the slide tabulates - pure, so it is testable without pptx.
 
-    Two bars said what the totals were; the lines say whether the client is closing on the
-    guarantee or drifting from it, which is the only question the slide exists to answer.
-    Falls back to the two bars when there are no months to draw.
+    {"columns": [...], "rows": [(label, [values], kind)], "dropped": [labels]}. Costs are
+    POSITIVE here and shown in parentheses on the slide; `kind` is "revenue", "line",
+    "total" or "profit". The month column is the last COMPLETE month of the Actuals series
+    (CLAUDE.md: complete months only); a month left out is named by `_caption`.
     """
-    os.makedirs(assets_dir, exist_ok=True)
-    use_font("Carlito")
     months = g["months"]
-    path = os.path.join(assets_dir, "rg_lines.png")
-
     if not months:
-        fig = plt.figure(figsize=(12.3, 2.3))
-        ax = fig.add_axes([0.17, 0.10, 0.80, 0.86])
-        vals = [g["minimum"], g["revenue"]]
-        bars = ax.barh(["Guaranteed minimum\n(2 x program cost)", "Revenue to date"], vals,
-                       height=0.5, color=[_TICK_HX, _ORANGE_HX if g["met"] else _NAVY_HX])
-        top = max(vals) or 1
-        for b, v in zip(bars, vals):
-            ax.text(v + top * 0.012, b.get_y() + b.get_height() / 2, usd_compact(v),
-                    va="center", ha="left", fontsize=15, fontweight="bold", color=_NAVY_HX)
-        ax.set_xlim(0, top * 1.16)
-        ax.invert_yaxis()
-        ax.tick_params(axis="y", length=0, labelsize=13, colors=_TICK_HX)
-        ax.set_xticks([])
-        for side in ("top", "right", "bottom", "left"):
-            ax.spines[side].set_visible(False)
-        fig.savefig(path, dpi=200, facecolor="white", bbox_inches="tight", pad_inches=0.04)
-        plt.close(fig)
-        return path
+        return {"columns": ["Program to date"], "dropped": [],
+                "rows": [("Incremental revenue", [g["revenue"]], "revenue"),
+                         ("Total costs", [g["cost"]], "total"),
+                         ("Incremental profit", [g["revenue"] - g["cost"]], "profit")]}
 
-    labels = [m[0] for m in months]
-    cum_rev, cum_min = [], []
-    r = c = 0.0
-    for _lab, rev, cost in months:
-        r += rev
-        c += cost
-        cum_rev.append(r)
-        cum_min.append(MULTIPLE * c)
+    rows, _res = _MC.complete_rows(months, 1, _RUNRATE_MEASURE, min_volume=0)
+    last = rows[-1][0] if rows else None
+    i = next((k for k, m in enumerate(months) if m[0] == last), None)
 
-    fig = plt.figure(figsize=(12.3, 3.0))
-    ax = fig.add_axes([0.07, 0.16, 0.86, 0.80])
-    x = list(range(len(labels)))
-    ax.fill_between(x, cum_min, cum_rev, where=[a >= b for a, b in zip(cum_rev, cum_min)],
-                    color=_ORANGE_HX, alpha=0.16, interpolate=True, zorder=2)
-    ax.fill_between(x, cum_min, cum_rev, where=[a < b for a, b in zip(cum_rev, cum_min)],
-                    color=_NAVY_HX, alpha=0.10, interpolate=True, zorder=2)
-    ax.plot(x, cum_min, color=_TICK_HX, lw=1.8, ls=(0, (4, 3)), zorder=4,
-            label="Guaranteed minimum (2 x cost)")
-    ax.plot(x, cum_rev, color=_ORANGE_HX, lw=2.6, zorder=5, label="Revenue")
-    ax.plot(x[-1:], cum_rev[-1:], marker="o", ms=6, mfc="white", mec=_ORANGE_HX, mew=2,
-            zorder=6)
-    ax.set_ylim(0, max(max(cum_rev), max(cum_min)) * 1.12)
-    ax.yaxis.set_major_formatter(lambda v, _p: usd_compact(v, 1) if v else "$0")
-    ax.tick_params(axis="y", labelsize=11, colors=_TICK_HX)
-    ax.grid(axis="y", color=GRID, lw=0.8, zorder=0)
-    step = max(1, len(labels) // 10)
-    keep = list(range(len(labels) - 1, -1, -step))[::-1]
-    ax.set_xticks(keep)
-    ax.set_xticklabels([_short(labels[i]) for i in keep], fontsize=10.5, color=_NAVY_HX)
-    ax.set_xlim(-0.5, len(labels) - 0.5)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    for side in ("bottom", "left"):
-        ax.spines[side].set_color("#B8C0CA")
-    ax.legend(loc="upper left", frameon=False, fontsize=12, labelcolor=_TICK_HX)
-    fig.savefig(path, dpi=200, facecolor="white")
-    plt.close(fig)
-    return path
+    def cols(month_val, ptd_val):
+        return ([month_val] if i is not None else []) + [ptd_val]
+
+    out = [("Incremental revenue", cols(months[i][1] if i is not None else None,
+                                        g["revenue"]), "revenue")]
+    dropped = []
+    for label, vals in g.get("lines") or []:
+        if not any(vals):
+            dropped.append(label)
+            continue
+        out.append((label, cols(vals[i] if i is not None else None, round(sum(vals), 2)),
+                    "line"))
+    out.append(("Total costs", cols(months[i][2] if i is not None else None, g["cost"]),
+                "total"))
+    out.append(("Incremental profit",
+                cols(months[i][1] - months[i][2] if i is not None else None,
+                     round(g["revenue"] - g["cost"], 2)), "profit"))
+    return {"columns": ([last] if i is not None else []) + ["Program to date"],
+            "rows": out, "dropped": dropped}
 
 
-def _short(label):
-    """'Jun 2026' -> "Jun'26", the house month format."""
-    parts = label.split()
-    return f"{parts[0]}'{parts[1][2:]}" if len(parts) == 2 else label
+def money(v, kind):
+    """$1,484,350 for revenue and profit, a loss in parentheses; a cost in parentheses, and
+    a negative cost (a discount) as a plain credit."""
+    if v is None:
+        return "\u2014"
+    txt = f"${abs(v):,.0f}"
+    if kind in ("line", "total"):
+        return txt if v < 0 else f"({txt})"
+    return f"({txt})" if v < 0 else txt
 
 
 def _caption(g):
-    """The sentence under the chart — derived from the figures beside it, never fixed."""
+    """The sentence under the P&L — derived from the figures beside it, never fixed."""
     if not g["measurable"]:
         return ("The workbook carries no program cost to date, so revenue cannot be "
                 "measured against a multiple of it. The guarantee is reported once costs "
@@ -348,32 +357,66 @@ def add_revenue_guarantee_slide(prs, B, assets_dir, month_label,
     _tb(s, 0.5, 0.28, 9.6, 0.9, "Revenue Guarantee", 26, NAVY, True,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     _pill(s, f"{month_label} Data")
-    _tb(s, 0.5, 1.12, 12.3, 0.5,
-        "Account Revenue Solution\u00ae returns at least twice its program cost. "
-        "Revenue and cost since the program began, against that minimum.",
-        14, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    subtitle = ("Account Revenue Solution® returns at least twice its program cost. "
+                "The program's P&L to date, against that minimum.")
+    sub_h = _text_h(subtitle)
+    _tb(s, 0.5, SUB_T, TEXT_W, sub_h, subtitle, TEXT_PT, GREYT, False,
+        PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    top = SUB_T + sub_h + GAP_SUB
 
-    # Every label measured at what is DRAWN (16pt after restyle_fonts, inside PowerPoint's
-    # own 0.1in margins), because three of them escaped their tiles when they were not.
+    # A short P&L would leave the bottom of the slide empty: the block (table and callouts,
+    # then the caption) is centred in the space above the logo, never pushed off the subtitle
+    # by more than MAX_DROP.
+    P = pnl(g)
+    caption = _caption(g)
+    side_h = 1.55 + 0.2 + 1.25 + (0.3 if g["measurable"] else 0)
+    block = max(ROW_H * (len(P["rows"]) + 1), side_h) + GAP_CAPTION + _text_h(caption)
+    top += min(MAX_DROP, max(0.0, (CONTENT_BOTTOM - top - block) / 2))
+
+    # Left: the P&L.
+    data = [["Program P&L"] + P["columns"]]
+    for label, vals, kind in P["rows"]:
+        data.append([("    " + label) if kind == "line" else label]
+                    + [money(v, kind) for v in vals])
+    n = len(P["columns"])
+    table_h = ROW_H * len(data)
+    tb = _add_table(s, TABLE_L, top, TABLE_W, table_h, data, [3.6] + [2.1] * n,
+                    highlight=(len(data) - 1,), fs=TEXT_PT).table
+    for i, row in enumerate(data):
+        kind = P["rows"][i - 1][2] if i else "head"
+        for j in range(n + 1):
+            para = tb.cell(i, j).text_frame.paragraphs[0]
+            if j:
+                para.alignment = PP_ALIGN.RIGHT
+            if kind == "total":
+                for r in para.runs:
+                    r.font.bold = True
+
+    # Right: the profitability callout, and where that leaves the guarantee.
+    prof = _label("Profitability, to date", "Profitability")
     if not g["measurable"]:
-        tiles = [(usd_compact(g["cost"]), _label("Program cost, to date", "Program cost"), NAVY),
-                 ("\u2014", _label("Guaranteed minimum"), NAVY),
-                 (usd_compact(g["revenue"]), _label("Revenue, to date"), NAVY),
-                 ("\u2014", _label("Not measurable yet"), NAVY)]
+        callouts = [("\u2014", prof, ORANGE, 1.55),
+                    ("\u2014", _label("Not measurable yet"), NAVY, 1.25)]
+    elif g["met"]:
+        callouts = [(f"{g['ratio']:.1f} : 1", prof, ORANGE, 1.55),
+                    (usd_compact(g["surplus"]),
+                     _label("Above the 2 : 1 guarantee", "Above the guarantee"), NAVY, 1.25)]
     else:
-        head = ((usd_compact(g["surplus"]), _label("Above the guarantee"), ORANGE)
-                if g["met"] else
-                (usd_compact(g["gap"]), _label("Short of the guarantee"), ORANGE))
-        tiles = [(usd_compact(g["cost"]), _label("Program cost, to date", "Program cost"), NAVY),
-                 (usd_compact(g["minimum"]), _label("Guaranteed minimum"), NAVY),
-                 (usd_compact(g["revenue"]), _label("Revenue, to date"), NAVY),
-                 head]
-    for i, (v, lab, fill) in enumerate(tiles):
-        _tile(s, 0.56 + i * 3.12, 1.66, TILE_W, TILE_H, v, lab, fill=fill)
+        callouts = [(f"{g['ratio']:.1f} : 1", prof, ORANGE, 1.55),
+                    (usd_compact(g["gap"]),
+                     _label("Short of the 2 : 1 guarantee", "Short of the guarantee"), NAVY, 1.25)]
+    t = top
+    for v, lab, fill, h in callouts:
+        _tile(s, CALLOUT_L, t, TILE_W, h, v, lab, fill=fill)
+        t += h + 0.2
+    if g["measurable"]:
+        _tb(s, CALLOUT_L, t - 0.1, TILE_W, 0.4,
+            f"Guaranteed minimum: {usd_compact(g['minimum'])}",
+            TEXT_PT, GREYT, False, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP)
+        t += 0.3
 
-    bottom = _fit_picture(s, render_chart(g, assets_dir), 0.5, 2.80, 12.3,
-                          3.05 if g["months"] else 2.40)
-    _tb(s, 0.5, bottom + 0.20, 12.3, 1.15, _caption(g), 15, NAVY, False,
+    cap_t = max(top + table_h, t - 0.2) + GAP_CAPTION
+    _tb(s, 0.5, cap_t, TEXT_W, _text_h(caption), caption, TEXT_PT, NAVY, False,
         PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     s.notes_slide.notes_text_frame.text = _notes_text(g, B, wb_src, tab, month_label)
@@ -409,7 +452,7 @@ def _anchor(prs, after_title):
 
 
 def _notes_text(g, B, wb_src, tab, month_label):
-    src = (f"{wb_src} — '{g['sheet']}' tab: Total Marginal Revenues and Total Cost, by month"
+    src = (f"{wb_src} — '{g['sheet']}' tab: Total Marginal Revenues, each cost line and Total Cost, by month"
            if g["source"] == "actuals" else
            f"{wb_src} — Executive Financials{tab}, program-to-date column (this workbook "
            f"carries no Actuals tab)")
@@ -437,6 +480,12 @@ def _notes_text(g, B, wb_src, tab, month_label):
                  f"{g['months_to_cover'] if g['months_to_cover'] is not None else 'does not close at this run rate'}.")
         if g["left_out"]:
             note += " Left out as incomplete: " + ", ".join(g["left_out"]) + "."
+    P = pnl(g)
+    note += " P&L columns: " + ", ".join(P["columns"]) + (
+        "; cost lines as the tab labels them." if g["source"] == "actuals" else
+        "; revenue, total costs and profit only (no Actuals tab to itemise costs from).")
+    if P["dropped"]:
+        note += " Zero for the whole program, left off the P&L: " + ", ".join(P["dropped"]) + "."
     note += ("\n\nREVIEW — WHAT THIS ASSUMES:"
              "\n  !! The slide is built only for clients under "
              f"{SHOW_BELOW:.0f} : 1 (Aaron, 2026-09-22). A client comfortably clear of the "

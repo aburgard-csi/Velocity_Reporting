@@ -1968,6 +1968,18 @@ if os.environ.get("RPE_JAMES_SLIDES") == "1":
         "ltd_revenue": B.get("ltd_revenue"), "assets": ASSETS})
     print(f"insight slides (RPE_JAMES_SLIDES): {len(_ins)} added -> {_ci_json}")
 
+# ---- 2b''. TEST SLIDE: sustained activity split Non-User / Threshold (opt-in) ----
+# Aaron, 2026-10-02. OFF unless RPE_TEST_SLIDES=1 (or RPE_JAMES_SLIDES=1, the review copy), so
+# the monthly build and the golden deck's slide count are unchanged. Placed by TITLE directly
+# after "Sustained Respondent Activity by Mailing", after every index-based pass above. It
+# reads M['sustained_split'], computed in the same pass as that slide's bars, and writes its
+# own source note.
+if os.environ.get("RPE_TEST_SLIDES") == "1" or os.environ.get("RPE_JAMES_SLIDES") == "1":
+    import sustained_split_slide as _sss
+    _sss.add_sustained_split_slide(prs, M, {"odd_src": ODD_SRC, "as_of_long": AS_OF_LONG,
+                                            "assets": ASSETS})
+    print("test slide (RPE_TEST_SLIDES): " + _sss.TITLE)
+
 # Branch names on the charts (Aaron 2026-09-17): every slide that shows a
 # branch says where the names came from.
 if M.get("branch_name_of"):

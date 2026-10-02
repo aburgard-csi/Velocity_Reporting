@@ -100,7 +100,7 @@ def chart_enroll(d, out, dims):
         tot=[gold[i]+plat[i]+biz[i] for i in range(len(m))]
     else:
         gold,plat,biz=_split_tiers(tot, e["last_complete"], hb)
-    fig,ax=plt.subplots(figsize=(13,6.6));
+    fig,ax=plt.subplots(figsize=SLOT_IN["enroll"]);
     for i in range(len(m)):
         a=0.42 if partial[i] else 1.0; h='//' if partial[i] else None
         ax.bar(i,gold[i],color=GOLDC,width=0.72,alpha=a,hatch=h,edgecolor='white',linewidth=0.5)
@@ -122,7 +122,7 @@ def chart_enroll(d, out, dims):
 def chart_channel(d, out, dims):
     c=d["channel"]; order=c["order"]; pct=[c["pct"][k] for k in order]
     cols=[NAVY,STEEL,LIGHT,ORANGE][:len(order)]
-    fig,(axd,axb)=plt.subplots(1,2,figsize=(13,5.6),
+    fig,(axd,axb)=plt.subplots(1,2,figsize=SLOT_IN["channel"],
         gridspec_kw={'width_ratios':[1,1.05],'wspace':0.25})
     _shadow_wedges(axd.pie(pct,colors=cols,startangle=90,counterclock=False,
             wedgeprops=dict(width=0.42,edgecolor='white',linewidth=2))[0])
@@ -193,7 +193,7 @@ def chart_perf(d, out, dims):
             raise SystemExit(f"performance_vs_goal.{k} has {len(p[k])} values for "
                              f"{len(m)} months — refusing to draw a misaligned chart")
     nc=p["new_accounts"]; goal=p["goal"]
-    fig,ax=plt.subplots(figsize=(13,6.0)); x=np.arange(len(m))
+    fig,ax=plt.subplots(figsize=SLOT_IN["perf"]); x=np.arange(len(m))
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,nc,color=cols,width=0.66,label='New Checking Accounts',zorder=1)
     _overlay_line(ax,x,goal,f'Goal ({p["goal_pct"]}%)',zorder=3,ms=5,color=ORANGE,ls='--',lw=2)
@@ -208,9 +208,16 @@ def chart_perf(d, out, dims):
 def chart_retention(d, out, dims):
     # Enrolled bars: navy, last cohort month orange (standard format). The Still-Active
     # line is cased (see _overlay_line) -- it crosses the white gaps between bars.
+    # The line is the sheet's own still_active counts (2026-10-02). It used to read
+    # `still_active_approx` -- a True/False flag -- and, that being False on every sheet, fall
+    # back to 60% of enrolled: every MRPC deck drew an invented line. A sheet without the
+    # counts stops the build; a line is never made up.
     r=d["retention"]; m=r["cohort_months"]; en=r["enrolled"]
-    ac=r.get("still_active_approx") or [round(x*0.6) for x in en]
-    fig,ax=plt.subplots(figsize=(9,6.4)); x=np.arange(len(m))
+    ac=r.get("still_active")
+    if not isinstance(ac,list) or len(ac)!=len(en) or any(not isinstance(v,(int,float)) for v in ac):
+        raise SystemExit("MRPC retention: the sheet carries no still_active count for every "
+                         f"cohort month ({len(en)} enrolled, still_active={ac!r}); refresh the VIP sheet")
+    fig,ax=plt.subplots(figsize=SLOT_IN["retention"]); x=np.arange(len(m))
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,en,color=cols,width=0.68,label='Enrolled',zorder=1)
     _overlay_line(ax,x,ac,'Still Active',zorder=3)
@@ -226,7 +233,7 @@ def chart_cancel(d, out, dims):
     labels never collide, and any reason count fits."""
     cc=sorted(d["retention"]["cancellations_by_reason"], key=lambda c:-c["pct"])
     labels=[c["reason"] for c in cc]; vals=[c["pct"] for c in cc]
-    fig,ax=plt.subplots(figsize=(6.6,5.2))
+    fig,ax=plt.subplots(figsize=SLOT_IN["cancel"])
     y=list(range(len(vals)))[::-1]
     cols=[NAVY if i==0 else STEEL for i in range(len(vals))]   # top reason in navy
     ax.barh(y,vals,color=cols,height=0.62)
@@ -239,15 +246,32 @@ def chart_cancel(d, out, dims):
     canvas(fig,*dims,out)
 
 def chart_revenue(d, out, dims):
-    rv=d["revenue"]["annual"]
+    """Revenue by year. When the builder has projected the current year
+    (d["revenue"]["projection"], Aaron 2026-10-02) the projected remainder is stacked on the
+    YTD bar as a hatched, outlined segment -- visibly not actual -- with the projected full
+    year printed above it and the YTD actual inside."""
+    rv=d["revenue"]["annual"]; pj=(d["revenue"].get("projection") or {})
     yrs=[a["year"] for a in rv]; amt=[a["amount"] for a in rv]
     cols=[ORANGE if ("2025" in y and "2026" not in y) else (STEEL if "YTD" in y else NAVY) for y in yrs]
-    fig,ax=plt.subplots(figsize=(9,5.0)); x=np.arange(len(yrs))
+    proj_i=next((i for i,y in enumerate(yrs) if "YTD" in y), None) if pj.get("ok") else None
+    top=[a+(pj["remainder"] if i==proj_i else 0) for i,a in enumerate(amt)]
+    fig,ax=plt.subplots(figsize=SLOT_IN["revenue"]); x=np.arange(len(yrs))
     ax.bar(x,amt,color=cols,width=0.64)
+    if proj_i is not None:
+        ax.bar(proj_i,pj["remainder"],bottom=amt[proj_i],width=0.64,color='white',
+               edgecolor=STEEL,hatch='///',linewidth=1.4)
     for i,a in enumerate(amt):
-        ax.text(i,a+max(amt)*0.02,f"${a/1000:,.0f}K",ha='center',va='bottom',color=NAVY,fontweight='bold',fontsize=13)
-    ax.set_xticks(x); ax.set_xticklabels(yrs,fontsize=13,color=TICK)
-    ax.set_ylim(0,max(amt)*1.16); ax.get_yaxis().set_visible(False); _clean(ax)
+        if i==proj_i:
+            ax.text(i,a/2,f"${a/1000:,.0f}K",ha='center',va='center',color=NAVY,fontweight='bold',fontsize=12)
+            ax.text(i,top[i]+max(top)*0.02,f"${top[i]/1000:,.0f}K
+projected",ha='center',va='bottom',
+                    color=NAVY,fontweight='bold',fontsize=12,linespacing=1.0)
+        else:
+            ax.text(i,a+max(top)*0.02,f"${a/1000:,.0f}K",ha='center',va='bottom',color=NAVY,fontweight='bold',fontsize=13)
+    labels=[(y.replace(" YTD","")+"
+(YTD + proj.)") if i==proj_i else y for i,y in enumerate(yrs)]
+    ax.set_xticks(x); ax.set_xticklabels(labels,fontsize=13,color=TICK)
+    ax.set_ylim(0,max(top)*1.22); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
 
 def chart_billing(d, out, dims):
@@ -270,7 +294,7 @@ def chart_billing(d, out, dims):
 def chart_revenue_month(d, out, dims):
     # Monthly revenue bars: navy, last month orange (standard format), value labels on top.
     rm=d["revenue"]["by_month"]; m=rm["months"]; v=rm["revenue"]
-    fig,ax=plt.subplots(figsize=(11.5,5.4)); x=np.arange(len(m))
+    fig,ax=plt.subplots(figsize=SLOT_IN["revmonth"]); x=np.arange(len(m))
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,v,color=cols,width=0.7)
     for i,a in enumerate(v):
@@ -316,21 +340,37 @@ def chart_card_pie(d, out, dims):
     names=[t["name"] for t in types]; vals=[t["accounts"] for t in types]
     prices=[t.get("price") for t in types]
     cols=[NAVY,ORANGE,STEEL,SLATE][:len(types)]
-    fig=plt.figure(figsize=(12,5.2))
+    fig=plt.figure(figsize=SLOT_IN["cardpie"])
     axd=fig.add_axes([0.00,0.02,0.46,0.96]); axl=fig.add_axes([0.50,0.02,0.48,0.96]); axl.axis('off')
     _shadow_wedges(axd.pie(vals,colors=cols,startangle=90,counterclock=False,
             wedgeprops=dict(width=0.42,edgecolor='white',linewidth=2))[0])
-    axd.text(0,0.10,f"{total:,}",ha='center',va='center',color=NAVY,fontsize=31,fontweight='bold')
-    axd.text(0,-0.16,"cards billed",ha='center',va='center',color=TICK,fontsize=15)
+    axd.text(0,0.10,f"{total:,}",ha='center',va='center',color=NAVY,fontsize=22,fontweight='bold')
+    axd.text(0,-0.16,"cards billed",ha='center',va='center',color=TICK,fontsize=12)
     y=0.90
     for name,val,pr,c in zip(names,vals,prices,cols):
         pct=val/total*100
         axl.add_patch(plt.Rectangle((0.0,y-0.035),0.045,0.06,color=c,transform=axl.transAxes,clip_on=False))
         price=f"   ·   ${pr:.2f}/mo" if pr else "   ·   multiple cards"
-        axl.text(0.075,y+0.005,name,fontsize=16,color=NAVY,fontweight='bold',va='center',transform=axl.transAxes)
-        axl.text(0.075,y-0.055,f"{val:,}   ({pct:.1f}%){price}",fontsize=15,color=TICK,va='center',transform=axl.transAxes)
+        axl.text(0.075,y+0.005,name,fontsize=14,color=NAVY,fontweight='bold',va='center',transform=axl.transAxes)
+        axl.text(0.075,y-0.055,f"{val:,}  ({pct:.1f}%){price}",fontsize=12.5,color=TICK,va='center',transform=axl.transAxes)
         y-=0.175
     canvas(fig,*dims,out)
+
+# The inches each chart occupies on its slide (2026-10-02). Every figure used to be drawn
+# 1.2-1.9x larger than its slot and then shrunk into it, so 13pt text landed at 7-11pt on the
+# slide (Card Portfolio's legend at ~8pt). Drawn at the slot's own size, a font size in this
+# file IS its size on the slide. Keep in step with the builder's picture boxes; DIMS below is
+# the same shape in pixels.
+SLOT_IN={
+    "enroll":   (9.0, 5.15),
+    "channel":  (9.9, 4.87),
+    "perf":     (11.3, 4.7),
+    "retention":(6.1, 4.5),
+    "cancel":   (6.2, 4.6),
+    "revenue":  (7.55, 5.15),
+    "revmonth": (7.55, 5.15),
+    "cardpie":  (6.5, 2.82),
+}
 
 # slot pixel targets (match the Marine MRPC template slot aspect ratios)
 DIMS={
