@@ -71,7 +71,7 @@ def test_a_build_job_streams_its_lines_and_names_the_deck(server, monkeypatch):
               "print('  [..]   Reading the ODD extract  (0 min)', flush=True)\n"
               "time.sleep(0.3)\n"
               f"print('  [ok]   In Outputs: {deck.replace(chr(92), chr(92) * 2)} (1 older file(s) archived, none deleted)')\n")
-    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False: [sys.executable, "-c", script])
+    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False, period=None: [sys.executable, "-c", script])
     status, data = call(server, "POST", "/api/build", {"client": "1441"})
     assert status == 202
     for _ in range(100):
@@ -87,7 +87,7 @@ def test_a_build_job_streams_its_lines_and_names_the_deck(server, monkeypatch):
 def test_a_second_build_queues_behind_the_running_one(server, monkeypatch):
     """Builds run one at a time; the next waits its turn instead of being refused (2026-09-16)."""
     script = "import time, sys\ntime.sleep(0.6)\nprint('  [ok]   built', sys.argv[1], flush=True)\n"
-    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False: [sys.executable, "-c", script, cid])
+    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False, period=None: [sys.executable, "-c", script, cid])
     assert call(server, "POST", "/api/build", {"client": "1441"})[0] == 202
     status, data = call(server, "POST", "/api/build", {"client": "1453"})
     assert status == 202 and json.loads(data)["queued"] == 1
@@ -168,6 +168,8 @@ def test_the_combined_button_runs_the_launcher_with_combined():
     """The second button (Aaron, 2026-09-16) builds ARS plus every other program with its data."""
     assert W.build_cmd("1776", False, True)[-1] == "--combined"
     assert "--combined" not in W.build_cmd("1776", True)
+    # every build names its cycle, so a past-cycle rebuild cannot land under this month
+    assert "--period" in W.build_cmd("1776", False)
     job = W.Job("1776", False, True)
     assert job.to_json()["combined"] is True
 
@@ -458,3 +460,121 @@ def test_the_changelog_shows_what_changed_not_the_request(tmp_path):
     assert "only rescan" not in page and "fix the thing" not in page and "make it fast" not in page
     assert "Each read is stored and reused. Done." in page
     assert "Aaron" not in page.split("<main>", 1)[1]
+
+
+# ---------------------------------------------- the cycle advances on the 1st, 2026-10-02
+def test_the_cycle_is_this_calendar_month():
+    """Aaron, 2026-10-02: "sheila needs to auto-advance the cycle on the 1st, so today's
+    should show october". It used to be the newest ARS workbook period in Inputs, so on
+    2026-10-02 — with no October workbook landed yet — the page still read 2026.09."""
+    import datetime as dt
+    assert W.L.cycle_period(dt.date(2026, 10, 1)) == "2026.10"
+    assert W.L.cycle_period(dt.date(2026, 9, 30)) == "2026.09"
+    assert W.L.cycle_period(dt.date(2026, 12, 31)) == "2026.12"
+    assert W.L.cycle_period() == dt.date.today().strftime("%Y.%m")
+
+
+def test_the_menu_offers_this_month_and_the_cycles_with_something_behind_them(monkeypatch, tmp_path):
+    """Months with no deck and no workbook are left out: offering a cycle that cannot be read
+    or built is an invitation to a blank page."""
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    decks = [tmp_path / "1038-2026.09-ARS-Sugar River Bank ARS Results.pptx",
+             tmp_path / "1075-2026.07-ARS-ICS-MRPC-Austin Bank Results.pptx"]
+    books = [tmp_path / "1038-2026.08-Sugar River-Workbook_v2_1_0.xlsx",
+             tmp_path / "1705-2026.09-CoastLife-Invitation Checking Workbook.xlsx"]
+    monkeypatch.setattr(W.R, "output_decks", lambda pat: decks)
+    monkeypatch.setattr(W.R, "report_files", lambda pat: books)
+    assert W.available_periods() == ["2026.10", "2026.09", "2026.08", "2026.07"]
+    assert W.available_periods(n=2) == ["2026.10", "2026.09"]
+
+
+def test_a_future_cycle_and_a_nonsense_one_are_refused(monkeypatch):
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    for bad in ("2026.11", "2027.01"):
+        with pytest.raises(ValueError, match="has not started"):
+            W.select_period(bad)
+    for bad in ("nonsense", "2026-09", "2026.13", "26.09"):
+        with pytest.raises(ValueError, match="YYYY.MM"):
+            W.select_period(bad)
+    assert W.current_period() == "2026.10"
+
+
+def test_selecting_a_past_cycle_sticks_and_releases(monkeypatch):
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    try:
+        assert W.select_period("2026.09") == "2026.09"
+        assert W.current_period() == "2026.09"
+        # choosing this month again is "follow the calendar", not a pin to October
+        assert W.select_period("2026.10") == "2026.10"
+        assert W._selected["period"] is None
+        W.select_period("2026.08")
+        assert W.select_period(None) == "2026.10"
+    finally:
+        W._selected["period"] = None
+
+
+def test_a_build_names_the_cycle_on_screen(monkeypatch):
+    """Without --period the child defaults to the calendar month, so a build started while
+    an earlier cycle is selected would quietly build a different month from the one the page
+    is showing."""
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    try:
+        W.select_period("2026.09")
+        cmd = W.build_cmd("1038", False)
+        assert cmd[-2:] == ["--period", "2026.09"]
+        assert W.build_cmd("1038", True, True)[-4:] == ["--period", "2026.09", "--rebuild", "--combined"]
+    finally:
+        W._selected["period"] = None
+
+
+def test_a_queued_job_keeps_the_cycle_it_was_asked_for(monkeypatch):
+    """A job waiting behind two others must build the cycle it was queued for, not whichever
+    one happens to be on screen when it starts."""
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    try:
+        W.select_period("2026.09")
+        job = W.Job("1038", False)
+        W.select_period("2026.10")
+        assert job.period == "2026.09"
+        assert W.build_cmd(job.cid, job.rebuild, job.combined, job.period)[-1] == "2026.09"
+    finally:
+        W._selected["period"] = None
+
+
+def test_changing_cycle_drops_what_was_cached_about_the_old_one(monkeypatch):
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    try:
+        W._status_cache["1038"] = {"at": 0, "doc": {"period": "2026.10"}}
+        W._clients["doc"] = {"period": "2026.10", "clients": []}
+        W.select_period("2026.09")
+        assert "1038" not in W._status_cache
+        assert W._clients["doc"] is None
+    finally:
+        W._selected["period"] = None
+        W._status_cache.clear()
+        W._clients["doc"] = None
+
+
+def test_the_list_carries_the_menu_for_the_page(monkeypatch):
+    monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    monkeypatch.setattr(W, "available_periods", lambda *a, **k: ["2026.10", "2026.09"])
+    monkeypatch.setattr(W.R, "output_decks", lambda pat: [])
+    monkeypatch.setattr(W.R, "csm_list_file", lambda: None)
+    monkeypatch.setattr(W, "launcher_results", lambda period, cids: {})
+
+    class _BM:
+        @staticmethod
+        def read_roster():
+            return ([("1038", "Sugar River Bank", "SM", ["ARS"])], [])
+
+    class _DS:
+        @staticmethod
+        def read_deliveries():
+            return {"sent": {}}
+
+    monkeypatch.setitem(__import__("sys").modules, "build_month", _BM)
+    monkeypatch.setitem(__import__("sys").modules, "deck_status", _DS)
+    doc = W.compute_clients()
+    assert doc["period"] == "2026.10"
+    assert doc["periods"] == ["2026.10", "2026.09"]
+    assert doc["cycle_now"] == "2026.10"

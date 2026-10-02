@@ -60,7 +60,7 @@ def prewarm_lift():
     import build_month as BM
     _lift_state["started"] = True
     try:
-        period = L.cycle_period()
+        period = current_period()
         roster, _ = BM.read_roster()
         mm = [cid for cid, _, path, progs in roster if "ARS" in progs and path == "MM"] if period else []
 
@@ -179,6 +179,63 @@ class _fresh_reads:
 # the stored list on every request, so those never wait for the refresh.
 CLIENTS_TTL = 60
 RESULT_NAME = "_launcher_result.json"
+PERIOD_CHOICES = 12          # how many past cycles the period menu offers
+
+# The cycle being worked on. None means "today's", which advances on the 1st; a CSM can point
+# Sheila at an earlier one to look at, or rebuild, a month that is already finished (Aaron,
+# 2026-10-02: "make it so you can click the date and select previous cycles"). One selection
+# per server, not per browser tab: Sheila is a localhost tool one person uses at a time, and
+# "which cycle am I working in" is a property of that work, not of a tab.
+_selected = {"period": None}
+
+
+def current_period():
+    return _selected["period"] or L.cycle_period()
+
+
+def available_periods(n=PERIOD_CHOICES):
+    """The cycles the menu offers: this month, then every earlier one this pipeline has
+    anything for — a deck in Outputs or an ARS workbook in Inputs — newest first.
+
+    Months with nothing behind them are left out: offering a cycle that cannot be read or
+    built is an invitation to a blank page.
+    """
+    now = L.cycle_period()
+    seen = {now}
+    for d in R.output_decks("*-*-*ARS*.pptx"):
+        m = re.search(r"-(\d{4}\.\d{2})-", d.name)
+        if m:
+            seen.add(m.group(1))
+    for f in R.report_files("*-*Workbook*.xlsx"):
+        if "invitation checking" in f.name.lower():
+            continue
+        m = re.match(r"^\d+-(\d{4}\.\d{2})-", f.name)
+        if m:
+            seen.add(m.group(1))
+    out = sorted((p for p in seen if p <= now), reverse=True)[:n]
+    return out if out else [now]
+
+
+def select_period(period):
+    """Point Sheila at a cycle. None (or today's) goes back to following the calendar."""
+    if period is not None:
+        if not re.fullmatch(r"20\d\d\.(0[1-9]|1[0-2])", period or ""):
+            raise ValueError("a cycle is YYYY.MM, like 2026.09")
+        if period > L.cycle_period():
+            raise ValueError("that cycle has not started yet")
+    with _clients_lock:
+        same = (_selected["period"] or L.cycle_period()) == (period or L.cycle_period())
+        _selected["period"] = None if period == L.cycle_period() else period
+    if not same:
+        # Everything cached is about the old cycle: its decks, its sent state, its checks.
+        with _status_lock:
+            for cid in list(_status_cache):
+                forget_status_locked(cid)
+        with _clients_lock:
+            _clients["doc"] = None
+            _clients["at"] = 0.0
+        invalidate_clients()
+    return current_period()
 _clients = {"doc": None, "at": 0.0, "gen": 0, "clean_gen": -1, "busy": None, "error": None}
 _clients_lock = threading.Lock()
 
@@ -187,7 +244,7 @@ def compute_clients():
     """The clients.md ARS clients, with their CSM, products, sent state, deck in Outputs and last build failure."""
     import build_month as BM
     import deck_status as DS
-    period = L.cycle_period()
+    period = current_period()
     roster, _ = BM.read_roster()
     ars = {r[0]: r for r in roster if "ARS" in r[3]}
     rows = {}
@@ -220,6 +277,7 @@ def compute_clients():
         })
     out.sort(key=lambda c: (c["csm"], (c["name"] or "").lower()))
     return {"period": period, "clients": out,
+            "periods": available_periods(), "cycle_now": L.cycle_period(),
             "lift_pending": _lift_state["started"] and not _lift_state["done"]}
 
 
@@ -346,6 +404,11 @@ def _served_clients():
                 c["decks"] = sorted(c["decks"] + [deck])
         clients.append(c)
     return {"period": period, "clients": clients,
+            # The cycle menu rides with the list: it is what the page draws when the pill is
+            # clicked, and computing it here means a cycle that gains its first deck shows up
+            # on the next refresh rather than on the next restart.
+            "periods": doc.get("periods") or available_periods(),
+            "cycle_now": doc.get("cycle_now") or L.cycle_period(),
             "lift_pending": _lift_state["started"] and not _lift_state["done"],
             "age_seconds": max(0, round(time.time() - at)), "refreshing": refreshing,
             "refresh_error": f"{type(err).__name__}: {err}" if err else None}
@@ -541,7 +604,7 @@ def compute_status(cid):
     """ars_launcher's own checks for one client, plus its last launcher build."""
     import build_month as BM
     import deck_status as DS
-    period = L.cycle_period()
+    period = current_period()
     row = L.csm_list_row(cid)
     if not period:
         return {"client": cid, "state": "stop", "period": None,
@@ -574,14 +637,21 @@ def compute_status(cid):
 
 
 # ------------------------------------------------------------------ build jobs
-def build_cmd(cid, rebuild, combined=False):
-    return ([sys.executable, str(HERE / "ars_launcher.py"), "build", cid]
+def build_cmd(cid, rebuild, combined=False, period=None):
+    """The child process is told WHICH cycle. Without it a build started while an earlier
+    cycle is selected would quietly build today's instead — the launcher defaults to the
+    calendar month, and the page would show the result under the month on screen."""
+    return ([sys.executable, str(HERE / "ars_launcher.py"), "build", cid,
+             "--period", period or current_period()]
             + (["--rebuild"] if rebuild else []) + (["--combined"] if combined else []))
 
 
 class Job:
-    def __init__(self, cid, rebuild, combined=False):
+    def __init__(self, cid, rebuild, combined=False, period=None):
         self.cid, self.rebuild, self.combined = cid, rebuild, combined
+        # Pinned at queue time: a job waiting behind two others must build the cycle it was
+        # asked for, not whichever one happens to be on screen when it starts.
+        self.period = period or current_period()
         self.lines, self.done, self.code = [], False, None
         self.queued_at = time.time()
         self.started = None          # set when it leaves the queue
@@ -592,7 +662,8 @@ class Job:
         # COLUMNS keeps ars_launcher.say from wrapping a long Outputs path across two lines.
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1", COLUMNS="1000")
         try:
-            proc = subprocess.Popen(build_cmd(self.cid, self.rebuild, self.combined), stdout=subprocess.PIPE,
+            proc = subprocess.Popen(build_cmd(self.cid, self.rebuild, self.combined, self.period),
+                                    stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                                     env=env, cwd=str(REPO))
             for line in proc.stdout:
@@ -1007,7 +1078,7 @@ def lift_client_doc(cid, body=None):
     entry = _roster_entry(cid)
     row = L.csm_list_row(cid)
     doc = {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"),
-           "csm": row.get("csm"), "path": entry[2] if entry else None, "period": L.cycle_period()}
+           "csm": row.get("csm"), "path": entry[2] if entry else None, "period": current_period()}
     try:
         wb_path, wb = _lift_workbook(cid)
     except Exception as e:                  # an unreadable workbook is reported, never guessed at
@@ -1142,7 +1213,7 @@ def compute_lift_overview():
     with ThreadPoolExecutor(PREWARM_WORKERS) as ex:
         out = list(ex.map(one, ars))
     out.sort(key=lambda c: (c["csm"], (c["name"] or "").lower()))
-    return {"period": L.cycle_period(), "segments": ["NH"] + LV.SEGMENTS, "clients": out}
+    return {"period": current_period(), "segments": ["NH"] + LV.SEGMENTS, "clients": out}
 
 
 def _refresh_lift_overview():
@@ -1485,6 +1556,14 @@ class Handler(BaseHTTPRequestHandler):
             if not CID_RX.match(cid):
                 return self._send(400, {"error": "not a client number"})
             return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined"))))
+        if path == "/api/cycle":
+            want = body.get("period")
+            try:
+                now = select_period(str(want).strip() if want else None)
+            except ValueError as e:
+                return self._send(400, {"error": str(e)})
+            return self._send(200, {"period": now, "periods": available_periods(),
+                                    "cycle_now": L.cycle_period()})
         if path == "/api/reveal":
             return self._send(*reveal(str(body.get("path", ""))))
         if path in ("/api/lift/export", "/api/lift/download", "/api/lift/rescan"):
@@ -1584,7 +1663,18 @@ header.top .newsbox .d{color:var(--ink3);font-size:12px;font-variant-numeric:tab
 header.top .newsbox .s{color:var(--ink2);font-size:12.5px;display:block;margin-top:2px}
 header.top .newsbox .all{display:inline-block;margin-top:10px;font-weight:600;color:var(--sent)}
 header.top .loglink{color:#fff;font-size:13.5px;font-weight:600;text-decoration:underline}
-header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px}
+header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px;border:0;cursor:pointer;font-family:inherit}
+header.top .period:hover{filter:brightness(1.06)}
+header.top .period:focus-visible{outline:2px solid #fff;outline-offset:2px}
+header.top .period .caret{font-size:10px;opacity:.85;margin-left:5px}
+.cycles{position:absolute;top:46px;right:18px;z-index:40;background:var(--surface);border:1px solid var(--rule);
+  border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.18);padding:6px;min-width:190px}
+.cycles h4{margin:4px 8px 6px;font:700 11px/1 "Segoe UI",Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.cycles button{display:block;width:100%;text-align:left;font:600 13.5px/1.2 "Segoe UI",Arial,sans-serif;
+  border:0;background:none;color:var(--ink);padding:7px 9px;border-radius:7px;cursor:pointer}
+.cycles button:hover{background:var(--rowalt)}
+.cycles button[aria-current="true"]{background:var(--navy);color:#fff}
+.cycles .now{font-weight:400;opacity:.75;font-size:12px}
 .app{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:18px;max-width:1240px;margin:18px auto;padding:0 18px}
 @media (max-width:820px){.app{grid-template-columns:1fr}}
 aside,main{background:var(--surface);border:1px solid var(--rule);border-radius:10px}
@@ -1687,10 +1777,13 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
 .chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer}
 .chipbtn[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
 .method{font-size:13px;color:var(--ink2);margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
+/* the client links row, identical on every tab */
+.clientlinks{margin:-6px 0 12px;font-size:13px;color:var(--ink2)}
+.ihead .clientlinks{margin:0}
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button></nav><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><span class="period" id="period">Loading…</span></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button></nav><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -1721,6 +1814,58 @@ const STEP_ORDER = ["Reading the ARS workbook","Reading the ARS workbook and DCO
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let CLIENTS = [], PERIOD = null, current = null, poller = null, armed = false, statusTimer = null, HOLD = false;
+let PERIODS = [], CYCLE_NOW = null;
+
+function paintPeriod() {
+  const b = $("#period");
+  if (!b) return;
+  const back = PERIOD && CYCLE_NOW && PERIOD !== CYCLE_NOW;
+  b.innerHTML = (PERIOD ? "Cycle " + esc(PERIOD) : "No period") + (back ? ' <span class="caret">◂ past</span>' : ' <span class="caret">▾</span>');
+  b.title = back ? "Looking at a finished cycle. Click to go back to " + CYCLE_NOW : "Click to look at an earlier cycle";
+}
+
+function closeCycles() {
+  const m = $("#cycles");
+  if (m) m.remove();
+  const b = $("#period");
+  if (b) b.setAttribute("aria-expanded", "false");
+}
+
+async function pickCycle(period) {
+  closeCycles();
+  const b = $("#period");
+  if (b) b.textContent = "Loading…";
+  try {
+    const {body} = await api("/api/cycle", {method: "POST", body: JSON.stringify({period})});
+    PERIOD = body.period; PERIODS = body.periods || PERIODS; CYCLE_NOW = body.cycle_now || CYCLE_NOW;
+    paintPeriod();
+    current = null;
+    $("#detail").innerHTML = '<p class="small">Pick a client.</p>';
+    await load(true);
+  } catch (e) {
+    paintPeriod();
+    alert("Could not change cycle: " + e.message);
+  }
+}
+
+function openCycles() {
+  if ($("#cycles")) return closeCycles();
+  const list = PERIODS.length ? PERIODS : (PERIOD ? [PERIOD] : []);
+  const menu = document.createElement("div");
+  menu.className = "cycles"; menu.id = "cycles";
+  menu.innerHTML = '<h4>Cycle</h4>' + list.map(p =>
+    `<button type="button" data-cycle="${esc(p)}" aria-current="${p === PERIOD}">${esc(p)}` +
+    (p === CYCLE_NOW ? ' <span class="now">· this month</span>' : "") + "</button>").join("");
+  document.body.appendChild(menu);
+  $("#period").setAttribute("aria-expanded", "true");
+  menu.addEventListener("click", ev => {
+    const b = ev.target.closest("button[data-cycle]");
+    if (b) pickCycle(b.dataset.cycle);
+  });
+  setTimeout(() => document.addEventListener("click", function off(ev) {
+    if (!ev.target.closest("#cycles") && ev.target.id !== "period") { closeCycles(); document.removeEventListener("click", off); }
+  }), 0);
+}
 let QUEUE = {building: null, queued: []};
 
 // What is building and what waits. Cheap, so the list keeps it current every few seconds; when a
@@ -1775,7 +1920,9 @@ function ago(sec) { return sec == null ? "" : sec < 60 ? "just now" : sec < 3600
 
 function applyClients(body, saved) {
   CLIENTS = body.clients || []; PERIOD = body.period;
-  $("#period").textContent = PERIOD ? "Cycle " + PERIOD : "No period";
+  if (body.periods) PERIODS = body.periods;
+  if (body.cycle_now) CYCLE_NOW = body.cycle_now;
+  paintPeriod();
   const csms = [...new Set(CLIENTS.map(c => c.csm))];
   const keep = $("#csm").value;
   $("#csm").innerHTML = `<option value="">All CSMs</option>` + csms.map(c => `<option>${esc(c)}</option>`).join("");
@@ -1869,8 +2016,8 @@ function renderStatus(s) {
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
   $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
       <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
-    <p class="note" id="clientlinks" style="margin:-6px 0 12px">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
-  clientLinks(s.client);
+    <p class="note clientlinks" id="clientlinks">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
+  clientLinks(s.client, "decks");
   const go = $("#go"); if (go) go.addEventListener("click", () => build(s, false));
   const go2 = $("#go2"); if (go2) go2.addEventListener("click", () => build(s, true));
   const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client, true));
@@ -1978,8 +2125,11 @@ function setMode(m, focus) {
   document.querySelector(".app").classList.toggle("wide", m === "lift" || m === "issues");
   for (const t of ["decks", "lift", "issues"]) $("#tab-" + t).setAttribute("aria-selected", m === t);
   current = null; renderList();
-  if (m === "lift") liftOverview();
+  // `focus` means "open this tab ON that client" — the links row hands the same client from
+  // one tab to the next, so every tab has to honour it, not just Data Issues.
+  if (m === "lift") focus ? liftSelect(focus) : liftOverview();
   else if (m === "issues") issuesView(focus);
+  else if (focus) select(focus);
   else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their ARS deck can be built this month.</p></div>`;
 }
 
@@ -2050,7 +2200,7 @@ function liftRender(d) {
     <span class="sub" style="margin-left:auto"><button class="link" id="lmback">All clients</button></span></div>`;
   const cur = d.current ? `Current matrix: ${esc(d.current.window)} (${d.current.data_past_end ? "expired" : "data " + esc(d.current.data_date)}) in ${esc(d.workbook)}.`
     : d.workbook ? `${esc(d.workbook)} carries no Lift Matrix (SM).` : d.workbook_error ? `The workbook could not be read: ${esc(d.workbook_error)}` : "No ARS workbook in Inputs.";
-  let html = head + `<p class="note" id="clientlinks" style="margin:-6px 0 8px">&nbsp;</p><p class="note" style="margin-top:0">${cur}</p>`;
+  let html = head + `<p class="note clientlinks" id="clientlinks">&nbsp;</p><p class="note" style="margin-top:0">${cur}</p>`;
   if (d.scan_state === "sm") html += `<p class="note">${esc(d.name || d.client)} is on the SM model, which does not use a Lift Matrix.</p>`;
   else if (d.scan_state === "no-odd") html += `<p class="err">No ODD extract for ${esc(d.client)} in Inputs, so nothing can be calculated.</p>`;
   else if (d.scan_state !== "ready") {
@@ -2067,7 +2217,7 @@ function liftRender(d) {
     </div><p class="recalc"><button class="primary" id="lmcalc">Recalculate</button> <span id="lmstale" class="note"></span> <button class="link" id="lmreset">Reset to the defaults</button></p><div id="lm-out">${liftBody(d)}</div>`;
   }
   $("#main").innerHTML = html;
-  clientLinks(d.client);
+  clientLinks(d.client, "lift");
   $("#lmback").addEventListener("click", liftOverview);
   const re = $("#lmre"); if (re) re.addEventListener("click", async () => { await api("/api/lift/rescan", {method: "POST", body: JSON.stringify({client: d.client})}); liftSelect(d.client); });
   if (d.scan_state !== "ready") return;
@@ -2182,6 +2332,7 @@ function wireSave(d) {
 }
 
 $("#tab-decks").addEventListener("click", () => setMode("decks"));
+$("#period").addEventListener("click", openCycles);
 $("#tab-lift").addEventListener("click", () => setMode("lift"));
 $("#tab-issues").addEventListener("click", () => setMode("issues"));
 // ------------------------------------------------------------------ Data Issues (Aaron, 2026-09-25)
@@ -2199,14 +2350,28 @@ function codeSheetLinks(cid, name) {
               : `<span class="sub">No code sheet in Inputs/Code Sheets</span>`;
 }
 
-// The line under a client's name on the Decks and Lift Matrix pages: its code sheet and its data issues.
-async function clientLinks(cid) {
+// The one links row under a client's name, on every tab (Aaron, 2026-10-02: "I like this row
+// of links on the Lift Matrix tab. Make that consistent across the tabs."). It always reads
+// the same way — the code sheet first, then where else this client can be looked at — and the
+// tab you are already on is left out rather than linking to itself.
+function linksRowHTML(cid, codeSheet, issueCount, here) {
+  const parts = [codeSheetLinks(cid, codeSheet)];
+  if (here !== "decks") parts.push(`<button class="link" data-goto="decks" data-client="${esc(cid)}">Deck checks</button>`);
+  if (here !== "lift") parts.push(`<button class="link" data-goto="lift" data-client="${esc(cid)}">Lift Matrix</button>`);
+  if (here !== "issues") {
+    const n = issueCount || 0;
+    parts.push(`<button class="link" data-goto="issues" data-client="${esc(cid)}">${n ? n + " data issue" + (n === 1 ? "" : "s") : "No data issues"}</button>`);
+  }
+  return parts.join(" · ");
+}
+
+// The links row under a client's name on the Decks and Lift Matrix pages.
+async function clientLinks(cid, here) {
   const box = $("#clientlinks"); if (!box) return;
   try {
     const d = await loadIssues(), e = (d.clients || []).find(x => x.id === cid);
     if ($("#clientlinks") !== box) return;
-    const n = e ? e.count : 0;
-    box.innerHTML = codeSheetLinks(cid, e && e.code_sheet) + ` · <button class="link" data-issues="${esc(cid)}">${n ? n + " data issue" + (n === 1 ? "" : "s") : "No data issues"}</button>`;
+    box.innerHTML = linksRowHTML(cid, e && e.code_sheet, e ? e.count : 0, here || MODE);
   } catch (err) { box.innerHTML = `<span class="err">Couldn't read the data issues: ${esc(err.message)}</span>`; }
 }
 
@@ -2245,7 +2410,7 @@ function issueCard(e) {
   if (!rows.some(Boolean)) return "";
   const unchecked = !SEV && e.unchecked.length ? `<p class="sub" style="margin:6px 0 0">Not checked: ${esc(e.unchecked.join("; "))}</p>` : "";
   return `<section class="icard" id="issue-${esc(e.id)}"><div class="ihead"><b>${esc(e.name || e.id)}</b> <span class="sub">${esc(e.id)} · ${esc(e.csm)}</span>
-    <span class="sub" style="margin-left:auto">${codeSheetLinks(e.id, e.code_sheet)}</span></div><ul class="checks">${rows.join("")}</ul>${unchecked}</section>`;
+    <span class="sub clientlinks" style="margin-left:auto">${linksRowHTML(e.id, e.code_sheet, e.count, "issues")}</span></div><ul class="checks">${rows.join("")}</ul>${unchecked}</section>`;
 }
 
 async function issuesView(focus) {
@@ -2281,12 +2446,14 @@ async function issuesView(focus) {
 
 // Code sheet and issue links work wherever they are drawn.
 document.addEventListener("click", async ev => {
-  const cs = ev.target.closest("[data-cs],[data-csr]"), iss = ev.target.closest("[data-issues]");
+  const go = ev.target.closest("[data-goto]");
+  if (go) return setMode(go.dataset.goto, go.dataset.client);
+  const cs = ev.target.closest("[data-cs],[data-csr]");
   if (cs) {
     const cid = cs.dataset.cs || cs.dataset.csr;
     try { await api("/api/code-sheet", {method: "POST", body: JSON.stringify({client: cid, action: cs.dataset.csr ? "reveal" : "open"})}); }
     catch (e) { cs.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); }
-  } else if (iss) { setMode("issues", iss.dataset.issues); }
+  }
 });
 
 

@@ -853,8 +853,9 @@ MRPCEnrollmentSummary and CashPleaseSummary weeklies — the last through the
 in-repo `build/cashplease_pipeline/cp_extract.py`, so the page and the CashPlease
 decks are computed once), injects it into `scripts/perf_dashboard_template.html`, and writes the
 page and its bookkeeping to `Build Artifacts/perf_dashboard/`. **The period is the
-newest ARS workbook in `Inputs/`**, so the page rolls forward when a month's workbooks are
-copied, not before. **Within that cycle every client shows its own newest figures**
+calendar month (Aaron, 2026-10-02).** It used to be the newest ARS workbook in `Inputs/`,
+which left the page reading "Reporting period 2026.09" on 2 October while that month's
+workbooks were still landing. **Within that cycle every client shows its own newest figures**
 (Aaron, 2026-09-08): the newest ARS workbook, shipped-deck sidecar and built deck at or
 before the cycle period, with the row tagged when that is older than the cycle. A
 cycle-only page went blank for three ARS clients and every deck the first morning of a

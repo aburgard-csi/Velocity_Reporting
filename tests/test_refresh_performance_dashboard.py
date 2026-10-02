@@ -1,8 +1,8 @@
 """refresh_performance_dashboard — the rules that decide whether the artifact is
 republished, and what period it claims.
 
-  * The period is the newest ARS workbook on Inputs/, not today's month: the page
-    rolls forward when the workbooks are copied, not before.
+  * The period is the calendar month (Aaron, 2026-10-02), not the newest ARS
+    workbook: the page read "2026.09" into October while workbooks were landing.
   * "Changed" means the figures moved. The generation date is excluded from the
     hash, or every daily rebuild would republish an identical page.
   * No dataset value can close the page's script tag.
@@ -15,7 +15,19 @@ import refresh_performance_dashboard as P
 
 
 # ------------------------------------------------------------------ period
-def test_period_is_the_newest_ars_workbook():
+def test_default_period_is_the_calendar_month():
+    import datetime as dt
+    assert P.calendar_period(dt.date(2026, 10, 2)) == "2026.10"
+    assert P.calendar_period(dt.date(2027, 1, 1)) == "2027.01"
+
+
+def test_main_defaults_to_the_calendar_month_not_the_newest_workbook():
+    import inspect
+    src = inspect.getsource(P.main)
+    assert "calendar_period()" in src and "derive_period(" not in src
+
+
+def test_newest_ars_workbook_is_still_readable():
     names = [
         "1038-2026.08-Sugar River-Workbook_v2_1_0.xlsx",
         "1075-2026.09-Austin-Workbook_v2_1_0.xlsx",

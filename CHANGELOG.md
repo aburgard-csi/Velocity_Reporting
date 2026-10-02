@@ -17,6 +17,52 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — Sheila's cycle advances on the 1st, and you can look back
+
+Summary: CSM Sheila now shows the current month as its cycle from the 1st, and the cycle pill
+opens a menu for stepping back to an earlier month — the client list, the checks and a rebuild
+all follow the month you pick. The links row under a client's name (code sheet, File Explorer,
+data issues) is now the same on every tab, with the other tabs one click away.
+
+Aaron: "sheila needs to auto-advance the cycle on the 1st, so today's should show october. Also,
+make it so you can click the date and select previous cycles." And: "I like this row of links on
+the Lift Matrix tab. Make that consistent across the tabs."
+
+`cycle_period()` was the newest period of ANY ARS workbook in Inputs, so the tool sat on last
+month's cycle until the data team's first workbook of the new month landed — on 2026-10-02 it
+still read 2026.09. A cycle is a calendar fact; whether its workbooks have arrived is a separate
+question the per-client checks already answer by name ("no 2026.10 extract at source"), which is
+the right thing to see on the 2nd of the month rather than a dashboard quietly showing last
+month's finished work. `newest_workbook_period` keeps the old reading for the checks that want it.
+
+The pill is now a button. Its menu offers this month and every earlier cycle this pipeline has
+anything for — a deck in Outputs or an ARS workbook in Inputs — newest first; months with nothing
+behind them are left out, because offering a cycle that cannot be read or built is an invitation
+to a blank page. Picking one drops every cached list and status (all of it was about the other
+cycle) and names that cycle on the build command line, so a rebuild of a finished month cannot
+land under this one. A queued job keeps the cycle it was asked for.
+
+One selection per server, not per browser tab: Sheila is a localhost tool one person uses at a
+time, and "which cycle am I working in" belongs to that work rather than to a tab.
+
+The links row is one function used by all three tabs, and it leaves out the tab you are already
+on instead of linking to itself — so from a data issue you can open that client's deck checks or
+Lift Matrix, and from either of those you can see its issues.
+
+
+### 2026-10-02 — Performance page period follows the calendar
+
+Summary: The RPE Client Performance page now shows the current month as its reporting period; each row still shows its own newest figures, tagged with their month.
+
+The page's period was the newest ARS workbook in `Inputs/`, so on 2 October it still read
+"Reporting period 2026.09" because no 2026.10 workbook had landed yet (only DCOs). Aaron chose the
+calendar month. `refresh_performance_dashboard.calendar_period()` is now the default; `--period`
+still overrides. Nothing goes blank: every section already takes each client's newest workbook,
+sheet, sidecar and deck at or before the period and tags rows older than it, so until October's
+inputs land the ARS rows read 2026.09 and the deck roster shows October as not built.
+`derive_period` stays for anything that needs the newest workbook month. Test:
+`tests/test_refresh_performance_dashboard.py`.
+
 ### 2026-09-29 — Two James views that broke on clients other than Marine
 
 Summary: Two James review slides now handle clients with no respondent fees or only one measured mailing, so every sample client builds.

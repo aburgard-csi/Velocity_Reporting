@@ -98,14 +98,22 @@ def csm_list_row(cid):
         return next((r for r in csv.DictReader(fh) if r.get("client_id", "").strip() == cid), {})
 
 
-def cycle_period():
-    """The current cycle: the newest period of ANY ARS workbook in Inputs, or None.
+def cycle_period(today=None):
+    """The current cycle: THIS CALENDAR MONTH, which advances on the 1st.
 
-    Not the client's own newest workbook: a client whose September workbook never landed would
-    otherwise be checked (and rebuilt) against August, and be told August was already sent
-    instead of being told September's workbook is missing.
+    It used to be the newest period of any ARS workbook in Inputs, so the tool sat on last
+    month's cycle until the data team's first workbook of the new month landed — on
+    2026-10-02 it still read 2026.09 (Aaron: "sheila needs to auto-advance the cycle on the
+    1st, so today's should show october").
+
+    A cycle is a calendar fact. Whether its workbooks have arrived is a different question,
+    and one the per-client checks already answer by name: `input_checks` reports a missing
+    workbook for the period, which is the right thing to see on the 2nd of the month, rather
+    than a dashboard quietly still showing last month's finished work.
+
+    `newest_workbook_period` keeps the old reading for the checks that want it.
     """
-    return newest_workbook_period("*")
+    return (today or dt.date.today()).strftime("%Y.%m")
 
 
 def newest_workbook_period(cid):

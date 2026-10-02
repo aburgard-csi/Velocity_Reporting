@@ -27,10 +27,13 @@ Everything it writes is bookkeeping and goes to `Build Artifacts/perf_dashboard/
     state.json          content hash of the dataset, and the hash last published
     cp/                 the CashPlease per-client packs cp_extract emitted
 
-**The period is derived, never assumed.** It is the newest `<yyyy.mm>` tagged on an
-ARS workbook in `Inputs/ARS Workbooks/` — the dashboard rolls forward the
-moment a new month's workbooks are copied into `Inputs/`, and not before. Override with
-`--period` for a rebuild of an older month.
+**The period is the calendar month** (Aaron, 2026-10-02). It used to be the newest
+`<yyyy.mm>` on an ARS workbook in `Inputs/ARS Workbooks/`, which left the page reading
+"Reporting period 2026.09" into October while the data team was still landing the
+month's workbooks. Each section already shows each client's newest figures at or before
+the period, tagged with their own month, so nothing goes blank before a new month's
+inputs arrive; the rows simply say how old they are. Override with `--period` for a
+rebuild of an older month.
 
 **Changed means the figures moved.** The hash excludes the generation date, so a
 rebuild that finds identical inputs reports `unchanged` and the artifact is not
@@ -123,6 +126,11 @@ def report_glob(reports, pattern):
     dirs = [reports] if isinstance(reports, (str, os.PathLike)) else list(reports)
     return sorted((f for d in dirs for f in glob.glob(os.path.join(str(d), pattern))),
                   key=os.path.basename)
+
+
+def calendar_period(today=None):
+    """The page's default period: this calendar month, as `yyyy.mm`."""
+    return (today or _dt.date.today()).strftime("%Y.%m")
 
 
 def derive_period(reports_dir, names=None):
@@ -1225,7 +1233,7 @@ def watch_line():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Rebuild the RPE performance dashboard page.")
-    ap.add_argument("--period", default=None, help="YYYY.MM (default: newest ARS workbook in Inputs/)")
+    ap.add_argument("--period", default=None, help="YYYY.MM (default: this calendar month)")
     ap.add_argument("--force", action="store_true", help="report changed even if the hash matches")
     ap.add_argument("--mark-published", action="store_true",
                     help="record the current dataset hash as the published one, then exit")
@@ -1258,11 +1266,7 @@ def main(argv=None):
     if a.merge_sent:
         merge_sent(a.merge_sent, R.build_artifacts())
 
-    reports = R.report_dirs()
-    period = a.period or derive_period(reports)
-    if not period:
-        raise SystemExit("no ARS workbook in %s to derive a period from; pass --period"
-                         % ", ".join(str(d) for d in reports))
+    period = a.period or calendar_period()
     if not re.fullmatch(r"\d{4}\.\d{2}", period):
         raise SystemExit("period must be YYYY.MM, got %r" % period)
 
