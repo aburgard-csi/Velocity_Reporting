@@ -182,14 +182,33 @@ def test_the_pnl_reads_the_last_complete_month_and_the_program_to_date():
     g = RG.guarantee(lined(rows, [["Respondent Fee", [0.0] * 12],
                                   ["Program Fee", [3_000.0] * 12]]))
     P = RG.pnl(g)
-    assert P["columns"] == [rows[-1][0], "Program to date"]
+    assert P["columns"] == [rows[-1][0], "Year to date", "Program to date"]
     assert P["dropped"] == ["Respondent Fee"]
     got = {label: vals for label, vals, _k in P["rows"]}
-    assert got["Incremental revenue"] == [10_000, 120_000]
-    assert got["Program Fee"] == [3_000, 36_000]
-    assert got["Total costs"] == [3_000, 36_000]
-    assert got["Incremental profit"] == [7_000, 84_000]
-    assert [k for _l, _v, k in P["rows"]] == ["revenue", "line", "total", "profit"]
+    # Every month of this fixture is in one calendar year, so year to date IS the program.
+    assert got["Incremental revenue"] == [10_000, 120_000, 120_000]
+    assert got["Program Fee"] == [3_000, 36_000, 36_000]
+    assert got["Total costs"] == [3_000, 36_000, 36_000]
+    assert got["Incremental profit"] == [7_000, 84_000, 84_000]
+    assert [k for _l, _v, k in P["rows"]] == ["revenue", "line", "total", "profit", "ratio"]
+    # Revenue over cost, per column (Aaron, 2026-10-02).
+    assert got["Profitability"] == [10_000 / 3_000, 120_000 / 36_000, 120_000 / 36_000]
+
+
+def test_year_to_date_is_the_last_complete_month_s_own_year():
+    """Aaron, 2026-10-02: a month beside a 97-month total says nothing about this year.
+
+    Eighteen months from Jan 2025 end in Jun 2026, so the year column is the six months of
+    2026 — not the eighteen of the program, and not a trailing twelve.
+    """
+    rows = months(18, 10_000, 3_000)
+    g = RG.guarantee(lined(rows, [["Program Fee", [3_000.0] * 18]]))
+    P = RG.pnl(g)
+    assert P["columns"] == ["Jun 2026", "Year to date", "Program to date"]
+    got = {label: vals for label, vals, _k in P["rows"]}
+    assert got["Incremental revenue"] == [10_000, 60_000, 180_000]
+    assert got["Program Fee"] == [3_000, 18_000, 54_000]
+    assert got["Incremental profit"] == [7_000, 42_000, 126_000]
 
 
 def test_without_an_actuals_tab_the_pnl_is_program_to_date_totals():
@@ -197,7 +216,19 @@ def test_without_an_actuals_tab_the_pnl_is_program_to_date_totals():
     assert P["columns"] == ["Program to date"]
     assert [(l, v) for l, v, _k in P["rows"]] == [
         ("Incremental revenue", [150_000]), ("Total costs", [100_000]),
-        ("Incremental profit", [50_000])]
+        ("Incremental profit", [50_000]), ("Profitability", [1.5])]
+
+
+def test_a_column_with_no_cost_has_no_ratio():
+    """A dash, never infinity and never zero — zero would read as a program returning
+    nothing in the month it happened not to be charged for."""
+    rows = months(13, 10_000, 3_000)
+    rows[-1][2] = 0.0
+    g = RG.guarantee(lined(rows, [["Program Fee", [3_000.0] * 12 + [0.0]]]))
+    ratio = next(v for l, v, k in RG.pnl(g)["rows"] if k == "ratio")
+    assert ratio[0] is None
+    assert RG.money(ratio[0], "ratio") == "—"
+    assert RG.money(5.36, "ratio") == "5.4 : 1"
 
 
 def test_costs_and_losses_read_in_parentheses_and_a_discount_as_a_credit():

@@ -69,7 +69,6 @@ from pptx.util import Inches
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 from brand import usd_compact
-from shapes import add_table as _add_table
 import month_complete as _MC
 
 from product_mix_slide import (
@@ -100,9 +99,11 @@ LABEL_USABLE = TILE_W - 0.1 - 0.2
 # it, because a subtitle that wrapped at a fixed top ran into the row below it.
 TEXT_PT, TEXT_W, LINE_IN = 16, 12.3, 0.29
 SUB_T, GAP_SUB, GAP_CAPTION = 1.08, 0.24, 0.30
-TABLE_L, TABLE_W, ROW_H = 0.5, 7.85, 0.46
 CONTENT_BOTTOM, MAX_DROP = 6.62, 0.45
-CALLOUT_L = 8.75
+# Side by side and centred since the P&L left this slide (Aaron, 2026-10-02): two tiles of
+# TILE_W with CALLOUT_GAP between them, centred on the 13.333in slide.
+CALLOUT_GAP, CALLOUT_H = 0.40, 1.55
+CALLOUT_L = (13.333 - (2 * TILE_W + CALLOUT_GAP)) / 2
 # Carlito measures ~3% narrower than PowerPoint draws Calibri: a subtitle measured at
 # 11.88in of a 12.1in line still wrapped. Wrap against a line this much shorter.
 WRAP_SLACK = 0.45
@@ -269,44 +270,68 @@ def pnl(g):
     POSITIVE here and shown in parentheses on the slide; `kind` is "revenue", "line",
     "total" or "profit". The month column is the last COMPLETE month of the Actuals series
     (CLAUDE.md: complete months only); a month left out is named by `_caption`.
+
+    Three columns where there is an Actuals series: that month, the YEAR to date, and the
+    program to date (Aaron, 2026-10-02). Year to date is the complete months of the last
+    complete month's own calendar year, up to and including it — on a 97-month program the
+    month beside the lifetime total says nothing about how this year is running.
     """
     months = g["months"]
     if not months:
         return {"columns": ["Program to date"], "dropped": [],
                 "rows": [("Incremental revenue", [g["revenue"]], "revenue"),
                          ("Total costs", [g["cost"]], "total"),
-                         ("Incremental profit", [g["revenue"] - g["cost"]], "profit")]}
+                         ("Incremental profit", [g["revenue"] - g["cost"]], "profit"),
+                         ("Profitability",
+                          [g["revenue"] / g["cost"] if g["cost"] else None], "ratio")]}
 
     rows, _res = _MC.complete_rows(months, 1, _RUNRATE_MEASURE, min_volume=0)
     last = rows[-1][0] if rows else None
     i = next((k for k, m in enumerate(months) if m[0] == last), None)
 
-    def cols(month_val, ptd_val):
-        return ([month_val] if i is not None else []) + [ptd_val]
+    # The complete months of that month's own year, up to it. A label is "Aug 2026", so the
+    # year is its last word; a month the Actuals tab does not carry simply is not summed.
+    ytd = []
+    if i is not None:
+        year = str(months[i][0]).split()[-1]
+        ytd = [k for k in range(i + 1) if str(months[k][0]).split()[-1] == year]
 
-    out = [("Incremental revenue", cols(months[i][1] if i is not None else None,
-                                        g["revenue"]), "revenue")]
+    def cols(pick, ptd_val):
+        """pick(k) -> the value at month k. Month, year to date, program to date."""
+        if i is None:
+            return [ptd_val]
+        return [pick(i), round(sum(pick(k) for k in ytd), 2), ptd_val]
+
+    out = [("Incremental revenue", cols(lambda k: months[k][1], g["revenue"]), "revenue")]
     dropped = []
     for label, vals in g.get("lines") or []:
         if not any(vals):
             dropped.append(label)
             continue
-        out.append((label, cols(vals[i] if i is not None else None, round(sum(vals), 2)),
-                    "line"))
-    out.append(("Total costs", cols(months[i][2] if i is not None else None, g["cost"]),
-                "total"))
+        out.append((label, cols(lambda k, v=vals: v[k], round(sum(vals), 2)), "line"))
+    out.append(("Total costs", cols(lambda k: months[k][2], g["cost"]), "total"))
     out.append(("Incremental profit",
-                cols(months[i][1] - months[i][2] if i is not None else None,
+                cols(lambda k: months[k][1] - months[k][2],
                      round(g["revenue"] - g["cost"], 2)), "profit"))
-    return {"columns": ([last] if i is not None else []) + ["Program to date"],
+    # Revenue over cost, COLUMN BY COLUMN (Aaron, 2026-10-02). The program ratio is the only
+    # one the deck states anywhere; the year's is a different number and often a more useful
+    # one. A column with no cost has no ratio — a dash, never infinity and never zero, which
+    # would read as a program returning nothing.
+    rev_row = out[0][1]
+    cost_row = next(v for l, v, k in out if k == "total")
+    out.append(("Profitability",
+                [(r / c if c else None) for r, c in zip(rev_row, cost_row)], "ratio"))
+    return {"columns": ([last, "Year to date"] if i is not None else []) + ["Program to date"],
             "rows": out, "dropped": dropped}
 
 
 def money(v, kind):
     """$1,484,350 for revenue and profit, a loss in parentheses; a cost in parentheses, and
-    a negative cost (a discount) as a plain credit."""
+    a negative cost (a discount) as a plain credit. A ratio reads "5.4 : 1"."""
     if v is None:
         return "\u2014"
+    if kind == "ratio":
+        return f"{v:.1f} : 1"
     txt = f"${abs(v):,.0f}"
     if kind in ("line", "total"):
         return txt if v < 0 else f"({txt})"
@@ -358,64 +383,44 @@ def add_revenue_guarantee_slide(prs, B, assets_dir, month_label,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     _pill(s, f"{month_label} Data")
     subtitle = ("Account Revenue Solution® returns at least twice its program cost. "
-                "The program's P&L to date, against that minimum.")
+                "Where this program stands against that minimum.")
     sub_h = _text_h(subtitle)
     _tb(s, 0.5, SUB_T, TEXT_W, sub_h, subtitle, TEXT_PT, GREYT, False,
         PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     top = SUB_T + sub_h + GAP_SUB
 
-    # A short P&L would leave the bottom of the slide empty: the block (table and callouts,
-    # then the caption) is centred in the space above the logo, never pushed off the subtitle
-    # by more than MAX_DROP.
-    P = pnl(g)
+    # The callouts are the slide now, so the block is their height plus whatever sits
+    # under them; centred in the space above the logo, never pushed off the subtitle by
+    # more than MAX_DROP.
     caption = _caption(g)
-    side_h = 1.55 + 0.2 + 1.25 + (0.3 if g["measurable"] else 0)
-    block = max(ROW_H * (len(P["rows"]) + 1), side_h) + GAP_CAPTION + _text_h(caption)
+    block = (CALLOUT_H + (0.4 if g["measurable"] else 0.0)
+             + GAP_CAPTION + _text_h(caption))
     top += min(MAX_DROP, max(0.0, (CONTENT_BOTTOM - top - block) / 2))
 
-    # Left: the P&L.
-    data = [["Program P&L"] + P["columns"]]
-    for label, vals, kind in P["rows"]:
-        data.append([("    " + label) if kind == "line" else label]
-                    + [money(v, kind) for v in vals])
-    n = len(P["columns"])
-    table_h = ROW_H * len(data)
-    tb = _add_table(s, TABLE_L, top, TABLE_W, table_h, data, [3.6] + [2.1] * n,
-                    highlight=(len(data) - 1,), fs=TEXT_PT).table
-    for i, row in enumerate(data):
-        kind = P["rows"][i - 1][2] if i else "head"
-        for j in range(n + 1):
-            para = tb.cell(i, j).text_frame.paragraphs[0]
-            if j:
-                para.alignment = PP_ALIGN.RIGHT
-            if kind == "total":
-                for r in para.runs:
-                    r.font.bold = True
-
-    # Right: the profitability callout, and where that leaves the guarantee.
+    # The profitability callout, and where that leaves the guarantee.
     prof = _label("Profitability, to date", "Profitability")
     if not g["measurable"]:
-        callouts = [("\u2014", prof, ORANGE, 1.55),
-                    ("\u2014", _label("Not measurable yet"), NAVY, 1.25)]
+        callouts = [("\u2014", prof, ORANGE),
+                    ("\u2014", _label("Not measurable yet"), NAVY)]
     elif g["met"]:
-        callouts = [(f"{g['ratio']:.1f} : 1", prof, ORANGE, 1.55),
+        callouts = [(f"{g['ratio']:.1f} : 1", prof, ORANGE),
                     (usd_compact(g["surplus"]),
-                     _label("Above the 2 : 1 guarantee", "Above the guarantee"), NAVY, 1.25)]
+                     _label("Above the 2 : 1 guarantee", "Above the guarantee"), NAVY)]
     else:
-        callouts = [(f"{g['ratio']:.1f} : 1", prof, ORANGE, 1.55),
+        callouts = [(f"{g['ratio']:.1f} : 1", prof, ORANGE),
                     (usd_compact(g["gap"]),
-                     _label("Short of the 2 : 1 guarantee", "Short of the guarantee"), NAVY, 1.25)]
-    t = top
-    for v, lab, fill, h in callouts:
-        _tile(s, CALLOUT_L, t, TILE_W, h, v, lab, fill=fill)
-        t += h + 0.2
+                     _label("Short of the 2 : 1 guarantee", "Short of the guarantee"), NAVY)]
+    for k, (v, lab, fill) in enumerate(callouts):
+        _tile(s, CALLOUT_L + k * (TILE_W + CALLOUT_GAP), top, TILE_W, CALLOUT_H,
+              v, lab, fill=fill)
+    t = top + CALLOUT_H
     if g["measurable"]:
-        _tb(s, CALLOUT_L, t - 0.1, TILE_W, 0.4,
+        _tb(s, CALLOUT_L, t + 0.08, 2 * TILE_W + CALLOUT_GAP, 0.4,
             f"Guaranteed minimum: {usd_compact(g['minimum'])}",
             TEXT_PT, GREYT, False, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP)
-        t += 0.3
+        t += 0.4
 
-    cap_t = max(top + table_h, t - 0.2) + GAP_CAPTION
+    cap_t = t + GAP_CAPTION
     _tb(s, 0.5, cap_t, TEXT_W, _text_h(caption), caption, TEXT_PT, NAVY, False,
         PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
@@ -480,12 +485,11 @@ def _notes_text(g, B, wb_src, tab, month_label):
                  f"{g['months_to_cover'] if g['months_to_cover'] is not None else 'does not close at this run rate'}.")
         if g["left_out"]:
             note += " Left out as incomplete: " + ", ".join(g["left_out"]) + "."
-    P = pnl(g)
-    note += " P&L columns: " + ", ".join(P["columns"]) + (
-        "; cost lines as the tab labels them." if g["source"] == "actuals" else
-        "; revenue, total costs and profit only (no Actuals tab to itemise costs from).")
-    if P["dropped"]:
-        note += " Zero for the whole program, left off the P&L: " + ", ".join(P["dropped"]) + "."
+    # The P&L itself is the ARS Profit & Loss slide, from these same figures
+    # (Aaron, 2026-10-02) — this slide no longer tabulates it, so the notes point there
+    # rather than describing a table that is not on the slide.
+    note += (" The itemised P&L behind these figures is the ARS Profit & Loss slide, built "
+             "from the same Actuals months.")
     note += ("\n\nREVIEW — WHAT THIS ASSUMES:"
              "\n  !! The slide is built only for clients under "
              f"{SHOW_BELOW:.0f} : 1 (Aaron, 2026-09-22). A client comfortably clear of the "

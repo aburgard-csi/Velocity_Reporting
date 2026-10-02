@@ -1772,10 +1772,23 @@ def extract_findings(prs, extract, texts=None):
     # to disagree: the moment the decks started writing $830K under a million, the
     # cross-check went looking for "$0.83M" and failed a correct deck (2026-09-11).
     # An expected value formatted differently from the rendered one is not a check.
+    def want_money(label, v):
+        """Either rendering of the same figure: compact, or the exact dollars.
+
+        ARS Financial Performance was a set of tiles written through usd_compact; since
+        2026-10-02 it is the P&L, which states the figure to the dollar. Both say it — a
+        check that insists on one of two correct renderings is a check that fails a correct
+        deck, which is how the $830K-vs-$0.83M version of this failed one in 2026-09.
+        """
+        forms = [_usd(v), f"${v:,.0f}", f"${abs(v):,.0f}"]
+        if not any(f in allnum for f in forms):
+            out.append(("FAIL", 0, f"base_extract {label} = {forms[0]} not found in the deck, "
+                                   f"in that form or as {forms[1]}"))
+
     if "ltd_revenue" in extract:
-        want("ltd_revenue", _usd(extract["ltd_revenue"]))
+        want_money("ltd_revenue", extract["ltd_revenue"])
     if "ltd_profit" in extract:
-        want("ltd_profit", _usd(extract["ltd_profit"]))
+        want_money("ltd_profit", extract["ltd_profit"])
     if "months" in extract:
         want("months", f"{extract['months']} months")
     if "mailings" in extract:

@@ -17,6 +17,114 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — The ICS referrals landing says what is actually wrong with it
+
+Summary: When a saved query result cannot be merged, the report now names what arrived —
+usually the per-client summary grid instead of the member-level one — rather than telling
+you to save it "with column headers" on a file that has them.
+
+Aaron, 2026-10-02: the morning report said `ics_referrals.csv: header is not the ICS
+referrals query's first result (save the first grid with column headers)`, and the file did
+have headers. It was the SUMMARY grid: 87 rows of client_id, client_name, referrals,
+accounts_found, first_issue, last_issue, where the merger wants the first grid's 20 columns,
+one row per referred account. The query emits both and the summary is the readable one, so
+it is the easy one to save by mistake; the old wording sent the reader looking for a missing
+header row instead.
+
+`_why()` now reports the per-client summary grid by name, an empty file, a file that is not
+comma-separated, and otherwise the column count with the first few names that are missing.
+
+Two things that made this worse and are worth knowing: the result was saved as
+`ics_referrals.csv`, which is the MERGED store rather than a dated landing
+(`ics_referrals <date>.csv`), so it overwrote the accumulated detail; and a full pull
+(`@since = null`) is the way back, because the database is the source.
+
+### 2026-10-02 — ARS Financial Performance is a P&L
+
+Summary: The ARS Financial Performance slide is now the program's P&L — incremental revenue,
+each cost line the workbook itemises, total costs, incremental profit and profitability — in
+three columns: the last complete month, the year to date, and the program to date, over a
+chart of the last twelve months. It replaces the five tiles and three bullets that were on
+that slide. The Revenue Guarantee slide no longer repeats the table.
+
+Aaron, 2026-10-02: "i wanted a P&L slide that makes it easier to see the full financial
+picture", "replace the current [slide] with this format", "name it ARS Financial Performance".
+
+The tiles stated four figures and could not show where the money went. Marine FCU's read
+$144,999 of revenue and $144,999 of profit for August — the same number twice, because August
+carried no respondent fee at all — and nothing on the slide said so. The P&L shows the cost
+line, the zero, and a chart in which that month is a bar with no cost in it.
+
+- `build/ars_pipeline/pnl_slide.py` builds it, from `revenue_guarantee_slide.pnl` — the one
+  place the Actuals tab is read and the complete-month rule applied — so this slide and the
+  guarantee arithmetic cannot disagree.
+- **Year to date is new** (`pnl`): the complete months of the last complete month's own
+  calendar year. On a 97-month program a month beside the lifetime total says nothing about
+  how this year is running — Marine's 2026 is $1,217,922 of revenue against $131,040 of cost.
+- **Profitability is a row, per column.** The program ratio was the only one the deck stated
+  anywhere; Marine's year runs at 9.3 : 1 against the program's 5.4 : 1. A column with no cost
+  has no ratio and reads as a dash — never infinity, never zero, which would say a program
+  returned nothing in a month it simply was not charged for. The orange highlight is bound to
+  the PROFIT row, so it did not slide onto the ratio when that row was added.
+- **The chart** is each month's revenue split into cost and profit, so its bar heights are the
+  table's revenue row and it reconciles with the figures above instead of restating them. It
+  shows what the table cannot: when the cost lands. A waterfall was rejected — it would have
+  drawn the program-to-date column's three numbers a second time. Sized from the room the
+  table and any caption leave and RENDERED at that height, so it runs the full width whatever
+  a client's P&L looks like; its margins are reserved in INCHES, because an axes-relative
+  legend anchor cleared the top at 1.38in and was clipped against the table at 2.05in.
+- **No caption about a month that carried no cost.** It was there first, on the reasoning that
+  identical revenue and profit look like an error; the table shows the $0 line and the chart
+  shows a bar with no cost, so it was the deck saying the same thing a third time at the cost
+  of the chart's height. A month left out as incomplete is still stated.
+- **The Revenue Guarantee slide drops its P&L table** and keeps the ratio, the gap and the
+  sentence deriving them, as two centred callouts. A client under 3 : 1 gets both slides and a
+  deck must not state one thing twice. Its notes point at this slide instead of describing a
+  table it no longer draws.
+
+**Drawn IN PLACE over the template's slide of that name.** The first version added the new
+slide and dropped the old one from the slide list, which is the defect CLAUDE.md names:
+freeing a partname lets python-pptx hand that number to a slide added later, and the Contact
+slide is added later. The build log reported both slides built and the finished deck came out
+with **Excluded Accounts gone**. Dropping it after every `add_slide` would avoid the partname
+but leave an unpopulated shell slide in the deck for every pass in between, including the
+figure-consistency gate. So nothing is added and nothing is dropped: the slide is emptied and
+redrawn, keeping its partname, its position, its title and the deck's 49 slides.
+
+What the tiles said that this slide does not: "Profitability of N : 1 is well above the 2 : 1
+threshold — there is no deferred billing on this program." The ratio is here, but the 2 : 1
+framing now appears only on the Revenue Guarantee slide, which builds below 3 : 1 — so for a
+client above it that sentence has left the deck. Months and mailings are unaffected; they are
+on Program Overview.
+
+`validate_deck.extract_findings` required the extract's revenue and profit VERBATIM in compact
+form (`$1.16M`), which only the tiles wrote. It now accepts the compact or the exact-dollar
+rendering, since the P&L states the same figure to the dollar — the same trap that failed a
+correct deck in 2026-09 over `$830K` against `$0.83M`.
+
+`tests/test_pnl_slide.py` pins that the slide is ungated on profitability, that the guarantee
+slide no longer tabulates a P&L, that a zero-cost month gets no sentence and no ratio, and
+that the chart's box stays clear of the logo band. The golden deck's pinned slide count stays
+at 49, which is the point.
+
+### 2026-10-02 — BUILT leads the launcher's checks, and stops them
+
+Summary: In CSM Sheila and the launcher, a client whose deck is already built now says so on
+the first line, and the input, Lift Matrix and other-program checks are skipped — nothing is
+going to read those inputs. Austin Bank went from eight lines to four, and from seconds of
+share reads to 0.01s.
+
+Aaron, 2026-10-02: "I'd think the BUILT check would be first. We don't need to check for
+components if it's already built."
+
+The skipped checks are the slow ones: the ODD extract's month at source, the ARS workbook, the
+DCO, the Lift Matrix window and, for a combined deck, every other program's data. They were
+being read to answer a question nobody asked about a deck that already exists. A rebuild runs
+all of them — `all_checks` only short-circuits when the deck is built AND no rebuild was
+asked for, and `ars_launcher.py build` passes `--rebuild` through.
+
+`built_line` is now its own function so the line can lead the list rather than close it.
+
 ### 2026-10-02 — Obsidian is out of deck production
 
 Summary: The project no longer names Aaron's Obsidian vault, its paths, or the script that

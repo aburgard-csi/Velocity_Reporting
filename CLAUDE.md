@@ -963,6 +963,14 @@ This is the readme index — update it whenever files are added, removed, or mov
   (Aaron, 2026-09-08): the two used to compute it four different ways and the one-pager
   reported True Sky at +118% while the client's own deck said +103%.
 - `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
+- `pnl_slide.py` — **ARS Financial Performance**, on every ARS deck (Aaron, 2026-10-02): the
+  program's P&L from the workbook's Actuals tab — incremental revenue, each itemised cost line,
+  total costs, incremental profit and profitability — for the last complete month, the year to
+  date and the program to date, over a twelve-month chart of revenue split into cost and profit.
+  Figures come from `revenue_guarantee_slide.pnl`, so this slide and the guarantee cannot
+  disagree. It is drawn IN PLACE over the template's slide of that name: nothing is added and
+  nothing is dropped, because a freed partname gets handed to the next slide added (it removed
+  Excluded Accounts from a build on 2026-10-02).
 - `revenue_guarantee_slide.py` — the Revenue Guarantee slide, inserted after ARS Financial
   Performance: a P&L from the Actuals tab (revenue, each cost line, total costs, profit — last
   complete month and program to date; Aaron, 2026-10-02) beside the profitability callout, and

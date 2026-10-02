@@ -116,9 +116,11 @@ def test_all_charts_render(deck):
 
 def test_slide_count(deck):
     """49 for an SM-path ARS deck. The golden client runs at 5.75 : 1, so it does NOT get a
-    Revenue Guarantee slide — that one is built only below 3 : 1 (Aaron, 2026-09-22). If this
-    moves, assemble_combined's section boundary is the next thing to check — adding two
-    slides broke it before."""
+    Revenue Guarantee slide — that one is built only below 3 : 1 (Aaron, 2026-09-22). ARS
+    Financial Performance is the P&L since 2026-10-02, drawn over the template's slide of
+    that name rather than added beside it, so the count did not move. If this moves,
+    assemble_combined's section boundary is the next thing to check — adding two slides
+    broke it before."""
     assert len(deck["prs"].slides) == 49
 
 

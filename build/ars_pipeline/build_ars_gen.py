@@ -614,24 +614,10 @@ set_shape_text(S[5], "•  Account Revenue Solution® has returned $5.69M in inc
     f"•  Responders show durable behavior change: every recent mailing produced a positive monthly debit-spend increase per responder.")
 
 # ============================ SLIDE 7 — Financial Performance
-set_exact(S[6], "5.7 : 1", prof)
-set_exact(S[6], "$6.89M", ltd_rev)
-set_exact(S[6], "$5.69M", ltd_profit)
-set_exact(S[6], "$57,270", cur_rev, left_lo=4.0, left_hi=6.5)
-set_exact(S[6], "$51,569", cur_profit, left_lo=8.0, left_hi=10.0)   # "Profit This Month" tile (was chasing the revenue literal -> never matched; fixed 2026-07-25)
-# The 2 : 1 sentence was a template literal the builder only swapped the ratio into, so a
-# client below the threshold shipped "0.2 : 1 is well above the 2 : 1 threshold" (1549,
-# 2026-08-20). Wording now follows the actual ratio.
-_ratio = B['profitability']
-if _ratio >= 2:
-    _prof_line = f"•  Profitability of {prof} is well above the 2 : 1 threshold — there is no deferred billing on this program.\n"
-else:
-    _prof_line = (f"•  Profitability of {prof} is below the 2 : 1 threshold — the program is {months} months in, "
-                  f"with revenue still building against program-to-date costs.\n")
-set_shape_text(S[6], "•  Account Revenue Solution® has generated $6.89M in incremental revenue and $5.69M in incremental profit program-to-date.\n•  Profitability of 5.7 : 1 is well above the 2 : 1 threshold — there is no deferred billing on this program.\n•  The program has run 226 months across 81 mailings, with $57,270 in incremental revenue this month.",
-    f"•  Account Revenue Solution® has generated {ltd_rev} in incremental revenue and {ltd_profit} in incremental profit program-to-date.\n"
-    + _prof_line
-    + f"•  The program has run {months} {MONTH_W} across {mailings} {MAILING_W}, with {cur_rev} in incremental revenue this month.")
+# NOT populated any more: this template slide is REPLACED by the P&L of the same name
+# (Aaron, 2026-10-02), built near the end of this file and dropped in over the top of it.
+# Its five tiles and three bullets are gone with it; what they said that the P&L does not
+# is listed where the replacement happens.
 
 # ============================ SLIDE 8 — Lift Matrix (MM) or Monthly Summary (SM)
 if MM:
@@ -1495,6 +1481,23 @@ else:
     print("revenue guarantee slide skipped: %s is at or above %.0f : 1"
           % (f"{_rg_ratio:.2f} : 1" if _rg_ratio is not None else "this client",
              revenue_guarantee_slide.SHOW_BELOW))
+
+# The P&L, on EVERY ARS deck (Aaron, 2026-10-02: "i wanted a P&L slide that makes it
+# easier to see the full financial picture"). Inserted AFTER the guarantee slide so that it
+# lands directly under Financial Performance and the guarantee, where one is built, follows
+# it: both anchor on Financial Performance, so the later insertion sits nearer to it.
+import pnl_slide
+# Drawn IN PLACE over the template's slide of the same name: nothing is added and nothing
+# is dropped, so no partname is freed for a later add_slide to reuse. The first version of
+# this dropped the old slide and the Contact slide added afterwards took the freed name,
+# which removed Excluded Accounts from the finished deck (CLAUDE.md's rule, demonstrated).
+_pnl_slide, _PNL = pnl_slide.add_pnl_slide(
+    prs, B, ASSETS, AS_OF_LONG, after_title="Financial Performance",
+    wb_src=WB_SRC, tab=_mm)
+_MODULE_NOTED.append(_pnl_slide)
+print("ARS Profit & Loss slide built (%s; %s)"
+      % (" / ".join(_PNL["columns"]),
+         ", ".join(l for l, _v, k in _PNL["rows"] if k == "line") or "no itemised cost line"))
 
 _S2 = list(prs.slides)
 _keep = {id(x) for x in _MODULE_NOTED}
