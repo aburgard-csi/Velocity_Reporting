@@ -119,6 +119,7 @@ def run(client_id: str, period: str, data_root=None, output_root=None,
             "txn_files_skipped_n": len(rpt.skipped),
             "txn_files_cached": rpt.cached,
             "txn_files_read": rpt.read,
+            "txn_files_short": list(rpt.short),
             "txn_columns_found": rpt.columns_found,
             "txn_window_months": months,
             "txn_anchor": data_month.iso,
@@ -329,6 +330,12 @@ def report(result: AnalysisResult) -> str:
           f"({m.get('txn_files_cached', 0)} from cache), {m.get('txn_files_skipped_n', 0)} "
           f"outside the {m.get('txn_window_months')}-month window; "
           f"{m.get('txn_columns_found')} columns")
+        short = m.get("txn_files_short") or []
+        if short:
+            # Said here, at the top, not only in a warning 400 lines down:
+            # nine short files on 1100 went unread for weeks (#256).
+            A(f"  READ SHORT on {len(short)} file(s): every figure below is "
+              f"understated -- {', '.join(short)}")
         A(f"  rows {m.get('txn_rows', 0):,}   {m.get('txn_first_date')} -> {m.get('txn_last_date')}   "
           f"{m.get('txn_months_covered')} months")
         A(f"  accounts {m.get('txn_accounts', 0):,}   txns/acct {m.get('txn_per_account')}   "

@@ -76,6 +76,7 @@ class LoadReport:
     columns_found: int | None = None
     banner_lines: int = 0
     warnings: list[str] = field(default_factory=list)
+    short: list[str] = field(default_factory=list)   # files that parsed short
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +301,35 @@ def is_short(rows: int, lines: int, skip: int = 0) -> bool:
             and data - rows > SHORT_READ_FLOOR)
 
 
+def field_widths(path: Path, delim: str, skip: int = 0) -> tuple[int, int, int]:
+    """(fields on the first data line, widest line, lines wider than the first).
+
+    The C parser sets the expected width from the first row and treats every
+    WIDER line as a bad line, which on_bad_lines="skip" then drops. A file
+    stitched from two extracts, the second with an extra column or a trailing
+    tab, therefore parses to exactly the first extract and stops, silently
+    (#256: nine of RALLY 1100's files, all at 1,500,004 rows). Knowing the
+    widest line lets the read declare that width, so nothing is a bad line.
+    """
+    sep = delim.encode("latin-1")
+    first = widest = wider = 0
+    try:
+        with open_txn(path, "rb") as fh:
+            for i, line in enumerate(fh):
+                if i < skip:
+                    continue
+                n = line.count(sep) + 1
+                if not first:
+                    first = n
+                if n > widest:
+                    widest = n
+                if n > first:
+                    wider += 1
+    except OSError:
+        return 0, 0, 0
+    return first, widest, wider
+
+
 def _cache_path(cache_dir: Path, path: Path) -> Path:
     st = path.stat()
     stem = Path(_data_name(path)).stem
@@ -356,12 +386,25 @@ def read_file(path: Path, cache_dir: Path, rpt: LoadReport) -> pd.DataFrame:
     # -- silently, because a swallow is not a bad line and on_bad_lines never
     # sees it. An unbalanced quote at EOF raises instead; a balanced pair
     # loses everything between them and says nothing.
+    #
+    # Declare the WIDEST line's field count up front. Without it the parser
+    # takes the first row's width as law and drops every wider line as bad;
+    # a file whose rows widen partway then parses to exactly the rows before
+    # that point and stops, with nothing to say so (#256).
+    first_width, widest, wider = field_widths(path, delim, skip)
+    if wider:
+        rpt.warnings.append(
+            f"{path.name}: {wider:,} line(s) are wider than the first row "
+            f"({first_width} fields at the top, up to {widest} later). Read "
+            f"with the wider frame; the extra fields are ignored. A file "
+            f"stitched from two extracts looks like this.")
+    names = list(range(max(widest, 1)))
     for chunk in pd.read_csv(open_txn(path, "rb"), sep=delim, header=None, skiprows=skip,
-                             dtype=str, encoding="latin-1", on_bad_lines="skip",
-                             quoting=csv.QUOTE_NONE,
+                             names=names, dtype=str, encoding="latin-1",
+                             on_bad_lines="skip", quoting=csv.QUOTE_NONE,
                              chunksize=CHUNK_ROWS, engine="c"):
         if ncols is None:
-            ncols = chunk.shape[1]
+            ncols = first_width or chunk.shape[1]
         if header_names is not None:
             names = list(header_names) + [f"extra_x{i}" for i in
                                           range(max(0, chunk.shape[1]
@@ -405,7 +448,9 @@ def read_file(path: Path, cache_dir: Path, rpt: LoadReport) -> pd.DataFrame:
     # by QUOTE_NONE above. The only visible symptom had been a reconciliation
     # warning on the three months that were fine.
     lines = source_lines(path)
-    if lines > 0 and is_short(len(frame), lines, skip):
+    short = lines > 0 and is_short(len(frame), lines, skip)
+    if short:
+        rpt.short.append(_data_name(path))
         rpt.warnings.append(
             f"{path.name}: READ SHORT -- {len(frame):,} rows parsed from a "
             f"file of {lines:,} lines ({100 * len(frame) / max(lines - skip, 1):.1f}% "
@@ -418,9 +463,13 @@ def read_file(path: Path, cache_dir: Path, rpt: LoadReport) -> pd.DataFrame:
             f"A real file does not end on a chunk boundary.")
 
     rpt.read += 1
-    tmp = cached.with_suffix(".tmp.parquet")
-    frame.to_parquet(tmp, index=False)
-    tmp.replace(cached)
+    if not short:
+        # A short frame is never the file. Caching it would serve the short
+        # read on every later run as "cached", which is how nine files sat
+        # at 1,500,004 rows for weeks.
+        tmp = cached.with_suffix(".tmp.parquet")
+        frame.to_parquet(tmp, index=False)
+        tmp.replace(cached)
     return frame
 
 
