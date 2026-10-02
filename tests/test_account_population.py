@@ -100,3 +100,64 @@ def test_status_is_the_first_reason_that_applies(pair):
     _, x = pair
     assert x["n_prod_excluded"] == 7          # the 7 open Gunny Savings rows only
     assert x["open_only"] == 32               # 39 excl. closed, less the 7 dormant
+
+
+# --------------------------------------------------------------- the slide's own geometry
+#
+# Both of these are builder contracts, not gate rules. A general validator rule was
+# written for each and thrown away: "a picture must not overlap text" fails the Summit
+# banner and the agenda slides, where text over an image is the design, and "a tile
+# label must not wrap" fails Program Overview, whose taller tiles carry two-line labels
+# that look right. Pinned here instead, where the answer is deterministic.
+
+FOOTNOTE_TOP = 6.05        # where the slide's observation sentences start
+TILE_W, TILE_LABEL_TOP, TILE_BOTTOM = 2.85, 2.43, 1.66 + 1.28
+
+
+def test_the_reason_chart_stays_out_of_the_footnote_band(odd, tmp_path):
+    """A fourth reason bar must shrink the chart, not push it over the sentences.
+
+    The chart's height follows the number of reasons. Adding "Account not open" took
+    it from 2.4in to 2.97in — 3.42in to 6.39in on the slide — straight through the
+    footnote at 6.05in, because it was placed by WIDTH alone. The gate passed that
+    deck at 0 FAIL: every collision rule in the validator compares text with text, and
+    a chart is a picture.
+    """
+    from pptx import Presentation
+    from pptx.util import Inches
+    import excluded_accounts_slide as E
+
+    data = E.extract_exclusions(odd)
+    assert data["n_status_excluded"] and data["n_prod_excluded"] and data["n_no_debit"], \
+        "this ODD is meant to produce several reason bars"
+    chart = E.render_chart(data, str(tmp_path))
+
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    from shapes import fit_picture
+    bottom = fit_picture(s, chart, 0.2, 3.42, 6.25, 5.98 - 3.42)
+    assert bottom <= FOOTNOTE_TOP, f"chart ends at {bottom:.2f}in, footnote starts at {FOOTNOTE_TOP}in"
+
+
+def test_the_population_label_fits_a_tile_at_the_size_it_renders():
+    """One label, on both slides, with room at the larger of the two rendered sizes.
+
+    Excluded Accounts' tile labels come out of restyle_fonts at 16pt where Product
+    Mix's are 12pt. "Total Accounts - Excl. Closed" needs 2.51in of the 2.55in a tile
+    leaves at 16pt, and PowerPoint wrapped it onto two lines in a tile only 0.51in tall
+    below the label's top — passing tile_label_findings, which asks whether text leaves
+    the tile, by 0.07in.
+    """
+    from textfit import text_width_in
+    from product_mix_slide import POP_TILE_LABEL
+    import excluded_accounts_slide as E
+
+    assert E.POP_TILE_LABEL == POP_TILE_LABEL, "the two slides must name one book once"
+    usable = TILE_W - 0.2                      # PowerPoint's default side margins
+    w = text_width_in(POP_TILE_LABEL, 16, "Calibri", False)
+    assert w <= usable * 0.90, (
+        f"{POP_TILE_LABEL!r} needs {w:.2f}in of {usable:.2f}in at 16pt; keep 10% back, "
+        "because PowerPoint lays these out a shade wider than the estimate")
+    # One line, so it cannot reach the bottom of a 1.28in tile.
+    assert TILE_LABEL_TOP + 0.25 < TILE_BOTTOM

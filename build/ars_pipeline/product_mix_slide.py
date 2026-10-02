@@ -71,6 +71,13 @@ from shapes import (
     sldid_of as _sldid_of, move_before as _move_before, renumber as _renumber,
 )
 
+# The population tile's label, SHARED with the Excluded Accounts slide, which
+# imports it from here: the two slides state ONE book, so they name it with one
+# string and cannot drift apart in wording again. Short on purpose — "Total Accounts
+# - Excl. Closed" needs 2.51in of the 2.55in a tile leaves, and at the 16pt Excluded
+# Accounts' labels render at, PowerPoint wrapped it onto two lines inside the tile.
+POP_TILE_LABEL = "Accounts excl. closed"
+
 MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 _MIDX  = {m: i for i, m in enumerate(MONTHS)}
 _MONFULL = ["January","February","March","April","May","June","July","August",
@@ -353,9 +360,9 @@ def add_product_mix_slide(prs, odd_csv, assets_dir, before_title="Program Overvi
     # prefix). "Open accounts" read as the status-Open count and understated the
     # coverage (Aaron, 2026-08-28). Excluded Accounts counts this same population
     # (Aaron, 2026-10-02), which is what lets the two slides be added together.
-    tiles = [(f"{data['open_total']:,}", "Total Accounts - Excl. Closed", NAVY),
+    tiles = [(f"{data['open_total']:,}", POP_TILE_LABEL, NAVY),
              (f"{data['elig_total']:,}", "ARS-eligible accounts", ORANGE),
-             (f"{share}%", "Eligible share of open", NAVY),
+             (f"{share}%", "Eligible share of accounts", NAVY),
              (f"{n_elig}", f"Eligible products (of {data['n_products']})", NAVY)]
     for i, (v, l, f) in enumerate(tiles):
         _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f)

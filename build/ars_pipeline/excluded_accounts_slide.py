@@ -62,7 +62,7 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from product_mix_slide import (
     _resolve_csv, _find_header_row, _latest_elig_col, _fixacr,
     _tb, _pill, _tile, _add_table, _blank_slide, _slide_title,
-    _move_before, _renumber, _sldid_of,
+    _move_before, _renumber, _sldid_of, _fit_picture, POP_TILE_LABEL,
     NAVY, ORANGE, WHITE, GREYT, HEAD, BODY,
     _NAVY_HX, _ORANGE_HX, _GREY_HX, _TICK_HX, _MONFULL, _MIDX,
 )
@@ -353,7 +353,7 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
     # Tile 1 and tile 4 carry Product Mix's wording as well as its figures: a reader
     # comparing the two slides is comparing like with like, and the middle two tiles
     # say how the book splits — excl_all + elig_total == book, by construction.
-    tiles = [(f"{book:,}", "Total Accounts - Excl. Closed", NAVY),
+    tiles = [(f"{book:,}", POP_TILE_LABEL, NAVY),
              (f"{excl_all:,}", "Outside ARS", ORANGE),
              (f"{share}%", "Share of accounts", NAVY),
              (f"{data['elig_total']:,}", "ARS-eligible accounts", NAVY)]
@@ -362,7 +362,11 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
 
     _tb(s, 0.5, 3.10, 6.1, 0.35, "Reason for Exclusion", 13.5, NAVY, True,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
-    s.shapes.add_picture(chart, Inches(0.2), Inches(3.42), Inches(6.25))
+    # Placed in a BOX, not by width. The chart grows with the number of reasons, and
+    # the fourth one took it from 3.42in to 6.39in — through the footnote band that
+    # starts at 6.05in. Bounded here, a fifth reason shrinks the bars instead of
+    # walking over the sentences underneath.
+    _fit_picture(s, chart, 0.2, 3.42, 6.25, 5.98 - 3.42)
 
     _tb(s, 6.75, 3.10, 6.1, 0.35, "Products Not Carried by ARS", 13.5, NAVY, True,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)

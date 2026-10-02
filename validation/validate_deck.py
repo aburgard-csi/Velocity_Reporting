@@ -1619,7 +1619,10 @@ def _tile_pairs(slide):
     return out
 
 
-_POP_LABEL = "total accounts - excl. closed"
+# Lower-cased copies of the two slides' shared tile labels. Deliberately literals
+# rather than an import of the builder: renaming a label must fail this check loudly
+# (see the docstring) rather than follow it silently to a deck nobody compared.
+_POP_LABEL = "accounts excl. closed"
 _OUT_LABEL = "outside ars"
 _ELIG_LABEL = "ars-eligible accounts"
 
