@@ -17,6 +17,80 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — Product Mix and Excluded Accounts count one book, and it adds up
+
+Summary: The two account slides disagreed. Product Mix counted every account except closed
+(71,466 on Marine FCU) while Excluded Accounts counted only the open ones (66,462), and the two
+eligible counts were two apart. Both slides now count the same accounts, and on Excluded
+Accounts the outside-ARS and ARS-eligible figures add up to the total above them.
+
+Aaron, 2026-10-02: "The number of accounts (excluding closed) differs between slides. Make those
+numbers flow better. I'd expect to see the same number of Open accounts on either slide, and then
+the ARS eligible accounts and the outside ARS accounts should sum to the total open accounts."
+
+Each slide was right on its own terms, which is why this survived two deliberate decisions in
+opposite directions: Product Mix moved to the excluding-closed population on 2026-08-28 because
+the status-Open count understated ARS's coverage, and Excluded Accounts was scoped to strictly
+OPEN accounts on 2026-08-29 because a dormant account is not an answer to "why is this open
+account excluded". Neither reading is wrong alone. Read on consecutive slides they cannot both
+stand, because a reader's first move is to subtract one from the other.
+
+The excluding-closed population wins, per Aaron, and Excluded Accounts now counts it:
+
+- Its population is every account the shared classifier does not call closed — the same
+  population, through the same classifier, that Product Mix counts.
+- "Account not open" joins product code, debit card and other as a REASON, first in the
+  waterfall, so the other three bars read exactly as before (Marine FCU: not open 5,002,
+  product 22,473, no debit card 5,454, other 908 — 33,837 outside ARS, plus 37,629 eligible,
+  = 71,466).
+- Its eligible tile counts eligible accounts in that book, so it matches Product Mix's. The
+  dormant-but-eligible accounts the core still flags (2 on 1539, 147 on 1204, 324 on 1509) are
+  inside it rather than bridged by a footnote; the notes still name them. It used to count
+  eligible accounts across the whole extract, closed ones included.
+- Bar percentages are of that same book. Against the whole extract a bar read 17.5% under a
+  tile saying 43% of the same accounts.
+- Tiles 1 and 4 carry Product Mix's wording as well as its figures, so the two slides compare
+  like with like.
+
+Product Mix's table said "Open" over a column counting dormant and inactive accounts too, and
+totalled as "Total — open accounts" — the same mislabel the tile above it was fixed for in
+August, left in the table underneath. Now "Accounts" and "Total — excl. closed".
+
+Added with the fix (CLAUDE.md: add the check that would have caught it):
+
+- `validate_deck.account_population_findings` FAILs a deck whose Product Mix and Excluded
+  Accounts slides state different totals or different eligible counts, or whose outside-ARS
+  and eligible figures do not sum to the stated total. It FAILS rather than going quiet when
+  it cannot find the tiles it reads, because a check that stops looking when a label is
+  renamed reports a clean deck it never examined. It FAILs all 33 of the 2026.09 ARS decks,
+  which is correct — they carry the split.
+- `tests/test_account_population.py` runs both extractors over an ODD written for it, carrying
+  the cases that pulled the slides apart: a dormant account the core flags eligible, and a
+  closed one it also flags eligible. All five assertions fail against the old code. The
+  synthetic ODD could not have caught this on its own — its `Elig` flag is only ever "Yes" on
+  a status code of O or A, so the two readings agree on it by construction.
+
+A general "one tile label, one figure" rule was written first and thrown away: 12-Month
+Eligible Take Rate — Personal and — Business carry the same tile labels over different
+populations by design, so it failed correct slides, and it could not have seen this defect
+anyway — these two slides disagreed about the wording as well as the number.
+
+Not rebuilt: the 2026.09 decks already delivered. Any deck built from now on reconciles.
+
+### 2026-10-02 — The user guide covers the Sheila CSMs open today
+
+Summary: The ARS Deck User Guide now explains CSM Sheila properly: the cycle pill and how to
+look at an earlier cycle, the Decks, Lift Matrix and Data Issues tabs, the row of links under
+every client, and where a code sheet gets corrected. Re-released to CSM_Reporting.
+
+The guide was written on 2026-09-16, when Sheila was one paragraph inside step 1 of the
+double-click-the-.bat instructions. Since then she has gained the cycle picker (2026-10-02),
+the Data Issues tab and the Lift Matrix tab (both 2026-09-25) and the shared links row, none of
+which a CSM could read about anywhere. A CSM opening the Lift Matrix tab had no written answer
+to the question that decides what they do next — whether exporting a matrix changes this
+month's deck (it does not; Bradford loads it into the workbook). The sample console output also
+still showed `period 2026.09`, which reads as a guide nobody has looked at since.
+
 ### 2026-10-02 — MRPC Program to Date and Current Program Status, from the weekly
 
 Summary: MRPC Card Portfolio and Key Metrics are replaced by two slides built from the MRPC

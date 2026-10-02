@@ -1585,6 +1585,112 @@ def tile_label_findings(prs):
                             f"below {box[1]:.2f}\" and the tile ends at {host[3]:.2f}\""))
     return out
 
+# ================================================================ cross-slide tiles
+_TILE_NUM = re.compile(r"^\$?-?[\d,]+$")
+
+
+def _tile_pairs(slide):
+    """-> {label: (figure, text)} for the KPI tiles across the top of a slide.
+
+    Paired by column rather than by geometry containment: every builder lays these
+    out with `shapes._tile`, one value box directly over one label box in the same
+    x band, so grouping the band is enough and needs no tile-shape detection.
+    """
+    band = []
+    for sh in slide.shapes:
+        if not getattr(sh, "has_text_frame", False) or sh.top is None or sh.left is None:
+            continue
+        top = _in(sh.top)
+        if not (1.4 <= top <= 3.0):                 # the KPI row, below the subtitle
+            continue
+        t = " ".join(sh.text_frame.text.split())
+        if t:
+            band.append((round(_in(sh.left), 1), top, t))
+    cols = {}
+    for left, top, t in band:
+        cols.setdefault(left, []).append((top, t))
+    out = {}
+    for parts in cols.values():
+        parts.sort()
+        nums = [t for _, t in parts if _TILE_NUM.match(t)]
+        labels = [t for _, t in parts if not _TILE_NUM.match(t)]
+        if len(nums) == 1 and len(labels) == 1:
+            out[labels[0].lower()] = (int(nums[0].lstrip("$").replace(",", "")), nums[0])
+    return out
+
+
+_POP_LABEL = "total accounts - excl. closed"
+_OUT_LABEL = "outside ars"
+_ELIG_LABEL = "ars-eligible accounts"
+
+
+def account_population_findings(prs):
+    """FAIL when Product Mix and Excluded Accounts do not state one book that adds up.
+
+    Added 2026-10-02, with the fix. These two slides are consecutive and about the same
+    accounts, and they counted different populations: 71,466 accounts excluding closed on
+    Product Mix against 66,462 open accounts on Excluded Accounts, with two eligible counts
+    two apart. Both slides were internally consistent, which is why every rule in this file
+    passed them — each reads one slide at a time. A general "one label, one figure" rule was
+    written first and thrown away: 12-Month Eligible Take Rate — Personal and — Business
+    carry the same tile labels over different populations by design, so it failed correct
+    slides, and it could not see this defect anyway — these two slides disagreed about the
+    wording as well as the number.
+
+    So this check is deliberately specific to the pair, and it FAILS when it cannot find
+    what it is checking rather than passing quietly. A check that goes silent when a label
+    is renamed is worse than no check: it reports a clean deck it never looked at.
+    """
+    mix = exc = None
+    for idx, slide in enumerate(prs.slides, 1):
+        t = (_title(slide) or "").strip().lower()
+        if t.startswith("product mix"):
+            mix = (idx, slide)
+        elif t.startswith("excluded accounts"):
+            exc = (idx, slide)
+    # Keyed off Excluded Accounts, which only a BUILT deck has: the ARS template shell
+    # carries a dummy Product Mix slide on its own, and failing that is failing a slide
+    # for not yet having been built. A build that produced Excluded Accounts and lost
+    # Product Mix is a real defect and still fails below.
+    if exc is None:
+        return []
+    out = []
+    if mix is None:
+        return [("FAIL", exc[0],
+                 "Excluded Accounts is in this deck without Product Mix — the two "
+                 "slides state one population between them and neither can be "
+                 "reconciled alone")]
+    tiles = {"Product Mix": (mix[0], _tile_pairs(mix[1])),
+             "Excluded Accounts": (exc[0], _tile_pairs(exc[1]))}
+    for name, (idx, t) in tiles.items():
+        for lbl in ((_POP_LABEL, _ELIG_LABEL) if name == "Product Mix"
+                    else (_POP_LABEL, _ELIG_LABEL, _OUT_LABEL)):
+            if lbl not in t:
+                out.append(("FAIL", idx,
+                            f"{name}: no tile labelled {lbl!r}, so the two slides' "
+                            f"account figures cannot be reconciled — fix the label or "
+                            f"this check, do not leave it unable to look"))
+    if out:
+        return out
+    mi, mt = tiles["Product Mix"]
+    ei, et = tiles["Excluded Accounts"]
+    if mt[_POP_LABEL][0] != et[_POP_LABEL][0]:
+        out.append(("FAIL", ei,
+                    f"Excluded Accounts counts {et[_POP_LABEL][1]} accounts where Product "
+                    f"Mix (slide {mi}) counts {mt[_POP_LABEL][1]} — consecutive slides, "
+                    f"two books"))
+    if mt[_ELIG_LABEL][0] != et[_ELIG_LABEL][0]:
+        out.append(("FAIL", ei,
+                    f"Excluded Accounts reports {et[_ELIG_LABEL][1]} ARS-eligible accounts "
+                    f"where Product Mix (slide {mi}) reports {mt[_ELIG_LABEL][1]}"))
+    got = et[_OUT_LABEL][0] + et[_ELIG_LABEL][0]
+    if got != et[_POP_LABEL][0]:
+        out.append(("FAIL", ei,
+                    f"{et[_OUT_LABEL][1]} outside ARS + {et[_ELIG_LABEL][1]} eligible = "
+                    f"{got:,}, but the slide states {et[_POP_LABEL][1]} accounts"))
+    return out
+
+
 # ================================================================ autofit
 def autofit_findings(prs):
     """FAIL a frame PowerPoint shrinks below 90%.
@@ -1712,6 +1818,7 @@ def run(path, extract=None):
     findings += closing_month_findings(prs)
     findings += table_label_fit_findings(prs)
     findings += tile_label_findings(prs)
+    findings += account_population_findings(prs)
     findings += figure_sidecar_findings(path)
     findings += claim_consistency_findings(prs)
     findings += text_rule_findings(prs, texts)

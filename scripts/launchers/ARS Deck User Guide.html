@@ -66,7 +66,7 @@
   <div class="wrap">
     <p class="eyebrow">CSM Reporting · Account Revenue Solution</p>
     <h1>ARS Deck User Guide</h1>
-    <p>How to build a client's monthly ARS Executive Review yourself, straight into your Outputs folder, with <strong>Build ARS Deck</strong>.</p>
+    <p>How to build a client's monthly ARS Executive Review yourself, straight into your Outputs folder &mdash; in your browser with <strong>CSM Sheila</strong>, or from a window with <strong>Build ARS Deck</strong>.</p>
   </div>
 </header>
 
@@ -74,6 +74,7 @@
   <nav aria-label="Contents">
     <a href="#before">Before you start</a>
     <a href="#build">Build a deck</a>
+    <a href="#sheila">CSM Sheila in your browser</a>
     <a href="#checks">What the checks mean</a>
     <a href="#after">After it builds</a>
     <a href="#problems">If something goes wrong</a>
@@ -97,18 +98,18 @@
       <li><span class="n" aria-hidden="true">1</span><div>
         <h3>Double-click <code>Build ARS Deck.bat</code></h3>
         <p>It's in the CSM_Reporting folder. If Windows asks whether to run a file from the network, choose <strong>Run</strong>. You don't need to run it as administrator.</p>
-        <p><strong>Prefer a browser?</strong> Double-click <code>ARS Deck Builder GUI.bat</code> instead. CSM Sheila, the Smart Helper for Executive Insights, Layouts &amp; Analytics, opens the same checks and build in your browser, with a list of clients to pick from and each step shown as it runs. When a client's other programs (ICS, MRPC) have their data this month, it offers two buttons: an ARS-only deck, or one combined deck with every program that has data; any program left out is named with the reason. Keep its black window open while you build, and close it when you're done.</p>
+        <p><strong>Prefer a browser?</strong> Double-click <code>ARS Deck Builder GUI.bat</code> instead &mdash; the same checks and the same build, with a client list to pick from, the Lift Matrix and each client's data issues. See <a href="#sheila">CSM Sheila in your browser</a>.</p>
       </div></li>
       <li><span class="n" aria-hidden="true">2</span><div>
         <h3>Type the client number and press <kbd>Enter</kbd></h3>
         <p>It checks the client and this month's data before building anything:</p>
-<div class="console">ARS deck status: client 1441, period 2026.09
+<div class="console">ARS deck status: client 1441, period 2026.10
 
 <span class="ok">  [ok]  </span> 1441 FNB Alaska (CSM: James Gilmore)
 <span class="ok">  [ok]  </span> clients.md: ARS, MM workbook
-<span class="ok">  [ok]  </span> ODD extract: in Inputs (2026-09-03)
-<span class="ok">  [ok]  </span> ARS workbook: in Inputs (2026-09-03)
-<span class="ok">  [ok]  </span> DCO: in Inputs (2026-09-14)
+<span class="ok">  [ok]  </span> ODD extract: in Inputs (2026-10-02)
+<span class="ok">  [ok]  </span> ARS workbook: in Inputs (2026-10-02)
+<span class="ok">  [ok]  </span> DCO: in Inputs (2026-10-01)
 
 Ready to build.
 
@@ -125,7 +126,7 @@ Ready to build.
 <span class="dim">  [..]  </span> Assembling the deck  (4 min)
 <span class="dim">  [..]  </span> Validating the deck  (9 min)
 <span class="ok">  [ok]  </span> Validation: 0 FAIL, 28 REVIEW
-<span class="ok">  [ok]  </span> In Outputs: ...\Outputs\James Gilmore\1441-2026.09-ARS-FNB Alaska ARS Results.pptx
+<span class="ok">  [ok]  </span> In Outputs: ...\Outputs\James Gilmore\1441-2026.10-ARS-FNB Alaska ARS Results.pptx
 
 Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
         <p>"REVIEW" items are normal notes from the quality check. Only a <strong>FAIL</strong> stops a deck.</p>
@@ -135,6 +136,46 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
         <p>Then go to your folder in Outputs. See <a href="#after">After it builds</a>.</p>
       </div></li>
     </ol>
+  </section>
+
+  <section id="sheila">
+    <h2>CSM Sheila in your browser</h2>
+    <p>Double-click <code>ARS Deck Builder GUI.bat</code> in the CSM_Reporting folder. A black window opens and your browser follows a few seconds later. <strong>Keep the black window open while you work</strong> &mdash; it is the program itself &mdash; and close it when you are done. Sheila runs the same checks and the same build as <code>Build ARS Deck.bat</code>; she just shows you more while you decide.</p>
+    <p>Three tabs across the top: <strong>Decks</strong>, <strong>Lift Matrix</strong> and <strong>Data Issues</strong>. The <strong>What's new</strong> list beside them is the last few changes to the build, and <strong>Change log</strong> opens the full record.</p>
+
+    <h3>The cycle, in the top right corner</h3>
+    <p>The pill in the corner is the month you are working in &mdash; <strong>October 2026</strong> today. It is the calendar month, so it <strong>moves to the new month on the 1st</strong> on its own. For a normal build you never touch it.</p>
+    <p><strong>Click it to look at an earlier cycle.</strong> Pick a month and the whole page answers for that month: who already has a deck, what a build would read, which clients are still waiting on data. A build you start while an earlier month is picked builds <em>that</em> month. Your pick holds until you choose the current month again or reload the page, so glance at the pill before you build.</p>
+
+    <h3>Decks</h3>
+    <p>Every ARS client, grouped by CSM, with a box to filter by name or number. A client's row carries a tag when there is something to know:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Tag on the row</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag sent">In Outputs 2026.10</span></td><td>This cycle's deck is already built and sitting in your Outputs folder.</td></tr>
+          <tr><td><span class="tag ok">Building</span></td><td>That client is building right now.</td></tr>
+          <tr><td><span class="tag warn">Queued #2</span></td><td>Waiting its turn. Builds run one at a time and each starts on its own.</td></tr>
+          <tr><td><span class="tag stop">Error 2026.10</span></td><td>The last build did not reach Outputs. Open the client &mdash; the steps say where it stopped &mdash; and its button reads <strong>Retry build</strong>.</td></tr>
+          <tr><td><span class="tag stop">Lift Matrix expired</span></td><td>The workbook's Lift Matrix window has run out, so the deck would price this month at an out-of-date matrix. Bradford reloads it; the <strong>Lift Matrix</strong> tab is where the replacement comes from.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Click a client to see its checks &mdash; the same <span class="tag ok">[ok]</span>, <span class="tag warn">[!!]</span> and <span class="tag stop">[STOP]</span> lines as the window version, explained under <a href="#checks">What the checks mean</a> &mdash; then <strong>Build</strong>. When another of the client's programs has its data this cycle you get two buttons: <strong>Build ARS only</strong>, or <strong>Build combined</strong> with every program that has data named on it. A program left out is named with the reason.</p>
+    <p>A client's checks are kept for a few minutes so the page stays quick. A row that says it is checking again holds its Build buttons until the fresh answer arrives; <strong>Check again</strong> always re-reads the share from scratch.</p>
+
+    <h3>Lift Matrix</h3>
+    <p>Each ARS client's <strong>current</strong> Lift Matrix, out of their workbook, beside a <strong>new one calculated from their own ODD</strong> &mdash; side by side, with the change and each segment's step. The interchange rate, NSF/OD fee, collection rate and outlier cap are yours to change: edit them and press <strong>Recalculate</strong>. Until you do, the figures below still belong to the previous values and the export is held, so a matrix is never exported at rates it was not calculated at.</p>
+    <p><strong>Export this matrix</strong> downloads the Excel file for Bradford and records that you exported it. It is never written to Outputs, and it changes nothing in the client's workbook &mdash; Bradford loads it.</p>
+    <div class="note">The matrix a deck prices from is the one in the client's <em>workbook</em>. Exporting a new one here is a request to Bradford, not a change to this month's deck.</div>
+
+    <h3>Data Issues</h3>
+    <p>What is wrong with a client's data, in one place: the items from the <strong>ODD and Workbook Issues</strong> and <strong>CSM Data Gaps</strong> pages, plus the code and Lift Matrix checks from the morning refresh. Each item is dated, and the chips along the top filter them &mdash; Blockers, Decisions, Gaps, Warnings, Codes and Lift Matrix, Completed &mdash; each with its count.</p>
+    <p>When you have dealt with one, press <strong>Mark complete</strong> and it leaves the open list. It stays out until a newer ARS, MRPCPM or ICS workbook lands for that client, which is when the item is worth a second look.</p>
+    <div class="note caution">Unmapped product, Reg E and account status codes are corrected on the <strong>client's code sheet</strong>, never forced in the build. Every client page links their newest sheet: <strong>Open code sheet</strong> opens it, <strong>Show it in File Explorer</strong> shows you where it lives.</div>
+
+    <h3>The row of links under every client</h3>
+    <p>Wherever a client appears, the same row sits under their name &mdash; <strong>Deck checks</strong>, <strong>Lift Matrix</strong>, <strong>N data issues</strong>, <strong>Open code sheet</strong>, <strong>Show it in File Explorer</strong> &mdash; minus the tab you are already on. One client, three views, without going looking for them.</p>
   </section>
 
   <section id="checks">
@@ -197,11 +238,12 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
       <table>
         <thead><tr><th scope="col">Folder in CSM_Reporting</th><th scope="col">What's there</th></tr></thead>
         <tbody>
-          <tr><td><span class="path">Build ARS Deck.bat</span></td><td>The launcher. Double-click it.</td></tr>
-          <tr><td><span class="path">ARS Deck Builder GUI.bat</span></td><td>CSM Sheila: the same launcher in your browser.</td></tr>
+          <tr><td><span class="path">ARS Deck Builder GUI.bat</span></td><td>CSM Sheila in your browser: decks, the Lift Matrix and each client's data issues.</td></tr>
+          <tr><td><span class="path">Build ARS Deck.bat</span></td><td>The same build in a window, one client at a time.</td></tr>
           <tr><td><span class="path">Outputs\&lt;CSM&gt;\</span></td><td>Your finished decks.</td></tr>
           <tr><td><span class="path">Outputs\_Archive\</span></td><td>Decks replaced by a newer build. It stays at the top of Outputs.</td></tr>
           <tr><td><span class="path">Inputs\</span></td><td>The ODD extracts and workbooks the build reads. Leave these alone.</td></tr>
+          <tr><td><span class="path">Inputs\Code Sheets\</span></td><td>The client code sheets. This is where an unmapped code gets corrected.</td></tr>
           <tr><td><span class="path">Build Artifacts\launcher\</span></td><td>A build's log, charts and data files. You only need these if Aaron asks for a <code>build.log</code>.</td></tr>
           <tr><td><span class="path">Tools\</span></td><td>The launcher's code and Python. Don't change anything here.</td></tr>
         </tbody>

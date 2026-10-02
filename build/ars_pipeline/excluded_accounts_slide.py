@@ -129,7 +129,7 @@ def extract_exclusions(odd_source):
     # those 324 on the slide as "outside ARS" while the core calls them eligible.
     prod = defaultdict(lambda: dict(desc="", live=0, elig=0))
     status = defaultdict(int)
-    tot = closed = elig_all = 0
+    tot = closed = 0
     reader = pd.read_csv(odd_csv, skiprows=hdr, dtype=str, chunksize=100_000,
                          encoding="latin-1", on_bad_lines="skip",
                          usecols=lambda c: c.strip() in want)
@@ -149,7 +149,6 @@ def extract_exclusions(odd_source):
         d["elig"] = d[elig_col].eq("Yes")
         tot += len(d)
         closed += int(d["isclosed"].sum())
-        elig_all += int(d["elig"].sum())
         live = d[~d["isclosed"]]                     # the book ARS can act on
         for s_, n in live.loc[~live["isopen"] & ~live["elig"], "label"].value_counts().items():
             status[s_] += int(n)
@@ -165,30 +164,37 @@ def extract_exclusions(odd_source):
     # pass 2 — waterfall over every account the core does NOT flag eligible,
     # each counted once, in the first reason that applies.
     o = pd.concat(chunks) if chunks else pd.DataFrame(columns=list(want) + ["elig", "isopen"])
+    # ONE population across both slides (Aaron, 2026-10-02): every account the core
+    # does not call closed. Product Mix counts its "Total Accounts - Excl. Closed"
+    # the same way, through the same classifier, so the two slides state the same
+    # book and this slide's pieces sum to it:
+    #     accounts excl. closed = outside ARS + ARS-eligible.
+    # This slide used to count the strictly-OPEN subset instead (Aaron, 2026-08-29),
+    # which is defensible on its own and does not survive being read next to the
+    # slide before it: 1549 showed 66,462 open here under 71,466 excl. closed there,
+    # and two eligible counts two apart, bridged only by a footnote. A reader cannot
+    # add up a deck whose consecutive slides count different books.
+    live_n = len(o)
     open_n = int(o["isopen"].sum()) if len(o) else 0
-    # The slide explains excluded OPEN accounts only (Aaron, 2026-08-29). A closed
-    # or charged-off account is outside ARS by definition and explains nothing; a
-    # dormant or inactive one is a different question from "why is this open
-    # account not eligible". Both are still counted, and named in the source note
-    # so the scope is stated rather than implied — they are just not reasons.
-    n_status = int((~o["isopen"] & ~o["elig"]).sum()) if len(o) else 0
-    # Eligible among OPEN accounts, so the tiles reconcile:
-    #   open accounts = open-and-excluded + open-and-eligible.
-    # The whole-book eligible count (elig_all) includes dormant accounts the core
-    # still flags eligible — 147 on 1204 — and using it here left the three tiles
-    # 147 apart with no way for a reader to see why.
+    elig_live = int(o["elig"].sum()) if len(o) else 0
     elig_open = int((o["isopen"] & o["elig"]).sum()) if len(o) else 0
-    # Eligible accounts that are NOT open — dormant or inactive, still flagged
-    # eligible by the core. This is the whole difference between this slide's
-    # eligible tile and Product Mix's (10,441 vs 10,588 on 1204), and it used to
-    # be silent: a reader saw two eligible counts on consecutive slides with
-    # nothing to bridge them. Stated on the slide now (Aaron, 2026-09-02).
+    # Eligible but NOT open — dormant or inactive accounts the core still flags
+    # eligible (2 on 1549, 147 on 1204). They are inside the eligible tile now,
+    # because Product Mix counts them too; the note still names them.
     elig_other = int((~o["isopen"] & o["elig"]).sum()) if len(o) else 0
-    r0 = o[o["isopen"] & ~o["elig"]] if len(o) else o   # open and not eligible
+
+    # The waterfall: every account excl. closed that the core does NOT flag
+    # eligible, counted once, in the first reason that applies. Status goes FIRST —
+    # an account that is not open is outside ARS whatever its product — which is
+    # also what leaves the product / debit card / other bars reading exactly as they
+    # did when this slide counted open accounts only.
+    r0 = o[~o["elig"]] if len(o) else o                 # excl. closed, not eligible
     ie = r0
-    in_excl = r0["Prod Code"].isin(excl_codes) if len(r0) else r0
-    n_prod = int(in_excl.sum()) if len(r0) else 0
-    rest = r0[~in_excl] if len(r0) else r0
+    n_status = int((~r0["isopen"]).sum()) if len(r0) else 0
+    r_open = r0[r0["isopen"]] if len(r0) else r0
+    in_excl = r_open["Prod Code"].isin(excl_codes) if len(r_open) else r_open
+    n_prod = int(in_excl.sum()) if len(r_open) else 0
+    rest = r_open[~in_excl] if len(r_open) else r_open
     no_debit = rest["Debit?"].ne("Yes") if len(rest) else rest
     n_nodebit = int(no_debit.sum()) if len(rest) else 0
     rem = rest[~no_debit] if len(rest) else rest
@@ -223,8 +229,8 @@ def extract_exclusions(odd_source):
 
     return dict(
         month_label=month_label, elig_col=elig_col, mail_col=mail_col if has_mail else None,
-        total=tot, closed=closed, open_total=open_n,
-        elig_total=elig_all, elig_open=elig_open, elig_other=elig_other,
+        total=tot, closed=closed, open_total=live_n, open_only=open_n,
+        elig_total=elig_live, elig_open=elig_open, elig_other=elig_other,
         excluded_total=len(ie),
         n_status_excluded=n_status,
         status_other=sorted(status.items(), key=lambda kv: -kv[1]),
@@ -242,11 +248,16 @@ def render_chart(data, assets_dir):
     os.makedirs(assets_dir, exist_ok=True)
     use_font("Carlito")
 
-    # Reasons an OPEN account is not eligible. Closed / charged-off and
-    # dormant / inactive accounts are excluded from the slide's population
-    # entirely (Aaron, 2026-08-29) — they are not reasons, they are a different
-    # book. Their counts are stated in the source note.
+    # Reasons an account excl. closed is not eligible, including "not open" — which
+    # IS a reason, and is the one the slide used to leave out by scoping it away.
+    # Closed and charged-off accounts are outside the population entirely; their
+    # count is stated in the source note.
     rows = []
+    if data["n_status_excluded"]:
+        # "Account not open" names what the bucket holds without naming a status the
+        # data did not give: dormant, inactive, frozen, and any value the shared
+        # classifier could not map (flagged separately, never guessed at).
+        rows.append(("Account not open", data["n_status_excluded"]))
     if data["n_prod_excluded"]:
         rows.append((f"Product not in ARS ({data['n_excl_codes']} codes)",
                      data["n_prod_excluded"]))
@@ -255,6 +266,9 @@ def render_chart(data, assets_dir):
     if data["n_unexplained"]:
         rows.append(("Other account-level reason", data["n_unexplained"]))
     rows = [r for r in rows if r[1] > 0]
+    # Sorted, THEN reversed: "largest on top" used to rely on the reasons happening
+    # to be listed in descending order, which a fourth bar need not respect.
+    rows.sort(key=lambda r: -r[1])
     rows.reverse()                      # largest ends up on top in barh
 
     top = max((v for _, v in rows), default=0)
@@ -277,7 +291,9 @@ def render_chart(data, assets_dir):
     ax.spines["left"].set_color(_GREY_HX)
     ax.set_xticks([])
     ax.tick_params(axis="y", length=0)
-    denom = data["total"] or 1
+    # Percentages are of the book the tiles state, not of every row in the extract.
+    # Against `total` a bar read 17.5% under a tile saying 43% of the same accounts.
+    denom = data["open_total"] or 1
     for i, v in enumerate(vals):
         ax.text(v + top * 0.02, i, f"{v:,}  ({v/denom*100:.1f}%)", va="center",
                 ha="left", fontsize=10.5, color=_NAVY_HX, fontweight="bold")
@@ -321,20 +337,26 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
     _tb(s, 0.5, 0.28, 9.6, 0.9, "Excluded Accounts", 26, NAVY, True,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     _pill(s, f"{data['month_label']} Data")
-    _sub = ("Why OPEN accounts are outside ARS. Each counted once, first reason "
-            "that applies.")
-    if data.get("elig_other"):
-        _sub += f" Plus {data['elig_other']:,} eligible dormant/inactive accounts."
+    # No "plus N eligible dormant accounts" clause any more: those accounts are
+    # inside the eligible tile, which is why it now matches Product Mix's.
+    # One line at 16pt in 12.10in: the first wording of this said which statuses are
+    # in the population and measured 13.66in, which the gate caught. The statuses are
+    # in the notes; the slide only has to say the population is the same one.
+    _sub = ("Why accounts are outside ARS. Same accounts as Product Mix. Each "
+            "counted once, first reason that applies.")
     _tb(s, 0.5, 1.12, 12.3, 0.5, _sub,
         14, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     excl_all = data["excluded_total"]
-    open_n = data["open_total"]
-    share = round(excl_all / open_n * 100) if open_n else 0
-    tiles = [(f"{open_n:,}", "Open accounts", NAVY),
-             (f"{excl_all:,}", "Open, outside ARS", ORANGE),
-             (f"{share}%", "Share of open accounts", NAVY),
-             (f"{data['elig_open']:,}", "ARS-eligible open accounts", NAVY)]
+    book = data["open_total"]
+    share = round(excl_all / book * 100) if book else 0
+    # Tile 1 and tile 4 carry Product Mix's wording as well as its figures: a reader
+    # comparing the two slides is comparing like with like, and the middle two tiles
+    # say how the book splits — excl_all + elig_total == book, by construction.
+    tiles = [(f"{book:,}", "Total Accounts - Excl. Closed", NAVY),
+             (f"{excl_all:,}", "Outside ARS", ORANGE),
+             (f"{share}%", "Share of accounts", NAVY),
+             (f"{data['elig_total']:,}", "ARS-eligible accounts", NAVY)]
     for i, (v, l, f) in enumerate(tiles):
         _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f)
 
@@ -387,14 +409,15 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
         PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     src = (f"Source: client ODD, {data['month_label']} snapshot ({data['elig_col']}). "
-           f"Population: the {data['open_total']:,} OPEN accounts on file. Outside this "
-           f"slide: {data['closed']:,} closed or charged-off accounts, and "
-           f"{data['elig_other']:,} dormant/inactive accounts that ARE eligible "
-           f"(the difference against Product Mix's eligible count), and "
-           f"{data['n_status_excluded']:,} dormant/inactive accounts that are not "
-           f"eligible — both are a different book, not a reason an open account is "
-           f"excluded. "
-           f"Excluded product codes derived per client as those with no eligible open "
+           f"Population: the {data['open_total']:,} accounts on file excluding closed — "
+           f"the same population Product Mix counts, so the two slides agree. "
+           f"{data['open_only']:,} of them are open; the other "
+           f"{data['open_total'] - data['open_only']:,} are dormant, inactive or a "
+           f"status this extract does not map, and are outside ARS for that reason "
+           f"({data['elig_other']:,} of them are flagged eligible by the core even so, "
+           f"and are counted as eligible here and on Product Mix). Outside this slide: "
+           f"{data['closed']:,} closed or charged-off accounts. "
+           f"Excluded product codes derived per client as those with no eligible "
            f"account. Reason order: status, product code, debit card. "
            + " ".join(notes))
     s.notes_slide.notes_text_frame.text = src

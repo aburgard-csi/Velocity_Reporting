@@ -79,7 +79,8 @@ _MONTH_RE = re.compile(r"^([A-Z][a-z]{2})(\d{2})\s+(.*)$")
 # Closed-ness comes from the SHARED classifier, not a local set. This was
 # `_CLOSED = {"Closed"}` matched against Stat Desc alone, so anything else counted
 # as open: on 1204 that put 90 CHARGE-OFF accounts inside a total labelled
-# "Total Accounts - Excl. Closed", and it would miss every closed account at a
+# "Total Accounts - Excl. Closed" (the shared classifier reads "charge" as closed,
+# so they no longer land there), and it would miss every closed account at a
 # client whose core leaves Stat Desc blank and fills Stat Code (1549 Wellworth
 # leaves it blank on 18,274 of 50,218 rows). Dormant and Inactive are still
 # counted here — they are not closed — which is the remaining, deliberate
@@ -306,7 +307,7 @@ def _build_table_rows(data, max_elig=5):
     # alignment with the slide footer.
     elig_prods = [p for p in data["products"] if p["is_eligible"]]
     elig_prods.sort(key=lambda p: -p["elig"])
-    rows = [["Product", "Open", "ARS-Elig."]]
+    rows = [["Product", "Accounts", "ARS-Elig."]]
     shown = elig_prods[:max_elig]
     for p in shown:
         rows.append([p["name"], f"{p['open']:,}", f"{p['elig']:,}"])
@@ -317,7 +318,7 @@ def _build_table_rows(data, max_elig=5):
     rows.append([f"All other products ({n_other})",
                  f"{data['open_total'] - shown_open:,}",
                  f"{other_elig:,}" if other_elig > 0 else "—"])
-    rows.append(["Total — open accounts", f"{data['open_total']:,}",
+    rows.append(["Total — excl. closed", f"{data['open_total']:,}",
                  f"{data['elig_total']:,}"])
     highlight = (len(rows) - 1,)   # orange Total row
     return rows, highlight
@@ -339,17 +340,19 @@ def add_product_mix_slide(prs, odd_csv, assets_dir, before_title="Program Overvi
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
     _pill(s, f"{data['month_label']} Data")
     _tb(s, 0.5, 1.12, 12.3, 0.5,
-        "Open deposit accounts by product. ARS eligibility reflects the current "
-        "program eligibility flag.",
+        "Deposit accounts by product, excluding closed. ARS eligibility reflects "
+        "the current program eligibility flag.",
         14, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     # KPI tiles
     share = round(data["elig_total"] / data["open_total"] * 100) if data["open_total"] else 0
     n_elig = sum(1 for p in data["products"] if p["is_eligible"])
-    # Label names what open_total actually counts: every account whose Stat Desc
-    # is not "Closed" — Dormant / Inactive / Frozen / Charged Off are all in it.
-    # "Open accounts" read as the status-Open count and understated the coverage
-    # (Aaron, 2026-08-28).
+    # Label names what open_total actually counts: every account the shared
+    # classifier does not class as closed — Dormant, Inactive, Frozen and any
+    # unmapped status are all in it (charged-off is not: "charge" is a closed
+    # prefix). "Open accounts" read as the status-Open count and understated the
+    # coverage (Aaron, 2026-08-28). Excluded Accounts counts this same population
+    # (Aaron, 2026-10-02), which is what lets the two slides be added together.
     tiles = [(f"{data['open_total']:,}", "Total Accounts - Excl. Closed", NAVY),
              (f"{data['elig_total']:,}", "ARS-eligible accounts", ORANGE),
              (f"{share}%", "Eligible share of open", NAVY),
@@ -373,7 +376,9 @@ def add_product_mix_slide(prs, odd_csv, assets_dir, before_title="Program Overvi
 
     # source in the notes, not on the slide face (STYLE.md, Aaron 2026-07-15)
     s.notes_slide.notes_text_frame.text = (f"Source: client ODD, {data['month_label']}. "
-        "Open accounts exclude closed. ARS eligibility per current program flag.")
+        f"Population: {data['open_total']:,} accounts excluding closed (dormant and "
+        f"inactive included) — the same population the Excluded Accounts slide counts, "
+        f"so the two slides' figures add up. ARS eligibility per current program flag.")
     logo = os.path.join(assets_dir, "logo.png")
     if os.path.exists(logo):
         s.shapes.add_picture(logo, Inches(11.28), Inches(6.78), Inches(1.70), Inches(0.54))
