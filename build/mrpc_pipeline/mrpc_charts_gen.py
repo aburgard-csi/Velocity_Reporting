@@ -263,13 +263,11 @@ def chart_revenue(d, out, dims):
     for i,a in enumerate(amt):
         if i==proj_i:
             ax.text(i,a/2,f"${a/1000:,.0f}K",ha='center',va='center',color=NAVY,fontweight='bold',fontsize=12)
-            ax.text(i,top[i]+max(top)*0.02,f"${top[i]/1000:,.0f}K
-projected",ha='center',va='bottom',
+            ax.text(i,top[i]+max(top)*0.02,f"${top[i]/1000:,.0f}K\nprojected",ha='center',va='bottom',
                     color=NAVY,fontweight='bold',fontsize=12,linespacing=1.0)
         else:
             ax.text(i,a+max(top)*0.02,f"${a/1000:,.0f}K",ha='center',va='bottom',color=NAVY,fontweight='bold',fontsize=13)
-    labels=[(y.replace(" YTD","")+"
-(YTD + proj.)") if i==proj_i else y for i,y in enumerate(yrs)]
+    labels=[(y.replace(" YTD","")+"\n(YTD + proj.)") if i==proj_i else y for i,y in enumerate(yrs)]
     ax.set_xticks(x); ax.set_xticklabels(labels,fontsize=13,color=TICK)
     ax.set_ylim(0,max(top)*1.22); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
@@ -298,7 +296,7 @@ def chart_revenue_month(d, out, dims):
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,v,color=cols,width=0.7)
     for i,a in enumerate(v):
-        ax.text(i,a+max(v)*0.015,f"${a/1000:.1f}K",ha='center',va='bottom',color=NAVY,fontsize=13,fontweight='bold')
+        ax.text(i,a+max(v)*0.015,f"${a/1000:.1f}K",ha="center",va="bottom",color=NAVY,fontsize=12,fontweight='bold')
     ax.set_xticks(x); ax.set_xticklabels(P.axis_months(m),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
     ax.set_ylim(0,max(v)*1.14); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
@@ -346,14 +344,14 @@ def chart_card_pie(d, out, dims):
             wedgeprops=dict(width=0.42,edgecolor='white',linewidth=2))[0])
     axd.text(0,0.10,f"{total:,}",ha='center',va='center',color=NAVY,fontsize=22,fontweight='bold')
     axd.text(0,-0.16,"cards billed",ha='center',va='center',color=TICK,fontsize=12)
-    y=0.90
+    y=0.88
     for name,val,pr,c in zip(names,vals,prices,cols):
         pct=val/total*100
         axl.add_patch(plt.Rectangle((0.0,y-0.035),0.045,0.06,color=c,transform=axl.transAxes,clip_on=False))
         price=f"   ·   ${pr:.2f}/mo" if pr else "   ·   multiple cards"
         axl.text(0.075,y+0.005,name,fontsize=14,color=NAVY,fontweight='bold',va='center',transform=axl.transAxes)
-        axl.text(0.075,y-0.055,f"{val:,}  ({pct:.1f}%){price}",fontsize=12.5,color=TICK,va='center',transform=axl.transAxes)
-        y-=0.175
+        axl.text(0.075,y-0.105,f"{val:,}  ({pct:.1f}%){price}",fontsize=12.5,color=TICK,va='center',transform=axl.transAxes)
+        y-=0.29
     canvas(fig,*dims,out)
 
 # The inches each chart occupies on its slide (2026-10-02). Every figure used to be drawn

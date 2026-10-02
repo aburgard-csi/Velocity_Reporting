@@ -1033,7 +1033,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 **`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`,
 `ics_local_sheet.py` (builds the ICS client sheet from local files — referral export, current workbook, Charts Goals tab, direct-mail list — when there is no VIP sheet; `build_month` uses it only then, 2026-09-16), `ics_workbook_extract.py` (the quarterly step: populates a client JSON's workbook sections
 from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data — one folder per client; keep client-named).
-**`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py`, `setup_template.py` (one-time template bootstrap; needs `mrpc_template_base.pptx`, which is NOT in the repo — ask Aaron for it if the template must be rebuilt), `data/` (per-client VIP MRPC data).
+**`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py` (charts drawn at their slide slot size, `SLOT_IN`), `revenue_projection.py` (the projected year on Revenue by Year: a straight line through the last 6 complete months; Aaron, 2026-10-02), `setup_template.py` (one-time template bootstrap; needs `mrpc_template_base.pptx`, which is NOT in the repo — ask Aaron for it if the template must be rebuilt), `data/` (per-client VIP MRPC data).
 
 **`templates/`** — ALL deck templates live here (consistent naming; passed to each builder as an arg).
 - `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — the three stripped per-program shells the builders populate (cleaned + styled; "Union Financial" dummy client). **The only legitimate starting point for a build.**

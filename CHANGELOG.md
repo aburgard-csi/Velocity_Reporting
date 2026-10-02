@@ -17,6 +17,37 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — MRPC 2026 revenue projection; MRPC chart text at slide size
+
+Summary: MRPC Revenue by Year now projects the current year from the trend of the last six
+complete months. The projected part is hatched on the 2026 bar, and the sentence beside the
+chart gives the figures. MRPC chart text now reads at its set size on the slide; it used to
+shrink to 7–11pt.
+
+Aaron: "Add a revenue projection here based on the trajectory from the past 6 months." And for
+MRPC Card Portfolio: "increase chart label font sizes here too."
+
+- **Projection** (`revenue_projection.py`; `build_mrpc_gen.revenue_projection`). A
+  least-squares straight line is fitted through the last 6 complete months of VIP Revenue by
+  Month (after `complete_series`). It is extended through December, and any month below $0
+  is floored at $0 and named in the notes. The projected year is the VIP year-to-date actual
+  plus those months. It is computed once and stored as `revenue.projection`, so the chart,
+  the narrative and the notes read the same figures. On the chart the projected remainder is
+  a hatched, outlined segment on the YTD bar, with the projected total above it. The
+  narrative sentence carries the window, the YTD actual, the projected remainder and the
+  comparison to the prior year, worded by the +/-2% band. There is no projection when fewer
+  than 6 complete months are on hand, or when the YTD bar does not end on the same month as
+  the monthly series. The notes give the reason, and that the projection assumes the trend
+  holds. Marine FCU 1539: $94.8K projected ($37.8K actual through May + $57.1K
+  Jun–Dec), up 16.3% on 2025. VIP revenue currently ends at May, so Jun–Sep are projected
+  though they have ended; the notes say so. Tests: `tests/test_revenue_projection.py`.
+- **Chart text** (`mrpc_charts_gen.SLOT_IN`). Each figure was drawn 1.2–1.9x larger than its
+  slot and shrunk to fit, so 13pt text landed at 7–11pt (the Card Portfolio legend at about
+  8pt). Every chart on the deck is now drawn at its slot's size in inches, so the size set
+  in the code is the size on the slide. The Card Portfolio donut and legend are re-set for
+  that size (names 14pt, detail 12.5pt, centre 22pt/12pt) with wider legend spacing.
+  Revenue by Month's value labels are 12pt so adjacent labels do not touch.
+
 ### 2026-10-02 — MRPC "Still Active" line drawn from real counts; Non-User vs Threshold test slide
 
 Summary: The Still Active line on the MRPC Retention chart was invented. It is now drawn from
