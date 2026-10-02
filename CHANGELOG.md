@@ -17,6 +17,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — Sheila answers a refused request instead of dropping the connection
+
+Summary: When Sheila refused a request (for example one without its access token), the
+caller sometimes got a dropped connection instead of the refusal. Sheila now always sends
+the answer. A test that failed now and then on a busy machine was caused by this.
+
+Aaron asked to look into the Sheila token test that failed once in a full run
+(`test_the_api_refuses_a_call_without_the_token`). The test was right; the server was not.
+`do_POST` answered 403 before reading the request body, and on Windows a socket closed with
+unread data is reset. The caller got `ConnectionAbortedError` in 28 of 2,000 tokenless POSTs,
+and in 127 of 2,000 with a 100 KB body. Under a loaded full suite that occasionally hit the
+test's one tokenless POST. `do_POST` now reads the body first, capped at `MAX_POST_BYTES`
+(1 MB; larger is refused 413), then checks the token. 4,000 of 4,000 now answer 403. Tests:
+`test_a_refused_post_is_answered_not_reset` (300 refused 100 KB POSTs, all answered) and
+`test_a_post_over_the_size_cap_is_refused`.
+
 ### 2026-10-02 — Product Mix and Excluded Accounts count one book, and it adds up
 
 Summary: The two account slides disagreed. Product Mix counted every account except closed

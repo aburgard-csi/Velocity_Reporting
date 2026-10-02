@@ -54,6 +54,25 @@ def test_the_api_refuses_a_call_without_the_token(server):
     assert call(server, "GET", "/api/clients")[0] == 200
 
 
+def test_a_refused_post_is_answered_not_reset(server):
+    """A POST refused for want of the token used to be answered before its body was read, and
+    Windows reset the connection: ConnectionAbortedError instead of 403, in about 6% of calls
+    with a 100 KB body, and now and then in the test above under a loaded full run
+    (2026-10-02). The server reads the body first now."""
+    body = {"client": "1441", "pad": "x" * 100_000}
+    assert {call(server, "POST", "/api/build", body, token=False)[0] for _ in range(300)} == {403}
+
+
+def test_a_post_over_the_size_cap_is_refused(server):
+    c = http.client.HTTPConnection("127.0.0.1", server, timeout=10)
+    c.putrequest("POST", "/api/build")
+    c.putheader("Content-Length", str(W.MAX_POST_BYTES + 1))
+    c.putheader("X-Token", W.TOKEN)
+    c.endheaders()
+    assert c.getresponse().status == 413
+    c.close()
+
+
 def test_the_api_refuses_a_foreign_host_header(server):
     # DNS rebinding: a page on another name resolving to 127.0.0.1 still sends its own Host.
     assert call(server, "GET", "/api/clients", host="evil.example:80")[0] == 403

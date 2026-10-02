@@ -40,6 +40,8 @@ import rpe_env as R           # noqa: E402
 import ars_launcher as L      # noqa: E402
 
 TOKEN = secrets.token_urlsafe(24)
+# The largest body any POST reads. The biggest real one, the Lift Matrix rates, is a few KB.
+MAX_POST_BYTES = 1_000_000
 CID_RX = re.compile(r"^\d{3,5}$")
 DECK_RX = re.compile(r"(?:In Outputs:|already identical to this build:)\s*(.+?\.pptx)")
 LINE_RX = re.compile(r"^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$")
@@ -1562,10 +1564,24 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        # Read the body BEFORE refusing (2026-10-02). Answering 403 and closing with the body
+        # still unread makes Windows reset the connection, so the caller got
+        # ConnectionAbortedError instead of the 403 -- 28 in 2,000 tokenless POSTs, 127 with a
+        # 100 KB body, and the occasional failure of test_the_api_refuses_a_call_without_the_token
+        # under a loaded full run. Capped, so a refused caller cannot make the server read without
+        # limit.
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if n < 0 or n > MAX_POST_BYTES:
+            self.close_connection = True
+            return self._send(413 if n > 0 else 400, {"error": "bad request"})
+        raw = self.rfile.read(n) if n else b""
         if not self._api_ok():
             return self._send(403, {"error": "forbidden"})
         try:
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0) or 0) or b"{}")
+            body = json.loads(raw or b"{}")
         except ValueError:
             return self._send(400, {"error": "bad request"})
         path = urlparse(self.path).path
