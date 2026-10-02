@@ -71,10 +71,15 @@ def parse_report_name(filename):
     return m.group(1), file_kind(rest), name
 
 
-def share_reports(root, period, log=print):
+def share_reports(root, period, log=print, months=2):
     """(folder period, {id: {"csm", "name", "kinds"}}) from the reports share, or None.
 
-    Reads the newest `<yyyy.mm>` folder at or before `period` that holds any client file.
+    Reads the newest `months` `<yyyy.mm>` folders at or before `period` that hold any
+    client file, and merges them: a client in either is current, and the newer folder's
+    CSM and name win (Aaron, 2026-10-02). Reading only the newest folder dropped every
+    client whose files had not landed yet - the page follows the calendar month, and on
+    2 October the 2026.10 folder held DCOs for 27 clients, so the page fell from every
+    current client to the roster plus five. The folder returned is the newest one read.
     None means the share could not be read — the top folder or ANY account-manager folder
     in it — because a partial read would drop every client in the folder that failed.
     A name prefers the DCO's spelling, the one file every client has.
@@ -84,34 +89,56 @@ def share_reports(root, period, log=print):
                        reverse=True)
     except OSError:
         return None
+    found = []
     for pd in pdirs:
-        base = os.path.join(root, pd)
-        try:
-            ams = sorted(e for e in os.listdir(base) if os.path.isdir(os.path.join(base, e)))
-        except OSError:
+        got = _read_period_folder(root, pd, log)
+        if got is None:
             return None
-        out = {}
-        for am in ams:
-            try:
-                names = sorted(os.listdir(os.path.join(base, am)))
-            except OSError:
-                log("current clients: %s\\%s could not be read" % (pd, am))
-                return None
-            for n in names:
-                got = parse_report_name(n)
-                if not got:
-                    continue
-                cid, kind, name = got
-                rec = out.setdefault(cid, {"csm": am, "name": "", "kinds": []})
-                if kind and kind not in rec["kinds"]:
-                    rec["kinds"].append(kind)
-                if name and (not rec["name"] or kind == DCO):
-                    rec["name"] = name
-        if out:
-            for rec in out.values():
-                rec["kinds"].sort()
-            return pd, out
-    return None, {}
+        if got:
+            found.append((pd, got))
+            if len(found) == months:
+                break
+    if not found:
+        return None, {}
+    merged = {}
+    for _pd, out in reversed(found):                 # oldest first, so the newer folder wins
+        for cid, rec in out.items():
+            prev = merged.get(cid)
+            if prev:
+                rec = dict(rec, kinds=sorted(set(prev["kinds"]) | set(rec["kinds"])),
+                           name=rec["name"] or prev["name"])
+            merged[cid] = rec
+    return found[0][0], merged
+
+
+def _read_period_folder(root, pd, log=print):
+    """{id: {"csm", "name", "kinds"}} for one `<yyyy.mm>` folder, {} when it holds no
+    client file, or None when it (or any account-manager folder in it) cannot be read."""
+    base = os.path.join(root, pd)
+    try:
+        ams = sorted(e for e in os.listdir(base) if os.path.isdir(os.path.join(base, e)))
+    except OSError:
+        return None
+    out = {}
+    for am in ams:
+        try:
+            names = sorted(os.listdir(os.path.join(base, am)))
+        except OSError:
+            log("current clients: %s\\%s could not be read" % (pd, am))
+            return None
+        for n in names:
+            got = parse_report_name(n)
+            if not got:
+                continue
+            cid, kind, name = got
+            rec = out.setdefault(cid, {"csm": am, "name": "", "kinds": []})
+            if kind and kind not in rec["kinds"]:
+                rec["kinds"].append(kind)
+            if name and (not rec["name"] or kind == DCO):
+                rec["name"] = name
+    for rec in out.values():
+        rec["kinds"].sort()
+    return out
 
 
 def current_clients(period, work, root, log=print):

@@ -50,6 +50,24 @@ on instead of linking to itself — so from a data issue you can open that clien
 Lift Matrix, and from either of those you can see its issues.
 
 
+### 2026-10-02 — Sheila's Data Issues show the ODD page's findings; the page keeps last month's clients
+
+Summary: CSM Sheila's Data Issues tab now also lists what the ODD and Workbook Issues page finds on its own (Personal/Business flag scan, Mail Flags, trial run, Lift Matrix dates), and the RPE Client Performance page no longer drops clients whose files for the new month haven't landed yet.
+
+Aaron: "the refresh for data issues should also refresh what's shown in Sheila." Sheila read
+`gaps.json` and the dashboard's `dataset.json`, but the ODD page adds findings of its own that it
+only ever wrote into HTML; on 2026-10-02 that was 28 Personal/Business flag findings (e.g. 1204's
+65 unflagged accounts) that the page showed and Sheila did not. `odd_wb_by_csm.py` now also writes
+`Build Artifacts/issue_pages/odd_findings.json` (only the items that did not come from
+`gaps.json`, in Sheila's issue shape, built by `common.odd_findings`), and `issues_doc` reads it as
+a third source, re-read when its file changes. A Lift Matrix window finding is skipped when the
+dashboard's Lift Matrix flag already covers that client. Tests: `tests/test_sheila_issues.py`.
+
+With the period on the calendar month, `perf_clients.share_reports` read only the 2026.10 folder,
+which held 27 clients' first DCOs, and the page fell from 85 clients to 65. It now merges the
+newest two month folders, the newer one's CSM and name winning. Nothing dropped; 1782 and 1790
+appeared with their first DCOs. Test: `tests/test_perf_clients.py`.
+
 ### 2026-10-02 — Performance page period follows the calendar
 
 Summary: The RPE Client Performance page now shows the current month as its reporting period; each row still shows its own newest figures, tagged with their month.

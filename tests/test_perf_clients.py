@@ -34,14 +34,28 @@ def test_report_names_give_id_kind_and_name():
     assert C.parse_report_name("readme.txt") is None
 
 
-def test_current_clients_are_the_newest_month_with_files(tmp_path):
-    root = _share(tmp_path, ["2026.08/Aaron Burgard/1204-2026.08-First State Bank-MI-DCO.xlsx",
+def test_current_clients_are_the_newest_two_months_with_files(tmp_path):
+    root = _share(tmp_path, ["2026.07/Gregg Miller/1811-2026.07-Dutch Point-DCO.xlsx",       # three back
+                             "2026.08/Aaron Burgard/1204-2026.08-First State Bank-MI-DCO.xlsx",
                              "2026.09/Daniel Wood/1095-2026.09-Landmark Bank-DCO.xlsx",
                              "2026.09/Daniel Wood/1095-2026.09-Landmark Bank-Workbook_v2.xlsx",
                              "2026.10/Aaron Burgard/1038-2026.10-Sugar River-DCO.xlsx"])   # after the cycle
     folder, got = C.share_reports(root, "2026.09", log=_quiet)
     assert folder == "2026.09"
-    assert got == {"1095": {"csm": "Daniel Wood", "name": "Landmark Bank", "kinds": ["DCO", "WORKBOOK"]}}
+    assert got == {"1095": {"csm": "Daniel Wood", "name": "Landmark Bank", "kinds": ["DCO", "WORKBOOK"]},
+                   "1204": {"csm": "Aaron Burgard", "name": "First State Bank-MI", "kinds": ["DCO"]}}
+
+
+def test_a_partly_landed_month_keeps_last_months_clients(tmp_path):
+    """2026-10-02: the page follows the calendar, and the 2026.10 folder held 27 clients'
+    DCOs while 2026.09 held every current client. Reading only 2026.10 dropped the rest."""
+    root = _share(tmp_path, ["2026.09/Daniel Wood/1095-2026.09-Landmark Bank-DCO.xlsx",
+                             "2026.09/Daniel Wood/1095-2026.09-Landmark Bank-MRPCPM_Analysis_v10.xlsx",
+                             "2026.09/Daniel Wood/1710-2026.09-Guardian CU-DCO.xlsx",
+                             "2026.10/Gregg Miller/1095-2026.10-Landmark Bank NA-DCO.xlsx"])
+    folder, got = C.share_reports(root, "2026.10", log=_quiet)
+    assert folder == "2026.10" and sorted(got) == ["1095", "1710"]
+    assert got["1095"] == {"csm": "Gregg Miller", "name": "Landmark Bank NA", "kinds": ["DCO", "MRPCPM"]}
 
 
 def test_an_empty_new_month_falls_back_to_the_last_month_with_files(tmp_path):

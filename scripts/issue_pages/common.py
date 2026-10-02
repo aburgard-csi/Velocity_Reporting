@@ -20,6 +20,27 @@ import rpe_env as R  # noqa: E402
 TEMPLATE = HERE / "gaps_template.html"
 ODD_PAGE = "ODD and Workbook Issues.html"
 GAPS_PAGE = "CSM Data Gaps.html"
+# The ODD page's own findings, for CSM Sheila's Data Issues tab (Aaron, 2026-10-02: "the refresh for data issues
+# should also refresh what's shown in Sheila"). Sheila already reads gaps.json, so only the findings the ODD page
+# adds on top of it go here: the Personal/Business and Mail Flag scans, the trial run, the Lift Matrix date
+# window and the extract's missing card months.
+ODD_FINDINGS = "odd_findings.json"
+KIND_SEVERITY = {"block": "blocker", "map": "decision", "fix": "gap", "pending": "gap"}
+
+
+def odd_findings(items, cats, period, generated):
+    """The JSON document for ODD_FINDINGS: every ODD-page item that did not come from gaps.json, in Sheila's
+    issue shape (severity, program, issue, fix). `cats` is the page's {cat: (title, kind, next step)}."""
+    out = []
+    for x in items:
+        if x.get("src", "gaps") == "gaps":
+            continue
+        title, kind, nxt = cats[x["cat"]]
+        out.append({"id": x["id"], "name": x.get("name"), "csm": x.get("csm"), "program": "ARS",
+                    "severity": KIND_SEVERITY[kind], "category": title,
+                    "issue": f"{title}: {x['detail']}" if x.get("detail") else title,
+                    "fix": nxt, "src": x["src"]})
+    return {"period": period, "generated": generated, "findings": out}
 
 
 def work_dir():

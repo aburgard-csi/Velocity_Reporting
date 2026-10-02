@@ -11,7 +11,7 @@ import collections, csv, datetime, html, json, os, re
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 
-from common import ODD_PAGE, R, TEMPLATE, trial_dir, work_dir  # noqa: E402
+from common import ODD_FINDINGS, ODD_PAGE, R, TEMPLATE, odd_findings, trial_dir, work_dir  # noqa: E402
 import build_month as BM          # noqa: E402
 import deck_status as DS          # noqa: E402
 from lift_window import workbook_window   # noqa: E402
@@ -95,7 +95,7 @@ for i in d["issues"]:
         detail = pretty_values(detail)
     if cat == "nowb" and not C.get(i["id"], {}).get("odd_current"):
         continue
-    items.append({"id": i["id"], "name": i["name"], "csm": i["csm"], "cat": cat, "detail": detail})
+    items.append({"id": i["id"], "name": i["name"], "csm": i["csm"], "cat": cat, "detail": detail, "src": "gaps"})
 
 # Trial results the gaps snapshot did not carry (clients outside the current list, e.g. 1585).
 have = {(x["id"], x["cat"]) for x in items}
@@ -109,7 +109,7 @@ for cid, t in TRIAL.items():
         continue
     row = LIST.get(cid, {})
     items.append({"id": cid, "name": t.get("name") or row.get("client_name", ""), "csm": row.get("csm") or "Unassigned",
-                  "cat": cat, "detail": line.replace("POSSIBLE DATA ISSUE: ", "")})
+                  "cat": cat, "detail": line.replace("POSSIBLE DATA ISSUE: ", ""), "src": "trial"})
 
 # Lift Matrix date check (Aaron, 2026-09-15: "add the lift matrix date check to the issue list"): the same
 # lift_window reading and filename flag the launcher stops an MM build on. SM workbooks have no Lift Matrix
@@ -139,7 +139,7 @@ for cid, c in C.items():
         have_lm["detail"] = detail
     else:
         items.append({"id": cid, "name": c.get("name", ""), "csm": c.get("csm") or LIST.get(cid, {}).get("csm") or "Unassigned",
-                      "cat": "lm", "detail": detail})
+                      "cat": "lm", "detail": detail, "src": "lift_window"})
 json.dump(_lcache, open(_LWC, "w", encoding="utf-8"), indent=1)
 
 # Names from the current Client CSM List: the gaps snapshot can predate a name fix (1780 read
@@ -192,7 +192,8 @@ for x in items:
                             + (f"; files there {months[0]} to {months[-1]}: " + ", ".join(f"{k} ×{n}" for k, n in kinds.most_common()) if hist else ""))
         if r.get("latest_month_col") and b and r["latest_month_col"] != b:
             items.append({"id": x["id"], "name": x["name"], "csm": x["csm"], "cat": "malformed",
-                          "detail": f"The extract's data period runs to {fmt_mon(b)}, but its debit swipe and spend columns (Sig / PIN) stop at {fmt_mon(r['latest_month_col'])}: the latest months of card activity are missing"})
+                          "detail": f"The extract's data period runs to {fmt_mon(b)}, but its debit swipe and spend columns (Sig / PIN) stop at {fmt_mon(r['latest_month_col'])}: the latest months of card activity are missing",
+                          "src": "odd_extract"})
 
 # Personal/Business flag: part of the product mapping on the client's code sheet (Aaron,
 # 2026-09-15). The ODD's Business? must read Yes or No; anything else (blank included) puts the
@@ -211,10 +212,12 @@ if BF.exists():
         if set(r["products"]) == {"(no code)"}:
             # No product code at all on those rows: nothing on the code sheet to correct (1539).
             items.append({"id": cid, "name": name, "csm": csm, "cat": "malformed",
-                          "detail": f"{r['unflagged']:,} of {r['accounts']:,} accounts that are not closed or charged off have no Product Code and no Personal/Business flag in the extract, so there is no product to map"})
+                          "detail": f"{r['unflagged']:,} of {r['accounts']:,} accounts that are not closed or charged off have no Product Code and no Personal/Business flag in the extract, so there is no product to map",
+                          "src": "business_flags"})
             continue
         items.append({"id": cid, "name": name, "csm": csm, "cat": "prodflag",
-                      "detail": f"{r['unflagged']:,} of {r['accounts']:,} accounts that are not closed or charged off; flag values {vals}; by product code: {prods}"})
+                      "detail": f"{r['unflagged']:,} of {r['accounts']:,} accounts that are not closed or charged off; flag values {vals}; by product code: {prods}",
+                      "src": "business_flags"})
 
 # Mail Flag (ODD Mailable?): mapped on the client's code sheet. In the ODD it does not set Elig
 # (12 clients tested 2026-09-15: ~99% of otherwise-eligible not-mailable accounts are Elig=Yes);
@@ -228,7 +231,7 @@ if MF.exists():
         vals = "; ".join(f"“{k}” ({n:,})" for k, n in r["values"].items())
         items.append({"id": cid, "name": c.get("name") or row.get("client_name") or TRIAL.get(cid, {}).get("name", ""),
                       "csm": c.get("csm") or row.get("csm") or "Unassigned", "cat": "mailflag",
-                      "detail": f"{r['unmapped']:,} of {r['accounts']:,} accounts; values {vals}"})
+                      "detail": f"{r['unmapped']:,} of {r['accounts']:,} accounts; values {vals}", "src": "mail_flags"})
 
 # Products and location from the Velocity client/product export (Aaron, 2026-09-15). Everything on
 # this page is about ARS inputs, so a client the export shows without ARS, or does not list at all,
@@ -351,4 +354,8 @@ page = f"""<meta charset="utf-8">
 <footer>Terms follow the VIP Data Specification (DDA Master File). Unmapped Reg E Codes and Account Status Codes come from the data packs of clients built in the {esc(PERIOD)} trial run; clients not trial-built this run are not scanned for them here.</footer>
 </div>"""
 (S / ODD_PAGE).write_text(page, encoding="utf-8")
+# The same findings for CSM Sheila's Data Issues tab, which reads this file beside gaps.json (2026-10-02).
+_doc = odd_findings(items, CATS, PERIOD, _now.strftime("%Y-%m-%d %H:%M"))
+(S / ODD_FINDINGS).write_text(json.dumps(_doc, indent=1, ensure_ascii=False), encoding="utf-8")
 print(f"{ODD_PAGE}: {len(items)} findings, {total_clients} clients;", {c: len(v) for c, v in by_csm.items()})
+print(f"{ODD_FINDINGS}: {len(_doc['findings'])} findings beyond gaps.json, for Sheila")

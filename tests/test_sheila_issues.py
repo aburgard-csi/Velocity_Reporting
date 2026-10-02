@@ -55,6 +55,41 @@ def test_each_clients_issues_come_from_both_sources_with_their_dates(root):
     assert c["1075"]["count"] == 0 and c["1075"]["code_sheet"] is None
 
 
+def test_the_odd_pages_own_findings_reach_sheila(root):
+    """2026-10-02: the ODD and Workbook Issues page's scans (Personal/Business flags, Mail Flags, the trial run,
+    the Lift Matrix date window) were on the page only; Sheila's Data Issues tab never saw them."""
+    (root / "Build Artifacts" / "issue_pages" / "odd_findings.json").write_text(json.dumps({
+        "period": "2026.10", "generated": "2026-10-02 07:07",
+        "findings": [
+            {"id": "1075", "name": "Austin Bank", "csm": "Aaron Burgard", "program": "ARS", "severity": "decision",
+             "issue": "Product codes with no Personal/Business flag: 65 of 19,933 accounts", "fix": "Correct the code sheet",
+             "src": "business_flags"},
+            {"id": "1453", "name": "Connex CU", "csm": "James Gilmore", "program": "ARS", "severity": "blocker",
+             "issue": "Lift Matrix expired: window Jul 2025 - Jun 2026", "fix": "New Lift Matrix", "src": "lift_window"},
+            {"id": "1802", "name": "New Client", "csm": "Daniel Wood", "program": "ARS", "severity": "gap",
+             "issue": "Malformed or incomplete ODD extract: card months missing", "fix": "Data team", "src": "odd_extract"}]}),
+        encoding="utf-8")
+    c = {e["id"]: e for e in W.issues_doc()["clients"]}
+    assert c["1075"]["count"] == 1 and c["1075"]["issues"][0]["issue"].startswith("Product codes with no")
+    assert c["1453"]["count"] == 4                     # the dashboard's Lift Matrix flag already covers it
+    assert c["1802"]["csm"] == "Daniel Wood" and c["1802"]["issues"][0]["severity"] == "gap"
+
+
+def test_odd_findings_keep_only_what_gaps_json_does_not_carry():
+    sys.path.insert(0, os.path.join(REPO, "scripts", "issue_pages"))
+    import common as IC
+    cats = {"prodflag": ("Product codes with no Personal/Business flag", "map", "Fix the code sheet"),
+            "lm": ("Lift Matrix expired", "block", "New Lift Matrix")}
+    doc = IC.odd_findings([{"id": "1075", "name": "Austin", "csm": "Aaron", "cat": "lm", "detail": "x", "src": "gaps"},
+                           {"id": "1204", "name": "FSB", "csm": "Aaron", "cat": "prodflag", "detail": "65 accounts",
+                            "src": "business_flags"}], cats, "2026.10", "2026-10-02 07:07")
+    assert [f["id"] for f in doc["findings"]] == ["1204"]
+    assert doc["findings"][0] == {"id": "1204", "name": "FSB", "csm": "Aaron", "program": "ARS", "severity": "decision",
+                                  "category": "Product codes with no Personal/Business flag",
+                                  "issue": "Product codes with no Personal/Business flag: 65 accounts",
+                                  "fix": "Fix the code sheet", "src": "business_flags"}
+
+
 def test_the_newest_code_sheet_is_linked_and_a_lock_file_never_is(root):
     assert W.issues_doc()["clients"][-1]["code_sheet"] == "1453-Connex CU-260915_104629-ARS Client Codes v1_4.xls"
     assert W.code_sheet("1453").name.startswith("1453-Connex CU-260915")

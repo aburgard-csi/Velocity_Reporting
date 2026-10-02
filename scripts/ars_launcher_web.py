@@ -1267,6 +1267,10 @@ def lift_scan_all():
 #   Build Artifacts/issue_pages/gaps.json       the issue pages' per-client list (severity, program, issue, fix)
 #   Build Artifacts/perf_dashboard/dataset.json the morning dashboard's checks: codes the client's code tables do not
 #                                               map (perf_actions), Lift Matrix flags, and what could not be checked
+#   Build Artifacts/issue_pages/odd_findings.json what the ODD and Workbook Issues page finds beyond gaps.json: the
+#                                               Personal/Business and Mail Flag scans, the trial run, the Lift Matrix
+#                                               date window (Aaron, 2026-10-02: "the refresh for data issues should
+#                                               also refresh what's shown in Sheila")
 SEVERITY_ORDER = {"blocker": 0, "decision": 1, "gap": 2, "warning": 3}
 CODE_SHEET_EXTS = (".xls", ".xlsx", ".xlsm")
 _CODE_STAMP_RX = re.compile(r"-(\d{6}_\d{6})-")
@@ -1323,14 +1327,15 @@ def open_code_sheet(cid, action):
 
 
 def issues_doc():
-    """Every client's data issues from both sources, grouped by client. Re-read only when either file changes."""
+    """Every client's data issues from all three sources, grouped by client. Re-read only when a file changes."""
     ba = R.build_artifacts()
     gp, dp = ba / "issue_pages" / "gaps.json", ba / "perf_dashboard" / "dataset.json"
-    key = tuple((str(p), p.stat().st_mtime_ns if p.is_file() else None) for p in (gp, dp))
+    op = ba / "issue_pages" / "odd_findings.json"
+    key = tuple((str(p), p.stat().st_mtime_ns if p.is_file() else None) for p in (gp, dp, op))
     if _issues_cache["key"] == key:
         doc = _issues_cache["doc"]
     else:
-        gaps, ds = _read_json(gp) or {}, _read_json(dp) or {}
+        gaps, ds, odd = _read_json(gp) or {}, _read_json(dp) or {}, _read_json(op) or {}
         clients = {}
 
         def entry(cid, name, csm):
@@ -1351,6 +1356,13 @@ def issues_doc():
             e["codes"] = [{k: x.get(k) for k in ("label", "values", "no_table", "eligibility")}
                           for x in a.get("codes", [])]
             e["lift_matrix"], e["unchecked"] = a.get("lift_matrix"), a.get("unchecked") or []
+        for f in odd.get("findings", []):
+            e = entry(f["id"], f.get("name"), f.get("csm"))
+            if f.get("src") == "lift_window" and e["lift_matrix"]:
+                continue                     # the dashboard's Lift Matrix flag already says it
+            i = {k: f.get(k) for k in ("severity", "program", "issue", "fix")}
+            if i not in e["issues"]:
+                e["issues"].append(i)
         for e in clients.values():
             e["issues"].sort(key=lambda i: (SEVERITY_ORDER.get(i["severity"], 9), i.get("program") or ""))
             e["count"] = len(e["issues"]) + len(e["codes"]) + (1 if e["lift_matrix"] else 0)
