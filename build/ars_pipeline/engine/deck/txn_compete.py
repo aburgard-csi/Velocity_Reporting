@@ -26,8 +26,8 @@ def who_competes(h, t, base):
               f"of {t.get('comp_accounts_total', 0):,} {base}"),
              ("Multi-banked", f"{t.get('comp_multi_banked', 0):,}",
               "two or more named competitors"),
-             ("Per year", money(t.get("comp_competitor_dollars")),
-              "to named competitors")]
+             ("To competitors", money(t.get("comp_competitor_dollars")),
+              "per year, to named competitors")]
     ar = t.get("comp_at_risk") or {}
     if ar.get("accounts"):
         items.append(("Inactive, with competitor",

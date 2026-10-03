@@ -29,7 +29,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .financial_services import _pct, _recency_tier, _token_regex, classify_strings
+from .financial_services import (_pct, _recency_tier, _token_regex, classify_strings,
+                                 normalize_core)
 from .lens import Lenses
 from .merchant import merchant_core
 
@@ -100,7 +101,9 @@ def _classify(distinct: pd.Index, spec: dict) -> pd.DataFrame:
     candidates, the per-institution longest-match pass runs on those only."""
     cspec = _as_category_spec(spec)
     any_rx = _token_regex([p for c in cspec["categories"].values() for p in c["patterns"]])
-    cand = pd.Index([s for s in distinct if s and any_rx.search(s)])
+    # The patterns are normalised, so the text is too (v5 competition.py:160). Searching raw
+    # text against normalised patterns dropped real matches: 1441 read $548M against $753M.
+    cand = pd.Index([s for s in distinct if s and any_rx.search(normalize_core(s))])
     return classify_strings(cand, cspec).reindex(distinct)
 
 
@@ -369,8 +372,8 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         ignore = spec.get("review_ignore") or []
         irx = _token_regex(ignore) if ignore else None
         unmatched = pd.Index(core[inst.isna()].unique())
-        cand = [s for s in unmatched if s and rx.search(s)
-                and not (irx and irx.search(s))]
+        cand = [s for s in unmatched if s and rx.search(normalize_core(s))
+                and not (irx and irx.search(normalize_core(s)))]
         if cand:
             mask = core.isin(cand) & pd.Series(is_transfer & in_base, index=core.index)
             q = pd.DataFrame({"core": core[mask], "amount": amt[mask.to_numpy()]}).groupby("core").agg(

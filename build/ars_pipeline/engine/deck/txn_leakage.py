@@ -79,8 +79,8 @@ def where_the_money_goes(h, t, base, category_bars):
     right = h["rail"](s, [
         ("Leaking", f"{t.get('fin_leaking_accounts', 0):,}",
          f"of {t.get('fin_accounts_total', 0):,} {base}"),
-        ("Per year", money(t.get("fin_leakage_dollars")),
-         "to external financial products"),
+        ("Leakage", money(t.get("fin_leakage_dollars")),
+         "per year, to external financial products"),
         ("Addressable", money(t.get("fin_addressable_dollars")),
          f"{t.get('fin_addressable_active_accounts', 0):,} active or cooling"),
         ("Two or more", f"{t.get('fin_multi_category_pct', 0):.0f}%",
