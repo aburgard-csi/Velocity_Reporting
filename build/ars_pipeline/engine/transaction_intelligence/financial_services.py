@@ -27,18 +27,20 @@ from __future__ import annotations
 
 import json
 import re
+from itertools import combinations
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from .lens import Lenses
-from .merchant import merchant_core
+from .merchant import merchant_core, merchant_text, strip_city
 
 TOP_PROVIDERS = 8
 TOP_CATEGORIES_BY_LENS = 8
 REVIEW_QUEUE = 25
 MIN_MONTHS_FOR_STOPPED = 3
+REACHABLE_TIERS = ("active", "cooling")   # last payment within 90 days
 MIN_TRANSFER_TXNS_FOR_GAP = 6      # a real transfer habit; conditions the responder gap
 
 
@@ -63,11 +65,43 @@ def load_patterns(config_dir: Path, client_config: dict | None = None) -> dict:
     return spec
 
 
+# Both sides of every match are normalised the same way (#245). ACH and
+# bill-pay descriptors abbreviate and glue punctuation to words; the
+# dictionary is written out in full. The legacy notebook did this before
+# matching and v5 did not carry it across, which is how "PROGRESSIVE
+# *INSURANCE" missed a dictionary that holds PROGRESSIVE.
+_NA = re.compile(r"\bN\.A\.?(?=\s|$)")
+_NON_TOKEN = re.compile(r"[^A-Z0-9 ]+")
+_ABBREVIATIONS = [(re.compile(r"\b" + a + r"\b"), b) for a, b in (
+    ("FEDERAL CREDIT UNION", "FED CU"), ("CREDIT UNION", "CU"), ("FCU", "FED CU"),
+    ("FEDERAL", "FED"), ("FINANCIAL", "FIN"), ("NATIONAL", "NATL"),
+    ("BANK", "BK"), ("INSURANCE", "INS"))]
+# A token between two pattern words may be a state code or a connector
+# ("AAA CA INSURANCE", "BANK OF THE SIERRA"); a real word is another
+# business, and an abbreviation the normaliser itself produces (FIN, INS,
+# BK, CU ...) is part of a name, never a gap -- "ALLY FIN PAYMENT" is Ally
+# Financial, not "ALLY PAYMENT" with a word skipped.
+_GAP = r"(?:\s+(?:(?!(?:CU|BK|LN|WD|NA)\b)[A-Z]{2}|OF|THE|AND|DE|LA))?\s+"
+UNNAMED_PROVIDER = "(unnamed)"
+
+
+def normalize_core(s: str) -> str:
+    s = _NA.sub("NA", str(s).upper().strip())
+    s = " ".join(_NON_TOKEN.sub(" ", s).split())
+    for rx, rep in _ABBREVIATIONS:
+        s = rx.sub(rep, s)
+    return s
+
+
 def _token_regex(patterns: list[str]) -> re.Pattern:
-    """Whole-token alternation: 'ALLY' must not match 'ALLY LOGISTICS'... it
-    will, but the false-positive list catches the known ones; the boundary
-    stops 'SOFI' matching 'SOFIA'."""
-    parts = [re.escape(p) for p in sorted(set(patterns), key=len, reverse=True) if p]
+    """Whole-token alternation over NORMALISED patterns, one short token
+    allowed between pattern words. 'ALLY' must not match 'ALLY LOGISTICS'...
+    it will, but the false-positive list catches the known ones; the
+    boundary stops 'SOFI' matching 'SOFIA'."""
+    normed = sorted({normalize_core(p) for p in patterns if p}, key=len, reverse=True)
+    parts = [_GAP.join(re.escape(t) for t in p.split()) for p in normed if p]
+    if not parts:
+        return re.compile(r"(?!x)x")            # matches nothing
     return re.compile(r"(?<![A-Z0-9])(?:" + "|".join(parts) + r")(?![A-Z0-9])")
 
 
@@ -83,8 +117,8 @@ def _longest_match(s: str, compiled: list):
 
 def _context_rule(spec: dict) -> tuple[frozenset, frozenset]:
     block = spec.get("single_token_context") or {}
-    return (frozenset(block.get("context") or ()),
-            frozenset(block.get("neutral_tails") or ()))
+    return (frozenset(normalize_core(w) for w in (block.get("context") or ())),
+            frozenset(normalize_core(w) for w in (block.get("neutral_tails") or ())))
 
 
 def _single_token_is_supported(core: str, matched: str,
@@ -103,10 +137,23 @@ def _single_token_is_supported(core: str, matched: str,
     """
     if not context:
         return True
-    rest = [t for t in core.split() if t and t != matched]
-    if all(t in tails for t in rest):
+    tokens = [t for t in core.split() if t]
+
+    def supported(rest: list[str]) -> bool:
+        return all(t in tails for t in rest) or any(t in context for t in rest)
+
+    if supported([t for t in tokens if t != matched]):
         return True
-    return any(t in context for t in rest)
+    # The text carries the city and state now (#261): "VENMO NEW YORK NY"
+    # is Venmo, and NEW YORK NY is noise beside it, not a merchant word.
+    # Drop a trailing CITY ST block -- unless the "state" is a corporate
+    # tail, which is how "UPLIFT DESK CO" stays a desk company.
+    last = tokens[-1] if tokens else ""
+    if len(tokens) >= 3 and re.fullmatch(r"[A-Z]{2}", last) and last not in tails:
+        trimmed = strip_city(core)
+        if trimmed != core:
+            return supported([t for t in trimmed.split() if t and t != matched])
+    return False
 
 
 def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
@@ -127,11 +174,30 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
     """
     fp = _token_regex(spec.get("false_positives", []))
     named, fallback = [], []
+    spelling: dict = {}          # normalised pattern -> how the dictionary spells it
     for name, c in spec["categories"].items():
         if c.get("patterns"):
             entry = (name, c.get("kind", "leakage"), _token_regex(c["patterns"]))
             (fallback if c.get("fallback") else named).append(entry)
+            for p in c["patterns"]:
+                # the fullest spelling wins: ALLY FINANCIAL over ALLY FIN
+                key, full = normalize_core(p), str(p).upper().strip()
+                if len(full) > len(spelling.get(key, "")):
+                    spelling[key] = full
     context, tails = _context_rule(spec)
+
+    def _label(text: str) -> str:
+        """The provider as the dictionary spells it, not as the descriptor
+        abbreviated it: BANK OF AMERICA, not BK OF AMERICA. A gap token
+        inside the match is dropped to find the pattern."""
+        if text in spelling:
+            return spelling[text]
+        toks = text.split()
+        for i in range(1, len(toks) - 1):
+            cand = " ".join(toks[:i] + toks[i + 1:])
+            if cand in spelling:
+                return spelling[cand]
+        return text
 
     def _resolve(s: str, compiled: list):
         """The best match that is specific enough to keep, or None.
@@ -152,11 +218,19 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
 
     rows = []
     for s in cores:
-        if not s or fp.search(s):
+        n = normalize_core(s) if s else ""
+        if not n or fp.search(n):
             rows.append((s, None, None, None))
             continue
-        best = _resolve(s, named) or _resolve(s, fallback)
-        rows.append((s, best[0], best[1], best[2]) if best else (s, None, None, None))
+        best = _resolve(n, named) or _resolve(n, fallback)
+        if best:
+            # a bare category word ("BROKERAGE") names the category, not a
+            # provider -- publishing it as one put "BROKERAGE $633,466" at
+            # the top of a who-they-pay table (#245)
+            provider = UNNAMED_PROVIDER if best[2] in context else _label(best[2])
+            rows.append((s, best[0], best[1], provider))
+        else:
+            rows.append((s, None, None, None))
     return pd.DataFrame(rows, columns=["core", "category", "kind", "provider"]).set_index("core")
 
 
@@ -175,25 +249,66 @@ def _recency_tier(days: pd.Series, spec: dict) -> pd.Series:
                   labels=["active", "cooling", "dormant", "lapsed"]).astype(str)
 
 
+def _category_pairs(leak_acc: pd.DataFrame) -> list:
+    """Legacy 13: unordered pairs of leakage categories that share an
+    account, counted once per account. rows: [category_a, category_b, n]."""
+    per_acct = leak_acc.groupby("acct")["category"].agg(lambda s: sorted(set(s)))
+    counts: dict[tuple, int] = {}
+    for cats in per_acct:
+        for pair in combinations(cats, 2):
+            counts[pair] = counts.get(pair, 0) + 1
+    return [[a, b, n] for (a, b), n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+
+def _reach_by_category(addr_acc: pd.DataFrame) -> list:
+    """Legacy 18: per addressable category, the accounts and dollars whose
+    relationship is still active or cooling -- the part that can be won
+    back with timely outreach. rows: [category, accounts, reachable_accounts,
+    reachable_pct, dollars, reachable_dollars], largest reachable $ first."""
+    rows = []
+    for name, grp in addr_acc.groupby("category", observed=True):
+        live = grp[grp["tier"].isin(REACHABLE_TIERS)]
+        n_acc, n_live = int(grp["acct"].nunique()), int(live["acct"].nunique())
+        rows.append([name, n_acc, n_live, _pct(n_live, n_acc),
+                     round(float(grp["dollars"].sum())), round(float(live["dollars"].sum()))])
+    rows.sort(key=lambda r: (-r[5], r[0]))
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # compute
 # ---------------------------------------------------------------------------
 
+_MARKETPLACE = re.compile(r"^(?:PAYPAL|PP)\s*\*\s*\S")
+
+
+def marketplace_purchase(text: pd.Series) -> np.ndarray:
+    """PAYPAL *MERCHANT is a purchase at that merchant settled through
+    PayPal, not money moving into a wallet. The wallet forms -- PAYPAL,
+    PAYPAL INST XFER, PAYPAL TRANSFER, VENMO, CASH APP, APPLE CASH -- are
+    the ecosystem. On a card feed the two look alike until the star."""
+    return text.str.match(_MARKETPLACE).to_numpy()
+
+
 def classify_rows(df: pd.DataFrame, spec: dict) -> pd.DataFrame:
-    """Per-row classification aligned to df.index: core, category, kind,
-    provider, is_card. Adjacency (P2P / fintech) on the card rail is cleared:
-    a PayPal card purchase is merchant spend, not P2P. Computed once per run
-    and shared by financial_services and competition."""
+    """Per-row classification aligned to df.index: text, core, category,
+    kind, provider, is_card. Matched on the full description text (the
+    institution is found wherever it sits; the city after it does not
+    matter), grouped by the core. Adjacency (P2P / fintech) is kept on every
+    rail and reported apart from leakage and competitors; only a PayPal
+    marketplace purchase is cleared, because that is merchant spend (#261).
+    Computed once per run and shared by financial_services and competition."""
     typ = df["transaction_type"].astype(str).str.upper()
     is_card = typ.isin(["PIN", "SIG"]).to_numpy()
+    text = merchant_text(df["merchant_name"])
     core = merchant_core(df["merchant_name"])
-    table = classify_strings(pd.Index(core.unique()), spec)
-    cat = core.map(table["category"])
-    kind = core.map(table["kind"])
-    provider = core.map(table["provider"])
-    adjacency_on_card = (kind == "adjacency").to_numpy() & is_card
-    return pd.DataFrame({"core": core, "category": cat.where(~adjacency_on_card),
-                         "kind": kind.where(~adjacency_on_card), "provider": provider,
+    table = classify_strings(pd.Index(text.unique()), spec)
+    cat = text.map(table["category"])
+    kind = text.map(table["kind"])
+    provider = text.map(table["provider"])
+    purchase = (kind == "adjacency").to_numpy() & marketplace_purchase(text)
+    return pd.DataFrame({"text": text, "core": core, "category": cat.where(~purchase),
+                         "kind": kind.where(~purchase), "provider": provider.where(~purchase),
                          "is_card": is_card}, index=df.index)
 
 
@@ -237,7 +352,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     self_names = spec.get("self_names") or []
     if self_names and key_prefix == "fin_":
         srx = _token_regex(self_names)
-        hit_cores = pd.Index([c for c in core.unique() if c and srx.search(c)])
+        hit_cores = pd.Index([c for c in core.unique() if c and srx.search(normalize_core(c))])
         if len(hit_cores):
             smask = core.isin(hit_cores).to_numpy()
             stab = classify_strings(hit_cores, {"categories": {
@@ -255,8 +370,10 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
                 "accounts": int(acct[smask].nunique()),
                 "txns": int(smask.sum()),
                 "dollars": round(float(amt[smask].sum())),
-                "pct_of_transfer_dollars": _pct(float(amt[smask & is_transfer].sum()),
-                                                float(amt[is_transfer].sum())),
+                "pct_of_transfer_dollars": (
+                    _pct(float(amt[smask & is_transfer].sum()),
+                         float(amt[is_transfer].sum()))
+                    if float(amt[is_transfer].sum()) else None),
                 "by_name": rows,
                 "note": "internal transfers -- excluded from every leakage, "
                         "competition and review table"}
@@ -267,7 +384,11 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     leak = matched & (kind == "leakage").to_numpy()
     adj = matched & (kind == "adjacency").to_numpy()
     out[key_prefix + "leakage_dollars"] = round(float(amt[leak & in_base].sum()))
-    out[key_prefix + "leakage_pct_of_transfer_dollars"] = _pct(float(amt[leak & is_transfer & in_base].sum()), transfer_dollars)
+    # None, not 0.0, when the file carries no transfer rail: a share of a
+    # denominator that does not exist is not a finding (#245)
+    out[key_prefix + "leakage_pct_of_transfer_dollars"] = (
+        _pct(float(amt[leak & is_transfer & in_base].sum()), transfer_dollars)
+        if transfer_dollars else None)
     out[key_prefix + "adjacency_dollars"] = round(float(amt[adj & in_base].sum()))
     out[key_prefix + "accounts_total"] = total_accounts
     out[key_prefix + "accounts_total_note"] = (f"{base_label} in the window -- the "
@@ -366,6 +487,15 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     per_acct_cats = leak_acc.groupby("acct")["category"].nunique()
     out[key_prefix + "multi_category"] = [[int(k), int(v)] for k, v in per_acct_cats.value_counts().sort_index().items()]
     out[key_prefix + "multi_category_pct"] = _pct(int((per_acct_cats >= 2).sum()), len(leak_ids))
+
+    # ---- which services travel together; what is still within reach ---------
+    out[key_prefix + "category_pairs"] = _category_pairs(leak_acc)
+    out[key_prefix + "category_pairs_columns"] = ["category_a", "category_b", "accounts"]
+    reach = _reach_by_category(addr_acc)
+    out[key_prefix + "reach"] = reach
+    out[key_prefix + "reach_columns"] = ["category", "accounts", "reachable_accounts",
+                                          "reachable_pct", "dollars", "reachable_dollars"]
+    out[key_prefix + "reach_dollars"] = int(sum(r[5] for r in reach))
 
     # ---- 5. by lens ----------------------------------------------------------
     txn_accounts = pd.Index(acct.unique())
@@ -488,8 +618,8 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
         ignore = spec.get("review_ignore") or []
         irx = _token_regex(ignore) if ignore else None
         unmatched = pd.Index(core[provider.isna()].unique())   # never matched (card-rail adjacency is matched)
-        cand = [s for s in unmatched if s and rx.search(s)
-                and not (irx and irx.search(s))]
+        cand = [s for s in unmatched if s and rx.search(normalize_core(s))
+                and not (irx and irx.search(normalize_core(s)))]
         if cand:
             mask = core.isin(cand) & ~pd.Series(matched, index=core.index) & pd.Series(in_base, index=core.index)
             q = pd.DataFrame({"core": core[mask], "amount": amt[mask.to_numpy()]}).groupby("core").agg(

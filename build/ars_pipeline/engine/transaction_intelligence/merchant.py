@@ -30,24 +30,50 @@ _TYPE_ID = re.compile(r"^\s*TYPE:\s*(.*?)\s*ID:.*$", re.I)
 _REF_TAIL = re.compile(r"\s+\d{6,}.*$")                 # first long reference number onward
 # "... SAN JOSE CA" / "... HYANNIS MA" / "... AMZN.COM/BILL WA": a one- or
 # two-word city followed by a two-letter state, at the end.
-_CITY_STATE = re.compile(r"\s+[A-Z][A-Z.'/-]*(?:\s+[A-Z][A-Z.'/-]*)?\s+[A-Z]{2}\s*$")
-_STATE_ONLY = re.compile(r"\s+[A-Z]{2}\s*$")
+#
+# Two guards, both from 1776 (#261). A word that names a depository is part
+# of the institution's name, never a city: "SESLOC FCU ATASCADERO CA" lost
+# FCU to the two-word branch and came out as "SESLOC", which no pattern can
+# claim. And CU, BK, NA are the end of a name, not a state: "STAR ONE CU"
+# came out as "STAR".
+_DEPOSITORY_WORD = (r"(?!(?:BANK|BK|CU|FCU|CREDIT|UNION|FEDERAL|FED|TRUST|FIN|"
+                    r"FINANCIAL|SAVINGS|INS|INSURANCE|NA)\b)")
+_CITY_STATE = re.compile(
+    r"\s+" + _DEPOSITORY_WORD + r"[A-Z][A-Z.'/-]*"
+    r"(?:\s+" + _DEPOSITORY_WORD + r"[A-Z][A-Z.'/-]*)?"
+    r"\s+(?!(?:CU|BK|NA)\s*$)[A-Z]{2}\s*$")
 _PAYPAL = re.compile(r"^(PAYPAL|PP|SQ|SQUARE|TST|DD|DOORDASH)\s*\*\s*", re.I)
 _PUNCT = re.compile(r"[^A-Z0-9&' ]+")
 _SPACES = re.compile(r"\s+")
 _TRAILING_DIGITS = re.compile(r"\s+\d{4,}\s*$")
 
 
-def merchant_core(desc: pd.Series) -> pd.Series:
+def merchant_text(desc: pd.Series) -> pd.Series:
+    """The description with the card scaffolding removed and nothing else:
+    prefix, reference tail and trailing digits gone, upper-cased, the city
+    and state still there. This is what the institution and product
+    matchers run on. A cleaner cannot know where a name ends and a city
+    begins; a token regex over the whole text does not need to (#261)."""
     s = desc.fillna("").astype(str).str.strip()
     s = s.str.replace(_TYPE_ID, r"\1", regex=True)
     s = s.str.replace(_CARD_PREFIX, "", regex=True)
     s = s.str.replace(_REF_TAIL, "", regex=True)
     s = s.str.replace(_TRAILING_DIGITS, "", regex=True)
-    s = s.str.upper().str.replace(_SPACES, " ", regex=True).str.strip()
+    return s.str.upper().str.replace(_SPACES, " ", regex=True).str.strip()
+
+
+def merchant_core(desc: pd.Series) -> pd.Series:
+    """merchant_text with the trailing "CITY ST" dropped: the grouping label
+    for merchant tables and review queues, not the matching text."""
+    s = merchant_text(desc)
     s = s.str.replace(_CITY_STATE, "", regex=True)
     s = s.str.replace(_TRAILING_DIGITS, "", regex=True)
     return s.str.strip()
+
+
+def strip_city(text: str) -> str:
+    """One string, the same "CITY ST" rule as merchant_core."""
+    return _TRAILING_DIGITS.sub("", _CITY_STATE.sub("", text)).strip()
 
 
 _NOISE_TOKENS = {"THE", "&", "AND", "OF", "INC", "LLC", "CO", "CORP", "POS", "WWW"}
