@@ -19,6 +19,9 @@ from ..core.deposits import MIN_MATCH_PCT
 
 TOP_MERCHANTS = 15
 CHANNELS = ["PIN", "SIG", "ACH", "CHK"]
+# The join rate the pipeline expects of a transaction file (James, 2026-10-02: "95% or better").
+# Below it the run says so; below MIN_MATCH_PCT (the deposits gate) nothing is presentable.
+EXPECTED_JOIN_PCT = 95.0
 
 
 def _pct(n, d) -> float:
@@ -56,6 +59,20 @@ def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn, acct_key=None) -> 
     out["txn_by_channel"] = rows
     out["txn_spend_total"] = round(float(amt.sum()))
     card = typ.isin(["PIN", "SIG"])
+    # The rails the file carries, said once. A card-only extract (1776,
+    # #245) cannot show transfers to other institutions at all, and every
+    # section below has to read that way rather than print 0% of nothing.
+    rails = [r for r, present in (("card", bool(card.any())),
+                                  ("ACH", bool((typ == "ACH").any())),
+                                  ("CHK", bool((typ == "CHK").any()))) if present]
+    out["txn_rails"] = rails
+    out["txn_rails_label"] = ("card only" if rails == ["card"] else
+                              " + ".join("check" if r == "CHK" else r for r in rails))
+    out["txn_transfer_rails"] = any(r in rails for r in ("ACH", "CHK"))
+    if not out["txn_transfer_rails"]:
+        warn("rails: card only -- ACH, check and bill pay are not in the file, "
+             "so transfers to other institutions cannot be seen; every "
+             "competition and leakage figure is card-rail only")
     out["txn_card_rows"] = int(card.sum())
     out["txn_card_spend"] = round(float(amt[card].sum()))
     pin, sig = float(amt[typ == "PIN"].sum()), float(amt[typ == "SIG"].sum())
@@ -95,6 +112,10 @@ def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn, acct_key=None) -> 
                 warn(f"only {out['txn_odd_match_pct']}% of transaction accounts match "
                      f"the ODD on '{key}'; account formats probably differ "
                      f"({out['txn_account_hashed_pct']}% of rows carry a hashed account)")
+            elif out["txn_odd_match_pct"] < EXPECTED_JOIN_PCT:
+                warn(f"partial join: {out['txn_odd_match_pct']}% of transaction accounts match "
+                     f"the ODD on '{key}', under the {EXPECTED_JOIN_PCT:g}% expected; lens and "
+                     f"program cuts leave out the unmatched accounts")
         else:
             warn("ODD has no Acct Number / Acct ID column; join rate not measured")
 
