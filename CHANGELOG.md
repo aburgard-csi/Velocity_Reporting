@@ -17,6 +17,46 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-02 — Report an issue from Sheila, and a view of what was reported
+
+Summary: CSM Sheila has a Report an issue button and a Reported tab. A report is saved to the
+share straight away and filed on GitHub by a sync run on Aaron's machine; the tab shows every
+report with its GitHub number and state, so nothing reported gets lost or chased twice.
+
+Aaron, 2026-10-02: "Add a button to report issues in Sheila that will send issues to github. I
+also need a view into those issues so we can make sure we address them."
+
+**No GitHub credentials on any CSM machine.** Sheila runs from the released copy under
+`Tools\RPE` on each CSM's machine and the repo is private, so a token there would be readable
+by anyone who can reach the share. So the button only QUEUES:
+
+    Sheila   ->  issue_reports.queue()   a JSON file in Build Artifacts/issue_reports/
+    Aaron    ->  issue_reports.sync()    gh issue create per queued report, then gh issue
+                                         list written back as issues.json
+    Sheila   ->  issue_reports.view()    the queue plus that cached list
+
+The button answers instantly and works with no VPN and no internet. The cost is that an issue
+reaches GitHub when the sync runs, which is why a report shows as **queued** until it does —
+saying otherwise would have people waiting on an issue nobody can see.
+
+- `scripts/issue_reports.py` is the whole thing: `queue`, `sync`, `view`, and
+  `python scripts/issue_reports.py sync | list | report`.
+- **A report that cannot be filed stays queued** and is reported, never dropped: the share
+  holds the only copy and the person who wrote it has moved on.
+- **sync is idempotent** — a filed report carries its issue number, so a re-run files nothing
+  twice.
+- **The label is created if the repo has not got one.** The first real report failed with
+  "'sheila' not found"; a label is a filter, not the point, so a repo that refuses to create
+  it gets issues filed without one.
+- An issue filed by hand under that label still appears in the view — it is shown, never
+  hidden, or the tab would quietly disagree with the repo.
+- Verified end to end against the real repo: queued, filed as #13 and #14, closed on GitHub,
+  and the view picked up `closed` on the next sync. Both test issues are closed.
+
+`tests/test_issue_reports.py` pins that no path but `sync` calls gh, that a failure keeps the
+report, that a second sync files nothing twice, and that a missing label does not stop a report
+being filed.
+
 ### 2026-10-02 — The client's logo on every data slide, and three slides tightened
 
 Summary: The bank's logo is now the bottom-right mark on every data slide, deliberately. The

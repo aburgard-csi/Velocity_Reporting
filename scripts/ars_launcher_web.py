@@ -1328,6 +1328,29 @@ def open_code_sheet(cid, action):
     return 200, {"ok": True, "file": p.name}
 
 
+_reports = {"doc": None, "at": 0.0}
+REPORTS_TTL = 30          # the share is the only reader and writer; a short cache is plenty
+
+
+def invalidate_reports():
+    _reports["doc"], _reports["at"] = None, 0.0
+
+
+def reports_doc():
+    """Reported issues for the Reported tab: the queue on the share, plus the GitHub state
+    the last sync cached. Never calls gh — this runs on a CSM's machine."""
+    import time as _t
+    if _reports["doc"] is not None and _t.time() - _reports["at"] < REPORTS_TTL:
+        return _reports["doc"]
+    try:
+        import issue_reports as IR
+        doc = IR.view()
+    except Exception as e:
+        doc = {"error": f"{type(e).__name__}: {e}", "rows": [], "fetched_at": None, "queued": 0}
+    _reports["doc"], _reports["at"] = doc, _t.time()
+    return doc
+
+
 def issues_doc():
     """Every client's data issues from all three sources, grouped by client. Re-read only when a file changes."""
     ba = R.build_artifacts()
@@ -1553,6 +1576,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, job_doc(cid) or {})
             if u.path == "/api/issues":
                 return self._send(200, issues_doc())
+            if u.path == "/api/reports":
+                return self._send(200, reports_doc())
             if u.path == "/api/lift/overview":
                 return self._send(200, lift_overview_doc())
             if u.path == "/api/lift/client":
@@ -1626,6 +1651,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(*mark_issue(cid, key, bool(body.get("done"))))
             except OSError as e:
                 return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+        if path == "/api/report":
+            title = str(body.get("title", "")).strip()
+            if not title:
+                return self._send(400, {"error": "a report needs a title"})
+            if len(title) > 200 or len(str(body.get("body", ""))) > 8000:
+                return self._send(400, {"error": "report too long"})
+            cid = str(body.get("client", "")).strip()
+            if cid and not CID_RX.match(cid):
+                return self._send(400, {"error": "bad client"})
+            try:
+                import issue_reports as IR
+                rec = IR.queue(title, str(body.get("body", "")), client_id=cid or None,
+                               page=str(body.get("page", ""))[:80] or None)
+                invalidate_reports()
+                return self._send(200, {"ok": True, "id": rec["id"]})
+            except Exception as e:
+                return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+
         if path == "/api/code-sheet":
             cid = str(body.get("client", "")).strip()
             if not CID_RX.match(cid):
@@ -1808,6 +1851,21 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
 .icard li.idone > span:nth-child(2){color:var(--ink3)}
 .ihead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:8px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.reportbtn{margin-left:10px;background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;
+  border-radius:6px;padding:5px 11px;font:600 12.5px/1 inherit;cursor:pointer}
+.reportbtn:hover{background:rgba(255,255,255,.14)}
+dialog.report{border:0;border-radius:10px;padding:0;max-width:560px;width:92vw;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+dialog.report::backdrop{background:rgba(10,20,32,.45)}
+dialog.report form{padding:20px 22px 18px;display:grid;gap:12px}
+dialog.report h3{margin:0;font-size:17px;color:var(--navy)}
+dialog.report label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+dialog.report input[type=text],dialog.report textarea{font:14px/1.5 inherit;padding:8px 10px;
+  border:1px solid var(--rule);border-radius:6px;width:100%;box-sizing:border-box}
+dialog.report textarea{min-height:110px;resize:vertical}
+dialog.report .row{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-width:44ch}
+.rep-state{display:inline-block;font:600 11.5px/1 inherit;padding:4px 7px;border-radius:4px;color:#fff}
+.rep-open{background:#1d7a46}.rep-closed{background:#5a6670}.rep-queued{background:#9a6400}
 .chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer}
 .chipbtn[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
 .method{font-size:13px;color:var(--ink2);margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
@@ -1817,7 +1875,19 @@ table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button></nav><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button><button role="tab" id="tab-reported" aria-selected="false">Reported</button></nav><button type="button" class="reportbtn" id="reportbtn" title="Report a problem with Sheila or a deck">Report an issue</button><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
+<dialog class="report" id="repdlg"><form method="dialog" id="repform">
+  <h3>Report an issue</h3>
+  <label>What is wrong?<input type="text" id="reptitle" maxlength="200" required
+    placeholder="e.g. Lift Matrix tab is slow for 1549"></label>
+  <label>Any detail that would help fix it<textarea id="repbody" maxlength="8000"
+    placeholder="What you did, what happened, what you expected. A client number helps."></textarea></label>
+  <div class="row">
+    <span class="hint" id="rephint">Saved to the share now; it reaches GitHub on the next sync.</span>
+    <button type="button" class="link" id="repcancel">Cancel</button>
+    <button type="submit" class="primary" id="repsend">Report it</button>
+  </div>
+</form></dialog>
 <div class="app">
   <aside aria-label="Clients">
     <div class="filters">
@@ -2161,15 +2231,78 @@ const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
 
 function setMode(m, focus) {
   MODE = m; clearTimeout(liftTimer); clearInterval(poller); clearTimeout(statusTimer);
-  document.querySelector(".app").classList.toggle("wide", m === "lift" || m === "issues");
-  for (const t of ["decks", "lift", "issues"]) $("#tab-" + t).setAttribute("aria-selected", m === t);
+  document.querySelector(".app").classList.toggle("wide", m === "lift" || m === "issues" || m === "reported");
+  for (const t of ["decks", "lift", "issues", "reported"]) $("#tab-" + t).setAttribute("aria-selected", m === t);
   current = null; renderList();
   // `focus` means "open this tab ON that client" — the links row hands the same client from
   // one tab to the next, so every tab has to honour it, not just Data Issues.
   if (m === "lift") focus ? liftSelect(focus) : liftOverview();
+  else if (m === "reported") reportedView();
   else if (m === "issues") issuesView(focus);
   else if (focus) select(focus);
   else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their ARS deck can be built for ${esc(PERIOD || "this cycle")}.</p></div>`;
+}
+
+// ---- reporting an issue -------------------------------------------------------
+// The report is QUEUED to the share. Sheila never talks to GitHub: it runs on each CSM's
+// machine and the repo is private, so there are no credentials here by design. The hint
+// says so, because an issue nobody can see yet should not look filed.
+function openReport() {
+  const d = $("#repdlg");
+  $("#reptitle").value = ""; $("#repbody").value = "";
+  $("#rephint").textContent = "Saved to the share now; it reaches GitHub on the next sync.";
+  $("#repsend").disabled = false;
+  d.showModal(); $("#reptitle").focus();
+}
+
+async function sendReport(ev) {
+  ev.preventDefault();
+  const title = $("#reptitle").value.trim();
+  if (!title) return;
+  $("#repsend").disabled = true;
+  $("#rephint").textContent = "Saving…";
+  try {
+    await api("/api/report", {method: "POST", body: JSON.stringify({
+      title, body: $("#repbody").value, client: current || "", page: MODE})});
+    $("#repdlg").close();
+    if (MODE === "reported") reportedView();
+  } catch (e) {
+    $("#rephint").textContent = "Couldn't save it: " + e.message;
+    $("#repsend").disabled = false;
+  }
+}
+
+async function reportedView() {
+  current = null; renderList();
+  $("#main").innerHTML = `<div class="head"><h2>Reported</h2></div><p class="note">Reading the reports…</p>`;
+  let body;
+  try { ({body} = await api("/api/reports")); } catch (e) {
+    $("#main").innerHTML = `<p class="err">Couldn't read the reports: ${esc(e.message)}</p>`; return;
+  }
+  if (MODE !== "reported") return;
+  const rows = body.rows || [];
+  const when = body.fetched_at ? body.fetched_at.replace("T", " ") : "never";
+  const q = body.queued || 0;
+  const cells = rows.map(r => {
+    const st = r.state === "open" ? "rep-open" : r.state === "closed" ? "rep-closed" : "rep-queued";
+    const num = r.number
+      ? `<a href="${esc(r.url || "#")}" target="_blank" rel="noopener">#${r.number}</a>`
+      : "—";
+    return `<tr><td>${num}</td><td><span class="rep-state ${st}">${esc(r.state || "")}</span></td>
+      <td><b>${esc(r.title || "")}</b>${r.body ? `<div class="small">${esc(r.body).slice(0, 200)}</div>` : ""}</td>
+      <td>${esc(r.client_id || "")}</td><td class="small">${esc(r.reporter || "")}</td>
+      <td class="small">${esc((r.created || "").replace("T", " ").slice(0, 16))}</td></tr>`;
+  }).join("");
+  $("#main").innerHTML = `<div class="head"><h2>Reported</h2>
+      <span class="sub">${rows.length} report${rows.length === 1 ? "" : "s"}${q ? ` · ${q} not yet filed` : ""}</span>
+      <span class="sub" style="margin-left:auto">GitHub state as of ${esc(when)}</span></div>
+    ${body.error ? `<p class="err">${esc(body.error)}</p>` : ""}
+    <p class="note">Anyone can report an issue with the button at the top right. A report is
+      saved to the share straight away and filed on GitHub by the next sync, so
+      <b>queued</b> means it is recorded but not yet on GitHub.</p>
+    ${rows.length ? `<table class="lm"><thead><tr><th>Issue</th><th>State</th><th>What</th>
+      <th>Client</th><th>By</th><th>Reported</th></tr></thead><tbody>${cells}</tbody></table>`
+      : `<p class="note">Nothing reported yet.</p>`}`;
 }
 
 async function liftOverview() {
@@ -2374,6 +2507,10 @@ $("#tab-decks").addEventListener("click", () => setMode("decks"));
 $("#period").addEventListener("click", openCycles);
 $("#tab-lift").addEventListener("click", () => setMode("lift"));
 $("#tab-issues").addEventListener("click", () => setMode("issues"));
+$("#tab-reported").addEventListener("click", () => setMode("reported"));
+$("#reportbtn").addEventListener("click", openReport);
+$("#repform").addEventListener("submit", sendReport);
+$("#repcancel").addEventListener("click", () => $("#repdlg").close());
 // ------------------------------------------------------------------ Data Issues (Aaron, 2026-09-25)
 // Each client's data issues from the issue pages and the morning dashboard's checks, with a link to its code sheet.
 let ISSUES = null, ISSUES_AT = 0, SEV = "";
