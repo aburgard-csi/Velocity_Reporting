@@ -1085,6 +1085,36 @@ def check(periods, previous, use_drive=True):
     return result
 
 
+def issues_step(dry_run=False):
+    """File what Sheila queued, and say what happened. -> markdown for the report.
+
+    Never raises: this runs inside the morning task, and an issue report that cannot be
+    filed today is still on the share tomorrow.
+    """
+    head = "## Reported issues"
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import issue_reports as IR
+        queued = [r for r in IR.load_reports() if r.get("status") == "queued"]
+        if dry_run:
+            return f"{head}\n\n- {len(queued)} queued; --dry-run, so nothing was filed."
+        if not queued and not IR.cache_path().exists():
+            return f"{head}\n\n- nothing queued."
+        res = IR.sync()
+        lines = []
+        for rid, num in res["filed"]:
+            lines.append(f"- filed **#{num}** — `{rid}`")
+        for rid, why in res["failed"]:
+            lines.append(f"- NOT filed `{rid}`: {why} (still queued)")
+        if res.get("list_error"):
+            lines.append(f"- the issue list was not refreshed: {res['list_error']}")
+        elif not lines:
+            lines.append(f"- nothing queued; {res['issues']} issue(s) cached for Sheila.")
+        return head + "\n\n" + "\n".join(lines)
+    except Exception as e:                      # gh missing, no internet, a bad report file
+        return f"{head}\n\n- SKIPPED: {type(e).__name__}: {e}. Reports stay queued."
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="Report what landed on the CSI shares since the last check.")
@@ -1115,6 +1145,9 @@ def main(argv=None):
                          "pull to Inputs/Branch Names/branch_names.csv")
     ap.add_argument("--mail-days", type=int, default=None,
                     help="how far back to read the mailbox (default 30)")
+    ap.add_argument("--issues", action="store_true",
+                    help="file the issue reports CSM Sheila queued on the share, and refresh "
+                         "the issue list its Reported tab reads (needs gh; this machine only)")
     ap.add_argument("--once-daily", action="store_true",
                     help="do nothing if a run already reached the shares today "
                          "(what the retry fires after the 08:00 one pass)")
@@ -1237,6 +1270,22 @@ def main(argv=None):
                 fh.write(mail_text + "\n\n---\n\n")
             with open(str(art / REPORT_NAME), "a", encoding="utf-8") as fh:
                 fh.write("\n" + mail_text + "\n")
+
+    # Sheila's queued issue reports (Aaron, 2026-10-05). With the mail step and for the
+    # same reason: it reaches off this machine, and a slow or broken network must not take
+    # the share check's findings with it — they are already saved above. Reported, never
+    # fatal: a morning with no gh, or no internet, leaves the reports queued for tomorrow,
+    # which is exactly what queueing them is for.
+    if a.issues:
+        issues_text = issues_step(a.dry_run)
+        print()
+        print(issues_text)
+        if not a.dry_run:
+            art = R.build_artifacts()
+            with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
+                fh.write(issues_text + "\n\n---\n\n")
+            with open(str(art / REPORT_NAME), "a", encoding="utf-8") as fh:
+                fh.write("\n" + issues_text + "\n")
 
     if a.notify and (not result["reachable"] or result["new"]
                      or result["changed"] or result["gone"]):

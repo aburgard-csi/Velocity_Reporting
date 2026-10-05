@@ -17,6 +17,65 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-05 — Gregg's last eight clients are Unassigned
+
+Summary: The eight clients the Gregg Miller assignment sheet never named a successor for are
+now labelled **Unassigned** in Client CSM List.csv rather than still showing a CSM who has
+left. Gregg now holds nothing.
+
+Aaron, 2026-10-05: "I think those clients are inactive. Label them as Unassigned."
+
+1088, 1092 Premier Bank, 1119, 1122, 1139, 1447, 1455 and 1664. Their `csm_source` says why —
+left off the reassignment sheet, believed inactive — so the label is not mistaken later for a
+CSM nobody recognises.
+
+Labelled, never deleted: the row is the only record that the client exists and who used to
+hold them, and `clients.md` decides what gets BUILT, not this file. None of the eight is on
+the build or CashPlease roster, so no deck is affected and `Outputs\Unassigned` is never
+created. The previous file is in `Build Artifacts/csm-reassignment/`.
+
+### 2026-10-05 — The Lift Matrix says which accounts it is valued on, and the 08:00 run files Sheila's issue reports
+
+Summary: `lift_values` has a POPULATION variable at the top — "both", "personal" or "business"
+— defaulting to **both**, which is every ARS-eligible card holder and is what it already
+valued. The scan records which was used. Separately, the 08:00 source watch now files the
+issue reports CSM Sheila queues, so a report reaches GitHub the next morning without anyone
+running the sync by hand.
+
+Aaron, 2026-10-05: "For Lift Matrix builds we're only building the values based on Personal
+accounts. Default to all accounts and add a variable at the top to do Personal, Business, or
+Both"; "Add the issue sync to the 8am run."
+
+**The Lift Matrix was not personal-only.** Its only account filters were ARS eligibility and
+holding a debit card; business accounts were added on 2026-09-25 ("change the calculate to
+include business accounts"). So the default does not change a single figure — what changes is
+that the population is now a stated choice rather than an assumption, and the other two are
+possible without editing the loop.
+
+- `POPULATION` / `POPULATIONS` at the top, `in_population()` beside `segment()`, and
+  `scan(..., population=...)` so Sheila or `build_lift_matrix` can ask for one.
+- An account whose `Business?` is **blank** is neither personal nor business: valued under
+  "both", left out of the other two rather than guessed at. The ODD carries them, and calling
+  one personal would put it in a matrix the client reads as consumer-only.
+- The filter sits AFTER the fee block on purpose: the OD fee is the CLIENT's, read off every
+  eligible account, and valuing a narrower population must not narrow the fee with it.
+- The scan carries `accounts` and `accounts_label`, so a matrix cannot be read without knowing
+  what it was valued on. A population with no card holder in it is a stated failure naming how
+  many accounts fell outside it, not an empty matrix.
+- A setting that is not one of the three stops the build: the file goes to Bradford, and a typo
+  must not quietly fall back to valuing everything.
+
+**The issue sync runs at 08:00** (`watch_sources --issues`, now in the registered task):
+
+- It goes with the MAIL step, after the share results are saved, for the reason the mail step
+  is there: both reach off the machine, and a step that can hang must not take the share
+  check's findings down with it.
+- Never fatal. gh missing, no internet, a damaged report — the morning report says so and the
+  reports stay queued, which is what queueing them is for.
+- `register_watch_task.ps1` passes `--issues`, guarded the way `--once-daily` is: this script
+  is routinely newer than the checkout it registers, and an argument argparse does not know
+  makes every fire exit without checking anything. The live task was re-registered.
+
 ### 2026-10-02 — Report an issue from Sheila, and a view of what was reported
 
 Summary: CSM Sheila has a Report an issue button and a Reported tab. A report is saved to the

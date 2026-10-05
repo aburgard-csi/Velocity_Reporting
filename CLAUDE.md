@@ -672,6 +672,13 @@ routinely newer than the code it registers and an unrecognised argument would
 make every fire exit without checking anything. `--notify` raises a Windows toast only when
 there is news or the shares were unreachable; a quiet day is silent.
 
+**The daily run also files CSM Sheila's issue reports (Aaron, 2026-10-05).** With `--issues`,
+which the scheduled task passes, `issue_reports.sync()` files every report queued on the share
+and refreshes the issue list Sheila's **Reported** tab reads. It runs with the MAIL step, after
+the share results are saved, for the same reason: it reaches off the machine. gh lives on this
+machine only — which is why the sync is here and not in Sheila, where a token would sit on the
+share — and a morning with no gh or no internet leaves the reports queued for tomorrow.
+
 **The daily run also reads the MAILBOX (Aaron, 2026-09-09).** Some inputs never land on a
 share: **MRPC and CashPlease reports from Bradford Sanders**, **the per-client CashPlease
 marketing emails from him** (`<id>_<Client>_Loan_Marketing_Emails.xlsx`, their own kind since
@@ -953,7 +960,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `base_guard.py` — refuses a workbook whose formulas were never evaluated (extracts as 1 month, 0 mailings, $0); called by both extractors, the builder and the dashboard refresh.
 - `extract_base_gen.py` / `extract_lift.py` — MM financials / Lift Matrix rows.
 - `lift_window.py` — the ONE reading of the Lift Matrix MM window (Start/End Date, the data month, `in_window` / `data_past_end`), import-safe. `extract_lift` puts it in lift.json; `ars_launcher.lift_checks` stops an MM client's build when the data month is past the End Date or the workbook filename carries the data team's Lift Matrix flag.
-- `lift_values.py` — a client's ARS Lift Matrix valued from its own ODD (Aaron, 2026-09-25): every ARS-eligible card-holding account, consumer and business, in seven swipe segments, and NH valued independently on the eligible accounts with no card; the distribution is of every eligible account, NH included; 12 complete months, swipes rounded down into the band, spend and NSF/OD items capped at a percentile of each segment (`WINSOR_PCT` = 0.99, one of `WINSOR_OPTIONS`); IC rate from the workbook (else 60 BP), NSF/OD fee = the most common per-item `Fees1` value in the ODD (else the workbook's NSF Fee), collection 100%. Renders the file emailed to Bradford as `<id>-<yyyy.mm>-ARS-<Client> ARS Lift Matrix.xlsx`. CSM Sheila's Lift Matrix tab runs it; import-safe.
+- `lift_values.py` — a client's ARS Lift Matrix valued from its own ODD (Aaron, 2026-09-25): every ARS-eligible card-holding account, consumer and business — `POPULATION` at the top selects `both` (the default), `personal` or `business`, a blank `Business?` counting only under `both`, and the scan records the choice (Aaron, 2026-10-05) — in seven swipe segments, and NH valued independently on the eligible accounts with no card; the distribution is of every eligible account, NH included; 12 complete months, swipes rounded down into the band, spend and NSF/OD items capped at a percentile of each segment (`WINSOR_PCT` = 0.99, one of `WINSOR_OPTIONS`); IC rate from the workbook (else 60 BP), NSF/OD fee = the most common per-item `Fees1` value in the ODD (else the workbook's NSF Fee), collection 100%. Renders the file emailed to Bradford as `<id>-<yyyy.mm>-ARS-<Client> ARS Lift Matrix.xlsx`. CSM Sheila's Lift Matrix tab runs it; import-safe.
 - `render_lift.py`, `ticket_calc.py`, `ticket_chart.py` — Lift Matrix chart (MM); average-ticket calc + chart.
 - `product_mix_slide.py` — builds the Product Mix & ARS Eligibility slide from the ODD.
 - `rege_branch_slide.py` — builds the Reg E Opt-In by Branch table slide (the table

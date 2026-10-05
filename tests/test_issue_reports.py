@@ -141,3 +141,49 @@ def test_closed_issues_sort_below_the_rest(monkeypatch):
     IR.queue("not yet filed")
     states = [r["state"] for r in IR.view()["rows"]]
     assert states[-1] == "closed", states
+
+
+# ------------------------------------------------------------------ the 08:00 run
+def test_the_morning_step_never_raises(monkeypatch):
+    """It runs inside the scheduled task, beside the mail step and for the same reason: a
+    step that reaches off the machine must not take the share check's findings with it.
+
+    gh missing, no internet, a damaged report — the morning says so and the reports stay
+    queued, which is what queueing them is for (Aaron, 2026-10-05)."""
+    import watch_sources as W
+
+    def boom(*a, **k):
+        raise RuntimeError("gh is not on PATH")
+    monkeypatch.setattr(IR, "sync", boom)
+    monkeypatch.setattr(IR, "load_reports", lambda: [{"status": "queued", "id": "x"}])
+    text = W.issues_step(dry_run=False)
+    assert "SKIPPED" in text and "stay queued" in text
+    assert "Reported issues" in text
+
+
+def test_the_morning_step_files_and_says_what_it_filed(monkeypatch):
+    import watch_sources as W
+    monkeypatch.setattr(IR, "load_reports", lambda: [{"status": "queued", "id": "r1"}])
+    monkeypatch.setattr(IR, "sync", lambda: {"filed": [("r1", 42)], "failed": [],
+                                             "issues": 3, "list_error": None})
+    text = W.issues_step(dry_run=False)
+    assert "#42" in text and "r1" in text
+
+
+def test_the_morning_step_keeps_a_report_it_could_not_file(monkeypatch):
+    import watch_sources as W
+    monkeypatch.setattr(IR, "load_reports", lambda: [{"status": "queued", "id": "r2"}])
+    monkeypatch.setattr(IR, "sync", lambda: {"filed": [], "failed": [("r2", "no network")],
+                                             "issues": 0, "list_error": None})
+    text = W.issues_step(dry_run=False)
+    assert "NOT filed" in text and "still queued" in text
+
+
+def test_a_dry_run_files_nothing(monkeypatch):
+    import watch_sources as W
+
+    def no(*a, **k):
+        raise AssertionError("--dry-run must not file anything")
+    monkeypatch.setattr(IR, "sync", no)
+    monkeypatch.setattr(IR, "load_reports", lambda: [{"status": "queued", "id": "r3"}])
+    assert "nothing was filed" in W.issues_step(dry_run=True)

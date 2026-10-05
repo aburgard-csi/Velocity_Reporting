@@ -89,6 +89,14 @@ SEGMENTS = ["NU", "1-5", "6-10", "11-15", "16-20", "21-25", "26 Plus"]
 ALL_SEGMENTS = ["NH"] + SEGMENTS
 BASELINES = SEGMENTS[:-2]          # NU .. 16-20, the rows of the file Bradford loads
 CURRENTS = SEGMENTS[1:]            # 1-5 .. 26 Plus, its columns
+# Which accounts the matrix is valued on (Aaron, 2026-10-05: "Default to all accounts and
+# add a variable at the top to do Personal, Business, or Both"). "both" is the default and is
+# what this module already did — ARS eligibility and a debit card were the only account
+# filters. An account whose `Business?` is BLANK is neither personal nor business, so it is
+# valued under "both" and left out of the other two rather than guessed at.
+POPULATION = "both"                # "both" | "personal" | "business"
+POPULATIONS = ("both", "personal", "business")
+
 VAL_MONTHS = 12
 WINSOR_PCT = 0.99                  # the outlier cap: each segment's 99th percentile (the default)
 # The caps Sheila offers (Aaron, 2026-09-25: "Add the 99% percentile option as a variable at the top").
@@ -104,6 +112,21 @@ SCAN_VERSION = 5                   # bump when scan()'s output changes, so cache
 
 _MONTH_RX = re.compile(r"^([A-Z][a-z]{2}\d{2}) Sig #$")
 _FEE_RX = re.compile(r"^(?:([A-Z][a-z]{2}\d{2})\s+)?fees\s*1$", re.I)
+
+
+def in_population(odd, r, population=None):
+    """Is this row in the population the matrix is valued on?
+
+    `odd` is the row vocabulary (odd_rows.reader), so personal / business read the client's
+    own `Business?` column through the one definition of it.
+    """
+    p = (population or POPULATION or "both").lower()
+    if p not in POPULATIONS:
+        raise SystemExit(f"lift_values: POPULATION is {p!r}; it must be one of "
+                         f"{', '.join(POPULATIONS)}.")
+    if p == "both":
+        return True
+    return odd.personal(r) if p == "personal" else odd.business(r)
 
 
 def segment(mean_swipes):
@@ -189,7 +212,8 @@ def _rows(factory, hdr_idx, ncol):
             yield row
 
 
-def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
+def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND,
+         population=None):
     """Segment-level figures from one ODD extract (.zip or .csv). JSON-safe; no member data."""
     import month_complete as MC
     from odd_rows import accessors
@@ -217,6 +241,11 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
     fee_pairs = ([(latest, fees[None])] if None in fees
                  else [(m, i) for m, i in fees.items() if m in win])
 
+    pop_choice = (population or POPULATION or "both").lower()
+    if pop_choice not in POPULATIONS:
+        raise SystemExit(f"lift_values: population is {pop_choice!r}; it must be one of "
+                         f"{', '.join(POPULATIONS)}.")
+
     per = {s: [] for s in ALL_SEGMENTS}      # (mean swipes, spend, items) per account, per segment
     fee_seen = Counter()
     counts = Counter()
@@ -237,6 +266,11 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
         sw = sum(odd.swipes(r, m) for m in win) / n
         sp = sum(odd.spend(r, m) for m in win) / n
         it = sum(odd.nsf(r, m) for m in win) / n
+        # Deliberately after the fee block: the OD fee is the CLIENT's, read off every
+        # eligible account, and valuing a narrower population must not narrow the fee too.
+        if not in_population(odd, r, pop_choice):
+            counts["outside the population"] += 1
+            continue
         if not odd.hascard(r):
             counts["no card"] += 1
             per["NH"].append((sw, sp, it))
@@ -247,7 +281,10 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
     holders = sum(len(per[s]) for s in SEGMENTS)
     pop = holders + len(per["NH"])             # the distribution is of every eligible account, NH included
     if not holders:
-        raise SystemExit(f"POSSIBLE DATA ISSUE: {member} has no card-holding, ARS-eligible account.")
+        raise SystemExit(
+            f"POSSIBLE DATA ISSUE: {member} has no card-holding, ARS-eligible account"
+            + (f" among its {pop_choice} accounts ({counts['outside the population']:,} were "
+               f"outside that population)." if pop_choice != "both" else "."))
     caps = sorted(set(WINSOR_OPTIONS) | {winsor})
     by_cap = {cap_key(p): {} for p in caps}
     for s in ALL_SEGMENTS:
@@ -284,6 +321,9 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND):
         "window": win, "window_label": f"{MC.label(win[0])} - {MC.label(win[-1])}",
         "excluded_months": MC.excluded_sentence(comp["all"]),
         "population": pop, "card_holders": holders, "counts": dict(counts),
+        "accounts": pop_choice,            # "both" | "personal" | "business" — what was valued
+        "accounts_label": {"both": "all accounts", "personal": "personal accounts only",
+                           "business": "business accounts only"}[pop_choice],
         "winsor_pct": winsor, "top_band": top_band,
         "segments": seg, "by_cap": by_cap, "fee": fee,
     }

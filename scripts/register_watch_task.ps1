@@ -6,7 +6,7 @@
     Creates the task "RPE Source Watch", which runs
 
         <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py `
-            --notify --copy --prune --ics-referrals --branch-names --mail --once-daily
+            --notify --copy --prune --ics-referrals --branch-names --mail --issues --once-daily
 
     once a day at the given time, as the current user, only while that user is
     logged on. Logged-on matters twice over: the task needs this user's network
@@ -137,6 +137,17 @@ if (-not (Test-Path $Script)) { throw "Missing $Script" }
 $parsed = [datetime]::ParseExact($Time, "HH:mm", $null)
 
 $TaskArgs = "`"$Script`" --notify --copy --prune --ics-referrals --branch-names --mail"
+# --issues files the issue reports CSM Sheila queued on the share and refreshes the list its
+# Reported tab reads (Aaron, 2026-10-05). It needs gh, which lives on this machine only, which
+# is why the sync runs here rather than in Sheila. Guarded like --once-daily below: this script
+# is routinely newer than the checkout it registers, and an argument argparse does not know
+# makes EVERY fire exit without checking anything.
+if (Select-String -Path $Script -Pattern '--issues' -Quiet -SimpleMatch) {
+    $TaskArgs += " --issues"
+} else {
+    Write-Warning ("{0} has no --issues; registering without it. Reports queued in " -f $Script)
+    Write-Warning "  Sheila will stay queued until the checkout is updated and this is re-run."
+}
 # Only pass --once-daily if the code being registered actually knows it. This
 # script is routinely newer than the checkout it points at - an unmerged branch,
 # a worktree, a -Repo somewhere else - and an argument argparse does not
@@ -174,6 +185,7 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
 $t = Get-ScheduledTask -TaskName $TaskName
 Write-Host ("Registered '{0}': daily at {1}, as {2}, state {3}" -f $TaskName, $Time, $user, $t.State)
 if ($RetryHours -gt 0) {
+    Write-Host ("  issues : Sheila's queued issue reports are filed on GitHub each run")
     Write-Host ("  retries: hourly for {0} h after {1}; --once-daily makes a fire" -f $RetryHours, $Time)
     Write-Host "           that follows a successful run exit immediately"
 } else {
