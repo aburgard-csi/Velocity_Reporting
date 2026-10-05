@@ -292,6 +292,13 @@ def _dest_for(rec, inputs_dir):
     return os.path.join(d, rec["name"])
 
 
+def _copy_order(rec):
+    """Sort key for the copy: every DCO, workbook and analysis before any ODD extract,
+    and within each group the smallest file first, so the files a build waits on are
+    on disk minutes into the run and a run cut short loses only the biggest extracts."""
+    return (rec["kind"] == ODDD, rec.get("size") or 0, rec["kind"], rec["client"] or "", rec["name"])
+
+
 def copy_plan(inventory, roster_ids, inputs_dir, stopped=None):
     """Which source files should be copied into `Inputs/`: [(record, destination)].
 
@@ -336,7 +343,13 @@ def copy_plan(inventory, roster_ids, inputs_dir, stopped=None):
                 newest[k] = rec
     on_drive = _input_periods(inputs_dir)
     plan = []
-    for rec in sorted(inventory.values(), key=lambda r: (r["kind"], r["client"] or "", r["name"])):
+    # Small files first, ODD extracts last and smallest first (Aaron, 2026-10-05). The
+    # order used to be by kind, which put every ODD extract (~2 GB a month across the
+    # five books) ahead of the workbooks, and a run that reached the task's execution
+    # limit mid-ODD left the 1 MB workbooks the CSMs were waiting on uncopied — the
+    # same list, in the same order, the next morning. A DCO or a workbook is the file
+    # a build is waiting on; an extract that does not finish today finishes tomorrow.
+    for rec in sorted(inventory.values(), key=_copy_order):
         if not wanted(rec):
             continue
         if newest.get((rec["client"], rec["kind"])) is not rec:

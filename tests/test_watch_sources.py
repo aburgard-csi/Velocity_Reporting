@@ -893,3 +893,20 @@ def test_a_report_the_share_refuses_does_not_kill_the_run(tmp_path, monkeypatch,
     monkeypatch.setattr(W.R, "build_artifacts", explode)
     W.save_report("the scan", {"reachable": False}, log_text="the scan")
     assert "could not write the report to the share" in capsys.readouterr().err
+
+def test_copy_plan_copies_small_files_first_and_odd_extracts_last(tmp_path):
+    """Aaron, 2026-10-05: the 08:00 run copied by kind, so ~2 GB of October ODD extracts
+    stood between the start of the copy and the seven 1 MB workbooks the CSMs were
+    waiting on, and the task's 50-minute limit fell mid-extract — same list, same order,
+    the next morning. Workbooks, DCOs and analyses go first; extracts last, smallest first."""
+    inv = _inv(
+        _rec(W.ODDD, "1100", "2026.10", "not copied", size=349_000_000),
+        _rec(W.WORKBOOK, "1075", "2026.10", "not copied", size=1_000_000),
+        _rec(W.ODDD, "1038", "2026.10", "not copied", size=6_000_000),
+        _rec(W.DCO, "1835", "2026.10", "not copied", size=26_000),
+        _rec(W.MRPCPM, "1529", "2026.10", "not copied", size=400_000),
+    )
+    plan = W.copy_plan(inv, set(), str(tmp_path), stopped=set())
+    assert [(r["kind"], r["client"]) for r, _ in plan] == [
+        (W.DCO, "1835"), (W.MRPCPM, "1529"), (W.WORKBOOK, "1075"),
+        (W.ODDD, "1038"), (W.ODDD, "1100")]

@@ -619,17 +619,24 @@ overrides) and the `clients.md` roster.
 
 State is bookkeeping, so it lives in `Build Artifacts/`:
 `source_watch.json` (the last inventory), `source_watch.log` (appended per run),
-`source_watch_latest.md` (the latest report). The first run is a baseline and
-reports counts, not news. **The scan's report, log block and inventory are saved
-BEFORE the copy and the steps after it (Aaron, 2026-09-21)** — `save_report` is called
-twice, and the report is rewritten whole when the steps finish. A run killed part way
-(the 08:00 runs of 2026-09-18 through -20 were, on a slow share, under the old
-30-minute execution limit — now 2 hours) leaves its scan rather than nothing at all,
-which is what the watchdog reads. **Off VPN it exits 2 and leaves the saved inventory
 `source_watch_latest.md` (the latest report), `source_watch_runs.json` (the run
-record — see below). The first run is a baseline and
-reports counts, not news. **Off VPN it exits 2 and leaves the saved inventory
-alone** — saving an empty one would make every file "new" the next morning.
+record — see below). The first run is a baseline and reports counts, not news.
+**The scan's report, log block and inventory are saved BEFORE the copy and the steps
+after it (Aaron, 2026-09-21)** — `save_report` is called twice, and the report is
+rewritten whole when the steps finish. A run killed part way (the 08:00 runs of
+2026-09-18 through -20 were, on a slow share, under the old 30-minute execution
+limit) leaves its scan rather than nothing at all, which is what the watchdog reads.
+**The execution limit is 50 minutes** (`register_watch_task.ps1`, Aaron, 2026-09-21) —
+this file said "2 hours" until 2026-10-05, and the script was right. The copy runs
+after `record_finish`, **small files first: every DCO, workbook and analysis before any
+ODD extract, and the extracts smallest first** (`watch_sources._copy_order`, Aaron,
+2026-10-05). It went by kind until then — DCOs, ODD extracts, workbooks — and at what the
+share gave that morning (~0.3 MB/s beside a launcher build; ~3 MB/s quiet) a month's
+extracts (~2 GB) put the limit inside the third extract with the seven 1 MB workbooks
+still to copy, and the next fire would have started the same list in the same order. An
+extract a cut-short run does not reach is copied the next morning; a workbook no longer
+waits behind it. **Off VPN it exits 2 and leaves the saved inventory alone** — saving an empty
+one would make every file "new" the next morning.
 
 **A run that never happened writes nothing, so the check for it lives OUTSIDE the
 watch (2026-09-11).** On 09-09, -10 and -11 the 08:00 task was created by the
@@ -663,8 +670,13 @@ daily at 08:00 as the logged-on user (the share needs those credentials and the
 toast needs a desktop), catching up a missed run when the laptop wakes.
 Registered on this machine 2026-09-08, re-registered 2026-09-11 with the retry
 window, `-WakeToRun` and a 20-minute limit (short enough that a stuck fire is
-cleared before the next is due, or `MultipleInstances IgnoreNew` drops it), and
-re-registered 2026-09-25 with **no retry window at all** — one fire a morning.
+cleared before the next is due, or `MultipleInstances IgnoreNew` drops it),
+re-registered 2026-09-21 with the 50-minute limit, and re-registered 2026-09-25 with
+**no retry window at all** — one fire a morning. **The file-get runs ONCE a day, at
+08:00, and no more (Aaron, 2026-10-05: "if it's running more than that it's too
+much").** Do not start a hand-run beside it: two copiers writing the same `Inputs/`
+folder was how the 2026-10-05 duplicate came about. The one sanctioned second fire
+is the watchdog's retry, and only on a morning the 08:00 fire never executed.
 **`-Repo` points it at a checkout other than the one the script lives in** — a
 worktree has no `.venv` and no `.env` and cannot host the task. The script omits
 `--once-daily` when the target checkout does not know the flag, because it is
@@ -830,11 +842,23 @@ CPU, near-zero handles, old enough — 4+ minutes — that a healthy run would h
 finished), kills the whole process tree, and retries the main task; up to two
 kill-and-retry cycles before giving up and logging for a human. Every attempt is
 appended to `Build Artifacts/source_watch_watchdog.log`. Registered on this machine
-2026-09-11, verified end-to-end via `Start-ScheduledTask`. The kill-and-retry path
-is code-reviewed, not fire-tested against a genuinely OS-suspended process — this
-environment's sandboxing refused the `CREATE_SUSPENDED` P/Invoke needed to manufacture
-one (`ERROR_INVALID_NAME` even on a trivial `notepad.exe` control case), so treat that
-one path with a little more scrutiny before trusting it blind.
+2026-09-11, verified end-to-end via `Start-ScheduledTask`. **The kill-and-retry path
+has now run for real (2026-10-05).** At 11:31 it found the 08:00 fires of 2026-10-01
+and 2026-10-03 still present and suspended — ages 4.1 and 1.7 days, CPU 0, handles 0 —
+killed both, retried the task, and the retry reached the shares three minutes later and
+started on the 65 files that had landed since the last real fetch. Without it that day
+would have had no fetch at all, which is why it stays (Aaron, 2026-10-05: "keep the
+watchdog"). Two things that day showed, and neither is understood yet:
+
+- **The scheduler's execution limit does not clear a suspended fire.** Task Scheduler
+  reported the 2026-10-01 fire terminated (`0x41306`) at 08:50, and the process was
+  still there four days later. Only the watchdog's kill removed it.
+- **The detection can miss one.** On 2026-10-01 the watchdog fired nine times between
+  08:20 and 12:20 and reported "no suspended process found" each time — about the same
+  process the same code found and killed on 10-05. It matches on `Win32_Process`
+  `CommandLine` containing `watch_sources.py`; why that read differently on the day is
+  open. A morning that logs "needs a human look" IS the human look: check for a
+  `pythonw.exe` with 0 CPU and 0 handles by hand.
 
 `register_watch_task.ps1` had drifted from the live task it describes — the
 registered task already carried `--mail` (added when the mailbox step landed,

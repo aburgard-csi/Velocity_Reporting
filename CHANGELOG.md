@@ -17,6 +17,26 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-05 — The morning copy takes the small files first
+
+Summary: The 08:00 source check now copies DCOs, workbooks and analyses into `Inputs/`
+before any ODD extract, and the extracts smallest first. A new workbook is on hand minutes
+into the run instead of behind a month of extracts.
+
+Aaron, 2026-10-05: "I see Austin Bank and Sugar River in the source but not inputs."
+
+The copy went by kind — DCO, then ODDD, then Workbook — so on 2026-10-05 about 2 GB of
+October ODD extracts for all five books stood between the start of the copy and the seven
+1 MB workbooks the CSMs were waiting on. At the share's rate that morning (~0.3 MB/s beside
+a launcher build) the task's 50-minute execution limit fell inside the third extract, and
+the next morning's fire would have started the same list in the same order. `_copy_order`
+in `watch_sources` is the rule; `tests/test_watch_sources.py` pins it. Nothing about WHAT
+is copied changed — only the order — and an extract a cut-short run did not reach is copied
+the next morning as before.
+
+Also: `CLAUDE.md` said the task's execution limit was two hours; it is 50 minutes
+(`register_watch_task.ps1`, 2026-09-21), and the file now says so, along with the standing
+rule that the file-get runs once a day at 08:00 and is never started by hand beside the task.
 ### 2026-10-05 — Gregg's last eight clients are Unassigned
 
 Summary: The eight clients the Gregg Miller assignment sheet never named a successor for are
