@@ -114,8 +114,10 @@ or flag it for Aaron. Do not remove slides and do not print a phantom 0% opt-in.
 
 ## Appendix (final module — part of ARS, not a separate agent)
 
-Build the **"Additional ARS Respondent Insights"** appendix from the raw ODD, using the
-validated definitions (see the `rpe-deck-appendix` reference): cumulative responders,
+The template carries the **"Additional ARS Respondent Insights"** appendix and `build_ars_gen.py`
+populates it in the same run (slides resolved by title, the Branch Reference slide added after the
+Appendix divider, Contact moved ahead of the Appendix) — there is no separate appendix step. Its
+slides: cumulative responders,
 repeat responders, responder age profile, balance profile, new-account profile (product,
 balances vs book, debit penetration & usage, swipe segmentation), account growth
 openings vs closures, retention/survival by tenure, first-year closure by early debit
@@ -129,14 +131,13 @@ accounts are 0/blank — do not ship survivorship artifacts.
 3. Run `build_ars_gen.py templates/ars_template.pptx <metrics.json> <base.json>
    <lift.json> <oddd_metrics.json> <charts/> <out.pptx> <ODDD.zip>`. The output filename
    must carry `<id>-<yyyy.mm>-ARS-` or the builder cannot resolve the presentation month
-   (or set `ARS_PERIOD=YYYY.MM`).
-4. Build the Appendix module.
-5. **Font policy** — run the shared post-processor last: `python3 build/restyle_fonts.py <deck.pptx>`
+   (or set `ARS_PERIOD=YYYY.MM`). The Appendix is built in this run.
+4. **Font policy** — run the shared post-processor last: `python3 build/restyle_fonts.py <deck.pptx>`
    (headings + callouts → Montserrat; subheadings, body, tables → Calibri; floors runs at
    16 pt). Charts already render in Carlito. See `templates/STYLE.md` "Fonts".
-6. Run `validation/validate_deck.py <deck> <base.json>`; 0 FAIL to ship. Passing
+5. Run `validation/validate_deck.py <deck> <base.json>`; 0 FAIL to ship. Passing
    `base.json` switches on the data-vs-deck cross-check — do not omit it.
-7. Save to the client's CSM folder under the pipeline **`Outputs/`** —
+6. Save to the client's CSM folder under the pipeline **`Outputs/`** —
    `rpe_env.client_outputs(<clientid>, create=True)`, i.e. `Outputs/<CSM>/` (filed by CSM
    since 2026-09-14; the program tag in the filename distinguishes programs) — as
    `<clientid>-<yyyy.mm>-ARS-<Name> ARS Results.pptx`.
@@ -144,7 +145,7 @@ accounts are 0/blank — do not ship survivorship artifacts.
    retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
    For a multi-program client, hand this deck to `build/assemble_combined.py --ars <deck>`
    rather than delivering it on its own.
-8. Report the path + headline figures (PTD profit, profitability ratio, take rate,
+7. Report the path + headline figures (PTD profit, profitability ratio, take rate,
    response rate) and which path (MM/SM) you used.
 
 - **Sources in notes.** Every slide records its data source(s) and selection/period in the
