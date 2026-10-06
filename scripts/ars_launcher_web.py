@@ -394,12 +394,21 @@ def _served_clients():
         doc, at, refreshing, err = _clients["doc"], _clients["at"], _clients["busy"] is not None, _clients["error"]
     with _jobs_lock:
         jobs = dict(_jobs)
+    with _status_lock:
+        checked = dict(_status_cache)
     period = doc["period"]
+    now = time.time()
     clients = []
     for c in doc["clients"]:
         c = dict(c)
         c.pop("result_written", None)
         c["lift_expired"] = _lift.get(c["id"]) == L.STOP
+        # "Ready": the stored status says every pre-build check passes (a deck already in Outputs is "ask",
+        # a missing input is "stop"). Only a status for the cycle on screen, and not older than STATUS_TTL,
+        # counts: an old "ready" must not read as one now.
+        hit = checked.get(c["id"])
+        c["ready"] = bool(hit and now - hit[0] < STATUS_TTL and hit[1].get("period") == period
+                          and hit[1].get("state") == "ready")
         job = jobs.get(c["id"])
         if job:
             # A build this server ran is known now, not at the next refresh.
@@ -1770,7 +1779,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .grouphead{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);padding:12px 9px 4px}
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap}
 .chip.sent{background:var(--sent-bg);color:var(--sent)} .chip.out{background:var(--ok-bg);color:var(--ok)}
-.chip.stop{background:var(--stop-bg);color:var(--stop)}
+.chip.stop{background:var(--stop-bg);color:var(--stop)} .chip.ready{background:var(--ok-bg);color:var(--ok)}
 .chip.queue{background:var(--warn-bg);color:var(--warn)} .chip.building{background:var(--orange);color:#fff}
 .chip.error{background:#C62828;color:#fff}
 main{padding:22px 24px;min-height:420px}
@@ -1875,7 +1884,7 @@ dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-wi
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button><button role="tab" id="tab-reported" aria-selected="false">Reported</button></nav><button type="button" class="reportbtn" id="reportbtn" title="Report a problem with Sheila or a deck">Report an issue</button><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
+<header class="top"><h1>CSM Sheila <span style="font-weight:400;opacity:.8">· Smart Helper for Executive Insights, Layouts &amp; Analytics</span></h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button><button role="tab" id="tab-reported" aria-selected="false">Feedback</button></nav><button type="button" class="reportbtn" id="reportbtn" title="Report a problem with Sheila or a deck">Report an issue</button><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
 <dialog class="report" id="repdlg"><form method="dialog" id="repform">
   <h3>Report an issue</h3>
   <label>What is wrong?<input type="text" id="reptitle" maxlength="200" required
@@ -2012,6 +2021,8 @@ function renderList() {
     const chips = [QUEUE.building === c.id ? `<span class="chip building">Building</span>` : "",
                    place >= 0 ? `<span class="chip queue">Queued #${place + 1}</span>` : "",
                    c.error && QUEUE.building !== c.id && place < 0 ? `<span class="chip error">Error ${esc(PERIOD || "")}</span>` : "",
+                   c.ready && QUEUE.building !== c.id && place < 0 && !c.error && !c.lift_expired && !c.decks.length
+                     ? `<span class="chip ready">Ready</span>` : "",
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
@@ -2274,7 +2285,7 @@ async function sendReport(ev) {
 
 async function reportedView() {
   current = null; renderList();
-  $("#main").innerHTML = `<div class="head"><h2>Reported</h2></div><p class="note">Reading the reports…</p>`;
+  $("#main").innerHTML = `<div class="head"><h2>Feedback</h2></div><p class="note">Reading the reports…</p>`;
   let body;
   try { ({body} = await api("/api/reports")); } catch (e) {
     $("#main").innerHTML = `<p class="err">Couldn't read the reports: ${esc(e.message)}</p>`; return;
@@ -2293,7 +2304,7 @@ async function reportedView() {
       <td>${esc(r.client_id || "")}</td><td class="small">${esc(r.reporter || "")}</td>
       <td class="small">${esc((r.created || "").replace("T", " ").slice(0, 16))}</td></tr>`;
   }).join("");
-  $("#main").innerHTML = `<div class="head"><h2>Reported</h2>
+  $("#main").innerHTML = `<div class="head"><h2>Feedback</h2>
       <span class="sub">${rows.length} report${rows.length === 1 ? "" : "s"}${q ? ` · ${q} not yet filed` : ""}</span>
       <span class="sub" style="margin-left:auto">GitHub state as of ${esc(when)}</span></div>
     ${body.error ? `<p class="err">${esc(body.error)}</p>` : ""}

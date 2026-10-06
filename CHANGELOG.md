@@ -17,6 +17,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-06 — Sheila's client list shows a Ready chip
+
+Summary: In CSM Sheila's client list, a green Ready chip now appears under the client name when
+every check passes and the deck can be built.
+
+Ready (Aaron, 2026-10-06) comes from the client's stored status: every pre-build check passes and
+no deck for the cycle is in Outputs yet. It is shown only for the cycle on screen, from a status
+younger than `STATUS_TTL`, and not beside Building, Queued, Error or Lift Matrix expired, so an old
+"ready" cannot read as current. No check changed; the chip reads what the client page already says.
+
+### 2026-10-05 — Sheila's Reported tab is now Feedback
+
+Summary: The tab in CSM Sheila that lists reported issues is now called Feedback. Nothing else
+about it changed.
+
+The tab button and the view's heading read "Feedback" (Aaron, 2026-10-05). The table's
+"Reported" column stays — it is the date a report was made. Internal names (`tab-reported`,
+`/api/reports`) are unchanged.
+
 ### 2026-10-05 — The morning copy takes the small files first
 
 Summary: The 08:00 source check now copies DCOs, workbooks and analyses into `Inputs/`

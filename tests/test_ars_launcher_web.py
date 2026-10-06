@@ -273,6 +273,22 @@ def test_the_list_is_served_from_memory_and_rebuilt_behind_the_page(clean_state,
     assert W.clients_doc()["clients"][0]["decks"] == ["1441-2026.09-ARS-FNB Alaska ARS Results.pptx"]
 
 
+def test_the_list_marks_a_client_ready_only_from_a_current_ready_status(clean_state, monkeypatch):
+    monkeypatch.setattr(W, "compute_clients", lambda: listing())
+    now = time.time()
+    status = lambda state, period="2026.09": {"client": "1441", "state": state, "period": period}
+    for stored, want in [((now, status("ready")), True),
+                         ((now, status("ask")), False),      # a deck is already in Outputs
+                         ((now, status("stop")), False),
+                         ((now, status("ready", "2026.08")), False),   # another cycle
+                         ((now - W.STATUS_TTL - 1, status("ready")), False),   # an old "ready"
+                         (None, False)]:
+        W._status_cache.clear()
+        if stored:
+            W._status_cache["1441"] = stored
+        assert W.clients_doc()["clients"][0]["ready"] is want, stored
+
+
 def test_a_finished_build_shows_in_the_list_before_the_refresh(clean_state, monkeypatch):
     """Error and In Outputs follow this server's own builds live; the stored list is rebuilt after."""
     calls = []
