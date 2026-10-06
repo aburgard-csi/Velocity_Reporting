@@ -83,6 +83,63 @@ def test_a_stale_lock_is_taken_over(tmp_path):
     assert L.lock(tmp_path).exists()
 
 
+def _dead_pid():
+    """The pid and start time of a process that has just exited."""
+    import subprocess
+    import sys
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    started = L._process_start(proc.pid)
+    proc.wait()
+    return proc.pid, started
+
+
+def _write_lock(tmp_path, host, pid, started=None):
+    p = tmp_path / ".launcher.lock"
+    tail = f", started {started}" if started else ""
+    p.write_text(f"aaron.burgard since 2026-10-06 11:15 (host {host}, pid {pid}{tail})", encoding="utf-8")
+    return p
+
+
+def test_a_lock_records_the_process_that_holds_it(tmp_path):
+    text = L.lock(tmp_path).read_text(encoding="utf-8")
+    assert f"host {L._host()}, pid {os.getpid()}" in text
+
+
+def test_a_lock_left_by_a_killed_build_is_taken_over_at_once(tmp_path, capsys):
+    """2026-10-06: killed builds left their lock and 1075 and 1038 could not be rebuilt for hours."""
+    pid, started = _dead_pid()
+    _write_lock(tmp_path, L._host(), pid, started)
+    assert L.lock(tmp_path).exists()
+    assert "gone. Taking over" in capsys.readouterr().out
+    assert f"pid {os.getpid()}" in (tmp_path / ".launcher.lock").read_text(encoding="utf-8")
+
+
+def test_a_lock_whose_process_is_alive_still_stops_a_second_build(tmp_path):
+    _write_lock(tmp_path, L._host(), os.getpid(), L._process_start(os.getpid()))
+    with pytest.raises(SystemExit) as e:
+        L.lock(tmp_path)
+    assert "already building" in str(e.value)
+
+
+def test_a_lock_from_another_machine_is_left_to_the_age_limit(tmp_path):
+    pid, started = _dead_pid()
+    _write_lock(tmp_path, "SOME-OTHER-PC", pid, started)     # its pid means nothing here
+    with pytest.raises(SystemExit):
+        L.lock(tmp_path)
+
+
+def test_a_reused_pid_is_not_mistaken_for_the_holder(tmp_path):
+    if os.name != "nt":
+        pytest.skip("start times are read on Windows only")
+    _write_lock(tmp_path, L._host(), os.getpid(), 123456789)   # same pid, a different process lifetime
+    assert L.lock(tmp_path).exists()
+
+
+def test_a_lock_with_no_process_recorded_falls_back_to_its_age(tmp_path):
+    (tmp_path / ".launcher.lock").write_text("aaron.burgard since 2026-10-06 11:15", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        L.lock(tmp_path)
+
 def test_build_log_command_lines_name_their_step():
     py = r"C:\Users\x\AppData\Local\RPE\Python\python.exe"
     assert L.step_of(f"$ {py} \\\\srv\\Tools\\RPE\\build\\ars_pipeline/metrics_gen.py a.zip m.json") \

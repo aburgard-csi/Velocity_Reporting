@@ -395,15 +395,88 @@ def combined_checks(cid, period, roster):
 
 
 # ------------------------------------------------------------------ locking
+def _process_start(pid):
+    """The process's creation time (Windows FILETIME), or None when it cannot be read.
+
+    A pid alone is not an identity: Windows hands a dead process's number to a new one. Paired with the
+    start time it is."""
+    if os.name != "nt":
+        return None
+    import ctypes
+    from ctypes import wintypes
+    k = ctypes.windll.kernel32
+    k.OpenProcess.restype = wintypes.HANDLE
+    h = k.OpenProcess(0x1000, False, pid)          # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return None
+    try:
+        c, e, kt, u = (wintypes.FILETIME() for _ in range(4))
+        if not k.GetProcessTimes(h, ctypes.byref(c), ctypes.byref(e), ctypes.byref(kt), ctypes.byref(u)):
+            return None
+        return (c.dwHighDateTime << 32) | c.dwLowDateTime
+    finally:
+        k.CloseHandle(h)
+
+
+def _process_alive(pid, started=None):
+    """True when process `pid` is still running (and, when `started` is given, is the SAME process)."""
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        k = ctypes.windll.kernel32
+        k.OpenProcess.restype = wintypes.HANDLE
+        h = k.OpenProcess(0x1000, False, pid)
+        if not h:
+            return ctypes.GetLastError() == 5      # access denied: it exists, we may not look
+        try:
+            code = wintypes.DWORD()
+            if not k.GetExitCodeProcess(h, ctypes.byref(code)) or code.value != 259:      # STILL_ACTIVE
+                return False
+        finally:
+            k.CloseHandle(h)
+        return started is None or _process_start(pid) in (None, started)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+_HOLDER_RX = re.compile(r"host (\S+), pid (\d+)(?:, started (\d+))?")
+
+
+def _holder_is_gone(holder):
+    """The lock names this machine and a process that no longer exists: a build that was killed.
+
+    A lock from another machine, or one with no process on it, can't be judged here and is left to the age
+    limit. 2026-10-06: a killed build left its lock, and the client could not be rebuilt for hours."""
+    m = _HOLDER_RX.search(holder or "")
+    if not m or m.group(1).lower() != _host().lower():
+        return False
+    return not _process_alive(int(m.group(2)), int(m.group(3)) if m.group(3) else None)
+
+
+def _host():
+    import socket
+    return socket.gethostname()
+
+
 def lock(work_dir):
     work_dir.mkdir(parents=True, exist_ok=True)
     p = work_dir / ".launcher.lock"
     if p.exists():
         age_h = (time.time() - p.stat().st_mtime) / 3600
         holder = p.read_text(encoding="utf-8", errors="replace").strip()
-        if age_h < LOCK_STALE_HOURS:
+        if age_h < LOCK_STALE_HOURS and not _holder_is_gone(holder):
             raise SystemExit(f"  [STOP] Someone is already building this client ({holder}). Try again when it finishes.")
-    p.write_text(f"{getpass.getuser()} since {dt.datetime.now():%Y-%m-%d %H:%M}", encoding="utf-8")
+        if age_h < LOCK_STALE_HOURS:
+            print(f"  [..]   The last build's lock ({holder}) belongs to a process that is gone. Taking over.")
+    pid = os.getpid()
+    started = _process_start(pid)
+    p.write_text(f"{getpass.getuser()} since {dt.datetime.now():%Y-%m-%d %H:%M} (host {_host()}, pid {pid}"
+                 + (f", started {started}" if started else "") + ")", encoding="utf-8")
     return p
 
 

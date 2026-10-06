@@ -17,6 +17,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-06 — A killed build no longer blocks its client for hours
+
+Summary: If a build is killed or crashes, the next build of that client now takes over at once instead
+of being refused for up to three hours with "Someone is already building this client".
+
+Austin Bank and Sugar River Bank could not be rebuilt after a build was stopped, because the build's
+`.launcher.lock` stayed behind and only expired after `LOCK_STALE_HOURS` (3). The lock now records the
+holder's machine and process (`host H, pid N, started T`). `lock()` takes over immediately when the lock
+names THIS machine and that process is gone (`_holder_is_gone`); the start time is compared too, so a
+reused process number is not mistaken for the holder. A lock from another machine, or an old lock with
+no process on it, is judged by its age as before, and a live holder still stops a second build. The
+process check uses `OpenProcess` / `GetExitCodeProcess` on Windows and never `os.kill`, which would
+terminate the process there.
+
 ### 2026-10-06 — Slide fixes from the Austin Bank 2026.10 review
 
 Summary: Four slide corrections. Product Mix and Excluded Accounts now show the same smaller callout
