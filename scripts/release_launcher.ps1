@@ -13,6 +13,9 @@ What it writes under <Root>:
                     and the stamp that tells each PC to unpack it again (scripts\launchers\runtime.cmd
                     unpacks to %LOCALAPPDATA%\RPE on first use). Needed only when the libraries change.
   Build ARS Deck.bat, ARS Deck User Guide.html   in <Root> itself
+Each PC runs the code from a local copy, not from the share: scripts\launchers\runtime.cmd copies
+Tools\RPE to %LOCALAPPDATA%\RPE\Code whenever RELEASE.txt changes, so a release reaches a PC the next
+time its launcher starts. RELEASE.txt is the stamp, and is written last.
 Copy-only: robocopy mirrors Tools\RPE (so a removed file does not linger and run), and never
 touches Inputs, Outputs or Build Artifacts. Run the unit suite before releasing.
 #>

@@ -4,7 +4,6 @@ rem see scripts\ars_launcher_web.py. Build ARS Deck.bat is the same thing withou
 setlocal
 set "ROOT=%~dp0"
 set "RPE_DATA_ROOT=%ROOT:~0,-1%"
-set "APP=%ROOT%Tools\RPE\scripts\ars_launcher_web.py"
 set "PYTHONIOENCODING=utf-8"
 set "PYTHONDONTWRITEBYTECODE=1"
 title CSM Sheila
@@ -14,6 +13,7 @@ echo.
 echo  CSM Sheila
 echo  ----------
 call "%ROOT%Tools\RPE\scripts\launchers\runtime.cmd" || goto end
+set "APP=%CODE%\scripts\ars_launcher_web.py"
 echo  Opening the builder in your browser...
 "%PY%" "%APP%"
 :end

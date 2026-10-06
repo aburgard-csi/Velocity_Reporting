@@ -3,7 +3,6 @@ rem Build one client's ARS deck into Outputs. Lives in the CSM_Reporting folder;
 setlocal
 set "ROOT=%~dp0"
 set "RPE_DATA_ROOT=%ROOT:~0,-1%"
-set "APP=%ROOT%Tools\RPE\scripts\ars_launcher.py"
 set "PYTHONIOENCODING=utf-8"
 set "PYTHONDONTWRITEBYTECODE=1"
 title Build ARS Deck
@@ -13,6 +12,7 @@ echo.
 echo  Build an ARS deck
 echo  -----------------
 call "%ROOT%Tools\RPE\scripts\launchers\runtime.cmd" || goto end
+set "APP=%CODE%\scripts\ars_launcher.py"
 set "CID="
 set /p "CID= Client number: "
 if "%CID%"=="" goto end

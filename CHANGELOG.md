@@ -17,6 +17,21 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-06 — The launcher runs its code from a copy on the PC
+
+Summary: Sheila and Build ARS Deck now run from a local copy of the launcher code instead of the
+network share, so builds no longer crawl or hang on file lookups. The first launch after each
+release copies the code, which takes under a minute.
+
+Austin Bank's 2026.10 combined build ran for over an hour and never finished (Aaron, 2026-10-06).
+A stack trace showed the build inside `import summit_slide`, and a file lookup on the share costs
+about 50 ms when the file is not there, which Python does constantly while importing; the same
+build ran from a local checkout in about three minutes. `runtime.cmd` already put Python on each PC;
+it now also copies `Tools\RPE` to `%LOCALAPPDATA%\RPE\Code` whenever `RELEASE.txt` changes, and both
+.bat files run `ars_launcher_web.py` / `ars_launcher.py` from there. `RPE_DATA_ROOT` still points at
+the share, so inputs, outputs and build artifacts are unchanged. A status check for 1075 took 4 s
+from the local copy and 22 s from the share.
+
 ### 2026-10-06 — Sheila's header no longer carries the long name
 
 Summary: CSM Sheila's header and browser tab now read just "CSM Sheila", without the "Smart Helper
