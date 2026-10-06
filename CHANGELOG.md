@@ -17,6 +17,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-06 — The money cross-check accepts a one-dollar rounding difference
+
+Summary: The validation gate no longer fails a correct deck because the P&L's program-to-date total is
+one dollar away from the extract's rounding. Rally CU's October deck was rejected on it and now passes.
+
+`validate_deck.extract_findings` requires each headline money figure from `base_extract.json` to appear in
+the deck. Rally CU's ARS Financial Performance table states program-to-date revenue as the sum of its own
+rounded lines, $35,733,424, while the extract's unrounded total is 35,733,424.51, which rounds to
+$35,733,425: one figure, two correct renderings, and the check accepted only one (Aaron, 2026-10-06; the
+build was rejected with 1 FAIL and delivered after the check was corrected). A dollar either side of the
+extract's rounding now passes; two dollars off, or the figure missing, still fails. The table is not
+changed: rounding it to the extract's figure would stop its lines adding up.
+
 ### 2026-10-06 — A killed build no longer blocks its client for hours
 
 Summary: If a build is killed or crashes, the next build of that client now takes over at once instead

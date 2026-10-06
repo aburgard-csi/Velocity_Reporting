@@ -1781,6 +1781,12 @@ def extract_findings(prs, extract, texts=None):
         deck, which is how the $830K-vs-$0.83M version of this failed one in 2026-09.
         """
         forms = [_usd(v), f"${v:,.0f}", f"${abs(v):,.0f}"]
+        # The P&L table states a total as the sum of its own rounded lines, so it can differ from the
+        # extract's unrounded total by one dollar (Rally CU 2026.10: lines add to $35,733,424, the extract
+        # is 35,733,424.51 = $35,733,425). That is the same figure rendered two correct ways: a dollar
+        # either side of the extract's rounding is accepted, and nothing wider.
+        whole = round(abs(v))
+        forms += [f"${whole - 1:,.0f}", f"${whole + 1:,.0f}"]
         if not any(f in allnum for f in forms):
             out.append(("FAIL", 0, f"base_extract {label} = {forms[0]} not found in the deck, "
                                    f"in that form or as {forms[1]}"))
