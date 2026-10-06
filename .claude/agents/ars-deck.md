@@ -141,8 +141,8 @@ accounts are 0/blank — do not ship survivorship artifacts.
    `rpe_env.client_outputs(<clientid>, create=True)`, i.e. `Outputs/<CSM>/` (filed by CSM
    since 2026-09-14; the program tag in the filename distinguishes programs) — as
    `<clientid>-<yyyy.mm>-ARS-<Name> ARS Results.pptx`.
-   **Do not deliver to Client Presentations or to a per-client folder** — that drop was
-   retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
+   **Deliver only to the CSM folder in Outputs/** — no Client Presentations or per-client copy
+   (CLAUDE.md, "Output — ONE destination").
    For a multi-program client, hand this deck to `build/assemble_combined.py --ars <deck>`
    rather than delivering it on its own.
 7. Report the path + headline figures (PTD profit, profitability ratio, take rate,
@@ -181,18 +181,13 @@ data-pack caches are not kept in the repo — they go to `archive/` (the data pa
   This defaulted to CoastLife 1705 and leaked into every deck's notes (fixed 2026-07-24); do not
   let it regress.
 
-## Swap integrity (2026-07-25 — learned the hard way)
-`build_ars_gen.py` now tracks every find-string; any that matches nothing aborts the build
-with `MISS <needle>`. Three real defects were found this way and fixed:
-1. **Appendix off-by-one** — the whole appendix block addressed `S[32]`–`S[45]` while the
-   re-baked 47-slide template holds those slides at `S[33]`–`S[46]`. Every swap silently
-   no-op'd, so slides 34–47 shipped the template client's numbers with correct client charts.
-   Now resolved by TITLE via `SB("...")`, which raises when a title is missing.
-2. **"Profit This Month" tile** — the builder searched for the revenue literal `$57,270` in
-   the profit tile, whose literal is `$51,569`. Never matched; every deck showed the template's
-   monthly profit.
-3. **"Retained at 3 years" tile** — searched `82%`, literal is `72%`.
-Any future template re-bake: re-run a client build and confirm `misses=0` before shipping.
+## Swap integrity
+`build_ars_gen.py` tracks every find-string; any that matches nothing aborts the build with
+`MISS <needle>`, because a silent no-op ships the template client's numbers under the new client's
+charts. Slides are resolved by TITLE via `SB("...")`, which raises when a title is missing — never
+by index, which points at the wrong slide as soon as the template gains or loses one. A find-string
+must be the literal the template slide actually carries (a tile's own figure, not a neighbour's).
+After any template re-bake, run a client build and confirm `misses=0` before shipping.
 
 ## Clients whose extract lacks DOB
 FNBT Chickasha (1537) has an entirely empty `DOB` column, so the Responder Age Profile has no

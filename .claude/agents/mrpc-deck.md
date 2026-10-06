@@ -133,8 +133,8 @@ slide → Card Portfolio). Re-run `setup_template.py` only if the base structure
 4. Save to the client's CSM folder under the pipeline **`Outputs/`** —
    `rpe_env.client_outputs(<clientid>, create=True)`, i.e. `Outputs/<CSM>/` — as
    `<clientid>-<yyyy.mm>-MRPC-<Name> MRPC Results.pptx`.
-   **Do not deliver to Client Presentations or to a per-client folder** — that drop was
-   retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
+   **Deliver only to the CSM folder in Outputs/** — no Client Presentations or per-client copy
+   (CLAUDE.md, "Output — ONE destination").
    For a multi-program client, pass it to `build/assemble_combined.py --mrpc <deck>`
    instead of delivering it on its own.
 5. Report the path + headline figures (PTD enrollments, active enrollments, avg monthly
@@ -143,12 +143,9 @@ slide → Card Portfolio). Re-run `setup_template.py` only if the base structure
 - **Sources in notes.** Every slide records its data source(s) and selection/period in the
   slide's speaker notes before this deck is considered done (see CLAUDE.md).
 
-## Active enrollments — from the weekly (Aaron, 2026-10-02; replaces 2026-07-25)
-**Read active figures from the MRPC Enrollment Summary weekly**, not VIP: "go ahead with the
-two new MRPC slides using the weekly." The 2026-07-25 rule was to show VIP's Active
-Enrollments chart figure directly, as the past-90-day-trial active count. By 2026-10 the VIP
-sheet's `active_enrollments` (4,396 for Marine FCU) carried no date or source and matched no
-current count. The weekly's figures reconcile with each other: Marine 9/27/2026, 2,825 active
-cardholders, of whom 2,466 are past the 90-day trial (91–180 days + over 180 days) — the
-definition the 2026-07-25 rule settled on, close to the 2,491 it was settled at. The slide
-shows both; the retired VIP figures stay in the notes with the reason.
+## Active enrollments — from the weekly (Aaron, 2026-10-02)
+**Read active figures from the MRPC Enrollment Summary weekly**, not VIP. The VIP sheet's
+`active_enrollments` carries no date or source and matches no current count, while the weekly's
+figures reconcile with each other (Marine FCU 9/27/2026: 2,825 active cardholders, of whom 2,466
+are past the 90-day trial — 91–180 days plus over 180 days). The slide shows both counts; the VIP
+figure stays in the notes with the reason it is not used.

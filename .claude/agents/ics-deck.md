@@ -151,8 +151,8 @@ ICS Revenue (PTD breakdown) → ICS Financial Summary → Marine/client vs Veloc
 5. Save to the client's CSM folder under the pipeline **`Outputs/`** —
    `rpe_env.client_outputs(<clientid>, create=True)`, i.e. `Outputs/<CSM>/` — as
    `<clientid>-<yyyy.mm>-ICS-<Name> ICS Results.pptx`.
-   **Do not deliver to Client Presentations or to a per-client folder** — that drop was
-   retired 2026-07-25 (CLAUDE.md, "Output — ONE destination").
+   **Deliver only to the CSM folder in Outputs/** — no Client Presentations or per-client copy
+   (CLAUDE.md, "Output — ONE destination").
    For a multi-program client, pass it to `build/assemble_combined.py --ics <deck>`
    instead of delivering it on its own; a referrals-only section assembles correctly.
 6. Report the path + headline figures (ROI, net profit to the client, referrals PTD/YTD,
