@@ -22,8 +22,9 @@ Format: newest first, dated, with the reason — not just the change.
 Summary: CSM Sheila's header and browser tab now read just "CSM Sheila", without the "Smart Helper
 for Executive Insights, Layouts & Analytics" line.
 
-Removed at Aaron's request (2026-10-06) from the page header and the page title. The launcher
-window title and the module docstring still carry it.
+Removed at Aaron's request (2026-10-06) from the page header and the page title, and from the
+launcher window title and banner in `ARS Deck Builder GUI.bat`. The module docstring and the
+`--help` text still carry it.
 
 ### 2026-10-06 — Sheila's client list shows a Ready chip
 
