@@ -606,264 +606,90 @@ powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 \
         [-Time 08:00] [-Repo <checkout>] [-RetryHours 0] [-Unregister]
 ```
 
-`deck_status.py` answers "is it there now"; `watch_sources.py` answers "what
-landed since I last looked" (Aaron, 2026-09-08). It scans this month's and last
-month's folders on the CSI shares — ODD extracts in all five CSMs' folders on
-`Velocity_company` (see the 2026-09-14 paragraph below), DCOs / ARS workbooks / MRPCPM
-analyses on `Velocity_clientreports` — diffs the
-inventory against the one it saved last run, and reports files that are new,
-re-landed (same name, new bytes) or gone, roster clients first, each with whether
-the copy the builders read is already current. Nothing is copied
-automatically. It reuses `deck_status`'s share roots (and their `RPE_SRC_*`
-overrides) and the `clients.md` roster.
+`deck_status.py` answers "is it there now"; `watch_sources.py` answers "what landed since I last
+looked" (Aaron, 2026-09-08). It scans this month's and last month's folders on the CSI shares — ODD
+extracts in all five CSMs' folders on `Velocity_company`, DCOs / ARS workbooks / MRPCPM analyses on
+`Velocity_clientreports` — diffs the inventory against the last one, and reports files that are new,
+re-landed (same name, new bytes) or gone, roster clients first. State lives in `Build Artifacts/`
+(`source_watch.json`, `.log`, `_latest.md`, `source_watch_runs.json`). Share roots and their
+`RPE_SRC_*` overrides come from `deck_status`. The full account — the incidents behind each rule,
+the registration history and the watchdog's record — is in
+[`docs/OPERATIONS-source-watch.md`](docs/OPERATIONS-source-watch.md); the rules that matter when
+touching this code are here.
 
-State is bookkeeping, so it lives in `Build Artifacts/`:
-`source_watch.json` (the last inventory), `source_watch.log` (appended per run),
-`source_watch_latest.md` (the latest report), `source_watch_runs.json` (the run
-record — see below). The first run is a baseline and reports counts, not news.
-**The scan's report, log block and inventory are saved BEFORE the copy and the steps
-after it (Aaron, 2026-09-21)** — `save_report` is called twice, and the report is
-rewritten whole when the steps finish. A run killed part way (the 08:00 runs of
-2026-09-18 through -20 were, on a slow share, under the old 30-minute execution
-limit) leaves its scan rather than nothing at all, which is what the watchdog reads.
-**The execution limit is 50 minutes** (`register_watch_task.ps1`, Aaron, 2026-09-21) —
-this file said "2 hours" until 2026-10-05, and the script was right. The copy runs
-after `record_finish`, **small files first: every DCO, workbook and analysis before any
-ODD extract, and the extracts smallest first** (`watch_sources._copy_order`, Aaron,
-2026-10-05). It went by kind until then — DCOs, ODD extracts, workbooks — and at what the
-share gave that morning (~0.3 MB/s beside a launcher build; ~3 MB/s quiet) a month's
-extracts (~2 GB) put the limit inside the third extract with the seven 1 MB workbooks
-still to copy, and the next fire would have started the same list in the same order. An
-extract a cut-short run does not reach is copied the next morning; a workbook no longer
-waits behind it. **Off VPN it exits 2 and leaves the saved inventory alone** — saving an empty
-one would make every file "new" the next morning.
+**Scheduling**
+- **The file-get runs ONCE a day, at 08:00, and no more (Aaron, 2026-10-05).** Do not start a
+  hand-run beside it: two copiers writing the same `Inputs/` folder produced a duplicate. The one
+  sanctioned second fire is the watchdog's retry, on a morning the 08:00 fire never executed.
+- The task is **"RPE Source Watch"**, run as the logged-on user (the share needs those credentials,
+  the toast needs a desktop), with a 50-minute execution limit. `-Repo` targets a checkout other
+  than the script's own — a worktree has no `.venv` or `.env` and cannot host the task.
+- **Off VPN it exits 2 and leaves the saved inventory alone**; saving an empty one would make every
+  file "new" the next morning. The scan's report, log block and inventory are saved BEFORE the copy
+  and the steps after it, so a run killed part way still leaves its scan.
 
-**A run that never happened writes nothing, so the check for it lives OUTSIDE the
-watch (2026-09-11).** On 09-09, -10 and -11 the 08:00 task was created by the
-scheduler and left SUSPENDED — zero CPU, no modules loaded, the interpreter never
-initialized — then killed at the execution limit. No log line, no report, no
-toast, and nothing in the pipeline knew for three days. A heartbeat inside the
-script could not have caught it; only something else asking could. So:
+**Health is checked from OUTSIDE the watch.** A run that never executed writes nothing, so the
+watch cannot report on itself — do not "simplify" this by having it check its own health.
+`watch_sources.run_health()` reads the run record (`ok` / `stale` / `never`, by last FINISH,
+outcome ignored); `refresh_performance_dashboard.py` prints it at 08:30 and the delivery dashboard
+banners it; `--check-stale` scans nothing and answers off VPN. The **"RPE Source Watch Watchdog"**
+task (`scripts/watch_task_watchdog.ps1`, from 08:20, every 30 minutes for four hours) asks
+`--check-today`, and if no run has reached the shares it kills a fire Windows created suspended
+and retries the main task, appending to `Build Artifacts/source_watch_watchdog.log`. It stays
+(Aaron, 2026-10-05). A morning that logs "needs a human look" is the human look: check for a
+`pythonw.exe` with 0 CPU and 0 handles by hand.
 
-- `watch_sources.run_health()` reads `source_watch_runs.json` and answers
-  `ok` / `stale` / `never`, measuring age from the last FINISH — a killed run
-  leaves a start with no finish, a run that never starts leaves neither.
-  **Outcome is ignored**: a run that found the shares down still RAN.
-- **`refresh_performance_dashboard.py` prints it every morning at 08:30**, on a
-  different scheduler, which is the point. The delivery dashboard banners it too.
-- `--check-stale` asks from anywhere and **scans nothing**, so it answers off VPN.
-- **The trigger fires ONCE, at 08:00, with `-WakeToRun` (Aaron, 2026-09-25).** It
-  used to repeat hourly for four hours, with `--once-daily` making a repeat that
-  followed a run which **reached the shares** exit at once. `-RetryHours 4` puts
-  that window back. Know what one fire gives up: the watchdog still recovers a
-  fire Windows created suspended, but a morning off the VPN now gets no copy at
-  all — the run goes, reports the shares unreachable and finishes, so there is
-  nothing stuck to recover and no later fire to go and look. Run it by hand once
-  the VPN is up. `--once-daily` is still passed, so a hand-run after a successful
-  one exits at once.
+**Copy (`--copy`)**
+- Every file for **every client except a stopped one** (`clients.md` skipped rows) that `Inputs/`
+  lacks or holds a different landing of is copied — all five CSMs' ODD folders, which each name
+  month folders differently (`deck_status.odd_folder_period` is the one reader). `clients.md`
+  decides what gets BUILT; the copy only decides what is on hand.
+- **The ODD extract is copied only from the newest month on the share** for that client
+  (`copy_plan`; `tests/test_watch_sources.py` pins it) — the local copy carries no period in its
+  name, so copying last month's back would be the stale-ODD failure.
+- **A "differs" file is overwritten only when the SOURCE is the newer write.** A workbook opened and
+  saved in Excel so its formulas carry values is a deliberate change. A workbook that lands with
+  unevaluated formulas reads as 1 month, 0 mailings, $0; `build/ars_pipeline/base_guard.py` stops
+  every ARS entry point with `UNEVALUATED WORKBOOK` (open it in Excel, save, rebuild).
+- Copy-only — a copy never deletes. A `.part` file is renamed over the target and the size verified.
+  Small files first (`_copy_order`): every DCO, workbook and analysis before any extract, extracts
+  smallest first, so a cut-short run never leaves a workbook waiting behind an extract.
+- One unreachable CSM folder counts as off VPN.
 
-Do not "simplify" this by having the watch check its own health. That is the one
-thing it cannot do.
+**Prune (`--prune`).** A workbook-ish file in `Inputs/` is deleted only when a NEWER version of the
+same client id and kind (or the same weekly family, later stamp) is present and non-empty. The
+newest of each group is always kept, a lone file is never touched however old, files with the same
+version key are ambiguous and both stay, and ODD extracts and ICS Charts workbooks are left alone
+(`prune_plan`; tests pin it). The delivery dashboard's input columns for a PAST period therefore
+read "not copied" once its inputs are pruned.
 
-`register_watch_task.ps1` schedules it as the Windows task **"RPE Source Watch"**,
-daily at 08:00 as the logged-on user (the share needs those credentials and the
-toast needs a desktop), catching up a missed run when the laptop wakes.
-Registered on this machine 2026-09-08, re-registered 2026-09-11 with the retry
-window, `-WakeToRun` and a 20-minute limit (short enough that a stuck fire is
-cleared before the next is due, or `MultipleInstances IgnoreNew` drops it),
-re-registered 2026-09-21 with the 50-minute limit, and re-registered 2026-09-25 with
-**no retry window at all** — one fire a morning. **The file-get runs ONCE a day, at
-08:00, and no more (Aaron, 2026-10-05: "if it's running more than that it's too
-much").** Do not start a hand-run beside it: two copiers writing the same `Inputs/`
-folder was how the 2026-10-05 duplicate came about. The one sanctioned second fire
-is the watchdog's retry, and only on a morning the 08:00 fire never executed.
-**`-Repo` points it at a checkout other than the one the script lives in** — a
-worktree has no `.venv` and no `.env` and cannot host the task. The script omits
-`--once-daily` when the target checkout does not know the flag, because it is
-routinely newer than the code it registers and an unrecognised argument would
-make every fire exit without checking anything. `--notify` raises a Windows toast only when
-there is news or the shares were unreachable; a quiet day is silent.
+**Mail (`--mail`, `scripts/mail_sources.py`).** Bradford Sanders' MRPC and CashPlease reports and
+CashPlease marketing emails, and Matt Milliman's ICS workbooks, come from Outlook and are filed by
+kind with everything else.
+- Outlook COM as the logged-on user, **read-only** (nothing marked read, moved, deleted or replied
+  to). An unreachable mailbox is reported and skipped, never fatal.
+- **The mail step cannot hang the run**: share results are saved BEFORE it, it runs as its own
+  process (`watch_sources.mail_step`, `MAIL_TIMEOUT` = 10 min) and a timeout is reported;
+  `mail_sources._outlook()` tries `GetActiveObject` before `Dispatch` because the latter can block.
+- Senders are matched on the resolved SMTP address, and each sender may supply only their own
+  kinds. Scan Inbox AND Archive plus subfolders; keep only the newest of each thing; an attachment
+  whose name does not match `<id>-<period>-<kind>` is parked in the legacy folder and reported,
+  never guessed at.
 
-**The daily run also files CSM Sheila's issue reports (Aaron, 2026-10-05).** With `--issues`,
-which the scheduled task passes, `issue_reports.sync()` files every report queued on the share
-and refreshes the issue list Sheila's **Reported** tab reads. It runs with the MAIL step, after
-the share results are saved, for the same reason: it reaches off the machine. gh lives on this
-machine only — which is why the sync is here and not in Sheila, where a token would sit on the
-share — and a morning with no gh or no internet leaves the reports queued for tomorrow.
+**ICS referrals (`--ics-referrals`, `--branch-names`).** `scripts/ics_referrals_pull.py` merges
+each saved all-clients referrals query result into `ics_referrals.csv` (a referral = client,
+account, issue date; a newer pull replaces the older rows) and rewrites the query's `@since` to the
+day of the newest referral merged, so windows overlap on purpose and a skipped day widens the next
+one rather than leaving a gap. `--branch-names` then adds new branch names from the Charts
+workbooks and that pull to `Inputs/Branch Names/branch_names.csv`.
 
-**The daily run also reads the MAILBOX (Aaron, 2026-09-09).** Some inputs never land on a
-share: **MRPC and CashPlease reports from Bradford Sanders**, **the per-client CashPlease
-marketing emails from him** (`<id>_<Client>_Loan_Marketing_Emails.xlsx`, their own kind since
-2026-09-21 — eight of them had been reported and left where they were, because a name with no
-period reads as unclassifiable), and **ICS workbooks from Matt Milliman**. `--mail`, which the
-scheduled task passes, takes them from Outlook via `scripts/mail_sources.py` and files them by
-kind alongside everything else.
+**Issue reports (`--issues`, Aaron, 2026-10-05).** `issue_reports.sync()` files every report queued
+from CSM Sheila and refreshes the issue list its **Feedback** tab reads. It runs here because `gh`
+is authenticated on this machine only; a morning with no `gh` or internet leaves reports queued.
 
-- **Outlook COM, not Graph** — the task already runs as the logged-on user, so the desktop
-  profile is signed in and there is no app registration, secret or consent to own. An
-  unreachable mailbox is REPORTED and skipped, never fatal — the share check runs every day
-  regardless.
-- **The mail step cannot hang the run (2026-09-10).** A COM call into an Outlook that is
-  still starting up, syncing, or showing a dialog blocks with no timeout and no way to
-  interrupt it from a thread: the 08:00 runs of 2026-09-09 and 2026-09-10 sat in it for the
-  full 30 minutes, the scheduler killed them, and the share check — finished in under a
-  minute — died unwritten with them. So: the share results (log, report, inventory) are
-  written BEFORE the mail step; the mail step runs as its own process
-  (`watch_sources.mail_step`, `MAIL_TIMEOUT` = 10 min) and a timeout is reported as
-  "TIMED OUT", not fatal; and `mail_sources._outlook()` attaches to the running Outlook
-  with `GetActiveObject` first — which fails at once while Outlook is starting, instead of
-  blocking — and only launches a windowless instance with `Dispatch` when none is running
-  (it exits with the process). Outlook does NOT have to be open for the task; it merely
-  goes faster when it is.
-- **Read-only.** Nothing is marked read, moved, deleted or replied to.
-- **Senders are matched on the resolved SMTP address**, never the display name, and each
-  sender may only supply their own kinds — an ICS workbook from the MRPC sender is reported
-  and skipped. An Exchange sender's `SenderEmailAddress` is an X500 path, so the address is
-  resolved through the Exchange user first.
-- **Inbox AND Archive**, plus subfolders. A rule files both senders straight into Archive:
-  an Inbox-only scan read 35 messages and 123 attachments and found neither of them.
-- **Only the newest of each thing**, the same rule the share copier uses. A mailbox holds
-  every weekly ever sent — a 120-day scan turned up twenty, of which the pipeline reads one
-  — and it holds ICS workbooks four months older than the ones already in `Inputs/`.
-- An attachment whose filename does not match `<id>-<period>-<kind>` is **parked in the
-  legacy folder and reported**, never guessed at.
-
-**The daily run also keeps the ICS referrals query current (Aaron, 2026-09-17).** With
-`--ics-referrals`, which the scheduled task passes, `scripts/ics_referrals_pull.py` merges any
-result of the all-clients ICS referrals query saved in `Inputs/ICS Referrals/` into
-`ics_referrals.csv` and rewrites the query there to pull only referrals issued since the newest
-one merged. The start is that referral's DAY, so the window overlaps the last pull on purpose;
-the merge replaces a referral's rows (client + account + issue date) with the newer pull's, so
-nothing counts twice. A morning nobody ran the query leaves the start where it was — a skipped
-day widens the next window, never leaves a gap. Older referrals keep the account, spend and
-balance columns of the pull that brought them in; a full pull (`@since = null`) refreshes them.
-With `--branch-names` (also in the task) it then adds any new branch name from the Charts
-workbooks and that pull to `Inputs/Branch Names/branch_names.csv`; a Charts file whose name does
-not identify one client is listed in the report for a row in `charts_files.csv`.
-
-**The daily run also copies (Aaron, 2026-09-08).** With `--copy`, which the scheduled
-task passes, every file on the shares for **every client except a stopped one** (see the
-2026-09-14 paragraph below) that `Inputs/`
-lacks, or holds a different landing of, is copied into `Inputs/` — DCOs, ARS
-workbooks, MRPCPM analyses and ICS workbooks each to their own folder, the ODD extract
-to `ODDD/<id>_ODDD.zip`.
-
-**ODD extracts come from ALL FIVE CSMs' folders (Aaron, 2026-09-14).** The data team
-lands each CSM's extracts in that CSM's own folder, so `deck_status.SRC_ODDD` lists all
-five as `CSM=path` entries (override with `RPE_SRC_ODDD`, same format; a bare path still
-works): Aaron `Velocity_company\Aburgard\ODDD`, Daniel Wood `Dan Wood\OD Data Dumps`,
-Gregg Miller `GMiller\OD Data Dumps`, James Gilmore `JamesG\OD Data Dumps`, Jordan
-Berkowitz `JBerkowitz\OD Data Dumps`. **Each CSM names month folders differently** —
-`2026.09 Sep` (Aaron), `2026.09` (James), `September, 2026` (Jordan, Gregg), `090126`
-(Dan, the first of the month) — and `deck_status.odd_folder_period` is the one place
-that reads them; a folder it cannot read (`Archive`, `2025`) is not a month and is
-skipped. **Every client's files are copied — ODD extracts, DCOs and workbooks alike, for
-all five CSMs' books, not only roster clients** — except the clients `clients.md` marks
-as stopped (`read_roster`'s skipped rows: 1437 Canandaigua, 1174 PointBank, 1658
-Truliant), whose files the data team keeps landing. `clients.md` still decides what gets
-BUILT; the copy only decides what is on hand. If `clients.md` cannot be read the copy
-falls back to roster clients only, which copies nothing rather than everything. If two
-CSM folders hold the same client and month (a handover), the more recent write is
-taken. **One unreachable CSM folder counts as off VPN**: the run exits 2 and saves
-nothing, because otherwise every extract in that folder would read as gone. Copy-only: nothing in `Inputs/` is ever deleted by a copy (some mounts
-refuse deletes anyway); a `.part` file is written and renamed over the target so a
-copy that dies half way never leaves a truncated extract under the real name, and the
-size is verified after. **The ODD extract is only ever copied from the newest month on
-the share for that client.** The watch scans two months and the local copy carries no
-period in its name, so once this month's extract is in `Inputs/` last month's at source
-"differs" from it forever — copying it back would be the stale-ODD failure in its
-purest form. `copy_plan` is where that rule lives, and `tests/test_watch_sources.py`
-pins it. A client `clients.md` marks as stopped (1437 Canandaigua, ended) gets nothing
-copied at all — no extract, DCO or workbook — even though the data team keeps landing its
-files.
-
-**A "differs" file is overwritten only when the SOURCE is the newer write.** A local
-copy modified after the landing is a deliberate change, not a re-landing — a workbook
-opened and saved in Excel so its formulas carry values, which is what the extractors
-read. The first copy run clobbered 1539's recalculated 2026.08 workbook with the
-share's never-evaluated original and every ARS figure for Marine FCU read 0
-(2026-09-08; recovered by recalculating in Excel). **A landed workbook can arrive with
-its formulas unevaluated**: openpyxl then reads the template defaults (1 month, 0
-mailings, $0). `build/ars_pipeline/base_guard.py` is the one definition of that
-check: both ARS extractors and the ARS builder exit with `UNEVALUATED WORKBOOK: ...`
-on such a base, and the dashboard refresh reports the row as "carries no calculated
-values" rather than rendering zeros. The fix is to open the workbook in Excel, save,
-and rebuild. `tests/test_base_guard.py` pins that every ARS entry point uses it.
-
-Because the copy happens before the 08:30 dashboard refresh, a new month's
-workbooks reaching `Inputs/` roll the performance artifact forward the same morning.
-
-**...and prunes what a newer version supersedes (Aaron, 2026-09-08).** With
-`--prune`, also passed by the task, a workbook-ish file in `Inputs/` is deleted
-when a NEWER version of the same thing is there: same client id and kind (DCO, ARS
-workbook, MRPCPM analysis, ICS workbook) with a later period, or the same weekly family
-(MRPCEnrollmentSummary, CashPleaseSummary) with a later stamp. The newest of each group
-is always kept; a file that is the only one of its kind for a client is never touched
-however old (1174's lone 2026.07 DCO, 1537's 2026.06 ICS workbook); two files with the
-same version key (a weekly and its "- Copy") are ambiguous and both stay; the ICS Charts
-workbooks, the ODD extracts and anything unpatterned have no "newer version" this code
-can identify and are left alone. The newer file must exist and be non-empty at the
-moment of deletion. `prune_plan` holds the rule; the tests pin it. Consequence: the
-delivery dashboard's input columns for a PAST period read "not copied" once that
-period's inputs are pruned — the deck is built and that is the column that matters.
-
-**The watchdog — the unattended 08:00 fire has to be watched from OUTSIDE (Aaron,
-2026-09-11).** Three mornings running (2026-09-09, -10, -11) the daily task fired at
-08:00 and produced nothing: no log entry, no report, killed by Task Scheduler at its
-30-minute limit. The process was not hung in our code — it was created SUSPENDED and
-never executed a single instruction (0 handles, 0 CPU, one thread parked in
-Wait/Suspended; a real block in SMB or Outlook COM has loaded modules and live CPU).
-Every run started by hand, on an awake machine, finished normally in 1-3 minutes,
-including immediately after diagnosing this — so a code-level timeout cannot be the
-fix: the process never gets far enough into our code to run one. The one plausible
-culprit (never positively confirmed) is Symantec Endpoint Protection, installed on
-this machine, intercepting process creation and relaunching under its own supervision
-— a manual retry showed every python launch in this pipeline appearing twice in the
-process list, the second a direct child of the first with an identical command line
-and creation timestamp, consistent with exactly that kind of hook.
-
-```
-powershell -ExecutionPolicy Bypass -File scripts\register_watchdog_task.ps1 [-Time 08:15] [-Unregister]
-```
-
-`scripts/watch_task_watchdog.ps1` runs as its own scheduled task, **"RPE Source Watch
-Watchdog"**, from 08:20 and **every 30 minutes for four hours** (Aaron, 2026-09-21), so a
-fire created suspended at 09:00 or 10:00 is cleared while the morning still matters. It asks
-`watch_sources.py --check-today` — has a run REACHED THE SHARES today, from the run record —
-rather than reading the report's age: on 2026-09-21 the 08:00 report was 52 minutes old and
-fresh while the 09:01 fire sat suspended and that morning's copy was never going to happen.
-(An older checkout without the flag falls back to the report's age.) Not a background thread of the main task — if whatever suspends
-the main process can suspend it, a thread living inside that same process is exactly
-as stuck; a second, independently-triggered task is the only vantage point actually
-outside the failure. Each firing: if `source_watch_latest.md` is already fresh
-(within 3 hours), it exits silently — the common case, every healthy morning. Otherwise
-it looks for a `watch_sources.py` process matching the suspended signature (near-zero
-CPU, near-zero handles, old enough — 4+ minutes — that a healthy run would have
-finished), kills the whole process tree, and retries the main task; up to two
-kill-and-retry cycles before giving up and logging for a human. Every attempt is
-appended to `Build Artifacts/source_watch_watchdog.log`. Registered on this machine
-2026-09-11, verified end-to-end via `Start-ScheduledTask`. **The kill-and-retry path
-has now run for real (2026-10-05).** At 11:31 it found the 08:00 fires of 2026-10-01
-and 2026-10-03 still present and suspended — ages 4.1 and 1.7 days, CPU 0, handles 0 —
-killed both, retried the task, and the retry reached the shares three minutes later and
-started on the 65 files that had landed since the last real fetch. Without it that day
-would have had no fetch at all, which is why it stays (Aaron, 2026-10-05: "keep the
-watchdog"). Two things that day showed, and neither is understood yet:
-
-- **The scheduler's execution limit does not clear a suspended fire.** Task Scheduler
-  reported the 2026-10-01 fire terminated (`0x41306`) at 08:50, and the process was
-  still there four days later. Only the watchdog's kill removed it.
-- **The detection can miss one.** On 2026-10-01 the watchdog fired nine times between
-  08:20 and 12:20 and reported "no suspended process found" each time — about the same
-  process the same code found and killed on 10-05. It matches on `Win32_Process`
-  `CommandLine` containing `watch_sources.py`; why that read differently on the day is
-  open. A morning that logs "needs a human look" IS the human look: check for a
-  `pythonw.exe` with 0 CPU and 0 handles by hand.
-
-`register_watch_task.ps1` had drifted from the live task it describes — the
-registered task already carried `--mail` (added when the mailbox step landed,
-2026-09-09) but the checked-in script's `Argument` string did not, so re-running it
-would have silently dropped mail reading. Fixed 2026-09-11; both now agree.
+Because the copy happens before the 08:30 dashboard refresh, a new month's workbooks reaching
+`Inputs/` roll the performance artifact forward the same morning. `--notify` raises a toast only
+when there is news or the shares were unreachable.
 
 ### The performance dashboard artifact — refreshed after each source check
 
@@ -948,7 +774,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `ics_referrals_pull.py` — the `--ics-referrals` step: merges each ICS referrals query result saved as `Inputs/ICS Referrals/ics_referrals <date>.csv` into one `ics_referrals.csv` (a referral = client, account, issue date; a newer pull replaces an older pull's rows for the same referral) and rewrites `ICS Referrals - new since last pull.sql` beside it with `@since` = the day of the newest referral merged. The query itself (`sql/ics_referrals_all_clients.sql`) is run by a person; Claude cannot reach that database.
 - `ils_dda_count_mail.py` — saves the newest "ILS Management Server DDA Count" email body (Charles Baker's weekly forward) word for word from Outlook as `Inputs/CashPlease/ILS-DDA-Count-<sent date>.txt`, the CashPlease loans-per-DDA denominator. Run by the CSI Email Monitor task (`C:\Data Pipelines\Email Pipeline\run-monitor.ps1`) before its Claude step (Aaron, 2026-09-17); never overwrites a saved week whose table differs.
 - `mail_sources.py` — the `--mail` step: reads Bradford's and Matt's attachments out of Outlook via COM, files them by kind, newest-only (see **Daily source watch**). `.xlsx`/`.xlsm` only, except the CashPlease marketing CSVs (`CSV_KINDS`).
-- `watch_task_watchdog.ps1` — detects a "RPE Source Watch" run Windows created suspended and never executed, kills it, and retries (see **The watchdog**).
+- `watch_task_watchdog.ps1` — detects a "RPE Source Watch" run Windows created suspended and never executed, kills it, and retries (see `docs/OPERATIONS-source-watch.md`).
 - `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.
 - `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**). Also keeps the run record and answers `--check-stale`.
 - `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily, one fire at 08:00 (`-RetryHours 4` restores the old morning retry window). `-Repo` targets a checkout other than its own.
@@ -961,7 +787,7 @@ This is the readme index — update it whenever files are added, removed, or mov
   from the share and the repo is private, so a token in `Tools\\RPE` would be readable by
   everyone. `sync` (run where `gh` is authenticated — Aaron's machine) files each queued report
   and writes `gh issue list` back as `issues.json`; `view` merges the queue with that cache for
-  Sheila's **Reported** tab. A report that cannot be filed STAYS queued, sync is idempotent, and
+  Sheila's **Feedback** tab. A report that cannot be filed STAYS queued, sync is idempotent, and
   the `sheila` label is created if the repo has not got one.
 - `launchers/` — `Build ARS Deck.bat`, `ARS Deck Builder GUI.bat` (starts `ars_launcher_web.py`), `ARS Deck User Guide.html` (released to the CSM_Reporting root) and `runtime.cmd`, which unpacks the released Python to `%LOCALAPPDATA%\RPE` on first use.
 - `release_launcher.ps1` — copies the code to `<root>\Tools\RPE` and the .bat files to the root; `-Runtime` also ships the zipped Python. **The launcher runs the released copy: re-run after any change, `clients.md` included.**
