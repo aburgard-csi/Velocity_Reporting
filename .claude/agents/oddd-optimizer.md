@@ -29,7 +29,7 @@ rows) when you must diagnose a new column layout.
 
 ## Where things live
 
-- Raw dumps: `../ODDD/` (relative to the Work folder). These arrive **zipped**, one per
+- Raw dumps: `Inputs/ODDD/`, resolved through `rpe_env.inputs()`. These arrive **zipped**, one per
   client — `1075_ODDD.zip`, `1539_ODDD.zip`, etc. Each zip contains the ODD CSV named
   `<clientid>-<yyyy>-<mm>-<Name>-ODD  (… forward) (…)_V2_1_1.csv`.
 - **Pass the zip straight to the script — do not unzip.** `oddd_optimize.py` reads the
@@ -42,22 +42,19 @@ rows) when you must diagnose a new column layout.
 
 ## Workflow
 
-1. **Resolve the input.** If given a client id or name, `ls` `../ODDD/` and pick the
+1. **Resolve the input.** If given a client id or name, list `Inputs/ODDD/` and pick the
    matching `<clientid>_ODDD.zip`. Pass that zip path straight to `--input` (the script
    reads it in-stream). If several months exist, choose the newest unless told otherwise.
    Confirm the exact file before running. A bare CSV path also works.
 
 2. **Run the aggregator.** It uses **pyarrow** to clean the ~285 monthly money columns
    in C++ (~13x faster). With pyarrow a big client (Austin, 271k rows) runs in ~33s; the
-   pure-pandas fallback is ~60s. In a **fresh Cowork sandbox pyarrow isn't preinstalled**,
-   so for big clients install it first (one time per session) so the run fits the 45s cap:
+   pure-pandas fallback is ~60s. Install pyarrow if it is absent:
 
    ```bash
-   pip install pyarrow --break-system-packages -q
-   python3 "scripts/oddd_optimize.py" --input "../ODDD/<clientid>_ODDD.zip"
+   pip install pyarrow -q
+   python3 "scripts/oddd_optimize.py" --input "<RPE_DATA_ROOT>/Inputs/ODDD/<clientid>_ODDD.zip"
    ```
-
-   In Claude Code (no time cap) the fallback is fine; pyarrow just makes it quicker.
 
    Optional flags: `--out "<dir>"`, `--client <id>`, `--name "<Name>"`, `--topn <N>`.
    Client id, name, and period are parsed from the filename by default.
@@ -132,6 +129,6 @@ products by enrollment, and a DERIVED block for the Key Metrics slide.
 
 ## Batch mode
 
-To prep every client at once, glob `../ODDD/*.csv` and run the script per file (they're
+To prep every client at once, glob `Inputs/ODDD/*.zip` and run the script per file (they're
 independent; run them sequentially or in the background). Then report a one-line summary
 per client (the script prints an `OK <id> <name>: …` line) plus any that raised flags.

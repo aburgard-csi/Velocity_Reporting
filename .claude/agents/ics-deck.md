@@ -3,7 +3,7 @@ name: ics-deck
 description: >-
   Build a client's ICS (Invitation Checking® System) Executive Review deck. Use when a
   request names an ICS client, or asks for an ICS results/financial-results/referral
-  deck. Runs when a new ICS workbook is available (typically quarterly), not monthly.
+  deck. Ships monthly; the workbook is quarterly and gates which sections carry figures.
   Builds from the stripped `templates/ics_template.pptx` shell via
   `build/ics_pipeline/build_ics_gen.py`, swapping in the client's referral, ROI, revenue
   and mystery-shop figures, validates, and saves to the pipeline `Outputs/` folder. A
@@ -29,9 +29,9 @@ of truth for visual style.
 
 ## Cadence
 
-Run **when a new ICS workbook is available — typically quarterly.** ICS results depend on
-the workbook refresh, not a monthly ODD pull. If asked to run ICS without a fresh
-workbook, say so and confirm before proceeding.
+Run **monthly**. Referrals come from VIP each month. Financial sections ship only when the
+newest ICS workbook is for the deck's own period; otherwise build referrals-only
+(`--referrals-only`). Never carry an older workbook's figures forward.
 
 ## Inputs (workbook / VIP-driven — no ODD)
 
@@ -141,7 +141,7 @@ ICS Revenue (PTD breakdown) → ICS Financial Summary → Marine/client vs Veloc
 
 ## Steps
 
-1. Confirm client + period; confirm a fresh ICS workbook exists.
+1. Confirm client + period; check whether an ICS workbook for that period exists (none means referrals-only).
 2. Run `build/ics_pipeline/build_ics_gen.py` against `templates/ics_template.pptx`,
    swapping referral, ROI, revenue, financial-summary, benchmark and mystery-shop figures
    from the workbook, VIP dashboard, and ICS Charts. With no workbook yet, build the
@@ -160,11 +160,3 @@ ICS Revenue (PTD breakdown) → ICS Financial Summary → Marine/client vs Veloc
 
 - **Sources in notes.** Every slide records its data source(s) and selection/period in the
   slide's speaker notes before this deck is considered done (see CLAUDE.md).
-
-## Cadence (Aaron, 2026-07-25)
-ICS financials are **quarterly** (workbook-driven); referrals are **monthly** (VIP). For a
-monthly referral update: refresh only the `referrals` section of the client JSON from VIP and
-carry the latest workbook's financial sections forward **unchanged** — their slide source
-notes keep the workbook filename + period, so carried-forward figures remain auditable. Do
-not zero, blank, or estimate financials between workbooks. The builder's missing-section
-guard only fires when a section has never been populated.

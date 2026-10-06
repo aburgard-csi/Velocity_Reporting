@@ -31,8 +31,8 @@ says to build, and runs each deck through `validation/validate_deck.py`. One cli
 
 | | |
 | --- | --- |
-| Weekly workbook | `Inputs/Weekly Summaries/CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx` — Bradford Sanders, subject "CashPlease Summary" |
-| DDA denominator | `Inputs/Weekly Summaries/ILS-DDA-Count-<YYYY-MM-DD>.txt` — the body of the weekly "ILS Management Server DDA Count" email, saved as text |
+| Weekly workbook | `Inputs/CashPlease/CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx` — Bradford Sanders, subject "CashPlease Summary" |
+| DDA denominator | `Inputs/CashPlease/ILS-DDA-Count-<YYYY-MM-DD>.txt` — the body of the weekly "ILS Management Server DDA Count" email, saved as text |
 | Roster | the `### CashPlease roster` table in `clients.md`, read by `build_month.read_cashplease_roster` |
 | Program settings (optional) | `Inputs/Product Settings/<id>_cp_settings.json` — the client's record from the CashPlease page of the Velocity Product Settings Power BI app, with a `_source` naming the app and its data-updated stamp. Resolved by `rpe_env.cp_settings_file`. |
 | Shell | `templates/cashplease_template.pptx` |

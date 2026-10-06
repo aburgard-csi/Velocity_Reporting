@@ -60,10 +60,6 @@ populates it; there is no clone-and-swap step against a client reference deck an
 Section map and swap targets are in `templates/TEMPLATES.md`. The ARS deck = shared shell
 slides + ARS section + ARS Appendix.
 
-(CLAUDE.md's "Templates" paragraph still describes cloning the Marine 1539 reference. That
-is stale — the builders take `templates/*_template.pptx`, as CLAUDE.md's own file listing
-says. Follow the template shell.)
-
 Build scripts (consolidated into `build/ars_pipeline/` on 2026-07-24): `oddd_optimize.py`
 (in `scripts/`) → `metrics_gen.py` → `base_tab_extract.py` (SM) or `extract_base_gen.py` +
 `extract_lift.py` (MM) → `charts_gen.py` → `build_ars_gen.py` → `validation/validate_deck.py`.
@@ -85,7 +81,7 @@ non-suffixed tabs (`Executive Financials`, `All Months Rollup`, `Key Trends`,
 - MM → `build/ars_pipeline/extract_base_gen.py <workbook> base.json` (+ `extract_lift.py` → `lift.json`)
 - SM → `build/ars_pipeline/base_tab_extract.py <workbook.xlsx> <DCO.xlsx> > base.json`, then `echo '{}' > lift.json`
 
-**Full SM sequence (each step < 45s; needs `pip install pyarrow` on a fresh box). `ARS_WB_FILE`
+**Full SM sequence (`pip install pyarrow` first if absent; it speeds large clients). `ARS_WB_FILE`
 names the workbook in the source notes:**
 ```
 python3 build/ars_pipeline/base_tab_extract.py "<Workbook>.xlsx" "<DCO>.xlsx" > base.json
@@ -165,16 +161,16 @@ deviation is documented here and applied at build time, not hardcoded:
   `Revoked` (→ **Reg E Default**) and `Exempt` + `Ineligible` (→ **excluded**). These are not in
   the shared classifier; re-apply/confirm each build (patch `metrics_gen.regd` + `oddd_optimize.classify_rege`).
   `oddd_optimize.py` surfaces any unmapped value in the pack `flags` block — confirm before building.
-- **Austin Bank (1075) — big-ODD workarounds** (271k rows vs the 45s Cowork cap): run `metrics_gen`
-  in its 2-stage checkpoint mode (`MG_DUMP=...`), and pre-extract the ODD CSV once and pass the
-  `.csv` (not the `.zip`) to `build_ars_gen`. SM path.
+- **Austin Bank (1075) — big ODD** (271k rows): run `metrics_gen` in its 2-stage checkpoint mode
+  (`MG_DUMP=...`), and pre-extract the ODD CSV once and pass the `.csv` (not the `.zip`) to
+  `build_ars_gen`. SM path.
 - **First State Bank-MI (1204) — winsorized debit $** (extreme business accounts) — handled in the
   perf/metrics layer; no deck change.
 - **Canandaigua (1437) — NOT the standard pipeline.** Its checking products (Essentials/Traditional/
   Optimum) have no "checking" keyword, so `metrics_gen` new-checking analysis is empty. Build a custom
   lift-matrix revenue calc as a one-off; do not force the standard ARS flow.
 
-Reference deck is `templates/ars_reference_deck.pptx` (client-neutral filename). Stale per-client
+`templates/multi-product_reference_deck.pptx` is a styling reference only; no build reads it. Stale per-client
 data-pack caches are not kept in the repo — they go to `archive/` (the data pack is regenerated per build). `build_ars_gen.py`
   derives the note source strings per-client (ODD extract + pull stamp from `oddd_metrics.json`,
   workbook filename, client id/name) — pass `ARS_WB_FILE` (workbook basename) so the workbook
