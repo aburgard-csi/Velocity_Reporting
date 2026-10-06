@@ -2138,6 +2138,10 @@ for _i, _sl in enumerate(list(_bp.slides)):
         for sh in list(_sl.shapes):
             if _is_logo_pic(sh) and _in_corner(sh): _drop(sh)
         _add_logo(_sl, LOGO_DATA); _put_num(_sl, _i + 1)
+# The period pills were sized for "PTD · June 2026"; a longer month ("September") wraps onto the title.
+from shapes import widen_pill_to_text as _widen_pill
+_pills_widened = sum(1 for _sl in _bp.slides for _sh in _sl.shapes if _widen_pill(_sh))
+print(f"period pills: widened {_pills_widened} to fit their text")
 import slide_geometry as _sg; _sg.apply(_bp)   # per-title geometry contract (build/)
 _sg.selection_to_notes(_bp)                   # take rate / Reg E: selection sentence to the notes (Aaron, 2026-09-17)
 import fit_layout as _fl; _fl.fit(_bp)   # final layout-fit: clear number/logo, clamp off-slide (shared)

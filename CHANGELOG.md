@@ -17,6 +17,23 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-06 — October ARS decks pass validation: the period pill widens, the P&L table fits
+
+Summary: ARS decks for October were failing the validation gate and could not reach Outputs. The
+"PTD · September 2026" pill now widens to fit its text, and a P&L with many cost lines now fits
+above the logo band.
+
+All three October builds (1075 Austin Bank, 1204 First State Bank - Michigan, 1537 Brooks Bank)
+failed with 4 to 5 FAILs (Aaron, 2026-10-06). Two causes. (1) The upper-right pill is 2.35 in wide,
+sized for "PTD · June 2026"; "PTD · September 2026" needs 2.50 in at 16 pt and wrapped onto the
+slide title on four slides (the "September 2026 Data" pill on a fifth). `shapes.widen_pill_to_text`
+now widens any one-line pill in that corner to its measured text, right edge fixed, and
+`build_ars_gen` runs it over every slide before the layout pass. Every deck whose data month is
+September needed it. (2) Austin Bank carries nine cost lines, so the P&L table at a fixed 0.46 in
+row height ended at 8.15 in on a 7.5 in slide. `pnl_slide` now tightens the row height to the room
+above the logo band, never below `ROW_MIN` (one 16 pt line plus the cell margins), and leaves a
+short table at 0.46 in as before.
+
 ### 2026-10-06 — The launcher runs its code from a copy on the PC
 
 Summary: Sheila and Build ARS Deck now run from a local copy of the launcher code instead of the

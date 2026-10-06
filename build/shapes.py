@@ -20,7 +20,7 @@ during the migration.
 import os
 from PIL import Image
 
-from pptx.util import Inches, Pt
+from pptx.util import Emu, Inches, Pt
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
@@ -74,6 +74,42 @@ def pill(slide, t, L=10.5, T=0.34, W=2.35, H=0.5):
     r.font.color.rgb = WHITE
     shadow(sp)
     return sp
+
+
+def widen_pill_to_text(sh, min_left=8.0, slack=0.05):
+    """Widen the upper-right period pill leftward, right edge fixed, until its one line of text fits.
+
+    The template's pill is 2.35 in wide, sized for "PTD · June 2026". The data month is swapped in
+    afterwards, and "September" is the longest month name: "PTD · September 2026" needs 2.50 in of
+    Montserrat 16 pt inside the 2.15 in the box holds, so it wrapped onto the title (2026.10, every
+    ARS deck: the validation gate rejected 1075, 1204 and 1537). Width is measured with textfit, as
+    the validator measures it. -> True when the pill was widened. A pill that would have to grow
+    past `min_left` is left alone so the validator still reports it.
+    """
+    from textfit import text_width_in
+    if not sh.has_text_frame or sh.left is None or sh.top is None or sh.width is None:
+        return False
+    if Emu(sh.top).inches >= 1.0 or Emu(sh.left).inches < 9.0 or Emu(sh.height).inches > 0.7:
+        return False
+    paras = [p for p in sh.text_frame.paragraphs if p.runs]
+    if len(paras) != 1:
+        return False
+    runs = paras[0].runs
+    text = "".join(r.text for r in runs).strip()
+    pt = next((r.font.size.pt for r in runs if r.font.size), None)
+    fam = next((r.font.name for r in runs if r.font.name), None)
+    if not text or "\n" in text or not pt or not fam:
+        return False
+    tf = sh.text_frame
+    margins = (Emu(tf.margin_left).inches or 0) + (Emu(tf.margin_right).inches or 0)
+    need = text_width_in(text, pt, fam, bool(runs[0].font.bold)) + margins + slack
+    if need <= Emu(sh.width).inches:
+        return False
+    right = Emu(sh.left + sh.width).inches
+    if right - need < min_left:
+        return False
+    sh.left, sh.width = Inches(right - need), Inches(need)
+    return True
 
 
 def tile(slide, L, T, W, H, value, label, fill=NAVY):

@@ -133,3 +133,22 @@ def repo_file():
         with open(os.path.join(root, rel.replace("/", os.sep)), encoding="utf-8") as fh:
             return fh.read()
     return read
+
+
+# ------------------------------------------------------------------ many cost lines (2026.10)
+def test_a_pnl_with_many_cost_lines_ends_above_the_logo_band(tmp_path):
+    """Austin Bank carries nine cost lines. At the fixed 0.46 in row height the table ran to
+    8.15 in on a 7.5 in slide and the gate rejected the deck (2026.10)."""
+    import os
+    from pptx import Presentation
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    prs = Presentation(os.path.join(root, "templates", "ars_template.pptx"))
+    names = ["Spot Mailings", "Spot Points", "Usage Mail Cost", "Ongoing Usage Points", "Program Fee",
+             "Consulting Fee / Other", "Postage", "Printing", "Design"]
+    B = lined(months(18, 10_000, 3_000), [[n, [300.0] * 18] for n in names])
+    slide, P = PS.add_pnl_slide(prs, B, str(tmp_path), "September 2026")
+    assert len(P["rows"]) >= 12
+    table = next(sh for sh in slide.shapes if sh.has_table)
+    bottom = (table.top + sum(r.height for r in table.table.rows)) / 914400
+    assert bottom <= PS.CONTENT_BOTTOM + 0.01, bottom
+    assert all(r.height / 914400 >= PS.ROW_MIN - 0.001 for r in table.table.rows)

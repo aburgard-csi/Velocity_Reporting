@@ -53,6 +53,7 @@ TITLE = "ARS Financial Performance"
 # Full width: the three-column table is 12.3in and has the slide to itself, which is why
 # it is here and not beside the guarantee callouts, where only two columns fit.
 TABLE_L, TABLE_W, ROW_H = 0.5, 12.3, 0.46
+ROW_MIN = 0.33
 LABEL_W, COL_W = 4.2, 2.7
 TEXT_PT, TEXT_W = _RG.TEXT_PT, _RG.TEXT_W
 SUB_T, GAP_SUB, GAP_CAPTION = _RG.SUB_T, _RG.GAP_SUB, _RG.GAP_CAPTION
@@ -235,7 +236,14 @@ def add_pnl_slide(prs, B, assets_dir, month_label, after_title="Financial Perfor
     top = SUB_T + sub_h + GAP_SUB
 
     cap = caption(P, g)
-    table_h = ROW_H * (len(P["rows"]) + 1)
+    # Rows tighten for a program with many cost lines (Austin Bank carries nine) so the table ends
+    # above the logo band instead of running off the slide at 8.15in (2026.10). ROW_MIN is one 16pt
+    # line plus the cell's 2pt top and bottom margins; a table that still does not fit at ROW_MIN
+    # is left for the validator to report rather than shrunk below the type floor.
+    n_rows = len(P["rows"]) + 1
+    cap_h = GAP_CAPTION + _RG._text_h(cap) if cap else 0
+    row_h = min(ROW_H, max(ROW_MIN, (CONTENT_BOTTOM - top - cap_h) / n_rows))
+    table_h = row_h * n_rows
     # Table, then any caption, then the chart strip in whatever is left above the logo
     # band. Measured BEFORE the chart is rendered, so the figure is drawn at the height it
     # will occupy and never scaled down to fit.
