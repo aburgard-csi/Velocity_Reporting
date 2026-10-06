@@ -22,7 +22,7 @@ from PIL import Image
 
 from pptx.util import Emu, Inches, Pt
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 
@@ -47,9 +47,11 @@ def shadow(shape):
 
 
 def textbox(slide, L, T, W, H, lines, size, color, bold, align=PP_ALIGN.CENTER,
-            font=HEAD, anchor=MSO_ANCHOR.MIDDLE):
+            font=HEAD, anchor=MSO_ANCHOR.MIDDLE, name=None):
     """A word-wrapped text box. `lines` is a string or a list of paragraphs."""
     box = slide.shapes.add_textbox(Inches(L), Inches(T), Inches(W), Inches(H))
+    if name:
+        box.name = name
     tf = box.text_frame; tf.word_wrap = True; tf.vertical_anchor = anchor
     if isinstance(lines, str):
         lines = [lines]
@@ -112,8 +114,58 @@ def widen_pill_to_text(sh, min_left=8.0, slack=0.05):
     return True
 
 
-def tile(slide, L, T, W, H, value, label, fill=NAVY):
-    """A KPI tile: big value over a small label, on a rounded fill."""
+# The label's shape name: restyle_fonts reads it and leaves that run at its own size instead of raising it
+# to the 16 pt floor. Keep the string identical to restyle_fonts.SMALL_TILE_LABEL (tests pin it).
+SMALL_TILE_LABEL = "KPI label (small)"
+
+
+def drop_kpi_tile(slide, label, gap=0.27, left=0.56, right=12.77):
+    """Remove the KPI tile whose label reads `label` and spread the remaining tiles evenly.
+
+    A tile is an empty rounded rectangle with its value and label text boxes over it. Used when a
+    figure has no denominator (Austin Bank has no ARS-eligible business accounts, so the Historical
+    Take Rate on the Business slide was 0 / 0 and printed as 0.0%): the tile is hidden rather than
+    showing a rate that is not a rate. -> True when a tile was removed.
+    """
+    def inches(v):
+        return Emu(v).inches
+    tiles = [sh for sh in slide.shapes
+             if sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and sh.has_text_frame
+             and not sh.text_frame.text.strip() and inches(sh.height) < 1.6 and inches(sh.top) < 2.0]
+    if not tiles:
+        return False
+    texts = [sh for sh in slide.shapes
+             if sh.shape_type == MSO_SHAPE_TYPE.TEXT_BOX and sh.has_text_frame and sh.text_frame.text.strip()]
+
+    def parts(tile):
+        l, r = inches(tile.left), inches(tile.left + tile.width)
+        t, b = inches(tile.top), inches(tile.top + tile.height)
+        return [x for x in texts if l <= inches(x.left) + inches(x.width) / 2 <= r
+                and t <= inches(x.top) + inches(x.height) / 2 <= b]
+    doomed = next((tl for tl in tiles if any(x.text_frame.text.strip() == label for x in parts(tl))), None)
+    if doomed is None:
+        return False
+    keep = sorted((tl for tl in tiles if tl is not doomed), key=lambda s: s.left)
+    layout = [(tl, parts(tl)) for tl in keep]
+    for x in parts(doomed) + [doomed]:
+        x._element.getparent().remove(x._element)
+    n = len(layout)
+    if n:
+        w = (right - left - gap * (n - 1)) / n
+        for i, (tl, kids) in enumerate(layout):
+            L = left + i * (w + gap)
+            tl.left, tl.width = Inches(L), Inches(w)
+            for x in kids:
+                x.left, x.width = Inches(L + 0.05), Inches(w - 0.1)
+    return True
+
+
+def tile(slide, L, T, W, H, value, label, fill=NAVY, small_label=False):
+    """A KPI tile: big value over a small label, on a rounded fill.
+
+    `small_label` keeps the 12 pt label at 12 pt through restyle_fonts (Product Mix and Excluded Accounts,
+    whose callout subtext has to match); every other tile's label is floored to 16 pt as before.
+    """
     sp = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
                                 Inches(L), Inches(T), Inches(W), Inches(H))
     sp.fill.solid(); sp.fill.fore_color.rgb = fill; sp.line.fill.background()
@@ -121,7 +173,7 @@ def tile(slide, L, T, W, H, value, label, fill=NAVY):
     textbox(slide, L + 0.05, T + 0.14, W - 0.1, H * 0.5, value, 28, WHITE, True,
             PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
     textbox(slide, L + 0.05, T + H * 0.60, W - 0.1, H * 0.34, label, 12, GREYB,
-            False, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP)
+            False, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP, name=SMALL_TILE_LABEL if small_label else None)
     return sp
 
 

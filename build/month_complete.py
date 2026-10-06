@@ -300,3 +300,31 @@ def excluded_months(result):
         if label(e["month"]) not in out:
             out.append(label(e["month"]))
     return out
+
+
+def drop_empty_partial_month(block, values_key, partial_key="partial_last"):
+    """Remove the latest month from a monthly series when it is a partial month with nothing in it.
+
+    A chart of a month that has only just begun (the pull is dated the 1st) draws a bar of 0 beside
+    a full-height bar for every month before it, which reads as a collapse (Aaron, 2026-10-06:
+    "if the latest incomplete month is 0 referrals, don't show that bar"; MRPC enrollments the
+    same). Every list in `block` as long as the month list is trimmed together and `partial_key` is
+    cleared, so the "last complete month" colouring, the title's month count and the caption all
+    follow. A partial month with ANY activity stays, hatched, as before; so does a complete month at
+    0, which is a real result. -> the dropped month's token, or None when nothing was dropped.
+    """
+    if not block or not block.get(partial_key):
+        return None
+    values = block.get(values_key) or []
+    months = block.get("months") or []
+    if not values or not months or len(values) != len(months) or len(months) < 2:
+        return None
+    if values[-1] not in (0, 0.0):
+        return None
+    n = len(months)
+    dropped = months[-1]
+    for k, v in list(block.items()):
+        if isinstance(v, list) and len(v) == n:
+            block[k] = v[:-1]
+    block[partial_key] = False
+    return dropped

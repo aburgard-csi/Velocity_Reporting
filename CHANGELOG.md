@@ -17,6 +17,32 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-06 — Slide fixes from the Austin Bank 2026.10 review
+
+Summary: Four slide corrections. Product Mix and Excluded Accounts now show the same smaller callout
+subtext; the Business take-rate slide hides a Historical Take Rate that has nothing behind it; a month
+that has only just begun, with nothing in it, is no longer charted on Referral Trend or MRPC
+Enrollments by Month; and the labels on MRPC Revenue by Month no longer run together.
+
+All four from Aaron's review of the 1075 deck (2026-10-06).
+- **Callout subtext.** The 12 pt label under each KPI figure on Product Mix stayed at 12 pt (that slide
+  is "dense" in `restyle_fonts`) while the same labels on Excluded Accounts were raised to 16 pt. Both
+  now keep the smaller size: `shapes.tile(small_label=True)` names the label and
+  `restyle_fonts.SMALL_TILE_LABEL` leaves it alone. Every other tile is unchanged. STYLE.md lists the
+  exception.
+- **Business Historical Take Rate.** It read 0.0% because Austin has no ARS-eligible business accounts:
+  the rate was 0 / 0, not zero. `shapes.drop_kpi_tile` removes that tile and spreads the other three
+  evenly; the notes already say no business account is eligible and now say no historical rate is shown.
+  A client with eligible business accounts is unchanged.
+- **Empty partial month.** `month_complete.drop_empty_partial_month` removes the latest month from a
+  series when it is partial and 0, so Oct'26 is no longer drawn as a bar of 0 beside full-height
+  months. ICS Referral Trend and MRPC Enrollments by Month use it; the title's month count, the legend
+  and the caption follow, and the notes name the month left off. A partial month with any activity
+  still shows, hatched; a complete month at 0 still shows.
+- **MRPC Revenue by Month labels.** Twelve near-equal bars put their value labels side by side and they
+  overlapped. The labels are now turned upright above each bar, so each is only as wide as its own column
+  (navy: the chart rule bars the canvas colour from any mark).
+
 ### 2026-10-06 — October ARS decks pass validation: the period pill widens, the P&L table fits
 
 Summary: ARS decks for October were failing the validation gate and could not reach Outputs. The

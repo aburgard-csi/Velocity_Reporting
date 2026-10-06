@@ -420,6 +420,9 @@ def _period_label(period):
 
 
 def build(d, static_path, out, referrals_only=False):
+    import month_complete as _MC
+    # A month just begun, with no referrals yet, is not charted (Aaron, 2026-10-06).
+    _trend_dropped = _MC.drop_empty_partial_month((d.get('referrals') or {}).get('trend'), 'referrals')
     _stale_workbook = False
     # ICS financial detail ships ONLY when the workbook is for the deck's own period
     # (Aaron, 2026-08-28). It used to carry the prior quarter's figures forward, which
@@ -742,13 +745,15 @@ def build(d, static_path, out, referrals_only=False):
        + (f" Goal {_goal:,}/mo." if _goal is not None else ""),
        16,GREYT,False)
     logo(s); pagenum(s,4)
+    _dropped_note = (f" {P.mon_yy(_trend_dropped)} is not charted: the month has just begun and has no referrals yet."
+                     if _trend_dropped else "")
     if _local:
         notes(s,base+(f" Monthly referrals vs the {_goal:,}/mo goal." if _goal is not None else " Monthly referrals.")
                     +" Bars navy, last complete month orange"
                     +(", partial month hatched." if t.get("partial_last") else ".")
-                    +" Referral detail file, counted by Issue Date.")
+                    +" Referral detail file, counted by Issue Date." + _dropped_note)
     else:
-        notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP.")
+        notes(s,base+f" Monthly referrals vs the {rf['monthly_goal']:,}/mo goal. Bars navy, last complete month orange, partial month hatched. VIP." + _dropped_note)
 
     # 5 Results by Branch
     # Branch goals in the VIP data are ANNUAL, but a program that started partway

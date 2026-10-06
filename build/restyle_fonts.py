@@ -77,7 +77,14 @@ def _is_title_ph(sh):
     return None
 
 
+# The KPI label under the figure on Product Mix and Excluded Accounts stays at its own 12 pt so the callout
+# subtext matches on both slides (build/shapes.py SMALL_TILE_LABEL; tests pin that the two agree).
+SMALL_TILE_LABEL = "KPI label (small)"
+
+
 def _restyle_shape(sh, floor):
+    if sh.name == SMALL_TILE_LABEL:
+        floor = False
     # recurse groups
     if sh.shape_type == MSO_SHAPE_TYPE.GROUP:
         for c in sh.shapes:

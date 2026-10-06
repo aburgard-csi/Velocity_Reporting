@@ -365,7 +365,7 @@ def add_product_mix_slide(prs, odd_csv, assets_dir, before_title="Program Overvi
              (f"{share}%", "Eligible share of accounts", NAVY),
              (f"{n_elig}", f"Eligible products (of {data['n_products']})", NAVY)]
     for i, (v, l, f) in enumerate(tiles):
-        _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f)
+        _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f, small_label=True)
 
     # left: personal product-mix donut
     s.shapes.add_picture(donut, Inches(0.2), Inches(3.15), Inches(6.15))

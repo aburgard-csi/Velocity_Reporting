@@ -295,10 +295,15 @@ def chart_revenue_month(d, out, dims):
     fig,ax=plt.subplots(figsize=SLOT_IN["revmonth"]); x=np.arange(len(m))
     cols=[ORANGE if i==len(m)-1 else NAVY for i in range(len(m))]
     ax.bar(x,v,color=cols,width=0.7)
+    # Twelve bars of nearly equal height put twelve "$32.1K" labels side by side at the same height,
+    # and they ran into each other ("$32.1K$32.8K$33.1K", Austin Bank 2026.10). Each label is turned
+    # upright above its bar, so it is as wide as one line of text and no wider than its own column:
+    # they can never touch. Navy, never the canvas colour (tests/test_chart_colors.py).
+    top=max(v)
     for i,a in enumerate(v):
-        ax.text(i,a+max(v)*0.015,f"${a/1000:.1f}K",ha="center",va="bottom",color=NAVY,fontsize=12,fontweight='bold')
+        ax.text(i,a+top*0.012,f"${a/1000:.1f}K",rotation=90,ha="center",va="bottom",color=NAVY,fontsize=13,fontweight='bold')
     ax.set_xticks(x); ax.set_xticklabels(P.axis_months(m),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA)
-    ax.set_ylim(0,max(v)*1.14); ax.get_yaxis().set_visible(False); _clean(ax)
+    ax.set_ylim(0,top*1.19); ax.get_yaxis().set_visible(False); _clean(ax)
     canvas(fig,*dims,out)
 
 def chart_tier_donut(names, vals, center_value, center_label, out, dims):

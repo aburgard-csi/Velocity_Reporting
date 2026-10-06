@@ -247,6 +247,9 @@ def revenue_projection(data):
 def build(data, template, out):
     m=data["meta"]; client=m["client_name"]; rm=m["report_month"]; hb=m["has_business"]
     _left_out=complete_series(data)
+    import month_complete as _MC
+    # A month just begun, with no enrollments yet, is not charted (Aaron, 2026-10-06).
+    _enroll_dropped=_MC.drop_empty_partial_month(data.get('enrollments_by_month'), 'totals')
     _proj=revenue_projection(data)
     # The Contact Us card is the client's managing CSM (Aaron, 2026-09-16) — resolved first,
     # so a client with no CSM on file stops before anything is rendered.
@@ -438,7 +441,8 @@ def build(data, template, out):
                         + (f"; {e['months'][-1]} partial. " if e.get("partial_last") else ". ")
                         +
                         f"{'Monthly tier split apportioned from the last-complete-month ratio pending exact VIP tiers. ' if e.get('tier_split_approx') else ''}"
-                        f"Selection: enrollments by month, last {len(e['months'])} months.")
+                        f"Selection: enrollments by month, last {len(e['months'])} months."
+                        + (f" {_enroll_dropped} is not charted: the month has just begun and has no enrollments yet." if _enroll_dropped else ""))
     set_notes(S[3], base+f" Enrollments by channel, program-to-date: "
                         + " / ".join(f"{kk} {vv}%" for kk,vv in data['channel']['pct'].items())+".")
     set_notes(S[4], base+f" Enrollment performance vs the {p['goal_pct']}% goal, "

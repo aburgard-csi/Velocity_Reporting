@@ -84,7 +84,10 @@ decision to record here, not a refactor.
   Exceptions, all in `restyle_fonts.py`: slides titled "2026 New Releases",
   "Product Mix", "Program Results by Month Opened", "Referred Accounts by Product"
   (dense tables that cannot fit at 16); MRPC decks (a deliberate 10-15 pt
-  hierarchy); the Executive Summit slide (never touched). A subtitle that is too
+  hierarchy); the Executive Summit slide (never touched); and the 12 pt label under
+  the figure in the KPI tiles of "Product Mix & ARS Eligibility" and "Excluded
+  Accounts", which carry the same callout subtext at the same size
+  (`shapes.tile(small_label=True)`, `restyle_fonts.SMALL_TILE_LABEL`). A subtitle that is too
   long is shortened, not shrunk.
 - Both faces are **embedded** in the shell (`p:embeddedFontLst`) so a deck renders
   the same on any machine; `rpe_env.use_font` RAISES rather than let matplotlib

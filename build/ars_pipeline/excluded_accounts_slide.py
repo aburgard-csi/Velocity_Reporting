@@ -358,7 +358,7 @@ def add_excluded_accounts_slide(prs, odd_source, assets_dir,
              (f"{share}%", "Share of accounts", NAVY),
              (f"{data['elig_total']:,}", "ARS-eligible accounts", NAVY)]
     for i, (v, l, f) in enumerate(tiles):
-        _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f)
+        _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 1.28, v, l, fill=f, small_label=True)
 
     _tb(s, 0.5, 3.10, 6.1, 0.35, "Reason for Exclusion", 13.5, NAVY, True,
         PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)

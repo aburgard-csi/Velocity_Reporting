@@ -42,3 +42,40 @@ def test_a_shape_that_is_not_a_pill_is_left_alone():
     box = SH.pill(slide, "PTD · September 2026", L=2.0, T=3.0)       # not in the upper-right corner
     box.text_frame.paragraphs[0].runs[0].font.size = Pt(16)
     assert SH.widen_pill_to_text(box) is False
+
+
+def test_drop_kpi_tile_removes_the_tile_and_spreads_the_rest():
+    from pptx import Presentation
+    from pptx.util import Emu
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    for i, (v, l) in enumerate([("53.2%", "12-Mo Take Rate"), ("0.0%", "Historical Take Rate"),
+                                ("2,090", "Eligible Accounts"), ("978", "No Debit Card")]):
+        SH.tile(slide, 0.56 + i * 3.12, 1.30, 2.85, 1.05, v, l)
+    assert SH.drop_kpi_tile(slide, "Historical Take Rate") is True
+    texts = [sh.text_frame.text for sh in slide.shapes if sh.has_text_frame]
+    assert "Historical Take Rate" not in texts and "0.0%" not in texts
+    tiles = sorted((sh for sh in slide.shapes if sh.has_text_frame and not sh.text_frame.text.strip()),
+                   key=lambda s: s.left)
+    assert len(tiles) == 3
+    lefts = [Emu(t.left).inches for t in tiles]
+    widths = {round(Emu(t.width).inches, 3) for t in tiles}
+    assert len(widths) == 1
+    assert lefts[0] == pytest.approx(0.56, abs=0.01)
+    assert Emu(tiles[-1].left + tiles[-1].width).inches == pytest.approx(12.77, abs=0.01)
+    assert lefts[1] - lefts[0] == pytest.approx(lefts[2] - lefts[1], abs=0.01)
+    # each value and label stays centred over its own tile
+    for tile in tiles:
+        centre = Emu(tile.left + tile.width // 2).inches
+        over = [sh for sh in slide.shapes if sh.has_text_frame and sh.text_frame.text.strip()
+                and abs(Emu(sh.left + sh.width // 2).inches - centre) < 0.01]
+        assert len(over) == 2
+
+
+def test_drop_kpi_tile_does_nothing_when_the_label_is_absent():
+    from pptx import Presentation
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    SH.tile(slide, 0.56, 1.30, 2.85, 1.05, "53.2%", "12-Mo Take Rate")
+    assert SH.drop_kpi_tile(slide, "Historical Take Rate") is False
+    assert sum(1 for sh in slide.shapes if sh.has_text_frame and not sh.text_frame.text.strip()) == 1

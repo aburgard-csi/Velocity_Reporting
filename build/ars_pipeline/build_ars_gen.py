@@ -898,6 +898,14 @@ if BIZ:
     set_exact(S[21], "86", f"{BIZ['nocard']:,}")
     repl(S[21], {"Selection: business accounts opened Jul 2025 – Jun 2026 (new take rate) and all ARS-eligible business accounts (historical). 0 business accounts are ARS-eligible in the current book.":
                  f"Selection: business accounts opened {NEWWIN_TEXT} (new take rate) and all ARS-eligible business accounts (historical). {BIZ['hist_elig']} business accounts are ARS-eligible in the current book."})
+    if not BIZ['hist_elig']:
+        # No ARS-eligible business account, so the historical rate is 0 / 0, not 0.0%: hide the tile and say why in the notes.
+        from shapes import drop_kpi_tile as _drop_tile
+        _bs = SB("12-Month Eligible Take Rate — Business")
+        if _drop_tile(_bs, "Historical Take Rate"):
+            _bs.notes_slide.notes_text_frame.text = (_bs.notes_slide.notes_text_frame.text.rstrip() +
+                " No historical take rate is shown: no business account is ARS-eligible in the current book, so the rate has no denominator.")
+            print("business take rate: historical tile hidden (no ARS-eligible business accounts)")
 
 # ---- take-rate window labels: the pill and the personal selection were template
 # literals the builder never swapped, so every deck shipped the TEMPLATE's window
