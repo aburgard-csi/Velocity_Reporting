@@ -40,11 +40,16 @@ JOIN accounts a ON a.DELETED IS NULL
 
 -- 1) One row per list entry. MatchCount: 0 = not found (closed, dropped out of
 --    the import, or a different last 4), >1 = ambiguous. Compare ListName with
---    IlsName on every matched row. ODCustomer = 1 means the account has NSF/OD items.
+--    IlsName on every matched row. ODCustomer = 1 means the account has access to the OD program;
+--    it is NOT usage. HadNSFODItems = 1 means NSF/OD items this month, this year or in
+--    the last 12 months.
 SELECT l.RowNum, l.Name1 AS ListName,
        COUNT(m.AcctID) OVER (PARTITION BY l.RowNum) AS MatchCount,
        a.AcctID, a.FullName AS IlsName, t.NAME AS AccountType,
-       a.ODCustomer, a.MTDNSFODItems, a.YTDNSFODItems, a.ROLL12NSFODItems,
+       a.ODCustomer,
+       CASE WHEN COALESCE(a.MTDNSFODItems,0) + COALESCE(a.YTDNSFODItems,0)
+                 + COALESCE(a.ROLL12NSFODItems,0) > 0 THEN 1 ELSE 0 END AS HadNSFODItems,
+       a.MTDNSFODItems, a.YTDNSFODItems, a.ROLL12NSFODItems,
        a.ODLimit, a.PreviousODLimit, a.ODStatusCode, a.CanOverdraft
 FROM #list l
 LEFT JOIN #m m            ON m.RowNum = l.RowNum
@@ -52,17 +57,31 @@ LEFT JOIN accounts a      ON a.AcctID = m.AcctID
 LEFT JOIN ACCOUNT_TYPES t ON t.ID = a.acctType
 ORDER BY l.RowNum;
 
--- 2) OD limit changes for matched accounts, one row per change between
---    consecutive limit batches. Depends on od_limit keeping history; spot-check
---    one account known to have changed.
-SELECT m.RowNum, m.AcctID, b.CREATED AS BatchDate, h.PriorLimit, h.[LIMIT] AS NewLimit
-FROM #m m
-JOIN (SELECT o.ACCTID, o.BATCH_ID, o.[LIMIT],
-             LAG(o.[LIMIT]) OVER (PARTITION BY o.ACCTID ORDER BY ob.CREATED) AS PriorLimit
-      FROM od_limit o JOIN od_limit_batch ob ON ob.BATCH_ID = o.BATCH_ID) h
-  ON h.ACCTID = m.AcctID
-JOIN od_limit_batch b ON b.BATCH_ID = h.BATCH_ID
-WHERE h.PriorLimit IS NOT NULL AND h.PriorLimit <> h.[LIMIT]
-ORDER BY m.RowNum, b.CREATED;
+-- 2) Per list entry: the last OD limit before the account number change and the
+--    latest limit. Batches from every matched AcctID for the entry are combined,
+--    in case the old and new account numbers carry separate histories. A NULL
+--    pre-conversion limit means no batch before the date. Depends on od_limit
+--    keeping history; spot-check one account.
+DECLARE @ConversionDate date = '2000-01-01';  -- SET: date of the account number change
+
+WITH h AS (
+    SELECT m.RowNum, b.BATCH_ID, b.CREATED AS BatchDate, o.[LIMIT]
+    FROM #m m
+    JOIN od_limit o       ON o.ACCTID = m.AcctID
+    JOIN od_limit_batch b ON b.BATCH_ID = o.BATCH_ID
+)
+SELECT l.RowNum, l.Name1 AS ListName,
+       pre.BatchDate AS PreConversionBatchDate, pre.[LIMIT] AS LastLimitBeforeConversion,
+       lat.BatchDate AS LatestBatchDate,        lat.[LIMIT] AS LatestLimit
+FROM #list l
+LEFT JOIN (SELECT RowNum, BatchDate, [LIMIT],
+                  ROW_NUMBER() OVER (PARTITION BY RowNum ORDER BY BatchDate DESC, BATCH_ID DESC) AS rn
+           FROM h WHERE BatchDate < @ConversionDate) pre
+       ON pre.RowNum = l.RowNum AND pre.rn = 1
+LEFT JOIN (SELECT RowNum, BatchDate, [LIMIT],
+                  ROW_NUMBER() OVER (PARTITION BY RowNum ORDER BY BatchDate DESC, BATCH_ID DESC) AS rn
+           FROM h) lat
+       ON lat.RowNum = l.RowNum AND lat.rn = 1
+ORDER BY l.RowNum;
 
 DROP TABLE #list, #m;

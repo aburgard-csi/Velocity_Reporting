@@ -67,7 +67,9 @@ server sizing, file watcher; no table layouts).
   `DELETED` means the account dropped out of the import (closed accounts in the sample).
 - `accounts.Active` is not used. On the code tables (`ACCOUNT_TYPES`, status codes) an
   active flag shows whether a code is enabled, in case one is disabled later.
-- `accounts.ODCustomer` = 1 marks accounts with NSF/OD items.
+- `accounts.ODCustomer` = 1 marks accounts with access to the overdraft program (corrected by
+  Aaron 2026-10-07; it does NOT mean the account has NSF/OD items). To find accounts that
+  actually had NSF/OD items, use `MTDNSFODItems`, `YTDNSFODItems` or `ROLL12NSFODItems` > 0.
 - `accounts` is one row per account.
 - No table is too large to scan.
 
