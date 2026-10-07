@@ -17,6 +17,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-07 — CashPlease client 1825 has a full name
+
+Summary: The CashPlease tab for client 1825 now reads as "Mutual Savings Association" instead of the cut-off
+"Mutual Savings Associatio".
+
+The CashPlease workbook caps sheet names at 30 characters, so 1825's tab is `1825-Mutual Savings Associatio`.
+The extractor flags any 30-character name with no `NAME_OVERRIDES` entry so a cut name cannot ship, and the
+data-issues scan reported 1825 (Aaron, 2026-10-07). The full name comes from the client's own Product Settings
+record (Company Name) and the Velocity client list, not a guess at the ending. 1825 is not on the `clients.md`
+CashPlease roster, so no deck changes today; the entry is there for when it is.
+
 ### 2026-10-06 — MRPC revenue by month reads Accounting's MRPC Revenue.xlsx
 
 Summary: The MRPC Revenue by Month and Revenue by Year slides now run through August 2026 for every client in

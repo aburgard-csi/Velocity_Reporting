@@ -24,6 +24,7 @@ from build_month import read_cashplease_roster, read_roster
     # Exactly 30 chars AND cut mid-word — resolved by NAME_OVERRIDES.
     ("1539-Marine Federal Credit Uni", "1539", False),
     ("1803-First Source Federal Cred", "1803", False),
+    ("1825-Mutual Savings Associatio", "1825", False),
     # Exactly 30 chars but COMPLETE. Length cannot tell these from the ones above,
     # which is why every 30-char name needs an override entry rather than a rule.
     ("1711-Coosa Valley Credit Union", "1711", False),
@@ -36,6 +37,12 @@ def test_sheet_names_resolve_without_a_truncation_flag(sheet, cid, expect_trunca
     assert got_cid == cid
     assert truncated is expect_truncated
     assert not name.endswith(" ")
+
+
+def test_a_cut_sheet_name_resolves_to_the_clients_full_name():
+    """1825's tab is cut at 30 characters ("Mutual Savings Associatio"); its name is the one in its Product Settings
+    record and the Velocity client list, not the cut text."""
+    assert cp_extract.split_sheet_name("1825-Mutual Savings Associatio")[1] == "Mutual Savings Association"
 
 
 def test_an_unknown_30_char_name_is_flagged_not_guessed():

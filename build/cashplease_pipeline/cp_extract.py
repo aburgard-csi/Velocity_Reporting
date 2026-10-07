@@ -72,6 +72,7 @@ NAME_OVERRIDES = {
     "1776": "CoastHills Credit Union",
     "1524": "Peninsula Community FCU",
     "1632": "WesBanco Bank, Inc.",
+    "1825": "Mutual Savings Association",      # sheet name cut at 30 characters; name from its Product Settings record
     # These three land exactly on the 30-char cap but are complete names, not cuts.
     # They are listed so the truncation check has an answer rather than a warning.
     "1711": "Coosa Valley Credit Union",
