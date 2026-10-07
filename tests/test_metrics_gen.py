@@ -289,3 +289,55 @@ def test_the_two_tier_definitions_agree():
     import combined_insights as CI
     for v in (0, 0.4, 0.99, 1, 1.5, 5, 5.5, 6, 10.9, 11, 15.9, 16, 20.2, 21, 25.99, 26, 99.9):
         assert CI.swipe_tier(v) == _tier(v), v
+
+# --- new checking is compared on OPEN accounts (2026-10-07) -------------------
+def _new_checking_rows(odd_rows_raw):
+    """New personal checking accounts in metrics_gen's window, from the raw fixture rows."""
+    import datetime
+    from odd_rows import accessors
+    hdr, rows = odd_rows_raw
+    H = {h: i for i, h in enumerate(hdr)}
+    odd = accessors(H)
+    latest = [h.split()[0] for h in hdr if h.endswith(" Sig #")][-1]
+    last = datetime.datetime.strptime(latest, "%b%y")
+    y, m = last.year, last.month - 11
+    while m <= 0:
+        m += 12
+        y -= 1
+    j25 = datetime.datetime(y, m, 1)
+    j26 = (last.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) - datetime.timedelta(days=1)
+    out = []
+    for r in rows:
+        if len(r) < len(hdr) or not odd.personal(r):
+            continue
+        d = odd.g(r, "Date Opened")
+        try:
+            opened = datetime.datetime.strptime(d, "%m/%d/%Y")
+        except ValueError:
+            continue
+        if j25 <= opened <= j26 and any(w in odd.g(r, "Prod Desc").lower() for w in ("checking", "share draft")):
+            out.append((r, odd))
+    return out
+
+
+def test_new_checking_debit_penetration_counts_open_accounts_only(metrics, odd_rows_raw):
+    """First State Bank 2026.10: slide 43 read 67.0% for new checking against 78.2% for the open book because
+    119 closed or charged-off new accounts, which show no card, were in the new group but not in the book."""
+    rows = _new_checking_rows(odd_rows_raw)
+    opened = [(r, o) for r, o in rows if o.isopen(r)]
+    closed = [(r, o) for r, o in rows if not o.isopen(r)]
+    assert opened, "the fixture has no open new checking accounts"
+    want = round(100 * sum(1 for r, o in opened if o.hascard(r)) / len(opened), 1)
+    assert metrics["new_chk_debit_pct"] == want
+    if closed:
+        everyone = round(100 * sum(1 for r, o in rows if o.hascard(r)) / len(rows), 1)
+        assert metrics["new_chk_debit_pct"] != everyone or all(o.hascard(r) for r, o in closed)
+
+
+def test_new_checking_balances_are_for_open_accounts_only(metrics, odd_rows_raw):
+    rows = [(r, o) for r, o in _new_checking_rows(odd_rows_raw) if o.isopen(r)]
+
+    def bal(r, o):
+        ab = o.fnum(r, "Avg Bal")
+        return ab if ab != 0 else o.fnum(r, "Curr Bal")
+    assert metrics["new_chk_funded_pct"] == round(100 * sum(1 for r, o in rows if bal(r, o) > 0) / len(rows))

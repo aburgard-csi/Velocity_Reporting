@@ -17,6 +17,37 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-07 — The source-watch watchdog now finds a single stuck process
+
+Summary: The watchdog that clears a stuck morning source watch missed it whenever exactly one process was stuck;
+it now finds one or several.
+
+On 2026-10-07 the 08:00 fire sat suspended from 08:00:01 to 09:49 (0 CPU, 0 handles, one thread) while the
+watchdog logged "no suspended process found ... needs a human look" at 08:20, 08:50 and 09:20 (Aaron, 2026-10-07).
+`Find-StuckWatchProcesses` returned its list bare, and Windows PowerShell 5.1 unrolls a one-element result to a
+scalar; a `[pscustomobject]` has no `.Count` there, so `if ($stuck.Count -gt 0)` was false for exactly one stuck
+process. Every "found" line in `source_watch_watchdog.log` (09-19, 09-22, 09-23, 09-24, 10-05) is a pair, and every
+one-process morning (10-01, 10-07, 09-20 and others) is a miss. The function now returns `, $stuck` and the call
+site wraps it in `@()`. A real suspended `pythonw.exe` was reproduced from a limited-rights scheduled task: its
+counters read as stuck and the detection logic flags it from both limited and elevated contexts, so permissions
+and thresholds were not the cause. `tests/test_watchdog_single_process.py` runs the real function with stubbed
+processes (one, two, none); the single-process case failed against the old script.
+
+### 2026-10-07 — New checking is compared on open accounts only (Debit Card Penetration, New Checking Balances)
+
+Summary: The Debit Card Penetration and New Checking Balances slides compared open accounts with the book but
+counted closed accounts among the new ones, which made new accounts look worse. They now compare open with open.
+
+First State Bank's Debit Card Penetration slide read 67.0% for new checking against 78.2% for the book while its
+12-Month Eligible Take Rate slide read 76.3% for the same new accounts (Aaron, 2026-10-07). `metrics_gen` built
+the new-checking group from every personal checking account opened in the window, closed or charged-off ones
+included, and 119 of the 990 were closed. A closed account's current-state fields are blank, so it read as no
+card and a zero balance, while the book it was compared with (`open_chk`) already counted open accounts only.
+Open against open the figures are 75.9% (871 accounts) and 78.2%, a gap of about -2.3 points, not -11.2.
+`new_chk` is now `ischecking(r) and isopen(r)`; `new_stillopen_pct` and the other new-account measures keep the
+closed ones on purpose. Slides affected for every ARS client: Debit Card Penetration, New Checking Balances and
+the balance and funded-share figures that cite them. The October decks were rebuilt on 2026-10-07.
+
 ### 2026-10-07 — CashPlease client 1825 has a full name
 
 Summary: The CashPlease tab for client 1825 now reads as "Mutual Savings Association" instead of the cut-off

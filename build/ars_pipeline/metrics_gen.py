@@ -626,7 +626,12 @@ chk=[p for p in prodc if is_checking_name(p)]
 topchk=max(chk,key=lambda p:prodc[p]) if chk else ''
 M['new_topcheck']=topchk; M['new_topcheck_pct']=round(100*prodc.get(topchk,0)/len(newp))
 # new checking balances (slide 36)
-new_chk=[r for r in newp if ischecking(r)]
+# OPEN accounts only, like the book it is compared with (open_chk below). newp keeps closed accounts on purpose -
+# new_stillopen_pct above is about them - but a closed account reads as no card and a zero balance (the current-state
+# ODD fields are blank on it), so counting it here made new checking look 11 points worse on debit penetration and
+# thinner on balances than the book (First State Bank 1204, 2026.10: 67.0% over 990 accounts, 119 of them closed or
+# charged off; 75.9% over the 871 that are open).
+new_chk=[r for r in newp if ischecking(r) and isopen(r)]
 open_chk=[r for r in data if personal(r) and ischecking(r) and isopen(r)]
 if not new_chk or not open_chk:
     _noname=Counter(g(r,'Prod Desc') or '(blank)' for r in newp if not re.search('[A-Za-z]', g(r,'Prod Desc')))

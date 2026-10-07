@@ -157,7 +157,11 @@ function Find-StuckWatchProcesses {
             }
         }
     }
-    return $stuck
+    # The comma keeps a single result an ARRAY. Returned bare, one object is unrolled to a scalar, and a
+    # [pscustomobject] has no .Count in Windows PowerShell 5.1: `if ($stuck.Count -gt 0)` was then false and
+    # a lone suspended process logged "no suspended process found" (2026-10-07; every success in the log
+    # before it was a pair, never a single process).
+    return ,$stuck
 }
 
 function Kill-ProcessTree([int]$rootPid) {
@@ -179,7 +183,7 @@ if (Watch-RanToday) {
 Write-Log "=== watchdog: no run has reached the shares today ==="
 $attempt = 1
 while ($attempt -le $MaxAttempts) {
-    $stuck = Find-StuckWatchProcesses
+    $stuck = @(Find-StuckWatchProcesses)         # @() as well: never trust a function's result to stay an array
     if ($stuck.Count -gt 0) {
         Write-Log ("attempt {0}: found {1} suspended process(es) for '{2}':" -f $attempt, $stuck.Count, $MainTaskName)
         foreach ($s in $stuck) {
@@ -189,7 +193,7 @@ while ($attempt -le $MaxAttempts) {
         # Kill from the roots -- a process in this list with no parent ALSO in
         # this list is a root; killing it recursively takes its children too.
         $pidSet = $stuck.ProcessId
-        $roots = $stuck | Where-Object { $pidSet -notcontains $_.ParentProcessId }
+        $roots = @($stuck | Where-Object { $pidSet -notcontains $_.ParentProcessId })
         foreach ($r in $roots) { Kill-ProcessTree -rootPid $r.ProcessId }
         Write-Log "attempt ${attempt}: retrying '$MainTaskName' now"
         Start-ScheduledTask -TaskName $MainTaskName
