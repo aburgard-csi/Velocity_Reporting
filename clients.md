@@ -44,6 +44,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1226 | Ellafi FCU | MM | yes | — | — | ARS |
 | 1403 | Adirondack Bank | SM | yes | yes (no ICS data on file yet) | yes | ARS-ICS-MRPC |
 | 1437 | Canandaigua National Bank | MM | ended | — | ended | **none — no further reviews** |
+| 1439 | Horizon Bank NA | — | — | referrals-only (no ICS data on file yet) | yes (no VIP MRPC sheet yet) | ICS-MRPC |
 | 1441 | FNB Alaska | MM | yes | — | — | ARS |
 | 1453 | Connex CU | MM | yes | — | yes | ARS-MRPC |
 | 1487 | Orsa CU | MM | yes | — | — | ARS |
@@ -126,6 +127,16 @@ ICS or MRPC sheet, ICS workbook or referral export yet, so CSM Sheila offers ARS
 | 1632 | WesBanco | 2026.07 | |
 | 1734 | Altamaha Bank and Trust Company | 2026.08 | |
 | 1738 | Rosedale Bank | none on file | referrals-only unless a workbook lands |
+
+**1439 Horizon Bank NA added to the active table as ICS + MRPC (Aaron, 2026-10-07: "horizon bank 1439
+should be on my list. they have ILS and ICS"; then "add MRPC too")** — Gregg Miller's until the
+2026-10-02 reassignment, Aaron's since. ILS has no monthly deck (the ILS review prep slides are
+hand-run, see the `ils-prep-deck` skill). No ARS: the data team lands an ODD extract and a DCO for
+1439 every month and the Velocity export lists ARS, but no ARS workbook has ever landed and Aaron
+did not name it. Neither program has its data on file yet — no VIP ICS sheet, ICS workbook or
+referral export (only `Inputs/ICS Charts/Horizon Bank ICS Charts 2026.xlsx`), and no VIP MRPC sheet
+beside the monthly `1439-<period>-MRPC-Horizon Bank NA-MRPCPM_Analysis_v10.xlsx` — so no deck builds
+until the VIP ICS and MRPC sheets are pulled; the combined deck is then ICS-MRPC.
 
 ---
 
