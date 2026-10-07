@@ -164,7 +164,7 @@ def notes(p, as_of=None):
     win = "; ".join(f"{m} ${v:,.2f}" for m, v in zip(p["window_months"], p["window_values"]))
     pm = "; ".join(f"{m} ${v:,.2f}" for m, v in p["projected_months"])
     s = (f"Projection (method: build/mrpc_pipeline/revenue_projection.py): ordinary least-squares "
-         f"straight line through the last {p['window']} complete months of VIP Revenue by Month "
+         f"straight line through the last {p['window']} complete months of monthly revenue "
          f"({win}); slope {'+' if p['slope'] >= 0 else '−'}${abs(p['slope']):,.2f} per month. "
          f"The line is extended to each remaining month of {p['year']} ({pm}) = "
          f"${p['remainder']:,.2f}, added to the {p['year']} YTD actual ${p['ytd_amount']:,.2f} "

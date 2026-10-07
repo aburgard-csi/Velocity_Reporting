@@ -17,6 +17,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-06 — MRPC revenue by month reads Accounting's MRPC Revenue.xlsx
+
+Summary: The MRPC Revenue by Month and Revenue by Year slides now run through August 2026 for every client in
+Accounting's new MRPC Revenue workbook, instead of stopping at May.
+
+The VIP revenue dashboard trails the rest of the program: Austin Bank's series ended May 2026 in an October deck,
+and VIP MRPC revenue is stale for every client (Aaron, 2026-10-06). Accounting's `Inputs/MRPC Analyses/MRPC
+Revenue.xlsx` carries April to August 2026 per client. `mrpc_revenue_file` (read by `build_mrpc_gen` before
+`complete_series`) keeps VIP's months before the workbook's first month, takes the workbook's from there on, and
+cuts the result to the last 12 months, which is what the Avg Monthly and Trailing-12 tiles say they are. The
+"<year> YTD" bar on Revenue by Year is recomputed from the extended series (VIP's own YTD is exactly the sum of its
+months), so the projection's YTD and monthly series end on the same month, and life-of-program (the prior years plus the YTD) moves by the same amount, so VIP's and Accounting's figures for a month are never both counted (Aaron: the two do not stack; Accounting's is used). Austin Bank's life-of-program goes from $2,385,808 to $2,490,234. `complete_series` judges the extended
+months against the workbook's date, not the VIP pull date, which predates them. A client the workbook does not list
+is unchanged. Months at about twice the series median would be shown as the workbook states them and named in the notes of both revenue slides. Accounting's first file did have two: Austin Bank's May at $66,606 and Isabella Bank's April and July at about double. Accounting sent a corrected file on 2026-10-07 (MRPC Revenue Shares April-August.xlsx, installed as MRPC Revenue.xlsx) with Austin's May at $33,302.75, VIP's own figure, and Isabella's months fixed, so nothing is called out now and Austin's projected 2026 is not inflated. The corrected file has title rows above its header and a second sheet of customer refunds, so the reader takes the sheet named Sheet1 and the row that starts "Client". The workbook lives with the MRPCPM analyses but has no
+`<id>-<period>` in its name, so the daily prune leaves it alone.
+
 ### 2026-10-06 — The money cross-check accepts a one-dollar rounding difference
 
 Summary: The validation gate no longer fails a correct deck because the P&L's program-to-date total is

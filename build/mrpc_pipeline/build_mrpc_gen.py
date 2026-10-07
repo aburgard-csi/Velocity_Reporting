@@ -26,6 +26,7 @@ from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 import mrpc_charts_gen as CH
 import revenue_projection as RPJ
+import mrpc_revenue_file as MRF
 import mrpc_weekly
 import status_slides
 
@@ -213,7 +214,10 @@ def complete_series(data):
         if not block or not block.get("months") or not block.get(value_key):
             continue
         months = block["months"]
-        res = month_complete.assess(months, block[value_key], as_of, measure)
+        blk_as_of = as_of
+        if (block.get('_file') or {}).get('as_of'):          # the workbook's own date, not the VIP pull date
+            blk_as_of = datetime.date.fromisoformat(block['_file']['as_of'])
+        res = month_complete.assess(months, block[value_key], blk_as_of, measure)
         if res["complete"] < len(months):
             n = len(months)
             for k, v in list(block.items()):
@@ -246,6 +250,9 @@ def revenue_projection(data):
 # ---- build -----------------------------------------------------------------
 def build(data, template, out):
     m=data["meta"]; client=m["client_name"]; rm=m["report_month"]; hb=m["has_business"]
+    # Accounting's MRPC Revenue.xlsx extends the VIP revenue-by-month series, which trails by months (Aaron,
+    # 2026-10-06). Before complete_series, so the extended months are judged against the workbook's date.
+    _rev_file=MRF.apply(data)
     _left_out=complete_series(data)
     import month_complete as _MC
     # A month just begun, with no enrollments yet, is not charted (Aaron, 2026-10-06).
@@ -460,10 +467,13 @@ def build(data, template, out):
     set_notes(S[6], base+f" Revenue by year 2016–{ytd['year'] if ytd else ''}; 2025 ${rv['year_2025']:,}, "
                         f"life-of-program ${rv['life_of_program']:,}"+(f", {ytd['year']} ${ytd['amount']:,}" if ytd else "")+
                         ". Full annual series pulled from VIP; sums to life-of-program. "
-                        + RPJ.notes(_proj, as_of=m.get("data_pull")))
-    set_notes(S[7], base+f" Revenue by month (VIP MRPC Revenue by Month), {bm['months'][0]} – {bm['months'][-1]}; "
+                        + RPJ.notes(_proj, as_of=(_rev_file or {}).get('as_of') or m.get("data_pull"))
+                        + (f" The year-to-date figure is the sum of the monthly series to {_rev_file['through']}, which extends the VIP series with {_rev_file['name']}." if _rev_file and _rev_file.get('ytd_year') else "")
+                        + MRF.doubled_sentence(_rev_file))
+    set_notes(S[7], base+f" Revenue by month ({MRF.source_sentence(_rev_file)}), {bm['months'][0]} – {bm['months'][-1]}; "
                         f"avg ${bm_avg:,}/mo, trailing-12 ${bm_tot:,}. Bars navy, last month orange."
-                        + (" " + _left_out["revenue.by_month"] if _left_out.get("revenue.by_month") else ""))
+                        + (" " + _left_out["revenue.by_month"] if _left_out.get("revenue.by_month") else "")
+    + MRF.doubled_sentence(_rev_file))
     set_notes(S[8], _ptd_note)
     set_notes(S[9], _now_note)
     set_notes(S[10], "Discussion slide. No data.")
