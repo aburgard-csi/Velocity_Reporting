@@ -114,8 +114,10 @@ kind alongside everything else.
   full 30 minutes, the scheduler killed them, and the share check — finished in under a
   minute — died unwritten with them. So: the share results (log, report, inventory) are
   written BEFORE the mail step; the mail step runs as its own process
-  (`watch_sources.mail_step`, `MAIL_TIMEOUT` = 10 min) and a timeout is reported as
-  "TIMED OUT", not fatal; and `mail_sources._outlook()` attaches to the running Outlook
+  (`watch_sources.mail_step`, `MAIL_TIMEOUT` = 10 min) with its output in FILES, not
+  pipes, and a timeout kills the whole process tree under it (`_kill_tree`; 2026-10-07,
+  after the relaunch left under the child held the pipe and the run hung for hours) and
+  is reported as "TIMED OUT", not fatal; and `mail_sources._outlook()` attaches to the running Outlook
   with `GetActiveObject` first — which fails at once while Outlook is starting, instead of
   blocking — and only launches a windowless instance with `Dispatch` when none is running
   (it exits with the process). Outlook does NOT have to be open for the task; it merely
@@ -253,17 +255,31 @@ and 2026-10-03 still present and suspended — ages 4.1 and 1.7 days, CPU 0, han
 killed both, retried the task, and the retry reached the shares three minutes later and
 started on the 65 files that had landed since the last real fetch. Without it that day
 would have had no fetch at all, which is why it stays (Aaron, 2026-10-05: "keep the
-watchdog"). Two things that day showed, and neither is understood yet:
+watchdog"). Three things that day and the next showed; two are now explained and fixed:
 
 - **The scheduler's execution limit does not clear a suspended fire.** Task Scheduler
   reported the 2026-10-01 fire terminated (`0x41306`) at 08:50, and the process was
-  still there four days later. Only the watchdog's kill removed it.
-- **The detection can miss one.** On 2026-10-01 the watchdog fired nine times between
-  08:20 and 12:20 and reported "no suspended process found" each time — about the same
-  process the same code found and killed on 10-05. It matches on `Win32_Process`
-  `CommandLine` containing `watch_sources.py`; why that read differently on the day is
-  open. A morning that logs "needs a human look" IS the human look: check for a
-  `pythonw.exe` with 0 CPU and 0 handles by hand.
+  still there four days later. Only the watchdog's kill removed it. Still open.
+- **The detection missed a lone process.** On 2026-10-01 the watchdog fired nine times
+  and reported "no suspended process found" about the same process it found and killed
+  on 10-05. Explained 2026-10-07: `Find-StuckWatchProcesses` returned its list bare, and
+  Windows PowerShell 5.1 unrolls one result to a scalar with no `.Count`, so a single
+  stuck process was never counted — every "found" line in the log was a pair. Fixed
+  (`, $stuck` and `@()` at the call site; `tests/test_watchdog_single_process.py`).
+- **The run that reached the shares then hung in its mail step** (13:49 on 10-05, until
+  killed by hand that evening; again from 08:16 on 10-06). The endpoint agent relaunches
+  every python start as a child with the same command line; a relaunch it leaves suspended
+  inherits the mail child's output pipe; `subprocess.run(timeout=)` killed only the child
+  and then read the pipe to an end that never came. Two consequences: the hung run looked
+  healthy to the watchdog (73 s of CPU, 161 handles) and, the task being `MultipleInstances
+  IgnoreNew`, the next 08:00 fire was dropped. Fixed 2026-10-07 (Aaron: "do both"):
+  `mail_step` hands the child FILES, not pipes, and on a timeout kills the whole tree
+  (`_kill_tree`, `taskkill /T`); the watchdog treats any `watch_sources.py` process older
+  than `MaxAgeSecondsAlive` (3 h) as stuck whatever its counters, and clears one even on a
+  morning whose run reached the shares, so it cannot block the next fire.
+
+A morning that logs "needs a human look" IS the human look: check for a `pythonw.exe`
+with 0 CPU and 0 handles, or one from yesterday, by hand.
 
 `register_watch_task.ps1` had drifted from the live task it describes — the
 registered task already carried `--mail` (added when the mailbox step landed,

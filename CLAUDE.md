@@ -636,8 +636,12 @@ banners it; `--check-stale` scans nothing and answers off VPN. The **"RPE Source
 task (`scripts/watch_task_watchdog.ps1`, from 08:20, every 30 minutes for four hours) asks
 `--check-today`, and if no run has reached the shares it kills a fire Windows created suspended
 and retries the main task, appending to `Build Artifacts/source_watch_watchdog.log`. It stays
-(Aaron, 2026-10-05). A morning that logs "needs a human look" is the human look: check for a
-`pythonw.exe` with 0 CPU and 0 handles by hand.
+(Aaron, 2026-10-05). **A `watch_sources.py` process older than `MaxAgeSecondsAlive` (3 h) is
+stuck whatever its counters say** (Aaron, 2026-10-07): a run that reached the shares and then
+hung looks healthy, and the task is `MultipleInstances IgnoreNew`, so the next 08:00 fire is
+dropped while it lives — the watchdog clears one even on a morning whose run did reach the
+shares. A morning that logs "needs a human look" is the human look: check for a `pythonw.exe`
+with 0 CPU and 0 handles, or one from yesterday, by hand.
 
 **Copy (`--copy`)**
 - Every file for **every client except a stopped one** (`clients.md` skipped rows) that `Inputs/`
@@ -671,6 +675,11 @@ kind with everything else.
 - **The mail step cannot hang the run**: share results are saved BEFORE it, it runs as its own
   process (`watch_sources.mail_step`, `MAIL_TIMEOUT` = 10 min) and a timeout is reported;
   `mail_sources._outlook()` tries `GetActiveObject` before `Dispatch` because the latter can block.
+  **The child writes to FILES, never pipes, and a timeout kills its whole process tree**
+  (`_kill_tree`, `taskkill /T`; 2026-10-07): the endpoint agent relaunches each python start
+  under the first, a relaunch left suspended inherits the pipe, and `subprocess.run(timeout=)`
+  killed only the child and then read that pipe to an end that never came — the run hung for
+  hours on 2026-10-05 and -06. Do not hand a child `subprocess.PIPE` with a timeout anywhere here.
 - Senders are matched on the resolved SMTP address, and each sender may supply only their own
   kinds. Scan Inbox AND Archive plus subfolders; keep only the newest of each thing; an attachment
   whose name does not match `<id>-<period>-<kind>` is parked in the legacy folder and reported,

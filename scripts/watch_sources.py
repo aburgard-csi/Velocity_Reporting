@@ -62,6 +62,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "build"))
@@ -1012,31 +1013,69 @@ def notify(title, body):
 MAIL_TIMEOUT = 600
 
 
+def _kill_tree(proc):
+    """Kill the mail child and every process under it, then the child itself.
+
+    The endpoint agent on this machine relaunches each python start as a child of the
+    first with the same command line, and a relaunch it leaves suspended inherits the
+    child's output handles. `subprocess.run(timeout=)` kills only the child and then reads
+    its pipes to the end — which never comes while the grandchild holds them — so the run
+    sat in the mail step from 13:49 on 2026-10-05 until killed by hand, and again from
+    08:16 on 2026-10-06. Best effort: a kill that fails is reported by the caller, never
+    raised.
+    """
+    if sys.platform == "win32":
+        try:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except (OSError, subprocess.SubprocessError):
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
+def _read_back(fh):
+    fh.seek(0)
+    return fh.read().decode("utf-8", "replace").strip()
+
+
 def mail_step(days, dry_run, timeout=MAIL_TIMEOUT):
     """(report text, [(name, outcome)]) for the mailbox step, run in a
     subprocess with a hard timeout. Never raises: an unreachable, hung or
-    failing mailbox is reported, and the share check has already been saved."""
+    failing mailbox is reported, and the share check has already been saved.
+
+    The child's output goes to FILES, not pipes (2026-10-07). A pipe stays open for as
+    long as any process that inherited it lives, and a read to its end waits on the last
+    of them; a file is read after the wait, whatever is still running. On a timeout the
+    whole tree under the child is killed, not just the child — see `_kill_tree`.
+    """
     cmd = [sys.executable, os.path.join(REPO, "scripts", "mail_sources.py")]
     if days:
         cmd += ["--days", str(days)]
     if not dry_run:
         cmd.append("--save")
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    except subprocess.TimeoutExpired:
-        return ("## From email — TIMED OUT after %d s. Outlook did not answer "
-                "(starting up, syncing, or waiting on a dialog?). The share check "
-                "above is unaffected; the mailbox is read again tomorrow." % timeout, [])
-    except OSError as e:
-        return "## From email — FAILED to start: %s" % e, []
-    out = (r.stdout or "").strip()
-    if r.returncode == 2:
+    with tempfile.TemporaryFile() as out_f, tempfile.TemporaryFile() as err_f:
+        try:
+            proc = subprocess.Popen(cmd, stdout=out_f, stderr=err_f,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except OSError as e:
+            return "## From email — FAILED to start: %s" % e, []
+        try:
+            rc = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill_tree(proc)
+            return ("## From email — TIMED OUT after %d s. Outlook did not answer "
+                    "(starting up, syncing, or waiting on a dialog?). The mail process and "
+                    "everything under it were killed. The share check above is unaffected; "
+                    "the mailbox is read again tomorrow." % timeout, [])
+        out, err = _read_back(out_f), _read_back(err_f)
+    if rc == 2:
         return "## From email — skipped: " + out.replace("mail step skipped: ", ""), []
-    if r.returncode != 0:
-        return ("## From email — FAILED (exit %d): %s" % (
-            r.returncode, (r.stderr or out).strip()[-600:])), []
+    if rc != 0:
+        return ("## From email — FAILED (exit %d): %s" % (rc, (err or out).strip()[-600:])), []
     saved = [(ln.split(None, 1)[1], ln.split(None, 1)[0])
              for ln in out.splitlines()
              if ln.startswith("  ") and ln.split(None, 1)[0] in ("saved", "skipped", "FAILED")]

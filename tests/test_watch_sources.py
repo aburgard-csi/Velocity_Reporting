@@ -462,44 +462,100 @@ def test_copy_plan_skips_when_drive_already_holds_a_newer_period(tmp_path):
 
 
 # ------------------------------------------------------------------ mail step
-class _Done:
-    def __init__(self, rc, out="", err=""):
-        self.returncode, self.stdout, self.stderr = rc, out, err
+# The mail child is stood in for by _FakeChild: it writes the stubbed output to the FILE it
+# is handed, as the real child would, and its wait() returns the exit code or times out.
+class _FakeChild:
+    script = (0, "", "", False)        # rc, stdout, stderr, hang
+    calls = []
+
+    def __init__(self, cmd, stdout=None, stderr=None, **k):
+        self.pid = 4242
+        rc, out, err, self._hang = _FakeChild.script
+        self._rc = rc
+        _FakeChild.calls.append({"cmd": cmd, "stdout": stdout, "stderr": stderr})
+        if stdout is not None:
+            stdout.write(out.encode("utf-8"))
+        if stderr is not None:
+            stderr.write(err.encode("utf-8"))
+
+    def wait(self, timeout=None):
+        import subprocess
+        _FakeChild.calls[-1]["timeout"] = timeout
+        if self._hang:
+            raise subprocess.TimeoutExpired(cmd="x", timeout=timeout)
+        return self._rc
+
+    def kill(self):
+        _FakeChild.calls[-1]["killed"] = True
+
+
+def _arm(monkeypatch, rc, out="", err="", hang=False):
+    """-> the recorded Popen calls; `trees` collects every _kill_tree(proc)."""
+    _FakeChild.script, _FakeChild.calls = (rc, out, err, hang), []
+    monkeypatch.setattr(W.subprocess, "Popen", _FakeChild)
+    trees = []
+    monkeypatch.setattr(W, "_kill_tree", lambda proc: trees.append(proc.pid))
+    return _FakeChild.calls, trees
 
 
 def test_mail_step_times_out_instead_of_hanging(monkeypatch):
-    import subprocess
-
-    def boom(*a, **k):
-        raise subprocess.TimeoutExpired(cmd="x", timeout=k.get("timeout"))
-    monkeypatch.setattr(W.subprocess, "run", boom)
+    calls, trees = _arm(monkeypatch, 0, "## From email (17 to take, 3 skipped)", hang=True)
     text, saved = W.mail_step(None, dry_run=False, timeout=7)
     assert text.startswith("## From email — TIMED OUT after 7 s") and saved == []
+    assert calls[-1]["timeout"] == 7
+
+
+def test_a_timed_out_mail_step_kills_the_whole_tree(monkeypatch):
+    """2026-10-05 and -06: the endpoint agent's relaunch of the mail child inherited its
+    output pipe and was left suspended; subprocess.run killed only the child, then read the
+    pipe to an end that never came, and the run hung until killed by hand - so the next
+    08:00 fire was dropped (MultipleInstances IgnoreNew). The whole tree goes."""
+    calls, trees = _arm(monkeypatch, 0, hang=True)
+    W.mail_step(None, dry_run=False, timeout=7)
+    assert trees == [4242]
+
+
+def test_the_tree_kill_takes_the_grandchildren_too(monkeypatch):
+    """taskkill /T is what reaches a relaunch under the child; proc.kill() alone did not."""
+    import sys
+    seen = []
+    monkeypatch.setattr(W.subprocess, "run", lambda cmd, **k: seen.append(cmd))
+    _FakeChild.script, _FakeChild.calls = (0, "", "", False), []
+    W._kill_tree(_FakeChild(["x"]))                 # the real _kill_tree: nothing stubs it here
+    if sys.platform == "win32":
+        assert seen == [["taskkill", "/T", "/F", "/PID", "4242"]]
+    assert _FakeChild.calls[-1].get("killed") is True
+
+
+def test_the_mail_child_writes_to_files_not_pipes(monkeypatch):
+    """A pipe is held open by every process that inherits it; a file is read after the wait
+    whatever is still running. The child must never be handed subprocess.PIPE."""
+    import subprocess
+    calls, _ = _arm(monkeypatch, 0, "## From email (0 to take, 0 skipped)")
+    W.mail_step(None, dry_run=True)
+    for stream in ("stdout", "stderr"):
+        fh = calls[-1][stream]
+        assert fh is not None and fh is not subprocess.PIPE and callable(getattr(fh, "fileno", None))
 
 
 def test_mail_step_reports_skip_and_failure(monkeypatch):
-    monkeypatch.setattr(W.subprocess, "run",
-                        lambda *a, **k: _Done(2, "mail step skipped: Outlook is not running (x)"))
+    _arm(monkeypatch, 2, "mail step skipped: Outlook is not running (x)")
     text, _ = W.mail_step(None, dry_run=True)
     assert text == "## From email — skipped: Outlook is not running (x)"
-    monkeypatch.setattr(W.subprocess, "run", lambda *a, **k: _Done(1, "", "Traceback ... boom"))
+    _arm(monkeypatch, 1, "", "Traceback ... boom")
     text, _ = W.mail_step(None, dry_run=True)
     assert text.startswith("## From email — FAILED (exit 1)") and "boom" in text
 
 
 def test_mail_step_passes_flags_and_reads_outcomes(monkeypatch):
-    seen = {}
-
-    def fake(cmd, **k):
-        seen["cmd"], seen["timeout"] = cmd, k.get("timeout")
-        # mail_sources.main prints "  %-9s %s" % (outcome before the colon, name)
-        return _Done(0, "## From email (2 to take, 0 skipped)\n\n  saved     a.xlsx\n  FAILED    b.xlsx\n")
-    monkeypatch.setattr(W.subprocess, "run", fake)
+    # mail_sources.main prints "  %-9s %s" % (outcome before the colon, name)
+    calls, _ = _arm(monkeypatch, 0,
+                    "## From email (2 to take, 0 skipped)\n\n  saved     a.xlsx\n  FAILED    b.xlsx\n")
     text, saved = W.mail_step(14, dry_run=False)
-    assert seen["cmd"][-3:] == ["--days", "14", "--save"] and seen["timeout"] == W.MAIL_TIMEOUT
+    assert calls[-1]["cmd"][-3:] == ["--days", "14", "--save"] and calls[-1]["timeout"] == W.MAIL_TIMEOUT
     assert saved == [("a.xlsx", "saved"), ("b.xlsx", "FAILED")]
     text, _ = W.mail_step(None, dry_run=True)
-    assert "--save" not in seen["cmd"] and "--days" not in seen["cmd"]
+    assert "--save" not in calls[-1]["cmd"] and "--days" not in calls[-1]["cmd"]
 
 
 def test_share_results_are_saved_before_the_mail_step(shares, tmp_path, monkeypatch):

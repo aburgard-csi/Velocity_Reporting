@@ -48,6 +48,14 @@
     A process younger than this is not yet judged stuck -- a healthy run is
     still allowed its normal 1-3 minutes. Default 240 (4 minutes).
 
+.PARAMETER MaxAgeSecondsAlive
+    A watch_sources.py process older than this is stuck WHATEVER its counters say
+    (Aaron, 2026-10-07). On 2026-10-05 the run reached the shares, copied for two
+    hours, then hung in its mail step holding live CPU and 161 handles -- nothing
+    like the suspended signature -- and the scheduler's own limit did not end it.
+    The task is MultipleInstances IgnoreNew, so the next 08:00 fire was dropped.
+    Default 10800 (3 hours): a month's extracts on a slow share take about two.
+
 .PARAMETER MaxAttempts
     Total tries (the original firing counts as attempt 1). Default 3, so at
     most 2 kill-and-retry cycles before giving up and logging for a human.
@@ -68,6 +76,7 @@ param(
     [string]$MainTaskName = "RPE Source Watch",
     [int]$FreshWithinMinutes = 120,
     [int]$MinAgeSecondsToJudge = 240,
+    [int]$MaxAgeSecondsAlive = 10800,
     [int]$MaxAttempts = 3,
     [int]$WaitBetweenAttemptsSeconds = 200
 )
@@ -149,11 +158,17 @@ function Find-StuckWatchProcesses {
         } catch {
             continue   # already gone between the CIM query and now
         }
-        if ($cpu -lt 0.05 -and $handles -lt 10) {
+        # Two ways to be stuck. Created suspended: never ran, 0 CPU, no handles. Or alive
+        # too long: a run that reached the shares and then hung (the mail step, 2026-10-05)
+        # looks healthy by its counters and is stuck all the same.
+        $reason = $null
+        if ($cpu -lt 0.05 -and $handles -lt 10) { $reason = "created suspended" }
+        elseif ($ageSec -ge $MaxAgeSecondsAlive) { $reason = "older than $MaxAgeSecondsAlive s" }
+        if ($reason) {
             $stuck += [pscustomobject]@{
                 ProcessId = $p.ProcessId; ParentProcessId = $p.ParentProcessId
                 AgeSeconds = [int]$ageSec; CPU = $cpu; Handles = $handles
-                CommandLine = $p.CommandLine
+                Reason = $reason; CommandLine = $p.CommandLine
             }
         }
     }
@@ -174,9 +189,29 @@ function Kill-ProcessTree([int]$rootPid) {
     catch { Write-Log "  PID $rootPid already gone" }
 }
 
+function Kill-StuckRoots($stuck) {
+    foreach ($s in $stuck) {
+        Write-Log ("  PID {0} (parent {1}): age {2}s, CPU {3}, handles {4} -- {5}" -f `
+            $s.ProcessId, $s.ParentProcessId, $s.AgeSeconds, $s.CPU, $s.Handles, $s.Reason)
+    }
+    # Kill from the roots -- a process in this list with no parent ALSO in
+    # this list is a root; killing it recursively takes its children too.
+    $pidSet = $stuck.ProcessId
+    $roots = @($stuck | Where-Object { $pidSet -notcontains $_.ParentProcessId })
+    foreach ($r in $roots) { Kill-ProcessTree -rootPid $r.ProcessId }
+}
+
 # ---------------------------------------------------------------- main
 if (Watch-RanToday) {
-    # The common case, every healthy morning: say nothing, touch nothing.
+    # The common case, every healthy morning: say nothing, touch nothing. The one
+    # exception (2026-10-07): a run that reached the shares and then hung is still a
+    # watch process at 08:00 tomorrow, and the task is MultipleInstances IgnoreNew, so
+    # tomorrow's fire would be dropped. Clear it today; nothing is retried, today's
+    # run happened.
+    $old = @(Find-StuckWatchProcesses | Where-Object { $_.Reason -like "older than*" })
+    if ($old.Count -eq 0) { exit 0 }
+    Write-Log ("=== watchdog: today's run reached the shares, but {0} watch process(es) are still running after {1} s ===" -f $old.Count, $MaxAgeSecondsAlive)
+    Kill-StuckRoots $old
     exit 0
 }
 
@@ -185,16 +220,8 @@ $attempt = 1
 while ($attempt -le $MaxAttempts) {
     $stuck = @(Find-StuckWatchProcesses)         # @() as well: never trust a function's result to stay an array
     if ($stuck.Count -gt 0) {
-        Write-Log ("attempt {0}: found {1} suspended process(es) for '{2}':" -f $attempt, $stuck.Count, $MainTaskName)
-        foreach ($s in $stuck) {
-            Write-Log ("  PID {0} (parent {1}): age {2}s, CPU {3}, handles {4}" -f `
-                $s.ProcessId, $s.ParentProcessId, $s.AgeSeconds, $s.CPU, $s.Handles)
-        }
-        # Kill from the roots -- a process in this list with no parent ALSO in
-        # this list is a root; killing it recursively takes its children too.
-        $pidSet = $stuck.ProcessId
-        $roots = @($stuck | Where-Object { $pidSet -notcontains $_.ParentProcessId })
-        foreach ($r in $roots) { Kill-ProcessTree -rootPid $r.ProcessId }
+        Write-Log ("attempt {0}: found {1} stuck process(es) for '{2}':" -f $attempt, $stuck.Count, $MainTaskName)
+        Kill-StuckRoots $stuck
         Write-Log "attempt ${attempt}: retrying '$MainTaskName' now"
         Start-ScheduledTask -TaskName $MainTaskName
     } elseif ($attempt -eq 1) {

@@ -17,6 +17,41 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-07 — The morning source watch can no longer hang in its mail step, and the watchdog clears a run that runs too long
+
+Summary: The 08:00 source check no longer hangs for hours after its mailbox step times out, and
+the watchdog now ends any source-check process older than three hours, so a hung run cannot
+make the next morning's fire be skipped.
+
+Aaron, 2026-10-07: "do both, with tests, and post them to the changelog."
+
+On 2026-10-05 the run reached the shares at 11:34, copied until 13:49, started its mail step
+and never ended; killed by hand that evening. On 2026-10-06 the same, from 08:16. The mechanism:
+the endpoint agent on the build machine relaunches every python start as a child of the first
+with the same command line, and a relaunch it leaves suspended inherits the mail child's output
+pipe. `subprocess.run(timeout=600)` killed the child when the ten minutes were up, then read the
+pipe to its end — which never came while the grandchild held it. The task is `MultipleInstances
+IgnoreNew`, so a run still alive at 08:00 made the next fire be dropped; and the watchdog could
+not see it, because a run with 73 s of CPU and 161 handles is nothing like the suspended fire it
+was built to find. The scheduler's own 50-minute limit did not end it either.
+
+- `watch_sources.mail_step` now hands the child two temporary FILES for its output and waits on
+  the process, not the pipe; a timeout calls `_kill_tree`, which runs `taskkill /T /F` on the
+  child so the relaunch under it goes too, and the report says so. `tests/test_watch_sources.py`
+  stands in a fake child that writes to the file it is given and pins: a timeout kills the tree,
+  the child is never handed `subprocess.PIPE`, and skip / failure / outcome reading are unchanged.
+- `scripts/watch_task_watchdog.ps1` has `MaxAgeSecondsAlive` (10800): a `watch_sources.py`
+  process older than that is stuck whatever its counters say, logged with its reason, and
+  killed from the roots — including on a morning whose run DID reach the shares, which used to
+  be a silent exit; nothing is retried in that case. `tests/test_watchdog_single_process.py`
+  runs the real function against a live process aged four hours (found, "older than 10800 s"),
+  one hour (not found) and the suspended signature (found, "created suspended"), and pins that
+  the silent-exit path looks for an over-age process first.
+
+The two open questions from 2026-10-05 are now one: the lone-process miss was the `.Count`
+unrolling fixed earlier today, and the hang is the pipe. What is still open is why Task
+Scheduler's execution limit does not end these processes. Nothing about what is copied, pruned
+or filed changed.
 ### 2026-10-07 — The source-watch watchdog now finds a single stuck process
 
 Summary: The watchdog that clears a stuck morning source watch missed it whenever exactly one process was stuck;
