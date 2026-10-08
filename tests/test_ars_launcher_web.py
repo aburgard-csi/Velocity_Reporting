@@ -578,6 +578,8 @@ def test_a_queued_job_keeps_the_cycle_it_was_asked_for(monkeypatch):
 
 def test_changing_cycle_drops_what_was_cached_about_the_old_one(monkeypatch):
     monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    # select_period warms the new cycle on a thread; on a fast runner it refilled the cache before the assert.
+    monkeypatch.setattr(W, "prewarm", lambda *a, **k: None)
     try:
         W._status_cache["1038"] = {"at": 0, "doc": {"period": "2026.10"}}
         W._clients["doc"] = {"period": "2026.10", "clients": []}
