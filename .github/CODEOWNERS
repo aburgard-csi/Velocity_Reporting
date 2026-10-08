@@ -1,0 +1,19 @@
+# Code owners — who is asked to review a change to each part of the pipeline (Aaron, 2026-10-07).
+#
+# GitHub requests a review from the owner of every path a pull request touches, and a ruleset
+# on main can require that owner's approval before the merge. Paths not listed have no owner:
+# a change there needs the ruleset's ordinary review, from anyone with write access.
+#
+# The owned paths are the ones where a wrong change ships a wrong deck to a client without
+# any test or gate noticing: the builders, the gate itself, the template shells, the roster
+# and the project rules. Later lines win over earlier ones.
+
+/build/              @aburgard-csi
+/validation/         @aburgard-csi
+/templates/          @aburgard-csi
+/clients.md          @aburgard-csi
+/CLAUDE.md           @aburgard-csi
+/.github/            @aburgard-csi
+/scripts/release_launcher.ps1   @aburgard-csi
+/scripts/register_watch_task.ps1   @aburgard-csi
+/scripts/register_watchdog_task.ps1   @aburgard-csi

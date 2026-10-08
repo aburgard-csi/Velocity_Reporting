@@ -424,6 +424,24 @@ def test_mrpc_has_no_local_fallback(bm, monkeypatch):
     assert err.startswith("no MRPC sheet") and not built
 
 
+def test_a_client_with_no_ars_assembles_without_the_ars_flag(bm, root, monkeypatch):
+    """1439 Horizon Bank NA is ICS (referrals-only) + MRPC with no ARS (Aaron, 2026-10-07).
+    The driver always passed `--ars made["ARS"]` to assemble_combined and would have raised
+    KeyError before the assembler ever ran; the assembler itself has not needed --ars since
+    2026-09-01 (the first program present supplies the shell)."""
+    BM, calls, built, stage = bm
+    vip = root / "vip.json"
+    monkeypatch.setattr(R, "resolve_client_json", lambda a, p: vip)
+    err, made = BM.build_client(CID, NAME, None, ["ICS-REFERRALS", "MRPC"], PERIOD, stage)
+    assert err is None and set(made) == {"ICS", "MRPC", "DELIVERABLE"}
+    assemble = calls[-1]
+    assert assemble[1].endswith("assemble_combined.py")
+    assert "--ars" not in assemble and "--ics" in assemble and "--mrpc" in assemble
+    assert assemble[assemble.index("--ics") + 1] == made["ICS"]
+    assert os.path.basename(made["DELIVERABLE"]) == f"{CID}-{PERIOD}-ICS-MRPC-{NAME} Results.pptx"
+    assert "--referrals-only" in calls[0]            # the ICS section is the referrals-only shape
+
+
 # ------------------------------------------------------------------ the deck
 def test_local_sheet_deck_names_its_files_and_opens(root, tmp_path):
     """A FULL local build: the case that wrote slide27.xml twice (the Summit slide took a

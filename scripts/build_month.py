@@ -365,8 +365,12 @@ def build_client(cid, name, mmsm, progs, period, stage):
 
     if len(made) > 1:
         combo = os.path.join(d, f"{cid}-{period}-{deck_tag(progs)}-{name} Results.pptx")
-        cmd = [PY, os.path.join(REPO, "build/assemble_combined.py"), "--ars", made["ARS"]]
-        for U in ("ICS", "MRPC", "CP"):
+        # --ars only when there is one: assemble_combined has not needed it since 2026-09-01
+        # (the first program present supplies the shell), but this line still indexed
+        # made["ARS"] and would have raised KeyError for an ICS + MRPC client such as 1439
+        # Horizon Bank NA (2026-10-07).
+        cmd = [PY, os.path.join(REPO, "build/assemble_combined.py")]
+        for U in ("ARS", "ICS", "MRPC", "CP"):
             if U in made:
                 cmd += [f"--{'cashplease' if U == 'CP' else U.lower()}", made[U]]
         if run(cmd + ["--out", combo], log):

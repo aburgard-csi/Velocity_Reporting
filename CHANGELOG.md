@@ -17,6 +17,46 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-07 — A release ships only what is on origin/main; the repo gets CI and code owners
+
+Summary: Releasing the launcher to the share now refuses when the checkout has uncommitted
+changes or is not on origin/main, so CSMs only ever run code that is in git. The repo also gains
+a GitHub Actions run of the unit suite on every pull request and a CODEOWNERS file.
+
+Aaron, 2026-10-07: "i need to protect the repo now that i have multiple contributors" — "set up
+3, 4 and 5 now."
+
+- `scripts/release_launcher.ps1` fetches `origin/main` and stops before copying anything when
+  the working tree is dirty or HEAD is not a commit on `origin/main`; the 15:06 release that day
+  had stamped "with uncommitted changes" and shipped another session's half-finished
+  `ils_dda_count_mail.py` to every CSM, because robocopy mirrors the working tree. `-Force`
+  releases anyway and `RELEASE.txt` says `FORCED` with the reason. `tests/test_release_launcher.py`
+  pins that the guard runs first, checks both conditions, and that the quiet old wording is gone.
+- `.github/workflows/tests.yml` runs `pytest tests` on a Windows runner for every pull request
+  and push to `main`, against an empty `RPE_DATA_ROOT` so tests that need the CSI share skip
+  rather than fail. It is the status check for the branch ruleset to require.
+- `.github/CODEOWNERS` asks Aaron to review any pull request touching `build/`, `validation/`,
+  `templates/`, `clients.md`, `CLAUDE.md`, `.github/` or the release / task-registration scripts.
+- The repo setting "automatically delete head branches" is on.
+
+Branch protection on `main` (pull requests only, one approval, no force-push or deletion, the
+`tests` check required) is the remaining step and is a GitHub plan matter: a private repo on a
+Free personal account cannot protect a branch.
+### 2026-10-07 — The monthly driver can assemble a combined deck with no ARS section
+
+Summary: `build_month` can now build a two-program deck for a client that has no ARS — the
+first such client is 1439 Horizon Bank NA (ICS + MRPC). It used to stop with an error before the
+assembler ran.
+
+Found while preparing the 1439 build (Aaron, 2026-10-07: "build the 1439 deck once the sheets
+land"). `build_client` always passed `--ars made["ARS"]` to `assemble_combined`, so a client with
+no ARS section raised `KeyError` in the driver. The assembler itself has not required `--ars`
+since 2026-09-01 — the first program present in `BASE_PRECEDENCE` supplies the shell — so the
+driver now passes each program flag only for a section it built, ARS included.
+`tests/test_ics_local_sheet.py` builds an ICS (referrals-only) + MRPC client through the driver
+with the subprocesses stubbed and pins the assemble command (no `--ars`, `--ics` and `--mrpc`
+pointing at the built sections, the deliverable named `ICS-MRPC`). No figure moves: a deck that
+assembled before assembles the same way.
 ### 2026-10-07 — The morning source watch can no longer hang in its mail step, and the watchdog clears a run that runs too long
 
 Summary: The 08:00 source check no longer hangs for hours after its mailbox step times out, and

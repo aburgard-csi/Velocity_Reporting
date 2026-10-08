@@ -1,0 +1,52 @@
+# The unit suite on every pull request and every push to main (Aaron, 2026-10-07).
+#
+# This is the "gate" status check a ruleset on main requires before a merge. It runs the
+# same `pytest tests` that is step 0 of validation/qa_all.py — classifiers, the ODD row
+# vocabulary, metrics invariants, the deck rules, the roster parser, the watch and the
+# watchdog — on a Windows runner, because the pipeline is Windows: PowerShell scripts, the
+# scheduled tasks, taskkill, Outlook COM. The fixture ODD is synthetic and generated on the
+# fly; nothing client-identifiable is in the repo, and nothing here can reach the CSI share.
+#
+# RPE_DATA_ROOT points at an EMPTY folder with the three expected subfolders, so rpe_env
+# resolves and a test that needs real share data skips (the share-dependent tests mark
+# themselves) instead of failing for want of a VPN the runner will never have. No secrets.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install
+        run: python -m pip install -r requirements.txt
+
+      - name: An empty data root, so rpe_env resolves and share tests skip
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "rpe-data-root"
+          foreach ($d in "Inputs", "Outputs", "Build Artifacts") {
+            New-Item -ItemType Directory -Force (Join-Path $root $d) | Out-Null
+          }
+          "RPE_DATA_ROOT=$root" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Unit suite
+        run: python -m pytest tests -q -p no:cacheprovider -rfEs --durations=15

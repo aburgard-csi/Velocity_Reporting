@@ -18,13 +18,40 @@ Tools\RPE to %LOCALAPPDATA%\RPE\Code whenever RELEASE.txt changes, so a release 
 time its launcher starts. RELEASE.txt is the stamp, and is written last.
 Copy-only: robocopy mirrors Tools\RPE (so a removed file does not linger and run), and never
 touches Inputs, Outputs or Build Artifacts. Run the unit suite before releasing.
+
+A release ships what is on origin/main and nothing else (Aaron, 2026-10-07). The script
+refuses when the working tree has uncommitted changes or HEAD is not a commit on origin/main
+(fetched first): on 2026-10-07 a release stamped "with uncommitted changes" shipped another
+session's half-finished file, because robocopy mirrors the working tree. -Force releases
+anyway and the stamp says so, for the day the rule has to bend; it should not be the habit.
 #>
 param(
     [string]$Root = $env:RPE_DATA_ROOT,
-    [switch]$Runtime
+    [switch]$Runtime,
+    [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+
+# ---------------------------------------------------------------- what is being released
+$dirty = @(git -C $repo status --porcelain 2>$null | Where-Object { $_ })
+$null = git -C $repo fetch origin main --quiet 2>$null
+$fetched = $LASTEXITCODE -eq 0
+$head = (git -C $repo rev-parse HEAD 2>$null)
+$onMain = $false
+if ($fetched) {
+    $null = git -C $repo merge-base --is-ancestor $head origin/main 2>$null
+    $onMain = $LASTEXITCODE -eq 0
+}
+$problems = @()
+if ($dirty.Count) { $problems += "the working tree has $($dirty.Count) uncommitted change(s):`n    " + ($dirty -join "`n    ") }
+if (-not $fetched) { $problems += "origin/main could not be fetched, so HEAD cannot be checked against it" }
+elseif (-not $onMain) { $problems += "HEAD $((git -C $repo rev-parse --short HEAD)) is not on origin/main (commit and push first, or check out main)" }
+if ($problems.Count) {
+    $text = "Not released. A release ships origin/main and nothing else:`n  - " + ($problems -join "`n  - ")
+    if (-not $Force) { throw "$text`nRe-run with -Force to release anyway; the stamp will say so." }
+    Write-Warning "$text`n-Force given: releasing anyway."
+}
 if (-not $Root) {
     $envFile = Join-Path $repo '.env'
     if (Test-Path $envFile) {
@@ -44,8 +71,8 @@ foreach ($d in 'build', 'scripts', 'validation', 'templates', 'fonts') {
 }
 foreach ($f in 'clients.md', 'requirements.txt', 'CHANGELOG.md') { Copy-Item (Join-Path $repo $f) (Join-Path $code $f) -Force }
 $commit = (git -C $repo rev-parse --short HEAD) 2>$null
-$dirty = (git -C $repo status --porcelain) 2>$null
-"released $(Get-Date -Format 'yyyy-MM-dd HH:mm') by $env:USERNAME from $repo at $commit$(if ($dirty) { ' (with uncommitted changes)' })" |
+$stampNote = if ($problems.Count) { ' FORCED: ' + (($problems | ForEach-Object { ($_ -split "`n")[0] }) -join '; ') } else { ' (on origin/main, clean)' }
+"released $(Get-Date -Format 'yyyy-MM-dd HH:mm') by $env:USERNAME from $repo at $commit$stampNote" |
     Set-Content -Encoding utf8 (Join-Path $code 'RELEASE.txt')
 
 # The runtime ships as ONE zip that runtime.cmd unpacks to %LOCALAPPDATA%\RPE on each PC. A
