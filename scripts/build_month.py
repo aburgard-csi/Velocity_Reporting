@@ -204,6 +204,11 @@ def deck_tag(progs):
 
 
 # ----------------------------------------------------------------- build
+# The launchers set this; a build started any other way wrote to a file in the Windows code page and died on
+# the first non-ASCII character a step printed (the P&L slide's "<=20 swipes" message).
+_CHILD_ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
+
+
 def run(cmd, log, stdout_to=None):
     with open(log, "a", encoding="utf-8") as lf:
         lf.write("\n$ " + " ".join(str(c) for c in cmd) + "\n")
@@ -214,9 +219,9 @@ def run(cmd, log, stdout_to=None):
         t0 = time.time()
         if stdout_to:
             with open(stdout_to, "w", encoding="utf-8") as out:
-                r = subprocess.run([str(c) for c in cmd], stdout=out, stderr=lf)
+                r = subprocess.run([str(c) for c in cmd], stdout=out, stderr=lf, env=_CHILD_ENV)
         else:
-            r = subprocess.run([str(c) for c in cmd], stdout=lf, stderr=lf)
+            r = subprocess.run([str(c) for c in cmd], stdout=lf, stderr=lf, env=_CHILD_ENV)
         # Only on success: ars_launcher._log_reason reads the LAST line of the log as the reason a
         # build stopped, so a line after a failed step would bury its traceback.
         if r.returncode == 0:

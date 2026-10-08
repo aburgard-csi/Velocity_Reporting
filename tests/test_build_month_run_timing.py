@@ -20,3 +20,11 @@ def test_a_failed_step_leaves_its_own_last_line(tmp_path):
     assert BM.run([sys.executable, "-c", "raise SystemExit('the real reason')"], str(log)) != 0
     last = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()][-1]
     assert last == "the real reason"
+
+
+def test_a_step_can_print_non_ascii_into_the_log(tmp_path, monkeypatch):
+    """A step that prints a character outside the Windows code page must not die when the log is a file."""
+    monkeypatch.delenv("PYTHONIOENCODING", raising=False)
+    monkeypatch.setattr(BM, "_CHILD_ENV", dict(os.environ, PYTHONIOENCODING="utf-8"))
+    log = tmp_path / "build.log"
+    assert BM.run([sys.executable, "-c", "print('Interchange (\u226420 swipes)')"], str(log)) == 0
