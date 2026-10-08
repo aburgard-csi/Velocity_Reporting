@@ -17,6 +17,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-08 — A release comes from origin/main by default
+
+Summary: Releasing the launcher now checks out origin/main into a release worktree of its own and
+ships that, so a release never depends on the state of anyone's checkout. Releasing the working
+tree is still possible with `-FromWorkingTree`, under yesterday's guard.
+
+Aaron, 2026-10-08: "make -FromOrigin the default."
+
+Yesterday's guard refused a dirty tree; today's release still had to be done from a throwaway
+checkout by hand, because another session's uncommitted file sat in the working tree all day.
+`scripts/release_launcher.ps1` now does that itself: fetch `origin/main`, check it out detached
+into `%LOCALAPPDATA%\RPE\release-worktree`, and re-run inside it with `-FromWorkingTree`. The
+worktree is kept between runs and moved with `git checkout --detach`, so robocopy copies only the
+files that changed (a fresh checkout gives every file a new mtime and re-copied the templates and
+fonts — ten minutes on the share). The `.venv` for `-Runtime` is read from the real checkout, which
+is the one place it exists. `RELEASE.txt` names its source: "origin/main (release worktree)" or
+"working tree <path>", and `FORCED` when the guard was overridden. A fetch that fails releases
+nothing. `tests/test_release_launcher.py` pins the order (worktree, then guard, then copy), the
+kept worktree, the venv path and the stamp.
 ### 2026-10-07 — A release ships only what is on origin/main; the repo gets CI and code owners
 
 Summary: Releasing the launcher to the share now refuses when the checkout has uncommitted
