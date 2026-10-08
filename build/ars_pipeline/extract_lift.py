@@ -1,5 +1,7 @@
 import openpyxl, json, sys, datetime
-wb=openpyxl.load_workbook(sys.argv[1],read_only=True,data_only=True); out={}
+import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import xl_cache
+wb=xl_cache.load(sys.argv[1]); out={}
 def ml(v): return v.strftime('%b %Y') if isinstance(v,datetime.datetime) else v
 # --- Lift Matrix MM current window (first block, rows ~8-18) ---
 lm=wb['Lift Matrix MM']
