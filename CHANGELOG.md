@@ -17,6 +17,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-08 — The all-clients ICS referrals query stops at the last completed month
+
+Summary: The all-clients ICS referrals query now returns referrals only through the end of the last
+completed month, and WesBanco's ICS launch (November 2025) is recorded in clients.md.
+
+Aaron, 2026-10-08: "I need the query to run only through the end of the last completed month."
+
+`scripts/sql/ics_referrals_all_clients.sql` has a new `@period_end` that defaults to the 1st of the
+current month (exclusive). It filters both the client list and the per-client query, so a run on
+2026-10-08 returns referrals issued through 2026-09-30. `@h_max_period`, the latest balance period,
+is not capped. A capped run does not remove later referrals already merged into `ics_referrals.csv`
+(the merge only adds and replaces), and the launcher runs the released copy, so this takes effect
+at the next release.
+
+Found while checking 1632 WesBanco: the all-clients pull held no referral issued before the November
+2025 launch, so the query needed no launch bound. The per-client query that undercounted (2,333
+against the view's 2,482 and VIP's 2,472) was a hand-run query, replaced by a rewrite that returns
+2,482. The launch month is recorded on the 1632 row of `clients.md`.
+
 ### 2026-10-08 — A release comes from origin/main by default
 
 Summary: Releasing the launcher now checks out origin/main into a release worktree of its own and
