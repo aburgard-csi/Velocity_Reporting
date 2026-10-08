@@ -382,6 +382,9 @@ _renumber = renumber
 DATA_LOGO_BOX = (11.28, 6.78, 1.70, 0.54)      # STYLE.md: bottom-right of every data slide
 
 
+_LOGO_CACHE = {}
+
+
 def data_logo(slide, client_id=None, assets_dir=None, lockup=None, box=DATA_LOGO_BOX):
     """The bottom-right mark on a data slide: the CLIENT's logo, else the lockup.
 
@@ -398,13 +401,21 @@ def data_logo(slide, client_id=None, assets_dir=None, lockup=None, box=DATA_LOGO
     l, t, w, h = box
     path = None
     if client_id:
-        try:
-            path = _R.client_logo(client_id)
-            if path is not None and assets_dir:
-                path = _R.trim_logo(path, assets_dir)
-        except Exception as e:                  # an unreadable logo must not fail a build
-            print(f"!! data logo: {client_id} ({type(e).__name__}: {e}) — using the lockup")
+        key = (str(client_id), str(assets_dir))
+        path = _LOGO_CACHE.get(key)
+        if path is not None and not os.path.isfile(path):
             path = None
+        if path is None:
+            try:
+                path = _R.client_logo(client_id)
+                if path is not None and assets_dir:
+                    path = _R.trim_logo(path, assets_dir)
+                if path is not None:
+                    _LOGO_CACHE[key] = path     # one build, one client: 40 slides were each re-reading and
+                                                # re-trimming the same logo from the share (25 s on 1100)
+            except Exception as e:              # an unreadable logo must not fail a build
+                print(f"!! data logo: {client_id} ({type(e).__name__}: {e}) — using the lockup")
+                path = None
     if path is not None:
         fit = _R.fit_box(path, w, h)
         if fit:
