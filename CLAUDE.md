@@ -774,6 +774,14 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `docs/` — the PRDs: `PRD-2026-08-26-repo-portability-and-response-rates.md`,
   `PRD-2026-09-11-rpe-client-performance-artifact.md` (the cross-client performance page:
   what it is for, where each figure comes from, and why the script never publishes).
+  `ILS-schema.md` — the hosted ILS database: every table's columns (names only, no sample
+  rows), the join keys, the account-type / Reg E / status code values, and what Aaron has
+  confirmed (`DELETED IS NULL` = in the current import; `ODCustomer` = access to the OD
+  program, not usage). **Read it before writing any ILS query.**
+- `sql/` — ILS queries a person runs in a client's ILS database; Claude cannot reach it.
+  `ils_od_lookup_by_last4.sql` takes a customer list (raw account numbers, which cannot be
+  matched to `HASHED_ACCOUNT`) and returns OD usage and the OD limit before an account
+  number change and now. Customer lists and results never go in the repo.
 
 **`scripts/`**
 - `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
