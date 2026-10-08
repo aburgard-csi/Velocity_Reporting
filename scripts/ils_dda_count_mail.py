@@ -14,13 +14,16 @@ Run by `C:\\Data Pipelines\\Email Pipeline\\run-monitor.ps1` before its Claude s
 any time. Read-only in Outlook. Writes nothing unless the email parses to at least one client,
 and never overwrites a saved week with different text (that is reported instead).
 
-    python scripts/ils_dda_count_mail.py [--days 10] [--dry-run]
+    python scripts/ils_dda_count_mail.py [--days 21] [--dry-run]
 
-Exit 0 saved or already current, 1 nothing usable found, 2 Outlook unavailable.
+Exit 0 saved, already current, or no new email while a recent count is saved; 1 nothing usable found
+or the saved count has gone stale; 2 Outlook unavailable.
 """
 import argparse
+import datetime as _dt
 import html
 import os
+import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,6 +36,62 @@ import dda_counts  # noqa: E402
 SUBJECT = "ils management server dda count"
 SENDERS = ("charles.baker@csiweb.com", "velocityalerts@csiweb.com")
 KIND = "CP weekly"
+SAVED_RE = re.compile(r"^ILS-DDA-Count-(\d{4}-\d{2}-\d{2})\.txt$")
+# The email is weekly, so one skipped Thursday should not read as a failure: the search window is
+# wide enough to still find the last one, a count older than LATE_DAYS is noted in the log, and only
+# a gap long enough to leave the window is reported as a problem. Aaron, 2026-10-06: the 10/1 email
+# never arrived and every run since logged an error against a saved count that was perfectly current.
+LATE_DAYS = 10
+STALE_DAYS = 14
+
+
+def _age_days(datestr):
+    """Whole days from a YYYY-MM-DD string to today, or None if it will not parse."""
+    try:
+        return (_dt.date.today() - _dt.date(*[int(p) for p in datestr.split("-")])).days
+    except Exception:
+        return None
+
+
+def newest_saved(folder):
+    """(date string, age in days) for the newest count already saved, or (None, None)."""
+    try:
+        names = os.listdir(str(folder))
+    except Exception:
+        return None, None
+    dates = sorted(m.group(1) for m in (SAVED_RE.match(n) for n in names) if m)
+    if not dates:
+        return None, None
+    return dates[-1], _age_days(dates[-1])
+
+
+def _late_note(sent):
+    """A note for the log when the newest count in the mailbox is older than a week."""
+    age = _age_days(sent)
+    if age is not None and age > LATE_DAYS:
+        return "; nothing newer in %d days, so the Thursday email looks late" % age
+    return ""
+
+
+def report_no_email(days):
+    """Nothing in the window: fine if a recent count is saved, a problem if it is stale."""
+    missing = ("no '%s' email from %s in the last %d days"
+               % ("ILS Management Server DDA Count", " or ".join(SENDERS), days))
+    try:
+        saved, age = newest_saved(R.input_dir(KIND))
+    except Exception as exc:
+        print("DDA count: %s (could not check what is saved: %s)" % (missing, exc))
+        return 1
+    if saved is None:
+        print("DDA count: %s, and no count has ever been saved" % missing)
+        return 1
+    if age is None or age > STALE_DAYS:
+        print("DDA count: STALE - newest saved count is %s (%s days old) and %s. The server sends "
+              "this every Thursday, so check with Charles whether the job still runs."
+              % (saved, age, missing))
+        return 1
+    print("DDA count: current through %s; %s" % (saved, missing))
+    return 0
 
 
 def pick(messages):
@@ -73,7 +132,7 @@ def _outlook_messages(days):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--days", type=int, default=10)
+    ap.add_argument("--days", type=int, default=21)
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
@@ -88,9 +147,7 @@ def main(argv=None):
     finally:
         MS.close_if_launched()
     if hit is None:
-        print("DDA count: no '%s' email from %s in the last %d days"
-              % ("ILS Management Server DDA Count", " or ".join(SENDERS), a.days))
-        return 1
+        return report_no_email(a.days)
     folder = R.input_dir(KIND)
     path, parsed, action = plan(hit[1], folder)
     counts = "%d clients with a count, %d NULL" % (len(parsed["clients"]), len(parsed["null_counts"]))
@@ -99,7 +156,7 @@ def main(argv=None):
         return 1
     name = os.path.basename(path)
     if action == "current":
-        print("DDA count: %s already saved (%s)" % (name, counts))
+        print("DDA count: %s already saved (%s)%s" % (name, counts, _late_note(parsed["sent"])))
     elif action == "differs":
         print("DDA count: %s exists with different text; left as it is (%s)" % (name, counts))
     elif a.dry_run:
