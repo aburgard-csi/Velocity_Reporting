@@ -5,6 +5,8 @@ its own subagent and its own data sources. **Keep them separate** — never run 
 program's logic while building another. Confusion between programs is the exact problem
 this structure exists to prevent.
 
+**Working here as a collaborator (not Aaron)?** Read `docs/COLLABORATORS.md` first: branches and pull requests, what not to run, and what to check before a PR.
+
 ## Routing
 
 Identify the program from the request, then dispatch to the one matching subagent:
@@ -771,6 +773,7 @@ This is the readme index — update it whenever files are added, removed, or mov
   CSM Sheila shows that line in What's new and on its change log page, and leaves out the
   quoted request and inline "(Aaron, …)" attributions, which stay here as the record.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
+- `docs/COLLABORATORS.md` — what a collaborator's Claude Code session needs: branches and PRs, what not to run, pre-PR checks.
 - `docs/` — the PRDs: `PRD-2026-08-26-repo-portability-and-response-rates.md`,
   `PRD-2026-09-11-rpe-client-performance-artifact.md` (the cross-client performance page:
   what it is for, where each figure comes from, and why the script never publishes).
