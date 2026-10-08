@@ -124,7 +124,7 @@ ICS or MRPC sheet, ICS workbook or referral export yet, so CSM Sheila offers ARS
 
 | ID | Client | ICS workbook | Note |
 | --- | --- | --- | --- |
-| 1632 | WesBanco | 2026.07 | |
+| 1632 | WesBanco | 2026.07 | ICS launched **November 2025** (Aaron, 2026-10-08) — referral queries must start at 2025-11-01 |
 | 1734 | Altamaha Bank and Trust Company | 2026.08 | |
 | 1738 | Rosedale Bank | none on file | referrals-only unless a workbook lands |
 

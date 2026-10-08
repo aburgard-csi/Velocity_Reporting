@@ -6,6 +6,8 @@
 
     Settings:
       @since         only referrals issued on or after this date (null = all history)
+      @period_end    referrals issued before this date; defaults to the 1st of the current month,
+                     so a run covers through the end of the last completed month
       @opened_only   1 = only referrals that opened an account (the original query's filter),
                      0 = every referral, with account_found = 'N' where no account matched
       @client_list   leave empty for every client with branch referrals, or list client ids
@@ -23,6 +25,7 @@
 set nocount on;
 
 declare @since date = null;          -- e.g. '2025-09-01'
+declare @period_end date = dateadd(month, datediff(month, 0, getdate()), 0);  -- 1st of this month, exclusive
 declare @opened_only bit = 0;
 declare @client_list table (client_id int primary key);
 -- insert @client_list values (1075), (1509), (1537), (1632), (1676), (1705), (1776);
@@ -38,6 +41,7 @@ where rv.primarydda is not null
   and rv.memoname like '%Branch%'
   and rv.issuedate is not null
   and (@since is null or rv.issuedate >= @since)
+  and rv.issuedate < @period_end
   and (not exists (select 1 from @client_list) or c.client_id in (select client_id from @client_list));
 
 if object_id('tempdb..#referrals') is not null drop table #referrals;
@@ -132,11 +136,12 @@ begin
           and rv.memoname like ''%Branch%''
           and rv.issuedate is not null
           and (@since is null or rv.issuedate >= @since)
+          and rv.issuedate < @period_end
           and (@opened_only = 0 or a.date_opened is not null);';
 
         begin try
-            exec sp_executesql @sql, N'@id int, @since date, @opened_only bit',
-                 @id = @id, @since = @since, @opened_only = @opened_only;
+            exec sp_executesql @sql, N'@id int, @since date, @period_end date, @opened_only bit',
+                 @id = @id, @since = @since, @period_end = @period_end, @opened_only = @opened_only;
             print concat(@id, ' ', @name, ': ', @@rowcount, ' referrals');
         end try
         begin catch
