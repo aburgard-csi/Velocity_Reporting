@@ -578,14 +578,18 @@ def test_a_queued_job_keeps_the_cycle_it_was_asked_for(monkeypatch):
 
 def test_changing_cycle_drops_what_was_cached_about_the_old_one(monkeypatch):
     monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
-    # select_period warms the new cycle on a thread; on a fast runner it refilled the cache before the assert.
+    # select_period warms the new cycle on a background thread, and a thread left over from an earlier test can
+    # refill either cache after the reset (CI failed on both on 2026-10-08, even with prewarm stubbed). So the
+    # test checks what it means: the entries stored about the OLD cycle are gone, whatever refreshed since.
     monkeypatch.setattr(W, "prewarm", lambda *a, **k: None)
     try:
-        W._status_cache["1038"] = {"at": 0, "doc": {"period": "2026.10"}}
-        W._clients["doc"] = {"period": "2026.10", "clients": []}
+        old_status = {"at": 0, "doc": {"period": "2026.10"}}
+        old_list = {"period": "2026.10", "clients": []}
+        W._status_cache["1038"] = old_status
+        W._clients["doc"] = old_list
         W.select_period("2026.09")
-        assert "1038" not in W._status_cache
-        assert W._clients["doc"] is None
+        assert W._status_cache.get("1038") is not old_status
+        assert W._clients["doc"] is not old_list
     finally:
         W._selected["period"] = None
         W._status_cache.clear()
