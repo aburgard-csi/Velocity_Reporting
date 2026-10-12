@@ -83,8 +83,10 @@ Read-only inspection of the share is fine. A build for a client goes through CSM
    `.venv\Scripts\python validation\qa_all.py` too. A layout DRIFT warning means you touched slides you
    did not mean to; review it, and `--snapshot` only if the change is intentional.
 3. A bug that got past the gate gets a new check that would have caught it, not only a fix.
-4. Add a `CHANGELOG.md` entry under **Unreleased** if you changed behaviour or what a slide renders,
-   even when no number moves. Start it with a `Summary:` line of one or two plain sentences for a CSM.
+4. Add a `CHANGELOG.md` entry at the top of **Changes, newest first** if you changed behaviour or
+   what a slide renders, even when no number moves. Start it with a `Summary:` line of one or two
+   plain sentences for a CSM. (There is no "unreleased" section: a release copies this file with
+   the code, and Sheila's change log page names the release it is in.)
 5. If you added, moved or removed a file, update the file map at the end of `CLAUDE.md`.
 6. In the PR description, say what you ran, what you did **not** run (anything needing the VPN or
    Outlook), and which client-facing output could change.

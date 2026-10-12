@@ -15,7 +15,25 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
-## Unreleased
+## Changes, newest first
+
+This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an entry out of it:
+there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
+file travels with the code, so Sheila's change log page shows that stamp above these entries.
+
+### 2026-10-12 — Sheila's change log names its release instead of saying "Unreleased"
+
+Summary: The change log page in CSM Sheila now starts with the release it belongs to — the stamp
+from RELEASE.txt — instead of a heading that read "Unreleased" over changes that were long since
+released.
+
+Aaron, 2026-10-12: "in Sheila under the change log some updates were listed as unreleased. Is that
+tracking just training or is there another step?" — neither; the heading was a convention nothing
+updated. Every entry Sheila shows is in the released copy by construction, because CHANGELOG.md is
+copied with the code at each release. `release_stamp` reads RELEASE.txt beside the change log;
+`changelog_page` puts it in a banner at the top, or says "working copy, not a release" in a
+checkout. The section heading in this file is now "Changes, newest first". Tests pin the banner
+in both cases.
 
 ### 2026-10-12 — The performance dashboard takes a client's CSM from the Client CSM List first
 

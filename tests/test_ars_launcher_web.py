@@ -195,7 +195,7 @@ def test_the_combined_button_runs_the_launcher_with_combined():
 def test_the_changelog_shows_the_newest_five_entries(tmp_path):
     """Header "What's new" and the /changelog page (Aaron, 2026-09-16)."""
     md = tmp_path / "CHANGELOG.md"
-    md.write_text("# Changelog\n\n## Unreleased\n\n"
+    md.write_text("# Changelog\n\n## Changes, newest first\n\n"
                   + "".join(f"### 2026-09-{d:02d} — Entry **{d}**\n\nFirst `para` {d}.\nstill first.\n\nSecond para.\n\n"
                             for d in range(20, 13, -1)), encoding="utf-8")
     e = W.changelog_entries(5, md)
@@ -203,6 +203,25 @@ def test_the_changelog_shows_the_newest_five_entries(tmp_path):
     assert e[0]["title"] == "Entry 20" and e[0]["summary"] == "First para 20. still first." and e[0]["anchor"] == "e0"
     page = W.changelog_page(md)
     assert '<h3 id="e0">' in page and "<code>para</code>" in page and "<b>20</b>" in page
+
+
+def test_the_changelog_page_names_the_release_it_is_in(tmp_path):
+    """Aaron, 2026-10-12: entries showed under "Unreleased" in Sheila, which only ever runs a
+    released copy. The page now carries the RELEASE.txt stamp beside the file; a checkout,
+    which has no stamp, says it is a working copy."""
+    md = tmp_path / "CHANGELOG.md"
+    md.write_text("# Changelog\n\n## Changes, newest first\n\n### 2026-10-12 — A change\n\nSummary: It changed.\n",
+                  encoding="utf-8")
+    page = W.changelog_page(md)
+    assert "Working copy, not a release" in page and W.release_stamp(md) is None
+    (tmp_path / "RELEASE.txt").write_text(
+        "﻿released 2026-10-12 18:45 by aaron.burgard from origin/main (release worktree) at f313192 (on origin/main, clean)\n",
+        encoding="utf-8")
+    assert W.release_stamp(md).startswith("released 2026-10-12 18:45")
+    page = W.changelog_page(md)
+    assert "Every change below is in this release" in page and "at f313192" in page
+    assert "Working copy" not in page
+    assert page.index("Every change below") < page.index("Changes, newest first")
 
 
 def test_the_changelog_page_is_served_without_the_token(server):
@@ -480,7 +499,7 @@ def test_the_changelog_shows_what_changed_not_the_request(tmp_path):
     not my verbatim instructions." CHANGELOG.md keeps the request; Sheila shows the Summary line."""
     md = tmp_path / "CHANGELOG.md"
     md.write_text(
-        "# Changelog\n\n## Unreleased\n\n"
+        "# Changelog\n\n## Changes, newest first\n\n"
         "### 2026-09-25 — With a summary\n\nSummary: The Lift Matrix tab opens faster.\n\n"
         'Aaron: "only rescan workbook lift matrix values if the file has changed."\n\n'
         "Each read is stored (Aaron, 2026-09-25) and reused, Aaron: \"make it fast\". Done.\n\n"

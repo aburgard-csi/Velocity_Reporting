@@ -847,13 +847,36 @@ def _md_inline(text):
     return t
 
 
+def release_stamp(path=None):
+    """The RELEASE.txt line beside the change log, or None in a working copy.
+
+    release_launcher.ps1 writes RELEASE.txt into Tools\\RPE with the code and CHANGELOG.md, so
+    in a released copy the stamp names exactly the release every entry on the page is in. A
+    checkout has no RELEASE.txt and says so."""
+    try:
+        text = (Path(path or CHANGELOG).parent / "RELEASE.txt").read_text(encoding="utf-8-sig").strip()
+    except OSError:
+        return None
+    return text.splitlines()[0].strip() if text else None
+
+
 def changelog_page(path=None):
-    """CHANGELOG.md as a readable page: headings, paragraphs, lists, bold and code."""
+    """CHANGELOG.md as a readable page: headings, paragraphs, lists, bold and code.
+
+    The page says which release it belongs to (Aaron, 2026-10-12: entries showed under
+    "Unreleased" in Sheila, which only ever runs a released copy — the heading was a convention
+    nothing updated). Everything on the page is in the release the banner names."""
     try:
         lines = Path(path or CHANGELOG).read_text(encoding="utf-8").splitlines()
     except OSError:
         lines = ["The change log is not available in this copy."]
+    stamp = release_stamp(path)
     body, para, items, n = [], [], [], 0
+    if stamp:
+        body.append('<p class="rel">Every change below is in this release: <b>' + _md_inline(stamp) + "</b></p>")
+    else:
+        body.append('<p class="rel">Working copy, not a release: the newest entries here may not have '
+                    "reached the CSMs yet. A released copy names its release on this line.</p>")
 
     def flush():
         if para:
@@ -899,7 +922,8 @@ def changelog_page(path=None):
             "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
             "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F47A29;padding-bottom:4px}"
             "h3{font-size:17px;margin:28px 0 6px;color:#00274C}p.sum{font-weight:600;background:#E9EFF6;border-left:3px solid #F47A29;padding:6px 10px;border-radius:4px}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
-            "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}p.sum{background:#16283A}}"
+            "p.rel{margin:14px 0 0;padding:8px 12px;border-radius:6px;background:#E3EEE7;color:#1E4D33;font-size:14px}"
+            "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}p.sum{background:#16283A}p.rel{background:#15301F;color:#BFE3C9}}"
             "</style></head><body><header>CSM Sheila · Change log</header><main>"
             + "\n".join(body) + "</main></body></html>")
 
