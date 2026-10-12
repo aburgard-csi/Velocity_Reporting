@@ -204,6 +204,11 @@ def deck_tag(progs):
 
 
 # ----------------------------------------------------------------- build
+# The launchers set this; a build started any other way wrote to a file in the Windows code page and died on
+# the first non-ASCII character a step printed (the P&L slide's "<=20 swipes" message).
+_CHILD_ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
+
+
 def run(cmd, log, stdout_to=None):
     with open(log, "a", encoding="utf-8") as lf:
         lf.write("\n$ " + " ".join(str(c) for c in cmd) + "\n")
@@ -211,11 +216,16 @@ def run(cmd, log, stdout_to=None):
         # command line landed AFTER its own output, so a traceback read as belonging to the
         # previous step (1615's metrics_gen error sat under oddd_optimize, 2026-09-15).
         lf.flush()
+        t0 = time.time()
         if stdout_to:
             with open(stdout_to, "w", encoding="utf-8") as out:
-                r = subprocess.run([str(c) for c in cmd], stdout=out, stderr=lf)
+                r = subprocess.run([str(c) for c in cmd], stdout=out, stderr=lf, env=_CHILD_ENV)
         else:
-            r = subprocess.run([str(c) for c in cmd], stdout=lf, stderr=lf)
+            r = subprocess.run([str(c) for c in cmd], stdout=lf, stderr=lf, env=_CHILD_ENV)
+        # Only on success: ars_launcher._log_reason reads the LAST line of the log as the reason a
+        # build stopped, so a line after a failed step would bury its traceback.
+        if r.returncode == 0:
+            lf.write("# step finished in %.1f s\n" % (time.time() - t0))
     return r.returncode
 
 

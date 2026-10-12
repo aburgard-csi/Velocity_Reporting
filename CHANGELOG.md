@@ -33,6 +33,21 @@ tables, notes and shape geometry compare identical (1,019 items). Four changes:
 - The three pandas readers of the ODD use `dtype=object` instead of `dtype=str`, which pandas 3 turns into
   Arrow strings (2.8 times slower to parse); each immediately `fillna('')`s and uses string methods.
 
+### 2026-10-08 — The ARS workbook read is five times faster on SM clients
+
+Summary: Reading a client's ARS workbook now takes about 3 seconds instead of 18 for clients on the
+SM path, with exactly the same figures, so builds start sooner.
+
+Aaron, 2026-10-08: "continue to work on optimizations for presentation creation."
+
+`base_tab_extract.py` (SM clients) read the workbook cell by cell through openpyxl's read-only mode,
+which streams the sheet from the top on every `ws.cell(r, c)` call. Profiled on 1038 Sugar River:
+2.7 million cells parsed to read a few hundred. `build/ars_pipeline/xl_cache.py` reads each sheet once
+into rows and serves the same cell, `max_row`, `max_column` and `iter_rows` calls from them;
+`base_tab_extract`, `extract_base_gen` and `extract_lift` use it. Output checked byte-for-byte
+against the old reader on 1038 (SM) and on 1200 and 1204 (MM): identical. The MM extractors were
+already 3 to 4 seconds. No figure on any slide moves.
+
 ### 2026-10-08 — The all-clients ICS referrals query stops at the last completed month
 
 Summary: The all-clients ICS referrals query now returns referrals only through the end of the last
