@@ -30,6 +30,7 @@ Usage:
         n += odd.swipes(row, "Jul26")
 """
 import re
+from functools import lru_cache as _lru_cache
 from types import SimpleNamespace
 
 # ---------------------------------------------------------------- Reg E election
@@ -104,9 +105,14 @@ _CLOSED_PREFIX = ("closed", "charge", "purge", "pending close")
 _OPEN_PREFIX = ("open", "active")
 
 
+@_lru_cache(maxsize=None)
 def _code_sets():
     """STAT_CODE_MAP lives in scripts/; import it lazily so importing this module
-    never depends on scripts/ being on the path."""
+    never depends on scripts/ being on the path.
+
+    Computed once. It ran for every account (666,000 calls on a 1100 Rally build), and each call put
+    scripts/ on sys.path AGAIN: 160,000 entries, which made every later import search them all
+    (profiled 2026-10-08)."""
     import os as _os
     import sys as _sys
     _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),

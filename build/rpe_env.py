@@ -451,21 +451,37 @@ def sweep_temp(max_age_hours: float = TEMP_MAX_AGE_HOURS, root=None, now=None) -
     return removed, freed
 
 
+_odd_csv_cache = {}
+
+
 def extract_odd_csv(zip_path, prefix: str = "oddd_") -> str:
     """Extract ONLY the ODD extract from an ODDD zip into a `temp_dir`, and return its path.
+
+    Once per process per zip: `build_ars_gen`, the Product Mix slide and the Excluded Accounts slide each
+    asked, and each unzipped the same ~2 GB member again (21 s apiece on 1100 Rally, 65 s of a 218 s
+    deck assembly; profiled 2026-10-08). The cache is keyed on the zip's path, size and modified time and
+    is used only while the extracted file is still on disk; the scratch folder goes at exit, so a later
+    process always extracts afresh.
 
     Several zips also carry the month's transaction file as a .csv, sometimes the larger of the two,
     so the ODD member is chosen by name ("-odd" or "_v2_") and only falls back to the largest .csv.
     Extracting the whole zip wrote the transaction file to disk too, for nothing.
     """
     import zipfile
+    st = os.stat(zip_path)
+    key = (os.path.abspath(str(zip_path)), st.st_size, st.st_mtime_ns)
+    hit = _odd_csv_cache.get(key)
+    if hit and os.path.isfile(hit):
+        return hit
     with zipfile.ZipFile(zip_path) as z:
         members = [i for i in z.infolist() if i.filename.lower().endswith(".csv") and not i.is_dir()]
         if not members:
             raise FileNotFoundError(f"no .csv inside {zip_path}")
         named = [i for i in members if "-odd" in Path(i.filename).name.lower() or "_v2_" in Path(i.filename).name.lower()]
         pick = named[0] if named else max(members, key=lambda i: i.file_size)
-        return z.extract(pick, temp_dir(prefix))
+        path = z.extract(pick, temp_dir(prefix))
+        _odd_csv_cache[key] = path
+        return path
 
 
 # Analysis output written beside the data (1441's output_txn/), not transaction files.

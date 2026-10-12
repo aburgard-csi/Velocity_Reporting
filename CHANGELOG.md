@@ -17,6 +17,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-08 — Deck assembly is about 2.5 times faster on a large client
+
+Summary: Assembling a large client's ARS deck takes about 1.5 minutes instead of 3.5, with the same slides, figures and notes.
+
+Aaron, 2026-10-08: "continue to work on optimizations for presentation creation."
+
+Profiled `build_ars_gen` on 1100 Rally (439 MB ODD extract): 216.8 s before, 88.4 s after, and the deck's text,
+tables, notes and shape geometry compare identical (1,019 items). Four changes:
+- `rpe_env.extract_odd_csv` unzips a given ODD once per process. `build_ars_gen`, Product Mix and Excluded
+  Accounts each unzipped the same 2 GB member (about 21 s each).
+- `odd_rows._code_sets` is computed once. It ran for every account (666,000 calls) and each call added
+  `scripts/` to `sys.path` again, 160,000 entries that every later import then searched.
+- `shapes.data_logo` resolves and trims a client's logo once per build; 40 slides each re-read it from the share.
+- The three pandas readers of the ODD use `dtype=object` instead of `dtype=str`, which pandas 3 turns into
+  Arrow strings (2.8 times slower to parse); each immediately `fillna('')`s and uses string methods.
+
 ### 2026-10-08 — The ARS workbook read is five times faster on SM clients
 
 Summary: Reading a client's ARS workbook now takes about 3 seconds instead of 18 for clients on the

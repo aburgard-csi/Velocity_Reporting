@@ -239,7 +239,7 @@ if ODD:
     print(f"ODD snapshot: {LATEST_MON} (elig col '{ELIG_COL}'); "
           f"new-account window {_start:%Y-%m-%d}..{_end:%Y-%m-%d}")
     frames = []
-    for ch in pd.read_csv(csvp, skiprows=4, dtype=str, encoding='latin-1', on_bad_lines='skip', chunksize=100000):
+    for ch in pd.read_csv(csvp, skiprows=4, dtype=object, encoding='latin-1', on_bad_lines='skip', chunksize=100000):
         ch = ch.rename(columns=lambda c: c.strip())
         frames.append(ch[['Business?', ELIG_COL, 'Debit?', 'Date Opened', 'Branch']])
     d = pd.concat(frames, ignore_index=True)

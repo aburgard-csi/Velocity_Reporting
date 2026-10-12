@@ -184,7 +184,7 @@ def extract_product_mix(odd_source):
         return s.fillna("").astype(str).str.replace("\x00", "", regex=False).str.strip()
 
     agg = defaultdict(lambda: dict(open=0, total=0, elig=0, biz=0, per=0, oth=0))
-    reader = pd.read_csv(odd_csv, skiprows=hdr, dtype=str, chunksize=100_000,
+    reader = pd.read_csv(odd_csv, skiprows=hdr, dtype=object, chunksize=100_000,
                          encoding="latin-1", on_bad_lines="skip")
     for ch in reader:
         ch = ch.rename(columns=lambda c: c.strip())

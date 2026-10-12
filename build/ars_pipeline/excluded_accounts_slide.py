@@ -130,7 +130,7 @@ def extract_exclusions(odd_source):
     prod = defaultdict(lambda: dict(desc="", live=0, elig=0))
     status = defaultdict(int)
     tot = closed = 0
-    reader = pd.read_csv(odd_csv, skiprows=hdr, dtype=str, chunksize=100_000,
+    reader = pd.read_csv(odd_csv, skiprows=hdr, dtype=object, chunksize=100_000,
                          encoding="latin-1", on_bad_lines="skip",
                          usecols=lambda c: c.strip() in want)
     chunks = []
