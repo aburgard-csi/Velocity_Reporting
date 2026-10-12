@@ -118,16 +118,23 @@ def test_responder_and_nonresponder_counts_are_positive(metrics):
 # search nsf_series for the row labelled 'Jun 25' and compare it to the LAST row,
 # and to draw the Reg E vintage axis from range(2018, 2027).
 
-def test_nsf_yoy_compares_the_same_month_a_year_apart(metrics):
-    """The YoY window is 12 months, whatever month the extract ends on."""
+def test_nsf_yoy_compares_year_to_date_with_the_prior_year_to_date(metrics):
+    """Jan through the last complete month, against the same months a year earlier
+    (Aaron, 2026-10-12: "change this to YTD rather than month vs month"), whatever
+    month the extract ends on. The caption names both windows; the figure is the sums."""
     import datetime
     win = metrics["nsf_yoy_window"]
     assert win, "nsf_yoy_window missing — the tile caption has nothing to name"
-    a, b = (datetime.datetime.strptime(w, "%b %y") for w in win)
-    assert (b.year - a.year) * 12 + (b.month - a.month) == 12, \
-        f"nsf_yoy compares {win[0]} to {win[1]} — not a year"
-    assert win[1] == metrics["nsf_series"][-1][0], \
-        "nsf_yoy must end at the newest month in the series"
+    last = metrics["nsf_series"][-1][0]                       # e.g. 'Jul 26'
+    end = datetime.datetime.strptime(last, "%b %y")
+    assert win[1] == (last if end.month == 1 else f"Jan–{last}")
+    prior_last = end.replace(year=end.year - 1).strftime("%b %y")
+    assert win[0] == (prior_last if end.month == 1 else f"Jan–{prior_last}")
+    s = {r[0]: r[1] for r in metrics["nsf_series"]}
+    cur = sum(s[end.replace(month=m).strftime("%b %y")] for m in range(1, end.month + 1))
+    prior = sum(s[end.replace(year=end.year - 1, month=m).strftime("%b %y")] for m in range(1, end.month + 1))
+    assert metrics["nsf_yoy"] == round(100 * (cur - prior) / prior)
+    assert metrics["nsf_yoy_ytd"] == {"months": end.month, "prior_items": prior, "current_items": cur}
 
 
 def test_nsf_yoy_is_never_a_phantom_zero(metrics):

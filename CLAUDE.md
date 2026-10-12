@@ -450,6 +450,13 @@ complete for swipes and spend and incomplete for NSF/OD.
   extract.") and with its figures in the notes — never zeroed, never charted as a collapse,
   and its slide is never dropped. Status snapshots (Elig, Reg E, account status) are not
   activity and still read the snapshot month.
+- **The NSF/OD "Items YTD YoY" and the "Spend YTD YoY" tiles are year to date against the prior
+  year to date** (Aaron, 2026-10-12: "change this to YTD rather than month vs month"; "did you
+  also update the YoY comparison for debit card spend?"): January through the last complete
+  month, summed, over the same months a year earlier; the caption names both windows
+  ("Jan–Sep 25 → Jan–Sep 26") and the notes carry both sums. Every month of both windows must
+  be complete, else the tile reads n/a — never a partial sum passed off as a year. A new YoY
+  tile follows the same rule.
 - ARS: `metrics_gen` and `ticket_calc` call `month_complete.odd_completeness`; the workbook's
   Key Trends spend goes through `complete_rows` (in `build_ars_gen`, `charts_gen`, the
   one-pager and the performance dashboard). CashPlease: `cp_extract` holds a `*` roll-up for a

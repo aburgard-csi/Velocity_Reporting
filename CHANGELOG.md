@@ -17,6 +17,36 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-12 — NSF/OD Items YoY is year to date, not one month against one month
+
+Summary: The NSF/OD Activity slide's YoY tile now compares January through the last complete
+month with the same months a year earlier, and says so: "Items YTD YoY (Jan–Sep 25 → Jan–Sep
+26)". It used to compare the single latest month with the same month a year before.
+
+Aaron, 2026-10-12: "is this slide comparing YTD Jan through Sept for 2025 and 2026, or just
+September 2025 vs. September 2026?" — it was the single month — "change this to YTD rather than
+month vs month."
+
+`metrics_gen` sums NSF/OD items for January through the last complete month of the series and
+for the same months a year earlier (`nsf_yoy`), names the two windows in `nsf_yoy_window`, and
+carries both sums in `nsf_yoy_ytd` for the notes. Every month of BOTH windows must be in the
+complete series; otherwise the tile reads n/a and the build says why — a partial sum is never
+passed off as a year, and the complete-months rule still ends the series. `build_ars_gen`
+relabels the tile "Items YTD YoY", writes the caption from the windows, and the slide's notes
+read "Items YTD YoY compares Jan–Sep 25 (N items) to Jan–Sep 26 (N items)". Tests in
+`test_metrics_gen`, `test_month_complete` (a partial July ends the window at June) and
+`test_golden_deck` recompute the figure from the series rows the caption names.
+
+**The Swipes & Spend tile follows the same rule** (Aaron, 2026-10-12: "did you also update the
+YoY comparison for debit card spend?"): "Spend YTD YoY (Jan–Sep 25 → Jan–Sep 26)" sums the
+workbook's monthly spend for January through the last complete month against the same months a
+year earlier, in `build_ars_gen`; the notes carry both sums in $M, and a series that does not
+hold every month of both windows reads n/a. The two YoY tiles on a deck now use one convention.
+
+Client-facing effect, every ARS deck: the NSF/OD and Spend YoY tiles' percentages, labels and
+captions change; the charts and the other tiles do not. On True Sky the single-month NSF/OD
+figure was -2%; year to date it is -8%.
+
 ### 2026-10-12 — One program-to-date profitability ratio on every slide that states it
 
 Summary: The ARS section divider, the overview bullets and the ARS Financial Performance P&L could

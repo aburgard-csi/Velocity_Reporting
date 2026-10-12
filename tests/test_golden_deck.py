@@ -221,20 +221,33 @@ def test_partial_month_deck_still_passes_its_gate(partial_deck):
 def test_nsf_slide_compares_complete_months_and_says_what_was_left_out(partial_deck):
     s = _slide(partial_deck["prs"], "NSF/OD Activity")
     t = _text(s)
-    assert "(Jun 25 \u2192 Jun 26)" in t, t
-    assert "Jul 25 \u2192 Jul 26" not in t
+    assert "(Jan\u2013Jun 25 \u2192 Jan\u2013Jun 26)" in t, t        # YTD vs prior YTD (2026-10-12)
+    assert "Items YTD YoY" in t and "Jul 2" not in t.split("Items YTD YoY")[1][:40], t
     assert "NSF/OD items (June 2026)" in t and "NSF/OD (June 2026)" in t, t
     assert "Jul 2026 left out: incomplete in this extract." in t, t
     notes = s.notes_slide.notes_text_frame.text
     assert "Jul 2026 is left out as incomplete in this extract" in notes, notes
-    assert "Items YoY compares Jun 25 to Jun 26" in notes, notes
+    assert "Items YTD YoY compares Jan\u2013Jun 25 (" in notes and ") to Jan\u2013Jun 26 (" in notes, notes
     assert len(partial_deck["prs"].slides) == 49, "a partial month never drops a slide"
+
+
+def test_spend_yoy_is_year_to_date_too(deck):
+    """Aaron, 2026-10-12: "did you also update the YoY comparison for debit card spend?"
+    The Swipes & Spend tile follows the NSF/OD rule: YTD against the prior YTD, caption
+    naming both windows, sums in the notes."""
+    import re
+    s = _slide(deck["prs"], "Overall Debit Swipes")
+    t = _text(s)
+    assert "Spend YTD YoY (" in t and "Spend YoY (" not in t, t
+    assert re.search(r"\(Jan–[A-Z][a-z]{2} \d\d → Jan–[A-Z][a-z]{2} \d\d\)", t), t
+    notes = s.notes_slide.notes_text_frame.text
+    assert "Spend YTD YoY compares Jan–" in notes and "year to date through the last complete month" in notes, notes
 
 
 def test_nsf_slide_on_complete_data_says_nothing_was_left_out(deck):
     s = _slide(deck["prs"], "NSF/OD Activity")
     assert "left out" not in _text(s)
-    assert "(Jul 25 \u2192 Jul 26)" in _text(s)
+    assert "(Jan\u2013Jul 25 \u2192 Jan\u2013Jul 26)" in _text(s)      # YTD vs prior YTD (2026-10-12)
 
 
 def test_a_comfortable_client_gets_no_revenue_guarantee_slide(deck):

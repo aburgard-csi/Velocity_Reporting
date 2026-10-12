@@ -190,13 +190,15 @@ def test_the_default_fixture_has_no_partial_month(metrics):
 def test_nsf_yoy_compares_the_last_complete_month(partial_nsf):
     m, _ = partial_nsf
     assert m["nsf_series"][-1][0] == "Jun 26", "the partial month must not end the series"
-    assert m["nsf_yoy_window"] == ["Jun 25", "Jun 26"]
+    assert m["nsf_yoy_window"] == ["Jan–Jun 25", "Jan–Jun 26"]     # YTD, not month vs month (2026-10-12)
     assert m["nsf_last_month"] == "Jun 2026"
     assert [r[0] for r in m["nsf_excluded"]] == ["Jul 26"], "the left-out month is carried, not dropped"
     assert m["nsf_excluded_note"].startswith("Jul 2026 is left out as incomplete")
     # the YoY is recomputed from the rows it names — never a phantom from the partial month
     s = {r[0]: r[1] for r in m["nsf_series"]}
-    assert m["nsf_yoy"] == round(100 * (s["Jun 26"] - s["Jun 25"]) / s["Jun 25"])
+    cur = sum(s[f"{mo} 26"] for mo in ("Jan", "Feb", "Mar", "Apr", "May", "Jun"))
+    prior = sum(s[f"{mo} 25"] for mo in ("Jan", "Feb", "Mar", "Apr", "May", "Jun"))
+    assert m["nsf_yoy"] == round(100 * (cur - prior) / prior)
     assert m["nsf_last_items"] == s["Jun 26"]
 
 

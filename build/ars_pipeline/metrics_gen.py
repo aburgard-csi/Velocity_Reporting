@@ -537,19 +537,35 @@ if not nsf_series:
 M['nsf_series']=nsf_series
 M['nsf_last_items']=nsf_series[-1][1]; M['nsf_last_accts']=nsf_series[-1][2]
 M['nsf_last_month']=lbl(NSF_MONTHS[-1])
-# YoY = the last COMPLETE month against the SAME month a year earlier, found by month
-# arithmetic. It used to search for the literal 'Jun 25' row and compare it to the LAST
-# row, so the figure was year-over-year only for a June deck, and any client whose
-# series starts after Jun 2025 fell to the `else 0` branch and shipped a phantom 0%.
-# Absent prior month -> None, which the builder states on the tile; it is never zeroed.
+# YoY = YEAR TO DATE against the same months a year earlier (Aaron, 2026-10-12: "change this
+# to YTD rather than month vs month"): January through the last COMPLETE month, summed, over
+# the same January-through-month a year before. It compared one month to one month until then
+# (Sep 25 -> Sep 26), and before 2026-09 it searched for the literal 'Jun 25' row, so the
+# figure was year-over-year only for a June deck and a short series shipped a phantom 0%.
+# Every month of BOTH windows must be in the complete series; otherwise None, which the
+# builder states on the tile — never zeroed, never a partial sum passed off as a year.
 _nsf_months=[m for m in nmonths if m in _nsf_set]
 _nsf_by_tok=dict(zip(_nsf_months,nsf_series))
 _nsf_cur=nsf_series[-1]; _nsf_end=mkey(_nsf_months[-1])
-_nsf_prior=_nsf_by_tok.get(_nsf_end.replace(year=_nsf_end.year-1).strftime('%b%y'))
-M['nsf_yoy']=round(100*(_nsf_cur[1]-_nsf_prior[1])/_nsf_prior[1]) if (_nsf_prior and _nsf_prior[1]) else None
-# The two months actually compared, so the tile's own caption names them instead
-# of carrying the template's literal '(Jun 25 - Jun 26)'.
-M['nsf_yoy_window']=[_nsf_prior[0],_nsf_cur[0]] if _nsf_prior else None
+def _ytd_window(year):
+    """[(token, row)] for Jan..the series' last month in `year`, or None if any is missing."""
+    rows=[]
+    for mo in range(1,_nsf_end.month+1):
+        tok=_nsf_end.replace(year=year,month=mo).strftime('%b%y')
+        if tok not in _nsf_by_tok: return None
+        rows.append((tok,_nsf_by_tok[tok]))
+    return rows
+def _ytd_label(year):
+    first=_nsf_end.replace(year=year,month=1).strftime('%b'); last=_nsf_end.replace(year=year).strftime('%b %y')
+    return last if _nsf_end.month==1 else f"{first}–{last}"
+_ytd_cur=_ytd_window(_nsf_end.year); _ytd_prior=_ytd_window(_nsf_end.year-1)
+_ytd_cur_sum=sum(r[1] for _,r in _ytd_cur) if _ytd_cur else None
+_ytd_prior_sum=sum(r[1] for _,r in _ytd_prior) if _ytd_prior else None
+M['nsf_yoy']=round(100*(_ytd_cur_sum-_ytd_prior_sum)/_ytd_prior_sum) if (_ytd_cur and _ytd_prior and _ytd_prior_sum) else None
+# The two windows actually compared, so the tile's own caption names them instead of
+# carrying the template's literal '(Jun 25 -> Jun 26)'; the sums go to the notes.
+M['nsf_yoy_window']=[_ytd_label(_nsf_end.year-1),_ytd_label(_nsf_end.year)] if M['nsf_yoy'] is not None else None
+M['nsf_yoy_ytd']={'months':_nsf_end.month,'prior_items':_ytd_prior_sum,'current_items':_ytd_cur_sum} if M['nsf_yoy'] is not None else None
 # ---- Reach cumulative responders (slide 30) ----
 reach=[]; seen=set();
 for m in mailmonths:
