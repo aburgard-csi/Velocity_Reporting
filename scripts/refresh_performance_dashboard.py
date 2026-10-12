@@ -614,11 +614,8 @@ def cp_section(cid, packs):
 
 
 # ------------------------------------------------------------------ decks / sent
-def decks_and_sent(cid, period, outputs, ba):
-    """The client's most recently built deck(s) at or before the cycle period,
-    that period, and whether they were sent. Newest per client, for the same
-    reason as the workbook: early in a cycle nobody has this month's deck yet,
-    and "not built" for every client says nothing the date does not."""
+def deck_names(cid, outputs):
+    """Every built deck filename for the client, across Outputs/ and the CashPlease outputs."""
     # Outputs/ is moving from one flat folder to Outputs/<CSM name>/ (Aaron, 2026-09-14), and
     # rpe_env.output_decks() is the one reader that knows both layouts and skips Archive/. Until
     # that helper exists, the flat glob is the same answer, so the page works either side of the move.
@@ -632,6 +629,55 @@ def decks_and_sent(cid, period, outputs, ba):
         names += [os.path.basename(f) for f in glob.glob(str(cp_env.outputs() / f"{cid}-*.pptx"))]
     except BaseException:
         pass
+    return names
+
+
+def readiness_periods(period, before=2, after=1):
+    """The periods the page's Build readiness section can be switched to (Aaron, 2026-10-12:
+    "an option to change the reporting period for the Build Readiness section"): the cycle
+    period, the two before it and the one after, oldest first. Each is built in full — its
+    own readiness, decks and sent column — because the page is static and cannot ask for
+    one it did not carry."""
+    y, m = (int(x) for x in period.split("."))
+    out = []
+    for k in range(-before, after + 1):
+        yy, mm = divmod(y * 12 + (m - 1) + k, 12)
+        out.append(f"{yy}.{mm + 1:02d}")
+    return out
+
+
+def read_sent_log(ba):
+    """deliveries.json's `sent` map, or {} when it is absent or unreadable (reported)."""
+    dpath = ba / "deliveries.json"
+    if not dpath.exists():
+        return {}
+    try:
+        sent = json.load(open(dpath, encoding="utf-8")).get("sent", {})
+        return sent if isinstance(sent, dict) else {}
+    except (OSError, ValueError, AttributeError) as e:
+        print("  deliveries.json unreadable (%s): the Sent column reads as not recorded" % e)
+        return {}
+
+
+def period_views(cid, names, sent_log, periods):
+    """{period: {"decks": [...], "sent": date | None}} — the client as each selectable period
+    sees it. Decks are the ones built FOR that period (not the newest at or before it), and
+    Sent is the log's entry for that period alone, so switching the page to another period
+    shows that period's sends and nothing carried over from the one before."""
+    out = {}
+    for p in periods:
+        s = (sent_log or {}).get(f"{cid}|{p}")
+        out[p] = {"decks": sorted({n for n in names if n.startswith(f"{cid}-{p}-")}),
+                  "sent": (str(s.get("sent_at")) if isinstance(s, dict) and s.get("sent_at") else None)}
+    return out
+
+
+def decks_and_sent(cid, period, outputs, ba):
+    """The client's most recently built deck(s) at or before the cycle period,
+    that period, and whether they were sent. Newest per client, for the same
+    reason as the workbook: early in a cycle nobody has this month's deck yet,
+    and "not built" for every client says nothing the date does not."""
+    names = deck_names(cid, outputs)
     dp = newest_deck_period(names, cid, period)
     decks = sorted({n for n in names if n.startswith(f"{cid}-{dp}-")}) if dp else []
     sent = None
@@ -943,11 +989,19 @@ def build_dataset(period, work, log=print):
             c["programs"].append("CP")
         c["decks"], c["sent"], c["deck_period"] = decks_and_sent(cid, period, O, BA)
 
-    ready, _checked = readiness(period, log)
+    # Build readiness for every period the page can be switched to (Aaron, 2026-10-12), each
+    # from deck_status like the cycle's own; the cycle period's answer is also carried as the
+    # flat `readiness` the page has always read.
+    periods = readiness_periods(period)
+    sent_log = read_sent_log(BA)
+    ready_by = {p: readiness(p, log)[0] for p in periods}
+    ready = ready_by.get(period) or readiness(period, log)[0]
     csm = csm_assignments(sorted(clients), period, work, log=log,
                           roster={cid: r["csm"] for cid, r in cashplease_roster().items()})
     for cid, c in clients.items():
         c["readiness"] = ready.get(cid)
+        c["readiness_by_period"] = {p: ready_by[p].get(cid) for p in periods}
+        c["by_period"] = period_views(cid, deck_names(cid, O), sent_log, periods)
         c["csm"] = csm.get(cid)
     # Client overview (Aaron, 2026-09-14): open checking, personal swipes, NSF/OD items,
     # personal openings and closings, from each client's ODD extract with the decks'
@@ -1031,6 +1085,8 @@ def build_dataset(period, work, log=print):
         "cp_peer": current_peer(packs, [cid for cid, c in clients.items() if "CP" in c["programs"]])
                    if packs else None,
         "odd_month": odd_data_month(period),
+        # The periods Build readiness can be switched to on the page (Aaron, 2026-10-12).
+        "readiness_periods": periods,
         # Every current client, including one with no program data this month (Aaron,
         # 2026-09-14): it is still a client, and the page lists it under all products.
         "clients": sorted(clients.values(), key=lambda c: c["id"]),

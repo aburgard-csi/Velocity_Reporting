@@ -102,6 +102,10 @@ section.prog{background:var(--surface);border:1px solid var(--hair);border-radiu
 section.prog>.hd{display:flex;align-items:baseline;gap:14px;padding:16px 20px 10px;border-bottom:1px solid var(--grid);flex-wrap:wrap}
 section.prog>.hd h2{margin:0;font-size:18px;font-weight:700;color:var(--head);display:flex;align-items:center;gap:10px}
 section.prog>.hd h2 .sw{width:12px;height:12px;border-radius:3px;background:var(--c)}
+/* the Build readiness period picker (Aaron, 2026-10-12) */
+section.prog>.hd label.rp{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--ink2)}
+section.prog>.hd label.rp select{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:7px;padding:3px 8px;cursor:pointer}
+section.prog>.hd label.rp select:focus-visible{outline:2px solid var(--head);outline-offset:1px}
 section.prog>.hd .src{color:var(--ink3);font-size:13px;margin-left:auto}
 section.prog>.hd .n{color:var(--ink2);font-size:13.5px}
 .body{display:grid;grid-template-columns:minmax(300px,4fr) minmax(0,9fr);gap:0}
@@ -279,14 +283,50 @@ const ARM_MS = 5000;
 
 function today(){ const d=new Date(), p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
-const sentDoc = c => c.deck_period ? `${c.id}-${c.deck_period}` : null;
+
+// ---------- the Build readiness period (Aaron, 2026-10-12: "an option to change the
+// reporting period for the Build Readiness section. It should clear the Sent list and
+// reset it for the current period.")
+// The section shows ONE period at a time: its readiness, the decks built FOR it, and the
+// sends recorded AGAINST it. Switching the period swaps all three, so the Sent column
+// starts clean for the period chosen - nothing from the previous period is carried over,
+// and a send marked here is recorded against the period showing. The choice is shared:
+// it lives in the artifact's store so every viewer sees the same period, with this
+// browser's last choice as the fallback for a saved copy.
+const RPERIODS = (DATA.readiness_periods && DATA.readiness_periods.length) ? DATA.readiness_periods : [DATA.period];
+const RPERIOD_KEY = "rpe-dash-rperiod";
+let rPeriod = RPERIODS.includes(DATA.period) ? DATA.period : RPERIODS[RPERIODS.length-1];
+try { const s = localStorage.getItem(RPERIOD_KEY); if (s && RPERIODS.includes(s)) rPeriod = s; } catch(e){}
+function rv(c){
+  // The client as the selected period sees it. Data built before the per-period view
+  // existed carries only the cycle period, so that case falls back to the flat fields.
+  const P = rPeriod, bp = (c.by_period && c.by_period[P]) || null;
+  const decks = bp ? (bp.decks || []) : (c.deck_period===P ? (c.decks || []) : []);
+  const sent = bp ? (bp.sent || null) : (c.deck_period===P ? (c.sent || null) : null);
+  const readiness = (c.readiness_by_period && (P in c.readiness_by_period)) ? c.readiness_by_period[P]
+                    : (P===DATA.period ? c.readiness : null);
+  return {P, decks, sent, readiness, built: decks.length > 0};
+}
+async function setRPeriod(p, fromStore){
+  if (!RPERIODS.includes(p) || p === rPeriod) return;
+  rPeriod = p; disarm();
+  try { localStorage.setItem(RPERIOD_KEY, p); } catch(e){}
+  update();
+  if (fromStore || !DB) return;
+  try { await DB.doc("settings/readiness_period").set({period:p, set_at:new Date().toISOString(), by:"artifact page"}); }
+  catch (err) { note(`The period shows here but could not be shared with other viewers. ${whyFailed(err)}`); }
+}
+document.addEventListener("change", e => { if (e.target && e.target.id === "rperiod") setRPeriod(e.target.value); });
+
+// Sent is keyed on the period SHOWING, not the cycle's - the same key the log uses.
+const sentDoc = c => `${c.id}-${rPeriod}`;
 // A page row that names the logged date it supersedes ("undo_of") overrides that date:
 // an undo row clears it, a send row replaces it. A row naming any OTHER date is stale
 // and the log stands - the refresh applies exactly the same rule to deliveries.json.
 function sentState(c){
-  const k = sentDoc(c), m = (k && MARKS.get(k)) || null;
-  const supersedes = !!(m && c.sent && m.undo_of != null && String(m.undo_of) === String(c.sent));
-  if (c.sent && !supersedes) return {date:String(c.sent), src:"log"};
+  const v = rv(c), k = sentDoc(c), m = MARKS.get(k) || null;
+  const supersedes = !!(m && v.sent && m.undo_of != null && String(m.undo_of) === String(v.sent));
+  if (v.sent && !supersedes) return {date:String(v.sent), src:"log"};
   if (m && !m.unsent && m.sent_at) return {date:String(m.sent_at), src:"page"};
   return null;
 }
@@ -328,9 +368,10 @@ function sentCell(c){
     return `<button class="tag good" data-unsend="${esc(k)}" ` +
       `title="Sent ${esc(s.date)} \u2014 click to undo">sent ${esc(s.date)}</button>`;
   }
-  if (!c.decks.length) return `<span class="tag" title="no deck has been built for this client yet">not recorded</span>`;
+  const v = rv(c);
+  if (!v.built) return `<span class="tag" title="no deck has been built for this client for ${esc(v.P)}">not recorded</span>`;
   if (!DB) return `<span class="tag">not recorded</span>`;
-  return `<button class="tag" data-mark="${esc(k)}" title="Not recorded \u2014 click to record this deck as sent today">Mark sent</button>`;
+  return `<button class="tag" data-mark="${esc(k)}" title="Not recorded \u2014 click to record the ${esc(v.P)} deck as sent today">Mark sent</button>`;
 }
 
 document.addEventListener("keydown", e => { if (e.key === "Escape" && ARMED !== null) disarm(); });
@@ -351,10 +392,11 @@ document.addEventListener("click", async e => {
     armTimer = setTimeout(disarm, ARM_MS);
     return;
   }
-  const s = sentState(c);
+  const s = sentState(c), v = rv(c);
   clearTimeout(armTimer); armTimer = null; ARMED = null;
   BUSY.add(id); update();
-  const stamp = {client_id:c.id, period:c.deck_period, deck:c.decks[0] || "",
+  // Recorded against the period SHOWING, with the deck built for it.
+  const stamp = {client_id:c.id, period:v.P, deck:v.decks[0] || "",
                  by:"artifact page", recorded_at:new Date().toISOString()};
   try {
     let row;
@@ -362,14 +404,14 @@ document.addEventListener("click", async e => {
       row = Object.assign({sent_at:today()}, stamp);
       // Marking over a logged date that was undone: name that date, so the refresh
       // replaces it rather than keeping the old one because an entry already exists.
-      if (c.sent) row.undo_of = String(c.sent);
+      if (v.sent) row.undo_of = String(v.sent);
       await DB.doc("deliveries/"+id).set(row);
-      note(`${c.name} recorded as sent ${row.sent_at}.`);
+      note(`${c.name} recorded as sent ${row.sent_at} for ${v.P}.`);
     } else {
       // An undo is a row, not a deletion: the send may already be in deliveries.json,
       // which only the refresh can change. It names the date it cancels - the logged date
       // when there is one - so it can never remove a send recorded after it.
-      const was = String(c.sent || (s && s.date) || "");
+      const was = String(v.sent || (s && s.date) || "");
       row = Object.assign({unsent:true, undo_of:was}, stamp);
       await DB.doc("deliveries/"+id).set(row);
       note(`${c.name}: the ${was} send record is removed.`);
@@ -397,6 +439,15 @@ document.addEventListener("click", async e => {
       err  => note(`Sent records could not be loaded (${(err&&err.code)||"unknown"}); what you see may be out of date.`)
     );
   } catch(e){ /* no live updates; the buttons still write */ }
+  try {
+    // The shared Build readiness period: whoever changed it last, every viewer follows.
+    db.collection("settings").onSnapshot(
+      snap => { const d = snap.docs.find(x => x.id === "readiness_period" && x.exists);
+                const p = d && (d.data()||{}).period;
+                if (p && RPERIODS.includes(p)) setRPeriod(p, true); },
+      ()   => {}                                    // no shared period: this viewer's own stands
+    );
+  } catch(e){ /* the picker still works for this viewer */ }
   update();                                        // reveal the buttons
 })();
 
@@ -854,7 +905,7 @@ function inColour(program){
 // stays at the bottom in BOTH directions, so flipping a sort never floods the top of
 // the table with blanks.
 function rosterKey(c, k){
-  const P = DATA.period, r = c.readiness;
+  const v = rv(c), r = v.readiness;
   switch (k){
     case "client":   return [String(c.name||"").toLowerCase()];
     case "products": return [...PROGS.map(p=>c.programs.includes(p.k)?0:1), -c.programs.length];
@@ -868,11 +919,11 @@ function rosterKey(c, k){
     // to show - so it is the last rank rather than null, and descending puts it first.
     // Treated as null it sat at the bottom both ways, and since every built deck ties,
     // descending rendered exactly like ascending and the click looked broken.
-    case "deck":     return c.deck_period===P ? [0, ""] : (c.decks.length ? [1, String(c.deck_period||"")] : [2, ""]);
+    case "deck":     return v.built ? [0, ""] : (c.decks.length ? [1, String(c.deck_period||"")] : [2, ""]);
     case "sent": {
       const s = sentState(c);
       if (s) return [1, String(s.date)];
-      return c.decks.length ? [0, ""] : null;
+      return v.built ? [0, ""] : null;
     }
   }
   return [0];
@@ -927,19 +978,25 @@ document.addEventListener("click", e => {
 // missing (Aaron, 2026-09-09). deck_status owns the answer, so this page and the
 // delivery dashboard cannot disagree.
 function secRoster(vis){
-  const P = DATA.period;
-  const withR = vis.filter(c=>c.readiness);
-  const ready = withR.filter(c=>c.readiness.ready).length;
-  const built = vis.filter(c=>c.deck_period===P).length;
-  const h = `<div class="hd"><h2>Build readiness \u00b7 ${esc(P)}</h2>` +
-    `<span class="n">${ready} of ${withR.length} ready \u00b7 ${built} built</span>` +
-    `<span class="src">clients.md, Inputs/ and the delivery log</span></div>`;
+  const P = rPeriod;
+  const views = vis.map(c => [c, rv(c)]);
+  const withR = views.filter(([,v])=>v.readiness);
+  const ready = withR.filter(([,v])=>v.readiness.ready).length;
+  const built = views.filter(([,v])=>v.built).length;
+  const sentN = views.filter(([c])=>sentState(c)).length;
+  const picker = `<label class="rp" title="Which period this section reports: its inputs, the decks built for it and the sends recorded against it. Shared with every viewer of this page.">Period ` +
+    `<select id="rperiod" aria-label="Build readiness period">` +
+    RPERIODS.map(p => `<option value="${esc(p)}"${p===P?" selected":""}>${esc(p)}${p===DATA.period?" (cycle)":""}</option>`).join("") +
+    `</select></label>`;
+  const h = `<div class="hd"><h2>Build readiness \u00b7 ${esc(P)}</h2>${picker}` +
+    `<span class="n">${ready} of ${withR.length} ready \u00b7 ${built} built \u00b7 ${sentN} sent</span>` +
+    `<span class="src">clients.md, Inputs/ and the delivery log, for ${esc(P)}</span></div>`;
   const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr>` +
     sortTh("client", "Client") + sortTh("products", "Products") + sortTh("ready", "Ready to build") +
     sortTh("inputs", `Inputs for ${esc(P)}`) + sortTh("deck", "Deck") + sortTh("sent", "Sent") +
     `</tr></thead><tbody>` +
     sortRoster(vis).map(c=>{
-      const r = c.readiness;
+      const v = rv(c), r = v.readiness;
       const dots = `<span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span>` +
         ` <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span>`;
       // Programs for a client clients.md does not list are inferred from this month's files.
@@ -957,8 +1014,8 @@ function secRoster(vis){
           (r.blocked_on.length?`<span class="need">${r.blocked_on.map(esc).join(", ")}</span>`:"");
         ins = `<div class="ins">${r.inputs.map(i=>chipFor(i)).join("")}</div>`;
       }
-      const deck = c.deck_period===P
-        ? `<span class="tag good">built ${esc(P)}</span>`
+      const deck = v.built
+        ? `<span class="tag good" title="${esc(v.decks.join(", "))}">built ${esc(P)}</span>`
         : (c.decks.length?`<span class="tag">newest ${esc(c.deck_period||"")}</span>`
                          :`<span class="tag warn">none</span>`);
       return `<tr>
@@ -1104,7 +1161,8 @@ document.getElementById("foot").innerHTML =
   `<li><b>MRPC</b> \u2014 ${esc(DATA.sources.mrpc)}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +
   `<li><b>CashPlease</b> \u2014 ${esc(DATA.sources.cp)}, with current clients' own programs as the peer row.</li>` +
   `<li><b>Build readiness</b> \u2014 clients.md for who gets a deck, Inputs/ for what has landed, Outputs/ and Build Artifacts/deliveries.json for built and sent. The CSI shares are not checked here, so readiness reflects what is on this machine.</li>` +
-  `<li><b>Mark sent</b> \u2014 records the deck named in the Deck column as sent today, against that deck\u2019s period. It is kept with the page and folded into deliveries.json by the next morning\u2019s refresh, after which it reads as a plain sent date. A client with no built deck cannot be marked.</li>` +
+  `<li><b>Period</b> \u2014 the picker in the Build readiness header chooses which period that section reports: its inputs, the decks built for it and the sends recorded against it. Changing it swaps all three, so the Sent column starts clean for the period chosen \u2014 nothing carries over \u2014 and the choice is shared with every viewer. The periods offered are the cycle, the two before it and the one after; the figures above the section stay on the reporting period.</li>` +
+  `<li><b>Mark sent</b> \u2014 records the deck built for the period showing as sent today, against that period. It is kept with the page and folded into deliveries.json by the next morning\u2019s refresh, after which it reads as a plain sent date. A client with no deck built for that period cannot be marked.</li>` +
   `<li><b>Undo a send</b> \u2014 click a sent date: it turns into \u201cUndo send?\u201d, and a second click within five seconds removes the record (click anywhere else or press Esc to keep it). The next refresh takes the date out of deliveries.json, but only while it still holds that same date, so an older undo never erases a send recorded after it.</li>` +
   `</ul><p>Program to date is abbreviated PTD. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
 update();

@@ -51,6 +51,14 @@ figure.
 - A **build readiness** section for the current period: ready or blocked per
   client, what it is blocked on, and one chip per required input. Every column
   sorts (ascending → descending → off), remembered per viewer (2026-09-14).
+  **A period picker in its header** *(2026-10-12)* switches the section to the cycle
+  period, either of the two before it, or the one after: its readiness, the decks built
+  FOR that period and the sends recorded AGAINST it all swap together, so the Sent column
+  starts clean for the period chosen — nothing carries over — and a Mark sent is recorded
+  against the period showing. The choice is shared through the artifact's store, so
+  every viewer sees the same period; the page is static, so the refresh builds each
+  period's readiness in full (`readiness_periods`, `period_views`). The figures above
+  the section stay on the reporting period.
 - **Every current client across the five CSMs** *(2026-09-14)*. That is the `clients.md`
   roster plus every client with reports filed on `Velocity_clientreports` for the newest
   month at or before the cycle, less the clients `clients.md` marks as stopped. Programs

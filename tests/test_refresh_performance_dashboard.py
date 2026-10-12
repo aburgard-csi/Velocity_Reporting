@@ -8,6 +8,7 @@ republished, and what period it claims.
   * No dataset value can close the page's script tag.
 """
 import json
+import os
 
 import pytest
 
@@ -297,18 +298,20 @@ def test_a_malformed_undo_is_skipped(tmp_path, row):
 
 
 # ------------------------------------------------------------------ the button
-def test_template_marks_sent_against_the_deck_period_not_the_cycle():
-    """The log is keyed <client>|<deck period>; the button must use the same key,
-    or a send would be recorded against a period the deck does not belong to."""
+def test_template_marks_sent_against_the_period_showing_not_the_cycle():
+    """The log is keyed <client>|<period>; the button must use the same key, or a send
+    would be recorded against a period the deck does not belong to. Since 2026-10-12 the
+    period is the one the Build readiness picker shows, and the row is stamped with it."""
     t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "sentDoc = c => c.deck_period" in t
-    assert 'DB.doc("deliveries/"' in t
+    assert "const sentDoc = c => `${c.id}-${rPeriod}`" in t
+    assert "period:v.P" in t and 'DB.doc("deliveries/"' in t
 
 
 def test_template_cannot_mark_a_client_with_no_deck():
-    """Sent is recorded, never inferred — and never for a deck that was not built."""
+    """Sent is recorded, never inferred — and never for a deck that was not built for
+    the period showing."""
     t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "if (!c.decks.length) return" in t
+    assert "if (!v.built) return" in t
 
 
 # ------------------------------------------------------------------ CSM
@@ -664,3 +667,39 @@ def test_template_links_the_workflow_page_published_beside_it():
     assert 'href="workflow.html"' in P.TEMPLATE.read_text(encoding="utf-8")
     w = (P.REPO / "scripts" / "perf_workflow.html").read_text(encoding="utf-8")
     assert "<title>" in w[:8000] and 'href="index.html"' in w
+
+# ------------------------------------------------------------------ the Build readiness period
+# Aaron, 2026-10-12: "an option to change the reporting period for the Build Readiness
+# section. It should clear the Sent list and reset it for the current period." The page is
+# static, so every period it can be switched to is built in full: its own readiness, the
+# decks built FOR it, and the sends recorded AGAINST it - nothing carried over.
+def test_readiness_periods_bracket_the_cycle_oldest_first():
+    assert P.readiness_periods("2026.10") == ["2026.08", "2026.09", "2026.10", "2026.11"]
+    assert P.readiness_periods("2026.01") == ["2025.11", "2025.12", "2026.01", "2026.02"]
+    assert P.readiness_periods("2026.12", before=1, after=1) == ["2026.11", "2026.12", "2027.01"]
+
+
+def test_period_views_carry_each_periods_own_decks_and_sends():
+    names = ["1676-2026.09-ARS-ICS-True Sky CU Results.pptx",
+             "1676-2026.10-ARS-ICS-True Sky CU Results.pptx",
+             "1676-2026.10-ARS-True Sky CU ARS Results.pptx"]
+    log = {"1676|2026.09": {"client_id": "1676", "period": "2026.09", "sent_at": "2026-09-16"},
+           "1676|2026.08": {"client_id": "1676", "period": "2026.08", "sent_at": "2026-08-20"}}
+    v = P.period_views("1676", names, log, ["2026.09", "2026.10", "2026.11"])
+    assert v["2026.09"] == {"decks": [names[0]], "sent": "2026-09-16"}
+    assert v["2026.10"] == {"decks": sorted(names[1:]), "sent": None}        # built, not yet sent
+    assert v["2026.11"] == {"decks": [], "sent": None}                         # nothing for it yet
+    # a malformed log entry reads as not sent, never as a date
+    assert P.period_views("1676", names, {"1676|2026.10": "yes"}, ["2026.10"])["2026.10"]["sent"] is None
+
+
+def test_the_page_switches_readiness_decks_and_sent_together():
+    src = open(P.TEMPLATE, encoding="utf-8").read() if hasattr(P, "TEMPLATE") else \
+        open(os.path.join(os.path.dirname(P.__file__), "perf_dashboard_template.html"), encoding="utf-8").read()
+    assert 'id="rperiod"' in src and "DATA.readiness_periods" in src
+    assert "function rv(c)" in src and "readiness_by_period" in src and "by_period" in src
+    # Sent is keyed on the period showing, and a mark is stamped with that period
+    assert "const sentDoc = c => `${c.id}-${rPeriod}`" in src
+    assert "period:v.P" in src
+    # the choice is shared through the artifact's store, with this browser's own as fallback
+    assert 'DB.doc("settings/readiness_period")' in src and "rpe-dash-rperiod" in src

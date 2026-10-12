@@ -17,6 +17,32 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-12 — The performance dashboard's Build readiness section can be switched to another period
+
+Summary: The "RPE Client Performance" page has a period picker in its Build readiness header. It
+switches that section to the cycle period, either of the two before it, or the one after — the
+inputs, the decks built for that period and the Sent column together — so the Sent list starts
+clean for the period chosen, and every viewer sees the same period.
+
+Aaron, 2026-10-12: "The RPE client performance artifact needs an option to change the reporting
+period for the Build Readiness section. It should clear the Sent list and reset it for the current
+period."
+
+- `refresh_performance_dashboard.readiness_periods` names the periods the page carries (cycle −2
+  to cycle +1) and the refresh builds each one's readiness through `deck_status`, as it always
+  did for the cycle; `period_views` carries, per client and period, the decks built FOR that period
+  and the delivery log's entry for it alone. The flat `readiness`, `decks` and `sent` the page has
+  always read are still there, so an older page build still renders.
+- On the page, the section reads everything through the selected period: the Deck column shows
+  "built <period>" only for a deck of that period, Sent is keyed `<client>-<period>` and a Mark
+  sent is stamped with the period showing, so `--merge-sent` files it against the right period in
+  `deliveries.json`. Switching periods carries nothing over. The choice is written to the
+  artifact's store (`settings/readiness_period`) and followed by every open view, with the
+  browser's own last choice as the fallback for a saved copy.
+- The figures above the section stay on the reporting period; the picker does not change them.
+- Tests pin the period list, the per-period views (a malformed log entry reads as not sent) and
+  the page's wiring; the two older template tests now pin the per-period key.
+
 ### 2026-10-12 — NSF/OD Items YoY is year to date, not one month against one month
 
 Summary: The NSF/OD Activity slide's YoY tile now compares January through the last complete
