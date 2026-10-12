@@ -150,22 +150,29 @@ def _label(*candidates):
 def should_build(B, threshold=SHOW_BELOW):
     """True when this client's profitability is below `threshold` (Aaron, 2026-09-22).
 
-    Read from the deck's own stated ratio where there is one, so the slide appears exactly
-    when the Financial Performance bullet says something below 3 : 1 — a client cannot see
-    "5.7 : 1" on one slide and a guarantee slide on the next. Falls back to the Actuals
-    ratio, then to revenue over cost.
+    Read from `ratio_of`, the one ratio every slide states, so the slide appears exactly
+    when the divider and the overview bullet say something below 3 : 1 — a client cannot
+    see "5.7 : 1" on one slide and a guarantee slide on the next.
     """
     r = ratio_of(B)
     return r is not None and r < threshold
 
 
 def ratio_of(B):
-    """The client's revenue-to-cost ratio, or None when there is no cost to divide by."""
-    p = B.get("profitability")
-    if isinstance(p, (int, float)) and p:
-        return float(p)
+    """THE program-to-date revenue-to-cost ratio, or None when there is no cost to divide by.
+
+    The Actuals series first — the P&L's own rows are its sums, and the Profitability cell
+    under them must be those two cells divided — then the Executive Financials roll-up that
+    `guarantee` falls back to, then a bare `profitability` from base.json. It used to prefer
+    base.json's `profitability` (the roll-up) while the P&L divided the Actuals sums, so a
+    workbook whose two tabs differ by a hair printed 3.5 : 1 on the divider over a P&L that
+    read 3.4 : 1 (the golden deck, caught by `validate_deck.ptd_ratio_findings`, 2026-10-12).
+    """
     g = guarantee(B)
-    return g["ratio"]
+    if g["ratio"] is not None:
+        return g["ratio"]
+    p = B.get("profitability")
+    return float(p) if isinstance(p, (int, float)) and p else None
 
 
 def _series(B):
@@ -335,13 +342,23 @@ def pnl(g):
             "rows": out, "dropped": dropped}
 
 
+def ratio_text(v):
+    """THE way a profitability ratio is printed, everywhere in the deck: "5.4 : 1", from the
+    UNROUNDED quotient. The ARS divider used to format base.json's two-decimal value and
+    printed 2.1 : 1 under a P&L that printed 2.2 : 1 from the same figures (True Sky,
+    2026-10-12); one formatter on one unrounded number is how the slides agree."""
+    if v is None:
+        return "\u2014"
+    return f"{v:.1f} : 1"
+
+
 def money(v, kind):
     """$1,484,350 for revenue and profit, a loss in parentheses; a cost in parentheses, and
     a negative cost (a discount) as a plain credit. A ratio reads "5.4 : 1"."""
     if v is None:
         return "\u2014"
     if kind == "ratio":
-        return f"{v:.1f} : 1"
+        return ratio_text(v)
     txt = f"${abs(v):,.0f}"
     if kind in ("line", "total"):
         return txt if v < 0 else f"({txt})"

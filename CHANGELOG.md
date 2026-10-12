@@ -17,6 +17,47 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-12 — One program-to-date profitability ratio on every slide that states it
+
+Summary: The ARS section divider, the overview bullets and the ARS Financial Performance P&L could
+print different profitability ratios from the same figures (True Sky: 2.1 : 1 and 2.2 : 1). Every
+slide now prints the one unrounded quotient the same way, and the gate fails a deck whose slides
+disagree.
+
+Aaron, 2026-10-12: "Profitability disagrees on True Sky between ARS Financial Performance and the
+ARS segment slide."
+
+True Sky's program-to-date revenue is $2,026,429 against $941,929 of fees: 2.1513 : 1. The
+extractors (`extract_base_gen`, `base_tab_extract`) stored `profitability` rounded to two
+decimals, 2.15, and the slides that print that value formatted it to one decimal —
+`f"{2.15:.1f}"` is "2.1", because the float is 2.1499… The P&L formatted the unrounded quotient
+and printed 2.2. Each slide was right by its own arithmetic, which is why no single-slide rule
+caught it; the shipped 2026.10 deck carried 2.1 : 1 in the Program Overview and appendix bullets
+against 2.2 : 1 on the P&L.
+
+- The extractors keep the quotient at full precision; rounding happens only where a figure is
+  printed. The one-pager's two-decimal figure and the guarantee note are unchanged by this.
+- `revenue_guarantee_slide.ratio_of` is THE value: the Actuals series' quotient when the workbook
+  has one — the P&L's own revenue and cost cells must divide to its Profitability cell — then the
+  Executive Financials roll-up. It used to prefer base.json's roll-up `profitability` while the
+  P&L divided the Actuals, so a workbook whose two tabs differ by a hair printed 3.5 : 1 on the
+  divider over a P&L reading 3.4 : 1 (the golden deck, caught by the new check). The guarantee
+  slide's gate reads the same value, so it still appears exactly when the deck states a ratio
+  under 3 : 1.
+- `revenue_guarantee_slide.ratio_text` is THE formatter for a ratio; the P&L's `money(…, "ratio")`
+  delegates to it, and `build_ars_gen` builds `prof` — the divider stat and the overview and
+  appendix bullets — from `ratio_text(ratio_of(B))`, the same value and formatter as the P&L.
+- `validate_deck.ptd_ratio_findings` (standing rule: add the check that would have caught it)
+  reads every place a deck states the program-to-date ratio — the P&L's Profitability row, last
+  column; the divider stat labelled "revenue to fees, program to date"; any "N.N : 1
+  profitability" sentence — and FAILs when they are not one string. The shipped True Sky deck
+  fails it; the month and year-to-date columns are not mistaken for the program figure.
+- `tests/test_ptd_ratio.py` pins the double-rounding trap on True Sky's own numbers, the
+  formatter, the extractor change, the divider's source and the gate check.
+
+Client-facing effect: a divider or bullet ratio moves by 0.1 for any client whose quotient sits
+on a rounding boundary (True Sky 2.1 → 2.2 : 1); the P&L figure is unchanged. True Sky's 2026.10
+deck was rebuilt.
 ### 2026-10-08 — Deck assembly is about 2.5 times faster on a large client
 
 Summary: Assembling a large client's ARS deck takes about 1.5 minutes instead of 3.5, with the same slides, figures and notes.

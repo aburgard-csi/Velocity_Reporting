@@ -64,7 +64,10 @@ def extract(wb):
     # omitted the key for a young program with no revenue booked yet (1549 Wellworth),
     # and build_ars_gen then died with KeyError: 'profitability'. Zero revenue against
     # real costs is a true 0.00 : 1, not missing data.
-    out['profitability'] = round(out['ltd_revenue'] / abs(out['ltd_costs']), 2) if out['ltd_costs'] else 0.0
+    # FULL precision, rounded only where it is printed (2026-10-12). Stored at two decimals,
+    # True Sky's 2.1513 became 2.15, and f"{2.15:.1f}" is "2.1" (the float is 2.1499...):
+    # the ARS divider said 2.1 : 1 while the P&L, formatting the raw quotient, said 2.2 : 1.
+    out['profitability'] = out['ltd_revenue'] / abs(out['ltd_costs']) if out['ltd_costs'] else 0.0
     # monthly incremental revenue = Total Incremental Income (Summary block, row 9)
     amr = wb['All Months Rollup MM']; hdr = rowvals(amr, 8)
     r9 = rowvals(amr, find_row(amr, 'Total Incremental Income', c=3, r1=8, r2=12))

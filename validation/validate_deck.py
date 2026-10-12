@@ -1694,6 +1694,66 @@ def account_population_findings(prs):
     return out
 
 
+# ================================================================ one program-to-date ratio
+_RATIO_RX = re.compile(r"\b(\d+\.\d) : 1\b")
+_DIVIDER_RATIO_LABEL = "revenue to fees, program to date"
+
+
+def _ptd_ratio_statements(prs):
+    """[(slide index, where, '2.2 : 1')] for every place the deck states the program-to-date
+    profitability ratio: the P&L's Profitability row (last column), the ARS divider's stat
+    labelled 'revenue to fees, program to date', and any sentence '… N.N : 1 profitability'."""
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        title = (_title(slide) or "").strip().lower()
+        shapes = list(slide.shapes)
+        if title.startswith("ars financial performance"):
+            for sh in shapes:
+                if not sh.has_table:
+                    continue
+                for row in sh.table.rows:
+                    cells = [c.text.strip() for c in row.cells]
+                    if cells and cells[0].lower() == "profitability" and _RATIO_RX.fullmatch(cells[-1] or ""):
+                        out.append((idx, "ARS Financial Performance, Profitability, program to date", cells[-1]))
+        for sh in shapes:
+            if not _has_text(sh) or sh.has_table:
+                continue
+            txt = sh.text_frame.text.strip()
+            if txt.lower() == _DIVIDER_RATIO_LABEL and sh.top is not None:
+                # The value is the ratio-shaped text box drawn above the label, same column.
+                cands = [o for o in shapes if _has_text(o) and o is not sh and o.top is not None
+                         and _RATIO_RX.fullmatch(o.text_frame.text.strip())
+                         and abs(o.left - sh.left) < Emu(457200) and o.top < sh.top]   # half an inch
+                if cands:
+                    val = min(cands, key=lambda o: sh.top - o.top)
+                    out.append((idx, f"section divider, '{_DIVIDER_RATIO_LABEL}'", val.text_frame.text.strip()))
+            for m in re.finditer(r"\b(\d+\.\d) : 1 profitability\b", txt):
+                out.append((idx, f"'{m.group(0)}' in the text", f"{m.group(1)} : 1"))
+    return out
+
+
+def ptd_ratio_findings(prs):
+    """FAIL when the deck states the program-to-date profitability ratio two different ways.
+
+    Added 2026-10-12, with the fix. True Sky's ARS divider read "2.1 : 1 revenue to fees,
+    program to date" and its ARS Financial Performance P&L read "2.2 : 1" in the same
+    column, from the same $2,026,429 over $941,929. The extractor had rounded the quotient
+    to 2.15 before storing it, and f"{2.15:.1f}" is "2.1" because the float is 2.1499...;
+    the P&L formatted the unrounded 2.1513 and said 2.2. Each slide was right by its own
+    arithmetic, so every rule that reads one slide at a time passed both. Like
+    `account_population_findings`, this reads the specific places the deck makes that
+    statement and FAILs when they do not match. Fewer than two statements is nothing to
+    compare, not a pass.
+    """
+    stated = _ptd_ratio_statements(prs)
+    if len({v for _, _, v in stated}) <= 1:
+        return []
+    listing = "; ".join(f"slide {i} {where}: {v}" for i, where, v in stated)
+    return [("FAIL", stated[0][0],
+             f"the program-to-date profitability ratio is stated {len({v for _, _, v in stated})} "
+             f"different ways — {listing}. One quotient, one formatter (revenue_guarantee_slide.ratio_text).")]
+
+
 # ================================================================ autofit
 def autofit_findings(prs):
     """FAIL a frame PowerPoint shrinks below 90%.
@@ -1841,6 +1901,7 @@ def run(path, extract=None):
     findings += table_label_fit_findings(prs)
     findings += tile_label_findings(prs)
     findings += account_population_findings(prs)
+    findings += ptd_ratio_findings(prs)
     findings += figure_sidecar_findings(path)
     findings += claim_consistency_findings(prs)
     findings += text_rule_findings(prs, texts)

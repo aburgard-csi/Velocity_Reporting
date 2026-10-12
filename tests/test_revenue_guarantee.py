@@ -47,11 +47,14 @@ def test_only_a_client_under_three_to_one_gets_the_slide(ratio, built):
 
 
 def test_the_gate_reads_the_ratio_the_deck_itself_states():
-    """A client cannot see "5.7 : 1" on Financial Performance and a guarantee slide on the
-    next one, so the gate reads the same figure that bullet does."""
+    """A client cannot see "9.0 : 1" on the divider and a guarantee slide on the next one, so
+    the gate reads the one ratio every slide states: the Actuals series, which the P&L's own
+    rows sum to — not base.json's roll-up `profitability` when the two differ (2026-10-12)."""
     B = base(months(24, 9_000, 1_000), profitability=5.72)
-    assert RG.ratio_of(B) == 5.72
+    assert RG.ratio_of(B) == pytest.approx(9.0)
     assert RG.should_build(B) is False
+    # ...and the P&L's Profitability cell is that same quotient.
+    assert RG.pnl(RG.guarantee(B))["rows"][-1][1][-1] == pytest.approx(9.0)
 
 
 def test_without_a_stated_ratio_the_gate_falls_back_to_the_actuals():

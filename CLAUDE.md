@@ -853,7 +853,11 @@ This is the readme index — update it whenever files are added, removed, or mov
   total costs, incremental profit and profitability — for the last complete month, the year to
   date and the program to date, over a twelve-month chart of revenue split into cost and profit.
   Figures come from `revenue_guarantee_slide.pnl`, so this slide and the guarantee cannot
-  disagree. It is drawn IN PLACE over the template's slide of that name: nothing is added and
+  disagree. **A ratio is printed by `revenue_guarantee_slide.ratio_text` and nowhere else, from
+  the UNROUNDED quotient (2026-10-12):** the extractors stored `profitability` at two decimals
+  and the divider printed `f"{2.15:.1f}"` = "2.1 : 1" under a P&L that printed 2.2 : 1 from the
+  same True Sky figures. `validate_deck.ptd_ratio_findings` FAILs a deck that states the
+  program-to-date ratio two ways. It is drawn IN PLACE over the template's slide of that name: nothing is added and
   nothing is dropped, because a freed partname gets handed to the next slide added (it removed
   Excluded Accounts from a build on 2026-10-02).
 - `revenue_guarantee_slide.py` — the Revenue Guarantee slide, inserted after ARS Financial

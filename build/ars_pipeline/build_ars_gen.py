@@ -90,7 +90,11 @@ except Exception:
     _last = datetime.date(2026, 6, 1)
 _startkey = (_last.year*12 + (_last.month-1)) - (B['months']-1)
 START = str(_startkey // 12)
-prof = f"{B['profitability']:.1f} : 1"
+# The ONE ratio, printed the ONE way: the same value and formatter the ARS Financial
+# Performance P&L uses, so the divider, the overview bullets and the P&L cannot disagree
+# (True Sky read 2.1 : 1 on the divider and 2.2 : 1 on the P&L, 2026-10-12).
+from revenue_guarantee_slide import ratio_text as _ratio_text, ratio_of as _ratio_of
+prof = _ratio_text(_ratio_of(B))
 ltd_rev = m2(B['ltd_revenue']); ltd_profit = m2(B['ltd_profit'])
 cur_rev = f"${B['cur_revenue']:,.0f}"; cur_profit = f"${B['cur_profit']:,.0f}"
 rev_sum12 = f"${B['monthly_rev_sum12']/1000:.0f}K"; rev_avg12 = f"${B['monthly_rev_avg12']/1000:.0f}K"
@@ -127,21 +131,34 @@ cardg = 100*(cl-cf)/cf; card_growth = f"{cardg:+.1f}%"
 cardverb = "grown" if cardg > 2 else ("held steady" if cardg > -2 else "declined")
 card_range = f"({cf/1000:.1f}K → {cl/1000:.1f}K)"
 jun_spend = SS[-1][1]
-# Year-on-year spend: compare the latest month against the SAME month a year
-# earlier, derived from the series (was pinned to the literal 'Jun 2025', which
-# IndexErrors on any client whose history doesn't reach it — e.g. 1549 Wellworth,
-# whose series starts May 2026).
+# Year-on-year spend is YEAR TO DATE against the prior year to date (Aaron, 2026-10-12,
+# the same rule as the NSF/OD tile): January through the last complete month, summed,
+# over the same months a year earlier. It compared one month to one month until then,
+# and before 2026-09 was pinned to the literal 'Jun 2025'. Every month of BOTH windows
+# must be in the complete series with a spend figure; otherwise n/a, stated — never a
+# partial sum passed off as a year.
 _ss = {x[0]: x[1] for x in SS}
 _last_lbl = SS[-1][0]
 _ld = datetime.datetime.strptime(_last_lbl, '%b %Y')
-_yago = _ld.replace(year=_ld.year - 1).strftime('%b %Y')
-jun25 = _ss.get(_yago)
-if jun25:
-    spend_yoy = f"{100*(jun_spend-jun25)/jun25:+.0f}%"
+def _spend_ytd(year):
+    vals = [_ss.get(_ld.replace(year=year, month=mo).strftime('%b %Y')) for mo in range(1, _ld.month + 1)]
+    return None if any(v is None for v in vals) else sum(vals)
+def _spend_ytd_label(year):
+    last = _ld.replace(year=year).strftime('%b %y')
+    return last if _ld.month == 1 else f"Jan–{last}"
+_sp_cur, _sp_prior = _spend_ytd(_ld.year), _spend_ytd(_ld.year - 1)
+SPEND_YOY_WIN = (_spend_ytd_label(_ld.year - 1), _spend_ytd_label(_ld.year))
+jun25 = bool(_sp_prior)                   # kept as the name the slide-24 block tests
+if _sp_cur is not None and _sp_prior:
+    spend_yoy = f"{100*(_sp_cur-_sp_prior)/_sp_prior:+.0f}%"
+    SPEND_YOY_NOTE = (f"Spend YTD YoY compares {SPEND_YOY_WIN[0]} (${_sp_prior:,.1f}M) to "
+                      f"{SPEND_YOY_WIN[1]} (${_sp_cur:,.1f}M), year to date through the last complete month")
 else:
     # not enough history for a YoY read — state it rather than render a number
     spend_yoy = "n/a"
-    print(f"NOTE: no {_yago} in the spend series ({len(_ss)} months) — YoY spend reported as n/a")
+    SPEND_YOY_NOTE = "Spend YTD YoY reads n/a: the series does not carry every month of both year-to-date windows"
+    print(f"NOTE: the spend series ({len(_ss)} months) does not carry both year-to-date windows "
+          f"({SPEND_YOY_WIN[0]} and {SPEND_YOY_WIN[1]}) — YoY spend reported as n/a")
 monthly_spend = f"${jun_spend:.1f}M"
 
 # lift matrix values (MM only)
@@ -986,9 +1003,10 @@ set_exact(S[23], "+11%", spend_yoy)
 # "(Jun 25 → Jun 26)" over a number comparing Aug 25 to Aug 26. Same shape as
 # the Items YoY caption on the next slide: two-digit years, so neither the as-of
 # pass nor the stale-caption gate could see it (Aaron, 2026-09-10).
-_sp_win = ("(%s → %s)" % (_ld.replace(year=_ld.year-1).strftime('%b %y'),
-                              _ld.strftime('%b %y'))) if jun25 else "(no prior year in extract)"
-repl(S[23], {"(Jun 25 → Jun 26)": _sp_win})
+# Year to date against the prior year to date (Aaron, 2026-10-12): the tile says so
+# and its caption names both windows, as the NSF/OD tile does.
+_sp_win = ("(%s → %s)" % SPEND_YOY_WIN) if jun25 else "(no prior year in extract)"
+repl(S[23], {"Spend YoY": "Spend YTD YoY", "(Jun 25 → Jun 26)": _sp_win})
 
 # ============================ SLIDE 25 — NSF/OD
 set_exact(S[24], "2,360", f"{M['nsf_last_items']:,}")
@@ -1002,10 +1020,13 @@ repl(S[24], {"NSF/OD (June)": f"NSF/OD ({_NSF_LONG})",
              "(June 2026)": f"({_NSF_LONG})"})
 _nsf_yoy = M.get('nsf_yoy')
 _nsf_win = M.get('nsf_yoy_window')
+# Year to date against the prior year to date (Aaron, 2026-10-12), not one month against
+# one month: the tile says so and its caption names both windows.
+repl(S[24], {"Items YoY": "Items YTD YoY"})
 if _nsf_yoy is None:
-    # Stated, never zeroed: this extract carries no same-month row a year back.
-    print("!! NSF/OD: no same-month-a-year-earlier row in this extract "
-          "(%d months) — the Items YoY tile reads n/a" % len(M['nsf_series']))
+    # Stated, never zeroed: this extract does not carry every month of both windows.
+    print("!! NSF/OD: the extract does not carry both year-to-date windows complete "
+          "(%d complete months) — the Items YTD YoY tile reads n/a" % len(M['nsf_series']))
     set_exact(S[24], "-1%", "n/a")
     repl(S[24], {"(Jun 25 \u2192 Jun 26)": "(no prior year in extract)"})
 else:
@@ -1507,12 +1528,17 @@ for _sl in _S2:
     _t = _title_of(_sl)
     _add = []
     if _t.startswith("NSF/OD"):
+        _ytd = M.get('nsf_yoy_ytd') or {}
         _add.append("Complete months only: the tiles and chart end on %s%s." % (
             M.get('nsf_last_month'),
-            (", Items YoY compares %s to %s" % tuple(M['nsf_yoy_window'])) if M.get('nsf_yoy_window') else ""))
+            (", Items YTD YoY compares %s (%s items) to %s (%s items), year to date through the last complete month"
+             % (M['nsf_yoy_window'][0], f"{_ytd.get('prior_items', 0):,}",
+                M['nsf_yoy_window'][1], f"{_ytd.get('current_items', 0):,}"))
+            if M.get('nsf_yoy_window') else ""))
         if _notes_mc["NSF/OD"]: _add.append(_notes_mc["NSF/OD"])
     elif "swipes & spend" in _t.lower():
-        _add.append("Complete months only: monthly spend, Spend YoY and card growth end on %s." % SS[-1][0])
+        _add.append("Complete months only: monthly spend, Spend YTD YoY and card growth end on %s. %s."
+                    % (SS[-1][0], SPEND_YOY_NOTE))
         if _notes_mc["Swipes & Spend"]: _add.append(_notes_mc["Swipes & Spend"])
     elif _act_note and any(k in _t.lower() for k in ("swipe", "average ticket", "card usage")):
         _add.append(_act_note)

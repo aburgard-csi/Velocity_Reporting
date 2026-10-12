@@ -52,7 +52,8 @@ def extract(wb):
     out["cur_costs"]=efv("Total Costs",4)   # current-month ARS expense = revenue to CSI (perf page)
     out["ltd_plan_profit"]=efv("Incremental Profit",7)
     if out["ltd_revenue"] and out["ltd_costs"]:
-        out["profitability"]=round(out["ltd_revenue"]/abs(out["ltd_costs"]),2)
+        # Full precision; rounding happens where it is printed (see extract_base_gen, 2026-10-12).
+        out["profitability"]=out["ltd_revenue"]/abs(out["ltd_costs"])
     # Monthly incremental revenue = Interchange Revenue + NSF Revenue (All Months Rollup)
     amr=wb["All Months Rollup"]; hdr=rowvals(amr,8)
     ri=find_row(amr,"Total Interchange Revenue"); rn=find_row(amr,"Total NSF Revenue")

@@ -92,7 +92,9 @@ def test_a_populated_mm_workbook_still_extracts_with_its_dco(tmp_path):
     base = json.loads(out.read_text(encoding="utf-8"))
     assert [s for _, s, _ in base["swipespend_36"]] == [12.9, 13.1, 13.0]
     assert base["key_trends_blank"] == [] and base["dco_eligible"] == 10309
-    assert base["profitability"] == round(1_000_000.0 / 300_000.0, 2)
+    # Full precision, not two decimals: rounding here and again at print time put 2.1 : 1 on
+    # one True Sky slide and 2.2 : 1 on the next (2026-10-12).
+    assert abs(base["profitability"] - 1_000_000.0 / 300_000.0) < 1e-9
 
 
 def test_the_last_labelled_dco_row_wins_as_it_always_did(tmp_path):
