@@ -21,7 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from base_guard import data_issue, key_trends   # one definition, shared with extract_base_gen
 import base_guard as _bg
 import actuals_tab
-def load(p): return openpyxl.load_workbook(p,read_only=True,data_only=True)
+import xl_cache
+def load(p): return xl_cache.load(p)   # each sheet read once, not re-streamed per cell
 def ml(v): return v.strftime("%b %Y") if isinstance(v,datetime.datetime) else v
 def rowvals(ws,r): return [ws.cell(r,c).value for c in range(1,ws.max_column+1)]
 def find_row(ws,label,c=3,r1=8,r2=60):

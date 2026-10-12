@@ -827,6 +827,7 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `charts_gen.py` — renders the 28 chart PNGs; `DIM` = each chart's pixel size (must match its slide box aspect).
 - `chart_lib.py` — shared take-rate-by-branch renderer (personal orange / business navy; identical size).
 - `base_tab_extract.py` — SM financials from the workbook (+ DCO).
+- `xl_cache.py` — random cell access over a read-only workbook with each sheet read once (`ws.cell` on a read-only sheet re-streams it from the top); used by the three workbook extractors.
 - `base_guard.py` — refuses a workbook whose formulas were never evaluated (extracts as 1 month, 0 mailings, $0); called by both extractors, the builder and the dashboard refresh.
 - `extract_base_gen.py` / `extract_lift.py` — MM financials / Lift Matrix rows.
 - `lift_window.py` — the ONE reading of the Lift Matrix MM window (Start/End Date, the data month, `in_window` / `data_past_end`), import-safe. `extract_lift` puts it in lift.json; `ars_launcher.lift_checks` stops an MM client's build when the data month is past the End Date or the workbook filename carries the data team's Lift Matrix flag.

@@ -23,6 +23,7 @@ import openpyxl
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import actuals_tab
+import xl_cache
 import base_guard as _bg                        # noqa: E402  (one definition, shared)
 from base_guard import data_issue, key_trends   # noqa: E402
 
@@ -127,7 +128,7 @@ def dco_eligible(wb):
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    wb = openpyxl.load_workbook(argv[0], read_only=True, data_only=True)
+    wb = xl_cache.load(argv[0])   # each sheet read once, not re-streamed per cell
     out = extract(wb)
     name = os.path.basename(argv[0])
     # A workbook saved without evaluating its formulas reads as the template's zeros.
