@@ -923,19 +923,42 @@ def settings_csm(cid):
     return v or None
 
 
-def csm_assignments(cids, period, work, root=None, roster=None, log=print):
+def csm_list(path=None):
+    """{client id: CSM} from the Client CSM List (`<RPE_DATA_ROOT>/Client CSM List.csv`, the
+    file every deck's Contact card and Outputs folder are resolved from), or {} when it is
+    absent or unreadable (reported). A row with a blank CSM is not an assignment."""
+    p = Path(path) if path else R.csm_list_file()
+    if not p or not p.is_file():
+        return {}
+    try:
+        import csv
+        with open(p, encoding="utf-8-sig", newline="") as fh:
+            return {row["client_id"].strip(): row["csm"].strip()
+                    for row in csv.DictReader(fh)
+                    if (row.get("client_id") or "").strip() and (row.get("csm") or "").strip()}
+    except (OSError, ValueError, KeyError) as e:
+        print("  Client CSM List unreadable (%s): CSM falls back to the reports share" % e)
+        return {}
+
+
+def csm_assignments(cids, period, work, root=None, roster=None, log=print, listed=None):
     """{client id: CSM, or None when nothing names one}.
 
-    Precedence: the reports share; the answer the share gave on the last run that
-    could reach it; `roster` — the CSM column of the CashPlease roster in clients.md,
-    the only record for the CashPlease-only clients, whose reports never land on the
-    share; the client's CashPlease settings record; else None, which the page shows as
-    Unassigned. Never a default CSM: a client filed under whoever seems likely
-    disappears from the view of the CSM who actually owns it.
+    Precedence (Aaron, 2026-10-12: "point the dashboard CSM at the Client CSM List"): the
+    Client CSM List — the one record of who manages a client, the file the decks' Contact
+    card and Outputs folder come from; then the reports share (the account-manager folder
+    a client's reports land in, or the answer the share gave on the last run that could
+    reach it); then `roster` — the CSM column of the CashPlease roster in clients.md, the
+    only record for the CashPlease-only clients, whose reports never land on the share;
+    then the client's CashPlease settings record; else None, which the page shows as
+    Unassigned. Never a default CSM: a client filed under whoever seems likely disappears
+    from the view of the CSM who actually owns it.
 
-    Where the share and the roster column disagree the share wins, since it is kept by
-    the people who assign clients, and the disagreement is logged so clients.md can be
-    corrected rather than drifting unseen.
+    The share used to come first. When Gregg Miller left, the data team kept landing
+    1811, 1816 and 1817 in his folder and the page kept listing him as their CSM for ten
+    days after the Client CSM List had reassigned them. Where the list and the share
+    disagree the list wins, and the disagreement is logged: it is the signal that the
+    data team is still filing under the old folder.
 
     The share's last answer is kept in `csm.json` because the share needs the VPN.
     Without it an off-VPN morning would blank every CSM, move the content hash, and
@@ -953,13 +976,17 @@ def csm_assignments(cids, period, work, root=None, roster=None, log=print):
         write_state(cache_p, {"share": cache,
                               "updated": _dt.datetime.now().strftime("%Y-%m-%d %H:%M")})
     roster = roster or {}
+    listed = csm_list() if listed is None else listed
     out = {}
     for cid in cids:
-        shared, listed = (cache.get(cid) or {}).get("csm"), roster.get(cid)
-        if shared and listed and shared.casefold() != listed.casefold():
+        on_list, shared, in_roster = listed.get(cid), (cache.get(cid) or {}).get("csm"), roster.get(cid)
+        if on_list and shared and on_list.casefold() != shared.casefold():
+            log("CSM: the Client CSM List has %s under %s but the reports share files them under %s "
+                "- using the list" % (cid, on_list, shared))
+        elif shared and in_roster and shared.casefold() != in_roster.casefold():
             log("CSM: %s is under %s on the reports share but clients.md says %s - using the share"
-                % (cid, shared, listed))
-        out[cid] = shared or listed or settings_csm(cid)
+                % (cid, shared, in_roster))
+        out[cid] = on_list or shared or in_roster or settings_csm(cid)
     return out
 
 
@@ -1075,11 +1102,12 @@ def build_dataset(period, work, log=print):
                        "(Prod Code, Stat Code, the newest Reg E Code column) that the client's "
                        "code tables in the ARS database do not list; a CSM corrects them on the "
                        "client's code sheet, and nothing is mapped in the pipeline",
-            "csm": "the account-manager folder each client's reports land in on the CSI "
-                   "reports share (newest of the last two months; the last answer read is "
-                   "kept for mornings off the VPN), else the CSM column of the CashPlease "
-                   "roster in clients.md, else the CSM on the client's CashPlease settings "
-                   "record; a client nothing names is Unassigned",
+            "csm": "the Client CSM List (the file every deck's Contact card and Outputs folder "
+                   "come from), else the account-manager folder each client's reports land in "
+                   "on the CSI reports share (newest of the last two months; the last answer "
+                   "read is kept for mornings off the VPN), else the CSM column of the "
+                   "CashPlease roster in clients.md, else the CSM on the client's CashPlease "
+                   "settings record; a client nothing names is Unassigned",
         },
         # The peer row over current clients' own programs, not the workbook's every-tab rollup.
         "cp_peer": current_peer(packs, [cid for cid, c in clients.items() if "CP" in c["programs"]])

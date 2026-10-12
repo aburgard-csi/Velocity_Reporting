@@ -17,6 +17,24 @@ Format: newest first, dated, with the reason — not just the change.
 
 ## Unreleased
 
+### 2026-10-12 — The performance dashboard takes a client's CSM from the Client CSM List first
+
+Summary: The "RPE Client Performance" page now names each client's CSM from the Client CSM List
+— the same file the decks' Contact card and Outputs folder come from — and reads the reports
+share's folders only for a client the list does not name.
+
+Aaron, 2026-10-12: "point the dashboard CSM at the Client CSM List."
+
+The share came first until now, and the share is where the data team files reports, not where
+clients are assigned: after Gregg Miller left on 2026-10-02, 1811 Dutch Point, 1816 Beginnings CU
+and 1817 The County FCU were still being filed under his folder, so the page listed him as their
+CSM ten days after the list had reassigned them. `refresh_performance_dashboard.csm_list` reads
+the list once; `csm_assignments` takes it first, then the share (or its last answer, off the
+VPN), then the CashPlease roster column in clients.md, then the settings record, else Unassigned
+— never a default. A list-versus-share disagreement is logged, since it is the sign the data team
+is still filing under an old folder. The page's provenance line says so. Tests pin the precedence,
+the logged disagreement and the reader.
+
 ### 2026-10-12 — The performance dashboard's Build readiness section can be switched to another period
 
 Summary: The "RPE Client Performance" page has a period picker in its Build readiness header. It

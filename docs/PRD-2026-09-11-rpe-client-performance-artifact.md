@@ -74,10 +74,13 @@ figure.
   closed by default. While all are selected, a
   click shows only that one; later clicks add or remove others, down to none. Chips are
   white while their whole row is selected, blue when on and light gray when off. *(CSM added
-  2026-09-14.)* A client's CSM is the account-manager folder its reports land in on
-  `Velocity_clientreports`, else the `CSM` column of the CashPlease roster in `clients.md`,
-  else the CSM on its CashPlease settings record; a client nothing names is shown as
-  Unassigned, never given a default CSM.
+  2026-09-14.)* A client's CSM is the **Client CSM List** *(first since 2026-10-12 — the
+  file the decks' Contact card and Outputs folder come from; the share used to come first,
+  and kept naming a departed CSM while the data team filed under his old folder)*, else
+  the account-manager folder its reports land in on `Velocity_clientreports`, else the
+  `CSM` column of the CashPlease roster in `clients.md`, else the CSM on its CashPlease
+  settings record; a client nothing names is shown as Unassigned, never given a default
+  CSM. A list-versus-share disagreement is logged by the refresh.
 - A provenance block naming the source of every figure on the page.
 - A last-updated stamp, carrying the time as well as the date.
 - CashPlease peer comparison over **current clients only** *(2026-09-14)*, rebuilt from their

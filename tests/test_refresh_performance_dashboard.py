@@ -357,11 +357,11 @@ def test_csm_falls_back_to_the_last_share_answer_then_settings_then_nobody(tmp_p
     work.mkdir()
     monkeypatch.setattr(P, "settings_csm", lambda cid: {"1131": "Aaron Burgard"}.get(cid))
     ids = ["1131", "1204", "1771"]
-    assert P.csm_assignments(ids, "2026.09", work, root=root, log=_quiet) == {
+    assert P.csm_assignments(ids, "2026.09", work, root=root, log=_quiet, listed={}) == {
         "1131": "Aaron Burgard", "1204": "Aaron Burgard", "1771": None}
     # Off the VPN the share's last answer stands, so the page (and its hash) do not move.
     assert P.csm_assignments(ids, "2026.09", work, root=str(tmp_path / "offline"),
-                             log=_quiet)["1204"] == "Aaron Burgard"
+                             log=_quiet, listed={})["1204"] == "Aaron Burgard"
 
 
 def test_the_share_outranks_the_roster_csm_column_and_a_disagreement_is_logged(tmp_path, monkeypatch):
@@ -374,9 +374,39 @@ def test_the_share_outranks_the_roster_csm_column_and_a_disagreement_is_logged(t
     said = []
     got = P.csm_assignments(["1204", "1771", "1750"], "2026.09", work, root=root,
                             roster={"1204": "Daniel Wood", "1771": "Aaron Burgard"},
-                            log=said.append)
+                            log=said.append, listed={})
     assert got == {"1204": "Aaron Burgard", "1771": "Aaron Burgard", "1750": "From Settings"}
     assert any("1204" in s and "Daniel Wood" in s for s in said)
+
+
+def test_the_client_csm_list_outranks_the_share_and_a_disagreement_is_logged(tmp_path, monkeypatch):
+    """Aaron, 2026-10-12: "point the dashboard CSM at the Client CSM List." Gregg Miller
+    left on 2026-10-02 and the data team kept filing 1811, 1816 and 1817 under his folder,
+    so the page listed him for ten days after the list had reassigned them."""
+    root = _share(tmp_path, ["2026.09/Gregg Miller/1811-2026.09-a.xlsx",
+                             "2026.09/Aaron Burgard/1204-2026.09-a.xlsx"])
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setattr(P, "settings_csm", lambda cid: None)
+    said = []
+    got = P.csm_assignments(["1811", "1204", "1771", "1088"], "2026.09", work, root=root,
+                            roster={"1771": "Aaron Burgard"},
+                            listed={"1811": "Max Willett", "1204": "Aaron Burgard", "1088": "Unassigned"},
+                            log=said.append)
+    assert got == {"1811": "Max Willett",         # the list, over the share's old folder
+                   "1204": "Aaron Burgard",       # both agree
+                   "1771": "Aaron Burgard",       # not on the list: the roster still fills in
+                   "1088": "Unassigned"}          # the list's own label stands
+    assert any("1811" in s and "Max Willett" in s and "Gregg Miller" in s for s in said)
+    assert not any("1204" in s for s in said)
+
+
+def test_csm_list_reads_the_file_and_skips_blank_rows(tmp_path):
+    f = tmp_path / "Client CSM List.csv"
+    f.write_text("﻿client_id,client_name,csm,csm_source\n1811, Dutch Point ,Max Willett,x\n"
+                 "1816,Beginnings CU,,\n,no id,Aaron Burgard,\n", encoding="utf-8")
+    assert P.csm_list(f) == {"1811": "Max Willett"}
+    assert P.csm_list(tmp_path / "missing.csv") == {}
 
 
 def test_settings_csm_reads_the_record_and_is_none_without_one(tmp_path, monkeypatch):
