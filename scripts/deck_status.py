@@ -252,6 +252,30 @@ def watch_landing(cid, period):
     return max(hits, key=lambda v: v.get("mtime") or 0) if hits else None
 
 
+def odd_stamp_period(zip_path):
+    """The cycle an ODD extract's own member name says it belongs to ("YYYY.MM"), or None.
+
+    The data team stamps the member file "(MMDDYY_HHMMSS)" with the pull date (`month_complete.pull_date`),
+    and a pull in October is the 2026.10 cycle. A CSM who lands the file in Inputs by hand — 1509 Texas
+    Bay's October extract came by email and was copied straight into Inputs/ODDD on 2026-10-13 — has
+    a file the share never saw; the file itself still says which month it is (Aaron, 2026-10-13: "I just
+    copied their ODD to the ODD inputs folder before hitting check again. I think something isn't
+    working"). Only the zip's central directory is read, so this is cheap even over the share.
+    """
+    try:
+        import zipfile
+        import month_complete as MC
+        with zipfile.ZipFile(zip_path) as z:
+            names = [n for n in z.namelist() if n.lower().endswith(".csv")] or z.namelist()
+    except Exception:
+        return None
+    for n in names:
+        d = MC.pull_date(os.path.basename(n))
+        if d:
+            return f"{d.year:04d}.{d.month:02d}"
+    return None
+
+
 def _vip_sheet(cid, program):
     """The VIP sheet for one client, via the manifest resolver.
 
@@ -330,10 +354,19 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
             # The source has no extract for this period NOW. The watch's inventory may still
             # vouch for the copy: a landing it recorded for this period whose size matches.
             rec = watch_landing(cid, period)
+            stamped = odd_stamp_period(z)
             if rec and os.path.getsize(z) == rec["size"]:
                 landed = _dt.datetime.fromtimestamp(rec["mtime"]).strftime("%Y-%m-%d") if rec.get("mtime") else "?"
                 local_odd = _stat(PRESENT, _mtime(z) + "; the " + period + " extract the watch copied on "
                                   + landed + ", since removed from the share", "local")
+            elif stamped == period:
+                # The file was landed by hand (it never crossed the share) and its own pull stamp names
+                # this cycle: the extract vouches for itself.
+                local_odd = _stat(PRESENT, _mtime(z) + "; the extract's own pull stamp says " + period
+                                  + " (landed by hand, not on the share)", "local")
+            elif stamped:
+                local_odd = _stat(STALE, "the extract's own pull stamp says " + stamped + ", not " + period
+                                  + " (" + _mtime(z) + "); no " + period + " extract at source", "local")
             else:
                 local_odd = _stat(STALE, "previous month (" + _mtime(z) + "); no "
                                   + period + " extract at source", "local")

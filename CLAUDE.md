@@ -604,8 +604,11 @@ Off VPN the period cannot be confirmed and is reported as unknown, not current.
 share no longer holds this period's file but `source_watch.json` recorded an ODDD landing
 for this client and period whose size matches the copy, `deck_status.watch_landing` vouches
 for it (1539 Marine's October extract was taken back off the share a week after the watch
-copied it, and Sheila called the copy "previous month"). A record of a different size, or no
-record, is the stale case it always was.
+copied it, and Sheila called the copy "previous month"). **So does the extract's own pull stamp**
+(2026-10-13, 1509 Texas Bay: an extract that came by email and was copied into Inputs by hand):
+`deck_status.odd_stamp_period` reads the member file's `(MMDDYY_HHMMSS)` stamp, and a pull in the
+cycle's month is that cycle's extract. A stamp naming another month is stale and says which; no
+share copy, no watch record and no stamp is the stale case it always was.
 
 **ICS workbooks arrive by email, not on the share (Aaron, 2026-08-31).** They
 have no source-side signal, so their source column is `n/a` and a missing one

@@ -81,6 +81,34 @@ def test_a_copy_the_watch_recorded_for_this_period_is_present_after_the_source_f
     assert _odd_row(DS.requirements("1539", ["ARS"], "2026.10", reports, oddd, [], True))["local"]["state"] == DS.STALE
 
 
+def _odd_zip(path, member):
+    import zipfile
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr(member, "Acct ID,Debit?\n1,Yes\n")
+
+
+def test_an_extract_landed_by_hand_vouches_for_itself_by_its_pull_stamp(tmp_path, monkeypatch):
+    """1509 Texas Bay's October extract came by email and was copied straight into Inputs/ODDD on
+    2026-10-13; the share never saw it and the watch has no record, so it read as "previous month".
+    The member file's own (MMDDYY_HHMMSS) stamp names the cycle (Aaron, 2026-10-13)."""
+    reports, oddd = _dirs(tmp_path)
+    held = oddd / "1509_ODDD.zip"
+    _odd_zip(held, "1509-2026-10-Texas Bay Credit Union-ODD  (Oct23 forward) (101326_075139)_V2_1_1.csv")
+    monkeypatch.setattr(DS, "_oddd_month_dirs", lambda p, spec=None: [])
+    monkeypatch.setattr(DS, "watch_landing", lambda cid, period: None)
+    assert DS.odd_stamp_period(str(held)) == "2026.10"
+    row = _odd_row(DS.requirements("1509", ["ARS"], "2026.10", reports, oddd, [], True))
+    assert row["local"]["state"] == DS.PRESENT and "own pull stamp says 2026.10" in row["local"]["detail"]
+    # the same file is last month's for the next cycle, and says so
+    row = _odd_row(DS.requirements("1509", ["ARS"], "2026.11", reports, oddd, [], True))
+    assert row["local"]["state"] == DS.STALE and "says 2026.10, not 2026.11" in row["local"]["detail"]
+    # a member with no stamp vouches for nothing
+    _odd_zip(held, "1509-ODD.csv")
+    assert DS.odd_stamp_period(str(held)) is None
+    assert _odd_row(DS.requirements("1509", ["ARS"], "2026.10", reports, oddd, [], True))["local"]["state"] == DS.STALE
+    assert DS.odd_stamp_period(str(tmp_path / "missing.zip")) is None
+
+
 def test_watch_landing_reads_the_inventory_by_client_and_period(tmp_path, monkeypatch):
     import watch_sources as W
     inv = {"files": {

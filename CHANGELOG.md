@@ -21,6 +21,23 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — An ODD extract landed by hand vouches for itself by its own pull stamp
+
+Summary: An ODD extract a CSM copies straight into Inputs (one that never crossed the share) now
+counts as current when the member file's own pull stamp names this cycle, instead of reading as
+"previous month" until the share holds a copy.
+
+1509 Texas Bay's October extract came by email and Aaron copied it into `Inputs/ODDD/` on
+2026-10-13; Sheila still said "ODD extract: previous month; no 2026.10 extract at source" ("I just
+copied their ODD to the ODD inputs folder before hitting check again. I think something isn't
+working"). The share had no copy and the watch no record, so nothing vouched for the file — but the
+file itself does: the data team stamps the member "(MMDDYY_HHMMSS)", and a pull in October is the
+2026.10 cycle. `deck_status.odd_stamp_period` reads that stamp from the zip's central directory;
+`requirements` reports the copy PRESENT when it matches the cycle, STALE and naming the stamp's
+month when it does not, and the old "previous month" when there is no stamp. The share, the watch's
+record and now the stamp are the three things that can vouch; a file none of them vouches for is
+still stale. `tests/test_deck_status.py` pins it.
+
 ### 2026-10-13 — Sheila builds every client's deck, not only the ARS ones
 
 Summary: CSM Sheila and the launcher now list and build clients with no ARS: ICS only, MRPC only,
