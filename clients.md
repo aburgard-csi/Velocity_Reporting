@@ -403,10 +403,14 @@ These are stated as open questions, not assumptions.
    `\\PADMIS105\Velocity_company\CSM_Reporting\Inputs\Logos\`) covers 74 of the 81 current
    clients across all CSMs — current clients only, per Aaron. **Deferred for now (Aaron,
    2026-09-14):** 1038 Sugar River, 1192 Ascend and 1487 orsa (white-only — need the
-   brand-kit file); 1195 KEMBA CU and 1799 Central Bank (several institutions share the
+   brand-kit file); 1799 Central Bank (several institutions share the
    name — which one?); 1403 Adirondack (→ Arrow Bank) and 1795 Premier Members
    (→ Meritrust) need a brand call after a merger. A client without a file still builds,
-   just without a logo — see CLAUDE.md **File locations**.
+   just without a logo — see CLAUDE.md **File locations**. **1195 KEMBA CU resolved
+   2026-10-13** (Aaron: "Looks like we need a KEMBA logo"): the CSM list puts the client in
+   Gahanna, OH, and the Charts workbook says "KEMBA Financial CU", so it is KEMBA Financial
+   Credit Union (kemba.org); the site's colour header logo (black wordmark, green swoosh,
+   transparent) is `Inputs/Logos/1195.png`, rasterized from the SVG with resvg.
 
 2. **The client book disagreed with this file on three clients' program membership**
    at that check. In every
