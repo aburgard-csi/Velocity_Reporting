@@ -21,6 +21,34 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — 1195 KEMBA CU joins the roster as ICS only (Jordan Berkowitz)
+
+Summary: KEMBA CU now appears in Sheila's list as an ICS client. Its 2026.10 ICS workbook and
+Charts workbook are on file, but there is no VIP ICS sheet and no referral detail file yet, so the
+deck does not build until one lands.
+
+`clients.md` ICS-only table (Aaron: "1195 Kemba should be added for Jordan. They have ILS and ICS";
+"Kemba is listed as KEMBA CU"). ILS has no monthly deck. No ARS, per the Velocity export and Aaron's
+2026-09-15 confirmation.
+
+### 2026-10-13 — The watchdog no longer counts "no stuck process" as one blank process
+
+Summary: The morning watchdog's log line for a stuck source-watch process carries its PID, parent,
+age, CPU and handle count again, and an attempt whose retry is running fine is no longer logged as
+"found 1 stuck process(es)" or fired a second time.
+
+`scripts/watch_task_watchdog.ps1` returned its stuck processes as `,$stuck` so a single one kept
+its `.Count` (2026-10-07), and every caller wrapped the call in `@()`. In Windows PowerShell 5.1 the
+two together wrap the result twice: no process at all came back as one element, an empty array, so
+on 2026-10-08 and 2026-10-12 attempts 2 and 3 logged "found 1 stuck process(es)" followed by
+"PID  (parent ): age s, CPU , handles  --" with every field blank, killed nothing, and started the
+task again while the retry it had just started was running. `Find-StuckWatchProcesses` now writes
+each process to the pipeline as its own object and the callers keep their `@()`, which counts right
+for none, one and several; `Kill-StuckRoots` builds its PID set the same way. "fix the watchdog log
+bug too" (Aaron, 2026-10-13). `tests/test_watchdog_single_process.py` now calls the function the
+way the script does and pins the empty case, the per-process fields, the logged line and the
+root-only kill.
+
 ### 2026-10-13 — Three more list chips: Checking…, built today, and Sent for Aaron's clients
 
 Summary: Sheila's list now says "Checking…" for a client whose checks have not run yet this
