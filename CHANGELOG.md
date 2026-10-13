@@ -21,6 +21,36 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — The issue pages take a file's kind from its name, not the folder it sits in
+
+Summary: The ODD and Workbook Issues page, the CSM Data Gaps page and Sheila's Data Issues tab no
+longer count a DCO or an MRPCPM analysis dropped into the ARS Workbooks folder as an ARS workbook.
+
+Marine FCU's and Texas Bay's October DCOs (and Marine's MRPCPM analysis) were copied into
+`Inputs/ARS Workbooks/` by hand on the morning of 2026-10-13; `gaps_matrix.kind_files` globbed
+`<id>-*` in the kind folder and took the DCO for an October workbook, so both clients' real "no
+2026.10 ARS workbook" blocker vanished from the refreshed pages. `common.KIND_TOKEN` /
+`kind_matches` now require the name's own token (`-DCO`, `-Workbook`, `MRPCPM`, `Invitation
+Checking`), whatever folder a file is in. The launcher and the delivery dashboard already matched
+`*Workbook*` and were not fooled. `tests/test_issue_pages.py` pins it.
+
+### 2026-10-13 — An ODD extract the watch copied for this period stays current after the share file goes
+
+Summary: Sheila and the delivery dashboard no longer call a client's ODD extract "previous
+month" when the share no longer holds the file the 08:00 watch copied for this period. The
+watch's own landing record now vouches for the copy when the size matches.
+
+1539 Marine FCU's 2026.10 extract landed in Aaron's folder on 2026-10-06, the watch copied it,
+and by 2026-10-13 the file was gone from the share; Sheila read the copy (the same 65,794,434
+bytes) as "previous month (2026-10-06); no 2026.10 extract at source" and stopped the build
+(Aaron, 2026-10-13: "I think the file checker in Sheila isn't checking the share, because
+Marine has those files"). It was checking the share; the share had changed. `deck_status.watch_landing`
+reads `source_watch.json` for an ODDD record of that client and period, and `requirements`
+reports the copy PRESENT with "the 2026.10 extract the watch copied on 2026-10-06, since removed
+from the share" when the sizes agree. A record of a different file, a damaged inventory or no
+inventory vouches for nothing, so the stale rule is otherwise unchanged. `tests/test_deck_status.py`
+pins it. The ARS workbook stop was right: no 2026.10 Marine workbook has landed.
+
 ### 2026-10-12 — CashPlease rides on every Sheila deck of a client who ships it as a section
 
 Summary: A client whose CashPlease slides ship inside their Executive Review now gets them on

@@ -28,6 +28,21 @@ def test_the_runner_lists_every_step_script_that_exists():
     assert B.STEPS.index("odd_wb_by_csm.py") > B.STEPS.index("mail_flags.py")
 
 
+def test_a_file_is_its_kind_by_name_not_by_folder():
+    """2026-10-13: Marine's and Texas Bay's October DCOs were copied into ARS Workbooks/ by hand and the
+    gaps page took them for October workbooks, clearing a real 'no 2026.10 ARS workbook' blocker."""
+    import common as C
+    assert C.kind_matches("Workbook", "1539-2026.09-Marine FCU-Workbook_v2_1_0.xlsx")
+    assert not C.kind_matches("Workbook", "1539-2026.10-Marine FCU-DCO v2_2.xlsx")
+    assert not C.kind_matches("Workbook", "1539-2026.10-MRPC-Marine FCU-MRPCPM_Analysis_v10.xlsx")
+    assert C.kind_matches("DCO", "1509-2026.10-Texas Bay Credit Union-DCO v2_2.xlsx")
+    assert not C.kind_matches("DCO", "1509-2026.10-Texas Bay Credit Union-Workbook_v2_1_0.xlsx")
+    assert C.kind_matches("MRPCPM", "1539-2026.10-MRPC-Marine FCU-MRPCPM_Analysis_v10.xlsx")
+    assert C.kind_matches("ICS workbook", "1100-2026.09-Rally CU-Invitation Checking Workbook v1.7.1-DM.xlsx")
+    assert not C.kind_matches("ICS workbook", "1075-2026.07-Austin-Workbook_v2_1_0.xlsx")
+    assert C.kind_matches("Charts", "anything.xlsx")          # a kind with no token is taken as filed
+
+
 def test_the_share_history_scan_finds_every_file_and_only_ars_workbooks(tmp_path):
     import missing_wb_history as H
     for rel in ["2026.08/Jordan Berkowitz/1805-2026.08-Texar FCU-DCO v2_2.xlsx",

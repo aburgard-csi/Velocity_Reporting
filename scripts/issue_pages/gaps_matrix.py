@@ -9,7 +9,7 @@ import csv, json, re, sys
 from collections import Counter
 from pathlib import Path
 
-from common import R, trial_dir, work_dir  # noqa: E402
+from common import R, trial_dir, work_dir, kind_matches  # noqa: E402
 import build_month as BM     # noqa: E402
 import base_guard as BG      # noqa: E402
 
@@ -36,8 +36,10 @@ trial = json.load(open(trial_p, encoding="utf-8")) if trial_p.exists() else {}
 
 
 def kind_files(kind, cid):
+    """This client's files of `kind` in the kind's folder — by the name's token, not the folder alone
+    (a DCO dropped into ARS Workbooks/ by hand is still a DCO; common.KIND_TOKEN)."""
     d = I / R.INPUT_KIND_DIRS[kind]
-    return sorted(p.name for p in d.glob(f"{cid}-*")) if d.exists() else []
+    return sorted(p.name for p in d.glob(f"{cid}-*") if kind_matches(kind, p.name)) if d.exists() else []
 
 
 def per(name):

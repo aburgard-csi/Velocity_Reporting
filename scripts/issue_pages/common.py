@@ -43,6 +43,25 @@ def odd_findings(items, cats, period, generated):
     return {"period": period, "generated": generated, "findings": out}
 
 
+# What a file of each kind is called: the token the data team's names carry. A folder is sorted by
+# kind on arrival, but a file dropped in by hand lands wherever the hand put it — on 2026-10-13
+# Marine's and Texas Bay's October DCOs sat in `ARS Workbooks/`, and `gaps_matrix` took them for
+# October workbooks, which cleared both clients' "no 2026.10 ARS workbook" blocker off the pages.
+KIND_TOKEN = {
+    "DCO": r"-DCO\b",
+    "Workbook": r"-Workbook",                 # the ARS workbook; an MRPCPM analysis never says Workbook
+    "MRPCPM": r"MRPCPM",
+    "ICS workbook": r"Invitation Checking",
+}
+
+
+def kind_matches(kind, name):
+    """True when `name` is a file of `kind` by the token in its name, whatever folder it is in."""
+    import re
+    rx = KIND_TOKEN.get(kind)
+    return True if rx is None else bool(re.search(rx, name, re.I))
+
+
 def work_dir():
     """`Build Artifacts/issue_pages/`, created on demand."""
     d = R.build_artifacts() / "issue_pages"
