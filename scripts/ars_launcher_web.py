@@ -408,6 +408,28 @@ def clients_doc(fresh=False):
     return _served_clients()
 
 
+STOP_LABELS = [          # the launcher's stop lines, shortened for a list chip (first match wins)
+    ("ODD extract", "ODD extract"), ("ARS workbook", "ARS workbook"), ("DCO", "DCO"),
+    ("Lift Matrix", "Lift Matrix"), ("Not an ARS client", "not an ARS client"), ("Not a ", "product list"),
+    ("clients.md", "clients.md"), ("is not in Client CSM List", "CSM list"), ("ships a combined", "combined deck"),
+    ("No program has the data", "no data"), ("No other program", "no data"), ("VPN", "VPN"),
+]
+
+
+def stop_label(checks):
+    """A few words naming the first stop in a status's checks, for the list's Blocked chip."""
+    for k in checks:
+        if (k.get("level") if isinstance(k, dict) else k[0]) != L.STOP:
+            continue
+        text = k.get("text") if isinstance(k, dict) else k[1]
+        for needle, label in STOP_LABELS:
+            if needle in text:
+                return label
+        head = text.split(":")[0].strip()
+        return head if 0 < len(head) <= 32 else "see checks"
+    return None
+
+
 def _served_clients():
     with _clients_lock:
         doc, at, refreshing, err = _clients["doc"], _clients["at"], _clients["busy"] is not None, _clients["error"]
@@ -421,19 +443,21 @@ def _served_clients():
     for c in doc["clients"]:
         c = dict(c)
         c.pop("result_written", None)
-        c["lift_expired"] = _lift.get(c["id"]) == L.STOP
+        c["lift_expired"] = "ARS" in (c.get("programs") or []) and _lift.get(c["id"]) == L.STOP
         # "Ready": the stored status says every pre-build check passes (a deck already in Outputs is "ask",
         # a missing input is "stop"). Only a status for the cycle on screen, and not older than STATUS_TTL,
-        # counts: an old "ready" must not read as one now.
+        # counts: an old "ready" must not read as one now. "Blocked" is the same status saying stop, with
+        # the first stop's subject so the list says what is missing (Aaron, 2026-10-13: "more status options").
         hit = checked.get(c["id"])
-        c["ready"] = bool(hit and now - hit[0] < STATUS_TTL and hit[1].get("period") == period
-                          and hit[1].get("state") == "ready")
+        current = bool(hit and now - hit[0] < STATUS_TTL and hit[1].get("period") == period)
+        c["ready"] = current and hit[1].get("state") == "ready"
+        c["blocked"] = stop_label(hit[1].get("checks") or []) if current and hit[1].get("state") == "stop" else None
         job = jobs.get(c["id"])
         if job:
             # A build this server ran is known now, not at the next refresh.
             c["error"] = job.done and bool(job.code)
             deck = job.deck_name() if job.done and not job.code else None
-            if (deck and period and deck.startswith(f"{c['id']}-{period}-") and "ARS" in deck
+            if (deck and period and deck.startswith(f"{c['id']}-{period}-")
                     and deck not in c["decks"]):
                 c["decks"] = sorted(c["decks"] + [deck])
         clients.append(c)
@@ -1785,7 +1809,7 @@ PAGE = r"""<!doctype html>
 <title>CSM Sheila</title>
 <style>
 :root{
-  --navy:#00274C; --orange:#F47A29; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
+  --navy:#00274C; --orange:#F47A29; --teal:#0E9F8C; --gold:#D9A21B; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
   --ink:#0E1B2A; --ink2:#566370; --ink3:#8793A0; --rule:#D8DEE5;
   --ok:#1E7F4F; --ok-bg:#E4F3EB; --warn:#9A6212; --warn-bg:#FBF0DC; --sent:#245C8C; --sent-bg:#E6EEF6;
   --stop:#B42318; --stop-bg:#FCE9E7; --focus:#F47A29; --sel:#E9EFF6;
@@ -1832,21 +1856,28 @@ label.small{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform
 input,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:7px;padding:7px 9px;width:100%}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .list{overflow:auto;padding:6px}
-.client{display:grid;grid-template-columns:3.4em 1fr;gap:2px 8px;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-radius:7px;padding:8px 9px;cursor:pointer}
+.client{display:grid;grid-template-columns:3.4em 1fr auto;gap:2px 8px;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-top:1px solid var(--rule);border-radius:0;padding:8px 9px;cursor:pointer}
+.grouphead + .client,.legend + .client{border-top:0}
 .client:hover{background:var(--soft)}
 .client[aria-current="true"]{background:var(--sel)}
 .client .id{font-family:Consolas,monospace;font-size:13px;color:var(--ink2);padding-top:1px}
 .client .nm{font-weight:600}
-.client .meta{grid-column:2;display:flex;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--ink2)}
+.client .meta{grid-column:2/4;display:flex;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--ink2)}
+.client .meta:empty{display:none}
+/* Option B (Aaron, 2026-10-13): four dots in a fixed order, ARS · ICS · MRPC · CP, in their own right-hand
+   column; filled when the program is in this client's deck, grey when not. The legend sits at the top of the list. */
+.pdots{grid-column:3;grid-row:1;display:inline-flex;gap:4px;align-items:center;padding-top:5px}
+.pdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--rule);border:0}
+.pdot.ars{background:var(--navy)} .pdot.ics{background:var(--orange)} .pdot.mrpc{background:var(--teal)} .pdot.cp{background:var(--gold)}
+.legend{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--ink2);padding:6px 9px 4px}
+.legend .pdot{margin-right:4px;vertical-align:-1px}
+.chip.blocked{background:var(--stop-bg);color:var(--stop)}
 .grouphead{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);padding:12px 9px 4px}
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap}
 .chip.sent{background:var(--sent-bg);color:var(--sent)} .chip.out{background:var(--ok-bg);color:var(--ok)}
 .chip.stop{background:var(--stop-bg);color:var(--stop)} .chip.ready{background:var(--ok-bg);color:var(--ok)}
 .chip.queue{background:var(--warn-bg);color:var(--warn)} .chip.building{background:var(--orange);color:#fff}
 .chip.error{background:#C62828;color:#fff}
-.progs{display:inline-flex;gap:3px;margin-left:6px;vertical-align:1px}
-.prog{display:inline-block;font:700 9.5px/1 "Segoe UI",Arial,sans-serif;letter-spacing:.03em;padding:2px 5px;border-radius:999px;border:1px solid var(--rule);color:var(--ink2);background:transparent;white-space:nowrap}
-.prog.on{background:var(--navy);border-color:var(--navy);color:#fff}
 main{padding:22px 24px;min-height:420px}
 .empty{color:var(--ink2);max-width:60ch}
 .empty h2{color:var(--ink);font-size:18px;margin:0 0 6px}
@@ -2075,24 +2106,19 @@ function recall(k) { try { return localStorage.getItem(k); } catch (e) { return 
 
 function shortDate(d) { if (!d) return ""; const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString(undefined, {month: "short", day: "numeric"}); }
 
-// Pills after the client name (Aaron, 2026-10-13): the products this client's deck covers, filled;
-// the client's other Velocity products that the deck does not cover, outlined. Short names only.
-const PROD_SHORT = {"ARS": "ARS", "ICS": "ICS", "MRPC": "MRPC", "CP": "CP", "CASHPLEASE": "CP", "ILS": "ILS",
-                    "REG E MANAGEMENT": "Reg E", "ACCOUNT ENGAGEMENT": "AE", "ILS TIS": "TIS",
-                    "ARS CREDIT CARD REWARDS": "CC Rewards", "PROFESSIONAL SERVICES": "Pro Svcs"};
-function progPills(c) {
-  const covered = c.covered || [];
-  const seen = new Set(covered);
-  let h = covered.map(p => `<span class="prog on" title="${esc(p)} is in this client's deck">${esc(PROD_SHORT[p] || p)}</span>`).join("");
-  for (const prod of (c.products || [])) {
-    const key = prod.toUpperCase(), short = PROD_SHORT[key] || prod;
-    const norm = short === "CP" ? "CP" : key;
-    if (seen.has(norm) || seen.has(short)) continue;
-    seen.add(norm);
-    h += `<span class="prog" title="${esc(prod)}: a Velocity product this deck does not cover">${esc(short)}</span>`;
-  }
-  return h ? `<span class="progs">${h}</span>` : "";
+// Four dots after each client, fixed order ARS · ICS · MRPC · CP (Aaron, 2026-10-13, option B): filled when
+// the program is in this client's deck, grey when not, so every row has the same shape and nothing wraps.
+// The client's other Velocity products are on the client page, not in the list.
+const DOT_ORDER = ["ARS", "ICS", "MRPC", "CP"], DOT_NAME = {ARS: "ARS", ICS: "ICS", MRPC: "MRPC", CP: "CashPlease"};
+function dots(c) {
+  const covered = new Set(c.covered || []);
+  const title = DOT_ORDER.filter(p => covered.has(p)).map(p => DOT_NAME[p]).join(" · ") || "no program";
+  // "pdot", not "dot": the build-progress steps already use .dot (12px, 2px border), and the program dots
+  // picked that border up the first time (Aaron, 2026-10-13: "the dots worked without the border").
+  return `<span class="pdots" title="${esc(title)}">` +
+    DOT_ORDER.map(p => `<span class="pdot${covered.has(p) ? " " + p.toLowerCase() : ""}"></span>`).join("") + `</span>`;
 }
+const LEGEND = `<div class="legend">` + DOT_ORDER.map(p => `<span><span class="pdot ${p.toLowerCase()}"></span>${DOT_NAME[p]}</span>`).join("") + `</div>`;
 
 function renderList() {
   const csm = $("#csm").value, q = $("#q").value.trim().toLowerCase();
@@ -2102,17 +2128,20 @@ function renderList() {
     if (!csm && c.csm !== last) { html += `<div class="grouphead">${esc(c.csm)}</div>`; last = c.csm; }
     // No "Sent" chip: only Aaron records sends, and other CSMs have nowhere to mark theirs (2026-09-15).
     const place = QUEUE.queued.indexOf(c.id);
+    const idle = QUEUE.building !== c.id && place < 0;
     const chips = [QUEUE.building === c.id ? `<span class="chip building">Building</span>` : "",
                    place >= 0 ? `<span class="chip queue">Queued #${place + 1}</span>` : "",
-                   c.error && QUEUE.building !== c.id && place < 0 ? `<span class="chip error">Error ${esc(PERIOD || "")}</span>` : "",
-                   c.ready && QUEUE.building !== c.id && place < 0 && !c.error && !c.lift_expired && !c.decks.length
+                   c.error && idle ? `<span class="chip error">Error ${esc(PERIOD || "")}</span>` : "",
+                   c.ready && idle && !c.error && !c.lift_expired && !c.decks.length
                      ? `<span class="chip ready">Ready</span>` : "",
+                   c.blocked && idle && !c.lift_expired && !c.decks.length
+                     ? `<span class="chip blocked" title="The checks stop here; open the client to see why">Blocked · ${esc(c.blocked)}</span>` : "",
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
-      <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}${progPills(c)}</span><span class="meta">${chips}</span></button>`;
+      <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span>${dots(c)}<span class="meta">${chips}</span></button>`;
   }
-  $("#list").innerHTML = html || `<p class="note" style="padding:10px">No clients match.</p>`;
+  $("#list").innerHTML = html ? LEGEND + html : `<p class="note" style="padding:10px">No clients match.</p>`;
 }
 
 // The list is served from the server's memory and rebuilt behind it (2026-09-17). The page shows the last

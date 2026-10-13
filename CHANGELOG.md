@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — Sheila's list: four dots per client, dividers, and a Blocked chip
+
+Summary: Each client in CSM Sheila's list now shows four dots in a fixed order (ARS, ICS, MRPC,
+CashPlease) in a right-hand column, filled when the program is in their deck, with a legend at the
+top and hairline dividers between rows. A client whose checks stop shows a red "Blocked · <what>"
+chip beside Ready, Building, Queued, Error and In Outputs.
+
+The pills added earlier the same day wrapped under some names and sat beside others, because a
+client's pills ran from two to six; Aaron chose dots in their own column ("go with B") so every row
+has one shape and the column grows with the window. The client's other Velocity products left the
+list; they stay on the client page. "We could add more status options": the Blocked chip comes from
+the same stored status as Ready, naming the first stop's subject (`stop_label`: ODD extract, ARS
+workbook, DCO, Lift Matrix, no data, product list, clients.md). `tests/test_ars_launcher_web.py`
+pins it.
+
 ### 2026-10-13 — An ODD extract landed by hand vouches for itself by its own pull stamp
 
 Summary: An ODD extract a CSM copies straight into Inputs (one that never crossed the share) now

@@ -276,6 +276,20 @@ def test_the_list_names_the_products_each_deck_covers():
     assert W.covered_programs([], None) == []
 
 
+def test_the_list_names_what_blocks_a_client_in_a_few_words():
+    """Aaron, 2026-10-13: "we could add more status options". The Blocked chip carries the subject of the
+    first stop, from the same stored status that makes the Ready chip."""
+    S = W.L.STOP
+    assert W.stop_label([{"level": "ok", "text": "1539 Marine FCU"},
+                         {"level": S, "text": "ODD extract: previous month (2026-10-06); no 2026.10 extract at source. Data team: ..."}]) == "ODD extract"
+    assert W.stop_label([(S, "ARS workbook: not copied. Data team: land this month's ARS workbook")]) == "ARS workbook"
+    assert W.stop_label([(S, "Lift Matrix: expired (window Aug 2025 – Jul 2026, data Sep 2026)")]) == "Lift Matrix"
+    assert W.stop_label([(S, "No program has the data it needs this period, so there is nothing to build.")]) == "no data"
+    assert W.stop_label([(S, "Not a CashPlease client: the Velocity product list shows ILS.")]) == "product list"
+    assert W.stop_label([(S, "Something unusual happened")]) == "Something unusual happened"
+    assert W.stop_label([(W.L.OK, "fine")]) is None and W.stop_label([]) is None
+
+
 def test_the_builds_on_offer_for_a_client_with_no_ars_are_one_deck_of_everything_with_data():
     """Aaron, 2026-10-13: CP only, ICS only, MRPC only and any mix of those come to Sheila. One button,
     named for the programs with data; the ARS-only button and the Lift Matrix never appear."""
