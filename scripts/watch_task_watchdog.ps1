@@ -144,10 +144,21 @@ function Watch-RanToday {
 # healthy run would already be well underway or finished. A process still
 # under $MinAgeSecondsToJudge old is given the benefit of the doubt even if
 # its counters look thin, because every process starts at 0/0 for an instant.
+#
+# Each stuck process is WRITTEN TO THE PIPELINE as its own object, and every caller wraps the
+# call in @(). That is the one shape Windows PowerShell 5.1 counts right for 0, 1 and n: @()
+# of no output is empty, of one object is a one-element array, of n objects an n-element array.
+# Two earlier shapes each failed on a count. Returning the collected array bare unrolled a
+# single process to a scalar [pscustomobject], which has no .Count, so one suspended process
+# read as none (2026-10-07). Returning it as `,$stuck` to stop that unrolling then met the
+# @() at the call site, which wrapped the array AGAIN: no process came back as one element
+# (an empty array), so an attempt whose retry was running fine logged "found 1 stuck
+# process(es)" and a line with every field blank -- "PID  (parent ): age s, CPU , handles  --"
+# -- and fired the task a second time (2026-10-08, 2026-10-12). Do not return a collection
+# from this function.
 function Find-StuckWatchProcesses {
     $procs = Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='python.exe'" |
         Where-Object { $_.CommandLine -and $_.CommandLine -like "*watch_sources.py*" }
-    $stuck = @()
     foreach ($p in $procs) {
         $ageSec = ((Get-Date) - $p.CreationDate).TotalSeconds
         if ($ageSec -lt $MinAgeSecondsToJudge) { continue }
@@ -165,18 +176,13 @@ function Find-StuckWatchProcesses {
         if ($cpu -lt 0.05 -and $handles -lt 10) { $reason = "created suspended" }
         elseif ($ageSec -ge $MaxAgeSecondsAlive) { $reason = "older than $MaxAgeSecondsAlive s" }
         if ($reason) {
-            $stuck += [pscustomobject]@{
+            [pscustomobject]@{
                 ProcessId = $p.ProcessId; ParentProcessId = $p.ParentProcessId
                 AgeSeconds = [int]$ageSec; CPU = $cpu; Handles = $handles
                 Reason = $reason; CommandLine = $p.CommandLine
             }
         }
     }
-    # The comma keeps a single result an ARRAY. Returned bare, one object is unrolled to a scalar, and a
-    # [pscustomobject] has no .Count in Windows PowerShell 5.1: `if ($stuck.Count -gt 0)` was then false and
-    # a lone suspended process logged "no suspended process found" (2026-10-07; every success in the log
-    # before it was a pair, never a single process).
-    return ,$stuck
 }
 
 function Kill-ProcessTree([int]$rootPid) {
@@ -196,7 +202,7 @@ function Kill-StuckRoots($stuck) {
     }
     # Kill from the roots -- a process in this list with no parent ALSO in
     # this list is a root; killing it recursively takes its children too.
-    $pidSet = $stuck.ProcessId
+    $pidSet = @($stuck | ForEach-Object { $_.ProcessId })
     $roots = @($stuck | Where-Object { $pidSet -notcontains $_.ParentProcessId })
     foreach ($r in $roots) { Kill-ProcessTree -rootPid $r.ProcessId }
 }
@@ -218,7 +224,7 @@ if (Watch-RanToday) {
 Write-Log "=== watchdog: no run has reached the shares today ==="
 $attempt = 1
 while ($attempt -le $MaxAttempts) {
-    $stuck = @(Find-StuckWatchProcesses)         # @() as well: never trust a function's result to stay an array
+    $stuck = @(Find-StuckWatchProcesses)         # @() at every call: the function emits one object per process
     if ($stuck.Count -gt 0) {
         Write-Log ("attempt {0}: found {1} stuck process(es) for '{2}':" -f $attempt, $stuck.Count, $MainTaskName)
         Kill-StuckRoots $stuck

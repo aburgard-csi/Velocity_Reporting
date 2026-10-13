@@ -266,6 +266,15 @@ watchdog"). Three things that day and the next showed; two are now explained and
   Windows PowerShell 5.1 unrolls one result to a scalar with no `.Count`, so a single
   stuck process was never counted — every "found" line in the log was a pair. Fixed
   (`, $stuck` and `@()` at the call site; `tests/test_watchdog_single_process.py`).
+  **That fix over-corrected** (2026-10-08 and 2026-10-12): `,$stuck` met the `@()` at the
+  call site and the result was wrapped twice, so NO process came back as one element, an
+  empty array. Attempts 2 and 3 of each of those mornings logged "found 1 stuck
+  process(es)", then `PID  (parent ): age s, CPU , handles  --` with every field blank,
+  killed nothing and fired the task again while the retry they had just started was
+  running. Fixed 2026-10-13 ("fix the watchdog log bug too"): the function writes each
+  stuck process to the pipeline as its own object and the callers keep their `@()`, the
+  one shape that counts right for none, one and several. The tests now call it the way the
+  script does and pin the empty case, the per-process fields and the logged line.
 - **The run that reached the shares then hung in its mail step** (13:49 on 10-05, until
   killed by hand that evening; again from 08:16 on 10-06). The endpoint agent relaunches
   every python start as a child with the same command line; a relaunch it leaves suspended
