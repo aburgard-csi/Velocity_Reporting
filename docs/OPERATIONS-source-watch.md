@@ -184,6 +184,22 @@ pins it. A client `clients.md` marks as stopped (1437 Canandaigua, ended) gets n
 copied at all — no extract, DCO or workbook — even though the data team keeps landing its
 files.
 
+**The share refuses some zipped extracts, silently (2026-10-13, 1815 FedChoice).** The log
+read `1815_ODDD.zip FAILED: size mismatch after copy (13838993 vs 13410387)` on 10-07, 10-08
+and 10-13 while `Inputs/ODDD/1815_ODDD.zip` stayed September's (13.8 MB; October's is 13.4 MB).
+Probed by hand: a `.part` file, a plain zip and both raw CSVs written to `Inputs/ODDD` survive;
+a zip holding the ODD CSV alone survives; the full extract — the ODD CSV plus the data team's
+`…_monthlytrans.csv` — vanishes the instant it is written, under any name, and `shutil.copy2`
+returns without an error. So `os.replace` of the vanished `.part` failed, the fallback write
+left the old file in place, and the size check reported the old file's size. 1147's extract,
+packed with a different kind of transaction file, is held, so the refusal is by content — the
+same agent that refuses four `Inputs/Txn Files` zips. `apply_copies` now falls back to
+`_land_odd_member_only`: the ODD member(s) written into a new zip with their original entries
+(the pull stamp `deck_status.odd_stamp_period` reads is unchanged), `reduced` on the record,
+and the report line names what was left out. The reduced copy's write time is newer than the
+source, so the next morning's "differs" is left alone by the changed-on-purpose guard. October's
+1815 extract was landed this way by hand at 15:05 (2.5 MB, stamp 2026.10).
+
 **A "differs" file is overwritten only when the SOURCE is the newer write.** A local
 copy modified after the landing is a deliberate change, not a re-landing — a workbook
 opened and saved in Excel so its formulas carry values, which is what the extractors

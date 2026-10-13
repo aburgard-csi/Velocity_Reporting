@@ -310,6 +310,77 @@ def test_apply_copies_reports_a_failure_instead_of_raising(tmp_path):
     assert rec["local"] == "not copied"
 
 
+# 1815 FedChoice, 2026-10-13: the share's security agent deletes a zip that carries the data
+# team's monthly transaction file the moment it is written, under any name, while it holds
+# the raw CSVs and a zip of the ODD member alone. The full copy "succeeded" without an error,
+# the .part was gone, and three mornings logged "size mismatch after copy" while Inputs kept
+# September's extract. Every deck reads only the ODD member.
+ODD_NAME = "1815-2026-10-FedChoice FCU-ODD  (Oct23 forward) (100726_084802)_V2_1_1.csv"
+TXN_NAME = "1815_32485_[2026.10.07][08.21.28]_monthlytrans.csv"
+
+
+def _extract_zip(path, members):
+    import zipfile
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, body in members:
+            z.writestr(name, body)
+    return os.path.getsize(path)
+
+
+def _agent_that_deletes_full_zips(monkeypatch):
+    """shutil.copy2 as the share behaves: a written zip holding a non-ODD member vanishes."""
+    import shutil, zipfile
+    real = shutil.copy2
+
+    def copy2(src, dst, *a, **k):
+        real(src, dst, *a, **k)
+        try:
+            with zipfile.ZipFile(dst) as z:
+                names = z.namelist()
+        except zipfile.BadZipFile:
+            return
+        if set(names) - set(W._odd_members(names)):
+            os.remove(dst)
+    monkeypatch.setattr(shutil, "copy2", copy2)
+
+
+def test_an_extract_the_share_refuses_is_landed_as_its_odd_member_alone(tmp_path, monkeypatch):
+    import zipfile
+    src = tmp_path / "share" / "1815_ODDD.zip"; src.parent.mkdir()
+    size = _extract_zip(src, [(ODD_NAME, b"odd rows\n" * 200), (TXN_NAME, b"txn rows\n" * 300)])
+    dest = tmp_path / "Inputs" / "ODDD" / "1815_ODDD.zip"; dest.parent.mkdir(parents=True)
+    _extract_zip(dest, [(ODD_NAME.replace("-10-", "-09-").replace("100726", "090326"), b"old\n" * 50)])
+    _agent_that_deletes_full_zips(monkeypatch)
+    rec = _rec(W.ODDD, "1815", "2026.10", "differs", path=str(src), size=size)
+    out = W.apply_copies([(rec, str(dest))])
+    assert out[0][2] == "copied" and rec["local"] == "copied"
+    with zipfile.ZipFile(dest) as z:
+        assert z.namelist() == [ODD_NAME] and z.read(ODD_NAME) == b"odd rows\n" * 200
+    assert rec["reduced"]["left_out"] == [TXN_NAME] and rec["reduced"]["kept"] == [ODD_NAME]
+    assert rec["reduced"]["size"] == os.path.getsize(dest) != size
+    assert not (tmp_path / "Inputs" / "ODDD" / "1815_ODDD.zip.part").exists()
+    line = [l for l in W._copies_section({"copies": out}) if "1815" in l][0]
+    assert "ODD member only" in line and TXN_NAME in line and "refused the full zip" in line
+
+
+def test_an_extract_with_only_an_odd_member_still_fails_on_a_mismatch(tmp_path, monkeypatch):
+    """Nothing to leave out: the original failure is reported, never a silent partial copy."""
+    src = tmp_path / "share" / "1549_ODDD.zip"; src.parent.mkdir()
+    size = _extract_zip(src, [(ODD_NAME.replace("1815", "1549"), b"odd\n" * 100)])
+    dest = tmp_path / "Inputs" / "ODDD" / "1549_ODDD.zip"; dest.parent.mkdir(parents=True)
+    rec = _rec(W.ODDD, "1549", "2026.10", "not copied", path=str(src), size=size + 1)
+    out = W.apply_copies([(rec, str(dest))])
+    assert out[0][2].startswith("FAILED: size mismatch") and "ODD member alone" in out[0][2]
+    assert "reduced" not in rec
+
+
+def test_a_workbook_mismatch_is_never_reduced(tmp_path):
+    src = tmp_path / "src.xlsx"; src.write_bytes(b"x" * 9)
+    rec = _rec(W.DCO, "1038", "2026.09", "not copied", path=str(src), size=10)
+    out = W.apply_copies([(rec, str(tmp_path / "d" / "x.xlsx"))])
+    assert out[0][2] == "FAILED: size mismatch after copy (9 vs 10)"
+
+
 def test_copy_flag_copies_only_when_not_dry_run(shares, tmp_path, monkeypatch, capsys):
     oddd, reports, held = shares
     _land(reports, "2026.09", "Aaron Burgard", "1038-2026.09-Sugar River-DCO v2_2.xlsx")

@@ -405,15 +405,55 @@ def _source_is_newer(rec, dest):
         return True
 
 
+def _odd_members(names):
+    """The ODD member(s) of an extract zip, by the readers' own rule (rpe_env.odd_member_info,
+    metrics_gen, oddd_optimize): a .csv named "-ODD" or "_V2_". Anything else in the zip is
+    the data team's monthly transaction file."""
+    return [n for n in names if n.lower().endswith(".csv")
+            and ("-odd" in os.path.basename(n).lower() or "_v2_" in os.path.basename(n).lower())]
+
+
+def _land_odd_member_only(rec, dest):
+    """Re-land an ODD extract the share refuses, as a zip holding only its ODD member(s).
+
+    The CSM_Reporting share holds the raw CSVs and a zip of the ODD member alone, but a
+    security agent deletes a zip that carries the monthly transaction file the data team
+    packs beside it — the moment it is written, under any name (1815 FedChoice, 2026-10-13:
+    the full zip "copied" without an error and the .part was gone; three mornings of
+    "size mismatch after copy" while Inputs kept September's extract). Every deck reads
+    only the ODD member; the transaction member feeds one opt-in review view. The reduced
+    zip is written with the members' own entries, so the pull stamp the readers date the
+    extract by is unchanged. Raises OSError when there is nothing to leave out or the share
+    refuses the ODD member too; the caller reports the original failure then."""
+    import zipfile
+    with zipfile.ZipFile(rec["path"]) as zin:
+        names = zin.namelist()
+        keep = _odd_members(names)
+        if not keep or len(keep) == len(names):
+            raise OSError("no separable transaction member to leave out")
+        part = dest + ".part"
+        with zipfile.ZipFile(part, "w", zipfile.ZIP_DEFLATED) as zout:
+            for n in keep:
+                zout.writestr(zin.getinfo(n), zin.read(n))
+    expected = os.path.getsize(part)
+    os.replace(part, dest)
+    if not os.path.exists(dest) or os.path.getsize(dest) != expected:
+        raise OSError("the share refused the ODD member on its own too")
+    rec["reduced"] = {"size": expected, "kept": keep, "left_out": [n for n in names if n not in keep]}
+
+
 def apply_copies(plan):
     """Copy each planned file. Copy-only: nothing at the destination is ever
     deleted, and some mounts refuse deletes anyway. Writes to a `.part` file
     first and renames it over the target so a copy that dies half way never
     leaves a truncated extract under the real name; if the rename is refused,
-    falls back to writing the target directly. Size is verified after.
+    falls back to writing the target directly. Size is verified after. An ODD
+    extract the share will not hold whole is re-landed as its ODD member alone
+    (`_land_odd_member_only`; the record then carries `reduced`).
 
     Returns [(record, destination, outcome)], outcome "copied" or an error."""
     import shutil
+    import zipfile
     out = []
     for rec, dest in plan:
         try:
@@ -428,9 +468,18 @@ def apply_copies(plan):
                     os.remove(part)
                 except OSError:
                     pass
-            if os.path.getsize(dest) != rec["size"]:
-                raise OSError("size mismatch after copy (%d vs %d)"
-                              % (os.path.getsize(dest), rec["size"]))
+            try:
+                got = os.path.getsize(dest)
+            except OSError:
+                got = -1
+            if got != rec["size"]:
+                mismatch = "size mismatch after copy (%d vs %d)" % (got, rec["size"])
+                if rec["kind"] != ODDD:
+                    raise OSError(mismatch)
+                try:
+                    _land_odd_member_only(rec, dest)
+                except (OSError, zipfile.BadZipFile) as e2:
+                    raise OSError("%s; ODD member alone: %s" % (mismatch, e2))
             rec["local"] = "copied"
             out.append((rec, dest, "copied"))
         except OSError as e:
@@ -905,6 +954,15 @@ def render(result, roster):
     return "\n".join(head + body + _copies_section(r))
 
 
+def _reduced_note(rec):
+    """' (ODD member only: ...)' for an extract re-landed without its transaction member."""
+    red = rec.get("reduced")
+    if not red:
+        return ""
+    return (" — ODD member only (%s): the share refused the full zip; left out %s"
+            % (_fmt_size(red.get("size")), ", ".join("`%s`" % n for n in red.get("left_out") or [])))
+
+
 def _copies_section(result):
     """The copy step's outcome, appended to whichever report shape rendered."""
     done, planned = result.get("copies") or [], result.get("copy_plan") or []
@@ -913,7 +971,8 @@ def _copies_section(result):
         ok = [x for x in done if x[2] == "copied"]
         bad = [x for x in done if x[2] != "copied"]
         out += ["", "## Copied into Inputs (%d)" % len(ok) + (", %d FAILED" % len(bad) if bad else ""), ""]
-        out += ["- **%s** %s — `%s` -> `%s`" % (r["kind"], r["client"], r["name"], d) for r, d, _ in ok]
+        out += ["- **%s** %s — `%s` -> `%s`%s" % (r["kind"], r["client"], r["name"], d, _reduced_note(r))
+                for r, d, _ in ok]
         out += ["- **%s** %s — `%s` %s" % (r["kind"], r["client"], r["name"], o) for r, d, o in bad]
     elif planned:
         out += ["", "## Would copy into Inputs (%d) — dry run" % len(planned), ""]
