@@ -600,6 +600,12 @@ month — so last month's extract sits at the same path under the same name and
 reports that as **stale**, and stale blocks exactly as hard as missing: a build
 on the previous month's ODD completes, validates, and reports the wrong month.
 Off VPN the period cannot be confirmed and is reported as unknown, not current.
+**The watch's landing record also counts as the source saying so** (2026-10-13): when the
+share no longer holds this period's file but `source_watch.json` recorded an ODDD landing
+for this client and period whose size matches the copy, `deck_status.watch_landing` vouches
+for it (1539 Marine's October extract was taken back off the share a week after the watch
+copied it, and Sheila called the copy "previous month"). A record of a different size, or no
+record, is the stale case it always was.
 
 **ICS workbooks arrive by email, not on the share (Aaron, 2026-08-31).** They
 have no source-side signal, so their source column is `n/a` and a missing one

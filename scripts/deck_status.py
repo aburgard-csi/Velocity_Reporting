@@ -227,6 +227,31 @@ def _same_file(a, b):
         return False
 
 
+def watch_landing(cid, period):
+    """The source watch's record of `<cid>_ODDD.zip` landing in a `period` folder, or None.
+
+    The inventory (`source_watch.json`) is what the share said at the watch's last scan. A
+    file the data team has since taken back off the share was still this period's extract
+    when the watch copied it: 1539 Marine's 2026.10 extract landed on 2026-10-06, was copied,
+    and had gone from the share by 2026-10-13, which read as "previous month; no 2026.10
+    extract at source" against a copy that was October's (Aaron, 2026-10-13). The record
+    carries the size, which is what identifies an extract (see `_same_file`).
+    """
+    if not os.environ.get("RPE_DATA_ROOT"):
+        return None
+    try:
+        import watch_sources as W
+        state = W.read_state()
+    except BaseException:                   # no inventory, or a damaged one: no vouching
+        return None
+    if not state:
+        return None
+    hits = [v for v in state.get("files", {}).values()
+            if v.get("kind") == "ODDD" and str(v.get("client")) == str(cid)
+            and v.get("period") == period and v.get("size")]
+    return max(hits, key=lambda v: v.get("mtime") or 0) if hits else None
+
+
 def _vip_sheet(cid, program):
     """The VIP sheet for one client, via the manifest resolver.
 
@@ -302,8 +327,16 @@ def requirements(cid, progs, period, reports_dir, oddd_dir, src_files, src_up):
             local_odd = _stat(UNKNOWN, "held, period unconfirmed "
                                        "(" + _mtime(z) + ")", "local")
         elif src_file is None:
-            local_odd = _stat(STALE, "previous month (" + _mtime(z) + "); no "
-                              + period + " extract at source", "local")
+            # The source has no extract for this period NOW. The watch's inventory may still
+            # vouch for the copy: a landing it recorded for this period whose size matches.
+            rec = watch_landing(cid, period)
+            if rec and os.path.getsize(z) == rec["size"]:
+                landed = _dt.datetime.fromtimestamp(rec["mtime"]).strftime("%Y-%m-%d") if rec.get("mtime") else "?"
+                local_odd = _stat(PRESENT, _mtime(z) + "; the " + period + " extract the watch copied on "
+                                  + landed + ", since removed from the share", "local")
+            else:
+                local_odd = _stat(STALE, "previous month (" + _mtime(z) + "); no "
+                                  + period + " extract at source", "local")
         elif _same_file(z, src_file):
             local_odd = _stat(PRESENT, _mtime(z), "local")
         elif os.path.getmtime(z) + _MTIME_TOLERANCE < os.path.getmtime(src_file):

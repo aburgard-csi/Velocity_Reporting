@@ -62,6 +62,40 @@ def test_odd_on_drive_with_no_source_extract_is_stale(tmp_path, monkeypatch):
     assert "2026.09" in row["local"]["detail"]
 
 
+def test_a_copy_the_watch_recorded_for_this_period_is_present_after_the_source_file_goes(tmp_path, monkeypatch):
+    """1539 Marine's 2026.10 extract landed 2026-10-06, the watch copied it, and the file was
+    taken back off the share by 2026-10-13: the copy read as "previous month" though it was
+    October's (Aaron, 2026-10-13). The watch's landing record vouches for it when the size matches."""
+    reports, oddd = _dirs(tmp_path)
+    held = oddd / "1539_ODDD.zip"
+    held.write_bytes(b"october-extract")
+    monkeypatch.setattr(DS, "_oddd_month_dirs", lambda p, spec=None: [])
+    monkeypatch.setattr(DS, "watch_landing", lambda cid, period: {"size": len(b"october-extract"), "mtime": 1791291657.0})
+    row = _odd_row(DS.requirements("1539", ["ARS"], "2026.10", reports, oddd, [], True))
+    assert row["local"]["state"] == DS.PRESENT and "since removed from the share" in row["local"]["detail"]
+    # A record of a different file (another size) vouches for nothing.
+    monkeypatch.setattr(DS, "watch_landing", lambda cid, period: {"size": 999, "mtime": 1791291657.0})
+    assert _odd_row(DS.requirements("1539", ["ARS"], "2026.10", reports, oddd, [], True))["local"]["state"] == DS.STALE
+    # And no record at all is the stale case it always was.
+    monkeypatch.setattr(DS, "watch_landing", lambda cid, period: None)
+    assert _odd_row(DS.requirements("1539", ["ARS"], "2026.10", reports, oddd, [], True))["local"]["state"] == DS.STALE
+
+
+def test_watch_landing_reads_the_inventory_by_client_and_period(tmp_path, monkeypatch):
+    import watch_sources as W
+    inv = {"files": {
+        "a": {"kind": "ODDD", "client": "1539", "period": "2026.09", "size": 10, "mtime": 1.0},
+        "b": {"kind": "ODDD", "client": "1539", "period": "2026.10", "size": 20, "mtime": 2.0},
+        "c": {"kind": "DCO", "client": "1539", "period": "2026.10", "size": 30, "mtime": 3.0},
+        "d": {"kind": "ODDD", "client": "1075", "period": "2026.10", "size": 40, "mtime": 4.0}}}
+    monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    monkeypatch.setattr(W, "read_state", lambda path=None: inv)
+    assert DS.watch_landing("1539", "2026.10")["size"] == 20
+    assert DS.watch_landing("1539", "2026.08") is None
+    monkeypatch.setattr(W, "read_state", lambda path=None: (_ for _ in ()).throw(SystemExit("damaged")))
+    assert DS.watch_landing("1539", "2026.10") is None      # a damaged inventory vouches for nothing
+
+
 def test_identical_copy_is_not_stale(tmp_path, monkeypatch):
     """Same bytes => same extract, whatever the filesystems say about mtime."""
     reports, oddd = _dirs(tmp_path)
