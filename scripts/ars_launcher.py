@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-"""ARS deck launcher — build one client's ARS deck into Outputs without Claude.
+"""Deck launcher — build one client's Executive Review (or CashPlease module) into Outputs without Claude.
 
     python scripts/ars_launcher.py status <client id> [--period 2026.09]
     python scripts/ars_launcher.py build  <client id> [--period 2026.09] [--rebuild] [--combined]
 
-`--combined` builds one deck with ARS plus every other clients.md program that has the data it
-needs this period (`program_availability`): ICS from its VIP sheet or, without one, from the ICS
-workbook and referral files in Inputs; MRPC from its VIP sheet. The CSM chooses in CSM Sheila
-(Aaron, 2026-09-16: "add a second Create button so the CSM can elect to build an ARS only deck, or a
-combined deck for whichever products have the appropriate data").
+For an ARS client, `--combined` builds one deck with ARS plus every other clients.md program that
+has the data it needs this period (`program_availability`): ICS from its VIP sheet or, without one,
+from the ICS workbook and referral files in Inputs; MRPC from its VIP sheet. The CSM chooses in CSM
+Sheila (Aaron, 2026-09-16: "add a second Create button so the CSM can elect to build an ARS only
+deck, or a combined deck for whichever products have the appropriate data").
+
+A client with no ARS (Aaron, 2026-10-13: "bring CP only, ICS only, and MRPC only decks into Sheila,
+also any combination of those") builds the one deck their programs make — ICS, MRPC, ICS-CP,
+ICS-MRPC, ICS-MRPC-CP, or the standalone CashPlease module — from every program whose data is on
+hand; `--combined` is implied. The ARS-only rules below (the ODD extract, the workbook, the DCO, the
+Lift Matrix) apply to ARS clients only; a non-ARS client is checked on each program's own data.
 
 Anyone can run it, from `Build ARS Deck.bat` in the CSM_Reporting folder (Aaron, 2026-09-15: "a
 way where anyone can run an ARS deck so long as the inputs are in place ... without Claude").
@@ -75,8 +81,12 @@ STEPS = {
     "build_ars_gen.py": "Assembling the deck",
     "build_ics_gen.py": "Building the ICS section",
     "build_mrpc_gen.py": "Building the MRPC section",
+    "cp_extract.py": "Reading the CashPlease weekly",
+    "build_cp_gen.py": "Building the CashPlease slides",
     "assemble_combined.py": "Combining the sections",
 }
+# The Velocity product a program needs on the client's product list (Client CSM List `products`).
+PRODUCT_OF = {"ARS": "ARS", "ICS": "ICS", "MRPC": "MRPC", "CP": "CashPlease"}
 
 
 # ------------------------------------------------------------------ small helpers
@@ -128,6 +138,44 @@ def newest_workbook_period(cid):
     return max(pers) if pers else None
 
 
+# ------------------------------------------------------------------ who gets what
+def cp_roster_row(cid):
+    """The client's CashPlease roster row, or None (also None when the table cannot be read)."""
+    try:
+        import build_month as BM
+        return next((r for r in BM.read_cashplease_roster() if r["client_id"] == cid), None)
+    except SystemExit:
+        return None
+
+
+def covered_programs(progs, cp_row=None):
+    """The programs a client's deck covers, in section order: clients.md's tokens (ICS-REFERRALS
+    is ICS) plus CP when the CashPlease roster ships their slides as a section — or CP alone for
+    a standalone module client. Pure, so Sheila's list never waits on the share for it."""
+    base = []
+    for p in progs or []:
+        k = p.split("-")[0].upper()
+        if k in ("ARS", "ICS", "MRPC", "CP") and k not in base:
+            base.append(k)
+    if cp_row and cp_row.get("build") and "section" in (cp_row.get("ships_as") or "").lower() and "CP" not in base:
+        base.append("CP")
+    return [p for p in ("ARS", "ICS", "MRPC", "CP") if p in base]
+
+
+def standalone_cp(cp_row):
+    """A CashPlease roster row whose slides ship as their own module, not inside another deck."""
+    return bool(cp_row and cp_row.get("build") and "section" not in (cp_row.get("ships_as") or "").lower())
+
+
+def client_entry(cid, roster, cp_row=None):
+    """The client's roster entry (id, name, MM|SM|None, [programs]); for a standalone CashPlease
+    client, who is not on the main roster, one made from their CashPlease row with ["CP"]."""
+    entry = next((r for r in roster if r[0] == cid), None)
+    if entry is None and standalone_cp(cp_row):
+        return (cid, cp_row.get("client_name") or cid, None, ["CP"])
+    return entry
+
+
 # ------------------------------------------------------------------ the checks
 def program_availability(cid, period, programs):
     """For each clients.md program other than ARS: (ok, how or why not).
@@ -167,22 +215,25 @@ def program_availability(cid, period, programs):
                 out["MRPC"] = (True, "VIP MRPC sheet")
             except SystemExit:
                 out["MRPC"] = (False, "no VIP MRPC sheet")
-    cp = cashplease_availability(cid)
+    # "CP" in `programs` is the standalone module client (client_entry); a section rides on the
+    # CashPlease roster's say-so whatever the main roster row says.
+    cp = cashplease_availability(cid, standalone="CP" in programs)
     if cp is not None:
         out["CP"] = cp
     return out
 
 
-def cashplease_availability(cid):
-    """(ok, how or why not) for this client's CashPlease section, or None if they have none.
+def cashplease_availability(cid, standalone=False):
+    """(ok, how or why not) for this client's CashPlease slides, or None if they have none.
 
     Read from the CashPlease ROSTER in clients.md, never from the weekly workbook, which
     carries every Velocity CashPlease client across all CSMs: a tab proves a client is live
     on the program and proves nothing about whether a deck is wanted (CLAUDE.md).
 
-    Only a client whose roster row ships CashPlease AS A SECTION joins a combined deck. One
-    marked "standalone deck" gets its own module instead, and a client whose slides ship
-    inside a combined deck does not also get one.
+    Only a client whose roster row ships CashPlease AS A SECTION joins another deck. One
+    marked "standalone deck" gets its own module instead — the launcher builds that too when
+    asked with `standalone` (Aaron, 2026-10-13) — and a client whose slides ship inside a
+    combined deck does not also get one.
     """
     try:
         import build_month as BM
@@ -191,7 +242,7 @@ def cashplease_availability(cid):
         return (False, f"the CashPlease roster could not be read ({e})")
     if row is None or not row.get("build"):
         return None
-    if "section" not in (row.get("ships_as") or "").lower():
+    if "section" not in (row.get("ships_as") or "").lower() and not standalone:
         return None                         # a standalone module, not part of this deck
     wb = R.report_files("CashPleaseSummary*.xlsx")
     if not wb:
@@ -220,9 +271,12 @@ def build_programs(entry_programs, availability, combined):
     the right shape; CashPlease has no token in the main roster row, so it carries its own name.
     """
     extra = combined_programs(availability)
-    if not combined:
+    has_ars = "ARS" in (entry_programs or [])
+    if has_ars and not combined:
         extra = [p for p in extra if p == "CP"]
-    return ["ARS"] + [next((t for t in entry_programs if t.startswith(p)), p) for p in extra]
+    # A client with no ARS builds the one deck their programs make, from every program with
+    # data (Aaron, 2026-10-13); nothing else is on offer, so `combined` means nothing here.
+    return (["ARS"] if has_ars else []) + [next((t for t in entry_programs if t.startswith(p)), p) for p in extra]
 
 
 def cashplease_checks(cid):
@@ -235,11 +289,12 @@ def cashplease_checks(cid):
     return [(OK if ok else WARN, f"CashPlease: {'in the deck' if ok else 'left out'} ({why})")]
 
 
-def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), combined=False):
+def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), combined=False, cp_row=None):
     """The launcher's rules, independent of the filesystem so they can be tested.
 
     `row` is the Client CSM List row, `roster` the build_month.read_roster() active list,
-    `sent` the deliveries.json "sent" map. Returns [(level, message)]. `combined` is a combined-deck
+    `sent` the deliveries.json "sent" map, `cp_row` the client's CashPlease roster row (a standalone
+    module client is on that roster alone). Returns [(level, message)]. `combined` is a combined-deck
     build, which lifts the stop on an ARS-only deck for Aaron's multi-program clients.
     """
     out = []
@@ -251,24 +306,39 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), co
     if not row:
         out.append((STOP, f"{cid} is not in Client CSM List.csv. Check the client number."))
         return out
-    entry = next((r for r in roster if r[0] == cid), None)
+    entry = client_entry(cid, roster, cp_row)
     # clients.md names the client, as it names the deck. The Client CSM List name is taken from a
     # workbook filename and can carry a data-team flag ("LM EXPIRED-USF CU / USF CU", 2026-09-15).
     name = (entry[1] if entry else None) or row.get("client_name") or cid
     csm = row.get("csm") or "no CSM"
     out.append((OK, f"{cid} {name} (CSM: {csm})"))
 
+    if entry is None:
+        out.append((STOP, "clients.md does not list this client for any program, and that file decides what "
+                          "gets built. Ask Aaron to add it."))
+        return out
+    covered = covered_programs(entry[3], cp_row)
+    has_ars = "ARS" in covered
+
     products = [p.strip() for p in (row.get("products") or "").split(";") if p.strip()]
     if not products:
-        out.append((WARN, "The Velocity product list has no products for this client; ARS is assumed from clients.md."))
-    elif "ARS" not in products:
+        out.append((WARN, "The Velocity product list has no products for this client; "
+                          f"{'-'.join(covered)} is assumed from clients.md."))
+    elif has_ars and "ARS" not in products:
         out.append((STOP, f"Not an ARS client: the Velocity product list shows {', '.join(products)}. "
                           "Only ARS clients get ARS decks."))
+    elif not has_ars:
+        # A non-ARS client's deck covers ICS, MRPC and/or CashPlease: the client needs at least one of
+        # those products. (The product list predates some program starts, so one missing is a warning.)
+        missing = [p for p in covered if PRODUCT_OF[p].lower() not in (x.lower() for x in products)]
+        if len(missing) == len(covered):
+            out.append((STOP, f"Not a {' / '.join(PRODUCT_OF[p] for p in covered)} client: the Velocity product "
+                              f"list shows {', '.join(products)}."))
+        elif missing:
+            out.append((WARN, f"The Velocity product list does not show {', '.join(PRODUCT_OF[p] for p in missing)} "
+                              "for this client; clients.md says to build it."))
 
-    if entry is None or "ARS" not in entry[3]:
-        out.append((STOP, "clients.md does not list this client for ARS, and that file decides what gets built. "
-                          "Ask Aaron to add it."))
-    else:
+    if has_ars:
         out.append((OK, f"clients.md: {'-'.join(entry[3])}, {entry[2] or 'path unknown'} workbook"))
         # Checked before the build now that a clean build goes straight to Outputs: a lone ARS
         # deck must never replace one of Aaron's combined decks. Any CSM may build a combined deck
@@ -276,6 +346,9 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), co
         if csm == AARON and len(entry[3]) > 1 and not combined:
             out.append((STOP, f"This client ships a combined {'-'.join(entry[3])} deck, so build the combined "
                               "deck instead of an ARS-only one."))
+    else:
+        what = "standalone CashPlease module" if covered == ["CP"] and standalone_cp(cp_row) else f"{'-'.join(covered)} deck"
+        out.append((OK, f"clients.md: {what} (no ARS, so no ODD extract, ARS workbook or Lift Matrix is needed)"))
 
     return out
 
@@ -302,8 +375,8 @@ def built_line(cid, period, sent, in_outputs, rebuild=False):
 
 
 def decks_in_outputs(cid, period):
-    """This client's ARS-bearing decks for `period` in Outputs (any CSM folder), by name."""
-    return sorted(p.name for p in R.output_decks(f"{cid}-{period}-ARS*.pptx") if not p.name.startswith("~$"))
+    """This client's decks for `period` in Outputs (any CSM folder, any program mix), by name."""
+    return sorted(p.name for p in R.output_decks(f"{cid}-{period}-*.pptx") if not p.name.startswith("~$"))
 
 
 def input_checks(cid, period):
@@ -392,34 +465,45 @@ def lift_checks(cid, period, roster):
     return [(OK, f"Lift Matrix: current ({w['window']}; data {w['data_date']})")]
 
 
-def all_checks(cid, period, row, roster, sent, rebuild=False, combined=False):
-    """Every pre-build check, in the order they print: the rules, the inputs, the Lift Matrix, and for a
-    combined deck the other programs' data."""
+def all_checks(cid, period, row, roster, sent, rebuild=False, combined=False, cp_row=None):
+    """Every pre-build check, in the order they print: the rules, then for an ARS client the inputs, the
+    Lift Matrix and (combined) the other programs' data; for a client with no ARS, each program's data."""
+    if cp_row is None:
+        cp_row = cp_roster_row(cid)
     checks = rule_checks(cid, period, row, roster, sent, rebuild=rebuild,
-                         in_outputs=decks_in_outputs(cid, period), combined=combined)
+                         in_outputs=decks_in_outputs(cid, period), combined=combined, cp_row=cp_row)
     # Already built and nobody has asked for a rebuild: the inputs are not going to be read,
     # so do not go to the share and ask about them (Aaron, 2026-10-02). These three are the
     # slow checks — the ODD extract's month, the workbook, the Lift Matrix window, and for a
     # combined deck every other program's data. A rebuild re-runs all of them.
     if not rebuild and any(l == ASK for l, _ in checks):
         return checks
-    checks += input_checks(cid, period) + lift_checks(cid, period, roster)
-    if combined:
-        checks += combined_checks(cid, period, roster)
+    if any(l == STOP for l, _ in checks) and not row:
+        return checks
+    entry = client_entry(cid, roster, cp_row)
+    if entry is None or "ARS" in entry[3]:
+        checks += input_checks(cid, period) + lift_checks(cid, period, roster)
+        if combined:
+            checks += combined_checks(cid, period, roster, cp_row)
+        else:
+            checks += cashplease_checks(cid)
     else:
-        checks += cashplease_checks(cid)
+        checks += combined_checks(cid, period, roster, cp_row)
     return checks
 
 
-def combined_checks(cid, period, roster):
-    """What a combined deck would carry: each other program's data, and a stop when none has any."""
-    entry = next((r for r in roster if r[0] == cid), None)
-    avail = program_availability(cid, period, entry[3] if entry else [])
-    out = [(OK if ok else WARN, f"{p}: {'in the combined deck' if ok else 'left out'} ({why})")
+def combined_checks(cid, period, roster, cp_row=None):
+    """What the deck would carry: each program's data, and a stop when none has any."""
+    entry = client_entry(cid, roster, cp_row)
+    progs = entry[3] if entry else []
+    avail = program_availability(cid, period, progs)
+    has_ars = "ARS" in progs
+    out = [(OK if ok else WARN, f"{p}: {'in the deck' if ok else 'left out'} ({why})")
            for p, (ok, why) in avail.items()]
     if not combined_programs(avail):
         out.append((STOP, "No other program has the data it needs this period, so there is no combined deck "
-                          "to build. Build the ARS-only deck."))
+                          "to build. Build the ARS-only deck." if has_ars else
+                          "No program has the data it needs this period, so there is nothing to build."))
     return out
 
 
@@ -526,7 +610,7 @@ def _context(cid, period):
 
 def cmd_status(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
-    print(f"\nARS deck status: client {a.client}, period {period}\n")
+    print(f"\nDeck status: client {a.client}, period {period}\n")
     checks = all_checks(a.client, period, row, roster, sent)
     for lvl, msg in checks:
         say(lvl, msg)
@@ -601,14 +685,15 @@ def to_outputs(cid, deck):
 
 
 def supersede_other_ars_decks(cid, deck, out):
-    """Archive this client's other ARS-bearing decks for the same period (a different program mix)."""
+    """Archive this client's other decks for the same period (a different program mix). One deck per
+    client per period, whatever the mix: an ICS-CP deck supersedes a plain ICS one and the other way round."""
     import promote_month as P
     info = P.parse_deck_name(os.path.basename(deck))
     if not info:
         return 0
     stamp = dt.date.today().isoformat()
     moved = 0
-    for other in R.output_decks(f"{cid}-{info['period']}-ARS*.pptx"):
+    for other in R.output_decks(f"{cid}-{info['period']}-*.pptx"):
         if other.name.startswith("~$") or other.name == os.path.basename(deck):
             continue
         folder = P.client_folder(out / R.ARCHIVE_DIRNAME, cid, info.get("client") or "")
@@ -630,8 +715,12 @@ def supersede_other_ars_decks(cid, deck, out):
 def cmd_build(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
     combined = getattr(a, "combined", False)
+    cp_row = cp_roster_row(a.client)
+    entry = client_entry(a.client, roster, cp_row)
+    if entry is not None and "ARS" not in entry[3]:
+        combined = True             # a non-ARS client builds everything with data; there is no other deck
     print(f"\nBuilding the {'combined' if combined else 'ARS'} deck: client {a.client}, period {period}\n")
-    checks = all_checks(a.client, period, row, roster, sent, rebuild=a.rebuild, combined=combined)
+    checks = all_checks(a.client, period, row, roster, sent, rebuild=a.rebuild, combined=combined, cp_row=cp_row)
     for lvl, msg in checks:
         say(lvl, msg)
     if any(l == STOP for l, _ in checks):
@@ -641,10 +730,10 @@ def cmd_build(a):
         print("\nNot built: this month's deck is already in Outputs. To rebuild it, answer Y when Build ARS Deck asks, or pass --rebuild.")
         return ASKED_EXIT
 
-    entry = next(r for r in roster if r[0] == a.client)
     name = BM.deck_name(a.client, entry[1])
     # A plain build is ARS, plus CashPlease for a client who ships it as a section; a combined
-    # build adds the other programs whose data is on hand (build_programs).
+    # build adds the other programs whose data is on hand; a non-ARS client builds every program
+    # with data (build_programs).
     progs = build_programs(entry[3], program_availability(a.client, period, entry[3]), combined)
     multi = len(progs) > 1          # assembled from sections: the deliverable is the combined file
     lk = lock(work)
@@ -658,7 +747,7 @@ def cmd_build(a):
             err, made = BM.build_client(a.client, name, entry[2], progs, period, str(work.parent))
         finally:
             stop.set()
-        deck = made.get("DELIVERABLE") if multi else made.get("ARS")
+        deck = made.get("DELIVERABLE")      # build_month names the one file to ship, single or assembled
         if err or not deck:
             reason = _log_reason(work / "build.log") or err
             say(STOP, f"The build stopped at '{err}': {reason}")
@@ -687,7 +776,7 @@ def cmd_build(a):
     finally:
         lk.unlink(missing_ok=True)
     (work / "_launcher_result.json").write_text(json.dumps({
-        "client": a.client, "period": period, "deck": made.get("DELIVERABLE") if multi else made.get("ARS"),
+        "client": a.client, "period": period, "deck": made.get("DELIVERABLE"),
         "programs": progs, "combined": combined, "result": result,
         "delivered": delivered, "by": getpass.getuser(),
         "finished": f"{dt.datetime.now():%Y-%m-%d %H:%M}", "minutes": round((time.time() - t0) / 60, 1)},

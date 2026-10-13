@@ -264,6 +264,33 @@ def listing(period="2026.09", decks=(), error=False, sent=None):
          "sent": sent, "decks": list(decks), "lift_expired": False, "error": error, "result_written": None}]}
 
 
+def test_the_list_names_the_products_each_deck_covers():
+    """Aaron, 2026-10-13: "ID which products are covered for each client. Maybe add little pills after
+    the client name in the list." Covered = clients.md's programs plus CP when the CashPlease roster
+    ships the slides as a section; pure, so the list never waits on the share for it."""
+    cp = {"client_id": "1539", "build": True, "ships_as": "ARS-ICS-MRPC-CP section"}
+    assert W.covered_programs(["ARS", "ICS-REFERRALS", "MRPC"], cp) == ["ARS", "ICS", "MRPC", "CP"]
+    assert W.covered_programs(["ARS"], {"client_id": "1770", "build": True, "ships_as": "standalone deck"}) == ["ARS"]
+    assert W.covered_programs(["ARS"], {"client_id": "1658", "build": False, "ships_as": "ARS-CP section"}) == ["ARS"]
+    assert W.covered_programs(["MRPC", "ARS"], None) == ["ARS", "MRPC"]
+    assert W.covered_programs([], None) == []
+
+
+def test_the_builds_on_offer_for_a_client_with_no_ars_are_one_deck_of_everything_with_data():
+    """Aaron, 2026-10-13: CP only, ICS only, MRPC only and any mix of those come to Sheila. One button,
+    named for the programs with data; the ARS-only button and the Lift Matrix never appear."""
+    avail = {"ICS": (True, "VIP ICS sheet"), "CP": (True, "CashPlease roster")}
+    b = W.builds_on_offer(["ICS", "CP"], avail, ars_only=False, has_ars=False)
+    assert b == {"ars_only": False, "has_ars": False, "base": ["ICS", "CP"], "combined": ["ICS", "CP"], "left_out": {}}
+    b = W.builds_on_offer(["ICS-REFERRALS", "MRPC"], {"ICS": (True, "VIP ICS sheet"), "MRPC": (False, "no VIP MRPC sheet")},
+                          ars_only=False, has_ars=False)
+    assert b["base"] == ["ICS", "MRPC"] and b["combined"] == ["ICS"] and b["left_out"] == {"MRPC": "no VIP MRPC sheet"}
+    assert W.builds_on_offer(["CP"], {"CP": (False, "no CashPleaseSummary workbook in Inputs")}, False, False)["combined"] is None
+    # an ARS client's offer is unchanged
+    b = W.builds_on_offer(["ARS", "ICS"], {"ICS": (True, "VIP ICS sheet"), "CP": (True, "CashPlease roster")}, ars_only=True, has_ars=True)
+    assert b["has_ars"] and b["base"] == ["ARS", "CP"] and b["combined"] == ["ARS", "ICS", "CP"]
+
+
 def test_the_list_is_served_from_memory_and_rebuilt_behind_the_page(clean_state, monkeypatch):
     gate = threading.Event()
     docs = [listing(), listing(decks=["1441-2026.09-ARS-FNB Alaska ARS Results.pptx"])]

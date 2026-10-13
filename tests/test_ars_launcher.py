@@ -32,10 +32,47 @@ def test_a_client_without_the_ars_product_stops_even_if_clients_md_lists_it():
     assert msgs and "Not an ARS client" in msgs[0]
 
 
-def test_a_client_clients_md_does_not_list_for_ars_stops():
-    row = {"client_id": "1632", "client_name": "WesBanco", "csm": "Aaron Burgard", "products": "ARS; ICS"}
-    msgs = [m for l, m in L.rule_checks("1632", "2026.09", row, ROSTER, {}) if l == L.STOP]
+def test_a_client_clients_md_does_not_list_at_all_stops():
+    row = {"client_id": "1777", "client_name": "West-Aircomm FCU", "csm": "Daniel Wood", "products": "ARS"}
+    msgs = [m for l, m in L.rule_checks("1777", "2026.09", row, ROSTER, {}) if l == L.STOP]
     assert msgs and "clients.md" in msgs[0]
+
+
+def test_a_client_with_no_ars_builds_the_deck_their_programs_make():
+    """Aaron, 2026-10-13: "bring CP only, ICS only, and MRPC only decks into Sheila, also any combination
+    of those". 1632 WesBanco is ICS in clients.md and ships CashPlease as a section: an ICS-CP deck, with
+    none of the ARS rules (ODD extract, workbook, Lift Matrix) in the way."""
+    row = {"client_id": "1632", "client_name": "WesBanco", "csm": "Aaron Burgard", "products": "ICS; CashPlease; ILS"}
+    cp = {"client_id": "1632", "client_name": "WesBanco Bank", "build": True, "ships_as": "ICS-CP section", "csm": "Aaron Burgard"}
+    checks = L.rule_checks("1632", "2026.10", row, ROSTER, {}, cp_row=cp)
+    assert L.STOP not in levels(checks)
+    assert any("ICS-CP deck" in m and "no ARS" in m for l, m in checks if l == L.OK)
+    # the product list is checked for the programs the deck covers, not for ARS
+    assert L.STOP in levels(L.rule_checks("1632", "2026.10", dict(row, products="ILS; Reg E Management"), ROSTER, {}, cp_row=cp))
+    assert L.WARN in levels(L.rule_checks("1632", "2026.10", dict(row, products="ICS"), ROSTER, {}, cp_row=cp))
+    # Aaron's multi-program stop is about a lone ARS deck; it does not apply here
+    assert not any("combined" in m for l, m in checks if l == L.STOP)
+
+
+def test_a_standalone_cashplease_client_is_on_the_launcher_too():
+    """1770 Central State Bank is on the CashPlease roster alone ("standalone deck"): the launcher makes it
+    an entry of its own with ["CP"] and the rules call it a module."""
+    cp = {"client_id": "1770", "client_name": "Central State Bank", "build": True, "ships_as": "standalone deck", "csm": "Aaron Burgard"}
+    assert L.client_entry("1770", ROSTER, cp) == ("1770", "Central State Bank", None, ["CP"])
+    assert L.client_entry("1770", ROSTER, None) is None
+    assert L.client_entry("1632", ROSTER, cp) == ("1632", "WesBanco", None, ["ICS"])   # the roster wins when it has the client
+    row = {"client_id": "1770", "client_name": "Central State Bank", "csm": "Aaron Burgard", "products": "CashPlease"}
+    checks = L.rule_checks("1770", "2026.10", row, ROSTER, {}, cp_row=cp)
+    assert L.STOP not in levels(checks) and any("standalone CashPlease module" in m for l, m in checks)
+    assert L.covered_programs(["CP"]) == ["CP"] and L.covered_programs(["ICS-REFERRALS", "MRPC"], cp) == ["ICS", "MRPC"]
+
+
+def test_build_programs_for_a_client_with_no_ars_takes_every_program_with_data():
+    avail = {"ICS": (True, "VIP ICS sheet"), "MRPC": (False, "no VIP MRPC sheet"), "CP": (True, "CashPlease roster")}
+    assert L.build_programs(["ICS-REFERRALS", "MRPC", "CP"], avail, combined=False) == ["ICS-REFERRALS", "CP"]
+    assert L.build_programs(["ICS-REFERRALS", "MRPC", "CP"], avail, combined=True) == ["ICS-REFERRALS", "CP"]
+    assert L.build_programs(["CP"], {"CP": (True, "")}, combined=False) == ["CP"]
+    assert L.build_programs(["MRPC"], {"MRPC": (False, "no VIP MRPC sheet")}, combined=False) == []
 
 
 def test_a_sent_deck_asks_rather_than_stops():
@@ -181,7 +218,7 @@ def test_program_availability_prefers_vip_then_local_ics_files(monkeypatch):
     monkeypatch.setitem(sys.modules, "ics_local_sheet", fake)
     # CashPlease comes from its own roster table and is tested below; this test is about
     # which ICS source wins.
-    monkeypatch.setattr(L, "cashplease_availability", lambda cid: None)
+    monkeypatch.setattr(L, "cashplease_availability", lambda cid, standalone=False: None)
     a = L.program_availability("1509", "2026.09", ["ARS", "ICS", "MRPC"])
     assert a == {"ICS": (True, "VIP ICS sheet"), "MRPC": (False, "no VIP MRPC sheet")}
     b = L.program_availability("1776", "2026.09", ["ARS", "ICS", "MRPC"])
@@ -229,6 +266,16 @@ def test_a_roster_row_marked_no_build_is_not_offered(monkeypatch):
 def test_a_client_off_the_cashplease_roster_has_no_cashplease(monkeypatch):
     _cp_roster(monkeypatch, [_row("1539")])
     assert L.cashplease_availability("1075") is None
+
+
+def test_a_standalone_cashplease_client_has_cashplease_when_asked_as_a_module(monkeypatch):
+    """The standalone module is the launcher's to build now (Aaron, 2026-10-13), but never as a
+    section of someone's combined deck."""
+    _cp_roster(monkeypatch, [_row("1770", ships_as="standalone deck")])
+    assert L.cashplease_availability("1770") is None
+    ok, why = L.cashplease_availability("1770", standalone=True)
+    assert ok and "CashPlease roster" in why
+    assert L.program_availability("1770", "2026.10", ["CP"]).get("CP") == (ok, why)
 
 
 def test_no_weekly_workbook_is_reported_not_silently_dropped(monkeypatch):

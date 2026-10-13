@@ -21,6 +21,38 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — Sheila builds every client's deck, not only the ARS ones
+
+Summary: CSM Sheila and the launcher now list and build clients with no ARS: ICS only, MRPC only,
+the standalone CashPlease module, and any mix of ICS, MRPC and CashPlease (ICS-CP, ICS-MRPC,
+ICS-MRPC-CP). Such a client gets one button, named for the programs whose data is on hand, and
+is checked on each program's own data rather than the ARS rules.
+
+"Bring CP only, ICS only, and MRPC only decks into Sheila, also any combination of those" (Aaron,
+2026-10-13). Until now the list held the clients.md ARS clients only and the launcher stopped anyone
+else at "Not an ARS client". `ars_launcher.client_entry` gives a standalone CashPlease client (on
+the CashPlease roster alone) an entry of its own with `["CP"]`; `rule_checks` checks a non-ARS
+client's product list against the programs its deck covers and skips the ARS-only rules (ODD
+extract, workbook, DCO, Lift Matrix, Aaron's combined-deck stop); `build_programs` takes every
+program with data; `cashplease_availability(standalone=True)` admits a module client's weekly. The
+deck goes to `Outputs/<CSM>/` like any other, superseding any other mix for the period
+(`decks_in_outputs` and the supersede step now match every program, not `ARS*`). Sheila's list
+reads the whole roster plus the module clients; `builds_on_offer` names the one button. The Lift
+Matrix tab is unchanged (ARS only). `tests/test_ars_launcher.py` and `tests/test_ars_launcher_web.py`
+pin it.
+
+### 2026-10-13 — Sheila's client list shows which products each deck covers
+
+Summary: Each client in CSM Sheila's list now carries small pills after the name: the programs
+their deck covers (ARS, ICS, MRPC, CP) filled in, and the rest of their Velocity products (ILS,
+Reg E, AE, and so on) outlined, so a CSM can see at a glance what the deck will and will not report.
+
+"I feel like we should ID which products are covered for each client. Maybe add little pills after
+the client name in the list" (Aaron, 2026-10-13). `ars_launcher_web.covered_programs` reads
+clients.md's programs (ICS-REFERRALS is ICS) and adds CP when the CashPlease roster ships the
+slides as a section; the other products come from the Client CSM List's product column. It is
+computed with the list, never against the share. `tests/test_ars_launcher_web.py` pins it.
+
 ### 2026-10-13 — The issue pages take a file's kind from its name, not the folder it sits in
 
 Summary: The ODD and Workbook Issues page, the CSM Data Gaps page and Sheila's Data Issues tab no

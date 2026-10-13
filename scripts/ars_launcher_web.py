@@ -5,7 +5,8 @@
 
 Aaron, 2026-09-15: "would it be possible to run Build ARS Deck.bat in an application or browser?"
 A browser cannot start a program by itself, so `ARS Deck Builder GUI.bat` starts this small server on
-127.0.0.1 and opens the page. The page lists the clients.md ARS clients, runs the same checks as
+127.0.0.1 and opens the page. The page lists every client with a deck to build — the clients.md roster in
+any program mix and the standalone CashPlease module clients (Aaron, 2026-10-13) — runs the same checks as
 `ars_launcher.py status`, and starts `ars_launcher.py build` as a child process, showing its step
 lines as they arrive. Every rule, the build and the delivery to Outputs stay in ars_launcher —
 nothing here decides anything. Closing the console window stops the server.
@@ -83,7 +84,8 @@ def prewarm():
     import build_month as BM
     refresh_clients()
     prewarm_lift()
-    ars = [cid for cid, _, _, progs in BM.read_roster()[0] if "ARS" in progs]
+    doc = _clients.get("doc") or {}
+    ids = [c["id"] for c in doc.get("clients", [])] or [cid for cid, *_ in BM.read_roster()[0]]
 
     def one(cid):
         try:
@@ -91,7 +93,7 @@ def prewarm():
         except (Exception, SystemExit):
             pass
     with ThreadPoolExecutor(PREWARM_WORKERS) as ex:
-        list(ex.map(one, ars))
+        list(ex.map(one, ids))
 
 
 # ------------------------------------------------------------------ share caches (this process only)
@@ -204,7 +206,7 @@ def available_periods(n=PERIOD_CHOICES):
     """
     now = L.cycle_period()
     seen = {now}
-    for d in R.output_decks("*-*-*ARS*.pptx"):
+    for d in R.output_decks("*-*-*.pptx"):
         m = re.search(r"-(\d{4}\.\d{2})-", d.name)
         if m:
             seen.add(m.group(1))
@@ -246,13 +248,17 @@ _clients = {"doc": None, "at": 0.0, "gen": 0, "clean_gen": -1, "busy": None, "er
 _clients_lock = threading.Lock()
 
 
+covered_programs = L.covered_programs
+
+
 def compute_clients():
-    """The clients.md ARS clients, with their CSM, products, sent state, deck in Outputs and last build failure."""
+    """Every client with a deck to build — the clients.md roster (ARS, ICS, MRPC, in any mix) and the
+    standalone CashPlease module clients (Aaron, 2026-10-13) — with their CSM, products, sent state,
+    deck in Outputs and last build failure."""
     import build_month as BM
     import deck_status as DS
     period = current_period()
     roster, _ = BM.read_roster()
-    ars = {r[0]: r for r in roster if "ARS" in r[3]}
     rows = {}
     p = R.csm_list_file()
     if p and p.is_file():
@@ -260,24 +266,37 @@ def compute_clients():
             rows = {r.get("client_id", "").strip(): r for r in csv.DictReader(fh)}
     sent = DS.read_deliveries()["sent"] if period else {}
     decks = {}
-    for d in (R.output_decks(f"*-{period}-*ARS*.pptx") if period else []):
+    for d in (R.output_decks(f"*-{period}-*.pptx") if period else []):
         decks.setdefault(d.name.split("-", 1)[0], []).append(d)
-    results = launcher_results(period, list(ars)) if period else {}
+    try:
+        cp_rows = {r["client_id"]: r for r in getattr(BM, "read_cashplease_roster", lambda: [])()}
+    except SystemExit:                      # no CashPlease roster table: nothing ships CP
+        cp_rows = {}
+    entries = {r[0]: r for r in roster}
+    for cid, cp in cp_rows.items():          # standalone module clients are on the CashPlease roster alone
+        if cid not in entries and L.standalone_cp(cp):
+            entries[cid] = L.client_entry(cid, roster, cp)
+    results = launcher_results(period, list(entries)) if period else {}
     out = []
-    for cid, (_, name, path, progs) in ars.items():
+    for cid, (_, name, path, progs) in entries.items():
         row = rows.get(cid, {})
+        cp = cp_rows.get(cid)
         s = sent.get(f"{cid}|{period}")
         res = results.get(cid, (None, None))
         out.append({
             "id": cid,
             # clients.md's name, as on the deck; the CSM List's can carry a filename flag.
             "name": name or row.get("client_name"),
-            "csm": row.get("csm") or "Unassigned",
+            "csm": row.get("csm") or (cp or {}).get("csm") or "Unassigned",
             "programs": progs,
+            # The products the client's deck covers, and the rest of their Velocity products, for the
+            # pills after the name (Aaron, 2026-10-13: "ID which products are covered for each client").
+            "covered": covered_programs(progs, cp),
+            "products": [p.strip() for p in (row.get("products") or "").split(";") if p.strip()],
             "path": path,
             "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
             "decks": sorted(d.name for d in decks.get(cid, [])),
-            "lift_expired": _lift.get(cid) == L.STOP,
+            "lift_expired": "ARS" in progs and _lift.get(cid) == L.STOP,
             "error": bool(period) and last_build_failed(cid, period, decks.get(cid, []), result=res),
             "result_written": res[1],
         })
@@ -628,17 +647,21 @@ def compute_status(cid):
                 "checks": [{"level": L.STOP, "text": "No ARS workbooks are in Inputs at all, so there is no period to build."}]}
     roster, _ = BM.read_roster()
     sent = DS.read_deliveries()["sent"]
-    entry = next((r for r in roster if r[0] == cid), None)
-    # Two builds can be on offer (Aaron, 2026-09-16): ARS only, and a combined deck with every other
-    # clients.md program whose data is on hand. The checks are the combined-build rules; whether the
-    # ARS-only build is allowed (not for Aaron's multi-program clients) is decided separately.
-    checks = L.all_checks(cid, period, row, roster, sent, combined=True)
+    cp_row = L.cp_roster_row(cid)
+    entry = L.client_entry(cid, roster, cp_row)
+    has_ars = bool(entry and "ARS" in entry[3])
+    # For an ARS client up to two builds are on offer (Aaron, 2026-09-16): ARS only, and a combined deck
+    # with every other clients.md program whose data is on hand. The checks are the combined-build rules;
+    # whether the ARS-only build is allowed (not for Aaron's multi-program clients) is decided separately.
+    # A client with no ARS has one build: every program with data (Aaron, 2026-10-13).
+    checks = L.all_checks(cid, period, row, roster, sent, combined=True, cp_row=cp_row)
     avail = L.program_availability(cid, period, entry[3]) if entry else {}
     extra = L.combined_programs(avail)
-    checks = [(l, m) for l, m in checks if not m.startswith("No other program has the data")]
+    if has_ars:
+        checks = [(l, m) for l, m in checks if not m.startswith("No other program has the data")]
     multi = bool(entry and len(entry[3]) > 1)
-    ars_only = not (multi and row and row.get("csm") == L.AARON)
-    if not ars_only and not extra:
+    ars_only = has_ars and not (multi and row and row.get("csm") == L.AARON)
+    if has_ars and not ars_only and not extra:
         checks.append((L.STOP, "This client ships a combined deck, but no other program has its data this period."))
     lift = [l for l, m in checks if m.startswith("Lift Matrix")]
     if lift:
@@ -646,14 +669,26 @@ def compute_status(cid):
     state = "stop" if any(l == L.STOP for l, _ in checks) else "ask" if any(l == L.ASK for l, _ in checks) else "ready"
     res = R.build_artifacts() / "launcher" / period / cid / "_launcher_result.json"
     last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
-    return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"), "csm": row.get("csm"), "period": period,
+    return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"),
+            "csm": row.get("csm") or (cp_row or {}).get("csm"), "period": period,
             "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
-            # `base` is what the plain build carries: ARS, plus CashPlease for a client who ships it as
-            # a section (Aaron, 2026-10-12) — the page names the button from it.
-            "builds": {"ars_only": ars_only,
-                       "base": L.build_programs(entry[3], avail, False) if entry else ["ARS"],
-                       "combined": ["ARS"] + extra if extra else None,
-                       "left_out": {p: why for p, (ok, why) in avail.items() if not ok}}}
+            "builds": builds_on_offer(entry[3] if entry else ["ARS"], avail, ars_only, has_ars)}
+
+
+def builds_on_offer(progs, avail, ars_only, has_ars):
+    """What the page's buttons offer. ARS client: `base` is the plain build (ARS, plus CashPlease for a
+    client who ships it as a section; Aaron, 2026-10-12) and `combined` adds the other programs with
+    data. No ARS: one build, every program with data, under `combined`; `base` names the whole deck."""
+    extra = L.combined_programs(avail)
+    if has_ars:
+        return {"ars_only": ars_only, "has_ars": True,
+                "base": L.build_programs(progs, avail, False),
+                "combined": ["ARS"] + extra if extra else None,
+                "left_out": {p: why for p, (ok, why) in avail.items() if not ok}}
+    return {"ars_only": False, "has_ars": False,
+            "base": L.covered_programs(progs),
+            "combined": extra or None,
+            "left_out": {p: why for p, (ok, why) in avail.items() if not ok}}
 
 
 # ------------------------------------------------------------------ build jobs
@@ -1809,6 +1844,9 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .chip.stop{background:var(--stop-bg);color:var(--stop)} .chip.ready{background:var(--ok-bg);color:var(--ok)}
 .chip.queue{background:var(--warn-bg);color:var(--warn)} .chip.building{background:var(--orange);color:#fff}
 .chip.error{background:#C62828;color:#fff}
+.progs{display:inline-flex;gap:3px;margin-left:6px;vertical-align:1px}
+.prog{display:inline-block;font:700 9.5px/1 "Segoe UI",Arial,sans-serif;letter-spacing:.03em;padding:2px 5px;border-radius:999px;border:1px solid var(--rule);color:var(--ink2);background:transparent;white-space:nowrap}
+.prog.on{background:var(--navy);border-color:var(--navy);color:#fff}
 main{padding:22px 24px;min-height:420px}
 .empty{color:var(--ink2);max-width:60ch}
 .empty h2{color:var(--ink);font-size:18px;margin:0 0 6px}
@@ -1938,7 +1976,7 @@ dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-wi
   <main id="main" aria-live="polite">
     <div class="empty">
       <h2>Pick a client</h2>
-      <p>Choose a client on the left to see whether their ARS deck can be built this cycle.</p>
+      <p>Choose a client on the left to see whether their deck can be built this cycle.</p>
       <ol>
         <li>The checks run first: ARS product, clients.md, and this month's ODD extract and workbook.</li>
         <li>Build takes 3 to 15 minutes and shows each step as it goes.</li>
@@ -2037,6 +2075,25 @@ function recall(k) { try { return localStorage.getItem(k); } catch (e) { return 
 
 function shortDate(d) { if (!d) return ""; const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString(undefined, {month: "short", day: "numeric"}); }
 
+// Pills after the client name (Aaron, 2026-10-13): the products this client's deck covers, filled;
+// the client's other Velocity products that the deck does not cover, outlined. Short names only.
+const PROD_SHORT = {"ARS": "ARS", "ICS": "ICS", "MRPC": "MRPC", "CP": "CP", "CASHPLEASE": "CP", "ILS": "ILS",
+                    "REG E MANAGEMENT": "Reg E", "ACCOUNT ENGAGEMENT": "AE", "ILS TIS": "TIS",
+                    "ARS CREDIT CARD REWARDS": "CC Rewards", "PROFESSIONAL SERVICES": "Pro Svcs"};
+function progPills(c) {
+  const covered = c.covered || [];
+  const seen = new Set(covered);
+  let h = covered.map(p => `<span class="prog on" title="${esc(p)} is in this client's deck">${esc(PROD_SHORT[p] || p)}</span>`).join("");
+  for (const prod of (c.products || [])) {
+    const key = prod.toUpperCase(), short = PROD_SHORT[key] || prod;
+    const norm = short === "CP" ? "CP" : key;
+    if (seen.has(norm) || seen.has(short)) continue;
+    seen.add(norm);
+    h += `<span class="prog" title="${esc(prod)}: a Velocity product this deck does not cover">${esc(short)}</span>`;
+  }
+  return h ? `<span class="progs">${h}</span>` : "";
+}
+
 function renderList() {
   const csm = $("#csm").value, q = $("#q").value.trim().toLowerCase();
   const shown = CLIENTS.filter(c => (!csm || c.csm === csm) && (!q || c.id.includes(q) || (c.name || "").toLowerCase().includes(q)));
@@ -2053,7 +2110,7 @@ function renderList() {
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
-      <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span><span class="meta">${chips}</span></button>`;
+      <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}${progPills(c)}</span><span class="meta">${chips}</span></button>`;
   }
   $("#list").innerHTML = html || `<p class="note" style="padding:10px">No clients match.</p>`;
 }
@@ -2143,10 +2200,12 @@ function renderStatus(s) {
   const failNote = failed ? ` <span class="err">The last build failed; see why below.</span>` : "";
   // Up to two builds (Aaron, 2026-09-16): ARS only, and a combined deck with every other program whose
   // data is on hand. Aaron's multi-program clients get only the combined one.
-  const b = s.builds || {ars_only: true, base: ["ARS"], combined: null, left_out: {}};
+  const b = s.builds || {ars_only: true, has_ars: true, base: ["ARS"], combined: null, left_out: {}};
   const combo = b.combined ? b.combined.join(" + ") : "";
   // The plain build is ARS, or ARS + CP for a client whose CashPlease slides ship as a section
   // (Aaron, 2026-10-12): the button says which, so "ARS only" never hides a CashPlease section.
+  // A client with no ARS has one build, every program with data (Aaron, 2026-10-13).
+  const noArs = b.has_ars === false;
   const baseList = b.base && b.base.length ? b.base : ["ARS"];
   const base = baseList.length > 1 ? baseList.join(" + ") : "ARS only";
   const leftOut = Object.entries(b.left_out || {}).map(([p, why]) => `${p} left out: ${why}`).join(" · ");
@@ -2154,11 +2213,12 @@ function renderStatus(s) {
     const cls = ask ? "primary warn" : "primary", verb = failed ? (ask ? "Retry rebuild" : "Retry build") : (ask ? "Rebuild" : "Build");
     let h = "";
     if (b.ars_only) h += `<button class="${cls}" id="go">${verb} ${b.combined ? esc(base) : (ask ? "and replace the one in Outputs" : "and put in Outputs")}</button>`;
-    if (b.combined) h += `<button class="${cls}" id="go2">${verb} combined (${esc(combo)})</button>`;
+    if (b.combined) h += `<button class="${cls}" id="go2">${verb} ${noArs ? esc(combo) + (ask ? " and replace the one in Outputs" : "") : "combined (" + esc(combo) + ")"}</button>`;
     return `<span class="btns">${h}</span>`;
   };
   const mix = baseList.length > 1 ? ` This client's deck is ${esc(baseList.join(" + "))}.` : "";
-  const choose = b.combined && b.ars_only ? ` Choose the ${esc(base)} deck or a combined deck.` : b.combined ? ` This client's deck is combined (${esc(combo)}).` : mix;
+  const choose = noArs ? (b.combined && b.combined.length < baseList.length ? ` This client's deck is ${esc(baseList.join(" + "))}; the build carries ${esc(combo)}.` : mix)
+    : b.combined && b.ars_only ? ` Choose the ${esc(base)} deck or a combined deck.` : b.combined ? ` This client's deck is combined (${esc(combo)}).` : mix;
   const note = leftOut ? `<br><span class="small">${esc(leftOut)}</span>` : "";
   let verdict;
   if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.${choose}${failNote}${note}</p>${btns(false)}</div>`;
@@ -2182,7 +2242,8 @@ async function build(s, combined) {
   const go = $(combined ? "#go2" : "#go"), other = $(combined ? "#go" : "#go2");
   const kind = combined ? "combined" : "ars";
   const baseName = (s.builds && s.builds.base && s.builds.base.length > 1) ? s.builds.base.join(" + ") : "ARS only";
-  if (s.state === "ask" && armed !== kind) { armed = kind; go.textContent = combined ? "Yes, rebuild the combined deck" : `Yes, rebuild ${baseName}`; return; }
+  const noArs = s.builds && s.builds.has_ars === false;
+  if (s.state === "ask" && armed !== kind) { armed = kind; go.textContent = combined ? (noArs ? `Yes, rebuild ${s.builds.combined.join(" + ")}` : "Yes, rebuild the combined deck") : `Yes, rebuild ${baseName}`; return; }
   go.disabled = true; go.textContent = "Starting…";
   if (other) other.disabled = true;
   try {
@@ -2284,7 +2345,7 @@ function setMode(m, focus) {
   else if (m === "reported") reportedView();
   else if (m === "issues") issuesView(focus);
   else if (focus) select(focus);
-  else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their ARS deck can be built for ${esc(PERIOD || "this cycle")}.</p></div>`;
+  else $("#main").innerHTML = `<div class="empty"><h2>Pick a client</h2><p>Choose a client on the left to see whether their deck can be built for ${esc(PERIOD || "this cycle")}.</p></div>`;
 }
 
 // ---- reporting an issue -------------------------------------------------------
