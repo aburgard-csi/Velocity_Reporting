@@ -246,6 +246,32 @@ def test_cashplease_is_last_in_section_order():
     assert BM.deck_tag(["ARS"] + L.combined_programs(avail)) == "ARS-ICS-MRPC-CP"
 
 
+def test_cashplease_rides_on_the_plain_ars_build(monkeypatch):
+    """Aaron, 2026-10-12: "add the CashPlease slides into Sheila decks". A CSM who chooses the
+    plain ARS build for a client whose CashPlease slides ship as a section gets ARS-CP, not an
+    ARS deck with no CashPlease section; the combined build adds ICS and MRPC on top."""
+    avail = {"ICS": (True, "VIP ICS sheet"), "MRPC": (False, "no VIP MRPC sheet"), "CP": (True, "CashPlease roster")}
+    assert L.build_programs(["ARS", "ICS-REFERRALS"], avail, combined=False) == ["ARS", "CP"]
+    assert L.build_programs(["ARS", "ICS-REFERRALS"], avail, combined=True) == ["ARS", "ICS-REFERRALS", "CP"]
+    import build_month as BM
+    assert BM.deck_tag(L.build_programs(["ARS"], avail, combined=False)) == "ARS-CP"
+
+
+def test_a_client_with_no_cashplease_section_still_builds_plain_ars():
+    assert L.build_programs(["ARS", "ICS"], {"ICS": (True, "")}, combined=False) == ["ARS"]
+    assert L.build_programs(["ARS"], {"CP": (False, "no CashPleaseSummary workbook in Inputs")}, combined=False) == ["ARS"]
+    assert L.build_programs(["ARS"], {}, combined=True) == ["ARS"]
+
+
+def test_the_plain_build_says_whether_cashplease_is_in_the_deck(monkeypatch):
+    _cp_roster(monkeypatch, [_row("1192", ships_as="ARS-CP section")])
+    assert L.cashplease_checks("1192") == [(L.OK, "CashPlease: in the deck (CashPlease roster, CashPleaseSummaryV1_260927_081811.xlsx)")]
+    _cp_roster(monkeypatch, [_row("1192", ships_as="ARS-CP section")], workbook=False)
+    (lvl, msg), = L.cashplease_checks("1192")
+    assert lvl == L.WARN and msg.startswith("CashPlease: left out")
+    assert L.cashplease_checks("1075") == []          # no CashPlease section: nothing to say
+
+
 def test_combined_checks_stop_when_no_other_program_has_data(monkeypatch):
     monkeypatch.setattr(L, "program_availability", lambda cid, period, progs: {"MRPC": (False, "no VIP MRPC sheet")})
     checks = L.combined_checks("1509", "2026.09", ROSTER)

@@ -648,7 +648,10 @@ def compute_status(cid):
     last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
     return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"), "csm": row.get("csm"), "period": period,
             "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
+            # `base` is what the plain build carries: ARS, plus CashPlease for a client who ships it as
+            # a section (Aaron, 2026-10-12) — the page names the button from it.
             "builds": {"ars_only": ars_only,
+                       "base": L.build_programs(entry[3], avail, False) if entry else ["ARS"],
                        "combined": ["ARS"] + extra if extra else None,
                        "left_out": {p: why for p, (ok, why) in avail.items() if not ok}}}
 
@@ -2140,17 +2143,22 @@ function renderStatus(s) {
   const failNote = failed ? ` <span class="err">The last build failed; see why below.</span>` : "";
   // Up to two builds (Aaron, 2026-09-16): ARS only, and a combined deck with every other program whose
   // data is on hand. Aaron's multi-program clients get only the combined one.
-  const b = s.builds || {ars_only: true, combined: null, left_out: {}};
+  const b = s.builds || {ars_only: true, base: ["ARS"], combined: null, left_out: {}};
   const combo = b.combined ? b.combined.join(" + ") : "";
+  // The plain build is ARS, or ARS + CP for a client whose CashPlease slides ship as a section
+  // (Aaron, 2026-10-12): the button says which, so "ARS only" never hides a CashPlease section.
+  const baseList = b.base && b.base.length ? b.base : ["ARS"];
+  const base = baseList.length > 1 ? baseList.join(" + ") : "ARS only";
   const leftOut = Object.entries(b.left_out || {}).map(([p, why]) => `${p} left out: ${why}`).join(" · ");
   const btns = (ask) => {
     const cls = ask ? "primary warn" : "primary", verb = failed ? (ask ? "Retry rebuild" : "Retry build") : (ask ? "Rebuild" : "Build");
     let h = "";
-    if (b.ars_only) h += `<button class="${cls}" id="go">${verb} ${b.combined ? "ARS only" : (ask ? "and replace the one in Outputs" : "and put in Outputs")}</button>`;
+    if (b.ars_only) h += `<button class="${cls}" id="go">${verb} ${b.combined ? esc(base) : (ask ? "and replace the one in Outputs" : "and put in Outputs")}</button>`;
     if (b.combined) h += `<button class="${cls}" id="go2">${verb} combined (${esc(combo)})</button>`;
     return `<span class="btns">${h}</span>`;
   };
-  const choose = b.combined && b.ars_only ? " Choose an ARS-only deck or a combined deck." : b.combined ? ` This client's deck is combined (${esc(combo)}).` : "";
+  const mix = baseList.length > 1 ? ` This client's deck is ${esc(baseList.join(" + "))}.` : "";
+  const choose = b.combined && b.ars_only ? ` Choose the ${esc(base)} deck or a combined deck.` : b.combined ? ` This client's deck is combined (${esc(combo)}).` : mix;
   const note = leftOut ? `<br><span class="small">${esc(leftOut)}</span>` : "";
   let verdict;
   if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.${choose}${failNote}${note}</p>${btns(false)}</div>`;
@@ -2173,7 +2181,8 @@ function renderStatus(s) {
 async function build(s, combined) {
   const go = $(combined ? "#go2" : "#go"), other = $(combined ? "#go" : "#go2");
   const kind = combined ? "combined" : "ars";
-  if (s.state === "ask" && armed !== kind) { armed = kind; go.textContent = combined ? "Yes, rebuild the combined deck" : "Yes, rebuild ARS only"; return; }
+  const baseName = (s.builds && s.builds.base && s.builds.base.length > 1) ? s.builds.base.join(" + ") : "ARS only";
+  if (s.state === "ask" && armed !== kind) { armed = kind; go.textContent = combined ? "Yes, rebuild the combined deck" : `Yes, rebuild ${baseName}`; return; }
   go.disabled = true; go.textContent = "Starting…";
   if (other) other.disabled = true;
   try {

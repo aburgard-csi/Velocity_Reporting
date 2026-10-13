@@ -208,6 +208,33 @@ def combined_programs(availability):
     return [p for p in ("ICS", "MRPC", "CP") if availability.get(p, (False,))[0]]
 
 
+def build_programs(entry_programs, availability, combined):
+    """The programs ONE build carries, in section order, with clients.md's own tokens.
+
+    CashPlease rides on every deck of a client whose roster row ships it as a section (Aaron,
+    2026-10-12: "add the CashPlease slides into Sheila decks"): the build Sheila offers as the
+    plain ARS deck is ARS-CP for those clients, and `combined` adds ICS and MRPC on top. Before
+    this a CSM who chose "ARS only" shipped a deck with no CashPlease section at all.
+
+    clients.md's own token (e.g. ICS-REFERRALS) is kept where there is one so build_month builds
+    the right shape; CashPlease has no token in the main roster row, so it carries its own name.
+    """
+    extra = combined_programs(availability)
+    if not combined:
+        extra = [p for p in extra if p == "CP"]
+    return ["ARS"] + [next((t for t in entry_programs if t.startswith(p)), p) for p in extra]
+
+
+def cashplease_checks(cid):
+    """The CashPlease line on a plain (not combined) build: in the deck, left out, or nothing
+    for a client with no CashPlease section."""
+    cp = cashplease_availability(cid)
+    if cp is None:
+        return []
+    ok, why = cp
+    return [(OK if ok else WARN, f"CashPlease: {'in the deck' if ok else 'left out'} ({why})")]
+
+
 def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), combined=False):
     """The launcher's rules, independent of the filesystem so they can be tested.
 
@@ -379,6 +406,8 @@ def all_checks(cid, period, row, roster, sent, rebuild=False, combined=False):
     checks += input_checks(cid, period) + lift_checks(cid, period, roster)
     if combined:
         checks += combined_checks(cid, period, roster)
+    else:
+        checks += cashplease_checks(cid)
     return checks
 
 
@@ -614,13 +643,10 @@ def cmd_build(a):
 
     entry = next(r for r in roster if r[0] == a.client)
     name = BM.deck_name(a.client, entry[1])
-    progs = ["ARS"]
-    if combined:
-        extra = combined_programs(program_availability(a.client, period, entry[3]))
-        # keep clients.md's own token (e.g. ICS-REFERRALS) so build_month builds the right shape
-        # keep clients.md's own token (e.g. ICS-REFERRALS) where there is one; CashPlease
-        # has no token in the main roster row, so it carries its own name.
-        progs += [next((t for t in entry[3] if t.startswith(p)), p) for p in extra]
+    # A plain build is ARS, plus CashPlease for a client who ships it as a section; a combined
+    # build adds the other programs whose data is on hand (build_programs).
+    progs = build_programs(entry[3], program_availability(a.client, period, entry[3]), combined)
+    multi = len(progs) > 1          # assembled from sections: the deliverable is the combined file
     lk = lock(work)
     t0 = time.time()
     made, result, delivered, where = {}, "did not finish", False, None
@@ -632,7 +658,7 @@ def cmd_build(a):
             err, made = BM.build_client(a.client, name, entry[2], progs, period, str(work.parent))
         finally:
             stop.set()
-        deck = made.get("DELIVERABLE") if combined else made.get("ARS")
+        deck = made.get("DELIVERABLE") if multi else made.get("ARS")
         if err or not deck:
             reason = _log_reason(work / "build.log") or err
             say(STOP, f"The build stopped at '{err}': {reason}")
@@ -640,8 +666,8 @@ def cmd_build(a):
         else:
             print(f"  [..]   Validating the deck  ({(time.time() - t0) / 60:.0f} min)", flush=True)
             gate = BM.validate(deck, str(work / "base.json"))
-            if combined and gate.startswith("0 FAIL"):
-                # A combined deck is assembled from parts; check the package, which the text rules can't see.
+            if multi and gate.startswith("0 FAIL"):
+                # A deck assembled from sections: check the package, which the text rules can't see.
                 sys.path.insert(0, str(REPO / "validation"))
                 import validate_deck as V
                 pkg = V.package_findings(deck)
@@ -661,7 +687,7 @@ def cmd_build(a):
     finally:
         lk.unlink(missing_ok=True)
     (work / "_launcher_result.json").write_text(json.dumps({
-        "client": a.client, "period": period, "deck": made.get("DELIVERABLE") if combined else made.get("ARS"),
+        "client": a.client, "period": period, "deck": made.get("DELIVERABLE") if multi else made.get("ARS"),
         "programs": progs, "combined": combined, "result": result,
         "delivered": delivered, "by": getpass.getuser(),
         "finished": f"{dt.datetime.now():%Y-%m-%d %H:%M}", "minutes": round((time.time() - t0) / 60, 1)},

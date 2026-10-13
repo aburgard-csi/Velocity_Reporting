@@ -21,6 +21,61 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-12 — CashPlease rides on every Sheila deck of a client who ships it as a section
+
+Summary: A client whose CashPlease slides ship inside their Executive Review now gets them on
+the plain build too, not only the combined one. In CSM Sheila the first button reads "Build
+ARS + CP" for those clients and the deck is tagged ARS-CP; the checks list says "CashPlease: in
+the deck" or why it was left out.
+
+"Add the CashPlease slides into Sheila decks" (Aaron, 2026-10-12). Until now CashPlease joined a
+launcher build only with `--combined`, so a CSM who chose "ARS only" for 1192 Ascend, 1681 First
+Financial or any other ARS-CP client shipped a deck with no CashPlease section, and nothing on
+the page said so. `ars_launcher.build_programs` is the one place a build's program list is made:
+ARS, plus CP when `cashplease_availability` says the roster ships it as a section and the weekly
+is in Inputs, plus ICS and MRPC when the build is combined. A plain build with two sections is
+assembled and package-checked like a combined one. `tests/test_ars_launcher.py` pins it.
+
+### 2026-10-12 — Debit spend per cardholder: two opt-in slides with a like-for-like comparison
+
+Summary: Two new ARS slides, "Debit Spend per Cardholder" and "Cards in Use and Spend per Card",
+follow Overall Debit Swipes & Spend when a build asks for them (`RPE_SPEND_SLIDES=1`). They
+compare the months of this year to date that the prior year also carries, so a client whose series
+is too short for the YTD tile still gets a true year-on-year read.
+
+Aaron, 2026-10-12: "Let's look at the debit card spend trend for Brooks Bank. The YoY says we don't
+have enough data. How are they trending on spend per cardholder? how are they trending on spend per
+eligible account? Is there a good story we can tell there?" and then "add the new debit card spend
+slides to the Brooks deck. We may include those permanently."
+
+Brooks Bank's workbook series starts in February 2025, so the Jan–Sep windows cannot be matched
+and the Spend YTD YoY tile reads n/a — correctly. `spend_trend.windows` finds the months both years
+share (Feb–Sep for Brooks; Jan–Sep for a full series; nothing, stated, for a series with no
+prior-year month) and `spend_trend.compare` averages each window. Slide 1 is the workbook's monthly
+spend over accounts with a card — the figure to quote (Brooks: $1,690 to $1,832 a month, +8.4%, on a
+flat card base). Slide 2 reads the ODD's per-account monthly Sig $ + PIN $ for the shape: cards in
+use (+10.6% for Brooks), spend per card in use (+4.8%) and spend per ARS-eligible account open in the
+month (+4.9%). The ODD is today's book, so earlier months are understated and the notes say so.
+Wording follows the +/-2% band; every number on both slides comes from `spend_trend`, with the
+month-by-month table in the notes. `tests/test_spend_trend.py` pins the windows, the averages, the
+wording, the ODD reader on a six-account fixture, and the slides' placement and notes. Opt-in only:
+the monthly build and the golden deck are unchanged until the default is flipped.
+
+### 2026-10-12 — build_month builds a CashPlease section for the clients whose roster row says so
+
+Summary: The monthly driver now adds the CashPlease slides to a client's deck when the CashPlease
+roster says they ship as a section (WesBanco and Altamaha as ICS-CP, Marine as ARS-ICS-MRPC-CP),
+instead of building the deck without them.
+
+Found while building the standalone decks (Aaron, 2026-10-12): 1632 WesBanco and 1734 Altamaha came
+out as plain ICS decks. `read_roster` read the Active, MRPC-only and ICS-only tables and nothing read
+the CashPlease roster's "Ships as" column, so `build_cashplease_section` was never reached for
+anyone; only the launcher (through `cashplease_availability`) ever added a CashPlease section. The
+roster reader now appends CP for a client whose CashPlease row is built and ships "as a section"; a
+CashPlease row for a client not otherwise on the roster is a standalone module and is left to
+`build_cashplease.py`. `tests/test_build_month.py` pins 1632, 1734, 1539 and 1542's program shapes,
+the ICS-CP deck tag, and that a standalone client (1131) is not added.
+
 ### 2026-10-12 — Sheila's change log names its release instead of saying "Unreleased"
 
 Summary: The change log page in CSM Sheila now starts with the release it belongs to — the stamp
