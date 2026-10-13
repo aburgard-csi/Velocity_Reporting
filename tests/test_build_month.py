@@ -71,10 +71,21 @@ def test_stopped_clients_are_reported_not_silently_dropped(skipped):
     ("1549", ["ARS", "ICS-REFERRALS"]),      # live before its first workbook
     ("1218", ["MRPC"]),
     ("1738", ["ICS-REFERRALS"]),             # no workbook on file
+    # CashPlease as a SECTION comes from the CashPlease roster's "Ships as" column (2026-10-12):
+    # build_month never read it, so 1632 and 1734 built as plain ICS decks.
+    ("1632", ["ICS", "CP"]),
+    ("1734", ["ICS", "CP"]),
+    ("1539", ["ARS", "ICS", "MRPC", "CP"]),
+    ("1542", ["ARS", "MRPC", "CP"]),
 ])
 def test_program_shape(cid, expected, roster):
     got = next(r[3] for r in roster if r[0] == cid)
     assert got == expected
+
+
+def test_a_standalone_cashplease_client_is_not_added_to_the_roster(roster):
+    """1131 ships a standalone CashPlease module (build_cashplease.py), not a section."""
+    assert "1131" not in ids(roster)
 
 
 def test_cancelled_program_is_dropped_but_the_client_stays(roster):
@@ -87,6 +98,8 @@ def test_cancelled_program_is_dropped_but_the_client_stays(roster):
     (["ARS", "ICS"], "ARS-ICS"),
     (["ARS", "ICS-REFERRALS"], "ARS-ICS"),
     (["ARS", "ICS", "MRPC"], "ARS-ICS-MRPC"),
+    (["ICS", "CP"], "ICS-CP"),
+    (["ICS-REFERRALS", "MRPC"], "ICS-MRPC"),
 ])
 def test_deck_tag(progs, tag):
     assert deck_tag(progs) == tag

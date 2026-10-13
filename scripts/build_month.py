@@ -132,6 +132,19 @@ def read_roster(path=ROSTER_FILE):
         if row[0] in seen_skip:
             continue
         seen_skip.add(row[0]); uniq_skip.append(row)
+    # CashPlease rides along as a SECTION of a client's deck when the CashPlease roster says
+    # so ("Ships as: ... section"; Aaron, 2026-09-01). That table was the only place the
+    # program was recorded and nothing here read it, so build_month never built a CashPlease
+    # section for anyone and 1632 WesBanco and 1734 Altamaha came out as plain ICS decks
+    # (2026-10-12). A CashPlease row whose client is not on this roster is a standalone
+    # module (build_cashplease.py), not a section, and is left alone here.
+    try:
+        cp_rows = read_cashplease_roster(path)
+    except SystemExit:
+        cp_rows = []
+    sections = {r["client_id"] for r in cp_rows if r["build"] and "section" in r["ships_as"].lower()}
+    uniq = [(cid, name, mmsm, progs + (["CP"] if cid in sections and "CP" not in progs else []))
+            for cid, name, mmsm, progs in uniq]
     return uniq, uniq_skip
 
 
