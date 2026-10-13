@@ -1994,6 +1994,22 @@ if os.environ.get("RPE_TEST_SLIDES") == "1" or os.environ.get("RPE_JAMES_SLIDES"
                                             "assets": ASSETS})
     print("test slide (RPE_TEST_SLIDES): " + _sss.TITLE)
 
+# ---- 2b'''. Debit spend per cardholder, cards in use, per eligible account (opt-in) ----
+# Aaron, 2026-10-12 ("add the new debit card spend slides to the Brooks deck. We may include
+# those permanently."). OFF unless RPE_SPEND_SLIDES=1, so the monthly build is unchanged until
+# that call is made. Placed by TITLE after "Overall Debit Swipes & Spend", after every
+# index-based pass. The workbook rows are SS, the complete-months series that slide uses, so
+# the two slides end on the same month; the ODD is read for the shape when it is on hand.
+if os.environ.get("RPE_SPEND_SLIDES") == "1":
+    import spend_trend as _stm
+    import spend_trend_slides as _sts
+    _ST = _stm.compute(SS, ODD if (ODD and os.path.exists(ODD)) else None, through=SS[-1][0])
+    _made = _sts.add_spend_trend_slides(prs, _ST, {"wb_src": WB_SRC, "odd_src": ODD_SRC,
+                                                   "as_of_long": AS_OF_LONG, "assets": ASSETS})
+    print(f"spend trend slides (RPE_SPEND_SLIDES): {len(_made)} added"
+          + (f"; windows {_ST['windows']['prior_name']} vs {_ST['windows']['current_name']}"
+             if _ST["windows"] else "; no like-for-like window in this series"))
+
 # Branch names on the charts (Aaron 2026-09-17): every slide that shows a
 # branch says where the names came from.
 if M.get("branch_name_of"):
