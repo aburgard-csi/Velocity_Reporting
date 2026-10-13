@@ -349,6 +349,23 @@ def test_the_list_marks_a_client_ready_only_from_a_current_ready_status(clean_st
         assert W.clients_doc()["clients"][0]["ready"] is want, stored
 
 
+def test_the_list_knows_whether_a_client_has_been_checked_and_what_blocks_it(clean_state, monkeypatch):
+    """"Checking…" until a status for this cycle is stored; "Blocked · <what>" from a stop (Aaron, 2026-10-13)."""
+    monkeypatch.setattr(W, "compute_clients", lambda: listing())
+    now = time.time()
+    W._status_cache.clear()
+    c = W.clients_doc()["clients"][0]
+    assert c["checked"] is False and c["blocked"] is None
+    W._status_cache["1441"] = (now, {"client": "1441", "state": "stop", "period": "2026.09",
+                                      "checks": [{"level": "ok", "text": "1441 FNB Alaska"},
+                                                 {"level": W.L.STOP, "text": "ARS workbook: not copied. Data team: land it"}]})
+    c = W.clients_doc()["clients"][0]
+    assert c["checked"] is True and c["blocked"] == "ARS workbook" and c["ready"] is False
+    W._status_cache["1441"] = (now, {"client": "1441", "state": "ready", "period": "2026.08"})   # another cycle
+    c = W.clients_doc()["clients"][0]
+    assert c["checked"] is False and c["blocked"] is None
+
+
 def test_a_finished_build_shows_in_the_list_before_the_refresh(clean_state, monkeypatch):
     """Error and In Outputs follow this server's own builds live; the stored list is rebuilt after."""
     calls = []

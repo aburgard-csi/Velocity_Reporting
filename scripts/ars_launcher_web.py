@@ -295,6 +295,9 @@ def compute_clients():
             "products": [p.strip() for p in (row.get("products") or "").split(";") if p.strip()],
             "path": path,
             "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
+            # When the launcher last put this client's deck in Outputs ("YYYY-MM-DD HH:MM"), for the
+            # list's "built today" note (Aaron, 2026-10-13).
+            "built_at": (res[0] or {}).get("finished") if (res[0] or {}).get("delivered") else None,
             "decks": sorted(d.name for d in decks.get(cid, [])),
             "lift_expired": "ARS" in progs and _lift.get(cid) == L.STOP,
             "error": bool(period) and last_build_failed(cid, period, decks.get(cid, []), result=res),
@@ -450,6 +453,7 @@ def _served_clients():
         # the first stop's subject so the list says what is missing (Aaron, 2026-10-13: "more status options").
         hit = checked.get(c["id"])
         current = bool(hit and now - hit[0] < STATUS_TTL and hit[1].get("period") == period)
+        c["checked"] = current            # no current status yet: the list says "Checking…" (Aaron, 2026-10-13)
         c["ready"] = current and hit[1].get("state") == "ready"
         c["blocked"] = stop_label(hit[1].get("checks") or []) if current and hit[1].get("state") == "stop" else None
         job = jobs.get(c["id"])
@@ -460,6 +464,8 @@ def _served_clients():
             if (deck and period and deck.startswith(f"{c['id']}-{period}-")
                     and deck not in c["decks"]):
                 c["decks"] = sorted(c["decks"] + [deck])
+            if deck and job.finished:
+                c["built_at"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(job.finished))
         clients.append(c)
     return {"period": period, "clients": clients,
             # The cycle menu rides with the stored list, built by compute_clients. NOT computed
@@ -2126,18 +2132,23 @@ function renderList() {
   let html = "", last = null;
   for (const c of shown) {
     if (!csm && c.csm !== last) { html += `<div class="grouphead">${esc(c.csm)}</div>`; last = c.csm; }
-    // No "Sent" chip: only Aaron records sends, and other CSMs have nowhere to mark theirs (2026-09-15).
+    // A "Sent" chip only on Aaron's clients: only Aaron records sends, and other CSMs have nowhere to
+    // mark theirs (2026-09-15; the chip itself Aaron, 2026-10-13).
     const place = QUEUE.queued.indexOf(c.id);
     const idle = QUEUE.building !== c.id && place < 0;
+    const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const builtToday = c.built_at && c.built_at.slice(0, 10) === today ? c.built_at.slice(11, 16) : "";
+    const quiet = idle && !c.error && !c.lift_expired && !c.decks.length;
     const chips = [QUEUE.building === c.id ? `<span class="chip building">Building</span>` : "",
                    place >= 0 ? `<span class="chip queue">Queued #${place + 1}</span>` : "",
                    c.error && idle ? `<span class="chip error">Error ${esc(PERIOD || "")}</span>` : "",
-                   c.ready && idle && !c.error && !c.lift_expired && !c.decks.length
-                     ? `<span class="chip ready">Ready</span>` : "",
+                   c.ready && quiet ? `<span class="chip ready">Ready</span>` : "",
                    c.blocked && idle && !c.lift_expired && !c.decks.length
                      ? `<span class="chip blocked" title="The checks stop here; open the client to see why">Blocked · ${esc(c.blocked)}</span>` : "",
+                   !c.checked && !c.ready && !c.blocked && quiet ? `<span class="chip" title="This month's checks have not run for this client yet">Checking…</span>` : "",
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
-                   c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}</span>` : ""].join("");
+                   c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}${builtToday ? " · built " + esc(builtToday) : ""}</span>` : "",
+                   c.sent && c.csm === "Aaron Burgard" ? `<span class="chip sent">Sent ${esc(shortDate(c.sent))}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span>${dots(c)}<span class="meta">${chips}</span></button>`;
   }

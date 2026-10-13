@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — Three more list chips: Checking…, built today, and Sent for Aaron's clients
+
+Summary: Sheila's list now says "Checking…" for a client whose checks have not run yet this
+cycle, adds "· built 07:40" to the In Outputs chip on the day the launcher put the deck there, and
+shows "Sent <date>" on Aaron's clients once a send is recorded.
+
+"I like each of those status ideas" (Aaron, 2026-10-13). Checking… comes from the same stored
+status as Ready and Blocked (none yet, or none for this cycle); the build time is the launcher's
+own result record, or the job this server just ran; the Sent chip stays on Aaron's clients only,
+because only Aaron records sends and the other CSMs have nowhere to mark theirs (2026-09-15).
+
 ### 2026-10-13 — Sheila's list: four dots per client, dividers, and a Blocked chip
 
 Summary: Each client in CSM Sheila's list now shows four dots in a fixed order (ARS, ICS, MRPC,
