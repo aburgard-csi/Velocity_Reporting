@@ -21,6 +21,40 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — ICS from the workbook alone: a workbook-only shape, counted as accounts opened
+
+Summary: An ICS client with the period's ICS workbook but no VIP sheet and no referral detail
+file now gets a deck. Its three count slides show accounts opened via the Invitation Checking
+System, from the workbook, and every title, label, caption and note says accounts opened, not
+referrals. KEMBA CU 1195 is the first.
+
+"Add a workbook-only ICS shape that draws the opening counts from Monthly Detail and the branch
+tab, labelled as accounts opened" (Aaron, 2026-10-13). The two counts differ: on 1776 CoastHills,
+the one client with both on file, the workbook's accounts opened run above the referral file every
+month (Aug 26: 128 vs 124; program to date 2,575 vs 2,280), so a workbook figure is never put on a
+slide titled referrals. `ics_local_sheet.available` returns the shape `workbook-only` when the
+workbook is for the deck's period and nothing else is on file (an older workbook alone still builds
+nothing); `read_workbook_openings` fills the count block from the "Accounts Opened via Invitation
+Checking System" row (program to date from the Cumulative row, with a flag when it disagrees with
+the monthly sum) and the "Invitation Checking DDA Openings by Branch" table's Year to Date column,
+with branch names from the Charts Goals tab, else the branch-name dataset, else the number; the
+block carries `count_basis` = `accounts_opened` and `meta.count_basis` with it. Completeness goes
+through `month_complete.assess` as of the tab's "Report Generated" stamp: an incomplete last month
+is charted hatched and left out of the previous-month and peak figures, stated in a flag. Goals are
+not shown: the Charts goals are referral goals. `build_ics_gen._WORDS` holds the wording for both
+bases — "Accounts Opened via Invitation Checking", "Accounts Opened by Month – Last N Months",
+"Accounts Opened by Branch – Year to Date", "Opened Program-to-Date", "Opened YTD", the divider's
+"ICS accounts opened, program to date", the agenda rows, the chart legend "Accounts opened via ICS"
+— and the pills carry the workbook's month ("PTD · September 2026"). The selection line and the
+trend caption step down to a shorter wording until they fit their boxes, measured with textfit.
+The slide face says what IS counted; "not referral counts" is said in the notes, not on the slide
+("we need to remove the word 'Not referrals' from Accounts Opened via Invitation checking", Aaron,
+2026-10-13).
+The workbook sections ride along as on a full build. `build_month` logs the shape and the workbook
+instead of a referral file. The Charts Goals tab is now found with its name stripped (1195's is
+" Goals"). `tests/test_ics_local_sheet.py` pins the shape, the counts, the branch table, the
+fallbacks, the incomplete month, the deck wording and the build_month log line.
+
 ### 2026-10-13 — 1195 KEMBA CU joins the roster as ICS only (Jordan Berkowitz)
 
 Summary: KEMBA CU now appears in Sheila's list as an ICS client. Its 2026.10 ICS workbook and

@@ -62,10 +62,10 @@ def write_referrals(path, months=None, extra=()):
     return n
 
 
-def write_charts(path, total_row=5):
+def write_charts(path, total_row=5, tab="Goals"):
     wb = openpyxl.Workbook()
     g = wb.active
-    g.title = "Goals"
+    g.title = tab
     g.append([])
     g.append([None, NAME])
     g.append([None, "Branch #", "Branch Name", "Monthly Goal"])
@@ -97,8 +97,10 @@ def write_direct_mail(path):
     wb.save(path)
 
 
-def write_workbook(path, months=9):
-    """The minimum `ics_workbook_extract.extract` reads, with invented figures."""
+def write_workbook(path, months=9, branch_tab=True, generated="9/9/2026 8:00:00 AM"):
+    """The minimum `ics_workbook_extract.extract` reads, with invented figures: accounts opened
+    10, 11, ... per month from Dec 25; the Cumulative row 10, 20, ... (so it disagrees with the
+    monthly sum on purpose); plus the branch tab the workbook-only shape reads."""
     wb = openpyxl.Workbook()
     md = wb.active
     md.title = "Monthly Detail"
@@ -137,6 +139,27 @@ def write_workbook(path, months=9):
     lo.cell(12, 1, "Last 12 Months")
     for j, v in enumerate([400, 40, 0.1, 100, 5, 0.05], start=2):
         lo.cell(12, j, v)
+    if branch_tab:
+        # The real tab: a banner, an all-DDA table, then the Invitation Checking table the
+        # workbook-only shape reads (Month and Year to Date "Accounts Opened" columns), a Total
+        # row, and the "Report Generated" stamp.
+        bt = wb.create_sheet("DDA Openings by Branch")
+        bt.cell(2, 2, "Invitation Checking System"); bt.cell(4, 2, NAME)
+        bt.cell(5, 2, "Openings by Branch"); bt.cell(6, 2, "August 2026 Data")
+        bt.cell(8, 2, "All DDA Openings\nby Branch"); bt.cell(8, 3, "Month"); bt.cell(8, 8, "Year to Date")
+        bt.cell(9, 3, "Accounts Opened"); bt.cell(9, 8, "Accounts Opened"); bt.cell(10, 2, "Branch")
+        bt.cell(11, 2, 10); bt.cell(11, 3, 40); bt.cell(11, 8, 300)
+        bt.cell(12, 2, 20); bt.cell(12, 3, 30); bt.cell(12, 8, 250)
+        bt.cell(13, 2, "Total"); bt.cell(13, 3, 70); bt.cell(13, 8, 550)
+        bt.cell(16, 2, "Invitation Checking\nDDA Openings\nby Branch"); bt.cell(16, 3, "Month"); bt.cell(16, 8, "Year to Date")
+        for c in (3, 8):
+            bt.cell(17, c, "Accounts Opened")
+        bt.cell(17, 4, "% of Total Opened"); bt.cell(17, 9, "% of Total Opened"); bt.cell(18, 2, "Branch")
+        bt.cell(19, 3, 0); bt.cell(19, 8, 0)                 # the blank-branch zero row the real tabs carry
+        bt.cell(20, 2, 10); bt.cell(20, 3, 10); bt.cell(20, 8, 60)
+        bt.cell(21, 2, 20); bt.cell(21, 3, 8); bt.cell(21, 8, 56)
+        bt.cell(22, 2, "Total"); bt.cell(22, 3, 18); bt.cell(22, 8, 116)
+        bt.cell(24, 2, f"Report Generated: {generated}")
     wb.save(path)
 
 
@@ -198,10 +221,22 @@ def test_nothing_on_file_cannot_build(root):
     assert av["referrals"] is None and av["reason"]
 
 
-def test_a_workbook_alone_cannot_build(root):
+def test_the_periods_workbook_alone_builds_the_workbook_only_shape(root):
+    """Aaron, 2026-10-13 (1195 KEMBA CU): "Add a workbook-only ICS shape that draws the opening
+    counts from Monthly Detail and the branch tab, labelled as accounts opened"."""
     write_workbook(workbook_file(root, PERIOD))
     av = L.available(CID, PERIOD, NAME)
-    assert av["ok"] is False and av["workbook_period"] == PERIOD
+    assert av["ok"] is True and av["shape"] == L.WORKBOOK_ONLY and av["workbook_period"] == PERIOD
+    assert av["referrals"] is None and av["vip"] is False
+    assert "accounts opened" in av["reason"] and "not as referrals" in av["reason"]
+
+
+def test_an_older_workbook_alone_cannot_build(root):
+    """Stale financials and no referral figures to fall back to: nothing to show."""
+    write_workbook(workbook_file(root, "2026.08"))
+    av = L.available(CID, PERIOD, NAME)
+    assert av["ok"] is False and av["shape"] is None and av["workbook_period"] == "2026.08"
+    assert f"only a {PERIOD} workbook" in av["reason"]
 
 
 def test_referrals_without_a_workbook_are_referrals_only(root):
@@ -485,6 +520,121 @@ def test_referrals_only_deck_without_goals_shows_no_goal(root, tmp_path):
                      for r in sh.table.rows for c in r.cells)
     assert "vs Goal" not in text and "% of Goal" not in text and "Goal" not in cells
     assert "0%" not in text
+
+
+# ------------------------------------------------------------------ the workbook-only shape
+# 1195 KEMBA CU (Aaron, 2026-10-13): the period's ICS workbook and nothing else. Counts are
+# ACCOUNTS OPENED via the Invitation Checking System and every slide says so; they are not
+# referrals (on 1776, the one client with both, the workbook runs above the referral file).
+def _wb_only_sheet(root, tmp_path, charts=True):
+    write_workbook(workbook_file(root, PERIOD))
+    if charts:
+        write_charts(charts_file(root))
+    return _sheet(root, tmp_path)
+
+
+def test_workbook_only_counts_come_from_monthly_detail_and_the_branch_tab(root, tmp_path):
+    d = _wb_only_sheet(root, tmp_path)
+    rf, m = d["referrals"], d["meta"]
+    assert m["count_basis"] == "accounts_opened" and rf["count_basis"] == "accounts_opened"
+    assert rf["program_to_date"] == 90                      # the Cumulative row, not the sum (126)
+    assert any("Cumulative row says 90" in f and "add to 126" in f for f in d["_flags"])
+    assert rf["year_to_date"] == 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18   # Jan..Aug 26
+    assert rf["previous_month"] == {"label": "August", "value": 18}
+    assert rf["latest_data_month"] == "2026-08"
+    assert rf["trend"]["months"][0] == "Dec 25" and rf["trend"]["months"][-1] == "Aug 26"
+    assert rf["trend"]["referrals"] == list(range(10, 19)) and rf["trend"]["partial_last"] is False
+    assert "month_to_date" not in rf and "monthly_goal" not in rf
+    # Branches from the Invitation Checking table's Year to Date column, named from the Goals tab;
+    # the all-DDA table above it (300 / 250) is never read.
+    assert [(b["name"], b["number"], b["referrals"], b["month"]) for b in rf["by_branch"]["branches"]] == \
+        [("Harborview", "10", 60, 10), ("Hilltop", "20", 56, 8)]
+    assert not any(b.get("goal") for b in rf["by_branch"]["branches"])
+    # Dated by the workbook: the stamp is the pull, the month end is how far the counts run.
+    assert m["data_pull"] == "2026-09-09" and m["data_through"] == "2026-08-31"
+    assert m["workbook_month"] == "August 2026" and m["source_kind"] == "local"
+    assert "NOT referral counts" in m["referral_source"] and "Monthly Detail" in m["referral_source"]
+    # The workbook sections ride along: it IS the period's workbook.
+    for k in ("performance", "revenue", "financial_summary", "monthly_detail", "benchmark"):
+        assert d[k]
+    prov = d["_provenance"]
+    assert prov["shape"] == L.WORKBOOK_ONLY and prov["vip"] is False
+    assert "referrals (as such)" in prov["omitted"] and "goals" in prov["omitted"]
+    assert "referrals.month_to_date" in prov["omitted"]
+    assert not any("totals" in f for f in d["_flags"])      # branch-tab YTD 116 == Monthly Detail YTD
+
+
+def test_workbook_only_branch_names_fall_back_to_the_branch_name_dataset(root, tmp_path, monkeypatch):
+    import branch_names as BN
+    monkeypatch.setattr(BN, "client_map", lambda cid: {"10": "Harbor Dataset", "20": "Hill Dataset"} if cid == CID else {})
+    d = _wb_only_sheet(root, tmp_path, charts=False)
+    assert [b["name"] for b in d["referrals"]["by_branch"]["branches"]] == ["Harbor Dataset", "Hill Dataset"]
+
+
+def test_workbook_only_without_a_branch_tab_is_flagged_not_invented(root, tmp_path):
+    write_workbook(workbook_file(root, PERIOD), branch_tab=False)
+    d = _sheet(root, tmp_path)
+    assert d["referrals"]["by_branch"]["branches"] == []
+    assert any("no 'DDA Openings by Branch' table" in f for f in d["_flags"])
+    assert d["meta"]["data_pull"] == dt.date.fromtimestamp(os.path.getmtime(workbook_file(root, PERIOD))).isoformat()
+
+
+def test_workbook_only_month_not_ended_at_the_report_date_is_incomplete(root, tmp_path):
+    """Generated mid-August: August stays on the chart hatched and July is the previous month."""
+    write_workbook(workbook_file(root, PERIOD), generated="8/20/2026 8:00:00 AM")
+    d = _sheet(root, tmp_path)
+    rf = d["referrals"]
+    assert rf["trend"]["partial_last"] is True and rf["trend"]["months"][-1] == "Aug 26"
+    assert rf["previous_month"] == {"label": "July", "value": 17}
+    assert rf["program_to_date"] == 80 and d["meta"]["data_through"] == "2026-07-31"
+    assert any("Aug 26 is incomplete" in f for f in d["_flags"])
+
+
+def test_workbook_only_deck_is_worded_as_accounts_opened(root, tmp_path):
+    from validate_deck import package_findings
+    d = _wb_only_sheet(root, tmp_path)
+    out, prs = _build_deck(root, tmp_path, d)
+    assert package_findings(out) == []
+    ts = _titles(prs)
+    i = ts.index("Accounts Opened via Invitation Checking")
+    assert ts[i + 1] == "Accounts Opened by Month – Last 9 Months"
+    assert ts[i + 2] == "Accounts Opened by Branch – Year to Date"
+    assert "Performance of ICS Accounts" in " ".join(ts)       # the workbook sections are present
+    text = " ".join(sh.text_frame.text for s in prs.slides for sh in s.shapes if sh.has_text_frame)
+    cells = [c.text for s in prs.slides for sh in s.shapes if sh.has_table for r in sh.table.rows for c in r.cells]
+    for must in ("Opened Program-to-Date", "ICS accounts opened, program to date", "PTD · August 2026",
+                 "has opened 90 checking accounts via the Invitation Checking System",
+                 "Branches With Accounts Opened", "Accounts Opened by Month & by Branch"):
+        assert must in text, must
+    assert "Opened YTD" in cells and "Harborview" in cells
+    for never in ("The Power of Referrals", "Referrals Program-to-Date", "Referral Trend", "Results by Branch",
+                  "Referrals YTD", "Branches Reporting Referrals", "checking referrals"):
+        assert never not in text and never not in cells, never
+    # The slide face says what IS counted; "not referrals" is for the notes (Aaron, 2026-10-13:
+    # "remove the word 'Not referrals' from Accounts Opened via Invitation checking").
+    assert "not referral" not in text.lower()
+    notes = [s.notes_slide.notes_text_frame.text for s in prs.slides]
+    count_notes = [n for n in notes[i:i + 3]]
+    assert all("NOT referral counts" in n and workbook_file(root, PERIOD).name in n and f"({CID})" in n
+               for n in count_notes)
+    assert "VIP ICS Referral" not in " ".join(notes)
+
+
+def test_workbook_only_build_month_logs_the_workbook_and_is_not_referrals_only(bm, monkeypatch):
+    BM, calls, built, stage = bm
+    monkeypatch.setattr(BM.LOCAL_ICS, "available",
+                        lambda *a, **k: dict(_av(shape=L.WORKBOOK_ONLY), referrals=None, workbook="w.xlsx"))
+    err, made = BM.build_client(CID, NAME, None, ["ICS"], PERIOD, stage)
+    assert err is None and made["ICS"] and "--referrals-only" not in calls[-1]
+    log = open(os.path.join(stage, CID, "build.log"), encoding="utf-8").read()
+    assert "workbook-only" in log and "accounts opened via ICS from the workbook" in log and "workbook w.xlsx" in log
+
+
+def test_a_goals_tab_named_with_a_leading_space_is_still_read(root):
+    """1195's Charts workbook names the tab ' Goals'."""
+    write_charts(charts_file(root), tab=" Goals")
+    goals, _, info = L.read_goals(str(charts_file(root)))
+    assert goals["10"] == ("Harborview", 2) and info["branches"] == 2
 
 
 # ------------------------------------------------------------------ direct mail slide

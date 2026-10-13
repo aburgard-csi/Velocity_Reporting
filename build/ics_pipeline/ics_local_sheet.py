@@ -19,6 +19,17 @@ VIP ... Run the ICS slides using what's available"). The CSM put these in `Input
     NEVER added to the referral counts: it is a different channel (3 of 1776's 384 DM
     account holders also appear in the referral file).
 
+A client with the period's ICS workbook and NOTHING else — no VIP sheet, no referral file —
+gets the "workbook-only" shape (Aaron, 2026-10-13, 1195 KEMBA CU: "Add a workbook-only ICS
+shape that draws the opening counts from Monthly Detail and the branch tab, labelled as
+accounts opened"). `read_workbook_openings` fills the `referrals` block from the workbook's
+"Accounts Opened via Invitation Checking System" row and its "DDA Openings by Branch" tab,
+and `meta.count_basis` = "accounts_opened" makes build_ics_gen word every slide as accounts
+opened. THEY ARE NOT REFERRALS: on 1776 CoastHills, the one client with both on file, the
+workbook's accounts opened run above the referral file every month (Aug 26: 128 vs 124;
+program to date 2,575 vs 2,280). The block keeps the referral block's key names so one set
+of slides renders both; the basis flag, not the key name, says what is counted.
+
 What these files cannot supply is OMITTED, so build_ics_gen's own rules apply to its
 absence — never zeroed, never invented:
 
@@ -63,6 +74,12 @@ REFERRAL_KIND = "ICS referrals"
 DIRECT_MAIL_KIND = "ICS direct mail"
 CHARTS_KIND = "ICS charts"
 WORK_DIRNAME = "ics_local_sheet"          # Build Artifacts/<this>/<id>/ — converted copies
+# The shape built from the period's ICS workbook alone, and the basis its counts carry.
+WORKBOOK_ONLY = "workbook-only"
+COUNT_BASIS_OPENINGS = "accounts_opened"
+BRANCH_TAB = "DDA Openings by Branch"
+OPENINGS_ROW = "Accounts Opened via Invitation"
+CUMULATIVE_ROW = "Cumulative From Invitation"
 MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July",
               "August", "September", "October", "November", "December"]
 
@@ -171,9 +188,13 @@ def available(cid, period, client_name=None) -> dict:
     """What an ICS section for `cid` in `period` can be built from.
 
     ok is True when VIP OR the local files can build a section. The local files can when
-    a referral detail file is present: build_ics_gen needs `referrals` in every shape.
-    shape is "full" when the newest ICS workbook is for the deck's own period, else
-    "referrals-only"; None when nothing can be built.
+    a referral detail file is present (build_ics_gen needs `referrals` in every shape), or
+    when the ICS workbook is for the deck's own period and stands alone. shape is "full"
+    (referral file + the period's workbook), "referrals-only" (referral file; the workbook
+    absent or for another period), "workbook-only" (the period's workbook alone: accounts
+    opened, labelled as such — see the module docstring); None when nothing can be built.
+    A workbook for another period with no referral file builds nothing: its financials
+    would be stale and it has no referral figures to fall back to.
     """
     cid = str(cid)
     vip = _vip_sheet(cid) is not None
@@ -184,6 +205,8 @@ def available(cid, period, client_name=None) -> dict:
     shape = None
     if vip or ref:
         shape = "full" if (wbp == period) else "referrals-only"
+    elif wbp == period:
+        shape = WORKBOOK_ONLY
     wb_txt = (f"the ICS workbook is for {wbp}" if wbp else "there is no ICS workbook on file")
     if vip:
         reason = f"A VIP ICS sheet is on file for {cid}; the VIP path is used and {wb_txt}."
@@ -193,10 +216,17 @@ def available(cid, period, client_name=None) -> dict:
     elif ref:
         reason = (f"No VIP ICS sheet for {cid}; the section can be built from the local referral "
                   f"file, referrals only, because {wb_txt} and the deck is {period}.")
+    elif shape == WORKBOOK_ONLY:
+        reason = (f"No VIP ICS sheet and no ICS referral detail file for {cid}; the section is built "
+                  f"from the {period} ICS workbook alone — accounts opened via the Invitation Checking "
+                  f"System (its 'Monthly Detail' row and '{BRANCH_TAB}' tab), labelled as accounts "
+                  f"opened, not as referrals.")
     else:
         reason = (f"No VIP ICS sheet and no ICS referral detail file for {cid} in Inputs/"
-                  f"{R.INPUT_KIND_DIRS.get(REFERRAL_KIND, REFERRAL_KIND)}, so no ICS section can be built.")
-    return {"ok": bool(vip or ref), "vip": vip,
+                  f"{R.INPUT_KIND_DIRS.get(REFERRAL_KIND, REFERRAL_KIND)}, so no ICS section can be built"
+                  + (f" ({wb_txt}; only a {period} workbook can carry the section on its own)."
+                     if wbp else "."))
+    return {"ok": bool(vip or ref or shape == WORKBOOK_ONLY), "vip": vip,
             "workbook": str(wb) if wb else None, "workbook_period": wbp,
             "referrals": str(ref) if ref else None,
             "direct_mail": str(dm) if dm else None,
@@ -391,9 +421,11 @@ def read_goals(charts_path):
     import openpyxl
     wb = openpyxl.load_workbook(str(charts_path), read_only=True, data_only=True)
     try:
-        if "Goals" not in wb.sheetnames:
+        # Matched with the name stripped: 1195's Charts workbook names the tab " Goals".
+        tab = next((n for n in wb.sheetnames if n.strip() == "Goals"), None)
+        if tab is None:
             return {}, [], None
-        rows = [tuple(r) for r in wb["Goals"].iter_rows(values_only=True)]
+        rows = [tuple(r) for r in wb[tab].iter_rows(values_only=True)]
         hi = _header_index(rows, "monthly goal")
         if hi is None:
             return {}, [], None
@@ -551,6 +583,183 @@ def referral_sections(events, period, goals=None):
     return rf, flags, data_through
 
 
+# ------------------------------------------------------------------ the workbook alone
+def _month_end(y, m):
+    import calendar
+    return _dt.date(y, m, calendar.monthrange(y, m)[1])
+
+
+def read_workbook_openings(wb_path, period, cid, names=None):
+    """-> (block, info, flags, data_through, as_of): ACCOUNTS OPENED via the Invitation Checking
+    System, from the ICS workbook alone, in the shape of `referral_sections`' block so the same
+    three slides render it. `count_basis` says what is counted; build_ics_gen reads it.
+
+      * 'Monthly Detail', the "Accounts Opened via Invitation Checking System" row -> the trend,
+        year to date and previous month; program to date from the "Cumulative From ..." row (else
+        the sum, with a flag when the two disagree).
+      * 'DDA Openings by Branch', the "Invitation Checking DDA Openings by Branch" table, Year to
+        Date column -> the branch table. `names` (branch key -> name) labels the rows; a branch
+        with no name is shown by number, never guessed.
+
+    Completeness goes through month_complete.assess as of the tab's "Report Generated" stamp
+    (else the file date): a trailing incomplete month stays on the chart hatched and is left out
+    of the previous-month and peak figures, and a flag says so. Goals are not read: the Charts
+    Goals tab carries REFERRAL goals, which are not compared with accounts opened.
+    """
+    import openpyxl
+    import ics_workbook_extract as X
+    import month_complete as MC
+    names = dict(names or {})
+    flags = []
+    base = os.path.basename(str(wb_path))
+    wb = openpyxl.load_workbook(str(wb_path), read_only=True, data_only=True)
+    try:
+        if "Monthly Detail" not in wb.sheetnames:
+            raise SystemExit(f"{base}: no 'Monthly Detail' tab, so no accounts-opened figures.")
+        md = wb["Monthly Detail"]
+        cols = X.month_cols(md) or X.month_cols(md, 7)
+        if not cols:
+            raise SystemExit(f"{base}: no dated month columns in 'Monthly Detail'.")
+        hdr = 14 if isinstance(md.cell(14, cols[0]).value, _dt.datetime) else 7
+        r_open = X._find_row(md, OPENINGS_ROW, 8, 40)
+        if not r_open:
+            raise SystemExit(f"{base}: no '{OPENINGS_ROW} Checking System' row in 'Monthly Detail'.")
+        r_cum = X._find_row(md, CUMULATIVE_ROW, 8, 40)
+        months, values = [], []
+        for c in cols:
+            v = md.cell(r_open, c).value
+            months.append(md.cell(hdr, c).value.date().replace(day=1))
+            values.append(int(round(v)) if isinstance(v, (int, float)) else None)
+        while values and values[-1] is None:
+            months.pop(); values.pop()
+        if not values:
+            raise SystemExit(f"{base}: the '{OPENINGS_ROW} Checking System' row carries no figures.")
+        cum_by_col = {}
+        if r_cum:
+            for i, c in enumerate(cols[:len(values)]):
+                cv = md.cell(r_cum, c).value
+                if isinstance(cv, (int, float)):
+                    cum_by_col[i] = int(round(cv))
+        # ---- the branch tab
+        branches, total_row, generated, tab_info = [], None, None, None
+        if BRANCH_TAB in wb.sheetnames:
+            rows = [tuple(r) for r in wb[BRANCH_TAB].iter_rows(values_only=True)]
+            for r in rows:
+                for v in r:
+                    if isinstance(v, str) and v.strip().lower().startswith("report generated"):
+                        generated = MC.report_date(v.split(":", 1)[-1]) or generated
+            # The TABLE title ("Invitation Checking / DDA Openings / by Branch"), not the tab's
+            # "Invitation Checking System" banner above the all-DDA table.
+            start = next((i for i, r in enumerate(rows)
+                          if len(r) > 1 and isinstance(r[1], str)
+                          and r[1].strip().lower().startswith("invitation checking")
+                          and "branch" in r[1].lower()), None)
+            if start is not None and start + 1 < len(rows):
+                title_row, head = rows[start], rows[start + 1]
+                c_group = next((i for i, v in enumerate(title_row)
+                                if isinstance(v, str) and "year to date" in v.lower()), None)
+                opened = [i for i, v in enumerate(head)
+                          if isinstance(v, str) and v.strip().lower() == "accounts opened"]
+                c_month = opened[0] if opened else None
+                c_ytd = next((i for i in opened if c_group is not None and i >= c_group), None)
+
+                def _num_at(r, i):
+                    return int(round(r[i])) if (i is not None and i < len(r)
+                                                and isinstance(r[i], (int, float))) else 0
+                for r in rows[start + 2:]:
+                    b = r[1] if len(r) > 1 else None
+                    if isinstance(b, str) and b.strip().lower() == "total":
+                        total_row = r
+                        break
+                    if isinstance(b, str) and b.strip().lower() == "branch":
+                        continue
+                    mv, yv = _num_at(r, c_month), _num_at(r, c_ytd)
+                    if b in (None, "") and not (mv or yv):
+                        continue
+                    branches.append((_branch_key(b), mv, yv))
+                tab_info = {"tab": BRANCH_TAB, "table": "Invitation Checking DDA Openings by Branch",
+                            "table_title_row": start + 1, "month_column": c_month, "ytd_column": c_ytd,
+                            "branches": len(branches),
+                            "total_row_ytd": _num_at(total_row, c_ytd) if total_row else None,
+                            "total_row_month": _num_at(total_row, c_month) if total_row else None}
+        if not branches:
+            flags.append(f"{base}: no '{BRANCH_TAB}' table could be read, so no branch results are shown.")
+    finally:
+        wb.close()
+
+    as_of = generated or _dt.date.fromtimestamp(os.path.getmtime(str(wb_path)))
+    res = MC.assess([m.strftime("%b %y") for m in months], values, as_of=as_of,
+                    measure="accounts opened via ICS")
+    n_c = res["complete"]
+    if n_c == 0:
+        raise SystemExit(f"{base}: no complete month of accounts opened as of {as_of.isoformat()}.")
+    # At most one trailing incomplete month stays, hatched; anything beyond it is not charted.
+    months, values = months[:n_c + 1], values[:n_c + 1]
+    partial = len(months) > n_c
+    for e in res["excluded"]:
+        flags.append(f"{e['month']} is incomplete for accounts opened ({e['reason']}: "
+                     + (f"the report was generated {e['as_of']}, before the month ended"
+                        if e["reason"] == "pulled"
+                        else f"{e['value']:g} against a six-month median of {e['baseline']:g}")
+                     + "); it is charted hatched and left out of the previous-month and peak figures.")
+    last_c = months[n_c - 1]
+    py, pm = _period_key(period)
+    if (last_c.year, last_c.month) != _prev_month(py, pm):
+        flags.append(f"The workbook's last complete month is {MONTH_FULL[last_c.month - 1]} {last_c.year}, "
+                     f"not the month before a {period} deck.")
+    ytd = sum(v for mth, v in zip(months[:n_c], values[:n_c]) if mth.year == py)
+    summed = sum(values[:n_c])
+    cum = cum_by_col.get(n_c - 1)
+    ptd = cum if cum is not None else summed
+    if cum is not None and cum != summed:
+        flags.append(f"'Monthly Detail': the Cumulative row says {cum:,} accounts opened through "
+                     f"{MONTH_FULL[last_c.month - 1]} {last_c.year} and the monthly figures add to {summed:,}; "
+                     f"the Cumulative row is used for program to date.")
+    first_i = max(0, len(months) - TREND_MONTHS)
+    rows_b = []
+    for key, mv, yv in sorted(branches, key=lambda t: (-t[2], t[0])):
+        nm = names.get(key)
+        rows_b.append({"name": nm or (f"Branch {key}" if key else "No branch recorded"),
+                       "number": key, "referrals": yv, "month": mv})
+    if total_row is not None and tab_info and tab_info["total_row_ytd"] is not None:
+        sb = sum(b["referrals"] for b in rows_b)
+        if sb != tab_info["total_row_ytd"]:
+            flags.append(f"'{BRANCH_TAB}': the Total row says {tab_info['total_row_ytd']:,} year to date "
+                         f"and the branch rows add to {sb:,}; the branch rows are shown.")
+        if tab_info["total_row_ytd"] != ytd:
+            flags.append(f"Year to date: '{BRANCH_TAB}' totals {tab_info['total_row_ytd']:,} and 'Monthly "
+                         f"Detail' adds to {ytd:,} for the same months; each slide states its own tab's figure.")
+    if partial and rows_b:
+        flags.append(f"The branch year-to-date figures include {MONTH_FULL[months[-1].month - 1]} "
+                     f"{months[-1].year}, which is incomplete.")
+    block = {
+        "count_basis": COUNT_BASIS_OPENINGS,
+        "_note": ("ACCOUNTS OPENED via the Invitation Checking System, from the ICS workbook alone — "
+                  "NOT referral counts. The keys match the referral block so the same slides render "
+                  "it; build_ics_gen reads count_basis and words every slide as accounts opened."),
+        "program_to_date": ptd,
+        "year_to_date": ytd,
+        "previous_month": {"label": MONTH_FULL[last_c.month - 1], "value": values[n_c - 1]},
+        "latest_data_month": last_c.strftime("%Y-%m"),
+        "trend": {"months": [_mon_yy(m.year, m.month) for m in months[first_i:]],
+                  "referrals": values[first_i:],
+                  "partial_last": partial},
+        "by_branch": {"ytd_goal_per_branch": None, "branches": rows_b,
+                      "_goal_basis": ("no goals: the Charts Goals tab carries referral goals, "
+                                      "which are not compared with accounts opened"),
+                      "_source": f"'{BRANCH_TAB}' tab, Invitation Checking table, Year to Date column"},
+    }
+    info = {"monthly_detail": {"row": OPENINGS_ROW + " Checking System", "header_row": hdr,
+                               "months": len(values), "first_month": months[0].strftime("%Y-%m"),
+                               "last_month": months[-1].strftime("%Y-%m"),
+                               "cumulative_row_used": cum is not None},
+            "branch_tab": tab_info,
+            "data_month": f"{MONTH_FULL[last_c.month - 1]} {last_c.year}",
+            "report_generated": generated.isoformat() if generated else None,
+            "as_of": as_of.isoformat(), "completeness": res}
+    return block, info, flags, _month_end(last_c.year, last_c.month), as_of
+
+
 # ------------------------------------------------------------------ the sheet
 def _workbook_month(path):
     """'August 2026' from the Monthly Detail banner ("August 2026 Data"), else the last
@@ -585,59 +794,102 @@ def _folder_of(path):
 def build_sheet(cid, name, period, out_json, *, today=None) -> str:
     """Write an ICS client sheet for `cid` from local files; returns the path written.
 
-    Raises SystemExit (plain sentence) when no referral file is on file, or it is stale.
+    Raises SystemExit (plain sentence) when nothing on file can build one, or the referral
+    file is stale. Three shapes: "referrals-only" (the referral file; no workbook for the
+    period), "full" (the referral file and the period's workbook) and "workbook-only" (the
+    period's workbook alone — accounts opened, `meta.count_basis` = "accounts_opened", never
+    called referrals).
     """
     cid = str(cid)
     av = available(cid, period, name)
-    if not av["referrals"]:
+    if not av["ok"] or av["vip"]:
         raise SystemExit(av["reason"])
     flags, omitted, files = [], {}, []
-
-    ref = av["referrals"]
-    events, rinfo = read_referral_events(ref, cid)
     goals, disagree, ginfo = read_goals(av.get("charts"))
     for k in disagree:
         goals[k] = (None, goals[k][1])
         flags.append(f"Branch {k}: the Charts Goals and Mystery Shop Results tabs name it "
                      f"differently; shown by number.")
-    rf, rflags, data_through = referral_sections(events, period, goals)
-    flags += rflags
-    if ginfo and ginfo.get("total_row_goal") is not None             and ginfo["total_row_goal"] != ginfo["sum_of_branch_goals"]:
-        flags.append(f"Charts Goals tab: its Total row says {ginfo['total_row_goal']:g} a month but the "
-                     f"branch goals add to {ginfo['sum_of_branch_goals']}; the branch goals are used, so "
-                     f"the monthly goal and the branch table agree.")
-    if rinfo["rows_without_date"]:
-        flags.append(f"{rinfo['rows_without_date']} referral row(s) had no readable Issue Date and "
-                     f"were not counted.")
-    if rinfo["duplicate_ids_dropped"]:
-        flags.append(f"{rinfo['duplicate_ids_dropped']} duplicate certificate id(s) counted once.")
-    files.append(dict({"role": "referrals", "file": os.path.basename(ref), "folder": _folder_of(ref),
-                       "file_date": _file_date(ref), "data_through": data_through.isoformat()}, **rinfo))
-    if not goals:
-        omitted["goals"] = ("No Charts workbook with a Goals tab was found for this client, so "
-                            "no monthly or branch goal is stated.")
-    else:
-        files.append(dict({"role": "branch names and monthly goals",
-                           "file": os.path.basename(av["charts"]), "folder": _folder_of(av["charts"]),
-                           "file_date": _file_date(av["charts"])}, **ginfo))
-    if "month_to_date" not in rf:
-        omitted["referrals.month_to_date"] = (
-            f"No referrals in the file are dated in {period}; the file cannot tell zero referrals "
-            f"from a month not yet extracted, so no partial month is shown.")
 
-    charts_txt = (f"; branch names and monthly goals from {os.path.basename(av['charts'])} "
-                  f"('Goals' tab)") if goals else ""
-    referral_source = (f"ICS detailed referral file {os.path.basename(ref)} ({_folder_of(ref)}, file "
-                       f"dated {_file_date(ref)}, referrals through {data_through.isoformat()}; "
-                       f"not VIP){charts_txt}")
+    if av["shape"] == WORKBOOK_ONLY:
+        # Branch names: the Charts Goals tab, then the branch-name dataset the morning check keeps
+        # (Inputs/Branch Names); a branch neither names is shown by number.
+        names = {k: nm for k, (nm, _) in goals.items() if nm}
+        try:
+            import branch_names as BN
+            for k, nm in (BN.client_map(cid) or {}).items():
+                names.setdefault(_branch_key(k), nm)
+        except Exception:
+            pass
+        rf, winfo, wflags, data_through, as_of = read_workbook_openings(av["workbook"], period, cid, names)
+        flags += wflags
+        wb_name = os.path.basename(av["workbook"])
+        files.append(dict({"role": "accounts opened by month ('Monthly Detail') and by branch "
+                                   f"('{BRANCH_TAB}') — not referrals",
+                           "file": wb_name, "folder": _folder_of(av["workbook"]),
+                           "file_date": _file_date(av["workbook"])}, **winfo))
+        if names:
+            files.append({"role": "branch names",
+                          "sources": ([f"{os.path.basename(av['charts'])} ('Goals' tab)"] if goals else [])
+                                     + ["Inputs/Branch Names/branch_names.csv (branch_names.client_map)"]})
+        omitted["goals"] = ("The Charts Goals tab carries referral goals, which are not compared with "
+                            "accounts opened; no monthly or branch goal is stated.")
+        omitted["referrals.month_to_date"] = (
+            f"The workbook is monthly and ends at {winfo['data_month']}; the deck's own month "
+            f"({period}) is not in it, so no partial month is shown.")
+        omitted["referrals (as such)"] = (
+            "No referral detail file or VIP sheet is on file. The counts are ACCOUNTS OPENED via the "
+            "Invitation Checking System from the workbook, labelled as accounts opened on every slide.")
+        referral_source = (f"ICS workbook {wb_name} ({_folder_of(av['workbook'])}, {winfo['data_month']} data, "
+                           f"report generated {as_of.isoformat()}; not VIP): accounts opened via the "
+                           f"Invitation Checking System ('Monthly Detail' row and '{BRANCH_TAB}' tab), NOT "
+                           f"referral counts — no referral detail file or VIP sheet is on file")
+        data_pull = as_of.isoformat()
+    else:
+        ref = av["referrals"]
+        events, rinfo = read_referral_events(ref, cid)
+        rf, rflags, data_through = referral_sections(events, period, goals)
+        flags += rflags
+        if ginfo and ginfo.get("total_row_goal") is not None \
+                and ginfo["total_row_goal"] != ginfo["sum_of_branch_goals"]:
+            flags.append(f"Charts Goals tab: its Total row says {ginfo['total_row_goal']:g} a month but the "
+                         f"branch goals add to {ginfo['sum_of_branch_goals']}; the branch goals are used, so "
+                         f"the monthly goal and the branch table agree.")
+        if rinfo["rows_without_date"]:
+            flags.append(f"{rinfo['rows_without_date']} referral row(s) had no readable Issue Date and "
+                         f"were not counted.")
+        if rinfo["duplicate_ids_dropped"]:
+            flags.append(f"{rinfo['duplicate_ids_dropped']} duplicate certificate id(s) counted once.")
+        files.append(dict({"role": "referrals", "file": os.path.basename(ref), "folder": _folder_of(ref),
+                           "file_date": _file_date(ref), "data_through": data_through.isoformat()}, **rinfo))
+        if not goals:
+            omitted["goals"] = ("No Charts workbook with a Goals tab was found for this client, so "
+                                "no monthly or branch goal is stated.")
+        else:
+            files.append(dict({"role": "branch names and monthly goals",
+                               "file": os.path.basename(av["charts"]), "folder": _folder_of(av["charts"]),
+                               "file_date": _file_date(av["charts"])}, **ginfo))
+        if "month_to_date" not in rf:
+            omitted["referrals.month_to_date"] = (
+                f"No referrals in the file are dated in {period}; the file cannot tell zero referrals "
+                f"from a month not yet extracted, so no partial month is shown.")
+
+        charts_txt = (f"; branch names and monthly goals from {os.path.basename(av['charts'])} "
+                      f"('Goals' tab)") if goals else ""
+        referral_source = (f"ICS detailed referral file {os.path.basename(ref)} ({_folder_of(ref)}, file "
+                           f"dated {_file_date(ref)}, referrals through {data_through.isoformat()}; "
+                           f"not VIP){charts_txt}")
+        data_pull = _file_date(ref)
     meta = {
         "client_id": cid, "client_name": name, "period": period,
         "report_month": f"{MONTH_FULL[_period_key(period)[1] - 1]} {_period_key(period)[0]}",
-        "data_pull": _file_date(ref),
+        "data_pull": data_pull,
         "data_through": data_through.isoformat(),
         "source_kind": "local",
         "referral_source": referral_source,
     }
+    if av["shape"] == WORKBOOK_ONLY:
+        meta["count_basis"] = COUNT_BASIS_OPENINGS
     sheet = {"meta": meta, "referrals": rf}
 
     if av["direct_mail"]:
@@ -649,7 +901,7 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
         if dm:
             sheet["direct_mail"] = dm
 
-    if av["shape"] == "full":
+    if av["shape"] in ("full", WORKBOOK_ONLY):
         import ics_workbook_extract as X
         sections = X.extract(av["workbook"])
         program_start = sections.pop("_program_start", None)

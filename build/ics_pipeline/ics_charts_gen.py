@@ -47,8 +47,11 @@ def c_referral_trend(d,out):
                 color=(TICK if partial and i==len(mo)-1 else NAVY),fontweight="bold",fontsize=16)
     ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA); ax.set_ylim(0,max(ref)*1.15)
     ax.get_yaxis().set_visible(False); clean(ax)
-    h=[Patch(fc=NAVY,label="Referrals")]
-    if partial: h.append(Patch(fc=STEEL,alpha=0.6,hatch="//",label=f"{P.mon_yy(mo[-1])} (partial)"))
+    # The legend names what the sheet COUNTS: referrals, or accounts opened via ICS from the
+    # workbook-only local sheet (meta.count_basis; build_ics_gen._WORDS has the slide wording).
+    _opened=(d.get("meta") or {}).get("count_basis")=="accounts_opened"
+    h=[Patch(fc=NAVY,label="Accounts opened via ICS" if _opened else "Referrals")]
+    if partial: h.append(Patch(fc=STEEL,alpha=0.6,hatch="//",label=f"{P.mon_yy(mo[-1])} ({'incomplete' if _opened else 'partial'})"))
     ax.legend(handles=h,loc="upper center",bbox_to_anchor=(0.5,1.1),ncol=len(h),frameon=False,fontsize=16)
     canvas(fig,2200,940,out)
 

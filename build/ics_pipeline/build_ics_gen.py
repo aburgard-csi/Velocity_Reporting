@@ -419,6 +419,59 @@ def _period_label(period):
         return period
 
 
+# Wording for the three count slides, by what the sheet COUNTS. VIP sheets and the referral
+# detail file count REFERRALS. The workbook-only local sheet (ics_local_sheet.read_workbook_openings,
+# `meta.count_basis` = "accounts_opened"; Aaron, 2026-10-13, 1195 KEMBA CU) counts ACCOUNTS OPENED
+# via the Invitation Checking System, which runs above the referral count on every client with
+# both on file (1776: 2,575 vs 2,280 program to date), so the two are never worded alike. `{yr}`
+# is the deck period's year; `{n}` the trend length.
+_WORDS = {
+    "referrals": {
+        "noun": "referrals", "Noun": "Referrals",
+        "divider_section": "Referrals",
+        "divider_ptd": "referrals, program to date", "divider_ytd": "referrals, year to date",
+        "agenda_1": "The Power of Referrals",
+        "agenda_2": "Referral Trend & Results by Branch",
+        "agenda_2_dm": "Referral Trend, Results by Branch & Direct Mail",
+        "s3_title": "The Power of Referrals",
+        "s3_subs": ["Selection: checking referrals logged by branch staff — program-to-date and {yr} YTD."],
+        "s3_callout": "Referrals Program-to-Date",
+        "s3_sentence": ("{client} team members have generated {total:,} checking referrals since "
+                        "program inception — {ytd:,} year-to-date in {yr}. {high}"),
+        "s4_title": "Referral Trend – Last {n} Months",
+        "s4_captions": ["Monthly checking referrals", "Monthly referrals"],
+        "s5_title": "Results by Branch – Year to Date",
+        "s5_col": "Referrals YTD",
+        "s5_rep": "Branches Reporting Referrals", "s5_none": "Branches Without Referrals",
+        "s5_logged": "logged a referral",
+    },
+    "accounts_opened": {
+        "noun": "accounts opened via ICS", "Noun": "Accounts opened",
+        "divider_section": "Accounts Opened",
+        "divider_ptd": "ICS accounts opened, program to date", "divider_ytd": "ICS accounts opened, year to date",
+        "agenda_1": "Accounts Opened via Invitation Checking",
+        "agenda_2": "Accounts Opened by Month & by Branch",
+        "agenda_2_dm": "Accounts Opened by Month, by Branch & Direct Mail",
+        "s3_title": "Accounts Opened via Invitation Checking",
+        # The slide face says what IS counted; "not referrals" stays in the notes only (Aaron, 2026-10-13).
+        "s3_subs": [("Selection: checking accounts opened via the Invitation Checking System, by month "
+                     "opened — program-to-date and {yr} YTD."),
+                    "Selection: checking accounts opened via ICS, by month opened — program-to-date and {yr} YTD.",
+                    "Selection: ICS accounts opened — program-to-date and {yr} YTD."],
+        "s3_callout": "Opened Program-to-Date",
+        "s3_sentence": ("{client} has opened {total:,} checking accounts via the Invitation Checking "
+                        "System since program inception — {ytd:,} year-to-date in {yr}. {high}"),
+        "s4_title": "Accounts Opened by Month – Last {n} Months",
+        "s4_captions": ["Monthly checking accounts opened via ICS", "ICS accounts opened by month",
+                        "ICS accounts opened"],
+        "s5_title": "Accounts Opened by Branch – Year to Date",
+        "s5_col": "Opened YTD",
+        "s5_rep": "Branches With Accounts Opened", "s5_none": "Branches With None Opened",
+        "s5_logged": "opened an ICS account",
+    },
+}
+
+
 def build(d, static_path, out, referrals_only=False):
     import month_complete as _MC
     # A month just begun, with no referrals yet, is not charted (Aaron, 2026-10-06).
@@ -507,11 +560,20 @@ def build(d, static_path, out, referrals_only=False):
     # copied, so the pill names the date the referrals actually run to. VIP sheets carry no
     # data_through and keep their pull date.
     _local = m.get("source_kind") == "local"
+    # What the count slides COUNT: referrals (VIP, the referral file) or accounts opened via ICS
+    # (the workbook-only local sheet). Every title, label, caption and note on those slides reads W.
+    _openings = m.get("count_basis") == "accounts_opened"
+    W = _WORDS["accounts_opened" if _openings else "referrals"]
+    _yr = (_period.split(".")[0] if _period and "." in _period else rm.split()[-1])
     try:
         _dd=datetime.strptime(m.get("data_through") or m.get("data_pull",""),"%Y-%m-%d"); data_date=f"{_dd.strftime('%B')} {_dd.day}, {_dd.year}"
     except Exception:
         data_date=rm
     wbm=m.get("workbook_month",rm)   # last completed month in the workbook (PTD as-of)
+    # The workbook-only sheet's counts are MONTHLY, so its pills carry the workbook's month
+    # ("PTD · September 2026"), as the workbook-driven slides do, not a day that adds nothing.
+    if _openings:
+        data_date=wbm
     # A workbook older than the deck stamps its OWN month on every slide it feeds.
     if _stale_wb_month:
         wbm=_stale_wb_month
@@ -587,17 +649,19 @@ def build(d, static_path, out, referrals_only=False):
     _rf = d.get("referrals") or {}
     _stats = []
     if _rf.get("program_to_date") is not None:
-        _stats.append((f"{_rf['program_to_date']:,}", "referrals, program to date"))
+        _stats.append((f"{_rf['program_to_date']:,}", W["divider_ptd"]))
     if _rf.get("year_to_date") is not None:
-        _stats.append((f"{_rf['year_to_date']:,}", "referrals, year to date"))
+        _stats.append((f"{_rf['year_to_date']:,}", W["divider_ytd"]))
     _pm = _rf.get("previous_month") or {}
     if _rf.get("prev_month_vs_goal_pct") is not None and _pm.get("label"):
         _stats.append((f"{_rf['prev_month_vs_goal_pct']:.0f}%", f"{_pm['label']} against the monthly goal"))
     s=blank(prs)
     CD.draw_divider(s, CD.PRODUCT_ICS,
-                    "Referrals" if referrals_only else "Referrals · Account Performance · Revenue",
-                    stats=_stats, note="Section divider. Figures: VIP referrals block (program to date, "
-                                       "year to date, previous month against goal).")
+                    W["divider_section"] if referrals_only else f"{W['divider_section']} · Account Performance · Revenue",
+                    stats=_stats, note=("Section divider. Figures: the sheet's count block (program to date, "
+                                        "year to date, previous month against goal) — "
+                                        + ("accounts opened via ICS from the workbook, not referrals."
+                                           if _openings else "VIP referrals.")))
 
     # Agenda (after the ICS section header)
     #
@@ -609,9 +673,7 @@ def build(d, static_path, out, referrals_only=False):
     # assembler removes them: an empty numbered row reads as a section that failed.
     s=blank(prs); title(s,"Agenda")
     _dm_slide=CH.has_direct_mail(d)
-    items=["The Power of Referrals",
-           "Referral Trend, Results by Branch & Direct Mail" if _dm_slide
-           else "Referral Trend & Results by Branch"]
+    items=[W["agenda_1"], W["agenda_2_dm"] if _dm_slide else W["agenda_2"]]
     if not referrals_only:
         items+=["Performance of ICS Accounts","ICS Revenue & Revenue Detail",
                 "ICS Financial Summary","Comparisons"]
@@ -636,17 +698,20 @@ def build(d, static_path, out, referrals_only=False):
         # Local-file sheet: name the files it was built from, never the VIP dashboard, and
         # name a workbook only when the sheet carries one.
         base=(f"Source — {m['referral_source']}"
-              + (f"; financial figures from {m['workbook']}" if m.get("workbook") else "")
+              + (f"; financial figures from {m['workbook']}" if (m.get("workbook") and not _openings) else "")
               + f"; for {client} ({m['client_id']}).")
     # No goal on file (a local sheet without a Charts Goals tab): goal tiles, captions and
     # columns are left out rather than shown as 0% or a dash.
     _goal=rf.get("monthly_goal")
 
     # 3 Power of Referrals
-    s=blank(prs); title(s,"The Power of Referrals"); pill(s,f"PTD · {data_date}")
-    sub(s,"Selection: checking referrals logged by branch staff — program-to-date and 2026 YTD.")
+    s=blank(prs); title(s,W["s3_title"]); pill(s,f"PTD · {data_date}")
+    # The selection line steps down to a shorter wording until it fits its 12.3in box at the 16pt
+    # floor (measured with textfit, the validator's own rule); the referral wording has one option.
+    _sub_opts=[o.format(yr=_yr) for o in W["s3_subs"]]
+    sub(s,next((o for o in _sub_opts if fits_one_line(o, 12.1, 16, family="Montserrat", min_pt=MIN_PT)), _sub_opts[-1]))
     total_ref=rf["program_to_date"]   # single source: the current program-to-date total shown in the callout
-    callout(s,0.55,1.7,3.5,2.0,f"{total_ref:,}","Referrals Program-to-Date",big_size=44)
+    callout(s,0.55,1.7,3.5,2.0,f"{total_ref:,}",W["s3_callout"],big_size=44)
     pm=rf["previous_month"]
     # The previous month used to be DECLARED "a program high" unconditionally.
     # It usually is not: Marine's July was 103 against a June of 129, Austin's
@@ -694,15 +759,14 @@ def build(d, static_path, out, referrals_only=False):
     else:
         _high = f"{pm['label']} brought {pm['value']}."
     tb(s,4.35,1.7,8.45,2.4,
-       f"{client} team members have generated {total_ref:,} checking referrals since "
-       f"program inception — {rf['year_to_date']:,} year-to-date in 2026. {_high}",
+       W["s3_sentence"].format(client=client,total=total_ref,ytd=rf['year_to_date'],yr=_yr,high=_high),
        28,NAVY,False,anchor=MSO_ANCHOR.MIDDLE,font="Calibri")   # 28pt fills the space (Aaron 2026-07-24)
     # Previous-month-vs-goal is keyed generically; the month-named key (june_/july_)
     # is a leftover that only exists while that month happens to be the previous
     # one, so reading it directly KeyErrors on every later pull.
     _vs_goal = rf.get('prev_month_vs_goal_pct',
                       rf.get(f"{pm['label'].lower()}_vs_goal_pct", 0))
-    _tiles=[(f"{rf['year_to_date']:,}","2026 Year-to-Date"),
+    _tiles=[(f"{rf['year_to_date']:,}",f"{_yr} Year-to-Date"),
             (f"{pm['value']}",f"Previous Month ({pm['label']})")]
     if _goal is not None:
         _tiles.append((f"{_vs_goal}%",f"{pm['label']} vs Goal"))
@@ -712,14 +776,20 @@ def build(d, static_path, out, referrals_only=False):
         callout(s,_tx0+i*4.1,4.15,3.8,1.5,big,lab)
     logo(s); pagenum(s,3)
     _goal_note=(f"monthly goal {_goal:,} ({pm['label']} vs goal {_vs_goal}%)" if _goal is not None
-                else "no referral goal on file, so none is shown")
-    _thru_note=(f"Referral detail file, counted by Issue Date, referrals through {m.get('data_through')}."
-                if _local else f"VIP, current thru {rf['month_to_date']['label']} (partial).")
-    notes(s,base+f" Referrals PTD {rf['program_to_date']:,}, YTD {rf['year_to_date']:,}, {pm['label']} {pm['value']}, "
+                else ("no goal shown: the Charts goals are referral goals and are not compared with accounts opened"
+                      if _openings else "no referral goal on file, so none is shown"))
+    if _openings:
+        _thru_note=(f"ICS workbook 'Monthly Detail', accounts opened via the Invitation Checking System by "
+                    f"month opened, through {m.get('data_through')}; NOT referral counts.")
+    elif _local:
+        _thru_note=f"Referral detail file, counted by Issue Date, referrals through {m.get('data_through')}."
+    else:
+        _thru_note=f"VIP, current thru {rf['month_to_date']['label']} (partial)."
+    notes(s,base+f" {W['Noun']} PTD {rf['program_to_date']:,}, YTD {rf['year_to_date']:,}, {pm['label']} {pm['value']}, "
                 f"{_goal_note}. {_thru_note}")
 
     # 4 Referral Trend
-    t=rf["trend"]; s=blank(prs); title(s,f"Referral Trend – Last {len(t['months'])} Months")
+    t=rf["trend"]; s=blank(prs); title(s,W["s4_title"].format(n=len(t['months'])))
     pill(s,f"PTD · {data_date}")
     s.shapes.add_picture(a("ics_trend.png"),Inches(0.66),Inches(1.55),Inches(12.0))
     # Same correction as the Power of Referrals caption: the peak is FOUND, not
@@ -740,14 +810,22 @@ def build(d, static_path, out, referrals_only=False):
     # four-digit values in both slots.
     _span = (f"{P.mon_yy(t['months'][0])} – {P.mon_yy(t['months'][-1])}"
              + (" (partial)" if t.get("partial_last") else ""))
-    tb(s,1.2,6.72,9.8,0.5,
-       f"Monthly checking referrals, {_span}; {_peak_txt}."
-       + (f" Goal {_goal:,}/mo." if _goal is not None else ""),
-       16,GREYT,False)
+    # The caption steps down to a shorter opening until it fits the 9.8in box at the 16pt floor —
+    # measured, not eyeballed; the referral wording fits at the first option, so it is unchanged.
+    _cap_opts=[f"{_o}, {_span}; {_peak_txt}." + (f" Goal {_goal:,}/mo." if _goal is not None else "")
+               for _o in W["s4_captions"]]
+    _cap=next((o for o in _cap_opts if fits_one_line(o, 9.8, 16, family="Montserrat", min_pt=MIN_PT)), _cap_opts[-1])
+    tb(s,1.2,6.72,9.8,0.5,_cap,16,GREYT,False)
     logo(s); pagenum(s,4)
-    _dropped_note = (f" {P.mon_yy(_trend_dropped)} is not charted: the month has just begun and has no referrals yet."
+    _dropped_note = (f" {P.mon_yy(_trend_dropped)} is not charted: the month has just begun and has no {W['noun']} yet."
                      if _trend_dropped else "")
-    if _local:
+    if _openings:
+        notes(s,base+f" Monthly accounts opened via the Invitation Checking System ('Monthly Detail' row), "
+                     f"{_span}; {_peak_txt}. No goal: the Charts goals are referral goals. Bars navy, last "
+                     f"complete month orange"
+                    +(", the incomplete month hatched." if t.get("partial_last") else ".")
+                    +" NOT referral counts." + _dropped_note)
+    elif _local:
         notes(s,base+(f" Monthly referrals vs the {_goal:,}/mo goal." if _goal is not None else " Monthly referrals.")
                     +" Bars navy, last complete month orange"
                     +(", partial month hatched." if t.get("partial_last") else ".")
@@ -761,12 +839,12 @@ def build(d, static_path, out, referrals_only=False):
     # its Main branch read 24 against a 204 annual goal — 12%, which reports the
     # calendar, not the branch. The goal is pro-rated to the months the program has
     # actually run (Aaron, 2026-08-28); Main then reads 24 of 68, or 35%.
-    s=blank(prs); title(s,"Results by Branch – Year to Date"); pill(s,f"YTD · {data_date}")
+    s=blank(prs); title(s,W["s5_title"]); pill(s,f"YTD · {data_date}")
     _elapsed, _elapsed_txt = _goal_months_elapsed(rf)
     bb=rf["by_branch"]
     _gh = "Goal to Date" if _elapsed < 12 else "Goal"
     _has_goals = any(b.get("goal") for b in bb["branches"])
-    rows=[["Branch","Referrals YTD",_gh,"% of Goal"]]
+    rows=[["Branch",W["s5_col"],_gh,"% of Goal"]]
     shown=bb["branches"][:8]
     def _prorate(annual):
         """Annual goal -> goal for the months run. Rounded per branch so the column
@@ -799,8 +877,8 @@ def build(d, static_path, out, referrals_only=False):
     _ag = sum(_prorate(b["goal"]) for b in _all if b.get("goal"))
     _apct = f"{round(_ar/_ag*100)}%" if _ag else "—"
     for _i, (_big, _lab) in enumerate([
-            (f"{_rep}", "Branches Reporting Referrals"),
-            (f"{_none}", "Branches Without Referrals")]
+            (f"{_rep}", W["s5_rep"]),
+            (f"{_none}", W["s5_none"])]
             + ([(_apct, "% of Goal — All Branches")] if _has_goals else [])):
         callout(s, 0.5, 1.55 + _i*1.62, 2.65, 1.42, _big, _lab,
                 fill=(ORANGE if _i == 2 else NAVY), big_size=34)
@@ -817,7 +895,15 @@ def build(d, static_path, out, referrals_only=False):
     _partial_ytd = ((" Year-to-date referrals include the month to date of " + rf["month_to_date"]["label"]
                      + ", which is not complete.")
                     if ((rf.get("month_to_date") or {}).get("partial") and _has_goals) else "")
-    if _local and not _has_goals:
+    if _openings:
+        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches {W['s5_logged']}, {_none} none. "
+                     f"Accounts opened via the Invitation Checking System by branch, year to date "
+                     f"({_ar:,} in total), from the workbook's '{bb.get('_source', 'DDA Openings by Branch')}'; "
+                     f"no goal or % of goal: the Charts goals are referral goals and are not compared with "
+                     f"accounts opened. Top branches by accounts opened; branch names from the Charts 'Goals' "
+                     f"tab or the branch-name dataset, a branch neither names shown by number. NOT referral counts."
+                     + _partial_ytd.replace("referrals", "accounts opened"))
+    elif _local and not _has_goals:
         notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none. "
                      f"Referrals by branch, YTD ({_ar:,} in total); no branch goals on file, so no "
                      f"goal or % of goal is shown. Top branches by referrals. Referral detail file, "
@@ -879,8 +965,8 @@ def build(d, static_path, out, referrals_only=False):
             r2=pp.add_run(); r2.text=it; r2.font.size=Pt(22); r2.font.name="Calibri"; r2.font.color.rgb=NAVY
         s.shapes.add_picture(a("ics_perfintro.png"),Inches(6.55),Inches(1.75),Inches(5.85))
         logo(s); pagenum(s,6)
-        notes(s,"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly referrals (bars) + cumulative referrals (line), from the "
-                +(f"referral trend in {m['referral_source'].split(' (')[0]}" if _local else "VIP referral trend")
+        notes(s,f"Section intro to the ICS account-performance analysis (profitability, revenue breakdown, monthly detail, comparisons). Motif = monthly {W['noun']} (bars) + cumulative {W['noun']} (line), from the "
+                +(f"{W['noun']} trend in {m['referral_source'].split(' (')[0]}" if _local else "VIP referral trend")
                 +". No figures on the slide face.")
 
         # --- ROI / Present Value recalculated per client (the workbook ROI is not used) ---
