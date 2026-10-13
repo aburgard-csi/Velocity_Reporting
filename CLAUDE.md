@@ -448,6 +448,11 @@ complete for swipes and spend and incomplete for NSF/OD.
 - Every YoY, month-over-month, latest-month tile, trend endpoint and trailing window uses the
   last complete month of the measures it reads. A computation that reads several measures
   (the swipe-tier window, before/after) uses months complete in all of them.
+- **A month that collapses in the MIDDLE of an extract is left out too (2026-10-13).** Marine's Aug 2026
+  NSF/OD (390 items against about 19,000) stopped being a trailing month when September loaded and passed as
+  complete. `month_complete` now reports `interior` gaps (below half the baseline median, at most two months,
+  followed by recovery); read `usable_months(months, result)`, never `months[:complete]`, so a gap is skipped.
+  A fall that holds is a real change and is not a gap.
 - A left-out month is STATED — on the slide ("Aug 2026 left out: incomplete in this
   extract.") and with its figures in the notes — never zeroed, never charted as a collapse,
   and its slide is never dropped. Status snapshots (Elig, Reg E, account status) are not
@@ -676,6 +681,15 @@ with 0 CPU and 0 handles, or one from yesterday, by hand.
 - Copy-only — a copy never deletes. A `.part` file is renamed over the target and the size verified.
   Small files first (`_copy_order`): every DCO, workbook and analysis before any extract, extracts
   smallest first, so a cut-short run never leaves a workbook waiting behind an extract.
+- **An extract the share refuses as a zip is re-landed as its ODD member alone** (2026-10-13, 1815
+  FedChoice): a security agent on the share deletes a zipped extract that carries the data team's
+  monthly transaction file the instant it is written, under any name, with no error — the copy
+  "succeeded", the `.part` was gone, and three mornings logged "size mismatch after copy" while
+  Inputs kept September's extract. The raw CSVs and a zip of the ODD member alone are held.
+  `_land_odd_member_only` writes the ODD member(s) into a new zip with their original entries (the
+  pull stamp is unchanged), the record carries `reduced`, and the report says what was left out.
+  Every deck reads only the ODD member; the transaction member feeds one opt-in James view. A
+  workbook mismatch is never reduced.
 - One unreachable CSM folder counts as off VPN.
 
 **Prune (`--prune`).** A workbook-ish file in `Inputs/` is deleted only when a NEWER version of the
@@ -963,8 +977,12 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `README.md` — build/ layout notes (incl. the SM-vs-MM revenue-model extractor notes).
 
 **`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`,
-`ics_local_sheet.py` (builds the ICS client sheet from local files — referral export, current workbook, Charts Goals tab, direct-mail list — when there is no VIP sheet; `build_month` uses it only then, 2026-09-16. **With the period's workbook and nothing else it builds the `workbook-only` shape** (Aaron, 2026-10-13, 1195 KEMBA CU): accounts opened via ICS from the workbook's Monthly Detail row and its DDA Openings by Branch tab, `meta.count_basis` = `accounts_opened`, and `build_ics_gen._WORDS` words the three count slides, the divider, the agenda, the chart legend and every note as ACCOUNTS OPENED, never referrals — on 1776, the one client with both on file, the workbook runs above the referral file every month, 2,575 vs 2,280 program to date. The Charts goals are referral goals and are not compared with accounts opened), `ics_workbook_extract.py` (the quarterly step: populates a client JSON's workbook sections
-from the ICS workbook — see **Cadence**), `data/` (per-client VIP ICS data — one folder per client; keep client-named).
+`ics_local_sheet.py` (builds the ICS client sheet from local files — referral export, current workbook, Charts Goals tab, direct-mail list — when there is no VIP sheet; `build_month` uses it only then, 2026-09-16. **With the period's workbook and nothing else it builds the `workbook-only` shape** (Aaron, 2026-10-13, 1195 KEMBA CU): the ordinary referral block from the workbook's Monthly Detail row "Accounts Opened via Invitation Checking System" — **which counts referrals** (Aaron, the same day; it sums to the Value tab's figure) — and its DDA Openings by Branch tab, goals from the Charts Goals tab, names from it or the branch-name dataset, and notes that name the workbook row. The same three referral slides render it; for a few hours that day it was worded "accounts opened, not referrals", on the premise that the row was a different measure, and on 1776 the row runs above the referral detail export (2,575 vs 2,280), which is a question for the data team, not two measures. **The workbook's own ROI and Present Value are carried** (Aaron, 2026-10-13, "Carry the workbook's ROI figures"): `ics_workbook_extract` reads the Value tab's "Present Value of New ICS Accounts @ 3%" and "Present Value Per Account", and `build_ics_gen` shows them with the workbook ROI; the 2026-07-13 recalculation runs only for a sheet with no Present Value, the VIP pulls, and the notes say which was used), `ics_workbook_extract.py` (the quarterly step: populates a client JSON's workbook sections
+from the ICS workbook — see **Cadence**; since 2026-10-13 also `monthly_detail_full`, every cohort
+column of the Monthly Detail tab, which `build_ics_gen` renders as the **ICS appendix** — "Appendix:
+Monthly Detail (k of n)", ten cohorts a page, after the education slides and before Questions &
+Discussion so a combined deck keeps the pages in the ICS section; a sheet without the block gets no
+appendix — and the Value tab's Present Value figures the deck carries with the workbook ROI. **Its `monthly_detail` block is the newest TWELVE cohorts** (nine until 2026-10-13) with the workbook's Total Expense row per cohort, and **its benchmark reads the Program to Date row** of Life of Account Data (Aaron, 2026-10-13, "Program-to-date everywhere"; `benchmark.window` says which row). **The revenue tiles on every ICS deck are program to date across every cohort** — `build_ics_gen` reads them from `revenue.components` / `revenue.total`, never from the cohort window, after Cindy's review of KEMBA found $11,044 "Interchange PTD" (nine cohorts) where the workbook's figure is $573,936; the chart subtitles name the window. The Financial Summary's expense lines are "Referral Fees to Date" (the workbook's Total Expense row) and "Acquisition Cost" ($245 × accounts, not deducted)), `data/` (per-client VIP ICS data — one folder per client; keep client-named).
 **`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py` (charts drawn at their slide slot size, `SLOT_IN`), `revenue_projection.py` (the projected year on Revenue by Year: a straight line through the last 6 complete months; Aaron, 2026-10-02), `mrpc_weekly.py` (the ONE reader of the MRPCEnrollmentSummary weekly, shared with the performance dashboard), `status_slides.py` (the Program to Date and Current Program Status slides, from that weekly; they replaced Card Portfolio and Key Metrics 2026-10-02), `setup_template.py` (one-time template bootstrap; needs `mrpc_template_base.pptx`, which is NOT in the repo — ask Aaron for it if the template must be rebuilt), `data/` (per-client VIP MRPC data).
 
 **`templates/`** — ALL deck templates live here (consistent naming; passed to each builder as an arg).

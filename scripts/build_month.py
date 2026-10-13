@@ -361,11 +361,11 @@ def build_client(cid, name, mmsm, progs, period, stage):
                     return f"ics_local_sheet ({str(le).splitlines()[0]})", made
                 local_shape = av["shape"]
                 # Three shapes: referrals-only, full (referral file + the period's workbook) and
-                # workbook-only (the period's workbook alone — accounts opened via ICS, labelled as
-                # such, never as referrals; Aaron, 2026-10-13, 1195 KEMBA CU).
+                # workbook-only (the period's workbook alone; its 'Accounts Opened via Invitation
+                # Checking System' row counts referrals — Aaron, 2026-10-13, 1195 KEMBA CU).
                 msg = (f"ICS section built from LOCAL files, not VIP ({local_shape}): "
                        + (f"referrals {os.path.basename(av['referrals'])}" if av.get("referrals")
-                          else "accounts opened via ICS from the workbook (no referral file)")
+                          else "referrals from the workbook's Monthly Detail (no referral file)")
                        + (f", workbook {os.path.basename(av['workbook'])}"
                           if (local_shape in ("full", LOCAL_ICS.WORKBOOK_ONLY) and av.get("workbook")) else "")
                        + f" -> {sheet}")

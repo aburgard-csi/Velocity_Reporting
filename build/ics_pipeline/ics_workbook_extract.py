@@ -182,6 +182,12 @@ def extract(path):
     pct_added = va_num("% Added Life of ICS Account") or 0
     roi_wb = va_num("Return on Investment")
     accounts = va_num("Accounts Opened via Invitation") or 0
+    # The workbook's own Present Value ("Present Value of New ICS Accounts @ 3%") and its
+    # per-account figure: the deck carries these and the workbook's ROI rather than a
+    # recalculation (Aaron, 2026-10-13, "Carry the workbook's ROI figures"). A VIP pull has
+    # neither, and build_ics_gen falls back to the recalculation for it, stated in the notes.
+    pv_total_wb = va_num("Present Value of New ICS Accounts")
+    pv_per_wb = va_num("Present Value Per Account")
 
     performance = {
         "roi": round(roi_wb, 2) if isinstance(roi_wb, (int, float)) else 0,
@@ -192,6 +198,7 @@ def extract(path):
         "payback_months": round(cost / apc * 12) if apc else 0,
         "life_of_ics_account_years": round(life_ics, 2),
         "pct_added_life": round(pct_added, 4),
+        "present_value_per_account": round(pv_per_wb, 2) if isinstance(pv_per_wb, (int, float)) else 0,
     }
 
     # ---- weighted average balance
@@ -204,14 +211,14 @@ def extract(path):
         "account_profit_contribution": revenue["total"],
         "total_program_expense": total(r_exp),
         "net_profit": total(r_net),
-        "present_value_new_accounts": 0,
+        "present_value_new_accounts": round(pv_total_wb, 2) if isinstance(pv_total_wb, (int, float)) else 0,
         "ics_accounts": int(accounts),
         "average_balance": avg_balance,
         "roi": performance["roi"],
     }
 
-    # ---- monthly detail: last 9 cohorts
-    n = min(9, len(cols))
+    # ---- monthly detail: the newest 12 cohorts (Aaron, 2026-10-13; nine until then)
+    n = min(12, len(cols))
     tail = cols[-n:]
 
     def tser(r):
@@ -237,6 +244,43 @@ def extract(path):
             if lab and not any(k in low for k in ("spread", "interchange", "nsf")):
                 other_rows.append(r)
 
+    # The whole tab, every cohort column, for the deck's ICS appendix (Aaron, 2026-10-13:
+    # "Add the full monthly detail to an ICS appendix"). Same rows as the nine-cohort block
+    # plus the expense and profit-to-date rows; one column per opening-month cohort.
+    def fser(r):
+        return [round(md.cell(r, c).value, 2) if isinstance(md.cell(r, c).value, (int, float)) else 0
+                for c in cols]
+
+    def fser_other(rows_):
+        acc_ = [0] * len(cols)
+        for r in rows_ or []:
+            for i, v in enumerate(fser(r)):
+                acc_[i] = round(acc_[i] + v, 2)
+        return acc_
+
+    other_rows_all = []
+    if r_inc and r_profit:
+        for r in range(r_inc + 1, r_profit):
+            lab, _ = _label(md, r)
+            low = (lab or "").lower()
+            if lab and not any(k in low for k in ("spread", "interchange", "nsf")):
+                other_rows_all.append(r)
+    monthly_detail_full = {
+        "_note": ("The full 'Monthly Detail' tab: one column per opening-month cohort, each cohort's "
+                  "figures life to date. Rendered as the ICS appendix."),
+        "months": [m.strftime("%b %y") for m in months],
+        "accounts_opened": [int(x) for x in fser(r_open)],
+        "cumulative_accounts": [int(x) for x in fser(r_cum)],
+        "avg_balance": fser(r_bal),
+        "spread": fser(r_spread),
+        "interchange": fser(r_inter),
+        "nsf_od": fser(r_nsf),
+        "other_fees": fser_other(other_rows_all),
+        "profit_contribution": fser(r_profit),
+        "total_expense": fser(r_exp),
+        "profit_to_date": fser(r_net),
+    }
+
     monthly_detail = {
         "_note": ("Last %d opening-month cohorts. Revenue-only per cohort; "
                   "per-account-per-month = cohort revenue / accounts opened / "
@@ -250,20 +294,31 @@ def extract(path):
         "spread": tser(r_spread),
         "other_fees": tser_other(other_rows),
         "profit_contribution": tser(r_profit),
+        # The workbook's expense per cohort (its "Total Expense" row, the referral fee), for the
+        # Program Results by Month Opened table in place of a constant amortization row (2026-10-13).
+        "total_expense": tser(r_exp),
     }
 
     # ---- Life of Account Data -> benchmark
     lo = wb["Life of Account Data"]
+    # PROGRAM TO DATE for every life-of-account metric (Aaron, 2026-10-13: "Program-to-date
+    # everywhere", after Cindy's "YTD ONLY" on KEMBA's Comparisons). This reverses the
+    # 2026-09-01 choice of the Last 12 Months row, made because program-to-date close rates
+    # (51.66% non-ICS on Austin against 6.45% over the last year) are not comparable with a
+    # 12-month figure — so the Velocity close-rate average, a 12-month benchmark, is named as
+    # such in the notes. A workbook with no Program to Date row falls back to Last 12 Months,
+    # and `window` says which row the figures came from.
+    r_ptd = _find_row(lo, "Program to Date", 10, 20)
     l12 = _find_row(lo, "Last 12 Months", 10, 20)
-    if not l12:
-        # Every life-of-account metric now comes from this one row, so losing it
-        # is not a degraded result, it is no result. Without this the six values
-        # stay 0 and the deck ships a 0.0% close rate and 0% of openings —
-        # figures a reader cannot tell from real ones. Missing source data is
-        # stated, never zeroed (CLAUDE.md).
-        raise SystemExit("ERROR: no 'Last 12 Months' row in 'Life of Account Data' "
-                         "(searched rows 10-20) — refusing to emit zeroed "
-                         "life-of-account metrics")
+    r_win = r_ptd or l12
+    if not r_win:
+        # Every life-of-account metric comes from this one row, so losing it is not a
+        # degraded result, it is no result. Without this the six values stay 0 and the deck
+        # ships a 0.0% close rate and 0% of openings — figures a reader cannot tell from real
+        # ones. Missing source data is stated, never zeroed (CLAUDE.md).
+        raise SystemExit("ERROR: no 'Program to Date' or 'Last 12 Months' row in 'Life of Account "
+                         "Data' (searched rows 10-20) — refusing to emit zeroed life-of-account metrics")
+    window = "program-to-date" if r_ptd else "12-month"
 
     def lrow(r):
         return [lo.cell(r, c).value for c in range(1, 9)]
@@ -271,26 +326,19 @@ def extract(path):
     # 'Life of Account Data' columns B..G, per the sheet's own header row:
     #   B Non-ICS Opened | C Non-ICS Closed | D Non-ICS Closed RATE
     #   E ICS Opened     | F ICS Closed     | G ICS Closed RATE
-    # read on both the "Program to Date" and "Last 12 Months" rows.
-    # LAST 12 MONTHS ONLY for every life-of-account metric (Aaron, 2026-09-01).
-    # Program-to-date spans the whole programme and answers a different question:
-    # on Austin it reports a 51.66% non-ICS close rate against 6.45% over the
-    # last year, so mixing the two windows in one table compares figures that are
-    # not comparable. The Program-to-Date row is read only to be ignored here.
     non_open12 = non_closed12 = non_rate12 = 0
     ics_open12 = ics_closed12 = ics_rate12 = 0
-    if l12:
-        v = [x for x in lrow(l12) if isinstance(x, (int, float))]
-        if len(v) >= 6:
-            (non_open12, non_closed12, non_rate12,
-             ics_open12, ics_closed12, ics_rate12) = v[0], v[1], v[2], v[3], v[4], v[5]
+    v = [x for x in lrow(r_win) if isinstance(x, (int, float))]
+    if len(v) >= 6:
+        (non_open12, non_closed12, non_rate12,
+         ics_open12, ics_closed12, ics_rate12) = v[0], v[1], v[2], v[3], v[4], v[5]
 
     tot_open = (non_open12 or 0) + (ics_open12 or 0)
     benchmark = {
-        # The footnote calls this "your Non-ICS accounts' 12-month close rate"
-        # and used to be handed the PROGRAM-TO-DATE figure — on Marine 1539 it
-        # printed 35.5% where the 12-month rate is 10.4%. A label that names a
-        # window has to be given that window.
+        "window": window,
+        # The footnote names the window this figure carries; it used to be handed the
+        # program-to-date figure under a 12-month label (Marine 1539: 35.5% where the
+        # 12-month rate was 10.4%). Whatever the window, label and figure now agree.
         "non_ics_close_rate_pct": round((non_rate12 or 0) * 100, 1),
         "metrics": [
             {"label": "% of Total Openings",
@@ -306,7 +354,7 @@ def extract(path):
             # program-to-date rate while the client's own ICS rate sat in the
             # Velocity-average column, so the row compared the client against
             # themselves and labelled neither side correctly.
-            {"label": "12 M Close Rate",
+            {"label": "Close Rate" if r_ptd else "12 M Close Rate",
              "velocity_avg": VELOCITY_CLOSE_RATE_12M_PCT,
              "client": round((ics_rate12 or 0) * 100, 1),
              "fmt": "pct1", "lower_is_better": True},
@@ -321,7 +369,8 @@ def extract(path):
     return {"_program_start": program_start,
             "performance": performance, "revenue": revenue,
             "financial_summary": financial_summary,
-            "monthly_detail": monthly_detail, "benchmark": benchmark,
+            "monthly_detail": monthly_detail, "monthly_detail_full": monthly_detail_full,
+            "benchmark": benchmark,
             "mystery_shop": {"include": False, "_status": "skip"}}
 
 

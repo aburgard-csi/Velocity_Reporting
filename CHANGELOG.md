@@ -21,6 +21,118 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-13 — A month that collapses in the middle of an extract is left out, not read as complete
+
+Summary: A month whose NSF/OD (or swipes or spend) collapses and then comes back is now left out of
+every comparison, the same way an unfinished trailing month already was. Marine FCU's August 2026
+NSF/OD (390 items against about 19,000) passed as complete once September was loaded, because the
+check only looked at the newest months. It is now named in the slide notes and skipped by the
+NSF/OD year-to-date tile (which reads n/a), the swipe-tier window, before/after, the Lift Matrix
+value window and the Average Ticket window.
+
+`month_complete.assess(..., interior=True)` and `odd_completeness` (which now sums every month, not
+the last eight) report `interior` gaps: a month below half the median of the baseline months before
+it, in a run of at most two, followed by a month back at or above that share. A fall that holds
+(three months or more, or no recovery) is a real change and is left alone. Callers read
+`usable_months(months, result)`, the complete prefix minus the gaps; `excluded_sentence` and
+`excluded_months` name interior months too. Evidence: the 40 ODD extracts on hand carried six
+recovering NSF/OD gaps (1529 Jan26, 1539 Aug26, 1615 Jul24, 1637 Oct-Nov25, 1748 Nov24, 1800
+Dec25); the one interior spend fall that did not recover (1200 Jul24) is not flagged. Callers
+changed: `metrics_gen`, `ticket_calc`, `responder_activity`, `james_views`, `lift_values`. The
+swipe-tier caption names a gap inside its three months ("Jun-Sep 2026 (Aug left out)").
+Tests: `tests/test_month_complete.py`, nine cases on Marine's real series.
+
+### 2026-10-13 — The workbook-only ICS shape counts referrals, and the deck carries the workbook's ROI
+
+Summary: An ICS deck built from the workbook alone now shows the ordinary referral slides — The
+Power of Referrals, Referral Trend, Results by Branch, with the Charts goals — because the
+workbook's "Accounts Opened via Invitation Checking System" row counts referrals. Every ICS deck
+built from a workbook now carries the workbook's own ROI and Present Value instead of a
+recalculation. KEMBA CU 1195 reads 7.17 to 1 and $6.81M, as its workbook does.
+
+Cindy's review of KEMBA's first deck. The shape shipped earlier today worded its three count
+slides "accounts opened via ICS, not referrals", on the premise that the row was a different
+measure from a referral count (on 1776 it runs above the referral detail export, 2,575 vs 2,280).
+Aaron: "The monthly detail tab in the workbook is counting referrals in the Accounts Opened via
+Invitation Checking System row"; "That'll sum to Accounts Opened via Invitation Checking System on
+Value of an ICS account" (it does: 3,877). So `ics_local_sheet.read_workbook_openings` builds the
+referral block as `referral_sections` does — monthly goal, previous month against goal, branch
+goals ×12 from the Charts Goals tab (now also read when its column is "Goal" beside ramp columns,
+as 1195's is), names from the Goals tab then the branch-name dataset — the second vocabulary in
+`build_ics_gen._WORDS` and `meta.count_basis` are gone, and the notes name the workbook row. The
+1776 difference is between two referral counts and is a question for the data team, as is
+Cindy's "data doesn't match VIP" on the count slides. "Carry the workbook's ROI figures" (Aaron):
+`ics_workbook_extract` now reads the Value tab's "Present Value of New ICS Accounts @ 3%" and
+"Present Value Per Account"; Performance of ICS Accounts and ICS Financial Summary show the
+workbook's ROI and Present Value, the bullets say "Workbook present value at 3% over N years", and
+the notes say so. The 2026-07-13 recalculation runs only for a sheet with no Present Value (the VIP
+pulls carry none) and the notes then say it was recalculated. "Add the full monthly detail to an
+ICS appendix" (Aaron): `ics_workbook_extract` now also emits `monthly_detail_full`, every cohort
+column of the tab with the expense and profit-to-date rows, and `build_ics_gen` renders it as
+"Appendix: Monthly Detail (k of n)" — ten cohorts a page at 12 pt (exempt from the 16 pt floor
+like Program Results by Month Opened), placed after the education slides and before Questions &
+Discussion so `assemble_combined` keeps the pages inside the ICS section; the notes carry the
+program-to-date sums across all cohorts. A sheet without the block (a VIP pull not re-extracted)
+gets no appendix. KEMBA's 46 cohorts make five pages.
+
+### 2026-10-13 — ICS revenue tiles are program to date, the cohort window is twelve, both expense lines are named, Comparisons is program to date
+
+Summary: On every ICS deck with a workbook section, the Interchange, NSF/OD & Other, Spread and
+profit-contribution tiles now show program-to-date totals across every cohort; the cohort charts
+and the Program Results by Month Opened table show the newest twelve cohorts and say so; the
+Financial Summary reads "Referral Fees to Date" and "Acquisition Cost"; and Comparisons uses the
+workbook's Program to Date row.
+
+The rest of Cindy's review of KEMBA 1195, decided with Aaron step by step (2026-10-13). (1) "This
+is YTD data - labeled as PTD. PTD is $573,936.31": the tiles summed `monthly_detail`, the newest
+nine cohorts ($11,044), beside an all-cohort account count — and CoastHills 1776's September deck
+shipped the same way ($26,570 "Interchange PTD" beside 2,575 accounts and a $328,420 profit
+contribution). `build_ics_gen` now reads the tiles from the sheet's revenue components
+(`revenue.components`, every cohort; `revenue.total` for profit contribution) and names the window
+on every chart subtitle ("newest 12 cohorts (Oct'25 – Sep'26); tile: program to date"); the
+per-account figures use program-to-date revenue over all-cohort account-months when the sheet
+carries `monthly_detail_full`, else the window's own sums, numerator and denominator always the
+same scope, stated in the notes. (2) "I don't understand why you are picking the youngest
+accounts": `ics_workbook_extract` keeps the newest TWELVE cohorts (nine until now), and the table
+drops to 11 pt for them; its constant "$4.08 amortized per account per month" row — not a workbook
+figure — is replaced by the workbook's own Total Expense (referral fee) row, and the amortization
+caption is gone. (3) "Doesn't match workbook" on the Financial Summary: "Amortized Program
+Expense" $364,433 was the workbook's Total Expense row (referral fees) and "Billed Expense"
+$949,865 is $245 × 3,877 accounts, which the workbook does not carry and Net Profit does not
+deduct; both stay, as "Referral Fees to Date" and "Acquisition Cost", with the caption saying the
+latter is not deducted. (4) "YTD ONLY" on Comparisons: the extractor now reads the Program to Date
+row of Life of Account Data for the openings share and the close rate ("Program-to-date
+everywhere" — reversing the 2026-09-01 choice of Last 12 Months), the label reads "Close Rate",
+the footnote names the window, and the notes say the Velocity close-rate average is a 12-month
+benchmark; a workbook without the row falls back to Last 12 Months and `benchmark.window` says so.
+Lifetime Value on that slide stays annual profit × life (undiscounted, the Velocity average's
+basis), not the workbook's discounted present value per account, which the ROI change had let in.
+A VIP sheet extracted before today keeps nine cohorts, no expense row and the 12-month window
+until the quarterly step re-runs. `tests/test_ics_local_sheet.py` pins each.
+
+### 2026-10-13 — An ODD extract the share refuses as a zip is landed as its ODD member alone
+
+Summary: FedChoice FCU 1815's October ODD extract is now in Inputs. The share had been silently
+deleting the zipped extract because of the monthly transaction file packed beside the ODD, so the
+morning copy failed three times while Inputs kept September's. The copier now re-lands such an
+extract as a zip of the ODD member alone, which every deck reads, and says so in the report.
+
+Found by the hand run Aaron asked for ("Run the file check"): `1815_ODDD.zip FAILED: size mismatch
+after copy (13838993 vs 13410387)` on 2026-10-07, -08 and -13. Probing the share: a `.part` file,
+a plain zip and both raw CSVs survive; a zip holding the ODD CSV alone survives; the full extract
+zip vanishes the instant it is written, under any name (`shutil.copy2` returns, the file is gone),
+so `os.replace` failed, the fallback write left the old file, and the size check reported the old
+size. `1147`'s zip, with a transaction member of a different kind, is held — the refusal is by
+content. `watch_sources._land_odd_member_only` writes the ODD member(s) (the readers' own rule:
+`-ODD` / `_V2_` in the name) into a new zip with their original entries, so the pull stamp
+`deck_status.odd_stamp_period` reads is unchanged; the record carries `reduced` and the report line
+reads "ODD member only (2.5 MB): the share refused the full zip; left out `…monthlytrans.csv`". A
+workbook mismatch is never reduced, and an extract with nothing to leave out still fails. The
+transaction member feeds only the opt-in "How the Money Moves" James view. The reduced copy's write
+time is newer than the source, so the next morning's "differs" is left alone by the changed-on-purpose
+guard rather than retried daily. 1815's October extract was landed this way by hand at 15:05;
+`tests/test_watch_sources.py` pins the reduction, the report line and the two cases that still fail.
+
 ### 2026-10-13 — ICS from the workbook alone: a workbook-only shape, counted as accounts opened
 
 Summary: An ICS client with the period's ICS workbook but no VIP sheet and no referral detail

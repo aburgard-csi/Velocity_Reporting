@@ -127,7 +127,7 @@ ICS or MRPC sheet, ICS workbook or referral export yet, so CSM Sheila offers ARS
 | 1632 | WesBanco | 2026.07 | ICS launched **November 2025** (Aaron, 2026-10-08) — referral queries must start at 2025-11-01 |
 | 1734 | Altamaha Bank and Trust Company | 2026.08 | |
 | 1738 | Rosedale Bank | none on file | referrals-only unless a workbook lands |
-| 1195 | KEMBA CU | 2026.10 | Jordan Berkowitz's. Added 2026-10-13 (Aaron: "1195 Kemba should be added for Jordan. They have ILS and ICS"; "Kemba is listed as KEMBA CU"). ILS has no monthly deck. No VIP ICS sheet and no referral detail file: the deck builds from the 2026.10 workbook alone — the **workbook-only** shape, whose count slides are ACCOUNTS OPENED via ICS and say so (Aaron, 2026-10-13). `Inputs/ICS Charts/KEMBA Financial CU  Charts 2026.xlsx` carries referral goals (its tab is ` Goals`) and stale 2023 Referral Trend / Branch Results tabs; neither is used for counts |
+| 1195 | KEMBA CU | 2026.10 | Jordan Berkowitz's. Added 2026-10-13 (Aaron: "1195 Kemba should be added for Jordan. They have ILS and ICS"; "Kemba is listed as KEMBA CU"). ILS has no monthly deck. No VIP ICS sheet and no referral detail file: the deck builds from the 2026.10 workbook alone — the **workbook-only** shape: the ordinary referral slides from the Monthly Detail row "Accounts Opened via Invitation Checking System", which counts referrals (Aaron, 2026-10-13), and the branch tab. Goals and branch names from `Inputs/ICS Charts/KEMBA Financial CU  Charts 2026.xlsx` (its tab is ` Goals`, column "Goal"); its 2023 Referral Trend / Branch Results tabs are stale and unused |
 
 **1439 Horizon Bank NA added to the active table as ICS + MRPC (Aaron, 2026-10-07: "horizon bank 1439
 should be on my list. they have ILS and ICS"; then "add MRPC too")** — Gregg Miller's until the
@@ -251,11 +251,16 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
   Aaron confirmed ICS only on 2026-09-15. On file: the 2026.10 ICS workbook (`v1.7.1-DM`, landed
   2026-10-09) and the Charts workbook. No VIP ICS sheet and no referral detail file. The same day
   Aaron asked for a **workbook-only ICS shape** ("Add a workbook-only ICS shape that draws the opening
-  counts from Monthly Detail and the branch tab, labelled as accounts opened"), so the deck builds
-  from the workbook alone: the three count slides, the divider, the agenda, the chart legend and
-  every note say ACCOUNTS OPENED via ICS, never referrals — the two are different counts (1776, the
-  one client with both: 2,575 accounts opened vs 2,280 referrals program to date). A referral detail
-  file or VIP sheet, when one lands, switches the build back to referral counts automatically.
+  counts from Monthly Detail and the branch tab"), so the deck builds from the workbook alone. It was
+  first worded "accounts opened, not referrals"; Aaron corrected that the same day ("The monthly
+  detail tab in the workbook is counting referrals in the Accounts Opened via Invitation Checking
+  System row" — it sums to the Value tab's 3,877), so the slides are the ordinary referral slides
+  with the workbook named in the notes, and the Charts goals apply. The 1776 difference (workbook
+  row 2,575 vs the referral detail export 2,280) is between two referral counts and is for the data
+  team. Cindy's "doesn't match VIP" on the count slides is the same kind of question. A referral
+  detail file or VIP sheet, when one lands, takes precedence automatically. The deck also carries
+  the workbook's own ROI (7.17 to 1) and Present Value ($6,814,201 at 3%), not a recalculation
+  (Aaron, 2026-10-13, "Carry the workbook's ROI figures").
 - **2026-09-16 — 1776 CoastHills CU is on ICS** (Aaron: "Add ICS, but don't pull from VIP since I
   don't have access to their clients"). James Gilmore landed a 2026.09 ICS workbook, a detailed referral
   file and a direct-mail new-accounts list in Inputs. There is no VIP ICS sheet and none will be pulled:
