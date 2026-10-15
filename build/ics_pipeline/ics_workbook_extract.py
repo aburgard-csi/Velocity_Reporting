@@ -30,6 +30,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 import warnings
 
@@ -365,8 +366,21 @@ def extract(path):
         ],
     }
 
+    # The data month the tab names ("August 2026 Data"), else the last month column: the month
+    # the workbook-driven slides are stamped with when the workbook is older than the deck.
+    workbook_month = None
+    for r in range(1, hdr_row):
+        for c in range(1, 8):
+            v = md.cell(r, c).value
+            if isinstance(v, str):
+                mm = re.match(r"^\s*([A-Z][a-z]+ \d{4}) Data\s*$", v)
+                if mm:
+                    workbook_month = mm.group(1)
+    if not workbook_month and months:
+        workbook_month = months[-1].strftime("%B %Y")
+
     wb.close()
-    return {"_program_start": program_start,
+    return {"_program_start": program_start, "_workbook_month": workbook_month,
             "performance": performance, "revenue": revenue,
             "financial_summary": financial_summary,
             "monthly_detail": monthly_detail, "monthly_detail_full": monthly_detail_full,
@@ -405,6 +419,7 @@ def main():
 
     sections = extract(a.workbook)
     program_start = sections.pop("_program_start", None)
+    workbook_month = sections.pop("_workbook_month", None)
     data = json.load(open(a.client_json, encoding="utf-8"))
 
     populated = [k for k in sections if data.get(k)]
@@ -423,6 +438,8 @@ def main():
         meta["workbook"] = os.path.basename(a.workbook)
         if program_start:
             meta["program_start"] = program_start
+        if workbook_month:
+            meta["workbook_month"] = workbook_month
         json.dump(data, open(a.client_json, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
         print(f"  wrote {a.client_json}")
     else:

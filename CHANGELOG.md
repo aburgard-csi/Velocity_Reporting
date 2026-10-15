@@ -75,6 +75,43 @@ Discussion so `assemble_combined` keeps the pages inside the ICS section; the no
 program-to-date sums across all cohorts. A sheet without the block (a VIP pull not re-extracted)
 gets no appendix. KEMBA's 46 cohorts make five pages.
 
+### 2026-10-15 — A prior-period ICS workbook is stamped with its data month, and Brooks Bank's onsite deck
+
+Summary: When an ICS deck is built with a workbook older than its period (the opt-in
+`ICS_ALLOW_STALE_WORKBOOK` override), the workbook slides now carry the workbook's data month
+("PTD · August 2026" for a September workbook) rather than the workbook's file period. Brooks
+Bank's 2026.10 deck was rebuilt that way for the 2026-10-16 onsite review, with the September
+ICS workbook re-extracted so it carries today's fixes.
+
+"I need a deck using the October ARS workbook and the September ICS workbook with the fixes
+we've built since September was produced" (Aaron, 2026-10-15). `ics_workbook_extract` now reads
+the Monthly Detail banner ("August 2026 Data") into `meta.workbook_month` on `--write`, and
+`build_ics_gen`'s override prefers it to `_period_label(workbook period)`, which would have
+stamped August's figures "September 2026". Brooks' VIP sheet was re-extracted from its 2026.09
+workbook (a backup is in `Build Artifacts/vip_backups/`): twelve cohorts, the workbook's present
+value, the program-to-date benchmark and the full Monthly Detail, referrals untouched. The deck
+was built through the launcher with the override and `RPE_SPEND_SLIDES=1`, as the 2026-10-12
+deck was, at 0 FAIL, and is in Outputs; the 2026-10-12 deck went to the archive.
+
+### 2026-10-15 — The archive lives inside each CSM's Outputs folder
+
+Summary: Superseded decks now go to `_Archive` inside your own Outputs folder
+(`Outputs\<CSM>\_Archive\<id> <client>\`), with the review folder for older copies beside it,
+instead of a shared `Outputs\_Archive\` at the root. Existing archived decks were moved there.
+
+"Move the Archive under each CSM's folder in outputs rather than in the root Outputs folder"
+(Aaron, 2026-10-15). `promote_month.client_folder` resolves `Outputs/<CSM>/_Archive/<id> <client>`
+(`csm_archive`), reusing an existing folder there first, else one still under the root archive
+(an older copy of the code could leave one), so a client is never split across two places;
+`review_root` puts `_older decks - delete after review` beside the client's archive, and
+`tidy_client_archive` mirrors that layout. `rpe_env.output_decks` never entered a CSM folder's
+subfolders, so a CSM's `_Archive/` is not read as delivered decks, and the root name stays in
+`_OUTPUT_SKIP_DIRS` for any leftover. The 2026-09-15 layout (`Outputs/_Archive/<CSM>/`) was
+moved on the share: 54 client folders and 117 files under the CSM folders, plus 23 client folders
+and 70 files of the review folder, by rename, nothing copied or deleted. `tests/test_promote_month.py`,
+`tests/test_archive_dirname.py` and `tests/test_ars_launcher.py` pin the new layout and the
+leftover-folder reuse. The user guide and the workflow page name the new path.
+
 ### 2026-10-13 — ICS revenue tiles are program to date, the cohort window is twelve, both expense lines are named, Comparisons is program to date
 
 Summary: On every ICS deck with a workbook section, the Interchange, NSF/OD & Other, Spread and

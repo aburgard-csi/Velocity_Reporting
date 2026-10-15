@@ -934,6 +934,7 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
         import ics_workbook_extract as X
         sections = X.extract(av["workbook"])
         program_start = sections.pop("_program_start", None)
+        sections.pop("_workbook_month", None)          # meta.workbook_month is read from the banner below
         sections.pop("mystery_shop", None)
         sections.pop("contacts", None)          # an older extractor's standing card; never used
         sheet.update(sections)

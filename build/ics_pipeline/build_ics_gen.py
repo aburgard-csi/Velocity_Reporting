@@ -491,7 +491,10 @@ def build(d, static_path, out, referrals_only=False):
     if not referrals_only and _cid and _period:
         _wbp = _latest_ics_workbook_period(_cid)
         if _wbp != _period and _allow_stale and _wbp:
-            _stale_wb_month = _period_label(_wbp)
+            # The workbook's DATA month when the sheet records it (the extractor writes
+            # `meta.workbook_month` from the tab's "August 2026 Data" banner since 2026-10-15),
+            # else the workbook file's period: a 2026.09 workbook carries August's figures.
+            _stale_wb_month = _meta.get("workbook_month") or _period_label(_wbp)
             print(f"ICS financial detail INCLUDED FROM A {_wbp} WORKBOOK on a {_period} "
                   f"deck, by ICS_ALLOW_STALE_WORKBOOK. Every workbook-driven slide is "
                   f"stamped 'PTD · {_stale_wb_month}', not the deck period, so no figure "
