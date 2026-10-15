@@ -75,6 +75,53 @@ Discussion so `assemble_combined` keeps the pages inside the ICS section; the no
 program-to-date sums across all cohorts. A sheet without the block (a VIP pull not re-extracted)
 gets no appendix. KEMBA's 46 cohorts make five pages.
 
+### 2026-10-15 — ICS for every client with a direct mail list: 36 clients added
+
+Summary: Every client with a 2026.10 direct mail list is now an ICS client in Sheila: 17 ARS
+clients gain an ICS section and 19 clients join as ICS only, 1657 Marine Credit Union among them.
+Those with a current ICS workbook build the workbook-only ICS section with the Direct Mail slide;
+the rest build no ICS section until a current workbook or a referral source lands, and Sheila
+says which.
+
+"List any client with a new direct mail list as having ICS" (Aaron, 2026-10-15). `clients.md`:
+ICS = "yes (direct mail list, 2026-10-15; no VIP sheet)" and the deck tag gains ICS on 1217, 1487,
+1542, 1615, 1637, 1652, 1673, 1680, 1745, 1746, 1759, 1761, 1765, 1766, 1780, 1799 and 1800; 1657's
+row reads ICS; 1002, 1514, 1555, 1710, 1731, 1736, 1743, 1764, 1774, 1782, 1796, 1806, 1808, 1811,
+1816, 1817, 1826 and 1835 join the ICS-only table with their CSM. The roster now carries 51 ICS
+clients. Workbook-only builds are on offer for 1542, 1680, 1746, 1759, 1800, 1710, 1808, 1816 and
+1826, which have 2026.10 workbooks; none of the 36 has a VIP sheet or referral export.
+
+### 2026-10-15 — WesBanco's and Rosedale's sheets re-extracted from their 2026.10 workbooks; the extractor keeps a sheet's mystery-shop block
+
+Summary: WesBanco 1632 and Rosedale Bank 1738 now carry their October ICS workbooks' figures,
+so their next decks show the full ICS section with the current workbook. The quarterly extractor
+no longer writes its mystery-shop placeholder over a sheet.
+
+"Run the file check again. We've added a folder for ICS Direct Mail with files for all clients
+with direct mail, and we've added a lot of ICS workbooks" (Aaron, 2026-10-15). A VIP client's
+sheet takes its workbook sections from `ics_workbook_extract --write`, which is run by hand, so a
+new workbook on disk changes nothing until it is run: 1632's sheet carried its 2026.07 workbook
+and 1738's none while 2026.10 workbooks sat in Inputs. Both were re-extracted (backups in
+`Build Artifacts/vip_backups/`): twelve cohorts, the workbook's present value, the program-to-date
+benchmark, `monthly_detail_full` and `meta.workbook_month` (September 2026), referrals and direct
+mail untouched. The write put the extractor's `{"include": false, "_status": "skip"}` mystery-shop
+stub onto 1738's sheet, which had no block; it was removed, and `main` now drops the stub before
+writing so a real block from a VIP pull can never be overwritten. All 44 direct-mail files parse;
+the readers find each by client id.
+
+### 2026-10-15 — The source watchdog fires once a day, at 08:10, or by hand
+
+Summary: The "RPE Source Watch Watchdog" task runs once each morning, ten minutes after the
+08:00 source check, instead of every half hour until noon. Any later check is started by hand.
+
+"The source watchdog is running too often. I want this running only at 8am or manually"
+(Aaron, 2026-10-15). Since 2026-09-21 it fired at 08:20 and every 30 minutes for four hours; this
+morning the 08:00 run came off the VPN with exit 2 and the watchdog logged "needs a human look"
+every half hour until 13:38. `register_watchdog_task.ps1` now defaults to `-Time 08:10` and
+`-RepeatHours 0` and the task was re-registered; `-RepeatHours 4` restores the old window.
+Ten minutes after the main fire is enough for a healthy run to finish and for a suspended one to
+pass the four-minute age the watchdog judges by. `tests/test_watch_sources.py` pins the defaults.
+
 ### 2026-10-15 — The spend YoY tile falls back to a like-for-like window
 
 Summary: On Overall Debit Swipes & Spend, a client whose workbook spend series does not reach

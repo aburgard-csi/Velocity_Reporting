@@ -665,10 +665,13 @@ watch cannot report on itself — do not "simplify" this by having it check its 
 `watch_sources.run_health()` reads the run record (`ok` / `stale` / `never`, by last FINISH,
 outcome ignored); `refresh_performance_dashboard.py` prints it at 08:30 and the delivery dashboard
 banners it; `--check-stale` scans nothing and answers off VPN. The **"RPE Source Watch Watchdog"**
-task (`scripts/watch_task_watchdog.ps1`, from 08:20, every 30 minutes for four hours) asks
+task (`scripts/watch_task_watchdog.ps1`, **one fire a day at 08:10**, Aaron 2026-10-15: "I want this
+running only at 8am or manually"; it was 08:20 and every 30 minutes for four hours from 2026-09-21,
+which on a morning off the VPN logged "needs a human look" every half hour into the afternoon) asks
 `--check-today`, and if no run has reached the shares it kills a fire Windows created suspended
 and retries the main task, appending to `Build Artifacts/source_watch_watchdog.log`. It stays
-(Aaron, 2026-10-05). **A `watch_sources.py` process older than `MaxAgeSecondsAlive` (3 h) is
+(Aaron, 2026-10-05). A later check is a hand run: `Start-ScheduledTask -TaskName "RPE Source Watch
+Watchdog"`, or the script itself; `register_watchdog_task.ps1 -RepeatHours 4` restores the old window. **A `watch_sources.py` process older than `MaxAgeSecondsAlive` (3 h) is
 stuck whatever its counters say** (Aaron, 2026-10-07): a run that reached the shares and then
 hung looks healthy, and the task is `MultipleInstances IgnoreNew`, so the next 08:00 fire is
 dropped while it lives — the watchdog clears one even on a morning whose run did reach the

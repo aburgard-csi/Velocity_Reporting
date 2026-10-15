@@ -40,45 +40,45 @@ template placeholder means SM. Verified 2026-08-28.
 | 1192 | Ascend FCU | MM | yes | — | — | ARS |
 | 1200 | Guardians Credit Union | MM | yes | — | — | ARS |
 | 1204 | First State Bank - Michigan | MM | yes | — | — | ARS |
-| 1217 | Pioneer FCU | MM | yes | — | — | ARS |
+| 1217 | Pioneer FCU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
 | 1226 | Ellafi FCU | MM | yes | — | — | ARS |
 | 1403 | Adirondack Bank | SM | yes | yes (no ICS data on file yet) | yes | ARS-ICS-MRPC |
 | 1437 | Canandaigua National Bank | MM | ended | — | ended | **none — no further reviews** |
 | 1439 | Horizon Bank NA | — | — | referrals-only (no ICS data on file yet) | yes (no VIP MRPC sheet yet) | ICS-MRPC |
 | 1441 | FNB Alaska | MM | yes | — | — | ARS |
 | 1453 | Connex CU | MM | yes | — | yes | ARS-MRPC |
-| 1487 | Orsa CU | MM | yes | — | — | ARS |
+| 1487 | Orsa CU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
 | 1509 | Texas Bay Credit Union | MM | yes | yes | — | ARS-ICS |
 | 1520 | Cashmere Valley Bank | MM | yes | — | yes | ARS-MRPC |
 | 1526 | Create CU | MM | yes | — | — | ARS |
 | 1529 | Vantage West CU | MM | yes | — | — | ARS |
 | 1537 | Brooks Bank | MM | yes | yes | — | ARS-ICS |
 | 1539 | Marine FCU | MM | yes | yes | yes | ARS-ICS-MRPC |
-| 1542 | The Friendship SB | MM | yes | — | yes | ARS-MRPC |
+| 1542 | The Friendship SB | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
 | 1549 | Wellworth Bank | MM | yes | referrals-only | — | ARS-ICS |
 | 1554 | Isabella Bank | MM | yes | — | — | ARS |
-| 1615 | Cape & Coast Bank | MM | yes | — | yes | ARS-MRPC |
-| 1637 | Ouachita Valley FCU | MM | yes | — | yes | ARS-MRPC |
-| 1652 | Security CU | SM | yes | — | yes | ARS-MRPC |
-| 1657 | Marine Credit Union | SM | — | — | — | **none — ICS only, not built (see Status changes)** |
-| 1673 | Neighborhood CU | MM | yes | — | yes | ARS-MRPC |
+| 1615 | Cape & Coast Bank | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
+| 1637 | Ouachita Valley FCU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
+| 1652 | Security CU | SM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
+| 1657 | Marine Credit Union | SM | — | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ICS |
+| 1673 | Neighborhood CU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
 | 1676 | True Sky CU | MM | yes | yes | — | ARS-ICS |
-| 1680 | Great Lakes CU | MM | yes | — | — | ARS |
+| 1680 | Great Lakes CU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
 | 1681 | First Financial CU | MM | yes | — | — | ARS |
 | 1705 | CoastLife Credit Union | MM | yes | **cancelled** | — | ARS |
-| 1745 | Leading Edge CU | MM | yes | — | yes | ARS-MRPC |
-| 1746 | PrimeTrust FCU | MM | yes | — | — | ARS |
+| 1745 | Leading Edge CU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
+| 1746 | PrimeTrust FCU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
 | 1748 | Clearview FCU | MM | yes | — | — | ARS |
-| 1759 | First Central CU | MM | yes | — | — | ARS |
-| 1761 | Capital Educators FCU | MM | yes | — | — | ARS |
-| 1765 | Foothills CU | MM | yes | — | — | ARS |
-| 1766 | Fort Sill FCU | MM | yes | — | — | ARS |
+| 1759 | First Central CU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
+| 1761 | Capital Educators FCU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
+| 1765 | Foothills CU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
+| 1766 | Fort Sill FCU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
 | 1776 | CoastHills CU | MM | yes | yes (local files, no VIP) | yes | ARS-ICS-MRPC |
 | 1777 | West-Aircomm FCU | MM | yes | — | — | ARS |
-| 1780 | USF CU | MM | yes | — | yes | ARS-MRPC |
+| 1780 | USF CU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
 | 1798 | FirstLight FCU | MM | yes | — | — | ARS |
-| 1799 | Central Bank | MM | yes | — | — | ARS |
-| 1800 | First American Bank | MM | yes | — | — | ARS |
+| 1799 | Central Bank | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
+| 1800 | First American Bank | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
 | 1805 | Texar FCU | — | yes | — | — | ARS |
 | 1807 | Patriot FCU | MM | yes | — | — | ARS |
 | 1815 | FedChoice FCU | MM | yes | — | — | ARS |
@@ -128,6 +128,24 @@ ICS or MRPC sheet, ICS workbook or referral export yet, so CSM Sheila offers ARS
 | 1734 | Altamaha Bank and Trust Company | 2026.08 | |
 | 1738 | Rosedale Bank | none on file | referrals-only unless a workbook lands |
 | 1195 | KEMBA CU | 2026.10 | Jordan Berkowitz's. Added 2026-10-13 (Aaron: "1195 Kemba should be added for Jordan. They have ILS and ICS"; "Kemba is listed as KEMBA CU"). ILS has no monthly deck. No VIP ICS sheet and no referral detail file: the deck builds from the 2026.10 workbook alone — the **workbook-only** shape: the ordinary referral slides from the Monthly Detail row "Accounts Opened via Invitation Checking System", which counts referrals (Aaron, 2026-10-13), and the branch tab. Goals and branch names from `Inputs/ICS Charts/KEMBA Financial CU  Charts 2026.xlsx` (its tab is ` Goals`, column "Goal"); its 2023 Referral Trend / Branch Results tabs are stale and unused |
+| 1002 | Republic | none on file | Jordan Berkowitz's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1514 | 1st Community FCU | none on file | Daniel Wood's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1555 | Garden Savings FCU | none on file | Jordan Berkowitz's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1710 | Guardian Credit Union | 2026.10 | Daniel Wood's; builds workbook-only. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1731 | Texoma CCU | none on file | James Gilmore's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1736 | The Peoples Bank Co | none on file | Jordan Berkowitz's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1743 | Mid American CU | none on file | Daniel Wood's (the Velocity export also lists ARS; not asked for). Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1764 | FBT Bank | none on file | Daniel Wood's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1774 | INB NA | none on file | Jordan Berkowitz's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1782 | Meridian Trust FCU | none on file | Daniel Wood's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1796 | ACCESSbank | none on file | Daniel Wood's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1806 | SOCU | none on file | Daniel Wood's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1808 | Summit Choice CU | 2026.10 | Jordan Berkowitz's; builds workbook-only. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1811 | Dutch Point Credit Union | none on file | Max Willett's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1816 | Beginnings CU | 2026.10 | Max Willett's; builds workbook-only. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1817 | The County FCU | none on file | Max Willett's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1826 | Air Academy FCU | 2026.10 | James Gilmore's; builds workbook-only. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
+| 1835 | Citizens Bank | none on file | Daniel Wood's. Added 2026-10-15 from the ICS Direct Mail list (Aaron: "List any client with a new direct mail list as having ICS"); no VIP sheet or referral export, so the deck builds only once a current workbook or referral source is on file |
 
 **1439 Horizon Bank NA added to the active table as ICS + MRPC (Aaron, 2026-10-07: "horizon bank 1439
 should be on my list. they have ILS and ICS"; then "add MRPC too")** — Gregg Miller's until the
@@ -244,6 +262,7 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ## Status changes
 
+- **2026-10-15 — ICS added for every client with a new direct mail list** (Aaron: "List any client with a new direct mail list as having ICS"). The data team landed `Inputs/ICS Direct Mail/` with a 2026.10 list for 43 clients. 17 active-table rows gain ICS (1217, 1487, 1542, 1615, 1637, 1652, 1673, 1680, 1745, 1746, 1759, 1761, 1765, 1766, 1780, 1799, 1800) and their deck tag gains ICS; 1657 Marine Credit Union, ICS-only since 2026-09-15, now builds; 18 clients join the ICS-only table. None of them has a VIP sheet or a referral export: the five with a 2026.10 ICS workbook (1542, 1680, 1746, 1759, 1800 among the ARS clients; 1710, 1808, 1816, 1826 ICS-only) build the workbook-only shape with the Direct Mail slide, and the rest build no ICS section until a current workbook or a referral source lands — CSM Sheila says so per client rather than guessing.
 - **2026-10-13 — 1195 KEMBA CU added as ICS only, Jordan Berkowitz's** (Aaron: "1195 Kemba should be
   added for Jordan. They have ILS and ICS"; the name is the DCO's and the CSM list's: "Kemba is listed as
   KEMBA CU"). ILS has no monthly deck (the ILS review prep slides are hand-run). No ARS: the data team
