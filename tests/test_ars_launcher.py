@@ -339,8 +339,9 @@ def test_a_different_program_mix_supersedes_the_other_deck_in_outputs(tmp_path, 
     combined.write_bytes(b"y")
     assert L.supersede_other_ars_decks("1776", str(combined), out) == 1
     assert not ars_only.exists()
-    archived = list((out / R.ARCHIVE_DIRNAME).rglob("*.pptx"))
+    archived = list((out / "James Gilmore" / R.ARCHIVE_DIRNAME).rglob("*.pptx"))   # inside the CSM folder (2026-10-15)
     assert len(archived) == 1 and "(superseded" in archived[0].name
+    assert not (out / R.ARCHIVE_DIRNAME).exists()
 
 
 def test_a_clean_deck_goes_straight_to_outputs_and_archives_what_it_replaces(tmp_path, monkeypatch):
@@ -376,7 +377,7 @@ def test_a_clean_deck_goes_straight_to_outputs_and_archives_what_it_replaces(tmp
     make_deck(deck, "rebuilt")
     lvl, msg = L.to_outputs("1441", str(deck))
     assert lvl == L.OK and text_of(live) == "rebuilt"
-    archived = list((tmp_path / "Outputs" / R.ARCHIVE_DIRNAME).rglob("*superseded*"))
+    archived = list((tmp_path / "Outputs" / "James Gilmore" / R.ARCHIVE_DIRNAME).rglob("*superseded*"))
     assert len(archived) == 1 and text_of(archived[0]) == "first build"
 
 

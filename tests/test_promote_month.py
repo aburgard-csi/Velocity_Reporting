@@ -187,18 +187,56 @@ def test_a_superseded_deck_is_archived_in_its_clients_folder(tmp_path):
     src = _stage(tmp_path, "1038", name, _deck(tmp_path / "new.pptx", "new"))
     n, _ = P.promote_one(str(src), out, out / "Archive", "2026-09-14", apply=True, log=lambda *_: None)
     assert n == 1
-    # Filed under the client's CSM (Aaron, 2026-09-15: "sort the archive by CSM").
-    folder = out / "Archive" / (R.client_csm("1038") or R.UNASSIGNED_CSM) / "1038 Sugar River Bank"
+    # Filed INSIDE the client's CSM folder (Aaron, 2026-10-15: "Move the Archive under each CSM's
+    # folder in outputs rather than in the root Outputs folder"); by CSM under the root since 2026-09-15.
+    folder = out / (R.client_csm("1038") or R.UNASSIGNED_CSM) / "Archive" / "1038 Sugar River Bank"
     assert [p.name for p in folder.iterdir()] == [
         "1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-09-14).pptx"]
-    assert not any(p.is_file() for p in (out / "Archive").iterdir()), "nothing flat in Archive/"
+    assert not list((out / "Archive").rglob("*")), "nothing goes to the root archive now"
 
 
 def test_an_existing_client_folder_under_a_csm_is_reused(tmp_path):
+    """A folder an older copy of the code left under the root archive is still reused, so one
+    client never splits across two places."""
     out = _outputs(tmp_path)
     existing = out / "Archive" / "Some CSM" / "1539 Marine FCU"
     existing.mkdir(parents=True)
     assert P.client_folder(out / "Archive", "1539", "Marine Federal Credit Union") == existing
+
+
+def test_the_csm_archive_wins_over_a_leftover_under_the_root(tmp_path, monkeypatch):
+    """Since 2026-10-15 a client's archive folder is inside the CSM's folder; a folder there is
+    found first, a new one is made there, and the review folder sits beside it."""
+    monkeypatch.setattr(R, "client_csm", lambda cid: "Some CSM")
+    out = _outputs(tmp_path)
+    arch = out / "Archive"
+    assert P.csm_archive(arch, "1539") == out / "Some CSM" / "Archive"
+    fresh = P.client_folder(arch, "1539", "Marine FCU")
+    assert fresh == out / "Some CSM" / "Archive" / "1539 Marine FCU" and not fresh.exists()
+    mine = out / "Some CSM" / "Archive" / "1539 Marine Federal Credit Union"
+    mine.mkdir(parents=True)
+    (arch / "Some CSM" / "1539 Marine FCU").mkdir(parents=True)
+    assert P.client_folder(arch, "1539", "Marine FCU") == mine
+    assert P.review_root(arch, mine) == out / "Some CSM" / "Archive" / P.REVIEW_DIRNAME
+    assert P.review_root(arch, arch / "Some CSM" / "1539 Marine FCU") == arch / P.REVIEW_DIRNAME
+
+
+def test_promotion_into_the_csm_archive_tidies_beside_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(R, "client_csm", lambda cid: "Some CSM")
+    out = _outputs(tmp_path)
+    name = "1038-2026.09-ARS-Sugar River Bank ARS Results.pptx"
+    folder = out / "Some CSM" / "Archive" / "1038 Sugar River Bank"
+    folder.mkdir(parents=True)
+    old = folder / "1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-09-10).pptx"
+    _deck(old, "oldest")
+    os.utime(old, (1000, 1000))
+    _deck(out / name, "live")
+    src = _stage(tmp_path, "1038", name, _deck(tmp_path / "new.pptx", "new"))
+    P.promote_one(str(src), out, out / "Archive", "2026-10-15", apply=True, log=lambda *_: None)
+    assert [p.name for p in folder.iterdir()] == [
+        "1038-2026.09-ARS-Sugar River Bank ARS Results (superseded 2026-10-15).pptx"]
+    assert (out / "Some CSM" / "Archive" / P.REVIEW_DIRNAME / "1038 Sugar River Bank" / old.name).exists()
+    assert not list((out / "Archive").rglob("*"))
 
 
 def test_the_review_folder_mirrors_the_csm_layout(tmp_path):

@@ -19,7 +19,8 @@ def test_the_archive_name_starts_with_an_underscore():
 def test_output_decks_skips_the_archive_under_either_name(tmp_path):
     name = "1441-2026.09-ARS-FNB Alaska ARS Results.pptx"
     for rel in (f"James Gilmore/{name}",
-                f"_Archive/James Gilmore/1441 FNB Alaska/{name}",
+                f"James Gilmore/_Archive/1441 FNB Alaska/{name}",         # the archive inside the CSM folder (2026-10-15)
+                f"_Archive/James Gilmore/1441 FNB Alaska/{name}",          # the root archive, 2026-09-15 to 2026-10-15
                 f"Archive/James Gilmore/1441 FNB Alaska/{name}"):
         p = tmp_path / rel
         p.parent.mkdir(parents=True, exist_ok=True)

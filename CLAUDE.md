@@ -53,14 +53,17 @@ ARE THE BACKUP (Aaron, 2026-09-09).** Every input can be re-fetched from where i
 from: the CSI shares hold the ODD extracts, DCOs, ARS workbooks and MRPCPM analyses, and
 the mailbox holds the MRPC / CashPlease reports and the ICS workbooks —
 `scripts/watch_sources.py --copy --mail` is how they come back. Outputs are rebuildable
-from those inputs by definition, and `Outputs/_Archive/` keeps the newest superseded deck
-of each kind per client per period, in a folder per client filed under its CSM
-(`_Archive/<CSM>/<id> <client>/`, Aaron 2026-09-14; by CSM 2026-09-15). `promote_month` moves
+from those inputs by definition, and **each CSM's folder holds its own archive**,
+`Outputs/<CSM>/_Archive/<id> <client>/`, with the newest superseded deck of each kind per client
+per period (Aaron, 2026-10-15: "Move the Archive under each CSM's folder in outputs rather than
+in the root Outputs folder"; it was `Outputs/_Archive/<CSM>/<id> <client>/` from 2026-09-15 and
+flat `Outputs/Archive/` before, and the folders were moved on 2026-10-15). `promote_month` moves
 older decks of the same period and kind to
-`_Archive/_older decks - delete after review/<CSM>/<id> <client>/` — never deletes them — and
-never moves a hand-made PDF. An existing client folder is reused wherever it sits. The folder
-name lives in `rpe_env.ARCHIVE_DIRNAME`; its underscore keeps it above the CSM folders (it was
-`Archive/` until 2026-09-15).
+`Outputs/<CSM>/_Archive/_older decks - delete after review/<id> <client>/` — never deletes them —
+and never moves a hand-made PDF. `promote_month.client_folder` resolves the folder: an existing
+one in the CSM's archive first, else one still under the root archive (left by an older copy of
+the code), so a client is never split across two places. The folder name lives in
+`rpe_env.ARCHIVE_DIRNAME`; its underscore keeps it above the decks in the CSM's folder.
 
 Do not introduce a mirror. Two copies of one tree is the two-stores problem that shipped
 month-old ICS figures in August: `build/{ics,mrpc}_pipeline/data/` and the VIP store
@@ -135,8 +138,9 @@ covers all five CSMs' books. Program is still distinguished by the filename tag,
 subfolder. Writers resolve the folder with `rpe_env.client_outputs(id)` (the CSM from
 `<RPE_DATA_ROOT>/Client CSM List.csv`, else the CashPlease roster's CSM column, else
 `Outputs/_Unassigned/` — never a guessed CSM); readers use `rpe_env.output_decks(pattern)`,
-which searches every CSM folder and the flat root but never `_Archive/`. `Outputs/_Archive/`
-keeps a folder per client under each CSM. This replaced both the old **Client Presentations** drop and
+which lists every CSM folder's own files and the flat root but never an archive (`<CSM>/_Archive/`
+is a subfolder it does not enter; a root `_Archive/` is skipped by name). Each CSM folder's
+`_Archive/` keeps a folder per client (2026-10-15). This replaced both the old **Client Presentations** drop and
 the per-client `Clients/<Client Name> <clientid>/` copy — do not deliver to client folders.
 
 **`C:\Data Pipelines\` also holds `Renewals Pipeline` — a DIFFERENT project.** It has its

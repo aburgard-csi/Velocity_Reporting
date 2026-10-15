@@ -98,11 +98,14 @@ def outputs() -> Path:
 # ------------------------------------------------------------------ outputs by CSM
 # Finished decks are filed in a folder per CSM, `Outputs/<CSM>/` (Aaron, 2026-09-14:
 # "sort the Outputs folder by CSM"), now that the project covers all five CSMs' books.
-# The archive is `Outputs/_Archive/`: the underscore keeps it at the top of Outputs, above the
-# CSM folders (Aaron, 2026-09-15: "add to the archive folder names so they stay at the top,
-# above my name"); it was `Outputs/Archive/`, which sorted between "Aaron Burgard" and the rest.
-# Readers go through `output_decks()`, which also still reads the flat root, so a deck
-# dropped there by hand is found; writers go through `client_outputs()`.
+# The archive is `Outputs/<CSM>/_Archive/`, inside each CSM's folder (Aaron, 2026-10-15: "Move
+# the Archive under each CSM's folder in outputs rather than in the root Outputs folder"); the
+# underscore keeps it at the top of that folder, above the decks. It was `Outputs/_Archive/<CSM>/`
+# from 2026-09-15 and `Outputs/Archive/` before that. `promote_month.client_folder` resolves a
+# client's archive folder; `_OUTPUT_SKIP_DIRS` still names the root archive so a folder an older
+# copy of the code leaves there is never read as a CSM. Readers go through `output_decks()`,
+# which lists each CSM folder's files only (never its `_Archive/`) and still reads the flat
+# root, so a deck dropped there by hand is found; writers go through `client_outputs()`.
 CSM_LIST_NAME = "Client CSM List.csv"
 UNASSIGNED_CSM = "_Unassigned"
 ARCHIVE_DIRNAME = "_Archive"

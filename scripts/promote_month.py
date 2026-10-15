@@ -12,9 +12,10 @@ rather than re-archived — otherwise a rebuild that changed nothing still churn
 the archive and buries the copies that matter.
 
 **The archive is one folder per client, and keeps the newest deck of each kind per
-period (Aaron, 2026-09-14).** A superseded deck goes to `Outputs/_Archive/<CSM>/<id> <client>/`.
+period (Aaron, 2026-09-14).** A superseded deck goes to `Outputs/<CSM>/_Archive/<id> <client>/`
+(inside the CSM's folder since 2026-10-15; `Outputs/_Archive/<CSM>/...` before).
 After a delivery, any OLDER archived deck with the same period and program tags is
-moved to `Outputs/_Archive/_older decks - delete after review/<CSM>/<id> <client>/` — moved,
+moved to `Outputs/<CSM>/_Archive/_older decks - delete after review/<id> <client>/` — moved,
 never deleted: the share has no Recycle Bin, so removing them is a person's call. A
 hand-made PDF is never moved by that rule.
 
@@ -87,32 +88,66 @@ def _is_client_dir(d, client_id):
     return d.is_dir() and d.name.split(" ", 1)[0] == client_id
 
 
-def client_folder(arch, client_id, client_name=""):
-    """`Archive/<CSM>/<id> <client>` — and an existing folder for that id, whatever its name.
+def csm_archive(arch, client_id):
+    """`Outputs/<CSM>/_Archive` — the archive inside the client's CSM folder.
 
-    The archive is filed by CSM, like Outputs (Aaron, 2026-09-15: "sort the archive by
-    CSM"); the CSM comes from `rpe_env.client_csm`, else `_Unassigned`.
+    `arch` is the root archive (`Outputs/_Archive`); its parent is Outputs and its name is
+    the archive's one name (`rpe_env.ARCHIVE_DIRNAME`), so the CSM's archive is
+    `<Outputs>/<CSM>/<that name>`. The CSM comes from `rpe_env.client_csm`, else `_Unassigned`.
+    """
+    arch = Path(arch)
+    csm = re.sub(r'[<>:"/\\|?*]', "", R.client_csm(client_id) or "").strip() or R.UNASSIGNED_CSM
+    return arch.parent / csm / arch.name
+
+
+def client_folder(arch, client_id, client_name=""):
+    """`Outputs/<CSM>/_Archive/<id> <client>` — and an existing folder for that id, whatever its name.
+
+    The archive sits INSIDE each CSM's folder (Aaron, 2026-10-15: "Move the Archive under each
+    CSM's folder in outputs rather than in the root Outputs folder"), so a CSM's folder holds
+    their live decks and, beneath `_Archive`, what those decks replaced. It was
+    `Outputs/_Archive/<CSM>/<id> <client>` from 2026-09-15 (sorted by CSM) and flat
+    `Outputs/Archive/<id>` before that; the folders were moved on 2026-10-15.
 
     The id is the key. Delivery names differ between programs (the CashPlease module
     for 1539 says "Marine Federal Credit Union", the Executive Review "Marine FCU"), so
     naming the folder from each deck would split one client across two folders. The
     first name wins and every later deck for that id lands beside it. An existing folder
-    is reused wherever it is: under any CSM, or flat in Archive/ from before the sort.
+    is reused: in the CSM's archive first, else wherever it still sits under the root
+    archive (a folder an older copy of the code made after the move), so one client is
+    never split across two places.
     """
     arch = Path(arch)
+    mine = csm_archive(arch, client_id)
+    if mine.is_dir():
+        for d in sorted(mine.iterdir()):
+            if _is_client_dir(d, client_id):
+                return d
     if arch.is_dir():
         for c in sorted(arch.iterdir()):
             if not c.is_dir() or c.name == REVIEW_DIRNAME:
                 continue
             if _is_client_dir(c, client_id):          # a flat folder from before the CSM sort
                 return c
-            if not c.name[:1].isdigit():              # a CSM folder
+            if not c.name[:1].isdigit():              # a CSM folder under the root archive
                 for d in sorted(c.iterdir()):
                     if _is_client_dir(d, client_id):
                         return d
     safe = re.sub(r'[<>:"/\\|?*]', "", client_name or "").strip()
-    csm = re.sub(r'[<>:"/\\|?*]', "", R.client_csm(client_id) or "").strip() or R.UNASSIGNED_CSM
-    return arch / csm / (("%s %s" % (client_id, safe)) if safe else client_id)
+    return mine / (("%s %s" % (client_id, safe)) if safe else client_id)
+
+
+def review_root(arch, target):
+    """The review folder for a client's archive folder: beside it, `<its archive>/<REVIEW_DIRNAME>`.
+
+    `Outputs/<CSM>/_Archive/_older decks - delete after review/<id> <client>` for the layout since
+    2026-10-15; for a folder still under the root archive, that archive's review folder, whose
+    layout `tidy_client_archive` mirrors (`<CSM>/<id> <client>`).
+    """
+    arch, target = Path(arch), Path(target)
+    if target.parent.name == arch.name and target.parent != arch:
+        return target.parent / REVIEW_DIRNAME
+    return arch / REVIEW_DIRNAME
 
 
 def _free(dest):
@@ -317,7 +352,7 @@ def promote_one(src, out, arch, stamp, apply=False, log=print, legacy=()):
         raise
     if moved and target != arch:
         try:
-            tidy_client_archive(target, arch / REVIEW_DIRNAME, apply=True, log=log)
+            tidy_client_archive(target, review_root(arch, target), apply=True, log=log)
         except OSError as e:
             log(f"{'!! ':<9} could not tidy {target.name}: {_why(e)}")
     return len(moved), True
