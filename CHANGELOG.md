@@ -75,6 +75,39 @@ Discussion so `assemble_combined` keeps the pages inside the ICS section; the no
 program-to-date sums across all cohorts. A sheet without the block (a VIP pull not re-extracted)
 gets no appendix. KEMBA's 46 cohorts make five pages.
 
+### 2026-10-15 — The spend YoY tile falls back to a like-for-like window
+
+Summary: On Overall Debit Swipes & Spend, a client whose workbook spend series does not reach
+back to January of the prior year no longer shows n/a. The tile reads "Spend YoY, like for
+like" and compares the months of this year to date that the prior year also carries, with the
+caption naming them ("Feb–Sep 25 → Feb–Sep 26"). A full January-to-date pair is still used first.
+
+"For Brooks Bank how do we have NSF YoY but not Debit card spend?" (Aaron, 2026-10-15). The NSF/OD
+tile reads the ODD extract, which carries every month from July 2023; the spend tile reads the
+workbook's Key Trends, which for Brooks start in February 2025, so Jan–Sep 25 had no January and
+the rule of 2026-10-12 (every month of both windows complete, else n/a) left the tile empty while
+the opt-in Debit Spend per Cardholder slide beside it already compared Feb–Sep like for like.
+`build_ars_gen._spend_like_for_like` takes the longest run of months ending at the last complete
+month that both years carry, at least three, sums each year over it, and the notes say which
+window was used and why; fewer than three matching months still reads n/a. Same rule as
+`spend_trend` (2026-10-12).
+
+### 2026-10-15 — The two before/after chart pairs run the full slide width
+
+Summary: On Responder Activity: Before vs After (Mean) and Before vs After by Offer, the pair
+of charts now spans the slide instead of sitting narrow in the middle.
+
+"Both charts could be wider on this slide" and "and this one" (Aaron, 2026-10-15, Brooks Bank).
+The picture box was already 11.3in wide; the empty space was inside the image — `charts_gen`
+drew both pairs at a 2639x1003 canvas with a legend above the panels and letterboxed the tight
+crop into it, so the panels filled about two thirds of the box. `DIM` image10 / image31 are now
+3240x1003 and the figures 3.8in tall at that aspect, so the tight crop comes out near the canvas
+aspect and the panels fill its width; `slide_geometry` gives both titles the full 12.3in,
+centered, top 2.0in, height from the image's own aspect and at most 4.0in, so nothing stretches
+and the box ends above the caption. The ARS shell carries the rule (its placeholder image is
+squarer, so it sits at 10.52 x 4.0) and the layout baseline was re-snapshotted for those two
+slides. `tests/test_slide_geometry.py` pins the rule.
+
 ### 2026-10-15 — A prior-period ICS workbook is stamped with its data month, and Brooks Bank's onsite deck
 
 Summary: When an ICS deck is built with a workbook older than its period (the opt-in

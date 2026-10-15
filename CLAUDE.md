@@ -467,7 +467,12 @@ complete for swipes and spend and incomplete for NSF/OD.
   month, summed, over the same months a year earlier; the caption names both windows
   ("Jan–Sep 25 → Jan–Sep 26") and the notes carry both sums. Every month of both windows must
   be complete, else the tile reads n/a — never a partial sum passed off as a year. A new YoY
-  tile follows the same rule.
+  tile follows the same rule. **When the series does not reach back to January of the prior
+  year, the spend tile falls back to like for like** (Aaron, 2026-10-15, Brooks Bank, whose
+  Key Trends start Feb 2025): the longest run of months ending at the last complete month that
+  both years carry, at least three, labelled "Spend YoY, like for like" with the caption naming
+  the window ("Feb–Sep 25 → Feb–Sep 26") — the `spend_trend` rule. Fewer than three matching
+  months still reads n/a.
 - ARS: `metrics_gen` and `ticket_calc` call `month_complete.odd_completeness`; the workbook's
   Key Trends spend goes through `complete_rows` (in `build_ars_gen`, `charts_gen`, the
   one-pager and the performance dashboard). CashPlease: `cp_extract` holds a `*` roll-up for a

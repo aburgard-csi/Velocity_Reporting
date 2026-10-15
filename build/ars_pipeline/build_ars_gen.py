@@ -148,17 +148,48 @@ def _spend_ytd_label(year):
     return last if _ld.month == 1 else f"Jan–{last}"
 _sp_cur, _sp_prior = _spend_ytd(_ld.year), _spend_ytd(_ld.year - 1)
 SPEND_YOY_WIN = (_spend_ytd_label(_ld.year - 1), _spend_ytd_label(_ld.year))
+SPEND_YOY_LABEL = "Spend YTD YoY"
+# LIKE FOR LIKE when the series does not reach back to January of the prior year (Aaron,
+# 2026-10-15, Brooks Bank: "how do we have NSF YoY but not Debit card spend?" — the workbook's
+# Key Trends start in Feb 2025, so Jan–Sep 25 had no January and the tile read n/a while the
+# NSF/OD tile, read from the ODD, did not). The same rule as the spend_trend slides
+# (2026-10-12): the months of this year to date that the prior year also carries, the longest
+# run ending at the last complete month, at least three months, against the same months a
+# year earlier; the tile says "like for like" and the caption names the window. A full
+# January-to-date pair is still used first.
+def _spend_like_for_like():
+    start = None
+    for mo in range(_ld.month, 0, -1):
+        if any(_ss.get(_ld.replace(year=y, month=mo).strftime('%b %Y')) is None for y in (_ld.year - 1, _ld.year)):
+            break
+        start = mo
+    if start is None or _ld.month - start + 1 < 3:
+        return None
+    def _sum(y):
+        return sum(_ss[_ld.replace(year=y, month=mo).strftime('%b %Y')] for mo in range(start, _ld.month + 1))
+    def _lbl(y):
+        return f"{_ld.replace(year=y, month=start).strftime('%b')}–{_ld.replace(year=y).strftime('%b %y')}"
+    return _sum(_ld.year), _sum(_ld.year - 1), (_lbl(_ld.year - 1), _lbl(_ld.year))
+if not (_sp_cur is not None and _sp_prior):
+    _lfl = _spend_like_for_like()
+    if _lfl:
+        _sp_cur, _sp_prior, SPEND_YOY_WIN = _lfl
+        SPEND_YOY_LABEL = "Spend YoY, like for like"
 jun25 = bool(_sp_prior)                   # kept as the name the slide-24 block tests
 if _sp_cur is not None and _sp_prior:
     spend_yoy = f"{100*(_sp_cur-_sp_prior)/_sp_prior:+.0f}%"
-    SPEND_YOY_NOTE = (f"Spend YTD YoY compares {SPEND_YOY_WIN[0]} (${_sp_prior:,.1f}M) to "
-                      f"{SPEND_YOY_WIN[1]} (${_sp_cur:,.1f}M), year to date through the last complete month")
+    SPEND_YOY_NOTE = (f"{SPEND_YOY_LABEL} compares {SPEND_YOY_WIN[0]} (${_sp_prior:,.1f}M) to "
+                      f"{SPEND_YOY_WIN[1]} (${_sp_cur:,.1f}M), "
+                      + ("year to date through the last complete month" if SPEND_YOY_LABEL == "Spend YTD YoY"
+                         else "the months of this year to date the prior year also carries (the series starts "
+                              f"{SS[0][0]}, so a January-to-date pair is not available), through the last complete month"))
 else:
     # not enough history for a YoY read — state it rather than render a number
     spend_yoy = "n/a"
-    SPEND_YOY_NOTE = "Spend YTD YoY reads n/a: the series does not carry every month of both year-to-date windows"
+    SPEND_YOY_NOTE = ("Spend YTD YoY reads n/a: the series does not carry every month of both year-to-date "
+                      "windows, nor three matching months of both years")
     print(f"NOTE: the spend series ({len(_ss)} months) does not carry both year-to-date windows "
-          f"({SPEND_YOY_WIN[0]} and {SPEND_YOY_WIN[1]}) — YoY spend reported as n/a")
+          f"({SPEND_YOY_WIN[0]} and {SPEND_YOY_WIN[1]}) nor a like-for-like pair — YoY spend reported as n/a")
 monthly_spend = f"${jun_spend:.1f}M"
 
 # lift matrix values (MM only)
@@ -1006,7 +1037,9 @@ set_exact(S[23], "+11%", spend_yoy)
 # Year to date against the prior year to date (Aaron, 2026-10-12): the tile says so
 # and its caption names both windows, as the NSF/OD tile does.
 _sp_win = ("(%s → %s)" % SPEND_YOY_WIN) if jun25 else "(no prior year in extract)"
-repl(S[23], {"Spend YoY": "Spend YTD YoY", "(Jun 25 → Jun 26)": _sp_win})
+# "Spend YTD YoY" over a January-to-date pair; "Spend YoY, like for like" when the series only
+# carries part of the prior year, with the caption naming the months compared (2026-10-15).
+repl(S[23], {"Spend YoY": SPEND_YOY_LABEL, "(Jun 25 → Jun 26)": _sp_win})
 
 # ============================ SLIDE 25 — NSF/OD
 set_exact(S[24], "2,360", f"{M['nsf_last_items']:,}")
@@ -1537,7 +1570,7 @@ for _sl in _S2:
             if M.get('nsf_yoy_window') else ""))
         if _notes_mc["NSF/OD"]: _add.append(_notes_mc["NSF/OD"])
     elif "swipes & spend" in _t.lower():
-        _add.append("Complete months only: monthly spend, Spend YTD YoY and card growth end on %s. %s."
+        _add.append("Complete months only: monthly spend, the spend YoY tile and card growth end on %s. %s."
                     % (SS[-1][0], SPEND_YOY_NOTE))
         if _notes_mc["Swipes & Spend"]: _add.append(_notes_mc["Swipes & Spend"])
     elif _act_note and any(k in _t.lower() for k in ("swipe", "average ticket", "card usage")):
