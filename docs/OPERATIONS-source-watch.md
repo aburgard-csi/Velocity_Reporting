@@ -250,7 +250,11 @@ powershell -ExecutionPolicy Bypass -File scripts\register_watchdog_task.ps1 [-Ti
 ```
 
 `scripts/watch_task_watchdog.ps1` runs as its own scheduled task, **"RPE Source Watch
-Watchdog"**, from 08:20 and **every 30 minutes for four hours** (Aaron, 2026-09-21), so a
+Watchdog"**, from 08:20 and **every 30 minutes for four hours** (Aaron, 2026-09-21; **one fire a
+day at 08:10 since 2026-10-15** — "the source watchdog is running too often. I want this running
+only at 8am or manually": on 2026-10-15 the 08:00 run came off the VPN with exit 2 and the
+watchdog logged "needs a human look" every half hour until 13:38; a later check is now a hand run,
+and `register_watchdog_task.ps1 -RepeatHours 4` restores the window), so a
 fire created suspended at 09:00 or 10:00 is cleared while the morning still matters. It asks
 `watch_sources.py --check-today` — has a run REACHED THE SHARES today, from the run record —
 rather than reading the report's age: on 2026-09-21 the 08:00 report was 52 minutes old and

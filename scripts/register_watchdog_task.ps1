@@ -40,12 +40,19 @@
     register_watch_task.ps1's own settings assume is on PATH for this user.
 
 .PARAMETER Time
-    Daily start time, HH:mm (24h). Default: 08:20, repeating every 30 minutes for
-    -RepeatHours (4) -- so a fire created suspended at 09:00 or 10:00 is cleared
-    within half an hour, not left until tomorrow. It was one fire after the main
-    task's own default of 08:00. If the main task runs at a different time,
-    pass that time here plus your own margin; this script does not read the
-    other task's trigger.
+    Daily start time, HH:mm (24h). Default: 08:10, ONE fire a day, ten minutes after
+    the main task's own default of 08:00 so a healthy run has finished and a suspended
+    one is old enough to judge (Aaron, 2026-10-15: "the source watchdog is running too
+    often. I want this running only at 8am or manually"). From 2026-09-21 to 2026-10-15
+    it fired at 08:20 and every 30 minutes for four hours, and on a morning the shares
+    were unreachable it logged "needs a human look" every half hour into the afternoon.
+    Anything after the one fire is a hand run: Start-ScheduledTask, or the script itself.
+    If the main task runs at a different time, pass that time here plus your own margin;
+    this script does not read the other task's trigger.
+
+.PARAMETER RepeatHours
+    Hours of half-hourly repetition after -Time. Default 0 (none). Pass 4 to restore the
+    old morning window.
 
 .PARAMETER Unregister
     Remove the task instead of creating it.
@@ -57,8 +64,8 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Time = "08:20",
-    [int]$RepeatHours = 4,
+    [string]$Time = "08:10",
+    [int]$RepeatHours = 0,
     [switch]$Unregister
 )
 
@@ -118,6 +125,7 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
 $t = Get-ScheduledTask -TaskName $TaskName
 Write-Host ("Registered '{0}': daily at {1}, as {2}, state {3}" -f $TaskName, $Time, $user, $t.State)
 if ($RepeatHours -gt 0) { Write-Host ("  repeats: every 30 min for {0} h after {1}" -f $RepeatHours, $Time) }
+else { Write-Host "  one fire a day; any later check is a hand run (Aaron, 2026-10-15)" }
 Write-Host "  asks: watch_sources.py --check-today (the run record), else the report's age"
 Write-Host "  runs: $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File `"$Script`""
 Write-Host "  run now:  Start-ScheduledTask -TaskName '$TaskName'"

@@ -941,7 +941,9 @@ def test_the_watchdog_asks_the_run_record():
     reg = open(os.path.join(repo, "scripts", "register_watchdog_task.ps1"), encoding="utf-8").read()
     assert "--check-today" in dog and "Watch-RanToday" in dog
     assert "Report-IsFresh" in dog                 # still the fallback for an older checkout
-    assert "RepetitionInterval" in reg             # it repeats through the morning
+    assert "RepetitionInterval" in reg             # -RepeatHours 4 can still restore the morning window
+    # One fire a day by default (Aaron, 2026-10-15: "I want this running only at 8am or manually").
+    assert '[string]$Time = "08:10"' in reg and "[int]$RepeatHours = 0" in reg
 
 
 # ---------------------------------------------- the run record lives off the share, 2026-09-23
