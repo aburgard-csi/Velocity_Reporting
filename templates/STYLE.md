@@ -423,7 +423,9 @@ builder before `fit_layout`. Today every rule is an ARS title: Overall Debit
 Swipes / NSF/OD Activity (taller, not wider); 12-Month Eligible Take Rate
 (full-width chart, short tiles, selection in notes); Product Mix (source bottom-center); Reg E Opt-In (top band + full-width chart); Reg E by
 Account Vintage / First-Year Closure / ARS Response Movement (chart top >= 1.75");
-Transaction Increase (caption 1.45, 6.02, 8.4 x 0.95; chart <= 4.1" centered
+Responder Activity: Before vs After, both slides (chart full width, 12.3 wide,
+centered, top 2.0, height from the image's aspect and at most 4.0"; Aaron, 2026-10-15,
+"both charts could be wider"); Transaction Increase (caption 1.45, 6.02, 8.4 x 0.95; chart <= 4.1" centered
 between); Who Responds (caption below the chart); Program Reach (1.2, 1.8,
 8.3 x 4.58); Account Growth and Account Retention (1.0, 1.75, 8.4 x 4.38). An ICS or
 MRPC layout fix goes in the same file — one contract, not one commit per deck.

@@ -30,6 +30,8 @@ Titles carrying a rule today (all ARS, Aaron 2026-07-24), in the order apply() t
   Reg E Opt-In (other, not Vintage) ...... donut <= 2.85" ending 4.45", legend rows from 4.60"
   Reg E Opt-In by Account Vintage /
   First-Year Closure / ARS Response Movement  chart top >= 1.75" (below the 2-line subtitle)
+  Responder Activity: Before vs After .... chart full width (centered, top 2.0, 12.3 wide, height
+                                           from the image's aspect, <= 4.0") (Aaron, 2026-10-15)
   Transaction Increase ................... caption (1.45, 6.02, 8.4 x 0.95); chart <= 4.1" tall,
                                            centered between subtitle and caption
   Who Responds ........................... caption starts below the chart bottom
@@ -102,6 +104,20 @@ def apply(prs):
                 nw=round(tileL-0.25-0.6,2); nh=round(nw/asp,2)
                 if nh>5.35: nh=5.35; nw=round(nh*asp,2)
                 sh.left=Inches(0.6); sh.top=Inches(1.6)
+                sh.width=Inches(nw); sh.height=Inches(nh)
+        if t.startswith("Responder Activity: Before vs After"):
+            # Both before/after pairs run the full 12.3in width (Aaron, 2026-10-15, Brooks Bank:
+            # "both charts could be wider on this slide"); the height follows the image's NATIVE
+            # aspect (charts_gen DIM image10/image31, 3240x1003) so nothing stretches, and the
+            # box ends above the caption at 6.14in.
+            for sh in _pics(sl):
+                try:
+                    iw,ih=sh.image.size; asp=iw/ih
+                except Exception:
+                    w=_in(sh.width); h=_in(sh.height); asp=(w/h) if w and h else 3.23
+                nw=12.3; nh=round(nw/asp,2)
+                if nh>4.0: nh=4.0; nw=round(nh*asp,2)
+                sh.left=Inches(round((13.333-nw)/2,2)); sh.top=Inches(2.0)
                 sh.width=Inches(nw); sh.height=Inches(nh)
         if t.startswith("12-Month Eligible Take Rate"):
             # Aaron 2026-09-17 (approved on the test branch): the selection line moves to the

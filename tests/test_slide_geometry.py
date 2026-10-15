@@ -63,6 +63,33 @@ def test_the_ars_shell_already_satisfies_the_contract():
     assert geometry(p) == before, "ars_template.pptx is behind the geometry contract"
 
 
+def test_the_before_after_charts_run_the_full_width():
+    """Aaron, 2026-10-15 (Brooks Bank): "both charts could be wider on this slide". Both
+    before/after pairs get the full 12.3in width, centered, at the image's own aspect, or the
+    4.0in height cap when the image is squarer (the shell's placeholder is)."""
+    p = Presentation(os.path.join(TPL, "ars_template.pptx"))
+    seen = 0
+    for s in p.slides:
+        for sh in s.shapes:
+            if sh.left is not None:
+                sh.left = sh.left + NUDGE
+                sh.top = sh.top + NUDGE
+    sg.apply(p)
+    for s in p.slides:
+        t = next((sh.text_frame.text.strip().split("\n")[0] for sh in s.shapes
+                  if sh.has_text_frame and sh.text_frame.text.strip()), "")
+        if not t.startswith("Responder Activity: Before vs After"):
+            continue
+        seen += 1
+        pic = [sh for sh in s.shapes if sh.shape_type == 13 and sh.width > Inches(3)][0]
+        w, h = pic.width / 914400, pic.height / 914400
+        assert abs(pic.top / 914400 - 2.0) < 0.01
+        assert abs(w - 12.3) < 0.01 or abs(h - 4.0) < 0.01
+        assert abs((pic.left / 914400) + w / 2 - 13.333 / 2) < 0.02, "centered"
+        assert h <= 4.0 + 1e-6 and pic.top / 914400 + h < 6.14
+    assert seen == 2
+
+
 @pytest.mark.parametrize("program", ["ics", "mrpc"])
 def test_contract_is_inert_on_other_programs_today(program):
     """Every rule is keyed on an ARS title, so ICS/MRPC are untouched.

@@ -27,12 +27,16 @@ def _fixacr(txt):
 # image11/14/16: the full-width take rate and Reg E branch charts, slide_geometry.CHART_DIMS
 # (Aaron, 2026-09-17).
 DIM={'image5':(1365,705),'image6':(1432,672),'image7':(1035,549),'image8':(1099,683),
- 'image9':(1732,675),'image10':(2639,1003),'image11':(2460,740),'image12':(1740,1064),
+ 'image9':(1732,675),'image10':(3240,1003),'image11':(2460,740),'image12':(1740,1064),
  'image13':(491,491),'image14':(2460,620),'image15':(491,491),'image16':(2460,620),
  'image17':(1368,453),'image18':(1006,612),'image19':(1446,681),'image20':(1446,825),
  'image21':(1660,780),'image22':(978,598),'image23':(946,598),'image24':(1834,740),
  'image25':(1700,754),'image26':(1725,900),'image27':(1533,800),'image28':(1740,1007),
- 'image29':(1740,1064),'image30':(2047,816),'image31':(2639,1003),'image32':(2050,790)}
+ 'image29':(1740,1064),'image30':(2047,816),'image31':(3240,1003),'image32':(2050,790)}
+# image10 / image31 (the two before/after pairs) widened from 2639x1003 (Aaron, 2026-10-15,
+# Brooks Bank: "both charts could be wider on this slide"): the panels sat narrow inside a
+# letterboxed canvas. The slide_geometry rule gives their picture the full 12.3in width at this
+# aspect, so nothing stretches.
 
 def _clean(ax):
     for sp in ["top","right"]: ax.spines[sp].set_visible(False)
@@ -163,7 +167,11 @@ def c_before_after_split():
         print("skip image31 — no offer-group split available"); return
     cats=[e['m'] for e in sp]                       # "Feb 2024"; _month_axis formats
     name='image31'
-    fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*4.2,4.2))
+    # Drawn 1.3x wider than the canvas aspect at 3.8in tall: the legend above and the angled
+    # month labels below make the tight crop taller than the panels alone, and a figure at the
+    # bare canvas aspect still letterboxed a fifth of the width. This way the crop comes out at
+    # the canvas aspect and the panels fill it edge to edge (measured on Brooks 1537, 2026-10-15).
+    fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*3.8*1.3,3.8))
     x=np.arange(len(cats)); w=0.4
     # ONE scale across both panels. With independent axes the NU panel topped at
     # $1,200 and the TH panel at $1,500, so a lower NU bar drew the same height as a
@@ -210,7 +218,7 @@ def c_before_after_split():
                                color=NAVY,fontweight="bold",fontsize=10)
     h,l=axes[0].get_legend_handles_labels()
     fig.legend(h,l,loc="upper center",frameon=False,fontsize=10,ncol=2,bbox_to_anchor=(0.5,1.07))
-    fig.subplots_adjust(top=0.80,wspace=0.16,bottom=0.16)
+    fig.subplots_adjust(top=0.80,wspace=0.12,bottom=0.16)
     save(fig,name)
 
 # The legend states the windows the bars actually cover. It read "3-mo window" as a
@@ -235,7 +243,7 @@ def c_before_after(mean=True):
         nb=[e['nb_med'] for e in ba]; na=[e['na_med'] for e in ba]; nbsd=nasd=None
         name='image31'; t1="Median Monthly Debit Spend / Responder"; t2="Median NSF/OD Items / Overdraft Participant"
         l1=_BA_L1; l2=_BA_L2
-    fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*4.2,4.2))
+    fig,axes=plt.subplots(1,2,figsize=(DIM[name][0]/DIM[name][1]*3.8*1.3,3.8))   # see c_before_after_split
     x=np.arange(len(cats)); w=0.4
     for ax,(bb,aa,bs,as_,title,isnsf) in zip(axes,[(sb,sa,sbsd,sasd,t1,False),(nb,na,nbsd,nasd,t2,True)]):
         ax.bar(x-w/2,bb,w,color=STEEL,label=l1,yerr=bs,error_kw=dict(ecolor='#333',lw=0.8,capsize=1.5) if bs else {})
@@ -249,7 +257,7 @@ def c_before_after(mean=True):
         ax.set_ylim(0,top*1.12)
     h,l=axes[0].get_legend_handles_labels()
     fig.legend(h,l,loc="upper center",frameon=False,fontsize=10,ncol=2,bbox_to_anchor=(0.5,1.07))
-    fig.subplots_adjust(top=0.80,wspace=0.16,bottom=0.14)
+    fig.subplots_adjust(top=0.80,wspace=0.12,bottom=0.14)
     save(fig,name)
 # image11: take rate by branch (new eligible)
 def c_take_branch():
