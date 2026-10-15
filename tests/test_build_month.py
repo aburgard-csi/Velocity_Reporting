@@ -76,7 +76,7 @@ def test_stopped_clients_are_reported_not_silently_dropped(skipped):
     ("1632", ["ICS", "CP"]),
     ("1734", ["ICS", "CP"]),
     ("1539", ["ARS", "ICS", "MRPC", "CP"]),
-    ("1542", ["ARS", "MRPC", "CP"]),
+    ("1542", ["ARS", "ICS", "MRPC", "CP"]),     # ICS since 2026-10-15: a direct mail list is on file
 ])
 def test_program_shape(cid, expected, roster):
     got = next(r[3] for r in roster if r[0] == cid)
