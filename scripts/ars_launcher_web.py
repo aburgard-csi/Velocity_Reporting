@@ -1819,11 +1819,15 @@ PAGE = r"""<!doctype html>
   --ink:#0E1B2A; --ink2:#566370; --ink3:#8793A0; --rule:#D8DEE5;
   --ok:#1E7F4F; --ok-bg:#E4F3EB; --warn:#9A6212; --warn-bg:#FBF0DC; --sent:#245C8C; --sent-bg:#E6EEF6;
   --stop:#B42318; --stop-bg:#FCE9E7; --focus:#F47A29; --sel:#E9EFF6;
+  --dot-ars:#00274C;
 }
 @media (prefers-color-scheme: dark){:root{
   --ground:#0B1520; --surface:#12202D; --soft:#182A3A; --ink:#E6ECF2; --ink2:#A7B4C1; --ink3:#788796; --rule:#26384A;
   --ok:#57C98F; --ok-bg:#12302A; --warn:#E6B45C; --warn-bg:#33270F; --sent:#8FB4DA; --sent-bg:#16283A;
   --stop:#F08579; --stop-bg:#3A1C1A; --sel:#1B3044;
+  /* The ARS dot is brand navy, which vanishes on the navy-black ground (Aaron, 2026-10-15:
+     "the ARS dot is too hard to see in dark mode"); steel blue here, the same blue the Sent chip uses. */
+  --dot-ars:#8FB4DA;
 }}
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.45 "Segoe UI",Calibri,Arial,sans-serif}
@@ -1874,7 +1878,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
    column; filled when the program is in this client's deck, grey when not. The legend sits at the top of the list. */
 .pdots{grid-column:3;grid-row:1;display:inline-flex;gap:4px;align-items:center;padding-top:5px}
 .pdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--rule);border:0}
-.pdot.ars{background:var(--navy)} .pdot.ics{background:var(--orange)} .pdot.mrpc{background:var(--teal)} .pdot.cp{background:var(--gold)}
+.pdot.ars{background:var(--dot-ars)} .pdot.ics{background:var(--orange)} .pdot.mrpc{background:var(--teal)} .pdot.cp{background:var(--gold)}
 .legend{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--ink2);padding:6px 9px 4px}
 .legend .pdot{margin-right:4px;vertical-align:-1px}
 .chip.blocked{background:var(--stop-bg);color:var(--stop)}

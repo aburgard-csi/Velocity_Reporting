@@ -75,6 +75,15 @@ Discussion so `assemble_combined` keeps the pages inside the ICS section; the no
 program-to-date sums across all cohorts. A sheet without the block (a VIP pull not re-extracted)
 gets no appendix. KEMBA's 46 cohorts make five pages.
 
+### 2026-10-15 — Sheila's ARS dot is readable in dark mode
+
+Summary: In Sheila's list, the ARS program dot now shows as steel blue when the page is in dark
+mode, instead of brand navy that disappeared into the dark background. Light mode is unchanged.
+
+"The ARS dot is too hard to see in dark mode" (Aaron, 2026-10-15). The dot took `--navy` in both
+themes; it now takes `--dot-ars`, navy on the light ground and `#8FB4DA` on the dark one, the
+blue the Sent chip already uses there. The header, buttons and the other three dots are as they were.
+
 ### 2026-10-15 — ICS for every client with a direct mail list: 36 clients added
 
 Summary: Every client with a 2026.10 direct mail list is now an ICS client in Sheila: 17 ARS
