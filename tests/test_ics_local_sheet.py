@@ -686,6 +686,29 @@ def test_workbook_only_build_month_logs_the_workbook_and_is_not_referrals_only(b
     assert "workbook-only" in log and "referrals from the workbook's Monthly Detail" in log and "workbook w.xlsx" in log
 
 
+def test_the_extractors_write_keeps_a_sheets_mystery_shop_block(root, tmp_path):
+    """The quarterly step (`ics_workbook_extract --write`) has no mystery-shop figures; its
+    placeholder must never replace a block the sheet carries, nor be added to a sheet that has
+    none (Rosedale 1738, 2026-10-15)."""
+    import subprocess
+    write_workbook(workbook_file(root, PERIOD))
+    real = {"include": True, "mystery_shops_ytd": 12, "pass_rate_pct": 92, "offered_referral_pct": 75}
+    for name, block in (("with.json", real), ("without.json", None)):
+        sheet = tmp_path / name
+        d = {"meta": {"client_id": CID}, "referrals": {"program_to_date": 1}}
+        if block is not None:
+            d["mystery_shop"] = block
+        json.dump(d, open(sheet, "w", encoding="utf-8"))
+        out = subprocess.run([sys.executable, os.path.join(REPO, "build", "ics_pipeline", "ics_workbook_extract.py"),
+                              str(workbook_file(root, PERIOD)), str(sheet), "--write"],
+                             capture_output=True, text=True, timeout=120)
+        assert out.returncode == 0, out.stderr
+        after = json.load(open(sheet, encoding="utf-8"))
+        assert after.get("mystery_shop") == block, name
+        assert after["performance"]["roi"] == 4.0 and after["meta"]["workbook_month"] == "August 2026"
+        assert "monthly_detail_full" in after and "_workbook_month" not in after and "_program_start" not in after
+
+
 def test_a_goals_tab_named_with_a_leading_space_is_still_read(root):
     """1195's Charts workbook names the tab ' Goals'."""
     write_charts(charts_file(root), tab=" Goals")

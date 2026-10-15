@@ -433,6 +433,12 @@ def main():
             print("   ", b)
 
     if a.write:
+        # The extractor has no mystery-shop figures; its placeholder must never replace a block
+        # the sheet carries, nor be added to a sheet that has none (Rosedale 1738, 2026-10-15:
+        # the re-extract wrote {"include": false, "_status": "skip"} over nothing, harmless
+        # that time, and would have erased a real block from a VIP pull).
+        if sections.get("mystery_shop", {}).get("_status") == "skip":
+            sections.pop("mystery_shop")
         data.update(sections)
         meta = data.setdefault("meta", {})
         meta["workbook"] = os.path.basename(a.workbook)
