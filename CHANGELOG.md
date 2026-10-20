@@ -21,6 +21,36 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-20 — The clients' transaction files are collected from the CSM ODDD folders
+
+Summary: A new script, land_txn_files.py, copies each client's monthly debit-card transaction file
+out of the ODD extracts in every CSM's ODDD folder into Inputs/Txn Files, one zip per file, skipping
+what is already there. September's and October's files were landed with it. No deck changes.
+
+James Gilmore, issue #23 (2026-10-19): "TXN files are currently being delivered in the monthly ODDD
+zips per CSM" — he asked for them to be grabbed automatically. Aaron (2026-10-20): "The zip files
+of debit card transactions should be in the folders with each CSM's ODDD. Collect those and move
+them to the reporting input folder." The data team ships the transaction file inside `<id>_ODDD.zip`
+beside the ODD member (a few land unzipped in a `<id>_ODDD/` folder), and `Inputs/Txn Files/` had
+been filled by hand through September. The script reads every member that is not the ODD member
+(`watch_sources._odd_members`, the readers' rule), checks the export's banner line — 1121's
+September extract carried "Monthly Account Data - Master File", which is not a transaction file and
+is reported instead — and lands each as `<member name>.zip` in the form `zip_txn_files.py` keeps,
+verified and written through a `.part`. The extracts on the share are the data team's originals and
+are never changed. It is not in the 08:00 watch: a month's files run to about 10 GB and the task has
+a 50-minute limit. The old `Inputs/Weekly Summaries/` cleanup the day before is unrelated.
+
+### 2026-10-20 — Sheila's Feedback tab wraps each report
+
+Summary: On the Feedback tab a report's title and text now wrap inside the table instead of
+running off the right edge of the page. Nothing else changed.
+
+"Feedback runs off the page. Make the rows wrap text to keep it clean." (Aaron, 2026-10-20). The
+table reused the Lift Matrix table's style, whose cells are right-aligned and never wrap because
+they hold figures; the Feedback table now has its own rule (`table.lm.rep`): left-aligned,
+wrapping, top-aligned, the What column taking most of the width, and only the issue number,
+state and date kept on one line.
+
 ### 2026-10-19 — Bradford's weeklies land with their program; the Weekly Summaries folder is gone
 
 Summary: The MRPC Enrollment Summary weekly now lands in Inputs/MRPC Analyses beside the MRPCPM

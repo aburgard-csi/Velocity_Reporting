@@ -1951,6 +1951,8 @@ table.lm th:first-child,table.lm td:first-child,table.lm td.l{text-align:left}
 table.lm tr.calc td{color:var(--sent)} table.lm tr.grp td{border-bottom:0}
 table.lm tr.pick{cursor:pointer} table.lm tr.pick:hover td{background:var(--soft)}
 table.lm td.up{color:var(--ok)} table.lm td.down{color:var(--stop)}
+table.lm.rep th,table.lm.rep td{text-align:left;vertical-align:top}
+table.lm.rep td:nth-child(3){white-space:normal;overflow-wrap:anywhere;width:60%}
 .rates{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:6px 0 14px}
 .rates label{display:grid;gap:4px;font-size:13px;font-weight:600}
 .rates .src{font-weight:400;font-size:12px;color:var(--ink3)}
@@ -2449,7 +2451,7 @@ async function reportedView() {
     <p class="note">Anyone can report an issue with the button at the top right. A report is
       saved to the share straight away and filed on GitHub by the next sync, so
       <b>queued</b> means it is recorded but not yet on GitHub.</p>
-    ${rows.length ? `<table class="lm"><thead><tr><th>Issue</th><th>State</th><th>What</th>
+    ${rows.length ? `<table class="lm rep"><thead><tr><th>Issue</th><th>State</th><th>What</th>
       <th>Client</th><th>By</th><th>Reported</th></tr></thead><tbody>${cells}</tbody></table>`
       : `<p class="note">Nothing reported yet.</p>`}`;
 }
