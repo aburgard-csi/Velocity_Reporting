@@ -242,9 +242,7 @@ def _report_dirs(inputs_dir):
     """Every folder under Inputs/ that can hold a workbook-ish file, newest
     scheme first, then the legacy flat folder. Mirrors rpe_env.report_dirs() but
     takes the directory as an argument so the tests can point it at a tmpdir."""
-    names = [v for k, v in R.INPUT_KIND_DIRS.items() if k not in R.NOT_SCANNED_KINDS]
-    names.append(R.LEGACY_REPORTS_DIRNAME)
-    return [os.path.join(inputs_dir, n) for n in names
+    return [os.path.join(inputs_dir, n) for n in R._scanned_dirnames()
             if os.path.isdir(os.path.join(inputs_dir, n))]
 
 

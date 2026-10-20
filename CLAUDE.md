@@ -87,10 +87,9 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
 | DCOs | `Inputs/DCOs/` |
 | ARS workbooks | `Inputs/ARS Workbooks/` |
-| MRPCPM analyses | `Inputs/MRPC Analyses/` |
+| MRPCPM analyses, and Bradford's MRPCEnrollmentSummary weeklies (Aaron, 2026-10-19: each weekly lands with its program; `Inputs/Weekly Summaries/` is gone) | `Inputs/MRPC Analyses/` |
 | ICS workbooks | `Inputs/ICS Workbooks/` |
 | ICS Charts (mystery shops) | `Inputs/ICS Charts/` |
-| MRPCEnrollmentSummary weeklies | `Inputs/Weekly Summaries/` |
 | CashPlease data: CashPleaseSummary weeklies and the weekly `ILS-DDA-Count-<YYYY-MM-DD>.txt` (Aaron, 2026-09-16) | `Inputs/CashPlease/` |
 | CashPlease production settings (Velocity Product Settings Power BI app, one record per client) | `Inputs/Product Settings/<id>_cp_settings.json` |
 | CashPlease marketing emails from Bradford's "CashPlease Marketing eMails" thread (Aaron, 2026-09-21): the monthly per-client data `<id>_<Client>_<MM.YYYY>_Loan_Marketing_Emails.csv` — the ONE `.csv` the mail step accepts — and the undated per-client `<id>_<Client>_Loan_Marketing_Emails.xlsx`. Newest month per client; `mail_sources.cp_marketing_parts` reads both names, and `watch_sources.PRUNE_ALSO_KINDS` is how prune reaches a folder no reader globs | `Inputs/CashPlease Marketing/` |

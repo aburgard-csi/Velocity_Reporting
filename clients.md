@@ -196,7 +196,7 @@ CashPlease. A tab in the workbook still says nothing on its own.*
 | --- | --- |
 | Weekly workbook | Bradford Sanders, subject "CashPlease Summary" — `CashPleaseSummaryV1_<yymmdd>_<hhmmss>.xlsx` |
 | DDA denominator | the weekly "ILS Management Server DDA Count" email body, saved as `ILS-DDA-Count-<YYYY-MM-DD>.txt` |
-| Both land in | `Inputs/Weekly Summaries/` under `RPE_DATA_ROOT` — resolved through `rpe_env`, never hardcoded |
+| Both land in | `Inputs/CashPlease/` under `RPE_DATA_ROOT` — resolved through `rpe_env`, never hardcoded (`Inputs/Weekly Summaries/` until 2026-09-16) |
 | Decks go to | `Outputs/`; packs and figures to `Build Artifacts/cashplease/` |
 | Cadence | **Weekly** — the build always uses the most recent workbook, currently 2026-09-06 |
 
@@ -331,7 +331,7 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
   `C:\Projects\CashPlease` against this repo's shared style layer; it is now
   `build/cashplease_pipeline/` + `scripts/build_cashplease.py`, dispatched by the
   `cashplease-deck` subagent. Paths resolve through `rpe_env` and **`CP_DATA_ROOT` no
-  longer exists** — inputs come from `Inputs/Weekly Summaries/`, decks go to `Outputs/`.
+  longer exists** — inputs come from `Inputs/CashPlease/` (then `Inputs/Weekly Summaries/`), decks go to `Outputs/`.
   The standalone tree is retired and builds nothing; two working copies reading different
   data roots is the two-stores problem this file's opening paragraph is about. The
   2026-09-01 entry below describing `CP_DATA_ROOT` is superseded and kept as history.

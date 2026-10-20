@@ -199,8 +199,11 @@ def test_the_resolver_reads_the_product_settings_folder(tmp_path, monkeypatch):
 
 def test_settings_are_not_scanned_as_workbook_inputs(tmp_path):
     import watch_sources
-    for name in R.INPUT_KIND_DIRS.values():
+    for name in set(R.INPUT_KIND_DIRS.values()):          # two kinds share MRPC Analyses
         (tmp_path / name).mkdir()
     scanned = {Path(p).name for p in watch_sources._report_dirs(str(tmp_path))}
     assert "Product Settings" not in scanned and "ODDD" not in scanned
-    assert "Weekly Summaries" in scanned
+    assert "CashPlease" in scanned and "MRPC Analyses" in scanned
+    assert "Weekly Summaries" not in scanned          # gone 2026-10-19; each weekly lands with its program
+    # two kinds share MRPC Analyses; a reader must glob it once
+    assert len(scanned) == len(watch_sources._report_dirs(str(tmp_path)))

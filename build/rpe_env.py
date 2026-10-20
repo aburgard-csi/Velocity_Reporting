@@ -310,7 +310,12 @@ INPUT_KIND_DIRS = {
     "MRPCPM": "MRPC Analyses",
     "ICS workbook": "ICS Workbooks",
     "ICS charts": "ICS Charts",           # "<Client> Charts 2026.xlsx" — mystery shops
-    "weekly": "Weekly Summaries",         # MRPCEnrollmentSummary weeklies
+    # Bradford's weeklies land with their PROGRAM, not in a folder of their own (Aaron, 2026-10-19:
+    # "put them in the CP and MRPC folders, not in the 'weekly summaries' folder"). The MRPC
+    # enrollment weekly shares "MRPC Analyses" with the MRPCPM analyses, so two kinds name one
+    # folder and report_dirs() lists it once. "Weekly Summaries" held both weeklies 2026-09-09 to
+    # 2026-09-16 and the MRPC one until 2026-10-19; the folder is gone.
+    "weekly": "MRPC Analyses",            # <yymmdd>_<hhmmss>-MRPCEnrollmentSummary_v3_13.xlsx
     "CP weekly": "CashPlease",            # CashPleaseSummary weeklies + ILS-DDA-Count-<date>.txt (Aaron, 2026-09-16)
     "CP settings": "Product Settings",    # <id>_cp_settings.json, Velocity Product Settings app
     # <id>_<Client>_Loan_Marketing_Emails.xlsx, one per client, from Bradford's "CashPlease
@@ -356,6 +361,18 @@ def input_dir(kind: str, create: bool = True) -> Path:
     return p
 
 
+def _scanned_dirnames() -> list:
+    """The workbook-ish folder names in kind order, each once, the legacy flat folder last.
+    Two kinds can share a folder (the MRPC weekly and the MRPCPM analyses, 2026-10-19), and a
+    reader globbing a folder twice would see every file twice."""
+    names = []
+    for k, v in INPUT_KIND_DIRS.items():
+        if k not in NOT_SCANNED_KINDS and v not in names:
+            names.append(v)
+    names.append(LEGACY_REPORTS_DIRNAME)
+    return names
+
+
 def report_dirs() -> list:
     """Every folder that can hold a workbook-ish input, newest scheme first.
 
@@ -364,8 +381,7 @@ def report_dirs() -> list:
     `Product Settings/` are NOT here — both are resolved by exact path.
     """
     I = inputs()
-    names = [v for k, v in INPUT_KIND_DIRS.items() if k not in NOT_SCANNED_KINDS]
-    names.append(LEGACY_REPORTS_DIRNAME)
+    names = _scanned_dirnames()
     # One listing of Inputs rather than an is_dir() per kind: each is a round trip on the share (2026-09-17).
     fold = str.casefold if os.name == "nt" else (lambda s: s)
     try:

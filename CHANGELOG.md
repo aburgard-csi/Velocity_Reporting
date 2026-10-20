@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-19 — Bradford's weeklies land with their program; the Weekly Summaries folder is gone
+
+Summary: The MRPC Enrollment Summary weekly now lands in Inputs/MRPC Analyses beside the MRPCPM
+analyses, and the CashPlease Summary weekly stays in Inputs/CashPlease. Nothing lands in
+Inputs/Weekly Summaries any more and the folder has been removed. No figure changes.
+
+Aaron, 2026-10-19: "Let's clean up the landing locations for the summaries from Bradford. We have a
+weekly summaries folder and a cashplease folder and an MRPC analysis folder. Let's put them in the CP
+and MRPC folders, not in the 'weekly summaries' folder." The CashPlease weekly had moved on
+2026-09-16; the MRPC weekly was the last thing in the folder. `rpe_env.INPUT_KIND_DIRS["weekly"]`
+now names `MRPC Analyses`, so two kinds share one folder; `rpe_env._scanned_dirnames` lists each
+folder once for `report_dirs()` and the copier's `_report_dirs`, so no reader sees a file twice.
+The two weeklies on disk were moved (one was already there, byte-identical) and the empty folder
+removed. Readers never named the folder — `mrpc_weekly` and `build_cashplease` glob
+`report_dirs()` — so no reader changed.
+
 ### 2026-10-13 — A month that collapses in the middle of an extract is left out, not read as complete
 
 Summary: A month whose NSF/OD (or swipes or spend) collapses and then comes back is now left out of

@@ -137,7 +137,7 @@ figure.
            Inputs/ARS Workbooks + DCOs   -> ARS extractors
            Build Artifacts/*.figures.json -> mailing response
            Inputs/VIP Data/{ICS,MRPC}     -> referrals, enrollments
-           Inputs/Weekly Summaries        -> MRPC weekly, CashPlease weekly
+           Inputs/MRPC Analyses, CashPlease -> MRPC weekly, CashPlease weekly
                                              (CP via the CashPlease repo's cp_extract)
            deck_status.collect(period)    -> build readiness
          -> Build Artifacts/perf_dashboard/{dataset.json, rpe_dashboard.html, state.json}

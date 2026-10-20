@@ -48,8 +48,9 @@ import rpe_env as R                                          # noqa: E402
 # Kind names are watch_sources' vocabulary; imported lazily so this module can be
 # unit-tested without the share paths existing.
 MRPCPM, ICS_WB, WEEKLY, OTHER = "MRPCPM", "ICS workbook", "weekly", "other"
-# CashPlease weeklies have their own Inputs folder (Aaron, 2026-09-16: "add inputs folder for
-# CashPlease data"); the MRPC enrollment weeklies stay in Weekly Summaries.
+# Each weekly lands with its program (Aaron, 2026-09-16: "add inputs folder for CashPlease
+# data"; 2026-10-19: the MRPC enrollment weekly joins the MRPCPM analyses in MRPC Analyses, and
+# the Weekly Summaries folder is gone). The folder names are rpe_env.INPUT_KIND_DIRS's.
 CP_WEEKLY = "CP weekly"
 _WEEKLIES = (WEEKLY, CP_WEEKLY)
 # The per-client CashPlease marketing emails, `<id>_<Client>_Loan_Marketing_Emails.xlsx`
