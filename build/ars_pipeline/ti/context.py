@@ -18,6 +18,14 @@ class Ctx:
     source_dir: Path = None
     client_id: str = None
     warnings: list = field(default_factory=list)
+    # the transaction side, when the client has a transaction window: the rows (v5's loader
+    # frame), the window end, the account lenses keyed on the ODD's account ids, the loader's
+    # report, and the section outputs later sections read (v5 run.py passes them along)
+    txn: object = None
+    anchor_ts: object = None
+    lenses: object = None
+    txn_report: object = None
+    shared: dict = field(default_factory=dict)
 
     def warn(self, message):
         self.warnings.append(message)

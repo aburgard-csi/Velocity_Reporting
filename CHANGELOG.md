@@ -21,6 +21,23 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence cut reads the clients' transaction files
+
+Summary: The Transaction Intelligence cut can now read a client's monthly debit-card transaction
+files from Inputs/Txn Files, the twelve months up to the ODD's data month, the way James's v5
+engine reads them. No deck changes.
+
+v5's transaction loader, merchant key and transaction-side lenses are ported unchanged into
+`build/ars_pipeline/ti/transaction_intelligence/` with v5's loader tests. The files stay zipped on
+the share; `ti/txn_stage.py` copies the window's files ONCE into a local staging folder
+(`%LOCALAPPDATA%/RPE/ti_cache`, or `TI_CACHE_DIR`), each dated with its zip entry's own date, so v5's
+parquet cache keys are the same every build and the share is read once per new file. A file that
+leaves the window leaves staging; the share copy is never touched. `ti_build.py` puts the rows and
+lenses on the shared context, and a client with no transaction files is stated, not failed. The
+parity check rebuilds the rows v5 read from v5's own parquet cache, so transaction figures are
+compared on identical rows. Tests: `test_ti_txn_stage.py`, `test_ti_txn_loader_dedupe.py`,
+`test_ti_txn_quote_swallow.py`, `test_ti_txn_wide_rows.py`, `test_ti_closed_account_lens.py`.
+
 ### 2026-10-23 — Ported v5 slides draw on RPE's slide anatomy
 
 Summary: The Transaction Intelligence cut can now draw the slides ported from James's v5 engine

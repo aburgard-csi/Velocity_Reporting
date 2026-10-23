@@ -104,12 +104,51 @@ def context(v5_dir, config: dict):
     return Ctx(frame, config, anchor, build_subsets(frame, config, anchor), v5_dir)
 
 
-def run(v5_dir, config: dict, names=None):
+def v5_txn_frame(v5_dir, client_id):
+    """The transaction rows v5's run read, rebuilt from v5's own parquet cache
+    (`03-Output/_cache/txn/<id>/`, the files `txn_metrics.json` names as loaded), finished as
+    v5's loader.load finishes them. Same rows, so a difference is the port's, not the data's."""
+    import glob
+    import pandas as pd
+    v5_dir = Path(v5_dir)
+    tm = json.loads((v5_dir / "txn_metrics.json").read_text(encoding="utf-8"))
+    cache = v5_dir.parents[1] / "_cache" / "txn" / str(client_id)
+    frames = []
+    for name in tm["txn_files_loaded"]:
+        hits = sorted(glob.glob(str(cache / (glob.escape(Path(name).stem) + ".*.v6.parquet"))))
+        if not hits:
+            raise SystemExit(f"v5's cache has no parquet for {name} under {cache}")
+        frames.append(pd.read_parquet(hits[-1]))
+    df = pd.concat(frames, ignore_index=True)
+    for col in ("transaction_type", "mcc_code", "merchant_id", "card_present", "source_file", "merchant_key"):
+        df[col] = df[col].astype("category")
+    return df[df["transaction_date"].notna()], tm
+
+
+def with_txn(ctx, client_id):
+    """Attach v5's transaction rows, window end and lenses to a parity Ctx."""
+    import pandas as pd
+    from ti.core.periods import Month
+    from ti.transaction_intelligence import lens as txn_lens
+    ctx.txn, tm = v5_txn_frame(ctx.source_dir, client_id)
+    m = Month.parse(tm["txn_anchor"])
+    ctx.anchor_ts = pd.Timestamp(m.year, m.month, 1) + pd.offsets.MonthEnd(0)
+    ctx.lenses = txn_lens.build(ctx.frame, ctx.anchor_ts, ctx.warn,
+                                branch_map=ctx.config.get("BranchMapping"))
+    ctx.client_id = str(client_id)
+    return ctx
+
+
+def run(v5_dir, config: dict, names=None, client_id=None):
     """{name: rows} for each registered computation (or only `names`)."""
     ctx = context(v5_dir, config)
+    wanted = [n for n in REGISTRY if not names or n in names]
+    if client_id and any(REGISTRY[n][0] == "txn_metrics.json" for n in wanted):
+        with_txn(ctx, client_id)
     out = {}
-    for name, (source, fn) in REGISTRY.items():
-        if names and name not in names:
+    for name in wanted:
+        source, fn = REGISTRY[name]
+        if source == "txn_metrics.json" and ctx.txn is None:
             continue
         theirs = json.loads((Path(v5_dir) / source).read_text(encoding="utf-8"))
         out[name] = compare(fn(ctx), theirs)

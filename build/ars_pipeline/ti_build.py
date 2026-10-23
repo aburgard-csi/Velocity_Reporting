@@ -35,6 +35,30 @@ REPO = HERE.parent.parent
 TEMPLATE = REPO / "templates" / "ars_template.pptx"
 
 
+def attach_txn(ctx, warnings, months=12):
+    """The client's transaction window on the context: v5's loader over the staged files (window
+    end = the ODD's data month, as in v5's run), and the account lenses keyed on the ODD's ids.
+    A client with no transaction files on hand gets none, and the chapters that need them say so."""
+    import pandas as pd
+    import rpe_env
+    from ti import txn_stage
+    from ti.transaction_intelligence import lens as txn_lens
+    if not rpe_env.txn_files(ctx.client_id):
+        warnings.append(f"client {ctx.client_id}: no transaction files in Inputs/Txn Files; "
+                        f"the transaction chapters are stated, not rendered")
+        return ctx
+    ctx.anchor_ts = pd.Timestamp(ctx.anchor.year, ctx.anchor.month, 1) + pd.offsets.MonthEnd(0)
+    ctx.txn, ctx.txn_report = txn_stage.load(ctx.client_id, months, ctx.anchor_ts, log=lambda _m: None)
+    warnings.extend(ctx.txn_report.warnings)
+    if ctx.txn.empty:
+        warnings.append(f"client {ctx.client_id}: no transaction rows in the window ending {ctx.anchor.iso}")
+        ctx.txn = None
+        return ctx
+    ctx.lenses = txn_lens.build(ctx.frame, ctx.anchor_ts, warnings.append,
+                                branch_map=ctx.config.get("BranchMapping"))
+    return ctx
+
+
 def compute_pack(client_id, period, name, ics=False):
     """The cut's data pack for one client: sources, data month, figures, and every warning."""
     import pandas as pd
@@ -56,8 +80,11 @@ def compute_pack(client_id, period, name, ics=False):
     subsets = build_subsets(frame, cfg, anchor)
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
-
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes()}
+    attach_txn(ctx, warnings)
+    if ctx.txn_report is not None:
+        metrics.update({"txn_files_loaded": ctx.txn_report.files, "txn_rows": ctx.txn_report.rows,
+                        "txn_anchor": anchor.iso})
     for ch in cut.CHAPTERS:
         try:
             metrics.update(ch.compute(ctx) or {})

@@ -37,7 +37,7 @@ def main(argv=None):
     if not config:
         raise SystemExit(f"client {a.client} is not in {a.config}")
     names = [n.strip() for n in a.only.split(",") if n.strip()] or None
-    result = parity.run(a.v5_dir, config, names)
+    result = parity.run(a.v5_dir, config, names, client_id=a.client)
 
     bad = 0
     for name, rows in result.items():

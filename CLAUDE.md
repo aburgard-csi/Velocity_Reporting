@@ -968,6 +968,8 @@ This is the readme index — update it whenever files are added, removed, or mov
   never delivered or combined. `docs/migration/DUPLICATES.md` records where the cut overlaps this repo.
   `ti/deck/` holds v5's chart renderers, headlines and copy rules (palette and face from `brand` /
   `use_font`) and `helpers.py`, the helper bundle v5's slide builders draw through, on RPE's anatomy.
+  `ti/transaction_intelligence/` holds v5's transaction-file analyses; `ti/txn_stage.py` stages the
+  window's zipped files from `Inputs/Txn Files/<id>/` once into a local cache for v5's loader.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
