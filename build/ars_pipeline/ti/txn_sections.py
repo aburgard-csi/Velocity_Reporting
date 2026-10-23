@@ -172,3 +172,53 @@ def mapping_audit(ctx):
     return MA.compute(card, cats, card["amount"].abs(), ctx.shared.get("fin_spec"),
                       ctx.shared.get("comp_spec"), mspec,
                       rows["provider"] if rows is not None else None, ctx.warn)
+
+
+def reference_dir():
+    """The public FDIC / NCUA reference store the filed figures read (v5: 01-Data/reference).
+    `TI_REFERENCE_DIR`, else `Inputs/Market Reference`. Holds no client data."""
+    import os
+    from pathlib import Path
+    if os.environ.get("TI_REFERENCE_DIR"):
+        return Path(os.environ["TI_REFERENCE_DIR"])
+    import rpe_env
+    return rpe_env.inputs() / "Market Reference"
+
+
+def market_dir():
+    """Per-client market records (v5: 0_Config/market/<id>.json). `TI_MARKET_DIR`, else
+    `Inputs/ARS Settings/market`."""
+    import os
+    from pathlib import Path
+    if os.environ.get("TI_MARKET_DIR"):
+        return Path(os.environ["TI_MARKET_DIR"])
+    import rpe_env
+    return rpe_env.input_dir("ARS codes", create=False) / "market"
+
+
+def filed(ctx, metrics):
+    """What each named competitor reports to its regulator, added to the competition figures in
+    `metrics` (v5 run.py's closing block). Returns only the keys it adds or changes; with no
+    reference store it says so and adds nothing, as in v5."""
+    import json
+    try:
+        from ti.core.filed.join import attach_filed, require_cache, split_unresolved
+        from ti.core.filed.store import FiledStore
+        from ti.core.market import institutions as I
+        cache = reference_dir()
+        require_cache(cache)
+        rec = market_dir() / f"{ctx.client_id}.json"
+        record = json.loads(rec.read_text(encoding="utf-8")) if rec.exists() else None
+        import copy
+        out = copy.deepcopy(metrics)        # attach_filed edits in place; the caller's dict is left alone
+        attach_filed(out, FiledStore(cache), I.load_book(cache), record)
+        no_record, short = split_unresolved(out.get("comp_filed_unresolved") or [])
+        if no_record:
+            ctx.warn("filed: no regulator record for " + ", ".join(no_record[:8]))
+        if short:
+            ctx.warn("filed: under a year of filings for " + ", ".join(short[:8]))
+        same = lambda a, b: json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
+        return {k: v for k, v in out.items() if k not in metrics or not same(v, metrics[k])}
+    except Exception as exc:
+        ctx.warn(f"filed: skipped ({type(exc).__name__}: {exc})")
+        return {}

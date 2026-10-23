@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Competition: filed growth from the regulators' own reports (no store yet)
+
+Summary: The "Filed growth" figures are ported: what each named competitor reports to the FDIC or NCUA,
+quarter by quarter. They need a public reference store that is not on the share yet, so for now the
+build says the store is missing and adds nothing. No deck changes.
+
+`ti/core/filed/` and `ti/core/market/` are ported unchanged with v5's five filed test files (31 tests).
+`ti/txn_sections.filed` adds the `comp_filed*` figures to the competition figures, as v5's run does,
+reading the store from `TI_REFERENCE_DIR`, else `Inputs/Market Reference`, and the client's market record
+from `TI_MARKET_DIR`, else `Inputs/ARS Settings/market/<id>.json`. The store is ~100 MB of public FDIC and
+NCUA data (no client data); where it should live on the share is an open question. There is no v5 figure
+to check against: every reference run's own filed step was skipped (1761, 2026-10-23: "reference cache
+incomplete … missing fdic_financials"). Test: `test_ti_filed_section.py` (no store is stated, the figures
+handed in are never edited, only added or changed keys come back).
+
 ### 2026-10-23 — The Transaction Intelligence build log carries v5's competition and section read-outs
 
 Summary: When the Transaction Intelligence cut builds, its log now lists the competition figures and
