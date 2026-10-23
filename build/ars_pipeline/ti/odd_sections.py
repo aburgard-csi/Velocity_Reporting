@@ -28,9 +28,23 @@ def attrition(ctx):
     return _section("attrition")(ctx)
 
 
+def balance(ctx):
+    return _section("balance")(ctx)
+
+
+def stressors(ctx):
+    """v5's run pops the per-account stressor frame before writing metrics.json; it is kept on
+    ctx.shared for the call-ready list, as v5 keeps it for lists/stressors.csv."""
+    out = _section("stressors")(ctx)
+    ctx.shared["stress_frame"] = out.pop("_stress_frame", None)
+    return out
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "retention": ("metrics.json", retention),
     "lifecycle": ("metrics.json", lifecycle),
     "attrition": ("metrics.json", attrition),
+    "balance": ("metrics.json", balance),
+    "stressors": ("metrics.json", stressors),
 }

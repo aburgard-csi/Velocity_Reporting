@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: accounts under several stresses, and balances
+
+Summary: The stressor analysis (accounts carrying two or more at-risk conditions at once) and the
+balance analysis it reads (flight risk, sleeping balances, primary-institution signals) are ported.
+Every figure matches James's v5 engine for 1761 CapEd, which has no deposits file; for clients with
+one, the deposit-driven figures wait on the deposits port. No deck changes.
+
+`ti/core/conditions.py` (the named at-risk conditions), `ti/monthly_analysis/stressors.py` and
+`ti/monthly_analysis/balance.py` (whose flight-risk mask a condition uses) are ported unchanged with
+v5's conditions and stressors tests; the stressor frame v5 pops before writing is kept for the
+call-ready list. Parity: on 1761 (2026-10) balance 36/36 and stressors 11/11. On 1776 and 1100
+(2026-09) every difference is a deposit-driven figure (flight risk basis "inflow" vs "balance proxy",
+the deposit join rate, the deposits-slowing condition): v5's runs read the clients' deposits files,
+which the cut reads from the deposits port onward.
+
 ### 2026-10-23 — Transaction Intelligence: attrition, matching v5
 
 Summary: The attrition analysis is ported: closure rates by branch, product, lens group and account
