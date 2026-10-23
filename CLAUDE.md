@@ -947,6 +947,16 @@ This is the readme index — update it whenever files are added, removed, or mov
   those permanently"). The ODD is today's book, so its history understates earlier months — the notes
   say so.
 
+- `build_ti_gen.py`, `ti/` — the **Transaction Intelligence cut** (James Gilmore, 2026-10-22): a
+  SEPARATE deck, in an ARS lens and an ICS lens, for the transaction intelligence, competition,
+  attrition and deposit analyses migrated one at a time from his ARS v5 engine. It never edits the
+  ARS deck, its metrics or its template; an overlap with an existing slide is recorded, not
+  replaced. `ti/cut.py` holds the lenses, the chapter list (deck order; empty until the first
+  chapter lands) and the file name `<id>-<yyyy.mm>-TI-<ARS|ICS>-<Client> Transaction
+  Intelligence.pptx` — "TI" is not a program tag, so `promote_month` never reads it as an ARS
+  deck. `ti/frame.py` is the slide frame chapters draw on; its `notes()` refuses a note with no
+  Source line. Not called by `build_month` or the launcher yet.
+
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
   restyle_fonts / fit_layout / validate_deck, which enforce the 13.33x7.5 deck contract.

@@ -21,6 +21,26 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence cut has a deck shell (not wired into any build)
+
+Summary: A new, separate deck is started for the analyses being moved over from James's ARS
+engine — transaction intelligence, competition, attrition and deposits — in an ARS lens and an
+ICS lens. This change adds only the empty shell and its builder; no build calls it and no
+existing deck changes.
+
+James Gilmore (2026-10-22): migrate the ARS v5 analytics one script per branch, "make sure not
+to overwrite any of the aaron analysis, note where there are duplicate, we can decide later what
+to cut", with "the ars and ics lenses as a separate cut". So the cut lives apart from the ARS
+deck: its own package (`build/ars_pipeline/ti/`) and builder (`build_ti_gen.py`), started from
+the ARS template shell, whose cover, Summit, agenda, Questions and Contact slides are found by
+meaning as the CashPlease builder finds them, and every other shell slide stripped. The file
+name is `<id>-<yyyy.mm>-TI-<ARS|ICS>-<Client> Transaction Intelligence.pptx`; "TI" is not a
+program tag, so `promote_month` can never read it as an ARS deck, supersede one with it or
+archive one for it. The chapter list is empty: the builder refuses to make a deck until the
+first chapter lands. Every content slide's notes go through `ti.frame.notes`, which refuses a
+note with no Source line. Test: `tests/test_ti_shell.py` (file name, shell shape, both months,
+0 FAIL from `validate_deck` on a stub chapter in both lenses).
+
 ### 2026-10-20 — The clients' transaction files are collected from the CSM ODDD folders
 
 Summary: A new script, land_txn_files.py, copies each client's monthly debit-card transaction file
