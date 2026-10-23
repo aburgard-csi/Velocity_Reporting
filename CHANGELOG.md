@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: how much warning a closure gives, matching v5
+
+Summary: The lifecycle analysis is ported: card activity in the months before an account closes,
+against open accounts of the same tenure, and the same curves for ICS accounts. Every figure matches
+James's v5 engine for 1761, 1776 and 1100. No deck changes.
+
+`ti/monthly_analysis/lifecycle.py` (the event-time maths), `lifecycle_report.py` (v5's "lifecycle"
+section) and `lifecycle_ics.py` (the ICS cohort, which the section reads when ICS accounts are on the
+frame) are ported unchanged with v5's lifecycle tests. Parity: 18/18 on 1761 and 1100, 31/31 on 1776
+(an ICS client, so its ICS curves are compared too).
+
 ### 2026-10-23 — Transaction Intelligence: account retention, matching v5
 
 Summary: The retention analysis is ported: which accounts are active, cooling, declining or dormant,

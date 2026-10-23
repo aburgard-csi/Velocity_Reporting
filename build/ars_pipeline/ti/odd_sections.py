@@ -19,7 +19,13 @@ def retention(ctx):
     return _section("retention")(ctx)
 
 
+def lifecycle(ctx):
+    """v5 registers lifecycle_report.compute under the section name "lifecycle"."""
+    return _section("lifecycle_report")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "retention": ("metrics.json", retention),
+    "lifecycle": ("metrics.json", lifecycle),
 }
