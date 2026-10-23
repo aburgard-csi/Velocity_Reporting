@@ -21,6 +21,29 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Sheila builds the Transaction Intelligence decks as a separate presentation
+
+Summary: An ARS client's page in CSM Sheila now has a Transaction Intelligence panel under the
+Executive Review checks, with its own readiness checks and a button that builds the Transaction
+Intelligence decks (one per lens) into Outputs beside the Executive Review, never in its place. The
+list shows "TI in Outputs" separately from "In Outputs". Until a chapter of the cut is ported the
+panel says so and builds nothing.
+
+Aaron, 2026-10-23: "add the ability to create a separate Transaction Intelligence presentation,
+separate from the currently approved RPE presentation. Add checks for the dependencies to the
+readiness check with appropriate caching and optimizations." `ars_launcher.py build <id> --ti`
+runs James's `ti_build.py`, validates each deck (0 FAIL and the package check) and files it with
+`ti_to_outputs`, which supersedes only the same file name; `status <id> --ti` prints the checks.
+`ti_checks` names each dependency: a ported chapter, the client on ARS, this period's ODD extract,
+the client's codes (the v5 config file, else `ars_code_tables.json`, which is parsed once and again
+only when its size or time changes), the transaction files on hand for v5's twelve-month window
+(counted from the file names in `Inputs/Txn Files/<id>/` with James's own name and window rules,
+no zip opened; the folder listing is one of Sheila's share answers kept for `SHARE_TTL`), and the
+ICS lists for the ICS lens. A TI deck in Outputs is never read as the period's RPE deck, and an RPE
+build never archives one. A failure in the TI checks never costs the RPE status. The routing for
+James's `feat/ars-ti/...` branches is written down in `CLAUDE.md`, `docs/COLLABORATORS.md` and a new
+pull request template.
+
 ### 2026-10-23 — Transaction Intelligence: the portfolio block, matching v5 on every figure
 
 Summary: The first transaction analysis is ported: the feed's shape (rows, accounts, channels, card
