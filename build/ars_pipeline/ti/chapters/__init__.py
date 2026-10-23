@@ -6,6 +6,6 @@ client on the shared context) and its slides (`build`, run once per lens deck). 
 pull request at a time; the order here is the deck's: transaction intelligence, competition,
 attrition, deposits, ICS accounts.
 """
-from ti.chapters import attrition, deposits
+from ti.chapters import attrition, deposits, ics
 
-ALL = (attrition.CHAPTER, deposits.CHAPTER)
+ALL = (attrition.CHAPTER, deposits.CHAPTER, ics.CHAPTER)

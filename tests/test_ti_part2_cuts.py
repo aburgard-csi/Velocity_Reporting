@@ -1,5 +1,4 @@
 # Ported from ARS v5 02-Scripts/tests/test_part2_cuts.py at a491b5c (James Gilmore); logic unchanged.
-# test_ics_stat_code_against_the_programme is ported with v5's ics.py (G5, the ICS accounts chapter).
 """Two cuts the legacy scripts had and v5 lacked (#245, Part 2 item 5):
 at-risk by engagement (swipe) tier, and the ICS programme against the
 status code.
@@ -30,3 +29,21 @@ def test_at_risk_rate_by_swipe_tier():
     assert by["1-5 Swipes"][2] == 0.0
 
 
+def test_ics_stat_code_against_the_programme():
+    from ti.monthly_analysis import ics
+    n = 60
+    df = pd.DataFrame({
+        "ICS Account": ["Yes"] * 20 + ["No"] * 40,
+        "Stat Code": ["O"] * 15 + ["C"] * 5 + ["O"] * 38 + ["C"] * 2,
+        "Date Opened": ["2026-03-15"] * n,
+    })
+
+    class _S:
+        total = df
+        from ti.core.periods import Month
+        anchor = Month(2026, 8)
+
+    out = ics.compute(_S(), {}, lambda *_: None)
+    by = {r[0]: r for r in out["ics_cmp_stat_code"]}
+    assert by["C"][1:] == [5, 25.0, 2, 5.0]
+    assert out["ics_cmp_stat_code_columns"][0] == "stat_code"

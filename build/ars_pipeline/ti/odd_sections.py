@@ -88,6 +88,11 @@ def profile(ctx):
     return _section("profile")(ctx)
 
 
+def ics(ctx):
+    """v5's ICS section: the ICS accounts found in the ODD against the rest of the book."""
+    return _section("ics")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "retention": ("metrics.json", retention),
@@ -97,4 +102,5 @@ PARITY = {
     "stressors": ("metrics.json", stressors),
     "deposit_behaviour": ("metrics.json", deposit_behaviour),
     "profile": ("metrics.json", profile),
+    "ics": ("metrics.json", ics),
 }
