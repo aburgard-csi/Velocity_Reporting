@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: attrition, matching v5
+
+Summary: The attrition analysis is ported: closure rates by branch, product, lens group and account
+age, the censoring-correct closure hazard, and new accounts cohort by cohort. Every figure matches
+James's v5 engine for 1761, 1776 and 1100. No deck changes.
+
+`ti/monthly_analysis/attrition.py` is ported unchanged with v5's attrition tests (by lens, cohort,
+exposure, months and control). Parity: 62/62 on 1761 and 1100, 67/67 on 1776. An overlap with the
+opt-in "Where Accounts Close" view is already in `docs/migration/DUPLICATES.md` (rows 7 and 8).
+
 ### 2026-10-23 — Transaction Intelligence: how much warning a closure gives, matching v5
 
 Summary: The lifecycle analysis is ported: card activity in the months before an account closes,

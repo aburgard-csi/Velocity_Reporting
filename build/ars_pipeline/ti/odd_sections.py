@@ -24,8 +24,13 @@ def lifecycle(ctx):
     return _section("lifecycle_report")(ctx)
 
 
+def attrition(ctx):
+    return _section("attrition")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "retention": ("metrics.json", retention),
     "lifecycle": ("metrics.json", lifecycle),
+    "attrition": ("metrics.json", attrition),
 }
