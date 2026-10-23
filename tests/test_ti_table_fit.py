@@ -31,3 +31,14 @@ def test_a_table_that_fits_is_unchanged():
     rows = [["A", "B"], ["x", "1"], ["y", "2"]]
     shape = H._table(_slide(), rows, H.MARGIN_L, 2.0, 6.0)
     assert all(abs(Emu(r.height).inches - 0.3) < 0.001 for r in shape.table.rows)
+
+
+def test_a_compact_kpi_note_that_wraps_stays_inside_the_card_and_under_the_value():
+    # 1776's ICS habits slide: fit_layout re-parked a compact card's note over its value
+    import fit_layout
+    s = _slide()
+    H._kpi(s, 8.82, 5.62, 3.91, "Carries a debit card", "75%", "vs 72% non-ICS — the card has to exist first")
+    fit_layout.fit(s.part.package.presentation_part.presentation)
+    card, _label, value, note = list(s.shapes)
+    assert _bottom(note) <= _bottom(card) + 0.001, "the note stays inside the card"
+    assert _bottom(value) <= Emu(note.top).inches + 0.001, "the value ends where the note begins"

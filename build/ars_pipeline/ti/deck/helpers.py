@@ -12,6 +12,7 @@ Two RPE rules v5 did not have are kept here, once, for every ported slide:
   * a slide v5 would have DECLINED for missing data is not dropped: `declined()` draws it
     with the sentence saying why (CLAUDE.md: never drop slides automatically).
 """
+import math
 import re
 from pathlib import Path
 
@@ -241,6 +242,17 @@ def _kpi(slide, left, top, width, label, value, note=None, accent=NAVY):
     ICS quality slide, 2026-10-23)."""
     h = KPI_H if top + KPI_H <= CONTENT_FLOOR else max(KPI_MIN_H, CONTENT_FLOOR - top)
     k = h / KPI_H
+    note_pt = round(10.5 * max(k, 0.85), 1)
+    # a note that wraps needs its lines' height inside the card; the value box gives it up, so
+    # nothing is left for fit_layout to re-park over the value (1776's ICS habits slide, 2026-10-23)
+    # and fit_layout's own estimate (0.105in a character, 0.26in a line, done by 6.92in) must not
+    # find it too low either, or it is moved down into the logo zone and then lifted onto the value
+    note_top = top + 1.20 * k
+    if note:
+        lines = len(_wrap(note, width - 0.2, note_pt))
+        fit_lines = max(1, math.ceil(len(note) * 0.105 / (width - 0.2)))
+        note_top = min(note_top, top + h - 0.04 - lines * note_pt * 1.2 / 72 - 0.04,
+                       7.00 - 0.08 - 0.26 * fit_lines)
     card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(top),
                                   Inches(width), Inches(h))
     card.fill.solid()
@@ -251,11 +263,11 @@ def _kpi(slide, left, top, width, label, value, note=None, accent=NAVY):
     card.shadow.inherit = False
     _text(slide, left + 0.1, top + 0.12 * k, width - 0.2, 0.3 * k, label, size=round(12 * max(k, 0.85), 1),
           bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
-    _text(slide, left + 0.1, top + 0.48 * k, width - 0.2, 0.66 * k, value, size=round(28 * k),
-          bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
+    _text(slide, left + 0.1, top + 0.48 * k, width - 0.2, min(0.66 * k, note_top - top - 0.48 * k), value,
+          size=round(28 * k), bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
     if note:
-        _text(slide, left + 0.1, top + 1.20 * k, width - 0.2, h - 1.20 * k - 0.04, note,
-              size=round(10.5 * max(k, 0.85), 1), color=WHITE, align=PP_ALIGN.CENTER)
+        _text(slide, left + 0.1, note_top, width - 0.2, top + h - 0.04 - note_top, note,
+              size=note_pt, color=WHITE, align=PP_ALIGN.CENTER)
 
 
 def _cell_bottom_border(cell):
