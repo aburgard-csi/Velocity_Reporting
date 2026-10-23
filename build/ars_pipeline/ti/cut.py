@@ -17,6 +17,8 @@ Chapters
         agenda   the agenda row's detail line
         stats    f(pack, lens) -> up to three (value, label) pairs for the divider
         build    f(ctx) -> the chapter's content slides, in order (see build_ti_gen.Ctx)
+        compute  f(context.Ctx) -> the chapter's figures, merged into the pack's "metrics"
+                 (keys as v5 writes them; ti_build.py runs it once for both lenses)
 
 File name
     <id>-<yyyy.mm>-TI-<LENS>-<Client> Transaction Intelligence.pptx
@@ -37,7 +39,7 @@ LENSES = {
     "ics": Lens("ics", "ICS", "ICS lens", ("ics", "ics_dm", "ics_ref")),
 }
 
-Chapter = namedtuple("Chapter", "code title benefits agenda stats build")
+Chapter = namedtuple("Chapter", "code title benefits agenda stats build compute")
 
 CHAPTERS = ()
 

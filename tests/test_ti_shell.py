@@ -44,7 +44,7 @@ def _stub_build(ctx):
 
 STUB = cut.Chapter("TI_STUB", "Transaction Intelligence", "Spend · Merchants · Channels",
                    "Where card spend goes, by lens group", lambda pack, ln: [("3", "groups")],
-                   _stub_build)
+                   _stub_build, lambda ctx: {"stub_groups": 3})
 
 
 @pytest.fixture

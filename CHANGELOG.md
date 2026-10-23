@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The monthly build can make the Transaction Intelligence cut (opt-in)
+
+Summary: With RPE_TI=1, an ARS client's build also makes the Transaction Intelligence decks, one
+per lens, into a ti/ folder beside the ARS deck. They are never delivered, never combined, and
+cannot fail the ARS build. Without the flag nothing changes.
+
+`scripts/build_month.build_client` runs `build/ars_pipeline/ti_build.py` after the ARS deck when
+`RPE_TI=1`, passing `--ics` for a client on ICS in clients.md. It reads the ODD once, joins the
+ICS lists, runs each chapter's compute on one shared context (`ti/context.py`, also the parity
+check's), writes `ti_pack.json`, and builds a deck per lens. A lens with no accounts (an ICS
+client whose lists match nothing) is stated in the log and the pack, never built empty; a chapter
+whose compute fails is stated and the rest still build. The decks stay in `<stage>/<id>/ti/`:
+`promote_month.deliverable()` reads only the stage folder's own files, and the step never adds
+to the programs that are combined or delivered. With no chapter ported yet it builds nothing and
+says so. `ars_launcher.STEPS` names the step. Test: `test_ti_build.py`.
+
 ### 2026-10-23 — Where the Transaction Intelligence cut overlaps the ARS deck is recorded
 
 Summary: A new register lists every place the Transaction Intelligence cut overlaps a slide or

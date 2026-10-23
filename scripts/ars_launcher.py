@@ -84,6 +84,7 @@ STEPS = {
     "cp_extract.py": "Reading the CashPlease weekly",
     "build_cp_gen.py": "Building the CashPlease slides",
     "assemble_combined.py": "Combining the sections",
+    "ti_build.py": "Building the Transaction Intelligence cut",
 }
 # The Velocity product a program needs on the client's product list (Client CSM List `products`).
 PRODUCT_OF = {"ARS": "ARS", "ICS": "ICS", "MRPC": "MRPC", "CP": "CashPlease"}

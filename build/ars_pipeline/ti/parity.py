@@ -14,24 +14,16 @@ function of a Ctx returning a dict). Each chapter's pull request adds its own li
 """
 import json
 import math
-from dataclasses import dataclass, field
 from pathlib import Path
+
+from ti.context import Ctx as _Ctx
 
 REL_TOL = 1e-9
 ABS_TOL = 1e-9
 
 
-@dataclass
-class Ctx:
-    frame: object
-    config: dict
-    anchor: object
-    subsets: object
-    v5_dir: Path
-    warnings: list = field(default_factory=list)
-
-    def warn(self, message):
-        self.warnings.append(message)
+# The compute context is shared with the real build, so a computation is checked as it runs.
+Ctx = _Ctx
 
 
 def _bases(c):

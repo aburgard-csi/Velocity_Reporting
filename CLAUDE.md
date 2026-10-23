@@ -963,6 +963,9 @@ This is the readme index — update it whenever files are added, removed, or mov
   and `Inputs/ICS Referrals` and joined onto the ODD by v5's `ti/monthly_analysis/ics_sources.py`;
   `ti/parity.py` + `scripts/ti_parity.py` check each ported analysis against a v5 run's own figures
   on v5's own frame (read-only; exit status = keys that differ).
+  `ti_build.py` builds the cut for one client (figures once into `ti_pack.json`, a deck per lens);
+  `build_month.build_client` runs it after the ARS deck only when `RPE_TI=1`, into `<stage>/<id>/ti/`,
+  never delivered or combined. `docs/migration/DUPLICATES.md` records where the cut overlaps this repo.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

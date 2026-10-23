@@ -336,6 +336,14 @@ def build_client(cid, name, mmsm, progs, period, stage):
         # load/save per ARS client for a no-op — and ICS and MRPC never had it, so ARS
         # was the odd one out (2026-09-11).
         made["ARS"] = out
+        # The Transaction Intelligence cut (James Gilmore, 2026-10-22): a SEPARATE deck per lens,
+        # opt-in. Staged in its own ti/ folder, so deliverable() never picks it over this deck, and
+        # never added to `made`, so it is never combined or delivered. Its failure is logged and
+        # never fails the ARS build.
+        if os.environ.get("RPE_TI") == "1":
+            ics = ["--ics"] if any(p.startswith("ICS") for p in progs) else []
+            if run([PY, f"{ARSP}/ti_build.py", cid, period, name, os.path.join(d, "ti")] + ics, log):
+                print(f"    {cid}: Transaction Intelligence cut not built; see build.log")
 
     for p in progs:
         if p.startswith("ICS") or p == "MRPC":
