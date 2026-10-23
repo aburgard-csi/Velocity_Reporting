@@ -48,6 +48,7 @@ REGISTRY = {
     "merchants": ("txn_metrics.json", lambda c: _txn().merchants(c)),
     "merchant_profiles": ("txn_metrics.json", lambda c: _txn().merchant_profiles(c)),
     "card_behavior": ("txn_metrics.json", lambda c: _txn().card_behavior(c)),
+    "interchange": ("txn_metrics.json", lambda c: _txn().interchange(c)),
 }
 
 

@@ -93,3 +93,11 @@ def card_behavior(ctx):
     personal, _business, base_label = base_accounts(ctx)
     return CB.compute(ctx.txn, ctx.lenses, ctx.anchor_ts, ctx.warn, account_filter=personal,
                       key_prefix="beh_", base_label=base_label)
+
+
+def interchange(ctx):
+    """The PIN / signature mix as the rows record it, unpriced (v5: the ARS value section prices it)."""
+    from ti.transaction_intelligence import interchange as IC
+    personal, _business, base_label = base_accounts(ctx)
+    return IC.compute(ctx.txn, ctx.lenses, ctx.anchor_ts, ctx.warn, account_filter=personal,
+                      key_prefix="ic_", base_label=base_label)

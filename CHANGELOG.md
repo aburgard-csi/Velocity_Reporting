@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: PIN or signature, matching v5
+
+Summary: The PIN / signature mix is ported: who routes PIN, PIN-heavy accounts, where PIN gets pressed,
+by age and product. Unpriced, as in v5 (the ARS deck owns interchange dollars). Every figure matches
+James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/interchange.py` is ported unchanged on the personal card base. Parity:
+30/30 on 1761 (2026-10); v5's 1776 run (2026-09) predates this section. Its v5 test also exercises
+the relationship section and comes across with it.
+
 ### 2026-10-23 — Transaction Intelligence: how the card is used, matching v5
 
 Summary: The card-behaviour analysis is ported: ticket size and intensity bands, recurring payments on
