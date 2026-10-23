@@ -21,6 +21,20 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: financial services and leakage, matching v5
+
+Summary: The financial-services analysis is ported: which outside lenders, card issuers, brokers,
+P2P apps and fintechs the client's personal accounts pay, how much, how recently, and what is still
+within reach; business accounts reported apart. Every figure matches James's v5 engine for 1761
+CapEd. No deck changes.
+
+`ti/transaction_intelligence/financial_services.py` is ported unchanged with v5's single-token test.
+`ti/txn_sections.py` is v5's transaction run, one section at a time, shared by the build and the
+parity check; what later sections need (the row classification, the personal and business accounts,
+the addressable accounts) is handed on as v5's run hands it on. Parity: financial services 53/53 on
+1761 (2026-10); on 1776 (2026-09) all 49 figures v5 wrote match, and the 5 it lacks (fin_reach,
+fin_category_pairs and their columns) were added to v5 after that run.
+
 ### 2026-10-23 — Transaction Intelligence: the portfolio block, matching v5 on every figure
 
 Summary: The first transaction analysis is ported: the feed's shape (rows, accounts, channels, card

@@ -26,6 +26,11 @@ ABS_TOL = 1e-9
 Ctx = _Ctx
 
 
+def _txn():
+    from ti import txn_sections
+    return txn_sections
+
+
 def _bases(c):
     s = c.subsets
     out = {"data_month": c.anchor.iso, "anchor_tag": c.anchor.tag, **s.sizes(),
@@ -35,15 +40,11 @@ def _bases(c):
     return out
 
 
-def _portfolio(c):
-    from ti.transaction_intelligence import portfolio
-    return portfolio.compute(c.txn, c.frame, c.warn)
-
-
 # name -> (v5 figures file, compute(ctx) -> dict)
 REGISTRY = {
     "bases": ("metrics.json", _bases),
-    "portfolio": ("txn_metrics.json", _portfolio),
+    "portfolio": ("txn_metrics.json", lambda c: _txn().portfolio(c)),
+    "financial_services": ("txn_metrics.json", lambda c: _txn().financial_services(c)),
 }
 
 
