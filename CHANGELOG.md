@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: transactions by branch, product and swipe tier, matching v5
+
+Summary: The three family tables are ported (accounts, transactions and dollars per branch, per
+product and per swipe tier). They match James's v5 engine for 1761 CapEd and 1776 CoastHills. No
+deck changes.
+
+v5's run builds them from the transaction-side lens (`family_table`, already ported); the closing
+block of its run is now `ti/txn_sections.family_tables`. Parity: 6/6 on 1761 and 1776.
+
 ### 2026-10-23 — Transaction Intelligence: how broad the relationship is, matching v5
 
 Summary: The relationship analysis is ported: how many channels each personal account uses, which

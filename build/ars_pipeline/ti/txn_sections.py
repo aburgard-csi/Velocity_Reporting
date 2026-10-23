@@ -109,3 +109,19 @@ def relationship(ctx):
     personal, _business, base_label = base_accounts(ctx)
     return R.compute(ctx.txn, ctx.lenses, ctx.shared.get("fin_rows"), ctx.anchor_ts, ctx.warn,
                      account_filter=personal, key_prefix="rel_", base_label=base_label)
+
+
+def family_tables(ctx):
+    """Transactions by branch, product and swipe tier (v5 run.py's closing block)."""
+    from ti.transaction_intelligence import lens as L
+    out = {}
+    if ctx.lenses is None:
+        return out
+    for fam in ("branch", "product", "swipe_tier"):
+        rows = L.family_table(ctx.txn, ctx.lenses, fam)
+        if rows:
+            out[f"txn_by_{fam}"] = rows
+            out[f"txn_by_{fam}_columns"] = ["value", "accounts", "txns", "dollars"]
+        else:
+            ctx.warn(f"txn family lens {fam}: ODD column absent; table skipped")
+    return out
