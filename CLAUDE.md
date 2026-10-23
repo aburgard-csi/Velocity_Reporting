@@ -955,7 +955,10 @@ This is the readme index — update it whenever files are added, removed, or mov
   chapter lands) and the file name `<id>-<yyyy.mm>-TI-<ARS|ICS>-<Client> Transaction
   Intelligence.pptx` — "TI" is not a program tag, so `promote_month` never reads it as an ARS
   deck. `ti/frame.py` is the slide frame chapters draw on; its `notes()` refuses a note with no
-  Source line. Not called by `build_month` or the launcher yet.
+  Source line. Not called by `build_month` or the launcher yet. `ti/PORTING.md` holds the porting
+  rules; `ti/core/` the v5 foundation modules (periods, ODD transform, account bases, facts);
+  `ti/odd.py` reads the client's ODD as v5 does; `ti/config.py` the client config the analyses
+  read (a v5-shaped file when supplied, else derived from `ars_code_tables.json`, and said so).
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

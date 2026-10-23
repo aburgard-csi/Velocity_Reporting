@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence cut reads the ODD the way v5 does
+
+Summary: The new Transaction Intelligence cut can now read a client's ODD extract and build
+its account bases. Nothing in the ARS deck changes, and no build calls it yet.
+
+Five foundation modules of James Gilmore's ARS v5 engine are ported unchanged into
+`build/ars_pipeline/ti/core/` (periods, the ODD transform, the account bases, the per-account
+facts), with v5's facts tests. `ti/odd.py` reads `Inputs/ODDD/<id>_ODDD.zip` through
+`rpe_env.extract_odd_csv` and detects the header row as v5 does. `ti/config.py` supplies the
+client config the analyses read: a v5-shaped file when one is supplied, else derived from
+`ars_code_tables.json`, and the build says which. The two disagree: 1615 Cape & Coast has
+22,103 eligible accounts on v5's curated codes and 20,652 on the code tables' active and
+actively offered flags (same extract, 2026-10-23). `ti/PORTING.md` records the porting rules.
+Tests: `test_ti_odd.py`, `test_ti_config.py`, `test_ti_facts.py`.
+
 ### 2026-10-23 — The Transaction Intelligence cut has a deck shell (not wired into any build)
 
 Summary: A new, separate deck is started for the analyses being moved over from James's ARS
