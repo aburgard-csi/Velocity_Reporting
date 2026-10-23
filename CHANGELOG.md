@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Ported Transaction Intelligence figures are checked against v5's
+
+Summary: A new script compares each analysis ported into the Transaction Intelligence cut with
+the figures James's v5 engine produced for the same client and month. No deck changes.
+
+`scripts/ti_parity.py <v5 run folder> --client <id> --config <v5 clients_config.json>` feeds
+the frame v5 computed on (`enriched.parquet`) and the same client config to the ported code,
+and compares every key it returns with v5's `metrics.json` / `txn_metrics.json`, nested values
+included, with a float tolerance of 1e-9. Running on v5's own frame means a difference is a
+porting defect, never a newer extract. `ti/parity.py` holds the compare and `REGISTRY`, which
+each chapter's pull request extends. The account bases match on all 15 keys for 1100 Rally CU
+and 1776 CoastHills (2026-09 runs) and 1761 CapEd (2026-10). Read-only. Test: `test_ti_parity.py`.
+
 ### 2026-10-23 — The Transaction Intelligence cut finds its ARS and ICS lens groups
 
 Summary: The Transaction Intelligence cut can now split a client's accounts into its two
