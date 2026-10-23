@@ -78,6 +78,11 @@ def stressors(ctx):
     return out
 
 
+def deposit_behaviour(ctx):
+    _deposits(ctx)
+    return _section("deposit_behaviour")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "retention": ("metrics.json", retention),
@@ -85,4 +90,5 @@ PARITY = {
     "attrition": ("metrics.json", attrition),
     "balance": ("metrics.json", balance),
     "stressors": ("metrics.json", stressors),
+    "deposit_behaviour": ("metrics.json", deposit_behaviour),
 }

@@ -21,6 +21,26 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: the Deposits chapter
+
+Summary: The Transaction Intelligence cut has its first full chapter, Deposits: how money arrives,
+who is paid here, who stopped, income type, tax refunds, overdrafts by how members are paid, who
+banks here first. Built for 1615 Cape & Coast from its own deposits file, in both lenses, 0 FAIL
+from the validator. The cut is still opt-in (RPE_TI=1); no ARS deck changes.
+
+v5's deposit-behaviour section (`ti/monthly_analysis/deposit_behaviour.py`, with the deposit streams
+module) and its eleven slide builders (`ti/deck/deposit_slides.py`) are ported unchanged with v5's
+deposit tests. `ti/chapters/` holds the cut's chapters in deck order (`ti.cut.CHAPTERS` resolves
+from it on first use); `ti/chapters/deposits.py` computes balance and deposit behaviour once and
+draws the eleven slides in each lens deck. A builder that declines is stated under its own title,
+without repeating the title in the reason.
+
+Real build, 1615 (2026-10-23, `Inputs/ODDD` and `Inputs/Deposits`): 135 deposit figures; each lens
+deck 17 slides (shell, divider, eleven deposit slides); ten draw, and "What arrives against what
+leaves" is stated (it needs the transaction chapter's card spend, which is ported separately);
+`validate_deck` 0 FAIL, 2 REVIEW (the "largest" superlative check). Parity of deposit behaviour on
+1100 (8 million deposit rows) is still to run: the machine had under 1 GB free during this change.
+
 ### 2026-10-23 — Inputs/Deposits: the ILS deposits extract, read by the Transaction Intelligence cut
 
 Summary: A new input folder, Inputs/Deposits, holds each client's rolling 365-day deposits extract

@@ -8,9 +8,8 @@ Lenses
     with the lens masks; a lens that cannot be built is stated, never rendered empty).
 
 Chapters
-    `CHAPTERS` is the deck order. It is empty until the first migrated chapter lands; each
-    one appends itself here in its own pull request (transaction intelligence, competition,
-    attrition, deposits — in that order). A chapter is:
+    `CHAPTERS` is the deck order, assembled in `ti/chapters/__init__.py` (one module per
+    chapter: transaction intelligence, competition, attrition, deposits, ICS accounts). A chapter is:
         code     short key, also its agenda row ("TI_TXN")
         title    its divider title and agenda heading
         benefits the divider's orange line, three terms like every other divider
@@ -41,7 +40,6 @@ LENSES = {
 
 Chapter = namedtuple("Chapter", "code title benefits agenda stats build compute")
 
-CHAPTERS = ()
 
 CUT_NAME = "Transaction Intelligence"
 FILE_TAG = "TI"
@@ -62,3 +60,12 @@ def deck_name(client_id, period, client_name, lens_key):
         raise ValueError(f"period must be yyyy.mm, got {period!r}")
     client = re.sub(r'[<>:"/\\|?*]', "", str(client_name)).strip()
     return f"{client_id}-{period}-{FILE_TAG}-{lens(lens_key).tag}-{client} {CUT_NAME}.pptx"
+
+
+def __getattr__(name):
+    """`CHAPTERS`, resolved on first use: the chapter modules (ti/chapters/) import this module for
+    `Chapter`, so importing them from here at load time would be circular."""
+    if name == "CHAPTERS":
+        from ti.chapters import ALL
+        return ALL
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

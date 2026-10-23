@@ -286,7 +286,11 @@ class Deck:
             except Exception as exc:
                 why = f"it could not be computed ({type(exc).__name__}: {exc})"
             if why:
-                self.declined(titles.get(name, name.replace("_", " ").capitalize()), why)
+                title = titles.get(name, name.replace("_", " ").capitalize())
+                # v5 often words a decline as "<title> (<reason>)": the title is already the slide's
+                if why.startswith(title + " (") and why.endswith(")"):
+                    why = why[len(title) + 2:-1]
+                self.declined(title, why)
         return list(self.slides)
 
     def helpers(self):

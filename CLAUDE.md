@@ -971,6 +971,8 @@ This is the readme index — update it whenever files are added, removed, or mov
   `use_font`) and `helpers.py`, the helper bundle v5's slide builders draw through, on RPE's anatomy.
   `ti/transaction_intelligence/` holds v5's transaction-file analyses; `ti/txn_stage.py` stages the
   window's zipped files from `Inputs/Txn Files/<id>/` once into a local cache for v5's loader.
+  `ti/chapters/` holds the cut's chapters in deck order (deposits first to land); `ti/odd_sections.py`
+  runs v5's ODD sections; `ti/deposits_input.py` reads the client's own `Inputs/Deposits` file.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
