@@ -12,11 +12,11 @@ share (about 3 MB/s) is read once per new file, and every later build reads the 
 Files that fall out of the window are removed from staging; the share copy is never touched.
 
 The staging and cache root is `TI_CACHE_DIR`, else `%LOCALAPPDATA%/RPE/ti_cache` (the folder
-the launcher already unpacks into), else the system temp folder.
+the launcher already unpacks into), else `~/.rpe/ti_cache`. It is a CACHE kept between builds,
+not build scratch, so it is never in the temp folder (tests/test_temp_cleanup.py).
 """
 import os
 import shutil
-import tempfile
 import time
 import zipfile
 from pathlib import Path
@@ -28,7 +28,7 @@ def cache_root() -> Path:
     if os.environ.get("TI_CACHE_DIR"):
         return Path(os.environ["TI_CACHE_DIR"])
     base = os.environ.get("LOCALAPPDATA")
-    return Path(base) / "RPE" / "ti_cache" if base else Path(tempfile.gettempdir()) / "rpe_ti_cache"
+    return Path(base) / "RPE" / "ti_cache" if base else Path.home() / ".rpe" / "ti_cache"
 
 
 def staged_dir(client_id) -> Path:
