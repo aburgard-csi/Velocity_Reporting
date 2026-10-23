@@ -47,16 +47,20 @@ def stats(pack, _lens):
 
 
 def _txn_builders():
-    """The two transaction-file slides, once the transaction chapter's port is in the build."""
+    """The two transaction-file slides, from the transaction chapter's port
+    (`ti/chapters_txn.ATTRITION_BUILDERS`, v5's txn_attrition builders) once it is in the build."""
     try:
-        from ti.deck import txn_attrition as T
-    except ImportError:
-        return [lambda h, m, _n=n: "it reads the transaction file, ported with the transaction chapter"
-                for n in TXN_TITLES]
+        from ti import chapters_txn
+        found = {getattr(b, "__name__", ""): b for b in chapters_txn.ATTRITION_BUILDERS}
+    except (ImportError, AttributeError):
+        found = {}
     out = []
     for name in TXN_TITLES:
-        fn = getattr(T, name)
-        out.append(lambda h, m, _fn=fn: _fn(h, m, m.get("fin_base_label", "accounts")))
+        fn = found.get(name)
+        if fn is None:
+            out.append(lambda h, m: "it reads the transaction file, which is not in this build")
+        else:
+            out.append(lambda h, m, _fn=fn: _fn(h, m, m.get("fin_base_label", "accounts")))
     return out
 
 

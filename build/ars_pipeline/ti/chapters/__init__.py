@@ -1,11 +1,4 @@
 """
-The chapters of the Transaction Intelligence cut, in deck order (`ti.cut.CHAPTERS` is this tuple).
-
-Each chapter module exposes `CHAPTER`, a `ti.cut.Chapter`: its figures (`compute`, run once per
-client on the shared context) and its slides (`build`, run once per lens deck). Chapters land one
-pull request at a time; the order here is the deck's: transaction intelligence, competition,
-attrition, deposits, ICS accounts.
+The cut's chapters, one module each. `ti/chapters_odd.py` lists the ODD-side ones in deck order and
+`ti.cut.CHAPTERS` puts the transaction-side ones (`ti/chapters_txn.py`) ahead of them.
 """
-from ti.chapters import attrition, deposits, ics
-
-ALL = (attrition.CHAPTER, deposits.CHAPTER, ics.CHAPTER)

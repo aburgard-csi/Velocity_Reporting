@@ -8,8 +8,8 @@ Lenses
     with the lens masks; a lens that cannot be built is stated, never rendered empty).
 
 Chapters
-    `CHAPTERS` is the deck order, assembled in `ti/chapters/__init__.py` (one module per
-    chapter: transaction intelligence, competition, attrition, deposits, ICS accounts). A chapter is:
+    `CHAPTERS` is the deck order: `ti/chapters_txn.py` (transaction intelligence, competition)
+    then `ti/chapters_odd.py` (attrition, deposits, ICS accounts), resolved on first use. A chapter is:
         code     short key, also its agenda row ("TI_TXN")
         title    its divider title and agenda heading
         benefits the divider's orange line, three terms like every other divider
@@ -66,6 +66,11 @@ def __getattr__(name):
     """`CHAPTERS`, resolved on first use: the chapter modules (ti/chapters/) import this module for
     `Chapter`, so importing them from here at load time would be circular."""
     if name == "CHAPTERS":
-        from ti.chapters import ALL
-        return ALL
+        from ti import chapters_odd
+        try:
+            from ti import chapters_txn
+            txn = tuple(chapters_txn.CHAPTERS)
+        except ImportError:               # the transaction-side chapters are ported separately
+            txn = ()
+        return (*txn, *chapters_odd.CHAPTERS)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

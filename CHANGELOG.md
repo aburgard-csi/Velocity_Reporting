@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — One chapter registry for the Transaction Intelligence cut
+
+Summary: The cut's chapters are listed in two files, one for the transaction-side chapters and one
+for the ODD-side ones, and the deck takes them in that order. No deck changes.
+
+`ti/chapters_odd.py` lists Attrition, Deposits and ICS accounts; `ti/chapters_txn.py` (the transaction
+chapters' port) lists Transaction Intelligence and Competition. `ti.cut.CHAPTERS` is the transaction
+list then the ODD list, resolved on first use, so a chapter module can be imported on its own without
+a circular import. The Attrition chapter takes its two transaction-file slides from
+`chapters_txn.ATTRITION_BUILDERS` when that port is in the build and states them otherwise.
+
 ### 2026-10-23 — Transaction Intelligence: the ICS accounts chapter
 
 Summary: The Transaction Intelligence cut gains the ICS accounts chapter: the accounts the ICS
