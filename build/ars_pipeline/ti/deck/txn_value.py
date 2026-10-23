@@ -27,9 +27,10 @@ def _channel_name(c: str) -> str:
 
 
 def _month_label(period: str) -> str:
-    """'2026-02' -> 'Feb 26'; a '26/02' tick reads as a day."""
+    """'2026-02' -> "Feb'26", RPE's house format (periods.mon_yy); a '26/02' tick reads as a day."""
     try:
-        return f"{MONTHS[int(period[5:7]) - 1]} {period[2:4]}"
+        import periods
+        return periods.mon_yy(f"{MONTHS[int(period[5:7]) - 1]} {period[:4]}")
     except (ValueError, IndexError):
         return period
 

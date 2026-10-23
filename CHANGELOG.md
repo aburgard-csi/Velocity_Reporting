@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence charts put months in the house format
+
+Summary: Months on the Transaction Intelligence charts now read "Sep'25", the format every other deck
+uses, instead of v5's "Sep 25". Nothing changes on the ARS deck.
+
+v5's two month-label helpers (`ti/deck/charts._month_label`, `ti/deck/txn_value._month_label`) now go
+through `periods.mon_yy`, and `ti/deck/charts.py` installs `periods.install_month_axis_guard()` as RPE's
+own chart modules do, so a month drawn off-format fails the render instead of shipping. The suite caught
+it only when another chart test had installed the guard first; the cut now installs it itself. 1761
+rebuilt with the guard: no chart failed, 0 FAIL.
+
 ### 2026-10-23 — The Transaction Intelligence and Competition chapters draw their slides
 
 Summary: The cut now builds real slides: a Transaction Intelligence chapter (39 slides: money flow,

@@ -1,4 +1,5 @@
-# Ported from ARS v5 02-Scripts/tests/test_txn_value_slides.py at a491b5c (James Gilmore); logic unchanged.
+# Ported from ARS v5 02-Scripts/tests/test_txn_value_slides.py at a491b5c (James Gilmore); logic unchanged; month labels expected in
+# RPE's MMM'YY house format.
 """The six routing-mix and relationship-shape slides (#258, group 4): each
 declines with a reason on an empty book, registers under its catalogue id
 on a full one, draws its chart for real, and sits in BUILDERS after the
@@ -120,7 +121,8 @@ def test_the_headlines_carry_the_numbers():
     assert h.slides[0][0][0] == \
         "58% of card dollars route as signature, and the share is rising 3.0 points"
     assert [r[1] for r in h.rails[0]] == ["58%", "49%", "$61", "$39", "$1.9M"]
-    assert h.charts[0]["rows"][0] == ["Sep 25", 900, 57.1]     # grey base = accounts observed
+    # RPE's house month format, MMM'YY (v5 drew "Sep 25"; periods.install_month_axis_guard)
+    assert h.charts[0]["rows"][0] == ["Sep'25", 900, 57.1]     # grey base = accounts observed
     h = _h()
     V.who_routes_pin(h, FULL, BASE)
     assert h.slides[0][0][0] == "Signature routing runs from 44% (65+) to 71% (18-25) by holder age"

@@ -24,7 +24,11 @@ import matplotlib.ticker as mticker
 import numpy as np
 
 import brand
+import periods as _rpe_periods
 import rpe_env
+
+# a calendar month drawn on an axis outside MMM'YY fails the render, as in every RPE chart module
+_rpe_periods.install_month_axis_guard()
 
 # CSI Velocity brand. These are the canonical values, matching
 # RPE-Workflow's ars_engine/core/brand.py -- the module that declares itself the
@@ -2322,7 +2326,9 @@ _MON = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 
 def _month_label(iso: str) -> str:
-    return f"{_MON[int(iso[5:7]) - 1]} {iso[2:4]}"
+    """RPE house format, MMM'YY (periods.mon_yy); v5 drew 'Sep 25'."""
+    import periods
+    return periods.mon_yy(f"{_MON[int(iso[5:7]) - 1]} {iso[:4]}")
 
 
 def _wave_bands(rows):
