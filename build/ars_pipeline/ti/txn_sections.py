@@ -222,3 +222,20 @@ def filed(ctx, metrics):
     except Exception as exc:
         ctx.warn(f"filed: skipped ({type(exc).__name__}: {exc})")
         return {}
+
+
+def ensure_competition(ctx):
+    """Financial services then competition, once per context: the sections below read what they
+    hand on (the competitor rows and monthly series, the addressable accounts, comp_by_branch).
+    The build already ran them; the parity check calls this so each check runs the chain once."""
+    if "comp_out" not in ctx.shared:
+        fin = financial_services(ctx)
+        ctx.shared["comp_out"] = {**fin, **competition(ctx)}
+    return ctx.shared["comp_out"]
+
+
+def leakage(ctx):
+    """Does competitor spend climb before an account closes? v5's event-time curve on the one series
+    only the transaction file can see (the competitor monthly rows competition hands on)."""
+    from ti.transaction_intelligence import leakage as LK
+    return LK.compute(ctx.frame, ctx.shared.get("competitor_monthly"), ctx.anchor, ctx.warn)

@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Attrition: competitor spend before a closure, matching v5
+
+Summary: The "Competitor spend before closure" figures are ported: whether money paid to competitors
+climbs in the months before an account closes, against open accounts of the same tenure. Matches James's
+v5 engine for 1776 CoastHills. No ARS deck changes.
+
+`ti/transaction_intelligence/leakage.py` is ported unchanged; it reads the competitor monthly series the
+competition section hands on and the ODD's lifecycle curve, as in v5's run (`ti/txn_sections.leakage`,
+after relationship). `ensure_competition` runs financial services and competition once per context, so
+the checks of the sections that read them share one run. v5's `test_txn_attrition_report.py` comes
+across. Parity: 9/9 on 1776 (2026-09); 1761 was not run (memory was short while another build ran).
+
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: four chapters in deck order
 
 Summary: The transaction chapters (Transaction Intelligence, Competition) and the ODD chapters

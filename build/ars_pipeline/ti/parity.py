@@ -58,6 +58,7 @@ REGISTRY = {
     # filed adds to the competition figures, so they are computed first
     "filed": ("txn_metrics.json", lambda c: (lambda fin, comp: _txn().filed(c, {**fin, **comp}))(
         _txn().financial_services(c), _txn().competition(c))),
+    "leakage": ("txn_metrics.json", lambda c: (_txn().ensure_competition(c), _txn().leakage(c))[1]),
     "mapping_audit": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c),
                                                      _txn().merchants(c), _txn().mapping_audit(c))[3]),
 }
