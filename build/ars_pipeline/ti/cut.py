@@ -41,7 +41,7 @@ LENSES = {
 
 Chapter = namedtuple("Chapter", "code title benefits agenda stats build compute")
 
-CHAPTERS = ()
+CHAPTERS = ()   # filled at the end of this module, in deck order
 
 CUT_NAME = "Transaction Intelligence"
 FILE_TAG = "TI"
@@ -62,3 +62,9 @@ def deck_name(client_id, period, client_name, lens_key):
         raise ValueError(f"period must be yyyy.mm, got {period!r}")
     client = re.sub(r'[<>:"/\\|?*]', "", str(client_name)).strip()
     return f"{client_id}-{period}-{FILE_TAG}-{lens(lens_key).tag}-{client} {CUT_NAME}.pptx"
+
+
+# The chapters, in deck order. Imported last: each chapter module builds cut.Chapter values.
+from ti import chapters_txn as _txn  # noqa: E402
+
+CHAPTERS = (*_txn.CHAPTERS,)

@@ -21,6 +21,31 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence and Competition chapters draw their slides
+
+Summary: The cut now builds real slides: a Transaction Intelligence chapter (39 slides: money flow,
+leakage to outside providers, card use, merchants, PIN or signature, channels) and a Competition chapter
+(20 slides: who competes, the local field, wallet share, winback, BNPL), each with a divider carrying its
+three headline figures. 1761 CapEd builds both lens decks from its real files at 0 FAIL. Still opt-in
+(RPE_TI=1); no ARS deck changes.
+
+`ti/deck/` gains v5's six transaction slide modules (`txn_slides`, `txn_leakage`, `txn_cards`,
+`txn_value`, `txn_compete`, `txn_attrition`), ported unchanged except as listed below, with nine of
+v5's slide test files. `ti/chapters_txn.py` defines the two chapters: the Transaction Intelligence
+chapter computes v5's whole transaction sequence once for both chapters and both lenses; a client with
+no transaction figures gets one stated slide per chapter. In the ICS lens deck the slides that walk v5's
+lens list show all accounts plus the ICS groups; in the ARS deck they are drawn as v5 draws them.
+
+Fixed against RPE's validator and a PowerPoint render of 1761 (v5's own validator passed all of these):
+the callout tiles fit every label, value and note to the tile with RPE's glyph measure, and draw value
+and note as one text box (as two boxes the lowest note sat in fit_layout's caption band and was lifted
+onto the value); a subtitle is held to two lines (it ran under the chart); the content and the tile
+stack start below wherever the headline block ends and never reach the logo band; "1 accounts" reads
+"1 account" in text and chart labels; a tile that named v5's `clients_config` now says "in the client
+config". 1761 (2026-10, from Inputs): 63 slides per lens deck, 56 drawn, 7 stated with v5's reasons
+(one-rail feed, no filed store, no competitor past the winback threshold, …), 0 FAIL.
+Tests: `test_ti_chapters_txn.py` and the ported slide tests.
+
 ### 2026-10-23 — Competition: filed growth from the regulators' own reports (no store yet)
 
 Summary: The "Filed growth" figures are ported: what each named competitor reports to the FDIC or NCUA,

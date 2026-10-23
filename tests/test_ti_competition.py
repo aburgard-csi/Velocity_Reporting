@@ -1,5 +1,5 @@
-# Ported from ARS v5 02-Scripts/tests/test_competition.py at a491b5c (James Gilmore); logic unchanged.
-# Not yet here (it reads the competition slide builder, ported with the chapter slides): test_the_slide_names_the_multi_banked_base.
+# Ported from ARS v5 02-Scripts/tests/test_competition.py at a491b5c (James Gilmore); logic unchanged; the slide source is
+# read from ti/deck/txn_compete.py.
 """competition section: named institutions, penetration, multi-banked, by lens.
 
     python -m pytest tests/test_competition.py -q
@@ -193,10 +193,20 @@ def test_the_two_penetration_denominators_are_published():
     assert '"with_competitor_base"' in src
 
 
+def test_the_slide_names_the_multi_banked_base():
+    import pathlib
+
+    slide = pathlib.Path(comp_slide_path()).read_text()
+    # the phrase spans two f-string fragments, so check both halves
+    assert "of the accounts with a " in slide
+    assert "competitor deal with two or more" in slide, (
+        "the subhead must say which base the multi-banked share is of")
+
+
 def comp_slide_path():
     import pathlib
     return (pathlib.Path(__file__).resolve().parents[1]
-            / "ars" / "deck" / "txn_compete.py")
+            / "build" / "ars_pipeline" / "ti" / "deck" / "txn_compete.py")
 
 
 def test_an_unconfigured_local_layer_warns():

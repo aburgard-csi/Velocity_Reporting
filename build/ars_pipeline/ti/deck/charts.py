@@ -358,7 +358,7 @@ def stacked_movement(rows: list, out: Path) -> Path:
                     color="white" if color != TINT else NAVY)
             left += share
     ax.set_yticks(y)
-    ax.set_yticklabels([f"{r[0]}\n{r[1]:,} accounts" for r in rows],
+    ax.set_yticklabels([f"{r[0]}\n{r[1]:,} account" + ("" if r[1] == 1 else "s") for r in rows],
                        fontsize=12, color=NAVY)
     handles = [plt.Rectangle((0, 0), 1, 1, color=c) for _, c, _l in parts]
     ax.legend(handles, [l for _, _c, l in parts], ncol=3, frameon=False,
