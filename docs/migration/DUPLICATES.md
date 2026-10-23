@@ -1,0 +1,27 @@
+# Duplicates register — Transaction Intelligence cut vs. the existing ARS pipeline
+
+James Gilmore (2026-10-22): "make sure not to overwrite any of the aaron analysis, note where
+there are duplicate, we can decide later what to cut." Every place a slide or figure ported
+into the Transaction Intelligence cut (`build/ars_pipeline/ti/`) overlaps one already in this
+repo is a row here. Both are kept until the Decision column says otherwise. Each porting pull
+request adds the rows its overlap check finds.
+
+Status of the existing side: **default** = on every ARS deck; **opt-in** = only when its env
+flag is set (`RPE_JAMES_SLIDES=1`, `RPE_SPEND_SLIDES=1`, `RPE_TEST_SLIDES=1`).
+
+| # | Cut slide / figure (v5 source) | Existing in this repo | Status | What overlaps | How they differ | Decision |
+|---|---|---|---|---|---|---|
+| 1 | Eligible base (`ti/core/subsets.py`, v5 `core/subsets.py`) | `metrics_gen.py` eligible set (`<month> Elig == 'Yes'`) | default | The eligible account count behind every rate | v5 uses curated status / product / mail codes; this repo uses the ODD's own Elig flag. 1615 Cape & Coast, same extract (2026-10-23): 22,103 eligible on v5's codes, 20,652 on the code tables' active / actively offered flags. | pending |
+| 2 | How the money moves (v5 `deck/txn_cards.how_the_money_moves`) | "How the Money Moves", `james_view_slides.py` | opt-in | Monthly money flow by channel from the transaction file | v5 reads the full transaction feed across rails; the James view reads the ODD zip's monthly transaction member | pending |
+| 3 | Twelve months of flow (v5 `deck/txn_cards.twelve_months`) | `spend_trend.py` / `spend_trend_slides.py` | opt-in | Debit spend over time | spend_trend is like-for-like YoY spend per card from the ODD; v5's slide is the transaction file's monthly flow | pending |
+| 4 | Where the money goes (v5 `deck/txn_leakage.where_the_money_goes`) | "Where Card Spend Goes", `james_view_slides.py` | opt-in | Card spend by merchant category | to be measured when ported (G1-04) | pending |
+| 5 | Card spend by category (v5 `deck/txn_cards.card_spend_by_category`) | "Where Card Spend Goes", `james_view_slides.py` | opt-in | Card spend by merchant category | to be measured when ported (G1-05) | pending |
+| 6 | PIN or signature (v5 `deck/txn_value.pin_or_signature`) | "PIN and Signature Mix", `combined_insight_slides.py` | opt-in | PIN vs signature share | v5 reads the transaction file; the combined insight reads the ODD's PIN / Sig columns | pending |
+| 7 | Attrition by branch (v5 `deck/build.py`, `monthly_analysis/attrition.py`) | "Where Accounts Close", `james_view_slides.py` | opt-in | Closure rate by branch | v5 uses a censoring-correct hazard; to be measured when ported (G3-03) | pending |
+| 8 | Where closures cluster (v5 `deck/attrition_slides.product_and_hazard`) | "Where Accounts Close", `james_view_slides.py` | opt-in | Where closures concentrate | to be measured when ported (G3-03) | pending |
+| 9 | How much warning do we get (v5 `deck/attrition_slides.months_of_warning`) | "Card Spend Before a Close", `james_view_slides.py` | opt-in | Card activity in the months before a closure | v5 compares against an open-account control in the same tenure bucket; to be measured when ported (G3-02) | pending |
+| 10 | Accounts under several stresses (v5 `deck/attrition_slides.concurrent_stressors`) | "Accounts Under Stress", `james_view_slides.py` | opt-in | Accounts carrying 2+ at-risk conditions | to be measured when ported (G3-04) | pending |
+| 11 | Where the deposits sit (v5 `deck/deposit_slides.deposit_spread`) | "Where the Balances Sit", `combined_insight_slides.py` | opt-in | Distribution of balances | partial: v5's slide is the deposits file's inflow spread, the combined insight the ODD's balances | pending |
+
+No overlap is known for the ICS accounts chapter: nothing in this repo reads ICS accounts from
+the ODD (the ICS program decks read the VIP sheets and workbooks).

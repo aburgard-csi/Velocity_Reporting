@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Where the Transaction Intelligence cut overlaps the ARS deck is recorded
+
+Summary: A new register lists every place the Transaction Intelligence cut overlaps a slide or
+figure already in this repo, so nothing is replaced while the cut decision is open. No deck changes.
+
+`docs/migration/DUPLICATES.md` (James Gilmore, 2026-10-22: "note where there are duplicate, we
+can decide later what to cut"). Eleven rows to start: the eligible base (v5's curated codes vs
+the ODD's Elig flag) and ten slides that overlap the opt-in James views or `spend_trend`; none
+overlaps a default ARS slide. Each porting pull request adds the rows its own check finds.
+
 ### 2026-10-23 — Ported Transaction Intelligence figures are checked against v5's
 
 Summary: A new script compares each analysis ported into the Transaction Intelligence cut with
