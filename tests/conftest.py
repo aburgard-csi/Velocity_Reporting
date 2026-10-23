@@ -68,3 +68,16 @@ def metrics(odd_csv, tmp_path_factory):
                        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=ARS)
     assert r.returncode == 0, f"metrics_gen failed:\n{r.stderr[-3000:]}"
     return json.loads(out.read_text())
+
+
+@pytest.fixture(autouse=True)
+def _ti_pandas2_strings(request):
+    """The Transaction Intelligence cut's tests run under pandas 2's string semantics, as the
+    ported v5 code and its entry points do (build/ars_pipeline/ti/compat.py). No other test
+    is touched."""
+    if request.module.__name__.startswith("test_ti_"):
+        import pandas as pd
+        with pd.option_context("future.infer_string", False):
+            yield
+    else:
+        yield

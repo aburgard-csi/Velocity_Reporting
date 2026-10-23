@@ -149,4 +149,6 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from ti.compat import legacy_strings
+    with legacy_strings():          # v5's pandas-2 string semantics, this process only
+        sys.exit(main())

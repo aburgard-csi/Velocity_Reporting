@@ -35,9 +35,15 @@ def _bases(c):
     return out
 
 
+def _portfolio(c):
+    from ti.transaction_intelligence import portfolio
+    return portfolio.compute(c.txn, c.frame, c.warn)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict)
 REGISTRY = {
     "bases": ("metrics.json", _bases),
+    "portfolio": ("txn_metrics.json", _portfolio),
 }
 
 

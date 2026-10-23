@@ -38,3 +38,7 @@ Mirroring keeps v5's relative imports valid. Absolute imports are rewritten
 6. **Tests come with the port.** v5's own tests for a module are ported beside it as
    `tests/test_ti_<module>.py`, with the same import rewrite, plus whatever RPE-side test
    the wiring needs.
+7. **Pandas 2 string semantics.** v5 runs pandas 2.3, this repo pandas 3. Everything the cut runs
+   is inside `ti.compat.legacy_strings()` (the entry points wrap it; `test_ti_*` tests get it from
+   `tests/conftest.py`), so ported code sees `astype(str)` turn a missing value into "nan" as it did
+   in v5. Never set the option process-wide: Aaron's code runs on pandas 3's defaults.

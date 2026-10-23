@@ -21,6 +21,26 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: the portfolio block, matching v5 on every figure
+
+Summary: The first transaction analysis is ported: the feed's shape (rows, accounts, channels, card
+spend, months, top merchants, MCC coverage). Its 31 figures match James's v5 engine exactly for
+1761 CapEd and 1776 CoastHills. No deck changes.
+
+`ti/transaction_intelligence/portfolio.py` is ported unchanged, with the v5 `core/deposits` package it
+imports a constant from (`ti/core/deposits/`, unchanged; the deposits analysis itself comes later).
+The check found one systemic difference and it is fixed once: v5 runs pandas 2.3, this repo pandas 3,
+and under pandas 3 `astype(str)` keeps a missing value missing where pandas 2 wrote "nan", so v5's
+"nan" clean-ups dropped rows (1761's field 9 / field 11 counts came back empty instead of 9,261,674
+blanks). `ti/compat.legacy_strings()` restores pandas 2's string behaviour inside the cut's entry
+points only (`ti_build.py`, `scripts/ti_parity.py`), and `tests/conftest.py` applies it to `test_ti_*`
+modules only; nothing else in the repo is affected. Parity: bases 15/15 and portfolio 31/31 on 1761
+(2026-10) and 1776 (2026-09).
+
+A real load of 1761 from `Inputs/Txn Files` (2026-10-23) read 6 files where v5's run read 7: the
+`[2026.10.01]` file is in v5's local copy but has not been landed into `Inputs/Txn Files/1761` yet
+(`scripts/land_txn_files.py` is run by hand). A data-currency gap, not a porting one.
+
 ### 2026-10-23 — The Transaction Intelligence cut's reference dictionaries are in the repo
 
 Summary: The competitor list, the financial-services patterns and the merchant categories that the
