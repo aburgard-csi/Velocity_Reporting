@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — A Transaction Intelligence KPI card low on a slide keeps its note under its value
+
+Summary: On a compact KPI card (one drawn low on the slide), a note long enough to wrap was moved by
+fit_layout's caption rule into the logo zone and then lifted back over the card's value: 1776's ICS
+habits slide drew "vs 72% non-ICS — the card has to exist first" over "75%" (validate_deck FAIL,
+both lenses). `ti/deck/helpers._kpi` now places the note where its measured lines fit inside the
+card and no lower than fit_layout's own estimate would put it, shrinking the value's box to make
+room. No figure changes; the TI cut only, no ARS deck changes. 1776, both lenses: 104 slides, 0 FAIL.
+
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
 ### 2026-10-23 — Deposits: "What arrives against what leaves" reads the transaction figures
 
