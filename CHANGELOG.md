@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: how broad the relationship is, matching v5
+
+Summary: The relationship analysis is ported: how many channels each personal account uses, which
+travel together, what a second channel is worth, and the billers paid from the account. Every figure
+matches James's v5 engine for 1761 CapEd and 1776 CoastHills. No deck changes.
+
+`ti/transaction_intelligence/relationship.py` is ported unchanged; it reads the row classification the
+financial-services section leaves behind, as in v5's run. v5's relationship tests rejoin
+`test_ti_txn_sections.py`, and `test_ti_interchange_txn.py` comes across. Parity: 21/21 on 1761
+(2026-10); on 1776 (2026-09) all 19 figures v5 wrote match (2 were added to v5 after that run).
+
 ### 2026-10-23 — Transaction Intelligence: PIN or signature, matching v5
 
 Summary: The PIN / signature mix is ported: who routes PIN, PIN-heavy accounts, where PIN gets pressed,

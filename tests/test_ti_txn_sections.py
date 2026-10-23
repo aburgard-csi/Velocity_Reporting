@@ -1,5 +1,5 @@
 # Ported from ARS v5 02-Scripts/tests/test_txn_sections.py at a491b5c (James Gilmore); logic unchanged.
-# Not yet here (they arrive with relationship, overlay and v5's text report): rel, test_relationship_breadth, test_relationship_single_channel_mix, test_relationship_billers, test_relationship_by_lens_and_primary, test_overlay_joins_flight_to_named_destinations, test_overlay_declines_without_balance_columns, test_family_lines_labeled_as_txn_dollars_not_deposits, test_family_lines_header_absent_when_no_family_rows, test_overlay_destinations_carry_the_deposit_decline.
+# Not yet here (they arrive with overlay and v5's text report): test_overlay_joins_flight_to_named_destinations, test_overlay_declines_without_balance_columns, test_family_lines_labeled_as_txn_dollars_not_deposits, test_family_lines_header_absent_when_no_family_rows, test_overlay_destinations_carry_the_deposit_decline.
 """merchants / card_behavior / relationship / lens families: hand-built frame,
 every answer known.
 
@@ -20,7 +20,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 CONFIG_DIR = __import__("ti.dictionaries", fromlist=["folder"]).folder()
 
-from ti.transaction_intelligence import card_behavior, financial_services, merchants  # noqa: E402
+from ti.transaction_intelligence import card_behavior, financial_services, merchants, relationship  # noqa: E402
 from ti.transaction_intelligence.lens import Lenses, family_table                                   # noqa: E402
 from ti.transaction_intelligence.merchant import merchant_key                                       # noqa: E402
 
@@ -204,6 +204,48 @@ def test_behavior_declines_without_pin():
 # ---------------------------------------------------------------------------
 # relationship
 # ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def rel(ctx):
+    df, lenses, personal, fin_rows = ctx
+    warnings = []
+    m = relationship.compute(df, lenses, fin_rows, ANCHOR, warnings.append,
+                             account_filter=personal, key_prefix="rel_",
+                             base_label="personal accounts")
+    return m, warnings
+
+
+def test_relationship_breadth(rel):
+    m, _ = rel
+    assert m["rel_accounts_total"] == 4
+    dist = {r[0]: r[1] for r in m["rel_breadth"]}
+    assert dist[1] == 2                                   # A2 card-only, A3 ACH-only
+    assert dist[2] >= 1                                   # A1 card+CHK
+    by_ch = {r[0]: r[1] for r in m["rel_by_channel"]}
+    assert by_ch["card"] == 3 and by_ch["P2P"] == 1
+
+
+def test_relationship_single_channel_mix(rel):
+    m, _ = rel
+    assert m["rel_single_channel"] == 2
+    mix = dict(m["rel_single_channel_mix"])
+    assert mix.get("card") == 1 and mix.get("ACH") == 1
+
+
+def test_relationship_billers(rel):
+    m, _ = rel
+    assert m["rel_billers_mean"] > 0                      # COMCAST + NATIONAL GRID + NETFLIX recur
+    bands = {r[0]: r[1] for r in m["rel_billers_bands"]}
+    assert bands["0"] < 4                                 # someone has a biller
+
+
+def test_relationship_by_lens_and_primary(rel):
+    m, _ = rel
+    by = {r[0]: r for r in m["rel_by_lens"]}
+    assert by["business"][2] == 1
+    assert m["rel_primary_like_n"] == 0                   # nobody hits 10 txns/mo in this tiny frame
+    assert "rel_primary_like_note" in m
+
 
 # ---------------------------------------------------------------------------
 # lens families

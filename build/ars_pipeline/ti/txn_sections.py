@@ -101,3 +101,11 @@ def interchange(ctx):
     personal, _business, base_label = base_accounts(ctx)
     return IC.compute(ctx.txn, ctx.lenses, ctx.anchor_ts, ctx.warn, account_filter=personal,
                       key_prefix="ic_", base_label=base_label)
+
+
+def relationship(ctx):
+    """Engagement breadth, channels used together, billers and primacy, on personal accounts."""
+    from ti.transaction_intelligence import relationship as R
+    personal, _business, base_label = base_accounts(ctx)
+    return R.compute(ctx.txn, ctx.lenses, ctx.shared.get("fin_rows"), ctx.anchor_ts, ctx.warn,
+                     account_filter=personal, key_prefix="rel_", base_label=base_label)

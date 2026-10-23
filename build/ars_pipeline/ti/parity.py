@@ -49,6 +49,8 @@ REGISTRY = {
     "merchant_profiles": ("txn_metrics.json", lambda c: _txn().merchant_profiles(c)),
     "card_behavior": ("txn_metrics.json", lambda c: _txn().card_behavior(c)),
     "interchange": ("txn_metrics.json", lambda c: _txn().interchange(c)),
+    # relationship reads the row classification financial services leaves on ctx.shared
+    "relationship": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().relationship(c))[1]),
 }
 
 
