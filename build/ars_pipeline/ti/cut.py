@@ -8,8 +8,8 @@ Lenses
     with the lens masks; a lens that cannot be built is stated, never rendered empty).
 
 Chapters
-    `CHAPTERS` is the deck order, assembled in `ti/chapters/__init__.py` (one module per
-    chapter: transaction intelligence, competition, attrition, deposits, ICS accounts). A chapter is:
+    `CHAPTERS` is the deck order, `ti/chapters/__init__.py`'s ALL, resolved on first use:
+    transaction intelligence, competition, attrition, deposits, ICS accounts. A chapter is:
         code     short key, also its agenda row ("TI_TXN")
         title    its divider title and agenda heading
         benefits the divider's orange line, three terms like every other divider

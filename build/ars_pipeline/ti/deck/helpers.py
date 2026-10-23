@@ -230,22 +230,32 @@ def _rail(slide, items, top=1.75, left=RAIL_LEFT, width=2.55):
     return left - 0.25
 
 
+KPI_H = 1.65
+KPI_MIN_H = 1.1
+
+
 def _kpi(slide, left, top, width, label, value, note=None, accent=NAVY):
+    """v5's KPI card. RPE: a card that would run past CONTENT_FLOOR is drawn compact in the room
+    left (never under KPI_MIN_H), label, value and note scaled with it. A full card placed low ran
+    to 7.15in, and fit_layout then re-parked its note over its value as a bottom caption (1615's
+    ICS quality slide, 2026-10-23)."""
+    h = KPI_H if top + KPI_H <= CONTENT_FLOOR else max(KPI_MIN_H, CONTENT_FLOOR - top)
+    k = h / KPI_H
     card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(top),
-                                  Inches(width), Inches(1.65))
+                                  Inches(width), Inches(h))
     card.fill.solid()
     card.fill.fore_color.rgb = accent
     card.line.color.rgb = WHITE
     card.line.width = Pt(2)
     card.text_frame.text = ""
     card.shadow.inherit = False
-    _text(slide, left + 0.1, top + 0.12, width - 0.2, 0.3, label, size=12, bold=True,
-          color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
-    _text(slide, left + 0.1, top + 0.48, width - 0.2, 0.66, value, size=28, bold=True,
-          color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
+    _text(slide, left + 0.1, top + 0.12 * k, width - 0.2, 0.3 * k, label, size=round(12 * max(k, 0.85), 1),
+          bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
+    _text(slide, left + 0.1, top + 0.48 * k, width - 0.2, 0.66 * k, value, size=round(28 * k),
+          bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
     if note:
-        _text(slide, left + 0.1, top + 1.20, width - 0.2, 0.34, note, size=10.5,
-              color=WHITE, align=PP_ALIGN.CENTER)
+        _text(slide, left + 0.1, top + 1.20 * k, width - 0.2, h - 1.20 * k - 0.04, note,
+              size=round(10.5 * max(k, 0.85), 1), color=WHITE, align=PP_ALIGN.CENTER)
 
 
 def _cell_bottom_border(cell):
@@ -326,6 +336,7 @@ class Deck:
         self.charts_dir.mkdir(parents=True, exist_ok=True)
         self.slides = []
         self.declines = []
+        self.topics = {}          # id(slide) -> v5's topic label (the slide() fallback)
 
     def _note(self, slide, title):
         p = self.ctx.pack
@@ -334,14 +345,17 @@ class Deck:
                            f"Computed by the analysis ported from the ARS v5 engine (ti/PORTING.md).")
 
     def new(self, *_layout):
-        s = frame.numbered(frame.new_slide(self.ctx.prs))
+        s = frame.new_slide(self.ctx.prs)
         self.slides.append(s)
         return s
 
     def slide(self, pair, fallback):
         s = self.new()
+        self.topics[id(s)] = fallback
         title, bottom = (_title(s, pair[0], pair[1] if len(pair) > 1 else None) if pair
                          else _title(s, fallback))
+        # numbered AFTER the title: the first text shape is a slide's title (CLAUDE.md, by-title lookups)
+        frame.numbered(s)
         from shapes import pill
         pill(s, self.ctx.pill, L=10.15, W=2.70)
         frame.logo(s, self.ctx.pack["client_id"], self.ctx.art_dir)

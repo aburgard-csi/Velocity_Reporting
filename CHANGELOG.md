@@ -21,6 +21,7 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
 ### 2026-10-23 — Attrition: competitor spend before a closure, matching v5
 
 Summary: The "Competitor spend before closure" figures are ported: whether money paid to competitors
@@ -36,13 +37,33 @@ across. Parity: 9/9 on 1776 (2026-09); 1761 was not run (memory was short while 
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: four chapters in deck order
 
 Summary: The transaction chapters (Transaction Intelligence, Competition) and the ODD chapters
-(Attrition, Deposits), built in parallel, are merged into one cut. Its chapters now run in deck order:
-Transaction Intelligence, Competition, Attrition, Deposits. No ARS deck changes.
+(Attrition, Deposits, ICS accounts), built in parallel, are merged into one cut. Its chapters now run
+in deck order: Transaction Intelligence, Competition, Attrition, Deposits, ICS accounts. No ARS deck
+changes.
 
 `ti/chapters/` is the one chapter registry (`ALL`, read lazily as `ti.cut.CHAPTERS`): the transaction
 chapters are thin modules (`transaction_intelligence.py`, `competition.py`) over `ti/chapters_txn.py`,
 which both share. `Deck.run` states only the reason when v5 words a decline as "<label> (<reason>)",
 the label being the slide's title or close to it, and still fixes "1 accounts" after the run.
+
+### 2026-10-23 — Transaction Intelligence: the ICS accounts chapter
+
+Summary: The Transaction Intelligence cut gains the ICS accounts chapter: the accounts the ICS
+programme opened, found in the ODD from the client's direct-mail and referral lists, against the
+rest of the book (activation, cohorts, usage, quality, closure, branches, composition, personas,
+retention). Nothing else in this repo reads ICS accounts from the ODD. Built for 1615 Cape & Coast
+(241 ICS accounts) in both lenses, 0 FAIL. Opt-in (RPE_TI=1); no deck changes elsewhere.
+
+v5's ICS section (`ti/monthly_analysis/ics.py`) and ICS chapter (`ti/deck/ics_slides.py`) are ported
+unchanged with v5's ICS tests. `ti/chapters/ics.py` turns every slide v5 skips into a stated slide
+under its own title, states the one v5 leaves out without a word (ICS channel with no channel rows),
+and keeps v5's order; a client with no ICS accounts gets one stated slide. Primacy and merchants read
+the transaction chapter's lens rows and are stated until it is in the build. Two adapter fixes:
+slides are numbered after their title is drawn, so the first text shape is the title; and a KPI card
+placed low is drawn compact above the content floor, since a full card ran to 7.15in and the layout
+pass re-parked its note over its value (1615's ICS quality slide). Parity: ICS 46/46 on 1776
+(2026-09). Real build, 1615: 46 slides per lens deck (attrition, deposits, ICS), 7 stated, 0 FAIL,
+13 REVIEW (superlative and caption checks). Test: `test_ti_ics_accounts_chapter.py`.
 
 ### 2026-10-23 — Transaction Intelligence: the Attrition chapter
 
