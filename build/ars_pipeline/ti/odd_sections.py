@@ -83,6 +83,11 @@ def deposit_behaviour(ctx):
     return _section("deposit_behaviour")(ctx)
 
 
+def profile(ctx):
+    """v5's profile section; the attrition chapter reads its survival-by-tenure figures."""
+    return _section("profile")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "retention": ("metrics.json", retention),
@@ -91,4 +96,5 @@ PARITY = {
     "balance": ("metrics.json", balance),
     "stressors": ("metrics.json", stressors),
     "deposit_behaviour": ("metrics.json", deposit_behaviour),
+    "profile": ("metrics.json", profile),
 }

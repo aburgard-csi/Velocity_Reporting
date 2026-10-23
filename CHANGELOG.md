@@ -21,6 +21,25 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: the Attrition chapter
+
+Summary: The Transaction Intelligence cut gains its Attrition chapter: closure rates by branch, how
+much warning a closure gives, accounts under several stresses, new-account cohorts, where closures
+cluster, where the risk sits, attrition by group and survival by tenure. Built for 1615 Cape & Coast
+in both lenses with the Deposits chapter, 0 FAIL from the validator. Opt-in (RPE_TI=1); no ARS deck
+changes.
+
+`ti/chapters/attrition.py` computes v5's retention, lifecycle, attrition, stressors and profile
+sections once (profile carries the survival figures; parity 64/64 on 1761) and draws v5's five
+attrition-module slides (`ti/deck/attrition_slides.py`) plus three that v5 drew inline in its deck
+builder, lifted out unchanged into `ti/deck/attrition_inline.py`. The two slides that read the
+transaction file (competitor spend before closure, stresses across both files) come with the
+transaction chapter's port; until it is in the build they are stated, not dropped. The chapter sits
+ahead of Deposits. A ported table that would run past the logo band now tightens its rows (to a
+0.22in floor, font scaled) instead of running off the slide: 1615's closure-hazard table ended at
+7.65in on a 7.5in slide. Real build, 1615: 28 slides per lens deck, 3 stated, 0 FAIL, 6 REVIEW
+(superlative and caption checks). Tests: `test_ti_attrition_slides.py`, `test_ti_table_fit.py`.
+
 ### 2026-10-23 — Transaction Intelligence: the Deposits chapter
 
 Summary: The Transaction Intelligence cut has its first full chapter, Deposits: how money arrives,

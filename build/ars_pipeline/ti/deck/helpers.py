@@ -36,6 +36,7 @@ RAIL_LEFT = RIGHT_EDGE - 2.55
 RAIL_GUTTER = 0.28
 RAIL_BOTTOM = 6.62                # clear of the logo band (6.78in)
 CONTENT_FLOOR = 6.72
+TABLE_MIN_ROW_H = 0.22            # a tightened table row never goes below this
 HEADLINE_MAX = 90
 V5_TITLE_W = 12.09                # the width polish.title_fit's line budgets were written for
 
@@ -180,10 +181,20 @@ def _cell_bottom_border(cell):
 
 
 def _table(slide, rows, left, top, width, col_widths=None, size=11, header=True, cell_fill=None):
-    """v5's house table: navy header, banded body, horizontal rules, numbers right-aligned."""
+    """v5's house table: navy header, banded body, horizontal rules, numbers right-aligned.
+
+    RPE: a table that would run past the content floor (the logo band) tightens its rows, down to
+    TABLE_MIN_ROW_H, with the font scaled to match, rather than running off the slide or dropping
+    rows. v5's slides had the same arithmetic and no check for it (1615's closure-hazard table
+    under a two-line headline ended at 7.65in on a 7.5in slide, 2026-10-23)."""
     n_rows, n_cols = len(rows), len(rows[0])
+    row_h = 0.3
+    room = CONTENT_FLOOR - top
+    if n_rows * row_h > room:
+        row_h = max(TABLE_MIN_ROW_H, room / n_rows)
+        size = max(8, round(size * row_h / 0.3, 1))
     shape = slide.shapes.add_table(n_rows, n_cols, Inches(left), Inches(top),
-                                   Inches(width), Inches(0.32 * n_rows))
+                                   Inches(width), Inches(row_h * n_rows))
     table = shape.table
     table.first_row = False
     table.horz_banding = False
@@ -191,7 +202,7 @@ def _table(slide, rows, left, top, width, col_widths=None, size=11, header=True,
         for i, cw in enumerate(col_widths):
             table.columns[i].width = Inches(cw)
     for r, row in enumerate(rows):
-        table.rows[r].height = Inches(0.3)
+        table.rows[r].height = Inches(row_h)
         for c, value in enumerate(row):
             cell = table.cell(r, c)
             cell.margin_top = cell.margin_bottom = Inches(0.02)
