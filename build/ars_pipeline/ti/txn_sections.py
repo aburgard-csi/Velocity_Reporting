@@ -55,3 +55,170 @@ def financial_services(ctx):
     # v5's run pops this hand-off before writing and gives it to the overlay section
     ctx.shared["addressable_accounts"] = out.pop("_addressable_accounts", None)
     return out
+
+
+MCHB_KEYS = ("mchb_base_label", "mchb_card_accounts", "mchb_card_spend", "mchb_top", "mchb_by_category")
+
+
+def merchants(ctx):
+    """mch_* on personal card spend, mchb_* (v5's subset) on business; the category spec is
+    handed on to the profiles and the mapping audit."""
+    from ti.transaction_intelligence import merchants as M
+    personal, business, base_label = base_accounts(ctx)
+    spec = M.load_categories(dictionaries.folder())
+    ctx.shared["mch_spec"] = spec
+    out = M.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.warn,
+                    account_filter=personal, key_prefix="mch_", base_label=base_label)
+    if business is not None and len(business):
+        mb = M.compute(ctx.txn, None, spec, ctx.anchor_ts, lambda _m: None,
+                       account_filter=business, key_prefix="mchb_",
+                       base_label="transacting business accounts")
+        out.update({k: v for k, v in mb.items() if k in MCHB_KEYS})
+    return out
+
+
+def merchant_profiles(ctx):
+    """Who spends on the card and how that is shifting: same personal base and category spec."""
+    from ti.transaction_intelligence import merchant_profiles as MP
+    from ti.transaction_intelligence import merchants as M
+    personal, _business, base_label = base_accounts(ctx)
+    spec = ctx.shared.get("mch_spec") or M.load_categories(dictionaries.folder())
+    return MP.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.warn, account_filter=personal,
+                      key_prefix="mch_", base_label=base_label)
+
+
+def card_behavior(ctx):
+    """Tickets, intensity, recurring payments and when the card is used, on personal accounts."""
+    from ti.transaction_intelligence import card_behavior as CB
+    personal, _business, base_label = base_accounts(ctx)
+    return CB.compute(ctx.txn, ctx.lenses, ctx.anchor_ts, ctx.warn, account_filter=personal,
+                      key_prefix="beh_", base_label=base_label)
+
+
+def interchange(ctx):
+    """The PIN / signature mix as the rows record it, unpriced (v5: the ARS value section prices it)."""
+    from ti.transaction_intelligence import interchange as IC
+    personal, _business, base_label = base_accounts(ctx)
+    return IC.compute(ctx.txn, ctx.lenses, ctx.anchor_ts, ctx.warn, account_filter=personal,
+                      key_prefix="ic_", base_label=base_label)
+
+
+def relationship(ctx):
+    """Engagement breadth, channels used together, billers and primacy, on personal accounts."""
+    from ti.transaction_intelligence import relationship as R
+    personal, _business, base_label = base_accounts(ctx)
+    return R.compute(ctx.txn, ctx.lenses, ctx.shared.get("fin_rows"), ctx.anchor_ts, ctx.warn,
+                     account_filter=personal, key_prefix="rel_", base_label=base_label)
+
+
+def family_tables(ctx):
+    """Transactions by branch, product and swipe tier (v5 run.py's closing block)."""
+    from ti.transaction_intelligence import lens as L
+    out = {}
+    if ctx.lenses is None:
+        return out
+    for fam in ("branch", "product", "swipe_tier"):
+        rows = L.family_table(ctx.txn, ctx.lenses, fam)
+        if rows:
+            out[f"txn_by_{fam}"] = rows
+            out[f"txn_by_{fam}_columns"] = ["value", "accounts", "txns", "dollars"]
+        else:
+            ctx.warn(f"txn family lens {fam}: ODD column absent; table skipped")
+    return out
+
+
+COMPB_KEYS = ("compb_base_label", "compb_accounts_total", "compb_with_competitor",
+              "compb_with_competitor_pct", "compb_competitor_dollars", "compb_institutions",
+              "compb_by_tier", "compb_local")
+
+
+def competition(ctx):
+    """comp_* on personal accounts, compb_* (v5's subset) on business. Reads financial services'
+    classification; hands on the competition config and the competitor rows later sections read."""
+    from ti.transaction_intelligence import competition as C
+    personal, business, base_label = base_accounts(ctx)
+    spec = C.load_config(dictionaries.folder(), ctx.config)
+    ctx.shared["comp_spec"] = spec
+    out, _files = C.compute(ctx.txn, ctx.lenses, spec, ctx.shared.get("fin_rows"), ctx.anchor_ts,
+                            ctx.shared.get("lists_dir"), ctx.warn, account_filter=personal,
+                            key_prefix="comp_", base_label=base_label)
+    if business is not None and len(business):
+        compb, _ = C.compute(ctx.txn, None, spec, ctx.shared.get("fin_rows"), ctx.anchor_ts, None,
+                             lambda _m: None, account_filter=business, key_prefix="compb_",
+                             base_label="transacting business accounts")
+        out.update({k: v for k, v in compb.items() if k in COMPB_KEYS})
+    # v5's run pops these hand-offs before writing; overlay, leakage, stressors read them
+    ctx.shared["competitor_accounts"] = out.pop("_competitor_accounts", None)
+    ctx.shared["competitor_monthly"] = out.pop("_competitor_monthly", None)
+    return out
+
+
+def mapping_audit(ctx):
+    """What the dictionaries do not know yet, on the personal card rows (reports only: no figure
+    elsewhere moves). Reads the three specs and financial services' providers, as v5's run does."""
+    from ti.transaction_intelligence import mapping_audit as MA
+    from ti.transaction_intelligence import merchants as M
+    personal, _business, _label = base_accounts(ctx)
+    df = ctx.txn
+    is_card = df["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"])
+    if personal is not None:
+        is_card &= df["primary_account_num"].astype(str).isin(personal)
+    card = df[is_card]
+    if not len(card):
+        return {}
+    mspec = ctx.shared.get("mch_spec") or M.load_categories(dictionaries.folder())
+    cats, _method, _cov = M._categorize(card, mspec, lambda _m: None)
+    rows = ctx.shared.get("fin_rows")
+    return MA.compute(card, cats, card["amount"].abs(), ctx.shared.get("fin_spec"),
+                      ctx.shared.get("comp_spec"), mspec,
+                      rows["provider"] if rows is not None else None, ctx.warn)
+
+
+def reference_dir():
+    """The public FDIC / NCUA reference store the filed figures read (v5: 01-Data/reference).
+    `TI_REFERENCE_DIR`, else `Inputs/Market Reference`. Holds no client data."""
+    import os
+    from pathlib import Path
+    if os.environ.get("TI_REFERENCE_DIR"):
+        return Path(os.environ["TI_REFERENCE_DIR"])
+    import rpe_env
+    return rpe_env.inputs() / "Market Reference"
+
+
+def market_dir():
+    """Per-client market records (v5: 0_Config/market/<id>.json). `TI_MARKET_DIR`, else
+    `Inputs/ARS Settings/market`."""
+    import os
+    from pathlib import Path
+    if os.environ.get("TI_MARKET_DIR"):
+        return Path(os.environ["TI_MARKET_DIR"])
+    import rpe_env
+    return rpe_env.input_dir("ARS codes", create=False) / "market"
+
+
+def filed(ctx, metrics):
+    """What each named competitor reports to its regulator, added to the competition figures in
+    `metrics` (v5 run.py's closing block). Returns only the keys it adds or changes; with no
+    reference store it says so and adds nothing, as in v5."""
+    import json
+    try:
+        from ti.core.filed.join import attach_filed, require_cache, split_unresolved
+        from ti.core.filed.store import FiledStore
+        from ti.core.market import institutions as I
+        cache = reference_dir()
+        require_cache(cache)
+        rec = market_dir() / f"{ctx.client_id}.json"
+        record = json.loads(rec.read_text(encoding="utf-8")) if rec.exists() else None
+        import copy
+        out = copy.deepcopy(metrics)        # attach_filed edits in place; the caller's dict is left alone
+        attach_filed(out, FiledStore(cache), I.load_book(cache), record)
+        no_record, short = split_unresolved(out.get("comp_filed_unresolved") or [])
+        if no_record:
+            ctx.warn("filed: no regulator record for " + ", ".join(no_record[:8]))
+        if short:
+            ctx.warn("filed: under a year of filings for " + ", ".join(short[:8]))
+        same = lambda a, b: json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
+        return {k: v for k, v in out.items() if k not in metrics or not same(v, metrics[k])}
+    except Exception as exc:
+        ctx.warn(f"filed: skipped ({type(exc).__name__}: {exc})")
+        return {}

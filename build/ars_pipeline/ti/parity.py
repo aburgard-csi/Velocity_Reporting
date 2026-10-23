@@ -45,6 +45,21 @@ REGISTRY = {
     "bases": ("metrics.json", _bases),
     "portfolio": ("txn_metrics.json", lambda c: _txn().portfolio(c)),
     "financial_services": ("txn_metrics.json", lambda c: _txn().financial_services(c)),
+    "merchants": ("txn_metrics.json", lambda c: _txn().merchants(c)),
+    "merchant_profiles": ("txn_metrics.json", lambda c: _txn().merchant_profiles(c)),
+    "card_behavior": ("txn_metrics.json", lambda c: _txn().card_behavior(c)),
+    "interchange": ("txn_metrics.json", lambda c: _txn().interchange(c)),
+    # relationship reads the row classification financial services leaves on ctx.shared
+    "relationship": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().relationship(c))[1]),
+    "family_tables": ("txn_metrics.json", lambda c: _txn().family_tables(c)),
+    # competition reads financial services' classification too
+    "competition": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c))[1]),
+    # the audit reads all three specs and financial services' providers
+    # filed adds to the competition figures, so they are computed first
+    "filed": ("txn_metrics.json", lambda c: (lambda fin, comp: _txn().filed(c, {**fin, **comp}))(
+        _txn().financial_services(c), _txn().competition(c))),
+    "mapping_audit": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c),
+                                                     _txn().merchants(c), _txn().mapping_audit(c))[3]),
 }
 
 

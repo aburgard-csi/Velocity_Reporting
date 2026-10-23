@@ -24,7 +24,11 @@ import matplotlib.ticker as mticker
 import numpy as np
 
 import brand
+import periods as _rpe_periods
 import rpe_env
+
+# a calendar month drawn on an axis outside MMM'YY fails the render, as in every RPE chart module
+_rpe_periods.install_month_axis_guard()
 
 # CSI Velocity brand. These are the canonical values, matching
 # RPE-Workflow's ars_engine/core/brand.py -- the module that declares itself the
@@ -358,7 +362,7 @@ def stacked_movement(rows: list, out: Path) -> Path:
                     color="white" if color != TINT else NAVY)
             left += share
     ax.set_yticks(y)
-    ax.set_yticklabels([f"{r[0]}\n{r[1]:,} accounts" for r in rows],
+    ax.set_yticklabels([f"{r[0]}\n{r[1]:,} account" + ("" if r[1] == 1 else "s") for r in rows],
                        fontsize=12, color=NAVY)
     handles = [plt.Rectangle((0, 0), 1, 1, color=c) for _, c, _l in parts]
     ax.legend(handles, [l for _, _c, l in parts], ncol=3, frameon=False,
@@ -2322,7 +2326,9 @@ _MON = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 
 def _month_label(iso: str) -> str:
-    return f"{_MON[int(iso[5:7]) - 1]} {iso[2:4]}"
+    """RPE house format, MMM'YY (periods.mon_yy); v5 drew 'Sep 25'."""
+    import periods
+    return periods.mon_yy(f"{_MON[int(iso[5:7]) - 1]} {iso[:4]}")
 
 
 def _wave_bands(rows):

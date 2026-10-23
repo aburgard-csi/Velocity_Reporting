@@ -21,16 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
-### 2026-10-23 — One chapter registry for the Transaction Intelligence cut
+### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
 
-Summary: The cut's chapters are listed in two files, one for the transaction-side chapters and one
-for the ODD-side ones, and the deck takes them in that order. No deck changes.
+Summary: The transaction chapters (Transaction Intelligence, Competition) and the ODD chapters
+(Attrition, Deposits, ICS accounts), built in parallel, are merged into one cut. Its chapters now run
+in deck order: Transaction Intelligence, Competition, Attrition, Deposits, ICS accounts. No ARS deck
+changes.
 
-`ti/chapters_odd.py` lists Attrition, Deposits and ICS accounts; `ti/chapters_txn.py` (the transaction
-chapters' port) lists Transaction Intelligence and Competition. `ti.cut.CHAPTERS` is the transaction
-list then the ODD list, resolved on first use, so a chapter module can be imported on its own without
-a circular import. The Attrition chapter takes its two transaction-file slides from
-`chapters_txn.ATTRITION_BUILDERS` when that port is in the build and states them otherwise.
+`ti/chapters/` is the one chapter registry (`ALL`, read lazily as `ti.cut.CHAPTERS`): the transaction
+chapters are thin modules (`transaction_intelligence.py`, `competition.py`) over `ti/chapters_txn.py`,
+which both share. `Deck.run` states only the reason when v5 words a decline as "<label> (<reason>)",
+the label being the slide's title or close to it, and still fixes "1 accounts" after the run.
 
 ### 2026-10-23 — Transaction Intelligence: the ICS accounts chapter
 
@@ -156,6 +157,144 @@ pandas 2 returned None, and v5 tests `is not None` after reading an optional dat
 so a missing column raised instead of skipping its cut. `tests/conftest.py` now applies the same
 `legacy_strings()` to `test_ti_*` tests. Parity: retention 34/34 on 1761 (2026-10), 1776 and 1100
 (2026-09), run on v5's own config at `a491b5c`.
+### 2026-10-23 — Transaction Intelligence charts put months in the house format
+
+Summary: Months on the Transaction Intelligence charts now read "Sep'25", the format every other deck
+uses, instead of v5's "Sep 25". Nothing changes on the ARS deck.
+
+v5's two month-label helpers (`ti/deck/charts._month_label`, `ti/deck/txn_value._month_label`) now go
+through `periods.mon_yy`, and `ti/deck/charts.py` installs `periods.install_month_axis_guard()` as RPE's
+own chart modules do, so a month drawn off-format fails the render instead of shipping. The suite caught
+it only when another chart test had installed the guard first; the cut now installs it itself. 1761
+rebuilt with the guard: no chart failed, 0 FAIL.
+
+### 2026-10-23 — The Transaction Intelligence and Competition chapters draw their slides
+
+Summary: The cut now builds real slides: a Transaction Intelligence chapter (39 slides: money flow,
+leakage to outside providers, card use, merchants, PIN or signature, channels) and a Competition chapter
+(20 slides: who competes, the local field, wallet share, winback, BNPL), each with a divider carrying its
+three headline figures. 1761 CapEd builds both lens decks from its real files at 0 FAIL. Still opt-in
+(RPE_TI=1); no ARS deck changes.
+
+`ti/deck/` gains v5's six transaction slide modules (`txn_slides`, `txn_leakage`, `txn_cards`,
+`txn_value`, `txn_compete`, `txn_attrition`), ported unchanged except as listed below, with nine of
+v5's slide test files. `ti/chapters_txn.py` defines the two chapters: the Transaction Intelligence
+chapter computes v5's whole transaction sequence once for both chapters and both lenses; a client with
+no transaction figures gets one stated slide per chapter. In the ICS lens deck the slides that walk v5's
+lens list show all accounts plus the ICS groups; in the ARS deck they are drawn as v5 draws them.
+
+Fixed against RPE's validator and a PowerPoint render of 1761 (v5's own validator passed all of these):
+the callout tiles fit every label, value and note to the tile with RPE's glyph measure, and draw value
+and note as one text box (as two boxes the lowest note sat in fit_layout's caption band and was lifted
+onto the value); a subtitle is held to two lines (it ran under the chart); the content and the tile
+stack start below wherever the headline block ends and never reach the logo band; "1 accounts" reads
+"1 account" in text and chart labels; a tile that named v5's `clients_config` now says "in the client
+config". 1761 (2026-10, from Inputs): 63 slides per lens deck, 56 drawn, 7 stated with v5's reasons
+(one-rail feed, no filed store, no competitor past the winback threshold, …), 0 FAIL.
+Tests: `test_ti_chapters_txn.py` and the ported slide tests.
+
+### 2026-10-23 — Competition: filed growth from the regulators' own reports (no store yet)
+
+Summary: The "Filed growth" figures are ported: what each named competitor reports to the FDIC or NCUA,
+quarter by quarter. They need a public reference store that is not on the share yet, so for now the
+build says the store is missing and adds nothing. No deck changes.
+
+`ti/core/filed/` and `ti/core/market/` are ported unchanged with v5's five filed test files (31 tests).
+`ti/txn_sections.filed` adds the `comp_filed*` figures to the competition figures, as v5's run does,
+reading the store from `TI_REFERENCE_DIR`, else `Inputs/Market Reference`, and the client's market record
+from `TI_MARKET_DIR`, else `Inputs/ARS Settings/market/<id>.json`. The store is ~100 MB of public FDIC and
+NCUA data (no client data); where it should live on the share is an open question. There is no v5 figure
+to check against: every reference run's own filed step was skipped (1761, 2026-10-23: "reference cache
+incomplete … missing fdic_financials"). Test: `test_ti_filed_section.py` (no store is stated, the figures
+handed in are never edited, only added or changed keys come back).
+
+### 2026-10-23 — The Transaction Intelligence build log carries v5's competition and section read-outs
+
+Summary: When the Transaction Intelligence cut builds, its log now lists the competition figures and
+the section tables in the same plain-text form James's v5 engine printed after a run. Nothing changes
+on any deck.
+
+`ti/transaction_intelligence/competition_report.py` and `sections_report.py` are ported unchanged and
+printed by `ti_build.py` after the pack is written. `test_ti_competition_part2.py` comes across, and the
+two family-table read-out tests rejoin `test_ti_txn_sections.py` (the overlay tests return with the
+flight overlay).
+
+### 2026-10-23 — Transaction Intelligence: what the dictionaries do not know yet, matching v5
+
+Summary: The mapping audit is ported: the card merchants and transfer counterparties none of the three
+dictionaries recognise, ranked by dollars, so the dictionaries can be extended. Reports only; no other
+figure moves. Matches James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/mapping_audit.py` is ported unchanged; it reads all three dictionary specs
+and financial services' providers, as in v5's run. v5 has no test file for it; the parity check is its
+test. Parity: 8/8 on 1761 (2026-10).
+
+### 2026-10-23 — Competition: who competes for the client's members, matching v5
+
+Summary: The competition analysis is ported: which banks, credit unions and payment ecosystems the
+client's personal accounts send money to, how much, how many competitors each account uses, the local
+field, winback targets and BNPL. Every figure matches James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/competition.py` is ported unchanged; it reads the competitor dictionary
+(`ti/dictionaries/`), the client's own local-competitor and self names (`ti/config.py`), and financial
+services' row classification, and hands the competitor rows on to the overlay, leakage and stressor
+sections as v5's run does. Eight of v5's competition test files come across (`test_ti_competition*.py`,
+`test_ti_fin_attribution.py`, `test_ti_matcher_normalise.py`, `test_ti_txn_formats_1192.py` /
+`_1585.py`); one test that reads the slide builder's source waits for the chapter slides. Parity: 79/79
+on 1761 (2026-10); on 1776 (2026-09) all 53 figures v5 wrote match.
+
+### 2026-10-23 — Transaction Intelligence: transactions by branch, product and swipe tier, matching v5
+
+Summary: The three family tables are ported (accounts, transactions and dollars per branch, per
+product and per swipe tier). They match James's v5 engine for 1761 CapEd and 1776 CoastHills. No
+deck changes.
+
+v5's run builds them from the transaction-side lens (`family_table`, already ported); the closing
+block of its run is now `ti/txn_sections.family_tables`. Parity: 6/6 on 1761 and 1776.
+
+### 2026-10-23 — Transaction Intelligence: how broad the relationship is, matching v5
+
+Summary: The relationship analysis is ported: how many channels each personal account uses, which
+travel together, what a second channel is worth, and the billers paid from the account. Every figure
+matches James's v5 engine for 1761 CapEd and 1776 CoastHills. No deck changes.
+
+`ti/transaction_intelligence/relationship.py` is ported unchanged; it reads the row classification the
+financial-services section leaves behind, as in v5's run. v5's relationship tests rejoin
+`test_ti_txn_sections.py`, and `test_ti_interchange_txn.py` comes across. Parity: 21/21 on 1761
+(2026-10); on 1776 (2026-09) all 19 figures v5 wrote match (2 were added to v5 after that run).
+
+### 2026-10-23 — Transaction Intelligence: PIN or signature, matching v5
+
+Summary: The PIN / signature mix is ported: who routes PIN, PIN-heavy accounts, where PIN gets pressed,
+by age and product. Unpriced, as in v5 (the ARS deck owns interchange dollars). Every figure matches
+James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/interchange.py` is ported unchanged on the personal card base. Parity:
+30/30 on 1761 (2026-10); v5's 1776 run (2026-09) predates this section. Its v5 test also exercises
+the relationship section and comes across with it.
+
+### 2026-10-23 — Transaction Intelligence: how the card is used, matching v5
+
+Summary: The card-behaviour analysis is ported: ticket size and intensity bands, recurring payments on
+the card, when the card is used, and how each group behaves. Every figure matches James's v5 engine
+for 1761 CapEd and 1776 CoastHills. No deck changes.
+
+`ti/transaction_intelligence/card_behavior.py` is ported unchanged, on the personal card base
+(`ti/txn_sections.py`). v5's `test_txn_sections.py` comes across as `test_ti_txn_sections.py` with
+the tests for sections not yet ported held back (relationship, overlay, v5's text report; each
+returns with its section). Parity: 15/15 on 1761 (2026-10) and 1776 (2026-09).
+
+### 2026-10-23 — Transaction Intelligence: card spend by merchant and who spends, matching v5
+
+Summary: The merchant analyses are ported: where personal card spend goes by merchant and category,
+which merchants are rising, new or fading, the MCC codes behind the categories, and card use by age
+and tenure. Every figure matches James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/merchants.py` and `merchant_profiles.py` are ported unchanged with v5's
+MCC-mapping and merchant-profile tests; both run on the personal card base, sharing one category spec
+(`ti/txn_sections.py`). Parity on 1761 (2026-10): merchants 28/28, merchant profiles 25/25. On 1776
+(2026-09) merchants match 28/28; v5's run there predates the merchant profiles, so it has none of
+their keys to compare.
 
 ### 2026-10-23 — Transaction Intelligence: financial services and leakage, matching v5
 

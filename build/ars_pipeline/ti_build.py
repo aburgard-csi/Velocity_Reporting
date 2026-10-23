@@ -145,6 +145,10 @@ def main(argv=None):
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
     for w in pack["warnings"]:
         print(f"{a.client_id}: {w}")
+    # v5's own read-outs of the transaction figures, into the build log (never a deck)
+    from ti.transaction_intelligence import competition_report, sections_report
+    for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
+        print(line)
     for p in build_decks(pack, out):
         print(f"built {p}")
     return 0
