@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence build log carries v5's competition and section read-outs
+
+Summary: When the Transaction Intelligence cut builds, its log now lists the competition figures and
+the section tables in the same plain-text form James's v5 engine printed after a run. Nothing changes
+on any deck.
+
+`ti/transaction_intelligence/competition_report.py` and `sections_report.py` are ported unchanged and
+printed by `ti_build.py` after the pack is written. `test_ti_competition_part2.py` comes across, and the
+two family-table read-out tests rejoin `test_ti_txn_sections.py` (the overlay tests return with the
+flight overlay).
+
 ### 2026-10-23 — Transaction Intelligence: what the dictionaries do not know yet, matching v5
 
 Summary: The mapping audit is ported: the card merchants and transfer counterparties none of the three

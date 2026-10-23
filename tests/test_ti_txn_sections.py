@@ -1,5 +1,5 @@
 # Ported from ARS v5 02-Scripts/tests/test_txn_sections.py at a491b5c (James Gilmore); logic unchanged.
-# Not yet here (they arrive with overlay and v5's text report): test_overlay_joins_flight_to_named_destinations, test_overlay_declines_without_balance_columns, test_family_lines_labeled_as_txn_dollars_not_deposits, test_family_lines_header_absent_when_no_family_rows, test_overlay_destinations_carry_the_deposit_decline.
+# Not yet here (they arrive with the flight overlay): test_overlay_joins_flight_to_named_destinations, test_overlay_declines_without_balance_columns, test_overlay_destinations_carry_the_deposit_decline.
 """merchants / card_behavior / relationship / lens families: hand-built frame,
 every answer known.
 
@@ -272,6 +272,37 @@ def test_family_masks_and_table(ctx):
 # ---------------------------------------------------------------------------
 # report: family tables must not masquerade as deposit dollars
 # ---------------------------------------------------------------------------
+
+def test_family_lines_labeled_as_txn_dollars_not_deposits():
+    """1441 regression: the by-branch/product/swipe-tier rows are gross
+    transaction dollars over the load window, but they printed unlabeled
+    directly under the DEPOSIT FLIGHT header and were read as deposit
+    balances (Non-user 28,190 accts $11.6B)."""
+    from ti.transaction_intelligence import sections_report
+    m = {"ovl_flight_n": 2, "ovl_flight_threshold": 25_000,
+         "ovl_flight_deposits": 70_000, "ovl_flight_decline": 6_000,
+         "txn_window_months": 12,
+         "txn_by_branch": [["1", 2, 10, 5_000]],
+         "txn_by_swipe_tier": [["Non-user", 3, 12, 9_000]]}
+    lines = sections_report.lines(m)
+    text = "\n".join(lines)
+    header_idx = [i for i, ln in enumerate(lines) if "TRANSACTION DOLLARS BY LENS" in ln]
+    assert header_idx, "family tables need their own header naming what the dollars are"
+    header = lines[header_idx[0]]
+    assert "12-month" in header and "NOT deposit balances" in header
+    flight_idx = next(i for i, ln in enumerate(lines) if "DEPOSIT FLIGHT" in ln)
+    branch_idx = next(i for i, ln in enumerate(lines) if "by branch" in ln)
+    # the family block starts after its own header, not inside the flight block
+    assert flight_idx < header_idx[0] < branch_idx
+    assert "Non-user" in text
+
+
+def test_family_lines_header_absent_when_no_family_rows():
+    from ti.transaction_intelligence import sections_report
+    lines = sections_report.lines({"ovl_flight_n": 1, "ovl_flight_threshold": 25_000,
+                                   "ovl_flight_deposits": 30_000, "ovl_flight_decline": 500})
+    assert not any("TRANSACTION DOLLARS BY LENS" in ln for ln in lines)
+
 
 # ---------------------------------------------------------------------------
 # degenerate amounts: all-NaN medians must report None, never warn
