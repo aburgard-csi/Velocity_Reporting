@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Inputs/Deposits: the ILS deposits extract, read by the Transaction Intelligence cut
+
+Summary: A new input folder, Inputs/Deposits, holds each client's rolling 365-day deposits extract
+(five clients so far). The Transaction Intelligence cut reads a client's own file from it; nothing
+else reads it, and the morning watch leaves it alone. No deck changes.
+
+`rpe_env.INPUT_KIND_DIRS["Deposits"]`, added to `NOT_SCANNED_KINDS` so the watcher's copier and pruner
+never touch it. `ti/deposits_input.py` takes only the client's OWN file (the name must start with the
+client id): v5 at a491b5c gave 1776 the only file on disk, 1100 Rally's, and joined 0% of accounts.
+The CSV is staged out of its zip once into the local cache and parsed by v5's deposits loader
+unchanged; `ti_build.py` attaches it to the config as v5's run does, and a client with no file, or a
+file that parses to nothing, is stated, never attached. The parity check attaches the rows v5's own
+run read, from v5's cache, and only when that file was the client's own. Parity with deposits: 1100
+balance 36/36 and stressors 11/11 (2026-09). 1776's v5 deposit figures were computed on Rally's file
+and are no reference. Test: `test_ti_deposits_input.py`.
+
 ### 2026-10-23 — Transaction Intelligence: accounts under several stresses, and balances
 
 Summary: The stressor analysis (accounts carrying two or more at-risk conditions at once) and the
