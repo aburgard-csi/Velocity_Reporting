@@ -36,7 +36,10 @@ RAIL_LEFT = RIGHT_EDGE - 2.55
 RAIL_GUTTER = 0.28
 RAIL_BOTTOM = 6.62                # clear of the logo band (6.78in)
 CONTENT_FLOOR = 6.72
-TABLE_MIN_ROW_H = 0.22            # a tightened table row never goes below this
+# Tables sit left of the tile rail, clear of the logo (bottom right); their floor is the slide
+# number's band (bottom left, from 7.05in).
+TABLE_FLOOR = 7.0
+TABLE_MIN_ROW_H = 0.18            # a tightened table row never goes below this
 HEADLINE_MAX = 90
 V5_TITLE_W = 12.09                # the width polish.title_fit's line budgets were written for
 
@@ -183,16 +186,16 @@ def _cell_bottom_border(cell):
 def _table(slide, rows, left, top, width, col_widths=None, size=11, header=True, cell_fill=None):
     """v5's house table: navy header, banded body, horizontal rules, numbers right-aligned.
 
-    RPE: a table that would run past the content floor (the logo band) tightens its rows, down to
-    TABLE_MIN_ROW_H, with the font scaled to match, rather than running off the slide or dropping
+    RPE: a table that would run past TABLE_FLOOR (above the slide number) tightens its rows, down
+    to TABLE_MIN_ROW_H, with the font scaled to match, rather than running off the slide or dropping
     rows. v5's slides had the same arithmetic and no check for it (1615's closure-hazard table
     under a two-line headline ended at 7.65in on a 7.5in slide, 2026-10-23)."""
     n_rows, n_cols = len(rows), len(rows[0])
     row_h = 0.3
-    room = CONTENT_FLOOR - top
+    room = TABLE_FLOOR - top
     if n_rows * row_h > room:
         row_h = max(TABLE_MIN_ROW_H, room / n_rows)
-        size = max(8, round(size * row_h / 0.3, 1))
+        size = max(7, round(size * row_h / 0.3, 1))
     shape = slide.shapes.add_table(n_rows, n_cols, Inches(left), Inches(top),
                                    Inches(width), Inches(row_h * n_rows))
     table = shape.table

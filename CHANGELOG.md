@@ -35,9 +35,9 @@ attrition-module slides (`ti/deck/attrition_slides.py`) plus three that v5 drew 
 builder, lifted out unchanged into `ti/deck/attrition_inline.py`. The two slides that read the
 transaction file (competitor spend before closure, stresses across both files) come with the
 transaction chapter's port; until it is in the build they are stated, not dropped. The chapter sits
-ahead of Deposits. A ported table that would run past the logo band now tightens its rows (to a
-0.22in floor, font scaled) instead of running off the slide: 1615's closure-hazard table ended at
-7.65in on a 7.5in slide. Real build, 1615: 28 slides per lens deck, 3 stated, 0 FAIL, 6 REVIEW
+ahead of Deposits. A ported table that would run into the slide number's band (7.0in) now tightens
+its rows (to 0.18in, font scaled, never below 7pt) instead of running off the slide, and keeps every
+row: 1615's closure-hazard table ended at 7.65in on a 7.5in slide. Real build, 1615: 28 slides per lens deck, 3 stated, 0 FAIL, 6 REVIEW
 (superlative and caption checks). Tests: `test_ti_attrition_slides.py`, `test_ti_table_fit.py`.
 
 ### 2026-10-23 — Transaction Intelligence: the Deposits chapter
