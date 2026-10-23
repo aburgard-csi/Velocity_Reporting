@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: how the card is used, matching v5
+
+Summary: The card-behaviour analysis is ported: ticket size and intensity bands, recurring payments on
+the card, when the card is used, and how each group behaves. Every figure matches James's v5 engine
+for 1761 CapEd and 1776 CoastHills. No deck changes.
+
+`ti/transaction_intelligence/card_behavior.py` is ported unchanged, on the personal card base
+(`ti/txn_sections.py`). v5's `test_txn_sections.py` comes across as `test_ti_txn_sections.py` with
+the tests for sections not yet ported held back (relationship, overlay, v5's text report; each
+returns with its section). Parity: 15/15 on 1761 (2026-10) and 1776 (2026-09).
+
 ### 2026-10-23 — Transaction Intelligence: card spend by merchant and who spends, matching v5
 
 Summary: The merchant analyses are ported: where personal card spend goes by merchant and category,

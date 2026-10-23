@@ -85,3 +85,11 @@ def merchant_profiles(ctx):
     spec = ctx.shared.get("mch_spec") or M.load_categories(dictionaries.folder())
     return MP.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.warn, account_filter=personal,
                       key_prefix="mch_", base_label=base_label)
+
+
+def card_behavior(ctx):
+    """Tickets, intensity, recurring payments and when the card is used, on personal accounts."""
+    from ti.transaction_intelligence import card_behavior as CB
+    personal, _business, base_label = base_accounts(ctx)
+    return CB.compute(ctx.txn, ctx.lenses, ctx.anchor_ts, ctx.warn, account_filter=personal,
+                      key_prefix="beh_", base_label=base_label)
