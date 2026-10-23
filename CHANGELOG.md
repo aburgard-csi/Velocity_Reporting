@@ -22,6 +22,18 @@ there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.tx
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
+### 2026-10-23 — Deposits: "What arrives against what leaves" reads the transaction figures
+
+Summary: The deposits slide that sets money arriving against card money leaving now draws: it needs the
+transaction figures, and the deposits chapter now receives them the way James's v5 engine hands them on.
+1776 CoastHills: the slide drew where it was stated before. No ARS deck changes.
+
+v5's run passes the transaction figures to the ODD sections as `config["_txn"]`
+(`monthly_analysis/metrics.py`: `config = dict(config, _txn=txn)`), and `deposit_behaviour` reads them for
+`dep_vs_card_spend`. The Transaction Intelligence chapter computes first in deck order, so
+`ti/chapters_txn.compute_all` ends by handing its figures on the same way. Test:
+`test_ti_chapters_txn.py::test_the_transaction_figures_reach_the_odd_sections_as_v5_hands_them_on`.
+
 ### 2026-10-23 — Deposits: where money in flight is already going, matching v5
 
 Summary: The flight overlay is ported: the accounts whose balance is falling against its average,

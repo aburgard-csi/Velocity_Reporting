@@ -127,6 +127,10 @@ def compute_all(ctx):
         except Exception as exc:
             ctx.warn(f"{section.__name__} failed: {type(exc).__name__}: {exc}")
     out.update(T.filed(ctx, out))
+    # v5's run hands the transaction figures to the ODD sections as config["_txn"]
+    # (monthly_analysis/metrics.py: config = dict(config, _txn=txn)); the deposits section reads
+    # them for "What arrives against what leaves". This chapter computes first in deck order.
+    ctx.config = dict(ctx.config, _txn=out)
     return out
 
 

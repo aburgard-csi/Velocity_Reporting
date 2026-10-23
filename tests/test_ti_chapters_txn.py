@@ -60,3 +60,22 @@ def test_no_transaction_figures_is_one_stated_slide_per_chapter(tmp_path, contac
     assert len(stated) == 2
     fails = [f for f in vd.run(str(out)) if f[0] == "FAIL"]
     assert fails == [], fails
+
+
+def test_the_transaction_figures_reach_the_odd_sections_as_v5_hands_them_on(monkeypatch):
+    """v5 passes the transaction figures to the ODD sections as config["_txn"]; the deposits
+    section reads them for "What arrives against what leaves"."""
+    import pandas as pd
+    from ti.context import Ctx
+    import ti.txn_sections as T
+
+    c = Ctx(pd.DataFrame(), {"ClientID": "9999"}, None, None, client_id="9999")
+    c.txn = pd.DataFrame({"x": [1]})
+    for name in ("portfolio", "financial_services", "competition", "merchants", "merchant_profiles",
+                 "mapping_audit", "card_behavior", "interchange", "relationship", "overlay",
+                 "leakage", "stressors_txn", "hotspots", "family_tables"):
+        monkeypatch.setattr(T, name, (lambda n: (lambda *_a: {f"{n}_figure": 1}))(name))
+    monkeypatch.setattr(T, "filed", lambda _c, _m: {})
+    out = X.compute_all(c)
+    assert c.config["_txn"] is out and out["portfolio_figure"] == 1
+    assert c.config["ClientID"] == "9999"
