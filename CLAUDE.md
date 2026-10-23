@@ -958,7 +958,9 @@ This is the readme index — update it whenever files are added, removed, or mov
   Source line. Not called by `build_month` or the launcher yet. `ti/PORTING.md` holds the porting
   rules; `ti/core/` the v5 foundation modules (periods, ODD transform, account bases, facts);
   `ti/odd.py` reads the client's ODD as v5 does; `ti/config.py` the client config the analyses
-  read (a v5-shaped file when supplied, else derived from `ars_code_tables.json`, and said so).
+  read (a v5-shaped file when supplied, else derived from `ars_code_tables.json`, and said so);
+  `ti/lens.py` the ARS and ICS lens groups, with the ICS lists found in `Inputs/ICS Direct Mail`
+  and `Inputs/ICS Referrals` and joined onto the ODD by v5's `ti/monthly_analysis/ics_sources.py`.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

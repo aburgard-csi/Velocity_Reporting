@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence cut finds its ARS and ICS lens groups
+
+Summary: The Transaction Intelligence cut can now split a client's accounts into its two
+lenses: responders, mailed non-responders and not mailed, and the ICS accounts found in the
+ODD by direct mail and referral. Nothing in the ARS deck changes.
+
+v5's account lenses (`ti/core/account_lenses.py`) and its ICS list join
+(`ti/monthly_analysis/ics_sources.py`) are ported unchanged with their tests. `ti/lens.py`
+finds the client's newest lists where RPE files them, `Inputs/ICS Direct Mail/<id>-…` and
+`Inputs/ICS Referrals/<id>_…`, stages them for the join, and returns the lens groups; a lens
+with no accounts raises with the sentence the deck states rather than rendering empty. On
+1615 Cape & Coast (2026-10-23) the direct-mail list matched 241 of 241 rows through the ODD's
+own hash column; no referral list is on hand yet, so the referral channel is left out, not
+shown as zero. The ICS lens groups in `ti/cut.py` are now v5's lens keys. Tests:
+`test_ti_lens.py`, `test_ti_ics_sources.py`, `test_ti_declining_lens.py`.
+
 ### 2026-10-23 — The Transaction Intelligence cut reads the ODD the way v5 does
 
 Summary: The new Transaction Intelligence cut can now read a client's ODD extract and build

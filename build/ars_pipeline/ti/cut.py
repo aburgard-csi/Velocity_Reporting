@@ -30,11 +30,11 @@ from collections import namedtuple
 
 Lens = namedtuple("Lens", "key tag label groups")
 
+# `groups` are v5's lens keys (ti/core/account_lenses.py), in display order; their labels
+# come from account_lenses.LABELS. An account on both ICS lists is in both ICS channels.
 LENSES = {
-    "ars": Lens("ars", "ARS", "ARS lens",
-                ("Responders", "Mailed non-responders", "Not mailed")),
-    "ics": Lens("ics", "ICS", "ICS lens",
-                ("ICS direct mail", "ICS referral", "Not ICS")),
+    "ars": Lens("ars", "ARS", "ARS lens", ("responders", "mailed_nonresp", "not_mailed")),
+    "ics": Lens("ics", "ICS", "ICS lens", ("ics", "ics_dm", "ics_ref")),
 }
 
 Chapter = namedtuple("Chapter", "code title benefits agenda stats build")
