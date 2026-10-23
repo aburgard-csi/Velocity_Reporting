@@ -151,3 +151,24 @@ def competition(ctx):
     ctx.shared["competitor_accounts"] = out.pop("_competitor_accounts", None)
     ctx.shared["competitor_monthly"] = out.pop("_competitor_monthly", None)
     return out
+
+
+def mapping_audit(ctx):
+    """What the dictionaries do not know yet, on the personal card rows (reports only: no figure
+    elsewhere moves). Reads the three specs and financial services' providers, as v5's run does."""
+    from ti.transaction_intelligence import mapping_audit as MA
+    from ti.transaction_intelligence import merchants as M
+    personal, _business, _label = base_accounts(ctx)
+    df = ctx.txn
+    is_card = df["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"])
+    if personal is not None:
+        is_card &= df["primary_account_num"].astype(str).isin(personal)
+    card = df[is_card]
+    if not len(card):
+        return {}
+    mspec = ctx.shared.get("mch_spec") or M.load_categories(dictionaries.folder())
+    cats, _method, _cov = M._categorize(card, mspec, lambda _m: None)
+    rows = ctx.shared.get("fin_rows")
+    return MA.compute(card, cats, card["amount"].abs(), ctx.shared.get("fin_spec"),
+                      ctx.shared.get("comp_spec"), mspec,
+                      rows["provider"] if rows is not None else None, ctx.warn)

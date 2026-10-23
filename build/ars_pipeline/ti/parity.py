@@ -54,6 +54,9 @@ REGISTRY = {
     "family_tables": ("txn_metrics.json", lambda c: _txn().family_tables(c)),
     # competition reads financial services' classification too
     "competition": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c))[1]),
+    # the audit reads all three specs and financial services' providers
+    "mapping_audit": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c),
+                                                     _txn().merchants(c), _txn().mapping_audit(c))[3]),
 }
 
 

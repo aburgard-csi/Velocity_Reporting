@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: what the dictionaries do not know yet, matching v5
+
+Summary: The mapping audit is ported: the card merchants and transfer counterparties none of the three
+dictionaries recognise, ranked by dollars, so the dictionaries can be extended. Reports only; no other
+figure moves. Matches James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/mapping_audit.py` is ported unchanged; it reads all three dictionary specs
+and financial services' providers, as in v5's run. v5 has no test file for it; the parity check is its
+test. Parity: 8/8 on 1761 (2026-10).
+
 ### 2026-10-23 — Competition: who competes for the client's members, matching v5
 
 Summary: The competition analysis is ported: which banks, credit unions and payment ecosystems the
