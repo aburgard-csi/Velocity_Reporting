@@ -52,6 +52,8 @@ REGISTRY = {
     # relationship reads the row classification financial services leaves on ctx.shared
     "relationship": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().relationship(c))[1]),
     "family_tables": ("txn_metrics.json", lambda c: _txn().family_tables(c)),
+    # competition reads financial services' classification too
+    "competition": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c))[1]),
 }
 
 

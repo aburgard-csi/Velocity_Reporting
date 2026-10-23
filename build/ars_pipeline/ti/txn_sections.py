@@ -125,3 +125,29 @@ def family_tables(ctx):
         else:
             ctx.warn(f"txn family lens {fam}: ODD column absent; table skipped")
     return out
+
+
+COMPB_KEYS = ("compb_base_label", "compb_accounts_total", "compb_with_competitor",
+              "compb_with_competitor_pct", "compb_competitor_dollars", "compb_institutions",
+              "compb_by_tier", "compb_local")
+
+
+def competition(ctx):
+    """comp_* on personal accounts, compb_* (v5's subset) on business. Reads financial services'
+    classification; hands on the competition config and the competitor rows later sections read."""
+    from ti.transaction_intelligence import competition as C
+    personal, business, base_label = base_accounts(ctx)
+    spec = C.load_config(dictionaries.folder(), ctx.config)
+    ctx.shared["comp_spec"] = spec
+    out, _files = C.compute(ctx.txn, ctx.lenses, spec, ctx.shared.get("fin_rows"), ctx.anchor_ts,
+                            ctx.shared.get("lists_dir"), ctx.warn, account_filter=personal,
+                            key_prefix="comp_", base_label=base_label)
+    if business is not None and len(business):
+        compb, _ = C.compute(ctx.txn, None, spec, ctx.shared.get("fin_rows"), ctx.anchor_ts, None,
+                             lambda _m: None, account_filter=business, key_prefix="compb_",
+                             base_label="transacting business accounts")
+        out.update({k: v for k, v in compb.items() if k in COMPB_KEYS})
+    # v5's run pops these hand-offs before writing; overlay, leakage, stressors read them
+    ctx.shared["competitor_accounts"] = out.pop("_competitor_accounts", None)
+    ctx.shared["competitor_monthly"] = out.pop("_competitor_monthly", None)
+    return out

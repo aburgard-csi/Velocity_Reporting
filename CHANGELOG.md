@@ -21,6 +21,20 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Competition: who competes for the client's members, matching v5
+
+Summary: The competition analysis is ported: which banks, credit unions and payment ecosystems the
+client's personal accounts send money to, how much, how many competitors each account uses, the local
+field, winback targets and BNPL. Every figure matches James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/competition.py` is ported unchanged; it reads the competitor dictionary
+(`ti/dictionaries/`), the client's own local-competitor and self names (`ti/config.py`), and financial
+services' row classification, and hands the competitor rows on to the overlay, leakage and stressor
+sections as v5's run does. Eight of v5's competition test files come across (`test_ti_competition*.py`,
+`test_ti_fin_attribution.py`, `test_ti_matcher_normalise.py`, `test_ti_txn_formats_1192.py` /
+`_1585.py`); one test that reads the slide builder's source waits for the chapter slides. Parity: 79/79
+on 1761 (2026-10); on 1776 (2026-09) all 53 figures v5 wrote match.
+
 ### 2026-10-23 — Transaction Intelligence: transactions by branch, product and swipe tier, matching v5
 
 Summary: The three family tables are ported (accounts, transactions and dollars per branch, per
