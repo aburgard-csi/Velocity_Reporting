@@ -21,6 +21,24 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Ported v5 slides draw on RPE's slide anatomy
+
+Summary: The Transaction Intelligence cut can now draw the slides ported from James's v5 engine
+in the house style: RPE's colours, chart face, title, pill, logo and slide number, with a source
+note on every slide. A v5 slide that would have been left out for missing data is shown with the
+reason instead. No deck changes.
+
+v5's chart renderers, headline writer and copy rules are ported into `build/ars_pipeline/ti/deck/`
+(`charts`, `charts_txn`, `charts_story`, `headlines`, `polish`, `labels`, `txn_common`); the chart
+palette now comes from `brand.py` (SLATE stands in for v5's steel, which `brand.STEEL` cannot
+replace at 3:1 on white; the RAG red and green have no brand token and keep v5's values) and the
+face from `rpe_env.use_font(brand.CHART_FONT)`. `ti/deck/helpers.py` re-implements the helper
+bundle v5's builders call (`slide`, `chart`, `rail`, `table`, `kpi`, …) on RPE's grid: the title
+stops before the period pill, the tile rail ends above the logo band. Every slide it makes gets a
+Source note naming the client; a builder that declines becomes a slide saying "Not shown for this
+client: <reason>" under its own title (CLAUDE.md: never drop slides automatically).
+Test: `test_ti_deck_helpers.py` (0 FAIL from `validate_deck` in both lenses).
+
 ### 2026-10-23 — The monthly build can make the Transaction Intelligence cut (opt-in)
 
 Summary: With RPE_TI=1, an ARS client's build also makes the Transaction Intelligence decks, one
