@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — The Transaction Intelligence cut's reference dictionaries are in the repo
+
+Summary: The competitor list, the financial-services patterns and the merchant categories that the
+transaction analyses classify against now live with the code. No deck changes.
+
+Copied unchanged from ARS v5 `0_Config/` into `build/ars_pipeline/ti/dictionaries/`. They name public
+institutions and merchants, nothing about a client; a client's own competitor and self names come
+from the client config (`ti/config.py`). `ti/dictionaries.folder()` is the folder v5's loaders take.
+Test: `test_ti_dictionaries.py` (present, parse, carry the sections v5 reads, no client config keys).
+
 ### 2026-10-23 — The Transaction Intelligence cut reads the clients' transaction files
 
 Summary: The Transaction Intelligence cut can now read a client's monthly debit-card transaction

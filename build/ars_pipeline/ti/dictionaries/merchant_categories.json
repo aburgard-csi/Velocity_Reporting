@@ -1,0 +1,1106 @@
+{
+  "_comment": "merchants section. mcc_groups: {group: {parent, ranges}} used when MCC coverage >= mcc_min_coverage_pct; keyword_buckets over the derived merchant key otherwise. Both carry the same parents so a client with MCC and a client without land in one taxonomy. Codes we are not confident about are left unmapped on purpose -- they show up in the mapping audit rather than being guessed into a group. Universal, not per-client.",
+  "mcc_min_coverage_pct": 50,
+  "mcc_groups": {
+    "Grocery": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          5411,
+          5411
+        ],
+        [
+          5422,
+          5422
+        ],
+        [
+          5441,
+          5441
+        ],
+        [
+          5451,
+          5451
+        ],
+        [
+          5462,
+          5462
+        ],
+        [
+          5499,
+          5499
+        ]
+      ]
+    },
+    "Dining": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          5811,
+          5814
+        ]
+      ]
+    },
+    "Fuel": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          5541,
+          5541
+        ],
+        [
+          5542,
+          5542
+        ],
+        [
+          5983,
+          5983
+        ],
+        [
+          7511,
+          7511
+        ]
+      ]
+    },
+    "Retail": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          5300,
+          5399
+        ],
+        [
+          5611,
+          5699
+        ],
+        [
+          5732,
+          5732
+        ],
+        [
+          5733,
+          5733
+        ],
+        [
+          5940,
+          5950
+        ],
+        [
+          5963,
+          5963
+        ],
+        [
+          5966,
+          5966
+        ],
+        [
+          5970,
+          5970
+        ],
+        [
+          5978,
+          5978
+        ],
+        [
+          5997,
+          5997
+        ],
+        [
+          5999,
+          5999
+        ]
+      ]
+    },
+    "Home & garden": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          780,
+          780
+        ],
+        [
+          1520,
+          1520
+        ],
+        [
+          1711,
+          1799
+        ],
+        [
+          5200,
+          5200
+        ],
+        [
+          5211,
+          5211
+        ],
+        [
+          5231,
+          5231
+        ],
+        [
+          5251,
+          5251
+        ],
+        [
+          5261,
+          5261
+        ],
+        [
+          5271,
+          5271
+        ],
+        [
+          5712,
+          5719
+        ],
+        [
+          5722,
+          5722
+        ],
+        [
+          5996,
+          5996
+        ],
+        [
+          5998,
+          5998
+        ],
+        [
+          7217,
+          7217
+        ],
+        [
+          7342,
+          7342
+        ],
+        [
+          7349,
+          7349
+        ],
+        [
+          7623,
+          7623
+        ],
+        [
+          7629,
+          7629
+        ],
+        [
+          7641,
+          7641
+        ]
+      ]
+    },
+    "Pharmacy & health": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          4119,
+          4119
+        ],
+        [
+          5912,
+          5912
+        ],
+        [
+          5975,
+          5975
+        ],
+        [
+          5976,
+          5976
+        ],
+        [
+          8011,
+          8099
+        ]
+      ]
+    },
+    "Personal care": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          5977,
+          5977
+        ],
+        [
+          7210,
+          7211
+        ],
+        [
+          7216,
+          7216
+        ],
+        [
+          7221,
+          7221
+        ],
+        [
+          7230,
+          7230
+        ],
+        [
+          7251,
+          7251
+        ],
+        [
+          7273,
+          7273
+        ],
+        [
+          7296,
+          7299
+        ],
+        [
+          7395,
+          7395
+        ],
+        [
+          8351,
+          8351
+        ]
+      ]
+    },
+    "Pets & veterinary": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          742,
+          742
+        ],
+        [
+          5995,
+          5995
+        ]
+      ]
+    },
+    "Specialty retail": {
+      "parent": "Everyday",
+      "ranges": [
+        [
+          5921,
+          5921
+        ],
+        [
+          5931,
+          5931
+        ],
+        [
+          5932,
+          5932
+        ],
+        [
+          5935,
+          5935
+        ],
+        [
+          5937,
+          5937
+        ],
+        [
+          5971,
+          5971
+        ],
+        [
+          5972,
+          5972
+        ],
+        [
+          5973,
+          5973
+        ],
+        [
+          5992,
+          5992
+        ],
+        [
+          5993,
+          5993
+        ],
+        [
+          5994,
+          5994
+        ]
+      ]
+    },
+    "Auto \u2014 dealers": {
+      "parent": "Auto",
+      "ranges": [
+        [
+          5511,
+          5511
+        ],
+        [
+          5521,
+          5521
+        ],
+        [
+          5551,
+          5551
+        ],
+        [
+          5561,
+          5561
+        ],
+        [
+          5571,
+          5571
+        ],
+        [
+          5592,
+          5592
+        ],
+        [
+          5598,
+          5598
+        ],
+        [
+          5599,
+          5599
+        ]
+      ]
+    },
+    "Auto \u2014 parts and service": {
+      "parent": "Auto",
+      "ranges": [
+        [
+          5531,
+          5531
+        ],
+        [
+          5532,
+          5532
+        ],
+        [
+          5533,
+          5533
+        ],
+        [
+          7531,
+          7531
+        ],
+        [
+          7534,
+          7534
+        ],
+        [
+          7535,
+          7535
+        ],
+        [
+          7538,
+          7538
+        ],
+        [
+          7542,
+          7542
+        ],
+        [
+          7549,
+          7549
+        ],
+        [
+          8675,
+          8675
+        ]
+      ]
+    },
+    "Auto \u2014 parking and tolls": {
+      "parent": "Auto",
+      "ranges": [
+        [
+          4784,
+          4784
+        ],
+        [
+          7523,
+          7523
+        ]
+      ]
+    },
+    "Travel": {
+      "parent": "Lifestyle",
+      "ranges": [
+        [
+          4011,
+          4013
+        ],
+        [
+          4111,
+          4112
+        ],
+        [
+          4121,
+          4121
+        ],
+        [
+          4131,
+          4131
+        ],
+        [
+          4411,
+          4411
+        ],
+        [
+          4457,
+          4457
+        ],
+        [
+          4468,
+          4468
+        ],
+        [
+          4511,
+          4511
+        ],
+        [
+          4582,
+          4582
+        ],
+        [
+          4722,
+          4722
+        ],
+        [
+          4723,
+          4723
+        ],
+        [
+          4789,
+          4789
+        ],
+        [
+          5962,
+          5962
+        ],
+        [
+          7011,
+          7011
+        ],
+        [
+          7012,
+          7012
+        ],
+        [
+          7033,
+          7033
+        ],
+        [
+          7512,
+          7512
+        ],
+        [
+          7519,
+          7519
+        ]
+      ]
+    },
+    "Entertainment": {
+      "parent": "Lifestyle",
+      "ranges": [
+        [
+          5735,
+          5735
+        ],
+        [
+          7032,
+          7032
+        ],
+        [
+          7800,
+          7802
+        ],
+        [
+          7829,
+          7829
+        ],
+        [
+          7832,
+          7832
+        ],
+        [
+          7841,
+          7841
+        ],
+        [
+          7911,
+          7941
+        ],
+        [
+          7991,
+          7996
+        ],
+        [
+          7998,
+          7998
+        ],
+        [
+          7999,
+          7999
+        ]
+      ]
+    },
+    "Online & digital": {
+      "parent": "Lifestyle",
+      "ranges": [
+        [
+          4816,
+          4816
+        ],
+        [
+          5734,
+          5734
+        ],
+        [
+          5815,
+          5815
+        ],
+        [
+          5816,
+          5816
+        ],
+        [
+          5818,
+          5818
+        ],
+        [
+          5964,
+          5964
+        ],
+        [
+          5965,
+          5965
+        ],
+        [
+          5967,
+          5967
+        ],
+        [
+          5969,
+          5969
+        ],
+        [
+          7375,
+          7375
+        ]
+      ]
+    },
+    "Subscriptions": {
+      "parent": "Lifestyle",
+      "ranges": [
+        [
+          5817,
+          5817
+        ],
+        [
+          5968,
+          5968
+        ],
+        [
+          7278,
+          7278
+        ]
+      ]
+    },
+    "Education": {
+      "parent": "Lifestyle",
+      "ranges": [
+        [
+          8211,
+          8299
+        ]
+      ]
+    },
+    "Utilities & telecom": {
+      "parent": "Bills & obligations",
+      "ranges": [
+        [
+          4812,
+          4814
+        ],
+        [
+          4821,
+          4821
+        ],
+        [
+          4899,
+          4899
+        ],
+        [
+          4900,
+          4900
+        ]
+      ]
+    },
+    "Insurance": {
+      "parent": "Bills & obligations",
+      "ranges": [
+        [
+          5960,
+          5960
+        ],
+        [
+          6300,
+          6300
+        ],
+        [
+          6381,
+          6381
+        ],
+        [
+          6399,
+          6399
+        ]
+      ]
+    },
+    "Government & tax": {
+      "parent": "Bills & obligations",
+      "ranges": [
+        [
+          9211,
+          9223
+        ],
+        [
+          9311,
+          9311
+        ],
+        [
+          9399,
+          9399
+        ],
+        [
+          9402,
+          9402
+        ],
+        [
+          9405,
+          9405
+        ]
+      ]
+    },
+    "Professional services": {
+      "parent": "Bills & obligations",
+      "ranges": [
+        [
+          7261,
+          7261
+        ],
+        [
+          7276,
+          7276
+        ],
+        [
+          7277,
+          7277
+        ],
+        [
+          7311,
+          7339
+        ],
+        [
+          7361,
+          7361
+        ],
+        [
+          7372,
+          7372
+        ],
+        [
+          7379,
+          7379
+        ],
+        [
+          7392,
+          7394
+        ],
+        [
+          7399,
+          7399
+        ],
+        [
+          7622,
+          7622
+        ],
+        [
+          7631,
+          7631
+        ],
+        [
+          7692,
+          7692
+        ],
+        [
+          7699,
+          7699
+        ],
+        [
+          8111,
+          8111
+        ],
+        [
+          8734,
+          8734
+        ],
+        [
+          8911,
+          8911
+        ],
+        [
+          8931,
+          8931
+        ],
+        [
+          8999,
+          8999
+        ]
+      ]
+    },
+    "Wallets & P2P": {
+      "parent": "Financial",
+      "ranges": [
+        [
+          4829,
+          4829
+        ],
+        [
+          6051,
+          6051
+        ],
+        [
+          6540,
+          6540
+        ]
+      ]
+    },
+    "Cash access": {
+      "parent": "Financial",
+      "ranges": [
+        [
+          6010,
+          6010
+        ],
+        [
+          6011,
+          6011
+        ]
+      ]
+    },
+    "Card & loan payments": {
+      "parent": "Financial",
+      "ranges": [
+        [
+          6012,
+          6012
+        ]
+      ]
+    },
+    "Investments": {
+      "parent": "Financial",
+      "ranges": [
+        [
+          6211,
+          6211
+        ]
+      ]
+    },
+    "Real estate": {
+      "parent": "Financial",
+      "ranges": [
+        [
+          6513,
+          6513
+        ]
+      ]
+    },
+    "Pawn & alternative finance": {
+      "parent": "Risk signals",
+      "ranges": [
+        [
+          5933,
+          5933
+        ]
+      ]
+    },
+    "Wholesale": {
+      "parent": "Business & other",
+      "ranges": [
+        [
+          5013,
+          5199
+        ],
+        [
+          9950,
+          9950
+        ]
+      ]
+    },
+    "Freight & storage": {
+      "parent": "Business & other",
+      "ranges": [
+        [
+          4214,
+          4214
+        ],
+        [
+          4215,
+          4215
+        ],
+        [
+          4225,
+          4225
+        ],
+        [
+          7513,
+          7513
+        ]
+      ]
+    },
+    "Charity & membership": {
+      "parent": "Business & other",
+      "ranges": [
+        [
+          7997,
+          7997
+        ],
+        [
+          8398,
+          8398
+        ],
+        [
+          8641,
+          8641
+        ],
+        [
+          8651,
+          8651
+        ],
+        [
+          8661,
+          8661
+        ],
+        [
+          8699,
+          8699
+        ]
+      ]
+    }
+  },
+  "keyword_buckets": {
+    "Grocery": {
+      "parent": "Everyday",
+      "words": [
+        "WALMART",
+        "TARGET",
+        "COSTCO",
+        "KROGER",
+        "SAFEWAY",
+        "ALDI",
+        "PUBLIX",
+        "WEGMANS",
+        "TRADER JOE",
+        "WHOLE FOODS",
+        "SHAWS",
+        "STOP SHOP",
+        "MARKET BASKET",
+        "FOOD LION",
+        "HANNAFORD",
+        "GROCERY",
+        "SUPERMARKET",
+        "WINN DIXIE",
+        "HEB",
+        "MEIJER",
+        "PIGGLY"
+      ]
+    },
+    "Dining": {
+      "parent": "Everyday",
+      "words": [
+        "MCDONALD",
+        "STARBUCKS",
+        "DUNKIN",
+        "CHIPOTLE",
+        "WENDY",
+        "BURGER KING",
+        "TACO BELL",
+        "SUBWAY",
+        "PIZZA",
+        "RESTAURANT",
+        "CAFE",
+        "DINER",
+        "GRILL",
+        "CHICK FIL",
+        "PANERA",
+        "DOMINO",
+        "KFC",
+        "SONIC",
+        "APPLEBEE",
+        "OLIVE GARDEN",
+        "DOORDASH",
+        "GRUBHUB",
+        "UBER EATS"
+      ]
+    },
+    "Fuel": {
+      "parent": "Everyday",
+      "words": [
+        "SHELL",
+        "EXXON",
+        "MOBIL",
+        "CHEVRON",
+        "SUNOCO",
+        "BP",
+        "CITGO",
+        "MARATHON",
+        "SPEEDWAY",
+        "WAWA",
+        "CIRCLE K",
+        "GULF",
+        "VALERO",
+        "PHILLIPS 66",
+        "RACETRAC",
+        "QUIKTRIP",
+        "CUMBERLAND",
+        "IRVING",
+        "FUEL",
+        "GAS"
+      ]
+    },
+    "Pharmacy & health": {
+      "parent": "Everyday",
+      "words": [
+        "CVS",
+        "WALGREENS",
+        "RITE AID",
+        "PHARMACY",
+        "DENTAL",
+        "MEDICAL",
+        "CLINIC",
+        "HOSPITAL",
+        "OPTICAL",
+        "VETERINARY",
+        "VET "
+      ]
+    },
+    "Online & digital": {
+      "parent": "Lifestyle",
+      "words": [
+        "AMAZON",
+        "AMZN",
+        "EBAY",
+        "ETSY",
+        "PAYPAL",
+        "TEMU",
+        "SHEIN",
+        "WISH COM",
+        "ALIEXPRESS",
+        "GOOGLE",
+        "APPLE COM",
+        "MICROSOFT",
+        "STEAM",
+        "PLAYSTATION",
+        "XBOX"
+      ]
+    },
+    "Subscriptions": {
+      "parent": "Lifestyle",
+      "words": [
+        "NETFLIX",
+        "SPOTIFY",
+        "HULU",
+        "DISNEY PLUS",
+        "MAX COM",
+        "PARAMOUNT",
+        "PEACOCK",
+        "AUDIBLE",
+        "APPLE BILL",
+        "PRIME VIDEO",
+        "SIRIUS",
+        "PATREON",
+        "ONLYFANS",
+        "SUBSTACK"
+      ]
+    },
+    "Travel": {
+      "parent": "Lifestyle",
+      "words": [
+        "AIRLINES",
+        "AIRLINE",
+        "DELTA AIR",
+        "UNITED",
+        "SOUTHWES",
+        "AMERICAN AIR",
+        "JETBLUE",
+        "HOTEL",
+        "MARRIOTT",
+        "HILTON",
+        "AIRBNB",
+        "VRBO",
+        "EXPEDIA",
+        "UBER",
+        "LYFT",
+        "HERTZ",
+        "ENTERPRISE",
+        "AMTRAK",
+        "CRUISE"
+      ]
+    },
+    "Utilities & telecom": {
+      "parent": "Bills & obligations",
+      "words": [
+        "COMCAST",
+        "XFINITY",
+        "VERIZON",
+        "ATT ",
+        "T MOBILE",
+        "SPECTRUM",
+        "COX COM",
+        "NATIONAL GRID",
+        "EVERSOURCE",
+        "ELECTRIC",
+        "WATER",
+        "UTILITY",
+        "ENERGY",
+        "POWER LIGHT"
+      ]
+    },
+    "Entertainment": {
+      "parent": "Lifestyle",
+      "words": [
+        "CINEMA",
+        "THEATRE",
+        "THEATER",
+        "AMC ",
+        "REGAL",
+        "TICKETMASTER",
+        "STUBHUB",
+        "CASINO",
+        "LOTTERY",
+        "GOLF",
+        "BOWL"
+      ]
+    },
+    "Auto \u2014 parts and service": {
+      "parent": "Auto",
+      "words": [
+        "AUTOZONE",
+        "O REILLY",
+        "ADVANCE AUTO",
+        "NAPA",
+        "JIFFY LUBE",
+        "VALVOLINE",
+        "CAR WASH",
+        "TIRE"
+      ]
+    },
+    "Home & garden": {
+      "parent": "Everyday",
+      "words": [
+        "HOME DEPOT",
+        "LOWES",
+        "ACE HDWE",
+        "HARBOR FREIGHT",
+        "CARWASH"
+      ]
+    }
+  }
+}
