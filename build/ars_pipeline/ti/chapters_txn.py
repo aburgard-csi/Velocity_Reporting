@@ -113,7 +113,7 @@ def compute_all(ctx):
     out = {}
     for section in (T.portfolio, T.financial_services, T.competition, T.merchants,
                     T.merchant_profiles, T.mapping_audit, T.card_behavior, T.interchange,
-                    T.relationship, T.leakage, T.stressors_txn):
+                    T.relationship, T.overlay, T.leakage, T.stressors_txn):
         try:
             out.update(section(ctx) or {})
         except Exception as exc:                  # one section, never the chapter (v5's rule)

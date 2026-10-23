@@ -22,6 +22,18 @@ there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.tx
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
+### 2026-10-23 — Deposits: where money in flight is already going, matching v5
+
+Summary: The flight overlay is ported: the accounts whose balance is falling against its average,
+joined to the named competitors and providers their money already goes to. Matches James's v5 engine
+for 1776 CoastHills. With this the transaction side of every chapter is in: the Attrition chapter's two
+cross-source slides now draw. No ARS deck changes.
+
+`ti/transaction_intelligence/overlay.py` is ported unchanged; it reads the competitor rows and the
+addressable accounts the earlier sections hand on (`ti/txn_sections.overlay`, after relationship, as in
+v5's run). v5's overlay tests rejoin `test_ti_txn_sections.py` (now whole) and
+`test_ti_txn_attrition_slides.py` comes across. Parity: 18/18 on 1776 (2026-09).
+
 ### 2026-10-23 — Competition: where the branch loses accounts and leaks money, matching v5
 
 Summary: The branch hotspots are ported: each branch's closure rate beside its competitor leakage, so the

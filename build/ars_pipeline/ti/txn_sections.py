@@ -256,3 +256,13 @@ def hotspots(ctx, metrics):
     from ti.transaction_intelligence import hotspots as H
     return H.compute(ctx.frame, metrics.get("comp_by_branch"), ctx.anchor,
                      ctx.config.get("BranchMapping"), ctx.warn)
+
+
+def overlay(ctx):
+    """Deposit flight x competitor: the accounts whose balance is in flight, joined to where their
+    money already goes (v5 run.py, after relationship). Reads the competitor rows and the
+    addressable accounts the earlier sections hand on."""
+    from ti.transaction_intelligence import overlay as O
+    out, _files = O.compute(ctx.lenses, ctx.shared.get("competitor_accounts"),
+                            ctx.shared.get("addressable_accounts"), ctx.shared.get("lists_dir"), ctx.warn)
+    return out

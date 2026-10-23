@@ -1,5 +1,4 @@
 # Ported from ARS v5 02-Scripts/tests/test_txn_sections.py at a491b5c (James Gilmore); logic unchanged.
-# Not yet here (they arrive with the flight overlay): test_overlay_joins_flight_to_named_destinations, test_overlay_declines_without_balance_columns, test_overlay_destinations_carry_the_deposit_decline.
 """merchants / card_behavior / relationship / lens families: hand-built frame,
 every answer known.
 
@@ -269,6 +268,47 @@ def test_family_masks_and_table(ctx):
 # overlay (deposit flight x competitor)
 # ---------------------------------------------------------------------------
 
+def test_overlay_joins_flight_to_named_destinations(tmp_path):
+    from ti.transaction_intelligence import overlay
+    ids = pd.Index(["A1", "A2", "A3", "A4"])
+    masks = {"all": pd.Series(True, index=ids)}
+    # A1: high balance, declining, pays Chase.  A2: high, declining, leaks to
+    # Auto Loans.  A3: high but GROWING.  A4: declining but small balance.
+    attrs = pd.DataFrame({"Curr Bal": [30_000.0, 40_000.0, 50_000.0, 5_000.0],
+                          "Avg Bal": [35_000.0, 41_000.0, 45_000.0, 9_000.0],
+                          "Branch": ["1", "2", "1", "2"]}, index=ids)
+    lenses = Lenses(key_column="Acct ID", accounts=ids, masks=masks, attrs=attrs)
+    comp_rows = [["A1", "Chase", 1200.0], ["A3", "Ally", 500.0]]
+    addr_rows = [["A2", "Auto Loans", 4800.0], ["A3", "Mortgage/HELOC", 9000.0]]
+    warnings = []
+    m, out = overlay.compute(lenses, comp_rows, addr_rows, tmp_path, warnings.append)
+    assert m["ovl_flight_n"] == 2                       # A1, A2 (A3 growing, A4 small)
+    # The transaction run never sees the deposits file, so the overlay
+    # stays on the proxy and must say so beside its count.
+    assert m["ovl_flight_basis"] == "balance proxy"
+    assert m["ovl_flight_with_competitor"] == 1         # A1
+    assert m["ovl_flight_leaking"] == 1                 # A2
+    assert m["ovl_named_destination_n"] == 2
+    assert m["ovl_named_destination_pct"] == 100.0
+    dest = {r[0]: r for r in m["ovl_destinations"]}
+    assert dest["Chase"][1] == 1 and "Ally" not in dest # A3 is not flight risk
+    lst = pd.read_csv(out["overlay_list"])
+    assert set(lst["acct"]) == {"A1", "A2"}
+    assert lst[lst["acct"] == "A1"]["institutions"].iloc[0] == "Chase"
+
+
+def test_overlay_declines_without_balance_columns():
+    from ti.transaction_intelligence import overlay
+    ids = pd.Index(["A1"])
+    lenses = Lenses(key_column="Acct ID", accounts=ids,
+                    masks={"all": pd.Series(True, index=ids)},
+                    attrs=pd.DataFrame(index=ids))
+    warnings = []
+    m, out = overlay.compute(lenses, [["A1", "Chase", 1.0]], [], None, warnings.append)
+    assert m == {} and out == {}
+    assert any("Curr Bal" in w for w in warnings)
+
+
 # ---------------------------------------------------------------------------
 # report: family tables must not masquerade as deposit dollars
 # ---------------------------------------------------------------------------
@@ -361,6 +401,38 @@ def test_behavior_lens_of_blank_amount_txns_reports_none_median():
         m = card_behavior.compute(df, OneLens(), ANCHOR, lambda _m: None)
     row = next(r for r in m["beh_by_lens"] if r[0] == "blankers")
     assert row[3] is None            # median ticket: absent, not NaN
+
+
+def test_overlay_destinations_carry_the_deposit_decline(tmp_path):
+    """Opportunity #1 (triage 2026-08-21): the destination table must say
+    how much the deposits BEHIND each destination have declined -- and the
+    action list leads with the biggest declines, not the biggest balances."""
+    from ti.transaction_intelligence import overlay
+    ids = pd.Index(["A1", "A2", "A3"])
+    masks = {"all": pd.Series(True, index=ids)}
+    # A1 declines 5K and pays Chase; A2 declines 1K and pays Chase;
+    # A3 declines 9K and leaks to Auto Loans
+    attrs = pd.DataFrame({"Curr Bal": [30_000.0, 40_000.0, 26_000.0],
+                          "Avg Bal": [35_000.0, 41_000.0, 35_000.0]},
+                         index=ids)
+    lenses = Lenses(key_column="Acct ID", accounts=ids, masks=masks,
+                    attrs=attrs)
+    comp_rows = [["A1", "Chase", 1200.0], ["A2", "Chase", 300.0]]
+    addr_rows = [["A3", "Auto Loans", 4800.0]]
+    m, out = overlay.compute(lenses, comp_rows, addr_rows, tmp_path,
+                             lambda _w: None)
+    cols = m["ovl_destinations_columns"]
+    assert cols[-1] == "deposit_decline"
+    dest = {r[0]: r for r in m["ovl_destinations"]}
+    assert dest["Chase"][cols.index("deposit_decline")] == 6000   # 5K + 1K
+    ccols = m["ovl_categories_columns"]
+    assert ccols[-1] == "deposit_decline"
+    cats = {r[0]: r for r in m["ovl_categories"]}
+    assert cats["Auto Loans"][ccols.index("deposit_decline")] == 9000
+    # the list leads with the biggest decline (A3, -9K), not the biggest
+    # balance (A2, 40K)
+    lst = pd.read_csv(out["overlay_list"])
+    assert list(lst["acct"])[:2] == ["A3", "A1"]
 
 
 # ---------------------------------------------------------------- ICS lens
