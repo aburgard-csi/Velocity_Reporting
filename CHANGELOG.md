@@ -22,6 +22,16 @@ there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.tx
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
+### 2026-10-23 — Competition: where the branch loses accounts and leaks money, matching v5
+
+Summary: The branch hotspots are ported: each branch's closure rate beside its competitor leakage, so the
+branches losing on both show together. They feed "Where we leak, by branch" and "Where we lose and where we
+leak". Matches James's v5 engine for 1776 CoastHills. No ARS deck changes.
+
+`ti/transaction_intelligence/hotspots.py` is ported unchanged with v5's `test_hotspots.py`; it joins the
+attrition and competition figures and recomputes neither (`ti/txn_sections.hotspots`, run after the
+stressors and before the family tables, as in v5's run). Parity: 11/11 on 1776 (2026-09).
+
 ### 2026-10-23 — Attrition: stresses counted across the ODD and the transaction file, matching v5
 
 Summary: The cross-source stressor count is ported: the ODD's at-risk conditions plus "banking

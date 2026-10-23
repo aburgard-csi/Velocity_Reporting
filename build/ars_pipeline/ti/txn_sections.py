@@ -248,3 +248,11 @@ def stressors_txn(ctx):
     out, _files = SX.compute(ctx.frame, ctx.shared.get("competitor_accounts"), ctx.anchor, ctx.config,
                              ctx.shared.get("lists_dir"), ctx.warn)
     return out
+
+
+def hotspots(ctx, metrics):
+    """Attrition x competition, per branch: joins the two chapters' own figures and recomputes
+    neither (v5 run.py). Reads comp_by_branch from the competition figures in `metrics`."""
+    from ti.transaction_intelligence import hotspots as H
+    return H.compute(ctx.frame, metrics.get("comp_by_branch"), ctx.anchor,
+                     ctx.config.get("BranchMapping"), ctx.warn)

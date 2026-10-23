@@ -60,6 +60,7 @@ REGISTRY = {
         _txn().financial_services(c), _txn().competition(c))),
     "leakage": ("txn_metrics.json", lambda c: (_txn().ensure_competition(c), _txn().leakage(c))[1]),
     "stressors_txn": ("txn_metrics.json", lambda c: (_txn().ensure_competition(c), _txn().stressors_txn(c))[1]),
+    "hotspots": ("txn_metrics.json", lambda c: _txn().hotspots(c, _txn().ensure_competition(c))),
     "mapping_audit": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c),
                                                      _txn().merchants(c), _txn().mapping_audit(c))[3]),
 }

@@ -113,10 +113,18 @@ def compute_all(ctx):
     out = {}
     for section in (T.portfolio, T.financial_services, T.competition, T.merchants,
                     T.merchant_profiles, T.mapping_audit, T.card_behavior, T.interchange,
-                    T.relationship, T.leakage, T.stressors_txn, T.family_tables):
+                    T.relationship, T.leakage, T.stressors_txn):
         try:
             out.update(section(ctx) or {})
         except Exception as exc:                  # one section, never the chapter (v5's rule)
+            ctx.warn(f"{section.__name__} failed: {type(exc).__name__}: {exc}")
+    def hotspots(c):                              # reads comp_by_branch from the figures so far
+        return T.hotspots(c, out)
+
+    for section in (hotspots, T.family_tables):   # v5's order: hotspots, then the family tables
+        try:
+            out.update(section(ctx) or {})
+        except Exception as exc:
             ctx.warn(f"{section.__name__} failed: {type(exc).__name__}: {exc}")
     out.update(T.filed(ctx, out))
     return out
