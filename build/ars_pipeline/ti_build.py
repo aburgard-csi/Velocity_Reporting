@@ -72,6 +72,8 @@ def compute_pack(client_id, period, name, ics=False):
         raise SystemExit(f"client {client_id}: the ODD transform failed: {'; '.join(report.errors)}")
     warnings += list(report.warnings)
     cfg = config.client_config(client_id, warn=warnings.append)
+    from ti import deposits_input
+    cfg = deposits_input.attach(cfg, client_id, warnings.append)
     if ics:
         frame = lens.attach_ics(frame, client_id, warnings.append, expected=True)
     anchor = odd.frame_data_month(frame)

@@ -176,4 +176,5 @@ COMP_CHAPTER = cut.Chapter(
     _comp_stats, lambda ctx: _build(ctx, COMP_BUILDERS, "Competition", "charts_comp"),
     lambda ctx: {})
 
+# registered in deck order by ti/chapters/__init__.py (transaction_intelligence, competition)
 CHAPTERS = (TI_CHAPTER, COMP_CHAPTER)

@@ -101,6 +101,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | Branch names: `branch_names.csv` (one row per name a source gave a client's branch number, with first/last seen; kept by the morning source check) and `charts_files.csv` (Charts workbooks matched to a client id by hand) | `Inputs/Branch Names/` |
 | Client logos (`<clientid>.png`) | `Inputs/Logos/` |
 | Monthly debit-card transaction files, one folder per client, **stored zipped**: `<original name>.zip`, one file each (Aaron, 2026-09-17). **They come from the CSM ODDD folders** (Aaron, 2026-10-20; James's issue #23): the data team ships each one INSIDE `<id>_ODDD.zip` beside the ODD member, or unzipped in a `<id>_ODDD/` folder, and `scripts/land_txn_files.py` copies every non-ODD member out as its own zip here, by the member's banner line (a member the banner calls a *Master File* is not a transaction file and is reported, not landed), leaving the extract whole. It is run by hand, not by the 08:00 watch (50-minute limit; a month is about 10 GB). No deck reads them yet; any reader goes through `rpe_env.txn_files()` / `open_txn()`, which take either form — four files a security agent refuses to let the share hold zipped are still raw, and read the same way. `scripts/zip_txn_files.py` zips raw arrivals (safe to re-run) | `Inputs/Txn Files/<id>/` |
+| The ILS deposits extract, rolling 365 days, one per client: `<id>_<Client>_ILSDeposits_<yyyy.mm>.zip` holding one CSV of hashed_account, deposit_date, deposit_amount (James Gilmore, 2026-10-23). Read only by the Transaction Intelligence cut, which takes a client's OWN file (`ti/deposits_input.py`); not scanned by the watch | `Inputs/Deposits/` |
 | ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
 | Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
 | A launcher build's working files (log, charts, data, result) — its clean deck goes straight to `Outputs/<CSM>/` | `Build Artifacts/launcher/<period>/<id>/` |
@@ -970,6 +971,8 @@ This is the readme index — update it whenever files are added, removed, or mov
   `use_font`) and `helpers.py`, the helper bundle v5's slide builders draw through, on RPE's anatomy.
   `ti/transaction_intelligence/` holds v5's transaction-file analyses; `ti/txn_stage.py` stages the
   window's zipped files from `Inputs/Txn Files/<id>/` once into a local cache for v5's loader.
+  `ti/chapters/` holds the cut's chapters in deck order (deposits first to land); `ti/odd_sections.py`
+  runs v5's ODD sections; `ti/deposits_input.py` reads the client's own `Inputs/Deposits` file.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

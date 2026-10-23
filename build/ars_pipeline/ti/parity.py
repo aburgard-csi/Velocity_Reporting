@@ -63,6 +63,10 @@ REGISTRY = {
 }
 
 
+# the ODD sections register themselves in ti/odd_sections.py
+from ti import odd_sections as _odd  # noqa: E402
+REGISTRY.update(_odd.PARITY)
+
 def _norm(value):
     """Through JSON, as v5 wrote its figures: tuples become lists, numpy scalars numbers."""
     return json.loads(json.dumps(value, default=lambda o: o.item() if hasattr(o, "item") else str(o)))
