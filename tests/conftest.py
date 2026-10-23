@@ -76,8 +76,8 @@ def _ti_pandas2_strings(request):
     ported v5 code and its entry points do (build/ars_pipeline/ti/compat.py). No other test
     is touched."""
     if request.module.__name__.startswith("test_ti_"):
-        import pandas as pd
-        with pd.option_context("future.infer_string", False):
+        from ti.compat import legacy_strings
+        with legacy_strings():
             yield
     else:
         yield

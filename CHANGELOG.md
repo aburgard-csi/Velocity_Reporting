@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: account retention, matching v5
+
+Summary: The retention analysis is ported: which accounts are active, cooling, declining or dormant,
+survival by tenure, and the at-risk cuts behind the attrition chapter. All 34 figures match James's
+v5 engine for 1761 CapEd, 1776 CoastHills and 1100 Rally CU. No deck changes.
+
+`ti/monthly_analysis/retention.py` is ported unchanged with v5's retention tests. `ti/odd_sections.py`
+runs v5's ODD sections on the shared context, as `ti/txn_sections.py` runs the transaction ones; its
+`PARITY` entries join the parity check's registry. A second pandas 2 / pandas 3 difference is
+restored inside `ti.compat.legacy_strings()`: pandas 3 returns NaT for `pd.to_datetime(None)` where
+pandas 2 returned None, and v5 tests `is not None` after reading an optional date column (24 places),
+so a missing column raised instead of skipping its cut. `tests/conftest.py` now applies the same
+`legacy_strings()` to `test_ti_*` tests. Parity: retention 34/34 on 1761 (2026-10), 1776 and 1100
+(2026-09), run on v5's own config at `a491b5c`.
+
 ### 2026-10-23 — Transaction Intelligence: financial services and leakage, matching v5
 
 Summary: The financial-services analysis is ported: which outside lenders, card issuers, brokers,
