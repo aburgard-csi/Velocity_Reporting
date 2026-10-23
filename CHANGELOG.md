@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-23 — Transaction Intelligence: card spend by merchant and who spends, matching v5
+
+Summary: The merchant analyses are ported: where personal card spend goes by merchant and category,
+which merchants are rising, new or fading, the MCC codes behind the categories, and card use by age
+and tenure. Every figure matches James's v5 engine for 1761 CapEd. No deck changes.
+
+`ti/transaction_intelligence/merchants.py` and `merchant_profiles.py` are ported unchanged with v5's
+MCC-mapping and merchant-profile tests; both run on the personal card base, sharing one category spec
+(`ti/txn_sections.py`). Parity on 1761 (2026-10): merchants 28/28, merchant profiles 25/25. On 1776
+(2026-09) merchants match 28/28; v5's run there predates the merchant profiles, so it has none of
+their keys to compare.
+
 ### 2026-10-23 — Transaction Intelligence: financial services and leakage, matching v5
 
 Summary: The financial-services analysis is ported: which outside lenders, card issuers, brokers,

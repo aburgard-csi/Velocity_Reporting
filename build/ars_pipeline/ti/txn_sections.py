@@ -55,3 +55,33 @@ def financial_services(ctx):
     # v5's run pops this hand-off before writing and gives it to the overlay section
     ctx.shared["addressable_accounts"] = out.pop("_addressable_accounts", None)
     return out
+
+
+MCHB_KEYS = ("mchb_base_label", "mchb_card_accounts", "mchb_card_spend", "mchb_top", "mchb_by_category")
+
+
+def merchants(ctx):
+    """mch_* on personal card spend, mchb_* (v5's subset) on business; the category spec is
+    handed on to the profiles and the mapping audit."""
+    from ti.transaction_intelligence import merchants as M
+    personal, business, base_label = base_accounts(ctx)
+    spec = M.load_categories(dictionaries.folder())
+    ctx.shared["mch_spec"] = spec
+    out = M.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.warn,
+                    account_filter=personal, key_prefix="mch_", base_label=base_label)
+    if business is not None and len(business):
+        mb = M.compute(ctx.txn, None, spec, ctx.anchor_ts, lambda _m: None,
+                       account_filter=business, key_prefix="mchb_",
+                       base_label="transacting business accounts")
+        out.update({k: v for k, v in mb.items() if k in MCHB_KEYS})
+    return out
+
+
+def merchant_profiles(ctx):
+    """Who spends on the card and how that is shifting: same personal base and category spec."""
+    from ti.transaction_intelligence import merchant_profiles as MP
+    from ti.transaction_intelligence import merchants as M
+    personal, _business, base_label = base_accounts(ctx)
+    spec = ctx.shared.get("mch_spec") or M.load_categories(dictionaries.folder())
+    return MP.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.warn, account_filter=personal,
+                      key_prefix="mch_", base_label=base_label)

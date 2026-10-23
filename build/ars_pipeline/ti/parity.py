@@ -45,6 +45,8 @@ REGISTRY = {
     "bases": ("metrics.json", _bases),
     "portfolio": ("txn_metrics.json", lambda c: _txn().portfolio(c)),
     "financial_services": ("txn_metrics.json", lambda c: _txn().financial_services(c)),
+    "merchants": ("txn_metrics.json", lambda c: _txn().merchants(c)),
+    "merchant_profiles": ("txn_metrics.json", lambda c: _txn().merchant_profiles(c)),
 }
 
 
