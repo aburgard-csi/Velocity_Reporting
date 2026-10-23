@@ -22,6 +22,17 @@ there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.tx
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
+### 2026-10-23 — Attrition: stresses counted across the ODD and the transaction file, matching v5
+
+Summary: The cross-source stressor count is ported: the ODD's at-risk conditions plus "banking
+elsewhere", which only the transaction file can see, counted per account. Matches James's v5 engine for
+1776 CoastHills. No ARS deck changes.
+
+`ti/transaction_intelligence/stressors_txn.py` is ported unchanged with v5's `test_stressors_txn.py`; it
+reads the competitor rows the competition section hands on and the ODD-side conditions, facts,
+attrition hazard and stressor count (`ti/txn_sections.stressors_txn`, after leakage, as in v5's run).
+Parity: 10/10 on 1776 (2026-09).
+
 ### 2026-10-23 — Attrition: competitor spend before a closure, matching v5
 
 Summary: The "Competitor spend before closure" figures are ported: whether money paid to competitors

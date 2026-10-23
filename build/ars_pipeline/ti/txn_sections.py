@@ -239,3 +239,12 @@ def leakage(ctx):
     only the transaction file can see (the competitor monthly rows competition hands on)."""
     from ti.transaction_intelligence import leakage as LK
     return LK.compute(ctx.frame, ctx.shared.get("competitor_monthly"), ctx.anchor, ctx.warn)
+
+
+def stressors_txn(ctx):
+    """The stressor count across both sources: the ODD's conditions plus "banking elsewhere", which
+    only the transaction file can see (v5 run.py). Lists go to ctx.shared["lists_dir"] when set."""
+    from ti.transaction_intelligence import stressors_txn as SX
+    out, _files = SX.compute(ctx.frame, ctx.shared.get("competitor_accounts"), ctx.anchor, ctx.config,
+                             ctx.shared.get("lists_dir"), ctx.warn)
+    return out
