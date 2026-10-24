@@ -952,12 +952,14 @@ This is the readme index — update it whenever files are added, removed, or mov
   SEPARATE deck, in an ARS lens and an ICS lens, for the transaction intelligence, competition,
   attrition and deposit analyses migrated one at a time from his ARS v5 engine. It never edits the
   ARS deck, its metrics or its template; an overlap with an existing slide is recorded, not
-  replaced. `ti/cut.py` holds the lenses, the chapter list (deck order; empty until the first
-  chapter lands) and the file name `<id>-<yyyy.mm>-TI-<ARS|ICS>-<Client> Transaction
+  replaced. `ti/cut.py` holds the lenses, the chapter list (`CHAPTERS`, resolved on first use from
+  `ti/chapters/`, which imports `cut` for `Chapter`) and the file name `<id>-<yyyy.mm>-TI-<ARS|ICS>-<Client> Transaction
   Intelligence.pptx` — "TI" is not a program tag, so `promote_month` never reads it as an ARS
   deck. `ti/frame.py` is the slide frame chapters draw on; its `notes()` refuses a note with no
-  Source line. Not called by `build_month` or the launcher yet. `ti/PORTING.md` holds the porting
-  rules; `ti/core/` the v5 foundation modules (periods, ODD transform, account bases, facts);
+  Source line. `ti/PORTING.md` holds the porting
+  rules; `ti/compat.py` runs the ported code under v5's pandas 2 semantics inside a with-block, never
+  process-wide (entry points and `test_ti_*` only); `ti/context.py` is the `Ctx` every computation
+  is handed, shared by the build and the parity check; `ti/core/` the v5 foundation modules (periods, ODD transform, account bases, facts);
   `ti/odd.py` reads the client's ODD as v5 does; `ti/config.py` the client config the analyses
   read (a v5-shaped file when supplied, else derived from `ars_code_tables.json`, and said so);
   `ti/lens.py` the ARS and ICS lens groups, with the ICS lists found in `Inputs/ICS Direct Mail`
@@ -970,9 +972,14 @@ This is the readme index — update it whenever files are added, removed, or mov
   `ti/deck/` holds v5's chart renderers, headlines and copy rules (palette and face from `brand` /
   `use_font`) and `helpers.py`, the helper bundle v5's slide builders draw through, on RPE's anatomy.
   `ti/transaction_intelligence/` holds v5's transaction-file analyses; `ti/txn_stage.py` stages the
-  window's zipped files from `Inputs/Txn Files/<id>/` once into a local cache for v5's loader.
-  `ti/chapters/` holds the cut's chapters in deck order (deposits first to land); `ti/odd_sections.py`
-  runs v5's ODD sections; `ti/deposits_input.py` reads the client's own `Inputs/Deposits` file.
+  window's zipped files from `Inputs/Txn Files/<id>/` once into a local cache for v5's loader;
+  `ti/txn_sections.py` is v5's transaction run one section at a time, in v5's order;
+  `ti/dictionaries/` the three reference dictionaries the transaction analyses classify against
+  (competitors, financial-service patterns, merchant categories; copied from v5 `0_Config/`).
+  `ti/chapters/` holds the cut's five chapters in deck order (Transaction Intelligence, Competition,
+  Attrition, Deposits, ICS accounts); `ti/chapters_txn.py` computes and builds the first two;
+  `ti/odd_sections.py` runs v5's ODD sections; `ti/deposits_input.py` reads the client's own
+  `Inputs/Deposits` file.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
