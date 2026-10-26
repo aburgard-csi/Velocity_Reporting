@@ -2158,6 +2158,7 @@ def _bigfont(sl):
 import cover_divider as _cd
 _cd_logo = _cd.client_logo_for(ID, os.path.dirname(OUT) or ".")
 _cd.draw_cover(list(_bp.slides)[0], [_cd.PRODUCT_ARS], NAME, PRESENT_MONTH, client_logo=_cd_logo)
+_cd.restyle_closing(_bp)        # the Questions & Discussion slide, in the brand template's closing style
 _cd_n = 0
 for _sl in list(_bp.slides):
     if _cd.is_divider(_sl):

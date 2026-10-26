@@ -21,6 +21,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — The cover, section dividers and closing slide use the CSI brand template's design
+
+Summary: Every deck's cover, section dividers and closing slide now follow the CSI brand template: a white cover with the blue band and the CSI logo, gradient dividers with the sunrise wedge, and a gradient closing slide with the large logo.
+
+Aaron, 2026-10-26: "start the larger template rebuild" (after the orange-only restyle, #62), from "Updated Brand Presentation Sept. 2026.potx".
+
+`build/cover_divider.py` draws all three. The art (the slanted band, the red-to-gold wedge, the gradients, the three logo pictures) is lifted out of the template once by `scripts/extract_brand_art.py` into `build/assets/csi_brand/` with its theme colours made literal, because the shells' theme is the stock Office one and `accent2`..`accent5` mean other colours there; `build/brand_art.py` places it. The client name is now the 60 pt cover title with the "Executive Review  •  <month>" line under it (the line the validator and combiner read), the products are outline chips, and the client's logo sits on a white card at the top right; the 84 pt month and the orange client name are gone. Dividers: the section name at 52 pt, the benefits line at 24 pt, the progress track moved up to 5.65" to clear the wedge. The closing slide is redrawn by `cover_divider.restyle_closing` in the ARS, ICS and MRPC builders and `redraw_closing_in_place` in CashPlease and Transaction Intelligence, keeping the "<client>  •  <month>" line each swapped in; it adds the template's "csiweb.com". **The "| Velocity Solutions" half of the old lockup is gone from these three slide types:** the template's logo is CSI alone. A first render showed two defects, both fixed: the combiner put the product chips straight after the background, which hid them behind the band, and the logo's coloured mark vanished against the orange wedge (the divider uses an all-white version, made by the extractor). Checked by rendering Austin Bank 1075 (ARS+ICS+MRPC) and WesBanco 1632 (ICS+CashPlease) through PowerPoint and looking at the cover, dividers and closing slide; both validate with 0 FAIL. **Not done:** the Contact Us slide, the Executive Summit slide, the content slides' own look, the shells' theme colours, and Sheila and the dashboard pages.
+
 ### 2026-10-26 — The Sept. 2026 brand orange (#F15D22) on every deck
 
 Summary: Decks are drawn with the new CSI orange from the Sept. 2026 brand template instead of the old one.
