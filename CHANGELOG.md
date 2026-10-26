@@ -30,6 +30,17 @@ Aaron: "All new clients will be on MM revenue calculations. Also we need to work
 - `build_month.read_roster`: an ARS row whose path is blank or `—` is MM. SM is recorded, never assumed, so every consumer of the path (launcher, Sheila's Lift Matrix tab, dashboards) sees it.
 - `actuals_tab.read`: the month header row needs 3 date columns, not 5, and the revenue row is found under "Total Marginal Revenue" as well as "Total Marginal Revenues".
 
+### 2026-10-23 — The Transaction Intelligence check's window ends at the data month
+
+Summary: Sheila's count of transaction files on hand now covers the same twelve months the
+Transaction Intelligence build reads, ending at the month before the cycle; it had run one month
+ahead. No deck changes.
+
+Running the portfolio analysis for 1615 Cape & Coast on 2026-10-23 showed the builder's window as
+Oct 25 to Sep 26 (the ODD's newest month is September) while Sheila's check said Nov 25 to Oct 26 and
+reported October missing. `ars_launcher.txn_months_on_hand` now anchors on the month before the
+period, as `ti_build` does through `odd.frame_data_month`.
+
 ### 2026-10-23 — Sheila builds the Transaction Intelligence decks as a separate presentation
 
 Summary: An ARS client's page in CSM Sheila now has a Transaction Intelligence panel under the
