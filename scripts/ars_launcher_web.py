@@ -1955,6 +1955,7 @@ button.primary.warn{background:var(--orange)}
 button.primary:disabled{background:var(--ink3);cursor:not-allowed}
 button.link{font:inherit;background:none;border:0;color:var(--sent);text-decoration:underline;cursor:pointer;padding:0}
 .progress{margin-top:20px}
+.progress .notes{margin:6px 0 4px;padding-left:18px;font-size:13.5px;color:var(--ink2)} .progress .notes .warn{color:var(--warn)}
 .progress h3,.last h3{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:0 0 8px}
 .steps{list-style:none;margin:0;padding:0;display:grid;gap:5px}
 .steps li{display:flex;gap:10px;align-items:center}
@@ -1970,14 +1971,6 @@ button.link{font:inherit;background:none;border:0;color:var(--sent);text-decorat
 .result p{margin:4px 0}
 .mono{font-family:Consolas,monospace;font-size:13px;word-break:break-all}
 details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2);font-size:13px;width:max-content}
-.term{margin-top:8px;border-radius:8px;overflow:hidden;background:#0C0C0C;border:1px solid #2B2B2B;box-shadow:0 6px 18px rgba(0,0,0,.25)}
-.term .bar{display:flex;align-items:center;gap:8px;height:32px;padding-left:12px;background:#1F1F1F;color:#CCCCCC;font:12px/1 "Segoe UI",Arial,sans-serif}
-.term .bar .ttl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.term .bar .ctl{display:flex;height:100%} .term .bar .ctl span{width:42px;display:grid;place-items:center;color:#9D9D9D}
-.term pre{margin:0;padding:10px 14px 14px;color:#CCCCCC;font:13px/1.45 "Cascadia Mono",Consolas,"Courier New",monospace;max-height:340px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-.term .g{color:#16C60C} .term .y{color:#F9F1A5} .term .r{color:#E74856} .term .c{color:#61D6D6} .term .b{color:#3B78FF}
-.term .cursor{animation:blink 1s steps(1) infinite} @keyframes blink{50%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.term .cursor{animation:none}}
 .last{margin-top:18px;color:var(--ink2);font-size:14px}
 .ti{margin-top:26px;padding-top:16px;border-top:1px solid var(--rule)}
 .ti .tihead{margin:0 0 10px;font-size:16px} .ti .tihead .sub{font-weight:400;margin-left:8px}
@@ -2348,7 +2341,7 @@ function tiPanel(s) {
   else verdict = `<div class="verdict stop"><p><b>Can't build the Transaction Intelligence decks yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="tirecheck">Check again</button></div>`;
   const last = t.last ? `<div class="last"><h3>Last Transaction Intelligence build from this tool</h3>${esc(t.last.finished)} by ${esc(t.last.by)}: ${esc(t.last.result)}${t.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
   return `<div class="ti" id="tipanel"><h3 class="tihead">Transaction Intelligence <span class="sub">a separate presentation, not the Executive Review</span></h3>
-    <ul class="checks">${checks}</ul>${verdict}${last}</div>`;
+    <ul class="checks">${checks}</ul>${verdict}<div id="jobti"></div>${last}</div>`;
 }
 
 async function buildTI(s) {
@@ -2358,11 +2351,11 @@ async function buildTI(s) {
   for (const b of others) b.disabled = true;
   try {
     const {status, body} = await api("/api/build", {method: "POST", body: JSON.stringify({client: s.client, rebuild: s.ti.state === "ask", ti: true})});
-    if (status === 409) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(body.error)}</p>`; return; }
+    if (status === 409) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; ($("#jobti") || $("#job")).innerHTML = `<p class="err">${esc(body.error)}</p>`; return; }
     go.textContent = body.queued ? `Queued #${body.queued}` : "Building…";
     pollQueue();
     follow(s.client);
-  } catch (e) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; $("#job").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  } catch (e) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; ($("#jobti") || $("#job")).innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
 async function build(s, combined) {
@@ -2395,12 +2388,6 @@ function follow(id) {
   tick(); poller = setInterval(tick, 1500);
 }
 
-let logOpen = false;
-const TERM_CLS = {ok: "g", "!!": "y", built: "b", STOP: "r", "..": "c"};
-function termLine(l) {
-  const m = l.match(/^(\s*)\[(ok|!!|built|STOP|\.\.)\](.*)$/);
-  return m ? `${esc(m[1])}<span class="${TERM_CLS[m[2]]}">[${esc(m[2])}]</span>${esc(m[3])}` : esc(l);
-}
 
 function renderJob(j) {
   if (!j || !j.lines) return;
@@ -2423,34 +2410,26 @@ function renderJob(j) {
     html += `<li><span class="dot ${done ? "done" : "now"}"></span><span>${esc(st.name)}</span><span class="t">${st.min !== "" ? esc(st.min) + " min" : ""}</span></li>`; });
   if (!steps.length && !j.done && !j.queued) html += `<li><span class="dot now"></span><span>Starting the build…</span></li>`;
   html += `</ul>`;
+  // The launcher's own lines after the first step (the validation result, a warning, where the deck went).
+  // They used to be visible only in a raw log box under the steps; now they are part of the result.
+  const notes = marks.filter(x => x.level !== "STOP");
+  const notesHtml = notes.length ? `<ul class="notes">${notes.map(x => `<li${x.level === "!!" ? ' class="warn"' : ""}>${esc(x.text)}</li>`).join("")}</ul>` : "";
   const stop = marks.find(x => x.level === "STOP") || (j.done && j.code ? {text: [...j.lines].reverse().find(l => l.trim()) || "The build stopped."} : null);
   if (j.done && !j.code && j.deck) {
     const name = j.deck.split(/[\\/]/).pop();
     html += `<div class="result good"><h3>Done. The ${j.ti ? "Transaction Intelligence decks are" : "deck is"} in Outputs.</h3><p class="mono">${esc(name)}</p>
-      <p>Review it, save it as a PDF and email it as usual.</p>
+      ${notesHtml}<p>Review it, save it as a PDF and email it as usual.</p>
       <p><button class="link" id="reveal">Show it in File Explorer</button></p></div>`;
   } else if (j.done) {
-    html += `<div class="result bad"><h3>Not put in Outputs.</h3><p>${esc(stop ? stop.text : "The build stopped.")}</p>
+    html += `<div class="result bad"><h3>Not put in Outputs.</h3><p>${esc(stop ? stop.text : "The build stopped.")}</p>${notesHtml}
       <p>If it's not clear what to do, send Aaron the client number.</p></div>`;
   }
   html += `</div>`;
-  // The output panel is built once per build and only its text is updated after that. Rebuilding it
-  // on every poll (every 1.5 s) closed it again as soon as someone opened it.
-  const box = $("#job");
-  if (!box.querySelector("#jobview")) {
-    box.innerHTML = `<div id="jobview"></div><details class="log" id="log"${logOpen ? " open" : ""}><summary>Full output</summary>
-      <div class="term"><div class="bar"><span class="ttl">CSM Sheila: build ${esc(current || "")}</span><span class="ctl" aria-hidden="true"><span>&#x2014;</span><span>&#x2610;</span><span>&#x2715;</span></span></div>
-      <pre id="termtext" tabindex="0"></pre></div></details>`;
-    $("#log").addEventListener("toggle", () => { logOpen = $("#log").open; });
-  }
-  $("#jobview").innerHTML = html;
-  const pre = $("#termtext"), key = j.lines.length + ":" + j.done;
-  if (pre.dataset.key !== key) {
-    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
-    pre.innerHTML = j.lines.map(termLine).join("\n") + (j.done ? "" : `\n<span class="cursor">&#x2588;</span>`);
-    pre.dataset.key = key;
-    if (atBottom) pre.scrollTop = pre.scrollHeight;
-  }
+  // A Transaction Intelligence build shows its progress inside the Transaction Intelligence panel at the
+  // bottom of the client page; every other build shows it above the "last build" line, as before.
+  const box = (j.ti && $("#jobti")) || $("#job"), other = box === $("#job") ? $("#jobti") : $("#job");
+  if (other) other.innerHTML = "";
+  box.innerHTML = html;
   const rv = $("#reveal");
   if (rv) rv.addEventListener("click", async () => { try { await api("/api/reveal", {method: "POST", body: JSON.stringify({path: j.deck})}); } catch (e) { rv.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); } });
 }

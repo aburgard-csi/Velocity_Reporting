@@ -29,6 +29,14 @@ Aaron, 2026-10-26: attached "Updated Brand Presentation Sept. 2026.potx" and ask
 
 The template's slide 18 gives the palette: navy 00274C (unchanged), light blue 035B95, orange F15D22, gold F8971D, red EB2A2E. The pipeline's orange was F47A29. This changes the orange only: `brand.ORANGE` and the orange ramps, the literal colours inside the template shells and the five reference decks (`scripts/recolor_shells.py`, 259 literals; `--check` reports any left), and two builders (`build_mrpc_gen`, the ARS Contact slide) that wrote the old orange as their own literal and are now on `brand.ORANGE_RGB`. Light blue, gold and red are defined in `brand.py` (`CSI_LIGHT_BLUE`, `CSI_GOLD`, `CSI_RED`) but nothing uses them yet. **Not done:** the theme colours in the shells (the stock Office theme; much of the shells' fill and text follows `accent1` / `dk1`, and the new template's `dk1` is blue), the template's own cover, divider and closing layouts and its gradients, and the Sheila and dashboard pages, which keep the old orange. Austin Bank 1075 combined deck rebuilt: 67 slides as before, 0 FAIL / 35 REVIEW as before, 0 old-orange literals (126 before), and the 53 chart images are drawn in the new orange. `tests/test_brand_single_source.py` fails if a builder writes the orange itself or a shell holds a retired colour.
 
+### 2026-10-26 — Sheila's build progress: no "Full output" box, and Transaction Intelligence builds show it in their own panel
+
+Summary: CSM Sheila no longer has a "Full output" box under a build, and a Transaction Intelligence build now shows its progress inside the Transaction Intelligence panel at the bottom of the client page.
+
+Aaron, 2026-10-26: "We can remove the 'full output' section. It's redundant, unless it actually shows more information than the summary workflow." and "move the workflow output to the bottom section."
+
+The box repeated the step list and the checks already shown above it. It was the only place that showed the launcher's own lines after the first step, though: the validation result, a warning, where the deck went. Those lines are now part of the result under the steps (a warning in the warning colour; a STOP line stays the reason it was). The progress list of a Transaction Intelligence build is drawn in `#jobti`, inside that panel under its Build button; every other build draws it where it was. Checked in a browser against fake in-progress, finished and failed jobs for 1075.
+
 ### 2026-10-26 — Sheila shows her version, starting at 2.0
 
 Summary: CSM Sheila's header now shows the version, v2.0, so you can tell which release a PC is running.
