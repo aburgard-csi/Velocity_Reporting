@@ -21,6 +21,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Sheila's build progress: no "Full output" box, and Transaction Intelligence builds show it in their own panel
+
+Summary: CSM Sheila no longer has a "Full output" box under a build, and a Transaction Intelligence build now shows its progress inside the Transaction Intelligence panel at the bottom of the client page.
+
+Aaron, 2026-10-26: "We can remove the 'full output' section. It's redundant, unless it actually shows more information than the summary workflow." and "move the workflow output to the bottom section."
+
+The box repeated the step list and the checks already shown above it. It was the only place that showed the launcher's own lines after the first step, though: the validation result, a warning, where the deck went. Those lines are now part of the result under the steps (a warning in the warning colour; a STOP line stays the reason it was). The progress list of a Transaction Intelligence build is drawn in `#jobti`, inside that panel under its Build button; every other build draws it where it was. Checked in a browser against fake in-progress, finished and failed jobs for 1075.
+
 ### 2026-10-26 — Sheila shows her version, starting at 2.0
 
 Summary: CSM Sheila's header now shows the version, v2.0, so you can tell which release a PC is running.
