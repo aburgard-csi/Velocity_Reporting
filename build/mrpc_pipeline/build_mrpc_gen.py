@@ -34,7 +34,8 @@ import status_slides
 from shapes import shadow as add_shadow
 from brand import usd_compact as _usd   # one money format for every program
 
-NAVY=RGBColor(0x00,0x27,0x4C); ORANGE=RGBColor(0xF4,0x7A,0x29)
+from brand import ORANGE_RGB as ORANGE   # the one orange (brand.py); it was a literal here and missed the Sept. 2026 change
+NAVY=RGBColor(0x00,0x27,0x4C)
 STEEL=RGBColor(0x9D,0xB8,0xCC); WHITE=RGBColor(0xFF,0xFF,0xFF)
 
 # ---- text helpers (preserve run formatting) --------------------------------

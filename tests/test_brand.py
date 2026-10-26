@@ -21,7 +21,7 @@ def test_every_color_is_uppercase_six_digit_hex(name):
 
 def test_core_palette_values():
     assert brand.NAVY == "#00274C"
-    assert brand.ORANGE == "#F47A29"
+    assert brand.ORANGE == "#F15D22"
     assert brand.WHITE == "#FFFFFF"
 
 
