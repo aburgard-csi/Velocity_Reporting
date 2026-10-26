@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the debit take rate and Reg E figures value reads, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 debit take-rate and Reg E opt-in
+figures, so the Value chapter can price what a card and an opt-in are worth and where the gaps are
+(next stages). Every figure matches v5 for 1776 CoastHills and 1761 CapEd. The cut draws no
+take-rate or Reg E slide of its own: those stay on the ARS deck. No deck changes.
+
+`ti/monthly_analysis/dctr.py` and `rege.py` are v5's sections, unchanged, run through
+`ti/odd_sections.py` (`dctr`, `rege`), with v5's Reg E code tests (`test_ti_rege_codes.py`; the one test
+that reads v5's client config is skipped, since that file holds client data and stays out of this
+repo). Parity: dctr 45/45 and rege 25/25 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES rows 17-18.
+
 ### 2026-10-26 — Transaction Intelligence: the Economics chapter
 
 Summary: The Transaction Intelligence decks gain a sixth chapter, Economics: Program P&L by offer, The
