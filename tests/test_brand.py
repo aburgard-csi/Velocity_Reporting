@@ -134,3 +134,25 @@ def test_every_builder_uses_the_shared_formatter():
         for m in re.finditer(r"/\s*1e6:[^}]*\}M", src):
             offenders.append("%s: %s" % (path, m.group(0)))
     assert not offenders, "unconditional millions formatting: %s" % offenders
+
+
+# ---------------------------------------------------------------- bar labels (2026-10-26)
+def test_bar_labels_stay_full_when_they_fit_and_shorten_all_alike_when_one_would_not():
+    """KEMBA CU's composition chart: twelve five-digit totals 0.74 in apart ran together."""
+    vals = [12260, 12118, 12558, 10845, 8708, 6937, 4587, 3002, 4052, 3241, 980, 483]
+    wide = brand.bar_labels(vals, slot_in=2.0, pt=16)
+    assert wide[:3] == ["$12,260", "$12,118", "$12,558"]
+    tight = brand.bar_labels(vals, slot_in=0.74, pt=16)
+    assert tight[:3] == ["$12.3K", "$12.1K", "$12.6K"] and tight[-1] == "$483"
+    # one form per chart: every label took the compact form, not only the wide ones
+    assert all(t == brand.usd_compact(v, decimals=1, k_decimals=1) for t, v in zip(tight, vals))
+
+
+def test_bar_labels_use_millions_and_keep_cents_on_small_figures():
+    assert brand.bar_labels([1_240_000, 830_000], slot_in=0.6, pt=16) == ["$1.2M", "$830.0K"]
+    assert brand.bar_labels([0.52, 0.61], slot_in=0.74, pt=16, cents=True) == ["$0.52", "$0.61"]
+
+
+def test_usd_compact_k_decimals_is_opt_in():
+    assert brand.usd_compact(17200) == "$17K"                 # the ARS and MRPC charts, unchanged
+    assert brand.usd_compact(17200, k_decimals=1) == "$17.2K"

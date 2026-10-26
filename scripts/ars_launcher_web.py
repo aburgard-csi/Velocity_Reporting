@@ -764,7 +764,10 @@ class Job:
         # COLUMNS keeps ars_launcher.say from wrapping a long Outputs path across two lines.
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1", COLUMNS="1000")
         try:
-            proc = subprocess.Popen(build_cmd(self.cid, self.rebuild, self.combined, self.period, self.ti),
+            # `ti` is passed only for a Transaction Intelligence job: the tests stub build_cmd with the
+            # four-argument shape, and a fifth argument errored every stubbed job (2026-10-26).
+            cmd = build_cmd(self.cid, self.rebuild, self.combined, self.period, **({"ti": True} if self.ti else {}))
+            proc = subprocess.Popen(cmd,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                                     env=env, cwd=str(REPO))

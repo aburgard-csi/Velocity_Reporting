@@ -107,7 +107,7 @@ CHART_FONT = "Carlito"
 
 
 # ---------------------------------------------------------------- money
-def usd_compact(v, decimals=2):
+def usd_compact(v, decimals=2, k_decimals=0):
     """A dollar figure at deck scale: `$1.24M` at a million and up, `$830K` below.
 
     ONE definition, because there were four and they disagreed (Aaron, 2026-09-11).
@@ -129,5 +129,25 @@ def usd_compact(v, decimals=2):
     if a >= 1e6:
         return f"{sign}${a/1e6:,.{decimals}f}M"
     if a >= 1000:
-        return f"{sign}${a/1000:,.0f}K"
+        return f"{sign}${a/1000:,.{k_decimals}f}K"
     return f"{sign}${a:,.0f}"
+
+
+def bar_labels(values, slot_in, pt=16, bold=True, cents=False, family=CHART_FONT):
+    """Value labels for a row of bars `slot_in` inches apart: the full figure ("$12,260") when
+    every label fits its own slot, else the compact one ("$12.3K", "$1.2M") for ALL of them.
+
+    Measured with the chart face, never guessed: KEMBA CU's 2026.10 revenue composition chart
+    carried twelve cohorts of five-digit totals on an 11.5-inch figure, and "$12,260 $12,118
+    $12,558" ran together (Cindy's review; Aaron, 2026-10-26: "If labels are going to overlap
+    we can summarize $17,200 as $17.2k, or M for millions"). The gate cannot see text inside a
+    chart image, so the renderer has to prove the fit itself. One form per chart: a reader
+    should not meet "$12,260" beside "$12.3K". `cents` labels are per-account figures
+    ("$0.52"), which are short and keep their cents when they fit.
+    """
+    import textfit
+    full = [f"${v:,.2f}" if cents else f"${v:,.0f}" for v in values]
+    room = slot_in * 0.92                    # a sliver of air between neighbours
+    if all(textfit.text_width_in(t, pt, family, bold) <= room for t in full):
+        return full
+    return [usd_compact(v, decimals=1, k_decimals=1) for v in values]

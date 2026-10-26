@@ -30,6 +30,21 @@ Aaron: "All new clients will be on MM revenue calculations. Also we need to work
 - `build_month.read_roster`: an ARS row whose path is blank or `—` is MM. SM is recorded, never assumed, so every consumer of the path (launcher, Sheila's Lift Matrix tab, dashboards) sees it.
 - `actuals_tab.read`: the month header row needs 3 date columns, not 5, and the revenue row is found under "Total Marginal Revenue" as well as "Total Marginal Revenues".
 
+### 2026-10-26 — Chart value labels shorten when they would run together
+
+Summary: On the ICS revenue charts, the dollar figure above each bar is written in full unless the
+figures would overlap, in which case every label on that chart is shortened to the $12.3K form. The
+KEMBA CU composition chart Cindy reviewed had three labels running together across twelve cohorts.
+
+Aaron, 2026-10-26: "some of the column labels were overlapping. This was due to longer currency
+numbers. If labels are going to overlap we can summarize $17,200 as $17.2k, or M for millions."
+Twelve cohorts (nine until 2026-10-13) of five-digit totals on an 11.5-inch figure leave 0.74 inches
+per bar, and "$12,260" in 16 pt bold Carlito is wider than that. `brand.bar_labels` measures the
+labels with `textfit` against the room `ics_charts_gen.slot_in` reads off the axes, and returns the
+full set or the compact set (`usd_compact` with one decimal at K), never a mix; the cohort bar charts
+and the composition chart use it. Nothing in the gate can see a chart's text, so the renderer proves
+the fit; `tests/test_brand.py` pins the switch.
+
 ### 2026-10-23 — The Transaction Intelligence check's window ends at the data month
 
 Summary: Sheila's count of transaction files on hand now covers the same twelve months the
