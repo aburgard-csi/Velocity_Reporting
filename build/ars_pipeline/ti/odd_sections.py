@@ -119,6 +119,12 @@ def value(ctx):
     return _section("value")(ctx)
 
 
+def mailer(ctx):
+    """v5's mailer section: per-offer mailed / responded / rate, reach and depth, the responder
+    profile, organic vs program activation, and before / after spend with the net lift."""
+    return _section("mailer")(ctx)
+
+
 def leaks(ctx, figures=None):
     """v5's post-passes, in v5's order (metrics.compute after SECTIONS): `leaks.compute` finds the
     segments holding more of the eligible base than of the cards or opt-ins, from the dctr and rege
@@ -138,6 +144,7 @@ def leaks(ctx, figures=None):
 PARITY = {
     "dctr": ("metrics.json", dctr),
     "leaks": ("metrics.json", leaks),
+    "mailer": ("metrics.json", mailer),
     "value": ("metrics.json", value),
     "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),

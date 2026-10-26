@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: mailing response, reach and lift, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 mailer figures from the ODD: each
+offer's mailed, responded and response rate (offers still in flight left out, not shown as 0%), how
+much of the base the program has reached, repeat response, the responder profile, organic against
+program activation, and spend six months before against three months after each offer, net of the
+mailed non-responders. Every figure matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes
+yet (the Campaign slides port in G9-06).
+
+`ti/monthly_analysis/mailer.py` is v5's section, unchanged, run through `ti/odd_sections.py`, with v5's
+`test_response_populations.py` (its 3 deck tests skip until G9-06 / G9-07). v5's
+`test_mailer_consistency.py` is not ported: it drives v5's whole `metrics.compute` through the
+`test_month_independence` harness, which the cut does not have. Parity: 47/47 on 1776 (2026-09) and
+45/45 on 1761 (2026-10); the two keys 1761 lacks are conditional and absent from v5's run too.
+DUPLICATES row 22.
+
 ### 2026-10-26 — Transaction Intelligence: the Value chapter
 
 Summary: The Transaction Intelligence decks gain a seventh chapter, Value: What a card and an opt-in
