@@ -956,7 +956,8 @@ This is the readme index — update it whenever files are added, removed, or mov
   `ti/chapters/`, which imports `cut` for `Chapter`) and the file name `<id>-<yyyy.mm>-TI-<ARS|ICS>-<Client> Transaction
   Intelligence.pptx` — "TI" is not a program tag, so `promote_month` never reads it as an ARS
   deck. `ti/frame.py` is the slide frame chapters draw on; its `notes()` refuses a note with no
-  Source line. `ti/PORTING.md` holds the porting
+  Source line. Past five agenda rows (chapters + Questions) `build_ti_gen` keeps
+  each chapter's heading and drops its detail line, which no longer fits. `ti/PORTING.md` holds the porting
   rules; `ti/compat.py` runs the ported code under v5's pandas 2 semantics inside a with-block, never
   process-wide (entry points and `test_ti_*` only); `ti/context.py` is the `Ctx` every computation
   is handed, shared by the build and the parity check; `ti/core/` the v5 foundation modules (periods, ODD transform, account bases, facts);
