@@ -60,3 +60,13 @@ def test_a_changed_v5_figure_is_caught(v5_run):
     (v5_run / "metrics.json").write_text(json.dumps(m), encoding="utf-8")
     bad = [k for k, st, _d in parity.run(v5_run, {})["bases"] if st != "match"]
     assert "n_eligible" in bad
+
+
+def test_a_blank_rate_is_filled_from_the_workbook_v5s_run_read(v5_run):
+    """v5's run filled a blank ICRate / NSF_OD_Fee from the workbook before any section ran, so the
+    check prices with what that run priced with; a configured rate is left as it is."""
+    m = json.loads((v5_run / "metrics.json").read_text(encoding="utf-8"))
+    m.update({"wb_ic_rate": 0.0062, "wb_nsf_fee": 32.0})
+    (v5_run / "metrics.json").write_text(json.dumps(m), encoding="utf-8")
+    ctx = parity.context(v5_run, {"ICRate": "", "NSF_OD_Fee": "35"})
+    assert ctx.config["ICRate"] == "0.0062" and ctx.config["NSF_OD_Fee"] == "35"
