@@ -21,6 +21,24 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the ARS Workbook's economics, matching v5
+
+Summary: The Transaction Intelligence cut now reads the client's ARS Workbook as James's v5 engine
+does: the program P&L life to date and by month, revenue by offer, the Lift Matrix rate card, and the
+current Interchange Rate and NSF Fee. Every figure matches v5 for 1761 CapEd and 1776 CoastHills.
+When the client config leaves the Interchange Rate or NSF Fee blank, the workbook's values fill
+them, as in v5. No deck changes yet (the economics slides port next); no ARS deck changes.
+
+`ti/workbook.py` is v5's `ars/workbook.py`, unchanged, with v5's reader tests (`test_ti_workbook*`,
+`test_ti_ic_rate_tolerance`); the tests for slides that port later are skipped under the stage that
+brings them. `ti/workbook_input.py` finds the workbook in RPE's inputs by `build_month`'s rule
+(`<id>-<yyyy.mm>-*Workbook*.xlsx`, never the Invitation Checking workbook) and backfills the rates;
+`ti_build.compute_pack` merges the `wb_*` figures. Parity (`scripts/ti_parity.py --only workbook`, on the
+workbook v5's run read): 26/26 on 1776 (2026-09) and 26/26 on 1761 (2026-10). DUPLICATES rows 12-15.
+One line differs from v5: when the workbook is locked (open in Excel or syncing), the reader's temp
+copy goes in an `rpe_env.temp_dir` folder instead of a bare `tempfile.mkstemp`, per this repo's
+temp rule. The parity check skips a v5 run that read no workbook.
+
 ### 2026-10-26 — A Transaction Intelligence slide with no data is stated, never silently left out
 
 Summary: Two Transaction Intelligence slides, "When the card gets used" and "Recurring payments on the
