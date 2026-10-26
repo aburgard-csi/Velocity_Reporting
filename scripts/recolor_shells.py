@@ -14,12 +14,12 @@ import argparse
 import glob
 import os
 import re
-import shutil
 import sys
-import tempfile
 import zipfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "build"))
+import rpe_env  # noqa: E402  (temp_dir: scratch that is removed at exit and swept after a crash)
 RECOLOR = {"F47A29": "F15D22"}                 # old -> new, six hex digits, upper case
 EXTRA = [os.path.join("build", "assets", "summit_slide.pptx")]
 _PARTS = re.compile(r"^ppt/.+\.xml$")           # slides, layouts, masters, theme, charts, notes ...
@@ -51,26 +51,22 @@ def count_old(path):
 def recolor(path):
     """Rewrite `path` in place. Returns the number of literals changed."""
     changed = 0
-    fd, tmp = tempfile.mkstemp(suffix=".pptx", dir=os.path.dirname(path))
-    os.close(fd)
-    try:
-        with zipfile.ZipFile(path) as zin, zipfile.ZipFile(tmp, "w") as zout:
-            for info in zin.infolist():
-                data = zin.read(info.filename)
-                if _PARTS.match(info.filename):
-                    text = data.decode("utf-8")
-                    text, k = _recolour(text)
-                    if k:
-                        data, changed = text.encode("utf-8"), changed + k
-                zout.writestr(info, data, compress_type=info.compress_type)
-        if changed:
-            shutil.move(tmp, path)
-        else:
-            os.remove(tmp)
-    except Exception:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise
+    tmp = os.path.join(rpe_env.temp_dir("recolor_"), os.path.basename(path))
+    with zipfile.ZipFile(path) as zin, zipfile.ZipFile(tmp, "w") as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            if _PARTS.match(info.filename):
+                text = data.decode("utf-8")
+                text, k = _recolour(text)
+                if k:
+                    data, changed = text.encode("utf-8"), changed + k
+            zout.writestr(info, data, compress_type=info.compress_type)
+    if changed:
+        # Copy beside the target, then swap: a crash part way leaves the original, never half a template.
+        part = path + ".part"
+        with open(tmp, "rb") as src, open(part, "wb") as dst:
+            dst.write(src.read())
+        os.replace(part, path)
     return changed
 
 

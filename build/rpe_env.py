@@ -429,7 +429,7 @@ def report_files(pattern: str = "*") -> list:
 # removes it when the process exits, and every build starts with `sweep_temp`, which removes
 # what a crashed or killed build left behind (Aaron: "make sure temp drive cleanup is part of
 # the process").
-TEMP_PREFIXES = ("oddd_", "oddcsv_", "ars_assets_", "ars_phase_")
+TEMP_PREFIXES = ("oddd_", "oddcsv_", "ars_assets_", "ars_phase_", "recolor_")
 TEMP_MAX_AGE_HOURS = 6      # a build takes minutes; older scratch belongs to no live build
 
 

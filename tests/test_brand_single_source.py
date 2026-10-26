@@ -42,3 +42,23 @@ def test_the_shells_use_the_orange_brand_defines():
     assert brand.ORANGE.lstrip("#").upper() == "F15D22"
     assert "F15D22" not in recolor_shells.RECOLOR            # the new colour is a target, never a source
     assert recolor_shells.RECOLOR and all(new == brand.ORANGE.lstrip("#").upper() for new in recolor_shells.RECOLOR.values())
+
+
+def test_recolor_rewrites_the_colours_and_copies_every_other_part_unchanged(tmp_path):
+    import zipfile
+    old, new = next(iter(recolor_shells.RECOLOR.items()))
+    p = tmp_path / "shell.pptx"
+    blob = bytes(range(256)) * 4
+    with zipfile.ZipFile(p, "w") as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("ppt/slides/slide1.xml", f'<a:srgbClr val="{old}"/><a:srgbClr val="{old.lower()}"/><a:srgbClr val="00274C"/>')
+        z.writestr("ppt/media/image1.png", blob)
+    assert recolor_shells.count_old(str(p)) == 2
+    assert recolor_shells.recolor(str(p)) == 2
+    with zipfile.ZipFile(p) as z:
+        xml = z.read("ppt/slides/slide1.xml").decode("utf-8")
+        assert xml.count(new) == 2 and old.lower() not in xml.lower() and "00274C" in xml
+        assert z.read("ppt/media/image1.png") == blob and z.read("[Content_Types].xml") == b"<Types/>"
+        assert z.testzip() is None
+    assert recolor_shells.recolor(str(p)) == 0                      # idempotent
+    assert not list(tmp_path.glob("*.part"))                       # no half-written leftover
