@@ -54,6 +54,19 @@ Aaron: "All new clients will be on MM revenue calculations. Also we need to work
 - `build_month.read_roster`: an ARS row whose path is blank or `—` is MM. SM is recorded, never assumed, so every consumer of the path (launcher, Sheila's Lift Matrix tab, dashboards) sees it.
 - `actuals_tab.read`: the month header row needs 3 date columns, not 5, and the revenue row is found under "Total Marginal Revenue" as well as "Total Marginal Revenues".
 
+### 2026-10-26 — A failed validation names its slide in Sheila; a decimal is not a count
+
+Summary: When a build fails validation, Sheila now shows each FAIL line (the slide and the rule)
+under the verdict instead of only "1 FAIL, 10 REVIEW". The validator no longer reads a decimal
+such as "2.15 of 4" as the impossible count "15 of 4". A Transaction Intelligence build keeps
+its own log, so its step list no longer replays the Executive Review's steps.
+
+Austin Bank's Transaction Intelligence build (2026-10-26) stopped at "1 FAIL" with nothing in
+Sheila to say why; the validator's own output had it: slide 26, "mean breadth 2.15 of 4" read as
+"15 of 4". `ars_launcher.run_validator` runs the validator once and returns the verdict and the
+FAIL lines, which both build paths print as STOP lines; the count rule requires whole numbers on
+both sides. `tests/test_impossible_count.py` pins the decimal case.
+
 ### 2026-10-26 — Chart value labels shorten when they would run together
 
 Summary: On the ICS revenue charts, the dollar figure above each bar is written in full unless the

@@ -1242,7 +1242,9 @@ def text_rule_findings(prs, texts=None):
                             f"threshold claim contradicts the ratio: {got} : 1 described as "
                             f"'{word} the {thr} : 1 threshold'"))
 
-        for m in re.finditer(r"([\d,]+)\s+of\s+([\d,]+)", joined):
+        # Whole numbers only: "mean breadth 2.15 of 4" is a decimal, not "15 of 4" (Austin Bank's
+        # Transaction Intelligence deck, 2026-10-26), and "3 of 4.5" is not a count either.
+        for m in re.finditer(r"(?<![\d.])([\d,]+)\s+of\s+([\d,]+)(?!\d|\.\d)", joined):
             n, tot = int(m.group(1).replace(",", "")), int(m.group(2).replace(",", ""))
             if n > tot:
                 out.append(("FAIL", idx, f"impossible count: {n} of {tot} (sub-count exceeds total)"))

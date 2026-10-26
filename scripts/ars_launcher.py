@@ -46,6 +46,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import textwrap
 import threading
@@ -756,7 +757,8 @@ def build_ti(a, BM, row, period, roster, sent, work):
         for old in tdir.glob("*.pptx"):      # a previous build's decks are never mistaken for this one's
             old.unlink()
         print(f"\nBuilding the ARS{' and ICS' if ics else ''} lens{'es' if ics else ''} (this takes a few minutes)...", flush=True)
-        log = work / "build.log"
+        log = tdir / "build.log"           # its own log: the RPE build's steps are not this build's
+        log.unlink(missing_ok=True)
         threading.Thread(target=watch_steps, args=(log, stop, t0), daemon=True).start()
         try:
             rc = BM.run([BM.PY, os.path.join(BM.ARSP, "ti_build.py"), a.client, period, name, str(tdir)]
@@ -774,7 +776,9 @@ def build_ti(a, BM, row, period, roster, sent, work):
             gates = []
             for deck in made:
                 print(f"  [..]   Validating {os.path.basename(deck)}  ({(time.time() - t0) / 60:.0f} min)", flush=True)
-                gate = BM.validate(deck)
+                gate, fails = run_validator(deck)
+                for f in fails:
+                    say(STOP, f"Validator: {f}")
                 if gate.startswith("0 FAIL"):
                     pkg = V.package_findings(deck)
                     if pkg:
@@ -800,7 +804,7 @@ def build_ti(a, BM, row, period, roster, sent, work):
     if delivered:
         print(f"\nDone. The Transaction Intelligence deck{'s are' if len(made) > 1 else ' is'} in Outputs.")
         return 0
-    print("\nNot put in Outputs. Details are in " + str(work / "build.log"))
+    print("\nNot put in Outputs. Details are in " + str(tdir / "build.log"))
     return 1
 
 
@@ -1066,7 +1070,9 @@ def cmd_build(a):
             result = f"stopped at {err}: {reason}"
         else:
             print(f"  [..]   Validating the deck  ({(time.time() - t0) / 60:.0f} min)", flush=True)
-            gate = BM.validate(deck, str(work / "base.json"))
+            gate, fails = run_validator(deck, str(work / "base.json"))
+            for f in fails:
+                say(STOP, f"Validator: {f}")
             if multi and gate.startswith("0 FAIL"):
                 # A deck assembled from sections: check the package, which the text rules can't see.
                 sys.path.insert(0, str(REPO / "validation"))
@@ -1098,6 +1104,23 @@ def cmd_build(a):
         return 0
     print("\nNot put in Outputs. Details are in " + str(work / "build.log"))
     return 1
+
+
+def run_validator(deck, base=None):
+    """(the validator's verdict line, its FAIL lines). One run of validate_deck.py.
+
+    build_month.validate keeps only the verdict, and Sheila showed "1 FAIL, 10 REVIEW" with
+    nothing to say which slide or why (Austin Bank's Transaction Intelligence build,
+    2026-10-26). The FAIL lines are what a CSM, or Aaron, needs to act on."""
+    import build_month as BM
+    cmd = [BM.PY, os.path.join(BM.REPO, "validation", "validate_deck.py"), str(deck)]
+    if base and os.path.exists(base):
+        cmd.append(str(base))
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    lines = [l.strip() for l in r.stdout.splitlines()]
+    verdict = next((l for l in lines if "FAIL," in l), "?")
+    fails = [l for l in lines if l.startswith("[FAIL")]
+    return verdict, fails
 
 
 def _log_reason(log):
