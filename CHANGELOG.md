@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the survival-by-tenure overlap is on the register
+
+Summary: docs/migration/DUPLICATES.md gains row 28. The Transaction Intelligence deck's "Account retention
+— survival by tenure" repeats the ARS deck's default "Account Retention — Survival by Tenure", and the two
+disagree. For 1776 CoastHills CU the ARS deck says 94% of accounts are still open at 1 year and 81% at 3
+years; the TI slide says 97.3% and 93.8%. The ARS deck's Kaplan-Meier leaves out accounts too young to
+reach each mark; v5's method counts them as retained, which raises the 3-year figure. No slide or number
+changes. The row's decision is pending, and the review page for keep/toss decisions pairs the two slides.
+
 ### 2026-10-26 — Transaction Intelligence: an agenda of eight chapters fits
 
 Summary: When a Transaction Intelligence deck carries more than four chapters, its agenda now lists
