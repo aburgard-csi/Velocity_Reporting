@@ -340,6 +340,11 @@ INPUT_KIND_DIRS = {
     # holding one CSV of hashed_account, deposit_date, deposit_amount (James Gilmore, 2026-10-23; five
     # clients so far). Read only by the Transaction Intelligence cut (build/ars_pipeline/ti/deposits_input.py).
     "Deposits": "Deposits",
+    # The ARS 2:1 guarantee deferral trackers, one per client: "<id> <Client> ... Deferred expense
+    # tracking.xlsx" (some names lead with a revision date). Copied, newest per client, from M:\My Rewards
+    # Logistics by James's v5 fetch (James Gilmore, 2026-10-23). Read only by the Transaction
+    # Intelligence cut (build/ars_pipeline/ti/deferred_input.py).
+    "Deferred Billing": "Deferred Billing",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -347,7 +352,8 @@ INPUT_KIND_DIRS = {
 # The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
-                     "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits")
+                     "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits",
+                     "Deferred Billing")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
