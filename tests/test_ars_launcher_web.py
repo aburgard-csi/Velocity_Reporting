@@ -721,14 +721,17 @@ def test_changing_cycle_warms_the_new_one(monkeypatch):
     """Without this the first click on each client after a cycle change pays the full check
     again — 3.4 s against the share, where a warmed one answers in 5 ms."""
     monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
-    started = []
-    monkeypatch.setattr(W, "prewarm", lambda: started.append(W.current_period()))
+    started, ran = [], threading.Event()
+
+    def fake_prewarm():
+        started.append(W.current_period())
+        ran.set()
+    monkeypatch.setattr(W, "prewarm", fake_prewarm)
     try:
         W.select_period("2026.09")
-        for _ in range(50):
-            if started:
-                break
-            time.sleep(0.05)
+        # An event, not a 2.5 s poll: on a busy CI runner the thread can take longer than that to be
+        # scheduled (this test failed once on main, 2026-10-26, and passed on the rerun).
+        assert ran.wait(15), "the warm-up thread never ran"
         assert started == ["2026.09"]
     finally:
         W._selected["period"] = None
