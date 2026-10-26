@@ -21,6 +21,20 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: what a card and an opt-in are worth, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 value figures: what a debit card
+and a Reg E opt-in are each worth per account a year (interchange plus NSF/OD fees over the last 12
+months, carded against not, opted in against not), the potential at three conversion rates, and the
+same value by account age, response group and branch, with each gap split into how many accounts
+carry the product and how much each one earns. Every figure matches v5 for 1776 CoastHills and 1761
+CapEd. No deck changes yet (the Value slides port in G8-05).
+
+`ti/monthly_analysis/value.py` is v5's section, unchanged, run through `ti/odd_sections.py`; it prices
+at the client's ICRate / NSF_OD_Fee, filled from the workbook when the config leaves them blank
+(G7-01). Its `apply_to_leaks` post-pass ships with leaks (G8-04). v5's empty-base test, skipped until
+now, runs again. Parity: 54/54 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES row 20.
+
 ### 2026-10-26 — Transaction Intelligence: PIN and signature interchange from the ODD, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 interchange figures from the ODD:

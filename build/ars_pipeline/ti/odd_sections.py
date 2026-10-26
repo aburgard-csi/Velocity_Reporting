@@ -112,9 +112,17 @@ def interchange_odd(ctx):
     return _section("interchange")(ctx)
 
 
+def value(ctx):
+    """v5's value section: what a debit card and a Reg E opt-in are each worth per account a year,
+    by tenure, response group and branch, priced at ICRate and NSF_OD_Fee (filled from the workbook
+    when the config is blank). Its post-pass `apply_to_leaks` runs with leaks."""
+    return _section("value")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "dctr": ("metrics.json", dctr),
+    "value": ("metrics.json", value),
     "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),
     "retention": ("metrics.json", retention),
