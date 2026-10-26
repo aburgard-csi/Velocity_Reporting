@@ -816,6 +816,7 @@ This is the readme index — update it whenever files are added, removed, or mov
   CSM Sheila shows that line in What's new and on its change log page, and leaves out the
   quoted request and inline "(Aaron, …)" attributions, which stay here as the record.
 - `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
+- `VERSION` — CSM Sheila's version (first line, `N.N`), shown in her header and copied by the release (Aaron, 2026-10-26: starts at 2.0). Bump it by hand in the commit that adds a major feature; `RELEASE.txt` still names the date and commit of each release.
 - `docs/COLLABORATORS.md` — what a collaborator's Claude Code session needs: branches and PRs, what not to run, pre-PR checks.
 - `docs/` — the PRDs: `PRD-2026-08-26-repo-portability-and-response-rates.md`,
   `PRD-2026-09-11-rpe-client-performance-artifact.md` (the cross-client performance page:

@@ -855,6 +855,20 @@ def queue_doc():
 # The page links the change log and shows the last five updates (Aaron, 2026-09-16: "Add a link to the change
 # log at the top of Sheila's page, and show the last 5 updates"). CHANGELOG.md is released beside the code.
 CHANGELOG = REPO / "CHANGELOG.md"
+VERSION_FILE = REPO / "VERSION"
+
+
+def app_version(path=None):
+    """Sheila's version, the first line of the VERSION file at the root of the code (Aaron, 2026-10-26:
+    "VERSION file in Sheila's header, start at 2.0"). It is bumped by hand, in the commit that adds a
+    major feature; release_launcher.ps1 copies it with the code, so a released copy and the PC's local
+    copy of it carry the same file. A copy without one (an old release) shows no version, not a guess."""
+    try:
+        text = Path(path or VERSION_FILE).read_text(encoding="utf-8-sig").strip()
+    except OSError:
+        return ""
+    first = text.splitlines()[0].strip() if text else ""
+    return first if re.fullmatch(r"\d+(\.\d+){1,2}", first) else ""
 _ENTRY_RX = re.compile(r"^###\s+(\d{4}-\d{2}-\d{2})\s+[—-]+\s+(.+?)\s*$")
 
 
@@ -947,6 +961,13 @@ def release_stamp(path=None):
     except OSError:
         return None
     return text.splitlines()[0].strip() if text else None
+
+
+def _version_html():
+    """The header's version chip, or nothing when this copy has no VERSION file."""
+    v = app_version()
+    # app_version() only returns digits and dots, so there is nothing to escape.
+    return f'<span class="ver" id="ver" title="CSM Sheila version">v{v}</span>' if v else ""
 
 
 def changelog_page(path=None):
@@ -1675,7 +1696,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._send(403, {"error": "forbidden"})
         if u.path == "/":
-            return self._send(200, PAGE.replace("__TOKEN__", TOKEN).encode("utf-8"), "text/html; charset=utf-8")
+            return self._send(200, PAGE.replace("__TOKEN__", TOKEN).replace("__VERSION__", _version_html()).encode("utf-8"), "text/html; charset=utf-8")
         if u.path == "/changelog":
             return self._send(200, changelog_page().encode("utf-8"), "text/html; charset=utf-8")
         if not self._api_ok():
@@ -1855,6 +1876,7 @@ PAGE = r"""<!doctype html>
 body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.45 "Segoe UI",Calibri,Arial,sans-serif}
 header.top{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 header.top h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.01em}
+header.top h1 .ver{margin-left:10px;font-size:12.5px;font-weight:600;opacity:.8;letter-spacing:0}
 header.top .news{margin-left:auto;position:relative}
 header.top .news summary{cursor:pointer;list-style:none;font-weight:600;font-size:13.5px;padding:5px 12px;border:1px solid rgba(255,255,255,.45);border-radius:999px}
 header.top .news summary::-webkit-details-marker{display:none}
@@ -2016,7 +2038,7 @@ dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-wi
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila</h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button><button role="tab" id="tab-reported" aria-selected="false">Feedback</button></nav><button type="button" class="reportbtn" id="reportbtn" title="Report a problem with Sheila or a deck">Report an issue</button><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
+<header class="top"><h1>CSM Sheila__VERSION__</h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button><button role="tab" id="tab-reported" aria-selected="false">Feedback</button></nav><button type="button" class="reportbtn" id="reportbtn" title="Report a problem with Sheila or a deck">Report an issue</button><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
 <dialog class="report" id="repdlg"><form method="dialog" id="repform">
   <h3>Report an issue</h3>
   <label>What is wrong?<input type="text" id="reptitle" maxlength="200" required
