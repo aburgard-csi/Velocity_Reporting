@@ -14,8 +14,8 @@ from ti import guarantee  # noqa: E402
 # RPE: the reader ports in G7-02. These tests exercise code that ports later, stays in v5, or moved:
 # v5 run.py's tracker checks live in ti/deferred_input.py here (tests/test_ti_deferred_input.py).
 _LATER = {
-    "test_deck_guarantee_surfaces": "G7-03 (economics chapter)",
-    "test_cleared_guarantee_reverts_to_workbook_economics": "G7-03 (economics chapter)",
+    "test_deck_guarantee_surfaces": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_cleared_guarantee_reverts_to_workbook_economics": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
     "test_report_guarantee_block": "v5's text report, which is not migrated",
     "test_fetch_skips_lock_stubs": "v5's fetch tool, which stays in v5",
     "test_stale_tracker_warns_with_the_lag": "ti/deferred_input.review (tests/test_ti_deferred_input.py)",
@@ -25,7 +25,7 @@ _LATER = {
 
 
 def _later(fn):
-    return pytest.mark.skip(reason=f"covered by {_LATER[fn.__name__]}")(fn)
+    return pytest.mark.skip(reason=f"see {_LATER[fn.__name__]}")(fn)
 
 
 def _tracker(path, rows, title="1441 First National Bank"):

@@ -21,6 +21,23 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the Economics chapter
+
+Summary: The Transaction Intelligence decks gain a sixth chapter, Economics: Program P&L by offer, The
+2:1 guarantee, Where the month's revenue came from, What each offer has earned, and What an account
+earns as it climbs (the workbook's Lift Matrix). While a client has a deferred balance under the 2:1
+guarantee, the P&L shows what the client actually pays; once the guarantee clears it shows the
+workbook's billed figures. A client with no workbook or tracker gets each slide stated. 1776, both
+lenses: all five slides drawn, 0 FAIL. No ARS deck changes.
+
+`ti/deck/economics_inline.py` lifts v5's five inline economics blocks out of `ars/deck/build.py` as
+`(h, m)` builders, line for line, with v5's stat tile. Two layout changes keep RPE's validator at 0
+FAIL: a guarantee status wider than its tile steps its size down instead of wrapping ("Drawing Down"
+on 1776), and the P&L's "latest n of N offers" note joins the footer instead of sitting on it.
+`ti/chapters/economics.py` registers the chapter after ICS accounts. v5's deck-harness tests for
+these slides are replaced by `tests/test_ti_economics_chapter.py`. On 1776 this repo's P&L slide and
+v5's agree to the dollar ($1,121,691 revenue, $712,720 cost, $408,971 profit; DUPLICATES row 12).
+
 ### 2026-10-26 — Transaction Intelligence: the 2:1 guarantee from the client's deferral tracker, matching v5
 
 Summary: The Transaction Intelligence cut now reads each ARS client's 2:1 guarantee deferral tracker,
