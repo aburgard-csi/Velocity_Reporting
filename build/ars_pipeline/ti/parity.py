@@ -26,6 +26,11 @@ ABS_TOL = 1e-9
 Ctx = _Ctx
 
 
+def _txn():
+    from ti import txn_sections
+    return txn_sections
+
+
 def _bases(c):
     s = c.subsets
     out = {"data_month": c.anchor.iso, "anchor_tag": c.anchor.tag, **s.sizes(),
@@ -35,17 +40,36 @@ def _bases(c):
     return out
 
 
-def _portfolio(c):
-    from ti.transaction_intelligence import portfolio
-    return portfolio.compute(c.txn, c.frame, c.warn)
-
-
 # name -> (v5 figures file, compute(ctx) -> dict)
 REGISTRY = {
     "bases": ("metrics.json", _bases),
-    "portfolio": ("txn_metrics.json", _portfolio),
+    "portfolio": ("txn_metrics.json", lambda c: _txn().portfolio(c)),
+    "financial_services": ("txn_metrics.json", lambda c: _txn().financial_services(c)),
+    "merchants": ("txn_metrics.json", lambda c: _txn().merchants(c)),
+    "merchant_profiles": ("txn_metrics.json", lambda c: _txn().merchant_profiles(c)),
+    "card_behavior": ("txn_metrics.json", lambda c: _txn().card_behavior(c)),
+    "interchange": ("txn_metrics.json", lambda c: _txn().interchange(c)),
+    # relationship reads the row classification financial services leaves on ctx.shared
+    "relationship": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().relationship(c))[1]),
+    "family_tables": ("txn_metrics.json", lambda c: _txn().family_tables(c)),
+    # competition reads financial services' classification too
+    "competition": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c))[1]),
+    # the audit reads all three specs and financial services' providers
+    # filed adds to the competition figures, so they are computed first
+    "filed": ("txn_metrics.json", lambda c: (lambda fin, comp: _txn().filed(c, {**fin, **comp}))(
+        _txn().financial_services(c), _txn().competition(c))),
+    "leakage": ("txn_metrics.json", lambda c: (_txn().ensure_competition(c), _txn().leakage(c))[1]),
+    "stressors_txn": ("txn_metrics.json", lambda c: (_txn().ensure_competition(c), _txn().stressors_txn(c))[1]),
+    "hotspots": ("txn_metrics.json", lambda c: _txn().hotspots(c, _txn().ensure_competition(c))),
+    "overlay": ("txn_metrics.json", lambda c: (_txn().ensure_competition(c), _txn().overlay(c))[1]),
+    "mapping_audit": ("txn_metrics.json", lambda c: (_txn().financial_services(c), _txn().competition(c),
+                                                     _txn().merchants(c), _txn().mapping_audit(c))[3]),
 }
 
+
+# the ODD sections register themselves in ti/odd_sections.py
+from ti import odd_sections as _odd  # noqa: E402
+REGISTRY.update(_odd.PARITY)
 
 def _norm(value):
     """Through JSON, as v5 wrote its figures: tuples become lists, numpy scalars numbers."""

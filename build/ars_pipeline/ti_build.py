@@ -72,6 +72,8 @@ def compute_pack(client_id, period, name, ics=False):
         raise SystemExit(f"client {client_id}: the ODD transform failed: {'; '.join(report.errors)}")
     warnings += list(report.warnings)
     cfg = config.client_config(client_id, warn=warnings.append)
+    from ti import deposits_input
+    cfg = deposits_input.attach(cfg, client_id, warnings.append)
     if ics:
         frame = lens.attach_ics(frame, client_id, warnings.append, expected=True)
     anchor = odd.frame_data_month(frame)
@@ -143,6 +145,10 @@ def main(argv=None):
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
     for w in pack["warnings"]:
         print(f"{a.client_id}: {w}")
+    # v5's own read-outs of the transaction figures, into the build log (never a deck)
+    from ti.transaction_intelligence import competition_report, sections_report
+    for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
+        print(line)
     for p in build_decks(pack, out):
         print(f"built {p}")
     return 0

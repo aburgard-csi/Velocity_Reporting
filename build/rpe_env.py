@@ -336,6 +336,10 @@ INPUT_KIND_DIRS = {
     # zipped (Aaron, 2026-09-17): one .zip per file, named the original plus ".zip". Read them
     # through txn_files() / open_txn(), which take either form.
     "Txn": "Txn Files",
+    # The ILS deposits extract, rolling 365 days, one zip per client: <id>_<Client>_ILSDeposits_<yyyy.mm>.zip
+    # holding one CSV of hashed_account, deposit_date, deposit_amount (James Gilmore, 2026-10-23; five
+    # clients so far). Read only by the Transaction Intelligence cut (build/ars_pipeline/ti/deposits_input.py).
+    "Deposits": "Deposits",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -343,7 +347,7 @@ INPUT_KIND_DIRS = {
 # The two ICS local-file kinds are hand-landed, carry member-level rows, and have no
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
-                     "ICS referrals", "ICS direct mail", "Branch names", "Txn")
+                     "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
