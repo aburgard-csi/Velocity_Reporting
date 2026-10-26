@@ -21,6 +21,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — The ODD extract step is about a third faster on a large client
+
+Summary: Reading a large client's ODD extract takes about a minute instead of a minute and a half, with identical figures. Small clients are unchanged.
+
+Aaron, 2026-10-26: "start on oddd_optimize and metrics_gen."
+
+`scripts/oddd_optimize.py`, profiled on 1100 Rally (439 MB extract): 92 s -> 63 s, and `oddd_metrics.json` and `oddd_pack.md` are byte-identical to the old code's on 1100, on 1549 Wellworth and on 1204 First State Bank (1549 and 1204 were 10 -> 9 s and 14 -> 13 s). Two changes: the CSV read uses `dtype=object` instead of `dtype=str` (pandas 3 builds Arrow strings for the latter; 22 s of the read), and `classify_rege` maps through a dict built from the column's unique values instead of a lambda that ran once per cell (12 million calls). `metrics_gen` was profiled but not changed: its time is the per-cell accessors in `odd_rows.py`, already tuned, and the saving would come from fewer calls, not faster ones.
+
 ### 2026-10-26 — A new ARS client builds: blank path reads as MM, the P&L reads three months
 
 Summary: A new ARS client with no path recorded now builds on the Lift Matrix (MM) model instead of stopping on the template's placeholder tabs, and its Financial Performance slides now work with as few as three months of actuals.
