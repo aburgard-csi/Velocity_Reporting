@@ -411,6 +411,34 @@ class Deck:
                             if rx.search(r.text):
                                 r.text = rx.sub(r"1 \1", r.text)
 
+    _HOUSE = {"lift": "gain", "lifts": "gains", "lifted": "raised"}
+
+    def _house_words(self):
+        """RPE's house style bans "lift" and "lifted" (validate_deck BANNED, CLAUDE.md writing style),
+        which v5's campaign slides use for the difference-in-differences gain ("responder lift minus
+        control", "mean lift"). The word changes, never a figure; a Lift Matrix slide keeps its name,
+        as the validator allows."""
+        import re
+        rx = re.compile(r"\b(lift|lifts|lifted)\b", re.I)
+
+        def swap(mo):
+            word = self._HOUSE[mo.group(0).lower()]
+            return word.capitalize() if mo.group(0)[0].isupper() else word
+
+        for s in self.slides:
+            frames = []
+            for sh in s.shapes:
+                frames += [sh.text_frame] if sh.has_text_frame else []
+                if getattr(sh, "has_table", False) and sh.has_table:
+                    frames += [c.text_frame for row in sh.table.rows for c in row.cells]
+            if any("lift matrix" in tf.text.lower() for tf in frames):
+                continue
+            for tf in frames:
+                for para in tf.paragraphs:
+                    for r in para.runs:
+                        if rx.search(r.text):
+                            r.text = rx.sub(swap, r.text)
+
     def run(self, builders, titles, *args):
         """Call each v5 builder as `b(h, *args)`; a builder that declines (returns its reason,
         or raises) becomes a stated slide under its own title. Returns the slides made.
@@ -438,10 +466,12 @@ class Deck:
                     why = m.group(1)
                 self.declined(title, why)
         self._singulars()
+        self._house_words()
         return list(self.slides)
 
     def helpers(self):
         return {"new": self.new, "slide": self.slide, "chart": self.chart,
+                "declined": self.declined, "title": _title,
                 "divider": lambda *_a, **_k: None, "rail": _rail, "table": _table,
                 "kpi": _kpi, "text": _text, "chart_left": _chart_left, "picture": _picture,
                 "fit_picture": _fit_picture, "money": labels.money, "kicker": _kicker,

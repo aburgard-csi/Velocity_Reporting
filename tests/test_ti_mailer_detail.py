@@ -103,8 +103,8 @@ def test_seg_resp_grid_renders_two_rows_per_segment(tmp_path):
     assert (tmp_path / "g.png").exists()
 
 
-@__import__("pytest").mark.skip(reason="v5's deck harness (test_deck_layout): the offer-detail "
-                                 "slides port with G9-06")
+@__import__("pytest").mark.skip(reason="v5's deck harness (test_deck_layout) is not ported; "
+                                 "the offer-detail slides are covered by test_ti_campaign_chapter.py")
 def test_responder_slides_render_per_offer():
     from test_ti_deck_layout import _build_fixture, _new_slide_metrics
     mm = _new_slide_metrics()

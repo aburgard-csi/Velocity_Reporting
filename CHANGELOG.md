@@ -21,6 +21,28 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the Campaign chapter
+
+Summary: The Transaction Intelligence decks gain an eighth chapter, Campaign: reach and response by
+offer, the per-offer summary, the response ladder and NU conversion, segment trajectories, the
+penalty box, the counterfactual, which offer earns its postage, the transaction increase over the
+ask, lift by segment, depth of engagement, organic against program activation, what a response does
+to spend against a control, sustained activity, first-time against repeat responders, who responds,
+tier movement and migration, the most recent mailer, and an Offer detail appendix, newest first. A
+slide whose figures are missing is stated. 1776, both lenses: 35 slides and 8 per-mailer appendix
+slides drawn, 0 FAIL. No ARS deck changes.
+
+`ti/deck/campaign_inline.py` lifts v5's campaign blocks out of `ars/deck/build.py` line for line (each
+builder names its v5 lines), with v5's build-function closures bound to the helper bundle (`skip`
+draws the cut's stated slide). Three changes, marked where they are made: six slides v5 drew as
+`new()` + `register()` + `_title()` go through `slide()` so the title comes first; the per-offer
+table shows as many offers as fit above its summary row and note (6 of 9 on 1776, where v5's 7 put
+the note on the KPI row) and carries the response rate's "%" in its header; and `Deck.run` swaps
+RPE's banned "lift" / "lifted" for "gain" / "raised" (never a figure, never on a Lift Matrix slide).
+`ti/deck/migration_slides.py` is v5's tier matrix, with its test. `ti/chapters/campaign.py` computes
+v5's migration, mailer, mailer_detail, mailer_summary and cohort sections in v5's order. Tests:
+`tests/test_ti_campaign_chapter.py`. DUPLICATES rows 22-26 updated.
+
 ### 2026-10-26 — Transaction Intelligence: swipe-tier migration, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 swipe-tier migration: each eligible
