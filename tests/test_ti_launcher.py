@@ -102,8 +102,9 @@ def _txn_root(tmp_path, names):
 
 
 def test_the_transaction_months_are_counted_from_file_names_without_opening_a_zip(tmp_path, monkeypatch):
-    """A file dated in month M carries month M-1's data (v5's rule): October's window for a 2026.10
-    cycle is Nov 25 to Oct 26, and the files are those dated Dec 25 to Nov 26."""
+    """A file dated in month M carries month M-1's data (v5's rule), and the window ends at the
+    cycle's data month, the month before it: the 2026.10 cycle's window is Oct 25 to Sep 26, and
+    the files are those dated Nov 25 to Oct 26."""
     root = _txn_root(tmp_path, [f"1441_1_[2026.{m:02d}.03][10.00.00]_monthlytran.csv" for m in range(1, 11)]
                      + ["1441_1_[2026.05.03][10.00.00]_deposits.csv",        # not a transaction file
                         "1441_1_[2025.06.03][10.00.00]_monthlytran.csv"])    # outside the window
@@ -114,10 +115,10 @@ def test_the_transaction_months_are_counted_from_file_names_without_opening_a_zi
     found, window = L.txn_months_on_hand("1441", "2026.10")
     assert opened == []
     assert len(window) == 12
-    assert L._month_label(window[0]) == "Nov 25" and L._month_label(window[-1]) == "Oct 26"
-    # files dated Jan..Oct 2026 carry Dec 25..Sep 26: ten months, Nov 25 and Oct 26 missing
+    assert L._month_label(window[0]) == "Oct 25" and L._month_label(window[-1]) == "Sep 26"
+    # files dated Jan..Oct 2026 carry Dec 25..Sep 26: ten months, Oct 25 and Nov 25 missing
     assert len(found) == 10
-    assert {L._month_label(n) for n in window if n not in found} == {"Nov 25", "Oct 26"}
+    assert {L._month_label(n) for n in window if n not in found} == {"Oct 25", "Nov 25"}
 
 
 def test_the_checks_name_each_dependency(tmp_path, monkeypatch):

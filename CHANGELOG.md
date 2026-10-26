@@ -21,6 +21,26 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — A new ARS client builds: blank path reads as MM, the P&L reads three months
+
+Summary: A new ARS client with no path recorded now builds on the Lift Matrix (MM) model instead of stopping on the template's placeholder tabs, and its Financial Performance slides now work with as few as three months of actuals.
+
+Aaron: "All new clients will be on MM revenue calculations. Also we need to work with as few as 3 months of data. Use both revenue labels also (revenue/revenues)." 1805 Texar FCU's build stopped with UNEVALUATED WORKBOOK: its `clients.md` path was `—`, so `build_month` took the SM branch and read the plain `Executive Financials` tab, the template's "Bank Name, October 2007". Its `Executive Financials MM` tab was filled in (3 months, 1 mailing, $3,943).
+- `clients.md`: 1805 is MM. Every other ARS row's path was checked against its workbook's `Executive Financials MM` tab (49 clients): all agree.
+- `build_month.read_roster`: an ARS row whose path is blank or `—` is MM. SM is recorded, never assumed, so every consumer of the path (launcher, Sheila's Lift Matrix tab, dashboards) sees it.
+- `actuals_tab.read`: the month header row needs 3 date columns, not 5, and the revenue row is found under "Total Marginal Revenue" as well as "Total Marginal Revenues".
+
+### 2026-10-23 — The Transaction Intelligence check's window ends at the data month
+
+Summary: Sheila's count of transaction files on hand now covers the same twelve months the
+Transaction Intelligence build reads, ending at the month before the cycle; it had run one month
+ahead. No deck changes.
+
+Running the portfolio analysis for 1615 Cape & Coast on 2026-10-23 showed the builder's window as
+Oct 25 to Sep 26 (the ODD's newest month is September) while Sheila's check said Nov 25 to Oct 26 and
+reported October missing. `ars_launcher.txn_months_on_hand` now anchors on the month before the
+period, as `ti_build` does through `odd.frame_data_month`.
+
 ### 2026-10-23 — Transaction Intelligence: financial services and leakage, matching v5
 
 Summary: The financial-services analysis is ported: which outside lenders, card issuers, brokers,

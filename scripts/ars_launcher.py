@@ -570,13 +570,17 @@ def code_table_clients():
 
 def txn_months_on_hand(cid, period, months=TI_MONTHS):
     """(the data months with a transaction file on hand, the window's data months) for the window
-    of `months` ending at `period` — from the file NAMES in Inputs/Txn Files/<id>/, never by opening
-    a zip (one folder listing). v5's own name and window rules (ti/txn_stage): a file dated in month
-    M carries month M-1's data. Months are counted as year*12 + month-1."""
+    of `months` ending at the period's DATA month — from the file NAMES in Inputs/Txn Files/<id>/,
+    never by opening a zip (one folder listing). v5's own name and window rules (ti/txn_stage): a
+    file dated in month M carries month M-1's data. Months are counted as year*12 + month-1.
+
+    The builder anchors on the ODD's newest month (ti_build: `odd.frame_data_month`), which for a
+    cycle's extract is the month before the cycle — 1615's October 2026 extract runs to September,
+    and the window it built was Oct 25 to Sep 26 (2026-10-23). The check anchors the same way."""
     _, txn_stage, _, _ = _ti_modules()
     import pandas as pd
     y, m = (int(x) for x in str(period).split("."))
-    anchor = pd.Timestamp(y, m, 1) + pd.offsets.MonthEnd(0)
+    anchor = pd.Timestamp(y, m, 1) - pd.offsets.MonthEnd(1)       # the data month: the one before the cycle
     hi = anchor.year * 12 + anchor.month - 1
     window = list(range(hi - (months - 1), hi + 1))
     found = set()
