@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: each offer month by month, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 per-offer trajectories: for every
+completed wave, average swipes and spend each month from a year before the mailing to three years
+after, for responders against their own challenge segment's non-responders (and, where the ODD
+carries it, by its own segmentation band). Matches v5 for 1776 CoastHills and 1761 CapEd. No deck
+changes yet.
+
+`ti/monthly_analysis/mailer_detail.py` is v5's section, unchanged, run through `ti/odd_sections.py`,
+with v5's `test_mailer_detail.py` over `tests/ti_v5_harness.py`. Its one slide test skips until G9-06,
+and the mailer-summary test that read these figures runs again. v5's `test_appendix_depth.py` is not
+ported: it builds v5's whole deck through `deck.build`; the offer-detail slides get the cut's own
+chapter test in G9-06. Parity: matches on 1776 (2026-09) and 1761 (2026-10), where v5 wrote only
+`mailer_resp_detail` (the segmentation-band table is conditional). DUPLICATES row 24.
+
 ### 2026-10-26 — Transaction Intelligence: the per-mailer summary, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 per-mailer summary: for every
