@@ -55,7 +55,7 @@ unit suite could not run).
 | Name | Hex | Role |
 | --- | --- | --- |
 | `NAVY` | `#00274C` | titles, tiles, bars, table headers, slide numbers |
-| `ORANGE` | `#F47A29` | the current period, the highlighted row, pills, totals, agenda badges |
+| `ORANGE` | `#F15D22` | the current period, the highlighted row, pills, totals, agenda badges |
 | `TICK` | `#5A6670` | axis ticks, selection subtitles, body grey |
 | `ROWALT` | `#EEF2F7` | alternating table rows |
 | `GRID` / `HAIRLINE` / `MUTED` | `#E4EAF1` / `#D9DEE5` / `#B8C0CA` | gridlines, lightest spine, axis spine |

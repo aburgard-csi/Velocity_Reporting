@@ -21,6 +21,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — The Sept. 2026 brand orange (#F15D22) on every deck
+
+Summary: Decks are drawn with the new CSI orange from the Sept. 2026 brand template instead of the old one.
+
+Aaron, 2026-10-26: attached "Updated Brand Presentation Sept. 2026.potx" and asked for a full multi-product deck with the branding template; tested on Austin Bank (1075) with the smaller restyle option, then "merge #62 once CI passes".
+
+The template's slide 18 gives the palette: navy 00274C (unchanged), light blue 035B95, orange F15D22, gold F8971D, red EB2A2E. The pipeline's orange was F47A29. This changes the orange only: `brand.ORANGE` and the orange ramps, the literal colours inside the template shells and the five reference decks (`scripts/recolor_shells.py`, 259 literals; `--check` reports any left), and two builders (`build_mrpc_gen`, the ARS Contact slide) that wrote the old orange as their own literal and are now on `brand.ORANGE_RGB`. Light blue, gold and red are defined in `brand.py` (`CSI_LIGHT_BLUE`, `CSI_GOLD`, `CSI_RED`) but nothing uses them yet. **Not done:** the theme colours in the shells (the stock Office theme; much of the shells' fill and text follows `accent1` / `dk1`, and the new template's `dk1` is blue), the template's own cover, divider and closing layouts and its gradients, and the Sheila and dashboard pages, which keep the old orange. Austin Bank 1075 combined deck rebuilt: 67 slides as before, 0 FAIL / 35 REVIEW as before, 0 old-orange literals (126 before), and the 53 chart images are drawn in the new orange. `tests/test_brand_single_source.py` fails if a builder writes the orange itself or a shell holds a retired colour.
+
 ### 2026-10-26 — Sheila's build progress: no "Full output" box, and Transaction Intelligence builds show it in their own panel
 
 Summary: CSM Sheila no longer has a "Full output" box under a build, and a Transaction Intelligence build now shows its progress inside the Transaction Intelligence panel at the bottom of the client page.

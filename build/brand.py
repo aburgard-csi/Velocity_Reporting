@@ -36,8 +36,14 @@ from pptx.dml.color import RGBColor
 
 # ----------------------------------------------------------------- core palette
 NAVY   = "#00274C"   # primary — titles, tiles, bars, table headers
-ORANGE = "#F47A29"   # accent — the current period, the highlighted row, pills
+ORANGE = "#F15D22"   # accent — the current period, the highlighted row, pills (CSI Orange, PMS 179; was #F47A29 until the Sept. 2026 brand template)
 WHITE  = "#FFFFFF"
+
+# The rest of the CSI palette from "Updated Brand Presentation Sept. 2026" (slide 18). Defined so a builder can
+# reach for them by name; no builder uses them yet. NAVY and ORANGE above are the same two colours.
+CSI_LIGHT_BLUE = "#035B95"   # PMS 6126C
+CSI_GOLD       = "#F8971D"   # PMS 144
+CSI_RED        = "#EB2A2E"   # PMS 185
 
 # ----------------------------------------------------------------- greys, by ROLE
 # These are the five distinct values that were in use. Naming them by role is
@@ -74,9 +80,9 @@ TEAL       = "#0D9488"   # series line over navy bars (MRPC Enrollments, Still A
 COLD_RAMP = ["#00274C", "#12406E", "#245C8C", "#3D74A0", "#6E93B4", "#9DB4C8",
              "#C0D0DD", "#DDE6ED", "#EAF0F4", "#F2F5F8"]
 # Warm ramp for eligible slices — orange at three tints.
-WARM_RAMP = ["#F47A29", "#F79552", "#FBB27E"]
+WARM_RAMP = ["#F15D22", "#F47D4E", "#F79E7A"]   # ORANGE, then 20% and 40% of the way to white
 # MRPC cancellation-reason categories.
-CANCEL_RAMP = ["#00274C", "#B9C7D6", "#5A7590", "#C9D6E3", "#F47A29",
+CANCEL_RAMP = ["#00274C", "#B9C7D6", "#5A7590", "#C9D6E3", "#F15D22",
                "#D9B44A", "#C98B8B"]
 
 
