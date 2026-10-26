@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — A Transaction Intelligence slide with no data is stated, never silently left out
+
+Summary: Two Transaction Intelligence slides, "When the card gets used" and "Recurring payments on the
+card", were left out of 1776's deck without a word when their data was missing: v5's builders return
+nothing in that case, and the cut only stated a slide whose builder gave a reason. Now any slide that
+draws nothing is stated under its own title ("Not shown for this client: the figures it needs are not
+in this client's files"), as every other missing slide is. No figure changes; the TI cut only, no ARS
+deck changes. A 1776 deck gains those two stated slides (105 → 107 per lens).
+
+`ti/deck/helpers.Deck.run` counts the slides before and after each builder; a builder that returned
+None and drew nothing is treated as a decline. Found by reconciling the built 1776 deck (95 content
+slides) against v5's slide list (97).
+
 ### 2026-10-23 — A Transaction Intelligence KPI card low on a slide keeps its note under its value
 
 Summary: On a compact KPI card (one drawn low on the slide), a note long enough to wrap was moved by

@@ -413,14 +413,21 @@ class Deck:
 
     def run(self, builders, titles, *args):
         """Call each v5 builder as `b(h, *args)`; a builder that declines (returns its reason,
-        or raises) becomes a stated slide under its own title. Returns the slides made."""
+        or raises) becomes a stated slide under its own title. Returns the slides made.
+
+        Some v5 builders decline by returning None without drawing ("When the card gets used" and
+        "Recurring payments on the card" with no data); v5 dropped those silently. Here a builder
+        that drew nothing is stated too, so no slide ever goes missing without a sentence."""
         h = self.helpers()
         for b in builders:
             name = getattr(b, "__name__", "slide")
+            drawn = len(self.slides)
             try:
                 why = b(h, *args)
             except Exception as exc:
                 why = f"it could not be computed ({type(exc).__name__}: {exc})"
+            if not why and len(self.slides) == drawn:
+                why = "the figures it needs are not in this client's files"
             if why:
                 title = titles.get(name, name.replace("_", " ").capitalize())
                 # v5 often words a decline as "<label> (<reason>)", the label being the slide's own
