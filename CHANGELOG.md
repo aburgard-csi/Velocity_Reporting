@@ -21,6 +21,20 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the Value chapter
+
+Summary: The Transaction Intelligence decks gain a seventh chapter, Value: What a card and an opt-in
+earn (with the conversion math), The value ladder, Value per account by branch, What a responder is
+worth, Where cards do not follow volume, and Where branches diverge. A slide whose figures are
+missing is stated. 1776, both lenses: five slides drawn, "Where branches diverge" stated (no branch
+diverges, as in v5's own run), 0 FAIL, 0 REVIEW. No ARS deck changes.
+
+`ti/deck/value_inline.py` lifts v5's six inline value blocks out of `ars/deck/build.py` as `(h, m)`
+builders, line for line. `ti/chapters/value.py` computes v5's dctr, rege, interchange and value
+sections, then the leak post-passes on their figures, in v5's order, priced at the client's ICRate /
+NSF_OD_Fee (filled from the workbook when blank), and registers the chapter after Economics. On 1776
+(2026.10): a card is worth $183 a year and an opt-in $178. Tests: `tests/test_ti_value_chapter.py`.
+
 ### 2026-10-26 — Transaction Intelligence: where cards and opt-ins leak, priced, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 leak tables: the branches, age
