@@ -21,6 +21,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Sheila shows her version, starting at 2.0
+
+Summary: CSM Sheila's header now shows the version, v2.0, so you can tell which release a PC is running.
+
+Aaron, 2026-10-26: "roll the version number forward since we've added a major feature"; then "VERSION file in Sheila's header, start at 2.0".
+
+The project had no version number before this: what was released was named only by the date and commit in `RELEASE.txt`. `VERSION` at the root of the repo holds it (first line, `2.0`); `ars_launcher_web.app_version` reads it and the header shows it beside the name. `release_launcher.ps1` copies it with the code, so every PC's local copy carries it. A copy without the file, or with one that is not `N.N` or `N.N.N`, shows no version rather than a guess. It is bumped by hand, in the commit that adds a major feature. It starts at 2.0 because a major feature has just been added.
+
 ### 2026-10-26 — The ODD extract step is about a third faster on a large client
 
 Summary: Reading a large client's ODD extract takes about a minute instead of a minute and a half, with identical figures. Small clients are unchanged.
