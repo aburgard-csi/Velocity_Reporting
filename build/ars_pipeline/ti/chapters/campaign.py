@@ -2,7 +2,9 @@
 The Campaign chapter: what the mailings did — reach and response by offer, the per-offer summary,
 the ladder and NU conversion, what a response does to spend against a control, the counterfactual,
 which offer earns its postage, over the ask, sustained activity, who responds, how accounts moved
-between swipe tiers, the most recent mailer, and an Offer detail appendix, newest first.
+between swipe tiers, the most recent mailer, the campaign hero and the two revenue frames (the
+workbook's booked revenue against the difference-in-differences estimate), and an Offer detail
+appendix, newest first.
 
 Figures: v5's migration, mailer, mailer_detail, mailer_summary and cohort sections (with the ladder
 cohort imports), in v5's order (`ti/odd_sections.py`). Slides: v5's campaign blocks, drawn inline in
@@ -18,6 +20,7 @@ TITLES = {
     "program_reach": "Program reach",
     "response_reach": "Response and reach by offer",
     "per_offer": "Per-offer summary",
+    "hero": "The campaign hero",
     "ladder_waves": "Ladder and NU conversion by offer",
     "segment_traj": "Segment trajectories",
     "penalty": "The penalty box",
@@ -38,6 +41,7 @@ TITLES = {
     "latest_mailer": "The most recent mailer",
     "latest_trajectory": "The most recent mailer trajectory",
     "latest_offer": "The most recent offer",
+    "revenue_frames": "Revenue frames",
     "offer_detail": "Offer detail",
 }
 

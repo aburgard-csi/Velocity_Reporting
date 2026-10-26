@@ -21,6 +21,23 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the campaign hero and Revenue frames
+
+Summary: The Campaign chapter gains James's v5 hero slide and Revenue frames. The hero's big number
+is what the client has earned over the fees paid while a 2:1 guarantee balance is live, the
+workbook's program profit otherwise, with the response trend and the response, gain and retention
+tiles. Revenue frames sets the workbook's booked revenue and profit beside the
+difference-in-differences gain per responder (and that gain as interchange), and says why the two
+never tie. 1776, both lenses: both drawn, 0 FAIL ("The 2:1 guarantee holds: $561K earned over the
+fees paid"). No ARS deck changes.
+
+Both are lifted from v5's build like the rest of the chapter, after the per-offer summary and before
+the Offer detail appendix, as in v5. One change, marked: the hero's tile icons go through the helper
+bundle's `chart()` into the chapter's charts folder (v5 wrote them straight to its own, unless
+dry_run). v5's `_responses_caption` comes with them. Tests: `tests/test_ti_campaign_chapter.py`
+(guarantee math while a balance is live, the workbook's profit once it clears, both frames).
+DUPLICATES row 27.
+
 ### 2026-10-26 — Transaction Intelligence: the Campaign chapter
 
 Summary: The Transaction Intelligence decks gain an eighth chapter, Campaign: reach and response by
