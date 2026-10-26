@@ -90,7 +90,7 @@ def test_a_build_job_streams_its_lines_and_names_the_deck(server, monkeypatch):
               "print('  [..]   Reading the ODD extract  (0 min)', flush=True)\n"
               "time.sleep(0.3)\n"
               f"print('  [ok]   In Outputs: {deck.replace(chr(92), chr(92) * 2)} (1 older file(s) archived, none deleted)')\n")
-    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False, period=None: [sys.executable, "-c", script])
+    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False, period=None, ti=False: [sys.executable, "-c", script])
     status, data = call(server, "POST", "/api/build", {"client": "1441"})
     assert status == 202
     for _ in range(100):
@@ -106,7 +106,7 @@ def test_a_build_job_streams_its_lines_and_names_the_deck(server, monkeypatch):
 def test_a_second_build_queues_behind_the_running_one(server, monkeypatch):
     """Builds run one at a time; the next waits its turn instead of being refused (2026-09-16)."""
     script = "import time, sys\ntime.sleep(0.6)\nprint('  [ok]   built', sys.argv[1], flush=True)\n"
-    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False, period=None: [sys.executable, "-c", script, cid])
+    monkeypatch.setattr(W, "build_cmd", lambda cid, rebuild, combined=False, period=None, ti=False: [sys.executable, "-c", script, cid])
     assert call(server, "POST", "/api/build", {"client": "1441"})[0] == 202
     status, data = call(server, "POST", "/api/build", {"client": "1453"})
     assert status == 202 and json.loads(data)["queued"] == 1
@@ -438,7 +438,7 @@ def test_an_old_status_is_shown_at_once_with_its_build_buttons_held(clean_state,
     monkeypatch.setattr(W, "STATUS_TTL", 600)
     new = W.status_doc("1441", background=True)
     assert new["state"] == "stop" and new["refreshing"] is False
-    assert "if (HOLD) for (const b of [go, go2])" in W.PAGE, "the page holds the Build buttons meanwhile"
+    assert "if (HOLD) for (const b of [go, go2, goti])" in W.PAGE, "the page holds the Build buttons meanwhile"
 
 
 def test_a_check_that_started_before_a_build_finished_is_not_stored(clean_state, monkeypatch):
