@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: swipe-tier migration, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 swipe-tier migration: each eligible
+cardholder's swipe tier a year ago and now (on a three-month average), how many moved up, held or
+moved down, the full then-to-now matrix, the month-by-month movement, the non-users who started
+swiping, and the same split by responders, mailed non-responders and the never mailed. Every figure
+matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet.
+
+`ti/monthly_analysis/migration.py` is v5's section, unchanged, run through `ti/odd_sections.py`, with
+v5's `test_migration_monthly.py` over `tests/ti_v5_harness.py`. v5's `test_migration_matrix_slide.py`
+tests the slide module `deck/migration_slides.py` and ports with it in G9-06. Parity: 31/31 on 1776
+(2026-09) and 1761 (2026-10), every migration key v5 writes. DUPLICATES row 26.
+
 ### 2026-10-26 — Transaction Intelligence: campaign lift, the ladder and the counterfactual, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 cohort and ladder figures: every

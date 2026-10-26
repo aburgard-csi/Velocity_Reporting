@@ -146,6 +146,13 @@ def cohort(ctx):
     return _section("cohort")(ctx)
 
 
+def migration(ctx):
+    """v5's swipe-tier migration: each eligible cardholder's tier 12 months ago and now (trailing
+    3-month average), up / same / down, the then-to-now matrix, monthly movement, non-users who started
+    swiping, and the same by response group."""
+    return _section("migration")(ctx)
+
+
 def leaks(ctx, figures=None):
     """v5's post-passes, in v5's order (metrics.compute after SECTIONS): `leaks.compute` finds the
     segments holding more of the eligible base than of the cards or opt-ins, from the dctr and rege
@@ -169,6 +176,7 @@ PARITY = {
     "mailer_summary": ("metrics.json", mailer_summary),
     "mailer_detail": ("metrics.json", mailer_detail),
     "cohort": ("metrics.json", cohort),
+    "migration": ("metrics.json", migration),
     "value": ("metrics.json", value),
     "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),
