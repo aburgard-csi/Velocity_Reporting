@@ -96,7 +96,9 @@ def where_the_money_goes(h, t, base, category_bars):
 def where_the_leakage_goes(h, t, base):
     """flow_ribbons on the leakage flow -- built and tested since #74 phase 2
     and never called by a slide until now."""
-    cat = t.get("fin_by_category") or []
+    # RPE: leakage categories only -- fin_by_category also carries the adjacency rows (payment
+    # apps), which fin_leakage_dollars, the headline's total, does not count
+    cat = [r for r in (t.get("fin_by_category") or []) if r[6] == "leakage"]
     if len(cat) < 3:
         return "Where the leakage goes (too few categories)"
     s, top = h["slide"]((
@@ -256,17 +258,24 @@ def what_leakers_hold(h, t, base):
         h["chart_left"](s, path, top, RAIL_EDGE)
 
 
+def _count_word(n):
+    return {3: "Three", 4: "Four", 5: "Five", 6: "Six"}.get(n, str(n))
+
+
 def how_the_leakage_builds(h, t, base):
     """concept 09, drawn with waterfall_bridge so the total must reconcile."""
-    cat = sorted((t.get("fin_by_category") or []), key=lambda r: -r[4])[:6]
+    # RPE: v5 sorted every category, adjacency (payment apps) included, so for 1776 the six
+    # summed to $45.1M "of the $22.9M that leaves" -- fin_leakage_dollars counts leakage only
+    cat = sorted((r for r in (t.get("fin_by_category") or []) if r[6] == "leakage"),
+                 key=lambda r: -r[4])[:6]
     if len(cat) < 3:
         return "How the leakage builds (too few categories)"
     steps = [[labels.clip(cat[0][0], 16), float(cat[0][4]), "start"]]
     for r in cat[1:]:
         steps.append([labels.clip(r[0], 16), float(r[4]), "up"])
-    steps.append(["these six", float(sum(r[4] for r in cat)), "end"])
+    steps.append([f"these {_count_word(len(cat)).lower()}", float(sum(r[4] for r in cat)), "end"])
     s, top = h["slide"]((
-        f"Six categories carry {money(sum(r[4] for r in cat))} of the "
+        f"{_count_word(len(cat))} categories carry {money(sum(r[4] for r in cat))} of the "
         f"{money(t.get('fin_leakage_dollars'))} that leaves",
         "category by category up to the total — the number is built in "
         "front of the room, not asserted"), "How the leakage builds")
