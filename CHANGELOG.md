@@ -21,6 +21,23 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: keep or toss any chapter or slide in one file
+
+Summary: Which chapters and slides go in the Transaction Intelligence decks is now set in one file,
+`build/ars_pipeline/ti/slides.json`: every chapter and every slide of the cut is listed by name as
+"keep" or "toss". A tossed slide is left out of the deck; a tossed chapter loses its divider and agenda
+row too. Everything starts as "keep", so no deck changes today. This is how the overlaps with the ARS
+deck in docs/migration/DUPLICATES.md get settled (James and Aaron, 2026-10-26: "an easy way to
+include/toss slides, especially those that conflict"): each decision is a reviewed change to this file.
+
+`ti/selection.py` reads it (`TI_SLIDES` points at another file); `Deck.run` and the ICS chapter return
+only the kept slides, by the fixed title each was drawn under (never the data-driven headline), and
+`build_ti_gen.build` drops a tossed chapter before the agenda is laid out. A tossed slide gets no
+stated page: leaving it out was a decision, not missing data. A key may use `*` for slides named per
+offer ("Mailer * summary"); an unlisted slide is kept; any state other than keep or toss stops the
+build. `tests/test_ti_selection.py` checks every key names a real chapter or slide and every slide the
+cut draws is listed. 8 chapters, 138 slide entries.
+
 ### 2026-10-26 — Transaction Intelligence: the campaign hero and Revenue frames
 
 Summary: The Campaign chapter gains James's v5 hero slide and Revenue frames. The hero's big number

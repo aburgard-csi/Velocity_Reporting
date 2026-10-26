@@ -981,7 +981,8 @@ This is the readme index — update it whenever files are added, removed, or mov
   builds the first two; `ti/deck/economics_inline.py`, `value_inline.py` and `campaign_inline.py` hold
   v5's economics, value and campaign slides, lifted out of v5's build function
   (`ti/deck/migration_slides.py` is v5's tier-matrix module); `tests/ti_v5_harness.py` stands in for v5's
-  whole-month test harness;
+  whole-month test harness; `ti/slides.json` sets every chapter and slide of the cut to "keep" or
+  "toss" and `ti/selection.py` reads it (how the DUPLICATES overlaps get settled);
   `ti/odd_sections.py` runs v5's ODD sections; `ti/deposits_input.py` reads the client's own
   `Inputs/Deposits` file; `ti/workbook.py` is v5's ARS Workbook reader (`wb_*`: P&L, offers, Lift
   Matrix, rates) and `ti/workbook_input.py` finds the client's workbook by `build_month`'s rule and
