@@ -119,9 +119,25 @@ def value(ctx):
     return _section("value")(ctx)
 
 
+def leaks(ctx, figures=None):
+    """v5's post-passes, in v5's order (metrics.compute after SECTIONS): `leaks.compute` finds the
+    segments holding more of the eligible base than of the cards or opt-ins, from the dctr and rege
+    figures, then `value.apply_to_leaks` prices them. `figures` is what those sections already
+    returned; without it they are computed here."""
+    from ti.monthly_analysis import leaks as _leaks, value as _value
+    m = dict(figures) if figures is not None else {**dctr(ctx), **rege(ctx), **value(ctx)}
+    # the account bases sit in v5's metrics before any section runs: the debit half reads
+    # n_eligible from them, and without it leaks skips that half without a word
+    m = {**ctx.subsets.sizes(), **m}
+    out = _leaks.compute(m, ctx.config, ctx.warn)
+    out.update(_value.apply_to_leaks({**m, **out}))
+    return out
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "dctr": ("metrics.json", dctr),
+    "leaks": ("metrics.json", leaks),
     "value": ("metrics.json", value),
     "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),
