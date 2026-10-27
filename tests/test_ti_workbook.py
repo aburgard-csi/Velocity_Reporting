@@ -17,9 +17,9 @@ import pytest  # noqa: E402
 # RPE: the reader ports in G7-01; these tests exercise code that ports later (or is not migrated).
 # Each is skipped under the stage that brings its code, so it switches back on when that lands.
 _LATER = {
-    "test_pnl_slide_renders_from_wb_keys": "G7-03 (economics chapter)",
-    "test_lift_matrix_slide_renders_on_the_main_path": "G7-03 (economics chapter)",
-    "test_lift_matrix_slide_skips_and_names_the_workbook": "G7-03 (economics chapter)",
+    "test_pnl_slide_renders_from_wb_keys": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_lift_matrix_slide_renders_on_the_main_path": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_lift_matrix_slide_skips_and_names_the_workbook": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
     "test_revenue_frames_bridge_renders_and_labels_both_frames": "G9-07 (shared campaign slides)",
     "test_revenue_frames_skips_without_did": "G9-07 (shared campaign slides)",
     "test_hero_declines_when_a_workbook_was_found_but_gave_no_profit": "G9-07 (shared campaign slides)",
@@ -30,7 +30,7 @@ _LATER = {
 
 
 def _later(fn):
-    return pytest.mark.skip(reason=f"ports with {_LATER[fn.__name__]}")(fn)
+    return pytest.mark.skip(reason=f"see {_LATER[fn.__name__]}")(fn)
 
 
 def _make_wb(path, stub=False, variants=False, rollup=False, lift=False):
