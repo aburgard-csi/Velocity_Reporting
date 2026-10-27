@@ -36,7 +36,12 @@ import datetime
 import os
 import re
 
-REV_LABEL = "total marginal revenues"
+# Both wordings are in use: the SM tab says "Total Marginal Revenues", a new client's MM tab
+# "Total Marginal Revenue" (Texar 1805, 2026-10-26).
+REV_LABELS = ("total marginal revenues", "total marginal revenue")
+# A new client has three months of actuals, so three is the shortest header row read as the
+# months; fewer is a stray date, not a month row.
+MIN_MONTH_COLUMNS = 3
 COST_LABEL = "total cost"
 # In tab order of preference. An MM client's workbook carries all three; taking the plain one
 # for an MM client would report the SM revenue model's figures, which is the bug this ordering
@@ -96,7 +101,7 @@ def read(source, mm=True):
             wb.close()
 
     hdr = next((r for r in rows
-                if sum(1 for c in r if isinstance(c, datetime.datetime)) >= 5), None)
+                if sum(1 for c in r if isinstance(c, datetime.datetime)) >= MIN_MONTH_COLUMNS), None)
     if hdr is None:
         return {"available": False, "reason": f"'{sheet}' carries no month columns"}
     cols = [(j, c) for j, c in enumerate(hdr) if isinstance(c, datetime.datetime)]
@@ -106,7 +111,7 @@ def read(source, mm=True):
     generated = None
     for i, r in enumerate(rows):
         lab = _label_of(r).lower()
-        if lab == REV_LABEL and rev_row is None:
+        if lab in REV_LABELS and rev_row is None:
             rev_row = r
         elif lab == COST_LABEL and cost_row is None:
             cost_row, cost_at = r, i
