@@ -169,7 +169,9 @@ def divider(prs, ch, pack, ln):
 def build(prs, pack, lens_key, chapters, art_dir=None):
     """Assemble the deck in `prs` and return the slides in deck order. No save."""
     ln = cut.lens(lens_key)
-    chapters = list(chapters)
+    from ti import selection
+    # a chapter tossed in ti/slides.json loses its divider and agenda row as well as its slides
+    chapters = [ch for ch in chapters if selection.chapter_kept(ch.title)]
     if not chapters:
         raise SystemExit(f"no chapter of the {cut.CUT_NAME} cut is built yet — "
                          f"nothing to put in a deck")

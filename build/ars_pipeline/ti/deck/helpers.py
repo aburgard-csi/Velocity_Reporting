@@ -478,7 +478,13 @@ class Deck:
                 self.declined(title, why)
         self._singulars()
         self._house_words()
-        return list(self.slides)
+        return self.kept(self.slides)
+
+    def kept(self, slides):
+        """The slides `ti/slides.json` keeps, by the fixed title each was drawn under; a tossed one is
+        left out of the deck altogether (build_ti_gen orders only what the chapters return)."""
+        from ti import selection
+        return [s for s in slides if selection.slide_kept(self.topics.get(id(s), ""))]
 
     def helpers(self):
         return {"new": self.new, "slide": self.slide, "chart": self.chart,

@@ -60,7 +60,7 @@ def build(ctx):
             if topic not in made:
                 deck.declined(topic, "the figures it needs are not in this client's files")
     rank = {t: i for i, t in enumerate(ORDER)}
-    return sorted(deck.slides, key=lambda s: rank.get(deck.topics.get(id(s)), len(ORDER)))
+    return deck.kept(sorted(deck.slides, key=lambda s: rank.get(deck.topics.get(id(s)), len(ORDER))))
 
 
 CHAPTER = cut.Chapter("TI_ICS", "ICS Accounts", "Activation · Usage · Retention",
