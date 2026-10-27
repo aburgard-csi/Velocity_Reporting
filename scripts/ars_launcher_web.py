@@ -2391,7 +2391,7 @@ function follow(id) {
       const {body} = await api("/api/job?client=" + encodeURIComponent(id));
       if (current !== id) return clearInterval(poller);
       renderJob(body);
-      if (body.done) { clearInterval(poller); loadClients(); }
+      if (body.done) { clearInterval(poller); loadClients(); recheckQuietly(id); }   // the buttons and verdicts were drawn before the build: draw them again
     } catch (e) {}
   };
   tick(); poller = setInterval(tick, 1500);
