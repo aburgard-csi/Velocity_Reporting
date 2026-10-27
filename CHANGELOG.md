@@ -30,19 +30,6 @@ years; the TI slide says 97.3% and 93.8%. The ARS deck's Kaplan-Meier leaves out
 reach each mark; v5's method counts them as retained, which raises the 3-year figure. No slide or number
 changes. The row's decision is pending, and the review page for keep/toss decisions pairs the two slides.
 
-### 2026-10-26 — Transaction Intelligence: an agenda of eight chapters fits
-
-Summary: When a Transaction Intelligence deck carries more than four chapters, its agenda now lists
-each chapter by name only, without the one-line description under it. With all eight chapters plus
-Questions, each row is about half an inch tall, and each description ran into the next chapter's name
-(validate_deck: eight FAILs on the agenda of 1776 CoastHills CU's eight-chapter deck). The description
-still opens each chapter on its divider. Decks of up to four chapters are unchanged.
-
-`build_ti_gen._agenda_headings_only` runs after the shared `assemble_combined.set_agenda`, which is not
-changed, and removes the detail boxes once the agenda passes `AGENDA_DETAIL_ROWS` (5) rows.
-`tests/test_ti_shell.py` builds four and eight stub chapters; at eight, the descriptions are gone and the
-agenda has 0 FAIL (the test fails without the fix). Rebuilt 1776's eight-chapter shell: 0 FAIL.
-
 ### 2026-10-26 — Transaction Intelligence: keep or toss any chapter or slide in one file
 
 Summary: Which chapters and slides go in the Transaction Intelligence decks is now set in one file,
@@ -216,6 +203,19 @@ CapEd. No deck changes yet (the Value slides port in G8-05).
 at the client's ICRate / NSF_OD_Fee, filled from the workbook when the config leaves them blank
 (G7-01). Its `apply_to_leaks` post-pass ships with leaks (G8-04). v5's empty-base test, skipped until
 now, runs again. Parity: 54/54 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES row 20.
+
+### 2026-10-26 — Transaction Intelligence: an agenda of eight chapters fits
+
+Summary: When a Transaction Intelligence deck carries more than four chapters, its agenda now lists
+each chapter by name only, without the one-line description under it. With all eight chapters plus
+Questions, each row is about half an inch tall, and each description ran into the next chapter's name
+(validate_deck: eight FAILs on the agenda of 1776 CoastHills CU's eight-chapter deck). The description
+still opens each chapter on its divider. Decks of up to four chapters are unchanged.
+
+`build_ti_gen._agenda_headings_only` runs after the shared `assemble_combined.set_agenda`, which is not
+changed, and removes the detail boxes once the agenda passes `AGENDA_DETAIL_ROWS` (5) rows.
+`tests/test_ti_shell.py` builds four and eight stub chapters; at eight, the descriptions are gone and the
+agenda has 0 FAIL (the test fails without the fix). Rebuilt 1776's eight-chapter shell: 0 FAIL.
 
 ### 2026-10-26 — Transaction Intelligence: PIN and signature interchange from the ODD, matching v5
 
