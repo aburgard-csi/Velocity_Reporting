@@ -137,7 +137,9 @@ def _share_targets():
     return [(R, "data_root"), (R, "report_dirs"), (R, "vip_data"), (R, "vip_manifest"), (R, "csm_list_file"),
             (DS, "_reachable"), (DS, "odd_reachable"), (DS, "_oddd_month_dirs"), (DS, "_source_reports"),
             (DS, "_mtime"), (DS, "_same_file"),
-            (L, "cycle_period"), (L, "csm_list_row")]
+            (L, "cycle_period"), (L, "csm_list_row"),
+            # the Transaction Intelligence check lists Inputs/Txn Files/<id>/ (2026-10-23)
+            (R, "txn_files")]
 
 
 def install_share_caches(seconds=None):
@@ -265,9 +267,11 @@ def compute_clients():
         with open(p, encoding="utf-8-sig", newline="") as fh:
             rows = {r.get("client_id", "").strip(): r for r in csv.DictReader(fh)}
     sent = DS.read_deliveries()["sent"] if period else {}
-    decks = {}
+    decks, ti_decks = {}, {}
     for d in (R.output_decks(f"*-{period}-*.pptx") if period else []):
-        decks.setdefault(d.name.split("-", 1)[0], []).append(d)
+        # A Transaction Intelligence deck is a separate presentation (2026-10-23): it is never the
+        # period's RPE deck, so it gets its own chip and never the "In Outputs" one.
+        (ti_decks if L.is_ti_deck(d.name) else decks).setdefault(d.name.split("-", 1)[0], []).append(d)
     try:
         cp_rows = {r["client_id"]: r for r in getattr(BM, "read_cashplease_roster", lambda: [])()}
     except SystemExit:                      # no CashPlease roster table: nothing ships CP
@@ -299,6 +303,7 @@ def compute_clients():
             # list's "built today" note (Aaron, 2026-10-13).
             "built_at": (res[0] or {}).get("finished") if (res[0] or {}).get("delivered") else None,
             "decks": sorted(d.name for d in decks.get(cid, [])),
+            "ti_decks": sorted(d.name for d in ti_decks.get(cid, [])),
             "lift_expired": "ARS" in progs and _lift.get(cid) == L.STOP,
             "error": bool(period) and last_build_failed(cid, period, decks.get(cid, []), result=res),
             "result_written": res[1],
@@ -699,10 +704,21 @@ def compute_status(cid):
     state = "stop" if any(l == L.STOP for l, _ in checks) else "ask" if any(l == L.ASK for l, _ in checks) else "ready"
     res = R.build_artifacts() / "launcher" / period / cid / "_launcher_result.json"
     last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
+    # The Transaction Intelligence block (Aaron, 2026-10-23): a separate presentation with its own
+    # checks and button, for ARS clients. A failure in its checks never costs the RPE status.
+    ti = None
+    if has_ars:
+        try:
+            ti = L.ti_status(cid, period, row, roster, sent)
+        except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
+            ti = {"checks": [{"level": L.STOP, "text": f"The Transaction Intelligence checks could not run "
+                                                        f"({type(e).__name__}: {e})"}],
+                  "state": "stop", "last": None, "decks": []}
     return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"),
             "csm": row.get("csm") or (cp_row or {}).get("csm"), "period": period,
             "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
-            "builds": builds_on_offer(entry[3] if entry else ["ARS"], avail, ars_only, has_ars)}
+            "builds": builds_on_offer(entry[3] if entry else ["ARS"], avail, ars_only, has_ars),
+            "ti": ti}
 
 
 def builds_on_offer(progs, avail, ars_only, has_ars):
@@ -722,18 +738,19 @@ def builds_on_offer(progs, avail, ars_only, has_ars):
 
 
 # ------------------------------------------------------------------ build jobs
-def build_cmd(cid, rebuild, combined=False, period=None):
+def build_cmd(cid, rebuild, combined=False, period=None, ti=False):
     """The child process is told WHICH cycle. Without it a build started while an earlier
     cycle is selected would quietly build today's instead — the launcher defaults to the
     calendar month, and the page would show the result under the month on screen."""
     return ([sys.executable, str(HERE / "ars_launcher.py"), "build", cid,
              "--period", period or current_period()]
-            + (["--rebuild"] if rebuild else []) + (["--combined"] if combined else []))
+            + (["--rebuild"] if rebuild else []) + (["--combined"] if combined else [])
+            + (["--ti"] if ti else []))
 
 
 class Job:
-    def __init__(self, cid, rebuild, combined=False, period=None):
-        self.cid, self.rebuild, self.combined = cid, rebuild, combined
+    def __init__(self, cid, rebuild, combined=False, period=None, ti=False):
+        self.cid, self.rebuild, self.combined, self.ti = cid, rebuild, combined, ti
         # Pinned at queue time: a job waiting behind two others must build the cycle it was
         # asked for, not whichever one happens to be on screen when it starts.
         self.period = period or current_period()
@@ -747,7 +764,10 @@ class Job:
         # COLUMNS keeps ars_launcher.say from wrapping a long Outputs path across two lines.
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1", COLUMNS="1000")
         try:
-            proc = subprocess.Popen(build_cmd(self.cid, self.rebuild, self.combined, self.period),
+            # `ti` is passed only for a Transaction Intelligence job: the tests stub build_cmd with the
+            # four-argument shape, and a fifth argument errored every stubbed job (2026-10-26).
+            cmd = build_cmd(self.cid, self.rebuild, self.combined, self.period, **({"ti": True} if self.ti else {}))
+            proc = subprocess.Popen(cmd,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                                     env=env, cwd=str(REPO))
@@ -774,7 +794,8 @@ class Job:
         waiting = [j for j in list(_queue) if not j.started]
         position = waiting.index(self) + 1 if self in waiting else None
         running = next((j.cid for j in list(_jobs.values()) if j.started and not j.done), None)
-        return {"client": self.cid, "rebuild": self.rebuild, "combined": self.combined, "lines": self.lines, "done": self.done,
+        return {"client": self.cid, "rebuild": self.rebuild, "combined": self.combined, "ti": self.ti,
+                "lines": self.lines, "done": self.done,
                 "code": self.code, "deck": deck, "queued": position, "after": running if position else None,
                 "seconds": round((self.finished or time.time()) - self.started) if self.started else 0}
 
@@ -806,14 +827,14 @@ def _drain():
                 _queue.remove(job)
 
 
-def start_build(cid, rebuild, combined=False):
+def start_build(cid, rebuild, combined=False, ti=False):
     """Queue a build; it starts at once when nothing else is building. Returns (http status, body)."""
     with _jobs_lock:
         cur = _jobs.get(cid)
         if cur and not cur.done:
             where = "building" if cur.started else f"queued #{[j for j in _queue if not j.started].index(cur) + 1}"
             return 409, {"error": f"{cid} is already {where}."}
-        job = Job(cid, rebuild, combined)
+        job = Job(cid, rebuild, combined, ti=ti)
         _jobs[cid] = job
         _queue.append(job)
         if _worker["thread"] is None:
@@ -834,6 +855,20 @@ def queue_doc():
 # The page links the change log and shows the last five updates (Aaron, 2026-09-16: "Add a link to the change
 # log at the top of Sheila's page, and show the last 5 updates"). CHANGELOG.md is released beside the code.
 CHANGELOG = REPO / "CHANGELOG.md"
+VERSION_FILE = REPO / "VERSION"
+
+
+def app_version(path=None):
+    """Sheila's version, the first line of the VERSION file at the root of the code (Aaron, 2026-10-26:
+    "VERSION file in Sheila's header, start at 2.0"). It is bumped by hand, in the commit that adds a
+    major feature; release_launcher.ps1 copies it with the code, so a released copy and the PC's local
+    copy of it carry the same file. A copy without one (an old release) shows no version, not a guess."""
+    try:
+        text = Path(path or VERSION_FILE).read_text(encoding="utf-8-sig").strip()
+    except OSError:
+        return ""
+    first = text.splitlines()[0].strip() if text else ""
+    return first if re.fullmatch(r"\d+(\.\d+){1,2}", first) else ""
 _ENTRY_RX = re.compile(r"^###\s+(\d{4}-\d{2}-\d{2})\s+[—-]+\s+(.+?)\s*$")
 
 
@@ -926,6 +961,13 @@ def release_stamp(path=None):
     except OSError:
         return None
     return text.splitlines()[0].strip() if text else None
+
+
+def _version_html():
+    """The header's version chip, or nothing when this copy has no VERSION file."""
+    v = app_version()
+    # app_version() only returns digits and dots, so there is nothing to escape.
+    return f'<span class="ver" id="ver" title="CSM Sheila version">v{v}</span>' if v else ""
 
 
 def changelog_page(path=None):
@@ -1654,7 +1696,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._send(403, {"error": "forbidden"})
         if u.path == "/":
-            return self._send(200, PAGE.replace("__TOKEN__", TOKEN).encode("utf-8"), "text/html; charset=utf-8")
+            return self._send(200, PAGE.replace("__TOKEN__", TOKEN).replace("__VERSION__", _version_html()).encode("utf-8"), "text/html; charset=utf-8")
         if u.path == "/changelog":
             return self._send(200, changelog_page().encode("utf-8"), "text/html; charset=utf-8")
         if not self._api_ok():
@@ -1715,7 +1757,8 @@ class Handler(BaseHTTPRequestHandler):
             cid = str(body.get("client", "")).strip()
             if not CID_RX.match(cid):
                 return self._send(400, {"error": "not a client number"})
-            return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined"))))
+            return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined")),
+                                           bool(body.get("ti"))))
         if path == "/api/cycle":
             want = body.get("period")
             try:
@@ -1833,6 +1876,7 @@ PAGE = r"""<!doctype html>
 body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.45 "Segoe UI",Calibri,Arial,sans-serif}
 header.top{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 header.top h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.01em}
+header.top h1 .ver{margin-left:10px;font-size:12.5px;font-weight:600;opacity:.8;letter-spacing:0}
 header.top .news{margin-left:auto;position:relative}
 header.top .news summary{cursor:pointer;list-style:none;font-weight:600;font-size:13.5px;padding:5px 12px;border:1px solid rgba(255,255,255,.45);border-radius:999px}
 header.top .news summary::-webkit-details-marker{display:none}
@@ -1911,6 +1955,7 @@ button.primary.warn{background:var(--orange)}
 button.primary:disabled{background:var(--ink3);cursor:not-allowed}
 button.link{font:inherit;background:none;border:0;color:var(--sent);text-decoration:underline;cursor:pointer;padding:0}
 .progress{margin-top:20px}
+.progress .notes{margin:6px 0 4px;padding-left:18px;font-size:13.5px;color:var(--ink2)} .progress .notes .warn{color:var(--warn)}
 .progress h3,.last h3{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:0 0 8px}
 .steps{list-style:none;margin:0;padding:0;display:grid;gap:5px}
 .steps li{display:flex;gap:10px;align-items:center}
@@ -1926,15 +1971,9 @@ button.link{font:inherit;background:none;border:0;color:var(--sent);text-decorat
 .result p{margin:4px 0}
 .mono{font-family:Consolas,monospace;font-size:13px;word-break:break-all}
 details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2);font-size:13px;width:max-content}
-.term{margin-top:8px;border-radius:8px;overflow:hidden;background:#0C0C0C;border:1px solid #2B2B2B;box-shadow:0 6px 18px rgba(0,0,0,.25)}
-.term .bar{display:flex;align-items:center;gap:8px;height:32px;padding-left:12px;background:#1F1F1F;color:#CCCCCC;font:12px/1 "Segoe UI",Arial,sans-serif}
-.term .bar .ttl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.term .bar .ctl{display:flex;height:100%} .term .bar .ctl span{width:42px;display:grid;place-items:center;color:#9D9D9D}
-.term pre{margin:0;padding:10px 14px 14px;color:#CCCCCC;font:13px/1.45 "Cascadia Mono",Consolas,"Courier New",monospace;max-height:340px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-.term .g{color:#16C60C} .term .y{color:#F9F1A5} .term .r{color:#E74856} .term .c{color:#61D6D6} .term .b{color:#3B78FF}
-.term .cursor{animation:blink 1s steps(1) infinite} @keyframes blink{50%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.term .cursor{animation:none}}
 .last{margin-top:18px;color:var(--ink2);font-size:14px}
+.ti{margin-top:26px;padding-top:16px;border-top:1px solid var(--rule)}
+.ti .tihead{margin:0 0 10px;font-size:16px} .ti .tihead .sub{font-weight:400;margin-left:8px}
 .note{color:var(--ink2);font-size:13px;margin-top:14px}
 .err{color:var(--stop)}
 .asof{margin:2px 0 0;font-size:12px;color:var(--ink3)} .asof .link{font-size:12px}
@@ -1992,7 +2031,7 @@ dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-wi
 </style>
 </head>
 <body>
-<header class="top"><h1>CSM Sheila</h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button><button role="tab" id="tab-reported" aria-selected="false">Feedback</button></nav><button type="button" class="reportbtn" id="reportbtn" title="Report a problem with Sheila or a deck">Report an issue</button><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
+<header class="top"><h1>CSM Sheila__VERSION__</h1><nav class="tabs" role="tablist" aria-label="View"><button role="tab" id="tab-decks" aria-selected="true">Decks</button><button role="tab" id="tab-lift" aria-selected="false">Lift Matrix</button><button role="tab" id="tab-issues" aria-selected="false">Data Issues</button><button role="tab" id="tab-reported" aria-selected="false">Feedback</button></nav><button type="button" class="reportbtn" id="reportbtn" title="Report a problem with Sheila or a deck">Report an issue</button><details class="news" id="news"><summary>What's new</summary><div class="newsbox"><ol id="newslist"><li class="small">Loading…</li></ol><a class="all" href="/changelog" target="_blank" rel="noopener">Full change log</a></div></details><a class="loglink" href="/changelog" target="_blank" rel="noopener">Change log</a><button type="button" class="period" id="period" aria-haspopup="true" aria-expanded="false">Loading…</button></header>
 <dialog class="report" id="repdlg"><form method="dialog" id="repform">
   <h3>Report an issue</h3>
   <label>What is wrong?<input type="text" id="reptitle" maxlength="200" required
@@ -2154,6 +2193,7 @@ function renderList() {
                    !c.checked && !c.ready && !c.blocked && quiet ? `<span class="chip" title="This month's checks have not run for this client yet">Checking…</span>` : "",
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}${builtToday ? " · built " + esc(builtToday) : ""}</span>` : "",
+                   (c.ti_decks || []).length ? `<span class="chip out" title="Transaction Intelligence decks, a separate presentation">TI in Outputs</span>` : "",
                    c.sent && c.csm === "Aaron Burgard" ? `<span class="chip sent">Sent ${esc(shortDate(c.sent))}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span>${dots(c)}<span class="meta">${chips}</span></button>`;
@@ -2274,14 +2314,48 @@ function renderStatus(s) {
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
   $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
       <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
-    <p class="note clientlinks" id="clientlinks">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}`;
+    <p class="note clientlinks" id="clientlinks">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}${tiPanel(s)}`;
   clientLinks(s.client, "decks");
   const go = $("#go"); if (go) go.addEventListener("click", () => build(s, false));
   const go2 = $("#go2"); if (go2) go2.addEventListener("click", () => build(s, true));
+  const goti = $("#goti"); if (goti) goti.addEventListener("click", () => buildTI(s));
   const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client, true));
+  const reti = $("#tirecheck"); if (reti) reti.addEventListener("click", () => select(s.client, true));
   const rf = $("#refresh"); if (rf) rf.addEventListener("click", () => select(s.client, true));
   HOLD = !!s.refreshing;
-  if (HOLD) for (const b of [go, go2]) if (b) { b.disabled = true; b.title = "Waiting for the fresh check"; }
+  if (HOLD) for (const b of [go, go2, goti]) if (b) { b.disabled = true; b.title = "Waiting for the fresh check"; }
+}
+
+// The Transaction Intelligence panel (Aaron, 2026-10-23): a SEPARATE presentation from the approved
+// Executive Review, with its own checks and its own button. Only an ARS client carries one.
+function tiPanel(s) {
+  const t = s.ti;
+  if (!t) return "";
+  const checks = (t.checks || []).map(k => { const [cls, label] = LEVEL[k.level] || ["step", k.level];
+    return `<li><span class="tag ${cls}">${label}</span><span>${esc(k.text)}</span></li>`; }).join("");
+  const failed = t.last && !t.last.delivered;
+  const failNote = failed ? ` <span class="err">The last Transaction Intelligence build failed; see below.</span>` : "";
+  let verdict;
+  if (t.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build the Transaction Intelligence decks.</b> One deck per lens, put in Outputs beside the Executive Review; it never replaces it.${failNote}</p><span class="btns"><button class="primary" id="goti">${failed ? "Retry" : "Build"} Transaction Intelligence</button></span></div>`;
+  else if (t.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's Transaction Intelligence decks are already in Outputs.</b> Rebuild only if something changed.${failNote}</p><span class="btns"><button class="primary warn" id="goti">Rebuild Transaction Intelligence</button></span></div>`;
+  else verdict = `<div class="verdict stop"><p><b>Can't build the Transaction Intelligence decks yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="tirecheck">Check again</button></div>`;
+  const last = t.last ? `<div class="last"><h3>Last Transaction Intelligence build from this tool</h3>${esc(t.last.finished)} by ${esc(t.last.by)}: ${esc(t.last.result)}${t.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
+  return `<div class="ti" id="tipanel"><h3 class="tihead">Transaction Intelligence <span class="sub">a separate presentation, not the Executive Review</span></h3>
+    <ul class="checks">${checks}</ul>${verdict}<div id="jobti"></div>${last}</div>`;
+}
+
+async function buildTI(s) {
+  const go = $("#goti"), others = [$("#go"), $("#go2")].filter(Boolean);
+  if (s.ti.state === "ask" && armed !== "ti") { armed = "ti"; go.textContent = "Yes, rebuild the Transaction Intelligence decks"; return; }
+  go.disabled = true; go.textContent = "Starting…";
+  for (const b of others) b.disabled = true;
+  try {
+    const {status, body} = await api("/api/build", {method: "POST", body: JSON.stringify({client: s.client, rebuild: s.ti.state === "ask", ti: true})});
+    if (status === 409) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; ($("#jobti") || $("#job")).innerHTML = `<p class="err">${esc(body.error)}</p>`; return; }
+    go.textContent = body.queued ? `Queued #${body.queued}` : "Building…";
+    pollQueue();
+    follow(s.client);
+  } catch (e) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; ($("#jobti") || $("#job")).innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
 async function build(s, combined) {
@@ -2314,18 +2388,14 @@ function follow(id) {
   tick(); poller = setInterval(tick, 1500);
 }
 
-let logOpen = false;
-const TERM_CLS = {ok: "g", "!!": "y", built: "b", STOP: "r", "..": "c"};
-function termLine(l) {
-  const m = l.match(/^(\s*)\[(ok|!!|built|STOP|\.\.)\](.*)$/);
-  return m ? `${esc(m[1])}<span class="${TERM_CLS[m[2]]}">[${esc(m[2])}]</span>${esc(m[3])}` : esc(l);
-}
 
 function renderJob(j) {
   if (!j || !j.lines) return;
-  const go = $(j.combined ? "#go2" : "#go"), other = $(j.combined ? "#go" : "#go2");
-  if (go && !j.done) { go.disabled = true; if (other) other.disabled = true; go.textContent = j.queued ? `Queued #${j.queued}` : "Building…"; }
-  else if (go && j.code && !HOLD) { go.disabled = false; if (other) other.disabled = false; go.textContent = (j.rebuild ? "Retry rebuild" : "Retry build") + (j.combined ? " (combined)" : ""); }
+  // One build per client at a time, whichever kind: every button waits while it runs.
+  const go = $(j.ti ? "#goti" : j.combined ? "#go2" : "#go");
+  const others = ["#go", "#go2", "#goti"].map($).filter(b => b && b !== go);
+  if (go && !j.done) { go.disabled = true; for (const b of others) b.disabled = true; go.textContent = j.queued ? `Queued #${j.queued}` : "Building…"; }
+  else if (go && j.code && !HOLD) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = (j.rebuild ? "Retry rebuild" : "Retry build") + (j.ti ? " (Transaction Intelligence)" : j.combined ? " (combined)" : ""); }
   const steps = [], marks = [];
   for (const line of j.lines) {
     const m = line.match(/^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$/);
@@ -2334,40 +2404,32 @@ function renderJob(j) {
     else if (steps.length) marks.push({level: m[1], text: m[2]});
   }
   const mins = Math.floor(j.seconds / 60), secs = String(j.seconds % 60).padStart(2, "0");
-  let html = `<div class="progress"><h3>${j.combined ? "Combined build" : "Build"}${j.rebuild ? " (rebuild)" : ""} ·${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
+  let html = `<div class="progress"><h3>${j.ti ? "Transaction Intelligence build" : j.combined ? "Combined build" : "Build"}${j.rebuild ? " (rebuild)" : ""} ·${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
   if (j.queued) html += `<li><span class="dot"></span><span>Queued #${j.queued}. It starts on its own when ${j.queued > 1 ? "the builds ahead of it finish" : `the build for ${esc(j.after || "another client")} finishes`}. Keep CSM Sheila's black window open.</span></li>`;
   steps.forEach((st, i) => { const done = j.done || i < steps.length - 1;
     html += `<li><span class="dot ${done ? "done" : "now"}"></span><span>${esc(st.name)}</span><span class="t">${st.min !== "" ? esc(st.min) + " min" : ""}</span></li>`; });
   if (!steps.length && !j.done && !j.queued) html += `<li><span class="dot now"></span><span>Starting the build…</span></li>`;
   html += `</ul>`;
+  // The launcher's own lines after the first step (the validation result, a warning, where the deck went).
+  // They used to be visible only in a raw log box under the steps; now they are part of the result.
+  const notes = marks.filter(x => x.level !== "STOP");
+  const notesHtml = notes.length ? `<ul class="notes">${notes.map(x => `<li${x.level === "!!" ? ' class="warn"' : ""}>${esc(x.text)}</li>`).join("")}</ul>` : "";
   const stop = marks.find(x => x.level === "STOP") || (j.done && j.code ? {text: [...j.lines].reverse().find(l => l.trim()) || "The build stopped."} : null);
   if (j.done && !j.code && j.deck) {
     const name = j.deck.split(/[\\/]/).pop();
-    html += `<div class="result good"><h3>Done. The deck is in Outputs.</h3><p class="mono">${esc(name)}</p>
-      <p>Review it, save it as a PDF and email it as usual.</p>
+    html += `<div class="result good"><h3>Done. The ${j.ti ? "Transaction Intelligence decks are" : "deck is"} in Outputs.</h3><p class="mono">${esc(name)}</p>
+      ${notesHtml}<p>Review it, save it as a PDF and email it as usual.</p>
       <p><button class="link" id="reveal">Show it in File Explorer</button></p></div>`;
   } else if (j.done) {
-    html += `<div class="result bad"><h3>Not put in Outputs.</h3><p>${esc(stop ? stop.text : "The build stopped.")}</p>
+    html += `<div class="result bad"><h3>Not put in Outputs.</h3><p>${esc(stop ? stop.text : "The build stopped.")}</p>${notesHtml}
       <p>If it's not clear what to do, send Aaron the client number.</p></div>`;
   }
   html += `</div>`;
-  // The output panel is built once per build and only its text is updated after that. Rebuilding it
-  // on every poll (every 1.5 s) closed it again as soon as someone opened it.
-  const box = $("#job");
-  if (!box.querySelector("#jobview")) {
-    box.innerHTML = `<div id="jobview"></div><details class="log" id="log"${logOpen ? " open" : ""}><summary>Full output</summary>
-      <div class="term"><div class="bar"><span class="ttl">CSM Sheila: build ${esc(current || "")}</span><span class="ctl" aria-hidden="true"><span>&#x2014;</span><span>&#x2610;</span><span>&#x2715;</span></span></div>
-      <pre id="termtext" tabindex="0"></pre></div></details>`;
-    $("#log").addEventListener("toggle", () => { logOpen = $("#log").open; });
-  }
-  $("#jobview").innerHTML = html;
-  const pre = $("#termtext"), key = j.lines.length + ":" + j.done;
-  if (pre.dataset.key !== key) {
-    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
-    pre.innerHTML = j.lines.map(termLine).join("\n") + (j.done ? "" : `\n<span class="cursor">&#x2588;</span>`);
-    pre.dataset.key = key;
-    if (atBottom) pre.scrollTop = pre.scrollHeight;
-  }
+  // A Transaction Intelligence build shows its progress inside the Transaction Intelligence panel at the
+  // bottom of the client page; every other build shows it above the "last build" line, as before.
+  const box = (j.ti && $("#jobti")) || $("#job"), other = box === $("#job") ? $("#jobti") : $("#job");
+  if (other) other.innerHTML = "";
+  box.innerHTML = html;
   const rv = $("#reveal");
   if (rv) rv.addEventListener("click", async () => { try { await api("/api/reveal", {method: "POST", body: JSON.stringify({path: j.deck})}); } catch (e) { rv.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); } });
 }
