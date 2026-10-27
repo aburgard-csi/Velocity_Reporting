@@ -991,9 +991,10 @@ This is the readme index — update it whenever files are added, removed, or mov
   `ti/txn_sections.py` is v5's transaction run one section at a time, in v5's order;
   `ti/dictionaries/` the three reference dictionaries the transaction analyses classify against
   (competitors, financial-service patterns, merchant categories; copied from v5 `0_Config/`).
-  `ti/chapters/` holds the cut's six chapters in deck order (Transaction Intelligence, Competition,
-  Attrition, Deposits, ICS accounts, Economics); `ti/chapters_txn.py` computes and builds the first two;
-  `ti/deck/economics_inline.py` holds v5's five economics slides, lifted out of v5's build function;
+  `ti/chapters/` holds the cut's seven chapters in deck order (Transaction Intelligence, Competition,
+  Attrition, Deposits, ICS accounts, Economics, Value); `ti/chapters_txn.py` computes and builds the
+  first two; `ti/deck/economics_inline.py` and `ti/deck/value_inline.py` hold v5's economics and value
+  slides, lifted out of v5's build function;
   `ti/odd_sections.py` runs v5's ODD sections; `ti/deposits_input.py` reads the client's own
   `Inputs/Deposits` file; `ti/workbook.py` is v5's ARS Workbook reader (`wb_*`: P&L, offers, Lift
   Matrix, rates) and `ti/workbook_input.py` finds the client's workbook by `build_month`'s rule and
