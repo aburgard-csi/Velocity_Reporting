@@ -104,7 +104,7 @@ def test_the_caption_degrades_when_the_middle_rung_is_absent():
     assert "unique eligible accounts" in caption
 
 
-@pytest.mark.skip(reason="v5's deck code: ports with G9-06 (Program reach, Campaign chapter)")
+@pytest.mark.skip(reason="inspects v5's deck/build.py source, which is not ported; Program reach is lifted into ti/deck/campaign_inline.py")
 def test_the_responded_tile_names_its_base():
     """'counted once each' says the unit but not the population."""
     import inspect
