@@ -4,14 +4,16 @@ cover_divider.py — the cover and the section dividers, drawn the same way by e
 (Aaron, 2026-10-02: "move the section dividers and title slides into main", from the
 redesign prototype in prototype/ and docs/STYLE-PROPOSAL-2026-10-02.md).
 
-Cover (navy, left-aligned): the client's own logo on a white card top-left, the reporting
-month at 84 pt, the client name in orange with the "Executive Review  •  <month>" line
-under it, the included products as outline chips, the CSI | Velocity lockup bottom-right.
+Drawn in the CSI brand template's style (Sept. 2026 template, brand_art.py), at Aaron's request to rebuild the
+cover, dividers and closing slide on it:
 
-Section divider (navy, left-aligned): the section name at 52 pt, the
-benefits line in orange, up to three headline figures for the section at 40 pt, and — in a
-combined deck only — a progress track along the bottom naming every program in the deck
-with the current one in orange. The lockup sits top-right.
+Cover: a white page with the template's slanted blue band, the sunrise wedge bottom-left and the CSI logo
+top-left. The client name is the 60 pt title with the "Executive Review  •  <month>" line under it, the included
+products are outline chips under that, and the client's own logo sits on a white card at the top right of the band.
+
+Section divider: the template's full-bleed gradient with the sunrise wedge and the white CSI logo bottom-left. The
+section name at 52 pt, the benefits line at 24 pt, up to three headline figures for the section at 40 pt, and — in a
+combined deck only — a progress track naming every program in the deck with the current one in orange.
 
 What the rest of the pipeline relies on, and what this module keeps true:
   * the cover is still the one slide whose text carries "Executive Review"
@@ -36,6 +38,7 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Emu, Inches, Pt
 
 import brand
+import brand_art
 
 try:
     from textfit import text_width_in
@@ -65,9 +68,12 @@ TAG_COVER = "rpe:cover"
 TAG_COVER_CHIP = "rpe:cover:chip"
 TAG_DIVIDER = "rpe:divider"
 TAG_TRACK = "rpe:divider:track"
+TAG_CLOSING = "rpe:closing"
 
-CHIP_Y, CHIP_H, CHIP_GAP, CHIP_PAD = 5.45, 0.42, 0.15, 0.5
-TRACK_Y = 6.5
+CHIP_Y, CHIP_H, CHIP_GAP, CHIP_PAD = 4.85, 0.42, 0.15, 0.5
+TRACK_Y = 5.65                  # clear of the wedge, which starts at 6.49
+COVER_X, COVER_W = 1.38, 11.23  # the template's title placeholder
+DIV_X, DIV_W = 0.89, 11.66      # the template's divider title placeholder
 
 
 def _rgb(hx):
@@ -181,11 +187,11 @@ def client_logo_for(client_id, out_dir):
 # ---------------------------------------------------------------- cover
 def _chips(slide, products, y=CHIP_Y):
     """Outline chips, one per product, wrapping to a second row when four will not fit."""
-    x, row_y = MARGIN, y
+    x, row_y = COVER_X, y
     for name in products:
         w = _width(name, MIN_PT) + CHIP_PAD
-        if x > MARGIN and x + w > SLIDE_W - MARGIN:
-            x, row_y = MARGIN, row_y + CHIP_H + 0.12
+        if x > COVER_X and x + w > SLIDE_W - MARGIN:
+            x, row_y = COVER_X, row_y + CHIP_H + 0.12
         chip = _text(slide, x, row_y, w, CHIP_H, [(name, MIN_PT, KICK, brand.WHITE, True)],
                      align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, name=TAG_COVER_CHIP,
                      autoshape=True, radius=CHIP_H / 2)
@@ -193,20 +199,31 @@ def _chips(slide, products, y=CHIP_Y):
         x += w + CHIP_GAP
 
 
+def _cover_pt(client, lines=2):
+    """60 pt, stepping down in 4s until the name fits `lines` lines of the title box."""
+    pt = 60
+    while pt > 36 and _width(client, pt) > COVER_W * lines * 0.92:
+        pt -= 4
+    return pt
+
+
 def draw_cover(slide, products, client, month, client_logo=None, note=None):
     """Redraw `slide` as the cover. `products` are full product names, in section order;
-    `month` is the reporting month ("September 2026"), which appears once at 84 pt and
-    once in the "Executive Review  •  <month>" line the validator and combiner read."""
+    `month` is the reporting month ("September 2026"), which appears in the
+    "Executive Review  •  <month>" line the validator and combiner read."""
     _clear(slide)
-    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, brand.NAVY, name=TAG_COVER)
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, brand.WHITE, name=TAG_COVER)
+    brand_art.add_freeform(slide, "title_band.xml")
+    brand_art.add_freeform(slide, "title_wedge.xml")
+    brand_art.add_logo(slide, "dark", 0.21, 0.01, 2.35)
     # chips first: the first text shape is the slide's title, and the shell's cover led
     # with the product name too
     _chips(slide, list(products))
-    _text(slide, MARGIN, 2.5, SLIDE_W - 2 * MARGIN, 1.5, [(month, 84, HERO, brand.WHITE, False)],
-          anchor=MSO_ANCHOR.BOTTOM, wrap=False)
-    _text(slide, MARGIN, 4.15, SLIDE_W - 2 * MARGIN, 1.1,
-          [(client, 32, HEAD, brand.ORANGE, False),
-           (f"Executive Review  •  {month}", 18, KICK, brand.LABEL, False)])
+    box = _text(slide, COVER_X, 2.0, COVER_W, 2.55,
+                [(client, _cover_pt(client), KICK, brand.WHITE, True),
+                 (f"Executive Review  •  {month}", 24, KICK, brand.WHITE, False)],
+                anchor=MSO_ANCHOR.BOTTOM)
+    box.text_frame.paragraphs[1].space_before = Pt(10)
     if client_logo and os.path.exists(client_logo):
         try:
             import rpe_env
@@ -215,10 +232,10 @@ def draw_cover(slide, products, client, month, client_logo=None, note=None):
             fit = None
         if fit:
             lw, lh = fit
-            _rect(slide, MARGIN, 0.5, 2.9, 1.0, brand.WHITE, radius=0.1)
-            slide.shapes.add_picture(client_logo, Inches(MARGIN + (2.9 - lw) / 2),
-                                     Inches(0.5 + (1.0 - lh) / 2), width=Inches(lw))
-    _lockup(slide, SLIDE_W - MARGIN - 1.6, 6.45, 1.6)
+            x = SLIDE_W - 0.9 - 2.9
+            _rect(slide, x, 1.0, 2.9, 1.0, brand.WHITE, radius=0.1)
+            slide.shapes.add_picture(client_logo, Inches(x + (2.9 - lw) / 2),
+                                     Inches(1.0 + (1.0 - lh) / 2), width=Inches(lw))
     _notes(slide, note)
     return slide
 
@@ -234,14 +251,16 @@ def set_cover_products(slide, products):
     for sh in list(slide.shapes):
         if sh.name == TAG_COVER_CHIP:
             sh._element.getparent().remove(sh._element)
-    # keep the chips the FIRST text shapes: insert them right after the background
+    # keep the chips the FIRST text shapes, and ABOVE the band and wedge: insert them just before the first
+    # shape that carries text (the art, drawn first, has none). Right after the background put them behind the band.
     before = list(slide.shapes._spTree)
     _chips(slide, list(products))
     added = [el for el in slide.shapes._spTree if el not in before]
-    bg = next((sh._element for sh in slide.shapes if sh.name == TAG_COVER), None)
-    if bg is not None:
+    first_text = next((sh._element for sh in slide.shapes
+                       if sh.has_text_frame and sh.text_frame.text.strip() and sh._element not in added), None)
+    if first_text is not None:
         tree = slide.shapes._spTree
-        pos = list(tree).index(bg) + 1
+        pos = list(tree).index(first_text)
         for el in added:
             tree.remove(el)
             tree.insert(pos, el)
@@ -266,22 +285,23 @@ def draw_divider(slide, title, benefits, stats=(), programs=None, current=None, 
     where a one-item track would say nothing.
     """
     _clear(slide)
-    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, brand.NAVY, name=TAG_DIVIDER)
+    brand_art.gradient_rect(slide, 0, 0, SLIDE_W, SLIDE_H, "divider_fill.xml", name=TAG_DIVIDER)
+    brand_art.add_freeform(slide, "divider_wedge.xml")
+    brand_art.add_logo(slide, "mono", 0.36, 6.61, 1.08)
     # title FIRST (it is the slide's title for every lookup), then the furniture
-    _text(slide, MARGIN, 1.15, SLIDE_W - 2 * MARGIN, 1.0, [(title, _title_pt(title), HERO, brand.WHITE, False)],
+    _text(slide, DIV_X, 1.15, DIV_W, 1.45, [(title, _title_pt(title, DIV_W - 0.2), KICK, brand.WHITE, True)],
           anchor=MSO_ANCHOR.BOTTOM, wrap=False)
-    # No "SECTION" kicker (Aaron, 2026-10-02): the slide IS the section, full-bleed navy
-    # with the name at 52 pt, so a label above it saying so is a word spent on nothing.
+    # No "SECTION" kicker (Aaron, 2026-10-02): the slide IS the section, so a label above it
+    # saying so is a word spent on nothing.
     if benefits:
         # an autoshape so a later restyle_fonts pass (the ARS builder runs one after the
-        # branding pass) keeps it in Montserrat rather than re-fonting an 18 pt line as body
-        _text(slide, MARGIN, 2.3, SLIDE_W - 2 * MARGIN, 0.5, [(benefits, 18, HEAD, brand.ORANGE, False)],
+        # branding pass) keeps it in Montserrat rather than re-fonting the line as body
+        _text(slide, DIV_X, 2.75, DIV_W, 0.6, [(benefits, 24, KICK, brand.WHITE, False)],
               anchor=MSO_ANCHOR.MIDDLE, autoshape=True)
     for i, (value, label) in enumerate(list(stats)[:3]):
-        x, w = span(i * 4, 4)
-        _text(slide, x, 3.7, w, 0.9, [(str(value), 40, HERO, brand.WHITE, False)], anchor=MSO_ANCHOR.BOTTOM, wrap=False)
-        _text(slide, x, 4.65, w, 0.45, [(str(label), MIN_PT, BODY, brand.LABEL, False)])
-    _lockup(slide, SLIDE_W - MARGIN - 1.1, 0.42, 1.1)
+        x = DIV_X + i * 3.95
+        _text(slide, x, 3.75, 3.7, 0.9, [(str(value), 40, KICK, brand.WHITE, True)], anchor=MSO_ANCHOR.BOTTOM, wrap=False)
+        _text(slide, x, 4.7, 3.7, 0.45, [(str(label), MIN_PT, BODY, brand.LABEL, False)])
     if programs and current:
         set_divider_track(slide, programs, current)
     _notes(slide, note)
@@ -301,7 +321,7 @@ def set_divider_track(slide, programs, current):
     programs = list(programs)
     if len(programs) < 2 or current not in programs:
         return False
-    x0, w = MARGIN, SLIDE_W - 2 * MARGIN
+    x0, w = DIV_X, DIV_W
     seg = w / len(programs)
     _rect(slide, x0, TRACK_Y + 0.42, w, 0.02, brand.SLATE, name=TAG_TRACK)
     for i, p in enumerate(programs):
@@ -312,6 +332,55 @@ def set_divider_track(slide, programs, current):
         if on:
             _rect(slide, x0 + i * seg, TRACK_Y + 0.40, seg - 0.1, 0.05, brand.ORANGE, name=TAG_TRACK)
     return True
+
+
+# ---------------------------------------------------------------- closing ("Questions & Discussion")
+CLOSING_TITLE = "Questions & Discussion"
+CLOSING_SITE = "csiweb.com"
+
+
+def is_new_closing(slide):
+    return any(sh.name == TAG_CLOSING for sh in slide.shapes)
+
+
+def draw_closing(slide, client_line, title=CLOSING_TITLE, note=None):
+    """Redraw `slide` as the closing slide in the template's style: the radial gradient, the CSI logo,
+    the title, the "<client>  •  <month>" line (the line validate_deck.closing_month_findings reads, passed in
+    exactly as the builder wrote it) and the site."""
+    _clear(slide)
+    brand_art.gradient_rect(slide, 0, 0, SLIDE_W, SLIDE_H, "closing_fill.xml", name=TAG_CLOSING)
+    # the title FIRST: it is the slide's title for every lookup
+    _text(slide, DIV_X, 3.2, DIV_W, 1.0, [(title, 54, KICK, brand.WHITE, True)],
+          align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, wrap=False)
+    _text(slide, DIV_X, 4.3, DIV_W, 0.5, [(client_line, 24, KICK, brand.WHITE, False)],
+          align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    _text(slide, DIV_X, 5.55, DIV_W, 0.5, [(CLOSING_SITE, 24, KICK, brand.WHITE, False)],
+          align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    w = 4.4
+    brand_art.add_logo(slide, "white", (SLIDE_W - w) / 2, 1.85 - w * 1575 / 2700 / 2, w)
+    _notes(slide, note)
+    return slide
+
+
+def redraw_closing_in_place(slide):
+    """Redraw a shell's Questions & Discussion slide keeping the title and the "<client>  •  <month>" line
+    the builder already swapped in. False when the slide carries no such line (nothing is guessed)."""
+    texts = [p.text.strip() for sh in slide.shapes if sh.has_text_frame
+             for p in sh.text_frame.paragraphs if p.text.strip()]
+    line = next((t for t in texts if "•" in t and not t.startswith("Questions")), None)
+    if line is None:
+        return False
+    draw_closing(slide, line)
+    return True
+
+
+def restyle_closing(prs):
+    """Redraw the deck's closing slide in the brand template's style, once. Each builder calls this beside its
+    draw_cover; the combiner takes the closing slide of the deck it uses as its base, already drawn."""
+    for slide in prs.slides:
+        if slide_title(slide).startswith(CLOSING_TITLE) and not is_new_closing(slide):
+            return redraw_closing_in_place(slide)
+    return False
 
 
 # ---------------------------------------------------------------- recognising the shell's own
