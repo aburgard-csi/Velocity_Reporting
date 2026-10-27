@@ -721,6 +721,9 @@ def test_changing_cycle_warms_the_new_one(monkeypatch):
     """Without this the first click on each client after a cycle change pays the full check
     again — 3.4 s against the share, where a warmed one answers in 5 ms."""
     monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    # select_period warms only when the cycle CHANGES: a period an earlier test left selected would make this
+    # a no-op and the thread would never start (the intermittent "never ran", 2026-10-26 and -27).
+    W._selected["period"] = None
     started, ran = [], threading.Event()
 
     def fake_prewarm():
