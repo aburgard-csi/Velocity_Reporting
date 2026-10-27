@@ -59,6 +59,8 @@ _SECTION_PATTERNS = [
     # CashPlease client was read as an ICS client — including 1658 Truliant, which has
     # no RPE program at all and is exactly the row `clients.md` exists to keep unbuilt.
     (re.compile(r"#{2,4}\s*CashPlease", re.I),      "cashplease"),
+    # The ILS roster is a record, not a build list: skipped here, like CashPlease.
+    (re.compile(r"##\s*ILS roster", re.I),         "ils"),
     (re.compile(r"##\s*Status changes", re.I),      "prose"),
     (re.compile(r"##\s*Gaps needing", re.I),        "prose"),
     (re.compile(r"##\s*What is NOT a signal", re.I), "prose"),
@@ -115,7 +117,7 @@ def read_roster(path=ROSTER_FILE):
                         else ["ICS"]))
         elif section == "cancelled":
             skipped.append((cid, name, "cancelled / ending"))
-        elif section in (None, "prose", "cashplease"):
+        elif section in (None, "prose", "cashplease", "ils"):
             continue
         else:
             unparsed.append((cid, name, f"unreadable row in the {section} table"))
@@ -153,6 +155,33 @@ def read_roster(path=ROSTER_FILE):
 
 
 CASHPLEASE_HEADING = re.compile(r"^#{2,4}\s+CashPlease roster", re.I)
+
+
+def read_ils_roster(path=ROSTER_FILE):
+    """[{client_id, client_name, csm, other}] from the `## ILS roster` table (tracked, never built)."""
+    lines = open(path, encoding="utf-8").read().splitlines()
+    start = next((i for i, ln in enumerate(lines)
+                  if re.match(r"##\s*ILS roster", ln.strip(), re.I)), None)
+    if start is None:
+        return []
+    header, out = None, []
+    for ln in lines[start + 1:]:
+        s = ln.strip()
+        if s.startswith("#"):
+            break
+        if not s.startswith("|"):
+            continue
+        cells = [c.replace("*", "").strip() for c in _cells(s)]
+        if header is None:
+            if "ID" in cells:
+                header = [c.lower() for c in cells]
+            continue
+        if not re.fullmatch(r"\d{3,5}", cells[0]) or len(cells) != len(header):
+            continue
+        col = lambda n: cells[header.index(n)] if n in header else ""
+        out.append({"client_id": cells[0], "client_name": col("client"), "csm": col("csm"),
+                    "other": col("other velocity products")})
+    return out
 
 
 def read_cashplease_roster(path=ROSTER_FILE):
