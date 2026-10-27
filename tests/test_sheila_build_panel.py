@@ -37,3 +37,11 @@ def test_the_launchers_lines_after_the_steps_are_part_of_the_result():
     render = _between(W.PAGE, "function renderJob(j)", "// ----")
     assert 'marks.filter(x => x.level !== "STOP")' in render
     assert render.count("${notesHtml}") == 2          # the success result and the failure result
+
+
+def test_a_finished_build_redraws_the_page_around_it():
+    # The buttons and verdicts were drawn before the build started. Without a fresh status the TI button
+    # stayed "Building..." and the previous failure notice stayed over a "Done" result (1075, 2026-10-27).
+    follow = _between(W.PAGE, "function follow(id)", "function renderJob")
+    done = follow[follow.index("if (body.done)"):]
+    assert "recheckQuietly(id)" in done.split("}")[0]
