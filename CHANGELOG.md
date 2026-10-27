@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — The orange box is off the ARS Revenue Lift Matrix slide
+
+Summary: The orange outline around one cell of the matrix on the ARS Revenue Lift Matrix slide is gone; the matrix and the bars beside it are unchanged.
+
+Aaron, 2026-10-27: "Remove the orange box on the ARS Revenue Lift Matrix slide". `render_lift` no longer draws the outline on the caption's example cell. The caption text is unchanged.
+
 ### 2026-10-27 — 1585 First Community Bank of the Heartland added to the roster
 
 Summary: 1585 First Community Bank of the Heartland now appears in CSM Sheila and builds an ARS deck with its CashPlease section; it was missing from the roster.
