@@ -66,6 +66,19 @@ at the client's ICRate / NSF_OD_Fee, filled from the workbook when the config le
 (G7-01). Its `apply_to_leaks` post-pass ships with leaks (G8-04). v5's empty-base test, skipped until
 now, runs again. Parity: 54/54 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES row 20.
 
+### 2026-10-26 — Transaction Intelligence: an agenda of eight chapters fits
+
+Summary: When a Transaction Intelligence deck carries more than four chapters, its agenda now lists
+each chapter by name only, without the one-line description under it. With all eight chapters plus
+Questions, each row is about half an inch tall, and each description ran into the next chapter's name
+(validate_deck: eight FAILs on the agenda of 1776 CoastHills CU's eight-chapter deck). The description
+still opens each chapter on its divider. Decks of up to four chapters are unchanged.
+
+`build_ti_gen._agenda_headings_only` runs after the shared `assemble_combined.set_agenda`, which is not
+changed, and removes the detail boxes once the agenda passes `AGENDA_DETAIL_ROWS` (5) rows.
+`tests/test_ti_shell.py` builds four and eight stub chapters; at eight, the descriptions are gone and the
+agenda has 0 FAIL (the test fails without the fix). Rebuilt 1776's eight-chapter shell: 0 FAIL.
+
 ### 2026-10-26 — Transaction Intelligence: PIN and signature interchange from the ODD, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 interchange figures from the ODD:
@@ -143,6 +156,18 @@ workbook v5's run read): 26/26 on 1776 (2026-09) and 26/26 on 1761 (2026-10). DU
 One line differs from v5: when the workbook is locked (open in Excel or syncing), the reader's temp
 copy goes in an `rpe_env.temp_dir` folder instead of a bare `tempfile.mkstemp`, per this repo's
 temp rule. The parity check skips a v5 run that read no workbook.
+
+### 2026-10-27 — ILS is tracked in the roster
+
+Summary: clients.md now lists Aaron's 67 ILS clients in an ILS roster table, so ILS is recorded alongside the other programs; it does not change what gets built.
+
+Aaron, 2026-10-27: "Start tracking ILS in the roster too. You can check my clients for ILS analysis reviews." The table comes from the Velocity export's product list in `Client CSM List.csv`. ILS has no monthly deck, so `build_month.read_roster` skips the section and `read_ils_roster` reads it. Other CSMs' ILS clients are not listed yet.
+
+### 2026-10-27 — The orange box is off the ARS Revenue Lift Matrix slide
+
+Summary: The orange outline around one cell of the matrix on the ARS Revenue Lift Matrix slide is gone; the matrix and the bars beside it are unchanged.
+
+Aaron, 2026-10-27: "Remove the orange box on the ARS Revenue Lift Matrix slide". `render_lift` no longer draws the outline on the caption's example cell. The caption text is unchanged.
 
 ### 2026-10-26 — A Transaction Intelligence slide with no data is stated, never silently left out
 
@@ -322,6 +347,7 @@ card and no lower than fit_layout's own estimate would put it, shrinking the val
 room. No figure changes; the TI cut only, no ARS deck changes. 1776, both lenses: 104 slides, 0 FAIL.
 
 ### 2026-10-23 — The Transaction Intelligence cut's two stacks are one: five chapters in deck order
+
 ### 2026-10-23 — Deposits: "What arrives against what leaves" reads the transaction figures
 
 Summary: The deposits slide that sets money arriving against card money leaving now draws: it needs the
@@ -515,6 +541,7 @@ pandas 2 returned None, and v5 tests `is not None` after reading an optional dat
 so a missing column raised instead of skipping its cut. `tests/conftest.py` now applies the same
 `legacy_strings()` to `test_ti_*` tests. Parity: retention 34/34 on 1761 (2026-10), 1776 and 1100
 (2026-09), run on v5's own config at `a491b5c`.
+
 ### 2026-10-23 — Transaction Intelligence charts put months in the house format
 
 Summary: Months on the Transaction Intelligence charts now read "Sep'25", the format every other deck
@@ -1458,6 +1485,7 @@ against 2.2 : 1 on the P&L.
 Client-facing effect: a divider or bullet ratio moves by 0.1 for any client whose quotient sits
 on a rounding boundary (True Sky 2.1 → 2.2 : 1); the P&L figure is unchanged. True Sky's 2026.10
 deck was rebuilt.
+
 ### 2026-10-08 — Deck assembly is about 2.5 times faster on a large client
 
 Summary: Assembling a large client's ARS deck takes about 1.5 minutes instead of 3.5, with the same slides, figures and notes.
@@ -1527,6 +1555,7 @@ is the one place it exists. `RELEASE.txt` names its source: "origin/main (releas
 "working tree <path>", and `FORCED` when the guard was overridden. A fetch that fails releases
 nothing. `tests/test_release_launcher.py` pins the order (worktree, then guard, then copy), the
 kept worktree, the venv path and the stamp.
+
 ### 2026-10-07 — A release ships only what is on origin/main; the repo gets CI and code owners
 
 Summary: Releasing the launcher to the share now refuses when the checkout has uncommitted
@@ -1552,6 +1581,7 @@ Aaron, 2026-10-07: "i need to protect the repo now that i have multiple contribu
 Branch protection on `main` (pull requests only, one approval, no force-push or deletion, the
 `tests` check required) is the remaining step and is a GitHub plan matter: a private repo on a
 Free personal account cannot protect a branch.
+
 ### 2026-10-07 — The monthly driver can assemble a combined deck with no ARS section
 
 Summary: `build_month` can now build a two-program deck for a client that has no ARS — the
@@ -1567,6 +1597,7 @@ driver now passes each program flag only for a section it built, ARS included.
 with the subprocesses stubbed and pins the assemble command (no `--ars`, `--ics` and `--mrpc`
 pointing at the built sections, the deliverable named `ICS-MRPC`). No figure moves: a deck that
 assembled before assembles the same way.
+
 ### 2026-10-07 — The morning source watch can no longer hang in its mail step, and the watchdog clears a run that runs too long
 
 Summary: The 08:00 source check no longer hangs for hours after its mailbox step times out, and
@@ -1602,6 +1633,7 @@ The two open questions from 2026-10-05 are now one: the lone-process miss was th
 unrolling fixed earlier today, and the hang is the pipe. What is still open is why Task
 Scheduler's execution limit does not end these processes. Nothing about what is copied, pruned
 or filed changed.
+
 ### 2026-10-07 — The source-watch watchdog now finds a single stuck process
 
 Summary: The watchdog that clears a stuck morning source watch missed it whenever exactly one process was stuck;
@@ -1793,6 +1825,7 @@ the next morning as before.
 Also: `CLAUDE.md` said the task's execution limit was two hours; it is 50 minutes
 (`register_watch_task.ps1`, 2026-09-21), and the file now says so, along with the standing
 rule that the file-get runs once a day at 08:00 and is never started by hand beside the task.
+
 ### 2026-10-05 — Gregg's last eight clients are Unassigned
 
 Summary: The eight clients the Gregg Miller assignment sheet never named a successor for are
@@ -3003,6 +3036,7 @@ reason into the morning report.
 
 No deck reads these files yet, so no slide changes. Tests: `tests/test_mail_sources.py`,
 `tests/test_watch_sources.py`.
+
 ### 2026-09-21 — The watchdog asks the run record, and looks every half hour
 
 Summary: The watchdog now checks every 30 minutes each morning whether the source check actually ran, and restarts it if Windows left it stuck.
@@ -3263,6 +3297,7 @@ New gate check, `validate_deck.closing_month_findings`: FAILs a deck whose Quest
 a different month or client than the cover. It FAILs all 33 of those decks, and passes every template shell
 (both slides carry the dummy July 2026) and the 16 ICS / MRPC / CashPlease 2026.09 decks. The 33 decks need a
 rebuild to pick up the fix.
+
 ### 2026-09-17 — The ILS DDA count is saved from Charles's weekly email automatically
 
 Aaron: "Update the ILS DDA count from Charles's email with subject 'ILS Management Server DDA
@@ -3331,6 +3366,7 @@ not move). Figures come from the ODD and the ARS workbook the build already read
 
 New: `build/ars_pipeline/combined_insights.py` (import-safe computations),
 `insight_charts.py` (renderers), `combined_insight_slides.py` (slide insertion).
+
 ### 2026-09-16 — ICS per-account subtitles: the worked example is the client's first cohort
 
 The subtitles on "Interchange Revenue per Account per Month", "NSF/OD & Other Fees per Account per
