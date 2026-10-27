@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — ILS is tracked in the roster
+
+Summary: clients.md now lists Aaron's 67 ILS clients in an ILS roster table, so ILS is recorded alongside the other programs; it does not change what gets built.
+
+Aaron, 2026-10-27: "Start tracking ILS in the roster too. You can check my clients for ILS analysis reviews." The table comes from the Velocity export's product list in `Client CSM List.csv`. ILS has no monthly deck, so `build_month.read_roster` skips the section and `read_ils_roster` reads it. Other CSMs' ILS clients are not listed yet.
+
 ### 2026-10-27 — The orange box is off the ARS Revenue Lift Matrix slide
 
 Summary: The orange outline around one cell of the matrix on the ARS Revenue Lift Matrix slide is gone; the matrix and the bars beside it are unchanged.
