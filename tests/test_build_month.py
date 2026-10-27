@@ -7,7 +7,7 @@ a row's meaning comes from the heading it sits under, not its column count.
 """
 import os
 import pytest
-from build_month import read_roster, deck_tag, deck_name
+from build_month import read_roster, deck_tag, deck_name, read_ils_roster
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -177,3 +177,20 @@ def test_an_ars_row_with_no_path_is_mm(tmp_path):
                  "| 1121 | Timberland Bank | SM | yes | — | — | ARS |\n", encoding="utf-8")
     rows, _ = read_roster(str(f))
     assert {r[0]: r[2] for r in rows} == {"1805": "MM", "1121": "SM"}
+
+
+def test_the_ils_roster_is_tracked_but_never_built(tmp_path):
+    """Aaron, 2026-10-27: ILS is recorded in clients.md. Its rows must not become builds or unreadable rows."""
+    f = tmp_path / "clients.md"
+    f.write_text("\n".join([
+        "## Active clients", "", "| ID | Client | Path | ARS | ICS | MRPC | Deck |", "| --- | --- | --- | --- | --- | --- | --- |",
+        "| 1038 | Sugar River Bank | SM | yes | — | — | ARS |", "",
+        "## ILS roster — which clients are on ILS", "",
+        "| ID | Client | CSM | Other Velocity products |", "| --- | --- | --- | --- |",
+        "| 1012 | Centier Bank | Aaron Burgard | — |", "",
+        "## Status changes", ""]), encoding="utf-8")
+    roster, skipped = read_roster(str(f))[:2]
+    assert [r[0] for r in roster] == ["1038"]
+    assert not any(s[0] == "1012" for s in skipped)
+    assert read_ils_roster(str(f)) == [{"client_id": "1012", "client_name": "Centier Bank",
+                                           "csm": "Aaron Burgard", "other": "—"}]
