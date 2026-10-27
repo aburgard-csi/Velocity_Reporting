@@ -39,13 +39,19 @@ def who_they_pay(h, t, base):
     return "no fin_top_providers"
 
 
+def recurring_on_the_card(h, t, base):
+    """v5 declines some slides by returning None without drawing (1776's two card slides)."""
+    return None
+
+
 def _chapter(tmp_path):
     t = {"n": 12345, "rows": [["Groceries", 4000, 38.2], ["Fuel", 3000, 21.4], ["Dining", 2000, 12.9]]}
 
     def build(ctx):
         d = Deck(ctx, "the ODD extract and the transaction files", tmp_path / "charts")
-        return d.run([where_the_money_goes, who_they_pay],
-                     {"who_they_pay": "Who they pay"}, t, "eligible accounts")
+        return d.run([where_the_money_goes, who_they_pay, recurring_on_the_card],
+                     {"who_they_pay": "Who they pay",
+                      "recurring_on_the_card": "Recurring payments on the card"}, t, "eligible accounts")
 
     return cut.Chapter("TI_TXN", "Transaction Intelligence", "Spend · Merchants · Channels",
                        "Where card spend goes", lambda pack, ln: [], build, lambda ctx: {})
@@ -64,6 +70,7 @@ def test_a_v5_builder_lands_on_rpe_slides_and_validates(tmp_path, contacts, lens
     declined = deck.slides[titles.index("Who they pay")]
     assert "Not shown for this client: no fin_top_providers" in " ".join(
         sh.text_frame.text for sh in declined.shapes if sh.has_text_frame)
+    assert "Recurring payments on the card" in titles, "a builder that drew nothing is stated, not dropped"
     for s in list(deck.slides)[4:-2]:
         assert "Source:" in s.notes_slide.notes_text_frame.text and CLIENT in s.notes_slide.notes_text_frame.text
     fails = [f for f in vd.run(str(out)) if f[0] == "FAIL"]
