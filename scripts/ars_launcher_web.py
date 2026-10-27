@@ -269,11 +269,13 @@ def compute_clients():
         with open(p, encoding="utf-8-sig", newline="") as fh:
             rows = {r.get("client_id", "").strip(): r for r in csv.DictReader(fh)}
     sent = DS.read_deliveries()["sent"] if period else {}
-    decks, ti_decks = {}, {}
+    decks, ti_decks, comp_decks = {}, {}, {}
     for d in (R.output_decks(f"*-{period}-*.pptx") if period else []):
         # A Transaction Intelligence deck is a separate presentation (2026-10-23): it is never the
         # period's RPE deck, so it gets its own chip and never the "In Outputs" one.
-        (ti_decks if L.is_ti_deck(d.name) else decks).setdefault(d.name.split("-", 1)[0], []).append(d)
+        # An ARS Companion deck is a separate presentation too (2026-10-27): its own chip, never "In Outputs".
+        (ti_decks if L.is_ti_deck(d.name) else comp_decks if L.is_companion_deck(d.name)
+         else decks).setdefault(d.name.split("-", 1)[0], []).append(d)
     try:
         cp_rows = {r["client_id"]: r for r in getattr(BM, "read_cashplease_roster", lambda: [])()}
     except SystemExit:                      # no CashPlease roster table: nothing ships CP
@@ -306,6 +308,7 @@ def compute_clients():
             "built_at": (res[0] or {}).get("finished") if (res[0] or {}).get("delivered") else None,
             "decks": sorted(d.name for d in decks.get(cid, [])),
             "ti_decks": sorted(d.name for d in ti_decks.get(cid, [])),
+            "companion_decks": sorted(d.name for d in comp_decks.get(cid, [])),
             "lift_expired": "ARS" in progs and _lift.get(cid) == L.STOP,
             "error": bool(period) and last_build_failed(cid, period, decks.get(cid, []), result=res),
             "result_written": res[1],
@@ -716,11 +719,21 @@ def compute_status(cid):
             ti = {"checks": [{"level": L.STOP, "text": f"The Transaction Intelligence checks could not run "
                                                         f"({type(e).__name__}: {e})"}],
                   "state": "stop", "last": None, "decks": []}
+    # The ARS Companion block (Aaron, 2026-10-27): James's analysis slides as a deck of their own, with its
+    # own checks and button, for ARS clients. Like the TI block, a failure here never costs the RPE status.
+    companion = None
+    if has_ars:
+        try:
+            companion = L.companion_status(cid, period, row, roster, sent)
+        except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
+            companion = {"checks": [{"level": L.STOP, "text": f"The ARS Companion checks could not run "
+                                                              f"({type(e).__name__}: {e})"}],
+                         "state": "stop", "last": None, "decks": []}
     return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"),
             "csm": row.get("csm") or (cp_row or {}).get("csm"), "period": period,
             "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
             "builds": builds_on_offer(entry[3] if entry else ["ARS"], avail, ars_only, has_ars),
-            "ti": ti}
+            "ti": ti, "companion": companion}
 
 
 def builds_on_offer(progs, avail, ars_only, has_ars):
@@ -740,19 +753,20 @@ def builds_on_offer(progs, avail, ars_only, has_ars):
 
 
 # ------------------------------------------------------------------ build jobs
-def build_cmd(cid, rebuild, combined=False, period=None, ti=False):
+def build_cmd(cid, rebuild, combined=False, period=None, ti=False, companion=False):
     """The child process is told WHICH cycle. Without it a build started while an earlier
     cycle is selected would quietly build today's instead — the launcher defaults to the
     calendar month, and the page would show the result under the month on screen."""
     return ([sys.executable, str(HERE / "ars_launcher.py"), "build", cid,
              "--period", period or current_period()]
             + (["--rebuild"] if rebuild else []) + (["--combined"] if combined else [])
-            + (["--ti"] if ti else []))
+            + (["--ti"] if ti else []) + (["--companion"] if companion else []))
 
 
 class Job:
-    def __init__(self, cid, rebuild, combined=False, period=None, ti=False):
+    def __init__(self, cid, rebuild, combined=False, period=None, ti=False, companion=False):
         self.cid, self.rebuild, self.combined, self.ti = cid, rebuild, combined, ti
+        self.companion = companion
         # Pinned at queue time: a job waiting behind two others must build the cycle it was
         # asked for, not whichever one happens to be on screen when it starts.
         self.period = period or current_period()
@@ -768,7 +782,8 @@ class Job:
         try:
             # `ti` is passed only for a Transaction Intelligence job: the tests stub build_cmd with the
             # four-argument shape, and a fifth argument errored every stubbed job (2026-10-26).
-            cmd = build_cmd(self.cid, self.rebuild, self.combined, self.period, **({"ti": True} if self.ti else {}))
+            extra = {**({"ti": True} if self.ti else {}), **({"companion": True} if self.companion else {})}
+            cmd = build_cmd(self.cid, self.rebuild, self.combined, self.period, **extra)
             proc = subprocess.Popen(cmd,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
@@ -797,7 +812,7 @@ class Job:
         position = waiting.index(self) + 1 if self in waiting else None
         running = next((j.cid for j in list(_jobs.values()) if j.started and not j.done), None)
         return {"client": self.cid, "rebuild": self.rebuild, "combined": self.combined, "ti": self.ti,
-                "lines": self.lines, "done": self.done,
+                "companion": self.companion, "lines": self.lines, "done": self.done,
                 "code": self.code, "deck": deck, "queued": position, "after": running if position else None,
                 "seconds": round((self.finished or time.time()) - self.started) if self.started else 0}
 
@@ -829,14 +844,14 @@ def _drain():
                 _queue.remove(job)
 
 
-def start_build(cid, rebuild, combined=False, ti=False):
+def start_build(cid, rebuild, combined=False, ti=False, companion=False):
     """Queue a build; it starts at once when nothing else is building. Returns (http status, body)."""
     with _jobs_lock:
         cur = _jobs.get(cid)
         if cur and not cur.done:
             where = "building" if cur.started else f"queued #{[j for j in _queue if not j.started].index(cur) + 1}"
             return 409, {"error": f"{cid} is already {where}."}
-        job = Job(cid, rebuild, combined, ti=ti)
+        job = Job(cid, rebuild, combined, ti=ti, companion=companion)
         _jobs[cid] = job
         _queue.append(job)
         if _worker["thread"] is None:
@@ -1880,7 +1895,8 @@ class Handler(BaseHTTPRequestHandler):
             if not CID_RX.match(cid):
                 return self._send(400, {"error": "not a client number"})
             return self._send(*start_build(cid, bool(body.get("rebuild")), bool(body.get("combined")),
-                                           bool(body.get("ti"))))
+                                           bool(body.get("ti")),
+                                           **({"companion": True} if body.get("companion") else {})))
         if path == "/api/cycle":
             want = body.get("period")
             try:
@@ -2327,6 +2343,7 @@ function renderList() {
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}${builtToday ? " · built " + esc(builtToday) : ""}</span>` : "",
                    (c.ti_decks || []).length ? `<span class="chip out" title="Transaction Intelligence decks, a separate presentation">TI in Outputs</span>` : "",
+                   (c.companion_decks || []).length ? `<span class="chip out" title="The ARS Companion deck, a separate presentation">Companion in Outputs</span>` : "",
                    c.sent && c.csm === "Aaron Burgard" ? `<span class="chip sent">Sent ${esc(shortDate(c.sent))}</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span>${dots(c)}<span class="meta">${chips}</span></button>`;
@@ -2447,16 +2464,18 @@ function renderStatus(s) {
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
   $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
       <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
-    <p class="note clientlinks" id="clientlinks">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}${tiPanel(s)}`;
+    <p class="note clientlinks" id="clientlinks">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}${tiPanel(s)}${companionPanel(s)}`;
   clientLinks(s.client, "decks");
   const go = $("#go"); if (go) go.addEventListener("click", () => build(s, false));
   const go2 = $("#go2"); if (go2) go2.addEventListener("click", () => build(s, true));
   const goti = $("#goti"); if (goti) goti.addEventListener("click", () => buildTI(s));
+  const gocomp = $("#gocomp"); if (gocomp) gocomp.addEventListener("click", () => buildComp(s));
+  const recomp = $("#comprecheck"); if (recomp) recomp.addEventListener("click", () => select(s.client, true));
   const re = $("#recheck"); if (re) re.addEventListener("click", () => select(s.client, true));
   const reti = $("#tirecheck"); if (reti) reti.addEventListener("click", () => select(s.client, true));
   const rf = $("#refresh"); if (rf) rf.addEventListener("click", () => select(s.client, true));
   HOLD = !!s.refreshing;
-  if (HOLD) for (const b of [go, go2, goti]) if (b) { b.disabled = true; b.title = "Waiting for the fresh check"; }
+  if (HOLD) for (const b of [go, go2, goti, gocomp]) if (b) { b.disabled = true; b.title = "Waiting for the fresh check"; }
 }
 
 // The Transaction Intelligence panel (Aaron, 2026-10-23): a SEPARATE presentation from the approved
@@ -2489,6 +2508,38 @@ async function buildTI(s) {
     pollQueue();
     follow(s.client);
   } catch (e) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; ($("#jobti") || $("#job")).innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+
+// The ARS Companion panel (Aaron, 2026-10-27): James Gilmore's analysis slides as a deck of their own, a SEPARATE
+// presentation from the approved Executive Review, with its own checks and its own button. ARS clients only.
+function companionPanel(s) {
+  const t = s.companion;
+  if (!t) return "";
+  const checks = (t.checks || []).map(k => { const [cls, label] = LEVEL[k.level] || ["step", k.level];
+    return `<li><span class="tag ${cls}">${label}</span><span>${esc(k.text)}</span></li>`; }).join("");
+  const failed = t.last && !t.last.delivered;
+  const failNote = failed ? ` <span class="err">The last ARS Companion build failed; see below.</span>` : "";
+  let verdict;
+  if (t.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build the ARS Companion deck.</b> James's analysis slides as a deck of their own, put in Outputs beside the Executive Review; it never replaces it.${failNote}</p><span class="btns"><button class="primary" id="gocomp">${failed ? "Retry" : "Build"} ARS Companion</button></span></div>`;
+  else if (t.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's ARS Companion deck is already in Outputs.</b> Rebuild only if something changed.${failNote}</p><span class="btns"><button class="primary warn" id="gocomp">Rebuild ARS Companion</button></span></div>`;
+  else verdict = `<div class="verdict stop"><p><b>Can't build the ARS Companion deck yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="comprecheck">Check again</button></div>`;
+  const last = t.last ? `<div class="last"><h3>Last ARS Companion build from this tool</h3>${esc(t.last.finished)} by ${esc(t.last.by)}: ${esc(t.last.result)}${t.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
+  return `<div class="ti" id="comppanel"><h3 class="tihead">ARS Companion <span class="sub">James's analysis slides, a separate presentation, not the Executive Review</span></h3>
+    <ul class="checks">${checks}</ul>${verdict}<div id="jobcomp"></div>${last}</div>`;
+}
+
+async function buildComp(s) {
+  const go = $("#gocomp"), others = [$("#go"), $("#go2"), $("#goti")].filter(Boolean);
+  if (s.companion.state === "ask" && armed !== "companion") { armed = "companion"; go.textContent = "Yes, rebuild the ARS Companion deck"; return; }
+  go.disabled = true; go.textContent = "Starting…";
+  for (const b of others) b.disabled = true;
+  try {
+    const {status, body} = await api("/api/build", {method: "POST", body: JSON.stringify({client: s.client, rebuild: s.companion.state === "ask", companion: true})});
+    if (status === 409) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; ($("#jobcomp") || $("#job")).innerHTML = `<p class="err">${esc(body.error)}</p>`; return; }
+    go.textContent = body.queued ? `Queued #${body.queued}` : "Building…";
+    pollQueue();
+    follow(s.client);
+  } catch (e) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = "Try again"; ($("#jobcomp") || $("#job")).innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
 async function build(s, combined) {
@@ -2525,10 +2576,10 @@ function follow(id) {
 function renderJob(j) {
   if (!j || !j.lines) return;
   // One build per client at a time, whichever kind: every button waits while it runs.
-  const go = $(j.ti ? "#goti" : j.combined ? "#go2" : "#go");
-  const others = ["#go", "#go2", "#goti"].map($).filter(b => b && b !== go);
+  const go = $(j.ti ? "#goti" : j.companion ? "#gocomp" : j.combined ? "#go2" : "#go");
+  const others = ["#go", "#go2", "#goti", "#gocomp"].map($).filter(b => b && b !== go);
   if (go && !j.done) { go.disabled = true; for (const b of others) b.disabled = true; go.textContent = j.queued ? `Queued #${j.queued}` : "Building…"; }
-  else if (go && j.code && !HOLD) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = (j.rebuild ? "Retry rebuild" : "Retry build") + (j.ti ? " (Transaction Intelligence)" : j.combined ? " (combined)" : ""); }
+  else if (go && j.code && !HOLD) { go.disabled = false; for (const b of others) b.disabled = false; go.textContent = (j.rebuild ? "Retry rebuild" : "Retry build") + (j.ti ? " (Transaction Intelligence)" : j.companion ? " (ARS Companion)" : j.combined ? " (combined)" : ""); }
   const steps = [], marks = [];
   for (const line of j.lines) {
     const m = line.match(/^\s*\[(ok|!!|built|STOP|\.\.)\]\s+(.*)$/);
@@ -2537,7 +2588,7 @@ function renderJob(j) {
     else if (steps.length) marks.push({level: m[1], text: m[2]});
   }
   const mins = Math.floor(j.seconds / 60), secs = String(j.seconds % 60).padStart(2, "0");
-  let html = `<div class="progress"><h3>${j.ti ? "Transaction Intelligence build" : j.combined ? "Combined build" : "Build"}${j.rebuild ? " (rebuild)" : ""} ·${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
+  let html = `<div class="progress"><h3>${j.ti ? "Transaction Intelligence build" : j.companion ? "ARS Companion build" : j.combined ? "Combined build" : "Build"}${j.rebuild ? " (rebuild)" : ""} ·${j.queued ? "queued #" + j.queued : mins + ":" + secs}</h3><ul class="steps">`;
   if (j.queued) html += `<li><span class="dot"></span><span>Queued #${j.queued}. It starts on its own when ${j.queued > 1 ? "the builds ahead of it finish" : `the build for ${esc(j.after || "another client")} finishes`}. Keep CSM Sheila's black window open.</span></li>`;
   steps.forEach((st, i) => { const done = j.done || i < steps.length - 1;
     html += `<li><span class="dot ${done ? "done" : "now"}"></span><span>${esc(st.name)}</span><span class="t">${st.min !== "" ? esc(st.min) + " min" : ""}</span></li>`; });
@@ -2550,7 +2601,7 @@ function renderJob(j) {
   const stop = marks.find(x => x.level === "STOP") || (j.done && j.code ? {text: [...j.lines].reverse().find(l => l.trim()) || "The build stopped."} : null);
   if (j.done && !j.code && j.deck) {
     const name = j.deck.split(/[\\/]/).pop();
-    html += `<div class="result good"><h3>Done. The ${j.ti ? "Transaction Intelligence decks are" : "deck is"} in Outputs.</h3><p class="mono">${esc(name)}</p>
+    html += `<div class="result good"><h3>Done. The ${j.ti ? "Transaction Intelligence decks are" : j.companion ? "ARS Companion deck is" : "deck is"} in Outputs.</h3><p class="mono">${esc(name)}</p>
       ${notesHtml}<p>Review it, save it as a PDF and email it as usual.</p>
       <p><button class="link" id="reveal">Show it in File Explorer</button></p></div>`;
   } else if (j.done) {
@@ -2560,8 +2611,8 @@ function renderJob(j) {
   html += `</div>`;
   // A Transaction Intelligence build shows its progress inside the Transaction Intelligence panel at the
   // bottom of the client page; every other build shows it above the "last build" line, as before.
-  const box = (j.ti && $("#jobti")) || $("#job"), other = box === $("#job") ? $("#jobti") : $("#job");
-  if (other) other.innerHTML = "";
+  const box = (j.ti && $("#jobti")) || (j.companion && $("#jobcomp")) || $("#job");
+  for (const o of [$("#job"), $("#jobti"), $("#jobcomp")]) if (o && o !== box) o.innerHTML = "";
   box.innerHTML = html;
   const rv = $("#reveal");
   if (rv) rv.addEventListener("click", async () => { try { await api("/api/reveal", {method: "POST", body: JSON.stringify({path: j.deck})}); } catch (e) { rv.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); } });

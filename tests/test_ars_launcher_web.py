@@ -438,7 +438,7 @@ def test_an_old_status_is_shown_at_once_with_its_build_buttons_held(clean_state,
     monkeypatch.setattr(W, "STATUS_TTL", 600)
     new = W.status_doc("1441", background=True)
     assert new["state"] == "stop" and new["refreshing"] is False
-    assert "if (HOLD) for (const b of [go, go2, goti])" in W.PAGE, "the page holds the Build buttons meanwhile"
+    assert "if (HOLD) for (const b of [go, go2, goti, gocomp])" in W.PAGE, "the page holds the Build buttons meanwhile"
 
 
 def test_a_check_that_started_before_a_build_finished_is_not_stored(clean_state, monkeypatch):
@@ -721,6 +721,9 @@ def test_changing_cycle_warms_the_new_one(monkeypatch):
     """Without this the first click on each client after a cycle change pays the full check
     again — 3.4 s against the share, where a warmed one answers in 5 ms."""
     monkeypatch.setattr(W.L, "cycle_period", lambda *a: "2026.10")
+    # select_period warms only when the cycle CHANGES: a period an earlier test left selected would make this
+    # a no-op and the thread would never start (the intermittent "never ran", 2026-10-26 and -27).
+    W._selected["period"] = None
     started, ran = [], threading.Event()
 
     def fake_prewarm():

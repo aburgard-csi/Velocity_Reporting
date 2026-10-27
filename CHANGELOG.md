@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
+
+Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
+
+Aaron, 2026-10-27: "Build functionality in Sheila (a new button) to build a ARS Companion Deck with James's slides." The companion is built the way the Transaction Intelligence deck is: its own checks, its own button on the client page, the same build queue, and its own file name (`<id>-<yyyy.mm>-COMP-<Client> ARS Companion.pptx`) so it is never taken for the period's Executive Review and is never archived by an Executive Review build. It is the ARS deck built with every opt-in view switched on (James's views, the sustained-activity split, the debit spend slides), cut down to the slides those views added plus the cover, Questions & Discussion and Contact. The Executive Review, its template and its slide count are unchanged. VERSION is now 2.1.
+
 ### 2026-10-27 — Slide Review: CSMs vote keep, delete or appendix on any deck's slides
 
 Summary: Sheila has a new Slide Review tab where a CSM votes Keep, Delete or Appendix on each slide of any deck in Outputs, and a Summary that counts the votes across clients.

@@ -28,8 +28,8 @@ def test_the_transaction_intelligence_panel_has_a_place_for_its_progress():
 
 def test_a_ti_job_draws_in_the_panel_and_clears_the_other_place():
     render = _between(W.PAGE, "function renderJob(j)", "// ----")
-    assert '(j.ti && $("#jobti")) || $("#job")' in render
-    assert 'other.innerHTML = ""' in render
+    assert '(j.ti && $("#jobti")) || (j.companion && $("#jobcomp")) || $("#job")' in render
+    assert 'for (const o of [$("#job"), $("#jobti"), $("#jobcomp")]) if (o && o !== box) o.innerHTML = ""' in render
 
 
 def test_the_launchers_lines_after_the_steps_are_part_of_the_result():
