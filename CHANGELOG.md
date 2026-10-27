@@ -27,6 +27,20 @@ Summary: When a build finished, Sheila kept showing its button as "Building..." 
 
 Aaron, 2026-10-27, from a screenshot of 1075 Austin Bank: the Transaction Intelligence panel showed a greyed "Building..." button and "The last Transaction Intelligence build failed" over a "Done. The Transaction Intelligence decks are in Outputs." result. `follow()` redrew the progress when the job finished but not the page around it, which was drawn before the build started; it now re-reads the client's status (the server drops its cached one when a job ends) and draws it again, then the result. No figure or slide changes.
 
+### 2026-10-27 — Transaction Intelligence deck: overlapping text and labels fixed
+
+Summary: The Transaction Intelligence deck no longer has titles running into their subtitles or chart labels printing over each other, and the radar chart now shows all six of its axes.
+
+Aaron, 2026-10-27, after reviewing the 1075 Austin Bank deck: "We also need to go through that transaction intelligence check and apply formatting rules. Lots of overlapping text." Found by rendering all 90 slides through PowerPoint, which the validator cannot do (it reads the picture charts as images). Fixed in the renderers, not in the deck:
+
+- Titles are sized from the glyph measure of the bold face, with a 5% allowance for PowerPoint setting it wider, instead of a character count that put 98-character titles on two lines that rendered as three (slides 9 and 53). Down to 20 pt, then the lines are counted and the box grows.
+- Block and treemap labels (`charts.fit_text`) wrap or step down to fit their block, and are cut with an ellipsis only at the floor (slides 8 and 63).
+- Bubble names (`charts.place_point_labels`) are placed beside their own bubble, clear of other names and bubbles, instead of a fixed 14 points above the centre (slides 17, 46, 49, 50, 61).
+- Two dollar signs in one label no longer turn it into italic mathtext ("$2,984 vs $6,044" printed as "2, 984vs6,044"), and the two comparison dumbbells (slides 15, 25) give each row its own unit and scale, with the change signed properly (it printed "2984.0%" and "+-3060.0").
+- The Pareto's value labels stand clear of the cumulative line (slide 11); the donut's left-hand labels sit left of their leader (slide 48); the radar draws all six axes and their names (slide 39: matplotlib 3.11 had narrowed it to a quarter).
+
+No figure changes. `tests/test_ti_formatting.py` pins each of these; every one of its twelve tests fails on the code before this change.
+
 ### 2026-10-27 — Sheila's action buttons are lit, not flat
 
 Summary: The Build, Check again, Recalculate and Export buttons in Sheila now carry a light
