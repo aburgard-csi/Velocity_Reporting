@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: an agenda of eight chapters fits
+
+Summary: When a Transaction Intelligence deck carries more than four chapters, its agenda now lists
+each chapter by name only, without the one-line description under it. With all eight chapters plus
+Questions, each row is about half an inch tall, and each description ran into the next chapter's name
+(validate_deck: eight FAILs on the agenda of 1776 CoastHills CU's eight-chapter deck). The description
+still opens each chapter on its divider. Decks of up to four chapters are unchanged.
+
+`build_ti_gen._agenda_headings_only` runs after the shared `assemble_combined.set_agenda`, which is not
+changed, and removes the detail boxes once the agenda passes `AGENDA_DETAIL_ROWS` (5) rows.
+`tests/test_ti_shell.py` builds four and eight stub chapters; at eight, the descriptions are gone and the
+agenda has 0 FAIL (the test fails without the fix). Rebuilt 1776's eight-chapter shell: 0 FAIL.
+
 ### 2026-10-26 — Transaction Intelligence: PIN and signature interchange from the ODD, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 interchange figures from the ODD:
