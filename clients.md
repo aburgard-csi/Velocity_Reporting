@@ -57,6 +57,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1542 | The Friendship SB | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
 | 1549 | Wellworth Bank | MM | yes | referrals-only | — | ARS-ICS |
 | 1554 | Isabella Bank | MM | yes | — | — | ARS |
+| 1585 | First Community Bank of the Heartland | MM | yes | — | — | ARS |
 | 1615 | Cape & Coast Bank | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
 | 1637 | Ouachita Valley FCU | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
 | 1652 | Security CU | SM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | yes | ARS-ICS-MRPC |
@@ -224,6 +225,7 @@ column's position is free.
 | 1539 | Marine FCU | Aaron Burgard | yes | 6,745 | **ARS-ICS-MRPC-CP** section | the client book's product list omits CashPlease — see gap 3 |
 | 1542 | The Friendship SB | Daniel Wood | yes | 401 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Friendship State Bank" |
 | 1564 | OneUnited Bank | Aaron Burgard | yes | 11,495 | standalone deck   | no other RPE program |
+| 1585 | First Community Bank of the Heartland | James Gilmore | yes | 1,324 | **ARS-CP** section | added 2026-10-27 (James: "1585 - ARS + CP + ILS - missing"); ILS is not tracked in this file; the CashPlease summary tab reads "First Community Bank of Tennessee" |
 | 1632 | WesBanco Bank | Aaron Burgard | yes | 11,927 | **ICS-CP** section | |
 | 1652 | Security CU | Max Willett | yes | 51 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Security Rewards" |
 | 1658 | Truliant FCU | Aaron Burgard | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
@@ -236,7 +238,7 @@ column's position is free.
 | 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
 | 1776 | CoastHills CU | James Gilmore | yes | 1,246 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster |
 
-**Thirteen combined decks and five standalone decks per run.** A client whose CashPlease
+**Fourteen combined decks and five standalone decks per run.** A client whose CashPlease
 slides ship inside a combined deck does NOT also get a standalone deck (Aaron,
 2026-09-01) — the Executive Review and the ILS review would otherwise carry the same five
 slides. Loan counts are program-to-date **as of the 2026-09-06 workbook** and are a

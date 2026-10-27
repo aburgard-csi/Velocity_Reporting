@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from .charts import (FIG_W_FULL, FIG_W_RAIL, GREY, GRID, LIGHT, NAVY, ORANGE,
-                     STEEL, TINT, _clean, _save, plt)
+                     STEEL, TINT, _clean, _save, fit_text, plt)
 from .labels import clip
 from .charts_txn import _fmt_money
 
@@ -62,14 +62,16 @@ def _treemap_fig(rows: list, note: str):
         ax.add_patch(plt.Rectangle((x, y), w, h, facecolor=color,
                                    edgecolor="white", linewidth=1.8))
         if w > 0.10 and h > 0.13:
-            ax.text(x + 0.012, y + h - 0.05, label, fontsize=10.5,
+            inner = w - 0.024                 # the block's width less its margins
+            name = fit_text(ax, x + 0.012, y + h - 0.05, inner, label, 10.5, floor=8, max_lines=2,
+                            fontweight="bold", color=fg, va="top")
+            drop = 0.04 if len(name.get_text().splitlines()) > 1 else 0   # a two-line name pushes the figure down
+            ax.text(x + 0.012, y + h - 0.115 - drop, _fmt_money(val), fontsize=13.5,
                     fontweight="bold", color=fg, va="top")
-            ax.text(x + 0.012, y + h - 0.115, _fmt_money(val), fontsize=13.5,
-                    fontweight="bold", color=fg, va="top")
-            if h > 0.24:
-                ax.text(x + 0.012, y + h - 0.175,
-                        sub if addressable else "non-addressable",
-                        fontsize=8.5, color="#EEF2F6", va="top")
+            if h > 0.24 + drop:
+                fit_text(ax, x + 0.012, y + h - 0.175 - drop, inner,
+                         sub if addressable else "non-addressable", 8.5, floor=7.5,
+                         max_lines=2, color="#EEF2F6", va="top")
             drawn += 1
         if horizontal:
             x += w
@@ -104,7 +106,9 @@ def _radar_fig(axes: list, a_vals: list, b_vals: list, a_lab: str,
     what gets printed -- a normalised number on screen would read as a
     measurement it is not."""
     n = len(axes)
-    ang = [(-90 + i * 360 / n) * math.pi / 180 for i in range(n)]
+    # wrapped into 0-360: the axes that started at -90 and -30 fell outside the circle once the theta
+    # range is the whole of it, so their names and points were not drawn (slide 39, 2026-10-27)
+    ang = [((-90 + i * 360 / n) % 360) * math.pi / 180 for i in range(n)]
     fig = plt.figure(figsize=(FIG_W_FULL, 4.6))
     fig._ars_layout_authored = True
     ax = fig.add_axes([0.02, 0.06, 0.40, 0.88], polar=True)
@@ -120,6 +124,12 @@ def _radar_fig(axes: list, a_vals: list, b_vals: list, a_lab: str,
         pts = list(vals) + [vals[0]]
         ax.plot(ang + [ang[0]], pts, color=color, lw=2.4)
         ax.fill(ang + [ang[0]], pts, color=color, alpha=alpha)
+    # The whole circle, set AFTER the data: matplotlib 3.11 narrows a polar axes' theta range to the
+    # plotted angles, which drew a quarter of the radar and threw the other axis names into the
+    # legend column (slide 39, 2026-10-27).
+    ax.set_thetalim(0, 2 * math.pi)
+    ax.set_ylim(0, 1)
+    ax.set_position([0.09, 0.10, 0.34, 0.80])   # room left of the circle for the names of its left-hand axes
     tx = fig.add_axes([0.48, 0.06, 0.50, 0.88])
     tx.axis("off")
     tx.set_xlim(0, 1)
