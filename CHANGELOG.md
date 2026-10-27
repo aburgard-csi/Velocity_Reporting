@@ -39,6 +39,12 @@ One line differs from v5: when the workbook is locked (open in Excel or syncing)
 copy goes in an `rpe_env.temp_dir` folder instead of a bare `tempfile.mkstemp`, per this repo's
 temp rule. The parity check skips a v5 run that read no workbook.
 
+### 2026-10-27 — ILS is tracked in the roster
+
+Summary: clients.md now lists Aaron's 67 ILS clients in an ILS roster table, so ILS is recorded alongside the other programs; it does not change what gets built.
+
+Aaron, 2026-10-27: "Start tracking ILS in the roster too. You can check my clients for ILS analysis reviews." The table comes from the Velocity export's product list in `Client CSM List.csv`. ILS has no monthly deck, so `build_month.read_roster` skips the section and `read_ils_roster` reads it. Other CSMs' ILS clients are not listed yet.
+
 ### 2026-10-27 — The orange box is off the ARS Revenue Lift Matrix slide
 
 Summary: The orange outline around one cell of the matrix on the ARS Revenue Lift Matrix slide is gone; the matrix and the bars beside it are unchanged.
