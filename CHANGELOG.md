@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — Sheila's button glow toned down
+
+Summary: The glow and shading around Sheila's action buttons are much subtler; the buttons keep a light highlight and edge and still press down when clicked.
+
+Aaron, 2026-10-27, from a screenshot: uttons glow too much, let's tone it down. The coloured glow went from a 16 px blur at 38-42% to a 6 px blur at 16-18%, and the highlight and edge shading were halved. Colours, press movement and hover are unchanged.
+
 ### 2026-10-27 — Sheila redraws a client's buttons and verdicts when a build finishes
 
 Summary: When a build finished, Sheila kept showing its button as "Building..." and, for Transaction Intelligence, the previous build's failure notice, beside a result that said Done. The client page now refreshes itself when the build ends.
