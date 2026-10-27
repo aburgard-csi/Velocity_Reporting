@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — Sheila redraws a client's buttons and verdicts when a build finishes
+
+Summary: When a build finished, Sheila kept showing its button as "Building..." and, for Transaction Intelligence, the previous build's failure notice, beside a result that said Done. The client page now refreshes itself when the build ends.
+
+Aaron, 2026-10-27, from a screenshot of 1075 Austin Bank: the Transaction Intelligence panel showed a greyed "Building..." button and "The last Transaction Intelligence build failed" over a "Done. The Transaction Intelligence decks are in Outputs." result. `follow()` redrew the progress when the job finished but not the page around it, which was drawn before the build started; it now re-reads the client's status (the server drops its cached one when a job ends) and draws it again, then the result. No figure or slide changes.
+
 ### 2026-10-26 — The cover, section dividers and closing slide use the CSI brand template's design
 
 Summary: Every deck's cover, section dividers and closing slide now follow the CSI brand template: a white cover with the blue band and the CSI logo, gradient dividers with the sunrise wedge, and a gradient closing slide with the large logo.
