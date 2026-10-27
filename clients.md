@@ -79,7 +79,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1798 | FirstLight FCU | MM | yes | — | — | ARS |
 | 1799 | Central Bank | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
 | 1800 | First American Bank | MM | yes | yes (direct mail list, 2026-10-15; no VIP sheet) | — | ARS-ICS |
-| 1805 | Texar FCU | — | yes | — | — | ARS |
+| 1805 | Texar FCU | MM | yes | — | — | ARS |
 | 1807 | Patriot FCU | MM | yes | — | — | ARS |
 | 1815 | FedChoice FCU | MM | yes | — | — | ARS |
 
