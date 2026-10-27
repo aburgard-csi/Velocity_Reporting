@@ -641,6 +641,7 @@ def build(d, static_path, out, referrals_only=False):
     _clogo = CD.client_logo_for(_meta.get("client_id"), A)
     s=blank(prs)
     CD.draw_cover(s, [CD.PRODUCT_ICS], client, rm, client_logo=_clogo, note="Title slide. No data.")
+    CD.restyle_closing(prs)         # its client line was swapped above; the closing slide takes the template's style
     _rf = d.get("referrals") or {}
     _stats = []
     if _rf.get("program_to_date") is not None:

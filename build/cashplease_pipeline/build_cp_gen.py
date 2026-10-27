@@ -432,6 +432,7 @@ def adapt_shell(prs, d):
     for sh in found["questions"].shapes:
         if sh.has_text_frame and "Union Financial" in sh.text_frame.text:
             _settext(sh, f"{d['client_name']}  •  {label}")
+    CD.redraw_closing_in_place(found["questions"])     # the brand template's closing style, keeping that line
 
     fill_contact(found["contact"], d["client_id"])
 
