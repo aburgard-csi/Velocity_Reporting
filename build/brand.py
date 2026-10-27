@@ -36,8 +36,14 @@ from pptx.dml.color import RGBColor
 
 # ----------------------------------------------------------------- core palette
 NAVY   = "#00274C"   # primary — titles, tiles, bars, table headers
-ORANGE = "#F47A29"   # accent — the current period, the highlighted row, pills
+ORANGE = "#F15D22"   # accent — the current period, the highlighted row, pills (CSI Orange, PMS 179; was #F47A29 until the Sept. 2026 brand template)
 WHITE  = "#FFFFFF"
+
+# The rest of the CSI palette from "Updated Brand Presentation Sept. 2026" (slide 18). Defined so a builder can
+# reach for them by name; no builder uses them yet. NAVY and ORANGE above are the same two colours.
+CSI_LIGHT_BLUE = "#035B95"   # PMS 6126C
+CSI_GOLD       = "#F8971D"   # PMS 144
+CSI_RED        = "#EB2A2E"   # PMS 185
 
 # ----------------------------------------------------------------- greys, by ROLE
 # These are the five distinct values that were in use. Naming them by role is
@@ -74,9 +80,9 @@ TEAL       = "#0D9488"   # series line over navy bars (MRPC Enrollments, Still A
 COLD_RAMP = ["#00274C", "#12406E", "#245C8C", "#3D74A0", "#6E93B4", "#9DB4C8",
              "#C0D0DD", "#DDE6ED", "#EAF0F4", "#F2F5F8"]
 # Warm ramp for eligible slices — orange at three tints.
-WARM_RAMP = ["#F47A29", "#F79552", "#FBB27E"]
+WARM_RAMP = ["#F15D22", "#F47D4E", "#F79E7A"]   # ORANGE, then 20% and 40% of the way to white
 # MRPC cancellation-reason categories.
-CANCEL_RAMP = ["#00274C", "#B9C7D6", "#5A7590", "#C9D6E3", "#F47A29",
+CANCEL_RAMP = ["#00274C", "#B9C7D6", "#5A7590", "#C9D6E3", "#F15D22",
                "#D9B44A", "#C98B8B"]
 
 
@@ -107,7 +113,7 @@ CHART_FONT = "Carlito"
 
 
 # ---------------------------------------------------------------- money
-def usd_compact(v, decimals=2):
+def usd_compact(v, decimals=2, k_decimals=0):
     """A dollar figure at deck scale: `$1.24M` at a million and up, `$830K` below.
 
     ONE definition, because there were four and they disagreed (Aaron, 2026-09-11).
@@ -129,5 +135,25 @@ def usd_compact(v, decimals=2):
     if a >= 1e6:
         return f"{sign}${a/1e6:,.{decimals}f}M"
     if a >= 1000:
-        return f"{sign}${a/1000:,.0f}K"
+        return f"{sign}${a/1000:,.{k_decimals}f}K"
     return f"{sign}${a:,.0f}"
+
+
+def bar_labels(values, slot_in, pt=16, bold=True, cents=False, family=CHART_FONT):
+    """Value labels for a row of bars `slot_in` inches apart: the full figure ("$12,260") when
+    every label fits its own slot, else the compact one ("$12.3K", "$1.2M") for ALL of them.
+
+    Measured with the chart face, never guessed: KEMBA CU's 2026.10 revenue composition chart
+    carried twelve cohorts of five-digit totals on an 11.5-inch figure, and "$12,260 $12,118
+    $12,558" ran together (Cindy's review; Aaron, 2026-10-26: "If labels are going to overlap
+    we can summarize $17,200 as $17.2k, or M for millions"). The gate cannot see text inside a
+    chart image, so the renderer has to prove the fit itself. One form per chart: a reader
+    should not meet "$12,260" beside "$12.3K". `cents` labels are per-account figures
+    ("$0.52"), which are short and keep their cents when they fit.
+    """
+    import textfit
+    full = [f"${v:,.2f}" if cents else f"${v:,.0f}" for v in values]
+    room = slot_in * 0.92                    # a sliver of air between neighbours
+    if all(textfit.text_width_in(t, pt, family, bold) <= room for t in full):
+        return full
+    return [usd_compact(v, decimals=1, k_decimals=1) for v in values]

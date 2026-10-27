@@ -55,7 +55,7 @@ unit suite could not run).
 | Name | Hex | Role |
 | --- | --- | --- |
 | `NAVY` | `#00274C` | titles, tiles, bars, table headers, slide numbers |
-| `ORANGE` | `#F47A29` | the current period, the highlighted row, pills, totals, agenda badges |
+| `ORANGE` | `#F15D22` | the current period, the highlighted row, pills, totals, agenda badges |
 | `TICK` | `#5A6670` | axis ticks, selection subtitles, body grey |
 | `ROWALT` | `#EEF2F7` | alternating table rows |
 | `GRID` / `HAIRLINE` / `MUTED` | `#E4EAF1` / `#D9DEE5` / `#B8C0CA` | gridlines, lightest spine, axis spine |
@@ -204,6 +204,13 @@ element is already maxed.
   from the 16 pt floor.
 - **Render at the picture box's aspect.** `DIM` in `build/ars_pipeline/charts_gen.py`
   (and each renderer's letterbox size) must match the slide box or the PNG stretches.
+- **Value labels on bars are full figures unless they would collide** (Aaron, 2026-10-26).
+  `brand.bar_labels` measures each label with the chart face (`textfit`) against the room
+  between bar centres (`ics_charts_gen.slot_in`); when any label is too wide, every label on
+  that chart switches to the compact form (`$12.3K`, `$1.2M`), never a mix. KEMBA CU's 2026.10
+  composition chart ran "$12,260 $12,118 $12,558" together across twelve cohorts (Cindy's
+  review). The gate cannot see text inside a chart image, so the renderer proves the fit; the
+  ICS cohort and composition charts go through it.
 - **Month labels: `MMM'YY`, angled 45°, `ha="right"`** — `periods.mon_yy` /
   `periods.axis_months` (Aaron, 2026-09-01). Three formats were in service and the
   ICS quarter panels had thrown the year away. **Enforced at render time**
