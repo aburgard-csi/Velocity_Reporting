@@ -54,3 +54,24 @@ def test_per_offer_fits_its_offers_and_says_lift_the_house_way(tmp_path, monkeyp
     text = _text(per_offer)
     assert "of 12 completed offers" in text and "Response %" in text
     assert " lift" not in text.lower() and "Net gain" in text, "house words, no banned 'lift'"
+
+
+def test_the_hero_shows_guarantee_math_while_a_balance_is_live(tmp_path, monkeypatch):
+    """v5's hero (James, 2026-08-22): earned over fees paid while a 2:1 balance is deferred, the
+    workbook's profit otherwise; and Revenue frames sets the booked frame beside the estimate."""
+    monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    base = {"campaign_rates": [["Jun26", 18000, 1600, 8.9], ["Aug26", 18379, 1607, 8.7]],
+            "responses_total": 13461, "reach_total": 12911, "ba_lift_net": 552.0,
+            "wb_profit_ltd": 408971, "wb_revenue_ltd": 1121691, "wb_costs_ltd": -712720,
+            "wb_found": "1776-2026.10-CoastHills CU-Workbook_v2_1_0.xlsx", "segment_ic_rate": 0.0062}
+    live = {**base, "gt_deferred_balance": 140861.51, "gt_state": "drawing-down",
+            "gt_revenue_ltd": 900000.0, "gt_paid_ltd": 339000.0}
+    slides = C.build(_Ctx(_prs(), live, tmp_path))
+    texts = [_text(s) for s in slides]
+    hero = next(t for t in texts if "earned over fees paid" in t)
+    assert "$561K" in hero
+    assert any("BOOKED: ARS WORKBOOK LEDGER" in t and "Gain per responder" in t for t in texts), \
+        "Revenue frames draws both frames, in the house word"
+    cleared = {**live, "gt_state": "clear", "gt_deferred_balance": 0.0}
+    texts = [_text(s) for s in C.build(_Ctx(_prs(), cleared, tmp_path))]
+    assert any("program profit, life to date" in t and "$409K" in t for t in texts)

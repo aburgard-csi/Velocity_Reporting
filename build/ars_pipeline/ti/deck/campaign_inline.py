@@ -934,3 +934,153 @@ def offer_detail(h, m) -> str | None:
                     _fit_picture(s, path, MARGIN_L, 1.55,
                                  max_w=CONTENT_W, max_h=5.5)
     return None
+
+
+
+def _responses_caption(m, n) -> str:
+    """v5 build.py `_responses_caption`: the two drops between responses_total and reach_total, named.
+
+    responses_total counts response EVENTS across the whole file -- an
+    account that answered two offers counts twice. reach_total counts unique
+    ACCOUNTS among the currently eligible. Captioning the first with the
+    second made one tile carry two populations and two units, and four
+    figures on the response story stopped reconciling (#86).
+    """
+    whole = m.get("reach_total_whole_file")
+    if whole:
+        return (f"response events; {whole:,} accounts, "
+                f"{n('reach_total'):,} still eligible")
+    return f"response events; {n('reach_total'):,} unique eligible accounts"
+
+
+def hero(h, m) -> str | None:
+    """v5 build.py lines 1006-1075: The campaign hero."""
+    (slide, skip, chart, n, register, divider, _title, _rail, _chart_left, _picture, _fit_picture,
+     _kpi, _kpi_flat, _table, _text, _tile, _kicker, MARGIN_L, CONTENT_W, NAVY, ORANGE, GREY) = _v5(h, m)
+    RIGHT_EDGE = h["RIGHT_EDGE"]
+    hero_pair = headlines.hero(m)
+    if hero_pair:
+        s, top = slide(hero_pair, "The campaign hero")
+        # the oversized hero number (DESIGN/ spec) -- profit when the
+        # workbook is present, the held-spend figure otherwise
+        if (m.get("gt_deferred_balance") or 0) > 1 \
+                and m.get("gt_state") != "clear":
+            big = _money((m.get("gt_revenue_ltd") or 0)
+                         - (m.get("gt_paid_ltd") or 0))
+            big_note = "earned over fees paid (2:1 guarantee, deferral tracker)"
+        elif m.get("wb_profit_ltd") is not None:
+            big, big_note = _money(m["wb_profit_ltd"]), \
+                "program profit, life to date (ARS Workbook)"
+        elif m.get("counterfactual_gap_total") is not None:
+            big, big_note = _money(m["counterfactual_gap_total"]), \
+                "spend held above the no-mail line"
+        else:
+            big, big_note = _money(m.get("ba_lift_net")), \
+                "per responder-month over control"
+        _text(s, MARGIN_L, top - 0.05, 5.4, 1.1, big, size=54, bold=True,
+              font=HEAD_FONT, color=NAVY)
+        _text(s, MARGIN_L + 0.06, top + 0.98, 5.4, 0.35, big_note,
+              size=12, color=GREY)
+        camp = [c for c in (m.get("campaign_rates") or []) if c[3] is not None]
+        if camp:
+            path = chart("hero_spark", charts.line_series,
+                         [[str(c[0]), c[3]] for c in camp],
+                         ylabel="response %", pct=True)
+            if path:
+                _fit_picture(s, path, 6.3, top - 0.05,
+                             max_w=RIGHT_EDGE - 6.3, max_h=2.4)
+        tiles = [
+            ("mailing", "Responses", f"{n('responses_total'):,}",
+             _responses_caption(m, n))
+            if m.get("responses_total") else None,
+            ("lift", "Lift vs control",
+             f"{_money(m['ba_lift_net'])}/mo", "difference-in-differences")
+            if m.get("ba_lift_net") is not None else None,
+            ("shield", "Retention edge",
+             f"{labels.signed(n('attrition_mailer_lift_pp'), '.1f')} pts",
+             "responders close less")
+            if m.get("attrition_mailer_lift_pp") is not None else None,
+        ]
+        tiles = [t for t in tiles if t][:4]
+        nt = max(len(tiles), 1)
+        kw = (CONTENT_W - 0.2 * (nt - 1)) / nt
+        strip_top = top + 2.75
+        for i, (kind, label, value, note) in enumerate(tiles):
+            x = MARGIN_L + i * (kw + 0.2)
+            _kpi(s, x, strip_top, kw, label, value, note,
+                 accent=ORANGE if i == 0 else NAVY)
+            # RPE: v5 drew the icon straight into its charts folder unless dry_run; here it goes
+            # through the bundle's chart(), into the chapter's charts folder, and a failure is noted
+            ic = chart(f"icon_{kind}", charts.icon, kind)
+            if ic:
+                _fit_picture(s, ic, x + 0.1, strip_top + 0.08,
+                             max_w=0.32, max_h=0.32)
+        _text(s, MARGIN_L + 0.02, 6.44, CONTENT_W, 0.3,
+              "Where the control fell, the mailing's work was arresting "
+                   "a decline \u2014 reported that way, every time.", size=9.5, color=GREY)
+        _kicker(s)
+    elif m.get("wb_found"):
+        # the booked slot stayed empty on a client that HAS a workbook --
+        # name the file, because the fix is on the file, not in the deck
+        skip("The campaign hero",
+             reason=(f"the booked frame is empty: workbook "
+                     f"{m['wb_found']} did not read this run"))
+    else:
+        skip("The campaign hero", "counterfactual_gap_total")
+    return None
+
+
+def revenue_frames(h, m) -> str | None:
+    """v5 build.py lines 2610-2658: Revenue frames."""
+    (slide, skip, chart, n, register, divider, _title, _rail, _chart_left, _picture, _fit_picture,
+     _kpi, _kpi_flat, _table, _text, _tile, _kicker, MARGIN_L, CONTENT_W, NAVY, ORANGE, GREY) = _v5(h, m)
+    rf_pair = headlines.revenue_frames(m)
+    if rf_pair:
+        s, top = slide(rf_pair, "Revenue frames")
+        ic_rate = m.get("segment_ic_rate")
+        panel_w = (CONTENT_W - 0.9) / 2
+        rx = MARGIN_L + panel_w + 0.9
+        _text(s, MARGIN_L, top + 0.05, panel_w, 0.28,
+              "BOOKED: ARS WORKBOOK LEDGER", size=11, bold=True, color=ORANGE,
+              font=HEAD_FONT)
+        _kpi_flat(s, MARGIN_L, top + 0.42, panel_w, "Program revenue",
+                  _money(m.get("wb_revenue_ltd")), "life to date, gross")
+        _kpi_flat(s, MARGIN_L, top + 1.62, panel_w, "Program profit",
+                  _money(m.get("wb_profit_ltd")),
+                  f"after {_money(abs(m.get('wb_costs_ltd') or 0))} fees")
+        _text(s, MARGIN_L, top + 2.85, panel_w, 0.6,
+              "All revenue types on goal-met responders, including NSF/OD "
+              "fee income; includes spend the control would have produced.",
+              size=10, color=GREY)
+        _text(s, rx, top + 0.05, panel_w, 0.28,
+              "INCREMENTAL: DiD ESTIMATE", size=11, bold=True, color=ORANGE,
+              font=HEAD_FONT)
+        _kpi_flat(s, rx, top + 0.42, panel_w, "Lift per responder",
+                  f"{_money(m['ba_lift_net'])}/mo", "spend, net of control")
+        if ic_rate:
+            _kpi_flat(s, rx, top + 1.62, panel_w, "As interchange",
+                      f"{_money(m['ba_lift_net'] * ic_rate)}/mo",
+                      f"at IC rate {ic_rate}")
+        _text(s, rx, top + 2.85, panel_w, 0.6,
+              "Interchange only, a monthly run rate around each offer; "
+              "credits nothing the control also did.",
+              size=10, color=GREY)
+        wedge_top = min(top + 3.55, 5.15)
+        _text(s, MARGIN_L, wedge_top, CONTENT_W, 0.28,
+              "Why they never tie", size=12, bold=True, font=HEAD_FONT)
+        for i, line in enumerate([
+                "Fee income sits only in the booked frame; DiD converts "
+                "spend lift to interchange alone.",
+                "Booked is gross; DiD subtracts the control, and part of "
+                "each lift is decline arrested.",
+                "Booked accumulates over the window; DiD is a run rate, "
+                "and lift decays.",
+                "Per-1,000-mailed pools every mailed account across "
+                "offers; the ledger counts goal-met responders per offer."]):
+            _text(s, MARGIN_L + 0.15, wedge_top + 0.32 + i * 0.30,
+                  CONTENT_W - 0.3, 0.26, f"\u00b7  {line}", size=10.5,
+                  color=GREY)
+        _kicker(s)
+    else:
+        skip("Revenue frames", "wb_revenue_ltd + ba_lift_net")
+    return None

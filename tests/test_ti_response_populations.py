@@ -78,7 +78,7 @@ def test_every_reach_figure_carries_its_unit():
 # the slide has to say which population it is standing on
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="v5's deck code: ports with G9-07 (the campaign hero slide)")
+@pytest.mark.skip(reason="v5's deck harness is not ported; the hero is covered by test_ti_campaign_chapter.py")
 def test_the_hero_caption_names_both_drops():
     """The tile prints responses_total (events, whole file) and captioned it
     with reach_total (accounts, eligible) -- two populations, two units, one
@@ -92,7 +92,7 @@ def test_the_hero_caption_names_both_drops():
     assert "12,000 still eligible" in caption
 
 
-@pytest.mark.skip(reason="v5's deck code: ports with G9-07 (the campaign hero slide)")
+@pytest.mark.skip(reason="v5's deck harness is not ported; the hero is covered by test_ti_campaign_chapter.py")
 def test_the_caption_degrades_when_the_middle_rung_is_absent():
     """Older metrics files have no reach_total_whole_file; the caption must
     still say what the number is rather than crash or mislead."""
