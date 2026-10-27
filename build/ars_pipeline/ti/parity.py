@@ -52,10 +52,21 @@ def _workbook(c):
     return workbook.read(path, c.warn)
 
 
+def _guarantee(c):
+    """v5's tracker reader on the very tracker v5's run read, found by v5's own `find_tracker`."""
+    from ti import guarantee
+    run = Path(c.source_dir)
+    path = guarantee.find_tracker(run.parents[2] / "01-Data", c.client_id or run.name, run.parent.name)
+    if path is None:
+        raise SystemExit(f"no deferral tracker under v5's 01-Data for {run.name} {run.parent.name}")
+    return guarantee.read(path, c.warn)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict)
 REGISTRY = {
     "bases": ("metrics.json", _bases),
     "workbook": ("metrics.json", _workbook),
+    "guarantee": ("metrics.json", _guarantee),
     "portfolio": ("txn_metrics.json", lambda c: _txn().portfolio(c)),
     "financial_services": ("txn_metrics.json", lambda c: _txn().financial_services(c)),
     "merchants": ("txn_metrics.json", lambda c: _txn().merchants(c)),
@@ -194,7 +205,8 @@ def run(v5_dir, config: dict, names=None, client_id=None):
         if source == "txn_metrics.json" and ctx.txn is None:
             continue
         theirs = json.loads((Path(v5_dir) / source).read_text(encoding="utf-8"))
-        if name == "workbook" and not theirs.get("wb_found"):
-            continue                    # v5's run read no workbook, so there is nothing to match
+        if (name == "workbook" and not theirs.get("wb_found")) or \
+                (name == "guarantee" and not theirs.get("gt_source")):
+            continue                    # v5's run read no workbook / tracker: nothing to match
         out[name] = compare(fn(ctx), theirs)
     return out

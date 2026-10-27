@@ -994,7 +994,9 @@ This is the readme index — update it whenever files are added, removed, or mov
   `ti/odd_sections.py` runs v5's ODD sections; `ti/deposits_input.py` reads the client's own
   `Inputs/Deposits` file; `ti/workbook.py` is v5's ARS Workbook reader (`wb_*`: P&L, offers, Lift
   Matrix, rates) and `ti/workbook_input.py` finds the client's workbook by `build_month`'s rule and
-  fills a blank `ICRate` / `NSF_OD_Fee` from it.
+  fills a blank `ICRate` / `NSF_OD_Fee` from it; `ti/guarantee.py` is v5's 2:1 deferral tracker reader
+  (`gt_*`) and `ti/deferred_input.py` finds the client's tracker in `Inputs/Deferred Billing` and says
+  when it is missing, stale or disagrees with the workbook.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips

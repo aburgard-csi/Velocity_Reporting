@@ -21,6 +21,24 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the 2:1 guarantee from the client's deferral tracker, matching v5
+
+Summary: The Transaction Intelligence cut now reads each ARS client's 2:1 guarantee deferral tracker,
+as James's v5 engine does: revenue, charges, amount paid, amount deferred, the running deferred
+balance, and whether the guarantee is clear, drawing down or in force. The trackers sit in a new
+input folder, Inputs/Deferred Billing (30 clients today), filled from M:\My Rewards Logistics by
+James's v5 fetch. Every figure matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet
+(the guarantee slide ports next); no ARS deck changes.
+
+`ti/guarantee.py` is v5's `ars/guarantee.py`, unchanged, with v5's tests. `ti/deferred_input.py` finds
+a client's tracker by its id as a whole number anywhere in the name (some names lead with a revision
+date) and says what v5's run said after reading it: a missing tracker, one more than a month behind
+the data, the guarantee's state, and any month whose revenue differs from the workbook's by more than
+10%. `rpe_env.INPUT_KIND_DIRS` gains "Deferred Billing", in `NOT_SCANNED_KINDS` like "Deposits" (read
+by exact folder; the watcher's copier and pruner never touch it). Parity (`--only guarantee`, on the
+tracker v5's run read): 10/10 on 1776 (2026-08, 2026-09) and 1761 (2026-08, 2026-09). 1776 today:
+$140,862 deferred, drawing down, through 2026-09. DUPLICATES row 16.
+
 ### 2026-10-26 — Transaction Intelligence: the ARS Workbook's economics, matching v5
 
 Summary: The Transaction Intelligence cut now reads the client's ARS Workbook as James's v5 engine
