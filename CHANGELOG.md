@@ -21,6 +21,20 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: campaign lift, the ladder and the counterfactual, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 cohort and ladder figures: every
+account's spend and swipes aligned on the month it was mailed, responders against mailed
+non-responders and the never mailed, the lift net of that control at 1, 3, 6 and 12 months, what each
+offer earns per 1,000 mailed, how far responders beat their ask and for how long, what spend would
+have been without the program, first-time against repeat response, NU 1-4 to success conversion, and
+the penalty box. Every figure matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet.
+
+`ti/monthly_analysis/cohort.py` and `ladder.py` are v5's, unchanged (ladder is the library cohort
+imports, so they port together), run through `ti/odd_sections.py` as `cohort`, with v5's
+`test_swipe_high.py` over `tests/ti_v5_harness.py`. Parity: 58/58 on 1776 (2026-09) and 1761
+(2026-10), every cohort and ladder key v5 writes. DUPLICATES row 25.
+
 ### 2026-10-26 — Transaction Intelligence: each offer month by month, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 per-offer trajectories: for every

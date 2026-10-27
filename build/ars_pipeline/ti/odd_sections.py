@@ -138,6 +138,14 @@ def mailer_detail(ctx):
     return _section("mailer_detail")(ctx)
 
 
+def cohort(ctx):
+    """v5's cohort section: every account-wave pair aligned on the mail month, responders against
+    mailed non-responders and the never mailed, lift by difference in differences, tier and segment
+    economics, the over-the-ask distribution, the counterfactual, and (through `ladder`) first-time
+    against repeat response, NU conversion and the penalty box."""
+    return _section("cohort")(ctx)
+
+
 def leaks(ctx, figures=None):
     """v5's post-passes, in v5's order (metrics.compute after SECTIONS): `leaks.compute` finds the
     segments holding more of the eligible base than of the cards or opt-ins, from the dctr and rege
@@ -160,6 +168,7 @@ PARITY = {
     "mailer": ("metrics.json", mailer),
     "mailer_summary": ("metrics.json", mailer_summary),
     "mailer_detail": ("metrics.json", mailer_detail),
+    "cohort": ("metrics.json", cohort),
     "value": ("metrics.json", value),
     "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),
