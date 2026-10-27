@@ -27,6 +27,18 @@ Summary: When a build finished, Sheila kept showing its button as "Building..." 
 
 Aaron, 2026-10-27, from a screenshot of 1075 Austin Bank: the Transaction Intelligence panel showed a greyed "Building..." button and "The last Transaction Intelligence build failed" over a "Done. The Transaction Intelligence decks are in Outputs." result. `follow()` redrew the progress when the job finished but not the page around it, which was drawn before the build started; it now re-reads the client's status (the server drops its cached one when a job ends) and draws it again, then the result. No figure or slide changes.
 
+### 2026-10-27 — Sheila's action buttons are lit, not flat
+
+Summary: The Build, Check again, Recalculate and Export buttons in Sheila now carry a light
+along the top edge, shade along the bottom, a line where they meet the page and a glow in
+their own colour, and they press in when clicked. Nothing about what they do changed.
+
+The recipe is the four-shadow button Aaron pointed at (2026-10-27): `button.primary` in
+`ars_launcher_web.py` layers `inset 0 1px 0` white, `inset 0 -2px 0` black, `0 1px 2px` black
+and a `--glow` in the button's own colour (navy, or orange for `.warn`); `:active` swaps the
+highlight for an inset shade and moves the button down a pixel; a disabled button is flat
+grey as before; reduced motion drops the transition.
+
 ### 2026-10-26 — The cover, section dividers and closing slide use the CSI brand template's design
 
 Summary: Every deck's cover, section dividers and closing slide now follow the CSI brand template: a white cover with the blue band and the CSI logo, gradient dividers with the sunrise wedge, and a gradient closing slide with the large logo.
