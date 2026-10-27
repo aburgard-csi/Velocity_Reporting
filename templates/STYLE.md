@@ -106,13 +106,13 @@ The Executive Review and CashPlease decks share this exactly.
 | **Bottom caption** | starts >= 5.8" | `fit_layout` parks it above 7.00" by estimated line count |
 | **Slide number** | (0.45, 7.05, 0.70 x 0.30) | Calibri 10 pt bold navy — every numbered slide identical |
 | **Logo, data slides** | (11.28, 6.78, 1.70 x 0.54) | the CSI \| Velocity lockup, `build/assets/logo.png` |
-| **Logo, dividers** | (0.71, 0.66, 1.90 x 0.60) on a white rounded card (0.55, 0.50, 2.22 x 0.92) | |
+| **Logo, dividers** | (0.36, 6.61, 1.08 wide) — the all-white CSI logo on the sunrise wedge, bottom-left | brand template, Sept. 2026 |
 
 **Numbered:** content slides only, sequentially, from the ordinal. **Not numbered:**
 the title, the Executive Summit, every full-bleed divider and closing cover
 (`fit_layout` strips them). A trimmed or combined deck renumbers from scratch
 (`assemble_combined.renumber`). **No logo** on the Summit slide; the title and
-Questions covers keep their centered lockup.
+Questions closing slide carries the brand template's large centred CSI logo instead.
 
 **Selection on the slide, source in the notes.** The selection is the subtitle.
 The data source — file, tab, dashboard, extract + pull stamp, period — goes in the
@@ -124,15 +124,21 @@ a missing Source line or another client's provenance).
 Every single-product deck carries its own shell; the combiner keeps exactly one of
 each (`assemble_combined.section_slides` drops the rest).
 
-- **Title slide (2026-10-02, `build/cover_divider.py`).** Full-bleed navy, left-aligned:
-  the client's own logo (`Inputs/Logos/`, trimmed) on a white card top-left; the reporting
-  month at 84 pt Montserrat ExtraBold white; under it one text frame with the client name
-  (32 pt orange) and "Executive Review  •  <month>" (18 pt) — the line the combiner and
-  validator read; the included products as outline chips (16 pt, wrapping to a second row
-  for four); the lockup bottom-right on a white card. **Lists only the products in this
-  build** — the combiner replaces the chips (`set_cover_products`). The first chip is the
-  slide's title. Every builder draws it; the shells still carry the old centered cover and
-  are redrawn at build time.
+- **Title slide (`build/cover_divider.py`; the CSI brand template's title slide since
+  2026-10-26, Sept. 2026 template).** A white page with the template's slanted blue band
+  (radial navy-to-blue gradient), the red-to-gold sunrise wedge bottom-left and the CSI
+  logo top-left (`build/brand_art.py`, art in `build/assets/csi_brand/`, lifted from the
+  template by `scripts/extract_brand_art.py` with its theme colours made literal). One
+  text frame holds the client name as the 60 pt white title (stepping down to fit two
+  lines) and "Executive Review  •  <month>" (24 pt) — the line the combiner and validator
+  read; the included products are outline chips under it (16 pt, wrapping to a second
+  row); the client's own logo (`Inputs/Logos/`, trimmed) sits on a white card at the top
+  right of the band. The first shape is still a plain full-bleed rectangle (white), which
+  is how the layout passes recognise a cover. **Lists only the products in this build** —
+  the combiner replaces the chips (`set_cover_products`), which must stay ABOVE the band.
+  The first chip is the slide's title. Every builder draws it; the shells still carry the
+  old cover and are redrawn at build time. The "| Velocity" half of the old lockup is gone
+  from these slides: the template's logo is CSI alone.
 - **The two months.** The **reporting month** is when the deck is presented and
   appears once, on the title slide; it comes from the period tag (`ARS_PERIOD` /
   `RPE_PERIOD`, or the `<yyyy.mm>` in the output filename) and **never from the
@@ -150,10 +156,11 @@ each (`assemble_combined.section_slides` drops the rest).
   REMOVED, not blanked (an empty numbered row reads as a section that failed). Up to
   four rows keep the template pitch; five re-space (1.60 / 2.54 / 3.48 / 4.41 / 5.35).
   A referrals-only ICS section gets the referrals-only detail line.
-- **Section divider (2026-10-02, `build/cover_divider.py`)** — one layout for all four
-  products and the ARS sub-sections: full-bleed navy, left-aligned; "SECTION" kicker
-  (16 pt, `STEEL_SOFT`); the section name at 52 pt Montserrat ExtraBold white (stepping
-  down to 36 when it will not fit one line); the benefits line 18 pt orange. ARS
+- **Section divider (`build/cover_divider.py`; the brand template's divider since
+  2026-10-26)** — one layout for all four products and the ARS sub-sections: the
+  template's full-bleed radial gradient, left-aligned, with the sunrise wedge and the
+  all-white CSI logo bottom-left; the section name at 52 pt Montserrat bold white
+  (stepping down to 36 when it will not fit one line); the benefits line 24 pt white. ARS
   "Mailings · Debit Card · Reg E" · ICS "Referrals · Account Performance · Revenue"
   (referrals-only: "Referrals") · MRPC "Enrollments · Retention · Revenue" · CashPlease
   "Loan Volume · Portfolio Status · Peer Comparison". A **program** divider carries up to
@@ -162,10 +169,14 @@ each (`assemble_combined.section_slides` drops the rest).
   PTD, last complete month, trailing 12 · CashPlease: loans booked, principal, loans per
   1,000 DDAs). In a **combined deck only**, a progress track along the bottom names every
   section (ARS · ICS · CASHPLEASE · MRPC) with the current one in orange —
-  `assemble_combined.set_divider_tracks`; a standalone deck draws none. The lockup sits
-  top-right. No number. The ARS builder redraws the shell's dividers in place; ICS, MRPC
-  and CashPlease draw theirs. Nothing below the 16 pt floor and no shadow.
-- **Questions & Discussion** ends the primary material; **Contact Us** (navy contact
+  `assemble_combined.set_divider_tracks`; a standalone deck draws none. The track sits at
+  5.65", above the wedge. No number. The ARS builder redraws the shell's dividers in
+  place; ICS, MRPC and CashPlease draw theirs. Nothing below the 16 pt floor and no shadow.
+- **Questions & Discussion** (the brand template's closing slide since 2026-10-26: the
+  radial gradient, the large CSI logo, the title at 54 pt, the "<client>  •  <month>" line
+  the validator checks against the cover at 24 pt, and "csiweb.com", all white; every
+  builder redraws the shell's slide with `cover_divider.restyle_closing`, keeping the
+  line it swapped in) ends the primary material; **Contact Us** (navy contact
   card: name, role, phone, email) follows it. The card is **the client's managing CSM**
   (Aaron, 2026-09-16), from `CSM Contacts.csv` via `rpe_env.csm_contact`; the line slots
   live in `build/shapes.py` (`contact_card_lines`, `fill_contact_card` for a shell's card).

@@ -199,14 +199,16 @@ def leakage_by_group(h, t, base):
         "recapture list writes itself",
         "responders against mailed non-responders on every measure the "
         "section computes"), "Leakage by group")
+    pts = "{:+.1f} pts"
+    dollars = lambda d: ("+" if d >= 0 else "") + money(d)
     dumb = [["Accounts in addressable categories", r_[4], c_[4],
-             f"{r_[3]:,} vs {c_[3]:,}"],
+             f"{r_[3]:,} vs {c_[3]:,}", "{:.1f}%", pts],
             ["Dollars per addressable account", r_[5], c_[5],
-             f"${r_[5]:,} vs ${c_[5]:,}"],
+             f"${r_[5]:,} vs ${c_[5]:,}", money, dollars],
             ["P2P or fintech use", r_[7], c_[7],
-             f"{r_[6]:,} vs {c_[6]:,} accounts"]]
+             f"{r_[6]:,} vs {c_[6]:,} accounts", "{:.1f}%", pts]]
     path = h["chart"]("fin_by_lens", charts.dumbbell, dumb, "responders",
-                      "mailed non-responders")
+                      "mailed non-responders", own_scale=True)
     if path:
         h["chart_left"](s, path, top, RAIL_EDGE)
 
