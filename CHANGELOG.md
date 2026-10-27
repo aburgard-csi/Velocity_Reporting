@@ -21,6 +21,23 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: where cards and opt-ins leak, priced, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 leak tables: the branches, age
+bands, balance bands and products that hold more of the eligible base than of the debit cards or
+Reg E opt-ins, ranked by accounts lost; the business gap; the Reg E default never asked; and what
+each is worth a year at the value figures. Every figure matches v5 for 1776 CoastHills and 1761
+CapEd. No deck changes yet (the Value slides port in G8-05).
+
+`ti/monthly_analysis/leaks.py` is v5's post-pass, unchanged; `ti/odd_sections.leaks` runs it after the
+dctr, rege and value figures and then v5's `value.apply_to_leaks`, in v5's order. It hands leaks the
+account bases too: the debit half reads `n_eligible` from them, and the first version, without them,
+skipped that half without a word (`tests/test_ti_leaks.py`). Parity: 14/14 on 1776 (2026-09) and 1761
+(2026-10). The parity check only compares the keys the port returns, so a key v5 wrote that the port
+never produces is not caught by it; for these sections every v5 `dctr_`, `rege_`, `value_`, `ic_`,
+`wb_` and `gt_` key was checked by hand to be produced (the one left, `rege_by_balance_band`, is the
+balance section's, ported earlier). DUPLICATES row 21.
+
 ### 2026-10-26 — Transaction Intelligence: what a card and an opt-in are worth, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 value figures: what a debit card
