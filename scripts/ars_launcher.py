@@ -380,7 +380,7 @@ def decks_in_outputs(cid, period):
     """This client's RPE decks for `period` in Outputs (any CSM folder, any program mix), by name.
     A Transaction Intelligence deck is a separate presentation and is left out (ti_decks_in_outputs)."""
     return sorted(p.name for p in R.output_decks(f"{cid}-{period}-*.pptx")
-                  if not p.name.startswith("~$") and not is_ti_deck(p.name))
+                  if not p.name.startswith("~$") and not is_ti_deck(p.name) and not is_companion_deck(p.name))
 
 
 def input_checks(cid, period):
@@ -808,6 +808,166 @@ def build_ti(a, BM, row, period, roster, sent, work):
     return 1
 
 
+# ------------------------------------------------------------------ ARS Companion deck
+# James Gilmore's analysis slides as a deck of their own (Aaron, 2026-10-27: "Build functionality in Sheila (a
+# new button) to build a ARS Companion Deck with James's slides"). A SEPARATE presentation beside the approved
+# Executive Review, never in its place and never changing it: the ARS deck is built in a staging folder of its
+# own with every opt-in view switched on (RPE_JAMES_SLIDES, RPE_SPEND_SLIDES, RPE_COMPANION), and
+# companion_deck.py keeps only the slides those views added. `build <id> --companion` builds it;
+# `status <id> --companion` shows its checks. Filed in Outputs with the tag COMP, which is not a program tag, so
+# promote_month never reads it as an ARS deck, and decks_in_outputs never counts it as the period's RPE deck.
+COMPANION_TAG = "COMP"
+COMPANION_RESULT_NAME = "_launcher_result_companion.json"
+_COMPANION_DECK_RX = re.compile(r"^\d{3,5}-\d{4}\.\d{2}-%s-" % COMPANION_TAG)
+COMPANION_ENV = {"RPE_JAMES_SLIDES": "1", "RPE_SPEND_SLIDES": "1", "RPE_COMPANION": "1"}
+
+
+def is_companion_deck(name):
+    return bool(_COMPANION_DECK_RX.match(os.path.basename(str(name))))
+
+
+def companion_deck_name(cid, period, client):
+    return f"{cid}-{period}-{COMPANION_TAG}-{client} ARS Companion.pptx"
+
+
+def companion_decks_in_outputs(cid, period):
+    """This client's ARS Companion deck for `period` in Outputs, by name."""
+    return sorted(p.name for p in R.output_decks(f"{cid}-{period}-{COMPANION_TAG}-*.pptx")
+                  if not p.name.startswith("~$") and is_companion_deck(p.name))
+
+
+def companion_checks(cid, period, row, roster, sent=None, rebuild=False):
+    """Every check before an ARS Companion build, [(level, message)].
+
+    The companion is built from the ARS pipeline, so it needs what an ARS deck needs: the client on ARS
+    in clients.md and the Velocity product list, this period's ODD extract, the ARS workbook and DCO, and
+    the Lift Matrix window. Like all_checks, the slow checks are skipped when the deck is already in
+    Outputs and no rebuild was asked for."""
+    out = []
+    in_out = companion_decks_in_outputs(cid, period)
+    if in_out:
+        what = f"The {period} ARS Companion deck is already in Outputs ({in_out[0]})."
+        out.append((WARN, what + " Rebuilding, as asked.") if rebuild else (ASK, what))
+    if not row:
+        out.append((STOP, f"{cid} is not in Client CSM List.csv. Check the client number."))
+        return out
+    entry = client_entry(cid, roster)
+    name = (entry[1] if entry else None) or row.get("client_name") or cid
+    out.append((OK, f"{cid} {name} (CSM: {row.get('csm') or 'no CSM'})"))
+    if entry is None or "ARS" not in entry[3]:
+        out.append((STOP, "The ARS Companion deck is built from the ODD extract and the ARS workbook, so it is "
+                          "for ARS clients; clients.md does not list this client on ARS."))
+        return out
+    products = [x.strip() for x in (row.get("products") or "").split(";") if x.strip()]
+    if products and "ARS" not in products:
+        out.append((STOP, f"Not an ARS client: the Velocity product list shows {', '.join(products)}. "
+                          "Only ARS clients get ARS decks."))
+        return out
+    out.append((OK, f"clients.md: {'-'.join(entry[3])}, {entry[2] or 'path unknown'} workbook; "
+                    "the Companion carries James's analysis slides only"))
+    if not rebuild and any(l == ASK for l, _ in out):
+        return out
+    return out + input_checks(cid, period) + lift_checks(cid, period, roster)
+
+
+def companion_status(cid, period, row, roster, sent=None):
+    """The ARS Companion block of a client's status: its checks, state and last build."""
+    checks = companion_checks(cid, period, row, roster, sent)
+    state = ("stop" if any(l == STOP for l, _ in checks) else
+             "ask" if any(l == ASK for l, _ in checks) else "ready")
+    res = R.build_artifacts() / "launcher" / period / cid / COMPANION_RESULT_NAME
+    try:
+        last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
+    except (OSError, ValueError):
+        last = None
+    return {"checks": [{"level": l, "text": m} for l, m in checks], "state": state, "last": last,
+            "decks": companion_decks_in_outputs(cid, period)}
+
+
+def build_companion(a, BM, row, period, roster, sent, work):
+    """`build <id> --companion`: the ARS Companion deck, into Outputs."""
+    print(f"\nBuilding the ARS Companion deck: client {a.client}, period {period}\n")
+    checks = companion_checks(a.client, period, row, roster, sent, rebuild=a.rebuild)
+    for lvl, msg in checks:
+        say(lvl, msg)
+    if any(l == STOP for l, _ in checks):
+        print("\nNot built. Fix the items marked STOP, then run it again.")
+        return 1
+    if any(l == ASK for l, _ in checks):
+        print("\nNot built: this month's ARS Companion deck is already in Outputs. Pass --rebuild to replace it.")
+        return ASKED_EXIT
+    entry = client_entry(a.client, roster)
+    client = entry[1]
+    stage = work / "companion"
+    lk = lock(work)
+    t0 = time.time()
+    result, delivered, deck, where = "did not finish", False, None, None
+    stop = threading.Event()
+    try:
+        stage.mkdir(parents=True, exist_ok=True)
+        log = stage / a.client / "build.log"
+        print("\nBuilding the ARS deck with James's views, then keeping those slides (3 to 20 minutes)...", flush=True)
+        threading.Thread(target=watch_steps, args=(log, stop, t0), daemon=True).start()
+        os.environ.update(COMPANION_ENV)        # this process builds one deck and exits
+        try:
+            err, made = BM.build_client(a.client, client, entry[2], ["ARS"], period, str(stage))
+        finally:
+            stop.set()
+        full = made.get("ARS")
+        if err or not full:
+            reason = _log_reason(log) or err
+            say(STOP, f"The build stopped at '{err}': {reason}")
+            result = f"stopped at {err}: {reason}"
+        else:
+            sys.path.insert(0, os.path.join(str(REPO), "build", "ars_pipeline"))
+            import companion_deck as CD
+            deck = str(stage / a.client / companion_deck_name(a.client, period, client))
+            try:
+                n = CD.build(full, str(stage / a.client / "companion_slides.json"), deck)
+            except SystemExit as e:
+                say(STOP, f"The companion deck could not be cut from the build: {e}")
+                result = f"not cut: {e}"
+                deck = None
+            else:
+                say(OK, f"{n} analysis slide{'s' if n != 1 else ''} kept from the build")
+        if deck:
+            sys.path.insert(0, str(REPO / "validation"))
+            import validate_deck as V
+            print(f"  [..]   Validating the deck  ({(time.time() - t0) / 60:.0f} min)", flush=True)
+            # No base.json: its cross-check looks for the whole ARS deck's figures (LTD profit, months) in the
+            # deck, and this one carries only James's views; each view's own builder checks its figures.
+            gate, fails = run_validator(deck)
+            for f in fails:
+                say(STOP, f"Validator: {f}")
+            if gate.startswith("0 FAIL"):
+                pkg = V.package_findings(deck)
+                if pkg:
+                    gate = f"package check failed ({len(pkg)} finding(s): {pkg[0]})"
+            result = gate
+            if not gate.startswith("0 FAIL"):
+                say(STOP, f"Validation: {gate}. Only a deck with 0 FAIL goes to Outputs.")
+            else:
+                say(OK, f"Validation: {gate}")
+                lvl, msg = ti_to_outputs(a.client, deck, client)     # files any aux deck: only its own name is superseded
+                say(lvl, msg)
+                delivered = lvl == OK
+                where = msg if delivered else None
+                if not delivered:
+                    result = gate + " (not put in Outputs)"
+    finally:
+        lk.unlink(missing_ok=True)
+    (work / COMPANION_RESULT_NAME).write_text(json.dumps({
+        "client": a.client, "period": period, "deck": os.path.basename(deck) if deck else None,
+        "result": result, "delivered": delivered, "by": getpass.getuser(),
+        "finished": f"{dt.datetime.now():%Y-%m-%d %H:%M}", "minutes": round((time.time() - t0) / 60, 1)},
+        indent=1), encoding="utf-8")
+    if delivered:
+        print("\nDone. The ARS Companion deck is in Outputs.")
+        return 0
+    print("\nNot put in Outputs. Details are in " + str(stage / a.client / "build.log"))
+    return 1
+
+
 # ------------------------------------------------------------------ locking
 def _process_start(pid):
     """The process's creation time (Windows FILETIME), or None when it cannot be read.
@@ -924,6 +1084,19 @@ def cmd_status(a):
             return ASKED_EXIT
         print("\nReady to build.")
         return 0
+    if getattr(a, "companion", False):
+        print(f"\nARS Companion status: client {a.client}, period {period}\n")
+        checks = companion_checks(a.client, period, row, roster, sent)
+        for lvl, msg in checks:
+            say(lvl, msg)
+        if any(l == STOP for l, _ in checks):
+            print("\nNot ready to build.")
+            return 1
+        if any(l == ASK for l, _ in checks):
+            print("\nReady to rebuild (pass --rebuild).")
+            return ASKED_EXIT
+        print("\nReady to build.")
+        return 0
     print(f"\nDeck status: client {a.client}, period {period}\n")
     checks = all_checks(a.client, period, row, roster, sent)
     for lvl, msg in checks:
@@ -1008,8 +1181,9 @@ def supersede_other_ars_decks(cid, deck, out):
     stamp = dt.date.today().isoformat()
     moved = 0
     for other in R.output_decks(f"{cid}-{info['period']}-*.pptx"):
-        if other.name.startswith("~$") or other.name == os.path.basename(deck) or is_ti_deck(other.name):
-            continue                    # a Transaction Intelligence deck is a separate presentation
+        if (other.name.startswith("~$") or other.name == os.path.basename(deck) or is_ti_deck(other.name)
+                or is_companion_deck(other.name)):
+            continue                    # a Transaction Intelligence or Companion deck is a separate presentation
         folder = P.client_folder(out / R.ARCHIVE_DIRNAME, cid, info.get("client") or "")
         folder.mkdir(parents=True, exist_ok=True)
         dest = folder / f"{other.stem} (superseded {stamp}){other.suffix}"
@@ -1030,6 +1204,8 @@ def cmd_build(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
     if getattr(a, "ti", False):
         return build_ti(a, BM, row, period, roster, sent, work)
+    if getattr(a, "companion", False):
+        return build_companion(a, BM, row, period, roster, sent, work)
     combined = getattr(a, "combined", False)
     cp_row = cp_roster_row(a.client)
     entry = client_entry(a.client, roster, cp_row)
@@ -1148,6 +1324,8 @@ def main(argv=None):
         sp.add_argument("--period", default=None, help="YYYY.MM; default: the newest ARS workbook period in Inputs")
         sp.add_argument("--ti", action="store_true",
                         help="the Transaction Intelligence decks (a separate presentation), not the RPE deck")
+        sp.add_argument("--companion", action="store_true",
+                        help="the ARS Companion deck (James's analysis slides, a separate presentation), not the RPE deck")
         if c == "build":
             sp.add_argument("--rebuild", action="store_true", help="rebuild a deck already recorded as sent")
             sp.add_argument("--combined", action="store_true",

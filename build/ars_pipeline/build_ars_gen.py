@@ -1980,6 +1980,11 @@ for _sl in prs.slides:
         for _x in _sl.shapes:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.left=Inches(1.03); _x.top=Inches(1.81); _x.width=Inches(8.4); _x.height=Inches(4.38)
 
+# ARS Companion deck (Aaron, 2026-10-27): the launcher builds this deck with every opt-in view on
+# (RPE_JAMES_SLIDES, RPE_SPEND_SLIDES) and RPE_COMPANION=1, then companion_deck.py keeps only the
+# slides they added. The ids of the slides that exist BEFORE the views go in are taken here.
+_companion_base = {_s.slide_id for _s in prs.slides}
+
 # ---- 2b'. TEST BRANCH: views taken from James Gilmore's deck (opt-in) ----
 # test/james-aaron-combined (2026-09-16). OFF unless RPE_JAMES_SLIDES=1, so the monthly build
 # and the template baseline are unchanged. Placed here, after every index-based pass above
@@ -2043,6 +2048,15 @@ if os.environ.get("RPE_SPEND_SLIDES") == "1":
     print(f"spend trend slides (RPE_SPEND_SLIDES): {len(_made)} added"
           + (f"; windows {_ST['windows']['prior_name']} vs {_ST['windows']['current_name']}"
              if _ST["windows"] else "; no like-for-like window in this series"))
+
+if os.environ.get("RPE_COMPANION") == "1":
+    _cs = [_sl for _sl in prs.slides if _sl.slide_id not in _companion_base]
+    _ctitles = [next((sh.text_frame.text.strip().splitlines()[0] for sh in _sl.shapes
+                      if sh.has_text_frame and sh.text_frame.text.strip()), "") for _sl in _cs]
+    with open(os.path.join(os.path.dirname(os.path.abspath(METRICS)), "companion_slides.json"), "w",
+              encoding="utf-8") as _fh:
+        json.dump({"slide_ids": [_sl.slide_id for _sl in _cs], "titles": _ctitles}, _fh, indent=1)
+    print(f"companion slides (RPE_COMPANION): {len(_cs)} recorded")
 
 # Branch names on the charts (Aaron 2026-09-17): every slide that shows a
 # branch says where the names came from.

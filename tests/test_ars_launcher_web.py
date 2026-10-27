@@ -438,7 +438,7 @@ def test_an_old_status_is_shown_at_once_with_its_build_buttons_held(clean_state,
     monkeypatch.setattr(W, "STATUS_TTL", 600)
     new = W.status_doc("1441", background=True)
     assert new["state"] == "stop" and new["refreshing"] is False
-    assert "if (HOLD) for (const b of [go, go2, goti])" in W.PAGE, "the page holds the Build buttons meanwhile"
+    assert "if (HOLD) for (const b of [go, go2, goti, gocomp])" in W.PAGE, "the page holds the Build buttons meanwhile"
 
 
 def test_a_check_that_started_before_a_build_finished_is_not_stored(clean_state, monkeypatch):
