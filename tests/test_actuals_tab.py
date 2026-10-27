@@ -153,3 +153,18 @@ def test_both_extractors_carry_it_into_base_json():
                        ("base_tab_extract.py", "actuals_tab.read(wb, mm=False)")):
         src = open(os.path.join(here, "build", "ars_pipeline", name), encoding="utf-8").read()
         assert call in src, name
+
+
+def test_a_new_client_with_three_months_is_read(tmp_path):
+    """Texar 1805 (2026-10-26): Jul-Sep, one mailing. The reader wanted five month columns."""
+    p = workbook(tmp_path / "new.xlsx", "Actuals MM", months=MONTHS[:3],
+                 rev=[0, 0, 3942.67], cost=[0, -8199, -8207])
+    out = A.read(p, mm=True)
+    assert out["available"] is True
+    assert [m[0] for m in out["months"]] == ["Jan 2026", "Feb 2026", "Mar 2026"]
+    assert (out["revenue"], out["cost"]) == (3942.67, 16406.0)
+
+
+def test_total_marginal_revenue_reads_like_revenues(tmp_path):
+    p = workbook(tmp_path / "sing.xlsx", "Actuals MM", rev_label="Total Marginal Revenue")
+    assert A.read(p, mm=True)["available"] is True

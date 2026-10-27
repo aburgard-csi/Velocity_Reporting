@@ -99,7 +99,11 @@ def read_roster(path=ROSTER_FILE):
             if mrpc.lower().startswith("yes"):
                 progs.append("MRPC")
             if progs:
-                out.append((cid, name, mmsm if mmsm in ("MM", "SM") else None, progs))
+                # A blank path on an ARS row is MM: every new ARS client is on the Lift Matrix
+                # model (Aaron, 2026-10-26, 1805 Texar, whose blank sent it down the SM branch
+                # to the template's placeholder tabs). SM is recorded, never assumed.
+                out.append((cid, name, mmsm if mmsm in ("MM", "SM") else
+                            ("MM" if "ARS" in progs else None), progs))
             else:
                 skipped.append((cid, name, "no active program"))
         elif section == "mrpc_only":
