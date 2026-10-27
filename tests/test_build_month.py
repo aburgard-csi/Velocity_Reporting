@@ -166,3 +166,14 @@ def test_clients_build_at_once_and_report_in_roster_order(tmp_path, monkeypatch,
     assert BM.main() == 0
     assert peak[0] == 3
     assert [r[0] for r in json.load(open(tmp_path / "_results.json", encoding="utf-8"))] == ["1001", "1002", "1003"]
+
+
+def test_an_ars_row_with_no_path_is_mm(tmp_path):
+    """Every new ARS client is on MM; a blank path sent 1805 Texar down the SM branch."""
+    f = tmp_path / "clients.md"
+    f.write_text("## Active clients — 2026.10 cycle\n\n"
+                 "| ID | Client | Path | ARS | ICS | MRPC | Programs |\n|---|---|---|---|---|---|---|\n"
+                 "| 1805 | Texar FCU | — | yes | — | — | ARS |\n"
+                 "| 1121 | Timberland Bank | SM | yes | — | — | ARS |\n", encoding="utf-8")
+    rows, _ = read_roster(str(f))
+    assert {r[0]: r[2] for r in rows} == {"1805": "MM", "1121": "SM"}

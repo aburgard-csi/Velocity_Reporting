@@ -75,6 +75,7 @@ ASSETS = _renv_assets.temp_dir("ars_assets_")     # removed at exit (it used to 
 # Under $1M this reads in K rather than "$0.83M" (Aaron, 2026-09-11); brand owns
 # the one definition, since four of these had drifted apart.
 from brand import usd_compact as m2
+from brand import ORANGE_RGB as _ORANGE_RGB
 # Every number shown in a callout carries thousands separators (Aaron, 2026-08-27).
 months = f"{B['months']:,}"; mailings = f"{B['mailings']:,}"
 _nm_int = int(B['mailings'] or 0)
@@ -1703,7 +1704,7 @@ try:
     from pptx.enum.shapes import MSO_SHAPE as _MSH
     from pptx.enum.text import PP_ALIGN as _PA
     from pptx.dml.color import RGBColor as _RGBk
-    _NAVYk=_RGBk(0x00,0x27,0x4C); _ORk=_RGBk(0xF4,0x7A,0x29); _WHk=_RGBk(0xFF,0xFF,0xFF)
+    _NAVYk=_RGBk(0x00,0x27,0x4C); _ORk=_ORANGE_RGB; _WHk=_RGBk(0xFF,0xFF,0xFF)
     _blank=next((_ly for _ly in prs.slide_layouts if len(_ly.placeholders)==0), prs.slide_layouts[-1])
     _cs=prs.slides.add_slide(_blank)
     _b=_cs.shapes.add_textbox(Inches(0.5),Inches(0.28),Inches(12.33),Inches(0.9)); _p=_b.text_frame.paragraphs[0]; _r=_p.add_run(); _r.text="Contact Us"; _r.font.name="Montserrat"; _r.font.size=Pt(30); _r.font.bold=True; _r.font.color.rgb=_NAVYk
