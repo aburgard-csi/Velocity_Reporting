@@ -27,6 +27,12 @@ Summary: Sheila has a new ARS Companion panel and button that builds a separate 
 
 Aaron, 2026-10-27: "Build functionality in Sheila (a new button) to build a ARS Companion Deck with James's slides." The companion is built the way the Transaction Intelligence deck is: its own checks, its own button on the client page, the same build queue, and its own file name (`<id>-<yyyy.mm>-COMP-<Client> ARS Companion.pptx`) so it is never taken for the period's Executive Review and is never archived by an Executive Review build. It is the ARS deck built with every opt-in view switched on (James's views, the sustained-activity split, the debit spend slides), cut down to the slides those views added plus the cover, Questions & Discussion and Contact. The Executive Review, its template and its slide count are unchanged. VERSION is now 2.1.
 
+### 2026-10-27 — Slide Review: CSMs vote keep, delete or appendix on any deck's slides
+
+Summary: Sheila has a new Slide Review tab where a CSM votes Keep, Delete or Appendix on each slide of any deck in Outputs, and a Summary that counts the votes across clients.
+
+Aaron, 2026-10-27: "an evaluation process for all of the decks so the CSM can vote whether to keep or delete a slide, or to add it to an appendix." **Review**: pick a client and one of their decks in Outputs for the cycle (Executive Review, Transaction Intelligence, ARS Companion), vote on each slide, add a comment; votes are saved as you click and can be changed. **Summary**: one row per slide across clients, most Delete votes first, with clients, voters and comments, filterable by deck family, with an Export CSV. A vote is its own small file under `Build Artifacts/slide_votes/` (so several CSMs voting at once never overwrite each other); the newest vote per voter and slide wins. A slide is matched by its title with the client's name and figures taken out, never by its number. A vote is checked against the deck as it is in Outputs now, so a rebuilt deck refuses a stale page's vote. `scripts/slide_votes.py`, `scripts/slide_review_ui.py`, `tests/test_slide_votes.py`.
+
 ### 2026-10-26 — Transaction Intelligence: three headlines that misstated their figures
 
 Summary: Three Transaction Intelligence headlines were wrong, all found reviewing 1776 CoastHills CU's

@@ -39,6 +39,8 @@ for _p in (REPO / "build", HERE):
 
 import rpe_env as R           # noqa: E402
 import ars_launcher as L      # noqa: E402
+import slide_votes as SV      # noqa: E402
+import slide_review_ui        # noqa: E402
 
 TOKEN = secrets.token_urlsafe(24)
 # The largest body any POST reads. The biggest real one, the Lift Matrix rates, is a few KB.
@@ -1679,6 +1681,124 @@ def mark_issue(cid, key, done):
     return 200, {"ok": True}
 
 
+# ------------------------------------------------------------------ Slide Review (Aaron, 2026-10-27)
+# "an evaluation process for all of the decks so the CSM can vote whether to keep or delete a slide, or to add it
+# to an appendix." The record (one JSON file per vote under Build Artifacts/slide_votes/) and the counting are in
+# slide_votes.py; the tab's page is in slide_review_ui.py. Only a deck in Outputs can be voted on, and a vote is
+# checked against the deck as it is NOW (the slide's number and title), so a rebuilt deck cannot take a stale vote.
+VOTES_TTL = 30
+_votes_listing = {"at": 0.0, "period": None, "doc": None}
+
+
+def votes_listing():
+    """{client id: [deck file names]} for this cycle in Outputs, every kind: Executive Review, TI, Companion."""
+    import time as _t
+    period = current_period()
+    if _votes_listing["doc"] is not None and _votes_listing["period"] == period \
+            and _t.time() - _votes_listing["at"] < VOTES_TTL:
+        return _votes_listing["doc"]
+    found = {}
+    for p in R.output_decks(f"*-{period}-*.pptx"):
+        parsed = SV.parse_deck(p.name)
+        if parsed and not p.name.startswith("~$"):
+            found.setdefault(parsed[0], []).append(p.name)
+    doc = {cid: sorted(names) for cid, names in sorted(found.items())}
+    _votes_listing.update(at=_t.time(), period=period, doc=doc)
+    return doc
+
+
+def _client_names():
+    try:
+        return {c["id"]: c.get("name", "") for c in (clients_doc().get("clients") or [])}
+    except (OSError, SystemExit, ValueError, KeyError):
+        return {}
+
+
+def _deck_entry(name):
+    cid, period, kind, family = SV.parse_deck(name)
+    return {"name": name, "kind": kind, "family": family}
+
+
+def votes_clients_doc():
+    names = _client_names()
+    return {"period": current_period(), "me": SV.whoami(),
+            "clients": [{"id": cid, "name": names.get(cid, ""), "decks": [_deck_entry(n) for n in decks]}
+                        for cid, decks in votes_listing().items()]}
+
+
+def votes_decks_doc(cid):
+    return {"period": current_period(), "me": SV.whoami(), "name": _client_names().get(cid, ""),
+            "decks": [_deck_entry(n) for n in votes_listing().get(cid, [])]}
+
+
+def votes_deck_path(cid, name):
+    """The deck's file, only when it is this client's and in Outputs (never an archive). None otherwise."""
+    parsed = SV.parse_deck(name)
+    if not CID_RX.match(cid) or parsed is None or parsed[0] != cid or name != os.path.basename(name):
+        return None
+    for p in R.output_decks(f"{cid}-*.pptx"):
+        if p.name == name and p.is_file():
+            return p
+    return None
+
+
+def votes_deck_doc(cid, name):
+    path = votes_deck_path(cid, name)
+    if path is None:
+        return 404, {"error": "That deck is not in Outputs."}
+    me = SV.whoami()
+    held = SV.mine(SV.read_votes(), me, cid, name)
+    slides = [dict(s, mine=({"vote": held[s["title"]]["vote"], "comment": held[s["title"]].get("comment", "")}
+                            if s["title"] in held else None)) for s in SV.deck_slides(path)]
+    return 200, {"deck": name, "me": me, "slides": slides}
+
+
+def votes_vote(body):
+    """Record one vote. The slide named must be that slide of the deck in Outputs now."""
+    cid = str(body.get("client", "")).strip()
+    deck = str(body.get("deck", ""))
+    try:
+        v = SV.check_vote(cid, deck, body.get("slide"), body.get("title"), body.get("vote"), body.get("comment"))
+    except SV.VoteError as e:
+        return 400, {"error": str(e)}
+    path = votes_deck_path(cid, deck)
+    if path is None:
+        return 404, {"error": "That deck is not in Outputs."}
+    slides = SV.deck_slides(path)
+    if v["slide"] > len(slides) or slides[v["slide"] - 1]["title"] != v["title"]:
+        return 409, {"error": "This deck was rebuilt since the page loaded it. Open the deck again."}
+    doc = SV.write_vote(cid, deck, v["slide"], v["title"], v["vote"], v["comment"], client_name=_client_names().get(cid, ""))
+    return 200, {"ok": True, "vote": doc["vote"], "at": doc["at"]}
+
+
+def votes_summary_doc(family=""):
+    votes = SV.read_votes()
+    cur = SV.latest(votes)
+    return {"rows": SV.aggregate(votes, family or None), "votes": len(cur), "voters": len({v["voter"] for v in cur})}
+
+
+def votes_route(handler, path, params):
+    """GET /api/votes/<what>: the tab's reads. (The one POST, /api/votes/vote, is routed in do_POST.)"""
+    cid = str(params.get("client", "")).strip()
+    family = params.get("family", "") if params.get("family", "") in ("RPE", "TI", "COMP") else ""
+    if path == "/api/votes/clients":
+        return handler._send(200, votes_clients_doc())
+    if path in ("/api/votes/decks", "/api/votes/deck"):
+        if not CID_RX.match(cid):
+            return handler._send(400, {"error": "not a client number"})
+        if path == "/api/votes/decks":
+            return handler._send(200, votes_decks_doc(cid))
+        return handler._send(*votes_deck_doc(cid, str(params.get("deck", ""))))
+    if path == "/api/votes/summary":
+        return handler._send(200, votes_summary_doc(family))
+    if path == "/api/votes/export":
+        import datetime as _dt
+        csv_text = SV.summary_csv(SV.aggregate(SV.read_votes(), family or None))
+        return handler._send(200, csv_text.encode("utf-8"), "text/csv; charset=utf-8",
+                             filename=f"slide-votes-{_dt.date.today().isoformat()}.csv")
+    return handler._send(404, {"error": "not found"})
+
+
 # ------------------------------------------------------------------ HTTP
 class Handler(BaseHTTPRequestHandler):
     server_version = "ARSDeckBuilder"
@@ -1736,6 +1856,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, issues_doc())
             if u.path == "/api/reports":
                 return self._send(200, reports_doc())
+            if u.path.startswith("/api/votes/"):
+                return votes_route(self, u.path, {k: v[0] for k, v in q.items()})
             if u.path == "/api/lift/overview":
                 return self._send(200, lift_overview_doc())
             if u.path == "/api/lift/client":
@@ -1783,6 +1905,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": str(e)})
             return self._send(200, {"period": now, "periods": available_periods(),
                                     "cycle_now": L.cycle_period()})
+        if path == "/api/votes/vote":
+            return self._send(*votes_vote(body))
         if path == "/api/reveal":
             return self._send(*reveal(str(body.get("path", ""))))
         if path in ("/api/lift/export", "/api/lift/download", "/api/lift/rescan"):
@@ -2927,6 +3051,8 @@ document.addEventListener("click", e => { const n = $("#news"); if (n && n.open 
 </body>
 </html>
 """
+
+PAGE = slide_review_ui.install(PAGE)
 
 
 if __name__ == "__main__":
