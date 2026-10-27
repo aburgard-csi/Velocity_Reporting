@@ -431,6 +431,7 @@ def build(data, template, out):
     # Slide 11 (S[10]) — closing
     sub=txt_at(S[10], top=5.1)
     if sub: set_text(sub, f"{client}  •  {rm}")
+    CD.restyle_closing(prs)         # after the swap: the redraw keeps that line as written
 
     # ---- date callout: orange "As of {rm}" pill, top-right of every content slide ----
     # (STYLE.md: reporting month = generation month). Reuses the template pill on the

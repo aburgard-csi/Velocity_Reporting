@@ -143,6 +143,58 @@ deck changes. A 1776 deck gains those two stated slides (105 → 107 per lens).
 None and drew nothing is treated as a decline. Found by reconciling the built 1776 deck (95 content
 slides) against v5's slide list (97).
 
+### 2026-10-27 — 1585 First Community Bank of the Heartland added to the roster
+
+Summary: 1585 First Community Bank of the Heartland now appears in CSM Sheila and builds an ARS deck with its CashPlease section; it was missing from the roster.
+
+James Gilmore, 2026-10-27, from Sheila: "1585 - ARS + CP + ILS - missing". The client has an ARS workbook, a DCO, a CashPlease tab (1,324 loans) and James as CSM, but no row in clients.md, so nothing built it. Added to the main table (MM path, ARS) and the CashPlease roster (ARS-CP section). ILS has no monthly deck and is not tracked in this file. 1766 Fort Sill FCU already reads ARS-ICS. The CashPlease summary names 1585 "First Community Bank of Tennessee", which looks like a name mix-up on the data team's side.
+
+### 2026-10-27 — Sheila's button glow toned down
+
+Summary: The glow and shading around Sheila's action buttons are much subtler; the buttons keep a light highlight and edge and still press down when clicked.
+
+Aaron, 2026-10-27, from a screenshot: "buttons glow too much, let's tone it down". The coloured glow went from a 16 px blur at 38-42% to a 6 px blur at 16-18%, and the highlight and edge shading were halved. Colours, press movement and hover are unchanged.
+
+### 2026-10-27 — Sheila redraws a client's buttons and verdicts when a build finishes
+
+Summary: When a build finished, Sheila kept showing its button as "Building..." and, for Transaction Intelligence, the previous build's failure notice, beside a result that said Done. The client page now refreshes itself when the build ends.
+
+Aaron, 2026-10-27, from a screenshot of 1075 Austin Bank: the Transaction Intelligence panel showed a greyed "Building..." button and "The last Transaction Intelligence build failed" over a "Done. The Transaction Intelligence decks are in Outputs." result. `follow()` redrew the progress when the job finished but not the page around it, which was drawn before the build started; it now re-reads the client's status (the server drops its cached one when a job ends) and draws it again, then the result. No figure or slide changes.
+
+### 2026-10-27 — Transaction Intelligence deck: overlapping text and labels fixed
+
+Summary: The Transaction Intelligence deck no longer has titles running into their subtitles or chart labels printing over each other, and the radar chart now shows all six of its axes.
+
+Aaron, 2026-10-27, after reviewing the 1075 Austin Bank deck: "We also need to go through that transaction intelligence check and apply formatting rules. Lots of overlapping text." Found by rendering all 90 slides through PowerPoint, which the validator cannot do (it reads the picture charts as images). Fixed in the renderers, not in the deck:
+
+- Titles are sized from the glyph measure of the bold face, with a 5% allowance for PowerPoint setting it wider, instead of a character count that put 98-character titles on two lines that rendered as three (slides 9 and 53). Down to 20 pt, then the lines are counted and the box grows.
+- Block and treemap labels (`charts.fit_text`) wrap or step down to fit their block, and are cut with an ellipsis only at the floor (slides 8 and 63).
+- Bubble names (`charts.place_point_labels`) are placed beside their own bubble, clear of other names and bubbles, instead of a fixed 14 points above the centre (slides 17, 46, 49, 50, 61).
+- Two dollar signs in one label no longer turn it into italic mathtext ("$2,984 vs $6,044" printed as "2, 984vs6,044"), and the two comparison dumbbells (slides 15, 25) give each row its own unit and scale, with the change signed properly (it printed "2984.0%" and "+-3060.0").
+- The Pareto's value labels stand clear of the cumulative line (slide 11); the donut's left-hand labels sit left of their leader (slide 48); the radar draws all six axes and their names (slide 39: matplotlib 3.11 had narrowed it to a quarter).
+
+No figure changes. `tests/test_ti_formatting.py` pins each of these; every one of its twelve tests fails on the code before this change.
+
+### 2026-10-27 — Sheila's action buttons are lit, not flat
+
+Summary: The Build, Check again, Recalculate and Export buttons in Sheila now carry a light
+along the top edge, shade along the bottom, a line where they meet the page and a glow in
+their own colour, and they press in when clicked. Nothing about what they do changed.
+
+The recipe is the four-shadow button Aaron pointed at (2026-10-27): `button.primary` in
+`ars_launcher_web.py` layers `inset 0 1px 0` white, `inset 0 -2px 0` black, `0 1px 2px` black
+and a `--glow` in the button's own colour (navy, or orange for `.warn`); `:active` swaps the
+highlight for an inset shade and moves the button down a pixel; a disabled button is flat
+grey as before; reduced motion drops the transition.
+
+### 2026-10-26 — The cover, section dividers and closing slide use the CSI brand template's design
+
+Summary: Every deck's cover, section dividers and closing slide now follow the CSI brand template: a white cover with the blue band and the CSI logo, gradient dividers with the sunrise wedge, and a gradient closing slide with the large logo.
+
+Aaron, 2026-10-26: "start the larger template rebuild" (after the orange-only restyle, #62), from "Updated Brand Presentation Sept. 2026.potx".
+
+`build/cover_divider.py` draws all three. The art (the slanted band, the red-to-gold wedge, the gradients, the three logo pictures) is lifted out of the template once by `scripts/extract_brand_art.py` into `build/assets/csi_brand/` with its theme colours made literal, because the shells' theme is the stock Office one and `accent2`..`accent5` mean other colours there; `build/brand_art.py` places it. The client name is now the 60 pt cover title with the "Executive Review  •  <month>" line under it (the line the validator and combiner read), the products are outline chips, and the client's logo sits on a white card at the top right; the 84 pt month and the orange client name are gone. Dividers: the section name at 52 pt, the benefits line at 24 pt, the progress track moved up to 5.65" to clear the wedge. The closing slide is redrawn by `cover_divider.restyle_closing` in the ARS, ICS and MRPC builders and `redraw_closing_in_place` in CashPlease and Transaction Intelligence, keeping the "<client>  •  <month>" line each swapped in; it adds the template's "csiweb.com". **The "| Velocity Solutions" half of the old lockup is gone from these three slide types:** the template's logo is CSI alone. A first render showed two defects, both fixed: the combiner put the product chips straight after the background, which hid them behind the band, and the logo's coloured mark vanished against the orange wedge (the divider uses an all-white version, made by the extractor). Checked by rendering Austin Bank 1075 (ARS+ICS+MRPC) and WesBanco 1632 (ICS+CashPlease) through PowerPoint and looking at the cover, dividers and closing slide; both validate with 0 FAIL. **Not done:** the Contact Us slide, the Executive Summit slide, the content slides' own look, the shells' theme colours, and Sheila and the dashboard pages.
+
 ### 2026-10-26 — The Sept. 2026 brand orange (#F15D22) on every deck
 
 Summary: Decks are drawn with the new CSI orange from the Sept. 2026 brand template instead of the old one.
