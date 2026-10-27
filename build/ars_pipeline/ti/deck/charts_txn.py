@@ -95,14 +95,23 @@ def _pareto_fig(rows: list, threshold: float, note: str):
                        rotation=30, ha="right")
     ax.set_ylim(0, max(vals) * 1.30)
     ax.get_yaxis().set_visible(False)
-    for x, v in zip(xs, vals):
-        ax.text(x, v + max(vals) * 0.03, _fmt_money(v), ha="center",
-                fontsize=10, fontweight="bold", color=NAVY)
-
     cum = np.cumsum(vals) / total
     ax2 = ax.twinx()
     ax2.plot(xs, cum, color=NAVY, lw=2.6, marker="o", ms=5,
              markerfacecolor="white", markeredgewidth=2, markeredgecolor=NAVY)
+    # The values are drawn on the line's own axes, in the bars' coordinates, with a white halo: drawn on
+    # the bars' axes the cumulative line ran across the fourth label ("$10.1M", slide 11, 2026-10-27).
+    from matplotlib import patheffects
+    peak = max(vals)
+    for x, v, c in zip(xs, vals, cum):
+        y = v + peak * 0.03
+        line_y = c * peak            # the line's height in the bars' units (both axes run to 1.30 x the peak)
+        if y - peak * 0.03 <= line_y <= y + peak * 0.09:
+            y = line_y + peak * 0.045        # the line passes through the label: stand it above the line
+        ax2.text(x, y, _fmt_money(v), ha="center",
+                 fontsize=10, fontweight="bold", color=NAVY, transform=ax.transData,
+                 path_effects=[patheffects.withStroke(linewidth=3.5, foreground="white")],
+                 zorder=5)
     ax2.set_ylim(0, 1.30)
     ax2.get_yaxis().set_visible(False)
     ax2.axhline(threshold, color=ORANGE, lw=1.5, ls="--")
