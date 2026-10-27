@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: PIN and signature interchange from the ODD, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 interchange figures from the ODD:
+card spend split into PIN and signature, each priced at its own rate (solved so the blend equals the
+client's interchange rate), the signature-share trend, what a PIN-to-signature shift would be worth,
+and the PIN-heavy accounts, by type, age, product and response. Every figure matches v5 for 1776
+CoastHills and 1761 CapEd. Figures only (v5 draws no slide from them); no deck changes.
+
+`ti/monthly_analysis/interchange.py` is v5's section, unchanged, run through `ti/odd_sections.py` as
+`interchange_odd` (apart from the transaction file's `interchange`). The parity check now fills a blank
+`ICRate` / `NSF_OD_Fee` from the workbook figures v5's run recorded, as that run did before any section
+priced anything. Parity: 36/36 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES row 19.
+
 ### 2026-10-26 — Transaction Intelligence: the debit take rate and Reg E figures value reads, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 debit take-rate and Reg E opt-in

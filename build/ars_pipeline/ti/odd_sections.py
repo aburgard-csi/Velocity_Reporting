@@ -105,9 +105,17 @@ def rege(ctx):
     return _section("rege")(ctx)
 
 
+def interchange_odd(ctx):
+    """v5's ODD interchange section (PIN / signature split, priced at ICRate with SigPinPremium).
+    Named apart from the transaction file's `interchange` (ti/txn_sections.py). v5 draws no slide
+    from it; the value math and the cut's reconciliation read it."""
+    return _section("interchange")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
     "dctr": ("metrics.json", dctr),
+    "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),
     "retention": ("metrics.json", retention),
     "lifecycle": ("metrics.json", lifecycle),

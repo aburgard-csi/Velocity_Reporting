@@ -155,6 +155,11 @@ def context(v5_dir, config: dict):
     frame = pd.read_parquet(v5_dir / "enriched.parquet")
     metrics = json.loads((v5_dir / "metrics.json").read_text(encoding="utf-8"))
     anchor = Month.from_tag(metrics["anchor_tag"])
+    # v5's run filled a blank ICRate / NSF_OD_Fee from the workbook before any section ran
+    # (run.py; ti/workbook_input.attach here); the check prices with what that run priced with
+    for cfg_key, wb_key in (("ICRate", "wb_ic_rate"), ("NSF_OD_Fee", "wb_nsf_fee")):
+        if not str(config.get(cfg_key, "")).strip() and metrics.get(wb_key) is not None:
+            config = {**config, cfg_key: str(metrics[wb_key])}
     return Ctx(frame, config, anchor, build_subsets(frame, config, anchor), v5_dir)
 
 
