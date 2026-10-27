@@ -203,6 +203,109 @@ deck changes. A 1776 deck gains those two stated slides (105 → 107 per lens).
 None and drew nothing is treated as a decline. Found by reconciling the built 1776 deck (95 content
 slides) against v5's slide list (97).
 
+### 2026-10-26 — The Sept. 2026 brand orange (#F15D22) on every deck
+
+Summary: Decks are drawn with the new CSI orange from the Sept. 2026 brand template instead of the old one.
+
+Aaron, 2026-10-26: attached "Updated Brand Presentation Sept. 2026.potx" and asked for a full multi-product deck with the branding template; tested on Austin Bank (1075) with the smaller restyle option, then "merge #62 once CI passes".
+
+The template's slide 18 gives the palette: navy 00274C (unchanged), light blue 035B95, orange F15D22, gold F8971D, red EB2A2E. The pipeline's orange was F47A29. This changes the orange only: `brand.ORANGE` and the orange ramps, the literal colours inside the template shells and the five reference decks (`scripts/recolor_shells.py`, 259 literals; `--check` reports any left), and two builders (`build_mrpc_gen`, the ARS Contact slide) that wrote the old orange as their own literal and are now on `brand.ORANGE_RGB`. Light blue, gold and red are defined in `brand.py` (`CSI_LIGHT_BLUE`, `CSI_GOLD`, `CSI_RED`) but nothing uses them yet. **Not done:** the theme colours in the shells (the stock Office theme; much of the shells' fill and text follows `accent1` / `dk1`, and the new template's `dk1` is blue), the template's own cover, divider and closing layouts and its gradients, and the Sheila and dashboard pages, which keep the old orange. Austin Bank 1075 combined deck rebuilt: 67 slides as before, 0 FAIL / 35 REVIEW as before, 0 old-orange literals (126 before), and the 53 chart images are drawn in the new orange. `tests/test_brand_single_source.py` fails if a builder writes the orange itself or a shell holds a retired colour.
+
+### 2026-10-26 — Sheila's build progress: no "Full output" box, and Transaction Intelligence builds show it in their own panel
+
+Summary: CSM Sheila no longer has a "Full output" box under a build, and a Transaction Intelligence build now shows its progress inside the Transaction Intelligence panel at the bottom of the client page.
+
+Aaron, 2026-10-26: "We can remove the 'full output' section. It's redundant, unless it actually shows more information than the summary workflow." and "move the workflow output to the bottom section."
+
+The box repeated the step list and the checks already shown above it. It was the only place that showed the launcher's own lines after the first step, though: the validation result, a warning, where the deck went. Those lines are now part of the result under the steps (a warning in the warning colour; a STOP line stays the reason it was). The progress list of a Transaction Intelligence build is drawn in `#jobti`, inside that panel under its Build button; every other build draws it where it was. Checked in a browser against fake in-progress, finished and failed jobs for 1075.
+
+### 2026-10-26 — Sheila shows her version, starting at 2.0
+
+Summary: CSM Sheila's header now shows the version, v2.0, so you can tell which release a PC is running.
+
+Aaron, 2026-10-26: "roll the version number forward since we've added a major feature"; then "VERSION file in Sheila's header, start at 2.0".
+
+The project had no version number before this: what was released was named only by the date and commit in `RELEASE.txt`. `VERSION` at the root of the repo holds it (first line, `2.0`); `ars_launcher_web.app_version` reads it and the header shows it beside the name. `release_launcher.ps1` copies it with the code, so every PC's local copy carries it. A copy without the file, or with one that is not `N.N` or `N.N.N`, shows no version rather than a guess. It is bumped by hand, in the commit that adds a major feature. It starts at 2.0 because a major feature has just been added.
+
+### 2026-10-26 — The ODD extract step is about a third faster on a large client
+
+Summary: Reading a large client's ODD extract takes about a minute instead of a minute and a half, with identical figures. Small clients are unchanged.
+
+Aaron, 2026-10-26: "start on oddd_optimize and metrics_gen."
+
+`scripts/oddd_optimize.py`, profiled on 1100 Rally (439 MB extract): 92 s -> 63 s, and `oddd_metrics.json` and `oddd_pack.md` are byte-identical to the old code's on 1100, on 1549 Wellworth and on 1204 First State Bank (1549 and 1204 were 10 -> 9 s and 14 -> 13 s). Two changes: the CSV read uses `dtype=object` instead of `dtype=str` (pandas 3 builds Arrow strings for the latter; 22 s of the read), and `classify_rege` maps through a dict built from the column's unique values instead of a lambda that ran once per cell (12 million calls). `metrics_gen` was profiled but not changed: its time is the per-cell accessors in `odd_rows.py`, already tuned, and the saving would come from fewer calls, not faster ones.
+
+### 2026-10-26 — A new ARS client builds: blank path reads as MM, the P&L reads three months
+
+Summary: A new ARS client with no path recorded now builds on the Lift Matrix (MM) model instead of stopping on the template's placeholder tabs, and its Financial Performance slides now work with as few as three months of actuals.
+
+Aaron: "All new clients will be on MM revenue calculations. Also we need to work with as few as 3 months of data. Use both revenue labels also (revenue/revenues)." 1805 Texar FCU's build stopped with UNEVALUATED WORKBOOK: its `clients.md` path was `—`, so `build_month` took the SM branch and read the plain `Executive Financials` tab, the template's "Bank Name, October 2007". Its `Executive Financials MM` tab was filled in (3 months, 1 mailing, $3,943).
+- `clients.md`: 1805 is MM. Every other ARS row's path was checked against its workbook's `Executive Financials MM` tab (49 clients): all agree.
+- `build_month.read_roster`: an ARS row whose path is blank or `—` is MM. SM is recorded, never assumed, so every consumer of the path (launcher, Sheila's Lift Matrix tab, dashboards) sees it.
+- `actuals_tab.read`: the month header row needs 3 date columns, not 5, and the revenue row is found under "Total Marginal Revenue" as well as "Total Marginal Revenues".
+
+### 2026-10-26 — A failed validation names its slide in Sheila; a decimal is not a count
+
+Summary: When a build fails validation, Sheila now shows each FAIL line (the slide and the rule)
+under the verdict instead of only "1 FAIL, 10 REVIEW". The validator no longer reads a decimal
+such as "2.15 of 4" as the impossible count "15 of 4". A Transaction Intelligence build keeps
+its own log, so its step list no longer replays the Executive Review's steps.
+
+Austin Bank's Transaction Intelligence build (2026-10-26) stopped at "1 FAIL" with nothing in
+Sheila to say why; the validator's own output had it: slide 26, "mean breadth 2.15 of 4" read as
+"15 of 4". `ars_launcher.run_validator` runs the validator once and returns the verdict and the
+FAIL lines, which both build paths print as STOP lines; the count rule requires whole numbers on
+both sides. `tests/test_impossible_count.py` pins the decimal case.
+
+### 2026-10-26 — Chart value labels shorten when they would run together
+
+Summary: On the ICS revenue charts, the dollar figure above each bar is written in full unless the
+figures would overlap, in which case every label on that chart is shortened to the $12.3K form. The
+KEMBA CU composition chart Cindy reviewed had three labels running together across twelve cohorts.
+
+Aaron, 2026-10-26: "some of the column labels were overlapping. This was due to longer currency
+numbers. If labels are going to overlap we can summarize $17,200 as $17.2k, or M for millions."
+Twelve cohorts (nine until 2026-10-13) of five-digit totals on an 11.5-inch figure leave 0.74 inches
+per bar, and "$12,260" in 16 pt bold Carlito is wider than that. `brand.bar_labels` measures the
+labels with `textfit` against the room `ics_charts_gen.slot_in` reads off the axes, and returns the
+full set or the compact set (`usd_compact` with one decimal at K), never a mix; the cohort bar charts
+and the composition chart use it. Nothing in the gate can see a chart's text, so the renderer proves
+the fit; `tests/test_brand.py` pins the switch.
+
+### 2026-10-23 — The Transaction Intelligence check's window ends at the data month
+
+Summary: Sheila's count of transaction files on hand now covers the same twelve months the
+Transaction Intelligence build reads, ending at the month before the cycle; it had run one month
+ahead. No deck changes.
+
+Running the portfolio analysis for 1615 Cape & Coast on 2026-10-23 showed the builder's window as
+Oct 25 to Sep 26 (the ODD's newest month is September) while Sheila's check said Nov 25 to Oct 26 and
+reported October missing. `ars_launcher.txn_months_on_hand` now anchors on the month before the
+period, as `ti_build` does through `odd.frame_data_month`.
+
+### 2026-10-23 — Sheila builds the Transaction Intelligence decks as a separate presentation
+
+Summary: An ARS client's page in CSM Sheila now has a Transaction Intelligence panel under the
+Executive Review checks, with its own readiness checks and a button that builds the Transaction
+Intelligence decks (one per lens) into Outputs beside the Executive Review, never in its place. The
+list shows "TI in Outputs" separately from "In Outputs". Until a chapter of the cut is ported the
+panel says so and builds nothing.
+
+Aaron, 2026-10-23: "add the ability to create a separate Transaction Intelligence presentation,
+separate from the currently approved RPE presentation. Add checks for the dependencies to the
+readiness check with appropriate caching and optimizations." `ars_launcher.py build <id> --ti`
+runs James's `ti_build.py`, validates each deck (0 FAIL and the package check) and files it with
+`ti_to_outputs`, which supersedes only the same file name; `status <id> --ti` prints the checks.
+`ti_checks` names each dependency: a ported chapter, the client on ARS, this period's ODD extract,
+the client's codes (the v5 config file, else `ars_code_tables.json`, which is parsed once and again
+only when its size or time changes), the transaction files on hand for v5's twelve-month window
+(counted from the file names in `Inputs/Txn Files/<id>/` with James's own name and window rules,
+no zip opened; the folder listing is one of Sheila's share answers kept for `SHARE_TTL`), and the
+ICS lists for the ICS lens. A TI deck in Outputs is never read as the period's RPE deck, and an RPE
+build never archives one. A failure in the TI checks never costs the RPE status. The routing for
+James's `feat/ars-ti/...` branches is written down in `CLAUDE.md`, `docs/COLLABORATORS.md` and a new
+pull request template.
+
 ### 2026-10-23 — A Transaction Intelligence KPI card low on a slide keeps its note under its value
 
 Summary: On a compact KPI card (one drawn low on the slide), a note long enough to wrap was moved by
