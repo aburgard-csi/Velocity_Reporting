@@ -46,6 +46,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import textwrap
 import threading
@@ -376,8 +377,10 @@ def built_line(cid, period, sent, in_outputs, rebuild=False):
 
 
 def decks_in_outputs(cid, period):
-    """This client's decks for `period` in Outputs (any CSM folder, any program mix), by name."""
-    return sorted(p.name for p in R.output_decks(f"{cid}-{period}-*.pptx") if not p.name.startswith("~$"))
+    """This client's RPE decks for `period` in Outputs (any CSM folder, any program mix), by name.
+    A Transaction Intelligence deck is a separate presentation and is left out (ti_decks_in_outputs)."""
+    return sorted(p.name for p in R.output_decks(f"{cid}-{period}-*.pptx")
+                  if not p.name.startswith("~$") and not is_ti_deck(p.name))
 
 
 def input_checks(cid, period):
@@ -508,6 +511,303 @@ def combined_checks(cid, period, roster, cp_row=None):
     return out
 
 
+# ------------------------------------------------------------------ Transaction Intelligence
+# A SEPARATE presentation, never the Executive Review (Aaron, 2026-10-23: "add the ability to create a
+# separate Transaction Intelligence presentation, separate from the currently approved RPE
+# presentation"). It is James Gilmore's cut (build/ars_pipeline/ti/, CLAUDE.md): one deck per lens,
+# built by ti_build.py from the ODD extract, the client's transaction files and, for the ICS lens,
+# the ICS lists. `build <id> --ti` builds it; `status <id> --ti` shows its checks. The RPE deck's
+# rules, inputs and Lift Matrix are not consulted, and a TI deck in Outputs never counts as the
+# period's RPE deck (decks_in_outputs leaves it out) nor is archived by an RPE build.
+TI_TAG = "TI"
+TI_MONTHS = 12                       # v5's transaction window, as ti_build.attach_txn asks for it
+TI_RESULT_NAME = "_launcher_result_ti.json"
+_TI_DECK_RX = re.compile(r"^\d{3,5}-\d{4}\.\d{2}-%s-" % TI_TAG)
+
+
+def is_ti_deck(name):
+    return bool(_TI_DECK_RX.match(os.path.basename(str(name))))
+
+
+def _ti_modules():
+    """James's ti package (pandas behind it), imported once per process."""
+    p = str(REPO / "build" / "ars_pipeline")
+    if p not in sys.path:
+        sys.path.insert(0, p)
+    from ti import cut, txn_stage, lens as ti_lens, config as ti_config
+    return cut, txn_stage, ti_lens, ti_config
+
+
+def ti_decks_in_outputs(cid, period):
+    """This client's Transaction Intelligence decks for `period` in Outputs, by name."""
+    return sorted(p.name for p in R.output_decks(f"{cid}-{period}-{TI_TAG}-*.pptx")
+                  if not p.name.startswith("~$") and is_ti_deck(p.name))
+
+
+_CODE_TABLE_CLIENTS = {}
+
+
+def code_table_clients():
+    """The client ids ars_code_tables.json carries, or None when the file is not in Inputs.
+
+    Read again only when the file's size or modified time changes: it is one file for every
+    client, and every client's check would otherwise parse it over the share."""
+    p = R.input_dir("ARS codes", create=False) / "ars_code_tables.json"
+    try:
+        st = p.stat()
+    except OSError:
+        return None
+    key = (str(p), st.st_mtime_ns, st.st_size)
+    hit = _CODE_TABLE_CLIENTS.get(key)
+    if hit is None:
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        ids = set()
+        for table in ("status_codes", "product_codes", "rege_codes"):
+            ids |= set(map(str, (doc.get(table) or {}).keys()))
+        _CODE_TABLE_CLIENTS.clear()
+        hit = _CODE_TABLE_CLIENTS[key] = frozenset(ids)
+    return hit
+
+
+def txn_months_on_hand(cid, period, months=TI_MONTHS):
+    """(the data months with a transaction file on hand, the window's data months) for the window
+    of `months` ending at the period's DATA month — from the file NAMES in Inputs/Txn Files/<id>/,
+    never by opening a zip (one folder listing). v5's own name and window rules (ti/txn_stage): a
+    file dated in month M carries month M-1's data. Months are counted as year*12 + month-1.
+
+    The builder anchors on the ODD's newest month (ti_build: `odd.frame_data_month`), which for a
+    cycle's extract is the month before the cycle — 1615's October 2026 extract runs to September,
+    and the window it built was Oct 25 to Sep 26 (2026-10-23). The check anchors the same way."""
+    _, txn_stage, _, _ = _ti_modules()
+    import pandas as pd
+    y, m = (int(x) for x in str(period).split("."))
+    anchor = pd.Timestamp(y, m, 1) - pd.offsets.MonthEnd(1)       # the data month: the one before the cycle
+    hi = anchor.year * 12 + anchor.month - 1
+    window = list(range(hi - (months - 1), hi + 1))
+    found = set()
+    for p in R.txn_files(cid):
+        name = p.name[:-4] if p.suffix.lower() == ".zip" else p.name
+        if not (txn_stage._is_txn_name(name) and txn_stage.in_window(name, months, anchor)):
+            continue
+        d = txn_stage.loader.file_date(Path(name))
+        found.add(d.year * 12 + d.month - 2)          # the file's month - 1, as the loader reads it
+    return found & set(window), window
+
+
+def _month_label(n):
+    import pandas as pd
+    return f"{pd.Timestamp(n // 12, n % 12 + 1, 1):%b %y}"
+
+
+def ti_checks(cid, period, row, roster, sent=None, rebuild=False):
+    """Every check before a Transaction Intelligence build, [(level, message)].
+
+    The cut needs: a chapter to build (James's branches add them one at a time), the client on
+    ARS in clients.md, this period's ODD extract, the client's codes (ars_code_tables.json, or a
+    v5 config file), its transaction files for the window, and for the ICS lens its ICS lists.
+    Missing transaction files or ICS lists do not stop the build — the cut states what it could
+    not render — so they warn. Like all_checks, the slow checks are skipped when the decks are
+    already in Outputs and no rebuild was asked for.
+    """
+    out = []
+    in_out = ti_decks_in_outputs(cid, period)
+    if in_out:
+        what = (f"The {period} Transaction Intelligence deck{'s are' if len(in_out) > 1 else ' is'} "
+                f"already in Outputs ({', '.join(in_out)}).")
+        out.append((WARN, what + " Rebuilding, as asked.") if rebuild else (ASK, what))
+    if not row:
+        out.append((STOP, f"{cid} is not in Client CSM List.csv. Check the client number."))
+        return out
+    entry = client_entry(cid, roster)
+    name = (entry[1] if entry else None) or row.get("client_name") or cid
+    out.append((OK, f"{cid} {name} (CSM: {row.get('csm') or 'no CSM'})"))
+    if entry is None or "ARS" not in entry[3]:
+        out.append((STOP, "The Transaction Intelligence cut is built from the ODD extract, so it is for ARS "
+                          "clients; clients.md does not list this client on ARS."))
+        return out
+    try:
+        cut, _, ti_lens, ti_config = _ti_modules()
+    except ImportError as e:
+        out.append((STOP, f"The Transaction Intelligence code is not installed with this copy of Sheila ({e})."))
+        return out
+    ics = any(p.startswith("ICS") for p in entry[3])
+    if cut.CHAPTERS:
+        out.append((OK, f"Chapters: {', '.join(ch.title for ch in cut.CHAPTERS)}; "
+                        f"lenses: ARS{' and ICS' if ics else ''}"))
+    else:
+        out.append((STOP, "No chapter of the Transaction Intelligence cut is ported yet, so there is "
+                          "nothing to build. The chapters land one at a time on James's branches."))
+    if not rebuild and any(l == ASK for l, _ in out):
+        return out
+    out += [(l, m) for l, m in input_checks(cid, period)
+            if m.startswith(("ODD extract", "The CSI shares"))]
+    try:
+        cfg = ti_config.config_path()
+        in_cfg = cfg.is_file() and str(cid) in (json.loads(cfg.read_text(encoding="utf-8-sig")) or {})
+    except (OSError, ValueError):
+        in_cfg = False
+    if in_cfg:
+        out.append((OK, f"Client codes: {cfg.name} (v5 config, as the parity check reads it)"))
+    else:
+        ids = code_table_clients()
+        if ids is None:
+            out.append((STOP, "Client codes: ars_code_tables.json is not in Inputs/ARS Settings, so the eligible "
+                              "accounts cannot be found. Run scripts/ars_code_tables.py on an ARS database export."))
+        elif str(cid) in ids:
+            out.append((OK, "Client codes: eligibility and Reg E codes derived from ars_code_tables.json"))
+        else:
+            out.append((STOP, f"Client codes: {cid} is not in ars_code_tables.json, so the eligible accounts "
+                              "cannot be found. Ask Aaron to refresh the code tables."))
+    found, window = txn_months_on_hand(cid, period)
+    span = f"{_month_label(window[0])} to {_month_label(window[-1])}"
+    if not found:
+        out.append((WARN, f"Transaction files: none in Inputs/Txn Files for {span}; the transaction chapters "
+                          "are stated, not rendered. scripts/land_txn_files.py lands them from the CSM ODDD folders."))
+    elif len(found) < len(window):
+        gaps = [_month_label(n) for n in window if n not in found]
+        out.append((WARN, f"Transaction files: {len(found)} of {len(window)} months on hand ({span}); "
+                          f"missing {', '.join(gaps)}. The transaction chapters cover the months on hand."))
+    else:
+        out.append((OK, f"Transaction files: all {len(window)} months on hand ({span})"))
+    if ics:
+        try:
+            lists = ti_lens.ics_list_files(cid)
+        except OSError as e:
+            lists = {}
+            out.append((WARN, f"ICS lens: the ICS lists could not be read ({e})"))
+        have = [f"{k} {v.name}" for k, v in lists.items() if v]
+        if have:
+            out.append((OK, f"ICS lens: {', '.join(have)}"))
+        elif lists:
+            out.append((WARN, "ICS lens: no direct-mail list or referral export in Inputs for this client, so "
+                              "only the ARS lens is built."))
+    return out
+
+
+def ti_status(cid, period, row, roster, sent=None):
+    """The Transaction Intelligence block of a client's status: its checks, state and last build."""
+    checks = ti_checks(cid, period, row, roster, sent)
+    state = ("stop" if any(l == STOP for l, _ in checks) else
+             "ask" if any(l == ASK for l, _ in checks) else "ready")
+    res = R.build_artifacts() / "launcher" / period / cid / TI_RESULT_NAME
+    try:
+        last = json.loads(res.read_text(encoding="utf-8")) if res.exists() else None
+    except (OSError, ValueError):
+        last = None
+    return {"checks": [{"level": l, "text": m} for l, m in checks], "state": state, "last": last,
+            "decks": ti_decks_in_outputs(cid, period)}
+
+
+def ti_to_outputs(cid, deck, client_name=""):
+    """Put a validated Transaction Intelligence deck in `Outputs/<CSM>/`, archiving the one it replaces.
+
+    promote_one cannot be used: it files a name it cannot parse (TI is not a program tag) under the
+    root archive. Only the SAME file name is superseded — never the client's RPE deck, never the
+    other lens. Returns (level, message)."""
+    import promote_month as P
+    out = R.outputs()
+    dest = R.client_outputs(cid, root=out)
+    cur = dest / os.path.basename(deck)
+    if cur.exists() and P.same(str(cur), deck):
+        return OK, f"The deck in Outputs is already identical to this build: {cur}"
+    stamp = dt.date.today().isoformat()
+    try:
+        if cur.exists():
+            folder = P.client_folder(out / R.ARCHIVE_DIRNAME, cid, client_name)
+            folder.mkdir(parents=True, exist_ok=True)
+            arch = folder / f"{cur.stem} (superseded {stamp}){cur.suffix}"
+            k = 1
+            while arch.exists():
+                k += 1
+                arch = folder / f"{cur.stem} (superseded {stamp}-{k}){cur.suffix}"
+            shutil.move(str(cur), str(arch))
+            print(f"         archive   {cur.name}", flush=True)
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(deck, cur)
+        if cur.stat().st_size != os.path.getsize(deck):
+            raise OSError(f"{cur.name} is {cur.stat().st_size:,} bytes in Outputs, {os.path.getsize(deck):,} built")
+    except OSError as e:
+        return STOP, (f"The deck built clean but could not be put in Outputs ({e}). If it is open in "
+                      "PowerPoint, close it and build again.")
+    return OK, f"In Outputs: {cur}"
+
+
+def build_ti(a, BM, row, period, roster, sent, work):
+    """`build <id> --ti`: the Transaction Intelligence decks, one per lens, into Outputs."""
+    print(f"\nBuilding the Transaction Intelligence decks: client {a.client}, period {period}\n")
+    checks = ti_checks(a.client, period, row, roster, sent, rebuild=a.rebuild)
+    for lvl, msg in checks:
+        say(lvl, msg)
+    if any(l == STOP for l, _ in checks):
+        print("\nNot built. Fix the items marked STOP, then run it again.")
+        return 1
+    if any(l == ASK for l, _ in checks):
+        print("\nNot built: this month's Transaction Intelligence decks are already in Outputs. Pass --rebuild to replace them.")
+        return ASKED_EXIT
+    entry = client_entry(a.client, roster)
+    name = BM.deck_name(a.client, entry[1])
+    ics = any(p.startswith("ICS") for p in entry[3])
+    tdir = work / "ti"
+    lk = lock(work)
+    t0 = time.time()
+    result, delivered, made, where = "did not finish", False, [], []
+    stop = threading.Event()
+    try:
+        tdir.mkdir(parents=True, exist_ok=True)
+        for old in tdir.glob("*.pptx"):      # a previous build's decks are never mistaken for this one's
+            old.unlink()
+        print(f"\nBuilding the ARS{' and ICS' if ics else ''} lens{'es' if ics else ''} (this takes a few minutes)...", flush=True)
+        log = tdir / "build.log"           # its own log: the RPE build's steps are not this build's
+        log.unlink(missing_ok=True)
+        threading.Thread(target=watch_steps, args=(log, stop, t0), daemon=True).start()
+        try:
+            rc = BM.run([BM.PY, os.path.join(BM.ARSP, "ti_build.py"), a.client, period, name, str(tdir)]
+                        + (["--ics"] if ics else []), log)
+        finally:
+            stop.set()
+        made = sorted(str(p) for p in tdir.glob(f"{a.client}-{period}-{TI_TAG}-*.pptx"))
+        if rc or not made:
+            reason = _log_reason(log) or f"exit code {rc}"
+            say(STOP, f"The build stopped: {reason}")
+            result = f"stopped: {reason}"
+        else:
+            sys.path.insert(0, str(REPO / "validation"))
+            import validate_deck as V
+            gates = []
+            for deck in made:
+                print(f"  [..]   Validating {os.path.basename(deck)}  ({(time.time() - t0) / 60:.0f} min)", flush=True)
+                gate, fails = run_validator(deck)
+                for f in fails:
+                    say(STOP, f"Validator: {f}")
+                if gate.startswith("0 FAIL"):
+                    pkg = V.package_findings(deck)
+                    if pkg:
+                        gate = f"package check failed ({len(pkg)} finding(s): {pkg[0]})"
+                gates.append(gate)
+                if not gate.startswith("0 FAIL"):
+                    say(STOP, f"Validation of {os.path.basename(deck)}: {gate}. Only a deck with 0 FAIL goes to Outputs.")
+                    continue
+                say(OK, f"Validation of {os.path.basename(deck)}: {gate}")
+                lvl, msg = ti_to_outputs(a.client, deck, entry[1])
+                say(lvl, msg)
+                if lvl == OK:
+                    where.append(msg)
+            result = "; ".join(gates)
+            delivered = bool(where) and len(where) == len(made)
+    finally:
+        lk.unlink(missing_ok=True)
+    (work / TI_RESULT_NAME).write_text(json.dumps({
+        "client": a.client, "period": period, "decks": [os.path.basename(d) for d in made],
+        "lenses": ["ARS"] + (["ICS"] if ics else []), "result": result, "delivered": delivered,
+        "by": getpass.getuser(), "finished": f"{dt.datetime.now():%Y-%m-%d %H:%M}",
+        "minutes": round((time.time() - t0) / 60, 1)}, indent=1), encoding="utf-8")
+    if delivered:
+        print(f"\nDone. The Transaction Intelligence deck{'s are' if len(made) > 1 else ' is'} in Outputs.")
+        return 0
+    print("\nNot put in Outputs. Details are in " + str(tdir / "build.log"))
+    return 1
+
+
 # ------------------------------------------------------------------ locking
 def _process_start(pid):
     """The process's creation time (Windows FILETIME), or None when it cannot be read.
@@ -611,6 +911,19 @@ def _context(cid, period):
 
 def cmd_status(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
+    if getattr(a, "ti", False):
+        print(f"\nTransaction Intelligence status: client {a.client}, period {period}\n")
+        checks = ti_checks(a.client, period, row, roster, sent)
+        for lvl, msg in checks:
+            say(lvl, msg)
+        if any(l == STOP for l, _ in checks):
+            print("\nNot ready to build.")
+            return 1
+        if any(l == ASK for l, _ in checks):
+            print("\nReady to rebuild (pass --rebuild).")
+            return ASKED_EXIT
+        print("\nReady to build.")
+        return 0
     print(f"\nDeck status: client {a.client}, period {period}\n")
     checks = all_checks(a.client, period, row, roster, sent)
     for lvl, msg in checks:
@@ -695,8 +1008,8 @@ def supersede_other_ars_decks(cid, deck, out):
     stamp = dt.date.today().isoformat()
     moved = 0
     for other in R.output_decks(f"{cid}-{info['period']}-*.pptx"):
-        if other.name.startswith("~$") or other.name == os.path.basename(deck):
-            continue
+        if other.name.startswith("~$") or other.name == os.path.basename(deck) or is_ti_deck(other.name):
+            continue                    # a Transaction Intelligence deck is a separate presentation
         folder = P.client_folder(out / R.ARCHIVE_DIRNAME, cid, info.get("client") or "")
         folder.mkdir(parents=True, exist_ok=True)
         dest = folder / f"{other.stem} (superseded {stamp}){other.suffix}"
@@ -715,6 +1028,8 @@ def supersede_other_ars_decks(cid, deck, out):
 
 def cmd_build(a):
     BM, row, period, roster, sent, work = _context(a.client, a.period)
+    if getattr(a, "ti", False):
+        return build_ti(a, BM, row, period, roster, sent, work)
     combined = getattr(a, "combined", False)
     cp_row = cp_roster_row(a.client)
     entry = client_entry(a.client, roster, cp_row)
@@ -755,7 +1070,9 @@ def cmd_build(a):
             result = f"stopped at {err}: {reason}"
         else:
             print(f"  [..]   Validating the deck  ({(time.time() - t0) / 60:.0f} min)", flush=True)
-            gate = BM.validate(deck, str(work / "base.json"))
+            gate, fails = run_validator(deck, str(work / "base.json"))
+            for f in fails:
+                say(STOP, f"Validator: {f}")
             if multi and gate.startswith("0 FAIL"):
                 # A deck assembled from sections: check the package, which the text rules can't see.
                 sys.path.insert(0, str(REPO / "validation"))
@@ -789,6 +1106,23 @@ def cmd_build(a):
     return 1
 
 
+def run_validator(deck, base=None):
+    """(the validator's verdict line, its FAIL lines). One run of validate_deck.py.
+
+    build_month.validate keeps only the verdict, and Sheila showed "1 FAIL, 10 REVIEW" with
+    nothing to say which slide or why (Austin Bank's Transaction Intelligence build,
+    2026-10-26). The FAIL lines are what a CSM, or Aaron, needs to act on."""
+    import build_month as BM
+    cmd = [BM.PY, os.path.join(BM.REPO, "validation", "validate_deck.py"), str(deck)]
+    if base and os.path.exists(base):
+        cmd.append(str(base))
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    lines = [l.strip() for l in r.stdout.splitlines()]
+    verdict = next((l for l in lines if "FAIL," in l), "?")
+    fails = [l for l in lines if l.startswith("[FAIL")]
+    return verdict, fails
+
+
 def _log_reason(log):
     if not log.exists():
         return ""
@@ -812,6 +1146,8 @@ def main(argv=None):
         sp = sub.add_parser(c)
         sp.add_argument("client")
         sp.add_argument("--period", default=None, help="YYYY.MM; default: the newest ARS workbook period in Inputs")
+        sp.add_argument("--ti", action="store_true",
+                        help="the Transaction Intelligence decks (a separate presentation), not the RPE deck")
         if c == "build":
             sp.add_argument("--rebuild", action="store_true", help="rebuild a deck already recorded as sent")
             sp.add_argument("--combined", action="store_true",
