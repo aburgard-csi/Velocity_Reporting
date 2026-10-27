@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — Sheila's action buttons are lit, not flat
+
+Summary: The Build, Check again, Recalculate and Export buttons in Sheila now carry a light
+along the top edge, shade along the bottom, a line where they meet the page and a glow in
+their own colour, and they press in when clicked. Nothing about what they do changed.
+
+The recipe is the four-shadow button Aaron pointed at (2026-10-27): `button.primary` in
+`ars_launcher_web.py` layers `inset 0 1px 0` white, `inset 0 -2px 0` black, `0 1px 2px` black
+and a `--glow` in the button's own colour (navy, or orange for `.warn`); `:active` swaps the
+highlight for an inset shade and moves the button down a pixel; a disabled button is flat
+grey as before; reduced motion drops the transition.
+
 ### 2026-10-26 — The cover, section dividers and closing slide use the CSI brand template's design
 
 Summary: Every deck's cover, section dividers and closing slide now follow the CSI brand template: a white cover with the blue band and the CSI logo, gradient dividers with the sunrise wedge, and a gradient closing slide with the large logo.

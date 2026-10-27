@@ -1950,9 +1950,18 @@ main{padding:22px 24px;min-height:420px}
 .verdict.stop{background:var(--stop-bg);border-color:transparent}
 .verdict p{margin:0;flex:1;min-width:220px}
 .btns{display:flex;flex-wrap:wrap;gap:8px}
-button.primary{font:600 15px/1 "Segoe UI",Arial,sans-serif;background:var(--navy);color:#fff;border:0;border-radius:8px;padding:11px 16px;cursor:pointer}
-button.primary.warn{background:var(--orange)}
-button.primary:disabled{background:var(--ink3);cursor:not-allowed}
+/* The action buttons are lit, not flat (Aaron, 2026-10-27): four shadows and a press. A highlight
+   along the top edge, shade along the bottom, a line where it meets the page, and a glow in its own
+   colour; pressing it drops the highlight for an inset shade and moves it down a pixel. */
+button.primary{font:600 15px/1 "Segoe UI",Arial,sans-serif;background:var(--navy);color:#fff;border:0;border-radius:8px;padding:11px 16px;cursor:pointer;
+  --glow:rgba(0,39,76,.38);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.24),0 1px 2px rgba(0,0,0,.35),0 6px 16px var(--glow);
+  transition:box-shadow .12s ease,transform .12s ease,filter .12s ease}
+button.primary:hover{filter:brightness(1.08)}
+button.primary:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,.32),0 1px 1px rgba(0,0,0,.2)}
+button.primary.warn{background:var(--orange);--glow:rgba(244,122,41,.42)}
+button.primary:disabled{background:var(--ink3);cursor:not-allowed;box-shadow:none;transform:none;filter:none}
+@media (prefers-reduced-motion:reduce){button.primary{transition:none}}
 button.link{font:inherit;background:none;border:0;color:var(--sent);text-decoration:underline;cursor:pointer;padding:0}
 .progress{margin-top:20px}
 .progress .notes{margin:6px 0 4px;padding-left:18px;font-size:13.5px;color:var(--ink2)} .progress .notes .warn{color:var(--warn)}
