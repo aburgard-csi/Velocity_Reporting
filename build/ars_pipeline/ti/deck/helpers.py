@@ -46,10 +46,21 @@ HEADLINE_MAX = 90
 V5_TITLE_W = 12.09                # the width polish.title_fit's line budgets were written for
 
 
+TITLE_MEASURE_SAFETY = 1.05      # PowerPoint sets the bold face about 2-3% wider than the measure (slide 9, 2026-10-27)
+TITLE_SIZES = ((30, 1), (25, 1), (25, 2), (22, 2), (20, 2))   # (pt, most lines it may take), largest first
+
+
 def _fit(text):
-    """(size, lines) for a title in RPE's narrower title box: polish.title_fit on the length
-    the text would have at v5's width, so a title that wraps here is sized as wrapping."""
-    return polish.title_fit("x" * round(len(text) * V5_TITLE_W / TITLE_W))
+    """(size, lines) for a title in RPE's narrower title box, from the glyph measure of the bold
+    display face (build/textfit.py) at TITLE_W - never a character count, which put 98-character
+    titles on two lines that rendered as three and ran into the subtitle (1075, 2026-10-27).
+    The largest size whose wrapped lines fit its allowance; below 20 pt the lines are counted as
+    they fall, so the layout reserves the room the text takes."""
+    for pt, most in TITLE_SIZES:
+        n = len(_wrap(text, TITLE_W / TITLE_MEASURE_SAFETY, pt, HEAD_FONT, True))
+        if n <= most:
+            return pt, n
+    return 20, len(_wrap(text, TITLE_W / TITLE_MEASURE_SAFETY, 20, HEAD_FONT, True))
 BAND_FILL = brand._rgb(brand.ROWALT)
 BORDER_CLR = brand.GRID.lstrip("#")
 _DARK_FILLS = {"00274C"}
@@ -119,7 +130,7 @@ def _title(slide, title, subtitle=None):
     title = polish.title(title)
     subtitle = polish.sub(subtitle, title)
     size, lines = _fit(title)
-    height = 0.8 if lines == 1 else 1.05
+    height = 0.8 if lines == 1 else 1.05 if lines == 2 else 1.05 + 0.34 * (lines - 2)
     _text(slide, MARGIN_L, 0.32, TITLE_W, height, title, size=size, bold=True, font=HEAD_FONT)
     bottom = 0.32 + height
     if subtitle:

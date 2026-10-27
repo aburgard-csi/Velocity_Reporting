@@ -163,6 +163,122 @@ def _clean(ax, left=False, bottom=True):
     ax.set_axisbelow(True)
 
 
+def fit_text(ax, x, y, width, text, fontsize, floor=7.5, max_lines=1, **kw):
+    """ax.text() that stays inside `width` (data units): the label a block holds must not run over the
+    block beside it (slides 8 and 63, 2026-10-27). One line steps the size down to `floor`; with
+    max_lines > 1 the words wrap at the size given first, then it steps down. What still does not fit
+    at the floor is cut with an ellipsis, so a label is never clipped by the neighbour drawn after it.
+
+    Measured on the figure as it stands; tight_layout runs later and can move the axes a few percent,
+    so the width is held to 94% of what the caller offers."""
+    fig = ax.figure
+    renderer = fig.canvas.get_renderer()
+    inv = ax.transData.inverted()
+    limit = width * 0.94
+
+    def extent(artist):
+        bb = artist.get_window_extent(renderer)
+        (x0, _), (x1, _) = inv.transform([(bb.x0, bb.y0), (bb.x1, bb.y1)])
+        return abs(x1 - x0)
+
+    def wrapped(size, n):
+        probe = ax.text(x, y, "", fontsize=size, **kw)
+        lines, cur = [], ""
+        for word in str(text).split():
+            trial = f"{cur} {word}".strip()
+            probe.set_text(trial)
+            if cur and extent(probe) > limit:
+                lines.append(cur)
+                cur = word
+            else:
+                cur = trial
+        lines.append(cur)
+        ok = len(lines) <= n
+        for ln in lines:
+            probe.set_text(ln)
+            ok = ok and extent(probe) <= limit
+        probe.remove()
+        return "\n".join(lines), ok
+
+    size = fontsize
+    while True:
+        body, ok = wrapped(size, max_lines)
+        if ok or size <= floor:
+            break
+        size = max(floor, size - 0.5)
+    if not ok:                       # at the floor and still wide: cut the last line, never overrun
+        lines = body.split("\n")[:max_lines]
+        probe = ax.text(x, y, lines[-1], fontsize=size, **kw)
+        while len(lines[-1]) > 4 and extent(probe) > limit:
+            lines[-1] = lines[-1][:-1].rstrip()
+            probe.set_text(lines[-1] + "\u2026")
+        probe.remove()
+        lines[-1] += "\u2026"
+        body = "\n".join(lines)
+    return ax.text(x, y, body, fontsize=size, **kw)
+
+
+def place_point_labels(ax, pts, areas_pt2, names, fontsize=11, color=None):
+    """Name each bubble of a scatter beside it, never on another bubble or another name.
+
+    Every label used to sit a fixed 14 points above its bubble's centre: inside a large bubble, on top
+    of its neighbour's, over the next label (slides 17, 46, 49, 50 and 61, 2026-10-27). Here each
+    point, largest bubble first, tries eight places around its own bubble (above, below, right, left,
+    then the four corners) and keeps the one that overlaps least with the labels already placed, the
+    other bubbles and the edge of the plot; the first of equals wins, so a clear chart reads as it did.
+    `pts` are data coordinates, `areas_pt2` the scatter's `s` for each point."""
+    from matplotlib.transforms import Bbox
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    k = fig.dpi / 72.0
+    disp = ax.transData.transform(pts)
+    radii = [(a ** 0.5) / 2.0 * k for a in areas_pt2]
+    axbb = ax.get_window_extent(renderer)
+    discs = [Bbox([[x - r, y - r], [x + r, y + r]]) for (x, y), r in zip(disp, radii)]
+    placed = []
+    probe = ax.text(0, 0, "", fontsize=fontsize, fontweight="bold")
+
+    def overlap(a, b):
+        w = min(a.x1, b.x1) - max(a.x0, b.x0)
+        h = min(a.y1, b.y1) - max(a.y0, b.y0)
+        return w * h if w > 0 and h > 0 else 0.0
+
+    for i in sorted(range(len(pts)), key=lambda j: -radii[j]):
+        probe.set_text(str(names[i]))
+        tb = probe.get_window_extent(renderer)
+        w, h = tb.width, tb.height
+        x, y = disp[i]
+        around = []                                      # (anchor x, anchor y, ha, va) of the text
+        for ring in (1.0, 1.9):                          # beside the bubble first, then one label further out
+            gap = (radii[i] + 4 * k) * ring
+            around += [
+                (x, y + gap, "center", "bottom"), (x, y - gap, "center", "top"),
+                (x + gap, y, "left", "center"), (x - gap, y, "right", "center"),
+                (x + gap * 0.75, y + gap * 0.75, "left", "bottom"),
+                (x - gap * 0.75, y + gap * 0.75, "right", "bottom"),
+                (x + gap * 0.75, y - gap * 0.75, "left", "top"),
+                (x - gap * 0.75, y - gap * 0.75, "right", "top")]
+        best = None
+        for n, (ax_, ay_, ha, va) in enumerate(around):
+            x0 = ax_ - (w / 2 if ha == "center" else 0 if ha == "left" else w)
+            y0 = ay_ - (h / 2 if va == "center" else 0 if va == "bottom" else h)
+            box = Bbox([[x0, y0], [x0 + w, y0 + h]])
+            score = sum(overlap(box, o) for o in placed)
+            score += sum(overlap(box, d) for j, d in enumerate(discs) if j != i)
+            score += (box.width * box.height - overlap(box, axbb)) * 4      # the part outside the plot
+            if best is None or score < best[0] - 1e-9:
+                best = (score, ax_, ay_, ha, va, box)
+            if score == 0:
+                break
+        _, ax_, ay_, ha, va, box = best
+        placed.append(box)
+        inv = ax.transData.inverted().transform((ax_, ay_))
+        ax.text(inv[0], inv[1], str(names[i]), ha=ha, va=va, fontsize=fontsize,
+                fontweight="bold", color=color or NAVY, zorder=4)
+    probe.remove()
+
+
 def _declutter(fig) -> int:
     """Drop data labels that would print on top of another label.
 
@@ -244,6 +360,19 @@ def _caption_band(fig, text: str, laid_out: bool) -> None:
              fontweight="bold", ha="left", va="bottom")
 
 
+def _literal_dollars(fig) -> None:
+    """Every `$` on a figure prints as a `$`. Two dollar signs in one string put matplotlib into
+    mathtext, which set "$2,984 vs $6,044" in italics with its spaces gone (slide 15, 2026-10-27). A
+    chart that escaped them by hand keeps working: the backslash is taken out as math parsing is
+    turned off."""
+    from matplotlib.text import Text
+    for t in fig.findobj(Text):
+        s = t.get_text()
+        if "$" in s:
+            t.set_parse_math(False)
+            t.set_text(s.replace("\\$", "$"))
+
+
 def _save(fig, path: Path) -> Path:
     """Layout is tightened INSIDE the authored canvas -- never cropped to
     content (bbox_inches='tight' shrank figures unpredictably, so the same
@@ -282,6 +411,7 @@ def _save(fig, path: Path) -> Path:
         _caption_band(fig, caption_text, laid_out)
     # After layout, before the render: extents are only true once the axes
     # have their final size.
+    _literal_dollars(fig)
     _declutter(fig)
     fig.savefig(path, dpi=DPI, facecolor="white")
     plt.close(fig)
@@ -820,9 +950,12 @@ def donut(rows: list, out: Path, center_label: str | None = None,
     for w, lab, v in zip(wedges, labels, vals):
         ang = (w.theta1 + w.theta2) / 2
         x = np.cos(np.deg2rad(ang)); y = np.sin(np.deg2rad(ang))
+        # a label on the left sits to the LEFT of its leader and one on the right to the right: a centred
+        # label under a long name ran back over the ring (slide 48, 2026-10-27)
+        side = "left" if x > 0.25 else "right" if x < -0.25 else "center"
         ax.annotate(f"{lab}\n{v:,.0f} · {100*v/total:.0f}%",
-                    xy=(x * 0.79, y * 0.79), xytext=(x * 1.22, y * 1.22),
-                    ha="center", va="center", fontsize=12, color=NAVY,
+                    xy=(x * 0.79, y * 0.79), xytext=(x * 1.16, y * 1.16),
+                    ha=side, va="center", fontsize=12, color=NAVY,
                     arrowprops={"arrowstyle": "-", "color": GREY, "lw": 0.8})
     if center_value:
         ax.text(0, 0.10, center_value, ha="center", va="center",
@@ -1477,11 +1610,11 @@ def _category_blocks_fig(rows: list):
     for (name, value, sub, trend), (x, y, w, h), (bg, fgc) in zip(
             rows, cells, palette):
         _block_cut(ax, x, y, w, h, bg)
-        ax.text(x + w * 0.06, y + h - 6, f"{name} · {value}",
-                fontsize=13 if h > 60 else 11.5, fontweight="bold", color=fgc,
-                va="top")
-        ax.text(x + w * 0.06, y + h - 16 - (4 if h > 60 else 0), sub,
-                fontsize=9.5, color=fgc, va="top", alpha=0.9)
+        inner = w * 0.88                     # the block's own width, less its two margins
+        fit_text(ax, x + w * 0.06, y + h - 6, inner, f"{name} · {value}",
+                 13 if h > 60 else 11.5, floor=9, fontweight="bold", color=fgc, va="top")
+        fit_text(ax, x + w * 0.06, y + h - 16 - (4 if h > 60 else 0), inner, sub,
+                 9.5, floor=8, max_lines=3, color=fgc, va="top", alpha=0.9)
         cut = min(w, h) * 0.18
         ax.text(x + cut + 1.2, y + 4, trend, fontsize=9.5, fontweight="bold",
                 color=fgc, va="bottom")
@@ -1846,17 +1979,44 @@ def waffle(panels: list, out: Path) -> Path:
     return _save(fig, out)
 
 
+def _fmt(spec, v) -> str:
+    return spec(v) if callable(spec) else spec.format(v)
+
+
+def _delta_text(spec, d) -> str:
+    """A signed change: "+4.0" or "-4.0", never "+-4.0"."""
+    if callable(spec):
+        return spec(d)
+    if spec.startswith("+") and d < 0:
+        return "-" + spec[1:].format(abs(d))
+    return spec.format(d)
+
+
 def _dumbbell_fig(rows: list, a_lab: str, b_lab: str, note_idx=None,
                   value_fmt: str = "{:.1f}%", delta_fmt: str = "+{:.1f}",
-                  delta_color: str = GREEN, height: float | None = None):
+                  delta_color: str = GREEN, height: float | None = None,
+                  own_scale: bool = False):
     """rows: [[label, a_value, b_value, sub], ...] -- a connector per row
     with the subject dot on top. Six measures read at once; six paired bars
     would be twelve bars. `height` lets a one-row comparison draw at a
-    height that fits one row instead of floating in a six-row figure."""
+    height that fits one row instead of floating in a six-row figure.
+
+    A row may carry its own value and change formats as a 5th and 6th item (a str or a callable),
+    and `own_scale` puts each row's two dots on a scale of their own: a dollar row and a percent row
+    on one shared axis printed "2984.0%" and left the percent rows' dots on top of each other
+    (slide 15, 2026-10-27). The change printed beside each row is what carries the size."""
     fig, ax = plt.subplots(figsize=(FIG_W_RAIL, height or FIG_H_RAIL))
-    vals = [v for r in rows for v in (r[1], r[2])]
+
+    def plotted(a, b):
+        if not own_scale:
+            return a, b
+        if a == b:
+            return 0.5, 0.5
+        return (0.75, 0.25) if a > b else (0.25, 0.75)
+
+    vals = [v for r in rows for v in plotted(r[1], r[2])]
     lo, hi = min(vals), max(vals)
-    pad = max(4.0, (hi - lo) * 0.18)
+    pad = 0.12 if own_scale else max(4.0, (hi - lo) * 0.18)
     data_lo, data_hi = lo - pad, hi + pad * 2.4
     gutter = (data_hi - data_lo) * 0.62      # labels live here, marks never do
     ax.set_xlim(data_lo - gutter, data_hi)
@@ -1864,18 +2024,21 @@ def _dumbbell_fig(rows: list, a_lab: str, b_lab: str, note_idx=None,
     label_x = data_lo - gutter * 0.97
     for i, row in enumerate(rows):
         label, a, b = row[0], row[1], row[2]
+        vf = row[4] if len(row) > 4 and row[4] else value_fmt
+        df = row[5] if len(row) > 5 and row[5] else delta_fmt
+        pa, pb = plotted(a, b)
         y = len(rows) - 1 - i
-        ax.plot([b, a], [y, y], color=GRID, lw=5, solid_capstyle="round",
+        ax.plot([pb, pa], [y, y], color=GRID, lw=5, solid_capstyle="round",
                 zorder=1)
-        ax.scatter([b], [y], s=110, color=TINT, zorder=2,
+        ax.scatter([pb], [y], s=110, color=TINT, zorder=2,
                    edgecolors="white", linewidths=1.6)
-        ax.scatter([a], [y], s=150, color=ORANGE, zorder=3,
+        ax.scatter([pa], [y], s=150, color=ORANGE, zorder=3,
                    edgecolors="white", linewidths=1.8)
-        ax.text(max(a, b) + pad * 0.24, y, value_fmt.format(a), fontsize=11,
+        ax.text(max(pa, pb) + pad * 0.24, y, _fmt(vf, a), fontsize=11,
                 fontweight="bold", color=NAVY, va="center")
         # the delta is its own right-aligned column: floating it off the
         # value ran the two together on the widest rows
-        ax.text(data_hi, y, delta_fmt.format(a - b), fontsize=10,
+        ax.text(data_hi, y, _delta_text(df, a - b), fontsize=10,
                 fontweight="bold", color=delta_color, va="center", ha="right")
         ax.text(label_x, y + 0.16, label, fontsize=11, color=NAVY,
                 va="center", ha="left", fontweight="bold")
@@ -1895,13 +2058,14 @@ def _dumbbell_fig(rows: list, a_lab: str, b_lab: str, note_idx=None,
 
 def dumbbell(rows: list, a_lab: str, b_lab: str, out: Path,
              value_fmt: str = "{:.1f}%", delta_fmt: str = "+{:.1f}",
-             delta_color: str = GREEN, height: float | None = None) -> Path:
+             delta_color: str = GREEN, height: float | None = None,
+             own_scale: bool = False) -> Path:
     """Two measures per row on one connector. The unit is the caller's: this
     printed a percent sign on whatever it was handed, so the ILS deck showed
     2,768 presented items as "2768.0%"."""
     fig, _ = _dumbbell_fig(rows, a_lab, b_lab, value_fmt=value_fmt,
                            delta_fmt=delta_fmt, delta_color=delta_color,
-                           height=height)
+                           height=height, own_scale=own_scale)
     return _save(fig, out)
 
 
@@ -2068,10 +2232,6 @@ def _quadrant_fig(rows: list, xlabel: str, ylabel: str, quads=None,
     sizes = [300 + 1900 * r[1] / max_n for r in rows]
     ax.scatter(xs, ys, s=sizes, color=NAVY, alpha=0.8, zorder=3,
                edgecolor="white", linewidth=2)
-    for r in rows:
-        ax.annotate(str(r[0]), (r[2], r[3]), textcoords="offset points",
-                    xytext=(0, 14), ha="center", fontsize=11,
-                    fontweight="bold", color=NAVY)
     medians = False
     mx = my = None
     if len(rows) >= 2:
@@ -2086,6 +2246,9 @@ def _quadrant_fig(rows: list, xlabel: str, ylabel: str, quads=None,
     _clean(ax, left=True)
     ax.text(0.99, 0.02, bubble_label, transform=ax.transAxes, ha="right",
             fontsize=10, color=GREY, style="italic")
+    if rows:
+        fig.tight_layout()          # the axes' final size, so the names are placed on the real picture
+        place_point_labels(ax, list(zip(xs, ys)), sizes, [r[0] for r in rows])
     if quads and mx is not None:
         # the legacy threat quadrant (13_threat_quadrant, 32_material_threats):
         # naming the corners is what turns a scatter into a priority call
