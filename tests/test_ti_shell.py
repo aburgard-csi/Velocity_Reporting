@@ -133,3 +133,25 @@ def test_ars_deck_and_template_are_untouched_by_the_cut():
     """The cut adds files; it does not reach into the ARS builder or its shell."""
     src = open(os.path.join(REPO, "build", "ars_pipeline", "build_ars_gen.py"), encoding="utf-8").read()
     assert "build_ti_gen" not in src and "from ti" not in src and "import ti" not in src
+
+
+def _stub(i):
+    return cut.Chapter(f"TI_STUB{i}", f"Stub chapter {i}", "Spend · Merchants · Channels",
+                       f"Detail line of stub chapter {i}", lambda pack, ln: [("3", "groups")],
+                       _stub_build, lambda ctx: {"stub_groups": 3})
+
+
+@pytest.mark.parametrize("n, details_kept", [(4, True), (8, False)])
+def test_a_long_agenda_keeps_headings_only_and_validates(tmp_path, contacts, n, details_kept):
+    """Eight chapters plus Questions leave no room for a detail line under each heading (each ran
+    into the next row's heading: eight agenda FAILs on 1776's eight-chapter deck, 2026-10-26)."""
+    prs = Presentation(TEMPLATE)
+    G.build(prs, dict(PACK), "ars", [_stub(i) for i in range(1, n + 1)])
+    out = tmp_path / cut.deck_name(CLIENT, PACK["period"], NAME, "ars")
+    G.save(prs, out)
+    agenda = " ".join(sh.text_frame.text for sh in Presentation(str(out)).slides[2].shapes
+                      if sh.has_text_frame)
+    assert all(f"Stub chapter {i}" in agenda for i in range(1, n + 1))
+    assert ("Detail line of stub chapter 1" in agenda) == details_kept
+    fails = [f for f in vd.run(str(out)) if f[0] == "FAIL" and f[1] == 3]
+    assert fails == [], fails

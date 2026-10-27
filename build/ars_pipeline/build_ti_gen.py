@@ -71,6 +71,25 @@ def _title(slide):
                  if sh.has_text_frame and sh.text_frame.text.strip()), "")
 
 
+AGENDA_DETAIL_ROWS = 5      # rows (chapters + Questions) that leave room for each row's detail line
+
+
+def _agenda_headings_only(slide, chapters):
+    """Past AGENDA_DETAIL_ROWS rows, drop each chapter's detail line from the agenda.
+
+    `assemble_combined.set_agenda` (shared, not changed here) fits every row into the template's
+    band; at eight chapters plus Questions the pitch is about 0.47in, room for a heading but not a
+    heading and a detail line, and each detail line ran into the next row's heading (validate_deck:
+    eight FAILs on the agenda of 1776's eight-chapter deck, 2026-10-26). The chapter names stay; each
+    chapter's divider still carries its line."""
+    if len(chapters) + 1 <= AGENDA_DETAIL_ROWS:
+        return
+    details = {ch.agenda for ch in chapters}
+    for sh in list(slide.shapes):
+        if sh.has_text_frame and sh.text_frame.text.strip() in details:
+            sh._element.getparent().remove(sh._element)
+
+
 def _set_closing_line(slide, text):
     """Rewrite the Questions slide's '<client>  •  <month>' line in place, keeping its runs' format."""
     for sh in slide.shapes:
@@ -124,6 +143,7 @@ def adapt_shell(prs, pack, ln, chapters, art_dir=None):
         ac.PRODUCT_NAME.setdefault(ch.code, ch.title)
     ac.set_agenda(found["agenda"], [ch.code for ch in chapters],
                   detail_overrides={ch.code: ch.agenda for ch in chapters})
+    _agenda_headings_only(found["agenda"], chapters)
     found["agenda"].notes_slide.notes_text_frame.text = (
         f"Source: the {cut.CUT_NAME} cut's chapter list, {ln.label} (static). No figures.")
 
