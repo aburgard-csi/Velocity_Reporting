@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: the per-mailer summary, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 per-mailer summary: for every
+completed wave, mailed, responded and the response rate overall and by challenge tier, with five
+"Inside the Numbers" figures (new accounts, holders 60+, Reg E opted in, first-time responders, and
+repeat responders who moved up). Matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet.
+
+`ti/monthly_analysis/mailer_summary.py` is v5's section, unchanged, run through `ti/odd_sections.py`,
+with v5's `test_mailer_summary.py` and `test_mailer_summary_chart.py`. Those tests build a synthetic ODD
+with v5's `make_odd` and run v5's `metrics.compute`; `tests/ti_v5_harness.py` carries `make_odd` and its
+`CONFIG` verbatim and a `compute` that takes v5's steps over the sections the cut has ported (v5's
+harness file is a script that runs on import, so it is not ported as it stands). The one test that
+reads mailer_detail's figures switches on with G9-03. Parity: `mailer_summary` matches on 1776
+(2026-09) and 1761 (2026-10). DUPLICATES row 23.
+
 ### 2026-10-26 — Transaction Intelligence: mailing response, reach and lift, matching v5
 
 Summary: The Transaction Intelligence cut now computes James's v5 mailer figures from the ODD: each

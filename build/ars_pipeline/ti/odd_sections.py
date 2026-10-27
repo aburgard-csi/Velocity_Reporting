@@ -125,6 +125,12 @@ def mailer(ctx):
     return _section("mailer")(ctx)
 
 
+def mailer_summary(ctx):
+    """v5's mailer summary: one record per completed wave, overall and by challenge tier, with the
+    five "Inside the Numbers" stats."""
+    return _section("mailer_summary")(ctx)
+
+
 def leaks(ctx, figures=None):
     """v5's post-passes, in v5's order (metrics.compute after SECTIONS): `leaks.compute` finds the
     segments holding more of the eligible base than of the cards or opt-ins, from the dctr and rege
@@ -145,6 +151,7 @@ PARITY = {
     "dctr": ("metrics.json", dctr),
     "leaks": ("metrics.json", leaks),
     "mailer": ("metrics.json", mailer),
+    "mailer_summary": ("metrics.json", mailer_summary),
     "value": ("metrics.json", value),
     "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),
