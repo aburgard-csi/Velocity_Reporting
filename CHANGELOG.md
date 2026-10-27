@@ -21,6 +21,25 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-26 — Transaction Intelligence: three headlines that misstated their figures
+
+Summary: Three Transaction Intelligence headlines were wrong, all found reviewing 1776 CoastHills CU's
+deck. "How the leakage builds" said six categories carry $45.1M of the $22.9M that leaves: it summed in
+payment apps, which the $22.9M does not count. It now sums leakage categories only: $21.6M of $22.9M. The
+ICS summary said ICS "activates them -2 points faster": it now says "2 points fewer of them in month one".
+And a store whose card descriptions start "WAL Wal-Mart" was grouped apart from Walmart as "WAL WAL" and
+headlined as a faded merchant: it now groups with Walmart, so Flex Finance is the faded merchant and
+Walmart's PIN dollars on "Where PIN gets pressed" rise from $14.5M to $17.2M. v5 has all three faults.
+Rebuilt 1776's eight-chapter decks, both lenses: 156 slides, 0 FAIL.
+
+`ti/deck/txn_leakage.py`: `how_the_leakage_builds` and `where_the_leakage_goes` keep only rows of kind
+"leakage" (`fin_by_category` also carries the adjacency rows), and the count word follows the categories
+drawn instead of a fixed "Six". `ti/deck/ics_slides.py`: the month-one gap is worded by its sign.
+`ti/transaction_intelligence/merchant.py`: `_two_tokens` skips a word repeated straight after itself;
+`loader.CACHE_VERSION` 6 -> 7, because the parquet cache stores `merchant_key` and an old cache would keep
+the old key. The merchant tables now differ from v5's wherever a doubled prefix occurs. Tests:
+`tests/test_ti_headline_fixes.py` (all four fail without the fixes).
+
 ### 2026-10-26 — Transaction Intelligence: the survival-by-tenure overlap is on the register
 
 Summary: docs/migration/DUPLICATES.md gains row 28. The Transaction Intelligence deck's "Account retention

@@ -749,8 +749,13 @@ def add_chapter(prs, h: dict, m: dict, charts_dir: Path,
     if len(chips) >= 3:
         greens = sum(1 for c in chips if c[0] == "green")
         if m1c and m1c[1] is not None and m1c[2] is not None:
-            head = (f"ICS is {share:.0f}% of every account opened, and "
-                    f"activates them {m1c[1] - m1c[2]:.0f} points faster")
+            # RPE: v5 wrote "{gap} points faster" for any sign, so a lower month-one rate read
+            # as "-2 points faster" (1776, 2026.10); the gap is a rate, worded by its sign
+            gap = round(m1c[1] - m1c[2])
+            pace = (f"activates {gap} points more of them in month one" if gap > 0 else
+                    f"activates {-gap} points fewer of them in month one" if gap < 0 else
+                    "activates them in month one at the book's rate")
+            head = f"ICS is {share:.0f}% of every account opened, and {pace}"
         elif greens == len(chips):
             head = (f"{len(chips)} measures, {greens} green: the program "
                     f"leads on every one")
