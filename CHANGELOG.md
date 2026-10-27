@@ -27,6 +27,12 @@ Summary: clients.md now lists Aaron's 67 ILS clients in an ILS roster table, so 
 
 Aaron, 2026-10-27: "Start tracking ILS in the roster too. You can check my clients for ILS analysis reviews." The table comes from the Velocity export's product list in `Client CSM List.csv`. ILS has no monthly deck, so `build_month.read_roster` skips the section and `read_ils_roster` reads it. Other CSMs' ILS clients are not listed yet.
 
+### 2026-10-27 — The orange box is off the ARS Revenue Lift Matrix slide
+
+Summary: The orange outline around one cell of the matrix on the ARS Revenue Lift Matrix slide is gone; the matrix and the bars beside it are unchanged.
+
+Aaron, 2026-10-27: "Remove the orange box on the ARS Revenue Lift Matrix slide". `render_lift` no longer draws the outline on the caption's example cell. The caption text is unchanged.
+
 ### 2026-10-26 — A Transaction Intelligence slide with no data is stated, never silently left out
 
 Summary: Two Transaction Intelligence slides, "When the card gets used" and "Recurring payments on the
