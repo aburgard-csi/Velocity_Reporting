@@ -27,6 +27,281 @@ Summary: Sheila has a new Slide Review tab where a CSM votes Keep, Delete or App
 
 Aaron, 2026-10-27: "an evaluation process for all of the decks so the CSM can vote whether to keep or delete a slide, or to add it to an appendix." **Review**: pick a client and one of their decks in Outputs for the cycle (Executive Review, Transaction Intelligence, ARS Companion), vote on each slide, add a comment; votes are saved as you click and can be changed. **Summary**: one row per slide across clients, most Delete votes first, with clients, voters and comments, filterable by deck family, with an Export CSV. A vote is its own small file under `Build Artifacts/slide_votes/` (so several CSMs voting at once never overwrite each other); the newest vote per voter and slide wins. A slide is matched by its title with the client's name and figures taken out, never by its number. A vote is checked against the deck as it is in Outputs now, so a rebuilt deck refuses a stale page's vote. `scripts/slide_votes.py`, `scripts/slide_review_ui.py`, `tests/test_slide_votes.py`.
 
+### 2026-10-26 — Transaction Intelligence: three headlines that misstated their figures
+
+Summary: Three Transaction Intelligence headlines were wrong, all found reviewing 1776 CoastHills CU's
+deck. "How the leakage builds" said six categories carry $45.1M of the $22.9M that leaves: it summed in
+payment apps, which the $22.9M does not count. It now sums leakage categories only: $21.6M of $22.9M. The
+ICS summary said ICS "activates them -2 points faster": it now says "2 points fewer of them in month one".
+And a store whose card descriptions start "WAL Wal-Mart" was grouped apart from Walmart as "WAL WAL" and
+headlined as a faded merchant: it now groups with Walmart, so Flex Finance is the faded merchant and
+Walmart's PIN dollars on "Where PIN gets pressed" rise from $14.5M to $17.2M. v5 has all three faults.
+Rebuilt 1776's eight-chapter decks, both lenses: 156 slides, 0 FAIL.
+
+`ti/deck/txn_leakage.py`: `how_the_leakage_builds` and `where_the_leakage_goes` keep only rows of kind
+"leakage" (`fin_by_category` also carries the adjacency rows), and the count word follows the categories
+drawn instead of a fixed "Six". `ti/deck/ics_slides.py`: the month-one gap is worded by its sign.
+`ti/transaction_intelligence/merchant.py`: `_two_tokens` skips a word repeated straight after itself;
+`loader.CACHE_VERSION` 6 -> 7, because the parquet cache stores `merchant_key` and an old cache would keep
+the old key. The merchant tables now differ from v5's wherever a doubled prefix occurs. Tests:
+`tests/test_ti_headline_fixes.py` (all four fail without the fixes).
+
+### 2026-10-26 — Transaction Intelligence: the survival-by-tenure overlap is on the register
+
+Summary: docs/migration/DUPLICATES.md gains row 28. The Transaction Intelligence deck's "Account retention
+— survival by tenure" repeats the ARS deck's default "Account Retention — Survival by Tenure", and the two
+disagree. For 1776 CoastHills CU the ARS deck says 94% of accounts are still open at 1 year and 81% at 3
+years; the TI slide says 97.3% and 93.8%. The ARS deck's Kaplan-Meier leaves out accounts too young to
+reach each mark; v5's method counts them as retained, which raises the 3-year figure. No slide or number
+changes. The row's decision is pending, and the review page for keep/toss decisions pairs the two slides.
+
+### 2026-10-26 — Transaction Intelligence: keep or toss any chapter or slide in one file
+
+Summary: Which chapters and slides go in the Transaction Intelligence decks is now set in one file,
+`build/ars_pipeline/ti/slides.json`: every chapter and every slide of the cut is listed by name as
+"keep" or "toss". A tossed slide is left out of the deck; a tossed chapter loses its divider and agenda
+row too. Everything starts as "keep", so no deck changes today. This is how the overlaps with the ARS
+deck in docs/migration/DUPLICATES.md get settled (James and Aaron, 2026-10-26: "an easy way to
+include/toss slides, especially those that conflict"): each decision is a reviewed change to this file.
+
+`ti/selection.py` reads it (`TI_SLIDES` points at another file); `Deck.run` and the ICS chapter return
+only the kept slides, by the fixed title each was drawn under (never the data-driven headline), and
+`build_ti_gen.build` drops a tossed chapter before the agenda is laid out. A tossed slide gets no
+stated page: leaving it out was a decision, not missing data. A key may use `*` for slides named per
+offer ("Mailer * summary"); an unlisted slide is kept; any state other than keep or toss stops the
+build. `tests/test_ti_selection.py` checks every key names a real chapter or slide and every slide the
+cut draws is listed. 8 chapters, 138 slide entries.
+
+### 2026-10-26 — Transaction Intelligence: the campaign hero and Revenue frames
+
+Summary: The Campaign chapter gains James's v5 hero slide and Revenue frames. The hero's big number
+is what the client has earned over the fees paid while a 2:1 guarantee balance is live, the
+workbook's program profit otherwise, with the response trend and the response, gain and retention
+tiles. Revenue frames sets the workbook's booked revenue and profit beside the
+difference-in-differences gain per responder (and that gain as interchange), and says why the two
+never tie. 1776, both lenses: both drawn, 0 FAIL ("The 2:1 guarantee holds: $561K earned over the
+fees paid"). No ARS deck changes.
+
+Both are lifted from v5's build like the rest of the chapter, after the per-offer summary and before
+the Offer detail appendix, as in v5. One change, marked: the hero's tile icons go through the helper
+bundle's `chart()` into the chapter's charts folder (v5 wrote them straight to its own, unless
+dry_run). v5's `_responses_caption` comes with them. Tests: `tests/test_ti_campaign_chapter.py`
+(guarantee math while a balance is live, the workbook's profit once it clears, both frames).
+DUPLICATES row 27.
+
+### 2026-10-26 — Transaction Intelligence: the Campaign chapter
+
+Summary: The Transaction Intelligence decks gain an eighth chapter, Campaign: reach and response by
+offer, the per-offer summary, the response ladder and NU conversion, segment trajectories, the
+penalty box, the counterfactual, which offer earns its postage, the transaction increase over the
+ask, lift by segment, depth of engagement, organic against program activation, what a response does
+to spend against a control, sustained activity, first-time against repeat responders, who responds,
+tier movement and migration, the most recent mailer, and an Offer detail appendix, newest first. A
+slide whose figures are missing is stated. 1776, both lenses: 35 slides and 8 per-mailer appendix
+slides drawn, 0 FAIL. No ARS deck changes.
+
+`ti/deck/campaign_inline.py` lifts v5's campaign blocks out of `ars/deck/build.py` line for line (each
+builder names its v5 lines), with v5's build-function closures bound to the helper bundle (`skip`
+draws the cut's stated slide). Three changes, marked where they are made: six slides v5 drew as
+`new()` + `register()` + `_title()` go through `slide()` so the title comes first; the per-offer
+table shows as many offers as fit above its summary row and note (6 of 9 on 1776, where v5's 7 put
+the note on the KPI row) and carries the response rate's "%" in its header; and `Deck.run` swaps
+RPE's banned "lift" / "lifted" for "gain" / "raised" (never a figure, never on a Lift Matrix slide).
+`ti/deck/migration_slides.py` is v5's tier matrix, with its test. `ti/chapters/campaign.py` computes
+v5's migration, mailer, mailer_detail, mailer_summary and cohort sections in v5's order. Tests:
+`tests/test_ti_campaign_chapter.py`. DUPLICATES rows 22-26 updated.
+
+### 2026-10-26 — Transaction Intelligence: swipe-tier migration, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 swipe-tier migration: each eligible
+cardholder's swipe tier a year ago and now (on a three-month average), how many moved up, held or
+moved down, the full then-to-now matrix, the month-by-month movement, the non-users who started
+swiping, and the same split by responders, mailed non-responders and the never mailed. Every figure
+matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet.
+
+`ti/monthly_analysis/migration.py` is v5's section, unchanged, run through `ti/odd_sections.py`, with
+v5's `test_migration_monthly.py` over `tests/ti_v5_harness.py`. v5's `test_migration_matrix_slide.py`
+tests the slide module `deck/migration_slides.py` and ports with it in G9-06. Parity: 31/31 on 1776
+(2026-09) and 1761 (2026-10), every migration key v5 writes. DUPLICATES row 26.
+
+### 2026-10-26 — Transaction Intelligence: campaign lift, the ladder and the counterfactual, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 cohort and ladder figures: every
+account's spend and swipes aligned on the month it was mailed, responders against mailed
+non-responders and the never mailed, the lift net of that control at 1, 3, 6 and 12 months, what each
+offer earns per 1,000 mailed, how far responders beat their ask and for how long, what spend would
+have been without the program, first-time against repeat response, NU 1-4 to success conversion, and
+the penalty box. Every figure matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet.
+
+`ti/monthly_analysis/cohort.py` and `ladder.py` are v5's, unchanged (ladder is the library cohort
+imports, so they port together), run through `ti/odd_sections.py` as `cohort`, with v5's
+`test_swipe_high.py` over `tests/ti_v5_harness.py`. Parity: 58/58 on 1776 (2026-09) and 1761
+(2026-10), every cohort and ladder key v5 writes. DUPLICATES row 25.
+
+### 2026-10-26 — Transaction Intelligence: each offer month by month, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 per-offer trajectories: for every
+completed wave, average swipes and spend each month from a year before the mailing to three years
+after, for responders against their own challenge segment's non-responders (and, where the ODD
+carries it, by its own segmentation band). Matches v5 for 1776 CoastHills and 1761 CapEd. No deck
+changes yet.
+
+`ti/monthly_analysis/mailer_detail.py` is v5's section, unchanged, run through `ti/odd_sections.py`,
+with v5's `test_mailer_detail.py` over `tests/ti_v5_harness.py`. Its one slide test skips until G9-06,
+and the mailer-summary test that read these figures runs again. v5's `test_appendix_depth.py` is not
+ported: it builds v5's whole deck through `deck.build`; the offer-detail slides get the cut's own
+chapter test in G9-06. Parity: matches on 1776 (2026-09) and 1761 (2026-10), where v5 wrote only
+`mailer_resp_detail` (the segmentation-band table is conditional). DUPLICATES row 24.
+
+### 2026-10-26 — Transaction Intelligence: the per-mailer summary, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 per-mailer summary: for every
+completed wave, mailed, responded and the response rate overall and by challenge tier, with five
+"Inside the Numbers" figures (new accounts, holders 60+, Reg E opted in, first-time responders, and
+repeat responders who moved up). Matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet.
+
+`ti/monthly_analysis/mailer_summary.py` is v5's section, unchanged, run through `ti/odd_sections.py`,
+with v5's `test_mailer_summary.py` and `test_mailer_summary_chart.py`. Those tests build a synthetic ODD
+with v5's `make_odd` and run v5's `metrics.compute`; `tests/ti_v5_harness.py` carries `make_odd` and its
+`CONFIG` verbatim and a `compute` that takes v5's steps over the sections the cut has ported (v5's
+harness file is a script that runs on import, so it is not ported as it stands). The one test that
+reads mailer_detail's figures switches on with G9-03. Parity: `mailer_summary` matches on 1776
+(2026-09) and 1761 (2026-10). DUPLICATES row 23.
+
+### 2026-10-26 — Transaction Intelligence: mailing response, reach and lift, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 mailer figures from the ODD: each
+offer's mailed, responded and response rate (offers still in flight left out, not shown as 0%), how
+much of the base the program has reached, repeat response, the responder profile, organic against
+program activation, and spend six months before against three months after each offer, net of the
+mailed non-responders. Every figure matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes
+yet (the Campaign slides port in G9-06).
+
+`ti/monthly_analysis/mailer.py` is v5's section, unchanged, run through `ti/odd_sections.py`, with v5's
+`test_response_populations.py` (its 3 deck tests skip until G9-06 / G9-07). v5's
+`test_mailer_consistency.py` is not ported: it drives v5's whole `metrics.compute` through the
+`test_month_independence` harness, which the cut does not have. Parity: 47/47 on 1776 (2026-09) and
+45/45 on 1761 (2026-10); the two keys 1761 lacks are conditional and absent from v5's run too.
+DUPLICATES row 22.
+
+### 2026-10-26 — Transaction Intelligence: the Value chapter
+
+Summary: The Transaction Intelligence decks gain a seventh chapter, Value: What a card and an opt-in
+earn (with the conversion math), The value ladder, Value per account by branch, What a responder is
+worth, Where cards do not follow volume, and Where branches diverge. A slide whose figures are
+missing is stated. 1776, both lenses: five slides drawn, "Where branches diverge" stated (no branch
+diverges, as in v5's own run), 0 FAIL, 0 REVIEW. No ARS deck changes.
+
+`ti/deck/value_inline.py` lifts v5's six inline value blocks out of `ars/deck/build.py` as `(h, m)`
+builders, line for line. `ti/chapters/value.py` computes v5's dctr, rege, interchange and value
+sections, then the leak post-passes on their figures, in v5's order, priced at the client's ICRate /
+NSF_OD_Fee (filled from the workbook when blank), and registers the chapter after Economics. On 1776
+(2026.10): a card is worth $183 a year and an opt-in $178. Tests: `tests/test_ti_value_chapter.py`.
+
+### 2026-10-26 — Transaction Intelligence: where cards and opt-ins leak, priced, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 leak tables: the branches, age
+bands, balance bands and products that hold more of the eligible base than of the debit cards or
+Reg E opt-ins, ranked by accounts lost; the business gap; the Reg E default never asked; and what
+each is worth a year at the value figures. Every figure matches v5 for 1776 CoastHills and 1761
+CapEd. No deck changes yet (the Value slides port in G8-05).
+
+`ti/monthly_analysis/leaks.py` is v5's post-pass, unchanged; `ti/odd_sections.leaks` runs it after the
+dctr, rege and value figures and then v5's `value.apply_to_leaks`, in v5's order. It hands leaks the
+account bases too: the debit half reads `n_eligible` from them, and the first version, without them,
+skipped that half without a word (`tests/test_ti_leaks.py`). Parity: 14/14 on 1776 (2026-09) and 1761
+(2026-10). The parity check only compares the keys the port returns, so a key v5 wrote that the port
+never produces is not caught by it; for these sections every v5 `dctr_`, `rege_`, `value_`, `ic_`,
+`wb_` and `gt_` key was checked by hand to be produced (the one left, `rege_by_balance_band`, is the
+balance section's, ported earlier). DUPLICATES row 21.
+
+### 2026-10-26 — Transaction Intelligence: what a card and an opt-in are worth, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 value figures: what a debit card
+and a Reg E opt-in are each worth per account a year (interchange plus NSF/OD fees over the last 12
+months, carded against not, opted in against not), the potential at three conversion rates, and the
+same value by account age, response group and branch, with each gap split into how many accounts
+carry the product and how much each one earns. Every figure matches v5 for 1776 CoastHills and 1761
+CapEd. No deck changes yet (the Value slides port in G8-05).
+
+`ti/monthly_analysis/value.py` is v5's section, unchanged, run through `ti/odd_sections.py`; it prices
+at the client's ICRate / NSF_OD_Fee, filled from the workbook when the config leaves them blank
+(G7-01). Its `apply_to_leaks` post-pass ships with leaks (G8-04). v5's empty-base test, skipped until
+now, runs again. Parity: 54/54 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES row 20.
+
+### 2026-10-26 — Transaction Intelligence: an agenda of eight chapters fits
+
+Summary: When a Transaction Intelligence deck carries more than four chapters, its agenda now lists
+each chapter by name only, without the one-line description under it. With all eight chapters plus
+Questions, each row is about half an inch tall, and each description ran into the next chapter's name
+(validate_deck: eight FAILs on the agenda of 1776 CoastHills CU's eight-chapter deck). The description
+still opens each chapter on its divider. Decks of up to four chapters are unchanged.
+
+`build_ti_gen._agenda_headings_only` runs after the shared `assemble_combined.set_agenda`, which is not
+changed, and removes the detail boxes once the agenda passes `AGENDA_DETAIL_ROWS` (5) rows.
+`tests/test_ti_shell.py` builds four and eight stub chapters; at eight, the descriptions are gone and the
+agenda has 0 FAIL (the test fails without the fix). Rebuilt 1776's eight-chapter shell: 0 FAIL.
+
+### 2026-10-26 — Transaction Intelligence: PIN and signature interchange from the ODD, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 interchange figures from the ODD:
+card spend split into PIN and signature, each priced at its own rate (solved so the blend equals the
+client's interchange rate), the signature-share trend, what a PIN-to-signature shift would be worth,
+and the PIN-heavy accounts, by type, age, product and response. Every figure matches v5 for 1776
+CoastHills and 1761 CapEd. Figures only (v5 draws no slide from them); no deck changes.
+
+`ti/monthly_analysis/interchange.py` is v5's section, unchanged, run through `ti/odd_sections.py` as
+`interchange_odd` (apart from the transaction file's `interchange`). The parity check now fills a blank
+`ICRate` / `NSF_OD_Fee` from the workbook figures v5's run recorded, as that run did before any section
+priced anything. Parity: 36/36 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES row 19.
+
+### 2026-10-26 — Transaction Intelligence: the debit take rate and Reg E figures value reads, matching v5
+
+Summary: The Transaction Intelligence cut now computes James's v5 debit take-rate and Reg E opt-in
+figures, so the Value chapter can price what a card and an opt-in are worth and where the gaps are
+(next stages). Every figure matches v5 for 1776 CoastHills and 1761 CapEd. The cut draws no
+take-rate or Reg E slide of its own: those stay on the ARS deck. No deck changes.
+
+`ti/monthly_analysis/dctr.py` and `rege.py` are v5's sections, unchanged, run through
+`ti/odd_sections.py` (`dctr`, `rege`), with v5's Reg E code tests (`test_ti_rege_codes.py`; the one test
+that reads v5's client config is skipped, since that file holds client data and stays out of this
+repo). Parity: dctr 45/45 and rege 25/25 on 1776 (2026-09) and 1761 (2026-10). DUPLICATES rows 17-18.
+
+### 2026-10-26 — Transaction Intelligence: the Economics chapter
+
+Summary: The Transaction Intelligence decks gain a sixth chapter, Economics: Program P&L by offer, The
+2:1 guarantee, Where the month's revenue came from, What each offer has earned, and What an account
+earns as it climbs (the workbook's Lift Matrix). While a client has a deferred balance under the 2:1
+guarantee, the P&L shows what the client actually pays; once the guarantee clears it shows the
+workbook's billed figures. A client with no workbook or tracker gets each slide stated. 1776, both
+lenses: all five slides drawn, 0 FAIL. No ARS deck changes.
+
+`ti/deck/economics_inline.py` lifts v5's five inline economics blocks out of `ars/deck/build.py` as
+`(h, m)` builders, line for line, with v5's stat tile. Two layout changes keep RPE's validator at 0
+FAIL: a guarantee status wider than its tile steps its size down instead of wrapping ("Drawing Down"
+on 1776), and the P&L's "latest n of N offers" note joins the footer instead of sitting on it.
+`ti/chapters/economics.py` registers the chapter after ICS accounts. v5's deck-harness tests for
+these slides are replaced by `tests/test_ti_economics_chapter.py`. On 1776 this repo's P&L slide and
+v5's agree to the dollar ($1,121,691 revenue, $712,720 cost, $408,971 profit; DUPLICATES row 12).
+
+### 2026-10-26 — Transaction Intelligence: the 2:1 guarantee from the client's deferral tracker, matching v5
+
+Summary: The Transaction Intelligence cut now reads each ARS client's 2:1 guarantee deferral tracker,
+as James's v5 engine does: revenue, charges, amount paid, amount deferred, the running deferred
+balance, and whether the guarantee is clear, drawing down or in force. The trackers sit in a new
+input folder, Inputs/Deferred Billing (30 clients today), filled from M:\My Rewards Logistics by
+James's v5 fetch. Every figure matches v5 for 1776 CoastHills and 1761 CapEd. No deck changes yet
+(the guarantee slide ports next); no ARS deck changes.
+
+`ti/guarantee.py` is v5's `ars/guarantee.py`, unchanged, with v5's tests. `ti/deferred_input.py` finds
+a client's tracker by its id as a whole number anywhere in the name (some names lead with a revision
+date) and says what v5's run said after reading it: a missing tracker, one more than a month behind
+the data, the guarantee's state, and any month whose revenue differs from the workbook's by more than
+10%. `rpe_env.INPUT_KIND_DIRS` gains "Deferred Billing", in `NOT_SCANNED_KINDS` like "Deposits" (read
+by exact folder; the watcher's copier and pruner never touch it). Parity (`--only guarantee`, on the
+tracker v5's run read): 10/10 on 1776 (2026-08, 2026-09) and 1761 (2026-08, 2026-09). 1776 today:
+$140,862 deferred, drawing down, through 2026-09. DUPLICATES row 16.
+
 ### 2026-10-26 — Transaction Intelligence: the ARS Workbook's economics, matching v5
 
 Summary: The Transaction Intelligence cut now reads the client's ARS Workbook as James's v5 engine

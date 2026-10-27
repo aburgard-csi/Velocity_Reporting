@@ -17,20 +17,19 @@ import pytest  # noqa: E402
 # RPE: the reader ports in G7-01; these tests exercise code that ports later (or is not migrated).
 # Each is skipped under the stage that brings its code, so it switches back on when that lands.
 _LATER = {
-    "test_pnl_slide_renders_from_wb_keys": "G7-03 (economics chapter)",
-    "test_lift_matrix_slide_renders_on_the_main_path": "G7-03 (economics chapter)",
-    "test_lift_matrix_slide_skips_and_names_the_workbook": "G7-03 (economics chapter)",
-    "test_revenue_frames_bridge_renders_and_labels_both_frames": "G9-07 (shared campaign slides)",
-    "test_revenue_frames_skips_without_did": "G9-07 (shared campaign slides)",
-    "test_hero_declines_when_a_workbook_was_found_but_gave_no_profit": "G9-07 (shared campaign slides)",
-    "test_hero_keeps_the_odd_frame_when_the_client_has_no_workbook": "G9-07 (shared campaign slides)",
-    "test_value_survives_an_empty_eligible_base": "G8-03 (value)",
+    "test_pnl_slide_renders_from_wb_keys": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_lift_matrix_slide_renders_on_the_main_path": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_lift_matrix_slide_skips_and_names_the_workbook": "tests/test_ti_economics_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_revenue_frames_bridge_renders_and_labels_both_frames": "tests/test_ti_campaign_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_revenue_frames_skips_without_did": "tests/test_ti_campaign_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_hero_declines_when_a_workbook_was_found_but_gave_no_profit": "tests/test_ti_campaign_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
+    "test_hero_keeps_the_odd_frame_when_the_client_has_no_workbook": "tests/test_ti_campaign_chapter.py (v5's whole-deck harness, test_deck_layout, is not ported)",
     "test_report_revenue_frames_block": "v5's text report, which is not migrated",
 }
 
 
 def _later(fn):
-    return pytest.mark.skip(reason=f"ports with {_LATER[fn.__name__]}")(fn)
+    return pytest.mark.skip(reason=f"see {_LATER[fn.__name__]}")(fn)
 
 
 def _make_wb(path, stub=False, variants=False, rollup=False, lift=False):
@@ -291,7 +290,6 @@ def test_report_revenue_frames_block():
     assert "incremental revenue" not in text
 
 
-@_later
 def test_value_survives_an_empty_eligible_base():
     """1780 (#47 run 2): zero eligible accounts made value.compute throw
     ZeroDivisionError instead of declining gracefully. Empty base ->

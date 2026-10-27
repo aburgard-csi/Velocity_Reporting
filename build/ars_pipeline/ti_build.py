@@ -77,6 +77,9 @@ def compute_pack(client_id, period, name, ics=False):
     # the workbook first, as in v5's run: its rates feed the value math (ti/workbook_input.py)
     from ti import workbook_input
     cfg, wb = workbook_input.attach(cfg, client_id, period, warnings.append)
+    # then the 2:1 deferral tracker: when it exists its math is the client's economics
+    from ti import deferred_input
+    gt = deferred_input.attach(client_id, warnings.append)
     if ics:
         frame = lens.attach_ics(frame, client_id, warnings.append, expected=True)
     anchor = odd.frame_data_month(frame)
@@ -85,7 +88,8 @@ def compute_pack(client_id, period, name, ics=False):
     subsets = build_subsets(frame, cfg, anchor)
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
-    metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb}
+    metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
+    deferred_input.review(gt, wb, anchor.iso, warnings.append)
     attach_txn(ctx, warnings)
     if ctx.txn_report is not None:
         metrics.update({"txn_files_loaded": ctx.txn_report.files, "txn_rows": ctx.txn_report.rows,
