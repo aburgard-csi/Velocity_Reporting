@@ -132,9 +132,10 @@ from odd_rows import rege_label, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
 
 def classify_rege(series):
     raw = norm_text(series)
-    labels = {v: rege_label(v) for v in raw.unique()}
-    # Unmapped wording passes through unchanged so the pack's flags surface it.
-    return raw.map(lambda v: v if labels[v] is None else labels[v])
+    # Unmapped wording passes through unchanged so the pack's flags surface it. One dict lookup per cell:
+    # the lambda this replaced ran 12 million times on a 1M-row extract (10 s, profiled 2026-10-26).
+    mapping = {v: (v if (lab := rege_label(v)) is None else lab) for v in raw.unique()}
+    return raw.map(mapping)
 
 # Account status. Normalized to these seven buckets for every client. Unknown
 # non-blank values fall to "Other" and are surfaced (with their raw text) so they
@@ -291,7 +292,7 @@ def main():
 
     usecols = set(keep)
     reader = pd.read_csv(stream_factory(), skiprows=hdr_idx, usecols=lambda c: c in usecols,
-                         dtype=str, chunksize=CHUNK, on_bad_lines="skip")
+                         dtype=object, chunksize=CHUNK, on_bad_lines="skip")
 
     # MTD/YTD/PYTD are NSF/OD ITEM COUNTS, not dollars (the ODD carries no
     # OD-fee dollar column) — they are summed by the same money_block pass only

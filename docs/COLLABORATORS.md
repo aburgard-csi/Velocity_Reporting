@@ -39,6 +39,61 @@ Hand this file to your Claude Code session at the start (or just say "read docs/
 - The tests can fail on a PR that did not touch the failing code. Say so in the PR and tell Aaron;
   do not skip or delete a test to get green.
 
+## Transaction Intelligence branches (James's `feat/ars-ti/...`)
+
+The Transaction Intelligence cut (`build/ars_pipeline/ti/`) is a SEPARATE presentation from the
+approved Executive Review: analyses ported from James Gilmore's ARS v5 engine, one deck per lens,
+built by `build/ars_pipeline/ti_build.py` and offered in CSM Sheila by its own button. A Claude Code
+session working on it, or opening a pull request from one of its branches, follows these rules on
+top of everything above. Read `build/ars_pipeline/ti/PORTING.md` first; it is the porting contract.
+
+**Branches.** One stage per branch, named `feat/ars-ti/g<group>-<nn>-<slug>` (`g0-01-ti-namespace`,
+`g1-03-portfolio`), each based on the previous stage so the pull requests stack in order. Open the
+PRs in that order and say in each which branch it is based on; a later PR is merged only after the
+one before it. Do not rebase a stage someone else's branch is based on.
+
+**What a Transaction Intelligence PR may touch.** `build/ars_pipeline/ti/`, `ti_build.py`,
+`build_ti_gen.py`, `scripts/ti_parity.py`, `tests/test_ti_*.py`, `docs/migration/DUPLICATES.md`, the
+`ti/` lines of the file map in `CLAUDE.md`, and a `CHANGELOG.md` entry. A port copies v5's logic
+unchanged (PORTING.md rule 1); a change to what a figure computes is its own PR.
+
+**What it must not touch.** The ARS, ICS, MRPC and CashPlease builders, `metrics_gen`, the template
+shells, `validation/`, `clients.md`, the shared layer in `build/` (`brand`, `shapes`, `periods`,
+`month_complete`, `cover_divider`, `fit_layout`) and the opt-in James views. Where a ported slide
+overlaps one of those, both are kept and the overlap is a row in `DUPLICATES.md`, never a
+replacement (James, 2026-10-22: "make sure not to overwrite any of the aaron analysis").
+
+**The names Sheila's button depends on.** `scripts/ars_launcher.py` (`ti_checks`, `build_ti`) and
+`tests/test_ti_launcher.py` read these; renaming or reshaping any of them breaks the button, so
+change the launcher and its tests in the same PR and say so in the description:
+
+| Name | What the launcher reads it for |
+| --- | --- |
+| `ti_build.py <id> <period> <name> <out dir> [--ics]` | the build; it writes a deck per lens into `<out dir>` and exits 0 |
+| `ti.cut.CHAPTERS`, `.title` | "nothing to build" until the first chapter registers itself here |
+| `ti.cut.deck_name` and the `TI` file tag | the deck's name; `TI` is never a program tag |
+| `ti.txn_stage._is_txn_name`, `in_window`, `loader.file_date` | the transaction months on hand, from file names |
+| `ti.lens.ics_list_files` | the ICS lens's lists |
+| `ti.config.config_path`; `ars_code_tables.json` | the client's codes |
+
+**A chapter registers itself in `ti.cut.CHAPTERS`** in its own PR, with its `compute`, its slides,
+its `DUPLICATES.md` rows and a parity run (`scripts/ti_parity.py`) against v5's own figures quoted
+in the PR. Until a chapter is registered Sheila says "No chapter ... is ported yet" and builds
+nothing, by design.
+
+**Inputs.** Only through `rpe_env`: the ODD via `ti/odd.py`, transaction files via
+`rpe_env.txn_files()` / `open_txn()` (landed by `scripts/land_txn_files.py`; never written by a
+port), the ICS lists via `rpe_env.input_dir`. No path, client id or client name in code.
+
+**Tests.** Port v5's tests beside each module as `tests/test_ti_<module>.py`; they run under pandas
+2's string semantics through the fixture in `tests/conftest.py` and must pass on the CI runner
+with an empty data root. Run `tests/test_ti_launcher.py` too whenever a name in the table above
+moves. The whole suite takes about twelve minutes.
+
+**In the PR description**, besides the general points below: which stage this is and its base
+branch; the chapter or module ported and its v5 path and commit; the parity result; every new
+`DUPLICATES.md` row; and whether any name in the table above changed.
+
 ## What not to run
 
 | Do not run | Why |
