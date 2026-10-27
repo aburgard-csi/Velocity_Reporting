@@ -131,6 +131,13 @@ def mailer_summary(ctx):
     return _section("mailer_summary")(ctx)
 
 
+def mailer_detail(ctx):
+    """v5's mailer detail: per-month swipes and spend from 12 months before to 36 after each completed
+    wave, by the ODD's own segmentation band and by challenge segment, responders against that
+    segment's own non-responders."""
+    return _section("mailer_detail")(ctx)
+
+
 def leaks(ctx, figures=None):
     """v5's post-passes, in v5's order (metrics.compute after SECTIONS): `leaks.compute` finds the
     segments holding more of the eligible base than of the cards or opt-ins, from the dctr and rege
@@ -152,6 +159,7 @@ PARITY = {
     "leaks": ("metrics.json", leaks),
     "mailer": ("metrics.json", mailer),
     "mailer_summary": ("metrics.json", mailer_summary),
+    "mailer_detail": ("metrics.json", mailer_detail),
     "value": ("metrics.json", value),
     "interchange_odd": ("metrics.json", interchange_odd),
     "rege": ("metrics.json", rege),

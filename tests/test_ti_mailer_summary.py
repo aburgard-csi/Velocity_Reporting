@@ -35,7 +35,6 @@ def _metrics(anchor="Jul26", drop_segmentation=False, blank_resp=0.0):
     return m
 
 
-@__import__("pytest").mark.skip(reason="reads mailer_detail's figures: switches on with G9-03")
 def test_responder_grid_survives_without_swipe_segmentation():
     """The challenge-tier grid must not be gated on the swipe-category
     segmentation it never uses.
