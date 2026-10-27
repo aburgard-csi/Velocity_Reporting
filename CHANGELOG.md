@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — Slide Review: CSMs vote keep, delete or appendix on any deck's slides
+
+Summary: Sheila has a new Slide Review tab where a CSM votes Keep, Delete or Appendix on each slide of any deck in Outputs, and a Summary that counts the votes across clients.
+
+Aaron, 2026-10-27: "an evaluation process for all of the decks so the CSM can vote whether to keep or delete a slide, or to add it to an appendix." **Review**: pick a client and one of their decks in Outputs for the cycle (Executive Review, Transaction Intelligence, ARS Companion), vote on each slide, add a comment; votes are saved as you click and can be changed. **Summary**: one row per slide across clients, most Delete votes first, with clients, voters and comments, filterable by deck family, with an Export CSV. A vote is its own small file under `Build Artifacts/slide_votes/` (so several CSMs voting at once never overwrite each other); the newest vote per voter and slide wins. A slide is matched by its title with the client's name and figures taken out, never by its number. A vote is checked against the deck as it is in Outputs now, so a rebuilt deck refuses a stale page's vote. `scripts/slide_votes.py`, `scripts/slide_review_ui.py`, `tests/test_slide_votes.py`.
+
 ### 2026-10-26 — Transaction Intelligence: three headlines that misstated their figures
 
 Summary: Three Transaction Intelligence headlines were wrong, all found reviewing 1776 CoastHills CU's
