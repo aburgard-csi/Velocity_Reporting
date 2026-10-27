@@ -87,6 +87,11 @@ def _two_tokens(text: str) -> str:
     for tok in text.split(" "):
         if not tok or tok in _NOISE_TOKENS or tok.isdigit():
             continue
+        # RPE: a word repeated straight after itself is the processor's prefix, not the name:
+        # 1776's "WAL Wal-Mart Super 210845" keyed as "WAL WAL", split from "WAL MART", and read
+        # as a faded merchant on its own slide (2026-10-26)
+        if kept and tok == kept[-1]:
+            continue
         # drop store-number suffixes glued to a word: "SHAWS1598" stays, "#2671" went with punctuation
         kept.append(tok)
         if len(kept) == 2:

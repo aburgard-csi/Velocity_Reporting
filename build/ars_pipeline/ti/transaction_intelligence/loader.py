@@ -33,7 +33,7 @@ import pandas as pd
 
 from .merchant import merchant_key
 
-CACHE_VERSION = 6  # v6: QUOTE_NONE -- every v5 cache was parsed with quoting on
+CACHE_VERSION = 7  # v7: merchant_key drops a doubled prefix (RPE, 2026-10-26); v6: QUOTE_NONE -- every v5 cache was parsed with quoting on
                    # bump when the cached frame's columns OR the parse change
 
 COLUMNS = ["transaction_date", "primary_account_num", "transaction_type", "amount",

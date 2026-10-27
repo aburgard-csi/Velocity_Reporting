@@ -93,8 +93,93 @@ def ics(ctx):
     return _section("ics")(ctx)
 
 
+def dctr(ctx):
+    """v5's debit take-rate section. Ported for the figures value and leaks read; its own slides
+    (v5's debit chapter) are not part of the cut."""
+    return _section("dctr")(ctx)
+
+
+def rege(ctx):
+    """v5's Reg E section. Ported for the figures value and leaks read; its own slides (v5's Reg E
+    chapter) are not part of the cut."""
+    return _section("rege")(ctx)
+
+
+def interchange_odd(ctx):
+    """v5's ODD interchange section (PIN / signature split, priced at ICRate with SigPinPremium).
+    Named apart from the transaction file's `interchange` (ti/txn_sections.py). v5 draws no slide
+    from it; the value math and the cut's reconciliation read it."""
+    return _section("interchange")(ctx)
+
+
+def value(ctx):
+    """v5's value section: what a debit card and a Reg E opt-in are each worth per account a year,
+    by tenure, response group and branch, priced at ICRate and NSF_OD_Fee (filled from the workbook
+    when the config is blank). Its post-pass `apply_to_leaks` runs with leaks."""
+    return _section("value")(ctx)
+
+
+def mailer(ctx):
+    """v5's mailer section: per-offer mailed / responded / rate, reach and depth, the responder
+    profile, organic vs program activation, and before / after spend with the net lift."""
+    return _section("mailer")(ctx)
+
+
+def mailer_summary(ctx):
+    """v5's mailer summary: one record per completed wave, overall and by challenge tier, with the
+    five "Inside the Numbers" stats."""
+    return _section("mailer_summary")(ctx)
+
+
+def mailer_detail(ctx):
+    """v5's mailer detail: per-month swipes and spend from 12 months before to 36 after each completed
+    wave, by the ODD's own segmentation band and by challenge segment, responders against that
+    segment's own non-responders."""
+    return _section("mailer_detail")(ctx)
+
+
+def cohort(ctx):
+    """v5's cohort section: every account-wave pair aligned on the mail month, responders against
+    mailed non-responders and the never mailed, lift by difference in differences, tier and segment
+    economics, the over-the-ask distribution, the counterfactual, and (through `ladder`) first-time
+    against repeat response, NU conversion and the penalty box."""
+    return _section("cohort")(ctx)
+
+
+def migration(ctx):
+    """v5's swipe-tier migration: each eligible cardholder's tier 12 months ago and now (trailing
+    3-month average), up / same / down, the then-to-now matrix, monthly movement, non-users who started
+    swiping, and the same by response group."""
+    return _section("migration")(ctx)
+
+
+def leaks(ctx, figures=None):
+    """v5's post-passes, in v5's order (metrics.compute after SECTIONS): `leaks.compute` finds the
+    segments holding more of the eligible base than of the cards or opt-ins, from the dctr and rege
+    figures, then `value.apply_to_leaks` prices them. `figures` is what those sections already
+    returned; without it they are computed here."""
+    from ti.monthly_analysis import leaks as _leaks, value as _value
+    m = dict(figures) if figures is not None else {**dctr(ctx), **rege(ctx), **value(ctx)}
+    # the account bases sit in v5's metrics before any section runs: the debit half reads
+    # n_eligible from them, and without it leaks skips that half without a word
+    m = {**ctx.subsets.sizes(), **m}
+    out = _leaks.compute(m, ctx.config, ctx.warn)
+    out.update(_value.apply_to_leaks({**m, **out}))
+    return out
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
+    "dctr": ("metrics.json", dctr),
+    "leaks": ("metrics.json", leaks),
+    "mailer": ("metrics.json", mailer),
+    "mailer_summary": ("metrics.json", mailer_summary),
+    "mailer_detail": ("metrics.json", mailer_detail),
+    "cohort": ("metrics.json", cohort),
+    "migration": ("metrics.json", migration),
+    "value": ("metrics.json", value),
+    "interchange_odd": ("metrics.json", interchange_odd),
+    "rege": ("metrics.json", rege),
     "retention": ("metrics.json", retention),
     "lifecycle": ("metrics.json", lifecycle),
     "attrition": ("metrics.json", attrition),

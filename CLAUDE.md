@@ -970,7 +970,9 @@ This is the readme index — update it whenever files are added, removed, or mov
   (`lens.ics_list_files`). `ti_to_outputs` files the decks beside the RPE deck and supersedes
   only their own names; `decks_in_outputs` never counts a TI deck as the period's RPE deck and
   an RPE build never archives one (`is_ti_deck`). `tests/test_ti_launcher.py` pins all of it,
-  so a change to any of those names is a change to the launcher too. `ti/PORTING.md` holds the porting
+  so a change to any of those names is a change to the launcher too.
+  Past five agenda rows (chapters + Questions) `build_ti_gen` keeps
+  each chapter's heading and drops its detail line, which no longer fits. `ti/PORTING.md` holds the porting
   rules; `ti/compat.py` runs the ported code under v5's pandas 2 semantics inside a with-block, never
   process-wide (entry points and `test_ti_*` only); `ti/context.py` is the `Ctx` every computation
   is handed, shared by the build and the parity check; `ti/core/` the v5 foundation modules (periods, ODD transform, account bases, facts);
@@ -990,12 +992,19 @@ This is the readme index — update it whenever files are added, removed, or mov
   `ti/txn_sections.py` is v5's transaction run one section at a time, in v5's order;
   `ti/dictionaries/` the three reference dictionaries the transaction analyses classify against
   (competitors, financial-service patterns, merchant categories; copied from v5 `0_Config/`).
-  `ti/chapters/` holds the cut's five chapters in deck order (Transaction Intelligence, Competition,
-  Attrition, Deposits, ICS accounts); `ti/chapters_txn.py` computes and builds the first two;
+  `ti/chapters/` holds the cut's eight chapters in deck order (Transaction Intelligence, Competition,
+  Attrition, Deposits, ICS accounts, Economics, Value, Campaign); `ti/chapters_txn.py` computes and
+  builds the first two; `ti/deck/economics_inline.py`, `value_inline.py` and `campaign_inline.py` hold
+  v5's economics, value and campaign slides, lifted out of v5's build function
+  (`ti/deck/migration_slides.py` is v5's tier-matrix module); `tests/ti_v5_harness.py` stands in for v5's
+  whole-month test harness; `ti/slides.json` sets every chapter and slide of the cut to "keep" or
+  "toss" and `ti/selection.py` reads it (how the DUPLICATES overlaps get settled);
   `ti/odd_sections.py` runs v5's ODD sections; `ti/deposits_input.py` reads the client's own
   `Inputs/Deposits` file; `ti/workbook.py` is v5's ARS Workbook reader (`wb_*`: P&L, offers, Lift
   Matrix, rates) and `ti/workbook_input.py` finds the client's workbook by `build_month`'s rule and
-  fills a blank `ICRate` / `NSF_OD_Fee` from it.
+  fills a blank `ICRate` / `NSF_OD_Fee` from it; `ti/guarantee.py` is v5's 2:1 deferral tracker reader
+  (`gt_*`) and `ti/deferred_input.py` finds the client's tracker in `Inputs/Deferred Billing` and says
+  when it is missing, stale or disagrees with the workbook.
 
 *Standalone ARS tools — run by hand, not part of the deck chain:*
 - `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
