@@ -183,13 +183,15 @@ def card_behaviour_by_lens(h, t, base):
         "The campaign tail, measured on the card itself",
         "responders against mailed non-responders on ticket, frequency and "
         "recurring share"), "Card behaviour by lens")
-    dumb = [["Median ticket", r_[3], c_[3], f"${r_[3]:.2f} vs ${c_[3]:.2f}"],
+    ticket = lambda d: ("+" if d >= 0 else "-") + f"${abs(d):.2f}"
+    dumb = [["Median ticket", r_[3], c_[3], f"${r_[3]:.2f} vs ${c_[3]:.2f}",
+             "${:.2f}", ticket],
             ["Swipes per account per month", r_[4], c_[4],
-             f"{r_[4]} vs {c_[4]}"],
+             f"{r_[4]} vs {c_[4]}", "{:.1f}", "{:+.1f}"],
             ["Recurring share of swipes", r_[5], c_[5],
-             f"{r_[5]:.1f}% vs {c_[5]:.1f}%"]]
+             f"{r_[5]:.1f}% vs {c_[5]:.1f}%", "{:.1f}%", "{:+.1f} pts"]]
     path = h["chart"]("beh_by_lens", charts.dumbbell, dumb, "responders",
-                      "mailed non-responders")
+                      "mailed non-responders", own_scale=True)
     if path:
         h["chart_left"](s, path, top, RAIL_EDGE)
 
