@@ -11,7 +11,7 @@ from matplotlib.patches import Patch
 from PIL import Image
 from rpe_env import use_font
 
-from brand import (NAVY, ORANGE, STEEL_SOFT as STEEL, LIGHT, TICK,
+from brand import (bar_labels, NAVY, ORANGE, STEEL_SOFT as STEEL, LIGHT, TICK,
                    MUTED as GREY, usd_compact as _usd)
 import periods as P
 P.install_month_axis_guard()   # a month drawn outside MMM'YY fails the render
@@ -26,6 +26,11 @@ def canvas(fig, CW, CH, path, pad=0.12):
 def clean(ax):
     for sp in ("top","right","left"): ax.spines[sp].set_visible(False)
     ax.spines["bottom"].set_color(GREY); ax.tick_params(colors=TICK,length=0); ax.set_axisbelow(True)
+
+def slot_in(fig,ax):
+    """Inches between neighbouring bar centres: the axes' width over its x range. Read after the
+    bars and set_xlim, so a value label can be measured against the room it really has."""
+    lo,hi=ax.get_xlim(); return ax.get_position().width*fig.get_figwidth()/(hi-lo)
 
 def bars_last_orange(ax,x,v):
     return ax.bar(x,v,color=[ORANGE if i==len(v)-1 else NAVY for i in range(len(v))],width=0.66)
@@ -155,9 +160,10 @@ def _monthly_bar(d,key,out,per_account):
     m=d["monthly_detail"]; mo=m["months"]; x=np.arange(len(mo))
     vals=_per_acct_month(d,key) if per_account else m[key]
     fig,ax=plt.subplots(figsize=(11.5,5.6)); bars_last_orange(ax,x,vals)
-    fmt=(lambda v:f"${v:,.2f}") if per_account else (lambda v:f"${v:,.0f}")
-    for i,v in enumerate(vals): ax.text(i,v+max(vals)*0.02,fmt(v),ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
     ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA); ax.set_ylim(0,max(vals)*1.15); ax.get_yaxis().set_visible(False); clean(ax)
+    # full figures unless twelve cohorts of them would run together, then $12.3K for all (2026-10-26)
+    labels=bar_labels(vals,slot_in(fig,ax),pt=16,cents=per_account)
+    for i,v in enumerate(vals): ax.text(i,v+max(vals)*0.02,labels[i],ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
     canvas(fig,1815,1000,out)
 
 def c_composition(d,out):
@@ -166,8 +172,9 @@ def c_composition(d,out):
             (m["nsf_od"],STEEL,"NSF/OD Fees"),(m["other_fees"],LIGHT,"Other Fees")]
     fig,ax=plt.subplots(figsize=(11.5,5.6)); b=np.zeros(len(mo))
     for vals,c,lab in series: ax.bar(x,vals,bottom=b,color=c,width=0.66,label=lab); b=b+np.array(vals)
-    for i,t in enumerate(b): ax.text(i,t+max(b)*0.02,f"${t:,.0f}",ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
     ax.set_xticks(x); ax.set_xticklabels(P.axis_months(mo),fontsize=13,color=TICK,rotation=P.AXIS_ROTATION,ha=P.AXIS_HA); ax.set_ylim(0,max(b)*1.16); ax.get_yaxis().set_visible(False); clean(ax)
+    labels=bar_labels(list(b),slot_in(fig,ax),pt=16)
+    for i,t in enumerate(b): ax.text(i,t+max(b)*0.02,labels[i],ha="center",va="bottom",color=NAVY,fontsize=16,fontweight="bold")
     ax.legend(loc="upper center",bbox_to_anchor=(0.5,1.12),ncol=4,frameon=False,fontsize=16)
     canvas(fig,1815,1000,out)
 
