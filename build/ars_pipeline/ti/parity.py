@@ -40,9 +40,22 @@ def _bases(c):
     return out
 
 
+def _workbook(c):
+    """v5's reader on the very workbook v5's run read: found by v5's own `find_workbook` in v5's
+    `01-Data`, the run folder being `03-Output/<yyyy-mm>/<id>`. Not a frame computation, so the
+    frame plays no part; a difference here is the reader's."""
+    from ti import workbook
+    run = Path(c.source_dir)
+    path = workbook.find_workbook(run.parents[2] / "01-Data", c.client_id or run.name, run.parent.name)
+    if path is None:
+        raise SystemExit(f"no workbook under v5's 01-Data for {run.name} {run.parent.name}")
+    return workbook.read(path, c.warn)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict)
 REGISTRY = {
     "bases": ("metrics.json", _bases),
+    "workbook": ("metrics.json", _workbook),
     "portfolio": ("txn_metrics.json", lambda c: _txn().portfolio(c)),
     "financial_services": ("txn_metrics.json", lambda c: _txn().financial_services(c)),
     "merchants": ("txn_metrics.json", lambda c: _txn().merchants(c)),
@@ -181,5 +194,7 @@ def run(v5_dir, config: dict, names=None, client_id=None):
         if source == "txn_metrics.json" and ctx.txn is None:
             continue
         theirs = json.loads((Path(v5_dir) / source).read_text(encoding="utf-8"))
+        if name == "workbook" and not theirs.get("wb_found"):
+            continue                    # v5's run read no workbook, so there is nothing to match
         out[name] = compare(fn(ctx), theirs)
     return out

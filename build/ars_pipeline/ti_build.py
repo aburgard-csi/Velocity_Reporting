@@ -74,6 +74,9 @@ def compute_pack(client_id, period, name, ics=False):
     cfg = config.client_config(client_id, warn=warnings.append)
     from ti import deposits_input
     cfg = deposits_input.attach(cfg, client_id, warnings.append)
+    # the workbook first, as in v5's run: its rates feed the value math (ti/workbook_input.py)
+    from ti import workbook_input
+    cfg, wb = workbook_input.attach(cfg, client_id, period, warnings.append)
     if ics:
         frame = lens.attach_ics(frame, client_id, warnings.append, expected=True)
     anchor = odd.frame_data_month(frame)
@@ -82,7 +85,7 @@ def compute_pack(client_id, period, name, ics=False):
     subsets = build_subsets(frame, cfg, anchor)
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
-    metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes()}
+    metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb}
     attach_txn(ctx, warnings)
     if ctx.txn_report is not None:
         metrics.update({"txn_files_loaded": ctx.txn_report.files, "txn_rows": ctx.txn_report.rows,
