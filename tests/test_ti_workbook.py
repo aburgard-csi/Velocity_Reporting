@@ -24,7 +24,6 @@ _LATER = {
     "test_revenue_frames_skips_without_did": "G9-07 (shared campaign slides)",
     "test_hero_declines_when_a_workbook_was_found_but_gave_no_profit": "G9-07 (shared campaign slides)",
     "test_hero_keeps_the_odd_frame_when_the_client_has_no_workbook": "G9-07 (shared campaign slides)",
-    "test_value_survives_an_empty_eligible_base": "G8-03 (value)",
     "test_report_revenue_frames_block": "v5's text report, which is not migrated",
 }
 
@@ -291,7 +290,6 @@ def test_report_revenue_frames_block():
     assert "incremental revenue" not in text
 
 
-@_later
 def test_value_survives_an_empty_eligible_base():
     """1780 (#47 run 2): zero eligible accounts made value.compute throw
     ZeroDivisionError instead of declining gracefully. Empty base ->
