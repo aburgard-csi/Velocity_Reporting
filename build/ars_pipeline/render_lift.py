@@ -5,7 +5,7 @@
 Aaron, 2026-09-16: the two plain tables became a chart in the house style.
   * Left, the Lift Matrix as a heat grid: starting tier down the rows, tier now across the columns,
     one navy ramp (COLD_RAMP) light to dark. A move that cannot happen (a lower tier than the start)
-    is a dash, never a blank or $0. The example the slide caption walks through is outlined orange.
+    is a dash, never a blank or $0. No cell is outlined: the orange box that marked the caption's example was removed (Aaron, 2026-10-27).
   * Right, the Revenue Segmentation block as bars: monthly value per card account by tier, with its
     share of card accounts. The tier with the largest share is orange.
 
@@ -64,7 +64,6 @@ def render(L, out):
     cols = [tier_label(c) for c in L["matrix_cols"]]
     rows = L["matrix_rows"]
     vmax = max(v for r in rows for v in r[1:] if isinstance(v, (int, float)))
-    _, _, ei, ej, _ = example_move(L)
 
     fig = plt.figure(figsize=(12.7, 3.9), dpi=200)
     fig.patch.set_facecolor("white")
@@ -86,7 +85,6 @@ def render(L, out):
             ax.add_patch(Rectangle((j + 0.04, i + 0.06), 0.92, 0.88, facecolor=ramp[shade], edgecolor="none"))
             ax.text(j + 0.5, i + 0.5, f"${v:,.2f}", ha="center", va="center", fontsize=fs, fontweight="bold",
                     color=WHITE if shade <= 4 else NAVY)
-    ax.add_patch(Rectangle((ej + 0.02, ei + 0.03), 0.96, 0.94, facecolor="none", edgecolor=ORANGE, lw=3.2))
     for j, c in enumerate(cols):
         ax.text(j + 0.5, -0.18, c, ha="center", va="bottom", fontsize=fs, color=NAVY, fontweight="bold")
     ax.text(-0.12, -0.18, "From ↓   To →", ha="right", va="bottom", fontsize=11.5, color=TICK)

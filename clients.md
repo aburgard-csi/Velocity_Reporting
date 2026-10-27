@@ -262,6 +262,84 @@ rule that governs CoastLife's ICS folder and PointBank's ODD extract.
 
 ---
 
+## ILS roster — which clients are on ILS
+
+**ILS is tracked here, not built (Aaron, 2026-10-27: "Start tracking ILS in the roster too. You can check my clients for ILS analysis reviews").** ILS has no monthly Executive Review deck: its analysis review prep slides are hand-run (the `ils-prep-deck` skill), and CashPlease slides ride in the client's own RPE deck, not the ILS deck. Nothing reads this table to build; it records who is on ILS so a client is never reported missing, or an ILS review forgotten, for want of a row. It lists Aaron's clients that have ILS in the Velocity export (`Client CSM List.csv`, `products`, 2026-10-27); other CSMs' ILS clients are added when they ask.
+
+| ID | Client | CSM | Other Velocity products |
+| --- | --- | --- | --- |
+| 1012 | Centier Bank | Aaron Burgard | — |
+| 1044 | Trustmark Bank | Aaron Burgard | ILS TIS |
+| 1048 | City National Bank of West Virginia | Aaron Burgard | — |
+| 1070 | The American National Bank of Texas | Aaron Burgard | — |
+| 1072 | Tri Counties Bank | Aaron Burgard | — |
+| 1075 | Austin | Aaron Burgard | ARS, ICS, MRPC, Reg E Management |
+| 1114 | Alabama Credit Union | Aaron Burgard | — |
+| 1125 | Randolph-Brooks Federal Credit Union | Aaron Burgard | — |
+| 1131 | Peoples Bank of Alabama | Aaron Burgard | CashPlease, Reg E Management |
+| 1173 | Heritage Bank | Aaron Burgard | Reg E Management, Professional Services |
+| 1174 | Pointbank | Aaron Burgard | ICS |
+| 1178 | FNB Community Bank | Aaron Burgard | — |
+| 1179 | Lge Community Credit Union | Aaron Burgard | — |
+| 1180 | Community First Credit Union Of Flo | Aaron Burgard | — |
+| 1183 | The First State Bank | Aaron Burgard | — |
+| 1191 | First Merchants Bank | Aaron Burgard | Reg E Management |
+| 1203 | Merchants & Marine Bank | Aaron Burgard | — |
+| 1204 | First State Bank-MI | Aaron Burgard | ARS |
+| 1209 | Old Second National Bank | Aaron Burgard | — |
+| 1218 | Ideal Credit Union | Aaron Burgard | MRPC |
+| 1222 | Educational Employees Credit Union | Aaron Burgard | — |
+| 1224 | Wilson Bank and Trust | Aaron Burgard | Reg E Management |
+| 1245 | Northwest Bank | Aaron Burgard | Reg E Management |
+| 1247 | BankPlus | Aaron Burgard | — |
+| 1410 | Provident Bank | Aaron Burgard | Professional Services |
+| 1437 | Canandaigua | Aaron Burgard | ARS, MRPC, Professional Services |
+| 1439 | Horizon Bank NA | Aaron Burgard | ARS, ICS, MRPC |
+| 1459 | Chemung Canal Trust Company | Aaron Burgard | — |
+| 1465 | Kearny Bank | Aaron Burgard | — |
+| 1508 | First State Bank | Aaron Burgard | — |
+| 1509 | Texas Bay Credit Union | Aaron Burgard | ARS, ICS |
+| 1535 | VeraBank, National Association | Aaron Burgard | — |
+| 1537 | Brooks Bank | Aaron Burgard | ARS, ICS, Account Engagement, Professional Services |
+| 1538 | Georgia United Credit Union | Aaron Burgard | — |
+| 1539 | Marine FCU | Aaron Burgard | ARS, ICS, MRPC, CashPlease, Reg E Management |
+| 1544 | Achieva Credit Union | Aaron Burgard | — |
+| 1549 | Wellworth Bank | Aaron Burgard | ARS, ICS, Account Engagement, Reg E Management |
+| 1553 | University Of Kentucky Federal Credit Union | Aaron Burgard | — |
+| 1556 | Vantage Bank Texas | Aaron Burgard | — |
+| 1564 | OneUnited Bank | Aaron Burgard | CashPlease, Reg E Management |
+| 1566 | Peoples Bank | Aaron Burgard | CashPlease, Reg E Management |
+| 1570 | Bank of Botetourt | Aaron Burgard | — |
+| 1579 | Classic Bank, National Association | Aaron Burgard | — |
+| 1607 | The Paducah Bank and Trust Company | Aaron Burgard | — |
+| 1632 | WesBanco | Aaron Burgard | ICS, CashPlease, Account Engagement, Reg E Management |
+| 1635 | Mid Minnesota Federal Credit Union | Aaron Burgard | — |
+| 1658 | Truliant Federal Credit Union | Aaron Burgard | Reg E Management |
+| 1668 | First Arkansas Bank and Trust | Aaron Burgard | — |
+| 1670 | Broadview Federal Credit Union | Aaron Burgard | Reg E Management |
+| 1676 | True Sky CU | Aaron Burgard | ARS, ICS, Account Engagement |
+| 1677 | Mutual Federal Credit Union | Aaron Burgard | Professional Services |
+| 1705 | CoastLife Credit Union | Aaron Burgard | ARS |
+| 1708 | SouthState Bank, National Association | Aaron Burgard | — |
+| 1728 | Midland States Bank | Aaron Burgard | CashPlease |
+| 1734 | Altamaha Bank | Aaron Burgard | ICS, CashPlease |
+| 1750 | All In Federal Credit Union | Aaron Burgard | CashPlease |
+| 1754 | Lion's Share Federal Credit Union | Aaron Burgard | — |
+| 1771 | Copper State Credit Union | Aaron Burgard | CashPlease |
+| 1781 | Dannemora Federal Credit Union | Aaron Burgard | CashPlease |
+| 1821 | Bank of Frankewing | Aaron Burgard | — |
+| 1828 | New Frontier Bank | Aaron Burgard | ARS, CashPlease |
+| 1829 | Peoples Bank & Trust Co. | Aaron Burgard | ARS, CashPlease |
+| 1830 | Exchange Bank Co. | Aaron Burgard | ARS, CashPlease |
+| 1831 | Peoples Bank Co. | Aaron Burgard | ARS, CashPlease |
+| 1833 | Green Country Federal Credit Union | Aaron Burgard | CashPlease |
+| 1839 | Bank First, N.A. | Aaron Burgard | — |
+| 1841 | Citadel Federal Credit Union | Aaron Burgard | — |
+
+ILS was not added as a column of the main table: that table is read by position, and ILS never changes what is built. 1585 First Community Bank of the Heartland is on ILS too, but is James Gilmore's, so it is not in this table.
+
+---
+
 ## Status changes
 
 - **2026-10-15 — ICS added for every client with a new direct mail list** (Aaron: "List any client with a new direct mail list as having ICS"). The data team landed `Inputs/ICS Direct Mail/` with a 2026.10 list for 43 clients. 17 active-table rows gain ICS (1217, 1487, 1542, 1615, 1637, 1652, 1673, 1680, 1745, 1746, 1759, 1761, 1765, 1766, 1780, 1799, 1800) and their deck tag gains ICS; 1657 Marine Credit Union, ICS-only since 2026-09-15, now builds; 18 clients join the ICS-only table. None of them has a VIP sheet or a referral export: the five with a 2026.10 ICS workbook (1542, 1680, 1746, 1759, 1800 among the ARS clients; 1710, 1808, 1816, 1826 ICS-only) build the workbook-only shape with the Direct Mail slide, and the rest build no ICS section until a current workbook or a referral source lands — CSM Sheila says so per client rather than guessing.
