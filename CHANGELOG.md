@@ -21,11 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — 1585 First Community Bank of the Heartland added to the roster
+
+Summary: 1585 First Community Bank of the Heartland now appears in CSM Sheila and builds an ARS deck with its CashPlease section; it was missing from the roster.
+
+James Gilmore, 2026-10-27, from Sheila: "1585 - ARS + CP + ILS - missing". The client has an ARS workbook, a DCO, a CashPlease tab (1,324 loans) and James as CSM, but no row in clients.md, so nothing built it. Added to the main table (MM path, ARS) and the CashPlease roster (ARS-CP section). ILS has no monthly deck and is not tracked in this file. 1766 Fort Sill FCU already reads ARS-ICS. The CashPlease summary names 1585 "First Community Bank of Tennessee", which looks like a name mix-up on the data team's side.
+
 ### 2026-10-27 — Sheila's button glow toned down
 
 Summary: The glow and shading around Sheila's action buttons are much subtler; the buttons keep a light highlight and edge and still press down when clicked.
 
-Aaron, 2026-10-27, from a screenshot: uttons glow too much, let's tone it down. The coloured glow went from a 16 px blur at 38-42% to a 6 px blur at 16-18%, and the highlight and edge shading were halved. Colours, press movement and hover are unchanged.
+Aaron, 2026-10-27, from a screenshot: "buttons glow too much, let's tone it down". The coloured glow went from a 16 px blur at 38-42% to a 6 px blur at 16-18%, and the highlight and edge shading were halved. Colours, press movement and hover are unchanged.
 
 ### 2026-10-27 — Sheila redraws a client's buttons and verdicts when a build finishes
 
