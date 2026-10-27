@@ -93,8 +93,22 @@ def ics(ctx):
     return _section("ics")(ctx)
 
 
+def dctr(ctx):
+    """v5's debit take-rate section. Ported for the figures value and leaks read; its own slides
+    (v5's debit chapter) are not part of the cut."""
+    return _section("dctr")(ctx)
+
+
+def rege(ctx):
+    """v5's Reg E section. Ported for the figures value and leaks read; its own slides (v5's Reg E
+    chapter) are not part of the cut."""
+    return _section("rege")(ctx)
+
+
 # name -> (v5 figures file, compute(ctx) -> dict); merged into ti.parity.REGISTRY
 PARITY = {
+    "dctr": ("metrics.json", dctr),
+    "rege": ("metrics.json", rege),
     "retention": ("metrics.json", retention),
     "lifecycle": ("metrics.json", lifecycle),
     "attrition": ("metrics.json", attrition),
