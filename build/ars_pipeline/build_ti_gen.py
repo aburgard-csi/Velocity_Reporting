@@ -128,6 +128,7 @@ def adapt_shell(prs, pack, ln, chapters, art_dir=None):
         f"Source: the {cut.CUT_NAME} cut's chapter list, {ln.label} (static). No figures.")
 
     _set_closing_line(found["questions"], f"{name}  •  {month}")
+    CD.redraw_closing_in_place(found["questions"])     # the brand template's closing style, keeping that line
 
     import rpe_env
     from shapes import fill_contact_card
