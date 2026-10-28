@@ -28,7 +28,8 @@ from . import polish
 from ils_pipeline.core import layout
 
 NAVY = RGBColor(0x00, 0x27, 0x4C)
-ORANGE = RGBColor(0xF1, 0x5D, 0x22)
+import brand
+ORANGE = brand.ORANGE_RGB       # v5 wrote the same orange as a literal; RPE keeps colour in brand.py
 GREY = RGBColor(0x5A, 0x66, 0x70)
 TINT = RGBColor(0x9D, 0xB8, 0xD2)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)

@@ -26,7 +26,8 @@ import matplotlib.pyplot as plt
 # went unnoticed through every deck that shipped --
 # test_palette_matches_csi_brand pins them now.
 NAVY = "#00274C"
-ORANGE = "#F15D22"
+import brand
+ORANGE = brand.ORANGE           # v5 wrote the same orange as a literal; RPE keeps colour in brand.py
 GREY = "#5B6770"      # brand.py; was one hex digit off
 DPI = 150   # 200 was ~2x slower for no visible gain at slide size
 
