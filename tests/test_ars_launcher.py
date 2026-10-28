@@ -411,6 +411,21 @@ def test_the_data_teams_filename_flag_stops_the_build_even_inside_the_window(mon
     assert levels(checks) == [L.STOP] and "LM EXPIRED" in checks[0][1]
 
 
+ENDING = {"window": "Sep 2025 – Aug 2026", "data_date": "Aug 2026", "window_end": "Aug 2026", "data_past_end": False, "in_window": True}
+NEXT_MONTH = {**ENDING, "window": "Oct 2025 – Sep 2026", "window_end": "Sep 2026"}
+LATER = {**ENDING, "window": "Nov 2025 – Oct 2026", "window_end": "Oct 2026"}
+
+
+def test_a_lift_matrix_window_ending_this_month_or_next_warns(monkeypatch):
+    """Aaron, 2026-10-28: the build goes ahead, and the CSM sees the next Lift Matrix is due."""
+    for w in (ENDING, NEXT_MONTH):
+        _lift(monkeypatch, r"x\1780-2026.09-USF CU-Workbook_v2_1_0.xlsx", w)
+        checks = L.lift_checks("1780", "2026.09", MM_ROSTER)
+        assert levels(checks) == [L.WARN] and "the next workbook is due" in checks[0][1] and w["window_end"] in checks[0][1]
+    _lift(monkeypatch, r"x\1780-2026.09-USF CU-Workbook_v2_1_0.xlsx", LATER)
+    assert levels(L.lift_checks("1780", "2026.09", MM_ROSTER)) == [L.OK]
+
+
 def test_a_current_lift_matrix_passes_and_sm_clients_are_not_checked(monkeypatch):
     _lift(monkeypatch, r"x\1780-2026.09-USF CU-Workbook_v2_1_0.xlsx", CURRENT)
     assert levels(L.lift_checks("1780", "2026.09", MM_ROSTER)) == [L.OK]

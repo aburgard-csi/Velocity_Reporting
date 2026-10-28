@@ -21,6 +21,24 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — Sheila's client page is three cards, not three walls of text
+
+Summary: A client's page in Sheila now shows one card per presentation (Executive Review, Transaction
+Intelligence, ARS Companion) with a state chip, one line on the last build with a link to open the deck,
+the checks that need attention, and a short Build or Rebuild button. Checks that passed are folded under
+"N checks passed". A Lift Matrix whose window ends this month or next now shows a warning that the next
+workbook is due. Nothing about what the buttons do changed.
+
+Aaron, 2026-10-28: "this page is hard to follow because there's so much text". Each panel said "in Outputs"
+three times (a BUILT row, a verdict box and a last-build line), carried instruction text on every visit and
+a button label with the product list inside it. `deckCard` in `ars_launcher_web.py` draws every card;
+STOP and WARN rows stay visible, OK and BUILT rows fold into a `<details>`; the button reads Build, Rebuild
+or Retry with the consequence under it, and names its build only when two are on offer (ARS only /
+combined); the product mix is the card's subtitle. "Open the deck" reveals the file by name through
+`reveal_deck` (one link per Transaction Intelligence lens). `lift_checks` adds the WARN when the data month
+is the window's last month or the one before (`_months_between`). `tests/test_sheila_build_panel.py` and
+`tests/test_ars_launcher.py` pin it.
+
 ### 2026-10-28 — Sheila's tabs and chips carry the same light as the buttons
 
 Summary: The header tabs, the reporting-month pill, the status chips (Ready, In Outputs, Sent,

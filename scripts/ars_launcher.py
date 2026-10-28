@@ -466,7 +466,23 @@ def lift_checks(cid, period, roster):
                        f"\"{flag}\"). {fix}")]
     if not w["in_window"]:
         return [(WARN, f"Lift Matrix window is {w['window'] or 'undated'}; the workbook's data is {w['data_date']}.")]
+    # The window ends with this data month or the next: the build is fine, and the next Lift Matrix is
+    # due before it expires (Aaron, 2026-10-28).
+    left = _months_between(w["data_date"], w.get("window_end"))
+    if left is not None and left <= 1:
+        return [(WARN, f"Lift Matrix window ends {w['window_end']}; the next workbook is due. "
+                       f"(window {w['window']}; data {w['data_date']})")]
     return [(OK, f"Lift Matrix: current ({w['window']}; data {w['data_date']})")]
+
+
+def _months_between(a, b):
+    """Whole months from month label a to month label b ("Aug 2026"), or None when either is not one."""
+    import datetime as _dt
+    try:
+        da, db = (_dt.datetime.strptime(str(x), "%b %Y") for x in (a, b))
+    except (TypeError, ValueError):
+        return None
+    return (db.year - da.year) * 12 + db.month - da.month
 
 
 def all_checks(cid, period, row, roster, sent, rebuild=False, combined=False, cp_row=None):
