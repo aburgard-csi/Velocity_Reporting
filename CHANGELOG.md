@@ -29,6 +29,8 @@ James Gilmore, 2026-10-27: port the ILS pre-go-live and kickoff engines from v5,
 
 Stage g11-02: v5's `codes.py`, `field_summary.py` and `system_view.py`, `AnalysisResult` / `Timer` and the atomic writer (`ils_pipeline/core/`), and the needs_codes half of `run.py`: a run without confirmed codes returns the field summary and the vendor dumps' view, computes nothing and writes nothing; a run with codes checks them against the file and stops there until the analysis stages land. Logic unchanged; the default folders come from `pgl_input.py`. `tests/test_ils_pgl_{codes,field_summary,run,system_view}.py`.
 
+Stage g11-03: v5's `bases.py`, the populations every section reads (all, personal, business, open, eligible, opted in), deletion-stamped rows dropped and reported, and the open-status sanity guard. Logic unchanged. The system view landed a stage early, with the needs_codes run. `tests/test_ils_pgl_bases.py`.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
