@@ -13,7 +13,7 @@ ported at `7ba1e63`), each with its own extract and its own deck, each on its ow
 | Engine | v5 | here | Input |
 | --- | --- | --- | --- |
 | Pre-go-live (PGL): reconcile a client's extract against the vendor's system dumps before go-live, board deck | `02-Scripts/ils/pre_go_live/` | `pre_go_live/` | `Inputs/ILS PGL/<id>/` |
-| Kickoff: how the book is made up, where the NSF activity sits, how it is configured | `02-Scripts/ils/kickoff_analysis/` | `kickoff/` (later, its own branches) | to be agreed |
+| Kickoff: how the book is made up, where the NSF activity sits, how it is configured | `02-Scripts/ils/kickoff_analysis/` | `kickoff/` | `Inputs/ILS Kickoff/<id>/` |
 
 Neither engine reads the ODD or pairs with ARS. Neither overlaps `ils-prep-deck`, which reviews a
 client already live on ILS.

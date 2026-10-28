@@ -127,6 +127,12 @@ Stage g11-05: v5's whole `run.py`, `report.py` and `__main__.py` (`python -m ils
 
 Stage g11-06: v5's board deck (`deck.py`, `deck_charts.py`; `--deck`, `--current-only`) on `ils_pipeline/deckkit/`, v5's deckkit facade with only the parts PGL draws: the slide helpers, grid, colours and `DeckResult` from v5's `ars/deck/build.py`, `_clean` / `_save` and the font setup from `ars/deck/charts.py`, `money` from `labels.py`, and `polish.py` whole, each kept line for line. The deck opens RPE's `templates/ars_template.pptx` read only (it asks for one layout, index 0 `BLANK`, which RPE's template carries as v5's does) and lands beside the metrics in `Build Artifacts/ils/PGL/<id>/<yyyymmdd>/`. On 1737 the deck has v5's 13 slides with the same titles, text, tables and shape geometry; the five chart images differ only as matplotlib 3.11 renders them against v5's 3.10. `tests/test_ils_pgl_{deck,deck_charts}.py`.
 
+### 2026-10-27 — ILS kickoff: the extract loader from James's v5, proposed (computes nothing yet)
+
+Summary: A proposal, not agreed: James's v5 ILS kickoff loader is ported to `build/ils_pipeline/kickoff/`, reading a client's one-time data extract from a new input folder, `Inputs/ILS Kickoff/<id>/`. Nothing computes from it yet and no deck, slide or figure changes.
+
+James Gilmore, 2026-10-27, pending Aaron. The first stage of the ILS kickoff engine (v5 `02-Scripts/ils/kickoff_analysis/`, at `7ba1e63`): `kickoff/core/io.py` finds the newest `<id>_OneTimeData_<yyyymmdd>.csv|.xlsx` by the date in its name, maps the export's column spellings to one set of names, refuses two spellings of one column, and reports the open accounts in neither segment, the unconfirmed Reg E mapping and a 100% pay rate rather than guessing them. The logic is v5's unchanged; the only edit is the folder lookup, which v5 took from `01-Data/ILS/{YYYY-MM}/{client}/` and which here is `ils_pipeline/kickoff_input.py`, one folder per client with no month. The new input kind `ILS Kickoff` is in `NOT_SCANNED_KINDS`, so the watcher and `report_dirs()` never look in it. The metrics, workbook and deck are later stages on their own branches; nothing here is wired into a build, the launcher or Sheila. `tests/test_ils_kickoff_loader.py` (v5's loader tests plus the RPE lookup).
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
