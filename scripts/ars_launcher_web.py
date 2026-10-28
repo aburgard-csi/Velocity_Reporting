@@ -2003,6 +2003,10 @@ PAGE = r"""<!doctype html>
   --ok:#1E7F4F; --ok-bg:#E4F3EB; --warn:#9A6212; --warn-bg:#FBF0DC; --sent:#245C8C; --sent-bg:#E6EEF6;
   --stop:#B42318; --stop-bg:#FCE9E7; --focus:#F47A29; --sel:#E9EFF6;
   --dot-ars:#00274C;
+  /* The light on the chips and small buttons (Aaron, 2026-10-28): a highlight along the top edge, shade
+     along the bottom and a line where the chip meets the page, each softer in the dark. */
+  --hi:rgba(255,255,255,.6); --lo:rgba(0,0,0,.08); --touch:rgba(0,0,0,.14);
+  --build:#B4500E; --build-bg:#FDE8DA;
 }
 @media (prefers-color-scheme: dark){:root{
   --ground:#0B1520; --surface:#12202D; --soft:#182A3A; --ink:#E6ECF2; --ink2:#A7B4C1; --ink3:#788796; --rule:#26384A;
@@ -2011,6 +2015,8 @@ PAGE = r"""<!doctype html>
   /* The ARS dot is brand navy, which vanishes on the navy-black ground (Aaron, 2026-10-15:
      "the ARS dot is too hard to see in dark mode"); steel blue here, the same blue the Sent chip uses. */
   --dot-ars:#8FB4DA;
+  --hi:rgba(255,255,255,.09); --lo:rgba(0,0,0,.35); --touch:rgba(0,0,0,.5);
+  --build:#F7A86B; --build-bg:#3A2412;
 }}
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.45 "Segoe UI",Calibri,Arial,sans-serif}
@@ -2029,8 +2035,11 @@ header.top .newsbox .d{color:var(--ink3);font-size:12px;font-variant-numeric:tab
 header.top .newsbox .s{color:var(--ink2);font-size:12.5px;display:block;margin-top:2px}
 header.top .newsbox .all{display:inline-block;margin-top:10px;font-weight:600;color:var(--sent)}
 header.top .loglink{color:#fff;font-size:13.5px;font-weight:600;text-decoration:underline}
-header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px;border:0;cursor:pointer;font-family:inherit}
+header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px;border:0;cursor:pointer;font-family:inherit;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.35),0 4px 12px rgba(244,122,41,.42);
+  transition:box-shadow .12s ease,transform .12s ease,filter .12s ease}
 header.top .period:hover{filter:brightness(1.06)}
+header.top .period:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,.3)}
 header.top .period:focus-visible{outline:2px solid #fff;outline-offset:2px}
 header.top .period .caret{font-size:10px;opacity:.85;margin-left:5px}
 .cycles{position:absolute;top:46px;right:18px;z-index:40;background:var(--surface);border:1px solid var(--rule);
@@ -2067,11 +2076,16 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .legend .pdot{margin-right:4px;vertical-align:-1px}
 .chip.blocked{background:var(--stop-bg);color:var(--stop)}
 .grouphead{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);padding:12px 9px 4px}
-.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap}
+/* The status chips carry the same light as the buttons, scaled to their size: every chip is a tint with
+   the page-level highlight and shade. Building and Error were solid fills until 2026-10-28 (Aaron: "some
+   dark, some light"); they are tints like the rest now, orange and red. */
+.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap;
+  box-shadow:inset 0 1px 0 var(--hi),inset 0 -1px 0 var(--lo),0 1px 1px var(--touch)}
 .chip.sent{background:var(--sent-bg);color:var(--sent)} .chip.out{background:var(--ok-bg);color:var(--ok)}
 .chip.stop{background:var(--stop-bg);color:var(--stop)} .chip.ready{background:var(--ok-bg);color:var(--ok)}
-.chip.queue{background:var(--warn-bg);color:var(--warn)} .chip.building{background:var(--orange);color:#fff}
-.chip.error{background:#C62828;color:#fff}
+.chip.queue{background:var(--warn-bg);color:var(--warn)}
+.chip.building{background:var(--build-bg);color:var(--build)}
+.chip.error{background:var(--stop-bg);color:var(--stop)}
 main{padding:22px 24px;min-height:420px}
 .empty{color:var(--ink2);max-width:60ch}
 .empty h2{color:var(--ink);font-size:18px;margin:0 0 6px}
@@ -2101,7 +2115,7 @@ button.primary:hover{filter:brightness(1.08)}
 button.primary:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,.32),0 1px 1px rgba(0,0,0,.2)}
 button.primary.warn{background:var(--orange);--glow:rgba(244,122,41,.18)}
 button.primary:disabled{background:var(--ink3);cursor:not-allowed;box-shadow:none;transform:none;filter:none}
-@media (prefers-reduced-motion:reduce){button.primary{transition:none}}
+@media (prefers-reduced-motion:reduce){button.primary,header.top .period,.tabs button,.chipbtn{transition:none}}
 button.link{font:inherit;background:none;border:0;color:var(--sent);text-decoration:underline;cursor:pointer;padding:0}
 .progress{margin-top:20px}
 .progress .notes{margin:6px 0 4px;padding-left:18px;font-size:13.5px;color:var(--ink2)} .progress .notes .warn{color:var(--warn)}
@@ -2126,9 +2140,17 @@ details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2
 .note{color:var(--ink2);font-size:13px;margin-top:14px}
 .err{color:var(--stop)}
 .asof{margin:2px 0 0;font-size:12px;color:var(--ink3)} .asof .link{font-size:12px}
-.tabs{display:flex;gap:4px;background:rgba(255,255,255,.1);border-radius:999px;padding:3px}
-.tabs button{font:600 13.5px/1 "Segoe UI",Arial,sans-serif;color:#fff;background:none;border:0;border-radius:999px;padding:6px 14px;cursor:pointer}
-.tabs button[aria-selected="true"]{background:#fff;color:var(--navy)}
+/* The tabs sit in a rail recessed into the header; the selected tab is raised out of it with the same
+   shade, touch line and glow as the buttons, and presses in like them. */
+.tabs{display:flex;gap:4px;background:rgba(0,0,0,.16);border-radius:999px;padding:3px;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35),inset 0 -1px 0 rgba(255,255,255,.08)}
+.tabs button{font:600 13.5px/1 "Segoe UI",Arial,sans-serif;color:#fff;background:none;border:0;border-radius:999px;padding:6px 14px;cursor:pointer;
+  transition:background .12s ease,box-shadow .12s ease,transform .12s ease}
+.tabs button:hover{background:rgba(255,255,255,.12)}
+.tabs button:active{transform:translateY(1px)}
+.tabs button[aria-selected="true"]{background:#fff;color:var(--navy);
+  box-shadow:inset 0 -2px 0 rgba(0,39,76,.14),0 1px 2px rgba(0,0,0,.35),0 4px 12px rgba(0,0,0,.28)}
+.tabs button[aria-selected="true"]:active{box-shadow:inset 0 2px 4px rgba(0,0,0,.18)}
 .lmwrap{overflow-x:auto;margin-top:10px}
 .app.wide{max-width:1640px;grid-template-columns:minmax(220px,270px) minmax(0,1fr)}
 @media (max-width:820px){.app.wide{grid-template-columns:1fr}}
@@ -2171,8 +2193,14 @@ dialog.report .row{display:flex;gap:8px;justify-content:flex-end;align-items:cen
 dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-width:44ch}
 .rep-state{display:inline-block;font:600 11.5px/1 inherit;padding:4px 7px;border-radius:4px;color:#fff}
 .rep-open{background:#1d7a46}.rep-closed{background:#5a6670}.rep-queued{background:#9a6400}
-.chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer}
-.chipbtn[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer;
+  box-shadow:inset 0 1px 0 var(--hi),inset 0 -1px 0 var(--lo),0 1px 2px var(--touch);
+  transition:box-shadow .12s ease,transform .12s ease,border-color .12s ease}
+.chipbtn:hover{border-color:var(--ink3)}
+.chipbtn:active{transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.18)}
+.chipbtn[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.24),0 1px 2px rgba(0,0,0,.35),0 4px 12px rgba(0,39,76,.38)}
+.chipbtn[aria-pressed="true"]:active{box-shadow:inset 0 2px 4px rgba(0,0,0,.32)}
 .method{font-size:13px;color:var(--ink2);margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
 /* the client links row, identical on every tab */
 .clientlinks{margin:-6px 0 12px;font-size:13px;color:var(--ink2)}

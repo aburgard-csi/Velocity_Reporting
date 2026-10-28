@@ -21,6 +21,20 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — Sheila's tabs and chips carry the same light as the buttons
+
+Summary: The header tabs, the reporting-month pill, the status chips (Ready, In Outputs, Sent,
+Queued, Building, Blocked, Error) and the filter chips on Data Issues now carry the same light
+along the top edge, shade along the bottom and line where they meet the page as the Build buttons.
+Building and Error are tints like the other status chips instead of solid orange and red fills.
+Nothing about what any of them does changed.
+
+The tab rail is recessed into the header and the selected tab is raised out of it; the filter
+chips press in like the buttons and a pressed one carries the navy glow. The highlight, shade and
+touch line are the `--hi` / `--lo` / `--touch` tokens in `ars_launcher_web.py`, softer in dark mode;
+Building reads from the new `--build` / `--build-bg` pair and Error from the stop pair
+(Aaron, 2026-10-28: "some dark, some light. Let's go lighter on the building and error chips").
+
 ### 2026-10-28 — 1828 New Frontier Bank added to the roster
 
 Summary: 1828 New Frontier Bank, a new ARS and CashPlease client, now appears in CSM Sheila as blocked until its data lands.
