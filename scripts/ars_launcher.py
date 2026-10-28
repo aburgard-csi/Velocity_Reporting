@@ -908,7 +908,9 @@ def build_companion(a, BM, row, period, roster, sent, work):
         log = stage / a.client / "build.log"
         print("\nBuilding the ARS deck with James's views, then keeping those slides (3 to 20 minutes)...", flush=True)
         threading.Thread(target=watch_steps, args=(log, stop, t0), daemon=True).start()
-        os.environ.update(COMPANION_ENV)        # this process builds one deck and exits
+        # build_month copies the environment ONCE, when it is imported (_CHILD_ENV), so the flags must go there:
+        # setting os.environ here never reached the build and the views were never added (1075, 2026-10-28).
+        BM._CHILD_ENV.update(COMPANION_ENV)
         try:
             err, made = BM.build_client(a.client, client, entry[2], ["ARS"], period, str(stage))
         finally:

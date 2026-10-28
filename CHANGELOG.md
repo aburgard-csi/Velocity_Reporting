@@ -27,6 +27,12 @@ Summary: A client like 1585 (ARS plus CashPlease, nothing else) now has one butt
 
 Aaron, 2026-10-28, from a screenshot of 1585: "These buttons should be Build Separate ARS and CP, or Build Combined ARS and CP. The current labels are unclear." Both buttons built one ARS deck with its CashPlease section, so there was no real choice to label; CashPlease slides ride inside the client's own deck, never as a separate one. A client whose combined build adds ICS or MRPC keeps both buttons.
 
+### 2026-10-28 — The ARS Companion build now adds James's slides (it stopped with a missing-file error)
+
+Summary: Building the ARS Companion deck stopped at the end with a missing companion_slides.json; the build now carries the settings that add James's views, so the deck is cut and put in Outputs.
+
+Aaron, 2026-10-28, from Sheila on 1075 Austin Bank: the Companion build ran every step, then FileNotFoundError ... companion\1075\companion_slides.json. uild_month copies the environment once, when it is imported, so the Companion switches were set too late and the ARS build ran without James's views, never recording their slides. They are now handed to the build process directly, and a test pins it.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
