@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ICS referral export landed by hand in a client folder is found (#73)
+
+Summary: Sheila and the builders now find an ICS referral export that was dropped in a folder named for the client, or named with the client number at the end, instead of reporting the referral list as missing.
+
+James reported 1766 Fort Sill showing the direct-mail list, referral list and transaction files as missing. The direct-mail list and transaction files were already on hand under the expected names; the referral export had been landed as `Inputs/ICS Referrals/1766/ics_detailed referral_1766.xls`, and both readers (`ti/lens.ics_list_files` and `ics_local_sheet.find_referrals`) only looked for a file in the folder itself with the id at the start of its name. They now also read `<folder>/<id>/` and a name ending in the id, matched as a whole number (1766 never matches 17660).
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.

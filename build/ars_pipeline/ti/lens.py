@@ -33,8 +33,17 @@ def _newest(folder: Path, client_id, pattern):
     if not folder.is_dir():
         return None
     rx = re.compile(rf"^{re.escape(str(client_id))}\D")
-    hits = [p for p in folder.iterdir() if p.is_file() and rx.match(p.name)
-            and re.search(pattern, p.name, re.I) and not p.name.startswith("~$")]
+    # The id is also read where a person put it by hand: a folder named for the client
+    # (`ICS Referrals/1766/`) or the id closing the name (`ics_detailed referral_1766.xls`).
+    rx_any = re.compile(rf"(?<!\d){re.escape(str(client_id))}(?!\d)")
+    own = folder / str(client_id)
+    candidates = [p for p in folder.iterdir() if p.is_file() and rx.match(p.name)]
+    if own.is_dir():
+        candidates += [p for p in own.iterdir() if p.is_file()]
+    candidates += [p for p in folder.iterdir() if p.is_file() and not rx.match(p.name)
+                   and rx_any.search(p.stem)]
+    hits = [p for p in candidates
+            if re.search(pattern, p.name, re.I) and not p.name.startswith("~$")]
     return max(hits, key=lambda p: (p.name, p.stat().st_mtime)) if hits else None
 
 

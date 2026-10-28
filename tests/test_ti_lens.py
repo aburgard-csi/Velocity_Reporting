@@ -5,6 +5,7 @@ staged for v5's join unchanged, and joined by account hash. A lens with no accou
 LensUnavailable with the sentence the deck states.
 """
 import hashlib
+import os
 
 import pandas as pd
 import pytest
@@ -60,6 +61,27 @@ def test_ics_lists_are_found_by_client_id_and_joined(frame, root):
     assert int(masks["ics"].sum()) == 25 and int(masks["ics_dm"].sum()) == 25
     assert "ics_ref" not in masks, "a channel with no accounts is left out, not shown as zero"
     assert any("DM list matched 25 of 25" in s for s in said)
+
+
+def test_referral_export_landed_by_hand_is_found(root):
+    """#73: `ICS Referrals/1766/ics_detailed referral_1766.xls` was reported missing."""
+    folder = root / "Inputs/ICS Referrals"
+    (folder / "1766").mkdir()
+    (folder / "1766" / "ics_detailed referral_1766.xls").write_bytes(b"x")
+    (folder / "ics_detailed referral_17660.xls").write_bytes(b"x")
+    assert lens.ics_list_files("1766")["REF"].name == "ics_detailed referral_1766.xls"
+    assert lens.ics_list_files("1767")["REF"] is None
+    (folder / "ics_detailed referral_1768.xls").write_bytes(b"x")
+    assert lens.ics_list_files("1768")["REF"].name == "ics_detailed referral_1768.xls"
+
+
+def test_local_sheet_finds_hand_landed_referral_export(root):
+    import ics_local_sheet as S
+    folder = root / "Inputs/ICS Referrals"
+    (folder / "1766").mkdir()
+    (folder / "1766" / "ics_detailed referral_1766.xls").write_bytes(b"x")
+    assert os.path.basename(S.find_referrals("1766")) == "ics_detailed referral_1766.xls"
+    assert S.find_referrals("1767") is None
 
 
 def test_unknown_lens_is_refused(frame):
