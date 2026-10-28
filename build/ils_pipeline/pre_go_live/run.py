@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/run.py at 7ba1e63. Logic unchanged; the needs_codes half only (stage g11-02); imports read ils_pipeline.core, default folders come from ils_pipeline/pgl_input.py.
+# Ported from v5 02-Scripts/ils/pre_go_live/run.py at 7ba1e63. Logic unchanged; imports read ils_pipeline.core, and the default data, output and config folders come from ils_pipeline/pgl_input.py (Inputs/ILS PGL, Build Artifacts/ils, ils_pipeline/config).
 """ILS pre-go-live -- entry point.
 
     from ils.pre_go_live import run
@@ -20,10 +20,15 @@ from pathlib import Path
 from ils_pipeline import pgl_input
 from ils_pipeline.core.result import AnalysisResult, Timer
 
+from . import bases as bases_mod
 from . import codes as codes_mod
-from . import field_summary, loader, system_view
+from . import field_summary, loader, sections, system_view
 
 ANALYSIS = "ils_pre_go_live"
+
+# Each section: compute(df, bases, inputs, warn) -> dict with pgl_* keys.
+SECTIONS = sections.ALL
+
 
 def run(client_id: str, codes=None, data_root=None, output_root=None,
         config_dir=None, fee=None, tiers=None, include_deleted=False) -> AnalysisResult:
@@ -89,8 +94,36 @@ def run(client_id: str, codes=None, data_root=None, output_root=None,
                 result.fail(p)
             return result
         metrics["pgl_codes_used"] = c.as_dict()
-        # STAGE g11-02 (RPE): v5's run stops here until bases, sections and the metrics file are
-        # ported (g11-03..g11-05, where this file becomes v5's run.py whole).
+
+        deleted_rows = int(df["Deleted"].notna().sum()) if "Deleted" in df.columns else 0
+        if include_deleted:
+            result.warn("deleted-flagged rows INCLUDED in every base on request "
+                        "(include_deleted)")
+        else:
+            df = bases_mod.drop_deleted(df, result.warn)
+        b = bases_mod.build(df, c, result.warn)
+        metrics["pgl_bases"] = b.counts()
+
+        inputs = {"codes": c, "fee": fee, "tiers": tiers,
+                  "config_dir": config_dir, "extract_date": found.date,
+                  "system": sysm, "deleted_rows": deleted_rows}
+        for section in SECTIONS:
+            try:
+                metrics.update(section.compute(df, b, inputs, result.warn))
+            except Exception as exc:
+                result.warn(f"{section.__name__.rsplit('.', 1)[-1]} failed: "
+                            f"{type(exc).__name__}: {exc}")
+
+        out_dir = output_root / "PGL" / str(client_id) / found.date.strftime("%Y%m%d")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        from ils_pipeline.core.env import write_text_atomic
+        mj = out_dir / "pgl_metrics.json"
+        write_text_atomic(mj, json.dumps(metrics, indent=1, default=str))
+        result.outputs["metrics"] = str(mj)
         result.metrics = metrics
-        result.fail("ILS PGL port stage g11-02: only the needs_codes half of run is ported")
+        result.outputs["_manifest_dir"] = str(out_dir)
+
+    manifest_dir = result.outputs.pop("_manifest_dir", None)
+    if manifest_dir:
+        result.outputs["manifest"] = str(result.write_manifest(manifest_dir))
     return result
