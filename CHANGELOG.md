@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-27 — ILS pre-go-live: proposed home and input folder for James's v5 PGL engine (draft, computes nothing)
+
+Summary: a proposed `build/ils_pipeline/` with v5's PGL extract loader and an `Inputs/ILS PGL/<id>/` input kind; no deck, build, launcher or Sheila change, and nothing reads it yet.
+
+James Gilmore, 2026-10-27: port the ILS pre-go-live and kickoff engines from v5, each on its own branches. This first PGL stage is a PROPOSAL: `CLAUDE.md` routes ILS to the hand-run `ils-prep-deck` skill and `docs/COLLABORATORS.md` limits v5 ports to `ti/`, so it stands only if Aaron agrees. It adds v5's loader (`pre_go_live/loader.py`, logic unchanged; one import now reads the folder through `ils_pipeline/pgl_input.py`) and one input kind, `ILS PGL`, in `NOT_SCANNED_KINDS` because the extract is member-level and hand-landed. A client reads only its own folder. No figure on any deck moves.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
