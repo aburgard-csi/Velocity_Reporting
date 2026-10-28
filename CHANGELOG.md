@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — Skills for merging and releasing Sheila and for adding a client to the roster
+
+Summary: There are now two project skills, one for merging pull requests and releasing Sheila and one for adding a client to clients.md, with two small tools behind them: a CHANGELOG conflict resolver and a read-only roster row finder.
+
+Aaron, 2026-10-28: "yes, build skills 1 and 2". `scripts/changelog_merge.py` keeps both sides of a CHANGELOG conflict and fixes the blank line between entries. `scripts/roster_candidate.py` prints the main-table and CashPlease rows a client is missing from the CSM list, the workbook and the CashPlease pack; it writes nothing. `.claude/skills/merge-and-release/` and `.claude/skills/add-client-to-roster/` hold the procedures, including that nothing merges or releases without Aaron's word and that a roster change reaches the CSMs only through a release.
+
 ### 2026-10-28 — A skill and a figures tool for the Delivery Call Notes
 
 Summary: There is now a project skill for updating the Mail Strategy Delivery Call Notes, with a read-only tool that works out each client's review date and ICS, MRPC and CashPlease comparisons from the same data the decks use.
