@@ -140,6 +140,10 @@ def compute_pack(client_id, period, name, ics=False, lists_dir=None, prior_pack=
     if lists_dir is not None:                         # the mail lists land beside the decks (fs-02)
         ctx.shared["lists_dir"] = Path(lists_dir)
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
+    # v5's extract check first, as in v5's metrics.py: what shape the file is (months missing,
+    # Swipes and Spend on different months, an account twice) before any figure is computed on it
+    from ti.monthly_analysis import extract_check
+    metrics.update(extract_check.compute(subsets, cfg, warnings.append))
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     clock.lap("account subsets")
     attach_txn(ctx, warnings)
