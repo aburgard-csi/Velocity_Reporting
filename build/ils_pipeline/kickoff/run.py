@@ -22,7 +22,7 @@ from pathlib import Path
 from .core.io import (CodeConfig, business_open, check_output_dir,
                       default_output_dir, load_client_data, personal_open,
                       item_column_relationships, pay_rate_warnings,
-                      rege_warnings,
+                      rege_warnings, resolve_item_columns,
                       segment_warnings)
 from .metrics import (
     account_status, business_split, deposits, nsf_strat, od_status,
@@ -73,7 +73,8 @@ def _template() -> Path:
 
 def run(client_id: str, period: str, data_root: str | Path,
         output_dir: str | Path | None = None,
-        codes: CodeConfig | None = None, deck: bool = False) -> "RunResult":
+        codes: CodeConfig | None = None, deck: bool = False,
+        items_from_calc: bool = False) -> "RunResult":
     """
     codes: personal/business/open-status codes and OD eligibility rule (Stat Code).
     Defaults to CodeConfig() (P/B/O, eligible stat code "ODP Account") if
@@ -103,6 +104,12 @@ def run(client_id: str, period: str, data_root: str | Path,
 
     df, load_warnings = load_client_data(data_root, client_id, period)
     warnings.extend(load_warnings)
+    # Blank item counts refuse the run; the '# Calc' estimates only on request.
+    estimated = resolve_item_columns(df, items_from_calc)
+    if estimated:
+        # The load's "blank, and here is the flag" note is answered by the flag.
+        warnings = [w for w in warnings if not w.startswith("Item counts are blank")]
+        warnings.extend(estimated)
 
     # Before anything is computed from them: did the two segments account for
     # the open book? Every table below is per-segment, so an account in
@@ -360,6 +367,11 @@ if __name__ == "__main__":
         help="also build the kickoff deck beside the workbook.",
     )
     parser.add_argument(
+        "--items-from-calc", action="store_true",
+        help="when the item columns are blank, use the file's 'Paid/Returned Items # Calc' "
+             "estimates, labelled as estimates on the warnings slide.",
+    )
+    parser.add_argument(
         "--interactive", action="store_true",
         help="Prompt for account codes (the default at a terminal).",
     )
@@ -402,4 +414,4 @@ if __name__ == "__main__":
     from ._v5.compat import legacy_strings
     with legacy_strings():
         run(args.client_id, args.period, args.data_root or kickoff_input.root(),
-            args.output_dir, codes=codes, deck=args.deck)
+            args.output_dir, codes=codes, deck=args.deck, items_from_calc=args.items_from_calc)

@@ -101,8 +101,13 @@ _ALIAS_MAP = {
     "paiditems": PAID_ITEMS,
     "paid": PAID_ITEMS,
     "numberofitemspaid": PAID_ITEMS,
+    # 1840 FNB KY (2026-09-28 extract): Items = Paid Annualized + Returned
+    # Annualized on every account (12,919 = 10,379 + 2,540), so these are
+    # the item counts under another name.
+    "paidannualized": PAID_ITEMS,
     "returneditems": RETURNED_ITEMS,
     "returned": RETURNED_ITEMS,
+    "returnedannualized": RETURNED_ITEMS,
     "odlimit": OD_LIMIT,
     "overdraftlimit": OD_LIMIT,
     "limitod": OD_LIMIT,
@@ -251,10 +256,66 @@ def load_client_data(data_root: Path, client_id: str, period: str) -> tuple[pd.D
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    blank = blank_item_columns(df)
+    if blank:
+        warnings.append(_blank_items_detail(df, blank))
+
     df.attrs["source_path"] = str(path)
     df.attrs["client_id"] = client_id
     df.attrs["period"] = period
     return df, warnings
+
+
+# Item counts some extracts carry only as a calculation from fees (1842,
+# 2026-09-01: Items / Paid / Returned blank on all 5,554 rows; "Paid Items #
+# Calc" holds 117.67 on one account). Never read unless the run is told to.
+_CALC_ITEMS = {"paiditems#calc": PAID_ITEMS, "returneditems#calc": RETURNED_ITEMS}
+
+
+def blank_item_columns(df: pd.DataFrame) -> list[str]:
+    """The item columns that are present but blank on every row."""
+    return [c for c in (TOTAL_ITEMS, PAID_ITEMS, RETURNED_ITEMS)
+            if c in df.columns and not df[c].notna().any()]
+
+
+def _calc_columns(df: pd.DataFrame) -> dict[str, str]:
+    """{canonical item column: raw '# Calc' column} for those the file carries."""
+    return {_CALC_ITEMS[_norm(c)]: c for c in df.columns if _norm(c) in _CALC_ITEMS}
+
+
+def _blank_items_detail(df: pd.DataFrame, blank: list[str]) -> str:
+    calc = _calc_columns(df)
+    msg = (f"Item counts are blank on every row: {blank}. Every NSF, pay-rate and "
+           f"item analysis would read zero.")
+    if calc:
+        sums = ", ".join(f"{raw!r} (sum {pd.to_numeric(df[raw], errors='coerce').sum():,.0f})"
+                         for raw in calc.values())
+        msg += (f" The file carries {sums}: estimates calculated from fees, not counted "
+                f"items. Ask the client for the counted items, or run with "
+                f"--items-from-calc to use the estimates, labelled as such.")
+    return msg
+
+
+def resolve_item_columns(df: pd.DataFrame, items_from_calc: bool = False) -> list[str]:
+    """Refuse a file whose item counts are blank, or, on request, fill them from
+    the '# Calc' estimates. Returns the warnings to carry onto the deck."""
+    blank = blank_item_columns(df)
+    if not blank:
+        return []
+    calc = _calc_columns(df)
+    if not (items_from_calc and PAID_ITEMS in calc):
+        raise ValueError(_blank_items_detail(df, blank))
+    for canonical, raw in calc.items():
+        df[canonical] = pd.to_numeric(df[raw], errors="coerce").fillna(0)
+    if RETURNED_ITEMS not in df.columns:
+        df[RETURNED_ITEMS] = 0.0
+    df[TOTAL_ITEMS] = df[PAID_ITEMS] + df[RETURNED_ITEMS]
+    used = ", ".join(repr(r) for r in calc.values())
+    return [f"ESTIMATED ITEM COUNTS: the extract's item columns {blank} were blank, so "
+            f"Paid / Returned Items were taken from {used} and Total Items = paid + returned "
+            f"({df[TOTAL_ITEMS].sum():,.0f}). These are calculated from fees, not counted, and "
+            f"are not whole numbers. Where the warnings call {used} unread, they are read here. "
+            f"Confirm with the client before this deck is shown."]
 
 
 def personal_open(df: pd.DataFrame, codes: CodeConfig) -> pd.DataFrame:
