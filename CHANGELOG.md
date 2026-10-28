@@ -31,6 +31,8 @@ Stage g11-02: v5's `codes.py`, `field_summary.py` and `system_view.py`, `Analysi
 
 Stage g11-03: v5's `bases.py`, the populations every section reads (all, personal, business, open, eligible, opted in), deletion-stamped rows dropped and reported, and the open-status sanity guard. Logic unchanged. The system view landed a stage early, with the needs_codes run. `tests/test_ils_pgl_bases.py`.
 
+Stage g11-04: v5's eleven sections (`pre_go_live/sections/`: summary, readiness, reconcile, waterfall, status, OD status, core state, score, Reg E, limits, fees) and their shared cut, logic unchanged, and v5's universal fee-tier scenarios as `ils_pipeline/config/ils_fee_tiers.json` (a byte copy of v5's `0_Config` file; read only when a run is given the client's fee). `tests/test_ils_pgl_sections.py` and the section half of `tests/test_ils_pgl_system_view.py`.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.

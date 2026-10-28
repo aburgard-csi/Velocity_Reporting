@@ -1,0 +1,21 @@
+{
+ "_about": "Named fee-tier scenarios for ils/pre_go_live Analysis 14. Universal data (like competitors.json), NOT per-client config: the run uses these by default, echoes the bands verbatim in the report, labels every scenario 'illustrative -- confirm before board', warns when the client's confirmed fee differs from designed_for_fee, and any scenario can be overridden per run. Band semantics: for a given account's estimated paid items N, each band charges fee x (min(N, max_item) - min_item + 1) for the occurrences it covers; max_item null = open-ended.",
+ "_source": "PGL v1 notebook Analysis 14 cells 72/83/86/88 (illustrative placeholders, built around the $27 stated fee), ported as data 2026-08-19",
+ "designed_for_fee": 27,
+ "tiers": {
+  "Tier 1 (Modest Relief)": [
+   {"min_item": 1, "max_item": 3, "fee": 20},
+   {"min_item": 4, "max_item": null, "fee": 27}
+  ],
+  "Tier 2 (Moderate Relief)": [
+   {"min_item": 1, "max_item": 3, "fee": 15},
+   {"min_item": 4, "max_item": 6, "fee": 27},
+   {"min_item": 7, "max_item": null, "fee": 32}
+  ],
+  "Tier 3 (Maximum Relief)": [
+   {"min_item": 1, "max_item": 1, "fee": 0},
+   {"min_item": 2, "max_item": 3, "fee": 20},
+   {"min_item": 4, "max_item": null, "fee": 30}
+  ]
+ }
+}
