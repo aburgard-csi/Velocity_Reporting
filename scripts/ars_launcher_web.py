@@ -1695,28 +1695,34 @@ def mark_issue(cid, key, done):
     return 200, {"ok": True}
 
 
-# ------------------------------------------------------------------ Slide Review (Aaron, 2026-10-27)
+# ------------------------------------------------------------------ Slide Review (Aaron, 2026-10-27, 2026-10-28)
 # "an evaluation process for all of the decks so the CSM can vote whether to keep or delete a slide, or to add it
-# to an appendix." The record (one JSON file per vote under Build Artifacts/slide_votes/) and the counting are in
-# slide_votes.py; the tab's page is in slide_review_ui.py. Only a deck in Outputs can be voted on, and a vote is
-# checked against the deck as it is NOW (the slide's number and title), so a rebuilt deck cannot take a stale vote.
+# to an appendix." Then: not tied to a client. A CSM opens Sheila and a deck side by side and elects on the PROGRAM's
+# slide list (ARS, ICS, MRPC, CashPlease, Transaction Intelligence, ARS Companion); the Summary is per program. The
+# list is read from the newest decks of that program in Outputs. The record (one JSON file per vote under
+# Build Artifacts/slide_votes/) and the counting are in slide_votes.py; the tab's page is in slide_review_ui.py.
 VOTES_TTL = 30
+REFERENCE_DECKS = 3            # a program's list is the union of its newest few decks, so a short one loses nothing
+# (A Transaction Intelligence headline carries one client's own findings, so TI and the Companion read one deck, the newest.)
 _votes_listing = {"at": 0.0, "period": None, "doc": None}
 
 
 def votes_listing():
-    """{client id: [deck file names]} for this cycle in Outputs, every kind: Executive Review, TI, Companion."""
+    """[(path, client id, kind)] for this cycle in Outputs, newest first, every kind: Executive Review, TI, Companion."""
     import time as _t
     period = current_period()
     if _votes_listing["doc"] is not None and _votes_listing["period"] == period \
             and _t.time() - _votes_listing["at"] < VOTES_TTL:
         return _votes_listing["doc"]
-    found = {}
+    found = []
     for p in R.output_decks(f"*-{period}-*.pptx"):
         parsed = SV.parse_deck(p.name)
         if parsed and not p.name.startswith("~$"):
-            found.setdefault(parsed[0], []).append(p.name)
-    doc = {cid: sorted(names) for cid, names in sorted(found.items())}
+            try:
+                found.append((p.stat().st_mtime, p, parsed[0], parsed[2]))
+            except OSError:
+                pass
+    doc = [(p, cid, kind) for _, p, cid, kind in sorted(found, key=lambda t: t[0], reverse=True)]
     _votes_listing.update(at=_t.time(), period=period, doc=doc)
     return doc
 
@@ -1728,86 +1734,103 @@ def _client_names():
         return {}
 
 
-def _deck_entry(name):
-    cid, period, kind, family = SV.parse_deck(name)
-    return {"name": name, "kind": kind, "family": family}
+def votes_program_slides(program):
+    """The program's slides to elect on: [{n, title, source, key, deck}], in deck order, one per distinct title.
 
-
-def votes_clients_doc():
+    Read from the newest REFERENCE_DECKS decks in Outputs that carry the program. The client's name in a title
+    is shown as "the client", so a list read from one client's deck does not read as that client's."""
     names = _client_names()
-    return {"period": current_period(), "me": SV.whoami(),
-            "clients": [{"id": cid, "name": names.get(cid, ""), "decks": [_deck_entry(n) for n in decks]}
-                        for cid, decks in votes_listing().items()]}
+    seen, out, used = set(), [], 0
+    for path, cid, kind in votes_listing():
+        if program not in SV.deck_programs(kind):
+            continue
+        try:
+            slides = [s for s in SV.deck_slides(path) if s["program"] == program]
+        except Exception:
+            continue
+        if not slides:
+            continue
+        used += 1
+        for s in slides:
+            key = SV.norm_title(s["title"], names.get(cid, ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            title = s["title"]
+            if names.get(cid) and len(names[cid]) > 2:
+                title = re.sub(re.escape(names[cid]), "the client", title, flags=re.I)
+            out.append({"n": len(out) + 1, "title": title, "source": s["source"], "key": program + "|" + key,
+                        "deck": path.name})
+        if used >= (1 if program in ("TI", "COMP") else REFERENCE_DECKS):
+            break
+    return out
 
 
-def votes_decks_doc(cid):
-    return {"period": current_period(), "me": SV.whoami(), "name": _client_names().get(cid, ""),
-            "decks": [_deck_entry(n) for n in votes_listing().get(cid, [])]}
-
-
-def votes_deck_path(cid, name):
-    """The deck's file, only when it is this client's and in Outputs (never an archive). None otherwise."""
-    parsed = SV.parse_deck(name)
-    if not CID_RX.match(cid) or parsed is None or parsed[0] != cid or name != os.path.basename(name):
-        return None
-    for p in R.output_decks(f"{cid}-*.pptx"):
-        if p.name == name and p.is_file():
-            return p
-    return None
-
-
-def votes_deck_doc(cid, name):
-    path = votes_deck_path(cid, name)
-    if path is None:
-        return 404, {"error": "That deck is not in Outputs."}
+def votes_programs_doc():
     me = SV.whoami()
-    held = SV.mine(SV.read_votes(), me, cid, name)
-    slides = [dict(s, mine=({"vote": held[s["title"]]["vote"], "comment": held[s["title"]].get("comment", "")}
-                            if s["title"] in held else None)) for s in SV.deck_slides(path)]
-    return 200, {"deck": name, "me": me, "slides": slides}
+    votes = SV.read_votes()
+    progs = []
+    for prog in SV.PROGRAMS:
+        slides = votes_program_slides(prog)
+        held = SV.mine(votes, me, prog)
+        progs.append({"id": prog, "label": SV.PROGRAM_LABEL[prog], "slides": len(slides),
+                      "voted": sum(1 for s in slides if (held.get(s["key"]) or {}).get("vote")),
+                      "starred": sum(1 for s in slides if (held.get(s["key"]) or {}).get("star"))})
+    return {"period": current_period(), "me": me, "programs": progs}
+
+
+def votes_program_doc(program):
+    if program not in SV.PROGRAMS:
+        return 400, {"error": "not a program"}
+    me = SV.whoami()
+    held = SV.mine(SV.read_votes(), me, program)
+    slides = []
+    for s in votes_program_slides(program):
+        h = held.get(s["key"])
+        slides.append(dict(s, mine=({"vote": h.get("vote", ""), "star": bool(h.get("star")),
+                                    "comment": h.get("comment", "")} if h else None)))
+    return 200, {"program": program, "label": SV.PROGRAM_LABEL[program], "me": me, "period": current_period(),
+                 "slides": slides}
 
 
 def votes_vote(body):
-    """Record one vote. The slide named must be that slide of the deck in Outputs now."""
-    cid = str(body.get("client", "")).strip()
-    deck = str(body.get("deck", ""))
+    """Record one vote, a star, or both. The slide named must be a slide of the program's list now.
+
+    The page sends the slide's whole state (vote, star, comment), so a star click keeps the vote and the reverse."""
+    program = str(body.get("program", "")).strip()
     try:
-        v = SV.check_vote(cid, deck, body.get("slide"), body.get("title"), body.get("vote"), body.get("comment"))
+        v = SV.check_vote(program, body.get("slide"), body.get("title"), body.get("vote"), body.get("comment"),
+                          bool(body.get("star")))
     except SV.VoteError as e:
         return 400, {"error": str(e)}
-    path = votes_deck_path(cid, deck)
-    if path is None:
-        return 404, {"error": "That deck is not in Outputs."}
-    slides = SV.deck_slides(path)
-    if v["slide"] > len(slides) or slides[v["slide"] - 1]["title"] != v["title"]:
-        return 409, {"error": "This deck was rebuilt since the page loaded it. Open the deck again."}
-    doc = SV.write_vote(cid, deck, v["slide"], v["title"], v["vote"], v["comment"], client_name=_client_names().get(cid, ""))
-    return 200, {"ok": True, "vote": doc["vote"], "at": doc["at"]}
+    match = next((s for s in votes_program_slides(program) if s["title"] == v["title"]), None)
+    if match is None:
+        return 409, {"error": "The decks were rebuilt since the page loaded. Open the program again."}
+    doc = SV.write_vote(program, match["n"], v["title"], v["vote"], v["comment"], v["star"],
+                        deck=match["deck"], client_name="the client")
+    return 200, {"ok": True, "vote": doc["vote"], "star": doc["star"], "at": doc["at"]}
 
 
-def votes_summary_doc(family=""):
+def votes_summary_doc(program=""):
     votes = SV.read_votes()
     cur = SV.latest(votes)
-    return {"rows": SV.aggregate(votes, family or None), "votes": len(cur), "voters": len({v["voter"] for v in cur})}
+    return {"rows": SV.aggregate(votes, program or None), "votes": len([v for v in cur if v.get("vote")]),
+            "stars": len([v for v in cur if v.get("star")]), "voters": len({v["voter"] for v in cur}),
+            "programs": [{"id": p, "label": SV.PROGRAM_LABEL[p]} for p in SV.PROGRAMS]}
 
 
 def votes_route(handler, path, params):
     """GET /api/votes/<what>: the tab's reads. (The one POST, /api/votes/vote, is routed in do_POST.)"""
-    cid = str(params.get("client", "")).strip()
-    family = params.get("family", "") if params.get("family", "") in ("RPE", "TI", "COMP") else ""
-    if path == "/api/votes/clients":
-        return handler._send(200, votes_clients_doc())
-    if path in ("/api/votes/decks", "/api/votes/deck"):
-        if not CID_RX.match(cid):
-            return handler._send(400, {"error": "not a client number"})
-        if path == "/api/votes/decks":
-            return handler._send(200, votes_decks_doc(cid))
-        return handler._send(*votes_deck_doc(cid, str(params.get("deck", ""))))
+    program = params.get("program", "") if params.get("program", "") in SV.PROGRAMS else ""
+    if path == "/api/votes/programs":
+        return handler._send(200, votes_programs_doc())
+    if path == "/api/votes/program":
+        return handler._send(*votes_program_doc(str(params.get("program", ""))))
     if path == "/api/votes/summary":
-        return handler._send(200, votes_summary_doc(family))
+        return handler._send(200, votes_summary_doc(program))
     if path == "/api/votes/export":
         import datetime as _dt
-        csv_text = SV.summary_csv(SV.aggregate(SV.read_votes(), family or None))
+        csv_text = SV.summary_csv(SV.aggregate(SV.read_votes(), program or None))
         return handler._send(200, csv_text.encode("utf-8"), "text/csv; charset=utf-8",
                              filename=f"slide-votes-{_dt.date.today().isoformat()}.csv")
     return handler._send(404, {"error": "not found"})
