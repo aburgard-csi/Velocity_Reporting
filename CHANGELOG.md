@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — A skill and a figures tool for the Delivery Call Notes
+
+Summary: There is now a project skill for updating the Mail Strategy Delivery Call Notes, with a read-only tool that works out each client's review date and ICS, MRPC and CashPlease comparisons from the same data the decks use.
+
+Aaron, 2026-10-28: "Should we create a skill for updating Mail Strategies?" ... "yes, build the mail strategy skill". `scripts/mail_strategy_facts.py` gives the last send, profitability below 3:1 and the last-complete-month comparisons in one wording; `.claude/skills/mail-strategy-notes/SKILL.md` records the whole procedure: where each fact comes from (proofs from the mailbox, the on-site date from the calendar), the note format, the safe way to fill the live form (month-grid snapshot, a table and a yes before filling, a yes before Submit, reload and compare) and that ILS items are not part of these notes. It writes nothing itself.
+
 ### 2026-10-28 — Sheila shows one Build button when the two builds would make the same deck
 
 Summary: A client like 1585 (ARS plus CashPlease, nothing else) now has one button, "Build ARS + CP (one deck)", instead of two buttons that built the same deck under different names.
