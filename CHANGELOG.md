@@ -111,6 +111,12 @@ Summary: Building the ARS Companion deck stopped at the end with a missing compa
 
 Aaron, 2026-10-28, from Sheila on 1075 Austin Bank: the Companion build ran every step, then FileNotFoundError ... companion\1075\companion_slides.json. uild_month copies the environment once, when it is imported, so the Companion switches were set too late and the ARS build ran without James's views, never recording their slides. They are now handed to the build process directly, and a test pins it.
 
+### 2026-10-27 — ILS pre-go-live: proposed home and input folder for James's v5 PGL engine (draft, computes nothing)
+
+Summary: a proposed `build/ils_pipeline/` with v5's PGL extract loader and an `Inputs/ILS PGL/<id>/` input kind; no deck, build, launcher or Sheila change, and nothing reads it yet.
+
+James Gilmore, 2026-10-27: port the ILS pre-go-live and kickoff engines from v5, each on its own branches. This first PGL stage is a PROPOSAL: `CLAUDE.md` routes ILS to the hand-run `ils-prep-deck` skill and `docs/COLLABORATORS.md` limits v5 ports to `ti/`, so it stands only if Aaron agrees. It adds v5's loader (`pre_go_live/loader.py`, logic unchanged; one import now reads the folder through `ils_pipeline/pgl_input.py`) and one input kind, `ILS PGL`, in `NOT_SCANNED_KINDS` because the extract is member-level and hand-landed. A client reads only its own folder. No figure on any deck moves.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
