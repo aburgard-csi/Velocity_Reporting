@@ -35,6 +35,8 @@ Stage g11-04: v5's eleven sections (`pre_go_live/sections/`: summary, readiness,
 
 Stage g11-05: v5's whole `run.py`, `report.py` and `__main__.py` (`python -m ils_pipeline.pre_go_live <id> --open-status ... --od-eligible ... --rege-opt-in ...` from `build/`), and `core/layout.py` reading RPE's `templates/` and `build/assets/`. A coded run writes `pgl_metrics.json` and its manifest to `Build Artifacts/ils/PGL/<id>/<yyyymmdd>/`, never to `Outputs/`. On 1737's 2026-08-07 extract, with v5's codes, the port's metrics equal v5's key for key (117 of 117) and the report text is identical. `tests/test_ils_pgl_run.py`.
 
+Stage g11-06: v5's board deck (`deck.py`, `deck_charts.py`; `--deck`, `--current-only`) on `ils_pipeline/deckkit/`, v5's deckkit facade with only the parts PGL draws: the slide helpers, grid, colours and `DeckResult` from v5's `ars/deck/build.py`, `_clean` / `_save` and the font setup from `ars/deck/charts.py`, `money` from `labels.py`, and `polish.py` whole, each kept line for line. The deck opens RPE's `templates/ars_template.pptx` read only (it asks for one layout, index 0 `BLANK`, which RPE's template carries as v5's does) and lands beside the metrics in `Build Artifacts/ils/PGL/<id>/<yyyymmdd>/`. On 1737 the deck has v5's 13 slides with the same titles, text, tables and shape geometry; the five chart images differ only as matplotlib 3.11 renders them against v5's 3.10. `tests/test_ils_pgl_{deck,deck_charts}.py`.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
