@@ -147,6 +147,13 @@ def main(argv=None):
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics)
+    # v5's analyst tables (ti/monthly_analysis/tables.py): every tabular figure that declares its
+    # columns, as a CSV under out/tables, so a number on a slide can be checked row by row
+    try:
+        from ti.monthly_analysis import tables
+        pack["tables"] = tables.write(pack["metrics"], out, pack["warnings"].append)
+    except Exception as exc:                          # the tables never take the build down
+        pack["warnings"].append(f"analyst tables failed: {type(exc).__name__}: {exc}")
     (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")

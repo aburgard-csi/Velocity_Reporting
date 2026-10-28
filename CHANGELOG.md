@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — Transaction Intelligence cut: every table behind its slides as a CSV (stage g14-01)
+
+Summary: the TI cut's build now writes v5's analyst tables: each tabular figure that names its columns becomes a CSV in `ti/tables/`, listed in `ti_pack.json`. A tabular figure that names no columns is listed in the build's warnings by name, never dropped silently.
+
+James, 2026-10-27: "i just need to be able to back up the data." A figure on a slide has to be checkable against the rows behind it. v5 wrote these tables in `run.py` beside `metrics.json`. The cut had no equivalent, so its figures lived only inside `ti_pack.json`. `ti/monthly_analysis/tables.py` is v5's `tables.py` at `a491b5c`, logic unchanged: rows are written exactly as the figure holds them, nothing rounded or re-ordered, so a CSV cannot disagree with its slide. The files are UTF-8 with a BOM so Excel on Windows opens accented names cleanly. `ti_build.main` calls it after the figures and before the decks, as v5 does. A failure here is a warning and the build goes on. No figure, slide or deck changes. The ARS deck is untouched. The figures that are tables but declare no columns are named in the warning; declaring them is a follow-up.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.

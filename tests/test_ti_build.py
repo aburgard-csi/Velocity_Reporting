@@ -75,6 +75,24 @@ def test_pack_and_decks(root, monkeypatch):
     assert PM.deliverable(str(stage)) == str(ars)
 
 
+def test_the_analyst_tables_land_beside_the_pack(root, monkeypatch):
+    """v5's tables layer (ti/monthly_analysis/tables.py): a tabular figure that names its columns
+    is a CSV under ti/tables, listed in the pack; one that names none is stated, not dropped."""
+    def figures(_ctx):
+        return {"thing_by_branch": [["Main", 10, 1.5], ["Harbor", 20, 2.5]],
+                "thing_by_branch_columns": ["branch", "n", "rate"],
+                "mystery": [[1, 2]]}
+    monkeypatch.setattr(cut, "CHAPTERS", (STUB._replace(compute=figures),))
+    out = root / "stage" / CLIENT / "ti"
+    assert ti_build.main([CLIENT, "2026.10", NAME, str(out)]) == 0
+
+    pack = json.loads((out / "ti_pack.json").read_text(encoding="utf-8"))
+    csv_path = out / "tables" / "thing_by_branch.csv"
+    assert pack["tables"] == {"thing_by_branch": str(csv_path)}
+    assert csv_path.read_text(encoding="utf-8-sig").splitlines()[:2] == ["branch,n,rate", "Main,10,1.5"]
+    assert any("declare no columns" in w and "mystery" in w for w in pack["warnings"])
+
+
 def test_a_failing_chapter_is_stated_and_the_build_goes_on(root, monkeypatch):
     def boom(_ctx):
         raise ValueError("no fin_by_category")
