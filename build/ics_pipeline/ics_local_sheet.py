@@ -147,8 +147,13 @@ def find_workbook(cid):
 def find_referrals(cid):
     hits = []
     for d in _dirs_for(REFERRAL_KIND):
-        hits += [f for f in glob.glob(os.path.join(str(d), "*"))
-                 if _id_prefixed(os.path.basename(f), cid)
+        # Also a folder named for the client, and the id closing the name, where a person
+        # landed the export by hand (`ICS Referrals/1766/ics_detailed referral_1766.xls`).
+        found = glob.glob(os.path.join(str(d), "*")) + glob.glob(os.path.join(str(d), str(cid), "*"))
+        hits += [f for f in found
+                 if (_id_prefixed(os.path.basename(f), cid)
+                     or os.path.dirname(f) == os.path.join(str(d), str(cid))
+                     or re.search(rf"(?<!\d){re.escape(str(cid))}(?!\d)", os.path.splitext(os.path.basename(f))[0]))
                  and "referral" in os.path.basename(f).lower()
                  and os.path.splitext(f)[1].lower() in (".xls", ".xlsx")
                  and os.path.getsize(f) > 0]
