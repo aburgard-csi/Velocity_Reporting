@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/kickoff_analysis/run.py at 7ba1e63. Logic unchanged; edits: imports (deck.slides lazily until the deck stage, core.layout from kickoff/_v5/), the default output folder and --data-root through ils_pipeline/kickoff_input (rpe_env), and the CLI's run inside kickoff/_v5/compat.legacy_strings().
+# Ported from v5 02-Scripts/ils/kickoff_analysis/run.py at 7ba1e63. Logic unchanged; edits: the import of core.layout from kickoff/_v5/, the default output folder and --data-root through ils_pipeline/kickoff_input (rpe_env), and the CLI's run inside kickoff/_v5/compat.legacy_strings().
 """Entry point for the ILS Kickoff pipeline.
 
     from ils.run import run
@@ -28,7 +28,7 @@ from .metrics import (
     account_status, business_split, deposits, nsf_strat, od_status,
     reg_e, od_limit, product_code,
 )
-from .deck import charts, report
+from .deck import charts, report, slides
 from ._v5.core import layout
 from ils_pipeline import kickoff_input
 
@@ -275,7 +275,6 @@ def run(client_id: str, period: str, data_root: str | Path,
         # The deck is built inside the temp directory because the chart PNGs
         # live there; pptx embeds them, so they only have to survive the save.
         if deck:
-            from .deck import slides            # arrives with the deck stage (g12-04)
             stranded = slides.unslided(analyses)
             if stranded:
                 warnings.append(
