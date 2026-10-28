@@ -21,6 +21,26 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ILS pre-go-live and kickoff run from a client's page in Sheila
+
+Summary: A client's page in Sheila now has three ILS cards below the ARS Companion: ILS Pre-go-live, ILS Kickoff, and ILS Review, marked Coming soon. A CSM can run either analysis from the page: read the field summary, type the codes the client confirmed, then Build. The deck and the workbook or report go to `Build Artifacts\ils`. VERSION is now 2.2.
+
+James Gilmore, 2026-10-28: "a CSM can run either ILS analysis option from the Sheila webpage", "the option should be when i click a client", and "then add an ILS Review - Coming Soon". The engines are James's v5 ones, merged into `build/ils_pipeline/` today and unchanged.
+
+Each card keeps the engine's two steps:
+- **Read the field summary** lists every value in the extract's code fields, with counts, and computes nothing.
+- **Build** runs on the codes typed in. It is refused until the required codes are filled in.
+
+Which value means open, personal, OD-eligible or opted in is the client's answer, so the tool never chooses. The codes a client's last run was confirmed with are saved (`Build Artifacts/ils/<PGL|kickoff>/<id>/confirmed_codes.json`) and offered back with that run's date, CSM and file. Nothing runs on them until Build is pressed.
+
+Until an extract has landed, a card says where to put it (`Inputs/ILS PGL/<id>/` or `Inputs/ILS Kickoff/<id>/`). A client with an ILS folder is in Sheila's list even when they are on no other program. Each step runs in its own process (`scripts/ils_job.py`), as a deck build does. "Open the deck" opens only a file under `Build Artifacts\ils`, so the Outputs-only rule for the other decks is unchanged.
+
+The cards are in `scripts/ils_ui.py` and `scripts/ils_runs.py`, spliced in as the Slide Review tab is. The Executive Review, Transaction Intelligence and Companion cards, and their builds, are untouched.
+
+Tested end to end in Sheila on real extracts:
+- 1737 pre-go-live: a 13-slide deck.
+- 1842 kickoff: workbook and deck, with the estimated-items option.
+
 ### 2026-10-28 — Slide Review opens at once: the slide lists are kept on disk
 
 Summary: The Slide Review tab no longer reads every deck in Outputs each time it opens. Each

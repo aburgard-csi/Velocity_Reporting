@@ -41,6 +41,7 @@ import rpe_env as R           # noqa: E402
 import ars_launcher as L      # noqa: E402
 import slide_votes as SV      # noqa: E402
 import slide_review_ui        # noqa: E402
+import ils_ui                 # noqa: E402
 
 TOKEN = secrets.token_urlsafe(24)
 # The largest body any POST reads. The biggest real one, the Lift Matrix rates, is a few KB.
@@ -284,6 +285,9 @@ def compute_clients():
     for cid, cp in cp_rows.items():          # standalone module clients are on the CashPlease roster alone
         if cid not in entries and L.standalone_cp(cp):
             entries[cid] = L.client_entry(cid, roster, cp)
+    for cid in ils_ui.ils_runs.landed_clients():  # on ILS alone: their ILS cards are on the client page (2026-10-28)
+        if cid not in entries:
+            entries[cid] = (cid, rows.get(cid, {}).get("client_name") or cid, None, [])
     results = launcher_results(period, list(entries)) if period else {}
     out = []
     for cid, (_, name, path, progs) in entries.items():
@@ -1952,6 +1956,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, reports_doc())
             if u.path.startswith("/api/votes/"):
                 return votes_route(self, u.path, {k: v[0] for k, v in q.items()})
+            if u.path.startswith("/api/ils/"):
+                return ils_ui.get(self, u.path, {k: v[0] for k, v in q.items()})
             if u.path == "/api/lift/overview":
                 return self._send(200, lift_overview_doc())
             if u.path == "/api/lift/client":
@@ -2001,6 +2007,8 @@ class Handler(BaseHTTPRequestHandler):
                                     "cycle_now": L.cycle_period()})
         if path == "/api/votes/vote":
             return self._send(*votes_vote(body))
+        if path.startswith("/api/ils/"):
+            return ils_ui.post(self, path, body)
         if path == "/api/reveal":
             if body.get("deck"):
                 return self._send(*reveal_deck(str(body.get("client", "")), str(body.get("period", "")),
@@ -3224,6 +3232,7 @@ document.addEventListener("click", e => { const n = $("#news"); if (n && n.open 
 """
 
 PAGE = slide_review_ui.install(PAGE)
+PAGE = ils_ui.install(PAGE)
 
 
 if __name__ == "__main__":
