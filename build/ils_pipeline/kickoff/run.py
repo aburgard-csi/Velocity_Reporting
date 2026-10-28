@@ -19,14 +19,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .core.io import (CodeConfig, business_open, check_output_dir,
+import pandas as pd
+
+from .core.io import (OPEN_DATE, CodeConfig, business_open, check_output_dir,
                       default_output_dir, load_client_data, personal_open,
                       item_column_relationships, pay_rate_warnings,
                       rege_warnings, resolve_item_columns,
                       segment_warnings)
 from .metrics import (
     account_status, business_split, deposits, nsf_strat, od_status,
-    reg_e, od_limit, product_code,
+    reg_e, od_limit, product_code, day2,
 )
 from .deck import charts, report, slides
 from ._v5.core import layout
@@ -278,6 +280,33 @@ def run(client_id: str, period: str, data_root: str | Path,
         t_odlimit_b = od_limit.compute(df_business)
         emit(report_path, "OD Limit Stratification", t_odlimit_p)
         emit(report_path, "OD Limit Stratification (Biz)", t_odlimit_b)
+
+        # ---- Day 2 (from the ILS Kickoff Day 2 app) ----
+        # Workbook-only until they have slides: slide=False keeps them out of
+        # the manifest check rather than stranding them there.
+        emit(report_path, "Day 2 Highlights", pd.concat([
+            day2.highlights(df_personal, codes, "Personal"),
+            day2.highlights(df_business, codes, "Business"),
+        ], ignore_index=True), slide=False)
+        for label, seg, sheet in (("Personal", df_personal, "Day 2 OD Status Reg E In"),
+                                  ("Business", df_business, "Day 2 OD Status Reg E In (Biz)")):
+            t = day2.od_status_rege(seg, codes)
+            if t is None:
+                warnings.append(f"Day 2: {label} OD status for Reg E opt-ins skipped -- the Reg E "
+                                f"opt-in value is not confirmed or matched no open {label.lower()} account.")
+            else:
+                emit(report_path, sheet, t, slide=False)
+        if OPEN_DATE in df.columns:
+            for code, sheet in ((codes.personal_code, "Day 2 Year Opened"),
+                                (codes.business_code, "Day 2 Year Opened (Biz)")):
+                t = day2.year_opened(df, codes, code)
+                if t is not None:
+                    emit(report_path, sheet, t, slide=False)
+            t = day2.rege_by_year(df_personal, codes)
+            if t is not None:
+                emit(report_path, "Day 2 Reg E by Year Opened", t, slide=False)
+        else:
+            warnings.append(f"'{OPEN_DATE}' column not found -- skipped the Day 2 year-opened tabs.")
 
         # The deck is built inside the temp directory because the chart PNGs
         # live there; pptx embeds them, so they only have to survive the save.

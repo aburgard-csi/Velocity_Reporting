@@ -160,6 +160,15 @@ python -m pytest tests/test_ils_kickoff.py tests/test_ils_kickoff_deck.py -q
 
 ---
 
+## Day 2 analyses (RPE addition, 2026-10-28)
+
+`metrics/day2.py`, ported from the ILS Kickoff Day 2 app, the analysis only. Six workbook tabs after
+the nineteen above, all workbook-only (`deck/slides.py: WORKBOOK_ONLY`): Day 2 Highlights, Day 2 OD
+Status Reg E In (+ Biz), Day 2 Year Opened (+ Biz), Day 2 Reg E by Year Opened. They use the same
+`CodeConfig` as every other tab and never guess a code. Tests: `tests/test_ils_kickoff_day2.py`.
+
+---
+
 ## Open
 
 - `Reg E by OD Eligibility` is a cross-tab drawn with `funnel`, which is a

@@ -77,6 +77,14 @@ SLIDE_MANIFEST = [
 
 MANIFEST_KEYS = [s.key for s in SLIDE_MANIFEST]
 
+# Sheets the run writes to the workbook and deliberately not to the deck: the
+# Day 2 analyses (metrics/day2.py) until they have a form and a headline each.
+# Moving one onto the deck means a Slide() above and removing it here.
+WORKBOOK_ONLY = (
+    "Day 2 Highlights", "Day 2 OD Status Reg E In", "Day 2 OD Status Reg E In (Biz)",
+    "Day 2 Year Opened", "Day 2 Year Opened (Biz)", "Day 2 Reg E by Year Opened",
+)
+
 
 # ---------------------------------------------------------------------------
 # Rendering

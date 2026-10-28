@@ -67,6 +67,9 @@ TABS = ["Account Status Analysis", "Product Code Distribution", "Account Type An
         "OD Status Stratification (Biz)", "Reg E Summary", "Reg E by OD Eligibility",
         "Reg E by OD Eligibility (Biz)", "Historical Reg E", "OD Limit Stratification",
         "OD Limit Stratification (Biz)"]
+# The Day 2 tabs the run adds when Reg E opt-in is confirmed. The extract has no Open Date, so the
+# year-opened tabs are skipped (and say so).
+DAY2_TABS = ["Day 2 Highlights", "Day 2 OD Status Reg E In", "Day 2 OD Status Reg E In (Biz)"]
 
 
 def _extract(root, client_id="1842", name="1842_OneTimeData_20261001.csv"):
@@ -107,7 +110,7 @@ def test_with_codes_the_workbook_lands_in_build_artifacts_never_outputs(root):
     assert written[0].parent == root / "Build Artifacts" / "ils" / "kickoff" / "1842" / "2026-10"
     assert written[0].name.startswith("1842 - ILS Kickoff Report Data-")
     assert _files(root / "Outputs") == []
-    assert load_workbook(written[0]).sheetnames == ["Report Info"] + TABS
+    assert load_workbook(written[0]).sheetnames == ["Report Info"] + TABS + DAY2_TABS
 
 
 def test_the_default_output_folder_needs_the_data_root(monkeypatch):

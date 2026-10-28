@@ -50,8 +50,12 @@ def test_the_manifest_covers_every_analysis_the_run_emits():
     import re
     src = (HERE.parent / "build" / "ils_pipeline" / "kickoff" / "run.py").read_text(encoding="utf-8")
     emitted = set(re.findall(r'emit\(report_path,\s*"([^"]+)"', src))
-    missing = emitted - set(slides.MANIFEST_KEYS)
+    missing = emitted - set(slides.MANIFEST_KEYS) - set(slides.WORKBOOK_ONLY)
     assert not missing, f"analyses emitted with no slide: {sorted(missing)}"
+
+
+def test_a_workbook_only_sheet_is_not_also_a_slide():
+    assert not set(slides.WORKBOOK_ONLY) & set(slides.MANIFEST_KEYS)
 
 
 def test_a_slide_with_no_analysis_is_reported_not_rendered():
