@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ars/deck/charts.py at 7ba1e63. Logic unchanged; no edits. Here only because the kickoff deck's deckkit facade imports it (v5 layout kept below kickoff/_v5/ so its relative imports hold).
+# Ported from v5 02-Scripts/ars/deck/charts.py at 7ba1e63. Logic unchanged; the one edit is ORANGE read from RPE's brand (the same value; tests/test_brand_single_source.py). Here only because the kickoff deck's deckkit facade imports it (v5 layout kept below kickoff/_v5/ so its relative imports hold).
 """Chart renderers for the ODD-only deck.
 
 Charts are PNGs, not native pptx charts, so a slide never carries chart
@@ -22,6 +22,8 @@ import matplotlib.colors as mcolors
 import matplotlib.ticker as mticker
 import numpy as np
 
+import brand
+
 # CSI Velocity brand. These are the canonical values, matching
 # RPE-Workflow's ars_engine/core/brand.py -- the module that declares itself the
 # single source of truth for colour. Five of these had drifted: GREY was one hex
@@ -30,7 +32,7 @@ import numpy as np
 # went unnoticed through every deck that shipped --
 # test_palette_matches_csi_brand pins them now.
 NAVY = "#00274C"
-ORANGE = "#F15D22"
+ORANGE = brand.ORANGE
 # CSI brand tokens the chart layer was missing. GOLD is the measured
 # quantity -- the filled portion of a thing -- and LINE is the empty part of
 # a track. Their absence is why these charts read thinner than the brand

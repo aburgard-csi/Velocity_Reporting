@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ars/deck/build.py at 7ba1e63. Logic unchanged; the one edit is the import of core.layout from kickoff/_v5/. Here because the kickoff deck's deckkit facade imports it.
+# Ported from v5 02-Scripts/ars/deck/build.py at 7ba1e63. Logic unchanged; edits: the import of core.layout from kickoff/_v5/, and ORANGE read from RPE's brand (the same value; tests/test_brand_single_source.py). Here because the kickoff deck's deckkit facade imports it.
 """Build an ODD-only deck.
 
 Deliberately NOT `build_ars_gen.py`. That assembler swaps numbers into a
@@ -31,11 +31,12 @@ from . import (attrition_slides, deposit_slides, formaudit, headlines, migration
                labels, polish, txn_slides)
 from . import register as provenance
 from ils_pipeline.kickoff._v5.core import layout
+import brand
 
 _HEADLINES = headlines
 
 NAVY = RGBColor(0x00, 0x27, 0x4C)
-ORANGE = RGBColor(0xF1, 0x5D, 0x22)
+ORANGE = brand.ORANGE_RGB
 GREY = RGBColor(0x5A, 0x66, 0x70)
 TINT = RGBColor(0x9D, 0xB8, 0xD2)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
