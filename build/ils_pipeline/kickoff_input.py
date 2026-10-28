@@ -10,6 +10,12 @@ one read. `period` is still passed through: v5 records it on the frame and names
 
 The kind is in rpe_env.NOT_SCANNED_KINDS: the extract is member-level, hand-landed, and has no
 "newer version" the watcher's copier or pruner understands.
+
+Pandas: v5 runs pandas 2.3, this repo pandas 3. Under pandas 3 `astype(str)` keeps a blank code
+blank where v5 wrote "nan", so the field summary stops counting blank codes and the Reg E check
+raises on one (`'float' object has no attribute 'lower'`). Every entry point here therefore runs
+v5's code inside `kickoff._v5.compat.legacy_strings()`, and so must any caller that computes from
+the frame `load` returns: the frame alone does not carry the setting.
 """
 from pathlib import Path
 
@@ -44,5 +50,8 @@ def load(client_id, period):
     """v5's `load_client_data` on the client's folder: (canonicalized frame, warnings)."""
     import rpe_env
     from ils_pipeline.kickoff.core import io
+    from ils_pipeline.kickoff._v5.compat import legacy_strings
     find_extract(client_id, period)            # the RPE-worded error for a missing folder
-    return io.load_client_data(rpe_env.input_dir("ILS Kickoff", create=False), str(client_id), period)
+    with legacy_strings():
+        return io.load_client_data(rpe_env.input_dir("ILS Kickoff", create=False), str(client_id),
+                                   period)

@@ -14,6 +14,14 @@ from ils_pipeline import kickoff_input
 from ils_pipeline.kickoff.core import io
 
 
+@pytest.fixture(autouse=True)
+def _v5_pandas():
+    """v5's code under the pandas 2 string semantics it was written for (kickoff/_v5/compat.py)."""
+    from ils_pipeline.kickoff._v5.compat import legacy_strings
+    with legacy_strings():
+        yield
+
+
 @pytest.fixture
 def root(tmp_path, monkeypatch):
     for d in ("Inputs", "Outputs", "Build Artifacts"):
