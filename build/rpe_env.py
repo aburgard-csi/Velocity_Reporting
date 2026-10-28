@@ -345,6 +345,9 @@ INPUT_KIND_DIRS = {
     # Logistics by James's v5 fetch (James Gilmore, 2026-10-23). Read only by the Transaction
     # Intelligence cut (build/ars_pipeline/ti/deferred_input.py).
     "Deferred Billing": "Deferred Billing",
+    # The ILS kickoff one-time data extract, one folder per client: <id>/<id>_OneTimeData_<yyyymmdd>.csv|.xlsx
+    # (James Gilmore, 2026-10-27; PROPOSED, pending Aaron). Read only by build/ils_pipeline/kickoff_input.py.
+    "ILS Kickoff": "ILS Kickoff",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -353,7 +356,7 @@ INPUT_KIND_DIRS = {
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
                      "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits",
-                     "Deferred Billing")
+                     "Deferred Billing", "ILS Kickoff")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
