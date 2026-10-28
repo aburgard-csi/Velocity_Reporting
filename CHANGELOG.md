@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — Slide Review is by program, not client, and slides can be starred; Summit one-pager skill
+
+Summary: Slide Review no longer asks for a client. A CSM opens Sheila beside any deck, picks ARS, ICS, MRPC, CashPlease, Transaction Intelligence or ARS Companion, and votes Keep, Delete or Appendix on that program's slides; a star marks a favorite. The Summary counts each program's slides in whole.
+
+Request (Aaron): "update the Slide Review page so it's not tied to a client ... a CSM can open Sheila and a deck side by side and make their election. The Summary should be for ARS, ICS, MRPC slides, etc. in whole, not per client." And: "add a little clickable Star icon where we can select favorite slides."
+
+- The list for a program is the union of its newest three decks in Outputs; a combined deck is split into programs at each divider (the ARS Appendix, after Contact, is ARS's). Cover, agenda, dividers, Questions and Contact are not voted on.
+- A vote file now carries the whole state for the slide (vote, star, comment) and no client; the newest per voter and slide wins. A star can stand alone or sit beside a vote. First-round votes are read as before where the deck was single-program, and left out of the Summary where it was combined (the slide could not be placed in a program).
+- API: `/api/votes/programs`, `/api/votes/program?program=`, `/api/votes/summary?program=`, `/api/votes/export`; `/api/votes/clients`, `/decks` and `/deck` are gone. The CSV has Program and Stars columns and no client count.
+- New project skill `summit-one-pager`: ask which attendees, show the figures unranked, wait for Aaron's call on the story, then build. It does not choose metrics and is not scheduled (CLAUDE.md, Executive Summit one-pagers).
+- Tests: `tests/test_slide_votes.py` rewritten for program-level votes, stars, combined-deck splitting and the legacy read; `tests/test_summit_skill.py` pins the skill's guards.
+
 ### 2026-10-28 — CashPlease Peer Comparison: the label breaks before its window, and the cohort footnote moves to the notes
 
 Summary: On the CashPlease Peer Comparison slide, the "Loans per 1,000 DDAs (12 mo)" label now puts
