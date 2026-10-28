@@ -36,6 +36,7 @@ table.vr th:nth-child(2),table.vr.rv th{text-align:left}
 table.vr td.vn{color:var(--ink3);width:34px}
 .vsrc{font-size:12px;color:var(--ink3);margin-top:2px}
 .vprog{margin:10px 0 4px;font-size:13px;color:var(--ink2)}
+.vage{font-size:12.5px;color:var(--ink3)} .vage .link{font-size:12.5px}
 .vdecks{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 .vlead{font-weight:700} .vlead.delete{color:var(--orange)}
 .vstars{color:#d99a00;white-space:nowrap}
@@ -67,11 +68,17 @@ async function votesView() {
   return votesProgram();
 }
 
-async function votesProgram() {
-  $("#main").innerHTML = `<div class="head"><h2>Slide Review</h2></div>${votesTabs()}<p class="note">Reading the decks in Outputs…</p>`;
+function votesAge(p) {
+  if (!p.as_of) return "no slide list yet";
+  const d = new Date(p.as_of), mins = Math.round((Date.now() - d.getTime()) / 60000);
+  return `list from ${p.decks} deck${p.decks === 1 ? "" : "s"}, as of ` + (mins < 1 ? "just now" : mins < 60 ? mins + " min ago" : d.toLocaleString());
+}
+
+async function votesProgram(refresh) {
+  $("#main").innerHTML = `<div class="head"><h2>Slide Review</h2></div>${votesTabs()}<p class="note">${refresh ? "Reading the decks in Outputs…" : "Reading the slide list…"}</p>`;
   let progs, d;
   try {
-    ({body: progs} = await api("/api/votes/programs"));
+    ({body: progs} = await api("/api/votes/programs" + (refresh ? "?refresh=1" : "")));
     ({body: d} = await api("/api/votes/program?program=" + encodeURIComponent(VOTE.program)));
   } catch (e) { $("#main").innerHTML = `<p class="err">Couldn't read the decks: ${esc(e.message)}</p>`; return; }
   if (MODE !== "votes" || VOTE.view !== "review") return;
@@ -85,12 +92,14 @@ async function votesProgram() {
       <td><input class="vc" type="text" maxlength="500" placeholder="Comment (optional)" value="${esc(m.comment || "")}"></td></tr>`;
   }).join("");
   $("#main").innerHTML = `<div class="head"><h2>Slide Review</h2><span class="sub">${esc(d.label)} · ${esc(d.period)} · voting as ${esc(d.me)}</span></div>${votesTabs()}
-    <p class="note">Open a deck beside Sheila, then <b>Keep</b>, <b>Delete</b> or move to an <b>Appendix</b> each slide of the program, and star your favorites. Not tied to a client; your choices save as you click and can be changed. The slide list comes from the newest decks in Outputs.</p>
+    <p class="note">Open a deck beside Sheila, then <b>Keep</b>, <b>Delete</b> or move to an <b>Appendix</b> each slide of the program, and star your favorites. Not tied to a client; your choices save as you click and can be changed. The slide list comes from the newest decks in Outputs, read once and kept; Refresh reads them again.</p>
     ${votesPrograms(progs.programs, "program", false)}
+    <div class="vage">${esc(votesAge(progs))}${progs.refreshing ? " · refreshing…" : ""}${progs.error ? ` · <span class="err">${esc(progs.error)}</span>` : ""} · <button type="button" class="link" id="vrefresh" title="Read the decks in Outputs again">Refresh</button></div>
     <div class="vprog" id="vprog"></div>
     ${rows ? `<table class="lm vr rv"><thead><tr><th>#</th><th></th><th>Slide</th><th>Your vote</th><th>Comment</th></tr></thead><tbody id="vbody">${rows}</tbody></table>`
            : `<p class="note">No ${esc(d.label)} deck in Outputs for ${esc(d.period)} yet.</p>`}`;
   votesProgress();
+  if (progs.refreshing) setTimeout(() => { if (MODE === "votes" && VOTE.view === "review") votesProgram(); }, 5000);
 }
 
 function votesProgress() {
@@ -148,6 +157,7 @@ $("#main").addEventListener("click", async e => {
   const pg = t.closest("[data-vprogram]");
   if (pg) { if (VOTE.view === "summary") { VOTE.filter = pg.dataset.vprogram; return votesSummary(); } VOTE.program = pg.dataset.vprogram; return votesProgram(); }
   if (t.closest("#vexport")) return votesExport();
+  if (t.closest("#vrefresh")) return votesProgram(true);
   const tr = t.closest("tr[data-n]"); if (!tr) return;
   const st = t.closest("button.star");
   if (st) return void await votesSend(tr, {star: st.getAttribute("aria-pressed") !== "true"});
