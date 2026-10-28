@@ -90,7 +90,8 @@ def _split(v):
 
 def run_kickoff(client_id: str, period: str, personal_code: str = "", business_code: str = "",
                 open_code: str = "", eligible_stat_codes: str = "", rege_opt_in: str = "",
-                rege_opt_out: str = "", deck: bool = False, output_dir=None) -> str:
+                rege_opt_out: str = "", deck: bool = False, output_dir=None,
+                items_from_calc: bool = False) -> str:
     """The non-interactive kickoff, in two steps: v5's `ils_run_kickoff` tool
     (v5 tools/products/ils.py at 7ba1e63), on the RPE folders.
 
@@ -128,13 +129,15 @@ def run_kickoff(client_id: str, period: str, personal_code: str = "", business_c
             from ils_pipeline.kickoff.run import run as _run
             find_extract(client_id, period)            # the RPE-worded error for a missing folder
             try:
-                result = _run(client_id, period, root(), output_dir, codes=codes, deck=deck)
+                result = _run(client_id, period, root(), output_dir, codes=codes, deck=deck,
+                              items_from_calc=items_from_calc)
             except Exception as exc:
                 if not deck:
                     raise
                 # A deck failure must not cost the workbook. Retry without it
                 # and say so, rather than returning nothing for both.
-                result = _run(client_id, period, root(), output_dir, codes=codes, deck=False)
+                result = _run(client_id, period, root(), output_dir, codes=codes, deck=False,
+                              items_from_calc=items_from_calc)
                 result.warnings.append(
                     f"The deck failed to build ({type(exc).__name__}: {exc}). "
                     f"The workbook above is complete and unaffected.")

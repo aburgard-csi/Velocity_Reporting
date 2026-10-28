@@ -73,6 +73,14 @@ def bar_with_line(categories, bar_values, line_values, bar_label: str, line_labe
     return out_path
 
 
+# RPE cases labels (navy core, white stroke) rather than drawing them in the canvas
+# colour (tests/test_chart_colors.py); v5 drew these white inside the bars.
+from matplotlib import patheffects as _pe
+import brand as _brand
+_NAVY = _brand.NAVY
+_CASED = [_pe.withStroke(linewidth=3, foreground="white")]
+
+
 def stacked_percentage_bar(categories, pct_a, pct_b, label_a: str, label_b: str,
                             title: str, ylabel: str, out_path: str) -> str:
     """Two-part stacked bar summing to 100% per category (e.g. Paid vs Returned)."""
@@ -83,9 +91,11 @@ def stacked_percentage_bar(categories, pct_a, pct_b, label_a: str, label_b: str,
 
     for i, (a, b) in enumerate(zip(pct_a, pct_b)):
         if a > 10:
-            ax.text(i, a / 2, f"{a:.1f}%", ha="center", va="center", color="white", fontweight="bold")
+            ax.text(i, a / 2, f"{a:.1f}%", ha="center", va="center", color=_NAVY, fontweight="bold",
+                    path_effects=_CASED)
         if b > 10:
-            ax.text(i, a + b / 2, f"{b:.1f}%", ha="center", va="center", color="white", fontweight="bold")
+            ax.text(i, a + b / 2, f"{b:.1f}%", ha="center", va="center", color=_NAVY, fontweight="bold",
+                    path_effects=_CASED)
 
     ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
     ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
