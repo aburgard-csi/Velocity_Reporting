@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — Sheila shows one Build button when the two builds would make the same deck
+
+Summary: A client like 1585 (ARS plus CashPlease, nothing else) now has one button, "Build ARS + CP (one deck)", instead of two buttons that built the same deck under different names.
+
+Aaron, 2026-10-28, from a screenshot of 1585: "These buttons should be Build Separate ARS and CP, or Build Combined ARS and CP. The current labels are unclear." Both buttons built one ARS deck with its CashPlease section, so there was no real choice to label; CashPlease slides ride inside the client's own deck, never as a separate one. A client whose combined build adds ICS or MRPC keeps both buttons.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
