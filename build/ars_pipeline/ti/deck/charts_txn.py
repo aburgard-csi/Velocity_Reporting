@@ -24,12 +24,9 @@ BLANK = "#F2F4F7"
 
 
 def _fmt_money(v) -> str:
-    v = float(v)
-    if abs(v) >= 1_000_000:
-        return f"${v / 1_000_000:.1f}M"
-    if abs(v) >= 1_000:
-        return f"${v / 1_000:.0f}K"
-    return f"${v:,.0f}"
+    """The deck's one money grammar (labels.money); this was a second copy of it (2026-10-28)."""
+    from .labels import money
+    return money(v)
 
 
 # ---------------------------------------------------------------- marimekko
@@ -90,9 +87,12 @@ def _pareto_fig(rows: list, threshold: float, note: str):
     vals = [r[2] for r in rows]
     ax.bar(xs, vals, width=0.62, color=ORANGE,
            alpha=0.95, edgecolor="white", linewidth=1.2)
+    # A name wraps to two lines rather than being cut ("Capital One Mob…", 2026-10-28): the
+    # caller clips at 28, this wraps at 14, upright under its own bar.
+    import textwrap
     ax.set_xticks(xs)
-    ax.set_xticklabels([r[0] for r in rows], fontsize=10, color=NAVY,
-                       rotation=30, ha="right")
+    ax.set_xticklabels([textwrap.fill(str(r[0]), 14, break_long_words=False) for r in rows],
+                       fontsize=9.5, color=NAVY)
     ax.set_ylim(0, max(vals) * 1.30)
     ax.get_yaxis().set_visible(False)
     cum = np.cumsum(vals) / total

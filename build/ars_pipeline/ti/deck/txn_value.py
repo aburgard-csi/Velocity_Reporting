@@ -144,7 +144,7 @@ def where_pin_gets_pressed(h, t, base):
     tick = [labels.clip(r[0], 16).title() for r in rows]
     path = h["chart"]("ic_by_merchant", charts.grouped_bars, tick,
                       [r[2] for r in rows], [r[3] for r in rows], "PIN", "Signature",
-                      size=(charts.FIG_W_FULL, charts.FIG_H_FULL), fmt="${:,.0f}")
+                      size=(charts.FIG_W_FULL, charts.FIG_H_FULL), fmt=labels.money)
     if path:
         h["chart_left"](s, path, top, h["RIGHT_EDGE"])
 

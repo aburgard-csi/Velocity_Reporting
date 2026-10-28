@@ -359,6 +359,7 @@ class Deck:
         self.charts_dir.mkdir(parents=True, exist_ok=True)
         self.slides = []
         self.declines = []
+        self.render_warnings = []     # charts._report_overlaps, per chart drawn (2026-10-28)
         self.topics = {}          # id(slide) -> v5's topic label (the slide() fallback)
 
     def _note(self, slide, title):
@@ -401,11 +402,16 @@ class Deck:
 
     def chart(self, name, fn, *a, **kw):
         target = self.charts_dir / f"{name}.png"
+        from . import charts as _charts
         try:
             return fn(*a, target, **kw)
         except Exception as exc:
             self.declines.append((name, f"chart failed ({type(exc).__name__}: {exc})"))
             return None
+        finally:
+            if _charts.RENDER_WARNINGS:
+                self.render_warnings.extend(_charts.RENDER_WARNINGS)
+                _charts.RENDER_WARNINGS.clear()
 
     def _singulars(self):
         """v5 printed "1 accounts" when a count came out at one; RPE's validator fails that."""
@@ -478,6 +484,10 @@ class Deck:
                 self.declined(title, why)
         self._singulars()
         self._house_words()
+        # Each chart's label report goes to the build log as a warning line, where Sheila shows it
+        # with the build's result (a chart past the threshold was refused above and is a decline).
+        for w in self.render_warnings:
+            print(f"  [!!]   chart {w}")
         return self.kept(self.slides)
 
     def kept(self, slides):

@@ -85,14 +85,10 @@ def _month_label(ym) -> str:
 
 
 def _money(v) -> str:
-    if v is None:
-        return "--"
-    v = float(v)
-    if abs(v) >= 1_000_000_000:
-        return f"${v / 1_000_000_000:.1f}bn"
-    if abs(v) >= 1_000_000:
-        return f"${v / 1_000_000:.0f}m"
-    return f"${v:,.0f}"
+    """The deck's one money grammar (labels.money); this printed $1.2bn / $17m beside $1.2M
+    elsewhere (2026-10-28)."""
+    from .labels import money
+    return money(v)
 
 
 def deposit_overview(h, t) -> str | None:

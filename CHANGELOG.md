@@ -33,6 +33,33 @@ Request (Aaron): "update the Slide Review page so it's not tied to a client ... 
 - New project skill `summit-one-pager`: ask which attendees, show the figures unranked, wait for Aaron's call on the story, then build. It does not choose metrics and is not scheduled (CLAUDE.md, Executive Summit one-pagers).
 - Tests: `tests/test_slide_votes.py` rewritten for program-level votes, stars, combined-deck splitting and the legacy read; `tests/test_summit_skill.py` pins the skill's guards.
 
+### 2026-10-28 — Transaction Intelligence charts: one money grammar, labels that clear each other, and a check that sees inside the chart
+
+Summary: Every figure on a Transaction Intelligence chart now uses the deck's one money grammar
+($1.2M / $482K / $73), on bars, rails and axis ticks alike, so the waterfall no longer prints
+"$79,340,378.0K" and a bubble chart no longer shows a "1e7" axis. A zero series gets no label, a
+net count of accounts prints as a count rather than a percentage, bubble names move clear of
+crowded neighbours with a leader line, the provider ledger names every row, and long Pareto names
+wrap instead of being cut. Each chart is checked for labels on bubbles or off the canvas when it is
+rendered; a few are reported in the build log and a chart past the threshold is withheld with its
+reason stated on the slide.
+
+Aaron, 2026-10-28, from 1075 Austin Bank's October deck: "a lot of long overlapping numbers in charts
+and labels". `labels.money` gains a billion tier and `count` / `signed_count`; `_money_tick`,
+`charts_txn._fmt_money`, `attrition_slides._money` and `deposit_slides._money` all delegate to it.
+`waterfall_bridge` prints dollars; `_grouped_on_ax` takes a callable format and skips a zero bar;
+`_momentum_fig` takes `momentum_unit` and the competitor momentum column passes "" for its net new
+accounts; `_quadrant_fig` / `branch_quadrant` take `xfmt` / `yfmt` and switch the scientific offset
+off, with money on the spend, dollars-per-account and balance axes; `place_point_labels` tries a third
+ring and draws a leader line for a name that moved; the branch chart's portfolio caption sits at the
+left end of the band; `charts_story._ledger_fig` is one named row per counterparty; the Pareto's names
+are clipped at 28 and wrapped at 14. `charts._report_overlaps` runs in `_save` and feeds
+`RENDER_WARNINGS`, drained by `Deck.chart` and printed as `[!!]` lines by `Deck.run`; past
+`UNREADABLE_LABELS` (6) it raises `ChartUnreadable`, which the helper turns into a stated decline.
+`tests/test_ti_chart_labels.py` pins all of it. The method questions the review raised (change
+measures with no prior window, per-category leaders, zero weekends, PIN at $0) are issues #86 to #89
+for James, not formatting.
+
 ### 2026-10-28 — CashPlease Peer Comparison: the label breaks before its window, and the cohort footnote moves to the notes
 
 Summary: On the CashPlease Peer Comparison slide, the "Loans per 1,000 DDAs (12 mo)" label now puts

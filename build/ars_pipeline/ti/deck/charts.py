@@ -250,17 +250,20 @@ def place_point_labels(ax, pts, areas_pt2, names, fontsize=11, color=None):
         w, h = tb.width, tb.height
         x, y = disp[i]
         around = []                                      # (anchor x, anchor y, ha, va) of the text
-        for ring in (1.0, 1.9):                          # beside the bubble first, then one label further out
+        # Beside the bubble first, then one and two labels further out: a cluster of seven
+        # overlapping branches (the branch quadrants, 2026-10-28) needs the far ring, and a name
+        # that had to move out gets a leader line back to its bubble.
+        for ring in (1.0, 1.9, 2.9):
             gap = (radii[i] + 4 * k) * ring
             around += [
-                (x, y + gap, "center", "bottom"), (x, y - gap, "center", "top"),
-                (x + gap, y, "left", "center"), (x - gap, y, "right", "center"),
-                (x + gap * 0.75, y + gap * 0.75, "left", "bottom"),
-                (x - gap * 0.75, y + gap * 0.75, "right", "bottom"),
-                (x + gap * 0.75, y - gap * 0.75, "left", "top"),
-                (x - gap * 0.75, y - gap * 0.75, "right", "top")]
+                (x, y + gap, "center", "bottom", ring), (x, y - gap, "center", "top", ring),
+                (x + gap, y, "left", "center", ring), (x - gap, y, "right", "center", ring),
+                (x + gap * 0.75, y + gap * 0.75, "left", "bottom", ring),
+                (x - gap * 0.75, y + gap * 0.75, "right", "bottom", ring),
+                (x + gap * 0.75, y - gap * 0.75, "left", "top", ring),
+                (x - gap * 0.75, y - gap * 0.75, "right", "top", ring)]
         best = None
-        for n, (ax_, ay_, ha, va) in enumerate(around):
+        for n, (ax_, ay_, ha, va, ring) in enumerate(around):
             x0 = ax_ - (w / 2 if ha == "center" else 0 if ha == "left" else w)
             y0 = ay_ - (h / 2 if va == "center" else 0 if va == "bottom" else h)
             box = Bbox([[x0, y0], [x0 + w, y0 + h]])
@@ -268,14 +271,23 @@ def place_point_labels(ax, pts, areas_pt2, names, fontsize=11, color=None):
             score += sum(overlap(box, d) for j, d in enumerate(discs) if j != i)
             score += (box.width * box.height - overlap(box, axbb)) * 4      # the part outside the plot
             if best is None or score < best[0] - 1e-9:
-                best = (score, ax_, ay_, ha, va, box)
+                best = (score, ax_, ay_, ha, va, box, ring)
             if score == 0:
                 break
-        _, ax_, ay_, ha, va, box = best
+        _, ax_, ay_, ha, va, box, ring = best
         placed.append(box)
         inv = ax.transData.inverted().transform((ax_, ay_))
-        ax.text(inv[0], inv[1], str(names[i]), ha=ha, va=va, fontsize=fontsize,
-                fontweight="bold", color=color or NAVY, zorder=4)
+        t = ax.text(inv[0], inv[1], str(names[i]), ha=ha, va=va, fontsize=fontsize,
+                    fontweight="bold", color=color or NAVY, zorder=4)
+        t._ars_keep = True            # placed on the real picture: the declutter pass leaves it
+        if ring > 1.0:
+            # from the bubble's edge towards the name, under the bubble so it never crosses it
+            dx, dy = ax_ - x, ay_ - y
+            d = (dx * dx + dy * dy) ** 0.5 or 1.0
+            ex, ey = x + dx / d * radii[i], y + dy / d * radii[i]
+            p0 = ax.transData.inverted().transform((ex, ey))
+            ax.plot([p0[0], inv[0]], [p0[1], inv[1]], color=GREY, lw=0.8, zorder=2,
+                    solid_capstyle="round")
     probe.remove()
 
 
@@ -413,9 +425,70 @@ def _save(fig, path: Path) -> Path:
     # have their final size.
     _literal_dollars(fig)
     _declutter(fig)
+    _report_overlaps(fig, path)
     fig.savefig(path, dpi=DPI, facecolor="white")
     plt.close(fig)
     return path
+
+
+# The gate reads a deck through python-pptx and cannot see inside a chart image, which is how
+# branch numbers on top of bubbles and names off the edge of the canvas shipped (Aaron,
+# 2026-10-28). So the check runs here, on the laid-out figure: every label is measured against
+# the bubbles it does not belong to and against the canvas. A chart with a few is reported
+# (RENDER_WARNINGS, drained into the build's warnings); one past UNREADABLE_LABELS is refused,
+# so the slide states the chart could not be drawn rather than carrying it.
+RENDER_WARNINGS: list = []
+UNREADABLE_LABELS = 6
+
+
+class ChartUnreadable(Exception):
+    pass
+
+
+def _report_overlaps(fig, path) -> list:
+    from matplotlib.collections import PathCollection
+    renderer = fig.canvas.get_renderer()
+    fw, fh = fig.bbox.width, fig.bbox.height
+    k = fig.dpi / 72.0
+    found = []
+    for ax in fig.axes:
+        discs = []
+        for coll in ax.collections:
+            if not isinstance(coll, PathCollection):
+                continue
+            offsets = ax.transData.transform(coll.get_offsets())
+            sizes = coll.get_sizes()
+            for j, (cx, cy) in enumerate(offsets):
+                r = (float(sizes[j % len(sizes)]) ** 0.5) / 2.0 * k if len(sizes) else 0.0
+                discs.append((cx, cy, r))
+        for t in ax.texts:
+            s = t.get_text().strip()
+            if not s or not t.get_visible():
+                continue
+            bb = t.get_window_extent(renderer)
+            if bb.width <= 0 or bb.height <= 0:
+                continue
+            if bb.x0 < -1 or bb.y0 < -1 or bb.x1 > fw + 1 or bb.y1 > fh + 1:
+                found.append(f"label '{s}' runs off the canvas")
+                continue
+            own = getattr(t, "_ars_bubble", None)
+            for j, (cx, cy, r) in enumerate(discs):
+                if j == own or r <= 0:
+                    continue
+                # the part of the label inside the bubble's square, against the label's area
+                w = min(bb.x1, cx + r) - max(bb.x0, cx - r)
+                h = min(bb.y1, cy + r) - max(bb.y0, cy - r)
+                if w > 0 and h > 0 and (w * h) / (bb.width * bb.height) > 0.3:
+                    found.append(f"label '{s}' sits on a bubble")
+                    break
+    if found:
+        name = Path(path).name
+        RENDER_WARNINGS.extend(f"{name}: {m}" for m in found)
+        if len(found) > UNREADABLE_LABELS:
+            plt.close(fig)
+            raise ChartUnreadable(f"{len(found)} labels overlap or run off the chart; "
+                                  f"first: {found[0]}")
+    return found
 
 
 def funnel(stages: list, out: Path, drop_fmt: str = "-{:.1f}%") -> Path:
@@ -552,9 +625,11 @@ def _branch_fig(rows: list, portfolio: float, top: int = 12,
     band_h = scale * 0.045
     ax.axhspan(portfolio - band_h, portfolio + band_h, color="#F2F5F8",
                zorder=0)
-    ax.text(len(rows) - 0.42, portfolio + band_h + scale * 0.02,
-            f"portfolio {val(portfolio)}", ha="right", fontsize=11.5,
-            color=GREY, style="italic")
+    # Bars run high to low, so the last bar is the one nearest the band and the caption sat on it
+    # (branch 14, 2026-10-28). The band is given room past the last bar and the caption sits in it.
+    ax.set_xlim(-0.6, len(rows) + 1.7)
+    ax.text(len(rows) - 0.3, portfolio, f"portfolio {val(portfolio)}", ha="left", va="center",
+            fontsize=11.5, color=GREY, style="italic")
     colors = [ORANGE if i == 0 else (NAVY if v >= portfolio else STEEL)
               for i, v in enumerate(rates)]
     bars = ax.bar(range(len(rows)), rates, color=colors, width=0.62,
@@ -1094,13 +1169,10 @@ def dual_series(series: list, out: Path, l1="Spend", l2="Swipes") -> Path:
 
 
 def _money_tick(v, _pos=None) -> str:
-    """$2.5m / $750k / $900 -- an axis a reader can say out loud."""
-    a = abs(v)
-    if a >= 1_000_000:
-        return f"${v / 1_000_000:,.1f}m"
-    if a >= 1_000:
-        return f"${v / 1_000:,.0f}k"
-    return f"${v:,.0f}"
+    """$2.5M / $750K / $900 -- an axis in the deck's one money grammar (labels.money), so a tick
+    and the label beside it never spell the same figure two ways (2026-10-28)."""
+    from .labels import money
+    return money(v)
 
 
 def _line_series_fig(series: list, ylabel="", pct=False,
@@ -1189,8 +1261,10 @@ def _grouped_on_ax(ax, labels, a_vals, b_vals, a_lab, b_lab,
     top = max(list(a_vals)+list(b_vals)) or 1
     for bars in (b1,b2):
         for bar in bars:
+            if not bar.get_height():
+                continue          # a zero series gets no label: ten "$0"s said nothing (2026-10-28)
             ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+top*0.025,
-                    fmt.format(bar.get_height()), ha="center", fontsize=11,
+                    _fmt(fmt, bar.get_height()), ha="center", fontsize=11,
                     fontweight="bold", color=NAVY)
     ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=label_size, color=NAVY)
     ax.set_ylim(0, top*1.2)
@@ -1544,11 +1618,14 @@ def _waterfall_fig(steps: list, ratio: dict | None):
         cap_y = top if kind != "down" else bottom
         _cap(ax, i - w / 2, i + w / 2, cap_y, span * 0.045, color,
              up=(kind != "down"))
+        # The values are dollars. This printed "$79,340,378.0K" (a K pinned on a full figure,
+        # 2026-10-28); the deck's one grammar gives "$79.3M" / "+$24.4M".
+        from .labels import money
         if kind == "start" or kind == "end":
-            text = f"${value:,.1f}K"
+            text = money(value)
         else:
             sign = "−" if value < 0 else "+"
-            text = f"{sign}${abs(value):,.1f}K"
+            text = f"{sign}{money(abs(value))}"
         ax.text(i, top + span * 0.05, text, ha="center", va="bottom",
                 fontsize=12, fontweight="bold", color=color)
         if prev_top is not None:
@@ -1557,8 +1634,11 @@ def _waterfall_fig(steps: list, ratio: dict | None):
             ax.plot([i - 1 + w / 2, i - w / 2], [level, level],
                     color=TINT, linestyle=(0, (4, 3)), linewidth=1.1)
         prev_top = top
-        ax.text(i, min(b for _, b, _ in segments) - span * 0.10, label,
-                ha="center", fontsize=11, color=GREY)
+        # A long category name wraps rather than being cut ("Investment/Brok…", 2026-10-28)
+        import textwrap
+        ax.text(i, min(b for _, b, _ in segments) - span * 0.06,
+                textwrap.fill(str(label), 16, break_long_words=False),
+                ha="center", va="top", fontsize=11, color=GREY)
     lo = min(b for _, b, _ in segments)
     hi = max(t for _, _, t in segments)
     ax.set_xlim(-0.6, len(steps) - 0.4)
@@ -1634,7 +1714,7 @@ MOMENTUM_HEADERS = ("INSTITUTION \u00b7 REACH", "DEPTH", "MOMENTUM")
 
 
 def _momentum_fig(rows: list, footnote: str, headers=None,
-                  mark_label: str = "local"):
+                  mark_label: str = "local", momentum_unit: str = "%"):
     """A ranked list: a bar (angle-cut), a second column, a movement column.
     rows: [[name, count, depth_label, momentum_pct|None, marked], ...]; the
     marked row's bar is orange. Growth is the red signal; decline is green;
@@ -1668,12 +1748,14 @@ def _momentum_fig(rows: list, footnote: str, headers=None,
         ax.text(length + 1.0, y + 0.45, f"{count:,}" + suffix,
                 va="center", fontsize=11, fontweight="bold", color=NAVY)
         ax.text(74, y + 0.45, depth, va="center", fontsize=10.5, color=GREY)
+        # The unit is the caller's: "%" for a rate of change, "" for a net count of accounts, which
+        # printed as "+14150%" when the column was handed net new accounts (2026-10-28).
         if momentum is None:
             mtext, mcolor = "→ flat", GREY
-        elif momentum > 0:
-            mtext, mcolor = f"↗ +{momentum:g}%", RED
+        elif momentum_unit == "%":
+            mtext, mcolor = (f"↗ +{momentum:g}%", RED) if momentum > 0 else (f"↘ −{abs(momentum):g}%", GREEN)
         else:
-            mtext, mcolor = f"↘ −{abs(momentum):g}%", GREEN
+            mtext, mcolor = (f"↗ +{momentum:,.0f}", RED) if momentum > 0 else (f"↘ −{abs(momentum):,.0f}", GREEN)
         momentum_texts.append(mtext)
         if show_momentum:
             ax.text(86, y + 0.45, mtext, va="center", fontsize=10.5,
@@ -1696,8 +1778,8 @@ def _momentum_fig(rows: list, footnote: str, headers=None,
 
 
 def momentum_bars(rows: list, out: Path, footnote: str = "", headers=None,
-                  mark_label: str = "local") -> Path:
-    fig, _ = _momentum_fig(rows, footnote, headers, mark_label)
+                  mark_label: str = "local", momentum_unit: str = "%") -> Path:
+    fig, _ = _momentum_fig(rows, footnote, headers, mark_label, momentum_unit)
     return _save(fig, out)
 
 
@@ -2221,7 +2303,7 @@ def pair_lines(xs: list, a: list, b: list, a_label: str, b_label: str,
 
 
 def _quadrant_fig(rows: list, xlabel: str, ylabel: str, quads=None,
-                  bubble_label="bubble = ICS accounts opened there"):
+                  bubble_label="bubble = ICS accounts opened there", xfmt=None, yfmt=None):
     """Branch quadrant: x/y per branch, bubble = volume, dashed medians.
     rows: [[name, n, x, y], ...] (None-valued rows dropped)."""
     rows = [r for r in rows if r[2] is not None and r[3] is not None]
@@ -2244,6 +2326,13 @@ def _quadrant_fig(rows: list, xlabel: str, ylabel: str, quads=None,
     ax.set_ylabel(ylabel, fontsize=11, color=NAVY)
     ax.margins(0.18)
     _clean(ax, left=True)
+    # An axis prints its own unit: a money axis in the deck's grammar ($2.5M), any other plain --
+    # never a "1e7" offset over "Spend outside the client" (2026-10-28).
+    ax.ticklabel_format(axis="both", style="plain", useOffset=False)
+    if xfmt is not None:
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: xfmt(v)))
+    if yfmt is not None:
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: yfmt(v)))
     ax.text(0.99, 0.02, bubble_label, transform=ax.transAxes, ha="right",
             fontsize=10, color=GREY, style="italic")
     if rows:
@@ -2271,8 +2360,8 @@ def _quadrant_fig(rows: list, xlabel: str, ylabel: str, quads=None,
 def branch_quadrant(rows: list, out: Path, quads=None,
                     bubble_label="bubble = ICS accounts opened there",
                     xlabel: str = "month-one activation %",
-                    ylabel: str = "12-mo retention %") -> Path:
-    fig, _ = _quadrant_fig(rows, xlabel, ylabel, quads, bubble_label)
+                    ylabel: str = "12-mo retention %", xfmt=None, yfmt=None) -> Path:
+    fig, _ = _quadrant_fig(rows, xlabel, ylabel, quads, bubble_label, xfmt=xfmt, yfmt=yfmt)
     return _save(fig, out)
 
 

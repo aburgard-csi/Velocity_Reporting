@@ -27,6 +27,8 @@ def money(v) -> str:
     v = float(v)
     sign = "-" if v < 0 else ""
     a = abs(v)
+    if a >= 1_000_000_000:
+        return f"{sign}${a/1_000_000_000:.1f}B"
     if a >= 1_000_000:
         return f"{sign}${a/1_000_000:.1f}M"
     if a >= 10_000:
@@ -34,6 +36,24 @@ def money(v) -> str:
     if a >= 1_000:
         return f"{sign}${a/1_000:.1f}K"
     return f"{sign}${a:,.0f}"
+
+
+def count(v) -> str:
+    """A count: thousands-separated, no decimals, never a float's tail (2026-10-28)."""
+    if v is None:
+        return "--"
+    return f"{float(v):,.0f}"
+
+
+def signed_count(v) -> str:
+    """A signed count: +14,150 / -327 / 0 -- a change in accounts is a count, never a percent
+    (the competitor momentum column printed the net new accounts as "+14150%", 2026-10-28)."""
+    if v is None:
+        return "--"
+    v = float(v)
+    if round(v) == 0:
+        return "0"
+    return f"{'+' if v > 0 else '-'}{abs(v):,.0f}"
 
 
 def signed(v, fmt: str = "g") -> str:
