@@ -29,8 +29,10 @@ CSS = r"""
 .ilsform label b{color:var(--ink)}
 .ilsform input[type=text]{font:inherit;padding:6px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
 .ilsopts{display:flex;flex-wrap:wrap;gap:6px 18px;margin:6px 0 8px;font-size:13px;color:var(--ink2)}
+.ilsopts label{display:flex;gap:6px;align-items:center;width:auto;margin:0}
+.ilsopts input[type=checkbox]{width:auto;margin:0;flex:none}
 .ilsopts input[type=text]{font:inherit;width:90px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
-pre.ilslog{font:12px/1.45 Consolas,"Cascadia Mono",monospace;background:var(--bg,#f6f7f9);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;max-height:360px;overflow:auto;white-space:pre-wrap;color:var(--ink);margin:8px 0 0}
+pre.ilslog{font:12px/1.45 Consolas,"Cascadia Mono",monospace;background:rgba(127,127,127,.08);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;max-height:360px;overflow:auto;white-space:pre-wrap;color:var(--ink);margin:8px 0 0}
 .ilssaved{font-size:12.5px;color:var(--ink3);margin:4px 0 2px}
 .chip.soon{background:var(--rule);color:var(--ink2)}
 """
