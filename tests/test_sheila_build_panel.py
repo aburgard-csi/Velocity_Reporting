@@ -19,11 +19,23 @@ def test_the_full_output_box_is_gone():
         assert gone not in W.PAGE, gone
 
 
-def test_the_transaction_intelligence_panel_has_a_place_for_its_progress():
-    panel = _between(W.PAGE, "function tiPanel(s)", "async function buildTI")
-    assert '<div id="jobti"></div>' in panel
-    # after the verdict (the button), before the last-build line
-    assert panel.index("${verdict}") < panel.index('id="jobti"') < panel.index("${last}")
+def test_each_card_has_a_place_for_its_progress():
+    """Every presentation is a card (2026-10-28); a build's progress draws inside its own card, after the
+    button and the checks."""
+    card = _between(W.PAGE, "function deckCard(o)", "function renderStatus(s)")
+    for box in ('<div id="job"></div>', '<div id="jobti"></div>', '<div id="jobcomp"></div>'):
+        assert box in card
+    assert card.index("${act}") < card.index("${fold}") < card.index("${jobBox}")
+    assert 'key: "ti", id: "tipanel"' in _between(W.PAGE, "function tiPanel(s)", "async function buildTI")
+    assert 'key: "comp", id: "comppanel"' in _between(W.PAGE, "function companionPanel(s)", "async function buildComp")
+
+
+def test_passed_checks_are_folded_and_the_rest_stay_visible():
+    card = _between(W.PAGE, "function deckCard(o)", "function renderStatus(s)")
+    assert 'const needs = r => r.level === "stop" || r.level === "warn";' in card
+    assert "<details class=\"fold\"><summary>" in card
+    assert "Rebuild only if something changed" not in W.PAGE        # the instruction text is gone
+    assert "Last build from this tool" not in W.PAGE                # said once, on the card's fact line
 
 
 def test_a_ti_job_draws_in_the_panel_and_clears_the_other_place():
@@ -47,10 +59,18 @@ def test_a_finished_build_redraws_the_page_around_it():
     assert "recheckQuietly(id)" in done.split("}")[0]
 
 
-def test_one_button_when_the_plain_and_combined_builds_are_the_same_deck():
-    """1585 is ARS + CP with no ICS or MRPC: both buttons built that one deck, and the two labels read as a
-    choice (Aaron, 2026-10-28). The page shows one button, and two only where combined adds programs."""
-    page = W.PAGE
-    assert 'const sameDeck = !!b.combined && b.ars_only && baseList.join("+") === b.combined.join("+");' in page
-    assert '(sameDeck ? " (one deck)" : "")' in page
-    assert "if (b.combined && !sameDeck) h += `" in page          # the combined button is dropped, not hidden
+def test_one_button_when_the_plain_and_combined_builds_are_the_same_deck():
+
+    """1585 is ARS + CP with no ICS or MRPC: both buttons built that one deck, and the two labels read as a
+
+    choice (Aaron, 2026-10-28). The page shows one button, and two only where combined adds programs."""
+
+    page = W.PAGE
+
+    assert 'const sameDeck = !!b.combined && b.ars_only && baseList.join("+") === b.combined.join("+");' in page
+
+    assert "const two = b.ars_only && !!b.combined && !sameDeck;" in page
+    assert 'sameDeck ? `${plain}, one deck`' in page           # the card's subtitle says so
+
+    assert "if (b.combined && !sameDeck) h += `" in page          # the combined button is dropped, not hidden
+

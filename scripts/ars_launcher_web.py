@@ -1055,6 +1055,20 @@ def changelog_page(path=None):
             + "\n".join(body) + "</main></body></html>")
 
 
+def reveal_deck(cid, period, name):
+    """Show one of a client's decks for the period in File Explorer, by its file name — the client page's
+    "open the deck" link (2026-10-28), which knows names, not paths."""
+    if not CID_RX.match(cid) or not re.fullmatch(r"\d{4}\.\d{2}", period):
+        return 400, {"error": "not a client number and period"}
+    try:
+        hits = [p for p in R.output_decks(f"{cid}-{period}-*.pptx") if p.name == name]
+    except (OSError, SystemExit):
+        return 403, {"error": "Outputs is not reachable."}
+    if not hits:
+        return 404, {"error": f"{name} is not in Outputs any more."}
+    return reveal(str(hits[0]))
+
+
 def reveal(path):
     """Show a deck in File Explorer — only a file under Outputs."""
     try:
@@ -1908,6 +1922,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/votes/vote":
             return self._send(*votes_vote(body))
         if path == "/api/reveal":
+            if body.get("deck"):
+                return self._send(*reveal_deck(str(body.get("client", "")), str(body.get("period", "")),
+                                               str(body.get("deck", ""))))
             return self._send(*reveal(str(body.get("path", ""))))
         if path in ("/api/lift/export", "/api/lift/download", "/api/lift/rescan"):
             cid = str(body.get("client", "")).strip()
@@ -2135,6 +2152,22 @@ button.link{font:inherit;background:none;border:0;color:var(--sent);text-decorat
 .mono{font-family:Consolas,monospace;font-size:13px;word-break:break-all}
 details.log{margin-top:14px} details.log summary{cursor:pointer;color:var(--ink2);font-size:13px;width:max-content}
 .last{margin-top:18px;color:var(--ink2);font-size:14px}
+/* The client page cards (2026-10-28): one per presentation, the passed checks folded away. */
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:12px 16px;margin-top:10px}
+.card.stopcard{border-color:var(--stop)}
+.cardhead{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-start;justify-content:space-between}
+.cardhead h3{margin:0;font-size:15.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cardhead .mix{font-weight:500;color:var(--ink2);font-size:13px}
+.card .act{display:grid;gap:4px;justify-items:end;margin-left:auto} .card .act .why{font-size:11.5px;color:var(--ink3)}
+.card .fact{margin:6px 0 0;font-size:13.5px;color:var(--ink2)} .card .fact b{color:var(--ink);font-weight:600}
+.card .checks{margin-top:8px}
+.card .fold{margin-top:6px;font-size:12.5px;color:var(--ink3)} .card .fold summary{cursor:pointer}
+.card .fold .checks{margin-top:6px;font-size:13.5px;color:var(--ink2)}
+.card .small{margin:4px 0 0;font-size:12.5px;color:var(--ink3)} .card .progress{margin-top:12px}
+.cards-note{font-size:12.5px;color:var(--ink3);margin-top:12px;max-width:70ch}
+button.quiet{font:600 14px/1 "Segoe UI",Arial,sans-serif;background:var(--soft);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:10px 14px;cursor:pointer;
+  box-shadow:inset 0 1px 0 var(--hi),inset 0 -1px 0 var(--lo),0 1px 2px var(--touch)}
+button.quiet:active{transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.18)}
 .ti{margin-top:26px;padding-top:16px;border-top:1px solid var(--rule)}
 .ti .tihead{margin:0 0 10px;font-size:16px} .ti .tihead .sub{font-weight:400;margin-left:8px}
 .note{color:var(--ink2);font-size:13px;margin-top:14px}
@@ -2455,13 +2488,46 @@ async function recheckQuietly(id) {
   } catch (e) { statusTimer = setTimeout(() => recheckQuietly(id), 5000); }
 }
 
+// The client page is cards, one per presentation (Aaron, 2026-10-28: "hard to follow because there's so
+// much text"): the Executive Review, and for an ARS client the Transaction Intelligence cut and the ARS
+// Companion. A card says each thing once — a state chip, one line on the last build, the checks that need
+// attention with the passed ones folded away, and a short button with its consequence under it. The three
+// panels used to state "in Outputs" three times each (a BUILT row, a verdict box and a last-build line).
+function deckCard(o) {
+  const k = o.key || "";
+  const rows = (o.checks || []).map(c => ({...c, cls: LEVEL[c.level] || ["step", c.level]}));
+  const needs = r => r.level === "stop" || r.level === "warn";
+  const shown = rows.filter(needs), folded = rows.filter(r => !needs(r));
+  const li = r => `<li><span class="tag ${r.cls[0]}">${r.cls[1]}</span><span>${esc(r.text)}</span></li>`;
+  const visible = shown.length ? `<ul class="checks">${shown.map(li).join("")}</ul>` : "";
+  const fold = folded.length ? `<details class="fold"><summary>${folded.length}${shown.length ? " other" : ""} check${folded.length === 1 ? "" : "s"} passed</summary><ul class="checks">${folded.map(li).join("")}</ul></details>` : "";
+  const decks = o.decks || [];
+  const state = o.state === "stop" ? `<span class="chip stop">Can't build yet</span>`
+    : decks.length ? `<span class="chip out">In Outputs</span>` : `<span class="chip ready">Ready to build</span>`;
+  const sent = o.sent ? ` <span class="chip sent">Sent ${esc(shortDate(o.sent))}</span>` : "";
+  // One link per deck: Transaction Intelligence makes a deck per lens, so a client on both gets two files.
+  const lens = n => { const m = n.match(/-TI-(ARS|ICS)-/); return m ? `the ${m[1]} lens` : n; };
+  const open = decks.map(n => `<button class="link" data-reveal="${esc(n)}">${decks.length > 1 ? "open " + esc(lens(n)) : "open the deck"}</button>`).join(" · ");
+  const l = o.last;
+  let fact = "";
+  if (l && l.delivered) fact = `Built <b>${esc(l.finished)}</b> by ${esc(l.by)} · ${esc(l.result)}`;
+  else if (l) fact = `<span class="err">Last build ${esc(l.finished)} by ${esc(l.by)} was not put in Outputs: ${esc(l.result)}</span>`;
+  else if (decks.length) fact = `${decks.length === 1 ? "Deck" : "Decks"} in Outputs`;
+  if (open) fact += (fact ? " · " : "") + open;
+  const why = o.state === "stop" ? "" : `<span class="why">${o.state === "ask" ? `replaces the ${decks.length > 1 ? "decks" : "deck"} in Outputs` : "goes to Outputs when it passes validation"}</span>`;
+  // The ids are written out in full so the page test can see each one is created (test_every_element...).
+  const jobBox = {"": '<div id="job"></div>', ti: '<div id="jobti"></div>', comp: '<div id="jobcomp"></div>'}[k];
+  const recheck = {"": '<button class="quiet" id="recheck">', ti: '<button class="quiet" id="tirecheck">', comp: '<button class="quiet" id="comprecheck">'}[k];
+  const act = o.state === "stop" ? `${recheck}Check again</button>` : o.buttons;
+  return `<section class="card${o.state === "stop" ? " stopcard" : ""}" id="${o.id}">
+    <div class="cardhead"><h3>${esc(o.title)}${o.mix ? ` <span class="mix">${esc(o.mix)}</span>` : ""} ${state}${sent}</h3><div class="act">${act}${why}</div></div>
+    ${fact ? `<p class="fact">${fact}</p>` : ""}${o.note || ""}${visible}${fold}${jobBox}</section>`;
+}
+
 function renderStatus(s) {
   const c = CLIENTS.find(x => x.id === s.client) || {};
-  const checks = s.checks.map(k => { const [cls, label] = LEVEL[k.level] || ["step", k.level];
-    return `<li><span class="tag ${cls}">${label}</span><span>${esc(k.text)}</span></li>`; }).join("");
   // The last build failed: the list shows the red Error pill, and the button offers the retry.
   const failed = c.error || (s.job && s.job.done && s.job.code);
-  const failNote = failed ? ` <span class="err">The last build failed; see why below.</span>` : "";
   // Up to two builds (Aaron, 2026-09-16): ARS only, and a combined deck with every other program whose
   // data is on hand. Aaron's multi-program clients get only the combined one.
   const b = s.builds || {ars_only: true, has_ars: true, base: ["ARS"], combined: null, left_out: {}};
@@ -2471,33 +2537,40 @@ function renderStatus(s) {
   // A client with no ARS has one build, every program with data (Aaron, 2026-10-13).
   const noArs = b.has_ars === false;
   const baseList = b.base && b.base.length ? b.base : ["ARS"];
-  const base = baseList.length > 1 ? baseList.join(" + ") : "ARS only";
+  const plain = baseList.join(" + ");
+  const base = baseList.length > 1 ? plain : "ARS only";
   const leftOut = Object.entries(b.left_out || {}).map(([p, why]) => `${p} left out: ${why}`).join(" · ");
   // When the plain build and the combined build carry the same programs (1585: ARS + CP, no ICS or MRPC), the two
   // buttons would build the identical deck: show one (Aaron, 2026-10-28, "These buttons should be ... the current
   // labels are unclear").
   const sameDeck = !!b.combined && b.ars_only && baseList.join("+") === b.combined.join("+");
+  // Two builds on offer name themselves; one build is just "Build", and the card's subtitle says what it makes.
+  const two = b.ars_only && !!b.combined && !sameDeck;
   const btns = (ask) => {
     const cls = ask ? "primary warn" : "primary", verb = failed ? (ask ? "Retry rebuild" : "Retry build") : (ask ? "Rebuild" : "Build");
     let h = "";
-    if (b.ars_only) h += `<button class="${cls}" id="go">${verb} ${b.combined ? esc(base) + (sameDeck ? " (one deck)" : "") : (ask ? "and replace the one in Outputs" : "and put in Outputs")}</button>`;
-    if (b.combined && !sameDeck) h += `<button class="${cls}" id="go2">${verb} ${noArs ? esc(combo) + (ask ? " and replace the one in Outputs" : "") : "combined (" + esc(combo) + ")"}</button>`;
+    if (b.ars_only) h += `<button class="${cls}" id="go">${verb}${two ? " " + esc(base) : ""}</button>`;
+    if (b.combined && !sameDeck) h += `<button class="${cls}" id="go2">${verb}${two ? " combined" : ""}</button>`;
     return `<span class="btns">${h}</span>`;
   };
-  const mix = baseList.length > 1 ? ` This client's deck is ${esc(baseList.join(" + "))}.` : "";
-  const choose = noArs ? (b.combined && b.combined.length < baseList.length ? ` This client's deck is ${esc(baseList.join(" + "))}; the build carries ${esc(combo)}.` : mix)
-    : sameDeck ? ` This client's deck is ${esc(base)}, one deck.` : b.combined && b.ars_only ? ` Choose the ${esc(base)} deck or a combined deck.` : b.combined ? ` This client's deck is combined (${esc(combo)}).` : mix;
-  const note = leftOut ? `<br><span class="small">${esc(leftOut)}</span>` : "";
-  let verdict;
-  if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.${choose}${failNote}${note}</p>${btns(false)}</div>`;
-  else if (s.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's deck is already in Outputs.</b> Rebuild only if something changed, such as a formatting fix or a corrected input.${choose}${failNote}${note}</p>${btns(true)}</div>`;
-  else verdict = `<div class="verdict stop"><p><b>Can't build yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="recheck">Check again</button></div>`;
-  const last = s.last ? `<div class="last"><h3>Last build from this tool</h3>${esc(s.last.finished)} by ${esc(s.last.by)}: ${esc(s.last.result)}${s.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
+  const mix = noArs ? (b.combined && b.combined.length < baseList.length ? `${plain}; the build carries ${combo}` : b.combined ? combo : plain)
+    : sameDeck ? `${plain}, one deck` : two ? `${base}, or combined (${combo})` : b.combined ? `${combo}, combined` : plain;
+  const note = (leftOut ? `<p class="small">${esc(leftOut)}</p>` : "") + (failed ? `<p class="small err">The last build failed; see why below.</p>` : "");
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
+  const review = deckCard({key: "", id: "rpepanel", title: "Executive Review", mix, state: s.state, checks: s.checks, last: s.last,
+                           decks: c.decks || [], sent: c.sent && c.csm === "Aaron Burgard" ? c.sent : null,
+                           buttons: btns(s.state === "ask"), note});
+  const aside = (s.ti || s.companion)
+    ? `<p class="cards-note">${s.ti ? "Transaction Intelligence" : ""}${s.ti && s.companion ? " and " : ""}${s.companion ? "the ARS Companion" : ""} ${s.ti && s.companion ? "are separate presentations" : "is a separate presentation"} filed beside the Executive Review; building one never changes another.</p>`
+    : "";
   $("#main").innerHTML = `<div class="head"><h2>${esc(s.name || c.name || s.client)}</h2><span class="sub">${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span>
       <span class="sub" style="margin-left:auto">${esc(age)} · <button class="link" id="refresh">Check again</button></span></div>
-    <p class="note clientlinks" id="clientlinks">&nbsp;</p><ul class="checks">${checks}</ul>${verdict}<div id="job"></div>${last}${tiPanel(s)}${companionPanel(s)}`;
+    <p class="note clientlinks" id="clientlinks">&nbsp;</p>${review}${tiPanel(s)}${companionPanel(s)}${aside}`;
   clientLinks(s.client, "decks");
+  for (const el of document.querySelectorAll("#main [data-reveal]")) el.addEventListener("click", async () => {
+    try { await api("/api/reveal", {method: "POST", body: JSON.stringify({client: s.client, period: s.period, deck: el.dataset.reveal})}); }
+    catch (e) { el.insertAdjacentHTML("afterend", ` <span class="err">${esc(e.message)}</span>`); }
+  });
   const go = $("#go"); if (go) go.addEventListener("click", () => build(s, false));
   const go2 = $("#go2"); if (go2) go2.addEventListener("click", () => build(s, true));
   const goti = $("#goti"); if (goti) goti.addEventListener("click", () => buildTI(s));
@@ -2515,17 +2588,10 @@ function renderStatus(s) {
 function tiPanel(s) {
   const t = s.ti;
   if (!t) return "";
-  const checks = (t.checks || []).map(k => { const [cls, label] = LEVEL[k.level] || ["step", k.level];
-    return `<li><span class="tag ${cls}">${label}</span><span>${esc(k.text)}</span></li>`; }).join("");
   const failed = t.last && !t.last.delivered;
-  const failNote = failed ? ` <span class="err">The last Transaction Intelligence build failed; see below.</span>` : "";
-  let verdict;
-  if (t.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build the Transaction Intelligence decks.</b> One deck per lens, put in Outputs beside the Executive Review; it never replaces it.${failNote}</p><span class="btns"><button class="primary" id="goti">${failed ? "Retry" : "Build"} Transaction Intelligence</button></span></div>`;
-  else if (t.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's Transaction Intelligence decks are already in Outputs.</b> Rebuild only if something changed.${failNote}</p><span class="btns"><button class="primary warn" id="goti">Rebuild Transaction Intelligence</button></span></div>`;
-  else verdict = `<div class="verdict stop"><p><b>Can't build the Transaction Intelligence decks yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="tirecheck">Check again</button></div>`;
-  const last = t.last ? `<div class="last"><h3>Last Transaction Intelligence build from this tool</h3>${esc(t.last.finished)} by ${esc(t.last.by)}: ${esc(t.last.result)}${t.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
-  return `<div class="ti" id="tipanel"><h3 class="tihead">Transaction Intelligence <span class="sub">a separate presentation, not the Executive Review</span></h3>
-    <ul class="checks">${checks}</ul>${verdict}<div id="jobti"></div>${last}</div>`;
+  const buttons = `<span class="btns"><button class="primary${t.state === "ask" ? " warn" : ""}" id="goti">${t.state === "ask" ? "Rebuild" : failed ? "Retry" : "Build"}</button></span>`;
+  return deckCard({key: "ti", id: "tipanel", title: "Transaction Intelligence", mix: "one deck per lens", state: t.state, checks: t.checks,
+                   last: t.last, decks: t.decks || [], buttons});
 }
 
 async function buildTI(s) {
@@ -2547,17 +2613,10 @@ async function buildTI(s) {
 function companionPanel(s) {
   const t = s.companion;
   if (!t) return "";
-  const checks = (t.checks || []).map(k => { const [cls, label] = LEVEL[k.level] || ["step", k.level];
-    return `<li><span class="tag ${cls}">${label}</span><span>${esc(k.text)}</span></li>`; }).join("");
   const failed = t.last && !t.last.delivered;
-  const failNote = failed ? ` <span class="err">The last ARS Companion build failed; see below.</span>` : "";
-  let verdict;
-  if (t.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build the ARS Companion deck.</b> James's analysis slides as a deck of their own, put in Outputs beside the Executive Review; it never replaces it.${failNote}</p><span class="btns"><button class="primary" id="gocomp">${failed ? "Retry" : "Build"} ARS Companion</button></span></div>`;
-  else if (t.state === "ask") verdict = `<div class="verdict ask"><p><b>This month's ARS Companion deck is already in Outputs.</b> Rebuild only if something changed.${failNote}</p><span class="btns"><button class="primary warn" id="gocomp">Rebuild ARS Companion</button></span></div>`;
-  else verdict = `<div class="verdict stop"><p><b>Can't build the ARS Companion deck yet.</b> Fix the items marked STOP, then check again.</p><button class="primary" id="comprecheck">Check again</button></div>`;
-  const last = t.last ? `<div class="last"><h3>Last ARS Companion build from this tool</h3>${esc(t.last.finished)} by ${esc(t.last.by)}: ${esc(t.last.result)}${t.last.delivered ? " · in Outputs" : " · not in Outputs"}</div>` : "";
-  return `<div class="ti" id="comppanel"><h3 class="tihead">ARS Companion <span class="sub">James's analysis slides, a separate presentation, not the Executive Review</span></h3>
-    <ul class="checks">${checks}</ul>${verdict}<div id="jobcomp"></div>${last}</div>`;
+  const buttons = `<span class="btns"><button class="primary${t.state === "ask" ? " warn" : ""}" id="gocomp">${t.state === "ask" ? "Rebuild" : failed ? "Retry" : "Build"}</button></span>`;
+  return deckCard({key: "comp", id: "comppanel", title: "ARS Companion", mix: "James's analysis slides", state: t.state, checks: t.checks,
+                   last: t.last, decks: t.decks || [], buttons});
 }
 
 async function buildComp(s) {

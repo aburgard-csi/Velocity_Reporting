@@ -27,6 +27,24 @@ Summary: Sheila and the builders now find an ICS referral export that was droppe
 
 James reported 1766 Fort Sill showing the direct-mail list, referral list and transaction files as missing. The direct-mail list and transaction files were already on hand under the expected names; the referral export had been landed as `Inputs/ICS Referrals/1766/ics_detailed referral_1766.xls`, and both readers (`ti/lens.ics_list_files` and `ics_local_sheet.find_referrals`) only looked for a file in the folder itself with the id at the start of its name. They now also read `<folder>/<id>/` and a name ending in the id, matched as a whole number (1766 never matches 17660).
 
+### 2026-10-28 — Sheila's client page is three cards, not three walls of text
+
+Summary: A client's page in Sheila now shows one card per presentation (Executive Review, Transaction
+Intelligence, ARS Companion) with a state chip, one line on the last build with a link to open the deck,
+the checks that need attention, and a short Build or Rebuild button. Checks that passed are folded under
+"N checks passed". A Lift Matrix whose window ends this month or next now shows a warning that the next
+workbook is due. Nothing about what the buttons do changed.
+
+Aaron, 2026-10-28: "this page is hard to follow because there's so much text". Each panel said "in Outputs"
+three times (a BUILT row, a verdict box and a last-build line), carried instruction text on every visit and
+a button label with the product list inside it. `deckCard` in `ars_launcher_web.py` draws every card;
+STOP and WARN rows stay visible, OK and BUILT rows fold into a `<details>`; the button reads Build, Rebuild
+or Retry with the consequence under it, and names its build only when two are on offer (ARS only /
+combined); the product mix is the card's subtitle. "Open the deck" reveals the file by name through
+`reveal_deck` (one link per Transaction Intelligence lens). `lift_checks` adds the WARN when the data month
+is the window's last month or the one before (`_months_between`). `tests/test_sheila_build_panel.py` and
+`tests/test_ars_launcher.py` pin it.
+
 ### 2026-10-28 — Sheila's tabs and chips carry the same light as the buttons
 
 Summary: The header tabs, the reporting-month pill, the status chips (Ready, In Outputs, Sent,
