@@ -33,6 +33,8 @@ Stage g11-03: v5's `bases.py`, the populations every section reads (all, persona
 
 Stage g11-04: v5's eleven sections (`pre_go_live/sections/`: summary, readiness, reconcile, waterfall, status, OD status, core state, score, Reg E, limits, fees) and their shared cut, logic unchanged, and v5's universal fee-tier scenarios as `ils_pipeline/config/ils_fee_tiers.json` (a byte copy of v5's `0_Config` file; read only when a run is given the client's fee). `tests/test_ils_pgl_sections.py` and the section half of `tests/test_ils_pgl_system_view.py`.
 
+Stage g11-05: v5's whole `run.py`, `report.py` and `__main__.py` (`python -m ils_pipeline.pre_go_live <id> --open-status ... --od-eligible ... --rege-opt-in ...` from `build/`), and `core/layout.py` reading RPE's `templates/` and `build/assets/`. A coded run writes `pgl_metrics.json` and its manifest to `Build Artifacts/ils/PGL/<id>/<yyyymmdd>/`, never to `Outputs/`. On 1737's 2026-08-07 extract, with v5's codes, the port's metrics equal v5's key for key (117 of 117) and the report text is identical. `tests/test_ils_pgl_run.py`.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
