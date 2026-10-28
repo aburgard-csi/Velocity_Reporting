@@ -253,3 +253,20 @@ def test_the_closing_slides_end_the_deck_even_when_a_view_follows_them_in_the_bu
     CD.build(str(full), str(sj), str(out))
     assert [CD.title_of(s) for s in Presentation(out).slides][1:] == ["Reach", "Appendix View",
                                                                       "Questions & Discussion", "Contact Us"]
+
+
+def test_the_companion_build_hands_its_flags_to_the_child_environment(tmp_path, monkeypatch):
+    """build_month copies os.environ when it is imported, so the build process only ever sees what is put in
+    _CHILD_ENV. The flags were set on os.environ instead, the views were never added, and the build died looking
+    for companion_slides.json (Austin Bank, 2026-10-28)."""
+    import argparse
+    import build_month as BM
+    monkeypatch.setattr(BM, "_CHILD_ENV", {"PYTHONIOENCODING": "utf-8"})
+    seen = {}
+    monkeypatch.setattr(BM, "build_client", lambda *a, **k: seen.update(BM._CHILD_ENV) or ("stub", {}))
+    monkeypatch.setattr(L, "companion_checks", lambda *a, **k: [(L.OK, "fine")])
+    work = tmp_path / "w"
+    work.mkdir()
+    a = argparse.Namespace(client="1441", rebuild=False)
+    assert L.build_companion(a, BM, ROW, "2026.10", ROSTER, {}, work) == 1
+    assert all(seen.get(k) == v for k, v in L.COMPANION_ENV.items())
