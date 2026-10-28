@@ -9,12 +9,7 @@ Every test runs under kickoff/_v5/compat.legacy_strings(), as the entry points d
 import runpy
 import sys
 
-import matplotlib
 import pytest
-
-# v5's run imports deck/slides, whose chart library (ars/deck/charts.py) sets the Agg backend on
-# import; every RPE chart module does the same. Until the deck stage brings that import, say it here.
-matplotlib.use("Agg")
 from openpyxl import load_workbook
 
 from ils_pipeline import kickoff_input
@@ -167,3 +162,29 @@ def test_the_run_file_is_v5_s_and_names_its_source():
     assert first.startswith("# Ported from v5 02-Scripts/ils/kickoff_analysis/run.py at 7ba1e63.")
     src = pathlib.Path(runner.__file__).read_text(encoding="utf-8")
     assert "ars_pipeline" not in src and "from ti" not in src and "import ti" not in src
+
+
+def test_with_the_deck_both_files_land_in_build_artifacts(root):
+    _extract(root)
+    text = kickoff_input.run_kickoff("1842", "2026-10", personal_code="P", business_code="B",
+                                     open_code="O", eligible_stat_codes="ODP Account",
+                                     rege_opt_in="Y", deck=True)
+    assert "  deck: " in text and "NOT built" not in text, text
+    out = root / "Build Artifacts" / "ils" / "kickoff" / "1842" / "2026-10"
+    names = sorted(p.name for p in _files(root / "Build Artifacts"))
+    assert len(names) == 2 and "1842 - ILS Kickoff 2026-10.pptx" in names
+    assert (out / "1842 - ILS Kickoff 2026-10.pptx").is_file()
+    assert _files(root / "Outputs") == []
+
+
+def test_the_template_carries_the_layout_the_deck_asks_for():
+    """The kickoff deck adds every slide on layout index LAYOUT_BLANK (deckkit.open_template, build._divider):
+    in v5's template that is BLANK, and RPE's templates/ars_template.pptx, read only, must say the same."""
+    from pptx import Presentation
+    from ils_pipeline.kickoff._v5 import deckkit as dk
+    from ils_pipeline.kickoff._v5.core import layout
+    import rpe_env
+    assert layout.TEMPLATE == rpe_env.REPO_ROOT / "templates" / "ars_template.pptx"
+    assert layout.LOGO.is_file()
+    names = [lay.name for lay in Presentation(str(layout.TEMPLATE)).slide_layouts]
+    assert names[dk.LAYOUT_BLANK] == "BLANK"
