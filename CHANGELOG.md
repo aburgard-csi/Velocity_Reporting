@@ -1388,6 +1388,25 @@ Fourth stage, `feat/ils/g12-04-deck`: v5's kickoff deck (`kickoff/deck/slides.py
 
 Stage g12-05 (James Gilmore, 2026-10-27: "fix in CSM Reporting"), the first change to what the ported kickoff computes, so its own stage: two real extracts v5 could not run. 1840 FNB KY names its item counts `Paid Annualized` / `Returned Annualized` (Items = paid + returned on every account, 12,919 = 10,379 + 2,540); they are now read as Paid / Returned Items, where v5 refused the file. 1842 carries Items / Paid / Returned blank on all 5,554 rows: v5 read zero items everywhere and failed in the deck on a 0/0 share; the load now says so (the field summary still works) and the run refuses, naming the file's `Paid Items # Calc` / `Returned Items # Calc` columns, unless it is run with `--items-from-calc`, which reads those fee-derived estimates and puts an ESTIMATED ITEM COUNTS warning on the warnings slide. The stacked paid/returned bar labels are cased (navy, white stroke) instead of white, per `tests/test_chart_colors.py`. `tests/test_ils_kickoff_extract_spellings.py`.
 
+### 2026-10-28 — Transaction Intelligence cut: column names for the tables v5 never named (stage g14-04)
+
+Summary: the TI cut now writes a CSV for 67 more tables. Their column names are in the new `ti/table_columns.py`, each read from the line of code that builds the row. The real 1761 pack goes from 42 CSVs to 72, and 1776 from 101 to 167.
+
+v5's tables layer writes only tables that declare their columns, so 30 of 1761's and 68 of 1776's Sep26 tables had no CSV and could not be backed up row by row. The names sit in an RPE-side file, not in the ported modules, and are applied only on the way into `tables.write`. No ported file changes and no figure in `ti_pack.json` moves.
+
+The business-side tables (`finb_`, `compb_`, `mchb_`) take the names their personal-side siblings already declare. Those declarations were dropped by `txn_sections.py`'s business allow-lists. `beh_routing_by_merchant` takes the names declared as `beh_routing_columns`. In every one of these cases, if the declared names are absent the table stays unwritten and is named in the warnings, so no header is ever invented.
+
+Two keys stay out on purpose:
+- `tier_migration_matrix`: its rows carry no tier label, so a CSV could not be read on its own.
+- `tier_migration_windows`: month tags, not a table.
+
+On all three real packs every header is exactly as wide as its rows.
+
+Where a name would be easy to misread, it says what is counted:
+- `age` and `balance_profile` rates are responders over mailed accounts, a count the row does not carry, hence `response_rate_of_mailed_pct`.
+- `comp_recency_bands` counts account × competitor pairs.
+- `swipe_tier`'s last column is the monthly NSF/OD item count.
+
 ### 2026-10-28 — Transaction Intelligence cut: the ODD's shape is checked before any figure (stage g14-03)
 
 Summary: before any chapter computes, the TI cut's build now runs v5's extract check on the client's ODD. It records the file's shape in `ti_pack.json` as `extract_*` figures and warns when that shape would quietly distort a figure elsewhere.
