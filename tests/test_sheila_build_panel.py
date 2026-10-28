@@ -45,3 +45,12 @@ def test_a_finished_build_redraws_the_page_around_it():
     follow = _between(W.PAGE, "function follow(id)", "function renderJob")
     done = follow[follow.index("if (body.done)"):]
     assert "recheckQuietly(id)" in done.split("}")[0]
+
+
+def test_one_button_when_the_plain_and_combined_builds_are_the_same_deck():
+    """1585 is ARS + CP with no ICS or MRPC: both buttons built that one deck, and the two labels read as a
+    choice (Aaron, 2026-10-28). The page shows one button, and two only where combined adds programs."""
+    page = W.PAGE
+    assert 'const sameDeck = !!b.combined && b.ars_only && baseList.join("+") === b.combined.join("+");' in page
+    assert '(sameDeck ? " (one deck)" : "")' in page
+    assert "if (b.combined && !sameDeck) h += `" in page          # the combined button is dropped, not hidden

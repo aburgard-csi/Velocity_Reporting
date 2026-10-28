@@ -2445,16 +2445,20 @@ function renderStatus(s) {
   const baseList = b.base && b.base.length ? b.base : ["ARS"];
   const base = baseList.length > 1 ? baseList.join(" + ") : "ARS only";
   const leftOut = Object.entries(b.left_out || {}).map(([p, why]) => `${p} left out: ${why}`).join(" · ");
+  // When the plain build and the combined build carry the same programs (1585: ARS + CP, no ICS or MRPC), the two
+  // buttons would build the identical deck: show one (Aaron, 2026-10-28, "These buttons should be ... the current
+  // labels are unclear").
+  const sameDeck = !!b.combined && b.ars_only && baseList.join("+") === b.combined.join("+");
   const btns = (ask) => {
     const cls = ask ? "primary warn" : "primary", verb = failed ? (ask ? "Retry rebuild" : "Retry build") : (ask ? "Rebuild" : "Build");
     let h = "";
-    if (b.ars_only) h += `<button class="${cls}" id="go">${verb} ${b.combined ? esc(base) : (ask ? "and replace the one in Outputs" : "and put in Outputs")}</button>`;
-    if (b.combined) h += `<button class="${cls}" id="go2">${verb} ${noArs ? esc(combo) + (ask ? " and replace the one in Outputs" : "") : "combined (" + esc(combo) + ")"}</button>`;
+    if (b.ars_only) h += `<button class="${cls}" id="go">${verb} ${b.combined ? esc(base) + (sameDeck ? " (one deck)" : "") : (ask ? "and replace the one in Outputs" : "and put in Outputs")}</button>`;
+    if (b.combined && !sameDeck) h += `<button class="${cls}" id="go2">${verb} ${noArs ? esc(combo) + (ask ? " and replace the one in Outputs" : "") : "combined (" + esc(combo) + ")"}</button>`;
     return `<span class="btns">${h}</span>`;
   };
   const mix = baseList.length > 1 ? ` This client's deck is ${esc(baseList.join(" + "))}.` : "";
   const choose = noArs ? (b.combined && b.combined.length < baseList.length ? ` This client's deck is ${esc(baseList.join(" + "))}; the build carries ${esc(combo)}.` : mix)
-    : b.combined && b.ars_only ? ` Choose the ${esc(base)} deck or a combined deck.` : b.combined ? ` This client's deck is combined (${esc(combo)}).` : mix;
+    : sameDeck ? ` This client's deck is ${esc(base)}, one deck.` : b.combined && b.ars_only ? ` Choose the ${esc(base)} deck or a combined deck.` : b.combined ? ` This client's deck is combined (${esc(combo)}).` : mix;
   const note = leftOut ? `<br><span class="small">${esc(leftOut)}</span>` : "";
   let verdict;
   if (s.state === "ready") verdict = `<div class="verdict ready"><p><b>Ready to build.</b> The deck goes to Outputs when it passes validation.${choose}${failNote}${note}</p>${btns(false)}</div>`;
