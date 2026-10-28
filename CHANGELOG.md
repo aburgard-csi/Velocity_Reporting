@@ -27,6 +27,50 @@ Summary: Sheila and the builders now find an ICS referral export that was droppe
 
 James reported 1766 Fort Sill showing the direct-mail list, referral list and transaction files as missing. The direct-mail list and transaction files were already on hand under the expected names; the referral export had been landed as `Inputs/ICS Referrals/1766/ics_detailed referral_1766.xls`, and both readers (`ti/lens.ics_list_files` and `ics_local_sheet.find_referrals`) only looked for a file in the folder itself with the id at the start of its name. They now also read `<folder>/<id>/` and a name ending in the id, matched as a whole number (1766 never matches 17660).
 
+### 2026-10-28 — Sheila's tabs and chips carry the same light as the buttons
+
+Summary: The header tabs, the reporting-month pill, the status chips (Ready, In Outputs, Sent,
+Queued, Building, Blocked, Error) and the filter chips on Data Issues now carry the same light
+along the top edge, shade along the bottom and line where they meet the page as the Build buttons.
+Building and Error are tints like the other status chips instead of solid orange and red fills.
+Nothing about what any of them does changed.
+
+The tab rail is recessed into the header and the selected tab is raised out of it; the filter
+chips press in like the buttons and a pressed one carries the navy glow. The highlight, shade and
+touch line are the `--hi` / `--lo` / `--touch` tokens in `ars_launcher_web.py`, softer in dark mode;
+Building reads from the new `--build` / `--build-bg` pair and Error from the stop pair
+(Aaron, 2026-10-28: "some dark, some light. Let's go lighter on the building and error chips").
+
+### 2026-10-28 — 1828 New Frontier Bank added to the roster
+
+Summary: 1828 New Frontier Bank, a new ARS and CashPlease client, now appears in CSM Sheila as blocked until its data lands.
+
+Aaron, 2026-10-28: "Yes, add New Frontier Bank"; "Correct, no kickoffs yet for 1828. This is a new client." Found by `scripts/roster_candidate.py`: the Velocity export lists ARS, CashPlease and ILS, but the client is "In Process of Converting", with no ODD extract, ARS workbook, DCO or CashPlease tab yet. Added to the main table (ARS) and the CashPlease roster with Build `no`, which keeps the CashPlease build from failing every run for want of a tab. Sheila shows it Blocked, with the missing inputs named. Path is MM, the model every new ARS client is on, until a workbook says otherwise. Needs a release to reach the CSMs' PCs.
+
+### 2026-10-28 — Skills for merging and releasing Sheila and for adding a client to the roster
+
+Summary: There are now two project skills, one for merging pull requests and releasing Sheila and one for adding a client to clients.md, with two small tools behind them: a CHANGELOG conflict resolver and a read-only roster row finder.
+
+Aaron, 2026-10-28: "yes, build skills 1 and 2". `scripts/changelog_merge.py` keeps both sides of a CHANGELOG conflict and fixes the blank line between entries. `scripts/roster_candidate.py` prints the main-table and CashPlease rows a client is missing from the CSM list, the workbook and the CashPlease pack; it writes nothing. `.claude/skills/merge-and-release/` and `.claude/skills/add-client-to-roster/` hold the procedures, including that nothing merges or releases without Aaron's word and that a roster change reaches the CSMs only through a release.
+
+### 2026-10-28 — A skill and a figures tool for the Delivery Call Notes
+
+Summary: There is now a project skill for updating the Mail Strategy Delivery Call Notes, with a read-only tool that works out each client's review date and ICS, MRPC and CashPlease comparisons from the same data the decks use.
+
+Aaron, 2026-10-28: "Should we create a skill for updating Mail Strategies?" ... "yes, build the mail strategy skill". `scripts/mail_strategy_facts.py` gives the last send, profitability below 3:1 and the last-complete-month comparisons in one wording; `.claude/skills/mail-strategy-notes/SKILL.md` records the whole procedure: where each fact comes from (proofs from the mailbox, the on-site date from the calendar), the note format, the safe way to fill the live form (month-grid snapshot, a table and a yes before filling, a yes before Submit, reload and compare) and that ILS items are not part of these notes. It writes nothing itself.
+
+### 2026-10-28 — Sheila shows one Build button when the two builds would make the same deck
+
+Summary: A client like 1585 (ARS plus CashPlease, nothing else) now has one button, "Build ARS + CP (one deck)", instead of two buttons that built the same deck under different names.
+
+Aaron, 2026-10-28, from a screenshot of 1585: "These buttons should be Build Separate ARS and CP, or Build Combined ARS and CP. The current labels are unclear." Both buttons built one ARS deck with its CashPlease section, so there was no real choice to label; CashPlease slides ride inside the client's own deck, never as a separate one. A client whose combined build adds ICS or MRPC keeps both buttons.
+
+### 2026-10-28 — The ARS Companion build now adds James's slides (it stopped with a missing-file error)
+
+Summary: Building the ARS Companion deck stopped at the end with a missing companion_slides.json; the build now carries the settings that add James's views, so the deck is cut and put in Outputs.
+
+Aaron, 2026-10-28, from Sheila on 1075 Austin Bank: the Companion build ran every step, then FileNotFoundError ... companion\1075\companion_slides.json. uild_month copies the environment once, when it is imported, so the Companion switches were set too late and the ARS build ran without James's views, never recording their slides. They are now handed to the build process directly, and a test pins it.
+
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
 Summary: Sheila has a new ARS Companion panel and button that builds a separate deck of James's analysis slides for an ARS client, filed in Outputs beside the Executive Review without changing it.
