@@ -83,6 +83,7 @@ template placeholder means SM. Verified 2026-08-28.
 | 1805 | Texar FCU | MM | yes | — | — | ARS |
 | 1807 | Patriot FCU | MM | yes | — | — | ARS |
 | 1815 | FedChoice FCU | MM | yes | — | — | ARS |
+| 1828 | New Frontier Bank | MM | yes | — | — | ARS |
 
 **ARS added for every client with a 2026.09 ARS workbook (Aaron, 2026-09-15)** — 34 clients
 across the other four CSMs' books. `Client` is the DCO's spelling (the house name; the workbook
@@ -237,6 +238,7 @@ column's position is free.
 | 1770 | Central State Bank | Aaron Burgard | yes | 27 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
 | 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
 | 1776 | CoastHills CU | James Gilmore | yes | 1,246 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster |
+| 1828 | New Frontier Bank | Aaron Burgard | **no** | — | — | added 2026-10-28 (Aaron: "add New Frontier Bank"; no kickoff yet). New client, "In Process of Converting": no CashPlease tab yet, so not built; set Build to yes and the loans when the weekly carries a tab |
 
 **Fourteen combined decks and five standalone decks per run.** A client whose CashPlease
 slides ship inside a combined deck does NOT also get a standalone deck (Aaron,

@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — 1828 New Frontier Bank added to the roster
+
+Summary: 1828 New Frontier Bank, a new ARS and CashPlease client, now appears in CSM Sheila as blocked until its data lands.
+
+Aaron, 2026-10-28: "Yes, add New Frontier Bank"; "Correct, no kickoffs yet for 1828. This is a new client." Found by `scripts/roster_candidate.py`: the Velocity export lists ARS, CashPlease and ILS, but the client is "In Process of Converting", with no ODD extract, ARS workbook, DCO or CashPlease tab yet. Added to the main table (ARS) and the CashPlease roster with Build `no`, which keeps the CashPlease build from failing every run for want of a tab. Sheila shows it Blocked, with the missing inputs named. Path is MM, the model every new ARS client is on, until a workbook says otherwise. Needs a release to reach the CSMs' PCs.
+
 ### 2026-10-28 — Skills for merging and releasing Sheila and for adding a client to the roster
 
 Summary: There are now two project skills, one for merging pull requests and releasing Sheila and one for adding a client to clients.md, with two small tools behind them: a CHANGELOG conflict resolver and a read-only roster row finder.
