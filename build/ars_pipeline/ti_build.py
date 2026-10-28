@@ -89,6 +89,10 @@ def compute_pack(client_id, period, name, ics=False):
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
+    # v5's extract check first, as in v5's metrics.py: what shape the file is (months missing,
+    # Swipes and Spend on different months, an account twice) before any figure is computed on it
+    from ti.monthly_analysis import extract_check
+    metrics.update(extract_check.compute(subsets, cfg, warnings.append))
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     attach_txn(ctx, warnings)
     if ctx.txn_report is not None:

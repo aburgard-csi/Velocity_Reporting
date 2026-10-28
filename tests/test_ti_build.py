@@ -108,6 +108,19 @@ def test_numbers_that_disagree_refuse_the_decks(root, monkeypatch, capsys):
     assert not list(out.glob("*.pptx"))
 
 
+def test_the_extract_check_runs_before_the_chapters(root, monkeypatch):
+    """v5's extract check: the pack says what shape the ODD is (rows, months, duplicates, anchor)."""
+    seen = {}
+    def figures(ctx):
+        seen["rows"] = ctx.subsets.total.shape[0]
+        return {}
+    monkeypatch.setattr(cut, "CHAPTERS", (STUB._replace(compute=figures),))
+    m = ti_build.compute_pack(CLIENT, "2026.10", NAME)["metrics"]
+    assert m["extract_rows"] == seen["rows"] > 0
+    assert m["extract_anchor"] == m["anchor_tag"]
+    assert m["extract_swipes_months"] > 0 and "extract_duplicate_rows" in m
+
+
 def test_a_failing_chapter_is_stated_and_the_build_goes_on(root, monkeypatch):
     def boom(_ctx):
         raise ValueError("no fin_by_category")
