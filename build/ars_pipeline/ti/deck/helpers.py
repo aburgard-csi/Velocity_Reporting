@@ -414,9 +414,12 @@ class Deck:
                 _charts.RENDER_WARNINGS.clear()
 
     def _singulars(self):
-        """v5 printed "1 accounts" when a count came out at one; RPE's validator fails that."""
+        """v5 printed "1 accounts" when a count came out at one; RPE's validator fails that. "1 months"
+        shipped the same way on the economics headline (1075, 2026-10-28), so every noun a count
+        can take is here."""
         import re
-        rx = re.compile(r"\b1 (account|member|institution|competitor|merchant|client|provider)s\b")
+        rx = re.compile(r"\b1 (account|member|institution|competitor|merchant|client|provider|month|year|day|week"
+                        r"|mailing|offer|wave|branch|slide|transaction|category|deposit)s\b")
         for s in self.slides:
             for sh in s.shapes:
                 frames = [sh.text_frame] if sh.has_text_frame else []

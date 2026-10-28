@@ -41,6 +41,17 @@ Tested end to end in Sheila on real extracts:
 - 1737 pre-go-live: a 13-slide deck.
 - 1842 kickoff: workbook and deck, with the estimated-items option.
 
+### 2026-10-28 — Transaction Intelligence: a workbook with no life-to-date figures is stated, not printed as $0
+
+Summary: The Transaction Intelligence economics headline no longer prints "$0 of program profit in 1
+months" when the ARS workbook's Executive Financials tab is a shell, as an SM client's is; the deck
+states that the figures are not in the workbook. A count of one now takes the singular for months,
+mailings and the other count words, not only accounts.
+
+1075 Austin Bank's rebuild on 2026-10-28 failed validation on that headline. `ti/workbook.read` drops the
+wb_ economics when revenue, costs and profit to date are all empty and warns; `Deck._singulars` knows
+month, year, day, week, mailing, offer, wave, branch, slide, transaction, category and deposit.
+
 ### 2026-10-28 — Slide Review opens at once: the slide lists are kept on disk
 
 Summary: The Slide Review tab no longer reads every deck in Outputs each time it opens. Each

@@ -341,6 +341,16 @@ def read(path: Path, warn) -> dict:
                 if out.get("wb_profit_ltd") is not None and out.get("wb_costs_ltd"):
                     out["wb_roi_ltd"] = round(
                         out["wb_profit_ltd"] / abs(out["wb_costs_ltd"]), 1)
+                # A tab that carries no life-to-date figures at all (an SM workbook's Executive
+                # Financials MM is a shell: 1075 Austin Bank read as "$0 of program profit in 1
+                # months", 2026-10-28) is stated, never printed as zero.
+                if not out.get("wb_revenue_ltd") and not out.get("wb_profit_ltd") \
+                        and not out.get("wb_costs_ltd"):
+                    for k in ("wb_revenue_month", "wb_revenue_ltd", "wb_costs_ltd", "wb_profit_month",
+                              "wb_profit_ltd", "wb_months_in_program", "wb_mailings_to_date", "wb_roi_ltd"):
+                        out.pop(k, None)
+                    warn(f"workbook {path.name}: '{name}' carries no life-to-date revenue, costs or profit "
+                         f"(an SM workbook's MM tab, or an unevaluated one); the economics are stated, not zero")
 
         # ---- Actuals MM: monthly series + the client's real economics ---
         name = next((n for n in wb.sheetnames if n == "Actuals MM"), None)

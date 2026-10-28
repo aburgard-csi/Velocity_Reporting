@@ -510,3 +510,26 @@ def test_lift_matrix_slide_skips_and_names_the_workbook():
     d = _build_fixture(mm)
     gaps = d.storyboard.read_text(encoding="utf-8").partition("Not rendered")[2]
     assert "What an account earns as it climbs" in gaps
+
+
+def test_a_tab_with_no_life_to_date_figures_leaves_the_economics_unset(tmp_path):
+    """1075 Austin Bank's SM workbook carries an Executive Financials MM shell: it read as "$0 of program
+    profit in 1 months" (2026-10-28). The figures are stated as missing, never printed as zero."""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Executive Financials MM"
+    ws.append(["", "Account Revenue Solution"])
+    ws.append(["", "September 2026 Data"])
+    ws.append(["", "", "Months in the Program:", 1])
+    ws.append(["", "", "Mailings to date:", 0])
+    ws.append(["", 1, "Total Incremental Revenue", 0, 0, 0, 0])
+    ws.append(["", 6, "Total Costs", 0, 0, 0, 0])
+    ws.append(["", 7, "Incremental Profit", 0, 0, 0, 0])
+    path = tmp_path / "1075-2026.10-Austin-Workbook_v2_1_0.xlsx"
+    wb.save(path)
+    warnings = []
+    out = workbook.read(path, warnings.append)
+    for k in ("wb_profit_ltd", "wb_revenue_ltd", "wb_months_in_program", "wb_roi_ltd"):
+        assert k not in out, k
+    assert any("no life-to-date" in w for w in warnings)

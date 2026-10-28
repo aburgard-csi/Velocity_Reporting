@@ -75,3 +75,20 @@ def test_a_v5_builder_lands_on_rpe_slides_and_validates(tmp_path, contacts, lens
         assert "Source:" in s.notes_slide.notes_text_frame.text and CLIENT in s.notes_slide.notes_text_frame.text
     fails = [f for f in vd.run(str(out)) if f[0] == "FAIL"]
     assert fails == [], fails
+
+
+def test_a_count_of_one_takes_the_singular_for_months_too():
+    """"1 months" shipped on the economics headline (1075, 2026-10-28); the guard knew accounts and the
+    like but not months."""
+    from pptx import Presentation
+    from pptx.util import Inches
+    from ti.deck.helpers import Deck
+    prs = Presentation()
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    s.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1)).text_frame.text = \
+        "The program has earned $0 of program profit in 1 months, 1 mailings and 12 months"
+
+    class Fake:
+        slides = [s]
+    Deck._singulars(Fake())
+    assert s.shapes[0].text_frame.text == "The program has earned $0 of program profit in 1 month, 1 mailing and 12 months"
