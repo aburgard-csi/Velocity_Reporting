@@ -38,3 +38,23 @@ def find_extract(client_id):
             f"no ILS pre-go-live folder for {client_id}: land the client's PGL extract in "
             f"{root / str(client_id)}")
     return loader.find_extract(root, client_id)
+
+
+def root() -> Path:
+    """v5's `data_root` for this engine: the ILS PGL input folder, which `loader.find_extract` takes
+    first (it reads `<root>/<id>/` through `ils_dirs` above). Not created."""
+    import rpe_env
+    return rpe_env.input_dir("ILS PGL", create=False)
+
+
+def output_root() -> Path:
+    """v5's `output_root` (`03-Output`): `Build Artifacts/ils/`, under which v5's run adds
+    `PGL/<id>/<yyyymmdd>/`. Never `Outputs/`: a PGL run is not a cycle deliverable."""
+    import rpe_env
+    return rpe_env.build_artifacts() / "ils"
+
+
+def config_dir() -> Path:
+    """v5's `config_dir` (`0_Config`): `ils_pipeline/config/`, which holds only `ils_fee_tiers.json`,
+    v5's universal tier scenarios (not client config; arrives with the fees section)."""
+    return Path(__file__).resolve().parent / "config"
