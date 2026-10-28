@@ -35,7 +35,9 @@ def who_competes(h, t, base):
                       f"{ar['with_competitor']:,}",
                       f"{ar['pct']:.0f}% of recently inactive"))
     right = h["rail"](s, items[:5], top=top)
-    rows = [[labels.clip(r[0], 22), r[2], f"${r[6]}/acct", net.get(r[0]),
+    # depth in the deck's money grammar ($1.6K/acct, not $1644/acct); momentum is comp_momentum's
+    # NET NEW ACCOUNTS, a count, and is printed as one (2026-10-28)
+    rows = [[labels.clip(r[0], 22), r[2], f"{money(r[6])}/acct", net.get(r[0]),
              r[1] == LOCAL_TIER] for r in inst[:9]]
     # comp_institutions is itself already cut to TOP_INSTITUTIONS, so the
     # coverage note has to count against every institution that MATCHED, not
@@ -44,7 +46,7 @@ def who_competes(h, t, base):
     matched = t.get("comp_institutions_n") or len(inst)
     note = labels.coverage_note(len(rows), matched, "institutions") or ""
     path = h["chart"]("comp_momentum_bars", charts.momentum_bars, rows,
-                      footnote=note)
+                      footnote=note, momentum_unit="")
     if path:
         h["chart_left"](s, path, top, right)
 
@@ -113,7 +115,7 @@ def which_to_work_first(h, t, base):
                       quads=("monitor", "act now", "watch", "defend"),
                       bubble_label="bubble = accounts reached",
                       xlabel="penetration — % of accounts",
-                      ylabel="Spend outside the client, a year")
+                      ylabel="Spend outside the client, a year", yfmt=money)
     if path:
         h["chart_left"](s, path, top, RAIL_EDGE)
 
@@ -305,7 +307,7 @@ def where_we_leak_by_branch(h, t, base):
                       quads=("watch", "act now", "steady", "deep few"),
                       bubble_label="bubble = transacting accounts",
                       xlabel="accounts paying a competitor — %",
-                      ylabel="competitor dollars per account")
+                      ylabel="competitor dollars per account", yfmt=money)
     if path:
         h["chart_left"](s, path, top, RAIL_EDGE)
         h["rail"](s, [(r[0], f"{r[3]:.0f}%", money(r[5])) for r in rows[:5]],

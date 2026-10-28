@@ -134,7 +134,7 @@ def who_they_pay(h, t, base):
         f"spend",
         "named providers by dollars, with the cumulative line and the 80% "
         "rule"), "Who they pay")
-    rows = [[labels.clip(str(r[0]).title(), 16), labels.clip(r[1], 18), r[2]]
+    rows = [[labels.clip(str(r[0]).title(), 28), labels.clip(r[1], 18), r[2]]
             for r in flat]
     note = labels.coverage_note(len(flat), sum(len(v) for v in provs.values()),
                                 "providers")
@@ -255,7 +255,7 @@ def what_leakers_hold(h, t, base):
     path = h["chart"]("fin_quadrant", charts.branch_quadrant, quad,
                       bubble_label="bubble = accounts in the category",
                       xlabel="median balance held with us",
-                      ylabel="median tenure, years")
+                      ylabel="median tenure, years", xfmt=money)
     if path:
         h["chart_left"](s, path, top, RAIL_EDGE)
 
@@ -272,9 +272,9 @@ def how_the_leakage_builds(h, t, base):
                  key=lambda r: -r[4])[:6]
     if len(cat) < 3:
         return "How the leakage builds (too few categories)"
-    steps = [[labels.clip(cat[0][0], 16), float(cat[0][4]), "start"]]
+    steps = [[labels.clip(cat[0][0], 28), float(cat[0][4]), "start"]]
     for r in cat[1:]:
-        steps.append([labels.clip(r[0], 16), float(r[4]), "up"])
+        steps.append([labels.clip(r[0], 28), float(r[4]), "up"])
     steps.append([f"these {_count_word(len(cat)).lower()}", float(sum(r[4] for r in cat)), "end"])
     s, top = h["slide"]((
         f"{_count_word(len(cat))} categories carry {money(sum(r[4] for r in cat))} of the "

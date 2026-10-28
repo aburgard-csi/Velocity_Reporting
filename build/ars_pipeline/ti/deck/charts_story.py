@@ -239,28 +239,32 @@ def worklist(header: list, rows: list, out: Path) -> Path:
 # ------------------------------------------------------------------- ledger
 
 def _ledger_fig(rows: list, note: str):
-    """A long strip with a handful of rows marked -- scale and selectivity in
-    one picture. rows: [[label, weight, dollars, flagged]]."""
+    """One named row per counterparty: the name, a bar for its weight, its dollars -- the flagged
+    rows in orange. rows: [[label, weight, dollars, flagged]].
+
+    It used to draw twenty unnamed bars on the left and a separate block of the flagged names on
+    the right, which lined up with nothing (2026-10-28)."""
     peak = max(r[1] for r in rows) or 1
     fig, ax = plt.subplots(figsize=(FIG_W_FULL, 4.5))
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
     ax.axis("off")
     rh = min(4.2, 88 / max(len(rows), 1))
+    size = 9 if len(rows) <= 12 else 8
     flagged = 0
     for i, (label, weight, dollars, flag) in enumerate(rows):
         yy = 94 - (i + 1) * rh
-        w = 52 * weight / peak
-        ax.add_patch(plt.Rectangle((0, yy), w, rh * 0.66,
+        mid = yy + rh * 0.33
+        w = 46 * weight / peak
+        ax.text(31, mid, clip(str(label).title(), 30), fontsize=size,
+                fontweight="bold" if flag else "normal", color=NAVY if flag else GREY,
+                ha="right", va="center")
+        ax.add_patch(plt.Rectangle((33, yy), w, rh * 0.66,
                                    facecolor=ORANGE if flag else "#C9D3DC"))
-        if flag:
-            ax.add_patch(plt.Rectangle((58, yy), 30, rh * 0.66,
-                                       facecolor="#FADCB4"))
-            ax.text(58.8, yy + rh * 0.33, clip(label, 34), fontsize=9,
-                    fontweight="bold", color=NAVY, va="center")
-            ax.text(100, yy + rh * 0.33, _fmt_money(dollars), fontsize=9,
-                    fontweight="bold", color=NAVY, ha="right", va="center")
-            flagged += 1
+        ax.text(33 + w + 1, mid, _fmt_money(dollars), fontsize=size,
+                fontweight="bold" if flag else "normal", color=NAVY if flag else GREY,
+                ha="left", va="center")
+        flagged += bool(flag)
     if note:
         ax.text(0, 2, note, fontsize=9.5, color=GREY)
     return fig, {"rows": len(rows), "flagged": flagged}

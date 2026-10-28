@@ -112,9 +112,11 @@ def months_of_warning(h, t) -> str | None:
 
 
 def _money(value) -> str:
-    """Whole dollars, thousands-separated. Decks never show cents."""
+    """The deck's one money grammar (labels.money): $1.2M / $482K / $73. This printed whole
+    dollars with every digit ($1,234,567) beside slides that said $1.2M (2026-10-28)."""
+    from .labels import money
     try:
-        return f"${float(value):,.0f}"
+        return money(float(value))
     except (TypeError, ValueError):
         return "n/a"
 
