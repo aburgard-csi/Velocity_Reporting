@@ -93,6 +93,21 @@ def test_the_analyst_tables_land_beside_the_pack(root, monkeypatch):
     assert any("declare no columns" in w and "mystery" in w for w in pack["warnings"])
 
 
+def test_numbers_that_disagree_refuse_the_decks(root, monkeypatch, capsys):
+    """v5's consistency audit: the hero rail quoting a different rate from the per-mailer table's
+    last row is stated in the pack and the build log, and no deck is built."""
+    def figures(_ctx):
+        return {"campaign_rates": [["May26", 5595, 639, 11.4]], "latest_resprate": 12.4}
+    monkeypatch.setattr(cut, "CHAPTERS", (STUB._replace(compute=figures),))
+    out = root / "stage" / CLIENT / "ti"
+    assert ti_build.main([CLIENT, "2026.10", NAME, str(out)]) == 0
+
+    pack = json.loads((out / "ti_pack.json").read_text(encoding="utf-8"))
+    assert len(pack["consistency"]) == 1 and "latest_resprate 12.4" in pack["consistency"][0]
+    assert "decks not built" in capsys.readouterr().out
+    assert not list(out.glob("*.pptx"))
+
+
 def test_a_failing_chapter_is_stated_and_the_build_goes_on(root, monkeypatch):
     def boom(_ctx):
         raise ValueError("no fin_by_category")

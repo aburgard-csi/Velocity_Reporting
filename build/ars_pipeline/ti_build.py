@@ -154,6 +154,11 @@ def main(argv=None):
         pack["tables"] = tables.write(pack["metrics"], out, pack["warnings"].append)
     except Exception as exc:                          # the tables never take the build down
         pack["warnings"].append(f"analyst tables failed: {type(exc).__name__}: {exc}")
+    # v5's consistency audit (ti/monthly_analysis/consistency.py): one concept, one number. The cut
+    # holds the ODD and transaction figures in one dict, so it is passed as both of v5's arguments.
+    from ti.monthly_analysis import consistency
+    pack["consistency"] = consistency.audit(pack["metrics"], pack["metrics"])
+    pack["warnings"] += [f"consistency: {msg}" for msg in pack["consistency"]]
     (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
@@ -163,6 +168,11 @@ def main(argv=None):
     from ti.transaction_intelligence import competition_report, sections_report
     for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
         print(line)
+    if pack["consistency"]:
+        # as v5's run.py: a deck whose slides contradict each other is worse than no deck
+        print(f"{a.client_id}: decks not built: the consistency audit found {len(pack['consistency'])} "
+              f"number(s) that disagree across slides (see 'consistency:' above)")
+        return 0
     for p in build_decks(pack, out):
         print(f"built {p}")
     return 0
