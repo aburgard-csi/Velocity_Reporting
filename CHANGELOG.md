@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — CashPlease Peer Comparison: the label breaks before its window, and the cohort footnote moves to the notes
+
+Summary: On the CashPlease Peer Comparison slide, the "Loans per 1,000 DDAs (12 mo)" label now puts
+"(12 mo)" on its own line instead of wrapping in the middle of the parenthesis, and the footnote
+describing the cohort (the rollup's loan count and tab count, the narrower DDA cohort) is off the slide
+face and in the speaker notes. A row that is absent is still stated on the face. No figure changed.
+
+Aaron, 2026-10-28, from Copper State CU's slide: the 13 pt label in its 2.34" box wrapped as "(12" / "mo)".
+`build_cp_gen` writes the label as two paragraphs; the index chart still wraps the label its own way.
+
 ### 2026-10-28 — ICS referral export landed by hand in a client folder is found (#73)
 
 Summary: Sheila and the builders now find an ICS referral export that was dropped in a folder named for the client, or named with the client number at the end, instead of reporting the referral list as missing.

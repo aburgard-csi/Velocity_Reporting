@@ -938,7 +938,9 @@ def slide_peer(prs, d, pill_text, art_dir):
     # Only a client with a DDA count AND a full 12-month window earns this row. Without
     # the count there is no rate; without the window the comparison is against tenure.
     if m["peer_comparable"]:
-        rows.append(("Loans per 1,000 DDAs (12 mo)", peer["loans_per_1k_dda"],
+        # The window goes on its own line: at 13 pt the label wrapped inside the parenthesis,
+        # "(12" / "mo)" (Aaron, 2026-10-28). The chart re-wraps the label itself.
+        rows.append(("Loans per 1,000 DDAs\n(12 mo)", peer["loans_per_1k_dda"],
                      m["loans_per_1k_dda"], lambda v: f"{v:.1f}"))
     rows += [
         ("Charge-off rate", peer["charge_off_pct"], m["charge_off_pct"],
@@ -962,13 +964,13 @@ def slide_peer(prs, d, pill_text, art_dir):
     for i, (label, pv, cv, fmt) in enumerate(rows):
         y = T + i * (H + GAP)
         capsule(s, 0.70, y, 1.62, H, fmt(pv), ORANGE_RGB, size=13)
-        textbox(s, 2.42, y, 2.34, H, label, 13, NAVY_RGB, False,
+        textbox(s, 2.42, y, 2.34, H, label.split("\n"), 13, NAVY_RGB, False,
                 PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
         capsule(s, 4.86, y, 1.62, H, fmt(cv), NAVY_RGB, size=13)
 
     png = str(Path(art_dir) / f"{d['client_id']}_cp_peer.png")
     cp_charts.peer_index_chart(
-        png, [r[0] for r in rows],
+        png, [r[0].replace("\n", " ") for r in rows],
         [(r[2] / r[1] * 100) if r[1] else 0.0 for r in rows],
         box=(5.75, 4.02))
     fit_picture(s, png, 6.95, 1.98, 5.75, 4.02)
@@ -976,21 +978,22 @@ def slide_peer(prs, d, pill_text, art_dir):
             f"{d['client_name']} relative to the cohort", 11,
             TICK_RGB, True, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
 
-    # Two lines. The derivation of each figure is in the notes, where the rest of the
-    # methodology already lives; what has to be on the face is the SELECTION — plus,
-    # when a row is absent, why it is absent. A silently missing row reads as an
-    # oversight; a stated one reads as a limit of the data.
+    # The cohort's make-up is in the notes with the rest of the methodology (Aaron, 2026-10-28:
+    # the footnote stating it came off the face). What stays on the face is a row that is
+    # absent, and why: a silently missing row reads as an oversight; a stated one reads as a
+    # limit of the data.
+    cohort = (COHORT_NOTE.format(client=d["client_name"], **peer)
+              + DDA_COHORT_NOTE.format(client=d["client_name"], **peer)
+              + " The index reads each figure against the cohort's, so 100 is it.")
+    why = ""
     if m["loans_per_1k_dda"] is None:
-        why = (" Loans per 1,000 DDAs is not shown: "
+        why = ("Loans per 1,000 DDAs is not shown: "
                + (m["dda_missing_reason"] or "no DDA count is available") + ".")
     elif not m["peer_comparable"]:
-        why = (f" Loans per 1,000 DDAs is not compared: {d['client_name']} has "
+        why = (f"Loans per 1,000 DDAs is not compared: {d['client_name']} has "
                f"{m['window_months']} completed months, not the cohort's 12.")
-    else:
-        why = (DDA_COHORT_NOTE.format(client=d["client_name"], **peer)
-               + " The index reads each figure against the cohort's, so 100 is it.")
-    textbox(s, 0.62, 6.18, 12.1, 0.56, COHORT_NOTE.format(client=d["client_name"], **peer) + why,
-            11, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    if why:
+        textbox(s, 0.62, 6.18, 12.1, 0.56, why, 11, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     notes(s, f"Source: {d['source_file']} — client figures from tab "
              f"'{d['sheet_name']}', peer figures from tab 'All Clients Summary - "
@@ -1008,7 +1011,8 @@ def slide_peer(prs, d, pill_text, art_dir):
              f"loan are the cohort's total principal / total interest divided by its "
              f"loan count. The index chart plots client / cohort x 100 for each "
              f"row shown; bars are one colour and the reference line carries the "
-             f"accent, because 'above' is not 'better' for the charge-off rate.")
+             f"accent, because 'above' is not 'better' for the charge-off rate. "
+             + cohort)
     return s
 
 
