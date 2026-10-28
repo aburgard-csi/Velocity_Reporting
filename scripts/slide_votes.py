@@ -126,6 +126,64 @@ def _divider_program(slide, first):
 
 
 _slides_cache = {}
+_disk_cache = None               # Build Artifacts/slide_votes/slides_cache.json, loaded once
+SLIDES_CACHE = "slides_cache.json"
+LISTS = "program_lists.json"
+
+
+def _disk_slides():
+    """The slide lists read so far, by any copy of Sheila, keyed "name|size|mtime": a deck is read once
+    per landing and never again (2026-10-28)."""
+    global _disk_cache
+    if _disk_cache is None:
+        p = votes_dir(create=False) / SLIDES_CACHE
+        doc = None
+        if p.is_file():
+            try:
+                doc = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                doc = None
+        _disk_cache = doc if isinstance(doc, dict) else {}
+    return _disk_cache
+
+
+def _remember_slides(key, slides):
+    cache = _disk_slides()
+    stale = [k for k in cache if k.split("|")[0] == key.split("|")[0]]
+    for k in stale:
+        del cache[k]
+    cache[key] = slides
+    try:
+        p = votes_dir() / SLIDES_CACHE
+        part = p.with_name(p.name + ".part")
+        part.write_text(json.dumps(cache), encoding="utf-8")
+        os.replace(part, p)
+    except OSError:
+        pass                     # the in-memory copy still serves this process
+
+
+def lists_path(create=False):
+    return votes_dir(create) / LISTS
+
+
+def read_lists():
+    """The program lists last built (write_lists), or None."""
+    p = lists_path()
+    if not p.is_file():
+        return None
+    try:
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) and doc.get("programs") else None
+    except (OSError, ValueError):
+        return None
+
+
+def write_lists(doc):
+    p = lists_path(create=True)
+    part = p.with_name(p.name + ".part")
+    part.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+    os.replace(part, p)
+    return doc
 
 
 def deck_slides(path):
@@ -141,6 +199,11 @@ def deck_slides(path):
     key = (str(p), st.st_size, st.st_mtime_ns)
     hit = _slides_cache.get(key)
     if hit is not None:
+        return hit
+    dkey = f"{p.name}|{st.st_size}|{st.st_mtime_ns}"
+    hit = _disk_slides().get(dkey)
+    if hit is not None:
+        _slides_cache[key] = hit
         return hit
     from pptx import Presentation
     prs = Presentation(str(p))
@@ -183,6 +246,7 @@ def deck_slides(path):
     for k in [k for k in _slides_cache if k[0] == str(p)]:
         del _slides_cache[k]
     _slides_cache[key] = out
+    _remember_slides(dkey, out)
     return out
 
 
@@ -353,7 +417,18 @@ def summary_csv(rows):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["summary"]:
+    if sys.argv[1:2] == ["lists"]:
+        # the program lists built here, without Sheila, from the decks in Outputs; cached for every copy
+        import time as _t
+        import ars_launcher_web as W
+        t0 = _t.time()
+        if len(sys.argv) > 2:
+            W._selected["period"] = sys.argv[2]
+        doc = W.votes_build_lists(W.current_period())
+        for prog, slides in doc["programs"].items():
+            print(f"{prog:5} {len(slides):4} slides")
+        print(f'{doc["decks"]} decks read in {_t.time() - t0:.0f}s -> {lists_path()}')
+    elif sys.argv[1:] == ["summary"]:
         for r in aggregate(read_votes()):
             print(f'{r["program"]:5} keep {r["keep"]:3} delete {r["delete"]:3} appendix {r["appendix"]:3} '
                   f'stars {r["stars"]:3}  {r["title"]}')

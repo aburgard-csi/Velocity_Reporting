@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — Slide Review opens at once: the slide lists are kept on disk
+
+Summary: The Slide Review tab no longer reads every deck in Outputs each time it opens. Each
+program's slide list is built once from the decks in Outputs and kept under Build Artifacts, with
+the time it was built shown on the page; a list older than ten minutes is rebuilt behind the page,
+and Refresh reads the decks again now. Each deck's slides are read once per landing, by any copy of
+Sheila.
+
+Aaron, 2026-10-28: "this is really slow. Just build the slide list from the builder script and cache
+it." `slide_votes.deck_slides` keeps its results in `slides_cache.json` (keyed by the deck's name, size
+and time), and `ars_launcher_web.votes_build_lists` writes every program's list to `program_lists.json`;
+`votes_lists` serves memory, then disk, builds only when there is nothing for the cycle, and past
+`VOTES_TTL` rebuilds in a background thread; `/api/votes/programs?refresh=1` rebuilds now and the page's
+Refresh link calls it. `python scripts/slide_votes.py lists [period]` builds the lists from the command
+line. `tests/test_slide_votes.py` pins the disk cache, the no-reread rule and the background rebuild.
+
 ### 2026-10-28 — Slide Review is by program, not client, and slides can be starred; Summit one-pager skill
 
 Summary: Slide Review no longer asks for a client. A CSM opens Sheila beside any deck, picks ARS, ICS, MRPC, CashPlease, Transaction Intelligence or ARS Companion, and votes Keep, Delete or Appendix on that program's slides; a star marks a favorite. The Summary counts each program's slides in whole.
