@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — TI: change measures decline when the files hold no prior window
+
+Summary: Gaining and losing, Depth against growth and the momentum column on Who competes are not drawn when no account was seen in the prior window; the slides say they are not compared.
+
+Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #86): When stopped is 0 for every institution (or every growth reads the same), `txn_compete` declines the two slides with "not compared: no prior window in the files" and leaves the momentum column blank. If the Mar-Jun files should exist, they need landing in `Inputs/Txn Files/1075/`; that and a missing-window message in `ti/txn_stage.py` are not done here.
+
 ### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
 
 Summary: a finished ILS deck run from Sheila (pre-go-live or kickoff) is now copied to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-PGL-<client> ILS Pre-Go-Live Review.pptx` or `...-ILS-KO-<client> ILS Kickoff.pptx`. The run's own folder under Build Artifacts keeps its copy, its metrics and its report.

@@ -96,3 +96,15 @@ def test_bnpl_says_signal_only_at_ten_percent_reach():
     P.buy_now_pay_later(h, FULL, "personal accounts")
     (_, sub), _ = h.slides[-1]
     assert "displaced" in sub
+
+
+def test_change_measures_decline_when_the_prior_window_is_empty():
+    # issue #86: stopped is 0 everywhere and every growth reads 100 -> not compared, never drawn
+    mom = [["Chase", 8_395, 0, 8_395], ["Capital One", 14_150, 0, 14_150]]
+    t = dict(FULL, comp_momentum=mom,
+             comp_depth_growth=[["A", 10, 5.0, 100.0], ["B", 8, 4.0, 100.0], ["C", 6, 3.0, 100.0]])
+    h = _Harness()
+    assert "not compared" in P.gaining_and_losing(h, t, "base")
+    assert "not compared" in P.depth_against_growth(h, t, "base")
+    P.who_competes(h, t, "base")
+    assert all(r[3] is None for r in h.charts[0]["rows"])
