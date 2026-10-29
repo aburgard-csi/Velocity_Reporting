@@ -26,6 +26,42 @@ for p in (REPO / "build", HERE):
         sys.path.insert(0, str(p))
 
 
+ILS_DIRNAME = "ILS"
+TITLES = {"pgl": ("PGL", "ILS Pre-Go-Live Review"), "kickoff": ("KO", "ILS Kickoff")}
+
+
+def deliver(kind, cid, deck, period, client_name):
+    """Copy a finished deck to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-<PGL|KO>-<client> <title>.pptx`
+    (James Gilmore, 2026-10-29: "the decks should be going in the respective output folders").
+
+    A subfolder, not `Outputs/<CSM>/` itself: the ARS readers (the rebuild check, the In Outputs chip,
+    deck readiness, the dashboard, the supersede step) take any `<id>-<period>-*.pptx` there for the
+    client's RPE deck, and none of them looks below a CSM's folder. The run's own folder under Build
+    Artifacts keeps its copy. A deck it replaces moves to `ILS/_Archive/`, never deleted."""
+    import datetime as _d
+    import re
+    import shutil
+    import rpe_env as R
+    tag, title = TITLES[kind]
+    name = re.sub(r'[<>:"/\\|?*]', "", str(client_name or cid)).strip() or str(cid)
+    dest_dir = R.client_outputs(cid, create=True) / ILS_DIRNAME
+    dest_dir.mkdir(exist_ok=True)
+    dest = dest_dir / f"{cid}-{period}-ILS-{tag}-{name} {title}.pptx"
+    if dest.exists():
+        arch = dest_dir / R.ARCHIVE_DIRNAME
+        arch.mkdir(exist_ok=True)
+        stamp = _d.date.today().isoformat()
+        old, k = arch / f"{dest.stem} (superseded {stamp}){dest.suffix}", 1
+        while old.exists():
+            k += 1
+            old = arch / f"{dest.stem} (superseded {stamp}-{k}){dest.suffix}"
+        shutil.move(str(dest), str(old))
+        print(f"archived the deck it replaces: {old}")
+    shutil.copy2(str(deck), str(dest))
+    print(f"in Outputs: {dest}")
+    return dest
+
+
 def _codes_list(v):
     """A code field as the CSM typed it: commas or spaces between values."""
     if v is None:
@@ -79,6 +115,10 @@ def pgl(a):
                                  matrix_file=mfile.name if mfile else None)
         from pptx import Presentation
         print(f"\ndeck: {path} ({len(Presentation(str(path)).slides)} slides)")
+        try:
+            path = deliver("pgl", a["client"], path, found.date.strftime("%Y.%m"), a.get("client_name"))
+        except OSError as e:
+            print(f"[WARN] the deck could not be put in Outputs ({e}); it is in {folder}")
         out.update(deck=str(path), folder=str(folder))
     return out
 
@@ -101,6 +141,11 @@ def kickoff(a):
     done = text.startswith(f"{a['client']} {period} kickoff complete.")
     deck = next((ln.split("deck:", 1)[1].strip() for ln in text.splitlines()
                  if ln.strip().startswith("deck:") and "NOT built" not in ln), None)
+    if done and deck:
+        try:
+            deck = str(deliver("kickoff", a["client"], deck, period.replace("-", "."), a.get("client_name")))
+        except OSError as e:
+            print(f"[WARN] the deck could not be put in Outputs ({e}); it is in {deck}")
     return {"ok": done if codes else summary, "needs_codes": summary, "deck": deck,
             "folder": str(K.output_dir(a["client"], period)) if done else None}
 

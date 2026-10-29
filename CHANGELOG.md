@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
+
+Summary: a finished ILS deck run from Sheila (pre-go-live or kickoff) is now copied to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-PGL-<client> ILS Pre-Go-Live Review.pptx` or `...-ILS-KO-<client> ILS Kickoff.pptx`. The run's own folder under Build Artifacts keeps its copy, its metrics and its report.
+
+James Gilmore, 2026-10-29: "the decks should be going in the respective output folders."
+
+- **Why a subfolder** (`scripts/ils_job.deliver`): five readers take any `<id>-<period>-*.pptx` in `Outputs/<CSM>/` for the client's RPE deck. They are the ARS build's "already in Outputs, rebuild?" check, Sheila's In Outputs chip, deck readiness, the performance dashboard, and the step that archives a client's other decks for the month. A 1759 PGL deck there would have stopped the 1759 ARS build to ask, marked 1759 as built, and been archived by the next ARS build. None of those readers looks below a CSM's folder, so `ILS/` keeps the two apart.
+- A re-run in the same month replaces the delivered deck, and the one it replaces moves to `Outputs/<CSM>/ILS/_Archive/` with "(superseded <date>)". Nothing is deleted.
+- **The card**: "open the deck" opens the copy in Outputs, and "open the folder" opens the run's folder. Reveal now accepts a deck under Outputs as well as Build Artifacts/ils.
+- A deck that cannot be copied (the Outputs copy open in PowerPoint, the share unreachable) is a warning, and the deck stays in the run's folder.
+
 ### 2026-10-29 — ILS pre-go-live: every OD code can be counted eligible, and the agenda no longer runs together
 
 Summary: the PGL's ILS-eligible OD status takes `ALL`, meaning every OD status in the extract, and Sheila's PGL card fills it in by default. The PGL agenda's nine numbered badges are re-spaced so they no longer touch.
