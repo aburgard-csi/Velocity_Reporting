@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — TI: Where PIN gets pressed declines when no merchant carries PIN
+
+Summary: the Where PIN gets pressed slide no longer draws an all-signature chart when the file shows no PIN dollars at any merchant; it states that the file has no PIN/SIG mix.
+
+Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #89): `where_pin_gets_pressed` now declines with the existing "no PIN/SIG mix in the file" sentence when PIN (or signature) is $0 at every merchant, since that means the indicator is missing or unmapped, not that the market is signature-only. Whether 1075's file carries a usable indicator is still a data question.
+
 ### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
 
 Summary: a finished ILS deck run from Sheila (pre-go-live or kickoff) is now copied to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-PGL-<client> ILS Pre-Go-Live Review.pptx` or `...-ILS-KO-<client> ILS Kickoff.pptx`. The run's own folder under Build Artifacts keeps its copy, its metrics and its report.

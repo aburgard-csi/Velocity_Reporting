@@ -115,6 +115,12 @@ def test_the_mix_slides_decline_on_a_single_rail_file():
         assert "no PIN/SIG mix" in fn(_h(), single, BASE)
 
 
+def test_where_pin_gets_pressed_declines_when_no_merchant_carries_pin():
+    # issue #89: PIN at $0 for every merchant means no usable indicator, not a signature-only market
+    t = dict(FULL, ic_by_merchant=[[n, c, 0, d, 100.0] for n, c, _p, d, _s in FULL["ic_by_merchant"]])
+    assert "no PIN/SIG mix" in V.where_pin_gets_pressed(_h(), t, BASE)
+
+
 def test_the_headlines_carry_the_numbers():
     h = _h()
     V.pin_or_signature(h, FULL, BASE)
