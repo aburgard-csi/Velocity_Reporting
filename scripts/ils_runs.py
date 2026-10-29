@@ -14,8 +14,9 @@ CSM confirmed. Which value means open, personal, OD-eligible or opted in is the 
 summary, never the tool's, and never the client's (James Gilmore, 2026-10-28): the codes a client's last run used are offered back, labelled with that run's date and file,
 and nothing runs on them until the CSM presses Build.
 
-Each step runs in its own process (scripts/ils_job.py), as Sheila's deck builds do. Reveal opens only a
-file under Build Artifacts/ils, so the Outputs-only rule for decks (ars_launcher_web.reveal) is unchanged.
+Each step runs in its own process (scripts/ils_job.py), as Sheila's deck builds do. A finished deck is
+also copied to Outputs/<CSM>/ILS/ (ils_job.deliver, 2026-10-29). Reveal opens a file under Build
+Artifacts/ils or a deck under Outputs.
 """
 import datetime as _dt
 import json
@@ -166,7 +167,9 @@ def save_inputs(body):
 
 
 def last_output(kind, cid):
-    """The newest deck a run wrote for the client, with its folder, or None."""
+    """The newest deck a run wrote for the client, with its folder, or None. The deck is the copy in
+    Outputs when that run delivered it (ils_job.deliver keeps the build's modified time); the folder is
+    always the run's own."""
     base = _out_root(kind) / str(cid)
     try:
         decks = sorted(base.glob("*/*.pptx"), key=lambda p: p.stat().st_mtime)
@@ -174,8 +177,16 @@ def last_output(kind, cid):
         return None
     if not decks:
         return None
-    d = decks[-1]
-    return {"deck": str(d), "name": d.name, "folder": str(d.parent),
+    d, folder = decks[-1], decks[-1].parent
+    try:
+        import ils_job
+        sent = sorted((R.client_outputs(cid) / ils_job.ILS_DIRNAME).glob(
+            f"{cid}-*-ILS-{ils_job.TITLES[kind][0]}-*.pptx"), key=lambda p: p.stat().st_mtime)
+        if sent and sent[-1].stat().st_mtime >= d.stat().st_mtime - 5:
+            d = sent[-1]
+    except (OSError, SystemExit):
+        pass
+    return {"deck": str(d), "name": d.name, "folder": str(folder),
             "when": _dt.datetime.fromtimestamp(d.stat().st_mtime).strftime("%Y-%m-%d %H:%M")}
 
 
@@ -324,13 +335,17 @@ def start(body):
 
 
 def reveal(path):
-    """Show an ILS output in File Explorer — only a file or folder under Build Artifacts/ils."""
+    """Show an ILS output in File Explorer — a file or folder under Build Artifacts/ils, or a deck in Outputs."""
     try:
         p = Path(path).resolve()
         root = (R.build_artifacts() / "ils").resolve()
     except (OSError, SystemExit, TypeError):
         return 403, {"error": "Build Artifacts is not reachable."}
-    if root not in p.parents or not p.exists():
+    try:
+        delivered = R.outputs().resolve() in p.parents and p.suffix.lower() == ".pptx"
+    except (OSError, SystemExit):
+        delivered = False
+    if not (root in p.parents or delivered) or not p.exists():
         return 403, {"error": "Only an ILS output can be shown."}
     if p.is_file():
         subprocess.Popen(["explorer", "/select,", str(p)])

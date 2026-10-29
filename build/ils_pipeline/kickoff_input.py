@@ -74,8 +74,9 @@ def root() -> Path:
 def output_dir(client_id, period) -> Path:
     """`Build Artifacts/ils/kickoff/<id>/<period>/`: where a run writes when nobody says otherwise.
 
-    v5 wrote `03-Output/ILS/{period}/{client}/`. The kickoff is a proposal and its files are not a
-    delivered deck, so they go under Build Artifacts, never Outputs. RPE_DATA_ROOT must be set:
+    v5 wrote `03-Output/ILS/{period}/{client}/`. The run's files go under Build Artifacts; a finished
+    deck run from Sheila is also copied to `Outputs/<CSM>/ILS/` (scripts/ils_job.deliver, James Gilmore,
+    2026-10-29: "the decks should be going in the respective output folders"). RPE_DATA_ROOT must be set:
     rpe_env.build_artifacts() would otherwise fall back to a folder inside the checkout."""
     import rpe_env
     rpe_env.data_root()                          # raises when unset, rather than write into the repo

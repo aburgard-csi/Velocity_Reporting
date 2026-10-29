@@ -119,3 +119,30 @@ def test_the_page_script_parses(tmp_path):
     f.write_text(js, encoding="utf-8")
     r = subprocess.run([node, "--check", str(f)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-600:]
+
+
+def test_a_finished_deck_is_delivered_to_the_csms_ils_folder_and_the_ars_readers_never_see_it(root, monkeypatch):
+    # James Gilmore, 2026-10-29: "the decks should be going in the respective output folders"
+    import ils_job
+    import ars_launcher as L
+    import rpe_env as R
+    monkeypatch.setattr(R, "client_csm", lambda cid: "James Gilmore")
+    run_dir = root / "Build Artifacts" / "ils" / "PGL" / "1737" / "20261029"
+    run_dir.mkdir(parents=True)
+    built = run_dir / "1737 ILS Program Analysis - PGL Review 20261029.pptx"
+    built.write_bytes(b"first")
+    dest = ils_job.deliver("pgl", "1737", built, "2026.10", "Texas National Bank")
+    assert dest == (root / "Outputs" / "James Gilmore" / "ILS"
+                    / "1737-2026.10-ILS-PGL-Texas National Bank ILS Pre-Go-Live Review.pptx")
+    assert built.exists() and dest.read_bytes() == b"first"            # copied: the run keeps its own
+    built.write_bytes(b"second")
+    ils_job.deliver("pgl", "1737", built, "2026.10", "Texas National Bank")
+    archived = list((dest.parent / "_Archive").glob("*(superseded *).pptx"))
+    assert dest.read_bytes() == b"second" and [p.read_bytes() for p in archived] == [b"first"]   # never deleted
+    # the ARS rebuild check, the In Outputs chip and deck readiness read <id>-<period>-*.pptx in the CSM folder
+    assert R.output_decks("1737-2026.10-*.pptx") == [] and L.decks_in_outputs("1737", "2026.10") == []
+    last = ils_runs.last_output("pgl", "1737")
+    assert last["deck"] == str(dest) and last["folder"] == str(run_dir)
+    monkeypatch.setattr(ils_runs.subprocess, "Popen", lambda *a, **k: None)
+    assert ils_runs.reveal(str(dest))[0] == 200                         # the card's "open the deck"
+    assert ils_runs.reveal(str(root / "Outputs" / "James Gilmore" / "notes.txt"))[0] == 403
