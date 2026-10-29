@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — TI: Who leads each product no longer prints a count per category
+
+Summary: the Who leads each product slide names the leading institution in each category without an account count or dollar figure, because the data has only whole-book figures per institution.
+
+Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #87): `who_leads_each_product` used the institution's whole-book reach and dollars for every category it appears in, which put one figure beside three categories. It now draws the names only (`leader_names`) and the headline claims no count.
+
 ### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
 
 Summary: a finished ILS deck run from Sheila (pre-go-live or kickoff) is now copied to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-PGL-<client> ILS Pre-Go-Live Review.pptx` or `...-ILS-KO-<client> ILS Kickoff.pptx`. The run's own folder under Build Artifacts keeps its copy, its metrics and its report.

@@ -203,19 +203,21 @@ def who_leads_each_product(h, t, base):
     if not ranked:
         return "Who leads each product (no product mix on comp_institutions)"
     cat0, inst0 = ranked[0]
+    # comp_institutions carries each institution's whole-book reach and dollars only, never a
+    # per-category figure, so the slide names the institution and prints no count (issue #87)
     s, top = h["slide"]((
-        f"{inst0[0]} leads {cat0.lower()} with {inst0[2]:,} accounts",
-        "the largest named competitor in each product category, by accounts "
-        "reached — where the relationship is actually lost"),
+        f"{inst0[0]} is the largest named competitor that also carries {cat0.lower()}",
+        "the largest named competitor in each product category, ranked by its reach across "
+        "the whole book; the data has no account count per category"),
         "Who leads each product")
     # The horizontal institution form: one bar per product, the leader's
     # accounts, dollars and name beside it, local names in orange. The
     # branch form this slide first used reads a rate the row never carried,
     # and its portfolio band means nothing here (#245, the 1776 rerun).
-    from .txn_slides import institution_bars
+    from .txn_slides import leader_names
     rows = [[c, r[1], r[2], None, None, r[5], None, [r[0]]]
             for c, r in ranked]
-    path = h["chart"]("comp_leaders", institution_bars, rows)
+    path = h["chart"]("comp_leaders", leader_names, rows)
     if path:
         h["chart_left"](s, path, top, h["RIGHT_EDGE"])
 
