@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/system_view.py at 7ba1e63. Logic unchanged; copied whole (here at g11-02 because run's needs_codes reply attaches the system view).
+# Ported from v5 02-Scripts/ils/pre_go_live/system_view.py at 7ba1e63, copied whole (here at g11-02 because run's needs_codes reply attaches the system view). Two RPE changes (2026-10-28, CHANGELOG): a dump saved as .csv is read like the .txt one, and a SQL Server message line under a table ends the table instead of being read as a row.
 """The ILS system's own view: matrix settings + integrity check.
 
 Alongside the account extract, the ILS vendor can export two SQL dumps:
@@ -57,7 +57,9 @@ def _table(lines: list[str]) -> list[dict]:
     names = [header[a:b].strip() or f"col{i}" for i, (a, b) in enumerate(spans)]
     rows = []
     for line in lines[dash_i + 1:]:
-        if not line.strip() or line.strip().startswith("("):
+        # "(60 rows affected)" ends a table; so does SQL Server's "Warning: Null value is eliminated by an
+        # aggregate or other SET operation.", which the 2026-10 dumps print straight under six tables
+        if not line.strip() or line.strip().startswith(("(", "Warning:")):
             break
         row = {}
         for (a, b), n in zip(spans, names):
@@ -247,7 +249,7 @@ def load(folder: Path, warn) -> dict:
     """Parse whichever of the two dumps sit next to the extract."""
     out: dict = {"sysv_files": []}
     txts = sorted(p for p in Path(folder).iterdir()
-                  if p.suffix.lower() == ".txt" and not p.name.startswith("~"))
+                  if p.suffix.lower() in (".txt", ".csv") and not p.name.startswith("~"))
     for pat, parser, label in ((MATRIX_PAT, parse_matrix, "matrix validation"),
                                (INTEGRITY_PAT, parse_integrity, "integrity check")):
         matches = [p for p in txts if pat.search(p.name)]

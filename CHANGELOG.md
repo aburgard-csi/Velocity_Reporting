@@ -21,6 +21,28 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ILS pre-go-live reads the 2026-10 deliveries: landed zips, .csv dumps, SQL messages, a missing header
+
+Summary: the ILS pre-go-live engine, and its card in Sheila, now reads a delivery left as a zip in `Inputs/ILS PGL/`. It never takes the vendor's system dump as the extract, reads a dump saved as `.csv`, and no longer reads SQL Server's message lines as table rows. An extract with no header row stops with a message saying to ask for a re-export.
+
+James Gilmore, 2026-10-28, testing the two deliveries in `M:\CSM_Reporting\Inputs\ILS PGL`: both failed in step 1. These are changes to v5's ported logic. Each file's first line now names its change.
+
+- **Zips** (`pgl_input.py`). Both deliveries arrived as one zip each in the kind's folder, not unzipped into `<id>/`, so the card showed "No extract yet". A zip named `<id>_….zip` is now unpacked as a copy into `Build Artifacts/ils/PGL/<id>/_landed/<zip name>/`, and again only when the zip changes. Inputs is never changed, and the newest extract across the client's folder and its zips still wins.
+- **A dump taken as the extract** (`loader.find_extract`). 1759's dumps are named `1759_MatrixValidation_PGL2.csv` and `1759_IntegrityCheck_PGL2.csv`. With no date in the name, the matrix dump was dated by file time, tied with the real extract's date and won, and the run failed reading a text report as a CSV. A file named MatrixValidation or IntegrityCheck is never an extract now.
+- **`.csv` dumps** (`system_view.load`). Those two files are the same fixed-width text reports as 1737's `.txt` ones and parse completely. Both extensions are read now.
+- **SQL Server messages** (`system_view._table`). 1737's October integrity dump prints `Warning: Null value is eliminated by an aggregate or other SET operation.` directly under six tables, deposit history among them. It was read as a row, so the newest deposit day was the message, its figure was blank, and the report failed. The deposit and overdraft histories had 61 days; they now have 60. The line now ends the table, as `(60 rows affected)` already did.
+- **No header row** (`run.py`). 1737's October extract starts with an account record, so that record was read as the column names and the field summary came back empty without a word. The run now stops and says the file has no header row and must be exported again. It does not guess the column names: the same file also has `AcctNo` blank on all 32,795 records, which only a re-export can restore.
+
+Sheila's ILS Pre-go-live card lists a client whose delivery is a zip, and a run that stops now shows why (`ils_job.py` prints the run's own error lines).
+
+**Moves no figure:** August's 1737 extract was re-run with the same codes and all 117 figures are unchanged.
+
+**Results on the October files:**
+- 1759 now reads its real extract (22,567 accounts) and both dumps.
+- 1737 stops, naming the missing header.
+
+`tests/test_ils_pgl_intake.py` adds 8 tests.
+
 ### 2026-10-28 — ILS pre-go-live and kickoff run from a client's page in Sheila
 
 Summary: A client's page in Sheila now has three ILS cards below the ARS Companion: ILS Pre-go-live, ILS Kickoff, and ILS Review, marked Coming soon. A CSM can run either analysis from the page: read the field summary, type the codes the client confirmed, then Build. The deck and the workbook or report go to `Build Artifacts\ils`. VERSION is now 2.2.

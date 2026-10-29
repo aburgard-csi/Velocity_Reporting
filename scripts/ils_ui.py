@@ -103,7 +103,7 @@ function ilsCard(kind) {
   const head = (btns) => `<div class="cardhead"><h3>${esc(title)} <span class="mix">${kind === "pgl" ? "report and board deck" : "workbook and deck"}</span> ${state}</h3><div class="act">${btns}</div></div>`;
   if (!c.extract) return `<section class="card stopcard" id="ils${kind}">${head("")}
       <p class="fact">${esc(ILS_WHAT[kind])}</p>
-      <p class="small">Land the client's ${kind === "pgl" ? "pre-go-live extract (<code>&lt;id&gt;_&lt;Client&gt;_PreGL_&lt;yyyymmdd&gt;.csv</code>, with the vendor's MatrixValidation / IntegrityCheck dumps beside it)" : "one-time data extract (<code>&lt;id&gt;_OneTimeData_&lt;yyyymmdd&gt;.csv</code> or <code>.xlsx</code>)"} in <b>${esc(c.folder || "")}</b>, then Check again.</p></section>`;
+      <p class="small">Land the client's ${kind === "pgl" ? "pre-go-live extract (<code>&lt;id&gt;_&lt;Client&gt;_PreGL_&lt;yyyymmdd&gt;.csv</code>, with the vendor's MatrixValidation / IntegrityCheck dumps beside it)" : "one-time data extract (<code>&lt;id&gt;_OneTimeData_&lt;yyyymmdd&gt;.csv</code> or <code>.xlsx</code>)"} in <b>${esc(c.folder || "")}</b>${kind === "pgl" ? " (or the delivery's zip, <code>&lt;id&gt;_…_PGL_&lt;yyyymmdd&gt;.zip</code>, in the folder above it)" : ""}, then Check again.</p></section>`;
   const step1 = `<button class="quiet" data-ilsrun="1" data-ilskind="${kind}"${running ? " disabled" : ""}>Read the field summary</button>`;
   const step2 = `<button class="primary" data-ilsrun="2" data-ilskind="${kind}"${running ? " disabled" : ""}>${c.last ? "Rebuild" : "Build"}</button>`;
   const fact = `Extract <b>${esc(c.extract)}</b>` + (c.last ? ` · last deck ${esc(c.last.when)} · <button class="link" data-ilsreveal="${esc(c.last.deck)}">open the deck</button>` : "");

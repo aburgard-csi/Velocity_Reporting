@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/loader.py at 7ba1e63. Logic unchanged; the folder lookup reads Inputs/ILS PGL/ (ils_pipeline/pgl_input.py).
+# Ported from v5 02-Scripts/ils/pre_go_live/loader.py at 7ba1e63. The folder lookup reads Inputs/ILS PGL/ (ils_pipeline/pgl_input.py). One RPE change (2026-10-28, CHANGELOG): find_extract never takes the vendor's MatrixValidation / IntegrityCheck dump as the extract.
 """PGL extract loader.
 
 One CSV or Excel per delivery under 01-Data/ILS/{client}/, the date in the
@@ -25,6 +25,10 @@ import pandas as pd
 ILS_DIRS = ("ILS", "ils", "PGL", "pgl")
 DATE_RE = re.compile(r"(20\d{6})")
 EXTS = {".csv", ".xls", ".xlsx"}
+# The vendor's two system dumps sit beside the extract and may be saved as .csv (1759 First Central,
+# 2026-10: "1759_MatrixValidation_PGL2.csv", no date in the name). Read as an extract, the undated dump
+# was dated by file time and won the "newest" race against the real one (RPE, 2026-10-28).
+DUMP_RE = re.compile(r"matrix.?validation|integrity.?check", re.I)
 
 CODE_COLUMNS = ["AcctNo", "Personal_Business", "Eligible_For_Scoring",
                 "OD Status Code (from Core)", "Account Status Code",
@@ -67,7 +71,7 @@ def find_extract(data_root: Path, client_id: str) -> Extract:
     folder = folders[0]           # newest month first; kept for messages
     dated = []
     for p in sorted(q for f in folders for q in f.iterdir()):
-        if p.suffix.lower() not in EXTS or p.name.startswith("~"):
+        if p.suffix.lower() not in EXTS or p.name.startswith("~") or DUMP_RE.search(p.name):
             continue
         m = DATE_RE.search(p.name)
         stamp = (pd.to_datetime(m.group(1), format="%Y%m%d", errors="coerce")

@@ -48,7 +48,12 @@ def pgl(a):
     res = run(a["client"], codes=codes, fee=float(fee) if fee not in (None, "") else None,
               include_deleted=bool(a.get("include_deleted")))
     print(report(res))
+    # the report prints the figures, not why a run stopped: say that too, or the card shows "stopped" alone
+    for e in getattr(res, "errors", None) or []:
+        print(f"[STOP] {e}")
     out = {"ok": bool(res.ok), "needs_codes": res.status == "needs_codes", "deck": None, "folder": None}
+    if not res.ok and getattr(res, "errors", None):
+        out["error"] = res.errors[0]
     if res.ok and res.status != "needs_codes":
         from ils_pipeline.core import layout
         from ils_pipeline.pre_go_live.deck import build
