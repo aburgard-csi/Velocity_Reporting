@@ -21,6 +21,8 @@ from test_ils_pgl_review import CODES, _df  # noqa: E402
 def _metrics():
     m = review.compute(_df(), CODES, {"sysv_matrix_rounding_step": 250})
     m["pgl_extract"] = "9999_Test_PGL_20261026.csv"
+    from ils_pipeline.pre_go_live import insights
+    m.update(insights.compute(_df(), CODES, None, od_fee=27.0, extract_date="2026-10-26"))   # a one-account business base
     return m
 
 
@@ -52,6 +54,7 @@ def test_the_deck_is_built_in_sheilas_shell_and_passes_the_validator(tmp_path, m
     assert "Not Odp · Not on the program" in joined or "NOT ODP · Not on the program" in joined
     assert "To be completed by the CSM" in joined           # no key dates, no program details given
     assert "Aaron Burgard" not in texts[-1] and "to be confirmed" in texts[-1]   # never another CSM's card
+    assert "Where the Core Limit Misses — Business" in joined and "Core Limits vs ILS — Business" not in joined
     fails = [f for f in vd.run(str(out)) if f[0] == "FAIL"]
     assert fails == [], fails
 
@@ -96,3 +99,11 @@ def test_the_combined_grid_applies_de_minimis_before_the_cap(tmp_path):
     assert grid[(4, 2, 0)][4] == 2                  # the $1 item is waived first, so the cap waives only the 6th
     assert grid[(4, 2, 5)][9] is True and grid[(0, 0, 0)][4] == 0
     assert [r[0] for r in n["per_day_dist"]] == ["6"] and n["cap_curve"][0][1] == 5
+
+
+def test_the_fee_slides_name_the_notice_window_not_a_year():
+    nt = {"first": "2026-07-01", "last": "2026-10-27", "days": 119}
+    assert sheila_deck.window_text(nt) == "Jul 1 – Oct 27, 2026: 119 days (3.9 months)"
+    assert sheila_deck.window_pill(nt) == "Notices 7/1–10/27/26"
+    across = {"first": "2025-12-15", "last": "2026-02-14", "days": 62}
+    assert sheila_deck.window_text(across) == "Dec 15, 2025 – Feb 14, 2026: 62 days (2.0 months)"
