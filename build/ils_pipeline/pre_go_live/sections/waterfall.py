@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/sections/waterfall.py at 7ba1e63. Logic unchanged; copied whole.
+# Ported from v5 02-Scripts/ils/pre_go_live/sections/waterfall.py at 7ba1e63, copied whole. One RPE change (2026-10-28, CHANGELOG): a blank OD status is counted and named in the "ILS calculates a limit" note.
 """The filter waterfall: every step from file to base, shown, never silent.
 
 James's rule for the PGL story: minimal filtering, and any filter that IS
@@ -63,7 +63,8 @@ def compute(df, bases, inputs, warn) -> dict:
         od = df.get("OD Status Code (from Core)")
         gone_note = ""
         if od is not None:
-            gone = od[(m_open & ~m_scor).astype(bool)].value_counts()
+            # a blank status is counted as "blank": the accounts left out are often those (1759: all 105)
+            gone = od[(m_open & ~m_scor).astype(bool)].fillna("blank").value_counts()
             gone_note = " (their OD status: " + ", ".join(
                 f"{k} ({v:,})" for k, v in gone.head(4).items()) + ")"
         step("ILS calculates a limit", int(m_scor.sum()),

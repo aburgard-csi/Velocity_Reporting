@@ -54,6 +54,10 @@ def pgl(a):
     out = {"ok": bool(res.ok), "needs_codes": res.status == "needs_codes", "deck": None, "folder": None}
     if not res.ok and getattr(res, "errors", None):
         out["error"] = res.errors[0]
+    # the codes the ILS dumps hold (pre_go_live/dump_codes.py), for the card to fill in for the CSM to confirm
+    dc = (res.metrics or {}).get("pgl_dump_codes") or {}
+    out["suggested"] = {k: ", ".join(v["codes"]) for k, v in dc.items() if v.get("codes")}
+    out["suggested_basis"] = {k: v["basis"] for k, v in dc.items()}
     if res.ok and res.status != "needs_codes":
         from ils_pipeline.core import layout
         from ils_pipeline.pre_go_live.deck import build

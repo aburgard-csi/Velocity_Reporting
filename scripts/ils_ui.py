@@ -113,7 +113,7 @@ function ilsCard(kind) {
   return `<section class="card" id="ils${kind}">${head(`<span class="btns">${step1}${step2}</span><span class="why">files go to Build Artifacts\\ils</span>`)}
     <p class="fact">${fact}</p>
     <p class="small">${esc(ILS_WHAT[kind])} First read the field summary (nothing is computed), then confirm the codes from it — which value means open, personal, OD-eligible or opted in — type them, and Build.</p>
-    ${saved}<div class="ilsform">${ILS.doc.fields[kind].map(f => ilsField(kind, f, c.saved)).join("")}</div>
+    ${saved}${ilsSuggested(kind, j)}<div class="ilsform">${ILS.doc.fields[kind].map(f => ilsField(kind, f, c.saved)).join("")}</div>
     ${ilsOptions(kind, c)}<div id="ilsjob${kind}">${j ? ilsJobHtml(j) : ""}</div></section>`;
 }
 
@@ -134,8 +134,34 @@ function ilsJobHtml(j) {
   return state + `<pre class="ilslog">${esc((j.lines || []).join("\n"))}</pre>`;
 }
 
+// The codes the ILS system's own dumps hold (pre_go_live/dump_codes.py), with the evidence for each. A field
+// the CSM has typed, or a saved run filled, is never overwritten; the CSM still confirms by pressing Build.
+function ilsSuggested(kind, j) {
+  const b = j && j.done && j.ok && j.step === 1 ? (j.suggested_basis || {}) : {};
+  const rows = Object.entries(b).map(([f, why]) => `<li><b>${esc((ILS_LABELS[f] || [f])[0])}</b>: ${esc((j.suggested || {})[f] || "not offered")} — ${esc(why)}</li>`).join("");
+  return rows ? `<div class="ilssaved ilssuggested">From the ILS system's own settings (matrix validation and integrity check), filled in where a field was empty — check them, then Build:<ul>${rows}</ul></div>` : "";
+}
+
+function ilsFill(kind, j) {
+  if (!(j && j.done && j.ok && j.step === 1 && j.suggested)) return false;
+  const key = ILS.cid + kind, f = (ILS.form[key] = ILS.form[key] || {});
+  let changed = false;
+  for (const [field, v] of Object.entries(j.suggested)) {
+    const el = $(`#ils_${kind}_${field}`);
+    if (el && !el.value.trim() && v) { el.value = v; f[field] = v; changed = true; }
+  }
+  return changed;
+}
+
 function ilsShow(kind, j) {
   if (ILS.doc && ILS.doc.kinds[kind]) ILS.doc.kinds[kind].job = j;
+  if (j && j.done && j.step === 1 && j.ok && j.suggested_basis && Object.keys(j.suggested_basis).length) {
+    ilsFill(kind, j);
+    const card = $("#ils" + kind);
+    if (card && !card.querySelector(".ilssuggested")) {
+      card.querySelector(".ilsform").insertAdjacentHTML("beforebegin", ilsSuggested(kind, j));
+    }
+  }
   const box = $("#ilsjob" + kind); if (!box || !j) return;
   box.innerHTML = ilsJobHtml(j);
   const pre = box.querySelector("pre"); if (pre && !j.done) pre.scrollTop = pre.scrollHeight;

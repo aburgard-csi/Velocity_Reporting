@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/system_view.py at 7ba1e63, copied whole (here at g11-02 because run's needs_codes reply attaches the system view). Two RPE changes (2026-10-28, CHANGELOG): a dump saved as .csv is read like the .txt one, and a SQL Server message line under a table ends the table instead of being read as a row.
+# Ported from v5 02-Scripts/ils/pre_go_live/system_view.py at 7ba1e63, copied whole (here at g11-02 because run's needs_codes reply attaches the system view). Three RPE changes (2026-10-28, CHANGELOG): a dump saved as .csv is read like the .txt one, a SQL Server message line under a table ends the table instead of being read as a row, and an OD status the dump prints as NULL is named "NULL".
 """The ILS system's own view: matrix settings + integrity check.
 
 Alongside the account extract, the ILS vendor can export two SQL dumps:
@@ -196,12 +196,14 @@ def parse_integrity(text: str) -> dict:
                                   "effective": _get(ld[0], "EFFECTIVE_DATE")}
     ob = _table(sec.get("OD STATUS CODE BREAKOUT", []))
     if ob:
+        # a status the dump prints as NULL is named "NULL", not left None: the report said "None (123)"
+        # and the deck stopped joining it (RPE, 2026-10-28, 1759 First Central)
         out["sysv_od_status"] = [
-            [r.get("STATUS_CODE"), _num(r.get("ILS_CALC")), _num(r.get("CAN_OVERDRAFT")),
+            [r.get("STATUS_CODE") or "NULL", _num(r.get("ILS_CALC")), _num(r.get("CAN_OVERDRAFT")),
              _num(r.get("ACCOUNTS"))]
             for r in ob]
         out["sysv_od_status_unmapped"] = [
-            [r.get("STATUS_CODE"), _num(r.get("ACCOUNTS"))]
+            [r.get("STATUS_CODE") or "NULL", _num(r.get("ACCOUNTS"))]
             for r in ob if r.get("ILS_CALC") is None]
     dele = _table(sec.get("COUNT OF DELETED ACCOUNTS", []))
     if dele:
