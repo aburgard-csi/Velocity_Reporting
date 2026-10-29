@@ -82,3 +82,17 @@ def test_a_notice_file_is_never_the_extract():
     from ils_pipeline.pre_go_live import loader
     assert loader.DUMP_RE.search("1759-FNF-Notices 120 Days.csv")
     assert not loader.DUMP_RE.search("1759_FirstCentral_PGL_20261026.csv")
+
+
+def test_the_combined_grid_applies_de_minimis_before_the_cap(tmp_path):
+    rows = [{"ILS Account ID": "1", "NSF-Overdraft Item Amount": "1.00" if i == 0 else "40",
+             "NSF-Overdraft Item Date": "9/21/2026 12:00:00 AM", "NSF-Overdraft Item Ending Balance": "-50",
+             "NSF-Overdraft Item Fee Assessed": "27", "NSF-Overdraft Item Status": "PD",
+             "NSF-Overdraft Item Transaction Type": "CRD", "NSF-Overdraft Item Import ID": str(i)} for i in range(6)]
+    pd.DataFrame(rows).to_csv(tmp_path / "9999-FNF-Notices.csv", index=False)
+    n = notices.compute(tmp_path)["pgl_notices"]
+    grid = {(r[1], r[2], r[3]): r for r in n["grid"]}
+    assert grid[(4, 0, 0)][4] == 2                  # cap 4 alone waives the 5th and 6th fee
+    assert grid[(4, 2, 0)][4] == 2                  # the $1 item is waived first, so the cap waives only the 6th
+    assert grid[(4, 2, 5)][9] is True and grid[(0, 0, 0)][4] == 0
+    assert [r[0] for r in n["per_day_dist"]] == ["6"] and n["cap_curve"][0][1] == 5
