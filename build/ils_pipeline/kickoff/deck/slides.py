@@ -46,7 +46,8 @@ class Slide:
     section: str        # divider it sits under
 
 
-SECTIONS = ["The book", "Where the NSF activity is", "How it is configured"]
+SECTIONS = ["The book", "Where the NSF activity is", "How it is configured",
+            "Day 2 read-out"]
 
 SLIDE_MANIFEST = [
     # ---- The book ----------------------------------------------------------
@@ -73,9 +74,18 @@ SLIDE_MANIFEST = [
     Slide("Reg E by OD Eligibility", "How it is configured"),
     Slide("Reg E by OD Eligibility (Biz)", "How it is configured"),
     Slide("Historical Reg E", "How it is configured"),
+
+    # ---- Day 2 read-out (metrics/day2.py, from the ILS Kickoff Day 2 app) --
+    Slide("Day 2 Highlights", "Day 2 read-out"),
+    Slide("Day 2 OD Status Reg E In", "Day 2 read-out"),
+    Slide("Day 2 OD Status Reg E In (Biz)", "Day 2 read-out"),
+    Slide("Day 2 Year Opened", "Day 2 read-out"),
+    Slide("Day 2 Year Opened (Biz)", "Day 2 read-out"),
+    Slide("Day 2 Reg E by Year Opened", "Day 2 read-out"),
 ]
 
 MANIFEST_KEYS = [s.key for s in SLIDE_MANIFEST]
+
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +207,7 @@ LAYOUTS = {
     "Account Type Analysis": "hero",           # one number: personal share
     "Reg E Summary": "hero",                   # one number: elected share
     "NSF Pay Ratio": "hero",                   # one number: the blended rate
+    "Day 2 Highlights": "full",                # a scorecard; its chips are the tiles
 }
 
 

@@ -156,6 +156,18 @@ Sheila's ILS Pre-go-live card lists a client whose delivery is a zip, and a run 
 
 `tests/test_ils_pgl_intake.py` adds 8 tests.
 
+### 2026-10-28 — ILS kickoff workbook and deck gain the Day 2 analyses
+
+Summary: The ILS kickoff run (the CLI and Sheila's ILS Kickoff card) now writes six more workbook tabs, ported from the ILS Kickoff Day 2 app (`M:\JBerkowitz\ILS Kickoff Day 2 app`): Day 2 Highlights, OD Status for Reg E opt-ins (personal and business), Accounts by Year Opened (personal and business), and Reg E by Year Opened. Each is also a slide in the kickoff deck, under a new "Day 2 read-out" section after "How it is configured", with its table in the appendix. The nineteen existing tabs and slides are unchanged.
+
+James Gilmore, 2026-10-28: "the deck should be the same output pipeline as sheila". The Day 2 slides are built by the same `deck/slides.py` and `deck/forms.py` as the other nineteen, one chart form, headline and caption each; there is no second deck.
+
+James Gilmore, 2026-10-28: incorporate the Day 2 analysis "into our Sheila system", additive to the existing kickoff analysis. Only the analysis was taken; the Day 2 app's deck, consulting text and GUI were not.
+
+Day 2 Highlights is one row per finding per segment: OD/NSF user share against the CFPB 2012 27% benchmark, how many accounts generate 75% of items, pay ratio against the 90% target and whether it rises across the NSF bands, whether deposits rise with usage, OD-eligible share against the 80% floor and 90% preferred, Reg E opt-in share against the user share, and the Reg E opt-ins that are not on an eligible Stat Code (opted in, receiving no limit).
+
+One rule changed on the way in. The Day 2 app guessed codes: an OD status containing "activ" was eligible, a Reg E value of "Y" or "1" was an opt-in, and when nothing matched the largest status was assumed eligible. Here eligibility is the confirmed Stat Code(s) and opt-in is the confirmed Reg E value, as for every other kickoff tab. With opt-in unconfirmed the Reg E measures are left blank and say so, and the Reg E opt-in tabs are skipped with a warning. A rule matching every account or none is marked not meaningful. Without an Open Date column the year-opened tabs are skipped with a warning.
+
 ### 2026-10-28 — ILS pre-go-live and kickoff run from a client's page in Sheila
 
 Summary: A client's page in Sheila now has three ILS cards below the ARS Companion: ILS Pre-go-live, ILS Kickoff, and ILS Review, marked Coming soon. A CSM can run either analysis from the page: read the field summary, confirm the codes from it, then Build. The deck and the workbook or report go to `Build Artifacts\ils`. VERSION is now 2.2.

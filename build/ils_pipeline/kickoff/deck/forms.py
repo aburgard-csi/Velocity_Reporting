@@ -310,6 +310,103 @@ def _rege_annual(f, out):
                             mark_label="")
 
 
+# ---- Day 2 read-out (metrics/day2.py) --------------------------------------
+
+def _day2_status(measure, value, read):
+    """(RAG status, note) for a Highlights row against the target day2.py
+    already states, or None for a row with no target to be read against.
+    Every threshold here is one of day2's constants -- none is new."""
+    from ils_pipeline.kickoff.metrics import day2
+    if measure == "OD-eligible share":
+        if "not meaningful" in read:
+            return "amber", "eligibility codes unconfirmed"
+        floor, pref = day2.ELIGIBILITY_TARGET * 100, day2.ELIGIBILITY_PREFERRED * 100
+        return ("green" if value >= pref else "amber" if value >= floor else "red",
+                f"floor {floor:.0f}%, preferred {pref:.0f}%")
+    if value is None:
+        return None
+    if measure == "OD/NSF user share":
+        cfpb = day2.CFPB_USER_RATE * 100
+        return ("green" if value >= cfpb * 0.95 else "amber"), f"CFPB study {cfpb:.0f}%"
+    if measure == "Pay ratio":
+        target = day2.PAY_RATIO_TARGET * 100
+        return ("green" if value >= target else "amber" if value >= 65 else "red",
+                f"target {target:.0f}%+")
+    if measure == "Reg E opt-ins not OD-eligible":
+        return ("green" if not value else "amber"), "opted in, no limit"
+    return None
+
+
+def _day2_highlights(f, out):
+    """The Day 2 findings as a scorecard: one chip per measure with a target."""
+    import pandas as pd
+    chips = []
+    for _, r in _body(f).iterrows():
+        value = None if pd.isna(r.get("Value")) else float(r["Value"])
+        got = _day2_status(r.get("Measure"), value, str(r.get("Read") or ""))
+        if got is None:
+            continue
+        status, note = got
+        shown = ("n/a" if value is None else f"{value:.1f}%" if r.get("Unit") == "%"
+                 else f"{int(value):,}")
+        chips.append([status, str(r["Segment"]),
+                      f"{r['Measure']}: {shown}  ·  {note}"])
+    if not chips:
+        raise ValueError("no Day 2 measure with a target")
+    return dk.rag_chips(chips[:8], out)
+
+
+def _rege_in_od_status(f, out):
+    """Pay rate by OD status for the Reg E opt-ins, opt-ins under each column."""
+    b = _body(f)
+    rows = [[l, int(n), None, r] for l, n, r in
+            zip(_labels(b), _num(b, "# of Accounts"), _pct(b, "Pay Ratio"))]
+    # Not marked: OD status codes are not performance tiers, as on Account Status.
+    return dk.rate_bars(rows, out, mark_weakest=False, show_n=True)
+
+
+def _rege_in_od_status_biz(f, out):
+    """Business opt-ins as a share of the whole, by OD status."""
+    b = _body(f)
+    rows = [[l, int(n)] for l, n in zip(_labels(b), _num(b, "# of Accounts"))]
+    return dk.donut(rows, out, center_label="opt-ins",
+                    center_value=f"{int(sum(r[1] for r in rows)):,}")
+
+
+def _years(b):
+    """The Year Opened labels alone. _labels() would also read Open and Not
+    Open as key columns, which start with no measure prefix."""
+    return [str(v) for v in b[b.columns[0]]]
+
+
+def _not_open_by_year(f, out):
+    """Share no longer open, by year opened. Bars, not line_with_base: that
+    form draws its own axis, which printed negative percentages under it."""
+    b = _body(f)
+    rows = [[l, int(n), p] for l, n, p in
+            zip(_years(b), _num(b, "Total"), _num(b, "% Not Open"))]
+    return dk.tier_bars(rows, out, value_idx=2, share=False, fmt="{:.0f}%")
+
+
+def _open_by_year_biz(f, out):
+    """Business cohorts, still open against no longer open."""
+    b = _body(f)
+    return dk.grouped_bars(_years(b), _num(b, "Open"), _num(b, "Not Open"),
+                           "open", "not open", out)
+
+
+def _rege_by_year(f, out):
+    """Opt-in rate by year opened against the whole book's rate. Needs a
+    confirmed opt-in value: without one there is no rate and no chart."""
+    b = _body(f)
+    total = f[f[f.columns[0]].astype(str) == GRAND_TOTAL]
+    if "% Opted In" not in f.columns or total.empty:
+        raise ValueError("Reg E opt-in value not confirmed")
+    rows = [[l, int(n), r] for l, n, r in
+            zip(_years(b), _num(b, "# of Accounts"), _num(b, "% Opted In"))]
+    return dk.vintage_line(rows, float(total["% Opted In"].iloc[0]), out)
+
+
 # What the reader is looking at, in the concrete: the unit, the window, the
 # population. The headline states the finding; the axis cannot say this at
 # all. Every sketch in the brand set carries one.
@@ -333,6 +430,12 @@ CAPTIONS = {
     "Reg E by OD Eligibility": "open personal accounts, each eligibility and election cell",
     "Reg E by OD Eligibility (Biz)": "open business accounts, each eligibility and election cell",
     "Historical Reg E": "each Reg E election value, against the activity behind it",
+    "Day 2 Highlights": "open accounts, each measure against the target the Day 2 deck uses",
+    "Day 2 OD Status Reg E In": "open personal accounts opted in to Reg E, by OD status code",
+    "Day 2 OD Status Reg E In (Biz)": "open business accounts opted in to Reg E, by OD status code",
+    "Day 2 Year Opened": "every personal account in the extract, by year opened",
+    "Day 2 Year Opened (Biz)": "every business account in the extract, by year opened",
+    "Day 2 Reg E by Year Opened": "open personal accounts, Reg E opt-in by year opened",
 }
 
 
@@ -359,6 +462,12 @@ FORMS = {
     "Reg E by OD Eligibility":              (_rege_eligibility, "funnel"),
     "Reg E by OD Eligibility (Biz)":        (_rege_eligibility_biz, "composition_biz"),
     "Historical Reg E":               (_rege_annual, "momentum_bars_annual"),
+    "Day 2 Highlights":               (_day2_highlights, "rag_chips"),
+    "Day 2 OD Status Reg E In":       (_rege_in_od_status, "rate_bars_rege"),
+    "Day 2 OD Status Reg E In (Biz)": (_rege_in_od_status_biz, "donut_rege_biz"),
+    "Day 2 Year Opened":              (_not_open_by_year, "tier_bars_cohort"),
+    "Day 2 Year Opened (Biz)":        (_open_by_year_biz, "grouped_bars_cohort"),
+    "Day 2 Reg E by Year Opened":     (_rege_by_year, "vintage_line"),
 }
 
 
@@ -651,6 +760,55 @@ def _pay_rate_by_election(b, _codes=None):
             f"{len(b)} election values across {int(total):,} accounts")
 
 
+def _day2_scorecard(b, _codes=None):
+    """The personal OD/NSF user share against the CFPB study."""
+    from ils_pipeline.kickoff.metrics import day2
+    if "Measure" in b.columns:
+        rows = b[(b["Measure"] == "OD/NSF user share") & b["Value"].notna()]
+        if not rows.empty:
+            r = rows.iloc[0]
+            return (f"{float(r['Value']):.0f}% of {str(r['Segment']).lower()} accounts "
+                    f"used OD/NSF, against {day2.CFPB_USER_RATE:.0%} in the CFPB study",
+                    "Each measure read against the target the Day 2 deck uses")
+    return (f"{len(b)} Day 2 findings, each against its target",
+            "No OD/NSF user share in this run")
+
+
+def _opt_ins_on(b, noun):
+    """Where the Reg E opt-ins sit across OD status codes."""
+    total, label, n = _totals(b)
+    return (f"{int(total):,} {noun} opted in to Reg E; {_share(n, total):.0f}% "
+            f"sit on “{label}”",
+            f"Across {len(b)} OD status codes")
+
+
+def _not_open_by_cohort(b, noun):
+    """How much of each year's openings is no longer open."""
+    if not {"Total", "Not Open"} <= set(b.columns):
+        total, _, _ = _totals(b)
+        return (f"{int(total):,} {noun} across {len(b)} opening years",
+                "Open and not open by year opened")
+    total, gone = _sum(b, "Total"), _sum(b, "Not Open")
+    # By count, not rate: a one-account cohort that closed is 100% and says nothing.
+    year, lost, rate = max(zip(_years(b), _num(b, "Not Open"), _num(b, "% Not Open")),
+                           key=lambda r: r[1])
+    return (f"{_share(gone, total):.0f}% of {noun} on file are no longer open",
+            f"The {year} cohort has lost the most: {int(lost):,} accounts, {rate:.0f}%")
+
+
+def _rege_by_cohort(b, codes=None):
+    """Whether newer accounts opt in more or less than older ones."""
+    if "% Opted In" not in b.columns or len(b) < 2:
+        total, _, _ = _totals(b)
+        return (f"{int(total):,} open personal accounts by year opened, "
+                f"Reg E election unconfirmed",
+                "Nobody has said which value means opted in, so no rate is shown")
+    labels, rates = _years(b), _num(b, "% Opted In")
+    return (f"Accounts opened in {labels[-1]} opt in at {rates[-1]:.0f}%, "
+            f"against {rates[0]:.0f}% for {labels[0]}",
+            f"Reg E opt-in across {len(b)} opening years")
+
+
 HEADLINES = {
     # The overview of the FILE -- how many accounts, and how they distribute.
     # It asserted a pay rate once, which was both the wrong subject and the
@@ -684,6 +842,16 @@ HEADLINES = {
     "Reg E by OD Eligibility": _rege_against_eligibility,
     "Reg E by OD Eligibility (Biz)": _rege_against_eligibility,
     "Historical Reg E": _pay_rate_by_election,
+    "Day 2 Highlights": _day2_scorecard,
+    "Day 2 OD Status Reg E In":
+        lambda b, c=None: _opt_ins_on(b, "open personal accounts"),
+    "Day 2 OD Status Reg E In (Biz)":
+        lambda b, c=None: _opt_ins_on(b, "open business accounts"),
+    "Day 2 Year Opened":
+        lambda b, c=None: _not_open_by_cohort(b, "personal accounts"),
+    "Day 2 Year Opened (Biz)":
+        lambda b, c=None: _not_open_by_cohort(b, "business accounts"),
+    "Day 2 Reg E by Year Opened": _rege_by_cohort,
 }
 
 
@@ -714,6 +882,30 @@ def _spoken(key: str, frame, codes):
     return out
 
 
+def _cohort_rail(b):
+    """Three tiles for a by-year-opened table, which carries Total and a rate
+    rather than the # of Accounts the default rail reads."""
+    items = []
+    base_col = "Total" if "Total" in b.columns else "# of Accounts"
+    rate_col, rate_label = (("% Not Open", "Not open") if "% Not Open" in b.columns
+                            else ("% Opted In", "Opted in"))
+    base = _sum(b, base_col)
+    if base:
+        items.append(("Accounts", f"{int(base):,}", "across every opening year"))
+    if "Not Open" in b.columns and base:
+        items.append((rate_label, f"{_share(_sum(b, 'Not Open'), base):.0f}%",
+                      f"{int(_sum(b, 'Not Open')):,} accounts"))
+    if rate_col in b.columns and len(b):
+        items.append(("Newest cohort", _years(b)[-1],
+                      f"{_num(b, rate_col)[-1]:.0f}% {rate_label.lower()}"))
+    return items[:3]
+
+
+# Tiles that differ from the default _rail_items, by sheet name.
+RAILS = {"Day 2 Year Opened": _cohort_rail, "Day 2 Year Opened (Biz)": _cohort_rail,
+         "Day 2 Reg E by Year Opened": _cohort_rail}
+
+
 def panel(key: str, frame, out_dir: Path, codes=None):
     """Everything one slide needs: chart, headline, subtitle, rail.
 
@@ -734,4 +926,4 @@ def panel(key: str, frame, out_dir: Path, codes=None):
     return {"chart": render(key, frame, out_dir, codes),
             "headline": headline,
             "subtitle": subtitle,
-            "rail": _rail_items(b)}
+            "rail": RAILS.get(key, _rail_items)(b)}
