@@ -59,14 +59,21 @@ def pgl(a):
     out["suggested"] = {k: ", ".join(v["codes"]) for k, v in dc.items() if v.get("codes")}
     out["suggested_basis"] = {k: v["basis"] for k, v in dc.items()}
     if res.ok and res.status != "needs_codes":
-        from ils_pipeline.core import layout
-        from ils_pipeline.pre_go_live.deck import build
+        # the Velocity PGL review in Sheila's format (pre_go_live/sheila_deck.py, 2026-10-28)
+        from ils_pipeline import pgl_input
+        from ils_pipeline.pre_go_live import matrix_chapter, sheila_deck
         folder = Path(res.outputs["metrics"]).parent
-        deck = build(res, layout.TEMPLATE, folder / f"{a['client']}_{folder.name}_ILS_PreGoLive.pptx",
-                     include_golive=not a.get("current_only"))
-        print(f"\ndeck: {deck.path} ({deck.slides} slides, {deck.charts} charts"
-              + (f"; skipped {deck.skipped}" if deck.skipped else "") + ")")
-        out.update(deck=str(deck.path), folder=str(folder))
+        found = pgl_input.find_extract(a["client"])
+        S, mfile = matrix_chapter.load(found.path.parent)
+        path = sheila_deck.build(res.metrics, a["client"], a.get("client_name") or a["client"],
+                                 folder / f"{a['client']} ILS Program Analysis - PGL Review {folder.name}.pptx",
+                                 inputs=a.get("inputs") or {}, codes=res.metrics.get("pgl_codes_used"),
+                                 extract=found.path.name, extract_date=found.date.date(),
+                                 matrix=matrix_chapter.facts(S) if S else None,
+                                 matrix_file=mfile.name if mfile else None)
+        from pptx import Presentation
+        print(f"\ndeck: {path} ({len(Presentation(str(path)).slides)} slides)")
+        out.update(deck=str(path), folder=str(folder))
     return out
 
 

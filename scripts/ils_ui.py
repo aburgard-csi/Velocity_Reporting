@@ -37,6 +37,12 @@ CSS = r"""
 pre.ilslog{font:12px/1.45 Consolas,"Cascadia Mono",monospace;background:rgba(127,127,127,.08);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;max-height:360px;overflow:auto;white-space:pre-wrap;color:var(--ink);margin:8px 0 0}
 .ilssaved{font-size:12.5px;color:var(--ink3);margin:4px 0 2px}
 .chip.soon{background:var(--rule);color:var(--ink2)}
+details.ilsinputs{margin:8px 0 4px;border:1px solid var(--rule);border-radius:8px;padding:6px 10px}
+details.ilsinputs summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.ilsin{display:grid;grid-template-columns:minmax(180px,max-content) minmax(220px,520px);gap:8px 14px;align-items:start;margin:8px 0}
+.ilsin label{font-size:13px;color:var(--ink2)} .ilsin label b{color:var(--ink)}
+.ilsin input,.ilsin textarea{font:inherit;padding:6px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
+.ilsin textarea{min-height:70px;resize:vertical}
 """
 
 LABELS = {
@@ -114,7 +120,7 @@ function ilsCard(kind) {
     <p class="fact">${fact}</p>
     <p class="small">${esc(ILS_WHAT[kind])} First read the field summary (nothing is computed), then confirm the codes from it — which value means open, personal, OD-eligible or opted in — type them, and Build.</p>
     ${saved}${ilsSuggested(kind, j)}<div class="ilsform">${ILS.doc.fields[kind].map(f => ilsField(kind, f, c.saved)).join("")}</div>
-    ${ilsOptions(kind, c)}<div id="ilsjob${kind}">${j ? ilsJobHtml(j) : ""}</div></section>`;
+    ${ilsOptions(kind, c)}${kind === "pgl" ? ilsInputsHtml(c) : ""}<div id="ilsjob${kind}">${j ? ilsJobHtml(j) : ""}</div></section>`;
 }
 
 function ilsDraw() {
@@ -122,6 +128,42 @@ function ilsDraw() {
   box.innerHTML = ilsCard("pgl") + ilsCard("kickoff") +
     `<section class="card" id="ilsreview"><div class="cardhead"><h3>ILS Review <span class="mix">a live ILS client's results</span> <span class="chip soon">Coming soon</span></h3><div class="act"></div></div>
      <p class="fact">The review of a client already live on ILS will build here.</p></section>`;
+}
+
+// The deck's CSM inputs (James Gilmore, 2026-10-28): what only the CSM can tell a pre-go-live deck. Saved per
+// client (ils_runs.save_inputs) and read by every Build; a field left empty draws "to be completed" in the deck.
+const ILS_PROGRAM = {od_fee: "Current OD (paid) fee", nsf_fee: "Current NSF (return) fee",
+  de_minimis_balance: "De minimis balance amount", de_minimis_txn: "De minimis transaction amount",
+  sustained_fee: "Sustained (continuous) OD fee", stop_payment_fee: "Stop payment fee", daily_cap: "Daily fee cap"};
+function ilsInputsHtml(c) {
+  const v = c.inputs || {}, prog = v.program || {};
+  const dates = (v.key_dates || []).map(r => r.filter(Boolean).join(" | ")).join("\n");
+  const od = Object.entries(v.od_descriptions || {}).map(([k, d]) => `${k} = ${d}`).join("\n");
+  const d = (ILS.draft || {})[ILS.cid] || {};
+  const field = (id, label, hint, saved, area) => { const val = d[id] !== undefined ? d[id] : saved; return `<label for="ilsin_${id}"><b>${esc(label)}</b>${hint ? `<br><span class="sub">${esc(hint)}</span>` : ""}</label>` +
+    (area ? `<textarea id="ilsin_${id}">${esc(val || "")}</textarea>` : `<input type="text" id="ilsin_${id}" value="${esc(val || "")}" autocomplete="off">`); };
+  const filled = [dates, od, v.data_notes].some(Boolean) || Object.values(prog).some(Boolean);
+  return `<details class="ilsinputs"${filled ? "" : " open"}><summary>Deck inputs — key dates, current program, data notes, OD code descriptions${v.saved ? ` <span class="sub">(saved ${esc(v.saved)}${v.by ? " by " + esc(v.by) : ""})</span>` : ""}</summary>
+    <div class="ilsin">
+      ${field("key_dates", "Key decisions and dates", "one per line: milestone | date", dates, true)}
+      ${Object.entries(ILS_PROGRAM).map(([k, lbl]) => field("p_" + k, lbl, "", prog[k])).join("")}
+      ${field("data_notes", "Notes on the data", "date range, codes still needing descriptions, First Notice File observations", v.data_notes, true)}
+      ${field("od", "OD code descriptions", "one per line: code = description (used where the matrix has none)", od, true)}
+    </div>
+    <span class="btns"><button class="quiet" id="ilsinsave">Save the deck inputs</button></span> <span class="small" id="ilsinmsg"></span></details>`;
+}
+
+async function ilsSaveInputs() {
+  const val = id => ($("#ilsin_" + id) || {}).value || "";
+  const body = {client: ILS.cid, key_dates: val("key_dates"), data_notes: val("data_notes"), od_descriptions: val("od"),
+                program: Object.fromEntries(Object.keys(ILS_PROGRAM).map(k => [k, val("p_" + k)]))};
+  const msg = $("#ilsinmsg");
+  try {
+    const {body: r} = await api("/api/ils/inputs", {method: "POST", body: JSON.stringify(body)});
+    if (ILS.doc && ILS.doc.kinds.pgl) ILS.doc.kinds.pgl.inputs = r.inputs;
+    if (ILS.draft) delete ILS.draft[ILS.cid];
+    if (msg) msg.textContent = `Saved ${r.inputs.saved}. The next Build uses them.`;
+  } catch (e) { if (msg) msg.textContent = "Couldn't save: " + e.message; }
 }
 
 function ilsJobHtml(j) {
@@ -170,7 +212,8 @@ function ilsShow(kind, j) {
 
 async function ilsRun(kind, step) {
   const f = ILS.form[ILS.cid + kind] || {};
-  const body = {kind, client: ILS.cid};
+  const known = (typeof CLIENTS !== "undefined" && CLIENTS.find(x => x.id === ILS.cid)) || {};
+  const body = {kind, client: ILS.cid, client_name: known.name || ""};
   if (step === 2) {
     body.codes = Object.fromEntries(ILS.doc.fields[kind].map(k => [k, ($(`#ils_${kind}_${k}`) || {}).value || ""]));
     const opt = k => { const el = document.querySelector(`#ils${kind} [data-ilsfield="${k}"]`); return el ? (el.type === "checkbox" ? el.checked : el.value) : f[k]; };
@@ -195,6 +238,11 @@ async function ilsPoll(kind) {
 }
 
 $("#main").addEventListener("input", e => {
+  if (e.target.id && e.target.id.startsWith("ilsin_") && ILS.cid) {       // a typed, unsaved input survives a redraw
+    ILS.draft = ILS.draft || {};
+    (ILS.draft[ILS.cid] = ILS.draft[ILS.cid] || {})[e.target.id.slice(6)] = e.target.value;
+    return;
+  }
   const el = e.target.closest("[data-ilsfield]"); if (!el || !ILS.cid) return;
   const key = ILS.cid + el.dataset.ilskind;
   (ILS.form[key] = ILS.form[key] || {})[el.dataset.ilsfield] = el.type === "checkbox" ? el.checked : el.value;
@@ -202,6 +250,7 @@ $("#main").addEventListener("input", e => {
 $("#main").addEventListener("click", async e => {
   const t = e.target;
   const run = t.closest("[data-ilsrun]"); if (run) return ilsRun(run.dataset.ilskind, +run.dataset.ilsrun);
+  if (t.closest("#ilsinsave")) return ilsSaveInputs();
   const rv = t.closest("[data-ilsreveal]");
   if (rv) { try { await api("/api/ils/reveal", {method: "POST", body: JSON.stringify({path: rv.dataset.ilsreveal})}); } catch (err) { alert(err.message); } }
 });
@@ -238,7 +287,10 @@ def get(handler, path, params):
 
 
 def post(handler, path, body):
-    """POST /api/ils/run and /api/ils/reveal."""
+    """POST /api/ils/run, /api/ils/inputs and /api/ils/reveal."""
+    if path == "/api/ils/inputs":
+        code, doc = ils_runs.save_inputs(body)
+        return handler._send(code, doc)
     if path == "/api/ils/run":
         code, doc = ils_runs.start(body)
         return handler._send(code, doc)

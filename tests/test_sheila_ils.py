@@ -92,3 +92,30 @@ def test_reveal_opens_nothing_outside_the_ils_outputs(root):
     outside = root / "Inputs" / "ILS Kickoff" / "1840" / "1840_OneTimeData_20260915.csv"
     assert ils_runs.reveal(str(outside))[0] == 403
     assert ils_runs.reveal(str(root / "Build Artifacts" / "ils" / "nope.pptx"))[0] == 403
+
+
+def test_the_deck_inputs_are_saved_per_client_and_go_to_the_build(root):
+    code, doc = ils_runs.save_inputs({"client": "1737", "key_dates": "Matrix approval | 7/28/2026\n\nGo live | 9/1/2026",
+                                      "program": {"od_fee": "$27", "nsf_fee": "$15"},
+                                      "data_notes": "Codes 2 and 3 need descriptions.",
+                                      "od_descriptions": "3 = Bankruptcy\nno separator here"})
+    assert code == 200
+    saved = ils_runs.client_doc("1737")["kinds"]["pgl"]["inputs"]
+    assert saved["key_dates"] == [["Matrix approval", "7/28/2026"], ["Go live", "9/1/2026"]]
+    assert saved["program"]["od_fee"] == "$27" and saved["od_descriptions"] == {"3": "Bankruptcy"}
+    assert ils_runs.save_inputs({"client": "17x7"})[0] == 400
+
+
+def test_the_page_script_parses(tmp_path):
+    """A line break written into a JS string literal broke the whole page once (2026-10-28)."""
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    import ars_launcher_web as W
+    js = W.PAGE[W.PAGE.rindex("<script>") + 8:W.PAGE.rindex("</script>")]
+    f = tmp_path / "page.js"
+    f.write_text(js, encoding="utf-8")
+    r = subprocess.run([node, "--check", str(f)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-600:]

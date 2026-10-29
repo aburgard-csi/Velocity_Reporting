@@ -124,6 +124,15 @@ def run(client_id: str, codes=None, data_root=None, output_root=None,
             except Exception as exc:
                 result.warn(f"{section.__name__.rsplit('.', 1)[-1]} failed: "
                             f"{type(exc).__name__}: {exc}")
+        # RPE, 2026-10-28: the Velocity PGL review's tables (the workbook's A-1 to A9), the deck's analysis
+        from . import review
+        try:
+            metrics.update(review.compute(df, c.as_dict(), sysm))
+        except Exception as exc:
+            result.warn(f"review failed: {type(exc).__name__}: {exc}")
+        # RPE, 2026-10-28: the fee baseline, daily cap and de minimis from the raw notice items, when supplied
+        from . import notices
+        metrics.update(notices.compute(found.path.parent, result.warn))
 
         out_dir = output_root / "PGL" / str(client_id) / found.date.strftime("%Y%m%d")
         out_dir.mkdir(parents=True, exist_ok=True)
