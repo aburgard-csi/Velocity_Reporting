@@ -21,6 +21,32 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ILS pre-go-live computes the Velocity PGL review's tables (A-1 to A9)
+
+Summary: a confirmed pre-go-live run now computes the twelve tables of the Velocity PGL review in the workbook's own layout, ready for a deck in Sheila's format. Each table is also written for a CSV backup.
+
+James Gilmore, 2026-10-28: "your PGL analysis is woefully incomplete", and "i want the format, look and feel in Sheila template, but i want the analysis and insight from velocity". The tables are the pivots of the Velocity PGL workbook (`1616_PreGoLive_20251210-working.xlsx`), column for column, in `pre_go_live/review.py`:
+
+| Table | Base | Grouped by |
+| --- | --- | --- |
+| A-1 account status | all accounts, deleted out | Account Status |
+| A-2 account type | open | Personal_Business, so Second Chance and Fresh Start appear |
+| A3 personal OD status | open personal | OD status, in Eligible / Ineligible blocks on the confirmed codes |
+| A4 personal change in score | eligible personal | UpOrDown |
+| Personal limit tiers | eligible personal | proposed ILS limit, in the matrix's rounding step, with average deposit $ |
+| A5 Reg E opted in change in score | eligible personal, Reg E Y | UpOrDown |
+| A6 Reg E | eligible personal | Reg E value |
+| A7 Reg E by year opened | eligible personal | year opened (before 2010 together), then each month of the newest year |
+| A8 business OD status, and business Reg E | open business | OD status / Reg E |
+| A9 business change in score | eligible business | UpOrDown |
+| Business limit tiers | eligible business | proposed ILS limit |
+
+Every row has the workbook's columns: accounts, % of accounts, NSF/OD items since import, % of items, paid items, pay ratio, average core limit, average ILS limit, average deposit count and $ (33 days), decline count and $.
+
+**Checked against the workbook:** on 1616's extract with the workbook's codes (open O; eligible ODP and CUST OPIN), 134 of 134 figures match its pivots across every table.
+
+**Moves no figure:** the existing sections, report and deck are unchanged. The deck in Sheila's format follows. `tests/test_ils_pgl_review.py` adds 6 tests.
+
 ### 2026-10-28 — ILS pre-go-live offers the codes the ILS system holds, and builds when a status code is NULL
 
 Summary: the pre-go-live field summary, and its card in Sheila, now offer the open, OD-eligible and Reg E codes read from the vendor's matrix validation and integrity check, each with its evidence. The card fills empty fields with them, and the CSM checks them and presses Build. A NULL OD status code in the dump no longer stops the deck.
