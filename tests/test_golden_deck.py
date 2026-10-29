@@ -256,3 +256,30 @@ def test_a_comfortable_client_gets_no_revenue_guarantee_slide(deck):
     assert not any(t.startswith("Revenue Guarantee") for t in titles(deck["prs"]))
     log = (deck["dir"] / "build.log").read_text(encoding="utf-8", errors="replace")
     assert "revenue guarantee slide skipped" in log
+
+
+def test_every_slide_of_the_golden_deck_is_in_the_slide_inventory(deck):
+    """The Slide Review's ARS list is build/slide_inventory.py, the shell plus the builder's additions, never
+    a deck (Aaron, 2026-10-29). The golden deck is the builder's own output: every slide it carries must be
+    on that list, or the inventory has drifted from the builder."""
+    sys.path.insert(0, os.path.join(REPO, "build"))
+    sys.path.insert(0, os.path.join(REPO, "scripts"))
+    import slide_inventory as SI
+    import slide_votes as SV
+    import re
+
+    def same(t):
+        # the inventory names a month and a window as placeholders; the builder writes the client's own
+        t = SV.norm_title(t, NAME)
+        t = re.sub(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* #", "<month>", t)
+        return t
+    listed = [same(r["title"]) for r in SI.inventory()["ARS"]]
+    missing = []
+    for s in deck["prs"].slides:
+        first = SV._first_line(s)
+        if not first or SV._is_shared(s, first) or SV._divider_program(s, first) or first.lower() == "appendix":
+            continue
+        built = same(first)
+        if not any(built == t or built.startswith(t + " ") for t in listed):      # "Reg E Opt-In by Branch — Last 12 Months"
+            missing.append(first)
+    assert not missing, f"built but not in the inventory: {missing}"

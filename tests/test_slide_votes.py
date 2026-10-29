@@ -26,7 +26,6 @@ def root(tmp_path, monkeypatch):
     monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
     SV._files.clear()
     SV._slides_cache.clear()
-    W._votes_listing.update(at=0.0, period=None, doc=None, thread=None, error=None)
     SV._disk_cache = None
     return tmp_path
 
@@ -231,73 +230,40 @@ def test_the_votes_api_needs_the_token(server):
     assert call(server, "GET", "/api/votes/summary", token=False)[0] == 403
 
 
-def test_the_tab_lists_each_programs_slides_from_outputs_but_never_an_archived_deck(server):
+def test_the_tab_lists_each_programs_slides_from_the_build_never_from_a_deck(server, monkeypatch):
+    """Aaron, 2026-10-29: "the decks all carry the same slides, because they're all built using the same
+    processes. We shouldn't need to scan the decks." The lists are build/slide_inventory.py; Outputs is
+    never read, so the tab opens at once and an ICS list is the full workbook shape."""
+    monkeypatch.setattr(W.R, "output_decks", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Outputs was read")))
     status, doc = jcall(server, "GET", "/api/votes/programs")
     assert status == 200 and doc["period"] == "2026.10" and doc["me"] == "aaron"
     counts = {p["id"]: p["slides"] for p in doc["programs"]}
-    assert counts == {"ARS": 3, "ICS": 1, "MRPC": 1, "CP": 0, "TI": 1, "COMP": 0}          # shared slides are not voted on
-    status, doc = jcall(server, "GET", "/api/votes/program?program=ARS")
-    assert status == 200 and [s["title"] for s in doc["slides"]] == ["Account Retention", "Reg E Opt-In", "Appendix: Take Rate by Branch"]
-    assert doc["slides"][0]["source"].startswith("ODD extract") and doc["slides"][0]["mine"] is None
+    assert counts["ARS"] > 40 and counts["ICS"] > 20 and counts["MRPC"] == 7 and counts["CP"] == 5
+    assert counts["TI"] > 100 and counts["COMP"] > 30
+    assert "templates" in doc["from"]
+    status, doc = jcall(server, "GET", "/api/votes/program?program=ICS")
+    titles = [s["title"] for s in doc["slides"]]
+    assert "ICS Financial Summary" in titles and "Appendix: Monthly Detail" in titles
+    assert doc["slides"][0]["mine"] is None and doc["slides"][0]["key"].startswith("ICS|")
     assert jcall(server, "GET", "/api/votes/program?program=XYZ")[0] == 400
 
 
-def test_a_programs_list_is_the_union_of_its_newest_decks_without_repeats(server, root):
-    make_deck(root / "Outputs" / "Aaron Burgard" / ARS_DECK, ["Account Retention", "Swipe Tiers"])
-    jcall(server, "GET", "/api/votes/programs?refresh=1")                 # a new deck is read on Refresh
-    titles = [s["title"] for s in jcall(server, "GET", "/api/votes/program?program=ARS")[1]["slides"]]
-    assert sorted(titles) == sorted(["Account Retention", "Reg E Opt-In", "Appendix: Take Rate by Branch", "Swipe Tiers"])
-
-
-def test_the_lists_are_kept_on_disk_and_served_without_reading_a_deck_again(server, root, monkeypatch):
-    """Aaron, 2026-10-28: "this is really slow ... build the slide list ... and cache it". The lists and each
-    deck's slides are written under Build Artifacts/slide_votes; another copy of Sheila, or this one after a
-    restart, serves them without opening a deck."""
-    status, doc = jcall(server, "GET", "/api/votes/programs")
-    assert status == 200 and doc["as_of"] and doc["decks"] == 2 and doc["refreshing"] is False
-    assert (root / "Build Artifacts" / "slide_votes" / "program_lists.json").is_file()
-    assert (root / "Build Artifacts" / "slide_votes" / "slides_cache.json").is_file()
-    # a fresh process: no memory, the disk only -- and no deck may be opened
-    W._votes_listing.update(at=0.0, period=None, doc=None, thread=None, error=None)
-    SV._slides_cache.clear()
-    SV._disk_cache = None
-    import pptx
-    monkeypatch.setattr(pptx, "Presentation", lambda *a, **k: (_ for _ in ()).throw(AssertionError("a deck was opened")))
-    status, doc = jcall(server, "GET", "/api/votes/program?program=ARS")
-    assert status == 200 and [s["title"] for s in doc["slides"]] == ["Account Retention", "Reg E Opt-In", "Appendix: Take Rate by Branch"]
-    # a deck already read is not read again even when the lists are rebuilt
-    W.votes_build_lists("2026.10")
-
-
-def test_a_stale_list_is_served_at_once_and_rebuilt_behind_the_page(server, root, monkeypatch):
-    jcall(server, "GET", "/api/votes/programs")
-    monkeypatch.setattr(W, "VOTES_TTL", -1)                 # everything is stale
-    calls = []
-    real = W.votes_build_lists
-    monkeypatch.setattr(W, "votes_build_lists", lambda period: calls.append(period) or real(period))
-    status, doc = jcall(server, "GET", "/api/votes/programs")
-    assert status == 200 and doc["programs"][0]["slides"] == 3       # the last list, at once
-    t = W._votes_listing["thread"]
-    assert t is not None
-    t.join(10)
-    assert calls == ["2026.10"] and W._votes_listing["error"] is None
-
-
 def test_a_vote_and_a_star_come_back_together_and_each_keeps_the_other(server):
-    base = {"program": "ARS", "slide": 1, "title": "Account Retention"}
+    base = {"program": "ARS", "slide": 3, "title": "Program Overview"}
     assert jcall(server, "POST", "/api/votes/vote", dict(base, vote="delete", comment="too dense"))[0] == 200
     assert jcall(server, "POST", "/api/votes/vote", dict(base, vote="delete", star=True, comment="too dense"))[0] == 200
     doc = jcall(server, "GET", "/api/votes/program?program=ARS")[1]
-    assert doc["slides"][0]["mine"] == {"vote": "delete", "star": True, "comment": "too dense"} and doc["slides"][1]["mine"] is None
+    mine = {s["title"]: s["mine"] for s in doc["slides"]}
+    assert mine["Program Overview"] == {"vote": "delete", "star": True, "comment": "too dense"} and mine["Excluded Accounts"] is None
     progs = jcall(server, "GET", "/api/votes/programs")[1]["programs"]
     assert (progs[0]["voted"], progs[0]["starred"]) == (1, 1)
 
 
 def test_a_vote_for_a_slide_not_in_the_list_is_refused_and_nothing_is_written(server):
     base = {"program": "ARS", "slide": 1, "vote": "keep"}
-    assert jcall(server, "POST", "/api/votes/vote", dict(base, title="Power of Referrals"))[0] == 409   # an ICS slide
-    assert jcall(server, "POST", "/api/votes/vote", dict(base, title="Account Retention", vote="nope"))[0] == 400
-    assert jcall(server, "POST", "/api/votes/vote", dict(base, title="Account Retention", program="XYZ"))[0] == 400
+    assert jcall(server, "POST", "/api/votes/vote", dict(base, title="The Power of Referrals"))[0] == 409   # an ICS slide
+    assert jcall(server, "POST", "/api/votes/vote", dict(base, title="Program Overview", vote="nope"))[0] == 400
+    assert jcall(server, "POST", "/api/votes/vote", dict(base, title="Program Overview", program="XYZ"))[0] == 400
     assert SV.read_votes() == []
 
 

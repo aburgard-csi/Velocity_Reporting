@@ -37,6 +37,12 @@ CSS = r"""
 pre.ilslog{font:12px/1.45 Consolas,"Cascadia Mono",monospace;background:rgba(127,127,127,.08);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;max-height:360px;overflow:auto;white-space:pre-wrap;color:var(--ink);margin:8px 0 0}
 .ilssaved{font-size:12.5px;color:var(--ink3);margin:4px 0 2px}
 .chip.soon{background:var(--rule);color:var(--ink2)}
+details.ilsfold{margin-top:14px}
+details.ilsfold>summary{cursor:pointer;font:600 13.5px/1.3 "Segoe UI",Arial,sans-serif;color:var(--ink2);padding:6px 0;list-style:none;display:flex;gap:8px;align-items:baseline}
+details.ilsfold>summary::-webkit-details-marker{display:none}
+details.ilsfold>summary::before{content:"\25B8";font-size:11px;color:var(--ink3)}
+details.ilsfold[open]>summary::before{content:"\25BE"}
+details.ilsfold>summary .sub{font-weight:400;color:var(--ink3)}
 details.ilsinputs{margin:8px 0 4px;border:1px solid var(--rule);border-radius:8px;padding:6px 10px}
 details.ilsinputs summary{cursor:pointer;font-weight:600;color:var(--ink)}
 .ilsin{display:grid;grid-template-columns:minmax(180px,max-content) minmax(220px,520px);gap:8px 14px;align-items:start;margin:8px 0}
@@ -123,11 +129,34 @@ function ilsCard(kind) {
     ${ilsOptions(kind, c)}${kind === "pgl" ? ilsInputsHtml(c) : ""}<div id="ilsjob${kind}">${j ? ilsJobHtml(j) : ""}</div></section>`;
 }
 
+// The pre-go-live and kickoff reports are made once per client, so for almost every client the cards only
+// said "No extract yet" (Aaron, 2026-10-29). They fold under one line, opened only when a kind has an
+// extract, a run in progress or a deck built; a CSM opens it to land an extract. The open state a CSM
+// chose is kept while the page lives, so the status refresh that redraws the cards does not close it.
+function ilsSummary() {
+  const parts = [];
+  for (const k of ["pgl", "kickoff"]) {
+    const c = ILS.doc.kinds[k], name = k === "pgl" ? "Pre-go-live" : "Kickoff";
+    if (!c || c.error) parts.push(`${name}: unavailable`);
+    else if (c.job && !c.job.done) parts.push(`${name}: running`);
+    else if (c.last) parts.push(`${name}: deck built`);
+    else if (c.extract) parts.push(`${name}: extract landed`);
+  }
+  return parts.length ? parts.join(" · ") : "one-time reports, not set up for this client";
+}
+
+function ilsActive() {
+  return ["pgl", "kickoff"].some(k => { const c = ILS.doc.kinds[k]; return c && !c.error && (c.extract || c.last || (c.job && !c.job.done)); });
+}
+
 function ilsDraw() {
   const box = $("#ilscards"); if (!box || !ILS.doc) return;
-  box.innerHTML = ilsCard("pgl") + ilsCard("kickoff") +
+  const was = box.querySelector("details.ilsfold");
+  const open = was ? was.open : ilsActive();
+  box.innerHTML = `<details class="ilsfold"${open ? " open" : ""}><summary>ILS pre-go-live and kickoff <span class="sub">${esc(ilsSummary())}</span></summary>` +
+    ilsCard("pgl") + ilsCard("kickoff") +
     `<section class="card" id="ilsreview"><div class="cardhead"><h3>ILS Review <span class="mix">a live ILS client's results</span> <span class="chip soon">Coming soon</span></h3><div class="act"></div></div>
-     <p class="fact">The review of a client already live on ILS will build here.</p></section>`;
+     <p class="fact">The review of a client already live on ILS will build here.</p></section></details>`;
 }
 
 // The deck's CSM inputs (James Gilmore, 2026-10-28): what only the CSM can tell a pre-go-live deck. Saved per

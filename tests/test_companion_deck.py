@@ -228,7 +228,7 @@ def test_the_list_keeps_companion_decks_apart(tmp_path, monkeypatch):
     monkeypatch.setattr(W, "launcher_results", lambda period, cids: {})
     monkeypatch.setattr(W, "last_build_failed", lambda *a, **k: False)
     monkeypatch.setattr(W, "available_periods", lambda n=12: ["2026.10"])
-    c = W.compute_clients()["clients"][0]
+    c = next(x for x in W.compute_clients()["clients"] if x["id"] == ROSTER[0][0])   # with the share on, ILS folders list other clients first
     assert c["decks"] == [] and c["ti_decks"] == [TI_DECK] and c["companion_decks"] == [COMP_DECK]
 
 
