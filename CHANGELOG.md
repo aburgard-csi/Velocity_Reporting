@@ -45,7 +45,7 @@ Sheila's ILS Pre-go-live card lists a client whose delivery is a zip, and a run 
 
 ### 2026-10-28 — ILS pre-go-live and kickoff run from a client's page in Sheila
 
-Summary: A client's page in Sheila now has three ILS cards below the ARS Companion: ILS Pre-go-live, ILS Kickoff, and ILS Review, marked Coming soon. A CSM can run either analysis from the page: read the field summary, type the codes the client confirmed, then Build. The deck and the workbook or report go to `Build Artifacts\ils`. VERSION is now 2.2.
+Summary: A client's page in Sheila now has three ILS cards below the ARS Companion: ILS Pre-go-live, ILS Kickoff, and ILS Review, marked Coming soon. A CSM can run either analysis from the page: read the field summary, confirm the codes from it, then Build. The deck and the workbook or report go to `Build Artifacts\ils`. VERSION is now 2.2.
 
 James Gilmore, 2026-10-28: "a CSM can run either ILS analysis option from the Sheila webpage", "the option should be when i click a client", and "then add an ILS Review - Coming Soon". The engines are James's v5 ones, merged into `build/ils_pipeline/` today and unchanged.
 
@@ -53,7 +53,7 @@ Each card keeps the engine's two steps:
 - **Read the field summary** lists every value in the extract's code fields, with counts, and computes nothing.
 - **Build** runs on the codes typed in. It is refused until the required codes are filled in.
 
-Which value means open, personal, OD-eligible or opted in is the client's answer, so the tool never chooses. The codes a client's last run was confirmed with are saved (`Build Artifacts/ils/<PGL|kickoff>/<id>/confirmed_codes.json`) and offered back with that run's date, CSM and file. Nothing runs on them until Build is pressed.
+Which value means open, personal, OD-eligible or opted in is the CSM's call from the field summary (James Gilmore, 2026-10-28: "the user will confirm the limits. the client wont confirm anything"), so the tool never chooses. The codes a client's last run was confirmed with are saved (`Build Artifacts/ils/<PGL|kickoff>/<id>/confirmed_codes.json`) and offered back with that run's date, CSM and file. Nothing runs on them until Build is pressed.
 
 Until an extract has landed, a card says where to put it (`Inputs/ILS PGL/<id>/` or `Inputs/ILS Kickoff/<id>/`). A client with an ILS folder is in Sheila's list even when they are on no other program. Each step runs in its own process (`scripts/ils_job.py`), as a deck build does. "Open the deck" opens only a file under `Build Artifacts\ils`, so the Outputs-only rule for the other decks is unchanged.
 

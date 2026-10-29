@@ -10,10 +10,12 @@ anchor it needs has moved, so a page change that breaks the splice fails the uni
 dropping the cards.
 
 Each card is the engine's two steps, in order: **Read the field summary** (step 1, computes nothing),
-then the codes the client confirmed and **Build** (step 2: the report or workbook, and the deck). Until
+then the codes the CSM confirms and **Build** (step 2: the report or workbook, and the deck). Until
 the client's extract has landed (Inputs/ILS PGL/<id>/ or Inputs/ILS Kickoff/<id>/) the card says where to
 put it. The codes a client's last run was confirmed with are offered back with that run's date and file;
-they are the CSM's to keep or change and are never applied until Build is pressed. What the CSM types is
+they are the CSM's to keep or change and are never applied until Build is pressed. The CSM confirms
+the codes, never the client (James Gilmore, 2026-10-28: "the user will confirm the limits. the client
+wont confirm anything"). What the CSM types is
 held in the page, so the status refresh that redraws the client page does not lose it. The runs and the
 files are in ils_runs.py.
 """
@@ -110,7 +112,7 @@ function ilsCard(kind) {
   const saved = c.saved ? `<p class="ilssaved">Codes filled in from the run confirmed ${esc(c.saved.confirmed)}${c.saved.by ? " by " + esc(c.saved.by) : ""}${c.saved.extract ? " on " + esc(c.saved.extract) : ""}. Check them against this extract's field summary before you build.</p>` : "";
   return `<section class="card" id="ils${kind}">${head(`<span class="btns">${step1}${step2}</span><span class="why">files go to Build Artifacts\\ils</span>`)}
     <p class="fact">${fact}</p>
-    <p class="small">${esc(ILS_WHAT[kind])} First read the field summary (nothing is computed), then type the codes the client confirmed — which value means open, personal, OD-eligible or opted in is the client's answer — and Build.</p>
+    <p class="small">${esc(ILS_WHAT[kind])} First read the field summary (nothing is computed), then confirm the codes from it — which value means open, personal, OD-eligible or opted in — type them, and Build.</p>
     ${saved}<div class="ilsform">${ILS.doc.fields[kind].map(f => ilsField(kind, f, c.saved)).join("")}</div>
     ${ilsOptions(kind, c)}<div id="ilsjob${kind}">${j ? ilsJobHtml(j) : ""}</div></section>`;
 }
@@ -126,7 +128,7 @@ function ilsJobHtml(j) {
   const what = j.step === 1 ? "Field summary" : "Build";
   let state;
   if (!j.done) state = `<p class="small">${what} running… ${j.seconds}s</p>`;
-  else if (j.ok && j.step === 1) state = `<p class="small"><b>Field summary read.</b> Confirm the codes with the client, type them above, then Build.</p>`;
+  else if (j.ok && j.step === 1) state = `<p class="small"><b>Field summary read.</b> Confirm the codes from it, type them above, then Build.</p>`;
   else if (j.ok) state = `<p class="small"><b>Built.</b> ${j.deck ? `<button class="link" data-ilsreveal="${esc(j.deck)}">open the deck</button> · ` : ""}${j.folder ? `<button class="link" data-ilsreveal="${esc(j.folder)}">open the folder</button>` : ""} — read the warnings below before quoting any number.</p>`;
   else state = `<p class="small err">${what} stopped${j.error ? ": " + esc(j.error) : ""}. The run's own words are below.</p>`;
   return state + `<pre class="ilslog">${esc((j.lines || []).join("\n"))}</pre>`;

@@ -8,10 +8,10 @@ options are James's v5 engines, unchanged under build/ils_pipeline/:
   pgl      the pre-go-live review:  Inputs/ILS PGL/<id>/      -> Build Artifacts/ils/PGL/<id>/<yyyymmdd>/
   kickoff  the kickoff analysis:    Inputs/ILS Kickoff/<id>/  -> Build Artifacts/ils/kickoff/<id>/<yyyy-mm>/
 
-Both are two-step, and the tab keeps that: step 1 reads the newest extract and shows the field summary
+Both are two-step, and the cards keep that: step 1 reads the newest extract and shows the field summary
 (the distinct values of each code field, with counts) and computes nothing; step 2 runs on the codes the
-CSM confirmed. Which value means open, personal, OD-eligible or opted in is the client's answer, never
-the tool's: the codes a client's last run used are offered back, labelled with that run's date and file,
+CSM confirmed. Which value means open, personal, OD-eligible or opted in is the CSM's call from the field
+summary, never the tool's, and never the client's (James Gilmore, 2026-10-28): the codes a client's last run used are offered back, labelled with that run's date and file,
 and nothing runs on them until the CSM presses Build.
 
 Each step runs in its own process (scripts/ils_job.py), as Sheila's deck builds do. Reveal opens only a
