@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — ILS pre-go-live: every OD code can be counted eligible, and the agenda no longer runs together
+
+Summary: the PGL's ILS-eligible OD status takes `ALL`, meaning every OD status in the extract, and Sheila's PGL card fills it in by default. The PGL agenda's nine numbered badges are re-spaced so they no longer touch.
+
+James Gilmore, 2026-10-29: "i think 1737 is wrong", "agenda numbers are squished and touching", and "i also want to set all codes to eligible for the PGL cuz they are going to mass maintenance codes the night before. so what their codes are wont be the same in the future".
+
+- **Why 1737 was wrong**: the run took OD code `0` as the only eligible code, because the ILS matrix dump marks only `0` as able to overdraft (CAN_OVERDRAFT = 1). In the extract every code-0 account has a $0 core limit and a $0 ILS limit, while ILS sets limits on 001, 002 and 003. So the eligible base was 5,994 accounts that all get $0, and every limit slide read $0. With `ALL`, the base is all 16,799 open personal and 4,857 open business accounts.
+- **`ALL`** (`pre_go_live/run.py`, `codes.all_values`): expands to every non-blank OD status the extract carries, most common first. The run warns which codes it took, and records `pgl_od_all`. The OD-codes slides then say every status is counted eligible because the client mass-maintains codes the night before go-live, in place of the "% eligible" and "sit on ineligible statuses" lines.
+- **Sheila's PGL card** (`scripts/ils_job.py`): the OD-eligible suggestion is now `ALL`, with the matrix's own reading kept in the basis line. A suggestion fills only an empty field, so a code saved on an earlier run stays until the CSM changes it.
+- **Agenda** (`sheila_deck._space_agenda`): `assemble_combined.set_agenda` fits nine rows at a 0.47in pitch, under the template's 0.62in badges, so the badges overlapped into one bar and the top-anchored headings sat above their centred numbers. The PGL deck now re-lays the rows itself: 0.44in badges spread between 1.45in and 6.45in (clear of the logo at 6.78in), with each heading centred on its badge. `set_agenda` is unchanged, so ARS, ICS and MRPC agendas are as before.
+
 ### 2026-10-28 — ILS pre-go-live: core limits against ILS limits, and the fee chapter names its notice window
 
 Summary: the PGL deck now sets the core's overdraft limits against the limits ILS proposes, personal and business, two slides each, before the limit tiers. The fee chapter says it is built on N days of notice items, and every yearly fee figure is marked as an estimate.

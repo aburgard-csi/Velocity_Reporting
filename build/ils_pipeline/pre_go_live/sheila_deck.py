@@ -241,8 +241,13 @@ def ch_data(ctx):
     return out
 
 
-def _od_note(t, kind):
+def _od_note(t, kind, all_codes=False):
     e, i = _get(t["rows"], "Eligible"), _get(t["rows"], "Ineligible")
+    if all_codes and e:
+        # od_eligible = ALL (pre_go_live/run.py): today's codes are not the go-live codes
+        return (f"Every OD status is counted as eligible: the client moves accounts to their go-live codes by mass "
+                f"maintenance the night before, so today's codes are not the ones ILS will read. {n_(e[1])} open "
+                f"{kind} accounts; they presented {pct(e[4])} of the NSF/OD items.")
     if not e:
         return f"No open {kind} account is on a confirmed OD-eligible status."
     text = (f"{pct(e[2])} of open {kind} accounts ({n_(e[1])}) are eligible to receive a limit out of ILS; "
@@ -319,6 +324,43 @@ def _core_ils_slides(ctx, kind):
     return out + [s2]
 
 
+AGENDA_TOP, AGENDA_BOTTOM, AGENDA_BADGE = 1.45, 6.45, 0.44     # inches; the logo starts at 6.78
+
+
+def _space_agenda(slide):
+    """Nine rows at the shared set_agenda's pitch (0.47in) overlap its 0.62in badges into one orange bar,
+    and the top-anchored headings sit above their centred numbers (James Gilmore, 2026-10-29: "agenda
+    numbers are squished and touching"). Re-lay the rows here, PGL only: smaller badges spread over the
+    band above the logo, each heading centred on its badge. assemble_combined.set_agenda stays as ARS uses it."""
+    from pptx.util import Inches, Pt
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+    badges = sorted((sh for sh in slide.shapes if sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
+                     and not sh.text_frame.text.strip()), key=lambda sh: sh.top)
+    if len(badges) < 2:
+        return
+    nums = {(sh.left, sh.top): sh for sh in slide.shapes
+            if sh.has_text_frame and sh.text_frame.text.strip().isdigit()}
+    heads = sorted((sh for sh in slide.shapes if sh.has_text_frame and sh.text_frame.text.strip()
+                    and sh.left > badges[0].left + badges[0].width and sh.top < Inches(6.7)
+                    and sh.text_frame.text.strip() != "Agenda"), key=lambda sh: sh.top)
+    rows = [(b, nums.get((b.left, b.top)), h) for b, h in zip(badges, heads)]
+    pitch = (AGENDA_BOTTOM - AGENDA_BADGE - AGENDA_TOP) / (len(rows) - 1)
+    size = Inches(AGENDA_BADGE)
+    for i, (b, n, h) in enumerate(rows):
+        top = Inches(AGENDA_TOP + i * pitch)
+        for sh in (b, n):
+            if sh is not None:
+                sh.top, sh.width, sh.height = top, size, size
+        if n is not None:
+            n.text_frame.margin_top = n.text_frame.margin_bottom = 0
+            for r in n.text_frame.paragraphs[0].runs:
+                r.font.size = Pt(18)
+        h.top, h.height = top, size
+        h.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        h.text_frame.margin_top = h.text_frame.margin_bottom = 0
+        h.left = b.left + size + Inches(0.25)
+
+
 def _LABEL_RGB():
     import brand as _b
     return _b.LABEL_RGB
@@ -369,7 +411,7 @@ def ch_personal(ctx):
     s = content(ctx, "Personal Accounts — OD Codes", "Open personal accounts by OD status",
                 _src(pack, "open personal accounts by OD Status Code (from Core), Eligible on the confirmed codes"))
     review_table(s, t["personal_od"], fs=9.5, names=pack["od_names"])
-    say(s, _od_note(t["personal_od"], "personal"), top=6.05, size=12)
+    say(s, _od_note(t["personal_od"], "personal", ctx.pack["metrics"].get("pgl_od_all")), top=6.05, size=12)
     out.append(s)
     s = content(ctx, "Personal — Change in Score", "Eligible personal accounts: what happens to each limit under ILS",
                 _src(pack, "eligible personal accounts by UpOrDown from Initial OD Limit"))
@@ -421,7 +463,7 @@ def ch_business(ctx):
     s = content(ctx, "Business Accounts — OD Codes", "Open business accounts by OD status",
                 _src(pack, "open business accounts by OD Status Code (from Core)"))
     review_table(s, t["business_od"], fs=9.5, names=pack["od_names"])
-    say(s, _od_note(t["business_od"], "business"), top=6.05, size=12)
+    say(s, _od_note(t["business_od"], "business", ctx.pack["metrics"].get("pgl_od_all")), top=6.05, size=12)
     out.append(s)
     s = content(ctx, "Business — Change in Score", "Eligible business accounts: what happens to each limit under ILS",
                 _src(pack, "eligible business accounts by UpOrDown"))
@@ -884,6 +926,7 @@ def _shell(prs, pack, art_dir):
     ac.set_agenda(found["agenda"], [ch.code for ch in CHAPTERS], detail_overrides={ch.code: ch.agenda for ch in CHAPTERS})
     import build_ti_gen as G
     G._agenda_headings_only(found["agenda"], CHAPTERS)
+    _space_agenda(found["agenda"])
     found["agenda"].notes_slide.notes_text_frame.text = "Source: the ILS pre-go-live review's chapter list (static). No figures."
     G._set_closing_line(found["questions"], f"{name}  •  {pack['extract_date_long']}")
     CD.redraw_closing_in_place(found["questions"])
