@@ -58,6 +58,12 @@ def pgl(a):
     dc = (res.metrics or {}).get("pgl_dump_codes") or {}
     out["suggested"] = {k: ", ".join(v["codes"]) for k, v in dc.items() if v.get("codes")}
     out["suggested_basis"] = {k: v["basis"] for k, v in dc.items()}
+    # James Gilmore, 2026-10-29: every OD code is eligible on a PGL, since the client mass-maintains codes the night
+    # before go-live; the matrix's own reading stays in the basis for the CSM to see
+    held = (dc.get("od_eligible") or {}).get("basis") or "no ILS matrix dump with the extract"
+    out["suggested"]["od_eligible"] = "ALL"
+    out["suggested_basis"]["od_eligible"] = (f"every OD status in the extract (the codes are mass-maintained "
+                                             f"the night before go-live). The matrix today: {held}")
     if res.ok and res.status != "needs_codes":
         # the Velocity PGL review in Sheila's format (pre_go_live/sheila_deck.py, 2026-10-28)
         from ils_pipeline import pgl_input

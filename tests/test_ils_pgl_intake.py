@@ -117,3 +117,11 @@ def test_sheila_lists_a_client_whose_delivery_is_a_zip(root):
     assert "1759" in ils_runs.landed_clients()
     pgl = ils_runs.client_doc("1759")["kinds"]["pgl"]
     assert pgl["exists"] and pgl["extract"] == "1759_FirstCentral_PGL_20261026.csv"
+
+
+def test_all_counts_every_od_status_in_the_extract_as_eligible(root):
+    # James Gilmore, 2026-10-29: the client mass-maintains OD codes the night before go-live
+    _zip(root, "1737_TNB_PGL_20261027.zip", {"1737_TNB_PGL_20261027.csv": _extract_text()})
+    res = run("1737", codes={"open_status": "1", "od_eligible": "ALL", "rege_opt_in": "1"})
+    assert res.metrics["pgl_codes_used"]["od_eligible"] == ["1"] and res.metrics["pgl_od_all"] is True
+    assert any("every OD status counted as ILS-eligible" in w for w in res.warnings)

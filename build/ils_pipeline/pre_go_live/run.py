@@ -90,6 +90,13 @@ def run(client_id: str, codes=None, data_root=None, output_root=None,
 
         # ---- no codes: return the field summary, ask for the reading -------
         c = codes_mod.Codes.from_any(codes) if codes is not None else codes_mod.Codes()
+        # James Gilmore, 2026-10-29: "set all codes to eligible for the PGL cuz they are going to mass
+        # maintenance codes the night before". ALL is every OD status the extract carries (blank is no code)
+        if c.od_eligible == ["ALL"]:
+            c.od_eligible = codes_mod.all_values(df, "od_eligible")
+            metrics["pgl_od_all"] = True
+            result.warn(f"every OD status counted as ILS-eligible ({', '.join(c.od_eligible)}): the client "
+                        f"moves accounts to their go-live codes by mass maintenance")
         if not c.complete():
             result.metrics = metrics
             result.status = "needs_codes"

@@ -47,6 +47,15 @@ class Codes:
         return {k: getattr(self, k) for k in FIELD_FOR if getattr(self, k)}
 
 
+def all_values(df: pd.DataFrame, name: str) -> list[str]:
+    """Every non-blank value of the code's column, most common first (the od_eligible = ALL reading)."""
+    col = FIELD_FOR[name]
+    if col not in df.columns:
+        return []
+    s = df[col].dropna().astype(str)
+    return [v for v in s[s.str.strip() != ""].value_counts().index]
+
+
 def validate(codes: Codes, df: pd.DataFrame) -> list[str]:
     """Every code must be a value the file actually carries."""
     problems = []

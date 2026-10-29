@@ -107,3 +107,27 @@ def test_the_fee_slides_name_the_notice_window_not_a_year():
     assert sheila_deck.window_pill(nt) == "Notices 7/1–10/27/26"
     across = {"first": "2025-12-15", "last": "2026-02-14", "days": 62}
     assert sheila_deck.window_text(across) == "Dec 15, 2025 – Feb 14, 2026: 62 days (2.0 months)"
+
+
+def test_every_od_code_can_be_counted_eligible_and_the_slide_says_why():
+    from ils_pipeline.pre_go_live import codes as codes_mod
+    df = _df()
+    assert codes_mod.all_values(df, "od_eligible") == ["ODP", "CUST OPIN", "NOT ODP"]
+    t = review.compute(df, dict(CODES, od_eligible=codes_mod.all_values(df, "od_eligible")))["pgl_review"]
+    note = sheila_deck._od_note(t["personal_od"], "personal", True)
+    assert note.startswith("Every OD status is counted as eligible") and "mass maintenance" in note
+    assert "sit on ineligible" not in note
+
+
+def test_the_agenda_badges_do_not_touch(tmp_path, monkeypatch):
+    monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    for d in ("Inputs", "Outputs", "Build Artifacts"):
+        (tmp_path / d).mkdir()
+    out = sheila_deck.build(_metrics(), "9999", "Test Bank", tmp_path / "deck.pptx", codes=CODES,
+                            extract_date="2026-10-26")
+    agenda = Presentation(str(out)).slides[2]
+    badges = sorted((sh for sh in agenda.shapes if sh.shape_type == 1 and not sh.text_frame.text.strip()),
+                    key=lambda sh: sh.top)
+    assert len(badges) == len(sheila_deck.CHAPTERS) + 1
+    assert all(a.top + a.height < b.top for a, b in zip(badges, badges[1:]))
+    assert badges[-1].top + badges[-1].height < 6.78 * 914400          # clear of the logo

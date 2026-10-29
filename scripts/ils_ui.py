@@ -47,7 +47,7 @@ details.ilsinputs summary{cursor:pointer;font-weight:600;color:var(--ink)}
 
 LABELS = {
     "open_status": ("Open account status", "the Account Status value(s) meaning open"),
-    "od_eligible": ("ILS-eligible OD status", "the OD Status value(s) eligible for ILS"),
+    "od_eligible": ("ILS-eligible OD status", "the OD Status value(s) eligible for ILS, or ALL for every one"),
     "rege_opt_in": ("Reg E opted in", "the Reg E value(s) meaning opted in"),
     "rege_opt_out": ("Reg E opted out", "the value(s) meaning opted out"),
     "personal_code": ("Personal", "the Business Flag value meaning personal"),
