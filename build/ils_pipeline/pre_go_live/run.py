@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/run.py at 7ba1e63. Logic unchanged; imports read ils_pipeline.core, and the default data, output and config folders come from ils_pipeline/pgl_input.py (Inputs/ILS PGL, Build Artifacts/ils, ils_pipeline/config).
+# Ported from v5 02-Scripts/ils/pre_go_live/run.py at 7ba1e63. One RPE change (2026-10-28, CHANGELOG): an extract with no header row stops the run and says so; imports read ils_pipeline.core, and the default data, output and config folders come from ils_pipeline/pgl_input.py (Inputs/ILS PGL, Build Artifacts/ils, ils_pipeline/config).
 """ILS pre-go-live -- entry point.
 
     from ils.pre_go_live import run
@@ -66,6 +66,14 @@ def run(client_id: str, codes=None, data_root=None, output_root=None,
         result.rows_in = len(df)
         if df.empty:
             result.fail("extract has no rows")
+            return result
+        # RPE, 2026-10-28: 1737 TNB's 2026-10 extract came with no header row, so its first account
+        # record was read as the column names and the field summary came back empty without a word.
+        if not set(df.columns) & set(loader.COLUMNS_1737):
+            result.fail(f"{found.path.name} has no header row: its first line is an account record "
+                        f"({', '.join(list(df.columns)[:4])}, ...), so none of the extract's "
+                        f"{loader.EXPECTED_COLUMNS} named columns is there. Ask for it to be "
+                        f"exported again with its header row.")
             return result
 
         metrics: dict = {"pgl_extract": found.path.name,

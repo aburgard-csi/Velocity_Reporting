@@ -8,10 +8,10 @@ options are James's v5 engines, unchanged under build/ils_pipeline/:
   pgl      the pre-go-live review:  Inputs/ILS PGL/<id>/      -> Build Artifacts/ils/PGL/<id>/<yyyymmdd>/
   kickoff  the kickoff analysis:    Inputs/ILS Kickoff/<id>/  -> Build Artifacts/ils/kickoff/<id>/<yyyy-mm>/
 
-Both are two-step, and the tab keeps that: step 1 reads the newest extract and shows the field summary
+Both are two-step, and the cards keep that: step 1 reads the newest extract and shows the field summary
 (the distinct values of each code field, with counts) and computes nothing; step 2 runs on the codes the
-CSM confirmed. Which value means open, personal, OD-eligible or opted in is the client's answer, never
-the tool's: the codes a client's last run used are offered back, labelled with that run's date and file,
+CSM confirmed. Which value means open, personal, OD-eligible or opted in is the CSM's call from the field
+summary, never the tool's, and never the client's (James Gilmore, 2026-10-28): the codes a client's last run used are offered back, labelled with that run's date and file,
 and nothing runs on them until the CSM presses Build.
 
 Each step runs in its own process (scripts/ils_job.py), as Sheila's deck builds do. Reveal opens only a
@@ -48,6 +48,7 @@ CID_RX = re.compile(r"^\d{3,5}$")
 PERIOD_RX = re.compile(r"^\d{4}-\d{2}$")
 RESULT_RX = re.compile(r"^ILS_RESULT (\{.*\})\s*$")
 STAMP_RX = re.compile(r"(\d{8})")
+ZIP_RX = re.compile(r"^(\d{3,5})(?!\d).*\.zip$", re.I)
 
 
 def _input_root(kind):
@@ -76,6 +77,11 @@ def _extract(kind, cid):
         return None
     except Exception:            # an engine import failing must not take the tab down
         return next(iter(sorted(folder.glob("*"))), None) if folder.is_dir() else None
+
+
+def _landed_zips(cid):
+    from ils_pipeline import pgl_input
+    return pgl_input.landed_zips(_input_root("pgl"), cid)
 
 
 def default_period(path):
@@ -130,6 +136,9 @@ def landed_clients():
         try:
             root = _input_root(kind)
             out.update(d.name for d in root.iterdir() if d.is_dir() and CID_RX.match(d.name))
+            if kind == "pgl":            # a pre-go-live delivery may land as <id>_..._PGL_<date>.zip
+                out.update(m.group(1) for m in (ZIP_RX.match(p.name) for p in root.iterdir()
+                                                if p.is_file()) if m)
         except (OSError, SystemExit):
             continue
     return out
@@ -145,8 +154,9 @@ def client_doc(cid):
         except (OSError, SystemExit) as e:
             out[kind] = {"label": k["label"], "folder": None, "error": str(e)}
             continue
-        ex = _extract(kind, cid) if folder.is_dir() else None
-        out[kind] = {"label": k["label"], "folder": str(folder), "exists": folder.is_dir(),
+        landed = folder.is_dir() or (kind == "pgl" and bool(_landed_zips(cid)))
+        ex = _extract(kind, cid) if landed else None
+        out[kind] = {"label": k["label"], "folder": str(folder), "exists": landed,
                      "extract": ex.name if ex else None,
                      "period": default_period(ex) if kind == "kickoff" else None,
                      "saved": saved_codes(kind, cid), "last": last_output(kind, cid),
