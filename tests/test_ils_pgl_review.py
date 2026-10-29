@@ -94,3 +94,22 @@ def test_every_row_carries_the_median_deposit_beside_the_average():
     bands = {b[0]: b for b in t["personal_tiers"]["bands"]}
     assert bands[250][2] == 1 and bands[500][2] == 2      # limits 100 | 300, 500
     assert bands[500][5] == 600.0                          # the median of its own accounts' deposits (200, 1000)
+
+
+def test_the_insights_are_computed_on_the_confirmed_codes():
+    from ils_pipeline.pre_go_live import insights
+    df = _df()
+    df["Debit Decline Count"] = [3, 0, 5, 7, 1, 0, 50]
+    df["Debit Decline Amount"] = [30, 0, 50, 70, 10, 0, 500]
+    df["Days OD"] = [0, 12, 35, 0, 0, 0, 0]
+    df["Rolling 12 Month NSFOD Fees"] = [100, 50, 0, 200, 25, 0, 999]
+    df["Product Code"] = ["KB", "KB", "IC", "KB", "BZ", "KB", "KB"]
+    ins = insights.compute(df, CODES, {"revenue_annualized": 300.0, "days": 100}, od_fee=27.0,
+                           extract_date="2026-10-26")["pgl_insights"]
+    dc = ins["declines"]
+    assert dc["declines"] == 15 and dc["eligible_declines"] == 8          # the deleted row's 50 are out
+    assert dc["scenarios"][2] == ["30% of declines paid", 2, 64.8]
+    assert dc["rege_targets"] == 1                                       # CUST OPIN, blank Reg E, 5 declines
+    assert [r[1] for r in ins["days_od"]["rows"]][:3] == [3, 0, 1]
+    assert ins["revenue_check"]["r12_fees_open"] == 375.0 and ins["revenue_check"]["gap_pct"] == 0.25
+    assert ins["new_accounts"]["rows"][0][1] == 0 and sum(r[1] for r in ins["new_accounts"]["rows"]) == 4

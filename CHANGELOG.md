@@ -21,6 +21,28 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ILS pre-go-live: an Opportunities & Risks chapter, and fees by transaction type
+
+Summary: the PGL deck has a new Opportunities & Risks chapter of eight slides from the extract, and the fee chapter shows the notice items by transaction type. Each slide names its base, and the decline scenario is labelled as one.
+
+James Gilmore, 2026-10-28: "i feel like the analysis is missing something ... if we have the PGL dataset, what else can we do?", then "All of them".
+
+The slides (`pre_go_live/insights.py`, `notices.py`), with what 1759 shows:
+
+| Slide | What it shows | 1759 |
+| --- | --- | --- |
+| Debit Decline Opportunity | declines by proposed limit and by Reg E; what paying 10%, 20% or 30% of eligible accounts' declines would earn at the OD fee, in the extract's decline window (July's First Central deck used 30%) | 143,807 declines ($8.66M); 2,396 eligible accounts with declines not opted in to Reg E; 30% paid = $485,619 |
+| Heavy Users | the share of NSF/OD items and Rolling 12 fees the top 1, 5, 10 and 20% carry, and the YTD item buckets | top 5% carry 57% of items and 60% of fees |
+| Overrides & Trending | each ILS override on eligible accounts, and the deposit and repayment trending cuts | 693 eligible accounts carry an override |
+| New Accounts | accounts opened in the last 90 days, 91-365 days, and over a year ago: share at a $0 limit, average limit, Reg E | 73% of 446 new accounts at $0; 17% opted in |
+| Second Chance Accounts | any account type other than personal and business, in the review shape, with its proposed limits | 155 open, 76 eligible |
+| Days Overdrawn | open accounts by days overdrawn | 131 overdrawn 30+ days |
+| Product Mix | open accounts by product code, in the review shape | |
+| Fee Revenue Check | the extract's Rolling 12 fees against the notice items annualized | 9.6% apart |
+| Fees by Transaction Type (fee chapter) | items, paid, returned and fees by ACH, card, check and other | card items carry 52% of fees and are never returned |
+
+Both test decks pass `validate_deck` with 0 FAIL and 0 REVIEW (1759: 51 slides). `tests/test_ils_pgl_review.py` adds 1 test.
+
 ### 2026-10-28 — ILS pre-go-live: median deposits, charts, and the fee chapter as cap, de minimis and combined pricing
 
 Summary: every review table now shows the median deposit beside the average. The deck draws native PowerPoint charts on its key slides, and the fee chapter is three slides: the daily fee cap, de minimis waivers, and "Finding the Right Structure", which combines them and shows the OD fee that would hold revenue.

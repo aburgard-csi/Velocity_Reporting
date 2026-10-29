@@ -456,9 +456,29 @@ def ch_program(ctx):
               highlight=(len(rows) - 1,))
     tile(s2, 0.6, 4.2, 4.6, 1.3, usd(nt["revenue_annualized"]), "annualized fee revenue from the notice items")
     out = [s, s2]
+    if nt.get("by_type_detail"):
+        out.append(_by_type_slide(ctx, nt, src))
     if nt.get("cap_curve"):
         out += [_cap_slide(ctx, nt, src), _de_minimis_slide(ctx, nt, src), _pricing_slide(ctx, nt, src)]
     return out
+
+
+def _by_type_slide(ctx, nt, src):
+    s = content(ctx, "Fees by Transaction Type", "Which kinds of item carry the NSF/OD fees",
+                src + " Paid = PD (overdraft paid), returned = RT (NSF returned).")
+    bt = [r for r in nt["by_type_detail"] if r[1]]
+    names = {"ACH": "ACH", "CRD": "Card", "CHK": "Check", "OTH": "Other", "(blank)": "Blank"}
+    chart(s, 0.6, 1.6, 6.0, 3.6, [names.get(r[0], r[0]) for r in bt],
+          [("Paid", [r[2] for r in bt]), ("Returned", [r[3] for r in bt])], title="Notice items by type", legend=True)
+    rows = [["Type", "Items", "Paid", "Returned", "Fees", "Fees a year", "Average item"]] + [
+        [names.get(r[0], r[0]), n_(r[1]), n_(r[2]), n_(r[3]), usd(r[4]), usd(r[6]), usd(r[5])] for r in bt]
+    add_table(s, 6.85, 1.75, 5.9, 0.36 * len(rows), rows, [1.0, 0.85, 0.8, 0.85, 0.9, 1.0, 0.95], fs=10)
+    top = max(bt, key=lambda r: r[6]) if bt else None
+    if top:
+        say(s, f"{names.get(top[0], top[0])} items carry the most fees: {usd(top[6])} a year, "
+               f"{pct(top[6] / nt['revenue_annualized']) if nt.get('revenue_annualized') else ''} of the total. "
+               f"Card items are paid, never returned: that is the Reg E and debit decline conversation.", top=5.6, size=12, h=0.9)
+    return s
 
 
 def _curve_rows(curve, label):
@@ -558,6 +578,130 @@ def _pricing_slide(ctx, nt, src):
     return s
 
 
+def ch_insights(ctx):
+    pack = ctx.pack
+    ins = pack["metrics"].get("pgl_insights") or {}
+    if not ins:
+        s = content(ctx, "Opportunities & Risks", "Run with confirmed codes to compute them",
+                    "Source: no insights in this run.")
+        todo(s, "a confirmed run (the insights need the codes).")
+        return [s]
+    out = []
+    dc = ins.get("declines") or {}
+    if dc:
+        s = content(ctx, "Debit Decline Opportunity", "Declined debit card transactions on open personal accounts",
+                    _src(pack, "open personal accounts' Debit Decline Count and Amount; " + dc["note"]))
+        bl = dc["by_limit"]
+        chart(s, 0.6, 1.6, 6.2, 3.2, [r[0] for r in bl], [("Declines", [r[3] for r in bl])],
+              title="Declines by proposed ILS limit", highlight=(0,))
+        rows = [["", "Accounts with declines", "Declines", "Declined $"]] + [[r[0], n_(r[1]), n_(r[2]), usd(r[3])]
+                                                                           for r in dc["by_rege"]]
+        add_table(s, 7.0, 1.75, 5.75, 0.4 * len(rows), rows, [2.2, 1.3, 1.0, 1.25], fs=10)
+        sc_rows = [["If eligible accounts' declines were paid", "Declines paid", "Fee revenue"]] + [
+            [label, n_(n), usd(dollars)] for label, n, dollars in dc["scenarios"]]
+        add_table(s, 7.0, 3.1, 5.75, 0.38 * len(sc_rows), sc_rows, [2.75, 1.4, 1.6], fs=10.5,
+                  highlight=(len(sc_rows) - 1,))
+        say(s, f"{n_(dc['declines'])} declines ({usd(dc['decline_dollars'])}) on {n_(dc['with_declines'])} accounts. "
+               f"{n_(dc['rege_targets'])} eligible accounts with declines are not opted in to Reg E — the debit decline "
+               f"communication list. Paying a share of eligible accounts' {n_(dc['eligible_declines'])} declines at the "
+               f"OD fee{(' of $' + format(dc['od_fee'], ',.2f')) if dc.get('od_fee') else ''} earns what the table shows, in the "
+               f"extract's decline window.", top=5.05, size=12, h=1.3)
+        out.append(s)
+    cc = ins.get("concentration") or {}
+    if cc:
+        s = content(ctx, "Heavy Users", "How much of the NSF/OD activity the heaviest accounts carry",
+                    _src(pack, "open accounts by NSF/OD items since import and Rolling 12 Month NSF/OD fees"))
+        tops = cc["tops"]
+        chart(s, 0.6, 1.6, 6.0, 3.5, [r[0] for r in tops],
+              [("% of NSF/OD items", [r[2] for r in tops]), ("% of Rolling 12 fees", [r[3] for r in tops])],
+              fmt='0%', title="Share carried by the heaviest accounts", legend=True)
+        rows = [["YTD OD items", "Accounts", "Items*", "Rolling 12 fees"]] + [[r[0], n_(r[1]), n_(r[2]), usd(r[3])]
+                                                                             for r in cc["buckets"]]
+        add_table(s, 6.85, 1.75, 5.9, min(3.6, 0.32 * len(rows)), rows, [2.4, 1.1, 1.1, 1.3], fs=10)
+        t5 = next((r for r in tops if r[0] == "Top 5%"), None)
+        if t5:
+            say(s, f"The top 5% of open accounts ({n_(t5[1])}) carry {pct(t5[2])} of NSF/OD items and {pct(t5[3])} of "
+                   f"Rolling 12 fees. They are the Heavy Usage Letter and counseling population. " + FOOT,
+                top=5.5, size=12, h=0.9)
+        out.append(s)
+    ov = ins.get("overrides") or {}
+    if ov:
+        s = content(ctx, "Overrides & Trending", "Where the ILS rules cut a limit before it is set",
+                    _src(pack, "open, eligible personal accounts' OVERRIDE (from ILS) and trending fields"))
+        rows = [["Override", "Accounts", "Avg core limit", "Avg ILS limit", "Items*"]] + [
+            [r[0], n_(r[1]), usd(r[2]), usd(r[3]), n_(r[4])] for r in ov["rows"][:9]]
+        add_table(s, 0.6, 1.7, 7.6, min(3.9, 0.33 * len(rows)), rows, [3.6, 1.0, 1.1, 1.1, 0.8], fs=9.5)
+        tr = [r for r in ov["trending"] if r[1]]
+        if tr:
+            rows2 = [["Trend", "Accounts set", "Cut", "Raised", "Total cut"]] + [
+                [r[0].replace(" Trending", ""), n_(r[1]), n_(r[2]), n_(r[3]), usd(r[4])] for r in tr]
+            add_table(s, 8.45, 1.7, 4.3, 0.36 * len(rows2), rows2, [1.3, 0.8, 0.7, 0.7, 0.8], fs=9.5)
+        say(s, f"{n_(ov['with_override'])} of {n_(ov['accounts'])} eligible accounts carry an override. Review each "
+               f"override's effect on limits before go-live. " + FOOT, top=5.75, size=12, h=0.8)
+        out.append(s)
+    na = ins.get("new_accounts") or {}
+    if na.get("rows"):
+        s = content(ctx, "New Accounts", f"Open personal accounts by how long they have been open (as of {na['as_of']})",
+                    _src(pack, "open personal accounts by Open Date against the extract date"))
+        rows = [["Account age", "Accounts", "At $0", "% at $0", "Avg ILS limit", "Reg E opt-in", "Items*"]] + [
+            [r[0], n_(r[1]), n_(r[2]), pct(r[3]), usd(r[4]), pct(r[5]), n_(r[6])] for r in na["rows"]]
+        add_table(s, 0.6, 1.75, 12.15, 0.45 * len(rows), rows, [3.2, 1.3, 1.2, 1.2, 1.5, 1.4, 1.2], fs=11)
+        chart(s, 0.6, 3.75, 7.0, 2.3, [r[0] for r in na["rows"]], [("% at a $0 limit", [r[3] for r in na["rows"]])],
+              fmt='0%', title="Share at a $0 proposed limit", highlight=(0,))
+        n0 = na["rows"][0]
+        textbox(s, 7.9, 3.9, 4.85, 2.2, f"{n_(n0[1])} accounts opened in the last 90 days; {pct(n0[3])} get a $0 limit "
+                f"while the age-of-account rules apply, and {pct(n0[5])} are opted in to Reg E. Onboarding is the moment "
+                f"to ask for the opt-in.", 12, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+        out.append(s)
+    for kind, sc in (ins.get("second_chance") or {}).items():
+        title = kind.title()
+        s = content(ctx, f"{title} Accounts", f"Open {title} accounts by OD status, and their proposed limits",
+                    _src(pack, f"open accounts with Personal_Business = {kind}"))
+        review_table(s, sc["od"], fs=9.5, names=pack["od_names"], height=min(2.6, 0.33 * (len(sc["od"]["rows"]) + 2)))
+        lim = sc["limits"]
+        if lim:
+            chart(s, 0.6, 4.2, 8.0, 1.9, [usd(t) for t, _ in lim][:14], [("Eligible accounts", [n for _, n in lim][:14])],
+                  title=f"Eligible {title} accounts by proposed limit")
+        textbox(s, 8.9, 4.3, 3.85, 1.8, f"{n_(sc['open'])} open {title} accounts, {n_(sc['eligible'])} eligible. They are "
+                f"scored on their own matrix (see the ILS Matrix chapter) and sit outside the personal tables.",
+                12, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+        out.append(s)
+    dd = ins.get("days_od") or {}
+    if dd.get("rows"):
+        s = content(ctx, "Days Overdrawn", "Open accounts by how many days they have been overdrawn",
+                    _src(pack, "open accounts' Days OD"))
+        r = dd["rows"]
+        chart(s, 0.6, 1.6, 6.6, 3.8, [x[0] for x in r[1:]], [("Accounts", [x[1] for x in r[1:]])],
+              title="Overdrawn accounts by days overdrawn", highlight=tuple(i for i, x in enumerate(r[1:]) if x[0].startswith(("30", "45"))))
+        rows = [["Days overdrawn", "Accounts", "Items*", "Avg ILS limit"]] + [[x[0], n_(x[1]), n_(x[2]), usd(x[3])] for x in r]
+        add_table(s, 7.45, 1.75, 5.3, 0.38 * len(rows), rows, [1.9, 1.1, 1.1, 1.2], fs=10.5)
+        risk = sum(x[1] for x in r if x[0].startswith(("30", "45")))
+        say(s, f"{accts(risk)} overdrawn 30 days or more (the longest {dd['max']} days): the repayment and charge-off "
+               f"watch list, where the Days OD overrides take the limit away.", top=5.65, size=12, h=0.8)
+        out.append(s)
+    pr = ins.get("products")
+    if pr and pr.get("rows"):
+        s = content(ctx, "Product Mix", "Open accounts by product code", _src(pack, "open accounts by Product Code"))
+        review_table(s, pr, fs=9.5)
+        out.append(s)
+    rv = ins.get("revenue_check") or {}
+    if rv.get("r12_fees_open") is not None:
+        s = content(ctx, "Fee Revenue Check", "The extract's Rolling 12 Month fees against the notice items",
+                    _src(pack, "Rolling 12 Month NSFOD Fees and Items; the notice items annualized"))
+        rows = [["Measure", "Value"], ["Rolling 12 Month NSF/OD fees, open accounts", usd(rv["r12_fees_open"])],
+                ["Rolling 12 Month NSF/OD fees, every live account", usd(rv["r12_fees_live"])],
+                ["Rolling 12 Month NSF/OD items, open accounts", n_(rv["r12_items_open"])]]
+        if rv.get("notice_annualized"):
+            rows.append([f"Notice items, {rv['notice_days']} days annualized", usd(rv["notice_annualized"])])
+            rows.append(["Rolling 12 (open) against the notice items", pct(rv["gap_pct"])])
+        add_table(s, 0.6, 1.8, 8.6, 0.45 * len(rows), rows, [6.0, 2.6], fs=12)
+        if rv.get("gap_pct") is not None:
+            say(s, f"The two revenue measures differ by {pct(abs(rv['gap_pct']))}. Agree which baseline prices the "
+                   f"program before any fee scenario is quoted.", top=5.0, size=13, h=0.8)
+        out.append(s)
+    return out
+
+
 def ch_summary(ctx):
     t, pack = ctx.pack["review"], ctx.pack
     s = content(ctx, "Summary", "What the pre-go-live data says", _src(pack, "the review tables in this deck"))
@@ -608,6 +752,8 @@ CHAPTERS = [
     Chapter("PGL3", "Personal Accounts", "Eligibility, limits under ILS and Reg E", "Who gets a limit", ch_personal),
     Chapter("PGL4", "Business Accounts", "Eligibility and limits under ILS", "Business book under ILS", ch_business),
     Chapter("PGL5", "ILS Matrix", "Settings, overrides, factors and trending", "How limits are set", ch_matrix),
+    Chapter("PGL8", "Opportunities & Risks", "Declines, heavy users, overrides, new accounts and more",
+            "Where the program can grow", ch_insights),
     Chapter("PGL6", "Program Structure & Fees", "Fee cap, de minimis and pricing", "Program design", ch_program),
     Chapter("PGL7", "Summary & Recommendations", "What the data says and what to do next", "Next steps", ch_summary),
 ]

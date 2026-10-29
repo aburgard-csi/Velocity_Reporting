@@ -133,6 +133,14 @@ def run(client_id: str, codes=None, data_root=None, output_root=None,
         # RPE, 2026-10-28: the fee baseline, daily cap and de minimis from the raw notice items, when supplied
         from . import notices
         metrics.update(notices.compute(found.path.parent, result.warn))
+        # RPE, 2026-10-28: the opportunities and risks the Velocity review adds (pre_go_live/insights.py)
+        from . import insights
+        try:
+            nt = metrics.get("pgl_notices") or {}
+            od_fee = fee or (nt.get("fee_per_item") or {}).get("PD")
+            metrics.update(insights.compute(df, c.as_dict(), nt, od_fee, found.date))
+        except Exception as exc:
+            result.warn(f"insights failed: {type(exc).__name__}: {exc}")
 
         out_dir = output_root / "PGL" / str(client_id) / found.date.strftime("%Y%m%d")
         out_dir.mkdir(parents=True, exist_ok=True)

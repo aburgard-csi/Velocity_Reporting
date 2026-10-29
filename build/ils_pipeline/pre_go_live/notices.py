@@ -211,6 +211,13 @@ def compute(folder, warn=lambda m: None) -> dict:
                                  "pct_of_revenue"],
            "max_fees_one_day": int(per_day.max()) if len(per_day) else 0,
            "by_type": [[t or "(blank)", int(n)] for t, n in d["type"].value_counts().items()],
+           # the items by transaction type: paid, returned, fees and the average item (James Gilmore, 2026-10-28)
+           "by_type_detail": sorted(([t or "(blank)", len(g), int((g["status"] == "PD").sum()),
+                                      int((g["status"] == "RT").sum()), _r(g["fee"].sum()), _r(g["amount"].mean()) if g["amount"].notna().any() else None,
+                                      _r(g["fee"].sum() * year)]
+                                     for t, g in d.groupby(d["type"])), key=lambda r: -r[1]),
+           "by_type_columns": ["transaction_type", "items", "paid", "returned", "fees", "average_item",
+                               "fees_annualized"],
            "outliers": int(len(outliers)), "outlier_min_balance": _r(outliers["balance"].min()) if len(outliers) else None}
     if len(outliers):
         warn(f"notice file: {len(outliers)} items with an ending balance beyond ±${OUTLIER:,} "
