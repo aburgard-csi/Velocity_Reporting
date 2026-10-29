@@ -146,3 +146,17 @@ def test_a_finished_deck_is_delivered_to_the_csms_ils_folder_and_the_ars_readers
     monkeypatch.setattr(ils_runs.subprocess, "Popen", lambda *a, **k: None)
     assert ils_runs.reveal(str(dest))[0] == 200                         # the card's "open the deck"
     assert ils_runs.reveal(str(root / "Outputs" / "James Gilmore" / "notes.txt"))[0] == 403
+
+
+def test_the_cards_fold_under_one_line_opened_only_when_a_kind_has_something():
+    """The pre-go-live and kickoff reports are made once per client, so the cards only said "No extract yet"
+    for almost every client (Aaron, 2026-10-29). They sit under a dropdown, closed unless a kind has an
+    extract, a run in progress or a deck built, and a CSM's open state survives the status redraw."""
+    import ars_launcher_web as W
+    draw = W.PAGE[W.PAGE.index("function ilsDraw()"):W.PAGE.index("// The deck's CSM inputs")]
+    assert '<details class="ilsfold"${open ? " open" : ""}>' in draw
+    assert "const open = was ? was.open : ilsActive();" in draw
+    active = W.PAGE[W.PAGE.index("function ilsActive()"):W.PAGE.index("function ilsDraw()")]
+    assert "c.extract || c.last || (c.job && !c.job.done)" in active
+    assert "one-time reports, not set up for this client" in W.PAGE
+    assert "details.ilsfold>summary" in W.PAGE
