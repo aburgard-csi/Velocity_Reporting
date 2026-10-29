@@ -179,14 +179,6 @@ def _get(rows, label):
 # ------------------------------------------------------------------ chapters
 def ch_partnership(ctx):
     pack, inp = ctx.pack, ctx.pack["inputs"]
-    s1 = content(ctx, "Key Decisions and Dates", "ILS integration — project plan milestones",
-                 "Source: the CSM's project plan, entered on the Sheila card. No figures from the extract.")
-    dates = inp.get("key_dates") or []
-    if dates:
-        add_table(s1, 0.6, 1.75, 8.0, 0.38 * (len(dates) + 1), [["Milestone", "Date"]] + [list(d) for d in dates],
-                  [6.0, 2.0], fs=12)
-    else:
-        todo(s1, "the milestone dates (program disclosures, PGL discussion, matrix approval, go-live).")
     s2 = content(ctx, "Current Program Key Details", "Integration preparation with current processes",
                  "Source: the client's current program, entered by the CSM on the Sheila card.")
     prog = inp.get("program") or {}
@@ -199,7 +191,7 @@ def ch_partnership(ctx):
                   [["Program detail", "Today"]] + [[lbl, str(prog.get(k) or "TBD")] for k, lbl in keys], [5.5, 2.5], fs=12)
     else:
         todo(s2, "the current OD and NSF fees, de minimis amounts, sustained OD fee, stop payment fee and daily cap.")
-    return [s1, s2]
+    return [s2]
 
 
 def ch_data(ctx):
@@ -844,7 +836,73 @@ def ch_summary(ctx):
     say(s, "Opportunities: review the ineligible accounts with strong deposit relationships for return to the "
            "program; use the debit decline communication strategies to grow Reg E opt-ins; confirm the matrix "
            "parameters and overrides before go-live.", top=3.9, size=14, h=1.6)
-    return [s]
+    return [s, _timeline_slide(ctx)]
+
+
+# the Velocity ILS project plan's milestones, in its order (the "ILS Configuration & Project Timeline/Next Steps"
+# slide), listed with TBD dates when the CSM has entered none
+MILESTONES = ["Project Kickoff meeting", "File development complete", "Weekly meetings begin",
+              "Program Parameter Decisions", "Templates completed", "Software installation", "33-day history complete",
+              "ILS software user training", "ILS Pre Go-Live Analysis", "Front-line staff training complete",
+              "Disclosure update completed", "Updated disclosure documents sent to members", "ILS Go Live",
+              "First Program Review"]
+DONE_WORDS = ("DONE", "COMPLETE", "COMPLETED", "✓", "Y", "YES")
+RISK_WORDS = ("RISK", "AT RISK", "LATE", "BEHIND", "RED", "MISSED")
+
+
+def timeline_rows(key_dates):
+    """The CSM's `milestone | date | status` lines as (milestone, date, state), state "done", "risk" or "".
+    No lines: the standard milestones, every date TBD."""
+    if not key_dates:
+        return [(m, "TBD", "") for m in MILESTONES]
+    out = []
+    for d in key_dates:
+        parts = [str(x).strip() for x in d if x is not None]
+        name = parts[0] if parts else ""
+        rest = [x.strip() for x in " | ".join(parts[1:]).split("|")]
+        date, flag = (rest + ["", ""])[:2]
+        flag = flag.upper()
+        state = "done" if flag in DONE_WORDS else "risk" if flag in RISK_WORDS else ""
+        if name:
+            out.append((name, date or "TBD", state))
+    return out
+
+
+def _is_pgl(name):
+    n = name.upper().replace("-", " ")
+    return "PRE GO LIVE" in n or "PGL" in n.split()
+
+
+def _timeline_slide(ctx):
+    """James Gilmore, 2026-10-29: "the PGL should have a timeline slide like this, in our format" (the
+    Velocity "ILS Configuration & Project Timeline/Next Steps" slide). The pre-go-live analysis row is the
+    highlighted one (this meeting); a milestone the CSM marks done carries a check, one marked at risk is red."""
+    from pptx.dml.color import RGBColor
+    from brand import CSI_RED, TEAL
+    inp = ctx.pack["inputs"]
+    s = content(ctx, "ILS Configuration & Project Timeline", "Project plan dates and next steps",
+                "Source: the CSM's project plan, entered on the Sheila card (milestone | date | done or at risk). "
+                "No figures from the extract.")
+    rows = timeline_rows(inp.get("key_dates") or [])
+    data = [["Milestone", "Plan", "Status"]] + [[m, d, "✓  Complete" if st == "done" else "At risk" if st == "risk"
+                                                 else ""] for m, d, st in rows]
+    hi = tuple(i for i, (m, _, _) in enumerate(rows, 1) if _is_pgl(m))
+    rh = min(0.36, 4.5 / len(data))
+    gf = add_table(s, 1.6, 1.6, 10.1, rh * len(data), data, [6.1, 2.2, 1.8], highlight=hi, fs=12 if rh >= 0.32 else 11)
+    red, teal = RGBColor.from_string(CSI_RED[1:]), RGBColor.from_string(TEAL[1:])
+    for i, (_, _, st) in enumerate(rows, 1):
+        if i in hi or not st:
+            continue
+        for j in range(3):
+            for r in gf.table.cell(i, j).text_frame.paragraphs[0].runs:
+                if st == "risk":
+                    r.font.color.rgb = red
+                elif j == 2:
+                    r.font.color.rgb, r.font.bold = teal, True
+    if not inp.get("key_dates"):
+        say(s, "To be completed by the CSM: the plan dates, on the Sheila card (one per line: milestone | date | "
+               "done or at risk).", top=1.6 + rh * len(data) + 0.1, size=12, color=TICK_RGB, h=0.4)
+    return s
 
 
 def od_names(matrix, inputs):
@@ -873,7 +931,7 @@ def _f(v):
 
 
 CHAPTERS = [
-    Chapter("PGL1", "Partnership", "Key decisions, dates and the current program", "Where the integration stands",
+    Chapter("PGL1", "Partnership", "The current program, before ILS", "Where the integration stands",
             ch_partnership),
     Chapter("PGL2", "PGL Data Review", "The extract, reconciled to the ILS system", "Is the data sound", ch_data),
     Chapter("PGL3", "Personal Accounts", "Eligibility, limits under ILS and Reg E", "Who gets a limit", ch_personal),
@@ -882,7 +940,7 @@ CHAPTERS = [
     Chapter("PGL8", "Opportunities & Risks", "Declines, heavy users, overrides, new accounts and more",
             "Where the program can grow", ch_insights),
     Chapter("PGL6", "Program Structure & Fees", "Fee cap, de minimis and pricing", "Program design", ch_program),
-    Chapter("PGL7", "Summary & Recommendations", "What the data says and what to do next", "Next steps", ch_summary),
+    Chapter("PGL7", "Summary & Next Steps", "What the data says, and the project timeline", "Next steps", ch_summary),
 ]
 
 
