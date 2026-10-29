@@ -162,10 +162,22 @@ python -m pytest tests/test_ils_kickoff.py tests/test_ils_kickoff_deck.py -q
 
 ## Day 2 analyses (RPE addition, 2026-10-28)
 
-`metrics/day2.py`, ported from the ILS Kickoff Day 2 app, the analysis only. Six workbook tabs after
-the nineteen above, all workbook-only (`deck/slides.py: WORKBOOK_ONLY`): Day 2 Highlights, Day 2 OD
-Status Reg E In (+ Biz), Day 2 Year Opened (+ Biz), Day 2 Reg E by Year Opened. They use the same
-`CodeConfig` as every other tab and never guess a code. Tests: `tests/test_ils_kickoff_day2.py`.
+`metrics/day2.py`, ported from the ILS Kickoff Day 2 app, the analysis only. Six tabs after the
+nineteen above, each a workbook tab and a deck slide under the "Day 2 read-out" section: Day 2
+Highlights, Day 2 OD Status Reg E In (+ Biz), Day 2 Year Opened (+ Biz), Day 2 Reg E by Year Opened.
+They use the same `CodeConfig` as every other tab and never guess a code.
+
+| Slide | Form (`deck/forms.py`) | Headline states |
+|---|---|---|
+| Day 2 Highlights | `rag_chips`, full width: one chip per measure that has a target in `day2.py` | personal OD/NSF user share against the CFPB 27% |
+| Day 2 OD Status Reg E In | `rate_bars`: pay rate by OD status, opt-ins under each | opt-ins and the status most sit on |
+| Day 2 OD Status Reg E In (Biz) | `donut` | the same, business |
+| Day 2 Year Opened | `tier_bars`: % no longer open by year opened | share of the book no longer open; the cohort that lost the most accounts |
+| Day 2 Year Opened (Biz) | `grouped_bars`: open against not open | the same, business |
+| Day 2 Reg E by Year Opened | `vintage_line`: opt-in rate by year against the whole book | newest cohort's opt-in rate against the oldest; no rate without a confirmed opt-in value |
+
+Chip colours read each measure against `day2.py`'s own constants (CFPB 27%, pay ratio 90%,
+eligibility 80% floor / 90% preferred); no threshold is new. Tests: `tests/test_ils_kickoff_day2.py`.
 
 ---
 

@@ -282,12 +282,12 @@ def run(client_id: str, period: str, data_root: str | Path,
         emit(report_path, "OD Limit Stratification (Biz)", t_odlimit_b)
 
         # ---- Day 2 (from the ILS Kickoff Day 2 app) ----
-        # Workbook-only until they have slides: slide=False keeps them out of
-        # the manifest check rather than stranding them there.
+        # Workbook tab and deck slide alike, under the deck's "Day 2 read-out"
+        # section. A tab the run skips is absent from both.
         emit(report_path, "Day 2 Highlights", pd.concat([
             day2.highlights(df_personal, codes, "Personal"),
             day2.highlights(df_business, codes, "Business"),
-        ], ignore_index=True), slide=False)
+        ], ignore_index=True))
         for label, seg, sheet in (("Personal", df_personal, "Day 2 OD Status Reg E In"),
                                   ("Business", df_business, "Day 2 OD Status Reg E In (Biz)")):
             t = day2.od_status_rege(seg, codes)
@@ -295,16 +295,16 @@ def run(client_id: str, period: str, data_root: str | Path,
                 warnings.append(f"Day 2: {label} OD status for Reg E opt-ins skipped -- the Reg E "
                                 f"opt-in value is not confirmed or matched no open {label.lower()} account.")
             else:
-                emit(report_path, sheet, t, slide=False)
+                emit(report_path, sheet, t)
         if OPEN_DATE in df.columns:
             for code, sheet in ((codes.personal_code, "Day 2 Year Opened"),
                                 (codes.business_code, "Day 2 Year Opened (Biz)")):
                 t = day2.year_opened(df, codes, code)
                 if t is not None:
-                    emit(report_path, sheet, t, slide=False)
+                    emit(report_path, sheet, t)
             t = day2.rege_by_year(df_personal, codes)
             if t is not None:
-                emit(report_path, "Day 2 Reg E by Year Opened", t, slide=False)
+                emit(report_path, "Day 2 Reg E by Year Opened", t)
         else:
             warnings.append(f"'{OPEN_DATE}' column not found -- skipped the Day 2 year-opened tabs.")
 

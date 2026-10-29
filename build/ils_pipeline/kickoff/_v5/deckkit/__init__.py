@@ -71,12 +71,15 @@ from ils_pipeline.kickoff._v5.ars.deck.charts import rege_split  # noqa: F401
 from ils_pipeline.kickoff._v5.ars.deck.charts import split_panels  # noqa: F401
 from ils_pipeline.kickoff._v5.ars.deck.charts import tier_bars  # noqa: F401
 from ils_pipeline.kickoff._v5.ars.deck.charts import waffle  # noqa: F401
+# RPE: the Day 2 slides' forms (kickoff/deck/forms.py).
+from ils_pipeline.kickoff._v5.ars.deck.charts import rag_chips  # noqa: F401
+from ils_pipeline.kickoff._v5.ars.deck.charts import vintage_line  # noqa: F401
 
 CHART_FORMS = ["callout", "caption", "set_caption", "category_blocks", "composition", "donut", "dumbbell",
                "funnel", "ticket_bars", "grouped_bars", "health_bars",
                "histogram", "line_series", "momentum_bars", "paired_hbars",
                "rate_bars", "rege_split", "split_panels", "tier_bars",
-               "waffle"]
+               "waffle", "rag_chips", "vintage_line"]
 
 __all__ = CHART_FORMS + ["CONTENT_W", "MARGIN_L", "RIGHT_EDGE",
            "RAIL_BOTTOM", "RAIL_GUTTER", "RAIL_LEFT", "SLIDE_H", "SLIDE_W",

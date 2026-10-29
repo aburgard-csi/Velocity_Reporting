@@ -21,9 +21,11 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
-### 2026-10-28 — ILS kickoff workbook gains the Day 2 analyses
+### 2026-10-28 — ILS kickoff workbook and deck gain the Day 2 analyses
 
-Summary: The ILS kickoff run (the CLI and Sheila's ILS Kickoff card) now writes six more workbook tabs, ported from the ILS Kickoff Day 2 app (`M:\JBerkowitz\ILS Kickoff Day 2 app`): Day 2 Highlights, OD Status for Reg E opt-ins (personal and business), Accounts by Year Opened (personal and business), and Reg E by Year Opened. The nineteen existing tabs and the deck are unchanged; the new tabs are workbook-only (`deck/slides.py: WORKBOOK_ONLY`) until each has a slide.
+Summary: The ILS kickoff run (the CLI and Sheila's ILS Kickoff card) now writes six more workbook tabs, ported from the ILS Kickoff Day 2 app (`M:\JBerkowitz\ILS Kickoff Day 2 app`): Day 2 Highlights, OD Status for Reg E opt-ins (personal and business), Accounts by Year Opened (personal and business), and Reg E by Year Opened. Each is also a slide in the kickoff deck, under a new "Day 2 read-out" section after "How it is configured", with its table in the appendix. The nineteen existing tabs and slides are unchanged.
+
+James Gilmore, 2026-10-28: "the deck should be the same output pipeline as sheila". The Day 2 slides are built by the same `deck/slides.py` and `deck/forms.py` as the other nineteen, one chart form, headline and caption each; there is no second deck.
 
 James Gilmore, 2026-10-28: incorporate the Day 2 analysis "into our Sheila system", additive to the existing kickoff analysis. Only the analysis was taken; the Day 2 app's deck, consulting text and GUI were not.
 

@@ -110,6 +110,35 @@ def test_without_an_open_date_the_year_tables_are_skipped():
     assert day2.rege_by_year(io.personal_open(df, _codes()), _codes()) is None
 
 
+# ---- the deck slides (deck/forms.py) ---------------------------------------
+
+def test_a_cohort_slide_names_the_year_not_the_whole_row():
+    """_labels() read Open and Not Open as key columns: "2023 · 15 · 6"."""
+    from ils_pipeline.kickoff.deck import forms
+    t = day2.year_opened(_book(), _codes(), "P")
+    headline, subtitle = forms.HEADLINES["Day 2 Year Opened"](forms._body(t), _codes())
+    assert "2025 cohort" in subtitle and "·" not in subtitle
+    tiles = forms.RAILS["Day 2 Year Opened"](forms._body(t))
+    assert tiles[-1][1] == "2025"
+
+
+def test_the_highlights_chips_read_against_day2s_own_targets():
+    from ils_pipeline.kickoff.deck import forms
+    assert forms._day2_status("Pay ratio", 92.0, "")[0] == "green"
+    assert forms._day2_status("Pay ratio", 50.0, "")[0] == "red"
+    assert forms._day2_status("OD-eligible share", 85.0, "")[0] == "amber"
+    assert forms._day2_status("OD-eligible share", 100.0, "matched every account -- not meaningful")[0] == "amber"
+    assert forms._day2_status("Accounts generating 75% of items", 2.0, "") is None
+
+
+def test_reg_e_by_year_draws_no_rate_without_a_confirmed_opt_in(tmp_path):
+    from ils_pipeline.kickoff.deck import forms
+    p = io.personal_open(_book(), _codes())
+    assert forms.render("Day 2 Reg E by Year Opened", day2.rege_by_year(p, _codes()), tmp_path) is None
+    assert forms.render("Day 2 Reg E by Year Opened",
+                        day2.rege_by_year(p, _codes(rege_opt_in=["Y"])), tmp_path) is not None
+
+
 @pytest.mark.parametrize("values, expected", [
     ([0.5, 0.6, 0.7, 0.8, 0.9, 0.95], "up"),
     ([0.95, 0.9, 0.8, 0.7, 0.6, 0.5], "down"),
