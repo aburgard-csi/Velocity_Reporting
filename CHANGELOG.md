@@ -21,6 +21,27 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — The ILS Pre-go-live card takes the deck's CSM inputs
+
+Summary: the ILS Pre-go-live card in Sheila has a new "Deck inputs" section where the CSM enters what only they can tell the deck. It is saved per client, and every Build reads it.
+
+The four inputs, and where they go:
+
+| Input | Goes to |
+| --- | --- |
+| Key decisions and dates, one per line (`milestone \| date`) | the Key Decisions and Dates slide |
+| The current program: OD fee, NSF fee, de minimis balance and transaction amounts, sustained OD fee, stop payment fee, daily cap | the Current Program Key Details slide |
+| Notes on the data | the PGL Data Analysis slide |
+| OD code descriptions, one per line (`code = description`) | every OD-code row, taking the place of the matrix's description |
+
+James Gilmore, 2026-10-28: "Yes, add the inputs".
+
+The inputs are saved as `Build Artifacts/ils/PGL/<id>/deck_inputs.json`, with the date and the CSM who saved them, beside the confirmed codes (`ils_runs.save_inputs`, `POST /api/ils/inputs`). An empty input still draws its "to be completed by the CSM" line. When the card's fee field is blank, the program's OD fee prices the fee sections. What a CSM types survives the redraw a status refresh makes until it is saved.
+
+The run sends the client's name as Sheila's list shows it, so the deck's cover and closing name the client and not the bare number.
+
+Tested in Sheila on 1759: inputs saved, field summary read, Build pressed, and the 39-slide deck carries them. `tests/test_sheila_ils.py` adds 2 tests. One of them parses the page's script with Node, because a line break written inside a JavaScript string once stopped the whole page loading.
+
 ### 2026-10-28 — The ILS pre-go-live deck: the Velocity PGL review, in Sheila's format
 
 Summary: Build on Sheila's ILS Pre-go-live card now makes a new deck. It is the Velocity PGL review in seven chapters, drawn in Sheila's format, and replaces v5's 13-slide deck (1759: 39 slides). It also prices the fee baseline, the daily fee cap and de minimis from the raw overdraft notice items, when the delivery includes them.

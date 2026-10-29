@@ -114,6 +114,57 @@ def save_codes(kind, cid, codes, extract, options):
     return rec
 
 
+# What only the CSM can tell the pre-go-live deck (James Gilmore, 2026-10-28), kept per client beside the
+# confirmed codes: the project plan's dates, the current program, notes on the data, and the description
+# of an OD status code the matrix leaves undescribed. Free text, as the decks show it ("$27", "TBD").
+PROGRAM_FIELDS = ["od_fee", "nsf_fee", "de_minimis_balance", "de_minimis_txn", "sustained_fee",
+                  "stop_payment_fee", "daily_cap"]
+MAX_TEXT = 2000
+
+
+def _inputs_file(cid):
+    return _out_root("pgl") / str(cid) / "deck_inputs.json"
+
+
+def saved_inputs(cid):
+    try:
+        return json.loads(_inputs_file(cid).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _lines(text, sep):
+    """'a | b' lines -> [[a, b]]; a line without the separator keeps its text and an empty second part."""
+    out = []
+    for ln in str(text or "").splitlines()[:40]:
+        ln = ln.strip()
+        if not ln:
+            continue
+        a, _, b = ln.partition(sep)
+        out.append([a.strip()[:120], b.strip()[:120]])
+    return out
+
+
+def save_inputs(body):
+    """POST /api/ils/inputs: the pre-go-live deck's CSM inputs for one client."""
+    cid = str(body.get("client", "")).strip()
+    if not CID_RX.match(cid):
+        return 400, {"error": "not a client number"}
+    prog = body.get("program") or {}
+    rec = {"key_dates": _lines(body.get("key_dates"), "|"),
+           "program": {k: str(prog.get(k) or "").strip()[:60] for k in PROGRAM_FIELDS},
+           "data_notes": str(body.get("data_notes") or "").strip()[:MAX_TEXT],
+           "od_descriptions": {a: b for a, b in _lines(body.get("od_descriptions"), "=") if a and b},
+           "saved": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+           "by": os.environ.get("USERNAME") or os.environ.get("USER") or ""}
+    p = _inputs_file(cid)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(rec, indent=1), encoding="utf-8")
+    os.replace(tmp, p)
+    return 200, {"inputs": rec}
+
+
 def last_output(kind, cid):
     """The newest deck a run wrote for the client, with its folder, or None."""
     base = _out_root(kind) / str(cid)
@@ -161,7 +212,10 @@ def client_doc(cid):
                      "period": default_period(ex) if kind == "kickoff" else None,
                      "saved": saved_codes(kind, cid), "last": last_output(kind, cid),
                      "job": job_doc(kind, cid)}
-    return {"client": str(cid), "kinds": out, "fields": FIELDS, "required": REQUIRED}
+        if kind == "pgl":
+            out[kind]["inputs"] = saved_inputs(cid)
+    return {"client": str(cid), "kinds": out, "fields": FIELDS, "required": REQUIRED,
+            "program_fields": PROGRAM_FIELDS}
 
 
 # ------------------------------------------------------------------ jobs
@@ -247,7 +301,11 @@ def start(body):
         args["period"] = period
         args["items_from_calc"] = bool(body.get("items_from_calc"))
     else:
+        args["inputs"] = saved_inputs(cid)          # the deck's CSM inputs, as last saved on the card
         fee = body.get("fee")
+        if fee in (None, ""):                       # the program's OD fee, when the card's fee is blank
+            m = re.search(r"\d+(?:\.\d+)?", (args["inputs"].get("program") or {}).get("od_fee") or "")
+            fee = m.group(0) if m else None
         if fee not in (None, ""):
             try:
                 args["fee"] = float(fee)
