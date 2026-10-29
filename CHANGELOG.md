@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — Transaction Intelligence: a mailer chart never covers a two-line headline's subtitle
+
+Summary: six campaign slides placed their chart at v5's fixed 1.55in from the top. They are the most recent mailer, its responder trajectory, the most recent offer, and Offer detail's summary, segment and responder slides. When a headline wrapped to two lines, the subtitle was pushed down behind the chart. On 1798 FirstLight's slide 127 ("Aug26 reached 22,914 accounts and 2,226 responded: 9.7%"), only the top half of the subtitle showed. Each chart now starts where the cut's `slide()` says the headline block ends, and is shortened by the same amount so it still ends above the footer.
+
+James Gilmore, 2026-10-29: on slide 127, "Fix and rebuild". `tests/test_ti_campaign_chapter.py` pins it with a two-line headline. The test fails on the old placement.
+
 ### 2026-10-29 — the PGL deck ends on the project timeline
 
 Summary: the pre-go-live deck has an "ILS Configuration & Project Timeline" slide in the Summary & Next Steps chapter, just before Questions & Discussion. It takes the place of the plain "Key Decisions and Dates" table that opened the Partnership chapter. It's laid out like the Velocity "ILS Configuration & Project Timeline/Next Steps" slide, drawn in our frame.
