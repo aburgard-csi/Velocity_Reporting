@@ -207,7 +207,8 @@ class IlsJob:
         return {"kind": self.kind, "client": self.cid, "step": self.step, "lines": self.lines,
                 "done": self.done, "code": self.code, "ok": bool(r.get("ok")) if self.done else None,
                 "needs_codes": bool(r.get("needs_codes")), "deck": r.get("deck"), "folder": r.get("folder"),
-                "error": r.get("error"),
+                "error": r.get("error"), "suggested": r.get("suggested") or {},
+                "suggested_basis": r.get("suggested_basis") or {},
                 "seconds": round((self.finished or time.time()) - self.started)}
 
 

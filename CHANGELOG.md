@@ -21,6 +21,32 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ILS pre-go-live offers the codes the ILS system holds, and builds when a status code is NULL
+
+Summary: the pre-go-live field summary, and its card in Sheila, now offer the open, OD-eligible and Reg E codes read from the vendor's matrix validation and integrity check, each with its evidence. The card fills empty fields with them, and the CSM checks them and presses Build. A NULL OD status code in the dump no longer stops the deck.
+
+James Gilmore, 2026-10-28: "you can get codes from the matrix validation and database integrity check in the zip". Tim Barrett's ILS Matrix Validation Deck Builder reads the same matrix tables. Where each code comes from (`pre_go_live/dump_codes.py`):
+
+- **OD-eligible**: the status codes the matrix's OD STATUS CODE MAPPING gives `CAN_OVERDRAFT = 1`. A blank status is never offered.
+- **Open**: the Account Status value whose live count (deleted rows out) equals the integrity check's open/active accounts, summed over account types.
+- **Reg E opted in**: likewise against the opt-in count. **Opted out** is then the one other value, when there is exactly one.
+
+A code is offered only on an exact match. Otherwise the run says why, for example when the extract cannot be read. The CSM confirms; the client confirms nothing.
+
+**Checked on three deliveries:**
+
+- 1737 August: the dumps give O / 001 / Y, the codes v5's August run used.
+- 1759 October: O (16,338 = 16,338) / Y / Y (5,902 = 5,902) / N.
+- 1737 October: OD-eligible 0. The matrix now lets only code 0 overdraft, not 001. Open and Reg E are not offered until the extract is re-exported with its header.
+
+**The NULL status.** 1759's integrity dump lists 123 accounts on a NULL OD status the matrix does not map. It was carried as `None`: the report read "None (123)" and the deck stopped joining it (`TypeError: sequence item 0: expected str instance, NoneType found`). It is named "NULL" now.
+
+**The waterfall.** "ILS calculates a limit" counts the blank statuses of the accounts it leaves out (1759: "their OD status: blank (105)"). Before, it printed an empty list.
+
+**Moves no figure:** August's 1737 was re-run with the same codes and all 117 figures are unchanged. The only addition is `pgl_dump_codes`.
+
+1759 now builds on the derived codes: 13 slides. `tests/test_ils_pgl_dump_codes.py` adds 4 tests.
+
 ### 2026-10-28 — ILS pre-go-live reads the 2026-10 deliveries: landed zips, .csv dumps, SQL messages, a missing header
 
 Summary: the ILS pre-go-live engine, and its card in Sheila, now reads a delivery left as a zip in `Inputs/ILS PGL/`. It never takes the vendor's system dump as the extract, reads a dump saved as `.csv`, and no longer reads SQL Server's message lines as table rows. An extract with no header row stops with a message saying to ask for a re-export.

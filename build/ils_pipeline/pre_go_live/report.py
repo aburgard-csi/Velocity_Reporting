@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/report.py at 7ba1e63. Logic unchanged; copied whole.
+# Ported from v5 02-Scripts/ils/pre_go_live/report.py at 7ba1e63, copied whole. One RPE change (2026-10-28, CHANGELOG): the codes the ILS dumps hold are printed with their evidence.
 """The written PGL report, from pgl_* metrics. Every table states its base;
 every rate has its denominator on the same line."""
 
@@ -125,6 +125,12 @@ def report(result) -> str:
         if s:
             A("  suggested (confirm, never assumed): " +
               "  ".join(f"{k}={v}" for k, v in s.items()))
+        dc = m.get("pgl_dump_codes") or {}
+        if dc:
+            A("  FROM THE ILS SYSTEM'S OWN SETTINGS (matrix validation + integrity check; the CSM confirms):")
+            for k in ("open_status", "od_eligible", "rege_opt_in", "rege_opt_out"):
+                if k in dc:
+                    A(f"    {k:<13} {', '.join(dc[k]['codes']) or '(none)':<10} {dc[k]['basis']}")
         A("  run again with open_status / od_eligible / rege_opt_in confirmed.")
         return "\n".join(L)
 

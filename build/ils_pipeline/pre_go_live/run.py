@@ -1,4 +1,4 @@
-# Ported from v5 02-Scripts/ils/pre_go_live/run.py at 7ba1e63. One RPE change (2026-10-28, CHANGELOG): an extract with no header row stops the run and says so; imports read ils_pipeline.core, and the default data, output and config folders come from ils_pipeline/pgl_input.py (Inputs/ILS PGL, Build Artifacts/ils, ils_pipeline/config).
+# Ported from v5 02-Scripts/ils/pre_go_live/run.py at 7ba1e63. Two RPE changes (2026-10-28, CHANGELOG): an extract with no header row stops the run and says so, and the codes the ILS dumps hold are offered (dump_codes.py); imports read ils_pipeline.core, and the default data, output and config folders come from ils_pipeline/pgl_input.py (Inputs/ILS PGL, Build Artifacts/ils, ils_pipeline/config).
 """ILS pre-go-live -- entry point.
 
     from ils.pre_go_live import run
@@ -84,6 +84,9 @@ def run(client_id: str, codes=None, data_root=None, output_root=None,
         # needs_codes reply already shows what the system says it holds.
         sysm = system_view.load(found.path.parent, result.warn)
         metrics.update(sysm)
+        # RPE, 2026-10-28: the codes as the ILS system holds them, with their evidence, for the CSM to confirm
+        from . import dump_codes
+        metrics.update(dump_codes.derive(df, sysm))
 
         # ---- no codes: return the field summary, ask for the reading -------
         c = codes_mod.Codes.from_any(codes) if codes is not None else codes_mod.Codes()
