@@ -45,8 +45,8 @@ Ctx = namedtuple("Ctx", "prs pack pill art_dir")
 Chapter = namedtuple("Chapter", "code title agenda benefits build")
 
 COLS = ["", "Accounts", "% of accts", "NSF/OD items*", "% of items", "Paid items", "Pay ratio",
-        "Avg core limit", "Avg ILS limit", "Avg deposits (33d)", "Avg deposit $ (33d)"]
-COLW = [2.3, 1.0, 0.9, 1.05, 0.9, 0.95, 0.85, 1.05, 1.05, 1.0, 1.15]
+        "Avg core limit", "Avg ILS limit", "Avg deposits (33d)", "Avg deposit $ (33d)", "Median deposit $ (33d)"]
+COLW = [2.2, 0.95, 0.85, 1.0, 0.85, 0.9, 0.8, 1.0, 1.0, 0.95, 1.05, 1.1]
 FOOT = "* NSF/OD items since the ILS import began."
 
 
@@ -63,6 +63,10 @@ def usd(v):
     return "–" if v is None else (f"−${-v:,.0f}" if v < 0 else f"${v:,.0f}")
 
 
+def accts(v):
+    return f"{n_(v)} account" + ("" if v == 1 else "s")
+
+
 def dec(v):
     return "–" if v is None else f"{v:,.1f}"
 
@@ -74,10 +78,64 @@ def _row_cells(r, names=None):
         shown = f"{label} · {names[label.upper()]}"
     return [shown,
             n_(r[1]), pct(r[2]), n_(r[3]), pct(r[4]), n_(r[5]), pct(r[6], 0), usd(r[7]), usd(r[8]),
-            dec(r[9]), usd(r[10])]
+            dec(r[9]), usd(r[10]), usd(r[13] if len(r) > 13 else None)]
 
 
 # ------------------------------------------------------------------ frame
+def chart(slide, L, T, W, H, cats, series, title=None, fmt='#,##0', highlight=(), colors=None, legend=False):
+    """A native PowerPoint column chart: navy bars, orange for the highlighted categories, labels on the bars."""
+    from pptx.chart.data import CategoryChartData
+    from pptx.dml.color import RGBColor
+    from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION, XL_LEGEND_POSITION
+    from pptx.util import Inches, Pt
+    import brand as _b
+    cd = CategoryChartData()
+    cd.categories = [str(c) for c in cats]
+    for name, values in series:
+        cd.add_series(name, [v if v is not None else 0 for v in values])
+    gf = slide.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(L), Inches(T), Inches(W), Inches(H), cd)
+    ch = gf.chart
+    ch.font.name = BODY
+    ch.font.size = Pt(10)
+    ch.font.color.rgb = NAVY_RGB
+    ch.has_title = bool(title)
+    if title:
+        ch.chart_title.text_frame.text = title
+        tp = ch.chart_title.text_frame.paragraphs[0]
+        tp.runs[0].font.size = Pt(12)
+        tp.runs[0].font.bold = True
+        tp.runs[0].font.color.rgb = NAVY_RGB
+        tp.runs[0].font.name = BODY
+    ch.has_legend = legend
+    if legend:
+        ch.legend.position = XL_LEGEND_POSITION.BOTTOM
+        ch.legend.include_in_layout = False
+    va = ch.value_axis
+    va.has_major_gridlines = False
+    va.visible = False
+    ca = ch.category_axis
+    ca.tick_labels.font.size = Pt(9.5)
+    ca.format.line.color.rgb = _b.LABEL_RGB
+    palette = colors or [NAVY_RGB, _b.LABEL_RGB, _b.ORANGE_RGB]
+    plot = ch.plots[0]
+    plot.gap_width = 60
+    plot.has_data_labels = True
+    dl = plot.data_labels
+    dl.number_format = fmt
+    dl.number_format_is_linked = False
+    dl.position = XL_LABEL_POSITION.OUTSIDE_END
+    dl.font.size = Pt(9)
+    for i, ser in enumerate(plot.series):
+        ser.format.fill.solid()
+        ser.format.fill.fore_color.rgb = palette[i % len(palette)]
+        if i == 0:
+            for j in highlight:
+                pt = ser.points[j]
+                pt.format.fill.solid()
+                pt.format.fill.fore_color.rgb = _b.ORANGE_RGB
+    return gf
+
+
 def _frame():
     from ti import frame
     return frame
@@ -206,6 +264,14 @@ def _change_note(t, kind):
             f"capture rate.")
 
 
+def _share_chart(slide, t):
+    rows = [r for r in t["rows"]]
+    if rows:
+        chart(slide, 0.6, 3.45, 12.1, 2.55, [str(r[0]) for r in rows],
+              [("% of accounts", [r[2] for r in rows]), ("% of NSF/OD items", [r[4] for r in rows])],
+              fmt='0%', legend=True)
+
+
 def _tiers_slide(ctx, t, kind):
     tt = t[f"{kind}_tiers"]
     s = content(ctx, f"Proposed Limits — {kind.title()}", f"Eligible {kind} accounts by proposed limit",
@@ -214,25 +280,26 @@ def _tiers_slide(ctx, t, kind):
     if not rows:
         todo(s, "no eligible account carries a proposed limit.")
         return s
-    top = max(r[0] for r in rows)
-    bands = [(0, 0)] + [(lo + 1 if lo else 1, lo + 250) for lo in range(0, int(top), 250)]
-    data = [["Proposed limit", "Accounts", "% of accts", "Avg deposit $ (33d)"]]
-    for lo, hi in bands:
-        g = [r for r in rows if lo <= r[0] <= hi]
-        if not g:
-            continue
-        n = sum(r[1] for r in g)
-        dep = sum((r[3] or 0) * r[1] for r in g) / n if n else None
-        data.append(["$0" if hi == 0 else f"${lo:,}–${hi:,}", n_(n), pct(n / tt["base_n"]), usd(dep)])
-    add_table(s, 0.6, 1.75, 7.2, min(4.3, 0.3 * len(data)), data, [2.4, 1.4, 1.4, 2.0], fs=11)
+    data = [["Proposed limit", "Accounts", "% of accts", "Avg deposit $", "Median deposit $"]]
+    labels, counts = [], []
+    for hi, lo, n, share, avg, med in tt.get("bands") or []:
+        labels.append("$0" if hi == 0 else f"${hi:,}")
+        counts.append(n)
+        data.append(["$0" if hi == 0 else f"${lo + 1:,}–${hi:,}", n_(n), pct(share), usd(avg), usd(med)])
     zero = next((r for r in rows if r[0] == 0), None)
     mx = rows[-1]
-    tile(s, 8.3, 1.85, 4.4, 1.25, n_(mx[1]), f"reach the ${mx[0]:,.0f} maximum (avg deposits {usd(mx[3])})")
+    chart(s, 0.6, 1.65, 6.6, 4.3, labels, [("Accounts", counts)], title="Eligible accounts by proposed limit (band top)",
+          highlight=tuple(i for i in (0, len(labels) - 1) if labels))
+    add_table(s, 7.45, 1.75, 5.3, min(4.2, 0.3 * len(data)), data, [1.6, 1.0, 0.9, 1.0, 1.1], fs=9.5)
+    if zero and len(zero) > 4:
+        data_med = (f"; medians {usd(mx[4])} and {usd(zero[4])}")
+    else:
+        data_med = ""
     if zero:
-        tile(s, 8.3, 3.3, 4.4, 1.25, n_(zero[1]), f"get a $0 limit (avg deposits {usd(zero[3])})")
-    if zero:
-        say(s, f"Accounts at the ${mx[0]:,.0f} maximum average {usd(mx[3])} in deposits over 33 days; accounts at "
-               f"$0 average {usd(zero[3])}. The limit follows the deposit relationship.", top=6.15, size=12)
+        say(s, f"{accts(mx[1])} {'reaches' if mx[1] == 1 else 'reach'} the ${mx[0]:,.0f} maximum and average "
+               f"{usd(mx[3])} in deposits over 33 days; {accts(zero[1])} {'gets' if zero[1] == 1 else 'get'} $0 and "
+               f"average {usd(zero[3])}{data_med}. The limit follows the deposit relationship.",
+            top=6.15, size=12)
     return s
 
 
@@ -246,8 +313,9 @@ def ch_personal(ctx):
     out.append(s)
     s = content(ctx, "Personal — Change in Score", "Eligible personal accounts: what happens to each limit under ILS",
                 _src(pack, "eligible personal accounts by UpOrDown from Initial OD Limit"))
-    review_table(s, t["personal_change"])
-    say(s, _change_note(t["personal_change"], "personal"), top=5.4, size=13, h=0.9)
+    review_table(s, t["personal_change"], height=1.5)
+    _share_chart(s, t["personal_change"])
+    say(s, _change_note(t["personal_change"], "personal"), top=6.1, size=12, h=0.6)
     out.append(s)
     out.append(_tiers_slide(ctx, t, "personal"))
     s = content(ctx, "Reg E Opt In", "Eligible personal accounts: opted in, opted out and blank",
@@ -270,12 +338,18 @@ def ch_personal(ctx):
     yr = t["rege_by_year"]
     s = content(ctx, "Reg E Opt In by Year Opened", "Eligible personal accounts, opt-in rate by year the account opened",
                 _src(pack, "eligible personal accounts by Open Date and Reg-E Opt-In Value"))
-    rows = [["Opened", "Opted in", "Opted out", "Blank", "Accounts", "Opt-in rate"]] + \
-           [[r[0], n_(r[1]), n_(r[2]), n_(r[3]), n_(r[4]), pct(r[5])] for r in yr["rows"] if not str(r[0])[:3].isalpha() or len(str(r[0])) == 4] + \
-           [[yr["total"][0], n_(yr["total"][1]), n_(yr["total"][2]), n_(yr["total"][3]), n_(yr["total"][4]), pct(yr["total"][5])]]
-    rows = rows[:1] + rows[1:][-16:]
-    add_table(s, 0.6, 1.7, 8.6, min(4.4, 0.27 * len(rows)), rows, [1.8, 1.3, 1.3, 1.1, 1.4, 1.4], fs=9.5,
-              highlight=(len(rows) - 1,))
+    years = [r for r in yr["rows"] if str(r[0]) == "Pre-2010" or str(r[0]).isdigit()]
+    months = [r for r in yr["rows"] if r not in years]
+    if years:
+        chart(s, 0.6, 1.65, 7.9, 4.2, [r[0] for r in years], [("Opt-in rate", [r[5] for r in years])], fmt='0%',
+              title="Reg E opt-in rate by year the account opened", highlight=(len(years) - 1,))
+    rows = [["Opened", "Opted in", "Accounts", "Opt-in rate"]] + [[r[0], n_(r[1]), n_(r[4]), pct(r[5])] for r in months] + \
+           [[yr["total"][0], n_(yr["total"][1]), n_(yr["total"][4]), pct(yr["total"][5])]]
+    add_table(s, 8.75, 1.75, 4.0, min(4.2, 0.28 * len(rows)), rows, [1.4, 0.9, 0.9, 0.9], fs=9, highlight=(len(rows) - 1,))
+    if years:
+        old, new = years[0], years[-1]
+        say(s, f"Accounts opened {old[0]} opted in at {pct(old[5])}; accounts opened in {new[0]} at {pct(new[5])}. "
+               f"New-account onboarding is where the Reg E opportunity is.", top=6.1, size=12)
     out.append(s)
     return out
 
@@ -290,9 +364,10 @@ def ch_business(ctx):
     out.append(s)
     s = content(ctx, "Business — Change in Score", "Eligible business accounts: what happens to each limit under ILS",
                 _src(pack, "eligible business accounts by UpOrDown"))
-    review_table(s, t["business_change"])
+    review_table(s, t["business_change"], height=1.5)
+    _share_chart(s, t["business_change"])
     say(s, _change_note(t["business_change"], "business") +
-        " All business accounts should be opted in to Reg E.", top=5.4, size=13, h=0.9)
+        " All business accounts should be opted in to Reg E.", top=6.1, size=12, h=0.6)
     out.append(s)
     out.append(_tiers_slide(ctx, t, "business"))
     return out
@@ -380,15 +455,107 @@ def ch_program(ctx):
     add_table(s2, 0.6, 1.8, 10.0, 0.42 * len(rows), rows, [3.2, 1.3, 1.3, 1.4, 1.5, 1.3], fs=12,
               highlight=(len(rows) - 1,))
     tile(s2, 0.6, 4.2, 4.6, 1.3, usd(nt["revenue_annualized"]), "annualized fee revenue from the notice items")
-    s3 = content(ctx, "Daily Fee Cap & De Minimis", "What each Velocity recommendation would waive, on its own", src
-                 + " Each scenario stands alone; they overlap and are not added.")
-    rows = [["Scenario", "Fees waived", f"$ waived ({nt['days']} days)", "$ waived a year", "% of revenue"]] + [
-        [r[0], n_(r[1]), usd(r[2]), usd(r[3]), pct(r[4])] for r in nt["scenarios"]]
-    add_table(s3, 0.6, 1.8, 10.6, 0.42 * len(rows), rows, [3.4, 1.5, 2.0, 2.0, 1.5], fs=12)
+    out = [s, s2]
+    if nt.get("cap_curve"):
+        out += [_cap_slide(ctx, nt, src), _de_minimis_slide(ctx, nt, src), _pricing_slide(ctx, nt, src)]
+    return out
+
+
+def _curve_rows(curve, label):
+    return [[label(r[0]), n_(r[1]), n_(r[2]), usd(r[4]), pct(r[5])] for r in curve]
+
+
+def _cap_slide(ctx, nt, src):
+    s = content(ctx, "Daily Fee Cap", f"How many fees an account pays in one day, and what each cap returns ({nt['days']} days)",
+                src + " A cap waives every fee past the Nth on one account in one day.")
+    dist = nt["per_day_dist"]
+    chart(s, 0.6, 1.6, 6.1, 3.0, [r[0] for r in dist], [("Account-days", [r[1] for r in dist])],
+          title="Account-days by fees charged that day", highlight=tuple(i for i, r in enumerate(dist) if r[0] in ("4", "5", "6")))
+    cc = nt["cap_curve"]
+    chart(s, 6.85, 1.6, 5.9, 3.0, [str(r[0]) for r in cc], [("Waived a year", [r[4] for r in cc])], fmt='$#,##0',
+          title="Fees returned to members a year, by cap", highlight=tuple(i for i, r in enumerate(cc) if 4 <= r[0] <= 6))
+    rows = [["Cap", "Fees waived", "Accounts helped", "Waived a year", "% of revenue"]] + \
+        _curve_rows([r for r in cc if 3 <= r[0] <= 8], lambda c: f"{c} fees a day")
+    add_table(s, 0.6, 4.75, 8.2, 0.26 * len(rows), rows, [2.0, 1.4, 1.6, 1.6, 1.4], fs=9.5,
+              highlight=tuple(i for i, r in enumerate(rows) if r[0] in ("4 fees a day", "5 fees a day", "6 fees a day")))
+    c4, c6 = next(r for r in cc if r[0] == 4), next(r for r in cc if r[0] == 6)
+    one = dist[0][1] if dist else 0
+    tot = sum(r[1] for r in dist) or 1
+    textbox(s, 9.0, 4.8, 3.75, 1.5, f"{pct(one / tot, 0)} of fee days carry one fee. A 4–6 cap returns "
+                f"{usd(c6[4])}–{usd(c4[4])} a year ({pct(c6[5])}–{pct(c4[5])} of fees) to the {n_(c6[2])}–{n_(c4[2])} "
+                f"accounts hit hardest.", 12, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    return s
+
+
+def _de_minimis_slide(ctx, nt, src):
+    s = content(ctx, "De Minimis Waivers", "Small items and small overdrafts: what a waiver would return",
+                src + " A transaction de minimis waives the fee on an item of $X or less; a balance de minimis waives it "
+                      "when the item leaves the account overdrawn by $X or less.")
+    ab, bb = nt["amount_bands"], nt["balance_bands"]
+    chart(s, 0.6, 1.6, 6.1, 2.9, [r[0] for r in ab], [("Fee items", [r[1] for r in ab])],
+          title="Fee items by item amount", highlight=(0,))
+    chart(s, 6.85, 1.6, 5.9, 2.9, [r[0] for r in bb], [("Fee items", [r[1] for r in bb])],
+          title="Fee items by how far overdrawn", highlight=(0, 1))
+    tx = [["Transaction de minimis", "Fees waived", "Accounts", "Waived a year", "% of rev."]] + \
+        _curve_rows(nt["txn_curve"], lambda x: f"${x} or less")
+    bl = [["Balance de minimis", "Fees waived", "Accounts", "Waived a year", "% of rev."]] + \
+        _curve_rows(nt["bal_curve"], lambda x: f"${x} or less")
+    add_table(s, 0.6, 4.65, 6.1, 0.24 * len(tx), tx, [1.9, 1.0, 1.0, 1.2, 0.9], fs=9,
+              highlight=tuple(i for i, r in enumerate(tx) if r[0] == "$2 or less"))
+    add_table(s, 6.85, 4.65, 5.9, 0.24 * len(bl), bl, [1.8, 1.0, 1.0, 1.2, 0.9], fs=9,
+              highlight=tuple(i for i, r in enumerate(bl) if r[0] in ("$5 or less", "$10 or less")))
     if nt.get("outliers"):
-        say(s3, f"{nt['outliers']} items carry an ending balance beyond ±$9,999 (down to {usd(nt['outlier_min_balance'])}); "
-                f"confirm them before quoting the balance de minimis.", top=5.6, size=12)
-    return [s, s2, s3]
+        textbox(s, 0.62, 6.35, 11.4, 0.4, f"{nt['outliers']} items carry an ending balance beyond ±$9,999 (down to "
+                f"{usd(nt['outlier_min_balance'])}); confirm them before quoting the balance de minimis.",
+                10, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    return s
+
+
+def _pricing_slide(ctx, nt, src):
+    """The cap and the de minimis together, and the OD fee that would hold today's revenue."""
+    pack = ctx.pack
+    s = content(ctx, "Finding the Right Structure", "The cap and de minimis together, and the fee that holds revenue",
+                src + " Applied together: a de minimis item is not charged, so it does not count toward the day's cap. "
+                      "The fee that holds revenue scales today's fees by the revenue each structure keeps.")
+    od_fee = (nt.get("fee_per_item") or {}).get("PD")
+    cols = [(0, 0, "No de minimis"), (0, 5, "$5 balance"), (0, 10, "$10 balance"), (2, 0, "$2 transaction"),
+            (2, 5, "$2 txn + $5 bal"), (2, 10, "$2 txn + $10 bal")]
+    by = {(r[1], r[2], r[3]): r for r in nt["grid"]}
+    rows = [["Daily cap"] + [c[2] for c in cols]]
+    hi_cells = []
+    for i, cap in enumerate((0, 4, 5, 6), 1):
+        line = ["No cap" if not cap else f"{cap} fees a day"]
+        for j, (tx, bal, _) in enumerate(cols, 1):
+            r = by.get((cap, tx, bal))
+            line.append("–" if not r else (f"{usd(r[5])}  ({pct(r[6])})" if r[5] else "today"))
+            if r and r[9]:
+                hi_cells.append((i, j))
+        rows.append(line)
+    gf = add_table(s, 0.6, 1.7, 12.15, 1.9, rows, [1.6, 1.75, 1.75, 1.75, 1.75, 1.8, 1.8], fs=10.5)
+    from pptx.dml.color import RGBColor  # noqa: F401
+    import brand as _b
+    for i, j in hi_cells:
+        c = gf.table.cell(i, j)
+        c.fill.solid()
+        c.fill.fore_color.rgb = _b.ORANGE_RGB
+        for p in c.text_frame.paragraphs:
+            for run in p.runs:
+                run.font.color.rgb = _b.WHITE_RGB if hasattr(_b, "WHITE_RGB") else NAVY_RGB
+                run.font.bold = True
+    guided = sorted((r for r in nt["grid"] if r[9]), key=lambda r: r[5])
+    if guided:
+        lo, hi = guided[0], guided[-1]
+        cats = [r[0].replace(" transaction", " txn").replace(" balance", " bal") for r in guided]
+        chart(s, 0.6, 3.8, 7.6, 2.3, cats, [("Returned to members a year", [r[5] for r in guided])], fmt='$#,##0',
+              title="Within Velocity guidance: returned to members a year")
+        fee_txt = ""
+        if od_fee:
+            fee_txt = (f" Holding today's revenue would take an OD fee of ${od_fee * lo[8]:,.2f}–${od_fee * hi[8]:,.2f} "
+                       f"instead of ${od_fee:,.2f}.")
+        textbox(s, 8.45, 3.85, 4.3, 2.4, f"Velocity's guidance (orange) returns {usd(lo[5])}–{usd(hi[5])} a year to "
+                f"members, {pct(lo[6])}–{pct(hi[6])} of fee revenue.{fee_txt} The CSM and the client choose the "
+                f"structure; these are the trade-offs.", 12, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    return s
 
 
 def ch_summary(ctx):

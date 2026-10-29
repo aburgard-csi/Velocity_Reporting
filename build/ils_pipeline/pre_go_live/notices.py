@@ -62,6 +62,97 @@ def _r(v, d=2):
     return round(float(v), d)
 
 
+CAP_CURVE = range(1, 11)
+TXN_CURVE = (1, 2, 3, 5, 10)
+BAL_CURVE = (5, 10, 15, 20, 25, 50)
+AMOUNT_BANDS = ((0, 2, "$2 or less"), (2, 5, "$2–$5"), (5, 10, "$5–$10"), (10, 25, "$10–$25"),
+                (25, 50, "$25–$50"), (50, 100, "$50–$100"), (100, float("inf"), "Over $100"))
+BALANCE_BANDS = ((5, "$5 or less"), (10, "$5–$10"), (25, "$10–$25"), (50, "$25–$50"), (100, "$50–$100"),
+                 (500, "$100–$500"), (float("inf"), "Over $500"))
+# The combined grid: each combination of a daily cap, a transaction and a balance de minimis, applied
+# together to the same items (de minimis first: a waived item is not charged, so it does not count toward the
+# day's cap). Velocity's guidance is a cap of 4-6 fees a day, a $2 transaction and a $5-$10 balance de minimis.
+GRID_CAPS = (None, 4, 5, 6)
+GRID_TXN = (0, 2)
+GRID_BAL = (0, 5, 10)
+
+
+def _pricing(charged, nth, per_day, total_fee, year):
+    """The daily-cap and de minimis curves, and the combined grid with the fee that holds revenue."""
+    def share(x):
+        return _r(x / total_fee, 4) if total_fee else None
+
+    days = per_day.value_counts().sort_index()
+    fee_by_n = charged.assign(n=charged.groupby([charged["acct"], charged["date"].dt.date])["fee"].transform("size"))
+    per_day_dist = []
+    for n_, cnt in days.items():
+        lbl = str(n_) if n_ < 10 else "10+"
+        if per_day_dist and per_day_dist[-1][0] == "10+":
+            per_day_dist[-1][1] += int(cnt)
+            continue
+        dollars = float(fee_by_n.loc[(fee_by_n["n"] >= 10) if n_ >= 10 else (fee_by_n["n"] == n_), "fee"].sum())
+        per_day_dist.append([lbl, int(cnt), _r(dollars)])
+
+    cap_curve = []
+    for cap in CAP_CURVE:
+        w = charged[nth > cap]
+        cap_curve.append([cap, len(w), int(w["acct"].nunique()), _r(w["fee"].sum()), _r(w["fee"].sum() * year),
+                          share(w["fee"].sum())])
+    txn_curve = []
+    for x in TXN_CURVE:
+        w = charged[charged["amount"] <= x]
+        txn_curve.append([x, len(w), int(w["acct"].nunique()), _r(w["fee"].sum()), _r(w["fee"].sum() * year),
+                          share(w["fee"].sum())])
+    bal_curve = []
+    for x in BAL_CURVE:
+        w = charged[(charged["balance"] >= -x) & (charged["balance"] < 0)]
+        bal_curve.append([x, len(w), int(w["acct"].nunique()), _r(w["fee"].sum()), _r(w["fee"].sum() * year),
+                          share(w["fee"].sum())])
+    amount_bands = []
+    for lo, hi, lbl in AMOUNT_BANDS:
+        g = charged[(charged["amount"] > lo) & (charged["amount"] <= hi)] if lo else charged[charged["amount"] <= hi]
+        amount_bands.append([lbl, len(g), _r(g["fee"].sum())])
+    over = -charged["balance"]
+    balance_bands, lo = [], 0
+    for hi, lbl in BALANCE_BANDS:
+        g = charged[(over > lo) & (over <= hi)]
+        balance_bands.append([lbl, len(g), _r(g["fee"].sum())])
+        lo = hi
+
+    grid = []
+    base_items = len(charged)
+    for cap in GRID_CAPS:
+        for tx in GRID_TXN:
+            for bal in GRID_BAL:
+                waive = pd.Series(False, index=charged.index)
+                if tx:
+                    waive |= charged["amount"] <= tx
+                if bal:
+                    waive |= (charged["balance"] >= -bal) & (charged["balance"] < 0)
+                kept = charged[~waive]
+                if cap:
+                    k_nth = kept.groupby([kept["acct"], kept["date"].dt.date]).cumcount() + 1
+                    kept = kept[k_nth <= cap]
+                kept_fee = float(kept["fee"].sum())
+                relief = total_fee - kept_fee
+                # the uniform fee multiplier that brings the kept items back to today's revenue
+                mult = (total_fee / kept_fee) if kept_fee else None
+                name = ", ".join(p for p in (f"cap {cap}" if cap else "", f"${tx} transaction" if tx else "",
+                                             f"${bal} balance" if bal else "") if p) or "Today (no cap, no de minimis)"
+                guided = bool(cap and 4 <= cap <= 6 and tx == 2 and bal in (5, 10))
+                grid.append([name, cap or 0, tx, bal, base_items - len(kept), _r(relief * year), share(relief),
+                             _r(kept_fee * year), _r(mult, 4) if mult else None, guided])
+    return {"per_day_dist": per_day_dist, "per_day_columns": ["fees_in_one_day", "account_days", "fee_dollars"],
+            "cap_curve": cap_curve, "txn_curve": txn_curve, "bal_curve": bal_curve,
+            "curve_columns": ["threshold", "fees_waived", "accounts_helped", "dollars_waived",
+                              "dollars_waived_annualized", "pct_of_revenue"],
+            "amount_bands": amount_bands, "balance_bands": balance_bands,
+            "bands_columns": ["band", "fee_items", "fee_dollars"],
+            "grid": grid, "grid_columns": ["structure", "cap", "txn_de_minimis", "balance_de_minimis", "fees_waived",
+                                           "relief_annualized", "pct_of_revenue", "revenue_annualized",
+                                           "revenue_neutral_multiplier", "within_velocity_guidance"]}
+
+
 def compute(folder, warn=lambda m: None) -> dict:
     path = find(folder)
     if path is None:
@@ -105,8 +196,10 @@ def compute(folder, warn=lambda m: None) -> dict:
         scenarios.append([f"Balance de minimis ${x}", len(w), _r(w["fee"].sum()), _r(w["fee"].sum() * year),
                           _r(w["fee"].sum() / total_fee, 4) if total_fee else None])
 
+    extra = _pricing(charged, nth, per_day, total_fee, year)
+
     outliers = d[d["balance"].abs() > OUTLIER]
-    out = {"file": path.name, "first": str(first.date()), "last": str(last.date()), "days": days,
+    out = {**extra, "file": path.name, "first": str(first.date()), "last": str(last.date()), "days": days,
            "items": total_items, "accounts": int(d["acct"].nunique()), "revenue": _r(total_fee),
            "revenue_annualized": _r(total_fee * year),
            "fee_per_item": {code: _r(d.loc[(d["status"] == code) & (d["fee"] > 0), "fee"].median())

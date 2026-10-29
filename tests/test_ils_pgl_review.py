@@ -84,3 +84,13 @@ def test_each_table_is_written_with_its_columns():
     assert out["pgl_review_personal_od_columns"] == review.COLUMNS
     assert out["pgl_review_personal_tiers_columns"] == review.TIER_COLUMNS
     assert out["pgl_review_status"][-1][0] == "Grand Total"
+
+
+def test_every_row_carries_the_median_deposit_beside_the_average():
+    t = _t()
+    assert review.COLUMNS[-1] == "median_deposit_dollars_33d"
+    e = _rows(t, "personal_change")["Same"]          # deposits 1000 (eligible) and the NOT ODP row is out
+    assert e[10] == e[13] == 1000.0
+    bands = {b[0]: b for b in t["personal_tiers"]["bands"]}
+    assert bands[250][2] == 1 and bands[500][2] == 2      # limits 100 | 300, 500
+    assert bands[500][5] == 600.0                          # the median of its own accounts' deposits (200, 1000)

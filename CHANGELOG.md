@@ -21,6 +21,30 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ILS pre-go-live: median deposits, charts, and the fee chapter as cap, de minimis and combined pricing
+
+Summary: every review table now shows the median deposit beside the average. The deck draws native PowerPoint charts on its key slides, and the fee chapter is three slides: the daily fee cap, de minimis waivers, and "Finding the Right Structure", which combines them and shows the OD fee that would hold revenue.
+
+James Gilmore, 2026-10-28: "we should also do median deposit, not just average"; "some better visualizations"; "the daily fee cap scenario to be its own slide"; "de minimis to be its own scenario slide"; "a combined (analysis to find optimal pricing) as a third slide that brings the previous two together".
+
+**Median deposits.** Each review row ends with the median deposit $ over 33 days, so no earlier column moves and the 1616 workbook check still holds. The limit-tier slide's $250 bands are computed from the accounts in each band, because a median cannot be combined from the tiers inside it.
+
+**Charts** are native PowerPoint, in navy with the focus bars in orange:
+
+- change in score: share of accounts against share of NSF/OD items;
+- proposed limits: accounts by band, $0 and the maximum highlighted;
+- Reg E opt-in rate by year opened.
+
+**The fee chapter**, from the raw notice items (`pre_go_live/notices.py`):
+
+- **Daily fee cap:** account-days by the number of fees charged that day, and the fees returned a year at every cap from 1 to 10. The table covers caps 3 to 8, with Velocity's 4–6 highlighted.
+- **De minimis waivers:** fee items by item amount and by how far overdrawn, with the transaction ($1–$10) and balance ($5–$50) curves.
+- **Finding the Right Structure:** every combination of no cap or a cap of 4, 5 or 6, a $2 transaction de minimis and a $5 or $10 balance de minimis, applied together. A de minimis item is not charged, so it does not count toward the day's cap. The slide shows what each combination returns to members a year, its share of fees, and the OD fee that would hold today's revenue, with Velocity's guidance highlighted.
+
+**On 1759's 119 days:** 82% of fee days carry one fee. A 4–6 cap returns $4,279–$17,244 a year. Velocity's full guidance returns $31,323–$50,591 a year (1.5%–2.4% of fees), and holding revenue would take an OD fee of $27.41–$27.67 instead of $27.00.
+
+`tests/test_ils_pgl_review.py` and `tests/test_ils_pgl_sheila_deck.py` add 2 tests. Both test decks pass `validate_deck` with 0 FAIL and 0 REVIEW.
+
 ### 2026-10-28 — The ILS Pre-go-live card takes the deck's CSM inputs
 
 Summary: the ILS Pre-go-live card in Sheila has a new "Deck inputs" section where the CSM enters what only they can tell the deck. It is saved per client, and every Build reads it.

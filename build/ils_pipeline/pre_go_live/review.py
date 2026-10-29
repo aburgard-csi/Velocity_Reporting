@@ -41,8 +41,8 @@ OPENED = "Open Date"
 
 COLUMNS = ["group", "accounts", "pct_of_accounts", "items_since_import", "pct_of_items", "paid_items",
            "pay_ratio", "avg_core_limit", "avg_ils_limit", "avg_deposit_count_33d", "avg_deposit_dollars_33d",
-           "decline_count", "decline_dollars"]
-TIER_COLUMNS = ["ils_limit_tier", "accounts", "pct_of_accounts", "avg_deposit_dollars_33d"]
+           "decline_count", "decline_dollars", "median_deposit_dollars_33d"]
+TIER_COLUMNS = ["ils_limit_tier", "accounts", "pct_of_accounts", "avg_deposit_dollars_33d", "median_deposit_dollars_33d"]
 YEAR_COLUMNS = ["opened", "rege_y", "rege_n", "rege_blank", "accounts", "opt_in_rate"]
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -56,6 +56,11 @@ def _mean(s):
     return round(float(s.mean()), 2) if len(s) else None
 
 
+def _median(s):
+    s = s.dropna()
+    return round(float(s.median()), 2) if len(s) else None
+
+
 def _row(label, g, base_n, base_items):
     items, paid = float(_num(g, ITEMS).sum()), float(_num(g, PAID).sum())
     base_items = float(base_items)
@@ -64,7 +69,7 @@ def _row(label, g, base_n, base_items):
             int(items), round(items / base_items, 4) if base_items else None, int(paid),
             round(paid / items, 4) if items else None,
             _mean(_num(g, CORE)), _mean(_num(g, ILS)), _mean(_num(g, DEP_N)), _mean(_num(g, DEP_D)),
-            int(_num(g, DEC_N).sum()), round(float(_num(g, DEC_D).sum()), 2)]
+            int(_num(g, DEC_N).sum()), round(float(_num(g, DEC_D).sum()), 2), _median(_num(g, DEP_D))]
 
 
 def _cut(df, by, order=None, blocks=None):
@@ -94,9 +99,24 @@ def _tiers(df, step):
     rows = []
     for t in sorted(tier.dropna().unique()):
         g = df[tier == t]
-        rows.append([int(t), len(g), round(len(g) / n, 4) if n else None, _mean(_num(g, DEP_D))])
-    return {"rows": rows, "total": ["Grand Total", n, 1.0 if n else None, _mean(_num(df, DEP_D))], "base_n": n,
+        rows.append([int(t), len(g), round(len(g) / n, 4) if n else None, _mean(_num(g, DEP_D)),
+                     _median(_num(g, DEP_D))])
+    # $250 bands for the slide, each with the median of its own accounts (medians cannot be combined from tiers)
+    bands = []
+    top = float(lim.max()) if lim.notna().any() else 0.0
+    edges = [(0, 0)] + [(lo, lo + BAND) for lo in range(0, int(top), BAND)]
+    for lo, hi in edges:
+        m = (lim == 0) if hi == 0 else (lim > lo) & (lim <= hi)
+        g = df[m.fillna(False)]
+        if len(g):
+            bands.append([int(hi), int(lo), len(g), round(len(g) / n, 4) if n else None, _mean(_num(g, DEP_D)),
+                          _median(_num(g, DEP_D))])
+    return {"rows": rows, "total": ["Grand Total", n, 1.0 if n else None, _mean(_num(df, DEP_D)), _median(_num(df, DEP_D))],
+            "base_n": n, "bands": bands,
             "step": step, "no_limit": int(lim.isna().sum())}
+
+
+BAND = 250
 
 
 def _by_year(df):
