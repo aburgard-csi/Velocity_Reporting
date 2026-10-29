@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — ILS pre-go-live: core limits against ILS limits, and the fee chapter names its notice window
+
+Summary: the PGL deck now sets the core's overdraft limits against the limits ILS proposes, personal and business, two slides each, before the limit tiers. The fee chapter says it is built on N days of notice items, and every yearly fee figure is marked as an estimate.
+
+James Gilmore, 2026-10-28: "also need to compare the ILS limit with the core limit / we are trying to show their current system is inefficient compared to ILS limits", and "i know i dont have a full year of notice data, is it annualized? or can we note its only X months?"
+
+- **Core Limits vs ILS** (`insights.core_vs_ils`, on the open, eligible base): the average core limit and the average ILS limit by deposit quintile (each labelled with its median 33-day deposit), the share of accounts at the core's most common limit, and how closely each limit follows deposits (Pearson correlation, −1 to 1). 1759 personal: 91% at $500; the core moves $476 to $493 from the bottom fifth of depositors to the top, ILS $48 to $1,698; correlation 0.06 core, 0.44 ILS.
+- **Where the Core Limit Misses**: core limit against ILS limit on accounts with no deposits in 33 days, depositors at or above the median held at the core's typical limit or less, total limit, the share of returned items (items less paid) and debit declines on accounts ILS would raise, and a core band × ILS band table. 1759 personal: $823,450 of core limit on 1,647 no-deposit accounts against $7,725 on 17; 4,954 depositors held at $500 or less whose ILS average is $1,633; 92% of returned items and 89% of declines on accounts ILS raises.
+- A base of fewer than 5 accounts cannot be split into fifths: the quintile slide is left out and the second slide stands. A single account gives no correlation.
+- **Notice window**: on the fee chapter the pill reads the notice items' own dates ("Notices 7/1–10/27/26"), not the extract's; the baseline slide says the items cover "Jul 1 – Oct 27, 2026: 119 days (3.9 months)", that yearly figures are those days × 365/119 (×3.07) and assume the rest of the year looks the same (seasonality can move it either way); every yearly column and chart title carries "(est.)". No figure moved: the annualizing was already 365/days.
+
 ### 2026-10-28 — ILS pre-go-live: an Opportunities & Risks chapter, and fees by transaction type
 
 Summary: the PGL deck has a new Opportunities & Risks chapter of eight slides from the extract, and the fee chapter shows the notice items by transaction type. Each slide names its base, and the decline scenario is labelled as one.
