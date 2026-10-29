@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — the PGL deck ends on the project timeline
+
+Summary: the pre-go-live deck has an "ILS Configuration & Project Timeline" slide in the Summary & Next Steps chapter, just before Questions & Discussion. It takes the place of the plain "Key Decisions and Dates" table that opened the Partnership chapter. It's laid out like the Velocity "ILS Configuration & Project Timeline/Next Steps" slide, drawn in our frame.
+
+James Gilmore, 2026-10-29: "the PGL should have a timeline slide like this, in our format."
+
+- **Rows** come from the card's key dates, entered one per line as `milestone | date | done or at risk`. The status part is optional. If the field is left empty, the slide lists the Velocity project plan's 14 standard milestones with every date TBD, plus a "to be completed" line.
+- **Highlighting:** the ILS Pre Go-Live Analysis row is highlighted because it's this meeting. A milestone marked done carries a check and "Complete". One marked at risk is red.
+- Dates are text as the CSM types them, such as "In Process" or "11/11/25 - onward". Nothing is computed from them.
+
 ### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
 
 Summary: a finished ILS deck run from Sheila (pre-go-live or kickoff) is now copied to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-PGL-<client> ILS Pre-Go-Live Review.pptx` or `...-ILS-KO-<client> ILS Kickoff.pptx`. The run's own folder under Build Artifacts keeps its copy, its metrics and its report.

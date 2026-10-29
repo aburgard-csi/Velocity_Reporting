@@ -145,7 +145,7 @@ function ilsInputsHtml(c) {
   const filled = [dates, od, v.data_notes].some(Boolean) || Object.values(prog).some(Boolean);
   return `<details class="ilsinputs"${filled ? "" : " open"}><summary>Deck inputs — key dates, current program, data notes, OD code descriptions${v.saved ? ` <span class="sub">(saved ${esc(v.saved)}${v.by ? " by " + esc(v.by) : ""})</span>` : ""}</summary>
     <div class="ilsin">
-      ${field("key_dates", "Key decisions and dates", "one per line: milestone | date", dates, true)}
+      ${field("key_dates", "Key decisions and dates", "one per line: milestone | date | done or at risk (optional). Left empty, the timeline slide lists the standard ILS milestones as TBD", dates, true)}
       ${Object.entries(ILS_PROGRAM).map(([k, lbl]) => field("p_" + k, lbl, "", prog[k])).join("")}
       ${field("data_notes", "Notes on the data", "date range, codes still needing descriptions, First Notice File observations", v.data_notes, true)}
       ${field("od", "OD code descriptions", "one per line: code = description (used where the matrix has none)", od, true)}
