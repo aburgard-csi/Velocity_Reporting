@@ -1705,139 +1705,33 @@ def mark_issue(cid, key, done):
 # slide list (ARS, ICS, MRPC, CashPlease, Transaction Intelligence, ARS Companion); the Summary is per program. The
 # list is read from the newest decks of that program in Outputs. The record (one JSON file per vote under
 # Build Artifacts/slide_votes/) and the counting are in slide_votes.py; the tab's page is in slide_review_ui.py.
-# The lists live on disk (Build Artifacts/slide_votes/program_lists.json) with the time they were built, and
-# each deck's slides are read once per landing into a cache every copy of Sheila shares (slide_votes). The page
-# gets the last lists at once; a list older than VOTES_TTL is rebuilt in the background and served on the next
-# read; "Refresh" rebuilds it now (Aaron, 2026-10-28: "this is really slow ... build the slide list ... and cache
-# it"). `python scripts/slide_votes.py lists` builds them from the command line.
-VOTES_TTL = 600
-REFERENCE_DECKS = 3            # a program's list is the union of its newest few decks, so a short one loses nothing
-# (A Transaction Intelligence headline carries one client's own findings, so TI and the Companion read one deck, the newest.)
-_votes_listing = {"at": 0.0, "period": None, "doc": None, "thread": None, "error": None}
-
-
-def votes_listing(period):
-    """[(path, client id, kind)] for the cycle in Outputs, newest first, every kind: Executive Review, TI, Companion."""
-    found = []
-    for p in R.output_decks(f"*-{period}-*.pptx"):
-        parsed = SV.parse_deck(p.name)
-        if parsed and not p.name.startswith("~$"):
-            try:
-                found.append((p.stat().st_mtime, p, parsed[0], parsed[2]))
-            except OSError:
-                pass
-    return [(p, cid, kind) for _, p, cid, kind in sorted(found, key=lambda t: t[0], reverse=True)]
-
-
-def votes_build_lists(period):
-    """Every program's list for the period, from the decks in Outputs, written to disk. The slow step."""
-    listing = votes_listing(period)
-    names = _client_names()
-    doc = {"v": 1, "period": period, "built_at": SV._now(), "decks": len(listing),
-           "programs": {prog: _program_slides(prog, listing, names) for prog in SV.PROGRAMS}}
-    return SV.write_lists(doc)
-
-
-def _lists_age(doc):
-    import datetime as _dt
-    try:
-        built = _dt.datetime.strptime(doc["built_at"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=_dt.timezone.utc)
-        return (_dt.datetime.now(_dt.timezone.utc) - built).total_seconds()
-    except (KeyError, ValueError, TypeError):
-        return float("inf")
-
-
-def votes_lists(refresh=False):
-    """The program lists: from memory, else from disk, else built now. `refresh` builds now; a list older
-    than VOTES_TTL is rebuilt in the background and read next time."""
-    import threading as _th
-    period = current_period()
-    doc = _votes_listing["doc"] if _votes_listing["period"] == period else None
-    if doc is None:
-        doc = SV.read_lists()
-        if doc is not None and doc.get("period") != period:
-            doc = None
-    if refresh or doc is None:
-        doc = votes_build_lists(period)
-        _votes_listing["error"] = None
-    elif _lists_age(doc) > VOTES_TTL:
-        t = _votes_listing["thread"]
-        if t is None or not t.is_alive():
-            def run():
-                try:
-                    built = votes_build_lists(period)
-                    _votes_listing.update(doc=built, period=period, error=None)
-                except Exception as e:                       # noqa: BLE001 -- shown on the page, never raised
-                    _votes_listing["error"] = f"{type(e).__name__}: {e}"
-            t = _th.Thread(target=run, name="slide-lists", daemon=True)
-            _votes_listing["thread"] = t
-            t.start()
-    _votes_listing.update(doc=doc, period=period)
-    return doc
-
-
-def votes_lists_state():
-    t = _votes_listing["thread"]
-    doc = _votes_listing["doc"] or {}
-    return {"as_of": doc.get("built_at"), "decks": doc.get("decks", 0),
-            "refreshing": bool(t is not None and t.is_alive()), "error": _votes_listing["error"]}
-
-
-def _client_names():
-    try:
-        return {c["id"]: c.get("name", "") for c in (clients_doc().get("clients") or [])}
-    except (OSError, SystemExit, ValueError, KeyError):
-        return {}
+# The lists are the build process, not the decks (Aaron, 2026-10-29: "the decks all carry the same slides,
+# because they're all built using the same processes. We shouldn't need to scan the decks"): each program's
+# slides come from build/slide_inventory.py -- the template shell with the slides its builder adds, the
+# Transaction Intelligence register, the Companion's view titles -- read from the repo in well under a
+# second and never from Outputs. Nothing here touches the share.
+import slide_inventory as SI
 
 
 def votes_program_slides(program):
-    """The program's slides to elect on, from the lists on disk (votes_lists)."""
-    return list((votes_lists().get("programs") or {}).get(program) or [])
+    """The program's slides to elect on: [{n, title, source, key, deck}], in deck order."""
+    return [{"n": r["n"], "title": r["title"], "source": r["source"],
+             "key": program + "|" + SV.norm_title(r["title"]), "deck": r["source"]}
+            for r in SI.inventory().get(program, [])]
 
 
-def _program_slides(program, listing, names):
-    """The program's slides to elect on: [{n, title, source, key, deck}], in deck order, one per distinct title.
-
-    Read from the newest REFERENCE_DECKS decks in Outputs that carry the program. The client's name in a title
-    is shown as "the client", so a list read from one client's deck does not read as that client's."""
-    seen, out, used = set(), [], 0
-    for path, cid, kind in listing:
-        if program not in SV.deck_programs(kind):
-            continue
-        try:
-            slides = [s for s in SV.deck_slides(path) if s["program"] == program]
-        except Exception:
-            continue
-        if not slides:
-            continue
-        used += 1
-        for s in slides:
-            key = SV.norm_title(s["title"], names.get(cid, ""))
-            if key in seen:
-                continue
-            seen.add(key)
-            title = s["title"]
-            if names.get(cid) and len(names[cid]) > 2:
-                title = re.sub(re.escape(names[cid]), "the client", title, flags=re.I)
-            out.append({"n": len(out) + 1, "title": title, "source": s["source"], "key": program + "|" + key,
-                        "deck": path.name})
-        if used >= (1 if program in ("TI", "COMP") else REFERENCE_DECKS):
-            break
-    return out
-
-
-def votes_programs_doc(refresh=False):
+def votes_programs_doc():
     me = SV.whoami()
     votes = SV.read_votes()
-    lists = votes_lists(refresh=refresh)
     progs = []
     for prog in SV.PROGRAMS:
-        slides = list((lists.get("programs") or {}).get(prog) or [])
+        slides = votes_program_slides(prog)
         held = SV.mine(votes, me, prog)
         progs.append({"id": prog, "label": SV.PROGRAM_LABEL[prog], "slides": len(slides),
                       "voted": sum(1 for s in slides if (held.get(s["key"]) or {}).get("vote")),
                       "starred": sum(1 for s in slides if (held.get(s["key"]) or {}).get("star"))})
-    return dict(votes_lists_state(), period=current_period(), me=me, programs=progs)
+    return {"period": current_period(), "me": me, "programs": progs,
+            "from": "the templates and the builders, the same slides for every client"}
 
 
 def votes_program_doc(program):
@@ -1884,7 +1778,7 @@ def votes_route(handler, path, params):
     """GET /api/votes/<what>: the tab's reads. (The one POST, /api/votes/vote, is routed in do_POST.)"""
     program = params.get("program", "") if params.get("program", "") in SV.PROGRAMS else ""
     if path == "/api/votes/programs":
-        return handler._send(200, votes_programs_doc(refresh=params.get("refresh") == "1"))
+        return handler._send(200, votes_programs_doc())
     if path == "/api/votes/program":
         return handler._send(*votes_program_doc(str(params.get("program", ""))))
     if path == "/api/votes/summary":

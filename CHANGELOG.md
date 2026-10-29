@@ -21,6 +21,35 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — Slide Review lists the build's slides, never a client's deck
+
+Summary: The Slide Review tab's slide lists now come from the build itself: each program's template
+shell with the slides its builder adds, the Transaction Intelligence register, and the titles of the
+ARS Companion's views. Nothing is read from Outputs, so the tab opens at once, and the ICS list is
+always the full workbook shape rather than whatever the newest decks happened to carry.
+
+Aaron, 2026-10-29: "the decks all carry the same slides, because they're all built using the same
+processes. We shouldn't need to scan the decks"; "the ICS section should review a full list of slides
+where we have an ICS workbook, not the short list where we don't". `build/slide_inventory.py` is the
+one source: `template_titles` reads the four shells, `ADDED` splices each builder's slides where the
+builder anchors them (a lost anchor is stated, never silent), `ti_titles` reads `ti/slides.json`,
+`companion_titles` the James view modules. `ars_launcher_web.votes_program_slides` reads it; the lists
+cache, the Refresh link and the decks scan from 2026-10-28 are gone. `tests/test_slide_inventory.py`
+pins the lists and `tests/test_golden_deck.py` checks every slide the ARS builder produces is on it.
+
+### 2026-10-29 — Sheila: the ILS pre-go-live and kickoff cards fold under one line
+
+Summary: On a client's page in Sheila the ILS Pre-go-live and ILS Kickoff cards now sit under a single
+"ILS pre-go-live and kickoff" dropdown, closed unless the client has an extract landed, a run in
+progress or a deck built. Those reports are made once per client, so the open cards only showed
+"No extract yet" for almost everyone; the line now says what state each is in, and opening it shows
+the cards as before.
+
+Aaron, 2026-10-29: "put those behind a little dropdown on the build screen so we don't see errors 99% of
+the time." `ils_ui.ilsDraw` wraps the three cards in `details.ilsfold`, `ilsActive` decides the default,
+`ilsSummary` writes the line, and the open state a CSM chose survives the status redraw.
+`tests/test_sheila_ils.py` pins it.
+
 ### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
 
 Summary: a finished ILS deck run from Sheila (pre-go-live or kickoff) is now copied to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-PGL-<client> ILS Pre-Go-Live Review.pptx` or `...-ILS-KO-<client> ILS Kickoff.pptx`. The run's own folder under Build Artifacts keeps its copy, its metrics and its report.
