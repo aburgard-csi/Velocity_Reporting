@@ -113,3 +113,24 @@ def test_the_insights_are_computed_on_the_confirmed_codes():
     assert [r[1] for r in ins["days_od"]["rows"]][:3] == [3, 0, 1]
     assert ins["revenue_check"]["r12_fees_open"] == 375.0 and ins["revenue_check"]["gap_pct"] == 0.25
     assert ins["new_accounts"]["rows"][0][1] == 0 and sum(r[1] for r in ins["new_accounts"]["rows"]) == 4
+
+
+def test_core_limits_are_set_against_ils_limits_on_one_base():
+    from ils_pipeline.pre_go_live import insights
+    e = pd.DataFrame({review.CORE: [500, 500, 500, 500, 0], review.ILS: [0, 200, 500, 1000, 1500],
+                      review.DEP_D: [0, 100, 1000, 3000, 9000], review.ITEMS: [5, 2, 0, 4, 1],
+                      review.PAID: [0, 1, 0, 4, 0], review.DEC_N: [1, 2, 3, 4, 5]})
+    cv = insights.core_vs_ils(e)
+    assert [r[1] for r in cv["quintiles"]] == [1] * 5
+    assert cv["quintiles"][0][2:] == [0.0, 500.0, 0.0] and cv["quintiles"][-1][2:] == [9000.0, 0.0, 1500.0]
+    assert cv["typical_core"] == 500 and cv["typical_core_share"] == 0.8
+    assert (cv["nodep_core_dollars"], cv["nodep_core_accounts"], cv["nodep_ils_accounts"]) == (500.0, 1, 0)
+    assert cv["held_accounts"] == 3 and cv["held_ils_avg"] == 1000.0      # at or above the $1,000 median, core <= $500
+    assert (cv["returned"], cv["returned_raised"]) == (7, 1)                 # returned = items - paid
+    assert (cv["declines"], cv["declines_raised"]) == (15, 9)                # ILS above core on the last two
+    assert cv["corr_ils"] > 0 > cv["corr_core"]
+    assert cv["matrix"][2] == [1, 1, 1, 1, 0] and cv["matrix"][0] == [0, 0, 0, 0, 1]
+    assert (cv["core_total"], cv["ils_total"]) == (2000.0, 3200.0)
+    assert insights.core_vs_ils(e.iloc[:0]) == {}
+    small = insights.core_vs_ils(e.iloc[:3])                               # too few to split into fifths
+    assert small["quintiles"] == [] and small["accounts"] == 3

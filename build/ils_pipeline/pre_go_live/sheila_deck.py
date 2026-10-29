@@ -264,6 +264,66 @@ def _change_note(t, kind):
             f"capture rate.")
 
 
+def _core_ils_slides(ctx, kind):
+    """The core's limits against ILS's, on eligible accounts: the case that the current system is inefficient."""
+    pack = ctx.pack
+    cv = ((pack["metrics"].get("pgl_insights") or {}).get("core_vs_ils") or {}).get(kind) or {}
+    if not cv:
+        return []
+    word = kind.title()
+    src = _src(pack, f"open, eligible {kind} accounts' Initial OD Limit (from Core) against OD Limit (from ILS), "
+                     f"with Deposit Amount Last 33 days; correlation is Pearson's, limit against deposits")
+    out = []
+    qq = cv["quintiles"]
+    typ = cv["typical_core"]
+    if qq:      # none on a base too small to split into fifths
+        s = content(ctx, f"Core Limits vs ILS — {word}", "Does the limit follow the account's deposits?", src)
+        chart(s, 0.6, 1.6, 7.4, 3.9, [f"{r[0]}\n(median {usd(r[2])})" for r in qq],
+              [("Core limit today (average)", [r[3] for r in qq]), ("ILS limit (average)", [r[4] for r in qq])],
+              fmt='$#,##0', title=f"Average limit by deposit level, eligible {kind} accounts", legend=True,
+              colors=[_LABEL_RGB(), NAVY_RGB])
+        lines = (f"Today {pct(cv['typical_core_share'], 0)} of eligible {kind} accounts sit at the same {usd(typ)} core "
+                 f"limit, whatever they deposit: from the bottom fifth of depositors to the top fifth the average core "
+                 f"limit moves {usd(qq[0][3])} to {usd(qq[-1][3])}. ILS sets {usd(qq[0][4])} to {usd(qq[-1][4])}.")
+        textbox(s, 8.25, 1.75, 4.5, 2.6, lines, 13, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+        if cv.get("corr_core") is not None and cv.get("corr_ils") is not None:
+            tile(s, 8.25, 4.35, 2.15, 1.2, f"{cv['corr_core']:.2f}", "core limit follows deposits")
+            tile(s, 10.6, 4.35, 2.15, 1.2, f"{cv['corr_ils']:.2f}", "ILS limit follows deposits")
+        say(s, "Correlation runs from −1 to 1: 1 means the limit rises with deposits, 0 that it ignores them, below 0 "
+               "that it falls as deposits rise. A limit that ignores deposits over-extends risky accounts and "
+               "under-serves strong ones.", top=5.8, size=11, h=0.7)
+        out.append(s)
+    s2 =content(ctx, f"Where the Core Limit Misses — {word}", "Risk the core carries, and members it under-serves", src)
+    on = lambda d, n: f"{usd(d)} on {accts(n)}" if n else "none"
+    rows = [["", "Core limit today", "ILS limit"],
+            [f"Accounts with no deposits in 33 days ({n_(cv['nodep_accounts'])})",
+             on(cv["nodep_core_dollars"], cv["nodep_core_accounts"]),
+             on(cv["nodep_ils_dollars"], cv["nodep_ils_accounts"])],
+            [f"Depositors above the median ({usd(cv['deposit_median'])}) held at {usd(typ)} or less",
+             accts(cv["held_accounts"]), f"average {usd(cv['held_ils_avg'])}"],
+            ["Total limit extended", usd(cv["core_total"]), usd(cv["ils_total"])]]
+    add_table(s2, 0.6, 1.65, 12.15, 1.7, rows, [5.6, 3.3, 3.25], fs=11.5)
+    rr = cv["returned_raised"] / cv["returned"] if cv["returned"] else None
+    dr = cv["declines_raised"] / cv["declines"] if cv["declines"] else None
+    x = 0.6
+    for value, label in ((pct(rr, 0), f"of returned items ({n_(cv['returned'])}) are on accounts ILS would raise"),
+                         (pct(dr, 0), f"of debit declines ({n_(cv['declines'])}) are on accounts ILS would raise")):
+        tile(s2, x, 3.55, 3.3, 1.35, value, label)
+        x += 3.45
+    bands = cv["matrix_bands"]
+    mrows = [["Core today → ILS"] + bands] + [[b] + [n_(v) for v in row] for b, row in zip(bands, cv["matrix"])]
+    add_table(s2, 7.55, 3.55, 5.2, 0.3 * len(mrows), mrows, [1.4] + [0.76] * len(bands), fs=8.5)
+    say(s2, f"The core extends {usd(cv['nodep_core_dollars'])} of limit to accounts with no deposits; ILS extends "
+            f"{usd(cv['nodep_ils_dollars'])}. The members the core under-serves are where the returned items and declines "
+            f"sit: ILS limits follow the deposit relationship.", top=5.55, size=12, h=0.9)
+    return out + [s2]
+
+
+def _LABEL_RGB():
+    import brand as _b
+    return _b.LABEL_RGB
+
+
 def _share_chart(slide, t):
     rows = [r for r in t["rows"]]
     if rows:
@@ -317,6 +377,7 @@ def ch_personal(ctx):
     _share_chart(s, t["personal_change"])
     say(s, _change_note(t["personal_change"], "personal"), top=6.1, size=12, h=0.6)
     out.append(s)
+    out.extend(_core_ils_slides(ctx, "personal"))
     out.append(_tiers_slide(ctx, t, "personal"))
     s = content(ctx, "Reg E Opt In", "Eligible personal accounts: opted in, opted out and blank",
                 _src(pack, "eligible personal accounts by Reg-E Opt-In Value"))
@@ -369,6 +430,7 @@ def ch_business(ctx):
     say(s, _change_note(t["business_change"], "business") +
         " All business accounts should be opted in to Reg E.", top=6.1, size=12, h=0.6)
     out.append(s)
+    out.extend(_core_ils_slides(ctx, "business"))
     out.append(_tiers_slide(ctx, t, "business"))
     return out
 
@@ -430,8 +492,26 @@ def ch_matrix(ctx):
     return out
 
 
+def window_text(nt):
+    """'Jul 1 – Oct 27, 2026: 119 days (3.9 months)' for the notice items' own window."""
+    import datetime as _d
+    a, b = _d.date.fromisoformat(nt["first"]), _d.date.fromisoformat(nt["last"])
+    span = f"{a:%b} {a.day} – {b:%b} {b.day}, {b:%Y}" if a.year == b.year else f"{a:%b} {a.day}, {a:%Y} – {b:%b} {b.day}, {b:%Y}"
+    return f"{span}: {nt['days']} days ({nt['days'] / 30.44:.1f} months)"
+
+
+def window_pill(nt):
+    import datetime as _d
+    a, b = _d.date.fromisoformat(nt["first"]), _d.date.fromisoformat(nt["last"])
+    return f"Notices {a.month}/{a.day}–{b.month}/{b.day}/{b:%y}"
+
+
 def ch_program(ctx):
     pack, m = ctx.pack, ctx.pack["metrics"]
+    nt0 = m.get("pgl_notices") or {}
+    if nt0.get("baseline"):
+        # every fee slide carries the notice items' window in its pill, not the extract's date
+        ctx = ctx._replace(pill=window_pill(nt0))
     s = content(ctx, "Program Structure", "Daily fee cap, de minimis waivers and pricing",
                 "Source: Velocity best practice (static), and the client's current fees entered by the CSM.")
     say(s, "Daily fee cap — Velocity recommends 4–6 fees per day.\n"
@@ -446,7 +526,7 @@ def ch_program(ctx):
     src = (f"Source: the raw overdraft notice items {nt['file']} for client {pack['client_id']} "
            f"{pack['client_name']}, {nt['first']} to {nt['last']} ({nt['days']} days, {nt['items']:,} items on "
            f"{nt['accounts']:,} accounts); fees as assessed; annualized at 365 / {nt['days']} days.")
-    say(s, f"From the notice items: {usd(nt['revenue'])} in fees over {nt['days']} days, about "
+    say(s, f"From the notice items ({window_text(nt)}): {usd(nt['revenue'])} in fees, an estimated "
            f"{usd(nt['revenue_annualized'])} a year. The most fees one account paid in one day: {nt['max_fees_one_day']}.",
         top=4.6, size=14, h=0.8)
     s2 = content(ctx, "Fee Revenue Baseline", f"First Notice File, {nt['days']} days of real notice items", src)
@@ -454,7 +534,12 @@ def ch_program(ctx):
         [r[0], n_(r[1]), pct(r[2]), f"${r[3]:,.2f}", usd(r[4]), pct(r[5])] for r in nt["baseline"]]
     add_table(s2, 0.6, 1.8, 10.0, 0.42 * len(rows), rows, [3.2, 1.3, 1.3, 1.4, 1.5, 1.3], fs=12,
               highlight=(len(rows) - 1,))
-    tile(s2, 0.6, 4.2, 4.6, 1.3, usd(nt["revenue_annualized"]), "annualized fee revenue from the notice items")
+    tile(s2, 0.6, 4.2, 4.6, 1.3, usd(nt["revenue_annualized"]), f"a year, estimated from {nt['days']} days")
+    textbox(s2, 5.45, 4.25, 7.3, 1.6, f"The notice items cover {window_text(nt)}, not a full year. Every yearly "
+            f"figure in this chapter is those {nt['days']} days scaled to 365 (×{365 / nt['days']:.2f}) and assumes the "
+            f"rest of the year looks like these months: seasonality (holidays, tax refunds) can move it either way. "
+            f"The figures for the {nt['days']} days themselves are exact.", 12, NAVY_RGB, False, PP_ALIGN.LEFT, BODY,
+            MSO_ANCHOR.TOP)
     out = [s, s2]
     if nt.get("by_type_detail"):
         out.append(_by_type_slide(ctx, nt, src))
@@ -470,7 +555,7 @@ def _by_type_slide(ctx, nt, src):
     names = {"ACH": "ACH", "CRD": "Card", "CHK": "Check", "OTH": "Other", "(blank)": "Blank"}
     chart(s, 0.6, 1.6, 6.0, 3.6, [names.get(r[0], r[0]) for r in bt],
           [("Paid", [r[2] for r in bt]), ("Returned", [r[3] for r in bt])], title="Notice items by type", legend=True)
-    rows = [["Type", "Items", "Paid", "Returned", "Fees", "Fees a year", "Average item"]] + [
+    rows = [["Type", "Items", "Paid", "Returned", "Fees", "Fees a year (est.)", "Average item"]] + [
         [names.get(r[0], r[0]), n_(r[1]), n_(r[2]), n_(r[3]), usd(r[4]), usd(r[6]), usd(r[5])] for r in bt]
     add_table(s, 6.85, 1.75, 5.9, 0.36 * len(rows), rows, [1.0, 0.85, 0.8, 0.85, 0.9, 1.0, 0.95], fs=10)
     top = max(bt, key=lambda r: r[6]) if bt else None
@@ -486,15 +571,15 @@ def _curve_rows(curve, label):
 
 
 def _cap_slide(ctx, nt, src):
-    s = content(ctx, "Daily Fee Cap", f"How many fees an account pays in one day, and what each cap returns ({nt['days']} days)",
+    s = content(ctx, "Daily Fee Cap", f"How many fees an account pays in one day, and what each cap returns ({nt['days'] / 30.44:.1f} months of notices)",
                 src + " A cap waives every fee past the Nth on one account in one day.")
     dist = nt["per_day_dist"]
     chart(s, 0.6, 1.6, 6.1, 3.0, [r[0] for r in dist], [("Account-days", [r[1] for r in dist])],
           title="Account-days by fees charged that day", highlight=tuple(i for i, r in enumerate(dist) if r[0] in ("4", "5", "6")))
     cc = nt["cap_curve"]
-    chart(s, 6.85, 1.6, 5.9, 3.0, [str(r[0]) for r in cc], [("Waived a year", [r[4] for r in cc])], fmt='$#,##0',
-          title="Fees returned to members a year, by cap", highlight=tuple(i for i, r in enumerate(cc) if 4 <= r[0] <= 6))
-    rows = [["Cap", "Fees waived", "Accounts helped", "Waived a year", "% of revenue"]] + \
+    chart(s, 6.85, 1.6, 5.9, 3.0, [str(r[0]) for r in cc], [("Waived a year (est.)", [r[4] for r in cc])], fmt='$#,##0',
+          title="Fees returned to members a year (est.), by cap", highlight=tuple(i for i, r in enumerate(cc) if 4 <= r[0] <= 6))
+    rows = [["Cap", "Fees waived", "Accounts helped", "Waived a year (est.)", "% of revenue"]] + \
         _curve_rows([r for r in cc if 3 <= r[0] <= 8], lambda c: f"{c} fees a day")
     add_table(s, 0.6, 4.75, 8.2, 0.26 * len(rows), rows, [2.0, 1.4, 1.6, 1.6, 1.4], fs=9.5,
               highlight=tuple(i for i, r in enumerate(rows) if r[0] in ("4 fees a day", "5 fees a day", "6 fees a day")))
@@ -502,7 +587,7 @@ def _cap_slide(ctx, nt, src):
     one = dist[0][1] if dist else 0
     tot = sum(r[1] for r in dist) or 1
     textbox(s, 9.0, 4.8, 3.75, 1.5, f"{pct(one / tot, 0)} of fee days carry one fee. A 4–6 cap returns "
-                f"{usd(c6[4])}–{usd(c4[4])} a year ({pct(c6[5])}–{pct(c4[5])} of fees) to the {n_(c6[2])}–{n_(c4[2])} "
+                f"an estimated {usd(c6[4])}–{usd(c4[4])} a year ({pct(c6[5])}–{pct(c4[5])} of fees) to the {n_(c6[2])}–{n_(c4[2])} "
                 f"accounts hit hardest.", 12, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     return s
 
@@ -516,9 +601,9 @@ def _de_minimis_slide(ctx, nt, src):
           title="Fee items by item amount", highlight=(0,))
     chart(s, 6.85, 1.6, 5.9, 2.9, [r[0] for r in bb], [("Fee items", [r[1] for r in bb])],
           title="Fee items by how far overdrawn", highlight=(0, 1))
-    tx = [["Transaction de minimis", "Fees waived", "Accounts", "Waived a year", "% of rev."]] + \
+    tx = [["Transaction de minimis", "Fees waived", "Accounts", "A year (est.)", "% of rev."]] + \
         _curve_rows(nt["txn_curve"], lambda x: f"${x} or less")
-    bl = [["Balance de minimis", "Fees waived", "Accounts", "Waived a year", "% of rev."]] + \
+    bl = [["Balance de minimis", "Fees waived", "Accounts", "A year (est.)", "% of rev."]] + \
         _curve_rows(nt["bal_curve"], lambda x: f"${x} or less")
     add_table(s, 0.6, 4.65, 6.1, 0.24 * len(tx), tx, [1.9, 1.0, 1.0, 1.2, 0.9], fs=9,
               highlight=tuple(i for i, r in enumerate(tx) if r[0] == "$2 or less"))
@@ -541,7 +626,7 @@ def _pricing_slide(ctx, nt, src):
     cols = [(0, 0, "No de minimis"), (0, 5, "$5 balance"), (0, 10, "$10 balance"), (2, 0, "$2 transaction"),
             (2, 5, "$2 txn + $5 bal"), (2, 10, "$2 txn + $10 bal")]
     by = {(r[1], r[2], r[3]): r for r in nt["grid"]}
-    rows = [["Daily cap"] + [c[2] for c in cols]]
+    rows = [["Daily cap · a year (est.)"] + [c[2] for c in cols]]
     hi_cells = []
     for i, cap in enumerate((0, 4, 5, 6), 1):
         line = ["No cap" if not cap else f"{cap} fees a day"]
@@ -566,13 +651,13 @@ def _pricing_slide(ctx, nt, src):
     if guided:
         lo, hi = guided[0], guided[-1]
         cats = [r[0].replace(" transaction", " txn").replace(" balance", " bal") for r in guided]
-        chart(s, 0.6, 3.8, 7.6, 2.3, cats, [("Returned to members a year", [r[5] for r in guided])], fmt='$#,##0',
-              title="Within Velocity guidance: returned to members a year")
+        chart(s, 0.6, 3.8, 7.6, 2.3, cats, [("Returned to members a year (est.)", [r[5] for r in guided])], fmt='$#,##0',
+              title="Within Velocity guidance: returned to members a year (est.)")
         fee_txt = ""
         if od_fee:
             fee_txt = (f" Holding today's revenue would take an OD fee of ${od_fee * lo[8]:,.2f}–${od_fee * hi[8]:,.2f} "
                        f"instead of ${od_fee:,.2f}.")
-        textbox(s, 8.45, 3.85, 4.3, 2.4, f"Velocity's guidance (orange) returns {usd(lo[5])}–{usd(hi[5])} a year to "
+        textbox(s, 8.45, 3.85, 4.3, 2.4, f"Velocity's guidance (orange) returns an estimated {usd(lo[5])}–{usd(hi[5])} a year to "
                 f"members, {pct(lo[6])}–{pct(hi[6])} of fee revenue.{fee_txt} The CSM and the client choose the "
                 f"structure; these are the trade-offs.", 12, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     return s

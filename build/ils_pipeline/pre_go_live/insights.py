@@ -54,6 +54,52 @@ def _r(v, d=2):
     return None if v is None else round(float(v), d)
 
 
+QUINTILES = ("Bottom fifth", "2nd fifth", "Middle fifth", "4th fifth", "Top fifth")
+CMP_BANDS = ((-1, 0, "$0"), (0, 250, "$1–$250"), (250, 500, "$251–$500"), (500, 1000, "$501–$1,000"),
+             (1000, 10 ** 9, "Over $1,000"))
+
+
+def core_vs_ils(e):
+    """How well each system's limit follows the account's deposits, on one base of accounts.
+
+    The core's limit (Initial OD Limit from Core) against the limit ILS proposes (OD Limit from ILS): by deposit
+    quintile, how closely each follows 33-day deposits (Pearson correlation), the limit sitting on accounts with
+    no deposits, depositors held at the core's typical limit, where the returned items and declines are, and the
+    move from core band to ILS band."""
+    if not len(e):
+        return {}
+    core, ils, dep = _n(e, R.CORE), _n(e, R.ILS), _n(e, R.DEP_D)
+    items, paid, dec = _n(e, R.ITEMS), _n(e, R.PAID), _n(e, R.DEC_N)
+    quint = []
+    # fewer than 5 accounts cannot be split into fifths (a small business base); the comparison still stands
+    q = pd.qcut(dep.rank(method="first"), 5, labels=QUINTILES) if len(e) >= 5 else None
+    for lbl in QUINTILES if q is not None else ():
+        m = q == lbl
+        quint.append([lbl, int(m.sum()), _r(dep[m].median()), _r(core[m].mean()), _r(ils[m].mean())])
+    nodep = dep <= 0
+    typical = float(core.mode().iloc[0]) if len(core.mode()) else 0.0
+    strong = dep >= dep.median()
+    held = strong & (core <= typical)
+    ret = (items - paid).clip(lower=0)
+    raised = ils > core
+    cut = pd.cut
+    cb = cut(core, [b[0] for b in CMP_BANDS] + [CMP_BANDS[-1][1]], labels=[b[2] for b in CMP_BANDS])
+    ib = cut(ils, [b[0] for b in CMP_BANDS] + [CMP_BANDS[-1][1]], labels=[b[2] for b in CMP_BANDS])
+    xt = pd.crosstab(cb, ib).reindex(index=[b[2] for b in CMP_BANDS], columns=[b[2] for b in CMP_BANDS], fill_value=0)
+    corr = lambda a: _r(a.corr(dep), 3) if a.std() > 0 and dep.std() > 0 else None     # NaN std on one account
+    return {"accounts": len(e), "quintiles": quint,
+            "corr_core": corr(core), "corr_ils": corr(ils),
+            "typical_core": typical, "typical_core_share": _r((core == typical).mean(), 4),
+            "nodep_accounts": int(nodep.sum()),
+            "nodep_core_dollars": _r(core[nodep].sum()), "nodep_core_accounts": int((core[nodep] > 0).sum()),
+            "nodep_ils_dollars": _r(ils[nodep].sum()), "nodep_ils_accounts": int((ils[nodep] > 0).sum()),
+            "deposit_median": _r(dep.median()), "held_accounts": int(held.sum()), "held_ils_avg": _r(ils[held].mean()),
+            "returned": int(ret.sum()), "returned_raised": int(ret[raised].sum()),
+            "declines": int(dec.sum()), "declines_raised": int(dec[raised].sum()),
+            "core_total": _r(core.sum()), "ils_total": _r(ils.sum()),
+            "matrix_bands": [b[2] for b in CMP_BANDS], "matrix": [[int(v) for v in row] for row in xt.values]}
+
+
 def compute(df, codes, notices=None, od_fee=None, extract_date=None) -> dict:
     live = df[df["Deleted"].isna()] if "Deleted" in df.columns else df
     open_codes = {str(c).upper() for c in (codes.get("open_status") or [])}
@@ -162,6 +208,12 @@ def compute(df, codes, notices=None, od_fee=None, extract_date=None) -> dict:
         prod = R._cut(opn.assign(**{PRODUCT: _up(opn, PRODUCT).replace({"": "BLANK"})}), PRODUCT)
         prod["rows"] = prod["rows"][:12]
         out["products"] = prod
+
+    # ---- core limits against ILS limits (James Gilmore, 2026-10-28: "compare the ILS limit with the core limit ...
+    # show their current system is inefficient compared to ILS limits") ----------------------------------------------
+    biz = opn[kind == "BUSINESS"]
+    out["core_vs_ils"] = {"personal": core_vs_ils(elig),
+                          "business": core_vs_ils(biz[_up(biz, R.OD).isin(od_codes)])}
 
     # ---- 8. revenue check ----------------------------------------------------------------------------------------
     nt = notices or {}
