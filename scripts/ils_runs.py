@@ -230,6 +230,9 @@ def start(body):
     if not CID_RX.match(cid):
         return 400, {"error": "not a client number"}
     args = {"analysis": kind, "client": cid}
+    name = str(body.get("client_name") or "").strip()
+    if name:
+        args["client_name"] = name[:120]                # the deck's cover; the page sends the name it shows
     codes = body.get("codes") or None
     if codes:
         codes = {f: str(codes.get(f) or "").strip() for f in FIELDS[kind]}

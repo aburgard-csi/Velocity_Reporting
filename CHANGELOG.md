@@ -21,6 +21,46 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-28 — The ILS pre-go-live deck: the Velocity PGL review, in Sheila's format
+
+Summary: Build on Sheila's ILS Pre-go-live card now makes a new deck. It is the Velocity PGL review in seven chapters, drawn in Sheila's format, and replaces v5's 13-slide deck (1759: 39 slides). It also prices the fee baseline, the daily fee cap and de minimis from the raw overdraft notice items, when the delivery includes them.
+
+James Gilmore, 2026-10-28: "i want the format, look and feel in Sheila template, but i want the analysis and insight from velocity", and "reuse his" (Tim Barrett's ILS Matrix Validation Deck Builder).
+
+**The chapters** follow Tim's Sabine template and James's First Central and Merchants decks:
+
+1. Partnership: key dates, current program.
+2. PGL data review: the reconciliation to the ILS system, account status, open accounts by type.
+3. Personal accounts: OD codes, change in score, proposed limit tiers, Reg E, Reg E opted in, Reg E by year opened.
+4. Business accounts: OD codes, change in score, limit tiers.
+5. ILS matrix: parameters, settings and OD code mapping, overrides, factor grids, trending triggers.
+6. Program structure and fees: fee cap and de minimis, the fee baseline, what each waiver would cost.
+7. Summary and recommendations.
+
+**The look** is Sheila's: the ARS template shell (cover, Executive Summit, agenda, Questions & Discussion, Contact Us), `cover_divider`'s section dividers, the Transaction Intelligence frame on every content slide, and `shapes.add_table` for every table. Every slide's notes name their source.
+
+The tables are the A-1 to A9 review tables (checked against the 1616 workbook). The cover reads "ILS Program Analysis"; the shared cover function is unchanged. An OD code carries its description, from the CSM first and otherwise the matrix (1759: "8 · ODP Charge Off").
+
+**Missing CSM inputs** (key dates, the current program, data notes) are drawn as a "to be completed by the CSM" line, so the gap shows in review. A client not yet on the Client CSM List gets a "CSM to be confirmed" Contact Us card, never the shell's own CSM.
+
+**The matrix chapter** reads the dump with Tim's builder, copied unchanged into `ils_pipeline/matrix_validation/`. One correction is made in RPE's adapter, never in his copy: the 2026-10 exports misspell the banner "ACCCOUNT TYPES AND MIN/MAX LIMITS", so without it his reader finds no account types.
+
+**The fee chapter** (`pre_go_live/notices.py`) reads the raw notice items, every NSF/OD item with its account, date, amount, ending balance, fee and paid/returned status:
+
+- the fee baseline by paid and returned;
+- the daily fee cap at 4, 5 and 6 (the fees past the Nth on one account in one day);
+- the transaction de minimis at $2;
+- the balance de minimis at $5 and $10 (items leaving the account overdrawn by $X or less).
+
+Each is shown over the file's window and annualized. On 1759's 119 days (7/1 to 10/27, 32,812 items):
+
+- fees $685,179, about $2.10M a year;
+- a cap of 4 waives $17,244 a year, a $2 de minimis $22,866, a $10 balance de minimis $11,106.
+
+65 items with an ending balance beyond ±$9,999 are flagged before the balance de minimis is quoted. A notice file is never taken as the account extract.
+
+**Checks:** both test decks (1759, and 1737's updated delivery) pass `validate_deck` with 0 FAIL and 0 REVIEW, checked on a PowerPoint render. `tests/test_ils_pgl_sheila_deck.py` adds 3 tests.
+
 ### 2026-10-28 — ILS pre-go-live computes the Velocity PGL review's tables (A-1 to A9)
 
 Summary: a confirmed pre-go-live run now computes the twelve tables of the Velocity PGL review in the workbook's own layout, ready for a deck in Sheila's format. Each table is also written for a CSV backup.

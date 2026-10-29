@@ -170,7 +170,8 @@ function ilsShow(kind, j) {
 
 async function ilsRun(kind, step) {
   const f = ILS.form[ILS.cid + kind] || {};
-  const body = {kind, client: ILS.cid};
+  const known = (typeof CLIENTS !== "undefined" && CLIENTS.find(x => x.id === ILS.cid)) || {};
+  const body = {kind, client: ILS.cid, client_name: known.name || ""};
   if (step === 2) {
     body.codes = Object.fromEntries(ILS.doc.fields[kind].map(k => [k, ($(`#ils_${kind}_${k}`) || {}).value || ""]));
     const opt = k => { const el = document.querySelector(`#ils${kind} [data-ilsfield="${k}"]`); return el ? (el.type === "checkbox" ? el.checked : el.value) : f[k]; };

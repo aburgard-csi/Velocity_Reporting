@@ -29,6 +29,9 @@ EXTS = {".csv", ".xls", ".xlsx"}
 # 2026-10: "1759_MatrixValidation_PGL2.csv", no date in the name). Read as an extract, the undated dump
 # was dated by file time and won the "newest" race against the real one (RPE, 2026-10-28).
 DUMP_RE = re.compile(r"matrix.?validation|integrity.?check", re.I)
+# Nor is a notice file (1759, 2026-10-28: "1759-FNF-Notices 120 Days.csv", the raw overdraft notice items),
+# which is read by pre_go_live/notices.py, never as the account extract.
+DUMP_RE = re.compile(DUMP_RE.pattern + r"|notice|(?<![a-z])fnf(?![a-z])", re.I)
 
 CODE_COLUMNS = ["AcctNo", "Personal_Business", "Eligible_For_Scoring",
                 "OD Status Code (from Core)", "Account Status Code",
