@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — the command-line launcher is Build ARS Deck CLI.bat, and the user guide is rewritten
+
+Summary: the window version of the ARS build is now called Build ARS Deck CLI.bat in the CSM_Reporting folder, and the ARS Deck User Guide now explains how a deck is built, the data it needs, where that data lives, and what each field and term means.
+
+Aaron, 2026-10-29: "rename Build ARS Deck.bat to Build ARS Deck CLI.bat"; "re-write ARS Deck User Guide.html with information on the deck building process, required data feeds, data location, data dictionary, etc."
+
+- **Rename.** `scripts/launchers/Build ARS Deck.bat` is `Build ARS Deck CLI.bat`; its window title, the launcher's messages ("run Build ARS Deck CLI again"), the GUI launcher's comment, `release_launcher.ps1`, `CLAUDE.md` and the pinning test follow. The release copies every launcher `.bat` to the share root and never removes one, so the old `Build ARS Deck.bat` stays on the root until someone deletes it by hand.
+- **Guide.** `ARS Deck User Guide.html` keeps the how-to sections and adds: how a deck is built, what is in the ARS deck, the feeds an ARS deck needs and what happens when each is missing or old, the other programs' feeds, where things are on the share, a data dictionary (the ODD columns the build reads, the standard Reg E and account status categories, the workbook tabs, MM vs SM) and a glossary of the terms on the slides. It also describes Slide Review and the Transaction Intelligence and ARS Companion panels.
+- **Left undefined on purpose.** The DCO is described by what it supplies, not by an expansion, and the ODD's `Prog`, `Mailable?` and `Acct Mask` columns are not listed: nothing in the repo says what they mean to the client, and a guessed definition in a reference page is worse than none.
+- **Source for every statement** is the code and `CLAUDE.md`: `odd_rows`, `oddd_optimize`, `metrics_gen`, `before_after`, `extract_base_gen`, `extract_lift`, `lift_window`, `rpe_env.INPUT_KIND_DIRS`.
+
 ### 2026-10-29 — the PGL deck ends on the project timeline
 
 Summary: the pre-go-live deck has an "ILS Configuration & Project Timeline" slide in the Summary & Next Steps chapter, just before Questions & Discussion. It takes the place of the plain "Key Decisions and Dates" table that opened the Partnership chapter. It's laid out like the Velocity "ILS Configuration & Project Timeline/Next Steps" slide, drawn in our frame.

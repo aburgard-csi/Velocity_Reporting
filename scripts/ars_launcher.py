@@ -16,7 +16,7 @@ ICS-MRPC, ICS-MRPC-CP, or the standalone CashPlease module — from every progra
 hand; `--combined` is implied. The ARS-only rules below (the ODD extract, the workbook, the DCO, the
 Lift Matrix) apply to ARS clients only; a non-ARS client is checked on each program's own data.
 
-Anyone can run it, from `Build ARS Deck.bat` in the CSM_Reporting folder (Aaron, 2026-09-15: "a
+Anyone can run it, from `Build ARS Deck CLI.bat` in the CSM_Reporting folder (Aaron, 2026-09-15: "a
 way where anyone can run an ARS deck so long as the inputs are in place ... without Claude").
 Every rule that used to be applied by hand is checked BEFORE the build, and every stop says in
 plain English what is wrong and who fixes it:
@@ -66,7 +66,7 @@ AARON = "Aaron Burgard"
 OK, WARN, STOP = "ok", "warn", "stop"
 # A deck already sent is a question, not a stop (Aaron, 2026-09-15: "can the script prompt
 # whether the user wants the presentation re-run rather than failing?"). `status` exits
-# ASKED_EXIT when it is the only thing in the way, and Build ARS Deck.bat asks.
+# ASKED_EXIT when it is the only thing in the way, and Build ARS Deck CLI.bat asks.
 ASK = "ask"
 ASKED_EXIT = 3
 # build_month.run writes "$ <python> <script> ..." to build.log before each step and sends the
@@ -1182,7 +1182,7 @@ def to_outputs(cid, deck):
                              legacy=(out,), log=lambda m: print("         " + m.strip(), flush=True))
     except OSError as e:
         return STOP, (f"The deck built clean but could not be put in Outputs ({e}). If this client's deck "
-                      "is open in PowerPoint, close it and run Build ARS Deck again.")
+                      "is open in PowerPoint, close it and run Build ARS Deck CLI again.")
     # One deck per client per month: a combined deck supersedes the ARS-only one and the other way round,
     # which promote_one (same filename only) does not see. Moved to the archive, never deleted.
     n += supersede_other_ars_decks(cid, deck, out)
@@ -1237,7 +1237,7 @@ def cmd_build(a):
         print("\nNot built. Fix the items marked STOP, then run it again.")
         return 1
     if any(l == ASK for l, _ in checks):
-        print("\nNot built: this month's deck is already in Outputs. To rebuild it, answer Y when Build ARS Deck asks, or pass --rebuild.")
+        print("\nNot built: this month's deck is already in Outputs. To rebuild it, answer Y when Build ARS Deck CLI asks, or pass --rebuild.")
         return ASKED_EXIT
 
     name = BM.deck_name(a.client, entry[1])

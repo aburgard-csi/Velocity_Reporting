@@ -95,7 +95,7 @@ def test_a_deck_already_in_outputs_asks_before_it_is_rebuilt():
 
 
 def test_the_ask_exit_code_is_the_one_the_launcher_bat_tests_first():
-    bat = open(os.path.join(REPO, "scripts", "launchers", "Build ARS Deck.bat"), encoding="ascii").read()
+    bat = open(os.path.join(REPO, "scripts", "launchers", "Build ARS Deck CLI.bat"), encoding="ascii").read()
     assert L.ASKED_EXIT == 3 and "if errorlevel 3 goto sent" in bat
     assert bat.index("if errorlevel 3") < bat.index("if errorlevel 1")
     assert "build %CID% --rebuild" in bat
