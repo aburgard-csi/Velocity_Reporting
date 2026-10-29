@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — Sheila: a code-sheet fix is listed under Codes only
+
+Summary: In Sheila's Data Issues, an item fixed by correcting the client's code sheet now appears once, under Codes and Lift Matrix, and no longer also under Decisions.
+
+Aaron, 2026-10-29: "items shouldn't show under both Decisions and Codes & Lift matrix. If it's an item handled by updating the code sheet, then it's just a Codes fix." An issue whose fix is a code-sheet correction (severity decision, fix text naming the code sheet) is skipped in the Decisions list and listed in the Codes block and counted there. The Decisions chip no longer counts it.
+
 ### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
 
 Summary: a finished ILS deck run from Sheila (pre-go-live or kickoff) is now copied to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-PGL-<client> ILS Pre-Go-Live Review.pptx` or `...-ILS-KO-<client> ILS Kickoff.pptx`. The run's own folder under Build Artifacts keeps its copy, its metrics and its report.

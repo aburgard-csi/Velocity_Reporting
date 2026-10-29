@@ -3091,6 +3091,8 @@ $("#repcancel").addEventListener("click", () => $("#repdlg").close());
 // Each client's data issues from the issue pages and the morning dashboard's checks, with a link to its code sheet.
 let ISSUES = null, ISSUES_AT = 0, SEV = "";
 const SEV_TAG = {blocker: ["stop", "blocker"], decision: ["ask", "decision"], gap: ["warn", "gap"], warning: ["step", "warning"]};
+// A code-sheet fix is a Codes item, never a Decision (Aaron, 2026-10-29): it is listed once, under Codes and Lift Matrix.
+const isCodeFix = i => i.severity === "decision" && /code sheet/i.test(i.fix || "");
 
 async function loadIssues(fresh) {
   if (ISSUES && !fresh && Date.now() - ISSUES_AT < 60000) return ISSUES;
@@ -3145,6 +3147,7 @@ function issueRow(e, item, tag, body) {
 function issueCard(e) {
   const rows = [];
   for (const i of e.issues) {
+    if (isCodeFix(i)) continue;
     if (SEV && SEV !== "done" && SEV !== i.severity) continue;
     const [cls, lab] = SEV_TAG[i.severity] || ["step", i.severity];
     rows.push(issueRow(e, i, `<span class="tag ${cls}">${esc(lab)}</span>`,
@@ -3157,6 +3160,11 @@ function issueCard(e) {
       const vals = (c.values || []).map(v => `${esc(v.value)}${v.desc ? " (" + esc(v.desc) + ")" : ""}: ${(v.accounts || 0).toLocaleString()} account${v.accounts === 1 ? "" : "s"}${v.open != null ? ", " + v.open.toLocaleString() + " open" : ""}`).join("; ");
       rows.push(issueRow(e, c, `<span class="tag warn">codes</span>`,
         `<b>ARS</b> ${esc(c.label)}${c.eligibility ? " (decides eligibility)" : ""}: ${vals}${c.no_table ? " <span class=\"sub\">(no code table for this kind)</span>" : ""}<br><span class="sub">Fix: correct the client's code sheet</span>`));
+    }
+    for (const i of e.issues) {
+      if (!isCodeFix(i)) continue;
+      rows.push(issueRow(e, i, `<span class="tag warn">codes</span>`,
+        `<b>${esc(i.program || "")}</b> ${esc(i.issue)}${i.fix ? `<br><span class="sub">Fix: ${esc(i.fix)}</span>` : ""}`));
     }
   }
   if (!rows.some(Boolean)) return "";
@@ -3176,8 +3184,8 @@ async function issuesView(focus) {
   const cards = shown.map(issueCard).filter(Boolean);
   const open = x => x && !x.done;
   const count = k => shown.reduce((n, e) => n + (k === "done" ? (e.done_count || 0)
-    : k === "codes" ? e.codes.filter(open).length + (open(e.lift_matrix) ? 1 : 0)
-    : e.issues.filter(i => open(i) && i.severity === k).length), 0);
+    : k === "codes" ? e.codes.filter(open).length + (open(e.lift_matrix) ? 1 : 0) + e.issues.filter(i => open(i) && isCodeFix(i)).length
+    : e.issues.filter(i => open(i) && i.severity === k && !isCodeFix(i)).length), 0);
   const chip = (k, lab) => `<button class="chipbtn" data-sev="${k}" aria-pressed="${SEV === k}">${lab} ${k ? count(k) : ""}</button>`;
   const src = d.sources || {};
   $("#main").innerHTML = `<div class="head"><h2>Data Issues</h2><span class="sub">${focus ? esc((shown[0] || {}).name || focus) + " · " : ""}${shown.length} client${shown.length === 1 ? "" : "s"}</span>
