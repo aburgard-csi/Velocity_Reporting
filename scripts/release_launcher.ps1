@@ -12,7 +12,7 @@ What it writes under <Root>:
                     with -Runtime: this machine's Python plus the repo .venv's libraries, zipped,
                     and the stamp that tells each PC to unpack it again (scripts\launchers\runtime.cmd
                     unpacks to %LOCALAPPDATA%\RPE on first use). Needed only when the libraries change.
-  Build ARS Deck.bat, ARS Deck User Guide.html   in <Root> itself
+  Build ARS Deck CLI.bat, ARS Deck User Guide.html   in <Root> itself
 Each PC runs the code from a local copy, not from the share: scripts\launchers\runtime.cmd copies
 Tools\RPE to %LOCALAPPDATA%\RPE\Code whenever RELEASE.txt changes, so a release reaches a PC the next
 time its launcher starts. RELEASE.txt is the stamp, and is written last.

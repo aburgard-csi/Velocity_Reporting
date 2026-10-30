@@ -3,7 +3,7 @@
 
     python scripts/ars_launcher_web.py [--port 0] [--no-open]
 
-Aaron, 2026-09-15: "would it be possible to run Build ARS Deck.bat in an application or browser?"
+Aaron, 2026-09-15: "would it be possible to run Build ARS Deck CLI.bat in an application or browser?"
 A browser cannot start a program by itself, so `ARS Deck Builder GUI.bat` starts this small server on
 127.0.0.1 and opens the page. The page lists every client with a deck to build — the clients.md roster in
 any program mix and the standalone CashPlease module clients (Aaron, 2026-10-13) — runs the same checks as
