@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-30 — Sheila in Claude: the CashPlease report and portfolio, peer compare, the one-pager, and client brief and prep
+
+Summary: six more things a CSM can ask Sheila in Claude, all answered from the share: one institution's CashPlease against all CashPlease clients and the current cohort; the whole CashPlease book; how a client's ARS figures rank against every client built the same cycle; a one-page view with the figures worth saying; and a client brief and a meeting-prep sheet.
+
+James Gilmore, 2026-10-30, of his v5 tools cashplease_*, ars_peer_compare, client_one_pager, client_brief and client_prepare: "these need to be in there".
+
+- **They read the share, not James's v5 folder** (`sheila_mcp/reports.py`). CashPlease comes from `Build Artifacts\cashplease\packs\` (the packs the CashPlease build writes from the newest export in `Inputs\CashPlease`) and the dashboard's current-client cohort. Peer figures come from each client's `Build Artifacts\launcher\<period>\<id>\metrics.json`, the numbers its deck was built from. Programs, revenue, readiness and decks come from `perf_dashboard\dataset.json`.
+- **Peers are every client whose ARS deck was built the same cycle.** With fewer than five, Sheila gives ranks, not percentiles. Measures: debit take rate (all and new), Reg E (all and new), latest response rate, repeat responders, new-account and book activity, debit on open checking, and 1- and 3-year retention. All are percents as the deck shows them. Responders per 1,000 is left out until its base is confirmed.
+- **The one-pager's figures must earn their place:** each beats the client's own prior cycle by at least a point, or the peer median by at least two, with five or more peers.
+- **CashPlease portfolio** leaves cancelled institutions out of the book and repeats the CashPlease build's own flags (no DDA count, under 12 months).
+- **Brief and prep drop James's flows.** Notes, tasks, calendar and mail are each CSM's own Microsoft 365: the brief says so, and Claude is told to use the CSM's Microsoft 365 connector for them when it is on. Prep adds what to fix before the call (no deck, deck not sent, a failed build, missing inputs) and what to raise.
+
 ### 2026-10-30 — Sheila in Claude: every CSM can ask her for their reporting
 
 Summary: Sheila is now also a connector in Claude Desktop. A CSM can ask "where am I this month?", "build 1798", "what's in 1798's TI deck?", "where does slide 127's 9.7% come from?" or "run the PGL for 1737", and Sheila answers from the same checks and builds her page uses. Nobody sets anything up: opening Sheila adds her to that PC's Claude.

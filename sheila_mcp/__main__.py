@@ -8,7 +8,7 @@ import threading
 
 from . import REPO  # noqa: F401  (puts build/ and scripts/ on the path)
 
-from . import actions, core
+from . import actions, core, reports
 from .stdio import Server
 
 INSTRUCTIONS = """You are talking to CSM Sheila, the Velocity CSM team's deck and reporting helper. Sheila builds
@@ -30,7 +30,11 @@ How to work with Sheila:
 - ILS: step 1 shows the field summary and computes nothing. Which code means open, personal, eligible or
   opted in is the CSM's call; never pick codes for them. Run step 2 only with codes they confirmed.
 - Sheila never sends email or anything else. To share a deck, give its Outputs path.
-- For "where does this number come from", use explain on the slide, then name the source it gives."""
+- For "where does this number come from", use explain on the slide, then name the source it gives.
+- For a call or meeting, use client_brief or client_prepare. Notes, tasks, calendar and email are not Sheila's:
+  if the person's Microsoft 365 connector is available, use it for those, and say which part came from where.
+- Peer figures are against every client whose deck was built the same cycle; with fewer than 5, give ranks,
+  not percentiles."""
 
 mcp = Server("sheila", core.version(), INSTRUCTIONS)
 
@@ -135,6 +139,51 @@ def ils_run(client: str, kind: str, codes: dict = None, period: str = "", fee: s
 def ils_progress(client: str, kind: str) -> dict:
     """An ILS run's progress; when step 1 is done, the field summary the CSM confirms codes from."""
     return actions.ils_progress(client, kind)
+
+
+@mcp.tool
+def cashplease_report(client: str) -> dict:
+    """One institution's CashPlease (small-dollar loans): volume, loans per 1,000 checking accounts, loan size,
+    charge-off, overdue and paid-off rates, each against all CashPlease clients and the current cohort, plus
+    the last six months. From the newest CashPleaseSummary export on the share."""
+    return reports.cashplease_report(client)
+
+
+@mcp.tool
+def cashplease_portfolio() -> dict:
+    """The whole CashPlease book: institutions live and cancelled, loans and dollars lent, charge-off, active
+    loans, and who leads and trails on loans per 1,000 checking accounts."""
+    return reports.cashplease_portfolio()
+
+
+@mcp.tool
+def peer_compare(client: str, kpis: str = "", period: str = "") -> dict:
+    """How a client's ARS figures rank against every client whose deck was built the same cycle: value, rank,
+    median and middle half. kpis: comma-separated from debit_take, debit_take_new, rege, rege_new, response,
+    repeat, active_new, active_book, debit_on_checking, retention_1yr, retention_3yr (default: debit_take,
+    rege, response, active_book, retention_1yr). period: YYYY.MM (default: the client's newest)."""
+    return reports.peer_compare(client, kpis, period)
+
+
+@mcp.tool
+def one_pager(client: str) -> dict:
+    """One page on a client: programs and products, ARS results to date, up to three figures worth saying
+    (each beats the client's prior cycle or the peer median), CashPlease, and this cycle's deck."""
+    return reports.one_pager(client)
+
+
+@mcp.tool
+def client_brief(client: str) -> dict:
+    """Everything Sheila knows about a client for a call: the one-pager, this cycle's inputs, ICS/MRPC, the TI
+    deck, open data issues and ILS. Notes, tasks, calendar and mail come from the CSM's own Microsoft 365."""
+    return reports.client_brief(client)
+
+
+@mcp.tool
+def client_prepare(client: str) -> dict:
+    """Meeting prep: the client brief, then what to fix before the call (unbuilt or unsent deck, a failed
+    build, missing inputs) and what to raise (the figures worth saying)."""
+    return reports.client_prepare(client)
 
 
 @mcp.tool
