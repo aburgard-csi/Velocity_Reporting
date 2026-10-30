@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-30 — the Summit one-pager skill builds the Key Performance Metrics page
+
+Summary: the Executive Summit one-pager skill now covers the multi-program Key Performance Metrics page used for Fort Lauderdale, with its builder, chart helper and brand template kept in the repo.
+
+Aaron, 2026-10-30: "If you aren't using and updating a skill to build these, you should do that."
+
+- **Builder.** `.claude/skills/summit-one-pager/kpm_page.py` builds one page from a JSON spec (four tiles, a chart, sections of bullets, notes that name every source). It draws a border on the logo badge, reads the contact line from the client's own CSM through `rpe_env.csm_contact`, refuses notes with no sources, and can measure wrapped lines so the gaps between sections come out equal. `kpm_charts.py` draws the year-over-year bar chart and the monthly bars; `assets/brand.pptx` is the 2026 CSI brand template.
+- **Skill.** `SKILL.md` now describes both pages. The Key Performance Metrics process is: attendees from Aaron's list only, one read-only verification pass per client against the newest reports, the build, a render in PowerPoint that is looked at, and a save to OneDrive with the previous version kept. Aaron's corrections of 2026-10-30 are recorded as standards: year over year not month over month, check the longer window before quoting a short one, no unproven branch counts, name the basis of every figure, equal section gaps, a border on the logo.
+- **Test.** `tests/test_summit_kpm_page.py` builds a synthetic client with no logo and no data root and pins the border, the sources in the notes, the contact line and the equal gaps.
+
 ### 2026-10-30 — Sheila in Claude: every CSM can ask her for their reporting
 
 Summary: Sheila is now also a connector in Claude Desktop. A CSM can ask "where am I this month?", "build 1798", "what's in 1798's TI deck?", "where does slide 127's 9.7% come from?" or "run the PGL for 1737", and Sheila answers from the same checks and builds her page uses. Nobody sets anything up: opening Sheila adds her to that PC's Claude.
