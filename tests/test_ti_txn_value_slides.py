@@ -59,7 +59,9 @@ BASE = "transacting personal accounts"
 SLIDES = [
     (V.pin_or_signature, "PIN or signature", "ic_monthly"),
     (V.who_routes_pin, "Who routes PIN", "ic_by_group"),
-    (V.pin_heavy_accounts, "PIN-heavy accounts", "ic_account_mix"),
+    # the merchants' PIN and signature dollars are this slide's chart since Sheila's 1798 slide
+    # review (2026-10-30, group D: four routing slides to two); the account mix is its fallback
+    (V.pin_heavy_accounts, "PIN-heavy accounts", "ic_pin_merchants"),
     (V.where_pin_gets_pressed, "Where PIN gets pressed", "ic_by_merchant"),
     (V.channels_used_together, "Channels used together", "rel_channel_pairs"),
     (V.what_a_second_channel_is_worth, "What a second channel is worth", "rel_depth"),
@@ -120,7 +122,11 @@ def test_the_headlines_carry_the_numbers():
     V.pin_or_signature(h, FULL, BASE)
     assert h.slides[0][0][0] == \
         "58% of card dollars route as signature, and the share is rising 3.0 points"
-    assert [r[1] for r in h.rails[0]] == ["58%", "49%", "$61", "$39", "$1.9M"]
+    # the holder-age spread joined the rail ("Who routes PIN" folded in, Sheila's 1798 slide
+    # review, 2026-10-30, group D); the two tickets share one tile
+    assert [r[1] for r in h.rails[0]] == ["58%", "49%", "44-71%", "$61", "$1.9M"]
+    assert h.rails[0][2] == ("By holder age", "44-71%", "signature, 65+ lowest, 18-25 highest")
+    assert h.rails[0][3][2] == "PIN, against $39 signature"
     # RPE's house month format, MMM'YY (v5 drew "Sep 25"; periods.install_month_axis_guard)
     assert h.charts[0]["rows"][0] == ["Sep'25", 900, 57.1]     # grey base = accounts observed
     h = _h()
@@ -146,3 +152,38 @@ def test_relationship_slides_decline_on_a_single_rail_feed():
     assert V.channels_used_together(_h(), single, BASE).startswith("Channels used together (feed")
     assert V.what_a_second_channel_is_worth(_h(), single, BASE) == \
         "What a second channel is worth (feed carries one rail)"
+
+
+def test_v5_month_keys_reach_the_axis_in_house_format():
+    """1798's ic_monthly carries v5's "Jan24" keys; _month_label read only "2026-02", so the label
+    went out as "Jan24", the month-axis guard refused the chart, and "PIN or signature" shipped
+    with a blank chart area (Sheila's 1798 slide review, 2026-10-30, slide 34)."""
+    assert V._month_label("Jan24") == "Jan'24"
+    assert V._month_label("2026-02") == "Feb'26"
+    assert V._month_label("Dec25") == "Dec'25"
+    h = _h()
+    t = dict(FULL, ic_monthly=[["Jan24", 60_000, 80_000, 57.1, 900], ["Feb24", 62_000, 84_000, 57.5, 920],
+                               ["Mar24", 61_000, 88_000, 59.1, 940]])
+    V.pin_or_signature(h, t, BASE)
+    assert [r[0] for r in h.charts[0]["rows"]] == ["Jan'24", "Feb'24", "Mar'24"]
+
+
+def test_v5_month_keys_draw_the_signature_chart_for_real(tmp_path):
+    h = _h()
+    h["chart"] = lambda name, f, *a, **k: f(*a, tmp_path / f"{name}.png", **k)
+    t = dict(FULL, ic_monthly=[["Jan24", 60_000, 80_000, 57.1, 900], ["Feb24", 62_000, 84_000, 57.5, 920],
+                               ["Mar24", 61_000, 88_000, 59.1, 940], ["Apr24", 61_000, 88_000, 59.9, 940]])
+    assert V.pin_or_signature(h, t, BASE) is None
+    assert (tmp_path / "ic_monthly.png").stat().st_size > 5_000
+
+
+def test_pin_heavy_names_the_merchant_and_falls_back_to_the_mix():
+    h = _h()
+    V.pin_heavy_accounts(h, FULL, BASE)
+    assert h.slides[0][0][0] == ("210 accounts (17%) put 80% or more of their card dollars through "
+                                 "PIN; Walmart carries the most PIN dollars")
+    assert h.rails[0][-1] == ("Most PIN dollars", "Walmart", "$210K at 70% PIN")
+    h = _h()
+    V.pin_heavy_accounts(h, dict(FULL, ic_by_merchant=FULL["ic_by_merchant"][:2]), BASE)
+    assert h.charts[0]["name"] == "ic_account_mix"
+    assert h.rails[0][-1][0] == "All signature"
