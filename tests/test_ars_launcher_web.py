@@ -441,6 +441,45 @@ def test_an_old_status_is_shown_at_once_with_its_build_buttons_held(clean_state,
     assert "if (HOLD) for (const b of [go, go2, goti, gocomp])" in W.PAGE, "the page holds the Build buttons meanwhile"
 
 
+def test_statuses_are_renewed_behind_an_open_page_before_they_expire(clean_state, monkeypatch):
+    """The warm-up checks every client once; ten minutes on, each stored status had expired and the list said
+    "Checking…" for every client with no deck until somebody opened it (Aaron, 2026-10-29: Max's accounts)."""
+    monkeypatch.setattr(W, "compute_clients", lambda: listing())
+    monkeypatch.setattr(W, "current_period", lambda: "2026.09")
+    checked = []
+
+    def compute(cid):
+        checked.append(cid)
+        return {"client": cid, "state": "ready", "period": "2026.09", "checks": []}
+    monkeypatch.setattr(W, "compute_status", compute)
+
+    def settled(n):
+        return wait_for(lambda: len(checked) == n and not W._renew["busy"])
+
+    W.clients_doc()
+    time.sleep(0.3)
+    assert checked == [] and W._renew["on"] is False, "only main() turns the renewal on"
+
+    monkeypatch.setitem(W._renew, "on", True)
+    assert W.clients_doc()["clients"][0]["checked"] is False
+    assert settled(1), "a client with no stored status is checked"
+    assert W.clients_doc()["clients"][0]["checked"] is True
+
+    W.clients_doc()
+    time.sleep(0.3)
+    assert len(checked) == 1, "a young status is left alone"
+
+    now = time.time()
+    W._status_cache["1441"] = (now - W.STATUS_TTL * 0.9, {"client": "1441", "state": "ready", "period": "2026.09"})
+    W.clients_doc()
+    assert settled(2), "a status near the end of its life is renewed before it expires"
+    assert now < W._status_cache["1441"][0]
+
+    W._status_cache["1441"] = (time.time(), {"client": "1441", "state": "ready", "period": "2026.08"})
+    W.clients_doc()
+    assert settled(3), "a status for another cycle is checked again"
+
+
 def test_a_check_that_started_before_a_build_finished_is_not_stored(clean_state, monkeypatch):
     gate, started = threading.Event(), threading.Event()
 

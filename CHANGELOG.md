@@ -37,6 +37,17 @@ James Gilmore, 2026-10-30: "turn my m365 tools into Sheila tools ... Sheila, cre
 - **Built once.** The release copies `sheila_mcp/` with the code. `runtime.cmd`, which every Sheila launcher runs, ends by running `sheila_mcp/register.py`. That writes `%LOCALAPPDATA%\RPE\sheila_start.py` and adds a `sheila` entry to `claude_desktop_config.json`: the installer's copy and the Microsoft Store one. It keeps every other entry, saves the old file as `.bak`, rewrites nothing that is already right, and leaves a PC without Claude Desktop alone. Each time Claude starts Sheila, she refreshes her code from the share as the page does, then serves from the local copy.
 - **Who is asking** comes from the Windows sign-in (`james.gilmore` is "James Gilmore" in the Client CSM List), with `CSM Contacts.csv`'s email as the fallback. A CSM can still ask about anyone's book by name.
 
+### 2026-10-29 — Sheila: a client's list status is renewed, not left on "Checking…"
+
+Summary: clients with no deck yet no longer sit on "Checking…" in the list; while the page is open, Sheila re-checks each client in the background before its status expires.
+
+Aaron, 2026-10-29: "Max's accounts are getting stuck on Checking."
+
+- **Cause.** A stored status lives `STATUS_TTL` (10 minutes), and the list reads an expired or missing one as "Checking…". The start-up warm-up checks every client once (about 90 seconds for 84 clients), and nothing checked again unless someone opened the client. Ten minutes after start, every client with no deck in Outputs read "Checking…" for good. A client with a deck shows its "In Outputs" chip instead, so it went unnoticed on those.
+- **Fix.** Each list request now starts one background pass (`_renew_statuses`) that re-checks the clients whose status is missing, for another cycle, or past 70% of its life, four at a time, one pass at a time. The page asks for the list every minute, so statuses are renewed about three minutes before they would expire. Only `main()` turns it on (`_renew["on"]`), as with the share caches, so no test starts real checks.
+- **Not changed.** A client page still reads "Check again" fresh, and the Build buttons are still held while an old status is being re-read.
+- **Cost.** One pass over the roster about every seven minutes, only while a Sheila page is open. It is the same read as the start-up warm-up.
+
 ### 2026-10-29 — the command-line launcher is Build ARS Deck CLI.bat, and the user guide is rewritten
 
 Summary: the window version of the ARS build is now called Build ARS Deck CLI.bat in the CSM_Reporting folder, and the ARS Deck User Guide now explains how a deck is built, the data it needs, where that data lives, and what each field and term means.

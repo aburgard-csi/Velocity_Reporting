@@ -422,6 +422,7 @@ def clients_doc(fresh=False):
             stale = (_clients["clean_gen"] != _clients["gen"] or time.time() - _clients["at"] >= CLIENTS_TTL)
         if fresh or stale:
             _refresh_clients_later(fresh)
+    _renew_statuses_later()
     return _served_clients()
 
 
@@ -643,6 +644,45 @@ def _swallow(fn, *a):
         fn(*a)
     except (Exception, SystemExit):
         pass
+
+
+# A stored status expires after STATUS_TTL, and the list reads an expired one as "Checking…". The start-up
+# warm-up checks every client once, so ten minutes later every client with no deck in Outputs said
+# "Checking…" and stayed that way until somebody opened it (Aaron, 2026-10-29: "Max's accounts are getting
+# stuck on Checking"). While a page is open, each list request now renews, behind the page, the statuses
+# that are missing or past STATUS_RENEW of their life, one pass at a time. Only main() turns it on, as with
+# the share caches: a test that calls clients_doc must never start real checks.
+STATUS_RENEW = 0.7
+_renew = {"on": False, "busy": False}
+
+
+def _renew_statuses_later():
+    if not _renew["on"]:
+        return
+    with _status_lock:
+        if _renew["busy"]:
+            return
+        _renew["busy"] = True
+    threading.Thread(target=_renew_statuses, daemon=True).start()
+
+
+def _renew_statuses():
+    try:
+        with _clients_lock:
+            doc = _clients["doc"]
+        if not doc:
+            return
+        period, now = doc.get("period"), time.time()
+        with _status_lock:
+            stored = dict(_status_cache)
+        due = [c["id"] for c in doc["clients"]
+               if not (c["id"] in stored and now - stored[c["id"]][0] < STATUS_TTL * STATUS_RENEW
+                       and stored[c["id"]][1].get("period") == period)]
+        with ThreadPoolExecutor(PREWARM_WORKERS) as ex:
+            list(ex.map(lambda cid: _swallow(_check_status, cid), due))
+    finally:
+        with _status_lock:
+            _renew["busy"] = False
 
 
 def status_doc(cid, fresh=False, background=False):
@@ -2021,6 +2061,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     srv = make_server(a.port)
     install_share_caches()
+    _renew["on"] = True
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
     print(f"\n CSM Sheila is running at {url}")
     print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
