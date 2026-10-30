@@ -17,6 +17,7 @@ The responder-against-control slides compare that one pair in both decks.
 v5's two cross-source attrition slides (`txn_attrition`) belong to the Attrition chapter and are
 exported here as ATTRITION_BUILDERS / ATTRITION_TITLES for it.
 """
+import time
 from pathlib import Path
 
 from ti import cut, txn_sections as T
@@ -106,6 +107,17 @@ SOURCE = "the ODD extract and the monthly debit-card transaction files"
 
 
 # ------------------------------------------------------------------ compute
+def _lap(name, t):
+    """One section's seconds and the process's memory after it, to the build log (James Gilmore, 2026-10-29:
+    1798's 23.6M rows took most of an hour and ran out of memory, and nothing said where)."""
+    try:
+        import psutil
+        mem = f", {psutil.Process().memory_info().rss / 2**30:.1f} GB in use"
+    except Exception:                             # psutil is not a requirement; the time alone still says where
+        mem = ""
+    print(f"[time] transaction section {name}: {time.perf_counter() - t:,.1f} s{mem}", flush=True)
+
+
 def compute_all(ctx):
     """v5's transaction run, in v5's order, once for both chapters and both lenses."""
     if ctx.txn is None:
@@ -114,10 +126,12 @@ def compute_all(ctx):
     for section in (T.portfolio, T.financial_services, T.competition, T.merchants,
                     T.merchant_profiles, T.mapping_audit, T.card_behavior, T.interchange,
                     T.relationship, T.overlay, T.leakage, T.stressors_txn):
+        t = time.perf_counter()
         try:
             out.update(section(ctx) or {})
         except Exception as exc:                  # one section, never the chapter (v5's rule)
             ctx.warn(f"{section.__name__} failed: {type(exc).__name__}: {exc}")
+        _lap(section.__name__, t)
     def hotspots(c):                              # reads comp_by_branch from the figures so far
         return T.hotspots(c, out)
 

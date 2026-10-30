@@ -251,3 +251,25 @@ def test_the_list_keeps_ti_decks_apart_from_the_rpe_deck(tmp_path, monkeypatch):
     monkeypatch.setattr(W, "available_periods", lambda n=12: ["2026.10"])
     c = next(x for x in W.compute_clients()["clients"] if x["id"] == ROSTER[0][0])   # with the share on, ILS folders list other clients first
     assert c["decks"] == [] and c["ti_decks"] == [TI_DECK]
+
+
+def test_a_deck_whose_analyses_failed_is_kept_out_of_outputs(tmp_path):
+    """1798, 2026-10-29: financial_services ran out of memory, 59 slides came out stated, the deck still
+    validated 0 FAIL and replaced the full one in Outputs. A failed analysis now stops the delivery."""
+    warns = ["1798: rails: card only -- ACH, check and bill pay are not in the file",
+             "financial_services failed: MemoryError: Unable to allocate 180. MiB for an array",
+             "mapping_audit failed: AttributeError: 'NoneType' object has no attribute 'get'",
+             "card_behavior: no parseable HH:MM in descriptions; timing grid skipped",
+             "Competition: figures not computed (KeyError: 'x')",
+             "workbook read failed: BadZipFile: File is not a zip file",
+             "filed: no regulator record for Synchrony, Citi"]
+    (tmp_path / "ti_pack.json").write_text(json.dumps({"warnings": warns}), encoding="utf-8")
+    assert L.ti_failures(tmp_path) == [warns[1], warns[2], warns[4], warns[5]]
+    assert L.ti_failures(tmp_path / "nowhere") == []
+
+
+def test_deck_only_is_a_build_option_that_redraws_from_the_pack():
+    import inspect
+    src = inspect.getsource(L.build_ti)
+    assert '"--from-pack"' in src and "rebuild=a.rebuild or deck_only" in src
+    assert "elif failed:" in src

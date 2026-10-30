@@ -19,11 +19,22 @@ never be shipped in place of the ARS deck, and nothing here is passed to `assemb
 A chapter whose compute fails is stated in the pack's warnings and the build continues: one
 analysis never takes the cut down. With no chapter ported yet there is nothing to build, and
 this says so and exits 0.
+
+Every step's time goes to the build log as it finishes (`[time] <step>: 12.3 s`) and into the pack's
+`timings` (James Gilmore, 2026-10-29: "we obviously need to find a better, more efficient way to
+review large txn files"; 1798's 23.6M rows took most of an hour, and nothing said where).
+
+`--from-pack` draws the decks from the `ti_pack.json` already in <out dir> and computes nothing, for a
+change to the slides alone (a layout fix redrew 1798 in minutes, not an hour). It refuses a pack for
+another client or period, or one whose ODD extract or transaction files have changed since it was
+written (`input_fingerprint`); the client config, workbook and trackers are not compared, so a change
+to those needs a full build.
 """
 import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -48,7 +59,11 @@ def attach_txn(ctx, warnings, months=12):
                         f"the transaction chapters are stated, not rendered")
         return ctx
     ctx.anchor_ts = pd.Timestamp(ctx.anchor.year, ctx.anchor.month, 1) + pd.offsets.MonthEnd(0)
-    ctx.txn, ctx.txn_report = txn_stage.load(ctx.client_id, months, ctx.anchor_ts, log=lambda _m: None)
+    def staging(msg):                 # each copy from the share to the build log; a duplicated month to the pack too
+        print(msg, flush=True)
+        if "more than once" in msg:
+            warnings.append(f"client {ctx.client_id}: {msg}")
+    ctx.txn, ctx.txn_report = txn_stage.load(ctx.client_id, months, ctx.anchor_ts, log=staging)
     warnings.extend(ctx.txn_report.warnings)
     if ctx.txn.empty:
         warnings.append(f"client {ctx.client_id}: no transaction rows in the window ending {ctx.anchor.iso}")
@@ -59,6 +74,36 @@ def attach_txn(ctx, warnings, months=12):
     return ctx
 
 
+def input_fingerprint(client_id):
+    """The ODD extract and every transaction file on hand, by name, size and modified time: what a
+    pack's figures were computed from, compared before `--from-pack` reuses them."""
+    import rpe_env
+    from ti import odd
+
+    def stamp(p):
+        st = p.stat()
+        return [p.name, st.st_size, int(st.st_mtime)]
+    return {"odd": stamp(odd.odd_zip(client_id)), "txn": [stamp(p) for p in rpe_env.txn_files(client_id)]}
+
+
+class _Clock:
+    """Each step's seconds, printed to the build log as it finishes and kept for the pack."""
+
+    def __init__(self):
+        self.times, self._t = {}, time.perf_counter()
+
+    def lap(self, step):
+        now = time.perf_counter()
+        self.times[step] = round(now - self._t, 1)
+        self._t = now
+        try:
+            import psutil
+            mem = f", {psutil.Process().memory_info().rss / 2**30:.1f} GB in use"
+        except Exception:                         # psutil is optional; the time alone still says where
+            mem = ""
+        print(f"[time] {step}: {self.times[step]:,.1f} s{mem}", flush=True)
+
+
 def compute_pack(client_id, period, name, ics=False):
     """The cut's data pack for one client: sources, data month, figures, and every warning."""
     import pandas as pd
@@ -66,8 +111,11 @@ def compute_pack(client_id, period, name, ics=False):
     from ti.context import Ctx
     from ti.core.subsets import build_subsets
 
+    clock = _Clock()
+    fingerprint = input_fingerprint(client_id)
     warnings = []
     frame, report, source = odd.load_client(client_id)
+    clock.lap("ODD extract read")
     if report.errors:
         raise SystemExit(f"client {client_id}: the ODD transform failed: {'; '.join(report.errors)}")
     warnings += list(report.warnings)
@@ -82,6 +130,7 @@ def compute_pack(client_id, period, name, ics=False):
     gt = deferred_input.attach(client_id, warnings.append)
     if ics:
         frame = lens.attach_ics(frame, client_id, warnings.append, expected=True)
+    clock.lap("config, workbook and trackers")
     anchor = odd.frame_data_month(frame)
     if anchor is None:
         raise SystemExit(f"client {client_id}: no month-tagged transaction columns in the ODD")
@@ -90,7 +139,10 @@ def compute_pack(client_id, period, name, ics=False):
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
+    clock.lap("account subsets")
     attach_txn(ctx, warnings)
+    clock.lap(f"transaction files loaded ({ctx.txn_report.rows:,} rows)" if ctx.txn_report is not None
+              else "transaction files (none)")
     if ctx.txn_report is not None:
         metrics.update({"txn_files_loaded": ctx.txn_report.files, "txn_rows": ctx.txn_report.rows,
                         "txn_anchor": anchor.iso})
@@ -99,6 +151,7 @@ def compute_pack(client_id, period, name, ics=False):
             metrics.update(ch.compute(ctx) or {})
         except Exception as exc:                      # one chapter, never the cut
             warnings.append(f"{ch.title}: figures not computed ({type(exc).__name__}: {exc})")
+        clock.lap(f"chapter {ch.title}")
     warnings += ctx.warnings
 
     lenses = ["ars"] + (["ics"] if ics else [])
@@ -112,7 +165,23 @@ def compute_pack(client_id, period, name, ics=False):
     return {"client_id": str(client_id), "client_name": name, "period": period,
             "data_month": anchor.tag, "sources": {"odd": source, "config": cfg.get("_source", "")},
             "lenses": [k for k in lenses if k not in unavailable], "lenses_unavailable": unavailable,
-            "metrics": metrics, "warnings": warnings}
+            "metrics": metrics, "warnings": warnings, "inputs": fingerprint, "timings": clock.times,
+            "computed": time.strftime("%Y-%m-%d %H:%M")}
+
+
+def pack_for_reuse(out, client_id, period):
+    """The pack in `out` when it can be redrawn as it is, else SystemExit saying why."""
+    f = Path(out) / "ti_pack.json"
+    if not f.is_file():
+        raise SystemExit(f"--from-pack: no ti_pack.json in {out}; run a full build first")
+    pack = json.loads(f.read_text(encoding="utf-8"))
+    if (pack.get("client_id"), pack.get("period")) != (str(client_id), period):
+        raise SystemExit(f"--from-pack: the pack in {out} is client {pack.get('client_id')} "
+                         f"{pack.get('period')}, not {client_id} {period}")
+    if pack.get("inputs") != input_fingerprint(client_id):
+        raise SystemExit("--from-pack: the ODD extract or the transaction files have changed since the pack "
+                         "was computed (or it predates the check); run a full build")
+    return pack
 
 
 def build_decks(pack, out_dir, chapters=None):
@@ -138,6 +207,8 @@ def main(argv=None):
     ap.add_argument("client_name")
     ap.add_argument("out_dir")
     ap.add_argument("--ics", action="store_true", help="the client is on ICS: build the ICS lens too")
+    ap.add_argument("--from-pack", action="store_true",
+                    help="draw the decks from the ti_pack.json in <out dir>; compute nothing")
     a = ap.parse_args(argv)
 
     from ti import cut
@@ -146,8 +217,12 @@ def main(argv=None):
         return 0
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics)
-    (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
+    if a.from_pack:
+        pack = pack_for_reuse(out, a.client_id, a.period)
+        print(f"figures from the pack computed {pack.get('computed')}: nothing recomputed", flush=True)
+    else:
+        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics)
+        (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
     for w in pack["warnings"]:
@@ -156,8 +231,10 @@ def main(argv=None):
     from ti.transaction_intelligence import competition_report, sections_report
     for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
         print(line)
+    t = time.perf_counter()
     for p in build_decks(pack, out):
         print(f"built {p}")
+    print(f"[time] decks drawn: {time.perf_counter() - t:,.1f} s", flush=True)
     return 0
 
 
