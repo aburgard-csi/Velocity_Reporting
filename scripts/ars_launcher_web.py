@@ -757,20 +757,59 @@ def builds_on_offer(progs, avail, ars_only, has_ars):
 
 
 # ------------------------------------------------------------------ build jobs
-def build_cmd(cid, rebuild, combined=False, period=None, ti=False, companion=False):
+def build_cmd(cid, rebuild, combined=False, period=None, ti=False, companion=False, deck_only=False):
     """The child process is told WHICH cycle. Without it a build started while an earlier
     cycle is selected would quietly build today's instead — the launcher defaults to the
     calendar month, and the page would show the result under the month on screen."""
     return ([sys.executable, str(HERE / "ars_launcher.py"), "build", cid,
              "--period", period or current_period()]
             + (["--rebuild"] if rebuild else []) + (["--combined"] if combined else [])
-            + (["--ti"] if ti else []) + (["--companion"] if companion else []))
+            + (["--ti"] if ti else []) + (["--companion"] if companion else [])
+            + (["--deck-only"] if deck_only else []))
+
+
+# One build at a time on this PC, whichever front door started it (James Gilmore, 2026-10-30): Sheila's
+# page and Sheila in Claude each keep their own queue, so the turn is taken with a lock file both see.
+# The OS drops the lock when its holder exits, so a crashed build never leaves it held.
+BUILD_LOCK = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("TMPDIR") or "/tmp") / "RPE" / "build.lock"
+
+
+def _take_build_lock(job):
+    BUILD_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(BUILD_LOCK, "a+b")
+    said = False
+    while True:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fh
+        except OSError:
+            if not said:
+                job.lines.append("  [..]   Waiting for another build on this PC to finish")
+                said = True
+            time.sleep(2)
+
+
+def _drop_build_lock(fh):
+    try:
+        if os.name == "nt":
+            import msvcrt
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+    except OSError:
+        pass
+    fh.close()
 
 
 class Job:
-    def __init__(self, cid, rebuild, combined=False, period=None, ti=False, companion=False):
+    def __init__(self, cid, rebuild, combined=False, period=None, ti=False, companion=False, deck_only=False):
         self.cid, self.rebuild, self.combined, self.ti = cid, rebuild, combined, ti
-        self.companion = companion
+        self.companion, self.deck_only = companion, deck_only
         # Pinned at queue time: a job waiting behind two others must build the cycle it was
         # asked for, not whichever one happens to be on screen when it starts.
         self.period = period or current_period()
@@ -783,11 +822,14 @@ class Job:
         self.started = time.time()
         # COLUMNS keeps ars_launcher.say from wrapping a long Outputs path across two lines.
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1", COLUMNS="1000")
+        lock = None
         try:
             # `ti` is passed only for a Transaction Intelligence job: the tests stub build_cmd with the
             # four-argument shape, and a fifth argument errored every stubbed job (2026-10-26).
-            extra = {**({"ti": True} if self.ti else {}), **({"companion": True} if self.companion else {})}
+            extra = {**({"ti": True} if self.ti else {}), **({"companion": True} if self.companion else {}),
+                     **({"deck_only": True} if self.deck_only else {})}
             cmd = build_cmd(self.cid, self.rebuild, self.combined, self.period, **extra)
+            lock = _take_build_lock(self)
             proc = subprocess.Popen(cmd,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
@@ -798,6 +840,9 @@ class Job:
         except OSError as e:
             self.lines.append(f"  [STOP] The build could not start: {e}")
             self.code = 1
+        finally:
+            if lock is not None:
+                _drop_build_lock(lock)
         self.finished = time.time()
         forget_status(self.cid)     # the deck in Outputs and the last-build line have changed
         self.done = True
@@ -816,7 +861,7 @@ class Job:
         position = waiting.index(self) + 1 if self in waiting else None
         running = next((j.cid for j in list(_jobs.values()) if j.started and not j.done), None)
         return {"client": self.cid, "rebuild": self.rebuild, "combined": self.combined, "ti": self.ti,
-                "companion": self.companion, "lines": self.lines, "done": self.done,
+                "companion": self.companion, "deck_only": self.deck_only, "lines": self.lines, "done": self.done,
                 "code": self.code, "deck": deck, "queued": position, "after": running if position else None,
                 "seconds": round((self.finished or time.time()) - self.started) if self.started else 0}
 
@@ -848,14 +893,14 @@ def _drain():
                 _queue.remove(job)
 
 
-def start_build(cid, rebuild, combined=False, ti=False, companion=False):
+def start_build(cid, rebuild, combined=False, ti=False, companion=False, deck_only=False):
     """Queue a build; it starts at once when nothing else is building. Returns (http status, body)."""
     with _jobs_lock:
         cur = _jobs.get(cid)
         if cur and not cur.done:
             where = "building" if cur.started else f"queued #{[j for j in _queue if not j.started].index(cur) + 1}"
             return 409, {"error": f"{cid} is already {where}."}
-        job = Job(cid, rebuild, combined, ti=ti, companion=companion)
+        job = Job(cid, rebuild, combined, ti=ti, companion=companion, deck_only=deck_only)
         _jobs[cid] = job
         _queue.append(job)
         if _worker["thread"] is None:

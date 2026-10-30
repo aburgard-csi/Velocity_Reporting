@@ -99,7 +99,7 @@ $tools = Join-Path $Root 'Tools'
 $code = Join-Path $tools 'RPE'
 New-Item -ItemType Directory -Force $code | Out-Null
 
-foreach ($d in 'build', 'scripts', 'validation', 'templates', 'fonts') {
+foreach ($d in 'build', 'scripts', 'validation', 'templates', 'fonts', 'sheila_mcp') {
     robocopy (Join-Path $repo $d) (Join-Path $code $d) /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 /XD __pycache__ .pytest_cache | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed for $d ($LASTEXITCODE)" }
 }

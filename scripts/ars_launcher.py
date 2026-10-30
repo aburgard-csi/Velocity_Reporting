@@ -1327,6 +1327,9 @@ def cmd_build(a):
     return 1
 
 
+VALIDATION_SUFFIX = ".validation.txt"
+
+
 def run_validator(deck, base=None):
     """(the validator's verdict line, its FAIL lines). One run of validate_deck.py.
 
@@ -1339,6 +1342,12 @@ def run_validator(deck, base=None):
         cmd.append(str(base))
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     lines = [l.strip() for l in r.stdout.splitlines()]
+    # Kept beside the deck, so "what needs my review?" can name the slides, not only count them
+    # (Sheila in Claude, James Gilmore, 2026-10-30). Best effort: a report that can't be written costs nothing.
+    try:
+        Path(str(deck) + VALIDATION_SUFFIX).write_text(r.stdout, encoding="utf-8")
+    except OSError:
+        pass
     verdict = next((l for l in lines if "FAIL," in l), "?")
     fails = [l for l in lines if l.startswith("[FAIL")]
     return verdict, fails
