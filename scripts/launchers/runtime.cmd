@@ -6,12 +6,15 @@ rem hour on 2026-10-06 and never finished.
 rem   Python: unpacked from the share on first use, and again whenever a new runtime is released.
 rem   Code:   Tools\RPE copied to %LOCALAPPDATA%\RPE\Code whenever a new release is stamped.
 rem Called by the launcher .bat files with ROOT set; sets PY and CODE, exits 1 if it cannot.
+rem   Claude: then puts Sheila in this PC's Claude Desktop (sheila_mcp\register.py), so a CSM who
+rem           opens Sheila can also ask her things in Claude. Silent, and never stops the launcher.
 set "RT=%LOCALAPPDATA%\RPE"
 set "PY=%RT%\Python\python.exe"
 set "CODE=%RT%\Code"
 set "SRC=%ROOT%Tools\RPE"
 call :python || exit /b 1
 call :code || exit /b 1
+if exist "%CODE%\sheila_mcp\register.py" "%PY%" "%CODE%\sheila_mcp\register.py" >nul 2>&1
 exit /b 0
 
 :python

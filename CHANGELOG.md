@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-30 — Sheila in Claude: every CSM can ask her for their reporting
+
+Summary: Sheila is now also a connector in Claude Desktop. A CSM can ask "where am I this month?", "build 1798", "what's in 1798's TI deck?", "where does slide 127's 9.7% come from?" or "run the PGL for 1737", and Sheila answers from the same checks and builds her page uses. Nobody sets anything up: opening Sheila adds her to that PC's Claude.
+
+James Gilmore, 2026-10-30: "turn my m365 tools into Sheila tools ... Sheila, create this report"; "this will be for all CSMs"; "it should be built once, no csm has to do it"; "the focus is ... communicating with our Sheila via claude".
+
+- **A second front door, not a second Sheila.** `sheila_mcp/` serves 15 tools: `my_month`, `clients`, `client_status`, `build`, `build_progress`, `build_queue`, `deck_summary`, `review`, `explain`, `outputs`, `data_issues`, `ils_status`, `ils_run`, `ils_progress` and `whats_new`. Each calls the function the matching button calls (`clients_doc`, `status_doc`, `start_build`, `job_doc`, `issues_doc`, `changelog_entries`, `ils_runs.client_doc` / `start`), so the page and Claude cannot disagree.
+- **A deck in Outputs is replaced only on a yes.** `build` returns what it would replace and asks; it rebuilds only when called again with `confirm=true`, after the CSM says so. A blocked client is refused with the launcher's own stop lines. A client whose page offers only the combined button (no ARS, or Aaron's multi-program clients) builds combined, as the page does.
+- **One build at a time on a PC, whichever door started it.** `Job.run` takes `%LOCALAPPDATA%\RPE\build.lock` before starting `ars_launcher.py build`; a build that has to wait shows "Waiting for another build on this PC to finish". The OS drops the lock if a build dies.
+- **`build --ti --deck-only` from Sheila.** `build_cmd`, `Job` and `start_build` take `deck_only`, so a slide-only Transaction Intelligence redraw can be asked for. It replaces the decks in Outputs, so it asks first too.
+- **The validator's full report is kept beside the deck** (`<deck>.pptx.validation.txt`, written by `run_validator`), so "what needs my review" names each slide and reason, not only "26 REVIEW". Decks built before today have only the count.
+- **"Where does this number come from"** (`explain`) gives the slide's headline, its figures in reading order, the source its speaker notes name (extract file, lens, analysis), and any validator finding on that slide.
+- **No new packages.** The MCP stdio protocol is spoken with the standard library (`sheila_mcp/stdio.py`), so Sheila's Python runtime is unchanged and nothing new is unpacked on any PC.
+- **Built once.** The release copies `sheila_mcp/` with the code. `runtime.cmd`, which every Sheila launcher runs, ends by running `sheila_mcp/register.py`. That writes `%LOCALAPPDATA%\RPE\sheila_start.py` and adds a `sheila` entry to `claude_desktop_config.json`: the installer's copy and the Microsoft Store one. It keeps every other entry, saves the old file as `.bak`, rewrites nothing that is already right, and leaves a PC without Claude Desktop alone. Each time Claude starts Sheila, she refreshes her code from the share as the page does, then serves from the local copy.
+- **Who is asking** comes from the Windows sign-in (`james.gilmore` is "James Gilmore" in the Client CSM List), with `CSM Contacts.csv`'s email as the fallback. A CSM can still ask about anyone's book by name.
+
 ### 2026-10-29 — the command-line launcher is Build ARS Deck CLI.bat, and the user guide is rewritten
 
 Summary: the window version of the ARS build is now called Build ARS Deck CLI.bat in the CSM_Reporting folder, and the ARS Deck User Guide now explains how a deck is built, the data it needs, where that data lives, and what each field and term means.
