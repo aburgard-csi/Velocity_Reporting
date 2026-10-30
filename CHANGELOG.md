@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-29 — Transaction Intelligence: a failed analysis never reaches Outputs, a month is staged once, and the slides can be redrawn without recomputing
+
+Summary: a profiled build of 1798 FirstLight (23.6M transaction rows) took 16 minutes just to load its transaction files. The 1798 folder holds every month two or three times (a 12-month zip, the same 12 CSVs unzipped, and three older monthly zips), and each copy was staged over the last. So every build re-copied about 3 GB from the share and re-parsed every month. The twelve transaction sections took another 18.5 minutes between them. An earlier rebuild ran out of memory in `financial_services`, put out an 87-slide deck where the full one has 144, and that deck validated 0 FAIL and replaced the full one in Outputs.
+
+James Gilmore, 2026-10-29: "we obviously need to find a better, more efficient way to review large txn files."
+
+- **The launcher refuses a deck whose analyses failed** (`ars_launcher.ti_failures`). This covers a section or chapter that raised, and a workbook or tracker read that failed. The deck stays in the build folder to look at, and the deck already in Outputs is untouched.
+- **One copy of each month is staged** (`txn_stage.one_per_name`). It uses the copy already staged when one matches, so neither the copy nor the parquet cache is redone. Otherwise it uses the newest copy. A duplicated month is a warning in the pack.
+- **Merchant cleaning runs once per distinct description** (`merchant._by_unique`). On one real 1798 month (1.98M rows, 285,262 distinct) the output is identical and about 5 times faster.
+- **Timings.** Every step and every transaction section writes its seconds and the memory in use to the build log, as `[time] …`, and into the pack's `timings`.
+- **`build <id> --ti --deck-only`** redraws the decks from the last full build's `ti_pack.json` without computing (`ti_build --from-pack`). It is refused for a pack from another client or period, and for one whose ODD extract or transaction files changed. The client config, workbook and trackers are not compared, so a change to those still needs a full build.
+
 ### 2026-10-29 — Transaction Intelligence: a mailer chart never covers a two-line headline's subtitle
 
 Summary: six campaign slides placed their chart at v5's fixed 1.55in from the top. They are the most recent mailer, its responder trajectory, the most recent offer, and Offer detail's summary, segment and responder slides. When a headline wrapped to two lines, the subtitle was pushed down behind the chart. On 1798 FirstLight's slide 127 ("Aug26 reached 22,914 accounts and 2,226 responded: 9.7%"), only the top half of the subtitle showed. Each chart now starts where the cut's `slide()` says the headline block ends, and is shortened by the same amount so it still ends above the footer.

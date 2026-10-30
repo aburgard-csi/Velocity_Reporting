@@ -748,10 +748,29 @@ def ti_to_outputs(cid, deck, client_name=""):
     return OK, f"In Outputs: {cur}"
 
 
+# A warning the cut writes when an analysis raised rather than declined: chapters_txn's per-section wrapper,
+# ti_build's per-chapter one, and the workbook and tracker reads. 1798, 2026-10-29: a MemoryError in
+# financial_services left 59 slides stated, the deck still validated 0 FAIL, and it replaced the full deck in
+# Outputs (James Gilmore restored it by hand).
+_TI_FAILED = re.compile(r"\bfailed: [A-Za-z]+(Error|Exception)\b|figures not computed \(|read failed: ")
+
+
+def ti_failures(tdir):
+    """The pack's warnings that say an analysis failed, or [] (no pack: nothing to say)."""
+    try:
+        warns = json.loads((Path(tdir) / "ti_pack.json").read_text(encoding="utf-8")).get("warnings") or []
+    except (OSError, ValueError):
+        return []
+    return [w for w in warns if _TI_FAILED.search(str(w))]
+
+
 def build_ti(a, BM, row, period, roster, sent, work):
     """`build <id> --ti`: the Transaction Intelligence decks, one per lens, into Outputs."""
     print(f"\nBuilding the Transaction Intelligence decks: client {a.client}, period {period}\n")
-    checks = ti_checks(a.client, period, row, roster, sent, rebuild=a.rebuild)
+    # --deck-only redraws the decks from the last full build's figures (ti_build --from-pack), for a change to the
+    # slides alone; it replaces the decks in Outputs, so it is a rebuild (James Gilmore, 2026-10-29)
+    deck_only = getattr(a, "deck_only", False)
+    checks = ti_checks(a.client, period, row, roster, sent, rebuild=a.rebuild or deck_only)
     for lvl, msg in checks:
         say(lvl, msg)
     if any(l == STOP for l, _ in checks):
@@ -772,20 +791,28 @@ def build_ti(a, BM, row, period, roster, sent, work):
         tdir.mkdir(parents=True, exist_ok=True)
         for old in tdir.glob("*.pptx"):      # a previous build's decks are never mistaken for this one's
             old.unlink()
-        print(f"\nBuilding the ARS{' and ICS' if ics else ''} lens{'es' if ics else ''} (this takes a few minutes)...", flush=True)
+        print(f"\n{'Redrawing' if deck_only else 'Building'} the ARS{' and ICS' if ics else ''} lens{'es' if ics else ''}"
+              f"{' from the last full build' if deck_only else ''} (this takes a few minutes)...", flush=True)
         log = tdir / "build.log"           # its own log: the RPE build's steps are not this build's
         log.unlink(missing_ok=True)
         threading.Thread(target=watch_steps, args=(log, stop, t0), daemon=True).start()
         try:
             rc = BM.run([BM.PY, os.path.join(BM.ARSP, "ti_build.py"), a.client, period, name, str(tdir)]
-                        + (["--ics"] if ics else []), log)
+                        + (["--ics"] if ics else []) + (["--from-pack"] if deck_only else []), log)
         finally:
             stop.set()
         made = sorted(str(p) for p in tdir.glob(f"{a.client}-{period}-{TI_TAG}-*.pptx"))
+        failed = ti_failures(tdir) if made and not rc else []
         if rc or not made:
             reason = _log_reason(log) or f"exit code {rc}"
             say(STOP, f"The build stopped: {reason}")
             result = f"stopped: {reason}"
+        elif failed:
+            for f in failed:
+                say(STOP, f"Figures not computed: {f}")
+            say(STOP, f"Not put in Outputs: {len(failed)} analysis(es) failed, so the deck states slides it should "
+                      f"draw. The deck is in {tdir} to look at; the deck already in Outputs is untouched.")
+            result = f"stopped: {len(failed)} analysis(es) failed ({failed[0][:120]})"
         else:
             sys.path.insert(0, str(REPO / "validation"))
             import validate_deck as V
@@ -1348,6 +1375,9 @@ def main(argv=None):
             sp.add_argument("--rebuild", action="store_true", help="rebuild a deck already recorded as sent")
             sp.add_argument("--combined", action="store_true",
                             help="one deck with ARS plus every other clients.md program that has its data")
+            sp.add_argument("--deck-only", action="store_true",
+                            help="with --ti: redraw the decks from the last full build's figures, computing nothing "
+                                 "(a change to the slides alone); refused when the ODD or transaction files changed")
     a = ap.parse_args(argv)
     a.client = a.client.strip()
     if not re.fullmatch(r"\d{3,5}", a.client):
