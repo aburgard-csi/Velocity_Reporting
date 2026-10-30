@@ -157,3 +157,20 @@ def _texts_of(render):
     finally:
         charts._save = real
     return seen
+
+
+# ---------------------------------------------------------------- v5 month labels (Sheila, 1798, 2026-10-30)
+@pytest.mark.parametrize("draw", [
+    lambda out: charts.line_series([["Jan24", 1.0], ["Feb24", 2.0], ["Aug24", 3.0]], out, money=True),
+    lambda out: charts.line_with_base([["Jan24", 100, 40.0], ["Feb24", 120, 42.0], ["Mar24", 90, 41.0]], out),
+    lambda out: charts.grouped_bars(["Jan24", "Feb24"], [1, 2], [2, 3], "a", "b", out),
+    lambda out: charts.response_reach_combo([["Jun24", 4.0], ["Jul24", 5.0]], [["Jun24", 10.0], ["Jul24", 18.0]], out),
+    lambda out: charts.dual_series([["Jan24", 10, 5], ["Feb24", 12, 6]], out),
+])
+def test_v5_month_labels_draw_in_the_house_format_instead_of_failing(tmp_path, draw):
+    """The packs label months as the ODD does ("Jan24"); the month-axis guard refused them and
+    Deck.chart swallowed the error, so five charts (and the hero sparkline) were missing from 1798's
+    deck while it validated 0 FAIL."""
+    out = tmp_path / "c.png"
+    draw(out)
+    assert out.exists()
