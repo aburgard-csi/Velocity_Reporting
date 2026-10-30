@@ -5,6 +5,7 @@ usage: python kpm_charts.py <charts.json> <out_dir>
 charts.json is a list of {"file": "m1075.png", "type": "yoy" | "bars", "title": "...", ...}:
 
   yoy  : {"items": [["MRPC enrollments (Jan-Sep)", 25.1], ...]}          horizontal bars of year-over-year change, largest in orange
+  share: {"items": [["Online Banking", 48], ...]}                         the same bars labelled as plain percentages ("48%"), for conversion or share
   bars : {"labels": ["May", "Jun"], "values": [1, 31], "every": 1}      vertical bars, the last one in orange
 
 Fonts and colours come from build/brand.py and rpe_env.use_font (it raises rather than let matplotlib substitute a face).
@@ -30,7 +31,7 @@ W, H = 3.63, 1.55
 use_font(HEAD)
 
 
-def yoy(path, title, items):
+def yoy(path, title, items, fmt="+{v:.1f}%"):
     items = sorted(items, key=lambda x: x[1])
     fig, ax = plt.subplots(figsize=(W, H), dpi=300)
     ax.set_title(title, fontsize=8, fontweight="bold", color=NAVY, loc="left", pad=5, x=-0.02)
@@ -44,7 +45,7 @@ def yoy(path, title, items):
     ax.tick_params(length=0)
     top = max(v for _, v in items)
     for i, (_, v) in enumerate(items):
-        ax.text(v + top * 0.02, i, f"+{v:.1f}%", va="center", fontsize=6.6, fontweight="bold", color=NAVY)
+        ax.text(v + top * 0.02, i, fmt.format(v=v), va="center", fontsize=6.6, fontweight="bold", color=NAVY)
     ax.set_xlim(0, top * 1.25)
     fig.subplots_adjust(left=0.46, right=0.99, top=0.88, bottom=0.03)
     fig.savefig(path, facecolor="white")
@@ -77,10 +78,12 @@ def main(spec_path, out_dir):
         path = os.path.join(out_dir, c["file"])
         if c["type"] == "yoy":
             yoy(path, c["title"], c["items"])
+        elif c["type"] == "share":
+            yoy(path, c["title"], c["items"], "{v:.0f}%")
         elif c["type"] == "bars":
             bars(path, c["title"], c["labels"], c["values"], c.get("every", 1))
         else:
-            raise SystemExit("Unknown chart type %r (yoy or bars)" % c["type"])
+            raise SystemExit("Unknown chart type %r (yoy, share or bars)" % c["type"])
         print(path)
 
 

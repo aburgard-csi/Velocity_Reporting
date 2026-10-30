@@ -214,11 +214,26 @@ def build(spec, out):
             cw = WIDTH - 2 * tw - gp - 0.15
             s.shapes.add_picture(band["chart"], Inches(LEFT + WIDTH - cw), Inches(TOP + 0.52), Inches(cw), Inches(BAND_CH))
 
+    def chart_box(x):
+        """(width, height) in inches of a section's own chart picture, or None. "chart_w" sets the width (default 3.4)."""
+        if not x.get("chart"):
+            return None
+        cw = x.get("chart_w", 3.4)
+        w, h = Image.open(x["chart"]).size
+        return cw, cw * h / w
+
+    def text_w(x):
+        cb = chart_box(x)
+        return WIDTH - (cb[0] + 0.15) if cb else WIDTH
+
     def sec_h(x, size):
         hh = 0.42
         for b in x["bullets"]:
             lh, pad = (1.12, 0.045) if spec.get("accurate") else (1.42, 0.07)  # rendered line pitch and 3pt space after, as seen
-            hh += (measured_lines(b, size, WIDTH - 0.25) if spec.get("measure") else lines_needed(b, size, WIDTH - 0.3)) * size * lh / 72 + pad
+            hh += (measured_lines(b, size, text_w(x) - 0.25) if spec.get("measure") else lines_needed(b, size, text_w(x) - 0.3)) * size * lh / 72 + pad
+        cb = chart_box(x)
+        if cb:
+            hh = max(hh, 0.42 + cb[1] + 0.06)
         return hh + 0.1
 
     avail = spec.get("bottom", BOTTOM) - TOP - band_h
@@ -230,7 +245,10 @@ def build(spec, out):
     y = TOP + band_h
     for x in secs:
         heading(y, x["title"], x.get("chip"))
-        bb = s.shapes.add_textbox(Inches(LEFT), Inches(y + 0.48), Inches(WIDTH), Inches(sec_h(x, size) - 0.42))
+        cb = chart_box(x)
+        if cb:   # a chart beside this section's bullets, on the right
+            s.shapes.add_picture(x["chart"], Inches(LEFT + WIDTH - cb[0]), Inches(y + 0.48), Inches(cb[0]), Inches(cb[1]))
+        bb = s.shapes.add_textbox(Inches(LEFT), Inches(y + 0.48), Inches(text_w(x)), Inches(sec_h(x, size) - 0.42))
         t = bb.text_frame
         t.word_wrap = True
         t.margin_left = t.margin_right = t.margin_top = t.margin_bottom = 0

@@ -89,6 +89,12 @@ Report each claim as: page text, source file and period, the value read, PASS / 
 - **The velocity average $1,828** (ICS lifetime value) is a constant in `ics_workbook_extract.py`, not computed. It is on the page as the
   house benchmark; say so in the notes.
 - **Positive results only** is Aaron's brief for Fort Lauderdale; the negatives you found go in your hand-over message, not the page.
+- **White space on a short page** (2026-10-30, WesBanco): fill it with verified material from the client's other products, such as a conversion chart
+  beside the Account Engagement bullets and one ICS profit line, never with padding. Offer a short list of options first and build the ones Aaron agrees to.
+- **A thin client is built thin** (2026-10-30, Dutch Point: ICS only, no workbook, no VIP sheet). Lead with the window that two sources agree on
+  (May-August), leave out a month that has one source or unmatched records, and say in the hand-over what the longer window would show.
+- **Only attending clients, mapped from the attendee list** (2026-10-30). The Cvent attendee list lives on the event's registration page; map each company to the
+  Client CSM List by name, check its products, and tell Aaron which attendees are not RPE-only or not clients of the CSM he named.
 
 ## 3. Build
 
@@ -117,6 +123,9 @@ Run them from a script file (never a heredoc into `python -`: it hangs), without
 - `contact` overrides the contact line; leave it out and the client's CSM is read from `CSM Contacts.csv`.
 - `logo` overrides `Inputs\Logos\<id>.png`; a missing logo prints a warning and leaves the badge empty.
 - Heading text splits on `|`: `Name|®| (AB)` keeps the ® as its own run.
+- A section may carry its own chart: `"chart": "<png>"`, `"chart_w": 3.4` (inches). The picture sits on the right of that section's bullets,
+  the bullets narrow to make room, and the section grows to fit it. Chart titles must stay short (about 20 characters): a longer one is clipped.
+- Chart types in `kpm_charts.py`: `yoy` (bars labelled `+12.3%`), `share` (bars labelled `48%`, for conversion or share) and `bars` (monthly columns).
 
 ## 4. Render and look at it
 

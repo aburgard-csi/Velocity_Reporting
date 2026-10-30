@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-30 — Summit pages can carry a chart beside a section, and Summit pages are routed to the skill
+
+Summary: the Summit one-pager builder can place a chart beside any section's bullets, and CLAUDE.md now routes Summit one-pager requests to the skill.
+
+Aaron, 2026-10-30: "Will you automatically use skills for doing projects like this, or do I need to tell you that explicitly?"
+
+- **Routing.** A row in the CLAUDE.md routing table sends "Executive Summit one-pager", "Summit handout" and "Key Performance Metrics page" to the `summit-one-pager` skill, so a session reads it at the start instead of rebuilding the page from a scratch folder.
+- **Section chart.** `kpm_page.py` takes `chart` and `chart_w` on a section; `kpm_charts.py` has a `share` chart type for percentages. Used on WesBanco's Account Engagement section.
+
 ### 2026-10-30 — the Summit one-pager skill builds the Key Performance Metrics page
 
 Summary: the Executive Summit one-pager skill now covers the multi-program Key Performance Metrics page used for Fort Lauderdale, with its builder, chart helper and brand template kept in the repo.

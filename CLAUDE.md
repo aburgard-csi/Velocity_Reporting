@@ -20,6 +20,7 @@ Identify the program from the request, then dispatch to the one matching subagen
 | ILS analysis review, prep slides, matrix parameters / overrides | ILS prep (not an RPE build) | the `ils-prep-deck` skill |
 | ILS pre-go-live (PGL), ILS kickoff, a client's field summary or ILS codes | ILS pre-go-live / kickoff — James's v5 engines, run from the ILS cards on a client's page in Sheila | no subagent: `build/ils_pipeline/` (read its `README.md`); Sheila's cards are `scripts/ils_ui.py` and `scripts/ils_runs.py` |
 | Transaction Intelligence, the TI cut, a lens (ARS lens / ICS lens), a chapter, the v5 port, parity, the duplicates register | Transaction Intelligence — a SEPARATE presentation, never an RPE build and never a change to one | no subagent: `build/ars_pipeline/ti/`, by hand, after reading `ti/PORTING.md` and **Transaction Intelligence branches** in `docs/COLLABORATORS.md` |
+| An Executive Summit one-pager, a Summit handout, the Key Performance Metrics page, Summit attendees | Executive Summit one-pager: hand-built for ATTENDING clients only, never an RPE build and never scheduled | no subagent: the `summit-one-pager` skill (`.claude/skills/summit-one-pager/`), which also records Aaron's corrections to these pages |
 
 If a request names a client but not a program, ask which program before building. If it
 asks for a combined ARS+ICS+MRPC review, run each subagent in turn and assemble with
