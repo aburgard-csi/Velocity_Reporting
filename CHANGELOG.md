@@ -23,7 +23,7 @@ file travels with the code, so Sheila's change log page shows that stamp above t
 
 ### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
 
-Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to about 90.
+Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to 81.
 
 Sheila's 1798 slide review, 2026-10-30 (`Notes\Slide review\TI and ARS notes - 1798 - 10.30.xlsx`): 5 blank charts, 22 "Not shown" slides, empty Deposits and ICS sections, 9.5–10pt text on 109 slides, figures that disagree (11,669 vs 13,983; Cash App $78M against a $49.6M total; 908 vs 20,991; $524 vs $371 a month), 17 groups of repeated slides, and the Summit promo ahead of the agenda. James Gilmore, 2026-10-30: fix it in the pipeline, not the deck; "cash app and the p2p stuff need to be in".
 
