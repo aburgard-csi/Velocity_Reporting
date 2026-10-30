@@ -30,6 +30,15 @@ import rpe_env
 # a calendar month drawn on an axis outside MMM'YY fails the render, as in every RPE chart module
 _rpe_periods.install_month_axis_guard()
 
+
+def _axis_labels(labels) -> list:
+    """Category labels for an axis, every calendar month in the house MMM'YY form.
+
+    v5's packs label months as the ODD does ("Jan24"); the guard above refuses those, and the
+    chart was declined and silently left off the slide (five blank charts on 1798, Sheila's slide
+    review, 2026-10-30). A label that is not a month passes through unchanged."""
+    return _rpe_periods.axis_months(["" if l is None else str(l) for l in labels])
+
 # CSI Velocity brand. These are the canonical values, matching
 # RPE-Workflow's ars_engine/core/brand.py -- the module that declares itself the
 # single source of truth for colour. Five of these had drifted: GREY was one hex
@@ -597,7 +606,7 @@ def rate_bars(rows: list, out: Path, mark_weakest: bool = True,
                 color=NAVY)
     ax.set_xticks(range(len(rows)))
     ticks = [f"{l}\n{n_:,}" if show_n else l for l, n_ in zip(labels, ns)]
-    ax.set_xticklabels(ticks, fontsize=11, color=NAVY)
+    ax.set_xticklabels(_axis_labels(ticks), fontsize=11, color=NAVY)
     ax.set_ylim(0, scale * 1.18)
     ax.get_yaxis().set_visible(False)
     _clean(ax)
@@ -642,7 +651,7 @@ def _branch_fig(rows: list, portfolio: float, top: int = 12,
                 color="white" if inside else NAVY, zorder=3)
     rot = 0 if len(rows) <= 9 else 28
     ax.set_xticks(range(len(rows)))
-    ax.set_xticklabels(labels, fontsize=11, rotation=rot,
+    ax.set_xticklabels(_axis_labels(labels), fontsize=11, rotation=rot,
                        ha="center" if rot == 0 else "right", color=NAVY)
     ax.set_ylim(0, scale * 1.14)
     ax.get_yaxis().set_visible(False)
@@ -691,10 +700,11 @@ def response_reach_combo(rate_rows: list, cum_rows: list, out: Path) -> Path:
     """James's 6+7 combo (issue #43): response rate per offer as columns,
     cumulative reach of the eligible base as the line -- both percent, one
     axis."""
-    labels = [str(r[0]) for r in rate_rows]
+    keys = [str(r[0]) for r in rate_rows]
     rates = [r[1] for r in rate_rows]
     cum = {str(r[0]): r[1] for r in cum_rows}
-    line = [cum.get(l) for l in labels]
+    line = [cum.get(l) for l in keys]
+    labels = _axis_labels(keys)
     fig, ax = plt.subplots(figsize=(FIG_W_RAIL, 4.8))
     bars = ax.bar(range(len(labels)), rates, color=NAVY, width=0.6,
                   label="response rate")
@@ -875,7 +885,7 @@ def health_bars(rows: list, out: Path) -> Path:
                 fontweight="bold", color=NAVY)
 
     ax.set_xticks(range(len(rows)))
-    ax.set_xticklabels(labels, fontsize=12, color=NAVY)
+    ax.set_xticklabels(_axis_labels(labels), fontsize=12, color=NAVY)
     ax.set_ylim(0, max(counts) * 1.2)
     ax.get_yaxis().set_visible(False)
     _clean(ax)
@@ -998,7 +1008,7 @@ def tier_bars(rows: list, out: Path, value_idx: int = 1, size=None,
                 note, ha="center", fontsize=11,
                 fontweight="bold", color=NAVY)
     ax.set_xticks(range(len(rows)))
-    ax.set_xticklabels(labels, fontsize=12, color=NAVY)
+    ax.set_xticklabels(_axis_labels(labels), fontsize=12, color=NAVY)
     ax.set_ylim(0, max(vals)*1.22)
     ax.get_yaxis().set_visible(False)
     _clean(ax)
@@ -1126,7 +1136,7 @@ def ticket_bars(rows: list, blended: float, out: Path,
     ax.text(label_x, label_y, f"blended {value_fmt.format(blended)}",
             fontsize=11.5, color=ORANGE, fontweight="bold", ha=align)
     ax.set_xticks(range(len(rows)))
-    ax.set_xticklabels(labels, fontsize=12.5, color=NAVY)
+    ax.set_xticklabels(_axis_labels(labels), fontsize=12.5, color=NAVY)
     ax.set_ylim(0, max(vals)*1.2)
     ax.get_yaxis().set_visible(False)
     ax.set_xlabel(xlabel, fontsize=12, color=GREY)
@@ -1137,7 +1147,7 @@ def ticket_bars(rows: list, blended: float, out: Path,
 def _dual_fig(series: list, l1="Spend", l2="Swipes"):
     """Two measures, ONE axis: both indexed to the first month = 100, so
     the frame compares trajectories instead of hiding two scales."""
-    labels = [r[0] for r in series]
+    labels = _axis_labels([r[0] for r in series])
 
     def _index(vals):
         base = next((v for v in vals if v), None) or 1
@@ -1180,7 +1190,7 @@ def _line_series_fig(series: list, ylabel="", pct=False,
     """`money=True` formats the axis in dollars. Without it matplotlib
     prints a bare 1e6 above the axis, which is what the deposit deck's
     first real render showed over twelve months of inflow."""
-    labels = [r[0] for r in series]
+    labels = _axis_labels([r[0] for r in series])
     vals = [r[1] for r in series]
     fig, ax = plt.subplots(figsize=(FIG_W_RAIL, FIG_H_RAIL))
     ax.plot(range(len(series)), vals, color=NAVY, lw=3, marker="o",
@@ -1266,7 +1276,7 @@ def _grouped_on_ax(ax, labels, a_vals, b_vals, a_lab, b_lab,
             ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+top*0.025,
                     _fmt(fmt, bar.get_height()), ha="center", fontsize=11,
                     fontweight="bold", color=NAVY)
-    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=label_size, color=NAVY)
+    ax.set_xticks(x); ax.set_xticklabels(_axis_labels(labels), fontsize=label_size, color=NAVY)
     ax.set_ylim(0, top*1.2)
     ax.get_yaxis().set_visible(False)
     # Above the axes, not inside it (#72). An upper-right legend sits exactly
@@ -1319,7 +1329,7 @@ def profile_twins(age_rows: list, bal_rows: list, out: Path) -> Path:
 def _openings_fig(rows: list):
     """Openings up, closures down, running net as a line -- all account
     counts, ONE axis."""
-    labels = [r[0] for r in rows]
+    labels = _axis_labels([r[0] for r in rows])
     opens = [r[1] for r in rows]
     closes = [-r[2] for r in rows]
     net = [r[3] for r in rows]
@@ -2215,7 +2225,7 @@ def _line_with_base_fig(rows: list, ylabel=""):
         ax.text(xs[i], pcts[i] + span * 0.10, f"{pcts[i]:.0f}%", fontsize=10.5,
                 fontweight="bold", color=NAVY, ha="center")
     ax.set_xticks(xs)
-    ax.set_xticklabels([r[0] for r in rows], fontsize=9, color=GREY)
+    ax.set_xticklabels(_axis_labels([r[0] for r in rows]), fontsize=9, color=GREY)
     ax.text(xs[-1], floor + span * 0.66, "grey = accounts observed",
             fontsize=9, color=GREY, ha="right")
     if ylabel:
