@@ -9,6 +9,9 @@ chapter computes nothing of its own. Slides: v5's five economics slides, drawn i
 and lifted into `ti/deck/economics_inline.py`, in v5's main-path order with the guarantee right after
 the P&L (James, 2026-08-22). A client with no workbook or tracker gets each slide stated, not
 dropped. The chapter describes the whole program, so it reads the same in the ARS and ICS lens decks.
+Program P&L is the one economics slide (Sheila's 1798 slide review, 2026-10-30, group M): with the
+DiD estimate on hand it sets booked revenue against it in a two-column table, which is why the
+campaign hero and Revenue frames are tossed in `ti/slides.json`.
 """
 from pathlib import Path
 

@@ -21,6 +21,15 @@ from .labels import money as _money
 
 GREEN_D = RGBColor(0x1E, 0x6E, 0x5E)   # semantic good (tiles, v5 issue #41)
 RED_D = RGBColor(0xC0, 0x39, 0x2B)     # semantic weak
+# RPE: the smallest text a ported economics or campaign slide draws (footnotes, tile notes). v5 drew
+# them at 9.5-10pt; Sheila's 1798 slide review (2026-10-30) flagged that size on 109 slides.
+FOOT_PT = 10.5
+
+
+def ic_pct(rate) -> str:
+    """The interchange rate as a client reads it: 0.0068 -> "0.68%". The workbook and config carry it
+    as a fraction (the DiD slide multiplies spend by it); v5 printed the raw fraction (1798 slide 109)."""
+    return f"{float(rate) * 100:.2f}%"
 
 
 def _tile(h, slide, left, top, width, value, label, note=None, rule=None):
@@ -42,19 +51,24 @@ def _tile(h, slide, left, top, width, value, label, note=None, rule=None):
               font=HEAD_FONT, color=rule if rule in (RED_D, GREEN_D) else h["NAVY"])
     h["text"](slide, left, top + 0.68, width, 0.28, label, size=12, bold=True)
     if note:
-        h["text"](slide, left, top + 0.96, width, 0.28, note, size=10, color=h["GREY"])
+        h["text"](slide, left, top + 0.96, width, 0.28, note, size=FOOT_PT, color=h["GREY"])
 
 
 def program_pnl(h, m) -> str | None:
-    """Program P&L by wave: the ARS Workbook, finally on a slide (v5 build.py)."""
+    """Program P&L by wave: the ARS Workbook, finally on a slide (v5 build.py).
+
+    RPE (Sheila's 1798 slide review, 2026-10-30, combine group M): this is the one economics slide.
+    The campaign hero repeated its profit figure and Revenue frames spent 164 words on why booked
+    revenue and the DiD estimate never tie; both fold in here. When the DiD estimate is on hand the
+    lower half is a two-column table, booked against incremental, saying what each one answers;
+    without it the slide keeps v5's offer table."""
     if not (m.get("wb_profit_ltd") is not None or m.get("wb_waves")):
         return "wb_waves (run with an ARS Workbook present)"
     MARGIN_L, CONTENT_W, NAVY, ORANGE, GREY = (h["MARGIN_L"], h["CONTENT_W"], h["NAVY"],
                                                h["ORANGE"], h["GREY"])
     s, top = h["slide"](headlines.pnl(m), "Program P&L by offer")
-    kw = (CONTENT_W - 0.6) / 4
-    if (m.get("gt_deferred_balance") or 0) > 1 \
-            and m.get("gt_state") != "clear":
+    live = (m.get("gt_deferred_balance") or 0) > 1 and m.get("gt_state") != "clear"
+    if live:
         # guarantee math (issue #42): what the client actually pays,
         # only while a balance is LIVE -- a cleared guarantee reverts
         # to the workbook's billed economics
@@ -69,41 +83,72 @@ def program_pnl(h, m) -> str | None:
                  ("Deferred", _money(m.get("gt_deferred_balance")),
                   "forgiven at contract end")]
     else:
+        rev, costs = m.get("wb_revenue_ltd"), abs(m.get("wb_costs_ltd") or 0)
         tiles = [("Program profit", _money(m.get("wb_profit_ltd")),
                   "life to date"),
-                 ("Program revenue", _money(m.get("wb_revenue_ltd")),
-                  "life to date"),
-                 ("Program fees", _money(abs(m.get("wb_costs_ltd") or 0)),
-                  "life to date"),
+                 ("Program revenue", _money(rev), "life to date"),
+                 # RPE: revenue per fee dollar is the headline's own figure, set as a tile (group M)
+                 ("Revenue per fee $", f"${rev / costs:,.2f}", f"on {_money(costs)} of fees")
+                 if rev is not None and costs else
+                 ("Program fees", _money(costs), "life to date"),
                  ("This month", _money(m.get("wb_profit_month")),
                   f"of {_money(m.get('wb_revenue_month'))} revenue")]
+    kw = (CONTENT_W - 0.2 * (len(tiles) - 1)) / len(tiles)
     for i, (label, value, note) in enumerate(tiles):
         h["kpi"](s, MARGIN_L + i * (kw + 0.2), top + 0.05, kw, label, value,
                  note, accent=ORANGE if i == 0 else NAVY)
+    t_top = top + 1.95
+    net = m.get("ba_lift_net")
     waves = m.get("wb_waves") or []
-    if waves:
-        t_top = top + 1.95
-        rows = [["Offer", "Mailed", "Response", "Rev to date"]]
-        shown = waves[-h["row_budget"](t_top, 10):]
-        # rows carry 5 fields since goal_met_responders was added;
-        # *_ tolerates both that and any older 4-field metrics.json
-        for tag, mailed, resp, cum, *_ in shown:
-            rows.append([str(tag),
-                         f"{mailed:,}" if mailed is not None else "-",
-                         f"{resp}%" if resp is not None else "-",
-                         _money(cum)])
-        h["table"](s, rows, MARGIN_L, t_top, 8.6,
-                   col_widths=[2.0, 2.2, 2.1, 2.3], size=10.5)
-    # RPE: "latest n of N offers" joins the footer rather than sitting under the table, where a
-    # full table put it on the footer line (validate_deck FAIL, 1776: 6 of 9 offers)
-    shown_note = (f"Latest {len(shown)} of {len(waves)} offers shown. "
-                  if waves and len(waves) > len(shown) else "")
-    h["text"](s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
-              f"{shown_note}Booked frame: {m.get('wb_source', 'ARS Workbook')}, the "
-              f"program's own ledger, gross and all revenue types. Rev "
-              f"to date is the wave's own To Date column, life of the "
-              f"offer. Not comparable to DiD estimates: see Revenue "
-              f"frames.", size=9.5, color=GREY)
+    shown = []
+    if net is not None:
+        ic = m.get("segment_ic_rate")
+        if live and m.get("wb_revenue_ltd") is None:
+            booked = f"{_money(m.get('gt_revenue_ltd'))} revenue to date"
+        else:
+            booked = (f"{_money(m.get('wb_revenue_ltd'))} revenue, "
+                      f"{_money(m.get('wb_profit_ltd'))} profit, life to date")
+        did = f"{_money(net)}/mo per responder"
+        if ic:
+            did += f"; {_money(net * ic)}/mo at a {ic_pct(ic)} IC rate"
+        rows = [["", "Booked: ARS Workbook", "Incremental: DiD estimate"],
+                ["What it answers", "What has the program earned?",
+                 "What spend would not exist without the mail?"],
+                ["The figure", booked, did],
+                ["What it counts", "All revenue types, NSF/OD fees included",
+                 "Card spend only, net of the non-responder control"],
+                ["Over time", "Adds up over the life of the program",
+                 "A monthly run rate that settles as offers age"]]
+        tbl = h["table"](s, rows, MARGIN_L, t_top, CONTENT_W,
+                         col_widths=[2.2, 4.85, 5.08], size=11)
+        if getattr(tbl, "has_table", False):
+            # words, not numbers: every column reads left to right (the house table right-aligns)
+            from pptx.enum.text import PP_ALIGN
+            for row in tbl.table.rows:
+                for cell in row.cells:
+                    cell.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+        foot = (f"Booked: {m.get('wb_source', 'ARS Workbook')}. DiD: the ODD extract, the three "
+                f"months after mail against the six before. The two never tie.")
+    else:
+        if waves:
+            rows = [["Offer", "Mailed", "Response", "Rev to date"]]
+            shown = waves[-h["row_budget"](t_top, 10):]
+            # rows carry 5 fields since goal_met_responders was added;
+            # *_ tolerates both that and any older 4-field metrics.json
+            for tag, mailed, resp, cum, *_ in shown:
+                rows.append([str(tag),
+                             f"{mailed:,}" if mailed is not None else "-",
+                             f"{resp}%" if resp is not None else "-",
+                             _money(cum)])
+            h["table"](s, rows, MARGIN_L, t_top, 8.6,
+                       col_widths=[2.0, 2.2, 2.1, 2.3], size=10.5)
+        # RPE: "latest n of N offers" joins the footer rather than sitting under the table, where a
+        # full table put it on the footer line (validate_deck FAIL, 1776: 6 of 9 offers)
+        shown_note = (f"Latest {len(shown)} of {len(waves)} offers shown. "
+                      if waves and len(waves) > len(shown) else "")
+        foot = (f"{shown_note}Booked frame: {m.get('wb_source', 'ARS Workbook')}, gross, all "
+                f"revenue types; Rev to date is each offer's To Date column.")
+    h["text"](s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3, foot, size=FOOT_PT, color=GREY)
     h["kicker"](s)
     return None
 
@@ -138,12 +183,11 @@ def guarantee(h, m) -> str | None:
         rows.append([mth, _money(rev), _money(charges), _money(paid),
                      _money(deferred), _money(running)])
     h["table"](s, rows, MARGIN_L, top + 1.55, CONTENT_W,
-               col_widths=[2.1, 2.0, 2.0, 2.0, 2.0, 1.9], size=10)
+               col_widths=[2.1, 2.0, 2.0, 2.0, 2.0, 1.9], size=FOOT_PT)
     h["text"](s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
-              f"Source: {m.get('gt_source', 'deferral tracker')}. While "
-              f"revenue runs under 2x the charges the client pays half of "
-              f"revenue; the rest defers, draws down above the mark, and "
-              f"is forgiven at contract end.", size=9.5, color=GREY)
+              f"Source: {m.get('gt_source', 'deferral tracker')}. Under 2x the charges the "
+              f"client pays half of revenue; the rest defers, forgiven at contract end.",
+              size=FOOT_PT, color=GREY)
     h["kicker"](s)
     return None
 
@@ -162,11 +206,9 @@ def wave_mix(h, m) -> str | None:
         h["fit_picture"](s, path, MARGIN_L, top + 0.1,
                          max_w=CONTENT_W, max_h=6.3 - (top + 0.1))
     h["text"](s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
-              f"Booked frame: {wb_src}, All Months Rollup. Each column is "
-              f"that month's revenue split by every offer that earned in "
-              f"it, oldest pale at the base to newest dark on top. Not "
-              f"comparable to DiD estimates: see Revenue frames.",
-              size=9.5, color=h["GREY"])
+              f"Booked frame: {wb_src}, All Months Rollup. Each column is that month's "
+              f"revenue by the offer that earned it, oldest at the base.",
+              size=FOOT_PT, color=h["GREY"])
     h["kicker"](s)
     return None
 
@@ -185,12 +227,8 @@ def wave_totals(h, m) -> str | None:
         h["fit_picture"](s, path, MARGIN_L, top + 0.1,
                          max_w=CONTENT_W, max_h=6.3 - (top + 0.1))
     h["text"](s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
-              f"Booked frame: {wb_src}, All Months Rollup — each column "
-              f"is one offer, banded by the month that earned it, and the "
-              f"total ties to Rev to date on Program P&L by offer. Offers "
-              f"are not the same age: the months each has had ride under "
-              f"its label. Not comparable to DiD estimates: see Revenue "
-              f"frames.", size=9.5, color=h["GREY"])
+              f"Booked frame: {wb_src}, All Months Rollup. Each column is one offer, "
+              f"banded by earning month; offers differ in age.", size=FOOT_PT, color=h["GREY"])
     h["kicker"](s)
     return None
 
@@ -209,7 +247,9 @@ def lift_matrix(h, m) -> str | None:
     wb_src = m.get("wb_source", "ARS Workbook")
     path = h["chart"]("lift_matrix", charts.lift_matrix_heat,
                       {"cols": m["wb_lift_cols"], "rows": m["wb_lift_rows"],
-                       "money": "$" in str(m.get("wb_lift_caption") or "$")})
+                       # RPE: the same unit rule the title uses (headlines.lift_unit), so the cells
+                       # and the title never disagree; 1798's caption carries no "$" (slide 95)
+                       "money": headlines.lift_unit(m) == "money"})
     if path:
         h["fit_picture"](s, path, MARGIN_L, top + 0.1,
                          max_w=CONTENT_W, max_h=6.3 - (top + 0.1))
@@ -226,6 +266,6 @@ def lift_matrix(h, m) -> str | None:
     h["text"](s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
               f"Booked frame: {wb_src}, Lift Matrix MM{window}. Each row is "
               f"the band an account started in, each column the band it "
-              f"reached; {unit}.{stale}", size=9.5, color=h["GREY"])
+              f"reached; {unit}.{stale}", size=FOOT_PT, color=h["GREY"])
     h["kicker"](s)
     return None

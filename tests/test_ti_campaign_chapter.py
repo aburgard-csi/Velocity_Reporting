@@ -5,9 +5,18 @@ bundle: every slide is drawn or stated, in v5's order; v5's `skip` becomes a sta
 house words replace "lift" without touching a figure; and the per-offer table keeps its note clear
 of the KPI row however many offers there are. These replace v5's whole-deck tests for the chapter.
 """
+import pytest
 from pptx import Presentation
 
 from ti.chapters import campaign as C
+
+
+@pytest.fixture(autouse=True)
+def _keep_every_slide(tmp_path, monkeypatch):
+    """These test the builders. Which slides ship is ti/slides.json's business (test_ti_selection):
+    Sheila's 1798 review (2026-10-30) tosses several of these slides there (the hero, Per-offer
+    summary, Revenue frames, The most recent mailer), and a toss must not read as a builder failing."""
+    monkeypatch.setenv("TI_SLIDES", str(tmp_path / "keep-all.json"))
 
 
 class _Ctx:

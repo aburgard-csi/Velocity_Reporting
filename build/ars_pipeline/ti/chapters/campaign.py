@@ -11,6 +11,13 @@ cohort imports), in v5's order (`ti/odd_sections.py`). Slides: v5's campaign blo
 v5's build and lifted into `ti/deck/campaign_inline.py`, in v5's build order; "Where the tiers moved"
 is v5's `deck/migration_slides.tier_matrix`. A slide whose figures are missing is stated, not dropped.
 The response groups are the ARS mailing's, so the chapter reads the same in both lens decks.
+
+Sheila's 1798 slide review (2026-10-30) folded the chapter's repeats together: Program reach is a
+funnel carrying the latest offer (group K); "What a response does to spend" carries both gain figures,
+each with its window, on one responder-against-control chart (group L); "Where the tiers moved" is
+the shaded tier matrix with responders against the unmailed (group N); and Offer detail opens with
+one "Mailer summaries" table, a row per mailer, in place of a slide each (group P). The slides they
+replace still draw, and are tossed in `ti/slides.json`.
 """
 from pathlib import Path
 
