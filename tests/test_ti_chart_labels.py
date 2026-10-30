@@ -139,7 +139,10 @@ def test_pareto_names_wrap_instead_of_being_cut():
             ["Cash App", "", 15_500_000]]
     fig, _ = charts_txn._pareto_fig(rows, 0.8, "")
     ticks = [t.get_text() for t in fig.axes[0].get_xticklabels()]
-    assert "Capital One\nMobile Payment" in ticks and "…" not in "".join(ticks)
+    # wrapped at 11 since the labels went to 13pt (Sheila's 1798 slide review, 2026-10-30: chart
+    # text under 12pt on the slide); still wrapped whole, never cut
+    assert "Capital One\nMobile\nPayment" in ticks and "…" not in "".join(ticks)
+    assert all(len(line) <= 11 for tick in ticks for line in tick.splitlines())
     plt.close(fig)
 
 

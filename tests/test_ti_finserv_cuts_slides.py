@@ -79,7 +79,9 @@ def test_reach_ranks_live_dollars_and_drops_the_cold_category():
     assert items[0][1] == 3_900
     assert "$6.8K of the $8.4K addressable" in h.slides[0][0][0]
     labels = [r[0] for r in h.rails[0]]
-    assert labels == ["Within reach", "Accounts", "Gone cold", "Biggest"]
+    # "Relationships": the count is account-category pairs, and says so beside the unique-account
+    # figure (Sheila's 1798 slide review, 2026-10-30: 13,983 against 11,669)
+    assert labels == ["Within reach", "Relationships", "Gone cold", "Biggest"]
     assert h.rails[0][1][1] == "138" and h.rails[0][2][1] == "$1.6K"
 
 
