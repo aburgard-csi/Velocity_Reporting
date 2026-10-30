@@ -5,8 +5,11 @@ who overdrafts by how they are paid, who banks here first, and what arrives agai
 Figures: v5's balance and deposit-behaviour sections (`ti/odd_sections.py`), on the client's own
 deposits extract (`ti/deposits_input.py`). Slides: v5's eleven deposit builders
 (`ti/deck/deposit_slides.py`), drawn through `ti/deck/helpers.py`. A client with no deposits file
-gets each slide stated, not dropped. The chapter describes the whole book, so it reads the same in
-the ARS and ICS lens decks (James, 2026-10-23: both lens decks full).
+has every slide decline through `Deck.declined` ("no deposits file", from `deposit_slides._gate`),
+never a drawn placeholder of its own, so the frame's rule for declined slides applies to all eleven
+and a chapter with nothing to show can go as a whole (Sheila's 1798 review, 2026-10-30: twelve
+"Not shown" pages). The chapter describes the whole book, so it reads the same in the ARS and ICS
+lens decks (James, 2026-10-23: both lens decks full).
 """
 from pathlib import Path
 

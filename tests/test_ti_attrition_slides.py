@@ -258,7 +258,9 @@ def test_cohort_chart_rows_carry_the_base_under_the_rate():
     P.cohort_survival(h, _cohort_metrics())
     name, fn, args = h.charts[-1]
     assert name == "attrition_cohort" and fn == "line_with_base"
-    assert args[0][0] == ["Sep25", 420, 90.5]
+    # the month goes through periods.axis_months: RPE's month-axis guard refused v5's "Sep25" and
+    # the chart went missing on 1798 (Sheila's 1798 review, 2026-10-30)
+    assert args[0][0] == ["Sep'25", 420, 90.5]
 
 
 def test_cohort_slide_names_the_seasoned_share():
