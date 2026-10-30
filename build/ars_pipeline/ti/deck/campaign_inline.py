@@ -11,7 +11,7 @@ Each v5 block is lifted out of the build function as a builder with the house si
 its body v5's line for line (each docstring names the v5 lines). The closures those blocks called
 are bound at the top of each builder by `_v5`: `slide`, `chart`, `_rail` and the rest through the
 helper bundle `h`; `skip(title, *keys, reason=None)` draws the cut's stated slide, as v5 recorded
-a skip; `register` (v5's provenance ledger) does nothing here; `n` is v5's lookup. One change,
+a skip (the frame hides it for that client); `register` (v5's provenance ledger) does nothing here; `n` is v5's lookup. One change,
 marked where it is made: v5 drew six slides as `new()` + `register()` + `_title()`; the cut draws
 a slide's title first and numbers it after, so the same headline and subtitle go through `slide()`.
 """

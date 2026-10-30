@@ -21,6 +21,44 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
+
+Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to about 90.
+
+Sheila's 1798 slide review, 2026-10-30 (`Notes\Slide review\TI and ARS notes - 1798 - 10.30.xlsx`): 5 blank charts, 22 "Not shown" slides, empty Deposits and ICS sections, 9.5–10pt text on 109 slides, figures that disagree (11,669 vs 13,983; Cash App $78M against a $49.6M total; 908 vs 20,991; $524 vs $371 a month), 17 groups of repeated slides, and the Summit promo ahead of the agenda. James Gilmore, 2026-10-30: fix it in the pipeline, not the deck; "cash app and the p2p stuff need to be in".
+
+- **Blank charts, and a gate.** The v5 month labels ("Jan24") failed the house month-axis check. `Deck.chart` caught the error, the chart was silently left off, and the deck still validated 0 FAIL. Month ticks now go through `periods.axis_months` (`charts._axis_labels`, and at the cohort, PIN/signature and campaign call sites), so six charts on 1798 draw again. A chart that still fails stops the build (`helpers.ChartFailed`), so the deck never reaches Outputs with a gap.
+- **Declined slides are hidden for that client** (exception to "never drop slides automatically", TI only, approved by James; see `CLAUDE.md`). Each is logged as `[--] hidden for this client` and listed in `art\hidden_declined.json` and the pack's `hidden_declined`. A chapter with nothing left loses its divider and agenda row (Deposits and ICS on 1798).
+- **Type floors.**
+  - Subtitles 14pt (never below 12).
+  - KPI and rail labels and notes 12pt.
+  - Tables 10pt; a long table ends "+ N more rows not shown" instead of shrinking.
+  - Footnotes at least 10.5pt.
+  - Chart text drawn at 13pt, about 12pt on the slide.
+  - Month axes carry at most 12 labels.
+- **Names and copy.**
+  - `labels.display_name` gives "Lowe's", "Circle K", "Walmart", "Mountain America CU".
+  - "One unclassified counterparty is"; "peaks at 7.7% at 5-10 years".
+  - IC rate as 0.68%; the rate card always states its unit ("$1.86 to $30.58 a month").
+  - Singular counts read correctly ("1 card has been issued"); "program" is said once on the hero.
+- **No "n/a" cards.** Missing values on the attrition slides are stated in a note, not drawn as cards. "Competitor spend before closure" now reads the month just before close; it used to read the month furthest from it.
+- **Figures that disagree are labelled, not recomputed** (no compute changed):
+  - 11,669 unique accounts vs 13,983 account-category relationships.
+  - Cash App is one figure, $78.3M (`comp_ecosystems`), on the payment-ecosystems slide, shown as P2P and wallet flow outside the $49.6M paid to financial products. "Banks against the ecosystems" is kept, so the P2P story stays in.
+  - 908 (ODD-only stressors) and 20,991 (plus banking elsewhere) side by side.
+  - $524/mo (three months after mail) and $371/mo (12 months on) on one chart.
+  - Circle K's two card descriptors are combined: down $100K, not up $4.6M.
+- **Repeated slides folded** (combine groups A–Q). The replaced titles are set to "toss" in `ti/slides.json`.
+  - $49.6M leakage 4→1; card mix 2→1; signature/PIN 4→2; responder leakage 3→1.
+  - Competitor reach + Synchrony 4→1, as a penetration × $ quadrant; concentration 2→1.
+  - Attrition by branch/group 2→1; stressors 2→1.
+  - Reach funnel 2→1; responder gain 6→1; P&L / booked vs DiD 3→1; tier movement 4→1; offer return 2→1.
+  - Value per account 4→2.
+  - The 12 mailer summary slides are now one "Mailer summaries" table.
+  - Tossing "The campaign hero" applies to every client, so a client with no workbook loses that fallback slide.
+- **Executive Summit** now sits just before Questions & Discussion in TI decks (`build_ti_gen.summit_before_questions`). RPE decks are unchanged.
+- **New chart options.** `line_with_base(..., highlight=)` and `branch_quadrant(..., size_idx=)` are added for later use.
+
 ### 2026-10-30 — Sheila in Claude: every CSM can ask her for their reporting
 
 Summary: Sheila is now also a connector in Claude Desktop. A CSM can ask "where am I this month?", "build 1798", "what's in 1798's TI deck?", "where does slide 127's 9.7% come from?" or "run the PGL for 1737", and Sheila answers from the same checks and builds her page uses. Nobody sets anything up: opening Sheila adds her to that PC's Claude.
