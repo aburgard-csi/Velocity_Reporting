@@ -7,10 +7,17 @@ title top-left at 0.6in with the period pill beside it, the client's logo bottom
 slide number bottom-left (templates/STYLE.md). The grid constants below are RPE's, and the
 builders read them from `h`, so their arithmetic lands on this grid unchanged.
 
-Two RPE rules v5 did not have are kept here, once, for every ported slide:
+Three RPE rules v5 did not have are kept here, once, for every ported slide:
   * every slide gets speaker notes with a Source line naming the client (CLAUDE.md);
-  * a slide v5 would have DECLINED for missing data is not dropped: `declined()` draws it
-    with the sentence saying why (CLAUDE.md: never drop slides automatically).
+  * a slide v5 would have DECLINED for missing data is drawn by `declined()` with the sentence
+    saying why, and registered in DECLINED. build_ti_gen then HIDES it from this client's deck and
+    lists it (title + reason) in the build log and in the pack's `hidden_declined`; a chapter left
+    with no slide loses its divider and agenda row. This overrides "never drop slides
+    automatically" for the Transaction Intelligence cut only (James Gilmore, signed off on
+    Sheila's 1798 slide review, 2026-10-30: 22 "Not shown for this client" pages in one deck);
+  * a chart that fails to draw is never a silent gap: `Deck.chart` records it in CHART_FAILURES
+    and build_ti_gen fails the build (five charts went missing from 1798's deck while it
+    validated 0 FAIL, 2026-10-30).
 """
 import math
 import re
@@ -349,6 +356,28 @@ def _kicker(_slide, _text_unused=None):
     return None
 
 
+# What every Deck of the current build declined, and every chart that failed. build_ti_gen resets
+# both at the start of a deck and reads them at the end (the same pattern as charts.RENDER_WARNINGS).
+DECLINED = {}          # id(slide element) -> (slide element, title, reason)
+CHART_FAILURES = []    # (chart name, "<ErrorType>: <message>")
+
+
+def reset_build_state():
+    DECLINED.clear()
+    CHART_FAILURES.clear()
+
+
+def declined_reason(slide):
+    """(title, reason) when `slide` was drawn by Deck.declined, else None."""
+    hit = DECLINED.get(id(slide._element))
+    return (hit[1], hit[2]) if hit and hit[0] is slide._element else None
+
+
+class ChartFailed(SystemExit):
+    """Charts failed to draw. A SystemExit, so ti_build stops with this message as its last log
+    line, which is the reason the launcher shows; the deck never goes to Outputs."""
+
+
 class Deck:
     """One chapter's drawing context: the helpers, the charts folder, and what it declined."""
 
@@ -359,6 +388,7 @@ class Deck:
         self.charts_dir.mkdir(parents=True, exist_ok=True)
         self.slides = []
         self.declines = []
+        self.chart_failures = []      # (name, error): each one fails the build (build_ti_gen)
         self.render_warnings = []     # charts._report_overlaps, per chart drawn (2026-10-28)
         self.topics = {}          # id(slide) -> v5's topic label (the slide() fallback)
 
@@ -393,11 +423,14 @@ class Deck:
         return s, max(v5_top, round(bottom + 0.10, 2))
 
     def declined(self, title, reason):
-        """The slide v5 would have left out, drawn with the sentence saying why."""
+        """The slide v5 would have left out, drawn with the sentence saying why and registered in
+        DECLINED: build_ti_gen hides it from the deck and lists it in the log and `hidden_declined`.
+        It is still drawn so a chapter's own tests (and a reader of the build) see the sentence."""
         s, top = self.slide(None, title)
         _text(s, MARGIN_L, top + 0.4, CONTENT_W, 1.2,
               f"Not shown for this client: {reason}.", size=18, color=GREY)
         self.declines.append((title, reason))
+        DECLINED[id(s._element)] = (s._element, title, str(reason))
         return s
 
     def chart(self, name, fn, *a, **kw):
@@ -406,7 +439,12 @@ class Deck:
         try:
             return fn(*a, target, **kw)
         except Exception as exc:
-            self.declines.append((name, f"chart failed ({type(exc).__name__}: {exc})"))
+            # never a silent gap: the build fails on it (build_ti_gen), and the log says which chart
+            err = f"{type(exc).__name__}: {exc}"
+            self.declines.append((name, f"chart failed ({err})"))
+            self.chart_failures.append((name, err))
+            CHART_FAILURES.append((name, err))
+            print(f"  [!!]   chart {name} failed to draw: {err}", flush=True)
             return None
         finally:
             if _charts.RENDER_WARNINGS:
@@ -461,11 +499,13 @@ class Deck:
 
     def run(self, builders, titles, *args):
         """Call each v5 builder as `b(h, *args)`; a builder that declines (returns its reason,
-        or raises) becomes a stated slide under its own title. Returns the slides made.
+        or raises) becomes a declined slide under its own title (hidden from the deck by
+        build_ti_gen, listed in the log). Returns the slides made.
 
         Some v5 builders decline by returning None without drawing ("When the card gets used" and
         "Recurring payments on the card" with no data); v5 dropped those silently. Here a builder
-        that drew nothing is stated too, so no slide ever goes missing without a sentence."""
+        that drew nothing is declined too, so no slide ever goes missing without a sentence in the
+        build log. Every decline is logged here; a chart that failed is logged and fails the build."""
         h = self.helpers()
         for b in builders:
             name = getattr(b, "__name__", "slide")
@@ -487,6 +527,8 @@ class Deck:
                 self.declined(title, why)
         self._singulars()
         self._house_words()
+        for title, why in self.declines:
+            print(f"  [--]   declined: {title}: {why}", flush=True)
         # Each chart's label report goes to the build log as a warning line, where Sheila shows it
         # with the build's result (a chart past the threshold was refused above and is a decline).
         for w in self.render_warnings:

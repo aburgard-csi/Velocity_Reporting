@@ -2,7 +2,8 @@
 
 What is pinned: the cut's file name can never be read as a program deck, so it cannot
 supersede or archive the ARS deck; the shell is found by meaning and comes out as cover,
-Summit, agenda, one section per chapter, Questions, Contact; the cover and the closing line
+agenda, one section per chapter, Summit, Questions, Contact (the Summit moved after the content
+in TI decks only: Sheila's 1798 slide review, 2026-10-30); the cover and the closing line
 carry the reporting month; every content slide is numbered and owes a source note; and a
 built deck passes the validator with 0 FAIL.
 
@@ -108,9 +109,10 @@ def test_shell_shape_months_and_validation(tmp_path, contacts, lens_key):
     out, prs = _built(tmp_path, lens_key)
     titles = [G._title(s) for s in prs.slides]
     assert len(titles) == 7, titles
-    assert AC._is_cover(prs.slides[0]) and AC._is_summit(prs.slides[1], 2)
-    assert titles[2].startswith("Agenda")
-    assert titles[3] == "Transaction Intelligence" and titles[4] == "Where Card Spend Goes"
+    # the Summit sits just before Questions in a TI deck, never ahead of the agenda (Sheila, 1798, 2026-10-30)
+    assert AC._is_cover(prs.slides[0]) and titles[1].startswith("Agenda")
+    assert titles[2] == "Transaction Intelligence" and titles[3] == "Where Card Spend Goes"
+    assert AC._is_summit(prs.slides[4], 5) and "executive summit" in AC._slide_text(prs.slides[4])
     assert titles[5].startswith("Questions & Discussion") and titles[6].startswith("Contact Us")
 
     assert vd._cover_client_and_month(prs) == (NAME, "October 2026")
@@ -119,10 +121,10 @@ def test_shell_shape_months_and_validation(tmp_path, contacts, lens_key):
     assert cut.LENSES[lens_key].label in cover_text
     assert ("Invitation Checking" in cover_text) == (lens_key == "ics")
 
-    agenda = " ".join(sh.text_frame.text for sh in prs.slides[2].shapes if sh.has_text_frame)
+    agenda = " ".join(sh.text_frame.text for sh in prs.slides[1].shapes if sh.has_text_frame)
     assert "Transaction Intelligence" in agenda and "Account Revenue Solution" not in agenda
 
-    pill = " ".join(sh.text_frame.text for sh in prs.slides[4].shapes if sh.has_text_frame)
+    pill = " ".join(sh.text_frame.text for sh in prs.slides[3].shapes if sh.has_text_frame)
     assert "September 2026 Data" in pill, "the pill carries the DATA month, not the reporting month"
 
     fails = [f for f in vd.run(str(out)) if f[0] == "FAIL"]
@@ -149,7 +151,7 @@ def test_a_long_agenda_keeps_headings_only_and_validates(tmp_path, contacts, n, 
     G.build(prs, dict(PACK), "ars", [_stub(i) for i in range(1, n + 1)])
     out = tmp_path / cut.deck_name(CLIENT, PACK["period"], NAME, "ars")
     G.save(prs, out)
-    agenda = " ".join(sh.text_frame.text for sh in Presentation(str(out)).slides[2].shapes
+    agenda = " ".join(sh.text_frame.text for sh in Presentation(str(out)).slides[1].shapes
                       if sh.has_text_frame)
     assert all(f"Stub chapter {i}" in agenda for i in range(1, n + 1))
     assert ("Detail line of stub chapter 1" in agenda) == details_kept
