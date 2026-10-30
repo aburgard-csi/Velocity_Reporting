@@ -800,8 +800,10 @@ def latest_mailer(h, m) -> str | None:
                "response share and rate by challenge tier, and who the "
                "responders were"), "The most recent mailer")
         path = chart(f"mailsum_{latest_pair}", charts.mailer_summary_panel, d)
+        # RPE (James Gilmore, 2026-10-29, 1798 slide 127): the picture starts at `top`, below wherever the
+        # headline block ends; v5's fixed 1.55 put a two-line title's subtitle behind it
         if path:
-            _fit_picture(s, path, MARGIN_L, 1.55, max_w=CONTENT_W, max_h=4.85)
+            _fit_picture(s, path, MARGIN_L, top, max_w=CONTENT_W, max_h=4.85 - (top - 1.55))
         _kicker(s)
     else:
         skip("The most recent mailer", "mailer_summary")
@@ -830,7 +832,7 @@ def latest_trajectory(h, m) -> str | None:
                f"the mail the file carries"), "The most recent mailer trajectory")
         path = chart(f"mailtraj_{latest_pair}", charts.segment_resp_grid, rd)
         if path:
-            _fit_picture(s, path, MARGIN_L, 1.55, max_w=CONTENT_W, max_h=4.85)
+            _fit_picture(s, path, MARGIN_L, top, max_w=CONTENT_W, max_h=4.85 - (top - 1.55))
         _kicker(s)
     else:
         skip("The most recent mailer trajectory", "mailer_resp_detail")
@@ -857,8 +859,8 @@ def latest_offer(h, m) -> str | None:
                "segment; the mail month is the orange line"), "The most recent offer")
         path = chart("combo_latest", charts.combo_lines, d_last)
         if path:
-            _fit_picture(s, path, MARGIN_L, 1.55, max_w=CONTENT_W,
-                         max_h=4.85)
+            _fit_picture(s, path, MARGIN_L, top, max_w=CONTENT_W,
+                         max_h=4.85 - (top - 1.55))
         _kicker(s)
     else:
         skip("The most recent offer", "mailer_detail")
@@ -904,8 +906,8 @@ def offer_detail(h, m) -> str | None:
                        f"\u2014 {d['rate']:.1f}%"), f"Mailer {tag} summary")
                 path = chart(f"mailsum_{tag}", charts.mailer_summary_panel, d)
                 if path:
-                    _fit_picture(s, path, MARGIN_L, 1.55,
-                                 max_w=CONTENT_W, max_h=5.5)
+                    _fit_picture(s, path, MARGIN_L, top,
+                                 max_w=CONTENT_W, max_h=5.5 - (top - 1.55))
             if tag not in detail_tags:
                 continue
             d = md[tag]
@@ -917,8 +919,8 @@ def offer_detail(h, m) -> str | None:
                    f"lines are per-account monthly averages"), f"Offer {tag} by segment")
             path = chart(f"combo_{tag}", charts.combo_lines, d)
             if path:
-                _fit_picture(s, path, MARGIN_L, 1.55,
-                             max_w=CONTENT_W, max_h=5.5)
+                _fit_picture(s, path, MARGIN_L, top,
+                             max_w=CONTENT_W, max_h=5.5 - (top - 1.55))
             rd = rd_all.get(tag)
             if rd:
                 nseg = len(rd["segments"])
@@ -931,8 +933,8 @@ def offer_detail(h, m) -> str | None:
                        f"per account"), f"{tag}: responders versus their segment")
                 path = chart(f"resp_{tag}", charts.segment_resp_grid, rd)
                 if path:
-                    _fit_picture(s, path, MARGIN_L, 1.55,
-                                 max_w=CONTENT_W, max_h=5.5)
+                    _fit_picture(s, path, MARGIN_L, top,
+                                 max_w=CONTENT_W, max_h=5.5 - (top - 1.55))
     return None
 
 

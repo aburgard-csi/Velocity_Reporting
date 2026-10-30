@@ -75,3 +75,17 @@ def test_the_hero_shows_guarantee_math_while_a_balance_is_live(tmp_path, monkeyp
     cleared = {**live, "gt_state": "clear", "gt_deferred_balance": 0.0}
     texts = [_text(s) for s in C.build(_Ctx(_prs(), cleared, tmp_path))]
     assert any("program profit, life to date" in t and "$409K" in t for t in texts)
+
+
+def test_the_latest_mailer_chart_starts_below_a_two_line_headline(tmp_path, monkeypatch):
+    """1798 FirstLight, 2026-10-29, slide 127: a headline long enough to wrap pushed the subtitle down,
+    and the chart, placed at v5's fixed 1.55in, covered it."""
+    from test_ti_mailer_summary_chart import SUMMARY
+    monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    m = {"mailer_summary": {"Aug26": {**SUMMARY, "mailed": 22914, "responded": 2226, "rate": 9.7}}}
+    slides = C.build(_Ctx(_prs(), m, tmp_path))
+    s = next(s for s in slides if "Aug26 reached 22,914 accounts" in _text(s))
+    sub = next(sh for sh in s.shapes if sh.has_text_frame and "challenge tier" in sh.text_frame.text)
+    pic = next(sh for sh in s.shapes if sh.shape_type == 13)
+    assert pic.top >= sub.top + sub.height, "the chart starts below the subtitle"
+    assert pic.top + pic.height <= 6.95 * 914400, "and still ends above the footer"
