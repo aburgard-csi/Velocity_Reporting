@@ -17,10 +17,42 @@ so a slide is dropped rather than titled with a blank.
 
 from __future__ import annotations
 
+import re
+
 
 def _money(v) -> str:
     from .labels import money
     return money(v)
+
+
+def _count(n, noun: str, plural: str | None = None) -> str:
+    """"1 month", "27 months": a count with its noun in the right number. v5 wrote the plural
+    whatever the count, and "the newest offer 1" reached the 1798 deck (Sheila's slide review,
+    2026-10-30)."""
+    word = noun if n == 1 else (plural or noun + "s")
+    return f"{n:,.0f} {word}" if isinstance(n, (int, float)) else f"{n} {word}"
+
+
+def _band(label) -> str:
+    """A band label as a reader says it: "< 1 yr" is "under 1 yr" in a sentence (1798, slide 98:
+    "climbs $98 between < 1 yr and 1-2 yr")."""
+    return re.sub(r"^<\s*", "under ", str(label).strip())
+
+
+def _gap_noun(rows) -> str:
+    """What the widest card gaps are: "branch gaps" only when every one IS a branch. v5 called them
+    branch gaps whatever the dimension, and 1798's three were two account-age bands and one branch
+    (Sheila's slide review, 2026-10-30, slide 101)."""
+    dims = {str(r.get("dimension") or "").lower() for r in rows if isinstance(r, dict)}
+    return "branch gaps" if dims == {"branch"} else "card gaps"
+
+
+def _segment_name(row) -> str:
+    """A leak segment named with its dimension: "Branch 301", "The 10+ yr account age band"."""
+    seg, dim = str(row.get("segment")), str(row.get("dimension") or "").strip()
+    if dim.lower() == "branch":
+        return f"Branch {seg}"
+    return f"The {_band(seg)} {dim} band" if dim else seg
 
 
 def population(m: dict) -> tuple[str, str] | None:
@@ -72,16 +104,17 @@ def leaks(m: dict) -> tuple[str, str] | None:
     if not rows or not total:
         return None
     top = rows[0]
+    gaps = _gap_noun(rows[:3])
     value = m.get("dctr_leak_value")
     if value and value > 0:
-        head = (f"Closing the three widest branch gaps is worth "
+        head = (f"Closing the three widest {gaps} is worth "
                 f"{_money(value)} a year")
     else:
         # zero or negative measured value: state the gap, never 'worth $-X'
-        head = f"The three widest branch gaps account for {total:,} cards"
-    sub = (f"{top['segment']} holds {top['share_of_volume']:.0f}% of eligible "
-           f"accounts and {top['share_of_outcome']:.0f}% of the cards; "
-           f"{total:,} cards across the gaps")
+        head = f"The three widest {gaps} account for {_count(total, 'card')}"
+    # the cards across the gaps are labelled on the bars; the sub names the widest one
+    sub = (f"{_segment_name(top)} holds {top['share_of_volume']:.0f}% of eligible "
+           f"accounts and {top['share_of_outcome']:.0f}% of the cards")
     return head, sub
 
 
@@ -189,14 +222,10 @@ def value(m: dict) -> tuple[str, str] | None:
                      else f"opt-ins {_money(abs(optin))} below")
     head = " and ".join(parts).capitalize()
 
-    without = m.get("value_debit_n_without")
-    pot = m.get("value_debit_pot_l12m")
-    if without and pot:
-        sub = (f"{without:,} eligible accounts have no card; converting them "
-               f"at the current new-account rate is {_money(pot)}")
-    else:
-        sub = "interchange plus NSF/OD fees, trailing twelve months"
-    return head, sub
+    # The conversion math on the slide carries the cardless count and what converting them is
+    # worth; v5's sub said it a second time (1798 slide 97, 101 words: Sheila's slide review,
+    # 2026-10-30), so the sub names the measure only.
+    return head, "per account a year, interchange plus NSF/OD fees"
 
 
 def health(m: dict) -> tuple[str, str] | None:
@@ -209,7 +238,8 @@ def health(m: dict) -> tuple[str, str] | None:
     never = rows.get("Never activated", 0)
 
     if never and never / carded >= 0.10:
-        head = (f"{never:,} cards have been issued and never used")
+        head = (f"{_count(never, 'card')} {'has' if never == 1 else 'have'} been issued "
+                f"and never used")
         sub = (f"{at_risk:,} of {carded:,} cardholders show fading or absent "
                f"activity ({share:.0f}%)")
     else:
@@ -234,7 +264,8 @@ def closing(m: dict) -> tuple[str, str] | None:
     if m.get("rege_default_value"):
         items.append(("Reg E elections", m["rege_default_value"]))
     if m.get("dctr_leak_value"):
-        items.append(("closing the widest branch gaps", m["dctr_leak_value"]))
+        items.append((f"closing the widest {_gap_noun((m.get('dctr_leaks') or [])[:3])}",
+                      m["dctr_leak_value"]))
     if not items:
         return None
     items.sort(key=lambda i: -i[1])
@@ -466,10 +497,13 @@ def before_after(m: dict) -> tuple[str, str] | None:
         # The control fell: the mailing's work was arresting a decline, not
         # conjuring new spend. Say that, or the number reads as a miss.
         head = (f"Responders arrested the control's decline: "
-                f"{_money(net)}/mo net")
+                f"{_money(net)}/mo net in the three months after mail")
     else:
-        head = (f"Responders gained {_money(net)}/mo over control around "
-                f"each mailing")
+        head = (f"Responders gained {_money(net)}/mo over control in the "
+                f"three months after each mailing")
+    # The window is in the title, not only the sub: this figure sat beside the 12-month cohort
+    # figure ("still worth $371 a month 12 months later") and read as a contradiction (1798
+    # slides 106 and 117, Sheila's slide review, 2026-10-30).
     sub = None
     if rpre is not None and rpost is not None:
         sub = (f"control fell {_money(cpre - cpost)}/mo; responders "
@@ -522,7 +556,9 @@ def divergence(m: dict) -> tuple[str, str] | None:
     sub = "strong on one ask and weak on the other is process, not customers"
     dctr, rege = _n(m, "dctr_overall"), _n(m, "rege_pct")
     if dctr is not None and rege is not None:
-        sub += f" — book: cards {dctr:.0f}%, Reg E {rege:.0f}%"
+        # a semicolon, not a dash: the dash became a colon and the slide read "not customers:
+        # book: cards 72%" (1798 slide 102, Sheila's slide review, 2026-10-30)
+        sub += f"; the book runs cards {dctr:.0f}%, Reg E {rege:.0f}%"
     return head, sub
 
 
@@ -596,7 +632,8 @@ def activation_split(m: dict) -> tuple[str, str] | None:
         # every first swipe came from a brand-new account: nothing here is
         # the program's to claim, and saying so is the finding
         head = (f"All {l12m:,} first swipes in the last year are "
-                f"new-account onboarding")
+                f"new-account onboarding" if l12m != 1 else
+                "The one first swipe in the last year is new-account onboarding")
         return head, ("no existing account activated in the window, so "
                       "neither the mail nor organic drift moved anyone")
     if prog_pct is None:
@@ -646,24 +683,15 @@ def value_ladder(m: dict) -> tuple[str, str] | None:
         return None
     step = m.get("value_age_biggest_step")
     if step:
-        head = (f"Value per account climbs {_money(step['step'])} between "
-                f"{step['from']} and {step['to']}")
+        head = (f"Value per account climbs {_money(step['step'])} from "
+                f"{_band(step['from'])} to {_band(step['to'])}")
     else:
         head = (f"Value per account climbs from "
                 f"{_money(rows[0]['value_per_acct'])} to "
                 f"{_money(rows[-1]['value_per_acct'])} as accounts age")
-    pot_h = _n(m, "value_debit_pot_hist")
-    pot_f = _n(m, "value_debit_pot_full")
-    if pot_h is not None and pot_f is not None:
-        sub = ("the ladder's biggest step; " if step else "") + (
-               f"unrecaptured cards are worth {_money(pot_h)} at history's "
-               f"take rate, {_money(pot_f)} at full")
-        rege = _n(m, "value_rege_pot_elected")
-        if rege is not None:
-            sub += f"; Reg E adds {_money(rege)} at the elected rate"
-    else:
-        sub = "interchange plus NSF/OD per eligible account, by account age"
-    return head, sub
+    # The card and Reg E potentials are on the slide's rail; v5's sub repeated them (1798 slide 98,
+    # 94 words: Sheila's slide review, 2026-10-30), so the sub says what the bars measure.
+    return head, "per eligible account a year by tenure, with and without a card"
 
 
 def responder_profile(m: dict) -> tuple[str, str] | None:
@@ -779,11 +807,11 @@ def penalty(m: dict) -> tuple[str, str] | None:
     v = _n(m, "penalty_box_violations")
     if not v:
         return None
-    head = f"{v:,.0f} responses repeated a tier inside the penalty window"
+    head = f"{_count(v, 'response')} repeated a tier inside the penalty window"
     waves = _n(m, "penalty_box_waves")
     sub = None
     if waves:
-        sub = (f"the program bars repeating a tier within {waves:.0f} mailers "
+        sub = (f"the program bars repeating a tier within {_count(waves, 'mailer')} "
                f"— a suppression-rule gap to close, not customer behaviour")
     return head, sub
 
@@ -810,10 +838,11 @@ def hero(m: dict) -> tuple[str, str] | None:
     wb_profit = _n(m, "wb_profit_ltd")
     if wb_profit is not None:
         months = _n(m, "wb_months_in_program")
-        span = f" in {months:.0f} months" if months else ""
+        span = f" over {_count(months, 'month')}" if months else ""
         if wb_profit >= 0:
-            head = (f"The program has earned {_money(wb_profit)} of program "
-                    f"profit{span}")
+            # "earned $1.9M of program profit" said program twice (1798 slide 107, Sheila's
+            # slide review, 2026-10-30)
+            head = f"{_money(wb_profit)} of program profit earned{span}"
         else:
             head = (f"The program is {_money(abs(wb_profit))} short of its "
                     f"fees{span}")
@@ -821,7 +850,7 @@ def hero(m: dict) -> tuple[str, str] | None:
         sub = None
         if rev is not None:
             sub = (f"{_money(rev)} program revenue less program fees, from "
-                   f"the ARS Workbook; response and lift from the ODD")
+                   f"the ARS Workbook; response from the ODD")
         return head, sub
     if m.get("wb_found"):
         # This client HAS a workbook: the hero is its booked profit or it
@@ -854,7 +883,7 @@ def pnl(m: dict) -> tuple[str, str] | None:
         head = (f"The 2:1 guarantee holds: {_money(bal)} of fees deferred "
                 f"to date")
         sub = (f"the client pays half of revenue while under the 2x mark"
-               + (f"; {months:.0f} months tracked" if months else "")
+               + (f"; {_count(months, 'month')} tracked" if months else "")
                + ", deferred fees forgiven at contract end unless drawn down")
         return head, sub
     profit = _n(m, "wb_profit_ltd")
@@ -871,7 +900,7 @@ def pnl(m: dict) -> tuple[str, str] | None:
     mailings = _n(m, "wb_mailings_to_date")
     sub = "revenue and fees from the ARS Workbook; response from the ODD"
     if months and mailings:
-        sub = (f"{mailings:.0f} mailings over {months:.0f} months — "
+        sub = (f"{_count(mailings, 'mailing')} over {_count(months, 'month')} — "
                f"revenue and fees from the ARS Workbook")
     return head, sub
 
@@ -910,6 +939,23 @@ def revenue_frames(m: dict) -> tuple[str, str] | None:
             f"so the two never tie")
 
 
+_MONEY_WORDS = re.compile(r"\$|revenue|interchange|income|profit|fee|dollar|earn|value", re.I)
+_SWIPE_WORDS = re.compile(r"swipe|transaction", re.I)
+
+
+def lift_unit(m: dict) -> str:
+    """The Lift Matrix's unit, read from the sheet's caption: "money", "swipes", or the caption's own
+    words (never blank). No caption is money, as v5 assumed. The rate-card chart should read the same
+    answer (`lift_unit(m) == "money"`) so its cells and the title never disagree."""
+    caption = m.get("wb_lift_caption")
+    if not caption or _MONEY_WORDS.search(str(caption)):
+        return "money"
+    if _SWIPE_WORDS.search(str(caption)):
+        return "swipes"
+    noun = re.sub(r"\b(monthly|per month|a month|per account)\b|[()]", " ", str(caption), flags=re.I)
+    return " ".join(noun.lower().split()[:3]) or "units"
+
+
 def lift_matrix(m: dict) -> tuple[str, str] | None:
     """The workbook's rate card: what an account earns at each swipe band,
     by the band it started in. Every claim is CHECKED against the grid --
@@ -923,19 +969,22 @@ def lift_matrix(m: dict) -> tuple[str, str] | None:
     if not cols or not vals:
         return None
     lo, hi = min(vals), max(vals)
-    # the sheet names its own unit; only format as money when it says so.
-    # Cents, not whole dollars: a rate card's rows are a few dollars apart
-    # and _money would round the whole card to the same number.
-    money = "$" in str(m.get("wb_lift_caption") or "$")
-    fmt = (lambda v: f"${v:,.2f}") if money else (lambda v: f"{v:,.2f}")
+    # The sheet names its own unit, and the title always states it. v5 printed the
+    # numbers bare unless the caption held a "$", and 1798's "Monthly Incremental
+    # Revenue Lift" gave "1.86 to 30.58 a month" (Sheila's slide review, 2026-10-30,
+    # slide 95: "swipes? $?"). Cents, not whole dollars: a rate card's rows are a few
+    # dollars apart and _money would round the whole card to the same number.
+    unit = lift_unit(m)
+    span = (f"${lo:,.2f} to ${hi:,.2f}" if unit == "money"
+            else f"{lo:,.2f} to {hi:,.2f} {unit}")
     climbs = all(a <= b for row in series for a, b in zip(row, row[1:]))
     # Kept short deliberately: a card with four-figure rates adds ~12
     # characters to the range, and the one-line rule is enforced on the
     # rendered title, not on this fixture's small numbers.
     if climbs:
-        head = f"Every segment climbs, {fmt(lo)} to {fmt(hi)} a month"
+        head = f"Every segment climbs, {span} a month"
     else:
-        head = f"The rate card runs {fmt(lo)} to {fmt(hi)} a month"
+        head = f"The rate card runs {span} a month"
     window = m.get("wb_lift_window")
     tail = ("the window has closed, so the card is stale"
             if m.get("wb_lift_stale")
@@ -1048,10 +1097,10 @@ def ops_kpis(m: dict) -> tuple[str, str] | None:
                   if take_rows[b][3] < take and rege_rows[b][3] < rege]
     head = f"Take rate {take:.1f}% and Reg E opt-in {rege:.1f}%"
     if joined and below_both:
-        lead = (f"{len(below_both)} of {len(joined)} branches run below "
-                f"the book on both; ")
+        lead = (f"{len(below_both)} of {_count(len(joined), 'branch', 'branches')} "
+                f"{'runs' if len(below_both) == 1 else 'run'} below the book on both; ")
     elif joined:
-        lead = f"across {len(joined)} branches; "
+        lead = f"across {_count(len(joined), 'branch', 'branches')}; "
     else:
         lead = ""
     sub = lead + ("take rate on eligible accounts; Reg E on eligible "
@@ -1153,8 +1202,9 @@ def wave_totals(m: dict) -> tuple[str, str] | None:
     top, top_value = max(totals.items(), key=lambda kv: kv[1])
     newest = list(waves)[-1]
     head = f"The {top} offer has returned {_money(top_value)} to date"
+    # "and the newest offer 1" left the unit off (1798 slide 94, Sheila's slide review, 2026-10-30)
     sub = (f"{len(waves)} offers have booked {_money(booked)} between them; "
-           f"{top} has had {len(waves[top])} months to earn it and the "
-           f"newest offer {len(waves[newest])}; booked frame, the "
+           f"{top} has had {_count(len(waves[top]), 'month')} to earn it and the "
+           f"newest offer {_count(len(waves[newest]), 'month')}; booked frame, the "
            f"workbook's own ledger")
     return head, sub
