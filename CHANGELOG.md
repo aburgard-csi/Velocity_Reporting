@@ -59,6 +59,25 @@ Sheila's 1798 slide review, 2026-10-30 (`Notes\Slide review\TI and ARS notes - 1
 - **Executive Summit** now sits just before Questions & Discussion in TI decks (`build_ti_gen.summit_before_questions`). RPE decks are unchanged.
 - **New chart options.** `line_with_base(..., highlight=)` and `branch_quadrant(..., size_idx=)` are added for later use.
 
+### 2026-10-30 — Summit pages can carry a chart beside a section, and Summit pages are routed to the skill
+
+Summary: the Summit one-pager builder can place a chart beside any section's bullets, and CLAUDE.md now routes Summit one-pager requests to the skill.
+
+Aaron, 2026-10-30: "Will you automatically use skills for doing projects like this, or do I need to tell you that explicitly?"
+
+- **Routing.** A row in the CLAUDE.md routing table sends "Executive Summit one-pager", "Summit handout" and "Key Performance Metrics page" to the `summit-one-pager` skill, so a session reads it at the start instead of rebuilding the page from a scratch folder.
+- **Section chart.** `kpm_page.py` takes `chart` and `chart_w` on a section; `kpm_charts.py` has a `share` chart type for percentages. Used on WesBanco's Account Engagement section.
+
+### 2026-10-30 — the Summit one-pager skill builds the Key Performance Metrics page
+
+Summary: the Executive Summit one-pager skill now covers the multi-program Key Performance Metrics page used for Fort Lauderdale, with its builder, chart helper and brand template kept in the repo.
+
+Aaron, 2026-10-30: "If you aren't using and updating a skill to build these, you should do that."
+
+- **Builder.** `.claude/skills/summit-one-pager/kpm_page.py` builds one page from a JSON spec (four tiles, a chart, sections of bullets, notes that name every source). It draws a border on the logo badge, reads the contact line from the client's own CSM through `rpe_env.csm_contact`, refuses notes with no sources, and can measure wrapped lines so the gaps between sections come out equal. `kpm_charts.py` draws the year-over-year bar chart and the monthly bars; `assets/brand.pptx` is the 2026 CSI brand template.
+- **Skill.** `SKILL.md` now describes both pages. The Key Performance Metrics process is: attendees from Aaron's list only, one read-only verification pass per client against the newest reports, the build, a render in PowerPoint that is looked at, and a save to OneDrive with the previous version kept. Aaron's corrections of 2026-10-30 are recorded as standards: year over year not month over month, check the longer window before quoting a short one, no unproven branch counts, name the basis of every figure, equal section gaps, a border on the logo.
+- **Test.** `tests/test_summit_kpm_page.py` builds a synthetic client with no logo and no data root and pins the border, the sources in the notes, the contact line and the equal gaps.
+
 ### 2026-10-30 — Sheila in Claude: every CSM can ask her for their reporting
 
 Summary: Sheila is now also a connector in Claude Desktop. A CSM can ask "where am I this month?", "build 1798", "what's in 1798's TI deck?", "where does slide 127's 9.7% come from?" or "run the PGL for 1737", and Sheila answers from the same checks and builds her page uses. Nobody sets anything up: opening Sheila adds her to that PC's Claude.
