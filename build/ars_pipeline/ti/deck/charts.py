@@ -100,12 +100,21 @@ _BAND_H = 4.90
 FIG_H_RAIL = round(FIG_W_RAIL * (_BAND_H / 8.69), 2)     # 4.96
 FIG_H_FULL = round(FIG_W_FULL * (_BAND_H / 11.53), 2)    # 4.89
 
+# Type floor (Sheila's 1798 slide review, 2026-10-30: chart labels read at 9-10pt). A figure is drawn
+# at FIG_W_* and placed by the slide helpers a little narrower than it was authored: on 1798's deck
+# the median chart landed at 0.94x and most between 0.81x and 1.05x. So every piece of chart text is
+# authored at CHART_MIN_PT or more, which lands at about 12pt on the slide at the typical scale
+# (12 / PLACED_SCALE). _save applies it to every text on the figure, ticks, legends and captions
+# included, except a label fit_text sized to the block that holds it.
+PLACED_SCALE = 0.92
+CHART_MIN_PT = round(12 / PLACED_SCALE, 1)               # 13.0
+
 
 # RPE: the chart face is brand.CHART_FONT through rpe_env.use_font, which raises rather
 # than substitute; DejaVu Sans stays as the per-glyph fallback v5 relied on for the arrows.
 BRAND_FONT = brand.CHART_FONT
 rpe_env.use_font(BRAND_FONT)
-plt.rcParams.update({"font.family": [BRAND_FONT, "DejaVu Sans"], "font.size": 12})
+plt.rcParams.update({"font.family": [BRAND_FONT, "DejaVu Sans"], "font.size": CHART_MIN_PT})
 
 
 def _track(ax, xs, height, width=0.86, horizontal=False):
@@ -145,7 +154,7 @@ def caption(ax, text: str) -> None:
     which the headline above states as a finding and the axis cannot say at
     all. Without it a chart is a shape with numbers on it.
     """
-    ax.figure.text(0.012, 0.015, text, fontsize=9, color=GREY,
+    ax.figure.text(0.012, 0.015, text, fontsize=CHART_MIN_PT, color=GREY,
                    fontweight="bold", ha="left", va="bottom")
 
 
@@ -224,7 +233,9 @@ def fit_text(ax, x, y, width, text, fontsize, floor=7.5, max_lines=1, **kw):
         probe.remove()
         lines[-1] += "\u2026"
         body = "\n".join(lines)
-    return ax.text(x, y, body, fontsize=size, **kw)
+    artist = ax.text(x, y, body, fontsize=size, **kw)
+    artist._ars_fitted = True        # sized to its block: the type floor leaves it alone
+    return artist
 
 
 def place_point_labels(ax, pts, areas_pt2, names, fontsize=11, color=None):
@@ -362,7 +373,7 @@ def _declutter(fig) -> int:
     return removed
 
 
-_CAPTION_PT = 9
+_CAPTION_PT = CHART_MIN_PT     # was 9 (Sheila's 1798 review, 2026-10-30)
 _CAPTION_PAD_IN = 0.10          # clear air between tick labels and the slate
 
 
@@ -394,6 +405,44 @@ def _literal_dollars(fig) -> None:
             t.set_text(s.replace("\\$", "$"))
 
 
+def _type_floor(fig) -> int:
+    """Raise every text on the figure below CHART_MIN_PT to it; returns how many it raised.
+
+    One lever for every form, as _declutter is: some 170 sites set a fontsize between 6.8 and 12,
+    written for figures placed at full size, and the slide places them smaller. A label fit_text
+    sized to its block (`_ars_fitted`) keeps its size: it is already the largest that fits there."""
+    from matplotlib.text import Text
+    raised = 0
+    for t in fig.findobj(Text):
+        if getattr(t, "_ars_fitted", False) or not t.get_text().strip():
+            continue
+        if t.get_fontsize() < CHART_MIN_PT:
+            t.set_fontsize(CHART_MIN_PT)
+            raised += 1
+    # ticks matplotlib makes later (a numeric axis) take rcParams' font.size, which is CHART_MIN_PT
+    return raised
+
+
+def _untangle_ticks(fig) -> bool:
+    """Horizontal x tick labels that now run into each other are angled (the house AXIS_ROTATION),
+    never shrunk back under the floor. Returns True when any axis was changed."""
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    changed = False
+    for ax in fig.axes:
+        labels = [t for t in ax.get_xticklabels() if t.get_visible() and t.get_text().strip()]
+        if len(labels) < 2 or any(t.get_rotation() for t in labels):
+            continue
+        boxes = sorted((t.get_window_extent(renderer) for t in labels), key=lambda b: b.x0)
+        if any(a.x1 + 2 > b.x0 for a, b in zip(boxes, boxes[1:])):
+            for t in labels:
+                t.set_rotation(_rpe_periods.AXIS_ROTATION)
+                t.set_ha(_rpe_periods.AXIS_HA)
+                t.set_rotation_mode("anchor")
+            changed = True
+    return changed
+
+
 def _save(fig, path: Path) -> Path:
     """Layout is tightened INSIDE the authored canvas -- never cropped to
     content (bbox_inches='tight' shrank figures unpredictably, so the same
@@ -406,6 +455,7 @@ def _save(fig, path: Path) -> Path:
     caption_text, _PENDING_CAPTION = _PENDING_CAPTION, None
     path.parent.mkdir(parents=True, exist_ok=True)
     laid_out = False
+    _type_floor(fig)
     try:
         # figures with manually placed axes (add_axes) author their own
         # layout; tight_layout would warn and shift them. So do figures that
@@ -416,6 +466,8 @@ def _save(fig, path: Path) -> Path:
         elif all(ax.get_subplotspec() is not None for ax in fig.axes):
             fig.tight_layout(pad=0.5)
             laid_out = True
+            if _untangle_ticks(fig):
+                fig.tight_layout(pad=0.5)
     except Exception:
         pass
 
@@ -2202,9 +2254,41 @@ def paired_hbars(rows: list, a_lab: str, b_lab: str, out: Path,
     return _save(fig, out)
 
 
-def _line_with_base_fig(rows: list, ylabel=""):
+MAX_MONTH_TICKS = 12      # a month axis names at most this many months (Sheila, 1798, 2026-10-30)
+
+
+def _tick_step(n: int, most: int = MAX_MONTH_TICKS) -> int:
+    """Every Nth label so that at most `most` are drawn: 33 months -> every 3rd (11 labels)."""
+    return max(1, -(-n // most))
+
+
+def _highlight_index(rows, highlight):
+    """The row indexes `highlight` names: a row label (as given or in MMM'YY), an index, or a list of either."""
+    if highlight is None:
+        return set()
+    wanted = highlight if isinstance(highlight, (list, tuple, set)) else [highlight]
+    labels = [str(r[0]) for r in rows]
+    house = _axis_labels(labels)
+    out = set()
+    for w in wanted:
+        if isinstance(w, int) and not isinstance(w, bool):
+            if -len(rows) <= w < len(rows):
+                out.add(w % len(rows))
+            continue
+        for i, (raw, hm) in enumerate(zip(labels, house)):
+            if str(w) in (raw, hm) or _rpe_periods.mon_yy(str(w)) == hm:
+                out.add(i)
+    return out
+
+
+def _line_with_base_fig(rows: list, ylabel="", highlight=None):
     """rows: [[label, base_n, pct], ...] -- the rate as a line, the base it
-    rests on as grey columns behind it. The base is the honest part."""
+    rests on as grey columns behind it. The base is the honest part.
+
+    `highlight` (a row label, an index, or a list of them) marks one cohort: a filled orange
+    point, its base column in the accent tint, its value always printed and its tick label kept
+    and set bold. With many months only every Nth tick is labelled, at most MAX_MONTH_TICKS (33
+    months ran together on 1798's slide 34, 2026-10-30)."""
     xs = list(range(len(rows)))
     pcts = [r[2] for r in rows]
     bases = [r[1] for r in rows]
@@ -2214,18 +2298,31 @@ def _line_with_base_fig(rows: list, ylabel=""):
     ax.set_ylim(lo - span * 1.35, hi + span * 0.35)
     mx = max(bases) or 1
     floor = lo - span * 1.35
+    marked = _highlight_index(rows, highlight)
     for x, b in zip(xs, bases):
         ax.add_patch(plt.Rectangle((x - 0.34, floor), 0.68,
                                    (b / mx) * span * 0.62,
-                                   facecolor=GRID, edgecolor="none", zorder=1))
+                                   facecolor=TINT if x in marked else GRID, edgecolor="none", zorder=1))
     ax.plot(xs, pcts, color=ORANGE, lw=3, marker="o", markersize=6.5,
             markerfacecolor="white", markeredgewidth=2.4,
             markeredgecolor=ORANGE, zorder=3)
-    for i in (0, len(xs) // 2, len(xs) - 1):
-        ax.text(xs[i], pcts[i] + span * 0.10, f"{pcts[i]:.0f}%", fontsize=10.5,
-                fontweight="bold", color=NAVY, ha="center")
-    ax.set_xticks(xs)
-    ax.set_xticklabels(_axis_labels([r[0] for r in rows]), fontsize=9, color=GREY)
+    for i in sorted(marked):
+        ax.plot([xs[i]], [pcts[i]], marker="o", markersize=11, color=ORANGE,
+                markeredgecolor=NAVY, markeredgewidth=2, zorder=4)
+    for i in sorted({0, len(xs) // 2, len(xs) - 1} | marked):
+        t = ax.text(xs[i], pcts[i] + span * 0.10, f"{pcts[i]:.0f}%", fontsize=13 if i in marked else 10.5,
+                    fontweight="bold", color=ORANGE if i in marked else NAVY, ha="center")
+        if i in marked:
+            t._ars_keep = True        # the highlighted value is never decluttered away
+    step = _tick_step(len(xs))
+    shown = sorted(set(range(len(xs) - 1, -1, -step)) | marked)    # anchored on the latest month
+    labels = _axis_labels([r[0] for r in rows])
+    ax.set_xticks([xs[i] for i in shown])
+    ticks = ax.set_xticklabels([labels[i] for i in shown], fontsize=9, color=GREY)
+    for i, t in zip(shown, ticks):
+        if i in marked:
+            t.set_color(ORANGE)
+            t.set_fontweight("bold")
     ax.text(xs[-1], floor + span * 0.66, "grey = accounts observed",
             fontsize=9, color=GREY, ha="right")
     if ylabel:
@@ -2234,8 +2331,8 @@ def _line_with_base_fig(rows: list, ylabel=""):
     return fig, {"points": len(rows)}
 
 
-def line_with_base(rows: list, out: Path, ylabel="") -> Path:
-    fig, _ = _line_with_base_fig(rows, ylabel)
+def line_with_base(rows: list, out: Path, ylabel="", highlight=None) -> Path:
+    fig, _ = _line_with_base_fig(rows, ylabel, highlight)
     return _save(fig, out)
 
 
@@ -2313,16 +2410,28 @@ def pair_lines(xs: list, a: list, b: list, a_label: str, b_label: str,
 
 
 def _quadrant_fig(rows: list, xlabel: str, ylabel: str, quads=None,
-                  bubble_label="bubble = ICS accounts opened there", xfmt=None, yfmt=None):
+                  bubble_label="bubble = ICS accounts opened there", xfmt=None, yfmt=None,
+                  size_idx: int = 1):
     """Branch quadrant: x/y per branch, bubble = volume, dashed medians.
-    rows: [[name, n, x, y], ...] (None-valued rows dropped)."""
+    rows: [[name, n, x, y, ...], ...] (None-valued rows dropped).
+
+    `size_idx` picks the field the bubble is sized by (default 1, the volume); a row may carry
+    more fields after y, e.g. 90-day net adds at index 4 with size_idx=4. A negative value is
+    sized by its magnitude and drawn in orange, so a shrinking branch reads as one (2026-10-30)."""
     rows = [r for r in rows if r[2] is not None and r[3] is not None]
     fig, ax = plt.subplots(figsize=(FIG_W_FULL, 4.6))
     xs = [r[2] for r in rows]
     ys = [r[3] for r in rows]
-    max_n = max((r[1] for r in rows), default=1) or 1
-    sizes = [300 + 1900 * r[1] / max_n for r in rows]
-    ax.scatter(xs, ys, s=sizes, color=NAVY, alpha=0.8, zorder=3,
+
+    def mag(r):
+        v = r[size_idx] if len(r) > size_idx else None
+        return abs(float(v)) if v is not None else 0.0
+
+    max_n = max((mag(r) for r in rows), default=1) or 1
+    sizes = [300 + 1900 * mag(r) / max_n for r in rows]
+    colors = [ORANGE if (len(r) > size_idx and r[size_idx] is not None and float(r[size_idx]) < 0)
+              else NAVY for r in rows]
+    ax.scatter(xs, ys, s=sizes, color=colors, alpha=0.8, zorder=3,
                edgecolor="white", linewidth=2)
     medians = False
     mx = my = None
@@ -2370,8 +2479,10 @@ def _quadrant_fig(rows: list, xlabel: str, ylabel: str, quads=None,
 def branch_quadrant(rows: list, out: Path, quads=None,
                     bubble_label="bubble = ICS accounts opened there",
                     xlabel: str = "month-one activation %",
-                    ylabel: str = "12-mo retention %", xfmt=None, yfmt=None) -> Path:
-    fig, _ = _quadrant_fig(rows, xlabel, ylabel, quads, bubble_label, xfmt=xfmt, yfmt=yfmt)
+                    ylabel: str = "12-mo retention %", xfmt=None, yfmt=None,
+                    size_idx: int = 1) -> Path:
+    fig, _ = _quadrant_fig(rows, xlabel, ylabel, quads, bubble_label, xfmt=xfmt, yfmt=yfmt,
+                           size_idx=size_idx)
     return _save(fig, out)
 
 
