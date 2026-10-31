@@ -1,8 +1,9 @@
 """CSM Sheila in Claude: the same Sheila, reached by asking instead of clicking (James, 2026-10-30).
 
 Every tool calls the function Sheila's page calls for the same button (`scripts/ars_launcher_web.py`), so
-the page and Claude can never disagree. `python -m sheila_mcp` runs the server; `python -m
-sheila_mcp.register` adds it to this PC's Claude Desktop.
+the page and Claude can never disagree. `python -m sheila_mcp` runs the server. A CSM gets it in Claude by
+installing the "CSM Sheila" extension (`CSM Sheila.mcpb`, packed by `pack_extension.py` from `extension/`);
+Sheila's launchers never touch Claude.
 """
 import sys
 from pathlib import Path
