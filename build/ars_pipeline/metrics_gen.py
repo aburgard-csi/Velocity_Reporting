@@ -69,8 +69,9 @@ else:
         _pk.dump((hdr, _need, _redhdr, data), open(_os.environ['MG_DUMP'], 'wb')); sys.exit(0)
 # The ODD row vocabulary is defined once in odd_rows and bound here. It used to
 # be re-declared in every script, and personal() had drifted between them.
-from odd_rows import accessors as _accessors, OPEN_STATUSES as OPEN, CLOSED_STATUSES as CLOSED
-_odd=_accessors(H)
+from odd_rows import accessors as _accessors, OPEN_STATUSES as OPEN, CLOSED_STATUSES as CLOSED, client_of as _client_of
+# The client's code sheet settles statuses the generic wording does not (1585, 2026-11-02).
+_odd=_accessors(H, _client_of(F) or _client_of(_SRC_NAME))
 g=_odd.g; fnum=_odd.fnum
 _MKEY={}
 def mkey(t):

@@ -15,8 +15,8 @@ mpos={m:i for i,m in enumerate(MONTHS)}
 # a BLANK Business? cell personal — while metrics_gen read `== 'No'`, which made
 # it business. Two slides of one deck, two denominators. odd_rows follows the
 # three-way split product_mix_slide already used: a blank is neither.
-from odd_rows import accessors
-_odd=accessors(idx)
+from odd_rows import accessors, client_of
+_odd=accessors(idx, client_of(F))
 sw=_odd.swipes; sp=_odd.spend; personal=_odd.personal
 RESPM=[m for m in MONTHS if (m+' Resp') in idx]
 # Complete months only (Aaron, 2026-09-17: "Don't calculate YoY or comparisons on partial
