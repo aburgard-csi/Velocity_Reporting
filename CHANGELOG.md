@@ -59,6 +59,18 @@ Sheila's 1798 slide review, 2026-10-30 (`Notes\Slide review\TI and ARS notes - 1
 - **Executive Summit** now sits just before Questions & Discussion in TI decks (`build_ti_gen.summit_before_questions`). RPE decks are unchanged.
 - **New chart options.** `line_with_base(..., highlight=)` and `branch_quadrant(..., size_idx=)` are added for later use.
 
+### 2026-10-30 — Sheila reaches Claude as a Claude Desktop extension, and her launchers no longer touch Claude
+
+Summary: Sheila in Claude is now the "CSM Sheila" extension, `CSM Sheila.mcpb` in the CSM_Reporting folder, that a CSM installs once in Claude Desktop. Opening Sheila's page or the command-line launcher no longer changes anything in Claude.
+
+James Gilmore, 2026-10-30: "none of this should be in the sheila.bat gui"; asked how a CSM should get Sheila in Claude instead, he chose a Claude Desktop extension.
+
+- **The extension.** `sheila_mcp/pack_extension.py` writes `CSM Sheila.mcpb`, and the release puts it in the CSM_Reporting root beside the launchers. It is MCPB manifest 0.3, a Windows-only `binary` server. Its version comes from `VERSION`, and its tool list is read from the server's own `@mcp.tool` functions, so the two cannot drift. Its one setting is the CSM Reporting folder (default `M:\CSM_Reporting`).
+- **No code inside it.** `extension/server/sheila.cmd` runs the share's `runtime.cmd` (the refresh Sheila's page does), then serves `python -m sheila_mcp` from the PC's copy. A release therefore reaches Claude the next time Claude starts. `runtime.cmd` reads nothing from stdin and writes only to stderr, because stdout carries Claude's messages. A test started it as Claude does, from a folder with spaces in its name, against a test share: 15 tools and a working tool call, about 10 seconds on first copy.
+- **The launchers never touch Claude.** `runtime.cmd` no longer runs `sheila_mcp/register.py`, and `register.py` is gone. A test fails if a launcher mentions Claude again.
+- **Two Sheilas avoided.** A PC that opened Sheila on this morning's release has a `sheila` entry in `claude_desktop_config.json`. `legacy.py` runs when the extension starts and removes that entry: only an entry whose script is `sheila_start.py`, keeping a `.bak`. It also deletes the old `sheila_start.py`.
+- **The user guide** has a "CSM Sheila in Claude" section on installing the extension.
+
 ### 2026-10-30 — Sheila in Claude: the CashPlease report and portfolio, peer compare, the one-pager, and client brief and prep
 
 Summary: six more things a CSM can ask Sheila in Claude, all answered from the share: one institution's CashPlease against all CashPlease clients and the current cohort; the whole CashPlease book; how a client's ARS figures rank against every client built the same cycle; a one-page view with the figures worth saying; and a client brief and a meeting-prep sheet.
