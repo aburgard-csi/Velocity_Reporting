@@ -41,3 +41,33 @@ def test_both_tables_fit_the_rail():
     rows = R._LEFT_N + 1
     assert rows * R._TWO_ROW_H <= R._TBL_BOTTOM - R._TBL_TOP
     assert (R._RIGHT_N + 2) * R._TWO_ROW_H <= R._TBL_BOTTOM - R._TBL_TOP
+
+
+def _slide_deck(tmp_path, n):
+    from pptx import Presentation
+    import restyle_fonts
+    prs = Presentation(os.path.join(_HERE, os.pardir, "templates", "ars_template.pptx"))
+    s, _ = R.add_rege_branch_slide(prs, _m(n), os.path.join(_HERE, os.pardir, "build", "assets"),
+                                   "September 2026", renumber=False)
+    out = str(tmp_path / "t.pptx")
+    prs.save(out)
+    restyle_fonts.restyle(out)
+    sl = next(x for x in Presentation(out).slides if x is not None and
+              any(sh.has_text_frame and sh.text_frame.text.startswith("Reg E Opt-In by Branch")
+                  for sh in x.shapes))
+    return [sh for sh in sl.shapes if sh.has_table]
+
+
+def _sizes(tbl):
+    return {r.font.size.pt for row in tbl.table.rows for c in row.cells
+            for p in c.text_frame.paragraphs for r in p.runs}
+
+
+def test_the_two_tables_keep_10pt_through_restyle(tmp_path):
+    tables = _slide_deck(tmp_path, 27)
+    assert len(tables) == 2 and all(_sizes(t) == {10.0} for t in tables)
+
+
+def test_a_single_table_still_reads_16pt(tmp_path):
+    tables = _slide_deck(tmp_path, 8)
+    assert len(tables) == 1 and _sizes(tables[0]) == {16.0}

@@ -83,7 +83,8 @@ decision to record here, not a refactor.
 - **Minimum 16 pt** for every explicit run — these decks are read from 15 feet.
   Exceptions, all in `restyle_fonts.py`: slides titled "2026 New Releases",
   "Product Mix", "Program Results by Month Opened", "Referred Accounts by Product"
-  (dense tables that cannot fit at 16); MRPC decks (a deliberate 10-15 pt
+  (dense tables that cannot fit at 16), and the tables of 14 or more rows on
+  "Reg E Opt-In by Branch" (the two-table layout, 10 pt); MRPC decks (a deliberate 10-15 pt
   hierarchy); the Executive Summit slide (never touched); and the 12 pt label under
   the figure in the KPI tiles of "Product Mix & ARS Eligibility" and "Excluded
   Accounts", which carry the same callout subtext at the same size

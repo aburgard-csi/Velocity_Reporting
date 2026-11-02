@@ -168,7 +168,7 @@ def add_rege_branch_slide(prs, M, assets_dir, month_label,
     else:
         h = min(_ROW_H * len(rows), _TBL_BOTTOM - _TBL_TOP)
         _add_table(s, 0.5, _TBL_TOP, 12.3, h, rows, [1.7, 0.8, 0.8, 0.9, 0.8, 0.8],
-                   highlight=highlight, fs=11)
+                   highlight=highlight, fs=16)
 
     s.notes_slide.notes_text_frame.text = (
         f"Source: client ODD, {month_label} snapshot — Reg E election field. Cohort: "
