@@ -12,6 +12,9 @@ Also floors explicit run sizes at 16 pt, with two exceptions (STYLE.md "Type"):
   * dense tables that cannot fit their fixed content at 16 — slides titled
     "2026 New Releases", "Product Mix", "Program Results by Month Opened",
     "Referred Accounts by Product" (the `dense` tuple in restyle());
+  * the two side-by-side tables on "Reg E Opt-In by Branch" (`DENSE_TABLES`): 27 branches
+    do not fit at 16 pt; the slide's other text keeps the floor, and its single-table
+    layout sets 16 pt itself;
   * MRPC decks, which keep a deliberate 10-15 pt hierarchy (see _is_mrpc).
 The Executive Summit slide is never touched at all.
 
@@ -38,6 +41,8 @@ except Exception:  # older python-pptx
 
 from brand import HEAD, BODY
 MIN = 16
+# (slide title prefix, rows a table must carry) whose TABLES stay at their own size
+DENSE_TABLES = ("Reg E Opt-In by Branch", 14)
 HEAD_SIZE = 22      # runs at/above this are treated as headings
 
 
@@ -161,8 +166,11 @@ def restyle(path):
         dense = _title(s).startswith(("2026 New Releases", "Product Mix",
                                       "Program Results by Month Opened",
                                       "Referred Accounts by Product"))
+        tprefix, trows = DENSE_TABLES
         for sh in s.shapes:
-            _restyle_shape(sh, floor=not dense and not mrpc)
+            tdense = (_title(s).startswith(tprefix) and sh.has_table
+                      and len(sh.table.rows) >= trows)
+            _restyle_shape(sh, floor=not dense and not tdense and not mrpc)
     prs.save(path)
 
 

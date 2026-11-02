@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
+
+Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.
+
+Aaron, 2026-11-02: "let's see if we can expand the debit card and Reg E by branch slides to show more branches."
+
+- **Charts.** `chart_lib.BRANCH_CAP` 12 -> 30; the rate labels drop from 10 to 9 pt past 20 bars. Tick labels were already measured and shrunk to fit their slot.
+- **Table.** `rege_branch_slide` uses two tables of 0.26in rows when the branches do not fit one (14 left, 13 right plus the Total); past 27 the last slot is an "All other branches" roll-up. A client with 10 or fewer branches is unchanged.
+- Found on 1441 FNB Alaska (27 branches: 12 charted, 10 tabled, 17 rolled up).
+
 ### 2026-11-02 — Account status reads the client's code sheet when the wording and O/A/C/X codes do not
 
 Summary: a status that neither the generic wording nor STAT_CODE_MAP recognizes is now read from the client's own code sheet (`ars_code_tables.json`, `status_codes`). A blank code counts as a code when the sheet lists it. Statuses that already classified are unchanged.
