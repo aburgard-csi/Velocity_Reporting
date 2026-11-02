@@ -49,7 +49,7 @@ for _p in (HERE, os.path.join(HERE, os.pardir)):
         sys.path.insert(0, _p)
 
 import before_after as BA                                               # noqa: E402
-from odd_rows import (accessors, rege_label, REGE_IN, REGE_OUT,          # noqa: E402
+from odd_rows import (accessors, client_of, rege_label, REGE_IN, REGE_OUT,          # noqa: E402
                       REGE_DEFAULT)
 
 csv.field_size_limit(10 ** 7)
@@ -1180,7 +1180,7 @@ def scorecard(M, B, rc, hk, bk):
 def compute(odd_path, workbook_path=None, M=None, B=None, client_id=None):
     """Everything the slides need, as one JSON-ready dict."""
     d = read_odd(odd_path)
-    odd = accessors(d["H"])
+    odd = accessors(d["H"], client_id or client_of(odd_path))
     smonths, latest = d["smonths"], d["latest"]
     nextm = {smonths[i]: smonths[i + 1] for i in range(len(smonths) - 1)}
     mature = [m for m in d["mailmonths"] if m in nextm]

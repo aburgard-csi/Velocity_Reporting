@@ -41,7 +41,7 @@ import zipfile
 import os
 
 import before_after
-from odd_rows import accessors
+from odd_rows import accessors, client_of
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
 import month_complete  # noqa: E402  (build/)
@@ -124,7 +124,7 @@ def analyse(path):
     # These were re-implemented here because importing metrics_gen RUNS it (it
     # reads sys.argv at module scope). odd_rows is import-safe, so the vocabulary
     # can now be shared without that hazard.
-    odd = accessors(H)
+    odd = accessors(H, client_of(path))
     g, fnum, spend, swipes = odd.g, odd.fnum, odd.spend, odd.swipes
 
     # Two different cohorts, deliberately. `elig` answers "how many can we mail",

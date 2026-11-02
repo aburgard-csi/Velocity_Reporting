@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — Account status reads the client's code sheet when the wording and O/A/C/X codes do not
+
+Summary: a status that neither the generic wording nor STAT_CODE_MAP recognizes is now read from the client's own code sheet (`ars_code_tables.json`, `status_codes`). A blank code counts as a code when the sheet lists it. Statuses that already classified are unchanged.
+
+James Gilmore, 2026-11-02: the 1585 First Community Bank of the Heartland build stopped at metrics_gen with "no open personal debit-card holders, so there is no Reg E base". The ODDD and the code sheet are both correct: 1585 writes numeric codes with its own wording (1 New Acct Opened Prior Business Day, 2 File Maintenance, 3 Account Closed, 4 Pending Close) and leaves both fields blank on 2,572 accounts, and its sheet lists blank, 1 and 2 as active. "It needs to align with the codesheet on file, and recognize a null and numeric value."
+
+- **Where** (`build/ars_pipeline/odd_rows.py`): `client_of(path)` reads the SRDB from the ODD file name; `client_status_codes(cid)` loads the sheet. `isopen`, `status_class` and oddd_optimize's `classify_status` consult it only for what they do not already recognize. Callers pass the client: metrics_gen, product_mix_slide, excluded_accounts_slide, combined_insights, lift_values, responder_activity, ticket_calc, oddd_optimize.
+- **Inactive is not closed.** A sheet-inactive code is closed only when the sheet's own description says closed, charged off or purged (1585 code 3). 1226 DORMANT and 1637 F Frozen stay unknown, as before.
+- **1585 figures:** Reg E base 0 → 11,623 (3,998 opted in, 34.4%). Product Mix open 31,673; Excluded Accounts 12,711 closed with no unmapped-status flag.
+- **Other clients:** 1549, 1204 and 1637 Reg E bases unchanged. 1509 gains 4 blank-status accounts as open (not in the Reg E base). **1226 Ellafi** goes from no Reg E base to 5,865, because its sheet lists ACTIVE and INACTIVE as active; it was a known data issue, so review its next deck.
 ### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
 
 Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to 81.
