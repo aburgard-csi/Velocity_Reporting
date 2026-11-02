@@ -261,7 +261,8 @@ element is already maxed.
 - **Branch charts** show the largest 12 branches above the eligibility floors
   (>= 40 eligible personal, >= 15 new-account, >= 5 business), **selected by accounts
   and ranked by rate, best to worst**; fewer than 3 qualifying → show all and say so
-  in the caption. `chart_lib.BRANCH_CAP` is the cap and the renderer raises above it.
+  in the caption. `chart_lib.BRANCH_CAP` is the cap and the renderer raises above it. The cap is 30 (2026-11-02; it was 12), the rate labels drop to 9 pt past 20 bars,
+  and the Reg E by Branch table slide lists up to 27 branches in two side-by-side tables.
 - **Comparisons / benchmark slide:** orange capsule pills = Velocity clients'
   average (left), navy capsule pills = this client (right), metric label between.
 

@@ -39,6 +39,11 @@ from product_mix_slide import (
 
 # geometry — same rail as the other ARS table slides
 _TBL_TOP, _ROW_H, _TBL_BOTTOM = 2.62, 0.32, 6.60
+# More branches than one table seats go in TWO side by side (Aaron, 2026-11-02: show more
+# branches). 15 rows of 0.26in fit the same rail; the left table carries 14 branches, the
+# right 13 and the Total, so every branch up to 27 is listed and the Total still reconciles.
+_TWO_ROW_H, _LEFT_N, _RIGHT_N = 0.26, 14, 13
+_TWO_CAP = _LEFT_N + _RIGHT_N
 
 
 def _rows(M, max_body):
@@ -65,6 +70,32 @@ def _rows(M, max_body):
     return rows, (len(rows) - 1,), len(shown), len(src)
 
 
+def _line(b, i, o, n, tot, pct):
+    return [str(b), f"{i:,}", f"{o:,}", f"{n:,}", f"{tot:,}", f"{pct}%"]
+
+
+def _two_tables(M):
+    """(left rows, right rows, n shown, n branches) for the side-by-side layout. Each
+    list carries its own header; the right one ends with the Total. Past _TWO_CAP
+    branches the last slot is an 'All other branches' roll-up, as in the single table."""
+    src = M.get("rege_branch_table") or []
+    head = ["Branch", "Opted In", "Opted Out", "No Election", "Accounts", "Opt-In %"]
+    body = [_line(*r) for r in src[:_TWO_CAP]]
+    shown = len(body)
+    if len(src) > _TWO_CAP:
+        keep, rest = src[:_TWO_CAP - 1], src[_TWO_CAP - 1:]
+        body = [_line(*r) for r in keep]
+        ri, ro, rn, rt = (sum(x[k] for x in rest) for k in (1, 2, 3, 4))
+        body.append(_line(f"All other branches ({len(rest)})", ri, ro, rn, rt,
+                          round(100 * ri / rt) if rt else 0))
+        shown = len(keep)
+    ti, to, tn, tt = M.get("rege_branch_table_total") or [0, 0, 0, 0]
+    total = _line("Total", ti, to, tn, tt, round(100 * ti / tt) if tt else 0)
+    left = [head] + body[:_LEFT_N]
+    right = [head] + body[_LEFT_N:] + [total]
+    return left, right, shown, len(src)
+
+
 def add_rege_branch_slide(prs, M, assets_dir, month_label,
                           after_title="Reg E Opt-In — Opened",
                           before_title="Reg E Opt-In by Account Vintage",
@@ -82,7 +113,12 @@ def add_rege_branch_slide(prs, M, assets_dir, month_label,
     s = _blank_slide(prs, template)
 
     max_body = int((_TBL_BOTTOM - _TBL_TOP) / _ROW_H) - 2   # header + Total
-    rows, highlight, nshown, ntotal = _rows(M, max_body)
+    two = len(M["rege_branch_table"]) > max_body
+    if two:
+        left, right, nshown, ntotal = _two_tables(M)
+        rows = left
+    else:
+        rows, highlight, nshown, ntotal = _rows(M, max_body)
 
     win = M.get("rege_new_window") or []
     if len(win) == 3 and win[2] >= 12:
@@ -124,9 +160,15 @@ def add_rege_branch_slide(prs, M, assets_dir, month_label,
     for i, (v, l, f) in enumerate(tiles):
         _tile(s, 0.56 + i * 3.12, 1.66, 2.85, 0.84, v, l, fill=f)
 
-    h = min(_ROW_H * len(rows), _TBL_BOTTOM - _TBL_TOP)
-    _add_table(s, 0.5, _TBL_TOP, 12.3, h, rows, [1.7, 0.8, 0.8, 0.9, 0.8, 0.8],
-               highlight=highlight, fs=11)
+    if two:
+        cw = [1.3, 0.8, 0.8, 0.9, 0.8, 0.8]
+        _add_table(s, 0.5, _TBL_TOP, 6.05, _TWO_ROW_H * len(left), left, cw, fs=10)
+        _add_table(s, 6.75, _TBL_TOP, 6.05, _TWO_ROW_H * len(right), right, cw,
+                   highlight=(len(right) - 1,), fs=10)
+    else:
+        h = min(_ROW_H * len(rows), _TBL_BOTTOM - _TBL_TOP)
+        _add_table(s, 0.5, _TBL_TOP, 12.3, h, rows, [1.7, 0.8, 0.8, 0.9, 0.8, 0.8],
+                   highlight=highlight, fs=11)
 
     s.notes_slide.notes_text_frame.text = (
         f"Source: client ODD, {month_label} snapshot — Reg E election field. Cohort: "
