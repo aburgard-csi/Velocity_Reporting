@@ -387,6 +387,12 @@ data-sourcing task, not a reason to remove the slide: populate it from the corre
 source (workbook / core / VIP) or flag it for Aaron. Do not silently omit slides and do
 not report a phantom 0%.
 
+Transaction Intelligence exception (James Gilmore, 2026-10-30, Sheila's 1798 slide review):
+a TI slide whose builder declines for a client ("Not shown for this client: ...") is hidden from
+that client's deck, and a TI chapter with every slide declined loses its divider and agenda row.
+Nothing is silent: each hidden slide is logged and listed in `hidden_declined.json` beside the art
+(`build_ti_gen.build`). The data-sourcing rule above still applies to why a slide declined.
+
 **Data sources in slide notes — always.** Every slide must list its data source(s) in the
 slide's speaker notes: the source file(s) or dashboard (ODD extract + pull date, workbook
 tab, VIP dashboard, ICS Charts, MRPCPM Analysis, etc.) and the selection/period behind the

@@ -8,8 +8,9 @@ ODD (the ICS program decks read the VIP sheets and workbooks).
 Figures: v5's ICS section (`ti/odd_sections.ics`). Slides: v5's ICS chapter
 (`ti/deck/ics_slides.add_chapter`), which draws every slide in one pass and returns the ones it
 skipped as "<title> (<reason>)". Each skip is drawn as a stated slide under its own title, and the
-chapter is put back in v5's order. A client with no ICS accounts on its lists gets one stated
-slide. Primacy and merchants read the transaction chapter's lens rows and are stated until that
+chapter is put back in v5's order. A client with no ICS accounts on its lists gets one declined
+slide, through `Deck.declined` like every other skip, so the frame's rule for declined slides can
+take the chapter out as a whole (Sheila's 1798 review, 2026-10-30). Primacy and merchants read the transaction chapter's lens rows and are stated until that
 chapter is in the build. The chapter reads the same in both lens decks.
 """
 import re

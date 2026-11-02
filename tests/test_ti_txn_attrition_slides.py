@@ -37,7 +37,11 @@ def test_stresses_across_files_names_banking_elsewhere_and_the_two_plus_cut():
     h = _Harness()
     assert A.stresses_across_files(h, STRESS, "personal accounts") is None
     rail = " ".join(str(x) for item in h.rails[-1] for x in item)
-    assert "100" in rail and "Banking elsewhere" in rail
+    assert "100" in rail
+    # the conditions are named in the subtitle, not as value-less "built" tiles (Sheila's 1798
+    # review, 2026-10-30)
+    (_head, sub), _title = h.slides[-1]
+    assert "Banking elsewhere" in sub and "built" not in rail
     assert h.tables and h.tables[-1][0][0] == "Stressors"
 
 
