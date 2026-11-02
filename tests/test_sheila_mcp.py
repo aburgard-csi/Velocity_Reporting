@@ -1,13 +1,15 @@
 """Sheila in Claude (James Gilmore, 2026-10-30): "turn my m365 tools into Sheila tools ... Sheila, create this
 report", for every CSM, "built once, no csm has to do it". sheila_mcp/ is a second front door onto the functions
 Sheila's page calls; these tests pin the protocol, who is asking, the month view, the build rules (a deck in
-Outputs is replaced only on a yes), the review list, and the registration that puts her in Claude Desktop."""
+Outputs is replaced only on a yes), the review list, and the Claude Desktop extension that puts her in Claude
+(never the launcher)."""
 import io
 import json
 import os
 import sys
 import threading
 import time
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,7 +18,7 @@ import pytest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [REPO, os.path.join(REPO, "scripts"), os.path.join(REPO, "build")]
 
-from sheila_mcp import actions, core, register, stdio, who  # noqa: E402
+from sheila_mcp import actions, core, legacy, pack_extension, stdio, who  # noqa: E402
 
 
 # ------------------------------------------------------------------ the protocol
@@ -284,42 +286,75 @@ def test_build_cmd_passes_deck_only_and_one_build_runs_at_a_time_on_a_pc(tmp_pat
     assert a.finished <= b.finished
 
 
-# ------------------------------------------------------------------ registration
-def test_registration_adds_sheila_and_keeps_everything_else(tmp_path):
+# ------------------------------------------------------------------ the Claude Desktop extension
+def test_the_extension_is_a_windows_mcpb_that_starts_sheila_from_the_share(tmp_path):
+    """James Gilmore, 2026-10-30: none of the Claude set-up belongs in Sheila's launcher; she reaches Claude as
+    a Claude Desktop extension. The .mcpb carries the start script and a manifest whose version and tools come
+    from VERSION and the server itself."""
+    out = pack_extension.pack(tmp_path / "CSM Sheila.mcpb")
+    with zipfile.ZipFile(out) as z:
+        names = set(z.namelist())
+        m = json.loads(z.read("manifest.json"))
+        cmd = z.read("server/sheila.cmd").decode("ascii")
+    assert names == {"manifest.json", "server/sheila.cmd"}
+    assert m["manifest_version"] == "0.3" and m["name"] == "csm-sheila" and m["display_name"] == "CSM Sheila"
+    v = Path(REPO, "VERSION").read_text(encoding="utf-8").splitlines()[0].strip()
+    assert m["version"].startswith(v + ".") and m["version"].count(".") == 2
+    assert m["compatibility"]["platforms"] == ["win32"]
+    srv = m["server"]
+    assert srv["type"] == "binary" and srv["entry_point"] == "server/sheila.cmd"
+    assert srv["mcp_config"]["command"] == "cmd"
+    assert srv["mcp_config"]["args"] == ["/d", "/c", "${__dirname}\\server\\sheila.cmd"]
+    assert srv["mcp_config"]["env"]["SHEILA_ROOT"] == "${user_config.csm_reporting_folder}"
+    assert m["user_config"]["csm_reporting_folder"]["default"] == "M:\\CSM_Reporting"
+    from sheila_mcp.__main__ import mcp
+    assert [t["name"] for t in m["tools"]] == list(mcp.tools), "the manifest lists every tool, in order"
+    assert all(t["description"] for t in m["tools"])
+    # stdout is the protocol: the refresh never writes to it nor reads Claude's first messages from stdin
+    assert 'call "%ROOT%Tools\\RPE\\scripts\\launchers\\runtime.cmd" <nul 1>&2' in cmd
+    assert '"%PY%" -X utf8 -m sheila_mcp' in cmd and "\r\n" in cmd
+
+
+def test_the_launchers_never_touch_claude_and_the_release_ships_the_extension():
+    ps = Path(REPO, "scripts", "release_launcher.ps1").read_text(encoding="utf-8")
+    assert "'sheila_mcp')" in ps and "pack_extension.py') --out (Join-Path $Root 'CSM Sheila.mcpb')" in ps
+    lines = Path(REPO, "scripts", "launchers", "runtime.cmd").read_text(encoding="utf-8").lower().splitlines()
+    cmd = "\n".join(ln for ln in lines if not ln.lstrip().startswith("rem"))
+    assert "register" not in cmd and "claude" not in cmd and "sheila_mcp" not in cmd
+    for bat in Path(REPO, "scripts", "launchers").glob("*.bat"):
+        assert "claude" not in bat.read_text(encoding="utf-8").lower(), bat.name
+    assert not Path(REPO, "sheila_mcp", "register.py").exists()
+
+
+def test_the_old_launcher_entry_is_removed_and_nothing_else(tmp_path):
+    """The release that registered Sheila from the launcher (2026-10-30) left a "sheila" entry on PCs that
+    opened her; with the extension, Claude would run two Sheilas. Only our own entry goes."""
     cfg = tmp_path / "Claude" / "claude_desktop_config.json"
     cfg.parent.mkdir()
-    before = {"mcpServers": {"m365": {"command": "py", "args": ["m365_server.py"]}}, "theme": "dark"}
+    old = {"command": "C:\\Users\\x\\AppData\\Local\\RPE\\Python\\python.exe",
+           "args": ["-X", "utf8", "C:\\Users\\x\\AppData\\Local\\RPE\\sheila_start.py"], "env": {}}
+    before = {"mcpServers": {"m365": {"command": "py", "args": ["m365_server.py"]}, "sheila": old},
+              "theme": "dark"}
     cfg.write_text(json.dumps(before), encoding="utf-8")
     local = tmp_path / "RPE"
-    assert register.register("M:\\CSM_Reporting\\", local, [cfg]) == {str(cfg): "added"}
+    local.mkdir()
+    (local / "sheila_start.py").write_text("x", encoding="utf-8")
+    assert legacy.remove([cfg], local) == {str(cfg): "removed"}
     doc = json.loads(cfg.read_text(encoding="utf-8"))
-    assert doc["mcpServers"]["m365"] == before["mcpServers"]["m365"] and doc["theme"] == "dark"
-    s = doc["mcpServers"]["sheila"]
-    assert s["command"] == str(local / "Python" / "python.exe") and s["args"][-1] == str(local / "sheila_start.py")
-    assert s["env"]["RPE_DATA_ROOT"] == "M:\\CSM_Reporting" and s["env"]["ROOT"] == "M:\\CSM_Reporting\\"
-    assert json.loads((tmp_path / "Claude" / "claude_desktop_config.json.bak").read_text(encoding="utf-8")) == before
-    assert "runpy.run_module(\"sheila_mcp\"" in (local / "sheila_start.py").read_text(encoding="utf-8")
-    stamp = cfg.stat().st_mtime_ns
-    assert register.register("M:\\CSM_Reporting\\", local, [cfg]) == {str(cfg): "unchanged"}
-    assert cfg.stat().st_mtime_ns == stamp, "opening Sheila again rewrites nothing"
+    assert doc == {"mcpServers": {"m365": before["mcpServers"]["m365"]}, "theme": "dark"}
+    assert json.loads(Path(str(cfg) + ".bak").read_text(encoding="utf-8")) == before
+    assert not (local / "sheila_start.py").exists()
+    assert legacy.remove([cfg], local) == {str(cfg): "none"}
 
 
-def test_registration_leaves_a_broken_config_alone_and_creates_a_missing_one(tmp_path):
-    bad = tmp_path / "a" / "claude_desktop_config.json"
-    bad.parent.mkdir()
+def test_a_sheila_entry_that_is_not_ours_and_a_broken_config_are_left_alone(tmp_path):
+    mine = tmp_path / "a.json"
+    mine.write_text(json.dumps({"mcpServers": {"sheila": {"command": "x", "args": ["other.py"]}}}), encoding="utf-8")
+    bad = tmp_path / "b.json"
     bad.write_text("{not json", encoding="utf-8")
-    new = tmp_path / "b" / "claude_desktop_config.json"
-    new.parent.mkdir()
-    r = register.register("\\\\PADMIS105\\Velocity_company\\CSM_Reporting\\", tmp_path / "RPE", [bad, new])
+    r = legacy.remove([mine, bad], tmp_path)
+    assert r[str(mine)] == "none" and "sheila" in json.loads(mine.read_text(encoding="utf-8"))["mcpServers"]
     assert r[str(bad)].startswith("skipped") and bad.read_text(encoding="utf-8") == "{not json"
-    assert r[str(new)] == "added" and "sheila" in json.loads(new.read_text(encoding="utf-8"))["mcpServers"]
-
-
-def test_the_release_ships_sheila_and_opening_sheila_registers_her():
-    ps = Path(REPO, "scripts", "release_launcher.ps1").read_text(encoding="utf-8")
-    assert "'sheila_mcp')" in ps
-    cmd = Path(REPO, "scripts", "launchers", "runtime.cmd").read_text(encoding="utf-8")
-    assert '"%PY%" "%CODE%\\sheila_mcp\\register.py" >nul 2>&1' in cmd
 
 
 # ------------------------------------------------------------------ the reports from James's v5 tools, off the share
