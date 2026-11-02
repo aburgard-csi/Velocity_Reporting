@@ -139,7 +139,10 @@ def test_pareto_names_wrap_instead_of_being_cut():
             ["Cash App", "", 15_500_000]]
     fig, _ = charts_txn._pareto_fig(rows, 0.8, "")
     ticks = [t.get_text() for t in fig.axes[0].get_xticklabels()]
-    assert "Capital One\nMobile Payment" in ticks and "…" not in "".join(ticks)
+    # wrapped at 11 since the labels went to 13pt (Sheila's 1798 slide review, 2026-10-30: chart
+    # text under 12pt on the slide); still wrapped whole, never cut
+    assert "Capital One\nMobile\nPayment" in ticks and "…" not in "".join(ticks)
+    assert all(len(line) <= 11 for tick in ticks for line in tick.splitlines())
     plt.close(fig)
 
 
@@ -157,3 +160,20 @@ def _texts_of(render):
     finally:
         charts._save = real
     return seen
+
+
+# ---------------------------------------------------------------- v5 month labels (Sheila, 1798, 2026-10-30)
+@pytest.mark.parametrize("draw", [
+    lambda out: charts.line_series([["Jan24", 1.0], ["Feb24", 2.0], ["Aug24", 3.0]], out, money=True),
+    lambda out: charts.line_with_base([["Jan24", 100, 40.0], ["Feb24", 120, 42.0], ["Mar24", 90, 41.0]], out),
+    lambda out: charts.grouped_bars(["Jan24", "Feb24"], [1, 2], [2, 3], "a", "b", out),
+    lambda out: charts.response_reach_combo([["Jun24", 4.0], ["Jul24", 5.0]], [["Jun24", 10.0], ["Jul24", 18.0]], out),
+    lambda out: charts.dual_series([["Jan24", 10, 5], ["Feb24", 12, 6]], out),
+])
+def test_v5_month_labels_draw_in_the_house_format_instead_of_failing(tmp_path, draw):
+    """The packs label months as the ODD does ("Jan24"); the month-axis guard refused them and
+    Deck.chart swallowed the error, so five charts (and the hero sparkline) were missing from 1798's
+    deck while it validated 0 FAIL."""
+    out = tmp_path / "c.png"
+    draw(out)
+    assert out.exists()

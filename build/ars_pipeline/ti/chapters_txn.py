@@ -7,8 +7,9 @@ nothing. A client with no transaction window computes nothing here and says so.
 
 Build: each chapter is v5's slide builders (`ti/deck/txn_slides.BUILDERS`, split by chapter in
 v5's own order) drawn through the RPE helper bundle (`ti/deck/helpers.py`). A builder that
-declines becomes a stated slide under its own title. A client with no transaction figures at all
-gets ONE stated slide per chapter, not a run of "not shown" pages.
+declines becomes a stated slide under its own title, which the frame then hides for that client
+(Sheila's 1798 review, 2026-10-30). A client with no transaction figures at all gets ONE stated
+slide per chapter, so both chapters are hidden whole.
 
 Lenses: the slides that walk v5's lens list (`lenses` in the figures) show, in the ICS lens deck,
 all accounts plus the ICS groups; in the ARS lens deck they are drawn exactly as v5 draws them.

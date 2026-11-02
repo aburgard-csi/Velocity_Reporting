@@ -85,3 +85,108 @@ def coverage_note(shown: int, total: int, noun: str) -> str | None:
     if shown >= total:
         return None
     return f"showing {shown:,} of {total:,} {noun}"
+
+
+# --- names on a slide ------------------------------------------------------------------------------
+# Merchant and institution names reach the deck as the transaction file carries them ("CIRCLEK",
+# "WAL MART", "LOWES") and v5 cased them with str.title(), which prints "Lowe'S", "Circlek" and
+# "Mountain America Cu" (Sheila's 1798 slide review, 2026-10-30). display_name() is the one casing
+# rule every merchant / institution label goes through. RPE addition, not in v5.
+import re as _re
+
+# A collapsed or split key the casing cannot recover by itself, by its normalised key (upper case,
+# no apostrophes / periods, hyphens as spaces); a key is also looked up with its spaces removed.
+NAME_ALIASES = {
+    "CIRCLEK": "Circle K", "CIRCLE K": "Circle K",
+    "WALMART": "Walmart", "WAL MART": "Walmart",
+    "LOWES": "Lowe's",
+    "MOUNTAIN AMERICA CU": "Mountain America CU",
+    "PAYPAL": "PayPal",
+}
+# Kept upper case wherever they fall (by the token's letters, periods dropped: "N.A." is "NA").
+ACRONYMS = {"CU", "FCU", "USAA", "ATM", "BNPL", "LLC", "NA", "AT&T", "CVS", "HSBC", "TD", "PNC",
+            "BMO", "USA", "ACH", "P2P", "MCC", "IRS", "DMV", "ICS", "ARS", "HEB", "QT", "BP", "TJ"}
+# Brands whose casing is neither title nor upper.
+SPECIAL_CASE = {"PAYPAL": "PayPal", "EBAY": "eBay", "ITUNES": "iTunes", "IPHONE": "iPhone",
+                "MCDONALDS": "McDonald's", "MCDONALD'S": "McDonald's"}
+_SMALL_WORDS = {"of", "and", "the", "at", "for", "in", "on", "by", "to"}
+# All-caps tokens without a vowel that are words, not acronyms.
+_NOT_ACRONYM = {"MR", "MRS", "MS", "DR", "ST", "JR", "SR", "MT", "FT", "N", "S", "E", "W"}
+_VOWELS = set("AEIOUY")
+
+
+def _name_key(s: str) -> str:
+    s = s.upper().replace("\u2019", "'").replace("-", " ")
+    s = _re.sub(r"['.]", "", s)
+    return " ".join(s.split())
+
+
+def _case_word(w: str) -> str:
+    """One all-caps / all-lower word in display case: 'LOWE'S' -> "Lowe's", "O'REILLY" -> "O'Reilly",
+    'COCA-COLA' -> 'Coca-Cola', '7-ELEVEN' -> '7-Eleven'."""
+    if "-" in w:
+        return "-".join(_case_word(p) for p in w.split("-"))
+    if "'" in w:
+        head, _, tail = w.partition("'")
+        if len(head) == 1 and head.upper() in "OD" and len(tail) > 1:      # O'Reilly, D'Angelo
+            return head.upper() + "'" + tail[:1].upper() + tail[1:].lower()
+        return _case_word(head) + "'" + tail.lower()
+    if not w:
+        return w
+    i = next((k for k, ch in enumerate(w) if ch.isalpha()), None)
+    if i is None:
+        return w
+    return w[:i] + w[i].upper() + w[i + 1:].lower()
+
+
+def display_name(raw) -> str:
+    """A merchant or institution name as a slide prints it.
+
+    Proper case with apostrophes kept lower ("Lowe's", never "Lowe'S"); acronyms upper (CU, FCU, USAA,
+    ATM, BNPL, LLC, N.A.); PayPal as PayPal; collapsed keys through NAME_ALIASES ("CIRCLEK" -> "Circle K").
+    A name already in mixed case keeps its own casing except for str.title()'s tells ("Cu", "'S"),
+    so the function is idempotent on clean names. None / blank -> "".
+    """
+    if raw is None:
+        return ""
+    s = " ".join(str(raw).replace("\u2019", "'").split())
+    if not s:
+        return ""
+    key = _name_key(s)
+    hit = NAME_ALIASES.get(key) or NAME_ALIASES.get(key.replace(" ", ""))
+    if hit:
+        return hit
+    letters = [ch for ch in s if ch.isalpha()]
+    mixed = any(ch.isupper() for ch in letters) and any(ch.islower() for ch in letters)
+    out = []
+    for n, tok in enumerate(s.split(" ")):
+        bare = tok.upper().strip(",;:()")
+        core = bare.replace(".", "")
+        lead = tok[:len(tok) - len(tok.lstrip(",;:("))]
+        trail = tok[len(tok.rstrip(",;:)")):]
+        if bare == "N.A." or core in ACRONYMS:
+            word = "N.A." if bare == "N.A." else core
+        elif core in SPECIAL_CASE or bare in SPECIAL_CASE:
+            word = SPECIAL_CASE.get(bare) or SPECIAL_CASE[core]
+        elif "&" in core and len(core) <= 5:
+            word = core
+        elif mixed and n > 0 and tok in {w.capitalize() for w in _SMALL_WORDS}:
+            word = tok.lower()                     # str.title()'s "Bank Of America"
+        elif mixed and not (tok.isupper() or tok.islower()):
+            # already cased by a person or by str.title(): keep it, but undo title()'s "'S"
+            out.append(_re.sub(r"(?<=[a-z])'S\b", "'s", tok))
+            continue
+        elif mixed and tok.isupper():
+            out.append(tok)                       # an all-caps word inside a cased name is deliberate
+            continue
+        elif (core.isalpha() and core.isupper() and 2 <= len(core) <= 4 and not (set(core) & _VOWELS)
+              and core not in _NOT_ACRONYM):
+            word = core                            # CVS, TJX: no vowel, so not a word
+        elif n > 0 and tok.lower().strip(",;:()") in _SMALL_WORDS:
+            word = tok.lower().strip(",;:()")
+        elif core.startswith("MC") and len(core) > 3 and core.isalpha():
+            word = "Mc" + core[2].upper() + core[3:].lower()
+        else:
+            word = _case_word(tok.strip(",;:()"))
+        out.append(lead + word + trail)
+    return " ".join(out)

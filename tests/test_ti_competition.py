@@ -196,11 +196,12 @@ def test_the_two_penetration_denominators_are_published():
 def test_the_slide_names_the_multi_banked_base():
     import pathlib
 
-    slide = pathlib.Path(comp_slide_path()).read_text()
-    # the phrase spans two f-string fragments, so check both halves
-    assert "of the accounts with a " in slide
-    assert "competitor deal with two or more" in slide, (
-        "the subhead must say which base the multi-banked share is of")
+    slide = pathlib.Path(comp_slide_path()).read_text(encoding="utf-8")
+    # The combined competitor slide (Sheila's 1798 slide review, 2026-10-30, groups F+G) states the
+    # multi-banked figure as a COUNT of accounts on its rail, not as a share, so there is no base
+    # to misread; the tile names what it counts.
+    assert '("Two or more", f"{t.get(\'comp_multi_banked\', 0):,}",' in slide
+    assert '"named competitors")' in slide
 
 
 def comp_slide_path():

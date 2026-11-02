@@ -66,18 +66,32 @@ def twelve_months(h, t, base):
         h["chart_left"](s, path, top, h["RIGHT_EDGE"])
 
 
+def _key(name) -> str:
+    return "".join(ch for ch in str(name).upper() if ch.isalnum())
+
+
+def payment_app_names(t) -> set:
+    """The payment apps the competition chapter ranks (comp_ecosystems), as name keys."""
+    return {_key(r[0]) for r in (t.get("comp_ecosystems") or [])}
+
+
 def how_members_spend(h, t, base, merchant_bars):
     mtop = t.get("mch_top") or []
     if not mtop:
         return None
-    m1 = mtop[0]
+    # RPE: lead with the biggest merchant that is not a payment app. Cash App's card-funded P2P
+    # led this slide at $78.3M beside a $49.6M leakage total; it is one figure, on the payment-app
+    # slide (Sheila's 1798 slide review, 2026-10-30, group B). Its bar stays in the chart.
+    apps = payment_app_names(t)
+    shops = [r for r in mtop if _key(r[0]) not in apps]
+    m1 = shops[0] if shops else mtop[0]
+    app_note = (f"; {labels.display_name(mtop[0][0])} at {money(mtop[0][3])} is card-funded P2P, "
+                f"shown with the payment apps" if shops and m1 is not mtop[0] else "")
     s, top = h["slide"]((
-        f"{str(m1[0]).title()} leads card spend at {money(m1[3])} across "
+        f"{labels.display_name(m1[0])} leads card spend at {money(m1[3])} across "
         f"{m1[1]:,} accounts — the top 15 merchants take "
         f"{t.get('mch_top15_share_pct', 0):.0f}% of card dollars",
-        f"{t.get('mch_distinct', 0):,} distinct merchants; categories by "
-        f"{t.get('mch_category_method')} (MCC on "
-        f"{t.get('mch_mcc_coverage_pct', 0):.0f}% of card rows)"),
+        f"{t.get('mch_distinct', 0):,} distinct merchants" + app_note),
         "How members spend")
     items = [("Card spend", money(t.get("mch_card_spend")),
               f"{t.get('mch_card_accounts', 0):,} card accounts"),
@@ -101,16 +115,29 @@ def card_spend_by_category(h, t, base):
     if not rows:
         return "Card spend by category (no mch_by_category)"
     top_row = rows[0]
-    s, top = h["slide"]((
-        f"{top_row[0]} takes {top_row[-1]:.0f}% of card dollars",
-        f"grouped by {t.get('mch_category_method')} — MCC on "
-        f"{t.get('mch_mcc_coverage_pct', 0):.0f}% of card rows; the detail "
-        f"sits in the appendix"), "Card spend by category")
+    # RPE: the top MCC codes ride on this slide's rail; "The MCC codes behind the categories"
+    # was a second card-mix slide (Sheila's 1798 slide review, 2026-10-30, group C)
+    mcc = t.get("mch_mcc_top") or []
+    cov = t.get("mch_mcc_coverage_pct") or 0
+    head = f"{top_row[0]} takes {top_row[-1]:.0f}% of card dollars"
+    if mcc:
+        head += f"; MCC {mcc[0][0]} ({str(mcc[0][1]).lower()}) alone takes {mcc[0][6]:.0f}%"
+    sub = (f"grouped by {t.get('mch_category_method')}; MCC on {cov:.0f}% of card rows"
+           + (f", the top five codes take {t.get('mch_mcc_top5_share_pct', 0):.0f}% of coded "
+              f"card dollars" if mcc else ""))
+    s, top = h["slide"]((head, sub), "Card spend by category")
+    right = h["RIGHT_EDGE"]
+    if mcc:
+        items = [(f"MCC {r[0]}", f"{r[6]:.0f}%", f"{labels.clip(str(r[1]), 18)} · {money(r[4])}")
+                 for r in mcc[:4]]
+        items.append(("Top five codes", f"{t.get('mch_mcc_top5_share_pct', 0):.0f}%",
+                      f"of coded card dollars; {t.get('mch_mcc_distinct', 0):,} codes"))
+        right = h["rail"](s, items, top=top)
     tier = [[labels.clip(r[0], 22), r[-2], r[-1]] for r in rows]
     path = h["chart"]("mch_parents", charts.tier_bars, tier, value_idx=2,
                       label="dollars", share=False, fmt="{:,.1f}%")
     if path:
-        h["chart_left"](s, path, top, h["RIGHT_EDGE"])
+        h["chart_left"](s, path, top, right)
 
 
 def ticket_and_intensity(h, t, base):
@@ -167,7 +194,7 @@ def recurring_on_the_card(h, t, base):
         f"carry a subscription on the card",
         "the counterparties riding the card every month, by how many "
         "accounts they reach"), "Recurring payments on the card")
-    rows = [[labels.clip(str(r[0]).title(), 24), r[1], money(r[3])]
+    rows = [[labels.clip(labels.display_name(r[0]), 24), r[1], money(r[3])]
             for r in rc[:9]]
     path = h["chart"]("beh_recurring", charts.branch_bars, rows,
                       portfolio=0, show_n=False)
@@ -252,11 +279,20 @@ def responder_profile(h, t, base):
             raw.append(f"{fmt(float(av))}  vs  {fmt(float(bv))}")
     if len(axes) < 4:
         return "The responder profile (fewer than four measurable axes)"
+    # RPE: the one responder-against-the-rest slide. "Leakage by group" drew three of these six
+    # measures again and "Every group against the book" the competitor rate by group; the not-
+    # mailed comparison it made rides in the subtitle (Sheila's 1798 slide review, 2026-10-30,
+    # group E)
+    by = {r[0]: r for r in (t.get("comp_by_lens") or [])}
+    book, nm = by.get("all"), by.get("not_mailed")
+    sub = ("six measures, each scaled to the larger of the two groups; the column carries "
+           "the real numbers")
+    if book and nm and nm[4] is not None and book[4] is not None:
+        sub += (f"; accounts never mailed run at {nm[4]:.0f}% competitor penetration "
+                f"against a book of {book[4]:.0f}%")
     s, top = h["slide"]((
         "Responders are not just busier — they are broader, and they bank in "
-        "more places",
-        "six measures on one outline, each scaled to the larger of the two "
-        "cohorts; the column carries the real numbers"),
+        "more places", sub),
         "The responder profile")
     path = h["chart"]("txn_radar", CS.radar, short, a_v, b_v, "responders",
                       "mailed non-responders", raw)
@@ -319,17 +355,25 @@ def dictionary_gaps(h, t, base):
     def is_institution(name):
         return bool(toks & set(str(name).upper().replace("*", " ").split()))
 
-    rows = [[r[0], r[2], r[2], is_institution(r[0])] for r in pool[:20]]
+    # RPE: twelve rows, so the names print at slide size (Sheila's 1798 slide review, 2026-10-30)
+    rows = [[r[0], r[2], r[2], is_institution(r[0])] for r in pool[:12]]
     named = [r for r in rows if r[3]]
-    head = (f"{len(named)} unclassified counterparties are named institutions "
-            f"— {str(named[0][0]).title()} among them" if named else
-            f"{str(pool[0][0]).title()} moves {money(pool[0][2])} a year and "
-            f"is not in any dictionary yet")
+    if len(named) == 1:
+        # "1 unclassified counterparties are" shipped on 1798 (Sheila's review, 2026-10-30)
+        head = (f"One unclassified counterparty is a named institution: "
+                f"{labels.display_name(named[0][0])}")
+    elif named:
+        head = (f"{len(named)} unclassified counterparties are named institutions "
+                f"— {labels.display_name(named[0][0])} among them")
+    else:
+        head = (f"{labels.display_name(pool[0][0])} moves {money(pool[0][2])} a year and "
+                f"is not in any dictionary yet")
     s, top = h["slide"]((head,
         "orange is a depository name — those are LocalCompetitors "
         "candidates; the rest are products for the finserv dictionary"),
         "What the dictionary does not know yet")
-    note = (f"{len(named)} of {len(rows)} are institutions · "
+    note = (f"{len(named)} of {len(rows)} " + ("is an institution" if len(named) == 1
+                                                  else "are institutions") + " · "
             f"{money(t.get('fin_review_queue_dollars'))} behind the queue")
     path = h["chart"]("fin_ledger", CS.ledger, rows, note=note)
     if path:
@@ -341,7 +385,34 @@ def dictionary_gaps(h, t, base):
 # 21, 23-28 and the personal / business mirrors, collapsed to six questions.
 
 def _title(name) -> str:
-    return str(name).title()
+    """RPE: labels.display_name, never str.title() ("Circlek", "Lowe'S", "Wal Mart" on 1798,
+    Sheila's slide review, 2026-10-30)."""
+    return labels.display_name(name)
+
+
+def _merge_by_name(rows):
+    """mch_growth rows [merchant, accounts_recent, prior, recent, change, pct] with one display name
+    combined: a merchant whose descriptor changed inside the window ("CIRCLE K" -> "CIRCLEK" on 1798)
+    otherwise reads as one merchant up $4.6M and another down $4.7M. Dollars add; the accounts are
+    the larger of the two, since the same account can sit under both descriptors. Returns the rows,
+    names in display case, and the names that were combined. RPE addition, not in v5."""
+    out, seen, merged = [], {}, []
+    for r in rows:
+        name = _title(r[0])
+        if name in seen:
+            m = seen[name]
+            m[1] = max(m[1], r[1])
+            m[2] += r[2]
+            m[3] += r[3]
+            m[4] = m[3] - m[2]
+            m[5] = (m[4] / m[2] * 100) if m[2] else 0.0
+            if name not in merged:
+                merged.append(name)
+            continue
+        m = [name, r[1], r[2], r[3], r[4], r[5]]
+        seen[name] = m
+        out.append(m)
+    return out, merged
 
 
 def merchants_rising_and_falling(h, t, base):
@@ -350,8 +421,9 @@ def merchants_rising_and_falling(h, t, base):
     rows = t.get("mch_growth") or []
     if not rows:
         return "Merchants rising and falling (no mch_growth)"
-    risers = [r for r in rows if r[4] > 0]
-    fallers = [r for r in rows if r[4] < 0]
+    rows, merged = _merge_by_name(rows)
+    risers = sorted((r for r in rows if r[4] > 0), key=lambda r: -r[4])
+    fallers = sorted((r for r in rows if r[4] < 0), key=lambda r: r[4])
     if risers and fallers:
         head = (f"{_title(risers[0][0])} is up {money(risers[0][4])} window over "
                 f"window; {_title(fallers[0][0])} is down {money(-fallers[0][4])}")
@@ -369,11 +441,13 @@ def merchants_rising_and_falling(h, t, base):
               f"of {t.get('mch_growth_ranked_n', 0):,} merchants up 10% or more"),
              ("Falling", f"{t.get('mch_growth_falling_n', 0):,}", "down 10% or more")]
     right = h["rail"](s, items, top=top)
-    dumb = [[labels.clip(_title(r[0]), 22), r[3], r[2],
-             f"{r[1]:,} accounts · {r[5]:+.0f}%"] for r in rows[:10]]
-    path = h["chart"]("mch_growth", charts.dumbbell, dumb, "recent window",
-                      "prior window", value_fmt="${:,.0f}", delta_fmt="{:+,.0f}",
-                      delta_color=charts.NAVY)
+    # RPE: a diverging bar, gains right and falls left, in place of v5's dumbbell (Sheila's 1798
+    # slide review, 2026-10-30: "shows magnitude and sign together")
+    bars = [[labels.clip(r[0], 20), r[4], f"{r[5]:+.0f}%"]
+            for r in risers[:5] + fallers[:5][::-1]]
+    note = (f"{', '.join(merged)}: descriptors that changed in the window, combined"
+            if merged else "change in card dollars, recent window against the prior one")
+    path = h["chart"]("mch_growth", CT.diverging_bars, bars, note=note)
     if path:
         h["chart_left"](s, path, top, right)
 
@@ -458,17 +532,17 @@ def _band_copy(rows, base, who, extra_head=""):
     lead = max(rows, key=lambda r: r[2])
     return (f"{who} {lead[0]} spend the most on the card, {money(lead[2])} per account"
             + extra_head,
-            f"card dollars per account across the file, {base}; swipes per month, "
-            f"the average ticket and the top category sit on the rail")
+            f"card dollars per account, {base}")
 
 
 def _band_rail_and_chart(h, s, top, key, rows, extra_items=()):
     lead = max(rows, key=lambda r: r[2])
     busiest = max(rows, key=lambda r: r[3])
-    items = [("Accounts", f"{sum(r[1] for r in rows):,}", "card accounts in a band"),
-             ("Busiest", busiest[0], f"{busiest[3]} swipes per account per month"),
+    items = [("Busiest", busiest[0], f"{busiest[3]} swipes per account a month"),
              ("Top category", labels.clip(lead[5], 18),
               f"for {lead[0]} · ${lead[4]:,.0f} average ticket")]
+    if not extra_items:
+        items.insert(0, ("Accounts", f"{sum(r[1] for r in rows):,}", "card accounts in a band"))
     right = h["rail"](s, items + list(extra_items), top=top)
     path = h["chart"](key, charts.tier_bars, [[r[0], r[2]] for r in rows],
                       share=False, fmt="${:,.0f}")
@@ -489,18 +563,16 @@ def card_use_by_account_tenure(h, t, base):
     rows = t.get("mch_by_tenure") or []
     if not rows:
         return "Card use by account tenure (no mch_by_tenure)"
-    extra, head = [], ""
+    # RPE: 102 words on 1798; the first-swipe figures stay on the rail and leave the headline,
+    # and the rail drops to four tiles (Sheila's 1798 slide review, 2026-10-30: too dense)
+    extra = []
     fs = t.get("mch_first_swipe_bands") or []
     med = t.get("mch_first_swipe_median_days")
     if fs and med is not None:
-        never = next((b for b in fs if b[0] == "no swipe yet"), None)
-        head = f"; a new account takes a median {med} days to its first swipe"
         extra = [("First swipe", f"{med} days",
-                  f"median for {t.get('mch_first_swipe_new_accounts', 0):,} accounts "
-                  f"{t.get('mch_first_swipe_window')}"),
+                  f"median, {t.get('mch_first_swipe_new_accounts', 0):,} new accounts"),
                  ("Within 30 days", f"{t.get('mch_first_swipe_within_30_pct', 0):.0f}%",
-                  f"of those accounts; {never[2]:.0f}% have not swiped yet"
-                  if never else "of those accounts")]
-    s, top = h["slide"](_band_copy(rows, base, "Accounts", head),
+                  "of new accounts swipe")]
+    s, top = h["slide"](_band_copy(rows, base, "Accounts"),
                         "Card use by account tenure")
     _band_rail_and_chart(h, s, top, "mch_by_tenure", rows, extra)

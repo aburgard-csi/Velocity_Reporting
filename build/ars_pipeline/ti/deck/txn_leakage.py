@@ -19,12 +19,15 @@ def the_book_narrowed(h, t, base):
     total, leak = t.get("fin_accounts_total"), t.get("fin_leaking_accounts")
     if not (total and leak):
         return "The book, narrowed (no fin_accounts_total)"
+    # RPE: every band is UNIQUE accounts, and says so -- "Still within reach" counts
+    # account-category pairs, and 11,669 against 13,983 read as two answers to one question
+    # (Sheila's 1798 slide review, 2026-10-30)
     stages = [["Transacting accounts", t.get("txn_accounts") or total, 0, 0],
-              [f"The base", total, 0, 0],
-              ["Pay an external product", leak, 0, 0],
-              ["In an addressable category",
+              [labels.clip(str(base).capitalize(), 34), total, 0, 0],
+              ["Pay an outside financial product", leak, 0, 0],
+              ["In a category we offer (addressable)",
                t.get("fin_addressable_accounts") or 0, 0, 0],
-              ["Active or cooling",
+              ["Paid it in the last 90 days",
                t.get("fin_addressable_active_accounts") or 0, 0, 0]]
     stages = [s for s in stages if s[1]]
     if len(stages) < 4:
@@ -36,7 +39,8 @@ def the_book_narrowed(h, t, base):
     s, top = h["slide"]((
         f"{end:,} accounts are addressable and still warm — "
         f"{end / start * 100:.0f}% of everyone who transacted",
-        "each band is a real filter; every step names the rule that cut it"),
+        "unique accounts, each counted once however many categories it pays; "
+        "each band is a real filter"),
         "The book, narrowed")
     path = h["chart"]("txn_funnel", charts.funnel, stages)
     if path:
@@ -68,6 +72,9 @@ def their_financial_life(h, t, base):
 
 
 def where_the_money_goes(h, t, base, category_bars):
+    """RPE: the one slide for the leakage total. "Their financial life", "Where the leakage goes"
+    and "How the leakage builds" said the same total three more times (Sheila's 1798 slide review,
+    2026-10-30, group A); this slide now carries the top categories and the addressable callout."""
     cat = t.get("fin_by_category")
     head = (f"{t.get('fin_leaking_pct', 0):.0f}% of {base} send "
             f"{money(t.get('fin_leakage_dollars'))} a year to other "
@@ -84,13 +91,24 @@ def where_the_money_goes(h, t, base, category_bars):
         ("Per year", money(t.get("fin_leakage_dollars")),
          "to external financial products"),
         ("Addressable", money(t.get("fin_addressable_dollars")),
-         f"{t.get('fin_addressable_active_accounts', 0):,} active or cooling"),
-        ("Two or more", f"{t.get('fin_multi_category_pct', 0):.0f}%",
-         "of leakers, in 2+ categories"),
+         "in categories the institution offers"),
+        _top_categories_item(t),
     ], top=top)
     path = h["chart"]("fin_categories", category_bars, cat)
     if path:
         h["chart_left"](s, path, top, right)
+
+
+def _top_categories_item(t):
+    """The rail tile that replaces "How the leakage builds": the biggest leakage categories'
+    share of the total."""
+    cat = sorted((r for r in (t.get("fin_by_category") or []) if r[6] == "leakage"),
+                 key=lambda r: -r[4])[:6]
+    if len(cat) < 2:
+        return ("Two or more", f"{t.get('fin_multi_category_pct', 0):.0f}%",
+                "of leakers, in 2+ categories")
+    return (f"Top {_count_word(len(cat)).lower()}", money(sum(r[4] for r in cat)),
+            f"of {money(t.get('fin_leakage_dollars'))}, by category")
 
 
 def where_the_leakage_goes(h, t, base):
@@ -118,11 +136,20 @@ def where_the_leakage_goes(h, t, base):
 
 
 def who_they_pay(h, t, base):
-    """The Pareto that replaces the three-column provider table."""
+    """The Pareto that replaces the three-column provider table.
+
+    RPE: financial-product categories only. v5 ranked the payment-app rows too, so Cash App's
+    $78.1M of P2P flow led a slide that sits beside a $49.6M financial-product total (Sheila's
+    1798 slide review, 2026-10-30); the payment apps have their own slide in Competition."""
     provs = t.get("fin_top_providers") or {}
+    kind = {r[0]: r[6] for r in (t.get("fin_by_category") or [])}
     flat = []
     for cat, rows in provs.items():
+        if kind.get(cat, "leakage") != "leakage":
+            continue
         for r in rows:
+            if str(r[0]).startswith("("):          # "(unnamed)" is not a provider
+                continue
             flat.append([r[0], cat, r[2]])
     flat.sort(key=lambda r: -r[2])
     flat = flat[:10]
@@ -130,11 +157,11 @@ def who_they_pay(h, t, base):
         return "Who they pay (no fin_top_providers)"
     top = flat[0]
     s, y = h["slide"]((
-        f"{str(top[0]).title()} alone takes {money(top[2])} of the external "
-        f"spend",
-        "named providers by dollars, with the cumulative line and the 80% "
-        "rule"), "Who they pay")
-    rows = [[labels.clip(str(r[0]).title(), 28), labels.clip(r[1], 18), r[2]]
+        f"{labels.display_name(top[0])} alone takes {money(top[2])} of the "
+        f"{money(t.get('fin_leakage_dollars'))} paid to outside financial products",
+        "named providers by dollars, financial products only; payment apps "
+        "are P2P flow, shown in Competition"), "Who they pay")
+    rows = [[labels.clip(labels.display_name(r[0]), 28), labels.clip(r[1], 18), r[2]]
             for r in flat]
     note = labels.coverage_note(len(flat), sum(len(v) for v in provs.values()),
                                 "providers")
@@ -227,7 +254,7 @@ def leakage_by_group_and_category(h, t, base):
     cats = cats[:7]
     look = {(r[0], r[1]): r[3] for r in flc}
     grid = {"rows": [label.get(x, x) for x in order],
-            "cols": [labels.clip(c, 13) for c in cats],
+            "cols": [labels.clip(c, 24) for c in cats],
             "cells": [[look.get((x, c)) for c in cats] for x in order]}
     s, top = h["slide"]((
         "Which groups leak where — the two cuts the chapter reports "
@@ -311,7 +338,7 @@ def which_services_travel_together(h, t, base):
         f"in two or more; the diagonal is blank by design"),
         "Which services travel together")
     grid = {"rows": [labels.clip(c, 18) for c in cats],
-            "cols": [labels.clip(c, 14) for c in cats], "cells": cells}
+            "cols": [labels.clip(c, 24) for c in cats], "cells": cells}
     path = h["chart"]("fin_pairs", CT.heat_matrix, grid, fmt="{:,.0f}",
                       note=f"{len(pairs)} pairs seen; the {len(cats)} most "
                            f"shared categories shown")
@@ -336,11 +363,16 @@ def still_within_reach(h, t, base):
     s, top = h["slide"]((
         f"{money(reach_d)} of the {money(addr_d)} addressable is still "
         f"moving — paid within the last 90 days",
-        f"addressable categories only, among {base}; dormant and lapsed "
-        f"relationships are counted but not drawn"), "Still within reach")
+        f"addressable categories only, among {base}; a relationship is one "
+        f"account in one category, so an account in two counts twice"), "Still within reach")
+    # RPE: 13,983 here is account-category PAIRS; "The book, narrowed" counts the same accounts
+    # once each (11,669). Each figure now names its base (Sheila's 1798 slide review, 2026-10-30).
+    uniq = t.get("fin_addressable_active_accounts")
     right = h["rail"](s, [
         ("Within reach", money(reach_d), "active or cooling, addressable"),
-        ("Accounts", f"{n_live:,}", f"of {n_all:,} addressable relationships"),
+        ("Relationships", f"{n_live:,}",
+         (f"{uniq:,} unique accounts" if uniq else f"of {n_all:,} addressable")
+         + ", paid in 90 days"),
         ("Gone cold", money(addr_d - reach_d), "dormant or lapsed"),
         ("Biggest", labels.clip(top_r[0], 20),
          f"{money(top_r[5])} · {top_r[3]:.0f}% of its accounts live"),

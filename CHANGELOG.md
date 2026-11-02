@@ -31,6 +31,55 @@ James Gilmore, 2026-11-02: the 1585 First Community Bank of the Heartland build 
 - **Inactive is not closed.** A sheet-inactive code is closed only when the sheet's own description says closed, charged off or purged (1585 code 3). 1226 DORMANT and 1637 F Frozen stay unknown, as before.
 - **1585 figures:** Reg E base 0 → 11,623 (3,998 opted in, 34.4%). Product Mix open 31,673; Excluded Accounts 12,711 closed with no unmapped-status flag.
 - **Other clients:** 1549, 1204 and 1637 Reg E bases unchanged. 1509 gains 4 blank-status accounts as open (not in the Reg E base). **1226 Ellafi** goes from no Reg E base to 5,865, because its sheet lists ACTIVE and INACTIVE as active; it was a known data issue, so review its next deck.
+### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
+
+Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to 81.
+
+Sheila's 1798 slide review, 2026-10-30 (`Notes\Slide review\TI and ARS notes - 1798 - 10.30.xlsx`): 5 blank charts, 22 "Not shown" slides, empty Deposits and ICS sections, 9.5–10pt text on 109 slides, figures that disagree (11,669 vs 13,983; Cash App $78M against a $49.6M total; 908 vs 20,991; $524 vs $371 a month), 17 groups of repeated slides, and the Summit promo ahead of the agenda. James Gilmore, 2026-10-30: fix it in the pipeline, not the deck; "cash app and the p2p stuff need to be in".
+
+- **Blank charts, and a gate.** The v5 month labels ("Jan24") failed the house month-axis check. `Deck.chart` caught the error, the chart was silently left off, and the deck still validated 0 FAIL. Month ticks now go through `periods.axis_months` (`charts._axis_labels`, and at the cohort, PIN/signature and campaign call sites), so six charts on 1798 draw again. A chart that still fails stops the build (`helpers.ChartFailed`), so the deck never reaches Outputs with a gap.
+- **Declined slides are hidden for that client** (exception to "never drop slides automatically", TI only, approved by James; see `CLAUDE.md`). Each is logged as `[--] hidden for this client` and listed in `art\hidden_declined.json` and the pack's `hidden_declined`. A chapter with nothing left loses its divider and agenda row (Deposits and ICS on 1798).
+- **Type floors.**
+  - Subtitles 14pt (never below 12).
+  - KPI and rail labels and notes 12pt.
+  - Tables 10pt; a long table ends "+ N more rows not shown" instead of shrinking.
+  - Footnotes at least 10.5pt.
+  - Chart text drawn at 13pt, about 12pt on the slide.
+  - Month axes carry at most 12 labels.
+- **Names and copy.**
+  - `labels.display_name` gives "Lowe's", "Circle K", "Walmart", "Mountain America CU".
+  - "One unclassified counterparty is"; "peaks at 7.7% at 5-10 years".
+  - IC rate as 0.68%; the rate card always states its unit ("$1.86 to $30.58 a month").
+  - Singular counts read correctly ("1 card has been issued"); "program" is said once on the hero.
+- **No "n/a" cards.** Missing values on the attrition slides are stated in a note, not drawn as cards. "Competitor spend before closure" now reads the month just before close; it used to read the month furthest from it.
+- **Figures that disagree are labelled, not recomputed** (no compute changed):
+  - 11,669 unique accounts vs 13,983 account-category relationships.
+  - Cash App is one figure, $78.3M (`comp_ecosystems`), on the payment-ecosystems slide, shown as P2P and wallet flow outside the $49.6M paid to financial products. "Banks against the ecosystems" is kept, so the P2P story stays in.
+  - 908 (ODD-only stressors) and 20,991 (plus banking elsewhere) side by side.
+  - $524/mo (three months after mail) and $371/mo (12 months on) on one chart.
+  - Circle K's two card descriptors are combined: down $100K, not up $4.6M.
+- **Repeated slides folded** (combine groups A–Q). The replaced titles are set to "toss" in `ti/slides.json`.
+  - $49.6M leakage 4→1; card mix 2→1; signature/PIN 4→2; responder leakage 3→1.
+  - Competitor reach + Synchrony 4→1, as a penetration × $ quadrant; concentration 2→1.
+  - Attrition by branch/group 2→1; stressors 2→1.
+  - Reach funnel 2→1; responder gain 6→1; P&L / booked vs DiD 3→1; tier movement 4→1; offer return 2→1.
+  - Value per account 4→2.
+  - The 12 mailer summary slides are now one "Mailer summaries" table.
+  - Tossing "The campaign hero" applies to every client, so a client with no workbook loses that fallback slide.
+- **Executive Summit** now sits just before Questions & Discussion in TI decks (`build_ti_gen.summit_before_questions`). RPE decks are unchanged.
+- **New chart options.** `line_with_base(..., highlight=)` and `branch_quadrant(..., size_idx=)` are added for later use.
+
+### 2026-10-30 — Sheila reaches Claude as a Claude Desktop extension, and her launchers no longer touch Claude
+
+Summary: Sheila in Claude is now the "CSM Sheila" extension, `CSM Sheila.mcpb` in the CSM_Reporting folder, that a CSM installs once in Claude Desktop. Opening Sheila's page or the command-line launcher no longer changes anything in Claude.
+
+James Gilmore, 2026-10-30: "none of this should be in the sheila.bat gui"; asked how a CSM should get Sheila in Claude instead, he chose a Claude Desktop extension.
+
+- **The extension.** `sheila_mcp/pack_extension.py` writes `CSM Sheila.mcpb`, and the release puts it in the CSM_Reporting root beside the launchers. It is MCPB manifest 0.3, a Windows-only `binary` server. Its version comes from `VERSION`, and its tool list is read from the server's own `@mcp.tool` functions, so the two cannot drift. Its one setting is the CSM Reporting folder (default `M:\CSM_Reporting`).
+- **No code inside it.** `extension/server/sheila.cmd` runs the share's `runtime.cmd` (the refresh Sheila's page does), then serves `python -m sheila_mcp` from the PC's copy. A release therefore reaches Claude the next time Claude starts. `runtime.cmd` reads nothing from stdin and writes only to stderr, because stdout carries Claude's messages. A test started it as Claude does, from a folder with spaces in its name, against a test share: 15 tools and a working tool call, about 10 seconds on first copy.
+- **The launchers never touch Claude.** `runtime.cmd` no longer runs `sheila_mcp/register.py`, and `register.py` is gone. A test fails if a launcher mentions Claude again.
+- **Two Sheilas avoided.** A PC that opened Sheila on this morning's release has a `sheila` entry in `claude_desktop_config.json`. `legacy.py` runs when the extension starts and removes that entry: only an entry whose script is `sheila_start.py`, keeping a `.bak`. It also deletes the old `sheila_start.py`.
+- **The user guide** has a "CSM Sheila in Claude" section on installing the extension.
 
 ### 2026-10-30 — Sheila in Claude: the CashPlease report and portfolio, peer compare, the one-pager, and client brief and prep
 
@@ -43,6 +92,7 @@ James Gilmore, 2026-10-30, of his v5 tools cashplease_*, ars_peer_compare, clien
 - **The one-pager's figures must earn their place:** each beats the client's own prior cycle by at least a point, or the peer median by at least two, with five or more peers.
 - **CashPlease portfolio** leaves cancelled institutions out of the book and repeats the CashPlease build's own flags (no DDA count, under 12 months).
 - **Brief and prep drop James's flows.** Notes, tasks, calendar and mail are each CSM's own Microsoft 365: the brief says so, and Claude is told to use the CSM's Microsoft 365 connector for them when it is on. Prep adds what to fix before the call (no deck, deck not sent, a failed build, missing inputs) and what to raise.
+
 ### 2026-10-30 — Summit pages can carry a chart beside a section, and Summit pages are routed to the skill
 
 Summary: the Summit one-pager builder can place a chart beside any section's bullets, and CLAUDE.md now routes Summit one-pager requests to the skill.
