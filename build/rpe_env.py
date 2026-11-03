@@ -352,6 +352,9 @@ INPUT_KIND_DIRS = {
     # The ILS kickoff one-time data extract, one folder per client: <id>/<id>_OneTimeData_<yyyymmdd>.csv|.xlsx
     # (James Gilmore, 2026-10-27; PROPOSED, pending Aaron). Read only by build/ils_pipeline/kickoff_input.py.
     "ILS Kickoff": "ILS Kickoff",
+    # The REMS (Reg E Management Solution) responses report: the result of sql/rems_responses_report.sql, saved by a person
+    # as rems_responses <YYYY-MM-DD>.csv (Aaron, 2026-11-03). Read only by Live Review (build/review_page/peer_pool.rems_rows).
+    "REMS": "REMS",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -360,7 +363,7 @@ INPUT_KIND_DIRS = {
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
                      "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits",
-                     "Deferred Billing", "ILS PGL", "ILS Kickoff")
+                     "Deferred Billing", "ILS PGL", "ILS Kickoff", "REMS")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to

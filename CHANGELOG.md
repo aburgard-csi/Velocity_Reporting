@@ -32,6 +32,26 @@ Aaron, 2026-11-03: "my harddrive is nearly full. make sure sheila cleans up afte
 - **When.** At Sheila's start (in the background, with `sweep_temp` for scratch a crashed build left in the temp folder), at the start of every `ti/txn_stage.stage`, and by hand: `python scripts/ars_launcher_web.py --tidy`.
 - Everything else Sheila writes locally was already cleaned: build scratch (`rpe_env.temp_dir`, removed at exit and swept at the start of each build) and the launcher's working files, which live on the share. `tests/test_local_cache.py`.
 
+### 2026-11-03 — Live Review has a Reg E Management Solution (REMS) section
+
+Summary: Live Review has a new product section for Reg E Management Solution: responses and opt-ins by month, and how the client's opt-in rate compares with every other REMS client. It reads the saved result of the REMS query; until that file is saved it says what to run.
+
+Aaron, 2026-11-03: "add a section for Reg E Management Solution (REMS)".
+
+- **Data.** `sql/rems_responses_report.sql` runs against MRDB and SRDB, which Claude cannot reach, so a person saves its result as `Inputs/REMS/rems_responses <YYYY-MM-DD>.csv` (the CSV with `client_id`, `client_name`, `response_year`, `response_month`, `num_responses`, `num_opt_in`, `pct_opt_in`). The date in the name is the pull date; the month it falls in is in progress and is left out. The new `REMS` input kind is not scanned by the watch.
+- **Section.** REMS is a product like ARS, ICS and CashPlease: its own rail group, colour, divider card and progress-track entry. Two screens: "REMS responses" (responses, opt-ins and the rate, to date and for the last complete month, with the monthly bars and table) and "REMS: how you compare" (the opt-in rate against every other client in the file that had responses in the last six complete months; a month under 10 responses is too small for a rate and is left out; peers are numbered, never named). A client with no REMS rows in the file has no REMS section.
+- `tests/test_live_review_rems.py` pins all of it on a synthetic file.
+
+### 2026-11-03 — Live Review: sections are organised by product, and the title cards show only while presenting
+
+Summary: Live Review's screen list, agenda and progress bar are now grouped by product (ARS, Transaction Intelligence, ICS, MRPC, CashPlease), each with its own sections, and the product title card appears only in presenter mode.
+
+Aaron, 2026-11-03: "the section slides should only show during presentation mode. Also, the sections need to be organized by product", "treat Transaction Intelligence as a product".
+
+- **By product.** `story.SECTIONS` / `OPTIONAL` carry a product per section: ARS (with its Companion views) first, then Transaction Intelligence, then ICS, MRPC and CashPlease where the client has them. Each product's peer screen sits with that product, so the separate "Other programs" and "How you compare" sections are gone. The rail has a coloured heading per product and numbers its sections within it; the progress bar and the agenda follow the product ("section 2 of 5").
+- **Where the 20 screens went.** "What it is worth next" is now ARS (five points) and Transaction Intelligence (what a card and an opt-in earn, branch value gap) is its own section, "What it is worth". No screen was added or dropped.
+- **Title card.** Shown only while presenting; clicking into another product with the screen list, or reading in the regular view, shows no card.
+
 ### 2026-11-03 — Live Review: the ICS peer comparison uses every ICS client, not just the VIP sheets
 
 Summary: "Referrals per 1,000 DDAs" on the ICS "How you compare" screen now compares the client with every ICS client that has referrals and a DDA count (38 peers for Marine FCU, up from at most 9), read from the all-clients referrals file instead of the 11 clients whose VIP sheets are pulled.
