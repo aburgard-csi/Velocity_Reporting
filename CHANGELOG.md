@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — Sheila is the Hub layout: every screen moved, and the old page is gone
+
+Summary: CSM Sheila now looks and works like the Hub for everyone: a sidebar, a Ctrl K search, keyboard shortcuts, light and dark, and the slide-stack mark in the corner, on every tab (Decks, Lift Matrix, Data Issues, Slide Review, Feedback) and on the change log; the old page and the /hub switch are gone.
+
+Aaron, 2026-11-02: "go with option E for the heading. also, move Sheila entirely to the hub layout. It's a LOT better. We need to update the other screens for the hub."
+
+- **Everywhere.** Sheila is at `/` for everyone; `/hub` redirects there; `RPE_SHEILA_HUB` does nothing now. Old bookmarks still work: `#lift`, `#issues`, `#votes`, `#reported` open that tab, and `#lift&client=1705` opens a client. `G` then `D`, `L`, `I`, `V` or `F` jumps between tabs, `?` lists the keys of the tab you are on, and Ctrl K reaches every tab, client and action.
+- **The mark.** Two stacked slides, navy in front of teal (light and dark), in the corner and as the tab icon; no orange in the header. The change log page uses the same colors and a Back to Sheila link.
+- **Decks.** As in the preview, plus the ILS pre-go-live and kickoff cards on the client page (folded unless a client has something to run), and the links row (code sheet, Lift Matrix, data issues) under each client's name. The list shows one status per client, so the old "TI in Outputs" and "Companion in Outputs" chips are gone from it; each panel on the client page says when its decks are in Outputs.
+- **Lift Matrix.** The overview shows the workbook row and the calculated row with the change as an up or down chip; a client's page has the rates up top and figures that follow them a moment after each edit (Enter at once), a tile for the value per account per month weighted by accounts against the workbook's, and Export held until the figures on screen are current. Same server logic, same export record.
+- **Data Issues.** Clients with open items are listed with counts beside their cards; tiles filter by kind; Mark complete is one click with a toast and an Undo; the sidebar badge is the open count for the clients shown.
+- **Slide Review.** One key per slide: 1 Keep, 2 Delete, 3 Appendix (each moves to the next slide not voted on), S star, C comment, N next unvoted, `[` `]` change program, W Summary; a meter shows progress; the Summary exports the CSV.
+- **Feedback.** A short report form (Ctrl Enter sends, with a toast; a Report button in the top bar from any tab) beside the list of reports with their states.
+- **Gone.** The old page (about 1,100 lines of HTML, style and script in `ars_launcher_web.py`), `slide_review_ui.py`, the ILS card splice in `ils_ui.py`, and the tests that pinned them; their intents moved to `tests/test_sheila_hub.py` and `tests/test_sheila_hub_tabs.py`. The routes, the build queue, the token and Host checks and the logic behind every tab are unchanged. `#100` (colors on the old page) is moot; `#101` (no sent tracking) touches the same file and may need a rebase.
+- Updated: `ARS Deck User Guide.html` (the Sheila section names the new screens and keys). Not released.
+
 ### 2026-11-02 — a Hub-style Sheila to try at /hub (off unless you turn it on)
 
 Summary: CSM Sheila has a second layout, the Hub look with a command palette, keyboard shortcuts and status shapes, at /hub; it opens on your own clients and is off for everyone unless RPE_SHEILA_HUB=1 is set where Sheila starts, so CSMs see no change.
@@ -32,7 +48,8 @@ Aaron, 2026-11-02: "I want a hub style layout to test on my own before rolling i
 - **What is real.** The Decks view: the client list (search, CSM filter, five KPI tiles that filter it), the client page with the Executive Review, Transaction Intelligence and ARS Companion cards, their checks, Build / Rebuild (with a Yes before a deck in Outputs is replaced), the build queue and live steps, Show in File Explorer, the cycle menu and What's new. Lift Matrix, Data Issues, Slide Review and Feedback are links to the classic page, which now opens a tab from `/#lift`, `/#issues`, `/#votes` and `/#reported`.
 - **Statuses.** Ready, Building, In Outputs, Needs attention and Blocked, each a shape as well as a colour. There is no sent state anywhere: that stays in the delivery dashboard.
 - **The feel.** Linear's dense rows with a status shape in front and J / K / Enter; Vercel's pulsing dot for a build (it, the Building tile's ring and the build steps move only while a build is running or queued; with nothing running the tile is a still ring); Raycast's Ctrl K palette and compact mode; Stripe's tinted status pills; skeleton rows while loading; toasts; a short confetti burst when a deck lands in Outputs (not under reduced motion). Clicking the open client's row again (or Enter on the cursor row, Back on a phone) closes it and returns to the Decks overview with "Waiting on you"; a build for it keeps running and its steps are back when you open it again. The glass sidebar, both themes and the palette come from the Pack 205 Hub. The selected client is a tinted fill with a thin ring, no accent bar.
-- `tests/test_sheila_hub.py` pins the gate, the token and host checks, no sent wording, every looked-up element present, every colour defined and legible in both themes, the selected row with no accent bar, and who-is-asking (by name, by email, none, ambiguous, override). No deck code changed; nothing was released.
+- Superseded the same day by the entry above: the Hub is now the only page and the gate is gone.
+- `tests/test_sheila_hub.py` pinned the gate, the token and host checks, no sent wording, every looked-up element present, every colour defined and legible in both themes, the selected row with no accent bar, and who-is-asking (by name, by email, none, ambiguous, override). No deck code changed; nothing was released.
 
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
