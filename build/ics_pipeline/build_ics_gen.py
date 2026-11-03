@@ -1323,24 +1323,10 @@ def build(d, static_path, out, referrals_only=False):
 
     # Contact slide (built last so it lands at the very end, after Q&A). Every ICS deck has
     # one, and its card is the client's managing CSM (rpe_env.csm_contact, resolved above).
-    from shapes import (contact_card_lines, contact_card_note, contact_card_fill, CONTACT_CARD_TOP,
-                        CONTACT_CARD_W as cw, CONTACT_CARD_H)
-    s=blank(prs); title(s,"Contact Us")
+    from shapes import contact_card_note, draw_contact_slide
+    s=blank(prs)
     contacts=[contact] + ([_program_contact] if _program_contact else [])
-    ncc=len(contacts); gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
-    _cstyle={"name":(26,WHITE,True),"role":(15,ORANGE,False),"phone":(17,WHITE,False),"email":(15,WHITE,False)}
-    for i,cc in enumerate(contacts):
-        l=x0+i*(cw+gap)
-        card=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(CONTACT_CARD_TOP),Inches(cw),Inches(CONTACT_CARD_H))
-        card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
-        contact_card_fill(card)
-        try: card.adjustments[0]=0.05
-        except Exception: pass
-        shadow(card)
-        for _f,_txt,_top,_hh in contact_card_lines(cc):
-            _sz,_col,_b=_cstyle[_f]
-            tb(s,l+0.35,_top,cw-0.7,_hh,_txt,_sz,_col,_b,align=PP_ALIGN.CENTER)
-    logo(s); pagenum(s,99)
+    draw_contact_slide(s,contacts)     # the gradient slide draws its own title and logo; no slide number
     notes(s,contact_card_note(contact) + (f" ICS program contact: {_program_contact['name']}." if _program_contact else ""))
 
     # ---- reorder: data slides move to the front; static education + Q&A stay last;
