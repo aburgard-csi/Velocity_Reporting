@@ -192,6 +192,14 @@ def test_presenting_the_review_goes_one_product_at_a_time():
     assert "if (!hold) S.pdivT = setTimeout" in js                                                              # a held card does not time out
 
 
+def test_a_chart_with_several_measures_gets_a_combined_view():
+    js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js"), encoding="utf-8").read()
+    assert 'function combinable(b)' in js and 'function combinedOf(b)' in js
+    assert '["__all", "Combined"]' in js and 'k === "__all" && combinable(b)' in js           # a Combined button beside the measures
+    assert "100 * v / tot" in js                                                             # unlike units are each drawn as a share of their own total
+    assert js.count("esc(tipVal(s, i, v, f))") == 3                                          # a share's tooltip gives the raw value: horizontal, vertical and line
+
+
 def test_horizontal_bar_charts_can_be_sorted():
     js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js"), encoding="utf-8").read()
     for how in ('"desc"', '"asc"', '"az"', '"list"'):
