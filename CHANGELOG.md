@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review chart styles tried on Marine FCU data and scored (documentation only)
+
+Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real figures in 42 alternative chart styles beside the 10 shipped charts, scores them against a fixed rubric, sets out the published guidance behind the scores, and lists changes to Live Review with effort estimates; no screen, figure or behavior changed.
+
+Aaron asked to try multiple chart styles, analyze them, and research presentation tips. The note records a default style per job (branch comparison, parts of a whole, trend against a goal, before and after, peer position, two measures, mix, KPI tiles), the colour contrast and colour-vision measurements behind them, and what could not be verified. The 61 screenshots are in docs/chart-styles/. Nothing was merged or released.
+
 ### 2026-11-03 — Live Review has three more chart types: donut, waterfall and quadrant scatter
 
 Summary: Live Review now draws part-of-whole donuts (loans by status, MRPC cardholders by tier and engagement), a revenue-to-profit waterfall on the ARS financial screen, and quadrant scatter charts that put each branch on two measures (take rate against Reg E opt-in, take rate against value per account), alongside the bars, lines, tables and peer strips it already had.
