@@ -46,15 +46,21 @@ CSI_GOLD       = "#F8971D"   # PMS 144
 CSI_RED        = "#EB2A2E"   # PMS 185
 
 # ----------------------------------------------------------------- greys, by ROLE
-# These are the five distinct values that were in use. Naming them by role is
-# what stops the next one from being invented.
-TICK   = "#5A6670"   # axis ticks, body text grey        (was TICK / _TICK_HX / GREYT)
-LABEL  = "#CFDBE8"   # light label on navy, neutral bar  (was GREYB / _GREY_HX)
-ROWALT = "#EEF2F7"   # alternating table row, pale fill  (was ROWALT / render_lift GREY)
-GRID   = "#E4EAF1"   # chart gridlines                   (was GRID_HEX, one-pager)
-MUTED  = "#B8C0CA"   # axis spine grey                   (was mrpc GREY)
-PEACH  = "#F6B284"   # section-bar topic text            (one-pager)
-TILE   = "#ECF0F4"   # light tile fill                   (one-pager)
+# FIVE greys, one per job (Aaron, 2026-11-02: "align the grays across the deck so we don't have
+# a bunch of different grays out there"). There were eight, three of them within a few points of
+# another doing the same job; those three are now aliases of the grey they duplicated, so an old
+# import keeps working and cannot drift away again. A new grey needs a new JOB, not a new hex.
+TICK   = "#5A6670"   # text grey: axis ticks, selection subtitles, body grey
+LABEL  = "#CFDBE8"   # light on navy: labels, neutral bars, tertiary series
+ROWALT = "#EEF2F7"   # pale fill: alternating table rows, light cards and panels
+GRID   = "#E4EAF1"   # lines: chart gridlines and the lightest axis spine
+MUTED  = "#B8C0CA"   # axis spine grey
+PEACH  = "#F6B284"   # section-bar topic text            (one-pager) — a tint of the accent, not a grey
+
+# Retired names, kept so an import keeps working. Each IS the grey above it (2026-11-02).
+TILE     = ROWALT    # was #ECF0F4 (one-pager card, ICS panel)
+HAIRLINE = GRID      # was #D9DEE5 (ARS + MRPC left spine)
+LIGHT    = LABEL     # was #C9D6E3 (ICS + MRPC tertiary series)
 
 # ----------------------------------------------------------------- secondary series
 # STEEL meant two different colors in two places: ARS drew #7B9BB8, while ICS and
@@ -63,9 +69,7 @@ TILE   = "#ECF0F4"   # light tile fill                   (one-pager)
 # STYLE.md decision, not a refactor decision.
 STEEL      = "#7B9BB8"   # ARS secondary series (ticket_chart)
 STEEL_SOFT = "#9DB8CC"   # ICS + MRPC secondary (MRPC Platinum tier)
-LIGHT      = "#C9D6E3"   # ICS + MRPC tertiary
 GOLD       = "#E7A93B"   # ARS Gold tier series (charts_gen)
-HAIRLINE   = "#D9DEE5"   # lightest axis spine (ARS + MRPC left spine)
 SLATE      = "#5A7590"   # MRPC 4th categorical series
 # A series line drawn OVER navy bars. Navy-on-navy is invisible, and the fix is
 # the LINE'S COLOUR, not a white stroke under it (Aaron, 2026-09-01 — casing was
@@ -82,7 +86,7 @@ COLD_RAMP = ["#00274C", "#12406E", "#245C8C", "#3D74A0", "#6E93B4", "#9DB4C8",
 # Warm ramp for eligible slices — orange at three tints.
 WARM_RAMP = ["#F15D22", "#F47D4E", "#F79E7A"]   # ORANGE, then 20% and 40% of the way to white
 # MRPC cancellation-reason categories.
-CANCEL_RAMP = ["#00274C", "#B9C7D6", "#5A7590", "#C9D6E3", "#F15D22",
+CANCEL_RAMP = ["#00274C", "#B9C7D6", "#5A7590", "#CFDBE8", "#F15D22",
                "#D9B44A", "#C98B8B"]
 
 
