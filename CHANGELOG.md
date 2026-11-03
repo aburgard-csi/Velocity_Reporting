@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review: presenting The review goes one product at a time
+
+Summary: While presenting The review, the right arrow on a product's last screen now holds the next product's title card until you press it again, and the arrows no longer carry on out of the review into All programs or a product's own tab.
+
+Aaron, 2026-11-03: "when presenting from The review, it still jumps between products. it should do one product at a time." Asked what the arrow should do at a product's last screen, he chose: a title card, then wait for the right arrow.
+
+- **The cause.** After the last screen of The review the arrows carried on into "All programs" and then each product's own tab (`walkOrder`), so presenting wandered between products even though the review itself is ordered by product.
+- **Now.** Presenting, on a product's last screen the first right arrow shows the next product's title card and holds it ("Press → to start Transaction Intelligence"); the second starts that product. Any other key puts the card away and stays put, the left arrow just goes back, and the review's first and last screens are its ends. Outside presenting the arrows are unchanged.
+
 ### 2026-11-03 — Live Review: the MRPC peer comparison uses every client in the weekly
 
 Summary: The MRPC comparison now leads with enrollments per 1,000 debit-card accounts over the last 12 months, read from the weekly enrollment file for all of its clients (about 22 current ones), instead of the share-of-goal measure that only the 6 clients with a VIP sheet could be compared on.

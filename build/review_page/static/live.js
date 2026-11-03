@@ -76,7 +76,7 @@
     rems: {title: "Reg E Management Solution", topics: "Responses \u00b7 Opt-Ins \u00b7 Peer Comparison", track: "REMS"}
   };
   function hideProgramCard() { var el = $("#pdiv"); if (el) el.className = ""; clearTimeout(S.pdivT); }
-  function showProgramCard(pk) {
+  function showProgramCard(pk, hold) {
     var info = DIVIDER[pk], pr = programOf(pk); if (!info || !pr) return;   // ti is a product like the others
     var kp = ((pr.summary || {}).kpis || []).slice(0, 3);
     if (!kp.length) {   // a program with no summary (Transaction Intelligence) shows the first figures its first screen carries
@@ -89,8 +89,9 @@
     var track = order.length > 1 ? '<div class="dtrack">' + order.map(function (k) { return '<span' + (k === pk ? ' class="on"' : "") + ">" + esc(DIVIDER[k].track) + "</span>"; }).join("") + "</div>" : "";
     var el = $("#pdiv");
     if (!el) { el = document.createElement("div"); el.id = "pdiv"; el.setAttribute("role", "status"); document.body.appendChild(el); }
-    el.innerHTML = '<div class="dwedge"></div><div class="dlogo" role="img" aria-label="CSI"></div><h2' + (info.title.length > 24 ? ' class="long"' : "") + ">" + esc(info.title) + '</h2><p class="dben">' + esc(info.topics) + "</p>" + stats + track;
-    el.className = "on"; clearTimeout(S.pdivT); S.pdivT = setTimeout(hideProgramCard, 2600);
+    el.innerHTML = '<div class="dwedge"></div><div class="dlogo" role="img" aria-label="CSI"></div><h2' + (info.title.length > 24 ? ' class="long"' : "") + ">" + esc(info.title) + '</h2><p class="dben">' + esc(info.topics) + "</p>" + stats + track + (hold ? '<p class="dhint">Press \u2192 to start ' + esc(info.title) + "</p>" : "");
+    el.className = "on"; clearTimeout(S.pdivT);
+    if (!hold) S.pdivT = setTimeout(hideProgramCard, 2600);   // a held card waits for the next press
   }
   function screens() {
     if (S.prog === "story") return storyItems().map(function (x) { return x.scr; });
@@ -140,8 +141,19 @@
     var p = programs().filter(function (x) { return x.key === key; })[0];
     return p && p.state === "ready" ? p.screens : [];
   }
+  /* While presenting The review the arrows go one product at a time (Aaron, 2026-11-03: "it should do one product at a time"):
+     on a product's last screen, \u2192 holds the next product's title card, and the next \u2192 starts that product. They never carry on out of
+     the review into All programs or a product's own tab. */
   function step(d) {
     var n = screens().length, i = S.screen + d;
+    if (S.present && S.prog === "story" && d > 0 && n && i < n) {
+      var here = curStory(), nxt = storyItems()[i];
+      if (here && nxt && nxt.prog !== here.prog) {
+        if (S.hold !== nxt.prog) { S.hold = nxt.prog; showProgramCard(nxt.prog, true); return; }   // first press: the title card, held
+        S.hold = null; S.lastFam = nxt.prog;                                                       // second press: on into the product, no card twice
+      }
+    }
+    if (S.present && S.prog === "story" && (i < 0 || i >= n)) return;                              // the review's first and last screen are its ends
     if (n && i >= 0 && i < n) S.screen = i;
     else {   // past the last (or before the first) screen of a section: carry on into the neighbouring one, never wrap round
       var order = walkOrder(), at = order.indexOf(S.prog), to = at < 0 ? -1 : at + (d > 0 ? 1 : -1);
@@ -726,8 +738,8 @@
     render(); if (on) toast("Presenting. Esc to leave.");
   }
 
-  document.addEventListener("click", hideProgramCard, true);
-  document.addEventListener("keydown", hideProgramCard, true);
+  document.addEventListener("click", function (e) { if (!(e.target.closest && e.target.closest('[data-step="1"]'))) S.hold = null; hideProgramCard(); }, true);
+  document.addEventListener("keydown", function (e) { if (!(e.key === "ArrowRight" || e.key === "PageDown")) S.hold = null; hideProgramCard(); }, true);
   document.addEventListener("keydown", function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "");

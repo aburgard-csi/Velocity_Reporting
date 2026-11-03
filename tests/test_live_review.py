@@ -182,6 +182,16 @@ def test_the_peer_screens_name_the_client_and_the_page_marks_each_product():
     assert "html[data-prog" not in css
 
 
+def test_presenting_the_review_goes_one_product_at_a_time():
+    js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js"), encoding="utf-8").read()
+    step = js.split("function step(d)")[1].split("function stepProgram")[0]
+    assert 'S.present && S.prog === "story" && d > 0' in step and "showProgramCard(nxt.prog, true)" in step     # a held title card on the first press
+    assert "S.hold = null; S.lastFam = nxt.prog" in step                                                       # the second press starts the product
+    assert 'S.present && S.prog === "story" && (i < 0 || i >= n)) return' in step                              # the review's ends are its ends
+    assert "function showProgramCard(pk, hold)" in js
+    assert "if (!hold) S.pdivT = setTimeout" in js                                                              # a held card does not time out
+
+
 def test_horizontal_bar_charts_can_be_sorted():
     js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js"), encoding="utf-8").read()
     for how in ('"desc"', '"asc"', '"az"', '"list"'):
