@@ -207,3 +207,18 @@ def test_nothing_spins_or_pulses_unless_a_build_is_running():
     # the only other animations are one-shot (pop) or loading skeletons
     spin_uses = re.findall(r"animation:\s*(\w+)", css)
     assert set(spin_uses) <= {"spin", "pulse", "pop", "shimmer"}
+
+
+def test_the_open_clients_row_again_closes_it_back_to_the_overview():
+    """Aaron, 2026-11-02: a second click (or Enter on the cursor row) unselects the client and returns to the Decks
+    overview. A build keeps running; the address and the keyboard cursor follow."""
+    page = H.PAGE
+    assert "row.dataset.id === CUR ? closeClient() : openClient(row.dataset.id)" in page
+    assert 'if (CURSOR === CUR) closeClient(); else openClient(CURSOR);' in page
+    body = re.search(r"function closeClient\(\) \{(.*?)\n\}\n", page, re.S).group(1)
+    assert "CUR = null; CURSOR = null;" in body and "renderOverview()" in body and "syncHash()" in body
+    assert "clearInterval(poller)" in body, "no polling of a client that is not open"
+    assert "stopBuild" not in body and "/api/build" not in body, "closing never touches the build"
+    assert "is still building" in body, "it says where the steps went"
+    assert "function syncHash()" in page and 'p.delete("client")' in page
+    assert "Enter" in page and 'document.activeElement.closest(".row")' in page, "a focused row's own click is not counted twice"

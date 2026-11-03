@@ -672,7 +672,7 @@ function renderOverview() {
 const LEVEL = {ok: "ok", warn: "warn", ask: "warn", stop: "stop"};
 function openClient(id, fresh) {
   clearTimeout(openTimer); CUR = id; CURSOR = id; ARMED = null; JOB = null; clearInterval(poller); clearTimeout(statusTimer);
-  document.body.classList.add("sheetmode"); renderList();
+  document.body.classList.add("sheetmode"); syncHash(); renderList();
   const c = CLIENTS.find(x => x.id === id) || {id};
   $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(c.name || id)}</h2><span class="meta">${esc(id)} · ${esc(c.csm || "")}</span></header>
     <div class="pres">${[1, 2].map(() => `<div class="pc"><span class="sk" style="width:40%;height:18px"></span><span class="sk" style="width:85%;height:12px"></span><span class="sk" style="width:60%;height:12px"></span></div>`).join("")}</div>`;
@@ -693,7 +693,22 @@ async function recheckQuietly(id) {
     S = body; if (body.job) JOB = body.job; renderDetail();
   } catch (e) { statusTimer = setTimeout(() => recheckQuietly(id), 5000); }
 }
-function closeClient() { clearTimeout(openTimer); CUR = null; S = null; JOB = null; ARMED = null; clearInterval(poller); renderList(); renderOverview(); }
+// Back to the Decks overview (the KPI tiles, the list, "Waiting on you"): no client open, no cursor, no #client in the address.
+// A build for the client keeps running on the server; its steps come back when the client is opened again, and the Building pill
+// and the finished toast reach it meanwhile.
+function closeClient() {
+  const was = CUR, building = !!was && (QUEUE.building === was || QUEUE.queued.includes(was) || !!(JOB && !JOB.done));
+  clearTimeout(openTimer); clearTimeout(statusTimer); clearInterval(poller);
+  CUR = null; CURSOR = null; S = null; JOB = null; ARMED = null;
+  syncHash(); renderList(); renderOverview();
+  if (building) toast(`${was} is still building. Open it again, or the Building pill, to see the steps.`, "", 5000);
+}
+function syncHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (CUR) p.set("client", CUR); else p.delete("client");
+  const h = p.toString();
+  try { history.replaceState(null, "", location.pathname + location.search + (h ? "#" + h : "")); } catch (e) {}
+}
 
 function presentation(o) {
   const rows = (o.checks || []).map(c => ({...c, ck: LEVEL[c.level] || "ok"}));
@@ -901,7 +916,8 @@ function firstBuild() { const b = $("#detail [data-act=build]:not([disabled])");
 // ------------------------------------------------------------ events
 document.addEventListener("click", ev => {
   const t = ev.target;
-  const row = t.closest(".row[data-id], .wi[data-id]"); if (row) return openClient(row.dataset.id);
+  // The open client's row again closes it (Aaron, 2026-11-02): back to the overview.
+  const row = t.closest(".row[data-id], .wi[data-id]"); if (row) return row.dataset.id === CUR ? closeClient() : openClient(row.dataset.id);
   const kp = t.closest(".kpi"); if (kp) { FILTER = FILTER === kp.dataset.kind ? "" : kp.dataset.kind; return renderList(); }
   if (t.closest("#clearf")) { FILTER = ""; return renderList(); }
   if (t.closest("#relist")) return loadClients(true);
@@ -957,7 +973,7 @@ document.addEventListener("keydown", e => {
     const next = rows[Math.max(0, Math.min(rows.length - 1, i < 0 ? 0 : n))];
     if (next) { CURSOR = next.id; renderList(); const el = $(`.row[data-id="${next.id}"]`); if (el) el.scrollIntoView({block: "nearest"}); clearTimeout(openTimer); openTimer = setTimeout(() => openClient(next.id), 260); }
   }
-  else if (k === "Enter" && CURSOR && CURSOR !== CUR) openClient(CURSOR);
+  else if (k === "Enter" && CURSOR && !document.activeElement.closest(".row")) { if (CURSOR === CUR) closeClient(); else openClient(CURSOR); }
   else if (k === "b" && CUR) firstBuild();
   else if (k === "r" && CUR) openClient(CUR, true);
   else if (k === "e" && CUR && S) { const c = CLIENTS.find(x => x.id === CUR), d = c && (c.decks || [])[0]; if (d) api("/api/reveal", {method: "POST", body: JSON.stringify({client: S.client, period: S.period, deck: d})}).then(() => toast("Shown in File Explorer.")).catch(er => toast(er.message, "bad")); }
