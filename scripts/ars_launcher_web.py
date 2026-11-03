@@ -180,7 +180,7 @@ class _fresh_reads:
 
 # ------------------------------------------------------------------ data for the page
 # The list is served from memory and refreshed behind the page (Aaron, 2026-09-17). Building it reads the CSM
-# list, deliveries.json, every CSM folder in Outputs and each client's last launcher result over the share —
+# list, every CSM folder in Outputs and each client's last launcher result over the share —
 # 10 s on a good day, 110 s measured on a bad one — so a request never waits for it once a list exists. A
 # list older than CLIENTS_TTL, or invalidated by a finished build, is served as it is while a fresh one is
 # built in the background; the page shows its age and asks again. What this server knows live — builds it
@@ -236,7 +236,7 @@ def select_period(period):
         same = (_selected["period"] or L.cycle_period()) == (period or L.cycle_period())
         _selected["period"] = None if period == L.cycle_period() else period
     if not same:
-        # Everything cached is about the old cycle: its decks, its sent state, its checks.
+        # Everything cached is about the old cycle: its decks, its checks.
         with _status_lock:
             for cid in list(_status_cache) + list(_status_gen):
                 forget_status_locked(cid)
@@ -258,10 +258,9 @@ covered_programs = L.covered_programs
 
 def compute_clients():
     """Every client with a deck to build — the clients.md roster (ARS, ICS, MRPC, in any mix) and the
-    standalone CashPlease module clients (Aaron, 2026-10-13) — with their CSM, products, sent state,
+    standalone CashPlease module clients (Aaron, 2026-10-13) — with their CSM, products,
     deck in Outputs and last build failure."""
     import build_month as BM
-    import deck_status as DS
     period = current_period()
     roster, _ = BM.read_roster()
     rows = {}
@@ -269,7 +268,6 @@ def compute_clients():
     if p and p.is_file():
         with open(p, encoding="utf-8-sig", newline="") as fh:
             rows = {r.get("client_id", "").strip(): r for r in csv.DictReader(fh)}
-    sent = DS.read_deliveries()["sent"] if period else {}
     decks, ti_decks, comp_decks = {}, {}, {}
     for d in (R.output_decks(f"*-{period}-*.pptx") if period else []):
         # A Transaction Intelligence deck is a separate presentation (2026-10-23): it is never the
@@ -293,7 +291,6 @@ def compute_clients():
     for cid, (_, name, path, progs) in entries.items():
         row = rows.get(cid, {})
         cp = cp_rows.get(cid)
-        s = sent.get(f"{cid}|{period}")
         res = results.get(cid, (None, None))
         out.append({
             "id": cid,
@@ -306,7 +303,6 @@ def compute_clients():
             "covered": covered_programs(progs, cp),
             "products": [p.strip() for p in (row.get("products") or "").split(";") if p.strip()],
             "path": path,
-            "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
             # When the launcher last put this client's deck in Outputs ("YYYY-MM-DD HH:MM"), for the
             # list's "built today" note (Aaron, 2026-10-13).
             "built_at": (res[0] or {}).get("finished") if (res[0] or {}).get("delivered") else None,
@@ -326,8 +322,8 @@ def compute_clients():
 def refresh_clients(fresh=False):
     """Rebuild the stored list now. One refresh at a time: a caller arriving while one runs waits for it.
 
-    Returns the exception that stopped it, or None. A client whose sent state, decks or last build changed has
-    its cached status dropped, so a deck built or marked sent elsewhere is re-checked on its next view.
+    Returns the exception that stopped it, or None. A client whose decks or last build changed has
+    its cached status dropped, so a deck built elsewhere is re-checked on its next view.
     """
     claim = _claim_refresh()
     if claim is None:
@@ -384,7 +380,7 @@ def _run_refresh(claim, fresh):
 
 
 def _signature(c):
-    return (c.get("sent"), tuple(c.get("decks") or ()), c.get("error"), c.get("result_written"))
+    return (tuple(c.get("decks") or ()), c.get("error"), c.get("result_written"))
 
 
 def _refresh_clients_later(fresh=False):
@@ -591,7 +587,7 @@ def last_build_failed(cid, period, decks=(), result=None):
 # 2026-09-17: a status older than STATUS_TTL is no longer re-read while the page waits (5 s on a good day,
 # 58 s observed). The page gets the stored one at once, marked `refreshing`, with its Build buttons held
 # until the fresh one arrives — so an old "ready" can never be built from while a STOP may be on its way.
-# A client whose list row changed (a deck built or marked sent from anywhere) has its entry dropped.
+# A client whose list row changed (a deck built from anywhere) has its entry dropped.
 STATUS_TTL = 600
 _status_cache = {}
 _status_lock = threading.Lock()
@@ -723,14 +719,12 @@ def forget_status_locked(cid):
 def compute_status(cid):
     """ars_launcher's own checks for one client, plus its last launcher build."""
     import build_month as BM
-    import deck_status as DS
     period = current_period()
     row = L.csm_list_row(cid)
     if not period:
         return {"client": cid, "state": "stop", "period": None,
                 "checks": [{"level": L.STOP, "text": "No ARS workbooks are in Inputs at all, so there is no period to build."}]}
     roster, _ = BM.read_roster()
-    sent = DS.read_deliveries()["sent"]
     cp_row = L.cp_roster_row(cid)
     entry = L.client_entry(cid, roster, cp_row)
     has_ars = bool(entry and "ARS" in entry[3])
@@ -738,7 +732,7 @@ def compute_status(cid):
     # with every other clients.md program whose data is on hand. The checks are the combined-build rules;
     # whether the ARS-only build is allowed (not for Aaron's multi-program clients) is decided separately.
     # A client with no ARS has one build: every program with data (Aaron, 2026-10-13).
-    checks = L.all_checks(cid, period, row, roster, sent, combined=True, cp_row=cp_row)
+    checks = L.all_checks(cid, period, row, roster, combined=True, cp_row=cp_row)
     avail = L.program_availability(cid, period, entry[3]) if entry else {}
     extra = L.combined_programs(avail)
     if has_ars:
@@ -758,7 +752,7 @@ def compute_status(cid):
     ti = None
     if has_ars:
         try:
-            ti = L.ti_status(cid, period, row, roster, sent)
+            ti = L.ti_status(cid, period, row, roster)
         except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
             ti = {"checks": [{"level": L.STOP, "text": f"The Transaction Intelligence checks could not run "
                                                         f"({type(e).__name__}: {e})"}],
@@ -768,7 +762,7 @@ def compute_status(cid):
     companion = None
     if has_ars:
         try:
-            companion = L.companion_status(cid, period, row, roster, sent)
+            companion = L.companion_status(cid, period, row, roster)
         except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
             companion = {"checks": [{"level": L.STOP, "text": f"The ARS Companion checks could not run "
                                                               f"({type(e).__name__}: {e})"}],

@@ -258,10 +258,10 @@ def clean_state():
     reset()
 
 
-def listing(period="2026.09", decks=(), error=False, sent=None):
+def listing(period="2026.09", decks=(), error=False):
     return {"period": period, "lift_pending": False, "clients": [
         {"id": "1441", "name": "FNB Alaska", "csm": "James Gilmore", "programs": ["ARS"], "path": "MM",
-         "sent": sent, "decks": list(decks), "lift_expired": False, "error": error, "result_written": None}]}
+         "decks": list(decks), "lift_expired": False, "error": error, "result_written": None}]}
 
 
 def test_the_list_names_the_products_each_deck_covers():
@@ -387,8 +387,8 @@ def test_a_finished_build_shows_in_the_list_before_the_refresh(clean_state, monk
 
 
 def test_a_changed_list_row_drops_that_clients_cached_status(clean_state, monkeypatch):
-    """A deck built, or a send recorded, from anywhere else is re-checked on the client's next view."""
-    docs = iter([listing(), listing(sent="2026-09-17")])
+    """A deck built from anywhere else is re-checked on the client's next view."""
+    docs = iter([listing(), listing(decks=["1441-2026.09-ARS-FNB Alaska ARS Results.pptx"])])
     monkeypatch.setattr(W, "compute_clients", lambda: next(docs))
     W.refresh_clients()
     W._status_cache["1441"] = (time.time(), {"client": "1441", "state": "ready", "checks": []})
@@ -726,13 +726,7 @@ def test_the_list_carries_the_menu_for_the_page(monkeypatch):
         def read_roster():
             return ([("1038", "Sugar River Bank", "SM", ["ARS"])], [])
 
-    class _DS:
-        @staticmethod
-        def read_deliveries():
-            return {"sent": {}}
-
     monkeypatch.setitem(__import__("sys").modules, "build_month", _BM)
-    monkeypatch.setitem(__import__("sys").modules, "deck_status", _DS)
     doc = W.compute_clients()
     assert doc["period"] == "2026.10"
     assert doc["periods"] == ["2026.10", "2026.09"]

@@ -34,7 +34,7 @@ Aaron, 2026-11-02: "go with option E for the heading. also, move Sheila entirely
 - **Data Issues.** Clients with open items are listed with counts beside their cards; tiles filter by kind; Mark complete is one click with a toast and an Undo; the sidebar badge is the open count for the clients shown.
 - **Slide Review.** One key per slide: 1 Keep, 2 Delete, 3 Appendix (each moves to the next slide not voted on), S star, C comment, N next unvoted, `[` `]` change program, W Summary; a meter shows progress; the Summary exports the CSV.
 - **Feedback.** A short report form (Ctrl Enter sends, with a toast; a Report button in the top bar from any tab) beside the list of reports with their states.
-- **Gone.** The old page (about 1,100 lines of HTML, style and script in `ars_launcher_web.py`), `slide_review_ui.py`, the ILS card splice in `ils_ui.py`, and the tests that pinned them; their intents moved to `tests/test_sheila_hub.py` and `tests/test_sheila_hub_tabs.py`. The routes, the build queue, the token and Host checks and the logic behind every tab are unchanged. `#100` (colors on the old page) is moot; `#101` (no sent tracking) touches the same file and may need a rebase.
+- **Gone.** The old page (about 1,100 lines of HTML, style and script in `ars_launcher_web.py`), `slide_review_ui.py`, the ILS card splice in `ils_ui.py`, and the tests that pinned them; their intents moved to `tests/test_sheila_hub.py` and `tests/test_sheila_hub_tabs.py`. The routes, the build queue, the token and Host checks and the logic behind every tab are unchanged. `#100` (colors on the old page) and `#101` (no sent tracking) are on main: the Hub has no sent state, and what #100 pinned about the orange now lives in `tests/test_sheila_hub.py`.
 - Updated: `ARS Deck User Guide.html` (the Sheila section names the new screens and keys). Not released.
 
 ### 2026-11-02 — a Hub-style Sheila to try at /hub (off unless you turn it on)
@@ -50,6 +50,29 @@ Aaron, 2026-11-02: "I want a hub style layout to test on my own before rolling i
 - **The feel.** Linear's dense rows with a status shape in front and J / K / Enter; Vercel's pulsing dot for a build (it, the Building tile's ring and the build steps move only while a build is running or queued; with nothing running the tile is a still ring); Raycast's Ctrl K palette and compact mode; Stripe's tinted status pills; skeleton rows while loading; toasts; a short confetti burst when a deck lands in Outputs (not under reduced motion). Clicking the open client's row again (or Enter on the cursor row, Back on a phone) closes it and returns to the Decks overview with "Waiting on you"; a build for it keeps running and its steps are back when you open it again. The glass sidebar, both themes and the palette come from the Pack 205 Hub. The selected client is a tinted fill with a thin ring, no accent bar.
 - Superseded the same day by the entry above: the Hub is now the only page and the gate is gone.
 - `tests/test_sheila_hub.py` pinned the gate, the token and host checks, no sent wording, every looked-up element present, every colour defined and legible in both themes, the selected row with no accent bar, and who-is-asking (by name, by email, none, ambiguous, override). No deck code changed; nothing was released.
+
+### 2026-11-02 — Sheila no longer reads or shows whether a deck was sent
+
+Summary: CSM Sheila (the page and Sheila in Claude) no longer shows a Sent chip, groups clients as "Sent", or reads deliveries.json; whether a deck went to the client is tracked only in the delivery dashboard, and a deck no longer in Outputs now builds without the "already made" question.
+
+Aaron, 2026-11-02: remove anything involving tracking and the sending of decks from Sheila; that stays in the delivery dashboard.
+
+- **Page.** The client list's and the Executive Review card's Sent chips are gone, and `compute_clients` / `compute_status` no longer call `deck_status.read_deliveries`.
+- **Pre-build check.** `ars_launcher.built_line` asked "already made" for a deck in Outputs **or** one recorded as sent. Only Outputs remains (the Transaction Intelligence and Companion checks already read Outputs alone). What the sent half protected: a deck sent to the client and then moved out of Outputs (archived by a newer build, or filed by hand) asked before a rebuild; it now builds at once and replaces what the client may hold. Only Aaron recorded sends, so no other CSM's clients had it.
+- **Sheila in Claude.** `my_month` drops the "Sent" group and labels in-Outputs decks plainly; the client brief, the meeting-prep sheet and the client list no longer print sent state.
+- **Signatures.** `rule_checks`, `all_checks`, `built_line`, `ti_checks` / `ti_status`, `companion_checks` / `companion_status`, `build_ti`, `build_companion` and `_context` lose their `sent` argument.
+- **Untouched.** `scripts/dashboard.py`, `scripts/deck_status.py` and `Build Artifacts/deliveries.json`; `tests/test_sheila_*`, `test_deck_status` and the launcher and dashboard suites pass.
+
+### 2026-11-02 — Sheila draws the current orange, defined colours and readable label grey
+
+Summary: CSM Sheila's page now uses CSI Orange #F15D22 (it still drew the old #F47A29), the report dialog's labels and the period menu's hover now show (they named colours the page never defined), and the grey on small labels and times is dark enough to read.
+
+Aaron, 2026-11-02: "If Sheila has known issues, go ahead and fix those separately."
+
+- **Orange.** `--orange`, `--focus`, the period pill's and Delete vote's glows, and the change log page's rules moved from #F47A29 to #F15D22 (the Sept. 2026 brand template).
+- **Undefined variables.** `var(--rowalt)` (the period menu's hover) is now `--soft`, and `var(--muted)` (report dialog labels and hint) is `--ink2`; both used to resolve to nothing.
+- **Label grey.** `--ink3` measured 3.1:1 on white (2.8:1 on the fill) in light and 4.0:1 on the dark fill; small text needs 4.5:1. It now equals `--ink2` in each theme (#566370 light, #A7B4C1 dark), which also takes one grey out of the page.
+- `tests/test_sheila_palette.py` fails on the old orange, on any variable used but not defined, and on label greys under 4.5:1 on any ground in either theme. No deck changes; nothing was rebuilt or released.
 
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
@@ -71,6 +94,7 @@ James Gilmore, 2026-11-02: the 1585 First Community Bank of the Heartland build 
 - **Inactive is not closed.** A sheet-inactive code is closed only when the sheet's own description says closed, charged off or purged (1585 code 3). 1226 DORMANT and 1637 F Frozen stay unknown, as before.
 - **1585 figures:** Reg E base 0 → 11,623 (3,998 opted in, 34.4%). Product Mix open 31,673; Excluded Accounts 12,711 closed with no unmapped-status flag.
 - **Other clients:** 1549, 1204 and 1637 Reg E bases unchanged. 1509 gains 4 blank-status accounts as open (not in the Reg E base). **1226 Ellafi** goes from no Reg E base to 5,865, because its sheet lists ACTIVE and INACTIVE as active; it was a known data issue, so review its next deck.
+
 ### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
 
 Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to 81.

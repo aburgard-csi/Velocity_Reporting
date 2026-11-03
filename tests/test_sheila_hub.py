@@ -242,3 +242,10 @@ def test_the_address_names_the_tab_and_the_old_bookmarks_still_work():
         assert f'data-tab="{tab}"' in page
     assert "function readHash()" in page and "function setTab(" in page and 'addEventListener("hashchange"' in page
     assert 'const TAB_KEY = {d: "decks", l: "lift", i: "issues", v: "votes", f: "reported"}' in page
+
+
+def test_the_old_orange_is_not_drawn_anywhere_on_the_page_or_the_change_log():
+    """What #100 pinned on the old page (no #F47A29, no rgba glow of it), now on the page that replaced it."""
+    import ars_launcher_web as W
+    for text in (H.PAGE, W.CHANGELOG_CSS):
+        assert "F47A29" not in text.upper() and "244,122,41" not in text.replace(" ", "")
