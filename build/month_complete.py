@@ -32,17 +32,31 @@ So completeness is judged PER MEASURE, from two independent signals:
    more. Half sits between the two groups. A six-month median rather than the prior month keeps one
    seasonal month (February, December) from being the yardstick.
 
-   Only TRAILING months are judged: the check walks back from the newest month while
+   Trailing months are judged first: the check walks back from the newest month while
    the month is below half its own baseline, and stops at the first month that is not.
-   A dip in the middle of a series is data, not an unfinished extract. It walks back
-   at most `MAX_TRAILING` months: a fall that holds for three months or more is a real
-   change (a client that stops charging NSF fees), and hiding it would be the opposite
-   error. Fewer than `MIN_BASELINE` baseline months, or a baseline median below
-   `MIN_VOLUME`, and there is nothing to judge against — the month is treated as
-   complete. The volume floor is what keeps the rule off small counts: an MRPC client
-   enrolling 2-6 cards a month has months of 0 that are real, and a ratio on numbers
-   that small is noise. It is a COUNT floor: a caller passing an already-scaled series
-   (the workbook's spend in $M) passes `min_volume=0`.
+   It walks back at most `MAX_TRAILING` months: a fall that holds for three months or more
+   is a real change (a client that stops charging NSF fees), and hiding it would be the
+   opposite error. Fewer than `MIN_BASELINE` baseline months, or a baseline median below
+   `MIN_VOLUME`, and there is nothing to judge against: the month is treated as complete.
+   The volume floor is what keeps the rule off small counts: an MRPC client enrolling 2-6
+   cards a month has months of 0 that are real, and a ratio on numbers that small is noise.
+   It is a COUNT floor: a caller passing an already-scaled series (the workbook's spend in
+   $M) passes `min_volume=0`.
+
+3. **Interior gaps (2026-10-13).** The activity rule above only reaches the end of the
+   series, which is where Marine's August 2026 sat when the extract was pulled on 09/04.
+   The next extract carried September, August was no longer trailing, and the same 390
+   NSF/OD items passed as a complete month for every measure. An interior month is a gap
+   when it is below half its baseline AND the series comes back: the run is at most
+   `MAX_TRAILING` months and the month after it is at or above half the baseline. A fall
+   that does not recover is a real change and is left alone. The baseline skips months
+   already found to be gaps. Evidence, from the 40 ODD extracts on hand on 2026-10-13
+   (all months; swipes, spend, NSF/OD items and accounts): six clients carried a gap that
+   recovered (1529 Jan26, 1539 Aug26, 1615 Jul24, 1637 Oct-Nov25, 1748 Nov24, 1800 Dec25),
+   all in NSF/OD, and the one interior fall that did not recover (1200 spend, Jul24) is not
+   flagged. Gaps are reported in `interior`, never in `excluded` and never in the prefix
+   `complete` count: the series is not shortened, the months are skipped. A caller reads
+   `usable_months()`, which is the complete prefix minus the interior gaps.
 
 WHAT A CALLER DOES WITH IT. Every comparison — YoY, month over month, a "latest month"
 tile, the end of a trend, a trailing window — uses the last complete month of the
@@ -133,18 +147,21 @@ def pull_date(name):
         return None
 
 
-def assess(tokens, values, as_of=None, measure="", min_volume=MIN_VOLUME):
+def assess(tokens, values, as_of=None, measure="", min_volume=MIN_VOLUME, interior=False):
     """Which trailing months of one measure are incomplete.
 
     `tokens` the months, oldest first ('Aug26', 'Aug 26', dates — anything month_start reads)
     `values` that measure's total for each month, same order (None = not carried)
     `as_of`  the date the data was pulled or generated, when known
+    `interior` also look for gaps INSIDE the complete part of the series (see the module docstring)
 
     Returns a JSON-safe dict:
         {"measure", "last_complete" (a token from `tokens`, or None),
          "complete" (count of leading months usable), "excluded": [
-             {"month", "value", "baseline", "reason": "pulled"|"activity"}]}
-    `excluded` is oldest first. Every comparison takes tokens[:complete].
+             {"month", "value", "baseline", "reason": "pulled"|"activity"}],
+         "interior": [{"month", "value", "baseline", "reason": "interior", "measure"}]}
+    `excluded` is oldest first. Every comparison takes usable_months(tokens, result): the
+    first `complete` months, less any in `interior` (always [] unless `interior=True`).
     """
     tokens = list(tokens)
     vals = [None if v is None else float(v) for v in values]
@@ -173,8 +190,62 @@ def assess(tokens, values, as_of=None, measure="", min_volume=MIN_VOLUME):
         end -= 1
         walked += 1
     excluded.reverse()
+    gaps = interior_gaps(tokens[:end], vals[:end], measure, min_volume) if interior else []
     return {"measure": measure, "last_complete": str(tokens[end - 1]) if end else None,
-            "complete": end, "excluded": excluded}
+            "complete": end, "excluded": excluded, "interior": gaps}
+
+
+def interior_gaps(tokens, values, measure="", min_volume=MIN_VOLUME):
+    """Months inside a series that collapse and then recover (Marine Aug 2026 with Sep loaded).
+
+    A month is a gap when it is below `PARTIAL_SHARE` of the median of the baseline months
+    before it (gaps already found do not count toward the baseline), the run of such months is
+    at most `MAX_TRAILING` long, and the month after the run is back at or above that share.
+    A fall that holds is a real change and is not reported. Returns the same per-month dicts
+    as assess()'s `excluded`, with reason "interior", oldest first.
+    """
+    tokens = list(tokens)
+    vals = [None if v is None else float(v) for v in values]
+    gaps, skip = [], set()
+    i = 0
+    while i < len(vals) - 1:
+        if vals[i] is None:
+            i += 1
+            continue
+        prior = [v for j, v in enumerate(vals[:i]) if v is not None and j not in skip]
+        base = prior[-BASELINE_MONTHS:]
+        if len(base) < MIN_BASELINE:
+            i += 1
+            continue
+        med = statistics.median(base)
+        if med <= 0 or med < min_volume or vals[i] >= PARTIAL_SHARE * med:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(vals) and j - i < MAX_TRAILING and vals[j + 1] is not None \
+                and vals[j + 1] < PARTIAL_SHARE * med:
+            j += 1
+        back = j + 1 < len(vals) and vals[j + 1] is not None and vals[j + 1] >= PARTIAL_SHARE * med
+        if back and j - i + 1 <= MAX_TRAILING:
+            for k in range(i, j + 1):
+                gaps.append({"month": str(tokens[k]), "value": _num(vals[k]), "baseline": _num(med),
+                             "reason": "interior", "measure": measure})
+                skip.add(k)
+        i = j + 1
+    return gaps
+
+
+def interior_months(result):
+    """The interior-gap tokens of an assess()/combine()/odd_completeness() family result."""
+    return [e["month"] for e in (result or {}).get("interior", [])]
+
+
+def usable_months(tokens, result):
+    """The months a comparison may read: the complete prefix, less any interior gap."""
+    tokens = list(tokens)
+    gone = set(interior_months(result))
+    n = (result or {}).get("complete", len(tokens))
+    return [t for t in tokens[:n] if str(t) not in gone]
 
 
 def combine(*results):
@@ -184,7 +255,7 @@ def combine(*results):
     """
     results = [r for r in results if r]
     if not results:
-        return {"measure": "", "last_complete": None, "complete": 0, "excluded": []}
+        return {"measure": "", "last_complete": None, "complete": 0, "excluded": [], "interior": []}
     short = min(results, key=lambda r: r["complete"])
     seen, excl = set(), []
     for r in results:
@@ -194,9 +265,17 @@ def combine(*results):
             if k not in seen:
                 seen.add(k)
                 excl.append(e)
+    inter, seen_i = [], set()
+    for r in results:
+        for e in r.get("interior", []):
+            e = dict(e, measure=e.get("measure") or r["measure"])
+            k = (e["month"], e["measure"])
+            if k not in seen_i:
+                seen_i.add(k)
+                inter.append(e)
     return {"measure": " + ".join(r["measure"] for r in results if r["measure"]),
             "last_complete": short["last_complete"], "complete": short["complete"],
-            "excluded": excl}
+            "excluded": excl, "interior": inter}
 
 
 def _num(v):
@@ -213,7 +292,7 @@ def excluded_sentence(result, fmt=None):
     """
     fmt = fmt or (lambda v: f"{v:,}")
     by_month = {}
-    for e in (result or {}).get("excluded", []):
+    for e in list((result or {}).get("excluded", [])) + list((result or {}).get("interior", [])):
         by_month.setdefault(e["month"], []).append(e)
     parts = []
     for month in sorted(by_month, key=lambda t: month_start(t) or datetime.date.min):
@@ -238,8 +317,7 @@ def odd_completeness(rows, odd, months, as_of=None):
     `months` the extract's month tokens, oldest first ('Aug26')
     `as_of`  the pull date (pull_date() of the member file name), when known
 
-    Only the months the rule can reach are summed — the last BASELINE_MONTHS +
-    MAX_TRAILING — in one pass. Returns
+    Every month is summed, in one pass (an interior gap can sit anywhere). Returns
         {"pull_date", "activity": swipes+spend, "nsf": NSF/OD items+accounts,
          "all": every measure}
     each in assess()'s shape, with `complete` counted over the FULL `months` list,
@@ -250,8 +328,8 @@ def odd_completeness(rows, odd, months, as_of=None):
     are complete.
     """
     months = list(months)
-    tail = months[-(BASELINE_MONTHS + MAX_TRAILING):]
-    off = len(months) - len(tail)
+    tail = months                    # the whole series: an interior gap can sit anywhere in it
+    off = 0
     sw = [0.0] * len(tail); sp = [0.0] * len(tail)
     ni = [0.0] * len(tail); na = [0] * len(tail)
     swipes, spend, nsf = odd.swipes, odd.spend, odd.nsf
@@ -271,10 +349,10 @@ def odd_completeness(rows, odd, months, as_of=None):
         res["last_complete"] = months[res["complete"] - 1] if res["complete"] else None
         return res
 
-    activity = combine(assess(tail, sw, as_of, "debit swipes"),
-                       assess(tail, sp, as_of, "debit spend"))
-    nsf_res = combine(assess(tail, ni, as_of, "NSF/OD items"),
-                      assess(tail, na, as_of, "accounts with NSF/OD"))
+    activity = combine(assess(tail, sw, as_of, "debit swipes", interior=True),
+                       assess(tail, sp, as_of, "debit spend", interior=True))
+    nsf_res = combine(assess(tail, ni, as_of, "NSF/OD items", interior=True),
+                      assess(tail, na, as_of, "accounts with NSF/OD", interior=True))
     activity["measure"], nsf_res["measure"] = "debit activity", "NSF/OD activity"
     both = combine(activity, nsf_res)
     return {"pull_date": as_of.isoformat() if as_of else None,
@@ -296,7 +374,8 @@ def complete_rows(rows, value_index=1, measure="", as_of=None, month_index=0, mi
 def excluded_months(result):
     """['Aug 2026', ...] — the excluded months as the decks print them."""
     out = []
-    for e in (result or {}).get("excluded", []):
+    es = list((result or {}).get("excluded", [])) + list((result or {}).get("interior", []))
+    for e in sorted(es, key=lambda e: month_start(e["month"]) or datetime.date.min):
         if label(e["month"]) not in out:
             out.append(label(e["month"]))
     return out

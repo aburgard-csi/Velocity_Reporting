@@ -279,3 +279,72 @@ def test_mrpc_series_ending_on_a_month_in_progress_are_trimmed_and_stated():
     assert p["months"][-1] == "Aug 26" and len(p["pct_of_goal"]) == 3 and p["goal_pct"] == 20
     assert notes["performance_vs_goal"].startswith("Sep 2026 is left out: the data was pulled 2026-09-04")
     assert data["revenue"]["by_month"]["months"][-1] == "Aug 26" and "revenue.by_month" not in notes
+
+
+# ------------------------------------------------------- interior gaps (2026-10-13)
+# Marine's August 2026 NSF/OD collapsed to 390 items; once September was loaded it was no
+# longer a trailing month and passed as complete for every measure.
+MARINE_SEP = MARINE_TOKENS + ["Sep26"]
+MARINE_ITEMS_SEP = MARINE_ITEMS + [21059]
+
+
+def test_interior_gap_marine_august_with_september_loaded():
+    r = mc.assess(MARINE_SEP, MARINE_ITEMS_SEP, None, "NSF/OD items", interior=True)
+    assert r["excluded"] == [] and r["complete"] == 9, "the series is not shortened"
+    assert [(e["month"], e["value"], e["reason"]) for e in r["interior"]] == [("Aug26", 390, "interior")]
+    assert mc.usable_months(MARINE_SEP, r) == [t for t in MARINE_SEP if t != "Aug26"]
+    assert mc.excluded_months(r) == ["Aug 2026"]
+    assert "Aug 2026 is left out as incomplete" in mc.excluded_sentence(r)
+
+
+def test_interior_check_is_opt_in_so_other_callers_do_not_change():
+    assert mc.assess(MARINE_SEP, MARINE_ITEMS_SEP)["interior"] == []
+
+
+def test_interior_fall_that_holds_is_a_real_change():
+    """A client that stops charging NSF fees falls and stays down; that is data, not a gap."""
+    assert mc.assess(MARINE_SEP, [18000] * 5 + [300] * 4, interior=True)["interior"] == []
+    assert mc.assess(MARINE_SEP, [18000] * 4 + [300, 400, 500, 18000, 18000], interior=True)["interior"] == [], \
+        "three months down is a change, not an unfinished extract"
+
+
+def test_interior_gap_of_two_months_that_recovers():
+    r = mc.assess(MARINE_SEP, [18000] * 4 + [300, 400, 18000, 18000, 18000], interior=True)
+    assert [e["month"] for e in r["interior"]] == ["May26", "Jun26"]
+
+
+def test_interior_gap_leaves_a_real_dip_alone():
+    """1800's July NSF/OD items read 51% of baseline, a real dip; half is the line."""
+    assert mc.assess(MARINE_SEP, [18000] * 6 + [9400, 18000, 18000], interior=True)["interior"] == []
+
+
+def test_interior_gap_needs_a_baseline_and_volume():
+    assert mc.assess(MARINE_SEP, [20, 18, 22, 19, 3, 20, 21, 19, 20], interior=True)["interior"] == [], "under MIN_VOLUME"
+    assert mc.assess(MARINE_SEP, [18000, 17000, 0, 18000, 18000, 18000, 18000, 18000, 18000], interior=True)["interior"] == [], \
+        "fewer than MIN_BASELINE months before it"
+
+
+def test_interior_baseline_skips_an_earlier_gap():
+    vals = [18000] * 4 + [300, 18000, 280, 18000, 18000]
+    assert [e["month"] for e in mc.assess(MARINE_SEP, vals, interior=True)["interior"]] == ["May26", "Jul26"]
+
+
+def test_combine_merges_interior_gaps_across_measures():
+    r = mc.combine(mc.assess(MARINE_SEP, MARINE_ITEMS_SEP, None, "NSF/OD items", interior=True),
+                   mc.assess(MARINE_SEP, MARINE_ACCTS + [4480], None, "accounts with NSF/OD", interior=True))
+    assert sorted(e["measure"] for e in r["interior"]) == ["NSF/OD items", "accounts with NSF/OD"]
+    assert mc.usable_months(MARINE_SEP, r) == [t for t in MARINE_SEP if t != "Aug26"]
+
+
+def test_odd_completeness_reports_the_interior_gap_and_skips_it():
+    from types import SimpleNamespace
+    months = [t for t in MARINE_SEP]
+    rows = [{"items": [v / 100 for v in MARINE_ITEMS_SEP], "swipes": [v / 100 for v in MARINE_SWIPES + [1050340]]}
+            for _ in range(100)]
+    odd = SimpleNamespace(swipes=lambda r, m: r["swipes"][months.index(m)], spend=lambda r, m: r["swipes"][months.index(m)] * 50,
+                          nsf=lambda r, m: r["items"][months.index(m)])
+    res = mc.odd_completeness(rows, odd, months, None)
+    assert [e["month"] for e in res["nsf"]["interior"]] == ["Aug26"]       # items collapse; every account still has an item, so accounts do not
+    assert res["activity"]["interior"] == []
+    assert "Aug26" not in mc.usable_months(months, res["nsf"]) and "Aug26" not in mc.usable_months(months, res["all"])
+    assert "Aug26" in mc.usable_months(months, res["activity"])

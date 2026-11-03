@@ -26,8 +26,8 @@ import os as _os
 sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir))
 import month_complete as _MC
 _COMPLETE=_MC.odd_completeness(data,_odd,MONTHS,_MC.pull_date(_os.path.basename(F)))
-_ALL=MONTHS[:_COMPLETE['all']['complete']]
-_ACT=set(MONTHS[:_COMPLETE['activity']['complete']])
+_ALL=_MC.usable_months(MONTHS,_COMPLETE['all'])
+_ACT=set(_MC.usable_months(MONTHS,_COMPLETE['activity']))
 WIN=_ALL[-3:]  # trailing COMPLETE quarter
 
 # cross-sectional avg ticket by monthly-swipe tier

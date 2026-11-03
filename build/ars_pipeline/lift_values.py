@@ -226,7 +226,7 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND,
     ncol = len(hdr)
 
     comp = MC.odd_completeness(_rows(factory, hdr_idx, ncol), odd, months, MC.pull_date(member))
-    usable = months[:comp["all"]["complete"]]
+    usable = MC.usable_months(months, comp["all"])     # complete months, less any interior gap
     if len(usable) < 3:
         raise SystemExit(f"POSSIBLE DATA ISSUE: {member} has {len(usable)} complete months; "
                          f"a Lift Matrix needs at least 3.")

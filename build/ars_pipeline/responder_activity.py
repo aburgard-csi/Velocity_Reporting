@@ -149,8 +149,8 @@ def analyse(path):
     complete = month_complete.odd_completeness(
         rows, odd, smonths,
         month_complete.pull_date(SOURCE_NAME[0] or os.path.basename(path)))
-    all_months = smonths[:complete["all"]["complete"]]
-    act_set = set(smonths[:complete["activity"]["complete"]])
+    all_months = month_complete.usable_months(smonths, complete["all"])
+    act_set = set(month_complete.usable_months(smonths, complete["activity"]))
 
     # ---- before / after: the deck's function, not a second copy of it ----
     out = {"latest_month": latest, "n_eligible": len(elig),
