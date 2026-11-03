@@ -42,6 +42,7 @@ import ars_launcher as L      # noqa: E402
 import slide_votes as SV      # noqa: E402
 import slide_review_ui        # noqa: E402
 import ils_ui                 # noqa: E402
+import sheila_hub              # noqa: E402
 
 TOKEN = secrets.token_urlsafe(24)
 # The largest body any POST reads. The biggest real one, the Lift Matrix rates, is a few KB.
@@ -1911,6 +1912,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, PAGE.replace("__TOKEN__", TOKEN).replace("__VERSION__", _version_html()).encode("utf-8"), "text/html; charset=utf-8")
         if u.path == "/changelog":
             return self._send(200, changelog_page().encode("utf-8"), "text/html; charset=utf-8")
+        if u.path == "/hub":
+            # The Hub layout, a preview only a person who set RPE_SHEILA_HUB=1 can open (Aaron, 2026-11-02).
+            if not sheila_hub.enabled():
+                return self._send(404, {"error": "not found"})
+            return self._send(200, sheila_hub.page(TOKEN, app_version()).encode("utf-8"), "text/html; charset=utf-8")
         if not self._api_ok():
             return self._send(403, {"error": "forbidden"})
         q = parse_qs(u.query)
@@ -3197,6 +3203,8 @@ $("#q").addEventListener("input", () => { renderList(); if (MODE === "issues" &&
 })();
 loadClients();
 pollQueue(); setInterval(pollQueue, 3000);
+// A link from the Hub preview (or anywhere) opens a tab by its name: /#lift, /#issues, /#votes, /#reported.
+window.addEventListener("load", () => { const h = location.hash.slice(1); if (/^[a-z]+$/.test(h)) { const t = $("#tab-" + h); if (t) t.click(); } });
 document.addEventListener("click", e => { const n = $("#news"); if (n && n.open && !n.contains(e.target)) n.open = false; });
 // The last five change-log entries in the header (Aaron, 2026-09-16).
 (async function loadNews() {

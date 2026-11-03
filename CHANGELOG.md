@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — a Hub-style Sheila to try at /hub (off unless you turn it on)
+
+Summary: CSM Sheila has a second layout, the Hub look with a command palette, keyboard shortcuts and status shapes, at /hub; it is off for everyone unless RPE_SHEILA_HUB=1 is set where Sheila starts, so CSMs see no change.
+
+Aaron, 2026-11-02: "I want a hub style layout to test on my own before rolling it out to everyone ... rip off and duplicate some of [the best of breed UIs'] look and feel ... fun to use and effective."
+
+- **Turn it on.** Set `RPE_SHEILA_HUB=1`, start Sheila as usual, and open the address she prints with `/hub` on the end. Without the variable `/hub` answers 404. The same token and localhost checks apply, and the page talks to the same API as the classic one, so a check or build started there is the launcher's own.
+- **What is real.** The Decks view: the client list (search, CSM filter, five KPI tiles that filter it), the client page with the Executive Review, Transaction Intelligence and ARS Companion cards, their checks, Build / Rebuild (with a Yes before a deck in Outputs is replaced), the build queue and live steps, Show in File Explorer, the cycle menu and What's new. Lift Matrix, Data Issues, Slide Review and Feedback are links to the classic page, which now opens a tab from `/#lift`, `/#issues`, `/#votes` and `/#reported`.
+- **Statuses.** Ready, Building, In Outputs, Needs attention and Blocked, each a shape as well as a colour. There is no sent state anywhere: that stays in the delivery dashboard.
+- **The feel.** Linear's dense rows with a status shape in front and J / K / Enter; Vercel's pulsing dot for a build; Raycast's Ctrl K palette and compact mode; Stripe's tinted status pills; skeleton rows while loading; toasts; a short confetti burst when a deck lands in Outputs (not under reduced motion). The glass sidebar, both themes and the Hub palette come from the Pack 205 Hub, with a Hub / CSI colors switch.
+- `tests/test_sheila_hub.py` pins the gate, the token and host checks, no sent wording, every looked-up element present, every colour defined and legible in both themes and both skins. No deck code changed; nothing was released.
+
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
 Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.
