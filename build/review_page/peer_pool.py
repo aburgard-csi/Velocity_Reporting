@@ -260,14 +260,26 @@ def collect_mrpc(ctx):
     wk = _weekly()
     rows, pulls = {}, []
     ids = set(wk.tabs) | set(_vip_ids("MRPC"))
+    # The weekly covers every MRPC client (the VIP sheets only the few a CSM pulled), so the comparison that needs no goal is
+    # enrollments per 1,000 debit-card accounts, from the weekly alone (Aaron, 2026-11-03: "we must have more than 6 MRPC
+    # clients"). The months are those the weekly itself carries: the newest month any client has ends the window.
+    newest = max((r["month"] for c in wk.tabs for r in (wk.client(c).get("monthly") or [])), default=None)
+    recent6 = _months_back(newest, 6) if newest else []
+    window = _months_back(newest, MRPC_WINDOW) if newest else []
     for cid in sorted(ids):
         point, series = {}, {}
         w = wk.client(cid) if cid in wk.tabs else None
         if w is not None:
             mon = w.get("monthly") or []
-            recent = mon[-6:]
-            if not any((r["platinum"] + r["gold"] + r["business"]) > 0 for r in recent):
-                continue                                      # the program has gone quiet: not a current peer
+            by_month = {r["month"]: r["platinum"] + r["gold"] + r["business"] for r in mon}
+            if not any(by_month.get(m, 0) > 0 for m in recent6):
+                continue                                      # no enrollments in the last six months the weekly carries: not a current peer
+            owd = w.get("open_with_debit")
+            if owd:
+                series["enroll_per_1k"] = {_label(m): 1000.0 * n / owd for m, n in sorted(by_month.items())[-24:]}
+                n12 = sum(by_month.get(m, 0) for m in window)
+                if n12 >= MRPC_MIN_WINDOW:
+                    point["enroll_12_per_1k"] = 1000.0 * n12 / owd
             ev, ac = w.get("all_cardholders"), w.get("active_cardholders")
             if ev and ac is not None:
                 point["still_active"] = 100.0 * ac / ev
@@ -287,7 +299,23 @@ def collect_mrpc(ctx):
     return {"n_pool": len(peers), "me": mine, "peers": peers, "pull": _span(pulls)}
 
 
+MRPC_WINDOW = 12                 # months pooled for the headline comparison
+MRPC_MIN_WINDOW = 10             # enrollments needed in them to be compared
+
+
+def _months_back(newest, k):
+    """The `k` months ending at `newest` ("YYYY-MM"), newest included."""
+    y, m = int(newest[:4]), int(newest[5:7])
+    out = []
+    for i in range(k):
+        yy, mm = divmod(y * 12 + (m - 1) - i, 12)
+        out.append("%04d-%02d" % (yy, mm + 1))
+    return out
+
+
 MRPC_METRICS = [
+    {"key": "enroll_12_per_1k", "label": "Enrollments per 1,000 debit-card accounts, last 12 months", "fmt": "dec1", "higher": True, "month": False},
+    {"key": "enroll_per_1k", "label": "Monthly enrollments per 1,000 debit-card accounts", "fmt": "dec1", "higher": True, "month": True},
     {"key": "pct_goal", "label": "Enrollments as a share of goal", "fmt": "pct0", "higher": True, "month": True},
     {"key": "still_active", "label": "Cardholders still active", "fmt": "pct1", "higher": True, "month": False},
     {"key": "take_active", "label": "Take rate among active accounts", "fmt": "pct1", "higher": True, "month": False},

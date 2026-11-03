@@ -132,5 +132,5 @@ def _peers(ctx):
         coll = peer_pool.collect_mrpc(ctx)
     except Exception:
         return None
-    return peers.peers_screen(ctx.tracer, "MRPC", "MRPC", coll, peer_pool.MRPC_METRICS, trend="pct_goal", pull_dates=coll["pull"],
+    return peers.peers_screen(ctx.tracer, "MRPC", "MRPC", coll, peer_pool.MRPC_METRICS, trend="enroll_per_1k", pull_dates=coll["pull"],
                               extra_notes=["Revenue per enrolled card is not compared: the revenue figures are being corrected and are not current."])
