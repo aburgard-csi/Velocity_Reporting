@@ -80,8 +80,24 @@ def build_model(client, period, root=None, programs=None):
     model = {"product": PRODUCT_NAME, "client": {"id": str(client), "name": name}, "period": period, "month": ctx.month_long,
              "generated": datetime.datetime.now().isoformat(timespec="minutes"),
              "programs": out, "combined": combined, "story": _story(out)}
+    if name and not str(name).isdigit():
+        _name_the_client(model["programs"], name)
+        _name_the_client(model["combined"], name)
     problems = audit(model, ctx.tracer)
     return model, ctx.tracer, problems
+
+
+def _name_the_client(node, name):
+    """The peer screens label the client's own line "This client" because a program builder does not know
+    the client's name; the registry does, so the label is the name (Aaron, 2026-11-03)."""
+    if isinstance(node, dict):
+        if node.get("name") == "This client":
+            node["name"] = name
+        for v in node.values():
+            _name_the_client(v, name)
+    elif isinstance(node, list):
+        for v in node:
+            _name_the_client(v, name)
 
 
 def _story(programs):
@@ -102,7 +118,7 @@ def _compare_overview(ready):
     if not cards:
         return None
     return {"id": "compare", "title": "How you compare", "kicker": "Combined view · How you compare",
-            "headline": "How this client compares with the other clients on each program it has, anonymously.",
+            "headline": "How this client compares with the other clients on each program it has.",
             "blocks": [{"t": "cards", "cards": cards}], "notes": [],
             "sources": [{"title": "Peer sets", "text": "Each program's peers are all other clients on it with current data, read from the same per-client sheets the performance dashboard reads. No other client is named or numbered."}]}
 

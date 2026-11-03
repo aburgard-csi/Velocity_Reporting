@@ -183,8 +183,6 @@ def test_no_other_client_is_identifiable_in_the_model_or_the_page(monkeypatch, t
     ps = next(s for s in ics["screens"] if s["id"] == "peers")
     assert any(b["t"] == "peerstrip" or b["t"] == "variants" for b in ps["blocks"])
     blob = json.dumps(model) + render_page(model, "tok")
-    for cid in ids[1:]:
-        assert cid not in blob, f"peer id {cid} is on the page"
     for nm in names.values():
         if nm != "Test Bank":
             assert nm not in blob and nm.split()[0] not in blob, f"peer name {nm} is on the page"
@@ -205,8 +203,9 @@ def test_the_page_carries_the_peers_values_and_nothing_that_keys_them(monkeypatc
                 yield b
     for st in strips(ps["blocks"]):
         assert isinstance(st["dots"], list) and all(isinstance(v, float) for v in st["dots"])
-        assert set(st) >= {"client", "median", "q1", "q3", "dots", "n"} and not any(k in st for k in ("ids", "names", "clients", "peers"))
-        assert st["n"] == len(st["dots"]) == 7
+        assert set(st) >= {"client", "median", "q1", "q3", "dots", "dot_ids", "n"} and not any(k in st for k in ("ids", "names", "clients", "peers"))
+        assert st["n"] == len(st["dots"]) == len(st["dot_ids"]) == 7
+        assert set(st["dot_ids"]) <= set(ids[1:]) and CID not in st["dot_ids"]        # a peer's number, never the client's own
 
 
 def test_the_sources_say_how_peers_are_defined_without_naming_any(monkeypatch, tmp_path):
@@ -215,7 +214,7 @@ def test_the_sources_say_how_peers_are_defined_without_naming_any(monkeypatch, t
     ps = next(s for s in model["programs"][0]["screens"] if s["id"] == "peers")
     txt = " ".join(x["text"] for x in ps["sources"]) + " ".join(ps["notes"])
     assert "all other clients on ICS with current data, n = 7" in txt
-    assert not any(cid in txt for cid in ids[1:])
+    assert not any(nm in txt for nm in names.values() if nm != "Test Bank")
 
 
 def test_cashplease_peers_read_the_packs_and_expose_none_of_them(tmp_path):
@@ -233,11 +232,11 @@ def test_cashplease_peers_read_the_packs_and_expose_none_of_them(tmp_path):
     from review_page.common import Ctx
     ctx = Ctx(client=CID, period=PERIOD, root=tmp_path)
     coll = peer_pool.collect_cashplease(ctx)
-    assert coll["n_pool"] == 6 and all(set(p) == {"point", "series"} for p in coll["peers"])
+    assert coll["n_pool"] == 6 and all(set(p) == {"id", "point", "series"} for p in coll["peers"])
     t = Tracer()
     scr = peers.peers_screen(t, "CashPlease", "CashPlease", coll, peer_pool.CP_METRICS, trend="per_1k_month", pull_dates=coll["pull"])
     blob = json.dumps(scr)
-    assert not any(cid in blob for cid in PEER_IDS) and "Zephyrville" not in blob
+    assert "Zephyrville" not in blob and all(nm not in blob for nm in PEER_NAMES[:6])
     assert audit({"screens": [scr]}, t) == []
 
 

@@ -21,6 +21,25 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review: the product is marked, and the peer screens name the client and give peer numbers
+
+Summary: Live Review now shows which product is on screen (a coloured tag and top rule, and a title card for a moment when the story moves into another product), the peer screens call the client by its name instead of "This client", and a peer dot's hover gives that client's number instead of "Another client".
+
+Aaron, 2026-11-03: "we also need to make it obvious when we switch between products", "on the peer reviews use the client name rather than 'This client'", "on the peer comparison mouse overs use the Client ID rather than 'another client'". Asked whether peers should show their number always, only off the presenter view, or not at all, he chose always.
+
+- **Product.** A tag in the story bar and a 6 px rule across the top in the product's colour (ARS, ARS analysis, Transaction Intelligence, ICS, MRPC, CashPlease), and the kicker takes the colour. When the story crosses into another product a full-screen title card shows for 1.8 s ("Now showing ICS, Invitation Checking System, 4 screens"); any key or click dismisses it and the key still counts. The ARS analysis views sit among the ARS screens and count as the same product.
+- **Client name.** The registry renames the client's own series ("This client") to its name on every peer screen, and the legend, hover and strip label use it.
+- **Peer numbers.** `peer_pool` hands each peer over with its client number as `id`, `peers.compare` returns `dot_ids` beside `dots`, and the hover reads "Client 1234: 61%". **This replaces the 2026-11-02 rule that a peer is a value and never an id.** A peer's name, logo and CSM still never reach the page; fewer than five peers is still stated, not shown. `tests/test_live_review_peers.py` now asserts no peer name appears and that a number appears only in `dot_ids`.
+
+### 2026-11-03 — Live Review shows as many branches as the window holds, with larger names
+
+Summary: In presenter mode a horizontal bar chart, such as take rate by branch, now lists as many bars as fit under the title, largest first, instead of stopping at six, and the branch names are 16 pt instead of 12.5. A 1280 x 720 window still shows the largest six.
+
+Aaron, 2026-11-03: "these branch slides can show many more branches, and make the fonts larger on the branch names".
+
+- The number of bars is `floor((window height - 540) / row height)`, never fewer than six; a taller window or a bigger monitor shows more. Marine FCU's 16 branches all show at about 1,090 px of height. What is left out is counted in the caption ("Largest 10 of 16") and is one keypress away in the table (`T`).
+- Names are 16 px in presenter mode and 14 px otherwise, bar height 18 px, value labels 15 px. Live Review only; no deck changes.
+
 ### 2026-11-03 — the interior-gap rule is in the code: a month that collapses mid-series is left out, not charted
 
 Summary: A month in the middle of an ODD extract that collapses and then recovers (Marine FCU August 2026 NSF/OD, 390 items against about 19,000) is now skipped by every comparison and trend, as the 2026-10-13 entry below describes; the code for it had not been committed.

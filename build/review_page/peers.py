@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""peers.py — "How you compare": the client against the other clients on the same program, anonymously.
+"""peers.py — "How you compare": the client against the other clients on the same program.
 
-PRIVACY, the hard rule. Live Review is shown to the client. Another client's name, id, logo, CSM or any value that
-identifies one never reaches the page, the model JSON or the Sources drawer. The collectors below read the other
-clients' rows (the same rows the performance dashboard reads, `build/peer_data.py`) and HAND OVER ONLY:
+WHAT A PEER SHOWS (Aaron, 2026-11-03, asked and answered: "Always show the peer's ID"). Live Review is shown to the client.
+A peer's CLIENT NUMBER is on the page: each dot's hover says "Client 1234: 61%". Another client's name, logo, CSM or any
+other value that identifies one never reaches the page, the model JSON or the Sources drawer. The collectors below read the
+other clients' rows (the same rows the performance dashboard reads, `build/peer_data.py`) and HAND OVER ONLY:
 
     the client's own value,
-    the peers' values as an anonymous list (a dot each) and its quartiles, a histogram,
+    the peers' values (a dot each, with that peer's client number in `dot_ids`) and their quartiles, a histogram,
     the count of peers, and the count left out for want of current data.
 
-Nothing keyed by a client id leaves `collect_*`/`compare`; `tests/test_live_review_peers.py` serialises the model and
-the page for a synthetic pool and asserts none of its ids or names appear anywhere.
+`tests/test_live_review_peers.py` serialises the model and the page for a synthetic pool and asserts no peer NAME appears
+anywhere and that a peer's number appears only in `dot_ids`.
 
 SMALL POOLS. A comparison is stated as unavailable, plainly, when fewer than MIN_PEERS other clients have the program
 at all, and a metric is left out (and said to be) when fewer than MIN_PEERS have current data for it.
@@ -100,14 +101,21 @@ def histogram(vals, bins=8):
 
 
 # ----------------------------------------------------------------- the comparison of one metric
-def compare(t, spec, client_val, peer_vals):
-    """One metric's anonymous comparison dict, or None when it has too few peers. `spec`:
-    {"key","label","fmt","higher"} where higher is True (more is better), False (less is better) or None (neither)."""
+def compare(t, spec, client_val, peer_vals, peer_ids=None):
+    """One metric's comparison dict, or None when it has too few peers. `spec`:
+    {"key","label","fmt","higher"} where higher is True (more is better), False (less is better) or None (neither).
+    `peer_ids`, when given, is each peer's client number in the order of `peer_vals`; the result carries it as `dot_ids`,
+    sorted with `dots`."""
     peers = [float(v) for v in peer_vals if v is not None]
+    pairs = sorted(((float(v), str(peer_ids[i]) if peer_ids and peer_ids[i] is not None else None)
+                    for i, v in enumerate(peer_vals) if v is not None), key=lambda x: x[0])
     if client_val is None or len(peers) < MIN_PEERS:
         return None
     for v in peers:
         t.see(v)
+    for _v, cid in pairs:               # a client number is read from the pack like any other figure the page prints
+        if cid and cid.isdigit():
+            t.see(int(cid))
     t.see(client_val)
     n = len(peers)
     sv = sorted(peers)
@@ -128,7 +136,7 @@ def compare(t, spec, client_val, peer_vals):
     for e in edges:
         t.derive(e, "histogram bin edge", sv[0])
     return {"key": spec["key"], "label": spec["label"], "fmt": spec["fmt"], "higher": higher, "client": client_val, "median": med,
-            "q1": q1, "q3": q3, "min": sv[0], "max": sv[-1], "dots": sv, "n": n, "total": total, "rank": rank, "pct": pr,
+            "q1": q1, "q3": q3, "min": sv[0], "max": sv[-1], "dots": sv, "dot_ids": [p[1] for p in pairs] if peer_ids else None, "n": n, "total": total, "rank": rank, "pct": pr,
             "relation": kind, "diff": diff, "edges": edges, "counts": counts}
 
 
@@ -151,7 +159,7 @@ def align_month(me_series, peer_series, min_peers=MIN_PEERS):
 
     The client's latest month is the comparison month. When fewer than `min_peers` peers have a value for it, the
     comparison moves back to the most recent month the client and at least `min_peers` peers share. `peer_series` is a
-    list of {month: value} dicts (anonymous: no ids). Returns None when no month qualifies.
+    list of {month: value} dicts (no ids; the caller keeps them aligned). Returns None when no month qualifies.
     """
     months = sorted((m for m, v in me_series.items() if v is not None), key=lambda x: MC.month_start(x) or MC.month_start("Jan 2000"))
     if not months:
@@ -182,7 +190,7 @@ def peers_screen(t, program_label, who, collected, metrics, trend=None, extra_no
     sources = [{"title": f"{program_label} peer set",
                 "text": (f"Peers are all other clients on {program_label} with current data, n = {n_pool}. Figures are read from the same "
                          f"per-client sheets the performance dashboard reads" + (f"; pulled {pull_dates}" if pull_dates else "")
-                         + ". Peers are anonymous: no name, number, logo or CSM of another client appears on this page.")}]
+                         + ". Each dot is one other client and its hover gives that client's number; no name, logo or CSM of another client appears on this page.")}]
     if n_pool < MIN_PEERS:
         blk = {"t": "statement", "title": "Not enough peers to compare",
                "text": (f"A comparison needs at least {MIN_PEERS} other clients on {program_label}; this book has {n_pool}. "
@@ -200,12 +208,14 @@ def peers_screen(t, program_label, who, collected, metrics, trend=None, extra_no
                 left.append(f"{spec['label']}: fewer than {MIN_PEERS} peers have current data")
                 continue
             month, cv, pv, fell, out = al
+            pid = [p.get("id") for p in peers if (p["series"].get(key) or {}).get(month) is not None]   # same order as pv
         else:
             cv = me["point"].get(key)
             pv = [p["point"].get(key) for p in peers]
+            pid = [p.get("id") for p, v in zip(peers, pv) if v is not None]
             pv = [v for v in pv if v is not None]
             month, fell, out = None, False, len(peers) - len(pv)
-        c = compare(t, spec, cv, pv)
+        c = compare(t, spec, cv, pv, pid)
         if c is None:
             left.append(f"{spec['label']}: fewer than {MIN_PEERS} peers have current data")
             continue
@@ -219,7 +229,7 @@ def peers_screen(t, program_label, who, collected, metrics, trend=None, extra_no
             notes.append(f"{spec['label']}: {int(t.derive(out, 'peers left out for want of current data', c['dots'][0]))} other clients had no current data for it and are not in n.")
         blocks = [{"t": "peerstrip", "id": f"strip-{key}", "title": spec["label"], "fmt": spec["fmt"], "sentence": sentence, "month": mlabel,
                    "client": c["client"], "median": c["median"], "q1": c["q1"], "q3": c["q3"], "min": c["min"], "max": c["max"],
-                   "dots": c["dots"], "n": c["n"], "higher": c["higher"]}]
+                   "dots": c["dots"], "dot_ids": c["dot_ids"], "n": c["n"], "higher": c["higher"]}]
         if trend and trend == key:
             months, cser, mser = _trend(t, me, peers, key)
             if months:
