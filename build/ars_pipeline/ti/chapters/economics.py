@@ -16,6 +16,7 @@ campaign hero and Revenue frames are tossed in `ti/slides.json`.
 from pathlib import Path
 
 from ti import cut
+from ti.deck import combine
 
 TITLES = {
     "program_pnl": "Program P&L by offer",
@@ -24,6 +25,11 @@ TITLES = {
     "wave_totals": "What each offer has earned",
     "lift_matrix": "What an account earns as it climbs",
 }
+
+
+# Tried and left apart (Aaron, 2026-11-02): "Where the month's revenue came from" and "What each offer has
+# earned" are 17- and 9-column stacks whose labels and legend do not fit in half a slide.
+COMBINED = ()
 
 
 def compute(_ctx):
@@ -49,8 +55,8 @@ def build(ctx):
     deck = Deck(ctx, "the client's ARS Workbook (Inputs/ARS Workbooks) and 2:1 deferral tracker "
                      "(Inputs/Deferred Billing)",
                 Path(ctx.art_dir or ".") / "charts" / "economics")
-    builders = [getattr(S, name) for name in TITLES]
-    return deck.run(builders, TITLES, ctx.pack.get("metrics") or {})
+    builders, titles = combine.apply([getattr(S, name) for name in TITLES], TITLES, COMBINED)
+    return deck.run(builders, titles, ctx.pack.get("metrics") or {})
 
 
 CHAPTER = cut.Chapter("TI_ECON", "Economics", "Revenue · Fees · Guarantee",

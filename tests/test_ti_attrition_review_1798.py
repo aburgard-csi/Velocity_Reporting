@@ -293,8 +293,11 @@ def test_every_deposit_slide_declines_without_a_deposits_file(tmp_path, monkeypa
     monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
     deposits.build(_Ctx(tmp_path, {}))
     deck = made[-1]
-    assert len(deck.declines) == len(deposits.TITLES) == len(deck.slides)
-    assert {title for title, _ in deck.declines} == set(deposits.TITLES.values())
+    # a pair drawn as one slide (ti/deck/combine.py) declines as one, under the combined topic
+    merged = {t for pair in deposits.COMBINED for t in (deposits.TITLES[pair[0]], deposits.TITLES[pair[1]])}
+    expected = (set(deposits.TITLES.values()) - merged) | {pair[2] for pair in deposits.COMBINED}
+    assert len(deck.declines) == len(expected) == len(deck.slides)
+    assert {title for title, _ in deck.declines} == expected
     assert all(reason == "no deposits file" for _, reason in deck.declines)
 
 

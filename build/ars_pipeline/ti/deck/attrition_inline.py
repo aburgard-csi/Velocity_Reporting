@@ -28,6 +28,17 @@ def _n(m, key, default=0):
     return m.get(key, default) or default
 
 
+def _rated(rows):
+    """The branches the chart draws: the ones with enough accounts at risk to rank, which is the floor
+    the headline and the footnote already state (monthly_analysis.attrition). The chart used to draw
+    every branch, so a branch of one account that closed read 100% and a branch of 35 read 40%, and
+    those two bars set the scale for the twelve real ones (1776, 2026-11-02). With fewer than three
+    branches over the floor, every branch is drawn as before."""
+    from ti.monthly_analysis.attrition import MIN_AT_RISK_FOR_BRANCH_RANK
+    kept = [r for r in rows if r[1] >= MIN_AT_RISK_FOR_BRANCH_RANK]
+    return kept if len(kept) >= 3 else rows
+
+
 def attrition_branch(h, m) -> str | None:
     """Where the closures cluster, branch by branch (v5 build.py, "Attrition by branch")."""
     ab = m.get("attrition_by_branch") or []
@@ -44,13 +55,13 @@ def attrition_branch(h, m) -> str | None:
     if abest:
         items.append(("Lowest", f"{abest[1]:.1f}%", f"{abest[0]}, {abest[2]:,} at risk"))
     right = h["rail"](s, items, top=top)
-    path = h["chart"]("attrition_branch", charts.branch_bars, ab, m.get("attrition_rate") or 0.0)
+    path = h["chart"]("attrition_branch", charts.branch_bars, _rated(ab), m.get("attrition_rate") or 0.0)
     if path:
         h["chart_left"](s, path, top, right)
     h["text"](s, h["MARGIN_L"] + 0.02, FOOT_Y, h["CONTENT_W"], 0.3,
               "Bar is the closure rate; the figure inside is closures. "
-              "Small branches swing hard -- the headline rates 150+ "
-              "at-risk only.", size=FOOT_PT, color=h["GREY"])
+              "Small branches swing hard -- only branches with 150+ "
+              "at risk are charted or ranked.", size=FOOT_PT, color=h["GREY"])
     return None
 
 
@@ -122,12 +133,12 @@ def attrition_branch_and_group(h, m) -> str | None:
     rows += [[r[1], f"{r[6]:.1f}%", f"{r[2]:,}"] for r in named]
     h["table"](s, rows, table_left, top + 0.38, GROUP_W,
                col_widths=[GROUP_W - 1.85, 0.95, 0.90])
-    path = h["chart"]("attrition_branch", charts.branch_bars, ab, m.get("attrition_rate") or 0.0)
+    path = h["chart"]("attrition_branch", charts.branch_bars, _rated(ab), m.get("attrition_rate") or 0.0)
     if path:
         h["chart_left"](s, path, top, table_left - 0.25)
     h["text"](s, h["MARGIN_L"] + 0.02, FOOT_Y, h["CONTENT_W"], 0.3,
-              "Bars: 12-month closure rate by branch, closures inside; branches with 150+ at risk "
-              "are rated. Table: groups overlap, so they do not sum to the book.",
+              "Bars: 12-month closure rate by branch, closures inside; only branches with 150+ at risk "
+              "are charted. Table: groups overlap, so they do not sum to the book.",
               size=FOOT_PT, color=h["GREY"])
     return None
 
