@@ -8,7 +8,7 @@ leave on M:\\CSM_Reporting, so every CSM gets the same answer:
                cohort and the dashboard's "current clients" cohort
   peers        Build Artifacts\\launcher\\<period>\\<id>\\metrics.json across clients, the figures each
                client's deck was built from
-  everything   Build Artifacts\\perf_dashboard\\dataset.json (programs, revenue, readiness, decks, sent)
+  everything   Build Artifacts\\perf_dashboard\\dataset.json (programs, revenue, readiness, decks)
 Notes, tasks, calendar and mail are each CSM's own Microsoft 365, not Sheila's: the brief says so and
 leaves them to the CSM's Microsoft 365 connector in Claude.
 """
@@ -339,8 +339,7 @@ def one_pager(client):
         lines.append(f"CashPlease: {m.get('total_loans', 0):,} loans, {m.get('window_loans', 0):,} in 12 months, "
                      f"charge-off {pct(m.get('charge_off_pct'), nd=2)} (all CP {pct((m.get('peer') or {}).get('charge_off_pct'), nd=2)}).")
     decks = d.get("decks") or c.get("decks") or []
-    lines.append(f"This cycle: {', '.join(decks) if decks else 'no deck in Outputs yet'}"
-                 + (f"; sent {d.get('sent') or c.get('sent')}" if (d.get('sent') or c.get('sent')) else "") + ".")
+    lines.append(f"This cycle: {', '.join(decks) if decks else 'no deck in Outputs yet'}.")
     return reply("\n".join(lines), client=cid, period=per, points=points, programs=d.get("programs"), ars=a)
 
 
@@ -394,8 +393,8 @@ def client_prepare(client):
     todo = []
     if not (d.get("decks") or c.get("decks")):
         todo.append("No deck in Outputs for this cycle: ask Sheila for its status, then build it.")
-    elif not (d.get("sent") or c.get("sent")):
-        todo.append("The deck is built but not marked sent: review it (\"what needs my review\") before the call.")
+    else:
+        todo.append("The deck is in Outputs: review it (\"what needs my review\") before the call.")
     if c.get("error"):
         todo.append("The last build failed: ask for the client's status to see why.")
     blocked = (d.get("readiness") or {}).get("blocked_on")
