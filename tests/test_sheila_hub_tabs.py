@@ -18,7 +18,7 @@ def between(text, a, b):
     return text[text.index(a):text.index(b, text.index(a))]
 
 
-@pytest.mark.parametrize("module,tab", [("sheila_hub_feedback", "reported")])
+@pytest.mark.parametrize("module,tab", [("sheila_hub_feedback", "reported"), ("sheila_hub_issues", "issues")])
 def test_each_tab_module_is_complete_and_assembled_once(module, tab):
     import importlib
     m = importlib.import_module(module)
@@ -45,3 +45,27 @@ def test_the_change_log_page_wears_the_hubs_colours_and_links_back():
     md = os.path.join(REPO, "CHANGELOG.md")
     page = W.changelog_page(md)
     assert 'aria-label="Two stacked slides"' in page and 'href="/"' in page and "Back to Sheila" in page and 'rel="icon"' in page
+
+
+def test_data_issues_marks_complete_in_one_click_and_keeps_the_counts_in_the_sidebar():
+    page = H.PAGE
+    for route in ('"/api/issues"', '"/api/issues/mark"', '"/api/code-sheet"'):
+        assert route in page
+    mark = between(page, "async function mark(btn)", "function select(id)")
+    assert "await loadIssues(true); paint();" in mark and 'toast(done ? "Marked complete.' in mark
+    assert '${si("ok")}Mark complete' in page and 'data-done="0">Undo' in page, "one click to mark, one to undo"
+    assert 'id="b-issues"' in page and "function paintIssueBadge()" in page and "paintIssueBadge();" in between(page, "function setCsm(v)", "function csmPick()")
+    # a mark that a newer workbook reopened says so, with the date and the workbook that arrived
+    assert "a new workbook has arrived since" in page and "It stays complete until a new workbook arrives for this client." in page
+    # grouped by client: a list with counts beside the cards; the open client again goes back to all of them
+    assert "function select(id) { I.cur = I.cur === id ? null : id;" in page and 'data-iall' in page
+    assert '"1  2  3  4  5  6"' in page
+
+
+def test_the_links_row_is_the_same_wherever_a_client_is_named():
+    page = H.PAGE
+    row = between(page, "function linksRowHTML(", "async function clientLinks(")
+    for part in ("Open code sheet", "Show it in File Explorer", "Deck checks", "Lift Matrix", "No data issues"):
+        assert part in row
+    assert 'clientLinks(s.client, "decks", $("#clientlinks"))' in page, "on the Decks client page too"
+    assert 'if (t === "decks") { go("decks"); openClient(c); } else go(t, {client: c});' in page

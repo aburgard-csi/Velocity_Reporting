@@ -97,7 +97,7 @@ def who_am_i():
 # The modules the page is assembled from, tabs in sidebar order. Each defines TAB (id, or None for a part of the
 # Decks tab), NAME, VIEW (the tab section's inner HTML), CSS and JS; a tab's JS calls registerTab(id, {...}) (see
 # "tabs" in the page script).
-TAB_MODULES = ("sheila_hub_ils", "sheila_hub_feedback")
+TAB_MODULES = ("sheila_hub_ils", "sheila_hub_issues", "sheila_hub_feedback")
 
 
 # The mark (option E, Aaron 2026-11-02): a navy slide in front of a teal one, light and dark; the favicon draws the same.
@@ -220,7 +220,6 @@ kbd{font:600 11.5px/1 var(--mono);padding:3px 6px;border-radius:6px;background:v
 .app.rail .nl,.app.rail .brand{justify-content:center;padding-inline:0}
 .app.rail .foldbtn svg{transform:rotate(180deg)}
 .app.rail .badge{position:absolute;top:4px;right:4px;min-width:9px;width:9px;height:9px;padding:0;font-size:0}
-/*__TAB_CSS__*/
 
 /* ---- main ---- */
 main{min-width:0;display:flex;flex-direction:column;gap:16px;padding-top:2px}
@@ -418,6 +417,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
   .row .pd{display:none}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+/*__TAB_CSS__*/
 </style>
 </head>
 <body>
@@ -432,7 +432,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
     <nav class="nav" aria-label="Views">
       <a class="nl" data-tab="decks" href="#" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg><span class="lbl">Decks</span><span class="badge hot" id="b-attn" title="Needs attention or blocked"></span></a>
       <a class="nl" data-tab="lift" href="/classic#lift" data-tip="Lift Matrix"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg><span class="lbl">Lift Matrix</span></a>
-      <a class="nl" data-tab="issues" href="/classic#issues" data-tip="Data Issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg><span class="lbl">Data Issues</span><span class="badge hot" id="b-issues" title="Open data issues"></span></a>
+      <a class="nl" data-tab="issues" href="#issues" data-tip="Data Issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg><span class="lbl">Data Issues</span><span class="badge hot" id="b-issues" title="Open data issues"></span></a>
       <a class="nl" data-tab="votes" href="/classic#votes" data-tip="Slide Review"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg><span class="lbl">Slide Review</span></a>
       <a class="nl" data-tab="reported" href="#reported" data-tip="Feedback"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg><span class="lbl">Feedback</span></a>
     </nav>
@@ -474,7 +474,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
 <nav class="tabbar" aria-label="Views">
   <a data-tab="decks" href="#" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg>Decks</a>
   <a data-tab="lift" href="/classic#lift"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg>Lift</a>
-  <a data-tab="issues" href="/classic#issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg>Issues</a>
+  <a data-tab="issues" href="#issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg>Issues</a>
   <a data-tab="votes" href="/classic#votes"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg>Review</a>
   <a data-tab="reported" href="#reported"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg>Feedback</a>
 </nav>
@@ -789,9 +789,9 @@ function renderDetail() {
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : "checked " + Math.round(s.age_seconds / 60) + " min ago") + (s.refreshing ? ", checking again…" : "");
   const k = kindOf(c);
   $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(s.name || c.name || s.client)}</h2><span class="chip k-${k.k}">${si(k.k)}${esc(k.label)}</span>
-    <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span></header>
+    <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span><span class="meta clientlinks" id="clientlinks"></span></header>
     <div class="pres">${cards.join("")}<div id="ilscards"></div></div>`;
-  ilsCards(s.client);
+  ilsCards(s.client); clientLinks(s.client, "decks", $("#clientlinks"));
   if (JOB) renderJob(JOB);
   if (s.refreshing) for (const x of $$("#detail [data-act=build]")) { x.disabled = true; x.title = "Waiting for the fresh check"; }
 }
@@ -1002,7 +1002,7 @@ document.addEventListener("click", ev => {
   else if (a === "revealpath") api("/api/reveal", {method: "POST", body: JSON.stringify({path: act.dataset.path})}).then(() => toast("Shown in File Explorer.")).catch(e => toast(e.message, "bad"));
 });
 function setCsm(v) {
-  $("#csm").value = v; if (!ME.csm) store("ars-builder-csm", v); renderList(); paintMine(); if (!CUR) renderOverview();
+  $("#csm").value = v; if (!ME.csm) store("ars-builder-csm", v); renderList(); paintMine(); if (!CUR) renderOverview(); paintIssueBadge();
   for (const s of $$(".csmpick")) s.value = v;
   if (TAB !== "decks" && TABS[TAB] && TABS[TAB].refresh) TABS[TAB].refresh();
 }
