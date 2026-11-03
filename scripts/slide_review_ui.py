@@ -22,7 +22,7 @@ button.vb:hover,button.vt:hover{filter:brightness(.97)}
 button.vb:active{transform:translateY(1px)}
 button.vb[aria-pressed=true],button.vt[aria-pressed=true]{background:var(--navy);color:#fff;border-color:transparent;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -1px 0 rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.22),0 2px 6px rgba(0,39,76,.16)}
-button.vb.delete[aria-pressed=true]{background:var(--orange);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -1px 0 rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.22),0 2px 6px rgba(244,122,41,.18)}
+button.vb.delete[aria-pressed=true]{background:var(--orange);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -1px 0 rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.22),0 2px 6px rgba(241,93,34,.18)}
 button.vb.appendix[aria-pressed=true]{background:#1f7a8c;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -1px 0 rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.22),0 2px 6px rgba(31,122,140,.18)}
 button.star{font:400 20px/1 "Segoe UI Symbol","Segoe UI",Arial,sans-serif;background:none;border:0;padding:2px 6px;cursor:pointer;color:var(--ink3);border-radius:6px}
 button.star:hover{color:#d99a00;background:rgba(217,154,0,.10)}
