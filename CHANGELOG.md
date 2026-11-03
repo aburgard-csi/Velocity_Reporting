@@ -21,6 +21,34 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — the RPE Client Performance page is in the Hub look and lists one CSM's clients
+
+Summary: the RPE Client Performance page now looks like CSM Sheila's Hub, and it lists only one CSM's clients (Aaron Burgard's by default) instead of every CSM's.
+
+Aaron, 2026-11-02: "rebuild the RPE Client Performance artifact in hub fashion. Also limit that artifact to my own clients, since we now have Sheila."
+
+- **Scope.** `refresh_performance_dashboard.py` takes `--csm "Name"` (else `RPE_DASH_CSM`, else Aaron Burgard)
+  and decides whose clients these are BEFORE it reads anything for a client, from the Client CSM List. Another CSM's
+  client is no longer extracted and is not in the embedded dataset: the old page carried all five CSMs' clients and
+  filtered them in the browser, so every client's figures were in the page for anyone who could open it. There is no
+  "all CSMs" option, a client no list names is left out rather than guessed, and a CSM with no clients stops the build
+  rather than publishing an empty page. The scope is in the content hash. Rankings now say "among your N clients".
+- **The CashPlease company row** still benchmarks against every current Velocity CashPlease client, but it now
+  carries rates and averages only. Its loan, principal and DDA totals were sums over other CSMs' clients and are gone.
+- **The page.** Rebuilt on the Hub's frame: a glass sidebar that folds to a rail and a bottom bar on phones, KPI tiles,
+  dense rows, light and dark themes, the slide-stack corner mark, 44 px targets. Sections are Overview, ARS, ICS, MRPC,
+  CashPlease, Build readiness and Needs a CSM, with the workflow page linked as "How decks are made". The CSM and
+  product filter chips are gone (one CSM; the sidebar is the product filter); a find box filters the view by name or
+  number. Each program view has KPI tiles, a ranked chart with a table view, a trend chart of all the clients together
+  with a hover readout and a table view, and the sortable table it always had. Hub colors only, no orange; the four
+  program colors were validated with the dataviz script (light on white, dark on #141D38).
+- **Unchanged:** every figure and its source, the newest-at-or-before-the-cycle rule, complete months only, Mark sent
+  and Undo send, the Build readiness period picker, `--mark-published`, `--merge-sent` and `--export`. The sent
+  records the page writes keep the same store keys, so the daily task's `read_db` / `--merge-sent` step is unaffected.
+- **Tests:** `tests/test_refresh_performance_dashboard.py` pins the scope (an out-of-scope client is not read and is
+  nowhere in the dataset or the page), the company row's shape and the new page's frame; the pins on the removed
+  filter chips went with them.
+
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
 Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.
