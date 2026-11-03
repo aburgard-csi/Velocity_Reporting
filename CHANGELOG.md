@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review: the product title card is the deck's section divider
+
+Summary: When Live Review moves into another product, the title card now looks like the section dividers in the Executive Review deck (the blue gradient, the orange wedge and CSI logo, the product name and its topics, three headline figures and the progress track), and it no longer shows a slide count.
+
+Aaron, 2026-11-03: "the section dividers are good. these should look like the transition slides in our RPE deck. Also, the number of slides was wrong too, but we don't need that number of slides shown."
+
+- Drawn the way `build/cover_divider.draw_divider` draws it: product at 52 pt, topics at 24 pt, figures at 40 pt, labels at 16 pt, the track naming ARS, TI, ICS, MRPC and CashPlease with the current one in orange. The figures are the product's own summary figures (Transaction Intelligence has no summary, so it shows the first figures on its first screen).
+- The slide count is gone; it counted the story's screens for the product, which is not what the page shows. The card stays up 2.6 s and any key or click dismisses it.
+- The CSI logo is a 9 KB PNG inlined in the stylesheet, so the page still needs no network.
+
 ### 2026-11-03 — Live Review: the rail and the Present button work again
 
 Summary: Fixes a Live Review bug from the product marker released earlier today, where every click was read as "go to ARS" so the left-hand screen list and the Present button did nothing.

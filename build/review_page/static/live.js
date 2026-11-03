@@ -57,18 +57,34 @@
   }
   function curProgram() { return programs().filter(function (p) { return p.key === S.prog; })[0] || null; }
   function cname() { return (MODEL.client && MODEL.client.name) || "This client"; }   // the peer screens call the client by its name
-  var PROG_FULL = {ars: "Account Revenue Solution", analysis: "ARS analysis", ti: "Transaction Intelligence", ics: "Invitation Checking System", mrpc: "MyRewards Premium Cards", cashplease: "CashPlease small-dollar loans"};
   function progNow() { var it = curStory(); return it ? it.prog : (S.prog === "all" ? "" : S.prog); }
   /* Which product is on screen: a coloured tag in the story bar, a coloured rule across the top, and a title card for a second or two when the
      story moves on into another product. The card is dismissed by any key or click and never holds a key back. */
+  /* The title card is the deck's section divider (build/cover_divider.py): the blue gradient, the orange wedge and the white CSI logo bottom-left,
+     the product at 52 pt, its line of topics at 24 pt, three headline figures at 40 pt and the progress track with this product in orange. */
+  var DIVIDER = {
+    ars: {title: "Account Revenue Solution\u00ae", topics: "Mailings \u00b7 Debit Card \u00b7 Reg E", track: "ARS"},
+    ti: {title: "Transaction Intelligence", topics: "Competition \u00b7 Attrition \u00b7 Deposits", track: "TI"},
+    ics: {title: "Invitation Checking\u00ae System", topics: "Referrals \u00b7 Account Performance \u00b7 Revenue", track: "ICS"},
+    mrpc: {title: "MyRewards Premium Cards\u00ae", topics: "Enrollments \u00b7 Retention \u00b7 Revenue", track: "MRPC"},
+    cashplease: {title: "CashPlease\u00ae", topics: "Loan Volume \u00b7 Portfolio Status \u00b7 Peer Comparison", track: "CashPlease"}
+  };
   function hideProgramCard() { var el = $("#pdiv"); if (el) el.className = ""; clearTimeout(S.pdivT); }
   function showProgramCard(pk) {
-    var pr = programOf(pk); if (!pr) return;
-    var n = storyItems().filter(function (x) { return x.prog === pk; }).length;
+    var info = DIVIDER[pk], pr = programOf(pk); if (!info || !pr) return;
+    var kp = ((pr.summary || {}).kpis || []).slice(0, 3);
+    if (!kp.length) {   // a program with no summary (Transaction Intelligence) shows the first figures its first screen carries
+      (pr.screens || []).some(function (s) { var b = (s.blocks || []).filter(function (x) { return x.t === "kpis"; })[0]; if (b) { kp = b.items.slice(0, 3); return true; } return false; });
+    }
+    var order = Object.keys(DIVIDER).filter(function (k) { var p = programOf(k); return p && p.state === "ready"; });
+    var stats = kp.map(function (k, i) {
+      return '<div class="dstat" style="left:' + (6.67 + i * 29.63) + '%"><b>' + esc(fmt(k.value, k.fmt === "usd" ? "usdk" : k.fmt)) + "</b><span>" + esc(k.label) + "</span></div>";
+    }).join("");
+    var track = order.length > 1 ? '<div class="dtrack">' + order.map(function (k) { return '<span' + (k === pk ? ' class="on"' : "") + ">" + esc(DIVIDER[k].track) + "</span>"; }).join("") + "</div>" : "";
     var el = $("#pdiv");
     if (!el) { el = document.createElement("div"); el.id = "pdiv"; el.setAttribute("role", "status"); document.body.appendChild(el); }
-    el.innerHTML = '<div class="pswitch"><p>Now showing</p><h2>' + esc(pr.label) + "</h2><span>" + (PROG_FULL[pk] && PROG_FULL[pk] !== pr.label ? esc(PROG_FULL[pk]) + " · " : "") + n + (n === 1 ? " screen" : " screens") + "</span></div>";
-    el.className = "on"; clearTimeout(S.pdivT); S.pdivT = setTimeout(hideProgramCard, 1800);
+    el.innerHTML = '<div class="dwedge"></div><div class="dlogo" role="img" aria-label="CSI"></div><h2' + (info.title.length > 24 ? ' class="long"' : "") + ">" + esc(info.title) + '</h2><p class="dben">' + esc(info.topics) + "</p>" + stats + track;
+    el.className = "on"; clearTimeout(S.pdivT); S.pdivT = setTimeout(hideProgramCard, 2600);
   }
   function screens() {
     if (S.prog === "story") return storyItems().map(function (x) { return x.scr; });
