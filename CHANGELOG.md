@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review: the combined "How you compare" is a series of charts, peer screens start on a chart, and bar charts sort
+
+Summary: The combined "How you compare" screen now shows one chart for every measure of every product (instead of one card per product), each peer screen starts on its chart with its takeaway inside the chart's card, and horizontal bar charts such as take rate by branch can be sorted largest, smallest, A to Z or as listed.
+
+Aaron, 2026-11-03: "'Combined view · How you compare' should have a series of charts", "all the peer comparison slides should start on a chart", "make charts like this sortable".
+
+- **Combined view.** `registry._compare_overview` takes every peer strip from each product's peers screen (the ones a product's own screen hides behind a measure selector too), titles each with its product ("MRPC: Cardholders still active") and keys it by product (two products both have `per_1k`). Presenting, it shows the first chart of each product. `#all/compare` now opens that screen (the combined view's screens are addressed by id).
+- **Chart first.** The per-measure takeaway ("4th of 6 REMS clients; 7.1% below the peer median") is the strip's own sentence, drawn under its title, instead of a text block above the chart.
+- **Sortable bars.** Horizontal bar charts with more than two bars get Largest, Smallest, A–Z and Listed beside the chart title. Listed (the order the data comes in) is the default in the regular view; presenting a list of more than six still defaults to largest first, and the cap on how many bars fit says "Largest 12 of 16", "Smallest ..." or "First ...". The drill into a bar's row works in any order.
+
 ### 2026-11-03 — Live Review REMS: compare the last 12 months pooled, and leave out the demo client
 
 Summary: With the real REMS file in place, the REMS peer comparison now leads with each client's opt-in rate over the last 12 months pooled, because a single month holds only tens of responses, and it no longer counts the demo client (999, Union Financial Bank) as a peer.
