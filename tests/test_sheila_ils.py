@@ -160,3 +160,23 @@ def test_the_cards_fold_under_one_line_opened_only_when_a_kind_has_something():
     assert "c.extract || c.last || (c.job && !c.job.done)" in active
     assert "one-time reports, not set up for this client" in W.PAGE
     assert "details.ilsfold>summary" in W.PAGE
+
+
+# ------------------------------------------------------------------ the cards in the Hub layout (2026-11-02)
+def test_the_hub_draws_the_ils_cards_on_the_client_page_with_ils_review_coming_soon():
+    import sheila_hub as H
+    page = H.PAGE
+    assert '<div id="ilscards"></div></div>`;\n  ilsCards(s.client);' in page, "drawn after the presentation cards"
+    assert "ILS Review" in page and "Coming soon" in page
+    assert 'data-tab="ils"' not in page          # the cards are on the client page, not a tab
+    draw = page[page.index("function ilsDraw()"):page.index("// The deck's CSM inputs")]
+    assert '<details class="ilsfold"${open ? " open" : ""}>' in draw and "const open = was ? was.open : ilsActive();" in draw
+    active = page[page.index("function ilsActive()"):page.index("function ilsDraw()")]
+    assert "c.extract || c.last || (c.job && !c.job.done)" in active
+    assert "one-time reports, not set up for this client" in page
+    # what is typed in a code field survives the status redraw, and both steps and the deck inputs reach the server
+    for route in ("/api/ils/client", "/api/ils/run", "/api/ils/inputs", "/api/ils/reveal", "/api/ils/job"):
+        assert route in page
+    assert '$("#detail").addEventListener("input"' in page and "ILS.form[key]" in page
+    import sheila_hub_ils as M
+    assert M.TAB is None and set(M.LABELS) == set(ils_ui.LABELS)

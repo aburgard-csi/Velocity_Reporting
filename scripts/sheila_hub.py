@@ -94,9 +94,10 @@ def who_am_i():
     return _me["me"]
 
 
-# The tabs after Decks, in sidebar order. Each module defines TAB (id, name), VIEW (the section's inner HTML),
-# CSS and JS; its JS calls registerTab(id, {...}) (see "tabs" in the page script).
-TAB_MODULES = ()
+# The modules the page is assembled from, tabs in sidebar order. Each defines TAB (id, or None for a part of the
+# Decks tab), NAME, VIEW (the tab section's inner HTML), CSS and JS; a tab's JS calls registerTab(id, {...}) (see
+# "tabs" in the page script).
+TAB_MODULES = ("sheila_hub_ils",)
 
 
 def _assemble():
@@ -104,7 +105,8 @@ def _assemble():
     views, css, js = [], [], []
     for name in TAB_MODULES:
         m = importlib.import_module(name)
-        views.append(f'<section class="view tabview" id="v-{m.TAB}" aria-label="{html.escape(m.NAME)}" hidden>{m.VIEW}</section>')
+        if m.TAB:
+            views.append(f'<section class="view tabview" id="v-{m.TAB}" aria-label="{html.escape(m.NAME)}" hidden>{m.VIEW}</section>')
         css.append(m.CSS)
         js.append(m.JS)
     return (_PAGE.replace("<!--__TAB_VIEWS__-->", "\n".join(views))
@@ -779,7 +781,8 @@ function renderDetail() {
   const k = kindOf(c);
   $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(s.name || c.name || s.client)}</h2><span class="chip k-${k.k}">${si(k.k)}${esc(k.label)}</span>
     <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span></header>
-    <div class="pres">${cards.join("")}</div>`;
+    <div class="pres">${cards.join("")}<div id="ilscards"></div></div>`;
+  ilsCards(s.client);
   if (JOB) renderJob(JOB);
   if (s.refreshing) for (const x of $$("#detail [data-act=build]")) { x.disabled = true; x.title = "Waiting for the fresh check"; }
 }
