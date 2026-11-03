@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review: the ICS peer comparison uses every ICS client, not just the VIP sheets
+
+Summary: "Referrals per 1,000 DDAs" on the ICS "How you compare" screen now compares the client with every ICS client that has referrals and a DDA count (38 peers for Marine FCU, up from at most 9), read from the all-clients referrals file instead of the 11 clients whose VIP sheets are pulled.
+
+Aaron, 2026-11-03: "look at the VIP data we're pulling and use all peers for peer comparison for ICS, MRPC and CashPlease."
+
+- **ICS.** The VIP store holds sheets for 11 ICS clients, but `Inputs/ICS Referrals/ics_referrals.csv` (the all-clients referrals pull, 87 clients) holds a row per referral for every Velocity ICS client. `peer_pool.referrals_by_month` reads it and `collect_ics` puts referrals per 1,000 DDAs (ILS DDA counts) on every client with a DDA count and a referral in the last six complete calendar months, the client included, so one source feeds both sides. The month the file was pulled in is left out. The share of the monthly goal stays VIP-only: goals are not in the all-clients file. Without the file the comparison falls back to the VIP sheets as before.
+- **CashPlease** already compared against every current client with a pack (73 for Marine), and **MRPC** against every tab of the weekly (23) for the active and take-rate measures; MRPC's share of goal is VIP-only (6 clients) because goals come from the VIP sheets.
+- Tests: `test_ics_per_1k_uses_every_client_in_the_all_clients_referrals_file`, `test_the_ics_comparison_falls_back_to_the_vip_sheets_without_the_referrals_file`.
+
 ### 2026-11-03 — Live Review: sections are organised by product, and the title cards show only while presenting
 
 Summary: Live Review's screen list, agenda and progress bar are now grouped by product (ARS, Transaction Intelligence, ICS, MRPC, CashPlease), each with its own sections, and the product title card appears only in presenter mode.

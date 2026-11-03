@@ -63,6 +63,63 @@ def _dda(ctx):
     return {str(k): v.get("dda_accounts") for k, v in (d.get("clients") or {}).items() if v.get("dda_accounts")}
 
 
+_REFS = {}
+
+
+def referrals_by_month():
+    """({client id: {"YYYY-MM": referrals}}, newest issue date "YYYY-MM-DD") from the ALL-clients ICS referrals file
+    (Inputs/ICS Referrals/ics_referrals.csv, which the morning source check keeps merged). It holds one row per referral
+    for every Velocity ICS client, where the VIP sheets cover only the clients a CSM has pulled (Aaron, 2026-11-03: "use all
+    peers"). ({}, None) when the file is not there, so the VIP-only comparison stands."""
+    import csv
+    import rpe_env
+    try:
+        path = rpe_env.input_dir("ICS referrals", create=False) / "ics_referrals.csv"
+        st = path.stat()
+    except (OSError, ValueError, KeyError):
+        return {}, None
+    key = (str(path), st.st_mtime, st.st_size)
+    if _REFS.get("key") == key:
+        return _REFS["value"]
+    by, newest = {}, ""
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f):
+            d = (r.get("issue_date") or "")[:10]
+            cid = (r.get("client_id") or "").strip()
+            if len(d) < 7 or not cid:
+                continue
+            by.setdefault(cid, {})
+            by[cid][d[:7]] = by[cid].get(d[:7], 0) + 1
+            if d > newest:
+                newest = d
+    value = (by, newest or None)
+    _REFS.clear()
+    _REFS.update(key=key, value=value)
+    return value
+
+
+def _ics_per_1k(refs, newest, dda, last=24, current=6):
+    """{client id: {"Sep 2026": referrals per 1,000 DDAs}} for every client with a DDA count and a referral in the last
+    `current` complete months. The month the file was last pulled in is in progress and is left out."""
+    if not refs or not newest:
+        return {}
+    cut = newest[:7]
+    y, mo = int(cut[:4]), int(cut[5:7])
+    recent = set()                                            # the `current` calendar months before the month the file was pulled in
+    for k in range(1, current + 1):
+        yy, mm = divmod(y * 12 + (mo - 1) - k, 12)
+        recent.add("%04d-%02d" % (yy, mm + 1))
+    out = {}
+    for cid, months in refs.items():
+        if not dda.get(cid):
+            continue
+        if not any(months.get(m) for m in recent):
+            continue                                          # no referrals in the last six complete months: not a current peer
+        done = sorted(m for m in months if m < cut)
+        out[cid] = {_label(m): 1000.0 * months[m] / dda[cid] for m in done[-last:]}
+    return out
+
+
 def _span(dates):
     ds = sorted(d for d in dates if d)
     return f"{ds[0]} to {ds[-1]}" if ds else None
@@ -95,6 +152,14 @@ def collect_ics(ctx):
                 per1k[_label(m)] = 1000.0 * r / dda[cid]
         rows[cid] = {"point": {}, "series": {"pct_goal": goal_pct, "per_1k": per1k}}
         pulls.append(s.get("data_pull"))
+    # Referrals per 1,000 DDAs from the all-clients referrals file, for EVERY client with a DDA count: one source for
+    # the client and all its peers (the VIP trend and the detail export count a little differently), and far more peers
+    # than the VIP sheets carry. The share of goal stays VIP-only: goals are not in the all-clients file.
+    refs, newest = referrals_by_month()
+    for cid, series in _ics_per_1k(refs, newest, dda).items():
+        rows.setdefault(cid, {"point": {}, "series": {}})["series"]["per_1k"] = series
+    if newest:
+        pulls.append(newest)
     mine, peers = _split(rows, str(ctx.client))
     return {"n_pool": len(peers), "me": mine, "peers": peers, "pull": _span(pulls)}
 
