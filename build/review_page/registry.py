@@ -108,19 +108,42 @@ def _story(programs):
     return story.resolve(programs)
 
 
+def _strips(blocks):
+    """Every peer strip in a screen's blocks, the ones inside a measure selector too."""
+    for b in blocks:
+        if b["t"] == "variants":
+            for o in b["options"]:
+                yield from _strips(o["blocks"])
+        elif b["t"] == "peerstrip":
+            yield b
+
+
 def _compare_overview(ready):
-    """'How you compare', across programs: one card per program that has a peers screen, each opening it. Nothing here
-    carries anything but the screens' own headlines, which carry no peer identity."""
-    cards = []
+    """'How you compare', across programs: a series of charts (Aaron, 2026-11-03: "should have a series of charts"), one
+    strip for every measure of every program that has a peers screen, each titled with its program. A program's own peers
+    screen hides its strips behind a measure selector; here they are all on the page. The first strip of each program is
+    marked `first`, which is the one chart per program shown while presenting. Ids carry the program (two programs both
+    have a "per_1k"). Nothing here carries anything but the strips' own figures: a peer is a value and its client number."""
+    blocks, done = [], []
     for e in ready:
         ps = next((s for s in e["screens"] if s["id"] == "peers"), None)
-        if ps:
-            cards.append({"program": e["key"], "label": e["label"], "headline": ps["headline"], "kpis": [], "open": f"{e['key']}:peers"})
-    if not cards:
+        if not ps:
+            continue
+        first = True
+        for b in _strips(ps["blocks"]):
+            c = dict(b)
+            c["id"] = f"{e['key']}-{b['id']}"
+            c["title"] = f"{e['label']}: {b['title']}"
+            c["first"] = first
+            first = False
+            blocks.append(c)
+        if not first:
+            done.append(e["label"])
+    if not blocks:
         return None
     return {"id": "compare", "title": "How you compare", "kicker": "Combined view · How you compare",
-            "headline": "How this client compares with the other clients on each program it has.",
-            "blocks": [{"t": "cards", "cards": cards}], "notes": [],
+            "headline": "How this client compares with the other clients on " + (", ".join(done[:-1]) + " and " + done[-1] if len(done) > 1 else done[0]) + ".",
+            "blocks": blocks, "notes": [],
             "sources": [{"title": "Peer sets", "text": "Each program's peers are all other clients on it with current data, read from the same per-client sheets the performance dashboard reads. No other client is named or numbered."}]}
 
 

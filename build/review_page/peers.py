@@ -248,7 +248,7 @@ def peers_screen(t, program_label, who, collected, metrics, trend=None, extra_no
         return B.screen("peers", "How you compare", f"{program_label} · How you compare",
                         f"{program_label} is not compared with peers here: too few peers have current data.", [blk], sources, [])
     for o in options:
-        o["blocks"].insert(0, {"t": "statement", "title": None, "text": o.pop("_sentence"), "lead": True})
+        o.pop("_sentence")          # the takeaway is the strip's own `sentence`, drawn inside its card: the screen starts on a chart
     blocks = [B.variants("peer-metric", "Measure", options)] if len(options) > 1 else options[0]["blocks"]
     if left:
         notes.append("Left out: " + "; ".join(left) + ".")

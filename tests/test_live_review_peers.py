@@ -282,7 +282,11 @@ def test_the_combined_view_gets_a_how_you_compare_screen_and_the_story_gets_two_
     model, _t, problems = registry.build_model(CID, PERIOD, root=tmp_path, programs=["ars", "analysis", "ti", "ics"])
     assert problems == []
     cmp_screen = next(s for s in model["combined"]["screens"] if s["id"] == "compare")
-    assert cmp_screen["blocks"][0]["cards"][0]["open"] == "ics:peers"
+    blocks = cmp_screen["blocks"]
+    assert blocks and all(b["t"] == "peerstrip" for b in blocks)                                # a series of charts, not cards
+    assert all(b["title"].startswith("ICS: ") and b["id"].startswith("ics-") for b in blocks)   # titled and keyed by program
+    assert [b["first"] for b in blocks].count(True) == 1 and blocks[0]["first"]                 # one headline chart per program
+    assert all(b["sentence"] for b in blocks)                                                   # each chart carries its own takeaway
     secs = model["story"]["sections"]
     assert [s["id"] for s in secs][-1] == "ics" and secs[-1]["prog"] == "ics"                  # the client's other programs, one section each
     assert "ics:peers" in [r["ref"] for r in secs[-1]["screens"]]                               # how it compares sits with the product

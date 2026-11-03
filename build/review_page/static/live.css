@@ -135,6 +135,7 @@ button.tile:hover .go{opacity:1;transform:none}
 .hint{font-size:.84rem;color:var(--text2);margin-top:8px}
 .mini{display:inline-flex;gap:2px;background:var(--fill);border-radius:999px;padding:3px}
 .mini button{border:0;background:transparent;min-height:30px;padding:0 12px;border-radius:999px;font:600 12px var(--head);color:var(--text2)}
+.head .mini+.mini{margin-left:8px}
 .mini button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,39,76,.18)}
 .drillbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
 .btn{min-height:44px;padding:0 18px;border-radius:999px;border:0;background:var(--c-navy);color:var(--on-fill);font:700 13.5px var(--head);display:inline-flex;align-items:center;gap:8px;transition:transform .15s,box-shadow .15s}
@@ -255,6 +256,8 @@ html.present .tile .v{font-size:clamp(26px,15cqw,54px)}
 /* ---- the storyline: sections in the nav, a progress strip, the agenda, the "run this first" state */
 .rail h6.sec{margin:16px 0 6px 12px;font:700 10.5px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
 .rail h6.sec:first-child{margin-top:0}
+.psent{margin:2px 18px 6px;color:var(--text2);font-size:.98rem;line-height:1.35}
+html.present .psent{font-size:1.1rem}
 .rail h5.prod,.agenda h5.prod{margin:20px 0 4px;padding:7px 12px;border-radius:10px;background:var(--pfc-x,var(--c-navy));color:#fff;font:800 12px var(--head);letter-spacing:.1em;text-transform:uppercase}
 .rail h5.prod:first-child,.agenda h5.prod:first-child{margin-top:0}
 h5.prod[data-p="ars"]{--pfc-x:var(--pf-ars)}h5.prod[data-p="ti"]{--pfc-x:var(--pf-ti)}h5.prod[data-p="ics"]{--pfc-x:var(--pf-ics)}h5.prod[data-p="mrpc"]{--pfc-x:var(--pf-mrpc)}h5.prod[data-p="cashplease"]{--pfc-x:var(--pf-cashplease)}h5.prod[data-p="rems"]{--pfc-x:var(--pf-rems)}
