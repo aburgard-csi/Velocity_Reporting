@@ -223,6 +223,14 @@ th.sortable[aria-sort="ascending"] .arr,th.sortable[aria-sort="descending"] .arr
 #note{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;background:var(--navy);color:var(--ground);font-size:14px;padding:11px 16px;border-radius:12px;box-shadow:var(--shadow);max-width:min(520px,88vw);opacity:0;pointer-events:none;transition:opacity .15s}
 #note.on{opacity:1}
 
+/* ---- Live Review commands (Aaron, 2026-11-03) ---- */
+#lrbox{width:min(720px,calc(100vw - 32px));border:1px solid var(--glass-line);border-radius:20px;background:var(--sheet);color:var(--ink);padding:18px;box-shadow:var(--shadow)}
+#lrbox::backdrop{background:rgba(11,19,43,.5)}
+#lrbox h3{margin:0 0 4px;font:700 17px var(--display)}
+#lrbox p{margin:0 0 10px;color:var(--muted);font-size:14px}
+#lrbox textarea{width:100%;height:240px;resize:vertical;border-radius:12px;border:1px solid var(--line);background:var(--fill);color:var(--ink);padding:10px;font:13px/1.45 Consolas,Menlo,monospace}
+#lrbox .row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+
 /* ---- sources ---- */
 details.src{border-radius:18px;border:1px solid var(--glass-line);background:var(--surface);padding:6px 18px}
 details.src summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font:700 15px var(--display)}
@@ -971,6 +979,69 @@ function viewCP(vis){
     `<section class="card sect" data-sec="CP"><header><h2>By client</h2><span class="chip">${rows.length} client${rows.length===1?"":"s"}</span></header>${table}</section>`;
 }
 
+// ---------- Live Review commands (Aaron, 2026-11-03)
+// Live Review is a local page (127.0.0.1, a fresh port and token each run), so it has no link to
+// share. What this page can hand over is the command that starts it, for one client or for every
+// client in the list, with the period of that client's newest deck.
+function lrOk(c){ return /^\d{3,6}$/.test(String(c.id)) && /^\d{4}\.\d{2}$/.test(String(c.deck_period || DATA.period)); }
+function lrPeriodOf(c){ return String(c.deck_period || DATA.period); }
+function lrRepo(){ return String(((DATA.live_review||{}).repo) || "").replace(/'/g, "''"); }
+function lrOne(c){
+  return `Set-Location '${lrRepo()}'; & .\\.venv\\Scripts\\python.exe scripts\\live_review.py ${c.id} --period ${lrPeriodOf(c)}`;
+}
+function lrAll(rows){
+  const list = rows.filter(lrOk);
+  const lines = list.map(c => `  [pscustomobject]@{Id='${c.id}'; Period='${lrPeriodOf(c)}'; Name='${String(c.name||"").replace(/[\r\n]/g, " ").replace(/'/g, "''")}'}`);
+  return [
+    `# Live Review: one page per client, each in its own window. Close a window to stop that page.`,
+    `$repo = '${lrRepo()}'`,
+    `if (-not (Test-Path (Join-Path $repo 'scripts\\live_review.py'))) {`,
+    `  Write-Warning "Live Review is not in $repo. Switch that checkout to main, or change $repo."; return`,
+    `}`,
+    `$py = Join-Path $repo '.venv\\Scripts\\python.exe'`,
+    `$clients = @(`,
+    lines.join("\n"),
+    `)`,
+    `foreach ($c in $clients) {`,
+    `  Write-Host "Opening Live Review for $($c.Id) $($c.Name) ($($c.Period))"`,
+    `  Start-Process -FilePath $py -WorkingDirectory $repo -ArgumentList @('scripts\\live_review.py', $c.Id, '--period', $c.Period)`,
+    `  Start-Sleep -Seconds 2`,
+    `}`,
+  ].join("\n");
+}
+function lrBox(title, text){
+  let d = document.getElementById("lrbox");
+  if (!d){
+    d = document.createElement("dialog"); d.id = "lrbox";
+    d.innerHTML = `<h3></h3><p>Copying was blocked here, so select this and copy it, then paste it into PowerShell.</p><textarea id="lrtext" readonly spellcheck="false" aria-label="PowerShell script"></textarea><div class="row"><button type="button" class="tagbtn" id="lrsel">Select all</button><button type="button" class="tagbtn" id="lrclose">Close</button></div>`;
+    document.body.appendChild(d);
+    d.querySelector("#lrclose").onclick = () => d.close();
+    d.querySelector("#lrsel").onclick = () => { const t = d.querySelector("#lrtext"); t.focus(); t.select(); };
+  }
+  d.querySelector("h3").textContent = title;
+  const ta = d.querySelector("#lrtext"); ta.value = text;
+  if (d.showModal) d.showModal(); else d.setAttribute("open", "");
+  ta.focus(); ta.select();
+}
+async function lrCopy(text, title, done){
+  try { await navigator.clipboard.writeText(text); note(done); }
+  catch(e){ lrBox(title, text); }
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-lr],[data-lr-all]");
+  if (!b) return;
+  if (b.hasAttribute("data-lr-all")){
+    const rows = (window.__lrRows || []).filter(lrOk);
+    if (!rows.length){ note("No client in this list has a period to open."); return; }
+    lrCopy(lrAll(rows), `Live Review script for ${rows.length} client${rows.length===1?"":"s"}`,
+           `Copied a PowerShell script for ${rows.length} client${rows.length===1?"":"s"}. Paste it into PowerShell.`);
+    return;
+  }
+  const c = (window.__lrRows || []).find(x => String(x.id) === b.dataset.lr);
+  if (!c || !lrOk(c)){ note("That client has no period to open."); return; }
+  lrCopy(lrOne(c), `Live Review for ${c.name}`, `Copied the Live Review command for ${c.name}. Paste it into PowerShell.`);
+});
+
 // ---------- build readiness (roster)
 // Which product an input belongs to, so its chip carries that product's colour.
 function inColour(program){
@@ -1081,7 +1152,9 @@ function viewRoster(vis){
     RPERIODS.map(p => `<option value="${esc(p)}"${p===P?" selected":""}>${esc(p)}${p===DATA.period?" (cycle)":""}</option>`).join("") +
     `</select></label>`;
   const tiles = `<div class="kpis">${kpi("Ready to build", `${ready} of ${withR.length}`, `inputs landed for ${esc(P)}`, null)}${kpi("Built", N(built), `a deck exists for ${esc(P)}`, null)}${kpi("Sent", N(sentN), "recorded against " + esc(P), null)}</div>`;
-  const rows = sortRoster(vis).map(c=>{
+  const sorted = sortRoster(vis);
+  window.__lrRows = sorted;
+  const rows = sorted.map(c=>{
       const v = rv(c), r = v.readiness;
       const dots = `<span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span>` +
         ` <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span>`;
@@ -1110,14 +1183,15 @@ function viewRoster(vis){
       <td class="l">${state}</td>
       <td class="l" style="white-space:normal;max-width:430px">${ins}</td>
       <td class="l">${deck}</td>
-      <td class="l">${sentCell(c)}</td></tr>`;
+      <td class="l">${sentCell(c)}</td>
+      <td class="l">${lrOk(c) ? `<button type="button" class="tagbtn" data-lr="${esc(c.id)}" title="Copy the PowerShell command that opens Live Review for ${esc(c.name)} (${esc(lrPeriodOf(c))})">Copy command</button>` : `<span class="dim">\u2014</span>`}</td></tr>`;
     }).join("");
   const t = `<div class="tbl rdy"><table><thead><tr>` +
     sortTh("client", "Client") + sortTh("products", "Products") + sortTh("ready", "Ready to build") +
-    sortTh("inputs", `Inputs for ${esc(P)}`) + sortTh("deck", "Deck") + sortTh("sent", "Sent") +
+    sortTh("inputs", `Inputs for ${esc(P)}`) + sortTh("deck", "Deck") + sortTh("sent", "Sent") + `<th class="l">Live Review</th>` +
     `</tr></thead><tbody>${rows}</tbody></table></div>`;
   return head(`Build readiness \u00b7 ${P}`, "What can be built, what is missing, and what has gone out.", picker) + tiles +
-    `<section class="card"><header><h2>Your clients</h2><span class="chip">${vis.length}</span></header>${t}</section>`;
+    `<section class="card"><header><h2>Your clients</h2><span style="display:inline-flex;gap:10px;align-items:center"><span class="chip">${vis.length}</span><button type="button" class="tagbtn" data-lr-all title="Copy one PowerShell script that opens Live Review for every client listed here, each in its own window">Copy Live Review script</button></span></header>${t}</section>`;
 }
 
 // ---------- sortable section tables (Aaron, 2026-09-14: "sort the product columns too, such as by loss rate")

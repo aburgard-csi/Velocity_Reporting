@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — The RPE Client Performance page hands over the Live Review command for each client
+
+Summary: Build readiness on the RPE Client Performance page has a Live Review column. Copy command puts the PowerShell that opens one client's Live Review on the clipboard, and Copy Live Review script does it for every client listed.
+
+Aaron, 2026-11-03: "give me links for the live review pages for my clients in my RPE client tracking artifact. Or if you can't give me links, then have it copy the PowerShell script."
+
+- **Why a command and not a link.** Live Review is served on 127.0.0.1 with a fresh port and token each run, so no link to it can exist. The page hands over the command that starts it instead.
+- **Which period and checkout.** Each client uses the period of its newest deck. The commands run from the checkout the refresh ran from (`DATA.live_review.repo`; `RPE_REPO` overrides it), so no path is written into the page. The script stops with a warning if that checkout has no `scripts/live_review.py`.
+- **Blocked clipboard.** The artifact sandbox can refuse copying; the page then opens a box with the text selected.
+- Only a numeric client id and a `yyyy.mm` period are put into a command. `tests/test_perf_live_review_links.py`.
+
 ### 2026-11-02 — Sheila is the Hub layout: every screen moved, and the old page is gone
 
 Summary: CSM Sheila now looks and works like the Hub for everyone: a sidebar, a Ctrl K search, keyboard shortcuts, light and dark, and the slide-stack mark in the corner, on every tab (Decks, Lift Matrix, Data Issues, Slide Review, Feedback) and on the change log; the old page and the /hub switch are gone.

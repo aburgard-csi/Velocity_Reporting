@@ -1076,6 +1076,10 @@ def build_dataset(period, work, log=print, csm_name=None):
                   "programs": {k: sum(k in c["programs"] for c in clients.values())
                                for k in ("ARS", "ICS", "MRPC", "CP")}},
         "odd_month": odd_data_month(period),
+        # Live Review is served from a checkout on the viewer's machine, never hosted, so the page
+        # can only hand over the command that starts it (Aaron, 2026-11-03). The checkout is the one
+        # this refresh runs from, or RPE_REPO when the page is built from somewhere else.
+        "live_review": {"repo": os.environ.get("RPE_REPO") or str(REPO)},
         # The periods Build readiness can be switched to on the page (Aaron, 2026-10-12).
         "readiness_periods": periods,
         # Every current client, including one with no program data this month (Aaron,
