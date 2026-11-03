@@ -3,7 +3,7 @@
 Date: 2026-09-11
 Owner: Aaron Burgard
 Status: Shipped 2026-09-08; build readiness and provenance added 2026-09-09/10.
-Live at `https://claude.ai/code/artifact/71e542f6-cb48-4386-ae73-708e513c854b`.
+Live at `https://claude.ai/artifact/F4jLMLqxmQdBNYXpJHH6We` (the earlier `claude.ai/code/artifact/71e542f6-…` link no longer exists).
 
 ---
 
