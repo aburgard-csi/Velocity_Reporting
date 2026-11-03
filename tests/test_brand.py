@@ -35,12 +35,59 @@ def test_role_colors_are_distinct():
     """Two roles sharing a value means one of them is about to drift."""
     roles = {n: getattr(brand, n) for n in
              ("NAVY", "ORANGE", "TICK", "LABEL", "ROWALT", "GRID", "MUTED",
-              "HAIRLINE", "STEEL", "STEEL_SOFT", "LIGHT", "GOLD", "SLATE")}
+              "STEEL", "STEEL_SOFT", "GOLD", "SLATE")}
     dupes = {}
     for n, v in roles.items():
         dupes.setdefault(v, []).append(n)
     collisions = {v: ns for v, ns in dupes.items() if len(ns) > 1}
     assert not collisions, f"roles sharing a value: {collisions}"
+
+
+def test_five_greys_one_per_job():
+    """The deck greys are TICK, LABEL, ROWALT, GRID, MUTED and no others (Aaron, 2026-11-02).
+
+    TILE, HAIRLINE and LIGHT used to be three more values a few points from ROWALT, GRID and
+    LABEL doing the same jobs. They survive as ALIASES so an old import works; a new grey needs
+    a new job, and a new job is a STYLE.md decision."""
+    assert (brand.TICK, brand.LABEL, brand.ROWALT, brand.GRID, brand.MUTED) == (
+        "#5A6670", "#CFDBE8", "#EEF2F7", "#E4EAF1", "#B8C0CA")
+    assert brand.TILE == brand.ROWALT
+    assert brand.HAIRLINE == brand.GRID
+    assert brand.LIGHT == brand.LABEL
+
+
+def test_grey_roles_stay_visibly_apart():
+    """Five greys is only worth it if each reads as itself: no two within a hair of each other."""
+    def lum(hx):
+        v = [int(hx[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        v = [c / 12.92 if c <= .03928 else ((c + .055) / 1.055) ** 2.4 for c in v]
+        return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]
+    greys = sorted(lum(getattr(brand, n)) for n in ("TICK", "LABEL", "ROWALT", "GRID", "MUTED"))
+    assert all(b - a > 0.02 for a, b in zip(greys, greys[1:]))
+
+
+_RETIRED_GREYS = ("ECF0F4", "D9DEE5", "C9D6E3", "5A6778", "F2F5F8")
+
+
+def test_no_builder_declares_a_retired_grey():
+    """A literal near-grey in a builder is how eight greys became the deck's look.
+
+    Builders import the role from brand.py. A line that must name a retired value (reading it
+    back from a template shell that still carries it) says so with `retired-grey-ok`."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent / "build"
+    skip = ("_v5", "kickoff", "deckkit", "brand.py")        # ported v5 code keeps v5's own values
+    found = []
+    for py in root.rglob("*.py"):
+        if any(s in py.as_posix() for s in skip) or "ti/deck" in py.as_posix():
+            continue
+        for n, line in enumerate(py.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            if "retired-grey-ok" in line:
+                continue
+            up = line.upper()
+            if any(h in up for h in _RETIRED_GREYS):
+                found.append(f"{py.relative_to(root)}:{n}")
+    assert not found, f"retired grey literal: {found}"
 
 
 def test_the_two_steels_are_still_two():

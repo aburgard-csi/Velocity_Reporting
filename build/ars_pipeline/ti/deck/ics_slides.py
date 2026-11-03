@@ -324,7 +324,7 @@ def add_chapter(prs, h: dict, m: dict, charts_dir: Path,
             tiles.append((label, fmt.format(iv),
                           f"vs {fmt.format(nv)} non-ICS · {note}"))
     pair("ics_ars_response_pct", "non_ars_response_pct", "{:.0f}%",
-         "Respond to offers", "of ever-mailed accounts (the ARS synergy)")
+         "Respond to offers", "of ever-mailed accounts")
     pair("ics_rege_pct", "non_rege_pct", "{:.0f}%",
          "Reg E opted in", "pattern-classified election")
     d_ = m.get("ics_cmp_debit") or {}

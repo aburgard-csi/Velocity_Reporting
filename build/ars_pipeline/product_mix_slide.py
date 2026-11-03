@@ -55,7 +55,7 @@ from periods import Period
 
 # Palette, type roles and shape primitives now live at build/ level so ICS and
 # MRPC can reach them too. Re-exported here under their old names because
-# build_ars_gen, excluded_accounts_slide, rege_branch_slide and
+# build_ars_gen, excluded_accounts_slide, branch_appendix_slides and
 # tier_movement_slides all import them from this module.
 from brand import (
     NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, WHITE_RGB as WHITE,

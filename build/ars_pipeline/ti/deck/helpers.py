@@ -504,6 +504,22 @@ class Deck:
                 self.render_warnings.extend(_charts.RENDER_WARNINGS)
                 _charts.RENDER_WARNINGS.clear()
 
+    def try_chart(self, name, fn, *a, **kw):
+        """(path, None) when the chart drew, else (None, why). Unlike `chart`, a failure is NOT
+        recorded: the caller (ti/deck/combine.py) draws something else instead, and a figure it
+        gave up on must not fail the build."""
+        target = self.charts_dir / f"{name}.png"
+        from . import charts as _charts
+        try:
+            path = fn(*a, target, **kw)
+        except Exception as exc:
+            _charts.RENDER_WARNINGS.clear()
+            return None, f"{type(exc).__name__}: {exc}"
+        if _charts.RENDER_WARNINGS:
+            self.render_warnings.extend(_charts.RENDER_WARNINGS)
+            _charts.RENDER_WARNINGS.clear()
+        return path, None
+
     def _singulars(self):
         """v5 printed "1 accounts" when a count came out at one; RPE's validator fails that. "1 months"
         shipped the same way on the economics headline (1075, 2026-10-28), so every noun a count
@@ -595,7 +611,7 @@ class Deck:
         return [s for s in slides if selection.slide_kept(self.topics.get(id(s), ""))]
 
     def helpers(self):
-        return {"new": self.new, "slide": self.slide, "chart": self.chart,
+        return {"new": self.new, "slide": self.slide, "chart": self.chart, "try_chart": self.try_chart,
                 "declined": self.declined, "title": _title,
                 "divider": lambda *_a, **_k: None, "rail": _rail, "table": _table,
                 "kpi": _kpi, "text": _text, "chart_left": _chart_left, "picture": _picture,

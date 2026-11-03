@@ -12,9 +12,10 @@ Also floors explicit run sizes at 16 pt, with two exceptions (STYLE.md "Type"):
   * dense tables that cannot fit their fixed content at 16 — slides titled
     "2026 New Releases", "Product Mix", "Program Results by Month Opened",
     "Referred Accounts by Product" (the `dense` tuple in restyle());
-  * the two side-by-side tables on "Reg E Opt-In by Branch" (`DENSE_TABLES`): 27 branches
-    do not fit at 16 pt; the slide's other text keeps the floor, and its single-table
-    layout sets 16 pt itself;
+  * the branch-detail tables in the Appendix ("Appendix: Take Rate by Branch", "Appendix: Reg E
+    Opt-In by Branch", "Appendix: Reg E New Accounts by Branch"; `BRANCH_DETAIL_TABLE`): 15
+    branches a page do not fit at 16 pt, so they stay at 12 pt; the slide's other text keeps
+    the floor;
   * MRPC decks, which keep a deliberate 10-15 pt hierarchy (see _is_mrpc).
 The Executive Summit slide is never touched at all.
 
@@ -41,8 +42,9 @@ except Exception:  # older python-pptx
 
 from brand import HEAD, BODY
 MIN = 16
-# (slide title prefix, rows a table must carry) whose TABLES stay at their own size
-DENSE_TABLES = ("Reg E Opt-In by Branch", 14)
+# The Appendix branch-detail tables (branch_appendix_slides) stay at their own size, found by the
+# table's shape name rather than by slide title or row count.
+BRANCH_DETAIL_TABLE = "Branch Detail Table"
 HEAD_SIZE = 22      # runs at/above this are treated as headings
 
 
@@ -166,10 +168,8 @@ def restyle(path):
         dense = _title(s).startswith(("2026 New Releases", "Product Mix",
                                       "Program Results by Month Opened",
                                       "Referred Accounts by Product"))
-        tprefix, trows = DENSE_TABLES
         for sh in s.shapes:
-            tdense = (_title(s).startswith(tprefix) and sh.has_table
-                      and len(sh.table.rows) >= trows)
+            tdense = sh.has_table and sh.name == BRANCH_DETAIL_TABLE
             _restyle_shape(sh, floor=not dense and not tdense and not mrpc)
     prs.save(path)
 

@@ -14,6 +14,7 @@ lens decks (James, 2026-10-23: both lens decks full).
 from pathlib import Path
 
 from ti import cut, odd_sections
+from ti.deck import combine
 
 TITLES = {
     "deposit_overview": "What deposits look like",
@@ -28,6 +29,19 @@ TITLES = {
     "deposit_primacy": "Who banks here first",
     "inflow_against_outflow": "What arrives against what leaves",
 }
+
+
+# two one-chart slides as one (Aaron, 2026-11-02; ti/deck/combine.py)
+COMBINED = (
+    ("recurring_credits", "income_shape", "How members are paid",
+     "How members are paid, and how steady it is",
+     "Left: how regular each member's pay rhythm is. Right: how much total inflow varies month to month.",
+     "how_members_are_paid"),
+    ("credits_stopped", "deposit_milestones", "When the pay stops",
+     "When the pay stops",
+     "Left: members whose regular credit stopped, by month. Right: how long since money last arrived.",
+     "when_pay_stops"),
+)
 
 
 def compute(ctx):
@@ -51,8 +65,8 @@ def build(ctx):
     from ti.deck.helpers import Deck
     deck = Deck(ctx, "the client's deposits extract (Inputs/Deposits) and the ODD extract",
                 Path(ctx.art_dir or ".") / "charts" / "deposits")
-    builders = [getattr(S, name) for name in TITLES]
-    return deck.run(builders, TITLES, ctx.pack.get("metrics") or {})
+    builders, titles = combine.apply([getattr(S, name) for name in TITLES], TITLES, COMBINED)
+    return deck.run(builders, titles, ctx.pack.get("metrics") or {})
 
 
 CHAPTER = cut.Chapter("TI_DEP", "Deposits", "Paydays · Income · Primacy",

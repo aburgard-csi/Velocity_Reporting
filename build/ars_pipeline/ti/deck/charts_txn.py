@@ -206,9 +206,11 @@ def _band_stack_fig(rows: list, bands: list, note: str):
     ax.set_xlim(0, 1)
     ax.get_xaxis().set_visible(False)
     handles = [plt.Rectangle((0, 0), 1, 1, color=c) for _, c in bands]
+    # half a slide wide (ti/deck/combine.py) the legend does not fit on one row: two rows, higher
+    narrow = fig.get_figwidth() < 8 and len(bands) > 2
     ax.legend(handles, [n for n, _ in bands], loc="upper center",
-              bbox_to_anchor=(0.5, 1.10), ncol=len(bands), frameon=False,
-              fontsize=TXT)
+              bbox_to_anchor=(0.5, 1.20 if narrow else 1.10),
+              ncol=(len(bands) + 1) // 2 if narrow else len(bands), frameon=False, fontsize=TXT)
     if note:
         ax.set_xlabel(note, fontsize=TXT, color=GREY, labelpad=8)
     _clean(ax, bottom=False)
