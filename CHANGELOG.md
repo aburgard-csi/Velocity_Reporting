@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — Sheila no longer reads or shows whether a deck was sent
+
+Summary: CSM Sheila (the page and Sheila in Claude) no longer shows a Sent chip, groups clients as "Sent", or reads deliveries.json; whether a deck went to the client is tracked only in the delivery dashboard, and a deck no longer in Outputs now builds without the "already made" question.
+
+Aaron, 2026-11-02: remove anything involving tracking and the sending of decks from Sheila; that stays in the delivery dashboard.
+
+- **Page.** The client list's and the Executive Review card's Sent chips are gone, and `compute_clients` / `compute_status` no longer call `deck_status.read_deliveries`.
+- **Pre-build check.** `ars_launcher.built_line` asked "already made" for a deck in Outputs **or** one recorded as sent. Only Outputs remains (the Transaction Intelligence and Companion checks already read Outputs alone). What the sent half protected: a deck sent to the client and then moved out of Outputs (archived by a newer build, or filed by hand) asked before a rebuild; it now builds at once and replaces what the client may hold. Only Aaron recorded sends, so no other CSM's clients had it.
+- **Sheila in Claude.** `my_month` drops the "Sent" group and labels in-Outputs decks plainly; the client brief, the meeting-prep sheet and the client list no longer print sent state.
+- **Signatures.** `rule_checks`, `all_checks`, `built_line`, `ti_checks` / `ti_status`, `companion_checks` / `companion_status`, `build_ti`, `build_companion` and `_context` lose their `sent` argument.
+- **Untouched.** `scripts/dashboard.py`, `scripts/deck_status.py` and `Build Artifacts/deliveries.json`; `tests/test_sheila_*`, `test_deck_status` and the launcher and dashboard suites pass.
+
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
 Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.

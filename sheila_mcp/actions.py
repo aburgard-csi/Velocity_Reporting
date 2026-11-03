@@ -24,7 +24,7 @@ def _block(st, kind):
 
 
 def build(client, kind="ars", confirm=False, deck_only=False):
-    """Start a build. A deck already in Outputs (or marked sent) is replaced only with confirm=True."""
+    """Start a build. A deck already in Outputs is replaced only with confirm=True."""
     c, why = find_client(client)
     if why:
         return reply(why)

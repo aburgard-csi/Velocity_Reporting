@@ -1,4 +1,5 @@
 """The ARS launcher's rules — the ones that used to be applied by hand (2026-09-15)."""
+import inspect
 import os
 import sys
 import time
@@ -19,22 +20,22 @@ def levels(checks):
 
 
 def test_a_ready_ars_client_passes_the_rules():
-    assert L.STOP not in levels(L.rule_checks("1441", "2026.09", ROW, ROSTER, {}))
+    assert L.STOP not in levels(L.rule_checks("1441", "2026.09", ROW, ROSTER))
 
 
 def test_an_unknown_client_stops():
-    assert levels(L.rule_checks("9999", "2026.09", {}, ROSTER, {})) == [L.STOP]
+    assert levels(L.rule_checks("9999", "2026.09", {}, ROSTER)) == [L.STOP]
 
 
 def test_a_client_without_the_ars_product_stops_even_if_clients_md_lists_it():
     row = dict(ROW, products="ICS; ILS")
-    msgs = [m for l, m in L.rule_checks("1441", "2026.09", row, ROSTER, {}) if l == L.STOP]
+    msgs = [m for l, m in L.rule_checks("1441", "2026.09", row, ROSTER) if l == L.STOP]
     assert msgs and "Not an ARS client" in msgs[0]
 
 
 def test_a_client_clients_md_does_not_list_at_all_stops():
     row = {"client_id": "1777", "client_name": "West-Aircomm FCU", "csm": "Daniel Wood", "products": "ARS"}
-    msgs = [m for l, m in L.rule_checks("1777", "2026.09", row, ROSTER, {}) if l == L.STOP]
+    msgs = [m for l, m in L.rule_checks("1777", "2026.09", row, ROSTER) if l == L.STOP]
     assert msgs and "clients.md" in msgs[0]
 
 
@@ -44,12 +45,12 @@ def test_a_client_with_no_ars_builds_the_deck_their_programs_make():
     none of the ARS rules (ODD extract, workbook, Lift Matrix) in the way."""
     row = {"client_id": "1632", "client_name": "WesBanco", "csm": "Aaron Burgard", "products": "ICS; CashPlease; ILS"}
     cp = {"client_id": "1632", "client_name": "WesBanco Bank", "build": True, "ships_as": "ICS-CP section", "csm": "Aaron Burgard"}
-    checks = L.rule_checks("1632", "2026.10", row, ROSTER, {}, cp_row=cp)
+    checks = L.rule_checks("1632", "2026.10", row, ROSTER, cp_row=cp)
     assert L.STOP not in levels(checks)
     assert any("ICS-CP deck" in m and "no ARS" in m for l, m in checks if l == L.OK)
     # the product list is checked for the programs the deck covers, not for ARS
-    assert L.STOP in levels(L.rule_checks("1632", "2026.10", dict(row, products="ILS; Reg E Management"), ROSTER, {}, cp_row=cp))
-    assert L.WARN in levels(L.rule_checks("1632", "2026.10", dict(row, products="ICS"), ROSTER, {}, cp_row=cp))
+    assert L.STOP in levels(L.rule_checks("1632", "2026.10", dict(row, products="ILS; Reg E Management"), ROSTER, cp_row=cp))
+    assert L.WARN in levels(L.rule_checks("1632", "2026.10", dict(row, products="ICS"), ROSTER, cp_row=cp))
     # Aaron's multi-program stop is about a lone ARS deck; it does not apply here
     assert not any("combined" in m for l, m in checks if l == L.STOP)
 
@@ -62,7 +63,7 @@ def test_a_standalone_cashplease_client_is_on_the_launcher_too():
     assert L.client_entry("1770", ROSTER, None) is None
     assert L.client_entry("1632", ROSTER, cp) == ("1632", "WesBanco", None, ["ICS"])   # the roster wins when it has the client
     row = {"client_id": "1770", "client_name": "Central State Bank", "csm": "Aaron Burgard", "products": "CashPlease"}
-    checks = L.rule_checks("1770", "2026.10", row, ROSTER, {}, cp_row=cp)
+    checks = L.rule_checks("1770", "2026.10", row, ROSTER, cp_row=cp)
     assert L.STOP not in levels(checks) and any("standalone CashPlease module" in m for l, m in checks)
     assert L.covered_programs(["CP"]) == ["CP"] and L.covered_programs(["ICS-REFERRALS", "MRPC"], cp) == ["ICS", "MRPC"]
 
@@ -75,23 +76,25 @@ def test_build_programs_for_a_client_with_no_ars_takes_every_program_with_data()
     assert L.build_programs(["MRPC"], {"MRPC": (False, "no VIP MRPC sheet")}, combined=False) == []
 
 
-def test_a_sent_deck_asks_rather_than_stops():
-    sent = {"1441|2026.09": {"sent_at": "2026-09-14"}}
-    lv = levels(L.rule_checks("1441", "2026.09", ROW, ROSTER, sent))
-    assert L.ASK in lv and L.STOP not in lv
-    lv = levels(L.rule_checks("1441", "2026.09", ROW, ROSTER, sent, rebuild=True))
-    assert L.ASK not in lv and L.STOP not in lv
+def test_sheila_does_not_read_or_show_whether_a_deck_was_sent():
+    """Sending is tracked in the delivery dashboard, not in Sheila (Aaron, 2026-11-02). What the sent check
+    protected: a deck marked sent but no longer in Outputs asked before a rebuild; it now builds without asking."""
+    for rel in ("scripts/ars_launcher.py", "scripts/ars_launcher_web.py", "sheila_mcp/core.py", "sheila_mcp/reports.py"):
+        text = open(os.path.join(REPO, rel), encoding="utf-8").read()
+        assert "read_deliveries" not in text and "deliveries.json" not in text, rel
+    assert "sent" not in inspect.signature(L.rule_checks).parameters
+    assert L.built_line("1441", "2026.09", []) is None
 
 
 def test_a_deck_already_in_outputs_asks_before_it_is_rebuilt():
     # FedChoice 1815 (2026-09-15): in Outputs, never marked sent, and the builder offered a plain build.
     deck = ["1815-2026.09-ARS-FedChoice FCU ARS Results.pptx"]
-    checks = L.rule_checks("1441", "2026.09", ROW, ROSTER, {}, in_outputs=deck)
+    checks = L.rule_checks("1441", "2026.09", ROW, ROSTER, in_outputs=deck)
     asks = [m for l, m in checks if l == L.ASK]
     assert asks and "already in Outputs" in asks[0] and L.STOP not in levels(checks)
-    checks = L.rule_checks("1441", "2026.09", ROW, ROSTER, {}, rebuild=True, in_outputs=deck)
+    checks = L.rule_checks("1441", "2026.09", ROW, ROSTER, rebuild=True, in_outputs=deck)
     assert L.ASK not in levels(checks) and any("as asked" in m for l, m in checks if l == L.WARN)
-    assert L.ASK not in levels(L.rule_checks("1441", "2026.09", ROW, ROSTER, {}, in_outputs=[]))
+    assert L.ASK not in levels(L.rule_checks("1441", "2026.09", ROW, ROSTER, in_outputs=[]))
 
 
 def test_the_ask_exit_code_is_the_one_the_launcher_bat_tests_first():
@@ -103,7 +106,7 @@ def test_the_ask_exit_code_is_the_one_the_launcher_bat_tests_first():
 
 def test_a_blank_product_list_warns_rather_than_stops():
     row = dict(ROW, products="")
-    assert levels(L.rule_checks("1441", "2026.09", row, ROSTER, {})).count(L.STOP) == 0
+    assert levels(L.rule_checks("1441", "2026.09", row, ROSTER)).count(L.STOP) == 0
 
 
 def test_a_fresh_lock_stops_a_second_build(tmp_path):
@@ -197,12 +200,12 @@ def test_build_log_carries_each_command_line_before_its_output(tmp_path):
 def test_aarons_multi_program_client_stops_before_the_build():
     # A clean build goes straight to Outputs, so a lone ARS deck must be refused up front.
     row = {"client_id": "1509", "client_name": "Texas Bay Credit Union", "csm": "Aaron Burgard", "products": "ARS; ICS"}
-    msgs = [m for l, m in L.rule_checks("1509", "2026.09", row, ROSTER, {}) if l == L.STOP]
+    msgs = [m for l, m in L.rule_checks("1509", "2026.09", row, ROSTER) if l == L.STOP]
     assert msgs and "combined ARS-ICS" in msgs[0]
     other = dict(row, csm="James Gilmore")
-    assert L.STOP not in levels(L.rule_checks("1509", "2026.09", other, ROSTER, {}))
+    assert L.STOP not in levels(L.rule_checks("1509", "2026.09", other, ROSTER))
     # a combined build is what's on offer for Aaron's multi-program clients (2026-09-16)
-    assert L.STOP not in levels(L.rule_checks("1509", "2026.09", row, ROSTER, {}, combined=True))
+    assert L.STOP not in levels(L.rule_checks("1509", "2026.09", row, ROSTER, combined=True))
 
 
 def test_program_availability_prefers_vip_then_local_ics_files(monkeypatch):
@@ -384,7 +387,7 @@ def test_a_clean_deck_goes_straight_to_outputs_and_archives_what_it_replaces(tmp
 def test_the_client_is_named_from_clients_md_not_a_flagged_list_name():
     roster = ROSTER + [("1780", "USF CU", "MM", ["ARS", "MRPC"])]
     row = {"client_id": "1780", "client_name": "LM EXPIRED-USF CU / USF CU", "csm": "James Gilmore", "products": "ARS"}
-    msgs = [m for _, m in L.rule_checks("1780", "2026.09", row, roster, {})]
+    msgs = [m for _, m in L.rule_checks("1780", "2026.09", row, roster)]
     assert msgs[0].startswith("1780 USF CU (CSM")
 
 
