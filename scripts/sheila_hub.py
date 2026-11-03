@@ -97,7 +97,15 @@ def who_am_i():
 # The modules the page is assembled from, tabs in sidebar order. Each defines TAB (id, or None for a part of the
 # Decks tab), NAME, VIEW (the tab section's inner HTML), CSS and JS; a tab's JS calls registerTab(id, {...}) (see
 # "tabs" in the page script).
-TAB_MODULES = ("sheila_hub_ils",)
+TAB_MODULES = ("sheila_hub_ils", "sheila_hub_feedback")
+
+
+# The mark (option E, Aaron 2026-11-02): a navy slide in front of a teal one, light and dark; the favicon draws the same.
+MARK_SVG = ('<svg class="mark" viewBox="0 0 40 40" role="img" aria-label="Two stacked slides"><rect class="mb" x="12" y="6" width="24" height="18" rx="4"/>'
+            '<rect class="mf" x="4" y="14" width="24" height="18" rx="4"/></svg>')
+FAVICON = ('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 40 40\'%3E%3Cstyle%3E.b%7Bfill:%2315627E%7D.f%7Bfill:%231C2541%7D'
+           '@media(prefers-color-scheme:dark)%7B.b%7Bfill:%235FB3C9%7D.f%7Bfill:%23EEF3FA%7D%7D%3C/style%3E%3Crect class=\'b\' x=\'12\' y=\'6\' width=\'24\' height=\'18\' rx=\'4\'/%3E'
+           '%3Crect class=\'f\' x=\'4\' y=\'14\' width=\'24\' height=\'18\' rx=\'4\'/%3E%3C/svg%3E">')
 
 
 def _assemble():
@@ -109,7 +117,7 @@ def _assemble():
             views.append(f'<section class="view tabview" id="v-{m.TAB}" aria-label="{html.escape(m.NAME)}" hidden>{m.VIEW}</section>')
         css.append(m.CSS)
         js.append(m.JS)
-    return (_PAGE.replace("<!--__TAB_VIEWS__-->", "\n".join(views))
+    return (_PAGE.replace("__FAVICON__", FAVICON).replace("__MARK__", MARK_SVG).replace("<!--__TAB_VIEWS__-->", "\n".join(views))
             .replace("/*__TAB_CSS__*/", "\n".join(css)).replace("//__TAB_JS__", "\n".join(js)))
 
 
@@ -127,7 +135,7 @@ _PAGE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CSM Sheila</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cstyle%3E.b%7Bfill:%2315627E%7D.f%7Bfill:%231C2541%7D@media(prefers-color-scheme:dark)%7B.b%7Bfill:%235FB3C9%7D.f%7Bfill:%23EEF3FA%7D%7D%3C/style%3E%3Crect class='b' x='12' y='6' width='24' height='18' rx='4'/%3E%3Crect class='f' x='4' y='14' width='24' height='18' rx='4'/%3E%3C/svg%3E">
+__FAVICON__
 <style>
 :root{
   --display:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
@@ -417,7 +425,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
 <div class="app" id="app">
   <aside class="side" aria-label="Sheila">
     <div class="brand">
-      <svg class="mark" viewBox="0 0 40 40" role="img" aria-label="Two stacked slides"><rect class="mb" x="12" y="6" width="24" height="18" rx="4"/><rect class="mf" x="4" y="14" width="24" height="18" rx="4"/></svg>
+      __MARK__
       <div class="lbl"><b>CSM Sheila</b><small>__VERSION__</small></div>
       <button class="foldbtn" id="fold" aria-label="Fold the sidebar" title="Fold the sidebar"><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button>
     </div>
@@ -426,7 +434,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
       <a class="nl" data-tab="lift" href="/classic#lift" data-tip="Lift Matrix"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg><span class="lbl">Lift Matrix</span></a>
       <a class="nl" data-tab="issues" href="/classic#issues" data-tip="Data Issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg><span class="lbl">Data Issues</span><span class="badge hot" id="b-issues" title="Open data issues"></span></a>
       <a class="nl" data-tab="votes" href="/classic#votes" data-tip="Slide Review"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg><span class="lbl">Slide Review</span></a>
-      <a class="nl" data-tab="reported" href="/classic#reported" data-tip="Feedback"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg><span class="lbl">Feedback</span></a>
+      <a class="nl" data-tab="reported" href="#reported" data-tip="Feedback"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg><span class="lbl">Feedback</span></a>
     </nav>
     <div class="sec">Reference</div>
     <nav class="nav">
@@ -440,6 +448,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
       <span class="sp"></span>
       <button class="buildpill" id="buildpill" hidden></button>
       <span class="seg opt" role="group" aria-label="Row density"><button id="dn-c" aria-pressed="true">Comfortable</button><button id="dn-k" aria-pressed="false">Compact</button></span>
+      <button class="ctl" id="reportbtn" title="Report a problem with Sheila or a deck"><svg viewBox="0 0 16 16"><path d="M3 3h10v7H8l-3 2.5V10H3V3Z"/></svg><span class="opt">Report</span></button>
       <button class="ctl" id="night" aria-label="Switch between night and day"><svg viewBox="0 0 16 16"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5Z"/></svg><span id="night-l">Night</span></button>
       <button class="ctl" id="period" aria-haspopup="menu" aria-expanded="false"></button>
     </div>
@@ -467,7 +476,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
   <a data-tab="lift" href="/classic#lift"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg>Lift</a>
   <a data-tab="issues" href="/classic#issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg>Issues</a>
   <a data-tab="votes" href="/classic#votes"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg>Review</a>
-  <a data-tab="reported" href="/classic#reported"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg>Feedback</a>
+  <a data-tab="reported" href="#reported"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg>Feedback</a>
 </nav>
 <dialog id="pal" aria-label="Search and actions"><input id="pq" type="text" placeholder="Search a client, or type an action…" autocomplete="off" aria-label="Search"><ul id="pl" role="listbox"></ul><div class="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div></dialog>
 <dialog id="keys"><h2>Keyboard shortcuts</h2><dl id="keyl"></dl><p style="margin:14px 0 0;text-align:right"><button class="btn" id="keyx">Close</button></p></dialog>
@@ -883,6 +892,7 @@ function celebrate() {
 const ACTIONS = () => [
   ...Object.entries(TAB_NAMES).filter(([id]) => id !== TAB).map(([id, n]) => ({t: "Go to " + n, s: "G " + Object.keys(TAB_KEY).find(k => TAB_KEY[k] === id).toUpperCase(), run: () => go(id)})),
   ...(TAB !== "decks" && TABS[TAB] && TABS[TAB].palette ? TABS[TAB].palette() : []),
+  ...Object.values(TABS).flatMap(t => t.global ? t.global() : []),
   ...(TAB === "decks" && CUR ? [{t: "Back to the Decks overview", s: "Esc", run: () => closeClient()}] : []),
   {t: "Refresh the client list", s: "", run: () => { loadClients(true); toast("Refreshing the list…"); }},
   ...(ME.csm ? [{t: "Show my clients (" + ME.csm + ")", s: "", run: () => setCsm(ME.csm)}, {t: "Show every CSM's clients", s: "", run: () => setCsm("")}] : []),
@@ -973,7 +983,7 @@ document.addEventListener("click", ev => {
   if (tabLink && TABS[tabLink.dataset.tab] || tabLink && tabLink.dataset.tab === "decks") { ev.preventDefault(); return go(tabLink.dataset.tab); }
   // The open client's row again closes it (Aaron, 2026-11-02): back to the overview.
   const row = t.closest(".row[data-id], .wi[data-id]"); if (row) return row.dataset.id === CUR ? closeClient() : openClient(row.dataset.id);
-  const kp = t.closest(".kpi"); if (kp) { FILTER = FILTER === kp.dataset.kind ? "" : kp.dataset.kind; return renderList(); }
+  const kp = t.closest("#kpis .kpi"); if (kp) { FILTER = FILTER === kp.dataset.kind ? "" : kp.dataset.kind; return renderList(); }
   if (t.closest("#clearf")) { FILTER = ""; return renderList(); }
   if (t.closest("#relist")) return loadClients(true);
   if (t.closest("#period")) return openCycles();

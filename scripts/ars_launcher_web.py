@@ -1133,16 +1133,29 @@ def changelog_page(path=None):
             para.append(s.strip())
     flush()
     return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-            "<title>CSM Sheila · Change log</title><style>"
-            "body{margin:0;background:#F4F6F9;color:#0E1B2A;font:15.5px/1.55 'Segoe UI',Arial,sans-serif}"
-            "header{background:#00274C;color:#fff;padding:14px 24px;font-weight:700;font-size:19px}"
-            "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
-            "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F47A29;padding-bottom:4px}"
-            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}p.sum{font-weight:600;background:#E9EFF6;border-left:3px solid #F47A29;padding:6px 10px;border-radius:4px}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
-            "p.rel{margin:14px 0 0;padding:8px 12px;border-radius:6px;background:#E3EEE7;color:#1E4D33;font-size:14px}"
-            "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}p.sum{background:#16283A}p.rel{background:#15301F;color:#BFE3C9}}"
-            "</style></head><body><header>CSM Sheila · Change log</header><main>"
+            "<title>CSM Sheila · Change log</title>" + sheila_hub.FAVICON + "<style>" + CHANGELOG_CSS + "</style></head><body>"
+            "<header><a class=\"home\" href=\"/\">" + sheila_hub.MARK_SVG + "<b>CSM Sheila</b></a><span>Change log</span>"
+            "<a class=\"back\" href=\"/\">Back to Sheila</a></header><main>"
             + "\n".join(body) + "</main></body></html>")
+
+
+# The change log page wears the Hub's colours in both themes, so it reads as part of Sheila (Aaron, 2026-11-02).
+CHANGELOG_CSS = (
+    ":root{--ground:#EDF1F7;--sheet:#FFFFFF;--fill:#E4EAF3;--line:#C6D1E0;--ink:#0B132B;--muted:#4A5C75;--link:#15627E;--mf:#1C2541;--mb:#15627E}"
+    "@media (prefers-color-scheme:dark){:root{--ground:#0B132B;--sheet:#141D38;--fill:#28344F;--line:#3A506B;--ink:#EEF3FA;--muted:#A3B3C9;--link:#5BC0DE;--mf:#EEF3FA;--mb:#5FB3C9}}"
+    "*{box-sizing:border-box}body{margin:0;background:var(--ground);color:var(--ink);font:15.5px/1.55 'Segoe UI Variable Text','Segoe UI',Calibri,sans-serif}"
+    "header{display:flex;align-items:center;gap:14px;max-width:900px;margin:0 auto;padding:16px 20px 6px}"
+    "header .home{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-size:17px}"
+    "header .home svg{width:36px;height:36px}header .mf{fill:var(--mf)}header .mb{fill:var(--mb)}"
+    "header span{color:var(--muted)}header .back{margin-left:auto;color:var(--link)}"
+    "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
+    "h1{font-size:24px}h2{font-size:20px;margin-top:34px;padding-bottom:4px;border-bottom:1px solid var(--line)}"
+    "h3{font-size:17px;margin:28px 0 6px}h3:target{outline:2px solid var(--link);outline-offset:4px;border-radius:6px}"
+    "p.sum{font-weight:600;background:var(--fill);padding:8px 12px;border-radius:12px}"
+    "code{background:var(--fill);padding:1px 5px;border-radius:5px;font-size:.9em}a{color:var(--link)}"
+    "p.rel{margin:14px 0 0;padding:8px 12px;border-radius:12px;background:var(--sheet);border:1px solid var(--line);color:var(--muted);font-size:14px}"
+    "@media (max-width:600px){header{flex-wrap:wrap}}"
+)
 
 
 def reveal_deck(cid, period, name):
