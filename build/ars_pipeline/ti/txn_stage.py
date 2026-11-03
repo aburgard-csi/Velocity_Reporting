@@ -25,10 +25,8 @@ from ti.transaction_intelligence import loader
 
 
 def cache_root() -> Path:
-    if os.environ.get("TI_CACHE_DIR"):
-        return Path(os.environ["TI_CACHE_DIR"])
-    base = os.environ.get("LOCALAPPDATA")
-    return Path(base) / "RPE" / "ti_cache" if base else Path.home() / ".rpe" / "ti_cache"
+    import local_cache
+    return local_cache.ti_cache_root()
 
 
 def staged_dir(client_id) -> Path:
@@ -96,7 +94,16 @@ def one_per_name(sources, staged):
 
 
 def stage(client_id, months: int = 12, anchor=None, log=print) -> Path:
-    """The staging folder for the client, holding exactly the window's transaction files."""
+    """The staging folder for the client, holding exactly the window's transaction files.
+
+    The cache is kept inside local_cache's size and age limits first (2026-11-03): the client being built is never
+    evicted, the clients least recently used go, so the disk does not fill with every client Sheila has ever built."""
+    import local_cache
+    local_cache.touch(client_id)
+    try:
+        local_cache.trim_ti_cache(keep=client_id, log=log)
+    except OSError as e:                                  # a locked file must not stop a build
+        log(f"could not trim the Transaction Intelligence cache: {e}")
     target = staged_dir(client_id)
     target.mkdir(parents=True, exist_ok=True)
     keep = set()
