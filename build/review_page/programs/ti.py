@@ -94,7 +94,8 @@ def _competition(ctx, p):
     dol = M.get("comp_competitor_dollars")
     cols = [B.col("name", "Institution"), B.col("tier", "Type"), B.col("accts", "Members paying it", "int"), B.col("pct", "% of members", "pct1"),
             B.col("dol", "Dollars", "usd"), B.col("dpa", "Per account", "usd"), B.col("new", "New, last 90 days", "int"), B.col("stop", "Stopped", "int")]
-    rows = [{"name": r[0], "tier": r[1], "accts": r[2], "pct": r[3], "dol": r[5], "dpa": r[6], "new": r[8], "stop": r[9]} for r in inst]
+    rows = sorted(({"name": r[0], "tier": r[1], "accts": r[2], "pct": r[3], "dol": r[5], "dpa": r[6], "new": r[8], "stop": r[9]} for r in inst),
+                  key=lambda r: -r["dol"])
     tbl = B.table("comp-table", "Institutions our members pay", cols, rows, sort={"key": "dol", "dir": "desc"},
                   sub="Transacting personal accounts that paid the institution in the window.")
     chart = B.bars("comp-chart", "Dollars our members paid competing institutions", [r["name"] for r in rows[:15]],
@@ -118,7 +119,7 @@ def _leakage(ctx, p):
         return _needs("leakage", "Who else members borrow from", "Competition · Financial leakage",
                       "Where members borrow and insure outside the credit union needs this client's transaction files.",
                       "The Transaction Intelligence build for this client did not read any transaction files, so there are no payments to other lenders to show.", fix)
-    cats = M.get("fin_by_category") or []
+    cats = [r for r in (M.get("fin_by_category") or []) if len(r) > 6 and r[6] == "leakage"]   # the categories the headline total counts
     cols = [B.col("name", "Category"), B.col("accts", "Members", "int"), B.col("pct", "% of members", "pct1"), B.col("dol", "Dollars", "usd"), B.col("dpa", "Per member", "usd")]
     rows = [{"name": r[0], "accts": r[1], "pct": r[2], "dol": r[4], "dpa": r[5]} for r in cats]
     tbl = B.table("leak-table", "Payments to other lenders and providers, by category", cols, rows, sort={"key": "dol", "dir": "desc"})
