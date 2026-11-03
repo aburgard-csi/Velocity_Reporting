@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review: the rail and the Present button work again
+
+Summary: Fixes a Live Review bug from the product marker released earlier today, where every click was read as "go to ARS" so the left-hand screen list and the Present button did nothing.
+
+Aaron, 2026-11-03: "it opened but the left hand navigation isn't working", "the Present button isn't working either".
+
+- **Cause.** The product marker set `data-prog` on the page's root element for its colours. The click handler's first rule treats any element with `data-prog` as a program tab and looks for it with `closest`, which finds the root for every click. The attribute is now `data-product`.
+- `tests/test_live_review.py` pins that `data-prog` is never set on the page. Checked in a browser: rail clicks, Present and Esc, program tabs.
+
 ### 2026-11-03 — Live Review: the product is marked, and the peer screens name the client and give peer numbers
 
 Summary: Live Review now shows which product is on screen (a coloured tag and top rule, and a title card for a moment when the story moves into another product), the peer screens call the client by its name instead of "This client", and a peer dot's hover gives that client's number instead of "Another client".

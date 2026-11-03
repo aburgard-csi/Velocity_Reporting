@@ -294,14 +294,14 @@ html.present .notes{margin-bottom:10px}
   --p-ars:#2F5FB5;--p-analysis:#2F5FB5;--p-ti:#0D7A6F;--p-ics:#B5476B;--p-mrpc:#7F6410;--p-cashplease:#8F4FB0}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}}
 :root[data-theme="dark"]{--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}
-html[data-prog="ars"]{--pfc:var(--pf-ars);--pc:var(--p-ars)}
-html[data-prog="analysis"]{--pfc:var(--pf-analysis);--pc:var(--p-analysis)}
-html[data-prog="ti"]{--pfc:var(--pf-ti);--pc:var(--p-ti)}
-html[data-prog="ics"]{--pfc:var(--pf-ics);--pc:var(--p-ics)}
-html[data-prog="mrpc"]{--pfc:var(--pf-mrpc);--pc:var(--p-mrpc)}
-html[data-prog="cashplease"]{--pfc:var(--pf-cashplease);--pc:var(--p-cashplease)}
-html[data-prog] body::before{content:"";position:fixed;left:0;right:0;top:0;height:6px;background:var(--pfc);z-index:60}
-html[data-prog] .eyebrow{color:var(--pc)}
+html[data-product="ars"]{--pfc:var(--pf-ars);--pc:var(--p-ars)}
+html[data-product="analysis"]{--pfc:var(--pf-analysis);--pc:var(--p-analysis)}
+html[data-product="ti"]{--pfc:var(--pf-ti);--pc:var(--p-ti)}
+html[data-product="ics"]{--pfc:var(--pf-ics);--pc:var(--p-ics)}
+html[data-product="mrpc"]{--pfc:var(--pf-mrpc);--pc:var(--p-mrpc)}
+html[data-product="cashplease"]{--pfc:var(--pf-cashplease);--pc:var(--p-cashplease)}
+html[data-product] body::before{content:"";position:fixed;left:0;right:0;top:0;height:6px;background:var(--pfc);z-index:60}
+html[data-product] .eyebrow{color:var(--pc)}
 .ptag{display:inline-flex;align-items:center;padding:5px 15px;border-radius:999px;background:var(--pfc,var(--c-navy));color:#fff;font:800 .95rem var(--head);letter-spacing:.02em;white-space:nowrap}
 html.present .ptag{font-size:1.15rem;padding:6px 18px}
 #pdiv{position:fixed;inset:0;z-index:95;display:grid;place-items:center;background:var(--pfc,var(--c-navy));color:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
