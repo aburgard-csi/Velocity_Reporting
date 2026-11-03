@@ -77,7 +77,7 @@ def test_every_element_the_script_looks_up_exists():
 def test_the_hub_defines_every_colour_it_uses_and_themes_alike():
     css = H.PAGE.split("<style>", 1)[1].split("</style>", 1)[0]
     used = set(re.findall(r"var\(--([a-z0-9-]+)", css))
-    base = css.split("/* CSI brand colors, light */", 1)[0]
+    base = css.split("@media (prefers-color-scheme:dark)", 1)[0]
     defined = set(re.findall(r"(?<![a-z0-9-])--([a-z0-9-]+)\s*:", base))
     assert not (used - defined), sorted(used - defined)
     # a token the dark theme redefines is one the light theme defines first
@@ -96,13 +96,16 @@ def _ratio(a, b):
     return (hi + .05) / (lo + .05)
 
 
-def test_muted_text_reads_on_every_solid_ground_in_every_theme_and_skin():
+def test_there_is_one_set_of_colours_and_no_switch_for_another():
+    """Aaron, 2026-11-02: the CSI colours barely differ from the Hub's, so the Hub keeps only its own."""
+    assert "data-skin" not in H.PAGE and "hub-skin" not in H.PAGE and "CSI" not in H.PAGE
+
+
+def test_muted_text_reads_on_every_solid_ground_in_both_themes():
     css = H.PAGE.split("<style>", 1)[1].split("</style>", 1)[0]
     blocks = {
-        "hub-light": css.split("/* CSI brand colors, light */", 1)[0],
-        "csi-light": css.split("/* CSI brand colors, light */", 1)[1].split("@media", 1)[0],
-        "hub-dark": css.split(':root[data-theme="dark"]{', 1)[1].split("}", 1)[0],
-        "csi-dark": css.split(':root[data-theme="dark"][data-skin="csi"]{', 1)[1].split("}", 1)[0],
+        "light": css.split("@media (prefers-color-scheme:dark)", 1)[0],
+        "dark": css.split(':root[data-theme="dark"]{', 1)[1].split("}", 1)[0],
     }
     for name, block in blocks.items():
         t = dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6})", block))
@@ -110,3 +113,77 @@ def test_muted_text_reads_on_every_solid_ground_in_every_theme_and_skin():
                        ("good", "good-soft"), ("bad", "bad-soft"), ("warn", "warn-soft")):
             if fg in t and bg in t:
                 assert _ratio(t[fg], t[bg]) >= 4.5, (name, fg, bg, round(_ratio(t[fg], t[bg]), 2))
+
+
+# ------------------------------------------------------------------ who is asking (Aaron, 2026-11-02)
+NAMES = ["Aaron Burgard", "James Gilmore", "Jordan Berkowitz", "Jordan Lee"]
+EMAILS = {"Aaron Burgard": "Aaron.Burgard@csiweb.com", "James Gilmore": "jgilmore@csiweb.com",
+          "Jordan Berkowitz": "jberkowitz@csiweb.com", "Jordan Lee": "jlee@csiweb.com"}
+
+
+def who(user, environ=None, names=NAMES, emails=EMAILS):
+    return H.detect(user, names, lambda n: emails.get(n, ""), environ or {})
+
+
+def test_the_login_matches_a_csm_by_name():
+    me = who("aaron.burgard")
+    assert me["csm"] == "Aaron Burgard" and me["how"] == "login"
+    assert who("James_Gilmore")["csm"] == "James Gilmore"
+    assert who("AARON.BURGARD", emails={})["csm"] == "Aaron Burgard", "case never matters"
+
+
+def test_the_login_matches_a_csm_by_the_local_part_of_their_email():
+    me = who("jgilmore")                      # not their name, but James Gilmore's email is jgilmore@
+    assert me["csm"] == "James Gilmore" and me["how"] == "login"
+    assert who("JBerkowitz")["csm"] == "Jordan Berkowitz"
+
+
+def test_a_login_nobody_has_filters_nothing_and_says_so_quietly():
+    me = who("svc.build")
+    assert me["csm"] is None and "every client is shown" in me["note"]
+    assert who("")["csm"] is None and who(None)["csm"] is None
+    assert who("aaron.burgard", names=[])["csm"] is None, "a CSM list that cannot be read is no match"
+
+
+def test_two_csms_for_one_login_is_ambiguous_never_a_guess():
+    twin = dict(EMAILS, **{"Jordan Lee": "jberkowitz@csiweb.com"})      # two rows with one local part
+    me = who("jberkowitz", emails=twin)
+    assert me["csm"] is None and "More than one" in me["note"]
+    # the name says one CSM and the email another
+    crossed = dict(EMAILS, **{"James Gilmore": "aaron.burgard@csiweb.com"})
+    assert who("aaron.burgard", emails=crossed)["csm"] is None
+
+
+def test_the_override_replaces_the_login_and_a_bad_one_filters_nothing():
+    assert who("aaron.burgard", {"RPE_SHEILA_CSM": "James Gilmore"})["csm"] == "James Gilmore"
+    me = who("svc.build", {"RPE_SHEILA_CSM": "gilmore"})              # a last name only one CSM has
+    assert me["csm"] == "James Gilmore" and me["how"] == "override"
+    assert who("aaron.burgard", {"RPE_SHEILA_CSM": "jordan"})["csm"] is None, "two Jordans: ambiguous"
+    bad = who("aaron.burgard", {"RPE_SHEILA_CSM": "Nobody Here"})
+    assert bad["csm"] is None and bad["how"] == "override" and "no CSM Sheila knows" in bad["note"]
+
+
+def test_the_server_hands_the_page_who_it_is_and_the_page_cannot_be_broken_by_it(server, monkeypatch):
+    monkeypatch.setenv("RPE_SHEILA_HUB", "1")
+    monkeypatch.setattr(H, "who_am_i", lambda: {"csm": "Aaron Burgard", "how": "login", "note": ""})
+    status, data = get(server, "/hub")
+    assert status == 200 and b'"csm": "Aaron Burgard"' in data and b"__ME__" not in data
+    page = H.page("T", "", {"csm": "x</script><b>", "how": "login", "note": ""})
+    assert "</script><b>" not in page and "\\u003c/script" in page
+    assert '"csm": null' in H.page("T", "")
+
+
+def test_who_am_i_never_raises_and_is_worked_out_once(monkeypatch):
+    H._me.clear()
+    monkeypatch.setenv("RPE_DATA_ROOT", os.path.join(REPO, "no-such-root"))
+    monkeypatch.delenv("RPE_SHEILA_CSM", raising=False)
+    first = H.who_am_i()
+    assert first["csm"] is None and H.who_am_i() is first
+    H._me.clear()
+
+
+def test_the_selected_row_has_no_accent_bar():
+    """Aaron, 2026-11-02: no amber edge on the selected client; the tinted fill and a thin ring say it."""
+    assert "inset 3px 0 0" not in H.PAGE
+    row = re.search(r'\.row\[aria-current="true"\]\{([^}]*)\}', H.PAGE).group(1)
+    assert "var(--fill)" in row and "var(--accent" not in row

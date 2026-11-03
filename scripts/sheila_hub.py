@@ -13,19 +13,98 @@ Building, In Outputs, Needs attention or Blocked.
 The look is borrowed from the tools people like to use: Linear's dense rows with a status shape in front, J/K and
 Enter to move through them; Vercel's pulsing dot for a build in progress; Raycast's command palette (Ctrl K) and its
 compact mode; Stripe's calm, tinted status pills. The glass sidebar, tokens and both themes come from the Pack 205
-Hub, with a switch to the CSI colours.
+Hub.
 """
+import getpass
 import html
+import json
 import os
+import sys
+from pathlib import Path
 
 
 def enabled():
     return os.environ.get("RPE_SHEILA_HUB") == "1"
 
 
-def page(token, version=""):
+# ------------------------------------------------------------------ who is asking
+# The Hub opens on the signed-in person's own clients (Aaron, 2026-11-02). Worked out here, once, on the server and
+# handed to the page: the page never says who it is. It is a convenience filter, not security: the person can switch
+# to every CSM from the page, and a wrong guess is worse than none, so nothing short of exactly one match filters.
+OVERRIDE_ENV = "RPE_SHEILA_CSM"
+NOT_KNOWN = "Couldn't tell which CSM you are, so every client is shown."
+
+
+def _name_from_user(user):
+    """'aaron.burgard' -> 'Aaron Burgard'."""
+    return " ".join(p[:1].upper() + p[1:].lower() for p in user.replace("_", ".").split(".") if p)
+
+
+def detect(user=None, names=None, email_of=None, environ=None):
+    """The CSM this person is, as {csm, how, note}; csm is None unless exactly one CSM matches.
+
+    `names` are the CSMs the Client CSM List names, `email_of(name)` that CSM's email in CSM Contacts.csv
+    (rpe_env.contact_by_name). RPE_SHEILA_CSM="Name" (a full name, or a first or last name that only one CSM has)
+    replaces the login, for testing and for a person running Sheila from someone else's login. The login
+    (aaron.burgard) matches a CSM by name (Aaron Burgard) or by the email's local part (aaron.burgard@csiweb.com);
+    two CSMs, or two rules naming different CSMs, is ambiguous and filters nothing.
+    """
+    environ = os.environ if environ is None else environ
+    names = sorted(names or [])
+    asked = (environ.get(OVERRIDE_ENV) or "").strip()
+    if asked:
+        want = asked.casefold()
+        hits = [n for n in names if n.casefold() == want] or [n for n in names if want in n.casefold().split()]
+        if len(hits) == 1:
+            return {"csm": hits[0], "how": "override", "note": ""}
+        return {"csm": None, "how": "override",
+                "note": f"{OVERRIDE_ENV} names {'more than one CSM' if hits else 'no CSM Sheila knows'}, so every client is shown."}
+    user = (user or "").strip()
+    if not user:
+        return {"csm": None, "how": None, "note": NOT_KNOWN}
+    found = {n for n in names if n.casefold() == _name_from_user(user).casefold()}
+    for n in names:
+        mail = (email_of(n) if email_of else "") or ""
+        if "@" in mail and mail.split("@")[0].strip().casefold() == user.casefold():
+            found.add(n)
+    if len(found) == 1:
+        return {"csm": next(iter(found)), "how": "login", "note": ""}
+    if found:
+        return {"csm": None, "how": None, "note": "More than one CSM could be you, so every client is shown."}
+    return {"csm": None, "how": None, "note": NOT_KNOWN}
+
+
+_me = {}
+
+
+def who_am_i():
+    """`detect` on this PC's login and the share's CSM files, once per process. Never raises: a share that is
+    not reachable is the same as no match."""
+    if "me" not in _me:
+        try:
+            import rpe_env as R
+            root = str(Path(__file__).resolve().parent.parent)
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            from sheila_mcp import who
+
+            def email_of(name):
+                try:
+                    return R.contact_by_name(name).get("email", "")
+                except SystemExit:
+                    return ""
+            _me["me"] = detect(getpass.getuser(), who.csm_names(), email_of)
+        except (Exception, SystemExit):        # noqa: BLE001 - a convenience, never a reason the page fails
+            _me["me"] = detect("", [], environ={})
+    return _me["me"]
+
+
+def page(token, version="", me=None):
     v = f"Version {html.escape(version)}" if version else "Preview"
-    return PAGE.replace("__TOKEN__", token).replace("__VERSION__", v)
+    me = me or {}
+    # It sits inside a <script>: nothing in the JSON may close it.
+    data = json.dumps({"csm": me.get("csm"), "how": me.get("how"), "note": me.get("note") or ""}).replace("<", "\\u003c")
+    return PAGE.replace("__TOKEN__", token).replace("__VERSION__", v).replace("__ME__", data)
 
 
 PAGE = r"""<!doctype html>
@@ -50,17 +129,6 @@ PAGE = r"""<!doctype html>
   --pop:0 12px 40px -8px rgba(11,19,43,.35),0 2px 6px rgba(11,19,43,.12);
   --toast-bg:#1C2541; --toast-ink:#FFFFFF;
 }
-/* CSI brand colors, light */
-:root[data-skin="csi"]{
-  --ground:#F4F6F9; --glow-a:rgba(241,93,34,.10); --glow-b:rgba(3,91,149,.12);
-  --surface:rgba(255,255,255,.78); --sheet:#FFFFFF; --fill:#E9EEF4; --line:#D3DBE4;
-  --glass:rgba(255,255,255,.66); --glass-line:rgba(0,39,76,.18); --glass-hi:rgba(0,39,76,.08);
-  --ink:#0E1B2A; --muted:#566370; --navy:#00274C;
-  --accent:#F15D22; --accent-ink:#B8430F; --accent-soft:rgba(241,93,34,.13); --on-accent:#00274C;
-  --good:#035B95; --good-soft:#DCEBF6; --warn:#7A5200; --warn-soft:#FFF0D6; --bad:#B42318; --bad-soft:#FCE9E7;
-  --shadow:0 1px 2px rgba(0,39,76,.05),0 14px 30px -24px rgba(0,39,76,.35);
-  --toast-bg:#00274C;
-}
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
@@ -73,14 +141,6 @@ PAGE = r"""<!doctype html>
     --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -24px rgba(0,0,0,.85);
     --pop:0 16px 48px -8px rgba(0,0,0,.7),0 2px 6px rgba(0,0,0,.4);
     --toast-bg:#28344F; --toast-ink:#EEF3FA;
-  }
-  :root:not([data-theme="light"])[data-skin="csi"]{
-    --ground:#0B1520; --glow-a:rgba(241,93,34,.14); --glow-b:rgba(143,180,218,.14);
-    --surface:rgba(18,32,45,.7); --sheet:#12202D; --fill:#1B2B3C; --line:#2A3E52;
-    --glass:rgba(18,32,45,.58); --glass-line:rgba(167,180,193,.24); --glass-hi:rgba(230,236,242,.1);
-    --ink:#E6ECF2; --muted:#A7B4C1; --navy:#E6ECF2;
-    --accent:#F15D22; --accent-ink:#F7A86B; --accent-soft:rgba(241,93,34,.2); --on-accent:#00274C;
-    --good:#8FB4DA; --good-soft:#16283A; --warn:#E6B45C; --warn-soft:#33270F; --bad:#F08579; --bad-soft:#3A1C1A;
   }
 }
 :root[data-theme="dark"]{
@@ -95,20 +155,12 @@ PAGE = r"""<!doctype html>
   --pop:0 16px 48px -8px rgba(0,0,0,.7),0 2px 6px rgba(0,0,0,.4);
   --toast-bg:#28344F; --toast-ink:#EEF3FA;
 }
-:root[data-theme="dark"][data-skin="csi"]{
-  --ground:#0B1520; --glow-a:rgba(241,93,34,.14); --glow-b:rgba(143,180,218,.14);
-  --surface:rgba(18,32,45,.7); --sheet:#12202D; --fill:#1B2B3C; --line:#2A3E52;
-  --glass:rgba(18,32,45,.58); --glass-line:rgba(167,180,193,.24); --glass-hi:rgba(230,236,242,.1);
-  --ink:#E6ECF2; --muted:#A7B4C1; --navy:#E6ECF2;
-  --accent:#F15D22; --accent-ink:#F7A86B; --accent-soft:rgba(241,93,34,.2); --on-accent:#00274C;
-  --good:#8FB4DA; --good-soft:#16283A; --warn:#E6B45C; --warn-soft:#33270F; --bad:#F08579; --bad-soft:#3A1C1A;
-}
 *{box-sizing:border-box}
 html,body{background:var(--ground)}
 body{margin:0;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
 .glow{position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:radial-gradient(38rem 26rem at 8% 14%,var(--glow-a),transparent 70%),radial-gradient(44rem 30rem at 96% 4%,var(--glow-b),transparent 70%),radial-gradient(36rem 26rem at 88% 96%,var(--glow-a),transparent 72%)}
-:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+:focus-visible{outline:2px solid var(--good);outline-offset:2px}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
 [hidden]{display:none!important}
@@ -163,6 +215,9 @@ main{min-width:0;display:flex;flex-direction:column;gap:16px;padding-top:2px}
 .vh h1{font:700 26px/1.15 var(--display);margin:0;letter-spacing:-.015em}
 .vh p{margin:4px 0 0;color:var(--muted);font-size:14px}
 .link{background:none;border:0;padding:0;color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px}
+.mine{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:13.5px;color:var(--muted);margin-top:-8px}
+.mine:empty{display:none}
+.mine .who{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-weight:700}
 
 /* ---- status shapes (Linear): the shape carries the state, the colour only backs it up ---- */
 .si{display:inline-block;flex:none;width:16px;height:16px;vertical-align:-3px}
@@ -206,7 +261,7 @@ main{min-width:0;display:flex;flex-direction:column;gap:16px;padding-top:2px}
 .row{display:grid;grid-template-columns:20px 3.2em minmax(0,1fr) auto auto;gap:8px;align-items:center;width:100%;min-height:40px;padding:4px 8px;border:0;background:none;border-radius:10px;text-align:left;transition:background .1s}
 :root[data-density="compact"] .row{min-height:31px;padding-block:1px}
 .row:hover{background:var(--glass-hi)}
-.row[aria-current="true"]{background:var(--fill);box-shadow:inset 3px 0 0 var(--accent)}
+.row[aria-current="true"]{background:var(--fill);box-shadow:inset 0 0 0 1px var(--glass-line)}
 .row .rid{font:12.5px var(--mono);color:var(--muted)}
 .row .rnm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pd{display:inline-flex;gap:3px}
@@ -293,7 +348,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
 #pal input{width:100%;border:0;border-bottom:1px solid var(--line);background:none;outline:0;padding:16px 18px;font-size:17px}
 #pal ul{list-style:none;margin:0;padding:6px;max-height:min(52vh,420px);overflow:auto}
 #pal li button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:0 12px;border:0;border-radius:10px;background:none;text-align:left}
-#pal li button[aria-selected="true"]{background:var(--fill);box-shadow:inset 3px 0 0 var(--accent)}
+#pal li button[aria-selected="true"]{background:var(--fill);box-shadow:inset 0 0 0 1px var(--glass-line)}
 #pal li small{margin-left:auto;color:var(--muted);font-size:12px}
 #pal .gt{padding:8px 12px 2px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 #pal .foot{display:flex;gap:14px;padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
@@ -361,12 +416,12 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
       <span class="sp"></span>
       <button class="buildpill" id="buildpill" hidden></button>
       <span class="seg opt" role="group" aria-label="Row density"><button id="dn-c" aria-pressed="true">Comfortable</button><button id="dn-k" aria-pressed="false">Compact</button></span>
-      <span class="seg opt" role="group" aria-label="Colors"><button id="sk-h" aria-pressed="true">Hub</button><button id="sk-c" aria-pressed="false">CSI</button></span>
       <button class="ctl" id="night" aria-label="Switch between night and day"><svg viewBox="0 0 16 16"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5Z"/></svg><span id="night-l">Night</span></button>
       <button class="ctl" id="period" aria-haspopup="menu" aria-expanded="false"></button>
     </div>
     <section class="view" aria-label="Decks">
       <div class="vh"><div><h1>Decks</h1><p id="sub">Loading this cycle…</p></div></div>
+      <div class="mine" id="mine"></div>
       <div class="kpis" id="kpis" role="group" aria-label="Filter by status"></div>
       <div class="split" id="split">
         <section class="card" aria-label="Clients">
@@ -395,6 +450,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
 <canvas id="confetti"></canvas>
 <script>
 const TOKEN = "__TOKEN__";
+const ME = __ME__;          // who the server says is asking: {csm, how, note}; csm is null unless exactly one CSM matched
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -424,7 +480,7 @@ const WORD = Object.fromEntries(KINDS.map(([k, w]) => [k, w]));
 
 let CLIENTS = [], PERIOD = null, PERIODS = [], CYCLE_NOW = null, AGE = null, REFRESHING = false;
 let QUEUE = {building: null, queued: []}, CUR = null, S = null, JOB = null, ARMED = null;
-let FILTER = "", CURSOR = null, poller = null, statusTimer = null, clientsTimer = null, openTimer = null, LOADED = false;
+let ME_APPLIED = false, FILTER = "", CURSOR = null, poller = null, statusTimer = null, clientsTimer = null, openTimer = null, LOADED = false;
 
 function kindOf(c) {
   const place = QUEUE.queued.indexOf(c.id);
@@ -476,6 +532,18 @@ function renderList() {
   $("#list").innerHTML = rows.length ? html : `<p class="empty">No clients match.</p>`;
 }
 
+// The chip above the list: whose clients it shows, and the way to the others. Said quietly when nobody was recognised.
+function paintMine() {
+  const el = $("#mine"), sel = $("#csm").value;
+  if (!LOADED) { el.innerHTML = ""; return; }
+  if (!ME.csm) { el.innerHTML = `<span>${esc(ME.note || "Couldn't tell which CSM you are, so every client is shown.")}</span>`; return; }
+  if (![...$("#csm").options].some(o => o.value === ME.csm)) { el.innerHTML = `<span>${esc(ME.csm)} has no clients this cycle, so every client is shown.</span>`; return; }
+  const mine = `<button class="link" data-act="mycsm">Show ${esc(ME.csm)}'s</button>`, all = `<button class="link" data-act="allcsm">Show all</button>`;
+  if (sel === ME.csm) el.innerHTML = `<span class="who">Showing ${esc(ME.csm)}'s clients</span>${all}`;
+  else if (!sel) el.innerHTML = `<span>Showing every CSM's clients</span>${mine}`;
+  else el.innerHTML = `<span class="who">Showing ${esc(sel)}'s clients</span>${mine}${all}`;
+}
+
 function ago(sec) { return sec == null ? "" : sec < 60 ? "just now" : sec < 3600 ? Math.round(sec / 60) + " min ago" : Math.round(sec / 3600) + " h ago"; }
 
 function applyClients(body) {
@@ -483,9 +551,11 @@ function applyClients(body) {
   if (body.periods) PERIODS = body.periods; if (body.cycle_now) CYCLE_NOW = body.cycle_now;
   const csms = [...new Set(CLIENTS.map(c => c.csm))], keep = $("#csm").value;
   $("#csm").innerHTML = `<option value="">All CSMs</option>` + csms.map(c => `<option>${esc(c)}</option>`).join("");
-  const want = $("#csm").dataset.touched ? keep : (recall("ars-builder-csm") || keep);
+  // First list: the person's own CSM when the server knew who they are, else what they last picked. Later lists keep the choice.
+  const want = ME_APPLIED ? keep : ME.csm && csms.includes(ME.csm) ? ME.csm : (recall("ars-builder-csm") || keep);
   if (want && csms.includes(want)) $("#csm").value = want;
-  paintPeriod(); renderList();
+  ME_APPLIED = true;
+  paintPeriod(); renderList(); paintMine();
   $("#sub").innerHTML = `${esc(PERIOD || "No period")} · list as of ${esc(ago(AGE))}${REFRESHING ? ", updating…" : ""} · <button class="link" id="relist">Refresh</button>`;
   if (!CUR) renderOverview();
 }
@@ -769,6 +839,7 @@ function celebrate() {
 const ACTIONS = () => [
   {t: "Go to Decks", s: "this page", run: () => closeClient()},
   {t: "Refresh the client list", s: "", run: () => { loadClients(true); toast("Refreshing the list…"); }},
+  ...(ME.csm ? [{t: "Show my clients (" + ME.csm + ")", s: "", run: () => setCsm(ME.csm)}, {t: "Show every CSM's clients", s: "", run: () => setCsm("")}] : []),
   ...(CUR && S ? [{t: "Check " + CUR + " again", s: "R", run: () => openClient(CUR, true)}, {t: "Build the Executive Review for " + CUR, s: "B", run: () => firstBuild()}] : []),
   {t: "Open Lift Matrix", s: "classic Sheila", run: () => location.href = "/#lift"},
   {t: "Open Data Issues", s: "classic Sheila", run: () => location.href = "/#issues"},
@@ -777,7 +848,6 @@ const ACTIONS = () => [
   {t: "Open the change log", s: "", run: () => window.open("/changelog", "_blank", "noopener")},
   {t: "Switch to night or day", s: "T", run: toggleNight},
   {t: "Compact rows on or off", s: "C", run: () => setDensity(document.documentElement.dataset.density === "compact" ? "" : "compact")},
-  {t: "Colors: Hub or CSI", s: "", run: () => setSkin(document.documentElement.dataset.skin === "csi" ? "" : "csi")},
   {t: "Show keyboard shortcuts", s: "?", run: () => $("#keys").showModal()},
   {t: "Open classic Sheila", s: "", run: () => location.href = "/"},
 ];
@@ -810,7 +880,6 @@ function setTheme(t) { if (t) document.documentElement.dataset.theme = t; else d
 function effectiveDark() { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
 function toggleNight() { setTheme(effectiveDark() ? "light" : "dark"); }
 function syncNight() { $("#night-l").textContent = effectiveDark() ? "Day" : "Night"; }
-function setSkin(s) { if (s) document.documentElement.dataset.skin = s; else delete document.documentElement.dataset.skin; store("hub-skin", s || ""); $("#sk-h").setAttribute("aria-pressed", !s); $("#sk-c").setAttribute("aria-pressed", !!s); }
 function setDensity(d) { if (d) document.documentElement.dataset.density = d; else delete document.documentElement.dataset.density; store("hub-density", d || ""); $("#dn-c").setAttribute("aria-pressed", !d); $("#dn-k").setAttribute("aria-pressed", !!d); }
 function setRail(on) { $("#app").classList.toggle("rail", on); store("hub-rail", on ? "1" : ""); $("#fold").setAttribute("aria-label", on ? "Unfold the sidebar" : "Fold the sidebar"); }
 
@@ -832,15 +901,17 @@ document.addEventListener("click", ev => {
   if (a === "build") startBuild(act.dataset.kind);
   else if (a === "confirm") startBuild(act.dataset.kind);
   else if (a === "cancel") { ARMED = null; renderDetail(); }
+  else if (a === "mycsm") setCsm(ME.csm);
+  else if (a === "allcsm") setCsm("");
   else if (a === "recheck") openClient(CUR, true);
   else if (a === "close" || a === "back") closeClient();
   else if (a === "revealpath") api("/api/reveal", {method: "POST", body: JSON.stringify({path: act.dataset.path})}).then(() => toast("Shown in File Explorer.")).catch(e => toast(e.message, "bad"));
 });
-$("#csm").addEventListener("change", e => { e.target.dataset.touched = "1"; store("ars-builder-csm", e.target.value); renderList(); if (!CUR) renderOverview(); });
+function setCsm(v) { $("#csm").value = v; if (!ME.csm) store("ars-builder-csm", v); renderList(); paintMine(); if (!CUR) renderOverview(); }
+$("#csm").addEventListener("change", e => setCsm(e.target.value));
 $("#q").addEventListener("input", renderList);
 $("#palbtn").addEventListener("click", openPalette);
 $("#night").addEventListener("click", toggleNight);
-$("#sk-h").addEventListener("click", () => setSkin("")); $("#sk-c").addEventListener("click", () => setSkin("csi"));
 $("#dn-c").addEventListener("click", () => setDensity("")); $("#dn-k").addEventListener("click", () => setDensity("compact"));
 $("#fold").addEventListener("click", () => setRail(!$("#app").classList.contains("rail")));
 $("#keyx").addEventListener("click", () => $("#keys").close());
@@ -880,17 +951,15 @@ document.addEventListener("keydown", e => {
 });
 
 // ------------------------------------------------------------ start
-setRail(recall("hub-rail") === "1"); setSkin(recall("hub-skin") || ""); setDensity(recall("hub-density") || ""); setTheme(recall("hub-theme") || ""); syncNight();
+setRail(recall("hub-rail") === "1"); setDensity(recall("hub-density") || ""); setTheme(recall("hub-theme") || ""); syncNight();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncNight);
 renderList(); renderOverview(); paintPeriod();
 loadClients(); pollQueue(); setInterval(pollQueue, 3000); setInterval(paintBuildPill, 1000);
-// A link can set the view: /hub#client=1441&theme=dark&skin=csi&density=compact (none of it is stored).
+// A link can set the view: /hub#client=1441&theme=dark&density=compact (none of it is stored).
 const HASH = new URLSearchParams(location.hash.slice(1));
 if (HASH.get("theme") === "dark" || HASH.get("theme") === "light") document.documentElement.dataset.theme = HASH.get("theme");
-if (HASH.get("skin") === "csi") document.documentElement.dataset.skin = "csi";
 if (HASH.get("density") === "compact") document.documentElement.dataset.density = "compact";
 syncNight();
-$("#sk-h").setAttribute("aria-pressed", !document.documentElement.dataset.skin); $("#sk-c").setAttribute("aria-pressed", !!document.documentElement.dataset.skin);
 $("#dn-c").setAttribute("aria-pressed", !document.documentElement.dataset.density); $("#dn-k").setAttribute("aria-pressed", !!document.documentElement.dataset.density);
 const first = (HASH.get("client") || "").match(/^\d{3,5}$/) ? HASH.get("client") : null;
 if (first) { const t = setInterval(() => { if (LOADED) { clearInterval(t); openClient(first); } }, 200); }
