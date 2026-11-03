@@ -29,7 +29,7 @@ plain English what is wrong and who fixes it:
     (`deck_status.requirements`, the same check as the delivery dashboard);
   * an MM client's Lift Matrix is current: the workbook's data month is inside its window and the
     data team hasn't flagged it in the filename (`lift_checks`);
-  * a deck already in Outputs for the period (or recorded as sent) is rebuilt only when the person
+  * a deck already in Outputs for the period is rebuilt only when the person
     running it says so: the launcher asks, and on the command line it takes --rebuild;
   * one person at a time per client: a lock file in the client's work folder.
 
@@ -64,7 +64,7 @@ from lift_window import workbook_window   # noqa: E402
 LOCK_STALE_HOURS = 3
 AARON = "Aaron Burgard"
 OK, WARN, STOP = "ok", "warn", "stop"
-# A deck already sent is a question, not a stop (Aaron, 2026-09-15: "can the script prompt
+# A deck already in Outputs is a question, not a stop (Aaron, 2026-09-15: "can the script prompt
 # whether the user wants the presentation re-run rather than failing?"). `status` exits
 # ASKED_EXIT when it is the only thing in the way, and Build ARS Deck CLI.bat asks.
 ASK = "ask"
@@ -291,18 +291,18 @@ def cashplease_checks(cid):
     return [(OK if ok else WARN, f"CashPlease: {'in the deck' if ok else 'left out'} ({why})")]
 
 
-def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), combined=False, cp_row=None):
+def rule_checks(cid, period, row, roster, rebuild=False, in_outputs=(), combined=False, cp_row=None):
     """The launcher's rules, independent of the filesystem so they can be tested.
 
     `row` is the Client CSM List row, `roster` the build_month.read_roster() active list,
-    `sent` the deliveries.json "sent" map, `cp_row` the client's CashPlease roster row (a standalone
+    `cp_row` the client's CashPlease roster row (a standalone
     module client is on that roster alone). Returns [(level, message)]. `combined` is a combined-deck
     build, which lifts the stop on an ARS-only deck for Aaron's multi-program clients.
     """
     out = []
     # FIRST, before the client's own name: it is the one fact that decides whether anything
     # else on this page matters (Aaron, 2026-10-02).
-    _built = built_line(cid, period, sent, in_outputs, rebuild)
+    _built = built_line(cid, period, in_outputs, rebuild)
     if _built:
         out.append(_built)
     if not row:
@@ -355,24 +355,17 @@ def rule_checks(cid, period, row, roster, sent, rebuild=False, in_outputs=(), co
     return out
 
 
-def built_line(cid, period, sent, in_outputs, rebuild=False):
+def built_line(cid, period, in_outputs, rebuild=False):
     """The BUILT / rebuilding line, or None when this period has no deck yet.
 
-    A deck already in Outputs, or already recorded as sent, is rebuilt only when the person
-    running it says so (Aaron, 2026-09-15: "The deck is already in Outputs, but it says Build
-    and put in Outputs. It should ask if we need to rebuild"). Outputs is what every CSM has;
-    only Aaron records sends.
+    A deck already in Outputs is rebuilt only when the person running it says so (Aaron, 2026-09-15:
+    "The deck is already in Outputs, but it says Build and put in Outputs. It should ask if we need to
+    rebuild"). Whether a deck was sent is not Sheila's to track (Aaron, 2026-11-02): that lives in the
+    delivery dashboard, so a deck no longer in Outputs reads as not built yet.
     """
-    key = f"{cid}|{period}"
-    when = None
-    if key in sent:
-        when = (sent[key] or {}).get("sent_at", "") if isinstance(sent[key], dict) else sent[key]
-    if not (in_outputs or when):
+    if not in_outputs:
         return None
-    what = (f"The {period} deck is already in Outputs ({in_outputs[0]})" if in_outputs
-            else f"The {period} deck was already made")
-    if when:
-        what += f" and was sent {when}"
+    what = f"The {period} deck is already in Outputs ({in_outputs[0]})"
     return (WARN, what + ". Rebuilding it, as asked.") if rebuild else (ASK, what + ".")
 
 
@@ -485,12 +478,12 @@ def _months_between(a, b):
     return (db.year - da.year) * 12 + db.month - da.month
 
 
-def all_checks(cid, period, row, roster, sent, rebuild=False, combined=False, cp_row=None):
+def all_checks(cid, period, row, roster, rebuild=False, combined=False, cp_row=None):
     """Every pre-build check, in the order they print: the rules, then for an ARS client the inputs, the
     Lift Matrix and (combined) the other programs' data; for a client with no ARS, each program's data."""
     if cp_row is None:
         cp_row = cp_roster_row(cid)
-    checks = rule_checks(cid, period, row, roster, sent, rebuild=rebuild,
+    checks = rule_checks(cid, period, row, roster, rebuild=rebuild,
                          in_outputs=decks_in_outputs(cid, period), combined=combined, cp_row=cp_row)
     # Already built and nobody has asked for a rebuild: the inputs are not going to be read,
     # so do not go to the share and ask about them (Aaron, 2026-10-02). These three are the
@@ -615,7 +608,7 @@ def _month_label(n):
     return f"{pd.Timestamp(n // 12, n % 12 + 1, 1):%b %y}"
 
 
-def ti_checks(cid, period, row, roster, sent=None, rebuild=False):
+def ti_checks(cid, period, row, roster, rebuild=False):
     """Every check before a Transaction Intelligence build, [(level, message)].
 
     The cut needs: a chapter to build (James's branches add them one at a time), the client on
@@ -700,9 +693,9 @@ def ti_checks(cid, period, row, roster, sent=None, rebuild=False):
     return out
 
 
-def ti_status(cid, period, row, roster, sent=None):
+def ti_status(cid, period, row, roster):
     """The Transaction Intelligence block of a client's status: its checks, state and last build."""
-    checks = ti_checks(cid, period, row, roster, sent)
+    checks = ti_checks(cid, period, row, roster)
     state = ("stop" if any(l == STOP for l, _ in checks) else
              "ask" if any(l == ASK for l, _ in checks) else "ready")
     res = R.build_artifacts() / "launcher" / period / cid / TI_RESULT_NAME
@@ -764,13 +757,13 @@ def ti_failures(tdir):
     return [w for w in warns if _TI_FAILED.search(str(w))]
 
 
-def build_ti(a, BM, row, period, roster, sent, work):
+def build_ti(a, BM, row, period, roster, work):
     """`build <id> --ti`: the Transaction Intelligence decks, one per lens, into Outputs."""
     print(f"\nBuilding the Transaction Intelligence decks: client {a.client}, period {period}\n")
     # --deck-only redraws the decks from the last full build's figures (ti_build --from-pack), for a change to the
     # slides alone; it replaces the decks in Outputs, so it is a rebuild (James Gilmore, 2026-10-29)
     deck_only = getattr(a, "deck_only", False)
-    checks = ti_checks(a.client, period, row, roster, sent, rebuild=a.rebuild or deck_only)
+    checks = ti_checks(a.client, period, row, roster, rebuild=a.rebuild or deck_only)
     for lvl, msg in checks:
         say(lvl, msg)
     if any(l == STOP for l, _ in checks):
@@ -879,7 +872,7 @@ def companion_decks_in_outputs(cid, period):
                   if not p.name.startswith("~$") and is_companion_deck(p.name))
 
 
-def companion_checks(cid, period, row, roster, sent=None, rebuild=False):
+def companion_checks(cid, period, row, roster, rebuild=False):
     """Every check before an ARS Companion build, [(level, message)].
 
     The companion is built from the ARS pipeline, so it needs what an ARS deck needs: the client on ARS
@@ -913,9 +906,9 @@ def companion_checks(cid, period, row, roster, sent=None, rebuild=False):
     return out + input_checks(cid, period) + lift_checks(cid, period, roster)
 
 
-def companion_status(cid, period, row, roster, sent=None):
+def companion_status(cid, period, row, roster):
     """The ARS Companion block of a client's status: its checks, state and last build."""
-    checks = companion_checks(cid, period, row, roster, sent)
+    checks = companion_checks(cid, period, row, roster)
     state = ("stop" if any(l == STOP for l, _ in checks) else
              "ask" if any(l == ASK for l, _ in checks) else "ready")
     res = R.build_artifacts() / "launcher" / period / cid / COMPANION_RESULT_NAME
@@ -927,10 +920,10 @@ def companion_status(cid, period, row, roster, sent=None):
             "decks": companion_decks_in_outputs(cid, period)}
 
 
-def build_companion(a, BM, row, period, roster, sent, work):
+def build_companion(a, BM, row, period, roster, work):
     """`build <id> --companion`: the ARS Companion deck, into Outputs."""
     print(f"\nBuilding the ARS Companion deck: client {a.client}, period {period}\n")
-    checks = companion_checks(a.client, period, row, roster, sent, rebuild=a.rebuild)
+    checks = companion_checks(a.client, period, row, roster, rebuild=a.rebuild)
     for lvl, msg in checks:
         say(lvl, msg)
     if any(l == STOP for l, _ in checks):
@@ -1102,23 +1095,21 @@ def lock(work_dir):
 # ------------------------------------------------------------------ commands
 def _context(cid, period):
     import build_month as BM
-    import deck_status as DS
     row = csm_list_row(cid)
     period = period or cycle_period()
     if not period:
         say(STOP, "No ARS workbooks are in Inputs at all, so there is no period to build.")
         raise SystemExit(2)
     roster, _ = BM.read_roster()
-    sent = DS.read_deliveries()["sent"]
     work = R.build_artifacts() / "launcher" / period / cid
-    return BM, row, period, roster, sent, work
+    return BM, row, period, roster, work
 
 
 def cmd_status(a):
-    BM, row, period, roster, sent, work = _context(a.client, a.period)
+    BM, row, period, roster, work = _context(a.client, a.period)
     if getattr(a, "ti", False):
         print(f"\nTransaction Intelligence status: client {a.client}, period {period}\n")
-        checks = ti_checks(a.client, period, row, roster, sent)
+        checks = ti_checks(a.client, period, row, roster)
         for lvl, msg in checks:
             say(lvl, msg)
         if any(l == STOP for l, _ in checks):
@@ -1131,7 +1122,7 @@ def cmd_status(a):
         return 0
     if getattr(a, "companion", False):
         print(f"\nARS Companion status: client {a.client}, period {period}\n")
-        checks = companion_checks(a.client, period, row, roster, sent)
+        checks = companion_checks(a.client, period, row, roster)
         for lvl, msg in checks:
             say(lvl, msg)
         if any(l == STOP for l, _ in checks):
@@ -1143,7 +1134,7 @@ def cmd_status(a):
         print("\nReady to build.")
         return 0
     print(f"\nDeck status: client {a.client}, period {period}\n")
-    checks = all_checks(a.client, period, row, roster, sent)
+    checks = all_checks(a.client, period, row, roster)
     for lvl, msg in checks:
         say(lvl, msg)
     res = work / "_launcher_result.json"
@@ -1246,18 +1237,18 @@ def supersede_other_ars_decks(cid, deck, out):
 
 
 def cmd_build(a):
-    BM, row, period, roster, sent, work = _context(a.client, a.period)
+    BM, row, period, roster, work = _context(a.client, a.period)
     if getattr(a, "ti", False):
-        return build_ti(a, BM, row, period, roster, sent, work)
+        return build_ti(a, BM, row, period, roster, work)
     if getattr(a, "companion", False):
-        return build_companion(a, BM, row, period, roster, sent, work)
+        return build_companion(a, BM, row, period, roster, work)
     combined = getattr(a, "combined", False)
     cp_row = cp_roster_row(a.client)
     entry = client_entry(a.client, roster, cp_row)
     if entry is not None and "ARS" not in entry[3]:
         combined = True             # a non-ARS client builds everything with data; there is no other deck
     print(f"\nBuilding the {'combined' if combined else 'ARS'} deck: client {a.client}, period {period}\n")
-    checks = all_checks(a.client, period, row, roster, sent, rebuild=a.rebuild, combined=combined, cp_row=cp_row)
+    checks = all_checks(a.client, period, row, roster, rebuild=a.rebuild, combined=combined, cp_row=cp_row)
     for lvl, msg in checks:
         say(lvl, msg)
     if any(l == STOP for l, _ in checks):
@@ -1381,7 +1372,7 @@ def main(argv=None):
         sp.add_argument("--companion", action="store_true",
                         help="the ARS Companion deck (James's analysis slides, a separate presentation), not the RPE deck")
         if c == "build":
-            sp.add_argument("--rebuild", action="store_true", help="rebuild a deck already recorded as sent")
+            sp.add_argument("--rebuild", action="store_true", help="rebuild a deck already in Outputs")
             sp.add_argument("--combined", action="store_true",
                             help="one deck with ARS plus every other clients.md program that has its data")
             sp.add_argument("--deck-only", action="store_true",
