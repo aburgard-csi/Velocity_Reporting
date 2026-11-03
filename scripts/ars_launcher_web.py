@@ -181,7 +181,7 @@ class _fresh_reads:
 
 # ------------------------------------------------------------------ data for the page
 # The list is served from memory and refreshed behind the page (Aaron, 2026-09-17). Building it reads the CSM
-# list, deliveries.json, every CSM folder in Outputs and each client's last launcher result over the share —
+# list, every CSM folder in Outputs and each client's last launcher result over the share —
 # 10 s on a good day, 110 s measured on a bad one — so a request never waits for it once a list exists. A
 # list older than CLIENTS_TTL, or invalidated by a finished build, is served as it is while a fresh one is
 # built in the background; the page shows its age and asks again. What this server knows live — builds it
@@ -237,7 +237,7 @@ def select_period(period):
         same = (_selected["period"] or L.cycle_period()) == (period or L.cycle_period())
         _selected["period"] = None if period == L.cycle_period() else period
     if not same:
-        # Everything cached is about the old cycle: its decks, its sent state, its checks.
+        # Everything cached is about the old cycle: its decks, its checks.
         with _status_lock:
             for cid in list(_status_cache) + list(_status_gen):
                 forget_status_locked(cid)
@@ -259,10 +259,9 @@ covered_programs = L.covered_programs
 
 def compute_clients():
     """Every client with a deck to build — the clients.md roster (ARS, ICS, MRPC, in any mix) and the
-    standalone CashPlease module clients (Aaron, 2026-10-13) — with their CSM, products, sent state,
+    standalone CashPlease module clients (Aaron, 2026-10-13) — with their CSM, products,
     deck in Outputs and last build failure."""
     import build_month as BM
-    import deck_status as DS
     period = current_period()
     roster, _ = BM.read_roster()
     rows = {}
@@ -270,7 +269,6 @@ def compute_clients():
     if p and p.is_file():
         with open(p, encoding="utf-8-sig", newline="") as fh:
             rows = {r.get("client_id", "").strip(): r for r in csv.DictReader(fh)}
-    sent = DS.read_deliveries()["sent"] if period else {}
     decks, ti_decks, comp_decks = {}, {}, {}
     for d in (R.output_decks(f"*-{period}-*.pptx") if period else []):
         # A Transaction Intelligence deck is a separate presentation (2026-10-23): it is never the
@@ -294,7 +292,6 @@ def compute_clients():
     for cid, (_, name, path, progs) in entries.items():
         row = rows.get(cid, {})
         cp = cp_rows.get(cid)
-        s = sent.get(f"{cid}|{period}")
         res = results.get(cid, (None, None))
         out.append({
             "id": cid,
@@ -307,7 +304,6 @@ def compute_clients():
             "covered": covered_programs(progs, cp),
             "products": [p.strip() for p in (row.get("products") or "").split(";") if p.strip()],
             "path": path,
-            "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
             # When the launcher last put this client's deck in Outputs ("YYYY-MM-DD HH:MM"), for the
             # list's "built today" note (Aaron, 2026-10-13).
             "built_at": (res[0] or {}).get("finished") if (res[0] or {}).get("delivered") else None,
@@ -327,8 +323,8 @@ def compute_clients():
 def refresh_clients(fresh=False):
     """Rebuild the stored list now. One refresh at a time: a caller arriving while one runs waits for it.
 
-    Returns the exception that stopped it, or None. A client whose sent state, decks or last build changed has
-    its cached status dropped, so a deck built or marked sent elsewhere is re-checked on its next view.
+    Returns the exception that stopped it, or None. A client whose decks or last build changed has
+    its cached status dropped, so a deck built elsewhere is re-checked on its next view.
     """
     claim = _claim_refresh()
     if claim is None:
@@ -385,7 +381,7 @@ def _run_refresh(claim, fresh):
 
 
 def _signature(c):
-    return (c.get("sent"), tuple(c.get("decks") or ()), c.get("error"), c.get("result_written"))
+    return (tuple(c.get("decks") or ()), c.get("error"), c.get("result_written"))
 
 
 def _refresh_clients_later(fresh=False):
@@ -592,7 +588,7 @@ def last_build_failed(cid, period, decks=(), result=None):
 # 2026-09-17: a status older than STATUS_TTL is no longer re-read while the page waits (5 s on a good day,
 # 58 s observed). The page gets the stored one at once, marked `refreshing`, with its Build buttons held
 # until the fresh one arrives — so an old "ready" can never be built from while a STOP may be on its way.
-# A client whose list row changed (a deck built or marked sent from anywhere) has its entry dropped.
+# A client whose list row changed (a deck built from anywhere) has its entry dropped.
 STATUS_TTL = 600
 _status_cache = {}
 _status_lock = threading.Lock()
@@ -724,14 +720,12 @@ def forget_status_locked(cid):
 def compute_status(cid):
     """ars_launcher's own checks for one client, plus its last launcher build."""
     import build_month as BM
-    import deck_status as DS
     period = current_period()
     row = L.csm_list_row(cid)
     if not period:
         return {"client": cid, "state": "stop", "period": None,
                 "checks": [{"level": L.STOP, "text": "No ARS workbooks are in Inputs at all, so there is no period to build."}]}
     roster, _ = BM.read_roster()
-    sent = DS.read_deliveries()["sent"]
     cp_row = L.cp_roster_row(cid)
     entry = L.client_entry(cid, roster, cp_row)
     has_ars = bool(entry and "ARS" in entry[3])
@@ -739,7 +733,7 @@ def compute_status(cid):
     # with every other clients.md program whose data is on hand. The checks are the combined-build rules;
     # whether the ARS-only build is allowed (not for Aaron's multi-program clients) is decided separately.
     # A client with no ARS has one build: every program with data (Aaron, 2026-10-13).
-    checks = L.all_checks(cid, period, row, roster, sent, combined=True, cp_row=cp_row)
+    checks = L.all_checks(cid, period, row, roster, combined=True, cp_row=cp_row)
     avail = L.program_availability(cid, period, entry[3]) if entry else {}
     extra = L.combined_programs(avail)
     if has_ars:
@@ -759,7 +753,7 @@ def compute_status(cid):
     ti = None
     if has_ars:
         try:
-            ti = L.ti_status(cid, period, row, roster, sent)
+            ti = L.ti_status(cid, period, row, roster)
         except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
             ti = {"checks": [{"level": L.STOP, "text": f"The Transaction Intelligence checks could not run "
                                                         f"({type(e).__name__}: {e})"}],
@@ -769,7 +763,7 @@ def compute_status(cid):
     companion = None
     if has_ars:
         try:
-            companion = L.companion_status(cid, period, row, roster, sent)
+            companion = L.companion_status(cid, period, row, roster)
         except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
             companion = {"checks": [{"level": L.STOP, "text": f"The ARS Companion checks could not run "
                                                               f"({type(e).__name__}: {e})"}],
@@ -1137,8 +1131,8 @@ def changelog_page(path=None):
             "body{margin:0;background:#F4F6F9;color:#0E1B2A;font:15.5px/1.55 'Segoe UI',Arial,sans-serif}"
             "header{background:#00274C;color:#fff;padding:14px 24px;font-weight:700;font-size:19px}"
             "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
-            "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F47A29;padding-bottom:4px}"
-            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}p.sum{font-weight:600;background:#E9EFF6;border-left:3px solid #F47A29;padding:6px 10px;border-radius:4px}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
+            "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F15D22;padding-bottom:4px}"
+            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}p.sum{font-weight:600;background:#E9EFF6;border-left:3px solid #F15D22;padding:6px 10px;border-radius:4px}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
             "p.rel{margin:14px 0 0;padding:8px 12px;border-radius:6px;background:#E3EEE7;color:#1E4D33;font-size:14px}"
             "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}p.sum{background:#16283A}p.rel{background:#15301F;color:#BFE3C9}}"
             "</style></head><body><header>CSM Sheila · Change log</header><main>"
@@ -2091,10 +2085,10 @@ PAGE = r"""<!doctype html>
 <title>CSM Sheila</title>
 <style>
 :root{
-  --navy:#00274C; --orange:#F47A29; --teal:#0E9F8C; --gold:#D9A21B; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
-  --ink:#0E1B2A; --ink2:#566370; --ink3:#8793A0; --rule:#D8DEE5;
+  --navy:#00274C; --orange:#F15D22; --teal:#0E9F8C; --gold:#D9A21B; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
+  --ink:#0E1B2A; --ink2:#566370; --ink3:#566370; --rule:#D8DEE5;
   --ok:#1E7F4F; --ok-bg:#E4F3EB; --warn:#9A6212; --warn-bg:#FBF0DC; --sent:#245C8C; --sent-bg:#E6EEF6;
-  --stop:#B42318; --stop-bg:#FCE9E7; --focus:#F47A29; --sel:#E9EFF6;
+  --stop:#B42318; --stop-bg:#FCE9E7; --focus:#F15D22; --sel:#E9EFF6;
   --dot-ars:#00274C;
   /* The light on the chips and small buttons (Aaron, 2026-10-28): a highlight along the top edge, shade
      along the bottom and a line where the chip meets the page, each softer in the dark. */
@@ -2102,11 +2096,11 @@ PAGE = r"""<!doctype html>
   --build:#B4500E; --build-bg:#FDE8DA;
 }
 @media (prefers-color-scheme: dark){:root{
-  --ground:#0B1520; --surface:#12202D; --soft:#182A3A; --ink:#E6ECF2; --ink2:#A7B4C1; --ink3:#788796; --rule:#26384A;
+  --ground:#0B1520; --surface:#12202D; --soft:#182A3A; --ink:#E6ECF2; --ink2:#A7B4C1; --ink3:#A7B4C1; --rule:#26384A;
   --ok:#57C98F; --ok-bg:#12302A; --warn:#E6B45C; --warn-bg:#33270F; --sent:#8FB4DA; --sent-bg:#16283A;
   --stop:#F08579; --stop-bg:#3A1C1A; --sel:#1B3044;
   /* The ARS dot is brand navy, which vanishes on the navy-black ground (Aaron, 2026-10-15:
-     "the ARS dot is too hard to see in dark mode"); steel blue here, the same blue the Sent chip uses. */
+     "the ARS dot is too hard to see in dark mode"); steel blue here, the same blue the links use. */
   --dot-ars:#8FB4DA;
   --hi:rgba(255,255,255,.09); --lo:rgba(0,0,0,.35); --touch:rgba(0,0,0,.5);
   --build:#F7A86B; --build-bg:#3A2412;
@@ -2129,7 +2123,7 @@ header.top .newsbox .s{color:var(--ink2);font-size:12.5px;display:block;margin-t
 header.top .newsbox .all{display:inline-block;margin-top:10px;font-weight:600;color:var(--sent)}
 header.top .loglink{color:#fff;font-size:13.5px;font-weight:600;text-decoration:underline}
 header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px;border:0;cursor:pointer;font-family:inherit;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.35),0 4px 12px rgba(244,122,41,.42);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.35),0 4px 12px rgba(241,93,34,.42);
   transition:box-shadow .12s ease,transform .12s ease,filter .12s ease}
 header.top .period:hover{filter:brightness(1.06)}
 header.top .period:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,.3)}
@@ -2140,7 +2134,7 @@ header.top .period .caret{font-size:10px;opacity:.85;margin-left:5px}
 .cycles h4{margin:4px 8px 6px;font:700 11px/1 "Segoe UI",Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
 .cycles button{display:block;width:100%;text-align:left;font:600 13.5px/1.2 "Segoe UI",Arial,sans-serif;
   border:0;background:none;color:var(--ink);padding:7px 9px;border-radius:7px;cursor:pointer}
-.cycles button:hover{background:var(--rowalt)}
+.cycles button:hover{background:var(--soft)}
 .cycles button[aria-current="true"]{background:var(--navy);color:#fff}
 .cycles .now{font-weight:400;opacity:.75;font-size:12px}
 .app{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:18px;max-width:1240px;margin:18px auto;padding:0 18px}
@@ -2174,7 +2168,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
    dark, some light"); they are tints like the rest now, orange and red. */
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap;
   box-shadow:inset 0 1px 0 var(--hi),inset 0 -1px 0 var(--lo),0 1px 1px var(--touch)}
-.chip.sent{background:var(--sent-bg);color:var(--sent)} .chip.out{background:var(--ok-bg);color:var(--ok)}
+.chip.out{background:var(--ok-bg);color:var(--ok)}
 .chip.stop{background:var(--stop-bg);color:var(--stop)} .chip.ready{background:var(--ok-bg);color:var(--ok)}
 .chip.queue{background:var(--warn-bg);color:var(--warn)}
 .chip.building{background:var(--build-bg);color:var(--build)}
@@ -2206,7 +2200,7 @@ button.primary{font:600 15px/1 "Segoe UI",Arial,sans-serif;background:var(--navy
   transition:box-shadow .12s ease,transform .12s ease,filter .12s ease}
 button.primary:hover{filter:brightness(1.08)}
 button.primary:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,.32),0 1px 1px rgba(0,0,0,.2)}
-button.primary.warn{background:var(--orange);--glow:rgba(244,122,41,.18)}
+button.primary.warn{background:var(--orange);--glow:rgba(241,93,34,.18)}
 button.primary:disabled{background:var(--ink3);cursor:not-allowed;box-shadow:none;transform:none;filter:none}
 @media (prefers-reduced-motion:reduce){button.primary,header.top .period,.tabs button,.chipbtn{transition:none}}
 button.link{font:inherit;background:none;border:0;color:var(--sent);text-decoration:underline;cursor:pointer;padding:0}
@@ -2294,12 +2288,12 @@ dialog.report{border:0;border-radius:10px;padding:0;max-width:560px;width:92vw;b
 dialog.report::backdrop{background:rgba(10,20,32,.45)}
 dialog.report form{padding:20px 22px 18px;display:grid;gap:12px}
 dialog.report h3{margin:0;font-size:17px;color:var(--navy)}
-dialog.report label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+dialog.report label{display:grid;gap:4px;font-size:13px;color:var(--ink2)}
 dialog.report input[type=text],dialog.report textarea{font:14px/1.5 inherit;padding:8px 10px;
   border:1px solid var(--rule);border-radius:6px;width:100%;box-sizing:border-box}
 dialog.report textarea{min-height:110px;resize:vertical}
 dialog.report .row{display:flex;gap:8px;justify-content:flex-end;align-items:center}
-dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-width:44ch}
+dialog.report .hint{font-size:12.5px;color:var(--ink2);margin-right:auto;max-width:44ch}
 .rep-state{display:inline-block;font:600 11.5px/1 inherit;padding:4px 7px;border-radius:4px;color:#fff}
 .rep-open{background:#1d7a46}.rep-closed{background:#5a6670}.rep-queued{background:#9a6400}
 .chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer;
@@ -2441,8 +2435,6 @@ async function api(path, opts = {}) {
 function store(k, v) { try { v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch (e) {} }
 function recall(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
-function shortDate(d) { if (!d) return ""; const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString(undefined, {month: "short", day: "numeric"}); }
-
 // Four dots after each client, fixed order ARS · ICS · MRPC · CP (Aaron, 2026-10-13, option B): filled when
 // the program is in this client's deck, grey when not, so every row has the same shape and nothing wraps.
 // The client's other Velocity products are on the client page, not in the list.
@@ -2463,8 +2455,6 @@ function renderList() {
   let html = "", last = null;
   for (const c of shown) {
     if (!csm && c.csm !== last) { html += `<div class="grouphead">${esc(c.csm)}</div>`; last = c.csm; }
-    // A "Sent" chip only on Aaron's clients: only Aaron records sends, and other CSMs have nowhere to
-    // mark theirs (2026-09-15; the chip itself Aaron, 2026-10-13).
     const place = QUEUE.queued.indexOf(c.id);
     const idle = QUEUE.building !== c.id && place < 0;
     const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -2480,8 +2470,7 @@ function renderList() {
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}${builtToday ? " · built " + esc(builtToday) : ""}</span>` : "",
                    (c.ti_decks || []).length ? `<span class="chip out" title="Transaction Intelligence decks, a separate presentation">TI in Outputs</span>` : "",
-                   (c.companion_decks || []).length ? `<span class="chip out" title="The ARS Companion deck, a separate presentation">Companion in Outputs</span>` : "",
-                   c.sent && c.csm === "Aaron Burgard" ? `<span class="chip sent">Sent ${esc(shortDate(c.sent))}</span>` : ""].join("");
+                   (c.companion_decks || []).length ? `<span class="chip out" title="The ARS Companion deck, a separate presentation">Companion in Outputs</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span>${dots(c)}<span class="meta">${chips}</span></button>`;
   }
@@ -2580,7 +2569,6 @@ function deckCard(o) {
   const decks = o.decks || [];
   const state = o.state === "stop" ? `<span class="chip stop">Can't build yet</span>`
     : decks.length ? `<span class="chip out">In Outputs</span>` : `<span class="chip ready">Ready to build</span>`;
-  const sent = o.sent ? ` <span class="chip sent">Sent ${esc(shortDate(o.sent))}</span>` : "";
   // One link per deck: Transaction Intelligence makes a deck per lens, so a client on both gets two files.
   const lens = n => { const m = n.match(/-TI-(ARS|ICS)-/); return m ? `the ${m[1]} lens` : n; };
   const open = decks.map(n => `<button class="link" data-reveal="${esc(n)}">${decks.length > 1 ? "open " + esc(lens(n)) : "open the deck"}</button>`).join(" · ");
@@ -2596,7 +2584,7 @@ function deckCard(o) {
   const recheck = {"": '<button class="quiet" id="recheck">', ti: '<button class="quiet" id="tirecheck">', comp: '<button class="quiet" id="comprecheck">'}[k];
   const act = o.state === "stop" ? `${recheck}Check again</button>` : o.buttons;
   return `<section class="card${o.state === "stop" ? " stopcard" : ""}" id="${o.id}">
-    <div class="cardhead"><h3>${esc(o.title)}${o.mix ? ` <span class="mix">${esc(o.mix)}</span>` : ""} ${state}${sent}</h3><div class="act">${act}${why}</div></div>
+    <div class="cardhead"><h3>${esc(o.title)}${o.mix ? ` <span class="mix">${esc(o.mix)}</span>` : ""} ${state}</h3><div class="act">${act}${why}</div></div>
     ${fact ? `<p class="fact">${fact}</p>` : ""}${o.note || ""}${visible}${fold}${jobBox}</section>`;
 }
 
@@ -2634,7 +2622,7 @@ function renderStatus(s) {
   const note = (leftOut ? `<p class="small">${esc(leftOut)}</p>` : "") + (failed ? `<p class="small err">The last build failed; see why below.</p>` : "");
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
   const review = deckCard({key: "", id: "rpepanel", title: "Executive Review", mix, state: s.state, checks: s.checks, last: s.last,
-                           decks: c.decks || [], sent: c.sent && c.csm === "Aaron Burgard" ? c.sent : null,
+                           decks: c.decks || [],
                            buttons: btns(s.state === "ask"), note});
   const aside = (s.ti || s.companion)
     ? `<p class="cards-note">${s.ti ? "Transaction Intelligence" : ""}${s.ti && s.companion ? " and " : ""}${s.companion ? "the ARS Companion" : ""} ${s.ti && s.companion ? "are separate presentations" : "is a separate presentation"} filed beside the Executive Review; building one never changes another.</p>`
