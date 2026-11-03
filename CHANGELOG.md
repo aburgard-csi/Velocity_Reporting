@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review: the MRPC peer comparison uses every client in the weekly
+
+Summary: The MRPC comparison now leads with enrollments per 1,000 debit-card accounts over the last 12 months, read from the weekly enrollment file for all of its clients (about 22 current ones), instead of the share-of-goal measure that only the 6 clients with a VIP sheet could be compared on.
+
+Aaron, 2026-11-03: "we should be able to do peer comparison for MRPC too", "but we must have more than 6 MRPC clients...".
+
+- **Why 6.** The share of goal needs the goal, which only the VIP sheets carry (6 MRPC clients). The weekly (`MRPCEnrollmentSummary`) has a tab for every client with monthly enrollments (platinum, gold, business) and the open accounts with a debit card, so enrollments per 1,000 debit-card accounts needs nothing else. Marine FCU: 36.6 per 1,000, against 22 current peers.
+- **Current.** A client counts when it enrolled in the last six months the weekly carries (counted back from the newest month any client has), not in its own last six months, which let clients whose series stopped in 2020, 2024 and 2025 count. The active-cardholder and take-rate measures use the same pool, so they lose those stale clients.
+- The share of goal stays as another measure for the clients that have a VIP sheet. `tests/test_live_review_mrpc_peers.py`.
+
 ### 2026-11-03 — Sheila cleans up after herself: the Transaction Intelligence cache has a size and an age limit
 
 Summary: Sheila no longer lets her local Transaction Intelligence cache grow without end. It stays under 3 GB and clears any client not built for 21 days, least recently used first, when she starts and at the start of each Transaction Intelligence build; `ars_launcher_web.py --tidy` does it on demand.
