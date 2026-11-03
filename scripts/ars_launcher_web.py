@@ -1136,8 +1136,8 @@ def changelog_page(path=None):
             "body{margin:0;background:#F4F6F9;color:#0E1B2A;font:15.5px/1.55 'Segoe UI',Arial,sans-serif}"
             "header{background:#00274C;color:#fff;padding:14px 24px;font-weight:700;font-size:19px}"
             "main{max-width:900px;margin:0 auto;padding:10px 20px 60px}"
-            "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F47A29;padding-bottom:4px}"
-            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}p.sum{font-weight:600;background:#E9EFF6;border-left:3px solid #F47A29;padding:6px 10px;border-radius:4px}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
+            "h1{font-size:24px}h2{font-size:20px;margin-top:34px;border-bottom:2px solid #F15D22;padding-bottom:4px}"
+            "h3{font-size:17px;margin:28px 0 6px;color:#00274C}p.sum{font-weight:600;background:#E9EFF6;border-left:3px solid #F15D22;padding:6px 10px;border-radius:4px}code{background:#EDF1F5;padding:1px 4px;border-radius:3px;font-size:.9em}"
             "p.rel{margin:14px 0 0;padding:8px 12px;border-radius:6px;background:#E3EEE7;color:#1E4D33;font-size:14px}"
             "@media (prefers-color-scheme: dark){body{background:#0B1520;color:#E6ECF2}h3{color:#8FB4DA}code{background:#182A3A}p.sum{background:#16283A}p.rel{background:#15301F;color:#BFE3C9}}"
             "</style></head><body><header>CSM Sheila · Change log</header><main>"
@@ -2083,10 +2083,10 @@ PAGE = r"""<!doctype html>
 <title>CSM Sheila</title>
 <style>
 :root{
-  --navy:#00274C; --orange:#F47A29; --teal:#0E9F8C; --gold:#D9A21B; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
-  --ink:#0E1B2A; --ink2:#566370; --ink3:#8793A0; --rule:#D8DEE5;
+  --navy:#00274C; --orange:#F15D22; --teal:#0E9F8C; --gold:#D9A21B; --ground:#F4F6F9; --surface:#FFFFFF; --soft:#EDF1F5;
+  --ink:#0E1B2A; --ink2:#566370; --ink3:#566370; --rule:#D8DEE5;
   --ok:#1E7F4F; --ok-bg:#E4F3EB; --warn:#9A6212; --warn-bg:#FBF0DC; --sent:#245C8C; --sent-bg:#E6EEF6;
-  --stop:#B42318; --stop-bg:#FCE9E7; --focus:#F47A29; --sel:#E9EFF6;
+  --stop:#B42318; --stop-bg:#FCE9E7; --focus:#F15D22; --sel:#E9EFF6;
   --dot-ars:#00274C;
   /* The light on the chips and small buttons (Aaron, 2026-10-28): a highlight along the top edge, shade
      along the bottom and a line where the chip meets the page, each softer in the dark. */
@@ -2094,7 +2094,7 @@ PAGE = r"""<!doctype html>
   --build:#B4500E; --build-bg:#FDE8DA;
 }
 @media (prefers-color-scheme: dark){:root{
-  --ground:#0B1520; --surface:#12202D; --soft:#182A3A; --ink:#E6ECF2; --ink2:#A7B4C1; --ink3:#788796; --rule:#26384A;
+  --ground:#0B1520; --surface:#12202D; --soft:#182A3A; --ink:#E6ECF2; --ink2:#A7B4C1; --ink3:#A7B4C1; --rule:#26384A;
   --ok:#57C98F; --ok-bg:#12302A; --warn:#E6B45C; --warn-bg:#33270F; --sent:#8FB4DA; --sent-bg:#16283A;
   --stop:#F08579; --stop-bg:#3A1C1A; --sel:#1B3044;
   /* The ARS dot is brand navy, which vanishes on the navy-black ground (Aaron, 2026-10-15:
@@ -2121,7 +2121,7 @@ header.top .newsbox .s{color:var(--ink2);font-size:12.5px;display:block;margin-t
 header.top .newsbox .all{display:inline-block;margin-top:10px;font-weight:600;color:var(--sent)}
 header.top .loglink{color:#fff;font-size:13.5px;font-weight:600;text-decoration:underline}
 header.top .period{margin-left:0;background:var(--orange);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.04em;padding:5px 12px;border-radius:999px;border:0;cursor:pointer;font-family:inherit;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.35),0 4px 12px rgba(244,122,41,.42);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.35),0 4px 12px rgba(241,93,34,.42);
   transition:box-shadow .12s ease,transform .12s ease,filter .12s ease}
 header.top .period:hover{filter:brightness(1.06)}
 header.top .period:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,.3)}
@@ -2132,7 +2132,7 @@ header.top .period .caret{font-size:10px;opacity:.85;margin-left:5px}
 .cycles h4{margin:4px 8px 6px;font:700 11px/1 "Segoe UI",Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
 .cycles button{display:block;width:100%;text-align:left;font:600 13.5px/1.2 "Segoe UI",Arial,sans-serif;
   border:0;background:none;color:var(--ink);padding:7px 9px;border-radius:7px;cursor:pointer}
-.cycles button:hover{background:var(--rowalt)}
+.cycles button:hover{background:var(--soft)}
 .cycles button[aria-current="true"]{background:var(--navy);color:#fff}
 .cycles .now{font-weight:400;opacity:.75;font-size:12px}
 .app{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:18px;max-width:1240px;margin:18px auto;padding:0 18px}
@@ -2198,7 +2198,7 @@ button.primary{font:600 15px/1 "Segoe UI",Arial,sans-serif;background:var(--navy
   transition:box-shadow .12s ease,transform .12s ease,filter .12s ease}
 button.primary:hover{filter:brightness(1.08)}
 button.primary:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,.32),0 1px 1px rgba(0,0,0,.2)}
-button.primary.warn{background:var(--orange);--glow:rgba(244,122,41,.18)}
+button.primary.warn{background:var(--orange);--glow:rgba(241,93,34,.18)}
 button.primary:disabled{background:var(--ink3);cursor:not-allowed;box-shadow:none;transform:none;filter:none}
 @media (prefers-reduced-motion:reduce){button.primary,header.top .period,.tabs button,.chipbtn{transition:none}}
 button.link{font:inherit;background:none;border:0;color:var(--sent);text-decoration:underline;cursor:pointer;padding:0}
@@ -2286,12 +2286,12 @@ dialog.report{border:0;border-radius:10px;padding:0;max-width:560px;width:92vw;b
 dialog.report::backdrop{background:rgba(10,20,32,.45)}
 dialog.report form{padding:20px 22px 18px;display:grid;gap:12px}
 dialog.report h3{margin:0;font-size:17px;color:var(--navy)}
-dialog.report label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+dialog.report label{display:grid;gap:4px;font-size:13px;color:var(--ink2)}
 dialog.report input[type=text],dialog.report textarea{font:14px/1.5 inherit;padding:8px 10px;
   border:1px solid var(--rule);border-radius:6px;width:100%;box-sizing:border-box}
 dialog.report textarea{min-height:110px;resize:vertical}
 dialog.report .row{display:flex;gap:8px;justify-content:flex-end;align-items:center}
-dialog.report .hint{font-size:12.5px;color:var(--muted);margin-right:auto;max-width:44ch}
+dialog.report .hint{font-size:12.5px;color:var(--ink2);margin-right:auto;max-width:44ch}
 .rep-state{display:inline-block;font:600 11.5px/1 inherit;padding:4px 7px;border-radius:4px;color:#fff}
 .rep-open{background:#1d7a46}.rep-closed{background:#5a6670}.rep-queued{background:#9a6400}
 .chipbtn{font:600 12.5px/1 "Segoe UI",Arial,sans-serif;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);border-radius:999px;padding:6px 11px;cursor:pointer;
