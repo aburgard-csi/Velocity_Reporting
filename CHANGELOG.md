@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — the interior-gap rule is in the code: a month that collapses mid-series is left out, not charted
+
+Summary: A month in the middle of an ODD extract that collapses and then recovers (Marine FCU August 2026 NSF/OD, 390 items against about 19,000) is now skipped by every comparison and trend, as the 2026-10-13 entry below describes; the code for it had not been committed.
+
+- `month_complete.assess(..., interior=True)` and `interior_gaps` find the gap; `usable_months` is the complete prefix less any gap. `odd_completeness` sums every month and asks for interior gaps on all four measures.
+- Callers read `usable_months`, never `months[:complete]`: `metrics_gen`, `lift_values`, `ticket_calc`, `responder_activity` and `james_views`. The three-month swipe window label names a month left out inside it.
+- `tests/test_month_complete.py` gains the interior cases. Decks already in Outputs keep their figures until their next build.
+- Also committed: the `vip-rescan` project skill.
+
 ### 2026-11-03 — The RPE Client Performance page hands over the Live Review command for each client
 
 Summary: Build readiness on the RPE Client Performance page has a Live Review column. Copy command puts the PowerShell that opens one client's Live Review on the clipboard, and Copy Live Review script does it for every client listed.

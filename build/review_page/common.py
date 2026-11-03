@@ -83,16 +83,21 @@ def usable_series(tokens, values, as_of=None, measure="", min_volume=MC.MIN_VOLU
     """
     tokens = list(tokens)
     n = len(tokens)
-    res = MC.assess(tokens, values, as_of=as_of, measure=measure, min_volume=min_volume)
-    keep = [i < res["complete"] for i in range(n)]
-    left = [dict(e) for e in res["excluded"]]
     usable_months = getattr(MC, "usable_months", None)
+    try:
+        res = MC.assess(tokens, values, as_of=as_of, measure=measure, min_volume=min_volume, interior=True)
+    except TypeError:                       # a month_complete without the interior rule
+        res = MC.assess(tokens, values, as_of=as_of, measure=measure, min_volume=min_volume)
+        usable_months = None
+    keep = [i < res["complete"] for i in range(n)]
+    left = [dict(e) for e in res["excluded"]] + [dict(e) for e in res.get("interior", [])]
     if usable_months is not None:
         try:
             ok = set(map(str, usable_months(tokens, res)))
             keep = [keep[i] and str(tokens[i]) in ok for i in range(n)]
         except Exception:
             usable_months = None
+            left = [dict(e) for e in res["excluded"]]
     if usable_months is None:
         head = [values[i] for i in range(res["complete"])]
         for g in interior_gaps(head, min_volume):
