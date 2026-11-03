@@ -1,4 +1,4 @@
-"""The Hub layout preview at /hub: off unless RPE_SHEILA_HUB=1, behind the same token and host checks, and free of
+"""CSM Sheila's page, the Hub layout, served at /: behind the token and host checks, and free of
 sent state (2026-11-02)."""
 import http.client
 import json
@@ -36,28 +36,30 @@ def get(port, path, host=None, token=False):
     return r.status, data
 
 
-def test_the_hub_is_off_unless_the_environment_turns_it_on(server, monkeypatch):
-    monkeypatch.delenv("RPE_SHEILA_HUB", raising=False)
-    assert get(server, "/hub")[0] == 404
-    monkeypatch.setenv("RPE_SHEILA_HUB", "0")
-    assert get(server, "/hub")[0] == 404
-    monkeypatch.setenv("RPE_SHEILA_HUB", "1")
-    status, data = get(server, "/hub")
-    assert status == 200 and W.TOKEN.encode() in data and b"__TOKEN__" not in data
+def test_the_hub_is_sheila_at_slash_and_its_old_address_goes_there(server):
+    """Aaron, 2026-11-02: "move Sheila entirely to the hub layout": no switch, no second layout."""
+    status, data = get(server, "/")
+    assert status == 200 and W.TOKEN.encode() in data and b"__TOKEN__" not in data and b"Two stacked slides" in data
+    c = http.client.HTTPConnection("127.0.0.1", server, timeout=10)
+    c.request("GET", "/hub")
+    r = c.getresponse()
+    r.read()
+    assert r.status == 302 and r.getheader("Location") == "/"
+    assert "RPE_SHEILA_HUB" not in open(os.path.join(REPO, "scripts", "sheila_hub.py"), encoding="utf-8").read().split('_PAGE = r"""')[0].split('"""', 2)[2]
 
 
-def test_the_hub_keeps_the_hosts_check_and_the_api_keeps_its_token(server, monkeypatch):
-    monkeypatch.setenv("RPE_SHEILA_HUB", "1")
-    assert get(server, "/hub", host="evil.example")[0] == 403
+def test_the_page_keeps_the_hosts_check_and_the_api_keeps_its_token(server):
+    assert get(server, "/", host="evil.example")[0] == 403
     assert get(server, "/api/clients")[0] == 403
     assert get(server, "/api/clients", token=True)[0] == 200
 
 
-def test_the_classic_page_is_unchanged_by_the_hub_and_opens_a_tab_from_its_link(server, monkeypatch):
-    monkeypatch.delenv("RPE_SHEILA_HUB", raising=False)
-    status, data = get(server, "/")
-    assert status == 200 and b"CSM Sheila" in data
-    assert b"/^[a-z]+$/.test(h)" in data, "the hub's /#lift links open that tab"
+def test_there_is_no_second_layout(server):
+    """The classic page is gone (Aaron, 2026-11-02): nothing serves it, and nothing links to it."""
+    assert get(server, "/classic")[0] in (403, 404)   # unknown paths want the token like the API
+    import ars_launcher_web as W
+    assert not hasattr(W, "PAGE") and not hasattr(W, "_version_html")
+    assert not os.path.exists(os.path.join(REPO, "scripts", "slide_review_ui.py"))
 
 
 def test_there_is_no_sent_state_on_the_page():
@@ -164,9 +166,8 @@ def test_the_override_replaces_the_login_and_a_bad_one_filters_nothing():
 
 
 def test_the_server_hands_the_page_who_it_is_and_the_page_cannot_be_broken_by_it(server, monkeypatch):
-    monkeypatch.setenv("RPE_SHEILA_HUB", "1")
     monkeypatch.setattr(H, "who_am_i", lambda: {"csm": "Aaron Burgard", "how": "login", "note": ""})
-    status, data = get(server, "/hub")
+    status, data = get(server, "/")
     assert status == 200 and b'"csm": "Aaron Burgard"' in data and b"__ME__" not in data
     page = H.page("T", "", {"csm": "x</script><b>", "how": "login", "note": ""})
     assert "</script><b>" not in page and "\\u003c/script" in page
@@ -220,5 +221,31 @@ def test_the_open_clients_row_again_closes_it_back_to_the_overview():
     assert "clearInterval(poller)" in body, "no polling of a client that is not open"
     assert "stopBuild" not in body and "/api/build" not in body, "closing never touches the build"
     assert "is still building" in body, "it says where the steps went"
-    assert "function syncHash()" in page and 'p.delete("client")' in page
+    assert "function syncHash()" in page and "{client: CUR}" in page
     assert "Enter" in page and 'document.activeElement.closest(".row")' in page, "a focused row's own click is not counted twice"
+
+
+def test_the_corner_mark_is_two_stacked_slides_and_there_is_no_orange_in_it():
+    """Aaron, 2026-11-02, option E: a navy slide in front of a teal one, light and dark, and the same as the favicon."""
+    svg = re.search(r'<svg class="mark"[^>]*>.*?</svg>', H.PAGE, re.S).group(0)
+    assert 'aria-label="Two stacked slides"' in svg and 'viewBox="0 0 40 40"' in svg
+    assert 'x="4" y="14" width="24" height="18" rx="4"' in svg and 'x="12" y="6" width="24" height="18" rx="4"' in svg
+    assert "--mark-front:#1C2541; --mark-back:#15627E;" in H.PAGE and "--mark-front:#EEF3FA; --mark-back:#5FB3C9;" in H.PAGE
+    assert ">S</div>" not in H.PAGE and "var(--accent)" not in re.search(r"\.mark\{[^}]*\}", H.PAGE).group(0)
+    assert 'rel="icon"' in H.PAGE and "%2315627E" in H.PAGE and "%231C2541" in H.PAGE
+    assert "Classic Sheila" not in H.PAGE and ">classic<" not in H.PAGE
+
+
+def test_the_address_names_the_tab_and_the_old_bookmarks_still_work():
+    page = H.PAGE
+    for tab in ("decks", "lift", "issues", "votes", "reported"):
+        assert f'data-tab="{tab}"' in page
+    assert "function readHash()" in page and "function setTab(" in page and 'addEventListener("hashchange"' in page
+    assert 'const TAB_KEY = {d: "decks", l: "lift", i: "issues", v: "votes", f: "reported"}' in page
+
+
+def test_the_old_orange_is_not_drawn_anywhere_on_the_page_or_the_change_log():
+    """What #100 pinned on the old page (no #F47A29, no rgba glow of it), now on the page that replaced it."""
+    import ars_launcher_web as W
+    for text in (H.PAGE, W.CHANGELOG_CSS):
+        assert "F47A29" not in text.upper() and "244,122,41" not in text.replace(" ", "")

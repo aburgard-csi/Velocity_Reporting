@@ -1,14 +1,13 @@
-"""The Hub layout for CSM Sheila, a preview served at /hub (Aaron, 2026-11-02).
+"""CSM Sheila's page: the Hub layout (Aaron, 2026-11-02: "move Sheila entirely to the hub layout").
 
-Off by default. `RPE_SHEILA_HUB=1` in the environment of the process that starts Sheila turns the route on; with it
-unset `/hub` answers 404, so a CSM running the released copy never sees it. It is a second front end onto the same
-server: the page is served with the same token, the API behind it is the classic page's (clients, status, job,
-queue, build, reveal, cycle, changelog), so a check or a build started here is the launcher's, nothing more.
+Served at `/` with the token baked in; `/hub` redirects there. The page talks to the server's own API (clients,
+status, job, queue, build, reveal, cycle, changelog, lift, issues, votes, reports, ils), so a check or a build
+started here is the launcher's, nothing more. The shell, the Decks tab and the client page are this module; every
+other tab is its own module (`sheila_hub_<tab>.py`: a view, its style and its script), added to `TAB_MODULES` and
+assembled into the page here. The address names the tab: `#lift`, `#issues`, `#votes`, `#reported`; none is Decks.
 
-What is real here is the Decks view. Lift Matrix, Data Issues, Slide Review and Feedback are linked to the classic
-page (`/#lift`, `/#issues`, `/#votes`, `/#reported`), which opens on that tab. Whether a deck was sent is not
-Sheila's to track (Aaron, 2026-11-02), so there is no sent state anywhere on this page: a client is Ready,
-Building, In Outputs, Needs attention or Blocked.
+Whether a deck was sent is not Sheila's to track (Aaron, 2026-11-02), so there is no sent state anywhere on this
+page: a client is Ready, Building, In Outputs, Needs attention or Blocked.
 
 The look is borrowed from the tools people like to use: Linear's dense rows with a status shape in front, J/K and
 Enter to move through them; Vercel's pulsing dot for a build in progress; Raycast's command palette (Ctrl K) and its
@@ -21,10 +20,6 @@ import json
 import os
 import sys
 from pathlib import Path
-
-
-def enabled():
-    return os.environ.get("RPE_SHEILA_HUB") == "1"
 
 
 # ------------------------------------------------------------------ who is asking
@@ -99,6 +94,33 @@ def who_am_i():
     return _me["me"]
 
 
+# The modules the page is assembled from, tabs in sidebar order. Each defines TAB (id, or None for a part of the
+# Decks tab), NAME, VIEW (the tab section's inner HTML), CSS and JS; a tab's JS calls registerTab(id, {...}) (see
+# "tabs" in the page script).
+TAB_MODULES = ("sheila_hub_ils", "sheila_hub_lift", "sheila_hub_issues", "sheila_hub_votes", "sheila_hub_feedback")
+
+
+# The mark (option E, Aaron 2026-11-02): a navy slide in front of a teal one, light and dark; the favicon draws the same.
+MARK_SVG = ('<svg class="mark" viewBox="0 0 40 40" role="img" aria-label="Two stacked slides"><rect class="mb" x="12" y="6" width="24" height="18" rx="4"/>'
+            '<rect class="mf" x="4" y="14" width="24" height="18" rx="4"/></svg>')
+FAVICON = ('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 40 40\'%3E%3Cstyle%3E.b%7Bfill:%2315627E%7D.f%7Bfill:%231C2541%7D'
+           '@media(prefers-color-scheme:dark)%7B.b%7Bfill:%235FB3C9%7D.f%7Bfill:%23EEF3FA%7D%7D%3C/style%3E%3Crect class=\'b\' x=\'12\' y=\'6\' width=\'24\' height=\'18\' rx=\'4\'/%3E'
+           '%3Crect class=\'f\' x=\'4\' y=\'14\' width=\'24\' height=\'18\' rx=\'4\'/%3E%3C/svg%3E">')
+
+
+def _assemble():
+    import importlib
+    views, css, js = [], [], []
+    for name in TAB_MODULES:
+        m = importlib.import_module(name)
+        if m.TAB:
+            views.append(f'<section class="view tabview" id="v-{m.TAB}" aria-label="{html.escape(m.NAME)}" hidden>{m.VIEW}</section>')
+        css.append(m.CSS)
+        js.append(m.JS)
+    return (_PAGE.replace("__FAVICON__", FAVICON).replace("__MARK__", MARK_SVG).replace("<!--__TAB_VIEWS__-->", "\n".join(views))
+            .replace("/*__TAB_CSS__*/", "\n".join(css)).replace("//__TAB_JS__", "\n".join(js)))
+
+
 def page(token, version="", me=None):
     v = f"Version {html.escape(version)}" if version else "Preview"
     me = me or {}
@@ -107,12 +129,13 @@ def page(token, version="", me=None):
     return PAGE.replace("__TOKEN__", token).replace("__VERSION__", v).replace("__ME__", data)
 
 
-PAGE = r"""<!doctype html>
+_PAGE = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CSM Sheila — Hub preview</title>
+<title>CSM Sheila</title>
+__FAVICON__
 <style>
 :root{
   --display:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
@@ -128,6 +151,7 @@ PAGE = r"""<!doctype html>
   --shadow:0 1px 2px rgba(11,19,43,.05),0 14px 30px -24px rgba(11,19,43,.35);
   --pop:0 12px 40px -8px rgba(11,19,43,.35),0 2px 6px rgba(11,19,43,.12);
   --toast-bg:#1C2541; --toast-ink:#FFFFFF;
+  --mark-front:#1C2541; --mark-back:#15627E;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -141,6 +165,7 @@ PAGE = r"""<!doctype html>
     --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -24px rgba(0,0,0,.85);
     --pop:0 16px 48px -8px rgba(0,0,0,.7),0 2px 6px rgba(0,0,0,.4);
     --toast-bg:#28344F; --toast-ink:#EEF3FA;
+    --mark-front:#EEF3FA; --mark-back:#5FB3C9;
   }
 }
 :root[data-theme="dark"]{
@@ -154,6 +179,7 @@ PAGE = r"""<!doctype html>
   --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -24px rgba(0,0,0,.85);
   --pop:0 16px 48px -8px rgba(0,0,0,.7),0 2px 6px rgba(0,0,0,.4);
   --toast-bg:#28344F; --toast-ink:#EEF3FA;
+  --mark-front:#EEF3FA; --mark-back:#5FB3C9;
 }
 *{box-sizing:border-box}
 html,body{background:var(--ground)}
@@ -173,7 +199,8 @@ kbd{font:600 11.5px/1 var(--mono);padding:3px 6px;border-radius:6px;background:v
   padding:14px 12px;border-radius:26px;background:var(--glass);border:1px solid var(--glass-line);box-shadow:var(--shadow);
   -webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);transition:width .22s ease}
 .brand{display:flex;align-items:center;gap:10px;padding:2px 4px 10px;position:relative}
-.mark{flex:none;width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font:700 17px var(--display)}
+.mark{flex:none;width:40px;height:40px;display:block}
+.mark .mf{fill:var(--mark-front)} .mark .mb{fill:var(--mark-back)}
 .brand b{display:block;font:700 15.5px/1.15 var(--display)}
 .brand small{display:block;font-size:12.5px;color:var(--muted)}
 .foldbtn{position:absolute;right:-22px;top:9px;width:26px;height:26px;border-radius:50%;border:1px solid var(--glass-line);background:var(--sheet);display:grid;place-items:center;padding:0}
@@ -186,7 +213,7 @@ kbd{font:600 11.5px/1 var(--mono);padding:3px 6px;border-radius:6px;background:v
 .nl .tag{margin-left:auto;font-size:11px;color:var(--muted);letter-spacing:.02em}
 .nl .badge{margin-left:auto}
 .badge{min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:var(--fill);font-size:12px;font-weight:700;display:grid;place-items:center;font-variant-numeric:tabular-nums}
-.badge.hot{background:var(--accent);color:var(--on-accent)}
+.badge.hot{background:var(--ink);color:var(--ground)}
 .badge:empty{display:none}
 .app.rail .side{width:68px}
 .app.rail .brand b,.app.rail .brand small,.app.rail .sec,.app.rail .lbl,.app.rail .nl .tag{display:none}
@@ -390,6 +417,7 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
   .row .pd{display:none}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+/*__TAB_CSS__*/
 </style>
 </head>
 <body>
@@ -397,22 +425,21 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
 <div class="app" id="app">
   <aside class="side" aria-label="Sheila">
     <div class="brand">
-      <div class="mark">S</div>
+      __MARK__
       <div class="lbl"><b>CSM Sheila</b><small>__VERSION__</small></div>
       <button class="foldbtn" id="fold" aria-label="Fold the sidebar" title="Fold the sidebar"><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button>
     </div>
     <nav class="nav" aria-label="Views">
-      <a class="nl" href="/hub" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg><span class="lbl">Decks</span><span class="badge hot" id="b-attn" title="Needs attention or blocked"></span></a>
-      <a class="nl" href="/#lift" data-tip="Lift Matrix"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg><span class="lbl">Lift Matrix</span><span class="tag lbl">classic</span></a>
-      <a class="nl" href="/#issues" data-tip="Data Issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg><span class="lbl">Data Issues</span><span class="tag lbl">classic</span></a>
-      <a class="nl" href="/#votes" data-tip="Slide Review"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg><span class="lbl">Slide Review</span><span class="tag lbl">classic</span></a>
-      <a class="nl" href="/#reported" data-tip="Feedback"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg><span class="lbl">Feedback</span><span class="tag lbl">classic</span></a>
+      <a class="nl" data-tab="decks" href="#" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg><span class="lbl">Decks</span><span class="badge hot" id="b-attn" title="Needs attention or blocked"></span></a>
+      <a class="nl" data-tab="lift" href="#lift" data-tip="Lift Matrix"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg><span class="lbl">Lift Matrix</span></a>
+      <a class="nl" data-tab="issues" href="#issues" data-tip="Data Issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg><span class="lbl">Data Issues</span><span class="badge hot" id="b-issues" title="Open data issues"></span></a>
+      <a class="nl" data-tab="votes" href="#votes" data-tip="Slide Review"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg><span class="lbl">Slide Review</span></a>
+      <a class="nl" data-tab="reported" href="#reported" data-tip="Feedback"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg><span class="lbl">Feedback</span></a>
     </nav>
     <div class="sec">Reference</div>
     <nav class="nav">
       <button class="nl small" id="news-btn" data-tip="What's new"><svg viewBox="0 0 20 20"><path d="m10 3 1.8 4.2L16 9l-4.2 1.8L10 15l-1.8-4.2L4 9l4.2-1.8L10 3Z"/></svg><span class="lbl">What's new</span></button>
       <a class="nl small" href="/changelog" target="_blank" rel="noopener" data-tip="Change log"><svg viewBox="0 0 20 20"><path d="M5 3h10v14H5V3Zm3 4h4m-4 3h4m-4 3h2"/></svg><span class="lbl">Change log</span></a>
-      <a class="nl small" href="/" data-tip="Open classic Sheila"><svg viewBox="0 0 20 20"><path d="M8 4H4v12h12v-4M11 4h5v5m0-5-7 7"/></svg><span class="lbl">Classic Sheila</span></a>
     </nav>
   </aside>
   <main>
@@ -421,10 +448,11 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
       <span class="sp"></span>
       <button class="buildpill" id="buildpill" hidden></button>
       <span class="seg opt" role="group" aria-label="Row density"><button id="dn-c" aria-pressed="true">Comfortable</button><button id="dn-k" aria-pressed="false">Compact</button></span>
+      <button class="ctl" id="reportbtn" title="Report a problem with Sheila or a deck"><svg viewBox="0 0 16 16"><path d="M3 3h10v7H8l-3 2.5V10H3V3Z"/></svg><span class="opt">Report</span></button>
       <button class="ctl" id="night" aria-label="Switch between night and day"><svg viewBox="0 0 16 16"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5Z"/></svg><span id="night-l">Night</span></button>
       <button class="ctl" id="period" aria-haspopup="menu" aria-expanded="false"></button>
     </div>
-    <section class="view" aria-label="Decks">
+    <section class="view" id="v-decks" aria-label="Decks">
       <div class="vh"><div><h1>Decks</h1><p id="sub">Loading this cycle…</p></div></div>
       <div class="mine" id="mine"></div>
       <div class="kpis" id="kpis" role="group" aria-label="Filter by status"></div>
@@ -440,14 +468,15 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
         <section class="card" id="detail" aria-label="Client" aria-live="polite"></section>
       </div>
     </section>
+<!--__TAB_VIEWS__-->
   </main>
 </div>
 <nav class="tabbar" aria-label="Views">
-  <a href="/hub" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg>Decks</a>
-  <a href="/#lift"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg>Lift</a>
-  <a href="/#issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg>Issues</a>
-  <a href="/#votes"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg>Review</a>
-  <a href="/#reported"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg>Feedback</a>
+  <a data-tab="decks" href="#" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg>Decks</a>
+  <a data-tab="lift" href="#lift"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg>Lift</a>
+  <a data-tab="issues" href="#issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg>Issues</a>
+  <a data-tab="votes" href="#votes"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg>Review</a>
+  <a data-tab="reported" href="#reported"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg>Feedback</a>
 </nav>
 <dialog id="pal" aria-label="Search and actions"><input id="pq" type="text" placeholder="Search a client, or type an action…" autocomplete="off" aria-label="Search"><ul id="pl" role="listbox"></ul><div class="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div></dialog>
 <dialog id="keys"><h2>Keyboard shortcuts</h2><dl id="keyl"></dl><p style="margin:14px 0 0;text-align:right"><button class="btn" id="keyx">Close</button></p></dialog>
@@ -703,12 +732,7 @@ function closeClient() {
   syncHash(); renderList(); renderOverview();
   if (building) toast(`${was} is still building. Open it again, or the Building pill, to see the steps.`, "", 5000);
 }
-function syncHash() {
-  const p = new URLSearchParams(location.hash.slice(1));
-  if (CUR) p.set("client", CUR); else p.delete("client");
-  const h = p.toString();
-  try { history.replaceState(null, "", location.pathname + location.search + (h ? "#" + h : "")); } catch (e) {}
-}
+
 
 function presentation(o) {
   const rows = (o.checks || []).map(c => ({...c, ck: LEVEL[c.level] || "ok"}));
@@ -765,8 +789,9 @@ function renderDetail() {
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : "checked " + Math.round(s.age_seconds / 60) + " min ago") + (s.refreshing ? ", checking again…" : "");
   const k = kindOf(c);
   $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(s.name || c.name || s.client)}</h2><span class="chip k-${k.k}">${si(k.k)}${esc(k.label)}</span>
-    <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span></header>
-    <div class="pres">${cards.join("")}</div>`;
+    <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span><span class="meta clientlinks" id="clientlinks"></span></header>
+    <div class="pres">${cards.join("")}<div id="ilscards"></div></div>`;
+  ilsCards(s.client); clientLinks(s.client, "decks", $("#clientlinks"));
   if (JOB) renderJob(JOB);
   if (s.refreshing) for (const x of $$("#detail [data-act=build]")) { x.disabled = true; x.title = "Waiting for the fresh check"; }
 }
@@ -865,19 +890,17 @@ function celebrate() {
 
 // ------------------------------------------------------------ command palette
 const ACTIONS = () => [
-  {t: "Go to Decks", s: "this page", run: () => closeClient()},
+  ...Object.entries(TAB_NAMES).filter(([id]) => id !== TAB).map(([id, n]) => ({t: "Go to " + n, s: "G " + Object.keys(TAB_KEY).find(k => TAB_KEY[k] === id).toUpperCase(), run: () => go(id)})),
+  ...(TAB !== "decks" && TABS[TAB] && TABS[TAB].palette ? TABS[TAB].palette() : []),
+  ...Object.values(TABS).flatMap(t => t.global ? t.global() : []),
+  ...(TAB === "decks" && CUR ? [{t: "Back to the Decks overview", s: "Esc", run: () => closeClient()}] : []),
   {t: "Refresh the client list", s: "", run: () => { loadClients(true); toast("Refreshing the list…"); }},
   ...(ME.csm ? [{t: "Show my clients (" + ME.csm + ")", s: "", run: () => setCsm(ME.csm)}, {t: "Show every CSM's clients", s: "", run: () => setCsm("")}] : []),
   ...(CUR && S ? [{t: "Check " + CUR + " again", s: "R", run: () => openClient(CUR, true)}, {t: "Build the Executive Review for " + CUR, s: "B", run: () => firstBuild()}] : []),
-  {t: "Open Lift Matrix", s: "classic Sheila", run: () => location.href = "/#lift"},
-  {t: "Open Data Issues", s: "classic Sheila", run: () => location.href = "/#issues"},
-  {t: "Open Slide Review", s: "classic Sheila", run: () => location.href = "/#votes"},
-  {t: "Open Feedback", s: "classic Sheila", run: () => location.href = "/#reported"},
   {t: "Open the change log", s: "", run: () => window.open("/changelog", "_blank", "noopener")},
   {t: "Switch to night or day", s: "T", run: toggleNight},
   {t: "Compact rows on or off", s: "C", run: () => setDensity(document.documentElement.dataset.density === "compact" ? "" : "compact")},
-  {t: "Show keyboard shortcuts", s: "?", run: () => $("#keys").showModal()},
-  {t: "Open classic Sheila", s: "", run: () => location.href = "/"},
+  {t: "Show keyboard shortcuts", s: "?", run: showKeys},
 ];
 function fuzzy(q, text) {
   q = q.toLowerCase(); text = text.toLowerCase(); if (!q) return 1;
@@ -913,12 +936,49 @@ function setRail(on) { $("#app").classList.toggle("rail", on); store("hub-rail",
 
 function firstBuild() { const b = $("#detail [data-act=build]:not([disabled])"); if (b) b.click(); else toast("Nothing to build for this client right now."); }
 
+// ------------------------------------------------------------ tabs
+// Each tab after Decks is a <section class="view tabview" id="v-<id>"> that its module fills when it is opened:
+// registerTab(id, {enter(params), leave(), refresh(), key(e), keys: [[keys, what]], palette(): [{t, s, run}]}).
+// The address names the tab (#lift, #issues, #votes, #reported; none is Decks) and carries what it shows
+// (#lift&client=1705, #votes&program=ICS), so a bookmark or a link from another tab lands where it says.
+const TABS = {}, TAB_NAMES = {decks: "Decks", lift: "Lift Matrix", issues: "Data Issues", votes: "Slide Review", reported: "Feedback"};
+const TAB_KEY = {d: "decks", l: "lift", i: "issues", v: "votes", f: "reported"};
+let TAB = "decks", TABPARAMS = {};
+function registerTab(id, def) { TABS[id] = def; }
+function readHash() {
+  const parts = location.hash.slice(1).split("&"), tab = parts[0] && !parts[0].includes("=") ? parts.shift() : "decks";
+  return {tab, p: new URLSearchParams(parts.join("&"))};
+}
+const HP = readHash().p;           // theme and density from the address: for this load only, never stored
+function syncHash() {
+  const p = new URLSearchParams(), q = TAB === "decks" ? (CUR ? {client: CUR} : {}) : TABPARAMS;
+  for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);
+  for (const k of ["theme", "density"]) if (HP.get(k)) p.set(k, HP.get(k));
+  const rest = p.toString(), h = (TAB === "decks" ? "" : TAB) + (rest ? (TAB === "decks" ? "" : "&") + rest : "");
+  try { history.replaceState(null, "", location.pathname + location.search + (h ? "#" + h : "")); } catch (e) {}
+}
+function setTabParams(o) { TABPARAMS = {...TABPARAMS, ...o}; syncHash(); }
+function setTab(id, params) {
+  if (id !== "decks" && !TABS[id]) id = "decks";
+  if (TAB !== id && TAB !== "decks" && TABS[TAB] && TABS[TAB].leave) TABS[TAB].leave();
+  TAB = id; TABPARAMS = params || {};
+  for (const v of $$(".view[id^=v-]")) v.hidden = v.id !== "v-" + id;
+  for (const a of $$("[data-tab]")) { if (a.dataset.tab === id) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); }
+  document.title = id === "decks" ? "CSM Sheila" : "CSM Sheila · " + TAB_NAMES[id];
+  closeMenus(); syncHash();
+  if (id !== "decks" && TABS[id].enter) TABS[id].enter(TABPARAMS);
+}
+function go(id, params) { setTab(id, params); window.scrollTo(0, 0); }
+window.addEventListener("hashchange", () => { const h = readHash(); setTab(h.tab, Object.fromEntries(h.p)); });
+
 // ------------------------------------------------------------ events
 document.addEventListener("click", ev => {
   const t = ev.target;
+  const tabLink = t.closest("[data-tab]");
+  if (tabLink && TABS[tabLink.dataset.tab] || tabLink && tabLink.dataset.tab === "decks") { ev.preventDefault(); return go(tabLink.dataset.tab); }
   // The open client's row again closes it (Aaron, 2026-11-02): back to the overview.
   const row = t.closest(".row[data-id], .wi[data-id]"); if (row) return row.dataset.id === CUR ? closeClient() : openClient(row.dataset.id);
-  const kp = t.closest(".kpi"); if (kp) { FILTER = FILTER === kp.dataset.kind ? "" : kp.dataset.kind; return renderList(); }
+  const kp = t.closest("#kpis .kpi"); if (kp) { FILTER = FILTER === kp.dataset.kind ? "" : kp.dataset.kind; return renderList(); }
   if (t.closest("#clearf")) { FILTER = ""; return renderList(); }
   if (t.closest("#relist")) return loadClients(true);
   if (t.closest("#period")) return openCycles();
@@ -936,7 +996,17 @@ document.addEventListener("click", ev => {
   else if (a === "close" || a === "back") closeClient();
   else if (a === "revealpath") api("/api/reveal", {method: "POST", body: JSON.stringify({path: act.dataset.path})}).then(() => toast("Shown in File Explorer.")).catch(e => toast(e.message, "bad"));
 });
-function setCsm(v) { $("#csm").value = v; if (!ME.csm) store("ars-builder-csm", v); renderList(); paintMine(); if (!CUR) renderOverview(); }
+function setCsm(v) {
+  $("#csm").value = v; if (!ME.csm) store("ars-builder-csm", v); renderList(); paintMine(); if (!CUR) renderOverview(); paintIssueBadge();
+  for (const s of $$(".csmpick")) s.value = v;
+  if (TAB !== "decks" && TABS[TAB] && TABS[TAB].refresh) TABS[TAB].refresh();
+}
+// The same CSM filter in a tab's header: one choice for every tab, kept in the Decks list's own select.
+function csmPick() {
+  const opts = [...$("#csm").options].map(o => `<option value="${esc(o.value)}"${o.value === $("#csm").value ? " selected" : ""}>${esc(o.textContent)}</option>`).join("");
+  return `<select class="csmpick ctl" aria-label="CSM">${opts}</select>`;
+}
+document.addEventListener("change", e => { if (e.target.classList.contains("csmpick")) setCsm(e.target.value); });
 $("#csm").addEventListener("change", e => setCsm(e.target.value));
 $("#q").addEventListener("input", renderList);
 $("#palbtn").addEventListener("click", openPalette);
@@ -952,21 +1022,40 @@ $("#pal").addEventListener("keydown", e => {
   else if (e.key === "Enter") { e.preventDefault(); runPal(PSEL); }
 });
 $("#pal").addEventListener("click", e => { if (e.target === $("#pal")) $("#pal").close(); });
+// A closed dialog must not keep the keyboard: with focus left in its box every shortcut would read as typing.
+for (const d of ["#pal", "#keys"]) $(d).addEventListener("close", () => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
 $("#keys").addEventListener("click", e => { if (e.target === $("#keys")) $("#keys").close(); });
-$("#keyl").innerHTML = [["Ctrl K", "Search clients and actions"], ["/", "Find a client"], ["j  k", "Move down or up the list"], ["Enter", "Open the client"], ["B", "Build (asks first if a deck is in Outputs)"],
-  ["R", "Check the open client again"], ["E", "Show the deck in File Explorer"], ["Esc", "Close the client or a menu"], ["T", "Night or day"], ["C", "Compact rows"], ["?", "This list"]]
-  .map(([k, d]) => `<dt>${k.split("  ").map(x => `<kbd>${esc(x)}</kbd>`).join("")}</dt><dd>${esc(d)}</dd>`).join("");
+const KEYS_DECKS = [["j  k", "Move down or up the list"], ["Enter", "Open the client; again to close it"], ["/", "Find a client"], ["B", "Build (asks first if a deck is in Outputs)"],
+  ["R", "Check the open client again"], ["E", "Show the deck in File Explorer"], ["Esc", "Close the client or a menu"]];
+const KEYS_ALL = [["Ctrl K", "Search clients, tabs and actions"], ["G  D", "Go to Decks (G then L, I, V or F for the other tabs)"], ["T", "Night or day"], ["C", "Compact rows"], ["?", "This list"]];
+function showKeys() {
+  const tab = TAB === "decks" ? KEYS_DECKS : ((TABS[TAB] && TABS[TAB].keys) || []);
+  const dl = (rows) => rows.map(([k, d]) => `<dt>${k.split("  ").map(x => `<kbd>${esc(x)}</kbd>`).join("")}</dt><dd>${esc(d)}</dd>`).join("");
+  $("#keyl").innerHTML = `<dt style="grid-column:1/-1;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${esc(TAB_NAMES[TAB])}</dt>` + dl(tab) +
+    `<dt style="grid-column:1/-1;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:6px">Everywhere</dt>` + dl(KEYS_ALL);
+  $("#keys").showModal();
+}
 
+let CHORD = 0;
 document.addEventListener("keydown", e => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); return $("#pal").open ? $("#pal").close() : openPalette(); }
-  if (e.key === "Escape") { if ($(".menu")) return closeMenus(); if (typing) return document.activeElement.blur(); if (CUR) closeClient(); return; }
-  if (typing || e.ctrlKey || e.metaKey || e.altKey || $("#pal").open || $("#keys").open) return;
+  if (e.key === "Escape") {
+    if ($(".menu")) return closeMenus(); if (typing) return document.activeElement.blur();
+    if (TAB !== "decks") { if (TABS[TAB] && TABS[TAB].key) TABS[TAB].key(e); return; }
+    if (CUR) closeClient(); return;
+  }
+  if (typing || e.ctrlKey || e.metaKey || e.altKey || $("#pal").open || $("#keys").open || $("dialog[open]")) return;
   const k = e.key;
+  if (TAB !== "decks" && TABS[TAB] && TABS[TAB].key && TABS[TAB].key(e) === true) return;
+  if (CHORD && Date.now() - CHORD < 1500) { CHORD = 0; if (TAB_KEY[k]) { e.preventDefault(); go(TAB_KEY[k]); return; } }
+  CHORD = 0;
+  if (k === "g") { CHORD = Date.now(); return; }
+  if (k === "?") return showKeys();
+  if (k === "t") return toggleNight();
+  if (k === "c") return setDensity(document.documentElement.dataset.density === "compact" ? "" : "compact");
+  if (TAB !== "decks") return;
   if (k === "/") { e.preventDefault(); $("#q").focus(); }
-  else if (k === "?") $("#keys").showModal();
-  else if (k === "t") toggleNight();
-  else if (k === "c") setDensity(document.documentElement.dataset.density === "compact" ? "" : "compact");
   else if (k === "j" || k === "k" || k === "ArrowDown" || k === "ArrowUp") {
     e.preventDefault();
     const rows = visible(), i = rows.findIndex(c => c.id === (CURSOR || CUR)), n = (k === "j" || k === "ArrowDown") ? i + 1 : i - 1;
@@ -984,15 +1073,20 @@ setRail(recall("hub-rail") === "1"); setDensity(recall("hub-density") || ""); se
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncNight);
 renderList(); renderOverview(); paintPeriod();
 loadClients(); pollQueue(); setInterval(pollQueue, 3000); setInterval(paintBuildPill, 1000);
-// A link can set the view: /hub#client=1441&theme=dark&density=compact (none of it is stored).
-const HASH = new URLSearchParams(location.hash.slice(1));
+//__TAB_JS__
+// A link can set the view: /#client=1441&theme=dark&density=compact (none of it is stored).
+const HASH = HP;
 if (HASH.get("theme") === "dark" || HASH.get("theme") === "light") document.documentElement.dataset.theme = HASH.get("theme");
 if (HASH.get("density") === "compact") document.documentElement.dataset.density = "compact";
 syncNight();
 $("#dn-c").setAttribute("aria-pressed", !document.documentElement.dataset.density); $("#dn-k").setAttribute("aria-pressed", !!document.documentElement.dataset.density);
-const first = (HASH.get("client") || "").match(/^\d{3,5}$/) ? HASH.get("client") : null;
+{ const h = readHash(); if (h.tab !== "decks") setTab(h.tab, Object.fromEntries(h.p)); }
+const first = TAB === "decks" && (HASH.get("client") || "").match(/^\d{3,5}$/) ? HASH.get("client") : null;
 if (first) { const t = setInterval(() => { if (LOADED) { clearInterval(t); openClient(first); } }, 200); }
 </script>
 </body>
 </html>
 """
+
+
+PAGE = _assemble()

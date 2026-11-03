@@ -231,14 +231,14 @@ def test_the_list_keeps_companion_decks_apart(tmp_path, monkeypatch):
 
 
 def test_the_page_has_a_companion_panel_button_and_job_box():
-    page = W.PAGE
-    assert "function companionPanel(s)" in page and "async function buildComp(s)" in page
-    assert 'id="gocomp"' in page and 'id="jobcomp"' in page
+    import sheila_hub as H
+    page = H.PAGE
+    assert 'key: "comp", title: "ARS Companion"' in page and 'btn("comp",' in page
+    assert 'id="job-${o.key || "rpe"}"' in page, "its progress draws inside its own card"
     assert '"/api/build"' in page and "companion: true" in page
-    assert "${tiPanel(s)}${companionPanel(s)}" in page
+    assert "if (s.ti) cards.push(" in page and "if (s.companion) cards.push(" in page
     # one build per client at a time: every button waits while any of them runs
-    assert '["#go", "#go2", "#goti", "#gocomp"]' in page
-    assert "Companion in Outputs" in page
+    assert 'const anyRun = JOB && !JOB.done;' in page and '${anyRun ? " disabled" : ""}' in page
 
 
 def test_the_closing_slides_end_the_deck_even_when_a_view_follows_them_in_the_build(tmp_path):
