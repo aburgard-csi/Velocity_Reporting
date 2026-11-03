@@ -42,7 +42,7 @@ mcp = Server("sheila", core.version(), INSTRUCTIONS)
 @mcp.tool
 def my_month(csm: str = "me") -> dict:
     """The CSM's book for this cycle, grouped: Ready to build, Blocked (and by what), Last build failed,
-    Built in Outputs, Sent. Use for "where am I this month", "what's left", "what can I build".
+    Built in Outputs. Use for "where am I this month", "what's left", "what can I build".
     csm: "me" (default), or a CSM's name ("Jordan")."""
     return core.my_month(csm)
 
@@ -181,7 +181,7 @@ def client_brief(client: str) -> dict:
 
 @mcp.tool
 def client_prepare(client: str) -> dict:
-    """Meeting prep: the client brief, then what to fix before the call (unbuilt or unsent deck, a failed
+    """Meeting prep: the client brief, then what to fix before the call (unbuilt deck, a failed
     build, missing inputs) and what to raise (the figures worth saying)."""
     return reports.client_prepare(client)
 
