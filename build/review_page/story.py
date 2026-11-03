@@ -78,6 +78,10 @@ OPTIONAL = [
         ("cashplease:volume", "CashPlease volume", "CashPlease · Loans"),
         ("cashplease:peers", "CashPlease: how you compare", "CashPlease · How you compare"),
     ]),
+    ("rems", "rems", "Responses and opt-ins", "Reg E Management Solution responses by month, and how the client compares with other REMS clients.", [
+        ("rems:summary", "REMS responses", "REMS · By month"),
+        ("rems:peers", "REMS: how you compare", "REMS · How you compare"),
+    ]),
 ]
 
 TITLE = "The review"

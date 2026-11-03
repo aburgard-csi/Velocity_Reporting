@@ -170,6 +170,59 @@ ICS_METRICS = [
 ]
 
 
+# ----------------------------------------------------------------- REMS
+REMS_MIN_RESPONSES = 10          # a month with fewer responses than this is too small for a rate to mean anything
+
+
+def rems_rows(ctx):
+    """({client id: {"name", "months": {"YYYY-MM": (responses, opt-ins)}}}, as_of, file name) from the newest
+    `rems_responses*.csv` the REMS query's result was saved as (Inputs/REMS, or `<ctx.root>/rems` for a test). The file holds
+    every client. ({}, None, None) when there is none. `as_of` is the date in the file name, else the file's own date."""
+    import csv
+    import datetime
+    import re
+    import rpe_env
+    from pathlib import Path
+    base = Path(ctx.root) / "rems" if getattr(ctx, "root", None) else rpe_env.input_dir("REMS", create=False)
+    files = sorted(glob.glob(str(base / "rems_responses*.csv")), key=os.path.getmtime)
+    if not files:
+        return {}, None, None
+    path = files[-1]
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", os.path.basename(path))
+    as_of = datetime.date.fromisoformat(m.group(1)) if m else datetime.date.fromtimestamp(os.path.getmtime(path))
+    rows = {}
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f):
+            r = {(k or "").strip().lower(): (v or "").strip() for k, v in r.items()}
+            try:
+                cid, y, mo = r["client_id"], int(float(r["response_year"])), int(float(r["response_month"]))
+                n, o = float(r["num_responses"]), float(r["num_opt_in"])
+            except (KeyError, ValueError):
+                continue
+            ent = rows.setdefault(cid, {"name": r.get("client_name") or None, "months": {}})
+            ent["months"]["%04d-%02d" % (y, mo)] = (n, o)
+    return rows, as_of, os.path.basename(path)
+
+
+def collect_rems(ctx):
+    rows, as_of, fname = rems_rows(ctx)
+    out = {}
+    for cid, ent in rows.items():
+        ended = sorted(m for m in ent["months"] if MC.month_ended(m, as_of) is not False)
+        if not ended or not any(ent["months"][m][0] > 0 for m in ended[-6:]):
+            continue                                          # no responses in the last six complete months: not a current client
+        series = {_label(m): 100.0 * ent["months"][m][1] / ent["months"][m][0] for m in ended[-24:]
+                  if ent["months"][m][0] >= REMS_MIN_RESPONSES}
+        out[cid] = {"point": {}, "series": {"pct_opt_in": series}}
+    mine, peers = _split(out, str(ctx.client))
+    return {"n_pool": len(peers), "me": mine, "peers": peers, "pull": str(as_of) if as_of else None}
+
+
+REMS_METRICS = [
+    {"key": "pct_opt_in", "label": "Opt-in rate", "fmt": "pct1", "higher": True, "month": True},
+]
+
+
 # ----------------------------------------------------------------- MRPC
 _WEEKLY = {}
 

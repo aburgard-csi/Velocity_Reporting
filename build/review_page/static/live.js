@@ -57,7 +57,7 @@
   }
   function curProgram() { return programs().filter(function (p) { return p.key === S.prog; })[0] || null; }
   function cname() { return (MODEL.client && MODEL.client.name) || "This client"; }   // the peer screens call the client by its name
-  var PRODUCT = {ars: "ARS", ti: "Transaction Intelligence", ics: "ICS", mrpc: "MRPC", cashplease: "CashPlease"};
+  var PRODUCT = {ars: "ARS", ti: "Transaction Intelligence", ics: "ICS", mrpc: "MRPC", cashplease: "CashPlease", rems: "REMS"};
   function prodLabel(k) { return PRODUCT[k] || (programOf(k) || {}).label || k; }
   /* A product's sections are numbered within the product ("section 2 of 5"), never across the whole review. */
   function prodSections(k) { return MODEL.story.sections.filter(function (s) { return s.prog === k; }); }
@@ -72,7 +72,8 @@
     ti: {title: "Transaction Intelligence", topics: "Competition \u00b7 Attrition \u00b7 Deposits", track: "TI"},
     ics: {title: "Invitation Checking\u00ae System", topics: "Referrals \u00b7 Account Performance \u00b7 Revenue", track: "ICS"},
     mrpc: {title: "MyRewards Premium Cards\u00ae", topics: "Enrollments \u00b7 Retention \u00b7 Revenue", track: "MRPC"},
-    cashplease: {title: "CashPlease\u00ae", topics: "Loan Volume \u00b7 Portfolio Status \u00b7 Peer Comparison", track: "CashPlease"}
+    cashplease: {title: "CashPlease\u00ae", topics: "Loan Volume \u00b7 Portfolio Status \u00b7 Peer Comparison", track: "CashPlease"},
+    rems: {title: "Reg E Management Solution", topics: "Responses \u00b7 Opt-Ins \u00b7 Peer Comparison", track: "REMS"}
   };
   function hideProgramCard() { var el = $("#pdiv"); if (el) el.className = ""; clearTimeout(S.pdivT); }
   function showProgramCard(pk) {

@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review has a Reg E Management Solution (REMS) section
+
+Summary: Live Review has a new product section for Reg E Management Solution: responses and opt-ins by month, and how the client's opt-in rate compares with every other REMS client. It reads the saved result of the REMS query; until that file is saved it says what to run.
+
+Aaron, 2026-11-03: "add a section for Reg E Management Solution (REMS)".
+
+- **Data.** `sql/rems_responses_report.sql` runs against MRDB and SRDB, which Claude cannot reach, so a person saves its result as `Inputs/REMS/rems_responses <YYYY-MM-DD>.csv` (the CSV with `client_id`, `client_name`, `response_year`, `response_month`, `num_responses`, `num_opt_in`, `pct_opt_in`). The date in the name is the pull date; the month it falls in is in progress and is left out. The new `REMS` input kind is not scanned by the watch.
+- **Section.** REMS is a product like ARS, ICS and CashPlease: its own rail group, colour, divider card and progress-track entry. Two screens: "REMS responses" (responses, opt-ins and the rate, to date and for the last complete month, with the monthly bars and table) and "REMS: how you compare" (the opt-in rate against every other client in the file that had responses in the last six complete months; a month under 10 responses is too small for a rate and is left out; peers are numbered, never named). A client with no REMS rows in the file has no REMS section.
+- `tests/test_live_review_rems.py` pins all of it on a synthetic file.
+
 ### 2026-11-03 — Live Review: sections are organised by product, and the title cards show only while presenting
 
 Summary: Live Review's screen list, agenda and progress bar are now grouped by product (ARS, Transaction Intelligence, ICS, MRPC, CashPlease), each with its own sections, and the product title card appears only in presenter mode.
