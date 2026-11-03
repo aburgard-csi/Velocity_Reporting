@@ -18,7 +18,7 @@ def between(text, a, b):
     return text[text.index(a):text.index(b, text.index(a))]
 
 
-@pytest.mark.parametrize("module,tab", [("sheila_hub_feedback", "reported"), ("sheila_hub_issues", "issues"), ("sheila_hub_lift", "lift")])
+@pytest.mark.parametrize("module,tab", [("sheila_hub_feedback", "reported"), ("sheila_hub_issues", "issues"), ("sheila_hub_lift", "lift"), ("sheila_hub_votes", "votes")])
 def test_each_tab_module_is_complete_and_assembled_once(module, tab):
     import importlib
     m = importlib.import_module(module)
@@ -98,3 +98,29 @@ def test_lift_matrix_states_are_said_never_blank():
         assert text in page
     # the open client goes back with Esc or the button; the address follows
     assert "function back()" in page and 'setTabParams({client: id})' in page and "Back to every Lift Matrix" in page
+
+
+def test_slide_review_is_one_keystroke_per_slide_and_a_slide_is_saved_with_its_whole_state():
+    page = H.PAGE
+    for route in ('"/api/votes/programs"', '"/api/votes/program?program="', '"/api/votes/summary"', '"/api/votes/export"', '"/api/votes/vote"'):
+        assert route in page
+    send = between(page, "async function send(i, patch)", "function paintRow(i)")
+    assert "vote: next.vote, star: next.star, comment: next.comment" in send, "a star keeps the vote and a vote keeps the star"
+    assert "s.mine = before; paintRow(i);" in send and "Couldn't save that" in send, "put back when the share refuses"
+    key = between(page, "registerTab(\"votes\"", "palette: () => [...(V.progs")
+    for k in ('k === "1" || k === "2" || k === "3"', 'k === "s"', 'k === "c"', 'k === "n"', 'k === "["', 'k === "]"', 'k === "w"'):
+        assert k in key
+    assert "return true;" in key, "the tab takes c before the page's compact-rows key does"
+    assert "async function voteKey(v)" in page and "nextUnvoted(i)" in page, "a vote moves on to the next slide not voted on"
+    # progress: voted of total, and a meter of keep, delete and appendix
+    assert '"Voted", done + " of " + c.total' in page and "svmeter" in page
+
+
+def test_slide_review_summary_exports_a_csv_and_keeps_the_votes_per_program_not_per_client():
+    page = H.PAGE
+    assert "async function exportCsv()" in page and "slide-votes-" in page and 'id="sv-export"' in page
+    assert "One row per slide, for each program as a whole, not by client." in page
+    for prog in ("Keep", "Delete", "Appendix"):
+        assert prog in page
+    import slide_votes as SV
+    assert set(SV.PROGRAMS) >= {"ARS", "ICS", "MRPC"}
