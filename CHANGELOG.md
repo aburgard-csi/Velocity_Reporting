@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review REMS: compare the last 12 months pooled, and leave out the demo client
+
+Summary: With the real REMS file in place, the REMS peer comparison now leads with each client's opt-in rate over the last 12 months pooled, because a single month holds only tens of responses, and it no longer counts the demo client (999, Union Financial Bank) as a peer.
+
+Aaron saved `rems_responses 2026-11-03.csv` in `Inputs/REMS` (658 rows, 14 clients, the columns the section reads). Built against it, Marine FCU's section showed 47 responses and 83.0% opted in in October.
+
+- **12 months pooled.** A month of REMS is small (Marine's October: 47), so the monthly rate left only 5 comparable peers and moved with a handful of responses. The first comparison is now opt-ins over responses for the last 12 complete calendar months (at least 30 responses in them to be compared); the monthly rate stays as the second view and the trend. Marine: 85.3%, 3rd of 6 REMS clients, 7.2% above the peer median (79.6%).
+- **Demo client.** Client 999 (Union Financial Bank, the deck demo client) is in the query's result from 2010; it is skipped as a client and as a peer.
+- **Current** now means a response in the last six calendar months before the pull, not in the client's own last six months, which counted Wellworth (last response April 2023) as current.
+
 ### 2026-11-03 — Sheila cleans up after herself: the Transaction Intelligence cache has a size and an age limit
 
 Summary: Sheila no longer lets her local Transaction Intelligence cache grow without end. It stays under 3 GB and clears any client not built for 21 days, least recently used first, when she starts and at the start of each Transaction Intelligence build; `ars_launcher_web.py --tidy` does it on demand.
