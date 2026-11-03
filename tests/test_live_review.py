@@ -287,6 +287,15 @@ def test_presenter_stays_windowed_and_arrows_walk_every_section():
     assert 'walkOrder()' in step and 'S.prog = order[to]' in step
 
 
+def test_bars_draw_in_only_when_a_screen_first_appears():
+    # Aaron, 2026-11-02: opening or closing the branch detail re-rendered the screen and replayed the bar animation
+    root = os.path.join(REPO, 'build', 'review_page', 'static')
+    js = open(os.path.join(root, 'live.js'), encoding='utf-8').read()
+    css = open(os.path.join(root, 'live.css'), encoding='utf-8').read()
+    assert 'classList.toggle("still", !!S.plain)' in js
+    assert '#stage.still .grow-x' in css and '#stage.still .grow-y' in css
+
+
 def _import_script():
     import importlib.util
     spec = importlib.util.spec_from_file_location("live_review_script", os.path.join(REPO, "scripts", "live_review.py"))

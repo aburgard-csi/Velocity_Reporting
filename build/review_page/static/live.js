@@ -432,6 +432,7 @@
         '<p class="stamp">Data pack read ' + esc(MODEL.generated.replace("T", " ")) + " · sources on every screen (S)</p></section>";
     }
     main.innerHTML = html;
+    main.classList.toggle("still", !!S.plain);   // bars draw in once, when a screen first appears; opening or closing a table must not replay them
     S.plain = false;
     drawCharts();
     renderFoot();
@@ -548,7 +549,7 @@
   document.addEventListener("mousemove", tip);
   document.addEventListener("mouseleave", function () { $("#tip").classList.remove("on"); });
   window.addEventListener("scroll", function () { $("#tip").classList.remove("on"); }, {passive: true});
-  var rz; window.addEventListener("resize", function () { clearTimeout(rz); rz = setTimeout(function () { drawCharts(); }, 120); });
+  var rz; window.addEventListener("resize", function () { clearTimeout(rz); rz = setTimeout(function () { $("#stage").classList.add("still"); drawCharts(); }, 120); });
   window.addEventListener("hashchange", function () { var h = location.hash; readHash(); render(); });
 
   function theme() {
