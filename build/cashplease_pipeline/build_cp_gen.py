@@ -447,16 +447,16 @@ def adapt_shell(prs, d):
 
 
 def fill_contact(slide, client_id):
-    """Rewrite the shell's Contact Us card with the client's managing CSM (Aaron, 2026-09-16).
+    """Redraw the shell's Contact Us slide with the client's managing CSM (Aaron, 2026-09-16).
 
-    The template card carries static text for one CSM; `shapes.fill_contact_card` finds its
-    four lines by position inside the card, replaces them, drops the phone line when the CSM
-    has none, and writes the source note.
+    The template slide carries static text for one CSM; `shapes.fill_contact_slide` draws the whole slide
+    again (the Questions & Discussion gradient, the CSI logo, the contact centred), leaves the phone row out
+    when the CSM has none, and writes the source note.
     """
     import rpe_env
-    from shapes import fill_contact_card
+    from shapes import fill_contact_slide
     contact = rpe_env.csm_contact(client_id)
-    fill_contact_card(slide, contact)
+    fill_contact_slide(slide, contact)
     return contact
 
 

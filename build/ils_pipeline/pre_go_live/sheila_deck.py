@@ -989,15 +989,15 @@ def _shell(prs, pack, art_dir):
     G._set_closing_line(found["questions"], f"{name}  •  {pack['extract_date_long']}")
     CD.redraw_closing_in_place(found["questions"])
     import rpe_env
-    from shapes import fill_contact_card
+    from shapes import fill_contact_slide
     try:
-        fill_contact_card(found["contact"], rpe_env.csm_contact(cid))
+        fill_contact_slide(found["contact"], rpe_env.csm_contact(cid))
     except (SystemExit, Exception) as exc:
-        # a pre-go-live client may not be on the Client CSM List yet. The shell's card holds another
+        # a pre-go-live client may not be on the Client CSM List yet. The shell's slide holds another
         # CSM's details, so it is overwritten with a placeholder rather than left naming the wrong person.
-        pack.setdefault("warnings", []).append(f"Contact Us card: {exc}")
-        fill_contact_card(found["contact"], {"name": "CSM to be confirmed", "role": "Client Service Manager",
-                                             "phone": "", "email": f"add client {cid} to the Client CSM List"})
+        pack.setdefault("warnings", []).append(f"Contact Us slide: {exc}")
+        fill_contact_slide(found["contact"], {"name": "CSM to be confirmed", "role": "Client Service Manager",
+                                              "phone": "", "email": f"add client {cid} to the Client CSM List"})
     return found
 
 

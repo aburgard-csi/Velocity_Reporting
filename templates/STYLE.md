@@ -57,14 +57,22 @@ unit suite could not run).
 | `NAVY` | `#00274C` | titles, tiles, bars, table headers, slide numbers |
 | `ORANGE` | `#F15D22` | the current period, the highlighted row, pills, totals, agenda badges |
 | `TICK` | `#5A6670` | axis ticks, selection subtitles, body grey |
-| `ROWALT` | `#EEF2F7` | alternating table rows |
-| `GRID` / `HAIRLINE` / `MUTED` | `#E4EAF1` / `#D9DEE5` / `#B8C0CA` | gridlines, lightest spine, axis spine |
-| `LABEL` / `LIGHT` | `#CFDBE8` / `#C9D6E3` | light label on navy; ICS + MRPC tertiary series |
+| `ROWALT` | `#EEF2F7` | alternating table rows, light cards and panels |
+| `GRID` | `#E4EAF1` | gridlines and the lightest axis spine |
+| `MUTED` | `#B8C0CA` | axis spine |
+| `LABEL` | `#CFDBE8` | light label on navy; neutral bars; ICS + MRPC tertiary series |
 | `STEEL` | `#7B9BB8` | ARS secondary series (ticket chart) |
 | `STEEL_SOFT` | `#9DB8CC` | ICS + MRPC secondary series, the MRPC Platinum tier, the partial-month bar |
 | `TEAL` | `#0D9488` | a line drawn over navy bars (MRPC Enrollments, Still Active) |
-| `GOLD` / `SLATE` / `PEACH` / `TILE` | `#E7A93B` / `#5A7590` / `#F6B284` / `#ECF0F4` | ARS Gold tier; MRPC 4th series; one-pager section text; light card fill |
+| `GOLD` / `SLATE` / `PEACH` | `#E7A93B` / `#5A7590` / `#F6B284` | ARS Gold tier; MRPC 4th series; one-pager section text |
 
+**Five greys, one per job (Aaron, 2026-11-02):** `TICK` (text), `LABEL` (light on navy), `ROWALT` (pale fill),
+`GRID` (lines), `MUTED` (axis spine). There were eight. `TILE` (`#ECF0F4`), `HAIRLINE` (`#D9DEE5`) and `LIGHT`
+(`#C9D6E3`) did the same jobs as `ROWALT`, `GRID` and `LABEL` a few points off, and are now aliases of them in
+`brand.py` so an old import still works. The largest shift is `HAIRLINE` to `GRID`, a slightly fainter spine;
+nothing else moves more than two points. A new grey needs a new job, decided here, not a new hex in a builder:
+`tests/test_brand.py` fails on a builder that declares a retired value. Decks built before this change keep the
+old greys until they are rebuilt, and the stripped template shells still carry some (see CHANGELOG).
 `STEEL` and `STEEL_SOFT` are both kept on purpose: ARS drew one and ICS/MRPC the
 other, and collapsing them would silently restyle a chart. Which one wins is a
 decision to record here, not a refactor.
@@ -83,8 +91,8 @@ decision to record here, not a refactor.
 - **Minimum 16 pt** for every explicit run — these decks are read from 15 feet.
   Exceptions, all in `restyle_fonts.py`: slides titled "2026 New Releases",
   "Product Mix", "Program Results by Month Opened", "Referred Accounts by Product"
-  (dense tables that cannot fit at 16), and the tables of 14 or more rows on
-  "Reg E Opt-In by Branch" (the two-table layout, 10 pt); MRPC decks (a deliberate 10-15 pt
+  (dense tables that cannot fit at 16), and the Appendix branch-detail tables (15 branch lines a page,
+  12 pt; found by the table's shape name, `restyle_fonts.BRANCH_DETAIL_TABLE`); MRPC decks (a deliberate 10-15 pt
   hierarchy); the Executive Summit slide (never touched); and the 12 pt label under
   the figure in the KPI tiles of "Product Mix & ARS Eligibility" and "Excluded
   Accounts", which carry the same callout subtext at the same size
@@ -177,10 +185,15 @@ each (`assemble_combined.section_slides` drops the rest).
   radial gradient, the large CSI logo, the title at 54 pt, the "<client>  •  <month>" line
   the validator checks against the cover at 24 pt, and "csiweb.com", all white; every
   builder redraws the shell's slide with `cover_divider.restyle_closing`, keeping the
-  line it swapped in) ends the primary material; **Contact Us** (navy contact
-  card: name, role, phone, email) follows it. The card is **the client's managing CSM**
+  line it swapped in) ends the primary material; **Contact Us** follows it, drawn the same way
+  (Aaron, 2026-11-02, chosen over a compact card and a wide card): the closing slide's full-bleed
+  gradient (`build/assets/csi_brand/closing_fill.xml`), the white CSI logo, "Contact Us" at 44 pt
+  under it, then the contact centred: name 30 pt, role 18 pt bold orange, phone (20 pt) and email
+  (18 pt) close together with a small drawn icon each. No card, no slide number and no data logo,
+  like the closing slide. One contact, or two columns when the deck carries a program contact
+  (ICS). `shapes.draw_contact_slide` redraws the whole slide for every program, shell or builder. The card is **the client's managing CSM**
   (Aaron, 2026-09-16), from `CSM Contacts.csv` via `rpe_env.csm_contact`; the line slots
-  live in `build/shapes.py` (`contact_card_lines`, `fill_contact_card` for a shell's card).
+  live in `build/shapes.py` (`draw_contact_slide`; `fill_contact_slide` redraws a shell's slide).
   No phone on file: no phone line, and the other three are re-spaced. No CSM, or no row:
   the build stops — the card never names another CSM. **The ARS Appendix follows Contact**
   (Aaron, 2026-07-24). Decks without ARS have no appendix — never synthesise one.
@@ -263,7 +276,8 @@ element is already maxed.
   (>= 40 eligible personal, >= 15 new-account, >= 5 business), **selected by accounts
   and ranked by rate, best to worst**; fewer than 3 qualifying → show all and say so
   in the caption. `chart_lib.BRANCH_CAP` is the cap and the renderer raises above it. The cap is 30 (2026-11-02; it was 12), the rate labels drop to 9 pt past 20 bars,
-  and the Reg E by Branch table slide lists up to 27 branches in two side-by-side tables.
+  and the branch TABLES are not in the main deck: the full list of every branch is in the Appendix
+  (`branch_appendix_slides`, 15 lines a page), the main deck keeps the charts (Aaron, 2026-11-02).
 - **Comparisons / benchmark slide:** orange capsule pills = Velocity clients'
   average (left), navy capsule pills = this client (right), metric label between.
 
@@ -277,7 +291,7 @@ element is already maxed.
   only** — a closed or charged-off account is outside ARS by definition and
   explains nothing; reasons are product code, no debit card and an account-level
   remainder, and the tiles reconcile (open = open-and-excluded + open-and-eligible).
-  Product Mix, Excluded Accounts and Reg E Opt-In by Branch are **inserted by the
+  Product Mix, Excluded Accounts and the Appendix branch tables are **inserted by the
   builder** — they appear in a built deck but not in `templates/ars_template.pptx`.
 - **Monthly Summary — Last 12 Months** (SM path): navy bars with an orange dashed
   average whose label sits just above the line, not centered on it.
@@ -313,10 +327,11 @@ element is already maxed.
   Segment · Mailing Insights (divider, Response Summary, Ranking by Tier, ARS
   Response — <mailer> and Movement, Transaction Increase Over the Ask, Sustained
   Respondent Activity, Responder Activity Mean and Median) · Debit Card Review
-  (divider, Take Rate Personal and Business, Take Rate by Branch, Swipes & Spend,
-  NSF/OD) · Reg E Review (divider, All Personal Accounts, Opened in Last 12 Months,
-  Reg E Opt-In by Branch — Last 12 Months, by Account Vintage) · ARS Key Takeaways · Questions ·
-  Contact · Appendix (divider, Program Reach, Depth of Engagement, Responder Age
+  (divider, Take Rate Personal and Business with their branch charts, Swipes & Spend,
+  NSF/OD) · Reg E Review (divider, All Personal Accounts, Opened in Last 12 Months, by Account
+  Vintage; the branch charts are on the first two) · ARS Key Takeaways · Questions ·
+  Contact · Appendix (divider, Branch Reference, the branch-detail tables — Take Rate by Branch, Reg E
+  Opt-In by Branch, Reg E New Accounts by Branch, each "(k of n)" over every branch — Program Reach, Depth of Engagement, Responder Age
   Profile, Who Responds, New Account Profile divider and six profile slides,
   Account Growth, Account Retention, First-Year Closure).
 
@@ -423,7 +438,7 @@ type above on the ILS template's anatomy — not §4:
   so the layout's own Velocity mark is not inherited.
 - **Section bars:** navy rounded bars 0.46" tall, white Montserrat label left,
   `PEACH` (#F6B284) label right-aligned.
-- **Cards and tables:** card grey `TILE` (#ECF0F4) for non-highlight cards and
+- **Cards and tables:** card grey `ROWALT` (#EEF2F7; `TILE`, #ECF0F4, until 2026-11-02) for non-highlight cards and
   alternating rows; one orange highlight card (the maximum limit); table body ink
   `#3F3F3F` (the ILS template's, not a palette entry); negatives in orange.
 - **Footer:** the ILS template's teal bar (`#1B7B8C` — the consultant deck's color,
@@ -460,6 +475,7 @@ MRPC layout fix goes in the same file — one contract, not one commit per deck.
 | 2026-08-27 | Referrals-only ICS builds; combined decks assembled, never blended |
 | 2026-08-28 | ICS workbook slides only for the deck's own period |
 | 2026-08-29 | Build from the shell, never from a client deck; shared layer at `build/` root |
+| 2026-11-02 | Five greys, one per job: `TILE`, `HAIRLINE`, `LIGHT` fold into `ROWALT`, `GRID`, `LABEL` (aliases kept) |
 | 2026-09-01 | `MMM'YY` on every axis; lines over navy bars are `TEAL` (a white casing was tried the same day and rejected on looks); MRPC enrollment counts above the bars; CashPlease is the fourth product |
 | 2026-09-02 | CashPlease ships WITH ICS or another RPE product, never inserted into the ILS deck; one shadow definition (ICS 26% → 28%); text-over-text collisions FAIL the gate |
 | 2026-10-02 | Cover and section dividers redrawn left-aligned by `build/cover_divider.py` (client logo, month at 84 pt, product chips; dividers carry the section's figures and, combined, a progress track); the rest of the redesign proposal (`docs/STYLE-PROPOSAL-2026-10-02.md`) is still a proposal |
