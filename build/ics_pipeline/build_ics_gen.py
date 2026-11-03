@@ -1323,7 +1323,7 @@ def build(d, static_path, out, referrals_only=False):
 
     # Contact slide (built last so it lands at the very end, after Q&A). Every ICS deck has
     # one, and its card is the client's managing CSM (rpe_env.csm_contact, resolved above).
-    from shapes import (contact_card_lines, contact_card_note, CONTACT_CARD_TOP,
+    from shapes import (contact_card_lines, contact_card_note, contact_card_fill, CONTACT_CARD_TOP,
                         CONTACT_CARD_W as cw, CONTACT_CARD_H)
     s=blank(prs); title(s,"Contact Us")
     contacts=[contact] + ([_program_contact] if _program_contact else [])
@@ -1333,6 +1333,7 @@ def build(d, static_path, out, referrals_only=False):
         l=x0+i*(cw+gap)
         card=s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(CONTACT_CARD_TOP),Inches(cw),Inches(CONTACT_CARD_H))
         card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
+        contact_card_fill(card)
         try: card.adjustments[0]=0.05
         except Exception: pass
         shadow(card)

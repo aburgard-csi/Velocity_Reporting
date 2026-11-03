@@ -21,6 +21,16 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — the Contact Us card carries the closing slide's gradient
+
+Summary: the card on the Contact Us slide is now filled with the same navy-to-blue gradient as the Questions & Discussion slide before it, instead of flat navy, on every deck.
+
+Aaron, 2026-11-02: "add this gradient to the contact card."
+
+- **Fill.** `shapes.contact_card_fill` copies `build/assets/csi_brand/closing_fill.xml` (the brand template's radial gradient, 00274C at 37% to 035B95 at 100%, focus top-left) onto the card, so the stops live in one file. It runs for the shell's static card (`fill_contact_card`: the ARS, MRPC, CashPlease, Transaction Intelligence and ILS decks) and for the cards the ICS, MRPC and ARS builders draw themselves (the ICS deck's second, program-contact card included). Corners, line and the one drop shadow are unchanged.
+- **Text.** White lines are 7.2:1 or better at the lightest corner. The orange role line measures 3.4:1 at its right end, against 4.5:1 on the flat navy; it passes the 3:1 floor but is the weakest text on the card.
+- **Not rebuilt.** Decks already in Outputs keep the flat card until their next build. `tests/test_contact_card_gradient.py` pins the stops, the placement in the shape and that every builder that draws a card goes through the helper.
+
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
 Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.

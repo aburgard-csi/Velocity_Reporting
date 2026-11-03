@@ -1708,7 +1708,7 @@ try:
     _blank=next((_ly for _ly in prs.slide_layouts if len(_ly.placeholders)==0), prs.slide_layouts[-1])
     _cs=prs.slides.add_slide(_blank)
     _b=_cs.shapes.add_textbox(Inches(0.5),Inches(0.28),Inches(12.33),Inches(0.9)); _p=_b.text_frame.paragraphs[0]; _r=_p.add_run(); _r.text="Contact Us"; _r.font.name="Montserrat"; _r.font.size=Pt(30); _r.font.bold=True; _r.font.color.rgb=_NAVYk
-    from shapes import (contact_card_lines as _ccl, CONTACT_CARD_TOP as _cct,
+    from shapes import (contact_card_lines as _ccl, contact_card_fill as _ccf, CONTACT_CARD_TOP as _cct,
                         CONTACT_CARD_W as _cw, CONTACT_CARD_H as _cch)
     _contacts=[CONTACT]
     _ncc=len(_contacts); _gap=0.5; _x0=(13.333-(_ncc*_cw+(_ncc-1)*_gap))/2
@@ -1718,6 +1718,7 @@ try:
         _l=_x0+_i*(_cw+_gap)
         _card=_cs.shapes.add_shape(_MSH.ROUNDED_RECTANGLE,Inches(_l),Inches(_cct),Inches(_cw),Inches(_cch))
         _card.fill.solid(); _card.fill.fore_color.rgb=_NAVYk; _card.line.fill.background()
+        _ccf(_card)
         try: _card.adjustments[0]=0.05
         except Exception: pass
         _shadowsh(_card)

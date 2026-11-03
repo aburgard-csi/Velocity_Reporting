@@ -166,7 +166,7 @@ def add_contact_slide(prs, contact):
         r.font.name="Montserrat"; r.font.size=Pt(sz); r.font.bold=bold; r.font.color.rgb=col
         return t
     ctb(0.5,0.28,12.33,0.9,"Contact Us",30,NAVY,True,align=PP_ALIGN.LEFT)
-    from shapes import contact_card_lines, CONTACT_CARD_TOP, CONTACT_CARD_W as cw, CONTACT_CARD_H
+    from shapes import contact_card_lines, contact_card_fill, CONTACT_CARD_TOP, CONTACT_CARD_W as cw, CONTACT_CARD_H
     contacts=[contact]
     ncc=len(contacts); gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
     style={"name":(26,WHITE,True),"role":(15,ORANGE,False),"phone":(17,WHITE,False),"email":(15,WHITE,False)}
@@ -174,6 +174,7 @@ def add_contact_slide(prs, contact):
         l=x0+i*(cw+gap)
         card=cs.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(CONTACT_CARD_TOP),Inches(cw),Inches(CONTACT_CARD_H))
         card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
+        contact_card_fill(card)
         try: card.adjustments[0]=0.05
         except Exception: pass
         add_shadow(card)

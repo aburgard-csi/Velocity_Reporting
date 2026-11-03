@@ -177,8 +177,9 @@ each (`assemble_combined.section_slides` drops the rest).
   radial gradient, the large CSI logo, the title at 54 pt, the "<client>  •  <month>" line
   the validator checks against the cover at 24 pt, and "csiweb.com", all white; every
   builder redraws the shell's slide with `cover_divider.restyle_closing`, keeping the
-  line it swapped in) ends the primary material; **Contact Us** (navy contact
-  card: name, role, phone, email) follows it. The card is **the client's managing CSM**
+  line it swapped in) ends the primary material; **Contact Us** (the contact card, filled with
+  that same gradient so the pair reads as one: `shapes.contact_card_fill`, from
+  `build/assets/csi_brand/closing_fill.xml`; name, role, phone, email) follows it. The card is **the client's managing CSM**
   (Aaron, 2026-09-16), from `CSM Contacts.csv` via `rpe_env.csm_contact`; the line slots
   live in `build/shapes.py` (`contact_card_lines`, `fill_contact_card` for a shell's card).
   No phone on file: no phone line, and the other three are re-spaced. No CSM, or no row:

@@ -292,6 +292,35 @@ CONTACT_LINE_SLOTS = (("name", 2.45, 0.7), ("role", 3.25, 1.0),
 CONTACT_LINE_SLOTS_NO_PHONE = (("name", 2.6, 0.7), ("role", 3.4, 1.0), ("email", 4.2, 0.5))
 
 
+# The card's fill is the Questions & Discussion slide's own gradient (the brand template's radial gradient:
+# 00274C to 035B95, focus at the top-left), so the closing slide and the card that follows it read as one
+# pair (Aaron, 2026-11-02). The stops live in build/assets/csi_brand/closing_fill.xml, nowhere else.
+CONTACT_CARD_FILL = "closing_fill.xml"
+
+
+def contact_card_fill(card):
+    """Fill a Contact Us card with the closing slide's gradient, whatever fill it had.
+
+    Replaces the shape's fill in place, after its geometry and before its line, which is where
+    DrawingML wants it; the card's rounded corners, line and drop shadow are left as they are.
+    One call for every card: the shell's static card (`fill_contact_card`) and the cards the ICS,
+    MRPC and ARS builders draw themselves.
+    """
+    import copy
+    import brand_art
+    spPr = card._element.spPr
+    for tag in ("a:solidFill", "a:gradFill", "a:noFill", "a:pattFill", "a:blipFill", "a:grpFill"):
+        for e in spPr.findall(qn(tag)):
+            spPr.remove(e)
+    geom = spPr.find(qn("a:prstGeom"))
+    if geom is None:
+        geom = spPr.find(qn("a:custGeom"))
+    if geom is None:
+        raise SystemExit("Contact Us card has no geometry to place a fill after.")
+    geom.addnext(copy.deepcopy(brand_art._xml(CONTACT_CARD_FILL)))
+    return card
+
+
 def contact_card_lines(contact):
     """-> [(field, text, top_in, height_in)] for `rpe_env.csm_contact(...)`'s card.
 
@@ -335,6 +364,7 @@ def fill_contact_card(slide, contact):
         raise SystemExit(f"Contact Us slide: expected one contact card, found {len(cards)}; the "
                          f"template shell changed, so the card cannot be filled safely.")
     card = cards[0]
+    contact_card_fill(card)
 
     def inside(sh):
         return (sh.shape_type == 17 and sh.has_text_frame
