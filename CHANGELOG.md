@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — five greys instead of eight
+
+Summary: the deck palette now has five greys, one for each job, where it had eight; no deck is rebuilt, so the change shows in each client's next deck as a slightly paler card, line or tertiary bar.
+
+Aaron, 2026-11-02: "I do want you to align the grays across the deck so we don't have a bunch of different grays out there. Don't rebuild anything. We can wait for new decks."
+
+- **`brand.py`.** `TICK`, `LABEL`, `ROWALT`, `GRID`, `MUTED` stay. `TILE` (#ECF0F4), `HAIRLINE` (#D9DEE5) and `LIGHT` (#C9D6E3) are now aliases of `ROWALT`, `GRID` and `LABEL`, so every import keeps working. The largest shift is `HAIRLINE` to `GRID` (a slightly fainter left spine on the ARS and MRPC charts); the others move by two points or fewer. The comment that said there were five greys had been wrong since `LIGHT` and `HAIRLINE` were added. `CANCEL_RAMP`'s pale slice follows `LABEL`.
+- **Builders.** Hard-coded near-greys now read the role: `build_ars_gen` (text grey, band), `build_ics_gen` (text grey, panel, and the table stripe `#F2F5F8` -> `ROWALT`), `build_mrpc_gen` (the callout subline), and `status_slides` (a second text grey, `#5A6778`, one step from `TICK`). The Pre-GL/ILS deckkit and the ported v5 code keep their own values.
+- **Guard.** `tests/test_brand.py` pins the five, keeps them visibly apart, and fails on a builder that declares a retired grey (a line that must read one back from a template says `retired-grey-ok`).
+- **Checked.** `LIGHT` is never drawn beside `LABEL` as separate series: ARS charts alias their own `LIGHT` to `STEEL_SOFT`, and ICS, MRPC and CashPlease charts do not draw `LABEL` as a series. Unit suite and the template gate pass (0 FAIL, 0 layout drift); layout baseline not re-snapshotted, no deck rebuilt.
+- **Not changed.** The template shells still carry the old stripe `#F2F5F8` (105 uses in the ARS shell, 76 in ICS) and `#ECF0F4` panels; MRPC reads `#ECF0F4` back from its shell on purpose. Regenerating the shells is the next step. CSM Sheila and `dashboard.py` have their own greys and are a separate change.
+
 ### 2026-11-02 — the RPE Client Performance page is in the Hub look and lists one CSM's clients
 
 Summary: the RPE Client Performance page now looks like CSM Sheila's Hub, and it lists only one CSM's clients (Aaron Burgard's by default) instead of every CSM's.

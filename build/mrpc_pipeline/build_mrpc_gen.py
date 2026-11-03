@@ -34,7 +34,7 @@ import status_slides
 from shapes import shadow as add_shadow
 from brand import usd_compact as _usd   # one money format for every program
 
-from brand import ORANGE_RGB as ORANGE   # the one orange (brand.py); it was a literal here and missed the Sept. 2026 change
+from brand import LABEL_RGB, ORANGE_RGB as ORANGE   # the one orange (brand.py); it was a literal here and missed the Sept. 2026 change
 NAVY=RGBColor(0x00,0x27,0x4C)
 STEEL=RGBColor(0x9D,0xB8,0xCC); WHITE=RGBColor(0xFF,0xFF,0xFF)
 
@@ -97,7 +97,7 @@ def add_callout(slide, l, t, w, h, big, label, sub=None, fill=None):
         r.font.name="Montserrat" if (bold and size>=30) else "Calibri"
     line(big,40,True,WHITE,first=True)
     line(label,15,True,WHITE)
-    if sub: line(sub,11,False,RGBColor(0xC9,0xD6,0xE3))
+    if sub: line(sub,11,False,LABEL_RGB)
     add_shadow(shp)
     return shp
 
@@ -487,16 +487,16 @@ def build(data, template, out):
     for si in (6, 7):                                                        # revenue slides: numbers live in overlay boxes
         for sh in autoshapes(S[si]):
             if Emu(sh.top).inches < 1.0: continue
-            if _fill_hex(sh) == "ECF0F4": continue
+            if _fill_hex(sh) == "ECF0F4": continue   # retired-grey-ok: the shell still carries the old panel fill
             if sh.has_text_frame and sh.text_frame.text.strip():
                 for pp in sh.text_frame.paragraphs:
                     for r in pp.runs: r.text = ""
     # universal drop shadow: every solid-filled callout/tile/pill on every slide
-    # (skip white logo boxes and the light ECF0F4 backdrop panels)
+    # (skip white logo boxes and the light backdrop panels)   retired-grey-ok
     for _s in prs.slides:
         for sh in _s.shapes:
             if sh.shape_type != 1: continue
-            if _fill_hex(sh) in ("FFFFFF", "ECF0F4", ""): continue
+            if _fill_hex(sh) in ("FFFFFF", "ECF0F4", ""): continue   # retired-grey-ok
             try:
                 if sh.fill.type is not None and sh.fill.fore_color is not None and sh.fill.fore_color.type is not None:
                     add_shadow(sh)
