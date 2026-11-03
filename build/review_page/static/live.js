@@ -534,7 +534,7 @@
         '<p class="stamp">Data pack read ' + esc(MODEL.generated.replace("T", " ")) + " · sources on every screen (S)</p></section>";
     }
     var pk = progNow();
-    document.documentElement.setAttribute("data-prog", pk || "");
+    document.documentElement.setAttribute("data-product", pk || "")   // not data-prog: the click handler reads that one as "go to this program";
     var fam = pk === "analysis" ? "ars" : pk;   // the ARS analysis views sit among the ARS screens: one product, no card between them
     if (S.lastFam && fam && fam !== S.lastFam && S.prog === "story") showProgramCard(fam);
     S.lastFam = fam || S.lastFam;
