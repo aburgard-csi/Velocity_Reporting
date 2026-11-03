@@ -98,8 +98,9 @@ from textfit import fits_one_line   # measured against the bundled TTFs, not est
 import periods as P
 
 from brand import (NAVY_RGB as NAVY, ORANGE_RGB as ORANGE,
-                   STEEL_SOFT_RGB as STEEL, usd_compact as _usd)
-LIGHT=RGBColor(0xEC,0xF0,0xF4); WHITE=RGBColor(0xFF,0xFF,0xFF); GREYT=RGBColor(0x5A,0x66,0x70)
+                   STEEL_SOFT_RGB as STEEL, usd_compact as _usd,
+                   TICK_RGB, ROWALT_RGB)
+LIGHT=ROWALT_RGB; WHITE=RGBColor(0xFF,0xFF,0xFF); GREYT=TICK_RGB
 NAVYX="00274C"
 # The standard callout drop shadow is defined ONCE, in build/shapes.py. This file
 # carried its own copy at alpha 26% while ARS, MRPC and shapes.py drew 28% — a drift
@@ -204,7 +205,7 @@ def std_table(s,rows,l,t,w,colw,highlight_last=True,fs=16,rowh=0.4):
             elif highlight_last and ri==nr-1:
                 c.fill.solid(); c.fill.fore_color.rgb=ORANGE; r.font.color.rgb=WHITE; r.font.bold=True; r.font.size=Pt(fs)
             else:
-                c.fill.solid(); c.fill.fore_color.rgb=RGBColor(0xF2,0xF5,0xF8) if ri%2 else WHITE
+                c.fill.solid(); c.fill.fore_color.rgb=ROWALT_RGB if ri%2 else WHITE
                 r.font.color.rgb=NAVY; r.font.size=Pt(fs); r.font.bold=(ci==0)
 
 def restyle_newrel(prs):
@@ -233,7 +234,7 @@ def restyle_newrel(prs):
                                 r.font.name="Montserrat"; r.font.size=Pt(12 if hdr else 10.5)
                                 r.font.color.rgb=WHITE if hdr else NAVY; r.font.bold=hdr
                         c.fill.solid()
-                        c.fill.fore_color.rgb=NAVY if hdr else (RGBColor(0xF2,0xF5,0xF8) if ri%2 else WHITE)
+                        c.fill.fore_color.rgb=NAVY if hdr else (ROWALT_RGB if ri%2 else WHITE)
             # shift the two column-header labels to stay centered over the table
             for sh in s.shapes:
                 if sh.has_text_frame and sh.text_frame.text.strip() in ("Leadership Training","Front Line Referrals"):

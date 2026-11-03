@@ -57,14 +57,22 @@ unit suite could not run).
 | `NAVY` | `#00274C` | titles, tiles, bars, table headers, slide numbers |
 | `ORANGE` | `#F15D22` | the current period, the highlighted row, pills, totals, agenda badges |
 | `TICK` | `#5A6670` | axis ticks, selection subtitles, body grey |
-| `ROWALT` | `#EEF2F7` | alternating table rows |
-| `GRID` / `HAIRLINE` / `MUTED` | `#E4EAF1` / `#D9DEE5` / `#B8C0CA` | gridlines, lightest spine, axis spine |
-| `LABEL` / `LIGHT` | `#CFDBE8` / `#C9D6E3` | light label on navy; ICS + MRPC tertiary series |
+| `ROWALT` | `#EEF2F7` | alternating table rows, light cards and panels |
+| `GRID` | `#E4EAF1` | gridlines and the lightest axis spine |
+| `MUTED` | `#B8C0CA` | axis spine |
+| `LABEL` | `#CFDBE8` | light label on navy; neutral bars; ICS + MRPC tertiary series |
 | `STEEL` | `#7B9BB8` | ARS secondary series (ticket chart) |
 | `STEEL_SOFT` | `#9DB8CC` | ICS + MRPC secondary series, the MRPC Platinum tier, the partial-month bar |
 | `TEAL` | `#0D9488` | a line drawn over navy bars (MRPC Enrollments, Still Active) |
-| `GOLD` / `SLATE` / `PEACH` / `TILE` | `#E7A93B` / `#5A7590` / `#F6B284` / `#ECF0F4` | ARS Gold tier; MRPC 4th series; one-pager section text; light card fill |
+| `GOLD` / `SLATE` / `PEACH` | `#E7A93B` / `#5A7590` / `#F6B284` | ARS Gold tier; MRPC 4th series; one-pager section text |
 
+**Five greys, one per job (Aaron, 2026-11-02):** `TICK` (text), `LABEL` (light on navy), `ROWALT` (pale fill),
+`GRID` (lines), `MUTED` (axis spine). There were eight. `TILE` (`#ECF0F4`), `HAIRLINE` (`#D9DEE5`) and `LIGHT`
+(`#C9D6E3`) did the same jobs as `ROWALT`, `GRID` and `LABEL` a few points off, and are now aliases of them in
+`brand.py` so an old import still works. The largest shift is `HAIRLINE` to `GRID`, a slightly fainter spine;
+nothing else moves more than two points. A new grey needs a new job, decided here, not a new hex in a builder:
+`tests/test_brand.py` fails on a builder that declares a retired value. Decks built before this change keep the
+old greys until they are rebuilt, and the stripped template shells still carry some (see CHANGELOG).
 `STEEL` and `STEEL_SOFT` are both kept on purpose: ARS drew one and ICS/MRPC the
 other, and collapsing them would silently restyle a chart. Which one wins is a
 decision to record here, not a refactor.
@@ -428,7 +436,7 @@ type above on the ILS template's anatomy — not §4:
   so the layout's own Velocity mark is not inherited.
 - **Section bars:** navy rounded bars 0.46" tall, white Montserrat label left,
   `PEACH` (#F6B284) label right-aligned.
-- **Cards and tables:** card grey `TILE` (#ECF0F4) for non-highlight cards and
+- **Cards and tables:** card grey `ROWALT` (#EEF2F7; `TILE`, #ECF0F4, until 2026-11-02) for non-highlight cards and
   alternating rows; one orange highlight card (the maximum limit); table body ink
   `#3F3F3F` (the ILS template's, not a palette entry); negatives in orange.
 - **Footer:** the ILS template's teal bar (`#1B7B8C` — the consultant deck's color,
@@ -465,6 +473,7 @@ MRPC layout fix goes in the same file — one contract, not one commit per deck.
 | 2026-08-27 | Referrals-only ICS builds; combined decks assembled, never blended |
 | 2026-08-28 | ICS workbook slides only for the deck's own period |
 | 2026-08-29 | Build from the shell, never from a client deck; shared layer at `build/` root |
+| 2026-11-02 | Five greys, one per job: `TILE`, `HAIRLINE`, `LIGHT` fold into `ROWALT`, `GRID`, `LABEL` (aliases kept) |
 | 2026-09-01 | `MMM'YY` on every axis; lines over navy bars are `TEAL` (a white casing was tried the same day and rejected on looks); MRPC enrollment counts above the bars; CashPlease is the fourth product |
 | 2026-09-02 | CashPlease ships WITH ICS or another RPE product, never inserted into the ILS deck; one shadow definition (ICS 26% → 28%); text-over-text collisions FAIL the gate |
 | 2026-10-02 | Cover and section dividers redrawn left-aligned by `build/cover_divider.py` (client logo, month at 84 pt, product chips; dividers carry the section's figures and, combined, a progress track); the rest of the redesign proposal (`docs/STYLE-PROPOSAL-2026-10-02.md`) is still a proposal |

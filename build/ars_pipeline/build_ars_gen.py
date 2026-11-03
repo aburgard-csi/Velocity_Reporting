@@ -75,7 +75,7 @@ ASSETS = _renv_assets.temp_dir("ars_assets_")     # removed at exit (it used to 
 # Under $1M this reads in K rather than "$0.83M" (Aaron, 2026-09-11); brand owns
 # the one definition, since four of these had drifted apart.
 from brand import usd_compact as m2
-from brand import ORANGE_RGB as _ORANGE_RGB
+from brand import ORANGE_RGB as _ORANGE_RGB, TICK_RGB as _TICK_RGB, ROWALT_RGB as _ROWALT_RGB
 # Every number shown in a callout carries thousands separators (Aaron, 2026-08-27).
 months = f"{B['months']:,}"; mailings = f"{B['mailings']:,}"
 _nm_int = int(B['mailings'] or 0)
@@ -1722,8 +1722,8 @@ def add_branch_reference_slide(prs, pairs):
         return False
     from pptx.enum.text import PP_ALIGN as _PA, MSO_ANCHOR as _MA
     from pptx.dml.color import RGBColor as _RC
-    _navy=_RC(0x00,0x27,0x4C); _grey=_RC(0x5A,0x66,0x70); _white=_RC(0xFF,0xFF,0xFF)
-    _band=_RC(0xEE,0xF2,0xF7)
+    _navy=_RC(0x00,0x27,0x4C); _grey=_TICK_RGB; _white=_RC(0xFF,0xFF,0xFF)
+    _band=_ROWALT_RGB
 
     def _t0(sl):
         for sh in sl.shapes:
@@ -1864,7 +1864,7 @@ if _pers and _tot and _pers!=_tot:
         if any(x.has_text_frame and x.text_frame.text.strip()=="Debit Usage Segmentation by Swipe Tier" for x in _sl.shapes):
             _fn=_sl.shapes.add_textbox(Inches(1.5),Inches(6.66),Inches(10.0),Inches(0.3)); _tf=_fn.text_frame; _tf.word_wrap=True
             _r=_tf.paragraphs[0].add_run(); _r.text=f"Personal ARS-eligible = {_pers:,}; total incl. business = {_tot:,} (Product Mix)."
-            _r.font.name="Calibri"; _r.font.size=Pt(11); _r.font.color.rgb=_RGBc(0x5A,0x66,0x70)
+            _r.font.name="Calibri"; _r.font.size=Pt(11); _r.font.color.rgb=_TICK_RGB
             break
 
 # QA finalize pass (mirrors the reviewed CoastLife fixes so the batch inherits them)
@@ -1901,7 +1901,7 @@ for _sl in prs.slides:
 
 # QA finalize: standardize selection subtitles + insight captions to Calibri 16pt grey (skip summit/white)
 from pptx.dml.color import RGBColor as _RGB
-_GREY=_RGB(0x5A,0x66,0x70)
+_GREY=_TICK_RGB
 def _std(_sh):
     for _pa in _sh.text_frame.paragraphs:
         for _r in _pa.runs:
