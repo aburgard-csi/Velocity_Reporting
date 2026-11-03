@@ -124,3 +124,8 @@ def test_slide_review_summary_exports_a_csv_and_keeps_the_votes_per_program_not_
         assert prog in page
     import slide_votes as SV
     assert set(SV.PROGRAMS) >= {"ARS", "ICS", "MRPC"}
+
+
+def test_closing_the_palette_gives_the_keyboard_back():
+    """With focus left in the palette's box every shortcut read as typing (found checking the Ctrl K flow, 2026-11-02)."""
+    assert 'for (const d of ["#pal", "#keys"]) $(d).addEventListener("close"' in H.PAGE

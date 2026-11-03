@@ -1022,6 +1022,8 @@ $("#pal").addEventListener("keydown", e => {
   else if (e.key === "Enter") { e.preventDefault(); runPal(PSEL); }
 });
 $("#pal").addEventListener("click", e => { if (e.target === $("#pal")) $("#pal").close(); });
+// A closed dialog must not keep the keyboard: with focus left in its box every shortcut would read as typing.
+for (const d of ["#pal", "#keys"]) $(d).addEventListener("close", () => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
 $("#keys").addEventListener("click", e => { if (e.target === $("#keys")) $("#keys").close(); });
 const KEYS_DECKS = [["j  k", "Move down or up the list"], ["Enter", "Open the client; again to close it"], ["/", "Find a client"], ["B", "Build (asks first if a deck is in Outputs)"],
   ["R", "Check the open client again"], ["E", "Show the deck in File Explorer"], ["Esc", "Close the client or a menu"]];
