@@ -240,6 +240,38 @@ def test_cashplease_peers_read_the_packs_and_expose_none_of_them(tmp_path):
     assert audit({"screens": [scr]}, t) == []
 
 
+def test_ics_per_1k_uses_every_client_in_the_all_clients_referrals_file(monkeypatch, tmp_path):
+    from test_live_review import make_pack
+    refs = {}
+    for i, cid in enumerate([CID, *PEER_IDS]):
+        refs[cid] = {"2026-07": 3 + i, "2026-08": 4 + i, "2026-09": 5 + i, "2026-10": 99}      # October is the month the file was pulled in
+    refs["7777"] = {"2024-01": 40}                                                           # nothing in the last six months: not a current peer
+    refs["7778"] = {"2026-08": 9, "2026-09": 9}                                              # no DDA count: cannot be put per 1,000 DDAs
+    monkeypatch.setattr(peer_pool, "referrals_by_month", lambda: (refs, "2026-10-02"))
+    monkeypatch.setattr(peer_pool, "_vip_ids", lambda program: [])
+    dda = {cid: 1000 for cid in [CID, *PEER_IDS, "7777"]}
+    monkeypatch.setattr(peer_pool, "_dda", lambda ctx: dda)
+
+    class Ctx:
+        client = CID
+        root = tmp_path
+    coll = peer_pool.collect_ics(Ctx)
+    ids = sorted(p["id"] for p in coll["peers"])
+    assert ids == sorted(PEER_IDS) and coll["n_pool"] == len(PEER_IDS)                       # 7777 and 7778 are not peers
+    assert coll["me"]["series"]["per_1k"] == {"Jul 2026": 3.0, "Aug 2026": 4.0, "Sep 2026": 5.0}   # October (in progress) is left out
+    assert coll["pull"].endswith("2026-10-02")
+
+
+def test_the_ics_comparison_falls_back_to_the_vip_sheets_without_the_referrals_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(peer_pool, "referrals_by_month", lambda: ({}, None))
+    ids, _names = _fake_ics(monkeypatch, tmp_path)
+
+    class Ctx:
+        client = CID
+        root = tmp_path
+    assert peer_pool.collect_ics(Ctx)["n_pool"] == len(ids) - 1
+
+
 def test_the_combined_view_gets_a_how_you_compare_screen_and_the_story_gets_two_optional_sections(monkeypatch, tmp_path):
     from test_live_review import make_pack
     from test_live_review_story import make_companion, make_ti
