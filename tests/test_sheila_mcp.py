@@ -135,7 +135,7 @@ CLIENTS = [
     {"id": "1156", "name": "BancFirst", "csm": "James Gilmore", "programs": ["ARS"], "covered": ["ARS"]},
     {"id": "1615", "name": "Cape & Coast Bank", "csm": "James Gilmore", "programs": ["ARS"], "error": True},
     {"id": "1453", "name": "Connex CU", "csm": "James Gilmore", "programs": ["ARS"], "decks": ["1453-2026.10-ARS-Connex CU ARS Results.pptx"]},
-    {"id": "1776", "name": "CoastHills CU", "csm": "James Gilmore", "programs": ["ARS"], "sent": "2026-10-20", "ti_decks": ["x"]},
+    {"id": "1776", "name": "CoastHills CU", "csm": "James Gilmore", "programs": ["ARS"], "decks": ["1776-2026.10-ARS-CoastHills CU ARS Results.pptx"], "ti_decks": ["x"]},
     {"id": "1798", "name": "FirstLight FCU", "csm": "Jordan Berkowitz", "programs": ["ARS"]},
     {"id": "1539", "name": "Marine FCU", "csm": "Aaron Burgard", "programs": ["ARS", "ICS"]},
 ]
@@ -171,8 +171,8 @@ def fake(monkeypatch):
 def test_my_month_groups_the_book_and_says_what_to_do_next(fake):
     r = core.my_month("me")
     g = {k: [c["id"] for c in v] for k, v in r["data"]["groups"].items()}
-    assert g == {"ready": ["1826"], "blocked": ["1156"], "failed": ["1615"], "in_outputs": ["1453"],
-                 "sent": ["1776"], "unchecked": []}
+    assert g == {"ready": ["1826"], "blocked": ["1156"], "failed": ["1615"], "in_outputs": ["1453", "1776"],
+                 "unchecked": []}
     assert "James Gilmore's book for 2026.10: 5 clients." in r["answer"]
     assert "1156 BancFirst (ARS workbook)" in r["answer"], "a blocked client says what blocks it"
     assert "build all ready" in r["answer"]

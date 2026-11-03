@@ -180,7 +180,7 @@ class _fresh_reads:
 
 # ------------------------------------------------------------------ data for the page
 # The list is served from memory and refreshed behind the page (Aaron, 2026-09-17). Building it reads the CSM
-# list, deliveries.json, every CSM folder in Outputs and each client's last launcher result over the share —
+# list, every CSM folder in Outputs and each client's last launcher result over the share —
 # 10 s on a good day, 110 s measured on a bad one — so a request never waits for it once a list exists. A
 # list older than CLIENTS_TTL, or invalidated by a finished build, is served as it is while a fresh one is
 # built in the background; the page shows its age and asks again. What this server knows live — builds it
@@ -236,7 +236,7 @@ def select_period(period):
         same = (_selected["period"] or L.cycle_period()) == (period or L.cycle_period())
         _selected["period"] = None if period == L.cycle_period() else period
     if not same:
-        # Everything cached is about the old cycle: its decks, its sent state, its checks.
+        # Everything cached is about the old cycle: its decks, its checks.
         with _status_lock:
             for cid in list(_status_cache) + list(_status_gen):
                 forget_status_locked(cid)
@@ -258,10 +258,9 @@ covered_programs = L.covered_programs
 
 def compute_clients():
     """Every client with a deck to build — the clients.md roster (ARS, ICS, MRPC, in any mix) and the
-    standalone CashPlease module clients (Aaron, 2026-10-13) — with their CSM, products, sent state,
+    standalone CashPlease module clients (Aaron, 2026-10-13) — with their CSM, products,
     deck in Outputs and last build failure."""
     import build_month as BM
-    import deck_status as DS
     period = current_period()
     roster, _ = BM.read_roster()
     rows = {}
@@ -269,7 +268,6 @@ def compute_clients():
     if p and p.is_file():
         with open(p, encoding="utf-8-sig", newline="") as fh:
             rows = {r.get("client_id", "").strip(): r for r in csv.DictReader(fh)}
-    sent = DS.read_deliveries()["sent"] if period else {}
     decks, ti_decks, comp_decks = {}, {}, {}
     for d in (R.output_decks(f"*-{period}-*.pptx") if period else []):
         # A Transaction Intelligence deck is a separate presentation (2026-10-23): it is never the
@@ -293,7 +291,6 @@ def compute_clients():
     for cid, (_, name, path, progs) in entries.items():
         row = rows.get(cid, {})
         cp = cp_rows.get(cid)
-        s = sent.get(f"{cid}|{period}")
         res = results.get(cid, (None, None))
         out.append({
             "id": cid,
@@ -306,7 +303,6 @@ def compute_clients():
             "covered": covered_programs(progs, cp),
             "products": [p.strip() for p in (row.get("products") or "").split(";") if p.strip()],
             "path": path,
-            "sent": (s.get("sent_at") if isinstance(s, dict) else s) or None,
             # When the launcher last put this client's deck in Outputs ("YYYY-MM-DD HH:MM"), for the
             # list's "built today" note (Aaron, 2026-10-13).
             "built_at": (res[0] or {}).get("finished") if (res[0] or {}).get("delivered") else None,
@@ -326,8 +322,8 @@ def compute_clients():
 def refresh_clients(fresh=False):
     """Rebuild the stored list now. One refresh at a time: a caller arriving while one runs waits for it.
 
-    Returns the exception that stopped it, or None. A client whose sent state, decks or last build changed has
-    its cached status dropped, so a deck built or marked sent elsewhere is re-checked on its next view.
+    Returns the exception that stopped it, or None. A client whose decks or last build changed has
+    its cached status dropped, so a deck built elsewhere is re-checked on its next view.
     """
     claim = _claim_refresh()
     if claim is None:
@@ -384,7 +380,7 @@ def _run_refresh(claim, fresh):
 
 
 def _signature(c):
-    return (c.get("sent"), tuple(c.get("decks") or ()), c.get("error"), c.get("result_written"))
+    return (tuple(c.get("decks") or ()), c.get("error"), c.get("result_written"))
 
 
 def _refresh_clients_later(fresh=False):
@@ -591,7 +587,7 @@ def last_build_failed(cid, period, decks=(), result=None):
 # 2026-09-17: a status older than STATUS_TTL is no longer re-read while the page waits (5 s on a good day,
 # 58 s observed). The page gets the stored one at once, marked `refreshing`, with its Build buttons held
 # until the fresh one arrives — so an old "ready" can never be built from while a STOP may be on its way.
-# A client whose list row changed (a deck built or marked sent from anywhere) has its entry dropped.
+# A client whose list row changed (a deck built from anywhere) has its entry dropped.
 STATUS_TTL = 600
 _status_cache = {}
 _status_lock = threading.Lock()
@@ -723,14 +719,12 @@ def forget_status_locked(cid):
 def compute_status(cid):
     """ars_launcher's own checks for one client, plus its last launcher build."""
     import build_month as BM
-    import deck_status as DS
     period = current_period()
     row = L.csm_list_row(cid)
     if not period:
         return {"client": cid, "state": "stop", "period": None,
                 "checks": [{"level": L.STOP, "text": "No ARS workbooks are in Inputs at all, so there is no period to build."}]}
     roster, _ = BM.read_roster()
-    sent = DS.read_deliveries()["sent"]
     cp_row = L.cp_roster_row(cid)
     entry = L.client_entry(cid, roster, cp_row)
     has_ars = bool(entry and "ARS" in entry[3])
@@ -738,7 +732,7 @@ def compute_status(cid):
     # with every other clients.md program whose data is on hand. The checks are the combined-build rules;
     # whether the ARS-only build is allowed (not for Aaron's multi-program clients) is decided separately.
     # A client with no ARS has one build: every program with data (Aaron, 2026-10-13).
-    checks = L.all_checks(cid, period, row, roster, sent, combined=True, cp_row=cp_row)
+    checks = L.all_checks(cid, period, row, roster, combined=True, cp_row=cp_row)
     avail = L.program_availability(cid, period, entry[3]) if entry else {}
     extra = L.combined_programs(avail)
     if has_ars:
@@ -758,7 +752,7 @@ def compute_status(cid):
     ti = None
     if has_ars:
         try:
-            ti = L.ti_status(cid, period, row, roster, sent)
+            ti = L.ti_status(cid, period, row, roster)
         except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
             ti = {"checks": [{"level": L.STOP, "text": f"The Transaction Intelligence checks could not run "
                                                         f"({type(e).__name__}: {e})"}],
@@ -768,7 +762,7 @@ def compute_status(cid):
     companion = None
     if has_ars:
         try:
-            companion = L.companion_status(cid, period, row, roster, sent)
+            companion = L.companion_status(cid, period, row, roster)
         except (Exception, SystemExit) as e:          # noqa: BLE001 — shown, never raised
             companion = {"checks": [{"level": L.STOP, "text": f"The ARS Companion checks could not run "
                                                               f"({type(e).__name__}: {e})"}],
@@ -2098,7 +2092,7 @@ PAGE = r"""<!doctype html>
   --ok:#57C98F; --ok-bg:#12302A; --warn:#E6B45C; --warn-bg:#33270F; --sent:#8FB4DA; --sent-bg:#16283A;
   --stop:#F08579; --stop-bg:#3A1C1A; --sel:#1B3044;
   /* The ARS dot is brand navy, which vanishes on the navy-black ground (Aaron, 2026-10-15:
-     "the ARS dot is too hard to see in dark mode"); steel blue here, the same blue the Sent chip uses. */
+     "the ARS dot is too hard to see in dark mode"); steel blue here, the same blue the links use. */
   --dot-ars:#8FB4DA;
   --hi:rgba(255,255,255,.09); --lo:rgba(0,0,0,.35); --touch:rgba(0,0,0,.5);
   --build:#F7A86B; --build-bg:#3A2412;
@@ -2166,7 +2160,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
    dark, some light"); they are tints like the rest now, orange and red. */
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);white-space:nowrap;
   box-shadow:inset 0 1px 0 var(--hi),inset 0 -1px 0 var(--lo),0 1px 1px var(--touch)}
-.chip.sent{background:var(--sent-bg);color:var(--sent)} .chip.out{background:var(--ok-bg);color:var(--ok)}
+.chip.out{background:var(--ok-bg);color:var(--ok)}
 .chip.stop{background:var(--stop-bg);color:var(--stop)} .chip.ready{background:var(--ok-bg);color:var(--ok)}
 .chip.queue{background:var(--warn-bg);color:var(--warn)}
 .chip.building{background:var(--build-bg);color:var(--build)}
@@ -2433,8 +2427,6 @@ async function api(path, opts = {}) {
 function store(k, v) { try { v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch (e) {} }
 function recall(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
-function shortDate(d) { if (!d) return ""; const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString(undefined, {month: "short", day: "numeric"}); }
-
 // Four dots after each client, fixed order ARS · ICS · MRPC · CP (Aaron, 2026-10-13, option B): filled when
 // the program is in this client's deck, grey when not, so every row has the same shape and nothing wraps.
 // The client's other Velocity products are on the client page, not in the list.
@@ -2455,8 +2447,6 @@ function renderList() {
   let html = "", last = null;
   for (const c of shown) {
     if (!csm && c.csm !== last) { html += `<div class="grouphead">${esc(c.csm)}</div>`; last = c.csm; }
-    // A "Sent" chip only on Aaron's clients: only Aaron records sends, and other CSMs have nowhere to
-    // mark theirs (2026-09-15; the chip itself Aaron, 2026-10-13).
     const place = QUEUE.queued.indexOf(c.id);
     const idle = QUEUE.building !== c.id && place < 0;
     const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -2472,8 +2462,7 @@ function renderList() {
                    c.lift_expired ? `<span class="chip stop">Lift Matrix expired</span>` : "",
                    c.decks.length ? `<span class="chip out">In Outputs ${esc(PERIOD || "")}${builtToday ? " · built " + esc(builtToday) : ""}</span>` : "",
                    (c.ti_decks || []).length ? `<span class="chip out" title="Transaction Intelligence decks, a separate presentation">TI in Outputs</span>` : "",
-                   (c.companion_decks || []).length ? `<span class="chip out" title="The ARS Companion deck, a separate presentation">Companion in Outputs</span>` : "",
-                   c.sent && c.csm === "Aaron Burgard" ? `<span class="chip sent">Sent ${esc(shortDate(c.sent))}</span>` : ""].join("");
+                   (c.companion_decks || []).length ? `<span class="chip out" title="The ARS Companion deck, a separate presentation">Companion in Outputs</span>` : ""].join("");
     html += `<button class="client" role="listitem" data-id="${esc(c.id)}" aria-current="${current === c.id}">
       <span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span>${dots(c)}<span class="meta">${chips}</span></button>`;
   }
@@ -2572,7 +2561,6 @@ function deckCard(o) {
   const decks = o.decks || [];
   const state = o.state === "stop" ? `<span class="chip stop">Can't build yet</span>`
     : decks.length ? `<span class="chip out">In Outputs</span>` : `<span class="chip ready">Ready to build</span>`;
-  const sent = o.sent ? ` <span class="chip sent">Sent ${esc(shortDate(o.sent))}</span>` : "";
   // One link per deck: Transaction Intelligence makes a deck per lens, so a client on both gets two files.
   const lens = n => { const m = n.match(/-TI-(ARS|ICS)-/); return m ? `the ${m[1]} lens` : n; };
   const open = decks.map(n => `<button class="link" data-reveal="${esc(n)}">${decks.length > 1 ? "open " + esc(lens(n)) : "open the deck"}</button>`).join(" · ");
@@ -2588,7 +2576,7 @@ function deckCard(o) {
   const recheck = {"": '<button class="quiet" id="recheck">', ti: '<button class="quiet" id="tirecheck">', comp: '<button class="quiet" id="comprecheck">'}[k];
   const act = o.state === "stop" ? `${recheck}Check again</button>` : o.buttons;
   return `<section class="card${o.state === "stop" ? " stopcard" : ""}" id="${o.id}">
-    <div class="cardhead"><h3>${esc(o.title)}${o.mix ? ` <span class="mix">${esc(o.mix)}</span>` : ""} ${state}${sent}</h3><div class="act">${act}${why}</div></div>
+    <div class="cardhead"><h3>${esc(o.title)}${o.mix ? ` <span class="mix">${esc(o.mix)}</span>` : ""} ${state}</h3><div class="act">${act}${why}</div></div>
     ${fact ? `<p class="fact">${fact}</p>` : ""}${o.note || ""}${visible}${fold}${jobBox}</section>`;
 }
 
@@ -2626,7 +2614,7 @@ function renderStatus(s) {
   const note = (leftOut ? `<p class="small">${esc(leftOut)}</p>` : "") + (failed ? `<p class="small err">The last build failed; see why below.</p>` : "");
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : `checked ${Math.round(s.age_seconds / 60)} min ago`) + (s.refreshing ? ", checking again…" : "");
   const review = deckCard({key: "", id: "rpepanel", title: "Executive Review", mix, state: s.state, checks: s.checks, last: s.last,
-                           decks: c.decks || [], sent: c.sent && c.csm === "Aaron Burgard" ? c.sent : null,
+                           decks: c.decks || [],
                            buttons: btns(s.state === "ask"), note});
   const aside = (s.ti || s.companion)
     ? `<p class="cards-note">${s.ti ? "Transaction Intelligence" : ""}${s.ti && s.companion ? " and " : ""}${s.companion ? "the ARS Companion" : ""} ${s.ti && s.companion ? "are separate presentations" : "is a separate presentation"} filed beside the Executive Review; building one never changes another.</p>`

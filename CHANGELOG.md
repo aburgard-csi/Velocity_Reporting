@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — Sheila no longer reads or shows whether a deck was sent
+
+Summary: CSM Sheila (the page and Sheila in Claude) no longer shows a Sent chip, groups clients as "Sent", or reads deliveries.json; whether a deck went to the client is tracked only in the delivery dashboard, and a deck no longer in Outputs now builds without the "already made" question.
+
+Aaron, 2026-11-02: remove anything involving tracking and the sending of decks from Sheila; that stays in the delivery dashboard.
+
+- **Page.** The client list's and the Executive Review card's Sent chips are gone, and `compute_clients` / `compute_status` no longer call `deck_status.read_deliveries`.
+- **Pre-build check.** `ars_launcher.built_line` asked "already made" for a deck in Outputs **or** one recorded as sent. Only Outputs remains (the Transaction Intelligence and Companion checks already read Outputs alone). What the sent half protected: a deck sent to the client and then moved out of Outputs (archived by a newer build, or filed by hand) asked before a rebuild; it now builds at once and replaces what the client may hold. Only Aaron recorded sends, so no other CSM's clients had it.
+- **Sheila in Claude.** `my_month` drops the "Sent" group and labels in-Outputs decks plainly; the client brief, the meeting-prep sheet and the client list no longer print sent state.
+- **Signatures.** `rule_checks`, `all_checks`, `built_line`, `ti_checks` / `ti_status`, `companion_checks` / `companion_status`, `build_ti`, `build_companion` and `_context` lose their `sent` argument.
+- **Untouched.** `scripts/dashboard.py`, `scripts/deck_status.py` and `Build Artifacts/deliveries.json`; `tests/test_sheila_*`, `test_deck_status` and the launcher and dashboard suites pass.
+
 ### 2026-11-02 — Sheila draws the current orange, defined colours and readable label grey
 
 Summary: CSM Sheila's page now uses CSI Orange #F15D22 (it still drew the old #F47A29), the report dialog's labels and the period menu's hover now show (they named colours the page never defined), and the grey on small labels and times is dark enough to read.
@@ -52,6 +64,7 @@ James Gilmore, 2026-11-02: the 1585 First Community Bank of the Heartland build 
 - **Inactive is not closed.** A sheet-inactive code is closed only when the sheet's own description says closed, charged off or purged (1585 code 3). 1226 DORMANT and 1637 F Frozen stay unknown, as before.
 - **1585 figures:** Reg E base 0 → 11,623 (3,998 opted in, 34.4%). Product Mix open 31,673; Excluded Accounts 12,711 closed with no unmapped-status flag.
 - **Other clients:** 1549, 1204 and 1637 Reg E bases unchanged. 1509 gains 4 blank-status accounts as open (not in the Reg E base). **1226 Ellafi** goes from no Reg E base to 5,865, because its sheet lists ACTIVE and INACTIVE as active; it was a known data issue, so review its next deck.
+
 ### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
 
 Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to 81.

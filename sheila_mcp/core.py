@@ -72,8 +72,6 @@ def find_client(client):
 
 # ------------------------------------------------------------------ my month
 def _bucket(c, status):
-    if c.get("sent"):
-        return "sent"
     if c.get("decks"):
         return "in_outputs"
     if c.get("error"):
@@ -87,8 +85,7 @@ def _bucket(c, status):
 
 
 GROUPS = [("ready", "Ready to build"), ("blocked", "Blocked"), ("failed", "Last build failed"),
-          ("in_outputs", "Built, in Outputs (not sent)"), ("sent", "Sent"),
-          ("unchecked", "Not checked yet")]
+          ("in_outputs", "Built, in Outputs"), ("unchecked", "Not checked yet")]
 
 
 def my_month(csm="me", check=True):
@@ -99,7 +96,7 @@ def my_month(csm="me", check=True):
     W = web()
     doc = all_clients()
     book = [c for c in doc["clients"] if c.get("csm") == name]
-    todo = [c for c in book if not (c.get("sent") or c.get("decks") or c.get("error"))]
+    todo = [c for c in book if not (c.get("decks") or c.get("error"))]
     statuses = {}
     if check and todo:
         # Checked several at a time, for at most CHECK_SECONDS: a client still being checked is listed as
@@ -114,7 +111,7 @@ def my_month(csm="me", check=True):
     for c in book:
         st = statuses.get(c["id"])
         row = {"id": c["id"], "name": c.get("name"), "programs": c.get("covered") or c.get("programs"),
-               "ti_in_outputs": bool(c.get("ti_decks")), "sent": c.get("sent"), "decks": c.get("decks")}
+               "ti_in_outputs": bool(c.get("ti_decks")), "decks": c.get("decks")}
         if st is not None:
             row["state"] = st.get("state")
             row["blocked_by"] = W.stop_label(st.get("checks") or []) if st.get("state") == "stop" else None
@@ -197,8 +194,6 @@ def client_status(client, fresh=False):
         if blk:
             lines.append(f"{title}: {blk.get('state')}.")
             lines += _check_lines(blk.get("checks"))
-    if c.get("sent"):
-        lines.append(f"Marked sent {c['sent']}.")
     job = st.get("job")
     if job and not job.get("done"):
         lines.append("A build is running or queued for this client now.")
@@ -343,10 +338,10 @@ def clients(csm="me", query="", program=""):
         rows = [c for c in rows if all(w in (c.get("name") or "").lower() or w == c["id"] for w in words)]
     lines = [f"{len(rows)} client(s):"] + [
         f"  {c['id']} {c.get('name')} [{', '.join(c.get('covered') or c.get('programs') or [])}]"
-        + (" sent" if c.get("sent") else " in Outputs" if c.get("decks") else "")
+        + (" in Outputs" if c.get("decks") else "")
         + (" | TI in Outputs" if c.get("ti_decks") else "") for c in rows]
     return reply("\n".join(lines), clients=[{k: c.get(k) for k in ("id", "name", "csm", "covered", "products",
-                                                                   "sent", "decks", "ti_decks")} for c in rows])
+                                                                   "decks", "ti_decks")} for c in rows])
 
 
 # ------------------------------------------------------------------ about Sheila
