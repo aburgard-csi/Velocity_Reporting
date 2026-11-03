@@ -477,16 +477,19 @@ def test_mrpc_reads_the_weekly_through_the_decks_own_figures(tmp_path, monkeypat
          "cardholders_active_buckets": {"1-90": 50, "91-180": 60, "180+": 340, "inactive": 550}, "monthly": monthly}
 
     class FakeWeekly:
-        path, name = "x", w["file"]
+        path, name, tabs = "x", w["file"], {CID: "9999-Test Bank"}
 
         def client(self, cid):
             return w if cid == CID else None
 
     monkeypatch.setitem(MP._CACHE, "w", FakeWeekly())
+    from review_page import peer_pool
+    monkeypatch.setattr(peer_pool, "_vip_ids", lambda program: [])
+    monkeypatch.setitem(peer_pool._WEEKLY, "w", FakeWeekly())
     model, _t, problems = build(tmp_path, ("mrpc",))
     assert problems == []
     mrpc = model["programs"][0]
-    assert mrpc["state"] == "ready" and [s["id"] for s in mrpc["screens"]] == ["status", "enrollments"]
+    assert mrpc["state"] == "ready" and [s["id"] for s in mrpc["screens"]] == ["status", "enrollments", "peers"]
     assert mrpc["screens"][0]["blocks"][0]["items"][0]["value"] == 450
     assert "9999" not in json.dumps(mrpc["client_name"])
 

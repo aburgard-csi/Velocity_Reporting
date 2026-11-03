@@ -118,4 +118,19 @@ def build(ctx, p):
     s2 = B.screen("enrollments", "Enrollments", "MRPC · By month", h2, [B.drill(ch, tbl)],
                   PK.sources_for(p["notes"], ["Enrollments", "Program to Date"], fb), notes)
     summary = {"headline": headline, "kpis": [dict(k, go="mrpc:status") for k in items[:3]], "open": "mrpc:status"}
-    return {"screens": [s1, s2], "summary": summary, "client_name": (w.get("tab") or "").split("-", 1)[-1] or None}
+    screens = [s1, s2]
+    ps = _peers(ctx)
+    if ps:
+        screens.append(ps)
+    return {"screens": screens, "summary": summary, "client_name": (w.get("tab") or "").split("-", 1)[-1] or None}
+
+
+def _peers(ctx):
+    """'How you compare': the client against the other MRPC clients, anonymously (review_page/peers.py)."""
+    from review_page import peer_pool, peers
+    try:
+        coll = peer_pool.collect_mrpc(ctx)
+    except Exception:
+        return None
+    return peers.peers_screen(ctx.tracer, "MRPC", "MRPC", coll, peer_pool.MRPC_METRICS, trend="pct_goal", pull_dates=coll["pull"],
+                              extra_notes=["Revenue per enrolled card is not compared: the revenue figures are being corrected and are not current."])

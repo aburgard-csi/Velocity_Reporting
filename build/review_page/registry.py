@@ -75,7 +75,8 @@ def build_model(client, period, root=None, programs=None):
         out.append(build_program(ctx, key, label, module))
     name = next((e.get('client_name') for e in out if e.get('client_name')), None) or str(client)
     ready = [e for e in out if e["state"] == "ready" and not e["hidden"] and e["summary"]]
-    combined = {"screens": [_overview(ready)]} if len(ready) > 1 else None
+    cmp_screen = _compare_overview(ready)
+    combined = {"screens": [_overview(ready)] + ([cmp_screen] if cmp_screen else [])} if len(ready) > 1 else None
     model = {"product": PRODUCT_NAME, "client": {"id": str(client), "name": name}, "period": period, "month": ctx.month_long,
              "generated": datetime.datetime.now().isoformat(timespec="minutes"),
              "programs": out, "combined": combined, "story": _story(out)}
@@ -88,6 +89,22 @@ def _story(programs):
     if not any(e["key"] == "ars" and e["state"] == "ready" for e in programs):
         return None
     return story.resolve(programs)
+
+
+def _compare_overview(ready):
+    """'How you compare', across programs: one card per program that has a peers screen, each opening it. Nothing here
+    carries anything but the screens' own headlines, which carry no peer identity."""
+    cards = []
+    for e in ready:
+        ps = next((s for s in e["screens"] if s["id"] == "peers"), None)
+        if ps:
+            cards.append({"program": e["key"], "label": e["label"], "headline": ps["headline"], "kpis": [], "open": f"{e['key']}:peers"})
+    if not cards:
+        return None
+    return {"id": "compare", "title": "How you compare", "kicker": "Combined view · How you compare",
+            "headline": "How this client compares with the other clients on each program it has, anonymously.",
+            "blocks": [{"t": "cards", "cards": cards}], "notes": [],
+            "sources": [{"title": "Peer sets", "text": "Each program's peers are all other clients on it with current data, read from the same per-client sheets the performance dashboard reads. No other client is named or numbered."}]}
 
 
 def _overview(ready):

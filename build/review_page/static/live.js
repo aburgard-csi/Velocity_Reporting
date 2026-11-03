@@ -177,6 +177,9 @@
     if (b.t === "variants") return variantsHTML(b, scr);
     if (b.t === "drill") return drillHTML(b);
     if (b.t === "cards") return cardsHTML(b);
+    if (b.t === "statement") return b.lead ? '<p class="lede blk">' + esc(b.text) + "</p>" : '<div class="card blk"><h3>' + esc(b.title) + "</h3><p>" + esc(b.text) + "</p></div>";
+    if (b.t === "peerstrip") return '<div class="card blk"><div class="head"><div class="hgrow"><h3>' + esc(b.title) + (b.month ? " · " + esc(b.month) : "") + '</h3></div></div><div class="cbox" data-strip="' + b.id + '"></div>' +
+      '<div class="legend"><span><i style="background:var(--c-orange)"></i>This client</span><span><i style="background:var(--c-steel)"></i>Another client (anonymous)</span><span><i style="background:var(--line);border:1px solid var(--axis)"></i>Middle half of peers</span><span><i style="background:var(--c-navy)"></i>Peer median</span></div></div>';
     if (b.t === "needs") return '<div class="card blk needs"><h3>Not on this client yet</h3><p>' + esc(b.what) + '</p><p class="hint">What to run first</p><code>' + esc(b.fix) + "</code></div>";
     return "";
   }
@@ -429,9 +432,34 @@
     return h.join("");
   }
 
+  /* One metric against the peers: every other client is an anonymous dot (its value, nothing else), the middle half is a band,
+     the median a tick, and this client is the large orange dot. Nothing here carries a name or an id: the model has none. */
+  function stripSVG(b, W) {
+    var pad = {l: 16, r: 16, t: 34, b: 34}, H = 170, vals = b.dots.concat([b.client]);
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = (hi - lo) || 1;
+    lo -= span * 0.06; hi += span * 0.06;
+    var X = function (v) { return pad.l + (W - pad.l - pad.r) * (v - lo) / (hi - lo); }, base = H - pad.b, mid = pad.t + (base - pad.t) / 2;
+    var h = ['<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(b.title) + ': this client against ' + b.n + ' anonymous peers">'];
+    h.push('<rect x="' + X(b.q1) + '" y="' + (pad.t + 6) + '" width="' + Math.max(2, X(b.q3) - X(b.q1)) + '" height="' + (base - pad.t - 12) + '" rx="8" style="fill:var(--line);stroke:var(--axis);stroke-width:1"' + tipAttr("Middle half of peers: " + fmt(b.q1, b.fmt) + " to " + fmt(b.q3, b.fmt)) + "/>");
+    h.push('<line x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + base + '" y2="' + base + '" class="ax"/>');
+    for (var k = 0; k <= 4; k++) { var v = lo + (hi - lo) * k / 4; h.push('<text x="' + X(v) + '" y="' + (H - 10) + '" text-anchor="' + (k === 0 ? "start" : k === 4 ? "end" : "middle") + '">' + esc(fmt(v, b.fmt)) + "</text>"); }
+    h.push('<line x1="' + X(b.median) + '" x2="' + X(b.median) + '" y1="' + (pad.t + 2) + '" y2="' + (base) + '" style="stroke:var(--c-navy);stroke-width:2.5"' + tipAttr("Peer median: " + fmt(b.median, b.fmt)) + "/>");
+    h.push('<text x="' + X(b.median) + '" y="' + (pad.t - 4) + '" text-anchor="middle" style="font-weight:700;fill:var(--ink)">Median ' + esc(fmt(b.median, b.fmt)) + "</text>");
+    b.dots.forEach(function (v, i) {   // a fixed spread of heights so dots do not hide each other; the order carries nothing
+      var y = mid + (((i * 37) % 7) - 3) * 8;
+      h.push('<circle cx="' + X(v) + '" cy="' + y + '" r="6" class="peerdot grow-y" style="fill:var(--c-steel);fill-opacity:.82;stroke:var(--surface);stroke-width:1.5;animation-delay:' + Math.min(i * 12, 360) + 'ms"' + tipAttr("Another client: " + fmt(v, b.fmt)) + "/>");
+    });
+    h.push('<circle cx="' + X(b.client) + '" cy="' + mid + '" r="11" style="fill:var(--c-orange);stroke:var(--surface);stroke-width:3"' + tipAttr("This client: " + fmt(b.client, b.fmt)) + "/>");
+    h.push('<text x="' + X(b.client) + '" y="' + (mid - 20) + '" text-anchor="' + (X(b.client) > W - 90 ? "end" : "middle") + '" style="font-weight:700;fill:var(--orange-ink)">This client ' + esc(fmt(b.client, b.fmt)) + "</text>");
+    h.push("</svg>");
+    return h.join("");
+  }
+
   function drawCharts() {
     var all = {};
-    (function walk(bs) { bs.forEach(function (b) { if (b.t === "bars" || b.t === "line") all[b.id] = b; if (b.t === "drill") all[b.chart.id] = b.chart; if (b.t === "variants") { var cur = S.v[b.id] || b.options[0].key; var o = b.options.filter(function (x) { return x.key === cur; })[0]; if (o) walk(o.blocks); } }); })((curScreen() || {blocks: []}).blocks);
+    var strips = {};
+    (function walk(bs) { bs.forEach(function (b) { if (b.t === "peerstrip") strips[b.id] = b; if (b.t === "bars" || b.t === "line") all[b.id] = b; if (b.t === "drill") all[b.chart.id] = b.chart; if (b.t === "variants") { var cur = S.v[b.id] || b.options[0].key; var o = b.options.filter(function (x) { return x.key === cur; })[0]; if (o) walk(o.blocks); } }); })((curScreen() || {blocks: []}).blocks);
+    $$("[data-strip]").forEach(function (el) { var b = strips[el.getAttribute("data-strip")]; if (b) el.innerHTML = stripSVG(b, Math.max(280, Math.floor(el.clientWidth))); });
     $$(".cbox").forEach(function (el) {
       var b = all[el.getAttribute("data-chart")]; if (!b) return;
       var W = Math.max(280, Math.floor(el.clientWidth));

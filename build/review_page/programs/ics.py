@@ -95,4 +95,18 @@ def build(ctx, p):
     s2 = B.screen("branch", "Results by branch", "ICS · Year to date", h2, [B.drill(ch, tbl)],
                   PK.sources_for(p["notes"], ["Results by Branch"], fb), [])
     summary = {"headline": headline, "kpis": [dict(k, go="ics:referrals") for k in items[:3]], "open": "ics:referrals"}
-    return {"screens": [s1, s2], "summary": summary, "client_name": name}
+    screens = [s1, s2]
+    ps = _peers(ctx)
+    if ps:
+        screens.append(ps)
+    return {"screens": screens, "summary": summary, "client_name": name}
+
+
+def _peers(ctx):
+    """'How you compare': the client against the other ICS clients, anonymously (review_page/peers.py)."""
+    from review_page import peer_pool, peers
+    try:
+        coll = peer_pool.collect_ics(ctx)
+    except Exception:
+        return None
+    return peers.peers_screen(ctx.tracer, "ICS", "ICS", coll, peer_pool.ICS_METRICS, trend="pct_goal", pull_dates=coll["pull"])

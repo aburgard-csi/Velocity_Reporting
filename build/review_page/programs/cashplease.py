@@ -113,4 +113,18 @@ def build(ctx, p):
     s2 = B.screen("volume", "Volume by month", "CashPlease · Loans", h2, [B.drill(ch, tbl)],
                   PK.sources_for(p["notes"], ["CashPlease"], fb), n2)
     summary = {"headline": headline, "kpis": [dict(k, go="cashplease:summary") for k in items[:3]], "open": "cashplease:summary"}
-    return {"screens": [s1, s2], "summary": summary, "client_name": name}
+    screens = [s1, s2]
+    ps = _peers(ctx)
+    if ps:
+        screens.append(ps)
+    return {"screens": screens, "summary": summary, "client_name": name}
+
+
+def _peers(ctx):
+    """'How you compare': the client against the other CashPlease clients, anonymously (review_page/peers.py)."""
+    from review_page import peer_pool, peers
+    try:
+        coll = peer_pool.collect_cashplease(ctx)
+    except Exception:
+        return None
+    return peers.peers_screen(ctx.tracer, "CashPlease", "CashPlease", coll, peer_pool.CP_METRICS, trend="per_1k_month", pull_dates=coll["pull"])

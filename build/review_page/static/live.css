@@ -267,3 +267,7 @@ html.present .tile .v{font-size:clamp(26px,15cqw,54px)}
 .agenda button:hover{background:var(--fill)}.agenda button[aria-current="page"]{background:var(--fill);box-shadow:inset 3px 0 0 var(--orange)}
 .agenda button.stub{color:var(--text2)}.agenda button em{margin-left:auto;font:600 11px var(--head);color:var(--warn);font-style:normal}
 .needs p{margin:8px 0 0}.needs code{display:block;margin-top:6px;background:var(--fill);padding:12px 14px;border-radius:var(--r-sm);font:13px ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+
+/* ---- peers: the strip plot and the lead sentence */
+.lede{font-size:1.15rem;color:var(--text2);margin:0;max-width:70ch}
+.peerdot{transition:r .15s}.peerdot:hover{r:8}

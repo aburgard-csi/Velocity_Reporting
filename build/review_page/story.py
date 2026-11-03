@@ -55,6 +55,24 @@ SECTIONS = [
     ]),
 ]
 
+# Sections for the other programs, each shown only when the client has the program (nothing is stubbed for a product it
+# does not have): their results, then how the client compares with its peers on each.
+OPTIONAL = [
+    ("others", "Other programs", "The client's other Velocity programs, program by program.", [
+        ("ics:referrals", "ICS referrals", "ICS · Invitation Checking"),
+        ("ics:branch", "ICS results by branch", "ICS · Year to date"),
+        ("mrpc:status", "MRPC program status", "MRPC · From the weekly"),
+        ("mrpc:enrollments", "MRPC enrollments", "MRPC · By month"),
+        ("cashplease:summary", "CashPlease loan summary", "CashPlease · Weekly"),
+        ("cashplease:volume", "CashPlease volume", "CashPlease · Loans"),
+    ]),
+    ("compare", "How you compare", "Each program against the other clients on it, anonymously.", [
+        ("ics:peers", "ICS: how you compare", "ICS · How you compare"),
+        ("mrpc:peers", "MRPC: how you compare", "MRPC · How you compare"),
+        ("cashplease:peers", "CashPlease: how you compare", "CashPlease · How you compare"),
+    ]),
+]
+
 TITLE = "The review"
 
 
@@ -72,12 +90,14 @@ def resolve(programs):
     from review_page import blocks as B
     by = {e["key"]: e for e in programs}
     out, stubs = [], {}
-    for sid, title, blurb, items in SECTIONS:
+    for sid, title, blurb, items, optional in [(*sec, False) for sec in SECTIONS] + [(*sec, True) for sec in OPTIONAL]:
         scr = []
         for ref, ttl, kicker in items:
             prog, _, scid = ref.partition(":")
             e = by.get(prog)
             have = e and any(s["id"] == scid for s in e["screens"])
+            if optional and not have:
+                continue                  # a program the client does not have is not a section of its review
             if not have:
                 if e and e["state"] == "ready":
                     why, fix = "This client's pack does not carry the data this view needs.", "Rebuild the pack this view reads (see Sources) and reload."
@@ -87,5 +107,6 @@ def resolve(programs):
                 stubs[ref] = B.screen(scid, ttl, kicker, f"{ttl} needs data this client does not have on this machine yet.",
                                       [{"t": "needs", "what": why, "fix": fix}], [], [])
             scr.append({"ref": ref, "prog": prog, "id": scid, "title": ttl, "stub": not have})
-        out.append({"id": sid, "title": title, "blurb": blurb, "screens": scr})
+        if scr:
+            out.append({"id": sid, "title": title, "blurb": blurb, "screens": scr})
     return {"title": TITLE, "sections": out, "stubs": stubs}
