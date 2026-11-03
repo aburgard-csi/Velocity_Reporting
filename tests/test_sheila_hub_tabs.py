@@ -18,7 +18,7 @@ def between(text, a, b):
     return text[text.index(a):text.index(b, text.index(a))]
 
 
-@pytest.mark.parametrize("module,tab", [("sheila_hub_feedback", "reported"), ("sheila_hub_issues", "issues")])
+@pytest.mark.parametrize("module,tab", [("sheila_hub_feedback", "reported"), ("sheila_hub_issues", "issues"), ("sheila_hub_lift", "lift")])
 def test_each_tab_module_is_complete_and_assembled_once(module, tab):
     import importlib
     m = importlib.import_module(module)
@@ -69,3 +69,32 @@ def test_the_links_row_is_the_same_wherever_a_client_is_named():
         assert part in row
     assert 'clientLinks(s.client, "decks", $("#clientlinks"))' in page, "on the Decks client page too"
     assert 'if (t === "decks") { go("decks"); openClient(c); } else go(t, {client: c});' in page
+
+
+def test_lift_matrix_shows_the_change_as_chips_and_a_live_total_and_holds_export_until_it_is_current():
+    page = H.PAGE
+    for route in ('"/api/lift/overview"', '"/api/lift/client?"', '"/api/lift/export"', '"/api/lift/download"', '"/api/lift/rescan"', '"/api/lift/scan-all"'):
+        assert route in page
+    # the change against the workbook is an up or down chip, in the overview and on the client page
+    assert 'const chip = (v) =>' in page and '"▲"' in page and '"▼"' in page and ".dchip.up{" in page and ".dchip.down{" in page
+    # a total that follows the rates: the book's DDA value per account, weighted by accounts, against the workbook's
+    kp = between(page, "function paintKpis(d)", "function paintResults(d)")
+    assert "weighted by accounts" in kp and "g.n * nv" in kp and "g.n * cv" in kp
+    # the four rates, then a recalculation a moment after the last keystroke (Enter at once); Export waits for it
+    for field in ('id="lm-ic"', 'id="lm-fee"', 'id="lm-col"', 'id="lm-cap"'):
+        assert field in page
+    assert "L.debounce = setTimeout(recalc, 700)" in page and 'e.key === "Enter"' in page
+    assert 'x.title = "Recalculating first"' in page, "a matrix is never exported at values other than the ones on screen"
+    # exported at these values, or not; and the file is recorded before it is downloaded
+    exp = between(page, "function wireSave(d)", "function move(dir)")
+    assert exp.index('"/api/lift/export"') < exp.index("await download(d)")
+    assert "JSON.stringify(d.exported.rates) === JSON.stringify(d.rates)" in page
+
+
+def test_lift_matrix_states_are_said_never_blank():
+    page = H.PAGE
+    for text in ("is on the SM model, which does not use a Lift Matrix.", "so nothing can be calculated.", "Reading the ODD (", "Reading the ODD stopped:",
+                 "Enter the client's NSF/OD fee to calculate the new matrix.", "How it was calculated"):
+        assert text in page
+    # the open client goes back with Esc or the button; the address follows
+    assert "function back()" in page and 'setTabParams({client: id})' in page and "Back to every Lift Matrix" in page
