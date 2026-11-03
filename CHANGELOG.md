@@ -33,6 +33,29 @@ Aaron, 2026-11-02: "add this gradient to the contact card", then, seeing it: "th
 - **Divider detection.** The slide is full bleed with a 44 pt title, so `cover_divider.is_divider` took it for a section divider and the ARS builder redrew it as one (title and name only; the golden deck test caught it). It is excluded by title, like Questions & Discussion.
 - **Not rebuilt.** Decks already in Outputs keep the old card until their next build. `tests/test_contact_slide.py` and `tests/test_csm_contact.py` pin the stops, full bleed, one and two contacts, the 16 pt floor, the grouping, the icons and that every builder goes through the helper.
 
+### 2026-11-02 — Sheila no longer reads or shows whether a deck was sent
+
+Summary: CSM Sheila (the page and Sheila in Claude) no longer shows a Sent chip, groups clients as "Sent", or reads deliveries.json; whether a deck went to the client is tracked only in the delivery dashboard, and a deck no longer in Outputs now builds without the "already made" question.
+
+Aaron, 2026-11-02: remove anything involving tracking and the sending of decks from Sheila; that stays in the delivery dashboard.
+
+- **Page.** The client list's and the Executive Review card's Sent chips are gone, and `compute_clients` / `compute_status` no longer call `deck_status.read_deliveries`.
+- **Pre-build check.** `ars_launcher.built_line` asked "already made" for a deck in Outputs **or** one recorded as sent. Only Outputs remains (the Transaction Intelligence and Companion checks already read Outputs alone). What the sent half protected: a deck sent to the client and then moved out of Outputs (archived by a newer build, or filed by hand) asked before a rebuild; it now builds at once and replaces what the client may hold. Only Aaron recorded sends, so no other CSM's clients had it.
+- **Sheila in Claude.** `my_month` drops the "Sent" group and labels in-Outputs decks plainly; the client brief, the meeting-prep sheet and the client list no longer print sent state.
+- **Signatures.** `rule_checks`, `all_checks`, `built_line`, `ti_checks` / `ti_status`, `companion_checks` / `companion_status`, `build_ti`, `build_companion` and `_context` lose their `sent` argument.
+- **Untouched.** `scripts/dashboard.py`, `scripts/deck_status.py` and `Build Artifacts/deliveries.json`; `tests/test_sheila_*`, `test_deck_status` and the launcher and dashboard suites pass.
+
+### 2026-11-02 — Sheila draws the current orange, defined colours and readable label grey
+
+Summary: CSM Sheila's page now uses CSI Orange #F15D22 (it still drew the old #F47A29), the report dialog's labels and the period menu's hover now show (they named colours the page never defined), and the grey on small labels and times is dark enough to read.
+
+Aaron, 2026-11-02: "If Sheila has known issues, go ahead and fix those separately."
+
+- **Orange.** `--orange`, `--focus`, the period pill's and Delete vote's glows, and the change log page's rules moved from #F47A29 to #F15D22 (the Sept. 2026 brand template).
+- **Undefined variables.** `var(--rowalt)` (the period menu's hover) is now `--soft`, and `var(--muted)` (report dialog labels and hint) is `--ink2`; both used to resolve to nothing.
+- **Label grey.** `--ink3` measured 3.1:1 on white (2.8:1 on the fill) in light and 4.0:1 on the dark fill; small text needs 4.5:1. It now equals `--ink2` in each theme (#566370 light, #A7B4C1 dark), which also takes one grey out of the page.
+- `tests/test_sheila_palette.py` fails on the old orange, on any variable used but not defined, and on label greys under 4.5:1 on any ground in either theme. No deck changes; nothing was rebuilt or released.
+
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
 Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.
@@ -53,6 +76,7 @@ James Gilmore, 2026-11-02: the 1585 First Community Bank of the Heartland build 
 - **Inactive is not closed.** A sheet-inactive code is closed only when the sheet's own description says closed, charged off or purged (1585 code 3). 1226 DORMANT and 1637 F Frozen stay unknown, as before.
 - **1585 figures:** Reg E base 0 → 11,623 (3,998 opted in, 34.4%). Product Mix open 31,673; Excluded Accounts 12,711 closed with no unmapped-status flag.
 - **Other clients:** 1549, 1204 and 1637 Reg E bases unchanged. 1509 gains 4 blank-status accounts as open (not in the Reg E base). **1226 Ellafi** goes from no Reg E base to 5,865, because its sheet lists ACTIVE and INACTIVE as active; it was a known data issue, so review its next deck.
+
 ### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
 
 Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to 81.
