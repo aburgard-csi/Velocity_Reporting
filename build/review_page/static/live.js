@@ -227,7 +227,7 @@
 
   function blockHTML(b, scr) {
     if (b.t === "kpis") return kpisHTML(b);
-    if (b.t === "bars" || b.t === "line") return '<div class="card blk">' + chartHead(b) + '<div class="cbox" data-chart="' + b.id + '"></div><div class="legend" data-legend="' + b.id + '"></div></div>';
+    if (b.t === "bars" || b.t === "line" || b.t === "donut" || b.t === "waterfall" || b.t === "scatter") return '<div class="card blk">' + chartHead(b) + '<div class="cbox" data-chart="' + b.id + '"></div><div class="legend" data-legend="' + b.id + '"></div></div>';
     if (b.t === "matrix") return matrixHTML(b);
     if (b.t === "table") return '<div class="card blk">' + tableCard(b) + "</div>";
     if (b.t === "variants") return variantsHTML(b, scr);
@@ -248,10 +248,10 @@
   }
 
   function metricOf(b) {
-    if (!b.metrics || !b.metrics.length) return {series: b.series, fmt: b.fmt, key: null};
+    if (!b.metrics || !b.metrics.length) return {series: b.series, fmt: b.fmt, key: null, steps: b.steps};
     var k = S.m[b.id] || b.metrics[0].key;
     var m = b.metrics.filter(function (x) { return x.key === k; })[0] || b.metrics[0];
-    return {series: m.series, fmt: m.fmt, key: m.key};
+    return {series: m.series, fmt: m.fmt, key: m.key, steps: m.steps};
   }
 
   var SORTS = [["desc", "Largest"], ["asc", "Smallest"], ["az", "A\u2013Z"], ["list", "Listed"]];
@@ -531,17 +531,142 @@
     return h.join("");
   }
 
+  /* ---------- more chart types (Aaron, 2026-11-03: "I'd like to see more chart types in LR too") ---------- */
+  var PAL = ["navy", "orange", "steel", "teal", "gold", "tick"];
+  function emptyBox(b) { return '<div class="empty">' + esc(b.empty || "Nothing to chart.") + "</div>"; }
+  function arcPath(cx, cy, r0, r1, a0, a1) {
+    var big = a1 - a0 > Math.PI ? 1 : 0;
+    var X = function (r, a) { return (cx + r * Math.cos(a)).toFixed(2); }, Y = function (r, a) { return (cy + r * Math.sin(a)).toFixed(2); };
+    return "M" + X(r1, a0) + " " + Y(r1, a0) + "A" + r1 + " " + r1 + " 0 " + big + " 1 " + X(r1, a1) + " " + Y(r1, a1) +
+      "L" + X(r0, a1) + " " + Y(r0, a1) + "A" + r0 + " " + r0 + " 0 " + big + " 0 " + X(r0, a0) + " " + Y(r0, a0) + "Z";
+  }
+  /* A whole split into parts: the ring on one side, each part with its value and its share on the other. */
+  function donutSVG(b, W) {
+    var f = b.fmt, items = b.cats.map(function (c, i) { return {c: c, v: b.values[i]}; }).filter(function (d) { return typeof d.v === "number" && d.v > 0; });
+    var tot = items.reduce(function (a, d) { return a + d.v; }, 0);
+    if (!(tot > 0)) return emptyBox(b);
+    var fs = S.present ? 16 : 14, row = S.present ? 32 : 28, side = W >= 480;
+    var D = side ? Math.min(250, W * 0.4) : Math.min(230, W - 20), R = D / 2, r = R * 0.62;
+    var legH = items.length * row, H = side ? Math.max(D + 16, legH + 16) : D + 24 + legH;
+    var cx = side ? R + 8 : W / 2, cy = R + 8;
+    var h = ['<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(b.title) + '">'];
+    var a = -Math.PI / 2, gap = items.length > 1 ? 0.014 : 0;
+    items.forEach(function (d, k) {
+      var sweep = d.v / tot * Math.PI * 2, a0 = a + gap / 2, a1 = a + sweep - gap / 2; a += sweep;
+      var tip = tipAttr(d.c + ": " + fmt(d.v, f) + " (" + (100 * d.v / tot).toFixed(1) + "%)"), color = col(PAL[k % PAL.length]);
+      if (items.length === 1) h.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + ((R + r) / 2) + '" fill="none" stroke="' + color + '" stroke-width="' + (R - r) + '"' + tip + "/>");
+      else h.push('<path class="slice" d="' + arcPath(cx, cy, r, R, a0, a1) + '" style="fill:' + color + '"' + tip + "/>");
+    });
+    h.push('<text class="v" x="' + cx + '" y="' + (cy + 2) + '" text-anchor="middle" style="font-size:' + (S.present ? 28 : 22) + 'px">' + esc(fmt(tot, f)) + "</text>");
+    h.push('<text x="' + cx + '" y="' + (cy + (S.present ? 24 : 20)) + '" text-anchor="middle">' + esc(b.center || "Total") + "</text>");
+    var lx = side ? D + 30 : 8, ly = side ? (H - legH) / 2 + row / 2 : D + 24 + row / 2, vx = side ? lx + Math.min(440, W - D - 60) : W - 8;
+    items.forEach(function (d, k) {
+      var y = ly + k * row;
+      h.push('<rect x="' + lx + '" y="' + (y - 10) + '" width="12" height="12" rx="3" style="fill:' + col(PAL[k % PAL.length]) + '"/>');
+      h.push('<text x="' + (lx + 20) + '" y="' + (y + 1) + '" style="font-size:' + fs + 'px">' + esc(d.c) + "</text>");
+      h.push('<text class="v" x="' + vx + '" y="' + (y + 1) + '" text-anchor="end" style="font-size:' + fs + 'px">' + esc(fmt(d.v, f)) + " · " + (100 * d.v / tot).toFixed(1) + "%</text>");
+    });
+    h.push("</svg>");
+    return h.join("");
+  }
+  /* A running total built up or down in steps: totals stand on the baseline, a cost steps down from the line before it. */
+  function waterfallSVG(b, W) {
+    var mt = metricOf(b), steps = (mt.steps || b.steps || []), f = b.fmt;
+    if (!steps.length) return emptyBox(b);
+    var run = 0, bars = steps.map(function (s) {
+      var lo, hi;
+      if (s.kind === "total") { lo = Math.min(0, s.value); hi = Math.max(0, s.value); run = s.value; }
+      else { var to = run + s.value; lo = Math.min(run, to); hi = Math.max(run, to); run = to; }
+      return {s: s, lo: lo, hi: hi, end: run};
+    });
+    var mx = Math.max.apply(null, bars.map(function (x) { return x.hi; })), mn = Math.min.apply(null, bars.map(function (x) { return x.lo; })), neg = mn < 0;
+    var sc = scaleFor(Math.max(mx, neg ? -mn : 0, 1), f), top = sc.top, lo0 = neg ? -top : 0;
+    var longest = Math.max.apply(null, bars.map(function (x) { return textW(x.s.label, 12); }));
+    var pw0 = W - 64, gw0 = pw0 / bars.length, rot = longest > gw0 - 6;
+    var pad = {l: 56, r: 8, t: 24, b: rot ? Math.min(80, longest * 0.62 + 16) : 30}, H = S.present ? 260 : 300;
+    var ph = H - pad.t - pad.b, pw = W - pad.l - pad.r, gw = pw / bars.length, bw = Math.max(14, Math.min(72, gw * 0.62));
+    var py = function (v) { return pad.t + ph * (top - v) / (top - lo0); };
+    var h = ['<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(b.title) + '">'];
+    var ticks = neg ? sc.ticks.concat(sc.ticks.slice(1).map(function (t) { return -t; })) : sc.ticks;
+    ticks.forEach(function (tv) {
+      var y = py(tv);
+      h.push('<line class="' + (tv === 0 ? "ax" : "gl") + '" x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (pad.l - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + esc(axisLabel(tv, f)) + "</text>");
+    });
+    bars.forEach(function (x, i) {
+      var cx = pad.l + gw * i + gw / 2, x0 = cx - bw / 2, up = x.s.kind !== "total" && x.s.value > 0, down = x.s.kind !== "total" && x.s.value < 0;
+      var color = x.s.kind === "total" ? (x.s.value < 0 ? "var(--c-orange)" : "var(--c-navy)") : down ? "var(--c-orange)" : "var(--c-teal)";
+      var y1 = py(x.hi), y2 = py(x.lo), hh = Math.max(1.5, y2 - y1);
+      var label = x.s.kind === "total" ? fmt(x.s.value, f) : (down ? "\u2212" : "+") + fmt(Math.abs(x.s.value), f);
+      var tip = tipAttr(x.s.label + ": " + label + (x.s.kind === "total" ? "" : " \u2192 " + fmt(x.end, f)));
+      h.push('<rect class="bar" x="' + x0 + '" y="' + y1 + '" width="' + bw + '" height="' + hh + '" rx="3" style="fill:' + color + '"' + tip + "/>");
+      if (i < bars.length - 1) h.push('<line class="gl" x1="' + (x0 + bw) + '" x2="' + (pad.l + gw * (i + 1) + gw / 2 - bw / 2) + '" y1="' + py(x.end) + '" y2="' + py(x.end) + '" style="stroke-dasharray:3 3"/>');
+      h.push('<text class="v" x="' + cx + '" y="' + (x.s.kind !== "total" && down ? y2 + 15 : y1 - 6) + '" text-anchor="middle">' + esc(label) + "</text>");
+      if (rot) h.push('<text transform="translate(' + cx + "," + (H - pad.b + 14) + ') rotate(-30)" text-anchor="end">' + esc(x.s.label) + "</text>");
+      else h.push('<text x="' + cx + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(x.s.label) + "</text>");
+    });
+    h.push("</svg>");
+    return h.join("");
+  }
+  function niceTicks(lo, hi, n) {
+    var span = hi - lo || 1, raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+    var step = (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p, a = Math.floor(lo / step) * step, t = [];
+    for (var v = a; ; v += step) { t.push(+v.toFixed(10)); if (v >= hi - step * 0.001) break; }
+    return t;
+  }
+  function median(a) { var s = a.slice().sort(function (x, y) { return x - y; }), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; }
+  /* Points on two measures, sized by a third; the medians cross, and the corner below both is shaded: the branches to coach. */
+  function scatterSVG(b, W) {
+    var pts = (b.points || []).filter(function (p) { return isFinite(p.x) && isFinite(p.y); });
+    if (pts.length < 3) return emptyBox(b);
+    var H = S.present ? 340 : 400, pad = {l: 60, r: 18, t: 26, b: 48}, pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+    var xs = pts.map(function (p) { return p.x; }), ys = pts.map(function (p) { return p.y; });
+    var dx = (Math.max.apply(null, xs) - Math.min.apply(null, xs)) * 0.08 || 1, dy = (Math.max.apply(null, ys) - Math.min.apply(null, ys)) * 0.08 || 1;
+    var dom = function (a, d, f) {   // padded, but a measure that is never negative gets no negative axis, and a percentage stops at 100
+      var lo = Math.min.apply(null, a), hi = Math.max.apply(null, a);
+      lo = lo >= 0 ? Math.max(0, lo - d) : lo - d; hi = /^pct/.test(f || "") ? Math.min(100, hi + d) : hi + d;
+      return niceTicks(lo, hi, 5);
+    };
+    var xt = dom(xs, dx, b.xfmt), yt = dom(ys, dy, b.yfmt);
+    var x0 = xt[0], x1 = xt[xt.length - 1], y0 = yt[0], y1 = yt[yt.length - 1];
+    var px = function (v) { return pad.l + pw * (v - x0) / (x1 - x0); }, py = function (v) { return pad.t + ph * (1 - (v - y0) / (y1 - y0)); };
+    var mx = median(xs), my = median(ys);
+    var sz = pts.map(function (p) { return p.size || 0; }), smin = Math.min.apply(null, sz), smax = Math.max.apply(null, sz);
+    var rad = function (p) { return smax > smin ? 5 + 13 * Math.sqrt(((p.size || 0) - smin) / (smax - smin)) : 8; };
+    var h = ['<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(b.title) + '">'];
+    if (b.quad) h.push('<rect class="quad" x="' + pad.l + '" y="' + py(my) + '" width="' + (px(mx) - pad.l) + '" height="' + (pad.t + ph - py(my)) + '"/>');
+    xt.forEach(function (v) { var x = px(v); h.push('<line class="gl" x1="' + x + '" x2="' + x + '" y1="' + pad.t + '" y2="' + (pad.t + ph) + '"/><text x="' + x + '" y="' + (H - 28) + '" text-anchor="middle">' + esc(axisLabel(v, b.xfmt)) + "</text>"); });
+    yt.forEach(function (v) { var y = py(v); h.push('<line class="gl" x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (pad.l - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + esc(axisLabel(v, b.yfmt)) + "</text>"); });
+    h.push('<line class="med" x1="' + px(mx) + '" x2="' + px(mx) + '" y1="' + pad.t + '" y2="' + (pad.t + ph) + '"/><line class="med" x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + py(my) + '" y2="' + py(my) + '"/>');
+    h.push('<text x="' + (px(mx) + 4) + '" y="' + (pad.t + 11) + '" style="font-size:11.5px">median ' + esc(fmt(mx, b.xfmt)) + '</text><text x="' + (pad.l + 4) + '" y="' + (py(my) - 5) + '" style="font-size:11.5px">median ' + esc(fmt(my, b.yfmt)) + "</text>");
+    h.push('<text x="' + (pad.l + pw / 2) + '" y="' + (H - 8) + '" text-anchor="middle" class="v">' + esc(b.xlabel) + '</text><text x="' + pad.l + '" y="' + (pad.t - 10) + '" class="v">\u2191 ' + esc(b.ylabel) + "</text>");
+    var order = pts.slice().sort(function (p, q) { return (q.size || 0) - (p.size || 0); }), placed = [];
+    order.forEach(function (p) {
+      var low = p.x < mx && p.y < my, r = rad(p);
+      var tip = tipAttr(p.name + " \u00b7 " + b.xlabel + " " + fmt(p.x, b.xfmt) + " \u00b7 " + b.ylabel + " " + fmt(p.y, b.yfmt) + (p.size ? " \u00b7 " + fmt(p.size, b.sfmt) + " " + b.slabel : ""));
+      h.push('<circle class="pt" cx="' + px(p.x) + '" cy="' + py(p.y) + '" r="' + r + '" style="fill:' + (low && b.quad ? "var(--c-orange)" : "var(--c-navy)") + '"' + tip + "/>");
+    });
+    order.slice(0, 16).forEach(function (p) {   // the larger points are named; a name that would sit on another is left to its tooltip
+      var r = rad(p), w = textW(p.name, 12), right = px(p.x) + r + 4 + w < W - pad.r, x = right ? px(p.x) + r + 4 : px(p.x) - r - 4 - w, y = py(p.y) + 4;
+      var box = {x: x, y: y - 11, w: w, h: 13};
+      if (placed.some(function (q) { return box.x < q.x + q.w && q.x < box.x + box.w && box.y < q.y + q.h && q.y < box.y + box.h; })) return;
+      placed.push(box);
+      h.push('<text x="' + x + '" y="' + y + '" style="font-size:12px">' + esc(p.name) + "</text>");
+    });
+    h.push("</svg>");
+    return h.join("");
+  }
+
   function drawCharts() {
     var all = {};
     var strips = {};
-    (function walk(bs) { bs.forEach(function (b) { if (b.t === "peerstrip") strips[b.id] = b; if (b.t === "bars" || b.t === "line") all[b.id] = b; if (b.t === "drill") all[b.chart.id] = b.chart; if (b.t === "variants") { var cur = S.v[b.id] || b.options[0].key; var o = b.options.filter(function (x) { return x.key === cur; })[0]; if (o) walk(o.blocks); } }); })((curScreen() || {blocks: []}).blocks);
+    (function walk(bs) { bs.forEach(function (b) { if (b.t === "peerstrip") strips[b.id] = b; if (b.t === "bars" || b.t === "line" || b.t === "donut" || b.t === "waterfall" || b.t === "scatter") all[b.id] = b; if (b.t === "drill") all[b.chart.id] = b.chart; if (b.t === "variants") { var cur = S.v[b.id] || b.options[0].key; var o = b.options.filter(function (x) { return x.key === cur; })[0]; if (o) walk(o.blocks); } }); })((curScreen() || {blocks: []}).blocks);
     $$("[data-strip]").forEach(function (el) { var b = strips[el.getAttribute("data-strip")]; if (b) el.innerHTML = stripSVG(b, Math.max(280, Math.floor(el.clientWidth))); });
     $$(".cbox").forEach(function (el) {
       var b = all[el.getAttribute("data-chart")]; if (!b) return;
       var W = Math.max(280, Math.floor(el.clientWidth));
-      el.innerHTML = b.t === "line" ? lineSVG(b, W) : barsSVG(b, W);
+      el.innerHTML = ({line: lineSVG, donut: donutSVG, waterfall: waterfallSVG, scatter: scatterSVG}[b.t] || barsSVG)(b, W);
       var lg = $('[data-legend="' + b.id + '"]');
-      var ser = b.t === "line" ? b.series : metricOf(b).series;
+      var ser = b.t === "line" ? b.series : b.t === "bars" ? metricOf(b).series : [];
       if (lg) lg.innerHTML = ser.length > 1 ? ser.map(function (s) { return '<span><i style="background:' + col(s.color) + '"></i>' + esc(s.name) + "</span>"; }).join("") : "";
     });
   }

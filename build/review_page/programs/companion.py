@@ -202,7 +202,12 @@ def _scorecard(ctx, p):
     notes = []
     if oth.get("branch"):
         notes.append(f"{p['C'].get('branch_kpis', 'other_count')} smaller branches are rolled up in the deck's Branch Scorecard and are left out here.")
-    return B.screen("scorecard", "Branch scorecard", "Branches · Who to coach", headline, [B.drill(chart, tbl)],
+    quad = B.scatter("score-quadrant", "Branches: debit take against Reg E opt-in", [{"name": r["name"], "x": r["take"], "y": r["rege"], "size": r["elig"]} for r in rows],
+                     "Debit take", "Reg E opt-in", "pct1", "pct1", sub="Each branch sized by its eligible accounts; the shaded corner is below the median on both.",
+                     slabel="eligible accounts")
+    main = B.variants("score-view", "View", [{"key": "bars", "label": "By branch", "blocks": [B.drill(chart, tbl)]},
+                                             {"key": "quadrant", "label": "Take and Reg E", "blocks": [quad]}]) if len(rows) >= 4 else B.drill(chart, tbl)
+    return B.screen("scorecard", "Branch scorecard", "Branches · Who to coach", headline, [main],
                     _src(p, ["Branch Scorecard", "Take Rate and Reg E Opt-In by Branch", "Where Reg E Opt-In Lags"], "branch performance"), notes)
 
 
