@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — Sheila draws the current orange, defined colours and readable label grey
+
+Summary: CSM Sheila's page now uses CSI Orange #F15D22 (it still drew the old #F47A29), the report dialog's labels and the period menu's hover now show (they named colours the page never defined), and the grey on small labels and times is dark enough to read.
+
+Aaron, 2026-11-02: "If Sheila has known issues, go ahead and fix those separately."
+
+- **Orange.** `--orange`, `--focus`, the period pill's and Delete vote's glows, and the change log page's rules moved from #F47A29 to #F15D22 (the Sept. 2026 brand template).
+- **Undefined variables.** `var(--rowalt)` (the period menu's hover) is now `--soft`, and `var(--muted)` (report dialog labels and hint) is `--ink2`; both used to resolve to nothing.
+- **Label grey.** `--ink3` measured 3.1:1 on white (2.8:1 on the fill) in light and 4.0:1 on the dark fill; small text needs 4.5:1. It now equals `--ink2` in each theme (#566370 light, #A7B4C1 dark), which also takes one grey out of the page.
+- `tests/test_sheila_palette.py` fails on the old orange, on any variable used but not defined, and on label greys under 4.5:1 on any ground in either theme. No deck changes; nothing was rebuilt or released.
+
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
 Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.
