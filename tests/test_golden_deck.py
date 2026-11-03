@@ -115,13 +115,16 @@ def test_all_charts_render(deck):
 
 
 def test_slide_count(deck):
-    """49 for an SM-path ARS deck. The golden client runs at 5.75 : 1, so it does NOT get a
+    """50 for an SM-path ARS deck (2026-11-02: the branch tables moved to the Appendix — the Take Rate by
+    Branch table left the main deck, and the golden client's one page each of Take Rate by Branch, Reg E
+    Opt-In by Branch and Reg E New Accounts by Branch follow the divider: -1 + 1 + 1 + 0 = one more than
+    before, the all-accounts Reg E page being new). The golden client runs at 5.75 : 1, so it does NOT get a
     Revenue Guarantee slide — that one is built only below 3 : 1 (Aaron, 2026-09-22). ARS
     Financial Performance is the P&L since 2026-10-02, drawn over the template's slide of
     that name rather than added beside it, so the count did not move. If this moves,
     assemble_combined's section boundary is the next thing to check — adding two slides
     broke it before."""
-    assert len(deck["prs"].slides) == 49
+    assert len(deck["prs"].slides) == 50
 
 
 # --- it has the right shape ----------------------------------------------
@@ -228,7 +231,7 @@ def test_nsf_slide_compares_complete_months_and_says_what_was_left_out(partial_d
     notes = s.notes_slide.notes_text_frame.text
     assert "Jul 2026 is left out as incomplete in this extract" in notes, notes
     assert "Items YTD YoY compares Jan\u2013Jun 25 (" in notes and ") to Jan\u2013Jun 26 (" in notes, notes
-    assert len(partial_deck["prs"].slides) == 49, "a partial month never drops a slide"
+    assert len(partial_deck["prs"].slides) == 50, "a partial month never drops a slide"
 
 
 def test_spend_yoy_is_year_to_date_too(deck):

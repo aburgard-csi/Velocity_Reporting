@@ -1,31 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RPE Deck Pipeline</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Carlito:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
-  --ars:#00274C; --ics:#F47A29; --mrpc:#0D9488; --cp:#C9911F;
-  --bg:#F7F9FB; --surface:#FFFFFF; --tile:#EEF2F6; --hair:#D9DEE5; --grid:#E4EAF1;
-  --ink:#0E1B2A; --ink2:#526170; --ink3:#7E8B98; --head:#00274C;
-  --block:#C2410C; --block-bg:#FDF1EA; --ok:#1E7F4F; --opt:#6A7784;
-  --focus:#F47A29;
+  /* The Sheila Hub's colors (Aaron, 2026-11-02): ground, navy, teal; no orange. Program colors validated with the dataviz script. */
+  --ars:#2F5FB5; --ics:#B5476B; --mrpc:#9A7B10; --cp:#8F4FB0;
+  --bg:#EDF1F7; --surface:#FFFFFF; --tile:#E4EAF3; --hair:#C6D1E0; --grid:#D6DFEB;
+  --ink:#0B132B; --ink2:#4A5C75; --ink3:#4A5C75; --head:#1C2541;
+  --block:#8F2D0B; --block-bg:#FAE3D8; --ok:#15627E; --opt:#4A5C75;
+  --focus:#15627E; --glow-a:rgba(21,98,126,.13); --glow-b:rgba(91,192,222,.26);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
-    --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --hair:#2A3F52; --grid:#233647;
-    --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99; --head:#E8EEF4;
-    --block:#F79552; --block-bg:#2A1C14; --ok:#4CC38A; --opt:#93A2B0;
-    --focus:#F79552;
+    --ars:#5F86DB; --ics:#D0608F; --mrpc:#AB8A22; --cp:#A06CD0;
+    --bg:#0B132B; --surface:#141D38; --tile:#28344F; --hair:#3A506B; --grid:#2B3C58;
+    --ink:#EEF3FA; --ink2:#A3B3C9; --ink3:#A3B3C9; --head:#EEF3FA;
+    --block:#F59A78; --block-bg:#3A241C; --ok:#5BC0DE; --opt:#A3B3C9;
+    --focus:#5BC0DE; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
   }
 }
 :root[data-theme="dark"]{
-  --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
-  --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --hair:#2A3F52; --grid:#233647;
-  --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99; --head:#E8EEF4;
-  --block:#F79552; --block-bg:#2A1C14; --ok:#4CC38A; --opt:#93A2B0;
-  --focus:#F79552;
+  --ars:#5F86DB; --ics:#D0608F; --mrpc:#AB8A22; --cp:#A06CD0;
+  --bg:#0B132B; --surface:#141D38; --tile:#28344F; --hair:#3A506B; --grid:#2B3C58;
+  --ink:#EEF3FA; --ink2:#A3B3C9; --ink3:#A3B3C9; --head:#EEF3FA;
+  --block:#F59A78; --block-bg:#3A241C; --ok:#5BC0DE; --opt:#A3B3C9;
+  --focus:#5BC0DE; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Carlito,Calibri,"Segoe UI",system-ui,sans-serif}
+body{margin:0;background:radial-gradient(38rem 26rem at 8% 6%,var(--glow-a),transparent 70%),radial-gradient(44rem 30rem at 96% 2%,var(--glow-b),transparent 70%),var(--bg);color:var(--ink);font:16px/1.55 Carlito,Calibri,"Segoe UI",system-ui,sans-serif}
 .wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:22px 64px}
 h1,h2,h3,.lab{font-family:Montserrat,"Segoe UI",system-ui,sans-serif;color:var(--head)}
 h1{font-size:30px;font-weight:700;letter-spacing:-.01em;margin:6px 0 8px;text-wrap:balance}
@@ -63,7 +67,7 @@ section{margin-top:40px}
 
 /* programs */
 .progs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}
-.prog{background:var(--surface);border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+.prog{background:var(--surface);border:1px solid var(--hair);border-radius:18px;overflow:hidden}
 .prog>.ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:14px 16px 10px;border-top:4px solid var(--c)}
 .prog>.ph .cad{margin-left:auto;font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
 .prog>.ph .note{flex-basis:100%;color:var(--ink2);font-size:14px}
@@ -78,7 +82,7 @@ section{margin-top:40px}
 .prog td .miss{display:block;color:var(--ink2)}
 
 /* folder map */
-.map{overflow-x:auto;background:var(--surface);border:1px solid var(--hair);border-radius:10px}
+.map{overflow-x:auto;background:var(--surface);border:1px solid var(--hair);border-radius:18px}
 .map table{width:100%;min-width:560px;border-collapse:collapse;font-size:14.5px}
 .map th{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:10px 16px 8px;border-bottom:1px solid var(--hair)}
 .map td{padding:8px 16px;border-top:1px solid var(--grid);vertical-align:top}
@@ -93,7 +97,7 @@ section{margin-top:40px}
 .rules span{color:var(--ink2)}
 
 /* filename anatomy */
-.anat{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:18px 16px;overflow-x:auto}
+.anat{background:var(--surface);border:1px solid var(--hair);border-radius:18px;padding:18px 16px;overflow-x:auto}
 .fname{display:flex;flex-wrap:wrap;gap:0;font-family:"IBM Plex Mono",Consolas,monospace;font-size:15px;line-height:1.2}
 .part{display:grid;gap:6px;justify-items:start;padding-right:2px}
 .part .t{padding:5px 3px;border-bottom:3px solid var(--c,var(--hair));color:var(--ink);white-space:pre}
@@ -107,7 +111,7 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--hair);color:v
 
 <div class="wrap">
   <header>
-    <a class="back" href="index.html">&larr; RPE Client Performance</a>
+    <a class="back" href="index.html"><svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><rect x="12" y="6" width="24" height="18" rx="4" style="fill:var(--ok)"/><rect x="4" y="14" width="24" height="18" rx="4" style="fill:var(--head)"/></svg>&larr; RPE Client Performance</a>
     <div class="eyebrow">CSI Velocity &middot; Retail Performance Engine</div>
     <h1>How an Executive Review gets made</h1>
     <p class="lede">From a file landing on a CSI share to a deck recorded as sent: what runs, what it reads, what it writes, and what stops a deck from shipping. Everything lives under one pipeline root, <code>\\PADMIS105\Velocity_company\CSM_Reporting</code>, which needs the VPN off-site.</p>
