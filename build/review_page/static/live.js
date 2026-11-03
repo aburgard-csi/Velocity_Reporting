@@ -32,7 +32,7 @@
   var col = function (n) { return COLORS[n] || COLORS.navy; };
 
   /* ---------- state ---------- */
-  var S = {prog: "", screen: 0, v: {}, m: {}, sort: {}, q: {}, drill: null, panel: null, tableId: null, present: false, plain: false};
+  var S = {prog: "", screen: 0, v: {}, m: {}, bs: {}, sort: {}, q: {}, drill: null, panel: null, tableId: null, present: false, plain: false};
   var T = {};
   try { T.theme = localStorage.getItem("lr-theme") || ""; } catch (e) { T.theme = ""; }
   try { var qp = new URLSearchParams(location.search); if (/^(light|dark)$/.test(qp.get("theme") || "")) T.theme = qp.get("theme"); T.present = qp.get("present") === "1"; T.drill = qp.get("drill") || ""; T.panel = qp.get("panel") || ""; } catch (e) {}
@@ -109,7 +109,10 @@
       var its = storyItems(), k = its.map(function (x) { return x.ref; }).indexOf(decodeURIComponent(sid || ""));
       S.prog = "story"; S.screen = k < 0 ? 0 : k; return;
     }
-    if (p === "all" && MODEL.combined) { S.prog = "all"; S.screen = 0; return; }
+    if (p === "all" && MODEL.combined) {
+      var cs = MODEL.combined.screens, ci = cs.map(function (x) { return x.id; }).indexOf(sid);
+      S.prog = "all"; S.screen = ci < 0 ? 0 : ci; return;
+    }
     var pr = programs().filter(function (x) { return x.key === p; })[0];
     if (pr) { S.prog = pr.key; var i = pr.screens.map(function (s) { return s.id; }).indexOf(sid); S.screen = i < 0 ? 0 : i; return; }
     var first = programs().filter(function (x) { return x.state === "ready"; })[0];
@@ -118,7 +121,7 @@
   }
   function writeHash() {
     var s = curScreen(), st = curStory();
-    var h = "#" + S.prog + (S.prog === "story" && st ? "/" + encodeURIComponent(st.ref) : (S.prog !== "all" && s ? "/" + s.id : ""));
+    var h = "#" + S.prog + (S.prog === "story" && st ? "/" + encodeURIComponent(st.ref) : (s ? "/" + s.id : ""));
     if (location.hash !== h) history.replaceState(null, "", h);
   }
   function go(prog, sid) {
@@ -219,7 +222,7 @@
     if (b.t === "drill") return drillHTML(b);
     if (b.t === "cards") return cardsHTML(b);
     if (b.t === "statement") return b.lead ? '<p class="lede blk">' + esc(b.text) + "</p>" : '<div class="card blk"><h3>' + esc(b.title) + "</h3><p>" + esc(b.text) + "</p></div>";
-    if (b.t === "peerstrip") return '<div class="card blk"><div class="head"><div class="hgrow"><h3>' + esc(b.title) + (b.month ? " · " + esc(b.month) : "") + '</h3></div></div><div class="cbox" data-strip="' + b.id + '"></div>' +
+    if (b.t === "peerstrip") return '<div class="card blk"><div class="head"><div class="hgrow"><h3>' + esc(b.title) + (b.month ? " · " + esc(b.month) : "") + '</h3></div></div>' + (b.sentence ? '<p class="psent">' + esc(b.sentence) + "</p>" : "") + '<div class="cbox" data-strip="' + b.id + '"></div>' +
       '<div class="legend"><span><i style="background:var(--c-orange)"></i>' + esc(cname()) + '</span><span><i style="background:var(--c-steel)"></i>Another client (hover for its number)</span><span><i style="background:var(--line);border:1px solid var(--axis)"></i>Middle half of peers</span><span><i style="background:var(--c-navy)"></i>Peer median</span></div></div>';
     if (b.t === "needs") return '<div class="card blk needs"><h3>Not on this client yet</h3><p>' + esc(b.what) + '</p><p class="hint">What to run first</p><code>' + esc(b.fix) + "</code></div>";
     return "";
@@ -239,11 +242,17 @@
     return {series: m.series, fmt: m.fmt, key: m.key};
   }
 
+  var SORTS = [["desc", "Largest"], ["asc", "Smallest"], ["az", "A\u2013Z"], ["list", "Listed"]];
+  function sortOf(b) { return S.bs[b.id] || (S.present && b.cats.length > 6 ? "desc" : "list"); }   // 2026-11-03: "make charts like this sortable"
   function chartHead(b) {
     var ctl = "";
     if (b.metrics && b.metrics.length > 1) {
       var cur = metricOf(b).key;
       ctl = '<div class="mini" role="group" aria-label="Show">' + b.metrics.map(function (m) { return '<button data-metric="' + b.id + '" data-key="' + m.key + '" aria-pressed="' + (m.key === cur) + '">' + esc(m.label) + "</button>"; }).join("") + "</div>";
+    }
+    if (b.t === "bars" && b.horizontal && b.cats.length > 2) {
+      var how = sortOf(b);
+      ctl += '<div class="mini" role="group" aria-label="Sort">' + SORTS.map(function (s) { return '<button data-bsort="' + b.id + '" data-how="' + s[0] + '" aria-pressed="' + (s[0] === how) + '">' + s[1] + "</button>"; }).join("") + "</div>";
     }
     return '<div class="head"><div class="hgrow"><h3>' + esc(b.title) + "</h3>" + (b.sub ? '<p class="sub">' + esc(b.sub) + "</p>" : "") + "</div>" + ctl + "</div>";
   }
@@ -380,10 +389,14 @@
   function barsSVG(b, W) {
     var mt = metricOf(b), ser = mt.series, f = mt.fmt, cats = b.cats, n = cats.length, capped = 0;
     var fs = S.present ? 16 : 14, rowH1 = S.present ? 32 : 28;   // the branch names are read from across a room
-    if (S.present && b.horizontal && n > 6) {   // as many bars as the window holds under the title (never fewer than six): the largest, the rest one keypress away
-      var room = Math.max(6, Math.floor((window.innerHeight - 540) / rowH1));
-      var idx = cats.map(function (c, i) { return i; }).sort(function (x, y) { return (ser[0].values[y] || 0) - (ser[0].values[x] || 0); });   // largest first
-      if (n > room) { idx = idx.slice(0, room); capped = n; }
+    var how = b.horizontal ? sortOf(b) : "list", room = S.present ? Math.max(6, Math.floor((window.innerHeight - 540) / rowH1)) : n;
+    if (b.horizontal && (how !== "list" || (S.present && n > room))) {   // sorted as asked; presenting, as many bars as the window holds under the title (never fewer than six), the rest one keypress away
+      var val = function (i) { return b.stacked ? ser.reduce(function (a, s) { return a + (s.values[i] || 0); }, 0) : ser[0].values[i]; };
+      var idx = cats.map(function (c, i) { return i; });
+      if (how === "desc") idx.sort(function (x, y) { return (val(y) || 0) - (val(x) || 0); });
+      else if (how === "asc") idx.sort(function (x, y) { return (typeof val(x) === "number" ? val(x) : Infinity) - (typeof val(y) === "number" ? val(y) : Infinity); });
+      else if (how === "az") idx.sort(function (x, y) { return String(cats[x]).localeCompare(String(cats[y]), undefined, {numeric: true}); });
+      if (S.present && n > room) { idx = idx.slice(0, room); capped = n; }
       cats = idx.map(function (i) { return cats[i]; });
       ser = ser.map(function (sr) { return {name: sr.name, color: sr.color, values: idx.map(function (i) { return sr.values[i]; })}; }); n = idx.length;
     }
@@ -415,7 +428,7 @@
           if (ser.length === 1 || k === 0) h.push('<text class="v" x="' + (pad.l + w + 6) + '" y="' + (yy + bh - 3) + '">' + esc(fmt(v, f)) + "</text>");
         });
       });
-      if (capped) h.push('<text x="' + (W - 8) + '" y="' + (pad.t + 2) + '" text-anchor="end">Largest ' + n + ' of ' + capped + " · T for the table</text>");
+      if (capped) h.push('<text x="' + (W - 8) + '" y="' + (pad.t + 2) + '" text-anchor="end">' + {desc: "Largest ", asc: "Smallest ", az: "First ", list: "First "}[how] + n + ' of ' + capped + " · T for the table</text>");
       h.push("</svg>");
     } else {
       var rot = false, groupW0 = (W - 64) / n;
@@ -534,6 +547,10 @@
   /* Presenting (windowed, shared in a call at 1280x720): the finding as the headline, the tiles, ONE chart and the first so-what line.
      The rest of the screen (tables, further charts, the other notes) is one keypress away, never on the slide. */
   function presentBlocks(blocks, sid) {
+    if (sid === "compare") {   // the combined "How you compare": one chart per product while presenting, all of them in the regular view
+      var firsts = blocks.filter(function (b) { return b.t === "peerstrip" && b.first; });
+      if (firsts.length) return firsts;
+    }
     var kp = blocks.filter(function (b) { return b.t === "kpis"; })[0], main = blocks.filter(function (b) { return b.t !== "kpis" && !(b.t === "statement" && b.lead); })[0];
     var out = [];
     if (main && main.t === "variants") {   // keep the control, and only each option's first real block (its chart)
@@ -659,6 +676,7 @@
     if ((el = g("#rail [data-i]"))) { S.screen = +el.getAttribute("data-i"); S.drill = null; closePanel(); render(); window.scrollTo({top: 0}); return; }
     if ((el = g("[data-agenda]"))) return go("story", el.getAttribute("data-agenda"));
     if ((el = g("[data-go]"))) { var p = el.getAttribute("data-go").split(":"); return go(p[0], p[1]); }
+    if ((el = g("[data-bsort]"))) { S.bs[el.getAttribute("data-bsort")] = el.getAttribute("data-how"); S.plain = true; var yy = window.scrollY; render(); window.scrollTo({top: yy}); return; }
     if ((el = g("[data-metric]"))) { S.m[el.getAttribute("data-metric")] = el.getAttribute("data-key"); S.plain = true; return render(); }
     if ((el = g("[data-variant]"))) { S.v[el.getAttribute("data-variant")] = el.getAttribute("data-key"); S.drill = null; S.plain = true; return render(); }
     if ((el = g("[data-open-table]"))) return openPanel("table", el.getAttribute("data-open-table"));

@@ -31,6 +31,26 @@ Aaron, 2026-11-03: "we should be able to do peer comparison for MRPC too", "but 
 - **Current.** A client counts when it enrolled in the last six months the weekly carries (counted back from the newest month any client has), not in its own last six months, which let clients whose series stopped in 2020, 2024 and 2025 count. The active-cardholder and take-rate measures use the same pool, so they lose those stale clients.
 - The share of goal stays as another measure for the clients that have a VIP sheet. `tests/test_live_review_mrpc_peers.py`.
 
+### 2026-11-03 — Live Review: the combined "How you compare" is a series of charts, peer screens start on a chart, and bar charts sort
+
+Summary: The combined "How you compare" screen now shows one chart for every measure of every product (instead of one card per product), each peer screen starts on its chart with its takeaway inside the chart's card, and horizontal bar charts such as take rate by branch can be sorted largest, smallest, A to Z or as listed.
+
+Aaron, 2026-11-03: "'Combined view · How you compare' should have a series of charts", "all the peer comparison slides should start on a chart", "make charts like this sortable".
+
+- **Combined view.** `registry._compare_overview` takes every peer strip from each product's peers screen (the ones a product's own screen hides behind a measure selector too), titles each with its product ("MRPC: Cardholders still active") and keys it by product (two products both have `per_1k`). Presenting, it shows the first chart of each product. `#all/compare` now opens that screen (the combined view's screens are addressed by id).
+- **Chart first.** The per-measure takeaway ("4th of 6 REMS clients; 7.1% below the peer median") is the strip's own sentence, drawn under its title, instead of a text block above the chart.
+- **Sortable bars.** Horizontal bar charts with more than two bars get Largest, Smallest, A–Z and Listed beside the chart title. Listed (the order the data comes in) is the default in the regular view; presenting a list of more than six still defaults to largest first, and the cap on how many bars fit says "Largest 12 of 16", "Smallest ..." or "First ...". The drill into a bar's row works in any order.
+
+### 2026-11-03 — Live Review REMS: compare the last 12 months pooled, and leave out the demo client
+
+Summary: With the real REMS file in place, the REMS peer comparison now leads with each client's opt-in rate over the last 12 months pooled, because a single month holds only tens of responses, and it no longer counts the demo client (999, Union Financial Bank) as a peer.
+
+Aaron saved `rems_responses 2026-11-03.csv` in `Inputs/REMS` (658 rows, 14 clients, the columns the section reads). Built against it, Marine FCU's section showed 47 responses and 83.0% opted in in October.
+
+- **12 months pooled.** A month of REMS is small (Marine's October: 47), so the monthly rate left only 5 comparable peers and moved with a handful of responses. The first comparison is now opt-ins over responses for the last 12 complete calendar months (at least 30 responses in them to be compared); the monthly rate stays as the second view and the trend. Marine: 85.3%, 3rd of 6 REMS clients, 7.2% above the peer median (79.6%).
+- **Demo client.** Client 999 (Union Financial Bank, the deck demo client) is in the query's result from 2010; it is skipped as a client and as a peer.
+- **Current** now means a response in the last six calendar months before the pull, not in the client's own last six months, which counted Wellworth (last response April 2023) as current.
+
 ### 2026-11-03 — Sheila cleans up after herself: the Transaction Intelligence cache has a size and an age limit
 
 Summary: Sheila no longer lets her local Transaction Intelligence cache grow without end. It stays under 3 GB and clears any client not built for 21 days, least recently used first, when she starts and at the start of each Transaction Intelligence build; `ars_launcher_web.py --tidy` does it on demand.

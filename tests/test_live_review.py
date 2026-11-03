@@ -182,6 +182,14 @@ def test_the_peer_screens_name_the_client_and_the_page_marks_each_product():
     assert "html[data-prog" not in css
 
 
+def test_horizontal_bar_charts_can_be_sorted():
+    js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js"), encoding="utf-8").read()
+    for how in ('"desc"', '"asc"', '"az"', '"list"'):
+        assert how in js.split("var SORTS")[1].split("function chartHead")[0]       # largest, smallest, A-Z and as listed
+    assert 'data-bsort="' in js and "S.bs[" in js
+    assert "function sortOf" in js and 'S.present && b.cats.length > 6 ? "desc" : "list"' in js   # presenting a long list still defaults to largest first
+
+
 def test_branch_bars_use_the_room_in_the_window_and_larger_names():
     js = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js")
     js = open(js, encoding="utf-8").read()
