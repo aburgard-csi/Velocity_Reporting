@@ -18,6 +18,7 @@ files" stay "keep" in `ti/slides.json` for that case.
 from pathlib import Path
 
 from ti import cut, odd_sections
+from ti.deck import combine
 
 TITLES = {
     "attrition_branch": "Attrition by branch",
@@ -36,6 +37,14 @@ TITLES = {
 # stresses-across-both-files count is on the "Accounts under several stresses" slide beside the
 # ODD-only count (combine group J).
 TXN_TITLES = ("spend_before_closure",)
+
+# two one-chart slides as one (Aaron, 2026-11-02; ti/deck/combine.py)
+COMBINED = (
+    ("cohort_survival", "survival_by_tenure", "How long accounts stay open",
+     "How long accounts stay open",
+     "Left: the share of each month's new accounts that closed within a year. Right: the share still open by account age.",
+     "retention_curves"),
+)
 
 
 def compute(ctx):
@@ -86,10 +95,11 @@ def build(ctx):
     builders = [I.attrition_branch_and_group, A.months_of_warning, A.concurrent_stressors,
                 A.cohort_survival, A.product_and_hazard, A.where_the_risk_sits,
                 I.survival_by_tenure]
+    builders, titles = combine.apply(builders, TITLES, COMBINED)
     txn = _txn_builders()
     for name, fn in zip(TXN_TITLES, txn):
         fn.__name__ = name
-    return deck.run(builders + txn, TITLES, ctx.pack.get("metrics") or {})
+    return deck.run(builders + txn, titles, ctx.pack.get("metrics") or {})
 
 
 CHAPTER = cut.Chapter("TI_ATT", "Attrition", "Closures · Warning · Stresses",

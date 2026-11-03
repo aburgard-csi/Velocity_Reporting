@@ -178,25 +178,26 @@ def test_cashplease_shell_card_is_replaced(root):
 
 @pytest.mark.parametrize("template", ["ars_template.pptx", "mrpc_template.pptx", "cashplease_template.pptx"])
 @pytest.mark.parametrize("cid, has_phone", [("9001", True), ("9003", False)])
-def test_shell_contact_cards_are_rewritten(root, template, cid, has_phone):
+def test_shell_contact_slides_are_rewritten(root, template, cid, has_phone):
     """The ARS, MRPC and CashPlease shells each CARRY a Contact Us slide with one CSM's static
     card; ARS and MRPC skipped adding their own, so that static card shipped on every deck.
-    The shared filler rewrites it in place, keeping the card's geometry."""
+    The shared filler redraws the whole slide (`shapes.draw_contact_slide`: the Questions & Discussion
+    gradient, the CSI logo, the contact centred) with the managing CSM's lines."""
     from pptx import Presentation
-    from pptx.util import Emu
     import shapes
     prs = Presentation(os.path.join(REPO, "templates", template))
     slide = shapes.find_contact_slide(prs)
     assert slide is not None
-    before = sorted(round(Emu(sh.top).inches, 2) for sh in slide.shapes if sh.has_text_frame)
     c = R.csm_contact(cid)
-    shapes.fill_contact_card(slide, c)
-    boxes = {sh.text_frame.text: round(Emu(sh.top).inches, 2) for sh in slide.shapes if sh.has_text_frame}
-    if has_phone:                                   # the shell's own slots, unchanged
-        assert (boxes[c["name"]], boxes[c["role"]], boxes[c["phone"]], boxes[c["email"]]) == (2.45, 3.25, 4.5, 5.02)
-    else:                                           # three lines, re-spaced, no hole
-        assert (boxes[c["name"]], boxes[c["role"]], boxes[c["email"]]) == (2.6, 3.4, 4.2)
-        assert len(boxes) == len(before) - 1
-        assert not any(re.search(r"\d{3}-\d{3}-\d{4}", t) for t in boxes)
-    assert not any("csiweb" in t.lower() for t in boxes), "the shell's static card survived"
+    shapes.fill_contact_slide(slide, c)
+    lines = {sh.name: sh.text_frame.text for sh in slide.shapes
+             if sh.name in ("Contact name", "Contact role", "Contact phone", "Contact email")}
+    assert lines["Contact name"] == c["name"] and lines["Contact role"] == c["role"]
+    assert lines["Contact email"] == c["email"]
+    if has_phone:
+        assert lines["Contact phone"] == c["phone"]
+    else:                                           # no phone on file: no phone row, no blank, no dash
+        assert "Contact phone" not in lines
+        assert not any(re.search(r"\d{3}-\d{3}-\d{4}", t) for t in lines.values())
+    assert not any("csiweb" in t.lower() for t in lines.values()), "the shell's static card survived"
     assert slide.notes_slide.notes_text_frame.text == shapes.contact_card_note(c)

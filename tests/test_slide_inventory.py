@@ -32,8 +32,12 @@ def test_the_ars_list_is_the_shell_with_the_builders_slides_where_the_builder_pu
     t = _titles("ARS")
     assert t.index("Excluded Accounts") == t.index("Product Mix & ARS Eligibility") + 1
     assert t.index("Revenue Guarantee") == t.index("ARS Financial Performance") + 1
-    assert t.index("Reg E Opt-In by Branch") == t.index("Reg E Opt-In — Opened in Last 12 Months") + 1
-    assert t.index("Branch Reference") == t.index("Program Reach — Cumulative Responders") - 1
+    # the branch-detail tables are Appendix pages (2026-11-02), after the Branch Reference
+    assert "12-Month Take Rate by Branch" not in t and "Reg E Opt-In by Branch" not in t
+    fam = ["Branch Reference", "Appendix: Take Rate by Branch", "Appendix: Reg E Opt-In by Branch",
+           "Appendix: Reg E New Accounts by Branch"]
+    assert [t.index(x) for x in fam] == list(range(t.index("Program Reach — Cumulative Responders") - 4,
+                                                   t.index("Program Reach — Cumulative Responders")))
     assert "ARS Response — <month> Mailer" in t                      # the template's month is a placeholder
     assert "Responder Activity: Before vs After by Offer" in t      # the builder retitles the shell's Median slide
     assert "Responder Activity: Before vs After (Median)" not in t

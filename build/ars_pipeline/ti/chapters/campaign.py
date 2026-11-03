@@ -22,6 +22,7 @@ replace still draw, and are tossed in `ti/slides.json`.
 from pathlib import Path
 
 from ti import cut, odd_sections
+from ti.deck import combine
 
 TITLES = {
     "program_reach": "Program reach",
@@ -53,6 +54,19 @@ TITLES = {
 }
 
 
+# two one-chart slides as one (Aaron, 2026-11-02; ti/deck/combine.py)
+COMBINED = (
+    ("program_reach", "response_reach", "Reach and response",
+     "How far the mailings reached, and how each offer responded",
+     "Left: eligible accounts, ever mailed and responded. Right: each offer's response rate and the reach to date.",
+     "reach_and_response"),
+    ("depth", "first_vs_repeat", "Repeat responders",
+     "Who responds again",
+     "Left: how many responded once, twice and three times or more. Right: where first-time and repeat responders ended up.",
+     "repeat_responders"),
+)
+
+
 def compute(ctx):
     out = {}
     for section in (odd_sections.migration, odd_sections.mailer, odd_sections.mailer_detail,
@@ -79,8 +93,8 @@ def build(ctx):
     from ti.deck.helpers import Deck
     deck = Deck(ctx, "the ODD extract's own mail and response columns",
                 Path(ctx.art_dir or ".") / "charts" / "campaign")
-    builders = [getattr(S, name) for name in TITLES]
-    return deck.run(builders, TITLES, ctx.pack.get("metrics") or {})
+    builders, titles = combine.apply([getattr(S, name) for name in TITLES], TITLES, COMBINED)
+    return deck.run(builders, titles, ctx.pack.get("metrics") or {})
 
 
 CHAPTER = cut.Chapter("TI_CAMP", "Campaign", "Response · Gain · Ladder",

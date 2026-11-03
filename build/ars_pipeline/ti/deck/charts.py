@@ -434,6 +434,24 @@ def _untangle_ticks(fig) -> bool:
         if len(labels) < 2 or any(t.get_rotation() for t in labels):
             continue
         boxes = sorted((t.get_window_extent(renderer) for t in labels), key=lambda b: b.x0)
+        # A figure authored for half a slide (ti/deck/combine.py) has labels that touch long before
+        # they overlap: break a multi-word label over two lines first, and angle them only if that is
+        # not enough.
+        if (fig.get_figwidth() < 7 and any(a.x1 + 12 > b.x0 for a, b in zip(boxes, boxes[1:]))
+                and any(" " in t.get_text() for t in labels)):
+            import textwrap
+            # the labels are rebuilt through the axis: a text set on a tick label is put back by the
+            # formatter at the next draw
+            style = {"fontsize": labels[0].get_fontsize(), "color": labels[0].get_color()}
+            texts = [t.get_text() for t in ax.get_xticklabels()]
+            ax.set_xticks(ax.get_xticks())
+            ax.set_xticklabels([textwrap.fill(s, max(6, len(s) // 2 + 2), break_long_words=False)
+                                if " " in s and chr(10) not in s else s for s in texts], **style)
+            labels = [t for t in ax.get_xticklabels() if t.get_visible() and t.get_text().strip()]
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            boxes = sorted((t.get_window_extent(renderer) for t in labels), key=lambda b: b.x0)
+            changed = True
         if any(a.x1 + 2 > b.x0 for a, b in zip(boxes, boxes[1:])):
             for t in labels:
                 t.set_rotation(_rpe_periods.AXIS_ROTATION)
@@ -954,14 +972,21 @@ def value_waterfall(items: list, out: Path) -> Path:
     ax.barh(y, values, color=[NAVY if v >= 0 else RED for v in values],
             height=0.6, edgecolor="white", linewidth=1.2)
 
-    span = max(values) if values else 1
+    # A negative value (card spend against inflow on the deposits chapter) has a bar to the left of
+    # zero. The axis used to start at zero, so that bar was drawn off the canvas and its label ran
+    # over the axis (1776, 2026-11-02: "$-644,976,863" and no bar).
+    top, bottom = max(values + [0]), min(values + [0])
+    span = max(top, -bottom) or 1
     for i, v in enumerate(values):
-        ax.text(v + span * 0.02, y[i], f"${v:,.0f}", va="center",
-                fontsize=13, fontweight="bold", color=NAVY)
+        txt = f"${v:,.0f}" if v >= 0 else f"-${-v:,.0f}"
+        ax.text(v + span * 0.02 if v >= 0 else v - span * 0.02, y[i], txt, va="center",
+                ha="left" if v >= 0 else "right", fontsize=13, fontweight="bold", color=NAVY)
 
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=12.5, color=NAVY)
-    ax.set_xlim(0, span * 1.35)
+    ax.set_xlim(-span * 1.45 if bottom < 0 else 0, span * 1.35)
+    if bottom < 0:
+        ax.axvline(0, color=NAVY, lw=1.2)
     ax.get_xaxis().set_visible(False)
     _clean(ax, bottom=False)
     return _save(fig, out)

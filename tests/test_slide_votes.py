@@ -285,34 +285,31 @@ def _between(text, start, end):
     return text[i:text.index(end, i)]
 
 
-def test_the_page_has_a_slide_review_tab_wired_into_the_modes():
-    page = W.PAGE
-    assert 'id="tab-votes" aria-selected="false">Slide Review</button>' in page
-    assert 'm === "reported" || m === "votes");' in page and '"reported", "votes"])' in page
-    assert 'else if (m === "votes") votesView();' in page
-    assert page.count('id="tab-votes"') == 1 and "<style>" in page and page.index("votesView") < page.rindex("</script>")
+def test_the_page_has_a_slide_review_tab_wired_into_the_router():
+    import sheila_hub as H
+    page = H.PAGE
+    assert page.count('data-tab="votes" href="#votes"') == 2, "the sidebar and the phone bar, to its own address"
+    assert page.count('id="v-votes"') == 1 and 'registerTab("votes"' in page and "sheila_hub_votes" in H.TAB_MODULES
+    assert "<style>" in page and page.index("registerTab(\"votes\"") < page.rindex("</script>")
 
 
 def test_the_page_is_not_tied_to_a_client():
-    js = _between(W.PAGE, "let VOTE =", "$(\"#main\").addEventListener(\"click\"")
-    assert "VOTE.client" not in js and "/api/votes/clients" not in js and "/api/votes/decks" not in js
+    import sheila_hub as H
+    js = _between(H.PAGE, "// ------------------------------------------------------------ Slide Review", "registerTab(\"votes\"")
+    assert "V.client" not in js and "/api/votes/clients" not in js and "/api/votes/decks" not in js
     assert "/api/votes/program?program=" in js
 
 
 def test_a_vote_button_sends_the_slides_title_and_number_and_the_star_with_the_vote():
-    send = _between(W.PAGE, "async function votesSend", "async function votesSummary")
-    for part in ('"/api/votes/vote"', "slide: +tr.dataset.n", "title: tr.dataset.title", "star: state.star", "vote: state.vote"):
+    import sheila_hub as H
+    send = _between(H.PAGE, "async function send(i, patch)", "function paintRow(i)")
+    for part in ('"/api/votes/vote"', "slide: s.n", "title: s.title", "star: next.star", "vote: next.vote"):
         assert part in send
-    assert 'aria-pressed="${m.vote === v}"' in W.PAGE and 'class="star"' in W.PAGE and "Favorite slide" in W.PAGE
-    assert "Keep" in W.PAGE and "Appendix" in W.PAGE
+    assert 'aria-pressed="${m.vote === v}"' in H.PAGE and 'class="star"' in H.PAGE and "Favorite slide" in H.PAGE
+    assert "Keep" in H.PAGE and "Appendix" in H.PAGE
 
 
-def test_the_vote_buttons_use_the_action_buttons_toned_down_edge():
-    css = _between(W.PAGE, "button.vb,button.vt{", "button.vb:hover")
-    assert "inset 0 1px 0 rgba(255,255,255,.16)" in css and "0 6px 16px" not in W.PAGE
-
-
-def test_the_splice_fails_loudly_when_the_page_changes_under_it():
-    import slide_review_ui as UI
-    with pytest.raises(RuntimeError, match="anchor not found"):
-        UI.install("<style></style><script></script>")
+def test_the_vote_buttons_use_the_hubs_colours_not_an_accent():
+    import sheila_hub as H
+    css = _between(H.PAGE, "button.vb{", "input.vc{")
+    assert "var(--good-soft)" in css and "var(--bad-soft)" in css and "var(--orange)" not in H.PAGE and "#F47A29" not in H.PAGE.upper()
