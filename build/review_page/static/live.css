@@ -322,6 +322,7 @@ html.present .ptag{font-size:1.15rem;padding:6px 18px}
 #pdiv .dstat{position:absolute;top:50%;width:27.75%}
 #pdiv .dstat b{display:flex;align-items:flex-end;height:calc(var(--u) * 6.75);white-space:nowrap;font:800 calc(var(--u) * 4.17)/1 var(--head)}
 #pdiv .dstat span{display:block;margin-top:calc(var(--u) * 0.4);font:400 calc(var(--u) * 1.667)/1.25 var(--body);color:#CFDBE8}
+#pdiv .dhint{position:absolute;left:0;right:0;bottom:calc(var(--u) * 3.2);margin:0;text-align:center;font:600 calc(var(--u) * 1.667)/1.2 var(--head);color:#CFDBE8}
 #pdiv .dtrack{position:absolute;left:6.67%;top:75.33%;width:87.45%;display:flex}
 #pdiv .dtrack span{flex:1 1 0;margin-right:.8%;padding:0 0 calc(var(--u) * .55);border-bottom:2px solid #5A7590;font:700 calc(var(--u) * 1.667)/1.2 var(--head);text-transform:uppercase;color:#9DB8CC}
 #pdiv .dtrack span.on{color:#F15D22;border-bottom:5px solid #F15D22}
