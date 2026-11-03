@@ -11,7 +11,7 @@ Font policy (Aaron, 2026-07-13):
 Also floors explicit run sizes at 16 pt, with two exceptions (STYLE.md "Type"):
   * dense tables that cannot fit their fixed content at 16 — slides titled
     "2026 New Releases", "Product Mix", "Program Results by Month Opened",
-    "Referred Accounts by Product" (the `dense` tuple in restyle());
+    "Program Results by Opening Year", "Referred Accounts by Product" (the `dense` tuple in restyle());
   * the branch-detail tables in the Appendix ("Appendix: Take Rate by Branch", "Appendix: Reg E
     Opt-In by Branch", "Appendix: Reg E New Accounts by Branch"; `BRANCH_DETAIL_TABLE`): 15
     branches a page do not fit at 16 pt, so they stay at 12 pt; the slide's other text keeps
@@ -167,6 +167,7 @@ def restyle(path):
             continue                       # slide owns its fonts + spacing; leave untouched
         dense = _title(s).startswith(("2026 New Releases", "Product Mix",
                                       "Program Results by Month Opened",
+                                      "Program Results by Opening Year",
                                       "Referred Accounts by Product"))
         for sh in s.shapes:
             tdense = sh.has_table and sh.name == BRANCH_DETAIL_TABLE

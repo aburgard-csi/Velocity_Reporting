@@ -53,6 +53,7 @@ Import-safe: nothing runs at import. CLI:
 """
 from __future__ import annotations
 
+import csv
 import datetime as _dt
 import glob
 import json
@@ -68,6 +69,7 @@ for _p in (_HERE, _BUILD):
         sys.path.insert(0, _p)
 
 import rpe_env as R                                             # noqa: E402
+import ics_channel_split as CS                                  # noqa: E402
 
 # Referral trend length, matching the VIP pulls (13 months including a partial one).
 TREND_MONTHS = 13
@@ -157,7 +159,47 @@ def find_referrals(cid):
                  and "referral" in os.path.basename(f).lower()
                  and os.path.splitext(f)[1].lower() in (".xls", ".xlsx")
                  and os.path.getsize(f) > 0]
-    return _newest(hits)
+    if hits:
+        return _newest(hits)
+    return find_referral_export(cid)
+
+
+_EXPORT_IDS = {}
+
+
+def _export_client_ids(files):
+    """The client ids the all-clients referral export carries, read once per set of file versions."""
+    key = tuple((f, os.path.getsize(f), int(os.path.getmtime(f))) for f in files)
+    if key not in _EXPORT_IDS:
+        ids = set()
+        for f in files:
+            with open(f, encoding="utf-8-sig", newline="") as fh:
+                rd = csv.reader(fh)
+                next(rd, None)
+                for row in rd:
+                    if row:
+                        ids.add(row[0].strip())
+        _EXPORT_IDS[key] = ids
+    return _EXPORT_IDS[key]
+
+
+def find_referral_export(cid):
+    """The all-clients referral export (`Inputs/ICS Referrals/ics_referrals.csv`) when it carries rows for
+    `cid` — the merged file's path, or None. The export is the VIP referral dashboard's own data: for KEMBA
+    CU 1195 its 2026 year-to-date branch counts reproduce the VIP table (831 referrals at 2026-10-13,
+    Whitehall 128, Pickerington 117), so a client with no VIP sheet and no per-client detail file gets
+    its referral slides from it rather than from the workbook's accounts-opened row, which counts accounts
+    matched to a referral OR a direct-mail piece (Cindy Draper, 2026-11-03)."""
+    for d in _dirs_for(REFERRAL_KIND):
+        files = CS.referral_export_files(str(d))
+        if files and str(cid) in _export_client_ids(files):
+            merged = os.path.join(str(d), "ics_referrals.csv")
+            return merged if os.path.isfile(merged) else files[0]
+    return None
+
+
+def is_referral_export(path):
+    return bool(path) and re.fullmatch(r"ics_referrals.*\.csv", os.path.basename(str(path)), re.I) is not None
 
 
 def find_direct_mail(cid):
@@ -883,8 +925,26 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
         data_pull = as_of.isoformat()
     else:
         ref = av["referrals"]
-        events, rinfo = read_referral_events(ref, cid)
-        rf, rflags, data_through = referral_sections(events, period, goals)
+        export_names = {}
+        if is_referral_export(ref):
+            # The all-clients referral export, every file of it (the merged file and any dated landing
+            # the morning merge has not folded in): one event per referral, de-duplicated by account
+            # and issue time. Branch names the Goals tab does not carry come from the export itself.
+            _files = CS.referral_export_files(os.path.dirname(ref))
+            _rows = CS.read_referral_export(_files, cid)
+            events = CS.referral_events(_rows)
+            export_names = CS.referral_branch_names(_rows)
+            rinfo = {"sheet": "all-clients referral export", "read_via": "csv",
+                     "files": [os.path.basename(f) for f in _files],
+                     "rows_counted": len(events), "rows_without_date": len(_rows) - len(events),
+                     "duplicate_ids_dropped": 0}
+        else:
+            events, rinfo = read_referral_events(ref, cid)
+        rgoals = dict(goals)               # the Goals tab's names and goals; the export names the rest
+        for k, nm in export_names.items():
+            if k not in rgoals:
+                rgoals[k] = (nm, None)
+        rf, rflags, data_through = referral_sections(events, period, rgoals)
         flags += rflags
         if ginfo and ginfo.get("total_row_goal") is not None \
                 and ginfo["total_row_goal"] != ginfo["sum_of_branch_goals"]:
@@ -898,6 +958,9 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
             flags.append(f"{rinfo['duplicate_ids_dropped']} duplicate certificate id(s) counted once.")
         files.append(dict({"role": "referrals", "file": os.path.basename(ref), "folder": _folder_of(ref),
                            "file_date": _file_date(ref), "data_through": data_through.isoformat()}, **rinfo))
+        if is_referral_export(ref) and not av["direct_mail"]:
+            flags.append("Referrals come from the all-clients referral export; no direct-mail list is on file, "
+                         "so accounts the workbook counts from direct mail cannot be told apart.")
         if not goals:
             omitted["goals"] = ("No Charts workbook with a Goals tab was found for this client, so "
                                 "no monthly or branch goal is stated.")
@@ -912,10 +975,16 @@ def build_sheet(cid, name, period, out_json, *, today=None) -> str:
 
         charts_txt = (f"; branch names and monthly goals from {os.path.basename(av['charts'])} "
                       f"('Goals' tab)") if goals else ""
-        referral_source = (f"ICS detailed referral file {os.path.basename(ref)} ({_folder_of(ref)}, file "
-                           f"dated {_file_date(ref)}, referrals through {data_through.isoformat()}; "
-                           f"not VIP){charts_txt}")
-        data_pull = _file_date(ref)
+        if is_referral_export(ref):
+            referral_source = (f"the all-clients ICS referral export ({', '.join(rinfo['files'])}, {_folder_of(ref)}; "
+                               f"the referral dashboard's own data: one row per referral, counted by issue date and "
+                               f"branch, through {data_through.isoformat()}; not VIP){charts_txt}")
+            data_pull = max(_file_date(f) for f in CS.referral_export_files(os.path.dirname(ref)))
+        else:
+            referral_source = (f"ICS detailed referral file {os.path.basename(ref)} ({_folder_of(ref)}, file "
+                               f"dated {_file_date(ref)}, referrals through {data_through.isoformat()}; "
+                               f"not VIP){charts_txt}")
+            data_pull = _file_date(ref)
     meta = {
         "client_id": cid, "client_name": name, "period": period,
         "report_month": f"{MONTH_FULL[_period_key(period)[1] - 1]} {_period_key(period)[0]}",
