@@ -272,6 +272,21 @@ def test_the_page_names_no_host_but_its_own():
     assert all(f.is_file() for f in FONT_FILES.values())
 
 
+def test_closing_the_table_drops_the_highlight_on_the_chart():
+    # the bar clicked to open a row stays outlined only while its table is open (Aaron, 2026-11-02)
+    js = open(os.path.join(REPO, "build", "review_page", "static", "live.js"), encoding="utf-8").read()
+    body = js.split("function closePanel() {", 1)[1].split("\n  }", 1)[0]
+    assert "S.drill = null" in body and "render()" in body
+
+
+def test_presenter_stays_windowed_and_arrows_walk_every_section():
+    # Aaron, 2026-11-02: presenting must not go full screen (Teams on a 36-inch monitor), and the arrow keys carry on into the next program
+    js = open(os.path.join(REPO, 'build', 'review_page', 'static', 'live.js'), encoding='utf-8').read()
+    assert 'requestFullscreen' not in js
+    step = js.split('function step(d) {', 1)[1].split('function stepProgram', 1)[0]
+    assert 'walkOrder()' in step and 'S.prog = order[to]' in step
+
+
 def _import_script():
     import importlib.util
     spec = importlib.util.spec_from_file_location("live_review_script", os.path.join(REPO, "scripts", "live_review.py"))

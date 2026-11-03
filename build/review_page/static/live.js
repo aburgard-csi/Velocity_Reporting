@@ -69,10 +69,24 @@
     var i = scr.map(function (s) { return s.id; }).indexOf(sid);
     S.screen = i < 0 ? 0 : i; S.drill = null; closePanel(); render();
   }
+  function walkOrder() {   // the arrow keys walk every section in turn: All programs, then each program that has data
+    return (MODEL.combined ? ["all"] : []).concat(programs().filter(function (p) { return p.state === "ready"; }).map(function (p) { return p.key; }));
+  }
+  function screensOf(key) {
+    if (key === "all") return MODEL.combined ? MODEL.combined.screens : [];
+    var p = programs().filter(function (x) { return x.key === key; })[0];
+    return p && p.state === "ready" ? p.screens : [];
+  }
   function step(d) {
-    var n = screens().length; if (!n) return;
-    var i = Math.min(n - 1, Math.max(0, S.screen + d));
-    if (i !== S.screen) { S.screen = i; S.drill = null; closePanel(); render(); window.scrollTo({top: 0}); }
+    var n = screens().length, i = S.screen + d;
+    if (n && i >= 0 && i < n) S.screen = i;
+    else {   // past the last (or before the first) screen of a section: carry on into the neighbouring one, never wrap round
+      var order = walkOrder(), at = order.indexOf(S.prog), to = at < 0 ? -1 : at + (d > 0 ? 1 : -1);
+      if (to < 0 || to >= order.length) return;
+      var next = screensOf(order[to]); if (!next.length) return;
+      S.prog = order[to]; S.screen = d > 0 ? 0 : next.length - 1;
+    }
+    S.drill = null; closePanel(); render(); window.scrollTo({top: 0});
   }
   function stepProgram(d) {
     var keys = (MODEL.combined ? ["all"] : []).concat(programs().map(function (p) { return p.key; }));
@@ -403,6 +417,7 @@
   /* ---------- screen ---------- */
   function render(keepScroll) {
     var sc = curScreen(), main = $("#stage");
+    $("#tip").classList.remove("on");   // the mouse has not moved, so nothing else would clear a tooltip over bars that just went away
     renderTop(); renderRail();
     var html;
     if (S.prog !== "all" && curProgram() && curProgram().state !== "ready") {
@@ -442,7 +457,7 @@
         '<p class="hint">These are the speaker-note lines of the deck slides this screen mirrors. The figures come from the same data pack the deck was built from, read ' + esc(MODEL.generated.replace("T", " ")) + ".</p></div>";
     } else if (kind === "help") {
       html = '<header><h2>Keyboard</h2><button class="ibtn" data-close aria-label="Close">' + ICON.close + '</button></header><div class="body help"><dl>' +
-        [["← →", "Previous / next screen"], ["1 – 9", "Jump to a screen"], ["[ ]", "Previous / next program"], ["T", "Open the full table behind the chart"], ["/", "Search the table"], ["S", "Sources for this screen"], ["P", "Present: chrome out, type up"], ["D", "Light or dark"], ["R", "Reload the data pack"], ["Esc", "Close a panel, leave presenter"]]
+        [["← →", "Previous / next screen, on into the next program"], ["1 – 9", "Jump to a screen"], ["[ ]", "Previous / next program"], ["T", "Open the full table behind the chart"], ["/", "Search the table"], ["S", "Sources for this screen"], ["P", "Present: chrome out, type up"], ["D", "Light or dark"], ["R", "Reload the data pack"], ["Esc", "Close a panel, leave presenter"]]
           .map(function (r) { return "<dt><kbd>" + r[0] + "</kbd></dt><dd>" + r[1] + "</dd>"; }).join("") + "</dl></div>";
     } else if (kind === "table") {
       var t = allTables()[id];
@@ -459,7 +474,10 @@
       var q = $("[data-q]", el); if (q && S.focusSearch) { q.focus(); S.focusSearch = false; }
     }
   }
-  function closePanel() { S.panel = null; $("#panel").classList.remove("on"); $("#scrim").classList.remove("on"); $("#panel").setAttribute("aria-hidden", "true"); }
+  function closePanel() {
+    S.panel = null; $("#panel").classList.remove("on"); $("#scrim").classList.remove("on"); $("#panel").setAttribute("aria-hidden", "true");
+    if (S.drill) { S.drill = null; S.plain = true; var y = window.scrollY; render(); window.scrollTo({top: y}); }   // the bar picked to open a row stops being highlighted once the table slides back out
+  }
   function refreshTables() {
     $$("[data-twrap]").forEach(function (w) {
       var t = allTables()[w.getAttribute("data-twrap")]; if (t) w.innerHTML = tableInner(t);
@@ -541,11 +559,8 @@
   }
   function present(on) {
     S.present = on; document.documentElement.classList.toggle("present", on); S.plain = true;
-    if (on && document.documentElement.requestFullscreen) { try { document.documentElement.requestFullscreen().catch(function () {}); } catch (e) {} }
-    if (!on && document.fullscreenElement && document.exitFullscreen) { try { document.exitFullscreen(); } catch (e) {} }
     render(); if (on) toast("Presenting. Esc to leave.");
   }
-  document.addEventListener("fullscreenchange", function () { if (!document.fullscreenElement && S.present) present(false); });
 
   document.addEventListener("keydown", function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
