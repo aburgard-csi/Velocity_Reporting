@@ -23,7 +23,7 @@ file travels with the code, so Sheila's change log page shows that stamp above t
 
 ### 2026-11-03 — Live Review chart styles tried on Marine FCU data and scored (documentation only)
 
-Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real figures in 42 alternative chart styles beside the 10 shipped charts, scores them against a fixed rubric, sets out the published guidance behind the scores, and lists changes to Live Review with effort estimates; no screen, figure or behavior changed.
+Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real figures in 41 alternative chart styles, each set against the shipped one, scores them against a fixed rubric, sets out the published guidance behind the scores, and lists changes to Live Review with effort estimates; no screen, figure or behavior changed.
 
 Aaron asked to try multiple chart styles, analyze them, and research presentation tips. The note records a default style per job (branch comparison, parts of a whole, trend against a goal, before and after, peer position, two measures, mix, KPI tiles), the colour contrast and colour-vision measurements behind them, and what could not be verified. The 61 screenshots are in docs/chart-styles/. Nothing was merged or released.
 

@@ -2,7 +2,7 @@
 
 Aaron, 2026-11-03: *"try multiple chart styles and analyze them for effectiveness. research online for presentation hints and tips."*
 
-This note does three things. It records the published guidance on choosing and styling charts for executive presentations, with the source and the claim each recommendation rests on. It draws the same real Marine FCU (1539, October 2026) figures in 42 alternative styles beside the 10 shipped charts, across 11 jobs, at the size Live Review really gives a chart, and scores each style against a fixed rubric. And it ends with a short list of changes to Live Review, each with an effort estimate.
+This note does three things. It records the published guidance on choosing and styling charts for executive presentations, with the source and the claim each recommendation rests on. It draws the same real Marine FCU (1539, October 2026) figures in 41 alternative styles, each set against the style Live Review ships today (nine are crops of the live page, two are the shipped logic redrawn), across 11 jobs, at the size Live Review really gives a chart, and scores each style against a fixed rubric. And it ends with a short list of changes to Live Review, each with an effort estimate.
 
 Nothing in the product was changed. The gallery is a scratch prototype (it lives outside the repo; how it was made is at the end). The 61 screenshots in [`docs/chart-styles/`](chart-styles/) are the evidence; none carries a figure that is not already on Marine FCU's Live Review pages, and the peer charts carry anonymous values only (no client numbers, names or ids).
 
@@ -183,7 +183,7 @@ Other images: [J4C](chart-styles/J4C.png), [J4D](chart-styles/J4D.png).
 
 ### Job 5. A monthly trend against a goal
 
-*Question: is referral volume at or over the goal, and since when?* Data: ICS referrals by month against the goal, Aug 25 to Sep 26 (`ics-trend`); the goal is 85 until Jan 26, then 80.
+*Question: is referral volume at or over the goal, and since when?* Data: ICS referrals by month against the goal, Aug 25 to Sep 26 (`ics-trend`); the goal is 85 through Dec 25 and 80 from Jan 26.
 
 ![J5A](chart-styles/J5A.png)
 **J5A, as shipped:** referrals and goal as paired columns, no value labels.
@@ -209,7 +209,7 @@ Other images: [J5C](chart-styles/J5C.png), [J5D](chart-styles/J5D.png), [J5F](ch
 
 ### Job 6. Before and after a mailing, two groups
 
-*Question: did responders change their debit spend more than members who did not respond?* Data: monthly debit spend per account before and after the Jul 2026 mailing; responders $558 to $1,013, mailed with no response $293 to $299 (`resp-chart`).
+*Question: did responders change their debit spend more than members who did not respond?* Data: monthly debit spend per account before and after a mailing, pooled across mailings (measured 3 months before and 6 months after each; the control is accounts mailed the same offer that did not respond); responders $558 to $1,013, mailed with no response $293 to $299 (`resp-chart`). The screen's headline already reads "rose 81.5% ... while the control stayed almost flat ... a net $449 a month per account", and its note says the difference is an association, not proof of cause.
 
 ![J6A](chart-styles/J6A.png)
 **J6A, as shipped:** paired columns.
@@ -226,7 +226,7 @@ Other images: [J5C](chart-styles/J5C.png), [J5D](chart-styles/J5D.png), [J5F](ch
 
 Other images: [J6C](chart-styles/J6C.png), [J6D](chart-styles/J6D.png).
 
-**Finding.** With two groups and four numbers the shipped chart is fine and the scores sit within six points of each other, which is inside my margin of error. The styles differ in what they ask the presenter to say. Paired columns make the viewer subtract; the slope (steep against flat) and the change bars (+$455 against +$6) show the answer. The change bars need two derived figures (the dollars and per cent added) through `Tracer.derive`, and the movement words must follow the +/-2% band (the control moved +2.0%, which is on the band's edge). **Keep the shipped chart; add a single annotation of the change on the responder bars.** The slope chart is worth building only if before/after charts with more groups arrive.
+**Finding.** With two groups and four numbers the shipped chart is fine and the scores sit within six points of each other, which is inside my margin of error. The styles differ in what they ask the presenter to say. Paired columns make the viewer subtract; the slope (steep against flat) and the change bars (+$455 against +$6) show the answer. The change bars need two derived figures (the dollars and per cent added) through `Tracer.derive`, and any movement words must follow the +/-2% band. Here the headline already states the change and the control, so the chart does not have to. **Keep the shipped chart and make no change.** The slope chart is worth building only if before/after charts with more groups arrive.
 
 ### Job 7. Where the client stands among 52 peers
 
@@ -343,7 +343,7 @@ Other images: [J10B](chart-styles/J10B.png), [J10E](chart-styles/J10E.png), [J10
 
 Other images: [J11D](chart-styles/J11D.png).
 
-**Finding.** The shipped tile scores high because an exact number in 54 px type is hard to misread; its weakness is that "5.3 : 1" sits there with no scale (the "good" is in the sub-line). A bullet, as Few specifies, adds the target and the range in one strip and keeps the number. It applies to two tiles, so the cost is small. Sparklines scored lower on honesty because each one is scaled to its own minimum and maximum, which makes a 12% revenue change look like a collapse; they need a zero or a stated range before they go on a tile. **Default: keep the number tile; add the bullet where a target exists (profitability, ICS goal).**
+**Finding.** The shipped tile scores high because an exact number in 54 px type is hard to misread; its weakness is that "5.3 : 1" sits there with no scale (the "good" is in the sub-line). A bullet, as Few specifies, adds the target and the range in one strip and keeps the number. It applies to two tiles, so the cost is small. Sparklines scored lower on honesty because each one is scaled to its own minimum and maximum, which makes a 12% revenue change look like a collapse; they need a zero or a stated range before they go on a tile. A sparkline must also come from the same series as the figure above it: the September revenue tile reads $139,162.09 while the last column of the "Incremental revenue by month" chart (`rev12`) is $139,014.20, a $148 difference I did not trace. Bullet bands must sit on real, client-facing thresholds only: J11C draws two bands for profitability (below and above the 2 : 1 guaranteed minimum) and for ICS (below and above the goal of 80). An earlier draft carried a 3 : 1 edge, which is the internal trigger for the Revenue Guarantee slide and not a client expectation; anything beyond the 2 : 1 minimum is Aaron's call. **Default: keep the number tile; add the bullet where a target exists (profitability, ICS goal).**
 
 ## 5. Colour and legibility, measured
 
@@ -395,7 +395,7 @@ The image scales the 1280 x 720 captures to 854 px wide and compresses them as J
 | 3. Parts of a whole, up to eight parts | **J3C** ranked bars with share labels | Donut for four parts or fewer with one dominant part; J3B single bar for "how concentrated" | Shares compared on one scale; already a shipped block |
 | 4. Parts of a whole, many parts | **J4B** top seven and "other" | J4D single 100% bar | A donut past about five parts fails |
 | 5. Trend against a goal | **J5B** columns with a goal step line | J5E when "met or missed" is the message; J5D variance bars as a drill | One mark per month and one standard |
-| 6. Before and after, two groups | **Shipped paired columns** plus a change annotation | J6B slope for more groups | Scores are close; the annotation adds the answer |
+| 6. Before and after, two groups | **Shipped paired columns** (no change) | J6B slope for more than two groups | Scores are within noise; the headline already states the change |
 | 7. Peer position, 20 or more peers | **Sentence over J7E bullet** | J7B ranked dots on a keypress | Few marks, uses figures already in the model |
 | 8. Peer position, five to seven peers | **J8C** ranked dots, anonymous labels | J8B bars | No band from five values |
 | 9. Two measures per branch | **J9C** quadrant with only the low-on-both set named | J9B paired dots for "how far apart" | The decision is who is low on both |
@@ -406,21 +406,23 @@ Conditions for keeping the donut (it was added at Aaron's request on 2026-11-03,
 
 ## 7. Changes to Live Review, in priority order
 
+**Relationship to the deck style guide.** `templates/STYLE.md` and `build/brand.py` govern the client decks, and nothing here changes them. Live Review is a separate surface (a browser window shared live), and its charts already differ from the deck's by design: the decks draw donuts for Reg E and product mix, show branch charts as volume bars with a rate line, and mark the last complete month orange on navy time-series bars, while Live Review draws a branch rate as bars, one metric at a time. Where a recommendation below differs from the deck style (ranked dots on a non-zero axis, a goal step line, bullet strips), it applies to Live Review only. The points where the two agree are zero-baseline bars, one reference line, direct value labels, flat pies and donuts, `TEAL` over navy for a second series and the 3:1 contrast test. If Aaron wants a recommendation carried into the decks it goes through `brand.py` and `STYLE.md` first, with the layout-baseline snapshot.
+
 Effort: **S** is up to half a day, **M** one to two days, **L** three or more. Every change that shows a figure the pack does not already hold needs the figure computed in Python with `Tracer.derive` (so `audit` can trace it), a test, and a CHANGELOG entry; those are counted in the estimate. Browser-computed values (a share in a tooltip, as the donut does today) are not traced and I would not add more.
 
 | # | Change | Evidence | Where | Effort |
 |---|---|---|---|---|
 | 1 | **Open decision charts on the end the decision is about**, say so ("Lowest 6 of 16"), and add the book or median as a reference line on branch bar charts (take, Reg E, attrition, value per account). Today present mode opens on the largest. | J1A, J2A, J2D | `sortOf`, `barsSVG` in `live.js`; a `sort` and `ref` option on `blocks.bars`; the program modules that build those charts | M (1 day) |
 | 2 | **Donut guard:** more than five parts falls back to ranked bars with an "Other" row; a palette with no repeats; keep the donut for four parts or fewer. | J4A, J3A | `donutSVG`, `PAL`; `blocks.donut` | S (0.5 day) |
-| 3 | **Fix the chart tokens:** steel to at least 3:1 (`#7595B3` clears it), drop gold from the categorical palette, add a 1.5 px surface-coloured border on slices and dots, keep orange and gold out of the same legend. | Section 5 | `live.css` tokens, `PAL`; the dark theme needs no change | S (0.5 day) |
+| 3 | **Fix the chart tokens for the screen:** steel to at least 3:1 (`#7595B3` clears it), drop gold from the categorical palette, add a 1.5 px surface-coloured border on slices and dots, keep orange and gold out of the same legend. `build/brand.py` is the one palette and `STEEL` there (`#7B9BB8`) is the ARS secondary series in the decks, so this is a Live-Review-only token (`--c-steel` in `live.css`) unless Aaron wants the decks to follow; changing `brand.STEEL` restyles the ticket chart and the layout baseline. The style guide already uses the same 3:1 test for `TEAL` (3.74:1 on white), and steel is the token that fails it. | Section 5; `templates/STYLE.md` section on time-series charts | `live.css` tokens, `PAL`; the dark theme needs no change | S (0.5 day) |
 | 4 | **Present-mode type floor:** axis ticks, median and book labels and legend text from 12 or 13 px to 15 px. | Section 5 | `html.present .chart text` in `live.css`; check chart widths with the longer labels | S (0.5 day) |
 | 5 | **Goal as a line, not a bar:** a `goal` series type drawn as a step line, with an option to colour columns met or missed; use it for ICS referrals and any other monthly measure with a goal. Value labels on every column. | J5A, J5B, J5E | `barsSVG`, `blocks.bars`, `programs/ics.py`; goal values are already in the pack (no new figure) | M (1.5 days) |
 | 6 | **Peer strip:** replace the jittered strip with the bullet (client bar over the existing quartiles, median marker) and the ranked-dot view on a keypress; draw no band below about eight peers (ranked dots with "Client A" labels instead); fix the axis so a non-negative measure never starts below zero and ticks are round. | J7A, J7B, J7E, J8A, J8C | `stripSVG`, `peerstrip` block; `peers.py`; uses `q1`, `q3`, `median`, `dots` already in the model | M (2 days); the axis fix alone is S |
 | 7 | **Dot style for rates on a bar block:** `style: "dot"` with a labelled non-zero axis and optional two-column layout, allowed only for dots (a test fails a bar block with a non-zero start). Use it for take rate and Reg E by branch. | J1C, J1E | `barsSVG`, `blocks.bars`, `tests` | M (2 days) |
 | 8 | **Quadrant labelling:** name and colour only the points below both medians; keep the rest grey and unlabelled; make the axis domain come from all points. | J9A, J9C | `scatterSVG` | S (0.5 day) |
 | 9 | **Share-of-total view for the swipe-tier mix:** a three-measure dot plot next to the existing toggle (spend, accounts, NSF/OD items as shares of their totals). Shares are new figures. | J10A, J10D | `programs/ars.py` computes them with `Tracer.derive`; a new `dots` block or the dot style from item 7 | M (2 days) |
-| 10 | **Bullet strip on KPI tiles that have a target** (profitability against the 2 : 1 minimum; ICS referrals against the goal): a `target` on the `kpi` block, and no bullet where none exists. Sparklines only with a zero or stated range. | J11A, J11C | `kpisHTML`, `blocks.kpi`, `programs/ars.py`, `programs/ics.py` | M (1 day) |
-| 11 | **Change annotation on before/after:** "+$455 (81.5%)" on the responder columns, worded to the +/-2% band; the change is derived in the pack. | J6A, J6D | `programs/analysis.py`; `barsSVG` annotation | S (0.5 day) |
+| 10 | **Bullet strip on KPI tiles that have a target** (profitability against the 2 : 1 minimum; ICS referrals against the goal): a `target` on the `kpi` block, bands only at real client-facing thresholds (no 3 : 1 edge; that is the internal guarantee-slide trigger), and no bullet where none exists. Sparklines only with a zero or stated range, drawn from the same series as the tile's figure (the revenue tile and `rev12` differ by $148; see Job 11). | J11A, J11C | `kpisHTML`, `blocks.kpi`, `programs/ars.py`, `programs/ics.py` | M (1 day) |
+| 11 | **Before and after: no change.** The headline already carries "+81.5%" and "almost flat" (the +/-2% rule) and the columns show the levels. Revisit with a slope chart only if a screen needs more than two groups. | J6A to J6D | none | none |
 | 12 | **Presenter highlight (a key that colours one branch, bar or segment and greys the rest).** Not tried in the gallery; supported by sources 5 and 9 (all grey, colour the point). Lowest priority. | Sources 5, 9 | `live.js` state and keys | M (2 days) |
 
 Not recommended, and why: a **treemap** (J3D, J4C; area ranks below position and length, and the smallest rectangles go unlabelled), a **waffle** (J3E; whole-percent squares, 100 marks), a **connected scatter** on bouncing monthly series (J9D), an **area chart** for any series that can have a left-out month (J5F), a **16-part donut** (J4A), and **stacked bars with more than four segments** (J10F). None of these is in Live Review today except the donut, which is covered by item 2.
