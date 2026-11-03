@@ -251,3 +251,19 @@ html.present .tile .v{font-size:clamp(26px,15cqw,54px)}
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
 }
 @media print{.top,.rail,.foot,.panel,.scrim,.toast{display:none!important}main{padding:0}.card{box-shadow:none;border:1px solid var(--line)}}
+
+/* ---- the storyline: sections in the nav, a progress strip, the agenda, the "run this first" state */
+.rail h6.sec{margin:16px 0 6px 12px;font:700 10.5px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
+.rail h6.sec:first-child{margin-top:0}
+.storybar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 18px;font-size:.84rem;color:var(--text2)}
+.storybar .segs{display:flex;gap:4px;flex:0 0 auto}
+.storybar .segs i{display:block;width:30px;height:6px;border-radius:4px;background:var(--line);transition:background .3s}
+.storybar .segs i.done{background:var(--c-navy);opacity:.55}.storybar .segs i.now{background:var(--orange)}
+.storybar b{color:var(--ink);font-family:var(--head);font-weight:700}
+.agenda .asec{margin-bottom:22px}.agenda h4{display:flex;align-items:center;gap:10px;margin:0 0 4px;font:700 15px var(--head)}
+.agenda h4 .n{width:24px;height:24px;border-radius:8px;background:var(--c-navy);color:var(--on-fill);display:grid;place-items:center;font:700 12px var(--head)}
+.agenda p{margin:0 0 10px 34px;color:var(--text2);font-size:.92rem}
+.agenda button{display:flex;align-items:center;gap:10px;width:calc(100% - 34px);margin:0 0 2px 34px;min-height:44px;padding:6px 14px;border:0;border-radius:12px;background:transparent;text-align:left;font:600 14px var(--head);color:var(--ink)}
+.agenda button:hover{background:var(--fill)}.agenda button[aria-current="page"]{background:var(--fill);box-shadow:inset 3px 0 0 var(--orange)}
+.agenda button.stub{color:var(--text2)}.agenda button em{margin-left:auto;font:600 11px var(--head);color:var(--warn);font-style:normal}
+.needs p{margin:8px 0 0}.needs code{display:block;margin-top:6px;background:var(--fill);padding:12px 14px;border-radius:var(--r-sm);font:13px ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word}

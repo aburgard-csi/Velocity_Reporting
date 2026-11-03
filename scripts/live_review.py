@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "build"))
 
-from review_page import registry                      # noqa: E402
+from review_page import PRODUCT_NAME, registry         # noqa: E402
 from review_page.page import FONT_FILES, render_page   # noqa: E402
 
 
@@ -94,7 +94,7 @@ def make_handler(service, token):
                 try:
                     model = service.get()
                 except Exception as e:
-                    return self._send(500, ("<h1>Live review could not start</h1><pre>%s</pre>" % _esc(str(e))).encode("utf-8"),
+                    return self._send(500, ("<h1>" + PRODUCT_NAME + " could not start</h1><pre>%s</pre>" % _esc(str(e))).encode("utf-8"),
                                       "text/html; charset=utf-8")
                 return self._send(200, render_page(model, token).encode("utf-8"), "text/html; charset=utf-8")
             if u.path.startswith("/fonts/"):
@@ -180,7 +180,7 @@ def main(argv=None):
     token = secrets.token_urlsafe(24)
     srv = make_server(svc, token, a.port)
     url = "http://127.0.0.1:%d/" % srv.server_address[1]
-    print("\n Live review is running at %s\n Keep this window open while you present. Ctrl+C to stop.\n" % url, flush=True)
+    print("\n %s is running at %s\n Keep this window open while you present. Ctrl+C to stop.\n" % (PRODUCT_NAME, url), flush=True)
     if not a.no_open:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:

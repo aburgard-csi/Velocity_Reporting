@@ -250,8 +250,8 @@ def test_ids_are_validated_before_any_path_is_built():
         PK.check_ids("1539", "2026-10")
 
 
-def test_the_registry_lists_the_four_programs_in_order():
-    assert [k for k, _l, _m in registry.REGISTRY] == ["ars", "ics", "mrpc", "cashplease"]
+def test_the_registry_lists_the_programs_in_order():
+    assert [k for k, _l, _m in registry.REGISTRY] == ["ars", "analysis", "ti", "ics", "mrpc", "cashplease"]
 
 
 # ----------------------------------------------------------------- the page and the server

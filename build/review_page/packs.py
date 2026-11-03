@@ -65,6 +65,28 @@ def build_hint(client, period):
             f"Build Artifacts/launcher/{period}/{client}/. Nothing here builds a deck.")
 
 
+def read_optional_json(path):
+    """A JSON file's content, or None when it is not there or cannot be read (a pack some screens may use)."""
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def branch_names(folder):
+    """{branch id: name} from the ARS metrics pack in `folder` (the deck's own mapping), or {}."""
+    m = read_optional_json(Path(folder) / "metrics.json") or {}
+    return {str(k): str(v) for k, v in (m.get("branch_name_of") or {}).items()}
+
+
+def branch_label(names, b):
+    """A branch's name when the deck's mapping has one, else "Branch <id>" for a bare number (never a naked "9")."""
+    b = str(b)
+    if b in names:
+        return names[b]
+    return f"Branch {b}" if b.isdigit() else b
+
+
 # ----------------------------------------------------------------- the deck's own source lines
 def deck_notes(deck_path):
     """{slide title: speaker-notes text} for a finished deck, or {} when it cannot be read."""

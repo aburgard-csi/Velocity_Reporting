@@ -18,14 +18,18 @@ Import-safe.
 import datetime
 import importlib
 
+from review_page import PRODUCT_NAME
 from review_page import blocks as B
 from review_page import packs as PK
+from review_page import story
 from review_page.common import Ctx
 from review_page.trace import audit
 
 # key, label, module under review_page.programs (None = not built yet)
 REGISTRY = [
     ("ars", "ARS", "ars"),
+    ("analysis", "ARS analysis", "companion"),
+    ("ti", "Transaction Intelligence", "ti"),
     ("ics", "ICS", "ics"),
     ("mrpc", "MRPC", "mrpc"),
     ("cashplease", "CashPlease", "cashplease"),
@@ -33,11 +37,12 @@ REGISTRY = [
 
 
 def build_program(ctx, key, label, module):
-    entry = {"key": key, "label": label, "state": "ready", "note": None, "fix": None, "screens": [], "summary": None}
+    entry = {"key": key, "label": label, "state": "ready", "note": None, "fix": None, "screens": [], "summary": None, "hidden": False}
     if module is None:
         entry.update(state="stub", note=f"{label} is not on the page yet.")
         return entry
     mod = importlib.import_module(f"review_page.programs.{module}")
+    entry["hidden"] = bool(getattr(mod, "HIDDEN", False))
     try:
         p = mod.load(ctx)
     except PK.PackMissing as e:
@@ -69,13 +74,20 @@ def build_model(client, period, root=None, programs=None):
             continue
         out.append(build_program(ctx, key, label, module))
     name = next((e.get('client_name') for e in out if e.get('client_name')), None) or str(client)
-    ready = [e for e in out if e["state"] == "ready"]
+    ready = [e for e in out if e["state"] == "ready" and not e["hidden"] and e["summary"]]
     combined = {"screens": [_overview(ready)]} if len(ready) > 1 else None
-    model = {"client": {"id": str(client), "name": name}, "period": period, "month": ctx.month_long,
+    model = {"product": PRODUCT_NAME, "client": {"id": str(client), "name": name}, "period": period, "month": ctx.month_long,
              "generated": datetime.datetime.now().isoformat(timespec="minutes"),
-             "programs": out, "combined": combined}
+             "programs": out, "combined": combined, "story": _story(out)}
     problems = audit(model, ctx.tracer)
     return model, ctx.tracer, problems
+
+
+def _story(programs):
+    """The storyline, when the page has the program the story starts from (ARS)."""
+    if not any(e["key"] == "ars" and e["state"] == "ready" for e in programs):
+        return None
+    return story.resolve(programs)
 
 
 def _overview(ready):

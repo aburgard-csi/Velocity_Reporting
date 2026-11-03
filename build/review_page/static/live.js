@@ -39,40 +39,64 @@
   if (T.theme) document.documentElement.setAttribute("data-theme", T.theme);
 
   function programs() { return MODEL.programs; }
+  function visiblePrograms() { return programs().filter(function (p) { return !p.hidden; }); }
+  function programOf(key) { return programs().filter(function (p) { return p.key === key; })[0] || null; }
+  /* The storyline: each section's screens in order, a screen of a program with no pack standing in as its "run X first" stub. */
+  function storyItems() {
+    if (!MODEL.story) return [];
+    var out = [], n = 0;
+    MODEL.story.sections.forEach(function (sec, si) {
+      sec.screens.forEach(function (r, ri) {
+        var pr = programOf(r.prog), scr = null;
+        if (pr && !r.stub) scr = pr.screens.filter(function (x) { return x.id === r.id; })[0];
+        if (!scr) scr = MODEL.story.stubs[r.ref];
+        if (scr) out.push({scr: scr, sec: sec, si: si, ri: ri, ref: r.ref, n: n++});
+      });
+    });
+    return out;
+  }
   function curProgram() { return programs().filter(function (p) { return p.key === S.prog; })[0] || null; }
   function screens() {
+    if (S.prog === "story") return storyItems().map(function (x) { return x.scr; });
     if (S.prog === "all") return MODEL.combined ? MODEL.combined.screens : [];
     var p = curProgram();
     return p && p.state === "ready" ? p.screens : [];
   }
   function curScreen() { return screens()[S.screen] || null; }
+  function curStory() { return S.prog === "story" ? storyItems()[S.screen] || null : null; }
 
   /* ---------- routing ---------- */
   function readHash() {
     var h = location.hash.replace(/^#/, "").split("/");
     var p = h[0], sid = h[1];
+    if (p === "story" && MODEL.story) {
+      var its = storyItems(), k = its.map(function (x) { return x.ref; }).indexOf(decodeURIComponent(sid || ""));
+      S.prog = "story"; S.screen = k < 0 ? 0 : k; return;
+    }
     if (p === "all" && MODEL.combined) { S.prog = "all"; S.screen = 0; return; }
     var pr = programs().filter(function (x) { return x.key === p; })[0];
     if (pr) { S.prog = pr.key; var i = pr.screens.map(function (s) { return s.id; }).indexOf(sid); S.screen = i < 0 ? 0 : i; return; }
     var first = programs().filter(function (x) { return x.state === "ready"; })[0];
-    S.prog = MODEL.combined ? "all" : (first ? first.key : (programs()[0] || {}).key);
+    S.prog = MODEL.story ? "story" : (MODEL.combined ? "all" : (first ? first.key : (programs()[0] || {}).key));
     S.screen = 0;
   }
   function writeHash() {
-    var s = curScreen();
-    var h = "#" + S.prog + (S.prog !== "all" && s ? "/" + s.id : "");
+    var s = curScreen(), st = curStory();
+    var h = "#" + S.prog + (S.prog === "story" && st ? "/" + encodeURIComponent(st.ref) : (S.prog !== "all" && s ? "/" + s.id : ""));
     if (location.hash !== h) history.replaceState(null, "", h);
   }
   function go(prog, sid) {
     S.prog = prog;
+    if (prog === "story") { S.screen = Math.max(0, storyItems().map(function (x) { return x.ref; }).indexOf(sid)); S.drill = null; closePanel(); render(); window.scrollTo({top: 0}); return; }
     var scr = prog === "all" ? [] : (programs().filter(function (x) { return x.key === prog; })[0] || {screens: []}).screens;
     var i = scr.map(function (s) { return s.id; }).indexOf(sid);
     S.screen = i < 0 ? 0 : i; S.drill = null; closePanel(); render();
   }
   function walkOrder() {   // the arrow keys walk every section in turn: All programs, then each program that has data
-    return (MODEL.combined ? ["all"] : []).concat(programs().filter(function (p) { return p.state === "ready"; }).map(function (p) { return p.key; }));
+    return (MODEL.story ? ["story"] : []).concat(MODEL.combined ? ["all"] : []).concat(visiblePrograms().filter(function (p) { return p.state === "ready"; }).map(function (p) { return p.key; }));
   }
   function screensOf(key) {
+    if (key === "story") return storyItems().map(function (x) { return x.scr; });
     if (key === "all") return MODEL.combined ? MODEL.combined.screens : [];
     var p = programs().filter(function (x) { return x.key === key; })[0];
     return p && p.state === "ready" ? p.screens : [];
@@ -89,7 +113,7 @@
     S.drill = null; closePanel(); render(); window.scrollTo({top: 0});
   }
   function stepProgram(d) {
-    var keys = (MODEL.combined ? ["all"] : []).concat(programs().map(function (p) { return p.key; }));
+    var keys = (MODEL.story ? ["story"] : []).concat(MODEL.combined ? ["all"] : []).concat(visiblePrograms().map(function (p) { return p.key; }));
     var i = keys.indexOf(S.prog);
     var j = (i + d + keys.length) % keys.length;
     go(keys[j]);
@@ -111,14 +135,15 @@
 
   function renderTop() {
     var seg = [];
+    if (MODEL.story) seg.push('<button role="tab" data-prog="story" aria-selected="' + (S.prog === "story") + '">' + esc(MODEL.story.title || "The review") + "</button>");
     if (MODEL.combined) seg.push('<button role="tab" data-prog="all" aria-selected="' + (S.prog === "all") + '">All programs</button>');
-    programs().forEach(function (p) {
+    visiblePrograms().forEach(function (p) {
       var ok = p.state === "ready";
       seg.push('<button role="tab" data-prog="' + p.key + '" aria-selected="' + (S.prog === p.key) + '"' + (ok ? "" : ' title="' + esc(p.note || "") + '"') + (ok ? "" : ' style="opacity:.62"') + ">" + esc(p.label) + '<span class="dot ' + (ok ? "ok" : "") + '"></span></button>');
     });
     var c = MODEL.client;
     $("#top").innerHTML =
-      '<div class="brand"><div class="mark" aria-hidden="true">LR</div><div class="who"><b>' + esc(c.name) + '</b><span>' + esc(c.id) + " · " + esc(MODEL.month) + " review</span></div></div>" +
+      '<div class="brand"><div class="mark" aria-hidden="true">' + esc((MODEL.product || "LR").split(/\s+/).map(function (w) { return w.charAt(0); }).join("").slice(0, 2)) + '</div><div class="who"><b>' + esc(c.name) + '</b><span>' + esc(MODEL.product || "") + " · " + esc(c.id) + " · " + esc(MODEL.month) + "</span></div></div>" +
       '<div class="seg grow" role="tablist" aria-label="Program">' + seg.join("") + "</div>" +
       '<div class="tools">' +
       '<button class="ibtn" id="b-src" title="Sources (S)">' + ICON.src + "<span>Sources</span></button>" +
@@ -129,12 +154,14 @@
   }
 
   function renderRail() {
-    var sc = screens();
-    var items = sc.map(function (s, i) {
-      return '<button data-i="' + i + '"' + (i === S.screen ? ' aria-current="page"' : "") + '><span class="n">' + (i + 1) + '</span><span class="l">' + esc(s.title) + "</span></button>";
-    }).join("");
+    var sc = screens(), items;
+    var btn = function (s, i) { return '<button data-i="' + i + '"' + (i === S.screen ? ' aria-current="page"' : "") + '><span class="n">' + (i + 1) + '</span><span class="l">' + esc(s.title) + "</span></button>"; };
+    if (S.prog === "story") {   // grouped by section, numbered straight through
+      var sts = storyItems(), last = -1;
+      items = sts.map(function (x, i) { var h = x.si !== last ? '<h6 class="sec">' + (x.si + 1) + " · " + esc(x.sec.title) + "</h6>" : ""; last = x.si; return h + btn(x.scr, i); }).join("");
+    } else items = sc.map(btn).join("");
     var rail = $("#rail");
-    rail.innerHTML = '<h6>' + esc(S.prog === "all" ? "Overview" : (curProgram() || {}).label || "") + '</h6><nav class="nav" aria-label="Screens">' + items + "</nav>";
+    rail.innerHTML = '<h6>' + esc(S.prog === "story" ? (MODEL.story.title || "The review") : S.prog === "all" ? "Overview" : (curProgram() || {}).label || "") + '</h6><nav class="nav" aria-label="Screens">' + items + "</nav>";
     var nav = $(".nav", rail), cur = $('[aria-current="page"]', rail);   // on a phone the nav scrolls sideways: keep this screen in view
     if (nav && cur && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = cur.offsetLeft - nav.clientWidth / 2 + cur.offsetWidth / 2;
   }
@@ -150,6 +177,7 @@
     if (b.t === "variants") return variantsHTML(b, scr);
     if (b.t === "drill") return drillHTML(b);
     if (b.t === "cards") return cardsHTML(b);
+    if (b.t === "needs") return '<div class="card blk needs"><h3>Not on this client yet</h3><p>' + esc(b.what) + '</p><p class="hint">What to run first</p><code>' + esc(b.fix) + "</code></div>";
     return "";
   }
 
@@ -415,6 +443,14 @@
   }
 
   /* ---------- screen ---------- */
+  /* The storyline's progress: one segment per section, filled up to this one, and where we are inside it. */
+  function storyBar() {
+    var it = curStory(); if (!it) return "";
+    var secs = MODEL.story.sections, n = secs.length;
+    var segs = secs.map(function (sec, i) { return '<i class="' + (i < it.si ? "done" : i === it.si ? "now" : "") + '" title="' + esc(sec.title) + '"></i>'; }).join("");
+    return '<div class="storybar" role="img" aria-label="Section ' + (it.si + 1) + " of " + n + '"><div class="segs">' + segs + '</div><span><b>' + esc(it.sec.title) + "</b> · section " + (it.si + 1) + " of " + n + " · screen " + (it.ri + 1) + " of " + it.sec.screens.length + " · <kbd>A</kbd> agenda</span></div>";
+  }
+
   function render(keepScroll) {
     var sc = curScreen(), main = $("#stage");
     $("#tip").classList.remove("on");   // the mouse has not moved, so nothing else would clear a tooltip over bars that just went away
@@ -426,7 +462,7 @@
     } else if (!sc) {
       html = '<section class="screen"><h1>Nothing to show</h1></section>';
     } else {
-      html = '<section class="screen' + (S.plain ? " " : "") + '" style="' + (S.plain ? "animation:none" : "") + '"><p class="eyebrow">' + esc(sc.kicker) + "</p><h1>" + esc(sc.headline) + "</h1>" +
+      html = '<section class="screen' + (S.plain ? " " : "") + '" style="' + (S.plain ? "animation:none" : "") + '">' + storyBar() + '<p class="eyebrow">' + esc(sc.kicker) + "</p><h1>" + esc(sc.headline) + "</h1>" +
         (sc.notes && sc.notes.length ? '<div class="notes">' + sc.notes.map(function (n) { return '<div class="note">' + ICON.info + "<span>" + esc(n) + "</span></div>"; }).join("") + "</div>" : "") +
         '<div class="blocks">' + sc.blocks.map(function (b) { return blockHTML(b, sc); }).join("") + "</div>" +
         '<p class="stamp">Data pack read ' + esc(MODEL.generated.replace("T", " ")) + " · sources on every screen (S)</p></section>";
@@ -437,7 +473,7 @@
     drawCharts();
     renderFoot();
     writeHash();
-    document.title = (MODEL.client.name || "") + " · Live review";
+    document.title = (MODEL.client.name || "") + " · " + (MODEL.product || "");
   }
   function renderFoot() {
     var n = screens().length;
@@ -456,9 +492,19 @@
       html = '<header><h2>Sources for this screen</h2><button class="ibtn" data-close aria-label="Close">' + ICON.close + '</button></header><div class="body">' +
         (srcs.length ? srcs.map(function (s) { return '<div class="src"><b>' + esc(s.title) + "</b><p>" + esc(s.text) + "</p>" + (s.composed ? '<span class="tag">Composed from the pack: no deck was found beside it to copy the slide’s note from.</span>' : "") + "</div>"; }).join("") : '<div class="empty">This screen has no source lines of its own.</div>') +
         '<p class="hint">These are the speaker-note lines of the deck slides this screen mirrors. The figures come from the same data pack the deck was built from, read ' + esc(MODEL.generated.replace("T", " ")) + ".</p></div>";
+    } else if (kind === "agenda") {
+      var cur = curStory(), its = storyItems();
+      html = '<header><h2>The agenda</h2><button class="ibtn" data-close aria-label="Close">' + ICON.close + '</button></header><div class="body agenda">' +
+        MODEL.story.sections.map(function (sec, si) {
+          return '<div class="asec"><h4><span class="n">' + (si + 1) + "</span>" + esc(sec.title) + "</h4><p>" + esc(sec.blurb) + "</p>" +
+            sec.screens.map(function (r) {
+              var at = its.filter(function (x) { return x.ref === r.ref; })[0];
+              return '<button data-agenda="' + esc(r.ref) + '"' + (cur && cur.ref === r.ref ? ' aria-current="page"' : "") + (r.stub ? ' class="stub"' : "") + ">" + esc(r.title) + (r.stub ? "<em>run first</em>" : "") + "</button>";
+            }).join("") + "</div>";
+        }).join("") + "</div>";
     } else if (kind === "help") {
       html = '<header><h2>Keyboard</h2><button class="ibtn" data-close aria-label="Close">' + ICON.close + '</button></header><div class="body help"><dl>' +
-        [["← →", "Previous / next screen, on into the next program"], ["1 – 9", "Jump to a screen"], ["[ ]", "Previous / next program"], ["T", "Open the full table behind the chart"], ["/", "Search the table"], ["S", "Sources for this screen"], ["P", "Present: chrome out, type up"], ["D", "Light or dark"], ["R", "Reload the data pack"], ["Esc", "Close a panel, leave presenter"]]
+        [["← →", "Previous / next screen, on into the next program"], ["1 – 9", "Jump to a screen"], ["[ ]", "Previous / next program"], ["T", "Open the full table behind the chart"], ["/", "Search the table"], ["A", "The agenda: every section of the review"], ["S", "Sources for this screen"], ["P", "Present: chrome out, type up"], ["D", "Light or dark"], ["R", "Reload the data pack"], ["Esc", "Close a panel, leave presenter"]]
           .map(function (r) { return "<dt><kbd>" + r[0] + "</kbd></dt><dd>" + r[1] + "</dd>"; }).join("") + "</dl></div>";
     } else if (kind === "table") {
       var t = allTables()[id];
@@ -513,6 +559,7 @@
     var el;
     if ((el = g("[data-prog]"))) return go(el.getAttribute("data-prog"));
     if ((el = g("#rail [data-i]"))) { S.screen = +el.getAttribute("data-i"); S.drill = null; closePanel(); render(); window.scrollTo({top: 0}); return; }
+    if ((el = g("[data-agenda]"))) return go("story", el.getAttribute("data-agenda"));
     if ((el = g("[data-go]"))) { var p = el.getAttribute("data-go").split(":"); return go(p[0], p[1]); }
     if ((el = g("[data-metric]"))) { S.m[el.getAttribute("data-metric")] = el.getAttribute("data-key"); S.plain = true; return render(); }
     if ((el = g("[data-variant]"))) { S.v[el.getAttribute("data-variant")] = el.getAttribute("data-key"); S.drill = null; S.plain = true; return render(); }
@@ -575,6 +622,7 @@
     else if (k === "]") stepProgram(1);
     else if (k === "[") stepProgram(-1);
     else if (k === "s" || k === "S") { S.panel === "sources" ? closePanel() : openPanel("sources"); }
+    else if (k === "a" || k === "A") { if (MODEL.story) { S.panel === "agenda" ? closePanel() : openPanel("agenda"); } }
     else if (k === "p" || k === "P") present(!S.present);
     else if (k === "d" || k === "D") theme();
     else if (k === "r" || k === "R") reload();
@@ -587,7 +635,7 @@
   readHash();
   render();
   if (T.drill) { var dt = drillTableOnScreen(); if (dt) { S.drill = {table: dt.id, key: T.drill}; S.plain = true; render(); openPanel("table", dt.id); } }   // ?drill=<branch> opens a row, for a link or a screenshot
-  if (T.panel === "sources" || T.panel === "help") openPanel(T.panel);
+  if (T.panel === "sources" || T.panel === "help" || (T.panel === "agenda" && MODEL.story)) openPanel(T.panel);
   if (T.present) { S.present = true; document.documentElement.classList.add("present"); S.plain = true; render(); }
   window.__LR = {state: S, model: function () { return MODEL; }, go: go, present: present};
 })();

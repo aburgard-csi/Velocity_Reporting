@@ -104,6 +104,7 @@ _DATEISH = [
     re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b"),
     re.compile(r"\b(?:19|20)\d{2}\b"),                          # a bare year
     re.compile(r"\b\d+\s*:\s*1\b"),                             # 2 : 1 (the guarantee floors)
+    re.compile(r"\bBranch\s+\d+\b"),                              # a branch NUMBER is a name, not a figure
 ]
 _NUM_RX = re.compile(r"(?<![\w.])-?\$?(\d[\d,]*(?:\.\d+)?)\s*(%|[kKmMbB]\b)?")
 
@@ -114,7 +115,7 @@ def numbers_in(text):
         s = rx.sub(" ", s)
     out = []
     for m in _NUM_RX.finditer(s):
-        raw = m.group(1).replace(",", "")
+        raw = m.group(1).rstrip(",").replace(",", "")
         if not raw:
             continue
         dp = len(raw.split(".")[1]) if "." in raw else 0
@@ -150,14 +151,14 @@ def _walk(obj, path=()):
 
 # keys whose strings are quoted from a source (the deck's notes, a workbook name): not authored here
 # "note" (singular) is a program's own state message (a path, an exception); "fix" a command to run; "generated" a stamp
-QUOTED = {"sources", "note", "fix", "generated", "deck"}
+QUOTED = {"sources", "note", "fix", "what", "generated", "deck"}
 # keys whose strings are labels / identifiers, not sentences (a branch id, a tier, a month label)
 LABELISH = {"id", "key", "fmt", "t", "tone", "color", "x", "name", "label", "cats", "cols", "rowsl",
             "unit", "drill", "program", "state", "kind", "series_name", "client", "period", "screen"}
 
 
 # identifiers: ids of screens, blocks and variants. They are names, never read as prose or figures.
-IDENT = {"id", "open", "go", "drill", "table", "program", "key", "t"}
+IDENT = {"id", "open", "go", "drill", "table", "program", "key", "t", "ref", "prog"}
 
 
 def audit(model, t):

@@ -8,6 +8,8 @@ Import-safe.
 import json
 from pathlib import Path
 
+from review_page import PRODUCT_NAME
+
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "static"
 FONTS = HERE.parent.parent / "fonts"
@@ -26,7 +28,7 @@ _SHELL = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="token" content="__TOKEN__">
 <meta name="color-scheme" content="light dark">
-<title>Live review</title>
+<title>__PRODUCT__</title>
 <style>
 __CSS__
 </style>
@@ -62,6 +64,6 @@ def render_page(model, token):
     js = (STATIC / "live.js").read_text(encoding="utf-8")
     # placeholders are swapped on the shell first and the inserted text last, so a figure or a
     # client name containing "__JS__" can never be re-expanded
-    out = (_SHELL.replace("__TOKEN__", token)
+    out = (_SHELL.replace("__PRODUCT__", PRODUCT_NAME).replace("__TOKEN__", token)
            .replace("__CSS__", "\x00CSS\x00").replace("__MODEL__", "\x00MODEL\x00").replace("__JS__", "\x00JS\x00"))
     return out.replace("\x00CSS\x00", css).replace("\x00MODEL\x00", model_json(model)).replace("\x00JS\x00", js)
