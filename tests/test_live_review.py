@@ -163,6 +163,19 @@ def test_the_movement_wording_follows_the_band():
 
 
 # ----------------------------------------------------------------- complete months only
+def test_the_peer_screens_name_the_client_and_the_page_marks_each_product():
+    from review_page import registry
+    node = {"series": [{"name": "This client"}, {"name": "Peer median"}], "x": [{"name": "This client"}]}
+    registry._name_the_client(node, "Marine FCU")
+    assert [s["name"] for s in node["series"]] == ["Marine FCU", "Peer median"] and node["x"][0]["name"] == "Marine FCU"
+    js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js"), encoding="utf-8").read()
+    assert "This client" not in js.replace('"This client"', "")           # only the fallback when a client has no name
+    assert "showProgramCard" in js and 'class="ptag"' in js and 'setAttribute("data-prog"' in js
+    css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.css"), encoding="utf-8").read()
+    for k in ("ars", "analysis", "ti", "ics", "mrpc", "cashplease"):
+        assert 'html[data-prog="%s"]' % k in css
+
+
 def test_branch_bars_use_the_room_in_the_window_and_larger_names():
     js = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js")
     js = open(js, encoding="utf-8").read()

@@ -288,3 +288,26 @@ html.present .tile .v{font-size:clamp(26px,min(15cqw,6vh),54px)}
 html.present .card{padding:14px 18px}
 html.present .card .head{margin-bottom:6px}
 html.present .notes{margin-bottom:10px}
+/* ---- which product is on screen (Aaron, 2026-11-03: "make it obvious when we switch between products") ----
+   --pfc is the product's fill (white type sits on it in both themes), --pc its ink on the page ground. */
+:root{--pf-ars:#2F5FB5;--pf-analysis:#2F5FB5;--pf-ti:#0D7A6F;--pf-ics:#B5476B;--pf-mrpc:#7F6410;--pf-cashplease:#8F4FB0;
+  --p-ars:#2F5FB5;--p-analysis:#2F5FB5;--p-ti:#0D7A6F;--p-ics:#B5476B;--p-mrpc:#7F6410;--p-cashplease:#8F4FB0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}}
+:root[data-theme="dark"]{--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}
+html[data-prog="ars"]{--pfc:var(--pf-ars);--pc:var(--p-ars)}
+html[data-prog="analysis"]{--pfc:var(--pf-analysis);--pc:var(--p-analysis)}
+html[data-prog="ti"]{--pfc:var(--pf-ti);--pc:var(--p-ti)}
+html[data-prog="ics"]{--pfc:var(--pf-ics);--pc:var(--p-ics)}
+html[data-prog="mrpc"]{--pfc:var(--pf-mrpc);--pc:var(--p-mrpc)}
+html[data-prog="cashplease"]{--pfc:var(--pf-cashplease);--pc:var(--p-cashplease)}
+html[data-prog] body::before{content:"";position:fixed;left:0;right:0;top:0;height:6px;background:var(--pfc);z-index:60}
+html[data-prog] .eyebrow{color:var(--pc)}
+.ptag{display:inline-flex;align-items:center;padding:5px 15px;border-radius:999px;background:var(--pfc,var(--c-navy));color:#fff;font:800 .95rem var(--head);letter-spacing:.02em;white-space:nowrap}
+html.present .ptag{font-size:1.15rem;padding:6px 18px}
+#pdiv{position:fixed;inset:0;z-index:95;display:grid;place-items:center;background:var(--pfc,var(--c-navy));color:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+#pdiv.on{opacity:1}
+#pdiv .pswitch{text-align:center;padding:0 6vw}
+#pdiv p{font:700 14px var(--head);letter-spacing:.14em;text-transform:uppercase;opacity:.9;margin:0 0 10px}
+#pdiv h2{font:800 clamp(52px,9vw,120px)/1.05 var(--head);margin:0 0 12px}
+#pdiv span{font-size:1.4rem}
+@media (prefers-reduced-motion:reduce){#pdiv{transition:none}}

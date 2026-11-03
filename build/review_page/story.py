@@ -66,7 +66,7 @@ OPTIONAL = [
         ("cashplease:summary", "CashPlease loan summary", "CashPlease · Weekly"),
         ("cashplease:volume", "CashPlease volume", "CashPlease · Loans"),
     ]),
-    ("compare", "How you compare", "Each program against the other clients on it, anonymously.", [
+    ("compare", "How you compare", "Each program against the other clients on it.", [
         ("ics:peers", "ICS: how you compare", "ICS · How you compare"),
         ("mrpc:peers", "MRPC: how you compare", "MRPC · How you compare"),
         ("cashplease:peers", "CashPlease: how you compare", "CashPlease · How you compare"),

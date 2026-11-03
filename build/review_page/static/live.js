@@ -50,12 +50,26 @@
         var pr = programOf(r.prog), scr = null;
         if (pr && !r.stub) scr = pr.screens.filter(function (x) { return x.id === r.id; })[0];
         if (!scr) scr = MODEL.story.stubs[r.ref];
-        if (scr) out.push({scr: scr, sec: sec, si: si, ri: ri, ref: r.ref, n: n++});
+        if (scr) out.push({scr: scr, sec: sec, si: si, ri: ri, ref: r.ref, prog: r.prog, n: n++});
       });
     });
     return out;
   }
   function curProgram() { return programs().filter(function (p) { return p.key === S.prog; })[0] || null; }
+  function cname() { return (MODEL.client && MODEL.client.name) || "This client"; }   // the peer screens call the client by its name
+  var PROG_FULL = {ars: "Account Revenue Solution", analysis: "ARS analysis", ti: "Transaction Intelligence", ics: "Invitation Checking System", mrpc: "MyRewards Premium Cards", cashplease: "CashPlease small-dollar loans"};
+  function progNow() { var it = curStory(); return it ? it.prog : (S.prog === "all" ? "" : S.prog); }
+  /* Which product is on screen: a coloured tag in the story bar, a coloured rule across the top, and a title card for a second or two when the
+     story moves on into another product. The card is dismissed by any key or click and never holds a key back. */
+  function hideProgramCard() { var el = $("#pdiv"); if (el) el.className = ""; clearTimeout(S.pdivT); }
+  function showProgramCard(pk) {
+    var pr = programOf(pk); if (!pr) return;
+    var n = storyItems().filter(function (x) { return x.prog === pk; }).length;
+    var el = $("#pdiv");
+    if (!el) { el = document.createElement("div"); el.id = "pdiv"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+    el.innerHTML = '<div class="pswitch"><p>Now showing</p><h2>' + esc(pr.label) + "</h2><span>" + (PROG_FULL[pk] && PROG_FULL[pk] !== pr.label ? esc(PROG_FULL[pk]) + " · " : "") + n + (n === 1 ? " screen" : " screens") + "</span></div>";
+    el.className = "on"; clearTimeout(S.pdivT); S.pdivT = setTimeout(hideProgramCard, 1800);
+  }
   function screens() {
     if (S.prog === "story") return storyItems().map(function (x) { return x.scr; });
     if (S.prog === "all") return MODEL.combined ? MODEL.combined.screens : [];
@@ -179,7 +193,7 @@
     if (b.t === "cards") return cardsHTML(b);
     if (b.t === "statement") return b.lead ? '<p class="lede blk">' + esc(b.text) + "</p>" : '<div class="card blk"><h3>' + esc(b.title) + "</h3><p>" + esc(b.text) + "</p></div>";
     if (b.t === "peerstrip") return '<div class="card blk"><div class="head"><div class="hgrow"><h3>' + esc(b.title) + (b.month ? " · " + esc(b.month) : "") + '</h3></div></div><div class="cbox" data-strip="' + b.id + '"></div>' +
-      '<div class="legend"><span><i style="background:var(--c-orange)"></i>This client</span><span><i style="background:var(--c-steel)"></i>Another client (anonymous)</span><span><i style="background:var(--line);border:1px solid var(--axis)"></i>Middle half of peers</span><span><i style="background:var(--c-navy)"></i>Peer median</span></div></div>';
+      '<div class="legend"><span><i style="background:var(--c-orange)"></i>' + esc(cname()) + '</span><span><i style="background:var(--c-steel)"></i>Another client (hover for its number)</span><span><i style="background:var(--line);border:1px solid var(--axis)"></i>Middle half of peers</span><span><i style="background:var(--c-navy)"></i>Peer median</span></div></div>';
     if (b.t === "needs") return '<div class="card blk needs"><h3>Not on this client yet</h3><p>' + esc(b.what) + '</p><p class="hint">What to run first</p><code>' + esc(b.fix) + "</code></div>";
     return "";
   }
@@ -441,14 +455,14 @@
     return h.join("");
   }
 
-  /* One metric against the peers: every other client is an anonymous dot (its value, nothing else), the middle half is a band,
+  /* One metric against the peers: every other client is a dot (its value; the hover gives its client number, nothing else), the middle half is a band,
      the median a tick, and this client is the large orange dot. Nothing here carries a name or an id: the model has none. */
   function stripSVG(b, W) {
     var pad = {l: 16, r: 16, t: 34, b: 34}, H = 170, vals = b.dots.concat([b.client]);
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = (hi - lo) || 1;
     lo -= span * 0.06; hi += span * 0.06;
     var X = function (v) { return pad.l + (W - pad.l - pad.r) * (v - lo) / (hi - lo); }, base = H - pad.b, mid = pad.t + (base - pad.t) / 2;
-    var h = ['<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(b.title) + ': this client against ' + b.n + ' anonymous peers">'];
+    var h = ['<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(b.title) + ': ' + esc(cname()) + ' against ' + b.n + ' anonymous peers">'];
     h.push('<rect x="' + X(b.q1) + '" y="' + (pad.t + 6) + '" width="' + Math.max(2, X(b.q3) - X(b.q1)) + '" height="' + (base - pad.t - 12) + '" rx="8" style="fill:var(--line);stroke:var(--axis);stroke-width:1"' + tipAttr("Middle half of peers: " + fmt(b.q1, b.fmt) + " to " + fmt(b.q3, b.fmt)) + "/>");
     h.push('<line x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + base + '" y2="' + base + '" class="ax"/>');
     for (var k = 0; k <= 4; k++) { var v = lo + (hi - lo) * k / 4; h.push('<text x="' + X(v) + '" y="' + (H - 10) + '" text-anchor="' + (k === 0 ? "start" : k === 4 ? "end" : "middle") + '">' + esc(fmt(v, b.fmt)) + "</text>"); }
@@ -456,10 +470,11 @@
     h.push('<text x="' + X(b.median) + '" y="' + (pad.t - 4) + '" text-anchor="middle" style="font-weight:700;fill:var(--ink)">Median ' + esc(fmt(b.median, b.fmt)) + "</text>");
     b.dots.forEach(function (v, i) {   // a fixed spread of heights so dots do not hide each other; the order carries nothing
       var y = mid + (((i * 37) % 7) - 3) * 8;
-      h.push('<circle cx="' + X(v) + '" cy="' + y + '" r="6" class="peerdot grow-y" style="fill:var(--c-steel);fill-opacity:.82;stroke:var(--surface);stroke-width:1.5;animation-delay:' + Math.min(i * 12, 360) + 'ms"' + tipAttr("Another client: " + fmt(v, b.fmt)) + "/>");
+      h.push('<circle cx="' + X(v) + '" cy="' + y + '" r="6" class="peerdot grow-y" style="fill:var(--c-steel);fill-opacity:.82;stroke:var(--surface);stroke-width:1.5;animation-delay:' + Math.min(i * 12, 360) + 'ms"' + tipAttr((b.dot_ids && b.dot_ids[i] ? "Client " + b.dot_ids[i] : "Another client") + ": " + fmt(v, b.fmt)) + "/>");
     });
-    h.push('<circle cx="' + X(b.client) + '" cy="' + mid + '" r="11" style="fill:var(--c-orange);stroke:var(--surface);stroke-width:3"' + tipAttr("This client: " + fmt(b.client, b.fmt)) + "/>");
-    h.push('<text x="' + X(b.client) + '" y="' + (mid - 20) + '" text-anchor="' + (X(b.client) > W - 90 ? "end" : "middle") + '" style="font-weight:700;fill:var(--orange-ink)">This client ' + esc(fmt(b.client, b.fmt)) + "</text>");
+    h.push('<circle cx="' + X(b.client) + '" cy="' + mid + '" r="11" style="fill:var(--c-orange);stroke:var(--surface);stroke-width:3"' + tipAttr(cname() + ": " + fmt(b.client, b.fmt)) + "/>");
+    var me = cname() + " " + fmt(b.client, b.fmt), meW = textW(me, 13) / 2 + 6;
+    h.push('<text x="' + X(b.client) + '" y="' + (mid - 20) + '" text-anchor="' + (X(b.client) + meW > W ? "end" : X(b.client) - meW < 0 ? "start" : "middle") + '" style="font-weight:700;fill:var(--orange-ink)">' + esc(me) + "</text>");
     h.push("</svg>");
     return h.join("");
   }
@@ -485,7 +500,8 @@
     var it = curStory(); if (!it) return "";
     var secs = MODEL.story.sections, n = secs.length;
     var segs = secs.map(function (sec, i) { return '<i class="' + (i < it.si ? "done" : i === it.si ? "now" : "") + '" title="' + esc(sec.title) + '"></i>'; }).join("");
-    return '<div class="storybar" role="img" aria-label="Section ' + (it.si + 1) + " of " + n + '"><div class="segs">' + segs + '</div><span><b>' + esc(it.sec.title) + "</b> · section " + (it.si + 1) + " of " + n + " · screen " + (it.ri + 1) + " of " + it.sec.screens.length + " · <kbd>A</kbd> agenda</span></div>";
+    var pg = programOf(it.prog), tag = pg ? '<span class="ptag" data-p="' + esc(it.prog) + '">' + esc(pg.label) + "</span>" : "";
+    return '<div class="storybar" role="img" aria-label="' + esc(pg ? pg.label + ", section " : "Section ") + (it.si + 1) + " of " + n + '">' + tag + '<div class="segs">' + segs + '</div><span><b>' + esc(it.sec.title) + "</b> · section " + (it.si + 1) + " of " + n + " · screen " + (it.ri + 1) + " of " + it.sec.screens.length + " · <kbd>A</kbd> agenda</span></div>";
   }
 
   /* Presenting (windowed, shared in a call at 1280x720): the finding as the headline, the tiles, ONE chart and the first so-what line.
@@ -517,6 +533,11 @@
         '<div class="blocks">' + (S.present ? presentBlocks(sc.blocks, sc.id) : sc.blocks).map(function (b) { return blockHTML(b, sc); }).join("") + "</div>" +
         '<p class="stamp">Data pack read ' + esc(MODEL.generated.replace("T", " ")) + " · sources on every screen (S)</p></section>";
     }
+    var pk = progNow();
+    document.documentElement.setAttribute("data-prog", pk || "");
+    var fam = pk === "analysis" ? "ars" : pk;   // the ARS analysis views sit among the ARS screens: one product, no card between them
+    if (S.lastFam && fam && fam !== S.lastFam && S.prog === "story") showProgramCard(fam);
+    S.lastFam = fam || S.lastFam;
     main.innerHTML = html;
     main.classList.toggle("still", !!S.plain);   // bars draw in once, when a screen first appears; opening or closing a table must not replay them
     S.plain = false;
@@ -660,6 +681,8 @@
     render(); if (on) toast("Presenting. Esc to leave.");
   }
 
+  document.addEventListener("click", hideProgramCard, true);
+  document.addEventListener("keydown", hideProgramCard, true);
   document.addEventListener("keydown", function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "");

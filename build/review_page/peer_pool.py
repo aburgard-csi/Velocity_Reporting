@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""peer_pool.py — read the other clients on a program, once, and hand back values with no identity attached.
+"""peer_pool.py — read the other clients on a program, once, and hand back values with the client number and nothing else.
 
 The rows are the ones the performance dashboard reads (`build/peer_data.py`: `ics_section`, `mrpc_section`,
 `cp_section`, the MRPCEnrollmentSummary weekly, the CashPlease packs). Each `collect_*` returns
 
     {"n_pool": other clients on the program at all,
      "me":    {"point": {metric: value}, "series": {metric: {"Sep 2026": value}}},
-     "peers": [ {"point": ..., "series": ...} per other client — in no particular order, with NO id, name or CSM ],
+     "peers": [ {"id": "1234", "point": ..., "series": ...} per other client — in no particular order; the client number
+                (Aaron, 2026-11-03: the hover on a peer dot says which client it is) and NO name, logo or CSM ],
      "pull":  "2026-10-27 to 2026-10-27"}
 
-so nothing downstream can name a peer. Metrics are normalised the way each program's own deck states them: ICS referrals as a
+so nothing downstream can name a peer; the number is all it can say. Metrics are normalised the way each program's own deck states them: ICS referrals as a
 percent of the monthly goal (and per 1,000 DDAs where the DDA count is known), MRPC enrollments as a percent of goal, the
 share of cardholders still active and the take rate among active accounts, CashPlease loans per 1,000 DDAs with the ILS DDA
 count, and the share of loans overdue and charged off. MRPC revenue is not compared: VIP's revenue is known stale
@@ -68,9 +69,9 @@ def _span(dates):
 
 
 def _split(rows, me):
-    """({me row} or an empty one, [peer rows with the id dropped])"""
+    """({me row} or an empty one, [peer rows, each carrying its client number as "id"])"""
     mine = rows.get(me) or {"point": {}, "series": {}}
-    return mine, [r for cid, r in rows.items() if cid != me]
+    return mine, [dict(r, id=str(cid)) for cid, r in rows.items() if cid != me]
 
 
 # ----------------------------------------------------------------- ICS
