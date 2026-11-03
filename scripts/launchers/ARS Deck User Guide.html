@@ -123,7 +123,7 @@
           <tr><td>3. ODD extract</td><td>The ODD is read straight out of its zip, one account per row. Its codes are sorted into the standard categories listed in the <a href="#dictionary">data dictionary</a>. A value that maps to none of them is flagged and never guessed.</td></tr>
           <tr><td>4. Metrics</td><td>About a hundred figures are computed from the accounts: product mix, take rates, swipe tiers, mailing response, Reg E, before and after activity, new account profile. Comparisons use the last <strong>complete</strong> month only.</td></tr>
           <tr><td>5. Charts</td><td>Each chart is drawn at the size of its slide box, in the house palette and fonts.</td></tr>
-          <tr><td>6. Assemble</td><td>The slides are filled in from the ARS template, never from another client's deck. The cover, agenda, Summit slide, Questions and Contact are added, and the Contact card is the client's CSM. Every slide's speaker notes name its data source.</td></tr>
+          <tr><td>6. Assemble</td><td>The slides are filled in from the ARS template, never from another client's deck. The cover, agenda, Summit slide, Questions and Contact are added. The Contact slide is a full-width blue gradient like Questions &amp; Discussion, with the client's CSM centred on it: name, title, phone and email. Every slide's speaker notes name its data source.</td></tr>
           <tr><td>7. Validate</td><td>A quality check reads the finished file for banned wording, text that overflows, figures that disagree with their data, another client's name left behind, and whether the file is sound. <strong>Any FAIL stops the deck.</strong> "REVIEW" items are notes.</td></tr>
           <tr><td>8. File</td><td>A clean deck goes to <span class="path">Outputs\&lt;CSM&gt;\</span> named <code>&lt;client&gt;-&lt;yyyy.mm&gt;-ARS-&lt;Client&gt; ARS Results.pptx</code>. An older deck for the same client and month moves to that folder's <span class="path">_Archive\</span>.</td></tr>
         </tbody>
@@ -139,10 +139,10 @@
           <tr><td>Program</td><td>Product Mix &amp; ARS Eligibility, Excluded Accounts, Program Overview, ARS Financial Performance, and Revenue Guarantee on any deck whose profitability is below 3 : 1.</td></tr>
           <tr><td>Debit usage</td><td>Monthly Summary (last 12 months), Debit Usage Segmentation by Swipe Tier, Average Ticket by Swipe Segment.</td></tr>
           <tr><td>Mailings</td><td>Mailing Insights, Mailing Response Summary and Ranking by Tier, the response and movement slides for the latest mailer, Transaction Increase Over the Ask, Sustained Respondent Activity, and Responder Activity before vs after.</td></tr>
-          <tr><td>Debit card review</td><td>12-month eligible take rate for personal, business and by branch; Overall Debit Swipes &amp; Spend; NSF/OD Activity Over Time.</td></tr>
-          <tr><td>Reg E review</td><td>Opt-in for all personal accounts, for accounts opened in the last 12 months, by branch and by account vintage.</td></tr>
+          <tr><td>Debit card review</td><td>12-month eligible take rate for personal, business and by branch (as charts); Overall Debit Swipes &amp; Spend; NSF/OD Activity Over Time. The by-branch tables are in the Appendix.</td></tr>
+          <tr><td>Reg E review</td><td>Opt-in for all personal accounts, for accounts opened in the last 12 months, by branch (as charts) and by account vintage. The by-branch tables are in the Appendix.</td></tr>
           <tr><td>Key Takeaways</td><td>The summary slide that closes the main deck.</td></tr>
-          <tr><td>Appendix</td><td>Branch Reference, program reach and repeat responders, responder age and balance profile, the new account profile slides, account growth, retention by tenure and first-year closure.</td></tr>
+          <tr><td>Appendix</td><td>The full branch tables &mdash; Take Rate by Branch, Reg E Opt-In by Branch and Reg E New Accounts by Branch, every branch listed over as many pages as it takes &mdash; then Branch Reference, program reach and repeat responders, responder age and balance profile, the new account profile slides, account growth, retention by tenure and first-year closure.</td></tr>
         </tbody>
       </table>
     </div>
@@ -210,7 +210,7 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
 
     <h3>Keyboard, search and night mode</h3>
 
-    <p>Press <kbd>Ctrl</kbd> <kbd>K</kbd> to search every client and every action from anywhere: type a name or number and press <kbd>Enter</kbd>. Press <kbd>?</kbd> to see the shortcuts for the tab you are on. <kbd>G</kbd> then <kbd>D</kbd>, <kbd>L</kbd>, <kbd>I</kbd>, <kbd>V</kbd> or <kbd>F</kbd> jumps to Decks, Lift Matrix, Data Issues, Slide Review or Feedback. <kbd>T</kbd> switches between night and day, and the <strong>Compact</strong> switch in the top bar tightens the rows. On a list, <kbd>J</kbd> and <kbd>K</kbd> move down and up, <kbd>Enter</kbd> opens, and <kbd>Enter</kbd> or <kbd>Esc</kbd> again goes back.</p>
+    <p>Press <kbd>Ctrl</kbd> <kbd>K</kbd> to search every client and every action from anywhere: type a name or number and press <kbd>Enter</kbd>. Press <kbd>?</kbd> to see the shortcuts for the tab you are on. <kbd>G</kbd> then <kbd>D</kbd>, <kbd>L</kbd>, <kbd>I</kbd>, <kbd>V</kbd> or <kbd>F</kbd> jumps to Decks, Lift Matrix, Data Issues, Slide Review or Feedback. <kbd>T</kbd> switches between night and day, and the <strong>Compact</strong> switch in the top bar tightens the rows. On a list, <kbd>J</kbd> and <kbd>K</kbd> move down and up, <kbd>Enter</kbd> opens, and <kbd>Enter</kbd> or <kbd>Esc</kbd> again goes back. Clicking the client you have open a second time closes it and returns to the Decks overview.</p>
 
     <h3>The cycle, in the top bar</h3>
 
@@ -218,7 +218,7 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
     <p><strong>Click it to look at an earlier cycle.</strong> Pick a month and the whole page answers for that month: who already has a deck, what a build would read, which clients are still waiting on data. A build you start while an earlier month is picked builds <em>that</em> month. Your pick holds until you choose the current month again or reload the page, so glance at the pill before you build.</p>
 
     <h3>Decks</h3>
-    <p>Every client with a deck to build, grouped by CSM, with a box to filter by name or number. The five tiles along the top count the clients in each state and are also the filter: click a tile to show only those clients, and click it again to clear it. Each client's row has a shape and a tag:</p>
+    <p>Your clients with a deck to build (<strong>Show all</strong> brings in everyone's), with a box to filter by name or number. The five tiles along the top count the clients in each state and are also the filter: click a tile to show only those clients, and click it again to clear it. Each client's row has a shape and a tag:</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th scope="col">Tag on the row</th><th scope="col">Meaning</th></tr></thead>
@@ -497,6 +497,6 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
     <p>The launcher isn't fully installed on the share. Ask Aaron to run the launcher release.</p>
   </section>
 </main>
-<footer>Questions or a build that won't finish: contact Aaron Burgard with the client number. Guide updated 2026-10-29.</footer>
+<footer>Questions or a build that won't finish: contact Aaron Burgard with the client number. Guide updated 2026-11-03.</footer>
 </body>
 </html>
