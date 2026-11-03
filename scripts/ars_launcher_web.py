@@ -1909,14 +1909,17 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._send(403, {"error": "forbidden"})
         if u.path == "/":
+            return self._send(200, sheila_hub.page(TOKEN, app_version(), sheila_hub.who_am_i()).encode("utf-8"), "text/html; charset=utf-8")
+        if u.path == "/hub":                  # the preview's old address
+            self.send_response(302)
+            self.send_header("Location", "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if u.path == "/classic":              # the old page, until its last tab is ported (removed with it)
             return self._send(200, PAGE.replace("__TOKEN__", TOKEN).replace("__VERSION__", _version_html()).encode("utf-8"), "text/html; charset=utf-8")
         if u.path == "/changelog":
             return self._send(200, changelog_page().encode("utf-8"), "text/html; charset=utf-8")
-        if u.path == "/hub":
-            # The Hub layout, a preview only a person who set RPE_SHEILA_HUB=1 can open (Aaron, 2026-11-02).
-            if not sheila_hub.enabled():
-                return self._send(404, {"error": "not found"})
-            return self._send(200, sheila_hub.page(TOKEN, app_version(), sheila_hub.who_am_i()).encode("utf-8"), "text/html; charset=utf-8")
         if not self._api_ok():
             return self._send(403, {"error": "forbidden"})
         q = parse_qs(u.query)
@@ -2068,8 +2071,7 @@ def main(argv=None):
     srv = make_server(a.port)
     install_share_caches()
     _renew["on"] = True
-    if sheila_hub.enabled():
-        sheila_hub.who_am_i()       # once, here, so the Hub's first page does not wait on the share
+    sheila_hub.who_am_i()           # once, here, so the first page does not wait on the share
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
     print(f"\n CSM Sheila is running at {url}")
     print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
