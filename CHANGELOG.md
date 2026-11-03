@@ -32,6 +32,15 @@ Aaron, 2026-11-03: "Inputs\GL Data is added for clients that email us GL data or
 - **Today's four files.** `FSB Michigan GL.xlsx` is 1204 First State Bank-MI (55 months, March 2022 to September 2026: interchange, NSF, total NII, debit card spend, IC rate) and the LGE CCU workbook is 1179 Lge Community Credit Union (75 lines, 10,516 cells, through January 2025); both archived, and every cell of both was compared with the spreadsheet (0 differ). `NSF Performance Tracking Workbook.xlsx` has a client's figures through September 2026 but no client named anywhere in it, so it is kept under `unassigned` until it has one; `NSF-OD Performance Tracking_2025.xlsx` is the blank template. Both stay in the folder.
 - New `GL Data` input kind in `rpe_env` (not scanned by the watch). `tests/test_gl_data_ingest.py`.
 
+### 2026-11-03 — Live Review: presenting The review goes one product at a time
+
+Summary: While presenting The review, the right arrow on a product's last screen now holds the next product's title card until you press it again, and the arrows no longer carry on out of the review into All programs or a product's own tab.
+
+Aaron, 2026-11-03: "when presenting from The review, it still jumps between products. it should do one product at a time." Asked what the arrow should do at a product's last screen, he chose: a title card, then wait for the right arrow.
+
+- **The cause.** After the last screen of The review the arrows carried on into "All programs" and then each product's own tab (`walkOrder`), so presenting wandered between products even though the review itself is ordered by product.
+- **Now.** Presenting, on a product's last screen the first right arrow shows the next product's title card and holds it ("Press → to start Transaction Intelligence"); the second starts that product. Any other key puts the card away and stays put, the left arrow just goes back, and the review's first and last screens are its ends. Outside presenting the arrows are unchanged.
+
 ### 2026-11-03 — Live Review: the MRPC peer comparison uses every client in the weekly
 
 Summary: The MRPC comparison now leads with enrollments per 1,000 debit-card accounts over the last 12 months, read from the weekly enrollment file for all of its clients (about 22 current ones), instead of the share-of-goal measure that only the 6 clients with a VIP sheet could be compared on.
