@@ -89,7 +89,9 @@ def test_the_storyline_runs_through_every_section_and_every_ref_resolves(tmp_pat
     model, _t, problems = build(tmp_path, ("ars", "analysis", "ti"))
     assert problems == []
     story = model["story"]
-    assert [s["id"] for s in story["sections"]] == ["program", "revenue", "branches", "members", "competition", "attrition", "worth"]
+    assert [s["id"] for s in story["sections"]] == ["program", "revenue", "branches", "members", "worth", "competition", "attrition", "ti-worth"]
+    assert [s["prog"] for s in story["sections"]] == ["ars"] * 5 + ["ti"] * 3          # organised by product, ARS then Transaction Intelligence
+    assert all({r["prog"] for r in s["screens"]} <= ({"ars", "analysis"} if s["prog"] == "ars" else {s["prog"]}) for s in story["sections"])
     assert 14 <= sum(len(s["screens"]) for s in story["sections"]) <= 20
     progs = {e["key"]: {s["id"] for s in e["screens"]} for e in model["programs"]}
     for sec in story["sections"]:

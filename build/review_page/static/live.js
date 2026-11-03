@@ -50,13 +50,18 @@
         var pr = programOf(r.prog), scr = null;
         if (pr && !r.stub) scr = pr.screens.filter(function (x) { return x.id === r.id; })[0];
         if (!scr) scr = MODEL.story.stubs[r.ref];
-        if (scr) out.push({scr: scr, sec: sec, si: si, ri: ri, ref: r.ref, prog: r.prog, n: n++});
+        if (scr) out.push({scr: scr, sec: sec, si: si, ri: ri, ref: r.ref, prog: sec.prog || r.prog, n: n++});
       });
     });
     return out;
   }
   function curProgram() { return programs().filter(function (p) { return p.key === S.prog; })[0] || null; }
   function cname() { return (MODEL.client && MODEL.client.name) || "This client"; }   // the peer screens call the client by its name
+  var PRODUCT = {ars: "ARS", ti: "Transaction Intelligence", ics: "ICS", mrpc: "MRPC", cashplease: "CashPlease"};
+  function prodLabel(k) { return PRODUCT[k] || (programOf(k) || {}).label || k; }
+  /* A product's sections are numbered within the product ("section 2 of 5"), never across the whole review. */
+  function prodSections(k) { return MODEL.story.sections.filter(function (s) { return s.prog === k; }); }
+  function prodIndex(sec) { return prodSections(sec.prog).indexOf(sec) + 1; }
   function progNow() { var it = curStory(); return it ? it.prog : (S.prog === "all" ? "" : S.prog); }
   /* Which product is on screen: a coloured tag in the story bar, a coloured rule across the top, and a title card for a second or two when the
      story moves on into another product. The card is dismissed by any key or click and never holds a key back. */
@@ -71,7 +76,7 @@
   };
   function hideProgramCard() { var el = $("#pdiv"); if (el) el.className = ""; clearTimeout(S.pdivT); }
   function showProgramCard(pk) {
-    var info = DIVIDER[pk], pr = programOf(pk); if (!info || !pr) return;
+    var info = DIVIDER[pk], pr = programOf(pk); if (!info || !pr) return;   // ti is a product like the others
     var kp = ((pr.summary || {}).kpis || []).slice(0, 3);
     if (!kp.length) {   // a program with no summary (Transaction Intelligence) shows the first figures its first screen carries
       (pr.screens || []).some(function (s) { var b = (s.blocks || []).filter(function (x) { return x.t === "kpis"; })[0]; if (b) { kp = b.items.slice(0, 3); return true; } return false; });
@@ -187,8 +192,13 @@
     var sc = screens(), items;
     var btn = function (s, i) { return '<button data-i="' + i + '"' + (i === S.screen ? ' aria-current="page"' : "") + '><span class="n">' + (i + 1) + '</span><span class="l">' + esc(s.title) + "</span></button>"; };
     if (S.prog === "story") {   // grouped by section, numbered straight through
-      var sts = storyItems(), last = -1;
-      items = sts.map(function (x, i) { var h = x.si !== last ? '<h6 class="sec">' + (x.si + 1) + " · " + esc(x.sec.title) + "</h6>" : ""; last = x.si; return h + btn(x.scr, i); }).join("");
+      var sts = storyItems(), last = -1, lastP = "";
+      items = sts.map(function (x, i) {
+        var h = "";
+        if (x.sec.prog !== lastP) { h += '<h5 class="prod" data-p="' + esc(x.sec.prog) + '">' + esc(prodLabel(x.sec.prog)) + "</h5>"; lastP = x.sec.prog; }
+        if (x.si !== last) { h += '<h6 class="sec">' + prodIndex(x.sec) + " · " + esc(x.sec.title) + "</h6>"; last = x.si; }
+        return h + btn(x.scr, i);
+      }).join("");
     } else items = sc.map(btn).join("");
     var rail = $("#rail");
     rail.innerHTML = '<h6>' + esc(S.prog === "story" ? (MODEL.story.title || "The review") : S.prog === "all" ? "Overview" : (curProgram() || {}).label || "") + '</h6><nav class="nav" aria-label="Screens">' + items + "</nav>";
@@ -514,10 +524,10 @@
   /* The storyline's progress: one segment per section, filled up to this one, and where we are inside it. */
   function storyBar() {
     var it = curStory(); if (!it) return "";
-    var secs = MODEL.story.sections, n = secs.length;
-    var segs = secs.map(function (sec, i) { return '<i class="' + (i < it.si ? "done" : i === it.si ? "now" : "") + '" title="' + esc(sec.title) + '"></i>'; }).join("");
-    var pg = programOf(it.prog), tag = pg ? '<span class="ptag" data-p="' + esc(it.prog) + '">' + esc(pg.label) + "</span>" : "";
-    return '<div class="storybar" role="img" aria-label="' + esc(pg ? pg.label + ", section " : "Section ") + (it.si + 1) + " of " + n + '">' + tag + '<div class="segs">' + segs + '</div><span><b>' + esc(it.sec.title) + "</b> · section " + (it.si + 1) + " of " + n + " · screen " + (it.ri + 1) + " of " + it.sec.screens.length + " · <kbd>A</kbd> agenda</span></div>";
+    var secs = prodSections(it.sec.prog), n = secs.length, at = prodIndex(it.sec);
+    var segs = secs.map(function (sec, i) { return '<i class="' + (i < at - 1 ? "done" : i === at - 1 ? "now" : "") + '" title="' + esc(sec.title) + '"></i>'; }).join("");
+    var tag = '<span class="ptag" data-p="' + esc(it.prog) + '">' + esc(prodLabel(it.prog)) + "</span>";
+    return '<div class="storybar" role="img" aria-label="' + esc(prodLabel(it.prog)) + ", section " + at + " of " + n + '">' + tag + '<div class="segs">' + segs + '</div><span><b>' + esc(it.sec.title) + "</b> · section " + at + " of " + n + " · screen " + (it.ri + 1) + " of " + it.sec.screens.length + " · <kbd>A</kbd> agenda</span></div>";
   }
 
   /* Presenting (windowed, shared in a call at 1280x720): the finding as the headline, the tiles, ONE chart and the first so-what line.
@@ -551,9 +561,8 @@
     }
     var pk = progNow();
     document.documentElement.setAttribute("data-product", pk || "")   // not data-prog: the click handler reads that one as "go to this program";
-    var fam = pk === "analysis" ? "ars" : pk;   // the ARS analysis views sit among the ARS screens: one product, no card between them
-    if (S.lastFam && fam && fam !== S.lastFam && S.prog === "story") showProgramCard(fam);
-    S.lastFam = fam || S.lastFam;
+    if (S.lastFam && pk && pk !== S.lastFam && S.prog === "story" && S.present) showProgramCard(pk);   // presenting only (Aaron, 2026-11-03)
+    S.lastFam = pk || S.lastFam;
     main.innerHTML = html;
     main.classList.toggle("still", !!S.plain);   // bars draw in once, when a screen first appears; opening or closing a table must not replay them
     S.plain = false;
@@ -582,8 +591,9 @@
     } else if (kind === "agenda") {
       var cur = curStory(), its = storyItems();
       html = '<header><h2>The agenda</h2><button class="ibtn" data-close aria-label="Close">' + ICON.close + '</button></header><div class="body agenda">' +
-        MODEL.story.sections.map(function (sec, si) {
-          return '<div class="asec"><h4><span class="n">' + (si + 1) + "</span>" + esc(sec.title) + "</h4><p>" + esc(sec.blurb) + "</p>" +
+        MODEL.story.sections.map(function (sec, si, all) {
+          var ph = si === 0 || all[si - 1].prog !== sec.prog ? '<h5 class="prod" data-p="' + esc(sec.prog) + '">' + esc(prodLabel(sec.prog)) + "</h5>" : "";
+          return ph + '<div class="asec"><h4><span class="n">' + prodIndex(sec) + "</span>" + esc(sec.title) + "</h4><p>" + esc(sec.blurb) + "</p>" +
             sec.screens.map(function (r) {
               var at = its.filter(function (x) { return x.ref === r.ref; })[0];
               return '<button data-agenda="' + esc(r.ref) + '"' + (cur && cur.ref === r.ref ? ' aria-current="page"' : "") + (r.stub ? ' class="stub"' : "") + ">" + esc(r.title) + (r.stub ? "<em>run first</em>" : "") + "</button>";

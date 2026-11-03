@@ -255,6 +255,10 @@ html.present .tile .v{font-size:clamp(26px,15cqw,54px)}
 /* ---- the storyline: sections in the nav, a progress strip, the agenda, the "run this first" state */
 .rail h6.sec{margin:16px 0 6px 12px;font:700 10.5px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
 .rail h6.sec:first-child{margin-top:0}
+.rail h5.prod,.agenda h5.prod{margin:20px 0 4px;padding:7px 12px;border-radius:10px;background:var(--pfc-x,var(--c-navy));color:#fff;font:800 12px var(--head);letter-spacing:.1em;text-transform:uppercase}
+.rail h5.prod:first-child,.agenda h5.prod:first-child{margin-top:0}
+h5.prod[data-p="ars"]{--pfc-x:var(--pf-ars)}h5.prod[data-p="ti"]{--pfc-x:var(--pf-ti)}h5.prod[data-p="ics"]{--pfc-x:var(--pf-ics)}h5.prod[data-p="mrpc"]{--pfc-x:var(--pf-mrpc)}h5.prod[data-p="cashplease"]{--pfc-x:var(--pf-cashplease)}
+.ptag[data-p="ars"]{background:var(--pf-ars)}.ptag[data-p="ti"]{background:var(--pf-ti)}.ptag[data-p="ics"]{background:var(--pf-ics)}.ptag[data-p="mrpc"]{background:var(--pf-mrpc)}.ptag[data-p="cashplease"]{background:var(--pf-cashplease)}
 .storybar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 18px;font-size:.84rem;color:var(--text2)}
 .storybar .segs{display:flex;gap:4px;flex:0 0 auto}
 .storybar .segs i{display:block;width:30px;height:6px;border-radius:4px;background:var(--line);transition:background .3s}

@@ -31,6 +31,16 @@ Aaron, 2026-11-03: "look at the VIP data we're pulling and use all peers for pee
 - **CashPlease** already compared against every current client with a pack (73 for Marine), and **MRPC** against every tab of the weekly (23) for the active and take-rate measures; MRPC's share of goal is VIP-only (6 clients) because goals come from the VIP sheets.
 - Tests: `test_ics_per_1k_uses_every_client_in_the_all_clients_referrals_file`, `test_the_ics_comparison_falls_back_to_the_vip_sheets_without_the_referrals_file`.
 
+### 2026-11-03 — Live Review: sections are organised by product, and the title cards show only while presenting
+
+Summary: Live Review's screen list, agenda and progress bar are now grouped by product (ARS, Transaction Intelligence, ICS, MRPC, CashPlease), each with its own sections, and the product title card appears only in presenter mode.
+
+Aaron, 2026-11-03: "the section slides should only show during presentation mode. Also, the sections need to be organized by product", "treat Transaction Intelligence as a product".
+
+- **By product.** `story.SECTIONS` / `OPTIONAL` carry a product per section: ARS (with its Companion views) first, then Transaction Intelligence, then ICS, MRPC and CashPlease where the client has them. Each product's peer screen sits with that product, so the separate "Other programs" and "How you compare" sections are gone. The rail has a coloured heading per product and numbers its sections within it; the progress bar and the agenda follow the product ("section 2 of 5").
+- **Where the 20 screens went.** "What it is worth next" is now ARS (five points) and Transaction Intelligence (what a card and an opt-in earn, branch value gap) is its own section, "What it is worth". No screen was added or dropped.
+- **Title card.** Shown only while presenting; clicking into another product with the screen list, or reading in the regular view, shows no card.
+
 ### 2026-11-03 — Live Review: the product title card is the deck's section divider
 
 Summary: When Live Review moves into another product, the title card now looks like the section dividers in the Executive Review deck (the blue gradient, the orange wedge and CSI logo, the product name and its topics, three headline figures and the progress track), and it no longer shows a slide count.

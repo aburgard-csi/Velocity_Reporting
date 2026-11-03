@@ -283,10 +283,11 @@ def test_the_combined_view_gets_a_how_you_compare_screen_and_the_story_gets_two_
     assert problems == []
     cmp_screen = next(s for s in model["combined"]["screens"] if s["id"] == "compare")
     assert cmp_screen["blocks"][0]["cards"][0]["open"] == "ics:peers"
-    ids = [s["id"] for s in model["story"]["sections"]]
-    assert ids[-2:] == ["others", "compare"]
-    assert [r["ref"] for r in model["story"]["sections"][-1]["screens"]] == ["ics:peers"]      # only the programs the client has
-    assert "others" not in [s["id"] for s in registry.build_model(CID, PERIOD, root=tmp_path, programs=["ars", "analysis", "ti"])[0]["story"]["sections"]]
+    secs = model["story"]["sections"]
+    assert [s["id"] for s in secs][-1] == "ics" and secs[-1]["prog"] == "ics"                  # the client's other programs, one section each
+    assert "ics:peers" in [r["ref"] for r in secs[-1]["screens"]]                               # how it compares sits with the product
+    assert not {"mrpc", "cashplease"} & {s["id"] for s in secs}                                  # only the programs the client has
+    assert "ics" not in [s["id"] for s in registry.build_model(CID, PERIOD, root=tmp_path, programs=["ars", "analysis", "ti"])[0]["story"]["sections"]]
 
 
 # ----------------------------------------------------------------- the shared reader
