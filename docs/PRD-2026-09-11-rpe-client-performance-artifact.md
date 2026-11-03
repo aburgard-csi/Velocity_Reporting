@@ -3,7 +3,7 @@
 Date: 2026-09-11
 Owner: Aaron Burgard
 Status: Shipped 2026-09-08; build readiness and provenance added 2026-09-09/10.
-Live at `https://claude.ai/code/artifact/71e542f6-cb48-4386-ae73-708e513c854b`.
+Live at `https://claude.ai/artifact/F4jLMLqxmQdBNYXpJHH6We` (the older `claude.ai/code/artifact/71e542f6-cb48-4386-ae73-708e513c854b` form opens the same artifact).
 
 ---
 
@@ -235,3 +235,19 @@ itself is never copied or committed.
    now pins the extractor's path, but that is one source covered by name. A section that
    is empty for EVERY client is a different thing from one client having no data, and
    the refresh does not yet distinguish them.
+
+## Addendum, 2026-11-02: the Hub look and one CSM's clients
+
+Aaron: "rebuild the RPE Client Performance artifact in hub fashion. Also limit that artifact to my own clients, since we
+now have Sheila."
+
+- **Scope.** The page lists the clients the Client CSM List assigns to one CSM (`--csm`, `RPE_DASH_CSM`, default Aaron
+  Burgard). Scope is applied before any client is read. The original design embedded every CSM's clients and filtered in
+  the browser, which put all of them in the page for every viewer; that was the right trade while this page was the only
+  cross-client view and is the wrong one now that CSM Sheila serves each CSM. Rankings read "among your N clients".
+  The CashPlease company row is rates and averages across every current client (the only cross-CSM figure left), with
+  no volumes.
+- **Look.** The Sheila Hub's frame and colors, the slide-stack corner mark, one find box in place of the CSM, product and
+  client chips, and a trend chart per program (all of the CSM's clients together, with a hover readout and a table view).
+- **Verification closes known gap 2 above** for this page: it is rendered in headless Chrome in light, dark and at 400 px
+  and looked at before it is published. The published copy still needs a signed-in browser to confirm Mark sent.

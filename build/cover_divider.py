@@ -395,14 +395,15 @@ def _max_pt(slide):
 
 
 def is_divider(slide):
-    """A shell divider (full-bleed, 44 pt+ title) that is neither the cover nor the
-    Questions closer — the slides the ARS builder redraws in place."""
+    """A shell divider (full-bleed, 44 pt+ title) that is neither the cover, the
+    Questions closer nor the Contact Us slide (the same full-bleed gradient, drawn by
+    `shapes.draw_contact_slide`) — the slides the ARS builder redraws in place."""
     if not _is_fullbleed(slide) or _max_pt(slide) < 44:
         return False
     text = " ".join(sh.text_frame.text for sh in slide.shapes if sh.has_text_frame).lower()
     if "executive review" in text:
         return False
-    return not slide_title(slide).startswith("Questions")
+    return not slide_title(slide).startswith(("Questions", "Contact Us"))
 
 
 def redraw_divider_in_place(slide, stats=(), programs=None, current=None):

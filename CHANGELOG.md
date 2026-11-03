@@ -33,6 +33,58 @@ Aaron, 2026-11-02: "in the executive review deck for branch data around debit ca
 - **Mechanics.** The template slide is dropped in phase 2 with the other orphan (strip, then add), so no partname is freed for a later slide; nothing was added to or removed from `ars_template.pptx`. `rege_branch_slide.py` and its two-table layout are retired (the slide's content is the third appendix family). The opt-in "Where Cards Lag" view now anchors on "12-Month Eligible Take Rate — Business". `slide_inventory` lists the three appendix families and no longer lists the two main-deck slides, so Slide Review follows the build.
 - **Not changed.** `templates/ars_template.pptx` still carries the old slide (it is the build's source, dropped at build time); the Companion and Transaction Intelligence decks; assemble_combined (the Appendix is ARS-only and travels with the ARS deck).
 
+### 2026-11-02 — the Contact Us slide is the Questions & Discussion gradient with the contact centred
+
+Summary: the Contact Us slide is now a full-bleed navy-to-blue gradient slide like Questions & Discussion, with the CSI logo, the title and the CSM's name, title, phone and email centred and grouped closely, instead of a flat navy card with large gaps between the lines.
+
+Aaron, 2026-11-02: "add this gradient to the contact card", then, seeing it: "there's too much space between the lines on the contact card. we need to do something else with that slide." He chose the full-bleed design from three (a compact gradient card, a wide card, a full-bleed slide).
+
+- **Slide.** `shapes.draw_contact_slide` draws it for every deck: the closing slide's gradient (`build/assets/csi_brand/closing_fill.xml`, 00274C at 37% to 035B95 at 100%, the one place the stops live), the white CSI logo, "Contact Us" at 44 pt, then the contact centred: name 30 pt, title 18 pt bold orange, phone 20 pt and email 18 pt together with a small drawn icon each. Like the closing slide it has no slide number and no data logo. No phone on file means no phone row and the email takes its place. One contact, or two columns for the ICS program contact beside the CSM.
+- **Who draws it.** `fill_contact_slide` (was `fill_contact_card`) redraws the shell's slide whole for the ARS, MRPC, CashPlease, Transaction Intelligence and ILS decks, and the ICS, MRPC and ARS builders' own Contact slides call `draw_contact_slide` instead of drawing a card and a title, logo and number beside it. The contact is still `rpe_env.csm_contact`'s, never typed into the code. `contact_card_lines` and the card constants are gone.
+- **Text.** Every line is 16 pt or larger and white, except the title line, which is bold orange at 18 pt (large text): about 3.6:1 against the gradient in the first column and 3.1:1 in the second, against 4.5:1 on the flat navy.
+- **Divider detection.** The slide is full bleed with a 44 pt title, so `cover_divider.is_divider` took it for a section divider and the ARS builder redrew it as one (title and name only; the golden deck test caught it). It is excluded by title, like Questions & Discussion.
+- **Not rebuilt.** Decks already in Outputs keep the old card until their next build. `tests/test_contact_slide.py` and `tests/test_csm_contact.py` pin the stops, full bleed, one and two contacts, the 16 pt floor, the grouping, the icons and that every builder goes through the helper.
+
+### 2026-11-02 — five greys instead of eight
+
+Summary: the deck palette now has five greys, one for each job, where it had eight; no deck is rebuilt, so the change shows in each client's next deck as a slightly paler card, line or tertiary bar.
+
+Aaron, 2026-11-02: "I do want you to align the grays across the deck so we don't have a bunch of different grays out there. Don't rebuild anything. We can wait for new decks."
+
+- **`brand.py`.** `TICK`, `LABEL`, `ROWALT`, `GRID`, `MUTED` stay. `TILE` (#ECF0F4), `HAIRLINE` (#D9DEE5) and `LIGHT` (#C9D6E3) are now aliases of `ROWALT`, `GRID` and `LABEL`, so every import keeps working. The largest shift is `HAIRLINE` to `GRID` (a slightly fainter left spine on the ARS and MRPC charts); the others move by two points or fewer. The comment that said there were five greys had been wrong since `LIGHT` and `HAIRLINE` were added. `CANCEL_RAMP`'s pale slice follows `LABEL`.
+- **Builders.** Hard-coded near-greys now read the role: `build_ars_gen` (text grey, band), `build_ics_gen` (text grey, panel, and the table stripe `#F2F5F8` -> `ROWALT`), `build_mrpc_gen` (the callout subline), and `status_slides` (a second text grey, `#5A6778`, one step from `TICK`). The Pre-GL/ILS deckkit and the ported v5 code keep their own values.
+- **Guard.** `tests/test_brand.py` pins the five, keeps them visibly apart, and fails on a builder that declares a retired grey (a line that must read one back from a template says `retired-grey-ok`).
+- **Checked.** `LIGHT` is never drawn beside `LABEL` as separate series: ARS charts alias their own `LIGHT` to `STEEL_SOFT`, and ICS, MRPC and CashPlease charts do not draw `LABEL` as a series. Unit suite and the template gate pass (0 FAIL, 0 layout drift); layout baseline not re-snapshotted, no deck rebuilt.
+- **Not changed.** The template shells still carry the old stripe `#F2F5F8` (105 uses in the ARS shell, 76 in ICS) and `#ECF0F4` panels; MRPC reads `#ECF0F4` back from its shell on purpose. Regenerating the shells is the next step. CSM Sheila and `dashboard.py` have their own greys and are a separate change.
+
+### 2026-11-02 — the RPE Client Performance page is in the Hub look and lists one CSM's clients
+
+Summary: the RPE Client Performance page now looks like CSM Sheila's Hub, and it lists only one CSM's clients (Aaron Burgard's by default) instead of every CSM's.
+
+Aaron, 2026-11-02: "rebuild the RPE Client Performance artifact in hub fashion. Also limit that artifact to my own clients, since we now have Sheila."
+
+- **Scope.** `refresh_performance_dashboard.py` takes `--csm "Name"` (else `RPE_DASH_CSM`, else Aaron Burgard)
+  and decides whose clients these are BEFORE it reads anything for a client, from the Client CSM List. Another CSM's
+  client is no longer extracted and is not in the embedded dataset: the old page carried all five CSMs' clients and
+  filtered them in the browser, so every client's figures were in the page for anyone who could open it. There is no
+  "all CSMs" option, a client no list names is left out rather than guessed, and a CSM with no clients stops the build
+  rather than publishing an empty page. The scope is in the content hash. Rankings now say "among your N clients".
+- **The CashPlease company row** still benchmarks against every current Velocity CashPlease client, but it now
+  carries rates and averages only. Its loan, principal and DDA totals were sums over other CSMs' clients and are gone.
+- **The page.** Rebuilt on the Hub's frame: a glass sidebar that folds to a rail and a bottom bar on phones, KPI tiles,
+  dense rows, light and dark themes, the slide-stack corner mark, 44 px targets. Sections are Overview, ARS, ICS, MRPC,
+  CashPlease, Build readiness and Needs a CSM, with the workflow page linked as "How decks are made". The CSM and
+  product filter chips are gone (one CSM; the sidebar is the product filter); a find box filters the view by name or
+  number. Each program view has KPI tiles, a ranked chart with a table view, a trend chart of all the clients together
+  with a hover readout and a table view, and the sortable table it always had. Hub colors only, no orange; the four
+  program colors were validated with the dataviz script (light on white, dark on #141D38).
+- **Unchanged:** every figure and its source, the newest-at-or-before-the-cycle rule, complete months only, Mark sent
+  and Undo send, the Build readiness period picker, `--mark-published`, `--merge-sent` and `--export`. The sent
+  records the page writes keep the same store keys, so the daily task's `read_db` / `--merge-sent` step is unaffected.
+- **Tests:** `tests/test_refresh_performance_dashboard.py` pins the scope (an out-of-scope client is not read and is
+  nowhere in the dataset or the page), the company row's shape and the new page's frame; the pins on the removed
+  filter chips went with them.
+
 ### 2026-11-02 — Sheila no longer reads or shows whether a deck was sent
 
 Summary: CSM Sheila (the page and Sheila in Claude) no longer shows a Sent chip, groups clients as "Sent", or reads deliveries.json; whether a deck went to the client is tracked only in the delivery dashboard, and a deck no longer in Outputs now builds without the "already made" question.

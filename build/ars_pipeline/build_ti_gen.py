@@ -161,8 +161,8 @@ def adapt_shell(prs, pack, ln, chapters, art_dir=None, shell=None):
     CD.redraw_closing_in_place(found["questions"])     # the brand template's closing style, keeping that line
 
     import rpe_env
-    from shapes import fill_contact_card
-    fill_contact_card(found["contact"], rpe_env.csm_contact(cid))
+    from shapes import fill_contact_slide
+    fill_contact_slide(found["contact"], rpe_env.csm_contact(cid))
     return found
 
 

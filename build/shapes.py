@@ -281,25 +281,20 @@ def renumber(prs):
                     PP_ALIGN.LEFT, BODY, MSO_ANCHOR.MIDDLE)
 
 
-# The Contact Us card (STYLE.md §5): a navy rounded card, 5.6 x 3.55in from 1.95in, centred,
-# holding name / role / phone / email. Every program drew it with these same numbers in its
-# own copy; the line slots live here so the four cards cannot drift.
-CONTACT_CARD_TOP, CONTACT_CARD_W, CONTACT_CARD_H = 1.95, 5.6, 3.55
-CONTACT_LINE_SLOTS = (("name", 2.45, 0.7), ("role", 3.25, 1.0),
-                      ("phone", 4.5, 0.5), ("email", 5.02, 0.5))
-# Three lines (no phone on file) sit 0.8in apart and centred on the card, measured on a
-# PowerPoint render: the email in the phone's old slot left a hole under the role line.
-CONTACT_LINE_SLOTS_NO_PHONE = (("name", 2.6, 0.7), ("role", 3.4, 1.0), ("email", 4.2, 0.5))
-
-
-def contact_card_lines(contact):
-    """-> [(field, text, top_in, height_in)] for `rpe_env.csm_contact(...)`'s card.
-
-    A CSM with no phone on file gets no phone line — not a blank box, not a dash — and the
-    other three lines are re-spaced so the card has no hole where a line was.
-    """
-    slots = CONTACT_LINE_SLOTS if contact.get("phone") else CONTACT_LINE_SLOTS_NO_PHONE
-    return [(field, contact[field], top, h) for field, top, h in slots]
+# The Contact Us slide (STYLE.md §5): the Questions & Discussion slide's own full-bleed gradient with the white
+# CSI logo, "Contact Us" under it and the contact details centred beneath, no card (Aaron, 2026-11-02: he chose
+# this over a compact card and a wide card, after "too much space between the lines on the contact card").
+# One contact in the middle, or two columns when the deck also carries a program contact (ICS). The geometry
+# lives here so the shell's slide and the slides the ICS, MRPC and ARS builders draw cannot drift apart.
+CONTACT_TITLE = "Contact Us"
+CONTACT_FILL = "closing_fill.xml"        # the closing slide's gradient: build/assets/csi_brand/, nowhere else
+CONTACT_LOGO_W, CONTACT_LOGO_TOP = 3.6, 0.75
+CONTACT_TITLE_TOP, CONTACT_TITLE_PT = 2.55, 44
+CONTACT_COL_W, CONTACT_COL_GAP = 5.2, 0.6
+CONTACT_TOPS = {"name": 3.75, "role": 4.35, "phone": 5.0, "email": 5.42}     # the phone and email sit together
+CONTACT_PT = {"name": 30, "role": 18, "phone": 20, "email": 18}              # the role is bold orange: large text
+CONTACT_ICON_W, CONTACT_ICON_GAP = 0.22, 0.14
+CONTACT_TAG_FILL, CONTACT_TAG_ICON = "Contact slide fill", "Contact icon"
 
 
 def contact_card_note(contact):
@@ -310,57 +305,102 @@ def contact_card_note(contact):
 def find_contact_slide(prs):
     """The deck's Contact Us slide, by TITLE, or None."""
     for s in prs.slides:
-        if any(sh.has_text_frame and sh.text_frame.text.strip() == "Contact Us" for sh in s.shapes):
+        if any(sh.has_text_frame and sh.text_frame.text.strip() == CONTACT_TITLE for sh in s.shapes):
             return s
     return None
 
 
-def fill_contact_card(slide, contact):
-    """Rewrite a SHELL's Contact Us card with `contact` (rpe_env.csm_contact).
+def _contact_icon(slide, kind, cx, cy):
+    """A small white line icon centred on (cx, cy) inches, drawn from plain shapes so it never needs a
+    picture or a font: a phone (rounded outline with a home bar) or an envelope (outline and its flap)."""
+    from pptx.enum.shapes import MSO_CONNECTOR
 
-    The ARS, MRPC and CashPlease shells each carry a Contact Us slide whose card holds static
-    text for one CSM, and that text shipped on every deck built from them. The four lines are
-    found by POSITION inside the one navy card — the text boxes lying within it, top to bottom:
-    name, role, phone, email — never by their text, which changes whenever a shell is
-    re-baked. Each line keeps its own run formatting. With no phone on file the phone box is
-    removed and the other lines re-spaced (`contact_card_lines`). Anything other than one card
-    holding exactly four lines stops the build: the shell changed and the card cannot be
-    filled safely. Sets the slide's source note too.
+    def stroke(sh):
+        sh.fill.background()
+        sh.line.color.rgb = WHITE
+        sh.line.width = Pt(1.5)
+        sh.shadow.inherit = False
+        sh.name = CONTACT_TAG_ICON
+        return sh
+
+    def line(x1, y1, x2, y2):
+        c = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
+        c.line.color.rgb = WHITE
+        c.line.width = Pt(1.5)
+        c.name = CONTACT_TAG_ICON
+        return c
+    if kind == "phone":
+        w, h = 0.15, 0.26
+        body = stroke(slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(cx - w / 2), Inches(cy - h / 2),
+                                             Inches(w), Inches(h)))
+        body.adjustments[0] = 0.22
+        line(cx - 0.03, cy + h / 2 - 0.05, cx + 0.03, cy + h / 2 - 0.05)
+    else:
+        w, h = 0.27, 0.19
+        stroke(slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(cx - w / 2), Inches(cy - h / 2), Inches(w), Inches(h)))
+        line(cx - w / 2, cy - h / 2, cx, cy + 0.01)
+        line(cx, cy + 0.01, cx + w / 2, cy - h / 2)
+
+
+def _clear_slide(slide):
+    """Remove every shape and placeholder: the slide is redrawn whole."""
+    for sh in list(slide.shapes):
+        sh._element.getparent().remove(sh._element)
+
+
+def draw_contact_slide(slide, contacts):
+    """Redraw `slide` as the Contact Us slide for `contacts`; -> the slide.
+
+    `contacts` are `rpe_env.csm_contact(...)` dicts (name, role, phone, email): the managing CSM first, then the
+    program contact when the deck carries one (ICS). One or two fit. Whatever the slide held is removed first: the
+    title, the gradient, the logo and the lines are all drawn here, so a shell's slide and a builder's own slide
+    come out the same. Like the closing slide it carries no slide number and no data logo. A contact with no phone
+    on file gets no phone row — not a blank, not a dash — and the email moves up into its place. Text is white,
+    the role bold orange (large text: about 3.1:1 against the gradient at the second column, 3.6:1 or better at
+    the first). Nothing is hardcoded: the lines are whatever the dicts hold.
     """
-    from pptx.util import Emu
-    cards = [sh for sh in slide.shapes
-             if sh.shape_type == 1 and sh.width is not None and Emu(sh.width).inches > 4
-             and Emu(sh.height).inches > 2.5]
-    if len(cards) != 1:
-        raise SystemExit(f"Contact Us slide: expected one contact card, found {len(cards)}; the "
-                         f"template shell changed, so the card cannot be filled safely.")
-    card = cards[0]
+    import brand_art
+    from textfit import fits_one_line, text_width_in
+    contacts = list(contacts)
+    if not 1 <= len(contacts) <= 2:
+        raise SystemExit(f"Contact Us slide: one or two contacts fit, got {len(contacts)}.")
+    _clear_slide(slide)
+    brand_art.gradient_rect(slide, 0, 0, 13.333, 7.5, CONTACT_FILL, name=CONTACT_TAG_FILL)
+    # the title FIRST among the text shapes: it is the slide's title for every lookup
+    textbox(slide, 0.5, CONTACT_TITLE_TOP, 12.33, 0.9, CONTACT_TITLE, CONTACT_TITLE_PT, WHITE, True, font=HEAD,
+            name="Contact title")
+    brand_art.add_logo(slide, "white", (13.333 - CONTACT_LOGO_W) / 2, CONTACT_LOGO_TOP, CONTACT_LOGO_W)
+    n, colw = len(contacts), CONTACT_COL_W
+    x0 = (13.333 - (n * colw + (n - 1) * CONTACT_COL_GAP)) / 2
+    for i, c in enumerate(contacts):
+        x = x0 + i * (colw + CONTACT_COL_GAP)
+        name_pt = CONTACT_PT["name"] if fits_one_line(c["name"], colw - 0.2, CONTACT_PT["name"], HEAD, True) else 22
+        textbox(slide, x, CONTACT_TOPS["name"], colw, 0.6, c["name"], name_pt, WHITE, True, font=HEAD, name="Contact name")
+        textbox(slide, x, CONTACT_TOPS["role"], colw, 0.4, c["role"], CONTACT_PT["role"], ORANGE, True, font=BODY,
+                name="Contact role")
+        y = CONTACT_TOPS["phone"]
+        for field, kind in (("phone", "phone"), ("email", "mail")):
+            if not c.get(field):
+                continue
+            pt = CONTACT_PT[field]
+            tw = text_width_in(c[field], pt, BODY)
+            start = x + colw / 2 - (CONTACT_ICON_W + CONTACT_ICON_GAP + tw) / 2
+            _contact_icon(slide, kind, start + CONTACT_ICON_W / 2, y + 0.2)
+            box = textbox(slide, start + CONTACT_ICON_W + CONTACT_ICON_GAP - 0.1, y, tw + 0.5, 0.4, c[field], pt, WHITE,
+                          False, align=PP_ALIGN.LEFT, font=BODY, name="Contact " + field)
+            box.text_frame.word_wrap = False      # an address is one line, whatever the renderer's metrics say
+            y += CONTACT_TOPS["email"] - CONTACT_TOPS["phone"]
+    return slide
 
-    def inside(sh):
-        return (sh.shape_type == 17 and sh.has_text_frame
-                and sh.left >= card.left and sh.top >= card.top
-                and sh.left + sh.width <= card.left + card.width
-                and sh.top < card.top + card.height)
-    lines = sorted((sh for sh in slide.shapes if inside(sh)), key=lambda sh: sh.top)
-    if len(lines) != 4:
-        raise SystemExit(f"Contact Us slide: expected 4 text lines in the card (name, role, phone, "
-                         f"email), found {len(lines)}; the template shell changed.")
-    placed = {f: (txt, top) for f, txt, top, _ in contact_card_lines(contact)}
-    for field, sh in zip(("name", "role", "phone", "email"), lines):
-        if field not in placed:
-            sh._element.getparent().remove(sh._element)
-            continue
-        txt, top = placed[field]
-        tf = sh.text_frame
-        p0 = tf.paragraphs[0]
-        for extra in tf.paragraphs[1:]:
-            extra._p.getparent().remove(extra._p)
-        if not p0.runs:
-            p0.add_run()
-        p0.runs[0].text = txt
-        for r in p0.runs[1:]:
-            r._r.getparent().remove(r._r)
-        sh.top = Inches(top)
+
+def fill_contact_slide(slide, contact):
+    """Redraw a SHELL's Contact Us slide with `contact` (rpe_env.csm_contact) and set its source note.
+
+    The ARS, MRPC and CashPlease shells each carry a Contact Us slide whose card holds static text for one CSM,
+    and that text shipped on every deck built from them; the slide is now drawn whole by `draw_contact_slide`,
+    nothing of the shell's card kept.
+    """
+    draw_contact_slide(slide, [contact])
     slide.notes_slide.notes_text_frame.text = contact_card_note(contact)
     return slide
 
