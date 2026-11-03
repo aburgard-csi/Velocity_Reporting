@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — GL data and NSF performance tracking spreadsheets are one JSON table, with the originals archived
+
+Summary: The GL data and NSF / OD performance tracking spreadsheets that clients email us are now read into one table, `Inputs/GL Data/gl_data.json`, keyed by client, and the originals are archived; nothing reads the table yet, it is there to validate our own figures against.
+
+Aaron, 2026-11-03: "Inputs\GL Data is added for clients that email us GL data or NSF performance tracking spreadsheets. These should be added to a JSON table in this folder to cover all clients. The original files can be archived." Then, with four spreadsheets in the folder: "Organize those as you see fit. We'll use them to validate later."
+
+- **Script.** `scripts/gl_data_ingest.py` (`--dry-run`, `--archive`) reads a monthly GL sheet (dates down the side, a column per measure) or the ILS NSF / OD Performance Tracking workbook (a line per item across statement-cycle dates, one sheet each for all, personal and business accounts). The tracking workbook keeps every line with whether it was typed in or calculated, and gathers the key lines (gross NSF income, waivers, refunds, net NSF income, continuous OD fees, charge-offs, recoveries) under one name each. Dates are kept as the workbook has them: in the tracking workbook they are statement-cycle dates, so a column's calendar month is not necessarily the activity month.
+- **Which client.** A client number at the start of the file name, else a name in `aliases.json` beside the table, else the file stays put and is reported. A blank template is reported as one and left. A file is archived (`_Archive/<id> <client>/`, never deleted) only after the table is written and read back.
+- **Today's four files.** `FSB Michigan GL.xlsx` is 1204 First State Bank-MI (55 months, March 2022 to September 2026: interchange, NSF, total NII, debit card spend, IC rate) and the LGE CCU workbook is 1179 Lge Community Credit Union (75 lines, 10,516 cells, through January 2025); both archived, and every cell of both was compared with the spreadsheet (0 differ). `NSF Performance Tracking Workbook.xlsx` has a client's figures through September 2026 but no client named anywhere in it, so it is kept under `unassigned` until it has one; `NSF-OD Performance Tracking_2025.xlsx` is the blank template. Both stay in the folder.
+- New `GL Data` input kind in `rpe_env` (not scanned by the watch). `tests/test_gl_data_ingest.py`.
+
 ### 2026-11-03 — Live Review: presenting The review goes one product at a time
 
 Summary: While presenting The review, the right arrow on a product's last screen now holds the next product's title card until you press it again, and the arrows no longer carry on out of the review into All programs or a product's own tab.

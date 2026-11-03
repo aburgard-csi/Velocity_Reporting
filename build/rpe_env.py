@@ -355,6 +355,9 @@ INPUT_KIND_DIRS = {
     # The REMS (Reg E Management Solution) responses report: the result of sql/rems_responses_report.sql, saved by a person
     # as rems_responses <YYYY-MM-DD>.csv (Aaron, 2026-11-03). Read only by Live Review (build/review_page/peer_pool.rems_rows).
     "REMS": "REMS",
+    # Clients' GL data and NSF/OD performance tracking spreadsheets, emailed to us (Aaron, 2026-11-03). scripts/gl_data_ingest.py
+    # folds them into gl_data.json in this folder, one table for every client, and archives the originals under _Archive/.
+    "GL Data": "GL Data",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -363,7 +366,7 @@ INPUT_KIND_DIRS = {
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
                      "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits",
-                     "Deferred Billing", "ILS PGL", "ILS Kickoff", "REMS")
+                     "Deferred Billing", "ILS PGL", "ILS Kickoff", "REMS", "GL Data")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to
