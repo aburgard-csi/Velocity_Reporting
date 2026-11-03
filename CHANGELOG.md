@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Peer comparisons: one shared arithmetic, and ARS plus ICS revenue per account added
+
+Summary: Live Review's "How you compare" now also compares ARS clients (mailing response rate, responder spend after a mailing, swipes and spend per eligible account, Reg E opt-in, take rate, retention, revenue per 1,000 accounts) and ICS clients on revenue per account per month by source, and the arithmetic behind every peer comparison now lives in one module so the Executive Review decks can show the same figures.
+
+Aaron, 2026-11-03: "I'd like to see our LR peer comparisons in the Sheila decks. I'd also like to enhance the peer comparisons - revenue per account for ICS, response rate for ARS, improved swipe/spend for ARS, etc." This is the shared half; the deck slides follow in their own change.
+
+- **`build/peer_compare.py`** holds the quantiles, rank, +/-2% relation, like-period alignment, the one-line sentence and `evaluate()`; `review_page/peers.py` now calls it and keeps its old names. A deck calls `peer_compare.for_deck`, which reads the SAME collectors and metric lists as Live Review and strips every peer's client number (a printed deck is forwarded).
+- **ARS** (`peer_pool.collect_ars`, `build/peer_tables.py`): read from the data pack every deck build leaves in `Build Artifacts/launcher/<period>/<id>/` (38 peers for Marine FCU 1539, 2026.10): response rate (the deck's Mailing Response Summary arithmetic, pooled over the 12 months to the extract month, and by mailing), responder spend 3 months before against 6 after (`before_after.py`), repeat responders moving up a swipe tier, swipes and spend per eligible account, Reg E opt-in (all, and accounts opened in the last year), new-account take rate, cardholders swiping, one-year retention, workbook revenue a month per 1,000 eligible accounts. A peer whose pack reads another extract month is left out of the snapshot figures, and a pack built on shorter before/after windows is left out of the spend gain. No ODD extract is opened for a peer.
+- **ICS revenue per account per month** (total, interchange, NSF/OD and other fees, spread): the ICS deck's own arithmetic (revenue over account-months, every cohort) for each client's newest ICS workbook; 25 peers for a client with a current workbook (26 workbooks hold a usable row). The client's figure appears only when its workbook is for the period, the deck's own rule; a peer's workbook may be up to three months older. A source a workbook never filled is left out, not compared as $0.00. Reading the workbooks takes minutes over the share, so each is cached by file size and time (`Build Artifacts/peer_tables/ics_revenue.json`); `scripts/peer_tables.py` warms it by hand. Nothing is added to the 08:00 watch.
+- A metric the client has no current figure for now says so in "Left out" instead of blaming the peers.
+- Tests: `tests/test_peer_compare.py`, `tests/test_peer_tables.py`; `test_live_review.py` expects the ARS "How you compare" screen.
+
 ### 2026-11-03 — Live Review has three more chart types: donut, waterfall and quadrant scatter
 
 Summary: Live Review now draws part-of-whole donuts (loans by status, MRPC cardholders by tier and engagement), a revenue-to-profit waterfall on the ARS financial screen, and quadrant scatter charts that put each branch on two measures (take rate against Reg E opt-in, take rate against value per account), alongside the bars, lines, tables and peer strips it already had.
