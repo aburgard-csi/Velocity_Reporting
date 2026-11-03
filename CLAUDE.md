@@ -898,9 +898,13 @@ This is the readme index — update it whenever files are added, removed, or mov
 - `lift_values.py` — a client's ARS Lift Matrix valued from its own ODD (Aaron, 2026-09-25): every ARS-eligible card-holding account, consumer and business — `POPULATION` at the top selects `both` (the default), `personal` or `business`, a blank `Business?` counting only under `both`, and the scan records the choice (Aaron, 2026-10-05) — in seven swipe segments, and NH valued independently on the eligible accounts with no card; the distribution is of every eligible account, NH included; 12 complete months, swipes rounded down into the band, spend and NSF/OD items capped at a percentile of each segment (`WINSOR_PCT` = 0.99, one of `WINSOR_OPTIONS`); IC rate from the workbook (else 60 BP), NSF/OD fee = the most common per-item `Fees1` value in the ODD (else the workbook's NSF Fee), collection 100%. Renders the file emailed to Bradford as `<id>-<yyyy.mm>-ARS-<Client> ARS Lift Matrix.xlsx`. CSM Sheila's Lift Matrix tab runs it; import-safe.
 - `render_lift.py`, `ticket_calc.py`, `ticket_chart.py` — Lift Matrix chart (MM); average-ticket calc + chart.
 - `product_mix_slide.py` — builds the Product Mix & ARS Eligibility slide from the ODD.
-- `rege_branch_slide.py` — builds the Reg E Opt-In by Branch table slide (the table
-  companion to the two Reg E branch charts): opted in / opted out / no election per
-  branch, sized to the space on the slide. Tiles read the SAME population as the table.
+- `branch_appendix_slides.py` — the branch-detail TABLES, in the ARS Appendix (Aaron, 2026-11-02: "We don't
+  need the branch detail in the main deck, just the charts"): Take Rate by Branch (cards by month opened),
+  Reg E Opt-In by Branch (all personal debit-card holders) and Reg E New Accounts by Branch (opted in / out /
+  no election), each "Appendix: ... (k of n)" with every branch the metric reports over as many pages as it
+  takes, 12 pt (`restyle_fonts.BRANCH_DETAIL_TABLE`), an "All other branches" row for the branches under the
+  threshold and a Total that is the program figure on the chart slides. The template's "12-Month Take Rate by
+  Branch" slide is dropped in phase 2 with the other orphan and rebuilt here. It replaced `rege_branch_slide.py`.
 - `excluded_accounts_slide.py` — builds the Excluded Accounts slide that follows it: the
   eligibility waterfall (status → product code → debit card, each account counted once) and
   the per-client excluded product codes, derived as those with no eligible account. $0
