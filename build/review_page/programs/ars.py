@@ -181,12 +181,34 @@ def _financial(ctx, p, g, ratio, RG):
         notes.append(f"{', '.join(g['left_out'])} left out of the run rate as incomplete.")
     if pn.get("dropped"):
         notes.append(f"Cost lines at zero for the whole program are not shown: {', '.join(pn['dropped'])}.")
+    bridges = []
+    for i, c in enumerate(pn["columns"]):                      # revenue, less each cost line, is the profit: one bridge per column of the P&L
+        rev = profit = tot = None
+        lines = []
+        for label, vals, kind in pn["rows"]:
+            v = vals[i] if i < len(vals) else None
+            if v is None:
+                continue
+            if kind == "revenue":
+                rev = {"label": label, "value": v, "kind": "total"}
+            elif kind == "line":
+                lines.append({"label": label, "value": t.derive(-v, "a P&L cost line drawn as a step down", v), "kind": "delta"})
+            elif kind == "total":
+                tot = {"label": label, "value": t.derive(-v, "the P&L total cost drawn as a step down", v), "kind": "delta"}
+            elif kind == "profit":
+                profit = {"label": label, "value": v, "kind": "total"}
+        if rev and profit:
+            bridges.append({"key": f"c{i}", "label": c, "steps": [rev] + (lines or ([tot] if tot else [])) + [profit]})
+    bridge = B.waterfall("pnl-bridge", "From revenue to profit", bridges, "usdk",
+                         sub="Incremental revenue less each cost line is the program's incremental profit.") if bridges else None
+    first = B.variants("pnl-view", "Chart", [{"key": "month", "label": "By month", "blocks": [chart]},
+                                              {"key": "bridge", "label": "Profit bridge", "blocks": [bridge]}]) if bridge else chart
     blocks = [B.kpis([
         B.kpi("Profitability, program to date", ratio, "ratio", hot=True,
               sub="Guaranteed minimum is 2 : 1"),
         B.kpi("Incremental revenue", g["revenue"], "usd", sub="Program to date"),
         B.kpi("Total cost", g["cost"], "usd", sub="Program to date"),
-    ]), chart, tbl]
+    ]), first, tbl]
     if g.get("met") and g.get("surplus") is not None:
         t.derive(g["minimum"], "revenue_guarantee_slide.guarantee: 2 x program cost", g["cost"])
         t.derive(g["surplus"], "revenue_guarantee_slide.guarantee: revenue less the guaranteed minimum", g["revenue"])

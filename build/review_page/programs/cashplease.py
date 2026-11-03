@@ -79,7 +79,8 @@ def build(ctx, p):
         notes.append(f"Loans per 1,000 DDAs is not shown: {m['dda_missing_reason']}.")
     headline = (f"{name} has made {B.f_int(m.get('total_loans'))} CashPlease loans to date, "
                 f"{B.f_usd(m.get('total_principal'))} in principal; {B.f_int(m.get('active_loans'))} are funded and outstanding.")
-    s1 = B.screen("summary", "Loan summary", "CashPlease · Weekly", headline, [B.kpis(items), stbl],
+    donut = B.donut("cp-status-donut", "Loans by status", [r["name"] for r in status_rows], [r["loans"] for r in status_rows], "int", center="Loans") if len(status_rows) > 1 else None
+    s1 = B.screen("summary", "Loan summary", "CashPlease · Weekly", headline, [B.kpis(items)] + ([donut] if donut else []) + [stbl],
                   PK.sources_for(p["notes"], ["CashPlease"], fb), notes)
 
     mon = list(C.get("monthly") or [])                       # newest first

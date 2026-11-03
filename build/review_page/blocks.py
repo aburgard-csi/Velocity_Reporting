@@ -8,6 +8,9 @@ browser knows these block types and nothing about any program:
     kpis      tiles: label, value, fmt, sub
     bars      vertical or horizontal bars, one or more series, optional drill into a table
     line      lines over months
+    donut     a whole split into parts (loans by status, cardholders by engagement)
+    waterfall a running total built up or down in steps (revenue less each cost line = profit)
+    scatter   points on two measures, sized by a third, with the medians drawn (take rate against Reg E opt-in by branch)
     matrix    a heat grid (rows x columns)
     table     sortable, searchable; `kind` rows for a P&L
     variants  a segmented control that swaps the blocks beneath it (a cohort, a metric)
@@ -89,6 +92,23 @@ def table(id, title, cols, rows, total=None, search=True, sort=None, sub=None, k
     """rows: list of dicts keyed by col.key. `total`: a dict of the same keys (an All row), drawn last."""
     return {"t": "table", "id": id, "title": title, "sub": sub, "columns": cols, "rows": rows,
             "total": total, "search": search, "sort": sort, "key": key, "kind": kind}
+
+
+def donut(id, title, cats, values, fmt, sub=None, center="Total", empty=None):
+    """A whole split into parts: `cats` and `values` in step; only positive values are drawn."""
+    return {"t": "donut", "id": id, "title": title, "sub": sub, "cats": cats, "values": values, "fmt": fmt, "center": center, "empty": empty}
+
+
+def waterfall(id, title, metrics, fmt, sub=None, empty=None):
+    """metrics: [{"key", "label", "steps": [{"label", "value", "kind"}]}], one waterfall per metric (the first is shown first).
+    A "total" step stands on the baseline (revenue, profit); a "delta" step moves the running total (a cost is negative)."""
+    return {"t": "waterfall", "id": id, "title": title, "sub": sub, "metrics": metrics, "fmt": fmt, "empty": empty}
+
+
+def scatter(id, title, points, xlabel, ylabel, xfmt, yfmt, sub=None, slabel="accounts", sfmt="int", quad=True, empty=None):
+    """points: [{"name", "x", "y", "size"}]. The medians are drawn; with `quad` the corner below both is shaded (the branches to coach)."""
+    return {"t": "scatter", "id": id, "title": title, "sub": sub, "points": points, "xlabel": xlabel, "ylabel": ylabel,
+            "xfmt": xfmt, "yfmt": yfmt, "slabel": slabel, "sfmt": sfmt, "quad": quad, "empty": empty}
 
 
 def variants(id, label, options):

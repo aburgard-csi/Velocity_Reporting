@@ -250,5 +250,9 @@ def _branch_gap(ctx, p):
     b_nm, w_nm = _nm(p, pick(best)), _nm(p, pick(worst))
     headline = (f"Account value runs {B.f_usd(spread)} a year from {w_nm} to {b_nm}; every branch is in the table."
                 if spread else "Value per account by branch.")
-    return B.screen("branch-gap", "Branch value gap", "What it is worth · By branch", headline, [B.drill(chart, tbl)],
+    bub = B.scatter("gap-bubbles", "Branches: debit take against value per account", [{"name": r["name"], "x": r["take"], "y": r["value"], "size": r["n"]} for r in rows],
+                    "Debit take", "Value per account a year", "pct1", "usd", sub="Each branch sized by its accounts; the shaded corner is below the median on both.", slabel="accounts")
+    main = B.variants("gap-view", "View", [{"key": "bars", "label": "By branch", "blocks": [B.drill(chart, tbl)]},
+                                           {"key": "bubbles", "label": "Take and value", "blocks": [bub]}]) if len(rows) >= 4 else B.drill(chart, tbl)
+    return B.screen("branch-gap", "Branch value gap", "What it is worth · By branch", headline, [main],
                     _src(p, ["Closing the three widest branch gaps", "Branch gaps", "16 out-earns"], "value per account by branch"), [])

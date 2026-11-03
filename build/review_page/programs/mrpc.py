@@ -82,7 +82,12 @@ def build(ctx, p):
                    [{"name": "Cardholders", "values": [x[1] for x in buckets], "color": "steel"}], "int")
     headline = (f"{B.f_int(F.get('active_cardholders'))} of the {B.f_int(F.get('cardholders'))} MyRewards Premium cardholders "
                 f"ever enrolled are active, {B.f_pct1(F.get('still_active_pct'))}.")
-    s1 = B.screen("status", "Program status", "MRPC · From the weekly", headline, [B.kpis(items), tier_ch, bk_ch],
+    def _view(id, bars, cats, vals, center):          # a mix can be read as bars or as shares of the whole
+        d = B.donut(id + "-donut", bars["title"], cats, vals, "int", center=center)
+        return B.variants(id + "-view", "View", [{"key": "bars", "label": "Bars", "blocks": [bars]}, {"key": "share", "label": "Share", "blocks": [d]}])
+    s1 = B.screen("status", "Program status", "MRPC · From the weekly", headline,
+                  [B.kpis(items), _view("mrpc-tiers", tier_ch, [x[0] for x in tiers], [x[1] for x in tiers], "Cardholders"),
+                   _view("mrpc-buckets", bk_ch, [x[0] for x in buckets], [x[1] for x in buckets], "Cardholders")],
                   PK.sources_for(p["notes"], ["Program to Date", "Current Program Status"], fb), [])
 
     mon = W.get("monthly") or []

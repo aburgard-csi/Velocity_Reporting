@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review has three more chart types: donut, waterfall and quadrant scatter
+
+Summary: Live Review now draws part-of-whole donuts (loans by status, MRPC cardholders by tier and engagement), a revenue-to-profit waterfall on the ARS financial screen, and quadrant scatter charts that put each branch on two measures (take rate against Reg E opt-in, take rate against value per account), alongside the bars, lines, tables and peer strips it already had.
+
+Aaron, 2026-11-03: "I'd like to see more chart types in LR too."
+
+- **Donut.** `blocks.donut`: a whole split into parts, each with its value and its share; the total in the middle. CashPlease "Loan summary" has loans by status; MRPC "Program status" has tier and engagement as Bars or Share (a View switch, bars first).
+- **Waterfall.** `blocks.waterfall`: ARS "Financial performance" has a Profit bridge beside the monthly chart (By month stays first): incremental revenue, less each cost line, is the profit, for the last month, the year to date and the program to date. The cost steps are derived from the P&L through the tracer, so the audit still ties every figure to the workbook.
+- **Quadrant scatter.** `blocks.scatter`: each branch is a bubble sized by its accounts, the medians cross, and the corner below both is shaded as the branches to coach. The branch scorecard has "Take and Reg E" and "Branch value gap" has "Take and value" beside their bars (four branches or more). Axes run to the data, never negative for a measure that cannot be, and percentages stop at 100.
+- Live Review only; no deck changes. `tests/test_live_review_charts.py`.
+
 ### 2026-11-03 — GL data and NSF performance tracking spreadsheets are one JSON table, with the originals archived
 
 Summary: The GL data and NSF / OD performance tracking spreadsheets that clients email us are now read into one table, `Inputs/GL Data/gl_data.json`, keyed by client, and the originals are archived; nothing reads the table yet, it is there to validate our own figures against.
