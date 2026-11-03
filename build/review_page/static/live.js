@@ -338,10 +338,13 @@
 
   function barsSVG(b, W) {
     var mt = metricOf(b), ser = mt.series, f = mt.fmt, cats = b.cats, n = cats.length, capped = 0;
-    if (S.present && b.horizontal && n > 6) {   // a slide has room for six bars: the largest six, the rest one keypress away
-      var idx = cats.map(function (c, i) { return i; }).sort(function (x, y) { return (ser[0].values[y] || 0) - (ser[0].values[x] || 0); }).slice(0, 6);
-      capped = n; cats = idx.map(function (i) { return cats[i]; });
-      ser = ser.map(function (sr) { return {name: sr.name, color: sr.color, values: idx.map(function (i) { return sr.values[i]; })}; }); n = 6;
+    var fs = S.present ? 16 : 14, rowH1 = S.present ? 32 : 28;   // the branch names are read from across a room
+    if (S.present && b.horizontal && n > 6) {   // as many bars as the window holds under the title (never fewer than six): the largest, the rest one keypress away
+      var room = Math.max(6, Math.floor((window.innerHeight - 540) / rowH1));
+      var idx = cats.map(function (c, i) { return i; }).sort(function (x, y) { return (ser[0].values[y] || 0) - (ser[0].values[x] || 0); });   // largest first
+      if (n > room) { idx = idx.slice(0, room); capped = n; }
+      cats = idx.map(function (i) { return cats[i]; });
+      ser = ser.map(function (sr) { return {name: sr.name, color: sr.color, values: idx.map(function (i) { return sr.values[i]; })}; }); n = idx.length;
     }
     if (!n) return '<div class="empty">' + esc(b.empty || "Nothing to chart.") + "</div>";
     var stacked = b.stacked;
@@ -351,8 +354,8 @@
     var clickable = !!b.drill;
     var h = [];
     if (b.horizontal) {
-      var rowH = ser.length > 1 ? 14 * ser.length + 12 : 26, pad = {l: 0, r: 56, t: 6, b: 24};
-      var lw = Math.min(W * 0.4, Math.max.apply(null, cats.map(function (c) { return textW(c, 12.5); })) + 14);
+      var rowH = ser.length > 1 ? 14 * ser.length + 12 : rowH1, pad = {l: 0, r: 56, t: 6, b: 24};
+      var lw = Math.min(W * 0.4, Math.max.apply(null, cats.map(function (c) { return textW(c, fs); })) + 14);
       pad.l = lw;
       var H = pad.t + n * rowH + pad.b, pw = W - pad.l - pad.r;
       h.push('<svg class="chart" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(b.title) + '">');
@@ -361,9 +364,9 @@
         h.push('<line class="gl" x1="' + x + '" x2="' + x + '" y1="' + pad.t + '" y2="' + (H - pad.b) + '"/><text x="' + x + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(axisLabel(tv, f)) + "</text>");
       });
       cats.forEach(function (c, i) {
-        var y = pad.t + i * rowH, bh = ser.length > 1 ? 11 : 16;
+        var y = pad.t + i * rowH, bh = ser.length > 1 ? 11 : (S.present ? 18 : 16);
         var sel = S.drill && S.drill.key === c && S.drill.table === (b.drill || {}).table;
-        h.push('<text class="cat' + (clickable ? " click" : "") + '" data-cat="' + esc(c) + '" x="' + (pad.l - 8) + '" y="' + (y + rowH / 2 + 4) + '" text-anchor="end" style="font-size:12.5px;' + (sel ? "fill:var(--ink);font-weight:700" : "") + '">' + esc(c) + "</text>");
+        h.push('<text class="cat' + (clickable ? " click" : "") + '" data-cat="' + esc(c) + '" x="' + (pad.l - 8) + '" y="' + (y + rowH / 2 + 4) + '" text-anchor="end" style="font-size:' + fs + 'px;' + (sel ? "fill:var(--ink);font-weight:700" : "") + '">' + esc(c) + "</text>");
         ser.forEach(function (s, k) {
           var v = s.values[i]; if (typeof v !== "number") return;
           var w = Math.max(1, pw * v / top), yy = y + (rowH - ser.length * bh - (ser.length - 1) * 2) / 2 + k * (bh + 2);
@@ -371,7 +374,7 @@
           if (ser.length === 1 || k === 0) h.push('<text class="v" x="' + (pad.l + w + 6) + '" y="' + (yy + bh - 3) + '">' + esc(fmt(v, f)) + "</text>");
         });
       });
-      if (capped) h.push('<text x="' + (W - 8) + '" y="' + (pad.t + 2) + '" text-anchor="end">Largest 6 of ' + capped + " · T for the table</text>");
+      if (capped) h.push('<text x="' + (W - 8) + '" y="' + (pad.t + 2) + '" text-anchor="end">Largest ' + n + ' of ' + capped + " · T for the table</text>");
       h.push("</svg>");
     } else {
       var rot = false, groupW0 = (W - 64) / n;

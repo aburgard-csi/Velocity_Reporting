@@ -163,6 +163,15 @@ def test_the_movement_wording_follows_the_band():
 
 
 # ----------------------------------------------------------------- complete months only
+def test_branch_bars_use_the_room_in_the_window_and_larger_names():
+    js = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "review_page", "static", "live.js")
+    js = open(js, encoding="utf-8").read()
+    assert "slice(0, 6)" not in js and "Largest 6 of" not in js      # the six-bar cap is gone
+    assert "window.innerHeight" in js and "Math.max(6," in js          # as many as fit, never fewer than six
+    assert "font-size:12.5px" not in js and "textW(c, 12.5)" not in js  # the branch names are no longer 12.5 px
+    assert "var fs = S.present ? 16 : 14" in js
+
+
 def test_a_collapse_in_the_middle_of_a_series_is_found():
     vals = [1000, 1010, 1020, 30, 1040, 1050, 1060]
     assert interior_gaps(vals) == [3]

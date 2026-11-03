@@ -21,6 +21,15 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Live Review shows as many branches as the window holds, with larger names
+
+Summary: In presenter mode a horizontal bar chart, such as take rate by branch, now lists as many bars as fit under the title, largest first, instead of stopping at six, and the branch names are 16 pt instead of 12.5. A 1280 x 720 window still shows the largest six.
+
+Aaron, 2026-11-03: "these branch slides can show many more branches, and make the fonts larger on the branch names".
+
+- The number of bars is `floor((window height - 540) / row height)`, never fewer than six; a taller window or a bigger monitor shows more. Marine FCU's 16 branches all show at about 1,090 px of height. What is left out is counted in the caption ("Largest 10 of 16") and is one keypress away in the table (`T`).
+- Names are 16 px in presenter mode and 14 px otherwise, bar height 18 px, value labels 15 px. Live Review only; no deck changes.
+
 ### 2026-11-03 — the interior-gap rule is in the code: a month that collapses mid-series is left out, not charted
 
 Summary: A month in the middle of an ODD extract that collapses and then recovers (Marine FCU August 2026 NSF/OD, 390 items against about 19,000) is now skipped by every comparison and trend, as the 2026-10-13 entry below describes; the code for it had not been committed.
