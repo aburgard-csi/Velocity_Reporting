@@ -21,6 +21,27 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — Transaction Intelligence deck cleanup: twelve pairs of charts drawn as one slide, nine repeated slides left out, two charts fixed
+
+Summary: the Transaction Intelligence deck is 21 slides shorter (109 to 88 on 1776 CoastHills) with the same figures: twelve pairs of one-chart slides now share a slide, two charts side by side, and nine slides that repeated another are left out. A chart that drew no bar for card spend now draws it, and the attrition-by-branch chart no longer lets a one-account branch set its scale.
+
+Aaron, 2026-11-02: "go through the entire transaction intelligence deck and optimize and clean it up. There are certainly some redundant slides there. There are slides that don't generate data. There are charts that can be combined into one slide."
+
+Nothing was recomputed: no figure, headline or note changed, and the ARS deck, its metrics and its template are untouched. Measured on 1776's own 2026-11-02 compute, both lenses: 109 slides before, 88 after.
+
+- **Pairs drawn as one slide** (`ti/deck/combine.py`; each chapter lists its pairs in `COMBINED`). Each builder is run against a probe that records its headline and its one chart; the two charts are then redrawn at half a slide, so their type keeps its size, and each panel is captioned with its builder's own headline. The pairs:
+  - Transaction Intelligence: relationships' age and turnover; card spend by age and by tenure; merchants rising, falling, new and faded; card dollars by merchant and by category; PIN and signature.
+  - Competition: what competitors take and how much of the account they own; payment apps and buy-now-pay-later.
+  - Attrition: cohort closure and survival by tenure. Deposits: how members are paid and how steady it is; members who stopped being paid and how long since money last arrived. Campaign: program reach with response by offer; depth of engagement with first-time against repeat responders.
+  - A pair that cannot share a slide is drawn as it always was and the build log says why: a half draws a table, tiles of its own or two charts, a half-width figure would land under 0.86 of its size, or one half is declined for the client (the other is drawn alone, the declined half is recorded as declined). The two economics stacks were tried and left apart: 17 and 9 columns do not fit in half a slide.
+  - The rail of key figures on each half is not carried over; each panel's caption is the headline that carries the figure.
+- **Slides left out** (`ti/slides.json`, "toss", each with its reason under `_tossed_2026-11-02`): How the money moves; How deep the leakage runs; Card behaviour by lens; What the dictionary does not know yet; Where we leak, by branch; Banks against the ecosystems; ICS never activated; ICS sustained activity; ICS closure hazard. Each repeats a figure another slide carries, or is about our own tooling. A slide with a combined slide's title keeps "keep" for its parts, which still draw alone when their pair cannot be combined.
+- **A chart that drew no data.** "What arrives against what leaves" drew inflow but not card spend: the axis started at zero and the negative bar sat off the canvas, its label (`$-644,976,863`) over the axis labels. `charts.value_waterfall` now reaches left of zero and writes `-$644,976,863`.
+- **The attrition-by-branch chart** drew every branch although its headline and footnote rate only those with 150+ accounts at risk, so a branch of one account that closed read 100% and one of 35 read 40%, and those bars set the scale for the twelve real ones. It now charts the branches the footnote names (with fewer than three over the floor, all of them, as before) and the footnote says "charted".
+- **A validation FAIL that blocked a build.** The ICS quality slide's first tile (`37%` over a two-line note) was a FAIL on 1776 on `main`; the note no longer carries "(the ARS synergy)" and fits one line.
+- **Half-width charts.** `_untangle_ticks` breaks a multi-word tick label over two lines before it angles it, and the band-stack legend takes two rows, when a figure is under 7in wide.
+- Not changed, and worth Aaron's call: slides that overlap the Executive Review deck (DUPLICATES.md rows 12-14, 16, 28) are kept; null-finding slides ("Depth against growth", "Competitor spend before closure") are kept because the finding differs by client.
+
 ### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
 
 Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.

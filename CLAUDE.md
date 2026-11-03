@@ -1015,6 +1015,11 @@ This is the readme index — update it whenever files are added, removed, or mov
   (`ti/deck/migration_slides.py` is v5's tier-matrix module); `tests/ti_v5_harness.py` stands in for v5's
   whole-month test harness; `ti/slides.json` sets every chapter and slide of the cut to "keep" or
   "toss" and `ti/selection.py` reads it (how the DUPLICATES overlaps get settled);
+  `ti/deck/combine.py` draws two one-chart slides as ONE, two charts side by side (Aaron, 2026-11-02:
+  "charts that can be combined into one slide"): each builder is probed for its headline and chart, the
+  charts are redrawn at half a slide so their type keeps its size, and a pair that cannot share a slide
+  (a table, tiles of its own, two charts, a half-width figure under 0.86 of its size, one half declined) is
+  drawn as it always was, said in the build log; a chapter lists its pairs in `COMBINED`;
   `ti/odd_sections.py` runs v5's ODD sections; `ti/deposits_input.py` reads the client's own
   `Inputs/Deposits` file; `ti/workbook.py` is v5's ARS Workbook reader (`wb_*`: P&L, offers, Lift
   Matrix, rates) and `ti/workbook_input.py` finds the client's workbook by `build_month`'s rule and
