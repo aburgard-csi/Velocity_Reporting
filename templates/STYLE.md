@@ -91,8 +91,8 @@ decision to record here, not a refactor.
 - **Minimum 16 pt** for every explicit run — these decks are read from 15 feet.
   Exceptions, all in `restyle_fonts.py`: slides titled "2026 New Releases",
   "Product Mix", "Program Results by Month Opened", "Referred Accounts by Product"
-  (dense tables that cannot fit at 16), and the tables of 14 or more rows on
-  "Reg E Opt-In by Branch" (the two-table layout, 10 pt); MRPC decks (a deliberate 10-15 pt
+  (dense tables that cannot fit at 16), and the Appendix branch-detail tables (15 branch lines a page,
+  12 pt; found by the table's shape name, `restyle_fonts.BRANCH_DETAIL_TABLE`); MRPC decks (a deliberate 10-15 pt
   hierarchy); the Executive Summit slide (never touched); and the 12 pt label under
   the figure in the KPI tiles of "Product Mix & ARS Eligibility" and "Excluded
   Accounts", which carry the same callout subtext at the same size
@@ -276,7 +276,8 @@ element is already maxed.
   (>= 40 eligible personal, >= 15 new-account, >= 5 business), **selected by accounts
   and ranked by rate, best to worst**; fewer than 3 qualifying → show all and say so
   in the caption. `chart_lib.BRANCH_CAP` is the cap and the renderer raises above it. The cap is 30 (2026-11-02; it was 12), the rate labels drop to 9 pt past 20 bars,
-  and the Reg E by Branch table slide lists up to 27 branches in two side-by-side tables.
+  and the branch TABLES are not in the main deck: the full list of every branch is in the Appendix
+  (`branch_appendix_slides`, 15 lines a page), the main deck keeps the charts (Aaron, 2026-11-02).
 - **Comparisons / benchmark slide:** orange capsule pills = Velocity clients'
   average (left), navy capsule pills = this client (right), metric label between.
 
@@ -290,7 +291,7 @@ element is already maxed.
   only** — a closed or charged-off account is outside ARS by definition and
   explains nothing; reasons are product code, no debit card and an account-level
   remainder, and the tiles reconcile (open = open-and-excluded + open-and-eligible).
-  Product Mix, Excluded Accounts and Reg E Opt-In by Branch are **inserted by the
+  Product Mix, Excluded Accounts and the Appendix branch tables are **inserted by the
   builder** — they appear in a built deck but not in `templates/ars_template.pptx`.
 - **Monthly Summary — Last 12 Months** (SM path): navy bars with an orange dashed
   average whose label sits just above the line, not centered on it.
@@ -326,10 +327,11 @@ element is already maxed.
   Segment · Mailing Insights (divider, Response Summary, Ranking by Tier, ARS
   Response — <mailer> and Movement, Transaction Increase Over the Ask, Sustained
   Respondent Activity, Responder Activity Mean and Median) · Debit Card Review
-  (divider, Take Rate Personal and Business, Take Rate by Branch, Swipes & Spend,
-  NSF/OD) · Reg E Review (divider, All Personal Accounts, Opened in Last 12 Months,
-  Reg E Opt-In by Branch — Last 12 Months, by Account Vintage) · ARS Key Takeaways · Questions ·
-  Contact · Appendix (divider, Program Reach, Depth of Engagement, Responder Age
+  (divider, Take Rate Personal and Business with their branch charts, Swipes & Spend,
+  NSF/OD) · Reg E Review (divider, All Personal Accounts, Opened in Last 12 Months, by Account
+  Vintage; the branch charts are on the first two) · ARS Key Takeaways · Questions ·
+  Contact · Appendix (divider, Branch Reference, the branch-detail tables — Take Rate by Branch, Reg E
+  Opt-In by Branch, Reg E New Accounts by Branch, each "(k of n)" over every branch — Program Reach, Depth of Engagement, Responder Age
   Profile, Who Responds, New Account Profile divider and six profile slides,
   Account Growth, Account Retention, First-Year Closure).
 

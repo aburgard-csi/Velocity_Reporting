@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — the ARS branch tables move to the Appendix; the main deck keeps the branch charts
+
+Summary: the take-rate-by-branch table and the Reg E opt-in-by-branch table are no longer in the main ARS deck. The Appendix now carries every branch for each: Take Rate by Branch, Reg E Opt-In by Branch (all personal accounts) and Reg E New Accounts by Branch, over as many pages as the branches need. The charts stay where they were.
+
+Aaron, 2026-11-02: "in the executive review deck for branch data around debit cards and Reg E, I want the full branch performance in the appendix. We don't need the branch detail in the main deck, just the charts."
+
+- **Main deck.** "12-Month Take Rate by Branch" (the template's monthly table) and "Reg E Opt-In by Branch — Last 12 Months" are gone from the main deck; the branch bar charts on the two Take Rate slides and the two Reg E slides are unchanged. Two slides fewer in the main section.
+- **Appendix.** `branch_appendix_slides.py` adds "Appendix: Take Rate by Branch (k of n)", "Appendix: Reg E Opt-In by Branch (k of n)" (all open personal debit-card holders, new) and "Appendix: Reg E New Accounts by Branch (k of n)" after the Branch Reference. Every branch the metric reports is listed (1441 FNB Alaska: 27 branches, two pages each); a branch under the threshold (15 new accounts, 40 holders) is no longer lost: the remainder against the program figure is an "All other branches" row, so each table ends on a Total that is the number the chart slides state. Order is unchanged (take rate by branch number, Reg E by rate).
+- **Type.** The tables are 12 pt, 15 lines a page; `restyle_fonts` leaves them there by the table's shape name (`BRANCH_DETAIL_TABLE`), replacing the "Reg E Opt-In by Branch, 14 rows" title rule. Everything else on the slide keeps the 16 pt floor.
+- **Mechanics.** The template slide is dropped in phase 2 with the other orphan (strip, then add), so no partname is freed for a later slide; nothing was added to or removed from `ars_template.pptx`. `rege_branch_slide.py` and its two-table layout are retired (the slide's content is the third appendix family). The opt-in "Where Cards Lag" view now anchors on "12-Month Eligible Take Rate — Business". `slide_inventory` lists the three appendix families and no longer lists the two main-deck slides, so Slide Review follows the build.
+- **Not changed.** `templates/ars_template.pptx` still carries the old slide (it is the build's source, dropped at build time); the Companion and Transaction Intelligence decks; assemble_combined (the Appendix is ARS-only and travels with the ARS deck).
+
 ### 2026-11-02 — the Contact Us slide is the Questions & Discussion gradient with the contact centred
 
 Summary: the Contact Us slide is now a full-bleed navy-to-blue gradient slide like Questions & Discussion, with the CSI logo, the title and the CSM's name, title, phone and email centred and grouped closely, instead of a flat navy card with large gaps between the lines.

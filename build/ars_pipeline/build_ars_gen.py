@@ -961,67 +961,17 @@ if BIZ:
 # (07-2025 · 06-2026) no matter which months the charts actually covered. Resolve
 # by title and swap them to the window this extract used.
 for _t in ("12-Month Eligible Take Rate — Personal",
-           "12-Month Eligible Take Rate — Business",
-           "12-Month Take Rate by Branch"):
+           "12-Month Eligible Take Rate — Business"):
     repl(SB(_t), {"07-2025 · 06-2026": NEWWIN_PILL}, optional=(NEWWIN_PILL == "07-2025 · 06-2026"))
 repl(SB("12-Month Eligible Take Rate — Personal"),
      {"Selection: ARS-eligible personal accounts, trailing 12 months (Jul 2025 – Jun 2026).":
       f"Selection: ARS-eligible personal accounts, trailing 12 months ({NEWWIN_TEXT})."})
 
-# ============================ SLIDE 23 — Take by branch table
-tm = M['take_months']
-# Branch rows are sized to the space on the slide, not to a fixed 6. The table sat at
-# 2.35in with six branches and stopped at 5.07in, leaving roughly a third of the slide
-# empty (Aaron, 2026-08-28). Rows are 0.34in and the footer/logo band starts at 6.78in,
-# so fill down to 6.60in and add table rows for whatever the template doesn't have.
-import chart_lib as _cl_ord
-_TBL_TOP, _ROW_H, _TBL_BOTTOM = 2.35, 0.34, 6.60
-_max_body = int((_TBL_BOTTOM - _TBL_TOP) / _ROW_H) - 2      # minus header and Total
-_nbranch = min(len(M['take_branch_monthly']), max(6, _max_body))
-_num_of = {v: k for k, v in (M.get('branch_name_of') or {}).items()}   # names on charts: keep number order
-tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch], key=lambda r: _num_of.get(r[0], r[0]))
-rows = [["Branch"]+tm+["Cards", "Elig", "Take%"]]
-for row in tbm:
-    b = row[0]; monthly = row[1:1+len(tm)]
-    rows.append([str(b)]+[str(x) for x in monthly]+[str(row[-3]), str(row[-2]), f"{row[-1]}%"])
-tct = M['take_new_cards']; tet = M['take_new_total']
-rows.append(["Total (all branches)"]+[str(x) for x in M['take_col_totals']]+[str(tct), str(tet), f"{round(100*tct/tet)}%"])
-_have = len(tables(S[22])[0].rows)
-if len(rows) > _have:
-    add_table_rows(S[22], len(rows) - _have)
-    print(f"take-by-branch: grew table {_have} -> {len(rows)} rows ({len(tbm)} branches)")
-set_table(S[22], rows, trim=True)
-# Branch NAMES (Aaron, 2026-09-17) need a wider first column than the numbers it was sized for:
-# Wellworth's "Westmoreland" wrapped to "Westmorelan / d". Widen it to the longest branch label,
-# measured in the bundled font, and take the width back evenly from the other columns.
-try:
-    from textfit import text_width_in as _tw
-    _tbl = tables(S[22])[0]
-    _pt = next((r.font.size.pt for c in _tbl.rows[1].cells for pa in c.text_frame.paragraphs
-                for r in pa.runs if r.font.size), 16.0)
-    _need = max(_tw(str(r[0]), _pt, "Carlito", True) for r in rows[1:-1]) + 0.24   # cell margins
-    _cols = list(_tbl.columns)
-    _w0 = Emu(_cols[0].width).inches
-    if _need > _w0 and len(_cols) > 1:
-        _each = (_need - _w0) / (len(_cols) - 1)
-        _cols[0].width = Inches(_need)
-        for _c in _cols[1:]:
-            _c.width = Emu(int(_c.width - Inches(_each)))
-        print(f"take-by-branch: branch column {_w0:.2f} -> {_need:.2f} in for the longest name")
-except Exception as _e:
-    print("take-by-branch: branch column fit skipped:", repr(_e))
-repl(S[22], {"six largest branches shown": f"{len(tbm)} largest branches shown"}, optional=True)
-# The monthly COLUMNS span the activity months this extract carries, which is not the
-# same as the 12-month new-account window. Wellworth's caption read "monthly Aug 2025 –
-# Jul 2026" above five columns of Mar–Jul (Aaron, 2026-08-28).
-if tm:
-    # NB this runs BEFORE the as-of caption pass, so the needle is still the TEMPLATE's
-    # literal, not NEWWIN_TEXT. Replacing it here also stops the later pass touching it.
-    _cspan = f"{tm[0]} – {tm[-1]} 20{LATEST_MON[3:]}"
-    _plural = "s" if len(tm) != 1 else ""
-    repl(S[22], {"monthly Aug 2025 – Jun 2026;":
-                 f"monthly {_cspan} ({len(tm)} month{_plural} of activity in this extract);"},
-         optional=True)
+# ============================ SLIDE 23 — Take by branch table: MOVED to the Appendix
+# (Aaron, 2026-11-02: "We don't need the branch detail in the main deck, just the charts.")
+# The template's "12-Month Take Rate by Branch" slide is not filled here. Phase 2 drops it with the
+# other orphan (strip-then-add, so no partname is freed) and branch_appendix_slides adds the full
+# branch list after the Appendix divider, in as many pages as the branches need.
 
 # ============================ SLIDE 24 — Swipes & Spend
 set_exact(S[23], "+4.3%", card_growth)
@@ -1371,7 +1321,7 @@ print("phase1 text done")
 # ================================================================= PHASE 2
 import product_mix_slide
 import excluded_accounts_slide
-import rege_branch_slide
+import branch_appendix_slides
 from PIL import Image as _PImg
 import zipfile as _zf
 STRIP = os.path.join(BUILDDIR, "strip_dead.py")   # shared post-processor, next to restyle_fonts.py
@@ -1402,7 +1352,15 @@ import atexit as _atexit
 _atexit.register(_clean_phase_files)
 prs.save(_A)                                   # phase-1 text deck (reference product mix at idx4)
 p2 = Presentation(_A); _xml = p2.slides._sldIdLst
-_xml.remove(list(_xml)[4])                     # orphan reference product-mix slide
+# The template's branch table slide goes the same way as the reference product mix: the branch tables are
+# rebuilt in the Appendix (branch_appendix_slides), so this one is an orphan. Resolved by TITLE.
+_br_tbl = next((i for i, _sl in enumerate(p2.slides)
+                if next((_sh.text_frame.text.strip() for _sh in _sl.shapes
+                         if _sh.has_text_frame and _sh.text_frame.text.strip()), "")
+                .startswith("12-Month Take Rate by Branch")), None)
+_drop = [list(_xml)[4]] + ([list(_xml)[_br_tbl]] if _br_tbl is not None else [])
+for _el in _drop:
+    _xml.remove(_el)                           # orphan reference product-mix slide + template branch table
 p2.save(_B)
 subprocess.run([sys.executable, STRIP, _B, _C], check=True)   # GC the orphan -> 45 clean slides
 prs = Presentation(_C)
@@ -1426,14 +1384,16 @@ if ODD:
                   "delivery" % ", ".join(_x["flags"]))
     except Exception as e:
         print("!! excluded-accounts slide failed:", repr(e))
-# Reg E opt-in by branch — the table companion to the two Reg E branch charts.
+# The branch tables (take rate by branch, Reg E opt-in by branch, all accounts and new accounts) live in
+# the Appendix, full branch list, as many pages as the branches need (Aaron, 2026-11-02). The main deck
+# keeps the branch charts.
 try:
-    _rs, _rn = rege_branch_slide.add_rege_branch_slide(
-        prs, M, ASSETS, AS_OF_LONG, after_title="Reg E Opt-In — Opened")
-    if _rs is not None:
-        print(f"reg-e-by-branch slide built ({_rn} branches)")
+    _ba = branch_appendix_slides.add_branch_appendix(
+        prs, M, ASSETS, AS_OF_LONG, NEWWIN_PILL, NEWWIN_TEXT)
+    print(f"branch appendix: {len(_ba)} page(s) added")
 except Exception as e:
-    print("!! reg-e-by-branch slide failed:", repr(e))
+    print("!! branch appendix failed:", repr(e))
+    raise
 
 # ---- 2b. Source note on every slide ----
 # Per-client source strings — DERIVED from the data pack; never hardcode a client.
@@ -1485,6 +1445,8 @@ def _note_for(t, idx):
                 "list it either." % (WB_SRC, _mm, ODD_SRC,
                                      "; ".join("%s, %s offers sent" % (l, format(n, ",")) for l, n in MIP)))
     if "mailing" in tl or "response" in tl or "movement" in tl or "transaction increase" in tl or "sustained" in tl or "responder activity" in tl: return "Source: %s — Mail Response Summary%s + %s mailing/response fields." % (WB_SRC, _mm, ODD_SRC)
+    if t in branch_appendix_slides.BODY_NOTES:
+        return "Source: %s — %s" % (ODD_SRC, branch_appendix_slides.BODY_NOTES[t])
     if "take rate" in tl or "debit card review" in tl or "swipes & spend" in tl or "nsf" in tl: return "Source: %s — debit take rate (personal/business/by branch), swipes & spend, NSF/OD." % ODD_SRC
     if "reg e" in tl: return "Source: %s — Reg E opt-in (standardized Opt In/Opt Out/Default); all personal / opened last 12 mo / by vintage." % ODD_SRC
     if "key takeaways" in tl: return "Source: summary of %s financials + %s metrics shown in this deck." % (WB_SRC, ODD_SRC)

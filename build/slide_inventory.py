@@ -48,11 +48,18 @@ ADDED = {
          "build/ars_pipeline/excluded_accounts_slide.py"),
         ("Revenue Guarantee", "after", "ARS Financial Performance",
          "build/ars_pipeline/revenue_guarantee_slide.py — on a deck whose ratio is below 3 : 1"),
-        ("Reg E Opt-In by Branch", "after", "Reg E Opt-In — Opened in Last 12 Months",
-         "build/ars_pipeline/rege_branch_slide.py"),
         ("Branch Reference", "before", "Program Reach — Cumulative Responders",
          "build/ars_pipeline/build_ars_gen.py (add_branch_reference_slide) — when branch names resolve; "
          "the first appendix page"),
+        # The branch-detail tables, after the Branch Reference and ahead of the shell's appendix pages; each
+        # runs to as many pages as the branches need ("(1 of 2)"), so the title here is the family's.
+        ("Appendix: Take Rate by Branch", "before", "Program Reach — Cumulative Responders",
+         "build/ars_pipeline/branch_appendix_slides.py — the full branch list, moved from the main deck "
+         "(2026-11-02)"),
+        ("Appendix: Reg E Opt-In by Branch", "before", "Program Reach — Cumulative Responders",
+         "build/ars_pipeline/branch_appendix_slides.py — all open personal debit-card holders, by branch"),
+        ("Appendix: Reg E New Accounts by Branch", "before", "Program Reach — Cumulative Responders",
+         "build/ars_pipeline/branch_appendix_slides.py — accounts opened in the last 12 months, by election"),
     ],
     "ICS": [
         ("Direct Mail New Accounts", "after", "Results by Branch — Year to Date",
@@ -65,6 +72,11 @@ ADDED = {
         ("CashPlease Program Settings", "after", "CashPlease Program Overview",
          "build/cashplease_pipeline/build_cp_gen.py"),
     ],
+}
+
+# A shell slide the builder does not put in the main deck: its content moved elsewhere (see ADDED).
+DROPPED = {
+    "ARS": ["12-Month Take Rate by Branch"],      # the table is now "Appendix: Take Rate by Branch"
 }
 
 # A shell slide a builder retitles when it fills it: the list carries the title a deck ends up with.
@@ -179,7 +191,9 @@ def inventory():
         return _cache["doc"]
     doc = {}
     for prog in ("ARS", "ICS", "MRPC", "CP"):
-        rows = _splice(template_titles(prog), ADDED[prog])
+        shell = [x for x in template_titles(prog)
+                 if not any(_same(x, d) for d in DROPPED.get(prog, ()))]
+        rows = _splice(shell, ADDED[prog])
         renamed = RENAMED.get(prog, {})
         rows = [renamed.get(t, (t, s)) for t, s in rows]
         doc[prog] = [{"n": i, "title": _display(t), "source": s} for i, (t, s) in enumerate(rows, 1)]
