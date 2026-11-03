@@ -509,7 +509,10 @@ async function pollQueue() {
     QUEUE = {building: body.building || null, queued: body.queued || []};
     if (before !== JSON.stringify(QUEUE)) {
       const was = JSON.parse(before);
-      if (was.building && was.building !== QUEUE.building) loadClients(); else renderList();
+      if (was.building && was.building !== QUEUE.building) {
+        loadClients();
+        if (CUR !== was.building) toast(`The build for ${was.building} finished. Open it to see how it went.`, "", 6000);
+      } else renderList();
       paintBuildPill();
     }
   } catch (e) {}
