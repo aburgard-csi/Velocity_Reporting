@@ -17,40 +17,7 @@ TAB = None
 NAME = "ILS"
 VIEW = ""
 
-LABELS = {
-    "open_status": [
-        "Open account status",
-        "the Account Status value(s) meaning open"
-    ],
-    "od_eligible": [
-        "ILS-eligible OD status",
-        "the OD Status value(s) eligible for ILS, or ALL for every one"
-    ],
-    "rege_opt_in": [
-        "Reg E opted in",
-        "the Reg E value(s) meaning opted in"
-    ],
-    "rege_opt_out": [
-        "Reg E opted out",
-        "the value(s) meaning opted out"
-    ],
-    "personal_code": [
-        "Personal",
-        "the Business Flag value meaning personal"
-    ],
-    "business_code": [
-        "Business",
-        "the Business Flag value meaning business"
-    ],
-    "open_code": [
-        "Open account status",
-        "the Account Status value meaning open"
-    ],
-    "eligible_stat_codes": [
-        "OD-eligible Stat Code(s)",
-        "the Stat Code value(s) eligible for OD"
-    ]
-}
+from ils_ui import LABELS  # noqa: E402  (the field labels the routes and the cards share)
 
 CSS = r"""
 /* ILS cards: the page's own cards, a form of code fields, and the run's own output in a scrolling box. */

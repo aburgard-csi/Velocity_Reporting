@@ -1,4 +1,4 @@
-"""The Hub layout preview at /hub: off unless RPE_SHEILA_HUB=1, behind the same token and host checks, and free of
+"""CSM Sheila's page, the Hub layout, served at /: behind the token and host checks, and free of
 sent state (2026-11-02)."""
 import http.client
 import json
@@ -54,9 +54,12 @@ def test_the_page_keeps_the_hosts_check_and_the_api_keeps_its_token(server):
     assert get(server, "/api/clients", token=True)[0] == 200
 
 
-def test_the_old_page_is_served_at_classic_until_its_last_tab_is_ported(server):
-    status, data = get(server, "/classic")
-    assert status == 200 and b"CSM Sheila" in data
+def test_there_is_no_second_layout(server):
+    """The classic page is gone (Aaron, 2026-11-02): nothing serves it, and nothing links to it."""
+    assert get(server, "/classic")[0] in (403, 404)   # unknown paths want the token like the API
+    import ars_launcher_web as W
+    assert not hasattr(W, "PAGE") and not hasattr(W, "_version_html")
+    assert not os.path.exists(os.path.join(REPO, "scripts", "slide_review_ui.py"))
 
 
 def test_there_is_no_sent_state_on_the_page():

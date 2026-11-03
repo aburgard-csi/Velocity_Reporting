@@ -9,7 +9,7 @@ vote on the share (slide_votes.py); a changed mind or a star is a newer vote, an
 In the Hub layout voting is one keystroke per slide: 1, 2 or 3 votes and moves to the next slide, S stars, C writes a
 comment, N jumps to the next slide not voted on, [ and ] change program. The routes are the same as ever
 (`GET /api/votes/programs`, `/program`, `/summary`, `/export`; `POST /api/votes/vote`); this is the page side, moved
-here from slide_review_ui.py's splice into the old page.
+here from the old page's slide_review_ui.py (the Hub layout, 2026-11-02).
 """
 TAB = "votes"
 NAME = "Slide Review"

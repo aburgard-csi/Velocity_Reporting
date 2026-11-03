@@ -897,15 +897,10 @@ const ACTIONS = () => [
   {t: "Refresh the client list", s: "", run: () => { loadClients(true); toast("Refreshing the list…"); }},
   ...(ME.csm ? [{t: "Show my clients (" + ME.csm + ")", s: "", run: () => setCsm(ME.csm)}, {t: "Show every CSM's clients", s: "", run: () => setCsm("")}] : []),
   ...(CUR && S ? [{t: "Check " + CUR + " again", s: "R", run: () => openClient(CUR, true)}, {t: "Build the Executive Review for " + CUR, s: "B", run: () => firstBuild()}] : []),
-  {t: "Open Lift Matrix", s: "classic Sheila", run: () => location.href = "/#lift"},
-  {t: "Open Data Issues", s: "classic Sheila", run: () => location.href = "/#issues"},
-  {t: "Open Slide Review", s: "classic Sheila", run: () => location.href = "/#votes"},
-  {t: "Open Feedback", s: "classic Sheila", run: () => location.href = "/#reported"},
   {t: "Open the change log", s: "", run: () => window.open("/changelog", "_blank", "noopener")},
   {t: "Switch to night or day", s: "T", run: toggleNight},
   {t: "Compact rows on or off", s: "C", run: () => setDensity(document.documentElement.dataset.density === "compact" ? "" : "compact")},
-  {t: "Show keyboard shortcuts", s: "?", run: () => $("#keys").showModal()},
-  {t: "Open classic Sheila", s: "", run: () => location.href = "/"},
+  {t: "Show keyboard shortcuts", s: "?", run: showKeys},
 ];
 function fuzzy(q, text) {
   q = q.toLowerCase(); text = text.toLowerCase(); if (!q) return 1;
