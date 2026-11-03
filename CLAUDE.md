@@ -763,7 +763,7 @@ python scripts/refresh_performance_dashboard.py --mark-published
 ```
 
 The "RPE Client Performance" artifact
-(`https://claude.ai/artifact/F4jLMLqxmQdBNYXpJHH6We`; it was `claude.ai/code/artifact/71e542f6-…` until Aaron's 2026-11-02 artifact cleanup) is the
+(`https://claude.ai/artifact/F4jLMLqxmQdBNYXpJHH6We`; the older `claude.ai/code/artifact/71e542f6-cb48-4386-ae73-708e513c854b` form opens the same artifact, and the refresh task still uses it) is the
 cross-client, cross-product page Aaron asked for on 2026-09-08: one section per
 program (ARS, ICS, MRPC, CashPlease) with a ranked bar, a metrics table and trend
 sparklines, and a deck roster. It is a static page with its dataset embedded.
