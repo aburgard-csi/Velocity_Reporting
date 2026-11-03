@@ -172,6 +172,19 @@ ICS_METRICS = [
 
 # ----------------------------------------------------------------- REMS
 REMS_MIN_RESPONSES = 10          # a month with fewer responses than this is too small for a rate to mean anything
+REMS_WINDOW = 12                 # the headline comparison pools this many complete months (REMS volumes are tens a month)
+REMS_MIN_WINDOW = 30             # ... and needs this many responses in them
+REMS_DEMO = {"999"}              # Union Financial Bank, the demo client: in the query's result, never a client or a peer
+
+
+def _recent_months(as_of, k):
+    """The `k` calendar months before the month `as_of` falls in ("YYYY-MM"), the complete ones."""
+    out = []
+    y, m = as_of.year, as_of.month
+    for i in range(1, k + 1):
+        yy, mm = divmod(y * 12 + (m - 1) - i, 12)
+        out.append("%04d-%02d" % (yy, mm + 1))
+    return out
 
 
 def rems_rows(ctx):
@@ -199,6 +212,8 @@ def rems_rows(ctx):
                 n, o = float(r["num_responses"]), float(r["num_opt_in"])
             except (KeyError, ValueError):
                 continue
+            if cid in REMS_DEMO:
+                continue
             ent = rows.setdefault(cid, {"name": r.get("client_name") or None, "months": {}})
             ent["months"]["%04d-%02d" % (y, mo)] = (n, o)
     return rows, as_of, os.path.basename(path)
@@ -207,19 +222,24 @@ def rems_rows(ctx):
 def collect_rems(ctx):
     rows, as_of, fname = rems_rows(ctx)
     out = {}
+    recent6, window = _recent_months(as_of, 6), _recent_months(as_of, REMS_WINDOW)
     for cid, ent in rows.items():
-        ended = sorted(m for m in ent["months"] if MC.month_ended(m, as_of) is not False)
-        if not ended or not any(ent["months"][m][0] > 0 for m in ended[-6:]):
-            continue                                          # no responses in the last six complete months: not a current client
-        series = {_label(m): 100.0 * ent["months"][m][1] / ent["months"][m][0] for m in ended[-24:]
-                  if ent["months"][m][0] >= REMS_MIN_RESPONSES}
-        out[cid] = {"point": {}, "series": {"pct_opt_in": series}}
+        mo = ent["months"]
+        if not any(mo.get(m, (0, 0))[0] > 0 for m in recent6):
+            continue                                          # no responses in the last six complete calendar months: not a current client
+        ended = sorted(m for m in mo if MC.month_ended(m, as_of) is not False)
+        series = {_label(m): 100.0 * mo[m][1] / mo[m][0] for m in ended[-24:] if mo[m][0] >= REMS_MIN_RESPONSES}
+        n = sum(mo.get(m, (0, 0))[0] for m in window)
+        o = sum(mo.get(m, (0, 0))[1] for m in window)
+        point = {"pct_opt_in_12": 100.0 * o / n} if n >= REMS_MIN_WINDOW else {}
+        out[cid] = {"point": point, "series": {"pct_opt_in": series}}
     mine, peers = _split(out, str(ctx.client))
     return {"n_pool": len(peers), "me": mine, "peers": peers, "pull": str(as_of) if as_of else None}
 
 
 REMS_METRICS = [
-    {"key": "pct_opt_in", "label": "Opt-in rate", "fmt": "pct1", "higher": True, "month": True},
+    {"key": "pct_opt_in_12", "label": "Opt-in rate, last 12 months", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "pct_opt_in", "label": "Opt-in rate by month", "fmt": "pct1", "higher": True, "month": True},
 ]
 
 

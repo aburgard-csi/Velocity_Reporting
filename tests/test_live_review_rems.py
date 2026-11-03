@@ -75,7 +75,7 @@ def test_the_peers_are_the_other_clients_in_the_file_and_are_numbered_not_named(
             elif b["t"] == "peerstrip":
                 yield b
     st = next(strips(ps["blocks"]))
-    assert st["title"] == "Opt-in rate" and st["n"] == len(PEERS) == len(st["dots"]) == len(st["dot_ids"])
+    assert st["title"] == "Opt-in rate, last 12 months" and st["n"] == len(PEERS) == len(st["dots"]) == len(st["dot_ids"])
     assert set(st["dot_ids"]) == set(PEERS)
     assert "Zephyrville" not in json.dumps(model)                                # a peer's name never reaches the page
 
@@ -91,6 +91,31 @@ def test_without_the_file_it_says_what_to_run(tmp_path):
     model, _t, _p = build(tmp_path)
     rems = model["programs"][0]
     assert rems["state"] == "missing" and "Inputs/REMS" in rems["note"] and "sql/rems_responses_report.sql" in rems["fix"]
+
+
+def test_the_headline_comparison_pools_twelve_complete_months_and_skips_the_demo_client(tmp_path):
+    class Ctx:
+        client = CID
+        root = tmp_path
+    d = tmp_path / "rems"
+    d.mkdir()
+    with open(d / "rems_responses 2026-11-03.csv", "w", newline="", encoding="utf-8") as f:     # a space in the name, as saved
+        w = csv.writer(f)
+        w.writerow(["client_id", "client_name", "response_year", "response_month", "num_responses", "num_opt_in", "pct_opt_in"])
+        for m in range(11, 13):
+            w.writerow(["7001", "A", 2025, m, 20, 10, 0.5])                                    # inside the 12 months
+        for m in range(1, 11):
+            w.writerow(["7001", "A", 2026, m, 20, 20, 1.0])
+        w.writerow(["7001", "A", 2026, 11, 500, 0, 0.0])                                       # November is in progress: left out
+        w.writerow(["7002", "B", 2026, 10, 12, 6, 0.5])                                        # 12 responses in the window: under the minimum
+        w.writerow(["999", "Union Financial Bank", 2026, 10, 500, 400, 0.8])                   # the demo client
+        w.writerow(["7003", "Old", 2023, 4, 900, 400, 0.44])                                   # no responses in the last six months
+    coll = peer_pool.collect_rems(Ctx)
+    ids = sorted(p["id"] for p in coll["peers"])
+    assert ids == ["7001", "7002"]                                                             # not 999, not the lapsed client
+    p1 = next(p for p in coll["peers"] if p["id"] == "7001")
+    assert p1["point"]["pct_opt_in_12"] == pytest.approx(100.0 * (10 + 10 + 200) / 240)           # 2 months of 20 with 10 opted, 10 months of 20 all opted, over 240
+    assert "pct_opt_in_12" not in next(p for p in coll["peers"] if p["id"] == "7002")["point"]
 
 
 def test_a_small_month_is_left_out_of_the_rate_comparison(tmp_path):
