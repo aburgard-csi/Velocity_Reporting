@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-02 — the Contact Us slide is the Questions & Discussion gradient with the contact centred
+
+Summary: the Contact Us slide is now a full-bleed navy-to-blue gradient slide like Questions & Discussion, with the CSI logo, the title and the CSM's name, title, phone and email centred and grouped closely, instead of a flat navy card with large gaps between the lines.
+
+Aaron, 2026-11-02: "add this gradient to the contact card", then, seeing it: "there's too much space between the lines on the contact card. we need to do something else with that slide." He chose the full-bleed design from three (a compact gradient card, a wide card, a full-bleed slide).
+
+- **Slide.** `shapes.draw_contact_slide` draws it for every deck: the closing slide's gradient (`build/assets/csi_brand/closing_fill.xml`, 00274C at 37% to 035B95 at 100%, the one place the stops live), the white CSI logo, "Contact Us" at 44 pt, then the contact centred: name 30 pt, title 18 pt bold orange, phone 20 pt and email 18 pt together with a small drawn icon each. Like the closing slide it has no slide number and no data logo. No phone on file means no phone row and the email takes its place. One contact, or two columns for the ICS program contact beside the CSM.
+- **Who draws it.** `fill_contact_slide` (was `fill_contact_card`) redraws the shell's slide whole for the ARS, MRPC, CashPlease, Transaction Intelligence and ILS decks, and the ICS, MRPC and ARS builders' own Contact slides call `draw_contact_slide` instead of drawing a card and a title, logo and number beside it. The contact is still `rpe_env.csm_contact`'s, never typed into the code. `contact_card_lines` and the card constants are gone.
+- **Text.** Every line is 16 pt or larger and white, except the title line, which is bold orange at 18 pt (large text): about 3.6:1 against the gradient in the first column and 3.1:1 in the second, against 4.5:1 on the flat navy.
+- **Divider detection.** The slide is full bleed with a 44 pt title, so `cover_divider.is_divider` took it for a section divider and the ARS builder redrew it as one (title and name only; the golden deck test caught it). It is excluded by title, like Questions & Discussion.
+- **Not rebuilt.** Decks already in Outputs keep the old card until their next build. `tests/test_contact_slide.py` and `tests/test_csm_contact.py` pin the stops, full bleed, one and two contacts, the 16 pt floor, the grouping, the icons and that every builder goes through the helper.
+
 ### 2026-11-02 — five greys instead of eight
 
 Summary: the deck palette now has five greys, one for each job, where it had eight; no deck is rebuilt, so the change shows in each client's next deck as a slightly paler card, line or tertiary bar.

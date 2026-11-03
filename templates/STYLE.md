@@ -185,10 +185,15 @@ each (`assemble_combined.section_slides` drops the rest).
   radial gradient, the large CSI logo, the title at 54 pt, the "<client>  •  <month>" line
   the validator checks against the cover at 24 pt, and "csiweb.com", all white; every
   builder redraws the shell's slide with `cover_divider.restyle_closing`, keeping the
-  line it swapped in) ends the primary material; **Contact Us** (navy contact
-  card: name, role, phone, email) follows it. The card is **the client's managing CSM**
+  line it swapped in) ends the primary material; **Contact Us** follows it, drawn the same way
+  (Aaron, 2026-11-02, chosen over a compact card and a wide card): the closing slide's full-bleed
+  gradient (`build/assets/csi_brand/closing_fill.xml`), the white CSI logo, "Contact Us" at 44 pt
+  under it, then the contact centred: name 30 pt, role 18 pt bold orange, phone (20 pt) and email
+  (18 pt) close together with a small drawn icon each. No card, no slide number and no data logo,
+  like the closing slide. One contact, or two columns when the deck carries a program contact
+  (ICS). `shapes.draw_contact_slide` redraws the whole slide for every program, shell or builder. The card is **the client's managing CSM**
   (Aaron, 2026-09-16), from `CSM Contacts.csv` via `rpe_env.csm_contact`; the line slots
-  live in `build/shapes.py` (`contact_card_lines`, `fill_contact_card` for a shell's card).
+  live in `build/shapes.py` (`draw_contact_slide`; `fill_contact_slide` redraws a shell's slide).
   No phone on file: no phone line, and the other three are re-spaced. No CSM, or no row:
   the build stops — the card never names another CSM. **The ARS Appendix follows Contact**
   (Aaron, 2026-07-24). Decks without ARS have no appendix — never synthesise one.
