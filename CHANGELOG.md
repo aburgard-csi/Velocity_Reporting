@@ -21,6 +21,17 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Sheila cleans up after herself: the Transaction Intelligence cache has a size and an age limit
+
+Summary: Sheila no longer lets her local Transaction Intelligence cache grow without end. It stays under 3 GB and clears any client not built for 21 days, least recently used first, when she starts and at the start of each Transaction Intelligence build; `ars_launcher_web.py --tidy` does it on demand.
+
+Aaron, 2026-11-03: "my harddrive is nearly full. make sure sheila cleans up after herself."
+
+- **What grew.** `%LOCALAPPDATA%\RPE\ti_cache` holds each client's transaction files, unzipped once, and their parquet, so the share is read once per file. Nothing ever removed a client, so it held 5.6 GB across three clients. Everything in it is rebuilt from `Inputs/Txn Files`, so a client let go costs only that client's next build a re-read.
+- **The limits.** `build/local_cache.py` `trim_ti_cache`: 3 GB for the whole cache (`TI_CACHE_MAX_GB`) and 21 days unused (`TI_CACHE_MAX_AGE_DAYS`), evicting whole clients, least recently used first. The client being built is never evicted. Each client has a small stamp file (`used/<id>`) touched when it is staged.
+- **When.** At Sheila's start (in the background, with `sweep_temp` for scratch a crashed build left in the temp folder), at the start of every `ti/txn_stage.stage`, and by hand: `python scripts/ars_launcher_web.py --tidy`.
+- Everything else Sheila writes locally was already cleaned: build scratch (`rpe_env.temp_dir`, removed at exit and swept at the start of each build) and the launcher's working files, which live on the share. `tests/test_local_cache.py`.
+
 ### 2026-11-03 — Live Review has a Reg E Management Solution (REMS) section
 
 Summary: Live Review has a new product section for Reg E Management Solution: responses and opt-ins by month, and how the client's opt-in rate compares with every other REMS client. It reads the saved result of the REMS query; until that file is saved it says what to run.

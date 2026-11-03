@@ -2060,11 +2060,38 @@ def make_server(port=0):
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
 
 
+def tidy(say=None):
+    """Sheila cleans up after herself (Aaron, 2026-11-03: "my harddrive is nearly full. make sure sheila cleans up after
+    herself"): build scratch a crashed build left in the temp folder, and the Transaction Intelligence cache beyond its
+    size and age limits (build/local_cache.py). Returns the bytes freed; never raises, a locked file is skipped."""
+    say = say or (lambda m: print(" " + m, flush=True))
+    freed = 0
+    try:
+        _swept, f = R.sweep_temp()
+        freed += f or 0
+    except Exception as e:
+        say(f"could not clear old build scratch: {e}")
+    try:
+        import local_cache
+        r = local_cache.trim_ti_cache(log=say)
+        freed += r["freed"]
+    except Exception as e:
+        say(f"could not trim the Transaction Intelligence cache: {e}")
+    if freed:
+        say(f"cleaned up {freed / 1e9:.1f} GB of old local files")
+    return freed
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics: the browser front end for ars_launcher.")
     ap.add_argument("--port", type=int, default=0, help="default: any free port")
     ap.add_argument("--no-open", action="store_true", help="don't open a browser")
+    ap.add_argument("--tidy", action="store_true", help="clean up old local build scratch and cache, then exit")
     a = ap.parse_args(argv)
+    if a.tidy:
+        tidy()
+        return 0
+    threading.Thread(target=tidy, daemon=True).start()          # while she starts, not before the page
     srv = make_server(a.port)
     install_share_caches()
     _renew["on"] = True
