@@ -257,8 +257,8 @@ html.present .tile .v{font-size:clamp(26px,15cqw,54px)}
 .rail h6.sec:first-child{margin-top:0}
 .rail h5.prod,.agenda h5.prod{margin:20px 0 4px;padding:7px 12px;border-radius:10px;background:var(--pfc-x,var(--c-navy));color:#fff;font:800 12px var(--head);letter-spacing:.1em;text-transform:uppercase}
 .rail h5.prod:first-child,.agenda h5.prod:first-child{margin-top:0}
-h5.prod[data-p="ars"]{--pfc-x:var(--pf-ars)}h5.prod[data-p="ti"]{--pfc-x:var(--pf-ti)}h5.prod[data-p="ics"]{--pfc-x:var(--pf-ics)}h5.prod[data-p="mrpc"]{--pfc-x:var(--pf-mrpc)}h5.prod[data-p="cashplease"]{--pfc-x:var(--pf-cashplease)}
-.ptag[data-p="ars"]{background:var(--pf-ars)}.ptag[data-p="ti"]{background:var(--pf-ti)}.ptag[data-p="ics"]{background:var(--pf-ics)}.ptag[data-p="mrpc"]{background:var(--pf-mrpc)}.ptag[data-p="cashplease"]{background:var(--pf-cashplease)}
+h5.prod[data-p="ars"]{--pfc-x:var(--pf-ars)}h5.prod[data-p="ti"]{--pfc-x:var(--pf-ti)}h5.prod[data-p="ics"]{--pfc-x:var(--pf-ics)}h5.prod[data-p="mrpc"]{--pfc-x:var(--pf-mrpc)}h5.prod[data-p="cashplease"]{--pfc-x:var(--pf-cashplease)}h5.prod[data-p="rems"]{--pfc-x:var(--pf-rems)}
+.ptag[data-p="ars"]{background:var(--pf-ars)}.ptag[data-p="ti"]{background:var(--pf-ti)}.ptag[data-p="ics"]{background:var(--pf-ics)}.ptag[data-p="mrpc"]{background:var(--pf-mrpc)}.ptag[data-p="cashplease"]{background:var(--pf-cashplease)}.ptag[data-p="rems"]{background:var(--pf-rems)}
 .storybar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 18px;font-size:.84rem;color:var(--text2)}
 .storybar .segs{display:flex;gap:4px;flex:0 0 auto}
 .storybar .segs i{display:block;width:30px;height:6px;border-radius:4px;background:var(--line);transition:background .3s}
@@ -294,16 +294,17 @@ html.present .card .head{margin-bottom:6px}
 html.present .notes{margin-bottom:10px}
 /* ---- which product is on screen (Aaron, 2026-11-03: "make it obvious when we switch between products") ----
    --pfc is the product's fill (white type sits on it in both themes), --pc its ink on the page ground. */
-:root{--pf-ars:#2F5FB5;--pf-analysis:#2F5FB5;--pf-ti:#0D7A6F;--pf-ics:#B5476B;--pf-mrpc:#7F6410;--pf-cashplease:#8F4FB0;
+:root{--pf-rems:#A24B1A;--p-rems:#A24B1A;--pf-ars:#2F5FB5;--pf-analysis:#2F5FB5;--pf-ti:#0D7A6F;--pf-ics:#B5476B;--pf-mrpc:#7F6410;--pf-cashplease:#8F4FB0;
   --p-ars:#2F5FB5;--p-analysis:#2F5FB5;--p-ti:#0D7A6F;--p-ics:#B5476B;--p-mrpc:#7F6410;--p-cashplease:#8F4FB0}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}}
-:root[data-theme="dark"]{--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--p-rems:#E39563;--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}}
+:root[data-theme="dark"]{--p-rems:#E39563;--p-ars:#7FA3E6;--p-analysis:#7FA3E6;--p-ti:#3CC4B2;--p-ics:#E58AAE;--p-mrpc:#D4B04A;--p-cashplease:#C193E0}
 html[data-product="ars"]{--pfc:var(--pf-ars);--pc:var(--p-ars)}
 html[data-product="analysis"]{--pfc:var(--pf-analysis);--pc:var(--p-analysis)}
 html[data-product="ti"]{--pfc:var(--pf-ti);--pc:var(--p-ti)}
 html[data-product="ics"]{--pfc:var(--pf-ics);--pc:var(--p-ics)}
 html[data-product="mrpc"]{--pfc:var(--pf-mrpc);--pc:var(--p-mrpc)}
 html[data-product="cashplease"]{--pfc:var(--pf-cashplease);--pc:var(--p-cashplease)}
+html[data-product="rems"]{--pfc:var(--pf-rems);--pc:var(--p-rems)}
 html[data-product] body::before{content:"";position:fixed;left:0;right:0;top:0;height:6px;background:var(--pfc);z-index:60}
 html[data-product] .eyebrow{color:var(--pc)}
 .ptag{display:inline-flex;align-items:center;padding:5px 15px;border-radius:999px;background:var(--pfc,var(--c-navy));color:#fff;font:800 .95rem var(--head);letter-spacing:.02em;white-space:nowrap}
