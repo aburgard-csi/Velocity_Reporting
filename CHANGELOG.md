@@ -27,6 +27,15 @@ Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real f
 
 Aaron asked to try multiple chart styles, analyze them, and research presentation tips. The note records a default style per job (branch comparison, parts of a whole, trend against a goal, before and after, peer position, two measures, mix, KPI tiles), the colour contrast and colour-vision measurements behind them, and what could not be verified. The 61 screenshots are in docs/chart-styles/. Nothing was merged or released.
 
+### 2026-11-03 — Live Review: charts with several measures on a switch get a Combined view
+
+Summary: A bar chart that switches between measures (Spend, Accounts, NSF/OD items by swipe tier) now has a Combined button that draws all of them together: measures in different units are each shown as their share of their own total, so you can see where one tier holds most of the spend but few of the accounts.
+
+Aaron, 2026-11-03, with the "Spend by swipe tier" chart: "for charts like this give me a combined option".
+
+- **Units.** Measures that are rates in one unit (the branch scorecard's take, Reg E and closure rates) sit side by side as they are; measures in different units (dollars, accounts, items) are each drawn as a share of that measure's total. Marine FCU: the 26+ swipe tier is 83% of spend, 37% of accounts and 68% of NSF/OD items. The tooltip gives the share and the raw value ("83.1% ($40.56M of $48.8M)").
+- **When offered.** Two to five measures, up to 14 categories, no negative values; a chart with more categories (branches) stays on its switch. Live Review only; `tests/test_live_review.py`.
+
 ### 2026-11-03 — Live Review has three more chart types: donut, waterfall and quadrant scatter
 
 Summary: Live Review now draws part-of-whole donuts (loans by status, MRPC cardholders by tier and engagement), a revenue-to-profit waterfall on the ARS financial screen, and quadrant scatter charts that put each branch on two measures (take rate against Reg E opt-in, take rate against value per account), alongside the bars, lines, tables and peer strips it already had.
