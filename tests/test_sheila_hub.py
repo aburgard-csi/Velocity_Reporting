@@ -187,3 +187,23 @@ def test_the_selected_row_has_no_accent_bar():
     assert "inset 3px 0 0" not in H.PAGE
     row = re.search(r'\.row\[aria-current="true"\]\{([^}]*)\}', H.PAGE).group(1)
     assert "var(--fill)" in row and "var(--accent" not in row
+
+
+def test_nothing_spins_or_pulses_unless_a_build_is_running():
+    """Aaron, 2026-11-02: the Building tile spun while it said 0 and nothing running. Every animation tied to
+    building hangs off <body class="busy">, set from the queue (or the open client's unfinished job) and nowhere
+    else, and the tile draws a still ring when nothing is running."""
+    css = H.PAGE.split("<style>", 1)[1].split("</style>", 1)[0]
+    for sel in (r"\.k-building svg \.spin", r"\.dotp", r"\.steps \.sd\.now"):
+        for m in re.finditer(r"([^{}]*" + sel + r"[^{}]*)\{([^}]*)\}", css):
+            if "animation" in m.group(2):
+                assert ".busy " in m.group(1), (m.group(1), m.group(2))
+    assert not re.search(r"(?m)^\s*\.k-building svg \.spin\{[^}]*animation", css)
+    still = re.search(r"\s idle:\s*'([^']*)'", H.PAGE).group(1)
+    assert "spin" not in still and "animate" not in still
+    assert 'si(k === "building" && !running() ? "idle" : k)' in H.PAGE
+    assert "function running() { return !!(QUEUE.building || QUEUE.queued.length); }" in H.PAGE
+    assert H.PAGE.count('classList.toggle("busy"') == 1, "one place decides"
+    # the only other animations are one-shot (pop) or loading skeletons
+    spin_uses = re.findall(r"animation:\s*(\w+)", css)
+    assert set(spin_uses) <= {"spin", "pulse", "pop", "shimmer"}

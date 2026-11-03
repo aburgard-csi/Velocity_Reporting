@@ -224,10 +224,14 @@ main{min-width:0;display:flex;flex-direction:column;gap:16px;padding-top:2px}
 .si svg{display:block;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .k-ready{color:var(--accent-ink)} .k-building{color:var(--accent-ink)} .k-outputs{color:var(--good)}
 .k-attention{color:var(--warn)} .k-blocked{color:var(--bad)} .k-checking{color:var(--muted)}
-.k-building svg .spin{transform-origin:8px 8px;animation:spin 1.1s linear infinite}
+.k-building svg .spin{transform-origin:8px 8px}
+.k-idle{color:var(--muted)}
+/* Nothing moves unless a build is running or queued: `busy` is set on <body> by paintBusy() and nowhere else. */
+.busy .k-building svg .spin{animation:spin 1.1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.dotp{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.4s ease-in-out infinite}
+.dotp{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.busy .dotp{animation:pulse 1.4s ease-in-out infinite}
 
 /* ---- KPI tiles double as the filter ---- */
 .kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
@@ -315,7 +319,8 @@ details.fold[open] summary::before{content:"\25BE ";}
 .steps li{display:flex;gap:9px;align-items:center}
 .steps .tm{margin-left:auto;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
 .steps .sd{width:10px;height:10px;border-radius:50%;border:2px solid var(--line);flex:none}
-.steps .sd.done{background:var(--good);border-color:var(--good)} .steps .sd.now{border-color:var(--accent);background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+.steps .sd.done{background:var(--good);border-color:var(--good)} .steps .sd.now{border-color:var(--accent);background:var(--accent)}
+.busy .steps .sd.now{animation:pulse 1.2s ease-in-out infinite}
 .result{border-radius:12px;padding:12px 14px;display:grid;gap:6px}
 .result.good{background:var(--good-soft);color:var(--ink)} .result.bad{background:var(--bad-soft)}
 .result h4{margin:0;font:700 15px var(--display);text-transform:none;letter-spacing:0;color:var(--ink)}
@@ -469,6 +474,7 @@ const ICONS = {
   outputs:   '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="currentColor" stroke="none"/><path d="m5.2 8.2 2 2 3.6-4" stroke="#fff"/></svg>',
   attention: '<svg viewBox="0 0 16 16"><path d="M8 2.2 14 13H2L8 2.2Z"/><path d="M8 6.5v3M8 11.3v.01"/></svg>',
   blocked:   '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5 8h6"/></svg>',
+  idle:      '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>',
   checking:  '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke-dasharray="2.4 2.4"/></svg>',
   ok:        '<svg viewBox="0 0 16 16"><path d="m3.5 8.3 3 3 6-6.6"/></svg>',
   warn:      '<svg viewBox="0 0 16 16"><path d="M8 2.2 14 13H2L8 2.2Z"/><path d="M8 6.5v3M8 11.3v.01"/></svg>',
@@ -505,14 +511,19 @@ function visible() {
   return CLIENTS.filter(c => (!csm || c.csm === csm) && (!q || c.id.includes(q) || (c.name || "").toLowerCase().includes(q)) && (!FILTER || kindOf(c).k === FILTER));
 }
 
+function running() { return !!(QUEUE.building || QUEUE.queued.length); }
+// The one switch for every animation tied to building: on while a build runs or waits (or the open client's job has not finished), off otherwise.
+function paintBusy() { document.body.classList.toggle("busy", running() || !!(JOB && !JOB.done)); }
+
 function renderKpis() {
+  paintBusy();
   const csm = $("#csm").value, base = CLIENTS.filter(c => !csm || c.csm === csm);
   const n = {}; for (const [k] of KINDS) n[k] = 0;
   for (const c of base) { const k = kindOf(c).k; if (n[k] !== undefined) n[k]++; }
   const queued = QUEUE.queued.length;
   const sub = {building: QUEUE.building ? "now" + (queued ? " · " + queued + " queued" : "") : "nothing running"};
   $("#kpis").innerHTML = KINDS.map(([k, w, s]) => `<button class="kpi" data-kind="${k}" aria-pressed="${FILTER === k}" title="Show only: ${esc(w)}">
-      <span class="k">${si(k)}${esc(w)}</span><span class="v">${LOADED ? n[k] : "–"}</span><span class="n">${esc(sub[k] || s)}</span></button>`).join("");
+      <span class="k">${si(k === "building" && !running() ? "idle" : k)}${esc(w)}</span><span class="v">${LOADED ? n[k] : "–"}</span><span class="n">${esc(sub[k] || s)}</span></button>`).join("");
   const bad = n.attention + n.blocked;
   const b = $("#b-attn"); b.textContent = bad ? String(bad) : "";
 }
@@ -591,6 +602,7 @@ async function pollQueue() {
 let buildSince = null;
 function paintBuildPill() {
   const b = $("#buildpill");
+  paintBusy();
   if (!QUEUE.building) { b.hidden = true; buildSince = null; return; }
   if (!buildSince) buildSince = Date.now();
   const s = Math.round((Date.now() - buildSince) / 1000), q = QUEUE.queued.length;
@@ -788,6 +800,7 @@ function follow(id) {
 
 function renderJob(j) {
   if (!j || !j.lines) return;
+  paintBusy();
   const key = j.ti ? "ti" : j.companion ? "comp" : "rpe", box = $("#job-" + key);
   for (const o of $$("#detail [id^=job-]")) if (o !== box) o.innerHTML = "";
   if (!box) return;
