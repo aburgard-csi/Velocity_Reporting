@@ -64,7 +64,7 @@ def test_data_issues_marks_complete_in_one_click_and_keeps_the_counts_in_the_sid
 
 def test_the_links_row_is_the_same_wherever_a_client_is_named():
     page = H.PAGE
-    row = between(page, "function linksRowHTML(", "async function clientLinks(")
+    row = between(page, "function codeSheetLinks(", "async function clientLinks(")
     for part in ("Open code sheet", "Show it in File Explorer", "Deck checks", "Lift Matrix", "No data issues"):
         assert part in row
     assert 'clientLinks(s.client, "decks", $("#clientlinks"))' in page, "on the Decks client page too"
