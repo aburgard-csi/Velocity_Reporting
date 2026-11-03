@@ -23,7 +23,7 @@ def fill(root, cid, mb, used_days_ago, now):
         d = root / sub / cid
         d.mkdir(parents=True)
         f = d / "file.bin"
-        f.write_bytes(b"x" * int(mb * 1e6 / 2))
+        f.write_bytes(b"x" * int(mb * 1e6 / len(LC.SUBDIRS)))
         os.utime(f, (now - used_days_ago * DAY, now - used_days_ago * DAY))
     LC.touch(cid, root=root, now=now - used_days_ago * DAY)
 
