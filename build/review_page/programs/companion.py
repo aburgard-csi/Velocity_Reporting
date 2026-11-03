@@ -86,9 +86,10 @@ def _waves(ctx, p):
     to_date = B.bars("wave-todate", "Revenue booked to date, by mailing", [w["m"] for w in last],
                      [{"name": "Revenue to date", "values": [w["revenue"] for w in last], "color": "navy"}], "usdk",
                      sub="The twelve most recent mailings; every mailing is in the table.")
-    month = B.bars("wave-month", f"Where {lab} revenue came from", [x[0] for x in latest],
-                   [{"name": "Revenue in the month", "values": [x[1] for x in latest], "color": "navy"}], "usdk",
-                   sub="Booked revenue in the month by the mailing it traces to.",
+    big = sorted(latest, key=lambda x: -x[1])[:12]
+    month = B.bars("wave-month", f"Where {lab} revenue came from", [x[0] for x in big],
+                   [{"name": "Revenue in the month", "values": [x[1] for x in big], "color": "navy"}], "usdk",
+                   sub="Booked revenue in the month by the mailing it traces to: the twelve largest mailings.",
                    drill=None)
     rows = []
     for w in waves:

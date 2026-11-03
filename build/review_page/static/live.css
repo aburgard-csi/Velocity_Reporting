@@ -271,3 +271,19 @@ html.present .tile .v{font-size:clamp(26px,15cqw,54px)}
 /* ---- peers: the strip plot and the lead sentence */
 .lede{font-size:1.15rem;color:var(--text2);margin:0;max-width:70ch}
 .peerdot{transition:r .15s}.peerdot:hover{r:8}
+
+/* presenting at 1280 x 720: the slide is the finding, the tiles, one chart and one line; no stamp, tighter gaps */
+html.present .stamp{display:none}
+html.present .blocks{gap:14px}
+html.present .storybar{margin-bottom:10px}
+html.present .note{font-size:1rem}
+html.present .chart text{font-size:13px}
+html.present main{padding-top:26px}
+html.present .tile{min-height:104px;padding:14px 18px}
+html.present .tile .s{font-size:.95rem}
+html.present h1{font-size:clamp(28px,min(3.2vw,5.4vh),52px);margin-bottom:14px}
+html.present .tile{min-height:92px;padding:12px 18px}
+html.present .tile .v{font-size:clamp(26px,min(15cqw,6vh),54px)}
+html.present .card{padding:14px 18px}
+html.present .card .head{margin-bottom:6px}
+html.present .notes{margin-bottom:10px}

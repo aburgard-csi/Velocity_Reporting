@@ -7,7 +7,7 @@ Aaron, 2026-11-03: *"go through them and pick the most impactful as if you're a 
 3. **Clear and comparable.** Is the finding clear without explanation, and set against a goal, the prior period, a control or the rest of the book?
 4. **Not already on the page.**
 
-Candidates: the 38 ARS Companion views (`combined_insights.compute`, `companion_deck.py`), the Transaction Intelligence cut as PR #106 (`feat/ti-deck-cleanup`) leaves it (151 slides in 8 chapters, `ti/slides.json`), and the 7 ARS screens the page already had. The page keeps **20 screens in 7 sections**; every other candidate is folded into one of them or left out, with the reason below.
+Candidates: the 38 ARS Companion views (`combined_insights.compute`, `companion_deck.py`), the Transaction Intelligence cut as PR #106 (`feat/ti-deck-cleanup`) leaves it (151 slides in 8 chapters, `ti/slides.json`), and the 7 ARS screens the page already had. The page keeps **20 screens in 7 sections** (plus, for a client that has them, the other programs' results and a "How you compare" section; see the end); every other candidate is folded into one of them or left out, with the reason below.
 
 ## The storyline
 
@@ -245,3 +245,15 @@ A slide PR #106 draws as one of a pair (`ti/deck/combine.py`) is listed under it
 - **Marine FCU 1539** has a TI pack but no transaction files and no deposits extract, so *Where members spend elsewhere*, *Who else members borrow from* and *Where deposit inflow is falling* show a *run the TI build* state with the command, never an empty chart. Its attrition, deposits-at-risk, value and branch-gap screens are real.
 - **CoastHills 1776** (the TI cleanup's sample client) has the transaction files and deposits, so all 20 screens are real; it was used to develop and check the competition, leakage and deposits screens.
 - Branch names come from the ARS pack's mapping; a branch the deck has no name for reads as *Branch <number>*.
+
+## Other programs and peer comparisons
+
+ICS, MRPC and CashPlease are programs of their own, not selections from the ARS candidates above. The page carries each as a first screen or two (results) and, after them, **How you compare**: the client against the other clients on the same program, anonymously.
+
+| Program | Compared on | Normalised as | Left out |
+|---|---|---|---|
+| ICS | referrals | share of the monthly goal; per 1,000 DDAs where the DDA count is known | |
+| MRPC | enrollments, cardholders still active, take rate among active accounts | share of goal; shares of cardholders and accounts | revenue (VIP's revenue is stale as of 2026-10-06) |
+| CashPlease | loan volume, overdue and charge-off | loans per 1,000 DDAs (the ILS DDA count); shares of loans | |
+
+Peers are all other clients on the program with current data; a client with no value for the month is not current for that metric and is counted in "left out". A pool or metric with fewer than five peers is stated and not shown. Nothing identifies another client.

@@ -337,7 +337,12 @@
   }
 
   function barsSVG(b, W) {
-    var mt = metricOf(b), ser = mt.series, f = mt.fmt, cats = b.cats, n = cats.length;
+    var mt = metricOf(b), ser = mt.series, f = mt.fmt, cats = b.cats, n = cats.length, capped = 0;
+    if (S.present && b.horizontal && n > 6) {   // a slide has room for six bars: the largest six, the rest one keypress away
+      var idx = cats.map(function (c, i) { return i; }).sort(function (x, y) { return (ser[0].values[y] || 0) - (ser[0].values[x] || 0); }).slice(0, 6);
+      capped = n; cats = idx.map(function (i) { return cats[i]; });
+      ser = ser.map(function (sr) { return {name: sr.name, color: sr.color, values: idx.map(function (i) { return sr.values[i]; })}; }); n = 6;
+    }
     if (!n) return '<div class="empty">' + esc(b.empty || "Nothing to chart.") + "</div>";
     var stacked = b.stacked;
     var vals = [].concat.apply([], ser.map(function (s) { return s.values.filter(function (v) { return typeof v === "number"; }); }));
@@ -366,12 +371,13 @@
           if (ser.length === 1 || k === 0) h.push('<text class="v" x="' + (pad.l + w + 6) + '" y="' + (yy + bh - 3) + '">' + esc(fmt(v, f)) + "</text>");
         });
       });
+      if (capped) h.push('<text x="' + (W - 8) + '" y="' + (pad.t + 2) + '" text-anchor="end">Largest 6 of ' + capped + " · T for the table</text>");
       h.push("</svg>");
     } else {
       var rot = false, groupW0 = (W - 64) / n;
       var longest = Math.max.apply(null, cats.map(function (c) { return textW(c, 12); }));
       rot = longest > groupW0 - 4;
-      var pad2 = {l: 56, r: 8, t: 22, b: rot ? Math.min(78, longest * 0.72 + 14) : 28}, H2 = 300;
+      var pad2 = {l: 56, r: 8, t: 22, b: rot ? Math.min(78, longest * 0.72 + 14) : 28}, H2 = S.present ? 250 : 300;
       var ph = H2 - pad2.t - pad2.b, pw2 = W - pad2.l - pad2.r, gw = pw2 / n;
       h.push('<svg class="chart" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + " " + H2 + '" role="img" aria-label="' + esc(b.title) + '">');
       sc.ticks.forEach(function (tv) {
@@ -479,6 +485,19 @@
     return '<div class="storybar" role="img" aria-label="Section ' + (it.si + 1) + " of " + n + '"><div class="segs">' + segs + '</div><span><b>' + esc(it.sec.title) + "</b> · section " + (it.si + 1) + " of " + n + " · screen " + (it.ri + 1) + " of " + it.sec.screens.length + " · <kbd>A</kbd> agenda</span></div>";
   }
 
+  /* Presenting (windowed, shared in a call at 1280x720): the finding as the headline, the tiles, ONE chart and the first so-what line.
+     The rest of the screen (tables, further charts, the other notes) is one keypress away, never on the slide. */
+  function presentBlocks(blocks, sid) {
+    var kp = blocks.filter(function (b) { return b.t === "kpis"; })[0], main = blocks.filter(function (b) { return b.t !== "kpis" && !(b.t === "statement" && b.lead); })[0];
+    var out = [];
+    if (main && main.t === "variants") {   // keep the control, and only each option's first real block (its chart)
+      main = Object.assign({}, main, {options: main.options.map(function (o) { return Object.assign({}, o, {blocks: o.blocks.filter(function (x) { return !(x.t === "statement" && x.lead); }).slice(0, 1)}); })});
+    }
+    if (kp && (!main || sid === "summary")) out.push({t: "kpis", items: kp.items.slice(0, 4)});   // tiles are the slide only where there is no chart, or on a summary
+    if (main) out.push(main);
+    return out.length ? out : blocks;
+  }
+
   function render(keepScroll) {
     var sc = curScreen(), main = $("#stage");
     $("#tip").classList.remove("on");   // the mouse has not moved, so nothing else would clear a tooltip over bars that just went away
@@ -491,8 +510,8 @@
       html = '<section class="screen"><h1>Nothing to show</h1></section>';
     } else {
       html = '<section class="screen' + (S.plain ? " " : "") + '" style="' + (S.plain ? "animation:none" : "") + '">' + storyBar() + '<p class="eyebrow">' + esc(sc.kicker) + "</p><h1>" + esc(sc.headline) + "</h1>" +
-        (sc.notes && sc.notes.length ? '<div class="notes">' + sc.notes.map(function (n) { return '<div class="note">' + ICON.info + "<span>" + esc(n) + "</span></div>"; }).join("") + "</div>" : "") +
-        '<div class="blocks">' + sc.blocks.map(function (b) { return blockHTML(b, sc); }).join("") + "</div>" +
+        ((S.present ? sc.notes.slice(0, 1) : sc.notes) && (S.present ? sc.notes.slice(0, 1) : sc.notes).length ? '<div class="notes">' + (S.present ? sc.notes.slice(0, 1) : sc.notes).map(function (n) { return '<div class="note">' + ICON.info + "<span>" + esc(n) + "</span></div>"; }).join("") + "</div>" : "") +
+        '<div class="blocks">' + (S.present ? presentBlocks(sc.blocks, sc.id) : sc.blocks).map(function (b) { return blockHTML(b, sc); }).join("") + "</div>" +
         '<p class="stamp">Data pack read ' + esc(MODEL.generated.replace("T", " ")) + " · sources on every screen (S)</p></section>";
     }
     main.innerHTML = html;
