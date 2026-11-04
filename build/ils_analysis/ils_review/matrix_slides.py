@@ -33,12 +33,11 @@ def _fits(n_rows, y, row_h=ROW_H, head_h=HEAD_H):
     return max(0.20, min(row_h, avail / (n_rows - 1)))
 
 
-def _cap(rows, y, *, per=0.235):
-    """(rows that fit, number left out). A table cannot shrink without limit on the RPE canvas, so a long
-    list stops where the content band ends and the slide says how many rows the matrix export holds."""
-    k = int((T.REAL_BOTTOM - 0.10 - T.Y(y) - 0.45) / per)
-    k = max(k, 6)
-    return (rows[:k], len(rows) - k) if len(rows) > k else (rows, 0)
+def _page_size(y, *, per=0.235):
+    """How many 8-pt rows fit from design-y `y` to the bottom of the content band. A long list is
+    PAGINATED at this size onto continuation slides ("(2 of n)"), never cut: the rows a client has to
+    check on a matrix-validation slide are exactly the ones that would be dropped."""
+    return max(6, int((T.REAL_BOTTOM - 0.10 - T.Y(y) - 0.45) / per))
 
 
 def _tbl(dk, slide, y, widths, n_rows, *, row_h=None, head_h=HEAD_H, x=X, w=W):
@@ -65,6 +64,30 @@ def slide_cover(dk, settings, *, section):
              f"{n} account-type matri{'x' if n == 1 else 'ces'}:  " + "  •  ".join(parts)
              + f"\nConfiguration snapshot as of {dk.date_str}",
              section=section)
+
+
+def _od_table(dk, slide, od, y, label):
+    T.band_label(slide, X, y, W, label)
+    y += 0.50
+    cols2 = ["Status Code", "Description", "ILS Calc", "Can Overdraft",
+             dk.term("MRPC Elig."), dk.term("MRPC Loan Elig.")]
+    widths2 = [2.5, 7.2, 2.2, 2.6, 2.2, 2.4]
+    rh = _fits(len(od) + 1, y)
+    tbl2 = _tbl(dk, slide, y, widths2, len(od) + 1, row_h=rh)
+    fs = _fs(rh, 14)
+    for c, h in enumerate(cols2):
+        T.head_cell(tbl2.cell(0, c), h, 14, align=PP_ALIGN.LEFT if c in (0, 1) else PP_ALIGN.CENTER)
+    for ri, r in enumerate(od, 1):
+        bg = T.zebra(ri - 1)
+        can_od = MD.is_true(r.get("CAN_OVERDRAFT"))
+        calc = MD.is_true(r.get("ILS_CALC"))
+        T.cell(tbl2.cell(ri, 0), r.get("STATUS_CODE", "") or "—", fs, bg=bg, align=PP_ALIGN.LEFT, bold=True)
+        T.cell(tbl2.cell(ri, 1), r.get("DESCRIPTION", ""), fs, bg=bg, align=PP_ALIGN.LEFT)
+        T.cell(tbl2.cell(ri, 2), MD.yesno(calc), fs, bg=bg, color=T.GREEN if calc else T.GRAY)
+        T.cell(tbl2.cell(ri, 3), MD.yesno(can_od), fs, bg=bg, bold=True, color=T.GREEN if can_od else T.RED)
+        for ci, key in ((4, "MRPC_Eligible"), (5, "MRPC_Loan_Eligible")):
+            v = MD.is_true(r.get(key))
+            T.cell(tbl2.cell(ri, ci), MD.yesno(v), fs, bg=bg, color=T.GREEN if v else T.GRAY)
 
 
 # ═════════════════════════════ settings + codes ═════════════════════════════
@@ -104,35 +127,15 @@ def slide_settings(dk, S, settings, *, section):
 
     od = MD.section(S, "OD STATUS CODE MAPPING")
     if od:
-        od_all = od
-        od, od_hidden = _cap(od, y + 0.50)
-        T.band_label(slide, X, y, W, f"  OD STATUS CODE MAPPING ({len(od_all)}; {len(od)} shown)" if od_hidden
-                     else "  OD STATUS CODE MAPPING")
-        y += 0.50
-        cols2 = ["Status Code", "Description", "ILS Calc", "Can Overdraft",
-                 dk.term("MRPC Elig."), dk.term("MRPC Loan Elig.")]
-        widths2 = [2.5, 7.2, 2.2, 2.6, 2.2, 2.4]
-        rh = _fits(len(od) + 1, y)
-        tbl2 = _tbl(dk, slide, y, widths2, len(od) + 1, row_h=rh)
-        fs = _fs(rh, 14)
-        for c, h in enumerate(cols2):
-            T.head_cell(tbl2.cell(0, c), h, 14,
-                        align=PP_ALIGN.LEFT if c in (0, 1) else PP_ALIGN.CENTER)
-        for ri, r in enumerate(od, 1):
-            bg = T.zebra(ri - 1)
-            can_od = MD.is_true(r.get("CAN_OVERDRAFT"))
-            calc = MD.is_true(r.get("ILS_CALC"))
-            T.cell(tbl2.cell(ri, 0), r.get("STATUS_CODE", "") or "—", fs, bg=bg,
-                   align=PP_ALIGN.LEFT, bold=True)
-            T.cell(tbl2.cell(ri, 1), r.get("DESCRIPTION", ""), fs, bg=bg, align=PP_ALIGN.LEFT)
-            T.cell(tbl2.cell(ri, 2), MD.yesno(calc), fs, bg=bg,
-                   color=T.GREEN if calc else T.GRAY)
-            T.cell(tbl2.cell(ri, 3), MD.yesno(can_od), fs, bg=bg, bold=True,
-                   color=T.GREEN if can_od else T.RED)
-            for ci, key in ((4, "MRPC_Eligible"), (5, "MRPC_Loan_Eligible")):
-                v = MD.is_true(r.get(key))
-                T.cell(tbl2.cell(ri, ci), MD.yesno(v), fs, bg=bg,
-                       color=T.GREEN if v else T.GRAY)
+        k = _page_size(y + 0.50)
+        rest = od[k:]
+        per_page = _page_size(T.CONTENT_TOP + 0.50)
+        pages = [rest[i:i + per_page] for i in range(0, len(rest), per_page)]
+        _od_table(dk, slide, od[:k], y, "  OD STATUS CODE MAPPING" + (f" ({len(od)}; 1 of {len(pages) + 1})" if pages else ""))
+        for i, chunk in enumerate(pages, 2):
+            s2 = dk.content(f"Account-Type Settings & OD Status Codes ({i} of {len(pages) + 1})",
+                            "OD status code mapping, continued", section=section)
+            _od_table(dk, s2, chunk, T.CONTENT_TOP, f"  OD STATUS CODE MAPPING ({len(od)}; {i} of {len(pages) + 1})")
     return slide
 
 
@@ -543,54 +546,51 @@ def slides_strategic_refunds(dk, S, *, section, show_all=False):
     daily = MD.section(S, "STRATEGIC REFUNDS DAILY MAX")
     if not (rf or tiers or daily):
         return []
-    slide = dk.content("Strategic Refunds",
-                       "Refund scoring ranges, tiers and daily maximums", section=section)
     y = T.CONTENT_TOP
-    rf_all, tiers_all = rf, tiers
-    if rf:
-        rf, rf_hidden = _cap(rf, y + 0.50)
-    if tiers:
-        tiers, tiers_hidden = _cap(tiers, y + 0.50)
-    if rf:
-        T.band_label(slide, X, y, 9.2, f"  RANGES AND FACTORS ({len(rf_all)}; {len(rf)} shown)" if rf_hidden else f"  RANGES AND FACTORS ({len(rf)})")
-        rh = _fits(len(rf) + 1, y + 0.50)
-        tbl = dk.table(slide, X, y + 0.50, 9.2, [5.8, 2.6, 1.2], len(rf) + 1,
-                       row_h=rh, header_h=HEAD_H)
-        fs = _fs(rh, 14)
-        for c, h in enumerate(["Category", "Range", "Factor"]):
-            T.head_cell(tbl.cell(0, c), h, 14, align=PP_ALIGN.LEFT if c < 2
-                        else PP_ALIGN.CENTER)
-        for ri, r in enumerate(rf, 1):
-            bg = T.zebra(ri - 1)
-            v = r.get("Factor", "")
-            T.cell(tbl.cell(ri, 0), r.get("Category", ""), fs, bg=bg, align=PP_ALIGN.LEFT)
-            T.cell(tbl.cell(ri, 1), MD.clean_range(r.get("Range", "")), fs, bg=bg,
-                   align=PP_ALIGN.LEFT)
-            T.cell(tbl.cell(ri, 2), MD.fmt_factor(v), fs, bg=bg, bold=True,
-                   color=MD.factor_color(v))
-    rx = X + 9.2 + 0.5
-    rw = T.SLIDE_W - rx - X
-    if tiers:
-        T.band_label(slide, rx, y, rw, f"  REFUND TIERS ({len(tiers_all)}; {len(tiers)} shown)" if tiers_hidden else f"  REFUND TIERS ({len(tiers)})")
-        rh = _fits(len(tiers) + 1, y + 0.50)
-        tbl = dk.table(slide, rx, y + 0.50, rw, [2.6, 3.0, 3.0], len(tiers) + 1,
-                       row_h=rh, header_h=HEAD_H)
-        fs = _fs(rh, 14)
-        for c, h in enumerate(["Refund ID", "Lower Bound", "Upper Bound"]):
-            T.head_cell(tbl.cell(0, c), h, 14)
-        for ri, r in enumerate(tiers, 1):
-            bg = T.zebra(ri - 1)
-            T.cell(tbl.cell(ri, 0), r.get("REFUND_ID", ""), fs, bg=bg)
-            T.cell(tbl.cell(ri, 1), MD.fmt_money(r.get("MIN_LOWER_BOUND", "")), fs, bg=bg)
-            T.cell(tbl.cell(ri, 2), MD.fmt_money(r.get("MAX_UPPER_BOUND", "")), fs, bg=bg)
-    if daily:
-        parts = []
-        for r in daily:
-            parts.append(f"Refund {r.get('REFUND_ID', '—')}: "
-                         f"{MD.fmt_money(r.get('DAILY_STRATEGIC_USD', ''))} / day, "
-                         f"{r.get('DAILY_STRATEGIC_QTY', '—')} items")
-        T.footnote(slide, "Daily maximums — " + "   ·   ".join(parts))
-    return [slide]
+    k = _page_size(y + 0.50)
+    n_pages = max(-(-len(rf) // k), -(-len(tiers) // k), 1)
+    slides = []
+    for pg in range(n_pages):
+        suffix = f" ({pg + 1} of {n_pages})" if n_pages > 1 else ""
+        slide = dk.content("Strategic Refunds" + suffix, "Refund scoring ranges, tiers and daily maximums",
+                           section=section)
+        slides.append(slide)
+        rfp, tp = rf[pg * k:(pg + 1) * k], tiers[pg * k:(pg + 1) * k]
+        if rfp:
+            T.band_label(slide, X, y, 9.2, f"  RANGES AND FACTORS ({len(rf)})")
+            rh = _fits(len(rfp) + 1, y + 0.50)
+            tbl = dk.table(slide, X, y + 0.50, 9.2, [5.8, 2.6, 1.2], len(rfp) + 1, row_h=rh, header_h=HEAD_H)
+            fs = _fs(rh, 14)
+            for c, h in enumerate(["Category", "Range", "Factor"]):
+                T.head_cell(tbl.cell(0, c), h, 14, align=PP_ALIGN.LEFT if c < 2 else PP_ALIGN.CENTER)
+            for ri, r in enumerate(rfp, 1):
+                bg = T.zebra(ri - 1)
+                v = r.get("Factor", "")
+                T.cell(tbl.cell(ri, 0), r.get("Category", ""), fs, bg=bg, align=PP_ALIGN.LEFT)
+                T.cell(tbl.cell(ri, 1), MD.clean_range(r.get("Range", "")), fs, bg=bg, align=PP_ALIGN.LEFT)
+                T.cell(tbl.cell(ri, 2), MD.fmt_factor(v), fs, bg=bg, bold=True, color=MD.factor_color(v))
+        rx = X + 9.2 + 0.5
+        rw = T.SLIDE_W - rx - X
+        if tp:
+            T.band_label(slide, rx, y, rw, f"  REFUND TIERS ({len(tiers)})")
+            rh = _fits(len(tp) + 1, y + 0.50)
+            tbl = dk.table(slide, rx, y + 0.50, rw, [2.6, 3.0, 3.0], len(tp) + 1, row_h=rh, header_h=HEAD_H)
+            fs = _fs(rh, 14)
+            for c, h in enumerate(["Refund ID", "Lower Bound", "Upper Bound"]):
+                T.head_cell(tbl.cell(0, c), h, 14)
+            for ri, r in enumerate(tp, 1):
+                bg = T.zebra(ri - 1)
+                T.cell(tbl.cell(ri, 0), r.get("REFUND_ID", ""), fs, bg=bg)
+                T.cell(tbl.cell(ri, 1), MD.fmt_money(r.get("MIN_LOWER_BOUND", "")), fs, bg=bg)
+                T.cell(tbl.cell(ri, 2), MD.fmt_money(r.get("MAX_UPPER_BOUND", "")), fs, bg=bg)
+        if daily and pg == n_pages - 1:
+            parts = []
+            for r in daily:
+                parts.append(f"Refund {r.get('REFUND_ID', '—')}: "
+                             f"{MD.fmt_money(r.get('DAILY_STRATEGIC_USD', ''))} / day, "
+                             f"{r.get('DAILY_STRATEGIC_QTY', '—')} items")
+            T.footnote(slide, "Daily maximums — " + "   ·   ".join(parts))
+    return slides
 
 
 # ═════════════════════════════ orchestration ════════════════════════════════

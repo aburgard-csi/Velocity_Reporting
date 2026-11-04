@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from . import theme as T
 import numpy as np
 import pandas as pd
 
@@ -25,8 +26,8 @@ from .ils_data import num
 
 # Deposit Score colour ramp: 1 (weakest / highest risk) -> 5 (strongest).
 # Score 1 (highest risk) to 5, in brand colours: red, orange, gold, soft steel, teal; 0 = not scored.
-SCORE_COLORS = {1: "#EB2A2E", 2: "#F15D22", 3: "#E7A93B", 4: "#9DB8CC",
-                5: "#0D9488", 0: "#B8C0CA"}
+SCORE_COLORS = {1: T.HEX["red"], 2: T.HEX["orange"], 3: T.HEX["gold"], 4: T.HEX["steel_soft"],
+                5: T.HEX["teal"], 0: T.HEX["gray"]}
 SCORE_ORDER = [1, 2, 3, 4, 5, 0]
 SCORE_LABEL = {1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 0: "Not scored"}
 

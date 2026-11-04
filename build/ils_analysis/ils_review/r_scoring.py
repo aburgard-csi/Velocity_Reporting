@@ -35,7 +35,7 @@ def _cut(v, edges):
 
 def _ramp():
     from matplotlib.colors import LinearSegmentedColormap
-    return LinearSegmentedColormap.from_list("rpe_ramp", ["#F2F5F8", R.STEEL_SOFT, R.STEEL, R.NAVY])
+    return LinearSegmentedColormap.from_list("rpe_ramp", [R.ROWALT, R.STEEL_SOFT, R.STEEL, R.NAVY])
 
 
 def odlimit_heatmap(fr, accttype, out_dir, size=(6.4, 4.9)):

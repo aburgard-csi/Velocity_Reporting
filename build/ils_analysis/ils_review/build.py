@@ -279,7 +279,8 @@ def _slide_data_notes(run, key):
 
     per = 4
     first, rest = method[:per], method[per:]
-    slide = dk.content("Data notes & methodology" + (" (1 of 2)" if rest else ""),
+    n_notes_pages = 1 + -(-len(rest) // 6)
+    slide = dk.content("Data notes & methodology" + (f" (1 of {n_notes_pages})" if rest else ""),
                        f"Scope, sources and caveats for the analysis in this deck  ·  data as of {str(fr.asof)[:10]}",
                        section=key, source=CS._src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic"))
     T.two_column_text(slide, T.CONTENT_TOP, "SCOPE & CLASSIFICATION", scope, "METHODOLOGY & CAVEATS", first, size=15,
