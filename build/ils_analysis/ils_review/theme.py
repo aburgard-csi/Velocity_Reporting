@@ -395,7 +395,7 @@ class Deck:
         pill_w = 2.55 if (pill and self.pill_text) else 0.0
         title_w = shapes_title_width(pill_w)
         size = 28
-        while size > 18 and not fits_one_line(title, title_w - 0.1, size, HEAD, True):
+        while size > 18 and not fits_one_line(title, (title_w - 0.1) * 0.88, size, HEAD, True):
             size -= 2
         shapes.textbox(slide, 0.50, 0.28, title_w, 0.62, title, size, NAVY, True, PP_ALIGN.LEFT, HEAD,
                        MSO_ANCHOR.TOP, name="Slide title")

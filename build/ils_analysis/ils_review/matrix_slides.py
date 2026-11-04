@@ -33,10 +33,10 @@ def _fits(n_rows, y, row_h=ROW_H, head_h=HEAD_H):
     return max(0.20, min(row_h, avail / (n_rows - 1)))
 
 
-def _cap(rows, y, *, per=0.20):
+def _cap(rows, y, *, per=0.235):
     """(rows that fit, number left out). A table cannot shrink without limit on the RPE canvas, so a long
     list stops where the content band ends and the slide says how many rows the matrix export holds."""
-    k = int((T.REAL_BOTTOM - 0.15 - T.Y(y) - 0.40) / per)
+    k = int((T.REAL_BOTTOM - 0.10 - T.Y(y) - 0.45) / per)
     k = max(k, 6)
     return (rows[:k], len(rows) - k) if len(rows) > k else (rows, 0)
 
@@ -104,9 +104,11 @@ def slide_settings(dk, S, settings, *, section):
 
     od = MD.section(S, "OD STATUS CODE MAPPING")
     if od:
-        T.band_label(slide, X, y, W, "  OD STATUS CODE MAPPING")
+        od_all = od
+        od, od_hidden = _cap(od, y + 0.50)
+        T.band_label(slide, X, y, W, f"  OD STATUS CODE MAPPING ({len(od_all)}; {len(od)} shown)" if od_hidden
+                     else "  OD STATUS CODE MAPPING")
         y += 0.50
-        od, od_hidden = _cap(od, y)
         cols2 = ["Status Code", "Description", "ILS Calc", "Can Overdraft",
                  dk.term("MRPC Elig."), dk.term("MRPC Loan Elig.")]
         widths2 = [2.5, 7.2, 2.2, 2.6, 2.2, 2.4]
@@ -552,7 +554,7 @@ def slides_strategic_refunds(dk, S, *, section, show_all=False):
     if rf:
         T.band_label(slide, X, y, 9.2, f"  RANGES AND FACTORS ({len(rf_all)}; {len(rf)} shown)" if rf_hidden else f"  RANGES AND FACTORS ({len(rf)})")
         rh = _fits(len(rf) + 1, y + 0.50)
-        tbl = dk.table(slide, X, y + 0.50, 9.2, [3.4, 3.6, 2.2], len(rf) + 1,
+        tbl = dk.table(slide, X, y + 0.50, 9.2, [5.8, 2.6, 1.2], len(rf) + 1,
                        row_h=rh, header_h=HEAD_H)
         fs = _fs(rh, 14)
         for c, h in enumerate(["Category", "Range", "Factor"]):
