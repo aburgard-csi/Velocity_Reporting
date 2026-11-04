@@ -71,7 +71,10 @@ fee slides need ILS-wide data and are labelled placeholders.
 * **Bands.** `scoring_summary.DECK_BANDS` overrides the three predictors whose bands differ in the deck (Days OD, Windfall Ratio,
   ILS Limit); `predictors("readme")` is the analysis registry.
 
-The 40-day and 240-day values are calibrated on one client (Achieva) and are the first thing to confirm with the analysis team.
+The 40-day and 240-day values were fitted to one client (Achieva) and tested on a second (Affinity, built with no code
+change). The 240-day open-active window held (personal population within 0.1% of the hand-built deck); the 40-day default
+held to about 0.6 pt on mature accounts but not on accounts under 30 days old. Treat both as unconfirmed with the
+analysis team, not as their rules.
 
 ## Run
 
