@@ -62,6 +62,16 @@ def test_the_mrpc_and_cashplease_lists_name_the_client_as_the_client():
     assert "CashPlease Peer Comparison" in cp
 
 
+def test_every_program_lists_its_how_you_compare_slide_where_the_builder_puts_it():
+    """build/peer_slide.py (2026-11-03): one per program deck, placed by title."""
+    ars, mrpc, cp = _titles("ARS"), _titles("MRPC"), _titles("CP")
+    assert ars.index("How You Compare — ARS Clients") == ars.index("ARS Key Takeaways") - 1
+    assert mrpc.index("How You Compare — MRPC Clients") == mrpc.index("MRPC Current Program Status") + 1
+    assert cp.index("How You Compare — CashPlease Clients") == cp.index("CashPlease Peer Comparison") + 1
+    for prog in ("ARS", "MRPC", "CP"):
+        assert not any("anchor not found" in r["source"] for r in SI.inventory()[prog])
+
+
 def test_the_ti_list_is_the_cuts_register_kept_slides_in_chapter_order():
     reg = json.loads(open(os.path.join(REPO, "build", "ars_pipeline", "ti", "slides.json"), encoding="utf-8").read())
     expected = [t for ch, titles in reg["_by_chapter"].items() if reg["chapters"].get(ch, "keep") == "keep"

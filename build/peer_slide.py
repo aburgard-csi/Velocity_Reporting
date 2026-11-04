@@ -93,7 +93,7 @@ def render_strips(items, out_png, w_in, h_in, client_label="This client"):
     import matplotlib.pyplot as plt
     from matplotlib.patches import Rectangle
     import rpe_env
-    from brand import NAVY, ORANGE, TICK, LABEL, STEEL, GRID, MUTED
+    from brand import NAVY, ORANGE, TICK, LABEL, STEEL, GRID
     rpe_env.use_font("Carlito")
     n = len(items)
     legend_h = 0.42
@@ -109,7 +109,7 @@ def render_strips(items, out_png, w_in, h_in, client_label="This client"):
         span = (hi - lo) or max(abs(hi), 1.0)
         pad = span * 0.07
         ax.set_xlim(lo - pad, hi + pad)
-        ax.set_ylim(-1.55, 1.9)
+        ax.set_ylim(-1.5, 3.4)
         ax.axis("off")
         ax.plot([lo, hi], [0, 0], color=GRID, lw=2, zorder=1, solid_capstyle="round")
         ax.add_patch(Rectangle((c["q1"], -0.45), max(c["q3"] - c["q1"], span * 0.004), 0.9, facecolor=LABEL, edgecolor="none", zorder=2))
@@ -118,13 +118,13 @@ def render_strips(items, out_png, w_in, h_in, client_label="This client"):
                    s=70, color=STEEL, alpha=0.9, edgecolors="white", linewidths=0.8, zorder=3)
         ax.plot([c["median"]] * 2, [-0.62, 0.62], color=NAVY, lw=3.2, zorder=4, solid_capstyle="butt")
         ax.scatter([c["client"]], [0], s=330, color=ORANGE, edgecolors="white", linewidths=2.2, zorder=5)
-        ax.text(c["client"], 0.62, f(c["client"]), ha="center", va="bottom", fontsize=17, fontweight="bold", color=ORANGE, zorder=6)
+        ax.text(c["client"], 0.5, f(c["client"]), ha="center", va="bottom", fontsize=17, fontweight="bold", color=ORANGE, zorder=6)
         label = spec["label"] + (f" ({it['month']})" if it.get("month") else "")
-        ax.text(lo - pad, 1.9, label, ha="left", va="top", fontsize=15, fontweight="bold", color=NAVY)
+        ax.text(lo - pad, 3.4, label, ha="left", va="top", fontsize=15, fontweight="bold", color=NAVY)
         ax.text(c["median"], -0.78, f"median {f(c['median'])}", ha="center", va="top", fontsize=12.5, color=TICK)
         for v, ha in ((lo, "left"), (hi, "right")):
             if abs(v - c["median"]) > span * 0.2:
-                ax.text(v, -0.78, f(v), ha=ha, va="top", fontsize=12.5, color=MUTED if False else TICK)
+                ax.text(v, -0.78, f(v), ha=ha, va="top", fontsize=12.5, color=TICK)
     # the key, once, under the last strip
     kx = fig.add_axes([0.03, 0.0, 0.94, legend_h / h_in])
     kx.set_xlim(0, 1)
@@ -144,7 +144,7 @@ def render_strips(items, out_png, w_in, h_in, client_label="This client"):
 
 
 # ----------------------------------------------------------------- the slide
-ROW_MAX = 1.02          # inches a strip row may take
+ROW_MAX = 1.3           # inches a strip row may take
 CHART = (0.5, 1.62, 7.75)
 TEXT_X, TEXT_W = 8.5, 4.4
 BAND_BOTTOM = 6.3
@@ -156,7 +156,7 @@ def _frame(prs, template_slide, title, pill, selection):
     import shapes as SH
     s = SH.blank_slide(prs, template_slide)
     SH.textbox(s, 0.5, 0.28, 9.6, 0.9, title, 26, NAVY_RGB, True, PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
-    SH.pill(s, pill)
+    SH.pill(s, pill, L=10.15, W=2.70)
     SH.textbox(s, 0.5, 1.06, 12.2, 0.4, selection, 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     return s
 
@@ -212,12 +212,16 @@ def notes_text(program, ev, ctx):
 
 
 def add_peer_slide(prs, program, client_id, client_name, pill, assets_dir, client_source,
-                   before_title=None, after_title=None, period=None, own=None, root=None, keys=None, extra=None, evaluation=None):
+                   before_title=None, after_title=None, period=None, own=None, root=None, keys=None, extra=None, evaluation=None,
+                   anchor_slide=None, brand=None):
     """Draw the slide, place it by title and return it.
 
     `client_source` is the sentence naming the client's own sources for the notes ("ODD extract ..., ARS workbook ...");
     `own` the packs the build already holds (see peer_pool.PeerCtx); `evaluation` a ready `peer_compare.for_deck` result (tests).
-    Placement: `before_title` or `after_title`, a title prefix, resolved at run time."""
+    Placement: `before_title` or `after_title`, a title prefix, resolved at run time; with neither the slide stays at the end of
+    the deck and `anchor_slide` (any slide of the deck) supplies its layout, for a builder that orders its own slides.
+    `brand` is "std" (the logo and a number box, `std_brand`) or a function called last with the slide, for a builder whose logo and
+    number are drawn per slide; ARS and CashPlease add theirs in their own passes."""
     from pptx.util import Inches
     from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
     from brand import NAVY_RGB, TICK_RGB, ORANGE_RGB, BODY
@@ -233,7 +237,7 @@ def add_peer_slide(prs, program, client_id, client_name, pill, assets_dir, clien
             err = f"{type(e).__name__}: {e}"
             print(f"!! peer slide ({program}): the other clients' figures could not be read - {err}", file=sys.stderr)
             ev = {"program": program, "who": who, "n_pool": 0, "pull": None, "items": [], "left": [], "notes": [], "unavailable": None}
-    anchor = next((x for x in prs.slides if SH.slide_title(x).startswith(before_title or after_title)), None)
+    anchor = anchor_slide or next((x for x in prs.slides if SH.slide_title(x).startswith(before_title or after_title or "-")), None)
     if anchor is None:
         raise SystemExit(f"peer slide: no '{before_title or after_title}' slide to place it by")
     n_items = len(ev["items"])
@@ -256,8 +260,9 @@ def add_peer_slide(prs, program, client_id, client_name, pill, assets_dir, clien
             top = CHART[1] + k * row_h + 0.2
             SH.textbox(s, TEXT_X, top, TEXT_W, 0.4, rank, 18, ORANGE_RGB, True, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
             SH.textbox(s, TEXT_X, top + 0.38, TEXT_W, 0.55, rel[0].upper() + rel[1:] + ".", 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-        cap = (f"Peers: {n_items and ev['items'][0]['c']['n']:,} to {max(i['c']['n'] for i in ev['items']):,} other {who} clients per measure"
-               if len({i['c']['n'] for i in ev['items']}) > 1 else f"Peers: {ev['items'][0]['c']['n']} other {who} clients per measure")
+        ns = sorted({i["c"]["n"] for i in ev["items"]})
+        cap = (f"Peers: {ns[0]} other {who} clients per measure" if len(ns) == 1
+               else f"Peers: {ns[0]} to {ns[-1]} other {who} clients per measure")
         SH.textbox(s, 0.5, 6.42, 10.5, 0.4, cap + "; a measure needs five with current data.", 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     else:
         if err:
@@ -270,8 +275,30 @@ def add_peer_slide(prs, program, client_id, client_name, pill, assets_dir, clien
     if err:
         note += f"\nThe other clients' figures could not be read for this build ({err})."
     s.notes_slide.notes_text_frame.text = note
-    _place(prs, s, before_title, after_title)
+    if before_title or after_title:
+        _place(prs, s, before_title, after_title)
+    if brand == "std":
+        std_brand(s, client_id, assets_dir)
+    elif brand:
+        brand(s)
     return s
+
+
+def std_brand(slide, client_id, assets_dir):
+    """The bottom-right mark (the client's logo, else the CSI lockup) and a slide-number box (its text is rewritten by the
+    builder's renumber pass), for a builder that draws them per slide."""
+    from pptx.util import Inches, Pt
+    from brand import NAVY_RGB, BODY
+    import shapes as SH
+    lockup = os.path.join(HERE, "assets", "logo.png")
+    SH.data_logo(slide, client_id=client_id, assets_dir=assets_dir, lockup=lockup if os.path.exists(lockup) else None)
+    tb = slide.shapes.add_textbox(Inches(0.45), Inches(7.05), Inches(0.70), Inches(0.30))
+    r = tb.text_frame.paragraphs[0].add_run()
+    r.text = "0"
+    r.font.name = BODY
+    r.font.size = Pt(10)
+    r.font.bold = True
+    r.font.color.rgb = NAVY_RGB
 
 
 def _evaluate(program, client_id, period, root, own, keys):
