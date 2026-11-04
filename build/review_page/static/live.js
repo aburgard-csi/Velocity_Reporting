@@ -869,6 +869,17 @@
     if (q) { S.q[q] = e.target.value; refreshTables(); }
   });
   document.addEventListener("mousemove", tip);
+  /* the glass cards' pointer-following sheen: the pointer's place inside the card, read by live.css (--mx / --my) */
+  var sheenBusy = false;
+  document.addEventListener("pointermove", function (e) {
+    if (sheenBusy || e.pointerType === "touch" || !e.target || !e.target.closest) return;
+    var c = e.target.closest(".card,.tile,.pcard"); if (!c) return;
+    sheenBusy = true;
+    requestAnimationFrame(function () {
+      sheenBusy = false; var r = c.getBoundingClientRect();
+      c.style.setProperty("--mx", (e.clientX - r.left) + "px"); c.style.setProperty("--my", (e.clientY - r.top) + "px");
+    });
+  }, {passive: true});
   document.addEventListener("mouseleave", function () { $("#tip").classList.remove("on"); });
   window.addEventListener("scroll", function () { $("#tip").classList.remove("on"); }, {passive: true});
   var rz; window.addEventListener("resize", function () { clearTimeout(rz); rz = setTimeout(function () { $("#stage").classList.add("still"); drawCharts(); }, 120); });
