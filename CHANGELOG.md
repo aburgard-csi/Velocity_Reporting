@@ -80,6 +80,21 @@ Cindy Draper's review of KEMBA CU 1195's ICS deck (2026-11-03; notes on the slid
 - Tests: `tests/test_ics_channel_split.py`, `tests/test_ics_channel_odd_slides.py`; `test_ics_local_sheet.py` updated for the divider, the close-rate window and the present-value rule.
 - Open: the ICS Financial Summary's ROI (7.17) already matches the workbook's Value tab, so Cindy's "Average Balance and ROI differ" is read as the average balance only; the "I like this one" note on Revenue Composition is not acted on; KEMBA's Charts Goals tab has no goal for Hamilton Quarter (VIP has 20 for ten months); KEMBA's ODD carries no signature/PIN dollars for May-Aug 2026.
 
+### 2026-11-03 — Live Review chart styles tried on Marine FCU data and scored (documentation only)
+
+Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real figures in 41 alternative chart styles, each set against the shipped one, scores them against a fixed rubric, sets out the published guidance behind the scores, and lists changes to Live Review with effort estimates; no screen, figure or behavior changed.
+
+Aaron asked to try multiple chart styles, analyze them, and research presentation tips. The note records a default style per job (branch comparison, parts of a whole, trend against a goal, before and after, peer position, two measures, mix, KPI tiles), the colour contrast and colour-vision measurements behind them, and what could not be verified. The 61 screenshots are in docs/chart-styles/. Nothing was merged or released.
+
+### 2026-11-03 — Live Review: charts with several measures on a switch get a Combined view
+
+Summary: A bar chart that switches between measures (Spend, Accounts, NSF/OD items by swipe tier) now has a Combined button that draws all of them together: measures in different units are each shown as their share of their own total, so you can see where one tier holds most of the spend but few of the accounts.
+
+Aaron, 2026-11-03, with the "Spend by swipe tier" chart: "for charts like this give me a combined option".
+
+- **Units.** Measures that are rates in one unit (the branch scorecard's take, Reg E and closure rates) sit side by side as they are; measures in different units (dollars, accounts, items) are each drawn as a share of that measure's total. Marine FCU: the 26+ swipe tier is 83% of spend, 37% of accounts and 68% of NSF/OD items. The tooltip gives the share and the raw value ("83.1% ($40.56M of $48.8M)").
+- **When offered.** Two to five measures, up to 14 categories, no negative values; a chart with more categories (branches) stays on its switch. Live Review only; `tests/test_live_review.py`.
+
 ### 2026-11-03 — Live Review has three more chart types: donut, waterfall and quadrant scatter
 
 Summary: Live Review now draws part-of-whole donuts (loans by status, MRPC cardholders by tier and engagement), a revenue-to-profit waterfall on the ARS financial screen, and quadrant scatter charts that put each branch on two measures (take rate against Reg E opt-in, take rate against value per account), alongside the bars, lines, tables and peer strips it already had.
