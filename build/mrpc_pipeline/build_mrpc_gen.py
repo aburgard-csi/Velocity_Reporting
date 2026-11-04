@@ -453,6 +453,14 @@ def build(data, template, out):
     set_notes(S[9], _now_note)
     set_notes(S[10], "Discussion slide. No data.")
 
+    # ---- How You Compare (Aaron, 2026-11-03): the client against every other MRPC client ----
+    # The same comparison Live Review's "How you compare" shows (peer_compare.for_deck), anonymous on the slide,
+    # placed by TITLE before Questions & Discussion. Always drawn; it says so when there are too few peers.
+    import peer_slide
+    peer_slide.add_peer_slide(prs, "MRPC", m["client_id"], client, f"As of {rm}", assets,
+                              f"Client figures: {src} for {client} ({m['client_id']}), pulled {pull}; the MRPCEnrollmentSummary weekly.",
+                              before_title="Questions & Discussion", brand="std")
+
     # ---- callout polish: clear baked-in tile text, then a UNIFORM shadow on every callout ----
     def _fill_hex(sh):
         try: return str(sh.fill.fore_color.rgb).upper()

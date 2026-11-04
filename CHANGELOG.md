@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Every Executive Review deck carries a "How You Compare" slide
+
+Summary: Each ARS, ICS, MRPC and CashPlease deck now has one slide, "How You Compare", that shows the client against every other client on the program (a dot for each, the median, the middle half, the client's own mark and its rank) with no other client named or numbered.
+
+Aaron, 2026-11-03: "I'd like to see our LR peer comparisons in the Sheila decks."
+
+- **`build/peer_slide.py`** draws the slide (strip plots in the deck's palette, the rank in orange, one plain sentence per measure, a Source line in the notes naming the client) from `peer_compare.for_deck`, the same collectors, metric lists and arithmetic as Live Review, so the deck and the page show the same figures. It is drawn by each builder and placed by title, not baked into a shell: ARS before "ARS Key Takeaways", ICS before "New in 2026: E-Learning Modules", MRPC after "MRPC Current Program Status", CashPlease after "CashPlease Peer Comparison". A combined deck carries each one inside its own section (`assemble_combined` keeps a program's slides by exclusion).
+- **No peer is identified.** Live Review's hover gives a peer's client number; a deck gives nothing, because a printed deck is forwarded. `validate_deck.peer_slide_findings` FAILs a peer slide whose notes name another client or whose face carries a client-number-like figure.
+- **Always drawn, never silent.** With fewer than five other clients the slide says so in a sentence. If the peers' figures cannot be read (the share is down), the slide says that and the deck FAILS validation, so it cannot ship quietly.
+- Measures per deck: ARS response rate, responder spend after a mailing, repeat responders moving up a swipe tier, debit spend per eligible account, Reg E opt-in; ICS referrals per 1,000 DDAs and revenue per account per month by source (only with a workbook for the period); MRPC enrollments per 1,000 debit accounts, still active, take rate, share of goal; CashPlease loans per 1,000 DDAs, overdue, charge-off.
+- Slide Review lists the four slides (`slide_inventory.ADDED`); `templates/TEMPLATES.md` and `templates/STYLE.md` record them. Tests: `tests/test_peer_slide.py`.
+
 ### 2026-11-03 — Peer comparisons: one shared arithmetic, and ARS plus ICS revenue per account added
 
 Summary: Live Review's "How you compare" now also compares ARS clients (mailing response rate, responder spend after a mailing, swipes and spend per eligible account, Reg E opt-in, take rate, retention, revenue per 1,000 accounts) and ICS clients on revenue per account per month by source, and the arithmetic behind every peer comparison now lives in one module so the Executive Review decks can show the same figures.
@@ -34,6 +46,21 @@ Aaron, 2026-11-03: "I'd like to see our LR peer comparisons in the Sheila decks.
 - A metric the client has no current figure for now says so in "Left out" instead of blaming the peers.
 - `scripts/warm_peer_tables.py` is named so on purpose: a `scripts/peer_tables.py` shadowed `build/peer_tables.py` wherever `scripts/` leads `sys.path`.
 - Tests: `tests/test_peer_compare.py`, `tests/test_peer_tables.py`; `test_live_review.py` expects the ARS "How you compare" screen.
+
+### 2026-11-03 — Live Review chart styles tried on Marine FCU data and scored (documentation only)
+
+Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real figures in 41 alternative chart styles, each set against the shipped one, scores them against a fixed rubric, sets out the published guidance behind the scores, and lists changes to Live Review with effort estimates; no screen, figure or behavior changed.
+
+Aaron asked to try multiple chart styles, analyze them, and research presentation tips. The note records a default style per job (branch comparison, parts of a whole, trend against a goal, before and after, peer position, two measures, mix, KPI tiles), the colour contrast and colour-vision measurements behind them, and what could not be verified. The 61 screenshots are in docs/chart-styles/. Nothing was merged or released.
+
+### 2026-11-03 — Live Review: charts with several measures on a switch get a Combined view
+
+Summary: A bar chart that switches between measures (Spend, Accounts, NSF/OD items by swipe tier) now has a Combined button that draws all of them together: measures in different units are each shown as their share of their own total, so you can see where one tier holds most of the spend but few of the accounts.
+
+Aaron, 2026-11-03, with the "Spend by swipe tier" chart: "for charts like this give me a combined option".
+
+- **Units.** Measures that are rates in one unit (the branch scorecard's take, Reg E and closure rates) sit side by side as they are; measures in different units (dollars, accounts, items) are each drawn as a share of that measure's total. Marine FCU: the 26+ swipe tier is 83% of spend, 37% of accounts and 68% of NSF/OD items. The tooltip gives the share and the raw value ("83.1% ($40.56M of $48.8M)").
+- **When offered.** Two to five measures, up to 14 categories, no negative values; a chart with more categories (branches) stays on its switch. Live Review only; `tests/test_live_review.py`.
 
 ### 2026-11-03 — ICS: every cohort from the program's start, early-program revenue called out, direct mail told apart from branch referrals
 

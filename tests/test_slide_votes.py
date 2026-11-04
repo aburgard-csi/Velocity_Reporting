@@ -238,7 +238,7 @@ def test_the_tab_lists_each_programs_slides_from_the_build_never_from_a_deck(ser
     status, doc = jcall(server, "GET", "/api/votes/programs")
     assert status == 200 and doc["period"] == "2026.10" and doc["me"] == "aaron"
     counts = {p["id"]: p["slides"] for p in doc["programs"]}
-    assert counts["ARS"] > 40 and counts["ICS"] > 20 and counts["MRPC"] == 7 and counts["CP"] == 5
+    assert counts["ARS"] > 40 and counts["ICS"] > 20 and counts["MRPC"] == 8 and counts["CP"] == 6
     assert counts["TI"] > 100 and counts["COMP"] > 30
     assert "templates" in doc["from"]
     status, doc = jcall(server, "GET", "/api/votes/program?program=ICS")

@@ -1920,6 +1920,17 @@ for _sl in prs.slides:
         for _x in _sl.shapes:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.left=Inches(1.03); _x.top=Inches(1.81); _x.width=Inches(8.4); _x.height=Inches(4.38)
 
+# ---- How You Compare (Aaron, 2026-11-03): the client against every other ARS client ----
+# The same comparison Live Review's "How you compare" shows (peer_compare.for_deck): response rate, responder spend
+# after a mailing, swipe-tier movement, debit spend per eligible account, Reg E opt-in. Every peer is anonymous on the
+# slide. Placed by TITLE before "ARS Key Takeaways", after every index-based pass; a failure to read the peers is
+# stated on the slide and fails validate_deck.peer_slide_findings. Always drawn: the slide is never dropped.
+import peer_slide as _peer_slide
+_peer_slide.add_peer_slide(prs, "ARS", ID, NAME, f"{AS_OF_SHORT} Data", ASSETS,
+                           f"Client figures: {ODD_SRC}; {WB_SRC}.", before_title="ARS Key Takeaways",
+                           period=_per or None, own={"metrics": M, "base": B})
+print("peer slide: " + _peer_slide.title_for("ARS"))
+
 # ARS Companion deck (Aaron, 2026-10-27): the launcher builds this deck with every opt-in view on
 # (RPE_JAMES_SLIDES, RPE_SPEND_SLIDES) and RPE_COMPANION=1, then companion_deck.py keeps only the
 # slides they added. The ids of the slides that exist BEFORE the views go in are taken here.

@@ -1685,6 +1685,16 @@ def build(d, static_path, out, referrals_only=False):
             callout(s,0.55+i*4.1,1.5,3.8,1.5,big,lab,fill=fill)
         logo(s); pagenum(s,16); notes(s,base+" Mystery shops YTD, pass rate, referral-offered rate. ICS Charts.")
 
+    # ---- How You Compare (Aaron, 2026-11-03): the client against every other ICS client ----
+    # The same comparison Live Review's "How you compare" shows (peer_compare.for_deck): referrals per 1,000 DDAs and,
+    # when the client's workbook is for the deck's own period, revenue per account per month by source. Anonymous on the
+    # slide. Built before the Contact slide, so it is the last data slide and lands after the results, before the
+    # education slides. Always drawn; it says so when there are too few peers.
+    import peer_slide
+    peer_slide.add_peer_slide(prs, "ICS", _cid, (d.get("meta") or {}).get("client_name") or "The client", f"PTD · {data_date}", A,
+                              f"Client figures: {base}", period=_period, brand="std",
+                              anchor_slide=prs.slides[len(prs.slides)-1])
+
     # Contact slide (built last so it lands at the very end, after Q&A). Every ICS deck has
     # one, and its card is the client's managing CSM (rpe_env.csm_contact, resolved above).
     from shapes import contact_card_note, draw_contact_slide
