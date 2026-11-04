@@ -82,6 +82,24 @@ def test_a_failing_split_never_stops_the_deck(root, tmp_path, monkeypatch, capsy
     assert "split NOT made" in capsys.readouterr().err
 
 
+def test_a_one_month_direct_mail_list_makes_no_split(root, tmp_path, capsys):
+    """Brooks Bank 1537's list is "Opened in Sep 2026": taken for the whole program it would call every earlier
+    month's accounts branch referrals. Only a program-to-date list (banner `Period: PTD`, else PTD in the name)
+    splits."""
+    assert CS.dm_list_is_program_to_date("x/1537-DM New Accounts Opened PTD.xlsx", None)
+    assert CS.dm_list_is_program_to_date("x/anything.xlsx", "PTD") and not CS.dm_list_is_program_to_date("x/PTD.xlsx", "September 2026")
+    assert not CS.dm_list_is_program_to_date("x/1537-DM New Accounts Opened in Sep 2026.xlsx", None)
+    d = _inputs(root, tmp_path)
+    # the same list, re-labelled by its banner as one month
+    import openpyxl
+    p = dm_file(root)
+    wb = openpyxl.load_workbook(p)
+    wb.active.cell(1, 3, "Period: September 2026")
+    wb.save(p)
+    assert CS.compute(d, use_odd=False) is None
+    assert "not a program-to-date list" in capsys.readouterr().out
+
+
 def test_the_divider_of_a_full_deck_does_not_repeat_the_referral_slide(root, tmp_path):
     d, out, prs = _deck_with_cohorts(root, tmp_path)
     div = " ".join(sh.text_frame.text for sh in prs.slides[2].shapes if sh.has_text_frame)

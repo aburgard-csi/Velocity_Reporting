@@ -741,7 +741,7 @@ def build(d, static_path, out, referrals_only=False):
             _split_odd_note=_split.get("odd_note")
             CH.render_split(d,_split,A)
             if _split_odd_note:
-                print(f"ICS split: ODD-based slides left out — {_split_odd_note}")
+                print(f"ICS split: some ODD-based slides left out — {_split_odd_note}")
     prs=Presentation(static_path)
     prs.slide_width=Inches(13.333); prs.slide_height=Inches(7.5)
     # the template may be a FULL populated demo deck (Union Financial) — keep only the

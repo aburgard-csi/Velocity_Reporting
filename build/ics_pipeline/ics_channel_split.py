@@ -96,9 +96,23 @@ def month_of(label):
     return (d.year, d.month) if d else None
 
 
+def dm_list_is_program_to_date(path, banner):
+    """True when the direct-mail list covers the whole program: its banner says `Period: PTD`, else its
+    file name carries PTD. A list for one month (Brooks Bank 1537's is "Opened in Sep 2026") is not a
+    program-to-date count, and treating it as one would call every earlier month's accounts branch referrals."""
+    if banner:
+        return banner.strip().lower() == "ptd"
+    return re.search(r"\bptd\b", os.path.basename(str(path)), re.I) is not None
+
+
 def read_dm_accounts(path):
     """-> ([(hash, open date, branch)], rows without a usable hash/date). The CSM's direct-mail list:
     header row carries 'Open Date' and 'Account Number'."""
+    return read_dm_list(path)[:2]
+
+
+def read_dm_list(path):
+    """-> (accounts, rows unusable, the banner's `Period:` text or None) — see `read_dm_accounts`."""
     import openpyxl
     wb = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
     try:
@@ -108,7 +122,12 @@ def read_dm_accounts(path):
     hi = next((i for i, r in enumerate(rows[:30])
                if any(isinstance(v, str) and v.strip().lower() == "open date" for v in r)), None)
     if hi is None:
-        return [], 0
+        return [], 0, None
+    banner = None
+    for r in rows[:hi]:
+        for v in r:
+            if isinstance(v, str) and v.strip().lower().startswith("period:"):
+                banner = v.split(":", 1)[1].strip()
     hdr = [str(v).strip().lower() if v is not None else "" for v in rows[hi]]
     c_date = hdr.index("open date")
     c_hash = next((i for i, h in enumerate(hdr) if h in ("account number", "acct number", "hashed account")), None)
@@ -127,7 +146,7 @@ def read_dm_accounts(path):
             v = r[c_br]
             br = str(int(v)) if isinstance(v, float) and v.is_integer() else str(v).strip()
         out.append((h, d, br))
-    return out, bad
+    return out, bad, banner
 
 
 def referral_export_files(folder):
@@ -543,8 +562,12 @@ def compute(d, *, dm_path=None, referral_dir=None, odd_zip=None, use_odd=True, l
     dm_path = dm_path or find_dm_list(cid)
     if not dm_path:
         return None
-    dm_list, dm_bad = read_dm_accounts(dm_path)
+    dm_list, dm_bad, dm_banner = read_dm_list(dm_path)
     if not dm_list:
+        return None
+    if not dm_list_is_program_to_date(dm_path, dm_banner):
+        log(f"ICS channel split NOT made: {os.path.basename(dm_path)} is not a program-to-date list "
+            f"(period {dm_banner or 'not stated'}), so direct mail and branch referral cannot be told apart by month.")
         return None
     months, acc = full["months"], full["accounts_opened"]
     cs = cohort_split(months, acc, dm_list)
@@ -607,8 +630,8 @@ def compute(d, *, dm_path=None, referral_dir=None, odd_zip=None, use_odd=True, l
         "products": product_mix(scan),
     }
     if rt is None:
-        block["odd_note"] = ("The workbook's interchange is not one stable rate times the ODD's debit spend for this client, so "
-                             "interchange is not split by channel.")
+        block["odd_note"] = ("The workbook's interchange is not one stable rate times the ODD's debit spend for the accounts the lists "
+                             "find in it (or too few of the workbook's accounts are found there), so interchange is not split by channel.")
     return block
 
 
