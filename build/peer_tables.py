@@ -17,7 +17,7 @@ swipe/spend for ARS"). ICS referrals, MRPC enrollments and CashPlease loans alre
                   client that was built has one; the newest pack at or before the period is the client's row. They are
                   small, so they are read directly, not cached. No ODD extract is opened for a peer.
 
-Nothing here is scheduled: the watch at 08:00 is unchanged. `scripts/peer_tables.py` refreshes the ICS cache by hand and
+Nothing here is scheduled: the watch at 08:00 is unchanged. `scripts/warm_peer_tables.py` refreshes the ICS cache by hand and
 prints what each table holds; any deck or Live Review run refreshes a stale entry itself.
 
 Import-safe: nothing is read until a function is called.

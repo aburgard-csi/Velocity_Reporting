@@ -378,6 +378,14 @@ def _cp_row(d):
         point["overdue"] = 100.0 * mt["pct_loans_overdue"]
     if d.get("charge_off_pct") is not None:
         point["charge_off"] = 100.0 * d["charge_off_pct"]
+    # Program to date, as the CashPlease deck's own cohort slide states them (Aaron, 2026-11-03: "anything else ... a head
+    # of retail banking would want benchmarked"): the size of a loan, the interest it earns, and how many are paid off.
+    if mt.get("avg_loan_size") is not None:
+        point["avg_loan"] = float(mt["avg_loan_size"])
+    if mt.get("avg_interest_per_loan") is not None:
+        point["avg_interest"] = float(mt["avg_interest_per_loan"])
+    if mt.get("pct_loans_paid_off") is not None:
+        point["paid_off"] = 100.0 * mt["pct_loans_paid_off"]
     dda = mt.get("dda_accounts")
     series = {}
     if dda:
@@ -414,6 +422,9 @@ CP_METRICS = [
     {"key": "per_1k_month", "label": "Monthly loans per 1,000 DDAs", "fmt": "dec1", "higher": True, "month": True},
     {"key": "overdue", "label": "Share of loans overdue", "fmt": "pct1", "higher": False, "month": False},
     {"key": "charge_off", "label": "Charge-off rate", "fmt": "pct1", "higher": False, "month": False},
+    {"key": "avg_loan", "label": "Average loan size, program to date", "fmt": "usd", "higher": None, "month": False},
+    {"key": "avg_interest", "label": "Average interest per loan, program to date", "fmt": "usd2", "higher": True, "month": False},
+    {"key": "paid_off", "label": "Share of loans paid off, program to date", "fmt": "pct1", "higher": True, "month": False},
 ]
 
 
