@@ -124,7 +124,7 @@ def test_slide_count(deck):
     that name rather than added beside it, so the count did not move. If this moves,
     assemble_combined's section boundary is the next thing to check — adding two slides
     broke it before."""
-    assert len(deck["prs"].slides) == 50
+    assert len(deck["prs"].slides) == 51
 
 
 # --- it has the right shape ----------------------------------------------
@@ -231,7 +231,7 @@ def test_nsf_slide_compares_complete_months_and_says_what_was_left_out(partial_d
     notes = s.notes_slide.notes_text_frame.text
     assert "Jul 2026 is left out as incomplete in this extract" in notes, notes
     assert "Items YTD YoY compares Jan\u2013Jun 25 (" in notes and ") to Jan\u2013Jun 26 (" in notes, notes
-    assert len(partial_deck["prs"].slides) == 50, "a partial month never drops a slide"
+    assert len(partial_deck["prs"].slides) == 51, "a partial month never drops a slide"
 
 
 def test_spend_yoy_is_year_to_date_too(deck):

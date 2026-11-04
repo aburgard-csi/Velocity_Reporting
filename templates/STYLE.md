@@ -41,6 +41,7 @@ palette on a different anatomy because they land inside someone else's deck.
 | Executive Summit slide, untouched | `build/summit_slide.py` | `tests/test_golden_deck.py` (every deck carries it) |
 | Title lists only included products; agenda rows removed, never blanked | `build/assemble_combined.py` | `tests/test_assemble_combined.py` |
 | One value per named measure | `build/figures.py` sidecar | `figure_sidecar_findings` |
+| "How You Compare" names no other client and could read its peers | `build/peer_slide.py` (figures from `build/peer_compare.py`, anonymised by `for_deck`) | `peer_slide_findings`; `tests/test_peer_slide.py` |
 | Package opens; slide parts referenced once | never delete-then-add a slide | `package_findings`; the `qa_all` render step |
 
 `validation/qa_all.py` runs all of it. Run it after ANY change to `templates/`,
@@ -90,7 +91,7 @@ decision to record here, not a refactor.
   top, else body; 12+ words is always body; tables are body.
 - **Minimum 16 pt** for every explicit run — these decks are read from 15 feet.
   Exceptions, all in `restyle_fonts.py`: slides titled "2026 New Releases",
-  "Product Mix", "Program Results by Month Opened", "Referred Accounts by Product"
+  "Product Mix", "Program Results by Month Opened", "Program Results by Opening Year", "Referred Accounts by Product"
   (dense tables that cannot fit at 16), and the Appendix branch-detail tables (15 branch lines a page,
   12 pt; found by the table's shape name, `restyle_fonts.BRANCH_DETAIL_TABLE`); MRPC decks (a deliberate 10-15 pt
   hierarchy); the Executive Summit slide (never touched); and the 12 pt label under
@@ -407,6 +408,16 @@ element is already maxed.
 - Name the client — never "this client". Footnotes stay under two lines; a longer
   one is pushed up by `fit_layout` into the content (the defect behind
   `text_collision_findings`).
+
+### How You Compare (every program deck; Aaron, 2026-11-03)
+- One slide per program deck, `How You Compare — <ARS|ICS|MRPC|CashPlease> Clients` (`build/peer_slide.py`): the client
+  against every other client on the program, the same figures as Live Review's "How you compare" (`build/peer_compare.py`).
+  Each measure is a strip plot (`STEEL` dots for the other clients, the middle half in `LABEL`, the median in `NAVY`, the
+  client in `ORANGE`) with the client's rank ("6th of 38 ARS clients", orange bold 18 pt) and one plain sentence beside it
+  (16 pt `TICK`). Three to five measures a slide; a measure with fewer than five other clients is not drawn.
+- **No other client is identified**: no number, name, logo or CSM (a printed deck is forwarded; Live Review's hover gives a
+  peer's number, a deck never does). Wording follows the +/-2% band: within 2% of the median is "almost flat".
+- Always drawn. Too few peers is a sentence on the slide; an unreadable peer pool is a sentence AND a validation FAIL.
 
 ## 8. Data-size adaptation
 

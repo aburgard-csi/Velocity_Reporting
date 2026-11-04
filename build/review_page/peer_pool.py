@@ -37,6 +37,17 @@ import month_complete as MC                                  # noqa: E402
 _ID_RX = re.compile(r"^(\d{3,5})-")
 
 
+class PeerCtx:
+    """What a collector needs to know, for a caller that is not a Live Review page (an Executive Review deck build):
+    the client, the period ("yyyy.mm"), the Build Artifacts folder (None -> rpe_env.build_artifacts()), `own` (the client's
+    own packs when the build holds them already: {"metrics": ..., "base": ..., "cashplease": ...}) and `ics_dir` (a folder of
+    ICS workbooks other than Inputs/ICS Workbooks, for a test). A Live Review `Ctx` has client, period and root, which is all
+    the collectors read when `own` and `ics_dir` are absent."""
+
+    def __init__(self, client, period=None, root=None, own=None, ics_dir=None):
+        self.client, self.period, self.root, self.own, self.ics_dir = str(client), period, root, own, ics_dir
+
+
 def _label(m):
     return MC.label(m)
 
@@ -160,6 +171,28 @@ def collect_ics(ctx):
         rows.setdefault(cid, {"point": {}, "series": {}})["series"]["per_1k"] = series
     if newest:
         pulls.append(newest)
+    # Revenue per account per month by source, from the ICS workbooks (Aaron, 2026-11-03): the ICS deck's own arithmetic
+    # (peer_tables.ics_revenue), every client with a workbook. The client's figure is shown only when its workbook is for
+    # the period (the deck's own rule: no carried-forward financials); a peer's workbook may be up to
+    # PT.ICS_MAX_AGE_MONTHS older, and the comparison says which months the workbooks carry.
+    rev_months = []
+    try:
+        import peer_tables as PT
+        me_id = str(ctx.client)
+        cache = PT.cache_dir(ctx.root) if getattr(ctx, "root", None) else None
+        for cid, e in PT.ics_revenue_rows(folder=getattr(ctx, "ics_dir", None), cache=cache).items():
+            if cid == me_id:
+                if ctx.period and e["period"] != ctx.period:
+                    continue
+            elif ctx.period and (PT.months_between(e["period"], ctx.period) or 0) > PT.ICS_MAX_AGE_MONTHS:
+                continue
+            vals = {k: v for k, v in e["vals"].items() if k.startswith("rev_")}
+            rows.setdefault(cid, {"point": {}, "series": {}})["point"].update(vals)
+            if e.get("month"):
+                rev_months.append(e["month"] + "-01")
+    except (OSError, ValueError, KeyError, SystemExit):
+        pass
+    pulls.extend(rev_months)
     mine, peers = _split(rows, str(ctx.client))
     return {"n_pool": len(peers), "me": mine, "peers": peers, "pull": _span(pulls)}
 
@@ -167,6 +200,10 @@ def collect_ics(ctx):
 ICS_METRICS = [
     {"key": "pct_goal", "label": "Referrals as a share of the monthly goal", "fmt": "pct0", "higher": True, "month": True},
     {"key": "per_1k", "label": "Referrals per 1,000 DDAs", "fmt": "dec1", "higher": True, "month": True},
+    {"key": "rev_total", "label": "Revenue per account per month, all sources", "fmt": "usd2", "higher": True, "month": False},
+    {"key": "rev_interchange", "label": "Interchange revenue per account per month", "fmt": "usd2", "higher": True, "month": False},
+    {"key": "rev_nsf_od", "label": "NSF/OD and other fee revenue per account per month", "fmt": "usd2", "higher": True, "month": False},
+    {"key": "rev_spread", "label": "Spread revenue per account per month", "fmt": "usd2", "higher": True, "month": False},
 ]
 
 
@@ -323,6 +360,39 @@ MRPC_METRICS = [
 
 
 # ----------------------------------------------------------------- CashPlease
+def _cp_row(d):
+    """(row, report date) for one client's CashPlease pack, or (None, None) when it is cancelled, has no loans or none in
+    the last six complete months."""
+    if d.get("cancelled") or not (d.get("total") or {}).get("loans"):
+        return None, None
+    gen = MC.report_date(d.get("report_generated"))
+    mon = [r for r in (d.get("monthly") or []) if r.get("period_month") and MC.month_ended(r["period_month"], gen) is not False]
+    mon.sort(key=lambda r: r["period_month"])
+    if not any(r["loans"] for r in mon[-6:]):
+        return None, None                                     # no loans in the last six complete months: not current
+    mt = d.get("metrics") or {}
+    point = {}
+    if mt.get("peer_comparable") and mt.get("loans_per_1k_dda") is not None:
+        point["per_1k"] = float(mt["loans_per_1k_dda"])
+    if mt.get("pct_loans_overdue") is not None:
+        point["overdue"] = 100.0 * mt["pct_loans_overdue"]
+    if d.get("charge_off_pct") is not None:
+        point["charge_off"] = 100.0 * d["charge_off_pct"]
+    # Program to date, as the CashPlease deck's own cohort slide states them (Aaron, 2026-11-03: "anything else ... a head
+    # of retail banking would want benchmarked"): the size of a loan, the interest it earns, and how many are paid off.
+    if mt.get("avg_loan_size") is not None:
+        point["avg_loan"] = float(mt["avg_loan_size"])
+    if mt.get("avg_interest_per_loan") is not None:
+        point["avg_interest"] = float(mt["avg_interest_per_loan"])
+    if mt.get("pct_loans_paid_off") is not None:
+        point["paid_off"] = 100.0 * mt["pct_loans_paid_off"]
+    dda = mt.get("dda_accounts")
+    series = {}
+    if dda:
+        series["per_1k_month"] = {_label(r["period_month"]): 1000.0 * r["loans"] / dda for r in mon[-24:]}
+    return {"point": point, "series": series}, gen
+
+
 def collect_cashplease(ctx):
     import rpe_env
     root = ctx.root or rpe_env.build_artifacts()
@@ -333,27 +403,16 @@ def collect_cashplease(ctx):
             d = json.loads(open(f, encoding="utf-8").read())
         except (OSError, ValueError):
             continue
-        if d.get("cancelled") or not (d.get("total") or {}).get("loans"):
+        row, gen = _cp_row(d)
+        if row is None:
             continue
-        gen = MC.report_date(d.get("report_generated"))
-        mon = [r for r in (d.get("monthly") or []) if r.get("period_month") and MC.month_ended(r["period_month"], gen) is not False]
-        mon.sort(key=lambda r: r["period_month"])
-        if not any(r["loans"] for r in mon[-6:]):
-            continue                                          # no loans in the last six complete months: not current
-        mt = d.get("metrics") or {}
-        point = {}
-        if mt.get("peer_comparable") and mt.get("loans_per_1k_dda") is not None:
-            point["per_1k"] = float(mt["loans_per_1k_dda"])
-        if mt.get("pct_loans_overdue") is not None:
-            point["overdue"] = 100.0 * mt["pct_loans_overdue"]
-        if d.get("charge_off_pct") is not None:
-            point["charge_off"] = 100.0 * d["charge_off_pct"]
-        dda = mt.get("dda_accounts")
-        series = {}
-        if dda:
-            series["per_1k_month"] = {_label(r["period_month"]): 1000.0 * r["loans"] / dda for r in mon[-24:]}
-        rows[cid] = {"point": point, "series": series}
+        rows[cid] = row
         pulls.append(str(gen or ""))
+    own = (getattr(ctx, "own", None) or {}).get("cashplease")      # the pack the deck was built from, when the build holds it
+    if own:
+        row, gen = _cp_row(own)
+        if row is not None:
+            rows[str(ctx.client)] = row
     mine, peers = _split(rows, str(ctx.client))
     return {"n_pool": len(peers), "me": mine, "peers": peers, "pull": _span(pulls)}
 
@@ -363,4 +422,64 @@ CP_METRICS = [
     {"key": "per_1k_month", "label": "Monthly loans per 1,000 DDAs", "fmt": "dec1", "higher": True, "month": True},
     {"key": "overdue", "label": "Share of loans overdue", "fmt": "pct1", "higher": False, "month": False},
     {"key": "charge_off", "label": "Charge-off rate", "fmt": "pct1", "higher": False, "month": False},
+    {"key": "avg_loan", "label": "Average loan size, program to date", "fmt": "usd", "higher": None, "month": False},
+    {"key": "avg_interest", "label": "Average interest per loan, program to date", "fmt": "usd2", "higher": True, "month": False},
+    {"key": "paid_off", "label": "Share of loans paid off, program to date", "fmt": "pct1", "higher": True, "month": False},
 ]
+
+
+# ----------------------------------------------------------------- ARS
+def collect_ars(ctx):
+    """ARS peers from the data packs every deck build leaves in Build Artifacts/launcher/<period>/<id>/ (peer_tables.py):
+    the deck's own response rate, responder before/after, tier movement, swipes and spend per eligible account, Reg E, take
+    rate, retention and active cards. A peer's snapshot figures count only when its pack reads the same activity month as
+    the client's (the same extract month); its by-mailing response rate is month-keyed and aligned by `align_month`."""
+    import peer_tables as PT
+    import rpe_env
+    root = ctx.root or rpe_env.build_artifacts()
+    me_id = str(ctx.client)
+    rows = PT.ars_rows(root, ctx.period)
+    own = getattr(ctx, "own", None) or {}
+    if own.get("metrics"):
+        rows[me_id] = PT.ars_metrics(own["metrics"], own.get("base"))
+    mine = rows.get(me_id) or {"point": {}, "series": {}, "activity": None, "rev_month": None}
+    peers = []
+    for cid, r in rows.items():
+        if cid == me_id:
+            continue
+        point = dict(r["point"])
+        if mine.get("activity") and r["activity"] != mine["activity"]:
+            point = {}                                        # a pack from another extract month is not current for a snapshot
+        if mine.get("rev_month") and r.get("rev_month") != mine["rev_month"]:
+            point.pop("rev_per_1k", None)
+        peers.append({"id": cid, "point": point, "series": r["series"]})
+    mine = {"point": mine["point"], "series": mine["series"]}
+    return {"n_pool": len(peers), "me": mine, "peers": peers,
+            "pull": _span([str(r.get("pack_period") or "").replace(".", "-") + "-01" for r in rows.values() if r.get("pack_period")])}
+
+
+ARS_METRICS = [
+    {"key": "resp_12m", "label": "Mailing response rate, last 12 months", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "resp_rate", "label": "Mailing response rate by mailing", "fmt": "pct1", "higher": True, "month": True},
+    {"key": "spend_gain", "label": "Responder debit spend, change after a mailing", "fmt": "pct0", "higher": True, "month": False},
+    {"key": "spend_after", "label": "Responder debit spend a month, after a mailing", "fmt": "usd", "higher": True, "month": False},
+    {"key": "moved_up", "label": "Repeat responders moving up a swipe tier", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "swipes_per_acct", "label": "Debit swipes per eligible account a month", "fmt": "dec1", "higher": True, "month": False},
+    {"key": "spend_per_acct", "label": "Debit spend per eligible account a month", "fmt": "usd", "higher": True, "month": False},
+    {"key": "rege_pct", "label": "Reg E opt-in, open personal accounts", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "rege_new_pct", "label": "Reg E opt-in, accounts opened in the last 12 months", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "take_new_pct", "label": "Debit card take rate, new accounts", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "active_cards", "label": "Cardholders swiping in the month", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "ret_1yr", "label": "One-year account retention", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "rev_per_1k", "label": "ARS revenue a month per 1,000 eligible accounts", "fmt": "usd", "higher": True, "month": False},
+]
+
+
+# ----------------------------------------------------------------- the registry a deck reads
+PROGRAMS = {
+    "ARS": (collect_ars, ARS_METRICS, "ARS"),
+    "ICS": (collect_ics, ICS_METRICS, "ICS"),
+    "MRPC": (collect_mrpc, MRPC_METRICS, "MRPC"),
+    "CP": (collect_cashplease, CP_METRICS, "CashPlease"),
+    "REMS": (collect_rems, REMS_METRICS, "REMS"),
+}

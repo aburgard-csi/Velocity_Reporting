@@ -1064,6 +1064,13 @@ def main():
     made += [slide_volume(prs, d, pill_text, art_dir),
              slide_status(prs, d, pill_text, art_dir),
              slide_peer(prs, d, pill_text, art_dir)]
+    # How You Compare (Aaron, 2026-11-03): the client against every other CashPlease client, the same comparison
+    # Live Review's "How you compare" shows; anonymous. Always drawn; the slide says so when there are too few peers.
+    import peer_slide
+    made.append(peer_slide.add_peer_slide(
+        prs, "CP", d["client_id"], d["client_name"], pill_text, str(art_dir),
+        f"Client figures: {d['source_file']}, tab '{d['sheet_name']}' (report generated {d['report_generated']}).",
+        anchor_slide=made[-1], own={"cashplease": d}))
 
     lst = prs.slides._sldIdLst
     order = [sldid_of(prs, s) for s in

@@ -19,6 +19,7 @@ from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 import ics_charts_gen as CH
+import ics_channel_split as CS
 
 
 def peak_month(values):
@@ -49,7 +50,7 @@ def cohort_example(d, dollars):
     cohort was Dec 25 with 103 accounts. Months open is `ics_charts_gen._months_open`,
     the same count the chart beside the caption divides by.
     """
-    md = d["monthly_detail"]
+    md = CH.cohorts(d)      # every cohort the charts draw, so the example is the program's first
     label, accounts, months = md["months"][0], md["accounts_opened"][0], CH._months_open(d)[0]
     return f"{label}: ${dollars:,.2f} / {accounts:,} / {months} = ${dollars/accounts/months:,.2f}"
 
@@ -101,6 +102,7 @@ from brand import (NAVY_RGB as NAVY, ORANGE_RGB as ORANGE,
                    STEEL_SOFT_RGB as STEEL, usd_compact as _usd,
                    TICK_RGB, ROWALT_RGB)
 LIGHT=ROWALT_RGB; WHITE=RGBColor(0xFF,0xFF,0xFF); GREYT=TICK_RGB
+from brand import LABEL_RGB as BAND   # the light blue of a category band in a grouped table
 NAVYX="00274C"
 # The standard callout drop shadow is defined ONCE, in build/shapes.py. This file
 # carried its own copy at alpha 26% while ARS, MRPC and shapes.py drew 28% — a drift
@@ -184,7 +186,10 @@ def _white_borders(cell,w=12700):
         ln=parse_xml(f'<a:ln xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" w="{w}" cap="flat"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln>')
         ln.tag=qn(edge); tcPr.insert(0,ln)
 
-def std_table(s,rows,l,t,w,colw,highlight_last=True,fs=16,rowh=0.4):
+def std_table(s,rows,l,t,w,colw,highlight_last=True,fs=16,rowh=0.4,bands=(),hdr_fills=None):
+    """The deck's table. `bands` = row indexes drawn as a category band (one merged, light-blue
+    cell carrying the label: how the appendix groups its rows); `hdr_fills` = {column: RGBColor}
+    overrides the navy header fill (the early-program column is orange)."""
     nr=len(rows); nc=len(rows[0])
     gf=s.shapes.add_table(nr,nc,Inches(l),Inches(t),Inches(w),Inches(rowh*nr)); tbl=gf.table
     tw=sum(colw)
@@ -200,13 +205,19 @@ def std_table(s,rows,l,t,w,colw,highlight_last=True,fs=16,rowh=0.4):
             c.margin_left=Inches(0.1); c.margin_right=Inches(0.08); c.margin_top=Inches(0.01); c.margin_bottom=Inches(0.01)
             c.vertical_anchor=MSO_ANCHOR.MIDDLE; p=c.text_frame.paragraphs[0]; p.alignment=PP_ALIGN.LEFT if ci==0 else PP_ALIGN.CENTER
             r=p.add_run(); r.text=str(val); r.font.name="Montserrat"
-            if ri==0:
-                c.fill.solid(); c.fill.fore_color.rgb=NAVY; r.font.color.rgb=WHITE; r.font.bold=True; r.font.size=Pt(fs)
+            if ri in bands:
+                c.fill.solid(); c.fill.fore_color.rgb=BAND; r.font.color.rgb=NAVY; r.font.bold=True; r.font.size=Pt(fs)
+                p.alignment=PP_ALIGN.LEFT
+            elif ri==0:
+                c.fill.solid(); c.fill.fore_color.rgb=(hdr_fills or {}).get(ci,NAVY); r.font.color.rgb=WHITE; r.font.bold=True; r.font.size=Pt(fs)
             elif highlight_last and ri==nr-1:
                 c.fill.solid(); c.fill.fore_color.rgb=ORANGE; r.font.color.rgb=WHITE; r.font.bold=True; r.font.size=Pt(fs)
             else:
                 c.fill.solid(); c.fill.fore_color.rgb=ROWALT_RGB if ri%2 else WHITE
                 r.font.color.rgb=NAVY; r.font.size=Pt(fs); r.font.bold=(ci==0)
+    for ri in bands:                       # a band is one cell across the whole row
+        if 0<ri<nr and nc>1:
+            tbl.cell(ri,0).merge(tbl.cell(ri,nc-1))
 
 def restyle_newrel(prs):
     """Static education-slide fixes: standard grid + centering on '2026 New Releases',
@@ -261,8 +272,8 @@ def enforce_min_font(prs, minpt=MIN_PT):
     Skips the dense '2026 New Releases' reference table (can't fit at 16pt)."""
     _t=lambda s: next((sh.text_frame.text.strip().split("\n")[0] for sh in s.shapes if sh.has_text_frame and sh.text_frame.text.strip()),"")
     for s in prs.slides:
-        skip=_t(s).startswith(("2026 New Releases","Program Results by Month Opened","Referred Accounts by Product",
-                               "Appendix: Monthly Detail"))
+        skip=_t(s).startswith(("2026 New Releases","Program Results by Month Opened","Program Results by Opening Year",
+                               "Referred Accounts by Product","Appendix: Monthly Detail","ICS Accounts by Product Type"))
         for sh in s.shapes:
             if sh.has_text_frame:
                 for p in sh.text_frame.paragraphs:
@@ -383,6 +394,140 @@ def direct_mail_slide(prs, d, client, m, rf, chart_png):
              + ". These are direct-mail accounts, NOT referral counts, and are not included in any "
              "referral figure in this deck. Bars navy, last complete month orange"
              + (", the running month hatched." if partial else "."))
+
+
+# ============================ direct mail vs branch referral ============================
+def _first_fit(opts, width=12.1):
+    return next((o for o in opts if fits_one_line(o, width, 16, family="Montserrat", min_pt=MIN_PT)), opts[-1])
+
+
+def _channel_accounts_slide(prs, d, split, client, m, wbm, base, img, subfit):
+    """Direct Mail and Branch Referral Accounts: accounts opened by cohort, stacked by channel, with the
+    three totals beside it. Direct mail is the CSM's list (measured); branch referral is the workbook's
+    accounts opened less direct mail (derived) — the caption and the notes say which is which."""
+    c, tot = split["cohorts"], split["totals"]; mo = c["months"]; n = len(mo)
+    span = f"{P.mon_yy(mo[0])} – {P.mon_yy(mo[-1])}"
+    s = blank(prs); title(s, "Direct Mail and Branch Referral Accounts"); pill(s, f"PTD · {wbm}")
+    sub(s, subfit(f"ICS accounts opened by cohort, branch referral and direct mail — all {n} cohorts ({span}).",
+                  f"ICS accounts opened by cohort, referral and direct mail, {span}."))
+    s.shapes.add_picture(img, Inches(0.4), Inches(1.7), Inches(8.6))
+    pct = lambda k: f"{k / tot['accounts'] * 100:.0f}% of accounts" if tot["accounts"] else ""
+    callout(s, 9.3, 1.75, 3.5, 1.35, f"{tot['accounts']:,}", "ICS accounts opened", sub="program to date", big_size=26)
+    callout(s, 9.3, 3.25, 3.5, 1.35, f"{tot['referral']:,}", "Branch referral", sub=pct(tot["referral"]), big_size=26)
+    callout(s, 9.3, 4.75, 3.5, 1.35, f"{tot['direct_mail']:,}", "Direct mail", sub=pct(tot["direct_mail"]), fill=ORANGE, big_size=26)
+    dmf = split.get("dm_first_month")
+    cap = _first_fit([f"Direct mail is the CSM's list; branch referral is the workbook's accounts opened less direct mail"
+                      + (f". Direct mail began in {P.mon_yy(dmf)}." if dmf else "."),
+                      "Branch referral = the workbook's accounts opened less the direct-mail list."], 9.9)
+    tb(s, 1.2, 6.55, 9.9, 0.5, cap, 16, GREYT, False)
+    logo(s); pagenum(s, 5)
+    rf_file = split.get("referral_file_matched_accounts")
+    chk = ""
+    if rf_file:
+        chk = (f" Cross-check: the referral export's own matched accounts (excluding direct mail) number {rf_file:,}, against the "
+               f"derived {tot['referral']:,} ({(rf_file - tot['referral']) / tot['referral'] * 100:+.1f}%).") if tot["referral"] else ""
+    notes(s, base + f" Direct Mail and Branch Referral Accounts. The ICS workbook counts one number per cohort — the accounts that matched a "
+                    f"referral or a direct-mail piece (Cindy Draper) — in 'Monthly Detail', 'Accounts Opened via Invitation Checking System', "
+                    f"{tot['accounts']:,} program to date. Direct mail: {tot['direct_mail']:,} accounts, counted by Open Date from the CSM's "
+                    f"direct-mail list {split['dm_file']} ({split['dm_folder']}), measured. Branch referral: {tot['referral']:,} accounts = the "
+                    f"workbook's accounts opened less the direct-mail accounts of the same month, derived (never below zero"
+                    + (f"; the list exceeds the workbook in {', '.join(split['dm_over_workbook'])}" if split.get("dm_over_workbook") else "")
+                    + f"). {split['overlap']:,} accounts appear on both the direct-mail list and the referral export; each counts once, as "
+                    f"direct mail." + chk
+                    + (f" Direct mail began in {dmf}; earlier cohorts have no direct mail." if dmf else "")
+                    + f" Each program year is twelve cohorts from {mo[0]}; its total and direct-mail share are above the bars.")
+
+
+def _channel_interchange_slide(prs, d, split, client, m, wbm, base, img, ci):
+    """Interchange by Channel: interchange per open account per month, direct mail beside branch referral,
+    by calendar year. Measured from the ODD's debit spend at the blended rate the workbook implies; the
+    caption states what the workbook cannot split."""
+    odd = split["odd"]; rt = odd["rate"]; al = ci["all"]
+    tot_ic = al["dm_ic"] + al["ref_ic"]
+    f, l = P.mon_yy(odd["first_month"]), P.mon_yy(odd["last_month"])
+    s = blank(prs); title(s, "Interchange by Channel"); pill(s, f"PTD · {wbm}")
+    sub(s, _first_fit([f"Interchange per open account per month by year, direct mail and branch referral, {f} – {l}.",
+                       f"Interchange per open account per month, {f} – {l}."]))
+    s.shapes.add_picture(img, Inches(0.4), Inches(1.7), Inches(8.6))
+    callout(s, 9.3, 1.75, 3.5, 1.35, f"${al['ref_pam']:,.2f}", "Branch referral", sub="per account per month", big_size=26)
+    callout(s, 9.3, 3.25, 3.5, 1.35, f"${al['dm_pam']:,.2f}", "Direct mail", sub="per account per month", fill=ORANGE, big_size=26)
+    callout(s, 9.3, 4.75, 3.5, 1.35, f"{al['ref_active'] * 100:.0f}% | {al['dm_active'] * 100:.0f}%", "Using their debit card",
+            sub="referral | direct mail", big_size=26)
+    tb(s, 1.2, 6.42, 9.9, 0.6, "Spread, NSF/OD and other fees are not split by channel: the workbook reports them for all ICS accounts "
+                               "together. Interchange here is measured from debit card spend.", 16, GREYT, False, font="Calibri")
+    logo(s); pagenum(s, 13)
+    gaps = odd.get("gap_months") or []
+    gap_txt = (f" The extract carries no debit dollars for {', '.join(P.mon_yy(g) for g in gaps)}; those months are left out of every figure here, "
+               f"not counted as zero spend, and the workbook's own interchange agrees with the extract's months, so it too may omit them.") if gaps else ""
+    yrs = "; ".join(f"{r['label']}: referral ${r['ref_pam']:.2f}, direct mail ${r['dm_pam']:.2f}" for r in ci["years"])
+    notes(s, base + f" Interchange by channel. Source: ODD extract {odd['file']} ({odd['member']}, pulled {odd['stamp'] or 'n/a'}), debit spend = signature plus PIN "
+                    f"dollars by account and month, {f} – {l}, joined by account hash to the client's direct-mail list ({split['dm_file']}) and the "
+                    f"referral export's matched accounts ({odd['matched']['direct_mail']:,} of {odd['matched']['dm_list']:,} direct-mail and "
+                    f"{odd['matched']['referral']:,} of {odd['matched']['referral_list']:,} referral accounts found; an account on both counts once, as direct mail). "
+                    f"Interchange = spend x {rt['rate'] * 100:.3f}%, the blended rate the workbook implies: workbook interchange per cohort divided by the "
+                    f"ODD's spend for the same accounts is between {rt['rate_min'] * 100:.3f}% and {rt['rate_max'] * 100:.3f}% in each of the "
+                    f"{rt['cohorts_used']} cohorts whose whole history is in the extract, so the ODD's spend stands for the workbook's interchange. "
+                    f"Per account per month = interchange / account-months, an account counting in every month it was open (opened before the month ended, not "
+                    f"closed before it began): {al['ref_am']:,} referral and {al['dm_am']:,} direct-mail account-months. Interchange in these months: referral "
+                    f"${al['ref_ic']:,.0f}, direct mail ${al['dm_ic']:,.0f} ({al['dm_ic'] / tot_ic * 100:.0f}% direct mail). Share of account-months with any debit spend: "
+                    f"referral {al['ref_active'] * 100:.0f}%, direct mail {al['dm_active'] * 100:.0f}%. By year: {yrs}.{gap_txt} NOT split: spread, NSF/OD and other fees "
+                    f"(the workbook reports them for all ICS accounts together; the ODD carries no fee or balance history).")
+
+
+def _age_slide(prs, d, split, client, m, base, img):
+    """Age Demographics: the age mix of the ICS accounts found in the ODD, and Cindy Draper's benchmark
+    average ages beside the client's own."""
+    odd = split["odd"]; ag = odd["age"]; as_of = odd["as_of"]
+    s = blank(prs); title(s, "Age Demographics")
+    last = P.parse_month(odd["last_month"])
+    lab = f"{P.MONTH_FULL[last.month - 1]} {last.year}"
+    pill(s, f"PTD · {lab}")
+    sub(s, _first_fit([f"Personal ICS accounts, direct mail and referral, by age of holder in {lab}; {ag['n']:,} accounts.",
+                       f"Personal ICS accounts by age of holder, {lab}; {ag['n']:,} accounts."]))
+    s.shapes.add_picture(img, Inches(0.4), Inches(1.7), Inches(7.9))
+    callout(s, 8.6, 1.75, 4.2, 1.3, f"{ag['mean']:.0f} years" if ag.get("mean") else "n/a", "Average age, ICS accounts", big_size=30)
+    tb(s, 8.6, 3.3, 4.2, 0.4, "Benchmark average ages", 18, NAVY, True)
+    yy = 3.8
+    for nm, yrs in CS.BENCHMARK_AGES:
+        cap_pill(s, 8.6, yy, 4.2, 0.62, f"{nm}: {yrs}", ORANGE, size=18); yy += 0.78
+    tb(s, 1.2, 6.5, 9.9, 0.5, f"{ag['share_44_or_younger'] * 100:.0f}% of these accounts are held by people 44 or younger.", 16, GREYT, False)
+    logo(s); pagenum(s, 15)
+    ex = ag["excluded"]
+    notes(s, base + f" Age Demographics. The ICS accounts are the client's direct-mail list ({split['dm_file']}) and referral export accounts "
+                    f"found in the ODD extract {odd['file']} ({odd['member']}) by account hash: {odd['matched']['direct_mail']:,} direct-mail and "
+                    f"{odd['matched']['referral']:,} referral accounts. Age = years from the ODD's DOB column to {as_of}, personal accounts only "
+                    f"({ag['n']:,} counted; {ex['business']:,} business accounts left out because their date cell is a company date, "
+                    f"{ex['no_dob']:,} with no DOB and {ex['implausible']:,} with an implausible date). Buckets <18, 18-24, 25-34, 35-44, 45-54, 55+. "
+                    f"The benchmark average ages (Fintech customer 35, bank customer 50, credit union 53) are supplied by the ICS program team "
+                    f"(Cindy Draper, 2026-11-03), not computed from this client's files.")
+
+
+def _product_slide(prs, d, split, client, m, base, img):
+    """ICS Accounts by Product Type: every ICS account found in the ODD (closed ones too) by the ODD's
+    product description, split into referral and direct mail in the table beside the chart."""
+    odd = split["odd"]; prods = sorted(odd["products"], key=lambda p: -p["total"])
+    last = P.parse_month(odd["last_month"]); lab = f"{P.MONTH_FULL[last.month - 1]} {last.year}"
+    s = blank(prs); title(s, "ICS Accounts by Product Type"); pill(s, f"PTD · {lab}")
+    sub(s, _first_fit([f"ICS accounts opened, program to date, by product — branch referral and direct mail.",
+                       "ICS accounts opened, program to date, by product."]))
+    s.shapes.add_picture(img, Inches(0.3), Inches(1.75), Inches(7.1))
+    top = 7
+    show, rest = (prods, []) if len(prods) <= top else (prods[:top - 1], prods[top - 1:])
+    rows = [["Product", "Referral", "Direct Mail", "Total"]]
+    for p in show:
+        rows.append([p["product"], f"{p['referral']:,}", f"{p['direct_mail']:,}", f"{p['total']:,}"])
+    if rest:
+        rows.append([f"All other ({len(rest)})", f"{sum(p['referral'] for p in rest):,}",
+                     f"{sum(p['direct_mail'] for p in rest):,}", f"{sum(p['total'] for p in rest):,}"])
+    rows.append(["Total", f"{sum(p['referral'] for p in prods):,}", f"{sum(p['direct_mail'] for p in prods):,}",
+                 f"{sum(p['total'] for p in prods):,}"])
+    std_table(s, rows, 7.55, 1.85, 5.45, [2.1, 1.2, 1.2, 0.95], highlight_last=True, fs=13, rowh=0.5)
+    logo(s); pagenum(s, 14)
+    notes(s, base + f" ICS Accounts by Product Type. Every ICS account found in the ODD extract {odd['file']} ({odd['member']}), closed accounts "
+                    f"included, by the ODD's product description: the client's direct-mail list ({split['dm_file']}) and the referral export's "
+                    f"matched accounts, joined by account hash ({odd['matched']['direct_mail']:,} direct mail, {odd['matched']['referral']:,} referral). "
+                    f"An account on both lists counts once, as direct mail. The workbook's own 'Referred Accounts by Product' tab is not used here: "
+                    f"on a direct-mail workbook it may count direct-mail accounts.")
 
 
 # ============================ build ============================
@@ -558,9 +703,14 @@ def build(d, static_path, out, referrals_only=False):
         return next((o for o in opts if fits_one_line(o, 12.1, 16, family="Montserrat", min_pt=MIN_PT)), opts[-1])
     # The cohort window the Monthly Detail charts and table read (the newest twelve cohorts since
     # 2026-10-13, nine on a sheet extracted before then), named on every slide that shows it.
-    _md0=d.get("monthly_detail") or {}
+    # EVERY cohort from the program's start when the sheet carries the full Monthly Detail tab
+    # (Cindy, 2026-11-03: "Started ICS in December of 2022- can we show all?"); the newest twelve only
+    # on a sheet extracted before the full tab was kept.
+    _md0=(CH.cohorts(d) if (d.get("monthly_detail") or d.get("monthly_detail_full")) else {})
     _nw=len(_md0.get("months") or [])
-    _win=(f"newest {_nw} cohorts ({P.mon_yy(_md0['months'][0])} – {P.mon_yy(_md0['months'][-1])})" if _nw else "")
+    _all=CH.is_all_cohorts(d) if _nw else False
+    _win=((f"all {_nw} cohorts ({P.mon_yy(_md0['months'][0])} – {P.mon_yy(_md0['months'][-1])})" if _all
+           else f"newest {_nw} cohorts ({P.mon_yy(_md0['months'][0])} – {P.mon_yy(_md0['months'][-1])})") if _nw else "")
     try:
         _dd=datetime.strptime(m.get("data_through") or m.get("data_pull",""),"%Y-%m-%d"); data_date=f"{_dd.strftime('%B')} {_dd.day}, {_dd.year}"
     except Exception:
@@ -576,6 +726,22 @@ def build(d, static_path, out, referrals_only=False):
     A=os.path.join(os.path.dirname(out) or ".","_ics_assets"); os.makedirs(A,exist_ok=True)
     CLIENT[1] = A          # where the client logo is cropped to its ink before placing
     CH.render_all(d, A, referrals_only=referrals_only); a=lambda n: os.path.join(A,n)
+    # Direct mail vs branch referral (Cindy Draper, 2026-11-03: "see the split"). Needs the workbook's
+    # cohorts and the client's direct-mail list; the ODD part (interchange by channel, age, product) is
+    # added when the extract and the referral export are on hand. Anything not available is simply not
+    # drawn, and the slides say what could not be split. A failure here never stops the deck.
+    _split=None
+    if not referrals_only:
+        try:
+            _split=CS.compute(d, log=print)
+        except Exception as _e:        # noqa: BLE001 — visible, and the deck still builds without the split
+            print(f"!! ICS direct-mail / referral split NOT made ({type(_e).__name__}: {_e}); "
+                  f"the deck is built without the split slides.", file=sys.stderr)
+        if _split:
+            _split_odd_note=_split.get("odd_note")
+            CH.render_split(d,_split,A)
+            if _split_odd_note:
+                print(f"ICS split: some ODD-based slides left out — {_split_odd_note}")
     prs=Presentation(static_path)
     prs.slide_width=Inches(13.333); prs.slide_height=Inches(7.5)
     # the template may be a FULL populated demo deck (Union Financial) — keep only the
@@ -652,10 +818,26 @@ def build(d, static_path, out, referrals_only=False):
     _pm = _rf.get("previous_month") or {}
     if _rf.get("prev_month_vs_goal_pct") is not None and _pm.get("label"):
         _stats.append((f"{_rf['prev_month_vs_goal_pct']:.0f}%", f"{_pm['label']} against the monthly goal"))
+    # The divider must not repeat the Power of Referrals slide that follows it (Cindy Draper, 2026-11-03,
+    # on the divider: "Isn't this the same as slide 5?" — both showed referrals program to date, year to
+    # date and last month against goal). A deck with the workbook's financial sections previews THEM: the
+    # program's profit contribution, profit per account and payback. A referrals-only deck has no other
+    # figures to show and keeps the referral ones.
+    _perf, _rev = d.get("performance") or {}, d.get("revenue") or {}
+    _fin_stats = (not referrals_only and _rev.get("total") and _perf.get("annual_profit_per_account")
+                  and _perf.get("payback_months"))
+    if _fin_stats:
+        _stats = [(_usd(_rev["total"]), "profit contribution, program to date"),
+                  (f"${_perf['annual_profit_per_account']:,.2f}", "annual profit per account"),
+                  (f"{_perf['payback_months']} months", "to pay back the acquisition cost")]
     s=blank(prs)
     CD.draw_divider(s, CD.PRODUCT_ICS,
                     W["divider_section"] if referrals_only else f"{W['divider_section']} · Account Performance · Revenue",
-                    stats=_stats, note=("Section divider. Figures: the sheet's referrals block (program to date, "
+                    stats=_stats, note=("Section divider. Figures: the workbook's account profit contribution (program to date), "
+                                        "its annual profit per account and the payback in months (Value of ICS Accts tab); not the "
+                                        "referral figures, which the next section's first slide carries."
+                                        if _fin_stats else
+                                        "Section divider. Figures: the sheet's referrals block (program to date, "
                                         "year to date, previous month against goal) — "
                                         + ("the ICS workbook's 'Accounts Opened via Invitation Checking "
                                            "System' row, which counts referrals." if _wb_only
@@ -672,9 +854,12 @@ def build(d, static_path, out, referrals_only=False):
     s=blank(prs); title(s,"Agenda")
     _dm_slide=CH.has_direct_mail(d)
     items=[W["agenda_1"], W["agenda_2_dm"] if _dm_slide else W["agenda_2"]]
+    if _split:      # the split slide sits with the referral slides; rows are never added (the page is full)
+        items[1]="Referral Trend, Branches & the Direct Mail Split"
+    _odd_rows=bool((_split or {}).get("odd") and ((_split["odd"].get("products")) or _split["odd"]["age"]["n"]))
     if not referrals_only:
         items+=["Performance of ICS Accounts","ICS Revenue & Revenue Detail",
-                "ICS Financial Summary","Comparisons"]
+                "ICS Financial Summary & Account Mix" if _odd_rows else "ICS Financial Summary","Comparisons"]
     items+=["E-Learning & VIP Resources","Questions & Discussion"]
     yy=1.55
     for i,it in enumerate(items,1):
@@ -698,6 +883,14 @@ def build(d, static_path, out, referrals_only=False):
         base=(f"Source — {m['referral_source']}"
               + (f"; financial figures from {m['workbook']}" if (m.get("workbook") and not _wb_only) else "")
               + f"; for {client} ({m['client_id']}).")
+    if _wb_only:
+        # Cindy Draper (2026-11-03, her note on Referral Trend): the workbook's openings row is "the
+        # accounts that matched in the workbook for both mail and referrals and only those that match.
+        # Usually 90-95% match". Without the referral export this build has no other source, so the
+        # slides say what the count is.
+        base+=(" The workbook's openings row counts the accounts matched to a referral OR a direct-mail piece "
+               "(usually 90-95% of referrals match), so these figures include direct-mail accounts and will not "
+               "equal the VIP referral counts.")
     # No goal on file (a local sheet without a Charts Goals tab): goal tiles, captions and
     # columns are left out rather than shown as 0% or a dash.
     _goal=rf.get("monthly_goal")
@@ -841,27 +1034,38 @@ def build(d, static_path, out, referrals_only=False):
     _gh = "Goal to Date" if _elapsed < 12 else "Goal"
     _has_goals = any(b.get("goal") for b in bb["branches"])
     rows=[["Branch",W["s5_col"],_gh,"% of Goal"]]
-    shown=bb["branches"][:8]
     def _prorate(annual):
         """Annual goal -> goal for the months run. Rounded per branch so the column
         adds up to what the reader would total by hand."""
         return int(round(annual / 12.0 * _elapsed))
+    # EVERY branch is listed (Cindy, 2026-11-03: "Doesn't list all branches"). The table used to stop
+    # at the top eight and total only those. Up to MAX_BRANCH_ROWS branches a row each; beyond that the
+    # smallest are one "All other branches" row, so the table still fits the slide, and the total row
+    # is always every branch.
+    MAX_BRANCH_ROWS=14
+    _bl=bb["branches"]
+    shown, _other = (_bl, []) if len(_bl)<=MAX_BRANCH_ROWS else (_bl[:MAX_BRANCH_ROWS-1], _bl[MAX_BRANCH_ROWS-1:])
     # A branch can carry a zero goal (non-retail units like 1734's "Operations").
     # Show a dash rather than dividing by zero — and never invent a percentage.
+    def _brow(name,refs,g_):
+        return [name,f"{refs}",f"{g_}" if g_ else "—",(f"{round(refs/g_*100)}%" if g_ else "—")]
     for b in shown:
-        g_=_prorate(b["goal"]) if b.get("goal") else 0
-        pct=f"{round(b['referrals']/g_*100)}%" if g_ else "—"
-        rows.append([b["name"],f"{b['referrals']}",f"{g_}" if g_ else "—",pct])
-    tr=sum(b["referrals"] for b in shown)
-    tg=sum(_prorate(b["goal"]) for b in shown if b.get("goal"))
-    rows.append([f"Top {len(shown)} Total",f"{tr}",f"{tg}",
+        rows.append(_brow(b["name"],b["referrals"],_prorate(b["goal"]) if b.get("goal") else 0))
+    if _other:
+        rows.append(_brow(f"All other branches ({len(_other)})",sum(b["referrals"] for b in _other),
+                          sum(_prorate(b["goal"]) for b in _other if b.get("goal"))))
+    tr=sum(b["referrals"] for b in _bl)
+    tg=sum(_prorate(b["goal"]) for b in _bl if b.get("goal"))
+    rows.append([f"All {len(_bl)} Branches",f"{tr}",f"{tg}",
                  f"{round(tr/tg*100)}%" if tg else "—"])
     if not _has_goals:
         # No branch carries a goal: drop the goal columns rather than print a column of dashes.
         rows=[r[:2] for r in rows]
     # widened to fill the space the callouts left — at 6.95in the table stopped at
-    # 10.3in and the right third of the slide sat empty
-    std_table(s,rows,3.35,1.45,9.45,[2.4,1.1,0.9,0.9][:len(rows[0])],highlight_last=True,fs=16,rowh=0.5)
+    # 10.3in and the right third of the slide sat empty. Row height follows the row count, so a
+    # full branch list fits above the logo band at the 16pt floor.
+    std_table(s,rows,3.35,1.4,9.45,[2.4,1.1,0.9,0.9][:len(rows[0])],highlight_last=True,fs=16,
+              rowh=min(0.5,5.15/len(rows)))
 
     # Callouts in the empty left column (Aaron, 2026-08-28). The table shows the top 8;
     # these read across EVERY branch, so participation and overall pace are visible
@@ -899,12 +1103,12 @@ def build(d, static_path, out, referrals_only=False):
                      +(f", vs each branch's goal pro-rated to {_elapsed} month{'s' if _elapsed != 1 else ''} of "
                        f"program activity (monthly goal x {_elapsed}); the Charts 'Goals' tab carries a MONTHLY "
                        f"goal per branch." if _has_goals else "; no branch goals on file, so no goal or % of goal is shown.")
-                     +" Top branches by referrals; branch names from the Charts 'Goals' tab or the branch-name "
+                     +" Every branch by referrals (beyond 14, the smallest share one row); branch names from the Charts 'Goals' tab or the branch-name "
                      "dataset, a branch neither names shown by number." + _partial_ytd)
     elif _local and not _has_goals:
         notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none. "
                      f"Referrals by branch, YTD ({_ar:,} in total); no branch goals on file, so no "
-                     f"goal or % of goal is shown. Top branches by referrals. Referral detail file, "
+                     f"goal or % of goal is shown. Every branch by referrals (beyond 14, the smallest share one row). Referral detail file, "
                      f"counted by Issue Date and Branch.")
     elif _local:
         notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
@@ -912,7 +1116,7 @@ def build(d, static_path, out, referrals_only=False):
                      f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
                      f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
                      f"(monthly goal x {_elapsed}); the Charts 'Goals' tab carries a MONTHLY goal per branch. "
-                     f"Top branches by referrals. Referral detail file, counted by Issue Date and Branch; "
+                     f"Every branch by referrals (beyond 14, the smallest share one row). Referral detail file, counted by Issue Date and Branch; "
                      f"branch names from the Charts 'Goals' tab." + _partial_ytd)
     else:
         notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
@@ -920,7 +1124,7 @@ def build(d, static_path, out, referrals_only=False):
                  f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
                  f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
                  f"(annual goal / 12 x {_elapsed}); the VIP file carries the ANNUAL goal. "
-                 f"Top branches by referrals. VIP; branch names reconciled to the Charts 'Goals' tab." + _partial_ytd)
+                 f"Every branch by referrals (beyond 14, the smallest share one row). VIP; branch names reconciled to the Charts 'Goals' tab." + _partial_ytd)
 
     # 5a Direct Mail New Accounts (Aaron, 2026-09-16: "Direct mail should get its own slide").
     # Accounts opened through the ICS DIRECT-MAIL channel, from the sheet's `direct_mail` block
@@ -929,6 +1133,14 @@ def build(d, static_path, out, referrals_only=False):
     # when the block carries accounts; a sheet without one gets no slide, not a slide of zeros.
     if _dm_slide:
         direct_mail_slide(prs, d, client, m, rf, a("ics_direct_mail.png"))
+
+    # 5a2 Direct Mail and Branch Referral Accounts (Cindy Draper, 2026-11-03: "see the split"). The
+    # workbook counts ONE number for both channels; the direct-mail list says how many of each cohort's
+    # accounts came from mail and the remainder came from the branches. Built only from a sheet with the
+    # workbook's cohorts and the client's direct-mail list; any other deck says so on the Direct Mail
+    # slide's notes and gets no slide of guesses.
+    if _split:
+        _channel_accounts_slide(prs, d, _split, client, m, wbm, base, a("ics_channel_accts.png"), _subfit)
 
     # 5b Referred Accounts by Product (workbook 'Referred Accounts by Product' tab, participating products only)
     rbp=d.get("referred_by_product")
@@ -973,6 +1185,7 @@ def build(d, static_path, out, referrals_only=False):
         # ROI = PV total ÷ (cost per acquired account × accounts opened).  (Aaron, 2026-07-13)
         import datetime as _dt
         VELOCITY_LIFE=6.9
+        WB_DISCOUNT=0.03        # the workbook's own present-value discount rate ('Present Value ... @ 3%')
         p=d["performance"]; _fs=d["financial_summary"]; n_acct=_fs["ics_accounts"]
         def _prog_years():
             ps=d["meta"].get("program_start")
@@ -980,7 +1193,13 @@ def build(d, static_path, out, referrals_only=False):
             y,m=(int(x) for x in ps.split("-")[:2])
             yy,mm,dd=(int(x) for x in d["meta"]["data_pull"].split("-"))
             return (_dt.date(yy,mm,dd)-_dt.date(y,m,1)).days/365.25
-        life_used=VELOCITY_LIFE if _prog_years()<2 else p.get("life_of_ics_account_years",VELOCITY_LIFE)
+        # Cindy Draper (2026-11-03, her note on this slide): "If under 2 years on program use 6.9
+        # years- if over 2 years- use their life of account." The rule is on the program's own age,
+        # and it holds for the workbook's Present Value and ROI too: the workbook discounts over the
+        # client's MODELED life whatever the program's age, so for a program under two years those
+        # figures are recalculated on 6.9 years (below) and the notes say so.
+        _young_program=_prog_years()<2
+        life_used=VELOCITY_LIFE if _young_program else p.get("life_of_ics_account_years",VELOCITY_LIFE)
         # The workbook's own ROI and Present Value are carried when the sheet has them (Aaron,
         # 2026-10-13: "Carry the workbook's ROI figures" — Cindy: the recalculated 8.39 : 1 and
         # $7.97M on KEMBA 1195 did not match the workbook's 7.17 to 1 and $6,814,201 at 3%). The
@@ -989,7 +1208,7 @@ def build(d, static_path, out, referrals_only=False):
         # the notes say which was used.
         _wb_pv=_fs.get("present_value_new_accounts") or 0
         _wb_roi=p.get("roi") or 0
-        _from_wb=bool(_wb_pv and _wb_roi)
+        _from_wb=bool(_wb_pv and _wb_roi) and not _young_program
         # Lifetime Value on Comparisons is annual profit x life (undiscounted), the same basis as
         # the Velocity average beside it — not the workbook's discounted present value per account.
         _ltv=p["annual_profit_per_account"]*life_used
@@ -999,6 +1218,23 @@ def build(d, static_path, out, referrals_only=False):
             roi_calc=_wb_roi
             _roi_note=(f"ROI {roi_calc:.2f}:1 and Present Value ${pv_total:,.0f} (${pv_per_acct:,.2f} per account) "
                        f"are the workbook's own ('Value of ICS Accts' tab, present value at 3%).")
+        elif _young_program and _wb_pv:
+            # Under two years on the program: Cindy's rule (6.9 years) with the workbook's OWN method. Checked
+            # against every ICS workbook on the share (2026-11-03): the workbook's Present Value per account
+            # is the annual profit per account discounted at 3% as an annuity over the client's MODELED life
+            # (KEMBA: $209.25 over 9.82 years = $1,757.26 against the workbook's $1,757.60), whatever the age of
+            # the program — so for a young program only the life changes here, to 6.9 years, and the discounting,
+            # the account count and the ROI definition (PV total / acquisition cost x accounts) stay the workbook's.
+            _apc_=p["annual_profit_per_account"]
+            pv_per_acct=_apc_*(1-(1+WB_DISCOUNT)**-VELOCITY_LIFE)/WB_DISCOUNT
+            pv_total=pv_per_acct*n_acct
+            total_cost=p["cost_per_account"]*n_acct
+            roi_calc=pv_total/total_cost if total_cost else 0
+            _roi_note=(f"ROI and Present Value recalculated on the 6.9-year Velocity life because the program is under two years old "
+                       f"(Cindy Draper: under 2 years use 6.9, over 2 use the client's life of account). The workbook's own figures "
+                       f"(${_wb_pv:,.0f}, {_wb_roi:.2f}:1) discount over the modeled {p.get('life_of_ics_account_years',0):g} years. "
+                       f"PV/acct = annual profit ${_apc_:.2f} discounted at 3% over {VELOCITY_LIFE:g} years = ${pv_per_acct:,.2f}; PV total = "
+                       f"${pv_total:,.0f}; ROI = PV total ÷ (${p['cost_per_account']:.0f} × {n_acct:,}) = {roi_calc:.2f} : 1.")
         else:
             pv_per_acct=p["annual_profit_per_account"]*life_used
             pv_total=pv_per_acct*n_acct
@@ -1013,7 +1249,7 @@ def build(d, static_path, out, referrals_only=False):
         s=blank(prs); title(s,"Performance of ICS Accounts"); pill(s,f"PTD · {wbm}")
         tb(s,0.5,1.12,12.3,0.6,f"Return on Investment — {roi_calc:.2f} to 1",22,NAVY,True)
         modeled=p.get("life_of_ics_account_years",life_used)
-        young=abs(life_used-VELOCITY_LIFE)<0.05   # first-2-years programs use the 6.9-yr velocity life
+        young=_young_program   # first-2-years programs use the 6.9-yr velocity life
         if young:
             life_bullets=[f"Models indicate your average life of account is {modeled:g} years",
                           "National Average is 6.9 Years"]
@@ -1028,6 +1264,9 @@ def build(d, static_path, out, referrals_only=False):
             # The workbook's present value is discounted at 3% over the modeled life; the bullets
             # say so rather than describe a recalculation that was not made.
             pv_bullets=[f"Workbook present value at 3% over {modeled:g} years",
+                        f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
+        elif young and _wb_pv:
+            pv_bullets=[f"Present value at 3% over {VELOCITY_LIFE:g} years, the program's first two",
                         f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
         cols=[(AMBER, f"${p['annual_profit_per_account']:,.2f}",
                # "Annual Profit Contribution per Account" is 4.91in of Montserrat 18pt in a
@@ -1057,37 +1296,101 @@ def build(d, static_path, out, referrals_only=False):
         logo(s); pagenum(s,6)
         notes(s,base+" "+_roi_note)
 
-        # 6b Program Results by Month Opened — monthly-detail data table (revenue + amortized expense)
-        md0=d["monthly_detail"]; mos=md0["months"]; nrm=len(mos)
-        mo_open=[nrm-i for i in range(nrm)]
+        # 6b Program Results — the monthly-detail table.
         _rr=lambda label,vals,fmt:[label]+[fmt(v) for v in vals]
-        # The expense row is the workbook's own (its "Total Expense" row, the referral fee per
-        # cohort); it replaced a constant "$4.08 amortized per account per month" row that was
-        # not a workbook figure (Aaron, 2026-10-13). A sheet without the row (a VIP pull not
-        # re-extracted) simply has no expense row.
-        trows=[["Month Opened"]+mos,
-               _rr("Accounts Opened",md0["accounts_opened"],lambda v:f"{v:,}"),
-               _rr("Avg Balance / Acct",md0["avg_balance"],lambda v:f"${v:,.0f}"),
-               _rr("Spread on Deposits",md0["spread"],lambda v:f"${v:,.0f}"),
-               _rr("Interchange Income",md0["interchange"],lambda v:f"${v:,.0f}"),
-               _rr("NSF / OD Fees",md0["nsf_od"],lambda v:f"${v:,.0f}"),
-               _rr("Other Fees",md0["other_fees"],lambda v:f"${v:,.0f}"),
-               _rr("Account Profit Contribution",md0["profit_contribution"],lambda v:f"${v:,.0f}")]
-        if md0.get("total_expense"):
-            trows.append(_rr("Total Expense (referral fees)",md0["total_expense"],lambda v:f"${v:,.0f}"))
-        trows.append(_rr("Months Open",mo_open,lambda v:f"{v}"))
-        s=blank(prs); title(s,"Program Results by Month Opened"); pill(s,f"PTD · {wbm}")
-        sub(s,_subfit(f"ICS-originated checking accounts by opening-month cohort, {_win}; each cohort's figures life to date.",
-                      f"ICS accounts by opening-month cohort, {_win}; figures life to date.",
-                      f"ICS accounts by opening-month cohort ({_nw} newest); figures life to date."))
-        # Twelve cohorts need narrower columns and a smaller face than nine did; this table is
-        # exempt from the 16pt floor (enforce_min_font), as it always was.
-        std_table(s,trows,0.35,1.7,12.63,[2.9]+[1]*nrm,highlight_last=False,fs=(13 if nrm<=9 else 11),rowh=0.46)
-        tb(s,0.4,6.55,12.55,0.4,"Program-to-date totals for every cohort: ICS Financial Summary and the appendix.",14,GREYT,False)
-        logo(s); pagenum(s,7)
-        notes(s,base+f" Monthly Detail tab, the {_win}: accounts opened, average balance, revenue components, account "
-                     f"profit contribution and the workbook's total expense (referral fee) per cohort, each cohort's "
-                     f"figures life to date; months open counted from the opening month.")
+        if _all:
+            # By program year, EVERY cohort (Cindy, 2026-11-03: "Why show newest accounts (least
+            # profitable) instead of onboarded accounts? Started ICS in December of 2022- can we show
+            # all?"). Forty-odd monthly cohorts do not fit one table, so they are grouped into program
+            # years of twelve cohorts; the monthly figures are the appendix. Year 1, the program's early
+            # referrals, has an orange header and the sentence below the table says what it has earned.
+            cs=CH.cohorts(d); nn=len(cs["months"]); yrs=CH.program_years(nn); mopen=[nn-i for i in range(nn)]
+            ylab=[f"Year {k+1}"+(f" ({b-a+1} mo)" if b-a+1<CH.YEAR_COHORTS else "") for k,(a,b) in enumerate(yrs)]
+            ysum=lambda key:[sum(cs[key][a:b+1]) for a,b in yrs]
+            _acc=ysum("accounts_opened")
+            _am=[sum(cs["accounts_opened"][i]*mopen[i] for i in range(a,b+1)) for a,b in yrs]
+            _prof=ysum("profit_contribution")
+            _pam=[(_prof[k]/_am[k] if _am[k] else 0.0) for k in range(len(yrs))]
+            _tot=lambda v:sum(v)
+            _col=lambda vals,tot,fmt:[fmt(v) for v in vals]+[fmt(tot)]
+            _usd0=lambda v:f"${v:,.0f}"
+            trows=[["Opened"]+ylab+["Program to Date"],
+                   ["Cohorts"]+[f"{P.mon_yy(cs['months'][a])} – {P.mon_yy(cs['months'][b])}" for a,b in yrs]
+                              +[f"{P.mon_yy(cs['months'][0])} – {P.mon_yy(cs['months'][-1])}"],
+                   ["Accounts Opened"]+_col(_acc,_tot(_acc),lambda v:f"{v:,}")]
+            if _split:
+                _sc=_split["cohorts"]
+                _dmy=[sum(_sc["direct_mail"][a:b+1]) for a,b in yrs]; _rfy=[sum(_sc["referral"][a:b+1]) for a,b in yrs]
+                trows.append(["  from direct mail"]+_col(_dmy,_tot(_dmy),lambda v:f"{v:,}"))
+                trows.append(["  from branch referrals"]+_col(_rfy,_tot(_rfy),lambda v:f"{v:,}"))
+            trows+= [["Spread on Deposits"]+_col(ysum("spread"),sum(cs["spread"]),_usd0),
+                     ["Interchange Income"]+_col(ysum("interchange"),sum(cs["interchange"]),_usd0),
+                     ["NSF / OD Fees"]+_col(ysum("nsf_od"),sum(cs["nsf_od"]),_usd0),
+                     ["Other Fees"]+_col(ysum("other_fees"),sum(cs["other_fees"]),_usd0),
+                     ["Account Profit Contribution"]+_col(_prof,sum(cs["profit_contribution"]),_usd0),
+                     ["Revenue / Acct / Month"]+_col(_pam,(sum(cs["profit_contribution"])/(_tot(_am) or 1)),lambda v:f"${v:,.2f}")]
+            if cs.get("total_expense"):
+                trows.append(["Total Expense (referral fees)"]+_col(ysum("total_expense"),sum(cs["total_expense"]),_usd0))
+            s=blank(prs); title(s,"Program Results by Opening Year"); pill(s,f"PTD · {wbm}")
+            sub(s,_subfit(f"ICS-originated checking accounts by program year, {_win}; each cohort's figures life to date.",
+                          f"ICS accounts by program year, {_win}; figures life to date.",
+                          f"ICS accounts by program year, all {_nw} cohorts; figures life to date."))
+            _rowh=min(0.34,4.3/len(trows))
+            std_table(s,trows,0.35,1.65,12.63,[3.0]+[1.7]*len(yrs)+[1.9],highlight_last=False,fs=12,rowh=_rowh,hdr_fills={1:ORANGE})
+            _es=CH.early_stats(d,["profit_contribution"])
+            _early_txt=""
+            if _es:
+                _early_txt=(f"Accounts opened in the program's first {CH.EARLY_COHORTS} months ({P.mon_yy(_es['first'])} – {P.mon_yy(_es['last'])}) "
+                            f"have earned ${_es['revenue']:,.0f}, {_es['share']*100:.0f}% of the program's ${_es['total']:,.0f}, "
+                            f"from {_es['accounts']:,} accounts.")
+                if _split and _split.get("dm_first_month"):
+                    _free=[k for k,v in enumerate(_split["cohorts"]["direct_mail"]) if k<CH.EARLY_COHORTS and not v and k<next((i for i,x in enumerate(_split["cohorts"]["direct_mail"]) if x),0)]
+                    if _free:
+                        _fa=sum(cs["accounts_opened"][k] for k in _free)
+                        _early_txt+=(f" Direct mail began in {P.mon_yy(_split['dm_first_month'])}, so the {P.mon_yy(cs['months'][_free[0]])} – "
+                                     f"{P.mon_yy(cs['months'][_free[-1]])} cohorts ({_fa:,} accounts) are all branch referrals.")
+            if _early_txt:
+                tb(s,0.4,5.95,10.7,0.9,_early_txt,16,NAVY,False,font="Calibri")
+            logo(s); pagenum(s,7)
+            notes(s,base+f" Monthly Detail tab, every cohort ({_win}) grouped into program years of {CH.YEAR_COHORTS} cohorts from the first "
+                         f"({ylab[0]} = the program's first {CH.EARLY_COHORTS} months, the early referrals; orange header). Each cohort's "
+                         f"figures are life to date, so the columns sum to program to date. Average balance by cohort is in the appendix; "
+                         f"revenue per account per month = account profit contribution ÷ account-months (accounts opened × months open). "
+                         + (f"The early-program sentence: ${_es['revenue']:,.0f} of ${_es['total']:,.0f} account profit contribution from "
+                            f"cohorts {_es['first']} – {_es['last']} ({_es['accounts']:,} accounts). " if _es else "")
+                         + (f"Direct-mail and branch-referral account rows: the direct-mail list ({_split['dm_file']}, measured) and the workbook's accounts opened "
+                            f"less direct mail (derived). Spread, NSF/OD and other fees are the workbook's totals for all ICS accounts and are not split by channel."
+                            if _split else ""))
+        else:
+            md0=d["monthly_detail"]; mos=md0["months"]; nrm=len(mos)
+            mo_open=[nrm-i for i in range(nrm)]
+            # The expense row is the workbook's own (its "Total Expense" row, the referral fee per
+            # cohort); it replaced a constant "$4.08 amortized per account per month" row that was
+            # not a workbook figure (Aaron, 2026-10-13). A sheet without the row (a VIP pull not
+            # re-extracted) simply has no expense row.
+            trows=[["Month Opened"]+mos,
+                   _rr("Accounts Opened",md0["accounts_opened"],lambda v:f"{v:,}"),
+                   _rr("Avg Balance / Acct",md0["avg_balance"],lambda v:f"${v:,.0f}"),
+                   _rr("Spread on Deposits",md0["spread"],lambda v:f"${v:,.0f}"),
+                   _rr("Interchange Income",md0["interchange"],lambda v:f"${v:,.0f}"),
+                   _rr("NSF / OD Fees",md0["nsf_od"],lambda v:f"${v:,.0f}"),
+                   _rr("Other Fees",md0["other_fees"],lambda v:f"${v:,.0f}"),
+                   _rr("Account Profit Contribution",md0["profit_contribution"],lambda v:f"${v:,.0f}")]
+            if md0.get("total_expense"):
+                trows.append(_rr("Total Expense (referral fees)",md0["total_expense"],lambda v:f"${v:,.0f}"))
+            trows.append(_rr("Months Open",mo_open,lambda v:f"{v}"))
+            s=blank(prs); title(s,"Program Results by Month Opened"); pill(s,f"PTD · {wbm}")
+            sub(s,_subfit(f"ICS-originated checking accounts by opening-month cohort, {_win}; each cohort's figures life to date.",
+                          f"ICS accounts by opening-month cohort, {_win}; figures life to date.",
+                          f"ICS accounts by opening-month cohort ({_nw} newest); figures life to date."))
+            # Twelve cohorts need narrower columns and a smaller face than nine did; this table is
+            # exempt from the 16pt floor (enforce_min_font), as it always was.
+            std_table(s,trows,0.35,1.7,12.63,[2.9]+[1]*nrm,highlight_last=False,fs=(13 if nrm<=9 else 11),rowh=0.46)
+            tb(s,0.4,6.55,12.55,0.4,"Program-to-date totals for every cohort: ICS Financial Summary and the appendix.",14,GREYT,False)
+            logo(s); pagenum(s,7)
+            notes(s,base+f" Monthly Detail tab, the {_win}: accounts opened, average balance, revenue components, account "
+                         f"profit contribution and the workbook's total expense (referral fee) per cohort, each cohort's "
+                         f"figures life to date; months open counted from the opening month.")
 
         # 7 ICS Revenue
         s=blank(prs); title(s,"ICS Revenue"); pill(s,f"PTD · {wbm}")
@@ -1097,7 +1400,7 @@ def build(d, static_path, out, referrals_only=False):
         notes(s,base+" PTD revenue by source: "+", ".join(f"{c['name']} ${c['amount']:,.0f}" for c in d['revenue']['components'])+f"; total ${d['revenue']['total']:,.0f}. Workbook 'Monthly Detail'.")
 
         # 8-13 monthly detail
-        md=d["monthly_detail"]; acc=md["cumulative_accounts"][-1]
+        md=CH.cohorts(d); acc=md["cumulative_accounts"][-1]     # every cohort the charts draw
         # The program-to-date tiles read the sheet's revenue components — EVERY cohort — never
         # the cohort window (Aaron, 2026-10-13; Cindy on KEMBA 1195: "This is YTD data - labeled
         # as PTD. PTD is $573,936.31" — the tile summed the newest nine cohorts, $11,044, beside
@@ -1120,10 +1423,26 @@ def build(d, static_path, out, referrals_only=False):
             _tot_win=sum(md["spread"])+sum(md["interchange"])+sum(md["nsf_od"])+sum(md["other_fees"])
         nso_first=(md["nsf_od"][0]+md["other_fees"][0])
         SPREAD_DEF="Spread = 2.75% × avg month-end balance/account, summed monthly, net of interest paid."
-        def mdslide(pg,ttl,subt,img,tiles,note,foot=None):
+        def mdslide(pg,ttl,subt,img,tiles,note,foot=None,early=None):
+            """A chart slide with its tile rail. `early` = (keys, per_account): a third tile for the
+            program's first 12 months (Cindy: "highlight revenue from early in the program"), drawn
+            only when the program has cohorts beyond its first twelve."""
+            es=CH.early_stats(d,early[0]) if early else None
+            tiles=[(t[0],t[1],(t[2] if len(t)>2 else None)) for t in tiles]
+            if es:
+                if early[1]:
+                    tiles.append((f"${es['per_acct_month']:,.2f}","Year 1 / acct / month",
+                                  f"{P.mon_yy(es['first'])} – {P.mon_yy(es['last'])}"))
+                else:
+                    tiles.append((f"${es['revenue']:,.0f}",early[2],f"{es['share']*100:.0f}% of program to date"))
+                note=(note+f" Year 1 tile: the program's first {CH.EARLY_COHORTS} cohorts ({es['first']} – {es['last']}, "
+                      f"{es['accounts']:,} accounts), orange on the chart"
+                      + (f": blended ${es['per_acct_month']:,.2f} per account per month (revenue ÷ account-months)." if early[1]
+                         else f": ${es['revenue']:,.0f}, {es['share']*100:.0f}% of the ${es['total']:,.0f} across every cohort."))
             s=blank(prs); title(s,ttl); sub(s,subt); s.shapes.add_picture(img,Inches(0.4),Inches(1.7),Inches(8.6))
-            ty=1.9
-            for big,lab in tiles: callout(s,9.3,ty,3.5,1.4,big,lab,big_size=26); ty+=1.6
+            n3=len(tiles)==3
+            ty,th,step=(1.75,1.35,1.5) if n3 else (1.9,1.4,1.6)
+            for big,lab,sb in tiles: callout(s,9.3,ty,3.5,th,big,lab,sub=sb,big_size=26); ty+=step
             if foot: tb(s,0.5,6.5,12.3,0.5,foot,16,GREYT,False)
             logo(s); pagenum(s,pg); notes(s,note)
         IC_DEF="Interchange Income: Blended Rate × Debit Card Spend"
@@ -1134,48 +1453,55 @@ def build(d, static_path, out, referrals_only=False):
         mdslide(8,"Total Interchange Revenue",
                 _subfit(f"Interchange revenue by opening-month cohort, {_win}; tile: program to date, all cohorts.",
                         f"Interchange revenue by cohort, {_win}; tile: program to date.",
-                        f"Interchange revenue by cohort ({_nw} newest); tile: program to date."),
+                        f"Interchange revenue by cohort ({_nw} cohorts); tile: program to date."),
                 a("ics_ic_tot.png"),[(f"${icPTD:,.0f}","Interchange PTD"),(f"{acc:,}","ICS accounts")],
-                base+" Interchange revenue."+_tile_note,foot=IC_DEF)
+                base+" Interchange revenue."+_tile_note,foot=IC_DEF,early=(["interchange"],False,"Year 1 interchange"))
         mdslide(9,"Interchange Revenue per Account per Month",
                 f"Interchange revenue ÷ accounts opened ÷ months open, by cohort (e.g. {cohort_example(d, md['interchange'][0])}).",
                 a("ics_ic_pam.png"),[(f"${_pa['ic'][0]/am:.2f}","Blended / account / month"),(f"${_pa['ic'][0]/_pa['ic'][1]:.2f}","Per account, life-to-date")],
-                base+" Interchange per account."+_pam_note,foot=IC_DEF)
+                base+" Interchange per account."+_pam_note,foot=IC_DEF,early=(["interchange"],True,""))
         mdslide(10,"Total NSF/OD & Other Fee Revenue",
                 # Trailing "Revenue only — not item counts." pushed this to 13.06in in a
                 # 12.10in box, wrapping onto the callout value; it is already in the notes.
                 _subfit(f"NSF/OD fees plus other service charges by cohort, {_win}; tile: program to date, all cohorts.",
                         f"NSF/OD plus other fees by cohort, {_win}; tile: program to date.",
-                        f"NSF/OD plus other fees by cohort ({_nw} newest); tile: program to date."),
+                        f"NSF/OD plus other fees by cohort ({_nw} cohorts); tile: program to date."),
                 a("ics_nsf_tot.png"),[(f"${nsoPTD:,.0f}","NSF/OD & Other PTD"),(f"{acc:,}","ICS accounts")],
-                base+" NSF/OD + other service charges (revenue only, not item counts)."+_tile_note)
+                base+" NSF/OD + other service charges (revenue only, not item counts)."+_tile_note,early=(["nsf_od","other_fees"],False,"Year 1 NSF/OD & other"))
         mdslide(11,"NSF/OD & Other Fees per Account per Month",
                 f"NSF/OD + other fees ÷ accounts opened ÷ months open, by cohort (e.g. {cohort_example(d, nso_first)}).",
                 a("ics_nsf_pam.png"),[(f"${_pa['nso'][0]/am:.2f}","Blended / account / month"),(f"${_pa['nso'][0]/_pa['nso'][1]:.2f}","Per account, life-to-date")],
-                base+" NSF/OD + other charges per account."+_pam_note)
+                base+" NSF/OD + other charges per account."+_pam_note,early=(["nsf_od","other_fees"],True,""))
         mdslide(12,"Total Spread Revenue",
                 _subfit(f"Spread revenue by opening-month cohort, {_win}; tile: program to date, all cohorts.",
                         f"Spread revenue by cohort, {_win}; tile: program to date.",
-                        f"Spread revenue by cohort ({_nw} newest); tile: program to date."),
+                        f"Spread revenue by cohort ({_nw} cohorts); tile: program to date."),
                 a("ics_spread_tot.png"),[(f"${spPTD:,.0f}","Spread PTD"),(f"{acc:,}","ICS accounts")],
-                base+" Spread revenue."+_tile_note,foot=SPREAD_DEF)
+                base+" Spread revenue."+_tile_note,foot=SPREAD_DEF,early=(["spread"],False,"Year 1 spread"))
         mdslide(13,"Spread Revenue per Account per Month",
                 f"Spread revenue ÷ accounts opened ÷ months open, by cohort (e.g. {cohort_example(d, md['spread'][0])}).",
                 a("ics_spread_pam.png"),[(f"${_pa['sp'][0]/am:.2f}","Blended / account / month"),(f"${_pa['sp'][0]/_pa['sp'][1]:.2f}","Per account, life-to-date")],
-                base+" Spread per account."+_pam_note,foot=SPREAD_DEF)
+                base+" Spread per account."+_pam_note,foot=SPREAD_DEF,early=(["spread"],True,""))
         mdslide(14,"Revenue Composition by Month",
                 _subfit(f"Revenue by source per cohort — spread (net of interest), interchange, NSF/OD, other — {_win}.",
                         f"Revenue by source per cohort, {_win}.",
-                        f"Revenue by source per cohort ({_nw} newest)."),
+                        f"Revenue by source per cohort ({_nw} cohorts)."),
                 a("ics_comp.png"),[(f"${pcPTD:,.0f}","Profit contribution PTD"),(f"{acc:,}","ICS accounts")],
                 base+" Revenue composition by cohort."+_tile_note.replace("Tile: program to date across every cohort (the sheet's revenue components)",
-                                                                           "Tile: account profit contribution, program to date across every cohort (the sheet's revenue total)"))
+                                                                           "Tile: account profit contribution, program to date across every cohort (the sheet's revenue total)"),
+                early=(["spread","interchange","nsf_od","other_fees"],False,"Year 1 profit contribution"))
         tot_pam=_tot_win/am
         mdslide(15,"Revenue per Account per Month by Source",
                 _subfit(f"Blended revenue per account per month by source, {_pam_scope} (revenue ÷ account-months).",
                         f"Revenue per account per month by source, {_pam_scope}."),
                 a("ics_bucketcmp.png"),[(f"${tot_pam:,.2f}","All sources / acct / mo"),(f"{acc:,}","ICS accounts")],
-                base+f" Per-account-per-month revenue compared across sources (spread, interchange, NSF/OD, other), {_pam_scope}; the bars read the {_win}. Workbook 'Monthly Detail'.")
+                base+f" Per-account-per-month revenue compared across sources (spread, interchange, NSF/OD, other), {_pam_scope}; the bars read the {_win}. Workbook 'Monthly Detail'.",
+                early=(["spread","interchange","nsf_od","other_fees"],True,""))
+
+        # Interchange by Channel — only where the ODD join made it measurable (see ics_channel_split).
+        _ci=CH.channel_interchange_rows(d,_split) if _split else None
+        if _ci:
+            _channel_interchange_slide(prs,d,_split,client,m,wbm,base,a("ics_channel_ic.png"),_ci)
 
         # 14 Financial Summary
         fs=d["financial_summary"]; s=blank(prs); title(s,"ICS Financial Summary"); pill(s,f"PTD · {wbm}")
@@ -1219,7 +1545,17 @@ def build(d, static_path, out, referrals_only=False):
         notes(s,base+f" Contribution ${fs['account_profit_contribution']:,.0f} − referral fees to date ${fs['total_program_expense']:,.0f} "
                     f"(the workbook's Total Expense row) = net ${fs['net_profit']:,.0f}; acquisition cost ${billed:,.0f} = "
                     f"${cpa:,.0f} per account × {fs['ics_accounts']:,} accounts, shown and not deducted; "
-                    f"{fs['ics_accounts']:,} accounts, avg balance ${fs['average_balance']:,.0f}. "+_roi_note)
+                    f"{fs['ics_accounts']:,} accounts, avg balance ${fs['average_balance']:,.0f}"
+                    + (f" ({fs['average_balance_basis']})" if fs.get("average_balance_basis") else "") + ". "+_roi_note)
+
+        # Age Demographics and ICS Accounts by Product Type, between the Financial Summary and Comparisons
+        # (Cindy Draper's own placement, 2026-11-03: "Could we add this?"). Both come from the ODD join and
+        # exist only where it was made.
+        _odd_s=(_split or {}).get("odd")
+        if _odd_s and _odd_s["age"]["n"]:
+            _age_slide(prs,d,_split,client,m,base,a("ics_age.png"))
+        if _odd_s and _odd_s["products"]:
+            _product_slide(prs,d,_split,client,m,base,a("ics_products.png"))
 
         # 15 Comparisons (modeled on the CSI/Velocity ICS Review template)
         bm=d["benchmark"]; s=blank(prs); title(s,"Comparisons")
@@ -1260,13 +1596,19 @@ def build(d, static_path, out, referrals_only=False):
         # The window the figures carry — program to date since 2026-10-13 (Aaron: "Program-to-date
         # everywhere"), 12-month on a sheet extracted before then — is named in the footnote and
         # the notes, and the Velocity close-rate average is a 12-month benchmark whichever it is.
-        _bwin=bm.get("window","12-month")
+        # The close-rate row is its own window: the Last 12 Months row, like for like with Velocity's
+        # 12-month average (Cindy Draper, 2026-11-03; see ics_workbook_extract). The other rows keep `window`.
+        _bwin=bm.get("window","12-month"); _cwin=bm.get("close_rate_window",_bwin)
+        _cptd=bm.get("close_rate_ptd") or {}
         if bm.get("non_ics_close_rate_pct"):
-            tb(s,1.3,yy+0.06,10.8,0.4,f"Note: your Non-ICS accounts' {_bwin} close rate = {bm['non_ics_close_rate_pct']:.1f}%.",14,GREYT,False)
+            _cn=f"Note: your Non-ICS accounts' {_cwin} close rate = {bm['non_ics_close_rate_pct']:.1f}%."
+            tb(s,1.3,yy+0.06,10.8,0.4,_cn,14,GREYT,False)
         logo(s); pagenum(s,15)
-        notes(s,base+f" {client} vs the Velocity ICS client average — share of openings and close rate {_bwin} (ICS "
+        notes(s,base+f" {client} vs the Velocity ICS client average — share of openings {_bwin}; close rate {_cwin} (ICS "
                      f"{[x['client'] for x in bm['metrics'] if 'Close' in x['label']][0]:.2f}% vs Non-ICS {bm.get('non_ics_close_rate_pct',0):.2f}%), "
-                     f"lifetime value and account life program to date (modelled). Velocity averages are program-wide "
+                     f"the workbook's 'Last 12 Months' row, so it compares like for like with Velocity's 12-month close-rate average"
+                     + (f" (program to date, for reference: ICS {_cptd['ics']:.1f}%, Non-ICS {_cptd['non_ics']:.1f}%)" if _cptd and _cwin=="12-month" else "")
+                     + f"; lifetime value and account life program to date (modelled). Velocity averages are program-wide "
                      f"constants; the Velocity close-rate average is a 12-month figure.")
 
         # ---- Appendix: the full Monthly Detail tab (Aaron, 2026-10-13: "Add the full monthly
@@ -1277,40 +1619,61 @@ def build(d, static_path, out, referrals_only=False):
         # 2026-10-13) gets no appendix — never a page of zeros.
         mdf=d.get("monthly_detail_full") or {}
         if mdf.get("months"):
-            PER=10
+            # A page per program year (twelve cohorts), and the rows grouped under category bands —
+            # Accounts, Revenue, Expense & profit (Cindy Draper, 2026-11-03: "This is great but hard to
+            # read, can we categorize?"). Ten-a-page cut across years and ran one long run of figures.
             _mos=mdf["months"]; _n=len(_mos)
-            _chunks=[list(range(i,min(i+PER,_n))) for i in range(0,_n,PER)]
+            _chunks=[list(range(a_,b_+1)) for a_,b_ in CH.program_years(_n)]
             _usd0=lambda v:f"${v:,.0f}"
-            _rows_def=[("Accounts Opened","accounts_opened",lambda v:f"{v:,.0f}"),
-                       ("Cumulative Accounts","cumulative_accounts",lambda v:f"{v:,.0f}"),
-                       ("Avg Balance / Acct","avg_balance",_usd0),
-                       ("Spread on Deposits","spread",_usd0),
-                       ("Interchange Income","interchange",_usd0),
-                       ("NSF / OD Fees","nsf_od",_usd0),
-                       ("Other Fees","other_fees",_usd0),
-                       ("Account Profit Contribution","profit_contribution",_usd0),
-                       ("Total Expense","total_expense",_usd0),
-                       ("Profit Contribution to Date","profit_to_date",_usd0)]
+            _cnt=lambda v:f"{v:,.0f}"
+            _sc=(_split or {}).get("cohorts") if (_split and len((_split["cohorts"] or {}).get("months") or [])==_n) else None
+            _rows_def=[("§","Accounts"),
+                       ("Accounts Opened","accounts_opened",_cnt)]
+            if _sc:
+                _rows_def+=[("  from direct mail",_sc["direct_mail"],_cnt),("  from branch referrals",_sc["referral"],_cnt)]
+            _rows_def+=[("Cumulative Accounts","cumulative_accounts",_cnt),
+                        ("Avg Balance / Acct","avg_balance",_usd0),
+                        ("§","Revenue"),
+                        ("Spread on Deposits","spread",_usd0),
+                        ("Interchange Income","interchange",_usd0),
+                        ("NSF / OD Fees","nsf_od",_usd0),
+                        ("Other Fees","other_fees",_usd0),
+                        ("Account Profit Contribution","profit_contribution",_usd0),
+                        ("§","Expense & profit"),
+                        ("Total Expense","total_expense",_usd0),
+                        ("Profit Contribution to Date","profit_to_date",_usd0)]
             _ptd_pc=sum(mdf.get("profit_contribution") or []); _ptd_ex=sum(mdf.get("total_expense") or [])
             _ptd_net=sum(mdf.get("profit_to_date") or [])
             for k,idx in enumerate(_chunks,1):
                 s=blank(prs); title(s,f"Appendix: Monthly Detail ({k} of {len(_chunks)})"); pill(s,f"PTD · {wbm}")
                 _span_a=f"{_mos[idx[0]]} – {_mos[idx[-1]]}"
-                _sub_opts=[f"The workbook's full 'Monthly Detail' tab, {_span_a}: opening-month cohorts, each cohort's figures life to date.",
-                           f"Full 'Monthly Detail' tab, {_span_a} — opening-month cohorts, figures life to date.",
-                           f"'Monthly Detail' tab, {_span_a}, by opening-month cohort."]
+                _yr=f"Year {k} · " if len(_chunks)>1 else ""
+                _sub_opts=[f"{_yr}Full 'Monthly Detail' tab, {_span_a}: opening-month cohorts, each cohort's figures life to date.",
+                           f"{_yr}'Monthly Detail' tab, {_span_a} — opening-month cohorts, figures life to date.",
+                           f"{_yr}'Monthly Detail' tab, {_span_a}, by opening-month cohort."]
                 sub(s,next((o for o in _sub_opts if fits_one_line(o, 12.1, 16, family="Montserrat", min_pt=MIN_PT)), _sub_opts[-1]))
-                trows=[["Month Opened"]+[_mos[i] for i in idx]]
-                for lab,key,fmt in _rows_def:
-                    if mdf.get(key):
-                        trows.append([lab]+[fmt(mdf[key][i]) for i in idx])
-                std_table(s,trows,0.35,1.65,12.63,[2.6]+[1.0]*len(idx),highlight_last=False,fs=12,rowh=0.42)
+                groups=[]                       # [band label, [rows]] — a band with no row under it is not drawn
+                for rd_ in _rows_def:
+                    if rd_[0]=="§":
+                        groups.append([rd_[1],[]]); continue
+                    lab,key,fmt=rd_
+                    vals=key if isinstance(key,list) else mdf.get(key)
+                    if vals:
+                        groups[-1][1].append([lab]+[fmt(vals[i]) for i in idx])
+                trows=[["Month Opened"]+[_mos[i] for i in idx]]; _bands=[]
+                for band_lab,rs in groups:
+                    if rs:
+                        _bands.append(len(trows)); trows.append([band_lab.upper()]+[""]*len(idx)); trows+=rs
+                std_table(s,trows,0.35,1.65,12.63,[2.6]+[1.0]*len(idx),highlight_last=False,fs=12,
+                          rowh=min(0.42,5.0/len(trows)),bands=_bands)
                 logo(s); pagenum(s,16)
                 notes(s,base+f" Appendix {k} of {len(_chunks)}: the workbook's 'Monthly Detail' tab in full, cohorts "
-                             f"{_span_a} ({len(idx)} of {_n} columns). One column per opening-month cohort; revenue, "
-                             f"expense and profit are each cohort's life to date, so the columns sum to the program: "
-                             f"profit contribution ${_ptd_pc:,.0f}, total expense ${_ptd_ex:,.0f}, net ${_ptd_net:,.0f} "
-                             f"across all {_n} cohorts.")
+                             f"{_span_a} ({len(idx)} of {_n} columns), one page per program year of {CH.YEAR_COHORTS} cohorts. One column per "
+                             f"opening-month cohort; revenue, expense and profit are each cohort's life to date, so the columns sum to "
+                             f"the program: profit contribution ${_ptd_pc:,.0f}, total expense ${_ptd_ex:,.0f}, net ${_ptd_net:,.0f} "
+                             f"across all {_n} cohorts. Rows are grouped under Accounts, Revenue and Expense & profit."
+                             + (f" The direct-mail and branch-referral account rows: the direct-mail list ({_split['dm_file']}) by month opened "
+                                f"(measured) and the workbook's accounts opened less direct mail (derived)." if _sc else ""))
                 _appendix_els.append(prs.slides._sldIdLst[-1])
 
     # optional mystery shop
@@ -1321,6 +1684,16 @@ def build(d, static_path, out, referrals_only=False):
                                             (f"{ms['offered_referral_pct']}%","Offered a Referral",NAVY)]):
             callout(s,0.55+i*4.1,1.5,3.8,1.5,big,lab,fill=fill)
         logo(s); pagenum(s,16); notes(s,base+" Mystery shops YTD, pass rate, referral-offered rate. ICS Charts.")
+
+    # ---- How You Compare (Aaron, 2026-11-03): the client against every other ICS client ----
+    # The same comparison Live Review's "How you compare" shows (peer_compare.for_deck): referrals per 1,000 DDAs and,
+    # when the client's workbook is for the deck's own period, revenue per account per month by source. Anonymous on the
+    # slide. Built before the Contact slide, so it is the last data slide and lands after the results, before the
+    # education slides. Always drawn; it says so when there are too few peers.
+    import peer_slide
+    peer_slide.add_peer_slide(prs, "ICS", _cid, (d.get("meta") or {}).get("client_name") or "The client", f"PTD · {data_date}", A,
+                              f"Client figures: {base}", period=_period, brand="std",
+                              anchor_slide=prs.slides[len(prs.slides)-1])
 
     # Contact slide (built last so it lands at the very end, after Q&A). Every ICS deck has
     # one, and its card is the client's managing CSM (rpe_env.csm_contact, resolved above).

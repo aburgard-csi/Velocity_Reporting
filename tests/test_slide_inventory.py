@@ -52,6 +52,12 @@ def test_the_ics_list_is_the_full_workbook_shape_whatever_the_newest_decks_carry
         assert title in t, title
     branch = next(i for i, x in enumerate(t) if SI._same(x, "Results by Branch — Year to Date"))   # the shell's own dash
     assert t.index("Direct Mail New Accounts") == branch + 1
+    # Cindy Draper's review of KEMBA 1195 (2026-11-03): the split slides sit beside the slides they extend, the
+    # month table became the program-year table, and the two ODD slides sit between the summary and comparisons.
+    assert t.index("Direct Mail and Branch Referral Accounts") == t.index("Direct Mail New Accounts") + 1
+    assert t.index("Interchange by Channel") == t.index("Revenue per Account per Month by Source") + 1
+    assert t.index("Age Demographics") == t.index("ICS Financial Summary") + 1 and t.index("ICS Accounts by Product Type") == t.index("Age Demographics") + 1
+    assert "Program Results by Opening Year" in t and "Program Results by Month Opened" not in t
     assert not any("anchor not found" in r["source"] for r in SI.inventory()["ICS"])
 
 
@@ -60,6 +66,17 @@ def test_the_mrpc_and_cashplease_lists_name_the_client_as_the_client():
     cp = _titles("CP")
     assert cp[:2] == ["CashPlease Program Overview", "CashPlease Program Settings"]
     assert "CashPlease Peer Comparison" in cp
+
+
+def test_every_program_lists_its_how_you_compare_slide_where_the_builder_puts_it():
+    """build/peer_slide.py (2026-11-03): one per program deck, placed by title."""
+    ars, mrpc, cp, ics = _titles("ARS"), _titles("MRPC"), _titles("CP"), _titles("ICS")
+    assert ics.index("How You Compare — ICS Clients") == next(i for i, x in enumerate(ics) if x.startswith("New in 2026")) - 1
+    assert ars.index("How You Compare — ARS Clients") == ars.index("ARS Key Takeaways") - 1
+    assert mrpc.index("How You Compare — MRPC Clients") == mrpc.index("MRPC Current Program Status") + 1
+    assert cp.index("How You Compare — CashPlease Clients") == cp.index("CashPlease Peer Comparison") + 1
+    for prog in ("ARS", "ICS", "MRPC", "CP"):
+        assert not any("anchor not found" in r["source"] for r in SI.inventory()[prog])
 
 
 def test_the_ti_list_is_the_cuts_register_kept_slides_in_chapter_order():

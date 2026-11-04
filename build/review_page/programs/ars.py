@@ -107,11 +107,28 @@ def build(ctx, p):
     screens.append(_take(ctx, p))
     screens.append(_rege(ctx, p))
     screens.append(_usage(ctx, p))
+    ps = _peers(ctx, p)
+    if ps:
+        screens.append(ps)
     s0 = screens[0]
     summary = {"headline": s0["headline"],
                "kpis": [dict(k, go="ars:summary") for k in s0["blocks"][0]["items"][:3]],
                "open": "ars:summary"}
     return {"screens": screens, "summary": summary, "client_name": name}
+
+
+def _peers(ctx, p):
+    """'How you compare': the client against the other ARS clients, anonymously (review_page/peers.py). The client's own
+    figures are read from the packs this page already holds, the peers' from the packs their own builds left."""
+    from review_page import peer_pool, peers
+    try:
+        pc = peer_pool.PeerCtx(ctx.client, ctx.period, ctx.root, own={"metrics": p["M"].data, "base": p["B"].data})
+        coll = peer_pool.collect_ars(pc)
+    except Exception:
+        return None
+    return peers.peers_screen(ctx.tracer, "ARS", "ARS", coll, peer_pool.ARS_METRICS, pull_dates=coll["pull"],
+                              extra_notes=["Response rate is the deck's: responders over offers sent to personal accounts. Responder spend compares "
+                                           "the 3 months before a mailing with the 6 months after, and only packs built on those windows count."])
 
 
 def _summary(ctx, p, g, ratio, RG):
