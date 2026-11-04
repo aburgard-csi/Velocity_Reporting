@@ -45,28 +45,32 @@ def slides_comm_strategies(dk, S, *, section, show_all=False):
                            section=section)
         T.textbox(slide, X, T.CONTENT_TOP, W, 0.6, "None active", 20, color=T.NAVY, bold=True)
         return [slide]
-    out = []
-    for page_rows, page_no, pages in MD.paginate(active, MD.ROWS_PER_SLIDE, show_all):
-        sub = f"{len(active)} active strategies — member outreach cadence"
-        if pages > 1:
-            sub += f"  ·  page {page_no} of {pages}"
-        slide = dk.content("Communication Strategies", sub, section=section)
-        y = T.CONTENT_TOP
-        T.band_label(slide, X, y, W, "  ACTIVE STRATEGIES")
-        cols = ["Strategy", "Group", "Type", "Priority", "Repeat", "Remove"]
-        widths = [8.2, 3.2, 1.9, 1.8, 1.8, 1.8]
-        rh = _fits(len(page_rows) + 1, y + 0.50)
-        tbl = dk.table(slide, X, y + 0.50, W, widths, len(page_rows) + 1, row_h=rh, header_h=HEAD_H)
-        fs = _fs(rh, 14)
-        for c, h in enumerate(cols):
-            T.head_cell(tbl.cell(0, c), h, 14, align=PP_ALIGN.LEFT if c == 0 else PP_ALIGN.CENTER)
-        for ri, r in enumerate(page_rows, 1):
-            bg = T.zebra(ri - 1)
-            T.cell(tbl.cell(ri, 0), dk.term(r.get("STRATEGY_NAME", "")), fs, bg=bg, align=PP_ALIGN.LEFT)
-            T.cell(tbl.cell(ri, 1), r.get("STRATEGY_GROUP", "") or "—", fs, bg=bg)
-            T.cell(tbl.cell(ri, 2), r.get("COMMUNICATION_TYPE_ID", "") or "—", fs, bg=bg)
-            T.cell(tbl.cell(ri, 3), r.get("STRATEGY_PRIORITY", "") or "—", fs, bg=bg)
-            T.cell(tbl.cell(ri, 4), r.get("THRESHOLD_REPEAT", "") or "—", fs, bg=bg)
-            T.cell(tbl.cell(ri, 5), r.get("THRESHOLD_REMOVE", "") or "—", fs, bg=bg)
-        out.append(slide)
-    return out
+    # One line per active strategy, in large type: the name, then its group and how often it repeats. The
+    # type, priority and removal threshold are in the extract and the speaker notes, not on the slide.
+    import shapes
+    from pptx.enum.text import MSO_ANCHOR
+    lines = []
+    for r in active:
+        name = str(dk.term(r.get("STRATEGY_NAME", ""))).strip() or "Unnamed strategy"
+        rep = str(r.get("THRESHOLD_REPEAT", "") or "").strip()
+        try:
+            rep_n = float(rep)
+        except ValueError:
+            rep_n = None
+        bits = [f"repeats every {rep} days"] if rep_n and rep_n > 0 else []
+        lines.append(name + ("  ·  " + "  ·  ".join(bits) if bits else ""))
+    cap = 9
+    shown = lines[:cap]
+    if len(lines) > cap:
+        shown.append(f"and {len(lines) - cap} more active strategies (see the matrix validation extract)")
+    slide = dk.content(f"{len(active)} communication strateg{'y is' if len(active) == 1 else 'ies are'} active",
+                       "Member outreach strategies switched on in the matrix validation extract; inactive strategies are not shown.",
+                       section=section)
+    shapes.textbox(slide, X, 1.80, 12.33, 0.45, "ACTIVE STRATEGIES", 14, T.NAVY, True, PP_ALIGN.LEFT, T.HEAD, MSO_ANCHOR.TOP)
+    T.bullets_real(slide, 0.50, 2.30, 12.33, 4.2, shown, size=20, min_size=16)
+    detail = "; ".join(f"{str(r.get('STRATEGY_NAME', '')).strip()}: type {r.get('COMMUNICATION_TYPE_ID', '') or 'n/a'}, priority "
+                       f"{r.get('STRATEGY_PRIORITY', '') or 'n/a'}, repeat {r.get('THRESHOLD_REPEAT', '') or 'n/a'}, "
+                       f"remove {r.get('THRESHOLD_REMOVE', '') or 'n/a'}" for r in active)
+    slide.notes_slide.notes_text_frame.text = ("Say first: these are the member messages ILS is sending today.\n"
+                                               + slide.notes_slide.notes_text_frame.text + "\nDetail: " + detail)
+    return [slide]

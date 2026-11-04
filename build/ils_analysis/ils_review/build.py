@@ -27,8 +27,12 @@ import os
 import traceback
 from datetime import datetime
 
+from . import theme as T                       # first: it puts build/ on sys.path for the modules below
+from . import analysis_slides
 from . import branch_metrics as BM
 from . import branch_slides
+from . import peers_slides
+from . import standard_slides
 from . import client_slides as CS
 from . import dbic
 from . import dbic_slides
@@ -44,7 +48,7 @@ from . import r_common
 from . import scoring_summary
 from . import story_slides
 from . import theme as T
-from .config import GROUP_DIVIDERS, SECTIONS, BuildConfig
+from .config import GROUP_DIVIDERS, MAX_SLIDES, NO_DIVIDER_GROUPS, SECTIONS, BuildConfig
 from .ils_data import count
 from .template import Shell
 
@@ -187,6 +191,10 @@ BUILDERS = {
     "nsf_share": lambda r, k: story_slides.add_nsf_share(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
     "chargeoffs": lambda r, k: story_slides.add_chargeoffs(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
     "pullback": lambda r, k: story_slides.add_pullback(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "yoy": lambda r, k: analysis_slides.add_yoy(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "usage_segments": lambda r, k: analysis_slides.add_usage_segments(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "peers": lambda r, k: peers_slides.add_peers(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "industry": lambda r, k: standard_slides.add_industry(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
 }
 
 
@@ -230,72 +238,48 @@ def _move_before(prs, slide, ref):
     return True
 
 
-# ── the data-notes slide(s) ──────────────────────────────────────────────────
+# ── the data-notes slide ─────────────────────────────────────────────────────
 def _slide_data_notes(run, key):
+    """ONE appendix page: scope on the left, methods and limits on the right. Everything that was skipped, noted or
+    compared with the hand-built decks is in the speaker notes (and figures_index.json), not on the slide."""
     cfg, loaded, fr = run.cfg, run.loaded, run.fr
     br = loaded.branches
     dk = run.dk
     scope = []
     za = loaded.zaccounts
     n_open = int((za["acctstatus"].astype(str).str.upper() == "O").sum())
-    scope.append(f"{count(len(za))} accounts in the extract; {count(n_open)} currently open. Data as of {str(fr.asof)[:10]}; "
-                 f"the extract was pulled {loaded.file_date:%Y-%m-%d}." if loaded.file_date is not None else
-                 f"{count(len(za))} accounts in the extract; {count(n_open)} currently open.")
+    pull = f"; the extract was pulled {loaded.file_date:%Y-%m-%d}" if loaded.file_date is not None else ""
+    scope.append(f"{count(len(za))} accounts in the extract, {count(n_open)} open, as of {str(fr.asof)[:10]}{pull}.")
     kept = "retail branches and digital channels" if cfg.include_digital else "retail branches"
-    scope.append(f"Branch classification: {br.summary()}. Branch-level metrics cover the {kept}; back-office codes are held out.")
-    if br.digital:
-        names = ", ".join(sorted(br.names[c] for c in br.digital)[:4])
-        verb = "included in" if cfg.include_digital else "excluded from"
-        scope.append(f"Digital channels {verb} branch metrics: {names}.")
-    opn = za[za["acctstatus"].astype(str).str.upper() == "O"]
-    excluded_sizes = (opn[opn["branch"].isin(br.back_office)].groupby("branch", observed=True).size()
-                      .sort_values(ascending=False))
-    if len(excluded_sizes):
-        top = excluded_sizes.head(3)
-        parts = [f"{br.names.get(c, c)} ({count(n)}, {n / max(1, len(opn)) * 100:.1f}% of open accounts)"
-                 for c, n in top.items()]
-        scope.append("Largest non-retail units held out of the branch views: " + "; ".join(parts) + ".")
-    scope.append(f"Branch charts show the top {cfg.top_n_personal} personal / {cfg.top_n_business} business branches by "
-                 f"account count; smaller branches are in the portfolio totals but omitted from charts.")
-    if loaded.has_trend:
-        scope.append(f"Deposit volatility uses accounts with {cfg.min_periods_for_volatility}+ notice observations in ZTrend.")
-
-    method = []
-    method.append("'Presented an item' means PD_365 + RT_365 > 0 — at least one item paid into overdraft or returned in "
-                  "the trailing 12 months — restricted to currently open accounts.")
-    method.append("Deposit intensity is the total 33-day deposit amount divided by open accounts; a blank DepAmt33 counts "
-                  "as no deposit activity, not $0.")
-    method.append(f"A notice in the Scoring Summary is one account on one notice date. A notice defaults when repayment took "
-                  f"more than {fr.default_days} days (never-repaid notices excluded); losses are charge-off dollars counted "
-                  f"once, in the band of the account's first defaulting notice. The analysis README uses 30 days with "
-                  f"never-repaid counted as a default; the {fr.default_days}-day rule reproduces the hand-built deck.")
-    method.append("Cure (the slides in the story): a negative balance reaches $0 or more within 60 days of the notice. The Scoring "
-                  "Summary slides, when built, use a separate 40-day default and are never drawn on the same slide as a cure rate.")
-    method.append("Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365.")
-    method.append("Trends are shown as On or Off only: a trend is On when its factor grid is in the matrix validation extract with "
-                  "a non-zero factor. The Windfall Ratio predictor is not shown because it is a trend input. Communication "
-                  "strategies are listed only when active. Strategic refunds are not shown.")
-    method.extend(loaded.notes)
-    method.extend(run.notes)
-    method.extend(run.errors)
-    method = [m for m in method if m]
-
-    per = 4
-    first, rest = method[:per], method[per:]
-    n_notes_pages = 1 + -(-len(rest) // 6)
-    slide = dk.content("Data notes & methodology" + (f" (1 of {n_notes_pages})" if rest else ""),
-                       f"Scope, sources and caveats for the analysis in this deck  ·  data as of {str(fr.asof)[:10]}",
+    scope.append(f"Branch views cover the {kept}; back-office codes are held out ({br.summary()}).")
+    scope.append("Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365; a user has at least one NSF/OD item in 365 days.")
+    scope.append("Comparisons use complete months only; movement within 2% is called almost flat.")
+    scope.append("Peers are other ILS clients, shown by client number only; very large clients are compared with other very large ones, "
+                 "the rest within their Census region, with five peers at least.")
+    method = [
+        f"Cure (the performing slides): a negative balance reaches $0 or more within {story_slides.CURE_DAYS} days of the notice. The Scoring "
+        f"Summary uses a separate {fr.default_days}-day default and never shares a slide with a cure rate.",
+        "NSF is collected fees on returned items and OD is collected fees on paid items; neither is netted for refunds.",
+        "Pulled back means the current limit is below the account's own earlier maximum. The extracts have no daily limit history, so when "
+        "and why are not shown, and no savings are claimed.",
+        "Year over year compares the last 12 complete months with the 12 before. The hand-built decks' windows cannot be reproduced "
+        "from the extract; the changes agree to within about two points and the levels differ.",
+        "Trends are On or Off only, communication strategies are listed only when active, and strategic refunds are not shown.",
+    ]
+    extras = [m for m in (list(loaded.notes) + list(run.notes) + list(run.errors)) if m]
+    full = ["Scope"] + scope + ["Methods"] + method + (["Notes, skips and comparisons"] + extras if extras else [])
+    slide = dk.content("Appendix: data notes and methodology",
+                       f"Scope, definitions and limits for the analysis in this deck  ·  data as of {str(fr.asof)[:10]}",
                        section=key, source=CS._src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic"))
-    T.two_column_text(slide, T.CONTENT_TOP, "SCOPE & CLASSIFICATION", scope, "METHODOLOGY & CAVEATS", first, size=15,
-                      h=T.CONTENT_BOTTOM - T.CONTENT_TOP)
-    pages = [rest[i:i + 6] for i in range(0, len(rest), 6)]
-    for i, chunk in enumerate(pages, 2):
-        s2 = dk.content(f"Data notes & methodology ({i} of {len(pages) + 1})",
-                        "What was skipped, what differs from the analysis team's definitions, and why",
-                        section=key, source=CS._src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic"))
-        T.band_real(s2, 0.5, 1.7, 12.33, "METHODOLOGY & CAVEATS (CONTINUED)")
-        T.bullets_real(s2, 0.5, 2.25, 12.33, 4.4, chunk, size=16)
-    return []
+    colw = 6.0
+    T.band_real(slide, 0.50, 1.75, colw, "SCOPE AND DEFINITIONS")
+    T.bullets_real(slide, 0.50, 2.25, colw, 4.35, scope, size=13, min_size=10)
+    T.band_real(slide, 0.50 + colw + 0.33, 1.75, colw, "METHODS AND LIMITS")
+    T.bullets_real(slide, 0.50 + colw + 0.33, 2.25, colw, 4.35, method, size=13, min_size=10)
+    note = slide.notes_slide.notes_text_frame.text
+    slide.notes_slide.notes_text_frame.text = ("Say first: this page is for reference; it says what the figures cover and what they do not.\n" + note +
+                                               "\n" + "\n".join(full))
+    return slide
 
 
 # ── slide furniture ──────────────────────────────────────────────────────────
@@ -381,6 +365,7 @@ def build_review(cfg: BuildConfig, progress=None):
 
     # ── sections ───────────────────────────────────────────────────────────
     done_groups = set()
+    agenda_rows = []
     for key in cfg.sections:
         if key == "data_notes":
             continue                       # always built last, below
@@ -413,14 +398,14 @@ def build_review(cfg: BuildConfig, progress=None):
         if added and sec.group in GROUP_DIVIDERS and sec.group not in done_groups:
             done_groups.add(sec.group)
             title, benefits = GROUP_DIVIDERS[sec.group]
-            div = dk.divider(title, blurb=benefits, section=key,
-                             source=f"Source: section divider for {cfg.client_name} (no data).")
-            _move_before(dk.prs, div, added[0])
+            agenda_rows.append((title, benefits))
+            if sec.group not in NO_DIVIDER_GROUPS:
+                div = dk.divider(title, blurb=benefits, section=key,
+                                 source=f"Source: section divider for {cfg.client_name} (no data).")
+                _move_before(dk.prs, div, added[0])
         if added:
             say(f"  {len(added)} slide(s).")
 
-    # ── data notes (always last of the content), closing ───────────────────
-    _slide_data_notes(run, "data_notes")
     closing = shell.add_slide()
     dk.generated.append(closing)
     cover_divider.draw_closing(closing, f"{cfg.client_name}  •  {month}", title="Thank You")
@@ -441,7 +426,32 @@ def build_review(cfg: BuildConfig, progress=None):
     run.build_log.append("Contact Us carries the CSM only: the ILS consultant is recorded as initials only "
                          "(ILS and DS Client Review Summary.xlsx), with no name, email or phone to build a card from.")
 
+    # ── the appendix: detail tables the story slides point to, then the data notes ─────────────
+    for fn in list(dk.deferred):
+        try:
+            for n in (fn() or []):
+                if isinstance(n, str) and n and n not in run.notes:
+                    run.notes.append(n)
+        except Exception as exc:
+            detail = traceback.format_exc(limit=3).strip().splitlines()[-1]
+            run.errors.append(f"Appendix slide failed to build — {type(exc).__name__}: {exc}. ({detail})")
+            if os.environ.get("ILS_REVIEW_DEBUG"):
+                traceback.print_exc()
+    n_appendix = len(dk.deferred)
+    _slide_data_notes(run, "data_notes")
+    agenda_rows.append(("Appendix", "Detail tables · Matrix detail · Data notes"))
+    # ── the agenda goes right after the cover ───────────────────────────────
+    ref = dk.prs.slides[1] if len(dk.prs.slides) > 1 else None
+    ag = standard_slides.add_agenda(dk, agenda_rows)
+    if ref is not None:
+        _move_before(dk.prs, ag, ref)
+
     _finish(run)
+    if len(shell.prs.slides) > MAX_SLIDES:
+        msg = f"The deck has {len(shell.prs.slides)} slides, over the {MAX_SLIDES}-slide limit; name fewer sections (--sections) or shorten the appendix."
+        run.build_log.append(msg)
+        run.errors.append(msg)
+        say("  ! " + msg)
     out_path = cfg.resolve_output(period)
     say("Saving…")
     shell.save(out_path)

@@ -95,17 +95,34 @@ SECTIONS = {
         Section("peer_data", "Peer fee data (placeholders)", (),
                 "Peer NSF / OD fee distributions. The peer data is not in the client extracts, so "
                 "these slides are labelled placeholders.", "peer"),
+        # ── from the analysis team's delivered decks (Kevin Higginbotham's), generated from the extracts ──
+        Section("yoy", "Year-over-year comparison", ("ztrend", "zaccounts"),
+                "The last 12 complete months against the 12 before: collected fees, notices, accounts, fees per account.", "standing"),
+        Section("usage_segments", "Who generates the fees", ("zaccounts",),
+                "Share of accounts and of collected fees by NSF/OD items in 365 days, heavy users (24+) highlighted.", "drivers"),
+        Section("peers", "How the client compares", ("zaccounts",),
+                "NSF/OD items, collected fees and users per open account against other ILS clients: very large clients against other "
+                "very large ones, the rest within their Census region. Client numbers only; five peers at least.", "peers"),
+        Section("industry", "Industry update (standard)", (),
+                "The cycle's standard consumer-survey and regulatory slides, read from the analysis team's industry_<yyyy-mm>.json.", "industry"),
         Section("data_notes", "Data notes & methodology", ("zaccounts",),
                 "Scope, branch classification, and what was skipped and why.", "notes"),
     )
 }
 
+# Groups that are on the agenda but get no divider slide, to keep the deck inside MAX_SLIDES: the story's three acts
+# (calculating, performing, pulling back) and "Where the Program Stands" keep theirs.
+NO_DIVIDER_GROUPS = {"peers", "matrix", "industry", "drivers"}
+
+MAX_SLIDES = 50         # Aaron / coordinator, 2026-11-04: 50 slides at most, cover, agenda, dividers and Contact included
+
 DEFAULT_SECTIONS = [
-    # where the program stands -> what drives it -> calculating -> performing -> pulling back -> the matrix
-    "kpi_rollup", "fee_trends", "nsf_share", "chargeoffs",
-    "exception_items", "eligibility", "reg_e", "branch_personal",
+    # where the program stands -> how it compares -> what drives it -> calculating -> performing -> pulling back
+    # -> the matrix -> the industry update; the detail tables are queued for the appendix (`Deck.defer`)
+    "kpi_rollup", "fee_trends", "yoy", "nsf_share", "chargeoffs", "peers",
+    "exception_items", "usage_segments", "eligibility", "reg_e", "branch_personal",
     "calculating", "performing", "pullback",
-    "matrix", "comm_strategies", "data_notes",
+    "matrix", "comm_strategies", "industry", "data_notes",
 ]
 # every other section is still in SECTIONS and builds when named (--sections); they are left out of the story
 # because each says less than a narrative slide, or uses the 40-day Scoring Summary basis.
@@ -115,7 +132,7 @@ GROUP_DIVIDERS = {
     "drivers": ("What Is Driving It", "Exceptions · Eligibility · Reg E · Branches"),
     "calc": ("Where the Limit Is Calculating", "Who gets a limit · How limits are spread"),
     "perform": ("Where the Limit Is Performing", "Cure rates by limit, deposits and age"),
-    "pullback": ("Where the Limit Pulls Back", "Limits lowered · What followed"),
+    "pullback": ("Where the Limit Pulls Back", "Limits lowered · How many · By how much"),
     "matrix": ("ILS Matrix", "Parameters · Overrides · Trends"),
     "client_data": ("Client Analysis", "Fees · Eligibility · Branches · Reg E · Debit Declines"),
     "branch": ("Branch Overdraft and Deposit Behavior", "Deposit intensity · Engagement · Overdraft activity"),
@@ -123,6 +140,8 @@ GROUP_DIVIDERS = {
     "deposit_score": ("Deposit Score", "Output analysis · Rule logic"),
     "program": ("Program Health", "Calculation log · Feeds · Reg E · Fee collection"),
     "peer": ("Peer Comparison", "NSF and OD fees by institution size"),
+    "peers": ("How the Client Compares", "Items · Fees · Users per open account"),
+    "industry": ("Industry Update", "Consumers · Regulation"),
 }
 
 
@@ -176,6 +195,8 @@ class BuildConfig:
     predictor_bands: str = "deck"           # "deck" = the hand-built deck's bands, "readme" = the analysis registry
     branch_core_only: bool = True           # branch section: overview + three ranked charts only
     include_not_repaid: bool = False        # the 'fatal notice' slides (40-day basis) are not in the story
+    standard_dir: Optional[str] = None      # folder holding industry_<yyyy-mm>.json (default: Build Artifacts/ils_analysis/standard)
+    peer_pool: Optional[object] = None      # ready peer rows (tests); None = read them (peers_slides.collect_pool)
     show_all_rows: bool = False             # paginate long tables instead of capping
     relabel_mrpc: bool = False              # show MRPC columns as CashPlease
 
