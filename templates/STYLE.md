@@ -91,7 +91,7 @@ decision to record here, not a refactor.
   top, else body; 12+ words is always body; tables are body.
 - **Minimum 16 pt** for every explicit run — these decks are read from 15 feet.
   Exceptions, all in `restyle_fonts.py`: slides titled "2026 New Releases",
-  "Product Mix", "Program Results by Month Opened", "Referred Accounts by Product"
+  "Product Mix", "Program Results by Month Opened", "Program Results by Opening Year", "Referred Accounts by Product"
   (dense tables that cannot fit at 16), and the Appendix branch-detail tables (15 branch lines a page,
   12 pt; found by the table's shape name, `restyle_fonts.BRANCH_DETAIL_TABLE`); MRPC decks (a deliberate 10-15 pt
   hierarchy); the Executive Summit slide (never touched); and the 12 pt label under

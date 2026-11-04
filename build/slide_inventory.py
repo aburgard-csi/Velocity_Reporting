@@ -66,8 +66,16 @@ ADDED = {
     "ICS": [
         ("Direct Mail New Accounts", "after", "Results by Branch — Year to Date",
          "build/ics_pipeline/build_ics_gen.py — a client with a list in Inputs/ICS Direct Mail"),
+        ("Direct Mail and Branch Referral Accounts", "after", "Direct Mail New Accounts",
+         "build/ics_pipeline/build_ics_gen.py — a client with a direct-mail list and the workbook's cohorts"),
+        ("Interchange by Channel", "after", "Revenue per Account per Month by Source",
+         "build/ics_pipeline/build_ics_gen.py — where the ODD join and a stable interchange rate allow it"),
+        ("Age Demographics", "after", "ICS Financial Summary",
+         "build/ics_pipeline/build_ics_gen.py — where the ODD join was made (Cindy Draper, 2026-11-03)"),
+        ("ICS Accounts by Product Type", "after", "Age Demographics",
+         "build/ics_pipeline/build_ics_gen.py — where the ODD join was made (Cindy Draper, 2026-11-03)"),
         ("Appendix: Monthly Detail", "after", "VIP Best Practices",
-         "build/ics_pipeline/build_ics_gen.py — the workbook's Monthly Detail cohorts, ten a page"),
+         "build/ics_pipeline/build_ics_gen.py — the workbook's Monthly Detail cohorts, a program year a page, rows grouped"),
         ("How You Compare — ICS Clients", "before", "New in 2026: E-Learning Modules",
          "build/peer_slide.py — every build; the client against every other ICS client, anonymous (2026-11-03)"),
     ],
@@ -93,6 +101,10 @@ RENAMED = {
     "ARS": {"Responder Activity: Before vs After (Median)":
             ("Responder Activity: Before vs After by Offer",
              "build/ars_pipeline/build_ars_gen.py — the shell's Median slide, retitled when filled")},
+    "ICS": {"Program Results by Month Opened":
+            ("Program Results by Opening Year",
+             "build/ics_pipeline/build_ics_gen.py — every cohort grouped into program years (Cindy Draper, "
+             "2026-11-03); a sheet without the full Monthly Detail tab keeps the newest-twelve month table")},
 }
 
 _DUMMY_CLIENT = "Union Financial"

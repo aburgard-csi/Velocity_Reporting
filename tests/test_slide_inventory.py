@@ -52,6 +52,12 @@ def test_the_ics_list_is_the_full_workbook_shape_whatever_the_newest_decks_carry
         assert title in t, title
     branch = next(i for i, x in enumerate(t) if SI._same(x, "Results by Branch — Year to Date"))   # the shell's own dash
     assert t.index("Direct Mail New Accounts") == branch + 1
+    # Cindy Draper's review of KEMBA 1195 (2026-11-03): the split slides sit beside the slides they extend, the
+    # month table became the program-year table, and the two ODD slides sit between the summary and comparisons.
+    assert t.index("Direct Mail and Branch Referral Accounts") == t.index("Direct Mail New Accounts") + 1
+    assert t.index("Interchange by Channel") == t.index("Revenue per Account per Month by Source") + 1
+    assert t.index("Age Demographics") == t.index("ICS Financial Summary") + 1 and t.index("ICS Accounts by Product Type") == t.index("Age Demographics") + 1
+    assert "Program Results by Opening Year" in t and "Program Results by Month Opened" not in t
     assert not any("anchor not found" in r["source"] for r in SI.inventory()["ICS"])
 
 
