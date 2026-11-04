@@ -247,9 +247,30 @@
     }).join("") + "</div>";
   }
 
+  /* A chart with several measures on a switch also gets a Combined view (Aaron, 2026-11-03: "for charts like this give me a combined option"):
+     measures that are rates in one unit sit side by side as they are; measures in different units (dollars, accounts, items) are each drawn as
+     its share of its own total, so a tier that holds 80% of the spend but 5% of the accounts shows it. The tooltip gives the raw value. */
+  var CPAL = ["navy", "orange", "steel", "teal", "gold"];
+  function combinable(b) {
+    return b.t === "bars" && b.metrics && b.metrics.length > 1 && b.metrics.length <= 5 && b.cats.length <= 14 &&
+      b.metrics.every(function (m) { return m.series.length === 1 && m.series[0].values.every(function (v) { return v == null || v >= 0; }); });
+  }
+  function combinedOf(b) {
+    var rates = b.metrics.every(function (m) { return /^pct/.test(m.fmt) && m.fmt === b.metrics[0].fmt; });
+    var series = b.metrics.map(function (m, i) {
+      var raw = m.series[0].values, tot = raw.reduce(function (a, v) { return a + (v || 0); }, 0);
+      return {name: rates ? m.label : m.label + " (share of total)", color: CPAL[i % CPAL.length], raw: raw, rawFmt: m.fmt, tot: tot,
+              values: rates ? raw : raw.map(function (v) { return v == null || !tot ? null : 100 * v / tot; })};
+    });
+    return {series: series, fmt: rates ? b.metrics[0].fmt : "pct1", key: "__all", steps: null};
+  }
+  function tipVal(s, i, v, f) {   // the value a bar's tooltip names: a share also says what it is a share of
+    return fmt(v, f) + (s.raw && s.raw[i] != null && s.rawFmt !== f ? " (" + fmt(s.raw[i], s.rawFmt) + " of " + fmt(s.tot, s.rawFmt) + ")" : "");
+  }
   function metricOf(b) {
     if (!b.metrics || !b.metrics.length) return {series: b.series, fmt: b.fmt, key: null, steps: b.steps};
     var k = S.m[b.id] || b.metrics[0].key;
+    if (k === "__all" && combinable(b)) return combinedOf(b);
     var m = b.metrics.filter(function (x) { return x.key === k; })[0] || b.metrics[0];
     return {series: m.series, fmt: m.fmt, key: m.key, steps: m.steps};
   }
@@ -260,7 +281,8 @@
     var ctl = "";
     if (b.metrics && b.metrics.length > 1) {
       var cur = metricOf(b).key;
-      ctl = '<div class="mini" role="group" aria-label="Show">' + b.metrics.map(function (m) { return '<button data-metric="' + b.id + '" data-key="' + m.key + '" aria-pressed="' + (m.key === cur) + '">' + esc(m.label) + "</button>"; }).join("") + "</div>";
+      var opts = b.metrics.map(function (m) { return [m.key, m.label]; }).concat(combinable(b) ? [["__all", "Combined"]] : []);
+      ctl = '<div class="mini" role="group" aria-label="Show">' + opts.map(function (m) { return '<button data-metric="' + b.id + '" data-key="' + m[0] + '" aria-pressed="' + (m[0] === cur) + '">' + esc(m[1]) + "</button>"; }).join("") + "</div>";
     }
     if (b.t === "bars" && b.horizontal && b.cats.length > 2) {
       var how = sortOf(b);
@@ -436,7 +458,7 @@
         ser.forEach(function (s, k) {
           var v = s.values[i]; if (typeof v !== "number") return;
           var w = Math.max(1, pw * v / top), yy = y + (rowH - ser.length * bh - (ser.length - 1) * 2) / 2 + k * (bh + 2);
-          h.push('<rect class="bar grow-x' + (clickable ? " click" : "") + (sel ? " sel" : "") + '" data-cat="' + esc(c) + '" x="' + pad.l + '" y="' + yy + '" width="' + w + '" height="' + bh + '" rx="4" style="fill:' + col(s.color) + ";animation-delay:" + Math.min(i * 18, 400) + 'ms"' + tipAttr("<b>" + esc(c) + "</b><br>" + esc(s.name) + ": " + esc(fmt(v, f))) + "/>");
+          h.push('<rect class="bar grow-x' + (clickable ? " click" : "") + (sel ? " sel" : "") + '" data-cat="' + esc(c) + '" x="' + pad.l + '" y="' + yy + '" width="' + w + '" height="' + bh + '" rx="4" style="fill:' + col(s.color) + ";animation-delay:" + Math.min(i * 18, 400) + 'ms"' + tipAttr("<b>" + esc(c) + "</b><br>" + esc(s.name) + ": " + esc(tipVal(s, i, v, f))) + "/>");
           if (ser.length === 1 || k === 0) h.push('<text class="v" x="' + (pad.l + w + 6) + '" y="' + (yy + bh - 3) + '">' + esc(fmt(v, f)) + "</text>");
         });
       });
@@ -467,7 +489,7 @@
           acc += v;
           var fill = isHi && ser.length === 1 ? "var(--c-orange)" : col(s.color);
           var sel = S.drill && S.drill.key === c && S.drill.table === (b.drill || {}).table;
-          h.push('<rect class="bar grow-y' + (clickable ? " click" : "") + (sel ? " sel" : "") + '" data-cat="' + esc(c) + '" x="' + x + '" y="' + y + '" width="' + (sw - (stacked ? 0 : 2)) + '" height="' + bh + '" rx="' + Math.min(5, sw / 3) + '" style="fill:' + fill + ";animation-delay:" + Math.min(i * 22, 420) + 'ms"' + tipAttr("<b>" + esc(c) + "</b><br>" + esc(s.name) + ": " + esc(fmt(v, f))) + "/>");
+          h.push('<rect class="bar grow-y' + (clickable ? " click" : "") + (sel ? " sel" : "") + '" data-cat="' + esc(c) + '" x="' + x + '" y="' + y + '" width="' + (sw - (stacked ? 0 : 2)) + '" height="' + bh + '" rx="' + Math.min(5, sw / 3) + '" style="fill:' + fill + ";animation-delay:" + Math.min(i * 22, 420) + 'ms"' + tipAttr("<b>" + esc(c) + "</b><br>" + esc(s.name) + ": " + esc(tipVal(s, i, v, f))) + "/>");
           if (showVals && (!stacked || k === ser.length - 1)) h.push('<text class="v" x="' + (stacked ? cx : x + (sw - 2) / 2) + '" y="' + (y - 5) + '" text-anchor="middle">' + esc(fmt(stacked ? acc : v, f)) + "</text>");
         });
         if (i % every === 0 || i === n - 1) {
@@ -500,7 +522,7 @@
       h.push('<path d="' + d + '" fill="none" style="stroke:' + col(s.color) + ';stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"/>');
       s.values.forEach(function (v, i) {
         if (typeof v !== "number") { h.push('<line x1="' + X(i) + '" x2="' + X(i) + '" y1="' + pad.t + '" y2="' + (H - pad.b) + '" style="stroke:var(--axis);stroke-dasharray:3 4"/><text x="' + X(i) + '" y="' + (pad.t + 10) + '" text-anchor="middle" style="fill:var(--warn);font-size:11px">left out</text>'); return; }
-        h.push('<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="' + (n > 28 ? 2.5 : 3.6) + '" style="fill:var(--surface);stroke:' + col(s.color) + ';stroke-width:2"' + tipAttr("<b>" + esc(cats[i]) + "</b><br>" + esc(s.name) + ": " + esc(fmt(v, f))) + "/>");
+        h.push('<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="' + (n > 28 ? 2.5 : 3.6) + '" style="fill:var(--surface);stroke:' + col(s.color) + ';stroke-width:2"' + tipAttr("<b>" + esc(cats[i]) + "</b><br>" + esc(s.name) + ": " + esc(tipVal(s, i, v, f))) + "/>");
       });
     });
     h.push("</svg>");
