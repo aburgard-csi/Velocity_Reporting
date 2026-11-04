@@ -156,7 +156,7 @@ def _frame(prs, template_slide, title, pill, selection):
     import shapes as SH
     s = SH.blank_slide(prs, template_slide)
     SH.textbox(s, 0.5, 0.28, 9.6, 0.9, title, 26, NAVY_RGB, True, PP_ALIGN.LEFT, HEAD, MSO_ANCHOR.MIDDLE)
-    SH.pill(s, pill, L=10.15, W=2.70)
+    SH.pill(s, pill, L=9.85, W=3.0)
     SH.textbox(s, 0.5, 1.06, 12.2, 0.4, selection, 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     return s
 

@@ -64,11 +64,12 @@ def test_the_mrpc_and_cashplease_lists_name_the_client_as_the_client():
 
 def test_every_program_lists_its_how_you_compare_slide_where_the_builder_puts_it():
     """build/peer_slide.py (2026-11-03): one per program deck, placed by title."""
-    ars, mrpc, cp = _titles("ARS"), _titles("MRPC"), _titles("CP")
+    ars, mrpc, cp, ics = _titles("ARS"), _titles("MRPC"), _titles("CP"), _titles("ICS")
+    assert ics.index("How You Compare — ICS Clients") == next(i for i, x in enumerate(ics) if x.startswith("New in 2026")) - 1
     assert ars.index("How You Compare — ARS Clients") == ars.index("ARS Key Takeaways") - 1
     assert mrpc.index("How You Compare — MRPC Clients") == mrpc.index("MRPC Current Program Status") + 1
     assert cp.index("How You Compare — CashPlease Clients") == cp.index("CashPlease Peer Comparison") + 1
-    for prog in ("ARS", "MRPC", "CP"):
+    for prog in ("ARS", "ICS", "MRPC", "CP"):
         assert not any("anchor not found" in r["source"] for r in SI.inventory()[prog])
 
 

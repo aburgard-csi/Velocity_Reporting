@@ -68,6 +68,8 @@ ADDED = {
          "build/ics_pipeline/build_ics_gen.py — a client with a list in Inputs/ICS Direct Mail"),
         ("Appendix: Monthly Detail", "after", "VIP Best Practices",
          "build/ics_pipeline/build_ics_gen.py — the workbook's Monthly Detail cohorts, ten a page"),
+        ("How You Compare — ICS Clients", "before", "New in 2026: E-Learning Modules",
+         "build/peer_slide.py — every build; the client against every other ICS client, anonymous (2026-11-03)"),
     ],
     "MRPC": [
         ("How You Compare — MRPC Clients", "after", "MRPC Current Program Status",

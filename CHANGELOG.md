@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-03 — Every Executive Review deck carries a "How You Compare" slide
+
+Summary: Each ARS, ICS, MRPC and CashPlease deck now has one slide, "How You Compare", that shows the client against every other client on the program (a dot for each, the median, the middle half, the client's own mark and its rank) with no other client named or numbered.
+
+Aaron, 2026-11-03: "I'd like to see our LR peer comparisons in the Sheila decks."
+
+- **`build/peer_slide.py`** draws the slide (strip plots in the deck's palette, the rank in orange, one plain sentence per measure, a Source line in the notes naming the client) from `peer_compare.for_deck`, the same collectors, metric lists and arithmetic as Live Review, so the deck and the page show the same figures. It is drawn by each builder and placed by title, not baked into a shell: ARS before "ARS Key Takeaways", ICS before "New in 2026: E-Learning Modules", MRPC after "MRPC Current Program Status", CashPlease after "CashPlease Peer Comparison". A combined deck carries each one inside its own section (`assemble_combined` keeps a program's slides by exclusion).
+- **No peer is identified.** Live Review's hover gives a peer's client number; a deck gives nothing, because a printed deck is forwarded. `validate_deck.peer_slide_findings` FAILs a peer slide whose notes name another client or whose face carries a client-number-like figure.
+- **Always drawn, never silent.** With fewer than five other clients the slide says so in a sentence. If the peers' figures cannot be read (the share is down), the slide says that and the deck FAILS validation, so it cannot ship quietly.
+- Measures per deck: ARS response rate, responder spend after a mailing, repeat responders moving up a swipe tier, debit spend per eligible account, Reg E opt-in; ICS referrals per 1,000 DDAs and revenue per account per month by source (only with a workbook for the period); MRPC enrollments per 1,000 debit accounts, still active, take rate, share of goal; CashPlease loans per 1,000 DDAs, overdue, charge-off.
+- Slide Review lists the four slides (`slide_inventory.ADDED`); `templates/TEMPLATES.md` and `templates/STYLE.md` record them. Tests: `tests/test_peer_slide.py`.
+
 ### 2026-11-03 — Peer comparisons: one shared arithmetic, and ARS plus ICS revenue per account added
 
 Summary: Live Review's "How you compare" now also compares ARS clients (mailing response rate, responder spend after a mailing, swipes and spend per eligible account, Reg E opt-in, take rate, retention, revenue per 1,000 accounts) and ICS clients on revenue per account per month by source, and the arithmetic behind every peer comparison now lives in one module so the Executive Review decks can show the same figures.
