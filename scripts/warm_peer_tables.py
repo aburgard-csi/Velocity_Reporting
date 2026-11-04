@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""peer_tables.py — refresh the ICS revenue cache and show how many peers each comparison has.
+"""warm_peer_tables.py — refresh the ICS revenue cache and show how many peers each comparison has.
 
-    python scripts/peer_tables.py                     # refresh Build Artifacts/peer_tables/ics_revenue.json, list the tables
-    python scripts/peer_tables.py --client 1539 --period 2026.10 [--program ARS ICS MRPC CP]
+    python scripts/warm_peer_tables.py                     # refresh Build Artifacts/peer_tables/ics_revenue.json, list the tables
+    python scripts/warm_peer_tables.py --client 1539 --period 2026.10 [--program ARS ICS MRPC CP]
                                                       # the peer count behind each metric for one client (nothing is written)
 
 Read-only on the share except for the cache file in Build Artifacts/peer_tables/ (or the folder RPE_PEER_TABLES_DIR names).
 NOT part of the 08:00 source watch and not scheduled: a deck build or a Live Review run refreshes a stale entry itself, and
 the first read of the ICS workbooks takes several minutes over the share (about 27 workbooks), which is why a hand run is the
-way to warm the cache after new workbooks land. See build/peer_tables.py.
+way to warm the cache after new workbooks land. See build/peer_tables.py. (Named differently on purpose: scripts/ is on sys.path in the tests
+and some builds, and a scripts/peer_tables.py shadowed build/peer_tables.py there.)
 """
 import argparse
 import os

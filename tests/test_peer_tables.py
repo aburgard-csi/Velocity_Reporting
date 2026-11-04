@@ -202,3 +202,16 @@ def test_collect_ars_with_too_few_peers_says_so(tmp_path):
     coll = peer_pool.collect_ars(peer_pool.PeerCtx("9999", "2026.10", tmp_path, own={"metrics": pack()}))
     ev = PC.evaluate(coll, peer_pool.ARS_METRICS, "ARS")
     assert ev["items"] == [] and "at least 5 other clients on ARS" in ev["unavailable"]
+
+
+# ----------------------------------------------------------------- CashPlease
+def test_cashplease_rows_carry_loan_size_interest_and_paid_off():
+    d = {"total": {"loans": 500}, "report_generated": "10/30/2026 8:00:00 AM",
+         "monthly": [{"period_month": f"2026-0{m}", "loans": 20} for m in range(1, 10)],
+         "metrics": {"avg_loan_size": 410.0, "avg_interest_per_loan": 38.25, "pct_loans_paid_off": 0.83, "pct_loans_overdue": 0.02},
+         "charge_off_pct": 0.031}
+    row, _gen = peer_pool._cp_row(d)
+    p = row["point"]
+    assert p["avg_loan"] == 410.0 and p["avg_interest"] == 38.25 and p["paid_off"] == pytest.approx(83.0)
+    assert p["overdue"] == pytest.approx(2.0) and p["charge_off"] == pytest.approx(3.1)
+    assert {"avg_loan", "avg_interest", "paid_off"} <= {m["key"] for m in peer_pool.CP_METRICS}
