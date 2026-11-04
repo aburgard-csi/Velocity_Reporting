@@ -38,9 +38,11 @@ from . import ds_slides
 from . import ils_data
 from . import matrix_data as MD
 from . import matrix_report
+from . import matrix_prep_slides
 from . import matrix_slides
 from . import r_common
 from . import scoring_summary
+from . import story_slides
 from . import theme as T
 from .config import GROUP_DIVIDERS, SECTIONS, BuildConfig
 from .ils_data import count
@@ -72,6 +74,7 @@ class _Run:
         self.slides_by_section = {}
         self.section_counts = {}
         self.settings = {}
+        self.build_log = []
         self.say = lambda m: None
         self.cv = None                 # shared per-account volatility table
         self.notice66 = None           # shared 66-day notice counts
@@ -143,8 +146,8 @@ def _sec_dbic(run, key):
 
 def _sec_matrix(run, key):
     if not run.S:
-        return ["No matrix validation export was supplied, so the ILS Matrix Validation slides were skipped."]
-    return matrix_slides.add_matrix_slides(run.dk, run.S, run.settings, section=key, show_all_rows=run.cfg.show_all_rows)
+        return ["No matrix validation export was supplied, so the matrix slides (parameters and overrides) were skipped."]
+    return matrix_prep_slides.add_matrix_prep_slides(run.dk, run.cfg, run.S, run.settings, section=key, fr=run.fr)
 
 
 def _sec_comm(run, key):
@@ -152,17 +155,8 @@ def _sec_comm(run, key):
         return []
     if not MD.has_comm_strategies(run.S):
         return ["No Communication Strategies were found in the matrix export."]
+    run.dk.source = CS._src(run.cfg, run.fr, "mx", extra="Strategies with ACTIVE = 1 only; inactive strategies are not shown.")
     matrix_slides.slides_comm_strategies(run.dk, run.S, section=key, show_all=run.cfg.show_all_rows)
-    return []
-
-
-def _sec_refunds(run, key):
-    if not run.S:
-        return []
-    if not MD.has_strategic_refunds(run.S):
-        return ["Strategic Refunds are configured but carry no ranges, tiers or daily maximums in this export, so "
-                "the section was skipped."]
-    matrix_slides.slides_strategic_refunds(run.dk, run.S, section=key, show_all=run.cfg.show_all_rows)
     return []
 
 
@@ -180,7 +174,6 @@ BUILDERS = {
     "dbic": _sec_dbic,
     "matrix": _sec_matrix,
     "comm_strategies": _sec_comm,
-    "strategic_refunds": _sec_refunds,
     "kpi_rollup": _client(CS.add_kpi_rollup),
     "fee_trends": _client(CS.add_fee_trends),
     "exception_items": _client(CS.add_exception_items),
@@ -189,6 +182,11 @@ BUILDERS = {
     "reg_e": _client(CS.add_reg_e),
     "debit_declines": _client(CS.add_debit_declines),
     "peer_data": _client(CS.add_peer_data),
+    "calculating": lambda r, k: story_slides.add_calculating(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "performing": lambda r, k: story_slides.add_performing(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "nsf_share": lambda r, k: story_slides.add_nsf_share(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "chargeoffs": lambda r, k: story_slides.add_chargeoffs(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "pullback": lambda r, k: story_slides.add_pullback(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
 }
 
 
@@ -271,7 +269,12 @@ def _slide_data_notes(run, key):
                   f"more than {fr.default_days} days (never-repaid notices excluded); losses are charge-off dollars counted "
                   f"once, in the band of the account's first defaulting notice. The analysis README uses 30 days with "
                   f"never-repaid counted as a default; the {fr.default_days}-day rule reproduces the hand-built deck.")
+    method.append("Cure (the slides in the story): a negative balance reaches $0 or more within 60 days of the notice. The Scoring "
+                  "Summary slides, when built, use a separate 40-day default and are never drawn on the same slide as a cure rate.")
     method.append("Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365.")
+    method.append("Trends are shown as On or Off only: a trend is On when its factor grid is in the matrix validation extract with "
+                  "a non-zero factor. The Windfall Ratio predictor is not shown because it is a trend input. Communication "
+                  "strategies are listed only when active. Strategic refunds are not shown.")
     method.extend(loaded.notes)
     method.extend(run.notes)
     method.extend(run.errors)
@@ -422,6 +425,21 @@ def build_review(cfg: BuildConfig, progress=None):
     dk.generated.append(closing)
     cover_divider.draw_closing(closing, f"{cfg.client_name}  •  {month}", title="Thank You")
     dk.set_notes(closing, "Source: closing slide, no data.")
+    # Contact Us: the client's managing CSM (rpe_env.csm_contact, drawn by shapes.draw_contact_slide, the same
+    # card every RPE deck carries). The ILS consultant card is not built: the only consultant record found
+    # (ILS and DS Client Review Summary.xlsx) gives initials, with no name, email or phone.
+    try:
+        contact = rpe_env.csm_contact(cfg.client_id)
+    except SystemExit as exc:
+        contact = None
+        run.build_log.append(f"Contact Us slide not added: {exc}")
+    if contact:
+        cs = shell.add_slide()
+        dk.generated.append(cs)
+        shapes.draw_contact_slide(cs, [contact])
+        cs.notes_slide.notes_text_frame.text = shapes.contact_card_note(contact)
+    run.build_log.append("Contact Us carries the CSM only: the ILS consultant is recorded as initials only "
+                         "(ILS and DS Client Review Summary.xlsx), with no name, email or phone to build a card from.")
 
     _finish(run)
     out_path = cfg.resolve_output(period)
@@ -429,7 +447,7 @@ def build_review(cfg: BuildConfig, progress=None):
     shell.save(out_path)
     index = {"client_id": cfg.client_id, "client": cfg.client_name, "period": period, "data_as_of": str(fr.asof)[:10],
              "deck": os.path.basename(out_path), "figures": dk.sidecars,
-             "skipped_or_noted": run.notes + run.errors}
+             "skipped_or_noted": run.notes + run.errors, "build_log": run.build_log}
     with open(os.path.join(chart_dir, "figures_index.json"), "w", encoding="utf-8") as fh:
         json.dump(index, fh, indent=1, ensure_ascii=False, default=str)
     say(f"Saved: {out_path}")

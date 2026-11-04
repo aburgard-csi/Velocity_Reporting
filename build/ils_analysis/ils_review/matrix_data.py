@@ -465,12 +465,6 @@ def has_comm_strategies(S):
     return bool(section(S, "COMMUNICATION STRATEGIES"))
 
 
-def has_strategic_refunds(S):
-    return bool(section(S, "STRATEGIC REFUNDS RANGES AND FACTORS")
-                or section(S, "STRATEGIC REFUNDS TIERS")
-                or section(S, "STRATEGIC REFUNDS DAILY MAX"))
-
-
 def has_deposit_score(S):
     return bool(section(S, "DEPOSIT SCORE MATRIX"))
 

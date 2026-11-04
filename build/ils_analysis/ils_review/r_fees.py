@@ -124,6 +124,34 @@ def monthly_fee_table(fr, accttype, n=12, ref=None):
             "rows": rows, "numbers": nums}
 
 
+def movement_phrase(cur, prev, fmt):
+    """The +/-2% band (CLAUDE.md): within 2% 'almost flat'; up states the figures and the %; down gives the two
+    figures and the % with no verb of movement."""
+    if not prev:
+        return None
+    ch = (cur - prev) / prev * 100
+    if abs(ch) <= 2:
+        return f"almost flat: {fmt(cur)} against {fmt(prev)}"
+    if ch > 0:
+        return f"up {ch:.0f}%: {fmt(cur)} against {fmt(prev)}"
+    return f"{fmt(cur)} against {fmt(prev)} ({ch:.0f}%)"
+
+
+def _month_vs_year_ago(daily, fr):
+    """Fees per day in the last COMPLETE month against the same month a year earlier (complete months only)."""
+    m = _month_range(fr, 1)[0]
+    prev = m - 12
+    d = daily.copy()
+    ym = d.index.to_period("M")
+    if not ((ym == m).any() and (ym == prev).any()) or d.index.min() > prev.start_time:
+        return None
+    cur = float(d[ym == m].sum()) / m.days_in_month
+    old = float(d[ym == prev].sum()) / prev.days_in_month
+    return {"month": str(m), "per_day": cur, "year_earlier_month": str(prev), "year_earlier_per_day": old,
+            "phrase": f"{R.periods.mon_yy(f'{m.year}-{m.month:02d}')} collected {movement_phrase(cur, old, lambda v: money(v) + ' per day')} "
+                      f"in {R.periods.mon_yy(f'{prev.year}-{prev.month:02d}')}"}
+
+
 # ═════════════════════════════ daily collected fees ════════════════════════
 def fees_daily(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
     key = f"fees_daily_{accttype.lower()}"
@@ -134,18 +162,24 @@ def fees_daily(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
     daily = z.groupby("noticedate")["CollectedFees"].sum().sort_index()
     idx = pd.date_range(daily.index.min(), daily.index.max(), freq="D")
     daily = daily.reindex(idx, fill_value=0.0)
-    ewma = daily.ewm(span=30, adjust=False).mean()
+    if len(daily) < 60:
+        return R.skipped(key, f"Collected fees - {accttype}", "fewer than 60 days of notices, too short for a 30-day average")
+    avg30 = daily.rolling(30).mean()
+    last_day = daily.index.max()
     fig, ax = R.new_fig(*size)
-    ax.plot(daily.index, daily.values, color=R.STEEL, linewidth=0.8, alpha=0.9, label="Daily collected fees")
-    ax.plot(ewma.index[30:], ewma.values[30:], color=R.NAVY, linewidth=2.6, label="30-day moving average")
-    ax.scatter([ewma.index[-1]], [ewma.values[-1]], color=R.ORANGE, s=34, zorder=5)
-    ax.annotate(money(ewma.values[-1]), (ewma.index[-1], ewma.values[-1]), (-8, 26), textcoords="offset points",
-                ha="right", fontsize=10.5, color=R.ORANGE, fontweight="bold",
-                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none"))
+    # the 30-day average is the mark; the raw days are faint context only (every weekday / weekend and
+    # payday cycle is a spike, which hid the trend: Aaron, 2026-11-04)
+    ax.plot(daily.index, daily.values, color=R.STEEL_SOFT, linewidth=0.6, alpha=0.30, label="Each day (context)")
+    ax.plot(avg30.index, avg30.values, color=R.NAVY, linewidth=2.8, label="30-day average of daily collected fees")
+    ax.scatter([last_day], [avg30.values[-1]], color=R.ORANGE, s=38, zorder=5)
+    ax.annotate(f"30-day average to {last_day:%b} {last_day.day}, {last_day.year}:\n{money(avg30.values[-1])} per day",
+                (last_day, avg30.values[-1]), (-10, 34), textcoords="offset points", ha="right", fontsize=10,
+                color=R.NAVY, fontweight="bold", bbox=dict(boxstyle="round,pad=0.3", fc="white", ec=R.ORANGE, lw=1),
+                arrowprops=dict(arrowstyle="-", color=R.ORANGE, lw=1))
     R.style_axes(ax)
     R.month_ticks(ax, daily.index.min(), daily.index.max(), every=3)
     ax.yaxis.set_major_formatter(lambda v, _: f"${v:,.0f}")
-    ax.set_ylim(bottom=0)
+    ax.set_ylim(0, max(float(np.nanmax(avg30.values)) * 1.75, 1.0))
     ax.set_ylabel("Collected fees per day", fontsize=10.5, color=R.TICK)
     ax.legend(loc="upper left", frameon=False, fontsize=10, labelcolor=R.TICK)
     fig.tight_layout()
@@ -153,7 +187,10 @@ def fees_daily(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
     res = ChartResult(key, f"Collected fees - {accttype}", path,
                       numbers={"first_day": str(daily.index.min())[:10], "last_day": str(daily.index.max())[:10],
                                "days": int(len(daily)), "total_fees": float(daily.sum()),
-                               "latest_30d_avg": float(ewma.values[-1]), "first_30d_avg": float(ewma.values[30])})
+                               "latest_30d_avg": float(avg30.values[-1]), "latest_30d_avg_date": str(last_day)[:10],
+                               "first_30d_avg": float(avg30.dropna().values[0])})
+    res.numbers["year_on_year"] = _month_vs_year_ago(daily, fr)
+    res.notes.append("The line is the 30-day average of daily collected fees; each day is drawn faintly behind it.")
     tbl = monthly_fee_table(fr, accttype, ref=ref)
     if tbl:
         res.tables["monthly"] = {"headers": tbl["headers"], "rows": tbl["rows"]}
@@ -256,15 +293,23 @@ def not_repaid(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
     daily = w.groupby("noticedate").agg(n=("acctid", "size"), f=("fatal", "sum"))
     daily = daily.reindex(pd.date_range(lo, hi, freq="D"), fill_value=0)
     rate = (daily["f"] / daily["n"].where(daily["n"] > 0) * 100).fillna(0.0)
-    sm = R.smooth(rate.values, frac=0.45)
+    n30 = daily["n"].rolling(30).sum()
+    f30 = daily["f"].rolling(30).sum()
+    r30 = (f30 / n30.where(n30 > 0) * 100)
     fig, ax = R.new_fig(*size)
-    ax.plot(rate.index, rate.values, color=R.STEEL, linewidth=0.9, label="Daily share of notices not repaid")
-    ax.plot(rate.index, sm, color=R.NAVY, linewidth=2.6, label="Smoothed trend")
+    ax.plot(rate.index, rate.values, color=R.STEEL_SOFT, linewidth=0.6, alpha=0.30, label="Each day (context)")
+    ax.plot(r30.index, r30.values, color=R.NAVY, linewidth=2.8, label="30-day share of notices not repaid")
+    last = r30.dropna()
+    ax.scatter([last.index[-1]], [last.values[-1]], color=R.ORANGE, s=38, zorder=5)
+    ax.annotate(f"30 days to {last.index[-1]:%b} {last.index[-1].day}, {last.index[-1].year}:\n{last.values[-1]:.2f}% of notices not repaid",
+                (last.index[-1], last.values[-1]), (-10, 40), textcoords="offset points", ha="right", fontsize=10,
+                color=R.NAVY, fontweight="bold", bbox=dict(boxstyle="round,pad=0.3", fc="white", ec=R.ORANGE, lw=1),
+                arrowprops=dict(arrowstyle="-", color=R.ORANGE, lw=1))
     R.style_axes(ax)
     R.month_ticks(ax, lo, hi, every=2)
     ax.yaxis.set_major_formatter(lambda v, _: f"{v:.1f}%")
-    ax.set_ylim(bottom=0)
-    ax.set_ylabel("Notices not repaid", fontsize=10.5, color=R.TICK)
+    ax.set_ylim(0, max(float(np.nanmax(r30.values)) * 2.2, 0.5))
+    ax.set_ylabel("Share of notices not repaid", fontsize=10.5, color=R.TICK)
     ax.legend(loc="upper left", frameon=False, fontsize=10, labelcolor=R.TICK)
     fig.tight_layout()
     path = R.save(fig, out_dir, key)
@@ -378,7 +423,7 @@ def exception_treemap(fr, accttype, out_dir, size=(5.9, 3.3), ref=None):
         dark = col in (R.NAVY, R.TEAL, R.SLATE, R.ORANGE, R.STEEL)
         ink = "white" if dark else R.NAVY
         big = w * h > 0.05
-        cnt = f"{r_['items'] / 1000:.0f}K" if r_["items"] >= 1000 else f"{r_['items']:,}"
+        cnt = (f"{r_['items'] / 1000:.0f}K items" if r_["items"] >= 1000 else f"{r_['items']:,} items")
         ax.text(x + 0.012, y + 0.02, r_["channel"], ha="left", va="top", color=ink, fontsize=15 if big else 9.5,
                 fontweight="bold")
         if big:

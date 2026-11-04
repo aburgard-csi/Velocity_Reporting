@@ -155,3 +155,69 @@ def test_peer_slides_are_labelled_placeholders(tmp_path):
     texts = [shp.text_frame.text for s in sh.prs.slides for shp in s.shapes if shp.has_text_frame]
     assert any("placeholder" in t for t in texts) and notes
     assert all("Source" in s.notes_slide.notes_text_frame.text for s in sh.prs.slides)
+
+
+# ── matrix slides, trends, communication strategies, strategic refunds, callouts ──────────────
+def _S(**secs):
+    return {k: {"columns": list(v[0].keys()) if v else [], "rows": v} for k, v in secs.items()}
+
+
+def test_override_rows_attach_sub_conditions_to_their_rule():
+    from ils_review import matrix_prep_slides as MP
+    rows = [{"Override Criteria": "[Days OD] BETWEEN 12 AND 15", "Override Value": "-33%", "Stop Process": "0"},
+            {"Override Criteria": "[Age of Account] BETWEEN 31 AND 124 AND [LTD Deposit Count] = 0", "Override Value": "0", "Stop Process": "1"},
+            {"Override Criteria": "[Age of Account] BETWEEN 31 AND 124 AND [LTD Deposit Count] = 1", "Override Value": "-75%", "Stop Process": "0"}]
+    out = MP.override_rows(rows)
+    assert [o["text"] for o in out] == ["Days OD 12-15", "Age of Account 31-124", "& LTD Deposit Count = 0", "& LTD Deposit Count = 1"]
+    assert [o["sub"] for o in out] == [False, False, True, True] and out[2]["ret"] == "$0" and out[3]["ret"] == "-75%"
+
+
+def test_trends_are_on_or_off_only_and_absent_means_off():
+    from ils_review import matrix_prep_slides as MP
+    S = _S(TRENDS=[{"Account Type": "Personal", "Repository Name": "Deposit Regularity Trend", "Factor": "-100"},
+                   {"Account Type": "Personal", "Repository Name": "Overdraft Repayment Trend", "Factor": "-0"}])
+    st = dict(MP.trend_states(S, "Personal"))
+    assert st == {"Deposit Regularity": True, "OD Repayment": False, "Windfall Deposit": False, "Cash Flow": False}
+    assert not MP.check_trends(list(st.items()), "Personal")
+    assert MP.check_trends([("Deposit Regularity", True), ("Windfall Deposit", True)], "x")
+
+
+def test_all_zero_factor_tables_are_left_out():
+    from ils_review import matrix_prep_slides as MP
+    S = _S(**{"RANGES AND FACTORS": [
+        {"Account Type": "Personal", "Category": "Age of Account", "Range": "[00] - 0 to 30 days (0.00, 30.00)", "Factor": "-100"},
+        {"Account Type": "Personal", "Category": "Monthly Debit Declines", "Range": "[00] - 0 declines (0.00, 0.00)", "Factor": "0"}]})
+    assert [c for c, _ in MP.factor_tables(S, "Personal")] == ["Age of Account"]
+
+
+def test_communication_strategies_only_when_active():
+    from ils_review import matrix_slides as MS, theme as T
+    rows = [{"STRATEGY_NAME": "Off one", "ACTIVE": "0"}, {"STRATEGY_NAME": "On one", "ACTIVE": "1"}]
+    sh = Shell()
+    MS.slides_comm_strategies(T.Deck(sh, "Demo CU", "d", client_id="9999"), _S(**{"COMMUNICATION STRATEGIES": rows}), section="m")
+    text = " ".join(shp.table.cell(r, 0).text for s in sh.prs.slides for shp in s.shapes if shp.has_table
+                    for r in range(len(shp.table.rows)))
+    assert "On one" in text and "Off one" not in text
+    sh2 = Shell()
+    MS.slides_comm_strategies(T.Deck(sh2, "Demo CU", "d", client_id="9999"), _S(**{"COMMUNICATION STRATEGIES": rows[:1]}), section="m")
+    assert not any(shp.has_table for s in sh2.prs.slides for shp in s.shapes)
+    assert any("None active" in shp.text_frame.text for s in sh2.prs.slides for shp in s.shapes if shp.has_text_frame)
+
+
+def test_strategic_refunds_and_windfall_are_not_in_the_deck():
+    from ils_review.config import SECTIONS, DEFAULT_SECTIONS
+    import ils_review.matrix_data as MD
+    assert "strategic_refunds" not in SECTIONS and "strategic_refunds" not in DEFAULT_SECTIONS
+    assert "windfall" not in {p.key for p in SS.predictors("deck")}
+    assert not hasattr(MD, "has_strategic_refunds")
+
+
+def test_movement_wording_follows_the_two_percent_band():
+    assert F.movement_phrase(101, 100, str).startswith("almost flat")
+    assert F.movement_phrase(110, 100, str) == "up 10%: 110 against 100"
+    assert "up" not in F.movement_phrase(90, 100, str) and "(-10%)" in F.movement_phrase(90, 100, str)
+
+
+def test_fee_chart_callout_says_what_it_is(tmp_path):
+    res = F.fees_daily(R.Frame(_loaded()), "Personal", str(tmp_path))
+    assert res.ok is False or (res.numbers["latest_30d_avg_date"] and any("30-day average" in n for n in res.notes))

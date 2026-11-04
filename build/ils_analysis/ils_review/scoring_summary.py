@@ -143,12 +143,19 @@ DECK_BANDS = {
 }
 
 
+# Windfall Ratio is the Windfall Deposit trend's input; Aaron wants trends shown as On / Off only
+# (2026-11-04), so the predictor is not built into the deck. It stays in PREDICTORS for diffing.
+NOT_IN_DECK = {"windfall"}
+
+
 def predictors(basis="deck"):
-    """The six predictors with the deck's bands (basis 'deck') or the analysis team's registry ('readme')."""
+    """The predictors the deck shows, with the deck's bands (basis 'deck') or the analysis team's registry ('readme')."""
     if basis != "deck":
-        return PREDICTORS
+        return tuple(p for p in PREDICTORS if p.key not in NOT_IN_DECK)
     out = []
     for p in PREDICTORS:
+        if p.key in NOT_IN_DECK:
+            continue
         o = DECK_BANDS.get(p.key)
         out.append(Predictor(p.key, p.title, o.get("xlabel", p.xlabel), o.get("source", p.source),
                              tuple(o["bands"]), tuple(o["edges"]), o.get("note", p.note),
