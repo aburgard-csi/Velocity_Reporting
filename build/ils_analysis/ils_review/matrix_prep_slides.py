@@ -270,20 +270,20 @@ def add_matrix_prep_slides(dk, cfg, S, settings, *, section, fr=None):
         cw2 = (rw - 0.12) / 2
         for i, (lab, on) in enumerate(states):
             cx = rx + (i % 2) * (cw2 + 0.12)
-            cy = ty + 0.44 + (i // 2) * 0.66
-            chip = sl.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(cx), Inches(cy), Inches(cw2), Inches(0.58))
+            cy = ty + 0.42 + (i // 2) * 0.55
+            chip = sl.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(cx), Inches(cy), Inches(cw2), Inches(0.50))
             chip.fill.solid()
             chip.fill.fore_color.rgb = brand.NAVY_RGB if on else brand.ROWALT_RGB
             chip.line.fill.background()
             shapes.shadow(chip)
-            shapes.textbox(sl, cx, cy + 0.02, cw2, 0.30, lab, 13, brand.WHITE_RGB if on else brand.TICK_RGB, True,
+            shapes.textbox(sl, cx, cy + 0.01, cw2, 0.27, lab, 12, brand.WHITE_RGB if on else brand.TICK_RGB, True,
                            PP_ALIGN.CENTER, brand.HEAD)
-            shapes.textbox(sl, cx, cy + 0.32, cw2, 0.24, "On" if on else "Off", 12,
+            shapes.textbox(sl, cx, cy + 0.27, cw2, 0.21, "On" if on else "Off", 11,
                            brand.PEACH_RGB if on else brand.TICK_RGB, False, PP_ALIGN.CENTER, brand.BODY)
-        msg = ("Not in the matrix validation extract: override enabled or pending flags, trend switches. "
-               "Every override exported is listed; a trend is On when its grid is in the extract.")
+        msg = ("Override enabled / pending flags and trend switches are not in the matrix validation extract; "
+               "every override exported is listed.")
         if both:
             msg = "Deposit Regularity and Windfall both read as On in the extract; a matrix runs one of them. Check the matrix. " + msg
             notes.append(f"Matrix {t}: Deposit Regularity and Windfall trending both read as on in the extract (a matrix runs one of them).")
-        shapes.textbox(sl, rx, ty + 0.44 + 1.34, rw, 0.55, msg, 11, brand.TICK_RGB, False, PP_ALIGN.LEFT, brand.BODY, MSO_ANCHOR.TOP)
+        shapes.textbox(sl, rx, ty + 0.42 + 1.12, rw, 0.42, msg, 11, brand.TICK_RGB, False, PP_ALIGN.LEFT, brand.BODY, MSO_ANCHOR.TOP)
     return notes

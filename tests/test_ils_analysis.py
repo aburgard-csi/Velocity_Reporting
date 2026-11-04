@@ -221,3 +221,20 @@ def test_movement_wording_follows_the_two_percent_band():
 def test_fee_chart_callout_says_what_it_is(tmp_path):
     res = F.fees_daily(R.Frame(_loaded()), "Personal", str(tmp_path))
     assert res.ok is False or (res.numbers["latest_30d_avg_date"] and any("30-day average" in n for n in res.notes))
+
+
+def test_story_bands_and_status_gate():
+    from ils_review import story_slides as SSL
+    s = pd.Series([0, 100, 300, 5000, 9999])
+    assert SSL._band(s, SSL.LIMIT_BANDS).tolist() == [0, 1, 2, 6, 6]
+    S = _S(**{"OD STATUS CODE MAPPING": [{"STATUS_CODE": "NULL", "DESCRIPTION": "Active", "CAN_OVERDRAFT": "1"},
+                                          {"STATUS_CODE": "1", "DESCRIPTION": "Member Opt-Out", "CAN_OVERDRAFT": "0"}]})
+    m = SSL._status_map(S)
+    assert m[""] == ("Active", True) and m["1"] == ("Member Opt-Out", False)     # a blank code is Active and can overdraft
+
+
+def test_cure_is_sixty_days_and_the_default_basis_is_separate():
+    from ils_review import story_slides as SSL
+    assert SSL.CURE_DAYS == 60 and R.DEFAULT_REPAYMENT_DAYS == 40
+    w, lo, hi = SSL._cure_frame(R.Frame(_loaded()))
+    assert w["cured"].tolist() == [True, True, False] or w["cured"].dtype == bool

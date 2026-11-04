@@ -82,7 +82,7 @@ def _columns(vals, labels, ns, out_dir, key, *, size=(7.8, 4.6), ylab, fmt, hi=N
     for i, v in enumerate(vals):
         ax.text(i, v + (ymax or max(vals)) * 0.015, fmt(v), ha="center", va="bottom", fontsize=10.5, color=R.NAVY, fontweight="bold")
     ax.set_xticks(range(len(vals)))
-    ax.set_xticklabels([f"{l}\n(n={n:,})" for l, n in zip(labels, ns)], fontsize=9, color=R.TICK)
+    ax.set_xticklabels([f"{l}\n(n={n:,})".replace("$", r"\$") for l, n in zip(labels, ns)], fontsize=9, color=R.TICK)
     R.style_axes(ax)
     ax.set_ylabel(ylab, fontsize=10.5, color=R.TICK)
     if ymax:
@@ -300,50 +300,53 @@ def add_chargeoffs(dk, cfg, fr, S, *, section, progress=None):
 
 
 # ═════════════════════════════ pulling back ═════════════════════════════════
+PULL_BANDS = [("No change", None), ("Lowered by $1-$250", 250), ("Lowered by $251-$500", 500),
+              ("Lowered by $501-$1,000", 1000), ("Lowered by over $1,000", None)]
+
+
 def add_pullback(dk, cfg, fr, S, *, section, progress=None):
-    za = fr.za
-    d = za[za["accttype"] == "Personal"]
-    cur = pd.to_numeric(d["ODLimit"], errors="coerce")
-    mx = pd.to_numeric(d["MaxODLimit"], errors="coerce") if "MaxODLimit" in d.columns else None
-    if mx is None:
+    """How many eligible open accounts have been pulled back, and by how much.
+
+    NOT shown: what happened to those accounts afterwards. In the extract an account's earlier maximum limit
+    (MaxODLimit) is a recent-window figure: 90% of the personal accounts charged off in the last 12 months carry
+    a $0 earlier maximum, so the limit they had before charge-off is not in the extract and a charge-off
+    comparison of 'lowered' against 'stayed' would compare nothing. The slide says so."""
+    o = fr.open_accounts("Personal")
+    if "MaxODLimit" not in o.columns:
         return ["Pulling back skipped: the ZAccounts extract has no MaxODLimit column."]
-    known = cur.notna() & mx.notna() & (mx > 0)
-    d, cur, mx = d[known], cur[known], mx[known]
-    low = cur < mx
-    lo365 = fr.asof - pd.Timedelta(days=365)
-    co = (pd.to_datetime(d["Chargeoff_Date"], errors="coerce") >= lo365)
-    amt = pd.to_numeric(d["Chargeoff_Amt_365"], errors="coerce").fillna(0)
-    rows = []
-    for name, m in (("Limit lowered", low), ("Limit stayed", ~low)):
-        k = int(m.sum())
-        c = int((co & m).sum())
-        rows.append((name, k, c, c / k * 100 if k else 0.0, float(amt[m & co].sum()) / c if c else 0.0))
-    if rows[0][1] < 50 or rows[1][1] < 50:
-        return ["Pulling back skipped: fewer than 50 accounts in one of the two groups."]
-    fig, ax = R.new_fig(7.8, 4.3)
-    ax.bar([0, 1], [rows[0][3], rows[1][3]], color=[R.ORANGE, R.NAVY], width=0.5)
-    for i, r in enumerate(rows):
-        ax.text(i, r[3] + max(rows[0][3], rows[1][3]) * 0.02, f"{r[3]:.1f}%", ha="center", fontsize=12, fontweight="bold", color=R.NAVY)
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels([f"{r[0]}\n({r[1]:,} accounts)" for r in rows], fontsize=10.5, color=R.TICK)
-    R.style_axes(ax)
-    ax.set_ylabel("Charged off in the last 365 days", fontsize=10.5, color=R.TICK)
-    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0f}%")
-    ax.set_ylim(0, max(rows[0][3], rows[1][3]) * 1.25)
-    fig.tight_layout()
-    png = R.save(fig, dk.chart_dir, "pullback_chargeoff")
-    s = _slide(dk, cfg, fr, f"{rows[0][1] / (rows[0][1] + rows[1][1]) * 100:.0f}% of personal accounts have had their limit pulled back",
-               "Personal accounts whose current limit is below their own earlier maximum, against accounts whose limit stayed.",
-               "ILS lowers a limit when an account's behaviour calls for it; this is how many, and what happened to them.",
-               section=section,
+    smap = _status_map(S)
+    code = pd.to_numeric(o["odstatuscode"], errors="coerce").map(lambda v: "" if pd.isna(v) else str(int(v)))
+    elig = code.map(lambda c: smap.get(c, ("", False))[1]) if smap else pd.Series(True, index=o.index)
+    o = o[elig.to_numpy()]
+    cur = pd.to_numeric(o["ODLimit"], errors="coerce")
+    mx = pd.to_numeric(o["MaxODLimit"], errors="coerce")
+    ok = cur.notna() & mx.notna() & (mx > 0)
+    cur, mx = cur[ok], mx[ok]
+    if len(cur) < 100:
+        return ["Pulling back skipped: fewer than 100 eligible open accounts carry an earlier maximum limit."]
+    drop = (mx - cur).clip(lower=0)
+    n = len(cur)
+    cats = [("No change", int((drop == 0).sum())), ("Lowered by $1-$250", int(drop.between(1, 250).sum())),
+            ("Lowered by $251-$500", int(drop.between(251, 500).sum())), ("Lowered by $501-$1,000", int(drop.between(501, 1000).sum())),
+            ("Lowered by over $1,000", int((drop > 1000).sum()))]
+    low = n - cats[0][1]
+    removed = int(((cur == 0) & (mx > 0)).sum())
+    med = float(drop[drop > 0].median()) if low else 0.0
+    png = _columns([c / n * 100 for _, c in cats], [l.replace("Lowered by ", "by ") if l != "No change" else l for l, _ in cats], [c for _, c in cats],
+                   dk.chart_dir, "pullback_limits", ylab="Share of eligible open accounts", fmt=lambda v: f"{v:.0f}%", hi=None)
+    s = _slide(dk, cfg, fr, f"{low / n * 100:.0f}% of eligible accounts have been pulled back from a higher limit",
+               f"{n:,} eligible open personal accounts: current limit against the account's own earlier maximum limit.",
+               "ILS lowers a limit when an account's behaviour calls for it; this is how many accounts and by how much.",
+               section=section, kinds=("za", "mx"),
                extra="Lowered = ODLimit below MaxODLimit. The extracts carry no daily limit history, so when and why a limit was lowered is not shown, "
-                     "and an account may have been lowered after trouble began. Rates only; no savings are claimed.")
-    T.image_real(s, png, 0.5, 1.75, 7.8, 4.4)
-    _tiles(s, [(f"{rows[0][1]:,}", "Accounts with a lowered limit"), (f"{rows[0][3]:.1f}% vs {rows[1][3]:.1f}%", "Charged off: lowered vs stayed"),
-               (f"${rows[0][4]:,.0f} vs ${rows[1][4]:,.0f}", "Average charge-off: lowered vs stayed")])
-    _read(s, "Lowered means the limit is below the account's own earlier maximum. The extract has no daily history, so it cannot show when or why.", T0=5.5)
-    dk.sidecars.append({"key": "pullback_chargeoff", "title": "Pulling back", "png": "pullback_chargeoff.png",
-                        "numbers": {"groups": [{"name": r[0], "accounts": r[1], "charged_off": r[2], "rate_pct": r[3], "avg_chargeoff": r[4]} for r in rows],
-                                    "identified_by": "ODLimit < MaxODLimit", "limit_history": "not in the extracts"}})
+                     "and MaxODLimit is a recent-window figure: charged-off accounts show a $0 earlier maximum, so charge-offs cannot be compared "
+                     "between lowered and unchanged accounts. No savings are claimed.")
+    T.image_real(s, png, 0.5, 1.75, 7.8, 4.75)
+    _tiles(s, [(f"{low:,}", "Accounts with a lowered limit"), (f"{removed:,}", "Of which now at $0"), (f"${med:,.0f}", "Median reduction")])
+    _read(s, "Each bar is the size of the reduction. The extract has no daily history, so it cannot show when or why, or what followed.")
+    dk.sidecars.append({"key": "pullback_limits", "title": "Pulling back", "png": "pullback_limits.png",
+                        "numbers": {"eligible_with_earlier_max": n, "bands": dict(cats), "lowered": low, "now_zero": removed, "median_reduction": med,
+                                    "identified_by": "ODLimit < MaxODLimit", "limit_history": "not in the extracts",
+                                    "outcome_comparison": "blocked: charged-off accounts carry a $0 earlier maximum"}})
     return ["Pulling back: 'lowered' is the current limit below the account's own earlier maximum; the extracts have no daily limit history, so timing and cause "
-            "(daily recalculation, override, trend) are not shown and no dollar savings are claimed."]
+            "(daily recalculation, override, trend) and what followed are not shown, and no dollar savings are claimed."]

@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-04 — ILS Program Analysis deck: the story is now where the limit is calculating, performing and pulling back (37 slides)
+
+Summary: The ILS analysis deck now tells one story in about 37 slides: where the program stands, what drives it, where the ILS limit is calculating (who is eligible by overdraft status, how limits are spread and change), where it is performing (cure rate within 60 days by limit, deposits and days on book), where it pulls back, and the two matrix slides, with one message per slide.
+
+Aaron's definitions, in `story_slides.py`: eligible for a limit is decided by the Overdraft Status Code (read from the matrix validation extract's OD STATUS CODE MAPPING), not CanOverdraft or ODLimit; cured means a negative balance reaches $0 or more within 60 days; NSF is collected fees on returned items and OD on paid items, not netted for refunds; charge-offs are counted by Chargeoff_Date month against accounts opened, complete months only. The 40-day Scoring Summary slides, the not-repaid slides, the debit-decline, branch-bubble, DBIC and peer-placeholder slides, and the Business branch slides are no longer in the default story (each still builds when named with --sections). The pulling-back slide shows how many eligible accounts have a limit below their own earlier maximum and by how much; it does not compare charge-offs, because MaxODLimit is a recent-window figure (charged-off accounts carry a $0 earlier maximum), and it says so. Each slide has a one-line speaker note ahead of its Source line.
+
 ### 2026-11-04 — ILS Program Analysis deck: two matrix slides, narrower bar charts with a figures panel, de-noised fee charts, Contact Us, and strategic refunds, trend detail and inactive communication strategies taken out
 
 Summary: The ILS analysis deck's matrix is now two slides (Personal and Business, each with limits, scoring factors, overrides and trends as On or Off, all read from the matrix validation extract), the branch ranking bar charts are 60% wide with the headline figures beside them, the daily fee charts show a labelled 30-day average instead of a spiky daily line, and strategic refunds, trend rule detail and inactive communication strategies no longer appear.
