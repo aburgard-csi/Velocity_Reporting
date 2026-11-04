@@ -118,7 +118,7 @@ def test_every_figure_traces_to_the_pack(pack_root):
     assert problems == []
     ars = model["programs"][0]
     assert ars["state"] == "ready"
-    assert [s["id"] for s in ars["screens"]] == ["summary", "financial", "lift", "mailings", "take", "rege", "usage"]
+    assert [s["id"] for s in ars["screens"]] == ["summary", "financial", "lift", "mailings", "take", "rege", "usage", "peers"]
 
 
 def test_a_figure_with_no_pack_behind_it_fails_the_audit(pack_root):
