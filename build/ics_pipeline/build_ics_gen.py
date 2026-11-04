@@ -1185,6 +1185,7 @@ def build(d, static_path, out, referrals_only=False):
         # ROI = PV total ÷ (cost per acquired account × accounts opened).  (Aaron, 2026-07-13)
         import datetime as _dt
         VELOCITY_LIFE=6.9
+        WB_DISCOUNT=0.03        # the workbook's own present-value discount rate ('Present Value ... @ 3%')
         p=d["performance"]; _fs=d["financial_summary"]; n_acct=_fs["ics_accounts"]
         def _prog_years():
             ps=d["meta"].get("program_start")
@@ -1217,15 +1218,29 @@ def build(d, static_path, out, referrals_only=False):
             roi_calc=_wb_roi
             _roi_note=(f"ROI {roi_calc:.2f}:1 and Present Value ${pv_total:,.0f} (${pv_per_acct:,.2f} per account) "
                        f"are the workbook's own ('Value of ICS Accts' tab, present value at 3%).")
+        elif _young_program and _wb_pv:
+            # Under two years on the program: Cindy's rule (6.9 years) with the workbook's OWN method. Checked
+            # against every ICS workbook on the share (2026-11-03): the workbook's Present Value per account
+            # is the annual profit per account discounted at 3% as an annuity over the client's MODELED life
+            # (KEMBA: $209.25 over 9.82 years = $1,757.26 against the workbook's $1,757.60), whatever the age of
+            # the program — so for a young program only the life changes here, to 6.9 years, and the discounting,
+            # the account count and the ROI definition (PV total / acquisition cost x accounts) stay the workbook's.
+            _apc_=p["annual_profit_per_account"]
+            pv_per_acct=_apc_*(1-(1+WB_DISCOUNT)**-VELOCITY_LIFE)/WB_DISCOUNT
+            pv_total=pv_per_acct*n_acct
+            total_cost=p["cost_per_account"]*n_acct
+            roi_calc=pv_total/total_cost if total_cost else 0
+            _roi_note=(f"ROI and Present Value recalculated on the 6.9-year Velocity life because the program is under two years old "
+                       f"(Cindy Draper: under 2 years use 6.9, over 2 use the client's life of account). The workbook's own figures "
+                       f"(${_wb_pv:,.0f}, {_wb_roi:.2f}:1) discount over the modeled {p.get('life_of_ics_account_years',0):g} years. "
+                       f"PV/acct = annual profit ${_apc_:.2f} discounted at 3% over {VELOCITY_LIFE:g} years = ${pv_per_acct:,.2f}; PV total = "
+                       f"${pv_total:,.0f}; ROI = PV total ÷ (${p['cost_per_account']:.0f} × {n_acct:,}) = {roi_calc:.2f} : 1.")
         else:
             pv_per_acct=p["annual_profit_per_account"]*life_used
             pv_total=pv_per_acct*n_acct
             total_cost=p["cost_per_account"]*n_acct
             roi_calc=pv_total/total_cost if total_cost else 0
-            _roi_note=(f"ROI recalculated ("
-                       + ("the program is under two years old, so the 6.9-year Velocity life is used, not the "
-                          "workbook's modeled life" if _young_program and _wb_pv else "the sheet carries no Present Value")
-                       + f"): PV/acct = annual profit "
+            _roi_note=(f"ROI recalculated (the sheet carries no Present Value): PV/acct = annual profit "
                        f"${p['annual_profit_per_account']:.2f} × {life_used:g} yr = ${pv_per_acct:,.2f}; PV total = "
                        f"${pv_total:,.0f}; ROI = PV total ÷ (${p['cost_per_account']:.0f} × {n_acct:,}) = {roi_calc:.2f} : 1.")
 
@@ -1249,6 +1264,9 @@ def build(d, static_path, out, referrals_only=False):
             # The workbook's present value is discounted at 3% over the modeled life; the bullets
             # say so rather than describe a recalculation that was not made.
             pv_bullets=[f"Workbook present value at 3% over {modeled:g} years",
+                        f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
+        elif young and _wb_pv:
+            pv_bullets=[f"Present value at 3% over {VELOCITY_LIFE:g} years, the program's first two",
                         f"Acquisition Cost: ${p['cost_per_account']:,.0f}"]
         cols=[(AMBER, f"${p['annual_profit_per_account']:,.2f}",
                # "Annual Profit Contribution per Account" is 4.91in of Montserrat 18pt in a

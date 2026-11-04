@@ -8,6 +8,7 @@ import datetime as dt
 
 import build_ics_gen as G
 import ics_channel_split as CS
+import ics_local_sheet as L
 from test_ics_local_sheet import (root, _sheet, _build_deck, _titles,  # noqa: F401 (fixture)
                                   write_referrals, write_charts, write_workbook,
                                   referral_file, charts_file, workbook_file, dm_file, PERIOD, CID)
@@ -80,6 +81,35 @@ def test_a_failing_split_never_stops_the_deck(root, tmp_path, monkeypatch, capsy
     out, prs = _build_deck(root, tmp_path, d)
     assert "Direct Mail and Branch Referral Accounts" not in _titles(prs)
     assert "split NOT made" in capsys.readouterr().err
+
+
+def test_the_export_is_used_only_when_it_reaches_the_month_before_the_deck(root):
+    """A client whose export rows stop earlier would make `referral_sections` refuse to build, where the
+    workbook-only shape (or nothing) built before: it falls through to that."""
+    from test_ics_channel_split import write_export, exp_row
+    from test_ics_local_sheet import kind_dir
+    write_export(kind_dir(root, L.REFERRAL_KIND) / "ics_referrals.csv",
+                 [exp_row(CID, 1, "2026-06-30 10:00:00.000"), exp_row("9902", 2, "2026-08-30 10:00:00.000")])
+    assert L.find_referral_export(CID) is not None                       # no period: the client has rows
+    assert L.find_referral_export(CID, "2026.07") is not None             # June is the month before July
+    assert L.find_referral_export(CID, "2026.08") is None                 # July is missing: not current
+    assert L.find_referral_export("9902", "2026.09") is not None
+
+
+def test_the_export_alone_does_not_put_an_ics_section_in_front_of_a_client_that_had_none(root):
+    """The export upgrades the workbook-only shape to the full one. A client with export rows and NO workbook for
+    the period had no buildable ICS section before and still has none (a roster pass found fourteen)."""
+    from test_ics_channel_split import write_export, exp_row
+    from test_ics_local_sheet import kind_dir
+    write_export(kind_dir(root, L.REFERRAL_KIND) / "ics_referrals.csv", [exp_row(CID, 1, "2026-08-30 10:00:00.000")])
+    av = L.available(CID, PERIOD, "Sample Harbor CU")
+    assert av["ok"] is False and av["shape"] is None and av["referrals"] is None
+    write_workbook(workbook_file(root, PERIOD))
+    assert L.available(CID, PERIOD, "Sample Harbor CU")["shape"] == "full"
+    # a stale export falls through to the workbook-only shape
+    write_export(kind_dir(root, L.REFERRAL_KIND) / "ics_referrals.csv",
+                 [exp_row(CID, 1, "2026-05-30 10:00:00.000"), exp_row(CID, 2, "2026-05-29 10:00:00.000")])   # another size: the lookup is cached by file version
+    assert L.available(CID, PERIOD, "Sample Harbor CU")["shape"] == L.WORKBOOK_ONLY
 
 
 def test_a_one_month_direct_mail_list_makes_no_split(root, tmp_path, capsys):

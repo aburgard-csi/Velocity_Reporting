@@ -808,11 +808,14 @@ def test_a_program_under_two_years_old_values_present_value_on_6_9_years(root, t
     out, prs = _build_deck(root, tmp_path, d)
     text = " ".join(sh.text_frame.text for s in prs.slides for sh in s.shapes if sh.has_text_frame)
     notes = " ".join(s.notes_slide.notes_text_frame.text for s in prs.slides)
-    assert "6.9 years" in text and "Using 6.9 Years to be conservative" in text
+    assert "6.9 years" in text and "Present value at 3% over 6.9 years" in text
     assert "Workbook present value at 3%" not in text and "$1,333.33" not in text
-    assert "the program is under two years old, so the 6.9-year Velocity life is used" in notes
-    # annual profit 150 x 6.9 = $1,035 per account; ROI = PV / (cost 250 x 90 accounts) = 4.14
-    assert "$1,035.00" in text and "Return on Investment — 4.14 to 1" in text
+    assert "recalculated on the 6.9-year Velocity life because the program is under two years old" in notes
+    assert "$120,000" in notes and "4.00:1" in notes                    # the workbook's own figures, named as such
+    # The workbook's own method (checked against every ICS workbook on the share): annual profit per
+    # account discounted at 3% as an annuity, here over 6.9 years; ROI = PV total / (cost x accounts).
+    pv = 150 * (1 - 1.03 ** -6.9) / 0.03
+    assert f"${pv:,.2f}" in text and f"Return on Investment — {pv / 250:.2f} to 1" in text
 
 
 def test_a_mature_program_uses_its_own_life_and_the_workbook_figures(root, tmp_path):

@@ -146,7 +146,7 @@ def find_workbook(cid):
     return best if best else (None, None)
 
 
-def find_referrals(cid):
+def find_referrals(cid, period=None):
     hits = []
     for d in _dirs_for(REFERRAL_KIND):
         # Also a folder named for the client, and the id closing the name, where a person
@@ -161,38 +161,51 @@ def find_referrals(cid):
                  and os.path.getsize(f) > 0]
     if hits:
         return _newest(hits)
-    return find_referral_export(cid)
+    return find_referral_export(cid, period)
 
 
 _EXPORT_IDS = {}
 
 
 def _export_client_ids(files):
-    """The client ids the all-clients referral export carries, read once per set of file versions."""
+    """{client id: newest issue date (ISO text)} over the all-clients referral export, read once per set of
+    file versions."""
     key = tuple((f, os.path.getsize(f), int(os.path.getmtime(f))) for f in files)
     if key not in _EXPORT_IDS:
-        ids = set()
+        ids = {}
         for f in files:
             with open(f, encoding="utf-8-sig", newline="") as fh:
                 rd = csv.reader(fh)
                 next(rd, None)
                 for row in rd:
-                    if row:
-                        ids.add(row[0].strip())
+                    if len(row) > 4:
+                        c, issue = row[0].strip(), row[4].strip()[:10]
+                        if issue > ids.get(c, ""):
+                            ids[c] = issue
         _EXPORT_IDS[key] = ids
     return _EXPORT_IDS[key]
 
 
-def find_referral_export(cid):
+def find_referral_export(cid, period=None):
     """The all-clients referral export (`Inputs/ICS Referrals/ics_referrals.csv`) when it carries rows for
     `cid` — the merged file's path, or None. The export is the VIP referral dashboard's own data: for KEMBA
     CU 1195 its 2026 year-to-date branch counts reproduce the VIP table (831 referrals at 2026-10-13,
     Whitehall 128, Pickerington 117), so a client with no VIP sheet and no per-client detail file gets
     its referral slides from it rather than from the workbook's accounts-opened row, which counts accounts
-    matched to a referral OR a direct-mail piece (Cindy Draper, 2026-11-03)."""
+    matched to a referral OR a direct-mail piece (Cindy Draper, 2026-11-03).
+
+    With `period` ('yyyy.mm') the export is used only when the client's newest referral reaches the month
+    before it: a client whose rows stop earlier would make `referral_sections` refuse to build, where the
+    workbook-only shape (or nothing) built before, so it falls through to that."""
     for d in _dirs_for(REFERRAL_KIND):
         files = CS.referral_export_files(str(d))
-        if files and str(cid) in _export_client_ids(files):
+        newest = _export_client_ids(files).get(str(cid)) if files else None
+        if newest and period:
+            py, pm = _period_key(period)
+            prev = _prev_month(py, pm)
+            if newest[:7] < f"{prev[0]}-{prev[1]:02d}":
+                newest = None
+        if newest:
             merged = os.path.join(str(d), "ics_referrals.csv")
             return merged if os.path.isfile(merged) else files[0]
     return None
@@ -246,7 +259,13 @@ def available(cid, period, client_name=None) -> dict:
     cid = str(cid)
     vip = _vip_sheet(cid) is not None
     wb, wbp = find_workbook(cid)
-    ref = find_referrals(cid)
+    ref = find_referrals(cid, period)
+    if ref and is_referral_export(ref) and wbp != period:
+        # The export improves a deck that already builds (the workbook-only shape becomes the full one); it does
+        # not, on its own, put an ICS section in front of a client that had none. A roster pass on 2026-11-03
+        # found 14 clients with export rows and no workbook for the period: those stay unbuilt until Aaron says
+        # a referrals-only deck should be offered for them.
+        ref = None
     dm = find_direct_mail(cid)
     charts = find_charts(client_name) if client_name else None
     shape = None
