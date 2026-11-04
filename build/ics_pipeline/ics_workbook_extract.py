@@ -207,6 +207,19 @@ def extract(path):
     acc = series(r_open) if r_open else []
     den = sum(acc) or 1
     avg_balance = round(sum(b * a for b, a in zip(bal, acc)) / den, 2)
+    avg_balance_basis = "weighted by accounts opened"
+    # The workbook's OWN program-to-date average balance, when its Monthly Detail tab carries a
+    # "Program to Date" column (Cindy Draper, 2026-11-03, on KEMBA CU's Financial Summary: "Average
+    # Balance and ROI differ" — the deck said $1,195, the workbook's Program to Date column says
+    # $1,163.76). The weighted mean above is a reconstruction, and it weights closed accounts as if
+    # they still held a balance; the workbook's figure is the one a reader checks against.
+    if r_bal:
+        c_ptd = next((c for c in range(1, md.max_column + 1)
+                      if isinstance(md.cell(hdr_row, c).value, str)
+                      and md.cell(hdr_row, c).value.strip().lower() == "program to date"), None)
+        v_ptd = md.cell(r_bal, c_ptd).value if c_ptd else None
+        if isinstance(v_ptd, (int, float)) and v_ptd > 0:
+            avg_balance, avg_balance_basis = round(v_ptd, 2), "the workbook's Program to Date column"
 
     financial_summary = {
         "account_profit_contribution": revenue["total"],
@@ -215,6 +228,7 @@ def extract(path):
         "present_value_new_accounts": round(pv_total_wb, 2) if isinstance(pv_total_wb, (int, float)) else 0,
         "ics_accounts": int(accounts),
         "average_balance": avg_balance,
+        "average_balance_basis": avg_balance_basis,
         "roi": performance["roi"],
     }
 
@@ -334,13 +348,29 @@ def extract(path):
         (non_open12, non_closed12, non_rate12,
          ics_open12, ics_closed12, ics_rate12) = v[0], v[1], v[2], v[3], v[4], v[5]
 
+    # The CLOSE RATE row is the one exception to "program to date everywhere" (Cindy Draper,
+    # 2026-11-03, on KEMBA CU's Comparisons: "Close Rate is different- using PTD or last 12 months?",
+    # arrows: Velocity's 6.7% "is first 12 months", KEMBA's 7.8% "is program to date ... would prefer
+    # last 12 months - second line"). Velocity's close-rate average is a 12-month benchmark, so the
+    # client's side is the workbook's Last 12 Months row too, and both sides are labelled so. The
+    # program-to-date rates stay in the sheet (`close_rate_ptd`) and in the slide's note.
+    close12 = {"ics": None, "non_ics": None}
+    if l12:
+        v12 = [x for x in lrow(l12) if isinstance(x, (int, float))]
+        if len(v12) >= 6:
+            close12 = {"ics": round(v12[5] * 100, 1), "non_ics": round(v12[2] * 100, 1)}
+    close_ptd = {"ics": round((ics_rate12 or 0) * 100, 1), "non_ics": round((non_rate12 or 0) * 100, 1)} \
+        if r_ptd else None
+    use12 = close12["ics"] is not None
     tot_open = (non_open12 or 0) + (ics_open12 or 0)
     benchmark = {
         "window": window,
+        "close_rate_window": "12-month" if use12 else window,
+        "close_rate_ptd": close_ptd,
         # The footnote names the window this figure carries; it used to be handed the
         # program-to-date figure under a 12-month label (Marine 1539: 35.5% where the
         # 12-month rate was 10.4%). Whatever the window, label and figure now agree.
-        "non_ics_close_rate_pct": round((non_rate12 or 0) * 100, 1),
+        "non_ics_close_rate_pct": close12["non_ics"] if use12 else round((non_rate12 or 0) * 100, 1),
         "metrics": [
             {"label": "% of Total Openings",
              "velocity_avg": 29,
@@ -355,9 +385,9 @@ def extract(path):
             # program-to-date rate while the client's own ICS rate sat in the
             # Velocity-average column, so the row compared the client against
             # themselves and labelled neither side correctly.
-            {"label": "Close Rate" if r_ptd else "12 M Close Rate",
+            {"label": "12 M Close Rate" if (use12 or not r_ptd) else "Close Rate",
              "velocity_avg": VELOCITY_CLOSE_RATE_12M_PCT,
-             "client": round((ics_rate12 or 0) * 100, 1),
+             "client": close12["ics"] if use12 else round((ics_rate12 or 0) * 100, 1),
              "fmt": "pct1", "lower_is_better": True},
             {"label": "Average Life of Account",
              "velocity_avg": performance["average_account_life_years"],
