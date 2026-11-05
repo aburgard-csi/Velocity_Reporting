@@ -21,6 +21,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — A field trace of the transaction file, rebuilt from the code (`scripts/ti_field_trace.py`, `docs/ti_field_trace.md`, `docs/ti_field_trace.json`, `tests/test_ti_field_trace.py`)
+
+James, R10: "id really like to trace each individual field in the transaction file by analysis." A hand-kept list would be wrong the first time an analysis changed, so the trace is generated from the source and a test fails when the checked-in copy no longer matches. No figure, slide or loader rule moves.
+
+- `scripts/ti_field_trace.py` reads the loader, the analyses in `ti/transaction_intelligence/`, the section driver `ti/txn_sections.py` and the slide builders in `ti/deck/txn_*.py` with `ast` (nothing is run) and follows each field by data flow: loader column and header aliases, the functions that read it, the pack keys computed from it (with `key_prefix` expanded per caller: fin_, finb_, comp_, compb_, mch_, mchb_, beh_, ic_, rel_, and the business subsets filtered as `txn_sections` filters them), the hand-offs between sections, and the slides (titles from `chapters_txn.TITLES`) that draw each key. ODD columns the analyses read are traced the same way.
+- `docs/ti_field_trace.md` (CRLF) has one table per field plus a key-to-slide table; `docs/ti_field_trace.json` holds the same data. Today: 13 positional columns, 8 kept and all 8 read; 358 pack keys, 61 slide builders, 17 ODD columns. Anything the scan cannot resolve is listed under Unresolved (7 items: frames handed to `ti/core` and `monthly_analysis`, two whole joins of the lens attribute frame, and `filed`'s keys), never dropped.
+- `tests/test_ti_field_trace.py` fails when the trace is stale (run `python scripts/ti_field_trace.py`), when a kept field is read by no analysis, and when an analysis reads a transaction column the loader does not keep unless it is in the test's `DERIVED_COLUMNS` allowlist with a reason (today only `merchant_key`).
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
