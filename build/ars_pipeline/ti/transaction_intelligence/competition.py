@@ -15,9 +15,11 @@ rows (passed in), so the two sections never disagree about a counterparty.
 
 Kinds (from the tier):
     competitor  counted in penetration and dollars, on both rails
-    adjacency   payment ecosystems (Venmo, Zelle, PayPal transfers, BNPL);
-                reported apart, counted only on ACH / check -- a PayPal card
+    adjacency   payment ecosystems (Venmo, Zelle, PayPal transfers, wallets);
+                reported apart, on every rail -- a PayPal marketplace
                 purchase stays merchant spend
+    bnpl        buy-now-pay-later lenders (Affirm, Klarna, ...): their own
+                tier, reported apart from competitors AND ecosystems (comp_bnpl)
 """
 
 from __future__ import annotations
@@ -223,6 +225,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     tier_of = {n: i.get("tier", "") for n, i in spec["institutions"].items()}
     is_comp = (kind == "competitor").to_numpy()
     is_eco = (kind == "adjacency").to_numpy()
+    is_bnpl = (kind == "bnpl").to_numpy()
 
     total_accounts = int(acct[in_base].nunique())
     transfer_dollars = float(amt[is_transfer & in_base].sum())
@@ -233,12 +236,12 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     out[K + "competitor_pct_of_transfer_dollars"] = (
         _pct(float(amt[is_comp & is_transfer & in_base].sum()), transfer_dollars)
         if transfer_dollars else None)      # no transfer rail -> no share (#245)
-    if not is_comp.any() and not is_eco.any():
+    if not is_comp.any() and not is_eco.any() and not is_bnpl.any():
         warn("competition: no transaction matched an institution")
         return out, outputs
 
     # ---- per account x institution (competitors) --------------------------
-    hit = is_comp | is_eco
+    hit = is_comp | is_eco | is_bnpl
     m = pd.DataFrame({"acct": acct.to_numpy()[hit], "institution": inst.to_numpy()[hit],
                       "kind": kind.to_numpy()[hit], "amount": amt[hit],
                       "date": df["transaction_date"].to_numpy()[hit],
@@ -260,6 +263,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         m = m[m["acct"].isin(account_filter)]
     comp = ac[ac["kind"] == "competitor"]
     eco = ac[ac["kind"] == "adjacency"]
+    bnpl = ac[ac["kind"] == "bnpl"]
 
     # ---- 1. institutions and tiers ----------------------------------------------
     prod_by_inst = {}
@@ -371,7 +375,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
 
     # ---- 4b. the competition family (legacy 14-35, 66-67; #258) -----------------------
     window_months = max(int(df["transaction_date"].dt.to_period("M").nunique()), 1)
-    _family(out, K, comp, eco, m, acct[in_base], amt[in_base], acct_total, total_accounts,
+    _family(out, K, comp, bnpl, m, acct[in_base], amt[in_base], acct_total, total_accounts,
             by_recent, by_prior, recent_from, prior_from, anchor_end, spec, window_months)
 
     # ---- 5. by lens; at-risk and new accounts x competitor -----------------------------
@@ -559,7 +563,7 @@ def _band(value, bands):
     return bands[-1][0]
 
 
-def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.DataFrame,
+def _family(out: dict, K: str, comp: pd.DataFrame, bnpl: pd.DataFrame, m: pd.DataFrame,
             acct_in_base: pd.Series, amt_in_base, acct_total: pd.Series, total_accounts: int,
             by_recent: pd.Series, by_prior: pd.Series, recent_from, prior_from, anchor_end,
             spec: dict, months: int = 1) -> None:
@@ -567,8 +571,8 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
     account's transactions at a competitor; wallet share per institution is
     the share of its dollars; recency and breadth read the account-competitor
     pairs; winback names the competitors whose volume fell; depth against
-    growth feeds one quadrant; BNPL reads the flagged ecosystems. Ecosystems
-    stay apart from competitors throughout."""
+    growth feeds one quadrant; BNPL reads its own tier. Ecosystems and BNPL
+    stay apart from competitors, and from each other, throughout."""
     acct_txns = pd.Series(acct_in_base.to_numpy()).value_counts()
     c = comp.copy()
     c["txn_share"] = (c["txns"] / c["acct"].map(acct_txns).replace(0, np.nan) * 100) \
@@ -670,9 +674,9 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
     out[K + "depth_growth"] = dg[:10]
     out[K + "depth_growth_columns"] = ["institution", "accounts", "txns_per_acct", "growth_pct"]
 
-    # 66-67 -- buy now, pay later: the flagged ecosystems, apart from the rest
-    bnpl_names = {n for n, i in spec.get("institutions", {}).items() if i.get("bnpl")}
-    eb = eco[eco["institution"].isin(bnpl_names)]
+    # 66-67 -- buy now, pay later: its own tier (kind bnpl), apart from the
+    # payment ecosystems -- a BNPL balance is credit, a Venmo transfer is not
+    eb = bnpl
     n_b = int(eb["acct"].nunique())
     d_b = round(float(eb["dollars"].sum()))
     providers = []

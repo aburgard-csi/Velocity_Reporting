@@ -71,8 +71,10 @@ def _key(name) -> str:
 
 
 def payment_app_names(t) -> set:
-    """The payment apps the competition chapter ranks (comp_ecosystems), as name keys."""
-    return {_key(r[0]) for r in (t.get("comp_ecosystems") or [])}
+    """The payment apps and BNPL services the competition chapter ranks
+    (comp_ecosystems, comp_bnpl providers), as name keys."""
+    bnpl = (t.get("comp_bnpl") or {}).get("providers") or []
+    return {_key(r[0]) for r in (t.get("comp_ecosystems") or [])} | {_key(r[0]) for r in bnpl}
 
 
 def how_members_spend(h, t, base, merchant_bars):

@@ -583,10 +583,12 @@ def where_the_dollars_go(h, t, base):
 def the_payment_ecosystems_ranked(h, t, base):
     """Legacy 33_non_bank_threats: the wallets, P2P and BNPL services by
     members, apart from the banks. Not competitors; replacing a banking
-    function all the same."""
+    function all the same. comp_ecosystems is P2P and wallets only; BNPL is
+    its own tier (comp_bnpl), drawn beside them in its own colour."""
     eco = t.get("comp_ecosystems") or []
     if not eco:
         return "The payment ecosystems, ranked (no ecosystem rows)"
+    bnpl_rows = [r[:4] for r in ((t.get("comp_bnpl") or {}).get("providers") or [])]
     n = t.get("comp_ecosystem_accounts") or 0
     total = t.get("comp_accounts_total") or 0
     # RPE: the one Cash App slide, its flow split from the financial products (Sheila's 1798 slide
@@ -594,19 +596,16 @@ def the_payment_ecosystems_ranked(h, t, base):
     # $78.3M here, beside a $49.6M financial-product total it is not part of. The figure is this
     # one, comp_ecosystems; the buy-now-pay-later services ARE financial products, counted in that
     # total, and are coloured apart (their dollars here are matched by service name, so they are not the leakage category total).
-    bnpl = {str(r[0]).upper() for r in ((t.get("comp_bnpl") or {}).get("providers") or [])}
-    kind = lambda name: "bnpl" if str(name).upper() in bnpl else "p2p"
-    p2p_d = sum(r[3] for r in eco if kind(r[0]) == "p2p")
-    bnpl_d = sum(r[3] for r in eco if kind(r[0]) == "bnpl")
+    p2p_d = sum(r[3] for r in eco)
+    bnpl_d = sum(r[3] for r in bnpl_rows)
     lead = eco[0]
-    lead_is_p2p = kind(lead[0]) == "p2p"
     s, top = h["slide"]((
         f"{n / total * 100 if total else 0:.0f}% of {base} run money through a payment app; "
         f"{lead[0]} reaches {lead[1]:,} and moves {money(lead[3])} a year",
         (f"{lead[0]} is P2P and card flow, not a financial product: it is not in the "
          f"{money(t.get('fin_leakage_dollars'))} paid to outside financial products"
-         if lead_is_p2p and t.get("fin_leakage_dollars") else
-         f"{len(eco)} services seen; counted apart from competitors and never added to them")),
+         if t.get("fin_leakage_dollars") else
+         f"{len(eco)} apps seen; counted apart from competitors and never added to them")),
         "The payment ecosystems, ranked")
     items = [("In a payment app", f"{n:,}", f"of {total:,} {base}"),
              ("P2P and wallets", money(p2p_d), "a year, not financial products")]
@@ -615,11 +614,13 @@ def the_payment_ecosystems_ranked(h, t, base):
                       "a year; a financial product"))
     items.append(("Leading service", labels.clip(lead[0], 18), f"{lead[1]:,} accounts"))
     right = h["rail"](s, items, top=top)
-    rows = [[labels.clip(r[0], 20), r[3], r[1], kind(r[0])] for r in eco[:9]]
+    both = sorted([(r, "p2p") for r in eco] + [(r, "bnpl") for r in bnpl_rows],
+                  key=lambda x: -x[0][1])
+    rows = [[labels.clip(r[0], 20), r[3], r[1], k] for r, k in both[:9]]
     kinds = {"p2p": ("P2P and wallets", charts.NAVY),
              "bnpl": ("Buy now, pay later", charts.ORANGE)}
     path = h["chart"]("comp_eco_ranked", CT.kind_bars, rows, kinds,
-                      note=labels.coverage_note(len(rows), len(eco), "services") or "")
+                      note=labels.coverage_note(len(rows), len(both), "services") or "")
     if path:
         h["chart_left"](s, path, top, right)
 

@@ -66,8 +66,8 @@ CATS = [["Insurance", 12_143, 19.0, 76_474, 14_872_771, 1_225, "leakage", False,
 PROVIDERS = {"Insurance": [["STATE FARM INS", 3_445, 4_598_713]],
              "Buy Now Pay Later": [["AFFIRM", 6_804, 7_196_944], ["(unnamed)", 10, 900_000]],
              "P2P Transfers": [["CASH APP", 28_459, 78_143_006]]}
-ECO = [["Cash App", 28_478, 44.5, 78_316_482], ["Apple Cash", 14_184, 22.2, 21_942_706],
-       ["Klarna", 6_854, 10.7, 5_740_835], ["Affirm", 6_817, 10.7, 7_203_574]]
+# comp_ecosystems is P2P and wallets only; BNPL is its own tier and arrives in comp_bnpl
+ECO = [["Cash App", 28_478, 44.5, 78_316_482], ["Apple Cash", 14_184, 22.2, 21_942_706]]
 
 
 def test_who_they_pay_ranks_financial_products_only():
