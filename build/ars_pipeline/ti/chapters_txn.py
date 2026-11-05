@@ -207,8 +207,10 @@ def _build(ctx, builders, chapter_title, art):
     m = ctx.pack.get("metrics") or {}
     d = Deck(ctx, SOURCE, Path(ctx.art_dir or ".") / art)
     if not m.get("fin_by_category"):
-        d.declined(chapter_title, "the transaction files for this period are not on hand, so "
-                                  "this chapter cannot be computed")
+        # a file on hand that names nobody says so (1038, RPE matching fixes 2026-11-05)
+        d.declined(chapter_title, m.get("fin_declined") or
+                   "the transaction files for this period are not on hand, so "
+                   "this chapter cannot be computed")
         return list(d.slides)
     t = lens_view(m, ctx.lens)
     return d.run(builders, DRAWN_TITLES, t, m.get("fin_base_label") or "transacting accounts")

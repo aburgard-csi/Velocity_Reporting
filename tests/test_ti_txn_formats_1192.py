@@ -39,7 +39,9 @@ def test_generic_type_labels_classify_as_lender_unknown():
     assert got["BROKERAGE"] == "Investment/Brokerage"
     assert got["CC PYMT"] == "Credit Cards"
     assert got["INS.PREM"] == "Insurance"
-    assert got["TO LOAN"] == "Other Loans (lender unknown)"
+    # RPE matching fixes (2026-11-05): TO LOAN is a home-banking transfer to the member's own
+    # loan, an internal transfer, not a lender of unknown name (it is on review_ignore)
+    assert got["TO LOAN"] is None
 
 
 def test_channel_noise_stays_out_of_leakage_and_review_queue():

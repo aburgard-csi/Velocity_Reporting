@@ -21,6 +21,60 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — Financial-services and competitor matching: no more stadiums, towns and refunds; missed lenders and insurers added (`financial_services.py`, `competition.py`, both dictionaries, `chapters_txn.py`, `deck/txn_leakage.py`, `deck/txn_compete.py`)
+From the TI readiness review (James: "Yes, fix them here"). The matcher counted a cinema as Marcus by
+Goldman Sachs, a stadium as Capital One, a beach town as Huntington, a store purchase as Kohl's card,
+a tax refund as tax paid, and the client's own loans as an outside lender. Competition shares the
+finserv matcher, so both sides change.
+- **Towns.** The merchant's town and state are cut off before matching (HUNTINGTON BEACH CA,
+  LIVE OAK FL, TRAVELERS REST SC), as is a street address after a house number (1425 ROBINHOOD DR,
+  77 MAIDEN LN). Competition now uses the same guard.
+- **Venues.** A name followed by a venue word is not the institution: CAPITAL ONE ARENA, US BANK
+  STADIUM, PNC PARK, MARCUS THEATRES, GREAT LAKES BREWING, ALLIANT ENERGY, CITI TRENDS
+  (`venue_words`, ~65 words). A payment app opening the descriptor is exempt (CASH APP MARINA).
+- **One-word names.** A one-word match needs a word around it that says money is moving (PMT, LOAN,
+  CARD, ONLINE, BILL... and their cut-off forms FINANCI, PAYM, MORTG). Ordinary words that are also
+  brands (KOHLS, MACYS, MARCUS, REGIONS, HUNTINGTON, TRAVELERS, PROGRESSIVE...) always need one
+  (`needs_context`). Coined names that open the descriptor (COINBASE, SYNCB, CITIBANK, SANTANDER,
+  ONEMAIN...) count on their own (`strong_tokens`), as does the payee after a bill-pay processor
+  (PNM SANTANDER, OPC*AVANT: `payment_prefixes`) and a payment processor before a star or at the
+  start (VENMO *NAME, KLARNA*TARGET, AFTERPAY: `processor_tokens`).
+- **Money coming in.** Refunds, rebates, reversals and chargebacks are not leakage (`inbound_words`);
+  the pack reports what was set aside as `fin_inbound_excluded`. The files carry no debit/credit
+  flag and every amount is positive, so wording is the only signal.
+- **The client's own name.** Self names expand to their bank/credit-union variants (FIRSTLIGHT FCU,
+  FIRSTLIGHT FEDERAL CREDIT UNION...), and a descriptor naming the client is dropped whole, so its own
+  loan payments are no longer an outside lender. Generic roots (FIRST, CITIZENS, COMMUNITY...) get no
+  short variants. FIDELITY BANK is a false positive; TO LOAN is an internal transfer.
+- **Missed institutions added.** Installment lenders (World Finance, Security, Regional, Heights,
+  Tower Loan, Sun Loan, Republic, 1st Franklin, ACE, Upstart Network), auto (Sheffield, Stellantis,
+  Regional Acceptance), insurers (Fred Loya, Foremost, Dairyland, CSAA, Tesla), RH Brokerage, LPL,
+  Apple Card / GS Bank, Discover Cap, and IRS USATAXPYMT. Competitors gains the same lenders.
+- **A blank merchant field declines.** When 95% or more of a client's descriptors are blank (1038),
+  both chapters decline with the reason instead of reporting near-zero leakage.
+- **Growth needs six months.** Competitor growth and win-back need 183 days of data; with less, the
+  threat score uses penetration and dollars only and the slide says why. "How long it has run" and
+  "Started and stopped" decline below six months.
+- **Headlines from the data.** "How long it has run" and "Started and stopped" headlines are computed
+  ("N more started than stopped — X gained most"); "Where the outflow goes" now says the figure is
+  balances held with us, not outflow.
+
+Before → after, 12 months to 2026-09-30:
+
+| Client | Leakage | Addressable | Review queue | Competitor $ |
+|---|---|---|---|---|
+| 1075 | $396.9M → $505.1M | $392.4M → $436.9M | $72.7M → $64.4M | $375.9M → $388.9M |
+| 1100 | $68.7M → $136.2M | $67.4M → $135.0M | $23.0M → $17.6M | $35.2M → $39.5M |
+| 1776 | $24.3M → $30.7M | $23.6M → $30.0M | $4.2M → $3.3M | $6.6M → $6.2M |
+| 1798 | $51.4M → $67.6M | $50.2M → $66.3M | $13.6M → $10.1M | $21.5M → $24.4M |
+
+Most of the rise is payments the old rule missed: Venmo, Klarna and Afterpay card payments (1100:
+Klarna $2.1M → $17.2M, Afterpay $0 → $11.8M; 1776: Venmo $0.3M → $27.0M), Citibank and Santander
+($4–5M each at 1100), and the installment lenders. 1075's $63.6M of IRS USATAXPYMT is tax paid and sits
+in leakage, not in addressable. Dropped: stadiums, street names, duty-free (DFS), Fidelity
+National/Life, and Chase branch-name rows (CHASE INC PISMO, CHASE NORTHGATE — 1776's Chase fell from
+2,254 accounts to 40).
+
 ### 2026-11-05 — Insurance is addressable, and split by line: auto, home, life, health (`dictionaries/financial_services_patterns.json`, `financial_services.py`, new slide "Insurance by line")
 James: "we shouldnt default insurance as non-addressable. but we should try to discern auto vs life vs
 health". Many clients sell insurance through an agency partner, so it was wrong to grey it out.

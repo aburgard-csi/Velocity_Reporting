@@ -30,8 +30,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .financial_services import (_pct, _recency_tier, _token_regex, classify_strings,
-                                 normalize_core)
+from .financial_services import (_pct, _recency_tier, _token_regex, blank_description_decline,
+                                 classify_strings, depository_variants, normalize_core)
 from .lens import Lenses
 from .financial_services import marketplace_purchase
 from .merchant import merchant_core, merchant_text
@@ -66,40 +66,8 @@ BREADTH_BANDS = (("1", 1, 1), ("2-3", 2, 3), ("4-5", 4, 5), ("6+", 6, 10**6))  #
 # config
 # ---------------------------------------------------------------------------
 
-_CU_TAILS = ("FEDERAL CREDIT UNION", "CREDIT UNION", "FCU", "CU", "FEDERAL")
-_BANK_TAILS = ("BANK & TRUST", "BANK AND TRUST", "BANK & TRUST CO", "BANK, NATIONAL ASSOCIATION",
-               "BANK NATIONAL ASSOCIATION", "NATIONAL BANK", "BANK", "BK")
-_CU_FORMS = ("{r} CU", "{r} FCU", "{r} CREDIT UNION", "{r} FEDERAL CREDIT UNION", "{r} FEDERAL")
-_BANK_FORMS = ("{r} BANK", "{r} BK")
-_MIN_STEM = 4
-
-
-def depository_variants(name: str) -> set[str]:
-    """The spellings a card descriptor can carry for one configured name.
-
-    14 of 1776's 24 locals shipped a single spelling, so SCHOOLSFIRST CU,
-    FIRST TECH CU, PATELCO FCU and MONTECITO BK matched nothing (#261). The
-    root is the name with its depository tail removed; the family is the
-    root with every tail an acquirer prints. The bare root is never a
-    pattern: "SESLOC" alone is fine, "FIRST" alone claims half the world.
-    """
-    base = " ".join(str(name).upper().replace(".", "").split())
-    if base.startswith("THE "):
-        base = base[4:]
-    out = {base}
-    for tails, forms in ((_CU_TAILS, _CU_FORMS), (_BANK_TAILS, _BANK_FORMS)):
-        for tail in sorted(tails, key=len, reverse=True):
-            if base.endswith(" " + tail):
-                root = base[: -len(tail) - 1].strip(" ,")
-                if root and (len(root) >= _MIN_STEM or " " in root):
-                    out.update(f.format(r=root) for f in forms)
-                break
-    for spelling in list(out):
-        if " AND " in spelling:
-            out.add(spelling.replace(" AND ", " & "))
-        elif " & " in spelling:
-            out.add(spelling.replace(" & ", " AND "))
-    return {s for s in out if s}
+# depository_variants lives in financial_services (SelfNames use it too) and is imported above.
+MIN_GROWTH_DAYS = 183   # growth and winback compare the last three months with the three before
 
 
 def _patterns(name: str, aliases) -> list[str]:
@@ -131,14 +99,24 @@ def load_config(config_dir: Path, client_config: dict | None = None) -> dict:
     spec["regional_names"] = [str(n) for n in regional]
     fin = config_dir / "financial_services_patterns.json"
     if fin.exists():
-        extra = json.loads(fin.read_text(encoding="utf-8")).get("false_positives", [])
+        fspec = json.loads(fin.read_text(encoding="utf-8"))
+        extra = fspec.get("false_positives", [])
         spec["false_positives"] = sorted(set(spec.get("false_positives", [])) | set(extra))
-    # The client's own names are not competitors; internal transfers are
-    # excluded from matching and from the review queue.
-    self_names = [str(n).upper().strip() for n in (client_config or {}).get("SelfNames") or []]
+        # The same placement rules as financial services (RPE matching fixes, 2026-11-05): a lone
+        # name needs financial context, the town is not an institution, a venue is not a bank,
+        # and refund wording is money coming back. Competition had none of them, so CITI TRENDS
+        # was Citi and US BANK STADIUM was US Bank.
+        for key in ("single_token_context", "venue_words", "inbound_words"):
+            if key in fspec:
+                spec.setdefault(key, fspec[key])
+    # The client's own names are not competitors; internal transfers are excluded from matching
+    # and from the review queue -- in every depository spelling, as on the finserv side.
+    self_names = sorted({v for n in (client_config or {}).get("SelfNames") or []
+                         for v in depository_variants(str(n).upper().strip())})
     if self_names:
         spec["false_positives"] = sorted(set(spec["false_positives"]) | set(self_names))
         spec["review_ignore"] = self_names
+        spec["self_names"] = self_names
     return spec
 
 
@@ -149,7 +127,11 @@ def _as_category_spec(spec: dict) -> dict:
     for name, inst in spec["institutions"].items():
         kind = tiers.get(inst.get("tier"), {}).get("kind", "competitor")
         cats[name] = {"kind": kind, "patterns": inst.get("patterns", [])}
-    return {"categories": cats, "false_positives": spec.get("false_positives", [])}
+    out = {"categories": cats, "false_positives": spec.get("false_positives", [])}
+    for key in ("single_token_context", "venue_words", "inbound_words", "self_names"):
+        if spec.get(key):
+            out[key] = spec[key]
+    return out
 
 
 def _classify(distinct: pd.Index, spec: dict) -> pd.DataFrame:
@@ -225,6 +207,12 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     is_eco = (kind == "adjacency").to_numpy()
 
     total_accounts = int(acct[in_base].nunique())
+    declined = blank_description_decline(text, in_base, "which institutions the accounts pay")
+    if declined:
+        out[K + "declined"] = declined
+        out[K + "accounts_total"] = total_accounts
+        warn(f"competition: {declined}")
+        return out, outputs
     transfer_dollars = float(amt[is_transfer & in_base].sum())
     out[K + "accounts_total"] = total_accounts
     out[K + "institutions_configured"] = len(spec["institutions"])
@@ -338,6 +326,18 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     # Growth is the last three months against the three before, in dollars.
     recent_from = anchor_end - pd.DateOffset(months=3)
     prior_from = anchor_end - pd.DateOffset(months=6)
+    # Growth needs both quarters in the data (RPE matching fixes, 2026-11-05). 1075 Austin Bank
+    # had three months on hand: the "prior" quarter was empty, so every institution grew 100%
+    # and nothing could fall. Short data states the gap instead of drawing it.
+    first_day = pd.to_datetime(df["transaction_date"]).min()
+    span_days = int((anchor_end - first_day).days) + 1 if pd.notna(first_day) else 0
+    growth_ok = span_days >= MIN_GROWTH_DAYS
+    out[K + "growth_coverage_days"] = span_days
+    if not growth_ok:
+        out[K + "growth_note"] = (f"the data covers {span_days} days; growth, winback and depth "
+                                  f"against growth need six months (the last three against the "
+                                  f"three before), so they are left out")
+        warn(f"competition: {out[K + 'growth_note']}")
     mc = m[m["kind"] == "competitor"]
     by_recent = mc[mc["date"] > recent_from].groupby("institution", observed=True)["amount"].sum()
     by_prior = mc[(mc["date"] > prior_from) & (mc["date"] <= recent_from)] \
@@ -350,15 +350,21 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         pri = frame["institution"].map(by_prior).fillna(0.0)
         frame["growth_pct"] = np.where(pri > 0, (rec - pri) / pri * 100, np.where(rec > 0, 100.0, 0.0))
         pr = lambda s: s.rank(pct=True) * 100  # noqa: E731
-        frame["score"] = (0.4 * pr(frame["accounts"]) + 0.3 * pr(frame["dollars"])
-                          + 0.3 * pr(frame["growth_pct"].clip(lower=0)))
+        if growth_ok:
+            frame["score"] = (0.4 * pr(frame["accounts"]) + 0.3 * pr(frame["dollars"])
+                              + 0.3 * pr(frame["growth_pct"].clip(lower=0)))
+        else:
+            frame["score"] = (0.4 * pr(frame["accounts"]) + 0.3 * pr(frame["dollars"])) / 0.7
         frame = frame.sort_values("score", ascending=False).head(10)
         out[K + "threat"] = [[r.institution, round(float(r.score), 1), int(r.accounts),
-                              int(r.dollars), round(float(r.growth_pct), 1)]
+                              int(r.dollars), round(float(r.growth_pct), 1) if growth_ok else None]
                              for r in frame.itertuples()]
         out[K + "threat_columns"] = ["institution", "score", "accounts", "dollars", "growth_pct"]
-        out[K + "threat_basis"] = ("40% penetration, 30% dollars, 30% growth (last 3 months vs "
-                                   "the 3 before), each a percentile rank across institutions seen")
+        out[K + "threat_basis"] = (
+            "40% penetration, 30% dollars, 30% growth (last 3 months vs the 3 before), each a "
+            "percentile rank across institutions seen" if growth_ok else
+            "penetration and dollars only (4:3), each a percentile rank -- growth left out, the "
+            "data is shorter than six months")
 
     # ---- 4. ecosystems, apart ---------------------------------------------------------
     eco_rows = []
@@ -633,7 +639,9 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
     out[K + "breadth_deep"] = int((per_acct >= 6).sum())
 
     # 16 -- winback: competitors whose volume fell, last three months against the three before
-    mc = m[m["kind"] == "competitor"]
+    growth_ok = K + "growth_note" not in out          # set by compute's coverage check
+    span_days = out.get(K + "growth_coverage_days", 0)
+    mc = m[m["kind"] == "competitor"] if growth_ok else m.iloc[0:0]
     rec_n = mc[mc["date"] > recent_from].groupby("institution", observed=True).size()
     pri_n = mc[(mc["date"] > prior_from) & (mc["date"] <= recent_from)] \
         .groupby("institution", observed=True).size()
@@ -658,6 +666,8 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
     out[K + "winback_window"] = (f"{(recent_from + day):%b%y} - {anchor_end:%b%y} against "
                                  f"{(prior_from + day):%b%y} - {recent_from:%b%y}")
     out[K + "winback_min_accounts"] = MIN_WINBACK_ACCOUNTS
+    if not growth_ok:
+        out[K + "winback_window"] = f"needs six months of data; {span_days} days on hand"
 
     # 14 -- depth against growth: transactions per account, dollars now against then
     dg = []
@@ -667,7 +677,7 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
         growth = (rec - pri) / pri * 100 if pri > 0 else (100.0 if rec > 0 else 0.0)
         dg.append([name, n, round(float(grp["txns"].sum()) / n, 1) if n else 0.0, round(growth, 1)])
     dg.sort(key=lambda r: (-r[1], r[0]))
-    out[K + "depth_growth"] = dg[:10]
+    out[K + "depth_growth"] = dg[:10] if growth_ok else []
     out[K + "depth_growth_columns"] = ["institution", "accounts", "txns_per_acct", "growth_pct"]
 
     # 66-67 -- buy now, pay later: the flagged ecosystems, apart from the rest

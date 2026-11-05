@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 from .lens import Lenses
-from .merchant import merchant_core, merchant_text, strip_city
+from .merchant import merchant_core, merchant_text
 
 TOP_PROVIDERS = 8
 TOP_CATEGORIES_BY_LENS = 8
@@ -43,6 +43,7 @@ REVIEW_QUEUE = 25
 MIN_MONTHS_FOR_STOPPED = 3
 REACHABLE_TIERS = ("active", "cooling")   # last payment within 90 days
 MIN_TRANSFER_TXNS_FOR_GAP = 6      # a real transfer habit; conditions the responder gap
+BLANK_DESCRIPTION_DECLINE_PCT = 95  # a file this blank names nobody; say so instead of drawing zero
 
 
 # ---------------------------------------------------------------------------
@@ -57,8 +58,13 @@ def load_patterns(config_dir: Path, client_config: dict | None = None) -> dict:
         entry = cats.setdefault(name, {"kind": "leakage", "addressable": True, "patterns": []})
         entry["patterns"] = sorted(set(entry["patterns"]) | {str(p).upper() for p in pats})
     spec["categories"] = cats
-    # The client's own names: internal transfers, never leakage, never queued.
-    self_names = [str(n).upper().strip() for n in (client_config or {}).get("SelfNames") or []]
+    # The client's own names: internal transfers, never leakage, never queued. Each configured name
+    # carries its depository spellings (RPE matching fixes, 2026-11-05): "FirstLight FCU" is also
+    # FIRSTLIGHT CU and FIRSTLIGHT FEDERAL CREDIT UNION on a descriptor, the same family the
+    # competition side generates for a local competitor.
+    configured = [str(n).upper().strip() for n in (client_config or {}).get("SelfNames") or []]
+    spec["self_names_configured"] = configured
+    self_names = sorted({v for n in configured for v in depository_variants(n)})
     spec["self_names"] = self_names
     if self_names:
         spec["false_positives"] = sorted(set(spec.get("false_positives", [])) | set(self_names))
@@ -95,6 +101,120 @@ def normalize_core(s: str) -> str:
     return s
 
 
+# ---------------------------------------------------------------------------
+# depository spellings (moved here from competition so SelfNames can use them)
+# ---------------------------------------------------------------------------
+
+_CU_TAILS = ("FEDERAL CREDIT UNION", "CREDIT UNION", "FCU", "CU", "FEDERAL")
+_BANK_TAILS = ("BANK & TRUST", "BANK AND TRUST", "BANK & TRUST CO", "BANK, NATIONAL ASSOCIATION",
+               "BANK NATIONAL ASSOCIATION", "NATIONAL BANK", "BANK", "BK")
+_CU_FORMS = ("{r} CU", "{r} FCU", "{r} CREDIT UNION", "{r} FEDERAL CREDIT UNION", "{r} FEDERAL")
+_BANK_FORMS = ("{r} BANK", "{r} BK")
+_MIN_STEM = 4
+# A root this common names no one institution: "First National Bank" must not become FIRST BANK,
+# which every First-anything bank prints (RPE matching fixes, 2026-11-05: 1798's local "First
+# National Bank" claimed a FIRST BANK LOAN PMT).
+GENERIC_ROOTS = frozenset((
+    "FIRST", "CITIZENS", "PEOPLES", "COMMUNITY", "SECURITY", "UNITED", "AMERICAN", "NATIONAL",
+    "FARMERS", "MERCHANTS", "HOME", "STATE", "CITY", "COUNTY", "FIDELITY", "CENTRAL", "SOUTHERN",
+    "NORTHERN", "WESTERN", "EASTERN", "PIONEER", "HERITAGE", "LIBERTY", "GUARANTY", "FIRST STATE",
+    "FIRST NATIONAL", "FIRST FEDERAL", "FIRST COMMUNITY", "FIRST CITIZENS", "CITIZENS STATE",
+    "FARMERS STATE", "TEACHERS", "EMPLOYEES", "FEDERAL", "SAVINGS", "TRUST", "VALLEY", "MUTUAL"))
+
+
+def depository_variants(name: str) -> set[str]:
+    """The spellings a card descriptor can carry for one configured name.
+
+    14 of 1776's 24 locals shipped a single spelling, so SCHOOLSFIRST CU,
+    FIRST TECH CU, PATELCO FCU and MONTECITO BK matched nothing (#261). The
+    root is the name with its depository tail removed; the family is the
+    root with every tail an acquirer prints. The bare root is never a
+    pattern: "SESLOC" alone is fine, "FIRST" alone claims half the world --
+    and a generic root gets no family at all (GENERIC_ROOTS).
+    """
+    base = " ".join(str(name).upper().replace(".", "").split())
+    if base.startswith("THE "):
+        base = base[4:]
+    out = {base}
+    for tails, forms in ((_CU_TAILS, _CU_FORMS), (_BANK_TAILS, _BANK_FORMS)):
+        for tail in sorted(tails, key=len, reverse=True):
+            if base.endswith(" " + tail):
+                root = base[: -len(tail) - 1].strip(" ,")
+                if root and root not in GENERIC_ROOTS and (len(root) >= _MIN_STEM or " " in root):
+                    out.update(f.format(r=root) for f in forms)
+                break
+    for spelling in list(out):
+        if " AND " in spelling:
+            out.add(spelling.replace(" AND ", " & "))
+        elif " & " in spelling:
+            out.add(spelling.replace(" & ", " AND "))
+    return {s for s in out if s}
+
+
+# ---------------------------------------------------------------------------
+# where a match sits in the descriptor (RPE matching fixes, 2026-11-05)
+# ---------------------------------------------------------------------------
+# The matchers run on the full text, city and state included (#261), so a
+# name inside the town matched as an institution: SHELL OIL HUNTINGTON BEACH
+# CA was Huntington, SHELL OIL 5744 LIVE OAK FL was Live Oak Bank. And a
+# finance name followed by a venue word is the venue: CAPITAL ONE ARENA, US
+# BANK STADIUM, PNC PARK, CITI TRENDS.
+
+US_STATES = frozenset((
+    "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ "
+    "NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC PR").split())
+# A two-word town is taken only when its shape says so: SAN JOSE, NEW YORK (a first word that starts
+# town names) or HUNTINGTON BEACH, LIVE OAK (a last word that ends them). Anything else keeps its
+# second-to-last word, so MARCUS THEATRES MADISON WI keeps THEATRES beside MARCUS.
+_CITY_FIRST = frozenset((
+    "NEW SAN SANTA LOS LAS EL LA ST SAINT FT FORT PORT MT MOUNT NORTH SOUTH EAST WEST PALM BATON "
+    "CEDAR SALT SIOUX GRAND LITTLE LONG CORPUS KANSAS OKLAHOMA CARSON JERSEY COLLEGE BOWLING HOT "
+    "BATTLE BOWIE CAPE CORAL DEL DES ELK GREAT GLEN HIGH LAKE MOUNTAIN OCEAN OVERLAND PALO "
+    "POMPANO ROUND ROCK SILVER SPRING STONE TWIN WHITE").split())
+_CITY_LAST = frozenset((
+    "CITY BEACH SPRINGS SPRING FALLS HILLS HEIGHTS VALLEY VILLAGE PARK LAKE LAKES RAPIDS HARBOR "
+    "BAY CREEK ISLAND GROVE RIVER JUNCTION POINT RIDGE VISTA BLUFFS ROCK OAK OAKS WORTH ANGELES "
+    "FRANCISCO DIEGO JOSE ANTONIO VEGAS YORK ORLEANS LOUIS PAUL CHARLES MESA GARDENS VIEW "
+    "WOODS PINES PLAINS FORGE MILLS BEND HAVEN SHORES CANYON").split())
+
+
+def _state_at(tokens: list[str], keep: frozenset) -> int | None:
+    """Index of a trailing state code: "CA", "CA US", or the glued "CAUS" some acquirers print
+    (GREENVILLE SCUS, FLOWOOD MSUS). A corporate tail is never a state: UPLIFT DESK CO."""
+    if len(tokens) < 2:
+        return None
+    last = tokens[-1]
+    if last == "US" and tokens[-2] in US_STATES and tokens[-2] not in keep:
+        return len(tokens) - 2
+    if last in US_STATES and last not in keep:
+        return len(tokens) - 1
+    if len(last) == 4 and last.endswith("US") and last[:2] in US_STATES:
+        return len(tokens) - 1
+    return None
+
+
+def city_block(tokens: list[str], keep: frozenset = frozenset()) -> set[int]:
+    """Token positions of the trailing "CITY ST" block, conservatively.
+
+    The state must be a real one; the town is the word before it, and the word before that too
+    only when the pair is shaped like a town (_CITY_FIRST / _CITY_LAST). A word in `keep` (a
+    financial context word, a corporate tail) or a number is never part of a town: in
+    PROGRESSIVE INS OH there is no town, and INS stays beside PROGRESSIVE."""
+    s = _state_at(tokens, keep)
+    if s is None or s < 2:
+        return set()
+    block = set(range(s, len(tokens)))
+    i = s - 1
+    if tokens[i] in keep or tokens[i].isdigit():
+        return block
+    block.add(i)
+    j = i - 1
+    if j >= 1 and tokens[j] not in keep and not tokens[j].isdigit() \
+            and (tokens[j] in _CITY_FIRST or tokens[i] in _CITY_LAST):
+        block.add(j)
+    return block
+
+
 def _token_regex(patterns: list[str]) -> re.Pattern:
     """Whole-token alternation over NORMALISED patterns, one short token
     allowed between pattern words. 'ALLY' must not match 'ALLY LOGISTICS'...
@@ -123,39 +243,62 @@ def _context_rule(spec: dict) -> tuple[frozenset, frozenset]:
             frozenset(normalize_core(w) for w in (block.get("neutral_tails") or ())))
 
 
-def _single_token_is_supported(core: str, matched: str,
-                               context: frozenset, tails: frozenset) -> bool:
-    """Is a one-word match specific enough to keep, in this descriptor?
+# Street-address words. 1100's acquirer prints the merchant's street address after the name
+# (COINBASE 248 3RD ST OAKLAND CAUS); an address says nothing about what the business is.
+_ADDRESS_WORDS = frozenset((
+    "ST STREET AVE AVENUE RD ROAD DR DRIVE BLVD HWY HIGHWAY STE SUITE WAY LN LANE CIR CIRCLE PL "
+    "PLZA PKWY CT N S E W NE NW SE SW PO BOX FLOOR FL FIRST SECOND THIRD FOURTH FIFTH SIXTH "
+    "SEVENTH EIGHTH NINTH TENTH").split())
+
+
+def _is_address(tok: str) -> bool:
+    return tok in _ADDRESS_WORDS or any(ch.isdigit() for ch in tok)
+
+
+def _context_prefixes(context: frozenset) -> frozenset:
+    """Every 4+ letter beginning of a 5+ letter context word: FINANCI, PAYM, MORTG, CAPITA."""
+    return frozenset(w[:k] for w in context if len(w) > 4 for k in range(4, len(w)))
+
+
+def _word_set(spec: dict, key: str) -> frozenset:
+    return frozenset(normalize_core(w) for w in (spec.get(key) or ()) if w)
+
+
+def _single_token_is_supported(rest: list[str], context: frozenset, tails: frozenset,
+                               needs_context: bool = False,
+                               prefixes: frozenset = frozenset()) -> bool:
+    """Is a one-word match specific enough to keep, given the other words of the descriptor?
 
     A lone token names an institution far less reliably than the dictionary
     assumes: MERRILL GARDENS is a senior-living chain, MARCUS THEATRES is a
     cinema, ANTHEM SPORTS BAR is a bar. Seventeen of twenty realistic
     descriptors matched something before this rule existed.
 
-    Kept when the descriptor carries a financial context word, or when
-    nothing but a corporate tail sits beside the token -- "COINBASE" and
-    "COINBASE INC" are the provider; "KRAKEN BURGERS" is lunch. Multi-token
-    patterns are specific on their own and never reach here.
+    `rest` is every other word, without the town, the state and bare numbers (store numbers,
+    references). Kept when it carries a financial context word, or when nothing but a corporate
+    tail is left -- "COINBASE" and "COINBASE INC" are the provider; "KRAKEN BURGERS" is lunch.
+
+    The town used to be removed with merchant.strip_city, which takes the last TWO words before a
+    state and so took the business's own second word with it: MARCUS THEATRES MADISON WI came out
+    as MARCUS alone and matched (RPE matching fixes, 2026-11-05). city_block takes one word unless
+    the pair is shaped like a town.
+
+    `prefixes` are context words cut short by the acquirer's field width: ONEMAIN FINANCI,
+    SYNCB PHONE PAYM, TRUIST MORTG, COMENITY CAPITA (1100 and 1075, 2026-11-05).
+
+    A token in the dictionary's needs_context list (a store whose card is a product, KOHLS, MACYS;
+    a name that is mostly something else) is never kept alone: KOHLS #0123 SAN JOSE CA is shopping.
     """
     if not context:
         return True
-    tokens = [t for t in core.split() if t]
-
-    def supported(rest: list[str]) -> bool:
-        return all(t in tails for t in rest) or any(t in context for t in rest)
-
-    if supported([t for t in tokens if t != matched]):
+    if any(t in context or t in prefixes for t in rest):
         return True
-    # The text carries the city and state now (#261): "VENMO NEW YORK NY"
-    # is Venmo, and NEW YORK NY is noise beside it, not a merchant word.
-    # Drop a trailing CITY ST block -- unless the "state" is a corporate
-    # tail, which is how "UPLIFT DESK CO" stays a desk company.
-    last = tokens[-1] if tokens else ""
-    if len(tokens) >= 3 and re.fullmatch(r"[A-Z]{2}", last) and last not in tails:
-        trimmed = strip_city(core)
-        if trimmed != core:
-            return supported([t for t in trimmed.split() if t and t != matched])
-    return False
+    if needs_context:
+        return bool(rest) and all(t in tails for t in rest)
+    return all(t in tails for t in rest)
+
+
+_STAR_LEAD = re.compile(r"^\s*([A-Z0-9][A-Z0-9.&']*)\s*\*")
 
 
 def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
@@ -173,8 +316,21 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
     named lenders as unknown and then published the generic descriptor as the
     provider. Competition passes no fallback categories, so its results are
     unchanged by construction.
+
+    A false-positive phrase cancels only the match it overlaps (RPE matching fixes, 2026-11-05).
+    It used to cancel the whole descriptor, so the AMAZON entry -- there to stop AMAZON STORE CARD
+    swallowing every Amazon purchase -- also removed SYNCB/AMAZON, the Synchrony card payment.
     """
     fp = _token_regex(spec.get("false_positives", []))
+    inbound = _token_regex(spec.get("inbound_words", []))
+    # the client's own names still clear the whole descriptor: FIRSTLIGHT FCU LOAN PMT is the
+    # member's own loan, and LOAN PMT beside the name must not survive as an outside lender
+    own = _token_regex(spec.get("self_names", []))
+    venue = _word_set(spec, "venue_words")
+    needs = _word_set(spec.get("single_token_context") or {}, "needs_context")
+    processors = _word_set(spec.get("single_token_context") or {}, "processor_tokens")
+    strong = _word_set(spec.get("single_token_context") or {}, "strong_tokens")
+    pay_prefixes = _word_set(spec.get("single_token_context") or {}, "payment_prefixes")
     named, fallback = [], []
     spelling: dict = {}          # normalised pattern -> how the dictionary spells it
     for name, c in spec["categories"].items():
@@ -187,6 +343,8 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
                 if len(full) > len(spelling.get(key, "")):
                     spelling[key] = full
     context, tails = _context_rule(spec)
+    keep = context | tails
+    ctx_prefixes = _context_prefixes(context)
 
     def _label(text: str) -> str:
         """The provider as the dictionary spells it, not as the descriptor
@@ -201,30 +359,80 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
                 return spelling[cand]
         return text
 
-    def _resolve(s: str, compiled: list):
+    def _resolve(s: str, compiled: list, tokens: list[str], town: set[int], vetoed: list,
+                 lead: str = ""):
         """The best match that is specific enough to keep, or None.
 
-        A rejected single-token match does not end the search: a shorter
-        pattern on another category may still be supported by the same
-        descriptor, so the candidates are walked longest-first.
+        Every occurrence of every category is a candidate, walked longest-first; a rejected one
+        does not end the search, since a shorter pattern elsewhere may still hold. A candidate is
+        rejected when it overlaps a false-positive phrase, sits in the town, is followed by a
+        venue word, or is one word without support (_single_token_is_supported).
         """
         seen = []
         for name, kind, rx in compiled:
-            m = rx.search(s)
-            if m:
-                seen.append((name, kind, m.group(0)))
-        for name, kind, text in sorted(seen, key=lambda c: -len(c[2])):
-            if " " in text or _single_token_is_supported(s, text, context, tails):
-                return name, kind, text
+            for m in rx.finditer(s):
+                seen.append((name, kind, m.group(0), m.start(), m.end()))
+        for name, kind, text, a, b in sorted(seen, key=lambda c: (-len(c[2]), c[3])):
+            if any(a < fb and fa < b for fa, fb in vetoed):
+                continue                        # inside AMAZON, not beside it: SYNCB/AMAZON is Synchrony
+            first = s.count(" ", 0, a)
+            n_tok = text.count(" ") + 1
+            idx = range(first, first + n_tok)
+            if any(i in town for i in idx):
+                continue                        # HUNTINGTON BEACH CA, LIVE OAK FL
+            # PROVIDER *MERCHANT: the word before the star is the processor that took the payment --
+            # AFFIRM *PELOTON, KLARNA*TARGET are buy-now-pay-later payments, as the BNPL tier
+            # already counts them (R4), and VENMO *MARINA DIAZ is a Venmo payment to a person. A
+            # processor_tokens word opening the descriptor is the same with the star lost:
+            # KLARNA TIKTOK SHOP, KLARNA KLARNA. What follows is the merchant it paid, never context
+            # and never a venue.
+            head = text.split(" ")[0]
+            is_processor = first == 0 and n_tok == 1 and (text == lead or text in processors)
+            # a payment app opening the descriptor is followed by whoever it paid, never a venue:
+            # CASH APP MARINA OAKLAND CA, PAYPAL INST XFER PIZZA HUT
+            app_first = first == 0 and (head in processors or head == lead or kind == "adjacency")
+            nxt = tokens[first + n_tok] if first + n_tok < len(tokens) else ""
+            if nxt in venue and not app_first and not (n_tok == 1 and text in context):
+                continue                        # CAPITAL ONE ARENA, US BANK STADIUM, CITI TRENDS
+            if n_tok == 1 and not is_processor:
+                before = tokens[:first]
+                # the payee of a bill-pay processor: PNM SANTANDER, OPC*AVANT, CSI SYNCHRONY
+                payee = bool(before) and before[-1] in pay_prefixes and \
+                    all(t in pay_prefixes or t in context for t in before)
+                # a coined brand name opening the descriptor is the institution whatever follows:
+                # COINBASE ONE, ROBINHOOD DEBITS, SYNCB/JCPENNEY, CITIBANK, N.A. 701 E 60TH ST
+                opens = all(t in context or t in pay_prefixes or (lead and t == lead) for t in before)
+                if payee or (text in strong and opens):
+                    return name, kind, text
+                # rest leaves out the town, the street address, a repeat of the name
+                # (SEZZLE INC. SEZZLE*...) and the processor before a star. Once a house number
+                # follows the name, the rest is the address: CHIME 77 MAIDEN LN-SIXTH SAN FRANCISCO
+                # (1100, $1.8M) -- MAIDEN is a street, not a word beside Chime.
+                house = next((i for i in range(first + 1, len(tokens)) if tokens[i].isdigit()),
+                             len(tokens))
+                rest = [t for i, t in enumerate(tokens)
+                        if i not in idx and i not in town and i < house and not _is_address(t)
+                        and t != text and not (i == 0 and lead and t == lead)]
+                if not _single_token_is_supported(rest, context, tails, text in needs, ctx_prefixes):
+                    continue
+            return name, kind, text
         return None
 
     rows = []
     for s in cores:
         n = normalize_core(s) if s else ""
-        if not n or fp.search(n):
+        if not n or inbound.search(n) or own.search(n):
+            # money coming back (a refund, a tax refund, a reversal) is not a payment to the
+            # provider; the files carry no debit/credit flag, so the wording is all there is
             rows.append((s, None, None, None))
             continue
-        best = _resolve(n, named) or _resolve(n, fallback)
+        tokens = n.split(" ")
+        town = city_block(tokens, keep)
+        vetoed = [(m.start(), m.end()) for m in fp.finditer(n)]
+        star = _STAR_LEAD.match(str(s).upper())
+        lead = normalize_core(star.group(1)) if star else ""
+        best = _resolve(n, named, tokens, town, vetoed, lead) or \
+            _resolve(n, fallback, tokens, town, vetoed, lead)
         if best:
             # a bare category word ("BROKERAGE") names the category, not a
             # provider -- publishing it as one put "BROKERAGE $633,466" at
@@ -242,6 +450,24 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
 
 def _pct(n, d) -> float:
     return round(100 * n / d, 1) if d else 0.0
+
+
+def blank_description_decline(text: pd.Series, in_base: np.ndarray, what: str) -> str | None:
+    """The reason to decline, when the file names nobody, else None.
+
+    1038 Sugar River's file (2026-11) carries a blank description, MCC, location and merchant id
+    on all 187,902 rows. Every row went unmatched and the chapter published 0% leakage -- a
+    finding of no leakage drawn from a file that cannot show any (RPE matching fixes, 2026-11-05).
+    """
+    n = int(in_base.sum())
+    if not n:
+        return None
+    blank = int(((text.fillna("").astype(str).str.strip() == "").to_numpy() & in_base).sum())
+    share = _pct(blank, n)
+    if share < BLANK_DESCRIPTION_DECLINE_PCT:
+        return None
+    return (f"{share:.0f}% of the transaction rows carry no description, so {what} cannot be "
+            f"read from this file; the section is declined rather than shown as zero")
 
 
 def _recency_tier(days: pd.Series, spec: dict) -> pd.Series:
@@ -309,9 +535,12 @@ def classify_rows(df: pd.DataFrame, spec: dict) -> pd.DataFrame:
     kind = text.map(table["kind"])
     provider = text.map(table["provider"])
     purchase = (kind == "adjacency").to_numpy() & marketplace_purchase(text)
+    inbound_rx = _token_regex(spec.get("inbound_words", []))
+    inb = {t: bool(inbound_rx.search(normalize_core(t))) for t in text.unique() if t}
     return pd.DataFrame({"text": text, "core": core, "category": cat.where(~purchase),
                          "kind": kind.where(~purchase), "provider": provider.where(~purchase),
-                         "is_card": is_card}, index=df.index)
+                         "is_card": is_card, "inbound": text.map(inb).fillna(False).astype(bool)},
+                        index=df.index)
 
 
 def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.Timestamp,
@@ -345,6 +574,14 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
         else np.ones(len(df), dtype=bool)
     matched = cat.notna().to_numpy()
 
+    declined = blank_description_decline(classification["text"], in_base,
+                                         "who the accounts pay")
+    if declined:
+        out[key_prefix + "declined"] = declined
+        out[key_prefix + "accounts_total"] = int(acct[in_base].nunique())
+        warn(f"financial services: {declined}")
+        return out, outputs
+
     total_accounts = int(acct[in_base].nunique())
     transfer_dollars = float(amt[is_transfer & in_base].sum())
 
@@ -360,15 +597,21 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
             stab = classify_strings(hit_cores, {"categories": {
                 n: {"kind": "self", "patterns": [n]} for n in self_names},
                 "false_positives": []})
-            sname = core.map(stab["category"])
+            # positional throughout: core's index is df's, which need not be 0..n-1 (the
+            # old Series(range(n))[mask].groupby(labelled) paired rows by label and misfiled them)
+            sname = core.map(stab["category"]).to_numpy()
+            pos = np.flatnonzero(smask)
+            acct_arr = acct.to_numpy()
             rows = []
-            for n, grp_idx in pd.Series(range(len(df)))[smask].groupby(sname[smask]):
-                idx = grp_idx.to_numpy()
-                rows.append([n, int(acct.iloc[idx].nunique()), len(idx),
+            for n in pd.unique(sname[pos]):
+                if not isinstance(n, str):
+                    continue
+                idx = pos[sname[pos] == n]
+                rows.append([n, int(pd.unique(acct_arr[idx]).size), len(idx),
                              round(float(amt[idx].sum()))])
             rows.sort(key=lambda r: -r[3])
             out[key_prefix + "self"] = {
-                "names_configured": self_names,
+                "names_configured": spec.get("self_names_configured") or self_names,
                 "accounts": int(acct[smask].nunique()),
                 "txns": int(smask.sum()),
                 "dollars": round(float(amt[smask].sum())),
@@ -379,6 +622,12 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
                 "by_name": rows,
                 "note": "internal transfers -- excluded from every leakage, "
                         "competition and review table"}
+    if "inbound" in classification:
+        inbound = classification["inbound"].to_numpy() & in_base
+        out[key_prefix + "inbound_excluded"] = {
+            "txns": int(inbound.sum()), "dollars": round(float(amt[inbound].sum())),
+            "note": "refunds, tax refunds, rebates and reversals by their wording -- money coming "
+                    "back, never a payment to the provider; the files carry no debit/credit flag"}
     out[key_prefix + "categories_n"] = len(spec["categories"])
     out[key_prefix + "patterns_n"] = int(sum(len(c.get("patterns", [])) for c in spec["categories"].values()))
     out[key_prefix + "matched_rows"] = int((matched & in_base).sum())
