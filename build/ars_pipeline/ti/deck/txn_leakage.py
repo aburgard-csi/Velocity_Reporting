@@ -205,28 +205,68 @@ def insurance_by_line(h, t, base):
         h["chart_left"](s, path, top, right)
 
 
+MIN_MONTHS_FOR_NEW = 6     # "new" = first seen in the last 90 days; it needs history before that
+
+
+def _relationship_counts(t):
+    """(new, recurring, stopped, total) account-category relationships from the pack."""
+    nrs = t.get("fin_new_recurring_stopped") or []
+    new, rec, stop = (sum(r[i] for r in nrs) for i in (1, 2, 3))
+    return new, rec, stop, new + rec + stop
+
+
 def how_long_it_has_run(h, t, base):
+    """RPE matching fixes (2026-11-05): the headline was fixed text ("Most external relationships
+    are not new"), drawn whatever the figures said. It now reads them, and on short data says
+    that new and first-seen cannot be told apart."""
     rec = t.get("fin_recency") or []
     if not rec:
         return "How long the relationship has run (no fin_recency)"
-    s, top = h["slide"]((
-        "Most external relationships are not new — they are habits the "
-        "institution never saw start",
-        "each category as one bar: active within 30 days, cooling to 90, "
-        "dormant to a year, lapsed beyond it"),
-        "How long the relationship has run")
+    new, _, _, total = _relationship_counts(t)
+    months = t.get("txn_months_covered") or 0
+    live = sum(r[1] + r[2] for r in rec)
+    all_ = sum(r[1] + r[2] + r[3] + r[4] for r in rec) or 1
+    if total and months >= MIN_MONTHS_FOR_NEW:
+        old = (total - new) / total * 100
+        head = (f"{old:.0f}% of external relationships were already running before the last "
+                f"90 days" if old >= 50 else
+                f"{100 - old:.0f}% of external relationships started in the last 90 days")
+    else:
+        head = f"{live / all_ * 100:.0f}% of external relationships were paid in the last 90 days"
+    sub = ("each category as one bar: active within 30 days, cooling to 90, "
+           "dormant to a year, lapsed beyond it")
+    if months and months < MIN_MONTHS_FOR_NEW:
+        sub += f"; {months} months of data, too short to tell a new relationship from a first-seen one"
+    s, top = h["slide"]((head, sub), "How long the relationship has run")
     path = h["chart"]("fin_recency", CT.band_stack, rec[:9], RECENCY_BANDS)
     if path:
         h["chart_left"](s, path, top, h["RIGHT_EDGE"])
 
 
 def started_and_stopped(h, t, base):
+    """RPE matching fixes (2026-11-05): the headline said relationships "form faster than they
+    are dropped" whatever the counts were, and on three months of data every relationship is
+    "new" because none could be seen before. Short data is declined; the headline reads the sums."""
     nrs = t.get("fin_new_recurring_stopped") or []
     if not nrs:
         return "Started and stopped (no fin_new_recurring_stopped)"
+    months = t.get("txn_months_covered") or 0
+    if months and months < MIN_MONTHS_FOR_NEW:
+        return (f"Started and stopped ({months} months of data; new and stopped need "
+                f"{MIN_MONTHS_FOR_NEW})")
     rows = sorted(nrs, key=lambda r: -(r[1] - r[3]))[:8]
-    s, top = h["slide"]((
-        "Where external relationships form faster than they are dropped",
+    new, _, stop, _ = _relationship_counts(t)
+    lead = rows[0]
+    if new > stop:
+        head = (f"{new - stop:,} more external relationships started than stopped in the last "
+                f"90 days — {lead[0].lower()} gained most")
+    elif stop > new:
+        low = min(nrs, key=lambda r: r[1] - r[3])
+        head = (f"{stop - new:,} more external relationships stopped than started in the last "
+                f"90 days — {low[0].lower()} lost most")
+    else:
+        head = "As many external relationships stopped as started in the last 90 days"
+    s, top = h["slide"]((head,
         "new relationships in the last 90 days against those that stopped, "
         "per category, off a centre line"), "Started and stopped")
     path = h["chart"]("fin_tornado", CT.tornado,
