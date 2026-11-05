@@ -519,3 +519,208 @@ def inflow_against_outflow(h, t) -> str | None:
         h["picture"](slide, path, top=top + 0.05, max_h=4.3, rail=True)
     h["rail"](slide, items, top=top)
     return None
+
+
+# ------------------------------------------------------------------ R7: daily deposits (2026-11-05)
+# James: "we should have daily [deposit] amounts (aggregate count and amount), we could tie up with
+# large txns around bnpl or something"; "r7 daily deposit amount could be overlayed with any and all
+# spend categories". Figures: ti/monthly_analysis/deposit_daily.py (dep_daily_*, dep_timing_*).
+OVERLAY_DAYS = 91          # an overlay draws the last quarter: a year of days is too dense to read a payday
+TIMED = 1.2                # a ratio this high is called timed in a headline; under it, it is not
+
+
+def _ordinal(n) -> str:
+    n = int(n)
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def _day_label(iso) -> str:
+    """'2026-07-03' -> '3 Jul 26'."""
+    import datetime as _dt
+    try:
+        d = _dt.date.fromisoformat(str(iso)[:10])
+    except ValueError:
+        return str(iso)
+    return f"{d.day} {d.strftime('%b')} {d.year % 100:02d}"
+
+
+def daily_deposits(h, t) -> str | None:
+    """The deposits file per calendar day: the average and median day, the busiest weekday and day
+    of the month, the biggest day."""
+    gate = _gate(t)
+    if gate:
+        return f"Deposits, day by day ({gate})"
+    series = t.get("dep_daily") or []
+    if not series:
+        return "Deposits, day by day (missing dep_daily)"
+    avg = t.get("dep_daily_avg_dollars") or 0
+    median = t.get("dep_daily_median_dollars") or 0
+    days = t.get("dep_daily_days") or len(series)
+    first, last = t.get("dep_daily_first"), t.get("dep_daily_last")
+    weekday = t.get("dep_daily_weekday") or []
+    dom = t.get("dep_daily_dom") or []
+    top = (t.get("dep_daily_top") or [None])[0]
+    peak_wd = max(weekday, key=lambda r: r[4]) if weekday else None
+    peak_dom = max(dom, key=lambda r: r[4]) if dom else None
+
+    if peak_wd and peak_wd[4] >= 100 * TIMED:
+        head = (f"{_money(avg)} arrives on an average day; "
+                f"{peak_wd[0]}s bring {peak_wd[4] / 100:.1f}x that")
+    else:
+        head = f"{_money(avg)} arrives on an average day, spread evenly across the week"
+    sub = f"{days:,} calendar days, {_day_label(first)} to {_day_label(last)}, days with nothing posted counted"
+    if peak_dom:
+        sub += f"; the busiest day of the month is the {_ordinal(peak_dom[0])}"
+    items = [("Average day", _money(avg), "every calendar day counted"),
+             ("Median day", _money(median), "half of all days take in less")]
+    if top:
+        items.append(("Biggest day", _money(top[3]), f"{_day_label(top[0])}, a {top[1]}"))
+    slide, top_y = h["slide"]((head, sub), "Deposits, day by day")
+    path = h["chart"]("dep_daily", h["charts"].daily_columns, [[r[0], r[2]] for r in series])
+    if path:
+        h["picture"](slide, path, top=top_y + 0.05, max_h=4.6, rail=True)
+    h["rail"](slide, items, top=top_y)
+    return None
+
+
+def _timing_gate(t) -> str | None:
+    gate = _gate(t)
+    if gate:
+        return gate
+    if t.get("dep_competition_skipped"):
+        return f"transaction load short in {t.get('dep_txn_short_months')} month(s)"
+    if t.get("dep_timing_skipped"):
+        return str(t.get("dep_timing_skipped"))
+    if not t.get("dep_timing"):
+        return "missing dep_timing"
+    return None
+
+
+def _shown(t) -> list:
+    """The timing rows whose base is big enough, highest ratio first (the pack's order)."""
+    return [r for r in (t.get("dep_timing") or []) if r[8] and r[7] is not None]
+
+
+def _base_note(t) -> str:
+    return (f"{t.get('dep_timing_accounts') or 0:,} accounts in both files, "
+            f"{_day_label(t.get('dep_timing_start'))} to {_day_label(t.get('dep_timing_end'))}")
+
+
+def deposit_timing(h, t) -> str | None:
+    """Every category with a big enough base, ranked by how much of its spending lands within
+    0-3 days after the account's own deposit, against an even spread."""
+    from ti.core.deposits.daily import ALL, BNPL, LARGE
+    gate = _timing_gate(t)
+    if gate:
+        return f"What is spent after a deposit ({gate})"
+    shown = _shown(t)
+    cats = [r for r in shown if r[0] != ALL]
+    if not cats:
+        return (f"What is spent after a deposit (no category reaches {t.get('dep_timing_min_accounts')} "
+                f"accounts and {t.get('dep_timing_min_txns')} transactions)")
+    w = t.get("dep_timing_window_days") or 3
+    note = _base_note(t)
+    every = next((r for r in shown if r[0] == ALL), None)
+    large = next((r for r in shown if r[0] == LARGE), None)
+    bnpl = next((r for r in (t.get("dep_timing") or []) if r[0] == BNPL), None)
+    top = cats[0]
+    if top[7] >= TIMED:
+        head = (f"{top[0]}: {top[5]:.0f}% of its dollars go out within {w} days of a deposit, "
+                f"against {top[6]:.0f}% on an even spread")
+    else:
+        head = f"No category is spent mainly in the {w} days after a deposit"
+    sub = f"{note}; a category is ranked on {t.get('dep_timing_min_accounts')}+ accounts and {t.get('dep_timing_min_txns')}+ transactions"
+    items = []
+    if every:
+        items.append(("All outflows", f"{every[5]:.0f}%", f"within {w} days, against {every[6]:.0f}% expected"))
+    if large:
+        items.append(("Large transactions", f"{large[5]:.0f}%", f"within {w} days, against {large[6]:.0f}% expected"))
+    if bnpl and bnpl[8]:
+        items.append(("Buy now, pay later", f"{bnpl[5]:.0f}%", f"within {w} days, against {bnpl[6]:.0f}% expected"))
+    elif bnpl:
+        items.append(("Buy now, pay later", f"{bnpl[2]:,}", "accounts: too few to rank"))
+    rows = [[r[0], r[5], r[6], f"{r[2]:,} accounts, {_money(r[4])}, {r[7]:.2f}x"] for r in cats[:8]]
+    slide, top_y = h["slide"]((head, sub), "What is spent after a deposit")
+    path = h["chart"]("dep_timing", h["charts"].dumbbell, rows,
+                      f"spent 0-{w} days after a deposit", "an even spread",
+                      delta_fmt="+{:.1f} pts", delta_color=h.get("NAVY") or "#1B365D")
+    if path:
+        h["picture"](slide, path, top=top_y + 0.05, max_h=4.6, rail=True)
+    h["rail"](slide, items, top=top_y)
+    return None
+
+
+def _overlay(h, t, row, topic) -> str | None:
+    """Daily deposits against one category's daily spending, the last OVERLAY_DAYS days, each
+    indexed to its own average day. `row` is the category's dep_timing row."""
+    cat = row[0]
+    series = (t.get("dep_daily_by_category") or {}).get(cat) or []
+    daily = t.get("dep_daily") or []
+    if not series or not daily:
+        return f"{topic} (no daily series for {cat})"
+    spend = {r[0]: r[2] for r in series}
+    rows = [[r[0], r[2], spend.get(r[0], 0)] for r in daily[-OVERLAY_DAYS:]]
+    if not any(r[2] for r in rows) or not any(r[1] for r in rows):
+        return f"{topic} ({cat} has no spending in the last {OVERLAY_DAYS} days of the deposits file)"
+    w = t.get("dep_timing_window_days") or 3
+    note = _base_note(t)
+    actual, expected, ratio = row[5], row[6], row[7]
+    if ratio >= TIMED:
+        head = (f"{actual:.0f}% of {cat} dollars go out within {w} days of a deposit, "
+                f"{ratio:.1f}x an even spread")
+    elif ratio > 1 / TIMED:
+        head = f"{cat} spending barely follows deposits: {actual:.0f}% within {w} days, {expected:.0f}% expected"
+    else:
+        head = f"{cat} spending avoids the days after a deposit: {actual:.0f}% within {w} days, {expected:.0f}% expected"
+    sub = f"Last {len(rows)} days of the deposits file, each line against its own average day; timing on {note}"
+    items = [("Within 0-%d days" % w, f"{actual:.0f}%", f"of {cat} dollars, against {expected:.0f}% expected"),
+             ("Accounts", f"{row[2]:,}", f"{row[3]:,} transactions"),
+             ("Dollars", _money(row[4]), "in the days both files cover")]
+    slide, top_y = h["slide"]((head, sub), topic)
+    path = h["chart"]("dep_overlay_" + "".join(c if c.isalnum() else "_" for c in cat.lower()), h["charts"].daily_overlay, rows,
+                      l1="Deposits", l2=cat)
+    if path:
+        h["picture"](slide, path, top=top_y + 0.05, max_h=4.6, rail=True)
+    h["rail"](slide, items, top=top_y)
+    return None
+
+
+def _ranked_overlay(h, t, k, topic) -> str | None:
+    """The k-th category by ratio (1-based) that has a daily series, BNPL and All outflows aside
+    (BNPL has its own slide; All outflows is the reference, not a category)."""
+    from ti.core.deposits.daily import ALL, BNPL
+    gate = _timing_gate(t)
+    if gate:
+        return f"{topic} ({gate})"
+    have = t.get("dep_daily_by_category") or {}
+    cats = [r for r in _shown(t) if r[0] not in (ALL, BNPL) and r[0] in have]
+    if len(cats) < k:
+        return f"{topic} (fewer than {k} categories reach the base with a daily series)"
+    return _overlay(h, t, cats[k - 1], topic)
+
+
+def deposit_overlay_first(h, t) -> str | None:
+    return _ranked_overlay(h, t, 1, "Deposits against the most deposit-timed category")
+
+
+def deposit_overlay_second(h, t) -> str | None:
+    return _ranked_overlay(h, t, 2, "Deposits against the second most deposit-timed category")
+
+
+def deposit_overlay_bnpl(h, t) -> str | None:
+    """Buy now, pay later payments against deposits: the financial-services category of that name
+    (ti/dictionaries/financial_services_patterns.json), on any rail."""
+    from ti.core.deposits.daily import BNPL
+    topic = "Deposits against buy now, pay later"
+    gate = _timing_gate(t)
+    if gate:
+        return f"{topic} ({gate})"
+    row = next((r for r in (t.get("dep_timing") or []) if r[0] == BNPL), None)
+    if row is None:
+        return f"{topic} (no buy now, pay later payments from accounts in both files)"
+    if not row[8]:
+        return (f"{topic} (buy now, pay later is on {row[2]:,} accounts and {row[3]:,} transactions, "
+                f"under the {t.get('dep_timing_min_accounts')}-account and "
+                f"{t.get('dep_timing_min_txns')}-transaction base)")
+    return _overlay(h, t, row, topic)
