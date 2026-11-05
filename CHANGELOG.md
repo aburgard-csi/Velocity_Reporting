@@ -21,6 +21,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-04 — "Competitor spend before closure" reads named competitors only, and joins the ODD like the lenses do (`competition.py`, `leakage.py`, `lens.py`)
+
+James asked for this fix after the TI overview review.
+
+- **Payment-app dollars removed.** The pre-closure curve was fed every matched row, including payment-app rows (Venmo, Cash App, PayPal; also BNPL, while it sat in that tier). Those are not competitors, and they lifted the curve. `_competitor_monthly` now carries competitor-kind rows only. On the slide, mean competitor dollars per closer per month fall by the payment-app share, and so do the control's. The divergence month can move.
+- **Float account IDs now join.** `leakage.py` keyed the ODD by the raw id string, so an id read as a float ("12345.0") never matched the transaction file and the account dropped out of the curve silently. The lenses already removed the ".0". The new `lens.account_ids()` does it once, for both.
+- **Docstring corrected.** It said the curve was a share of the account's spend. It is mean raw dollars per account per month, and the docstring now says so and explains why raw dollars bias against a finding rather than towards one.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
