@@ -35,7 +35,8 @@ from ti.deck.helpers import Deck
 TI_BUILDERS = [
     L.the_book_narrowed, C.how_the_money_moves, C.twelve_months,
     L.their_financial_life, S._where_the_money_goes, L.where_the_leakage_goes, L.who_they_pay,
-    L.insurance_by_line, L.how_long_it_has_run, L.started_and_stopped, L.how_deep, L.leakage_by_group,
+    L.insurance_by_line, L.category_drilldowns,
+    L.how_long_it_has_run, L.started_and_stopped, L.how_deep, L.leakage_by_group,
     L.leakage_by_group_and_category, L.what_leakers_hold, L.how_the_leakage_builds,
     L.which_services_travel_together, L.still_within_reach,
     S._how_members_spend, C.card_spend_by_category, C.ticket_and_intensity, C.when_the_card_is_used,
@@ -63,6 +64,7 @@ TITLES = {
     "twelve_months": "Twelve months of flow", "their_financial_life": "Their financial life",
     "_where_the_money_goes": "Where the money goes", "where_the_leakage_goes": "Where the leakage goes",
     "who_they_pay": "Who they pay", "insurance_by_line": "Insurance by line",
+    "category_drilldowns": "Category drill-down",
     "how_long_it_has_run": "How long the relationship has run",
     "started_and_stopped": "Started and stopped", "how_deep": "How deep the leakage runs",
     "leakage_by_group": "Leakage by group",
