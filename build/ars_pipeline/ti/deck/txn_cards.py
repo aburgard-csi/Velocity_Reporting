@@ -366,7 +366,7 @@ def dictionary_gaps(h, t, base):
         head = (f"{len(named)} unclassified counterparties are named institutions "
                 f"— {labels.display_name(named[0][0])} among them")
     else:
-        head = (f"{labels.display_name(pool[0][0])} moves {money(pool[0][2])} a year and "
+        head = (f"{labels.display_name(pool[0][0])} moves {money(pool[0][2])} {labels.window(t)} and "
                 f"is not in any dictionary yet")
     s, top = h["slide"]((head,
         "orange is a depository name — those are LocalCompetitors "

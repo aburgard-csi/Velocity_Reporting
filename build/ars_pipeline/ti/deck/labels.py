@@ -18,6 +18,32 @@ def label(key: str) -> str:
     return LABELS.get(str(key), str(key).replace("_", " "))
 
 
+def window_months(t) -> int:
+    """N in the transaction window (ti/window.py): the pack's txn_window_months, else the months
+    the files covered, else 12."""
+    for key in ("txn_window_months", "txn_months_covered"):
+        v = (t or {}).get(key)
+        if v:
+            return int(v)
+    return 12
+
+
+def window(t, prefix: str = "in") -> str:
+    """The window in words for slide copy: 'in the last 12 months', 'over the last 3 months',
+    'last month' (prefix='') -- never 'a year', which is only true when N is 12."""
+    n = window_months(t)
+    span = "the last month" if n == 1 else f"the last {n} months"
+    if not prefix:
+        span = span[len("the "):]
+    return f"{prefix} {span}".strip()
+
+
+def window_title(t) -> str:
+    """'Last 12 months', for a rail label."""
+    w = window(t, prefix="")
+    return w[0].upper() + w[1:]
+
+
 def money(v) -> str:
     """The deck's one number grammar: $1.2M / $482K / $73, and -$7 for a
     negative -- never '$-7' (M4 sweep). Every module imports this; three
