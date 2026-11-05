@@ -55,18 +55,19 @@ def read_raw(path) -> pd.DataFrame:
     return df
 
 
-def load(path):
+def load(path, end_month=None):
     """(frame, report) for an ODD csv path: read, then v5's transform. `report.errors`
-    non-empty means the frame must not be used; `report.warnings` are stated, not hidden."""
-    return transform_odd(read_raw(path))
+    non-empty means the frame must not be used; `report.warnings` are stated, not hidden.
+    `end_month`: the window's last completed month (ti/window.py); later months are left out."""
+    return transform_odd(read_raw(path), end_month=end_month)
 
 
-def load_client(client_id):
+def load_client(client_id, end_month=None):
     """(frame, report, source) for a client's current ODD extract."""
     import rpe_env
     z = odd_zip(client_id)
     csv_path = rpe_env.extract_odd_csv(z)       # the ARS build's own cache and scratch prefix
-    frame, report = load(csv_path)
+    frame, report = load(csv_path, end_month=end_month)
     return frame, report, f"{z.name} / {Path(csv_path).name}"
 
 

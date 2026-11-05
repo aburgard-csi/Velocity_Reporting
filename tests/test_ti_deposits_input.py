@@ -63,3 +63,13 @@ def test_a_file_that_parses_to_nothing_is_stated(root):
     said = []
     cfg = deposits_input.attach({}, "1615", said.append)
     assert "_deposit_raw" not in cfg and any("parsed to 0 rows" in s for s in said)
+
+
+def test_deposit_days_outside_the_window_are_left_out(root):
+    import pandas as pd
+    _zip(root, "1615_Test_ILSDeposits_2026.03", CSV)
+    said = []
+    cfg = deposits_input.attach({}, "1615", said.append,
+                                bounds=(pd.Timestamp("2026-01-01"), pd.Timestamp("2026-02-01")))
+    assert len(cfg["_deposit_raw"]) == 2                      # the two January days
+    assert any("1 deposit row(s) outside Jan 2026 to Jan 2026 left out (1 after" in m for m in said)

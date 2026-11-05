@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — One window for every file: the ODD and the deposits file end with the last completed month too (`ti/core/odd_transform.py`, `odd.py`, `deposits_input.py`, `ti_build.py`, `scripts/ars_launcher.py`)
+James: the last-N-completed-months rule "should apply to all files". The transaction files took it
+on 2026-11-04; the ODD and the deposits file still ran to whatever they carried.
+- ODD: transaction-track month columns (PIN/Sig $ and #, MTD, Spend, Swipes) dated after the window's
+  last month are left out before anything is computed, with a warning naming them, so the data month
+  and every rolling total (last 3-mon, last 12-mon) stop at the end of the previous month. The
+  mail/response track runs a month ahead by design and is kept. An ODD whose newest month is not the
+  window's last month is warned.
+- Deposits: days outside the window (the last N completed months) are left out and counted; a file
+  that stops short of the window end is warned.
+- Launcher: the files-on-hand check reads the client's N (`TxnWindowMonths` in clients_config, or
+  `TI_WINDOW_MONTHS`), not a fixed 12; a bad value stops the check and says where it came from.
+- Not changed: measures defined by a fixed span keep it (accounts opened in the last 12 months, L12M
+  take rate, 12-month closure rate, cohort 12 months on); they now end at the window's end.
+
 ### 2026-11-04 — TI transaction window is the last N completed months before the cycle (`ti/window.py`, `ti_build.py`, TI deck copy)
 James: "it has to be the Last N completed months. these will run on the 4th or later every month, it
 will always include through the end of the previous month." The window was 12 months ending at the
