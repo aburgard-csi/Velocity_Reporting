@@ -341,9 +341,13 @@ def add_pullback(dk, cfg, fr, S, *, section, progress=None):
                extra="Lowered = ODLimit below MaxODLimit. The extracts carry no daily limit history, so when and why a limit was lowered is not shown, "
                      "and MaxODLimit is a recent-window figure: charged-off accounts show a $0 earlier maximum, so charge-offs cannot be compared "
                      "between lowered and unchanged accounts. No savings are claimed.")
-    T.image_real(s, png, 0.5, 1.75, 7.8, 4.75)
+    T.image_real(s, png, 0.5, 1.75, 7.8, 4.1)
     _tiles(s, [(f"{low:,}", "Accounts with a lowered limit"), (f"{removed:,}", "Of which now at $0"), (f"${med:,.0f}", "Median reduction")])
-    _read(s, "Each bar is the size of the reduction. The extract has no daily history, so it cannot show when or why, or what followed.")
+    CS.caption(s, "each bar is the size of the reduction in the account's limit.", T0=5.88, size=12)
+    shapes.textbox(s, 0.5, 6.18, 10.3, 0.75,
+                   "What the data shows: how many eligible accounts have a limit below their own earlier maximum, and by how much. "
+                   "What it does not show: when or why a limit was lowered, or what happened to those accounts afterwards, so no savings are claimed.",
+                   12, T.NAVY, True, PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
     dk.sidecars.append({"key": "pullback_limits", "title": "Pulling back", "png": "pullback_limits.png",
                         "numbers": {"eligible_with_earlier_max": n, "bands": dict(cats), "lowered": low, "now_zero": removed, "median_reduction": med,
                                     "identified_by": "ODLimit < MaxODLimit", "limit_history": "not in the extracts",
