@@ -21,6 +21,18 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-04 — Transaction Intelligence: a Super-Regional Bank tier of 31 banks in the shared competitor dictionary
+
+Summary: payments to 31 large regional banks now count as named-competitor payments in their own Super-Regional Bank tier. Until now they matched nothing unless a CSM had listed the bank for that client.
+
+**Moves the competition figures for any client whose account holders pay one of these banks**: penetration, dollars, the competitor list and the quadrant. James, on 1441 (2026-09-30): "19 national banks seems wrong." The shared dictionary had the 19 national banks and nothing between them and a client's own RegionalCompetitors / LocalCompetitors lists.
+
+- **Where:** `ti/dictionaries/competitors.json` gains the `Super-Regional Bank` tier (kind: competitor), placed between the national and regional tiers.
+- **The 31 banks:** Comerica, First Citizens, First Horizon, Synovus, Frost, BOK, Webster, Valley, Old National, Flagstar, Associated, Prosperity, Wintrust, UMB, Pinnacle, Texas Capital, Popular, Cadence, Hancock Whitney, Arvest, BankUnited, Simmons, United Community, Atlantic Union, Commerce, FNBO, Fulton, Trustmark, Ameris, SouthState, FirstBank.
+- **Client lists still win:** a client's own Regional / Local lists take precedence by name.
+- **Origin:** the list and patterns come from the 2026-09-30 `test/unified-analysis` work (kept as `backup/txn-intelligence-migration`). No pattern is shared with another institution.
+- **Test:** `tests/test_ti_super_regional_tier.py`.
+
 ### 2026-11-04 — ILS Program Analysis deck: the analysis team's Python builder on RPE styling, with the pasted R / Power BI / Excel charts redrawn in Python (new, `build/ils_analysis/`)
 
 Summary: A new builder, `build/ils_analysis/`, makes a client's ILS Program Analysis deck from the extracts in a data-pull folder on RPE styling, and draws in Python the charts and tables the analysis team pastes in each cycle from R, Power BI and Excel; it is separate from the Executive Review, writes only to Build Artifacts, and is not wired into the monthly run.
