@@ -10,6 +10,10 @@ what survives a review is decided there, in a reviewed change, so the decks only
 commit (James and Aaron, 2026-10-26: "an easy way to include/toss slides, especially those that
 conflict").
 
+This file decides for every client. A slide a chapter DECLINES for one client (its figures are not
+in that client's files) is a different thing: build_ti_gen hides it from that client's deck and
+lists it in the build log and the pack's `hidden_declined` (2026-10-30), whatever this file says.
+
 `TI_SLIDES` points at another file (the tests use it).
 """
 import fnmatch

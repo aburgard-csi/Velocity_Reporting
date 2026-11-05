@@ -47,15 +47,20 @@
   .steps p { margin: 4px 0; }
   .console { background: #0f1b2b; color: #d7e0ea; border-radius: 6px; padding: 14px 16px; overflow-x: auto; font: 13px/1.5 Consolas, "Cascadia Mono", monospace; white-space: pre; margin: 10px 0; }
   .console .ok { color: #7fd6a0; } .console .warn { color: #f0c060; } .console .sent { color: #8fb4ff; } .console .stop { color: #ff8a80; } .console .dim { color: #8b98a8; }
-  .table-wrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+  .table-wrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; margin: 8px 0 14px; }
   table { border-collapse: collapse; width: 100%; font-size: 14px; }
   th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
   th { background: #eef2f6; color: var(--navy); font-weight: 600; }
   tr:last-child td { border-bottom: 0; }
+  table.nowrapfirst td:first-child { white-space: nowrap; }
   .tag { display: inline-block; font: 600 12.5px/1 Consolas, monospace; padding: 4px 6px; border-radius: 4px; color: #fff; white-space: nowrap; }
   .tag.ok { background: var(--ok); } .tag.warn { background: var(--warn); } .tag.sent { background: var(--sent); } .tag.stop { background: var(--stop); }
   .note { border-left: 4px solid var(--teal); background: var(--paper); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; max-width: 70ch; }
   .note.caution { border-left-color: var(--warn); }
+  .lede { color: var(--muted); }
+  .flow { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .flow li { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 12px; max-width: none; font-size: 14px; }
+  .flow li b { color: var(--teal); margin-right: 4px; }
   footer { max-width: 880px; margin: 0 auto; padding: 0 24px 32px; color: var(--muted); font-size: 13px; }
   a:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
   @media print { header { background: none; color: var(--navy); } nav { display: none; } .console { white-space: pre-wrap; } }
@@ -66,19 +71,23 @@
   <div class="wrap">
     <p class="eyebrow">CSM Reporting · Account Revenue Solution</p>
     <h1>ARS Deck User Guide</h1>
-    <p>How to build a client's monthly ARS Executive Review yourself, straight into your Outputs folder &mdash; in your browser with <strong>CSM Sheila</strong>, or from a window with <strong>Build ARS Deck</strong>.</p>
+    <p>How a client's monthly ARS Executive Review is built, what data it needs and where that data lives, how to build one yourself with <strong>CSM Sheila</strong> or <strong>Build ARS Deck CLI</strong>, and what each field and term in the deck means.</p>
   </div>
 </header>
 
 <main>
   <nav aria-label="Contents">
     <a href="#before">Before you start</a>
+    <a href="#process">How a deck is built</a>
     <a href="#build">Build a deck</a>
     <a href="#sheila">CSM Sheila in your browser</a>
     <a href="#checks">What the checks mean</a>
+    <a href="#feeds">Data feeds</a>
+    <a href="#where">Where things are</a>
+    <a href="#dictionary">Data dictionary</a>
+    <a href="#glossary">Terms on the slides</a>
     <a href="#after">After it builds</a>
     <a href="#problems">If something goes wrong</a>
-    <a href="#where">Where things are</a>
   </nav>
 
   <section id="before">
@@ -92,11 +101,65 @@
     <div class="note">Close the client's deck in PowerPoint before you build. A new build replaces the deck in Outputs, and it can't do that while the file is open.</div>
   </section>
 
+  <section id="process">
+    <h2>How a deck is built</h2>
+    <p class="lede">One client, one month, one deck. Everything on a slide comes from the client's own data files, and the same steps run for every client.</p>
+    <ol class="flow">
+      <li><b>1</b> Check the client and the data</li>
+      <li><b>2</b> Read the workbook and DCO</li>
+      <li><b>3</b> Read the ODD extract</li>
+      <li><b>4</b> Compute the metrics</li>
+      <li><b>5</b> Draw the charts</li>
+      <li><b>6</b> Assemble the slides</li>
+      <li><b>7</b> Validate</li>
+      <li><b>8</b> File in Outputs</li>
+    </ol>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Step</th><th scope="col">What happens</th></tr></thead>
+        <tbody>
+          <tr><td>1. Check</td><td>The client must be on the Client CSM List, have ARS on its product list, be listed for ARS in the roster, and have this month's ODD extract and ARS workbook in <span class="path">Inputs</span>. A problem here is a <span class="tag stop">[STOP]</span> and nothing is built. See <a href="#checks">What the checks mean</a>.</td></tr>
+          <tr><td>2. Workbook and DCO</td><td>The ARS workbook supplies the program's financials (revenue, costs, profit, profitability), the mailings and their response, the Lift Matrix and the trend in debit spend. The DCO supplies the client's debit card distribution by swipe tier.</td></tr>
+          <tr><td>3. ODD extract</td><td>The ODD is read straight out of its zip, one account per row. Its codes are sorted into the standard categories listed in the <a href="#dictionary">data dictionary</a>. A value that maps to none of them is flagged and never guessed.</td></tr>
+          <tr><td>4. Metrics</td><td>About a hundred figures are computed from the accounts: product mix, take rates, swipe tiers, mailing response, Reg E, before and after activity, new account profile. Comparisons use the last <strong>complete</strong> month only.</td></tr>
+          <tr><td>5. Charts</td><td>Each chart is drawn at the size of its slide box, in the house palette and fonts.</td></tr>
+          <tr><td>6. Assemble</td><td>The slides are filled in from the ARS template, never from another client's deck. The cover, agenda, Summit slide, Questions and Contact are added. The Contact slide is a full-width blue gradient like Questions &amp; Discussion, with the client's CSM centred on it: name, title, phone and email. Every slide's speaker notes name its data source.</td></tr>
+          <tr><td>7. Validate</td><td>A quality check reads the finished file for banned wording, text that overflows, figures that disagree with their data, another client's name left behind, and whether the file is sound. <strong>Any FAIL stops the deck.</strong> "REVIEW" items are notes.</td></tr>
+          <tr><td>8. File</td><td>A clean deck goes to <span class="path">Outputs\&lt;CSM&gt;\</span> named <code>&lt;client&gt;-&lt;yyyy.mm&gt;-ARS-&lt;Client&gt; ARS Results.pptx</code>. An older deck for the same client and month moves to that folder's <span class="path">_Archive\</span>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What is in the ARS deck</h3>
+    <p>The slide set is the same for every client. A slide is never dropped because its data is thin; it says what the extract doesn't carry instead.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Section</th><th scope="col">Slides</th></tr></thead>
+        <tbody>
+          <tr><td>Program</td><td>Product Mix &amp; ARS Eligibility, Excluded Accounts, Program Overview, ARS Financial Performance, and Revenue Guarantee on any deck whose profitability is below 3 : 1.</td></tr>
+          <tr><td>Debit usage</td><td>Monthly Summary (last 12 months), Debit Usage Segmentation by Swipe Tier, Average Ticket by Swipe Segment.</td></tr>
+          <tr><td>Mailings</td><td>Mailing Insights, Mailing Response Summary and Ranking by Tier, the response and movement slides for the latest mailer, Transaction Increase Over the Ask, Sustained Respondent Activity, and Responder Activity before vs after.</td></tr>
+          <tr><td>Debit card review</td><td>12-month eligible take rate for personal, business and by branch (as charts); Overall Debit Swipes &amp; Spend; NSF/OD Activity Over Time. The by-branch tables are in the Appendix.</td></tr>
+          <tr><td>Reg E review</td><td>Opt-in for all personal accounts, for accounts opened in the last 12 months, by branch (as charts) and by account vintage. The by-branch tables are in the Appendix.</td></tr>
+          <tr><td>Key Takeaways</td><td>The summary slide that closes the main deck.</td></tr>
+          <tr><td>Appendix</td><td>The full branch tables &mdash; Take Rate by Branch, Reg E Opt-In by Branch and Reg E New Accounts by Branch, every branch listed over as many pages as it takes &mdash; then Branch Reference, program reach and repeat responders, responder age and balance profile, the new account profile slides, account growth, retention by tenure and first-year closure.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Four rules shape every slide:</p>
+    <ul>
+      <li><strong>Missing data is stated, not zeroed.</strong> If the extract doesn't carry a field, the slide says so.</li>
+      <li><strong>Comparisons use complete months only.</strong> A month the extract covers only in part is left out, and the slide says it was left out.</li>
+      <li><strong>Movement is worded from the figures.</strong> Within 2% is "almost flat". A rise is stated with its numbers. A fall is described as not having an impact on that measure.</li>
+      <li><strong>No slide is edited by hand.</strong> A wrong slide is fixed in the build, so every client's deck gets the fix.</li>
+    </ul>
+  </section>
+
   <section id="build">
     <h2>Build a deck</h2>
     <ol class="steps">
       <li><span class="n" aria-hidden="true">1</span><div>
-        <h3>Double-click <code>Build ARS Deck.bat</code></h3>
+        <h3>Double-click <code>Build ARS Deck CLI.bat</code></h3>
         <p>It's in the CSM_Reporting folder. If Windows asks whether to run a file from the network, choose <strong>Run</strong>. You don't need to run it as administrator.</p>
         <p><strong>Prefer a browser?</strong> Double-click <code>ARS Deck Builder GUI.bat</code> instead &mdash; the same checks and the same build, with a client list to pick from, the Lift Matrix and each client's data issues. See <a href="#sheila">CSM Sheila in your browser</a>.</p>
       </div></li>
@@ -140,43 +203,61 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
 
   <section id="sheila">
     <h2>CSM Sheila in your browser</h2>
-    <p>Double-click <code>ARS Deck Builder GUI.bat</code> in the CSM_Reporting folder. A black window opens and your browser follows a few seconds later. <strong>Keep the black window open while you work</strong> &mdash; it is the program itself &mdash; and close it when you are done. Sheila runs the same checks and the same build as <code>Build ARS Deck.bat</code>; she just shows you more while you decide.</p>
-    <p>Three tabs across the top: <strong>Decks</strong>, <strong>Lift Matrix</strong> and <strong>Data Issues</strong>. The <strong>What's new</strong> list beside them is the last few changes to the build, and <strong>Change log</strong> opens the full record.</p>
+    <p>Double-click <code>ARS Deck Builder GUI.bat</code> in the CSM_Reporting folder. A black window opens and your browser follows a few seconds later. <strong>Keep the black window open while you work</strong> &mdash; it is the program itself &mdash; and close it when you are done. Sheila runs the same checks and the same build as <code>Build ARS Deck CLI.bat</code>; she just shows you more while you decide.</p>
+    <p>The tabs are down the left side (they fold to a thin rail with the arrow at the top, and become a bar along the bottom on a phone): <strong>Decks</strong>, <strong>Lift Matrix</strong>, <strong>Data Issues</strong>, <strong>Slide Review</strong> and <strong>Feedback</strong>. Under them, <strong>What's new</strong> is the last few changes to the build and <strong>Change log</strong> opens the full record. The two-slides mark in the corner is Sheila.</p>
 
-    <h3>The cycle, in the top right corner</h3>
-    <p>The pill in the corner is the month you are working in &mdash; <strong>October 2026</strong> today. It is the calendar month, so it <strong>moves to the new month on the 1st</strong> on its own. For a normal build you never touch it.</p>
+    <p>Sheila opens on <strong>your own clients</strong>: she matches your Windows sign-in to your name on the Client CSM List, and a line under the page title says whose clients are showing, with <strong>Show all</strong> beside it. If she cannot tell who you are she shows every client and says so, never someone else's.</p>
+
+    <h3>Keyboard, search and night mode</h3>
+
+    <p>Press <kbd>Ctrl</kbd> <kbd>K</kbd> to search every client and every action from anywhere: type a name or number and press <kbd>Enter</kbd>. Press <kbd>?</kbd> to see the shortcuts for the tab you are on. <kbd>G</kbd> then <kbd>D</kbd>, <kbd>L</kbd>, <kbd>I</kbd>, <kbd>V</kbd> or <kbd>F</kbd> jumps to Decks, Lift Matrix, Data Issues, Slide Review or Feedback. <kbd>T</kbd> switches between night and day, and the <strong>Compact</strong> switch in the top bar tightens the rows. On a list, <kbd>J</kbd> and <kbd>K</kbd> move down and up, <kbd>Enter</kbd> opens, and <kbd>Enter</kbd> or <kbd>Esc</kbd> again goes back. Clicking the client you have open a second time closes it and returns to the Decks overview.</p>
+
+    <h3>The cycle, in the top bar</h3>
+
+    <p>The button in the top bar is the month you are working in. It is the calendar month, so it <strong>moves to the new month on the 1st</strong> on its own. For a normal build you never touch it.</p>
     <p><strong>Click it to look at an earlier cycle.</strong> Pick a month and the whole page answers for that month: who already has a deck, what a build would read, which clients are still waiting on data. A build you start while an earlier month is picked builds <em>that</em> month. Your pick holds until you choose the current month again or reload the page, so glance at the pill before you build.</p>
 
     <h3>Decks</h3>
-    <p>Every ARS client, grouped by CSM, with a box to filter by name or number. A client's row carries a tag when there is something to know:</p>
+    <p>Your clients with a deck to build (<strong>Show all</strong> brings in everyone's), with a box to filter by name or number. The five tiles along the top count the clients in each state and are also the filter: click a tile to show only those clients, and click it again to clear it. Each client's row has a shape and a tag:</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th scope="col">Tag on the row</th><th scope="col">Meaning</th></tr></thead>
         <tbody>
-          <tr><td><span class="tag sent">In Outputs 2026.10</span></td><td>This cycle's deck is already built and sitting in your Outputs folder.</td></tr>
-          <tr><td><span class="tag ok">Building</span></td><td>That client is building right now.</td></tr>
-          <tr><td><span class="tag warn">Queued #2</span></td><td>Waiting its turn. Builds run one at a time and each starts on its own.</td></tr>
-          <tr><td><span class="tag stop">Error 2026.10</span></td><td>The last build did not reach Outputs. Open the client &mdash; the steps say where it stopped &mdash; and its button reads <strong>Retry build</strong>.</td></tr>
-          <tr><td><span class="tag stop">Lift Matrix expired</span></td><td>The workbook's Lift Matrix window has run out, so the deck would price this month at an out-of-date matrix. Bradford reloads it; the <strong>Lift Matrix</strong> tab is where the replacement comes from.</td></tr>
+          <tr><td><span class="tag ok">Ready</span></td><td>Every check passed. It can be built now.</td></tr>
+          <tr><td><span class="tag warn">Building</span> / <span class="tag warn">Queued #2</span></td><td>That client is building right now, or is waiting its turn. Builds run one at a time and each starts on its own. The Building pill in the top bar takes you to the one that is running.</td></tr>
+          <tr><td><span class="tag sent">In Outputs</span></td><td>This cycle's deck is already built and sitting in your Outputs folder.</td></tr>
+          <tr><td><span class="tag stop">Last build failed</span> / <span class="tag stop">Lift expired</span></td><td>Needs attention. Either the last build did not reach Outputs (open the client; the steps say where it stopped, and its button reads <strong>Retry build</strong>), or the workbook's Lift Matrix window has run out, so the deck would price this month at an out-of-date matrix. Bradford reloads it; the <strong>Lift Matrix</strong> tab is where the replacement comes from.</td></tr>
+          <tr><td><span class="tag stop">Blocked</span></td><td>A check stops the build, usually a missing ODD extract or workbook. Open the client to see which.</td></tr>
         </tbody>
       </table>
     </div>
     <p>Click a client to see its checks &mdash; the same <span class="tag ok">[ok]</span>, <span class="tag warn">[!!]</span> and <span class="tag stop">[STOP]</span> lines as the window version, explained under <a href="#checks">What the checks mean</a> &mdash; then <strong>Build</strong>. When another of the client's programs has its data this cycle you get two buttons: <strong>Build ARS only</strong>, or <strong>Build combined</strong> with every program that has data named on it. A program left out is named with the reason.</p>
-    <p>Under those checks, an ARS client's page has a <strong>Transaction Intelligence</strong> panel: a separate presentation from the Executive Review, with its own checks and its own <strong>Build Transaction Intelligence</strong> button. Its decks go to Outputs beside the Executive Review and never replace it; the list shows them as <em>TI in Outputs</em>. While the panel says no chapter is ported yet, there is nothing to build.</p>
+    <p>Under those checks, an ARS client's page has a <strong>Transaction Intelligence</strong> panel and an <strong>ARS Companion</strong> panel, and a folded <strong>ILS pre-go-live and kickoff</strong> panel that opens when a client has an extract to run. Each is a separate presentation from the Executive Review, with its own checks and its own build button. Their decks go to Outputs beside the Executive Review and never replace it; each panel says when its deck is in Outputs and has a link to open it.</p>
     <p>A client's checks are kept for a few minutes so the page stays quick. A row that says it is checking again holds its Build buttons until the fresh answer arrives; <strong>Check again</strong> always re-reads the share from scratch.</p>
 
     <h3>Lift Matrix</h3>
-    <p>Each ARS client's <strong>current</strong> Lift Matrix, out of their workbook, beside a <strong>new one calculated from their own ODD</strong> &mdash; side by side, with the change and each segment's step. The interchange rate, NSF/OD fee, collection rate and outlier cap are yours to change: edit them and press <strong>Recalculate</strong>. Until you do, the figures below still belong to the previous values and the export is held, so a matrix is never exported at rates it was not calculated at.</p>
+    <p>Each ARS client's <strong>current</strong> Lift Matrix, out of their workbook, beside a <strong>new one calculated from their own ODD</strong> &mdash; side by side, with the change and each segment's step. The interchange rate, NSF/OD fee, collection rate and outlier cap are yours to change: edit one and the figures below follow a moment later (<kbd>Enter</kbd> or <strong>Recalculate</strong> does it at once). The tiles at the top move with them: the value per account per month, weighted by accounts, against the workbook's, and the biggest single change. Up and down chips show every change against the workbook. While the figures are updating the export is held, so a matrix is never exported at rates it was not calculated at.</p>
     <p><strong>Export this matrix</strong> downloads the Excel file for Bradford and records that you exported it. It is never written to Outputs, and it changes nothing in the client's workbook &mdash; Bradford loads it.</p>
     <div class="note">The matrix a deck prices from is the one in the client's <em>workbook</em>. Exporting a new one here is a request to Bradford, not a change to this month's deck.</div>
 
     <h3>Data Issues</h3>
-    <p>What is wrong with a client's data, in one place: the items from the <strong>ODD and Workbook Issues</strong> and <strong>CSM Data Gaps</strong> pages, plus the code and Lift Matrix checks from the morning refresh. Each item is dated, and the chips along the top filter them &mdash; Blockers, Decisions, Gaps, Warnings, Codes and Lift Matrix, Completed &mdash; each with its count.</p>
+    <p>What is wrong with a client's data, in one place: the items from the <strong>ODD and Workbook Issues</strong> and <strong>CSM Data Gaps</strong> pages, plus the code and Lift Matrix checks from the morning refresh. The clients with something open are listed on the left with their counts, and the tiles along the top filter by kind &mdash; Blockers, Decisions, Gaps, Warnings, Codes and Lift Matrix, Completed &mdash; each with its count. The count on the tab in the sidebar is how many items are open for the clients you are looking at.</p>
     <p>When you have dealt with one, press <strong>Mark complete</strong> and it leaves the open list. It stays out until a newer ARS, MRPCPM or ICS workbook lands for that client, which is when the item is worth a second look.</p>
     <div class="note caution">Unmapped product, Reg E and account status codes are corrected on the <strong>client's code sheet</strong>, never forced in the build. Every client page links their newest sheet: <strong>Open code sheet</strong> opens it, <strong>Show it in File Explorer</strong> shows you where it lives.</div>
 
+    <h3>Slide Review</h3>
+    <p>Vote <strong>Keep</strong>, <strong>Delete</strong> or <strong>Appendix</strong> on each slide, and star the ones you like best. Votes are for the program's <em>template</em>, not for any one client, so you can use it beside any deck. The slide list is the build itself &mdash; the same slides for every client &mdash; so it appears at once. Voting is one key per slide: <kbd>1</kbd> Keep, <kbd>2</kbd> Delete, <kbd>3</kbd> Appendix (each moves to the next slide you have not voted on), <kbd>S</kbd> stars, <kbd>C</kbd> writes a comment, <kbd>[</kbd> and <kbd>]</kbd> change program. A bar at the top shows how far you are. <strong>Summary</strong> shows every voter's votes and exports them as a CSV.</p>
+    <h3>Feedback</h3>
+    <p>Something wrong with Sheila or a deck? Press <strong>Report</strong> in the top bar (or <kbd>N</kbd> on the Feedback tab), say what is wrong, add a client if it is about one, and send it with <kbd>Ctrl</kbd> <kbd>Enter</kbd>. It is saved to the share at once and filed on GitHub by the next sync, so a report marked <em>queued</em> is recorded but not on GitHub yet. The list shows every report with its state.</p>
+
     <h3>The row of links under every client</h3>
     <p>Wherever a client appears, the same row sits under their name &mdash; <strong>Deck checks</strong>, <strong>Lift Matrix</strong>, <strong>N data issues</strong>, <strong>Open code sheet</strong>, <strong>Show it in File Explorer</strong> &mdash; minus the tab you are already on. One client, three views, without going looking for them.</p>
+  </section>
+
+  <section id="claude">
+    <h2>CSM Sheila in Claude</h2>
+    <p>You can also ask Sheila things in Claude Desktop: &ldquo;where am I this month?&rdquo;, &ldquo;what&rsquo;s 1798&rsquo;s status?&rdquo;, &ldquo;build 1798&rdquo;, &ldquo;where does slide 127&rsquo;s 9.7% come from?&rdquo;. She answers from the same checks and builds as her page, and she replaces a deck in Outputs only after you say yes.</p>
+    <p>Set it up once: open <code>CSM Sheila.mcpb</code> in the CSM_Reporting folder (or in Claude, <strong>Settings &rarr; Extensions</strong> and install that file), then click <strong>Install</strong>. The extension&rsquo;s one setting is the CSM Reporting folder (<code>M:\CSM_Reporting</code> unless yours is mapped elsewhere). Each time Claude starts, Sheila picks up the newest release from the share, so there is nothing to update. The very first start on a PC can take a minute or two while Sheila sets up Python; if Claude says she failed to start, restart Claude.</p>
   </section>
 
   <section id="checks">
@@ -201,9 +282,187 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
           <tr><td>Not in Client CSM List</td><td>Check the client number. If it's right, ask Aaron.</td></tr>
           <tr><td>Not an ARS client</td><td>No ARS deck is needed. The Velocity product list doesn't show ARS for this client.</td></tr>
           <tr><td>clients.md does not list this client for ARS</td><td>Ask Aaron to add the client to the list.</td></tr>
-          <tr><td>ODD extract: not copied / from an earlier month</td><td>The data team lands this month's ODD extract. It's copied into Inputs each morning at 08:00.</td></tr>
+          <tr><td>ODD extract: not copied / from an earlier month</td><td>The data team lands this month's ODD extract. It's copied into Inputs each morning at 08:00. See <a href="#feeds">Data feeds</a>.</td></tr>
           <tr><td>ARS workbook: not copied / from an earlier month</td><td>The data team lands this month's ARS workbook on the client reports share.</td></tr>
+          <tr><td>UNEVALUATED WORKBOOK</td><td>The workbook landed with formulas that were never calculated. Open it in Excel, save it, and build again.</td></tr>
+          <tr><td>Lift Matrix window / out-of-date matrix</td><td>The workbook's Lift Matrix has run out. Bradford loads a new one.</td></tr>
           <tr><td>Someone is already building this client</td><td>Wait for their build to finish, then try again.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="feeds">
+    <h2>Data feeds</h2>
+    <p class="lede">An ARS deck reads six things. Four are files that arrive each month; two are lists that say who the client is and who owns them.</p>
+
+    <h3>What an ARS deck needs</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Feed</th><th scope="col">Comes from</th><th scope="col">If it's missing or old</th></tr></thead>
+        <tbody>
+          <tr><td><strong>ODD extract</strong><br>one zip per client, <code>&lt;id&gt;_ODDD.zip</code></td><td>The data team, into each CSM's ODD folder on the <span class="path">Velocity_company</span> share. Copied into <span class="path">Inputs\ODDD</span> at 08:00.</td><td><span class="tag stop">[STOP]</span> The file has no month in its name and is replaced in place, so Sheila reads the pull date stamped inside it. An earlier month's extract counts as missing.</td></tr>
+          <tr><td><strong>ARS workbook</strong><br>the program's financials, mailings and Lift Matrix</td><td>The data team, onto the <span class="path">Velocity_clientreports</span> share, in that month's folder under the account manager's name. Copied into <span class="path">Inputs\ARS Workbooks</span>.</td><td><span class="tag stop">[STOP]</span> A workbook from an earlier month, or one whose formulas were never calculated, stops the build.</td></tr>
+          <tr><td><strong>DCO</strong><br>debit card distribution by swipe tier</td><td>The same reports share. Copied into <span class="path">Inputs\DCOs</span>.</td><td><span class="tag warn">[!!]</span> Builds with a warning. The figures that come from it are left blank.</td></tr>
+          <tr><td><strong>Client CSM List</strong> and <strong>CSM Contacts</strong></td><td>Kept in the CSM_Reporting folder itself. The list says which CSM owns each client and which products they have. Contacts holds the card on the Contact slide.</td><td><span class="tag stop">[STOP]</span> A client missing from the list, or a CSM with no contacts row, stops the build. The build never falls back to another CSM.</td></tr>
+          <tr><td><strong>Roster</strong> (<code>clients.md</code>)</td><td>Aaron. It records which clients get which programs, and whether a client's workbook is the MM or SM kind.</td><td><span class="tag stop">[STOP]</span> A client not listed for ARS isn't built.</td></tr>
+          <tr><td><strong>Client code sheet</strong></td><td>The data team saves it; a CSM's corrections land here. Copied into <span class="path">Inputs\Code Sheets</span>.</td><td>A code the build can't place is flagged as a possible data issue. It is corrected on the sheet, never forced.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Three smaller inputs are filled in for you: the client's <strong>product, Reg E and status code tables</strong> (<span class="path">Inputs\ARS Settings</span>), <strong>branch names</strong> (<span class="path">Inputs\Branch Names</span>, from the Charts workbooks and the referral data; branch charts show names when most of a client's branch numbers resolve, numbers otherwise), and the client's <strong>logo</strong> (<span class="path">Inputs\Logos\&lt;id&gt;.png</span>). A missing logo never fails a build.</p>
+    <div class="note">A file being in <span class="path">Inputs</span> is not the same as it being <em>this month's</em> file. The ODD zip keeps the same name every month, so the build trusts the pull date stamped inside it, or the source share, never the file name alone.</div>
+
+    <h3>How files get into Inputs</h3>
+    <p>A scheduled check, <strong>RPE Source Watch</strong>, runs once a day at 08:00 on Aaron's machine. It looks at this month's and last month's folders on both shares, and copies anything new into the right <span class="path">Inputs</span> folder by kind. It also files the weekly reports and ICS workbooks that arrive by email. It needs the VPN; off the VPN it does nothing and leaves yesterday's files alone. Nothing is deleted from the shares.</p>
+    <p>The shares are the original copies. If a file in Inputs is ever wrong or missing, it can be fetched again from where it came from.</p>
+
+    <h3>The other programs' feeds</h3>
+    <p>Clients on more than one program can get a combined deck, and CSM Sheila builds those from the same page. Each program reads its own data and never another program's.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Program</th><th scope="col">Feeds</th><th scope="col">Cadence</th></tr></thead>
+        <tbody>
+          <tr><td><strong>ICS</strong></td><td>The client's referral sheet from the VIP dashboards (<span class="path">Inputs\VIP Data\ICS</span>); the ICS workbook, which arrives by email from Matt Milliman (<span class="path">Inputs\ICS Workbooks</span>); the ICS Charts workbook for mystery shops (<span class="path">Inputs\ICS Charts</span>); the direct-mail new-accounts list (<span class="path">Inputs\ICS Direct Mail</span>).</td><td>Monthly deck. The workbook is quarterly: without a workbook for the deck's own month, the ICS section shows referrals only.</td></tr>
+          <tr><td><strong>MRPC</strong></td><td>The client's sheet from the VIP dashboards (<span class="path">Inputs\VIP Data\MRPC</span>); the MRPCPM analysis workbook (<span class="path">Inputs\MRPC Analyses</span>); Bradford Sanders' weekly MRPCEnrollmentSummary, which lands in the same folder.</td><td>Monthly.</td></tr>
+          <tr><td><strong>CashPlease</strong></td><td>Bradford's weekly CashPleaseSummary and the weekly ILS DDA count (<span class="path">Inputs\CashPlease</span>); the client's production settings (<span class="path">Inputs\Product Settings</span>); the marketing email data (<span class="path">Inputs\CashPlease Marketing</span>).</td><td>Weekly. The build always uses the newest weekly, so a CashPlease section can show a later date than the sections beside it.</td></tr>
+          <tr><td><strong>Transaction Intelligence</strong></td><td>The client's monthly debit card transaction files (<span class="path">Inputs\Txn Files\&lt;id&gt;</span>), the ILS deposits extract (<span class="path">Inputs\Deposits</span>) and, for the ICS view, the ICS lists above.</td><td>A separate presentation, built from its own panel in Sheila.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="where">
+    <h2>Where things are</h2>
+    <p>Everything is under <span class="path">\\PADMIS105\Velocity_company\CSM_Reporting</span>.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">In CSM_Reporting</th><th scope="col">What's there</th></tr></thead>
+        <tbody>
+          <tr><td><span class="path">ARS Deck Builder GUI.bat</span></td><td>CSM Sheila in your browser: decks, the Lift Matrix, each client's data issues and Slide Review.</td></tr>
+          <tr><td><span class="path">Build ARS Deck CLI.bat</span></td><td>The same build in a window, one client at a time.</td></tr>
+          <tr><td><span class="path">ARS Deck User Guide.html</span></td><td>This guide.</td></tr>
+          <tr><td><span class="path">Client CSM List.csv</span></td><td>Which CSM owns each client, and the client's products.</td></tr>
+          <tr><td><span class="path">CSM Contacts.csv</span></td><td>The card on each deck's Contact slide, one row per CSM.</td></tr>
+          <tr><td><span class="path">Outputs\&lt;CSM&gt;\</span></td><td>Your finished decks. The program is in the file name, not a subfolder.</td></tr>
+          <tr><td><span class="path">Outputs\&lt;CSM&gt;\_Archive\</span></td><td>Decks replaced by a newer build, one folder per client. It stays at the top of the folder. Nothing is deleted.</td></tr>
+          <tr><td><span class="path">Inputs\</span></td><td>The files the build reads, sorted by kind. Leave these alone. The table below lists the folders an ARS deck uses.</td></tr>
+          <tr><td><span class="path">Build Artifacts\launcher\</span></td><td>A build's log, charts and data files. You only need these if Aaron asks for a <code>build.log</code>.</td></tr>
+          <tr><td><span class="path">Notes\</span></td><td>The Data Issues pages and project notes.</td></tr>
+          <tr><td><span class="path">Tools\</span></td><td>The launcher's code and Python. Don't change anything here.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The Inputs folders an ARS deck reads</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Folder under Inputs</th><th scope="col">What's in it</th></tr></thead>
+        <tbody>
+          <tr><td><span class="path">ODDD\</span></td><td><code>&lt;id&gt;_ODDD.zip</code>, one per client.</td></tr>
+          <tr><td><span class="path">ARS Workbooks\</span></td><td>ARS workbooks, named with the client number and the month.</td></tr>
+          <tr><td><span class="path">DCOs\</span></td><td>DCO workbooks.</td></tr>
+          <tr><td><span class="path">Code Sheets\</span></td><td>Each client's code sheet. This is where an unmapped code gets corrected.</td></tr>
+          <tr><td><span class="path">ARS Settings\</span></td><td>The product, Reg E and account status code tables for each client.</td></tr>
+          <tr><td><span class="path">Branch Names\</span></td><td>The branch number to branch name list.</td></tr>
+          <tr><td><span class="path">Logos\</span></td><td>Client logos, <code>&lt;clientid&gt;.png</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Other folders you may see in Inputs belong to the other programs, to Transaction Intelligence, or to other projects. The ARS Executive Review doesn't read them.</p>
+  </section>
+
+  <section id="dictionary">
+    <h2>Data dictionary</h2>
+    <p class="lede">The ODD extract has several hundred columns. These are the ones the ARS deck reads, and what the build does with each.</p>
+
+    <h3>The ODD extract</h3>
+    <p>A zipped CSV with one row per account. Four heading rows sit above the real header, which is the row that starts with <code>Acct ID</code>. Monthly columns start with the month and year, for example <code>Jul26</code>. The zip can carry other files beside the ODD, such as a transaction file; the deck reads only the ODD.</p>
+    <div class="table-wrap">
+      <table class="nowrapfirst">
+        <thead><tr><th scope="col">Column</th><th scope="col">What it holds</th><th scope="col">How the deck uses it</th></tr></thead>
+        <tbody>
+          <tr><td colspan="3"><strong>Once per account</strong></td></tr>
+          <tr><td><code>Acct ID</code></td><td>The account.</td><td>One row is one account. Every count is a count of rows.</td></tr>
+          <tr><td><code>Branch</code></td><td>The account's branch number.</td><td>Take rate, Reg E and the Branch Reference slide, by branch.</td></tr>
+          <tr><td><code>Prod Code</code>, <code>Prod Desc</code></td><td>The product code and its description.</td><td>Product Mix. A code with no eligible account is listed on Excluded Accounts.</td></tr>
+          <tr><td><code>Business?</code></td><td><code>Yes</code>, <code>No</code> or blank.</td><td>Yes is business, No is personal. A blank is neither, so it is counted as other and kept out of both.</td></tr>
+          <tr><td><code>Stat Desc</code>, <code>Stat Code</code></td><td>Account status, as words and as a code.</td><td>The words are used when they exist. The code is used only when the words are blank. See the status table below.</td></tr>
+          <tr><td><code>Date Opened</code>, <code>Date Closed</code></td><td>When the account opened and closed.</td><td>The new account profile, openings vs closures, retention by tenure and first-year closure.</td></tr>
+          <tr><td><code>DOB</code></td><td>Date of birth.</td><td>Responder Age Profile. If the whole column is blank, the slide says the age profile isn't carried in this extract.</td></tr>
+          <tr><td><code>Avg Bal</code>, <code>Curr Bal</code></td><td>Average and current balance.</td><td>Balance profile and new checking balances.</td></tr>
+          <tr><td><code>Debit?</code></td><td><code>Yes</code> if the account has a debit card.</td><td>Card holding. It is the numerator of take rate.</td></tr>
+          <tr><td colspan="3"><strong>Once per month</strong> &mdash; the column name starts with the month, for example <code>Jul26 Sig #</code></td></tr>
+          <tr><td><code>Sig #</code>, <code>PIN #</code></td><td>Signature and PIN purchase counts.</td><td>Swipes = the two added together.</td></tr>
+          <tr><td><code>Sig $</code>, <code>PIN $</code></td><td>Signature and PIN purchase dollars.</td><td>Spend = the two added together. Interchange is priced on the two separately where a view needs it.</td></tr>
+          <tr><td><code>MTD</code>, <code>YTD</code></td><td>NSF/OD <strong>item counts</strong>, month to date and year to date. They are counts of items, not dollars. A prior-year column (<code>PYTD</code>) is also a count.</td><td>NSF/OD Activity Over Time and the NSF/OD year-over-year tile.</td></tr>
+          <tr><td><code>Reg E Code</code>, <code>Reg E Desc</code></td><td>The Reg E election, as a code and as words.</td><td>Every Reg E slide, read through the mapping below.</td></tr>
+          <tr><td><code>OD Limit</code></td><td>The account's overdraft limit that month.</td><td>Read only by an optional analysis.</td></tr>
+          <tr><td><code>Fees1</code></td><td>The fee charged per NSF/OD item.</td><td>The most common value is the NSF/OD fee in the Lift Matrix calculation in Sheila.</td></tr>
+          <tr><td><code>Mail</code></td><td>The offer the account was sent in that month's mailing. Present only in months with a mailing.</td><td>Offers sent = personal accounts with a value here.</td></tr>
+          <tr><td><code>Resp</code></td><td>The response code, if the account responded. Present only in months with a mailing.</td><td>A response is one of <code>NU 5+</code>, <code>TH-10</code>, <code>TH-15</code>, <code>TH-20</code>, <code>TH-25</code>. See the offer cohorts under <a href="#glossary">Terms on the slides</a>.</td></tr>
+          <tr><td colspan="3"><strong>Latest month only</strong></td></tr>
+          <tr><td><code>Elig</code></td><td><code>Yes</code> if the account is ARS-eligible.</td><td>The eligible-account count behind take rate and the eligibility waterfall.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Standard categories</h3>
+    <p>The build sorts the wording each core uses into one fixed set of categories, the same for every client. Any value that doesn't map is flagged and the build asks before going on.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Field</th><th scope="col">Categories</th><th scope="col">Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Reg E opt-in status</strong></td><td><code>Reg E Opt In</code>, <code>Reg E Opt Out</code>, <code>Reg E Default</code></td><td>Opt in covers Yes, Accepted and Opted In. Opt out covers No, Declined and Revoked. Default covers no response, failed to respond and no decision. A blank, Ineligible or Exempt account is <em>not applicable</em> and is left out of the percentages.</td></tr>
+          <tr><td><strong>Account status</strong></td><td><code>Open</code>, <code>Closed</code>, <code>Dormant</code>, <code>Inactive</code>, <code>Frozen</code>, <code>Charged Off</code>, <code>Other</code></td><td>Purge at Yearend and Pending Closeout are Closed. New This Cycle and Pending Activation are Open. Manually controlled is Other, on purpose.</td></tr>
+          <tr><td><strong>Status code</strong> (used only when the words are blank)</td><td><code>O</code> and <code>A</code> are Open. <code>C</code> is Closed. <code>X</code> is Charged Off.</td><td>Some cores fill the code and leave the words blank on every account that isn't open. A blank status with no usable code is Other.</td></tr>
+          <tr><td><strong>Account type</strong></td><td>Personal, Business, Other</td><td>From <code>Business?</code>, as above.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note caution">If a code or wording maps to none of these, the build reports a possible data issue. It never picks a category for you. The fix is on the client's code sheet.</div>
+
+    <h3>The ARS workbook</h3>
+    <p>The deck reads these tabs by name, and finds each figure by its row label. A workbook that has never been calculated reads as one month, no mailings and $0, so the build stops on it instead.</p>
+    <div class="table-wrap">
+      <table class="nowrapfirst">
+        <thead><tr><th scope="col">Tab</th><th scope="col">What the deck takes from it</th></tr></thead>
+        <tbody>
+          <tr><td>Executive Financials MM</td><td>The client name, the data month, months and mailings to date, total incremental revenue, costs and profit &mdash; for the month and for the program to date.</td></tr>
+          <tr><td>All Months Rollup MM</td><td>The month-by-month revenue series.</td></tr>
+          <tr><td>Key Trends MM</td><td>Debit spend and card-holding accounts by month. A blank month stops the build rather than reading as $0.</td></tr>
+          <tr><td>Mail Response Summary MM</td><td>Each mailing and its response.</td></tr>
+          <tr><td>Lift Matrix MM</td><td>The Lift Matrix, with its Start Date and End Date. The data month must fall inside that window.</td></tr>
+          <tr><td>DCO MM</td><td>Card-holding accounts and their spend by swipe tier.</td></tr>
+          <tr><td>Actuals MM</td><td>The program's P&amp;L, line by line. This feeds ARS Financial Performance and Revenue Guarantee.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>MM and SM are two revenue models, not working and broken.</strong> An MM workbook prices revenue from the Lift Matrix in the "MM" tabs. An older SM workbook splits revenue into interchange and NSF on the individual mailing tabs, and its "MM" tabs are empty on purpose. The build reads the right tabs for each, and an SM client has no Lift Matrix slide. The roster records which one a client is.</p>
+  </section>
+
+  <section id="glossary">
+    <h2>Terms on the slides</h2>
+    <div class="table-wrap">
+      <table class="nowrapfirst">
+        <thead><tr><th scope="col">Term</th><th scope="col">What it means in the deck</th></tr></thead>
+        <tbody>
+          <tr><td>Cycle</td><td>The calendar month a deck is for. Its name uses that month, for example <code>2026.10</code>.</td></tr>
+          <tr><td>Complete month</td><td>A month whose data was pulled after it ended and isn't far below its usual level. Every year-over-year and latest-month figure uses the last complete month, and a month left out is named on the slide.</td></tr>
+          <tr><td>Eligible account</td><td>An account the ARS program can reach: <code>Elig</code> is Yes in the latest month.</td></tr>
+          <tr><td>Take rate</td><td>The share of eligible accounts that hold a debit card. The 12-month charts look at eligible personal or business accounts opened in the last 12 months, by branch.</td></tr>
+          <tr><td>Swipes, spend</td><td>Signature and PIN counts added together, and signature and PIN dollars added together.</td></tr>
+          <tr><td>Swipe tier</td><td>An account's monthly swipes in bands: Non-User (none), 1&ndash;5, 6&ndash;10, 11&ndash;15, 16&ndash;20, 21&ndash;25 and 26 Plus.</td></tr>
+          <tr><td>Offer cohorts</td><td><strong>NU 5+</strong> is card holders with no swipes, offered a 5-swipe goal. <strong>Threshold</strong> is light users, one to twenty swipes a month, offered a higher goal. The Mailing Response columns are the response <em>rate within each cohort</em>. "Threshold 16.9%" means 16.9% of the Threshold cohort responded.</td></tr>
+          <tr><td>Responder</td><td>An account whose <code>Resp</code> carries one of the five response codes for a mailing.</td></tr>
+          <tr><td>Before vs after</td><td>A responder's debit activity in the three months before the mailing against the six months after it, for every personal responder, with one outlier cap across both windows.</td></tr>
+          <tr><td>Average ticket</td><td>Spend per swipe, by swipe segment.</td></tr>
+          <tr><td>Lift Matrix</td><td>The workbook's table that prices the program's revenue by swipe segment. It has a window of dates, and the data month must fall inside it. Bradford loads it.</td></tr>
+          <tr><td>MM, SM</td><td>The two revenue models above.</td></tr>
+          <tr><td>Profitability</td><td>Incremental revenue against the program's costs, shown as a ratio such as 2.2 : 1. The program guarantees a minimum of 2 : 1, and the Revenue Guarantee slide appears on a deck whose ratio is below 3 : 1.</td></tr>
+          <tr><td>Reg E opt-in</td><td>The share of applicable personal accounts that have opted in to overdraft on debit transactions. Not-applicable accounts aren't counted.</td></tr>
+          <tr><td>Almost flat</td><td>A change within 2% either way.</td></tr>
+          <tr><td>YTD YoY</td><td>This year to date against the same months a year earlier. Both windows must be complete months, else the tile reads n/a. A client whose history starts mid-year is compared over the months both years share.</td></tr>
         </tbody>
       </table>
     </div>
@@ -217,43 +476,27 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
     </ol>
     <div class="note caution">If a slide looks wrong, don't fix it by hand in PowerPoint. Tell Aaron what's wrong so the build is fixed and every client's deck gets the correction.</div>
     <p>Any older deck for the same client and month is moved to the <span class="path">_Archive\</span> folder inside your own Outputs folder. Nothing is deleted.</p>
+    <p>To check where a figure came from, open the slide's speaker notes. Every slide names its source file or dashboard and the period behind its numbers.</p>
   </section>
 
   <section id="problems">
     <h2>If something goes wrong</h2>
     <h3>"Copying the launcher code to this PC" appears</h3>
-<p>That happens on a first run and after each new release, and takes up to a minute. After that the launcher runs from a copy on your PC, which is much faster than running from the share.</p>
-<h3>The first run sits on "Setting up Python on this PC"</h3>
+    <p>That happens on a first run and after each new release, and takes up to a minute. After that the launcher runs from a copy on your PC, which is much faster than running from the share.</p>
+    <h3>The first run sits on "Setting up Python on this PC"</h3>
     <p>That's normal the first time, and after Aaron releases an update. It takes a few minutes, once.</p>
     <h3>"The deck built clean but could not be put in Outputs"</h3>
-    <p>The client's deck in Outputs is open, probably in PowerPoint. Close it and run <code>Build ARS Deck.bat</code> again.</p>
+    <p>The client's deck in Outputs is open, probably in PowerPoint. Close it and run <code>Build ARS Deck CLI.bat</code> again.</p>
     <h3>"The build stopped at ..." or "POSSIBLE DATA ISSUE"</h3>
-    <p>The client's data has a problem the deck can't work around, such as account status codes that aren't mapped. These are usually corrected on the client's code sheet. Send Aaron the client number and the <code>build.log</code> path the window shows.</p>
+    <p>The client's data has a problem the deck can't work around, such as account status codes that aren't mapped, or a blank month in the workbook's Key Trends. Codes are usually corrected on the client's code sheet. Send Aaron the client number and the <code>build.log</code> path the window shows.</p>
     <h3>"Validation: 1 FAIL" (or more)</h3>
     <p>The deck didn't pass the quality check, so it wasn't put in Outputs. Send Aaron the client number.</p>
+    <h3>The data is on the share but the build says it isn't</h3>
+    <p>The share is copied into Inputs once a day, at 08:00, and only when the VPN is on. Ask Aaron to copy it now, or check that you are connected.</p>
     <h3>"The launcher runtime is missing"</h3>
     <p>The launcher isn't fully installed on the share. Ask Aaron to run the launcher release.</p>
   </section>
-
-  <section id="where">
-    <h2>Where things are</h2>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th scope="col">Folder in CSM_Reporting</th><th scope="col">What's there</th></tr></thead>
-        <tbody>
-          <tr><td><span class="path">ARS Deck Builder GUI.bat</span></td><td>CSM Sheila in your browser: decks, the Lift Matrix and each client's data issues.</td></tr>
-          <tr><td><span class="path">Build ARS Deck.bat</span></td><td>The same build in a window, one client at a time.</td></tr>
-          <tr><td><span class="path">Outputs\&lt;CSM&gt;\</span></td><td>Your finished decks.</td></tr>
-          <tr><td><span class="path">Outputs\&lt;your name&gt;\_Archive\</span></td><td>Decks replaced by a newer build, inside your own folder. It stays at the top of that folder.</td></tr>
-          <tr><td><span class="path">Inputs\</span></td><td>The ODD extracts and workbooks the build reads. Leave these alone.</td></tr>
-          <tr><td><span class="path">Inputs\Code Sheets\</span></td><td>The client code sheets. This is where an unmapped code gets corrected.</td></tr>
-          <tr><td><span class="path">Build Artifacts\launcher\</span></td><td>A build's log, charts and data files. You only need these if Aaron asks for a <code>build.log</code>.</td></tr>
-          <tr><td><span class="path">Tools\</span></td><td>The launcher's code and Python. Don't change anything here.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
 </main>
-<footer>Questions or a build that won't finish: contact Aaron Burgard with the client number.</footer>
+<footer>Questions or a build that won't finish: contact Aaron Burgard with the client number. Guide updated 2026-11-03.</footer>
 </body>
 </html>

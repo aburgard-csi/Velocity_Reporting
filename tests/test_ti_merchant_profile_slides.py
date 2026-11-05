@@ -102,7 +102,28 @@ def test_rising_and_falling_names_the_biggest_mover_each_way():
     (head, sub), _ = h.slides[-1]
     assert head == "Amazon is up $37K window over window; Shell is down $22K"
     assert "May26-Jul26 against Feb26-Apr26" in sub
-    assert h.charts[-1]["rows"][0] == ["Amazon", 98_400, 61_200, "812 accounts · +61%"]
+    # a diverging bar of the change since Sheila's 1798 slide review (2026-10-30): risers first,
+    # biggest gain at the top, fallers after with the biggest fall at the bottom
+    rows = h.charts[-1]["rows"]
+    assert rows[0] == ["Amazon", 37_200, "+61%"]
+    assert [r[0] for r in rows] == ["Amazon", "Costco", "Target", "Shell"]
+
+
+def test_rising_and_falling_combines_a_merchant_whose_descriptor_changed():
+    """1798: "CIRCLE K" became "CIRCLEK" inside the window, and the slide read "Circlek is up
+    $4.6M" beside a Circle K down $4.7M (Sheila's slide review, 2026-10-30)."""
+    h = _Harness()
+    t = dict(FULL, mch_growth=[["CIRCLEK", 26_449, 155_402, 4_749_540, 4_594_138, 2956.3],
+                               ["WM SUPERCENTER", 33_539, 7_930_127, 11_047_585, 3_117_457, 39.3],
+                               ["LOWE'S", 13_480, 2_197_831, 1_941_739, -256_092, -11.7],
+                               ["CIRCLE K", 5_550, 4_962_961, 268_572, -4_694_389, -94.6]])
+    C.merchants_rising_and_falling(h, t, "personal accounts")
+    (head, _), _ = h.slides[-1]
+    assert head.startswith("WM Supercenter is up $3.1M") and "Circlek" not in head
+    rows = h.charts[-1]["rows"]
+    assert [r[0] for r in rows] == ["WM Supercenter", "Circle K", "Lowe's"]
+    assert rows[1][1] == 4_749_540 + 268_572 - 155_402 - 4_962_961
+    assert "Circle K" in h.charts[-1]["kw"]["note"]
 
 
 def test_new_and_faded_marks_the_new_rows_only():
@@ -125,11 +146,14 @@ def test_merchant_bars_keep_their_dollar_signs_out_of_mathtext():
 def test_tenure_slide_carries_time_to_first_swipe_on_the_rail():
     h = _Harness()
     C.card_use_by_account_tenure(h, FULL, "personal accounts")
-    (head, _), _ = h.slides[-1]
-    assert head.endswith("a new account takes a median 12 days to its first swipe")
-    assert h.rails[-1][3] == ("First swipe", "12 days",
-                              "median for 200 accounts opened Aug25 - Jun26, 30 days' grace")
-    assert h.rails[-1][4][2] == "of those accounts; 15% have not swiped yet"
+    (head, sub), _ = h.slides[-1]
+    # 102 words on 1798 (Sheila's slide review, 2026-10-30: too dense): the first swipe left the
+    # headline for the rail, and the rail is four tiles
+    assert head == "Accounts 3-10 yrs spend the most on the card, $4.9K per account"
+    assert sub == "card dollars per account, personal accounts"
+    assert len(h.rails[-1]) == 4
+    assert h.rails[-1][2] == ("First swipe", "12 days", "median, 200 new accounts")
+    assert h.rails[-1][3] == ("Within 30 days", "65%", "of new accounts swipe")
     h = _Harness()
     C.card_use_by_account_tenure(h, {"mch_by_tenure": FULL["mch_by_tenure"]}, "personal accounts")
     assert len(h.rails[-1]) == 3

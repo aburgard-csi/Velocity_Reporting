@@ -39,12 +39,12 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 from shapes import textbox, shadow, fit_picture
-from brand import HEAD, BODY, NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, WHITE_RGB as WHITE
+from brand import HEAD, BODY, NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, WHITE_RGB as WHITE, TICK_RGB
 
 import month_complete
 import mrpc_charts_gen as CH
 
-GREY = RGBColor(0x5A, 0x67, 0x78)
+GREY = TICK_RGB          # was a second text grey one step from TICK (2026-11-02)
 WINDOW = 12           # complete months behind "enrolled in the last 12 months"
 TILE_T, TILE_H = 1.62, 1.45
 TILE_X = (0.7, 4.83, 8.96)

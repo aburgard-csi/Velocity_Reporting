@@ -69,8 +69,9 @@ else:
         _pk.dump((hdr, _need, _redhdr, data), open(_os.environ['MG_DUMP'], 'wb')); sys.exit(0)
 # The ODD row vocabulary is defined once in odd_rows and bound here. It used to
 # be re-declared in every script, and personal() had drifted between them.
-from odd_rows import accessors as _accessors, OPEN_STATUSES as OPEN, CLOSED_STATUSES as CLOSED
-_odd=_accessors(H)
+from odd_rows import accessors as _accessors, OPEN_STATUSES as OPEN, CLOSED_STATUSES as CLOSED, client_of as _client_of
+# The client's code sheet settles statuses the generic wording does not (1585, 2026-11-02).
+_odd=_accessors(H, _client_of(F) or _client_of(_SRC_NAME))
 g=_odd.g; fnum=_odd.fnum
 _MKEY={}
 def mkey(t):
@@ -130,9 +131,11 @@ _bdir0=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir)
 if _bdir0 not in sys.path: sys.path.insert(0,_bdir0)
 import month_complete as _MC
 _COMPLETE=_MC.odd_completeness(data,_odd,smonths,_MC.pull_date(_SRC_NAME))
-ACT_MONTHS=smonths[:_COMPLETE['activity']['complete']]
-NSF_MONTHS=smonths[:_COMPLETE['nsf']['complete']]
-ALL_MONTHS=smonths[:_COMPLETE['all']['complete']]
+# usable_months = the complete prefix LESS any interior gap (an extract whose Aug26 NSF/OD collapsed
+# and came back in Sep26, 2026-10-13); a gap month is skipped, never zeroed or charted as a collapse.
+ACT_MONTHS=_MC.usable_months(smonths,_COMPLETE['activity'])
+NSF_MONTHS=_MC.usable_months(smonths,_COMPLETE['nsf'])
+ALL_MONTHS=_MC.usable_months(smonths,_COMPLETE['all'])
 if not ACT_MONTHS or not NSF_MONTHS:
     _data_issue_early=("POSSIBLE DATA ISSUE: %s has no complete month of activity. Nothing was computed from it."
                        % _os.path.basename(F))
@@ -141,7 +144,7 @@ ACT_LAST=ACT_MONTHS[-1]
 M['month_completeness']=_COMPLETE
 M['activity_month']=lbl(ACT_LAST)
 for _fam in ('activity','nsf'):
-    if _COMPLETE[_fam]['excluded']:
+    if _COMPLETE[_fam]['excluded'] or _COMPLETE[_fam]['interior']:
         print("NOTE complete months: " + _MC.excluded_sentence(_COMPLETE[_fam]), file=sys.stderr)
 def _data_issue(what, detail=""):
     """Stop with a named data problem instead of a ZeroDivisionError or an empty mean().
@@ -177,7 +180,9 @@ M['overall_take']=round(100*sum(1 for r in elig if hascard(r))/len(elig),1)
 w3=ALL_MONTHS[-3:]
 # Label for the slides that quote this window. It was hardcoded in the template as
 # "(Apr–Jun 2026)" and never swapped, so every client shipped the reference client's window.
-M['w3_label']=f"{mkey(w3[0]).strftime('%b')}\u2013{mkey(w3[-1]).strftime('%b %Y')}" 
+M['w3_label']=f"{mkey(w3[0]).strftime('%b')}\u2013{mkey(w3[-1]).strftime('%b %Y')}"
+_w3_gap=[m for m in smonths if mkey(w3[0])<mkey(m)<mkey(w3[-1]) and m not in w3]
+if _w3_gap: M['w3_label']+=" ("+", ".join(mkey(m).strftime('%b') for m in _w3_gap)+" left out)"
 def sw3(r): return sum(swipes(r,m) for m in w3)/3
 def sp3(r): return sum(spend(r,m) for m in w3)/3
 def ns3(r): return sum(nsf(r,m) for m in w3)/3

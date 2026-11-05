@@ -569,7 +569,7 @@ def rails_slide(prs, ci, ctx):
 def card_gaps_slide(prs, ci, ctx):
     cg = ci["more"]["card_gaps"]
     av = ci["more"]["account_value"]
-    after = "12-Month Take Rate by Branch"
+    after = "12-Month Eligible Take Rate — Business"     # the branch table moved to the Appendix (2026-11-02)
     if not cg.get("available"):
         return _unavailable(prs, ctx, "Where Cards Lag", "Selection: ARS-eligible personal accounts.",
                             cg.get("reason", "no eligible accounts"), after)

@@ -258,10 +258,10 @@ def clean_state():
     reset()
 
 
-def listing(period="2026.09", decks=(), error=False, sent=None):
+def listing(period="2026.09", decks=(), error=False):
     return {"period": period, "lift_pending": False, "clients": [
         {"id": "1441", "name": "FNB Alaska", "csm": "James Gilmore", "programs": ["ARS"], "path": "MM",
-         "sent": sent, "decks": list(decks), "lift_expired": False, "error": error, "result_written": None}]}
+         "decks": list(decks), "lift_expired": False, "error": error, "result_written": None}]}
 
 
 def test_the_list_names_the_products_each_deck_covers():
@@ -387,8 +387,8 @@ def test_a_finished_build_shows_in_the_list_before_the_refresh(clean_state, monk
 
 
 def test_a_changed_list_row_drops_that_clients_cached_status(clean_state, monkeypatch):
-    """A deck built, or a send recorded, from anywhere else is re-checked on the client's next view."""
-    docs = iter([listing(), listing(sent="2026-09-17")])
+    """A deck built from anywhere else is re-checked on the client's next view."""
+    docs = iter([listing(), listing(decks=["1441-2026.09-ARS-FNB Alaska ARS Results.pptx"])])
     monkeypatch.setattr(W, "compute_clients", lambda: next(docs))
     W.refresh_clients()
     W._status_cache["1441"] = (time.time(), {"client": "1441", "state": "ready", "checks": []})
@@ -438,7 +438,48 @@ def test_an_old_status_is_shown_at_once_with_its_build_buttons_held(clean_state,
     monkeypatch.setattr(W, "STATUS_TTL", 600)
     new = W.status_doc("1441", background=True)
     assert new["state"] == "stop" and new["refreshing"] is False
-    assert "if (HOLD) for (const b of [go, go2, goti, gocomp])" in W.PAGE, "the page holds the Build buttons meanwhile"
+    import sheila_hub as H
+    assert 'if (s.refreshing) for (const x of $$("#detail [data-act=build]")) { x.disabled = true; x.title = "Waiting for the fresh check"; }' in H.PAGE, \
+        "the page holds the Build buttons meanwhile"
+
+
+def test_statuses_are_renewed_behind_an_open_page_before_they_expire(clean_state, monkeypatch):
+    """The warm-up checks every client once; ten minutes on, each stored status had expired and the list said
+    "Checking…" for every client with no deck until somebody opened it (Aaron, 2026-10-29: Max's accounts)."""
+    monkeypatch.setattr(W, "compute_clients", lambda: listing())
+    monkeypatch.setattr(W, "current_period", lambda: "2026.09")
+    checked = []
+
+    def compute(cid):
+        checked.append(cid)
+        return {"client": cid, "state": "ready", "period": "2026.09", "checks": []}
+    monkeypatch.setattr(W, "compute_status", compute)
+
+    def settled(n):
+        return wait_for(lambda: len(checked) == n and not W._renew["busy"])
+
+    W.clients_doc()
+    time.sleep(0.3)
+    assert checked == [] and W._renew["on"] is False, "only main() turns the renewal on"
+
+    monkeypatch.setitem(W._renew, "on", True)
+    assert W.clients_doc()["clients"][0]["checked"] is False
+    assert settled(1), "a client with no stored status is checked"
+    assert W.clients_doc()["clients"][0]["checked"] is True
+
+    W.clients_doc()
+    time.sleep(0.3)
+    assert len(checked) == 1, "a young status is left alone"
+
+    now = time.time()
+    W._status_cache["1441"] = (now - W.STATUS_TTL * 0.9, {"client": "1441", "state": "ready", "period": "2026.09"})
+    W.clients_doc()
+    assert settled(2), "a status near the end of its life is renewed before it expires"
+    assert now < W._status_cache["1441"][0]
+
+    W._status_cache["1441"] = (time.time(), {"client": "1441", "state": "ready", "period": "2026.08"})
+    W.clients_doc()
+    assert settled(3), "a status for another cycle is checked again"
 
 
 def test_a_check_that_started_before_a_build_finished_is_not_stored(clean_state, monkeypatch):
@@ -685,13 +726,7 @@ def test_the_list_carries_the_menu_for_the_page(monkeypatch):
         def read_roster():
             return ([("1038", "Sugar River Bank", "SM", ["ARS"])], [])
 
-    class _DS:
-        @staticmethod
-        def read_deliveries():
-            return {"sent": {}}
-
     monkeypatch.setitem(__import__("sys").modules, "build_month", _BM)
-    monkeypatch.setitem(__import__("sys").modules, "deck_status", _DS)
     doc = W.compute_clients()
     assert doc["period"] == "2026.10"
     assert doc["periods"] == ["2026.10", "2026.09"]
@@ -762,15 +797,16 @@ def test_serving_the_list_never_touches_the_share(monkeypatch):
 
 
 def test_every_element_the_page_script_asks_for_exists():
-    """$("#detail") was an id this page does not have, so every cycle change threw
-    "Cannot set properties of null" after the switch had already happened (Aaron, 2026-10-02).
-    Nothing in Python could see it: the page is a string, and the id was only ever read at
-    runtime. Collect the ids the script asks for by name and check each one is written
-    somewhere in the page — in the static HTML or by the script itself."""
+    """$("#detail") was an id this page did not have, so every cycle change threw "Cannot set properties of null"
+    after the switch had already happened (Aaron, 2026-10-02). Nothing in Python could see it: the page is a string,
+    and the id was only ever read at runtime. Collect the ids the script asks for by name and check each one is
+    written somewhere in the page: in the static HTML or by the script itself."""
     import re
-    page = W.PAGE
+    import sheila_hub as H
+    page = H.PAGE
     have = set(re.findall(r'id="([A-Za-z][\w-]*)"', page))        # static and script-built alike
     have |= set(re.findall(r'\.id = "([A-Za-z][\w-]*)"', page))     # ...and ids set as a property
+    have |= {"cycles", "news"}                                      # the two menus, named where menuAt() is called
     asked = set(re.findall(r'\$\("#([A-Za-z][\w-]*)"\)', page))
     asked |= set(re.findall(r'querySelector\("#([A-Za-z][\w-]*)"\)', page))
     missing = sorted(asked - have)
@@ -778,22 +814,20 @@ def test_every_element_the_page_script_asks_for_exists():
 
 
 def test_the_cycle_code_calls_nothing_it_never_defines():
-    """The id check caught $("#detail"); the very next run of the same code threw
-    "load is not defined", because the function is called loadClients (Aaron, 2026-10-02).
-    Both are the same mistake — a name that only resolves when a CSM clicks.
-
-    Scoped to the cycle functions rather than the whole script: a regex cannot tell a call
-    from CSS or an object key, and a check that cries wolf over the other 2,000 lines would
-    be switched off within a week. These are the functions that were wrong twice.
-    """
+    """The id check caught $("#detail"); the very next run of the same code threw "load is not defined", because
+    the function is called loadClients (Aaron, 2026-10-02). Both are the same mistake: a name that only resolves
+    when a CSM clicks. Scoped to the cycle functions rather than the whole script: a regex cannot tell a call from
+    CSS or an object key, and a check that cries wolf over the other 2,000 lines would be switched off within a
+    week. These are the functions that were wrong twice."""
     import re
-    page = W.PAGE
+    import sheila_hub as H
+    page = H.PAGE
     defined = set(re.findall(r'function\s+([A-Za-z_]\w*)\s*\(', page))
-    defined |= set(re.findall(r'(?:const|let|var)\s+([A-Za-z_]\w*)\s*=\s*(?:async\s*)?(?:\(|function)', page))
+    defined |= set(re.findall(r'(?:const|let|var)\s+([A-Za-z_]\w*)\s*=\s*(?:async\s*)?(?:\(|function|[A-Za-z_]\w*\s*=>)', page))
     allowed = defined | {"fetch", "alert", "setTimeout", "clearTimeout", "encodeURIComponent",
-                         "JSON", "Date", "Math", "Object", "Array", "String", "Number"}
+                         "JSON", "Date", "Math", "Object", "Array", "String", "Number", "var"}   # var(--token) in a style
     missing = {}
-    for name in ("pickCycle", "openCycles", "closeCycles", "paintPeriod"):
+    for name in ("pickCycle", "openCycles", "closeMenus", "paintPeriod"):
         m = re.search(r"function %s\(.*?\n\}" % name, page, re.S)
         assert m, f"{name} is no longer in the page"
         body = m.group(0)

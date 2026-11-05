@@ -22,6 +22,7 @@ rules, and the shipped defect each one exists for:
     period_findings               span arithmetic, and captions dated after the snapshot
     source_note_findings          a data slide with no Source line, or another client's source
     closing_month_findings        Questions & Discussion month/client differs from the cover (2026.09 ARS decks)
+    peer_slide_findings           a "How You Compare" slide that could not read its peers, or names another client (2026-11-03)
 table_label_fit_findings      a wrapped table row label pushes the table off the slide (branch names, 2026-09-17)
     figure_sidecar_findings       one NAMED measure, two values (FAIL — the builder said so)
     claim_consistency_findings    "flat" / "rose" / "lower" against the figures beside them
@@ -1014,6 +1015,41 @@ def closing_month_findings(prs):
     return out
 
 
+# ================================================================ How You Compare
+_PEER_TITLE = "How You Compare"
+_PEER_LEAK = re.compile(r"(?<![\d,.$])1\d{3}(?![\d,.%])")
+
+
+def peer_slide_findings(prs):
+    """FAIL when a "How You Compare" slide could not read its peers, or identifies another client.
+
+    The peer slide (build/peer_slide.py, Aaron 2026-11-03) shows the client against every other client on the program.
+    Two ways it can go wrong that no other rule sees:
+      * the builder could not READ the other clients' figures and said so on the slide ("could not be drawn for this
+        build"): the slide is never dropped, so the statement has to fail the gate instead, or it ships to the client;
+      * a printed deck is forwarded, so no other client may be named or numbered. Live Review's hover gives a peer's client
+        number; a deck gives nothing. A "client NNNN" in the notes other than the deck's own, or a bare four-digit number in
+        the thousand range on the face (a client number; figures carry their comma), is a leak.
+    """
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        if not _title(slide).startswith(_PEER_TITLE):
+            continue
+        face = " ".join(sh.text_frame.text for sh in slide.shapes if sh.has_text_frame)
+        notes = slide.notes_slide.notes_text_frame.text if slide.has_notes_slide else ""
+        if "could not be drawn" in face or "could not be read" in notes:
+            out.append(("FAIL", idx, "the peer comparison could not be drawn: the other clients' figures were not readable "
+                                     "when this deck was built; rebuild with the shares reachable"))
+        own = re.search(r"peer comparison for client (\d{3,5})\b", notes)
+        for cid in re.findall(r"\b[Cc]lients? (\d{4})\b", notes):
+            if not own or cid != own.group(1):
+                out.append(("FAIL", idx, f"the peer slide's notes name client {cid}: a peer is never identified in a deck"))
+        m = _PEER_LEAK.search(face)
+        if m:
+            out.append(("FAIL", idx, f"the peer slide carries '{m.group(0)}', which reads as a client number: a peer is never identified in a deck"))
+    return out
+
+
 # ================================================================ figure sidecar
 def figure_sidecar_findings(deck_path):
     """FAIL when one NAMED measure rendered more than one value.
@@ -1900,6 +1936,7 @@ def run(path, extract=None):
     findings += period_findings(prs, find_period_pack(path))
     findings += source_note_findings(path, prs)
     findings += closing_month_findings(prs)
+    findings += peer_slide_findings(prs)
     findings += table_label_fit_findings(prs)
     findings += tile_label_findings(prs)
     findings += account_population_findings(prs)
@@ -1924,7 +1961,7 @@ RULES = (package_findings, reference_leak_findings, single_line_overflow_finding
          text_rule_findings, geometry_findings, text_collision_findings,
          autofit_findings, mailing_table_findings, extract_findings,
          labelled_metric_findings, summit_date_findings, closing_month_findings,
-         table_label_fit_findings, tile_label_findings)
+         peer_slide_findings, table_label_fit_findings, tile_label_findings)
 
 
 def main(argv=None):

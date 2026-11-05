@@ -21,10 +21,25 @@ def _bottom(shape):
 
 
 def test_a_table_that_would_overflow_tightens_and_keeps_every_row():
+    rows = [["Tenure", "At risk", "Closed", "Hazard"]] + [[f"band {i}", "1,000", "100", "10.0%"] for i in range(5)]
+    shape = H._table(_slide(), rows, H.MARGIN_L, 5.55, 9.0)
+    assert len(shape.table.rows) == 6, "no row is dropped while the font can stay at 10pt or more"
+    assert _bottom(shape) <= H.TABLE_FLOOR + 0.01, "the table stays above the slide number"
+
+
+def test_a_table_too_long_for_10pt_sheds_rows_and_says_so_never_shrinks_under_10pt():
+    """The font went down to 7pt (1798's closure-hazard table, Sheila's slide review, 2026-10-30);
+    it now stops at TABLE_MIN_PT and the rows that do not fit are counted on the last row."""
     rows = [["Tenure", "At risk", "Closed", "Hazard"]] + [[f"band {i}", "1,000", "100", "10.0%"] for i in range(7)]
     shape = H._table(_slide(), rows, H.MARGIN_L, 5.55, 9.0)
-    assert len(shape.table.rows) == 8, "no row is dropped"
-    assert _bottom(shape) <= H.TABLE_FLOOR + 0.01, "the table stays above the slide number"
+    sizes = {r.font.size.pt for row in shape.table.rows for c in row.cells
+             for p in c.text_frame.paragraphs for r in p.runs if r.font.size}
+    assert min(sizes) >= H.TABLE_MIN_PT
+    last = shape.table.cell(len(shape.table.rows) - 1, 0).text
+    kept = len(shape.table.rows) - 2
+    assert last == f"+ {7 - kept} more rows not shown"
+    assert shape.table.cell(1, 0).text == "band 0", "the table keeps its first rows"
+    assert _bottom(shape) <= H.TABLE_FLOOR + 0.01
 
 
 def test_a_table_that_fits_is_unchanged():

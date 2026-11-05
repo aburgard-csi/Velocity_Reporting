@@ -125,3 +125,12 @@ def test_rate_labels_sit_in_one_band_above_the_line(tmp_path):
     ys = {round(y, 6) for _s, y in pct}
     assert len(ys) == 1, "every rate label sits at the same height"
     assert ys.pop() > max(r[3] for r in rows), "the band is above the highest rate"
+
+
+def test_the_cap_seats_a_27_branch_book(tmp_path):
+    """1441 FNB Alaska has 27 branches; every one is drawn (the cap was 12)."""
+    assert chart_lib.BRANCH_CAP >= 27
+    rows = [(str(i), 5, 40 + i, 10 + i % 80) for i in range(27)]
+    out = _png(tmp_path, "b27.png")
+    chart_lib.branch_chart(out, rows, ORANGE, NAVY, 2460, 740)
+    assert os.path.getsize(out) > 5000

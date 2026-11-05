@@ -5,12 +5,16 @@ who overdrafts by how they are paid, who banks here first, and what arrives agai
 Figures: v5's balance and deposit-behaviour sections (`ti/odd_sections.py`), on the client's own
 deposits extract (`ti/deposits_input.py`). Slides: v5's eleven deposit builders
 (`ti/deck/deposit_slides.py`), drawn through `ti/deck/helpers.py`. A client with no deposits file
-gets each slide stated, not dropped. The chapter describes the whole book, so it reads the same in
-the ARS and ICS lens decks (James, 2026-10-23: both lens decks full).
+has every slide decline through `Deck.declined` ("no deposits file", from `deposit_slides._gate`),
+never a drawn placeholder of its own, so the frame's rule for declined slides applies to all eleven
+and a chapter with nothing to show can go as a whole (Sheila's 1798 review, 2026-10-30: twelve
+"Not shown" pages). The chapter describes the whole book, so it reads the same in the ARS and ICS
+lens decks (James, 2026-10-23: both lens decks full).
 """
 from pathlib import Path
 
 from ti import cut, odd_sections
+from ti.deck import combine
 
 TITLES = {
     "deposit_overview": "What deposits look like",
@@ -25,6 +29,19 @@ TITLES = {
     "deposit_primacy": "Who banks here first",
     "inflow_against_outflow": "What arrives against what leaves",
 }
+
+
+# two one-chart slides as one (Aaron, 2026-11-02; ti/deck/combine.py)
+COMBINED = (
+    ("recurring_credits", "income_shape", "How members are paid",
+     "How members are paid, and how steady it is",
+     "Left: how regular each member's pay rhythm is. Right: how much total inflow varies month to month.",
+     "how_members_are_paid"),
+    ("credits_stopped", "deposit_milestones", "When the pay stops",
+     "When the pay stops",
+     "Left: members whose regular credit stopped, by month. Right: how long since money last arrived.",
+     "when_pay_stops"),
+)
 
 
 def compute(ctx):
@@ -48,8 +65,8 @@ def build(ctx):
     from ti.deck.helpers import Deck
     deck = Deck(ctx, "the client's deposits extract (Inputs/Deposits) and the ODD extract",
                 Path(ctx.art_dir or ".") / "charts" / "deposits")
-    builders = [getattr(S, name) for name in TITLES]
-    return deck.run(builders, TITLES, ctx.pack.get("metrics") or {})
+    builders, titles = combine.apply([getattr(S, name) for name in TITLES], TITLES, COMBINED)
+    return deck.run(builders, titles, ctx.pack.get("metrics") or {})
 
 
 CHAPTER = cut.Chapter("TI_DEP", "Deposits", "Paydays · Income · Primacy",

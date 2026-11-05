@@ -417,14 +417,6 @@ def test_settings_csm_reads_the_record_and_is_none_without_one(tmp_path, monkeyp
     assert P.settings_csm("1771") is None
 
 
-def test_template_filters_by_csm_and_never_assigns_a_default():
-    """A client with no CSM is Unassigned on the page, never filed under a guess."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert 'id="csmchips"' in t
-    assert "const csmOf = c => c.csm || UNASSIGNED" in t
-    assert "inCsm(c) && selClients.has(c.id)" in t
-
-
 # ------------------------------------------------------------------ every current client
 def test_page_lists_current_clients_beyond_the_roster_but_not_stopped_ones(tmp_path, monkeypatch):
     root = _share(tmp_path, ["2026.09/Daniel Wood/1095-2026.09-Landmark Bank-DCO.xlsx",
@@ -474,53 +466,6 @@ def test_months_before_counts_across_a_year_end():
     assert P.months_before("2026.09", "2026.10") == -1
 
 
-def test_template_product_chips_isolate_from_all_like_the_other_filters():
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "const all = selProgs.size===PROGS.length;" in t
-    assert "if(e.shiftKey || e.altKey || all){ selProgs = new Set([k]); }" in t
-
-
-def test_template_lists_a_client_with_no_program_data_under_all_products():
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert ("const inProducts = c => c.programs.length ? c.programs.some(k=>selProgs.has(k))"
-            " : selProgs.size===PROGS.length;") in t
-    assert "inCsm(c) && selClients.has(c.id) && inProducts(c)" in t
-    assert 'c.programs_from === "data"' in t
-
-
-def test_template_saves_all_as_all_so_new_clients_are_not_hidden():
-    """A saved list of yesterday's "all" narrows today's page to yesterday's clients."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert 'const FILTER_KEY = "rpe-dash-filter-v2";' in t
-    assert "set.size===n ? null : [...set]" in t
-    assert 'localStorage.getItem("rpe-dash-filter")' not in t
-
-
-def test_template_filters_allow_an_empty_selection():
-    """Aaron, 2026-09-14: the last selected chip in a row can be clicked off too."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    for sel in ("selProgs", "selCsms", "selClients"):
-        assert "if(%s.size>1)" % sel not in t, sel
-    assert "if (!saved.length) return new Set();" in t, "an empty selection must survive a reload"
-    assert "No CSM is selected." in t
-    # the per-render reset that silently turned an empty client selection back into all
-    assert "if (!clients.some(c=>inCsm(c) && selClients.has(c.id))) selClients" not in t
-
-
-def test_template_chips_show_three_states_and_each_row_leads_with_all():
-    """Aaron, 2026-09-14: white while the whole row is selected, blue on, light gray off."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    for token in ("--chip-all:#FFFFFF", "--chip-on:#245C8C", "--chip-off:#E9EDF1"):
-        assert token in t, token
-    assert ".chip{appearance:none;border:1px solid var(--hair);background:var(--chip-off);" in t
-    assert "class=\"chip ${allM?'in':(selCsms.has(m)?'on':'')}\"" in t
-    assert "class=\"chip ${allP?'in':(selProgs.has(p.k)?'on':'')}\"" in t
-    assert "class=\"chip ${allC?'in':(selClients.has(c.id)?'on':'')}" in t
-    for rid in ("resetCsm", "resetProg", "resetClient"):
-        assert 'class="chip all" id="%s"' % rid in t, rid
-    assert "persist(); renderChips(); markAllChips();" in t
-
-
 def test_a_refused_workbook_is_labelled_in_the_extractors_words():
     """A workbook's own fault reads as the extractor's verdict, never "extract failed"."""
     assert P._flagged("Traceback...\nSystemExit\nUNEVALUATED WORKBOOK: 1192-2026.09-Ascend FCU-Workbook.xlsx carries no calculated values\n") \
@@ -534,26 +479,6 @@ def test_a_refused_workbook_is_labelled_in_the_extractors_words():
 def test_the_odd_data_month_is_the_month_before_the_cycle():
     assert P.odd_data_month("2026.09") == "Aug26"
     assert P.odd_data_month("2026.01") == "Dec25"
-
-
-def test_template_shows_the_client_overview_first_whatever_the_products():
-    """Client-level figures, so the section is not gated on a product chip. Only the CSM
-    action items, which are ARS-only and are what a CSM acts on, come before it."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "function secOverview(vis){" in t
-    assert ('const html = [selProgs.has("ARS")?safe("CSM action items",()=>secActions(vis)):"",\n'
-            '                safe("Client overview",()=>secOverview(vis)),') in t
-    assert "const stale = DATA.odd_month && o.month !== DATA.odd_month;" in t, "an older extract is tagged"
-
-
-def test_template_sorts_every_section_table_after_each_render():
-    """Aaron, 2026-09-14: sort the product columns too, such as by loss rate."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "function applySectionSorts(){" in t
-    assert "  applySectionSorts();" in t, "the tables are rebuilt on every update, so the sort is re-applied"
-    assert 'data-sec="${esc(p.k || p.name)}"' in t, "each section keeps its own sort"
-    assert 'first = b.dataset.num === "1" ? -1 : 1' in t, "a numeric column sorts highest first on the first click"
-    assert 'rows.filter(r => r.classList.contains("peer")).forEach(r => body.appendChild(r));' in t
 
 
 def test_template_is_pure_ascii():
@@ -587,30 +512,6 @@ def test_ars_revenue_to_csi_is_the_current_month_expense_as_a_positive_figure():
     assert P.csi_revenue({}) is None, "an extract without the key is not $0"
 
 
-def test_template_leads_with_the_total_before_the_month():
-    """Aaron, 2026-09-14: a total column, then the last-month figure; no ARS profit or revenue
-    callouts, and ARS revenue to CSI shown instead."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "incremental profit, program to date" not in t
-    assert "revenue to CSI, ${csi[0].ars.data_label" in t
-    assert "const csi = ars.filter(c=>c.ars.csi_revenue!=null);" in t, "no $0 tile when the figure is absent"
-    assert t.index("<th>Revenue PTD</th><th>Profit PTD</th>") < t.index("<th>Incremental revenue")
-    assert t.index("<th>Incremental revenue") < t.index("<th>Revenue to CSI")
-    assert "<th>PTD</th><th>YTD</th><th>Last month</th>" in t
-    assert "<th>Trailing 12</th><th>Enrollments<br>" in t, "MRPC trailing 12 before last month"
-    ics_tiles = t[t.index("if(ics.length) tiles.push("):]
-    assert ics_tiles.index("c.ics.ytd") < ics_tiles.index("c.ics.prev_month"), "YTD tile before last month"
-
-
-def test_template_clients_row_folds_and_says_how_far_it_is_narrowed():
-    """Aaron, 2026-09-14: make the Clients filter collapsible. Closed by default."""
-    t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert 'id="toggleClients" aria-expanded="false" aria-controls="clientchips"' in t
-    assert '<span class="chipset" id="clientchips" hidden></span>' in t, "closed on first load"
-    assert "persist(); renderChips(); markAllChips(); renderClientFold();" in t
-    assert "of ${scoped.length} selected)" in t
-
-
 def test_built_decks_are_found_in_csm_folders_and_the_flat_folder(tmp_path, monkeypatch):
     """Outputs/ moves to Outputs/<CSM name>/ (2026-09-14); rpe_env.output_decks reads both
     layouts. Before that helper exists the flat glob gives the same answer."""
@@ -637,23 +538,6 @@ def _cp_pack(folder, cid, loans, principal, interest, status, cancelled=None, dd
         "client_id": cid, "cancelled": cancelled, "charge_off_pct": 0.05,
         "total": {"loans": loans, "principal": principal, "interest": interest}, "status": st,
         "metrics": {"peer_comparable": comparable, "dda_accounts": dda, "window_loans": window}}), encoding="utf-8")
-
-
-def test_the_cashplease_peer_row_covers_current_clients_only(tmp_path):
-    """Aaron, 2026-09-14: only show current clients. Reproducible figures are rebuilt from the
-    current clients' packs; reported-only ones are absent, never approximated."""
-    _cp_pack(tmp_path, "1131", 100, 50000.0, 5000.0, {"Overdue": 5, "Charged Off": 10, "Paid Off": 80},
-             dda=4000, window=40, comparable=True)
-    _cp_pack(tmp_path, "1750", 300, 150000.0, 9000.0, {"Overdue": 3, "Charged Off": 30, "Paid Off": 250})
-    _cp_pack(tmp_path, "1658", 999, 1.0, 1.0, {}, cancelled="2026-09-01")         # cancelled: out
-    _cp_pack(tmp_path, "9999", 5000, 1.0, 1.0, {})                                  # not current: out
-    peer = P.current_peer(tmp_path, ["1131", "1750", "1658"])
-    assert peer["cohort_clients"] == 2 and peer["total_loans"] == 400
-    assert peer["avg_loan_size"] == 500.0 and peer["avg_interest_per_loan"] == 35.0
-    assert peer["pct_loans_overdue"] == 8 / 400 and peer["pct_loans_charged_off"] == 40 / 400
-    assert peer["charge_off_pct"] is None and peer["pct_active_accounts_with_loans"] is None
-    assert peer["loans_per_1k_dda"] == 10.0 and peer["cohort_dda_clients"] == 1
-    assert P.current_peer(tmp_path, []) is None
 
 
 def test_a_program_is_inactive_with_no_activity_in_six_complete_months():
@@ -733,3 +617,228 @@ def test_the_page_switches_readiness_decks_and_sent_together():
     assert "period:v.P" in src
     # the choice is shared through the artifact's store, with this browser's own as fallback
     assert 'DB.doc("settings/readiness_period")' in src and "rpe-dash-rperiod" in src
+
+
+# ------------------------------------------------------------------ one CSM's clients
+# Aaron, 2026-11-02: "limit that artifact to my own clients, since we now have Sheila." The page used to
+# embed every CSM's clients and filter in the browser, so each client's figures were in the page for
+# anyone who could open it. Now another CSM's client is not read and is not in the dataset at all.
+import types as _types
+
+
+def test_scope_defaults_to_aaron_and_is_set_by_flag_or_environment():
+    assert P.scope_csm(None, env={}) == "Aaron Burgard"
+    assert P.scope_csm(None, env={"RPE_DASH_CSM": " Daniel Wood "}) == "Daniel Wood"
+    assert P.scope_csm("Max Willett", env={"RPE_DASH_CSM": "Daniel Wood"}) == "Max Willett", "the flag wins"
+
+
+@pytest.mark.parametrize("bad", ["all", "ALL", "  "])
+def test_there_is_no_all_csms_page(bad):
+    with pytest.raises(SystemExit):
+        P.scope_csm(bad, env={})
+
+
+def test_in_scope_matches_the_name_case_insensitively_and_never_a_blank():
+    assert P.in_scope("aaron burgard", "Aaron Burgard") and P.in_scope(" Aaron Burgard ", "Aaron Burgard")
+    assert not P.in_scope(None, "Aaron Burgard") and not P.in_scope("", "Aaron Burgard")
+    assert not P.in_scope("Jordan Berkowitz", "Aaron Burgard")
+
+
+def _stub_build(monkeypatch, tmp_path, csm_map, programs):
+    """build_dataset with every reader stubbed: it records which clients' sections were read."""
+    names = {cid: "Client %s" % cid for cid in csm_map}
+    all_clients = {cid: {"id": cid, "name": names[cid], "path": "SM", "programs": [],
+                         "roster_programs": list(programs.get(cid, ["ARS"])), "programs_from": "clients.md"}
+                   for cid in csm_map}
+    read = []
+
+    def sec(kind):
+        def f(cid, *a, **k):
+            read.append((kind, cid))
+            return {"name_marker": names[cid]} if kind != "cp" else \
+                {"monthly": [], "report_generated": "", "window_loans": 1, "total_loans": 1}
+        return f
+
+    monkeypatch.setattr(P.R, "inputs", lambda: tmp_path)
+    monkeypatch.setattr(P.R, "outputs", lambda: tmp_path)
+    monkeypatch.setattr(P.R, "build_artifacts", lambda: tmp_path)
+    monkeypatch.setattr(P.R, "report_dirs", lambda: [tmp_path])
+    monkeypatch.setattr(P, "MrpcWeekly", lambda reports: _types.SimpleNamespace(name=None, tabs=[], client=lambda cid: {}))
+    monkeypatch.setattr(P, "cashplease_packs", lambda r, w: (None, None, None, "none in this test"))
+    monkeypatch.setattr(P, "page_clients", lambda *a, **k: (all_clients, None))
+    monkeypatch.setattr(P, "csm_assignments", lambda *a, **k: dict(csm_map))
+    monkeypatch.setattr(P, "cashplease_roster", lambda *a, **k: {})
+    monkeypatch.setattr(P, "ars_section", sec("ars"))
+    monkeypatch.setattr(P, "ics_section", sec("ics"))
+    monkeypatch.setattr(P, "mrpc_section", sec("mrpc"))
+    monkeypatch.setattr(P, "cp_section", sec("cp"))
+    monkeypatch.setattr(P, "decks_and_sent", lambda *a, **k: ([], None, None))
+    monkeypatch.setattr(P, "deck_names", lambda *a, **k: [])
+    monkeypatch.setattr(P, "read_sent_log", lambda *a, **k: {})
+    monkeypatch.setattr(P, "readiness", lambda *a, **k: ({}, None))
+    monkeypatch.setattr(P.PO, "client_overviews", lambda ids, *a, **k: {i: {"missing": "stub"} for i in ids})
+    monkeypatch.setattr(P.ACT, "load", lambda: None)
+    monkeypatch.setattr(P, "vip_pull_date", lambda p: None)
+    return names, read
+
+
+CSMS = {"1001": "Aaron Burgard", "1002": "aaron burgard", "1003": "Jordan Berkowitz", "1004": "Daniel Wood", "1005": None}
+PROGS = {"1001": ["ARS", "ICS"], "1002": ["MRPC"], "1003": ["ARS", "ICS", "MRPC"], "1004": ["ARS"], "1005": ["ARS"]}
+
+
+def test_another_csms_client_is_not_read_and_not_in_the_dataset(monkeypatch, tmp_path):
+    names, read = _stub_build(monkeypatch, tmp_path, CSMS, PROGS)
+    d = P.build_dataset("2026.11", tmp_path, log=lambda *a: None, csm_name="Aaron Burgard")
+    assert [c["id"] for c in d["clients"]] == ["1001", "1002"]
+    assert d["scope"] == {"csm": "Aaron Burgard", "clients": 2,
+                          "programs": {"ARS": 1, "ICS": 1, "MRPC": 1, "CP": 0}}
+    # nothing of anyone else's was extracted, and nothing identifying them is anywhere in the page's data
+    assert {cid for _k, cid in read} == {"1001", "1002"}
+    blob = json.dumps(d)
+    for other in ("1003", "1004", "1005"):
+        assert other not in blob and names[other] not in blob, other
+    for other_csm in ("Jordan Berkowitz", "Daniel Wood"):
+        assert other_csm not in blob
+    page = P.render(d)
+    assert "Client 1003" not in page and "Jordan Berkowitz" not in page
+
+
+def test_a_client_no_csm_names_is_not_listed_under_a_guess(monkeypatch, tmp_path):
+    _stub_build(monkeypatch, tmp_path, CSMS, PROGS)
+    d = P.build_dataset("2026.11", tmp_path, log=lambda *a: None, csm_name="Aaron Burgard")
+    assert "1005" not in [c["id"] for c in d["clients"]]
+
+
+def test_a_csm_with_no_clients_stops_the_build_instead_of_publishing_an_empty_page(monkeypatch, tmp_path):
+    _stub_build(monkeypatch, tmp_path, CSMS, PROGS)
+    with pytest.raises(SystemExit, match="no client is assigned"):
+        P.build_dataset("2026.11", tmp_path, log=lambda *a: None, csm_name="Nobody Here")
+
+
+def test_the_scope_is_part_of_the_content_hash(monkeypatch, tmp_path):
+    _stub_build(monkeypatch, tmp_path, CSMS, PROGS)
+    a = P.build_dataset("2026.11", tmp_path, log=lambda *a: None, csm_name="Aaron Burgard")
+    b = P.build_dataset("2026.11", tmp_path, log=lambda *a: None, csm_name="Jordan Berkowitz")
+    assert P.content_hash(a) != P.content_hash(b)
+
+
+def _cp_pack(tmp_path, cid, loans, principal, interest, status, dda=None, window=0, comparable=False, cancelled=None):
+    d = {"total": {"loans": loans, "principal": principal, "interest": interest},
+         "status": {k: {"loans": v} for k, v in {"Overdue": 0, "Charged Off": 0, "Paid Off": 0, **status}.items()},
+         "metrics": {"peer_comparable": comparable, "dda_accounts": dda or 0, "window_loans": window}}
+    if cancelled:
+        d["cancelled"] = cancelled
+    (tmp_path / ("%s_cashplease.json" % cid)).write_text(json.dumps(d), encoding="utf-8")
+
+
+def test_the_cashplease_company_row_is_rates_and_averages_only(tmp_path):
+    """Aaron, 2026-09-14: current clients only; 2026-11-02: no other CSM's volume on the page. The row
+    still spans every CSM's current clients, so the sums it was built from do not leave current_peer."""
+    _cp_pack(tmp_path, "1131", 100, 50000.0, 5000.0, {"Overdue": 5, "Charged Off": 10, "Paid Off": 80},
+             dda=4000, window=40, comparable=True)
+    _cp_pack(tmp_path, "1750", 300, 150000.0, 9000.0, {"Overdue": 3, "Charged Off": 30, "Paid Off": 250})
+    _cp_pack(tmp_path, "1658", 999, 1.0, 1.0, {}, cancelled="2026-09-01")         # cancelled: out
+    _cp_pack(tmp_path, "9999", 5000, 1.0, 1.0, {})                                  # not current: out
+    peer = P.current_peer(tmp_path, ["1131", "1750", "1658"])
+    assert peer["cohort_clients"] == 2
+    assert peer["avg_loan_size"] == 500.0 and peer["avg_interest_per_loan"] == 35.0
+    assert peer["pct_loans_overdue"] == 8 / 400 and peer["pct_loans_charged_off"] == 40 / 400
+    assert peer["charge_off_pct"] is None and peer["pct_active_accounts_with_loans"] is None
+    assert peer["loans_per_1k_dda"] == 10.0 and peer["cohort_dda_clients"] == 1
+    for volume in ("total_loans", "total_principal", "cohort_dda_accounts", "cohort_window_loans"):
+        assert volume not in peer, volume
+    assert P.current_peer(tmp_path, []) is None
+
+
+# ------------------------------------------------------------------ the Hub page
+def _template():
+    return P.TEMPLATE.read_text(encoding="utf-8")
+
+
+def test_template_is_the_hub_frame():
+    """Aaron, 2026-11-02: "rebuild the RPE Client Performance artifact in hub fashion"."""
+    t = _template()
+    assert 'class="side"' in t and 'id="fold"' in t and 'id="bottom"' in t, "sidebar that folds, bottom bar on phones"
+    for view in ("overview", "ars", "ics", "mrpc", "cp", "roster", "actions"):
+        assert '"%s"' % view in t, view
+    assert 'href="workflow.html"' in t
+    assert 'aria-label="Two stacked slides"' in t and "#1C2541" in t and "#15627E" in t, "the slide-stack corner mark"
+    assert "#EEF3FA" in t and "#5FB3C9" in t, "its dark-mode colors"
+    assert "--ground:#EDF1F7" in t and "--ground:#0B132B" in t
+    assert t.count(':root:not([data-theme="light"])') == 1 and ':root[data-theme="dark"]{' in t
+    assert 'name="claude:viewport-fit-sides"' in t
+    assert "min-height:44px" in t, "44 px touch targets"
+
+
+def test_template_uses_hub_colors_and_no_orange():
+    t = _template().upper()
+    for orange in ("#F47A29", "#F15D22", "#D97706", "#F79552", "#E8590C"):
+        assert orange not in t, orange
+
+
+def test_template_program_colors_are_the_validated_set():
+    """Checked with the dataviz validate_palette script (2026-11-02): light on #FFFFFF, dark on #141D38."""
+    t = _template()
+    assert "--c-ars:#2F5FB5; --c-ics:#B5476B; --c-mrpc:#9A7B10; --c-cp:#8F4FB0;" in t
+    assert "--c-ars:#5F86DB; --c-ics:#D0608F; --c-mrpc:#AB8A22; --c-cp:#A06CD0;" in t
+
+
+def test_template_has_no_csm_or_product_filter_chips_because_the_page_is_one_csms():
+    t = _template()
+    for gone in ('id="csmchips"', "selCsms", "resetCsm", "selClients", 'id="progchips"'):
+        assert gone not in t, gone
+    assert "const SCOPE = DATA.scope" in t and "SCOPE.csm" in t
+    assert 'id="q"' in t, "one find box filters the view"
+
+
+def test_template_ranks_say_among_your_n_clients():
+    t = _template()
+    assert t.lower().count("among your ${ok.length}") == 4, "every ranking names its pool"
+
+
+def test_template_shows_the_client_overview_and_tags_an_older_extract():
+    t = _template()
+    assert "function overviewTable(vis){" in t and "overviewTable(vis)" in t
+    assert "const stale = DATA.odd_month && o.month !== DATA.odd_month;" in t, "an older extract is tagged"
+
+
+def test_template_sorts_every_section_table_after_each_render():
+    """Aaron, 2026-09-14: sort the product columns too, such as by loss rate."""
+    t = _template()
+    assert "function applySectionSorts(){" in t
+    assert "  applySectionSorts();" in t, "the tables are rebuilt on every update, so the sort is re-applied"
+    assert 'section class="card sect" data-sec=' in t, "each section keeps its own sort"
+    assert 'first = b.dataset.num === "1" ? -1 : 1' in t, "a numeric column sorts highest first on the first click"
+    assert 'rows.filter(r => r.classList.contains("peer")).forEach(r => body.appendChild(r));' in t
+
+
+def test_template_leads_with_the_total_before_the_month():
+    """Aaron, 2026-09-14: a total column, then the last-month figure; ARS revenue to CSI, never a $0 tile."""
+    t = _template()
+    assert "const csi = ars.filter(c=>c.ars.csi_revenue!=null);" in t, "no $0 tile when the figure is absent"
+    assert 'kpi("ARS revenue to CSI"' in t
+    assert t.index("<th>Revenue PTD</th><th>Profit PTD</th>") < t.index("<th>Incremental revenue")
+    assert t.index("<th>Incremental revenue") < t.index("<th>Revenue to CSI")
+    assert "<th>PTD</th><th>YTD</th><th>Last month</th>" in t
+    assert "<th>Trailing 12</th><th>Enrollments${sub2(" in t, "MRPC trailing 12 before last month"
+    assert t.index('kpi("Referrals, year to date"') < t.index("kpi(`Referrals in"), "YTD tile before last month"
+
+
+def test_template_draws_its_charts_inline_with_a_hover_layer_and_a_table_view():
+    t = _template()
+    assert "function trendChart(" in t and 'class="trend"' in t and "data-trend=" in t
+    assert 'data-rank="${p.k}:table"' in t and "function rankTable(" in t, "every ranking has a table view"
+    assert "<script src" not in t, "no script is loaded: the page works offline"
+
+
+def test_nothing_animates_but_the_loading_shimmer():
+    t = _template()
+    assert t.count("animation:") == 2 and "animation:sh 1.1s" in t and "animation:none!important" in t, "only the skeleton shimmer animates, and not under reduced motion"
+    assert "prefers-reduced-motion:reduce" in t
+
+
+def test_workflow_page_uses_hub_colors_and_links_back():
+    w = (P.REPO / "scripts" / "perf_workflow.html").read_text(encoding="utf-8").upper()
+    for old in ("#F47A29", "#F79552", "#00274C", "#0D9488", "#E7B84C"):
+        assert old not in w, old
+    assert "--BG:#EDF1F7" in w and "--BG:#0B132B" in w and 'HREF="INDEX.HTML"' in w
