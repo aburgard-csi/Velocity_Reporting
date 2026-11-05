@@ -84,6 +84,7 @@ _ABBREVIATIONS = [(re.compile(r"\b" + a + r"\b"), b) for a, b in (
 # Financial, not "ALLY PAYMENT" with a word skipped.
 _GAP = r"(?:\s+(?:(?!(?:CU|BK|LN|WD|NA)\b)[A-Z]{2}|OF|THE|AND|DE|LA))?\s+"
 UNNAMED_PROVIDER = "(unnamed)"
+UNSPECIFIED = "Unspecified"         # a matched pattern in none of its category's subtypes
 
 
 def normalize_core(s: str) -> str:
@@ -450,6 +451,40 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     out[key_prefix + "by_category_columns"] = ["category", "accounts", "pct_of_accounts", "txns", "dollars",
                                       "dollars_per_acct", "kind", "addressable",
                                       "median_wallet_share_pct", "card_rail_pct"]
+
+    # ---- subtypes: a category split by the line its provider writes (Insurance: auto / home /
+    # life / health). From the dictionary's "subtypes"; a pattern in none is "Unspecified".
+    subtype_rows = {}
+    m_base = m if account_filter is None else m[m["acct"].isin(account_filter)]
+    for name, c in spec["categories"].items():
+        if not c.get("subtypes"):
+            continue
+        grp = m_base[m_base["category"] == name]
+        if grp.empty:
+            continue
+        lookup = {}
+        for sub, pats in c["subtypes"].items():
+            for p in pats:
+                lookup[str(p).upper().strip()] = sub
+                lookup.setdefault(normalize_core(str(p)), sub)
+        prov = grp["provider"].astype(str)
+        sub_of = prov.map(lambda v: lookup.get(v.upper().strip(), lookup.get(normalize_core(v), UNSPECIFIED)))
+        cat_accts, cat_dollars = grp["acct"].nunique(), float(grp["amount"].sum())
+        rows_s = []
+        for sub, g in grp.groupby(sub_of.to_numpy(), sort=False):
+            top = g.groupby("provider", observed=True)["amount"].sum().sort_values(ascending=False)
+            rows_s.append([sub, int(g["acct"].nunique()), _pct(int(g["acct"].nunique()), cat_accts),
+                           int(len(g)), round(float(g["amount"].sum())),
+                           _pct(float(g["amount"].sum()), cat_dollars),
+                           [str(x) for x in top.index[:3]]])
+        rows_s.sort(key=lambda r: (r[0] == UNSPECIFIED, -r[4]))
+        subtype_rows[name] = rows_s
+    if subtype_rows:
+        out[key_prefix + "subtypes"] = subtype_rows
+        out[key_prefix + "subtypes_columns"] = ["subtype", "accounts", "pct_of_category_accounts", "txns",
+                                                "dollars", "pct_of_category_dollars", "top_providers"]
+        out[key_prefix + "subtypes_note"] = ("an account can pay more than one line, so subtype accounts can "
+                                             "add to more than the category's; dollars add exactly")
 
     leak_acc = ac[ac["kind"] == "leakage"]
     addr_acc = ac[ac["category"].isin(addressable)]

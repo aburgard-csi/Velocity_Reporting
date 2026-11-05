@@ -132,7 +132,8 @@ BUILDERS = [
     L.the_book_narrowed, C.how_the_money_moves, C.twelve_months,
     # leakage
     L.their_financial_life, _where_the_money_goes,
-    L.where_the_leakage_goes, L.who_they_pay, L.how_long_it_has_run,
+    L.where_the_leakage_goes, L.who_they_pay, L.insurance_by_line,
+    L.how_long_it_has_run,
     L.started_and_stopped, L.how_deep, L.leakage_by_group,
     L.leakage_by_group_and_category, L.what_leakers_hold,
     L.how_the_leakage_builds, L.which_services_travel_together,
