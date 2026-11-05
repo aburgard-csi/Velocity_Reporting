@@ -18,6 +18,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+# AGE_BANDS / TENURE_BANDS: one definition, shared with the age_band and
+# tenure_band lens families the leakage and competition cuts use.
+from ..core.account_lenses import AGE_BANDS, TENURE_BANDS
 from .financial_services import _pct
 from .lens import Lenses
 from .merchants import MASKED_TOKEN, OTHER, _categorize, group_ranges
@@ -30,10 +33,6 @@ MOVE_PCT = 10.0                      # +/- 10% between windows counts as a move
 TOP_MCC = 12
 MIN_BAND_ACCOUNTS = 20
 FIRST_SWIPE_GRACE_DAYS = 30          # days on file before "no swipe yet" means anything
-AGE_BANDS = [(18, 26, "18-25"), (26, 36, "26-35"), (36, 46, "36-45"),
-             (46, 56, "46-55"), (56, 65, "56-64"), (65, 200, "65+")]
-TENURE_BANDS = [(0, 0.25, "< 3 mo"), (0.25, 1, "3-12 mo"), (1, 3, "1-3 yrs"),
-                (3, 10, "3-10 yrs"), (10, 200, "10+ yrs")]
 BREADTH_BANDS = [(0, 1, "none named"), (1, 2, "1"), (2, 4, "2-3"), (4, 6, "4-5"),
                  (6, 999, "6+")]
 BREADTH_DEEP = 4

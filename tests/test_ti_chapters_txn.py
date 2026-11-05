@@ -26,11 +26,12 @@ from ti.deck import txn_slides  # noqa: E402
 def test_the_chapters_carry_v5s_builders_in_v5s_order():
     v5 = [b.__name__ for b in txn_slides.BUILDERS]
     ours = [b.__name__ for b in X.TI_BUILDERS + X.COMP_BUILDERS + X.ATTRITION_BUILDERS]
-    assert sorted(ours) == sorted(v5) and len(v5) == 61
+    # v5's 61, plus the three R5 leakage cuts by member age, account age and branch (2026-11-05)
+    assert sorted(ours) == sorted(v5) and len(v5) == 64
     for chapter in (X.TI_BUILDERS, X.COMP_BUILDERS):
         names = [b.__name__ for b in chapter]
         assert names == [n for n in v5 if n in names], "kept in v5's own order"
-    assert len(X.TI_BUILDERS) == 39 and len(X.COMP_BUILDERS) == 20
+    assert len(X.TI_BUILDERS) == 42 and len(X.COMP_BUILDERS) == 20
 
 
 def test_every_builder_has_a_title_for_a_stated_slide():
