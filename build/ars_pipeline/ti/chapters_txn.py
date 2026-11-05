@@ -41,9 +41,9 @@ TI_BUILDERS = [
     S._how_members_spend, C.card_spend_by_category, C.ticket_and_intensity, C.when_the_card_is_used,
     C.recurring_on_the_card, C.card_behaviour_by_lens, C.engagement_breadth,
     C.merchants_rising_and_falling, C.new_and_faded_merchants, S._the_mcc_codes,
-    C.how_broadly_the_card_is_used, C.card_spend_by_member_age, C.card_use_by_account_tenure,
-    V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts, V.where_pin_gets_pressed,
-    V.channels_used_together, V.what_a_second_channel_is_worth,
+    C.mcc_codes_three_ways, C.how_broadly_the_card_is_used, C.card_spend_by_member_age,
+    C.card_use_by_account_tenure, V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts,
+    V.where_pin_gets_pressed, V.channels_used_together, V.what_a_second_channel_is_worth,
     C.responder_profile, C.every_group_against_the_book, C.what_the_banker_opens, C.dictionary_gaps,
 ]
 COMP_BUILDERS = [
@@ -76,6 +76,7 @@ TITLES = {
     "merchants_rising_and_falling": "Merchants rising and falling",
     "new_and_faded_merchants": "New and faded merchants",
     "_the_mcc_codes": "The MCC codes behind the categories",
+    "mcc_codes_three_ways": "MCC codes by spend, transactions and members",
     "how_broadly_the_card_is_used": "How broadly the card is used",
     "card_spend_by_member_age": "Card spend by member age",
     "card_use_by_account_tenure": "Card use by account tenure", "pin_or_signature": "PIN or signature",
