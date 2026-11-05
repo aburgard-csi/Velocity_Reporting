@@ -1,7 +1,7 @@
 """The ILS cards on Sheila's client page (scripts/ils_ui.py, scripts/ils_runs.py; James Gilmore, 2026-10-28).
 
-Pinned: the cards are spliced into the client page beside the other presentations, with an ILS Review card
-marked Coming soon, and the splice refuses a page whose anchors moved; a client with an ILS folder is in
+Pinned: the cards are drawn on the client page beside the other presentations, with an ILS Review card
+marked Coming soon (the Hub layout's test, below); a client with an ILS folder is in
 Sheila's list; step 1 returns the field summary and computes nothing; step 2 is refused until the required
 codes are typed; the codes a run was confirmed with are kept for the next one; reveal opens nothing outside
 Build Artifacts/ils.
@@ -31,19 +31,6 @@ def root(tmp_path, monkeypatch):
     (d / "1840_OneTimeData_20260915.csv").write_text(KICKOFF, encoding="utf-8")
     (tmp_path / "Inputs" / "ILS PGL" / "1737").mkdir(parents=True)
     return tmp_path
-
-
-def test_the_cards_sit_on_the_client_page_with_ils_review_coming_soon():
-    import ars_launcher_web as W
-    assert '${companionPanel(s)}<div id="ilscards"></div>${aside}' in W.PAGE
-    assert "ilsCards(s.client);" in W.PAGE
-    assert "ILS Review" in W.PAGE and "Coming soon" in W.PAGE
-    assert 'id="tab-ils"' not in W.PAGE          # the cards are on the client page, not a tab
-
-
-def test_a_moved_anchor_refuses_the_splice():
-    with pytest.raises(RuntimeError, match="ILS cards could not be added"):
-        ils_ui.install("<style></style><script></script>")
 
 
 def test_a_client_with_an_ils_folder_is_listed(root):
@@ -113,8 +100,8 @@ def test_the_page_script_parses(tmp_path):
     node = shutil.which("node")
     if not node:
         pytest.skip("node is not installed")
-    import ars_launcher_web as W
-    js = W.PAGE[W.PAGE.rindex("<script>") + 8:W.PAGE.rindex("</script>")]
+    import sheila_hub as H
+    js = H.PAGE[H.PAGE.rindex("<script>") + 8:H.PAGE.rindex("</script>")]
     f = tmp_path / "page.js"
     f.write_text(js, encoding="utf-8")
     r = subprocess.run([node, "--check", str(f)], capture_output=True, text=True)
@@ -146,3 +133,23 @@ def test_a_finished_deck_is_delivered_to_the_csms_ils_folder_and_the_ars_readers
     monkeypatch.setattr(ils_runs.subprocess, "Popen", lambda *a, **k: None)
     assert ils_runs.reveal(str(dest))[0] == 200                         # the card's "open the deck"
     assert ils_runs.reveal(str(root / "Outputs" / "James Gilmore" / "notes.txt"))[0] == 403
+
+
+# ------------------------------------------------------------------ the cards in the Hub layout (2026-11-02)
+def test_the_hub_draws_the_ils_cards_on_the_client_page_with_ils_review_coming_soon():
+    import sheila_hub as H
+    page = H.PAGE
+    assert '<div id="ilscards"></div></div>`;\n  ilsCards(s.client);' in page, "drawn after the presentation cards"
+    assert "ILS Review" in page and "Coming soon" in page
+    assert 'data-tab="ils"' not in page          # the cards are on the client page, not a tab
+    draw = page[page.index("function ilsDraw()"):page.index("// The deck's CSM inputs")]
+    assert '<details class="ilsfold"${open ? " open" : ""}>' in draw and "const open = was ? was.open : ilsActive();" in draw
+    active = page[page.index("function ilsActive()"):page.index("function ilsDraw()")]
+    assert "c.extract || c.last || (c.job && !c.job.done)" in active
+    assert "one-time reports, not set up for this client" in page
+    # what is typed in a code field survives the status redraw, and both steps and the deck inputs reach the server
+    for route in ("/api/ils/client", "/api/ils/run", "/api/ils/inputs", "/api/ils/reveal", "/api/ils/job"):
+        assert route in page
+    assert '$("#detail").addEventListener("input"' in page and "ILS.form[key]" in page
+    import sheila_hub_ils as M
+    assert M.TAB is None and set(M.LABELS) == set(ils_ui.LABELS)

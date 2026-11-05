@@ -131,3 +131,27 @@ def test_the_agenda_badges_do_not_touch(tmp_path, monkeypatch):
     assert len(badges) == len(sheila_deck.CHAPTERS) + 1
     assert all(a.top + a.height < b.top for a, b in zip(badges, badges[1:]))
     assert badges[-1].top + badges[-1].height < 6.78 * 914400          # clear of the logo
+
+
+def test_the_timeline_reads_the_csms_plan_and_falls_back_to_the_standard_milestones(tmp_path, monkeypatch):
+    rows = sheila_deck.timeline_rows([["Project Kickoff meeting", "10/29/25 | done"], ["File development complete",
+                                      "11/3/25 | at risk"], ["Weekly meetings begin", "In Process"], ["ILS Go Live", ""]])
+    assert rows == [("Project Kickoff meeting", "10/29/25", "done"), ("File development complete", "11/3/25", "risk"),
+                    ("Weekly meetings begin", "In Process", ""), ("ILS Go Live", "TBD", "")]
+    assert [m for m, _, _ in sheila_deck.timeline_rows([])] == sheila_deck.MILESTONES
+    monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    for d in ("Inputs", "Outputs", "Build Artifacts"):
+        (tmp_path / d).mkdir()
+    out = sheila_deck.build(_metrics(), "9999", "Test Bank", tmp_path / "deck.pptx", codes=CODES,
+                            extract_date="2026-10-26", inputs={"key_dates": [["ILS Pre Go-Live Analysis", "12/19/25"],
+                                                                             ["Project Kickoff meeting", "10/29/25 | done"]]})
+    prs = Presentation(str(out))
+    s = next(s for s in prs.slides if any(sh.has_text_frame and sh.text_frame.text.startswith(
+        "ILS Configuration & Project Timeline") for sh in s.shapes))
+    tb = next(sh for sh in s.shapes if sh.has_table).table
+    assert [tb.cell(i, 0).text for i in range(3)] == ["Milestone", "ILS Pre Go-Live Analysis", "Project Kickoff meeting"]
+    assert tb.cell(1, 0).fill.fore_color.rgb == sheila_deck.add_table.__globals__["ORANGE"]    # this meeting
+    assert tb.cell(2, 2).text.endswith("Complete")
+    # the timeline sits at the end, in the summary chapter, not on the first chapter's opening
+    titles = [sheila_deck._title(x) for x in prs.slides]
+    assert titles.index("Questions & Discussion") - titles.index("ILS Configuration & Project Timeline") <= 2

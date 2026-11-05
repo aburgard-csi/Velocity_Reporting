@@ -127,7 +127,7 @@ def norm_text(series):
 # The wording rules themselves live in build/ars_pipeline/odd_rows.rege_label, the one
 # definition metrics_gen also reads (2026-09-16: the two had drifted apart).
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "build", "ars_pipeline"))
-from odd_rows import rege_label, REGE_IN, REGE_OUT, REGE_DEFAULT  # noqa: E402
+from odd_rows import rege_label, REGE_IN, REGE_OUT, REGE_DEFAULT, client_status_codes  # noqa: E402
 
 
 def classify_rege(series):
@@ -150,7 +150,10 @@ STATUS_BUCKETS = ["Open", "Closed", "Dormant", "Inactive", "Frozen", "Charged Of
 STAT_CODE_MAP = {"O": "Open", "A": "Open", "C": "Closed", "X": "Charged Off"}
 
 
-def classify_status(raw, code=None):
+def classify_status(raw, code=None, client_id=None):
+    """Wording first, then STAT_CODE_MAP; what neither knows is read from the client's
+    code sheet (odd_rows.client_status_codes), where a blank code is a real code when
+    the sheet lists it (1585, 2026-11-02)."""
     t = raw.str.lower().str.strip()
     out = pd.Series("Other", index=raw.index, dtype="object")
     if code is not None:
@@ -173,6 +176,12 @@ def classify_status(raw, code=None):
     setb(r"inactive", "Inactive")        # before "active" so it wins
     setb(r"frozen|freeze", "Frozen")
     setb(r"\bopen\b|active", "Open")
+    sheet = client_status_codes(client_id) if code is not None else None
+    if sheet:
+        c = code.fillna("").astype(str).str.strip().str.upper()
+        other = out.eq("Other") & ~t.str.contains(EXPLICIT_OTHER, regex=True)
+        out = out.mask(other & c.isin(sheet[0]), "Open")
+        out = out.mask(other & c.isin(sheet[1]), "Closed")
     return out
 
 
@@ -313,7 +322,7 @@ def main():
             raw_stat = norm_text(ch["Stat Desc"])
             # pass Stat Code so a core that leaves Stat Desc blank still classifies
             raw_code = norm_text(ch["Stat Code"]) if "Stat Code" in ch else None
-            mapped_stat = classify_status(raw_stat, raw_code)
+            mapped_stat = classify_status(raw_stat, raw_code, client)
             for k, v in mapped_stat.value_counts().items():
                 status_ct[k] += int(v)
             om = mapped_stat.eq("Other")

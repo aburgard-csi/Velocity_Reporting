@@ -5,7 +5,8 @@ rem not there (most of them) costs about 50 ms - a build that takes minutes loca
 rem hour on 2026-10-06 and never finished.
 rem   Python: unpacked from the share on first use, and again whenever a new runtime is released.
 rem   Code:   Tools\RPE copied to %LOCALAPPDATA%\RPE\Code whenever a new release is stamped.
-rem Called by the launcher .bat files with ROOT set; sets PY and CODE, exits 1 if it cannot.
+rem Called by the launcher .bat files, and by the CSM Sheila Claude extension (sheila_mcp\extension),
+rem with ROOT set; sets PY and CODE, exits 1 if it cannot. It never touches Claude.
 set "RT=%LOCALAPPDATA%\RPE"
 set "PY=%RT%\Python\python.exe"
 set "CODE=%RT%\Code"

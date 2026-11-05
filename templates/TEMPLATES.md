@@ -39,6 +39,23 @@ source line in the notes (ODD filename + pull stamp for ARS; workbook / VIP
 references for ICS, MRPC and CashPlease). Everything else — layout, colors,
 dividers, education slides — stays as the shell has it.
 
+## Slides the builders add to the shells
+
+Some slides are drawn by a builder, placed by title, and are NOT in the shells (the same pattern as Excluded Accounts and
+the ARS branch appendix). `build/slide_inventory.py` (`ADDED`) lists them for Slide Review.
+
+| Slide | Program | Placed | Drawn by |
+| --- | --- | --- | --- |
+| `How You Compare — ARS Clients` | ARS | before `ARS Key Takeaways` | `build/peer_slide.py` |
+| `How You Compare — ICS Clients` | ICS | before `New in 2026: E-Learning Modules` | `build/peer_slide.py` |
+| `How You Compare — MRPC Clients` | MRPC | after `MRPC Current Program Status` | `build/peer_slide.py` |
+| `How You Compare — CashPlease Clients` | CashPlease | after `CashPlease Peer Comparison` | `build/peer_slide.py` |
+
+The peer slide is not in a shell on purpose (2026-11-03): it has no static content to bake, every figure is the client's
+rank against the other clients, and a shell slide would have carried a dummy client's strip plots. It is always drawn: with
+fewer than five other clients it says so in a sentence. `build/peer_compare.py` computes it, the same code Live Review's
+"How you compare" uses.
+
 ## Maintaining the shells
 
 - Shells are updated **in place**; the files here are always the latest. Keep a

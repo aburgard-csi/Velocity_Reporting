@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 set "RPE_DATA_ROOT=%ROOT:~0,-1%"
 set "PYTHONIOENCODING=utf-8"
 set "PYTHONDONTWRITEBYTECODE=1"
-title Build ARS Deck
+title Build ARS Deck CLI
 rem Clears cmd's "UNC paths are not supported" notice; the script never uses the current directory.
 cls
 echo.

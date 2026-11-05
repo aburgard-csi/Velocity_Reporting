@@ -18,45 +18,68 @@ def _no_prior_window(mom):
     return bool(mom) and not any(r[2] for r in mom)
 
 
+def _leads(inst, row):
+    """The product categories in which `row` reaches the most accounts of any named competitor."""
+    out = []
+    for cat in (row[7] or []):
+        if cat == "Transfer / other":
+            continue
+        best = max((r for r in inst if cat in (r[7] or [])), key=lambda r: r[2], default=None)
+        if best is row:
+            out.append(cat)
+    return out
+
+
 def who_competes(h, t, base):
-    """momentum_bars -- reach, depth and momentum on one row each. Built and
-    tested since the v4 forms landed; never called by a slide until now."""
+    """RPE: the one competitor-penetration slide (Sheila's 1798 slide review, 2026-10-30, groups F
+    and G). v5 said "20% pay a named competitor" three ways ("Who competes for our members", "Banks
+    against the ecosystems", "How many competitors each account uses") and named the top competitor
+    twice more ("Which competitors to work first", "Who leads each product"). Here: v5's penetration
+    against dollars quadrant (which_to_work_first's chart) with the reach, the multi-banked count,
+    the payment-app share and the top competitor on the rail."""
     inst = t.get("comp_institutions") or []
     if not inst:
         return None
-    mom = t.get("comp_momentum") or []
-    net = {} if _no_prior_window(mom) else {r[0]: r[3] for r in mom}
+    total = t.get("comp_accounts_total") or 0
+    lead = inst[0]
     s, top = h["slide"]((
         f"{t.get('comp_with_competitor_pct', 0):.0f}% of {base} pay a named "
-        f"competitor — {inst[0][0]} reaches {inst[0][2]:,}",
-        f"{t.get('comp_institutions_n', 0)} institutions seen; "
-        f"{t.get('comp_multi_banked_pct', 0):.0f}% of the accounts with a "
-        f"competitor deal with two or more; payment apps reported apart"),
+        f"competitor — {lead[0]} reaches {lead[2]:,} and takes {money(lead[5])} a year",
+        f"{t.get('comp_institutions_n', 0)} institutions seen; penetration against dollars a "
+        f"year, bubble is accounts; payment apps counted apart, never added"),
         "Who competes for our members")
     items = [("With a competitor", f"{t.get('comp_with_competitor', 0):,}",
-              f"of {t.get('comp_accounts_total', 0):,} {base}"),
-             ("Multi-banked", f"{t.get('comp_multi_banked', 0):,}",
-              "two or more named competitors"),
+              f"of {total:,} {base}"),
+             ("Two or more", f"{t.get('comp_multi_banked', 0):,}",
+              "named competitors"),
              ("Per year", money(t.get("comp_competitor_dollars")),
               "to named competitors")]
-    ar = t.get("comp_at_risk") or {}
-    if ar.get("accounts"):
-        items.append(("Inactive, with competitor",
-                      f"{ar['with_competitor']:,}",
-                      f"{ar['pct']:.0f}% of recently inactive"))
+    eco_n = t.get("comp_ecosystem_accounts") or 0
+    if eco_n and total:
+        items.append(("In a payment app", f"{eco_n / total * 100:.0f}%",
+                      f"{eco_n:,} accounts, counted apart"))
+    led = _leads(inst, lead)
+    items.append(("Top competitor", labels.clip(lead[0], 18),
+                  f"{lead[3]:.0f}% of accounts" + (f", leads {led[0].lower()}" if led else "")))
     right = h["rail"](s, items[:5], top=top)
-    # depth in the deck's money grammar ($1.6K/acct, not $1644/acct); momentum is comp_momentum's
-    # NET NEW ACCOUNTS, a count, and is printed as one (2026-10-28)
-    rows = [[labels.clip(r[0], 22), r[2], f"{money(r[6])}/acct", net.get(r[0]),
-             r[1] == LOCAL_TIER] for r in inst[:9]]
-    # comp_institutions is itself already cut to TOP_INSTITUTIONS, so the
-    # coverage note has to count against every institution that MATCHED, not
-    # against the truncated list -- otherwise a book with 82 configured
-    # competitors reads as "9 of 25" and the second cut is invisible.
-    matched = t.get("comp_institutions_n") or len(inst)
-    note = labels.coverage_note(len(rows), matched, "institutions") or ""
-    path = h["chart"]("comp_momentum_bars", charts.momentum_bars, rows,
-                      footnote=note, momentum_unit="")
+    if len(inst) >= 3:
+        rows = [[labels.clip(r[0], 20), r[2], r[3], r[5]] for r in inst[:10]]
+        path = h["chart"]("comp_quadrant", charts.branch_quadrant, rows,
+                          quads=("monitor", "act now", "watch", "defend"),
+                          bubble_label="bubble = accounts reached",
+                          xlabel="penetration — % of accounts",
+                          ylabel="Spend outside the client, a year", yfmt=money)
+    else:
+        # too few for a quadrant: v5's reach and momentum bars. comp_institutions is already cut
+        # to TOP_INSTITUTIONS, so the note counts every institution that MATCHED
+        mom = t.get("comp_momentum") or []
+        net = {} if _no_prior_window(mom) else {r[0]: r[3] for r in mom}
+        rows = [[labels.clip(r[0], 22), r[2], f"{money(r[6])}/acct", net.get(r[0]),
+                 r[1] == LOCAL_TIER] for r in inst[:9]]
+        matched = t.get("comp_institutions_n") or len(inst)
+        note = labels.coverage_note(len(rows), matched, "institutions") or ""
+        path = h["chart"]("comp_momentum_bars", charts.momentum_bars, rows,
+                          footnote=note, momentum_unit="")
     if path:
         h["chart_left"](s, path, top, right)
 
@@ -78,20 +101,24 @@ def the_local_field(h, t, base):
     head = (f"{len(seen)} of {len(configured)} named local institutions seen "
             f"-- {loc.get('accounts', 0):,} {base} pay one, "
             f"{money(loc.get('dollars', 0))} a year")
-    sub = ("configured but not seen in the window: "
-           + (", ".join(missing) if missing else "none")
-           + "; a missing name is either not paid here or spelled another "
-             "way in the file -- the review queue on the right is where "
-             "the spellings surface")
+    # RPE: the subtitle no longer lists every unseen name (88 words on 1798; Sheila's slide
+    # review, 2026-10-30: too dense); it counts them and names the first
+    if len(missing) == 1:
+        sub = (f"{labels.clip(missing[0], 32)} is configured but not seen; not paid here, "
+               f"or spelled another way in the file")
+    elif missing:
+        sub = (f"{len(missing)} configured names not seen, {labels.clip(missing[0], 32)} among "
+               f"them; not paid here, or spelled another way in the file")
+    else:
+        sub = "every configured name was seen in the window"
     s, top = h["slide"]((head, sub), "The local field")
-    queue = t.get("comp_review_queue") or []
     items = [("Named locally", f"{len(configured)}", "in the client config"),
              ("Seen", f"{len(seen)}", f"{loc.get('pct', 0):.1f}% of {base}"),
              ("Review queue", money(t.get("comp_review_queue_dollars", 0)),
               "bank-looking, unmatched")]
-    for core, txns, dollars in queue[:2]:
-        items.append((labels.clip(core, 20), money(dollars), f"{txns:,} txns"))
-    right = h["rail"](s, items[:5], top=top)
+    for core, txns, dollars in (t.get("comp_review_queue") or [])[:1]:
+        items.append((labels.clip(core, 20), money(dollars), f"{txns:,} txns, top of the queue"))
+    right = h["rail"](s, items, top=top)
     if seen:
         # the same horizontal form the 19 August slide used: accounts and
         # dollars per institution, local names in orange. Imported here
@@ -387,11 +414,19 @@ def who_owns_the_relationship(h, t, base):
         f"relationship takes {t.get('comp_engagement_avg_share_pct', 0):.0f}% of an "
         f"account's transactions"),
         "Who owns the relationship")
-    right = h["rail"](s, [
+    items = [
         ("Heavy relationships", f"{heavy_n:,}", "half or more of their transactions"),
         ("Average share", f"{t.get('comp_engagement_avg_share_pct', 0):.0f}%", "per competitor relationship"),
         ("Most heavy users", labels.clip(worst[0], 18), f"{worst[4]:,} accounts"),
-    ], top=top)
+    ]
+    # RPE: the dollar view of the same question, from "How much of the wallet has left", as one
+    # tile (Sheila's 1798 slide review, 2026-10-30, group H: two concentration slides to one)
+    wallet = t.get("comp_wallet_by_institution") or []
+    if wallet:
+        w = max(wallet, key=lambda r: r[5])
+        items.append(("Over half their spend", labels.clip(w[0], 18),
+                      f"{w[5]:.0f}% of its {w[1]:,} accounts"))
+    right = h["rail"](s, items, top=top)
     bands = [("Light (under 20%)", charts.TINT), ("Moderate (20-50%)", charts.ORANGE),
              ("Heavy (50% or more)", charts.RED)]
     chart_rows = [[labels.clip(r[0], 20), r[2], r[3], r[4]] for r in rows]
@@ -568,20 +603,37 @@ def the_payment_ecosystems_ranked(h, t, base):
         return "The payment ecosystems, ranked (no ecosystem rows)"
     n = t.get("comp_ecosystem_accounts") or 0
     total = t.get("comp_accounts_total") or 0
+    # RPE: the one Cash App slide, its flow split from the financial products (Sheila's 1798 slide
+    # review, 2026-10-30, group B). Cash App showed as $78.1M (fin_p2p), $78.3M (card merchants) and
+    # $78.3M here, beside a $49.6M financial-product total it is not part of. The figure is this
+    # one, comp_ecosystems; the buy-now-pay-later services ARE financial products, counted in that
+    # total, and are coloured apart (their dollars here are matched by service name, so they are not the leakage category total).
+    bnpl = {str(r[0]).upper() for r in ((t.get("comp_bnpl") or {}).get("providers") or [])}
+    kind = lambda name: "bnpl" if str(name).upper() in bnpl else "p2p"
+    p2p_d = sum(r[3] for r in eco if kind(r[0]) == "p2p")
+    bnpl_d = sum(r[3] for r in eco if kind(r[0]) == "bnpl")
+    lead = eco[0]
+    lead_is_p2p = kind(lead[0]) == "p2p"
     s, top = h["slide"]((
         f"{n / total * 100 if total else 0:.0f}% of {base} run money through a payment app; "
-        f"{eco[0][0]} reaches {eco[0][1]:,}",
-        f"{len(eco)} services seen, {money(t.get('comp_ecosystem_dollars'))} a year; counted "
-        f"apart from competitors and never added to them"),
+        f"{lead[0]} reaches {lead[1]:,} and moves {money(lead[3])} a year",
+        (f"{lead[0]} is P2P and card flow, not a financial product: it is not in the "
+         f"{money(t.get('fin_leakage_dollars'))} paid to outside financial products"
+         if lead_is_p2p and t.get("fin_leakage_dollars") else
+         f"{len(eco)} services seen; counted apart from competitors and never added to them")),
         "The payment ecosystems, ranked")
-    right = h["rail"](s, [
-        ("In a payment app", f"{n:,}", f"of {total:,} {base}"),
-        ("Dollars", money(t.get("comp_ecosystem_dollars")), "a year"),
-        ("Leading service", labels.clip(eco[0][0], 18), f"{eco[0][1]:,} accounts"),
-    ], top=top)
-    from .txn_slides import institution_bars
-    rows = [[r[0], ECOSYSTEM_TIER, r[1], None, None, r[3], None, []] for r in eco]
-    path = h["chart"]("comp_eco_ranked", institution_bars, rows)
+    items = [("In a payment app", f"{n:,}", f"of {total:,} {base}"),
+             ("P2P and wallets", money(p2p_d), "a year, not financial products")]
+    if bnpl_d:
+        items.append(("Buy now, pay later", money(bnpl_d),
+                      "a year; a financial product"))
+    items.append(("Leading service", labels.clip(lead[0], 18), f"{lead[1]:,} accounts"))
+    right = h["rail"](s, items, top=top)
+    rows = [[labels.clip(r[0], 20), r[3], r[1], kind(r[0])] for r in eco[:9]]
+    kinds = {"p2p": ("P2P and wallets", charts.NAVY),
+             "bnpl": ("Buy now, pay later", charts.ORANGE)}
+    path = h["chart"]("comp_eco_ranked", CT.kind_bars, rows, kinds,
+                      note=labels.coverage_note(len(rows), len(eco), "services") or "")
     if path:
         h["chart_left"](s, path, top, right)
 

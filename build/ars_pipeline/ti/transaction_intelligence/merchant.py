@@ -49,13 +49,20 @@ _SPACES = re.compile(r"\s+")
 _TRAILING_DIGITS = re.compile(r"\s+\d{4,}\s*$")
 
 
-def merchant_text(desc: pd.Series) -> pd.Series:
-    """The description with the card scaffolding removed and nothing else:
-    prefix, reference tail and trailing digits gone, upper-cased, the city
-    and state still there. This is what the institution and product
-    matchers run on. A cleaner cannot know where a name ends and a city
-    begins; a token regex over the whole text does not need to (#261)."""
-    s = desc.fillna("").astype(str).str.strip()
+def _by_unique(desc: pd.Series, fn) -> pd.Series:
+    """`fn` run once per distinct description and mapped back onto every row.
+
+    RPE (James Gilmore, 2026-10-29): v5 ran the regexes over every row, and 1798's 23.6M rows ran out of
+    memory in financial_services. Every rule here is a function of the description alone, so the result
+    is the same row for row; the work is per distinct description, and the rows share its string."""
+    s = desc.fillna("").astype(str)
+    codes, uniq = pd.factorize(s, sort=False)
+    mapped = fn(pd.Series(uniq, dtype=object)).to_numpy(dtype=object)
+    return pd.Series(mapped[codes], index=desc.index, name=desc.name, dtype=object)
+
+
+def _text_rows(s: pd.Series) -> pd.Series:
+    s = s.fillna("").astype(str).str.strip()
     s = s.str.replace(_TYPE_ID, r"\1", regex=True)
     s = s.str.replace(_CARD_PREFIX, "", regex=True)
     s = s.str.replace(_REF_TAIL, "", regex=True)
@@ -63,13 +70,26 @@ def merchant_text(desc: pd.Series) -> pd.Series:
     return s.str.upper().str.replace(_SPACES, " ", regex=True).str.strip()
 
 
-def merchant_core(desc: pd.Series) -> pd.Series:
-    """merchant_text with the trailing "CITY ST" dropped: the grouping label
-    for merchant tables and review queues, not the matching text."""
-    s = merchant_text(desc)
+def _core_rows(s: pd.Series) -> pd.Series:
+    s = _text_rows(s)
     s = s.str.replace(_CITY_STATE, "", regex=True)
     s = s.str.replace(_TRAILING_DIGITS, "", regex=True)
     return s.str.strip()
+
+
+def merchant_text(desc: pd.Series) -> pd.Series:
+    """The description with the card scaffolding removed and nothing else:
+    prefix, reference tail and trailing digits gone, upper-cased, the city
+    and state still there. This is what the institution and product
+    matchers run on. A cleaner cannot know where a name ends and a city
+    begins; a token regex over the whole text does not need to (#261)."""
+    return _by_unique(desc, _text_rows)
+
+
+def merchant_core(desc: pd.Series) -> pd.Series:
+    """merchant_text with the trailing "CITY ST" dropped: the grouping label
+    for merchant tables and review queues, not the matching text."""
+    return _by_unique(desc, _core_rows)
 
 
 def strip_city(text: str) -> str:

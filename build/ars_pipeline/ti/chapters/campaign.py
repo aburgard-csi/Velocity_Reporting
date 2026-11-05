@@ -11,10 +11,18 @@ cohort imports), in v5's order (`ti/odd_sections.py`). Slides: v5's campaign blo
 v5's build and lifted into `ti/deck/campaign_inline.py`, in v5's build order; "Where the tiers moved"
 is v5's `deck/migration_slides.tier_matrix`. A slide whose figures are missing is stated, not dropped.
 The response groups are the ARS mailing's, so the chapter reads the same in both lens decks.
+
+Sheila's 1798 slide review (2026-10-30) folded the chapter's repeats together: Program reach is a
+funnel carrying the latest offer (group K); "What a response does to spend" carries both gain figures,
+each with its window, on one responder-against-control chart (group L); "Where the tiers moved" is
+the shaded tier matrix with responders against the unmailed (group N); and Offer detail opens with
+one "Mailer summaries" table, a row per mailer, in place of a slide each (group P). The slides they
+replace still draw, and are tossed in `ti/slides.json`.
 """
 from pathlib import Path
 
 from ti import cut, odd_sections
+from ti.deck import combine
 
 TITLES = {
     "program_reach": "Program reach",
@@ -46,6 +54,19 @@ TITLES = {
 }
 
 
+# two one-chart slides as one (Aaron, 2026-11-02; ti/deck/combine.py)
+COMBINED = (
+    ("program_reach", "response_reach", "Reach and response",
+     "How far the mailings reached, and how each offer responded",
+     "Left: eligible accounts, ever mailed and responded. Right: each offer's response rate and the reach to date.",
+     "reach_and_response"),
+    ("depth", "first_vs_repeat", "Repeat responders",
+     "Who responds again",
+     "Left: how many responded once, twice and three times or more. Right: where first-time and repeat responders ended up.",
+     "repeat_responders"),
+)
+
+
 def compute(ctx):
     out = {}
     for section in (odd_sections.migration, odd_sections.mailer, odd_sections.mailer_detail,
@@ -72,8 +93,8 @@ def build(ctx):
     from ti.deck.helpers import Deck
     deck = Deck(ctx, "the ODD extract's own mail and response columns",
                 Path(ctx.art_dir or ".") / "charts" / "campaign")
-    builders = [getattr(S, name) for name in TITLES]
-    return deck.run(builders, TITLES, ctx.pack.get("metrics") or {})
+    builders, titles = combine.apply([getattr(S, name) for name in TITLES], TITLES, COMBINED)
+    return deck.run(builders, titles, ctx.pack.get("metrics") or {})
 
 
 CHAPTER = cut.Chapter("TI_CAMP", "Campaign", "Response · Gain · Ladder",

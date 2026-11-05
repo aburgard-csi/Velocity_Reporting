@@ -21,11 +21,610 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-04 — ILS Program Analysis deck: the analysis team's Python builder on RPE styling, with the pasted R / Power BI / Excel charts redrawn in Python (new, `build/ils_analysis/`)
+
+Summary: A new builder, `build/ils_analysis/`, makes a client's ILS Program Analysis deck from the extracts in a data-pull folder on RPE styling, and draws in Python the charts and tables the analysis team pastes in each cycle from R, Power BI and Excel; it is separate from the Executive Review, writes only to Build Artifacts, and is not wired into the monthly run.
+
+Aaron asked to replicate the current analysis decks using the python code in the analysis directory, in our styling, so the R charts move to Python, without changing the analysis share. The analysis team's `ils_review` package is copied in with its module names (README records provenance), rebuilt on the 13.333 x 7.5 canvas with `brand` / `shapes` / `cover_divider`, Carlito charts and `MMM'YY` axes. New modules `r_common`, `r_fees`, `r_accounts`, `r_scoring`, `client_slides` compute the KPI rollup, fee trending, paid vs returned, items not repaid, exception-item treemaps, eligibility, branch summary, Reg E, debit declines, limit heat maps and the Scoring Summary tables from ZAccounts / ZTrend / DebitDecline, each with a JSON sidecar of its numbers; `compute_predictor`, a placeholder upstream, is implemented. On Achieva (1544, 2026-09-11 pull) the figures reproduce the hand-built deck for the KPI rollup, fee table, paid vs returned, exception counts, items-segment table and Reg E fees to the dollar; the not-repaid chart, branch bubbles, alluvial, windfall predictor and the deck's "open active" population are close but not equal because their definitions are not in the extracts. The Scoring Summary default (40 days, never-repaid excluded) differs from the README's 30-day rule because that rule gives 40% where the deck prints 10.1%; `--default-basis readme` restores it. Peer NSF / OD fee slides are labelled placeholders (the data is ILS-wide). Tables are a declared dense-table exception at 10-12 pt (8 pt on the matrix tables); `restyle_fonts` is not run on this deck. The Achieva deck validates at 0 FAIL.
+
+### 2026-11-03 — Every Executive Review deck carries a "How You Compare" slide
+
+Summary: Each ARS, ICS, MRPC and CashPlease deck now has one slide, "How You Compare", that shows the client against every other client on the program (a dot for each, the median, the middle half, the client's own mark and its rank) with no other client named or numbered.
+
+Aaron, 2026-11-03: "I'd like to see our LR peer comparisons in the Sheila decks."
+
+- **`build/peer_slide.py`** draws the slide (strip plots in the deck's palette, the rank in orange, one plain sentence per measure, a Source line in the notes naming the client) from `peer_compare.for_deck`, the same collectors, metric lists and arithmetic as Live Review, so the deck and the page show the same figures. It is drawn by each builder and placed by title, not baked into a shell: ARS before "ARS Key Takeaways", ICS before "New in 2026: E-Learning Modules", MRPC after "MRPC Current Program Status", CashPlease after "CashPlease Peer Comparison". A combined deck carries each one inside its own section (`assemble_combined` keeps a program's slides by exclusion).
+- **No peer is identified.** Live Review's hover gives a peer's client number; a deck gives nothing, because a printed deck is forwarded. `validate_deck.peer_slide_findings` FAILs a peer slide whose notes name another client or whose face carries a client-number-like figure.
+- **Always drawn, never silent.** With fewer than five other clients the slide says so in a sentence. If the peers' figures cannot be read (the share is down), the slide says that and the deck FAILS validation, so it cannot ship quietly.
+- Measures per deck: ARS response rate, responder spend after a mailing, repeat responders moving up a swipe tier, debit spend per eligible account, Reg E opt-in; ICS referrals per 1,000 DDAs and revenue per account per month by source (only with a workbook for the period); MRPC enrollments per 1,000 debit accounts, still active, take rate, share of goal; CashPlease loans per 1,000 DDAs, overdue, charge-off.
+- Slide Review lists the four slides (`slide_inventory.ADDED`); `templates/TEMPLATES.md` and `templates/STYLE.md` record them. Tests: `tests/test_peer_slide.py`.
+
+### 2026-11-03 — Peer comparisons: one shared arithmetic, and ARS plus ICS revenue per account added
+
+Summary: Live Review's "How you compare" now also compares ARS clients (mailing response rate, responder spend after a mailing, swipes and spend per eligible account, Reg E opt-in, take rate, retention, revenue per 1,000 accounts) and ICS clients on revenue per account per month by source, and the arithmetic behind every peer comparison now lives in one module so the Executive Review decks can show the same figures.
+
+Aaron, 2026-11-03: "I'd like to see our LR peer comparisons in the Sheila decks. I'd also like to enhance the peer comparisons - revenue per account for ICS, response rate for ARS, improved swipe/spend for ARS, etc." This is the shared half; the deck slides follow in their own change.
+
+- **`build/peer_compare.py`** holds the quantiles, rank, +/-2% relation, like-period alignment, the one-line sentence and `evaluate()`; `review_page/peers.py` now calls it and keeps its old names. A deck calls `peer_compare.for_deck`, which reads the SAME collectors and metric lists as Live Review and strips every peer's client number (a printed deck is forwarded).
+- **ARS** (`peer_pool.collect_ars`, `build/peer_tables.py`): read from the data pack every deck build leaves in `Build Artifacts/launcher/<period>/<id>/` (38 peers for Marine FCU 1539, 2026.10): response rate (the deck's Mailing Response Summary arithmetic, pooled over the 12 months to the extract month, and by mailing), responder spend 3 months before against 6 after (`before_after.py`), repeat responders moving up a swipe tier, swipes and spend per eligible account, Reg E opt-in (all, and accounts opened in the last year), new-account take rate, cardholders swiping, one-year retention, workbook revenue a month per 1,000 eligible accounts. A peer whose pack reads another extract month is left out of the snapshot figures, and a pack built on shorter before/after windows is left out of the spend gain. No ODD extract is opened for a peer.
+- **ICS revenue per account per month** (total, interchange, NSF/OD and other fees, spread): the ICS deck's own arithmetic (revenue over account-months, every cohort) for each client's newest ICS workbook; 25 peers for a client with a current workbook (26 workbooks hold a usable row). The client's figure appears only when its workbook is for the period, the deck's own rule; a peer's workbook may be up to three months older. A source a workbook never filled is left out, not compared as $0.00. Reading the workbooks takes minutes over the share, so each is cached by file size and time (`Build Artifacts/peer_tables/ics_revenue.json`); `scripts/warm_peer_tables.py` warms it by hand. Nothing is added to the 08:00 watch.
+- **CashPlease** also compares average loan size, average interest per loan and the share of loans paid off, program to date (the figures its deck's cohort slide already states), from the packs the page already reads.
+- A metric the client has no current figure for now says so in "Left out" instead of blaming the peers.
+- `scripts/warm_peer_tables.py` is named so on purpose: a `scripts/peer_tables.py` shadowed `build/peer_tables.py` wherever `scripts/` leads `sys.path`.
+- Tests: `tests/test_peer_compare.py`, `tests/test_peer_tables.py`; `test_live_review.py` expects the ARS "How you compare" screen.
+
+### 2026-11-03 — Live Review chart styles tried on Marine FCU data and scored (documentation only)
+
+Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real figures in 41 alternative chart styles, each set against the shipped one, scores them against a fixed rubric, sets out the published guidance behind the scores, and lists changes to Live Review with effort estimates; no screen, figure or behavior changed.
+
+Aaron asked to try multiple chart styles, analyze them, and research presentation tips. The note records a default style per job (branch comparison, parts of a whole, trend against a goal, before and after, peer position, two measures, mix, KPI tiles), the colour contrast and colour-vision measurements behind them, and what could not be verified. The 61 screenshots are in docs/chart-styles/. Nothing was merged or released.
+
+### 2026-11-03 — Live Review: charts with several measures on a switch get a Combined view
+
+Summary: A bar chart that switches between measures (Spend, Accounts, NSF/OD items by swipe tier) now has a Combined button that draws all of them together: measures in different units are each shown as their share of their own total, so you can see where one tier holds most of the spend but few of the accounts.
+
+Aaron, 2026-11-03, with the "Spend by swipe tier" chart: "for charts like this give me a combined option".
+
+- **Units.** Measures that are rates in one unit (the branch scorecard's take, Reg E and closure rates) sit side by side as they are; measures in different units (dollars, accounts, items) are each drawn as a share of that measure's total. Marine FCU: the 26+ swipe tier is 83% of spend, 37% of accounts and 68% of NSF/OD items. The tooltip gives the share and the raw value ("83.1% ($40.56M of $48.8M)").
+- **When offered.** Two to five measures, up to 14 categories, no negative values; a chart with more categories (branches) stays on its switch. Live Review only; `tests/test_live_review.py`.
+
+### 2026-11-03 — ICS: every cohort from the program's start, early-program revenue called out, direct mail told apart from branch referrals
+
+Summary: The ICS slides now show every cohort from the first month of the program, with the first 12 months called out, and a new slide shows direct mail and branch referral accounts side by side (plus interchange by channel, age and product slides where the ODD allows). Referral counts for a client with no VIP sheet come from the referral export, which matches VIP, and the appendix is grouped by program year and category.
+
+Cindy Draper's review of KEMBA CU 1195's ICS deck (2026-11-03; notes on the slides of "Meeting with Aaron and James on New Deck 10.2026"): "Why show newest accounts (least profitable) instead of onboarded accounts? Started ICS in December of 2022- can we show all?", "see the split between direct mail and branch referrals", highlight revenue from early in the program.
+
+- **Every cohort, early program called out.** The cohort charts (Total / per-account Interchange, NSF/OD and Spread, Revenue Composition, Revenue per Account per Month by Source) read the workbook's full Monthly Detail tab (`monthly_detail_full`) instead of the newest twelve cohorts. The first 12 months (Year 1) are drawn orange, each program year (12 cohorts) carries its own total or blended per-account figure above the bars, and each slide has a third tile: the early year's revenue and its share of the program, or its blended revenue per account per month. A sheet extracted before the full tab was kept keeps the newest-twelve charts and says so. `ics_charts_gen.cohorts / early_stats / program_years`.
+- **Program Results by Opening Year** replaces "Program Results by Month Opened": every cohort grouped into program years (Year 1 header orange), with a sentence stating what the first 12 months have earned and, where a direct-mail list is on file, which early cohorts predate direct mail and are all branch referrals. A sheet without the full tab keeps the month table. Renamed in `slide_inventory`, `restyle_fonts`, STYLE.md.
+- **The split.** New `build/ics_pipeline/ics_channel_split.py` (its docstring says what each source can and cannot split). New slides: **Direct Mail and Branch Referral Accounts** (workbook accounts opened by cohort, direct mail from the CSM's program-to-date list = measured, branch referral = the workbook less direct mail = derived; the cross-check against the referral export is in the notes; an account on both lists counts once, as direct mail); **Interchange by Channel** (ODD debit spend x the blended rate the workbook implies, per open account per month by year; printed only when that rate is stable across cohorts, 0.900% on every KEMBA cohort; months the extract carries no debit dollars for are named, KEMBA's May-Aug 2026); **Age Demographics** (with Cindy's benchmark ages 35 / 50 / 53, stated as supplied) and **ICS Accounts by Product Type**, placed between the Financial Summary and Comparisons as in her markup. Spread, NSF/OD and other fees cannot be split and the Interchange slide says so in one sentence. A direct-mail list that is not program to date (Brooks Bank's is one month) makes no split; no direct-mail list or no ODD gives the slides it can support and no others.
+- **Referrals from the export.** A client with no VIP sheet and no per-client referral file but rows in the all-clients referral export (`Inputs/ICS Referrals/ics_referrals*.csv`, the merged file and any dated landing) and the period's ICS workbook now builds the "full" shape from it instead of the workbook-only one. For KEMBA the export reproduces the VIP table exactly (831 year to date at 2026-10-13, Whitehall 128, Pickerington 117). Guards: the export is used only when the client's newest referral reaches the month before the deck (1680's stops 2026-08-28 and stays workbook-only), and only where the workbook is on file, so it never puts an ICS section in front of a client that had none (a read-only roster pass found 14 such clients, e.g. 1217, 1487, 1615, which stay unbuilt until Aaron says a referrals-only deck should be offered). Nine roster clients move from workbook-only to full (1126, 1195, 1403, 1439, 1542, 1746, 1759, 1776, 1800). The workbook-only shape remains for a client the export does not carry, and its notes now say the workbook's row counts accounts matched to a referral or a direct-mail piece.
+- **Results by Branch lists every branch** (up to 14 a row; beyond that the smallest are one "All other branches" row), and its total is every branch.
+- **Performance of ICS Accounts:** Cindy's rule ("if under 2 years on program use 6.9 years- if over 2 years- use their life of account") now holds for the workbook's Present Value and ROI too. Checked against every ICS workbook on the share: its Present Value per account is the annual profit per account discounted at 3% over the client's MODELED life whatever the program's age, so a program under two years old (twelve clients: Rally 1100, Brooks 1537, Friendship 1542, WesBanco 1632, Altamaha 1734, CoastHills 1776, First American 1800, SOCU 1806, Summit Choice 1808, Dutch Point 1811, Beginnings 1816, Air Academy 1826) is recalculated by the same method over 6.9 years and the notes name the workbook's own figures. ROI moves for them, e.g. Rally 15.14 -> 10.22, Brooks 11.57 -> 7.87, Friendship 29.50 -> 23.03, CoastHills 5.28 -> 3.99; Altamaha 8.26 -> 9.09 and Summit Choice 7.97 -> 8.16 rise, their modeled lives being under 6.9. This reverses 2026-10-13's "carry the workbook's ROI" for those clients only; KEMBA (3.8 years) is unchanged.
+- **Financial Summary:** Average Balance is the workbook's own Program to Date figure ($1,163.76 on KEMBA) instead of a balance weighted by accounts opened ($1,195).
+- **Comparisons:** the Close Rate row compares the workbook's Last 12 Months rate with Velocity's 12-month average (KEMBA 2.3% against 6.7%, Non-ICS footnote 5.7%); program to date (7.8%, 13.6%) is kept in the sheet and the notes. This partly reverses 2026-10-13's "program to date everywhere" for this one row, on Cindy's note; the other rows stay program to date.
+- **Divider:** a deck with the workbook sections previews profit contribution, annual profit per account and payback instead of the referral figures the next slide repeats (a referrals-only deck keeps them). **ICS Revenue** donut text is larger. **Appendix: Monthly Detail** is a page per program year with the rows under Accounts / Revenue / Expense & profit bands.
+- Tests: `tests/test_ics_channel_split.py`, `tests/test_ics_channel_odd_slides.py`; `test_ics_local_sheet.py` updated for the divider, the close-rate window and the present-value rule.
+- Open: the ICS Financial Summary's ROI (7.17) already matches the workbook's Value tab, so Cindy's "Average Balance and ROI differ" is read as the average balance only; the "I like this one" note on Revenue Composition is not acted on; KEMBA's Charts Goals tab has no goal for Hamilton Quarter (VIP has 20 for ten months); KEMBA's ODD carries no signature/PIN dollars for May-Aug 2026.
+
+### 2026-11-03 — Live Review chart styles tried on Marine FCU data and scored (documentation only)
+
+Summary: A new note, docs/LIVE-REVIEW-CHART-STYLES.md, draws Marine FCU's real figures in 41 alternative chart styles, each set against the shipped one, scores them against a fixed rubric, sets out the published guidance behind the scores, and lists changes to Live Review with effort estimates; no screen, figure or behavior changed.
+
+Aaron asked to try multiple chart styles, analyze them, and research presentation tips. The note records a default style per job (branch comparison, parts of a whole, trend against a goal, before and after, peer position, two measures, mix, KPI tiles), the colour contrast and colour-vision measurements behind them, and what could not be verified. The 61 screenshots are in docs/chart-styles/. Nothing was merged or released.
+
+### 2026-11-03 — Live Review: charts with several measures on a switch get a Combined view
+
+Summary: A bar chart that switches between measures (Spend, Accounts, NSF/OD items by swipe tier) now has a Combined button that draws all of them together: measures in different units are each shown as their share of their own total, so you can see where one tier holds most of the spend but few of the accounts.
+
+Aaron, 2026-11-03, with the "Spend by swipe tier" chart: "for charts like this give me a combined option".
+
+- **Units.** Measures that are rates in one unit (the branch scorecard's take, Reg E and closure rates) sit side by side as they are; measures in different units (dollars, accounts, items) are each drawn as a share of that measure's total. Marine FCU: the 26+ swipe tier is 83% of spend, 37% of accounts and 68% of NSF/OD items. The tooltip gives the share and the raw value ("83.1% ($40.56M of $48.8M)").
+- **When offered.** Two to five measures, up to 14 categories, no negative values; a chart with more categories (branches) stays on its switch. Live Review only; `tests/test_live_review.py`.
+
+### 2026-11-03 — Live Review has three more chart types: donut, waterfall and quadrant scatter
+
+Summary: Live Review now draws part-of-whole donuts (loans by status, MRPC cardholders by tier and engagement), a revenue-to-profit waterfall on the ARS financial screen, and quadrant scatter charts that put each branch on two measures (take rate against Reg E opt-in, take rate against value per account), alongside the bars, lines, tables and peer strips it already had.
+
+Aaron, 2026-11-03: "I'd like to see more chart types in LR too."
+
+- **Donut.** `blocks.donut`: a whole split into parts, each with its value and its share; the total in the middle. CashPlease "Loan summary" has loans by status; MRPC "Program status" has tier and engagement as Bars or Share (a View switch, bars first).
+- **Waterfall.** `blocks.waterfall`: ARS "Financial performance" has a Profit bridge beside the monthly chart (By month stays first): incremental revenue, less each cost line, is the profit, for the last month, the year to date and the program to date. The cost steps are derived from the P&L through the tracer, so the audit still ties every figure to the workbook.
+- **Quadrant scatter.** `blocks.scatter`: each branch is a bubble sized by its accounts, the medians cross, and the corner below both is shaded as the branches to coach. The branch scorecard has "Take and Reg E" and "Branch value gap" has "Take and value" beside their bars (four branches or more). Axes run to the data, never negative for a measure that cannot be, and percentages stop at 100.
+- Live Review only; no deck changes. `tests/test_live_review_charts.py`.
+
+### 2026-11-03 — GL data and NSF performance tracking spreadsheets are one JSON table, with the originals archived
+
+Summary: The GL data and NSF / OD performance tracking spreadsheets that clients email us are now read into one table, `Inputs/GL Data/gl_data.json`, keyed by client, and the originals are archived; nothing reads the table yet, it is there to validate our own figures against.
+
+Aaron, 2026-11-03: "Inputs\GL Data is added for clients that email us GL data or NSF performance tracking spreadsheets. These should be added to a JSON table in this folder to cover all clients. The original files can be archived." Then, with four spreadsheets in the folder: "Organize those as you see fit. We'll use them to validate later."
+
+- **Script.** `scripts/gl_data_ingest.py` (`--dry-run`, `--archive`) reads a monthly GL sheet (dates down the side, a column per measure) or the ILS NSF / OD Performance Tracking workbook (a line per item across statement-cycle dates, one sheet each for all, personal and business accounts). The tracking workbook keeps every line with whether it was typed in or calculated, and gathers the key lines (gross NSF income, waivers, refunds, net NSF income, continuous OD fees, charge-offs, recoveries) under one name each. Dates are kept as the workbook has them: in the tracking workbook they are statement-cycle dates, so a column's calendar month is not necessarily the activity month.
+- **Which client.** A client number at the start of the file name, else a name in `aliases.json` beside the table, else the file stays put and is reported. A blank template is reported as one and left. A file is archived (`_Archive/<id> <client>/`, never deleted) only after the table is written and read back.
+- **Today's four files.** `FSB Michigan GL.xlsx` is 1204 First State Bank-MI (55 months, March 2022 to September 2026: interchange, NSF, total NII, debit card spend, IC rate) and the LGE CCU workbook is 1179 Lge Community Credit Union (75 lines, 10,516 cells, through January 2025); both archived, and every cell of both was compared with the spreadsheet (0 differ). `NSF Performance Tracking Workbook.xlsx` has a client's figures through September 2026 but no client named anywhere in it, so it is kept under `unassigned` until it has one; `NSF-OD Performance Tracking_2025.xlsx` is the blank template. Both stay in the folder.
+- New `GL Data` input kind in `rpe_env` (not scanned by the watch). `tests/test_gl_data_ingest.py`.
+
+### 2026-11-03 — Live Review: presenting The review goes one product at a time
+
+Summary: While presenting The review, the right arrow on a product's last screen now holds the next product's title card until you press it again, and the arrows no longer carry on out of the review into All programs or a product's own tab.
+
+Aaron, 2026-11-03: "when presenting from The review, it still jumps between products. it should do one product at a time." Asked what the arrow should do at a product's last screen, he chose: a title card, then wait for the right arrow.
+
+- **The cause.** After the last screen of The review the arrows carried on into "All programs" and then each product's own tab (`walkOrder`), so presenting wandered between products even though the review itself is ordered by product.
+- **Now.** Presenting, on a product's last screen the first right arrow shows the next product's title card and holds it ("Press → to start Transaction Intelligence"); the second starts that product. Any other key puts the card away and stays put, the left arrow just goes back, and the review's first and last screens are its ends. Outside presenting the arrows are unchanged.
+
+### 2026-11-03 — Live Review: the MRPC peer comparison uses every client in the weekly
+
+Summary: The MRPC comparison now leads with enrollments per 1,000 debit-card accounts over the last 12 months, read from the weekly enrollment file for all of its clients (about 22 current ones), instead of the share-of-goal measure that only the 6 clients with a VIP sheet could be compared on.
+
+Aaron, 2026-11-03: "we should be able to do peer comparison for MRPC too", "but we must have more than 6 MRPC clients...".
+
+- **Why 6.** The share of goal needs the goal, which only the VIP sheets carry (6 MRPC clients). The weekly (`MRPCEnrollmentSummary`) has a tab for every client with monthly enrollments (platinum, gold, business) and the open accounts with a debit card, so enrollments per 1,000 debit-card accounts needs nothing else. Marine FCU: 36.6 per 1,000, against 22 current peers.
+- **Current.** A client counts when it enrolled in the last six months the weekly carries (counted back from the newest month any client has), not in its own last six months, which let clients whose series stopped in 2020, 2024 and 2025 count. The active-cardholder and take-rate measures use the same pool, so they lose those stale clients.
+- The share of goal stays as another measure for the clients that have a VIP sheet. `tests/test_live_review_mrpc_peers.py`.
+
+### 2026-11-03 — Live Review: the combined "How you compare" is a series of charts, peer screens start on a chart, and bar charts sort
+
+Summary: The combined "How you compare" screen now shows one chart for every measure of every product (instead of one card per product), each peer screen starts on its chart with its takeaway inside the chart's card, and horizontal bar charts such as take rate by branch can be sorted largest, smallest, A to Z or as listed.
+
+Aaron, 2026-11-03: "'Combined view · How you compare' should have a series of charts", "all the peer comparison slides should start on a chart", "make charts like this sortable".
+
+- **Combined view.** `registry._compare_overview` takes every peer strip from each product's peers screen (the ones a product's own screen hides behind a measure selector too), titles each with its product ("MRPC: Cardholders still active") and keys it by product (two products both have `per_1k`). Presenting, it shows the first chart of each product. `#all/compare` now opens that screen (the combined view's screens are addressed by id).
+- **Chart first.** The per-measure takeaway ("4th of 6 REMS clients; 7.1% below the peer median") is the strip's own sentence, drawn under its title, instead of a text block above the chart.
+- **Sortable bars.** Horizontal bar charts with more than two bars get Largest, Smallest, A–Z and Listed beside the chart title. Listed (the order the data comes in) is the default in the regular view; presenting a list of more than six still defaults to largest first, and the cap on how many bars fit says "Largest 12 of 16", "Smallest ..." or "First ...". The drill into a bar's row works in any order.
+
+### 2026-11-03 — Live Review REMS: compare the last 12 months pooled, and leave out the demo client
+
+Summary: With the real REMS file in place, the REMS peer comparison now leads with each client's opt-in rate over the last 12 months pooled, because a single month holds only tens of responses, and it no longer counts the demo client (999, Union Financial Bank) as a peer.
+
+Aaron saved `rems_responses 2026-11-03.csv` in `Inputs/REMS` (658 rows, 14 clients, the columns the section reads). Built against it, Marine FCU's section showed 47 responses and 83.0% opted in in October.
+
+- **12 months pooled.** A month of REMS is small (Marine's October: 47), so the monthly rate left only 5 comparable peers and moved with a handful of responses. The first comparison is now opt-ins over responses for the last 12 complete calendar months (at least 30 responses in them to be compared); the monthly rate stays as the second view and the trend. Marine: 85.3%, 3rd of 6 REMS clients, 7.2% above the peer median (79.6%).
+- **Demo client.** Client 999 (Union Financial Bank, the deck demo client) is in the query's result from 2010; it is skipped as a client and as a peer.
+- **Current** now means a response in the last six calendar months before the pull, not in the client's own last six months, which counted Wellworth (last response April 2023) as current.
+
+### 2026-11-03 — Sheila cleans up after herself: the Transaction Intelligence cache has a size and an age limit
+
+Summary: Sheila no longer lets her local Transaction Intelligence cache grow without end. It stays under 3 GB and clears any client not built for 21 days, least recently used first, when she starts and at the start of each Transaction Intelligence build; `ars_launcher_web.py --tidy` does it on demand.
+
+Aaron, 2026-11-03: "my harddrive is nearly full. make sure sheila cleans up after herself."
+
+- **What grew.** `%LOCALAPPDATA%\RPE\ti_cache` holds each client's transaction files, unzipped once, and their parquet, so the share is read once per file. Nothing ever removed a client, so it held 5.6 GB across three clients. Everything in it is rebuilt from `Inputs/Txn Files`, so a client let go costs only that client's next build a re-read.
+- **The limits.** `build/local_cache.py` `trim_ti_cache`: 3 GB for the whole cache (`TI_CACHE_MAX_GB`) and 21 days unused (`TI_CACHE_MAX_AGE_DAYS`), evicting whole clients, least recently used first. The client being built is never evicted. Each client has a small stamp file (`used/<id>`) touched when it is staged.
+- **When.** At Sheila's start (in the background, with `sweep_temp` for scratch a crashed build left in the temp folder), at the start of every `ti/txn_stage.stage`, and by hand: `python scripts/ars_launcher_web.py --tidy`.
+- Everything else Sheila writes locally was already cleaned: build scratch (`rpe_env.temp_dir`, removed at exit and swept at the start of each build) and the launcher's working files, which live on the share. `tests/test_local_cache.py`.
+
+### 2026-11-03 — Live Review has a Reg E Management Solution (REMS) section
+
+Summary: Live Review has a new product section for Reg E Management Solution: responses and opt-ins by month, and how the client's opt-in rate compares with every other REMS client. It reads the saved result of the REMS query; until that file is saved it says what to run.
+
+Aaron, 2026-11-03: "add a section for Reg E Management Solution (REMS)".
+
+- **Data.** `sql/rems_responses_report.sql` runs against MRDB and SRDB, which Claude cannot reach, so a person saves its result as `Inputs/REMS/rems_responses <YYYY-MM-DD>.csv` (the CSV with `client_id`, `client_name`, `response_year`, `response_month`, `num_responses`, `num_opt_in`, `pct_opt_in`). The date in the name is the pull date; the month it falls in is in progress and is left out. The new `REMS` input kind is not scanned by the watch.
+- **Section.** REMS is a product like ARS, ICS and CashPlease: its own rail group, colour, divider card and progress-track entry. Two screens: "REMS responses" (responses, opt-ins and the rate, to date and for the last complete month, with the monthly bars and table) and "REMS: how you compare" (the opt-in rate against every other client in the file that had responses in the last six complete months; a month under 10 responses is too small for a rate and is left out; peers are numbered, never named). A client with no REMS rows in the file has no REMS section.
+- `tests/test_live_review_rems.py` pins all of it on a synthetic file.
+
+### 2026-11-03 — Live Review: sections are organised by product, and the title cards show only while presenting
+
+Summary: Live Review's screen list, agenda and progress bar are now grouped by product (ARS, Transaction Intelligence, ICS, MRPC, CashPlease), each with its own sections, and the product title card appears only in presenter mode.
+
+Aaron, 2026-11-03: "the section slides should only show during presentation mode. Also, the sections need to be organized by product", "treat Transaction Intelligence as a product".
+
+- **By product.** `story.SECTIONS` / `OPTIONAL` carry a product per section: ARS (with its Companion views) first, then Transaction Intelligence, then ICS, MRPC and CashPlease where the client has them. Each product's peer screen sits with that product, so the separate "Other programs" and "How you compare" sections are gone. The rail has a coloured heading per product and numbers its sections within it; the progress bar and the agenda follow the product ("section 2 of 5").
+- **Where the 20 screens went.** "What it is worth next" is now ARS (five points) and Transaction Intelligence (what a card and an opt-in earn, branch value gap) is its own section, "What it is worth". No screen was added or dropped.
+- **Title card.** Shown only while presenting; clicking into another product with the screen list, or reading in the regular view, shows no card.
+
+### 2026-11-03 — Live Review: the ICS peer comparison uses every ICS client, not just the VIP sheets
+
+Summary: "Referrals per 1,000 DDAs" on the ICS "How you compare" screen now compares the client with every ICS client that has referrals and a DDA count (38 peers for Marine FCU, up from at most 9), read from the all-clients referrals file instead of the 11 clients whose VIP sheets are pulled.
+
+Aaron, 2026-11-03: "look at the VIP data we're pulling and use all peers for peer comparison for ICS, MRPC and CashPlease."
+
+- **ICS.** The VIP store holds sheets for 11 ICS clients, but `Inputs/ICS Referrals/ics_referrals.csv` (the all-clients referrals pull, 87 clients) holds a row per referral for every Velocity ICS client. `peer_pool.referrals_by_month` reads it and `collect_ics` puts referrals per 1,000 DDAs (ILS DDA counts) on every client with a DDA count and a referral in the last six complete calendar months, the client included, so one source feeds both sides. The month the file was pulled in is left out. The share of the monthly goal stays VIP-only: goals are not in the all-clients file. Without the file the comparison falls back to the VIP sheets as before.
+- **CashPlease** already compared against every current client with a pack (73 for Marine), and **MRPC** against every tab of the weekly (23) for the active and take-rate measures; MRPC's share of goal is VIP-only (6 clients) because goals come from the VIP sheets.
+- Tests: `test_ics_per_1k_uses_every_client_in_the_all_clients_referrals_file`, `test_the_ics_comparison_falls_back_to_the_vip_sheets_without_the_referrals_file`.
+
+### 2026-11-03 — Live Review: sections are organised by product, and the title cards show only while presenting
+
+Summary: Live Review's screen list, agenda and progress bar are now grouped by product (ARS, Transaction Intelligence, ICS, MRPC, CashPlease), each with its own sections, and the product title card appears only in presenter mode.
+
+Aaron, 2026-11-03: "the section slides should only show during presentation mode. Also, the sections need to be organized by product", "treat Transaction Intelligence as a product".
+
+- **By product.** `story.SECTIONS` / `OPTIONAL` carry a product per section: ARS (with its Companion views) first, then Transaction Intelligence, then ICS, MRPC and CashPlease where the client has them. Each product's peer screen sits with that product, so the separate "Other programs" and "How you compare" sections are gone. The rail has a coloured heading per product and numbers its sections within it; the progress bar and the agenda follow the product ("section 2 of 5").
+- **Where the 20 screens went.** "What it is worth next" is now ARS (five points) and Transaction Intelligence (what a card and an opt-in earn, branch value gap) is its own section, "What it is worth". No screen was added or dropped.
+- **Title card.** Shown only while presenting; clicking into another product with the screen list, or reading in the regular view, shows no card.
+
+### 2026-11-03 — Live Review: the product title card is the deck's section divider
+
+Summary: When Live Review moves into another product, the title card now looks like the section dividers in the Executive Review deck (the blue gradient, the orange wedge and CSI logo, the product name and its topics, three headline figures and the progress track), and it no longer shows a slide count.
+
+Aaron, 2026-11-03: "the section dividers are good. these should look like the transition slides in our RPE deck. Also, the number of slides was wrong too, but we don't need that number of slides shown."
+
+- Drawn the way `build/cover_divider.draw_divider` draws it: product at 52 pt, topics at 24 pt, figures at 40 pt, labels at 16 pt, the track naming ARS, TI, ICS, MRPC and CashPlease with the current one in orange. The figures are the product's own summary figures (Transaction Intelligence has no summary, so it shows the first figures on its first screen).
+- The slide count is gone; it counted the story's screens for the product, which is not what the page shows. The card stays up 2.6 s and any key or click dismisses it.
+- The CSI logo is a 9 KB PNG inlined in the stylesheet, so the page still needs no network.
+
+### 2026-11-03 — Live Review: the rail and the Present button work again
+
+Summary: Fixes a Live Review bug from the product marker released earlier today, where every click was read as "go to ARS" so the left-hand screen list and the Present button did nothing.
+
+Aaron, 2026-11-03: "it opened but the left hand navigation isn't working", "the Present button isn't working either".
+
+- **Cause.** The product marker set `data-prog` on the page's root element for its colours. The click handler's first rule treats any element with `data-prog` as a program tab and looks for it with `closest`, which finds the root for every click. The attribute is now `data-product`.
+- `tests/test_live_review.py` pins that `data-prog` is never set on the page. Checked in a browser: rail clicks, Present and Esc, program tabs.
+
+### 2026-11-03 — Live Review: the product is marked, and the peer screens name the client and give peer numbers
+
+Summary: Live Review now shows which product is on screen (a coloured tag and top rule, and a title card for a moment when the story moves into another product), the peer screens call the client by its name instead of "This client", and a peer dot's hover gives that client's number instead of "Another client".
+
+Aaron, 2026-11-03: "we also need to make it obvious when we switch between products", "on the peer reviews use the client name rather than 'This client'", "on the peer comparison mouse overs use the Client ID rather than 'another client'". Asked whether peers should show their number always, only off the presenter view, or not at all, he chose always.
+
+- **Product.** A tag in the story bar and a 6 px rule across the top in the product's colour (ARS, ARS analysis, Transaction Intelligence, ICS, MRPC, CashPlease), and the kicker takes the colour. When the story crosses into another product a full-screen title card shows for 1.8 s ("Now showing ICS, Invitation Checking System, 4 screens"); any key or click dismisses it and the key still counts. The ARS analysis views sit among the ARS screens and count as the same product.
+- **Client name.** The registry renames the client's own series ("This client") to its name on every peer screen, and the legend, hover and strip label use it.
+- **Peer numbers.** `peer_pool` hands each peer over with its client number as `id`, `peers.compare` returns `dot_ids` beside `dots`, and the hover reads "Client 1234: 61%". **This replaces the 2026-11-02 rule that a peer is a value and never an id.** A peer's name, logo and CSM still never reach the page; fewer than five peers is still stated, not shown. `tests/test_live_review_peers.py` now asserts no peer name appears and that a number appears only in `dot_ids`.
+
+### 2026-11-03 — Live Review shows as many branches as the window holds, with larger names
+
+Summary: In presenter mode a horizontal bar chart, such as take rate by branch, now lists as many bars as fit under the title, largest first, instead of stopping at six, and the branch names are 16 pt instead of 12.5. A 1280 x 720 window still shows the largest six.
+
+Aaron, 2026-11-03: "these branch slides can show many more branches, and make the fonts larger on the branch names".
+
+- The number of bars is `floor((window height - 540) / row height)`, never fewer than six; a taller window or a bigger monitor shows more. Marine FCU's 16 branches all show at about 1,090 px of height. What is left out is counted in the caption ("Largest 10 of 16") and is one keypress away in the table (`T`).
+- Names are 16 px in presenter mode and 14 px otherwise, bar height 18 px, value labels 15 px. Live Review only; no deck changes.
+
+### 2026-11-03 — the interior-gap rule is in the code: a month that collapses mid-series is left out, not charted
+
+Summary: A month in the middle of an ODD extract that collapses and then recovers (Marine FCU August 2026 NSF/OD, 390 items against about 19,000) is now skipped by every comparison and trend, as the 2026-10-13 entry below describes; the code for it had not been committed.
+
+- `month_complete.assess(..., interior=True)` and `interior_gaps` find the gap; `usable_months` is the complete prefix less any gap. `odd_completeness` sums every month and asks for interior gaps on all four measures.
+- Callers read `usable_months`, never `months[:complete]`: `metrics_gen`, `lift_values`, `ticket_calc`, `responder_activity` and `james_views`. The three-month swipe window label names a month left out inside it.
+- `tests/test_month_complete.py` gains the interior cases. Decks already in Outputs keep their figures until their next build.
+- Also committed: the `vip-rescan` project skill.
+
+### 2026-11-03 — The RPE Client Performance page hands over the Live Review command for each client
+
+Summary: Build readiness on the RPE Client Performance page has a Live Review column. Copy command puts the PowerShell that opens one client's Live Review on the clipboard, and Copy Live Review script does it for every client listed.
+
+Aaron, 2026-11-03: "give me links for the live review pages for my clients in my RPE client tracking artifact. Or if you can't give me links, then have it copy the PowerShell script."
+
+- **Why a command and not a link.** Live Review is served on 127.0.0.1 with a fresh port and token each run, so no link to it can exist. The page hands over the command that starts it instead.
+- **Which period and checkout.** Each client uses the period of its newest deck. The commands run from the checkout the refresh ran from (`DATA.live_review.repo`; `RPE_REPO` overrides it), so no path is written into the page. The script stops with a warning if that checkout has no `scripts/live_review.py`.
+- **Blocked clipboard.** The artifact sandbox can refuse copying; the page then opens a box with the text selected.
+- Only a numeric client id and a `yyyy.mm` period are put into a command. `tests/test_perf_live_review_links.py`.
+
+### 2026-11-02 — Sheila is the Hub layout: every screen moved, and the old page is gone
+
+Summary: CSM Sheila now looks and works like the Hub for everyone: a sidebar, a Ctrl K search, keyboard shortcuts, light and dark, and the slide-stack mark in the corner, on every tab (Decks, Lift Matrix, Data Issues, Slide Review, Feedback) and on the change log; the old page and the /hub switch are gone.
+
+Aaron, 2026-11-02: "go with option E for the heading. also, move Sheila entirely to the hub layout. It's a LOT better. We need to update the other screens for the hub."
+
+- **Everywhere.** Sheila is at `/` for everyone; `/hub` redirects there; `RPE_SHEILA_HUB` does nothing now. Old bookmarks still work: `#lift`, `#issues`, `#votes`, `#reported` open that tab, and `#lift&client=1705` opens a client. `G` then `D`, `L`, `I`, `V` or `F` jumps between tabs, `?` lists the keys of the tab you are on, and Ctrl K reaches every tab, client and action.
+- **The mark.** Two stacked slides, navy in front of teal (light and dark), in the corner and as the tab icon; no orange in the header. The change log page uses the same colors and a Back to Sheila link.
+- **Decks.** As in the preview, plus the ILS pre-go-live and kickoff cards on the client page (folded unless a client has something to run), and the links row (code sheet, Lift Matrix, data issues) under each client's name. The list shows one status per client, so the old "TI in Outputs" and "Companion in Outputs" chips are gone from it; each panel on the client page says when its decks are in Outputs.
+- **Lift Matrix.** The overview shows the workbook row and the calculated row with the change as an up or down chip; a client's page has the rates up top and figures that follow them a moment after each edit (Enter at once), a tile for the value per account per month weighted by accounts against the workbook's, and Export held until the figures on screen are current. Same server logic, same export record.
+- **Data Issues.** Clients with open items are listed with counts beside their cards; tiles filter by kind; Mark complete is one click with a toast and an Undo; the sidebar badge is the open count for the clients shown.
+- **Slide Review.** One key per slide: 1 Keep, 2 Delete, 3 Appendix (each moves to the next slide not voted on), S star, C comment, N next unvoted, `[` `]` change program, W Summary; a meter shows progress; the Summary exports the CSV.
+- **Feedback.** A short report form (Ctrl Enter sends, with a toast; a Report button in the top bar from any tab) beside the list of reports with their states.
+- **Gone.** The old page (about 1,100 lines of HTML, style and script in `ars_launcher_web.py`), `slide_review_ui.py`, the ILS card splice in `ils_ui.py`, and the tests that pinned them; their intents moved to `tests/test_sheila_hub.py` and `tests/test_sheila_hub_tabs.py`. The routes, the build queue, the token and Host checks and the logic behind every tab are unchanged. `#100` (colors on the old page) and `#101` (no sent tracking) are on main: the Hub has no sent state, and what #100 pinned about the orange now lives in `tests/test_sheila_hub.py`.
+- Updated: `ARS Deck User Guide.html` (the Sheila section names the new screens and keys). Not released.
+
+### 2026-11-02 — a Hub-style Sheila to try at /hub (off unless you turn it on)
+
+Summary: CSM Sheila has a second layout, the Hub look with a command palette, keyboard shortcuts and status shapes, at /hub; it opens on your own clients and is off for everyone unless RPE_SHEILA_HUB=1 is set where Sheila starts, so CSMs see no change.
+
+Aaron, 2026-11-02: "I want a hub style layout to test on my own before rolling it out to everyone ... rip off and duplicate some of [the best of breed UIs'] look and feel ... fun to use and effective."
+
+- **Turn it on.** Set `RPE_SHEILA_HUB=1`, start Sheila as usual, and open the address she prints with `/hub` on the end. Without the variable `/hub` answers 404. The same token and localhost checks apply, and the page talks to the same API as the classic one, so a check or build started there is the launcher's own.
+- **Your clients first.** The server works out once, at startup, which CSM the signed-in person is: the Windows login (`aaron.burgard`) matched to the Client CSM List's CSM name (Aaron Burgard) or to the local part of that CSM's email in `CSM Contacts.csv` (`rpe_env.contact_by_name`). The Hub then opens filtered to that CSM with "Showing Aaron Burgard's clients · Show all", and the CSM filter still switches. No match, or more than one, filters nothing and says so in one quiet line, never a wrong CSM. `RPE_SHEILA_CSM="Name"` replaces the login (for testing, or for someone running Sheila from another login). It is a convenience, not security, and only the Hub does it; classic Sheila is unchanged.
+- **What is real.** The Decks view: the client list (search, CSM filter, five KPI tiles that filter it), the client page with the Executive Review, Transaction Intelligence and ARS Companion cards, their checks, Build / Rebuild (with a Yes before a deck in Outputs is replaced), the build queue and live steps, Show in File Explorer, the cycle menu and What's new. Lift Matrix, Data Issues, Slide Review and Feedback are links to the classic page, which now opens a tab from `/#lift`, `/#issues`, `/#votes` and `/#reported`.
+- **Statuses.** Ready, Building, In Outputs, Needs attention and Blocked, each a shape as well as a colour. There is no sent state anywhere: that stays in the delivery dashboard.
+- **The feel.** Linear's dense rows with a status shape in front and J / K / Enter; Vercel's pulsing dot for a build (it, the Building tile's ring and the build steps move only while a build is running or queued; with nothing running the tile is a still ring); Raycast's Ctrl K palette and compact mode; Stripe's tinted status pills; skeleton rows while loading; toasts; a short confetti burst when a deck lands in Outputs (not under reduced motion). Clicking the open client's row again (or Enter on the cursor row, Back on a phone) closes it and returns to the Decks overview with "Waiting on you"; a build for it keeps running and its steps are back when you open it again. The glass sidebar, both themes and the palette come from the Pack 205 Hub. The selected client is a tinted fill with a thin ring, no accent bar.
+- Superseded the same day by the entry above: the Hub is now the only page and the gate is gone.
+- `tests/test_sheila_hub.py` pinned the gate, the token and host checks, no sent wording, every looked-up element present, every colour defined and legible in both themes, the selected row with no accent bar, and who-is-asking (by name, by email, none, ambiguous, override). No deck code changed; nothing was released.
+
+### 2026-11-03 — Live Review: the review presented from a web page, as a full suite with peer comparisons (prototype)
+
+Summary: `python scripts/live_review.py <id> --period <yyyy.mm>` presents a client's review from a web page on a local server, now as a seven-section storyline (the ARS screens, six ARS analysis views and seven Transaction Intelligence screens, with an agenda), plus a first screen or two each for ICS, MRPC and CashPlease and an anonymous "How you compare" screen for each of those three. It reads the packs a deck build left behind, builds nothing, writes nothing to Outputs, and is not in CSM Sheila or the release.
+
+Aaron, 2026-11-02: "what if we presented results from a presentation web page instead of PowerPoint"; "we would run it on the local Python server the way we do for Sheila"; test client Marine FCU 1539. 2026-11-03: "go through them and pick the most impactful as if you're a banker in charge of retail performance"; the product is called **Live Review**; "build in peer comparisons for MRPC, ICS, and CashPlease".
+
+- **Name.** `review_page.PRODUCT_NAME = "Live Review"` is the one constant the page title, header and server banner read. The script stays `scripts/live_review.py`; the package is `build/review_page/` (a package named `live_review` beside that script breaks imports).
+- **Same numbers as the deck.** ARS reads `Build Artifacts/launcher/<period>/<id>/` and uses the deck's own P&L, ratio and Lift Matrix functions; the analysis views read the Companion build's `combined_insights.json`; the TI screens read `ti_pack.json`. ICS, MRPC and CashPlease read what their deck builders read. A pack that is not there is a greyed program or a "run this first" state that names the command: nothing here builds a deck or starts the 25-minute transaction run.
+- **The storyline** (`story.py`, ranked table in `docs/LIVE-REVIEW-SELECTION.md`): The program; Where the revenue comes from; Branch performance; Member behavior; Competition and leakage; Attrition and deposits; What it is worth next; then, for a client that has them, Other programs and How you compare. 20 screens chosen from the 38 Companion views, the 151-slide TI cut (PR #106's cleaned deck) and the 7 ARS screens, each tying to dollars and naming a decision. Sections show in the nav and as a progress strip; arrows walk every section; **A** opens the agenda.
+- **Every figure traces to a pack.** `trace.audit` fails the server on a number no pack or derivation explains, a number in a sentence no pack figure explains, a banned word, or "lift" as prose. Complete months only (`month_complete`): Marine's Aug 2026 NSF/OD is a gap in the line, not a zero; a month in progress is in no rate or trend.
+- **How you compare** (`peers.py`, `peer_pool.py`; `peer_data.py` is the per-client ICS / MRPC / CashPlease reading moved out of `refresh_performance_dashboard.py`, which imports it back, so the dashboard and Live Review read each sheet one way). The client against the other clients on the same program: its value, the peer median and middle half, its rank ("3rd of 14 ICS clients", the +/-2% "almost flat" wording against the median), a strip plot with every peer an anonymous dot, a metric switch, the client against the median over the last complete months, and the histogram. **Privacy:** nothing carrying another client's name, id, logo, CSM or any keyed value reaches the page, the model JSON or the Sources drawer (the collectors hand back values, not clients); fewer than five other clients on the program, or fewer than five with current data for a metric, is stated and nothing is shown. Months align like for like and fall back (said on the screen) to the latest month enough peers share. MRPC revenue is left out: VIP's revenue is stale.
+- **Presenting at 1280 x 720:** the slide is the finding as the headline, up to four tiles, one chart (the largest six bars of a long one) and the first so-what line; the table is **T**, the sources **S**.
+- **Not** in CSM Sheila's page, the release, Outputs or `deliveries.json`. `release_launcher.ps1` mirrors `build/` and `scripts/`, so the package travels as inert code; add `/XD review_page` there to keep it off the share. Tests: `tests/test_live_review.py`, `test_live_review_story.py`, `test_live_review_peers.py` (synthetic client 9999 and peers 7001 to 7009; the peer test serialises the model and the page and asserts no peer id or name is in either).
+
+### 2026-11-02 — Transaction Intelligence deck cleanup: twelve pairs of charts drawn as one slide, nine repeated slides left out, two charts fixed
+
+Summary: the Transaction Intelligence deck is 21 slides shorter (109 to 88 on 1776 CoastHills) with the same figures: twelve pairs of one-chart slides now share a slide, two charts side by side, and nine slides that repeated another are left out. A chart that drew no bar for card spend now draws it, and the attrition-by-branch chart no longer lets a one-account branch set its scale.
+
+Aaron, 2026-11-02: "go through the entire transaction intelligence deck and optimize and clean it up. There are certainly some redundant slides there. There are slides that don't generate data. There are charts that can be combined into one slide."
+
+Nothing was recomputed: no figure, headline or note changed, and the ARS deck, its metrics and its template are untouched. Measured on 1776's own 2026-11-02 compute, both lenses: 109 slides before, 88 after.
+
+- **Pairs drawn as one slide** (`ti/deck/combine.py`; each chapter lists its pairs in `COMBINED`). Each builder is run against a probe that records its headline and its one chart; the two charts are then redrawn at half a slide, so their type keeps its size, and each panel is captioned with its builder's own headline. The pairs:
+  - Transaction Intelligence: relationships' age and turnover; card spend by age and by tenure; merchants rising, falling, new and faded; card dollars by merchant and by category; PIN and signature.
+  - Competition: what competitors take and how much of the account they own; payment apps and buy-now-pay-later.
+  - Attrition: cohort closure and survival by tenure. Deposits: how members are paid and how steady it is; members who stopped being paid and how long since money last arrived. Campaign: program reach with response by offer; depth of engagement with first-time against repeat responders.
+  - A pair that cannot share a slide is drawn as it always was and the build log says why: a half draws a table, tiles of its own or two charts, a half-width figure would land under 0.86 of its size, or one half is declined for the client (the other is drawn alone, the declined half is recorded as declined). The two economics stacks were tried and left apart: 17 and 9 columns do not fit in half a slide.
+  - The rail of key figures on each half is not carried over; each panel's caption is the headline that carries the figure.
+- **Slides left out** (`ti/slides.json`, "toss", each with its reason under `_tossed_2026-11-02`): How the money moves; How deep the leakage runs; Card behaviour by lens; What the dictionary does not know yet; Where we leak, by branch; Banks against the ecosystems; ICS never activated; ICS sustained activity; ICS closure hazard. Each repeats a figure another slide carries, or is about our own tooling. A slide with a combined slide's title keeps "keep" for its parts, which still draw alone when their pair cannot be combined.
+- **A chart that drew no data.** "What arrives against what leaves" drew inflow but not card spend: the axis started at zero and the negative bar sat off the canvas, its label (`$-644,976,863`) over the axis labels. `charts.value_waterfall` now reaches left of zero and writes `-$644,976,863`.
+- **The attrition-by-branch chart** drew every branch although its headline and footnote rate only those with 150+ accounts at risk, so a branch of one account that closed read 100% and one of 35 read 40%, and those bars set the scale for the twelve real ones. It now charts the branches the footnote names (with fewer than three over the floor, all of them, as before) and the footnote says "charted".
+- **A validation FAIL that blocked a build.** The ICS quality slide's first tile (`37%` over a two-line note) was a FAIL on 1776 on `main`; the note no longer carries "(the ARS synergy)" and fits one line.
+- **Half-width charts.** `_untangle_ticks` breaks a multi-word tick label over two lines before it angles it, and the band-stack legend takes two rows, when a figure is under 7in wide.
+- Not changed, and worth Aaron's call: slides that overlap the Executive Review deck (DUPLICATES.md rows 12-14, 16, 28) are kept; null-finding slides ("Depth against growth", "Competitor spend before closure") are kept because the finding differs by client.
+
+### 2026-11-02 — the ARS branch tables move to the Appendix; the main deck keeps the branch charts
+
+Summary: the take-rate-by-branch table and the Reg E opt-in-by-branch table are no longer in the main ARS deck. The Appendix now carries every branch for each: Take Rate by Branch, Reg E Opt-In by Branch (all personal accounts) and Reg E New Accounts by Branch, over as many pages as the branches need. The charts stay where they were.
+
+Aaron, 2026-11-02: "in the executive review deck for branch data around debit cards and Reg E, I want the full branch performance in the appendix. We don't need the branch detail in the main deck, just the charts."
+
+- **Main deck.** "12-Month Take Rate by Branch" (the template's monthly table) and "Reg E Opt-In by Branch — Last 12 Months" are gone from the main deck; the branch bar charts on the two Take Rate slides and the two Reg E slides are unchanged. Two slides fewer in the main section.
+- **Appendix.** `branch_appendix_slides.py` adds "Appendix: Take Rate by Branch (k of n)", "Appendix: Reg E Opt-In by Branch (k of n)" (all open personal debit-card holders, new) and "Appendix: Reg E New Accounts by Branch (k of n)" after the Branch Reference. Every branch the metric reports is listed (1441 FNB Alaska: 27 branches, two pages each); a branch under the threshold (15 new accounts, 40 holders) is no longer lost: the remainder against the program figure is an "All other branches" row, so each table ends on a Total that is the number the chart slides state. Order is unchanged (take rate by branch number, Reg E by rate).
+- **Type.** The tables are 12 pt, 15 lines a page; `restyle_fonts` leaves them there by the table's shape name (`BRANCH_DETAIL_TABLE`), replacing the "Reg E Opt-In by Branch, 14 rows" title rule. Everything else on the slide keeps the 16 pt floor.
+- **Mechanics.** The template slide is dropped in phase 2 with the other orphan (strip, then add), so no partname is freed for a later slide; nothing was added to or removed from `ars_template.pptx`. `rege_branch_slide.py` and its two-table layout are retired (the slide's content is the third appendix family). The opt-in "Where Cards Lag" view now anchors on "12-Month Eligible Take Rate — Business". `slide_inventory` lists the three appendix families and no longer lists the two main-deck slides, so Slide Review follows the build.
+- **Not changed.** `templates/ars_template.pptx` still carries the old slide (it is the build's source, dropped at build time); the Companion and Transaction Intelligence decks; assemble_combined (the Appendix is ARS-only and travels with the ARS deck).
+
+### 2026-11-02 — the Contact Us slide is the Questions & Discussion gradient with the contact centred
+
+Summary: the Contact Us slide is now a full-bleed navy-to-blue gradient slide like Questions & Discussion, with the CSI logo, the title and the CSM's name, title, phone and email centred and grouped closely, instead of a flat navy card with large gaps between the lines.
+
+Aaron, 2026-11-02: "add this gradient to the contact card", then, seeing it: "there's too much space between the lines on the contact card. we need to do something else with that slide." He chose the full-bleed design from three (a compact gradient card, a wide card, a full-bleed slide).
+
+- **Slide.** `shapes.draw_contact_slide` draws it for every deck: the closing slide's gradient (`build/assets/csi_brand/closing_fill.xml`, 00274C at 37% to 035B95 at 100%, the one place the stops live), the white CSI logo, "Contact Us" at 44 pt, then the contact centred: name 30 pt, title 18 pt bold orange, phone 20 pt and email 18 pt together with a small drawn icon each. Like the closing slide it has no slide number and no data logo. No phone on file means no phone row and the email takes its place. One contact, or two columns for the ICS program contact beside the CSM.
+- **Who draws it.** `fill_contact_slide` (was `fill_contact_card`) redraws the shell's slide whole for the ARS, MRPC, CashPlease, Transaction Intelligence and ILS decks, and the ICS, MRPC and ARS builders' own Contact slides call `draw_contact_slide` instead of drawing a card and a title, logo and number beside it. The contact is still `rpe_env.csm_contact`'s, never typed into the code. `contact_card_lines` and the card constants are gone.
+- **Text.** Every line is 16 pt or larger and white, except the title line, which is bold orange at 18 pt (large text): about 3.6:1 against the gradient in the first column and 3.1:1 in the second, against 4.5:1 on the flat navy.
+- **Divider detection.** The slide is full bleed with a 44 pt title, so `cover_divider.is_divider` took it for a section divider and the ARS builder redrew it as one (title and name only; the golden deck test caught it). It is excluded by title, like Questions & Discussion.
+- **Not rebuilt.** Decks already in Outputs keep the old card until their next build. `tests/test_contact_slide.py` and `tests/test_csm_contact.py` pin the stops, full bleed, one and two contacts, the 16 pt floor, the grouping, the icons and that every builder goes through the helper.
+
+### 2026-11-02 — five greys instead of eight
+
+Summary: the deck palette now has five greys, one for each job, where it had eight; no deck is rebuilt, so the change shows in each client's next deck as a slightly paler card, line or tertiary bar.
+
+Aaron, 2026-11-02: "I do want you to align the grays across the deck so we don't have a bunch of different grays out there. Don't rebuild anything. We can wait for new decks."
+
+- **`brand.py`.** `TICK`, `LABEL`, `ROWALT`, `GRID`, `MUTED` stay. `TILE` (#ECF0F4), `HAIRLINE` (#D9DEE5) and `LIGHT` (#C9D6E3) are now aliases of `ROWALT`, `GRID` and `LABEL`, so every import keeps working. The largest shift is `HAIRLINE` to `GRID` (a slightly fainter left spine on the ARS and MRPC charts); the others move by two points or fewer. The comment that said there were five greys had been wrong since `LIGHT` and `HAIRLINE` were added. `CANCEL_RAMP`'s pale slice follows `LABEL`.
+- **Builders.** Hard-coded near-greys now read the role: `build_ars_gen` (text grey, band), `build_ics_gen` (text grey, panel, and the table stripe `#F2F5F8` -> `ROWALT`), `build_mrpc_gen` (the callout subline), and `status_slides` (a second text grey, `#5A6778`, one step from `TICK`). The Pre-GL/ILS deckkit and the ported v5 code keep their own values.
+- **Guard.** `tests/test_brand.py` pins the five, keeps them visibly apart, and fails on a builder that declares a retired grey (a line that must read one back from a template says `retired-grey-ok`).
+- **Checked.** `LIGHT` is never drawn beside `LABEL` as separate series: ARS charts alias their own `LIGHT` to `STEEL_SOFT`, and ICS, MRPC and CashPlease charts do not draw `LABEL` as a series. Unit suite and the template gate pass (0 FAIL, 0 layout drift); layout baseline not re-snapshotted, no deck rebuilt.
+- **Not changed.** The template shells still carry the old stripe `#F2F5F8` (105 uses in the ARS shell, 76 in ICS) and `#ECF0F4` panels; MRPC reads `#ECF0F4` back from its shell on purpose. Regenerating the shells is the next step. CSM Sheila and `dashboard.py` have their own greys and are a separate change.
+
+### 2026-11-02 — the RPE Client Performance page is in the Hub look and lists one CSM's clients
+
+Summary: the RPE Client Performance page now looks like CSM Sheila's Hub, and it lists only one CSM's clients (Aaron Burgard's by default) instead of every CSM's.
+
+Aaron, 2026-11-02: "rebuild the RPE Client Performance artifact in hub fashion. Also limit that artifact to my own clients, since we now have Sheila."
+
+- **Scope.** `refresh_performance_dashboard.py` takes `--csm "Name"` (else `RPE_DASH_CSM`, else Aaron Burgard)
+  and decides whose clients these are BEFORE it reads anything for a client, from the Client CSM List. Another CSM's
+  client is no longer extracted and is not in the embedded dataset: the old page carried all five CSMs' clients and
+  filtered them in the browser, so every client's figures were in the page for anyone who could open it. There is no
+  "all CSMs" option, a client no list names is left out rather than guessed, and a CSM with no clients stops the build
+  rather than publishing an empty page. The scope is in the content hash. Rankings now say "among your N clients".
+- **The CashPlease company row** still benchmarks against every current Velocity CashPlease client, but it now
+  carries rates and averages only. Its loan, principal and DDA totals were sums over other CSMs' clients and are gone.
+- **The page.** Rebuilt on the Hub's frame: a glass sidebar that folds to a rail and a bottom bar on phones, KPI tiles,
+  dense rows, light and dark themes, the slide-stack corner mark, 44 px targets. Sections are Overview, ARS, ICS, MRPC,
+  CashPlease, Build readiness and Needs a CSM, with the workflow page linked as "How decks are made". The CSM and
+  product filter chips are gone (one CSM; the sidebar is the product filter); a find box filters the view by name or
+  number. Each program view has KPI tiles, a ranked chart with a table view, a trend chart of all the clients together
+  with a hover readout and a table view, and the sortable table it always had. Hub colors only, no orange; the four
+  program colors were validated with the dataviz script (light on white, dark on #141D38).
+- **Unchanged:** every figure and its source, the newest-at-or-before-the-cycle rule, complete months only, Mark sent
+  and Undo send, the Build readiness period picker, `--mark-published`, `--merge-sent` and `--export`. The sent
+  records the page writes keep the same store keys, so the daily task's `read_db` / `--merge-sent` step is unaffected.
+- **Tests:** `tests/test_refresh_performance_dashboard.py` pins the scope (an out-of-scope client is not read and is
+  nowhere in the dataset or the page), the company row's shape and the new page's frame; the pins on the removed
+  filter chips went with them.
+
+### 2026-11-02 — Sheila no longer reads or shows whether a deck was sent
+
+Summary: CSM Sheila (the page and Sheila in Claude) no longer shows a Sent chip, groups clients as "Sent", or reads deliveries.json; whether a deck went to the client is tracked only in the delivery dashboard, and a deck no longer in Outputs now builds without the "already made" question.
+
+Aaron, 2026-11-02: remove anything involving tracking and the sending of decks from Sheila; that stays in the delivery dashboard.
+
+- **Page.** The client list's and the Executive Review card's Sent chips are gone, and `compute_clients` / `compute_status` no longer call `deck_status.read_deliveries`.
+- **Pre-build check.** `ars_launcher.built_line` asked "already made" for a deck in Outputs **or** one recorded as sent. Only Outputs remains (the Transaction Intelligence and Companion checks already read Outputs alone). What the sent half protected: a deck sent to the client and then moved out of Outputs (archived by a newer build, or filed by hand) asked before a rebuild; it now builds at once and replaces what the client may hold. Only Aaron recorded sends, so no other CSM's clients had it.
+- **Sheila in Claude.** `my_month` drops the "Sent" group and labels in-Outputs decks plainly; the client brief, the meeting-prep sheet and the client list no longer print sent state.
+- **Signatures.** `rule_checks`, `all_checks`, `built_line`, `ti_checks` / `ti_status`, `companion_checks` / `companion_status`, `build_ti`, `build_companion` and `_context` lose their `sent` argument.
+- **Untouched.** `scripts/dashboard.py`, `scripts/deck_status.py` and `Build Artifacts/deliveries.json`; `tests/test_sheila_*`, `test_deck_status` and the launcher and dashboard suites pass.
+
+### 2026-11-02 — Sheila draws the current orange, defined colours and readable label grey
+
+Summary: CSM Sheila's page now uses CSI Orange #F15D22 (it still drew the old #F47A29), the report dialog's labels and the period menu's hover now show (they named colours the page never defined), and the grey on small labels and times is dark enough to read.
+
+Aaron, 2026-11-02: "If Sheila has known issues, go ahead and fix those separately."
+
+- **Orange.** `--orange`, `--focus`, the period pill's and Delete vote's glows, and the change log page's rules moved from #F47A29 to #F15D22 (the Sept. 2026 brand template).
+- **Undefined variables.** `var(--rowalt)` (the period menu's hover) is now `--soft`, and `var(--muted)` (report dialog labels and hint) is `--ink2`; both used to resolve to nothing.
+- **Label grey.** `--ink3` measured 3.1:1 on white (2.8:1 on the fill) in light and 4.0:1 on the dark fill; small text needs 4.5:1. It now equals `--ink2` in each theme (#566370 light, #A7B4C1 dark), which also takes one grey out of the page.
+- `tests/test_sheila_palette.py` fails on the old orange, on any variable used but not defined, and on label greys under 4.5:1 on any ground in either theme. No deck changes; nothing was rebuilt or released.
+
+### 2026-11-02 — the branch charts and the Reg E by Branch table show more branches
+
+Summary: the take-rate and Reg E branch charts now seat up to 30 branches instead of 12, and the Reg E by Branch table lists up to 27 branches in two side-by-side tables instead of 10 plus an "All other branches" row.
+
+Aaron, 2026-11-02: "let's see if we can expand the debit card and Reg E by branch slides to show more branches."
+
+- **Charts.** `chart_lib.BRANCH_CAP` 12 -> 30; the rate labels drop from 10 to 9 pt past 20 bars. Tick labels were already measured and shrunk to fit their slot.
+- **Table.** `rege_branch_slide` uses two tables of 0.26in rows when the branches do not fit one (14 left, 13 right plus the Total); past 27 the last slot is an "All other branches" roll-up. A client with 10 or fewer branches is unchanged.
+- Found on 1441 FNB Alaska (27 branches: 12 charted, 10 tabled, 17 rolled up).
+
+### 2026-11-02 — Account status reads the client's code sheet when the wording and O/A/C/X codes do not
+
+Summary: a status that neither the generic wording nor STAT_CODE_MAP recognizes is now read from the client's own code sheet (`ars_code_tables.json`, `status_codes`). A blank code counts as a code when the sheet lists it. Statuses that already classified are unchanged.
+
+James Gilmore, 2026-11-02: the 1585 First Community Bank of the Heartland build stopped at metrics_gen with "no open personal debit-card holders, so there is no Reg E base". The ODDD and the code sheet are both correct: 1585 writes numeric codes with its own wording (1 New Acct Opened Prior Business Day, 2 File Maintenance, 3 Account Closed, 4 Pending Close) and leaves both fields blank on 2,572 accounts, and its sheet lists blank, 1 and 2 as active. "It needs to align with the codesheet on file, and recognize a null and numeric value."
+
+- **Where** (`build/ars_pipeline/odd_rows.py`): `client_of(path)` reads the SRDB from the ODD file name; `client_status_codes(cid)` loads the sheet. `isopen`, `status_class` and oddd_optimize's `classify_status` consult it only for what they do not already recognize. Callers pass the client: metrics_gen, product_mix_slide, excluded_accounts_slide, combined_insights, lift_values, responder_activity, ticket_calc, oddd_optimize.
+- **Inactive is not closed.** A sheet-inactive code is closed only when the sheet's own description says closed, charged off or purged (1585 code 3). 1226 DORMANT and 1637 F Frozen stay unknown, as before.
+- **1585 figures:** Reg E base 0 → 11,623 (3,998 opted in, 34.4%). Product Mix open 31,673; Excluded Accounts 12,711 closed with no unmapped-status flag.
+- **Other clients:** 1549, 1204 and 1637 Reg E bases unchanged. 1509 gains 4 blank-status accounts as open (not in the Reg E base). **1226 Ellafi** goes from no Reg E base to 5,865, because its sheet lists ACTIVE and INACTIVE as active; it was a known data issue, so review its next deck.
+
+### 2026-10-30 — Transaction Intelligence: Sheila's 1798 slide review, fixed in the builder
+
+Summary: Transaction Intelligence decks no longer ship blank charts, "Not shown for this client" pages, "n/a" cards or raw merchant names, and their text is easier to read. Repeated slides are folded together, so 1798 FirstLight's deck goes from 144 slides to 81.
+
+Sheila's 1798 slide review, 2026-10-30 (`Notes\Slide review\TI and ARS notes - 1798 - 10.30.xlsx`): 5 blank charts, 22 "Not shown" slides, empty Deposits and ICS sections, 9.5–10pt text on 109 slides, figures that disagree (11,669 vs 13,983; Cash App $78M against a $49.6M total; 908 vs 20,991; $524 vs $371 a month), 17 groups of repeated slides, and the Summit promo ahead of the agenda. James Gilmore, 2026-10-30: fix it in the pipeline, not the deck; "cash app and the p2p stuff need to be in".
+
+- **Blank charts, and a gate.** The v5 month labels ("Jan24") failed the house month-axis check. `Deck.chart` caught the error, the chart was silently left off, and the deck still validated 0 FAIL. Month ticks now go through `periods.axis_months` (`charts._axis_labels`, and at the cohort, PIN/signature and campaign call sites), so six charts on 1798 draw again. A chart that still fails stops the build (`helpers.ChartFailed`), so the deck never reaches Outputs with a gap.
+- **Declined slides are hidden for that client** (exception to "never drop slides automatically", TI only, approved by James; see `CLAUDE.md`). Each is logged as `[--] hidden for this client` and listed in `art\hidden_declined.json` and the pack's `hidden_declined`. A chapter with nothing left loses its divider and agenda row (Deposits and ICS on 1798).
+- **Type floors.**
+  - Subtitles 14pt (never below 12).
+  - KPI and rail labels and notes 12pt.
+  - Tables 10pt; a long table ends "+ N more rows not shown" instead of shrinking.
+  - Footnotes at least 10.5pt.
+  - Chart text drawn at 13pt, about 12pt on the slide.
+  - Month axes carry at most 12 labels.
+- **Names and copy.**
+  - `labels.display_name` gives "Lowe's", "Circle K", "Walmart", "Mountain America CU".
+  - "One unclassified counterparty is"; "peaks at 7.7% at 5-10 years".
+  - IC rate as 0.68%; the rate card always states its unit ("$1.86 to $30.58 a month").
+  - Singular counts read correctly ("1 card has been issued"); "program" is said once on the hero.
+- **No "n/a" cards.** Missing values on the attrition slides are stated in a note, not drawn as cards. "Competitor spend before closure" now reads the month just before close; it used to read the month furthest from it.
+- **Figures that disagree are labelled, not recomputed** (no compute changed):
+  - 11,669 unique accounts vs 13,983 account-category relationships.
+  - Cash App is one figure, $78.3M (`comp_ecosystems`), on the payment-ecosystems slide, shown as P2P and wallet flow outside the $49.6M paid to financial products. "Banks against the ecosystems" is kept, so the P2P story stays in.
+  - 908 (ODD-only stressors) and 20,991 (plus banking elsewhere) side by side.
+  - $524/mo (three months after mail) and $371/mo (12 months on) on one chart.
+  - Circle K's two card descriptors are combined: down $100K, not up $4.6M.
+- **Repeated slides folded** (combine groups A–Q). The replaced titles are set to "toss" in `ti/slides.json`.
+  - $49.6M leakage 4→1; card mix 2→1; signature/PIN 4→2; responder leakage 3→1.
+  - Competitor reach + Synchrony 4→1, as a penetration × $ quadrant; concentration 2→1.
+  - Attrition by branch/group 2→1; stressors 2→1.
+  - Reach funnel 2→1; responder gain 6→1; P&L / booked vs DiD 3→1; tier movement 4→1; offer return 2→1.
+  - Value per account 4→2.
+  - The 12 mailer summary slides are now one "Mailer summaries" table.
+  - Tossing "The campaign hero" applies to every client, so a client with no workbook loses that fallback slide.
+- **Executive Summit** now sits just before Questions & Discussion in TI decks (`build_ti_gen.summit_before_questions`). RPE decks are unchanged.
+- **New chart options.** `line_with_base(..., highlight=)` and `branch_quadrant(..., size_idx=)` are added for later use.
+
+### 2026-10-30 — Sheila reaches Claude as a Claude Desktop extension, and her launchers no longer touch Claude
+
+Summary: Sheila in Claude is now the "CSM Sheila" extension, `CSM Sheila.mcpb` in the CSM_Reporting folder, that a CSM installs once in Claude Desktop. Opening Sheila's page or the command-line launcher no longer changes anything in Claude.
+
+James Gilmore, 2026-10-30: "none of this should be in the sheila.bat gui"; asked how a CSM should get Sheila in Claude instead, he chose a Claude Desktop extension.
+
+- **The extension.** `sheila_mcp/pack_extension.py` writes `CSM Sheila.mcpb`, and the release puts it in the CSM_Reporting root beside the launchers. It is MCPB manifest 0.3, a Windows-only `binary` server. Its version comes from `VERSION`, and its tool list is read from the server's own `@mcp.tool` functions, so the two cannot drift. Its one setting is the CSM Reporting folder (default `M:\CSM_Reporting`).
+- **No code inside it.** `extension/server/sheila.cmd` runs the share's `runtime.cmd` (the refresh Sheila's page does), then serves `python -m sheila_mcp` from the PC's copy. A release therefore reaches Claude the next time Claude starts. `runtime.cmd` reads nothing from stdin and writes only to stderr, because stdout carries Claude's messages. A test started it as Claude does, from a folder with spaces in its name, against a test share: 15 tools and a working tool call, about 10 seconds on first copy.
+- **The launchers never touch Claude.** `runtime.cmd` no longer runs `sheila_mcp/register.py`, and `register.py` is gone. A test fails if a launcher mentions Claude again.
+- **Two Sheilas avoided.** A PC that opened Sheila on this morning's release has a `sheila` entry in `claude_desktop_config.json`. `legacy.py` runs when the extension starts and removes that entry: only an entry whose script is `sheila_start.py`, keeping a `.bak`. It also deletes the old `sheila_start.py`.
+- **The user guide** has a "CSM Sheila in Claude" section on installing the extension.
+
+### 2026-10-30 — Sheila in Claude: the CashPlease report and portfolio, peer compare, the one-pager, and client brief and prep
+
+Summary: six more things a CSM can ask Sheila in Claude, all answered from the share: one institution's CashPlease against all CashPlease clients and the current cohort; the whole CashPlease book; how a client's ARS figures rank against every client built the same cycle; a one-page view with the figures worth saying; and a client brief and a meeting-prep sheet.
+
+James Gilmore, 2026-10-30, of his v5 tools cashplease_*, ars_peer_compare, client_one_pager, client_brief and client_prepare: "these need to be in there".
+
+- **They read the share, not James's v5 folder** (`sheila_mcp/reports.py`). CashPlease comes from `Build Artifacts\cashplease\packs\` (the packs the CashPlease build writes from the newest export in `Inputs\CashPlease`) and the dashboard's current-client cohort. Peer figures come from each client's `Build Artifacts\launcher\<period>\<id>\metrics.json`, the numbers its deck was built from. Programs, revenue, readiness and decks come from `perf_dashboard\dataset.json`.
+- **Peers are every client whose ARS deck was built the same cycle.** With fewer than five, Sheila gives ranks, not percentiles. Measures: debit take rate (all and new), Reg E (all and new), latest response rate, repeat responders, new-account and book activity, debit on open checking, and 1- and 3-year retention. All are percents as the deck shows them. Responders per 1,000 is left out until its base is confirmed.
+- **The one-pager's figures must earn their place:** each beats the client's own prior cycle by at least a point, or the peer median by at least two, with five or more peers.
+- **CashPlease portfolio** leaves cancelled institutions out of the book and repeats the CashPlease build's own flags (no DDA count, under 12 months).
+- **Brief and prep drop James's flows.** Notes, tasks, calendar and mail are each CSM's own Microsoft 365: the brief says so, and Claude is told to use the CSM's Microsoft 365 connector for them when it is on. Prep adds what to fix before the call (no deck, deck not sent, a failed build, missing inputs) and what to raise.
+
+### 2026-10-30 — Summit pages can carry a chart beside a section, and Summit pages are routed to the skill
+
+Summary: the Summit one-pager builder can place a chart beside any section's bullets, and CLAUDE.md now routes Summit one-pager requests to the skill.
+
+Aaron, 2026-10-30: "Will you automatically use skills for doing projects like this, or do I need to tell you that explicitly?"
+
+- **Routing.** A row in the CLAUDE.md routing table sends "Executive Summit one-pager", "Summit handout" and "Key Performance Metrics page" to the `summit-one-pager` skill, so a session reads it at the start instead of rebuilding the page from a scratch folder.
+- **Section chart.** `kpm_page.py` takes `chart` and `chart_w` on a section; `kpm_charts.py` has a `share` chart type for percentages. Used on WesBanco's Account Engagement section.
+
+### 2026-10-30 — the Summit one-pager skill builds the Key Performance Metrics page
+
+Summary: the Executive Summit one-pager skill now covers the multi-program Key Performance Metrics page used for Fort Lauderdale, with its builder, chart helper and brand template kept in the repo.
+
+Aaron, 2026-10-30: "If you aren't using and updating a skill to build these, you should do that."
+
+- **Builder.** `.claude/skills/summit-one-pager/kpm_page.py` builds one page from a JSON spec (four tiles, a chart, sections of bullets, notes that name every source). It draws a border on the logo badge, reads the contact line from the client's own CSM through `rpe_env.csm_contact`, refuses notes with no sources, and can measure wrapped lines so the gaps between sections come out equal. `kpm_charts.py` draws the year-over-year bar chart and the monthly bars; `assets/brand.pptx` is the 2026 CSI brand template.
+- **Skill.** `SKILL.md` now describes both pages. The Key Performance Metrics process is: attendees from Aaron's list only, one read-only verification pass per client against the newest reports, the build, a render in PowerPoint that is looked at, and a save to OneDrive with the previous version kept. Aaron's corrections of 2026-10-30 are recorded as standards: year over year not month over month, check the longer window before quoting a short one, no unproven branch counts, name the basis of every figure, equal section gaps, a border on the logo.
+- **Test.** `tests/test_summit_kpm_page.py` builds a synthetic client with no logo and no data root and pins the border, the sources in the notes, the contact line and the equal gaps.
+
+### 2026-10-30 — Sheila in Claude: every CSM can ask her for their reporting
+
+Summary: Sheila is now also a connector in Claude Desktop. A CSM can ask "where am I this month?", "build 1798", "what's in 1798's TI deck?", "where does slide 127's 9.7% come from?" or "run the PGL for 1737", and Sheila answers from the same checks and builds her page uses. Nobody sets anything up: opening Sheila adds her to that PC's Claude.
+
+James Gilmore, 2026-10-30: "turn my m365 tools into Sheila tools ... Sheila, create this report"; "this will be for all CSMs"; "it should be built once, no csm has to do it"; "the focus is ... communicating with our Sheila via claude".
+
+- **A second front door, not a second Sheila.** `sheila_mcp/` serves 15 tools: `my_month`, `clients`, `client_status`, `build`, `build_progress`, `build_queue`, `deck_summary`, `review`, `explain`, `outputs`, `data_issues`, `ils_status`, `ils_run`, `ils_progress` and `whats_new`. Each calls the function the matching button calls (`clients_doc`, `status_doc`, `start_build`, `job_doc`, `issues_doc`, `changelog_entries`, `ils_runs.client_doc` / `start`), so the page and Claude cannot disagree.
+- **A deck in Outputs is replaced only on a yes.** `build` returns what it would replace and asks; it rebuilds only when called again with `confirm=true`, after the CSM says so. A blocked client is refused with the launcher's own stop lines. A client whose page offers only the combined button (no ARS, or Aaron's multi-program clients) builds combined, as the page does.
+- **One build at a time on a PC, whichever door started it.** `Job.run` takes `%LOCALAPPDATA%\RPE\build.lock` before starting `ars_launcher.py build`; a build that has to wait shows "Waiting for another build on this PC to finish". The OS drops the lock if a build dies.
+- **`build --ti --deck-only` from Sheila.** `build_cmd`, `Job` and `start_build` take `deck_only`, so a slide-only Transaction Intelligence redraw can be asked for. It replaces the decks in Outputs, so it asks first too.
+- **The validator's full report is kept beside the deck** (`<deck>.pptx.validation.txt`, written by `run_validator`), so "what needs my review" names each slide and reason, not only "26 REVIEW". Decks built before today have only the count.
+- **"Where does this number come from"** (`explain`) gives the slide's headline, its figures in reading order, the source its speaker notes name (extract file, lens, analysis), and any validator finding on that slide.
+- **No new packages.** The MCP stdio protocol is spoken with the standard library (`sheila_mcp/stdio.py`), so Sheila's Python runtime is unchanged and nothing new is unpacked on any PC.
+- **Built once.** The release copies `sheila_mcp/` with the code. `runtime.cmd`, which every Sheila launcher runs, ends by running `sheila_mcp/register.py`. That writes `%LOCALAPPDATA%\RPE\sheila_start.py` and adds a `sheila` entry to `claude_desktop_config.json`: the installer's copy and the Microsoft Store one. It keeps every other entry, saves the old file as `.bak`, rewrites nothing that is already right, and leaves a PC without Claude Desktop alone. Each time Claude starts Sheila, she refreshes her code from the share as the page does, then serves from the local copy.
+- **Who is asking** comes from the Windows sign-in (`james.gilmore` is "James Gilmore" in the Client CSM List), with `CSM Contacts.csv`'s email as the fallback. A CSM can still ask about anyone's book by name.
+
 ### 2026-10-29 — TI: change measures decline when the files hold no prior window
 
 Summary: Gaining and losing, Depth against growth and the momentum column on Who competes are not drawn when no account was seen in the prior window; the slides say they are not compared.
 
 Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #86): When stopped is 0 for every institution (or every growth reads the same), `txn_compete` declines the two slides with "not compared: no prior window in the files" and leaves the momentum column blank. If the Mar-Jun files should exist, they need landing in `Inputs/Txn Files/1075/`; that and a missing-window message in `ti/txn_stage.py` are not done here.
+
+### 2026-10-29 — Sheila: a client's list status is renewed, not left on "Checking…"
+
+Summary: clients with no deck yet no longer sit on "Checking…" in the list; while the page is open, Sheila re-checks each client in the background before its status expires.
+
+Aaron, 2026-10-29: "Max's accounts are getting stuck on Checking."
+
+- **Cause.** A stored status lives `STATUS_TTL` (10 minutes), and the list reads an expired or missing one as "Checking…". The start-up warm-up checks every client once (about 90 seconds for 84 clients), and nothing checked again unless someone opened the client. Ten minutes after start, every client with no deck in Outputs read "Checking…" for good. A client with a deck shows its "In Outputs" chip instead, so it went unnoticed on those.
+- **Fix.** Each list request now starts one background pass (`_renew_statuses`) that re-checks the clients whose status is missing, for another cycle, or past 70% of its life, four at a time, one pass at a time. The page asks for the list every minute, so statuses are renewed about three minutes before they would expire. Only `main()` turns it on (`_renew["on"]`), as with the share caches, so no test starts real checks.
+- **Not changed.** A client page still reads "Check again" fresh, and the Build buttons are still held while an old status is being re-read.
+- **Cost.** One pass over the roster about every seven minutes, only while a Sheila page is open. It is the same read as the start-up warm-up.
+
+### 2026-10-29 — the command-line launcher is Build ARS Deck CLI.bat, and the user guide is rewritten
+
+Summary: the window version of the ARS build is now called Build ARS Deck CLI.bat in the CSM_Reporting folder, and the ARS Deck User Guide now explains how a deck is built, the data it needs, where that data lives, and what each field and term means.
+
+Aaron, 2026-10-29: "rename Build ARS Deck.bat to Build ARS Deck CLI.bat"; "re-write ARS Deck User Guide.html with information on the deck building process, required data feeds, data location, data dictionary, etc."
+
+- **Rename.** `scripts/launchers/Build ARS Deck.bat` is `Build ARS Deck CLI.bat`; its window title, the launcher's messages ("run Build ARS Deck CLI again"), the GUI launcher's comment, `release_launcher.ps1`, `CLAUDE.md` and the pinning test follow. The release copies every launcher `.bat` to the share root and never removes one, so the old `Build ARS Deck.bat` stays on the root until someone deletes it by hand.
+- **Guide.** `ARS Deck User Guide.html` keeps the how-to sections and adds: how a deck is built, what is in the ARS deck, the feeds an ARS deck needs and what happens when each is missing or old, the other programs' feeds, where things are on the share, a data dictionary (the ODD columns the build reads, the standard Reg E and account status categories, the workbook tabs, MM vs SM) and a glossary of the terms on the slides. It also describes Slide Review and the Transaction Intelligence and ARS Companion panels.
+- **Left undefined on purpose.** The DCO is described by what it supplies, not by an expansion, and the ODD's `Prog`, `Mailable?` and `Acct Mask` columns are not listed: nothing in the repo says what they mean to the client, and a guessed definition in a reference page is worse than none.
+- **Source for every statement** is the code and `CLAUDE.md`: `odd_rows`, `oddd_optimize`, `metrics_gen`, `before_after`, `extract_base_gen`, `extract_lift`, `lift_window`, `rpe_env.INPUT_KIND_DIRS`.
+
+### 2026-10-29 — Transaction Intelligence: a failed analysis never reaches Outputs, a month is staged once, and the slides can be redrawn without recomputing
+
+Summary: a profiled build of 1798 FirstLight (23.6M transaction rows) took 16 minutes just to load its transaction files. The 1798 folder holds every month two or three times (a 12-month zip, the same 12 CSVs unzipped, and three older monthly zips), and each copy was staged over the last. So every build re-copied about 3 GB from the share and re-parsed every month. The twelve transaction sections took another 18.5 minutes between them. An earlier rebuild ran out of memory in `financial_services`, put out an 87-slide deck where the full one has 144, and that deck validated 0 FAIL and replaced the full one in Outputs.
+
+James Gilmore, 2026-10-29: "we obviously need to find a better, more efficient way to review large txn files."
+
+- **The launcher refuses a deck whose analyses failed** (`ars_launcher.ti_failures`). This covers a section or chapter that raised, and a workbook or tracker read that failed. The deck stays in the build folder to look at, and the deck already in Outputs is untouched.
+- **One copy of each month is staged** (`txn_stage.one_per_name`). It uses the copy already staged when one matches, so neither the copy nor the parquet cache is redone. Otherwise it uses the newest copy. A duplicated month is a warning in the pack.
+- **Merchant cleaning runs once per distinct description** (`merchant._by_unique`). On one real 1798 month (1.98M rows, 285,262 distinct) the output is identical and about 5 times faster.
+- **Timings.** Every step and every transaction section writes its seconds and the memory in use to the build log, as `[time] …`, and into the pack's `timings`.
+- **`build <id> --ti --deck-only`** redraws the decks from the last full build's `ti_pack.json` without computing (`ti_build --from-pack`). It is refused for a pack from another client or period, and for one whose ODD extract or transaction files changed. The client config, workbook and trackers are not compared, so a change to those still needs a full build.
+
+### 2026-10-29 — Transaction Intelligence: a mailer chart never covers a two-line headline's subtitle
+
+Summary: six campaign slides placed their chart at v5's fixed 1.55in from the top. They are the most recent mailer, its responder trajectory, the most recent offer, and Offer detail's summary, segment and responder slides. When a headline wrapped to two lines, the subtitle was pushed down behind the chart. On 1798 FirstLight's slide 127 ("Aug26 reached 22,914 accounts and 2,226 responded: 9.7%"), only the top half of the subtitle showed. Each chart now starts where the cut's `slide()` says the headline block ends, and is shortened by the same amount so it still ends above the footer.
+
+James Gilmore, 2026-10-29: on slide 127, "Fix and rebuild". `tests/test_ti_campaign_chapter.py` pins it with a two-line headline. The test fails on the old placement.
+
+### 2026-10-29 — the PGL deck ends on the project timeline
+
+Summary: the pre-go-live deck has an "ILS Configuration & Project Timeline" slide in the Summary & Next Steps chapter, just before Questions & Discussion. It takes the place of the plain "Key Decisions and Dates" table that opened the Partnership chapter. It's laid out like the Velocity "ILS Configuration & Project Timeline/Next Steps" slide, drawn in our frame.
+
+James Gilmore, 2026-10-29: "the PGL should have a timeline slide like this, in our format."
+
+- **Rows** come from the card's key dates, entered one per line as `milestone | date | done or at risk`. The status part is optional. If the field is left empty, the slide lists the Velocity project plan's 14 standard milestones with every date TBD, plus a "to be completed" line.
+- **Highlighting:** the ILS Pre Go-Live Analysis row is highlighted because it's this meeting. A milestone marked done carries a check and "Complete". One marked at risk is red.
+- Dates are text as the CSM types them, such as "In Process" or "11/11/25 - onward". Nothing is computed from them.
+
+### 2026-10-29 — Slide Review lists the build's slides, never a client's deck
+
+Summary: The Slide Review tab's slide lists now come from the build itself: each program's template
+shell with the slides its builder adds, the Transaction Intelligence register, and the titles of the
+ARS Companion's views. Nothing is read from Outputs, so the tab opens at once, and the ICS list is
+always the full workbook shape rather than whatever the newest decks happened to carry.
+
+Aaron, 2026-10-29: "the decks all carry the same slides, because they're all built using the same
+processes. We shouldn't need to scan the decks"; "the ICS section should review a full list of slides
+where we have an ICS workbook, not the short list where we don't". `build/slide_inventory.py` is the
+one source: `template_titles` reads the four shells, `ADDED` splices each builder's slides where the
+builder anchors them (a lost anchor is stated, never silent), `ti_titles` reads `ti/slides.json`,
+`companion_titles` the James view modules. `ars_launcher_web.votes_program_slides` reads it; the lists
+cache, the Refresh link and the decks scan from 2026-10-28 are gone. `tests/test_slide_inventory.py`
+pins the lists and `tests/test_golden_deck.py` checks every slide the ARS builder produces is on it.
+
+### 2026-10-29 — Sheila: the ILS pre-go-live and kickoff cards fold under one line
+
+Summary: On a client's page in Sheila the ILS Pre-go-live and ILS Kickoff cards now sit under a single
+"ILS pre-go-live and kickoff" dropdown, closed unless the client has an extract landed, a run in
+progress or a deck built. Those reports are made once per client, so the open cards only showed
+"No extract yet" for almost everyone; the line now says what state each is in, and opening it shows
+the cards as before.
+
+Aaron, 2026-10-29: "put those behind a little dropdown on the build screen so we don't see errors 99% of
+the time." `ils_ui.ilsDraw` wraps the three cards in `details.ilsfold`, `ilsActive` decides the default,
+`ilsSummary` writes the line, and the open state a CSM chose survives the status redraw.
+`tests/test_sheila_ils.py` pins it.
 
 ### 2026-10-29 — ILS decks are delivered to the CSM's Outputs folder
 

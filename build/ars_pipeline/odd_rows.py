@@ -103,6 +103,8 @@ CLOSED_STATUSES = {
 # else fall back to the code.
 _CLOSED_PREFIX = ("closed", "charge", "purge", "pending close")
 _OPEN_PREFIX = ("open", "active")
+_OPEN_LOWER = frozenset(s.lower() for s in OPEN_STATUSES)
+_CLOSED_LOWER = frozenset(s.lower() for s in CLOSED_STATUSES)
 
 
 @_lru_cache(maxsize=None)
@@ -122,30 +124,87 @@ def _code_sets():
             {k for k, v in STAT_CODE_MAP.items() if v in ("Closed", "Charged Off")})
 
 
-def status_class(desc, code):
+# The client's own code sheet, as the data team loads it into
+# Inputs/ARS Settings/ars_code_tables.json (`status_codes`, `active` = plays in program).
+# It decides only what the generic wording and STAT_CODE_MAP above do not recognize, so a
+# client whose statuses already classify is unchanged. 1585 First Community Bank of the
+# Heartland writes numeric codes with its own wording (1 'New Acct Opened Prior Business
+# Day', 2 'File Maintenance', 3 'Account Closed', 4 'Pending Close') and leaves BOTH fields
+# blank on 2,572 accounts; its sheet lists blank, 1 and 2 as active. Neither the words nor
+# the O/A codes matched, so not one account read as open and the 2026-11-02 build stopped
+# with no Reg E base. A blank code is a real code when the sheet lists it.
+_ODDD_CID = re.compile(r"^(\d{4})(?!\d)")
+_SHEET_CLOSED = re.compile(r"clos|charge|purge", re.I)
+
+
+def client_of(path):
+    """SRDB of an ODD source from its file name ('1585_ODDD.zip', '1585-2026-10-...csv'), else None."""
+    import os as _os
+    m = _ODDD_CID.match(_os.path.basename(str(path or "")))
+    return m.group(1) if m else None
+
+
+@_lru_cache(maxsize=None)
+def client_status_codes(client_id):
+    """-> (active codes, closed codes) from the client's code sheet, or None when the
+    sheet is not on file. Codes are stripped and upper-cased; '' is the blank code.
+
+    Inactive is NOT closed: it means the code does not play in the program, and 1226
+    DORMANT / 1637 'F' Frozen are inactive. A code is closed only when the sheet's own
+    description says so (1585 '3' Account Closed); other inactive codes stay unknown."""
+    if not client_id:
+        return None
+    import json as _json
+    import os as _os
+    import sys as _sys
+    _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir))
+    import rpe_env
+    p = rpe_env.input_dir("ARS codes", create=False) / "ars_code_tables.json"
+    if not p.is_file():
+        return None
+    table = (_json.loads(p.read_text(encoding="utf-8")).get("status_codes") or {}).get(str(client_id))
+    if not table:
+        return None
+    act = frozenset(k.strip().upper() for k, r in table.items() if str(r.get("active")) == "1")
+    closed = frozenset(k.strip().upper() for k, r in table.items()
+                       if k.strip().upper() not in act and _SHEET_CLOSED.search(r.get("description") or ""))
+    return act, closed
+
+
+def status_class(desc, code, client_id=None):
     """-> 'open' | 'closed' | 'other'.
 
     'other' is deliberately NOT assumed to mean dormant: an unmapped code is
     surfaced as a flag, never guessed (CLAUDE.md). Dormant and Inactive land here
     — they are neither closed nor answering "why is this OPEN account excluded".
+    Wording and codes neither rule knows go to the client's code sheet when one is on
+    file (`client_status_codes`): active -> 'open', described as closed -> 'closed'.
     """
     d = (desc or "").strip().lower()
+    c = (code or "").strip().upper()
     if d:
         if d.startswith(_CLOSED_PREFIX):
             return "closed"
         if d.startswith(_OPEN_PREFIX):
             return "open"
-        return "other"
-    c = (code or "").strip().upper()
-    open_codes, closed_codes = _code_sets()
-    if c in closed_codes:
-        return "closed"
-    if c in open_codes:
-        return "open"
+        if d in _OPEN_LOWER:
+            return "other"
+    else:
+        open_codes, closed_codes = _code_sets()
+        if c in closed_codes:
+            return "closed"
+        if c in open_codes:
+            return "open"
+    sheet = client_status_codes(client_id)
+    if sheet:
+        if c in sheet[0]:
+            return "open"
+        if c in sheet[1]:
+            return "closed"
     return "other"
 
 
-def accessors(H):
+def accessors(H, client_id=None):
     """Bind the ODD vocabulary to one header map `H` = {column name: index}.
 
     Returned as a namespace rather than module functions because each script
@@ -280,9 +339,13 @@ def accessors(H):
     _i_debit = _hget("Debit?")
     _i_stat = _hget("Stat Desc")
     _i_code = _hget("Stat Code")
-    _open_lower = frozenset(s.lower() for s in OPEN_STATUSES)
+    _open_lower = _OPEN_LOWER
     # Only resolved when the extract carries Stat Code; importing oddd_optimize is not free.
     _open_codes = frozenset(_code_sets()[0]) if _i_code is not None else frozenset()
+    _known_codes = frozenset(_code_sets()[1]) | _open_codes if _i_code is not None else frozenset()
+    # The client's code sheet, for wording and codes the rules above do not know (status_class).
+    _sheet = client_status_codes(client_id) if _i_code is not None else None
+    _sheet_open = _sheet[0] if _sheet else frozenset()
 
     def personal(r):
         """True only for an explicit 'No' in Business?.
@@ -314,14 +377,25 @@ def accessors(H):
         open account at all: 1637 writes 'open', 1680 'ACTIVE', 1759 'OPEN/ACTIVE', and
         1743, 1746 and 1815 leave Stat Desc blank with codes A / O. It also dropped 1,755
         'inactive' (lower case) 1509 Texas Bay accounts that its Product Mix slide counted.
+
+        Wording and codes neither rule knows are read from the client's code sheet when
+        `client_id` is given and the sheet is on file: 1585 writes numeric codes, and a
+        blank code it lists as active (2026-11-02).
         """
         i = _i_stat
         sd = r[i].strip() if i is not None and i < len(r) else ""
+        j = _i_code
+        cd = r[j].strip().upper() if j is not None and j < len(r) else ""
         if sd:
             low = sd.lower()
-            return low.startswith("open") or low.startswith("active") or low in _open_lower
-        j = _i_code
-        return j is not None and j < len(r) and r[j].strip().upper() in _open_codes
+            if low.startswith("open") or low.startswith("active") or low in _open_lower:
+                return True
+            if low.startswith(_CLOSED_PREFIX) or low in _CLOSED_LOWER:
+                return False
+            return cd in _sheet_open
+        if cd in _known_codes:
+            return cd in _open_codes
+        return cd in _sheet_open
 
     return SimpleNamespace(
         g=g, fnum=fnum, swipes=swipes, spend=spend, nsf=nsf, routing=routing,

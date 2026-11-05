@@ -97,7 +97,7 @@ def write_direct_mail(path):
     wb.save(path)
 
 
-def write_workbook(path, months=9, branch_tab=True, generated="9/9/2026 8:00:00 AM"):
+def write_workbook(path, months=9, branch_tab=True, generated="9/9/2026 8:00:00 AM", first=(2025, 12)):
     """The minimum `ics_workbook_extract.extract` reads, with invented figures: accounts opened
     10, 11, ... per month from Dec 25; the Cumulative row 10, 20, ... (so it disagrees with the
     monthly sum on purpose); plus the branch tab the workbook-only shape reads."""
@@ -106,7 +106,6 @@ def write_workbook(path, months=9, branch_tab=True, generated="9/9/2026 8:00:00 
     md.title = "Monthly Detail"
     md.cell(6, 2, "August 2026 Data")
     cols = list(range(4, 4 + months))
-    first = (2025, 12)
     for j, c in enumerate(cols):
         y, m = first[0] + (first[1] - 1 + j) // 12, (first[1] - 1 + j) % 12 + 1
         md.cell(14, c, dt.datetime(y, m, 1))
@@ -604,6 +603,9 @@ def test_workbook_only_month_not_ended_at_the_report_date_is_incomplete(root, tm
 def test_workbook_only_deck_is_the_referral_deck_sourced_to_the_workbook(root, tmp_path):
     from validate_deck import package_findings
     d = _wb_only_sheet(root, tmp_path)
+    # A program over two years old: the workbook's own Present Value and ROI are carried. (Under two
+    # years they are recalculated on 6.9 years — Cindy Draper, 2026-11-03; the next test.)
+    d["meta"]["program_start"] = "2022-12"
     out, prs = _build_deck(root, tmp_path, d)
     assert package_findings(out) == []
     ts = _titles(prs)
@@ -613,7 +615,10 @@ def test_workbook_only_deck_is_the_referral_deck_sourced_to_the_workbook(root, t
     assert "Performance of ICS Accounts" in " ".join(ts)       # the workbook sections are present
     text = " ".join(sh.text_frame.text for s in prs.slides for sh in s.shapes if sh.has_text_frame)
     cells = [c.text for s in prs.slides for sh in s.shapes if sh.has_table for r in sh.table.rows for c in r.cells]
-    for must in ("Referrals Program-to-Date", "referrals, program to date", "PTD · August 2026",
+    # The divider no longer repeats the Power of Referrals figures (Cindy Draper, 2026-11-03): a deck
+    # with the workbook sections previews them, so "referrals, program to date" is not on it.
+    assert "referrals, program to date" not in text and "profit contribution, program to date" in text
+    for must in ("Referrals Program-to-Date", "PTD · August 2026",
                  "have generated 90 checking referrals", "Branches Reporting Referrals", "August vs Goal"):
         assert must in text, must
     assert "Referrals YTD" in cells and "Harborview" in cells and "Goal to Date" in cells
@@ -635,17 +640,21 @@ def test_workbook_only_deck_is_the_referral_deck_sourced_to_the_workbook(root, t
     # sheet's revenue components), not the cohort window: interchange 50+51+...+58 = 486.
     comp = {c["name"]: c["amount"] for c in d["revenue"]["components"]}
     assert comp["Interchange Income"] == 486 and "$486 Interchange PTD" in text.replace("\n", " ")
-    assert "newest 9 cohorts (Dec'25 – Aug'26)" in text
+    assert "all 9 cohorts (Dec'25 – Aug'26)" in text
     # The Financial Summary names both expense lines for what they are, with no amortization caption.
     assert "Referral Fees to Date" in text and "Acquisition Cost" in text
     assert "Amortized" not in text and "÷ 60 months" not in text
     cells2 = [c.text for s in prs.slides for sh in s.shapes if sh.has_table for r in sh.table.rows for c in r.cells]
     assert "Total Expense (referral fees)" in cells2 and "Amortized Expense / Acct / Mo" not in cells2
-    # Comparisons on the Program to Date row: 90 / (2000 + 90) = 4%, close rate 7.8%, footnote 15.0%.
+    # Comparisons: the share of openings on the Program to Date row (90 / (2000 + 90) = 4%), but the CLOSE
+    # RATE on the Last 12 Months row, like for like with Velocity's 12-month average (Cindy Draper,
+    # 2026-11-03): ICS 5.0%, footnote 10.0%; program to date (7.8%, 15.0%) is kept in the sheet and notes.
     bm = d["benchmark"]
     assert bm["window"] == "program-to-date" and bm["metrics"][0]["client"] == 4
-    assert bm["metrics"][2]["label"] == "Close Rate" and bm["metrics"][2]["client"] == 7.8
-    assert "Non-ICS accounts' program-to-date close rate = 15.0%" in text
+    assert bm["metrics"][2]["label"] == "12 M Close Rate" and bm["metrics"][2]["client"] == 5.0
+    assert bm["close_rate_window"] == "12-month" and bm["close_rate_ptd"] == {"ics": 7.8, "non_ics": 15.0}
+    assert "Non-ICS accounts' 12-month close rate = 10.0%" in text
+    assert any("program to date, for reference: ICS 7.8%, Non-ICS 15.0%" in n for n in notes)
 
 
 def test_the_full_monthly_detail_is_an_appendix_before_questions(root, tmp_path):
@@ -787,3 +796,52 @@ def test_direct_mail_chart_renders(tmp_path):
     assert abs(w / h - bw / bh) < 0.01, "chart aspect must match its picture box"
     d["direct_mail"]["report_date"] = "2026-10-02"
     assert not CH.dm_partial_last(d["direct_mail"])
+
+
+def test_a_program_under_two_years_old_values_present_value_on_6_9_years(root, tmp_path):
+    """Cindy Draper, 2026-11-03, on Performance of ICS Accounts: "If under 2 years on program use 6.9
+    years- if over 2 years- use their life of account." The workbook discounts over the client's modeled
+    life whatever the program's age, so for a program under two years its Present Value and ROI are not
+    carried: they are recalculated on 6.9 years, and the notes say why."""
+    d = _wb_only_sheet(root, tmp_path)
+    assert d["meta"]["program_start"] == "2025-12"          # nine months old
+    out, prs = _build_deck(root, tmp_path, d)
+    text = " ".join(sh.text_frame.text for s in prs.slides for sh in s.shapes if sh.has_text_frame)
+    notes = " ".join(s.notes_slide.notes_text_frame.text for s in prs.slides)
+    assert "6.9 years" in text and "Present value at 3% over 6.9 years" in text
+    assert "Workbook present value at 3%" not in text and "$1,333.33" not in text
+    assert "recalculated on the 6.9-year Velocity life because the program is under two years old" in notes
+    assert "$120,000" in notes and "4.00:1" in notes                    # the workbook's own figures, named as such
+    # The workbook's own method (checked against every ICS workbook on the share): annual profit per
+    # account discounted at 3% as an annuity, here over 6.9 years; ROI = PV total / (cost x accounts).
+    pv = 150 * (1 - 1.03 ** -6.9) / 0.03
+    assert f"${pv:,.2f}" in text and f"Return on Investment — {pv / 250:.2f} to 1" in text
+
+
+def test_a_mature_program_uses_its_own_life_and_the_workbook_figures(root, tmp_path):
+    d = _wb_only_sheet(root, tmp_path)
+    d["meta"]["program_start"] = "2022-12"
+    out, prs = _build_deck(root, tmp_path, d)
+    text = " ".join(sh.text_frame.text for s in prs.slides for sh in s.shapes if sh.has_text_frame)
+    assert "8 years" in text and "Workbook present value at 3% over 8 years" in text and "$1,333.33" in text
+
+
+def test_the_workbooks_own_program_to_date_average_balance_is_carried(root, tmp_path):
+    """Cindy Draper, 2026-11-03, on the ICS Financial Summary: "Average Balance and ROI differ". KEMBA's
+    deck said $1,195 (a mean weighted by accounts opened) where the workbook's Monthly Detail Program to
+    Date column says $1,163.76. The workbook's figure is read when the tab carries it."""
+    import openpyxl
+    from ics_workbook_extract import extract
+    p = workbook_file(root, PERIOD)
+    write_workbook(p)
+    wb = openpyxl.load_workbook(p)
+    md = wb["Monthly Detail"]
+    ptd_col = 4 + 9 + 1
+    md.cell(14, ptd_col, "Program to Date")
+    md.cell(17, ptd_col, 777.77)                       # the 'Average Balance per Account' row
+    wb.save(p)
+    fs = extract(str(p))["financial_summary"]
+    assert fs["average_balance"] == 777.77 and fs["average_balance_basis"] == "the workbook's Program to Date column"
+    write_workbook(p)                                  # no Program to Date column: the weighted mean, named as such
+    fs = extract(str(p))["financial_summary"]
+    assert fs["average_balance_basis"] == "weighted by accounts opened" and fs["average_balance"] != 777.77

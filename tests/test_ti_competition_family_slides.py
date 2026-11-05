@@ -106,5 +106,7 @@ def test_change_measures_decline_when_the_prior_window_is_empty():
     h = _Harness()
     assert "not compared" in P.gaining_and_losing(h, t, "base")
     assert "not compared" in P.depth_against_growth(h, t, "base")
-    P.who_competes(h, t, "base")
+    # who_competes draws the momentum bars only below three institutions (the quadrant otherwise)
+    P.who_competes(h, dict(t, comp_institutions=FULL["comp_institutions"][:2]), "base")
+    assert h.charts[0]["name"] == "comp_momentum_bars"
     assert all(r[3] is None for r in h.charts[0]["rows"])

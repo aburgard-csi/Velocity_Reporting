@@ -25,10 +25,8 @@ from ti.transaction_intelligence import loader
 
 
 def cache_root() -> Path:
-    if os.environ.get("TI_CACHE_DIR"):
-        return Path(os.environ["TI_CACHE_DIR"])
-    base = os.environ.get("LOCALAPPDATA")
-    return Path(base) / "RPE" / "ti_cache" if base else Path.home() / ".rpe" / "ti_cache"
+    import local_cache
+    return local_cache.ti_cache_root()
 
 
 def staged_dir(client_id) -> Path:
@@ -76,14 +74,45 @@ def _sources(client_id):
     return out
 
 
+def one_per_name(sources, staged):
+    """One source per file name: the copy already staged when one matches it (no copy, and the parquet
+    cache keeps its key), else the newest. A month on hand twice (1798, 2026-10-29: a 12-month zip, the
+    same 12 CSVs unzipped beside it, and three older monthly zips) was staged once per copy, each over the
+    last, so every build re-copied it from the share and re-parsed it. Returns (chosen, {name: copies})."""
+    by_name = {}
+    for src in sources:
+        by_name.setdefault(src[0], []).append(src)
+    chosen, dupes = [], {}
+    for name, group in by_name.items():
+        if len(group) > 1:
+            dupes[name] = len(group)
+        d = Path(staged) / name
+        st = d.stat() if d.is_file() else None
+        same = [g for g in group if st and st.st_size == g[1] and int(st.st_mtime) == int(g[2])]
+        chosen.append(same[0] if same else max(group, key=lambda g: g[2]))
+    return chosen, dupes
+
+
 def stage(client_id, months: int = 12, anchor=None, log=print) -> Path:
-    """The staging folder for the client, holding exactly the window's transaction files."""
+    """The staging folder for the client, holding exactly the window's transaction files.
+
+    The cache is kept inside local_cache's size and age limits first (2026-11-03): the client being built is never
+    evicted, the clients least recently used go, so the disk does not fill with every client Sheila has ever built."""
+    import local_cache
+    local_cache.touch(client_id)
+    try:
+        local_cache.trim_ti_cache(keep=client_id, log=log)
+    except OSError as e:                                  # a locked file must not stop a build
+        log(f"could not trim the Transaction Intelligence cache: {e}")
     target = staged_dir(client_id)
     target.mkdir(parents=True, exist_ok=True)
     keep = set()
-    for name, size, stamp, opener in _sources(client_id):
-        if not (_is_txn_name(name) and in_window(name, months, anchor)):
-            continue
+    sources = [s for s in _sources(client_id) if _is_txn_name(s[0]) and in_window(s[0], months, anchor)]
+    sources, dupes = one_per_name(sources, target)
+    if dupes:
+        log(f"{len(dupes)} month(s) are in Inputs/Txn Files/{client_id} more than once "
+            f"({sum(dupes.values())} copies); one copy of each is read")
+    for name, size, stamp, opener in sources:
         keep.add(name)
         dest = target / name
         if dest.is_file() and dest.stat().st_size == size and int(dest.stat().st_mtime) == int(stamp):

@@ -75,6 +75,31 @@ def test_identical_decks_are_still_unchanged(tmp_path):
     assert P.same(a, b) is True
 
 
+def _table_deck(path, pt):
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    tbl = s.shapes.add_table(2, 2, Inches(1), Inches(1), Inches(6), Inches(1)).table
+    for row in tbl.rows:
+        for c in row.cells:
+            c.text_frame.text = "9"
+            for r in c.text_frame.paragraphs[0].runs:
+                from pptx.util import Pt
+                r.font.size = Pt(pt)
+    prs.save(str(path))
+    return str(path)
+
+
+def test_a_table_font_size_change_is_not_unchanged(tmp_path):
+    """1441's Reg E by Branch tables went 16 -> 10 pt with the same text, the same
+    box and the same fills; same() read a table as a shape with no runs, said
+    "identical", and the old deck stayed in Outputs (2026-11-02)."""
+    a = _table_deck(tmp_path / "a.pptx", 16)
+    b = _table_deck(tmp_path / "b.pptx", 10)
+    assert P.same(a, b) is False
+    assert P.same(a, _table_deck(tmp_path / "c.pptx", 16)) is True
+
+
 # --- moving files ------------------------------------------------------------
 def _stage(tmp_path, cid, name, content):
     d = tmp_path / "stage" / cid
