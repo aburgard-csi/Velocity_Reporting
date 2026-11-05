@@ -165,9 +165,9 @@ def completeness(rows, odd, smonths, odd_path=None):
     'result': odd_completeness(...)} — the months each kind of measure may read."""
     as_of = MC.pull_date(odd_member(odd_path)) if odd_path else None
     res = MC.odd_completeness(rows, odd, smonths, as_of)
-    act = smonths[:res["activity"]["complete"]]
-    nsf = smonths[:res["nsf"]["complete"]]
-    both = smonths[:res["all"]["complete"]]
+    act = MC.usable_months(smonths, res["activity"])
+    nsf = MC.usable_months(smonths, res["nsf"])
+    both = MC.usable_months(smonths, res["all"])
     return {"activity": act, "nsf": nsf, "both": both,
             "left_out_activity": MC.excluded_sentence(res["activity"]),
             "left_out_nsf": MC.excluded_sentence(res["nsf"]),

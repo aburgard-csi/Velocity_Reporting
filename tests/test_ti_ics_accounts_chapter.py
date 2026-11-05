@@ -40,6 +40,8 @@ def test_no_ics_accounts_is_one_stated_slide(tmp_path, monkeypatch):
 
 def test_every_skip_and_silent_omission_is_stated_in_v5_order(tmp_path, monkeypatch):
     monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    # this tests the chapter's order; which slides ship is ti/slides.json's business (test_ti_selection)
+    monkeypatch.setenv("TI_SLIDES", str(tmp_path / "keep-all.json"))
     from ti.deck import ics_slides
 
     def fake_add_chapter(prs, h, m, charts_dir, txn=None):

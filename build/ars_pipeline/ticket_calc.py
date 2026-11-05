@@ -15,8 +15,8 @@ mpos={m:i for i,m in enumerate(MONTHS)}
 # a BLANK Business? cell personal — while metrics_gen read `== 'No'`, which made
 # it business. Two slides of one deck, two denominators. odd_rows follows the
 # three-way split product_mix_slide already used: a blank is neither.
-from odd_rows import accessors
-_odd=accessors(idx)
+from odd_rows import accessors, client_of
+_odd=accessors(idx, client_of(F))
 sw=_odd.swipes; sp=_odd.spend; personal=_odd.personal
 RESPM=[m for m in MONTHS if (m+' Resp') in idx]
 # Complete months only (Aaron, 2026-09-17: "Don't calculate YoY or comparisons on partial
@@ -26,8 +26,8 @@ import os as _os
 sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir))
 import month_complete as _MC
 _COMPLETE=_MC.odd_completeness(data,_odd,MONTHS,_MC.pull_date(_os.path.basename(F)))
-_ALL=MONTHS[:_COMPLETE['all']['complete']]
-_ACT=set(MONTHS[:_COMPLETE['activity']['complete']])
+_ALL=_MC.usable_months(MONTHS,_COMPLETE['all'])
+_ACT=set(_MC.usable_months(MONTHS,_COMPLETE['activity']))
 WIN=_ALL[-3:]  # trailing COMPLETE quarter
 
 # cross-sectional avg ticket by monthly-swipe tier

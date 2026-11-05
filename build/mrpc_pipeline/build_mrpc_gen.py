@@ -34,7 +34,7 @@ import status_slides
 from shapes import shadow as add_shadow
 from brand import usd_compact as _usd   # one money format for every program
 
-from brand import ORANGE_RGB as ORANGE   # the one orange (brand.py); it was a literal here and missed the Sept. 2026 change
+from brand import LABEL_RGB, ORANGE_RGB as ORANGE   # the one orange (brand.py); it was a literal here and missed the Sept. 2026 change
 NAVY=RGBColor(0x00,0x27,0x4C)
 STEEL=RGBColor(0x9D,0xB8,0xCC); WHITE=RGBColor(0xFF,0xFF,0xFF)
 
@@ -97,7 +97,7 @@ def add_callout(slide, l, t, w, h, big, label, sub=None, fill=None):
         r.font.name="Montserrat" if (bold and size>=30) else "Calibri"
     line(big,40,True,WHITE,first=True)
     line(label,15,True,WHITE)
-    if sub: line(sub,11,False,RGBColor(0xC9,0xD6,0xE3))
+    if sub: line(sub,11,False,LABEL_RGB)
     add_shadow(shp)
     return shp
 
@@ -150,42 +150,15 @@ def autoshapes(slide):
 def add_contact_slide(prs, contact):
     """Contact Us slide at the very end (Aaron 2026-07-16; mirrors the ARS/ICS design).
     `contact` is the client's managing CSM, from rpe_env.csm_contact (Aaron, 2026-09-16).
-    The MRPC shell CARRIES a Contact slide whose card is static text for one CSM; that card is
-    rewritten in place rather than a second slide added."""
-    from shapes import find_contact_slide, fill_contact_card
+    The MRPC shell CARRIES a Contact slide with static text for one CSM; it is redrawn in place
+    rather than a second slide added."""
+    from shapes import find_contact_slide, fill_contact_slide, draw_contact_slide, contact_card_note
     shell = find_contact_slide(prs)
     if shell is not None:
-        return fill_contact_card(shell, contact)
+        return fill_contact_slide(shell, contact)
     blank=next((ly for ly in prs.slide_layouts if len(ly.placeholders)==0), prs.slide_layouts[-1])
     cs=prs.slides.add_slide(blank)
-    for ph in list(cs.placeholders):               # no PowerPoint prompt boxes (Aaron 2026-07-24)
-        ph._element.getparent().remove(ph._element)
-    def ctb(x,y,w,h,txt,sz,col,bold,align=PP_ALIGN.CENTER):
-        t=cs.shapes.add_textbox(Inches(x),Inches(y),Inches(w),Inches(h)); p=t.text_frame.paragraphs[0]
-        p.alignment=align; r=p.add_run(); r.text=txt
-        r.font.name="Montserrat"; r.font.size=Pt(sz); r.font.bold=bold; r.font.color.rgb=col
-        return t
-    ctb(0.5,0.28,12.33,0.9,"Contact Us",30,NAVY,True,align=PP_ALIGN.LEFT)
-    from shapes import contact_card_lines, CONTACT_CARD_TOP, CONTACT_CARD_W as cw, CONTACT_CARD_H
-    contacts=[contact]
-    ncc=len(contacts); gap=0.5; x0=(13.333-(ncc*cw+(ncc-1)*gap))/2
-    style={"name":(26,WHITE,True),"role":(15,ORANGE,False),"phone":(17,WHITE,False),"email":(15,WHITE,False)}
-    for i,cc in enumerate(contacts):
-        l=x0+i*(cw+gap)
-        card=cs.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,Inches(l),Inches(CONTACT_CARD_TOP),Inches(cw),Inches(CONTACT_CARD_H))
-        card.fill.solid(); card.fill.fore_color.rgb=NAVY; card.line.fill.background()
-        try: card.adjustments[0]=0.05
-        except Exception: pass
-        add_shadow(card)
-        for field,txt,top,hh in contact_card_lines(cc):
-            ctb(l+0.35,top,cw-0.7,hh,txt,*style[field])
-    logo=os.path.join(os.path.dirname(os.path.dirname(__file__)),"assets","logo.png")
-    if os.path.exists(logo):
-        try: cs.shapes.add_picture(logo,Inches(11.28),Inches(6.78),Inches(1.7))
-        except Exception: pass
-    pn=cs.shapes.add_textbox(Inches(0.45),Inches(7.04),Inches(0.7),Inches(0.32)); pp=pn.text_frame.paragraphs[0]
-    rr=pp.add_run(); rr.text=str(len(prs.slides._sldIdLst)); rr.font.name="Calibri"; rr.font.size=Pt(11); rr.font.bold=True; rr.font.color.rgb=NAVY
-    from shapes import contact_card_note
+    draw_contact_slide(cs,[contact])
     cs.notes_slide.notes_text_frame.text=contact_card_note(contact)
     return cs
 
@@ -480,6 +453,14 @@ def build(data, template, out):
     set_notes(S[9], _now_note)
     set_notes(S[10], "Discussion slide. No data.")
 
+    # ---- How You Compare (Aaron, 2026-11-03): the client against every other MRPC client ----
+    # The same comparison Live Review's "How you compare" shows (peer_compare.for_deck), anonymous on the slide,
+    # placed by TITLE before Questions & Discussion. Always drawn; it says so when there are too few peers.
+    import peer_slide
+    peer_slide.add_peer_slide(prs, "MRPC", m["client_id"], client, f"As of {rm}", assets,
+                              f"Client figures: {src} for {client} ({m['client_id']}), pulled {pull}; the MRPCEnrollmentSummary weekly.",
+                              before_title="Questions & Discussion", brand="std")
+
     # ---- callout polish: clear baked-in tile text, then a UNIFORM shadow on every callout ----
     def _fill_hex(sh):
         try: return str(sh.fill.fore_color.rgb).upper()
@@ -487,16 +468,16 @@ def build(data, template, out):
     for si in (6, 7):                                                        # revenue slides: numbers live in overlay boxes
         for sh in autoshapes(S[si]):
             if Emu(sh.top).inches < 1.0: continue
-            if _fill_hex(sh) == "ECF0F4": continue
+            if _fill_hex(sh) == "ECF0F4": continue   # retired-grey-ok: the shell still carries the old panel fill
             if sh.has_text_frame and sh.text_frame.text.strip():
                 for pp in sh.text_frame.paragraphs:
                     for r in pp.runs: r.text = ""
     # universal drop shadow: every solid-filled callout/tile/pill on every slide
-    # (skip white logo boxes and the light ECF0F4 backdrop panels)
+    # (skip white logo boxes and the light backdrop panels)   retired-grey-ok
     for _s in prs.slides:
         for sh in _s.shapes:
             if sh.shape_type != 1: continue
-            if _fill_hex(sh) in ("FFFFFF", "ECF0F4", ""): continue
+            if _fill_hex(sh) in ("FFFFFF", "ECF0F4", ""): continue   # retired-grey-ok
             try:
                 if sh.fill.type is not None and sh.fill.fore_color is not None and sh.fill.fore_color.type is not None:
                     add_shadow(sh)

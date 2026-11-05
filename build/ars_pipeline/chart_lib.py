@@ -9,7 +9,8 @@ import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
 from brand import NAVY, ORANGE, TICK, MUTED
-BRANCH_CAP = 12  # bars take_branch_chart can seat without the labels colliding
+BRANCH_CAP = 30  # bars branch_chart can seat without the labels colliding (was 12; 1441 has 27 branches)
+VALUE_PT = 10    # the rate labels above the line; 9 once a chart carries more than 20 bars
 _BAR_W = 0.55    # narrower than the old 0.66 — that is what buys the extra bars
 
 def _letterbox(fig, out_png, tw, th):
@@ -43,8 +44,11 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
     One renderer for the personal take rate, the business take rate and both Reg E
     charts, so they cannot drift apart: only the two colours differ.
     """
-    # This geometry seats about eight bars; past that the branch labels run together and
-    # the value labels touch (1549 arrived with 19, 1075 with 37 — Aaron, 2026-08-20).
+    # The chart box is the full slide width and seats BRANCH_CAP bars: the tick labels are
+    # measured and shrunk to fit their slot (branch_tick_labels) and the rate labels drop to
+    # 9 pt past 20 bars. Past the cap the labels run together and the value labels touch
+    # (1549 arrived with 19, 1075 with 37 — Aaron, 2026-08-20; cap raised from 12 to 30 on
+    # 2026-11-02 so 1441's 27 branches all show).
     # Callers cap the list; this is the backstop so a new caller can't reintroduce it.
     if len(rows) > BRANCH_CAP:
         raise ValueError(f"branch_chart got {len(rows)} bars; cap the caller's list at "
@@ -103,7 +107,8 @@ def branch_chart(out_png, rows, bar_color, rate_color, w=1383, h=540,
     _band = _rtop * 0.955
     for i, v in enumerate(rates):
         ax2.text(i, _band, f"{v}%", ha="center", va="center", color=NAVY,
-                 fontweight="bold", fontsize=10, bbox=_halo, zorder=7)
+                 fontweight="bold", fontsize=VALUE_PT if len(rows) <= 20 else VALUE_PT - 1,
+                 bbox=_halo, zorder=7)
     ax2.set_ylabel(rate_label, color=NAVY, fontsize=10)
     ax2.yaxis.set_major_formatter(lambda v, _p: f"{v:.0f}%")
     # Headroom for the value labels is not a claim that the rate can go there: the

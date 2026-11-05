@@ -4,8 +4,17 @@ build_ti_gen.py — build one client's Transaction Intelligence deck, in one len
 
 The Transaction Intelligence cut (build/ars_pipeline/ti/) is a SEPARATE deck: it never
 edits the ARS deck, its metrics or its template, and nothing in the monthly chain calls it
-yet. Its shape is a single-product deck's: cover, Executive Summit, agenda, then one
-section per chapter (divider + content slides), then Questions & Discussion and Contact Us.
+yet. Its shape: cover, agenda, then one section per chapter (divider + content slides), then
+the Executive Summit, Questions & Discussion and Contact Us. The Summit sits before Questions in
+this deck only, not after the cover as in the RPE decks (Sheila's 1798 slide review, 2026-10-30:
+an event promo before the agenda).
+
+A slide a chapter DECLINED for this client (ti/deck/helpers.py, "Not shown for this client: ...")
+is hidden: left out of the deck, its title and reason printed to the build log and listed in
+`pack["hidden_declined"][<lens>]` (and `<art dir>/hidden_declined.json`). A chapter whose
+every slide is declined loses its divider and agenda row. A chart that failed to draw fails the
+build (helpers.ChartFailed). James Gilmore signed this off for the cut on 2026-10-30, overriding
+"never drop slides automatically" here only.
 
 The package starts from the ARS template shell, because the cut reads ARS data (the ODD and
 the transaction files). The five shell slides are found by MEANING, as the CashPlease builder
@@ -106,13 +115,14 @@ def _set_closing_line(slide, text):
                      "the shell changed")
 
 
-def adapt_shell(prs, pack, ln, chapters, art_dir=None):
+def adapt_shell(prs, pack, ln, chapters, art_dir=None, shell=None):
     """Find the shell's cover, Summit, agenda, Questions and Contact by meaning and
-    rewrite them for this client, lens and chapter list."""
+    rewrite them for this client, lens and chapter list. `shell` is the template's own slides
+    (taken before any chapter added one); default, every slide in `prs`."""
     import assemble_combined as ac
 
     found = {}
-    for n, s in enumerate(prs.slides, 1):
+    for n, s in enumerate(prs.slides if shell is None else shell, 1):
         title = _title(s)
         if "cover" not in found and ac._is_cover(s):
             found["cover"] = s
@@ -151,8 +161,8 @@ def adapt_shell(prs, pack, ln, chapters, art_dir=None):
     CD.redraw_closing_in_place(found["questions"])     # the brand template's closing style, keeping that line
 
     import rpe_env
-    from shapes import fill_contact_card
-    fill_contact_card(found["contact"], rpe_env.csm_contact(cid))
+    from shapes import fill_contact_slide
+    fill_contact_slide(found["contact"], rpe_env.csm_contact(cid))
     return found
 
 
@@ -166,22 +176,92 @@ def divider(prs, ch, pack, ln):
     return s
 
 
+def _hide_declined(chapter, slides, lens_key):
+    """(shown, hidden): the chapter's slides without the ones it declined, and a record of each
+    declined one, which is also printed to the build log."""
+    from ti.deck.helpers import declined_reason
+    shown, hidden = [], []
+    for s in slides:
+        why = declined_reason(s)
+        if why is None:
+            shown.append(s)
+            continue
+        hidden.append({"lens": lens_key, "chapter": chapter.title, "title": why[0], "reason": why[1]})
+        print(f"  [--]   hidden for this client: {chapter.title} / {why[0]}: {why[1]}", flush=True)
+    return shown, hidden
+
+
+def summit_before_questions(prs):
+    """Move the Executive Summit slide to just before Questions & Discussion (TI decks only).
+
+    summit_slide.insert_summit_after_title (shared, unchanged) puts it at index 1, as every RPE deck
+    has it; in this deck it is moved, by meaning, after the content. No-op when either is absent."""
+    import assemble_combined as ac
+    slides = list(prs.slides)
+    lst = prs.slides._sldIdLst
+    ids = list(lst)
+    summit = next((i for i, s in enumerate(slides) if ac._is_summit(s, i + 1)
+                   and "executive summit" in ac._slide_text(s)), None)
+    if summit is None:
+        summit = next((i for i, s in enumerate(slides) if ac._is_summit(s, i + 1)), None)
+    questions = next((i for i, s in enumerate(slides)
+                      if _title(s).startswith("Questions & Discussion")), None)
+    if summit is None or questions is None:
+        return False
+    el = ids[summit]
+    lst.remove(el)
+    lst.insert(list(lst).index(ids[questions]), el)
+    return True
+
+
 def build(prs, pack, lens_key, chapters, art_dir=None):
     """Assemble the deck in `prs` and return the slides in deck order. No save."""
     ln = cut.lens(lens_key)
     from ti import selection
+    from ti.deck import helpers as H
     # a chapter tossed in ti/slides.json loses its divider and agenda row as well as its slides
     chapters = [ch for ch in chapters if selection.chapter_kept(ch.title)]
     if not chapters:
         raise SystemExit(f"no chapter of the {cut.CUT_NAME} cut is built yet — "
                          f"nothing to put in a deck")
-    keep = adapt_shell(prs, pack, ln, chapters, art_dir)
+    shell = list(prs.slides)
     ctx = Ctx(prs, pack, ln, Period(pack["data_month"]).data_pill(), art_dir)
 
-    body = []
+    # The chapters are drawn BEFORE the agenda is set: a chapter whose every slide is declined for
+    # this client loses its agenda row and its divider, so the agenda can only be written once the
+    # chapters say what they hold.
+    H.reset_build_state()
+    built, hidden = [], []
     for ch in chapters:
+        shown, gone = _hide_declined(ch, ch.build(ctx), lens_key)
+        hidden.extend(gone)
+        if shown:
+            built.append((ch, shown))
+        else:
+            print(f"  [--]   chapter dropped for this client: {ch.title} (every slide declined)", flush=True)
+    pack.setdefault("hidden_declined", {})[lens_key] = hidden
+    if art_dir:
+        try:
+            side = Path(art_dir) / "hidden_declined.json"
+            side.parent.mkdir(parents=True, exist_ok=True)
+            prev = json.loads(side.read_text(encoding="utf-8")) if side.is_file() else {}
+            prev[lens_key] = hidden
+            side.write_text(json.dumps(prev, indent=1), encoding="utf-8")
+        except (OSError, ValueError) as exc:
+            print(f"  [!!]   hidden_declined.json not written: {exc}", flush=True)
+    if H.CHART_FAILURES:
+        names = ", ".join(f"{n} ({e[:100]})" for n, e in H.CHART_FAILURES)
+        raise H.ChartFailed(f"{len(H.CHART_FAILURES)} chart(s) failed to draw, so their slides would "
+                            f"ship without them: {names}")
+    if not built:
+        raise SystemExit(f"every slide of the {cut.CUT_NAME} cut was declined for client "
+                         f"{pack['client_id']} ({len(hidden)} hidden) — nothing to put in a deck")
+
+    keep = adapt_shell(prs, pack, ln, [ch for ch, _ in built], art_dir, shell=shell)
+    body = []
+    for ch, shown in built:
         body.append(divider(prs, ch, pack, ln))
-        body.extend(ch.build(ctx))
+        body.extend(shown)
 
     order = [keep["cover"], keep["summit"], keep["agenda"]] + body + [keep["questions"], keep["contact"]]
     lst = prs.slides._sldIdLst
@@ -194,11 +274,12 @@ def build(prs, pack, lens_key, chapters, art_dir=None):
 
     import summit_slide
     summit_slide.insert_summit_after_title(prs)
+    summit_before_questions(prs)
     import fit_layout
     fit_layout.fit(prs)
     import assemble_combined as ac
     ac.renumber(prs)
-    return order
+    return list(prs.slides)
 
 
 def save(prs, out):

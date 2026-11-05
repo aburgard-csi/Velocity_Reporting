@@ -201,12 +201,11 @@ def test_the_status_carries_the_companion_block_for_an_ars_client_only(monkeypat
     monkeypatch.setattr(W, "current_period", lambda: "2026.10")
     monkeypatch.setattr(L, "csm_list_row", lambda cid: dict(ROW, client_id=cid))
     monkeypatch.setattr(BM, "read_roster", lambda *a, **k: (ROSTER, []))
-    monkeypatch.setattr(DS, "read_deliveries", lambda: {"sent": {}})
     monkeypatch.setattr(L, "cp_roster_row", lambda cid: None)
     monkeypatch.setattr(L, "all_checks", lambda *a, **k: [(L.OK, "fine")])
     monkeypatch.setattr(L, "program_availability", lambda *a, **k: {})
     monkeypatch.setattr(L, "ti_status", lambda *a: {"checks": [], "state": "ready", "last": None, "decks": []})
-    monkeypatch.setattr(L, "companion_status", lambda cid, period, row, roster, sent: {
+    monkeypatch.setattr(L, "companion_status", lambda cid, period, row, roster: {
         "checks": [{"level": L.OK, "text": "fine"}], "state": "ready", "last": None, "decks": []})
     doc = W.compute_status("1441")
     assert doc["companion"]["state"] == "ready"
@@ -222,25 +221,24 @@ def test_the_list_keeps_companion_decks_apart(tmp_path, monkeypatch):
     monkeypatch.setattr(W, "current_period", lambda: "2026.10")
     monkeypatch.setattr(BM, "read_roster", lambda *a, **k: (ROSTER[:1], []))
     monkeypatch.setattr(BM, "read_cashplease_roster", lambda: [], raising=False)
-    monkeypatch.setattr(DS, "read_deliveries", lambda: {"sent": {}})
     monkeypatch.setattr(R, "csm_list_file", lambda: None)
     monkeypatch.setattr(R, "output_decks", lambda pat: [Path("o") / COMP_DECK, Path("o") / TI_DECK])
     monkeypatch.setattr(W, "launcher_results", lambda period, cids: {})
     monkeypatch.setattr(W, "last_build_failed", lambda *a, **k: False)
     monkeypatch.setattr(W, "available_periods", lambda n=12: ["2026.10"])
-    c = W.compute_clients()["clients"][0]
+    c = next(x for x in W.compute_clients()["clients"] if x["id"] == ROSTER[0][0])   # with the share on, ILS folders list other clients first
     assert c["decks"] == [] and c["ti_decks"] == [TI_DECK] and c["companion_decks"] == [COMP_DECK]
 
 
 def test_the_page_has_a_companion_panel_button_and_job_box():
-    page = W.PAGE
-    assert "function companionPanel(s)" in page and "async function buildComp(s)" in page
-    assert 'id="gocomp"' in page and 'id="jobcomp"' in page
+    import sheila_hub as H
+    page = H.PAGE
+    assert 'key: "comp", title: "ARS Companion"' in page and 'btn("comp",' in page
+    assert 'id="job-${o.key || "rpe"}"' in page, "its progress draws inside its own card"
     assert '"/api/build"' in page and "companion: true" in page
-    assert "${tiPanel(s)}${companionPanel(s)}" in page
+    assert "if (s.ti) cards.push(" in page and "if (s.companion) cards.push(" in page
     # one build per client at a time: every button waits while any of them runs
-    assert '["#go", "#go2", "#goti", "#gocomp"]' in page
-    assert "Companion in Outputs" in page
+    assert 'const anyRun = JOB && !JOB.done;' in page and '${anyRun ? " disabled" : ""}' in page
 
 
 def test_the_closing_slides_end_the_deck_even_when_a_view_follows_them_in_the_build(tmp_path):
@@ -268,5 +266,5 @@ def test_the_companion_build_hands_its_flags_to_the_child_environment(tmp_path, 
     work = tmp_path / "w"
     work.mkdir()
     a = argparse.Namespace(client="1441", rebuild=False)
-    assert L.build_companion(a, BM, ROW, "2026.10", ROSTER, {}, work) == 1
+    assert L.build_companion(a, BM, ROW, "2026.10", ROSTER, work) == 1
     assert all(seen.get(k) == v for k, v in L.COMPANION_ENV.items())

@@ -39,8 +39,13 @@ rebuild of an older month.
 rebuild that finds identical inputs reports `unchanged` and the artifact is not
 republished over nothing.
 
+**One CSM's clients (Aaron, 2026-11-02).** The page lists the clients the Client CSM List
+assigns to one CSM, Aaron Burgard by default (`--csm "Name"` or RPE_DASH_CSM): another CSM's
+client is not read and is not in the dataset, because the page is no longer filtered in the
+browser. CSM Sheila is where the other CSMs work.
+
 Usage:
-    python scripts/refresh_performance_dashboard.py [--period 2026.08] [--force]
+    python scripts/refresh_performance_dashboard.py [--period 2026.08] [--csm "Aaron Burgard"] [--force]
     python scripts/refresh_performance_dashboard.py --mark-published
         (after a successful publish: records the current hash as the live one)
     python scripts/refresh_performance_dashboard.py --export [PATH]
@@ -401,28 +406,10 @@ def ars_section(cid, c, period, reports, ba, work):
 
 
 # ------------------------------------------------------------------ ICS
-def _wb_period(fn):
-    m = re.search(r"-(20\d\d\.\d\d)-", fn or "")
-    return m.group(1) if m else None
-
-
-# Trend lines show complete months only (Aaron, 2026-09-14). A sparkline that ends on a
-# half month reads as a fall-off: 2026.09's ICS trends ended on 13 days of September.
-def complete_trend(trend):
-    """The VIP ICS referral trend without its month-to-date point.
-
-    VIP ends the trend with the month in progress and flags it `partial_last`; that last
-    month is dropped from every parallel series. Year-to-date and program-to-date figures
-    are VIP's own and are not touched.
-    """
-    if not isinstance(trend, dict) or not trend.get("partial_last"):
-        return trend
-    t = dict(trend)
-    for k in ("months", "referrals", "goal"):
-        if isinstance(t.get(k), list) and t[k]:
-            t[k] = t[k][:-1]
-    t["partial_last"] = False
-    return t
+# The per-client ICS, MRPC and CashPlease sections moved to build/peer_data.py on 2026-11-03, so Live Review's peer
+# comparisons read the same rows this page does (one reading of each program's sheet, not two).
+from peer_data import complete_trend, cp_section, ics_section, mrpc_section  # noqa: E402,F401
+from peer_data import wb_period as _wb_period                                # noqa: E402,F401
 
 
 def _complete_spend(series):
@@ -470,14 +457,16 @@ def current_peer(packs, ids):
     inc = [d for d in rows if d["metrics"].get("peer_comparable")]
     dda = sum(d["metrics"]["dda_accounts"] for d in inc)
     win = sum(d["metrics"]["window_loans"] for d in inc)
+    # Rates and averages only (Aaron, 2026-11-02: the page lists his own clients). The cohort spans
+    # every CSM's current clients, so the volumes it was built from - loans, principal, DDA
+    # accounts - stay out of the dataset; a sum over other CSMs' clients is their data too.
     return {
         "cohort": "Current Velocity CashPlease clients", "cohort_clients": len(rows),
-        "total_loans": loans, "total_principal": principal,
         "avg_loan_size": principal / loans, "avg_interest_per_loan": interest / loans,
         "pct_loans_overdue": share("Overdue"), "pct_loans_charged_off": share("Charged Off"),
         "pct_loans_paid_off": share("Paid Off"),
         "charge_off_pct": None, "pct_active_accounts_with_loans": None,
-        "cohort_dda_clients": len(inc), "cohort_dda_accounts": dda, "cohort_window_loans": win,
+        "cohort_dda_clients": len(inc),
         "loans_per_1k_dda": (win / dda * 1000) if dda else None,
     }
 
@@ -505,62 +494,7 @@ def inactive_since(rows, generated, value, key="month", window=6):
     return max(active) if active else ""
 
 
-def ics_section(cid, c):
-    try:
-        p = R.resolve_client_json(cid, "ics")
-    except BaseException as e:
-        return {"missing": str(e).splitlines()[0] if str(e) else "no VIP ICS sheet"}
-    d = json.load(open(p, encoding="utf-8"))
-    meta, ref = d.get("meta", {}), d.get("referrals", {})
-    perf, fs = d.get("performance") or {}, d.get("financial_summary") or {}
-    has_wb = bool(perf.get("roi")) and "ICS-REFERRALS" not in c["roster_programs"]
-    ics = {
-        "period": meta.get("period"), "data_pull": meta.get("data_pull"),
-        "program_start": meta.get("program_start"),
-        "workbook": meta.get("workbook"), "workbook_period": _wb_period(meta.get("workbook")),
-        "referrals_only": not has_wb,
-        "ptd": ref.get("program_to_date"), "ytd": ref.get("year_to_date"),
-        "prev_month": ref.get("previous_month"), "mtd": ref.get("month_to_date"),
-        "monthly_goal": ref.get("monthly_goal"), "prev_vs_goal_pct": ref.get("prev_month_vs_goal_pct"),
-        "trend": complete_trend(ref.get("trend")),
-    }
-    if has_wb:
-        rev = d.get("revenue") or {}
-        ics.update({
-            "roi": perf.get("roi"), "ltv": perf.get("lifetime_value_per_account"),
-            "annual_profit_per_account": perf.get("annual_profit_per_account"),
-            "cost_per_account": perf.get("cost_per_account"),
-            "payback_months": perf.get("payback_months"),
-            "avg_life_years": perf.get("average_account_life_years"),
-            "net_profit": fs.get("net_profit"), "ics_accounts": fs.get("ics_accounts"),
-            "profit_contribution": fs.get("account_profit_contribution"),
-            "program_expense": fs.get("total_program_expense"),
-            "avg_balance": fs.get("average_balance"), "revenue_total": rev.get("total"),
-        })
-    return ics
-
-
 # ------------------------------------------------------------------ MRPC
-def mrpc_section(cid, weekly):
-    m = {"weekly": weekly.client(cid)}
-    try:
-        p = R.resolve_client_json(cid, "mrpc")
-        d = json.load(open(p, encoding="utf-8"))
-        meta = d.get("meta", {})
-        pv, rev = d.get("performance_vs_goal") or {}, d.get("revenue") or {}
-        m.update({
-            "period": meta.get("period"), "data_pull": meta.get("data_pull"),
-            "key_metrics": d.get("key_metrics") or {},
-            "goal_pct": pv.get("goal_pct"), "pct_of_goal": pv.get("pct_of_goal"),
-            "goal_months": pv.get("months"), "goal_enrollments": pv.get("enrollments"),
-            "goal_new_accounts": pv.get("new_accounts"),
-            "revenue_ltd": rev.get("life_of_program"), "revenue_2025": rev.get("year_2025"),
-        })
-    except BaseException as ex:
-        m["missing_vip"] = str(ex).splitlines()[0] if str(ex) else "no VIP MRPC sheet"
-    return m
-
-
 # ------------------------------------------------------------------ CashPlease
 def cashplease_packs(reports, work):
     """Run the CashPlease pipeline's extractor on the newest weekly. Returns
@@ -585,32 +519,6 @@ def cashplease_packs(reports, work):
         return None, os.path.basename(wb), None, "cp_extract failed: " + r.stderr.strip()[-300:]
     peer = json.load(open(packs / "peer_benchmark.json", encoding="utf-8"))
     return packs, os.path.basename(wb), peer, None
-
-
-def cp_section(cid, packs):
-    f = packs / f"{cid}_cashplease.json"
-    if not f.exists():
-        return {"missing": "no tab in the CashPlease workbook"}
-    d = json.load(open(f, encoding="utf-8"))
-    mt = d["metrics"]
-    mon = complete_months(sorted(d["monthly"], key=lambda r: r["period_month"]),
-                          d.get("report_generated"), key="period_month")[-24:]
-    return {
-        "file": d["source_file"], "report_generated": d["report_generated"],
-        "cp_name": d["client_name"],
-        "total_loans": mt["total_loans"], "total_principal": mt["total_principal"],
-        "total_interest": mt["total_interest"], "active_loans": mt["active_loans"],
-        "active_principal": mt["active_principal"], "avg_loan_size": mt["avg_loan_size"],
-        "avg_interest_per_loan": mt["avg_interest_per_loan"],
-        "charge_off_pct": mt["charge_off_pct"], "pct_overdue": mt["pct_loans_overdue"],
-        "pct_charged_off": mt["pct_loans_charged_off"], "pct_paid_off": mt["pct_loans_paid_off"],
-        "pct_active_accounts_with_loans": d["pct_active_accounts_with_loans"],
-        "window_loans": mt["window_loans"], "window_months": mt["window_months"],
-        "status": {k: v["loans"] for k, v in d["status"].items()},
-        "monthly": [{"month": r["period_month"], "loans": r["loans"],
-                     "principal": r["principal"], "interest": r["interest"]} for r in mon],
-        "mtd": {"days": len(d["daily"]), "loans": sum(r["loans"] for r in d["daily"])},
-    }
 
 
 # ------------------------------------------------------------------ decks / sent
@@ -990,15 +898,67 @@ def csm_assignments(cids, period, work, root=None, roster=None, log=print, liste
     return out
 
 
+# ------------------------------------------------------------------ scope
+DEFAULT_CSM = "Aaron Burgard"
+CSM_ENV = "RPE_DASH_CSM"
+
+
+def scope_csm(arg=None, env=None):
+    """The one CSM whose clients the page lists (Aaron, 2026-11-02: "limit that artifact to
+    my own clients, since we now have Sheila"): `--csm`, else RPE_DASH_CSM, else Aaron.
+
+    There is no "all": the page used to list every CSM's clients and filter in the browser,
+    which put each client's figures in the page for everyone who could open it. Now another
+    CSM's client is not in the dataset at all."""
+    name = (arg or (os.environ if env is None else env).get(CSM_ENV) or DEFAULT_CSM).strip()
+    if not name or name.casefold() == "all":
+        raise SystemExit("--csm needs one CSM's name; the page no longer lists every CSM's clients")
+    return name
+
+
+def in_scope(assigned, who):
+    """True when a client's CSM (or None) is `who`, case-insensitively."""
+    return bool(assigned) and assigned.strip().casefold() == who.strip().casefold()
+
+
+def cp_is_current(c, packs):
+    """Whether the client's CashPlease counts as current for the peer row: the rule the page
+    applies to its own CashPlease rows, so a client outside the page's scope is judged the same
+    way as one inside it (an inferred program with no loan in six complete months is dropped)."""
+    if "CP" not in c["roster_programs"]:
+        return False
+    sec = cp_section(c["id"], Path(packs))
+    if sec.get("missing"):
+        return c.get("programs_from") != "data"
+    since = inactive_since(sec.get("monthly"), sec.get("report_generated"), lambda r: r.get("loans"))
+    return since is None or c.get("programs_from") != "data"
+
+
 # ------------------------------------------------------------------ assemble
-def build_dataset(period, work, log=print):
+def build_dataset(period, work, log=print, csm_name=None):
     I, O, BA = R.inputs(), R.outputs(), R.build_artifacts()
+    who = scope_csm(csm_name)
     reports = R.report_dirs()
     weekly = MrpcWeekly(reports)
     packs, cp_weekly, peer, cp_note = cashplease_packs(reports, work)
     if cp_note:
         log("CashPlease: " + cp_note)
-    clients, _folder = page_clients(period, work, weekly, packs, log=log)
+    all_clients, _folder = page_clients(period, work, weekly, packs, log=log)
+
+    # Scope first, before anything is read for a client: whose clients these are decides what is
+    # extracted, so another CSM's workbook is never opened and nothing of theirs can be embedded.
+    csm = csm_assignments(sorted(all_clients), period, work, log=log,
+                          roster={cid: r["csm"] for cid, r in cashplease_roster().items()})
+    clients = {cid: c for cid, c in all_clients.items() if in_scope(csm.get(cid), who)}
+    unassigned = sorted(cid for cid in all_clients if not csm.get(cid))
+    log("scope: %s - %d of %d current clients (%d with no CSM named: %s)"
+        % (who, len(clients), len(all_clients), len(unassigned), ", ".join(unassigned) or "none"))
+    if not clients:
+        raise SystemExit("no client is assigned to %r; check the Client CSM List" % who)
+    # The CashPlease peer row benchmarks against ALL current Velocity clients, so it needs the
+    # ids outside the scope too; only its rates and averages reach the page (current_peer).
+    peer_ids = [cid for cid, c in all_clients.items()
+                if cid not in clients and packs and cp_is_current(c, packs)]
 
     for cid, c in clients.items():
         rp = c["roster_programs"]
@@ -1023,8 +983,6 @@ def build_dataset(period, work, log=print):
     sent_log = read_sent_log(BA)
     ready_by = {p: readiness(p, log)[0] for p in periods}
     ready = ready_by.get(period) or readiness(period, log)[0]
-    csm = csm_assignments(sorted(clients), period, work, log=log,
-                          roster={cid: r["csm"] for cid, r in cashplease_roster().items()})
     for cid, c in clients.items():
         c["readiness"] = ready.get(cid)
         c["readiness_by_period"] = {p: ready_by[p].get(cid) for p in periods}
@@ -1091,7 +1049,8 @@ def build_dataset(period, work, log=print):
                         "NSF/OD is item counts on every account, each averaged over the extract's "
                         "last three months; openings and closings are personal accounts over the "
                         "twelve months ending with the extract's month, which each row names",
-            "clients": "the clients.md roster, plus every client with reports filed on the CSI "
+            "clients": "the clients assigned to " + who + " in the Client CSM List: the clients.md "
+                       "roster plus every client with reports filed on the CSI "
                        "reports share for the newest month at or before the cycle, except those "
                        "clients.md marks as stopped; programs for a client not in clients.md are "
                        "inferred from that month's files (ARS workbook, or one in Inputs from the "
@@ -1109,10 +1068,18 @@ def build_dataset(period, work, log=print):
                    "CashPlease roster in clients.md, else the CSM on the client's CashPlease "
                    "settings record; a client nothing names is Unassigned",
         },
-        # The peer row over current clients' own programs, not the workbook's every-tab rollup.
-        "cp_peer": current_peer(packs, [cid for cid, c in clients.items() if "CP" in c["programs"]])
-                   if packs else None,
+        # The peer row over ALL current clients' own programs (not the workbook's every-tab
+        # rollup), as rates and averages only: no other CSM's volume or client is in it.
+        "cp_peer": current_peer(packs, [cid for cid, c in clients.items() if "CP" in c["programs"]]
+                                + peer_ids) if packs else None,
+        "scope": {"csm": who, "clients": len(clients),
+                  "programs": {k: sum(k in c["programs"] for c in clients.values())
+                               for k in ("ARS", "ICS", "MRPC", "CP")}},
         "odd_month": odd_data_month(period),
+        # Live Review is served from a checkout on the viewer's machine, never hosted, so the page
+        # can only hand over the command that starts it (Aaron, 2026-11-03). The checkout is the one
+        # this refresh runs from, or RPE_REPO when the page is built from somewhere else.
+        "live_review": {"repo": os.environ.get("RPE_REPO") or str(REPO)},
         # The periods Build readiness can be switched to on the page (Aaron, 2026-10-12).
         "readiness_periods": periods,
         # Every current client, including one with no program data this month (Aaron,
@@ -1151,9 +1118,9 @@ EXPORT_HEAD = """<!doctype html>
 
 # Said on the page itself, because a file passed around cannot be asked when it is from.
 # The "Last updated" pill alone reads as a page that keeps updating; this one never will.
-EXPORT_NOTE = """<div class="wrap" style="padding-top:0">
-  <p style="margin:0 0 28px;padding:11px 14px;border:1px solid var(--hair);border-left:3px solid var(--accent);
-     border-radius:8px;background:var(--tile);color:var(--ink2);font-size:13px">
+EXPORT_NOTE = """<div style="max-width:1560px;margin:0 auto;padding:0 16px 24px">
+  <p style="margin:0;padding:11px 14px;border:1px solid var(--line);border-left:3px solid var(--accent);
+     border-radius:12px;background:var(--fill);color:var(--muted);font-size:13px">
     <b style="color:var(--ink)">Static copy — %(period)s, exported %(exported)s.</b>
     It does not refresh. Figures come from the same inputs as that period’s decks;
     the live page is rebuilt each morning. Internal use — client figures.
@@ -1237,6 +1204,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Rebuild the RPE performance dashboard page.")
     ap.add_argument("--period", default=None, help="YYYY.MM (default: this calendar month)")
     ap.add_argument("--force", action="store_true", help="report changed even if the hash matches")
+    ap.add_argument("--csm", default=None, metavar="NAME",
+                    help="whose clients the page lists (default: $%s, else %s)" % (CSM_ENV, DEFAULT_CSM))
     ap.add_argument("--mark-published", action="store_true",
                     help="record the current dataset hash as the published one, then exit")
     ap.add_argument("--export", nargs="?", const=True, default=None, metavar="PATH",
@@ -1272,7 +1241,7 @@ def main(argv=None):
     if not re.fullmatch(r"\d{4}\.\d{2}", period):
         raise SystemExit("period must be YYYY.MM, got %r" % period)
 
-    dataset = build_dataset(period, work)
+    dataset = build_dataset(period, work, csm_name=a.csm)
     html = render(dataset)
     (work / "dataset.json").write_text(json.dumps(dataset, indent=1, default=str), encoding="utf-8")
     (work / "rpe_dashboard.html").write_text(html, encoding="utf-8")

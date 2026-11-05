@@ -12,19 +12,19 @@
  },
  "slides": {
   "The book, narrowed": "keep",
-  "How the money moves": "keep",
+  "How the money moves": "toss",
   "Twelve months of flow": "keep",
-  "Their financial life": "keep",
+  "Their financial life": "toss",
   "Where the money goes": "keep",
-  "Where the leakage goes": "keep",
+  "Where the leakage goes": "toss",
   "Who they pay": "keep",
   "How long the relationship has run": "keep",
   "Started and stopped": "keep",
-  "How deep the leakage runs": "keep",
-  "Leakage by group": "keep",
+  "How deep the leakage runs": "toss",
+  "Leakage by group": "toss",
   "Leakage by group and category": "keep",
   "What leakers hold with us": "keep",
-  "How the leakage builds": "keep",
+  "How the leakage builds": "toss",
   "Which services travel together": "keep",
   "Still within reach": "keep",
   "How members spend": "keep",
@@ -32,40 +32,40 @@
   "Ticket and intensity": "keep",
   "When the card gets used": "keep",
   "Recurring payments on the card": "keep",
-  "Card behaviour by lens": "keep",
+  "Card behaviour by lens": "toss",
   "Engagement breadth": "keep",
   "Merchants rising and falling": "keep",
   "New and faded merchants": "keep",
-  "The MCC codes behind the categories": "keep",
+  "The MCC codes behind the categories": "toss",
   "How broadly the card is used": "keep",
   "Card spend by member age": "keep",
   "Card use by account tenure": "keep",
   "PIN or signature": "keep",
-  "Who routes PIN": "keep",
+  "Who routes PIN": "toss",
   "PIN-heavy accounts": "keep",
-  "Where PIN gets pressed": "keep",
+  "Where PIN gets pressed": "toss",
   "Channels used together": "keep",
   "What a second channel is worth": "keep",
   "The responder profile": "keep",
-  "Every group against the book": "keep",
+  "Every group against the book": "toss",
   "What the banker actually opens": "keep",
-  "What the dictionary does not know yet": "keep",
+  "What the dictionary does not know yet": "toss",
   "Who competes for our members": "keep",
   "The local field": "keep",
-  "Which competitors to work first": "keep",
+  "Which competitors to work first": "toss",
   "Filed growth": "keep",
   "Where the field sits": "keep",
-  "Where we leak, by branch": "keep",
+  "Where we leak, by branch": "toss",
   "Where we lose and where we leak": "keep",
   "Gaining and losing": "keep",
-  "Who leads each product": "keep",
-  "Banks against the ecosystems": "keep",
+  "Who leads each product": "toss",
+  "Banks against the ecosystems": "toss",
   "Where the outflow goes": "keep",
   "Where the dollars go": "keep",
   "Who owns the relationship": "keep",
-  "How much of the wallet has left": "keep",
+  "How much of the wallet has left": "toss",
   "Is the competitor money still moving": "keep",
-  "How many competitors each account uses": "keep",
+  "How many competitors each account uses": "toss",
   "Winback targets": "keep",
   "Depth against growth": "keep",
   "The payment ecosystems, ranked": "keep",
@@ -93,12 +93,12 @@
   "What arrives against what leaves": "keep",
   "ICS acquisition": "keep",
   "ICS activation": "keep",
-  "ICS never activated": "keep",
+  "ICS never activated": "toss",
   "ICS cohorts": "keep",
-  "ICS sustained activity": "keep",
+  "ICS sustained activity": "toss",
   "ICS usage": "keep",
   "ICS quality": "keep",
-  "ICS closure hazard": "keep",
+  "ICS closure hazard": "toss",
   "ICS first-year closure": "keep",
   "ICS by branch": "keep",
   "ICS primacy": "keep",
@@ -115,40 +115,53 @@
   "What an account earns as it climbs": "keep",
   "What a card and an opt-in earn": "keep",
   "The value ladder": "keep",
-  "Value per account by branch": "keep",
+  "Value per account by branch": "toss",
   "What a responder is worth": "keep",
   "Where cards do not follow volume": "keep",
-  "Where branches diverge": "keep",
+  "Where branches diverge": "toss",
   "Program reach": "keep",
   "Response and reach by offer": "keep",
-  "Per-offer summary": "keep",
-  "The campaign hero": "keep",
-  "Ladder and NU conversion by offer": "keep",
+  "Per-offer summary": "toss",
+  "The campaign hero": "toss",
+  "Ladder and NU conversion by offer": "toss",
   "Segment trajectories": "keep",
   "The penalty box": "keep",
-  "The counterfactual": "keep",
-  "Which offer earns its postage": "keep",
+  "The counterfactual": "toss",
+  "Which offer earns its postage": "toss",
   "Transaction increase over the ask": "keep",
   "Lift by response segment": "keep",
   "Depth of engagement — repeat responders": "keep",
   "Organic versus program activation": "keep",
   "What a response does to spend": "keep",
   "Behavior by segment around the offer": "keep",
-  "Responders versus control around the offer": "keep",
-  "Sustained responder activity": "keep",
+  "Responders versus control around the offer": "toss",
+  "Sustained responder activity": "toss",
   "First-time versus repeat responders": "keep",
   "Do partial responders convert?": "keep",
-  "Who responds — the profile": "keep",
-  "Tier movement by response status": "keep",
-  "Swipe-tier migration": "keep",
+  "Who responds — the profile": "toss",
+  "Tier movement by response status": "toss",
+  "Swipe-tier migration": "toss",
   "Where the tiers moved": "keep",
-  "The most recent mailer": "keep",
+  "The most recent mailer": "toss",
   "The most recent mailer trajectory": "keep",
   "The most recent offer": "keep",
-  "Revenue frames": "keep",
-  "Mailer * summary": "keep",
+  "Revenue frames": "toss",
+  "Mailer * summary": "toss",
+  "Mailer summaries": "keep",
   "Offer * by segment": "keep",
-  "*: responders versus their segment": "keep"
+  "*: responders versus their segment": "keep",
+  "How external relationships age and turn over": "keep",
+  "Card spend by age and by tenure": "keep",
+  "Merchants moving in and out": "keep",
+  "Where card dollars go": "keep",
+  "PIN and signature": "keep",
+  "What competitors take and how much they own": "keep",
+  "Payment apps and buy now, pay later": "keep",
+  "How long accounts stay open": "keep",
+  "How members are paid": "keep",
+  "When the pay stops": "keep",
+  "Reach and response": "keep",
+  "Repeat responders": "keep"
  },
  "_by_chapter": {
   "Transaction Intelligence": [
@@ -190,7 +203,12 @@
    "The responder profile",
    "Every group against the book",
    "What the banker actually opens",
-   "What the dictionary does not know yet"
+   "What the dictionary does not know yet",
+   "How external relationships age and turn over",
+   "Card spend by age and by tenure",
+   "Merchants moving in and out",
+   "Where card dollars go",
+   "PIN and signature"
   ],
   "Competition": [
    "Who competes for our members",
@@ -212,7 +230,9 @@
    "Winback targets",
    "Depth against growth",
    "The payment ecosystems, ranked",
-   "Buy now, pay later"
+   "Buy now, pay later",
+   "What competitors take and how much they own",
+   "Payment apps and buy now, pay later"
   ],
   "Attrition": [
    "Attrition by branch",
@@ -224,7 +244,8 @@
    "Attrition by group",
    "Account retention — survival by tenure",
    "Competitor spend before closure",
-   "Stresses across both files"
+   "Stresses across both files",
+   "How long accounts stay open"
   ],
   "Deposits": [
    "What deposits look like",
@@ -237,7 +258,9 @@
    "Tax refunds",
    "Who overdrafts, by how they are paid",
    "Who banks here first",
-   "What arrives against what leaves"
+   "What arrives against what leaves",
+   "How members are paid",
+   "When the pay stops"
   ],
   "ICS Accounts": [
    "ICS acquisition",
@@ -302,8 +325,75 @@
    "The most recent offer",
    "Revenue frames",
    "Mailer * summary",
+   "Mailer summaries",
    "Offer * by segment",
-   "*: responders versus their segment"
+   "*: responders versus their segment",
+   "Reach and response",
+   "Repeat responders"
   ]
+ },
+ "_tossed_2026-11-02": {
+  "How the money moves": "the PIN and signature split again; 'PIN and signature' carries it with the trend",
+  "How deep the leakage runs": "one three-segment bar; the 2-or-more share is on 'Which services travel together'",
+  "Card behaviour by lens": "responders against mailed non-responders on ticket and swipes, which 'The responder profile' and the Campaign chapter show; its recurring row read 0.0% against 0.0%",
+  "What the dictionary does not know yet": "a note on our own merchant dictionary, not a finding for the client",
+  "Where we leak, by branch": "the same branches on the same x axis as 'Where we lose and where we leak', which adds closures",
+  "Banks against the ecosystems": "three percentages that 'Who competes for our members' and 'The payment ecosystems, ranked' already give",
+  "ICS never activated": "'ICS activation personas' carries the never-activated share",
+  "ICS sustained activity": "the monthly swiping share 'ICS quality' measures over the first year",
+  "ICS closure hazard": "'ICS first-year closure' and 'ICS retention' carry the closure figures"
+ },
+ "_combined_2026-11-02": {
+  "note": "Two one-chart slides drawn as one by ti/deck/combine.py; each still draws alone when the other is declined for the client or the pair cannot share a slide, so their own titles stay \"keep\".",
+  "pairs": {
+   "How external relationships age and turn over": [
+    "How long the relationship has run",
+    "Started and stopped"
+   ],
+   "Card spend by age and by tenure": [
+    "Card spend by member age",
+    "Card use by account tenure"
+   ],
+   "Merchants moving in and out": [
+    "Merchants rising and falling",
+    "New and faded merchants"
+   ],
+   "Where card dollars go": [
+    "How members spend",
+    "Card spend by category"
+   ],
+   "PIN and signature": [
+    "PIN or signature",
+    "PIN-heavy accounts"
+   ],
+   "What competitors take and how much they own": [
+    "Where the dollars go",
+    "Who owns the relationship"
+   ],
+   "Payment apps and buy now, pay later": [
+    "The payment ecosystems, ranked",
+    "Buy now, pay later"
+   ],
+   "How long accounts stay open": [
+    "New accounts, cohort by cohort",
+    "Account retention — survival by tenure"
+   ],
+   "How members are paid": [
+    "Who is paid here",
+    "What kind of income"
+   ],
+   "When the pay stops": [
+    "Who stopped being paid here",
+    "When money last arrived"
+   ],
+   "Reach and response": [
+    "Program reach",
+    "Response and reach by offer"
+   ],
+   "Repeat responders": [
+    "Depth of engagement — repeat responders",
+    "First-time versus repeat responders"
+   ]
+  }
  }
 }

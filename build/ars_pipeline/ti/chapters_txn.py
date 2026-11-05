@@ -7,8 +7,9 @@ nothing. A client with no transaction window computes nothing here and says so.
 
 Build: each chapter is v5's slide builders (`ti/deck/txn_slides.BUILDERS`, split by chapter in
 v5's own order) drawn through the RPE helper bundle (`ti/deck/helpers.py`). A builder that
-declines becomes a stated slide under its own title. A client with no transaction figures at all
-gets ONE stated slide per chapter, not a run of "not shown" pages.
+declines becomes a stated slide under its own title, which the frame then hides for that client
+(Sheila's 1798 review, 2026-10-30). A client with no transaction figures at all gets ONE stated
+slide per chapter, so both chapters are hidden whole.
 
 Lenses: the slides that walk v5's lens list (`lenses` in the figures) show, in the ICS lens deck,
 all accounts plus the ICS groups; in the ARS lens deck they are drawn exactly as v5 draws them.
@@ -17,6 +18,7 @@ The responder-against-control slides compare that one pair in both decks.
 v5's two cross-source attrition slides (`txn_attrition`) belong to the Attrition chapter and are
 exported here as ATTRITION_BUILDERS / ATTRITION_TITLES for it.
 """
+import time
 from pathlib import Path
 
 from ti import cut, txn_sections as T
@@ -27,6 +29,7 @@ from ti.deck import txn_compete as P
 from ti.deck import txn_leakage as L
 from ti.deck import txn_slides as S
 from ti.deck import txn_value as V
+from ti.deck.combine import apply as _combine
 from ti.deck.helpers import Deck
 
 TI_BUILDERS = [
@@ -102,10 +105,63 @@ TITLES = {
 }
 ATTRITION_TITLES = {k: TITLES[k] for k in ("spend_before_closure", "stresses_across_files")}
 
+# Two one-chart slides drawn as one, two charts side by side (Aaron, 2026-11-02; ti/deck/combine.py).
+# (first builder, second builder, topic, headline, subtitle, name). Each part still draws as it
+# always did when the other is declined for the client or the pair cannot share a slide.
+TI_COMBINED = (
+    ("how_long_it_has_run", "started_and_stopped", "How external relationships age and turn over",
+     "How external relationships age and turn over",
+     "Left: how recently each category's relationship moved money. Right: new against stopped in the last 90 days.",
+     "relationships_age_and_turnover"),
+    ("card_spend_by_member_age", "card_use_by_account_tenure", "Card spend by age and by tenure",
+     "Who spends on the card, by age and by tenure",
+     "Card dollars per account, by the holder's age band and by how long the account has been open.",
+     "card_spend_by_age_and_tenure"),
+    ("merchants_rising_and_falling", "new_and_faded_merchants", "Merchants moving in and out",
+     "Merchants moving in and out of the card",
+     "Left: the biggest risers and fallers by dollars. Right: merchants new to the card and merchants that faded.",
+     "merchants_moving"),
+)
+TI_COMBINED += (
+    ("_how_members_spend", "card_spend_by_category", "Where card dollars go",
+     "Where card dollars go, by merchant and by category",
+     "Left: the merchants with the most card spend. Right: card spend by category.",
+     "card_dollars_by_merchant_and_category"),
+    ("pin_or_signature", "pin_heavy_accounts", "PIN and signature",
+     "How card dollars route, and who leans on PIN",
+     "Left: the signature share of card dollars over time. Right: the merchants with the most PIN dollars.",
+     "pin_and_signature"),
+)
+COMP_COMBINED = (
+    ("where_the_dollars_go", "who_owns_the_relationship", "What competitors take and how much they own",
+     "What competitors take, and how much of the account they own",
+     "Left: dollars a year to each named competitor. Right: the share of an account's transactions each one takes.",
+     "competitor_dollars_and_ownership"),
+    ("the_payment_ecosystems_ranked", "buy_now_pay_later", "Payment apps and buy now, pay later",
+     "Payment apps and buy now, pay later",
+     "Left: members by payment ecosystem. Right: members carrying buy-now-pay-later balances, by provider.",
+     "ecosystems_and_bnpl"),
+)
+# what the chapters draw: v5's builders (TI_BUILDERS, COMP_BUILDERS, which parity and the tests walk) with
+# the pairs above drawn as one, and the titles a declined combined slide is stated under
+TI_DRAWN, DRAWN_TITLES = _combine(TI_BUILDERS, TITLES, TI_COMBINED)
+COMP_DRAWN, DRAWN_TITLES = _combine(COMP_BUILDERS, DRAWN_TITLES, COMP_COMBINED)
+
 SOURCE = "the ODD extract and the monthly debit-card transaction files"
 
 
 # ------------------------------------------------------------------ compute
+def _lap(name, t):
+    """One section's seconds and the process's memory after it, to the build log (James Gilmore, 2026-10-29:
+    1798's 23.6M rows took most of an hour and ran out of memory, and nothing said where)."""
+    try:
+        import psutil
+        mem = f", {psutil.Process().memory_info().rss / 2**30:.1f} GB in use"
+    except Exception:                             # psutil is not a requirement; the time alone still says where
+        mem = ""
+    print(f"[time] transaction section {name}: {time.perf_counter() - t:,.1f} s{mem}", flush=True)
+
+
 def compute_all(ctx):
     """v5's transaction run, in v5's order, once for both chapters and both lenses."""
     if ctx.txn is None:
@@ -114,10 +170,12 @@ def compute_all(ctx):
     for section in (T.portfolio, T.financial_services, T.competition, T.merchants,
                     T.merchant_profiles, T.mapping_audit, T.card_behavior, T.interchange,
                     T.relationship, T.overlay, T.leakage, T.stressors_txn):
+        t = time.perf_counter()
         try:
             out.update(section(ctx) or {})
         except Exception as exc:                  # one section, never the chapter (v5's rule)
             ctx.warn(f"{section.__name__} failed: {type(exc).__name__}: {exc}")
+        _lap(section.__name__, t)
     def hotspots(c):                              # reads comp_by_branch from the figures so far
         return T.hotspots(c, out)
 
@@ -152,7 +210,7 @@ def _build(ctx, builders, chapter_title, art):
                                   "this chapter cannot be computed")
         return list(d.slides)
     t = lens_view(m, ctx.lens)
-    return d.run(builders, TITLES, t, m.get("fin_base_label") or "transacting accounts")
+    return d.run(builders, DRAWN_TITLES, t, m.get("fin_base_label") or "transacting accounts")
 
 
 def _money(v):
@@ -180,12 +238,12 @@ def _comp_stats(pack, _ln):
 TI_CHAPTER = cut.Chapter(
     "TI_TXN", "Transaction Intelligence", "Money Movement · Leakage · Card Use",
     "Where members' money goes outside the institution, and how they use the card",
-    _ti_stats, lambda ctx: _build(ctx, TI_BUILDERS, "Transaction Intelligence", "charts_txn"),
+    _ti_stats, lambda ctx: _build(ctx, TI_DRAWN, "Transaction Intelligence", "charts_txn"),
     compute_all)
 COMP_CHAPTER = cut.Chapter(
     "TI_COMP", "Competition", "Competitors · Wallet Share · Winback",
     "Which institutions and payment ecosystems compete for members, and who to win back",
-    _comp_stats, lambda ctx: _build(ctx, COMP_BUILDERS, "Competition", "charts_comp"),
+    _comp_stats, lambda ctx: _build(ctx, COMP_DRAWN, "Competition", "charts_comp"),
     lambda ctx: {})
 
 # registered in deck order by ti/chapters/__init__.py (transaction_intelligence, competition)

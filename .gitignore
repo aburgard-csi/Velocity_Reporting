@@ -58,6 +58,8 @@ oddd*.json
 !build/assets/*.pptx
 !build/**/templates/*.potx
 !templates/*.potx
+# ...and the CSI brand template the Summit one-pager skill builds its pages on (a source template, no client data).
+!.claude/skills/*/assets/*.pptx
 *.pdf
 charts_out/
 assets_tmp/

@@ -18,8 +18,8 @@ import numpy as np
 
 from .charts import (FIG_W_FULL, FIG_W_RAIL, GREY, GRID, LIGHT, NAVY, ORANGE,
                      STEEL, TINT, _clean, _save, fit_text, plt)
-from .labels import clip
-from .charts_txn import _fmt_money
+from .labels import clip, display_name
+from .charts_txn import TXT, _fmt_money
 
 MUTED = "#9AA3AD"          # carries "cannot compete for it"
 
@@ -61,16 +61,16 @@ def _treemap_fig(rows: list, note: str):
             color, fg = (NAVY, "white") if i % 2 else (STEEL, "white")
         ax.add_patch(plt.Rectangle((x, y), w, h, facecolor=color,
                                    edgecolor="white", linewidth=1.8))
-        if w > 0.10 and h > 0.13:
+        if w > 0.12 and h > 0.16:
             inner = w - 0.024                 # the block's width less its margins
-            name = fit_text(ax, x + 0.012, y + h - 0.05, inner, label, 10.5, floor=8, max_lines=2,
+            name = fit_text(ax, x + 0.012, y + h - 0.05, inner, label, TXT, floor=TXT, max_lines=2,
                             fontweight="bold", color=fg, va="top")
-            drop = 0.04 if len(name.get_text().splitlines()) > 1 else 0   # a two-line name pushes the figure down
-            ax.text(x + 0.012, y + h - 0.115 - drop, _fmt_money(val), fontsize=13.5,
+            drop = 0.05 if len(name.get_text().splitlines()) > 1 else 0   # a two-line name pushes the figure down
+            ax.text(x + 0.012, y + h - 0.125 - drop, _fmt_money(val), fontsize=15,
                     fontweight="bold", color=fg, va="top")
-            if h > 0.24 + drop:
-                fit_text(ax, x + 0.012, y + h - 0.175 - drop, inner,
-                         sub if addressable else "non-addressable", 8.5, floor=7.5,
+            if h > 0.27 + drop:
+                fit_text(ax, x + 0.012, y + h - 0.195 - drop, inner,
+                         sub if addressable else "non-addressable", TXT, floor=TXT,
                          max_lines=2, color="#EEF2F6", va="top")
             drawn += 1
         if horizontal:
@@ -86,7 +86,7 @@ def _treemap_fig(rows: list, note: str):
     if note:
         cap.append(note)
     if cap:
-        ax.set_xlabel(" · ".join(cap), fontsize=9.5, color=GREY,
+        ax.set_xlabel(" · ".join(cap), fontsize=TXT, color=GREY,
                       labelpad=8)
     return fig, {"blocks": len(shown), "labelled": drawn, "lit_index": lit,
                  "dropped": len(dropped)}
@@ -117,7 +117,7 @@ def _radar_fig(axes: list, a_vals: list, b_vals: list, a_lab: str,
     ax.set_ylim(0, 1)
     ax.set_yticklabels([])
     ax.set_xticks(ang)
-    ax.set_xticklabels(axes, fontsize=9.5, color=GREY)
+    ax.set_xticklabels(axes, fontsize=TXT, color=GREY)
     ax.grid(color=GRID)
     ax.spines["polar"].set_color(GRID)
     for vals, color, alpha in ((b_vals, TINT, 0.42), (a_vals, ORANGE, 0.38)):
@@ -135,15 +135,15 @@ def _radar_fig(axes: list, a_vals: list, b_vals: list, a_lab: str,
     tx.set_xlim(0, 1)
     tx.set_ylim(0, 1)
     tx.plot([0.02], [0.95], marker="o", ms=9, color=ORANGE)
-    tx.text(0.06, 0.95, a_lab, fontsize=11, fontweight="bold", color=ORANGE,
+    tx.text(0.06, 0.95, a_lab, fontsize=TXT, fontweight="bold", color=ORANGE,
             va="center")
     tx.plot([0.02], [0.87], marker="o", ms=9, color=TINT)
-    tx.text(0.06, 0.87, b_lab, fontsize=11, fontweight="bold", color=GREY,
+    tx.text(0.06, 0.87, b_lab, fontsize=TXT, fontweight="bold", color=GREY,
             va="center")
     for i, label in enumerate(axes):
         yy = 0.74 - i * 0.115
-        tx.text(0.02, yy, label, fontsize=10.5, color=NAVY, va="center")
-        tx.text(1.0, yy, raw[i], fontsize=10.5, fontweight="bold",
+        tx.text(0.02, yy, label, fontsize=TXT, color=NAVY, va="center")
+        tx.text(1.0, yy, raw[i], fontsize=TXT, fontweight="bold",
                 color=GREY, ha="right", va="center")
     return fig, {"axes": n, "series": 2, "raw_printed": len(raw)}
 
@@ -173,14 +173,14 @@ def _bullet_fig(rows: list, book_label: str):
         below += 0 if good else 1
         ax.barh(y[i], act, height=0.30, color=NAVY if good else ORANGE)
         ax.plot([book, book], [y[i] - 0.36, y[i] + 0.36], color=NAVY, lw=2.4)
-        ax.text(peak * 1.02, y[i], note, va="center", fontsize=10.5,
+        ax.text(peak * 1.02, y[i], note, va="center", fontsize=TXT,
                 fontweight="bold", color=NAVY if good else ORANGE)
     ax.set_yticks(y)
-    ax.set_yticklabels([r[0] for r in rows], fontsize=10.5, color=NAVY)
-    ax.set_xlim(0, peak * 1.24)
+    ax.set_yticklabels([r[0] for r in rows], fontsize=TXT, color=NAVY)
+    ax.set_xlim(0, peak * 1.30)
     ax.get_xaxis().set_visible(False)
     ax.set_xlabel(f"the rule is {book_label}; the darker band is the spread "
-                  f"across these groups", fontsize=9.5, color=GREY,
+                  f"across these groups", fontsize=TXT, color=GREY,
                   labelpad=8)
     ax.get_xaxis().set_visible(True)
     ax.set_xticks([])
@@ -203,11 +203,12 @@ def _worklist_fig(header: list, rows: list):
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
     ax.axis("off")
-    rh = min(9.5, 86 / max(len(rows), 1))
+    # every row inside the frame: the old 86/n ran the last of twelve rows off the bottom
+    rh = min(9.5, 100 / (max(len(rows), 1) + 1) - 0.9)
     ax.add_patch(plt.Rectangle((0, 100 - rh), 100, rh, facecolor=NAVY))
     cols = (1.5, 28, 63, 87)
     for i, (c, x) in enumerate(zip(header, cols)):
-        ax.text(x, 100 - rh / 2, str(c).upper(), fontsize=9,
+        ax.text(x, 100 - rh / 2, str(c).upper(), fontsize=TXT,
                 fontweight="bold", va="center",
                 color="#E9C46A" if i == 0 else "white")
     hot_n = 0
@@ -217,15 +218,15 @@ def _worklist_fig(header: list, rows: list):
                                    facecolor="#FFF3E2" if hot else "#F8F8F8"))
         ax.add_patch(plt.Rectangle((0, yy), 0.5, rh,
                                    facecolor=ORANGE if hot else GRID))
-        ax.text(cols[0], yy + rh / 2, name, fontsize=10.5,
+        ax.text(cols[0], yy + rh / 2, name, fontsize=TXT,
                 fontweight="bold" if hot else "normal", color=NAVY,
                 va="center")
-        ax.text(cols[1], yy + rh / 2, detail, fontsize=9.5, color=GREY,
+        ax.text(cols[1], yy + rh / 2, detail, fontsize=TXT, color=GREY,
                 va="center")
-        ax.text(cols[2], yy + rh / 2, value, fontsize=10.5,
+        ax.text(cols[2], yy + rh / 2, value, fontsize=TXT,
                 fontweight="bold", color=ORANGE if hot else NAVY, va="center")
         ax.text(cols[3], yy + rh / 2, "call first" if hot else "queue",
-                fontsize=9.5, fontweight="bold",
+                fontsize=TXT, fontweight="bold",
                 color=ORANGE if hot else MUTED, va="center")
         hot_n += 1 if hot else 0
     return fig, {"rows": len(rows), "flagged": hot_n}
@@ -249,14 +250,14 @@ def _ledger_fig(rows: list, note: str):
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
     ax.axis("off")
-    rh = min(4.2, 88 / max(len(rows), 1))
-    size = 9 if len(rows) <= 12 else 8
+    rh = min(6.5, 88 / max(len(rows), 1))
+    size = TXT
     flagged = 0
     for i, (label, weight, dollars, flag) in enumerate(rows):
         yy = 94 - (i + 1) * rh
         mid = yy + rh * 0.33
         w = 46 * weight / peak
-        ax.text(31, mid, clip(str(label).title(), 30), fontsize=size,
+        ax.text(31, mid, clip(display_name(label), 30), fontsize=size,
                 fontweight="bold" if flag else "normal", color=NAVY if flag else GREY,
                 ha="right", va="center")
         ax.add_patch(plt.Rectangle((33, yy), w, rh * 0.66,
@@ -266,7 +267,7 @@ def _ledger_fig(rows: list, note: str):
                 ha="left", va="center")
         flagged += bool(flag)
     if note:
-        ax.text(0, 2, note, fontsize=9.5, color=GREY)
+        ax.text(0, 2, note, fontsize=TXT, color=GREY)
     return fig, {"rows": len(rows), "flagged": flagged}
 
 

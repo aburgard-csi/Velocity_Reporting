@@ -41,9 +41,12 @@ def test_every_key_names_a_real_chapter_or_slide_and_every_slide_is_listed():
     drawn = _drawn_titles()
     from ti.chapters import attrition, campaign, deposits, economics, ics, value
     import ti.chapters_txn as T
+    # the topic of a pair drawn as one slide (ti/deck/combine.py) is named by the chapter's COMBINED
+    combined = {pair[2] for pairs in (T.TI_COMBINED, T.COMP_COMBINED, attrition.COMBINED, deposits.COMBINED,
+                                      campaign.COMBINED, economics.COMBINED) for pair in pairs}
     titled = (set(T.TITLES.values()) | set(attrition.TITLES.values()) | set(deposits.TITLES.values())
               | set(ics.ORDER) | set(economics.TITLES.values()) | set(value.TITLES.values())
-              | set(campaign.TITLES.values()) | drawn)
+              | set(campaign.TITLES.values()) | drawn | combined)
     for key in data["slides"]:
         assert key in titled or ("*" in key and any(fnmatch.fnmatchcase(t, key) for t in
                                  ["Mailer Jun26 summary", "Offer Jun26 by segment",

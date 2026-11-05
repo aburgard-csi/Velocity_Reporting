@@ -216,17 +216,17 @@ def scan(odd_path, val_months=VAL_MONTHS, winsor=WINSOR_PCT, top_band=TOP_BAND,
          population=None):
     """Segment-level figures from one ODD extract (.zip or .csv). JSON-safe; no member data."""
     import month_complete as MC
-    from odd_rows import accessors
+    from odd_rows import accessors, client_of
 
     factory, member = open_source(odd_path)
     hdr_idx, hdr = find_header(factory)
     H = {h: i for i, h in enumerate(hdr)}
     months = [m.group(1) for m in (_MONTH_RX.match(h) for h in hdr) if m]
-    odd = accessors(H)
+    odd = accessors(H, client_of(odd_path))
     ncol = len(hdr)
 
     comp = MC.odd_completeness(_rows(factory, hdr_idx, ncol), odd, months, MC.pull_date(member))
-    usable = months[:comp["all"]["complete"]]
+    usable = MC.usable_months(months, comp["all"])     # complete months, less any interior gap
     if len(usable) < 3:
         raise SystemExit(f"POSSIBLE DATA ISSUE: {member} has {len(usable)} complete months; "
                          f"a Lift Matrix needs at least 3.")

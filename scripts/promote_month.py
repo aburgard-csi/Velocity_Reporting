@@ -207,8 +207,24 @@ def deliverable(cdir):
     return max(decks, key=lambda f: len(Presentation(f).slides))
 
 
+def _run_sizes(sh):
+    """Every run's font size in a shape, table cells included, in order.
+
+    A table is a graphic frame with no text_frame, so a rebuild that changed only a
+    table's font size (1441's Reg E by Branch tables, 16 -> 10 pt, 2026-11-02) looked
+    identical to `same` and the old deck stayed in Outputs.
+    """
+    frames = []
+    if getattr(sh, "has_text_frame", False):
+        frames.append(sh.text_frame)
+    if getattr(sh, "has_table", False):
+        frames += [c.text_frame for row in sh.table.rows for c in row.cells]
+    return tuple(r.font.size.pt if r.font.size is not None else None
+                 for tf in frames for p in tf.paragraphs for r in p.runs)
+
+
 def _shape_look(sh):
-    """What a shape LOOKS like: kind, box, solid fill, line colour.
+    """What a shape LOOKS like: kind, box, solid fill, line colour, run font sizes.
 
     Derived from shape properties, so it is stable across rebuilds the way the
     zip bytes are not — no relationship ids, no timestamps.
@@ -227,7 +243,7 @@ def _shape_look(sh):
     except (AttributeError, TypeError, ValueError):
         fill = None
     return (int(sh.shape_type) if sh.shape_type is not None else -1,
-            sh.left, sh.top, sh.width, sh.height, fill, line)
+            sh.left, sh.top, sh.width, sh.height, fill, line, _run_sizes(sh))
 
 
 def same(a, b):

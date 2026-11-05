@@ -75,7 +75,7 @@ ASSETS = _renv_assets.temp_dir("ars_assets_")     # removed at exit (it used to 
 # Under $1M this reads in K rather than "$0.83M" (Aaron, 2026-09-11); brand owns
 # the one definition, since four of these had drifted apart.
 from brand import usd_compact as m2
-from brand import ORANGE_RGB as _ORANGE_RGB
+from brand import ORANGE_RGB as _ORANGE_RGB, TICK_RGB as _TICK_RGB, ROWALT_RGB as _ROWALT_RGB
 # Every number shown in a callout carries thousands separators (Aaron, 2026-08-27).
 months = f"{B['months']:,}"; mailings = f"{B['mailings']:,}"
 _nm_int = int(B['mailings'] or 0)
@@ -961,67 +961,17 @@ if BIZ:
 # (07-2025 · 06-2026) no matter which months the charts actually covered. Resolve
 # by title and swap them to the window this extract used.
 for _t in ("12-Month Eligible Take Rate — Personal",
-           "12-Month Eligible Take Rate — Business",
-           "12-Month Take Rate by Branch"):
+           "12-Month Eligible Take Rate — Business"):
     repl(SB(_t), {"07-2025 · 06-2026": NEWWIN_PILL}, optional=(NEWWIN_PILL == "07-2025 · 06-2026"))
 repl(SB("12-Month Eligible Take Rate — Personal"),
      {"Selection: ARS-eligible personal accounts, trailing 12 months (Jul 2025 – Jun 2026).":
       f"Selection: ARS-eligible personal accounts, trailing 12 months ({NEWWIN_TEXT})."})
 
-# ============================ SLIDE 23 — Take by branch table
-tm = M['take_months']
-# Branch rows are sized to the space on the slide, not to a fixed 6. The table sat at
-# 2.35in with six branches and stopped at 5.07in, leaving roughly a third of the slide
-# empty (Aaron, 2026-08-28). Rows are 0.34in and the footer/logo band starts at 6.78in,
-# so fill down to 6.60in and add table rows for whatever the template doesn't have.
-import chart_lib as _cl_ord
-_TBL_TOP, _ROW_H, _TBL_BOTTOM = 2.35, 0.34, 6.60
-_max_body = int((_TBL_BOTTOM - _TBL_TOP) / _ROW_H) - 2      # minus header and Total
-_nbranch = min(len(M['take_branch_monthly']), max(6, _max_body))
-_num_of = {v: k for k, v in (M.get('branch_name_of') or {}).items()}   # names on charts: keep number order
-tbm = _cl_ord.branch_order(M['take_branch_monthly'][:_nbranch], key=lambda r: _num_of.get(r[0], r[0]))
-rows = [["Branch"]+tm+["Cards", "Elig", "Take%"]]
-for row in tbm:
-    b = row[0]; monthly = row[1:1+len(tm)]
-    rows.append([str(b)]+[str(x) for x in monthly]+[str(row[-3]), str(row[-2]), f"{row[-1]}%"])
-tct = M['take_new_cards']; tet = M['take_new_total']
-rows.append(["Total (all branches)"]+[str(x) for x in M['take_col_totals']]+[str(tct), str(tet), f"{round(100*tct/tet)}%"])
-_have = len(tables(S[22])[0].rows)
-if len(rows) > _have:
-    add_table_rows(S[22], len(rows) - _have)
-    print(f"take-by-branch: grew table {_have} -> {len(rows)} rows ({len(tbm)} branches)")
-set_table(S[22], rows, trim=True)
-# Branch NAMES (Aaron, 2026-09-17) need a wider first column than the numbers it was sized for:
-# Wellworth's "Westmoreland" wrapped to "Westmorelan / d". Widen it to the longest branch label,
-# measured in the bundled font, and take the width back evenly from the other columns.
-try:
-    from textfit import text_width_in as _tw
-    _tbl = tables(S[22])[0]
-    _pt = next((r.font.size.pt for c in _tbl.rows[1].cells for pa in c.text_frame.paragraphs
-                for r in pa.runs if r.font.size), 16.0)
-    _need = max(_tw(str(r[0]), _pt, "Carlito", True) for r in rows[1:-1]) + 0.24   # cell margins
-    _cols = list(_tbl.columns)
-    _w0 = Emu(_cols[0].width).inches
-    if _need > _w0 and len(_cols) > 1:
-        _each = (_need - _w0) / (len(_cols) - 1)
-        _cols[0].width = Inches(_need)
-        for _c in _cols[1:]:
-            _c.width = Emu(int(_c.width - Inches(_each)))
-        print(f"take-by-branch: branch column {_w0:.2f} -> {_need:.2f} in for the longest name")
-except Exception as _e:
-    print("take-by-branch: branch column fit skipped:", repr(_e))
-repl(S[22], {"six largest branches shown": f"{len(tbm)} largest branches shown"}, optional=True)
-# The monthly COLUMNS span the activity months this extract carries, which is not the
-# same as the 12-month new-account window. Wellworth's caption read "monthly Aug 2025 –
-# Jul 2026" above five columns of Mar–Jul (Aaron, 2026-08-28).
-if tm:
-    # NB this runs BEFORE the as-of caption pass, so the needle is still the TEMPLATE's
-    # literal, not NEWWIN_TEXT. Replacing it here also stops the later pass touching it.
-    _cspan = f"{tm[0]} – {tm[-1]} 20{LATEST_MON[3:]}"
-    _plural = "s" if len(tm) != 1 else ""
-    repl(S[22], {"monthly Aug 2025 – Jun 2026;":
-                 f"monthly {_cspan} ({len(tm)} month{_plural} of activity in this extract);"},
-         optional=True)
+# ============================ SLIDE 23 — Take by branch table: MOVED to the Appendix
+# (Aaron, 2026-11-02: "We don't need the branch detail in the main deck, just the charts.")
+# The template's "12-Month Take Rate by Branch" slide is not filled here. Phase 2 drops it with the
+# other orphan (strip-then-add, so no partname is freed) and branch_appendix_slides adds the full
+# branch list after the Appendix divider, in as many pages as the branches need.
 
 # ============================ SLIDE 24 — Swipes & Spend
 set_exact(S[23], "+4.3%", card_growth)
@@ -1371,7 +1321,7 @@ print("phase1 text done")
 # ================================================================= PHASE 2
 import product_mix_slide
 import excluded_accounts_slide
-import rege_branch_slide
+import branch_appendix_slides
 from PIL import Image as _PImg
 import zipfile as _zf
 STRIP = os.path.join(BUILDDIR, "strip_dead.py")   # shared post-processor, next to restyle_fonts.py
@@ -1402,7 +1352,15 @@ import atexit as _atexit
 _atexit.register(_clean_phase_files)
 prs.save(_A)                                   # phase-1 text deck (reference product mix at idx4)
 p2 = Presentation(_A); _xml = p2.slides._sldIdLst
-_xml.remove(list(_xml)[4])                     # orphan reference product-mix slide
+# The template's branch table slide goes the same way as the reference product mix: the branch tables are
+# rebuilt in the Appendix (branch_appendix_slides), so this one is an orphan. Resolved by TITLE.
+_br_tbl = next((i for i, _sl in enumerate(p2.slides)
+                if next((_sh.text_frame.text.strip() for _sh in _sl.shapes
+                         if _sh.has_text_frame and _sh.text_frame.text.strip()), "")
+                .startswith("12-Month Take Rate by Branch")), None)
+_drop = [list(_xml)[4]] + ([list(_xml)[_br_tbl]] if _br_tbl is not None else [])
+for _el in _drop:
+    _xml.remove(_el)                           # orphan reference product-mix slide + template branch table
 p2.save(_B)
 subprocess.run([sys.executable, STRIP, _B, _C], check=True)   # GC the orphan -> 45 clean slides
 prs = Presentation(_C)
@@ -1426,14 +1384,16 @@ if ODD:
                   "delivery" % ", ".join(_x["flags"]))
     except Exception as e:
         print("!! excluded-accounts slide failed:", repr(e))
-# Reg E opt-in by branch — the table companion to the two Reg E branch charts.
+# The branch tables (take rate by branch, Reg E opt-in by branch, all accounts and new accounts) live in
+# the Appendix, full branch list, as many pages as the branches need (Aaron, 2026-11-02). The main deck
+# keeps the branch charts.
 try:
-    _rs, _rn = rege_branch_slide.add_rege_branch_slide(
-        prs, M, ASSETS, AS_OF_LONG, after_title="Reg E Opt-In — Opened")
-    if _rs is not None:
-        print(f"reg-e-by-branch slide built ({_rn} branches)")
+    _ba = branch_appendix_slides.add_branch_appendix(
+        prs, M, ASSETS, AS_OF_LONG, NEWWIN_PILL, NEWWIN_TEXT)
+    print(f"branch appendix: {len(_ba)} page(s) added")
 except Exception as e:
-    print("!! reg-e-by-branch slide failed:", repr(e))
+    print("!! branch appendix failed:", repr(e))
+    raise
 
 # ---- 2b. Source note on every slide ----
 # Per-client source strings — DERIVED from the data pack; never hardcode a client.
@@ -1485,6 +1445,8 @@ def _note_for(t, idx):
                 "list it either." % (WB_SRC, _mm, ODD_SRC,
                                      "; ".join("%s, %s offers sent" % (l, format(n, ",")) for l, n in MIP)))
     if "mailing" in tl or "response" in tl or "movement" in tl or "transaction increase" in tl or "sustained" in tl or "responder activity" in tl: return "Source: %s — Mail Response Summary%s + %s mailing/response fields." % (WB_SRC, _mm, ODD_SRC)
+    if t in branch_appendix_slides.BODY_NOTES:
+        return "Source: %s — %s" % (ODD_SRC, branch_appendix_slides.BODY_NOTES[t])
     if "take rate" in tl or "debit card review" in tl or "swipes & spend" in tl or "nsf" in tl: return "Source: %s — debit take rate (personal/business/by branch), swipes & spend, NSF/OD." % ODD_SRC
     if "reg e" in tl: return "Source: %s — Reg E opt-in (standardized Opt In/Opt Out/Default); all personal / opened last 12 mo / by vintage." % ODD_SRC
     if "key takeaways" in tl: return "Source: summary of %s financials + %s metrics shown in this deck." % (WB_SRC, ODD_SRC)
@@ -1689,45 +1651,23 @@ for _sl in prs.slides:
                     _shadowsh(_x)
             except Exception: pass
 # Contact slide at the very end (Aaron 2026-07-16; mirrors the ICS Contact Us design).
-# The card is the client's managing CSM (rpe_env.csm_contact, resolved at the top; Aaron,
-# 2026-09-16). The ARS shell CARRIES a Contact slide whose card is static text for one CSM —
-# which shipped on every ARS deck — so that card is rewritten in place. Outside the try: a
-# card that cannot be filled must stop the build, never print "skip" and ship the shell's.
-from shapes import find_contact_slide as _find_contact, fill_contact_card as _fill_contact
+# The contact is the client's managing CSM (rpe_env.csm_contact, resolved at the top; Aaron,
+# 2026-09-16). The ARS shell CARRIES a Contact slide with static text for one CSM — which
+# shipped on every ARS deck — so it is redrawn whole (the Questions & Discussion gradient, the
+# white CSI logo, the contact centred beneath; Aaron, 2026-11-02). Outside the try: a slide
+# that cannot be filled must stop the build, never print "skip" and ship the shell's.
+from shapes import find_contact_slide as _find_contact, fill_contact_slide as _fill_contact
 _shell_contact = _find_contact(prs)
 if _shell_contact is not None:
     _fill_contact(_shell_contact, CONTACT)
-    print("contact card: managing CSM", CONTACT["name"])
+    print("contact slide: managing CSM", CONTACT["name"])
 try:
     if _shell_contact is not None:
-        raise RuntimeError("skip: template already carries the Contact slide (card filled above)")
-    from pptx.enum.shapes import MSO_SHAPE as _MSH
-    from pptx.enum.text import PP_ALIGN as _PA
-    from pptx.dml.color import RGBColor as _RGBk
-    _NAVYk=_RGBk(0x00,0x27,0x4C); _ORk=_ORANGE_RGB; _WHk=_RGBk(0xFF,0xFF,0xFF)
+        raise RuntimeError("skip: template already carries the Contact slide (filled above)")
+    from shapes import draw_contact_slide as _dcs, contact_card_note as _ccn
     _blank=next((_ly for _ly in prs.slide_layouts if len(_ly.placeholders)==0), prs.slide_layouts[-1])
     _cs=prs.slides.add_slide(_blank)
-    _b=_cs.shapes.add_textbox(Inches(0.5),Inches(0.28),Inches(12.33),Inches(0.9)); _p=_b.text_frame.paragraphs[0]; _r=_p.add_run(); _r.text="Contact Us"; _r.font.name="Montserrat"; _r.font.size=Pt(30); _r.font.bold=True; _r.font.color.rgb=_NAVYk
-    from shapes import (contact_card_lines as _ccl, CONTACT_CARD_TOP as _cct,
-                        CONTACT_CARD_W as _cw, CONTACT_CARD_H as _cch)
-    _contacts=[CONTACT]
-    _ncc=len(_contacts); _gap=0.5; _x0=(13.333-(_ncc*_cw+(_ncc-1)*_gap))/2
-    def _ctb(_x,_y,_w,_h,_txt,_sz,_col,_bold):
-        _t=_cs.shapes.add_textbox(Inches(_x),Inches(_y),Inches(_w),Inches(_h)); _pp=_t.text_frame.paragraphs[0]; _pp.alignment=_PA.CENTER; _rr=_pp.add_run(); _rr.text=_txt; _rr.font.name="Montserrat"; _rr.font.size=Pt(_sz); _rr.font.bold=_bold; _rr.font.color.rgb=_col
-    for _i,_cc in enumerate(_contacts):
-        _l=_x0+_i*(_cw+_gap)
-        _card=_cs.shapes.add_shape(_MSH.ROUNDED_RECTANGLE,Inches(_l),Inches(_cct),Inches(_cw),Inches(_cch))
-        _card.fill.solid(); _card.fill.fore_color.rgb=_NAVYk; _card.line.fill.background()
-        try: _card.adjustments[0]=0.05
-        except Exception: pass
-        _shadowsh(_card)
-        _cstyle={"name":(26,_WHk,True),"role":(15,_ORk,False),"phone":(17,_WHk,False),"email":(15,_WHk,False)}
-        for _f,_txt,_top,_hh in _ccl(_cc):
-            _ctb(_l+0.35,_top,_cw-0.7,_hh,_txt,*_cstyle[_f])
-    _logo=os.path.join(BUILDDIR,"assets","logo.png")
-    if os.path.exists(_logo): _cs.shapes.add_picture(_logo,Inches(11.28),Inches(6.78),Inches(1.7))
-    _pn=_cs.shapes.add_textbox(Inches(0.45),Inches(7.04),Inches(0.7),Inches(0.32)); _pp=_pn.text_frame.paragraphs[0]; _rr=_pp.add_run(); _rr.text=str(len(prs.slides._sldIdLst)); _rr.font.name="Calibri"; _rr.font.size=Pt(11); _rr.font.bold=True; _rr.font.color.rgb=_NAVYk
-    from shapes import contact_card_note as _ccn
+    _dcs(_cs,[CONTACT])
     _cs.notes_slide.notes_text_frame.text=_ccn(CONTACT)
     print("contact slide added")
 except Exception as _e:
@@ -1744,8 +1684,8 @@ def add_branch_reference_slide(prs, pairs):
         return False
     from pptx.enum.text import PP_ALIGN as _PA, MSO_ANCHOR as _MA
     from pptx.dml.color import RGBColor as _RC
-    _navy=_RC(0x00,0x27,0x4C); _grey=_RC(0x5A,0x66,0x70); _white=_RC(0xFF,0xFF,0xFF)
-    _band=_RC(0xEE,0xF2,0xF7)
+    _navy=_RC(0x00,0x27,0x4C); _grey=_TICK_RGB; _white=_RC(0xFF,0xFF,0xFF)
+    _band=_ROWALT_RGB
 
     def _t0(sl):
         for sh in sl.shapes:
@@ -1886,7 +1826,7 @@ if _pers and _tot and _pers!=_tot:
         if any(x.has_text_frame and x.text_frame.text.strip()=="Debit Usage Segmentation by Swipe Tier" for x in _sl.shapes):
             _fn=_sl.shapes.add_textbox(Inches(1.5),Inches(6.66),Inches(10.0),Inches(0.3)); _tf=_fn.text_frame; _tf.word_wrap=True
             _r=_tf.paragraphs[0].add_run(); _r.text=f"Personal ARS-eligible = {_pers:,}; total incl. business = {_tot:,} (Product Mix)."
-            _r.font.name="Calibri"; _r.font.size=Pt(11); _r.font.color.rgb=_RGBc(0x5A,0x66,0x70)
+            _r.font.name="Calibri"; _r.font.size=Pt(11); _r.font.color.rgb=_TICK_RGB
             break
 
 # QA finalize pass (mirrors the reviewed CoastLife fixes so the batch inherits them)
@@ -1923,7 +1863,7 @@ for _sl in prs.slides:
 
 # QA finalize: standardize selection subtitles + insight captions to Calibri 16pt grey (skip summit/white)
 from pptx.dml.color import RGBColor as _RGB
-_GREY=_RGB(0x5A,0x66,0x70)
+_GREY=_TICK_RGB
 def _std(_sh):
     for _pa in _sh.text_frame.paragraphs:
         for _r in _pa.runs:
@@ -1979,6 +1919,17 @@ for _sl in prs.slides:
     elif _t0.startswith("Account Retention"):
         for _x in _sl.shapes:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.left=Inches(1.03); _x.top=Inches(1.81); _x.width=Inches(8.4); _x.height=Inches(4.38)
+
+# ---- How You Compare (Aaron, 2026-11-03): the client against every other ARS client ----
+# The same comparison Live Review's "How you compare" shows (peer_compare.for_deck): response rate, responder spend
+# after a mailing, swipe-tier movement, debit spend per eligible account, Reg E opt-in. Every peer is anonymous on the
+# slide. Placed by TITLE before "ARS Key Takeaways", after every index-based pass; a failure to read the peers is
+# stated on the slide and fails validate_deck.peer_slide_findings. Always drawn: the slide is never dropped.
+import peer_slide as _peer_slide
+_peer_slide.add_peer_slide(prs, "ARS", ID, NAME, f"{AS_OF_SHORT} Data", ASSETS,
+                           f"Client figures: {ODD_SRC}; {WB_SRC}.", before_title="ARS Key Takeaways",
+                           period=_per or None, own={"metrics": M, "base": B})
+print("peer slide: " + _peer_slide.title_for("ARS"))
 
 # ARS Companion deck (Aaron, 2026-10-27): the launcher builds this deck with every opt-in view on
 # (RPE_JAMES_SLIDES, RPE_SPEND_SLIDES) and RPE_COMPANION=1, then companion_deck.py keeps only the
