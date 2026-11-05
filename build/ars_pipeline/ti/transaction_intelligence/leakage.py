@@ -9,13 +9,14 @@ starting at its own close date -- applied to competitor dollars rather than
 card spend. The institutions come from competition.py's classification; this
 module never decides what counts as a competitor.
 
-The control matters more here than anywhere else. A closing account stops
-transacting, so its RAW competitor dollars fall to zero after closure and
-would fall before it too. Measuring that and calling it a finding would be
-backwards. The curve is therefore competitor dollars as a SHARE of the
-account's total transaction dollars in the same month -- leakage rising while
-overall activity falls is the signal; both falling together is just an account
-winding down.
+What the curve measures: mean competitor dollars per account per month
+(named competitor institutions only -- payment apps and buy-now-pay-later are
+not competitors and are not in it), each closer aligned to its own close date.
+These are RAW dollars, not a share of the account's spend. A closing account
+winds down, so its raw dollars tend to fall into closure; that biases the
+curve AGAINST a finding rather than towards one. The signal is the closers
+running materially ABOVE the still-open control over the same calendar
+months (leak_divergence_month).
 
 Depth: transaction files carry the trailing 12 completed months, sometimes
 fewer. Under six months the section declines rather than publishing a curve
@@ -31,6 +32,7 @@ import pandas as pd
 
 from ..core.periods import Month
 from ..monthly_analysis import lifecycle as L
+from .lens import account_ids
 
 MIN_CURVE_BASE = 50
 
@@ -69,11 +71,10 @@ def compute(odd: pd.DataFrame | None, txn: pd.DataFrame | None,
     months = [Month(pd.Timestamp(m).year, pd.Timestamp(m).month)
               for m in months_present]
 
-    key = "Acct Number" if "Acct Number" in odd.columns else "Acct ID"
-    if key not in odd.columns:
+    ids = account_ids(odd)       # same key as the lenses: a float-read "12345.0" still joins
+    if ids is None:
         warn("leakage: ODD carries no account id; curve skipped")
         return out
-    ids = odd[key].astype(str).str.strip()
     closed = (pd.to_datetime(odd["Date Closed"], errors="coerce")
               if "Date Closed" in odd.columns
               else pd.Series(pd.NaT, index=odd.index))

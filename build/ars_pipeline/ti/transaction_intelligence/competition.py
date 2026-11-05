@@ -507,8 +507,11 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     # MONTH, for the pre-closure leakage curve. Exported from this module's own
     # classification rather than re-derived downstream -- leakage.py must never
     # hold a second opinion about what counts as a competitor.
-    monthly = m.assign(
-        date=pd.to_datetime(m["date"], errors="coerce").dt.to_period("M").dt.to_timestamp()
+    # Named competitors only: m also holds the payment-app rows (Venmo, Cash
+    # App ...), which are not competitors and must not lift the curve.
+    mc_rows = m[m["kind"] == "competitor"]
+    monthly = mc_rows.assign(
+        date=pd.to_datetime(mc_rows["date"], errors="coerce").dt.to_period("M").dt.to_timestamp()
     ).groupby(["acct", "date"], observed=True, as_index=False)["amount"].sum()
     out["_competitor_monthly"] = monthly.rename(
         columns={"amount": "dollars"})[["acct", "date", "dollars"]]
