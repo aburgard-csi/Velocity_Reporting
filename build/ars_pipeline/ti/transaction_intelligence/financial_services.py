@@ -34,6 +34,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from . import band_lenses
 from .lens import Lenses
 from .merchant import merchant_core, merchant_text, strip_city
 
@@ -559,6 +560,15 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
                 ids = lenses.ids(special).intersection(txn_accounts)
                 hit = addr_ids_all.intersection(ids)
                 out[key] = {"accounts": len(ids), "leaking": len(hit), "pct": _pct(len(hit), len(ids))}
+
+        # ---- 5b. by member age, account age and branch (R5) -------------------
+        # Every leakage category (not only the addressable ones the by-lens
+        # table counts): "pays an outside financial product", per band.
+        leak_all = ac_all[ac_all["kind"] == "leakage"][["acct", "category", "dollars"]]
+        out.update(band_lenses.family_cuts(
+            lenses, txn_accounts, leak_all, "category", key_prefix,
+            ("age_band", "tenure_band", "branch"), warn,
+            "an outside financial product"))
 
         # Private (popped before metrics.json): whole-book addressable rows
         # for the deposit-flight overlay.

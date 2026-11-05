@@ -32,6 +32,7 @@ import pandas as pd
 
 from .financial_services import (_pct, _recency_tier, _token_regex, classify_strings,
                                  normalize_core)
+from . import band_lenses
 from .lens import Lenses
 from .financial_services import marketplace_purchase
 from .merchant import merchant_core, merchant_text
@@ -473,6 +474,13 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
                  f"{MIN_ACCOUNTS_FOR_BRANCH} transacting accounts")
         else:
             warn("competition by branch unavailable: the ODD carries no Branch")
+
+        # ---- 5c. by member age and account age (R5) ----------------------------
+        # Branch is the table above; this adds the two banded families on the
+        # same basis financial_services' fin_by_age_band / fin_by_tenure_band use.
+        out.update(band_lenses.family_cuts(
+            lenses, txn_accounts, comp_all[["acct", "institution", "dollars"]],
+            "institution", K, ("age_band", "tenure_band"), warn, "a named competitor"))
 
     # ---- 6. local competitors, review queue, lists ----------------------------------------
     local_names = spec.get("local_names", [])
