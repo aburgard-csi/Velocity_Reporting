@@ -24,6 +24,13 @@ X = 0.42
 W = T.SLIDE_W - 2 * X
 
 
+def _avg5(values):
+    """Trailing 5-business-day average (the daily series are one point per business day), so a payday or
+    a Monday does not read as a trend. Fewer than 5 days: the average of the days so far."""
+    vals = [float(v) if v is not None else 0.0 for v in values]
+    return [sum(vals[max(0, i - 4):i + 1]) / len(vals[max(0, i - 4):i + 1]) for i in range(len(vals))]
+
+
 def _fmt_date(d):
     return d.strftime("%m/%d") if d is not None else "—"
 
@@ -346,11 +353,11 @@ def _fees(dk, d, *, section):
     labels = [_fmt_date(x) for x in bdates]
     tick = max(1, len(labels) // 12)
     T.textbox(slide, X, y, 12.6, 0.34,
-              "Fees assessed vs. fees possible, per business day", 13,
+              "5-business-day average of fees assessed and fees possible, per business day", 13,
               bold=True, color=T.NAVY)
     C.line(slide, X, y + 0.38, 12.6, h - 0.42, labels, [
-        ("Fees possible", bvals["Possible_Fees"], T.RULE),
-        ("Fees assessed", bvals["Fees_Assessed"], T.NAVY),
+        ("Fees possible (5-day avg)", _avg5(bvals["Possible_Fees"]), T.RULE),
+        ("Fees assessed (5-day avg)", _avg5(bvals["Fees_Assessed"]), T.NAVY),
     ], number_format='"$"#,##0', tick_every=tick)
 
     rx = X + 12.9
@@ -370,7 +377,7 @@ def _fees(dk, d, *, section):
         items.append(f"A {pct(f['collection_rate'])} collection rate is {verdict}.")
     if f["forgone"] > 0:
         items.append(f"{money(f['forgone'])} of assessable fees were not collected over "
-                     f"the window — check waiver settings, refund strategies and "
+                     f"the window — check waiver settings and "
                      f"de minimis thresholds before reading this as leakage.")
     if f["pay_ratio"] is not None:
         items.append(f"{pct(f['pay_ratio'])} of presented items were paid rather than "
@@ -469,18 +476,18 @@ def _feeds(dk, d, *, section):
     bdates, bvals = dep.business_only("DepositCount", NODEP)
     labels = [_fmt_date(x) for x in bdates]
     tick = max(1, len(labels) // 12)
-    T.textbox(slide, X, y, 9.3, 0.34, "Deposits per business day", 16, bold=True,
+    T.textbox(slide, X, y, 9.3, 0.34, "5-business-day average of deposits per business day", 14, bold=True,
               color=T.NAVY)
     C.line(slide, X, y + 0.38, 9.3, h - 0.42, labels,
-           [("Deposits", bvals["DepositCount"], T.NAVY)],
+           [("Deposits (5-day avg)", _avg5(bvals["DepositCount"]), T.NAVY)],
            number_format="#,##0", legend=False, tick_every=tick)
 
     rx = X + 9.6
     T.textbox(slide, rx, y, 9.3, 0.34,
-              "Accounts with no deposit in the last 20 days", 13, bold=True,
+              "5-business-day average: accounts with no deposit in the last 20 days", 13, bold=True,
               color=T.NAVY)
     C.line(slide, rx, y + 0.38, 9.3, h - 0.42, labels,
-           [("No deposit in 20 days", bvals[NODEP], T.CORAL)],
+           [("No deposit in 20 days (5-day avg)", _avg5(bvals[NODEP]), T.CORAL)],
            number_format="#,##0", legend=False, tick_every=tick)
 
     if gaps:

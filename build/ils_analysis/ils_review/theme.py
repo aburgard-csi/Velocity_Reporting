@@ -360,6 +360,12 @@ class Deck:
         self.chart_dir = ""          # where chart PNGs and their sidecars are written (set by build.py)
         self.sidecars = []           # one dict per figure, written as figures_index.json
         self.ref = {}                # hand-built-deck reference figures for the parity checks
+        self.deferred = []           # appendix builders, run after the story sections (see `defer`)
+
+    def defer(self, fn):
+        """Queue an appendix slide: `fn()` runs after every story section, so the detail tables sit at the back
+        of the deck while the slide in the story says one thing."""
+        self.deferred.append(fn)
 
     # ── terminology ────────────────────────────────────────────────────────
     def term(self, s):

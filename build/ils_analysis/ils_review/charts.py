@@ -94,7 +94,7 @@ def _frame(slide, kind, x, y, w, h, cd):
 
 
 def bar(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
-        number_format="#,##0", label_size=12, cat_size=13, data_labels=True):
+        number_format="#,##0", label_size=12, cat_size=13, data_labels=True, colors=None):
     """Horizontal bar chart. `labels`/`values` ascending -> largest at top."""
     cd = CategoryChartData()
     cd.categories = list(labels)
@@ -110,6 +110,11 @@ def bar(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
     ser.format.fill.solid()
     ser.format.fill.fore_color.rgb = color
     ser.format.line.fill.background()
+    if colors:
+        for i, c in enumerate(colors):
+            if i < len(ser.points):
+                ser.points[i].format.fill.solid()
+                ser.points[i].format.fill.fore_color.rgb = c
     if data_labels:
         _label_series(plot, number_format, label_size, XL_LABEL_POSITION.OUTSIDE_END)
     _style_axes(chart, cat_size=cat_size, val_size=label_size, val_format=number_format)
@@ -318,6 +323,8 @@ def predictor_bubble(bands, rates, counts, out_path, *, title, xlabel,
         ax.axhline(avg_line, color=T.HEX["orange"], linestyle="--", linewidth=1.6, zorder=2)
         ax.annotate(f"All notices {avg_line:.2f}%", (len(bands) - 0.4, avg_line), (0, 5),
                     textcoords="offset points", ha="right", fontsize=9, color=T.HEX["orange"])
+    ax.text(0.99, 0.985, "Figure above each bubble = notices in the band", transform=ax.transAxes, ha="right",
+            va="top", fontsize=8.5, color=T.HEX["subtle"])
     ax.set_xticks(x)
     ax.set_xticklabels(bands, rotation=45, ha="right", fontsize=10, color=T.HEX["subtle"])
     ax.set_ylabel(ylabel, fontsize=11, color=T.HEX["subtle"])

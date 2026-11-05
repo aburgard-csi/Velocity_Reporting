@@ -13,7 +13,12 @@ nothing here is wired into `build_month`, Sheila, `deliveries.json` or `Outputs/
 
 | Module | State |
 | --- | --- |
-| `branch_metrics`, `dbic`, `ds_analysis`, `ds_logic`, `matrix_data`, `matrix_report`, `branch_slides`, `dbic_slides`, `ds_slides`, `matrix_slides` | their logic; colours, fonts and geometry go through the new `theme.py`; the DS scoring colours are brand colours; long matrix tables stop where the content band ends (`matrix_slides._cap`) |
+| `branch_metrics`, `dbic`, `ds_analysis`, `ds_logic`, `matrix_data`, `matrix_report`, `branch_slides`, `dbic_slides`, `ds_slides` | their logic; colours, fonts and geometry go through the new `theme.py`; the DS scoring colours are brand colours; the branch rankings are drawn at 60% width with a figures panel |
+| `matrix_slides` | cut down to the communication-strategies slide (active strategies only, one line each in large type); the rest of the matrix section is replaced by `matrix_prep_slides`; strategic refunds are not shown |
+| `matrix_prep_slides` | **new**: per account type, a limits-and-scoring slide (limit cards, one bar chart and one caption per factor) and an overrides-and-trends slide (override list, trend On / Off chips), both 12 pt and above, from the matrix validation extract only; the dense prep-deck page with every factor band is an appendix slide |
+| `story_slides`, `analysis_slides` | **new**: the narrative (calculating, performing, pulling back) and the slides carried over from the analysis team's delivered decks that the extracts can generate (year over year, who generates the fees) with parity comparisons |
+| `peers_slides`, `peer_pull` | **new**: the peer comparison on `build/peer_compare.py` (Live Review's arithmetic, five peers at least); `peer_pull` reads other ILS clients' own ZAccounts extracts from the analysis share (read-only) into `Build Artifacts/ils_analysis/peers/` |
+| `standard_slides` | **new**: the agenda, and the industry / regulatory slides read from the cycle's `industry_<yyyy-mm>.json` in `Build Artifacts/ils_analysis/standard/` |
 | `theme`, `charts`, `ds_charts`, `template`, `config`, `build`, `cli` | rewritten for the RPE canvas and styling (see below) |
 | `scoring_summary` | `compute_predictor` implemented (it was a placeholder); registry kept, deck bands added |
 | `ils_data` | the load kept; the data as-of date is now the data's own maximum `lastupdate`; DebitDecline and RefundHistory loaders added |
