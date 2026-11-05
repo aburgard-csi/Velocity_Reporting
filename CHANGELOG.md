@@ -21,6 +21,20 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — Category drill-downs: one slide per leading addressable category (`ti/deck/txn_leakage.py`, `chapters_txn.py`, `slides.json`)
+James: "would be nice to have category summary slides/drill downs". The pack already held every
+figure a category needs (top providers, recency, new and stopped, the lens-by-category table, the
+leakers' profile, and since R2 the split by line); no slide put them together for one category.
+- New builder `category_drilldowns`, after "Insurance by line": one slide for each of the top 5
+  addressable leakage categories by dollars with 100+ accounts.
+- Each slide: the accounts and dollars and the lead provider's share in the headline; the share
+  still paying in the last 90 days, how many started and stopped, and the lens it over-indexes in
+  (against all accounts, only on a lens base of 200+) in the subtitle; a rail with accounts,
+  dollars, still paying, the median balance those accounts hold with us, and the over-index; and
+  the providers as bars, or the category's lines when it has a split (Insurance).
+- All the drill-downs share one topic, "Category drill-down", in `slides.json`, so they are kept or
+  tossed together. No category qualifying is a stated decline.
+
 ### 2026-11-05 — Insurance is addressable, and split by line: auto, home, life, health (`dictionaries/financial_services_patterns.json`, `financial_services.py`, new slide "Insurance by line")
 James: "we shouldnt default insurance as non-addressable. but we should try to discern auto vs life vs
 health". Many clients sell insurance through an agency partner, so it was wrong to grey it out.

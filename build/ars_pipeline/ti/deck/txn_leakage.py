@@ -205,6 +205,95 @@ def insurance_by_line(h, t, base):
         h["chart_left"](s, path, top, right)
 
 
+DRILL_TOP = 5                # the leading addressable categories, by dollars
+DRILL_MIN_ACCOUNTS = 100     # a category this small is a line on the summary, not a slide
+DRILL_MIN_LENS_BASE = 200    # a lens smaller than this cannot be "over-represented"
+
+
+def _over_index(t, cat):
+    """The lens where the category over-indexes most against all accounts: (label, pct, base_pct),
+    or None. From fin_by_lens_category [lens, category, accounts, pct] and fin_by_lens's bases."""
+    base = {r[0]: r[2] for r in (t.get("fin_by_lens") or [])}
+    rows = [r for r in (t.get("fin_by_lens_category") or []) if r[1] == cat]
+    every = next((r[3] for r in rows if r[0] == "all"), None)
+    if not every:
+        return None
+    best = None
+    for ln, _c, _n, pct in rows:
+        if ln == "all" or base.get(ln, 0) < DRILL_MIN_LENS_BASE or pct is None:
+            continue
+        if best is None or pct / every > best[1] / every:
+            best = (ln, pct)
+    if best is None or best[1] <= every:
+        return None
+    return labels.label(best[0]), best[1], every
+
+
+def drilldown_categories(t):
+    """The categories that get a drill-down: leakage, addressable, DRILL_MIN_ACCOUNTS or more
+    accounts, the top DRILL_TOP by dollars. fin_by_category rows: [category, accounts, pct, txns,
+    dollars, dollars_per_acct, kind, addressable, ...]."""
+    rows = [r for r in (t.get("fin_by_category") or [])
+            if r[6] == "leakage" and r[7] and r[1] >= DRILL_MIN_ACCOUNTS]
+    return sorted(rows, key=lambda r: -r[4])[:DRILL_TOP]
+
+
+def category_drilldowns(h, t, base):
+    """RPE (R3, James 2026-11-04): "category summary slides / drill downs". One slide per leading
+    addressable category: who pays it, to whom, whether they still do, and the group it
+    over-indexes in. Every figure is already in the pack (top providers, recency, new and
+    stopped, the lens-by-category table, the leakers' profile); this only puts one category on
+    one slide. All of them sit under one topic, "Category drill-down", in slides.json."""
+    cats = drilldown_categories(t)
+    if not cats:
+        return (f"Category drill-down (no addressable category with {DRILL_MIN_ACCOUNTS}+ "
+                f"accounts)")
+    provs = t.get("fin_top_providers") or {}
+    rec = {r[0]: r[1:] for r in (t.get("fin_recency") or [])}
+    dyn = {r[0]: r[1:] for r in (t.get("fin_new_recurring_stopped") or [])}
+    prof = {r[0]: r for r in (t.get("fin_leakers_profile") or [])}
+    subs = t.get("fin_subtypes") or {}
+    for i, r in enumerate(cats):
+        cat, n, pct, dollars, per = r[0], r[1], r[2], r[4], r[5]
+        named = [p for p in provs.get(cat, []) if not str(p[0]).startswith("(")]
+        lead = named[0] if named else None
+        active, cooling, dormant, lapsed = (rec.get(cat) or [0, 0, 0, 0])[:4]
+        live = active + cooling
+        new, _recurring, stopped = (dyn.get(cat) or [0, 0, 0])[:3]
+        over = _over_index(t, cat)
+        head = (f"{cat}: {n:,} {base} pay {money(dollars)}"
+                + (f", and {labels.display_name(lead[0])} takes "
+                   f"{lead[2] / dollars * 100:.0f}% of it" if lead and dollars else ""))
+        bits = [f"{live / n * 100:.0f}% paid in the last 90 days" if n else None,
+                f"{new:,} started in the last 90 days, {stopped:,} stopped" if (new or stopped) else None,
+                (f"most over-represented in {over[0].lower()} ({over[1]:.0f}% against "
+                 f"{over[2]:.0f}% of all accounts)") if over else None]
+        s, top = h["slide"]((head, "; ".join(b for b in bits if b)), "Category drill-down")
+        items = [("Accounts", f"{n:,}", f"{pct:.0f}% of {base}"),
+                 ("Dollars", money(dollars), f"{money(per)} an account"),
+                 ("Still paying", f"{live:,}", f"{dormant + lapsed:,} dormant or lapsed")]
+        p = prof.get(cat)
+        if p and p[2] is not None:
+            items.append(("Median balance with us", money(p[2]), "accounts paying it"))
+        if over:
+            items.append(("Over-indexes in", labels.clip(over[0], 18),
+                          f"{over[1]:.0f}% against {over[2]:.0f}%"))
+        right = h["rail"](s, items[:5], top=top)
+        sub_rows = subs.get(cat) or []
+        if len(sub_rows) > 1:
+            bars = [[labels.clip(sr[0], 22), sr[4], sr[1], "sub"] for sr in sub_rows[:8]]
+            note = "by line; " + (t.get("fin_subtypes_note") or "")
+        else:
+            bars = [[labels.clip(labels.display_name(pr[0]), 22), pr[2], pr[1], "sub"] for pr in named[:8]]
+            note = labels.coverage_note(len(bars), len(provs.get(cat, [])), "providers") or "named providers"
+        if not bars:
+            continue
+        kinds = {"sub": ("dollars, with the accounts paying", charts.NAVY)}
+        path = h["chart"](f"fin_drill_{i}", CT.kind_bars, bars, kinds, note=note)
+        if path:
+            h["chart_left"](s, path, top, right)
+
+
 def how_long_it_has_run(h, t, base):
     rec = t.get("fin_recency") or []
     if not rec:
