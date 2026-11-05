@@ -143,14 +143,20 @@ def compute_pack(client_id, period, name, ics=False):
     clock = _Clock()
     fingerprint = input_fingerprint(client_id)
     warnings = []
-    frame, report, source = odd.load_client(client_id)
+    from ti import window
+    # one window for every file (ti/window.py): the last N completed months before the cycle
+    frame, report, source = odd.load_client(client_id, end_month=window.end_month(period))
     clock.lap("ODD extract read")
     if report.errors:
         raise SystemExit(f"client {client_id}: the ODD transform failed: {'; '.join(report.errors)}")
     warnings += list(report.warnings)
     cfg = config.client_config(client_id, warn=warnings.append)
     from ti import deposits_input
-    cfg = deposits_input.attach(cfg, client_id, warnings.append)
+    try:
+        months = window.months_for(cfg)
+    except ValueError as exc:
+        raise SystemExit(f"client {client_id}: {exc}")
+    cfg = deposits_input.attach(cfg, client_id, warnings.append, bounds=window.bounds(period, months))
     # the workbook first, as in v5's run: its rates feed the value math (ti/workbook_input.py)
     from ti import workbook_input
     cfg, wb = workbook_input.attach(cfg, client_id, period, warnings.append)
@@ -169,11 +175,6 @@ def compute_pack(client_id, period, name, ics=False):
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     clock.lap("account subsets")
-    from ti import window
-    try:
-        months = window.months_for(cfg)
-    except ValueError as exc:
-        raise SystemExit(f"client {client_id}: {exc}")
     early = window.early_run_warning(period)
     if early:
         warnings.append(f"client {client_id}: {early}")
