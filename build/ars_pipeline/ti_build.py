@@ -138,6 +138,10 @@ def compute_pack(client_id, period, name, ics=False):
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
+    # v5's extract check first, as in v5's metrics.py: what shape the file is (months missing,
+    # Swipes and Spend on different months, an account twice) before any figure is computed on it
+    from ti.monthly_analysis import extract_check
+    metrics.update(extract_check.compute(subsets, cfg, warnings.append))
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     clock.lap("account subsets")
     attach_txn(ctx, warnings)
@@ -222,6 +226,24 @@ def main(argv=None):
         print(f"figures from the pack computed {pack.get('computed')}: nothing recomputed", flush=True)
     else:
         pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics)
+    # The tables and the audit run on a reused pack too: they only read its figures, and a pack
+    # computed before them must not reach the decks unaudited.
+    # v5's analyst tables (ti/monthly_analysis/tables.py): every tabular figure that declares its
+    # columns, as a CSV under out/tables, so a number on a slide can be checked row by row. The
+    # names v5 never declared come from ti/table_columns.py, on the way in only (the pack is untouched).
+    try:
+        from ti import table_columns
+        from ti.monthly_analysis import tables
+        pack["tables"] = tables.write(table_columns.with_columns(pack["metrics"]), out,
+                                      pack["warnings"].append)
+    except Exception as exc:                          # the tables never take the build down
+        pack["warnings"].append(f"analyst tables failed: {type(exc).__name__}: {exc}")
+    # v5's consistency audit (ti/monthly_analysis/consistency.py): one concept, one number. The cut
+    # holds the ODD and transaction figures in one dict, so it is passed as both of v5's arguments.
+    from ti.monthly_analysis import consistency
+    pack["consistency"] = consistency.audit(pack["metrics"], pack["metrics"])
+    pack["warnings"] += [f"consistency: {msg}" for msg in pack["consistency"]]
+    if not a.from_pack:
         (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
@@ -231,6 +253,11 @@ def main(argv=None):
     from ti.transaction_intelligence import competition_report, sections_report
     for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
         print(line)
+    if pack["consistency"]:
+        # as v5's run.py: a deck whose slides contradict each other is worse than no deck
+        print(f"{a.client_id}: decks not built: the consistency audit found {len(pack['consistency'])} "
+              f"number(s) that disagree across slides (see 'consistency:' above)")
+        return 0
     t = time.perf_counter()
     for p in build_decks(pack, out):
         print(f"built {p}")
