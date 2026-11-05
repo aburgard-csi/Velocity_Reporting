@@ -154,7 +154,7 @@ BUILDERS = [
     C.card_behaviour_by_lens, C.engagement_breadth,
     # merchants, MCC codes and the card book by holder (#258 group 3)
     C.merchants_rising_and_falling, C.new_and_faded_merchants, _the_mcc_codes,
-    C.how_broadly_the_card_is_used, C.card_spend_by_member_age,
+    C.mcc_codes_three_ways, C.how_broadly_the_card_is_used, C.card_spend_by_member_age,
     C.card_use_by_account_tenure,
     # the routing mix and the relationship shape (#258 group 4)
     V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts,
