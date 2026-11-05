@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — Deposits chapter: daily deposits, and what is spent in the days after a deposit, for every spend category (`build/ars_pipeline/ti/core/deposits/daily.py`, `build/ars_pipeline/ti/monthly_analysis/deposit_daily.py`, `build/ars_pipeline/ti/odd_sections.py`, `build/ars_pipeline/ti/chapters/deposits.py`, `build/ars_pipeline/ti/deck/deposit_slides.py`, `build/ars_pipeline/ti/deck/charts.py`, `build/ars_pipeline/ti/slides.json`, `tests/test_ti_daily_deposits.py`)
+
+Summary: The Transaction Intelligence Deposits chapter now has the deposits file per calendar day (deposits, dollars, accounts), its weekday and day-of-month pattern, and, for accounts in both the deposits and the transaction file, how much of each spend category goes out within 0-3 days after the account's own deposit against an even spread. Five new slides; each declines with its reason when a file is missing.
+
+James, 2026-11-05: "we should have daily [deposit] amounts (aggregate count and amount), we could tie up with large txns around bnpl or something", then "i meant daily deposit amounts (the daily aggregate amount)", and "r7 daily deposit amount could be overlayed with any and all spend categories".
+
+- Daily series (`dep_daily`, `[date, deposits, dollars, accounts]`, at most 366 days): every calendar day from the file's first to its last date, a day with nothing posted counted as zero, credits only. With the average and median day, the weekday and day-of-month tables (`% of the average day`) and the top ten days.
+- Deposit timing (`dep_timing`): for every category (card merchant categories, financial-services categories including Buy Now Pay Later, all outflows, and large transactions), the share of its dollars spent 0-3 days after a deposit, the share an even spread would put there (each account's covered days over its observed days, weighted by its dollars in the category) and the ratio of the two. The ratio is stated only on 30+ accounts and 200+ transactions; the base is in the table and on the slides.
+- "Large" is the account's own: above its 90th-percentile outflow, for accounts with 10 or more outflows in the window.
+- Overlay series (`dep_daily_by_category`, `{category: [[date, txns, dollars], ...]}`, days with activity only): every category that reaches the base, at most 20, so the deck can draw deposits against any of them.
+- Slides: "Deposits, day by day", "What is spent after a deposit" (every ranked category), and the overlay for the two most deposit-timed categories and for buy now, pay later. With no deposits file all five decline "no deposits file"; with no transaction file the four timing slides decline "no transaction files for this period"; a short transaction load declines them as "What arrives against what leaves" does.
+- Not changed: the eleven existing deposit slides, their figures, and the transaction chapters' figures. The timing reads the categories the Transaction Intelligence chapter already computed.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.

@@ -2856,3 +2856,80 @@ def wave_totals(rows: list, out: Path) -> Path:
     """What each offer has booked to date, and the months that built it."""
     fig, _ = _totals_fig(rows)
     return _save(fig, out)
+
+
+# ------------------------------------------------------------------ daily deposits (R7, 2026-11-05)
+def _daily_ticks(dates: list, monthly: bool) -> tuple:
+    """Tick positions and labels for a daily axis. A year of days is labelled at each month's first
+    day in the house MMM'YY; a quarter of days at the 1st and 15th, day first ("15 Sep"), which the
+    month guard does not read as a month."""
+    import datetime as _dt
+    days = [_dt.date.fromisoformat(str(d)[:10]) for d in dates]
+    if monthly:
+        idx = [i for i, d in enumerate(days) if d.day == 1]
+        step = _tick_step(len(idx))
+        idx = idx[::step]
+        return idx, _axis_labels([days[i].strftime("%Y-%m") for i in idx])
+    idx = [i for i, d in enumerate(days) if d.day in (1, 15)]
+    return idx, [f"{days[i].day} {days[i].strftime('%b')}" for i in idx]
+
+
+def _daily_columns_fig(rows: list):
+    """rows: [[yyyy-mm-dd, dollars], ...], one per calendar day. Thin gold columns, the average day
+    a dashed navy line named at its right end."""
+    vals = [float(r[1]) for r in rows]
+    xs = range(len(rows))
+    avg = sum(vals) / len(vals) if vals else 0.0
+    fig, ax = plt.subplots(figsize=(FIG_W_RAIL, FIG_H_RAIL))
+    ax.bar(xs, vals, width=0.85, color=GOLD, zorder=2, linewidth=0)
+    if avg:
+        from .labels import money
+        ax.axhline(avg, color=NAVY, lw=1.6, ls="--", zorder=3)
+        ax.text(len(rows) - 1, avg, f"average day {money(avg)}", fontsize=11, fontweight="bold",
+                color=NAVY, ha="right", va="bottom", zorder=4,
+                bbox=dict(facecolor="white", edgecolor="none", pad=1.5, alpha=0.85))
+    idx, labels = _daily_ticks([r[0] for r in rows], monthly=len(rows) > 120)
+    ax.set_xticks(idx)
+    ax.set_xticklabels(labels, fontsize=11, rotation=45, ha="right", color=NAVY)
+    ax.set_xlim(-1, len(rows))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_money_tick))
+    ax.yaxis.grid(True, color=GRID, lw=0.7)
+    _clean(ax, left=True)
+    return fig, {"days": len(rows)}
+
+
+def daily_columns(rows: list, out: Path) -> Path:
+    fig, _ = _daily_columns_fig(rows)
+    return _save(fig, out)
+
+
+def _daily_overlay_fig(rows: list, l1: str, l2: str):
+    """rows: [[yyyy-mm-dd, deposit dollars, category dollars], ...], one per calendar day. Two
+    measures, ONE axis (the rule _dual_fig keeps): each indexed to its own average day = 100, so a
+    payday spike in deposits and the spending that follows it read on the same scale. Deposits are
+    the gold columns, the category the orange line."""
+    def _index(vals):
+        avg = sum(vals) / len(vals) if vals else 0
+        return [100 * v / avg if avg else 0 for v in vals]
+
+    a = _index([float(r[1]) for r in rows])
+    b = _index([float(r[2]) for r in rows])
+    xs = list(range(len(rows)))
+    fig, ax = plt.subplots(figsize=(FIG_W_RAIL, FIG_H_RAIL))
+    ax.bar(xs, a, width=0.8, color=GOLD, zorder=2, linewidth=0, label=l1)
+    ax.plot(xs, b, color=ORANGE, lw=2.2, zorder=3, label=l2)
+    ax.axhline(100, color=NAVY, lw=1.2, ls="--", zorder=1)
+    idx, labels = _daily_ticks([r[0] for r in rows], monthly=len(rows) > 120)
+    ax.set_xticks(idx)
+    ax.set_xticklabels(labels, fontsize=11, rotation=45, ha="right", color=NAVY)
+    ax.set_xlim(-1, len(rows))
+    ax.set_ylabel("each day against its own average day = 100", fontsize=11, color=NAVY)
+    ax.yaxis.grid(True, color=GRID, lw=0.7)
+    ax.legend(loc="upper left", frameon=False, fontsize=11, ncol=2)
+    _clean(ax, left=True)
+    return fig, {"days": len(rows)}
+
+
+def daily_overlay(rows: list, out: Path, l1: str = "Deposits", l2: str = "Spending") -> Path:
+    fig, _ = _daily_overlay_fig(rows, l1, l2)
+    return _save(fig, out)
