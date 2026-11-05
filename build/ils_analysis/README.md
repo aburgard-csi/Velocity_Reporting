@@ -13,7 +13,8 @@ nothing here is wired into `build_month`, Sheila, `deliveries.json` or `Outputs/
 
 | Module | State |
 | --- | --- |
-| `branch_metrics`, `dbic`, `ds_analysis`, `ds_logic`, `matrix_data`, `matrix_report`, `branch_slides`, `dbic_slides`, `ds_slides`, `matrix_slides` | their logic; colours, fonts and geometry go through the new `theme.py`; the DS scoring colours are brand colours; long matrix tables stop where the content band ends (`matrix_slides._cap`) |
+| `branch_metrics`, `dbic`, `ds_analysis`, `ds_logic`, `matrix_data`, `matrix_report`, `branch_slides`, `dbic_slides`, `ds_slides` | their logic; colours, fonts and geometry go through the new `theme.py`; the DS scoring colours are brand colours; the branch rankings are drawn at 60% width with a figures panel |
+| `matrix_slides` | cut down to the communication-strategies slide (active strategies only); the rest of the matrix section is replaced by `matrix_prep_slides` (two slides, ILS prep deck layout, from the matrix validation extract); strategic refunds are not shown |
 | `theme`, `charts`, `ds_charts`, `template`, `config`, `build`, `cli` | rewritten for the RPE canvas and styling (see below) |
 | `scoring_summary` | `compute_predictor` implemented (it was a placeholder); registry kept, deck bands added |
 | `ils_data` | the load kept; the data as-of date is now the data's own maximum `lastupdate`; DebitDecline and RefundHistory loaders added |

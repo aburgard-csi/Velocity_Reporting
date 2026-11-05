@@ -38,7 +38,7 @@ SECTIONS = {
         # ── the analysis team's generated sections (ported) ───────────────────────────
         Section("branch_personal", "Branch deposit behaviour — Personal", ("zaccounts",),
                 "Deposit intensity, engagement, volatility, overdraft activity and account growth "
-                "by branch, for personal accounts.", "branch"),
+                "by branch, for personal accounts.", "drivers"),
         Section("branch_business", "Branch deposit behaviour — Business", ("zaccounts",),
                 "The same branch view scoped to business accounts.", "branch"),
         Section("deposit_score", "Deposit Score output analysis", ("zaccounts", "score"),
@@ -50,31 +50,29 @@ SECTIONS = {
                 "Nightly calculation health, data-feed integrity, Reg E opt-in and eligibility, fee "
                 "collection, channel mix and override effectiveness, from the Daily Batch Integrity "
                 "Check export.", "program"),
-        Section("matrix", "ILS Matrix Validation", ("matrix",),
-                "Account-type settings, overrides, factor grids, trending, tiers.", "matrix"),
+        Section("matrix", "ILS matrix: parameters and overrides", ("matrix",),
+                "One slide per account type: limits, scoring factors, overrides and trend On / Off, from the matrix validation extract.", "matrix"),
         Section("comm_strategies", "Communication Strategies", ("matrix",),
                 "Active member-outreach strategies and their cadence.", "matrix"),
-        Section("strategic_refunds", "Strategic Refunds", ("matrix",),
-                "Strategic refund ranges, factors and tiers, when configured.", "matrix"),
         # ── the slides the analysis team pastes in each cycle, now computed here ──────
         Section("kpi_rollup", "365-day KPI rollup", ("zaccounts",),
                 "Business and personal 365-day KPIs: fees, charge-offs, refunds, accounts and users.",
-                "client_data"),
+                "standing"),
         Section("fee_trends", "Collected fee trending and repayment", ("ztrend", "zaccounts"),
                 "Daily collected fees with a 30-day moving average, monthly fee table, paid versus "
                 "returned items, and the share of items not repaid, personal and business.",
-                "client_data"),
+                "standing"),
         Section("exception_items", "Exception items by channel", ("ztrend",),
                 "Item volume and median item amount by channel (ACH, POS, check, ...).",
-                "client_data"),
+                "drivers"),
         Section("eligibility", "Eligibility drilldown", ("zaccounts",),
-                "Accounts by OD status code and user segment, personal and business.", "client_data"),
+                "Accounts by OD status code and user segment, personal and business.", "drivers"),
         Section("branch_summary", "Branch summary", ("zaccounts",),
                 "Items per user against eligibility and Reg E opt-in by branch, with top-ten "
                 "tables.", "client_data"),
         Section("reg_e", "Reg E drilldown", ("zaccounts",),
                 "Opt-in by election, by account-opening year, and items and declines by election.",
-                "client_data"),
+                "drivers"),
         Section("debit_declines", "Debit declines", ("zaccounts", "declines"),
                 "Debit declines by annual decline segment and by deposit score band.",
                 "client_data"),
@@ -83,6 +81,17 @@ SECTIONS = {
                 "rate by predictor band.", "scoring"),
         Section("scoring_business", "ILS Scoring Summary — Business", ("zaccounts", "ztrend"),
                 "The predictor validation set scoped to business accounts.", "scoring"),
+        # ── the narrative spine: calculating -> performing -> pulling back (story_slides.py) ──
+        Section("calculating", "Where the limit is calculating", ("zaccounts", "matrix"),
+                "Which accounts receive an ILS limit (by overdraft status), how limits are spread, how often they change.", "calc"),
+        Section("performing", "Where the limit is performing", ("zaccounts", "ztrend"),
+                "Cure rate (negative balance back to $0 within 60 days) by limit, deposits and days on book.", "perform"),
+        Section("nsf_share", "NSF share of fee revenue", ("ztrend",),
+                "Collected fees on returned items as a share of all collected fees, by month.", "standing"),
+        Section("chargeoffs", "Charge-offs against account growth", ("zaccounts",),
+                "Accounts charged off and accounts opened by month.", "standing"),
+        Section("pullback", "Where the limit pulls back", ("zaccounts",),
+                "Accounts whose limit is below their own earlier maximum, against accounts whose limit stayed.", "pullback"),
         Section("peer_data", "Peer fee data (placeholders)", (),
                 "Peer NSF / OD fee distributions. The peer data is not in the client extracts, so "
                 "these slides are labelled placeholders.", "peer"),
@@ -92,19 +101,27 @@ SECTIONS = {
 }
 
 DEFAULT_SECTIONS = [
-    "kpi_rollup", "fee_trends", "exception_items", "eligibility", "branch_summary", "reg_e",
-    "debit_declines", "branch_personal", "branch_business", "scoring_personal",
-    "scoring_business", "deposit_score", "ds_logic", "dbic", "matrix", "comm_strategies",
-    "strategic_refunds", "peer_data", "data_notes",
+    # where the program stands -> what drives it -> calculating -> performing -> pulling back -> the matrix
+    "kpi_rollup", "fee_trends", "nsf_share", "chargeoffs",
+    "exception_items", "eligibility", "reg_e", "branch_personal",
+    "calculating", "performing", "pullback",
+    "matrix", "comm_strategies", "data_notes",
 ]
+# every other section is still in SECTIONS and builds when named (--sections); they are left out of the story
+# because each says less than a narrative slide, or uses the 40-day Scoring Summary basis.
 
 GROUP_DIVIDERS = {
+    "standing": ("Where the Program Stands", "Fees · Mix · Charge-offs"),
+    "drivers": ("What Is Driving It", "Exceptions · Eligibility · Reg E · Branches"),
+    "calc": ("Where the Limit Is Calculating", "Who gets a limit · How limits are spread"),
+    "perform": ("Where the Limit Is Performing", "Cure rates by limit, deposits and age"),
+    "pullback": ("Where the Limit Pulls Back", "Limits lowered · What followed"),
+    "matrix": ("ILS Matrix", "Parameters · Overrides · Trends"),
     "client_data": ("Client Analysis", "Fees · Eligibility · Branches · Reg E · Debit Declines"),
     "branch": ("Branch Overdraft and Deposit Behavior", "Deposit intensity · Engagement · Overdraft activity"),
     "scoring": ("Risk Review", "Score distribution · Predictor validation"),
     "deposit_score": ("Deposit Score", "Output analysis · Rule logic"),
     "program": ("Program Health", "Calculation log · Feeds · Reg E · Fee collection"),
-    "matrix": ("ILS Matrix Validation", "Settings · Overrides · Triggers · Tiers"),
     "peer": ("Peer Comparison", "NSF and OD fees by institution size"),
 }
 
@@ -157,6 +174,8 @@ class BuildConfig:
     default_repayment_days: int = 30
     default_basis: str = "deck"             # Scoring Summary default rule: "deck" (40 days, never-repaid excluded) or "readme"
     predictor_bands: str = "deck"           # "deck" = the hand-built deck's bands, "readme" = the analysis registry
+    branch_core_only: bool = True           # branch section: overview + three ranked charts only
+    include_not_repaid: bool = False        # the 'fatal notice' slides (40-day basis) are not in the story
     show_all_rows: bool = False             # paginate long tables instead of capping
     relabel_mrpc: bool = False              # show MRPC columns as CashPlease
 

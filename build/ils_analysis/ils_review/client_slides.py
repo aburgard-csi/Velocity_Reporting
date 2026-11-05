@@ -158,6 +158,9 @@ def add_fee_trends(dk, cfg, fr, *, section, progress=None):
                                    "exponentially weighted moving average (span 30). Pay rate is paid items over items."))
         _picture(s, res, LEFT, BODY_T + 0.05, 7.8, 4.85)
         table(s, res.tables["monthly"], 8.45, BODY_T + 0.05, 4.38, BODY_B - BODY_T - 0.15)
+        yoy = res.numbers.get("year_on_year")
+        if yoy:
+            T.bullets_real(s, LEFT, 6.30, 7.8, 0.40, [yoy["phrase"] + " (last complete month)."], size=14, min_size=12)
     res = RF.paid_vs_returned(fr, dk.chart_dir, ref=ref)
     if not _skip(notes, res):
         _emit(dk, res, cfg, fr, "zt")
@@ -173,7 +176,7 @@ def add_fee_trends(dk, cfg, fr, *, section, progress=None):
             "Returned items carry the lower NSF fee, so the returned share of items runs above its share of fee dollars.",
         ], size=14)
         table(s, res.tables["summary"], LEFT, 5.3, FULL_W, 1.35, max_fs=10)
-    for t in ("Personal", "Business"):
+    for t in (("Personal", "Business") if getattr(cfg, "include_not_repaid", False) else ()):
         res = RF.not_repaid(fr, t, dk.chart_dir, ref=ref)
         if _skip(notes, res):
             continue
