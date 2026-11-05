@@ -54,10 +54,10 @@ def their_financial_life(h, t, base):
         return "Their financial life (no fin_by_category)"
     addr = [r for r in cat if r[7]]
     big = max(addr, key=lambda r: r[4]) if addr else None
-    head = (f"{money(t.get('fin_leakage_dollars'))} a year of financial "
-            f"products, and {big[0].lower()} is the biggest one we could "
+    head = (f"{money(t.get('fin_leakage_dollars'))} of financial products {labels.window(t)}, "
+            f"and {big[0].lower()} is the biggest one we could "
             f"actually compete for") if big else \
-        f"{money(t.get('fin_leakage_dollars'))} of financial products a year"
+        f"{money(t.get('fin_leakage_dollars'))} of financial products {labels.window(t)}"
     s, top = h["slide"]((head,
         "every external category as area; grey is non-addressable — "
         "insurance and tax are not products the institution sells"),
@@ -77,7 +77,7 @@ def where_the_money_goes(h, t, base, category_bars):
     2026-10-30, group A); this slide now carries the top categories and the addressable callout."""
     cat = t.get("fin_by_category")
     head = (f"{t.get('fin_leaking_pct', 0):.0f}% of {base} send "
-            f"{money(t.get('fin_leakage_dollars'))} a year to other "
+            f"{money(t.get('fin_leakage_dollars'))} {labels.window(t)} to other "
             f"institutions' financial products")
     share = t.get("fin_leakage_pct_of_transfer_dollars")
     sub = ((f"{share:.0f}% of all ACH and check dollars; " if share is not None
@@ -88,7 +88,7 @@ def where_the_money_goes(h, t, base, category_bars):
     right = h["rail"](s, [
         ("Leaking", f"{t.get('fin_leaking_accounts', 0):,}",
          f"of {t.get('fin_accounts_total', 0):,} {base}"),
-        ("Per year", money(t.get("fin_leakage_dollars")),
+        (labels.window_title(t), money(t.get("fin_leakage_dollars")),
          "to external financial products"),
         ("Addressable", money(t.get("fin_addressable_dollars")),
          "in categories the institution offers"),
@@ -120,7 +120,7 @@ def where_the_leakage_goes(h, t, base):
     if len(cat) < 3:
         return "Where the leakage goes (too few categories)"
     s, top = h["slide"]((
-        f"{money(t.get('fin_leakage_dollars'))} leaves every year, and the "
+        f"{money(t.get('fin_leakage_dollars'))} left {labels.window(t)}, and the "
         f"top categories carry most of it",
         "the accounts on the left, the products their money reaches on the "
         "right; ribbon width is dollars"), "Where the leakage goes")
