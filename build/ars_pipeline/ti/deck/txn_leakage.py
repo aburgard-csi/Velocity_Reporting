@@ -60,7 +60,7 @@ def their_financial_life(h, t, base):
         f"{money(t.get('fin_leakage_dollars'))} of financial products a year"
     s, top = h["slide"]((head,
         "every external category as area; grey is non-addressable — "
-        "insurance and tax are not products the institution sells"),
+        "tax and Treasury bonds are not products the institution sells"),
         "Their financial life")
     rows = [[r[0], r[4], f"{r[1]:,} accts · {money(r[5])}/acct",
              bool(r[7])] for r in cat]
@@ -168,6 +168,41 @@ def who_they_pay(h, t, base):
     path = h["chart"]("fin_pareto", CT.pareto, rows, note=note or "")
     if path:
         h["chart_left"](s, path, y, h["RIGHT_EDGE"])
+
+
+def insurance_by_line(h, t, base):
+    """RPE (R2, James 2026-11-05): insurance is addressable, so the room needs to know which line
+    the money buys. The dictionary's subtypes split it by carrier line; a multi-line carrier
+    (State Farm, Allstate) is "Auto & home", never guessed as one, and a generic INS PREM
+    descriptor is "Unspecified" -- both drawn grey, so only a known line is lit."""
+    rows = (t.get("fin_subtypes") or {}).get("Insurance") or []
+    if not rows:
+        return "Insurance by line (no insurance payments matched)"
+    total = sum(r[4] for r in rows)
+    known = [r for r in rows if r[0] not in ("Auto & home", "Unspecified")]
+    lead = max(known, key=lambda r: r[4]) if known else None
+    cat = next((r for r in (t.get("fin_by_category") or []) if r[0] == "Insurance"), None)
+    n_acc = cat[1] if cat else max(r[1] for r in rows)
+    head = (f"{lead[0]} is the biggest single line: {money(lead[4])} from {lead[1]:,} accounts, "
+            f"{lead[5]:.0f}% of the {money(total)} {base} pay to outside insurers"
+            if lead else f"{money(total)} paid to outside insurers by {n_acc:,} {base}")
+    s, top = h["slide"]((head,
+        "each carrier filed under the line it writes; a carrier that writes auto and home together "
+        "is shown as one, and a payment that names no carrier is unspecified"), "Insurance by line")
+    items = [("Paying an insurer", f"{n_acc:,}", f"{base}"),
+             ("Insurance dollars", money(total), "to outside carriers")]
+    for r in [r for r in rows if r[0] != "Unspecified"][:3]:
+        items.append((r[0], money(r[4]), f"{r[1]:,} accts; " + ", ".join(
+            labels.clip(labels.display_name(p), 14) for p in r[6][:2])))
+    right = h["rail"](s, items[:5], top=top)
+    one_line = {"Auto", "Home & property", "Life & annuity", "Health & dental"}
+    bars = [[r[0], r[4], r[1], "line" if r[0] in one_line else "mixed"] for r in rows]
+    kinds = {"line": ("one line of cover", charts.NAVY),
+             "mixed": ("multi-line carrier or no carrier named", charts.GREY)}
+    path = h["chart"]("fin_insurance_lines", CT.kind_bars, bars, kinds,
+                      note=t.get("fin_subtypes_note") or "")
+    if path:
+        h["chart_left"](s, path, top, right)
 
 
 def how_long_it_has_run(h, t, base):

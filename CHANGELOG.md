@@ -21,6 +21,22 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — Insurance is addressable, and split by line: auto, home, life, health (`dictionaries/financial_services_patterns.json`, `financial_services.py`, new slide "Insurance by line")
+James: "we shouldnt default insurance as non-addressable. but we should try to discern auto vs life vs
+health". Many clients sell insurance through an agency partner, so it was wrong to grey it out.
+- Insurance is now `addressable: true`. It joins the addressable dollars, the funnel's "in a category
+  we offer" band, the reach table and the action lists; "Their financial life" can now lead with it,
+  and its subtitle no longer says insurance is not a product the institution sells.
+- A category may carry `subtypes` ({subtype: [patterns]}). Insurance's 136 named carrier patterns are
+  filed by the line the carrier writes: Auto (30), Home & property (6), Life & annuity (26),
+  Health & dental (24), and Auto & home (50) for multi-line carriers (State Farm, Allstate, USAA...),
+  which the descriptor cannot split. The 5 generic patterns (INSURANCE, INS PREM...) report as
+  Unspecified. Category totals do not move: subtypes only divide them.
+- New pack key `fin_subtypes` {category: [subtype, accounts, % of category accounts, txns, dollars,
+  % of category dollars, top 3 providers]}, Unspecified last.
+- New slide "Insurance by line", after "Who they pay": the lines as bars, a known line navy,
+  multi-line and unspecified grey; the headline names the biggest known line.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
