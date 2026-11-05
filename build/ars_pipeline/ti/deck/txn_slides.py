@@ -134,7 +134,10 @@ BUILDERS = [
     L.their_financial_life, _where_the_money_goes,
     L.where_the_leakage_goes, L.who_they_pay, L.how_long_it_has_run,
     L.started_and_stopped, L.how_deep, L.leakage_by_group,
-    L.leakage_by_group_and_category, L.what_leakers_hold,
+    L.leakage_by_group_and_category,
+    # by member age, account age and branch (R5, 2026-11-05)
+    L.leakage_by_member_age, L.leakage_by_account_tenure, L.leakage_by_branch,
+    L.what_leakers_hold,
     L.how_the_leakage_builds, L.which_services_travel_together,
     L.still_within_reach,
     # competition
