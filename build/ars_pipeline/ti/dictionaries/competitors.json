@@ -20,6 +20,9 @@
   "Brokerage / Wealth": {
    "kind": "competitor"
   },
+  "Super-Regional Bank": {
+   "kind": "competitor"
+  },
   "Regional Bank": {
    "kind": "competitor"
   },
@@ -206,6 +209,220 @@
     "NAVY FEDERAL",
     "NAVY FCU",
     "NFCU"
+   ]
+  },
+  "Comerica": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "COMERICA"
+   ]
+  },
+  "First Citizens": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "FIRST CITIZENS",
+    "FIRST-CITIZENS",
+    "FIRST CITIZENS BANK"
+   ]
+  },
+  "First Horizon": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "FIRST HORIZON"
+   ]
+  },
+  "Synovus": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "SYNOVUS"
+   ]
+  },
+  "Frost Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "FROST BANK",
+    "FROST"
+   ]
+  },
+  "BOK Financial": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "BOK FINANCIAL",
+    "BANK OF OKLAHOMA",
+    "BOKF"
+   ]
+  },
+  "Webster Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "WEBSTER BANK",
+    "WEBSTER BK"
+   ]
+  },
+  "Valley National": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "VALLEY NATIONAL",
+    "VALLEY NATL"
+   ]
+  },
+  "Old National": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "OLD NATIONAL",
+    "OLD NATL"
+   ]
+  },
+  "Flagstar": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "FLAGSTAR"
+   ]
+  },
+  "Associated Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "ASSOCIATED BANK",
+    "ASSOCIATED BK"
+   ]
+  },
+  "Prosperity Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "PROSPERITY BANK",
+    "PROSPERITY BK"
+   ]
+  },
+  "Wintrust": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "WINTRUST"
+   ]
+  },
+  "UMB Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "UMB BANK",
+    "UMB BK"
+   ]
+  },
+  "Pinnacle Financial": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "PINNACLE FINANCIAL",
+    "PINNACLE BANK",
+    "PINNACLE BK"
+   ]
+  },
+  "Texas Capital": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "TEXAS CAPITAL"
+   ]
+  },
+  "Popular Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "POPULAR BANK",
+    "BANCO POPULAR",
+    "POPULAR COMMUNITY"
+   ]
+  },
+  "Cadence Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "CADENCE BANK",
+    "CADENCE BK"
+   ]
+  },
+  "Hancock Whitney": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "HANCOCK WHITNEY",
+    "HANCOCK BANK",
+    "WHITNEY BANK"
+   ]
+  },
+  "Arvest": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "ARVEST"
+   ]
+  },
+  "BankUnited": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "BANKUNITED",
+    "BANK UNITED"
+   ]
+  },
+  "Simmons Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "SIMMONS BANK",
+    "SIMMONS FIRST"
+   ]
+  },
+  "United Community Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "UNITED COMMUNITY BANK",
+    "UNITED COMMUNITY BK"
+   ]
+  },
+  "Atlantic Union": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "ATLANTIC UNION"
+   ]
+  },
+  "Commerce Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "COMMERCE BANK",
+    "COMMERCE BK"
+   ]
+  },
+  "First National of Omaha": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "FIRST NATIONAL BANK OF OMAHA",
+    "FNBO",
+    "FIRST NATL BANK OMAHA"
+   ]
+  },
+  "Fulton Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "FULTON BANK",
+    "FULTON BK"
+   ]
+  },
+  "Trustmark": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "TRUSTMARK"
+   ]
+  },
+  "Ameris Bank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "AMERIS BANK",
+    "AMERIS BK"
+   ]
+  },
+  "SouthState": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "SOUTHSTATE",
+    "SOUTH STATE BANK"
+   ]
+  },
+  "FirstBank": {
+   "tier": "Super-Regional Bank",
+   "patterns": [
+    "FIRSTBANK",
+    "1STBANK"
    ]
   },
   "American Express": {
