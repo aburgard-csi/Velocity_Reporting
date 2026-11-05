@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-04 — Buy now, pay later is its own competitor tier, apart from the payment apps (`ti/dictionaries/competitors.json`, `competition.py`, `deck/txn_compete.py`)
+
+James: "payment ecosystem should not have BNPL. BNPL is distinct." The five BNPL lenders (Affirm, Klarna, Afterpay, Sezzle, Zip) sat in the Payment Ecosystem tier with a `bnpl` flag. That put them inside every payment-app figure, and the competition chapter's BNPL list was narrower than the financial-services BNPL category (5 providers against 12 patterns, so PayPal Credit counted as a P2P PayPal transfer).
+
+- **New tier.** `Buy Now, Pay Later` has its own kind, `bnpl`. Like adjacency, it is reported apart from competitors, so penetration, threat, winback and the tier donut do not move.
+- **Providers aligned.** The tier now names the same 12 patterns as the finserv `Buy Now Pay Later` category. PayPal Credit / Pay in 4, Perpay, Splitit, Sunbit and Uplift are added. `UPLIFT DESK` is a false positive (the standing-desk store).
+- **Numbers that move.** `comp_ecosystems`, `comp_ecosystem_accounts` and `comp_ecosystem_dollars` are now P2P and wallets only, so "In a payment app" on *Who competes* and the headline of *Payment apps and buy now, pay later* fall by the BNPL-only members. `comp_bnpl` grows by the newly named providers and PayPal Credit. The payment-app slide still draws BNPL in orange, now from `comp_bnpl`.
+- **Numbers that don't move.** Competitor figures. The pre-closure leakage curve keeps the same rows it had.
+- **Code.**
+  - `mapping_audit` reads the tier's kind instead of the literal "Payment Ecosystem".
+  - The "How members spend" lead still skips BNPL names.
+- **Parity.** The v5 figure-for-figure match no longer holds for `comp_ecosystems` / `comp_bnpl`.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.

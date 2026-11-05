@@ -78,6 +78,8 @@ def conflicts(fin_spec: dict, comp_spec: dict, mch_spec: dict) -> list:
         for p in c.get("patterns") or []:
             fin[str(p).upper()] = (name, c.get("kind", "leakage"))
     comp = {}
+    tier_kind = {t: (v or {}).get("kind", "competitor")
+                 for t, v in (comp_spec.get("tiers") or {}).items()}
     for name, i in (comp_spec.get("institutions") or {}).items():
         tier = i.get("tier", "")
         for p in i.get("patterns") or []:
@@ -92,10 +94,11 @@ def conflicts(fin_spec: dict, comp_spec: dict, mch_spec: dict) -> list:
     for pat in sorted(set(fin) & set(comp)):
         fin_cat, fin_kind = fin[pat]
         comp_name, comp_tier = comp[pat]
-        # competition treats every non-ecosystem tier as a competitor, so
-        # finserv calling the same string adjacency is a real disagreement
+        # finserv calling a string adjacency that competition counts as a
+        # competitor is a real disagreement (read from the tier's kind, so a
+        # new reported-apart tier such as Buy Now, Pay Later is not flagged)
         adjacency_vs_competitor = (fin_kind == "adjacency"
-                                   and comp_tier != "Payment Ecosystem")
+                                   and tier_kind.get(comp_tier, "competitor") == "competitor")
         three_way = pat in mch
         if not (adjacency_vs_competitor or three_way):
             continue

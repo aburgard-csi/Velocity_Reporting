@@ -1,5 +1,5 @@
 {
- "_about": "Named-institution detection for transaction_intelligence/competition. Patterns match the cleaned merchant core (card prefix, date and time stripped, upper-cased) as whole tokens; the longest matching pattern wins. Tiers carry a kind: competitor (counted in penetration and dollars) or adjacency (payment ecosystems, reported apart and counted only on ACH/check). Per-client local banks and credit unions go under LocalCompetitors in clients_config.json -- a list of names, or {name: [aliases]}; they land in the Local Bank / CU tier. No Fed-district tables: the data names the counterparties, the CSM names the locals.",
+ "_about": "Named-institution detection for transaction_intelligence/competition. Patterns match the cleaned merchant text (card prefix, date and time stripped, upper-cased) as whole tokens; the longest matching pattern wins. Tiers carry a kind: competitor (counted in penetration and dollars), adjacency (payment ecosystems: P2P and wallets, reported apart) or bnpl (buy-now-pay-later lenders, reported apart from both). Per-client local banks and credit unions go under LocalCompetitors in clients_config.json -- a list of names, or {name: [aliases]}; they land in the Local Bank / CU tier. No Fed-district tables: the data names the counterparties, the CSM names the locals.",
  "_source": "legacy analytics/competition/01_competitor_config.py (universal + ecosystems only) cut to ~50 institutions, plus the issuers, captives, mortgage servicers and brokerages 1615's first runs surfaced; 2026-08-19",
  "tiers": {
   "National Bank": {
@@ -28,6 +28,9 @@
   },
   "Payment Ecosystem": {
    "kind": "adjacency"
+  },
+  "Buy Now, Pay Later": {
+   "kind": "bnpl"
   }
  },
  "institutions": {
@@ -776,40 +779,66 @@
    ]
   },
   "Affirm": {
-   "tier": "Payment Ecosystem",
+   "tier": "Buy Now, Pay Later",
    "patterns": [
     "AFFIRM"
-   ],
-   "bnpl": true
+   ]
   },
   "Klarna": {
-   "tier": "Payment Ecosystem",
+   "tier": "Buy Now, Pay Later",
    "patterns": [
     "KLARNA"
-   ],
-   "bnpl": true
+   ]
   },
   "Afterpay": {
-   "tier": "Payment Ecosystem",
+   "tier": "Buy Now, Pay Later",
    "patterns": [
     "AFTERPAY"
-   ],
-   "bnpl": true
+   ]
   },
   "Sezzle": {
-   "tier": "Payment Ecosystem",
+   "tier": "Buy Now, Pay Later",
    "patterns": [
     "SEZZLE"
-   ],
-   "bnpl": true
+   ]
   },
   "Zip": {
-   "tier": "Payment Ecosystem",
+   "tier": "Buy Now, Pay Later",
    "patterns": [
     "ZIP CO",
     "QUADPAY"
-   ],
-   "bnpl": true
+   ]
+  },
+  "PayPal Credit": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "PAYPAL CREDIT",
+    "PAYPAL PAY IN 4"
+   ]
+  },
+  "Perpay": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "PERPAY"
+   ]
+  },
+  "Splitit": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "SPLITIT"
+   ]
+  },
+  "Sunbit": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "SUNBIT"
+   ]
+  },
+  "Uplift": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "UPLIFT"
+   ]
   }
  },
  "false_positives": [
@@ -827,7 +856,8 @@
   "REGIONS HOSPITAL",
   "HUNTINGTON LEARNING",
   "CAPITAL GRILLE",
-  "PROSPER ISD"
+  "PROSPER ISD",
+  "UPLIFT DESK"
  ],
  "review_tokens": [
   "BANK",

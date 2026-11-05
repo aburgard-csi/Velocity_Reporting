@@ -2,8 +2,9 @@
 The reference dictionaries the transaction analyses classify against, copied from ARS v5
 `0_Config/` at a491b5c (James Gilmore):
 
-  competitors.json                  ~100 institutions in seven tiers, the payment ecosystems,
-                                    BNPL providers, false positives and review tokens
+  competitors.json                  ~100 institutions in seven competitor tiers, the payment
+                                    ecosystems, the buy-now-pay-later tier, false positives
+                                    and review tokens
   financial_services_patterns.json  the financial-service categories (loans, cards, brokerage,
                                     P2P, fintech, …) as description patterns
   merchant_categories.json          MCC groups and keyword buckets for card spend
