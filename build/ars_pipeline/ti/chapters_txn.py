@@ -53,7 +53,7 @@ COMP_BUILDERS = [
     P.where_the_outflow_goes, P.where_the_dollars_go, P.who_owns_the_relationship,
     P.how_much_of_the_wallet_has_left, P.is_the_competitor_money_still_moving,
     P.how_many_competitors_each_account_uses, P.winback_targets, P.depth_against_growth,
-    P.the_payment_ecosystems_ranked, P.buy_now_pay_later,
+    P.the_payment_ecosystems_ranked, P.buy_now_pay_later, P.what_bnpl_pays_for, P.who_uses_bnpl,
 ]
 ATTRITION_BUILDERS = [A.spend_before_closure, A.stresses_across_files]
 
@@ -100,6 +100,8 @@ TITLES = {
     "winback_targets": "Winback targets", "depth_against_growth": "Depth against growth",
     "the_payment_ecosystems_ranked": "The payment ecosystems, ranked",
     "buy_now_pay_later": "Buy now, pay later",
+    "what_bnpl_pays_for": "What buy now, pay later pays for",
+    "who_uses_bnpl": "Who uses buy now, pay later",
     "spend_before_closure": "Competitor spend before closure",
     "stresses_across_files": "Stresses across both files",
 }

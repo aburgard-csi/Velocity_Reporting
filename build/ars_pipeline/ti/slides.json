@@ -70,6 +70,8 @@
   "Depth against growth": "keep",
   "The payment ecosystems, ranked": "keep",
   "Buy now, pay later": "keep",
+  "What buy now, pay later pays for": "keep",
+  "Who uses buy now, pay later": "keep",
   "Attrition by branch": "keep",
   "How much warning do we get": "keep",
   "Accounts under several stresses": "keep",
@@ -231,6 +233,8 @@
    "Depth against growth",
    "The payment ecosystems, ranked",
    "Buy now, pay later",
+   "What buy now, pay later pays for",
+   "Who uses buy now, pay later",
    "What competitors take and how much they own",
    "Payment apps and buy now, pay later"
   ],

@@ -1,7 +1,7 @@
 """The Transaction Intelligence and Competition chapters (build/ars_pipeline/ti/chapters_txn.py).
 
-Pinned: the two chapters carry v5's 61 transaction builders less its two attrition slides, in v5's
-order; every builder has a title for a stated slide; a client with no transaction figures has both
+Pinned: the two chapters carry v5's 61 transaction builders, and the two buy-now-pay-later slides
+added on 2026-11-05, less its two attrition slides, in v5's order; every builder has a title for a stated slide; a client with no transaction figures has both
 chapters hidden and no deck; the ICS lens narrows the lens list and the ARS lens leaves it as v5 drew it.
 """
 import json
@@ -26,11 +26,11 @@ from ti.deck import txn_slides  # noqa: E402
 def test_the_chapters_carry_v5s_builders_in_v5s_order():
     v5 = [b.__name__ for b in txn_slides.BUILDERS]
     ours = [b.__name__ for b in X.TI_BUILDERS + X.COMP_BUILDERS + X.ATTRITION_BUILDERS]
-    assert sorted(ours) == sorted(v5) and len(v5) == 61
+    assert sorted(ours) == sorted(v5) and len(v5) == 63      # v5's 61 + two BNPL slides (2026-11-05)
     for chapter in (X.TI_BUILDERS, X.COMP_BUILDERS):
         names = [b.__name__ for b in chapter]
         assert names == [n for n in v5 if n in names], "kept in v5's own order"
-    assert len(X.TI_BUILDERS) == 39 and len(X.COMP_BUILDERS) == 20
+    assert len(X.TI_BUILDERS) == 39 and len(X.COMP_BUILDERS) == 22
 
 
 def test_every_builder_has_a_title_for_a_stated_slide():

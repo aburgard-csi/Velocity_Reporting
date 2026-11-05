@@ -943,16 +943,23 @@
    "patterns": [
     "AFFIRM",
     "AFTERPAY",
+    "APPLE PAY LATER",
+    "CASH APP AFTERPAY",
+    "CREDOVA",
     "KLARNA",
     "PAYPAL CREDIT",
     "PAYPAL PAY IN 4",
+    "PAYPAL PAY LATER",
+    "PAYPAL PAY MONTHLY",
     "PERPAY",
     "QUADPAY",
     "SEZZLE",
     "SPLITIT",
     "SUNBIT",
     "UPLIFT",
-    "ZIP CO"
+    "ZIP CO",
+    "ZIP PAY",
+    "ZIPPAY"
    ]
   },
   "P2P Transfers": {

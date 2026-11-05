@@ -21,6 +21,21 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — Buy now, pay later: providers, merchants and who uses it (`ti/dictionaries/competitors.json`, `ti/dictionaries/financial_services_patterns.json`, `competition.py`, `competition_report.py`, `deck/txn_compete.py`, `chapters_txn.py`, `deck/txn_slides.py`, `ti/slides.json`)
+
+James: "i think our BNPL section needs to be expanded and improved. there are alot of gaps, especially around vendors/merchats." The competition chapter gave BNPL one slide: reach, dollars and five provider blocks. It never said what the payments bought, how each provider is used, or who uses BNPL.
+
+- **Providers.** Added patterns real descriptors carry: `CASH APP AFTERPAY` (Afterpay; it was filed under Cash App before), `ZIP PAY` and `ZIPPAY` (Zip), `PAYPAL PAY LATER` and `PAYPAL PAY MONTHLY` (PayPal Credit). Two new providers: Apple Pay Later and Credova. The finserv `Buy Now Pay Later` category carries the same patterns. Chime Credit Builder is a secured card, not BNPL, and is not added.
+- **Merchants.** `comp_bnpl` now reads the merchant a card descriptor names after the lender and a star (`AFFIRM *PELOTON`, `KLARNA*TARGET`, `ZIP.CO*BESTBUY`). The name stops at a phone, store or reference number and keeps the first two words, the same rule `merchant_key` uses. A payment that names only the lender (`AFFIRM.COM PAYMENTS`, `KLARNA INC`) has no merchant. New figures: the top merchants by dollars and by accounts, each with the lender behind most of its dollars; the share of BNPL dollars that name a merchant; the merchant count.
+- **Vendors.** Each provider row gains payments, the median payment, and repeat use: the accounts that paid it in 3 or more distinct months. The tier as a whole gains payments, the median payment, repeat use, and stacking: accounts on 2 or more providers, with a 1 / 2 / 3+ split.
+- **Who uses it.** For each lens, the share of its transacting accounts that paid a BNPL provider, against every transacting account. This covers responders, mailed non-responders, personal, business and new accounts. BNPL users are also compared with non-users in the personal base on card dollars an account a month, the share paying a named competitor, and median balance.
+- **Slides.** *Buy now, pay later* keeps its headline. Its provider blocks add the median payment and the repeat share, and its rail adds repeat users and accounts on 2+ providers. Two new slides follow it in the Competition chapter:
+  - *What buy now, pay later pays for*: merchants by dollars, coloured by lender, with the merchant-named share.
+  - *Who uses buy now, pay later*: each group against the book, with users against non-users on the rail.
+  Groups under 30 accounts are left off. The ICS deck shows the ICS groups, following its lens list. All figures are window totals and the slides say "in the window", never "a year".
+- **Numbers that move.** `comp_bnpl` accounts and dollars grow by any member the new patterns name. A `CASH APP AFTERPAY` payment moves from Cash App to Afterpay, so `comp_ecosystems` falls by those payments. Competitor figures do not move.
+- **Text report.** `competition_report` prints repeat use, stacking, the median payment and the top merchants under the BNPL line.
+
 ### 2026-11-04 — Buy now, pay later is its own competitor tier, apart from the payment apps (`ti/dictionaries/competitors.json`, `competition.py`, `deck/txn_compete.py`)
 
 James: "payment ecosystem should not have BNPL. BNPL is distinct." The five BNPL lenders (Affirm, Klarna, Afterpay, Sezzle, Zip) sat in the Payment Ecosystem tier with a `bnpl` flag. That put them inside every payment-app figure, and the competition chapter's BNPL list was narrower than the financial-services BNPL category (5 providers against 12 patterns, so PayPal Credit counted as a P2P PayPal transfer).
