@@ -28,6 +28,13 @@ GROWTH_MOVERS = 5                    # biggest risers and biggest fallers shown
 GROWTH_MIN_DOLLARS = 1_000           # legacy merchant/07: $1k in a window to be ranked
 MOVE_PCT = 10.0                      # +/- 10% between windows counts as a move
 TOP_MCC = 12
+TOP_MCC_WAYS = 10                    # top codes kept under each of the three rankings
+MCC_STANDOUT_TOP = 3                 # top 3 on one measure ...
+MCC_STANDOUT_OUTSIDE = TOP_MCC_WAYS  # ... and outside the top 10 on another is a standout
+MCC_MEASURES = [("dollars", "card dollars"), ("txns", "transactions"),
+                ("accounts", "members")]
+MCC_WAYS_COLUMNS = ["mcc", "group", "accounts", "txns", "dollars", "avg_ticket",
+                    "pct_of_card_accounts", "rank_dollars", "rank_txns", "rank_accounts"]
 MIN_BAND_ACCOUNTS = 20
 FIRST_SWIPE_GRACE_DAYS = 30          # days on file before "no swipe yet" means anything
 AGE_BANDS = [(18, 26, "18-25"), (26, 36, "26-35"), (36, 46, "36-45"),
@@ -101,6 +108,58 @@ def _group_of(spec: dict):
     return lookup
 
 
+def _mcc_three_ways(per: pd.DataFrame, card: pd.DataFrame, name, K: str) -> dict:
+    """The codes ranked three ways: by card dollars, by transactions and by distinct accounts
+    (members). R6 (2026-11-05): ranked by dollars alone, a code with many members and small
+    tickets (fast food, transit) never showed. Every row carries all three measures and its
+    rank on each, so a code can be read across the three lists; ties break on the lower code."""
+    card_accounts = int(card["primary_account_num"].astype(str).nunique())
+    ranks = {}
+    for measure, _label in MCC_MEASURES:
+        order = per.sort_index().sort_values(measure, ascending=False, kind="mergesort").index
+        ranks[measure] = pd.Series(np.arange(1, len(order) + 1), index=order)
+
+    def row(code) -> list:
+        r = per.loc[code]
+        return [int(code), name(int(code)), int(r.accounts), int(r.txns),
+                round(float(r.dollars)), round(float(r.dollars / r.txns), 2),
+                _pct(int(r.accounts), card_accounts),
+                int(ranks["dollars"][code]), int(ranks["txns"][code]),
+                int(ranks["accounts"][code])]
+
+    out = {}
+    for measure, _label in MCC_MEASURES:
+        top = ranks[measure].sort_values().index[:TOP_MCC_WAYS]
+        out[K + "mcc_by_" + measure] = [row(c) for c in top]
+        out[K + "mcc_by_" + measure + "_columns"] = MCC_WAYS_COLUMNS
+    standouts = []
+    for strong, _s in MCC_MEASURES:
+        for code in ranks[strong].sort_values().index[:MCC_STANDOUT_TOP]:
+            for weak, _w in MCC_MEASURES:
+                if weak != strong and int(ranks[weak][code]) > MCC_STANDOUT_OUTSIDE:
+                    standouts.append([int(code), name(int(code)), strong,
+                                      int(ranks[strong][code]), weak, int(ranks[weak][code])])
+    # the codes the dollar ranking hides lead: top on members, then on transactions, then dollars
+    first = {"accounts": 0, "txns": 1, "dollars": 2}
+    standouts.sort(key=lambda s: (s[3], first[s[2]], -s[5], s[0]))
+    dates = card["transaction_date"]
+    window = f"{dates.min().strftime('%b%y')}-{dates.max().strftime('%b%y')}"
+    out.update({
+        K + "mcc_standouts": standouts,
+        K + "mcc_standouts_columns": ["mcc", "group", "top_on", "rank_top_on",
+                                      "outside_on", "rank_outside_on"],
+        K + "mcc_card_accounts": card_accounts,
+        K + "mcc_ways_window": window,
+        K + "mcc_ways_note": (
+            f"card transactions (PIN and signature) {window} that carry an MCC; "
+            f"accounts = distinct accounts with a card transaction in that MCC; "
+            f"pct_of_card_accounts is of the {card_accounts:,} accounts with any card "
+            f"transaction in the window; top {TOP_MCC_WAYS} by each measure; a standout is "
+            f"top {MCC_STANDOUT_TOP} on one measure and outside the top "
+            f"{MCC_STANDOUT_OUTSIDE} on another")})
+    return out
+
+
 def _mcc_codes(card: pd.DataFrame, spec: dict, K: str, warn) -> dict:
     if "mcc_code" not in card.columns:
         warn("merchant_profiles: no mcc_code column; the MCC table is skipped")
@@ -129,7 +188,8 @@ def _mcc_codes(card: pd.DataFrame, spec: dict, K: str, warn) -> dict:
             K + "mcc_top_columns": ["mcc", "group", "accounts", "txns", "dollars",
                                     "avg_ticket", "pct_of_mcc_dollars"],
             K + "mcc_distinct": int(len(per)),
-            K + "mcc_top5_share_pct": _pct(float(per["dollars"].head(5).sum()), total)}
+            K + "mcc_top5_share_pct": _pct(float(per["dollars"].head(5).sum()), total),
+            **_mcc_three_ways(per, card, name, K)}
 
 
 def _breadth(per: pd.DataFrame, K: str) -> dict:

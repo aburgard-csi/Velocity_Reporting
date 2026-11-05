@@ -21,6 +21,19 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — MCC codes by spend, transactions and members (`build/ars_pipeline/ti/transaction_intelligence/merchant_profiles.py`, `build/ars_pipeline/ti/deck/txn_cards.py`, `build/ars_pipeline/ti/deck/txn_slides.py`, `build/ars_pipeline/ti/chapters_txn.py`, `build/ars_pipeline/ti/slides.json`)
+
+Summary: The Transaction Intelligence chapter gets a new slide, "MCC codes by spend, transactions and members". It shows the top 10 MCC codes three ways, side by side, and shades any code that is top 3 one way but outside the top 10 another.
+
+The user: "mcc code should be included / we should see mcc code by spend, transactions, # of members/customers". The only MCC table (`mch_mcc_top`) ranked codes by card dollars, so a code with many members and small tickets (fast food, transit) never showed. That slide ("The MCC codes behind the categories") was also tossed in `slides.json`.
+
+- `merchant_profiles.py` writes `mch_mcc_by_dollars`, `mch_mcc_by_txns` and `mch_mcc_by_accounts`, top 10 each. Every row carries all three measures, $/txn, the % of card accounts using the code and its rank on each measure (`*_columns` keys give the order). Ties break on the lower code.
+- The base is card transactions (PIN and signature) in the window that carry an MCC. Accounts are distinct accounts with a card transaction in that MCC, and the % is of every account with a card transaction in the window (`mch_mcc_card_accounts`, `mch_mcc_ways_window`, `mch_mcc_ways_note`).
+- `mch_mcc_standouts` lists codes that rank very differently: top 3 on one measure and outside the top 10 on another, with both ranks. Codes that lead on members or transactions are listed first.
+- The new slide (`txn_cards.mcc_codes_three_ways`) is a table with three ranked lists side by side. Each code reads as its category and code, e.g. "Dining (5814)". The headline names the widest gap ("Dining (5814) is #1 by members but #12 by card dollars"); with no gaps, it names each measure's leader. The rail shows the card-account base and up to three standouts. It is registered in `TI_BUILDERS`, `TITLES`, `txn_slides.BUILDERS` and `slides.json` (keep).
+- `mch_mcc_top` and the dollar-only slide are unchanged and still tossed.
+- Tests: `tests/test_ti_mcc_three_ways.py` (new), plus updated counts in `tests/test_ti_chapters_txn.py` (62 builders, 40 in the chapter) and the order in `tests/test_ti_merchant_profile_slides.py`.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
