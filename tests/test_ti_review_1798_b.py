@@ -88,7 +88,7 @@ def test_the_payment_app_slide_splits_p2p_from_products():
     h = _h()
     P.the_payment_ecosystems_ranked(h, t, BASE)
     (head, sub), _ = h.slides[0]
-    assert "Cash App reaches 28,478 and moves $78.3M a year" in head
+    assert "Cash App reaches 28,478 and moves $78.3M in the last 12 months" in head
     assert "not a financial product" in sub and "$49.6M" in sub
     rail = dict((r[0], r[1]) for r in h.rails[0])
     assert rail["P2P and wallets"] == "$100.3M" and rail["Buy now, pay later"] == "$12.9M"
@@ -144,8 +144,8 @@ def test_one_competitor_slide_carries_reach_breadth_apps_and_the_leader():
     (head, _), title = h.slides[0]
     assert title == "Who competes for our members"
     assert head == ("20% of transacting personal accounts pay a named competitor — Synchrony "
-                    "reaches 3,147 and takes $3.4M a year")
-    assert [r[0] for r in h.rails[0]] == ["With a competitor", "Two or more", "Per year",
+                    "reaches 3,147 and takes $3.4M in the last 12 months")
+    assert [r[0] for r in h.rails[0]] == ["With a competitor", "Two or more", "Last 12 months",
                                          "In a payment app", "Top competitor"]
     assert h.rails[0][4][2] == "5% of accounts, leads credit cards"
     assert h.charts[0]["name"] == "comp_quadrant"

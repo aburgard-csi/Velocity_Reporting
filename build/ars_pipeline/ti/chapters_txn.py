@@ -222,7 +222,7 @@ def _ti_stats(pack, _ln):
     if not m.get("fin_by_category"):
         return []
     return [(f"{m.get('fin_leaking_pct', 0)}%", "of personal accounts pay an outside provider"),
-            (_money(m.get("fin_leakage_dollars")), "sent to outside providers, 12 months"),
+            (_money(m.get("fin_leakage_dollars")), f"sent to outside providers, {labels.window(m, prefix='')}"),
             (f"{m.get('txn_accounts', 0):,}", "accounts in the transaction file")]
 
 
@@ -231,7 +231,7 @@ def _comp_stats(pack, _ln):
     if not m.get("comp_institutions"):
         return []
     return [(f"{m.get('comp_with_competitor_pct', 0)}%", "of personal accounts pay a competitor"),
-            (_money(m.get("comp_competitor_dollars")), "sent to competitors, 12 months"),
+            (_money(m.get("comp_competitor_dollars")), f"sent to competitors, {labels.window(m, prefix='')}"),
             (f"{len(m.get('comp_institutions') or []):,}", "competing institutions seen")]
 
 

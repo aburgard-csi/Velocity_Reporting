@@ -21,6 +21,24 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-04 — TI transaction window is the last N completed months before the cycle (`ti/window.py`, `ti_build.py`, TI deck copy)
+James: "it has to be the Last N completed months. these will run on the 4th or later every month, it
+will always include through the end of the previous month." The window was 12 months ending at the
+ODD's newest month, and rows were never filtered by date, so a file carrying a few days of the next
+month put them in the figures. Now:
+- The window ends on the last day of the month before the cycle (cycle 2026.11 runs through 31 Oct
+  2026). N is 12 by default; `TxnWindowMonths` in the client config or `TI_WINDOW_MONTHS` for a run
+  sets 1, 3, 6, 18 or any whole number of months.
+- Rows dated outside the window are left out, with a warning that counts them. A month in the
+  window with no rows is named in a warning; nothing is filled in.
+- A warning when the ODD's newest month is not the window's last month, and when a run for the
+  current cycle happens before the 4th.
+- The pack carries `txn_window_months`, `txn_window_start`, `txn_window_end`, `txn_window_label` and
+  `txn_window_missing`; `txn_anchor` is now the window's end month.
+- Slide copy no longer says "a year" or "12 months" for transaction totals: it says the real window
+  ("in the last 12 months", "Last 6 months" on the rail, the chart axes too). The figures were window
+  totals all along, never annualised, so "a year" was only true at N = 12.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
