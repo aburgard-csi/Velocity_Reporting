@@ -115,3 +115,37 @@ def test_the_window_follows_the_cycle_not_the_odd(monkeypatch):
     assert seen["anchor"] == pd.Timestamp("2026-11-30")
     assert any("the ODD runs to 2026-10" in w for w in warnings)
     assert len(ctx.txn) == 1
+
+
+def test_odd_months_after_the_window_are_left_out():
+    from ti.core.odd_transform import transform_odd
+    raw = pd.DataFrame({"Acct Number": ["1", "2"]})
+    for mon in ("Aug26", "Sep26", "Oct26", "Nov26"):
+        for suf in ("PIN $", "Sig $", "PIN #", "Sig #"):
+            raw[f"{mon} {suf}"] = [1.0, 2.0]
+    raw["Dec26 Mail"] = ["A", "B"]                                    # the mail track runs ahead, kept
+    out, rpt = transform_odd(raw, end_month=pd.Timestamp("2026-10-01"))
+    assert rpt.data_month == pd.Timestamp("2026-10-01")
+    assert not any(c.startswith("Nov26") for c in out.columns) and "Dec26 Mail" in out.columns
+    assert out["last 3-mon spend"].tolist() == [6.0, 12.0]          # Aug..Oct, not Sep..Nov
+    assert any("4 month column(s) dated after Oct 2026" in w for w in rpt.warnings)
+    # an ODD that stops short of the window end is named
+    _, short = transform_odd(raw, end_month=pd.Timestamp("2026-12-01"))
+    assert any("newest month is Nov 2026, not Dec 2026" in w for w in short.warnings)
+
+
+def test_the_launcher_checks_the_clients_own_n(monkeypatch, tmp_path):
+    sys.path.insert(0, os.path.join(REPO, "scripts"))
+    import ars_launcher as L
+    ti_config = L._ti_modules()[3]
+    monkeypatch.delenv(window.ENV_KEY, raising=False)
+    cfg = tmp_path / "clients_config.json"
+    cfg.write_text('{"1441": {"TxnWindowMonths": 3}}', encoding="utf-8")
+    monkeypatch.setattr(ti_config, "config_path", lambda: cfg)
+    assert L.txn_window_months("1441") == 3
+    monkeypatch.setattr(L.R, "txn_files", lambda cid: [])
+    _, months = L.txn_months_on_hand("1441", "2026.11")
+    assert [L._month_label(n) for n in months] == ["Aug 26", "Sep 26", "Oct 26"]
+    cfg.write_text('{"1441": {"TxnWindowMonths": "0"}}', encoding="utf-8")
+    with pytest.raises(ValueError):
+        L.txn_window_months("1441")
