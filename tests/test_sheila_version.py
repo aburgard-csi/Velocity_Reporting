@@ -34,14 +34,15 @@ def test_a_missing_or_malformed_file_shows_no_version_not_a_guess(tmp_path):
         assert W.app_version(f) == "", bad
 
 
-def test_the_header_chip_carries_the_version(monkeypatch, tmp_path):
+def test_the_corner_carries_the_version(monkeypatch, tmp_path):
     f = tmp_path / "VERSION"
     f.write_text("2.0\n", encoding="utf-8")
     monkeypatch.setattr(W, "VERSION_FILE", f)
-    assert 'id="ver"' in W._version_html() and ">v2.0<" in W._version_html()
+    import sheila_hub as H
+    assert "Version 2.0" in H.page("T", W.app_version())
     f.write_text("junk\n", encoding="utf-8")
-    assert W._version_html() == ""
-    assert "<h1>CSM Sheila__VERSION__</h1>" in W.PAGE
+    assert W.app_version() == "" and "Version" not in H.page("T", W.app_version()), "a copy with no usable VERSION shows none, not a guess"
+    assert "<b>CSM Sheila</b><small>__VERSION__</small>" in H._PAGE
 
 
 def test_the_release_script_copies_the_version_file_with_the_code():

@@ -55,7 +55,7 @@ from periods import Period
 
 # Palette, type roles and shape primitives now live at build/ level so ICS and
 # MRPC can reach them too. Re-exported here under their old names because
-# build_ars_gen, excluded_accounts_slide, rege_branch_slide and
+# build_ars_gen, excluded_accounts_slide, branch_appendix_slides and
 # tier_movement_slides all import them from this module.
 from brand import (
     NAVY_RGB as NAVY, ORANGE_RGB as ORANGE, WHITE_RGB as WHITE,
@@ -92,7 +92,7 @@ _MONTH_RE = re.compile(r"^([A-Z][a-z]{2})(\d{2})\s+(.*)$")
 # leaves it blank on 18,274 of 50,218 rows). Dormant and Inactive are still
 # counted here — they are not closed — which is the remaining, deliberate
 # difference against the Excluded Accounts slide's strictly-OPEN population.
-from odd_rows import status_class as _status_class
+from odd_rows import status_class as _status_class, client_of as _client_of
 
 # ----------------------------------------------------------------------------- ODD resolution
 def odd_zip_path(oddd_dir, client_id):
@@ -169,6 +169,7 @@ def extract_product_mix(odd_source):
     except ImportError:
         raise SystemExit("product_mix_slide requires pandas")
 
+    _cid = _client_of(odd_source)   # the client's code sheet settles unknown statuses
     odd_csv = _resolve_csv(odd_source)
     hdr, header = _find_header_row(odd_csv)
     keep = [c for c in header if c and not c.startswith("Unnamed")]
@@ -199,7 +200,7 @@ def extract_product_mix(odd_source):
             "stat": norm(ch["Stat Desc"]),
             "elig": norm(ch[elig_col]) if elig_col else "",
         })
-        d["isopen"] = [_status_class(a, b) != "closed"
+        d["isopen"] = [_status_class(a, b, _cid) != "closed"
                        for a, b in zip(d["stat"], norm(ch["Stat Code"])
                                        if "Stat Code" in ch else [""] * len(ch))]
         for name, g in d.groupby("prod"):

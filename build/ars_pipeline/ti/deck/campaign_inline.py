@@ -11,7 +11,7 @@ Each v5 block is lifted out of the build function as a builder with the house si
 its body v5's line for line (each docstring names the v5 lines). The closures those blocks called
 are bound at the top of each builder by `_v5`: `slide`, `chart`, `_rail` and the rest through the
 helper bundle `h`; `skip(title, *keys, reason=None)` draws the cut's stated slide, as v5 recorded
-a skip; `register` (v5's provenance ledger) does nothing here; `n` is v5's lookup. One change,
+a skip (the frame hides it for that client); `register` (v5's provenance ledger) does nothing here; `n` is v5's lookup. One change,
 marked where it is made: v5 drew six slides as `new()` + `register()` + `_title()`; the cut draws
 a slide's title first and numbers it after, so the same headline and subtitle go through `slide()`.
 """
@@ -19,10 +19,23 @@ from __future__ import annotations
 
 from pptx.util import Inches  # noqa: F401  (v5's blocks size shapes in inches)
 
+import periods as _periods
+
 from . import charts, headlines, labels, migration_slides  # noqa: F401
-from .economics_inline import GREEN_D, RED_D, _tile as _tile_h  # noqa: F401
+from .economics_inline import GREEN_D, RED_D, FOOT_PT, _tile as _tile_h, ic_pct  # noqa: F401
 from .helpers import HEAD_FONT
 from .labels import money as _money  # noqa: F401
+
+
+def _month_axis(rows):
+    """Rows whose first field is a month label, with that label in the house axis format (MMM'YY).
+
+    RPE (Sheila's 1798 slide review, 2026-10-30): v5's "Jun24" labels failed the month-axis guard
+    every RPE chart module installs, and the chart was refused and the slide shipped blank (slides
+    105, 108 and 111, and the hero sparkline). `axis_months` leaves a label that is not a month as
+    it is, and an already-formatted one unchanged, so a chart layer that formats them too is fine."""
+    rows = [list(r) for r in rows]
+    return [[lab, *r[1:]] for lab, r in zip(_periods.axis_months([str(r[0]) for r in rows]), rows)]
 
 
 def _v5(h, m):
@@ -40,7 +53,7 @@ def _v5(h, m):
         h["text"](slide, left, top + 0.28, width, 0.5, value, size=20, bold=True,
                   font=HEAD_FONT)
         if note:
-            h["text"](slide, left, top + 0.80, width, 0.28, note, size=10, color=h["GREY"])
+            h["text"](slide, left, top + 0.80, width, 0.28, note, size=FOOT_PT, color=h["GREY"])
 
     def _tile(slide, left, top, width, value, label, note=None, rule=None):
         _tile_h(h, slide, left, top, width, value, label, note, rule=rule)
@@ -71,6 +84,43 @@ def program_reach(h, m) -> str | None:
         # symmetric grid of the numbers with a brief line under each,
         # no chart competing with them
         s, top = slide(headlines.program_reach(m), "Program reach")
+        # RPE (Sheila's 1798 slide review, 2026-10-30, combine group K): reach and the latest
+        # offer's response were two slides (104, 127); one funnel, eligible > mailed > responded,
+        # with the latest offer in the rail
+        stages = [[label, n(key), 0, 0] for label, key in
+                  (("Eligible", "n_eligible"), ("Ever mailed", "n_ever_mailed"),
+                   ("Responded", "reach_total"))]
+        stages = [st for st in stages if st[1]]
+        if len(stages) >= 2:
+            for i in range(1, len(stages)):
+                stages[i][3] = round((1 - stages[i][1] / (stages[i - 1][1] or 1)) * 100, 1)
+            base = str(m.get("reach_base") or "eligible").lower()
+            items = []
+            latest = str(m.get("latest_mailing") or "")
+            row = next((c for c in reversed(m.get("campaign_rates") or [])
+                        if str(c[0]) == latest), None)
+            if row:
+                items.append((f"Latest offer, {latest}", f"{row[2]:,}",
+                              f"responded of {row[1]:,} mailed"))
+            if m.get("latest_resprate") is not None:
+                items.append(("Latest response", f"{n('latest_resprate')}%",
+                              f"mean {n('resprate_mean')}%" if m.get("resprate_mean")
+                              is not None else latest))
+            items.append(("Reach", f"{n('reach')}%", f"of {base}"))
+            if m.get("reach_of_mailed") is not None:
+                items.append(("Of mailed", f"{n('reach_of_mailed')}%", "ever responded"))
+            right = _rail(s, items, top=top)
+            path = chart("reach_funnel", charts.funnel, stages)
+            if path:
+                _chart_left(s, path, top + 0.1, right, max_h=6.3 - (top + 0.1))
+            if m.get("responder_spend_share_pct") is not None:
+                _text(s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
+                      f"Responders carry {n('responder_spend_share_pct')}% of "
+                      f"card spend from "
+                      f"{n('responder_share_of_eligible_pct', n('reach')):.0f}% "
+                      f"of accounts.", size=FOOT_PT, color=GREY)
+            _kicker(s)
+            return None
         tiles = [
             (f"{n('n_eligible'):,}", "Eligible accounts",
              "the base the program can reach", NAVY)
@@ -135,8 +185,8 @@ def response_reach(h, m) -> str | None:
         right = _rail(s, items, top=top)
         cum = [[r[0], r[2]] for r in (m.get("reach_cumulative") or [])]
         path = chart("resp_reach", charts.response_reach_combo,
-                     [[c[0], c[3]] for c in campaigns if c[3] is not None],
-                     cum)
+                     _month_axis([[c[0], c[3]] for c in campaigns if c[3] is not None]),
+                     _month_axis(cum))
         if path:
             _chart_left(s, path, top, right)
     else:
@@ -201,16 +251,15 @@ def per_offer(h, m) -> str | None:
         _table(s, rows, MARGIN_L, top + 0.1, CONTENT_W,
                col_widths=widths.get(ncol), size=10.5)
         tbl_bottom = top + 0.1 + 0.34 * len(rows)
+        # RPE (Sheila's 1798 review: 113 words on slide 106): the note keeps the window and drops
+        # what the column headers already say
         note = (f"latest {min(fit, len(campaigns))} of {len(campaigns)} "
-                f"completed offers; spend is six months before each offer "
+                f"completed offers; spend six months before each offer "
                 f"against three after")
         if in_flight:
             note += f"; in flight: {', '.join(str(t) for t in in_flight[-2:])}"
-        if has_wb:
-            note += (". Rev to date is the wave's own To Date column in "
-                     "the workbook, life of the offer")
         _text(s, MARGIN_L + 0.02, tbl_bottom + 0.08, CONTENT_W, 0.3,
-              note + ".", size=9.5, color=GREY)
+              note + ".", size=FOOT_PT, color=GREY)
         kpis = []
         if m.get("ba_lift_net") is not None:
             kpis.append(("Net lift", f"{_money(m['ba_lift_net'])}/mo",
@@ -234,10 +283,7 @@ def per_offer(h, m) -> str | None:
                 _kpi_flat(s, MARGIN_L + i * (kw + 0.3), k_top, kw,
                           label, value, note_)
             _text(s, MARGIN_L, min(k_top + 1.18, 6.44), CONTENT_W, 0.3,
-                  "Responders are accounts that met an offer's goal; control "
-                  "is mailed non-responders. Net lift is the responders' "
-                  "pre-to-post change less the control's, per month.",
-                  size=10, color=GREY)
+                  "Control is mailed non-responders.", size=FOOT_PT, color=GREY)
         _kicker(s)
     else:
         skip("Per-offer summary", "campaign_rates")
@@ -271,15 +317,14 @@ def ladder_waves(h, m) -> str | None:
                           f"{m.get('nu_partial_ever', 0):,} partials"))
         right = _rail(s, items, top=top)
         path = chart("ladder_waves", charts.grouped_bars,
-                     [str(r["wave"]) for r in lw[-10:]],
+                     _periods.axis_months([str(r["wave"]) for r in lw[-10:]]),
                      [r["first_time"] for r in lw[-10:]],
                      [r["repeat"] for r in lw[-10:]],
                      "first-time", "repeat")
         if path:
             _chart_left(s, path, top, right)
-        _text(s, MARGIN_L + 0.02, 6.44, CONTENT_W, 0.3,
-              "Movement is judged against each account's best prior "
-                   "tier, so 'up' is real progression, not noise.", size=9.5, color=GREY)
+        # RPE (Sheila's 1798 review): v5's footnote here repeated the subtitle ("judged against each
+        # account's best prior tier") and sat on the chart's month labels; dropped
         _kicker(s)
     else:
         skip("Ladder and NU conversion by offer", "ladder_by_wave")
@@ -308,7 +353,7 @@ def segment_traj(h, m) -> str | None:
                           f"{worst_c['did_from_control_pct']:.0f}%",
                           f"of {worst_c['segment']}'s DiD"))
         if m.get("segment_ic_rate"):
-            items.append(("IC rate", f"{m['segment_ic_rate']}",
+            items.append(("IC rate", ic_pct(m["segment_ic_rate"]),
                           "applied to DiD"))
         right = _rail(s, items, top=top)
         rows = [["Segment", "Offered", "Resp", "Resp d/mo", "Ctrl d/mo",
@@ -321,12 +366,11 @@ def segment_traj(h, m) -> str | None:
                          _money(r.get("did")),
                          _money(r.get("did_per_1000_mailed"))])
         _table(s, rows, MARGIN_L, top + 0.1, right - MARGIN_L - 0.25,
-               col_widths=[1.3, 1.15, 1.05, 1.35, 1.35, 1.2, 1.5], size=10)
+               col_widths=[1.3, 1.15, 1.05, 1.35, 1.35, 1.2, 1.5], size=FOOT_PT)
         _text(s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
-              "Incremental frame: interchange only, net of control; where "
-              "the control fell, part of each DiD is decline arrested. Not "
-              "comparable to the workbook's booked revenue: see Revenue "
-              "frames.", size=9.5, color=GREY)
+              "Incremental frame: interchange only, net of control; where the control fell, "
+              "part of each DiD is decline arrested. Not the workbook's booked revenue.",
+              size=FOOT_PT, color=GREY)
         _kicker(s)
     else:
         skip("Segment trajectories", "segment_summary")
@@ -353,7 +397,7 @@ def penalty(h, m) -> str | None:
         _text(s, MARGIN_L + 0.02, 6.44, CONTENT_W, 0.3,
               "The program forbids repeating a tier this soon; a "
                    "non-zero count is a suppression gap, not a finding "
-                   "about customers.", size=9.5, color=GREY)
+                   "about customers.", size=FOOT_PT, color=GREY)
         _kicker(s)
     elif pbv == 0:
         skip("The penalty box",
@@ -386,14 +430,15 @@ def counterfactual(h, m) -> str | None:
                           "earned on the gap"))
         right = _rail(s, items, top=top)
         gap_rows = [[a[0], a[1] - w[1]] for a, w in zip(cf_a, cf_w)]
-        path = chart("counterfactual", charts.line_series, gap_rows,
+        path = chart("counterfactual", charts.line_series, _month_axis(gap_rows),
                      ylabel="$ above the no-program line",
-                     highlight_zero=True)
+                     highlight_zero=True, money=True)
         if path:
-            _chart_left(s, path, top, right)
+            # RPE: the chart ends above its footnote (v5's 4.9in ran the month labels under it, 1798)
+            _chart_left(s, path, top, right, max_h=6.38 - top)
         _text(s, MARGIN_L + 0.02, 6.44, CONTENT_W, 0.3,
               "The line is responders' own pre-spend moved by the "
-                   "control's trajectory -- a DiD view, not a before/after.", size=9.5, color=GREY)
+                   "control's trajectory -- a DiD view, not a before/after.", size=FOOT_PT, color=GREY)
         _kicker(s)
     else:
         skip("The counterfactual", "counterfactual_actual")
@@ -556,7 +601,37 @@ def cohort(h, m) -> str | None:
     offsets = m.get("cohort_offsets") or []
     indexed = m.get("cohort_indexed") or {}
     if offsets and indexed:
-        s, top = slide(headlines.cohort(m), "What a response does to spend")
+        # RPE (Sheila's 1798 slide review, 2026-10-30, combine group L): six slides told the
+        # responder gain with different numbers (106, 111, 117, 119, 120, 123), and $524/mo on one
+        # read against $371/mo on another as a contradiction. They are two windows on one program:
+        # this slide carries both, each named by its window, on responders' and the control's spend.
+        rows = m.get("cohort_lift") or []
+        later = next((r for r in rows if r.get("horizon_months") == 12), None)
+        did12 = later.get("diff_in_diff") if later else None
+        net = m.get("ba_lift_net")
+        pair = headlines.cohort(m)
+        parts = []
+        if net is not None:
+            # the window as the before/after headline names it (headlines.before_after)
+            parts.append(f"{_money(net)}/mo net of control in the three months after mail")
+        if did12 is not None:
+            parts.append(f"{_money(did12)}/mo on the pooled cohort 12 months on")
+        if pair and parts:
+            pair = (pair[0], "; ".join(parts))
+        s, top = slide(pair, "What a response does to spend")
+        items = []
+        if net is not None:
+            items.append(("3 months after mail", f"{_money(net)}/mo", "vs the 6 months before"))
+        if did12 is not None:
+            items.append(("12 months on", f"{_money(did12)}/mo", "pooled cohort, net of control"))
+        if m.get("counterfactual_gap_total") is not None:
+            items.append(("Spend held", _money(m["counterfactual_gap_total"]),
+                          "above the no-program line"))
+        if m.get("sustained_months_above") is not None:
+            items.append(("Above baseline", f"{m['sustained_months_above']} of 12",
+                          "months after the mail"))
+        right = _rail(s, items, top=top) if items else h["RIGHT_EDGE"]
+        spend = m.get("cohort_spend") or {}
         # ---- James's lines (#62): the legacy combo, pooled + extended --
         seg_det = m.get("cohort_seg_detail") or {}
         if seg_det.get("segments"):
@@ -589,16 +664,26 @@ def cohort(h, m) -> str | None:
             _text(s2, MARGIN_L + 0.02, 6.5, CONTENT_W, 0.28,
                   f"Responder pairs per tier: {bases}; tiers under 50 "
                   f"pairs pooled out; control = mailed non-responders",
-                  size=9.5, color=GREY)
+                  size=FOOT_PT, color=GREY)
             _kicker(s2)
         else:
             skip("Responders versus control around the offer",
                  "cohort_spend_by_tier")
 
-        path = chart("cohort", charts.cohort_trajectory, offsets, indexed,
-                     indexed=True)
+        if spend.get("responders") and spend.get("mailed_nonresp"):
+            path = chart("cohort", charts.cohort_trajectory, offsets,
+                         {"responders": spend["responders"],
+                          "mailed_nonresp": spend["mailed_nonresp"]}, indexed=False)
+        else:
+            path = chart("cohort", charts.cohort_trajectory, offsets, indexed,
+                         indexed=True)
         if path:
-            _picture(s, path, top=top + 0.05, max_h=7.0 - top)
+            _chart_left(s, path, top + 0.05, right, max_h=6.3 - (top + 0.05))
+        _text(s, MARGIN_L + 0.02, 6.42, CONTENT_W, 0.3,
+              "Control is mailed accounts that did not respond. The two figures differ by "
+              "window, not method: the gain is largest just after the mail.",
+              size=FOOT_PT, color=GREY)
+        _kicker(s)
     return None
 
 
@@ -737,7 +822,7 @@ def tier_movement(h, m) -> str | None:
         _text(s, MARGIN_L + 0.02, 6.5, CONTENT_W, 0.28,
               "Movement compares each account's swipe tier in its first "
               "and latest window on file; bases differ by group and are "
-              "printed on each bar.", size=9.5, color=GREY)
+              "printed on each bar.", size=FOOT_PT, color=GREY)
         _kicker(s)
     else:
         skip("Tier movement by response status", "mig_by_group")
@@ -758,13 +843,9 @@ def migration(h, m) -> str | None:
              f"{n('mig_entered_use_pct')}% of non-users then"),
         ], top=top)
         y = top + 0.1
-        groups = {r[0]: r for r in (m.get("mig_by_group") or [])}
-        if "Responder" in groups and "Mailed non-responder" in groups:
-            _text(s, MARGIN_L + 0.02, 6.44, CONTENT_W, 0.3,
-                  f"Responders moved up at {groups['Responder'][2]:.0f}% against "
-                       f"{groups['Mailed non-responder'][2]:.0f}% for mailed non-responders "
-                       f"\u2014 the program moves usage, not just cards.", size=9.5, color=GREY)
-            _kicker(s)
+        # RPE (Sheila's 1798 review): v5's footnote here repeated the subtitle's responder figures
+        # and was drawn under the chart, which covered it; dropped
+        _kicker(s)
         dist_first, dist_latest = m.get("mig_dist_first") or [], m.get("mig_dist_latest") or []
         if dist_first and dist_latest:
             path = chart("migration", charts.grouped_bars,
@@ -800,8 +881,10 @@ def latest_mailer(h, m) -> str | None:
                "response share and rate by challenge tier, and who the "
                "responders were"), "The most recent mailer")
         path = chart(f"mailsum_{latest_pair}", charts.mailer_summary_panel, d)
+        # RPE (James Gilmore, 2026-10-29, 1798 slide 127): the picture starts at `top`, below wherever the
+        # headline block ends; v5's fixed 1.55 put a two-line title's subtitle behind it
         if path:
-            _fit_picture(s, path, MARGIN_L, 1.55, max_w=CONTENT_W, max_h=4.85)
+            _fit_picture(s, path, MARGIN_L, top, max_w=CONTENT_W, max_h=4.85 - (top - 1.55))
         _kicker(s)
     else:
         skip("The most recent mailer", "mailer_summary")
@@ -830,7 +913,7 @@ def latest_trajectory(h, m) -> str | None:
                f"the mail the file carries"), "The most recent mailer trajectory")
         path = chart(f"mailtraj_{latest_pair}", charts.segment_resp_grid, rd)
         if path:
-            _fit_picture(s, path, MARGIN_L, 1.55, max_w=CONTENT_W, max_h=4.85)
+            _fit_picture(s, path, MARGIN_L, top, max_w=CONTENT_W, max_h=4.85 - (top - 1.55))
         _kicker(s)
     else:
         skip("The most recent mailer trajectory", "mailer_resp_detail")
@@ -857,8 +940,8 @@ def latest_offer(h, m) -> str | None:
                "segment; the mail month is the orange line"), "The most recent offer")
         path = chart("combo_latest", charts.combo_lines, d_last)
         if path:
-            _fit_picture(s, path, MARGIN_L, 1.55, max_w=CONTENT_W,
-                         max_h=4.85)
+            _fit_picture(s, path, MARGIN_L, top, max_w=CONTENT_W,
+                         max_h=4.85 - (top - 1.55))
         _kicker(s)
     else:
         skip("The most recent offer", "mailer_detail")
@@ -871,14 +954,8 @@ def offer_detail(h, m) -> str | None:
      _kpi, _kpi_flat, _table, _text, _tile, _kicker, MARGIN_L, CONTENT_W, NAVY, ORANGE, GREY) = _v5(h, m)
     ms = m.get("mailer_summary") or {}
     rd_all = m.get("mailer_resp_detail") or {}
-    # "most recent with data" = the newest wave that can carry the whole
-    # pair; fall back to the newest wave with a summary alone
-    paired = [t for t in ms if t in rd_all]
-    latest_pair = (paired or list(ms))[-1] if ms else None
-
     md = m.get("mailer_detail") or {}
-    appendix_tags = [t for t in ms if t != latest_pair]
-    if appendix_tags or md:
+    if ms or md:
         divider("Offer detail")
         # Newest first. The reader opens Offer detail looking for the most
         # recent mailing, and should not scroll a year back to reach it.
@@ -891,21 +968,14 @@ def offer_detail(h, m) -> str | None:
         # rotation, everything about one mailing on adjacent slides, and the
         # responders picture drawn once -- it was drawn twice per mailer
         # under two titles, byte for byte the same (#231).
-        summary_tags = appendix_tags[-12:]
+        # RPE (Sheila's 1798 slide review, 2026-10-30, combine group P): v5 drew a summary slide per
+        # mailer, twelve near-identical pages (131-142). One table now, one row per mailer, newest
+        # first, every mailer included: the latest's own slide folds into Program reach (group K).
+        if ms:
+            _mailer_table(h, m, ms)
         detail_tags = list(md)[-12:]
         ordered = list(dict.fromkeys(list(ms) + list(md)))
         for tag in reversed(ordered):
-            if tag in summary_tags:
-                d = ms[tag]
-                # RPE: v5 drew this as new() + register() + _title(); the cut draws the title first
-                # and numbers after it, so the same headline and subtitle go through slide()
-                s, top = slide((f"{tag} mailer summary",
-                       f"{d['mailed']:,} mailed, {d['responded']:,} responded "
-                       f"\u2014 {d['rate']:.1f}%"), f"Mailer {tag} summary")
-                path = chart(f"mailsum_{tag}", charts.mailer_summary_panel, d)
-                if path:
-                    _fit_picture(s, path, MARGIN_L, 1.55,
-                                 max_w=CONTENT_W, max_h=5.5)
             if tag not in detail_tags:
                 continue
             d = md[tag]
@@ -917,8 +987,8 @@ def offer_detail(h, m) -> str | None:
                    f"lines are per-account monthly averages"), f"Offer {tag} by segment")
             path = chart(f"combo_{tag}", charts.combo_lines, d)
             if path:
-                _fit_picture(s, path, MARGIN_L, 1.55,
-                             max_w=CONTENT_W, max_h=5.5)
+                _fit_picture(s, path, MARGIN_L, top,
+                             max_w=CONTENT_W, max_h=5.5 - (top - 1.55))
             rd = rd_all.get(tag)
             if rd:
                 nseg = len(rd["segments"])
@@ -931,10 +1001,55 @@ def offer_detail(h, m) -> str | None:
                        f"per account"), f"{tag}: responders versus their segment")
                 path = chart(f"resp_{tag}", charts.segment_resp_grid, rd)
                 if path:
-                    _fit_picture(s, path, MARGIN_L, 1.55,
-                                 max_w=CONTENT_W, max_h=5.5)
+                    _fit_picture(s, path, MARGIN_L, top,
+                                 max_w=CONTENT_W, max_h=5.5 - (top - 1.55))
     return None
 
+
+
+def _mailer_table(h, m, ms) -> None:
+    """Every mailer on one appendix page: offer, mailed, responded, response rate, the share
+    responding for the first time, and the workbook's revenue to date when a workbook is on hand."""
+    tags = list(ms)
+    wbw = {str(w[0]): w for w in (m.get("wb_waves") or [])}
+    has_wb = any(t in wbw for t in tags)
+    mailed = sum(ms[t]["mailed"] for t in tags)
+    resp = sum(ms[t]["responded"] for t in tags)
+    top_rate = max(ms[t]["rate"] for t in tags)
+    best = [t for t in tags if ms[t]["rate"] == top_rate]
+    best_s = " and ".join(best[:2]) + (f" and {len(best) - 2} more" if len(best) > 2 else "")
+    # one headline line, so every mailer fits the table
+    pair = (f"{len(tags)} mailer{'s' if len(tags) != 1 else ''}, the best responding at "
+            f"{top_rate:.1f}%",
+            f"best: {best_s}; {resp:,} responses from {mailed:,} pieces mailed"
+            + (f", {100 * resp / mailed:.1f}% overall" if mailed else "") + "; newest first")
+    s, top = h["slide"](pair, "Mailer summaries")
+    # as many rows as end above the footnote (0.3in each, header included), newest first
+    fit = max(1, int((6.38 - (top + 0.1)) / 0.3) - 1)
+    shown = list(reversed(tags))[:fit]
+    hdr = ["Offer", "Mailed", "Responded", "Response %", "First-time %"]
+    if has_wb:
+        hdr.append("Rev to date")
+    rows = [hdr]
+    for tag in shown:
+        d = ms[tag]
+        first = (d.get("inside") or {}).get("first_time_pct")
+        row = [str(tag), f"{d['mailed']:,}", f"{d['responded']:,}", f"{d['rate']:.1f}",
+               f"{first:.0f}" if first is not None else "\u2013"]
+        if has_wb:
+            w = wbw.get(str(tag))
+            row.append(_money(w[3]) if w and w[3] is not None else "\u2013")
+        rows.append(row)
+    widths = [2.13, 2.0, 2.0, 2.0, 2.0, 2.0] if has_wb else [2.53, 2.4, 2.4, 2.4, 2.4]
+    h["table"](s, rows, h["MARGIN_L"], top + 0.1, h["CONTENT_W"], col_widths=widths, size=11)
+    note = ("Response % is responders over pieces mailed; first-time % is the share of "
+            "responders answering an offer for the first time.")
+    if len(shown) < len(tags):
+        note = f"Newest {len(shown)} of {len(tags)} mailers. " + note
+    if has_wb:
+        note += " Rev to date: the ARS Workbook's To Date column."
+    h["text"](s, h["MARGIN_L"] + 0.02, 6.42, h["CONTENT_W"], 0.3, note, size=FOOT_PT,
+              color=h["GREY"])
 
 
 def _responses_caption(m, n) -> str:
@@ -984,7 +1099,7 @@ def hero(h, m) -> str | None:
         camp = [c for c in (m.get("campaign_rates") or []) if c[3] is not None]
         if camp:
             path = chart("hero_spark", charts.line_series,
-                         [[str(c[0]), c[3]] for c in camp],
+                         _month_axis([[str(c[0]), c[3]] for c in camp]),
                          ylabel="response %", pct=True)
             if path:
                 _fit_picture(s, path, 6.3, top - 0.05,
@@ -1005,19 +1120,16 @@ def hero(h, m) -> str | None:
         nt = max(len(tiles), 1)
         kw = (CONTENT_W - 0.2 * (nt - 1)) / nt
         strip_top = top + 2.75
-        for i, (kind, label, value, note) in enumerate(tiles):
+        for i, (_kind, label, value, note) in enumerate(tiles):
             x = MARGIN_L + i * (kw + 0.2)
+            # RPE (Sheila's 1798 slide review, 2026-10-30, slide 107): v5 set a line icon in the
+            # card's corner, drawn in steel and orange; on the navy and orange cards it read as an
+            # empty placeholder. The icon's colour is fixed in charts.icon, so the cards go without.
             _kpi(s, x, strip_top, kw, label, value, note,
                  accent=ORANGE if i == 0 else NAVY)
-            # RPE: v5 drew the icon straight into its charts folder unless dry_run; here it goes
-            # through the bundle's chart(), into the chapter's charts folder, and a failure is noted
-            ic = chart(f"icon_{kind}", charts.icon, kind)
-            if ic:
-                _fit_picture(s, ic, x + 0.1, strip_top + 0.08,
-                             max_w=0.32, max_h=0.32)
         _text(s, MARGIN_L + 0.02, 6.44, CONTENT_W, 0.3,
               "Where the control fell, the mailing's work was arresting "
-                   "a decline \u2014 reported that way, every time.", size=9.5, color=GREY)
+                   "a decline \u2014 reported that way, every time.", size=FOOT_PT, color=GREY)
         _kicker(s)
     elif m.get("wb_found"):
         # the booked slot stayed empty on a client that HAS a workbook --
@@ -1051,7 +1163,7 @@ def revenue_frames(h, m) -> str | None:
         _text(s, MARGIN_L, top + 2.85, panel_w, 0.6,
               "All revenue types on goal-met responders, including NSF/OD "
               "fee income; includes spend the control would have produced.",
-              size=10, color=GREY)
+              size=FOOT_PT, color=GREY)
         _text(s, rx, top + 0.05, panel_w, 0.28,
               "INCREMENTAL: DiD ESTIMATE", size=11, bold=True, color=ORANGE,
               font=HEAD_FONT)
@@ -1060,11 +1172,11 @@ def revenue_frames(h, m) -> str | None:
         if ic_rate:
             _kpi_flat(s, rx, top + 1.62, panel_w, "As interchange",
                       f"{_money(m['ba_lift_net'] * ic_rate)}/mo",
-                      f"at IC rate {ic_rate}")
+                      f"at a {ic_pct(ic_rate)} IC rate")
         _text(s, rx, top + 2.85, panel_w, 0.6,
               "Interchange only, a monthly run rate around each offer; "
               "credits nothing the control also did.",
-              size=10, color=GREY)
+              size=FOOT_PT, color=GREY)
         wedge_top = min(top + 3.55, 5.15)
         _text(s, MARGIN_L, wedge_top, CONTENT_W, 0.28,
               "Why they never tie", size=12, bold=True, font=HEAD_FONT)

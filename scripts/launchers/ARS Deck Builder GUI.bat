@@ -1,6 +1,6 @@
 @echo off
 rem CSM Sheila: opens the ARS deck launcher in your browser. Lives in the CSM_Reporting folder;
-rem see scripts\ars_launcher_web.py. Build ARS Deck.bat is the same thing without the browser.
+rem see scripts\ars_launcher_web.py. Build ARS Deck CLI.bat is the same thing without the browser.
 setlocal
 set "ROOT=%~dp0"
 set "RPE_DATA_ROOT=%ROOT:~0,-1%"

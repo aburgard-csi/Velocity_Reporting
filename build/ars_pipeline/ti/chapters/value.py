@@ -13,6 +13,13 @@ from pathlib import Path
 
 from ti import cut, odd_sections
 
+# Group Q (Sheila's 1798 slide review, 2026-10-30): value per account went from four slides to two.
+# "The value ladder" is value by tenure; "Where cards do not follow volume" carries the card gaps
+# with the branch value spread and the widest card / Reg E divergence on its rail. These two are
+# then tossed in `ti/slides.json` (the register is the only place a slide is dropped for every
+# client); their builders stay, so a reviewed change can bring either back.
+GROUP_Q_TOSS = ("Value per account by branch", "Where branches diverge")
+
 TITLES = {
     "card_and_optin": "What a card and an opt-in earn",
     "value_ladder": "The value ladder",
@@ -37,11 +44,11 @@ def stats(pack, _lens):
     m = pack.get("metrics") or {}
     out = []
     if m.get("value_per_card") is not None:
-        out.append((money(m["value_per_card"]), "a debit card is worth a year"))
+        out.append((money(m["value_per_card"]), "a year per debit card"))
     if m.get("value_per_optin") is not None:
-        out.append((money(m["value_per_optin"]), "a Reg E opt-in is worth a year"))
+        out.append((money(m["value_per_optin"]), "a year per Reg E opt-in"))
     if m.get("dctr_leak_value") is not None:
-        out.append((money(m["dctr_leak_value"]), "a year in the top card leaks"))
+        out.append((money(m["dctr_leak_value"]), "a year in the three widest card gaps"))
     return out[:3]
 
 

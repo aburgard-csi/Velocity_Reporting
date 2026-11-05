@@ -80,7 +80,7 @@ def _text_w(t, pt):
 # alongside the OPEN/CLOSED status sets it belongs to. It used to live here, which
 # is how `product_mix_slide` came to carry a different rule and count charged-off
 # accounts as open.
-from odd_rows import status_class as _status_class
+from odd_rows import status_class as _status_class, client_of as _client_of
 
 def _num(s):
     v = (s or "").replace(",", "").replace("$", "").strip()
@@ -101,6 +101,7 @@ def extract_exclusions(odd_source):
     except ImportError:
         raise SystemExit("excluded_accounts_slide requires pandas")
 
+    _cid = _client_of(odd_source)   # the client's code sheet settles unknown statuses
     odd_csv = _resolve_csv(odd_source)
     hdr, header = _find_header_row(odd_csv)
     keep = [c for c in header if c and not c.startswith("Unnamed")]
@@ -140,7 +141,7 @@ def extract_exclusions(odd_source):
             if col not in ch:
                 ch[col] = ""
         d = pd.DataFrame({k: norm(ch[k]) for k in want})
-        cls = [_status_class(a, b) for a, b in zip(d["Stat Desc"], d["Stat Code"])]
+        cls = [_status_class(a, b, _cid) for a, b in zip(d["Stat Desc"], d["Stat Code"])]
         d["cls"] = cls
         d["isclosed"] = d["cls"].eq("closed")
         d["isopen"] = d["cls"].eq("open")

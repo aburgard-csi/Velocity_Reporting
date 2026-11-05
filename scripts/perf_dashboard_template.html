@@ -1,273 +1,306 @@
 <title>RPE Client Performance</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Carlito:ital,wght@0,400;0,700;1,400&display=swap">
 <style>
+/* The Sheila Hub's frame and colors (Aaron, 2026-11-02): a glass sidebar that folds to a rail, a bottom bar on
+   phones, KPI tiles, dense rows. Hub colors only: ground, navy, teal; no orange. Program colors are the four
+   validated with the dataviz script (light on #FFFFFF, dark on #141D38); every program name sits beside its dot. */
 :root{
-  --navy:#00274C; --orange:#F47A29; --teal:#0D9488; --gold:#E7A93B;
-  --ars:#00274C; --ics:#F47A29; --mrpc:#0D9488; --cp:#C9911F;
-  --bg:#F7F9FB; --surface:#FFFFFF; --tile:#ECF0F4; --rowalt:#EEF2F7;
-  --grid:#E4EAF1; --hair:#D9DEE5; --muted:#B8C0CA;
-  --ink:#0E1B2A; --ink2:#5A6670; --ink3:#8A96A3;
-  --head:#00274C; --accent:#F47A29; --accent-ink:#FFFFFF;
-  --good:#1E7F4F; --warn:#B7791F; --bad:#B42318;
-  --track:#E4EAF1; --shadow:0 1px 2px rgba(0,39,76,.08), 0 6px 18px rgba(0,39,76,.06);
-  --chip-bg:#FFFFFF; --chip-on:#245C8C; --chip-on-ink:#FFFFFF; --focus:#F47A29;
-  --chip-all:#FFFFFF; --chip-all-ink:#0E1B2A; --chip-all-line:#C5CDD6;
-  --chip-off:#E9EDF1; --chip-off-ink:#5A6670;
-  --ov:#5A7590;
+  --display:Montserrat,"Segoe UI",system-ui,sans-serif;
+  --body:Carlito,Calibri,"Segoe UI",system-ui,sans-serif;
+  --ground:#EDF1F7; --glow-a:rgba(21,98,126,.13); --glow-b:rgba(91,192,222,.26);
+  --surface:rgba(255,255,255,.74); --sheet:#FFFFFF; --fill:#E4EAF3; --line:#C6D1E0;
+  --glass:rgba(255,255,255,.62); --glass-line:rgba(58,80,107,.22); --glass-hi:rgba(58,80,107,.12);
+  --ink:#0B132B; --muted:#4A5C75; --navy:#1C2541;
+  --accent:#15627E; --accent-ink:#15627E; --accent-soft:rgba(21,98,126,.12); --on-accent:#FFFFFF;
+  --good:#15627E; --good-soft:#D9EFF6; --warn:#6E4A12; --warn-soft:#F8EBD8; --bad:#8F2D0B; --bad-soft:#FAE3D8;
+  --c-ars:#2F5FB5; --c-ics:#B5476B; --c-mrpc:#9A7B10; --c-cp:#8F4FB0;
+  --shadow:0 1px 2px rgba(11,19,43,.05),0 14px 30px -24px rgba(11,19,43,.35);
 }
-@media (prefers-color-scheme: dark){
+@media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
-    --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --rowalt:#15263400;
-    --grid:#233647; --hair:#2A3F52; --muted:#4A5E70;
-    --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99;
-    --head:#E8EEF4; --accent:#F79552; --accent-ink:#0B1620;
-    --good:#4CC38A; --warn:#E2B14A; --bad:#F27E75;
-    --track:#233647; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
-    --chip-bg:#12212E; --chip-on:#6E93B4; --chip-on-ink:#0B1620; --focus:#F79552;
-    --chip-all:#1E3244; --chip-all-ink:#E8EEF4; --chip-all-line:#3A5168;
-    --chip-off:#0E1A24; --chip-off-ink:#8C9BA8;
-    --ov:#9DB4C8;
+    color-scheme:dark;
+    --ground:#0B132B; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
+    --surface:rgba(28,37,65,.66); --sheet:#141D38; --fill:#28344F; --line:#3A506B;
+    --glass:rgba(28,37,65,.55); --glass-line:rgba(159,176,199,.24); --glass-hi:rgba(244,247,251,.1);
+    --ink:#EEF3FA; --muted:#A3B3C9; --navy:#EEF3FA;
+    --accent:#5BC0DE; --accent-ink:#5BC0DE; --accent-soft:rgba(91,192,222,.18); --on-accent:#0B132B;
+    --good:#5BC0DE; --good-soft:#17324B; --warn:#F4D6B0; --warn-soft:#352F2B; --bad:#F59A78; --bad-soft:#3A241C;
+    --c-ars:#5F86DB; --c-ics:#D0608F; --c-mrpc:#AB8A22; --c-cp:#A06CD0;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -24px rgba(0,0,0,.85);
   }
 }
 :root[data-theme="dark"]{
-  --ars:#8FB0D0; --ics:#F79552; --mrpc:#2FB8A9; --cp:#E7B84C;
-  --bg:#0B1620; --surface:#12212E; --tile:#182B3B; --rowalt:#15263400;
-  --grid:#233647; --hair:#2A3F52; --muted:#4A5E70;
-  --ink:#E8EEF4; --ink2:#A9B7C4; --ink3:#7C8B99;
-  --head:#E8EEF4; --accent:#F79552; --accent-ink:#0B1620;
-  --good:#4CC38A; --warn:#E2B14A; --bad:#F27E75;
-  --track:#233647; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
-  --chip-bg:#12212E; --chip-on:#6E93B4; --chip-on-ink:#0B1620; --focus:#F79552;
-    --chip-all:#1E3244; --chip-all-ink:#E8EEF4; --chip-all-line:#3A5168;
-    --chip-off:#0E1A24; --chip-off-ink:#8C9BA8;
-    --ov:#9DB4C8;
+  color-scheme:dark;
+  --ground:#0B132B; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
+  --surface:rgba(28,37,65,.66); --sheet:#141D38; --fill:#28344F; --line:#3A506B;
+  --glass:rgba(28,37,65,.55); --glass-line:rgba(159,176,199,.24); --glass-hi:rgba(244,247,251,.1);
+  --ink:#EEF3FA; --muted:#A3B3C9; --navy:#EEF3FA;
+  --accent:#5BC0DE; --accent-ink:#5BC0DE; --accent-soft:rgba(91,192,222,.18); --on-accent:#0B132B;
+  --good:#5BC0DE; --good-soft:#17324B; --warn:#F4D6B0; --warn-soft:#352F2B; --bad:#F59A78; --bad-soft:#3A241C;
+  --c-ars:#5F86DB; --c-ics:#D0608F; --c-mrpc:#AB8A22; --c-cp:#A06CD0;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -24px rgba(0,0,0,.85);
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:Carlito,Calibri,"Segoe UI",system-ui,sans-serif;font-size:15px;line-height:1.4}
-h1,h2,h3,.mont{font-family:Montserrat,"Segoe UI",system-ui,sans-serif}
-.wrap{max-width:1380px;margin:0 auto;padding:22px 26px 60px}
-header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:18px}
-header.top h1{margin:0;font-size:24px;font-weight:700;color:var(--head);letter-spacing:-.01em;text-wrap:balance}
-header.top .sub{color:var(--ink2);margin-top:4px;font-size:14px}
-header.top .updated{margin-top:6px;font-family:Montserrat,sans-serif;font-size:11.5px;font-weight:600;
-  letter-spacing:.03em;color:var(--ink2);display:inline-flex;align-items:center;gap:7px;
-  background:var(--tile);border:1px solid var(--hair);border-radius:999px;padding:4px 11px}
-header.top .updated i{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none}
-.pill{display:inline-block;background:var(--accent);color:var(--accent-ink);font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:.04em;padding:6px 14px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
-.eyebrow{font-family:Montserrat,sans-serif;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+html,body{background:var(--ground)}
+body{margin:0;color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.glow{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(38rem 26rem at 8% 14%,var(--glow-a),transparent 70%),radial-gradient(44rem 30rem at 96% 4%,var(--glow-b),transparent 70%)}
+:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+button{font:inherit;color:inherit}
+a{color:var(--accent-ink)}
+.app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:24px;align-items:start;max-width:1560px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 56px}
 
-/* filters */
-.filters{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:14px 16px;display:grid;gap:12px;margin-bottom:18px}
-.frow{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
-.frow .eyebrow{width:74px;padding-top:7px;flex:none}
-.chips{display:flex;flex-wrap:wrap;gap:6px;flex:1}
-.chip{appearance:none;border:1px solid var(--hair);background:var(--chip-off);color:var(--chip-off-ink);font:inherit;font-size:13.5px;padding:5px 11px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background .12s,border-color .12s}
-.chip:hover{border-color:var(--muted)}
-.chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.chip .sw{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
-.chip.on{background:var(--chip-on);color:var(--chip-on-ink);border-color:var(--chip-on)}
-.chip.on .sw{outline:2px solid var(--chip-on-ink);outline-offset:-1px}
-/* three states (Aaron, 2026-09-14): white = the whole row is selected, blue = on, light gray = off */
-.chip.in{background:var(--chip-all);color:var(--chip-all-ink);border-color:var(--chip-all-line)}
-.chip.all{font-weight:700}
-.chipset{display:contents}
-.chip.fold{background:none;border-style:dashed;color:var(--ink2)}
-.chip.fold:hover{color:var(--ink)}
-.fkey{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink2);padding-left:86px}
-.fkey i{display:inline-block;width:18px;height:11px;border-radius:999px;border:1px solid;vertical-align:-1px;margin-right:6px}
-@media (max-width:600px){.fkey{padding-left:0}}
-.chip .tags{display:inline-flex;gap:3px}
-.chip .tags i{width:6px;height:6px;border-radius:50%;display:inline-block;background:var(--c)}
-.chip .ct{font-size:12px;opacity:.7;font-variant-numeric:tabular-nums}
-.chip.off{opacity:.45}
-.chip.off:hover{opacity:.8}
-.fr-actions{display:flex;gap:10px;align-items:center;margin-left:auto}
-.link{background:none;border:none;color:var(--ink2);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:6px 2px}
-.link:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
-header.top .doclink{display:inline-block;margin-top:8px;font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:600;color:var(--head);text-underline-offset:3px}
-header.top .doclink:hover{color:var(--accent)}
-header.top .doclink:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+/* ---- sidebar ---- */
+.side{position:sticky;top:calc(16px + env(safe-area-inset-top,0px));width:236px;display:flex;flex-direction:column;gap:6px;
+  padding:14px 12px;border-radius:28px;background:var(--glass);border:1px solid var(--glass-line);box-shadow:var(--shadow);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);transition:width .22s ease}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 4px 8px;position:relative}
+.mark{flex:none;width:40px;height:40px}
+.brand b{display:block;font:700 15px/1.15 var(--display)}
+.brand small{display:block;font-size:13px;color:var(--muted)}
+.fold{position:absolute;right:-24px;top:9px;width:28px;height:28px;border-radius:50%;border:1px solid var(--glass-line);background:var(--sheet);display:grid;place-items:center;cursor:pointer;padding:0}
+.fold::after{content:"";position:absolute;inset:-8px}
+.fold svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.sec{font-size:13px;color:var(--muted);padding:10px 10px 3px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nl{position:relative;display:flex;align-items:center;gap:11px;min-height:44px;padding:0 11px;border-radius:999px;color:var(--ink);text-decoration:none;font-size:15.5px;border:1px solid transparent;background:none;cursor:pointer;width:100%;text-align:left}
+.nl svg{flex:none;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nl .dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--c);margin:0 5px}
+.nl:hover{background:var(--glass-hi)}
+.nl[aria-current="page"]{background:var(--glass-hi);border-color:var(--glass-line);font-weight:700}
+.badge{margin-left:auto;min-width:24px;height:22px;padding:0 7px;border-radius:999px;background:var(--fill);font-size:12.5px;font-weight:700;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.badge.hot{background:var(--accent);color:var(--on-accent)}
+.badge:empty{display:none}
+.app.rail .side{width:70px}
+.app.rail .brand b,.app.rail .brand small,.app.rail .sec,.app.rail .lbl{display:none}
+.app.rail .nl{justify-content:center;padding-inline:0}
+.app.rail .brand{justify-content:center;padding-inline:0}
+.app.rail .fold svg{transform:rotate(180deg)}
+.app.rail .badge{position:absolute;top:3px;right:3px;min-width:10px;width:10px;height:10px;padding:0;font-size:0;margin:0}
 
-/* summary strip */
-.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:26px}
-.stat{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:12px 14px 11px;position:relative;overflow:hidden}
-.stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c,var(--muted))}
-.stat .v{font-family:Montserrat,sans-serif;font-weight:700;font-size:22px;color:var(--head);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:4px}
-.stat .l{font-size:13px;color:var(--ink2);margin-top:3px}
-.stat .e{font-family:Montserrat,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--c,var(--ink3))}
+/* ---- top bar and view ---- */
+main{min-width:0;display:flex;flex-direction:column;gap:18px;padding-top:4px}
+.bar{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;padding:8px 8px 8px 12px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.find{display:flex;align-items:center;gap:8px;flex:1 1 220px;min-height:40px;padding:0 12px;border-radius:999px;background:var(--fill);border:1px solid transparent;color:var(--muted)}
+.find:focus-within{border-color:var(--accent-ink)}
+.find svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.find input{flex:1;min-width:0;border:0;background:none;color:var(--ink);font:inherit;font-size:15px;outline:0}
+.find kbd{font:12px var(--body);padding:1px 7px;border-radius:6px;border:1px solid var(--line);background:var(--sheet);color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--glass-line);background:none;cursor:pointer;font-size:14.5px}
+.btn:hover{background:var(--glass-hi)}
+.btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.view{display:flex;flex-direction:column;gap:18px;min-width:0}
+.vh{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.vh h1{font:700 30px/1.15 var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.vh p{margin:6px 0 0;color:var(--muted);max-width:72ch}
+.eyebrow{font-size:13px;color:var(--muted);margin-bottom:2px}
+.pill{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 13px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-weight:700;font-size:13.5px}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:999px;font-size:13px;font-weight:700;background:var(--fill);color:var(--ink);white-space:nowrap}
+.chip.good{background:var(--good-soft);color:var(--good)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.soft{font-weight:400;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.kpis[data-n="6"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.kpi{display:flex;flex-direction:column;gap:3px;padding:15px 16px 14px;border-radius:16px;border:1px solid var(--glass-line);background:var(--surface);box-shadow:var(--shadow);min-width:0;text-align:left;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);text-decoration:none;color:inherit}
+a.kpi{cursor:pointer} a.kpi:hover{border-color:var(--muted)}
+.kpi .k{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--muted)}
+.kpi .k i{width:9px;height:9px;border-radius:50%;background:var(--c,var(--muted));flex:none}
+.kpi .v{font:700 28px/1.15 var(--display);font-variant-numeric:lining-nums tabular-nums}
+.kpi .n{font-size:13px;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--glass-line);border-radius:18px;box-shadow:var(--shadow);min-width:0;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.card>header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;padding:14px 18px 6px}
+.card h2{margin:0;font:700 17px var(--display);flex:1 1 12rem;min-width:0}
+.card .sub{margin:0;font-size:13.5px;color:var(--muted);flex-basis:100%}
+.card .pad{padding:6px 18px 16px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;align-items:start}
+.seg{display:flex;gap:2px;padding:2px;border-radius:999px;background:var(--fill)}
+.seg button{border:0;background:none;min-height:36px;padding:0 13px;border-radius:999px;cursor:pointer;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--sheet);font-weight:700;box-shadow:0 1px 2px rgba(11,19,43,.2)}
+.sel{font:inherit;font-size:14.5px;color:var(--ink);background:var(--fill);border:1px solid transparent;border-radius:999px;min-height:40px;padding:0 14px;cursor:pointer}
+.sel:focus-visible{outline:2px solid var(--accent-ink)}
 
-/* sections */
-section.prog{background:var(--surface);border:1px solid var(--hair);border-radius:12px;box-shadow:var(--shadow);margin-bottom:26px;overflow:hidden}
-section.prog>.hd{display:flex;align-items:baseline;gap:14px;padding:16px 20px 10px;border-bottom:1px solid var(--grid);flex-wrap:wrap}
-section.prog>.hd h2{margin:0;font-size:18px;font-weight:700;color:var(--head);display:flex;align-items:center;gap:10px}
-section.prog>.hd h2 .sw{width:12px;height:12px;border-radius:3px;background:var(--c)}
-/* the Build readiness period picker (Aaron, 2026-10-12) */
-section.prog>.hd label.rp{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--ink2)}
-section.prog>.hd label.rp select{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:7px;padding:3px 8px;cursor:pointer}
-section.prog>.hd label.rp select:focus-visible{outline:2px solid var(--head);outline-offset:1px}
-section.prog>.hd .src{color:var(--ink3);font-size:13px;margin-left:auto}
-section.prog>.hd .n{color:var(--ink2);font-size:13.5px}
-.body{display:grid;grid-template-columns:minmax(300px,4fr) minmax(0,9fr);gap:0}
-@media (max-width:980px){.body{grid-template-columns:1fr}}
-.rank{padding:16px 20px;border-right:1px solid var(--grid)}
-@media (max-width:980px){.rank{border-right:none;border-bottom:1px solid var(--grid)}}
-.rank h3{margin:0 0 2px;font-size:13.5px;font-weight:600;color:var(--ink)}
-.rank .cap{color:var(--ink2);font-size:13px;margin-bottom:12px}
-.bars{display:grid;grid-template-columns:minmax(92px,auto) 1fr auto;column-gap:10px;row-gap:7px;align-items:center;font-variant-numeric:tabular-nums}
-.bars .nm{font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
-.bars .tr{height:9px;background:var(--track);border-radius:4px;position:relative}
-.bars .bar{position:absolute;left:0;top:0;bottom:0;background:var(--c);border-radius:0 4px 4px 0;min-width:2px}
+/* ---- needs a look ---- */
+.list{display:flex;flex-direction:column}
+.li{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:52px;padding:6px 18px;border-top:1px solid var(--line)}
+.li:first-child{border-top:0}
+.li b{font-weight:700}
+.li .t{min-width:0}
+.li .idn{color:var(--muted);font-size:13.5px;margin-left:4px}
+.li .m{display:block;font-style:normal;color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.li a{font-size:14.5px;white-space:nowrap}
+.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.ic.warn{color:var(--warn)} .ic.bad{color:var(--bad)} .ic.ok{color:var(--good)} .ic.unk{color:var(--muted)}
+.more{display:block;width:100%;min-height:44px;border:0;border-top:1px solid var(--line);background:none;cursor:pointer;color:var(--accent-ink);font-weight:700}
+
+/* ---- ranked bars ---- */
+.bars{display:grid;grid-template-columns:minmax(96px,auto) minmax(0,1fr) auto;column-gap:12px;row-gap:9px;align-items:center;font-variant-numeric:tabular-nums}
+.bars .hit{display:contents}
+.bars .nm{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.bars .tr{height:10px;background:var(--fill);border-radius:5px;position:relative}
+.bars .bar{position:absolute;left:0;top:0;bottom:0;background:var(--c);border-radius:0 5px 5px 0;min-width:3px}
 .bars .bar.neg{background:var(--bad)}
-.bars .mk{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink2);opacity:.8}
-.bars .vl{font-size:13px;color:var(--ink2);white-space:nowrap}
-.bars .hit{grid-column:1/-1;display:contents}
-.bars .hit:hover .tr{filter:brightness(.92)}
-.bars .hit:hover .nm{color:var(--head);font-weight:700}
-.legend{display:flex;gap:14px;align-items:center;margin-top:12px;color:var(--ink2);font-size:12.5px;flex-wrap:wrap}
-.legend i{display:inline-block;width:14px;height:3px;background:var(--ink2);vertical-align:middle;margin-right:5px}
-.legend b{display:inline-block;width:12px;height:9px;border-radius:2px;background:var(--c);vertical-align:middle;margin-right:5px}
+.bars .mk{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.7}
+.bars .vl{font-size:14px;color:var(--muted);white-space:nowrap;min-width:4.5em;text-align:right}
+.bars .hit:hover .nm{font-weight:700}
+.bars .hit:hover .tr{outline:2px solid var(--glass-hi)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:13px}
+.legend b{display:inline-block;width:12px;height:9px;border-radius:2px;background:var(--c);vertical-align:middle;margin-right:6px}
+.legend i{display:inline-block;width:2px;height:12px;background:var(--ink);opacity:.7;vertical-align:middle;margin-right:6px}
 
-.tbl{overflow-x:auto;padding:6px 8px 12px}
-table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
-th{font-family:Montserrat,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);text-align:right;padding:10px 10px 8px;border-bottom:1px solid var(--hair);white-space:nowrap;vertical-align:bottom}
+/* ---- trend chart ---- */
+.trend{display:block;width:100%;height:auto;max-height:300px}
+.trend .gl{stroke:var(--line);stroke-width:1}
+.trend text{fill:var(--muted);font:13.5px var(--body);font-variant-numeric:tabular-nums}
+.trend .ln{fill:none;stroke:var(--c);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.trend .ar{fill:var(--c);opacity:.12}
+.trend .goal{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:4 4}
+.trend .end{fill:var(--c);stroke:var(--sheet);stroke-width:2}
+.trend .xh{stroke:var(--muted);stroke-width:1;opacity:0}
+.trend .hot{fill:var(--c);stroke:var(--sheet);stroke-width:2;opacity:0}
+.trend .lab{fill:var(--ink);font-weight:700}
+
+/* ---- tables ---- */
+.tbl{overflow-x:auto;padding:0 8px 12px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;font-variant-numeric:tabular-nums}
+th{font-size:12.5px;font-weight:700;color:var(--muted);text-align:right;padding:10px 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:bottom}
 th.l,td.l{text-align:left}
-td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap;color:var(--ink);vertical-align:middle}
+td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle;min-height:40px}
 tr:last-child td{border-bottom:none}
-tbody tr:hover td{background:var(--tile)}
-td .cl{font-weight:700;color:var(--head)}
-td .id{color:var(--ink3);font-size:12px;margin-left:5px}
-td .sub{display:block;color:var(--ink2);font-size:12px;margin-top:1px}
-td.dim,td .dim{color:var(--ink3)}
+tbody tr:hover td{background:var(--glass-hi)}
+td .cl{font-weight:700}
+td .id{color:var(--muted);font-size:13px;margin-left:6px}
+td .sub{display:block;color:var(--muted);font-size:13px}
+td.dim,td .dim{color:var(--muted)}
 td .neg{color:var(--bad)}
-.tag{display:inline-block;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--tile);color:var(--ink2);border:1px solid var(--hair)}
-.tag.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
-.tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
-.av{display:block;font-size:12px;line-height:1.5;white-space:nowrap}
-.av code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:var(--tile);border:1px solid var(--hair);padding:0 4px;border-radius:3px;color:var(--ink)}
-ul.acts{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}
-ul.acts li{display:grid;grid-template-columns:3.2em 1fr;align-items:baseline;column-gap:8px}
-ul.acts b{font-family:Montserrat,sans-serif;font-size:20px;font-variant-numeric:tabular-nums;text-align:right;color:var(--ink)}
-ul.acts b.zero{color:var(--ink3)}
-ul.acts .sub{grid-column:2;display:block;color:var(--ink2);font-size:12px}
-/* mark-sent control - the one place the page writes anything */
-button.tag{cursor:pointer;font-family:Montserrat,sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;background:var(--surface);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);transition:background .12s,color .12s,border-color .12s}
-button.tag:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-button.tag:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-button.tag[disabled]{cursor:default;background:var(--tile);color:var(--ink3);border-color:var(--hair)}
-/* a recorded send is a button too: one click arms "Undo send?", a second confirms */
-button.tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
-button.tag.good:hover{background:var(--good);color:var(--accent-ink);border-color:var(--good)}
-button.tag.confirm,button.tag.confirm:hover{background:var(--bad);color:var(--accent-ink);border-color:var(--bad)}
-#note{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;background:var(--head);color:var(--bg);font-size:13px;line-height:1.4;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.28);max-width:min(520px,88vw);opacity:0;pointer-events:none;transition:opacity .15s}
-#note.on{opacity:1}
+th.sortable{padding:0}
+th.sortable button{appearance:none;background:none;border:0;margin:0;width:100%;font:inherit;color:inherit;text-align:inherit;cursor:pointer;padding:10px 10px 8px;display:block;min-height:44px}
+th.sortable button:hover{color:var(--ink)}
+th.sortable .arr{font-size:10px;opacity:.45;margin-left:4px}
+th.sortable[aria-sort="ascending"] button,th.sortable[aria-sort="descending"] button{color:var(--ink)}
+th.sortable[aria-sort="ascending"] .arr,th.sortable[aria-sort="descending"] .arr{opacity:1;color:var(--accent-ink)}
+.rdy th.sortable button{text-align:left}
+.peer td{background:var(--fill);color:var(--muted)}
+.peer td .cl{font-weight:700;color:var(--muted)}
+.av{display:block;font-size:13px;line-height:1.5;white-space:nowrap}
+.av code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--fill);padding:0 5px;border-radius:5px}
+.empty{padding:22px 18px;color:var(--muted)}
 .spark{display:block;width:120px;height:32px}
-.spark path.ln{fill:none;stroke:var(--c);stroke-width:1.75;stroke-linejoin:round;stroke-linecap:round}
+.spark path.ln{fill:none;stroke:var(--c);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
 .spark path.ar{fill:var(--c);opacity:.12}
-.spark path.gl{fill:none;stroke:var(--ink3);stroke-width:1;stroke-dasharray:2 3}
+.spark path.gl{fill:none;stroke:var(--muted);stroke-width:1;stroke-dasharray:2 3}
 .spark circle{fill:var(--c)}
-.spark circle.pt{fill:var(--surface);stroke:var(--c);stroke-width:1.5}
+.spark circle.pt{fill:var(--sheet);stroke:var(--c);stroke-width:1.5}
 .spark rect.hit{fill:transparent}
-.peer td{background:var(--rowalt);color:var(--ink2);font-style:italic}
-.peer td .cl{color:var(--ink2);font-weight:600;font-style:normal}
-.empty{padding:26px 20px;color:var(--ink2)}
 
-/* readiness */
-.rdy td .st{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-.rdy td .st i{width:9px;height:9px;border-radius:50%;flex:none}
-.rdy .ok i{background:var(--good)} .rdy .no i{background:var(--bad)} .rdy .unk i{background:var(--muted)}
-.rdy td .need{display:block;color:var(--ink2);font-size:12px;margin-top:2px;white-space:normal}
-.rdy td .ins{display:flex;flex-wrap:wrap;gap:4px}
-.rdy td .in{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 8px;
-  border-radius:999px;border:1px solid var(--hair);background:var(--chip-bg);color:var(--ink2);white-space:nowrap}
-.rdy td .in i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--c,var(--muted))}
-.rdy td .in.miss{border-color:color-mix(in srgb,var(--bad) 45%,transparent);color:var(--bad)}
-.rdy td .in.stale{border-color:color-mix(in srgb,var(--warn) 50%,transparent);color:var(--warn)}
-/* sortable readiness headers - the button carries the th's padding so the header
-   looks exactly as it did, and the whole cell is the click and keyboard target */
-.rdy th.sortable{padding:0}
-.rdy th.sortable button{appearance:none;background:none;border:0;margin:0;width:100%;font:inherit;
-  letter-spacing:inherit;text-transform:inherit;color:inherit;text-align:left;cursor:pointer;
-  padding:10px 10px 8px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.rdy th.sortable button:hover{color:var(--ink)}
-.rdy th.sortable button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:4px}
-.rdy th.sortable .arr{font-size:10px;letter-spacing:0;opacity:.4}
-.rdy th.sortable[aria-sort="ascending"] button,.rdy th.sortable[aria-sort="descending"] button{color:var(--head)}
-.rdy th.sortable[aria-sort="ascending"] .arr,.rdy th.sortable[aria-sort="descending"] .arr{opacity:1;color:var(--accent)}
-/* sortable product-section tables: the button keeps the header's own alignment and sub-label */
-section.prog th.sortable{padding:0}
-section.prog th.sortable button{appearance:none;background:none;border:0;margin:0;width:100%;font:inherit;
-  letter-spacing:inherit;text-transform:inherit;color:inherit;text-align:inherit;cursor:pointer;
-  padding:10px 10px 8px;display:block}
-section.prog th.sortable button:hover{color:var(--ink)}
-section.prog th.sortable button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:4px}
-section.prog th.sortable .arr{font-size:10px;letter-spacing:0;opacity:.4;margin-left:4px}
-section.prog th.sortable[aria-sort="ascending"] button,section.prog th.sortable[aria-sort="descending"] button{color:var(--head)}
-section.prog th.sortable[aria-sort="ascending"] .arr,section.prog th.sortable[aria-sort="descending"] .arr{opacity:1;color:var(--accent)}
+/* ---- roster ---- */
+.st{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-weight:700}
+.st .ic{width:20px;height:20px}
+.need{display:block;color:var(--muted);font-size:13px;white-space:normal;font-weight:400}
+.ins{display:flex;flex-wrap:wrap;gap:5px;white-space:normal}
+.in{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:1px 9px;border-radius:999px;background:var(--fill);white-space:nowrap}
+.in i{width:7px;height:7px;border-radius:50%;background:var(--c,var(--muted));flex:none}
+.in.miss{background:var(--bad-soft);color:var(--bad)} .in.stale{background:var(--warn-soft);color:var(--warn)}
+.dots{display:inline-flex;gap:4px;vertical-align:middle}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--c);display:inline-block}
+.dots i.off{background:var(--fill)}
+.tagbtn{cursor:pointer;min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--accent-ink);background:none;color:var(--accent-ink);font-size:13.5px;font-weight:700}
+.tagbtn:hover{background:var(--accent);color:var(--on-accent)}
+.tagbtn[disabled]{cursor:default;border-color:var(--line);color:var(--muted);background:var(--fill)}
+.tagbtn.good{border-color:var(--good);color:var(--good)} .tagbtn.good:hover{background:var(--good);color:var(--on-accent)}
+.tagbtn.confirm,.tagbtn.confirm:hover{background:var(--bad);border-color:var(--bad);color:#fff}
+.skel{display:inline-block;width:92px;height:22px;border-radius:999px;background:linear-gradient(90deg,var(--fill),var(--glass-hi),var(--fill));background-size:200% 100%;animation:sh 1.1s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.rp{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
 
-/* client roster table */
-.roster td .dots{display:inline-flex;gap:4px;vertical-align:middle}
-.roster td .dots i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block}
-.roster td .dots i.off{background:var(--track)}
-
-/* tooltip */
-#tip{position:fixed;pointer-events:none;z-index:50;background:var(--head);color:var(--bg);font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:280px;opacity:0;transition:opacity .08s;font-variant-numeric:tabular-nums}
+/* ---- tooltip, toast ---- */
+#tip{position:fixed;pointer-events:none;z-index:70;background:var(--sheet);color:var(--ink);border:1px solid var(--glass-line);font-size:13.5px;line-height:1.35;padding:8px 11px;border-radius:10px;box-shadow:var(--shadow);max-width:290px;opacity:0;transition:opacity .08s;font-variant-numeric:tabular-nums}
 #tip.on{opacity:1}
-#tip b{font-family:Montserrat,sans-serif;font-size:12px;display:block;margin-bottom:2px}
-:root[data-theme="dark"] #tip, :root:not([data-theme="light"]) #tip{color:var(--bg)}
-footer{color:var(--ink3);font-size:12.5px;margin-top:10px;line-height:1.5;max-width:80ch}
-footer p{margin:4px 0}
-footer ul.prov{margin:6px 0 8px;padding-left:18px}
-footer ul.prov li{margin:3px 0}
-footer ul.prov b{color:var(--ink2);font-family:Montserrat,sans-serif;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+#tip b{display:block;font:700 13px var(--display);margin-bottom:2px}
+#note{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;background:var(--navy);color:var(--ground);font-size:14px;padding:11px 16px;border-radius:12px;box-shadow:var(--shadow);max-width:min(520px,88vw);opacity:0;pointer-events:none;transition:opacity .15s}
+#note.on{opacity:1}
+
+/* ---- Live Review commands (Aaron, 2026-11-03) ---- */
+#lrbox{width:min(720px,calc(100vw - 32px));border:1px solid var(--glass-line);border-radius:20px;background:var(--sheet);color:var(--ink);padding:18px;box-shadow:var(--shadow)}
+#lrbox::backdrop{background:rgba(11,19,43,.5)}
+#lrbox h3{margin:0 0 4px;font:700 17px var(--display)}
+#lrbox p{margin:0 0 10px;color:var(--muted);font-size:14px}
+#lrbox textarea{width:100%;height:240px;resize:vertical;border-radius:12px;border:1px solid var(--line);background:var(--fill);color:var(--ink);padding:10px;font:13px/1.45 Consolas,Menlo,monospace}
+#lrbox .row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+
+/* ---- sources ---- */
+details.src{border-radius:18px;border:1px solid var(--glass-line);background:var(--surface);padding:6px 18px}
+details.src summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font:700 15px var(--display)}
+details.src ul{margin:4px 0 12px;padding-left:18px;color:var(--muted);font-size:14px}
+details.src li{margin:5px 0}
+details.src li b{color:var(--ink)}
+
+/* ---- phone: bottom bar ---- */
+.bottom{display:none}
+@media (max-width:1100px){.two{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:1100px){.kpis[data-n="6"]{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr);gap:0;padding-block:10px 96px}
+  .side{display:none}
+  .bottom{display:flex;position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;gap:2px;padding:6px;border-radius:26px;
+    background:var(--glass);border:1px solid var(--glass-line);box-shadow:var(--shadow);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+  .bottom button{flex:1;min-width:0;min-height:48px;border:0;background:none;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11.5px;cursor:pointer}
+  .bottom button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .bottom button .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+  .bottom button[aria-current="page"]{background:var(--glass-hi);font-weight:700}
+  .bar{border-radius:24px}
+  .vh h1{font-size:25px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi .v{font-size:23px}
+}
+.sheetm{position:fixed;left:10px;right:10px;bottom:calc(82px + env(safe-area-inset-bottom,0px));z-index:61;display:none;flex-direction:column;padding:8px;border-radius:22px;background:var(--sheet);border:1px solid var(--glass-line);box-shadow:var(--shadow)}
+.sheetm.on{display:flex}
+.sheetm a,.sheetm button{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 12px;border:0;background:none;border-radius:14px;text-decoration:none;color:var(--ink);font-size:15.5px;cursor:pointer;text-align:left}
+.sheetm a:hover,.sheetm button:hover{background:var(--glass-hi)}
+.sheetm svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
-<div class="wrap">
-  <header class="top">
-    <div>
-      <div class="eyebrow">CSI Velocity &middot; Retail Performance Engine</div>
-      <h1>RPE Client Performance</h1>
-      <div class="updated" id="updated"></div>
-      <a class="doclink" href="workflow.html">How the decks are made &rarr;</a>
+<div class="glow"></div>
+<div class="app" id="app">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" role="img" aria-label="Two stacked slides"><rect id="mk-back" x="12" y="6" width="24" height="18" rx="4"/><rect id="mk-front" x="4" y="14" width="24" height="18" rx="4"/></svg>
+      <div><b>RPE Performance</b><small id="who">Your clients</small></div>
+      <button class="fold" id="fold" type="button" aria-label="Fold the sidebar"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
     </div>
-    <div class="pill" id="periodpill"></div>
-  </header>
-
-  <div class="filters" role="group" aria-label="Filters">
-    <div class="frow">
-      <span class="eyebrow">CSM</span>
-      <div class="chips"><button type="button" class="chip all" id="resetCsm" aria-pressed="true">All</button><span class="chipset" id="csmchips"></span></div>
+    <nav class="nav" id="nav"></nav>
+  </aside>
+  <main>
+    <div class="bar">
+      <label class="find"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="q" type="search" placeholder="Name or number" aria-label="Find a client" autocomplete="off"><kbd>/</kbd></label>
+      <span class="pill" id="updated"></span>
+      <button class="btn" id="theme" type="button"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><span id="themelbl">Night</span></button>
     </div>
-    <div class="frow">
-      <span class="eyebrow">Products</span>
-      <div class="chips"><button type="button" class="chip all" id="resetProg" aria-pressed="true">All</button><span class="chipset" id="progchips"></span></div>
+    <div class="view" id="view" aria-live="polite">
+      <div class="kpis"><div class="kpi"><span class="skel"></span></div><div class="kpi"><span class="skel"></span></div><div class="kpi"><span class="skel"></span></div></div>
     </div>
-    <div class="frow">
-      <span class="eyebrow">Clients</span>
-      <div class="chips"><button type="button" class="chip all" id="resetClient" aria-pressed="true">All</button><button type="button" class="chip fold" id="toggleClients" aria-expanded="false" aria-controls="clientchips">Show clients</button><span class="chipset" id="clientchips" hidden></span></div>
-    </div>
-    <div class="fkey"><span><i style="background:var(--chip-all);border-color:var(--chip-all-line)"></i>Whole row selected</span><span><i style="background:var(--chip-on);border-color:var(--chip-on)"></i>Selected</span><span><i style="background:var(--chip-off);border-color:var(--hair)"></i>Not selected</span></div>
-  </div>
-
-  <div class="strip" id="strip"></div>
-  <div id="sections"></div>
-  <section class="prog roster rdy" id="rostersec"></section>
-  <footer id="foot"></footer>
+  </main>
 </div>
+<nav class="bottom" id="bottom" aria-label="Sections"></nav>
+<div class="sheetm" id="sheetm"></div>
 <div id="tip" role="tooltip"></div>
 <div id="note" role="status" aria-live="polite"></div>
 
 <script>
 const DATA = __DATA__;
 const PROGS = [
-  {k:"ARS", name:"Account Revenue Solution", short:"ARS", c:"var(--ars)"},
-  {k:"ICS", name:"Invitation Checking System", short:"ICS", c:"var(--ics)"},
-  {k:"MRPC", name:"MyRewards Premium Cards", short:"MRPC", c:"var(--mrpc)"},
-  {k:"CP", name:"CashPlease", short:"CashPlease", c:"var(--cp)"},
+  {k:"ARS", name:"Account Revenue Solution", short:"ARS", c:"var(--c-ars)", hash:"ars"},
+  {k:"ICS", name:"Invitation Checking System", short:"ICS", c:"var(--c-ics)", hash:"ics"},
+  {k:"MRPC", name:"MyRewards Premium Cards", short:"MRPC", c:"var(--c-mrpc)", hash:"mrpc"},
+  {k:"CP", name:"CashPlease", short:"CashPlease", c:"var(--c-cp)", hash:"cp"},
 ];
 const PK = Object.fromEntries(PROGS.map(p=>[p.k,p]));
 const clients = DATA.clients;
+const SCOPE = DATA.scope || {csm:"", clients:clients.length, programs:{}};
 
 // ---------- sent state
 // deliveries.json is the record, and DATA carries it. A click here writes a row
@@ -275,6 +308,7 @@ const clients = DATA.clients;
 // those rows into deliveries.json, so the page never becomes a second ledger.
 // Sent is keyed on the DECK's period, not the cycle's - the same key the log uses.
 let DB = null;            // db namespace once it resolves; null = this view cannot write
+let DBSTATE = "pending";  // pending until the store answers or is known to be absent
 let MARKS = new Map();    // docId -> row recorded from the page (a send, or an undo)
 const BUSY = new Set();   // docId mid-write
 let ARMED = null;         // docId whose sent date was clicked once and awaits the confirming click
@@ -284,15 +318,12 @@ const ARM_MS = 5000;
 function today(){ const d=new Date(), p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 
-// ---------- the Build readiness period (Aaron, 2026-10-12: "an option to change the
-// reporting period for the Build Readiness section. It should clear the Sent list and
-// reset it for the current period.")
+// ---------- the Build readiness period
 // The section shows ONE period at a time: its readiness, the decks built FOR it, and the
 // sends recorded AGAINST it. Switching the period swaps all three, so the Sent column
-// starts clean for the period chosen - nothing from the previous period is carried over,
-// and a send marked here is recorded against the period showing. The choice is shared:
-// it lives in the artifact's store so every viewer sees the same period, with this
-// browser's last choice as the fallback for a saved copy.
+// starts clean for the period chosen, and a send marked here is recorded against the period showing.
+// The choice is shared: it lives in the artifact's store so every viewer sees the same period,
+// with this browser's last choice as the fallback for a saved copy.
 const RPERIODS = (DATA.readiness_periods && DATA.readiness_periods.length) ? DATA.readiness_periods : [DATA.period];
 const RPERIOD_KEY = "rpe-dash-rperiod";
 let rPeriod = RPERIODS.includes(DATA.period) ? DATA.period : RPERIODS[RPERIODS.length-1];
@@ -360,18 +391,19 @@ function whyFailed(err){
 
 function sentCell(c){
   const s = sentState(c), k = sentDoc(c);
-  if (k && BUSY.has(k)) return `<button class="tag" disabled>saving\u2026</button>`;
+  if (k && BUSY.has(k)) return `<button class="tagbtn" disabled>saving\u2026</button>`;
+  if (DBSTATE === "pending" && !s) return `<span class="skel" aria-label="loading sent records"></span>`;
   if (s){
-    if (!DB) return `<span class="tag good">sent ${esc(s.date)}</span>`;
-    if (ARMED === k) return `<button class="tag confirm" data-unsend="${esc(k)}" ` +
+    if (!DB) return `<span class="chip good">sent ${esc(s.date)}</span>`;
+    if (ARMED === k) return `<button class="tagbtn confirm" data-unsend="${esc(k)}" ` +
       `title="Click again to remove the ${esc(s.date)} send record. Click anywhere else or press Esc to keep it.">Undo send?</button>`;
-    return `<button class="tag good" data-unsend="${esc(k)}" ` +
+    return `<button class="tagbtn good" data-unsend="${esc(k)}" ` +
       `title="Sent ${esc(s.date)} \u2014 click to undo">sent ${esc(s.date)}</button>`;
   }
   const v = rv(c);
-  if (!v.built) return `<span class="tag" title="no deck has been built for this client for ${esc(v.P)}">not recorded</span>`;
-  if (!DB) return `<span class="tag">not recorded</span>`;
-  return `<button class="tag" data-mark="${esc(k)}" title="Not recorded \u2014 click to record the ${esc(v.P)} deck as sent today">Mark sent</button>`;
+  if (!v.built) return `<span class="chip soft" title="no deck has been built for this client for ${esc(v.P)}">not recorded</span>`;
+  if (!DB) return `<span class="chip soft">not recorded</span>`;
+  return `<button class="tagbtn" data-mark="${esc(k)}" title="Not recorded \u2014 click to record the ${esc(v.P)} deck as sent today">Mark sent</button>`;
 }
 
 document.addEventListener("keydown", e => { if (e.key === "Escape" && ARMED !== null) disarm(); });
@@ -427,11 +459,11 @@ document.addEventListener("click", async e => {
 
 (async function initDb(){
   const use = (typeof window !== "undefined" && window.claude && window.claude.use);
-  if (typeof use !== "function") return;          // saved copy or plain host: read-only
+  if (typeof use !== "function"){ DBSTATE = "none"; return; }   // saved copy or plain host: read-only
   let db = null;
   try { db = await window.claude.use("db"); } catch(e){ db = null; }
-  if (!db) return;                                 // not granted / not served: read-only
-  DB = db;
+  if (!db){ DBSTATE = "none"; update(); return; }              // not granted / not served: read-only
+  DB = db; DBSTATE = "ready";
   try {
     db.collection("deliveries").onSnapshot(
       snap => { MARKS = new Map(snap.docs.filter(d=>d.exists).map(d => [d.id, d.data()||{}]));
@@ -451,66 +483,6 @@ document.addEventListener("click", async e => {
   update();                                        // reveal the buttons
 })();
 
-// ---------- CSM
-// Who owns a client comes from the data - the reports share's account-manager folders,
-// resolved by the refresh - never from this page. A client with no known CSM is grouped
-// as Unassigned and says so, rather than being filed under whoever seems likely.
-const UNASSIGNED = "Unassigned";
-const csmOf = c => c.csm || UNASSIGNED;
-const CSMS = [...new Set(clients.map(csmOf))]
-  .sort((a,b)=>(a===UNASSIGNED)-(b===UNASSIGNED) || a.localeCompare(b));
-
-// ---------- state
-let selCsms = new Set(CSMS);
-let selProgs = new Set(PROGS.map(p=>p.k));
-let selClients = new Set(clients.map(c=>c.id));
-// "All" is saved as null, never as the list it happened to be. The page gains clients and
-// CSMs over time, and a saved list of yesterday's "all" would silently hide every newcomer:
-// the first all-clients build opened on Aaron's 20 because "all" had been saved as those 20.
-// The key is versioned so selections saved under the old rule are ignored.
-const FILTER_KEY = "rpe-dash-filter-v2";
-try {
-  const s = JSON.parse(localStorage.getItem(FILTER_KEY)||"null");
-  if (s) {
-    // null = all (the default). [] = a deliberate empty selection (Aaron, 2026-09-14: allow
-    // zero). A saved list whose every entry has since gone falls back to all, because that
-    // blank page would have no visible cause.
-    const restore = (saved, valid) => {
-      if (!Array.isArray(saved)) return null;
-      if (!saved.length) return new Set();
-      const kept = saved.filter(valid);
-      return kept.length ? new Set(kept) : null;
-    };
-    selProgs = restore(s.p, k=>PK[k]) || selProgs;
-    selClients = restore(s.c, id=>clients.some(x=>x.id===id)) || selClients;
-    selCsms = restore(s.m, k=>CSMS.includes(k)) || selCsms;
-  }
-} catch(e){}
-// A saved client selection with nobody under the saved CSMs is stale, not a choice: reset it
-// once, here on load. It used to be reset on every render, which undid a deliberate empty one.
-if (selClients.size && selCsms.size && !clients.some(c=>selCsms.has(csmOf(c)) && selClients.has(c.id)))
-  selClients = new Set(clients.map(c=>c.id));
-function persist(){
-  const pick = (set, n) => set.size===n ? null : [...set];
-  try{ localStorage.setItem(FILTER_KEY, JSON.stringify({m:pick(selCsms, CSMS.length), p:pick(selProgs, PROGS.length), c:pick(selClients, clients.length)})); }catch(e){}
-}
-const inCsm = c => selCsms.has(csmOf(c));
-// A client with no program data this month is still a current client: it is listed while
-// every product is selected, and has no product to match once products are narrowed.
-const inProducts = c => c.programs.length ? c.programs.some(k=>selProgs.has(k)) : selProgs.size===PROGS.length;
-
-// Build readiness sort: one column at a time, ascending -> descending -> off.
-// Off is client id order, the order the data arrives in, so the table can always
-// be put back the way it was. Per viewer, so it lives in localStorage, and a stored
-// value this page does not recognise is ignored rather than trusted.
-const RSORT_KEYS = ["client","products","ready","inputs","deck","sent"];
-let rSort = {k:null, dir:1};
-try {
-  const s = JSON.parse(localStorage.getItem("rpe-dash-rsort")||"null");
-  if (s && RSORT_KEYS.includes(s.k) && (s.dir===1 || s.dir===-1)) rSort = {k:s.k, dir:s.dir};
-} catch(e){}
-function persistSort(){ try{ localStorage.setItem("rpe-dash-rsort", JSON.stringify(rSort)); }catch(e){} }
-
 // ---------- formatters
 const nf0 = new Intl.NumberFormat("en-US",{maximumFractionDigits:0});
 const nf1 = new Intl.NumberFormat("en-US",{minimumFractionDigits:1,maximumFractionDigits:1});
@@ -525,12 +497,28 @@ const monLabel = m => { // "2026-08" -> "Aug '26"
   if(!m) return ""; const [y,mm]=m.split("-"); const names=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return names[+mm-1]+" \u2019"+y.slice(2); };
 const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const sum = (arr,f) => arr.reduce((a,c)=>a+(f(c)||0),0);
+
+// ---------- icons (drawn here; the page loads no icon font)
+const IC = {
+  grid:'<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>',
+  list:'<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+  alert:'<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
+  book:'<path d="M5 5a2 2 0 012-2h11v16H7a2 2 0 00-2 2z"/><path d="M5 19a2 2 0 012-2h11"/>',
+  more:'<path d="M5 12h.01M12 12h.01M19 12h.01"/>',
+  ok:'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>',
+  no:'<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  unk:'<circle cx="12" cy="12" r="9"/>',
+  moon:'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'
+};
+const ico = (k, cls="") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg>`;
 
 // ---------- tooltip
 const tip = document.getElementById("tip");
 function showTip(html, e){ tip.innerHTML = html; tip.classList.add("on"); moveTip(e); }
 function moveTip(e){ const x=e.clientX, y=e.clientY; const w=tip.offsetWidth, h=tip.offsetHeight;
-  tip.style.left = Math.min(x+14, window.innerWidth-w-8)+"px"; tip.style.top = (y+16+h>window.innerHeight? y-h-10 : y+16)+"px"; }
+  tip.style.left = Math.max(8, Math.min(x+14, window.innerWidth-w-8))+"px"; tip.style.top = (y+16+h>window.innerHeight? y-h-10 : y+16)+"px"; }
 function hideTip(){ tip.classList.remove("on"); }
 document.addEventListener("mouseover", e=>{ const t=e.target.closest("[data-tip]"); if(t) showTip(t.dataset.tip, e); });
 document.addEventListener("mousemove", e=>{ if(tip.classList.contains("on")) moveTip(e); });
@@ -560,10 +548,12 @@ function spark(series, opts={}){
 }
 
 // ---------- ranked bars
+let rankMode = {};   // per program: "chart" or "table"
+function niceMax(v){ if(v<=0) return 1; const p=Math.pow(10, Math.floor(Math.log10(v))); const m=v/p; return (m<=1?1:m<=2?2:m<=5?5:10)*p; }
 function bars(rows, opts={}){
   // rows: [{name, id, v, tipHtml, marker?}] ; opts: {c, fmt, max}
   const valid = rows.filter(r=>r.v!=null);
-  if(!valid.length) return `<div class="empty">No figures for the selected clients.</div>`;
+  if(!valid.length) return `<div class="empty">No figures for the clients shown.</div>`;
   const max = opts.max ?? Math.max(...valid.map(r=>Math.abs(r.v)), ...(valid.map(r=>r.marker??0)));
   return `<div class="bars" style="--c:${opts.c}">` + valid.sort((a,b)=>b.v-a.v).map(r=>{
     const w = Math.max(0, Math.abs(r.v)/(max||1)*100);
@@ -571,121 +561,113 @@ function bars(rows, opts={}){
     return `<div class="hit" data-tip="${esc(r.tipHtml||'')}"><span class="nm">${esc(r.name)}</span><span class="tr"><span class="bar ${r.v<0?'neg':''}" style="width:${w.toFixed(1)}%"></span>${mk}</span><span class="vl">${opts.fmt(r.v)}</span></div>`;
   }).join("") + `</div>`;
 }
+function rankTable(rows, opts){
+  const valid = rows.filter(r=>r.v!=null).sort((a,b)=>b.v-a.v);
+  if(!valid.length) return `<div class="empty">No figures for the clients shown.</div>`;
+  return `<div class="tbl" style="padding:0"><table><thead><tr><th class="l">Client</th><th>${esc(opts.label||"Value")}</th></tr></thead><tbody>` +
+    valid.map(r=>`<tr><td class="l"><span class="cl">${esc(r.name)}</span><span class="id">${esc(r.id||"")}</span></td><td>${opts.fmt(r.v)}</td></tr>`).join("") + `</tbody></table></div>`;
+}
+function rankCard(p, title, cap, rows, opts){
+  const mode = rankMode[p.k] || "chart";
+  const body = mode === "table" ? rankTable(rows, opts) : bars(rows, opts) + (opts.legend || "");
+  return `<section class="card"><header><h2>${esc(title)}</h2>` +
+    `<div class="seg" role="group" aria-label="View as"><button type="button" data-rank="${p.k}:chart" aria-pressed="${mode!=="table"}">Chart</button><button type="button" data-rank="${p.k}:table" aria-pressed="${mode==="table"}">Table</button></div>` +
+    `<p class="sub">${cap}</p></header><div class="pad">${body}</div></section>`;
+}
 
-// ---------- filters UI
-// The All chip leading each row is green while its whole row is selected.
-function markAllChips(){
-  const scoped = clients.filter(inCsm);
-  [["resetCsm", selCsms.size===CSMS.length], ["resetProg", selProgs.size===PROGS.length],
-   ["resetClient", scoped.length>0 && scoped.every(c=>selClients.has(c.id))]].forEach(([id, on])=>{
-    const b = document.getElementById(id);
-    b.classList.toggle("in", on); b.setAttribute("aria-pressed", String(on));
+// ---------- trend chart (SVG, drawn to the data)
+// series: [{name, c, vals:[..], dash?}], labels: [..]; the first series is the area line.
+function trendChart(id, labels, series, opts={}){
+  if(!labels.length) return `<div class="empty">No monthly series for the clients shown.</div>`;
+  const W=640, H=260, L=52, R=74, T=18, B=32, n=labels.length;
+  const all = series.flatMap(s=>s.vals.filter(v=>v!=null));
+  const top = niceMax(Math.max(...all, 1)), min = 0;
+  const x = i => n===1 ? (L+W-R)/2 : L + i*(W-L-R)/(n-1);
+  const y = v => T + (H-T-B) * (1 - (v-min)/(top-min||1));
+  const fmt = opts.fmt || N;
+  let g = "";
+  for(let k=0;k<=4;k++){ const v = top*k/4, yy = y(v).toFixed(1);
+    g += `<line class="gl" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-8}" y="${(+yy+4).toFixed(1)}" text-anchor="end">${esc(opts.tick ? opts.tick(v) : fmt(v))}</text>`; }
+  const every = Math.ceil(n/6);
+  labels.forEach((lb,i)=>{ if((n-1-i)%every===0) g += `<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(lb)}</text>`; });
+  let body = "";
+  series.forEach((s,si)=>{
+    let d=""; s.vals.forEach((v,i)=>{ if(v==null) return; d += (d?" L":"M")+x(i).toFixed(1)+" "+y(v).toFixed(1); });
+    if(!d) return;
+    if(si===0){
+      const idx = s.vals.map((v,i)=>v==null?-1:i).filter(i=>i>=0), a = idx[0], z = idx[idx.length-1];
+      body += `<path class="ar" style="--c:${s.c}" d="${d} L${x(z).toFixed(1)} ${y(0).toFixed(1)} L${x(a).toFixed(1)} ${y(0).toFixed(1)} Z"/>`;
+      body += `<path class="ln" style="--c:${s.c}" d="${d}"/>`;
+      body += `<circle class="end" style="--c:${s.c}" cx="${x(z).toFixed(1)}" cy="${y(s.vals[z]).toFixed(1)}" r="4.5"/>`;
+      body += `<text class="lab" x="${(x(z)+9).toFixed(1)}" y="${(y(s.vals[z])+4).toFixed(1)}">${esc(fmt(s.vals[z]))}</text>`;
+    } else body += `<path class="goal" d="${d}"/>`;
   });
+  const hot = `<line class="xh" id="${id}-xh" y1="${T}" y2="${H-B}"/><circle class="hot" id="${id}-hot" style="--c:${series[0].c}" r="5"/>`;
+  const svg = `<svg class="trend" id="${id}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.aria||"trend")}" data-n="${n}">${g}${body}${hot}` +
+    `<rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent" data-trend="${id}"/></svg>`;
+  TRENDS[id] = {labels, series, x, y, fmt, W, L, R};
+  const legend = series.length>1 ? `<div class="legend">${series.map((s,i)=>i===0?`<span><b style="--c:${s.c}"></b>${esc(s.name)}</span>`:`<span><i style="opacity:.5"></i>${esc(s.name)}</span>`).join("")}</div>` : "";
+  return svg + legend;
 }
-// The Clients row runs to ninety chips across every CSM, so it folds (Aaron, 2026-09-14).
-// Closed by default and remembered per viewer; closed, the toggle says how far the row is narrowed.
-const FOLD_KEY = "rpe-dash-clients-open";
-let clientsOpen = false;
-try { clientsOpen = localStorage.getItem(FOLD_KEY) === "1"; } catch(e){}
-function renderClientFold(){
-  const b = document.getElementById("toggleClients"), set = document.getElementById("clientchips");
-  const scoped = clients.filter(inCsm), picked = scoped.filter(c=>selClients.has(c.id)).length;
-  set.hidden = !clientsOpen;
-  b.setAttribute("aria-expanded", String(clientsOpen));
-  b.textContent = clientsOpen ? "Hide clients"
-    : (picked === scoped.length ? `Show ${scoped.length} clients` : `Show clients (${picked} of ${scoped.length} selected)`);
+const TRENDS = {};
+document.addEventListener("mousemove", e=>{
+  const r = e.target.closest && e.target.closest("[data-trend]"); if(!r) return;
+  const id = r.getAttribute("data-trend"), T = TRENDS[id]; if(!T) return;
+  const svg = document.getElementById(id), box = svg.getBoundingClientRect(), sx = T.W/box.width;
+  const px = (e.clientX-box.left)*sx, n = T.labels.length;
+  let i = n===1 ? 0 : Math.round((px-T.L)/((T.W-T.L-T.R)/(n-1))); i = Math.max(0, Math.min(n-1, i));
+  const xh = document.getElementById(id+"-xh"), hot = document.getElementById(id+"-hot");
+  const v0 = T.series[0].vals[i];
+  xh.setAttribute("x1", T.x(i)); xh.setAttribute("x2", T.x(i)); xh.style.opacity = .5;
+  if(v0!=null){ hot.setAttribute("cx", T.x(i)); hot.setAttribute("cy", T.y(v0)); hot.style.opacity = 1; } else hot.style.opacity = 0;
+  showTip(`<b>${esc(T.labels[i])}</b>` + T.series.map(s=>s.vals[i]==null?"":`${esc(s.name)}: ${esc(T.fmt(s.vals[i]))}`).filter(Boolean).join("<br>"), e);
+});
+document.addEventListener("mouseout", e=>{
+  const r = e.target.closest && e.target.closest("[data-trend]"); if(!r || r.contains(e.relatedTarget)) return;
+  const id = r.getAttribute("data-trend");
+  const xh = document.getElementById(id+"-xh"), hot = document.getElementById(id+"-hot");
+  if(xh) xh.style.opacity = 0; if(hot) hot.style.opacity = 0; hideTip();
+});
+function trendCard(p, title, sub, html, tableRows){
+  const mode = rankMode["t"+p.k] || "chart";
+  const body = mode === "table"
+    ? `<div class="tbl" style="padding:0"><table><thead><tr><th class="l">Month</th>${tableRows.head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+      tableRows.rows.map(r=>`<tr><td class="l">${esc(r[0])}</td>${r.slice(1).map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("") + `</tbody></table></div>`
+    : html;
+  return `<section class="card"><header><h2>${esc(title)}</h2>` +
+    `<div class="seg" role="group" aria-label="View as"><button type="button" data-rank="t${p.k}:chart" aria-pressed="${mode!=="table"}">Chart</button><button type="button" data-rank="t${p.k}:table" aria-pressed="${mode==="table"}">Table</button></div>` +
+    `<p class="sub">${sub}</p></header><div class="pad">${body}</div></section>`;
 }
-document.getElementById("toggleClients").onclick = ()=>{
-  clientsOpen = !clientsOpen;
-  try { localStorage.setItem(FOLD_KEY, clientsOpen ? "1" : "0"); } catch(e){}
-  renderClientFold();
-};
-function renderChips(){
-  const mc = document.getElementById("csmchips");
-  const allM = selCsms.size===CSMS.length;
-  mc.innerHTML = CSMS.map(m=>{
-    const n = clients.filter(c=>csmOf(c)===m).length;
-    const tip = m===UNASSIGNED ? "No account-manager folder, clients.md CSM column or settings record names a CSM for these clients" : `${n} client${n===1?"":"s"}`;
-    return `<button class="chip ${allM?'in':(selCsms.has(m)?'on':'')}" data-csm="${esc(m)}" aria-pressed="${selCsms.has(m)}" title="${esc(tip)}">${esc(m)}<span class="ct">${n}</span></button>`;
-  }).join("");
-  const pc = document.getElementById("progchips");
-  const scoped = clients.filter(inCsm);
-  const allP = selProgs.size===PROGS.length, allC = scoped.every(c=>selClients.has(c.id));
-  pc.innerHTML = PROGS.map(p=>`<button class="chip ${allP?'in':(selProgs.has(p.k)?'on':'')}" data-prog="${p.k}" style="--c:${p.c}" aria-pressed="${selProgs.has(p.k)}"><span class="sw"></span>${p.short}</button>`).join("");
-  const cc = document.getElementById("clientchips");
-  // Only the selected CSMs' clients are offered: across every CSM the full list is
-  // around ninety chips, and a client outside the selection could not be shown anyway.
-  cc.innerHTML = scoped.map(c=>{
-    const inProg = inProducts(c);
-    return `<button class="chip ${allC?'in':(selClients.has(c.id)?'on':'')} ${inProg?'':'off'}" data-client="${c.id}" aria-pressed="${selClients.has(c.id)}" title="${esc(c.programs.join(' \u00b7 '))}">${esc(c.name)}<span class="tags">${c.programs.map(k=>`<i style="--c:${PK[k].c}"></i>`).join("")}</span></button>`;
-  }).join("");
-}
-document.getElementById("progchips").addEventListener("click", e=>{
-  const b=e.target.closest("[data-prog]"); if(!b) return;
-  const k=b.dataset.prog;
-  // Same model as the CSM and client chips (Aaron, 2026-09-14): from "all", a click shows
-  // only that product; later clicks add or remove others. It used to REMOVE the clicked
-  // product from "all", the opposite of every other filter row.
-  const all = selProgs.size===PROGS.length;
-  if(e.shiftKey || e.altKey || all){ selProgs = new Set([k]); }
-  else if(selProgs.has(k)) selProgs.delete(k); else selProgs.add(k);
-  update();
-});
-// CSM chips work like the client chips: from "all", a click isolates that CSM; after
-// that, clicks add and remove. Changing the CSM resets the client selection, because a
-// client picked under one CSM would otherwise leave another CSM's view empty.
-document.getElementById("csmchips").addEventListener("click", e=>{
-  const b=e.target.closest("[data-csm]"); if(!b) return;
-  const m=b.dataset.csm;
-  const all = selCsms.size===CSMS.length;
-  if(e.shiftKey || e.altKey || all){ selCsms = new Set([m]); }
-  else if(selCsms.has(m)) selCsms.delete(m); else selCsms.add(m);
-  selClients = new Set(clients.map(c=>c.id));
-  update();
-});
-document.getElementById("resetCsm").onclick = ()=>{ selCsms = new Set(CSMS); selClients = new Set(clients.map(c=>c.id)); update(); };
-document.getElementById("clientchips").addEventListener("click", e=>{
-  const b=e.target.closest("[data-client]"); if(!b) return;
-  const id=b.dataset.client;
-  const all = clients.filter(inCsm).every(c=>selClients.has(c.id));
-  if(e.shiftKey || e.altKey || all){ selClients = new Set([id]); }
-  else if(selClients.has(id)) selClients.delete(id); else selClients.add(id);
-  update();
-});
-document.getElementById("resetProg").onclick = ()=>{ selProgs = new Set(PROGS.map(p=>p.k)); update(); };
-document.getElementById("resetClient").onclick = ()=>{ selClients = new Set(clients.map(c=>c.id)); update(); };
-
-// ---------- summary strip
-function renderStrip(vis){
-  const on = k => selProgs.has(k);
-  const sum = (arr,f) => arr.reduce((a,c)=>a+(f(c)||0),0);
-  const ars = vis.filter(c=>c.ars && !c.ars.missing && on("ARS"));
-  const ics = vis.filter(c=>c.ics && !c.ics.missing && on("ICS"));
-  const mrpc = vis.filter(c=>c.mrpc && on("MRPC"));
-  const cp = vis.filter(c=>c.cp && !c.cp.missing && on("CP"));
-  const tiles = [];
-  const csmLabel = selCsms.size===CSMS.length ? "" : (selCsms.size===1 ? [...selCsms][0] : `${selCsms.size} CSMs`) + " \u00b7 ";
-  tiles.push({e:"Selection", v:`${vis.length}`, l:`client${vis.length===1?"":"s"} \u00b7 ${esc(csmLabel)}${[...selProgs].length} of 4 products`, c:"var(--muted)"});
-  const ov = vis.filter(c=>c.overview && !c.overview.missing);
-  if(ov.length) tiles.push({e:"Overview", v:N(sum(ov,c=>c.overview.open_total)), l:`open checking accounts \u00b7 ${ov.length} client${ov.length===1?"":"s"}`, c:"var(--ov)"});
-  // Only clients whose extract carries the figure: sum() reads a missing value as 0, and a $0 tile
-  // would pass for a month in which CSI earned nothing.
-  const csi = ars.filter(c=>c.ars.csi_revenue!=null);
-  if(csi.length) tiles.push({e:"ARS", v:USDk(sum(csi,c=>c.ars.csi_revenue)), l:`revenue to CSI, ${csi[0].ars.data_label.replace(" Data","")}`, c:"var(--ars)"});
-  if(ics.length) tiles.push({e:"ICS", v:N(sum(ics,c=>c.ics.ytd)), l:"referrals year to date", c:"var(--ics)"},
-                            {e:"ICS", v:N(sum(ics,c=>c.ics.prev_month?.value)), l:`referrals in ${ics[0].ics.prev_month?.label||"last month"} \u00b7 goal ${N(sum(ics,c=>c.ics.monthly_goal))}`, c:"var(--ics)"});
-  if(mrpc.length) tiles.push({e:"MRPC", v:N(sum(mrpc,c=>c.mrpc.weekly?.active_cardholders)), l:"active premium cardholders", c:"var(--mrpc)"},
-                             {e:"MRPC", v:N(sum(mrpc,c=>{const m=c.mrpc.weekly?.monthly; return m?.length?m[m.length-1].platinum+m[m.length-1].gold+m[m.length-1].business:0;})), l:`enrollments, ${monLabel(mrpc[0].mrpc.weekly?.monthly?.slice(-1)[0]?.month)}`, c:"var(--mrpc)"});
-  if(cp.length) tiles.push({e:"CashPlease", v:N(sum(cp,c=>c.cp.window_loans)), l:"loans, trailing 12 months", c:"var(--cp)"},
-                           {e:"CashPlease", v:USDk(sum(cp,c=>c.cp.active_principal)), l:"principal outstanding on active loans", c:"var(--cp)"});
-  document.getElementById("strip").innerHTML = tiles.map(t=>`<div class="stat" style="--c:${t.c}"><div class="e">${t.e}</div><div class="v">${t.v}</div><div class="l">${t.l}</div></div>`).join("");
+// Monthly series summed over the clients shown, keyed by each series' own month label. Order follows the
+// longest series (all of a program's clients share the same trailing months).
+function sumSeries(list){   // list: [[ [label, value], ... ] per client]
+  const order = []; const tot = new Map();
+  list.slice().sort((a,b)=>b.length-a.length).forEach(rows=>rows.forEach(([lb,v])=>{
+    if(!tot.has(lb)){ tot.set(lb, 0); order.push(lb); } tot.set(lb, tot.get(lb) + (v||0)); }));
+  return {labels:order, vals:order.map(l=>tot.get(l))};
 }
 
-// ---------- sections
-function secShell(p, n, src, rankHtml, tableHtml){
-  return `<section class="prog" data-sec="${esc(p.k || p.name)}" style="--c:${p.c}">
-    <div class="hd"><h2><span class="sw"></span>${p.name}</h2><span class="n">${n} client${n===1?"":"s"}</span><span class="src">${esc(src)}</span></div>
-    <div class="body"><div class="rank">${rankHtml}</div><div class="tbl">${tableHtml}</div></div></section>`;
+// ---------- view state
+const VIEWS = ["overview","ars","ics","mrpc","cp","roster","actions"];
+let view = "overview";
+let Q = "";
+const match = c => !Q || (c.name||"").toLowerCase().includes(Q) || String(c.id).includes(Q);
+const visible = () => clients.filter(match);
+const hasProg = k => c => c.programs.includes(k);
+function fromHash(){
+  const h = (location.hash||"").replace(/^#/,"");
+  view = VIEWS.includes(h) ? h : "overview";
+}
+
+const periodLabel = p => { const [y,m]=String(p).split("."); const n=["January","February","March","April","May","June","July","August","September","October","November","December"]; return (n[+m-1]||p)+" "+y; };
+// ---------- KPI tile
+function kpi(k, v, n, c, href){
+  const tag = href ? "a" : "div";
+  return `<${tag} class="kpi"${href?` href="#${href}"`:""} style="--c:${c||"var(--muted)"}"><span class="k">${c?"<i></i>":""}${esc(k)}</span><span class="v">${v}</span><span class="n">${n}</span></${tag}>`;
+}
+function kpiGrid(list){ return `<div class="kpis" data-n="${list.length}">${list.join("")}</div>`; }
+function head(title, sub, extra){
+  return `<div class="vh"><div><div class="eyebrow">${esc(SCOPE.csm)} &middot; ${SCOPE.clients} clients</div><h1>${esc(title)}</h1><p>${sub}</p></div>${extra||""}</div>`;
 }
 
 // ---------- CSM action items (Aaron, 2026-09-15)
@@ -693,9 +675,6 @@ function secShell(p, n, src, rankHtml, tableHtml){
 // filename, and ODD codes the client's code tables in the ARS database do not list. Nothing is
 // mapped here or in the pipeline; the CSM has the client correct the code sheet
 // (scripts/perf_actions.py). Terms follow the VIP Data Specification.
-// Product (with its Personal/Business flag) and Account Status decide ARS eligibility, so they come
-// first; Mail Flag decides who is mailed, not eligibility (tested on 12 clients); Reg E neither
-// (Aaron, 2026-09-15).
 const ACT_KINDS = [
   ["product", "Product Codes not mapped", "correct the product mapping on the client's code sheet; it determines ARS eligibility"],
   ["pb_flag", "Product codes with no Personal/Business flag", "correct the product mapping on the client's code sheet; it determines ARS eligibility"],
@@ -707,150 +686,245 @@ function actCell(item){
   const label = v => v.value === "" ? "(blank)" : v.value;
   const shown = item.values.slice(0, 4), more = item.values.length - shown.length;
   const all = item.values.map(v => `${label(v)}: ${v.accounts} accounts, ${v.open} open${v.desc ? " (" + v.desc + ")" : ""}`).join("; ");
-  return (item.no_table ? `<span class="tag warn" title="The ARS database has no table of these codes for this client, so every value is listed">no table</span>` : "") +
+  return (item.no_table ? `<span class="chip warn" title="The ARS database has no table of these codes for this client, so every value is listed">no table</span>` : "") +
     shown.map(v => `<span class="av" title="${esc(N(v.open))} open"><code>${esc(label(v))}</code> ${N(v.accounts)}${v.desc ? ` <span class="dim">${esc(v.desc)}</span>` : ""}</span>`).join("") +
     (more > 0 ? `<span class="sub" title="${esc(all)}">+${more} more</span>` : "");
 }
-function secActions(vis){
-  const p = {name:"CSM action items", c:"var(--warn)"};
+const sub2 = s => `<br><span style="font-weight:400">${s}</span>`;
+
+function viewActions(vis){
   const ars = vis.filter(c=>c.actions);
-  if(!ars.length) return "";
+  if(!ars.length) return head("Needs a CSM", "No current ARS client is shown.") + `<div class="empty">Nothing to act on for the clients shown.</div>`;
   const has = (c,k) => k === "lm" ? !!c.actions.lift_matrix : c.actions.codes.some(x=>x.kind===k);
   const rows = ars.filter(c=>c.actions.count || c.actions.unchecked.length);
   const unchecked = ars.filter(c=>c.actions.unchecked.length).length;
   const count = k => ars.filter(c=>has(c,k)).length;
-  const li = (k, label, todo) => { const n = count(k);
-    return `<li><b class="${n?"":"zero"}">${n}</b><span>${label}</span><span class="sub">CSM: ${todo}</span></li>`; };
-  const rank = `<h3>What needs a CSM</h3><div class="cap">Clients with each item, of ${ars.length} current ARS client${ars.length===1?"":"s"} checked. A count is value by value against the client's code tables in the ARS database; nothing is mapped for them.</div>` +
-    `<ul class="acts">${li("lm", "Lift Matrix out of date", "create a new lift matrix")}${ACT_KINDS.map(([k,l,t])=>li(k,l,t)).join("")}</ul>` +
-    (unchecked ? `<div class="cap" style="margin-top:12px">${unchecked} client${unchecked===1?"":"s"} could not be checked for codes; each row says why.</div>` : "");
-  const sub = s => `<br><span style="font-weight:500;text-transform:none;letter-spacing:0">${s}</span>`;
-  const table = !rows.length ? `<div class="empty">Nothing to act on for the selected clients.</div>` :
-    `<table><thead><tr><th class="l">Client</th><th class="l">CSM</th><th class="l">Lift Matrix</th>` +
-    ACT_KINDS.map(([k,l])=>`<th class="l">${l}${sub("value, accounts")}</th>`).join("") + `</tr></thead><tbody>` +
+  const tile = (k, label, todo) => { const n = count(k); return kpi(label, N(n), `CSM: ${esc(todo)}`, null); };
+  const tiles = kpiGrid([tile("lm", "Lift Matrix out of date", "create a new lift matrix"), ...ACT_KINDS.map(([k,l,t])=>tile(k,l,t))]);
+  const table = !rows.length ? `<div class="empty">Nothing to act on for the clients shown.</div>` :
+    `<div class="tbl"><table><thead><tr><th class="l">Client</th><th class="l">Lift Matrix</th>` +
+    ACT_KINDS.map(([k,l])=>`<th class="l">${l}${sub2("value, accounts")}</th>`).join("") + `</tr></thead><tbody>` +
     rows.map(c=>{ const a = c.actions, by = Object.fromEntries(a.codes.map(x=>[x.kind, x]));
       return `<tr>
         <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${a.odd_month?`<span class="sub">ODD ${esc(a.odd_month)}</span>`:""}${a.unchecked.map(u=>`<span class="sub dim">${esc(u)}</span>`).join("")}</td>
-        <td class="l">${esc(c.csm || "Unassigned")}</td>
-        <td class="l">${a.lift_matrix ? `<span class="tag warn" title="${esc(a.lift_matrix.workbook)}">${esc(a.lift_matrix.flag)}</span><span class="sub">create a new lift matrix</span>` : `<span class="dim">&mdash;</span>`}</td>
+        <td class="l">${a.lift_matrix ? `<span class="chip warn" title="${esc(a.lift_matrix.workbook)}">${esc(a.lift_matrix.flag)}</span><span class="sub">create a new lift matrix</span>` : `<span class="dim">&mdash;</span>`}</td>
         ${ACT_KINDS.map(([k])=>`<td class="l">${actCell(by[k])}</td>`).join("")}</tr>`;
-    }).join("") + `</tbody></table>`;
-  return secShell(p, rows.length, "ARS workbook filenames + the ARS database code tables", rank, table);
+    }).join("") + `</tbody></table></div>`;
+  const cap = `Clients with each item, of ${ars.length} current ARS client${ars.length===1?"":"s"} checked. A count is value by value against the client's code tables in the ARS database; nothing is mapped for them.` +
+    (unchecked ? ` ${unchecked} could not be checked for codes; each row says why.` : "");
+  return head("Needs a CSM", esc(cap)) + tiles +
+    `<section class="card sect" data-sec="actions"><header><h2>By client</h2><span class="chip">${rows.length} with an item</span></header>${table}</section>`;
 }
 
 // ---------- client overview (Aaron, 2026-09-14)
-// Client-level, not a product, so it shows whichever products are selected. Figures come from
-// each client's ODD extract through scripts/perf_overview.py, with the decks' definitions.
-function secOverview(vis){
-  const p = {name:"Client overview", c:"var(--ov)"};
+// Client-level, not a product. Figures come from each client's ODD extract through scripts/perf_overview.py,
+// with the decks' definitions.
+function overviewTable(vis){
   const rows = vis.filter(c=>c.overview);
   if(!rows.length) return "";
-  const ok = rows.filter(c=>!c.overview.missing);
-  const sub = s => `<br><span style="font-weight:500;text-transform:none;letter-spacing:0">${s}</span>`;
-  const rank = `<h3>Open checking accounts</h3><div class="cap">Closed accounts excluded, as on each deck's Product Mix slide.</div>` +
-    bars(ok.map(c=>({id:c.id, name:c.name, v:c.overview.open_total,
-      tipHtml:`<b>${esc(c.name)}</b>${N(c.overview.open_business)} business \u00b7 ${N(c.overview.open_personal)} personal` +
-              (c.overview.open_other?` \u00b7 ${N(c.overview.open_other)} not marked either`:"")})), {c:p.c, fmt:N});
-  const table = `<table><thead><tr>
-      <th class="l">Client</th><th class="l">Extract</th><th>Open checking</th><th>Business</th><th>Personal</th>
-      <th>Personal swipes${sub("per month, 3-mo avg")}</th><th>NSF/OD items${sub("per month, 3-mo avg")}</th>
-      <th>Personal opened${sub("12 months")}</th><th>Personal closed${sub("12 months")}</th></tr></thead><tbody>` +
-    rows.map(c=>{ const o=c.overview;
+  const body = rows.map(c=>{ const o=c.overview;
       if(o.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="8" class="l dim">${esc(o.missing)}</td></tr>`;
       const stale = DATA.odd_month && o.month !== DATA.odd_month;
       return `<tr>
         <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
-        <td class="l">${stale?`<span class="tag warn">${esc(o.month_label)}</span><span class="sub">older than this cycle's extract</span>`:esc(o.month_label)}<span class="sub">3-mo: ${esc(o.w3_label)}</span></td>
+        <td class="l">${stale?`<span class="chip warn">${esc(o.month_label)}</span><span class="sub">older than this cycle's extract</span>`:esc(o.month_label)}<span class="sub">3-mo: ${esc(o.w3_label)}</span></td>
         <td>${N(o.open_total)}</td><td>${N(o.open_business)}</td>
         <td>${N(o.open_personal)}${o.open_other?`<span class="sub">${N(o.open_other)} not marked either</span>`:""}</td>
         <td>${N(o.personal_swipes_3mo_avg)}${o.swipes_per_open_personal!=null?`<span class="sub">${nf1.format(o.swipes_per_open_personal)} per open personal account</span>`:""}</td>
         <td>${N(o.nsf_items_3mo_avg)}</td>
         <td>${N(o.personal_opened_12)}</td><td>${N(o.personal_closed_12)}</td></tr>`;
-    }).join("") + `</tbody></table>`;
-  return secShell(p, rows.length, (DATA.sources && DATA.sources.overview) ? "each client's ODD extract (Inputs/ODDD)" : "", rank, table);
+    }).join("");
+  return `<section class="card sect" data-sec="overview"><header><h2>Client overview</h2><p class="sub">Open checking excludes closed accounts, as on each deck's Product Mix slide. Swipes and NSF/OD are monthly averages over the extract's last three months; openings and closings are personal accounts over twelve months.</p></header>` +
+    `<div class="tbl"><table><thead><tr>
+      <th class="l">Client</th><th class="l">Extract</th><th>Open checking</th><th>Business</th><th>Personal</th>
+      <th>Personal swipes${sub2("per month")}</th><th>NSF/OD items${sub2("per month")}</th>
+      <th>Personal opened${sub2("12 months")}</th><th>Personal closed${sub2("12 months")}</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
 }
 
-function secARS(vis){
-  const p = PK.ARS; const rows = vis.filter(c=>c.ars);
-  if(!rows.length) return "";
+// ---------- overview
+function needsLook(vis){
+  const out = [];
+  vis.forEach(c=>{
+    PROGS.forEach(p=>{
+      const s = c[p.k.toLowerCase()]; if(s && s.missing) out.push({sev:"bad", c, t:`${p.short}: ${s.missing}`, to:p.hash});
+    });
+    if(c.actions && c.actions.count) out.push({sev:"warn", c, t:`${c.actions.count} code item${c.actions.count===1?"":"s"} need a CSM`, to:"actions"});
+    const r = (c.readiness_by_period||{})[DATA.period] || c.readiness;
+    if(r && !r.ready && r.blocked_on.length) out.push({sev:"warn", c, t:`${DATA.period} build blocked on ${r.blocked_on.join(", ")}`, to:"roster"});
+    ["mrpc","cp"].forEach(k=>{ const s=c[k]; if(s && s.inactive_since) out.push({sev:"unk", c, t:`${PK[k.toUpperCase()].short}: ${s.inactive_since==="never"?"no activity yet":"no activity since "+monLabel(s.inactive_since)}`, to:k}); });
+  });
+  const rank = {bad:0, warn:1, unk:2};
+  return out.sort((a,b)=>rank[a.sev]-rank[b.sev] || a.c.name.localeCompare(b.c.name));
+}
+let needsAll = false;
+function viewOverview(vis){
+  const on = k => vis.filter(c=>c[k] && !c[k].missing);
+  const ars = on("ars"), ics = on("ics"), mrpc = vis.filter(c=>c.mrpc && c.mrpc.weekly), cp = on("cp");
+  const csi = ars.filter(c=>c.ars.csi_revenue!=null);
+  const ov = vis.filter(c=>c.overview && !c.overview.missing);
+  const tiles = [kpi("Your clients", N(vis.length), `${esc(SCOPE.csm)} &middot; all four programs`, null)];
+  if(ov.length) tiles.push(kpi("Open checking accounts", N(sum(ov,c=>c.overview.open_total)), `${ov.length} client${ov.length===1?"":"s"}, closed excluded`, null));
+  // Only clients whose extract carries the figure: sum() reads a missing value as 0, and a $0 tile
+  // would pass for a month in which CSI earned nothing.
+  if(csi.length) tiles.push(kpi("ARS revenue to CSI", USDk(sum(csi,c=>c.ars.csi_revenue)), `${esc((csi[0].ars.data_label||"").replace(" Data",""))} &middot; ${csi.length} clients`, "var(--c-ars)", "ars"));
+  if(ics.length) tiles.push(kpi("ICS referrals", N(sum(ics,c=>c.ics.ytd)), `year to date &middot; ${ics.length} clients`, "var(--c-ics)", "ics"));
+  if(mrpc.length) tiles.push(kpi("MRPC active cardholders", N(sum(mrpc,c=>c.mrpc.weekly.active_cardholders)), `${mrpc.length} clients`, "var(--c-mrpc)", "mrpc"));
+  if(cp.length) tiles.push(kpi("CashPlease loans", N(sum(cp,c=>c.cp.window_loans)), `trailing 12 months &middot; ${cp.length} clients`, "var(--c-cp)", "cp"));
+  const items = needsLook(vis), shown = needsAll ? items : items.slice(0, 8);
+  const sevIcon = {bad:"no", warn:"alert", unk:"unk"};
+  const list = items.length ? `<div class="list">` + shown.map(it=>
+    `<div class="li">${ico(sevIcon[it.sev], it.sev==="unk"?"unk":it.sev)}<div class="t"><b>${esc(it.c.name)}</b> <span class="idn">${it.c.id}</span><em class="m">${esc(it.t)}</em></div><a href="#${it.to}">Open</a></div>`).join("") +
+    (items.length>8 ? `<button class="more" type="button" id="needsmore">${needsAll?"Show fewer":`Show all ${items.length}`}</button>` : "") + `</div>`
+    : `<div class="empty">Nothing needs a look for the clients shown.</div>`;
+  const by = SCOPE.programs || {};
+  return head("Your clients", `Reporting period ${esc(periodLabel(DATA.period))}. Each program uses a client's newest figures at or before the cycle, tagged when older.`,
+      `<span class="pill"><i></i>${esc(Object.keys(by).map(k=>`${by[k]} ${PK[k].short}`).join(" \u00b7 "))}</span>`) +
+    `${kpiGrid(tiles)}` +
+    `<section class="card"><header><h2>Needs a look</h2><span class="chip ${items.length?"warn":"good"}">${items.length}</span></header>${list}</section>` +
+    overviewTable(vis) + sourcesBlock();
+}
+function sourcesBlock(){
+  const s = DATA.sources || {};
+  return `<details class="src"><summary>Where each figure comes from</summary><ul>` +
+    `<li><b>Clients</b> &mdash; ${esc(s.clients||"the clients.md roster")}.</li>` +
+    `<li><b>CSM</b> &mdash; ${esc(s.csm||"not resolved in this build")}.</li>` +
+    `<li><b>Client overview</b> &mdash; ${esc(s.overview||"ODD extracts")}.</li>` +
+    `<li><b>CSM action items</b> &mdash; ${esc(s.actions||"not built in this refresh")}.</li>` +
+    `<li><b>ARS</b> &mdash; ${esc(s.ars||"")}. Executive Financials and All Months Rollup; a row is tagged with its workbook's period when that is older than the cycle.</li>` +
+    `<li><b>ICS</b> &mdash; ${esc(s.ics||"")}. ROI, lifetime value and net profit come from each client's newest Invitation Checking workbook, flagged when older than the period.</li>` +
+    `<li><b>MRPC</b> &mdash; ${esc(s.mrpc||"")}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +
+    `<li><b>CashPlease</b> &mdash; ${esc(s.cp||"")}. The company row is rates and averages across all current Velocity CashPlease clients.</li>` +
+    `<li><b>Build readiness</b> &mdash; clients.md for who gets a deck, Inputs/ for what has landed, Outputs/ and Build Artifacts/deliveries.json for built and sent. The CSI shares are not checked here, so readiness reflects what is on this machine.</li>` +
+    `<li><b>Period</b> &mdash; the picker on Build readiness chooses which period that view reports: its inputs, the decks built for it and the sends recorded against it. Changing it swaps all three, and the choice is shared with every viewer. The periods offered are the cycle, the two before it and the one after.</li>` +
+    `<li><b>Mark sent</b> &mdash; records the deck built for the period showing as sent today, against that period. It is kept with the page and folded into deliveries.json by the next refresh. Click a sent date, then confirm within five seconds, to undo it.</li>` +
+    `</ul><p style="color:var(--muted);font-size:14px;margin:0 0 12px">Program to date is abbreviated PTD. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p></details>`;
+}
+
+// ---------- program views
+function progHead(p, sub){
+  return head(p.name, /^[a-z]/.test(sub) ? sub.charAt(0).toUpperCase()+sub.slice(1) : sub, `<span class="pill" style="--c:${p.c}"><i style="background:${p.c}"></i>${esc(p.short)}</span>`);
+}
+function dim(){ return `<span class="dim">\u2014</span>`; }
+const nameCell = (c, extra) => `<td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${extra||""}</td>`;
+
+function viewARS(vis){
+  const p = PK.ARS, rows = vis.filter(c=>c.ars);
+  if(!rows.length) return progHead(p, "No ARS client is shown.");
   const ok = rows.filter(c=>!c.ars.missing);
-  const rank = `<h3>Revenue returned per dollar of program cost</h3><div class="cap">Program to date. A tenure-neutral read: Wellworth is three months live.</div>` +
-    bars(ok.map(c=>({id:c.id, name:c.name, v:c.ars.profitability, tipHtml:`<b>${esc(c.name)}</b>${USD(c.ars.ltd_revenue)} revenue on ${USD(Math.abs(c.ars.ltd_costs))} cost \u00b7 ${c.ars.months_live} months live`})), {c:p.c, fmt:v=>nf2.format(v)+" : 1"});
-  const table = `<table><thead><tr>
+  const rank = rankCard(p, "Revenue returned per dollar of program cost",
+    `Program to date, among your ${ok.length} ARS client${ok.length===1?"":"s"}. A tenure-neutral read.`,
+    ok.map(c=>({id:c.id, name:c.name, v:c.ars.profitability, tipHtml:`<b>${esc(c.name)}</b>${USD(c.ars.ltd_revenue)} revenue on ${USD(Math.abs(c.ars.ltd_costs))} cost \u00b7 ${c.ars.months_live} months live`})),
+    {c:p.c, fmt:v=>nf2.format(v)+" : 1", label:"Revenue per $ of cost"});
+  const ser = sumSeries(ok.map(c=>c.ars.monthly_rev));
+  const trend = trendCard(p, "Incremental revenue by month", `All ${ok.length} clients together, last 12 months.`,
+    trendChart("tr-ars", ser.labels, [{name:"Incremental revenue", c:p.c, vals:ser.vals}], {fmt:USDk, aria:"incremental revenue by month, all clients"}),
+    {head:["Incremental revenue"], rows:ser.labels.map((l,i)=>[l, USD(ser.vals[i])])});
+  const csi = ok.filter(c=>c.ars.csi_revenue!=null);
+  const tiles = `<div class="kpis">` +
+    kpi("Incremental revenue", USDk(sum(ok,c=>c.ars.cur_revenue)), `${esc((ok[0]?.ars.data_label||"").replace(" Data",""))}, ${ok.length} clients`, p.c) +
+    (csi.length ? kpi("Revenue to CSI", USDk(sum(csi,c=>c.ars.csi_revenue)), `current month, ${csi.length} clients`, p.c) : "") +
+    kpi("Profit, program to date", USDk(sum(ok,c=>c.ars.ltd_profit)), `on ${USDk(sum(ok,c=>c.ars.ltd_revenue))} revenue`, p.c) + `</div>`;
+  const table = `<div class="tbl"><table><thead><tr>
       <th class="l">Client</th><th>Months live</th><th>Revenue PTD</th><th>Profit PTD</th>
-      <th>Incremental revenue<br><span style="font-weight:500;text-transform:none;letter-spacing:0">current month</span></th><th>12-mo avg</th><th class="l">Last 12 months</th>
-      <th>Revenue to CSI<br><span style="font-weight:500;text-transform:none;letter-spacing:0">current month</span></th>
+      <th>Incremental revenue${sub2("current month")}</th><th>12-mo avg</th><th class="l">Last 12 months</th>
+      <th>Revenue to CSI${sub2("current month")}</th>
       <th>Mailings</th><th class="l">Latest mailing</th><th>Response</th>
-      <th>Debit spend<br><span style="font-weight:500;text-transform:none;letter-spacing:0">$M, latest month</span></th><th>Cardholders</th></tr></thead><tbody>` +
+      <th>Debit spend${sub2("$M, latest month")}</th><th>Cardholders</th></tr></thead><tbody>` +
     rows.map(c=>{ const a=c.ars;
-      if(a.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="12" class="l dim">${esc(a.missing)}</td></tr>`;
+      if(a.missing) return `<tr>${nameCell(c)}<td colspan="12" class="l dim">${esc(a.missing)}</td></tr>`;
       const lm=a.latest_mailing||{}; const sc=a.spend_cards?.slice(-1)[0];
-      const trend = spark(a.monthly_rev.map(([m,v])=>({label:m, v})), {c:p.c, fmt:USD, aria:"monthly incremental revenue, last 12 months"});
-      return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${a.workbook_period&&a.workbook_period!==DATA.period?` <span class="tag warn">workbook ${esc(a.workbook_period)}</span>`:""}<span class="sub">${a.path==="MM"?"Lift Matrix":"Monthly Summary"} \u00b7 ${esc(a.data_label||"")}</span></td>
+      const tr = spark(a.monthly_rev.map(([m,v])=>({label:m, v})), {c:p.c, fmt:USD, aria:"monthly incremental revenue, last 12 months"});
+      return `<tr>${nameCell(c, (a.workbook_period&&a.workbook_period!==DATA.period?` <span class="chip warn">workbook ${esc(a.workbook_period)}</span>`:"") + `<span class="sub">${a.path==="MM"?"Lift Matrix":"Monthly Summary"} \u00b7 ${esc(a.data_label||"")}</span>`)}
         <td>${N(a.months_live)}</td>
         <td>${USDk(a.ltd_revenue)}</td><td>${a.ltd_profit<0?`<span class="neg">${USDk(a.ltd_profit)}</span>`:USDk(a.ltd_profit)}</td>
-        <td>${USD(a.cur_revenue)}</td><td>${USD(a.rev12_avg)}</td><td class="l">${trend}</td>
+        <td>${USD(a.cur_revenue)}</td><td>${USD(a.rev12_avg)}</td><td class="l">${tr}</td>
         <td>${a.csi_revenue!=null?USD(a.csi_revenue):"\u2014"}</td>
         <td>${N(a.mailings)}</td>
         <td class="l">${lm.month?esc(lm.month):"<span class=dim>\u2014</span>"}<span class="sub">${lm.mailed?N(lm.mailed)+" mailed \u00b7 "+N(lm.responders)+" responded":""}</span></td>
         <td>${PCT(lm.response_rate)}</td>
         <td>${sc?nf2.format(sc[1]):"\u2014"}</td><td>${sc?N(sc[2]):"\u2014"}</td></tr>`;
-    }).join("") + `</tbody></table>`;
-  return secShell(p, rows.length, DATA.sources.ars, rank, table);
+    }).join("") + `</tbody></table></div>`;
+  return progHead(p, esc(DATA.sources.ars)) + tiles + `<div class="two">${rank}${trend}</div>` +
+    `<section class="card sect" data-sec="ARS"><header><h2>By client</h2><span class="chip">${rows.length} client${rows.length===1?"":"s"}</span></header>${table}</section>`;
 }
 
-function secICS(vis){
-  const p = PK.ICS; const rows = vis.filter(c=>c.ics);
-  if(!rows.length) return "";
+function viewICS(vis){
+  const p = PK.ICS, rows = vis.filter(c=>c.ics);
+  if(!rows.length) return progHead(p, "No ICS client is shown.");
   const ok = rows.filter(c=>!c.ics.missing && c.ics.prev_month);
   const pcts = ok.map(c=>c.ics.prev_vs_goal_pct).filter(v=>v!=null);
-  const rank = `<h3>Referrals as a share of monthly goal</h3><div class="cap">${esc(ok[0]?.ics.prev_month?.label||"Last complete month")} 2026. The tick is 100% of goal.</div>` +
-    bars(ok.map(c=>({id:c.id, name:c.name, v:c.ics.prev_vs_goal_pct, marker:100, tipHtml:`<b>${esc(c.name)}</b>${N(c.ics.prev_month.value)} referrals \u00b7 goal ${N(c.ics.monthly_goal)} \u00b7 ${N(c.ics.prev_vs_goal_pct)}% of goal`})), {c:p.c, fmt:v=>N(v)+"%", max:Math.max(100, ...pcts)}) +
-    `<div class="legend"><span><b style="--c:${p.c}"></b>% of goal</span><span><i></i>goal</span></div>`;
-  const table = `<table><thead><tr>
+  const lbl = ok[0]?.ics.prev_month?.label || "Last complete month";
+  const rank = rankCard(p, "Referrals as a share of monthly goal",
+    `${esc(lbl)}, among your ${ok.length} ICS client${ok.length===1?"":"s"}. The tick is 100% of goal.`,
+    ok.map(c=>({id:c.id, name:c.name, v:c.ics.prev_vs_goal_pct, marker:100, tipHtml:`<b>${esc(c.name)}</b>${N(c.ics.prev_month.value)} referrals \u00b7 goal ${N(c.ics.monthly_goal)} \u00b7 ${N(c.ics.prev_vs_goal_pct)}% of goal`})),
+    {c:p.c, fmt:v=>N(v)+"%", max:Math.max(100, ...pcts), label:"% of goal",
+     legend:`<div class="legend"><span><b style="--c:${p.c}"></b>% of goal</span><span><i></i>goal</span></div>`});
+  const withTr = ok.filter(c=>c.ics.trend && c.ics.trend.months.length);
+  const ref = sumSeries(withTr.map(c=>c.ics.trend.months.map((m,k)=>[m, c.ics.trend.referrals[k]])));
+  const goal = sumSeries(withTr.map(c=>c.ics.trend.months.map((m,k)=>[m, c.ics.trend.goal[k]])));
+  const trend = trendCard(p, "Referrals by month against goal", `All ${withTr.length} clients together; the month in progress is left out.`,
+    trendChart("tr-ics", ref.labels, [{name:"Referrals", c:p.c, vals:ref.vals}, {name:"Goal", c:p.c, vals:goal.vals}], {fmt:N, aria:"referrals by month against goal"}),
+    {head:["Referrals","Goal"], rows:ref.labels.map((l,i)=>[l, N(ref.vals[i]), N(goal.vals[i])])});
+  const atGoal = ok.filter(c=>c.ics.prev_vs_goal_pct>=100).length;
+  const tiles = `<div class="kpis">` +
+    kpi("Referrals, year to date", N(sum(ok,c=>c.ics.ytd)), `${ok.length} clients`, p.c) +
+    kpi(`Referrals in ${esc(lbl)}`, N(sum(ok,c=>c.ics.prev_month?.value)), `goal ${N(sum(ok,c=>c.ics.monthly_goal))}`, p.c) +
+    kpi("At or above goal", `${atGoal} of ${ok.length}`, `${esc(lbl)}`, p.c) + `</div>`;
+  const table = `<div class="tbl"><table><thead><tr>
       <th class="l">Client</th><th>Live since</th><th class="l">Financials</th><th>PTD</th><th>YTD</th><th>Last month</th><th>Goal</th><th>% of goal</th><th class="l">Referrals by month</th>
-      <th>ROI</th><th>Lifetime value<br><span style="font-weight:500;text-transform:none;letter-spacing:0">per account</span></th><th>ICS accounts</th><th>Net profit PTD</th></tr></thead><tbody>` +
+      <th>ROI</th><th>Lifetime value${sub2("per account")}</th><th>ICS accounts</th><th>Net profit PTD</th></tr></thead><tbody>` +
     rows.map(c=>{ const i=c.ics;
-      if(i.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="12" class="l dim">${esc(i.missing)}</td></tr>`;
+      if(i.missing) return `<tr>${nameCell(c)}<td colspan="12" class="l dim">${esc(i.missing)}</td></tr>`;
       const t=i.trend||{months:[],referrals:[],goal:[]};
-      const trend = spark(t.months.map((m,k)=>({label:m, v:t.referrals[k], note:(k===t.months.length-1&&t.partial_last)?"partial month":""})), {c:p.c, goal:t.goal, partialLast:t.partial_last, aria:"monthly referrals vs goal"});
-      const fin = i.referrals_only ? `<span class="tag warn">referrals only</span><span class="sub">no ICS workbook yet</span>`
-                : `<span class="tag ${i.workbook_period===DATA.period?'good':''}">workbook ${esc(i.workbook_period||"")}</span>${i.workbook_period!==DATA.period?`<span class="sub">older than the ${DATA.period} decks</span>`:""}`;
+      const tr = spark(t.months.map((m,k)=>({label:m, v:t.referrals[k], note:(k===t.months.length-1&&t.partial_last)?"partial month":""})), {c:p.c, goal:t.goal, partialLast:t.partial_last, aria:"monthly referrals vs goal"});
+      const fin = i.referrals_only ? `<span class="chip warn">referrals only</span><span class="sub">no ICS workbook yet</span>`
+                : `<span class="chip ${i.workbook_period===DATA.period?'good':''}">workbook ${esc(i.workbook_period||"")}</span>${i.workbook_period!==DATA.period?`<span class="sub">older than the ${DATA.period} decks</span>`:""}`;
       const pct = i.prev_vs_goal_pct;
-      return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
+      return `<tr>${nameCell(c)}
         <td>${esc(i.program_start||"\u2014")}</td><td class="l">${fin}</td>
         <td>${N(i.ptd)}</td><td>${N(i.ytd)}</td>
         <td>${N(i.prev_month?.value)}</td><td>${N(i.monthly_goal)}</td>
         <td><span style="color:${pct>=100?'var(--good)':pct<50?'var(--bad)':'inherit'}">${pct!=null?N(pct)+"%":"\u2014"}</span></td>
-        <td class="l">${trend}</td>
+        <td class="l">${tr}</td>
         <td>${i.roi!=null?nf2.format(i.roi)+" : 1":"<span class=dim>\u2014</span>"}</td><td>${i.ltv!=null?USD(i.ltv):"<span class=dim>\u2014</span>"}</td>
         <td>${i.ics_accounts!=null?N(i.ics_accounts):"<span class=dim>\u2014</span>"}</td><td>${i.net_profit!=null?USDk(i.net_profit):"<span class=dim>\u2014</span>"}</td></tr>`;
-    }).join("") + `</tbody></table>`;
-  return secShell(p, rows.length, DATA.sources.ics, rank, table);
+    }).join("") + `</tbody></table></div>`;
+  return progHead(p, esc(DATA.sources.ics)) + tiles + `<div class="two">${rank}${trend}</div>` +
+    `<section class="card sect" data-sec="ICS"><header><h2>By client</h2><span class="chip">${rows.length} client${rows.length===1?"":"s"}</span></header>${table}</section>`;
 }
 
-function secMRPC(vis){
-  const p = PK.MRPC; const rows = vis.filter(c=>c.mrpc);
-  if(!rows.length) return "";
+function viewMRPC(vis){
+  const p = PK.MRPC, rows = vis.filter(c=>c.mrpc);
+  if(!rows.length) return progHead(p, "No MRPC client is shown.");
   const ok = rows.filter(c=>c.mrpc.weekly);
-  const rank = `<h3>New-account take rate</h3><div class="cap">Share of newly opened accounts that enrolled, program to date. The tick is the latest month reported.</div>` +
-    bars(ok.map(c=>{const t=c.mrpc.weekly.new_account_take||{}; return {id:c.id, name:c.name, v:t.ptd_rate!=null?t.ptd_rate*100:null, marker:t.cur_rate!=null?t.cur_rate*100:null, tipHtml:`<b>${esc(c.name)}</b>PTD ${N(t.ptd_enrolled)} of ${N(t.ptd_opened)} new accounts (${PCTf(t.ptd_rate)})<br>${esc(t.cur_label||"")}: ${N(t.cur_enrolled)} of ${N(t.cur_opened)} (${PCTf(t.cur_rate)})`};}), {c:p.c, fmt:v=>PCT(v)}) +
-    `<div class="legend"><span><b style="--c:${p.c}"></b>program to date</span><span><i></i>latest month</span></div>`;
-  const table = `<table><thead><tr>
-      <th class="l">Client</th><th>Active cardholders</th><th>Take rate<br><span style="font-weight:500;text-transform:none;letter-spacing:0">all MRPC accts</span></th><th>Take rate<br><span style="font-weight:500;text-transform:none;letter-spacing:0">active accts</span></th>
-      <th>Trailing 12</th><th>Enrollments<br><span style="font-weight:500;text-transform:none;letter-spacing:0">last month</span></th><th class="l">Enrollments, 24 months</th><th>Tier mix<br><span style="font-weight:500;text-transform:none;letter-spacing:0">Plat / Gold / Bus, PTD</span></th>
-      <th>% of goal<br><span style="font-weight:500;text-transform:none;letter-spacing:0">latest VIP month</span></th><th>Revenue 2025</th><th>Avg monthly<br><span style="font-weight:500;text-transform:none;letter-spacing:0">revenue</span></th></tr></thead><tbody>` +
+  const rank = rankCard(p, "New-account take rate",
+    `Share of newly opened accounts that enrolled, program to date, among your ${ok.length} MRPC client${ok.length===1?"":"s"}. The tick is the latest month reported.`,
+    ok.map(c=>{const t=c.mrpc.weekly.new_account_take||{}; return {id:c.id, name:c.name, v:t.ptd_rate!=null?t.ptd_rate*100:null, marker:t.cur_rate!=null?t.cur_rate*100:null, tipHtml:`<b>${esc(c.name)}</b>PTD ${N(t.ptd_enrolled)} of ${N(t.ptd_opened)} new accounts (${PCTf(t.ptd_rate)})<br>${esc(t.cur_label||"")}: ${N(t.cur_enrolled)} of ${N(t.cur_opened)} (${PCTf(t.cur_rate)})`};}),
+    {c:p.c, fmt:v=>PCT(v), label:"Take rate, PTD", legend:`<div class="legend"><span><b style="--c:${p.c}"></b>program to date</span><span><i></i>latest month</span></div>`});
+  const enr = r => r.platinum+r.gold+r.business;
+  const byMonth = new Map();
+  ok.forEach(c=>(c.mrpc.weekly.monthly||[]).forEach(r=>byMonth.set(r.month,(byMonth.get(r.month)||0)+enr(r))));
+  const labs = [...byMonth.keys()].sort().slice(-24), vals = labs.map(m=>byMonth.get(m));
+  const trend = trendCard(p, "Enrollments by month", `All ${ok.length} clients together, last 24 months.`,
+    trendChart("tr-mrpc", labs.map(monLabel), [{name:"Enrollments", c:p.c, vals}], {fmt:N, aria:"enrollments by month, all clients"}),
+    {head:["Enrollments"], rows:labs.map((m,i)=>[monLabel(m), N(vals[i])])});
+  const lastM = labs[labs.length-1];
+  const tiles = `<div class="kpis">` +
+    kpi("Active cardholders", N(sum(ok,c=>c.mrpc.weekly.active_cardholders)), `${ok.length} clients`, p.c) +
+    kpi(`Enrollments, ${esc(monLabel(lastM))}`, N(vals[vals.length-1]), "all clients together", p.c) +
+    kpi("Enrollments, trailing 12", N(vals.slice(-12).reduce((a,v)=>a+v,0)), "all clients together", p.c) + `</div>`;
+  const table = `<div class="tbl"><table><thead><tr>
+      <th class="l">Client</th><th>Active cardholders</th><th>Take rate${sub2("all MRPC accts")}</th><th>Take rate${sub2("active accts")}</th>
+      <th>Trailing 12</th><th>Enrollments${sub2("last month")}</th><th class="l">Enrollments, 24 months</th><th>Tier mix${sub2("Plat / Gold / Bus, PTD")}</th>
+      <th>% of goal${sub2("latest VIP month")}</th><th>Revenue 2025</th><th>Avg monthly${sub2("revenue")}</th></tr></thead><tbody>` +
     rows.map(c=>{ const m=c.mrpc, w=m.weekly;
-      if(!w) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="10" class="l dim">no tab in the weekly enrollment summary</td></tr>`;
+      if(!w) return `<tr>${nameCell(c)}<td colspan="10" class="l dim">no tab in the weekly enrollment summary</td></tr>`;
       const mon = w.monthly||[]; const last = mon[mon.length-1]||{};
       const series = mon.map(r=>({label:monLabel(r.month), v:r.platinum+r.gold+r.business, note:`Platinum ${r.platinum} \u00b7 Gold ${r.gold}${r.business?" \u00b7 Business "+r.business:""}`}));
       const t12 = mon.slice(-12).reduce((a,r)=>a+r.platinum+r.gold+r.business,0);
       const km = m.key_metrics||{}; const pog = m.pct_of_goal?.slice(-1)[0]; const pogm = m.goal_months?.slice(-1)[0];
       const tot = w.totals||{};
-      return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${m.inactive_since?` <span class="tag warn">${m.inactive_since==="never"?"no enrollments yet":"no enrollments since "+esc(monLabel(m.inactive_since))}</span>`:""}${m.period&&m.period!==DATA.period?` <span class="tag warn">VIP ${esc(m.period)}</span>`:""}<span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span></td>
+      return `<tr>${nameCell(c, (m.inactive_since?` <span class="chip warn">${m.inactive_since==="never"?"no enrollments yet":"no enrollments since "+esc(monLabel(m.inactive_since))}</span>`:"") + (m.period&&m.period!==DATA.period?` <span class="chip warn">VIP ${esc(m.period)}</span>`:"") + `<span class="sub">weekly as of ${esc((w.report_generated||"").split(" ")[0])}</span>`)}
         <td>${N(w.active_cardholders)}<span class="sub">${N(w.all_cardholders)} ever enrolled</span></td>
         <td>${PCTf(w.take_rate_all)}</td><td>${PCTf(w.take_rate_active)}</td>
         <td>${N(t12)}</td><td>${N(last.platinum+last.gold+last.business)}<span class="sub">${monLabel(last.month)}</span></td>
@@ -858,52 +932,138 @@ function secMRPC(vis){
         <td>${N(tot.platinum)} / ${N(tot.gold)} / ${N(tot.business)}</td>
         <td>${pog!=null?`${N(pog)}%<span class="sub">${esc(pogm||"")} \u00b7 goal ${m.goal_pct}% of new accts</span>`:"<span class=dim>\u2014</span>"}</td>
         <td>${USD(m.revenue_2025)}</td><td>${USD(km.avg_monthly_revenue)}</td></tr>`;
-    }).join("") + `</tbody></table>`;
-  return secShell(p, rows.length, DATA.sources.mrpc, rank, table);
+    }).join("") + `</tbody></table></div>`;
+  return progHead(p, esc(DATA.sources.mrpc)) + tiles + `<div class="two">${rank}${trend}</div>` +
+    `<section class="card sect" data-sec="MRPC"><header><h2>By client</h2><span class="chip">${rows.length} client${rows.length===1?"":"s"}</span></header>${table}</section>`;
 }
 
-function secCP(vis){
-  const p = PK.CP; const rows = vis.filter(c=>c.cp);
-  if(!rows.length) return "";
+function viewCP(vis){
+  const p = PK.CP, rows = vis.filter(c=>c.cp);
+  if(!rows.length) return progHead(p, "No CashPlease client is shown.");
   const ok = rows.filter(c=>!c.cp.missing);
-  const rank = `<h3>Loans booked, trailing 12 months</h3><div class="cap">Comparable across tenure; program-to-date volume is in the table.</div>` +
-    bars(ok.map(c=>({id:c.id, name:c.name, v:c.cp.window_loans, tipHtml:`<b>${esc(c.name)}</b>${N(c.cp.window_loans)} loans over ${c.cp.window_months} months \u00b7 ${N(c.cp.total_loans)} program to date`})), {c:p.c, fmt:N});
+  const rank = rankCard(p, "Loans booked, trailing 12 months",
+    `Among your ${ok.length} CashPlease client${ok.length===1?"":"s"}. Comparable across tenure; program-to-date volume is in the table.`,
+    ok.map(c=>({id:c.id, name:c.name, v:c.cp.window_loans, tipHtml:`<b>${esc(c.name)}</b>${N(c.cp.window_loans)} loans over ${c.cp.window_months} months \u00b7 ${N(c.cp.total_loans)} program to date`})),
+    {c:p.c, fmt:N, label:"Loans, trailing 12"});
+  const ser = sumSeries(ok.map(c=>c.cp.monthly.map(r=>[r.month, r.loans])));
+  const labs = ser.labels.slice().sort(), idx = new Map(ser.labels.map((l,i)=>[l,i]));
+  const vals = labs.map(l=>ser.vals[idx.get(l)]);
+  const trend = trendCard(p, "Loans by month", `All ${ok.length} clients together, last 24 months; a month not yet ended is left out.`,
+    trendChart("tr-cp", labs.map(monLabel), [{name:"Loans", c:p.c, vals}], {fmt:N, aria:"loans by month, all clients"}),
+    {head:["Loans"], rows:labs.map((m,i)=>[monLabel(m), N(vals[i])])});
   const peer = DATA.cp_peer;
-  const table = `<table><thead><tr>
+  const tiles = `<div class="kpis">` +
+    kpi("Loans, trailing 12", N(sum(ok,c=>c.cp.window_loans)), `${ok.length} clients`, p.c) +
+    kpi("Active principal", USDk(sum(ok,c=>c.cp.active_principal)), "outstanding on active loans", p.c) +
+    kpi(`Loans, ${esc(monLabel(labs[labs.length-1]))}`, N(vals[vals.length-1]), "all clients together", p.c) + `</div>`;
+  const table = `<div class="tbl"><table><thead><tr>
       <th class="l">Client</th><th>Loans PTD</th><th>Trailing 12</th><th>Last month</th><th class="l">Loans by month, 24 months</th><th>Active loans</th><th>Active principal</th>
-      <th>Avg loan</th><th>Avg interest<br><span style="font-weight:500;text-transform:none;letter-spacing:0">per loan</span></th><th>Charge-off %</th><th>Overdue</th><th>Accounts<br><span style="font-weight:500;text-transform:none;letter-spacing:0">with loans</span></th></tr></thead><tbody>` +
+      <th>Avg loan</th><th>Avg interest${sub2("per loan")}</th><th>Charge-off %</th><th>Overdue</th><th>Accounts${sub2("with loans")}</th></tr></thead><tbody>` +
     rows.map(c=>{ const k=c.cp;
-      if(k.missing) return `<tr><td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td><td colspan="11" class="l dim">${esc(k.missing)}</td></tr>`;
+      if(k.missing) return `<tr>${nameCell(c)}<td colspan="11" class="l dim">${esc(k.missing)}</td></tr>`;
       const last = k.monthly[k.monthly.length-1]||{};
       const co = k.charge_off_pct;
-      return `<tr>
-        <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span>${k.inactive_since?` <span class="tag warn">${k.inactive_since==="never"?"no loans yet":"no loans since "+esc(monLabel(k.inactive_since))}</span>`:""}<span class="sub">weekly as of ${esc((k.report_generated||"").split(" ")[0])}</span></td>
+      return `<tr>${nameCell(c, (k.inactive_since?` <span class="chip warn">${k.inactive_since==="never"?"no loans yet":"no loans since "+esc(monLabel(k.inactive_since))}</span>`:"") + `<span class="sub">weekly as of ${esc((k.report_generated||"").split(" ")[0])}</span>`)}
         <td>${N(k.total_loans)}</td><td>${N(k.window_loans)}</td><td>${N(last.loans)}<span class="sub">${monLabel(last.month)}</span></td>
         <td class="l">${spark(k.monthly.map(r=>({label:monLabel(r.month), v:r.loans, note:USD(r.principal)+" principal"})),{c:p.c, aria:"loans per month"})}</td>
         <td>${N(k.active_loans)}</td><td>${USDk(k.active_principal)}</td><td>${USD(k.avg_loan_size)}</td><td>$${nf2.format(k.avg_interest_per_loan)}</td>
         <td><span style="color:${(peer&&co>peer.charge_off_pct*1.5)?'var(--bad)':'inherit'}">${PCTf(co,2)}</span></td><td>${PCTf(k.pct_overdue,2)}</td><td>${PCTf(k.pct_active_accounts_with_loans,2)}</td></tr>`;
     }).join("") +
     (peer
-      ? `<tr class="peer"><td class="l"><span class="cl">Current Velocity CashPlease clients</span><span class="sub">${peer.cohort_clients} current client${peer.cohort_clients===1?"":"s"}; charge-off and accounts with loans are not derivable per client</span></td>
-      <td>${N(peer.total_loans)}</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(peer.avg_loan_size)}</td><td>$${nf2.format(peer.avg_interest_per_loan)}</td>
+      ? `<tr class="peer"><td class="l"><span class="cl">Current Velocity CashPlease clients</span><span class="sub">${peer.cohort_clients} current client${peer.cohort_clients===1?"":"s"}, all CSMs; rates and averages only. Charge-off and accounts with loans are not derivable per client</span></td>
+      <td>\u2014</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(peer.avg_loan_size)}</td><td>$${nf2.format(peer.avg_interest_per_loan)}</td>
       <td>${PCTf(peer.charge_off_pct,2)}</td><td>${PCTf(peer.pct_loans_overdue,2)}</td><td>${PCTf(peer.pct_active_accounts_with_loans,2)}</td></tr>`
-      : `<tr class="peer"><td class="l" colspan="12">The all-client peer comparison is not in this build \u2014 the CashPlease rollup was not read.</td></tr>`) +
-    `</tbody></table>`;
-  return secShell(p, rows.length, DATA.sources.cp, rank, table);
+      : `<tr class="peer"><td class="l" colspan="12">The company peer row is not in this build \u2014 the CashPlease rollup was not read.</td></tr>`) +
+    `</tbody></table></div>`;
+  return progHead(p, esc(DATA.sources.cp)) + tiles + `<div class="two">${rank}${trend}</div>` +
+    `<section class="card sect" data-sec="CP"><header><h2>By client</h2><span class="chip">${rows.length} client${rows.length===1?"":"s"}</span></header>${table}</section>`;
 }
 
+// ---------- Live Review commands (Aaron, 2026-11-03)
+// Live Review is a local page (127.0.0.1, a fresh port and token each run), so it has no link to
+// share. What this page can hand over is the command that starts it, for one client or for every
+// client in the list, with the period of that client's newest deck.
+function lrOk(c){ return /^\d{3,6}$/.test(String(c.id)) && /^\d{4}\.\d{2}$/.test(String(c.deck_period || DATA.period)); }
+function lrPeriodOf(c){ return String(c.deck_period || DATA.period); }
+function lrRepo(){ return String(((DATA.live_review||{}).repo) || "").replace(/'/g, "''"); }
+function lrOne(c){
+  return `Set-Location '${lrRepo()}'; & .\\.venv\\Scripts\\python.exe scripts\\live_review.py ${c.id} --period ${lrPeriodOf(c)}`;
+}
+function lrAll(rows){
+  const list = rows.filter(lrOk);
+  const lines = list.map(c => `  [pscustomobject]@{Id='${c.id}'; Period='${lrPeriodOf(c)}'; Name='${String(c.name||"").replace(/[\r\n]/g, " ").replace(/'/g, "''")}'}`);
+  return [
+    `# Live Review: one page per client, each in its own window. Close a window to stop that page.`,
+    `$repo = '${lrRepo()}'`,
+    `if (-not (Test-Path (Join-Path $repo 'scripts\\live_review.py'))) {`,
+    `  Write-Warning "Live Review is not in $repo. Switch that checkout to main, or change $repo."; return`,
+    `}`,
+    `$py = Join-Path $repo '.venv\\Scripts\\python.exe'`,
+    `$clients = @(`,
+    lines.join("\n"),
+    `)`,
+    `foreach ($c in $clients) {`,
+    `  Write-Host "Opening Live Review for $($c.Id) $($c.Name) ($($c.Period))"`,
+    `  Start-Process -FilePath $py -WorkingDirectory $repo -ArgumentList @('scripts\\live_review.py', $c.Id, '--period', $c.Period)`,
+    `  Start-Sleep -Seconds 2`,
+    `}`,
+  ].join("\n");
+}
+function lrBox(title, text){
+  let d = document.getElementById("lrbox");
+  if (!d){
+    d = document.createElement("dialog"); d.id = "lrbox";
+    d.innerHTML = `<h3></h3><p>Copying was blocked here, so select this and copy it, then paste it into PowerShell.</p><textarea id="lrtext" readonly spellcheck="false" aria-label="PowerShell script"></textarea><div class="row"><button type="button" class="tagbtn" id="lrsel">Select all</button><button type="button" class="tagbtn" id="lrclose">Close</button></div>`;
+    document.body.appendChild(d);
+    d.querySelector("#lrclose").onclick = () => d.close();
+    d.querySelector("#lrsel").onclick = () => { const t = d.querySelector("#lrtext"); t.focus(); t.select(); };
+  }
+  d.querySelector("h3").textContent = title;
+  const ta = d.querySelector("#lrtext"); ta.value = text;
+  if (d.showModal) d.showModal(); else d.setAttribute("open", "");
+  ta.focus(); ta.select();
+}
+async function lrCopy(text, title, done){
+  try { await navigator.clipboard.writeText(text); note(done); }
+  catch(e){ lrBox(title, text); }
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-lr],[data-lr-all]");
+  if (!b) return;
+  if (b.hasAttribute("data-lr-all")){
+    const rows = (window.__lrRows || []).filter(lrOk);
+    if (!rows.length){ note("No client in this list has a period to open."); return; }
+    lrCopy(lrAll(rows), `Live Review script for ${rows.length} client${rows.length===1?"":"s"}`,
+           `Copied a PowerShell script for ${rows.length} client${rows.length===1?"":"s"}. Paste it into PowerShell.`);
+    return;
+  }
+  const c = (window.__lrRows || []).find(x => String(x.id) === b.dataset.lr);
+  if (!c || !lrOk(c)){ note("That client has no period to open."); return; }
+  lrCopy(lrOne(c), `Live Review for ${c.name}`, `Copied the Live Review command for ${c.name}. Paste it into PowerShell.`);
+});
+
+// ---------- build readiness (roster)
 // Which product an input belongs to, so its chip carries that product's colour.
 function inColour(program){
   const k = String(program||"").toUpperCase().replace(/-.*$/,"");
   return (PK[k]||{}).c || "var(--muted)";
 }
-
+// Build readiness sort: one column at a time, ascending -> descending -> off.
+// Off is client id order, the order the data arrives in, so the table can always
+// be put back the way it was. Per viewer, so it lives in localStorage, and a stored
+// value this page does not recognise is ignored rather than trusted.
+const RSORT_KEYS = ["client","products","ready","inputs","deck","sent"];
+let rSort = {k:null, dir:1};
+try {
+  const s = JSON.parse(localStorage.getItem("rpe-dash-rsort")||"null");
+  if (s && RSORT_KEYS.includes(s.k) && (s.dir===1 || s.dir===-1)) rSort = {k:s.k, dir:s.dir};
+} catch(e){}
+function persistSort(){ try{ localStorage.setItem("rpe-dash-rsort", JSON.stringify(rSort)); }catch(e){} }
 // Each column sorts on what it MEANS, not on its markup: Ready puts ready before
 // blocked, Inputs counts what is missing, Deck puts this period's build first, Sent
 // puts what still needs sending first. A row the column does not apply to - no
-// readiness check (the CashPlease-only clients), no deck to send - returns null and
-// stays at the bottom in BOTH directions, so flipping a sort never floods the top of
-// the table with blanks.
+// readiness check, no deck to send - returns null and stays at the bottom in BOTH
+// directions, so flipping a sort never floods the top of the table with blanks.
 function rosterKey(c, k){
   const v = rv(c), r = v.readiness;
   switch (k){
@@ -917,8 +1077,6 @@ function rosterKey(c, k){
     }
     // No deck at all is NOT "not applicable" here - it is the state this column exists
     // to show - so it is the last rank rather than null, and descending puts it first.
-    // Treated as null it sat at the bottom both ways, and since every built deck ties,
-    // descending rendered exactly like ascending and the click looked broken.
     case "deck":     return v.built ? [0, ""] : (c.decks.length ? [1, String(c.deck_period||"")] : [2, ""]);
     case "sent": {
       const s = sentState(c);
@@ -973,62 +1131,6 @@ document.addEventListener("click", e => {
   if (again) again.focus();
 });
 
-// Build readiness for THIS period. The section used to list the newest deck
-// BUILT; what you need at the start of a cycle is what can be built and what is
-// missing (Aaron, 2026-09-09). deck_status owns the answer, so this page and the
-// delivery dashboard cannot disagree.
-function secRoster(vis){
-  const P = rPeriod;
-  const views = vis.map(c => [c, rv(c)]);
-  const withR = views.filter(([,v])=>v.readiness);
-  const ready = withR.filter(([,v])=>v.readiness.ready).length;
-  const built = views.filter(([,v])=>v.built).length;
-  const sentN = views.filter(([c])=>sentState(c)).length;
-  const picker = `<label class="rp" title="Which period this section reports: its inputs, the decks built for it and the sends recorded against it. Shared with every viewer of this page.">Period ` +
-    `<select id="rperiod" aria-label="Build readiness period">` +
-    RPERIODS.map(p => `<option value="${esc(p)}"${p===P?" selected":""}>${esc(p)}${p===DATA.period?" (cycle)":""}</option>`).join("") +
-    `</select></label>`;
-  const h = `<div class="hd"><h2>Build readiness \u00b7 ${esc(P)}</h2>${picker}` +
-    `<span class="n">${ready} of ${withR.length} ready \u00b7 ${built} built \u00b7 ${sentN} sent</span>` +
-    `<span class="src">clients.md, Inputs/ and the delivery log, for ${esc(P)}</span></div>`;
-  const t = `<div class="tbl" style="padding:6px 8px 12px"><table><thead><tr>` +
-    sortTh("client", "Client") + sortTh("products", "Products") + sortTh("ready", "Ready to build") +
-    sortTh("inputs", `Inputs for ${esc(P)}`) + sortTh("deck", "Deck") + sortTh("sent", "Sent") +
-    `</tr></thead><tbody>` +
-    sortRoster(vis).map(c=>{
-      const v = rv(c), r = v.readiness;
-      const dots = `<span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span>` +
-        ` <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span>`;
-      // Programs for a client clients.md does not list are inferred from this month's files.
-      const progNote = (c.programs.length ? "" : `<span class="dim">no program data this month</span>`) +
-        (c.programs_from === "data" ? ` <span class="tag" title="Not in clients.md: programs inferred from this month's files on the reports share">from data</span>` : "");
-      let state, ins;
-      if (!r){
-        state = `<span class="st unk"><i></i>not checked</span>`;
-        ins = `<span class="dim">\u2014</span>`;
-      } else if (r.ready){
-        state = `<span class="st ok"><i></i>ready</span>`;
-        ins = `<div class="ins">${r.inputs.map(i=>chipFor(i)).join("")}</div>`;
-      } else {
-        state = `<span class="st no"><i></i>blocked</span>` +
-          (r.blocked_on.length?`<span class="need">${r.blocked_on.map(esc).join(", ")}</span>`:"");
-        ins = `<div class="ins">${r.inputs.map(i=>chipFor(i)).join("")}</div>`;
-      }
-      const deck = v.built
-        ? `<span class="tag good" title="${esc(v.decks.join(", "))}">built ${esc(P)}</span>`
-        : (c.decks.length?`<span class="tag">newest ${esc(c.deck_period||"")}</span>`
-                         :`<span class="tag warn">none</span>`);
-      return `<tr>
-      <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
-      <td class="l">${dots}${progNote}</td>
-      <td class="l">${state}</td>
-      <td class="l" style="white-space:normal;max-width:430px">${ins}</td>
-      <td class="l">${deck}</td>
-      <td class="l">${sentCell(c)}</td></tr>`;
-    }).join("") + `</tbody></table></div>`;
-  return h + t;
-}
-
 function chipFor(i){
   const st = String(i.state||"").toLowerCase();
   const cls = st==="missing" ? " miss" : (st==="stale" ? " stale" : "");
@@ -1036,12 +1138,62 @@ function chipFor(i){
   return `<span class="in${cls}" style="--c:${inColour(i.program)}" title="${esc((i.program||"")+" \u00b7 "+(i.detail||i.state||""))}">` +
     `<i></i>${esc(i.input||"")}${mark}</span>`;
 }
+// Build readiness for THIS period. The view lists what can be built and what is missing; deck_status
+// owns the answer, so this page and the delivery dashboard cannot disagree.
+function viewRoster(vis){
+  const P = rPeriod;
+  const views = vis.map(c => [c, rv(c)]);
+  const withR = views.filter(([,v])=>v.readiness);
+  const ready = withR.filter(([,v])=>v.readiness.ready).length;
+  const built = views.filter(([,v])=>v.built).length;
+  const sentN = views.filter(([c])=>sentState(c)).length;
+  const picker = `<label class="rp" title="Which period this view reports: its inputs, the decks built for it and the sends recorded against it. Shared with every viewer of this page.">Period ` +
+    `<select class="sel" id="rperiod" aria-label="Build readiness period">` +
+    RPERIODS.map(p => `<option value="${esc(p)}"${p===P?" selected":""}>${esc(p)}${p===DATA.period?" (cycle)":""}</option>`).join("") +
+    `</select></label>`;
+  const tiles = `<div class="kpis">${kpi("Ready to build", `${ready} of ${withR.length}`, `inputs landed for ${esc(P)}`, null)}${kpi("Built", N(built), `a deck exists for ${esc(P)}`, null)}${kpi("Sent", N(sentN), "recorded against " + esc(P), null)}</div>`;
+  const sorted = sortRoster(vis);
+  window.__lrRows = sorted;
+  const rows = sorted.map(c=>{
+      const v = rv(c), r = v.readiness;
+      const dots = `<span class="dots">${PROGS.map(p=>`<i class="${c.programs.includes(p.k)?'':'off'}" style="--c:${p.c}" title="${p.short}"></i>`).join("")}</span>` +
+        ` <span class="dim" style="margin-left:6px">${c.programs.map(k=>PK[k].short).join(" \u00b7 ")}</span>`;
+      // Programs for a client clients.md does not list are inferred from this month's files.
+      const progNote = (c.programs.length ? "" : `<span class="dim">no program data this month</span>`) +
+        (c.programs_from === "data" ? ` <span class="chip soft" title="Not in clients.md: programs inferred from this month's files on the reports share">from data</span>` : "");
+      let state, ins;
+      if (!r){
+        state = `<span class="st">${ico("unk","unk")}not checked</span>`;
+        ins = `<span class="dim">\u2014</span>`;
+      } else if (r.ready){
+        state = `<span class="st">${ico("ok","ok")}ready</span>`;
+        ins = `<div class="ins">${r.inputs.map(i=>chipFor(i)).join("")}</div>`;
+      } else {
+        state = `<span class="st">${ico("no","bad")}blocked</span>` +
+          (r.blocked_on.length?`<span class="need">${r.blocked_on.map(esc).join(", ")}</span>`:"");
+        ins = `<div class="ins">${r.inputs.map(i=>chipFor(i)).join("")}</div>`;
+      }
+      const deck = v.built
+        ? `<span class="chip good" title="${esc(v.decks.join(", "))}">built ${esc(P)}</span>`
+        : (c.decks.length?`<span class="chip">newest ${esc(c.deck_period||"")}</span>`
+                         :`<span class="chip warn">none</span>`);
+      return `<tr>
+      <td class="l"><span class="cl">${esc(c.name)}</span><span class="id">${c.id}</span></td>
+      <td class="l">${dots}${progNote}</td>
+      <td class="l">${state}</td>
+      <td class="l" style="white-space:normal;max-width:430px">${ins}</td>
+      <td class="l">${deck}</td>
+      <td class="l">${sentCell(c)}</td>
+      <td class="l">${lrOk(c) ? `<button type="button" class="tagbtn" data-lr="${esc(c.id)}" title="Copy the PowerShell command that opens Live Review for ${esc(c.name)} (${esc(lrPeriodOf(c))})">Copy command</button>` : `<span class="dim">\u2014</span>`}</td></tr>`;
+    }).join("");
+  const t = `<div class="tbl rdy"><table><thead><tr>` +
+    sortTh("client", "Client") + sortTh("products", "Products") + sortTh("ready", "Ready to build") +
+    sortTh("inputs", `Inputs for ${esc(P)}`) + sortTh("deck", "Deck") + sortTh("sent", "Sent") + `<th class="l">Live Review</th>` +
+    `</tr></thead><tbody>${rows}</tbody></table></div>`;
+  return head(`Build readiness \u00b7 ${P}`, "What can be built, what is missing, and what has gone out.", picker) + tiles +
+    `<section class="card"><header><h2>Your clients</h2><span style="display:inline-flex;gap:10px;align-items:center"><span class="chip">${vis.length}</span><button type="button" class="tagbtn" data-lr-all title="Copy one PowerShell script that opens Live Review for every client listed here, each in its own window">Copy Live Review script</button></span></header>${t}</section>`;
+}
 
-// ---------- update
-// One section must never take the page down with it. A CashPlease build that
-// could not read the rollup used to throw here, and the throw blanked the whole
-// dashboard - every section and the roster - over one missing figure. A section
-// that cannot render says so and the rest of the page stands.
 // ---------- sortable section tables (Aaron, 2026-09-14: "sort the product columns too, such as by loss rate")
 // Every column that carries a value sorts, one column per section, remembered per viewer. A
 // numeric column sorts highest first on the first click (so "by loss rate" is one click), a text
@@ -1079,7 +1231,7 @@ function cmpCell(a, b){
   return String(a).localeCompare(String(b));
 }
 function applySectionSorts(){
-  document.querySelectorAll("#sections section.prog[data-sec]").forEach(sec => {
+  document.querySelectorAll("#view section.sect[data-sec]").forEach(sec => {
     const key = sec.dataset.sec, table = sec.querySelector(".tbl table");
     if (!table || !table.tHead || !table.tBodies.length) return;
     const ths = [...table.tHead.rows[0].cells], body = table.tBodies[0], rows = [...body.rows];
@@ -1120,50 +1272,98 @@ document.addEventListener("click", e => {
   if (again) again.focus();
 });
 
+// ---------- chrome: nav, bottom bar, theme, rail
+const NAV = [
+  {k:"overview", label:"Overview", icon:"grid"},
+  {k:"ars", label:"ARS", dot:"var(--c-ars)"}, {k:"ics", label:"ICS", dot:"var(--c-ics)"},
+  {k:"mrpc", label:"MRPC", dot:"var(--c-mrpc)"}, {k:"cp", label:"CashPlease", dot:"var(--c-cp)"},
+  {k:"roster", label:"Build readiness", icon:"list"}, {k:"actions", label:"Needs a CSM", icon:"alert"},
+];
+function navCount(k, vis){
+  if (PK[k.toUpperCase()]) return vis.filter(hasProg(k.toUpperCase())).length || "";
+  if (k==="actions") return vis.filter(c=>c.actions && c.actions.count).length || "";
+  if (k==="roster"){ const n = vis.filter(c=>{ const r=rv(c).readiness; return r && !r.ready; }).length; return n || ""; }
+  return "";
+}
+function renderNav(vis){
+  const items = NAV.map(n=>{
+    const cnt = navCount(n.k, vis), hot = (n.k==="actions"||n.k==="roster") && cnt;
+    const lead = n.icon ? `<svg viewBox="0 0 24 24" aria-hidden="true">${IC[n.icon]}</svg>` : `<span class="dot" style="--c:${n.dot}"></span>`;
+    return `<a class="nl" href="#${n.k}" ${view===n.k?'aria-current="page"':""} title="${esc(n.label)}">${lead}<span class="lbl">${esc(n.label)}</span><span class="badge${hot?" hot":""}">${cnt}</span></a>`;
+  });
+  items.splice(1, 0, `<div class="sec">Programs</div>`);
+  items.splice(6, 0, `<div class="sec">Work</div>`);
+  items.push(`<div class="sec">Reference</div><a class="nl" href="workflow.html" title="How the decks are made"><svg viewBox="0 0 24 24" aria-hidden="true">${IC.book}</svg><span class="lbl">How decks are made</span></a>`);
+  document.getElementById("nav").innerHTML = items.join("");
+  const bt = [["overview","Overview","grid"],["ars","ARS",null,"var(--c-ars)"],["ics","ICS",null,"var(--c-ics)"],["mrpc","MRPC",null,"var(--c-mrpc)"],["cp","CashPlease",null,"var(--c-cp)"]];
+  document.getElementById("bottom").innerHTML = bt.map(([k,l,i,c])=>
+    `<button type="button" data-go="${k}" ${view===k?'aria-current="page"':""}>${i?`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[i]}</svg>`:`<span class="dot" style="--c:${c}"></span>`}${l}</button>`).join("") +
+    `<button type="button" id="morebtn" ${["roster","actions"].includes(view)?'aria-current="page"':""}><svg viewBox="0 0 24 24" aria-hidden="true">${IC.more}</svg>More</button>`;
+  document.getElementById("sheetm").innerHTML =
+    `<a href="#roster">${ico("list")}Build readiness</a><a href="#actions">${ico("alert")}Needs a CSM</a><a href="workflow.html">${ico("book")}How the decks are made</a>` +
+    `<button type="button" id="theme2">${ico("moon")}Night or day</button>`;
+}
+document.addEventListener("click", e=>{
+  const g = e.target.closest("[data-go]"); if (g){ location.hash = g.dataset.go; document.getElementById("sheetm").classList.remove("on"); return; }
+  if (e.target.closest("#morebtn")){ document.getElementById("sheetm").classList.toggle("on"); return; }
+  if (e.target.closest("#theme") || e.target.closest("#theme2")){ toggleTheme(); return; }
+  if (e.target.closest("#fold")){ setRail(!document.getElementById("app").classList.contains("rail")); return; }
+  if (e.target.closest("#needsmore")){ needsAll = !needsAll; update(); return; }
+  const r = e.target.closest("[data-rank]"); if (r){ const [k,m] = r.dataset.rank.split(":"); rankMode[k] = m; update(); return; }
+  if (!e.target.closest("#sheetm")) document.getElementById("sheetm").classList.remove("on");
+});
+function setRail(on){
+  document.getElementById("app").classList.toggle("rail", on);
+  try { localStorage.setItem("rpe-dash-rail", on ? "1" : "0"); } catch(e){}
+}
+function applyTheme(t){
+  if (t==="light"||t==="dark") document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+  const dark = document.documentElement.getAttribute("data-theme")==="dark" || (!document.documentElement.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.getElementById("themelbl").textContent = dark ? "Day" : "Night";
+  paintMark(dark);
+}
+function toggleTheme(){
+  const dark = document.documentElement.getAttribute("data-theme")==="dark" || (!document.documentElement.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+  const next = dark ? "light" : "dark";
+  try { localStorage.setItem("rpe-dash-theme", next); } catch(e){}
+  applyTheme(next);
+}
+// The corner mark: two stacked slides, navy in front of teal (light); pale in front of light blue (dark).
+function paintMark(dark){
+  document.getElementById("mk-front").setAttribute("fill", dark ? "#EEF3FA" : "#1C2541");
+  document.getElementById("mk-back").setAttribute("fill", dark ? "#5FB3C9" : "#15627E");
+}
+document.getElementById("q").addEventListener("input", e=>{ Q = e.target.value.trim().toLowerCase(); update(); });
+document.addEventListener("keydown", e=>{
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName||""));
+  if (e.key === "/" && !typing){ e.preventDefault(); document.getElementById("q").focus(); }
+  else if (e.key === "Escape" && typing && e.target.id==="q"){ e.target.value=""; Q=""; e.target.blur(); update(); }
+});
+window.addEventListener("hashchange", ()=>{ fromHash(); update(); window.scrollTo({top:0}); });
+
+// ---------- update
+// One view must never take the page down with it. A section that cannot render says so and the rest
+// of the page stands.
 function safe(label, fn){
   try { return fn(); }
   catch (e){
     console.error(label + " failed to render", e);
-    return `<section class="prog"><div class="hd"><h2>${label}</h2></div>` +
-      `<div class="empty">This section could not be rendered from the data in this build.</div></section>`;
+    return `<section class="card"><header><h2>${esc(label)}</h2></header><div class="empty">This view could not be rendered from the data in this build.</div></section>`;
   }
 }
-
 function update(){
-  persist(); renderChips(); markAllChips(); renderClientFold();
-  const vis = clients.filter(c=>inCsm(c) && selClients.has(c.id) && inProducts(c));
-  safe("Summary", ()=>renderStrip(vis));
-  const secs = document.getElementById("sections");
-  const html = [selProgs.has("ARS")?safe("CSM action items",()=>secActions(vis)):"",
-                safe("Client overview",()=>secOverview(vis)),
-                selProgs.has("ARS")?safe("Account Revenue Solution",()=>secARS(vis)):"",
-                selProgs.has("ICS")?safe("Invitation Checking System",()=>secICS(vis)):"",
-                selProgs.has("MRPC")?safe("MyRewards Premium Cards",()=>secMRPC(vis)):"",
-                selProgs.has("CP")?safe("CashPlease",()=>secCP(vis)):""].join("");
-  const why = !selCsms.size ? "No CSM is selected. Pick one above, or click All."
-    : !selProgs.size ? "No product is selected. Pick one above, or click All."
-    : !selClients.size ? "No client is selected. Pick one above, or click All."
-    : "Nothing to show: the selected clients are not on the selected products.";
-  secs.innerHTML = html || `<div class="empty">${why}</div>`;
+  const vis = visible();
+  renderNav(vis);
+  const fn = {overview:viewOverview, ars:viewARS, ics:viewICS, mrpc:viewMRPC, cp:viewCP, roster:viewRoster, actions:viewActions}[view];
+  const html = safe(view, ()=>fn(vis));
+  document.getElementById("view").innerHTML = vis.length ? html : `<div class="empty">No client matches \u201c${esc(Q)}\u201d.</div>`;
   applySectionSorts();
-  document.getElementById("rostersec").innerHTML = safe("Clients and decks", ()=>secRoster(vis));
 }
-document.getElementById("periodpill").textContent = "Reporting period " + DATA.period.replace(".", " \u00b7 ");
-document.getElementById("updated").innerHTML = `<i></i>Last updated ${esc(DATA.generated)}`;
-document.getElementById("foot").innerHTML =
-  `<p><strong>Where each figure comes from.</strong></p><ul class="prov">` +
-  `<li><b>CSM action items</b> - ${esc((DATA.sources && DATA.sources.actions) || "not built in this refresh")}.</li>` +
-  `<li><b>Client overview</b> - ${esc((DATA.sources && DATA.sources.overview) || "ODD extracts")}.</li>` +
-  `<li><b>Clients</b> - ${esc((DATA.sources && DATA.sources.clients) || "the clients.md roster")}.</li>` +
-  `<li><b>CSM</b> \u2014 ${esc((DATA.sources && DATA.sources.csm) || "not resolved in this build")}.</li>` +
-  `<li><b>ARS</b> \u2014 ${esc(DATA.sources.ars)}. Executive Financials and All Months Rollup; a row is tagged with its workbook\u2019s period when that is older than the cycle.</li>` +
-  `<li><b>ICS</b> \u2014 ${esc(DATA.sources.ics)}. ROI, lifetime value and net profit come from each client\u2019s newest Invitation Checking workbook, flagged when older than the period.</li>` +
-  `<li><b>MRPC</b> \u2014 ${esc(DATA.sources.mrpc)}. The weekly supplies take rates, cardholders and monthly enrollments; VIP supplies goal attainment and revenue.</li>` +
-  `<li><b>CashPlease</b> \u2014 ${esc(DATA.sources.cp)}, with current clients' own programs as the peer row.</li>` +
-  `<li><b>Build readiness</b> \u2014 clients.md for who gets a deck, Inputs/ for what has landed, Outputs/ and Build Artifacts/deliveries.json for built and sent. The CSI shares are not checked here, so readiness reflects what is on this machine.</li>` +
-  `<li><b>Period</b> \u2014 the picker in the Build readiness header chooses which period that section reports: its inputs, the decks built for it and the sends recorded against it. Changing it swaps all three, so the Sent column starts clean for the period chosen \u2014 nothing carries over \u2014 and the choice is shared with every viewer. The periods offered are the cycle, the two before it and the one after; the figures above the section stay on the reporting period.</li>` +
-  `<li><b>Mark sent</b> \u2014 records the deck built for the period showing as sent today, against that period. It is kept with the page and folded into deliveries.json by the next morning\u2019s refresh, after which it reads as a plain sent date. A client with no deck built for that period cannot be marked.</li>` +
-  `<li><b>Undo a send</b> \u2014 click a sent date: it turns into \u201cUndo send?\u201d, and a second click within five seconds removes the record (click anywhere else or press Esc to keep it). The next refresh takes the date out of deliveries.json, but only while it still holds that same date, so an older undo never erases a send recorded after it.</li>` +
-  `</ul><p>Program to date is abbreviated PTD. Figures are for reading, not for a deck: the builders remain the source for anything client-facing.</p>`;
+document.getElementById("who").textContent = SCOPE.csm ? `${SCOPE.csm}'s clients` : "Your clients";
+document.getElementById("updated").innerHTML = `<i></i>Updated ${esc(DATA.generated)}`;
+try { setRail(localStorage.getItem("rpe-dash-rail") === "1"); } catch(e){}
+let savedTheme = null; try { savedTheme = localStorage.getItem("rpe-dash-theme"); } catch(e){}
+applyTheme(savedTheme);
+fromHash();
 update();
 </script>

@@ -6,9 +6,18 @@ cleared guarantee reverts them to the workbook's billed figures (James, 2026-08-
 status wider than its tile steps down in size instead of wrapping; and a client with no workbook
 or tracker gets each slide stated. These replace v5's deck-harness tests for the same slides.
 """
+import pytest
 from pptx import Presentation
 
 from ti.chapters import economics as C
+
+
+@pytest.fixture(autouse=True)
+def _keep_every_slide(tmp_path, monkeypatch):
+    """These test the builders. Which slides ship is ti/slides.json's business (test_ti_selection):
+    Sheila's 1798 review (2026-10-30) tosses several of these slides there (the hero, Per-offer
+    summary, Revenue frames, The most recent mailer), and a toss must not read as a builder failing."""
+    monkeypatch.setenv("TI_SLIDES", str(tmp_path / "keep-all.json"))
 
 
 class _Ctx:

@@ -7,10 +7,17 @@ title top-left at 0.6in with the period pill beside it, the client's logo bottom
 slide number bottom-left (templates/STYLE.md). The grid constants below are RPE's, and the
 builders read them from `h`, so their arithmetic lands on this grid unchanged.
 
-Two RPE rules v5 did not have are kept here, once, for every ported slide:
+Three RPE rules v5 did not have are kept here, once, for every ported slide:
   * every slide gets speaker notes with a Source line naming the client (CLAUDE.md);
-  * a slide v5 would have DECLINED for missing data is not dropped: `declined()` draws it
-    with the sentence saying why (CLAUDE.md: never drop slides automatically).
+  * a slide v5 would have DECLINED for missing data is drawn by `declined()` with the sentence
+    saying why, and registered in DECLINED. build_ti_gen then HIDES it from this client's deck and
+    lists it (title + reason) in the build log and in the pack's `hidden_declined`; a chapter left
+    with no slide loses its divider and agenda row. This overrides "never drop slides
+    automatically" for the Transaction Intelligence cut only (James Gilmore, signed off on
+    Sheila's 1798 slide review, 2026-10-30: 22 "Not shown for this client" pages in one deck);
+  * a chart that fails to draw is never a silent gap: `Deck.chart` records it in CHART_FAILURES
+    and build_ti_gen fails the build (five charts went missing from 1798's deck while it
+    validated 0 FAIL, 2026-10-30).
 """
 import math
 import re
@@ -109,19 +116,31 @@ def _wrap(text, width, pt, family=BODY_FONT, bold=False):
     return lines + ([cur] if cur else [])
 
 
+# Text floors (Sheila's 1798 slide review, 2026-10-30: text at 9.5-10pt on 109 slides). A subtitle is
+# 14pt and may step down to 12pt, never lower; rail and KPI labels and notes are 12pt or more; a
+# table's font is 10pt or more, and a table too long for that sheds rows (stated) instead.
+SUBTITLE_SIZES = (14, 13, 12)
+LABEL_MIN_PT = 12
+TABLE_MIN_PT = 10
+
+
 def _fit_subtitle(text, width):
-    """(text, size, lines) for a subtitle held to two lines: 13.5pt, else 12pt, else 12pt cut
-    at the end of the second line. v5's box held one line; a longer subtitle ran under the chart."""
+    """(text, size, lines) for a subtitle held to two lines: 14pt, stepping down to 12pt, else 12pt
+    cut at the end of the second line. v5's box held one line; a longer subtitle ran under the chart."""
     from textfit import text_width_in
-    for pt in (13.5, 12):
-        lines = _wrap(text, width, pt)
-        if len(lines) <= 2:
-            return text, pt, len(lines)
-    lines = _wrap(text, width, 12)
+    # the fewest lines first, then the largest size: a subtitle that fits one line at 13pt is not
+    # set at 14pt on two, which would push the slide's content down
+    for most in (1, 2):
+        for pt in SUBTITLE_SIZES:
+            lines = _wrap(text, width, pt)
+            if len(lines) <= most:
+                return text, pt, len(lines)
+    pt = SUBTITLE_SIZES[-1]
+    lines = _wrap(text, width, pt)
     second = lines[1]
-    while len(second) > 4 and text_width_in(second + "…", 12, BODY_FONT, False) > width - 0.20:
+    while len(second) > 4 and text_width_in(second + "…", pt, BODY_FONT, False) > width - 0.20:
         second = second[:-1].rstrip()
-    return f"{lines[0]} {second}…", 12, 2
+    return f"{lines[0]} {second}…", pt, 2
 
 
 def _title(slide, title, subtitle=None):
@@ -135,7 +154,7 @@ def _title(slide, title, subtitle=None):
     bottom = 0.32 + height
     if subtitle:
         subtitle, pt, n = _fit_subtitle(subtitle, TITLE_W)
-        sub_h = 0.32 if n == 1 else 0.58
+        sub_h = (0.34 if n == 1 else 0.62) if pt > 13 else (0.32 if n == 1 else 0.58)
         _text(slide, MARGIN_L, bottom + 0.02, TITLE_W, sub_h, subtitle, size=pt, color=GREY)
         bottom += 0.02 + sub_h
     return title, bottom
@@ -211,25 +230,38 @@ def _rail(slide, items, top=1.75, left=RAIL_LEFT, width=2.55):
         card.line.width = Pt(1.5)
         card.shadow.inherit = False
         card.text_frame.text = ""
-        _text(slide, left + 0.08, y + 0.06, inner, 0.26, label,
-              size=_fit_pt(label, inner, (10.5, 9.5, 8.5, 8)), bold=True,
+        # The label is 12pt or more (2026-10-30; it stepped down to 8pt). One that does not fit on
+        # one line at 12pt takes two, and the value starts lower.
+        # The label is 12pt or more (2026-10-30; it stepped down to 8pt). On a full tile one too long
+        # for a line at 12pt takes two and the value starts lower; a compact tile has no room for a
+        # second line, so its label keeps what fits on one, cut visibly.
+        label = str(label)
+        lpt = _fit_pt(label, inner, (13, LABEL_MIN_PT))
+        two = not compact and len(_wrap(label, inner, lpt, HEAD_FONT, True)) > 1
+        label = _clip_lines(label, inner, lpt, 2 if two else 1, HEAD_FONT, True)
+        label_h = 0.52 if two else 0.26          # two 12pt lines plus the frame's insets
+        _text(slide, left + 0.08, y + 0.06, inner, label_h, label, size=lpt, bold=True,
               color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
         # The value and its note are ONE text box, two paragraphs, starting at the value. As two
         # boxes, the lowest tile's note sat below 5.5in, where fit_layout treats a box as a bottom
         # caption and lifts it - onto the value. One box starts high enough to be left alone, and
         # a value and note in one frame cannot collide.
-        v_top = y + (0.28 if compact else 0.36)
+        v_top = y + (0.28 if compact else 0.36) + (label_h - 0.26)
+        avail = (y + tile_h - 0.04) - v_top - 0.10            # the box less its top and bottom insets
+        vlines = str(value).count("\n") + 1
+        note_h = (LABEL_MIN_PT * 1.2 / 72 + 0.03) if note else 0
+        vsizes = [pt for pt in ((19, 17, 15, 13, 12) if compact else (21, 19, 17, 15, 13, 12))
+                  if vlines * pt * 1.2 / 72 + note_h <= avail] or [12]
+        vpt = _fit_pt(value, inner, tuple(vsizes))
         box = _text(slide, left + 0.08, v_top, inner, y + tile_h - 0.04 - v_top, value,
-                    size=_fit_pt(value, inner, (19, 17, 15, 13, 12) if compact else (21, 19, 17, 15, 13, 12)),
-                    bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
+                    size=vpt, bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
         if note:
-            from textfit import text_width_in
-            pt = _fit_pt(note, inner, (9, 8.5, 8, 7.5), BODY_FONT, False)
-            if text_width_in(str(note), pt, BODY_FONT, False) > inner - INSET and compact:
-                # a short tile has room for one note line: keep what fits, never overflow
-                while len(note) > 8 and text_width_in(note + "…", pt, BODY_FONT, False) > inner - INSET:
-                    note = note[:-1].rstrip()
-                note = note + "…"
+            # the note is 12pt (it was 7.5-9pt): it takes the lines the tile has left under the
+            # value, and a note longer than that keeps what fits, cut visibly, never overflowing
+            pt = LABEL_MIN_PT
+            room = avail - vlines * vpt * 1.2 / 72 - 0.03
+            most = max(1, min(2, int(room / (pt * 1.2 / 72))))
+            note = _clip_lines(str(note), inner, pt, most, BODY_FONT, False)
             para = box.text_frame.add_paragraph()
             para.alignment = PP_ALIGN.CENTER
             para.space_before = Pt(2)
@@ -240,6 +272,17 @@ def _rail(slide, items, top=1.75, left=RAIL_LEFT, width=2.55):
             r.font.color.rgb = WHITE
         y += step
     return left - 0.25
+
+
+def _clip_lines(text, width, pt, most, family=BODY_FONT, bold=False):
+    """`text` as it fits in `most` lines of `width` inches at `pt`; cut with an ellipsis when longer."""
+    lines = _wrap(text, width, pt, family, bold)
+    if len(lines) <= most:
+        return text
+    keep = " ".join(lines[:most])
+    while len(keep) > 4 and len(_wrap(keep + "…", width, pt, family, bold)) > most:
+        keep = keep[:-1].rstrip()
+    return keep + "…"
 
 
 KPI_H = 1.65
@@ -253,7 +296,8 @@ def _kpi(slide, left, top, width, label, value, note=None, accent=NAVY):
     ICS quality slide, 2026-10-23)."""
     h = KPI_H if top + KPI_H <= CONTENT_FLOOR else max(KPI_MIN_H, CONTENT_FLOOR - top)
     k = h / KPI_H
-    note_pt = round(10.5 * max(k, 0.85), 1)
+    # label and note never under 12pt, whatever the card's scale (2026-10-30: 10pt notes)
+    note_pt = max(LABEL_MIN_PT, round(12 * k, 1))
     # a note that wraps needs its lines' height inside the card; the value box gives it up, so
     # nothing is left for fit_layout to re-park over the value (1776's ICS habits slide, 2026-10-23)
     # and fit_layout's own estimate (0.105in a character, 0.26in a line, done by 6.92in) must not
@@ -262,7 +306,7 @@ def _kpi(slide, left, top, width, label, value, note=None, accent=NAVY):
     if note:
         lines = len(_wrap(note, width - 0.2, note_pt))
         fit_lines = max(1, math.ceil(len(note) * 0.105 / (width - 0.2)))
-        note_top = min(note_top, top + h - 0.04 - lines * note_pt * 1.2 / 72 - 0.04,
+        note_top = min(note_top, top + h - 0.04 - lines * note_pt * 1.2 / 72 - 0.10,
                        7.00 - 0.08 - 0.26 * fit_lines)
     card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(top),
                                   Inches(width), Inches(h))
@@ -272,7 +316,8 @@ def _kpi(slide, left, top, width, label, value, note=None, accent=NAVY):
     card.line.width = Pt(2)
     card.text_frame.text = ""
     card.shadow.inherit = False
-    _text(slide, left + 0.1, top + 0.12 * k, width - 0.2, 0.3 * k, label, size=round(12 * max(k, 0.85), 1),
+    _text(slide, left + 0.1, top + 0.12 * k, width - 0.2, max(0.3 * k, 0.28), label,
+          size=max(LABEL_MIN_PT, round(13 * k, 1)),
           bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
     _text(slide, left + 0.1, top + 0.48 * k, width - 0.2, min(0.66 * k, note_top - top - 0.48 * k), value,
           size=round(28 * k), bold=True, color=WHITE, font=HEAD_FONT, align=PP_ALIGN.CENTER)
@@ -295,16 +340,31 @@ def _cell_bottom_border(cell):
 def _table(slide, rows, left, top, width, col_widths=None, size=11, header=True, cell_fill=None):
     """v5's house table: navy header, banded body, horizontal rules, numbers right-aligned.
 
-    RPE: a table that would run past TABLE_FLOOR (above the slide number) tightens its rows, down
-    to TABLE_MIN_ROW_H, with the font scaled to match, rather than running off the slide or dropping
-    rows. v5's slides had the same arithmetic and no check for it (1615's closure-hazard table
-    under a two-line headline ended at 7.65in on a 7.5in slide, 2026-10-23)."""
+    RPE: a table that would run past TABLE_FLOOR (above the slide number) tightens its rows, with
+    the font scaled to match, rather than running off the slide (1615's closure-hazard table under
+    a two-line headline ended at 7.65in on a 7.5in slide, 2026-10-23). The font never goes under
+    TABLE_MIN_PT (it went to 7pt; Sheila's 1798 review, 2026-10-30): the row floor is the height
+    that font needs, and the body rows that still do not fit are left off the end, the last row
+    saying how many ("+ 4 more rows not shown"), never shrunk to an unreadable size."""
+    rows = [list(r) for r in rows]
     n_rows, n_cols = len(rows), len(rows[0])
+    size = max(TABLE_MIN_PT, size)
     row_h = 0.3
     room = TABLE_FLOOR - top
     if n_rows * row_h > room:
-        row_h = max(TABLE_MIN_ROW_H, room / n_rows)
-        size = max(7, round(size * row_h / 0.3, 1))
+        row_h = room / n_rows
+        size = max(TABLE_MIN_PT, round(size * row_h / 0.3, 1))
+        floor_h = max(TABLE_MIN_ROW_H, size * 1.2 / 72 + 0.06)
+        if row_h < floor_h:
+            row_h = floor_h
+            fit = max(2, int(room / row_h))
+            if fit < n_rows:
+                head = 1 if header else 0
+                body_fit = max(1, fit - head - 1)
+                dropped = n_rows - head - body_fit
+                note = [f"+ {dropped:,} more row{'s' if dropped != 1 else ''} not shown"] + [""] * (n_cols - 1)
+                rows = rows[:head + body_fit] + [note]
+                n_rows = len(rows)
     shape = slide.shapes.add_table(n_rows, n_cols, Inches(left), Inches(top),
                                    Inches(width), Inches(row_h * n_rows))
     table = shape.table
@@ -349,6 +409,28 @@ def _kicker(_slide, _text_unused=None):
     return None
 
 
+# What every Deck of the current build declined, and every chart that failed. build_ti_gen resets
+# both at the start of a deck and reads them at the end (the same pattern as charts.RENDER_WARNINGS).
+DECLINED = {}          # id(slide element) -> (slide element, title, reason)
+CHART_FAILURES = []    # (chart name, "<ErrorType>: <message>")
+
+
+def reset_build_state():
+    DECLINED.clear()
+    CHART_FAILURES.clear()
+
+
+def declined_reason(slide):
+    """(title, reason) when `slide` was drawn by Deck.declined, else None."""
+    hit = DECLINED.get(id(slide._element))
+    return (hit[1], hit[2]) if hit and hit[0] is slide._element else None
+
+
+class ChartFailed(SystemExit):
+    """Charts failed to draw. A SystemExit, so ti_build stops with this message as its last log
+    line, which is the reason the launcher shows; the deck never goes to Outputs."""
+
+
 class Deck:
     """One chapter's drawing context: the helpers, the charts folder, and what it declined."""
 
@@ -359,6 +441,7 @@ class Deck:
         self.charts_dir.mkdir(parents=True, exist_ok=True)
         self.slides = []
         self.declines = []
+        self.chart_failures = []      # (name, error): each one fails the build (build_ti_gen)
         self.render_warnings = []     # charts._report_overlaps, per chart drawn (2026-10-28)
         self.topics = {}          # id(slide) -> v5's topic label (the slide() fallback)
 
@@ -393,11 +476,14 @@ class Deck:
         return s, max(v5_top, round(bottom + 0.10, 2))
 
     def declined(self, title, reason):
-        """The slide v5 would have left out, drawn with the sentence saying why."""
+        """The slide v5 would have left out, drawn with the sentence saying why and registered in
+        DECLINED: build_ti_gen hides it from the deck and lists it in the log and `hidden_declined`.
+        It is still drawn so a chapter's own tests (and a reader of the build) see the sentence."""
         s, top = self.slide(None, title)
         _text(s, MARGIN_L, top + 0.4, CONTENT_W, 1.2,
               f"Not shown for this client: {reason}.", size=18, color=GREY)
         self.declines.append((title, reason))
+        DECLINED[id(s._element)] = (s._element, title, str(reason))
         return s
 
     def chart(self, name, fn, *a, **kw):
@@ -406,12 +492,33 @@ class Deck:
         try:
             return fn(*a, target, **kw)
         except Exception as exc:
-            self.declines.append((name, f"chart failed ({type(exc).__name__}: {exc})"))
+            # never a silent gap: the build fails on it (build_ti_gen), and the log says which chart
+            err = f"{type(exc).__name__}: {exc}"
+            self.declines.append((name, f"chart failed ({err})"))
+            self.chart_failures.append((name, err))
+            CHART_FAILURES.append((name, err))
+            print(f"  [!!]   chart {name} failed to draw: {err}", flush=True)
             return None
         finally:
             if _charts.RENDER_WARNINGS:
                 self.render_warnings.extend(_charts.RENDER_WARNINGS)
                 _charts.RENDER_WARNINGS.clear()
+
+    def try_chart(self, name, fn, *a, **kw):
+        """(path, None) when the chart drew, else (None, why). Unlike `chart`, a failure is NOT
+        recorded: the caller (ti/deck/combine.py) draws something else instead, and a figure it
+        gave up on must not fail the build."""
+        target = self.charts_dir / f"{name}.png"
+        from . import charts as _charts
+        try:
+            path = fn(*a, target, **kw)
+        except Exception as exc:
+            _charts.RENDER_WARNINGS.clear()
+            return None, f"{type(exc).__name__}: {exc}"
+        if _charts.RENDER_WARNINGS:
+            self.render_warnings.extend(_charts.RENDER_WARNINGS)
+            _charts.RENDER_WARNINGS.clear()
+        return path, None
 
     def _singulars(self):
         """v5 printed "1 accounts" when a count came out at one; RPE's validator fails that. "1 months"
@@ -461,11 +568,13 @@ class Deck:
 
     def run(self, builders, titles, *args):
         """Call each v5 builder as `b(h, *args)`; a builder that declines (returns its reason,
-        or raises) becomes a stated slide under its own title. Returns the slides made.
+        or raises) becomes a declined slide under its own title (hidden from the deck by
+        build_ti_gen, listed in the log). Returns the slides made.
 
         Some v5 builders decline by returning None without drawing ("When the card gets used" and
         "Recurring payments on the card" with no data); v5 dropped those silently. Here a builder
-        that drew nothing is stated too, so no slide ever goes missing without a sentence."""
+        that drew nothing is declined too, so no slide ever goes missing without a sentence in the
+        build log. Every decline is logged here; a chart that failed is logged and fails the build."""
         h = self.helpers()
         for b in builders:
             name = getattr(b, "__name__", "slide")
@@ -487,6 +596,8 @@ class Deck:
                 self.declined(title, why)
         self._singulars()
         self._house_words()
+        for title, why in self.declines:
+            print(f"  [--]   declined: {title}: {why}", flush=True)
         # Each chart's label report goes to the build log as a warning line, where Sheila shows it
         # with the build's result (a chart past the threshold was refused above and is a decline).
         for w in self.render_warnings:
@@ -500,7 +611,7 @@ class Deck:
         return [s for s in slides if selection.slide_kept(self.topics.get(id(s), ""))]
 
     def helpers(self):
-        return {"new": self.new, "slide": self.slide, "chart": self.chart,
+        return {"new": self.new, "slide": self.slide, "chart": self.chart, "try_chart": self.try_chart,
                 "declined": self.declined, "title": _title,
                 "divider": lambda *_a, **_k: None, "rail": _rail, "table": _table,
                 "kpi": _kpi, "text": _text, "chart_left": _chart_left, "picture": _picture,

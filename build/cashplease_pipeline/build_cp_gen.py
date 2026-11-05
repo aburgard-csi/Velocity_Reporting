@@ -447,16 +447,16 @@ def adapt_shell(prs, d):
 
 
 def fill_contact(slide, client_id):
-    """Rewrite the shell's Contact Us card with the client's managing CSM (Aaron, 2026-09-16).
+    """Redraw the shell's Contact Us slide with the client's managing CSM (Aaron, 2026-09-16).
 
-    The template card carries static text for one CSM; `shapes.fill_contact_card` finds its
-    four lines by position inside the card, replaces them, drops the phone line when the CSM
-    has none, and writes the source note.
+    The template slide carries static text for one CSM; `shapes.fill_contact_slide` draws the whole slide
+    again (the Questions & Discussion gradient, the CSI logo, the contact centred), leaves the phone row out
+    when the CSM has none, and writes the source note.
     """
     import rpe_env
-    from shapes import fill_contact_card
+    from shapes import fill_contact_slide
     contact = rpe_env.csm_contact(client_id)
-    fill_contact_card(slide, contact)
+    fill_contact_slide(slide, contact)
     return contact
 
 
@@ -1064,6 +1064,13 @@ def main():
     made += [slide_volume(prs, d, pill_text, art_dir),
              slide_status(prs, d, pill_text, art_dir),
              slide_peer(prs, d, pill_text, art_dir)]
+    # How You Compare (Aaron, 2026-11-03): the client against every other CashPlease client, the same comparison
+    # Live Review's "How you compare" shows; anonymous. Always drawn; the slide says so when there are too few peers.
+    import peer_slide
+    made.append(peer_slide.add_peer_slide(
+        prs, "CP", d["client_id"], d["client_name"], pill_text, str(art_dir),
+        f"Client figures: {d['source_file']}, tab '{d['sheet_name']}' (report generated {d['report_generated']}).",
+        anchor_slide=made[-1], own={"cashplease": d}))
 
     lst = prs.slides._sldIdLst
     order = [sldid_of(prs, s) for s in

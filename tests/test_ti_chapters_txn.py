@@ -1,12 +1,14 @@
 """The Transaction Intelligence and Competition chapters (build/ars_pipeline/ti/chapters_txn.py).
 
 Pinned: the two chapters carry v5's 61 transaction builders less its two attrition slides, in v5's
-order; every builder has a title for a stated slide; a client with no transaction figures gets one
-stated slide per chapter; the ICS lens narrows the lens list and the ARS lens leaves it as v5 drew it.
+order; every builder has a title for a stated slide; a client with no transaction figures has both
+chapters hidden and no deck; the ICS lens narrows the lens list and the ARS lens leaves it as v5 drew it.
 """
+import json
 import os
 import sys
 
+import pytest
 from pptx import Presentation
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -46,20 +48,17 @@ def test_ics_lens_narrows_the_lens_list_and_ars_leaves_it():
     assert [r[0] for r in X.lens_view(m, cut.lens("ics"))["lenses"]] == ["all", "ics", "ics_dm"]
 
 
-def test_no_transaction_figures_is_one_stated_slide_per_chapter(tmp_path, contacts):
+def test_no_transaction_figures_hides_both_chapters_and_stops(tmp_path, contacts):
+    """RPE (Sheila's 1798 slide review, 2026-10-30): a declined slide is hidden for the client and
+    a chapter with nothing left is dropped. With no transaction files both chapters decline, so
+    there is no deck to make: the build stops and says so, and the hidden list names both."""
     prs = Presentation(TEMPLATE)
-    G.build(prs, dict(PACK, metrics={}), "ars", list(cut.CHAPTERS[:2]), art_dir=str(tmp_path))
-    out = tmp_path / cut.deck_name(CLIENT, "2026.10", NAME, "ars")
-    G.save(prs, out)
-    deck = Presentation(str(out))
-    titles = [G._title(s) for s in deck.slides]
-    # cover, summit, agenda, then divider + one stated slide per chapter, then Q&A and contact
-    assert len(titles) == 3 + 2 * 2 + 2, titles
-    stated = [s for s in deck.slides if "transaction files for this period are not on hand" in
-              " ".join(sh.text_frame.text for sh in s.shapes if sh.has_text_frame)]
-    assert len(stated) == 2
-    fails = [f for f in vd.run(str(out)) if f[0] == "FAIL"]
-    assert fails == [], fails
+    pack = dict(PACK, metrics={})
+    with pytest.raises(SystemExit, match="was declined for client"):
+        G.build(prs, pack, "ars", list(cut.CHAPTERS[:2]), art_dir=str(tmp_path))
+    hidden = json.loads((tmp_path / "hidden_declined.json").read_text(encoding="utf-8"))["ars"]
+    assert len(hidden) == 2, hidden
+    assert all("transaction files for this period are not on hand" in h["reason"] for h in hidden)
 
 
 def test_the_transaction_figures_reach_the_odd_sections_as_v5_hands_them_on(monkeypatch):

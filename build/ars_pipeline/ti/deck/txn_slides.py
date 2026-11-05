@@ -28,6 +28,7 @@ from . import txn_compete as P
 from . import txn_leakage as L
 from . import txn_value as V
 from .labels import label as _label
+from .charts_txn import TXT
 
 TOP_CATEGORIES = 8
 TOP_INSTITUTIONS = 10
@@ -57,10 +58,10 @@ def lens_bars(rows: list, out: Path) -> Path:
     span = max(pcts) if pcts else 1
     for i, r in enumerate(rows):
         ax.text(r[4] + span * 0.015, y[i], f"{r[4]:.0f}%   {r[3]:,} of {r[2]:,}",
-                va="center", fontsize=11.5, color=charts.NAVY)
+                va="center", fontsize=TXT, color=charts.NAVY)
     ax.set_yticks(y)
-    ax.set_yticklabels(tick_labels, fontsize=12.5, color=charts.NAVY)
-    ax.set_xlim(0, span * 1.45)
+    ax.set_yticklabels(tick_labels, fontsize=TXT, color=charts.NAVY)
+    ax.set_xlim(0, span * 1.65)
     ax.get_xaxis().set_visible(False)
     charts._clean(ax, bottom=False)
     return charts._save(fig, out)
@@ -80,10 +81,10 @@ def category_bars(rows: list, out: Path, top: int = TOP_CATEGORIES) -> Path:
     for i, r in enumerate(rows):
         ax.text(r[4] + span * 0.02, y[i], f"{_money(r[4])}   {_accounts(r[1])}"
                 f"{'' if r[7] else '   (non-addressable)'}",
-                va="center", fontsize=11, color=charts.NAVY)
+                va="center", fontsize=TXT, color=charts.NAVY)
     ax.set_yticks(y)
-    ax.set_yticklabels(tick_labels, fontsize=12.5, color=charts.NAVY)
-    ax.set_xlim(0, span * 1.7)
+    ax.set_yticklabels(tick_labels, fontsize=TXT, color=charts.NAVY)
+    ax.set_xlim(0, span * 2.0)
     ax.get_xaxis().set_visible(False)
     charts._clean(ax, bottom=False)
     return charts._save(fig, out)
@@ -102,10 +103,10 @@ def institution_bars(rows: list, out: Path, top: int = TOP_INSTITUTIONS) -> Path
     for i, r in enumerate(rows):
         prods = ", ".join(p for p in r[7][:2] if p != "Transfer / other")  # list-cap
         ax.text(r[2] + span * 0.02, y[i], f"{_accounts(r[2])}   {_money(r[5])}"
-                + (f"   {prods}" if prods else ""), va="center", fontsize=11, color=charts.NAVY)
+                + (f"   {prods}" if prods else ""), va="center", fontsize=TXT, color=charts.NAVY)
     ax.set_yticks(y)
-    ax.set_yticklabels(tick_labels, fontsize=12.5, color=charts.NAVY)
-    ax.set_xlim(0, span * 1.9)
+    ax.set_yticklabels(tick_labels, fontsize=TXT, color=charts.NAVY)
+    ax.set_xlim(0, span * 2.2)
     ax.get_xaxis().set_visible(False)
     charts._clean(ax, bottom=False)
     return charts._save(fig, out)
@@ -229,7 +230,7 @@ def _merchant_fig(rows: list, top: int = 10):
     """
     available = len(rows)
     rows = rows[:top][::-1]
-    tick_labels = [labels.clip(r[0], 24).title() for r in rows]
+    tick_labels = [labels.clip(labels.display_name(r[0]), 24) for r in rows]
     dollars = [r[3] for r in rows]
     fig, ax = plt.subplots(figsize=(charts.FIG_W_RAIL, 5.2))
     y = np.arange(len(rows))
@@ -239,15 +240,15 @@ def _merchant_fig(rows: list, top: int = 10):
         # two dollar signs in one string put matplotlib into mathtext: the
         # annotation came out italic with its spaces dropped (#258 group 3)
         note = f"{_money(r[3])}   {_accounts(r[1])}   ${r[4]:,.0f} avg".replace("$", r"\$")
-        ax.text(r[3] + span * 0.02, y[i], note, va="center", fontsize=11, color=charts.NAVY)
+        ax.text(r[3] + span * 0.02, y[i], note, va="center", fontsize=TXT, color=charts.NAVY)
     ax.set_yticks(y)
-    ax.set_yticklabels(tick_labels, fontsize=12.5, color=charts.NAVY)
-    ax.set_xlim(0, span * 1.8)
+    ax.set_yticklabels(tick_labels, fontsize=TXT, color=charts.NAVY)
+    ax.set_xlim(0, span * 2.1)
     ax.get_xaxis().set_visible(False)
     charts._clean(ax, bottom=False)
     if available > len(rows):
         ax.set_xlabel(f"showing the top {len(rows)} of {available} merchants",
-                      fontsize=10, color=charts.GREY, loc="left")
+                      fontsize=TXT, color=charts.GREY, loc="left")
         ax.get_xaxis().set_visible(True)
         ax.set_xticks([])
     return fig

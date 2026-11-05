@@ -324,7 +324,7 @@ def add_chapter(prs, h: dict, m: dict, charts_dir: Path,
             tiles.append((label, fmt.format(iv),
                           f"vs {fmt.format(nv)} non-ICS · {note}"))
     pair("ics_ars_response_pct", "non_ars_response_pct", "{:.0f}%",
-         "Respond to offers", "of ever-mailed accounts (the ARS synergy)")
+         "Respond to offers", "of ever-mailed accounts")
     pair("ics_rege_pct", "non_rege_pct", "{:.0f}%",
          "Reg E opted in", "pattern-classified election")
     d_ = m.get("ics_cmp_debit") or {}
@@ -472,7 +472,7 @@ def add_chapter(prs, h: dict, m: dict, charts_dir: Path,
         # _text takes geometry first: (slide, left, top, width, height, text)
         _text(s_, MARGIN_L, top + 0.30 + 0.32 * (len(trows) + 1), CHART_W, 0.4,
               "a competitor is money moving out to one of the configured "
-              "institutions; multi-banked is two or more of them", size=10)
+              "institutions; multi-banked is two or more of them", size=10.5)
         rail = [("Dollars out", f"${ci[6]:,.0f}",
                  f"per ICS account, vs ${cc[6]:,.0f}"),
                 ("Top destination", str(ci[7] or "--"),

@@ -12,7 +12,8 @@ What it writes under <Root>:
                     with -Runtime: this machine's Python plus the repo .venv's libraries, zipped,
                     and the stamp that tells each PC to unpack it again (scripts\launchers\runtime.cmd
                     unpacks to %LOCALAPPDATA%\RPE on first use). Needed only when the libraries change.
-  Build ARS Deck.bat, ARS Deck User Guide.html   in <Root> itself
+  Build ARS Deck CLI.bat, ARS Deck User Guide.html   in <Root> itself
+  CSM Sheila.mcpb   in <Root> itself: the Claude Desktop extension (sheila_mcp\pack_extension.py)
 Each PC runs the code from a local copy, not from the share: scripts\launchers\runtime.cmd copies
 Tools\RPE to %LOCALAPPDATA%\RPE\Code whenever RELEASE.txt changes, so a release reaches a PC the next
 time its launcher starts. RELEASE.txt is the stamp, and is written last.
@@ -99,7 +100,7 @@ $tools = Join-Path $Root 'Tools'
 $code = Join-Path $tools 'RPE'
 New-Item -ItemType Directory -Force $code | Out-Null
 
-foreach ($d in 'build', 'scripts', 'validation', 'templates', 'fonts') {
+foreach ($d in 'build', 'scripts', 'validation', 'templates', 'fonts', 'sheila_mcp') {
     robocopy (Join-Path $repo $d) (Join-Path $code $d) /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 /XD __pycache__ .pytest_cache | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed for $d ($LASTEXITCODE)" }
 }
@@ -141,6 +142,10 @@ if (-not (Test-Path $testPy)) { throw "No Python to test the release with: $test
 foreach ($b in Get-ChildItem (Join-Path $repo 'scripts\launchers\*') -Include *.bat, *.html) {
     Copy-Item $b.FullName (Join-Path $Root $b.Name) -Force
 }
+# The CSM Sheila Claude Desktop extension, beside the launchers: a CSM installs it in Claude once
+# (James Gilmore, 2026-10-30). It carries no code; it refreshes from Tools\RPE each time Claude starts it.
+& $testPy (Join-Path $code 'sheila_mcp\pack_extension.py') --out (Join-Path $Root 'CSM Sheila.mcpb')
+if ($LASTEXITCODE -ne 0) { throw 'Could not pack CSM Sheila.mcpb' }
 & $testPy -c "import sys; sys.path.insert(0, r'$code\scripts'); sys.path.insert(0, r'$code\build'); import ars_launcher, build_month, pptx, matplotlib, pandas; print('launcher release OK:', sys.version.split()[0], sys.executable)"
 $testOk = $LASTEXITCODE -eq 0
 if ($Runtime) { Remove-Item $stage -Recurse -Force }   # this run's own temp staging copy, ~600 MB

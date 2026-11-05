@@ -27,10 +27,14 @@ def _text(slide):
 
 
 def test_no_value_figures_states_every_slide_in_order(tmp_path, monkeypatch):
+    # every slide the register keeps: group Q (Sheila's 1798 review, 2026-10-30) tosses two of the
+    # six in ti/slides.json, and a tossed slide is left out, not stated
+    from ti import selection
     monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
     slides = C.build(_Ctx(_prs(), {}, tmp_path))
-    assert len(slides) == len(C.TITLES)
-    for s, title in zip(slides, C.TITLES.values()):
+    kept = [t for t in C.TITLES.values() if selection.slide_kept(t)]
+    assert len(slides) == len(kept)
+    for s, title in zip(slides, kept):
         assert title in _text(s) and "Not shown for this client" in _text(s)
 
 
@@ -42,7 +46,8 @@ def test_the_card_slide_spells_out_the_conversion_math(tmp_path, monkeypatch):
     slides = C.build(_Ctx(_prs(), m, tmp_path))
     card = _text(slides[0])
     assert "CONVERSION MATH" in card and "5,000 new cards" in card
-    assert "21.0% of those 5,000 new cards also opt in" in card
+    # cut to "if 21.0% also opt in" when the slide was held to 60 words (Sheila's 1798 review)
+    assert "more a year if 21.0% also opt in" in card
 
 
 def test_compute_runs_the_sections_then_the_leaks_on_their_figures(monkeypatch):
