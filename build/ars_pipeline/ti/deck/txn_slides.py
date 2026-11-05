@@ -148,6 +148,8 @@ BUILDERS = [
     P.how_much_of_the_wallet_has_left, P.is_the_competitor_money_still_moving,
     P.how_many_competitors_each_account_uses, P.winback_targets,
     P.depth_against_growth, P.the_payment_ecosystems_ranked, P.buy_now_pay_later,
+    # buy now, pay later in depth (James, 2026-11-05)
+    P.what_bnpl_pays_for, P.who_uses_bnpl,
     # the card
     _how_members_spend, C.card_spend_by_category, C.ticket_and_intensity,
     C.when_the_card_is_used, C.recurring_on_the_card,

@@ -19,7 +19,11 @@ Kinds (from the tier):
                 reported apart, on every rail -- a PayPal marketplace
                 purchase stays merchant spend
     bnpl        buy-now-pay-later lenders (Affirm, Klarna, ...): their own
-                tier, reported apart from competitors AND ecosystems (comp_bnpl)
+                tier, reported apart from competitors AND ecosystems (comp_bnpl):
+                reach, each provider's use (payments, median ticket, repeat
+                months), accounts on two or more providers, the merchant a
+                card descriptor names behind the lender (AFFIRM *PELOTON),
+                and who uses it, by lens and against non-users
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from __future__ import annotations
 from .txn_common import ranked
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -62,6 +67,12 @@ TOP_WALLET = 15
 RECENCY_BANDS = (("Last 30 days", 0, 30), ("31-90 days", 31, 90),
                  ("91-180 days", 91, 180), ("180+ days", 181, 10**6))
 BREADTH_BANDS = (("1", 1, 1), ("2-3", 2, 3), ("4-5", 4, 5), ("6+", 6, 10**6))  # who each group pays, not the whole field
+# Buy now, pay later in depth (James, 2026-11-05: "there are alot of gaps, especially around
+# vendors/merchats"). Repeat use is payments in this many distinct months; stacking is this many
+# providers on one account.
+BNPL_REPEAT_MONTHS = 3
+BNPL_STACKED_AT = 2
+TOP_BNPL_MERCHANTS = 12
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +256,8 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     m = pd.DataFrame({"acct": acct.to_numpy()[hit], "institution": inst.to_numpy()[hit],
                       "kind": kind.to_numpy()[hit], "amount": amt[hit],
                       "date": df["transaction_date"].to_numpy()[hit],
-                      "product": product.to_numpy()[hit]})
+                      "product": product.to_numpy()[hit],
+                      "text": text.to_numpy()[hit]})      # the BNPL merchant is read from it
     m["product"] = m["product"].fillna(OTHER_PRODUCT).replace(PRODUCT_RELABEL)
     m["tier"] = m["institution"].map(tier_of)
     g = m.groupby(["acct", "institution"], observed=True)
@@ -377,6 +389,8 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     window_months = max(int(df["transaction_date"].dt.to_period("M").nunique()), 1)
     _family(out, K, comp, bnpl, m, acct[in_base], amt[in_base], acct_total, total_accounts,
             by_recent, by_prior, recent_from, prior_from, anchor_end, spec, window_months)
+    _bnpl_users_against_nonusers(out[K + "bnpl"], bnpl, comp_ids, acct, amt, is_card, in_base,
+                                 lenses, window_months, base_label)
 
     # ---- 5. by lens; at-risk and new accounts x competitor -----------------------------
     txn_accounts = pd.Index(acct.unique())
@@ -424,6 +438,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         ctrl = next((r for r in by_lens if r[0] == "mailed_nonresp"), None)
         if resp and ctrl:
             out[K + "responder_gap_pp"] = round(resp[4] - ctrl[4], 1)
+        _bnpl_by_lens(out[K + "bnpl"], ac_all, lenses, txn_accounts)
         for special, key in (("recently_inactive", K + "at_risk"), ("new_accounts", K + "new_accounts")):
             if special in lenses.masks:
                 ids = lenses.ids(special).intersection(txn_accounts)
@@ -677,18 +692,183 @@ def _family(out: dict, K: str, comp: pd.DataFrame, bnpl: pd.DataFrame, m: pd.Dat
     # 66-67 -- buy now, pay later: its own tier (kind bnpl), apart from the
     # payment ecosystems -- a BNPL balance is credit, a Venmo transfer is not
     eb = bnpl
+    mb = m[m["kind"] == "bnpl"]
     n_b = int(eb["acct"].nunique())
     d_b = round(float(eb["dollars"].sum()))
     providers = []
     for name, grp in eb.groupby("institution", observed=True):
         n = int(grp["acct"].nunique())
         d = round(float(grp["dollars"].sum()))
+        tickets = mb.loc[mb["institution"] == name, "amount"]
+        repeat = int((grp["months"] >= BNPL_REPEAT_MONTHS).sum())   # one row per account here
         providers.append([name, n, _pct(n, total_accounts), d,
-                          round(d / n / months, 2) if n else 0.0])
+                          round(d / n / months, 2) if n else 0.0,
+                          int(grp["txns"].sum()),
+                          round(float(tickets.median()), 2) if len(tickets) else 0.0,
+                          repeat, _pct(repeat, n)])
     providers.sort(key=lambda r: (-r[1], r[0]))
     out[K + "bnpl"] = {"accounts": n_b, "pct": _pct(n_b, total_accounts), "dollars": d_b,
                        "months": months,
                        "per_acct_month": round(d_b / n_b / months, 2) if n_b else 0.0,
                        "providers": providers,
                        "providers_columns": ["institution", "accounts", "pct_of_accounts",
-                                             "dollars", "per_acct_month"]}
+                                             "dollars", "per_acct_month", "txns",
+                                             "median_ticket", "repeat_accounts", "repeat_pct"]}
+    out[K + "bnpl"].update(_bnpl_depth(mb, eb, n_b, d_b, spec))
+
+
+# ---------------------------------------------------------------------------
+# buy now, pay later in depth (James, 2026-11-05)
+# ---------------------------------------------------------------------------
+
+# After the lender's name a card descriptor may carry a corporate tail, then a star, then the
+# merchant: "AFFIRM *PELOTON", "KLARNA*TARGET", "AFTERPAY* ULTA", "ZIP.CO*BESTBUY".
+_BNPL_TAIL = r"(?:[\s.\-]*(?:COM|INC|US|USA|LLC|CO))*"
+# A merchant made only of these words names no merchant: "AFFIRM * PAY 4ZE3UE".
+_BNPL_GENERIC = frozenset({
+    "PAY", "PAYMENT", "PAYMENTS", "PMT", "PMTS", "PYMT", "PYMNT", "LOAN", "LOANS", "AUTOPAY",
+    "AUTO", "INSTALLMENT", "INSTALLMENTS", "PURCHASE", "ORDER", "ORDERS", "DEBIT", "ACH", "WEB",
+    "ONLINE", "RECURRING", "BILL", "BILLPAY", "REPAYMENT", "IN", "OF", "LATER", "NOW", "SHOP",
+    "STORE", "CARD", "CREDIT", "ZIP"})
+_BNPL_NOISE = frozenset({"COM", "WWW", "INC", "LLC", "US", "USA", "CO", "CORP", "LTD", "THE"})
+_US_STATES = frozenset(
+    "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ "
+    "NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR".split())
+_MERCHANT_CHARS = re.compile(r"[^A-Z0-9&' ]+")
+
+
+def bnpl_merchant_matcher(spec: dict):
+    """A function from a descriptor's text to the merchant a BNPL payment names, or None.
+
+    Built from the BNPL tier's own patterns, so a provider added to the dictionary is read here
+    too. Only the starred form names a merchant: "KLARNA INC" and "AFFIRM.COM PAYMENTS" are the
+    lender alone. The name ends at a phone, store or reference number; a trailing state code and
+    corporate tails are dropped; the first two words are kept, the rule merchant_key groups every
+    other merchant by ("FOREVER 21 SAN JOSE CA" is FOREVER 21)."""
+    tiers = spec.get("tiers", {})
+    pats = sorted({str(p).upper() for i in spec.get("institutions", {}).values()
+                   if tiers.get(i.get("tier"), {}).get("kind") == "bnpl"
+                   for p in i.get("patterns", []) if p}, key=len, reverse=True)
+    if not pats:
+        return lambda _text: None
+    alts = "|".join(r"[\s.\-]*".join(re.escape(w) for w in p.split()) for p in pats)
+    rx = re.compile(r"(?<![A-Z0-9])(?:" + alts + r")" + _BNPL_TAIL + r"\s*\*+\s*(?P<m>[^*].*)$")
+    lenders = {p for p in pats if " " not in p}
+    generic = _BNPL_GENERIC | lenders
+
+    def merchant(text):
+        hit = rx.search(str(text or "").upper())
+        if not hit:
+            return None
+        words = []
+        for tok in _MERCHANT_CHARS.sub(" ", hit.group("m").split("*")[0]).split():
+            digits = sum(ch.isdigit() for ch in tok)
+            if digits and (len(tok) >= 4 or digits >= 3):
+                break                       # a phone, store or reference number ends the name
+            words.append(tok)
+        if len(words) >= 2 and words[-1] in _US_STATES:
+            words = words[:-1]
+        words = [w for w in words if w not in _BNPL_NOISE][:2]
+        if not words or all(w in generic for w in words):
+            return None
+        return " ".join(words)
+
+    return merchant
+
+
+def _bnpl_depth(mb: pd.DataFrame, eb: pd.DataFrame, users: int, dollars: int, spec: dict) -> dict:
+    """How buy now, pay later is used, past reach: payments and the median ticket, repeat use
+    (payments in BNPL_REPEAT_MONTHS+ distinct months), stacking (BNPL_STACKED_AT+ providers on one
+    account) and the merchants the payments name. mb is the BNPL rows, eb the account x provider
+    pairs, both on the base."""
+    out = {"txns": int(len(mb)),
+           "median_ticket": round(float(mb["amount"].median()), 2) if len(mb) else 0.0,
+           "repeat_months": BNPL_REPEAT_MONTHS, "stacked_at": BNPL_STACKED_AT}
+    if len(mb):
+        month = pd.to_datetime(mb["date"]).dt.to_period("M")
+        months_per = month.groupby(mb["acct"].to_numpy()).nunique()
+    else:
+        months_per = pd.Series(dtype=int)
+    rep = int((months_per >= BNPL_REPEAT_MONTHS).sum())
+    out["repeat_accounts"] = rep
+    out["repeat_pct"] = _pct(rep, users)
+    per = eb.groupby("acct")["institution"].nunique() if len(eb) else pd.Series(dtype=int)
+    stacked = int((per >= BNPL_STACKED_AT).sum())
+    out["stacked_accounts"] = stacked
+    out["stacked_pct"] = _pct(stacked, users)
+    out["providers_per_account"] = [[1, int((per == 1).sum())], [2, int((per == 2).sum())],
+                                    [3, int((per >= 3).sum())]]
+    out["providers_per_account_note"] = "last row is 3 or more"
+
+    match = bnpl_merchant_matcher(spec)
+    lookup = {s: match(s) for s in mb["text"].unique()} if len(mb) else {}
+    merchant = mb["text"].map(lookup) if len(mb) else pd.Series(dtype=object)
+    named = mb.assign(merchant=merchant)[merchant.notna()] if len(mb) else mb.assign(merchant=None)
+    named_d = round(float(named["amount"].sum()))
+    out["merchant_named_dollars"] = named_d
+    out["merchant_named_pct"] = _pct(named_d, dollars)
+    out["merchant_named_txns"] = int(len(named))
+    rows = []
+    for name, grp in named.groupby("merchant"):
+        lender = grp.groupby("institution", observed=True)["amount"].sum().sort_values(
+            ascending=False, kind="stable")
+        n = int(grp["acct"].nunique())
+        rows.append([str(name), n, _pct(n, users), int(len(grp)), round(float(grp["amount"].sum())),
+                     str(lender.index[0])])
+    out["merchants_n"] = len(rows)
+    out["merchants"] = sorted(rows, key=lambda r: (-r[4], -r[1], r[0]))[:TOP_BNPL_MERCHANTS]
+    out["merchants_by_accounts"] = sorted(rows, key=lambda r: (-r[1], -r[4], r[0]))[:TOP_BNPL_MERCHANTS]
+    out["merchants_columns"] = ["merchant", "accounts", "pct_of_users", "txns", "dollars", "lender"]
+    out["merchants_basis"] = ("the merchant a card descriptor names after the lender and a star, "
+                              "as in AFFIRM *PELOTON; a payment that names only the lender has none; "
+                              "lender is the provider behind most of the merchant's dollars")
+    return out
+
+
+def _bnpl_users_against_nonusers(b: dict, bnpl: pd.DataFrame, comp_ids: pd.Index, acct: pd.Series,
+                                 amt, is_card, in_base, lenses, months: int, base_label: str) -> None:
+    """BNPL users against everyone else in the base: card dollars an account a month, the share
+    paying a named competitor, and the median current balance when the ODD carries one."""
+    base_ids = pd.Index(acct[in_base].unique())
+    users = pd.Index(bnpl["acct"].unique()).intersection(base_ids)
+    others = base_ids.difference(users)
+    sel = np.asarray(is_card) & in_base
+    card = pd.Series(amt[sel]).groupby(acct[sel].to_numpy()).sum()
+    bal = None
+    if lenses is not None and "Curr Bal" in lenses.attrs.columns:
+        bal = pd.to_numeric(lenses.attrs["Curr Bal"], errors="coerce")
+    rows = []
+    for label, ids in (("BNPL users", users), ("Non-users", others)):
+        n = len(ids)
+        med = bal.reindex(ids).median() if bal is not None and n else None
+        rows.append([label, n,
+                     round(float(card.reindex(ids).fillna(0).sum()) / n / max(months, 1), 2) if n else 0.0,
+                     _pct(len(comp_ids.intersection(ids)), n),
+                     round(float(med)) if med is not None and pd.notna(med) else None])
+    b["users_vs_nonusers"] = rows
+    b["users_vs_nonusers_columns"] = ["group", "accounts", "card_dollars_per_acct_month",
+                                      "with_competitor_pct", "median_balance"]
+    b["users_vs_nonusers_base"] = base_label
+
+
+def _bnpl_by_lens(b: dict, ac_all: pd.DataFrame, lenses: Lenses, txn_accounts: pd.Index) -> None:
+    """The share of each lens that paid a BNPL provider, against every transacting account (the
+    book), the way the competitor by-lens rows read the whole book rather than the base."""
+    users = pd.Index(ac_all.loc[ac_all["kind"] == "bnpl", "acct"].unique()).intersection(txn_accounts)
+    book_pct = _pct(len(users), len(txn_accounts))
+    rows = []
+    for ln in lenses.names():
+        ids = lenses.ids(ln).intersection(txn_accounts)
+        if not len(ids):
+            continue
+        u = len(users.intersection(ids))
+        pct = _pct(u, len(ids))
+        rows.append([ln, lenses.label(ln), len(ids), u, pct,
+                     round(pct / book_pct * 100) if book_pct else None])
+    b["by_lens"] = rows
+    b["by_lens_columns"] = ["lens", "label", "accounts", "users", "pct", "index_to_book"]
+    b["book_accounts"] = len(txn_accounts)
+    b["book_users"] = len(users)
+    b["book_pct"] = book_pct
+    b["by_lens_basis"] = ("every transacting account in each group, personal and business; "
+                          "the book is every transacting account")

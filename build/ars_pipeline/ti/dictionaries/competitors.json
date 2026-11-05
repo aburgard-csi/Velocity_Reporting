@@ -793,7 +793,8 @@
   "Afterpay": {
    "tier": "Buy Now, Pay Later",
    "patterns": [
-    "AFTERPAY"
+    "AFTERPAY",
+    "CASH APP AFTERPAY"
    ]
   },
   "Sezzle": {
@@ -806,14 +807,18 @@
    "tier": "Buy Now, Pay Later",
    "patterns": [
     "ZIP CO",
-    "QUADPAY"
+    "QUADPAY",
+    "ZIP PAY",
+    "ZIPPAY"
    ]
   },
   "PayPal Credit": {
    "tier": "Buy Now, Pay Later",
    "patterns": [
     "PAYPAL CREDIT",
-    "PAYPAL PAY IN 4"
+    "PAYPAL PAY IN 4",
+    "PAYPAL PAY LATER",
+    "PAYPAL PAY MONTHLY"
    ]
   },
   "Perpay": {
@@ -838,6 +843,18 @@
    "tier": "Buy Now, Pay Later",
    "patterns": [
     "UPLIFT"
+   ]
+  },
+  "Apple Pay Later": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "APPLE PAY LATER"
+   ]
+  },
+  "Credova": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "CREDOVA"
    ]
   }
  },
