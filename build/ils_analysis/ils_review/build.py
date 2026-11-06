@@ -442,7 +442,7 @@ def build_review(cfg: BuildConfig, progress=None):
         shapes.draw_contact_slide(cs, cards)
         note = shapes.contact_card_note(contact)
         if cfg.consultant:
-            note += (f" ILS consultant {cfg.consultant['name']}: details as given by Aaron Burgard from the Outlook "
+            note += (f" ILS consultant {cfg.consultant['name']}: details as given by the CSM from the Outlook "
                      "directory, passed to the build with --consultant.")
         cs.notes_slide.notes_text_frame.text = note
         run.build_log.append("Contact Us carries the CSM"
