@@ -48,7 +48,8 @@ from . import r_common
 from . import scoring_summary
 from . import story_slides
 from . import theme as T
-from .config import GROUP_DIVIDERS, MAX_SLIDES, NO_DIVIDER_GROUPS, SECTIONS, BuildConfig
+from .config import (APPENDIX_KEYS, GROUP_DIVIDERS, MAX_SLIDES, NO_DIVIDER_GROUPS, PART_APPENDIX, PART_OF,
+                     SECTIONS, BuildConfig)
 from .ils_data import count
 from .template import Shell
 
@@ -365,10 +366,21 @@ def build_review(cfg: BuildConfig, progress=None):
 
     # ── sections ───────────────────────────────────────────────────────────
     done_groups = set()
+    done_parts = set()
     agenda_rows = []
-    for key in cfg.sections:
+
+    def _part_divider(part, first_slide, key):
+        """The part's divider, with no description line (Aaron, 2026-11-05), before its first slide; once per part."""
+        if part in done_parts:
+            return
+        done_parts.add(part)
+        agenda_rows.append((part, ""))
+        div = dk.divider(part, section=key, source=f"Source: section divider for {cfg.client_name} (no data).")
+        _move_before(dk.prs, div, first_slide)
+
+    def _do_section(key):
         if key == "data_notes":
-            continue                       # always built last, below
+            return                         # always built last, below
         sec = SECTIONS[key]
         missing = []
         if "matrix" in sec.needs and not S:
@@ -381,7 +393,7 @@ def build_review(cfg: BuildConfig, progress=None):
             missing.append("DebitDecline file")
         if missing:
             run.notes.append(f"{sec.label}: skipped — no {' or '.join(missing)} supplied.")
-            continue
+            return
         say(f"Building section: {sec.label}…")
         before = len(dk.generated)
         try:
@@ -395,10 +407,12 @@ def build_review(cfg: BuildConfig, progress=None):
         added = dk.generated[before:]
         run.slides_by_section[key] = added
         run.section_counts[key] = len(added)
-        if added and sec.group in GROUP_DIVIDERS and sec.group not in done_groups:
+        if added and key in PART_OF:
+            _part_divider(PART_OF[key], added[0], key)
+        elif added and sec.group in GROUP_DIVIDERS and sec.group not in done_groups:
             done_groups.add(sec.group)
             title, benefits = GROUP_DIVIDERS[sec.group]
-            agenda_rows.append((title, benefits))
+            agenda_rows.append((title, ""))
             if sec.group not in NO_DIVIDER_GROUPS:
                 div = dk.divider(title, blurb=benefits, section=key,
                                  source=f"Source: section divider for {cfg.client_name} (no data).")
@@ -406,13 +420,16 @@ def build_review(cfg: BuildConfig, progress=None):
         if added:
             say(f"  {len(added)} slide(s).")
 
+    for key in cfg.sections:
+        if key not in APPENDIX_KEYS:
+            _do_section(key)
+
     closing = shell.add_slide()
     dk.generated.append(closing)
     cover_divider.draw_closing(closing, f"{cfg.client_name}  •  {month}", title="Thank You")
     dk.set_notes(closing, "Source: closing slide, no data.")
     # Contact Us: the client's managing CSM (rpe_env.csm_contact, drawn by shapes.draw_contact_slide, the same
-    # card every RPE deck carries). The ILS consultant card is not built: the only consultant record found
-    # (ILS and DS Client Review Summary.xlsx) gives initials, with no name, email or phone.
+    # card every RPE deck carries), then the ILS consultant when one is passed (--consultant; Aaron, 2026-11-05).
     try:
         contact = rpe_env.csm_contact(cfg.client_id)
     except SystemExit as exc:
@@ -421,12 +438,22 @@ def build_review(cfg: BuildConfig, progress=None):
     if contact:
         cs = shell.add_slide()
         dk.generated.append(cs)
-        shapes.draw_contact_slide(cs, [contact])
-        cs.notes_slide.notes_text_frame.text = shapes.contact_card_note(contact)
-    run.build_log.append("Contact Us carries the CSM only: the ILS consultant is recorded as initials only "
-                         "(ILS and DS Client Review Summary.xlsx), with no name, email or phone to build a card from.")
+        cards = [contact] + ([cfg.consultant] if cfg.consultant else [])
+        shapes.draw_contact_slide(cs, cards)
+        note = shapes.contact_card_note(contact)
+        if cfg.consultant:
+            note += (f" ILS consultant {cfg.consultant['name']}: details as given by Aaron Burgard from the Outlook "
+                     "directory, passed to the build with --consultant.")
+        cs.notes_slide.notes_text_frame.text = note
+        run.build_log.append("Contact Us carries the CSM"
+                             + (f" and ILS consultant {cfg.consultant['name']}." if cfg.consultant
+                                else " only: no consultant details were passed (--consultant)."))
 
-    # ── the appendix: detail tables the story slides point to, then the data notes ─────────────
+    # ── the appendix: the matrix first, then the detail tables the story slides point to, then the data notes ─────
+    for key in cfg.sections:
+        if key in APPENDIX_KEYS:
+            _do_section(key)
+    n_before_deferred = len(dk.generated)
     for fn in list(dk.deferred):
         try:
             for n in (fn() or []):
@@ -439,7 +466,10 @@ def build_review(cfg: BuildConfig, progress=None):
                 traceback.print_exc()
     n_appendix = len(dk.deferred)
     _slide_data_notes(run, "data_notes")
-    agenda_rows.append(("Appendix", "Detail tables · Matrix detail · Data notes"))
+    if PART_APPENDIX not in done_parts and len(dk.generated) > n_before_deferred:
+        _part_divider(PART_APPENDIX, dk.generated[n_before_deferred], "appendix")
+    if PART_APPENDIX not in done_parts:
+        agenda_rows.append((PART_APPENDIX, ""))
     # ── the agenda goes right after the cover ───────────────────────────────
     ref = dk.prs.slides[1] if len(dk.prs.slides) > 1 else None
     ag = standard_slides.add_agenda(dk, agenda_rows)

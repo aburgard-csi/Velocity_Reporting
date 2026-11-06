@@ -62,6 +62,7 @@ def main(argv=None):
     ap.add_argument("--exclude-digital", action="store_true")
     ap.add_argument("--default-basis", choices=("deck", "readme"), default="deck",
                     help="Scoring Summary default rule: the hand-built deck's (40 days, never-repaid excluded) or the README's")
+    ap.add_argument("--consultant", help="the ILS consultant card on Contact Us: Name|Title|Phone|Email (the CSM card comes from CSM Contacts.csv)")
     a = ap.parse_args(argv)
 
     if a.list_sections:
@@ -85,6 +86,11 @@ def main(argv=None):
                       digital_branches=a.digital_branches, retail_branches=a.retail_branches,
                       include_digital=not a.exclude_digital, logic_image=a.logic_image, **paths)
     cfg.default_basis = a.default_basis
+    if a.consultant:
+        parts = [x.strip() for x in a.consultant.split("|")]
+        if len(parts) != 4 or not parts[0] or not parts[3]:
+            ap.error("--consultant takes Name|Title|Phone|Email")
+        cfg.consultant = {"name": parts[0], "role": parts[1], "phone": parts[2], "email": parts[3]}
     from . import build
     if a.dry_run:
         print("\n".join(build.summarize(cfg)))

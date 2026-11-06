@@ -21,6 +21,11 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — ILS Program Analysis deck: four-part agenda, matrix in the appendix, and the ILS consultant on Contact Us (`build/ils_analysis/ils_review/`)
+Summary: The ILS Program Analysis deck now follows Aaron's agenda (Industry Update, Program Performance, Observations and Recommended Actions, Appendix and Matrix Validation), with no description lines, the matrix moved into the appendix, and the ILS consultant's card beside the CSM on Contact Us.
+
+"use these agenda items and remove the descriptions of the agenda items" (Aaron, 2026-11-05). Each part has one divider with no subtitle; the story's three-act dividers are gone, so the slide count is unchanged. Industry Update now comes first. Observations and Recommended Actions holds the slides that explain what drives the numbers (exceptions, eligibility, Reg E, branches, where the limit calculates, performs and pulls back); no recommended actions are written, those are the consultant's call. The matrix and communication strategies are built after Contact Us, ahead of the appendix detail. `--consultant "Name|Title|Phone|Email"` adds a second Contact Us card (Tim Barrett, from Aaron's Outlook directory); without it the slide carries the CSM only, as before.
+
 ### 2026-11-05 — ILS Program Analysis deck: large-book figures fit their tiles (`build/ils_analysis/ils_review/client_slides.py`, `branch_slides.py`)
 Summary: The ILS Program Analysis deck now shrinks the six headline figures to fit when a client's numbers are large, and shortens long branch names in the highest and lowest tiles, so Broadview's deck builds with no layout failure.
 
