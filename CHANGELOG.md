@@ -15,17 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
-## 2026-11-06 - CI runs the unit suite on parallel workers
-
-Summary: The GitHub test check now splits the unit suite across the runner's CPUs (pytest-xdist), so a pull request's check finishes sooner. No deck, figure or slide changes.
-
-Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
-
 ## Changes, newest first
 
 This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an entry out of it:
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
+
+### 2026-11-06 — CI runs the unit suite on parallel workers (`.github/workflows/tests.yml`, `requirements.txt`)
+
+Summary: The GitHub test check now splits the unit suite across the runner's CPUs (pytest-xdist), so a pull request's check finishes sooner. No deck, figure or slide changes.
+
+Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
