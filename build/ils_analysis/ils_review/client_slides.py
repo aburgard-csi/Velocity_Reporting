@@ -179,10 +179,13 @@ def add_kpi_rollup(dk, cfg, fr, *, section, progress=None):
         shapes.shadow(card)
         shapes.textbox(s, x + 0.1, y + 0.10, tw - 0.2, 0.36, label, 15, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.TOP)
         cw = (tw - 0.2) / max(1, len(types))
+        vals = [(compact_money(rows[key][cols[t]]) if money_ else rows[key][cols[t]]) for t in types]
+        # the largest size at which every value in the tile stays on one line (a $35.43M book wrapped at 30 pt)
+        from textfit import fits_one_line
+        fs = next((p for p in (30, 28, 26, 24, 22, 20) if all(fits_one_line(str(v), cw, p, "Montserrat", True) for v in vals)), 20)
         for k, t in enumerate(types):
-            v = rows[key][cols[t]]
-            v = compact_money(v) if money_ else v
-            shapes.textbox(s, x + 0.1 + k * cw, y + 0.62, cw, 0.80, v, 30, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
+            v = vals[k]
+            shapes.textbox(s, x + 0.1 + k * cw, y + 0.62, cw, 0.80, v, fs, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
             shapes.textbox(s, x + 0.1 + k * cw, y + 1.45, cw, 0.30, t, 13, T.SUBTLE, False, PP_ALIGN.CENTER, T.BODY, MSO_ANCHOR.TOP)
     caption(s, "each tile shows Personal and Business side by side; loss rate is charge-off dollars over collected fees. "
                "The full table is in the appendix.", T0=6.40, size=12)

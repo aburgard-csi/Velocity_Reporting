@@ -21,6 +21,11 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — ILS Program Analysis deck: large-book figures fit their tiles (`build/ils_analysis/ils_review/client_slides.py`, `branch_slides.py`)
+Summary: The ILS Program Analysis deck now shrinks the six headline figures to fit when a client's numbers are large, and shortens long branch names in the highest and lowest tiles, so Broadview's deck builds with no layout failure.
+
+Found building Broadview FCU (1670): "$35.43M" wrapped inside its tile at 30 pt and "Cohoes - 219 Ontario Street" ran out of its branch tile. The headline tile now takes the largest size (30 down to 20 pt) at which both values stay on one line, measured with `textfit`, and the branch tile label is cut at 16 characters.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
