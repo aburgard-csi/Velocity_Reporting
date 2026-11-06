@@ -43,6 +43,12 @@ Summary: The ILS Program Analysis deck now shrinks the six headline figures to f
 
 Found building Broadview FCU (1670): "$35.43M" wrapped inside its tile at 30 pt and "Cohoes - 219 Ontario Street" ran out of its branch tile. The headline tile now takes the largest size (30 down to 20 pt) at which both values stay on one line, measured with `textfit`, and the branch tile label is cut at 16 characters.
 
+### 2026-11-06 — CI runs the unit suite on parallel workers (`.github/workflows/tests.yml`, `requirements.txt`)
+
+Summary: The GitHub test check now splits the unit suite across the runner's CPUs (pytest-xdist), so a pull request's check finishes sooner. No deck, figure or slide changes.
+
+Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
+
 ### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
 
 Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
