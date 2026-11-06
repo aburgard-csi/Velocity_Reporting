@@ -49,4 +49,4 @@ jobs:
           "RPE_DATA_ROOT=$root" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
       - name: Unit suite
-        run: python -m pytest tests -q -p no:cacheprovider -rfEs --durations=15
+        run: python -m pytest tests -q -p no:cacheprovider -rfEs --durations=15 -n auto
