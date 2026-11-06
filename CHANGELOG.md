@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-06 — Contact Us slide: phone and email are centered under the name (`build/shapes.py`)
+
+Summary: On every deck's Contact Us slide the phone number and email address now sit centered under the contact's name, with the small icon to the left of each line.
+
+Aaron, 2026-11-06: "placement for phone and email should be centered under the name." `draw_contact_slide` used to center the icon-and-text pair as a unit with the text left-aligned, so each line's words started at a different place and sat off the name's center line. The text box is now centered on the name's column and its paragraph centered; the icon hangs off the text's left edge. A missing phone still lets the email take its row. `tests/test_contact_slide.py` pins the centering for one and two contacts.
+
 ### 2026-11-06 — Inputs/ILS Analysis gets a naming convention and a tool that applies it (`scripts/ils_analysis_inputs.py`, `docs/ILS-ANALYSIS-INPUTS.md`)
 
 Summary: The ILS Analysis inputs folder now follows one layout: a folder per client number, a folder per data pull named by its date, extracts named `<id>_<kind>_<yyyymmdd>`, and the analysts' workbooks kept by name under an `analysis` folder. A tool applies it, and it can undo what it did.

@@ -384,10 +384,12 @@ def draw_contact_slide(slide, contacts):
                 continue
             pt = CONTACT_PT[field]
             tw = text_width_in(c[field], pt, BODY)
-            start = x + colw / 2 - (CONTACT_ICON_W + CONTACT_ICON_GAP + tw) / 2
-            _contact_icon(slide, kind, start + CONTACT_ICON_W / 2, y + 0.2)
-            box = textbox(slide, start + CONTACT_ICON_W + CONTACT_ICON_GAP - 0.1, y, tw + 0.5, 0.4, c[field], pt, WHITE,
-                          False, align=PP_ALIGN.LEFT, font=BODY, name="Contact " + field)
+            # The TEXT is centred under the name (Aaron, 2026-11-06); the icon hangs off its left edge, so the
+            # words, not the icon-and-words group, share the name's centre line.
+            cx = x + colw / 2
+            _contact_icon(slide, kind, cx - tw / 2 - CONTACT_ICON_GAP - CONTACT_ICON_W / 2, y + 0.2)
+            box = textbox(slide, cx - (tw + 0.2) / 2, y, tw + 0.2, 0.4, c[field], pt, WHITE,
+                          False, align=PP_ALIGN.CENTER, font=BODY, name="Contact " + field)
             box.text_frame.word_wrap = False      # an address is one line, whatever the renderer's metrics say
             y += CONTACT_TOPS["email"] - CONTACT_TOPS["phone"]
     return slide
