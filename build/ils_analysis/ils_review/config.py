@@ -117,15 +117,35 @@ NO_DIVIDER_GROUPS = {"peers", "matrix", "industry", "drivers"}
 MAX_SLIDES = 50         # Aaron / coordinator, 2026-11-04: 50 slides at most, cover, agenda, dividers and Contact included
 
 DEFAULT_SECTIONS = [
-    # where the program stands -> how it compares -> what drives it -> calculating -> performing -> pulling back
-    # -> the matrix -> the industry update; the detail tables are queued for the appendix (`Deck.defer`)
+    # The four parts of the agenda (Aaron, 2026-11-05): Industry Update, Program Performance, Observations and
+    # Recommended Actions, Appendix and Matrix Validation. Closing and Contact Us come after the third part;
+    # the matrix and the detail tables sit in the appendix, behind them.
+    "industry",
     "kpi_rollup", "fee_trends", "yoy", "nsf_share", "chargeoffs", "peers",
     "exception_items", "usage_segments", "eligibility", "reg_e", "branch_personal",
     "calculating", "performing", "pullback",
-    "matrix", "comm_strategies", "industry", "data_notes",
+    "matrix", "comm_strategies", "data_notes",
 ]
 # every other section is still in SECTIONS and builds when named (--sections); they are left out of the story
 # because each says less than a narrative slide, or uses the 40-day Scoring Summary basis.
+
+# The agenda's four parts. A section named here gets its part's divider (no description line) before its first
+# slide, and the agenda lists the parts in the order they first appear. Sections not named fall back to GROUP_DIVIDERS.
+PART_INDUSTRY = "Industry Update"
+PART_PERFORMANCE = "Program Performance"
+PART_OBSERVATIONS = "Observations and Recommended Actions"
+PART_APPENDIX = "Appendix and Matrix Validation"
+PART_OF = {
+    "industry": PART_INDUSTRY,
+    "kpi_rollup": PART_PERFORMANCE, "fee_trends": PART_PERFORMANCE, "yoy": PART_PERFORMANCE,
+    "nsf_share": PART_PERFORMANCE, "chargeoffs": PART_PERFORMANCE, "peers": PART_PERFORMANCE,
+    "exception_items": PART_OBSERVATIONS, "usage_segments": PART_OBSERVATIONS, "eligibility": PART_OBSERVATIONS,
+    "reg_e": PART_OBSERVATIONS, "branch_personal": PART_OBSERVATIONS, "calculating": PART_OBSERVATIONS,
+    "performing": PART_OBSERVATIONS, "pullback": PART_OBSERVATIONS,
+    "matrix": PART_APPENDIX, "comm_strategies": PART_APPENDIX,
+}
+# built after the Contact Us slide, so they sit in the appendix
+APPENDIX_KEYS = ("matrix", "comm_strategies")
 
 GROUP_DIVIDERS = {
     "standing": ("Where the Program Stands", "Fees · Mix · Charge-offs"),
@@ -195,6 +215,7 @@ class BuildConfig:
     predictor_bands: str = "deck"           # "deck" = the hand-built deck's bands, "readme" = the analysis registry
     branch_core_only: bool = True           # branch section: overview + three ranked charts only
     include_not_repaid: bool = False        # the 'fatal notice' slides (40-day basis) are not in the story
+    consultant: Optional[dict] = None       # the ILS consultant's Contact Us card: name, role, phone, email (--consultant)
     standard_dir: Optional[str] = None      # folder holding industry_<yyyy-mm>.json (default: Build Artifacts/ils_analysis/standard)
     peer_pool: Optional[object] = None      # ready peer rows (tests); None = read them (peers_slides.collect_pool)
     show_all_rows: bool = False             # paginate long tables instead of capping

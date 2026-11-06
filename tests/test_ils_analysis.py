@@ -369,3 +369,17 @@ def test_cure_is_sixty_days_and_the_default_basis_is_separate():
     assert SSL.CURE_DAYS == 60 and R.DEFAULT_REPAYMENT_DAYS == 40
     w, lo, hi = SSL._cure_frame(R.Frame(_loaded()))
     assert w["cured"].tolist() == [True, True, False] or w["cured"].dtype == bool
+
+
+def test_the_default_story_sits_in_the_four_agenda_parts():
+    """Aaron, 2026-11-05: the agenda is four parts, no descriptions; every default section belongs to one, and the
+    matrix sections are the ones built after Contact Us (the appendix)."""
+    from ils_review import config as C
+    parts = {C.PART_INDUSTRY, C.PART_PERFORMANCE, C.PART_OBSERVATIONS, C.PART_APPENDIX}
+    for key in C.DEFAULT_SECTIONS:
+        if key != "data_notes":
+            assert C.PART_OF[key] in parts, key
+    assert set(C.APPENDIX_KEYS) == {k for k, v in C.PART_OF.items() if v == C.PART_APPENDIX}
+    order = [C.PART_OF[k] for k in C.DEFAULT_SECTIONS if k in C.PART_OF]
+    assert [p for i, p in enumerate(order) if i == 0 or p != order[i - 1]] == [
+        C.PART_INDUSTRY, C.PART_PERFORMANCE, C.PART_OBSERVATIONS, C.PART_APPENDIX]

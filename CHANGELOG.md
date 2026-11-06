@@ -21,6 +21,23 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-06 — ILS analysis deck: "About this data" slide after the agenda, no "As of" pill on every slide (`build/ils_analysis/ils_review/client_slides.py`, `build.py`)
+
+Summary: The ILS Program Analysis deck no longer repeats the "As of" date at the top of every slide. A new slide 3, "About this data", gives the as-of date, when each extract was pulled, and four size figures: accounts pulled, open accounts, branches analysed.
+
+Aaron, 2026-11-06: "we don't need to repeat the same data on the ILS deck every slide, especially on the Agenda slide. We can add a slide outlining when the data was pulled at the top with some key summary metrics." The pull dates are the date stamps in the extract file names and the counts are the rows read, so the slide cannot disagree with the slides after it. The Data Notes slide's subtitle no longer repeats the date either. Other slides' subtitles still name their own window ("trailing 365 days to ...").
+
+### 2026-11-06 — ILS analysis deck: cover logo at the bottom right, no client numbers on the peer slides (`build/ils_analysis/ils_review/build.py`, `peers_slides.py`)
+
+Summary: On the ILS Program Analysis deck the client's logo now sits at the bottom right of the title slide, balancing the CSI mark at the top left. The peer comparison slides no longer print other clients' numbers, and the orange dot is named with the client's own name instead of "This client".
+
+Aaron, 2026-11-06: "move the client logo to the bottom right to balance against the CSI logo in the top left"; "For the power point version, don't show Client IDs since we can't hover to show them. Also, where it says 'this client' use the actual client's name." The strips no longer label the highest and lowest peer, the legend reads "Another client / Middle half of peers / Median / <client name>", and the "how to read it" line describes the shaded band and the median. The speaker notes and the figure sidecar still carry every peer's number and value. Live Review is unchanged: it shows a peer's number on hover.
+
+### 2026-11-05 — ILS Program Analysis deck: four-part agenda, matrix in the appendix, and the ILS consultant on Contact Us (`build/ils_analysis/ils_review/`)
+Summary: The ILS Program Analysis deck now follows Aaron's agenda (Industry Update, Program Performance, Observations and Recommended Actions, Appendix and Matrix Validation), with no description lines, the matrix moved into the appendix, and the ILS consultant's card beside the CSM on Contact Us.
+
+"use these agenda items and remove the descriptions of the agenda items" (Aaron, 2026-11-05). Each part has one divider with no subtitle; the story's three-act dividers are gone, so the slide count is unchanged. Industry Update now comes first. Observations and Recommended Actions holds the slides that explain what drives the numbers (exceptions, eligibility, Reg E, branches, where the limit calculates, performs and pulls back); no recommended actions are written, those are the consultant's call. The matrix and communication strategies are built after Contact Us, ahead of the appendix detail. `--consultant "Name|Title|Phone|Email"` adds a second Contact Us card (Tim Barrett, from Aaron's Outlook directory); without it the slide carries the CSM only, as before.
+
 ### 2026-11-05 — ILS Program Analysis deck: large-book figures fit their tiles (`build/ils_analysis/ils_review/client_slides.py`, `branch_slides.py`)
 Summary: The ILS Program Analysis deck now shrinks the six headline figures to fit when a client's numbers are large, and shortens long branch names in the highest and lowest tiles, so Broadview's deck builds with no layout failure.
 

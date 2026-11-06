@@ -101,6 +101,66 @@ def _emit(dk, res, cfg, fr, *kinds):
                         "notes": res.notes, "skipped": res.skipped or None})
 
 
+
+# ═════════════════════════════ about this data (slide 3) ═════════════════════
+def _pulled(path):
+    from .ils_data import date_from_name
+    d = date_from_name(path) if path else None
+    return f"{d:%b} {d.day}, {d.year}" if d else "n/a"
+
+
+def add_data_pull(dk, cfg, fr, *, section="data_pull"):
+    """One slide near the top that says when each extract was pulled and sizes the book, so no other slide repeats the as-of
+    date (Aaron, 2026-11-06: "we don't need to repeat the same data on the ILS deck every slide ... add a slide outlining when
+    the data was pulled at the top with some key summary metrics")."""
+    from textfit import fits_one_line
+    loaded = fr.loaded
+    asof = f"{fr.asof:%b} {fr.asof.day}, {fr.asof.year}"
+    n_all = len(loaded.zaccounts)
+    types = [t for t in ("Personal", "Business") if (loaded.zaccounts["accttype"] == t).any()]
+    n_open = {t: len(fr.open_accounts(t)) for t in types}
+    br = loaded.branches
+    s = dk.content("About this data", f"Every figure in this review is measured to {asof}; the extracts were pulled as shown below.",
+                   section=section, source=_src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic",
+                                                extra="Pull dates are the date stamps in the extract file names; record counts are the rows read."))
+    tiles = [("Data as of", asof, "latest account update in the extract"),
+             ("Accounts pulled", f"{n_all:,}", "every status, personal and business"),
+             ("Open accounts", f"{sum(n_open.values()):,}", "  ·  ".join(f"{t} {n_open[t]:,}" for t in types)),
+             ("Branches analysed", f"{len(br.retail) + len(br.digital)}", f"{len(br.retail)} retail, {len(br.digital)} digital ({len(br.back_office)} held out)")]
+    gap = 0.20
+    tw = (FULL_W - 3 * gap) / 4
+    th = 1.62
+    for i, (label, value, sub_) in enumerate(tiles):
+        x = LEFT + i * (tw + gap)
+        y = BODY_T + 0.05
+        card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(tw), Inches(th))
+        card.fill.solid()
+        card.fill.fore_color.rgb = T.BAND
+        card.line.fill.background()
+        shapes.shadow(card)
+        shapes.textbox(s, x + 0.1, y + 0.08, tw - 0.2, 0.34, label, 15, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.TOP)
+        fs = next((p for p in (30, 28, 26, 24, 22, 20, 18) if fits_one_line(value, tw - 0.3, p, "Montserrat", True)), 18)
+        shapes.textbox(s, x + 0.1, y + 0.46, tw - 0.2, 0.62, value, fs, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
+        shapes.textbox(s, x + 0.1, y + 1.12, tw - 0.2, 0.42, sub_, 12, T.SUBTLE, False, PP_ALIGN.CENTER, T.BODY, MSO_ANCHOR.TOP)
+    top = BODY_T + 0.05 + th + 0.30
+    T.band_real(s, LEFT, top, FULL_W, "WHEN EACH EXTRACT WAS PULLED")
+    rows = [["Accounts (ZAccounts)", _pulled(cfg.zaccounts_path), f"{n_all:,} accounts", "Balances, limits, fees, eligibility, Reg E, branches"]]
+    if loaded.ztrend is not None:
+        rows.append(["Notices (ZTrend)", _pulled(cfg.ztrend_path), f"{len(loaded.ztrend):,} notices", "Cure, pull-back and repayment"])
+    if loaded.declines is not None:
+        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines", "Exception items by channel"])
+    if getattr(loaded, "refunds", None) is not None:
+        rows.append(["Refunds", _pulled(cfg.refunds_path), f"{len(loaded.refunds):,} refunds", "Collected fees net of refunds"])
+    if cfg.matrix_path:
+        rows.append(["Matrix validation", _pulled(cfg.matrix_path), "—", "Matrix parameters and overrides"])
+    if cfg.dbic_path:
+        rows.append(["DBIC", _pulled(cfg.dbic_path), "—", "Dormant, blocked and inactive accounts"])
+    table(s, {"headers": ["Extract", "Pulled", "Records", "Used for"], "rows": rows}, LEFT, top + 0.5, FULL_W, BODY_B - (top + 0.5) - 0.1,
+          first_w=2.9, max_fs=14)
+    say_first(s, "Here is when the data was pulled and how big the book is; every figure after this is measured to the as-of date, so the slides do not repeat it.")
+    return s
+
+
 def _parity_lines(res):
     return [f"{p['measure']}: ours {p['ours']:,.2f} vs deck {p['deck']:,.2f} ({p['status']})"
             for p in res.parity if p.get("deck") is not None]

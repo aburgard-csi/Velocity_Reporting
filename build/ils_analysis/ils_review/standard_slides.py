@@ -142,21 +142,23 @@ def add_industry(dk, cfg, fr, S, *, section, progress=None):
 
 # ═════════════════════════════ the agenda ═══════════════════════════════════════
 def add_agenda(dk, rows, *, section="agenda"):
-    """`rows` = [(title, blurb)] in deck order. A numbered list; the slide numbers follow the deck's own order."""
-    s = dk.content("Agenda", "What this review covers, in the order it is presented.", section=section,
-                   source="Source: agenda for the review; no data.")
+    """`rows` = [(title, ignored)] in deck order. A numbered list of the agenda items, with no description lines
+    (Aaron, 2026-11-05: "remove the descriptions of the agenda items"); the subtitle names the review."""
+    s = dk.content("Agenda", "ILS\u00ae Program Analysis", section=section, source="Source: agenda for the review; no data.")
     n = len(rows)
-    top, bottom = 1.80, 6.65
-    rh = min(0.62, (bottom - top) / max(1, n))
-    for i, (title, blurb) in enumerate(rows):
+    top, bottom = 1.95, 6.55
+    rh = min(0.95, (bottom - top) / max(1, n))
+    d = rh - 0.22
+    for i, row in enumerate(rows):
+        title = row[0] if isinstance(row, (tuple, list)) else row
         y = top + i * rh
-        badge = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(CS.LEFT), Inches(y + 0.04), Inches(rh - 0.10), Inches(rh - 0.10))
+        badge = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(CS.LEFT), Inches(y + 0.11), Inches(d), Inches(d))
         badge.fill.solid()
         badge.fill.fore_color.rgb = brand.NAVY_RGB
         badge.line.fill.background()
-        shapes.textbox(s, CS.LEFT, y + 0.04, rh - 0.10, rh - 0.10, str(i + 1), 15, brand.WHITE_RGB, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
-        shapes.textbox(s, CS.LEFT + rh + 0.1, y, 5.2, rh, title, 18, T.NAVY, True, PP_ALIGN.LEFT, T.HEAD, MSO_ANCHOR.MIDDLE)
-        shapes.textbox(s, CS.LEFT + rh + 5.4, y, CS.FULL_W - rh - 5.4, rh, blurb, 14, T.SUBTLE, False, PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.MIDDLE)
-    s.notes_slide.notes_text_frame.text = ("Say first: here is the path through the review: where the program stands, what drives it, where "
-                                           "the limit calculates, performs and pulls back, then the matrix.\n" + s.notes_slide.notes_text_frame.text)
+        shapes.textbox(s, CS.LEFT, y + 0.11, d, d, str(i + 1), 18, brand.WHITE_RGB, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
+        shapes.textbox(s, CS.LEFT + d + 0.25, y, CS.FULL_W - d - 0.25, rh, title, 24, T.NAVY, True, PP_ALIGN.LEFT, T.HEAD, MSO_ANCHOR.MIDDLE)
+    s.notes_slide.notes_text_frame.text = ("Say first: here is the path through the review: the industry update, how the program is "
+                                           "performing, what we observe and what we would do about it, then the appendix with the "
+                                           "matrix validation.\n" + s.notes_slide.notes_text_frame.text)
     return s
