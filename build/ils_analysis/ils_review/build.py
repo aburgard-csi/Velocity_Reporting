@@ -223,9 +223,10 @@ def _draw_cover(slide, client, month, logo=None):
         fit = rpe_env.fit_box(logo, 2.5, 0.7)
         if fit:
             lw, lh = fit
-            x = cover_divider.SLIDE_W - 0.9 - 2.9
-            cover_divider._rect(slide, x, 1.0, 2.9, 1.0, brand.WHITE, radius=0.1)
-            slide.shapes.add_picture(logo, Inches(x + (2.9 - lw) / 2), Inches(1.0 + (1.0 - lh) / 2), width=Inches(lw))
+            # bottom right, on the navy band, balancing the CSI mark at the top left (Aaron, 2026-11-06)
+            x, y = cover_divider.SLIDE_W - 0.9 - 2.9, 5.45
+            cover_divider._rect(slide, x, y, 2.9, 1.0, brand.WHITE, radius=0.1)
+            slide.shapes.add_picture(logo, Inches(x + (2.9 - lw) / 2), Inches(y + (1.0 - lh) / 2), width=Inches(lw))
     return slide
 
 

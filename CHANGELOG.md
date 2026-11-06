@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-06 — ILS analysis deck: cover logo at the bottom right, no client numbers on the peer slides (`build/ils_analysis/ils_review/build.py`, `peers_slides.py`)
+
+Summary: On the ILS Program Analysis deck the client's logo now sits at the bottom right of the title slide, balancing the CSI mark at the top left. The peer comparison slides no longer print other clients' numbers, and the orange dot is named with the client's own name instead of "This client".
+
+Aaron, 2026-11-06: "move the client logo to the bottom right to balance against the CSI logo in the top left"; "For the power point version, don't show Client IDs since we can't hover to show them. Also, where it says 'this client' use the actual client's name." The strips no longer label the highest and lowest peer, the legend reads "Another client / Middle half of peers / Median / <client name>", and the "how to read it" line describes the shaded band and the median. The speaker notes and the figure sidecar still carry every peer's number and value. Live Review is unchanged: it shows a peer's number on hover.
+
 ### 2026-11-05 — ILS Program Analysis deck: four-part agenda, matrix in the appendix, and the ILS consultant on Contact Us (`build/ils_analysis/ils_review/`)
 Summary: The ILS Program Analysis deck now follows Aaron's agenda (Industry Update, Program Performance, Observations and Recommended Actions, Appendix and Matrix Validation), with no description lines, the matrix moved into the appendix, and the ILS consultant's card beside the CSM on Contact Us.
 

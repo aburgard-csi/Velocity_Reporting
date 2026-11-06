@@ -15,8 +15,8 @@ WHO IS A PEER, in one place:
   * a peer counts only when its extract is current (pulled within PEER_MAX_AGE_MONTHS of this client's data);
   * a measure with fewer than MIN_PEERS peers is not drawn and the slide says so.
 
-WHAT A PEER SHOWS: its CLIENT NUMBER and its value, nothing else (no name, logo, CSM, city or state). On the slide only the
-highest and lowest peer carry their number; the speaker notes list every peer's number and value. The values come from each
+WHAT A PEER SHOWS: its CLIENT NUMBER and its value, nothing else (no name, logo, CSM, city or state). On the slide no peer carries a
+number (a PowerPoint slide cannot hover; Aaron, 2026-11-06); the speaker notes list every peer's number and value. The values come from each
 peer's own newest ZAccounts extract (`peer_pull.py`), read for four columns.
 """
 from __future__ import annotations
@@ -144,9 +144,10 @@ def _months_between(a, b):
 
 
 # ═════════════════════════════ the strip plots ═════════════════════════════════
-def render_strips(items, out_png, w_in, h_in, who="Another client"):
-    """One strip per metric: peers as dots, the middle half shaded, the median ticked, this client in orange; the highest and
-    lowest peer carry their client number."""
+def render_strips(items, out_png, w_in, h_in, who="Another client", client_name="This client"):
+    """One strip per metric: peers as dots, the middle half shaded, the median ticked, this client in orange and named in the legend.
+    No peer carries a client number on the slide: a PowerPoint slide cannot hover to show one (Aaron, 2026-11-06); the numbers stay
+    in the speaker notes and the sidecar."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -174,10 +175,6 @@ def render_strips(items, out_png, w_in, h_in, who="Another client"):
         order = sorted(range(len(c["dots"])), key=lambda i: c["dots"][i])
         ys = [(((j * 0.6180339887) % 1.0) - 0.5) * 0.62 for j in range(len(order))]
         ax.scatter([c["dots"][i] for i in order], ys, s=70, color=STEEL, alpha=0.9, edgecolors="white", linewidths=0.8, zorder=3)
-        ids = c.get("dot_ids")
-        if ids:
-            for i, ha in ((order[0], "left"), (order[-1], "right")):
-                ax.text(c["dots"][i], -1.05, f"Client {ids[i]}", ha=ha, va="top", fontsize=12, color=TICK)
         ax.plot([c["median"]] * 2, [-0.62, 0.62], color=NAVY, lw=3.2, zorder=4, solid_capstyle="butt")
         ax.scatter([c["client"]], [0], s=330, color=ORANGE, edgecolors="white", linewidths=2.2, zorder=5)
         ax.text(c["client"], 0.5, f(c["client"]), ha="center", va="bottom", fontsize=17, fontweight="bold", color=ORANGE, zorder=6)
@@ -189,12 +186,12 @@ def render_strips(items, out_png, w_in, h_in, who="Another client"):
     kx.axis("off")
     kx.scatter([0.015], [0.5], s=70, color=STEEL, edgecolors="white", linewidths=0.8)
     kx.text(0.035, 0.5, who, va="center", fontsize=13, color=TICK)
-    kx.add_patch(Rectangle((0.255, 0.22), 0.045, 0.56, facecolor=LABEL, edgecolor="none"))
-    kx.text(0.31, 0.5, "Middle half of peers", va="center", fontsize=13, color=TICK)
-    kx.plot([0.605, 0.605], [0.18, 0.82], color=NAVY, lw=3.2, solid_capstyle="butt")
-    kx.text(0.62, 0.5, "Median", va="center", fontsize=13, color=TICK)
-    kx.scatter([0.74], [0.5], s=150, color=ORANGE, edgecolors="white", linewidths=1.6)
-    kx.text(0.76, 0.5, "This client", va="center", fontsize=13, color=TICK)
+    kx.add_patch(Rectangle((0.215, 0.22), 0.045, 0.56, facecolor=LABEL, edgecolor="none"))
+    kx.text(0.27, 0.5, "Middle half of peers", va="center", fontsize=13, color=TICK)
+    kx.plot([0.485, 0.485], [0.18, 0.82], color=NAVY, lw=3.2, solid_capstyle="butt")
+    kx.text(0.50, 0.5, "Median", va="center", fontsize=13, color=TICK)
+    kx.scatter([0.60], [0.5], s=150, color=ORANGE, edgecolors="white", linewidths=1.6)
+    kx.text(0.62, 0.5, client_name, va="center", fontsize=13, color=TICK)
     fig.savefig(out_png, dpi=200, facecolor="white")
     plt.close(fig)
     return out_png
@@ -251,7 +248,7 @@ def add_peers(dk, cfg, fr, S, *, section, progress=None):
         if items:
             h = min(4.55, 1.6 * len(items) + 0.42)
             png = os.path.join(dk.chart_dir, f"peers_{t.lower()}.png")
-            render_strips(items, png, 7.9, h)
+            render_strips(items, png, 7.9, h, client_name=cfg.client_name)
             shapes.fit_picture(s, png, CS.LEFT, CS.BODY_T + 0.05, 7.9, h)
             row_h = (h - 0.42) / len(items)
             for k, it in enumerate(items):
@@ -261,7 +258,7 @@ def add_peers(dk, cfg, fr, S, *, section, progress=None):
                 shapes.textbox(s, 8.7, y, 4.1, 0.4, _rank_text(c), 18, T.ORANGE, True, PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
                 rel = PC.relation_phrase(c, f)
                 shapes.textbox(s, 8.7, y + 0.4, 4.1, 0.9, rel[0].upper() + rel[1:] + ".", 15, T.SUBTLE, False, PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
-            CS.caption(s, f"each dot is one other client in the group; the highest and lowest are labelled with their client numbers. "
+            CS.caption(s, f"each dot is one other client in the group; the shaded band is the middle half of peers and the tick is their median. "
                           f"A measure needs {MIN_PEERS} peers with current data.", T0=6.45, size=12)
             CS.say_first(s, f"This is where {t.lower()} sits against similar ILS clients on items, fees and users per open account.")
             lines = [f"Peer group: {group}. Very large = assets of ${VERY_LARGE_ASSETS_M / 1000:.0f}B or more, or in the top {VERY_LARGE_TOP_SHARE:.0%} of ILS clients by DDA count; "
