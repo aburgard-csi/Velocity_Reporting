@@ -54,10 +54,14 @@ def test_every_glass_token_is_defined_for_light_and_redefined_for_dark():
         assert dark_media[tok].strip() == dark_attr[tok].strip(), tok + " differs between the two dark blocks"
 
 
-def test_the_palette_is_the_brand_palette_and_the_glass_only_adds_surfaces():
+def test_the_palette_is_the_finance_dashboards_blue_glass_and_the_glass_only_adds_surfaces():
+    """Aaron, 2026-11-06: "i don't like the orange highlight. use the color scheme from my financial dashboard."
+    The highlight token keeps its old name (--orange) but is the dashboard's accent; the second chart series is its amber."""
     light, dark_media, _ = _themes()
-    assert light["--orange"].strip().upper() == "#F15D22" and light["--navy"].strip().upper() == "#00274C"
-    assert dark_media["--c-orange"].strip().upper() == "#FF7A45"
+    assert light["--orange"].strip().upper() == "#0E6FB0" and light["--navy"].strip().upper() == "#00274C"
+    assert dark_media["--orange"].strip().upper() == "#58B6EC"
+    assert light["--c-orange"].strip().upper() == "#D08A1A" and dark_media["--c-orange"].strip().upper() == "#E5B15B"
+    assert "#F15D22" not in _css().upper().replace("#F15D22;border", "")   # no orange highlight left, but for the title card's deck wedge
 
 
 def test_blur_has_a_fallback_and_less_transparency_is_honoured():
