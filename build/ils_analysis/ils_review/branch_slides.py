@@ -74,8 +74,8 @@ def ranked_with_panel(dk, slide, df, col, top_n, *, series_name, fmt, fmtv, port
     tw = (w - 0.15) / 2
     tiles = [(fmtv(portfolio), port_label),
              (f"{hi[col] / lo[col]:.1f}x" if lo[col] else "n/a", "Highest branch over lowest"),
-             (fmtv(hi[col]), "Highest: " + _short(hi["branchname"], 20)),
-             (fmtv(lo[col]), "Lowest: " + _short(lo["branchname"], 20))]
+             (fmtv(hi[col]), "Highest: " + _short(hi["branchname"], 16)),
+             (fmtv(lo[col]), "Lowest: " + _short(lo["branchname"], 16))]
     for i, (v, lab) in enumerate(tiles):
         shapes.tile(slide, x0 + (i % 2) * (tw + 0.15), 1.75 + (i // 2) * 1.08, tw, 0.98, v, lab, small_label=True)
     top3 = sel.iloc[::-1].head(3)

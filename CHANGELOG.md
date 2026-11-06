@@ -21,6 +21,11 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-05 — ILS Program Analysis deck: large-book figures fit their tiles (`build/ils_analysis/ils_review/client_slides.py`, `branch_slides.py`)
+Summary: The ILS Program Analysis deck now shrinks the six headline figures to fit when a client's numbers are large, and shortens long branch names in the highest and lowest tiles, so Broadview's deck builds with no layout failure.
+
+Found building Broadview FCU (1670): "$35.43M" wrapped inside its tile at 30 pt and "Cohoes - 219 Ontario Street" ran out of its branch tile. The headline tile now takes the largest size (30 down to 20 pt) at which both values stay on one line, measured with `textfit`, and the branch tile label is cut at 16 characters.
+
 ### 2026-11-06 — CI runs the unit suite on parallel workers (`.github/workflows/tests.yml`, `requirements.txt`)
 
 Summary: The GitHub test check now splits the unit suite across the runner's CPUs (pytest-xdist), so a pull request's check finishes sooner. No deck, figure or slide changes.
