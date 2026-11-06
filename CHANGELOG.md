@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-06 — Inputs/ILS Analysis gets a naming convention and a tool that applies it (`scripts/ils_analysis_inputs.py`, `docs/ILS-ANALYSIS-INPUTS.md`)
+
+Summary: The ILS Analysis inputs folder now follows one layout: a folder per client number, a folder per data pull named by its date, extracts named `<id>_<kind>_<yyyymmdd>`, and the analysts' workbooks kept by name under an `analysis` folder. A tool applies it, and it can undo what it did.
+
+Aaron, 2026-11-06: "clean up the file names in Inputs\ILS Analysis and create a naming convention and organization system for those files going forward." The folder was a copy of the analysis share's small files with dozens of spellings of a pull folder (`DataPull_202209`, `Data Pull 2017-07-13`, `2015_08 Redwood`, `DataPull_2024.11.5 1155 winsouth`) and half a dozen of an adjustments file. The extract kinds are the names the ILS Program Analysis builder finds, so a pull folder can be handed to it as it stands. Nothing is deleted or overwritten, every move is listed in `Build Artifacts/ils_analysis_inputs/renames-<stamp>.csv` first, and `--undo` restores it.
+
 ### 2026-11-06 — ILS analysis deck: "About this data" slide after the agenda, no "As of" pill on every slide (`build/ils_analysis/ils_review/client_slides.py`, `build.py`)
 
 Summary: The ILS Program Analysis deck no longer repeats the "As of" date at the top of every slide. A new slide 3, "About this data", gives the as-of date, when each extract was pulled, and four size figures: accounts pulled, open accounts, branches analysed.
