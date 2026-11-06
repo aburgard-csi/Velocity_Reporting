@@ -21,6 +21,12 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-06 — ILS analysis deck: "About this data" slide after the agenda, no "As of" pill on every slide (`build/ils_analysis/ils_review/client_slides.py`, `build.py`)
+
+Summary: The ILS Program Analysis deck no longer repeats the "As of" date at the top of every slide. A new slide 3, "About this data", gives the as-of date, when each extract was pulled, and four size figures: accounts pulled, open accounts, branches analysed.
+
+Aaron, 2026-11-06: "we don't need to repeat the same data on the ILS deck every slide, especially on the Agenda slide. We can add a slide outlining when the data was pulled at the top with some key summary metrics." The pull dates are the date stamps in the extract file names and the counts are the rows read, so the slide cannot disagree with the slides after it. The Data Notes slide's subtitle no longer repeats the date either. Other slides' subtitles still name their own window ("trailing 365 days to ...").
+
 ### 2026-11-06 — ILS analysis deck: cover logo at the bottom right, no client numbers on the peer slides (`build/ils_analysis/ils_review/build.py`, `peers_slides.py`)
 
 Summary: On the ILS Program Analysis deck the client's logo now sits at the bottom right of the title slide, balancing the CSI mark at the top left. The peer comparison slides no longer print other clients' numbers, and the orange dot is named with the client's own name instead of "This client".

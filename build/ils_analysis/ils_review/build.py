@@ -271,7 +271,7 @@ def _slide_data_notes(run, key):
     extras = [m for m in (list(loaded.notes) + list(run.notes) + list(run.errors)) if m]
     full = ["Scope"] + scope + ["Methods"] + method + (["Notes, skips and comparisons"] + extras if extras else [])
     slide = dk.content("Appendix: data notes and methodology",
-                       f"Scope, definitions and limits for the analysis in this deck  ·  data as of {str(fr.asof)[:10]}",
+                       "Scope, definitions and limits for the analysis in this deck",
                        section=key, source=CS._src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic"))
     colw = 6.0
     T.band_real(slide, 0.50, 1.75, colw, "SCOPE AND DEFINITIONS")
@@ -338,7 +338,8 @@ def build_review(cfg: BuildConfig, progress=None):
     dk = T.Deck(shell, cfg.client_name, date_label, client_id=cfg.client_id, footer_label=DECK_KIND,
                 footer_extra=footer_types, types=types, codes=codes, colors=T.assign_type_colors(types))
     dk.relabel_mrpc = cfg.relabel_mrpc
-    dk.pill_text = f"As of {loaded.snapshot:%b} {loaded.snapshot.day}, {loaded.snapshot.year}"
+    # No "As of" pill on the slides: the date and the pull dates are said once, on "About this data" (Aaron, 2026-11-06).
+    dk.pill_text = ""
     chart_dir = cfg.chart_dir or os.path.join(str(rpe_env.build_artifacts()), "ils_analysis", "out",
                                               f"{cfg.client_id or 'client'}-{period}-charts")
     os.makedirs(chart_dir, exist_ok=True)
@@ -476,6 +477,14 @@ def build_review(cfg: BuildConfig, progress=None):
     ag = standard_slides.add_agenda(dk, agenda_rows)
     if ref is not None:
         _move_before(dk.prs, ag, ref)
+    # the slide that says when the data was pulled sits right after the agenda
+    ref2 = dk.prs.slides[2] if len(dk.prs.slides) > 2 else None
+    try:
+        dp = CS.add_data_pull(dk, cfg, fr)
+        if ref2 is not None:
+            _move_before(dk.prs, dp, ref2)
+    except Exception as exc:
+        run.errors.append(f"About this data failed to build — {type(exc).__name__}: {exc}.")
 
     _finish(run)
     if len(shell.prs.slides) > MAX_SLIDES:
