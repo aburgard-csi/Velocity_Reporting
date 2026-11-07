@@ -15,6 +15,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+## 2026-11-06 — Live Review opens from a client's page in CSM Sheila (prototype)
+
+Summary: A CSM can now open Live Review for a client from the client's page in Sheila, with a Live Review card (Open, Stop and what is ready), instead of a command in a terminal. It is still a prototype, the peer comparisons show client numbers only, and the ILS section is not offered yet.
+
+Aaron, 2026-11-06: "what would it take to let other CSM create these?", then "start with the Sheila button and release, include peer comparisons with the client number only. LR stays in prototype status."
+
+- `scripts/live_review_ui.py` runs Live Review's server inside Sheila's own process on a thread. It is not a build job: it takes no place in the build queue and not `build.lock`, so a review held open for an hour does not stop the PC's builds. Building the page reads the share and can take minutes, so Open returns at once and the card shows "Building the page" until it is ready; the page then opens in the CSM's browser.
+- The traceability audit still refuses to serve a page with a figure that traces to no pack (the card lists the figures); a peer is a dot whose hover gives its client number and nothing else.
+- ILS is held back from this door (`EXCLUDED_PROGRAMS`) whether or not a build of Live Review has it; its section reads a finished review PDF that not every CSM can see. Decision pending.
+- `scripts/sheila_hub_live.py` is the card; `ars_launcher_web.py` adds the `live` block to a client's status (file presence only; a failure never costs the RPE status) and the `/api/live/*` routes behind Sheila's token.
+- `tests/test_live_review.py`: the old "Sheila does not know about it" test now says Sheila reaches it only through `live_review_ui`. `tests/test_live_review_ui.py` is new.
+- Reaches CSM PCs with the next release (the release already mirrors `scripts/` and `build/`); nothing about the release script changed.
+
 ## Changes, newest first
 
 This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an entry out of it:
