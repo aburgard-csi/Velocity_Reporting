@@ -15,7 +15,7 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
-## 2026-11-06 — Live Review opens from a client's page in CSM Sheila (prototype)
+### 2026-11-06 — Live Review opens from a client's page in CSM Sheila (prototype)
 
 Summary: A CSM can now open Live Review for a client from the client's page in Sheila, with a Live Review card (Open, Stop and what is ready), instead of a command in a terminal. It is still a prototype, the peer comparisons show client numbers only, and the ILS section is not offered yet.
 
@@ -33,6 +33,24 @@ Aaron, 2026-11-06: "what would it take to let other CSM create these?", then "st
 This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an entry out of it:
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
+
+### 2026-11-06 — Contact Us slide: phone and email are centered under the name (`build/shapes.py`)
+
+Summary: On every deck's Contact Us slide the phone number and email address now sit centered under the contact's name, with the small icon to the left of each line.
+
+Aaron, 2026-11-06: "placement for phone and email should be centered under the name." `draw_contact_slide` used to center the icon-and-text pair as a unit with the text left-aligned, so each line's words started at a different place and sat off the name's center line. The text box is now centered on the name's column and its paragraph centered; the icon hangs off the text's left edge. A missing phone still lets the email take its row. `tests/test_contact_slide.py` pins the centering for one and two contacts.
+
+### 2026-11-06 — Live Review takes the Burgard Finances dashboard's blue glass colors in place of orange (`build/review_page/static/live.css`, `live.js`)
+
+Summary: Live Review no longer uses orange to mark what is selected. It now uses the blue accent, black selected pill and blue-teal background of the Burgard Finances dashboard, in light and dark.
+
+Aaron, 2026-11-06: "i don't like the orange highlight. use the color scheme from my financial dashboard." The selected program tab, the selected screen, the page mark, the sidebar and bar highlights, a selected table row, this client's dot and legend in the peer plots and a single highlighted bar all wear the accent (`#0E6FB0` light, `#58B6EC` dark); the selected pill in a segmented control is black in light mode and near white in dark; the page ground is the dashboard's blue-teal gradient. The second series color in a chart is the dashboard's amber for money out (`#D08A1A`, `#E5B15B` in dark), not the old CSI orange. The title card shown when the story moves to another product keeps its deck artwork (the orange wedge); its progress track uses the accent. Program tag colors (REMS in rust) are unchanged.
+
+### 2026-11-06 — Live Review: an ILS section built from the client's latest ILS Program Analysis review (`build/review_page/programs/ils.py`, `ils_review_pack.py`, `scripts/ils_review_pack.py`)
+
+Summary: Live Review has a new ILS program that shows a client's latest ILS review as four pages: program summary, fees and losses, how accounts use the program, and how the client compares with its peers. A script reads the review's PDF into a pack first, and refuses a table that does not add up.
+
+Aaron, 2026-11-06: "build a LR page for Marine FCU using their last ILS analysis review" (Marine's July 18, 2026 review, data through June 25, 2026). The review is a deck, so `scripts/ils_review_pack.py <review>.pdf` reads its text tables (institution, peer comparison, account utilization, mature accounts, the two 12-month periods and their annual comparison, the OD risk metrics) into `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json`; the 12 months of each period must add to the annual row and the utilization tiers to their total, or nothing is written. The page derives only differences (a percent change, points apart) and records each; the review's own commentary and opportunity analysis are quoted in the Sources panel, not restated as claims. Every screen says the figures are the review's date, whatever period the page is opened for. The review's charts are pictures and are not on the page. Fee changes are stated with both figures and no cause, because the +/-2% movement wording is about what the program did and a price cut is not that. New `pct2` format (two decimals) for a default rate, which a one-decimal percent shows as 1.4% against a prior 1.69%.
 
 ### 2026-11-06 — Inputs/ILS Analysis gets a naming convention and a tool that applies it (`scripts/ils_analysis_inputs.py`, `docs/ILS-ANALYSIS-INPUTS.md`)
 
