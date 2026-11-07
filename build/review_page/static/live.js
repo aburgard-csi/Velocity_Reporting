@@ -15,6 +15,7 @@
     usd2: function (v) { return (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2); },
     usdk: function (v) { var a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e6 ? s + "$" + (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? s + "$" + Math.round(a / 1e3) + "K" : s + "$" + grp(a); },
     pct1: function (v) { return v.toFixed(1) + "%"; },
+    pct2: function (v) { return v.toFixed(2) + "%"; },
     pct0: function (v) { return Math.round(v) + "%"; },
     frac1: function (v) { return (v * 100).toFixed(1) + "%"; },
     dec1: function (v) { return v.toFixed(1); },
@@ -235,7 +236,7 @@
     if (b.t === "cards") return cardsHTML(b);
     if (b.t === "statement") return b.lead ? '<p class="lede blk">' + esc(b.text) + "</p>" : '<div class="card blk"><h3>' + esc(b.title) + "</h3><p>" + esc(b.text) + "</p></div>";
     if (b.t === "peerstrip") return '<div class="card blk"><div class="head"><div class="hgrow"><h3>' + esc(b.title) + (b.month ? " · " + esc(b.month) : "") + '</h3></div></div>' + (b.sentence ? '<p class="psent">' + esc(b.sentence) + "</p>" : "") + '<div class="cbox" data-strip="' + b.id + '"></div>' +
-      '<div class="legend"><span><i style="background:var(--c-orange)"></i>' + esc(cname()) + '</span><span><i style="background:var(--c-steel)"></i>Another client (hover for its number)</span><span><i style="background:var(--line);border:1px solid var(--axis)"></i>Middle half of peers</span><span><i style="background:var(--c-navy)"></i>Peer median</span></div></div>';
+      '<div class="legend"><span><i style="background:var(--orange)"></i>' + esc(cname()) + '</span><span><i style="background:var(--c-steel)"></i>Another client (hover for its number)</span><span><i style="background:var(--line);border:1px solid var(--axis)"></i>Middle half of peers</span><span><i style="background:var(--c-navy)"></i>Peer median</span></div></div>';
     if (b.t === "needs") return '<div class="card blk needs"><h3>Not on this client yet</h3><p>' + esc(b.what) + '</p><p class="hint">What to run first</p><code>' + esc(b.fix) + "</code></div>";
     return "";
   }
@@ -414,7 +415,7 @@
   }
   function axisLabel(v, f) {   // axis ticks drop trailing zeros: $12.5M, $40M, 75%
     if (f === "usd" || f === "usdk") { var a = Math.abs(v); return a >= 1e6 ? "$" + +(a / 1e6).toFixed(2) + "M" : a >= 1e3 ? "$" + +(a / 1e3).toFixed(1) + "K" : "$" + a; }
-    if (f === "pct1" || f === "pct0") return +v.toFixed(1) + "%";
+    if (f === "pct1" || f === "pct2" || f === "pct0") return +v.toFixed(1) + "%";
     if (f === "frac1") return +(v * 100).toFixed(0) + "%";
     if (f === "usd2") return "$" + +v.toFixed(2);
     return F.int(v);
@@ -487,7 +488,7 @@
           var x = stacked ? cx - sw / 2 : cx - (ser.length * sw) / 2 + k * sw;
           var y = stacked ? pad2.t + ph - ph * (acc + v) / top : pad2.t + ph - bh;
           acc += v;
-          var fill = isHi && ser.length === 1 ? "var(--c-orange)" : col(s.color);
+          var fill = isHi && ser.length === 1 ? "var(--orange)" : col(s.color);
           var sel = S.drill && S.drill.key === c && S.drill.table === (b.drill || {}).table;
           h.push('<rect class="bar grow-y' + (clickable ? " click" : "") + (sel ? " sel" : "") + '" data-cat="' + esc(c) + '" x="' + x + '" y="' + y + '" width="' + (sw - (stacked ? 0 : 2)) + '" height="' + bh + '" rx="' + Math.min(5, sw / 3) + '" style="fill:' + fill + ";animation-delay:" + Math.min(i * 22, 420) + 'ms"' + tipAttr("<b>" + esc(c) + "</b><br>" + esc(s.name) + ": " + esc(tipVal(s, i, v, f))) + "/>");
           if (showVals && (!stacked || k === ser.length - 1)) h.push('<text class="v" x="' + (stacked ? cx : x + (sw - 2) / 2) + '" y="' + (y - 5) + '" text-anchor="middle">' + esc(fmt(stacked ? acc : v, f)) + "</text>");
@@ -546,7 +547,7 @@
       var y = mid + (((i * 37) % 7) - 3) * 8;
       h.push('<circle cx="' + X(v) + '" cy="' + y + '" r="6" class="peerdot grow-y" style="fill:var(--c-steel);fill-opacity:.82;stroke:var(--surface);stroke-width:1.5;animation-delay:' + Math.min(i * 12, 360) + 'ms"' + tipAttr((b.dot_ids && b.dot_ids[i] ? "Client " + b.dot_ids[i] : "Another client") + ": " + fmt(v, b.fmt)) + "/>");
     });
-    h.push('<circle cx="' + X(b.client) + '" cy="' + mid + '" r="11" style="fill:var(--c-orange);stroke:var(--surface);stroke-width:3"' + tipAttr(cname() + ": " + fmt(b.client, b.fmt)) + "/>");
+    h.push('<circle cx="' + X(b.client) + '" cy="' + mid + '" r="11" style="fill:var(--orange);stroke:var(--surface);stroke-width:3"' + tipAttr(cname() + ": " + fmt(b.client, b.fmt)) + "/>");
     var me = cname() + " " + fmt(b.client, b.fmt), meW = textW(me, 13) / 2 + 6;
     h.push('<text x="' + X(b.client) + '" y="' + (mid - 20) + '" text-anchor="' + (X(b.client) + meW > W ? "end" : X(b.client) - meW < 0 ? "start" : "middle") + '" style="font-weight:700;fill:var(--orange-ink)">' + esc(me) + "</text>");
     h.push("</svg>");
