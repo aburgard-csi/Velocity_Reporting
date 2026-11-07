@@ -33,6 +33,7 @@ REGISTRY = [
     ("ics", "ICS", "ics"),
     ("mrpc", "MRPC", "mrpc"),
     ("cashplease", "CashPlease", "cashplease"),
+    ("ils", "ILS", "ils"),
     ("rems", "REMS", "rems"),
 ]
 
