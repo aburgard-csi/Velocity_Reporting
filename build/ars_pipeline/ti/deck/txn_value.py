@@ -174,6 +174,10 @@ def where_pin_gets_pressed(h, t, base):
     rows = t.get("ic_by_merchant") or []
     if len(rows) < 3:
         return "Where PIN gets pressed (fewer than three card merchants)"
+    if not any(r[2] for r in rows) or not any(r[3] for r in rows):
+        # one routing never appears at any merchant: the file does not carry a usable
+        # PIN/signature indicator, so a chart of all-signature merchants is an artefact
+        return "Where PIN gets pressed (no PIN/SIG mix in the file)"
     pin_led = sorted(rows, key=lambda r: -r[2])[0]
     head = (f"{labels.clip(_merchant(pin_led[0]), 24)} carries the most PIN dollars, "
             f"{money(pin_led[2])} at {100 - pin_led[4]:.0f}% PIN")
