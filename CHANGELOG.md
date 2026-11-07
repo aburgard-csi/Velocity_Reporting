@@ -34,6 +34,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-06 — Live Review: the side bar's list scrolls under its border, not over it (`build/review_page/static/live.css`)
+
+Summary: In Live Review's side bar, the screen names now slide under the bar's top edge as the list scrolls, instead of crossing it.
+
+Aaron, 2026-11-06: "on the LR side bar, the item labels should slide under the slide bar border, not over it."
+
+- The bar's lit top edge was an inset shadow, which is painted beneath the content, and 18 px of padding above the first item was part of the scrolling area, so a scrolled label crossed the edge and showed in that strip. The edge is now the border, there is no padding to scroll into, and the old padding is two spacers that scroll away with the list. The phone's bottom bar is unchanged.
+
 ### 2026-11-06 — Contact Us slide: phone and email are centered under the name (`build/shapes.py`)
 
 Summary: On every deck's Contact Us slide the phone number and email address now sit centered under the contact's name, with the small icon to the left of each line.
