@@ -295,7 +295,14 @@ body{background:transparent}
 .top .seg button .dot{background:#7F95B0}
 .top .seg button[aria-pressed="true"] .dot,.top .seg button[aria-selected="true"] .dot{background:#04202F}
 .top .seg button .dot.ok{background:#3CC4B2}
-.rail{top:90px;height:auto;max-height:calc(100vh - 108px);margin:12px 0 0 max(16px,env(safe-area-inset-left));padding:18px 10px;border-radius:28px}
+.rail{top:90px;height:auto;max-height:calc(100vh - 108px);margin:12px 0 0 max(16px,env(safe-area-inset-left));padding:0 10px;border-radius:28px}
+/* The rail scrolls its own list (Aaron, 2026-11-06: "the item labels should slide under the side bar border, not over it").
+   Its lit top edge was an INSET box-shadow, which is painted beneath the content, and the 18px of padding above the first item
+   was part of the scrolling area, so a scrolled label crossed the lit edge and showed in the strip above the list. The edge is now
+   the border (content is clipped inside a border and can never cross it), there is no padding for a label to scroll into, and the
+   old padding is two spacers that scroll away with the list. */
+.rail{box-shadow:0 24px 50px -24px rgba(0,0,0,.7);border-top-color:rgba(255,255,255,.46)}
+.rail::before,.rail::after{content:"";display:block;height:18px}
 .nav button[aria-current="page"]{background:linear-gradient(180deg,#4DB2EE,#1F86C9);color:#04202F;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 6px 16px -8px rgba(40,150,220,.9)}
 .rail .nav button[aria-current="page"] .n{background:#04202F;color:#BFE6FB}
 .rail .nav button:hover{color:#FFFFFF}
@@ -327,6 +334,7 @@ html.present main{margin:10px 14px 16px;border-radius:28px}
 @media (max-width:860px){
   .top{margin:8px 8px 0;padding:8px 10px;border-radius:22px;top:8px}
   .rail{top:auto;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));margin:0;max-height:none;padding:6px 8px;border-radius:26px;--bar-a:rgba(2,24,50,.94);--bar-b:rgba(2,14,32,.92)}
+  .rail::before,.rail::after{display:none}
   main{margin:10px 8px 104px;padding:20px 14px 28px;min-height:0;border-radius:24px}
   .foot{left:8px;right:8px}
 }

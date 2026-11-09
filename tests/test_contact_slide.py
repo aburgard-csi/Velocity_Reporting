@@ -104,6 +104,21 @@ def test_phone_and_email_sit_together_and_a_missing_phone_closes_the_gap():
     assert abs(top["Contact email"] - shapes.CONTACT_TOPS["phone"]) < 0.001    # the email takes the phone's row
 
 
+@pytest.mark.parametrize("contacts", [[CONTACT], [CONTACT, PROGRAM]])
+def test_phone_and_email_are_centred_under_the_name(contacts):
+    """Aaron, 2026-11-06: "placement for phone and email should be centered under the name". The text, not the
+    icon-and-text group, shares the name's centre line, so the two lines stack on it whatever their length."""
+    slide = _slide()
+    shapes.draw_contact_slide(slide, contacts)
+    names = sorted(_named(slide, "Contact name"), key=lambda s: s.left)
+    for field in ("Contact phone", "Contact email"):
+        boxes = sorted(_named(slide, field), key=lambda s: s.left)
+        assert len(boxes) == len(names)
+        for nm, bx in zip(names, boxes):
+            assert abs((bx.left + bx.width / 2) - (nm.left + nm.width / 2)) < Inches(0.01)
+            assert bx.text_frame.paragraphs[0].alignment == shapes.PP_ALIGN.CENTER
+
+
 def test_phone_and_email_carry_small_icons_clear_of_their_text():
     slide = _slide()
     shapes.draw_contact_slide(slide, [CONTACT])

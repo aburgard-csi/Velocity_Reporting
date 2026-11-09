@@ -178,3 +178,18 @@ def test_the_dark_glass_bar_and_the_orange_pill_keep_aa_contrast():
                     assert _ratio(fg, bar) >= 4.5, "%s: %s on the bar over %s" % (name, fg, back)
     for stop in ((245, 122, 71), (224, 82, 26)):                    # the active pill's gradient, dark ink on it
         assert _ratio((11, 26, 43), stop) >= 4.5
+
+
+def test_the_rail_scrolls_under_its_border_not_over_it():
+    """Aaron, 2026-11-06: "the item labels should slide under the side bar border, not over it". The rail scrolls its own list. Its
+    lit top edge was an inset box-shadow (painted beneath the content) and 18px of padding above the first item was part of the
+    scrolling area, so a scrolled label crossed the lit edge. The edge is the border now (content is clipped inside a border), there
+    is no padding to scroll into, and the old padding is two spacers that scroll away with the list. The phone's bottom bar has none."""
+    css = _css()
+    rail = re.search(r"\.rail\{top:90px;[^}]*\}", css).group(0)
+    assert "padding:0 10px" in rail
+    after = css[css.index(rail):]
+    assert ".rail{box-shadow:0 24px 50px -24px rgba(0,0,0,.7);border-top-color:" in after
+    assert '.rail::before,.rail::after{content:"";display:block;height:18px}' in after
+    narrow = after[after.index("@media (max-width:860px)"):]
+    assert ".rail::before,.rail::after{display:none}" in narrow
