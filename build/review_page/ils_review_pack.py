@@ -302,3 +302,45 @@ def pack_path(client, root=None):
 def client_from_filename(path):
     m = re.match(r"^(\d{3,5})-\d{4}\.\d{2}-ILS-", Path(path).name)
     return m.group(1) if m else None
+
+
+# ----------------------------------------------------------------- the reviews on the share (Aaron, 2026-11-06)
+# `Inputs/ILS Reviews/<id>/<id>-<yyyy.mm>-ILS-<Client> ILS Review.pdf`: the finished review, landed from the Clients library by
+# scripts/land_ils_reviews.py and read into the pack above. The YYYY.MM in the name is the review's period, so the newest review
+# is the one with the latest period (a tie goes to the later write). Nothing here reads the share at import.
+REVIEW_NAME_RX = re.compile(r"^(\d{3,5})-(\d{4})\.(\d{2})-ILS-.*ILS Review\.pdf$", re.IGNORECASE)
+
+
+def review_period(name):
+    """('2026', '07') for `1539-2026.07-ILS-Marine FCU ILS Review.pdf`, or None when the name is not a review's."""
+    m = REVIEW_NAME_RX.match(Path(name).name)
+    return (m.group(2), m.group(3)) if m else None
+
+
+def reviews_dir(client, create=False):
+    import rpe_env
+    p = rpe_env.input_dir("ILS reviews", create=create) / str(client)
+    if create:
+        p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def newest(names):
+    """The newest review among file names (or paths): latest period, then the name. None when none is a review's."""
+    best = None
+    for n in names:
+        per = review_period(n)
+        if per and (best is None or (per, Path(n).name) > (review_period(best), Path(best).name)):
+            best = n
+    return best
+
+
+def newest_review(client):
+    """The client's newest review PDF on the share, or None."""
+    d = reviews_dir(client)
+    try:
+        names = [f.name for f in d.iterdir() if f.is_file()]
+    except OSError:
+        return None
+    got = newest(names)
+    return d / got if got else None

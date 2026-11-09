@@ -27,8 +27,8 @@ from review_page import trace as TR                          # noqa: E402
 from review_page.trace import Pack                           # noqa: E402
 
 KEY, LABEL = "ils", "ILS"
-FIX = ("Save the client's ILS Program Analysis review as a PDF and run "
-       "`python scripts/ils_review_pack.py \"<the review>.pdf\"` (the file name starts <id>-<yyyy.mm>-ILS-), then reload.")
+FIX = ("This client's ILS Program Analysis review is not on the share yet. Its PDF belongs in Inputs/ILS Reviews/<id>/ "
+       "(`python scripts/land_ils_reviews.py` puts it there and reads it); ask Aaron, then open the page again.")
 
 
 def load(ctx):

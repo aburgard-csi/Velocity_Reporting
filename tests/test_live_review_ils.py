@@ -143,7 +143,7 @@ def test_the_reviews_commentary_is_quoted_in_sources_not_restated(pack_root):
 def test_a_client_with_no_review_pack_is_told_what_to_run(tmp_path):
     model, _t, _p = build(tmp_path)
     ils = model["programs"][0]
-    assert ils["state"] == "missing" and "ils_review_pack.py" in ils["fix"]
+    assert ils["state"] == "missing" and "land_ils_reviews.py" in ils["fix"]
 
 
 def test_a_peer_row_says_points_for_a_rate_and_percent_for_a_count(pack_root):
