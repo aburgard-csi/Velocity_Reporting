@@ -179,7 +179,7 @@ def test_the_summary_exports_as_csv(root):
 # ---------------------------------------------------------------- what is refused
 
 @pytest.mark.parametrize("kw", [
-    {"vote": "maybe"}, {"vote": ""}, {"program": "XYZ"}, {"program": ""}, {"title": ""}, {"title": "x" * 201},
+    {"vote": "maybe"}, {"program": "XYZ"}, {"program": ""}, {"title": ""}, {"title": "x" * 201},
     {"slide": 0}, {"slide": "one"}, {"comment": "c" * 501}])
 def test_a_bad_vote_is_refused(root, kw):
     args = {"program": "ARS", "slide": 1, "title": "Overview", "vote": "keep", "comment": ""}
@@ -302,7 +302,7 @@ def test_the_page_is_not_tied_to_a_client():
 
 def test_a_vote_button_sends_the_slides_title_and_number_and_the_star_with_the_vote():
     import sheila_hub as H
-    send = _between(H.PAGE, "async function send(i, patch)", "function paintRow(i)")
+    send = _between(H.PAGE, "async function send(i, patch, quiet)", "function paintRow(i)")
     for part in ('"/api/votes/vote"', "slide: s.n", "title: s.title", "star: next.star", "vote: next.vote"):
         assert part in send
     assert 'aria-pressed="${m.vote === v}"' in H.PAGE and 'class="star"' in H.PAGE and "Favorite slide" in H.PAGE
@@ -313,3 +313,27 @@ def test_the_vote_buttons_use_the_hubs_colours_not_an_accent():
     import sheila_hub as H
     css = _between(H.PAGE, "button.vb{", "input.vc{")
     assert "var(--good-soft)" in css and "var(--bad-soft)" in css and "var(--orange)" not in H.PAGE and "#F47A29" not in H.PAGE.upper()
+
+
+# ---------------------------------------------------------------- a cleared vote, a comment before a vote (issue 158)
+
+def test_a_cleared_vote_is_saved_and_leaves_no_count(root):
+    vote(v="delete")
+    vote(v="")                                       # cleared: no star, no comment
+    assert SV.mine(SV.read_votes(), "aaron", "ARS")["ARS|account retention"]["vote"] == ""
+    assert SV.aggregate(SV.read_votes()) == []
+
+
+def test_a_comment_typed_before_a_vote_is_kept_and_then_the_vote_is_recorded(root):
+    vote(v="", comment="needs the branch names")     # typed on an unvoted slide
+    vote(v="appendix", comment="needs the branch names")
+    ars = SV.aggregate(SV.read_votes())[0]
+    assert (ars["keep"], ars["delete"], ars["appendix"]) == (0, 0, 1)
+    assert ars["comments"][0]["text"] == "needs the branch names" and ars["comments"][0]["vote"] == "appendix"
+
+
+def test_a_comment_alone_is_exported_as_a_comment_not_a_star(root):
+    vote(v="", comment="check the Reg E figure")
+    rows = SV.aggregate(SV.read_votes())
+    assert (rows[0]["keep"], rows[0]["delete"], rows[0]["appendix"], rows[0]["stars"]) == (0, 0, 0, 0)
+    assert "(comment): check the Reg E figure" in SV.summary_csv(rows)

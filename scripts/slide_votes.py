@@ -247,11 +247,12 @@ def _now():
 def check_vote(program, slide, title, vote, comment="", star=False):
     """The vote as it will be stored, or VoteError. Everything a caller can send is checked here.
 
-    `vote` may be empty when the slide is only starred: a star is a favourite flag beside the vote."""
+    `vote` may be empty: a cleared vote, a star alone or a comment alone (issue 158: a comment typed before a vote
+    was refused, and so was clearing a vote). A vote that is not one of VOTES is still refused."""
     if program not in PROGRAMS:
         raise VoteError("not a program")
     vote = vote or ""
-    if (vote and vote not in VOTES) or (not vote and not star):
+    if vote and vote not in VOTES:
         raise VoteError("a vote is keep, delete or appendix")
     title = re.sub(r"\s+", " ", str(title or "")).strip()
     if not title:
@@ -320,7 +321,7 @@ def read_votes():
             if isinstance(doc, dict) and not doc.get("program"):
                 doc = _legacy(doc) if doc.get("vote") in VOTES else None
             ok = (isinstance(doc, dict) and doc.get("program") in PROGRAMS and doc.get("key") and doc.get("voter")
-                  and doc.get("at") and (doc.get("vote") in VOTES or (doc.get("star") and not doc.get("vote"))))
+                  and doc.get("at") and (doc.get("vote") in VOTES or not doc.get("vote")))
             _files[n] = doc if ok else None
         except (OSError, ValueError):
             _files[n] = None
@@ -334,6 +335,11 @@ def latest(votes):
     for v in votes:                       # oldest first, so a later one replaces
         cur[(v["voter"], v["key"])] = v
     return list(cur.values())
+
+
+def has_state(v):
+    """A document that says something: a vote, a star or a comment. A cleared vote says nothing and is not counted."""
+    return bool(v.get("vote") or v.get("star") or v.get("comment"))
 
 
 def mine(votes, voter, program):
@@ -350,6 +356,8 @@ def aggregate(votes, program=None):
     for v in latest(votes):
         if program and v.get("program") != program:
             continue
+        if not has_state(v):
+            continue
         r = rows.setdefault(v["key"], {"key": v["key"], "program": v["program"], "title": v["title"],
                                        "keep": 0, "delete": 0, "appendix": 0, "stars": 0,
                                        "voters": set(), "comments": [], "_at": ""})
@@ -359,7 +367,8 @@ def aggregate(votes, program=None):
             r["stars"] += 1
         r["voters"].add(v["voter"])
         if v.get("comment"):
-            r["comments"].append({"voter": v["voter"], "vote": v.get("vote", ""), "text": v["comment"], "at": v["at"]})
+            r["comments"].append({"voter": v["voter"], "vote": v.get("vote", ""), "text": v["comment"], "at": v["at"],
+                                  "star": bool(v.get("star"))})
         if v["at"] >= r["_at"]:
             r["_at"], r["title"] = v["at"], v["title"]
     out = []
@@ -387,7 +396,7 @@ def summary_csv(rows):
     for r in rows:
         w.writerow([PROGRAM_LABEL.get(r["program"], r["program"]), r["title"], r["keep"], r["delete"], r["appendix"],
                     r["stars"], r["leading"], len(r["voters"]),
-                    " | ".join(f'{c["voter"]} ({c["vote"] or "star"}): {c["text"]}' for c in r["comments"])])
+                    " | ".join(f'{c["voter"]} ({c["vote"] or ("star" if c.get("star") else "comment")}): {c["text"]}' for c in r["comments"])])
     return buf.getvalue()
 
 

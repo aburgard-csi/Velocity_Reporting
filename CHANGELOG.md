@@ -34,6 +34,14 @@ This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
 
+### 2026-11-09 — Slide Review: a comment or a cleared vote no longer fails to save (`scripts/slide_votes.py`, `scripts/sheila_hub_votes.py`)
+
+Summary: In Slide Review, typing a comment on a slide before choosing Keep, Delete or Appendix no longer shows "Couldn't save that: a vote is keep, delete or appendix", and the Appendix click that followed it is no longer lost. Clearing a vote on a slide with no star or comment now saves too, and a cleared vote is not counted in the Summary.
+
+Issue #158 (James Gilmore, 2026-11-06): choosing Appendix on a slide with a comment showed the error. The comment was saved on blur, with no vote, and the share refused a save that had neither a vote nor a star, which also refused clearing a vote. A comment is now saved on its own, and the row is not repainted while the comment is saved, so the click on a vote button beside it still lands. A stored document with no vote, star or comment counts as cleared: it does not add a voter or a row to the Summary, and the CSV labels a comment with no vote as "comment" rather than "star".
+
+- Reported in CSM Sheila: slide review on the Reported page.
+
 ### 2026-11-06 — Live Review: the side bar's list scrolls under its border, not over it (`build/review_page/static/live.css`)
 
 Summary: In Live Review's side bar, the screen names now slide under the bar's top edge as the list scrolls, instead of crossing it.
