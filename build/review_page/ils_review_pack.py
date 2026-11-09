@@ -33,6 +33,14 @@ class ReviewReadError(Exception):
     pass
 
 
+# Said when a review is an ILS Program Analysis but its figures are not in the PDF's text. The analysis team's decks from about
+# 2024 paste each table in as a picture (the KPI rollup, the peer comparison, the monthly summaries), so the text layer holds the
+# slide titles and the consultant's bullets and nothing a figure can be read from. Reading a picture is OCR, which is a decision
+# for Aaron (a new dependency, and every figure still has to reconcile), not something this reader does quietly.
+IMAGE_TABLES_MESSAGE = ("only {n} of the review's tables are text: the rest are pictures in the PDF, which this reader cannot "
+                        "read (the review itself is an ILS Program Analysis)")
+
+
 def _flat(s):
     return " ".join((s or "").split())
 
@@ -64,14 +72,54 @@ def _find(pages, *needles):
 
 
 # ----------------------------------------------------------------- the pages
-def _title_block(pages):
-    t = pages[0]
-    m = re.search(r"Partnering for Success\s+(.+?)\s+([A-Z][a-z]+ \d{1,2}, \d{4})\s*$", t)
-    if not m:
-        raise ReviewReadError("the cover page has no 'Partnering for Success <client> <date>' line")
+def _spaced(phrase):
+    """A pattern for `phrase` that survives the text layer's stray spaces inside words ("PA RTNERING FO R SUCCESS")."""
+    return r"\s+".join(r"\s*".join(re.escape(c) for c in word) for word in phrase.split())
+
+
+# The covers say it in four ways (all read from the text layer, whatever the page's case or spacing):
+#   "Partnering for Success <client> <Month d, yyyy>"                      the original layout (Marine FCU)
+#   "PARTNERING FOR SUCCESS · ANNUAL REVIEW ILS® Program Analysis <client> <date> Prepared by ..."   (2026)
+#   "ILS Program Analysis <client> <date>"                                 the 2018 layout
+#   a cover with no client or date at all (the legal notice first, or "INTELLIGENT LIMIT SYSTEM® Program Performance Analysis")
+_TITLE_RX = re.compile(
+    r"(?:" + _spaced("Partnering for Success") + r"(?:\s*·\s*" + _spaced("ANNUAL REVIEW") + r")?"
+    r"|ILS\s*®?\s*Program\s+Analysis)\s*(?:ILS\s*®?\s*Program\s+Analysis\s+)?"
+    r"(?P<client>[^\d•|]{2,80}?)\s+(?P<date>[A-Z][a-z]+ \d{1,2}, \d{4})", re.IGNORECASE)
+
+
+_LEADING_MARKER_RX = re.compile(
+    r"^(?:(?:" + _spaced("Partnering for Success") + r"|" + _spaced("ANNUAL REVIEW") + r"|ILS\s*®?\s*Program\s+(?:Performance\s+)?Analysis)\s*·?\s*)+",
+    re.IGNORECASE)
+
+
+def _name_from_file(source_file):
+    """`1204-2026.09-ILS-FSB Michigan ILS Review.pdf` -> `FSB Michigan`."""
+    stem = re.sub(r"\.pdf$", "", Path(source_file).name, flags=re.IGNORECASE)
+    m = re.match(r"^\d{3,5}-\d{4}\.\d{2}-ILS-(.+?)(?:\s+ILS Review)?$", stem, re.IGNORECASE)
+    return m.group(1).strip() if m else None
+
+
+def _title_block(pages, source_file=""):
+    """(client name, ISO review date or None, where they came from). A cover that carries no title line falls back to the
+    file name: the name from it, and no date, because the file's YYYY.MM is a month and never becomes a day."""
     import datetime
-    d = datetime.datetime.strptime(m.group(2), "%B %d, %Y").date()
-    return m.group(1).strip(), d.isoformat()
+    for t in pages[:3]:
+        for m in _TITLE_RX.finditer(t):
+            client = m.group("client").strip(" ·-")
+            # a layout that prints both phrases ("ILS Program Analysis Partnering for Success <client>") leaves one in the capture
+            client = _LEADING_MARKER_RX.sub("", client).strip(" ·-")
+            if re.search(r"confidential|this document|proprietary|^\d", client, re.IGNORECASE) or len(client) < 2:
+                continue
+            try:
+                d = datetime.datetime.strptime(m.group("date"), "%B %d, %Y").date()
+            except ValueError:
+                continue
+            return client, d.isoformat(), "cover"
+    name = _name_from_file(source_file)
+    if name:
+        return name, None, "file name"
+    raise ReviewReadError("the cover has no title line and the file name does not give the client")
 
 
 def _mdy(s):
@@ -267,9 +315,12 @@ def _opportunity(pages):
 
 # ----------------------------------------------------------------- the pack
 def parse(pages, source_file, client_id):
-    name, review_date = _title_block(pages)
+    name, review_date, title_from = _title_block(pages, source_file)
+    per = review_period(source_file)
     pack = {"version": PACK_VERSION, "client_id": str(client_id), "client_name": name, "review_date": review_date,
-            "source_file": source_file, "page_count": len(pages), "pages": {}}
+            # the month the file name gives the review: all a cover with no date can say, and never made into a day
+            "review_period": f"{per[0]}-{per[1]}" if per else (review_date[:7] if review_date else None),
+            "title_from": title_from, "source_file": source_file, "page_count": len(pages), "pages": {}}
     for key, fn in (("institution", _institution), ("peer_comparison", _peer_comparison),
                     ("utilization", _utilization), ("mature", _mature), ("monthly", _monthly)):
         val, pg = fn(pages)
@@ -289,7 +340,7 @@ def parse(pages, source_file, client_id):
         pack["opportunity"] = opp
         pack["pages"]["opportunity"] = pg
     if len(pack["pages"]) < 3:
-        raise ReviewReadError("fewer than three of the review's tables were found: this does not look like an ILS Program Analysis")
+        raise ReviewReadError(IMAGE_TABLES_MESSAGE.format(n=len(pack["pages"])))
     return pack
 
 

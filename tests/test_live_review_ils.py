@@ -146,6 +146,34 @@ def test_a_client_with_no_review_pack_is_told_what_to_run(tmp_path):
     assert ils["state"] == "missing" and "land_ils_reviews.py" in ils["fix"]
 
 
+def test_a_review_with_no_day_on_its_cover_is_dated_by_its_month_never_a_day(pack_root):
+    path = R.pack_path("9999", pack_root)
+    pack = json.loads(path.read_text(encoding="utf-8"))
+    pack["review_date"], pack["review_period"], pack["title_from"] = None, "2026-07", "file name"
+    path.write_text(json.dumps(pack), encoding="utf-8")
+    model, _t, problems = build(pack_root)
+    assert problems == []
+    screens = model["programs"][0]["screens"]
+    for s in screens:
+        assert any("the July 2026 review" in n for n in s["notes"])
+        assert not any("July 18" in n for n in s["notes"])
+
+
+def test_a_review_on_the_share_whose_figures_are_pictures_says_so(tmp_path, monkeypatch):
+    # the PDF is on the share but no pack was made from it: the page must not say it is "not on the share yet"
+    root = tmp_path / "share"
+    for d in ("Inputs", "Outputs", "Build Artifacts"):
+        (root / d).mkdir(parents=True)
+    monkeypatch.setenv("RPE_DATA_ROOT", str(root))
+    folder = root / "Inputs" / "ILS Reviews" / CID
+    folder.mkdir(parents=True)
+    (folder / f"{CID}-2026.07-ILS-Test Bank ILS Review.pdf").write_bytes(b"%PDF-1.4 stand-in")
+    model, _t, _p = build(root)
+    ils = model["programs"][0]
+    assert ils["state"] == "missing"
+    assert "is on the share" in ils["fix"] and "pictures" in ils["fix"] and "not on the share yet" not in ils["fix"]
+
+
 def test_a_peer_row_says_points_for_a_rate_and_percent_for_a_count(pack_root):
     model, _t, _p = build(pack_root)
     peers = next(s for s in model["programs"][0]["screens"] if s["id"] == "peers")

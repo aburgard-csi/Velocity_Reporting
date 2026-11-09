@@ -31,10 +31,23 @@ FIX = ("This client's ILS Program Analysis review is not on the share yet. Its P
        "(`python scripts/land_ils_reviews.py` puts it there and reads it); ask Aaron, then open the page again.")
 
 
+def _fix_for(R, client):
+    """What to tell the CSM when there is no pack: the review is not on the share yet, or it IS there and its figures are pictures
+    (the analysis team's decks from about 2024 paste each table in as an image, which the text reader cannot read)."""
+    try:
+        review = R.newest_review(client)
+    except Exception:                                          # no share, or no folder for the client: the first message stands
+        review = None
+    if review is None:
+        return FIX
+    return (f"This client's ILS review ({review.name}) is on the share, but its figures are pictures in the PDF, which this page "
+            "cannot read yet; the page has nothing to show until they are read (ask Aaron).")
+
+
 def load(ctx):
     from review_page import ils_review_pack as R
     path = R.pack_path(ctx.client, ctx.root)
-    data = PK.read_json(path, "the ILS review pack", FIX)
+    data = PK.read_json(path, "the ILS review pack", FIX if os.path.exists(str(path)) else _fix_for(R, ctx.client))
     return {"C": Pack(os.path.basename(str(path)), data, ctx.tracer, str(path)), "notes": {}, "deck": data.get("source_file")}
 
 
@@ -52,6 +65,12 @@ def _ym_long(ym):
 def _long_date(iso):
     d = datetime.date.fromisoformat(iso)
     return f"{d.strftime('%B')} {d.day}, {d.year}"
+
+
+def _month_year(ym):
+    """`2026-09` -> `September 2026`: the review's month when its cover gave no day."""
+    y, m = ym.split("-")
+    return datetime.date(int(y), int(m), 1).strftime("%B %Y")
 
 
 def _fmt(v, kind):
@@ -97,10 +116,12 @@ def build(ctx, p):
     name = C.get("client_name", default="The client")
     pages = C.get("pages") or {}
     review = C.get("review_date")
+    review_month = C.get("review_period")          # a cover with no date gives the file name's month, never an invented day
     src = C.get("source_file")
     inst = C.get("institution") or {}
     through = inst.get("data_through")
-    stamp = f"the {_long_date(review)} review" if review else "the latest review"
+    stamp = (f"the {_long_date(review)} review" if review
+             else f"the {_month_year(review_month)} review" if review_month else "the latest review")
     base_note = (f"These figures are from {stamp}" + (f", with data through {_long_date(through)}" if through else "") +
                  "; they do not change with the period the page is opened for. The review reports complete months only.")
 
@@ -184,7 +205,9 @@ def _summary(ctx, C, name, base_note, fb, pages):
     tbl = B.table("ils-month-table", "By month", cols, rows, sort={"key": None},
                   sub="Exception items, collected fees and losses in each complete month, newest first.")
     sources = fb("ILS review", "institution", "monthly", "annual") + _commentary_sources(C, pages)
-    scr = B.screen("summary", "Program summary", f"ILS · Review of {_long_date(C.get('review_date'))}" if C.get("review_date") else "ILS · Review",
+    scr = B.screen("summary", "Program summary",
+                   f"ILS · Review of {_long_date(C.get('review_date'))}" if C.get("review_date")
+                   else f"ILS · Review of {_month_year(C.get('review_period'))}" if C.get("review_period") else "ILS · Review",
                    headline, [B.kpis(items), B.drill(chart, tbl)], PK.sources_for({}, ["ILS"], sources), notes)
     scr["_summary"] = {"headline": headline, "kpis": [dict(k, go="ils:summary") for k in items[:3]]}
     return scr
