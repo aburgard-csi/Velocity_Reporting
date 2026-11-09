@@ -20,8 +20,9 @@ Rules kept from live_review.py, not loosened here:
   * Every figure must trace to a pack. The server refuses to serve a model the audit fails (no `--allow-untraced`).
   * Served on 127.0.0.1 only, with a per-server random token and a Host check (live_review.make_handler).
   * A peer is a dot whose hover gives its client number and nothing else; fewer than five peers is stated, not shown.
-  * ILS is NOT offered here yet (its section reads a finished review PDF that not every CSM can see): the program list
-    is every registry key but `ils`, whether or not that program is in this build of Live Review.
+  * ILS is offered (Aaron, 2026-11-06: "put ILS review PDFs on the share"). Its section reads the client's finished review,
+    which scripts/land_ils_reviews.py puts in Inputs/ILS Reviews/<id>/ and reads into a pack, so a CSM's PC reads the pack and
+    parses no PDF. `EXCLUDED_PROGRAMS` stays as the one place to hold a program back again.
 
 The routes (`get`, `post`) and the readiness block (`status`) are this module's; the card is sheila_hub_live.py.
 """
@@ -37,7 +38,7 @@ CID_RX = re.compile(r"^\d{3,5}$")
 PERIOD_RX = re.compile(r"^\d{4}\.\d{2}$")
 OK, ASK, STOP = "ok", "ask", "stop"          # the same words ars_launcher uses for a check's level
 MAX_OPEN = 4                                  # servers kept at once; opening one more stops the oldest
-EXCLUDED_PROGRAMS = ("ils",)                  # not offered from Sheila yet (see the module docstring)
+EXCLUDED_PROGRAMS = ()                        # programs held back from Sheila's door; none now (see the module docstring)
 
 _lock = threading.Lock()
 _sessions = {}                                # client id -> Session
@@ -203,6 +204,19 @@ def status(cid, period, programs_of_client):
             checks.append({"level": OK, "text": "CashPlease: the pack is on hand."})
         else:
             checks.append({"level": ASK, "text": "CashPlease: no pack yet for this client."})
+    # ILS: the client's latest review, read into a pack from the PDF on the share. Shown for a client that has one, and
+    # named for a client the roster lists on ILS; a client with neither gets no line (most clients are not on ILS).
+    ils_pack = None
+    try:
+        from review_page import ils_review_pack as IR
+        ils_pack = IR.pack_path(cid)
+    except (ImportError, OSError, ValueError):
+        pass
+    if ils_pack is not None and ils_pack.is_file():
+        have.append("ILS")
+        checks.append({"level": OK, "text": "ILS: the latest ILS review is on the share and read."})
+    elif "ILS" in progs:
+        checks.append({"level": ASK, "text": "ILS: this client's ILS review is not on the share yet (Inputs/ILS Reviews); ask Aaron."})
     state = "ready" if have else "stop"
     if not have:
         checks.insert(0, {"level": STOP, "text": "No program has data for %s yet, so there is nothing to present." % period})

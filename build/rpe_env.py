@@ -358,6 +358,10 @@ INPUT_KIND_DIRS = {
     # Clients' GL data and NSF/OD performance tracking spreadsheets, emailed to us (Aaron, 2026-11-03). scripts/gl_data_ingest.py
     # folds them into gl_data.json in this folder, one table for every client, and archives the originals under _Archive/.
     "GL Data": "GL Data",
+    # The clients' finished ILS Program Analysis reviews, one folder per client: <id>/<id>-<yyyy.mm>-ILS-<Client> ILS Review.pdf
+    # (Aaron, 2026-11-06: "put ILS review PDFs on the share"). Landed by scripts/land_ils_reviews.py from the Clients library's
+    # `ILS Delivery` folders, newest review per client, and read into the pack Live Review's ILS section shows. Copy-only.
+    "ILS reviews": "ILS Reviews",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -366,7 +370,7 @@ INPUT_KIND_DIRS = {
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
                      "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits",
-                     "Deferred Billing", "ILS PGL", "ILS Kickoff", "REMS", "GL Data")
+                     "Deferred Billing", "ILS PGL", "ILS Kickoff", "REMS", "GL Data", "ILS reviews")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to

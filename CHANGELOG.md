@@ -15,6 +15,32 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-09 — ILS review reader: every cover style, and a plain reason when a review's figures are pictures (`build/review_page/ils_review_pack.py`)
+
+Summary: Live Review's ILS reader now reads the client's name and date from all four cover styles in use, and says when a review's tables are pictures instead of calling it "not an ILS Program Analysis"; it still reads the same 5 of the 46 reviews on the share, because the other 41 hold their figures as images.
+
+Aaron, 2026-11-09: "teach the reader the other review layouts."
+
+- **What was wrong, found by running the reader over all 46 reviews on the share.** 18 failed on the cover (the line it needed is not on the cover of the 2026 layouts, which print the title later, with stray spaces in "PARTNERING FOR SUCCESS", or on the older ones carry only the legal notice) and 23 on "fewer than three tables". With the covers fixed, **no review gained a pack**: the other 41 are the analysis team's current decks, whose KPI rollup, peer comparison and monthly tables are pasted in as pictures, so there is no text to read a figure from. What the text layer still gives them is the institution page (39 of the 41) and the consultant's opportunity bullets (31 of the 41), never a number the page could trace.
+- Cover: the title is searched on the first three pages in all four styles ("Partnering for Success <client> <date>", "PARTNERING FOR SUCCESS · ANNUAL REVIEW ILS® Program Analysis <client> <date>", "ILS Program Analysis <client> <date>", both phrases together). A cover with no title takes the client from the file name and has **no day**: the pack carries `review_period` (the file name's month) and the page says "the July 2026 review", never a day it was not given. `title_from` records which.
+- A review with fewer than three text tables is refused with the reason ("only N of the review's tables are text: the rest are pictures in the PDF"). Live Review's message for a client whose review is on the share but has no pack now says that, not "not on the share yet". The three-table bar is unchanged, so no near-empty pack is written.
+- **Not done, and Aaron's call:** reading the pictures (OCR: a new dependency, and every figure would still have to reconcile with its total), packing the institution page and bullets alone, or taking the ILS figures from the data pull with `build/ils_analysis`, which already builds the deck from a pull (1821 was built that way on 2026-11-09).
+- One file-name oddity on the share: 1677's review is named 2022.02 but its cover is dated January 30, 2023.
+
+### 2026-11-06 — ILS review PDFs go on the share, and Live Review's ILS section is offered from Sheila
+
+Summary: Each client's newest ILS Program Analysis review PDF is now copied to the CSM_Reporting share and read into the figures Live Review shows, so any CSM can open the ILS pages from Sheila without the OneDrive Clients library. The ILS pages are now offered from Sheila.
+
+Aaron, 2026-11-06: "put ILS review PDFs on the share" (the ILS source decision left open when Live Review first opened from Sheila).
+
+- New input folder `Inputs/ILS Reviews/<id>/` (`rpe_env.INPUT_KIND_DIRS["ILS reviews"]`, never scanned by the watch). `scripts/land_ils_reviews.py --from <Clients library>` copies the newest review per client from its `ILS Delivery` folder, copy-only: nothing deleted or overwritten, an older review stays beside a newer one, a same-name file at another size is reported and left.
+- The same run reads the review into `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json`, so a CSM's PC reads that pack and parses no PDF. A review whose tables do not reconcile is landed and reported with no pack, and a client with a pack that cannot be refreshed keeps the old one.
+- `live_review_ui.EXCLUDED_PROGRAMS` is now empty: ILS is on Sheila's Live Review. The card's readiness list names the ILS review for a client that has one, and for a client the roster lists on ILS that has none yet.
+- A page for a client with no ILS pack says the review is not on the share yet and to ask Aaron (it used to say to run a Python script).
+- The ILS pages show the review's own date and its data-through date and do not change with the period the page is opened for, so a client whose newest review is old (the oldest newest is 2018) shows an old review.
+
+## 2026-11-06 — Live Review opens from a client's page in CSM Sheila (prototype)
+
 ### 2026-11-06 — Live Review opens from a client's page in CSM Sheila (prototype)
 
 Summary: A CSM can now open Live Review for a client from the client's page in Sheila, with a Live Review card (Open, Stop and what is ready), instead of a command in a terminal. It is still a prototype, the peer comparisons show client numbers only, and the ILS section is not offered yet.
