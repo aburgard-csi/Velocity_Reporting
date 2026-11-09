@@ -1865,7 +1865,7 @@ def votes_summary_doc(program=""):
     votes = SV.read_votes()
     cur = SV.latest(votes)
     return {"rows": SV.aggregate(votes, program or None), "votes": len([v for v in cur if v.get("vote")]),
-            "stars": len([v for v in cur if v.get("star")]), "voters": len({v["voter"] for v in cur}),
+            "stars": len([v for v in cur if v.get("star")]), "voters": len({v["voter"] for v in cur if SV.has_state(v)}),
             "programs": [{"id": p, "label": SV.PROGRAM_LABEL[p]} for p in SV.PROGRAMS]}
 
 

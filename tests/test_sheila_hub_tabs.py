@@ -104,7 +104,7 @@ def test_slide_review_is_one_keystroke_per_slide_and_a_slide_is_saved_with_its_w
     page = H.PAGE
     for route in ('"/api/votes/programs"', '"/api/votes/program?program="', '"/api/votes/summary"', '"/api/votes/export"', '"/api/votes/vote"'):
         assert route in page
-    send = between(page, "async function send(i, patch)", "function paintRow(i)")
+    send = between(page, "async function send(i, patch, quiet)", "function paintRow(i)")
     assert "vote: next.vote, star: next.star, comment: next.comment" in send, "a star keeps the vote and a vote keeps the star"
     assert "s.mine = before; paintRow(i);" in send and "Couldn't save that" in send, "put back when the share refuses"
     key = between(page, "registerTab(\"votes\"", "palette: () => [...(V.progs")
