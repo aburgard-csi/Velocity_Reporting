@@ -769,6 +769,49 @@ James Gilmore, 2026-10-29: "i think 1737 is wrong", "agenda numbers are squished
 - **Sheila's PGL card** (`scripts/ils_job.py`): the OD-eligible suggestion is now `ALL`, with the matrix's own reading kept in the basis line. A suggestion fills only an empty field, so a code saved on an earlier run stays until the CSM changes it.
 - **Agenda** (`sheila_deck._space_agenda`): `assemble_combined.set_agenda` fits nine rows at a 0.47in pitch, under the template's 0.62in badges, so the badges overlapped into one bar and the top-anchored headings sat above their centred numbers. The PGL deck now re-lays the rows itself: 0.44in badges spread between 1.45in and 6.45in (clear of the logo at 6.78in), with each heading centred on its badge. `set_agenda` is unchanged, so ARS, ICS and MRPC agendas are as before.
 
+### 2026-10-28 — Transaction Intelligence cut: column names for the tables v5 never named (stage g14-04)
+
+Summary: the TI cut now writes a CSV for 67 more tables. Their column names are in the new `ti/table_columns.py`, each read from the line of code that builds the row. The real 1761 pack goes from 42 CSVs to 72, and 1776 from 101 to 167.
+
+v5's tables layer writes only tables that declare their columns, so 30 of 1761's and 68 of 1776's Sep26 tables had no CSV and could not be backed up row by row. The names sit in an RPE-side file, not in the ported modules, and are applied only on the way into `tables.write`. No ported file changes and no figure in `ti_pack.json` moves.
+
+The business-side tables (`finb_`, `compb_`, `mchb_`) take the names their personal-side siblings already declare. Those declarations were dropped by `txn_sections.py`'s business allow-lists. `beh_routing_by_merchant` takes the names declared as `beh_routing_columns`. In every one of these cases, if the declared names are absent the table stays unwritten and is named in the warnings, so no header is ever invented.
+
+Two keys stay out on purpose:
+- `tier_migration_matrix`: its rows carry no tier label, so a CSV could not be read on its own.
+- `tier_migration_windows`: month tags, not a table.
+
+On all three real packs every header is exactly as wide as its rows.
+
+Where a name would be easy to misread, it says what is counted:
+- `age` and `balance_profile` rates are responders over mailed accounts, a count the row does not carry, hence `response_rate_of_mailed_pct`.
+- `comp_recency_bands` counts account × competitor pairs.
+- `swipe_tier`'s last column is the monthly NSF/OD item count.
+
+### 2026-10-28 — Transaction Intelligence cut: the ODD's shape is checked before any figure (stage g14-03)
+
+Summary: before any chapter computes, the TI cut's build now runs v5's extract check on the client's ODD. It records the file's shape in `ti_pack.json` as `extract_*` figures and warns when that shape would quietly distort a figure elsewhere.
+
+Before v5 added this check, any of these produced numbers that were wrong in ways no section could detect, because every figure computed over whatever arrived:
+- a month missing inside the covered range, which reads as a month of zero activity;
+- Swipes and Spend covering different months, so a per-swipe ratio divides one window by another;
+- an account appearing twice, so every headcount counts it more than once;
+- an anchor month absent from the series.
+
+`ti/monthly_analysis/extract_check.py` is v5's at `a491b5c`, logic unchanged, and it runs first, as in v5's `metrics.py`. It never suppresses a section, it only reports. Its warnings sit in the build log beside the others, and no figure, slide or deck changes. The ARS deck is untouched.
+
+### 2026-10-28 — Transaction Intelligence cut: one concept, one number, or no deck (stage g14-02)
+
+Summary: the TI cut's build now runs v5's consistency audit. Wherever two slides quote the same figure differently, it records each disagreement in `ti_pack.json` and in the build log, and builds no deck until they agree.
+
+v5 added this audit after the real 1585 deck disagreed with itself: the hero quoted 12.4% where the per-mailer table said 11.4% for the same wave, three slides gave three responder counts, and the P&L slide relabelled window revenue as cumulative. James's rule then: "fail safe if the numbers dont align". `ti/monthly_analysis/consistency.py` is v5's at `a491b5c`, logic unchanged. A rule fires only when both of the figures it compares are present, so a section that declined is never a violation. v5 passes its ODD and transaction figures as two dicts. The cut holds them in one, so `ti_build.main` passes that dict as both. Checked against the cut's real Sep26 packs for 1761 and 1776: no violations, so no deck that builds today is refused. One v5 test is not ported because it checks `run.py`'s card-spend reconciliation through v5's whole metrics harness, not this module. The ARS deck is untouched.
+
+### 2026-10-28 — Transaction Intelligence cut: every table behind its slides as a CSV (stage g14-01)
+
+Summary: the TI cut's build now writes v5's analyst tables: each tabular figure that names its columns becomes a CSV in `ti/tables/`, listed in `ti_pack.json`. A tabular figure that names no columns is listed in the build's warnings by name, never dropped silently.
+
+James, 2026-10-27: "i just need to be able to back up the data." A figure on a slide has to be checkable against the rows behind it. v5 wrote these tables in `run.py` beside `metrics.json`. The cut had no equivalent, so its figures lived only inside `ti_pack.json`. `ti/monthly_analysis/tables.py` is v5's `tables.py` at `a491b5c`, logic unchanged: rows are written exactly as the figure holds them, nothing rounded or re-ordered, so a CSV cannot disagree with its slide. The files are UTF-8 with a BOM so Excel on Windows opens accented names cleanly. `ti_build.main` calls it after the figures and before the decks, as v5 does. A failure here is a warning and the build goes on. No figure, slide or deck changes. The ARS deck is untouched. The figures that are tables but declare no columns are named in the warning; declaring them is a follow-up.
+
 ### 2026-10-28 — ILS pre-go-live: core limits against ILS limits, and the fee chapter names its notice window
 
 Summary: the PGL deck now sets the core's overdraft limits against the limits ILS proposes, personal and business, two slides each, before the limit tiers. The fee chapter says it is built on N days of notice items, and every yearly fee figure is marked as an estimate.
