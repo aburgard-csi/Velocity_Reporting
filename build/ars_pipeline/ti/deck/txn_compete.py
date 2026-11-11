@@ -9,6 +9,15 @@ LOCAL_TIER = "Local Bank / CU"
 ECOSYSTEM_TIER = "Payment Ecosystem"
 
 
+NO_PRIOR = "not compared: no prior window in the files"
+
+
+def _no_prior_window(mom):
+    """True when no institution has a single stopped relationship: nothing was seen in the
+    prior window, so every account reads as new (issue #86)."""
+    return bool(mom) and not any(r[2] for r in mom)
+
+
 def _leads(inst, row):
     """The product categories in which `row` reaches the most accounts of any named competitor."""
     out = []
@@ -63,7 +72,8 @@ def who_competes(h, t, base):
     else:
         # too few for a quadrant: v5's reach and momentum bars. comp_institutions is already cut
         # to TOP_INSTITUTIONS, so the note counts every institution that MATCHED
-        net = {r[0]: r[3] for r in (t.get("comp_momentum") or [])}
+        mom = t.get("comp_momentum") or []
+        net = {} if _no_prior_window(mom) else {r[0]: r[3] for r in mom}
         rows = [[labels.clip(r[0], 22), r[2], f"{money(r[6])}/acct", net.get(r[0]),
                  r[1] == LOCAL_TIER] for r in inst[:9]]
         matched = t.get("comp_institutions_n") or len(inst)
@@ -204,6 +214,8 @@ def gaining_and_losing(h, t, base):
     mom = t.get("comp_momentum") or []
     if not mom:
         return "Gaining and losing (no comp_momentum)"
+    if _no_prior_window(mom):
+        return f"Gaining and losing ({NO_PRIOR})"
     rows = sorted(mom, key=lambda r: -r[3])[:8]
     s, top = h["slide"]((
         f"{rows[0][0]} added {rows[0][1]:,} relationships in 90 days and lost "
@@ -536,6 +548,8 @@ def depth_against_growth(h, t, base):
     rows = t.get("comp_depth_growth") or []
     if len(rows) < 3:
         return "Depth against growth (fewer than three institutions)"
+    if len({round(r[3], 6) for r in rows}) == 1:
+        return f"Depth against growth ({NO_PRIOR})"
     med_d = sorted(r[2] for r in rows)[len(rows) // 2]
     med_g = sorted(r[3] for r in rows)[len(rows) // 2]
     hot = [r for r in rows if r[2] > med_d and r[3] > med_g]
