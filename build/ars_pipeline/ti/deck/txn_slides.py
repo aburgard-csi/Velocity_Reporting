@@ -112,6 +112,24 @@ def institution_bars(rows: list, out: Path, top: int = TOP_INSTITUTIONS) -> Path
     return charts._save(fig, out)
 
 
+def leader_names(rows: list, out: Path) -> Path:
+    """One line per category: the leader's name and its colour, no count. comp_institutions
+    carries only whole-book reach, so a figure beside a category would be the institution's
+    total, not the category's (issue #87)."""
+    rows = rows[:TOP_INSTITUTIONS][::-1]
+    fig, ax = plt.subplots(figsize=(charts.FIG_W_RAIL, 5.2))
+    y = np.arange(len(rows))
+    for i, r in enumerate(rows):
+        color = charts.ORANGE if r[1] == "Local Bank / CU" else charts.NAVY
+        ax.text(0.0, y[i], labels.clip(r[0], 26), va="center", fontsize=12.5, color=charts.NAVY)
+        ax.text(0.5, y[i], labels.clip(r[7][0], 30), va="center", fontsize=13, color=color,
+                fontweight="bold")
+    ax.set_ylim(-0.6, len(rows) - 0.4)
+    ax.set_xlim(0, 1)
+    ax.axis("off")
+    return charts._save(fig, out)
+
+
 def _where_the_money_goes(h, t, base):
     return L.where_the_money_goes(h, t, base, category_bars)
 
