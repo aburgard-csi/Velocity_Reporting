@@ -163,6 +163,19 @@ def ticket_and_intensity(h, t, base):
         h["chart_left"](s, path, top, h["RIGHT_EDGE"])
 
 
+def _weekend_is_empty(grid, rows):
+    """True when Saturday and Sunday carry nothing while the weekdays do: the file's date is
+    the posting date, which moves weekend activity onto Monday (issue #88)."""
+    wk = [i for i, r in enumerate(rows) if str(r)[:3].lower() in ("sat", "sun")]
+    if not wk and len(rows) == 7:
+        wk = [5, 6]
+    if not wk:
+        return False
+    weekend = sum(v or 0 for i in wk for v in grid[i])
+    weekdays = sum(v or 0 for i, r in enumerate(grid) if i not in wk for v in r)
+    return weekend == 0 and weekdays > 0
+
+
 def when_the_card_is_used(h, t, base):
     grid, rows, cols = (t.get("beh_heat_grid"), t.get("beh_heat_rows"),
                         t.get("beh_heat_cols"))
@@ -173,11 +186,20 @@ def when_the_card_is_used(h, t, base):
         return ("When the card gets used (heat grid degenerate — no parseable "
                 "timestamps)")
     peak = t.get("beh_peak") or []
-    s, top = h["slide"]((
-        f"The busiest block is {peak[0]} {peak[1]}" if peak else
-        "When the card gets used",
-        "weekday against hour block — descriptive colour, not a KPI"),
-        "When the card gets used")
+    if _weekend_is_empty(grid, rows):
+        # the date is the posting date: weekend swipes post on Monday, so Monday's weight and
+        # the empty weekend are the calendar, not the members' habit
+        s, top = h["slide"]((
+            "When the card posts: weekend activity appears on Monday",
+            "posting dates, not transaction dates; weekday against hour block — "
+            "descriptive colour, not a KPI"),
+            "When the card gets used")
+    else:
+        s, top = h["slide"]((
+            f"The busiest block is {peak[0]} {peak[1]}" if peak else
+            "When the card gets used",
+            "weekday against hour block — descriptive colour, not a KPI"),
+            "When the card gets used")
     path = h["chart"]("beh_heat", CT.heat_matrix,
                       {"rows": rows, "cols": cols, "cells": grid},
                       fmt="{:,.0f}")

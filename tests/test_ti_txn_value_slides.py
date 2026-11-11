@@ -154,6 +154,23 @@ def test_relationship_slides_decline_on_a_single_rail_feed():
         "What a second channel is worth (feed carries one rail)"
 
 
+def test_heat_map_with_empty_weekend_says_posting_dates():
+    # issue #88: Sat/Sun all zero and Monday heavy means the file's date is the posting date
+    from ti.deck import txn_cards
+    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    grid = [[200, 250], [100, 120], [100, 110], [100, 100], [110, 120], [0, 0], [0, 0]]
+    t = {"beh_heat_grid": grid, "beh_heat_rows": days, "beh_heat_cols": ["AM", "PM"],
+         "beh_peak": ["Mon", "PM", 250]}
+    h = _Harness()
+    txn_cards.when_the_card_is_used(h, t, BASE)
+    (headline, sub), _ = h.slides[0]
+    assert "posting dates" in sub and "busiest" not in headline.lower()
+    t["beh_heat_grid"] = [[10, 20]] * 7
+    h2 = _Harness()
+    txn_cards.when_the_card_is_used(h2, t, BASE)
+    assert "busiest" in h2.slides[0][0][0].lower()
+
+
 def test_v5_month_keys_reach_the_axis_in_house_format():
     """1798's ic_monthly carries v5's "Jan24" keys; _month_label read only "2026-02", so the label
     went out as "Jan24", the month-axis guard refused the chart, and "PIN or signature" shipped

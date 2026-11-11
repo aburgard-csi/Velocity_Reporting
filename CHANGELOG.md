@@ -668,6 +668,12 @@ James Gilmore, 2026-10-30: "turn my m365 tools into Sheila tools ... Sheila, cre
 - **Built once.** The release copies `sheila_mcp/` with the code. `runtime.cmd`, which every Sheila launcher runs, ends by running `sheila_mcp/register.py`. That writes `%LOCALAPPDATA%\RPE\sheila_start.py` and adds a `sheila` entry to `claude_desktop_config.json`: the installer's copy and the Microsoft Store one. It keeps every other entry, saves the old file as `.bak`, rewrites nothing that is already right, and leaves a PC without Claude Desktop alone. Each time Claude starts Sheila, she refreshes her code from the share as the page does, then serves from the local copy.
 - **Who is asking** comes from the Windows sign-in (`james.gilmore` is "James Gilmore" in the Client CSM List), with `CSM Contacts.csv`'s email as the fallback. A CSM can still ask about anyone's book by name.
 
+### 2026-10-29 — TI: card-use heat map names posting dates when the weekend is empty
+
+Summary: the When the card gets used slide says the dates are posting dates, and no longer calls Monday the busiest day, when Saturday and Sunday are empty.
+
+Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #88): `when_the_card_is_used` detects empty weekend rows beside busy weekdays and words the headline and subtitle as posting dates ("weekend activity appears on Monday"). Whether the file carries a true transaction date is a question for the data team.
+
 ### 2026-10-29 — Sheila: a client's list status is renewed, not left on "Checking…"
 
 Summary: clients with no deck yet no longer sit on "Checking…" in the list; while the page is open, Sheila re-checks each client in the background before its status expires.
