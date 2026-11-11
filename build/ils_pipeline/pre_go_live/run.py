@@ -100,13 +100,16 @@ def run(client_id: str, codes=None, data_root=None, output_root=None,
         if not c.complete():
             result.metrics = metrics
             result.status = "needs_codes"
-            missing = [k for k in ("open_status", "od_eligible", "rege_opt_in")
+            missing = [k for k in ("open_status", "od_eligible")
                        if not getattr(c, k)]
             result.warnings.append(
                 f"codes needed before analysis: {missing}. Read pgl_code_values "
                 f"(and pgl_suggested_codes) and run again with the confirmed codes.")
             return result
-        problems = codes_mod.validate(c, df)
+        soft: list = []
+        problems = codes_mod.validate(c, df, soft)
+        for w in soft:
+            result.warn(w)
         if problems:
             for p in problems:
                 result.fail(p)

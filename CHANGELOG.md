@@ -15,6 +15,12 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-11 — ILS pre-go-live: Reg E codes optional, and the fee box says OD (`build/ils_pipeline/pre_go_live/codes.py`, `run.py`, `scripts/ils_runs.py`, `scripts/sheila_hub_ils.py`)
+
+Summary: a pre-go-live build no longer needs a Reg E opted-in value, and a Reg E code the extract does not carry is a warning, not a stop. The card's single fee box is now "Current OD (paid) fee $".
+
+James, 2026-11-11: 1842 bankcda has no Reg E yet (its Reg-E column holds only D), and the build stopped on "rege_opt_in: ['Y'] not among ... ['D']". Reg E counts for such a client are 0. Missing open-status and OD-status codes still stop the run. The fee box only ever fed the OD fee into the decline scenarios, so "NSF/OD" misled where the OD and NSF fees differ; a blank box already fell back to the OD fee under Deck inputs, and the placeholder now says so. The NSF fee is not used in any calculation.
+
 ### 2026-11-09 — ILS review reader: every cover style, and a plain reason when a review's figures are pictures (`build/review_page/ils_review_pack.py`)
 
 Summary: Live Review's ILS reader now reads the client's name and date from all four cover styles in use, and says when a review's tables are pictures instead of calling it "not an ILS Program Analysis"; it still reads the same 5 of the 46 reviews on the share, because the other 41 hold their figures as images.

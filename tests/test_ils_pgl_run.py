@@ -80,3 +80,12 @@ def test_the_cli_runs_the_two_steps(root, capsys):
     assert "CODES NEEDED" in capsys.readouterr().out
     assert main(["1737", "--open-status", "O", "--od-eligible", "003,005", "--rege-opt-in", "Y"]) == 0
     assert (root / "Build Artifacts" / "ils" / "PGL" / "1737" / "20260807" / "pgl_metrics.json").exists()
+
+
+def test_run_with_no_rege_value_still_runs(root):
+    """James, 2026-11-11: 1842 has no Reg E yet. A blank opt-in, or an opt-in the file does not carry, runs."""
+    blank = run("1737", codes={"open_status": "O", "od_eligible": ["003", "005"]})
+    assert blank.ok and blank.status != "needs_codes"
+    assert "opted_in" not in dict((r[0], r[1]) for r in blank.metrics["pgl_bases"])
+    absent = run("1737", codes={**CODES, "rege_opt_in": "ZZ"})
+    assert absent.ok and any("rege_opt_in" in w for w in absent.warnings)

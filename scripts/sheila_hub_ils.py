@@ -90,7 +90,7 @@ function ilsOptions(kind, c) {
       <label>Period <input type="text" data-ilskind="kickoff" data-ilsfield="period" value="${esc(ilsVal(kind, "period", c.period || ""))}" placeholder="YYYY-MM"></label>
       ${box("items_from_calc", o.items_from_calc, `Use the extract's "# Calc" item estimates (only when the counted items are blank; the deck says ESTIMATED)`)}</div>`;
   return `<div class="ilsopts">
-      <label>Current NSF/OD fee $ <input type="text" data-ilskind="pgl" data-ilsfield="fee" value="${esc(ilsVal(kind, "fee", o.fee == null ? "" : o.fee))}" placeholder="confirmed"></label>
+      <label>Current OD (paid) fee $ <input type="text" data-ilskind="pgl" data-ilsfield="fee" value="${esc(ilsVal(kind, "fee", o.fee == null ? "" : o.fee))}" placeholder="blank = the OD fee under Deck inputs"></label>
       ${box("current_only", o.current_only, "Current state only (leave out the go-live chapter)")}
       ${box("include_deleted", o.include_deleted, "Keep deletion-flagged rows")}</div>`;
 }

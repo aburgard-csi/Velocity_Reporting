@@ -43,7 +43,7 @@ FIELDS = {
     "kickoff": ["personal_code", "business_code", "open_code", "eligible_stat_codes", "rege_opt_in",
                 "rege_opt_out"],
 }
-REQUIRED = {"pgl": ["open_status", "od_eligible", "rege_opt_in"],
+REQUIRED = {"pgl": ["open_status", "od_eligible"],
             "kickoff": ["personal_code", "business_code", "open_code", "eligible_stat_codes"]}
 CID_RX = re.compile(r"^\d{3,5}$")
 PERIOD_RX = re.compile(r"^\d{4}-\d{2}$")
