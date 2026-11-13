@@ -61,10 +61,14 @@ fee slides need ILS-wide data and are labelled placeholders.
 
 ## Definitions that differ from the analysis team's README (all stated on the Data Notes slide)
 
-* **Scoring Summary default.** README: repayment over 30 days, never-repaid counted as a default. That gives 40% in
-  Achieva's first Days On Book band; the hand-built deck prints 10.1%. A scan of the threshold against the deck's
-  tables lands on **40 days with never-repaid excluded** (Days On Book within 0.3 pt in every band), which is the default
-  (`default_basis="deck"`). `--default-basis readme` restores the README rule.
+* **Scoring Summary default.** The analysis notebook's rule (`ILS Analysis - Python Script.ipynb`, the `CURE` flag), the
+  default since 2026-11-13 (`default_basis="notebook"`): a notice on a charged-off account dated on or after the
+  account's last positive date (the largest `Last_Positive_Date` over all its notices) is a default; losses are the
+  account's `Chargeoff_Amt_365`, once, on the notice nearest that date; the window is 425 to 60 days before the newest
+  notice, notices with a limit. It reproduces Tim Barrett's Northwest Bank 1245 tables (2026.11) band for band and
+  Achieva's 10.1% first Days On Book band. The earlier fit, 40 days with never-repaid excluded (`--default-basis deck`,
+  9.8% on Achieva), and the README rule (`--default-basis readme`, 30 days with never-repaid counted, 40% on Achieva)
+  remain as options.
 * **Notice.** One account on one notice date (ZTrend has one row per item): Achieva's window holds 317,064 item rows and
   216,062 account-days, and the deck's bands sum to 216,034.
 * **Window.** 365 days ending 60 days before the data as-of date (Achieva 2025-07-12 to 2026-07-12), not "trailing 12 months from the snapshot".
