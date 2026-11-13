@@ -35,6 +35,10 @@ DEFAULT_REPAYMENT_DAYS = 40         # see scoring_summary.DEFAULT_DAYS_NOTE
 ACTIVE_DAYS = 240                  # see Frame.active_open
 
 
+def _yes(s):
+    return s.astype(str).str.strip().str.lower().isin(("true", "1", "t", "y", "yes"))
+
+
 # ═══════════════════════════ the result of one chart ════════════════════════
 @dataclass
 class ChartResult:
@@ -119,12 +123,33 @@ class Frame:
         self.asof = pd.Timestamp(loaded.snapshot).normalize()
         self.default_days = default_days
         za = loaded.zaccounts
+        # A third account type (Northwest Bank's "Private Banking", its own matrix) stays out of the
+        # Personal and Business figures, as in the analysis team's notebook (paid vs returned, Scoring
+        # Summary, branches), EXCEPT the KPI rollup, which groups by IsPersonal (kpi_rollup, `segment`).
+        self.folded = {}
+        other = ~za["accttype"].isin(("Personal", "Business"))
+        if other.any() and "IsPersonal" in za.columns:
+            personal = _yes(za["IsPersonal"])
+            for (raw, seg), n in pd.DataFrame({"raw": za.loc[other, "accttype"],
+                                               "seg": np.where(personal[other], "Personal", "Business")}
+                                              ).groupby(["raw", "seg"]).size().items():
+                self.folded[str(raw)] = (seg, int(n))
         self.za = za
         self.client_types = ("Personal", "Business")
         self.dd = loaded.declines
         self.rf = loaded.refunds
         self._zt = None
         self._notices = None
+
+    def segment(self, accttype):
+        """Accounts in a KPI-rollup segment: the account type, plus any third type whose IsPersonal flag
+        puts it there (Northwest's Private Banking counts with Personal in the rollup)."""
+        za = self.za
+        if not self.folded:
+            return za[za["accttype"] == accttype]
+        other = ~za["accttype"].isin(("Personal", "Business"))
+        seg = np.where(_yes(za["IsPersonal"]), "Personal", "Business")
+        return za[(za["accttype"] == accttype) | (other & (seg == accttype))]
 
     # ── typed ZTrend ────────────────────────────────────────────────────
     @property
@@ -159,7 +184,9 @@ class Frame:
         a1 = self.za.drop_duplicates("acctid").set_index("acctid")
         keep = [c for c in ("CollectedFees", "PossibleFees", "Next_Positive_Date", "Last_Positive_Date",
                             "deptotal33", "depcount33", "limit") if c in zt.columns]
-        agg = {c: ("sum" if c in ("CollectedFees", "PossibleFees") else "first") for c in keep}
+        # The notebook's aggregation ('ILS Analysis - Python Script.ipynb', cell 24): sums for fees, the
+        # largest value for the last positive date, the 33-day deposits and the limit.
+        agg = {c: ("sum" if c in ("CollectedFees", "PossibleFees") else "max") for c in keep}
         if "Next_Positive_Date" in agg:
             agg["Next_Positive_Date"] = "min"
         n = zt.groupby(["acctid", "noticedate", "accttype"], observed=True, sort=False).agg(agg).reset_index()
@@ -175,6 +202,20 @@ class Frame:
         n["windfall"] = pd.to_numeric(n["acctid"].map(a1["WindfallRatio"]), errors="coerce") \
             if "WindfallRatio" in a1.columns else np.nan
         n["is_default"] = n["days_to_positive"] > self.default_days
+        # The analysis notebook's default (cells 26-34 and 'CURE', Tim Barrett's Scoring Summary): on a
+        # charged-off account, every notice dated on or after the account's last positive date (the
+        # largest Last_Positive_Date over all its notices) is a default. Its losses are the account's
+        # Chargeoff_Amt_365, counted once, on the notice nearest that date (the 'fatal' notice).
+        if "Last_Positive_Date" in n:
+            lp = pd.to_datetime(n["Last_Positive_Date"], errors="coerce")
+            last_pos = lp.groupby(n["acctid"]).transform("max")
+            n["nb_default"] = n["co"] & (n["noticedate"] >= last_pos)
+            c = n[n["co"] & last_pos.notna()].sort_values("noticedate")
+            span = (c["noticedate"] - last_pos[c.index]).dt.days.abs()
+            fatal = span.groupby(c["acctid"]).idxmin()
+            n["nb_fatal"] = False
+            n.loc[fatal.to_numpy(), "nb_fatal"] = True
+            n["nb_loss"] = np.where(n["nb_fatal"], n["co_amt"], 0.0)
         self._notices = n
         return n
 

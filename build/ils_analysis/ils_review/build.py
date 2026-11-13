@@ -260,7 +260,10 @@ def _slide_data_notes(run, key):
                  "the rest within their Census region, with five peers at least.")
     method = [
         f"Cure (the performing slides): a negative balance reaches $0 or more within {story_slides.CURE_DAYS} days of the notice. The Scoring "
-        f"Summary uses a separate {fr.default_days}-day default and never shares a slide with a cure rate.",
+        + ("Summary's default is the analysis notebook's: a notice on a charged-off account dated on or after the account's last positive "
+           "date; it never shares a slide with a cure rate."
+           if getattr(cfg, "default_basis", "notebook") == "notebook" else
+           f"Summary uses a separate {fr.default_days}-day default and never shares a slide with a cure rate."),
         "NSF is collected fees on returned items and OD is collected fees on paid items; neither is netted for refunds.",
         "Pulled back means the current limit is below the account's own earlier maximum. The extracts have no daily limit history, so when "
         "and why are not shown, and no savings are claimed.",
@@ -352,6 +355,9 @@ def build_review(cfg: BuildConfig, progress=None):
     run = _Run(cfg, shell, dk, loaded, fr, S)
     run.settings = settings
     run.say = say
+    for raw, (seg, n) in fr.folded.items():
+        run.notes.append(f"{n:,} {raw} accounts are counted with {seg} in the KPI rollup only (by the IsPersonal flag, "
+                         f"as the analysis team's rollup is); every other figure keeps {raw} out of {seg}.")
 
     # ── cover ──────────────────────────────────────────────────────────────
     cover = shell.add_slide()

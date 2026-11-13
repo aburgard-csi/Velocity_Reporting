@@ -161,6 +161,17 @@ def _bar(slide, x, y, w, left, right=""):
         shapes.textbox(slide, x + w * 0.5, y, w * 0.5 - 0.10, 0.36, right, 12, brand.PEACH_RGB, True, PP_ALIGN.RIGHT, brand.HEAD)
 
 
+def _value_pt(value, width, start):
+    """Largest point size, from `start` down to 12, at which the value fits one line in `width` inches.
+    Measured with the bundled Montserrat (textfit), so a long criterion such as "ProdCode = 453" shrinks
+    instead of wrapping over its label."""
+    from textfit import text_width_in
+    pt = start
+    while pt > 12 and text_width_in(str(value), pt, "Montserrat", True) > width - 0.2:
+        pt -= 1
+    return pt
+
+
 def _card(slide, x, y, w, h, value, label, hot=False):
     sh = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
     sh.fill.solid()
@@ -168,7 +179,7 @@ def _card(slide, x, y, w, h, value, label, hot=False):
     sh.line.fill.background()
     shapes.shadow(sh)
     ink = brand.WHITE_RGB if hot else brand.NAVY_RGB
-    shapes.textbox(slide, x, y + 0.03, w, h * 0.55, value, 20, ink, True, PP_ALIGN.CENTER, brand.HEAD)
+    shapes.textbox(slide, x, y + 0.03, w, h * 0.55, value, _value_pt(value, w, 20), ink, True, PP_ALIGN.CENTER, brand.HEAD)
     shapes.textbox(slide, x, y + h * 0.56, w, h * 0.38, label, 12, ink if hot else brand.TICK_RGB, False,
                    PP_ALIGN.CENTER, brand.BODY, MSO_ANCHOR.TOP)
 
@@ -225,9 +236,15 @@ def add_matrix_detail_slides(dk, cfg, S, settings, *, section, fr=None, only=Non
         # ── limits
         _bar(sl, LEFT, TOP, 7.75, "Matrix Minimum / Maximum Limits", "Prior to overrides")
         cards = _limits(s)
-        cw = (7.75 - 4 * 0.12) / 5
-        for i, (lab, val, hot) in enumerate(cards):
-            _card(sl, LEFT + i * (cw + 0.12), 2.12, cw, 0.66, val, lab, hot)
+        # The custom-inclusion card is wider than the other four: a criterion such as "ProdCode = 453" does not
+        # fit a 1.3in card on one line even at 12 pt, and the four fixed cards keep their size.
+        cw = 1.3
+        wide = 7.75 - 0.12 * 4 - 4 * cw
+        x = LEFT
+        for lab, val, hot in cards:
+            w_ = wide if lab == "Custom Inclusion" else cw
+            _card(sl, x, 2.12, w_, 0.66, val, lab, hot)
+            x += w_ + 0.12
         # ── factors
         _bar(sl, LEFT, 2.88, 7.75, "Scoring Factors", "OD limit contribution by band")
         top = 3.30
@@ -310,7 +327,7 @@ def _card_big(slide, x, y, w, h, value, label, hot=False):
     sh.line.fill.background()
     shapes.shadow(sh)
     ink = brand.WHITE_RGB if hot else brand.NAVY_RGB
-    shapes.textbox(slide, x, y + 0.06, w, h * 0.55, value, 26, ink, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
+    shapes.textbox(slide, x, y + 0.06, w, h * 0.55, value, _value_pt(value, w, 26), ink, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
     shapes.textbox(slide, x, y + h * 0.60, w, h * 0.34, label, 14, ink if hot else brand.TICK_RGB, False,
                    PP_ALIGN.CENTER, brand.BODY, MSO_ANCHOR.TOP)
 

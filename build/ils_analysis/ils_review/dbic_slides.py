@@ -406,7 +406,9 @@ def _channels(dk, d, *, section):
     palette = [T.NAVY, T.TEAL, T.PURPLE, T.BLUE_2, T.GREEN]
     for i, t in enumerate(types):
         for kind, shade in (("PD", palette[i % len(palette)]),
-                            ("RT", T.CORAL if i == 0 else T.ORANGE)):
+                            # one returned shade per type: Personal and Private Banking both drew ORANGE, so the legend could
+            # not tell them apart (the same flaw is on the analysis team's p29)
+            ("RT", (T.ORANGE, T.GOLD, T.RED)[i % 3])):
             row = mix.get((t, kind))
             if not row or not any(row.get(c) for c in chans):
                 continue
@@ -523,7 +525,8 @@ def _limits(dk, d, *, section):
     rw = T.SLIDE_W - rx - X
     T.band_label(slide, rx, y, rw, "  OVERRIDE EFFECTIVENESS")
     rows = []
-    for r in d.overrides[:10]:
+    # eight rows: ten two-line rule rows ran past the slide bottom into the caption and the logo (Northwest, 2026-11)
+    for r in d.overrides[:8]:
         # The export gives no account type, and the same rule text is configured
         # per type — so the rule id is what distinguishes otherwise identical rows.
         rows.append([r["id"] or "—", r["calc"][:42] or "—",
@@ -534,7 +537,7 @@ def _limits(dk, d, *, section):
     if rows:
         rh = min(0.46, max(0.28, (T.CONTENT_BOTTOM - y - 1.4) / max(1, len(rows))))
         tbl = dk.table(slide, rx, y + 0.50, rw,
-                       [0.7, 3.0, 0.9, 1.0, 1.2, 1.0, 0.9], len(rows) + 1, row_h=rh)
+                       [0.95, 2.75, 1.0, 1.0, 1.1, 1.0, 0.9], len(rows) + 1, row_h=rh)
         T.fill_table(tbl, ["ID", "Override rule", "Value", "Accts", "Avg limit",
                            "Avg age (d)", "Days OD"], rows,
                      size=min(13, rh * 24),

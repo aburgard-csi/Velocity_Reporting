@@ -316,8 +316,9 @@ def predictor_bubble(bands, rates, counts, out_path, *, title, xlabel,
     rates = np.asarray(rates, dtype=float)
     sizes = 30 + (counts / (counts.max() or 1)) * 700
     ax.scatter(x, rates, s=sizes, color=T.HEX["navy"], zorder=3, alpha=0.92)
-    for xi, r, n in zip(x, rates, counts):
-        ax.annotate(f"{int(n):,}", (xi, r), (0, 11), textcoords="offset points",
+    for xi, r, n, s in zip(x, rates, counts, sizes):
+        # clear the bubble: its radius in points is sqrt(area) / 2
+        ax.annotate(f"{int(n):,}", (xi, r), (0, 6 + np.sqrt(s) / 2), textcoords="offset points",
                     ha="center", fontsize=9, color=T.HEX["subtle"])
     if avg_line is not None:
         ax.axhline(avg_line, color=T.HEX["orange"], linestyle="--", linewidth=1.6, zorder=2)
@@ -330,7 +331,8 @@ def predictor_bubble(bands, rates, counts, out_path, *, title, xlabel,
     ax.set_ylabel(ylabel, fontsize=11, color=T.HEX["subtle"])
     ax.set_xlabel(xlabel, fontsize=11, color=T.HEX["subtle"])
     ax.set_title(title, fontsize=11.5, color=T.HEX["navy"], loc="left", pad=14)
-    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0f}%")
+    # whole percents only when the ticks are whole: a 0-3% axis with 0.5 steps printed "2%" twice
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0f}%" if abs(v - round(v)) < 1e-9 else f"{v:.1f}%")
     ax.tick_params(axis="y", labelsize=10, colors=T.HEX["subtle"])
     ax.set_ylim(bottom=0)
     ax.margins(x=0.04, y=0.22)

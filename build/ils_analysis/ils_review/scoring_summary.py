@@ -219,8 +219,15 @@ def compute_predictor(predictor, fr, cfg, accttype):
     n = fr.notices
     if n is None:
         return None
-    lo, hi = fr.scoring_window()
-    w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi)]
+    basis = getattr(cfg, "default_basis", "notebook")
+    if basis == "notebook" and "nb_default" in n.columns:
+        # The notebook's window and population: notices from 425 to 60 days before the newest notice, with a limit.
+        top = n["noticedate"].max()
+        lo, hi = top - pd.Timedelta(days=425), top - pd.Timedelta(days=60)
+        w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi) & n["limit"].notna()]
+    else:
+        lo, hi = fr.scoring_window()
+        w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi)]
     if w.empty:
         return None
     val, ok = _band_values(predictor, w)
@@ -233,16 +240,20 @@ def compute_predictor(predictor, fr, cfg, accttype):
     idx = np.searchsorted(np.array(edges, dtype=float), val.to_numpy(dtype=float), side="left")
     idx = np.clip(idx, 0, len(labels) - 1)
     w = w.assign(band=idx)
-    basis = getattr(cfg, "default_basis", "deck")
-    if basis == "readme":
-        days = getattr(cfg, "default_repayment_days", 30)
-        w["dflt"] = w["days_to_positive"].isna() | (w["days_to_positive"] > days)
+    days = None
+    if basis == "notebook" and "nb_default" in w.columns:
+        w["dflt"] = w["nb_default"]
+        loss_by = w[w["nb_fatal"]].groupby("band")["nb_loss"].sum()
     else:
-        days = fr.default_days
-        w["dflt"] = w["days_to_positive"] > days
-    # losses: charge-off dollars once per account, in the band of its first defaulting notice
-    first = w[w["dflt"] & w["co"]].sort_values("noticedate").drop_duplicates("acctid", keep="first")
-    loss_by = first.groupby("band")["co_amt"].sum()
+        if basis == "readme":
+            days = getattr(cfg, "default_repayment_days", 30)
+            w["dflt"] = w["days_to_positive"].isna() | (w["days_to_positive"] > days)
+        else:
+            days = fr.default_days
+            w["dflt"] = w["days_to_positive"] > days
+        # losses: charge-off dollars once per account, in the band of its first defaulting notice
+        first = w[w["dflt"] & w["co"]].sort_values("noticedate").drop_duplicates("acctid", keep="first")
+        loss_by = first.groupby("band")["co_amt"].sum()
     g = w.groupby("band").agg(n=("acctid", "size"), fees=("CollectedFees", "sum"), d=("dflt", "sum"))
     rows = [i for i in range(len(labels)) if i in g.index]
     if not rows:
@@ -255,8 +266,13 @@ def compute_predictor(predictor, fr, cfg, accttype):
         loss_rate=[float(loss_by.get(i, 0.0) / g.loc[i, "fees"] * 100) if g.loc[i, "fees"] else 0.0 for i in rows],
         avg_default_rate=float(w["dflt"].mean() * 100),
         window_label=f"{str(lo)[:10]} to {str(hi)[:10]}")
-    res.notes.append(f"{predictor.title} ({accttype}): window {res.window_label}; default = repayment more than "
-                     f"{days} days after the notice" + ("" if basis == "readme" else ", never-repaid notices excluded") + ".")
+    if days is None:
+        res.notes.append(f"{predictor.title} ({accttype}): window {res.window_label}; default = a notice on a charged-off "
+                         "account dated on or after the account's last positive date (the analysis notebook's rule); "
+                         "losses = the account's charge-off amount, once, on the notice nearest that date.")
+    else:
+        res.notes.append(f"{predictor.title} ({accttype}): window {res.window_label}; default = repayment more than "
+                         f"{days} days after the notice" + ("" if basis == "readme" else ", never-repaid notices excluded") + ".")
     return res.validate()
 
 
@@ -332,7 +348,10 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
     fr = frame
     if fr is None or not fr.has_trend:
         return [f"ILS Scoring Summary ({accttype}) was skipped — no ZTrend file, so notices cannot be banded."]
-    basis = getattr(cfg, "default_basis", "deck")
+    basis = getattr(cfg, "default_basis", "notebook")
+    rule = {"deck": DEFAULT_DAYS_NOTE, "readme": "README rule (30 days, never-repaid counted)",
+            "notebook": ("the analysis notebook's rule: a notice on a charged-off account dated on or after the "
+                         "account's last positive date; losses = its charge-off amount, once, on the notice nearest that date")}[basis]
     for p in predictors(getattr(cfg, "predictor_bands", "deck")):
         result = None
         try:
@@ -345,8 +364,7 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
         say(f"  {accttype}: scoring summary — {p.title}…")
         subtitle = f"{accttype} accounts  ·  {p.note}"
         src = (f"{os.path.basename(str(cfg.ztrend_path))} (notices {result.window_label}) joined to "
-               f"{os.path.basename(str(cfg.zaccounts_path))}; {p.source}. Default: "
-               f"{DEFAULT_DAYS_NOTE if basis == 'deck' else 'README rule (30 days, never-repaid counted)'}.")
+               f"{os.path.basename(str(cfg.zaccounts_path))}; {p.source}. Default: {rule}.")
         slide = dk.content(f"Scoring Summary: {p.title}", subtitle, section=section, source=src)
         _render_table(dk, slide, result)
         png = os.path.join(dk.chart_dir, f"scoring_{p.key}_{accttype.lower()}.png")
@@ -364,8 +382,5 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
                             "notes": result.notes})
         rendered += 1
     if rendered:
-        notes.append(f"Scoring Summary ({accttype}): {rendered} predictor slides. Default means repayment more than "
-                     f"{fr.default_days} days after the notice, never-repaid notices excluded"
-                     if basis == "deck" else
-                     f"Scoring Summary ({accttype}): {rendered} predictor slides, README default rule.")
+        notes.append(f"Scoring Summary ({accttype}): {rendered} predictor slides. Default: {rule}.")
     return notes

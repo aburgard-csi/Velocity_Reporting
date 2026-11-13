@@ -48,7 +48,7 @@ def kpi_rollup(fr, ref=None):
     lo = asof - pd.Timedelta(days=365)
     cols = {}
     for t in ("Business", "Personal"):
-        d = za[za["accttype"] == t]
+        d = fr.segment(t)                  # a third type counts here by IsPersonal (Northwest's Private Banking)
         if d.empty:
             continue
         o = d[d["acctstatus"].astype(str).str.upper() == "O"]

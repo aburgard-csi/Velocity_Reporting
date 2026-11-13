@@ -148,15 +148,19 @@ def add_agenda(dk, rows, *, section="agenda"):
     n = len(rows)
     top, bottom = 1.95, 6.55
     rh = min(0.95, (bottom - top) / max(1, n))
-    d = rh - 0.22
+    # the badge keeps room for its number: with eight parts rh - 0.22 left a 0.36 in circle, and its 18 pt digit
+    # (inside the textbox's 0.1 in insets) wrapped
+    d = min(0.73, max(rh - 0.22, rh - 0.08 if n > 5 else rh - 0.22))
+    pad = (rh - d) / 2
+    num_pt = 18 if d >= 0.55 else 16
     for i, row in enumerate(rows):
         title = row[0] if isinstance(row, (tuple, list)) else row
         y = top + i * rh
-        badge = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(CS.LEFT), Inches(y + 0.11), Inches(d), Inches(d))
+        badge = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(CS.LEFT), Inches(y + pad), Inches(d), Inches(d))
         badge.fill.solid()
         badge.fill.fore_color.rgb = brand.NAVY_RGB
         badge.line.fill.background()
-        shapes.textbox(s, CS.LEFT, y + 0.11, d, d, str(i + 1), 18, brand.WHITE_RGB, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
+        shapes.textbox(s, CS.LEFT - 0.1, y + pad, d + 0.2, d, str(i + 1), num_pt, brand.WHITE_RGB, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
         shapes.textbox(s, CS.LEFT + d + 0.25, y, CS.FULL_W - d - 0.25, rh, title, 24, T.NAVY, True, PP_ALIGN.LEFT, T.HEAD, MSO_ANCHOR.MIDDLE)
     s.notes_slide.notes_text_frame.text = ("Say first: here is the path through the review: the industry update, how the program is "
                                            "performing, what we observe and what we would do about it, then the appendix with the "

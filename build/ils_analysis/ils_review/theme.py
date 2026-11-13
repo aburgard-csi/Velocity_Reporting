@@ -526,6 +526,11 @@ def kpi_cards(slide, x, y, w, h, cards, *, gap=0.28, accent=NAVY):
     """Row of stat tiles: each card is (value, label, sub) — sub may be None."""
     n = max(1, len(cards))
     cw = (w - gap * (n - 1)) / n
+    # one value size for the row: the largest at which every value fits its tile on one line, measured inside the
+    # textbox's 0.1 in insets ("$4,348,647" wrapped at 28 pt in a five-tile row)
+    from textfit import fits_one_line
+    inner = W(cw) - 0.12 - 0.25
+    vpt = next((p for p in (28, 26, 24, 22, 20) if all(fits_one_line(str(c[0]), inner, p, "Montserrat", True) for c in cards)), 20)
     for i, c in enumerate(cards):
         value, label = c[0], c[1]
         sub = c[2] if len(c) > 2 else None
@@ -537,7 +542,7 @@ def kpi_cards(slide, x, y, w, h, cards, *, gap=0.28, accent=NAVY):
         tile.line.fill.background()
         shapes.shadow(tile)
         rx, ry, rw, rh = X(cx) + 0.06, Y(y), W(cw) - 0.12, H(h)
-        shapes.textbox(slide, rx, ry + rh * 0.05, rw, rh * 0.34, value, 28, WHITE, True,
+        shapes.textbox(slide, rx, ry + rh * 0.05, rw, rh * 0.34, value, vpt, WHITE, True,
                        PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
         shapes.textbox(slide, rx, ry + rh * 0.40, rw, rh * 0.28, label, 12, WHITE, True,
                        PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP)

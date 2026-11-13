@@ -242,7 +242,8 @@ def add_kpi_rollup(dk, cfg, fr, *, section, progress=None):
         vals = [(compact_money(rows[key][cols[t]]) if money_ else rows[key][cols[t]]) for t in types]
         # the largest size at which every value in the tile stays on one line (a $35.43M book wrapped at 30 pt)
         from textfit import fits_one_line
-        fs = next((p for p in (30, 28, 26, 24, 22, 20) if all(fits_one_line(str(v), cw, p, "Montserrat", True) for v in vals)), 20)
+        # measured against the box less its 0.1 in side insets: "$20.74M" passed at the full width and wrapped
+        fs = next((p for p in (30, 28, 26, 24, 22, 20) if all(fits_one_line(str(v), cw - 0.25, p, "Montserrat", True) for v in vals)), 20)
         for k, t in enumerate(types):
             v = vals[k]
             shapes.textbox(s, x + 0.1 + k * cw, y + 0.62, cw, 0.80, v, fs, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
@@ -547,8 +548,11 @@ def add_debit_declines(dk, cfg, fr, *, section, progress=None):
             size=14)
         if d["score_bands"] and d["score_bands"]["rows"]:
             s2 = dk.content(f"Debit declines — {t} accounts by ILS limit",
-                            "Accounts with a debit decline in the decline file, by current ILS limit.", section=section,
-                            source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, joined to open accounts by account id."))
+                            (f"Open {t.lower()} accounts that can overdraft" + (" and are opted in to Reg E" if t == "Personal" else "")
+                             + f", by current ILS limit; declines in the 90 days to {fr.asof:%b} {fr.asof.day}, {fr.asof.year}."),
+                            section=section,
+                            source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, the 90 days to the data as-of date, "
+                                        "counted as distinct amounts per account per day (the analysis notebook's rule), joined by account id."))
             table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
     return notes
 

@@ -211,7 +211,7 @@ class BuildConfig:
     growth_year: Optional[int] = None       # None -> last full calendar year
     min_periods_for_volatility: int = 8
     default_repayment_days: int = 30
-    default_basis: str = "deck"             # Scoring Summary default rule: "deck" (40 days, never-repaid excluded) or "readme"
+    default_basis: str = "notebook"         # Scoring Summary default rule: "notebook" (the analysis notebook's CURE flag), "deck" (40 days) or "readme"
     predictor_bands: str = "deck"           # "deck" = the hand-built deck's bands, "readme" = the analysis registry
     branch_core_only: bool = True           # branch section: overview + three ranked charts only
     include_not_repaid: bool = False        # the 'fatal notice' slides (40-day basis) are not in the story
