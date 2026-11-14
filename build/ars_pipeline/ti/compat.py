@@ -17,10 +17,36 @@ and both are restored here, for the duration of a with-block, never process-wide
 The cut's entry points (`ti_build.py`, `scripts/ti_parity.py`) run everything inside
 `legacy_strings()`, frame loading included, and only `test_ti_*` tests get it (tests/conftest.py).
 In a build `ti_build.py` is its own process, so nothing of Aaron's ever runs under it.
+
+`str_values` is `astype(str)` on a categorical column done once per category (issue #161).
 """
 import contextlib
 
+import numpy as np
 import pandas as pd
+
+
+def str_values(s: pd.Series, fn=None) -> pd.Series:
+    """`s.astype(str)`, then `fn` (a `.str` step such as upper or strip), row for row the same,
+    without the full-width copy.
+
+    The loader keeps transaction_type, merchant_key, mcc_code and the other repeated fields as
+    categoricals. Under pandas 2 semantics `Categorical.astype(str)` first builds a fixed-width
+    numpy string array over EVERY row (4 bytes x the longest value x rows) and only then boxes it:
+    1100 Rally's 46,941,130 rows of merchant_key asked for 8.39 GiB at once and the build stopped
+    with a MemoryError in financial_services (James Gilmore, 2026-11-13, issue #161). Here the
+    categories are cast (and `fn` run) once each, a missing value becoming "nan" exactly as
+    astype(str) writes it, and every row points at its category's string.
+    """
+    if isinstance(s.dtype, pd.CategoricalDtype) and not pd.get_option("future.infer_string"):
+        cats = np.asarray(s.cat.categories.astype(str), dtype=object)
+        vals = pd.Series(np.append(cats, "nan"), dtype=object)      # code -1 (missing) -> "nan"
+        if fn is not None:
+            vals = fn(vals)
+        vals = np.asarray(vals, dtype=object)
+        return pd.Series(vals[s.cat.codes.to_numpy()], index=s.index, name=s.name, dtype=object)
+    out = s.astype(str)
+    return fn(out) if fn is not None else out
 
 
 @contextlib.contextmanager

@@ -13,6 +13,7 @@ Lists v5 writes beside its outputs (`lists/*.csv`) go to `ctx.shared["lists_dir"
 sets one, and nowhere when it does not (the parity check).
 """
 from ti import dictionaries
+from ti.compat import str_values
 
 
 def base_accounts(ctx):
@@ -160,7 +161,7 @@ def mapping_audit(ctx):
     from ti.transaction_intelligence import merchants as M
     personal, _business, _label = base_accounts(ctx)
     df = ctx.txn
-    is_card = df["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"])
+    is_card = str_values(df["transaction_type"], lambda v: v.str.upper()).isin(["PIN", "SIG"])
     if personal is not None:
         is_card &= df["primary_account_num"].astype(str).isin(personal)
     card = df[is_card]

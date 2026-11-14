@@ -36,6 +36,7 @@ import pandas as pd
 
 from .lens import Lenses
 from .merchant import merchant_core, merchant_text, strip_city
+from ti.compat import str_values
 
 TOP_PROVIDERS = 8
 TOP_CATEGORIES_BY_LENS = 8
@@ -299,7 +300,7 @@ def classify_rows(df: pd.DataFrame, spec: dict) -> pd.DataFrame:
     rail and reported apart from leakage and competitors; only a PayPal
     marketplace purchase is cleared, because that is merchant spend (#261).
     Computed once per run and shared by financial_services and competition."""
-    typ = df["transaction_type"].astype(str).str.upper()
+    typ = str_values(df["transaction_type"], lambda v: v.str.upper())
     is_card = typ.isin(["PIN", "SIG"]).to_numpy()
     text = merchant_text(df["merchant_name"])
     core = merchant_core(df["merchant_name"])
@@ -606,7 +607,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     # invisible to the review queue on 1615's first run.)
     if "merchant_key" in df.columns:
         um = (~pd.Series(matched, index=df.index)) & pd.Series(is_transfer & in_base, index=df.index)
-        keys = df["merchant_key"].astype(str)[um]
+        keys = str_values(df["merchant_key"])[um]
         top = pd.DataFrame({"k": keys, "amount": amt[um.to_numpy()]}).groupby("k").agg(
             txns=("amount", "size"), accts=("amount", "size"), dollars=("amount", "sum"))
         top = top[~top.index.isin(["(no description)", "nan", ""])].sort_values("dollars", ascending=False)
