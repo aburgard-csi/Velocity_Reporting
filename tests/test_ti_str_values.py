@@ -59,7 +59,7 @@ def test_filtered_rows_keep_their_index():
 
 def test_financial_services_does_not_widen_every_row():
     """The failing step, on a frame shaped like the loader's. With a 100-character merchant_key
-    the old cast held 400 bytes a row in one array (peak about 930 bytes a row); now about 170."""
+    the old cast held 400 bytes a row in one array (peak about 930 bytes a row); now about 160."""
     from ti import dictionaries
     from ti.transaction_intelligence import financial_services as F
 
