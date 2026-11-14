@@ -22,6 +22,7 @@ import pandas as pd
 
 from .financial_services import _pct
 from .lens import Lenses
+from ti.compat import str_values
 
 TOP_MERCHANTS = 20
 TOP_BY_LENS = 1
@@ -80,7 +81,7 @@ def _categorize(card: pd.DataFrame, spec: dict, warn) -> tuple[pd.Series, str, f
         cats[mcc.isna()] = OTHER
         return cats, "mcc", coverage
     # keyword buckets over the distinct merchant keys only
-    keys = card["merchant_key"].astype(str)
+    keys = str_values(card["merchant_key"])
     lookup = {}
     buckets = {n: (e["words"] if isinstance(e, dict) else e)
                for n, e in (spec.get("keyword_buckets") or {}).items()}
@@ -98,7 +99,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
             base_label: str = "all accounts") -> dict:
     out: dict = {}
     K = key_prefix
-    typ = df["transaction_type"].astype(str).str.upper()
+    typ = str_values(df["transaction_type"], lambda v: v.str.upper())
     is_card = typ.isin(["PIN", "SIG"]).to_numpy()
     if not is_card.any():
         warn("merchants: no card rows (PIN/SIG); section skipped")
@@ -112,7 +113,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
         return out
     out[K + "base_label"] = base_label
     amt = card["amount"].abs()
-    key = card["merchant_key"].astype(str)
+    key = str_values(card["merchant_key"])
     total_spend = float(amt.sum())
     card_accts = card["primary_account_num"].astype(str)
     out[K + "card_accounts"] = int(card_accts.nunique())
@@ -194,7 +195,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
         all_card = df[is_card]
         a_acct = all_card["primary_account_num"].astype(str)
         a_amt = all_card["amount"].abs()
-        a_key = all_card["merchant_key"].astype(str)
+        a_key = str_values(all_card["merchant_key"])
         n_months = max(len(months), 1)
         by_lens = []
         for ln in lenses.names():

@@ -17,6 +17,7 @@ import pandas as pd
 
 from .financial_services import _pct
 from .lens import Lenses
+from ti.compat import str_values
 
 CHANNELS = ["card", "ACH", "CHK", "P2P"]
 BILLER_BANDS = [(0, 1, "0"), (1, 2, "1"), (2, 4, "2-3"), (4, 7, "4-6"), (7, 1e18, "7+")]
@@ -25,7 +26,7 @@ PRIMARY_MIN_TXNS_MO = 10
 
 
 def _channel(df: pd.DataFrame, fin_rows: pd.DataFrame | None) -> pd.Series:
-    typ = df["transaction_type"].astype(str).str.upper()
+    typ = str_values(df["transaction_type"], lambda v: v.str.upper())
     ch = pd.Series("other", index=df.index, dtype=object)
     ch[typ.isin(["PIN", "SIG"])] = "card"
     ch[typ == "ACH"] = "ACH"
@@ -81,7 +82,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, fin_rows: pd.DataFrame | No
     n_months = max(int(month.nunique()), 1)
     frame = pd.DataFrame({"acct": acct.to_numpy(), "channel": channel.to_numpy(),
                           "amount": sub["amount"].abs().to_numpy(),
-                          "key": sub["merchant_key"].astype(str).to_numpy()})
+                          "key": str_values(sub["merchant_key"]).to_numpy()})
 
     # ---- 1. channel breadth ------------------------------------------------------
     used = frame[frame["channel"].isin(CHANNELS)]

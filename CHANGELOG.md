@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-14 — Transaction Intelligence: large clients no longer run out of memory on the transaction type and merchant columns (`ti/compat.py`, `ti/transaction_intelligence/`, issue #161)
+
+Summary: The Transaction Intelligence build for a client with a very large transaction file (1100 Rally, 46.9 million rows) stopped with "financial_services failed: MemoryError". It now reads those columns without the huge temporary copy; no figure changes.
+
+James Gilmore, 2026-11-13 (issue #161): "1100 - Rally - Memory issues with Transaction intelligence", with Sheila's error "Unable to allocate 8.39 GiB for an array with shape (46941130,) and data type <U48".
+
+- **What was wrong.** The loader keeps the repeated transaction fields (transaction type, merchant key, MCC, field 9 / 11) as categoricals. The ported v5 code turns them into text with `astype(str)`, and under the pandas 2 string rules the cut runs on, that first builds a fixed-width string array over every row: 46,941,130 rows x 48 characters x 4 bytes = 8.39 GiB in one piece, for one column. The 2026-10-29 change for 1798 (merchant descriptions read once per distinct value) did not cover these columns.
+- **What changed.** `ti.compat.str_values` casts each category once (and runs any `.str.upper()` / `.str.strip()` on the categories only), then points every row at its category's string. A missing value still reads "nan", exactly as `astype(str)` writes it, so every figure is the same row for row. All 23 such calls in the transaction sections (portfolio, financial services, competition, merchants, merchant profiles, card behaviour, interchange, relationship, mapping audit, the card-merchant table) now go through it, so the next section does not fail the same way. On a test frame the financial-services step's peak memory fell from about 930 to about 160 bytes a row (measured at 100,000 and 400,000 rows).
+- **Checks.** `tests/test_ti_str_values.py`: the same strings as `astype(str)` (missing values, numeric codes, `.str` steps, filtered rows), a peak-memory bound on the financial-services step that the old code fails, and a source check that no TI module casts one of those columns row by row again.
+- **Not verified on 1100's own file.** The fix was checked on synthetic frames; 1100's TI build has not been rerun. The rest of the step still holds about 160 bytes a row at its peak (about 7.5 GB at 46.9 million rows), so a PC with little free memory can still be short; if it is, the next step is reading the window in parts.
+
 ### 2026-11-09 — ILS review reader: every cover style, and a plain reason when a review's figures are pictures (`build/review_page/ils_review_pack.py`)
 
 Summary: Live Review's ILS reader now reads the client's name and date from all four cover styles in use, and says when a review's tables are pictures instead of calling it "not an ILS Program Analysis"; it still reads the same 5 of the 46 reviews on the share, because the other 41 hold their figures as images.
