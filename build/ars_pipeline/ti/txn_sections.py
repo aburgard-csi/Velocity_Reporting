@@ -153,6 +153,43 @@ def competition(ctx):
     return out
 
 
+_BOOKS: dict = {}
+
+
+def competition_layers(ctx):
+    """cl_*: banks and credit unions by layer and by group (ti/transaction_intelligence/competition_layers.py).
+    New to RPE, not a v5 port; it adds figures and changes no comp_* figure. Reads financial services'
+    row classification, the public FDIC / NCUA reference store and the client's market record; with no
+    reference store it says so and adds nothing, as `filed` does."""
+    import json
+    from ti.transaction_intelligence import competition_layers as CL
+    rows = ctx.shared.get("fin_rows")
+    if rows is None or ctx.txn is None:
+        return {}
+    personal, _business, _label = base_accounts(ctx)
+    cache = reference_dir()
+    try:
+        from ti.core.filed.join import require_cache
+        from ti.core.market import institutions as I
+        require_cache(cache)
+        book = _BOOKS.get(str(cache))
+        if book is None:
+            book = _BOOKS[str(cache)] = I.load_book(cache)
+    except Exception as exc:
+        ctx.warn(f"competition layers: the FDIC / NCUA reference store is not available "
+                 f"({type(exc).__name__}: {str(exc).splitlines()[0] if str(exc) else ''}); the layers are not computed")
+        return {}
+    rec = market_dir() / f"{ctx.client_id}.json"
+    record = json.loads(rec.read_text(encoding="utf-8")) if rec.exists() else None
+    spec = json.loads((dictionaries.folder() / "competitors.json").read_text(encoding="utf-8"))
+    out = CL.compute(ctx.txn, rows, ctx.lenses, ctx.frame, ctx.config, ctx.anchor_ts, record, book, spec,
+                     ctx.warn, base_ids=personal)
+    # hand-offs to the analysis modules, never written to the pack
+    for k in ("_cl_matched", "_cl_active", "_cl_sets", "_cl_sub"):
+        ctx.shared[k] = out.pop(k, None)
+    return out
+
+
 def mapping_audit(ctx):
     """What the dictionaries do not know yet, on the personal card rows (reports only: no figure
     elsewhere moves). Reads the three specs and financial services' providers, as v5's run does."""
