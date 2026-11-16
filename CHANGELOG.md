@@ -15,6 +15,16 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Financial services: a monthly series per category, a three-month trend, and the products leakers hold with us (`ti/transaction_intelligence/financial_services.py`)
+
+Summary: Based on `feat/ars-ti/fs-03-definitions-coverage` (stacked on PR 163). Adds figures; **changes no slide and no existing figure.**
+
+- **`fin_months`, `fin_monthly`:** for every category, accounts paying and dollars in each month of the window. The month axis is the file's months, so a month with no match reads zero instead of disappearing.
+- **`fin_trend`:** last three months against the three before (dollars and % change) per category, from six months of data; `peak_month` from twelve. A category that spikes seasonally (insurance renewals, tax) should be read against `peak_month`, not the three-month change.
+- **`fin_leakers_hold`:** for each addressable category with 20+ leakers, the top three products they hold with us (ODD `Prod Desc`), so a list can say what to offer.
+- **Not built:** marking mail months on the series needs the mailing calendar, which is not in these figures; charts and slides for the series are for Aaron.
+- Tests: `tests/test_ti_finserv_trend.py` (7), including the empty-month case a first draft got wrong.
+
 ### 2026-11-16 — Financial services: one printed definition of "leaking", and a coverage figure (`ti/transaction_intelligence/financial_services.py`, `finserv_report.py`, `ti_build.py`)
 
 Summary: Based on `feat/ars-ti/fs-02-lists-master` (stacked on PR 163). Adds figures and a build-log read-out; **changes no slide and no existing figure.** Slide wording is for Aaron (see below).

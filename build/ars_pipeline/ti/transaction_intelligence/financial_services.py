@@ -552,6 +552,33 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     out[key_prefix + "recency"] = rec
     out[key_prefix + "new_recurring_stopped"] = dyn
 
+    # ---- monthly trend per category (fs-04) -----------------------------------------
+    # The window's own months, one row per category: accounts paying and dollars. The trend
+    # compares the last three months with the three before, so a seasonal category (insurance
+    # renewals, tax) reads as seasonal only once a year is on file (peak_month).
+    mm = m.assign(month=m["date"].dt.to_period("M"))
+    # the axis is the file's months, not the matched rows' months: a month with no match reads zero
+    months = sorted(df["transaction_date"][in_base].dt.to_period("M").dropna().unique())
+    out[key_prefix + "months"] = [str(p) for p in months]
+    series, trend = {}, []
+    for name, grp in mm.groupby("category", observed=True):
+        g = grp.groupby("month").agg(accounts=("acct", "nunique"), dollars=("amount", "sum"))
+        series[name] = [[str(p), int(g.loc[p, "accounts"]), round(float(g.loc[p, "dollars"]))]
+                        if p in g.index else [str(p), 0, 0] for p in months]
+        if len(months) >= 6:
+            last = float(g["dollars"].reindex(months[-3:]).fillna(0).sum())
+            prior = float(g["dollars"].reindex(months[-6:-3]).fillna(0).sum())
+            peak = str(g["dollars"].idxmax()) if len(months) >= 12 and len(g) else None
+            trend.append([name, round(last), round(prior),
+                          round((last - prior) / prior * 100, 1) if prior else None, peak])
+    out[key_prefix + "monthly"] = series
+    if trend:
+        out[key_prefix + "trend"] = sorted(trend, key=lambda r: -r[1])
+        out[key_prefix + "trend_columns"] = ["category", "last_3_months", "prior_3_months",
+                                             "change_pct", "peak_month"]
+        out[key_prefix + "trend_note"] = (f"last three months ({months[-3]} to {months[-1]}) against the "
+                                          f"three before; peak_month needs 12 months on file")
+
     # ---- multi-category ------------------------------------------------------
     per_acct_cats = leak_acc.groupby("acct")["category"].nunique()
     out[key_prefix + "multi_category"] = [[int(k), int(v)] for k, v in per_acct_cats.value_counts().sort_index().items()]
@@ -651,6 +678,18 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
         out[key_prefix + "leakers_profile"] = prof
         out[key_prefix + "leakers_profile_columns"] = ["category", "accounts", "median_balance",
                                               "total_balance", "median_tenure_yrs", "responder_pct"]
+        # what the leakers already hold with us: the product they pay elsewhere for is the one
+        # they have not bought here, so the list can say what to offer (fs-04)
+        if "Prod Desc" in attrs.columns:
+            hold = []
+            for name, grp in addr_acc.groupby("category", observed=True):
+                ids = pd.Index(grp["acct"].unique()).intersection(attrs.index)
+                if len(ids) < 20:
+                    continue
+                vc = attrs.loc[ids, "Prod Desc"].dropna().astype(str).value_counts().head(3)
+                hold.append([name, len(ids), [[k, int(v)] for k, v in vc.items()]])
+            out[key_prefix + "leakers_hold"] = hold
+            out[key_prefix + "leakers_hold_columns"] = ["category", "accounts", "top_products_held"]
 
     # ---- P2P and fintech, singled out -------------------------------------------
     for label, key in (("P2P Transfers", key_prefix + "p2p"), ("Fintech / Neobanks", key_prefix + "fintech")):
