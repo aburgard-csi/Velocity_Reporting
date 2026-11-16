@@ -15,6 +15,16 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Financial-services dictionary v7: 14 names read from 1798's review queue (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`)
+
+Summary: Based on `feat/ars-ti/fs-06-portfolio-ledger` (stacked on PR 163). **Moves figures**, so it is its own PR: more rows match, no matched row changes category.
+
+- **Why these names.** The review queue (descriptors the dictionary missed, by dollars) on 1798's October 2026 file was $1.14M; its top rows were consumer-finance lenders, insurers and a crypto on-ramp. The depository names in the same queue (Nusenda, Mountain Star, Raiz, White Sands, Hughes, US Eagle) are Competition's, not added here.
+- **Added (14):** Payday / Small-Dollar Loans: World Finance, World Acceptance, Sun Loans, Security Finance, Republic Finance, Regional Acceptance, Heights Finance. Buy Now Pay Later: Snap Finance. Insurance: Fred Loya, Foremost Insurance. Crypto: Transak, Trust Wallet. Mortgage: Bilt Mortgage. Auto Loans: Stellantis Financial. Names already in the dictionary (Mariner, Lendmark, OneMain, Chrysler Capital) were not repeated.
+- **Effect on 1798, October 2026 (one month):** 1,765 rows ($338K) newly matched: Payday 983 rows / $158K, Insurance 611 / $78K, Crypto 15 / $34K, BNPL 127 / $27K, Mortgage 10 / $23K, Auto 19 / $18K. **Accounts with any leakage 13,694 to 14,393 (+5%).** No row that matched before changed category. Every newly matched descriptor was read.
+- Lookalikes stay unmatched (tested): World Market, Sun Valley Hardware, Security Storage, Republic Services, Regional Medical Center, Snap Fitness, Heights Bakery.
+- Tests: `tests/test_ti_finserv_dictionary_v7.py` (21).
+
 ### 2026-11-16 — A slide ledger and a portfolio row beside every TI build (`ti/ledger.py`, `ti/portfolio.py`, `ti_build.py`)
 
 Summary: Based on `feat/ars-ti/fs-05-institution-view` (stacked on PR 163). Writes two small files beside the decks; **changes no slide and no figure.** A failure writing them is printed and never costs the decks.
