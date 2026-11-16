@@ -15,6 +15,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Transaction loader reads the 6.0.11.0 export: `DDA Account`, `Description1`, `External Transaction Code` (`build/ars_pipeline/ti/transaction_intelligence/loader.py`)
+
+Summary: A client whose monthly transaction files use the 6.0.11.0 header now loads with an account, a transaction type and a description on every row; before, all three were empty on every row, so the Transaction Intelligence cut read no card rows for that client.
+
+James Gilmore, 2026-11-16: "build everything completely."
+
+- **What was wrong, found by reading one client's cached files.** The files carry a pipe banner and then a named tab header: `Transaction Date`, `DDA Account`, `External Transaction Code`, `Transaction Amount`, `MCC Code`, `Description1`, and a second `External Transaction Code`. The loader's header map had none of `DDA Account`, `Description1` or `External Transaction Code`, so those columns were read as extras: in all 11 cached months 100% of rows had no account and no transaction type, and a build reported 0 personal card rows.
+- `DDA ACCOUNT` is read as the account, `DESCRIPTION1` as the merchant text, and the **first** `EXTERNAL TRANSACTION CODE` (the rail: `PIN`, `ACH`, `CHK`) as the transaction type. The **second** column of that name is the numeric code and is read as `transaction_code`, never as a second type column. A header that names the same field twice keeps the first and reads the rest as extras.
+- A cached parquet whose account column is empty on every row is discarded and the raw file read again, with the warning "no parseable dates or no accounts". Without this, the months already parsed with the old header would have been served from the cache.
+- No figure moves for a client whose files already parsed: the single-account-header layout reads exactly as before (`test_a_layout_with_one_account_header_is_unchanged`).
+- **Not done:** this layout carries ACH and check rows as well as card rows, so the transfer-rail rules in the competition and leakage sections apply to it; they have not been checked against a build of that client's real files.
+- Tests: `tests/test_ti_loader_dda_header.py` (synthetic rows).
+
 ### 2026-11-09 — ILS review reader: every cover style, and a plain reason when a review's figures are pictures (`build/review_page/ils_review_pack.py`)
 
 Summary: Live Review's ILS reader now reads the client's name and date from all four cover styles in use, and says when a review's tables are pictures instead of calling it "not an ILS Program Analysis"; it still reads the same 5 of the 46 reviews on the share, because the other 41 hold their figures as images.
