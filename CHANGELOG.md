@@ -15,6 +15,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Financial-services mail lists: every category, one master list, and the build now writes them (`ti_build.py`, `ti/transaction_intelligence/financial_services.py`, `lens.py`)
+
+Summary: Based on `feat/ars-ti/fs-01-finserv-dictionary-repair` (PR 163); merge that first. Adds files; changes no figure on a slide.
+
+- **The lists were never written.** `financial_services.compute` wrote its lists only when `ctx.shared["lists_dir"]` was set, and nothing in the build set it. `ti_build.compute_pack` now takes `lists_dir` and `main` passes `<out dir>/lists`. This also turns on the lists Competition already knew how to write (`competition_*.csv`); they are v5's files, unchanged.
+- **A list for every category, not only the 16 addressable ones** (22 now). A category nobody is in gets its header only, so the file set does not change month to month.
+- **`finserv_master_list.csv`:** one row per account per category: `acct_id`, `cif`, `list_type`, `kind`, `addressable`, `tier`, `txns`, `dollars`, `wallet_share`, `last`, `mailable`. Rows are the personal-account base the headline counts.
+- **`cif` is blank today.** No client file carries a member key (`ti/core/facts.py`). `compute` takes an optional `cif_map` and `txn_sections` reads it from `ctx.shared["cif_crosswalk"]`; when a crosswalk is loaded there it fills with no other change.
+- **`mailable`** is the ODD's `Mailable?` (now kept in the lens attributes), or `unknown` for an account the ODD does not list.
+- Checked on 1798, October 2026 card file: 22 lists, 36,716 rows, master equals the sum, no account twice in a category.
+- Tests: `tests/test_ti_finserv_lists.py` (11).
+
 ### 2026-11-16 — Financial-services dictionary v6: one category per pattern, generic descriptors are never the provider, payday lenders and known misses added (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`, `ti/transaction_intelligence/financial_services.py`)
 
 Summary: A change to what the Financial Services figures count, so it is its own PR (COLLABORATORS: a change to what a figure computes). Found by auditing the chapter and re-running 1798's October 2026 card file before and after. No Competition code changed; Competition reads the same matcher, so a descriptor that moves category here moves there too.

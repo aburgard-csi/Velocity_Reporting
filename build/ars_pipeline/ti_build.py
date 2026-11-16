@@ -104,7 +104,7 @@ class _Clock:
         print(f"[time] {step}: {self.times[step]:,.1f} s{mem}", flush=True)
 
 
-def compute_pack(client_id, period, name, ics=False):
+def compute_pack(client_id, period, name, ics=False, lists_dir=None):
     """The cut's data pack for one client: sources, data month, figures, and every warning."""
     import pandas as pd
     from ti import config, cut, lens, odd
@@ -137,6 +137,8 @@ def compute_pack(client_id, period, name, ics=False):
     subsets = build_subsets(frame, cfg, anchor)
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
+    if lists_dir is not None:                         # the mail lists land beside the decks (fs-02)
+        ctx.shared["lists_dir"] = Path(lists_dir)
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     clock.lap("account subsets")
@@ -221,7 +223,7 @@ def main(argv=None):
         pack = pack_for_reuse(out, a.client_id, a.period)
         print(f"figures from the pack computed {pack.get('computed')}: nothing recomputed", flush=True)
     else:
-        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics)
+        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics, lists_dir=out / "lists")
         (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")

@@ -46,7 +46,8 @@ def financial_services(ctx):
     ctx.shared.update(fin_spec=spec, fin_rows=rows)
     out, _files = F.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.shared.get("lists_dir"),
                             ctx.warn, account_filter=personal, key_prefix="fin_",
-                            base_label=base_label, classification=rows)
+                            base_label=base_label, classification=rows,
+                            cif_map=ctx.shared.get("cif_crosswalk"))
     if business is not None and len(business):
         finb, _ = F.compute(ctx.txn, None, spec, ctx.anchor_ts, None, lambda _m: None,
                             account_filter=business, key_prefix="finb_",
