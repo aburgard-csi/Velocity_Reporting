@@ -15,6 +15,24 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Competition by layer: the analyses on the layered figures (`build/ars_pipeline/ti/transaction_intelligence/competition_layers_modules.py`)
+
+Summary: The `cl_*` figures now carry ten analyses of who members pay and how: a monthly trend by group, 90-day movement, depth of wallet, institutions per account, recency, distance from a client branch, winback counts, closure after paying a competitor, a branch table, and the competitor branches near the client for a map. It adds figures only: no `comp_*` figure and no slide changes in this stage.
+
+James Gilmore, 2026-11-16: "rich insights at every level."
+
+- **Trend** (`cl_trend`): card dollars, active accounts, PIN share and competitor share by month, for the whole base and each group. Every month is a complete month inside the 12-month window the loader returns.
+- **Movement** (`cl_movement`, `cl_tier_movement`): per institution, relationships (an account paying an institution) first seen in the last 90 days, last seen before that, and live in the last 30. The window is 12 months, so "new" is a floor and "stopped" counts long-quiet relationships; the slides say so.
+- **Depth** (`cl_depth_tiers`, `cl_depth_institutions`): each relationship by the share of the account's card dollars it takes (under 5%, 5-20%, 20% or more); 20% or more is primary-relationship competition.
+- **Institutions per account** (`cl_multi`), **recency** (`cl_recency`: live in 30 days, 31-90, 91-180, dormant), **distance** (`cl_distance`: competitor dollars by the distance of the institution's nearest branch to a client branch; a name on the universal list takes the distance of the registry institution it names, so a national with a branch next door is not counted as distant).
+- **Winback** (`cl_winback`): heavy relationships still live in the last 30 days at a Local, Local (25-50 mi), Regional or State institution, by institution and group. Counts only: no account list is written.
+- **Competition and attrition** (`cl_attrition`): closure in the second half of the window by whether the account paid a competitor in the first half, for any institution and for each tier, with the relative risk. An association, never a cause; the cohort is the accounts with card activity before the midpoint that had not closed by then. Needs the ODD's `Date Closed`; without it the build says so and the figure is absent.
+- **Branches** (`cl_branches`): per ODD branch with 50 or more transacting accounts, the competitor share by tier and the 12-month closure rate. A branch is written as a person writes it: no decimal on a number ("309", not "309.0") and "(no branch)" when it is missing.
+- **Map points** (`cl_map`): the client's branches and every competitor branch within the local radius, each carrying its institution's tier when the institution appears in the card spending.
+- Each institution row in `cl_institutions` also carries its new, stopped and live counts and its heavy and mid depth counts.
+- Tests: `tests/test_ti_competition_layers_modules.py` (synthetic matched rows, each analysis pinned to figures worked out by hand).
+- **Not done in this stage:** the slides and the monthly comparison.
+
 ### 2026-11-16 — Competition by layer: every bank and credit union members pay, placed in a layer, split by group (`build/ars_pipeline/ti/transaction_intelligence/competition_layers.py`, `ti/txn_sections.py`)
 
 Summary: The transaction figures now include `cl_*`, which finds banks and credit unions in the card file by matching against every FDIC and NCUA institution (not a list of about 100 names), places each in a layer, and splits the result by the account groups. It adds figures only: no `comp_*` figure and no slide changes in this stage.

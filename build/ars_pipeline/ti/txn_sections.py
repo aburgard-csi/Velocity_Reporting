@@ -185,8 +185,24 @@ def competition_layers(ctx):
     out = CL.compute(ctx.txn, rows, ctx.lenses, ctx.frame, ctx.config, ctx.anchor_ts, record, book, spec,
                      ctx.warn, base_ids=personal)
     # hand-offs to the analysis modules, never written to the pack
-    for k in ("_cl_matched", "_cl_active", "_cl_sets", "_cl_sub"):
-        ctx.shared[k] = out.pop(k, None)
+    parts = tuple(out.pop(k, None) for k in ("_cl_sub", "_cl_matched", "_cl_active", "_cl_sets"))
+    ctx.shared["cl_parts"] = parts
+    if out and parts[1] is not None:
+        from ti.transaction_intelligence import competition_layers_modules as CLM
+        points = [(b["lat"], b["lon"]) for b in (record or {}).get("branches") or [] if b.get("lat") is not None]
+        figs, warns = CLM.compute(parts, ctx.frame, ctx.lenses, ctx.anchor_ts, book, points,
+                                  CL.settings(ctx.config)["local_miles"], out["cl_institutions"])
+        for w in warns:
+            ctx.warn(w)
+        out.update(figs)
+        mv = {r["inst"]: r for r in figs.get("cl_movement", [])}
+        dp = {r["inst"]: r for r in figs.get("cl_depth_institutions", [])}
+        for r in out["cl_institutions"]:               # each institution's movement and depth beside its reach
+            m, d = mv.get(r["inst"]), dp.get(r["inst"])
+            if m:
+                r.update(new_90=m["new_90"], stopped_90=m["stopped_90"], live_30=m["live_30"])
+            if d:
+                r.update(heavy=d["heavy"], mid=d["mid"], median_share_pct=d["median_share_pct"])
     return out
 
 
