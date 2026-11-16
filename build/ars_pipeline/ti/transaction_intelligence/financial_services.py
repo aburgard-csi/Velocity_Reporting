@@ -186,6 +186,10 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
                 if len(full) > len(spelling.get(key, "")):
                     spelling[key] = full
     context, tails = _context_rule(spec)
+    # Descriptors that name a product but no lender (AUTO LOAN, CARD PAYMENT,
+    # LOAN PMT): the category is right, the provider is unknown. Without this
+    # they were published as a provider in the who-they-pay tables.
+    generic = frozenset(normalize_core(g) for g in spec.get("generic_descriptors") or ())
 
     def _label(text: str) -> str:
         """The provider as the dictionary spells it, not as the descriptor
@@ -228,7 +232,7 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
             # a bare category word ("BROKERAGE") names the category, not a
             # provider -- publishing it as one put "BROKERAGE $633,466" at
             # the top of a who-they-pay table (#245)
-            provider = UNNAMED_PROVIDER if best[2] in context else _label(best[2])
+            provider = UNNAMED_PROVIDER if best[2] in context or best[2] in generic else _label(best[2])
             rows.append((s, best[0], best[1], provider))
         else:
             rows.append((s, None, None, None))

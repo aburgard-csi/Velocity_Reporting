@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Financial-services dictionary v6: one category per pattern, generic descriptors are never the provider, payday lenders and known misses added (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`, `ti/transaction_intelligence/financial_services.py`)
+
+Summary: A change to what the Financial Services figures count, so it is its own PR (COLLABORATORS: a change to what a figure computes). Found by auditing the chapter and re-running 1798's October 2026 card file before and after. No Competition code changed; Competition reads the same matcher, so a descriptor that moves category here moves there too.
+
+- **Generic descriptors published as a provider.** `CARD PAYMENT`, `AUTO LOAN`, `LOAN PAYMENT`, `AUTO FINANCE` and `INS PREMIUM` showed in the who-they-pay tables as if they were lenders. The dictionary now lists `generic_descriptors`; they keep their category and publish as `(unnamed)`. On 1798: 120 rows relabelled, none left.
+- **16 patterns sat in two categories** (SOFI BANK, SYNCHRONY BANK, SALLIE MAE BANK, WEALTHFRONT, SANTANDER CONSUMER, LOAN DEPOT, EMPOWER, MARCUS, ACORNS, FIDELITY NETBENEFITS, three PAYPAL forms). Each is now in the more specific product category. These are judgment calls; review them before merging.
+- **Added:** bank + AUTO / MTG / MORTGAGE patterns for PNC, USAA, Wells Fargo, Bank of America, US Bank, Truist, Fifth Third, Regions, Citizens (so `WELLS FARGO AUTO` is an auto loan, not an online bank); DISCOVER CARD, CREDIT ONE, LENDINGCLUB, GOLDMAN SACHS BANK, DAVE COM; a new addressable leakage category, **Payday / Small-Dollar Loans** (Advance America, Speedy Cash, Check N Go, Ace Cash Express, Plain Green, Check Into Cash, OppLoans).
+- **Effect on 1798, October 2026 (one month):** matched rows 183,157 to 183,360; accounts with any leakage 13,637 to 13,694; 203 rows ($55K) newly in Payday; 16 rows moved from Online Banks to Auto Loans; 1 row Financial Advisory to Retirement. Every new payday and Wells Fargo match was read and is a real lender.
+- Categories 21 to 22, so a deck's category count and any hard-coded category list move with it.
+- Tests: `tests/test_ti_finserv_dictionary_v6.py` (25 new). The TI group passes except four `test_ti_launcher.py` tests that fail the same way on clean `main` with an empty data root.
+
 ### 2026-11-09 — ILS review reader: every cover style, and a plain reason when a review's figures are pictures (`build/review_page/ils_review_pack.py`)
 
 Summary: Live Review's ILS reader now reads the client's name and date from all four cover styles in use, and says when a review's tables are pictures instead of calling it "not an ILS Program Analysis"; it still reads the same 5 of the 46 reviews on the share, because the other 41 hold their figures as images.
