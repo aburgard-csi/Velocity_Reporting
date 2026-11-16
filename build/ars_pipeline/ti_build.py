@@ -171,6 +171,25 @@ def compute_pack(client_id, period, name, ics=False, lists_dir=None):
             "computed": time.strftime("%Y-%m-%d %H:%M")}
 
 
+def write_run_tables(pack, out):
+    """The slide ledger and the portfolio row (fs-06). Both are beside the decks; the portfolio row is
+    also upserted into the shared table when RPE_TI_PORTFOLIO names one. A failure here never costs the
+    decks: it is printed and the build still succeeds."""
+    try:
+        from ti import ledger, portfolio
+        rows = ledger.rows(pack)
+        ledger.write(Path(out) / "ti_slide_ledger.csv", rows)
+        print(f"{pack['client_id']}: slide ledger: {ledger.summary(rows)} ({Path(out) / 'ti_slide_ledger.csv'})")
+        row = portfolio.row(pack)
+        portfolio.upsert(Path(out) / "ti_portfolio_row.csv", row)
+        shared = portfolio.shared_table()
+        if shared:
+            portfolio.upsert(shared, row)
+            print(f"{pack['client_id']}: portfolio row upserted into {shared}")
+    except Exception as exc:                          # never the decks
+        print(f"{pack['client_id']}: slide ledger / portfolio row not written ({type(exc).__name__}: {exc})")
+
+
 def pack_for_reuse(out, client_id, period):
     """The pack in `out` when it can be redrawn as it is, else SystemExit saying why."""
     f = Path(out) / "ti_pack.json"
@@ -238,6 +257,7 @@ def main(argv=None):
     for p in build_decks(pack, out):
         print(f"built {p}")
     print(f"[time] decks drawn: {time.perf_counter() - t:,.1f} s", flush=True)
+    write_run_tables(pack, out)
     return 0
 
 
