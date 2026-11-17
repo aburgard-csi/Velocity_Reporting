@@ -104,7 +104,7 @@ class _Clock:
         print(f"[time] {step}: {self.times[step]:,.1f} s{mem}", flush=True)
 
 
-def compute_pack(client_id, period, name, ics=False, prior_pack=None):
+def compute_pack(client_id, period, name, ics=False, lists_dir=None, prior_pack=None):
     """The cut's data pack for one client: sources, data month, figures, and every warning."""
     import pandas as pd
     from ti import config, cut, lens, odd
@@ -137,6 +137,8 @@ def compute_pack(client_id, period, name, ics=False, prior_pack=None):
     subsets = build_subsets(frame, cfg, anchor)
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
+    if lists_dir is not None:                         # the mail lists land beside the decks (fs-02)
+        ctx.shared["lists_dir"] = Path(lists_dir)
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     clock.lap("account subsets")
@@ -184,6 +186,25 @@ def compute_pack(client_id, period, name, ics=False, prior_pack=None):
             "lenses": [k for k in lenses if k not in unavailable], "lenses_unavailable": unavailable,
             "metrics": metrics, "warnings": warnings, "inputs": fingerprint, "timings": clock.times,
             "computed": time.strftime("%Y-%m-%d %H:%M")}
+
+
+def write_run_tables(pack, out):
+    """The slide ledger and the portfolio row (fs-06). Both are beside the decks; the portfolio row is
+    also upserted into the shared table when RPE_TI_PORTFOLIO names one. A failure here never costs the
+    decks: it is printed and the build still succeeds."""
+    try:
+        from ti import ledger, portfolio
+        rows = ledger.rows(pack)
+        ledger.write(Path(out) / "ti_slide_ledger.csv", rows)
+        print(f"{pack['client_id']}: slide ledger: {ledger.summary(rows)} ({Path(out) / 'ti_slide_ledger.csv'})")
+        row = portfolio.row(pack)
+        portfolio.upsert(Path(out) / "ti_portfolio_row.csv", row)
+        shared = portfolio.shared_table()
+        if shared:
+            portfolio.upsert(shared, row)
+            print(f"{pack['client_id']}: portfolio row upserted into {shared}")
+    except Exception as exc:                          # never the decks
+        print(f"{pack['client_id']}: slide ledger / portfolio row not written ({type(exc).__name__}: {exc})")
 
 
 def pack_for_reuse(out, client_id, period):
@@ -241,20 +262,23 @@ def main(argv=None):
         pack = pack_for_reuse(out, a.client_id, a.period)
         print(f"figures from the pack computed {pack.get('computed')}: nothing recomputed", flush=True)
     else:
-        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics, prior_pack=a.prior_pack)
+        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics, lists_dir=out / "lists",
+                            prior_pack=a.prior_pack)
         (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
     for w in pack["warnings"]:
         print(f"{a.client_id}: {w}")
     # v5's own read-outs of the transaction figures, into the build log (never a deck)
-    from ti.transaction_intelligence import competition_report, sections_report
-    for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
+    from ti.transaction_intelligence import competition_report, finserv_report, sections_report
+    for line in (competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"])
+                 + finserv_report.lines(pack["metrics"])):
         print(line)
     t = time.perf_counter()
     for p in build_decks(pack, out):
         print(f"built {p}")
     print(f"[time] decks drawn: {time.perf_counter() - t:,.1f} s", flush=True)
+    write_run_tables(pack, out)
     return 0
 
 

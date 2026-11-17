@@ -94,6 +94,97 @@ James Gilmore, 2026-11-16: "build everything completely."
 - **Not done:** this layout carries ACH and check rows as well as card rows, so the transfer-rail rules in the competition and leakage sections apply to it; they have not been checked against a build of that client's real files.
 - Tests: `tests/test_ti_loader_dda_header.py` (synthetic rows).
 
+### 2026-11-16 — User guide: Transaction Intelligence and the mail lists (`scripts/launchers/ARS Deck User Guide.html`)
+
+Summary: Documentation only. Based on `docs/financial-services-guide`, which sits on the Financial Services stack; **describes what that stack delivers, so it should merge after it.** The copy on the share is released from this file (Aaron's release), so the share is unchanged until then.
+
+- New section **Transaction Intelligence and the mail lists**: the `<id>-<period>-TI-Lists` folder beside the deck, the master list and how to use it, the blank `cif` column, the personal-accounts base, and the three words on the slides (any leakage, addressable, adjacency).
+- Where things are: a row for the lists folder. Terms: any leakage, addressable, master list, review queue. If something goes wrong: the deck is in Outputs but the lists are not. Contents and the Sheila panel paragraph link to the new section. Footer date 2026-11-16.
+- A new generated page, `docs/financial-services.html` (`scripts/build_financial_services_guide.py`), is the full reference; the guide points CSMs to Aaron for the current copy.
+
+### 2026-11-16 — The Transaction Intelligence build now puts the mail lists in Outputs beside the deck (`scripts/ars_launcher.py`)
+
+Summary: Based on `feat/ars-ti/fs-07-dictionary-v7` (stacked on PR 163). **A launcher change (`build_ti`), which Sheila's button depends on: for Aaron's review.** The deck delivery is untouched.
+
+- **What was wrong.** `ti_build` writes the lists, the review queue and the slide ledger into the staging folder, and `build_ti` copied only the validated `*.pptx` out, so a CSM never saw any of them (found while documenting where the lists land).
+- **Now:** after the deck is delivered, `ti_lists_to_outputs` copies `lists/` (one CSV per category, `finserv_master_list.csv`, `finserv_review_queue.csv`) and `ti_slide_ledger.csv` to `Outputs/<CSM>/<id>-<period>-TI-Lists/`. A folder already there for the same period is archived under the CSM's `_Archive`, never overwritten, the same way a superseded deck is.
+- **A problem copying the lists is a warning, never a stop,** and never un-delivers the deck.
+- Tests: four in `tests/test_ti_launcher.py` (delivery, archive on rebuild, no lists, a copy failure). The seven tests in `test_ti_launcher.py` and `test_companion_deck.py` that raise `SystemExit` from `rpe_env` with an empty data root fail the same way on clean `main`.
+
+### 2026-11-16 — Financial-services dictionary v7: 14 names read from 1798's review queue (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`)
+
+Summary: Based on `feat/ars-ti/fs-06-portfolio-ledger` (stacked on PR 163). **Moves figures**, so it is its own PR: more rows match, no matched row changes category.
+
+- **Why these names.** The review queue (descriptors the dictionary missed, by dollars) on 1798's October 2026 file was $1.14M; its top rows were consumer-finance lenders, insurers and a crypto on-ramp. The depository names in the same queue (Nusenda, Mountain Star, Raiz, White Sands, Hughes, US Eagle) are Competition's, not added here.
+- **Added (14):** Payday / Small-Dollar Loans: World Finance, World Acceptance, Sun Loans, Security Finance, Republic Finance, Regional Acceptance, Heights Finance. Buy Now Pay Later: Snap Finance. Insurance: Fred Loya, Foremost Insurance. Crypto: Transak, Trust Wallet. Mortgage: Bilt Mortgage. Auto Loans: Stellantis Financial. Names already in the dictionary (Mariner, Lendmark, OneMain, Chrysler Capital) were not repeated.
+- **Effect on 1798, October 2026 (one month):** 1,765 rows ($338K) newly matched: Payday 983 rows / $158K, Insurance 611 / $78K, Crypto 15 / $34K, BNPL 127 / $27K, Mortgage 10 / $23K, Auto 19 / $18K. **Accounts with any leakage 13,694 to 14,393 (+5%).** No row that matched before changed category. Every newly matched descriptor was read.
+- Lookalikes stay unmatched (tested): World Market, Sun Valley Hardware, Security Storage, Republic Services, Regional Medical Center, Snap Fitness, Heights Bakery.
+- Tests: `tests/test_ti_finserv_dictionary_v7.py` (21).
+
+### 2026-11-16 — A slide ledger and a portfolio row beside every TI build (`ti/ledger.py`, `ti/portfolio.py`, `ti_build.py`)
+
+Summary: Based on `feat/ars-ti/fs-05-institution-view` (stacked on PR 163). Writes two small files beside the decks; **changes no slide and no figure.** A failure writing them is printed and never costs the decks.
+
+- **`ti_slide_ledger.csv`:** every slide of the Transaction Intelligence and Competition chapters with its status (`drawn`, `merged`, `hidden`, `tossed`) and the reason, so nothing leaves the deck without a line (James reviews the whole deck and needs to see what was removed). Today's selection file: 59 slides, 27 drawn, 14 merged into 7 pairs, 18 tossed in `ti/slides.json`; `hidden` comes from the client's own declined slides.
+- **`ti_portfolio_row.csv`:** one row for this client and data month (any / addressable / adjacency leakage rates and dollars, coverage, review-queue dollars, accounts at a named depository). The Competition columns are added to `portfolio.COLUMNS` when that chapter's registry lands.
+- **The shared table is opt-in.** If `RPE_TI_PORTFOLIO` names a file, the row is also upserted there (the same client and month replaced, other clients and any columns a newer build added are kept). The build never chooses a shared location itself; where the table lives is Aaron's call.
+- Tests: `tests/test_ti_ledger_portfolio.py` (18).
+
+### 2026-11-16 — Financial services x named institution: who holds the product members pay for (`ti/transaction_intelligence/institution_view.py`, `txn_sections.py`, `chapters_txn.py`)
+
+Summary: Based on `feat/ars-ti/fs-04-trend-depth` (stacked on PR 163). A new section, `institution_view`, runs right after `competition`. Adds figures; **changes no slide and no existing figure.**
+
+- **`fininst_by_category`:** per leakage category, accounts and dollars, and how many sit at a named national, regional or local bank or credit union. **`fininst_matrix`:** the top category x institution pairs.
+- **Both views count the payment; they are never added** (James). Competition counts `NUSENDA CU LOAN PMT` as Nusenda; Financial Services counts it as a loan. This is a cross-tab of the two, not a third total: every pair's dollars are already inside the category's dollars (tested).
+- **A floor.** The match uses what Competition is configured with today (the universal list plus the client's regional and local names). A depository in neither is not found; the Competition registry is what closes that.
+- **1798, October 2026:** 867 personal accounts at a named depository; Insurance at USAA 511 accounts / $171K; Credit Cards at Capital One 226 / $47K; Auto Loans at TD Bank 24, Capital One 23, Wells Fargo 12. Buy Now Pay Later, Personal Loans and Payday: none (fintech lenders, not banks).
+- Depository tiers only (`National Bank`, `Regional Bank`, `Local Bank / CU`); card issuers, captives, brokerages and ecosystems are not named here.
+- Tests: `tests/test_ti_finserv_institution_view.py` (9). The TI group passes except the four `test_ti_launcher.py` tests that fail the same way on clean `main`.
+
+### 2026-11-16 — Financial services: a monthly series per category, a three-month trend, and the products leakers hold with us (`ti/transaction_intelligence/financial_services.py`)
+
+Summary: Based on `feat/ars-ti/fs-03-definitions-coverage` (stacked on PR 163). Adds figures; **changes no slide and no existing figure.**
+
+- **`fin_months`, `fin_monthly`:** for every category, accounts paying and dollars in each month of the window. The month axis is the file's months, so a month with no match reads zero instead of disappearing.
+- **`fin_trend`:** last three months against the three before (dollars and % change) per category, from six months of data; `peak_month` from twelve. A category that spikes seasonally (insurance renewals, tax) should be read against `peak_month`, not the three-month change.
+- **`fin_leakers_hold`:** for each addressable category with 20+ leakers, the top three products they hold with us (ODD `Prod Desc`), so a list can say what to offer.
+- **Not built:** marking mail months on the series needs the mailing calendar, which is not in these figures; charts and slides for the series are for Aaron.
+- Tests: `tests/test_ti_finserv_trend.py` (7), including the empty-month case a first draft got wrong.
+
+### 2026-11-16 — Financial services: one printed definition of "leaking", and a coverage figure (`ti/transaction_intelligence/financial_services.py`, `finserv_report.py`, `ti_build.py`)
+
+Summary: Based on `feat/ars-ti/fs-02-lists-master` (stacked on PR 163). Adds figures and a build-log read-out; **changes no slide and no existing figure.** Slide wording is for Aaron (see below).
+
+- **`fin_definitions`:** "any leakage" (the headline) and "addressable" (the by-lens table) side by side, each as accounts, % of the base and dollars, with the base size and the accounts in the file; adjacency (P2P, fintech wallets) reported apart and never added. On 1798 October 2026 these are 26.9% and 18.6% of 49,615 accounts; the deck's 42% and 18% are the same two definitions over twelve months.
+- **`fin_coverage`:** matched rows and dollars as a share of the file, card vs transfer rows, whether wallet share can be computed (it needs the ACH/check rail), and the review-queue dollars. 1798 October: 8.8% of rows and 15.9% of dollars matched, $1.14M in the review queue.
+- **`finserv_review_queue.csv`:** the whole review queue (634 descriptors on 1798), written beside the lists when `lists_dir` is set. The deck still shows the top rows; this is for dictionary work.
+- **Build log:** `finserv_report.lines` prints both definitions and the coverage line after the v5 read-outs. `sections_report.py` is a v5 port and is untouched.
+- **For Aaron, not built:** the headline slide's sub-line could print both rates and the base. It is Sheila-reviewed wording, so it is left as it is.
+- Tests: `tests/test_ti_finserv_definitions.py` (8).
+
+### 2026-11-16 — Financial-services mail lists: every category, one master list, and the build now writes them (`ti_build.py`, `ti/transaction_intelligence/financial_services.py`, `lens.py`)
+
+Summary: Based on `feat/ars-ti/fs-01-finserv-dictionary-repair` (PR 163); merge that first. Adds files; changes no figure on a slide.
+
+- **The lists were never written.** `financial_services.compute` wrote its lists only when `ctx.shared["lists_dir"]` was set, and nothing in the build set it. `ti_build.compute_pack` now takes `lists_dir` and `main` passes `<out dir>/lists`. This also turns on the lists Competition already knew how to write (`competition_*.csv`); they are v5's files, unchanged.
+- **A list for every category, not only the 16 addressable ones** (22 now). A category nobody is in gets its header only, so the file set does not change month to month.
+- **`finserv_master_list.csv`:** one row per account per category: `acct_id`, `cif`, `list_type`, `kind`, `addressable`, `tier`, `txns`, `dollars`, `wallet_share`, `last`, `mailable`. Rows are the personal-account base the headline counts.
+- **`cif` is blank today.** No client file carries a member key (`ti/core/facts.py`). `compute` takes an optional `cif_map` and `txn_sections` reads it from `ctx.shared["cif_crosswalk"]`; when a crosswalk is loaded there it fills with no other change.
+- **`mailable`** is the ODD's `Mailable?` (now kept in the lens attributes), or `unknown` for an account the ODD does not list.
+- Checked on 1798, October 2026 card file: 22 lists, 36,716 rows, master equals the sum, no account twice in a category.
+- Tests: `tests/test_ti_finserv_lists.py` (11).
+
+### 2026-11-16 — Financial-services dictionary v6: one category per pattern, generic descriptors are never the provider, payday lenders and known misses added (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`, `ti/transaction_intelligence/financial_services.py`)
+
+Summary: A change to what the Financial Services figures count, so it is its own PR (COLLABORATORS: a change to what a figure computes). Found by auditing the chapter and re-running 1798's October 2026 card file before and after. No Competition code changed; Competition reads the same matcher, so a descriptor that moves category here moves there too.
+
+- **Generic descriptors published as a provider.** `CARD PAYMENT`, `AUTO LOAN`, `LOAN PAYMENT`, `AUTO FINANCE` and `INS PREMIUM` showed in the who-they-pay tables as if they were lenders. The dictionary now lists `generic_descriptors`; they keep their category and publish as `(unnamed)`. On 1798: 120 rows relabelled, none left.
+- **16 patterns sat in two categories** (SOFI BANK, SYNCHRONY BANK, SALLIE MAE BANK, WEALTHFRONT, SANTANDER CONSUMER, LOAN DEPOT, EMPOWER, MARCUS, ACORNS, FIDELITY NETBENEFITS, three PAYPAL forms). Each is now in the more specific product category. These are judgment calls; review them before merging.
+- **Added:** bank + AUTO / MTG / MORTGAGE patterns for PNC, USAA, Wells Fargo, Bank of America, US Bank, Truist, Fifth Third, Regions, Citizens (so `WELLS FARGO AUTO` is an auto loan, not an online bank); DISCOVER CARD, CREDIT ONE, LENDINGCLUB, GOLDMAN SACHS BANK, DAVE COM; a new addressable leakage category, **Payday / Small-Dollar Loans** (Advance America, Speedy Cash, Check N Go, Ace Cash Express, Plain Green, Check Into Cash, OppLoans).
+- **Effect on 1798, October 2026 (one month):** matched rows 183,157 to 183,360; accounts with any leakage 13,637 to 13,694; 203 rows ($55K) newly in Payday; 16 rows moved from Online Banks to Auto Loans; 1 row Financial Advisory to Retirement. Every new payday and Wells Fargo match was read and is a real lender.
+- Categories 21 to 22, so a deck's category count and any hard-coded category list move with it.
+- Tests: `tests/test_ti_finserv_dictionary_v6.py` (25 new). The TI group passes except four `test_ti_launcher.py` tests that fail the same way on clean `main` with an empty data root.
+
 ### 2026-11-09 — ILS review reader: every cover style, and a plain reason when a review's figures are pictures (`build/review_page/ils_review_pack.py`)
 
 Summary: Live Review's ILS reader now reads the client's name and date from all four cover styles in use, and says when a review's tables are pictures instead of calling it "not an ILS Program Analysis"; it still reads the same 5 of the 46 reviews on the share, because the other 41 hold their figures as images.

@@ -112,7 +112,7 @@ def build(odd: pd.DataFrame, anchor_end: pd.Timestamp, warn,
 
     keep = [c for c in ("Curr Bal", "Avg Bal", "Date Opened", "Branch", "Prod Desc", "Prod Code",
                         "Business?", "Debit?", "Response Grouping", "Account Holder Age",
-                        "SwipeCat3", "last 12-mon spend") if c in df.columns]
+                        "SwipeCat3", "last 12-mon spend", "Mailable?") if c in df.columns]
     attrs = df[keep].copy()
     if "Date Opened" in attrs.columns:
         od = pd.to_datetime(attrs["Date Opened"], errors="coerce")

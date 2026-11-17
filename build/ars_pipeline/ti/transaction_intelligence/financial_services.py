@@ -186,6 +186,10 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
                 if len(full) > len(spelling.get(key, "")):
                     spelling[key] = full
     context, tails = _context_rule(spec)
+    # Descriptors that name a product but no lender (AUTO LOAN, CARD PAYMENT,
+    # LOAN PMT): the category is right, the provider is unknown. Without this
+    # they were published as a provider in the who-they-pay tables.
+    generic = frozenset(normalize_core(g) for g in spec.get("generic_descriptors") or ())
 
     def _label(text: str) -> str:
         """The provider as the dictionary spells it, not as the descriptor
@@ -228,7 +232,7 @@ def classify_strings(cores: pd.Series, spec: dict) -> pd.DataFrame:
             # a bare category word ("BROKERAGE") names the category, not a
             # provider -- publishing it as one put "BROKERAGE $633,466" at
             # the top of a who-they-pay table (#245)
-            provider = UNNAMED_PROVIDER if best[2] in context else _label(best[2])
+            provider = UNNAMED_PROVIDER if best[2] in context or best[2] in generic else _label(best[2])
             rows.append((s, best[0], best[1], provider))
         else:
             rows.append((s, None, None, None))
@@ -276,6 +280,47 @@ def _reach_by_category(addr_acc: pd.DataFrame) -> list:
     return rows
 
 
+LIST_COLUMNS = ["acct", "cif", "category", "kind", "addressable", "tier", "txns", "dollars",
+                "first", "last", "months", "wallet_share", "mailable"]
+MASTER_COLUMNS = ["acct_id", "cif", "list_type", "kind", "addressable", "tier", "txns", "dollars",
+                  "wallet_share", "last", "mailable"]
+MAILABLE_UNKNOWN = "unknown"          # the account is not in the ODD, so its flag is not known
+
+
+def _list_file(name: str) -> str:
+    return f"finserv_{re.sub(r'[^A-Za-z0-9]+', '_', name).strip('_').lower()}.csv"
+
+
+def write_lists(ac: pd.DataFrame, categories: dict, attrs: pd.DataFrame, lists_dir: Path,
+                cif_map: pd.Series | None = None) -> dict:
+    """The mail lists: one CSV for EVERY category in the dictionary (a category with nobody in
+    it gets its header only, so the set of files never depends on the month) and one master,
+    ``finserv_master_list.csv``, one row per account per category.
+
+    Rows are the personal-account base of the headline, the same accounts the figures count.
+    ``cif`` is blank until a crosswalk (``cif_map``) is supplied; ``mailable`` is the ODD's
+    ``Mailable?`` flag, or "unknown" for an account the ODD does not list."""
+    lists_dir.mkdir(parents=True, exist_ok=True)
+    grp = ac.copy()
+    grp["addressable"] = grp["category"].map(lambda c: "yes" if categories.get(c, {}).get("addressable") else "no")
+    grp["cif"] = grp["acct"].map(cif_map).fillna("") if cif_map is not None else ""
+    mail = attrs["Mailable?"] if "Mailable?" in attrs.columns else pd.Series(dtype=object)
+    grp["mailable"] = grp["acct"].map(mail).fillna(MAILABLE_UNKNOWN)
+    extra = [c for c in attrs.columns if c not in grp.columns and c != "Mailable?"]
+    written = {}
+    for name in categories:
+        one = grp[grp["category"] == name].sort_values(["tier", "dollars"], ascending=[True, False])
+        one = one.join(attrs[extra], on="acct", how="left") if len(one) else one.reindex(columns=LIST_COLUMNS + extra)
+        path = lists_dir / _list_file(name)
+        one[LIST_COLUMNS + extra].to_csv(path, index=False)
+        written[name] = str(path)
+    master = grp.rename(columns={"acct": "acct_id", "category": "list_type"})
+    master = master.sort_values(["list_type", "tier", "dollars"], ascending=[True, True, False])
+    mpath = lists_dir / "finserv_master_list.csv"
+    master.reindex(columns=MASTER_COLUMNS).to_csv(mpath, index=False)
+    return {"finserv_lists": written, "finserv_master": str(mpath)}
+
+
 # ---------------------------------------------------------------------------
 # compute
 # ---------------------------------------------------------------------------
@@ -316,8 +361,13 @@ def classify_rows(df: pd.DataFrame, spec: dict) -> pd.DataFrame:
 def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.Timestamp,
             lists_dir: Path | None, warn, account_filter: pd.Index | None = None,
             key_prefix: str = "fin_", base_label: str = "all accounts",
-            classification: pd.DataFrame | None = None) -> tuple[dict, dict]:
+            classification: pd.DataFrame | None = None,
+            cif_map: pd.Series | None = None) -> tuple[dict, dict]:
     """Returns (metrics, outputs). outputs holds CSV paths.
+
+    cif_map is an optional account id -> CIF lookup for the mail lists. No client file carries
+    a member key today (ti/core/facts.py), so it is None and the cif column is written blank;
+    the day a crosswalk exists it fills with no other change.
 
     account_filter restricts the base (e.g. personal accounts only); the
     by-lens table is always computed over every lens regardless, so the
@@ -463,6 +513,24 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     active_addr = addr_acc[addr_acc["tier"].isin(["active", "cooling"])]
     out[key_prefix + "addressable_active_accounts"] = int(active_addr["acct"].nunique())
 
+    # ---- one printed definition of "leaking" (fs-03) -----------------------------
+    # The headline counts ANY leakage; the by-lens table counts ADDRESSABLE categories only, so the
+    # two read as 42% and 18% on 1798. Both, side by side, with the base and the dollars.
+    adj_acc = ac[ac["kind"] == "adjacency"]
+    out[key_prefix + "definitions"] = {
+        "base_label": base_label, "base_accounts": total_accounts,
+        "file_accounts": int(acct.nunique()),
+        "any": {"accounts": len(leak_ids), "pct": _pct(len(leak_ids), total_accounts),
+                "dollars": round(float(leak_acc["dollars"].sum()))},
+        "addressable": {"accounts": len(addr_ids), "pct": _pct(len(addr_ids), total_accounts),
+                        "dollars": round(float(addr_acc["dollars"].sum()))},
+        "adjacency": {"accounts": int(adj_acc["acct"].nunique()),
+                      "pct": _pct(int(adj_acc["acct"].nunique()), total_accounts),
+                      "dollars": round(float(adj_acc["dollars"].sum()))},
+        "note": ("any = every leakage category; addressable = the categories the institution "
+                 "offers; adjacency (P2P, fintech wallets) is reported apart and never added"),
+    }
+
     # ---- 2. who they pay: top providers per category, concentration ------
     providers, concentration = {}, []
     for name, grp in m.groupby("category", observed=True):
@@ -483,6 +551,33 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
                     int(grp["is_stopped"].sum())])
     out[key_prefix + "recency"] = rec
     out[key_prefix + "new_recurring_stopped"] = dyn
+
+    # ---- monthly trend per category (fs-04) -----------------------------------------
+    # The window's own months, one row per category: accounts paying and dollars. The trend
+    # compares the last three months with the three before, so a seasonal category (insurance
+    # renewals, tax) reads as seasonal only once a year is on file (peak_month).
+    mm = m.assign(month=m["date"].dt.to_period("M"))
+    # the axis is the file's months, not the matched rows' months: a month with no match reads zero
+    months = sorted(df["transaction_date"][in_base].dt.to_period("M").dropna().unique())
+    out[key_prefix + "months"] = [str(p) for p in months]
+    series, trend = {}, []
+    for name, grp in mm.groupby("category", observed=True):
+        g = grp.groupby("month").agg(accounts=("acct", "nunique"), dollars=("amount", "sum"))
+        series[name] = [[str(p), int(g.loc[p, "accounts"]), round(float(g.loc[p, "dollars"]))]
+                        if p in g.index else [str(p), 0, 0] for p in months]
+        if len(months) >= 6:
+            last = float(g["dollars"].reindex(months[-3:]).fillna(0).sum())
+            prior = float(g["dollars"].reindex(months[-6:-3]).fillna(0).sum())
+            peak = str(g["dollars"].idxmax()) if len(months) >= 12 and len(g) else None
+            trend.append([name, round(last), round(prior),
+                          round((last - prior) / prior * 100, 1) if prior else None, peak])
+    out[key_prefix + "monthly"] = series
+    if trend:
+        out[key_prefix + "trend"] = sorted(trend, key=lambda r: -r[1])
+        out[key_prefix + "trend_columns"] = ["category", "last_3_months", "prior_3_months",
+                                             "change_pct", "peak_month"]
+        out[key_prefix + "trend_note"] = (f"last three months ({months[-3]} to {months[-1]}) against the "
+                                          f"three before; peak_month needs 12 months on file")
 
     # ---- multi-category ------------------------------------------------------
     per_acct_cats = leak_acc.groupby("acct")["category"].nunique()
@@ -583,6 +678,18 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
         out[key_prefix + "leakers_profile"] = prof
         out[key_prefix + "leakers_profile_columns"] = ["category", "accounts", "median_balance",
                                               "total_balance", "median_tenure_yrs", "responder_pct"]
+        # what the leakers already hold with us: the product they pay elsewhere for is the one
+        # they have not bought here, so the list can say what to offer (fs-04)
+        if "Prod Desc" in attrs.columns:
+            hold = []
+            for name, grp in addr_acc.groupby("category", observed=True):
+                ids = pd.Index(grp["acct"].unique()).intersection(attrs.index)
+                if len(ids) < 20:
+                    continue
+                vc = attrs.loc[ids, "Prod Desc"].dropna().astype(str).value_counts().head(3)
+                hold.append([name, len(ids), [[k, int(v)] for k, v in vc.items()]])
+            out[key_prefix + "leakers_hold"] = hold
+            out[key_prefix + "leakers_hold_columns"] = ["category", "accounts", "top_products_held"]
 
     # ---- P2P and fintech, singled out -------------------------------------------
     for label, key in (("P2P Transfers", key_prefix + "p2p"), ("Fintech / Neobanks", key_prefix + "fintech")):
@@ -627,20 +734,29 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
                 txns=("amount", "size"), dollars=("amount", "sum")).sort_values("dollars", ascending=False)
             out[key_prefix + "review_queue"] = [[s, int(r.txns), round(float(r.dollars))] for s, r in q.head(REVIEW_QUEUE).iterrows()]
             out[key_prefix + "review_queue_dollars"] = round(float(q["dollars"].sum()))
+            if lists_dir is not None and key_prefix == "fin_":
+                lists_dir.mkdir(parents=True, exist_ok=True)
+                rq = lists_dir / "finserv_review_queue.csv"
+                q.reset_index().rename(columns={"core": "descriptor"}).to_csv(rq, index=False)
+                outputs["finserv_review_queue"] = str(rq)
 
-    # ---- action lists: CSV per addressable category, paths in outputs -----------
+    # ---- coverage: how much of the file the dictionary can see (fs-03) ---------------
+    base_rows = int(in_base.sum())
+    base_dollars = float(amt[in_base].sum())
+    matched_dollars = float(amt[matched & in_base].sum())
+    out[key_prefix + "coverage"] = {
+        "rows": base_rows, "matched_rows": int((matched & in_base).sum()),
+        "matched_rows_pct": _pct(int((matched & in_base).sum()), base_rows),
+        "dollars": round(base_dollars), "matched_dollars": round(matched_dollars),
+        "matched_dollars_pct": _pct(matched_dollars, base_dollars),
+        "card_rows": int((is_card & in_base).sum()), "transfer_rows": int((is_transfer & in_base).sum()),
+        "wallet_share_available": bool(transfer_dollars),
+        "review_queue_dollars": out.get(key_prefix + "review_queue_dollars", 0),
+        "note": ("matched = leakage or adjacency; most card rows are ordinary merchants, so the "
+                 "row rate is low by design; the review queue is the part that matters"),
+    }
+
+    # ---- mail lists: one CSV per category (all of them) and one master -----------
     if lists_dir is not None and lenses is not None:
-        lists_dir.mkdir(parents=True, exist_ok=True)
-        attrs = lenses.attrs
-        written = {}
-        for name in sorted(addressable & set(ac["category"].unique())):
-            grp = ac[ac["category"] == name].copy()
-            grp = grp.join(attrs, on="acct", how="left")
-            grp = grp.sort_values(["tier", "dollars"], ascending=[True, False])
-            path = lists_dir / f"finserv_{re.sub(r'[^A-Za-z0-9]+', '_', name).strip('_').lower()}.csv"
-            cols = ["acct", "txns", "dollars", "first", "last", "tier", "months", "wallet_share"] + \
-                   [c for c in attrs.columns if c in grp.columns]
-            grp[cols].to_csv(path, index=False)
-            written[name] = str(path)
-        outputs["finserv_lists"] = written
+        outputs.update(write_lists(ac, spec["categories"], lenses.attrs, lists_dir, cif_map))
     return out, outputs

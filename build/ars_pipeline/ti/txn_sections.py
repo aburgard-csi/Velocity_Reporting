@@ -46,7 +46,8 @@ def financial_services(ctx):
     ctx.shared.update(fin_spec=spec, fin_rows=rows)
     out, _files = F.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.shared.get("lists_dir"),
                             ctx.warn, account_filter=personal, key_prefix="fin_",
-                            base_label=base_label, classification=rows)
+                            base_label=base_label, classification=rows,
+                            cif_map=ctx.shared.get("cif_crosswalk"))
     if business is not None and len(business):
         finb, _ = F.compute(ctx.txn, None, spec, ctx.anchor_ts, None, lambda _m: None,
                             account_filter=business, key_prefix="finb_",
@@ -206,6 +207,16 @@ def competition_layers(ctx):
         from ti.transaction_intelligence import competition_layers_compare as CLC
         out["cl_portfolio_row"] = CLC.portfolio_row(out)       # the row a month adds to a portfolio benchmark
     return out
+
+
+def institution_view(ctx):
+    """fininst_*: each financial-services category against the named bank or credit union that holds
+    it (fs-05). Reads financial services' classification and competition's configuration; both
+    views count the same payment and are never added (see transaction_intelligence/institution_view)."""
+    from ti.transaction_intelligence import institution_view as IV
+    personal, _business, _label = base_accounts(ctx)
+    return IV.compute(ctx.txn, ctx.shared.get("fin_rows"), ctx.shared.get("comp_spec"),
+                      account_filter=personal)
 
 
 def mapping_audit(ctx):
