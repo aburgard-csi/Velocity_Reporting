@@ -513,6 +513,24 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     active_addr = addr_acc[addr_acc["tier"].isin(["active", "cooling"])]
     out[key_prefix + "addressable_active_accounts"] = int(active_addr["acct"].nunique())
 
+    # ---- one printed definition of "leaking" (fs-03) -----------------------------
+    # The headline counts ANY leakage; the by-lens table counts ADDRESSABLE categories only, so the
+    # two read as 42% and 18% on 1798. Both, side by side, with the base and the dollars.
+    adj_acc = ac[ac["kind"] == "adjacency"]
+    out[key_prefix + "definitions"] = {
+        "base_label": base_label, "base_accounts": total_accounts,
+        "file_accounts": int(acct.nunique()),
+        "any": {"accounts": len(leak_ids), "pct": _pct(len(leak_ids), total_accounts),
+                "dollars": round(float(leak_acc["dollars"].sum()))},
+        "addressable": {"accounts": len(addr_ids), "pct": _pct(len(addr_ids), total_accounts),
+                        "dollars": round(float(addr_acc["dollars"].sum()))},
+        "adjacency": {"accounts": int(adj_acc["acct"].nunique()),
+                      "pct": _pct(int(adj_acc["acct"].nunique()), total_accounts),
+                      "dollars": round(float(adj_acc["dollars"].sum()))},
+        "note": ("any = every leakage category; addressable = the categories the institution "
+                 "offers; adjacency (P2P, fintech wallets) is reported apart and never added"),
+    }
+
     # ---- 2. who they pay: top providers per category, concentration ------
     providers, concentration = {}, []
     for name, grp in m.groupby("category", observed=True):
@@ -677,6 +695,27 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
                 txns=("amount", "size"), dollars=("amount", "sum")).sort_values("dollars", ascending=False)
             out[key_prefix + "review_queue"] = [[s, int(r.txns), round(float(r.dollars))] for s, r in q.head(REVIEW_QUEUE).iterrows()]
             out[key_prefix + "review_queue_dollars"] = round(float(q["dollars"].sum()))
+            if lists_dir is not None and key_prefix == "fin_":
+                lists_dir.mkdir(parents=True, exist_ok=True)
+                rq = lists_dir / "finserv_review_queue.csv"
+                q.reset_index().rename(columns={"core": "descriptor"}).to_csv(rq, index=False)
+                outputs["finserv_review_queue"] = str(rq)
+
+    # ---- coverage: how much of the file the dictionary can see (fs-03) ---------------
+    base_rows = int(in_base.sum())
+    base_dollars = float(amt[in_base].sum())
+    matched_dollars = float(amt[matched & in_base].sum())
+    out[key_prefix + "coverage"] = {
+        "rows": base_rows, "matched_rows": int((matched & in_base).sum()),
+        "matched_rows_pct": _pct(int((matched & in_base).sum()), base_rows),
+        "dollars": round(base_dollars), "matched_dollars": round(matched_dollars),
+        "matched_dollars_pct": _pct(matched_dollars, base_dollars),
+        "card_rows": int((is_card & in_base).sum()), "transfer_rows": int((is_transfer & in_base).sum()),
+        "wallet_share_available": bool(transfer_dollars),
+        "review_queue_dollars": out.get(key_prefix + "review_queue_dollars", 0),
+        "note": ("matched = leakage or adjacency; most card rows are ordinary merchants, so the "
+                 "row rate is low by design; the review queue is the part that matters"),
+    }
 
     # ---- mail lists: one CSV per category (all of them) and one master -----------
     if lists_dir is not None and lenses is not None:

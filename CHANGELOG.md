@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Financial services: one printed definition of "leaking", and a coverage figure (`ti/transaction_intelligence/financial_services.py`, `finserv_report.py`, `ti_build.py`)
+
+Summary: Based on `feat/ars-ti/fs-02-lists-master` (stacked on PR 163). Adds figures and a build-log read-out; **changes no slide and no existing figure.** Slide wording is for Aaron (see below).
+
+- **`fin_definitions`:** "any leakage" (the headline) and "addressable" (the by-lens table) side by side, each as accounts, % of the base and dollars, with the base size and the accounts in the file; adjacency (P2P, fintech wallets) reported apart and never added. On 1798 October 2026 these are 26.9% and 18.6% of 49,615 accounts; the deck's 42% and 18% are the same two definitions over twelve months.
+- **`fin_coverage`:** matched rows and dollars as a share of the file, card vs transfer rows, whether wallet share can be computed (it needs the ACH/check rail), and the review-queue dollars. 1798 October: 8.8% of rows and 15.9% of dollars matched, $1.14M in the review queue.
+- **`finserv_review_queue.csv`:** the whole review queue (634 descriptors on 1798), written beside the lists when `lists_dir` is set. The deck still shows the top rows; this is for dictionary work.
+- **Build log:** `finserv_report.lines` prints both definitions and the coverage line after the v5 read-outs. `sections_report.py` is a v5 port and is untouched.
+- **For Aaron, not built:** the headline slide's sub-line could print both rates and the base. It is Sheila-reviewed wording, so it is left as it is.
+- Tests: `tests/test_ti_finserv_definitions.py` (8).
+
 ### 2026-11-16 — Financial-services mail lists: every category, one master list, and the build now writes them (`ti_build.py`, `ti/transaction_intelligence/financial_services.py`, `lens.py`)
 
 Summary: Based on `feat/ars-ti/fs-01-finserv-dictionary-repair` (PR 163); merge that first. Adds files; changes no figure on a slide.

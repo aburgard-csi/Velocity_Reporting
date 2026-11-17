@@ -230,8 +230,9 @@ def main(argv=None):
     for w in pack["warnings"]:
         print(f"{a.client_id}: {w}")
     # v5's own read-outs of the transaction figures, into the build log (never a deck)
-    from ti.transaction_intelligence import competition_report, sections_report
-    for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
+    from ti.transaction_intelligence import competition_report, finserv_report, sections_report
+    for line in (competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"])
+                 + finserv_report.lines(pack["metrics"])):
         print(line)
     t = time.perf_counter()
     for p in build_decks(pack, out):
