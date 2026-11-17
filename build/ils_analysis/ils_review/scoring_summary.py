@@ -360,6 +360,11 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
     if bad_co:
         # the default rate follows the flag as the notebook's does (shown); the loss dollars are not usable (withheld)
         notes.append(f"ILS Scoring Summary ({accttype}): losses and loss rates withheld. " + bad_co)
+    if getattr(cfg, "default_basis", "notebook") == "notebook" and not (getattr(fr, "max_limit", None) or {}).get(accttype):
+        # the notebook caps its risk set at the matrix maximum; a matrix whose tiers are not named Personal / Business
+        # (or no matrix) leaves the cap off, and that must be visible, not silent
+        notes.append(f"ILS Scoring Summary ({accttype}): no matrix maximum limit was found for {accttype} accounts, so notices "
+                     "above it could not be left out as the analysis notebook does.")
     basis = getattr(cfg, "default_basis", "notebook")
     rule = {"deck": DEFAULT_DAYS_NOTE, "readme": "README rule (30 days, never-repaid counted)",
             "notebook": ("the analysis notebook's rule: a notice on a charged-off account dated on or after the "
