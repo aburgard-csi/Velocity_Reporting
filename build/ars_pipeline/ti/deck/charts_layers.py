@@ -108,7 +108,10 @@ def columns(labels: list, series: dict, out, colors: dict, stacked=False, fmt="{
     ax.set_ylabel(ylabel, color=GREY)
     _frame(ax, "y")
     if k > 1:
-        ax.legend(loc="upper right", frameon=False, ncol=min(k, 4))
+        if stacked:                      # stacked bars fill the top of the plot, so the legend sits below it
+            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), frameon=False, ncol=min(k, 4))
+        else:
+            ax.legend(loc="upper right", frameon=False, ncol=min(k, 4))
     return _save(fig, out)
 
 

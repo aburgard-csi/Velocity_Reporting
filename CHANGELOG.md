@@ -15,6 +15,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — Competition: one set of figures in the deck, and three fixes from reading a full real deck (`slides.json`, `ti/deck/txn_layers.py`, `ti/deck/charts_layers.py`)
+
+Summary: The Competition chapter no longer carries two sets of figures that disagree. Eleven slides of the older competition section are tossed in the register because the layers slides carry the same figures for banks and credit unions only, and three slide defects found in a full 130-slide deck are fixed.
+
+Found by reading every competition slide of a built 130-slide Transaction Intelligence deck for a credit union (1798). The older section said 20% of accounts, $21.1M, 79 institutions and a $4.9M review queue; the layers said 15.6%, $16.4M, 202 institutions and $376K unplaced. The older figures count payment apps, lenders and card issuers as competitors; the layers count banks and credit unions only, as the plan states.
+
+- **Register.** Tossed in `slides.json`, with the reason under `_tossed_2026-11-17`: Who competes for our members, The local field, Where the field sits, Where we lose and where we leak, Gaining and losing, Where the dollars go, Who owns the relationship, What competitors take and how much they own, Is the competitor money still moving, Winback targets, Depth against growth. Kept: Filed growth, Payment apps and buy now, pay later, and the ecosystem slides. `TI_SLIDES` all-keep draws them all again, and the ledger lists each as tossed.
+- **Universe slide.** The headline said 174 institutions appear in card spending while the summary said 202: 174 are matched to a registry institution, 6 are digital-only names and 22 are names that fit several institutions. It now says 202 and how many of them are registry institutions.
+- **Lens slide.** The headline carried three group figures and ran into the subtitle; it is now short and the figures are in the subtitle.
+- **Multi-institution slide.** The legend sat on top of the bars; for stacked columns it is now below the chart.
+- Two tests.
+
 ### 2026-11-17 — Competition layers: three slide fixes found reviewing a real client's deck (`ti/deck/txn_layers.py`)
 
 Summary: A month with no card rows stays on the trend axis as a gap, the full list's "% of base" carries a % sign, and the ladder headline no longer says "local institutions take 0%" for a client with no local tier.

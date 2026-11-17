@@ -201,10 +201,13 @@ def layers_universe(h, t, base):
     if not u:
         return _no("How many exist and how many are paid")
     reg, seen = sum(r["registry"] for r in u), sum(r["seen"] for r in u)
-    s, top = _slide(h, f"{reg:,} banks and credit unions are in the registry; {seen} appear in card spending",
-                    "FDIC and NCUA institutions by tier, against the institutions that members or customers actually pay",
+    paid = len(t.get("cl_institutions") or []) or seen
+    extra = paid - seen                      # paid institutions with no registry branch: digital names and ambiguous names
+    s, top = _slide(h, f"{paid:,} institutions appear in card spending; {seen} of them are among the {reg:,} banks and credit unions in the registry",
+                    "FDIC and NCUA institutions by tier, against the institutions that members or customers actually pay"
+                    + (f". The other {extra} are digital-only names with no branches, or names that fit several institutions" if extra > 0 else ""),
                     "How many exist and how many are paid")
-    right = h["rail"](s, [("In the registry", f"{reg:,}", "banks and credit unions"), ("Seen in spending", f"{seen:,}", "paid by at least one account"),
+    right = h["rail"](s, [("In the registry", f"{reg:,}", "banks and credit unions"), ("Paid", f"{paid:,}", f"{seen} matched to a registry institution"),
                           ("Branch within reach", f"{sum(r['within_local'] for r in u):,}", "within the local radius")], top=top)
     shown = [r for r in u if r["seen"] or r["within_local"]]
     path = h["chart"]("layers_universe", CLY.columns, [r["tier"].replace(" (", "\n(") for r in shown],
@@ -444,8 +447,8 @@ def layers_lens(h, t, base):
         return _no(LENS_TOPIC, "the client has only one group, or no tier reaches 0.3% of accounts")
     a = t["cl_any"]["by_group"]
     said = ", ".join(lab[g] + " " + format(a[g]["pct"], ".1f") + "%" for g in main)
-    s, top = _slide(h, f"Share of each group paying a competitor, by tier: {said}",
-                    "The largest tiers by reach; each colour is a group. Whole-base share in the title is the de-duplicated total for that group", LENS_TOPIC)
+    s, top = _slide(h, "Share of each group paying a competitor, by tier",
+                    f"The largest tiers by reach; each colour is a group. Any tier: {said}", LENS_TOPIC)
     path = h["chart"]("layers_lens", CLY.columns, [r["tier"].replace(" (", "\n(") for r in rows],
                       {lab[g]: [r["by_group"].get(g, {}).get("pct", 0) for r in rows] for g in main},
                       colors={lab[g]: CLY.GROUP_COLOR.get(g, CLY.STEEL) for g in main}, fmt="{:.1f}", ylabel="% of the group's accounts")
