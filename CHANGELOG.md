@@ -15,6 +15,15 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — The Transaction Intelligence build now puts the mail lists in Outputs beside the deck (`scripts/ars_launcher.py`)
+
+Summary: Based on `feat/ars-ti/fs-07-dictionary-v7` (stacked on PR 163). **A launcher change (`build_ti`), which Sheila's button depends on: for Aaron's review.** The deck delivery is untouched.
+
+- **What was wrong.** `ti_build` writes the lists, the review queue and the slide ledger into the staging folder, and `build_ti` copied only the validated `*.pptx` out, so a CSM never saw any of them (found while documenting where the lists land).
+- **Now:** after the deck is delivered, `ti_lists_to_outputs` copies `lists/` (one CSV per category, `finserv_master_list.csv`, `finserv_review_queue.csv`) and `ti_slide_ledger.csv` to `Outputs/<CSM>/<id>-<period>-TI-Lists/`. A folder already there for the same period is archived under the CSM's `_Archive`, never overwritten, the same way a superseded deck is.
+- **A problem copying the lists is a warning, never a stop,** and never un-delivers the deck.
+- Tests: four in `tests/test_ti_launcher.py` (delivery, archive on rebuild, no lists, a copy failure). The seven tests in `test_ti_launcher.py` and `test_companion_deck.py` that raise `SystemExit` from `rpe_env` with an empty data root fail the same way on clean `main`.
+
 ### 2026-11-16 — Financial-services dictionary v7: 14 names read from 1798's review queue (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`)
 
 Summary: Based on `feat/ars-ti/fs-06-portfolio-ledger` (stacked on PR 163). **Moves figures**, so it is its own PR: more rows match, no matched row changes category.

@@ -741,6 +741,44 @@ def ti_to_outputs(cid, deck, client_name=""):
     return OK, f"In Outputs: {cur}"
 
 
+def ti_lists_to_outputs(cid, tdir, period, client_name=""):
+    """Put the build's mail lists and slide ledger in `Outputs/<CSM>/<id>-<period>-TI-Lists/` (fs-08).
+
+    ti_build writes them beside the decks in the staging folder, and only the validated decks were ever
+    copied out, so a CSM never saw the lists. The folder holds one CSV per financial-services category,
+    `finserv_master_list.csv`, the full review queue and `ti_slide_ledger.csv`. A folder for the same
+    period is archived, never overwritten. Returns (level, message); a problem here is a WARN, never a
+    reason to un-deliver the deck."""
+    src = Path(tdir) / "lists"
+    if not src.is_dir() or not any(src.glob("*.csv")):
+        return OK, "No mail lists in this build."
+    import promote_month as P
+    out = R.outputs()
+    dest = R.client_outputs(cid, root=out) / f"{cid}-{period}-{TI_TAG}-Lists"
+    stamp = dt.date.today().isoformat()
+    try:
+        if dest.exists():
+            folder = P.client_folder(out / R.ARCHIVE_DIRNAME, cid, client_name)
+            folder.mkdir(parents=True, exist_ok=True)
+            arch = folder / f"{dest.name} (superseded {stamp})"
+            k = 1
+            while arch.exists():
+                k += 1
+                arch = folder / f"{dest.name} (superseded {stamp}-{k})"
+            shutil.move(str(dest), str(arch))
+            print(f"         archive   {dest.name}", flush=True)
+        shutil.copytree(src, dest)
+        ledger = Path(tdir) / "ti_slide_ledger.csv"
+        if ledger.is_file():
+            shutil.copy2(ledger, dest / ledger.name)
+        n = len(list(dest.glob("*.csv")))
+        if n < len(list(src.glob("*.csv"))):
+            raise OSError(f"{n} files in Outputs, {len(list(src.glob('*.csv')))} built")
+    except OSError as e:
+        return WARN, f"The deck is in Outputs, but its mail lists could not be copied ({e}). They are in {src}."
+    return OK, f"Mail lists in Outputs: {dest}"
+
+
 # A warning the cut writes when an analysis raised rather than declined: chapters_txn's per-section wrapper,
 # ti_build's per-chapter one, and the workbook and tracker reads. 1798, 2026-10-29: a MemoryError in
 # financial_services left 59 slides stated, the deck still validated 0 FAIL, and it replaced the full deck in
@@ -830,6 +868,9 @@ def build_ti(a, BM, row, period, roster, work):
                     where.append(msg)
             result = "; ".join(gates)
             delivered = bool(where) and len(where) == len(made)
+            if delivered:
+                lvl, msg = ti_lists_to_outputs(a.client, tdir, period, entry[1])
+                say(lvl, msg)
     finally:
         lk.unlink(missing_ok=True)
     (work / TI_RESULT_NAME).write_text(json.dumps({
