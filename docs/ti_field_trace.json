@@ -43,6 +43,7 @@
    "read_in": [
     "card_behavior.compute",
     "competition.compute",
+    "competition_layers.classify_cards",
     "financial_services.compute",
     "interchange.compute",
     "merchant_profiles._rows_frame",
@@ -86,10 +87,15 @@
       "fin_by_lens",
       "fin_by_lens_category",
       "fin_category_pairs",
+      "fin_coverage",
+      "fin_definitions",
       "fin_fintech",
+      "fin_leakers_hold",
       "fin_leakers_profile",
       "fin_leaking_accounts",
       "fin_leaking_pct",
+      "fin_monthly",
+      "fin_months",
       "fin_multi_category",
       "fin_multi_category_pct",
       "fin_new_accounts_leaking",
@@ -104,6 +110,8 @@
       "fin_responder_leak_gap_pp",
       "fin_self",
       "fin_top_providers",
+      "fin_trend",
+      "fin_trend_note",
       "finb_addressable_dollars",
       "finb_by_category",
       "finb_leaking_accounts",
@@ -224,6 +232,35 @@
       "deck.txn_compete.the_payment_ecosystems_ranked",
       "deck.txn_compete.buy_now_pay_later"
      ]
+    },
+    {
+     "section": "competition_layers",
+     "read_in": [
+      "competition_layers.classify_cards"
+     ],
+     "via": [],
+     "pack_keys": [
+      "cl_any",
+      "cl_attrition",
+      "cl_base",
+      "cl_branches",
+      "cl_coverage",
+      "cl_institutions",
+      "cl_multi",
+      "cl_portfolio_row",
+      "cl_recency",
+      "cl_review_queue",
+      "cl_tiers",
+      "cl_trend",
+      "cl_universe",
+      "cl_winback"
+     ],
+     "handoffs": [
+      "_cl_active",
+      "_cl_matched",
+      "_cl_sub"
+     ],
+     "slides": []
     },
     {
      "section": "merchants",
@@ -450,6 +487,7 @@
    "position": 2,
    "aliases": [
     "ACCOUNT NUMBER",
+    "DDA ACCOUNT",
     "PRIMARY ACCOUNT NUMBER",
     "(a bare hash header cell)"
    ],
@@ -457,7 +495,10 @@
    "read_in": [
     "card_behavior.compute",
     "competition.compute",
+    "competition_layers.classify_cards",
+    "competition_layers.compute",
     "financial_services.compute",
+    "institution_view.compute",
     "interchange.compute",
     "lens.family_table",
     "merchant_profiles._mcc_codes",
@@ -507,14 +548,19 @@
       "fin_by_lens",
       "fin_by_lens_category",
       "fin_category_pairs",
+      "fin_coverage",
+      "fin_definitions",
       "fin_fintech",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
+      "fin_leakers_hold",
       "fin_leakers_profile",
       "fin_leaking_accounts",
       "fin_leaking_pct",
       "fin_matched_rows",
       "fin_matched_rows_pct",
+      "fin_monthly",
+      "fin_months",
       "fin_multi_category",
       "fin_multi_category_pct",
       "fin_new_accounts_leaking",
@@ -531,6 +577,8 @@
       "fin_review_queue_dollars",
       "fin_self",
       "fin_top_providers",
+      "fin_trend",
+      "fin_trend_note",
       "fin_unmatched_top",
       "finb_accounts_total",
       "finb_addressable_dollars",
@@ -656,6 +704,51 @@
       "deck.txn_compete.the_payment_ecosystems_ranked",
       "deck.txn_compete.buy_now_pay_later"
      ]
+    },
+    {
+     "section": "institution_view",
+     "read_in": [
+      "institution_view.compute"
+     ],
+     "via": [],
+     "pack_keys": [
+      "fininst_by_category",
+      "fininst_matrix",
+      "fininst_named_accounts"
+     ],
+     "handoffs": [],
+     "slides": []
+    },
+    {
+     "section": "competition_layers",
+     "read_in": [
+      "competition_layers.classify_cards",
+      "competition_layers.compute"
+     ],
+     "via": [],
+     "pack_keys": [
+      "cl_any",
+      "cl_attrition",
+      "cl_base",
+      "cl_branches",
+      "cl_coverage",
+      "cl_institutions",
+      "cl_multi",
+      "cl_portfolio_row",
+      "cl_recency",
+      "cl_review_queue",
+      "cl_tiers",
+      "cl_trend",
+      "cl_universe",
+      "cl_winback"
+     ],
+     "handoffs": [
+      "_cl_active",
+      "_cl_matched",
+      "_cl_sets",
+      "_cl_sub"
+     ],
+     "slides": []
     },
     {
      "section": "merchants",
@@ -957,12 +1050,15 @@
   "transaction_type": {
    "position": 3,
    "aliases": [
+    "EXTERNAL TRANSACTION CODE",
     "TRANSACTION TYPE"
    ],
    "kept": true,
    "read_in": [
     "card_behavior.compute",
     "competition.compute",
+    "competition_layers.classify_cards",
+    "competition_layers.compute",
     "financial_services.classify_rows",
     "interchange.compute",
     "merchant_profiles.compute",
@@ -1018,14 +1114,18 @@
       "fin_by_lens_category",
       "fin_categories_n",
       "fin_category_pairs",
+      "fin_coverage",
+      "fin_definitions",
       "fin_fintech",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
+      "fin_leakers_hold",
       "fin_leakers_profile",
       "fin_leaking_accounts",
       "fin_leaking_pct",
       "fin_matched_rows",
       "fin_matched_rows_pct",
+      "fin_monthly",
       "fin_multi_category",
       "fin_multi_category_pct",
       "fin_new_accounts_leaking",
@@ -1043,6 +1143,7 @@
       "fin_review_queue_dollars",
       "fin_self",
       "fin_top_providers",
+      "fin_trend",
       "fin_unmatched_top",
       "finb_addressable_dollars",
       "finb_by_category",
@@ -1167,6 +1268,54 @@
       "deck.txn_compete.the_payment_ecosystems_ranked",
       "deck.txn_compete.buy_now_pay_later"
      ]
+    },
+    {
+     "section": "institution_view",
+     "read_in": [],
+     "via": [
+      "shared:base_label",
+      "shared:business",
+      "shared:comp_spec",
+      "shared:fin_rows",
+      "shared:personal"
+     ],
+     "pack_keys": [
+      "fininst_by_category",
+      "fininst_matrix",
+      "fininst_named_accounts"
+     ],
+     "handoffs": [],
+     "slides": []
+    },
+    {
+     "section": "competition_layers",
+     "read_in": [
+      "competition_layers.classify_cards",
+      "competition_layers.compute"
+     ],
+     "via": [],
+     "pack_keys": [
+      "cl_any",
+      "cl_attrition",
+      "cl_base",
+      "cl_branches",
+      "cl_coverage",
+      "cl_institutions",
+      "cl_multi",
+      "cl_portfolio_row",
+      "cl_recency",
+      "cl_review_queue",
+      "cl_tiers",
+      "cl_trend",
+      "cl_universe",
+      "cl_winback"
+     ],
+     "handoffs": [
+      "_cl_active",
+      "_cl_matched",
+      "_cl_sub"
+     ],
+     "slides": []
     },
     {
      "section": "merchants",
@@ -1462,7 +1611,9 @@
    "read_in": [
     "card_behavior.compute",
     "competition.compute",
+    "competition_layers.classify_cards",
     "financial_services.compute",
+    "institution_view.compute",
     "interchange.compute",
     "lens.family_table",
     "merchant_profiles._mcc_codes",
@@ -1512,12 +1663,16 @@
       "fin_by_lens",
       "fin_by_lens_category",
       "fin_category_pairs",
+      "fin_coverage",
+      "fin_definitions",
       "fin_fintech",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
+      "fin_leakers_hold",
       "fin_leakers_profile",
       "fin_leaking_accounts",
       "fin_leaking_pct",
+      "fin_monthly",
       "fin_multi_category",
       "fin_multi_category_pct",
       "fin_new_accounts_leaking",
@@ -1534,6 +1689,7 @@
       "fin_review_queue_dollars",
       "fin_self",
       "fin_top_providers",
+      "fin_trend",
       "fin_unmatched_top",
       "finb_addressable_dollars",
       "finb_by_category",
@@ -1658,6 +1814,49 @@
       "deck.txn_compete.the_payment_ecosystems_ranked",
       "deck.txn_compete.buy_now_pay_later"
      ]
+    },
+    {
+     "section": "institution_view",
+     "read_in": [
+      "institution_view.compute"
+     ],
+     "via": [],
+     "pack_keys": [
+      "fininst_by_category",
+      "fininst_matrix",
+      "fininst_named_accounts"
+     ],
+     "handoffs": [],
+     "slides": []
+    },
+    {
+     "section": "competition_layers",
+     "read_in": [
+      "competition_layers.classify_cards"
+     ],
+     "via": [],
+     "pack_keys": [
+      "cl_any",
+      "cl_attrition",
+      "cl_base",
+      "cl_branches",
+      "cl_coverage",
+      "cl_institutions",
+      "cl_multi",
+      "cl_portfolio_row",
+      "cl_recency",
+      "cl_review_queue",
+      "cl_tiers",
+      "cl_trend",
+      "cl_universe",
+      "cl_winback"
+     ],
+     "handoffs": [
+      "_cl_active",
+      "_cl_matched",
+      "_cl_sub"
+     ],
+     "slides": []
     },
     {
      "section": "merchants",
@@ -2038,6 +2237,7 @@
   "merchant_name": {
    "position": 6,
    "aliases": [
+    "DESCRIPTION1",
     "MERCHANT NAME"
    ],
    "kept": true,
@@ -2083,14 +2283,18 @@
       "fin_by_lens_category",
       "fin_categories_n",
       "fin_category_pairs",
+      "fin_coverage",
+      "fin_definitions",
       "fin_fintech",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
+      "fin_leakers_hold",
       "fin_leakers_profile",
       "fin_leaking_accounts",
       "fin_leaking_pct",
       "fin_matched_rows",
       "fin_matched_rows_pct",
+      "fin_monthly",
       "fin_multi_category",
       "fin_multi_category_pct",
       "fin_new_accounts_leaking",
@@ -2108,6 +2312,7 @@
       "fin_review_queue_dollars",
       "fin_self",
       "fin_top_providers",
+      "fin_trend",
       "fin_unmatched_top",
       "finb_addressable_dollars",
       "finb_by_category",
@@ -2232,6 +2437,60 @@
       "deck.txn_compete.the_payment_ecosystems_ranked",
       "deck.txn_compete.buy_now_pay_later"
      ]
+    },
+    {
+     "section": "institution_view",
+     "read_in": [],
+     "via": [
+      "shared:base_label",
+      "shared:business",
+      "shared:comp_spec",
+      "shared:fin_rows",
+      "shared:personal"
+     ],
+     "pack_keys": [
+      "fininst_by_category",
+      "fininst_matrix",
+      "fininst_named_accounts"
+     ],
+     "handoffs": [],
+     "slides": []
+    },
+    {
+     "section": "competition_layers",
+     "read_in": [],
+     "via": [
+      "pack:_cl_active",
+      "pack:_cl_matched",
+      "pack:_cl_sets",
+      "pack:_cl_sub",
+      "shared:base_label",
+      "shared:business",
+      "shared:fin_rows",
+      "shared:personal"
+     ],
+     "pack_keys": [
+      "cl_any",
+      "cl_attrition",
+      "cl_base",
+      "cl_branches",
+      "cl_coverage",
+      "cl_institutions",
+      "cl_multi",
+      "cl_portfolio_row",
+      "cl_recency",
+      "cl_review_queue",
+      "cl_tiers",
+      "cl_trend",
+      "cl_universe",
+      "cl_winback"
+     ],
+     "handoffs": [
+      "_cl_active",
+      "_cl_matched",
+      "_cl_sub"
+     ],
+     "slides": []
     },
     {
      "section": "mapping_audit",
@@ -2531,6 +2790,7 @@
      ],
      "via": [],
      "pack_keys": [
+      "fin_coverage",
       "fin_unmatched_top"
      ],
      "handoffs": [],
@@ -2857,10 +3117,24 @@
   },
   "Branch": {
    "read_in": [
+    "competition_layers_modules.compute",
     "lens.build",
     "overlay.compute"
    ],
-   "sections": []
+   "sections": [
+    {
+     "section": "competition_layers",
+     "read_in": [
+      "competition_layers_modules.compute"
+     ],
+     "via": [],
+     "pack_keys": [
+      "cl_branches"
+     ],
+     "handoffs": [],
+     "slides": []
+    }
+   ]
   },
   "Business?": {
    "read_in": [
@@ -2882,6 +3156,7 @@
      ],
      "via": [],
      "pack_keys": [
+      "fin_coverage",
       "fin_leakers_profile"
      ],
      "handoffs": [],
@@ -2920,9 +3195,23 @@
   },
   "Date Closed": {
    "read_in": [
+    "competition_layers_modules.compute",
     "leakage.compute"
    ],
    "sections": [
+    {
+     "section": "competition_layers",
+     "read_in": [
+      "competition_layers_modules.compute"
+     ],
+     "via": [],
+     "pack_keys": [
+      "cl_attrition",
+      "cl_branches"
+     ],
+     "handoffs": [],
+     "slides": []
+    },
     {
      "section": "leakage",
      "read_in": [
@@ -2973,6 +3262,13 @@
    ],
    "sections": []
   },
+  "Mailable?": {
+   "read_in": [
+    "financial_services.write_lists",
+    "lens.build"
+   ],
+   "sections": []
+  },
   "Prod Code": {
    "read_in": [
     "interchange.compute",
@@ -2998,11 +3294,25 @@
   },
   "Prod Desc": {
    "read_in": [
+    "financial_services.compute",
     "interchange.compute",
     "lens.build",
     "overlay.compute"
    ],
    "sections": [
+    {
+     "section": "financial_services",
+     "read_in": [
+      "financial_services.compute"
+     ],
+     "via": [],
+     "pack_keys": [
+      "fin_coverage",
+      "fin_leakers_hold"
+     ],
+     "handoffs": [],
+     "slides": []
+    },
     {
      "section": "interchange",
      "read_in": [
@@ -3034,6 +3344,7 @@
      ],
      "via": [],
      "pack_keys": [
+      "fin_coverage",
       "fin_leakers_profile"
      ],
      "handoffs": [],
@@ -3070,6 +3381,7 @@
      ],
      "via": [],
      "pack_keys": [
+      "fin_coverage",
       "fin_leakers_profile"
      ],
      "handoffs": [],
@@ -3099,6 +3411,10 @@
  },
  "lens_keys": [
   "_addressable_accounts",
+  "_cl_active",
+  "_cl_matched",
+  "_cl_sets",
+  "_cl_sub",
   "_competitor_accounts",
   "_competitor_monthly",
   "beh_accounts_with_recurring",
@@ -3121,6 +3437,20 @@
   "beh_ticket_median",
   "beh_top_recurring",
   "beh_txns_per_active_acct_mo",
+  "cl_any",
+  "cl_attrition",
+  "cl_base",
+  "cl_branches",
+  "cl_coverage",
+  "cl_institutions",
+  "cl_multi",
+  "cl_portfolio_row",
+  "cl_recency",
+  "cl_review_queue",
+  "cl_tiers",
+  "cl_trend",
+  "cl_universe",
+  "cl_winback",
   "comp_accounts_total",
   "comp_at_risk",
   "comp_base_label",
@@ -3192,14 +3522,19 @@
   "fin_by_lens",
   "fin_by_lens_category",
   "fin_category_pairs",
+  "fin_coverage",
+  "fin_definitions",
   "fin_fintech",
   "fin_leakage_dollars",
   "fin_leakage_pct_of_transfer_dollars",
+  "fin_leakers_hold",
   "fin_leakers_profile",
   "fin_leaking_accounts",
   "fin_leaking_pct",
   "fin_matched_rows",
   "fin_matched_rows_pct",
+  "fin_monthly",
+  "fin_months",
   "fin_multi_category",
   "fin_multi_category_pct",
   "fin_new_accounts_leaking",
@@ -3216,6 +3551,8 @@
   "fin_review_queue_dollars",
   "fin_self",
   "fin_top_providers",
+  "fin_trend",
+  "fin_trend_note",
   "fin_unmatched_top",
   "finb_accounts_total",
   "finb_addressable_dollars",
@@ -3226,6 +3563,9 @@
   "finb_p2p",
   "finb_provider_concentration",
   "finb_top_providers",
+  "fininst_by_category",
+  "fininst_matrix",
+  "fininst_named_accounts",
   "hot_both_above_median",
   "hot_branches_joined",
   "hot_branches_unjoined",
@@ -3374,7 +3714,105 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "_cl_active": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": true,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "_cl_matched": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": true,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "_cl_sets": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": true,
+   "txn_fields": [
+    "primary_account_num"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "_cl_sub": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": true,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
     "shared:personal"
    ],
    "slides": []
@@ -3981,6 +4419,412 @@
     "deck.txn_slides._how_members_spend",
     "deck.txn_cards.ticket_and_intensity"
    ]
+  },
+  "cl_any": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_attrition": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)",
+    "Date Closed"
+   ],
+   "via": [
+    "pack:_cl_active",
+    "pack:_cl_matched",
+    "pack:_cl_sets",
+    "pack:_cl_sub"
+   ],
+   "slides": []
+  },
+  "cl_base": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_branches": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)",
+    "Branch",
+    "Date Closed"
+   ],
+   "via": [
+    "pack:_cl_active",
+    "pack:_cl_matched",
+    "pack:_cl_sets",
+    "pack:_cl_sub"
+   ],
+   "slides": []
+  },
+  "cl_coverage": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_distance": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "cl_institutions": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_map": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "cl_multi": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "pack:_cl_active",
+    "pack:_cl_matched",
+    "pack:_cl_sets",
+    "pack:_cl_sub"
+   ],
+   "slides": []
+  },
+  "cl_portfolio_row": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "txn_sections.competition_layers"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_recency": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "pack:_cl_active",
+    "pack:_cl_matched",
+    "pack:_cl_sets",
+    "pack:_cl_sub"
+   ],
+   "slides": []
+  },
+  "cl_review_queue": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_scope": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "cl_tiers": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_trend": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "pack:_cl_active",
+    "pack:_cl_matched",
+    "pack:_cl_sets",
+    "pack:_cl_sub"
+   ],
+   "slides": []
+  },
+  "cl_universe": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "cl_winback": {
+   "sections": [
+    "competition_layers"
+   ],
+   "writers": [
+    "competition_layers_modules.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "pack:_cl_active",
+    "pack:_cl_matched",
+    "pack:_cl_sets",
+    "pack:_cl_sub"
+   ],
+   "slides": []
   },
   "comp_accounts_total": {
    "sections": [
@@ -5906,7 +6750,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -5935,7 +6778,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -5964,7 +6806,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -5995,7 +6836,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6045,7 +6885,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6090,7 +6929,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6135,7 +6973,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6164,7 +7001,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6234,7 +7070,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6252,6 +7087,61 @@
    "txn_fields": [],
    "odd_fields": [],
    "via": [],
+   "slides": []
+  },
+  "fin_coverage": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_key",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)",
+    "Curr Bal",
+    "Prod Desc",
+    "Response Grouping",
+    "tenure_years"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fin_definitions": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
    "slides": []
   },
   "fin_fintech": {
@@ -6275,7 +7165,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6337,6 +7226,45 @@
     "deck.txn_slides._where_the_money_goes"
    ]
   },
+  "fin_leakers_hold": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)",
+    "Prod Desc"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fin_leakers_hold_columns": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
   "fin_leakers_profile": {
    "sections": [
     "financial_services"
@@ -6361,7 +7289,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6403,7 +7330,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6433,7 +7359,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6486,6 +7411,53 @@
    ],
    "slides": []
   },
+  "fin_monthly": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fin_months": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "primary_account_num",
+    "transaction_date"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
   "fin_multi_category": {
    "sections": [
     "financial_services"
@@ -6507,7 +7479,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6535,7 +7506,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6564,7 +7534,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6590,7 +7559,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6618,7 +7586,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6660,7 +7627,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6686,7 +7652,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6727,7 +7692,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6755,7 +7719,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
@@ -6783,7 +7746,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6809,7 +7771,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6835,7 +7796,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6913,7 +7873,6 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": []
@@ -6939,12 +7898,71 @@
    "via": [
     "shared:base_label",
     "shared:business",
-    "shared:lists_dir",
     "shared:personal"
    ],
    "slides": [
     "deck.txn_leakage.who_they_pay"
    ]
+  },
+  "fin_trend": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fin_trend_columns": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "fin_trend_note": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "primary_account_num",
+    "transaction_date"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
   },
   "fin_unmatched_top": {
    "sections": [
@@ -7204,6 +8222,123 @@
     "shared:business",
     "shared:personal"
    ],
+   "slides": []
+  },
+  "fininst_by_category": {
+   "sections": [
+    "institution_view"
+   ],
+   "writers": [
+    "institution_view.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:comp_spec",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fininst_by_category_columns": {
+   "sections": [
+    "institution_view"
+   ],
+   "writers": [
+    "institution_view.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "fininst_matrix": {
+   "sections": [
+    "institution_view"
+   ],
+   "writers": [
+    "institution_view.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:comp_spec",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fininst_matrix_columns": {
+   "sections": [
+    "institution_view"
+   ],
+   "writers": [
+    "institution_view.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "fininst_named_accounts": {
+   "sections": [
+    "institution_view"
+   ],
+   "writers": [
+    "institution_view.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:comp_spec",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fininst_note": {
+   "sections": [
+    "institution_view"
+   ],
+   "writers": [
+    "institution_view.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
    "slides": []
   },
   "hot_both_above_median": {
@@ -12202,6 +13337,8 @@
   "portfolio",
   "financial_services",
   "competition",
+  "institution_view",
+  "competition_layers",
   "merchants",
   "merchant_profiles",
   "mapping_audit",
@@ -12228,7 +13365,8 @@
  },
  "unresolved": [
   "`competition._write_lists`: joins the ODD frame `attrs` whole: every column it holds (lens.build's kept columns) can reach the result",
-  "`financial_services.compute`: joins the ODD frame `attrs` whole: every column it holds (lens.build's kept columns) can reach the result",
+  "`competition_layers._group_sets`: column(s) `lenses.key_column` of the odd frame cannot be resolved",
+  "`financial_services.write_lists`: joins the ODD frame `attrs[extra]` whole: every column it holds (lens.build's kept columns) can reach the result",
   "`hotspots.compute`: passes the odd frame to `ti.monthly_analysis.attrition.branch_closure_rates`, outside the scan; the columns it reads there are not traced",
   "`lens.build`: passes the odd frame to `ti.core.account_lenses.masks_for`, outside the scan; the columns it reads there are not traced",
   "`stressors_txn.compute`: passes the odd frame to `ti.core.facts.build_facts`, outside the scan; the columns it reads there are not traced",
