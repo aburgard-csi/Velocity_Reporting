@@ -335,10 +335,8 @@ def add_fee_trends(dk, cfg, fr, *, section, progress=None):
         _picture(s, res, LEFT, BODY_T + 0.05, 5.9, 4.55)
         table(s, res.tables["monthly"], 6.55, BODY_T + 0.05, 6.28, BODY_B - BODY_T - 0.55)
         if getattr(fr, "co_problem", None):
-            T.bullets_real(s, 6.55, BODY_B - 0.42, 6.28, 0.40, [f"{(fr.co_flag_share or 0) * 100:.0f}% of accounts carry the "
-                           "charge-off flag in this extract: these rates follow it, and loss rates are withheld."],
-                           size=12, min_size=11)
-        if getattr(fr, "co_problem", None):
+            T.bullets_real(s, 6.55, BODY_B - 0.42, 6.28, 0.40, [fr.co_slide_line()], size=12, min_size=11)
+        if (getattr(fr, "co_flag_share", 0) or 0) > 0.5:
             # the rate is built by the flag: on an extract that flags most accounts charged off, every account with a
             # notice gets one 'fatal' notice, so the figure must not be read out as a not-repaid rate (Aaron, 2026-11-17:
             # "charge-off information is incorrect and we know it")

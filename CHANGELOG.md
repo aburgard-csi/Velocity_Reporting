@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — ILS analysis: an impossible loss rate marks the charge-off data unusable (`build/ils_analysis/ils_review/r_common.py`)
+
+Summary: The ILS analysis deck now also treats charge-off data as unusable when charge-offs exceed every fee collected in the year, and withholds charge-off dollars and loss rates. On Dannemora, the not-repaid slide's speaker note now says the flag is known wrong instead of reading the rate out.
+
+Aaron, 2026-11-17: "Dannemora's charge-off information is incorrect and we know it. A high charge-off client will have maybe 20%, but most of our clients are between 4 and 12%." Then: "4 to 12% would be the loss rate, not the percentage of accounts charging off. For 1781, we will keep those slides for the moment."
+
+- **The check.** Until now the only test was the share of accounts flagged charged off (above half). The loss rate is the measure Aaron's range describes: 365-day charge-off dollars over 365-day collected fees, across the extract. Real pulls read 11.8% (Adirondack 1403), 16.3% (Affinity 1568) and 17.4% (Northwest 1245); Dannemora 1781 reads 303,433% ($2.02B against $667K). Above 100% (`LOSS_RATE_LIMIT`), the dollars are a load fault, withheld and said so, whatever the flag share. Northwest's scoring tables are unchanged.
+- **The slides stay** on 1781 (Aaron's call) with the flag stated on each. The line on a slide names whichever check fired (`Frame.co_slide_line`).
+- **The speaker note** on the not-repaid slides no longer tells the presenter to read the rate out when most accounts carry the flag: with 99% flagged, every account with a notice gets one "fatal" notice, so the rate looks normal and means nothing.
+- The test fixture's charge-off ($500 on $118 of fees, a 424% loss rate) is now $15 (12.7%), which the new check would otherwise catch.
+
 ### 2026-11-17 — ILS analysis: William's not-repaid and default rates replace the 60-day cure slides; November industry edition
 
 Summary: The ILS analysis deck now reports the analysis team's own "not repaid" (fatal notice) rates and Scoring Summary default rates, the way William's Dannemora review computes them, in place of the 60-day cure-rate slides; it adds the Branch Summary slides and the November 2026 industry edition, and fixes three chart and table layout faults.

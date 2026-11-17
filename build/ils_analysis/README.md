@@ -74,8 +74,11 @@ fee slides need ILS-wide data and are labelled placeholders.
   charged-off account's ONE notice nearest its last positive date. The monthly table is its `198_NEWTS_BETA`; on 1781
   all twelve months equal William's slide 35 on a pull cut at his data date. The 60-day cure slides (`performing`) are
   out of the default story since 2026-11-17 (Aaron: "Your cure rate slides are wrong").
-* **A charge-off flag on most accounts** (1781: 99%). Rates follow the flag as the notebook's do and say so on the
-  slide; charge-off dollars and loss rates read n/a.
+* **Charge-off data that cannot be right**: more than half the accounts flagged, or a loss rate (365-day charge-offs
+  over collected fees) above 100%, where programs run 4% to 12% and about 20% at the high end (Aaron, 2026-11-17).
+  1781 fails both (99% flagged; a 303,433% loss rate). Charge-off dollars and loss rates read n/a; rates follow the
+  flag as the notebook's do, and say so on the slide. The 1781 match with William proves the logic is ported, not
+  that its rates are right: rate validation rests on Northwest 1245 and Achieva 1544.
 * **Notice.** One account on one notice date (ZTrend has one row per item): Achieva's window holds 317,064 item rows and
   216,062 account-days, and the deck's bands sum to 216,034.
 * **Window.** 365 days ending 60 days before the data as-of date (Achieva 2025-07-12 to 2026-07-12), not "trailing 12 months from the snapshot".

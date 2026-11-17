@@ -28,7 +28,7 @@ def _loaded():
         "lastdepdate": pd.to_datetime(["2026-09-01"] * 3), "lastupdate": [ASOF] * 3,
         "CanOverdraft": [True, True, False], "RegEOptinvalue": ["Y", "N", "D"],
         "items365": [3.0, 1.0, 0.0], "PD_365": [2.0, 1.0, 0.0], "CollectedFees365": [90.0, 28.0, 0.0],
-        "Chargeoff_Account": [False, True, False], "Chargeoff_Amt_365": [0.0, 500.0, 0.0],
+        "Chargeoff_Account": [False, True, False], "Chargeoff_Amt_365": [0.0, 15.0, 0.0],      # a 12.7% loss rate
         "Chargeoff_Date": pd.to_datetime([None, "2026-05-01", None]), "closeddate": pd.to_datetime([None] * 3),
         "Refund_Amt_365": [0.0] * 3, "WindfallRatio": [1.0, 0.2, 1.0], "ODLimit": [500, 0, 1000],
         "DepAmt33": [1200.0, 0.0, 300.0], "DepCount33": [4.0, 0.0, 1.0], "depAmt365": [9000.0, 0.0, 2000.0],
@@ -76,7 +76,7 @@ def test_days_on_book_bands_losses_once_per_account():
     res = SS.compute_predictor(p, fr, Cfg, "Personal")
     assert res.notices == [2, 1]                              # account 2 twice at 122 and 153 days, account 1 once at 5.7 yrs
     assert res.bands == ["31-180 Days", "5-6 Yrs"]
-    assert sum(res.losses) == 500.0                           # the charge-off counted once
+    assert sum(res.losses) == 15.0                           # the charge-off counted once
     assert res.default_rate[0] == 50.0                        # 1 of 2 notices in the 31-180 band defaulted
 
 
@@ -110,7 +110,7 @@ def test_kpi_rollup_counts_from_the_extract(tmp_path):
     res = F.kpi_rollup(fr)
     assert res.ok and res.numbers["Personal"]["open"] == 3 and res.numbers["Personal"]["fees"] == 118.0
     rows = {r[0]: r[1] for r in res.tables["kpi"]["rows"]}
-    assert rows["Loss Rate"] == "423.7%"
+    assert rows["Loss Rate"] == "12.7%"
 
 
 def test_sidecar_is_written_beside_the_figure(tmp_path):
@@ -395,7 +395,7 @@ def test_not_repaid_is_the_notice_nearest_the_last_positive_date(tmp_path):
     assert n.loc[("2", pd.Timestamp("2025-11-01")), "nb_fatal"]
     assert not n.loc[("2", pd.Timestamp("2025-10-01")), "nb_fatal"]
     assert not n["nb_fatal"].loc["1"].any()                                # account 1 was never charged off
-    assert n["nb_loss"].sum() == 500.0                                     # its charge-off counted once
+    assert n["nb_loss"].sum() == 15.0                                     # its charge-off counted once
     res = F.not_repaid(fr, "Personal", str(tmp_path))
     t = res.tables["monthly"]
     assert t["headers"] == ["Month", "OD Accts", "Collected Fees", "Biz Days", "Fees / Biz Day", "Pay Rate", "Ineligible",
@@ -416,6 +416,23 @@ def test_a_charge_off_flag_on_most_accounts_withholds_dollars_not_rates(tmp_path
     res = F.not_repaid(fr, "Personal", str(tmp_path))
     assert all(r[-1] == "n/a" for r in res.tables["monthly"]["rows"])
     assert all(m["loss_rate_pct"] is None for m in res.numbers["monthly"])
+
+
+def test_charge_offs_above_every_fee_collected_withhold_the_dollars(tmp_path):
+    """Aaron, 2026-11-17: a loss rate runs 4-12%, about 20% at the high end. 1781 read 303,433% ($2.0B against $667K),
+    so the dollars are caught by the loss rate even where the flag looks ordinary; a real 17% is left alone."""
+    ld = _loaded()
+    ld.zaccounts["Chargeoff_Account"] = [False, False, False]
+    ld.zaccounts["CollectedFees365"] = [100.0, 100.0, 100.0]
+    ld.zaccounts["Chargeoff_Amt_365"] = [51.0, 0.0, 0.0]
+    fr = R.Frame(ld)
+    assert fr.co_problem is None and fr.co_loss_rate == pytest.approx(0.17)
+    ld.zaccounts["Chargeoff_Amt_365"] = [2_000_000_000.0, 0.0, 0.0]
+    fr = R.Frame(ld)
+    assert fr.co_problem and "loss rate" in fr.co_problem and "$2.00B" in fr.co_problem
+    assert fr.co_slide_line() == "Charge-off dollars in this extract are not usable: loss rates are withheld."
+    res = F.not_repaid(fr, "Personal", str(tmp_path))
+    assert all(r[-1] == "n/a" for r in res.tables["monthly"]["rows"])
 
 
 def test_the_cure_slides_left_the_default_story_for_the_scoring_summary():

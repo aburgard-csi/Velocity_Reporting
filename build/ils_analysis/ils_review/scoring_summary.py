@@ -393,8 +393,7 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
         if bad_co:
             import shapes
             shapes.textbox(slide, CHART_L, BODY_BOTTOM - 0.40, CHART_W, 0.38,
-                           f"{(getattr(fr, 'co_flag_share', 0) or 0) * 100:.0f}% of accounts carry the charge-off flag: "
-                           "default rates follow it; losses are withheld.", 12, T.SUBTLE, False, T.PP_ALIGN.LEFT, T.BODY,
+                           fr.co_slide_line("default rates"), 12, T.SUBTLE, False, T.PP_ALIGN.LEFT, T.BODY,
                            T.MSO_ANCHOR.TOP)
         png = os.path.join(dk.chart_dir, f"scoring_{p.key}_{accttype.lower()}.png")
         C.predictor_bubble(result.bands, result.default_rate, result.notices, png,

@@ -33,6 +33,15 @@ STEEL, STEEL_SOFT, LABEL = HEX["steel"], HEX["steel_soft"], HEX["label"]
 GOLD, SLATE, ROWALT = HEX["gold"], HEX["slate"], HEX["band"]
 DEFAULT_REPAYMENT_DAYS = 40         # see scoring_summary.DEFAULT_DAYS_NOTE
 ACTIVE_DAYS = 240                  # see Frame.active_open
+LOSS_RATE_LIMIT = 1.0              # charge-offs above every fee collected in the year: see Frame.__init__
+
+
+def _money(x):
+    """'$2.02B', '$667K': the size of a figure in a sentence, not its last dollar."""
+    for div, unit in ((1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if abs(x) >= div:
+            return f"${x / div:,.{2 if div > 1e3 else 0}f}{unit}"
+    return f"${x:,.0f}"
 
 
 def _yes(s):
@@ -142,15 +151,31 @@ class Frame:
         # charge-offs against growth) are withheld and said so, never shown as $0 or 0%. The default and fatal-notice
         # RATES are still shown, as the analysis team's notebook shows them (Aaron, 2026-11-17: "reproduce that
         # logic"), with the flag stated beside them: on such an extract they are driven by it.
+        # The loss rate is the other check (Aaron, 2026-11-17: "4 to 12% would be the loss rate ... a high charge-off
+        # client will have maybe 20%"): 365-day charge-off dollars over 365-day collected fees, the whole extract.
+        # Real pulls read 12-17% (Adirondack 1403, Affinity 1568, Northwest 1245); 1781 reads 303,433% ($2.0B against
+        # $667K). Past LOSS_RATE_LIMIT, more charged off than every fee collected in the year, the dollars are a load fault.
         self.co_problem = None
         self.co_flag_share = None
+        self.co_loss_rate = None
+        reasons = []
         if "Chargeoff_Account" in za.columns and len(za):
             share = float(_yes(za["Chargeoff_Account"]).mean())
             self.co_flag_share = share
             if share > 0.5:
-                self.co_problem = (f"Charge-off data in this extract is not usable ({share * 100:.0f}% of accounts are flagged "
-                                   f"as charged off), so charge-off dollars and loss rates are left out until it is corrected; "
-                                   f"default and not-repaid rates follow the analysis notebook and are driven by that flag.")
+                reasons.append(f"{share * 100:.0f}% of accounts are flagged as charged off")
+        if {"Chargeoff_Amt_365", "CollectedFees365"} <= set(za.columns) and len(za):
+            fees = float(pd.to_numeric(za["CollectedFees365"], errors="coerce").fillna(0).sum())
+            amt = float(pd.to_numeric(za["Chargeoff_Amt_365"], errors="coerce").fillna(0).sum())
+            if fees > 0:
+                self.co_loss_rate = amt / fees
+                if self.co_loss_rate > LOSS_RATE_LIMIT:
+                    reasons.append(f"charge-offs of {_money(amt)} against {_money(fees)} in collected fees, a "
+                                   f"{self.co_loss_rate * 100:,.0f}% loss rate where programs run 4% to 20%")
+        if reasons:
+            self.co_problem = (f"Charge-off data in this extract is not usable ({'; '.join(reasons)}), so charge-off "
+                               f"dollars and loss rates are left out until it is corrected; default and not-repaid rates "
+                               f"follow the analysis notebook and are driven by the charge-off flag.")
         self.refund_problem = None
         if "Refund_Amt_365" in za.columns and len(za) and za["Refund_Amt_365"].isna().all():
             self.refund_problem = "Refund data is not in this extract (Refund_Amt_365 is blank on every account)."
@@ -158,6 +183,15 @@ class Frame:
         self.rf = loaded.refunds
         self._zt = None
         self._notices = None
+
+    def co_slide_line(self, rates="these rates"):
+        """The one-line flag on a slide whose figures the charge-off data drives (None when the data is usable)."""
+        if not self.co_problem:
+            return None
+        if (self.co_flag_share or 0) > 0.5:
+            return (f"{self.co_flag_share * 100:.0f}% of accounts carry the charge-off flag in this extract: {rates} "
+                    "follow it, and loss rates are withheld.")
+        return "Charge-off dollars in this extract are not usable: loss rates are withheld."
 
     def segment(self, accttype):
         """Accounts in a KPI-rollup segment: the account type, plus any third type whose IsPersonal flag
