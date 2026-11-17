@@ -215,3 +215,18 @@ def test_the_whole_set_runs_through_the_real_deck_helpers_into_a_presentation(tm
     assert len(slides) == 57       # 7 orientation + 3 list pages + 5 tiers x 6 + 14 whole-book + 3 month-over-month, on this fixture
     notes = slides[0].notes_slide.notes_text_frame.text
     assert "Test Credit Union" in notes and "not ported from the ARS v5 engine" in notes
+
+
+def test_a_review_of_a_real_deck_three_fixes_months_gap_percent_sign_and_absent_local_tier(tmp_path):
+    """Seen on a real client: the month axis skipped a month with no card rows, the list's "% of base" had no % sign, and the
+    ladder headline said "local institutions take 0%" for a client with no local tier at all."""
+    assert LAYERS._span(["2025-11", "2026-02", "2026-04"]) == ["2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04"]
+    assert LAYERS._span([]) == []
+    h = _Harness(tmp_path)
+    LAYERS.layers_full_list(h, dict(FULL), "transacting personal accounts")
+    assert all(str(r[4]).endswith("%") for rows in h.tables for r in rows[1:])
+    t = dict(FULL)
+    t["cl_tiers"] = [r for r in FULL["cl_tiers"] if r["tier"] not in ("Local", "Local (25-50 mi)")]
+    h = _Harness(tmp_path)
+    LAYERS.layers_ladder(h, t, "x")
+    assert "take 0%" not in h.slides[0][0][0] and "no local institution" in h.slides[0][0][0]
