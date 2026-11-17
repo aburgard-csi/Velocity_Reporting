@@ -54,17 +54,32 @@ nothing here is wired into `build_month`, Sheila, `deliveries.json` or `Outputs/
 
 See `Build Artifacts\ils_analysis\out\INVENTORY.md` for the slide-by-slide map, with the data file and columns behind each
 figure and how closely it matches the hand-built Achieva deck. In short: KPI rollup, fee trending, paid vs returned,
-exception-item treemaps, eligibility, Reg E tables, debit-decline segmentation and the Scoring Summary tables
+exception items by channel (the DBIC's paid and returned items with ZTrend's median item amount, one slide; the treemaps when
+there is no DBIC channel table), eligibility, Reg E tables, debit-decline segmentation and the Scoring Summary tables
 reproduce the deck's figures from the extracts; the not-repaid chart, branch bubbles, alluvial, windfall predictor and
 the deck's "open active" population are close but depend on definitions that are not in the extracts; the peer NSF / OD
 fee slides need ILS-wide data and are labelled placeholders.
 
 ## Definitions that differ from the analysis team's README (all stated on the Data Notes slide)
 
-* **Scoring Summary default.** README: repayment over 30 days, never-repaid counted as a default. That gives 40% in
-  Achieva's first Days On Book band; the hand-built deck prints 10.1%. A scan of the threshold against the deck's
-  tables lands on **40 days with never-repaid excluded** (Days On Book within 0.3 pt in every band), which is the default
-  (`default_basis="deck"`). `--default-basis readme` restores the README rule.
+* **Scoring Summary default.** The analysis notebook's rule (`ILS Analysis - Python Script.ipynb`, the `CURE` flag), the
+  default since 2026-11-13 (`default_basis="notebook"`): a notice on a charged-off account dated on or after the
+  account's last positive date (the largest `Last_Positive_Date` over all its notices) is a default; losses are the
+  account's `Chargeoff_Amt_365`, once, on the notice nearest that date; the window is 425 to 60 days before the newest
+  notice, notices with a limit at or under the matrix maximum (the notebook's `risk_set`). It reproduces Tim Barrett's
+  Northwest Bank 1245 tables (2026.11) band for band, Achieva's 10.1% first Days On Book band, and William's Dannemora
+  1781 band counts and fees. The earlier fit, 40 days with never-repaid excluded (`--default-basis deck`, 9.8% on
+  Achieva), and the README rule (`--default-basis readme`, 30 days with never-repaid counted, 40% on Achieva) remain as
+  options.
+* **Not repaid (fatal notices).** The notebook's `FATAL2` (cells 30-34, `MasterQueryReordered2025.R` in R): a
+  charged-off account's ONE notice nearest its last positive date. The monthly table is its `198_NEWTS_BETA`; on 1781
+  all twelve months equal William's slide 35 on a pull cut at his data date. The 60-day cure slides (`performing`) are
+  out of the default story since 2026-11-17 (Aaron: "Your cure rate slides are wrong").
+* **Charge-off data that cannot be right**: more than half the accounts flagged, or a loss rate (365-day charge-offs
+  over collected fees) above 100%, where programs run 4% to 12% and about 20% at the high end (Aaron, 2026-11-17).
+  1781 fails both (99% flagged; a 303,433% loss rate). Charge-off dollars and loss rates read n/a; rates follow the
+  flag as the notebook's do, and say so on the slide. The 1781 match with William proves the logic is ported, not
+  that its rates are right: rate validation rests on Northwest 1245 and Achieva 1544.
 * **Notice.** One account on one notice date (ZTrend has one row per item): Achieva's window holds 317,064 item rows and
   216,062 account-days, and the deck's bands sum to 216,034.
 * **Window.** 365 days ending 60 days before the data as-of date (Achieva 2025-07-12 to 2026-07-12), not "trailing 12 months from the snapshot".
@@ -92,6 +107,9 @@ cd <checkout>\build\ils_analysis
 ```
 
 Run it from the checkout, never with a client's data folder (or the analysis share) as the working directory.
+`--as-of YYYY-MM-DD` builds as of an earlier date, to match a review already given: notices, debit declines and refunds after
+it are left out, while the ZAccounts fields and the DBIC stay as pulled ("About this data" says so). Dannemora 1781 is built
+`--as-of 2026-10-25`, William's data date, because the not-repaid table's newest month moves as data lands.
 The deck is named `<id>-<yyyy.mm>-ILS-<Client> ILS Analysis.pptx` (`ILS` is not an RPE program tag; `promote_month` never reads it
 as one), where `yyyy.mm` is the data pull's file stamp, never the clock. A `parity_reference.json` beside the charts
 (Achieva's hand-built figures, kept in the work folder, never in git) switches on the sidecars' comparison with the hand-built deck.
