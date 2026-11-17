@@ -104,7 +104,7 @@ class _Clock:
         print(f"[time] {step}: {self.times[step]:,.1f} s{mem}", flush=True)
 
 
-def compute_pack(client_id, period, name, ics=False, lists_dir=None):
+def compute_pack(client_id, period, name, ics=False, lists_dir=None, prior_pack=None):
     """The cut's data pack for one client: sources, data month, figures, and every warning."""
     import pandas as pd
     from ti import config, cut, lens, odd
@@ -156,6 +156,23 @@ def compute_pack(client_id, period, name, ics=False, lists_dir=None):
         clock.lap(f"chapter {ch.title}")
     warnings += ctx.warnings
 
+    if prior_pack:
+        # what changed in the layered competition figures since the previous month's pack (same client)
+        try:
+            from ti.transaction_intelligence import competition_layers as CL
+            from ti.transaction_intelligence import competition_layers_compare as CLC
+            prior = json.loads(Path(prior_pack).read_text(encoding="utf-8"))
+            if prior.get("client_id") != str(client_id):
+                warnings.append(f"competition layers: the prior pack {prior_pack} is for client {prior.get('client_id')}, "
+                                f"not {client_id}; no comparison")
+            else:
+                chg = CLC.compare(metrics, prior.get("metrics") or {}, CL.settings(cfg), prior.get("period"))
+                if chg:
+                    metrics["cl_changes"] = chg
+                else:
+                    warnings.append("competition layers: this month's or the prior pack has no layered figures; no comparison")
+        except Exception as exc:
+            warnings.append(f"competition layers: the prior pack could not be compared ({type(exc).__name__}: {exc})")
     lenses = ["ars"] + (["ics"] if ics else [])
     unavailable = {}
     end = pd.Timestamp(report.anchor_date) if report.anchor_date is not None else None
@@ -228,6 +245,9 @@ def main(argv=None):
     ap.add_argument("client_name")
     ap.add_argument("out_dir")
     ap.add_argument("--ics", action="store_true", help="the client is on ICS: build the ICS lens too")
+    ap.add_argument("--prior-pack", default=None,
+                    help="the previous month's ti_pack.json for this client: adds 'this month's changes' to the "
+                         "competition layers")
     ap.add_argument("--from-pack", action="store_true",
                     help="draw the decks from the ti_pack.json in <out dir>; compute nothing")
     a = ap.parse_args(argv)
@@ -242,7 +262,8 @@ def main(argv=None):
         pack = pack_for_reuse(out, a.client_id, a.period)
         print(f"figures from the pack computed {pack.get('computed')}: nothing recomputed", flush=True)
     else:
-        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics, lists_dir=out / "lists")
+        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics, lists_dir=out / "lists",
+                            prior_pack=a.prior_pack)
         (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")

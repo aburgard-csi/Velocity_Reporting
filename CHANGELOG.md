@@ -15,6 +15,85 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Competition layers month over month: what changed since the prior pack, the triggers, and the portfolio row (`ti/transaction_intelligence/competition_layers_compare.py`, `ti_build.py --prior-pack`)
+
+Summary: A build can be given the previous month's `ti_pack.json` for the same client and then draws "this month's changes": each tier's share of accounts against last month, the institutions that gained or lost accounts, and the triggers that fired. The pack also carries the one row a month adds to a portfolio benchmark. Figures and slides added only.
+
+James Gilmore, 2026-11-16: "i like it monthly."
+
+- **Usage.** `ti_build.py <id> <period> <name> <out dir> --prior-pack <last month's ti_pack.json>`. The pack for another client is refused with a sentence; a prior pack with no layered figures says so in the build warnings and the slides are hidden. Nothing is recomputed from the transaction files: the comparison reads two packs.
+- **What is compared.** The two 12-month windows overlap by eleven months, so a change is what the newest month added and the oldest dropped; the slides say so. Tiers are compared by their share of the transacting accounts, in points; institutions by the number of accounts paying them, each marked new this month, not seen this month or continuing.
+- **Triggers** (defaults in `competition_layers.DEFAULTS`, set per client with `CompetitionLayers`): an institution newly seen with 50 or more accounts, a tier's share moving 0.3 points or more, and coverage under 95%.
+- **Portfolio row** (`cl_portfolio_row`): accounts, the share paying any bank or credit union, dollars, institutions placed, coverage, and the share of accounts paying each tier and each group. It carries no client identifier; whatever writes the benchmark adds the client and the period. Writing the benchmark file is not done here.
+- **Slides** (three, appended to the layers slides): "This month's changes", "Who moved this month", "Triggers this month"; each declines with its reason when no prior pack was given. `ti/slides.json` lists them as keep.
+- **Fix to the stage before it.** The build warning that a file "also carries ... rows" counted a blank transaction type as a rail and read "NAN rows"; a blank type is no longer reported.
+- Tests: `tests/test_ti_competition_layers_compare.py` and the extended slide tests.
+- **Not done:** Sheila does not yet find the previous month's pack by itself; the launcher would need to pass `--prior-pack`, which is a launcher change and its own pull request. A portfolio ledger file is not written.
+
+### 2026-11-16 — Competition layers slides: the full set, drawn after the Competition chapter's own (`build/ars_pipeline/ti/deck/txn_layers.py`, `charts_layers.py`, `chapters_txn.py`, `slides.json`)
+
+Summary: The Competition chapter now ends with the layers slides: how to read them, a summary, the layer ladder, a map of competitor branches near the client, the top institutions, **every institution paid in a ranked list**, six slides for each of the five main tiers, and fifteen whole-book slides. Every headline is computed from the figures it sits on; the chapter's own twenty builders are unchanged.
+
+James Gilmore, 2026-11-16: "the visuals, the charts, the insight ... the list of competitors."
+
+- **What is drawn.** Orientation (how to read the layers, summary, ladder, branch map, registry against institutions paid, top by dollars and by accounts); the full ranked list, 15 institutions a page; for each of Local, Regional, National, Digital and Other: who the money goes to, who pays (by group), movement in 90 days, depth, reach against depth, and profile cards; then the heat table of group by tier, every group against every tier, near-responders (ARS lens only), spend, PIN share and competitor share by month and group, institutions per account, recency, distance from a client branch, competition and attrition, the branch scatter, winback counts, coverage and the unplaced text, and the action register. About 55 slides for a client with every analysis available.
+- **Headlines state the finding** and are computed: "National and digital institutions take 68% of competitor dollars; local institutions take 15%" is the figure, not a template. A client's own base is "members" at a credit union and "customers" at a bank, and "accounts" when the client's type is unknown; a competitor's base follows that institution's type.
+- **A view the client's files cannot support declines with its reason and is hidden**, as every builder of the cut does: no closure dates (competition and attrition), no branch coordinates (the map), fewer than three institutions in a tier (that tier's slides), a client with no near-responders. Nothing is drawn as a zero.
+- **Both lens decks.** The ARS lens draws responders, mailed non-response (with the near-responder split) and no mail; the ICS lens draws ICS account, direct mail, referral and not ICS.
+- **Slide notes** name the client and say these slides are computed by the competition layers section and are not ported from the ARS v5 engine.
+- `ti/slides.json` lists all 52 new titles as "keep" and in the Competition chapter's register. `COMP_BUILDERS` stays v5's twenty (the existing test pins it); the layers builders are appended to what the chapter draws. `Deck.helpers()` gains `lens` and `relabel`.
+- Branch labels carry no decimal; charts use the cut's palette and type floor, and a bubble's label starts at its own bubble's edge so the chart layer's overlap check passes.
+- Chart labels on a bar, a wedge or a heat cell are navy with a white stroke, never white: `tests/test_chart_colors.py` refuses a mark drawn in the canvas colour.
+- Tests: `tests/test_ti_competition_layers_slides.py` (synthetic figures: every builder declines on an empty client and draws on a full one, the full list covers every institution once, the ICS lens, and the whole set through the real `Deck` helpers into a presentation).
+- **Not done in this stage:** the month-over-month comparison slides.
+
+### 2026-11-16 — Competition by layer: the analyses on the layered figures (`build/ars_pipeline/ti/transaction_intelligence/competition_layers_modules.py`)
+
+Summary: The `cl_*` figures now carry ten analyses of who members pay and how: a monthly trend by group, 90-day movement, depth of wallet, institutions per account, recency, distance from a client branch, winback counts, closure after paying a competitor, a branch table, and the competitor branches near the client for a map. It adds figures only: no `comp_*` figure and no slide changes in this stage.
+
+James Gilmore, 2026-11-16: "rich insights at every level."
+
+- **Trend** (`cl_trend`): card dollars, active accounts, PIN share and competitor share by month, for the whole base and each group. Every month is a complete month inside the 12-month window the loader returns.
+- **Movement** (`cl_movement`, `cl_tier_movement`): per institution, relationships (an account paying an institution) first seen in the last 90 days, last seen before that, and live in the last 30. The window is 12 months, so "new" is a floor and "stopped" counts long-quiet relationships; the slides say so.
+- **Depth** (`cl_depth_tiers`, `cl_depth_institutions`): each relationship by the share of the account's card dollars it takes (under 5%, 5-20%, 20% or more); 20% or more is primary-relationship competition.
+- **Institutions per account** (`cl_multi`), **recency** (`cl_recency`: live in 30 days, 31-90, 91-180, dormant), **distance** (`cl_distance`: competitor dollars by the distance of the institution's nearest branch to a client branch; a name on the universal list takes the distance of the registry institution it names, so a national with a branch next door is not counted as distant).
+- **Winback** (`cl_winback`): heavy relationships still live in the last 30 days at a Local, Local (25-50 mi), Regional or State institution, by institution and group. Counts only: no account list is written.
+- **Competition and attrition** (`cl_attrition`): closure in the second half of the window by whether the account paid a competitor in the first half, for any institution and for each tier, with the relative risk. An association, never a cause; the cohort is the accounts with card activity before the midpoint that had not closed by then. Needs the ODD's `Date Closed`; without it the build says so and the figure is absent.
+- **Branches** (`cl_branches`): per ODD branch with 50 or more transacting accounts, the competitor share by tier and the 12-month closure rate. A branch is written as a person writes it: no decimal on a number ("309", not "309.0") and "(no branch)" when it is missing.
+- **Map points** (`cl_map`): the client's branches and every competitor branch within the local radius, each carrying its institution's tier when the institution appears in the card spending.
+- Each institution row in `cl_institutions` also carries its new, stopped and live counts and its heavy and mid depth counts.
+- Tests: `tests/test_ti_competition_layers_modules.py` (synthetic matched rows, each analysis pinned to figures worked out by hand).
+- **Not done in this stage:** the slides and the monthly comparison.
+
+### 2026-11-16 — Competition by layer: every bank and credit union members pay, placed in a layer, split by group (`build/ars_pipeline/ti/transaction_intelligence/competition_layers.py`, `ti/txn_sections.py`)
+
+Summary: The transaction figures now include `cl_*`, which finds banks and credit unions in the card file by matching against every FDIC and NCUA institution (not a list of about 100 names), places each in a layer, and splits the result by the account groups. It adds figures only: no `comp_*` figure and no slide changes in this stage.
+
+James Gilmore, 2026-11-16: "we should be able to find all the competition ... national, regional, district, state, local."
+
+- **Why.** On the lab check of one client the existing competition figures named 79 institutions from a fixed dictionary, while the card file held more than a thousand bank-and-credit-union-looking names: card text is cut near 22 characters and carries processor tags (`CU#`, `OBP*`), which defeated name matching (a configured credit union matched $34K while $321K of its own spend sat unmatched in the review queue). The Regional tier was empty and the Fed-district layer from v5's competitor book was not carried over.
+- **How an institution is found.** The registry (`ti.core.market`, the FDIC and NCUA reference store the filed figures already read) holds every bank and credit union with its branches. A description is matched on whole tokens in `normalize_core`'s form, after the tag is dropped and a cut ending is repaired (`CREDIT UNIO`, `FEDERAL CREDIT`). A credit union matches as its stem plus CU or FED CU, never as a bare stem; a bank needs two words or BK. Marketplace tags (`SQ *`), venues named after a bank (an arena) and the client's own names are refused. A name that fits several institutions goes to the nearest only when it is more than 25 miles nearer, else it is left "Unresolved (ambiguous)".
+- **Layers.** National (the universal list, or branches in 10 or more states), Digital, Local (a branch within 25 miles of a client branch), Local (25-50 mi), Regional (headquartered in the client's Fed district), State, Other, and Card-issuing banks (FDIC banks whose payments are card payments, shown apart for review). The thresholds are `competition_layers.DEFAULTS`, overridable per client with `CompetitionLayers` in the client config. The Fed district is the client's `FedDistrict`, else its state's primary district.
+- **Scope.** Banks and credit unions only; lenders, auto captives, brokerages, payment apps and BNPL stay in the financial-services figures. Card rail only (PIN and signature): a file that also carries ACH or check rows says so in the build warnings, and transfers to institutions are not in the layers.
+- **Groups.** Responders, mailed non-response, no mail; the mailed non-response split into near-responders (`NU 1-4` on a mailer's Resp column, below the response threshold) and no response at all; and, for an ICS client, ICS account, direct mail, referral, not ICS. Each tier row carries every group's accounts, percentage and dollars. Accounts do not add across tiers, so `cl_any` is the de-duplicated total.
+- **Figures added** (`cl_scope`, `cl_base`, `cl_any`, `cl_tiers`, `cl_institutions`, `cl_review_queue`, `cl_coverage`, `cl_universe`): coverage is placed dollars over placed plus unplaced bank-like dollars, and the unplaced text is listed (60 names), never dropped. A client with no market record, no Fed district or no reference store says so in the build warnings and the affected tiers are not placed, never zeroed.
+- The configured names in the client config (`LocalCompetitors`, `RegionalCompetitors`) are matched to the registry and kept as aliases; a name the registry does not know becomes an institution of its own in that tier.
+- Tests: `tests/test_ti_competition_layers.py` (synthetic institutions and accounts; the look-alike descriptions that matched wrongly in the lab, the cut and tagged names that must match, tier placement, ambiguity, group partition, reconciliation).
+- **Not done in this stage:** the analyses built on these figures (trend, movement, depth, recency, attrition, branches, winback), the slides, and the monthly comparison; each is its own stage.
+
+### 2026-11-16 — Transaction loader reads the 6.0.11.0 export: `DDA Account`, `Description1`, `External Transaction Code` (`build/ars_pipeline/ti/transaction_intelligence/loader.py`)
+
+Summary: A client whose monthly transaction files use the 6.0.11.0 header now loads with an account, a transaction type and a description on every row; before, all three were empty on every row, so the Transaction Intelligence cut read no card rows for that client.
+
+James Gilmore, 2026-11-16: "build everything completely."
+
+- **What was wrong, found by reading one client's cached files.** The files carry a pipe banner and then a named tab header: `Transaction Date`, `DDA Account`, `External Transaction Code`, `Transaction Amount`, `MCC Code`, `Description1`, and a second `External Transaction Code`. The loader's header map had none of `DDA Account`, `Description1` or `External Transaction Code`, so those columns were read as extras: in all 11 cached months 100% of rows had no account and no transaction type, and a build reported 0 personal card rows.
+- `DDA ACCOUNT` is read as the account, `DESCRIPTION1` as the merchant text, and the **first** `EXTERNAL TRANSACTION CODE` (the rail: `PIN`, `ACH`, `CHK`) as the transaction type. The **second** column of that name is the numeric code and is read as `transaction_code`, never as a second type column. A header that names the same field twice keeps the first and reads the rest as extras.
+- A cached parquet whose account column is empty on every row is discarded and the raw file read again, with the warning "no parseable dates or no accounts". Without this, the months already parsed with the old header would have been served from the cache.
+- No figure moves for a client whose files already parsed: the single-account-header layout reads exactly as before (`test_a_layout_with_one_account_header_is_unchanged`).
+- **Not done:** this layout carries ACH and check rows as well as card rows, so the transfer-rail rules in the competition and leakage sections apply to it; they have not been checked against a build of that client's real files.
+- Tests: `tests/test_ti_loader_dda_header.py` (synthetic rows).
+
 ### 2026-11-16 — User guide: Transaction Intelligence and the mail lists (`scripts/launchers/ARS Deck User Guide.html`)
 
 Summary: Documentation only. Based on `docs/financial-services-guide`, which sits on the Financial Services stack; **describes what that stack delivers, so it should merge after it.** The copy on the share is released from this file (Aaron's release), so the share is unchanged until then.
