@@ -22,6 +22,7 @@ from .financial_services import _pct
 from .lens import Lenses
 from .merchants import MASKED_TOKEN, OTHER, _categorize, group_ranges
 from .txn_common import ranked
+from ti.compat import str_values
 
 GROWTH_WINDOW_MONTHS = 3
 GROWTH_MOVERS = 5                    # biggest risers and biggest fallers shown
@@ -47,7 +48,7 @@ def _rows_frame(card: pd.DataFrame, spec: dict) -> pd.DataFrame:
     cats, _method, _cov = _categorize(card, spec, lambda _m: None)
     return pd.DataFrame({
         "acct": card["primary_account_num"].astype(str).to_numpy(),
-        "key": card["merchant_key"].astype(str).to_numpy(),
+        "key": str_values(card["merchant_key"]).to_numpy(),
         "amount": card["amount"].abs().to_numpy(),
         "cat": cats.to_numpy(),
         "m": card["transaction_date"].dt.to_period("M").to_numpy(),
@@ -205,7 +206,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
             base_label: str = "all accounts") -> dict:
     out: dict = {}
     K = key_prefix
-    typ = df["transaction_type"].astype(str).str.upper()
+    typ = str_values(df["transaction_type"], lambda v: v.str.upper())
     is_card = typ.isin(["PIN", "SIG"]).to_numpy()
     acct_all = df["primary_account_num"].astype(str)
     in_base = acct_all.isin(account_filter).to_numpy() if account_filter is not None \

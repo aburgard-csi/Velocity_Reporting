@@ -17,6 +17,7 @@ from .txn_common import ranked
 import pandas as pd
 
 from ti.core.deposits import MIN_MATCH_PCT
+from ti.compat import str_values
 
 TOP_MERCHANTS = 15
 CHANNELS = ["PIN", "SIG", "ACH", "CHK"]
@@ -40,7 +41,7 @@ def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn) -> dict:
     out["txn_amount_missing_pct"] = _pct(int(df["amount"].isna().sum()), n)
 
     # ---- by channel -------------------------------------------------------
-    typ = df["transaction_type"].astype(str).str.upper().str.strip()
+    typ = str_values(df["transaction_type"], lambda v: v.str.upper().str.strip())
     seen = sorted(typ.unique())
     unknown = [t for t in seen if t not in CHANNELS]
     if unknown:
@@ -77,11 +78,11 @@ def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn) -> dict:
     out["txn_sig_share_pct"] = _pct(sig, pin + sig)
 
     # ---- feed facts: MCC coverage and the two unexplained positional fields --
-    mcc = df["mcc_code"].astype(str).str.strip()
+    mcc = str_values(df["mcc_code"], lambda v: v.str.strip())
     out["txn_mcc_coverage_pct"] = _pct(int((mcc[card] != "") .sum() - int((mcc[card] == "nan").sum())), int(card.sum()))
     for col, key in (("merchant_id", "txn_field9_values"), ("card_present", "txn_field11_values")):
         if col in df.columns:
-            vc = df[col].astype(str).str.strip().replace({"nan": ""}).value_counts().head(8)
+            vc = str_values(df[col], lambda v: v.str.strip()).replace({"nan": ""}).value_counts().head(8)
             out[key] = [[v, int(c)] for v, c in vc.items()]
             out[key.replace("_values", "_distinct")] = int(df[col].nunique(dropna=True))
 
@@ -115,7 +116,7 @@ def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn) -> dict:
             warn("ODD has no Acct Number / Acct ID column; join rate not measured")
 
     # ---- merchants ----------------------------------------------------------
-    merch = df["merchant_key"].astype(str) if "merchant_key" in df.columns \
+    merch = str_values(df["merchant_key"]) if "merchant_key" in df.columns \
         else df["merchant_name"].astype(str).str.upper()
     n_card = int(card.sum())
     counts = merch[card].value_counts()
@@ -138,7 +139,7 @@ def compute(df: pd.DataFrame, odd: pd.DataFrame | None, warn) -> dict:
     grp = df.groupby(month, observed=True)
     series = []
     for per, g in grp:
-        t = g["transaction_type"].astype(str).str.upper()
+        t = str_values(g["transaction_type"], lambda v: v.str.upper())
         series.append([str(per), len(g), int(g["primary_account_num"].nunique()),
                        round(float(g["amount"].abs().sum())),
                        int(t.isin(["PIN", "SIG"]).sum())])
