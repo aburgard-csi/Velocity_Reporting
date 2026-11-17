@@ -15,6 +15,15 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — The slide ledger lists the competition layers slides (`ti/ledger.py`)
+
+Summary: `ti_slide_ledger.csv` now has a line for every competition layers slide, so a layers slide that is tossed, declined for a client or merged is listed with its reason instead of being absent.
+
+The ledger walked only the 20 older competition builders, so the 55 layers slides were drawn or declined with no line, against the rule that nothing leaves the deck without a line saying why. A real 1798 build listed 12 drawn, 12 merged, 7 hidden and 28 tossed and none of the layers slides.
+
+- The layers builders are listed under the Competition chapter with the same four statuses. No deck changes.
+- Two tests: the count of lines now includes the layers builders, and a layers slide declined for a client is listed as hidden with its reason.
+
 ### 2026-11-17 — Competition layers read transaction_type through `str_values` (`competition_layers.py`)
 
 Summary: The two places the layers cast the categorical transaction type to text row by row now use `ti.compat.str_values`, the rule issue #161 set, so the guard test passes with the layers on main.
