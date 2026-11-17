@@ -15,6 +15,15 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — A slide ledger and a portfolio row beside every TI build (`ti/ledger.py`, `ti/portfolio.py`, `ti_build.py`)
+
+Summary: Based on `feat/ars-ti/fs-05-institution-view` (stacked on PR 163). Writes two small files beside the decks; **changes no slide and no figure.** A failure writing them is printed and never costs the decks.
+
+- **`ti_slide_ledger.csv`:** every slide of the Transaction Intelligence and Competition chapters with its status (`drawn`, `merged`, `hidden`, `tossed`) and the reason, so nothing leaves the deck without a line (James reviews the whole deck and needs to see what was removed). Today's selection file: 59 slides, 27 drawn, 14 merged into 7 pairs, 18 tossed in `ti/slides.json`; `hidden` comes from the client's own declined slides.
+- **`ti_portfolio_row.csv`:** one row for this client and data month (any / addressable / adjacency leakage rates and dollars, coverage, review-queue dollars, accounts at a named depository). The Competition columns are added to `portfolio.COLUMNS` when that chapter's registry lands.
+- **The shared table is opt-in.** If `RPE_TI_PORTFOLIO` names a file, the row is also upserted there (the same client and month replaced, other clients and any columns a newer build added are kept). The build never chooses a shared location itself; where the table lives is Aaron's call.
+- Tests: `tests/test_ti_ledger_portfolio.py` (18).
+
 ### 2026-11-16 — Financial services x named institution: who holds the product members pay for (`ti/transaction_intelligence/institution_view.py`, `txn_sections.py`, `chapters_txn.py`)
 
 Summary: Based on `feat/ars-ti/fs-04-trend-depth` (stacked on PR 163). A new section, `institution_view`, runs right after `competition`. Adds figures; **changes no slide and no existing figure.**
