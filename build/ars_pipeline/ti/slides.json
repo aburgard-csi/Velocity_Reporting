@@ -213,7 +213,10 @@
   "Branches: competitor share against closure": "keep",
   "Winback counts": "keep",
   "Coverage and the unplaced text": "keep",
-  "Action register": "keep"
+  "Action register": "keep",
+  "This month's changes": "keep",
+  "Who moved this month": "keep",
+  "Triggers this month": "keep"
  },
  "_by_chapter": {
   "Transaction Intelligence": [
@@ -336,7 +339,10 @@
    "Branches: competitor share against closure",
    "Winback counts",
    "Coverage and the unplaced text",
-   "Action register"
+   "Action register",
+   "This month's changes",
+   "Who moved this month",
+   "Triggers this month"
   ],
   "Attrition": [
    "Attrition by branch",

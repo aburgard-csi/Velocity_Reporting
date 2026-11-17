@@ -15,6 +15,21 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Competition layers month over month: what changed since the prior pack, the triggers, and the portfolio row (`ti/transaction_intelligence/competition_layers_compare.py`, `ti_build.py --prior-pack`)
+
+Summary: A build can be given the previous month's `ti_pack.json` for the same client and then draws "this month's changes": each tier's share of accounts against last month, the institutions that gained or lost accounts, and the triggers that fired. The pack also carries the one row a month adds to a portfolio benchmark. Figures and slides added only.
+
+James Gilmore, 2026-11-16: "i like it monthly."
+
+- **Usage.** `ti_build.py <id> <period> <name> <out dir> --prior-pack <last month's ti_pack.json>`. The pack for another client is refused with a sentence; a prior pack with no layered figures says so in the build warnings and the slides are hidden. Nothing is recomputed from the transaction files: the comparison reads two packs.
+- **What is compared.** The two 12-month windows overlap by eleven months, so a change is what the newest month added and the oldest dropped; the slides say so. Tiers are compared by their share of the transacting accounts, in points; institutions by the number of accounts paying them, each marked new this month, not seen this month or continuing.
+- **Triggers** (defaults in `competition_layers.DEFAULTS`, set per client with `CompetitionLayers`): an institution newly seen with 50 or more accounts, a tier's share moving 0.3 points or more, and coverage under 95%.
+- **Portfolio row** (`cl_portfolio_row`): accounts, the share paying any bank or credit union, dollars, institutions placed, coverage, and the share of accounts paying each tier and each group. It carries no client identifier; whatever writes the benchmark adds the client and the period. Writing the benchmark file is not done here.
+- **Slides** (three, appended to the layers slides): "This month's changes", "Who moved this month", "Triggers this month"; each declines with its reason when no prior pack was given. `ti/slides.json` lists them as keep.
+- **Fix to the stage before it.** The build warning that a file "also carries ... rows" counted a blank transaction type as a rail and read "NAN rows"; a blank type is no longer reported.
+- Tests: `tests/test_ti_competition_layers_compare.py` and the extended slide tests.
+- **Not done:** Sheila does not yet find the previous month's pack by itself; the launcher would need to pass `--prior-pack`, which is a launcher change and its own pull request. A portfolio ledger file is not written.
+
 ### 2026-11-16 — Competition layers slides: the full set, drawn after the Competition chapter's own (`build/ars_pipeline/ti/deck/txn_layers.py`, `charts_layers.py`, `chapters_txn.py`, `slides.json`)
 
 Summary: The Competition chapter now ends with the layers slides: how to read them, a summary, the layer ladder, a map of competitor branches near the client, the top institutions, **every institution paid in a ranked list**, six slides for each of the five main tiers, and fifteen whole-book slides. Every headline is computed from the figures it sits on; the chapter's own twenty builders are unchanged.

@@ -76,6 +76,14 @@ def make_figures(groups=ARS, labels=ARS_LABELS, per_tier=7):
                         [{"exposed_to": t, "exposed": 300, "closed": 6, "closure_pct": 2.0, "unexposed": 4000, "unexposed_closure_pct": 1.7, "relative_risk": 1.0 + 0.2 * i} for i, t in enumerate(TIERS[:4])],
         "cl_branches": [{"branch": str(300 + i), "accounts": 500 + 90 * i, "any_pct": 12.0 + i, "local_pct": 2.0, "national_pct": 8.0, "digital_pct": 2.0, "closed_12m": 30 + i,
                          "closure_pct": 5.0 + 0.4 * i} for i in range(6)],
+        "cl_changes": {"prior_period": "2026.10", "coverage": {"now": 97.3, "prior": 97.0},
+                       "tiers": [{"tier": "National", "accounts_now": 100, "accounts_prior": 90, "pct_now": 9.0, "pct_prior": 8.0, "change_points": 1.0, "dollars_now": 5, "dollars_prior": 4},
+                                 {"tier": "Local", "accounts_now": 20, "accounts_prior": 30, "pct_now": 2.0, "pct_prior": 3.0, "change_points": -1.0, "dollars_now": 5, "dollars_prior": 4}],
+                       "institutions": [{"inst": "National Institution 1", "tier": "National", "accounts_now": 60, "accounts_prior": 20, "change": 40, "status": "continuing"},
+                                        {"inst": "New Name", "tier": "Local", "accounts_now": 55, "accounts_prior": 0, "change": 55, "status": "new this month"},
+                                        {"inst": "Gone Name", "tier": "Local", "accounts_now": 0, "accounts_prior": 12, "change": -12, "status": "not seen this month"}],
+                       "triggers": [{"trigger": "New institution over the threshold", "subject": "New Name", "detail": "55 accounts (threshold 50)"},
+                                    {"trigger": "Tier share moved", "subject": "National", "detail": "+1.00 points (threshold 0.3)"}]},
         "cl_map": {"client": [[35.0, -100.0], [35.05, -100.04]], "radius": 25.0,
                    "branches": [[35.0 + 0.01 * i, -100.0 + 0.012 * i, f"Local Institution {i % 5}", "Local" if i % 3 else None] for i in range(24)]},
     }
@@ -204,6 +212,6 @@ def test_the_whole_set_runs_through_the_real_deck_helpers_into_a_presentation(tm
     assert not deck.chart_failures, deck.chart_failures
     declined = [d for d in deck.declines]
     assert not declined, declined
-    assert len(slides) == 54       # 7 orientation + 3 list pages + 5 tiers x 6 + 14 whole-book slides, on this fixture
+    assert len(slides) == 57       # 7 orientation + 3 list pages + 5 tiers x 6 + 14 whole-book + 3 month-over-month, on this fixture
     notes = slides[0].notes_slide.notes_text_frame.text
     assert "Test Credit Union" in notes and "not ported from the ARS v5 engine" in notes

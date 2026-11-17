@@ -60,7 +60,9 @@ CARD_ISSUER, UNRESOLVED = "Card-issuing banks (review)", "Unresolved (ambiguous)
 TIER_ORDER = [NATIONAL, DIGITAL, LOCAL, LOCAL_MARKET, REGIONAL, STATE, OTHER, CARD_ISSUER, UNRESOLVED]
 
 DEFAULTS = {"local_miles": 25.0, "market_miles": 50.0, "scan_miles": 100.0, "national_states": 10,
-            "ambiguity_gap_miles": 25.0, "review_rows": 60, "top_descriptors": 3}
+            "ambiguity_gap_miles": 25.0, "review_rows": 60, "top_descriptors": 3,
+            # month-over-month triggers (competition_layers_compare.py)
+            "trigger_new_accounts": 50, "trigger_share_points": 0.3, "coverage_floor": 95.0}
 
 # Fed district by state: each state takes its primary district, as a split state does in v5's competitor
 # book; the Dallas district is Texas, Louisiana and New Mexico. The client's own district comes from its
@@ -406,7 +408,7 @@ def compute(df, rows, lenses, frame, config, anchor_ts, record, book, dict_spec,
     if not district:
         warn("competition layers: no Fed district (no FedDistrict in the config and no state in the market record); "
              "the Regional tier is not placed")
-    types = {str(t).upper() for t in pd.unique(df["transaction_type"].astype(str))}
+    types = {str(t).upper() for t in pd.unique(df["transaction_type"].astype(str))} - {"NAN", "NONE", ""}   # a blank type is not a rail
     if types - {"PIN", "SIG"}:
         warn("competition layers: the file also carries " + ", ".join(sorted(types - {"PIN", "SIG"})) +
              " rows; the layers read the card rail (PIN, SIG) only, so transfers to institutions are not in them")

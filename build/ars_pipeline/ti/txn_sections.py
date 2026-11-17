@@ -203,6 +203,8 @@ def competition_layers(ctx):
                 r.update(new_90=m["new_90"], stopped_90=m["stopped_90"], live_30=m["live_30"])
             if d:
                 r.update(heavy=d["heavy"], mid=d["mid"], median_share_pct=d["median_share_pct"])
+        from ti.transaction_intelligence import competition_layers_compare as CLC
+        out["cl_portfolio_row"] = CLC.portfolio_row(out)       # the row a month adds to a portfolio benchmark
     return out
 
 

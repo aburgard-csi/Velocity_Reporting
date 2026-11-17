@@ -44,11 +44,15 @@ def hbar(rows: list, out, xlabel="", fmt="{:,.0f}", full=False):
     ax.barh(ys, vals, color=[tier_color(r[2]) if len(r) > 2 and r[2] in TIER_COLOR else (r[2] if len(r) > 2 else NAVY)
                              for r in rows], height=0.7, zorder=2)
     top = max(vals) if vals else 1
-    for y, v in zip(ys, vals):
-        ax.text(v + top * 0.012, y, fmt.format(v), va="center", ha="left", color=NAVY)
+    low = min(0.0, min(vals)) if vals else 0.0
+    span = (top - low) or 1.0
+    for y, v in zip(ys, vals):                      # a negative bar is labelled to its left
+        ax.text(v + (span * 0.012 if v >= 0 else -span * 0.012), y, fmt.format(v), va="center", ha="left" if v >= 0 else "right", color=NAVY)
     ax.set_yticks(ys)
     ax.set_yticklabels([str(r[0]) for r in rows])
-    ax.set_xlim(0, top * 1.16)
+    ax.set_xlim(low - (span * 0.16 if low < 0 else 0), top + span * 0.16)
+    if low < 0:
+        ax.axvline(0, color=NAVY, lw=1)
     ax.set_xlabel(xlabel, color=GREY)
     _frame(ax)
     ax.xaxis.set_visible(False)

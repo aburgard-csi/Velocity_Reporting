@@ -698,3 +698,69 @@ def layers_actions(h, t, base):
     s, top = _slide(h, "Action register: each tier gets an action, an owner, a metric and today's value", "Every row's figure is computed from this client's files; none is a standard", ACTION_TOPIC)
     shape = h["table"](s, rows, 0.6, top + 0.05, 12.1, [1.3, 5.6, 1.7, 2.4, 1.1], 11)
     _left_text(shape, (1, 2, 3))
+
+
+# ------------------------------------------------------------------------------------- month over month
+CHANGE_TOPIC, CHANGE_INST_TOPIC, TRIG_TOPIC = "This month's changes", "Who moved this month", "Triggers this month"
+
+
+def _since(c):
+    return c.get("prior_period") or "the prior month"
+
+
+@_reg("layers_changes", CHANGE_TOPIC)
+def layers_changes(h, t, base):
+    c = t.get("cl_changes")
+    if not c or not c.get("tiers"):
+        return _no(CHANGE_TOPIC, "no prior month's pack was given, or it has no layered figures")
+    big = c["tiers"][0]
+    n = len(c.get("triggers") or [])
+    rows = [r for r in c["tiers"] if r["change_points"]][:8]
+    s, top = _slide(h, f"{big['tier']} moved {big['change_points']:+.2f} points since {_since(c)}; {n} trigger{'s' if n != 1 else ''} fired",
+                    "Change in each tier's share of accounts, in points. The two 12-month windows overlap by eleven months: a change is what the newest month added and the oldest dropped",
+                    CHANGE_TOPIC)
+    cov = c.get("coverage") or {}
+    items = [("Triggers fired", f"{n:,}", "see the triggers slide")]
+    if cov.get("now") is not None and cov.get("prior") is not None:
+        items.append(("Coverage", f"{cov['now']:.1f}%", f"{cov['prior']:.1f}% a month ago"))
+    items.append(("New institutions", f"{sum(1 for r in c['institutions'] if r['status'] == 'new this month'):,}", "not seen last month"))
+    items.append(("Not seen now", f"{sum(1 for r in c['institutions'] if r['status'] == 'not seen this month'):,}", "seen last month"))
+    right = h["rail"](s, items, top=top)
+    if rows:
+        path = h["chart"]("layers_changes", CLY.hbar, [[r["tier"], r["change_points"], r["tier"]] for r in rows], xlabel="points", fmt="{:+.2f}")
+        if path:
+            h["chart_left"](s, path, top, right)
+
+
+@_reg("layers_changes_institutions", CHANGE_INST_TOPIC)
+def layers_changes_institutions(h, t, base):
+    c = t.get("cl_changes")
+    movers = [r for r in (c or {}).get("institutions") or [] if r["change"]][:10]
+    if not movers:
+        return _no(CHANGE_INST_TOPIC, "no institution changed since the prior month, or no prior pack was given")
+    up = max(movers, key=lambda r: r["change"])
+    s, top = _slide(h, f"{up['inst']} added {up['change']:,} accounts since {_since(c)}" if up["change"] > 0 else f"Accounts paying {up['inst']} changed by {up['change']:,} since {_since(c)}",
+                    "The ten biggest changes in the number of accounts paying an institution (green = more, orange = fewer); an institution seen for the first time or no longer seen is named in its row",
+                    CHANGE_INST_TOPIC)
+    rows = []
+    for r in movers:
+        tag = " (new)" if r["status"] == "new this month" else " (not seen)" if r["status"] == "not seen this month" else ""
+        rows.append([r["inst"][:26] + tag, r["change"], CLY.GREEN if r["change"] > 0 else CLY.ORANGE])
+    path = h["chart"]("layers_changes_institutions", CLY.hbar, rows, xlabel="change in accounts", fmt="{:+,.0f}", full=True)
+    if path:
+        h["picture"](s, path, top=top, max_h=4.9)
+
+
+@_reg("layers_triggers", TRIG_TOPIC)
+def layers_triggers(h, t, base):
+    c = t.get("cl_changes")
+    trig = (c or {}).get("triggers") or []
+    if not trig:
+        return _no(TRIG_TOPIC, "nothing crossed a threshold this month, or no prior pack was given")
+    th = (t.get("cl_scope") or {}).get("thresholds") or {}
+    s, top = _slide(h, f"{len(trig)} thing{'s' if len(trig) != 1 else ''} crossed a threshold since {_since(c)}",
+                    f"Thresholds: a new institution over {th.get('trigger_new_accounts', 50):g} accounts, a tier share moving {th.get('trigger_share_points', 0.3):g} points, coverage under {th.get('coverage_floor', 95):g}%",
+                    TRIG_TOPIC)
+    rows = [["Trigger", "Subject", "Detail"]] + [[r["trigger"], r["subject"][:40], r["detail"]] for r in trig[:12]]
+    shape = h["table"](s, rows, 0.6, top + 0.05, 12.1, [3.6, 3.4, 5.1], 12)
+    _left_text(shape, (1, 2))

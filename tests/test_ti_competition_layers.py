@@ -238,3 +238,14 @@ def test_no_reference_book_says_so_and_adds_nothing():
     warns = []
     assert CL.compute(df, rows, None, None, CONFIG, None, RECORD, None, SPEC, warns.append, base_ids=None) == {}
     assert any("reference store" in w for w in warns)
+
+
+def test_a_blank_transaction_type_is_not_reported_as_a_rail():
+    rows = SPEC_ROWS + [("A5", None, "2026-07-10", -5.0, "CORNER GROCER")]
+    df = pd.DataFrame(rows, columns=["primary_account_num", "transaction_type", "transaction_date", "amount", "merchant_name"])
+    rows_ = pd.DataFrame({"core": df["merchant_name"], "is_card": df["transaction_type"].isin(["PIN", "SIG"])}, index=df.index)
+    warns = []
+    CL.compute(df, rows_, _Lenses({"personal": ["A1"]}), None, CONFIG, pd.Timestamp("2026-10-31"), RECORD, make_book(), SPEC,
+               warns.append, base_ids={"A1", "A2", "A3", "A4", "A5"})
+    said = [w for w in warns if "also carries" in w]
+    assert said and "ACH" in said[0] and "NAN" not in said[0] and "NONE" not in said[0]
