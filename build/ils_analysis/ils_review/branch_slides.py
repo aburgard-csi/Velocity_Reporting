@@ -305,14 +305,18 @@ def _slide_overview(dk, cfg, loaded, accttype, summary, intensity, od, vol, grow
     gap = intensity.copy()
     gap = gap[gap["n"] >= 100]
     if len(gap) >= 3:
-        gap["rank_int"] = gap["avg_dep_per_acct"].rank(ascending=False)
-        gap["rank_eng"] = gap["pct_no_deposit"].rank(ascending=False)
-        gap["spread"] = gap["rank_eng"] - gap["rank_int"]
-        w = gap.sort_values("spread", ascending=False).iloc[0]
-        watch.append(f"{w['branchname']} pairs strong deposit intensity "
-                     f"({money(w['avg_dep_per_acct'])}/account) with a high no-deposit rate "
-                     f"({w['pct_no_deposit']:.1f}%) — a few large accounts may be masking a "
-                     f"less-engaged base.")
+        # A branch ABOVE the median on both deposit intensity and no-deposit rate. The old ranking picked the
+        # largest rank spread, which named Dannemora FCU's branch with the LOWEST no-deposit rate (13.2% of a
+        # 13.2%-20.8% range) as "high". No such branch: no bullet.
+        both = gap[(gap["avg_dep_per_acct"] > gap["avg_dep_per_acct"].median())
+                   & (gap["pct_no_deposit"] > gap["pct_no_deposit"].median())]
+        if len(both):
+            both = both.assign(score=both["avg_dep_per_acct"].rank(pct=True) + both["pct_no_deposit"].rank(pct=True))
+            w = both.sort_values("score", ascending=False).iloc[0]
+            watch.append(f"{w['branchname']} pairs strong deposit intensity "
+                         f"({money(w['avg_dep_per_acct'])}/account) with a no-deposit rate above the branch median "
+                         f"({w['pct_no_deposit']:.1f}% against {gap['pct_no_deposit'].median():.1f}%) — a few large "
+                         f"accounts may be masking a less-engaged base.")
     if vol is not None and len(vol) >= 3:
         v = vol.sort_values("median_cv", ascending=False).iloc[0]
         watch.append(f"{v['branchname']} carries the most erratic deposit behaviour "

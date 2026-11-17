@@ -348,6 +348,9 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
     fr = frame
     if fr is None or not fr.has_trend:
         return [f"ILS Scoring Summary ({accttype}) was skipped — no ZTrend file, so notices cannot be banded."]
+    if getattr(fr, "co_problem", None):
+        # the default rate and the losses are built on the charge-off flag and amount
+        return [f"ILS Scoring Summary ({accttype}) was skipped. " + fr.co_problem]
     basis = getattr(cfg, "default_basis", "notebook")
     rule = {"deck": DEFAULT_DAYS_NOTE, "readme": "README rule (30 days, never-repaid counted)",
             "notebook": ("the analysis notebook's rule: a notice on a charged-off account dated on or after the "

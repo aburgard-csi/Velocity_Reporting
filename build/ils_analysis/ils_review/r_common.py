@@ -136,6 +136,21 @@ class Frame:
                 self.folded[str(raw)] = (seg, int(n))
         self.za = za
         self.client_types = ("Personal", "Business")
+        # Charge-off data the extract cannot be trusted with (Dannemora FCU 1781, 2026-11: every account flagged
+        # charged off, $2.0B charged off and -$5.3B recovered on a $320M credit union). A program charges off a few
+        # percent of its accounts; past half, the flag is a load fault, and every figure built on it (charge-off
+        # dollars, loss rate, the Scoring Summary default and losses, charge-offs against growth) is withheld and
+        # said so, never shown as $0 or 0%.
+        self.co_problem = None
+        if "Chargeoff_Account" in za.columns and len(za):
+            share = float(_yes(za["Chargeoff_Account"]).mean())
+            if share > 0.5:
+                self.co_problem = (f"Charge-off data in this extract is not usable ({share * 100:.0f}% of accounts are flagged "
+                                   f"as charged off), so charge-off dollars, loss rates and the Scoring Summary are left out "
+                                   f"until it is corrected.")
+        self.refund_problem = None
+        if "Refund_Amt_365" in za.columns and len(za) and za["Refund_Amt_365"].isna().all():
+            self.refund_problem = "Refund data is not in this extract (Refund_Amt_365 is blank on every account)."
         self.dd = loaded.declines
         self.rf = loaded.refunds
         self._zt = None

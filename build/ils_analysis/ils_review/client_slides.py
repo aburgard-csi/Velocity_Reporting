@@ -155,8 +155,14 @@ def add_data_pull(dk, cfg, fr, *, section="data_pull"):
         rows.append(["Matrix validation", _pulled(cfg.matrix_path), "—", "Matrix parameters and overrides"])
     if cfg.dbic_path:
         rows.append(["DBIC", _pulled(cfg.dbic_path), "—", "Dormant, blocked and inactive accounts"])
-    table(s, {"headers": ["Extract", "Pulled", "Records", "Used for"], "rows": rows}, LEFT, top + 0.5, FULL_W, BODY_B - (top + 0.5) - 0.1,
-          first_w=2.9, max_fs=14)
+    # data the extract cannot support is said here, on the slide, not only in the notes
+    problems = [p for p in (getattr(fr, "co_problem", None), getattr(fr, "refund_problem", None)) if p]
+    room = 0.80 if problems else 0.0
+    table(s, {"headers": ["Extract", "Pulled", "Records", "Used for"], "rows": rows}, LEFT, top + 0.5, FULL_W,
+          BODY_B - (top + 0.5) - 0.1 - room, first_w=2.9, max_fs=14)
+    if problems:
+        shapes.textbox(s, LEFT, BODY_B - room + 0.02, 10.3, room, "Data note: " + " ".join(problems), 12, T.ORANGE, True,
+                       PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
     say_first(s, "Here is when the data was pulled and how big the book is; every figure after this is measured to the as-of date, so the slides do not repeat it.")
     return s
 
@@ -248,8 +254,12 @@ def add_kpi_rollup(dk, cfg, fr, *, section, progress=None):
             v = vals[k]
             shapes.textbox(s, x + 0.1 + k * cw, y + 0.62, cw, 0.80, v, fs, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
             shapes.textbox(s, x + 0.1 + k * cw, y + 1.45, cw, 0.30, t, 13, T.SUBTLE, False, PP_ALIGN.CENTER, T.BODY, MSO_ANCHOR.TOP)
-    caption(s, "each tile shows Personal and Business side by side; loss rate is charge-off dollars over collected fees. "
-               "The full table is in the appendix.", T0=6.40, size=12)
+    if fr.co_problem:
+        caption(s, "each tile shows Personal and Business side by side. Charge-offs and loss rate read n/a: the charge-off "
+                   "data in this extract is not usable (see About this data). The full table is in the appendix.", T0=6.40, size=12)
+    else:
+        caption(s, "each tile shows Personal and Business side by side; loss rate is charge-off dollars over collected fees. "
+                   "The full table is in the appendix.", T0=6.40, size=12)
     say_first(s, "These six numbers are the size of the program and what it costs us in charge-offs.")
     dk.defer(lambda: _kpi_detail(dk, cfg, fr, res))
     return notes
@@ -375,7 +385,17 @@ def add_eligibility(dk, cfg, fr, *, section, progress=None):
             return int(str(v).replace(",", "").replace("$", "") or 0)
         top = body[:6]
         rest = body[6:]
-        rows = [[("Blank (active)" if r[0] == "Blank" else r[0]), r[ci["Accounts"]], r[ci["Can Overdraft"]], r[ci["Users"]]] for r in top]
+        # name each code from the matrix's OD STATUS CODE MAPPING (Dannemora's codes are single letters: O, N, D);
+        # a blank code is "active" only where the mapping says a blank can overdraft
+        smap = {str(k).upper(): v for k, v in (getattr(fr, "status_map", None) or {}).items()}
+
+        def label(code):
+            if code == "Blank":
+                # "active" only where the mapping lists a blank code that can overdraft (Dannemora's lists none)
+                return "Blank (active)" if ("" in smap and smap[""][1]) else "No status code"
+            d = smap.get(str(code).upper())
+            return f"{code} – {d[0]}" if d and d[0] and d[0].upper() != str(code).upper() else str(code)
+        rows = [[label(r[0]), r[ci["Accounts"]], r[ci["Can Overdraft"]], r[ci["Users"]]] for r in top]
         if rest:
             rows.append([f"All other ({len(rest)} codes)", f"{sum(n_(r[ci['Accounts']]) for r in rest):,}",
                          f"{sum(n_(r[ci['Can Overdraft']]) for r in rest):,}", f"{sum(n_(r[ci['Users']]) for r in rest):,}"])
@@ -384,7 +404,7 @@ def add_eligibility(dk, cfg, fr, *, section, progress=None):
         users_total = n_(total[ci["Users"]]) if total else 0
         topr = max(body, key=lambda r: n_(r[ci["Users"]])) if body else None
         share = (n_(topr[ci["Users"]]) / users_total * 100) if topr and users_total else None
-        which = "a blank status code" if topr and topr[0] == "Blank" else (f"status code {topr[0]}" if topr else "")
+        which = "a blank status code" if topr and topr[0] == "Blank" else (f"status code {label(topr[0])}" if topr else "")
         title = (f"{share:.0f}% of {t.lower()} NSF/OD users hold accounts with {which}" if share is not None
                  else f"{t} accounts by overdraft status code")
         s = dk.content(title, f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}), by overdraft status code.",

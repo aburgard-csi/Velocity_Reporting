@@ -355,6 +355,7 @@ def build_review(cfg: BuildConfig, progress=None):
     run = _Run(cfg, shell, dk, loaded, fr, S)
     run.settings = settings
     run.say = say
+    fr.status_map = story_slides._status_map(S) if S else {}
     for raw, (seg, n) in fr.folded.items():
         run.notes.append(f"{n:,} {raw} accounts are counted with {seg} in the KPI rollup only (by the IsPersonal flag, "
                          f"as the analysis team's rollup is); every other figure keeps {raw} out of {seg}.")

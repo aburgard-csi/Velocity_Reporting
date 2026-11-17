@@ -63,22 +63,25 @@ def kpi_rollup(fr, ref=None):
         co_users = int(((codt >= lo) & (d["items365"] > 0)).sum())
         act = fr.active_open(t)
         act_users = int((act["items365"] > 0).sum())
+        bad_co, bad_rf = fr.co_problem is not None, fr.refund_problem is not None
         cols[t] = {
             "Data as of": _fmt_asof(asof),
-            "Collected Fees": money(fees), "Charge-Off Amount": money(co, 2),
-            "Loss Rate": pct(co / fees * 100) if fees else "n/a",
-            "Refund Amt": money(refund, 2), "Refund %": pct(refund / fees * 100) if fees else "n/a",
+            "Collected Fees": money(fees), "Charge-Off Amount": "n/a" if bad_co else money(co, 2),
+            "Loss Rate": "n/a" if bad_co else (pct(co / fees * 100) if fees else "n/a"),
+            "Refund Amt": "n/a" if bad_rf else money(refund, 2),
+            "Refund %": "n/a" if bad_rf else (pct(refund / fees * 100) if fees else "n/a"),
             "Open Accts": f"{len(o):,}", "Accts Opened (365 days)": f"{opened:,}",
             "Accts Closed (365 days)": f"{closed:,}",
-            "Accounts Charged Off (365 days)": f"{co_n:,}",
+            "Accounts Charged Off (365 days)": "n/a" if bad_co else f"{co_n:,}",
             "Growth Rate": pct((opened - closed) / len(o) * 100) if len(o) else "n/a",
-            "NSF/OD Users": f"{users:,}", "Users Charged Off (365 days)": f"{co_users:,}",
-            "User Charge-Off Rate": pct(co_users / users * 100) if users else "n/a",
+            "NSF/OD Users": f"{users:,}", "Users Charged Off (365 days)": "n/a" if bad_co else f"{co_users:,}",
+            "User Charge-Off Rate": "n/a" if bad_co else (pct(co_users / users * 100) if users else "n/a"),
             "Open Active Accts": f"{len(act):,}",
             "Open Active NSF/OD Users": f"{act_users:,}",
             "% Open Active Users": pct(act_users / len(act) * 100) if len(act) else "n/a",
         }
-        raw = {"fees": fees, "charge_off": co, "refund": refund, "open": len(o), "opened": opened,
+        raw = {"fees": fees, "charge_off": None if bad_co else co, "refund": None if bad_rf else refund,
+               "open": len(o), "opened": opened,
                "closed": closed, "users": users}
         cols[t]["_raw"] = raw
     if not cols:
@@ -94,6 +97,9 @@ def kpi_rollup(fr, ref=None):
                           ("Refund Amt", "refund"), ("Open Accts", "open"), ("Accts Opened", "opened"),
                           ("Accts Closed", "closed"), ("NSF/OD Users", "users")):
             res.parity.append(compare(cols[t]["_raw"][key], ref.get(f"kpi.{t}.{key}"), measure=f"{t} {name}"))
+    for p in (fr.co_problem, fr.refund_problem):
+        if p:
+            res.notes.append(p)
     res.notes.append("Open Active Accts = open accounts with a deposit in the last 240 days or an NSF/OD item in the "
                      "last 365 (the analysis team's own definition is in their SQL, not in the extract; 240 days "
                      "reproduces Achieva's personal figure to 2 accounts).")

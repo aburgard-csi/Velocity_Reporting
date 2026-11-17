@@ -215,6 +215,10 @@ def classify_branches(za, *, exclude=None, digital=None, retail=None,
         names[code] = nm or str(code)
 
     c = BranchClassification(names=names)
+    # The dominant-code rule is for a holding branch among many (UCCU's 'Corporate'); at a four-branch credit
+    # union (Dannemora FCU 1781) the main branch simply holds 45% of accounts, and the rule set aside two of the
+    # four real branches. It applies only when there are six or more codes of real size.
+    sizable = int((counts >= min_accounts).sum())
     for code, n in counts.items():
         key = str(code)
         name = names[code]
@@ -228,7 +232,7 @@ def classify_branches(za, *, exclude=None, digital=None, retail=None,
             c.digital.add(code); c.reasons[code] = "name looks like a digital channel"
         elif _matches(name, BACK_OFFICE_PATTERNS):
             c.back_office.add(code); c.reasons[code] = "name looks like a back-office unit"
-        elif n / total > dominant_share:
+        elif sizable >= 6 and n / total > dominant_share:
             c.back_office.add(code)
             c.reasons[code] = f"holds {n / total * 100:.0f}% of open accounts — core default branch"
         elif n < min_accounts:

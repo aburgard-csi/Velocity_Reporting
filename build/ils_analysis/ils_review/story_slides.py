@@ -120,7 +120,8 @@ def _lookup(smap, c):
     if c in smap:
         return smap[c]
     up = {k.upper(): v for k, v in smap.items()}
-    return up.get(str(c).upper(), (f"Status {c}", False))
+    # a blank code the mapping does not list read "Status " on Dannemora FCU's slide; name it for what it is
+    return up.get(str(c).upper(), ("No status code" if not str(c).strip() else f"Status {c}", False))
 
 
 def add_calculating(dk, cfg, fr, S, *, section, progress=None):
@@ -290,6 +291,8 @@ def add_nsf_share(dk, cfg, fr, S, *, section, progress=None):
 
 
 def add_chargeoffs(dk, cfg, fr, S, *, section, progress=None):
+    if fr.co_problem:
+        return ["Charge-offs against account growth skipped. " + fr.co_problem]
     za = fr.za
     d = za[za["accttype"] == "Personal"]
     mons = _month_range(fr, 12)
