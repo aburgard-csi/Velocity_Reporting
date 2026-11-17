@@ -51,6 +51,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 
+from ti.compat import str_values
 from .financial_services import normalize_core, _token_regex
 
 NATIONAL, DIGITAL = "National", "Digital"
@@ -362,7 +363,7 @@ def classify_cards(rows, df, base_ids, matcher):
     mask = is_card & acct.isin(base_ids).to_numpy()
     sub = pd.DataFrame({"acct": acct[mask].to_numpy(), "amt": df["amount"].abs().fillna(0.0)[mask].to_numpy(),
                         "date": pd.to_datetime(df["transaction_date"][mask]).to_numpy(),
-                        "core": rows["core"][mask].to_numpy(), "type": df["transaction_type"].astype(str).str.upper()[mask].to_numpy()})
+                        "core": rows["core"][mask].to_numpy(), "type": str_values(df["transaction_type"], lambda v: v.str.upper())[mask].to_numpy()})
     hits = {c: matcher.match(c) for c in pd.unique(sub["core"])}
     sub["inst"] = sub["core"].map(lambda c: hits[c][0] if hits[c] else None)
     sub["tier"] = sub["core"].map(lambda c: hits[c][1] if hits[c] else None)
@@ -408,7 +409,7 @@ def compute(df, rows, lenses, frame, config, anchor_ts, record, book, dict_spec,
     if not district:
         warn("competition layers: no Fed district (no FedDistrict in the config and no state in the market record); "
              "the Regional tier is not placed")
-    types = {str(t).upper() for t in pd.unique(df["transaction_type"].astype(str))} - {"NAN", "NONE", ""}   # a blank type is not a rail
+    types = {str(t).upper() for t in pd.unique(str_values(df["transaction_type"]))} - {"NAN", "NONE", ""}   # a blank type is not a rail
     if types - {"PIN", "SIG"}:
         warn("competition layers: the file also carries " + ", ".join(sorted(types - {"PIN", "SIG"})) +
              " rows; the layers read the card rail (PIN, SIG) only, so transfers to institutions are not in them")

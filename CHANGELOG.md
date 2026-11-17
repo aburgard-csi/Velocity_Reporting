@@ -15,6 +15,12 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — Competition layers read transaction_type through `str_values` (`competition_layers.py`)
+
+Summary: The two places the layers cast the categorical transaction type to text row by row now use `ti.compat.str_values`, the rule issue #161 set, so the guard test passes with the layers on main.
+
+- `competition_layers.compute` upper-cased the type of every card row and listed the rails in the file with `astype(str)`; both now cast each category once. No figure changes.
+
 ### 2026-11-14 — Transaction Intelligence: large clients no longer run out of memory on the transaction type and merchant columns (`ti/compat.py`, `ti/transaction_intelligence/`, issue #161)
 
 Summary: The Transaction Intelligence build for a client with a very large transaction file (1100 Rally, 46.9 million rows) stopped with "financial_services failed: MemoryError". It now reads those columns without the huge temporary copy; no figure changes.
