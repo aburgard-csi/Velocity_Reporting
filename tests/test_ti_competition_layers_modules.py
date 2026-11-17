@@ -154,3 +154,33 @@ def test_compute_returns_every_analysis_and_says_what_it_could_not_compute(sub, 
 def test_nothing_matched_says_so():
     figs, warns = M.compute((_sub(), _sub().iloc[0:0], set(), {}), None, _Lenses(), END, None, [], 25.0, [])
     assert figs == {} and "no institution matched" in warns[0]
+
+
+def test_nearby_prefers_the_longest_seen_name_not_the_first(monkeypatch):
+    """Aaron's review of PR 175: "first" inside "first national" must not take the shorter name's tier, in either order."""
+    from ti.core.market import Book, BranchIndex
+    from test_ti_competition_layers import _inst
+    from ti.core.market import BANK
+    insts = [_inst("n1", "First National Bank of Plains", BANK, "TX", [("TX", 35.01, -100.01)]),
+             _inst("f1", "First Savings Bank", BANK, "TX", [("TX", 35.02, -100.02)])]
+    branches = [b for i in insts for b in i.branches]
+    book = Book(institutions={i.key: i for i in insts}, branches=branches, index=BranchIndex(branches), unplaced=[])
+    for seen in ({"First": CL.OTHER, "First National": CL.NATIONAL}, {"First National": CL.NATIONAL, "First": CL.OTHER}):
+        got = {r[2]: r[3] for r in M.nearby(book, [(35.0, -100.0)], 25.0, seen)}
+        assert got["First National Bank of Plains"] == CL.NATIONAL, seen         # the longer name, whatever the dict order
+        assert got["First Savings Bank"] == CL.OTHER                              # only "first" is inside it
+
+
+def test_a_relationship_exactly_thirty_days_old_is_live_in_movement_recency_and_winback():
+    """Aaron's review of PR 175: movement used a strict cutoff and recency a right-closed one, so the same relationship was
+    live in one table and cooling in the other."""
+    d = pd.DataFrame([("Z", END - pd.Timedelta(days=30), 100.0, "SIG", "Edge", CL.LOCAL), ("Z", END - pd.Timedelta(days=31), 100.0, "SIG", "Late", CL.LOCAL)],
+                     columns=["acct", "date", "amt", "type", "inst", "tier"])
+    d["core"], d["key"], d["ambig"] = d["inst"], None, False
+    inst, _ = M.movement(d, END)
+    live_in_movement = {r["inst"]: r["live_30"] for r in inst}
+    assert live_in_movement == {"Edge": 1, "Late": 0}
+    band = {r["tier"]: r for r in M.recency(d, END)}[CL.LOCAL]
+    assert band["live (30d)"] == 1 and band["cooling (31-90d)"] == 1
+    wb = M.winback(d, pd.Series({"Z": 200.0}), {"g": {"Z"}}, END)
+    assert [(r["inst"], r["live"]) for r in wb] == [("Edge", 1)]            # 100 of 200 is heavy; only the 30-day-old one is live

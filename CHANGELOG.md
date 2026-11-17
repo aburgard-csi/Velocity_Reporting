@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — Competition layers: three fixes from Aaron's review of the analyses (`competition_layers_modules.py`)
+
+Summary: A branch on the map takes the tier of the longest matching institution name, not the first; "live" means the same thing in the movement, recency and winback figures; and the section that wires the analyses into the pack is now tested.
+
+Aaron, 2026-11-17, reviewing the stacked pull request 175: "Three things to fix before merge."
+
+- **Map tiers.** `nearby()` found a branch's tier by looking for a seen institution's name inside the branch's institution name and returned the first hit in dictionary order, so a short name such as "First" could take the tier of "First National" or the reverse. It now takes the longest matching name, and a tie goes to the name that sorts first, so the result no longer depends on order. A test with two overlapping names, in both orders.
+- **One definition of live.** `live (30d)` in the recency figure included a relationship exactly 30 days old (its band is right-closed), while `live_30` in the movement figure and the live count in the winback figure used a strict cutoff and left it out, so one relationship was live in one table and cooling in another. All three now use `is_live`: the last payment was `LIVE_DAYS` (30) days ago or less, the day itself included. A test pins a relationship exactly 30 days old and one 31 days old across all three.
+- **The wiring is tested.** `tests/test_ti_competition_layers_section.py` runs `txn_sections.competition_layers` on a small context: the pack keys it writes, the `cl_parts` hand-off left on the context, each institution row carrying its movement and depth, nothing written under the `_cl_` hand-off keys, and the two cases that add nothing (no classification; no reference store, which is stated in the build warnings).
+- No figure changes except the 30-day boundary: a relationship whose last payment was exactly 30 days before the data month now counts as live in the movement and winback figures, as it already did in recency.
+
 ### 2026-11-16 — Competition layers month over month: what changed since the prior pack, the triggers, and the portfolio row (`ti/transaction_intelligence/competition_layers_compare.py`, `ti_build.py --prior-pack`)
 
 Summary: A build can be given the previous month's `ti_pack.json` for the same client and then draws "this month's changes": each tier's share of accounts against last month, the institutions that gained or lost accounts, and the triggers that fired. The pack also carries the one row a month adds to a portfolio benchmark. Figures and slides added only.

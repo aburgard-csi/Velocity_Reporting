@@ -26,6 +26,13 @@ from . import competition_layers as CL
 BANDS = ["under 5%", "5-20%", "20%+"]
 RECENCY = ["live (30d)", "cooling (31-90d)", "quiet (91-180d)", "dormant (180d+)"]
 WINBACK_TIERS = (CL.LOCAL, CL.LOCAL_MARKET, CL.REGIONAL, CL.STATE)
+LIVE_DAYS = 30
+
+
+def is_live(end, last):
+    """Paid within the last LIVE_DAYS days, the day itself included. The one rule movement, recency and winback share,
+    so a relationship is never live in one table and cooling in another."""
+    return (end - last).dt.days <= LIVE_DAYS
 
 
 def branch_label(v) -> str:
@@ -82,7 +89,7 @@ def movement(matched, end, days=90):
     p = matched.groupby(["inst", "acct"]).agg(first=("date", "min"), last=("date", "max")).reset_index()
     cut = end - pd.Timedelta(days=days)
     p["new"], p["stopped"] = p["first"] > cut, p["last"] <= cut
-    p["live"] = p["last"] > end - pd.Timedelta(days=30)
+    p["live"] = is_live(end, p["last"])
     g = p.groupby("inst").agg(relationships=("acct", "size"), new_90=("new", "sum"), stopped_90=("stopped", "sum"), live_30=("live", "sum"))
     g["tier"] = matched.groupby("inst")["tier"].first()
     inst = [{"inst": k, "tier": r["tier"], "relationships": _i(r["relationships"]), "new_90": _i(r["new_90"]),
@@ -123,7 +130,7 @@ def recency(matched, end):
     p = matched.groupby(["inst", "acct"]).agg(last=("date", "max")).reset_index()
     p["tier"] = p["inst"].map(matched.groupby("inst")["tier"].first())
     age = (end - p["last"]).dt.days
-    p["band"] = pd.cut(age, [-1, 30, 90, 180, 100000], labels=RECENCY)
+    p["band"] = pd.cut(age, [-1, LIVE_DAYS, 90, 180, 100000], labels=RECENCY)      # right-closed: exactly LIVE_DAYS old is live
     w = p.groupby(["tier", "band"], observed=False).size().unstack(fill_value=0).reindex(columns=RECENCY, fill_value=0)
     rows = [{"tier": k, **{b: _i(r[b]) for b in RECENCY}, "relationships": _i(r.sum())} for k, r in w.iterrows()]
     return sorted(rows, key=lambda r: -r["relationships"])
@@ -146,7 +153,7 @@ def winback(matched, acct_total, sets, end, top=15):
     """Counts only (no account lists): heavy relationships still live, by institution and group."""
     p = _pairs(matched, acct_total)
     p = p[p["tier"].isin(WINBACK_TIERS)]
-    p["live"] = p["last"] > end - pd.Timedelta(days=30)
+    p["live"] = is_live(end, p["last"])
     heavy = p[(p["band"] == "20%+") & p["live"]]
     if not len(heavy):
         return []
@@ -220,7 +227,10 @@ def nearby(book, points, radius, seen_tier_by_name):
         k = str(n).lower()
         if k in names:
             return names[k]
-        return next((t for nm, t in names.items() if len(nm) >= 4 and nm in k), None)
+        # a seen name inside the branch's institution name: the LONGEST one wins ("first national" over "first"), never
+        # whichever came first
+        hits = sorted((nm for nm in names if len(nm) >= 4 and nm in k), key=lambda nm: (-len(nm), nm))
+        return names[hits[0]] if hits else None
     return [[round(b.lat, 4), round(b.lon, 4), b.inst_name, tier_of(b.inst_name)] for b in found.values()]
 
 
