@@ -79,11 +79,11 @@ def test_a_false_positive_from_the_review_matches_nothing(fin_spec, comp_spec, d
     ("SYNCB/AMAZON PMT", "Credit Cards", "Synchrony"),          # AMAZON no longer kills it
     ("COINBASE", "Crypto/Digital Assets", "Coinbase"),
     ("AFFIRM *PELOTON NEW YORK NY", "Buy Now Pay Later", "Affirm"),   # processor before the star
-    ("WORLD FINANCE R 104 S MAIN ST GREENVILLE SCUS", "Personal Loans", "World Finance"),
-    ("HEIGHTS FINANCE 101 N MAIN ST GREENVILLE SCUS", "Personal Loans", "Heights Finance"),
+    ("WORLD FINANCE R 104 S MAIN ST GREENVILLE SCUS", "Payday / Small-Dollar Loans", "World Finance"),
+    ("HEIGHTS FINANCE 101 N MAIN ST GREENVILLE SCUS", "Payday / Small-Dollar Loans", "Heights Finance"),
     ("TOWER LOAN OF M 406 LIBERTY PARK FLOWOOD MSUS", "Personal Loans", "Tower Loan"),
     ("PNM*SUN LOAN COMPANY", "Personal Loans", "Sun Loan"),
-    ("OPC*REPUBLIC FINANCE", "Personal Loans", "Republic Finance"),
+    ("OPC*REPUBLIC FINANCE", "Payday / Small-Dollar Loans", "Republic Finance"),
     ("360 SHEFFIELD FI TRANS PMT 60", "Auto Loans", "Sheffield Financial"),
     ("APPLECARD GSBANK", "Credit Cards", "Goldman Sachs / Marcus"),
     ("DISCOVER CAP", "Credit Cards", "Discover"),
