@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Financial services x named institution: who holds the product members pay for (`ti/transaction_intelligence/institution_view.py`, `txn_sections.py`, `chapters_txn.py`)
+
+Summary: Based on `feat/ars-ti/fs-04-trend-depth` (stacked on PR 163). A new section, `institution_view`, runs right after `competition`. Adds figures; **changes no slide and no existing figure.**
+
+- **`fininst_by_category`:** per leakage category, accounts and dollars, and how many sit at a named national, regional or local bank or credit union. **`fininst_matrix`:** the top category x institution pairs.
+- **Both views count the payment; they are never added** (James). Competition counts `NUSENDA CU LOAN PMT` as Nusenda; Financial Services counts it as a loan. This is a cross-tab of the two, not a third total: every pair's dollars are already inside the category's dollars (tested).
+- **A floor.** The match uses what Competition is configured with today (the universal list plus the client's regional and local names). A depository in neither is not found; the Competition registry is what closes that.
+- **1798, October 2026:** 867 personal accounts at a named depository; Insurance at USAA 511 accounts / $171K; Credit Cards at Capital One 226 / $47K; Auto Loans at TD Bank 24, Capital One 23, Wells Fargo 12. Buy Now Pay Later, Personal Loans and Payday: none (fintech lenders, not banks).
+- Depository tiers only (`National Bank`, `Regional Bank`, `Local Bank / CU`); card issuers, captives, brokerages and ecosystems are not named here.
+- Tests: `tests/test_ti_finserv_institution_view.py` (9). The TI group passes except the four `test_ti_launcher.py` tests that fail the same way on clean `main`.
+
 ### 2026-11-16 — Financial services: a monthly series per category, a three-month trend, and the products leakers hold with us (`ti/transaction_intelligence/financial_services.py`)
 
 Summary: Based on `feat/ars-ti/fs-03-definitions-coverage` (stacked on PR 163). Adds figures; **changes no slide and no existing figure.**

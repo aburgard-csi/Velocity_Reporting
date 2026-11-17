@@ -167,7 +167,7 @@ def compute_all(ctx):
     if ctx.txn is None:
         return {}
     out = {}
-    for section in (T.portfolio, T.financial_services, T.competition, T.merchants,
+    for section in (T.portfolio, T.financial_services, T.competition, T.institution_view, T.merchants,
                     T.merchant_profiles, T.mapping_audit, T.card_behavior, T.interchange,
                     T.relationship, T.overlay, T.leakage, T.stressors_txn):
         t = time.perf_counter()
