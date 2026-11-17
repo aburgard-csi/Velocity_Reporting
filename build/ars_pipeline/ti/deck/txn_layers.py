@@ -166,7 +166,10 @@ def layers_ladder(h, t, base):
     tot = t["cl_any"]["dollars"] or 1
     nd = (rows.get(CL.NATIONAL, {}).get("dollars", 0) + rows.get(CL.DIGITAL, {}).get("dollars", 0)) / tot
     loc = (rows.get(CL.LOCAL, {}).get("dollars", 0) + rows.get(CL.LOCAL_MARKET, {}).get("dollars", 0)) / tot
-    s, top = _slide(h, f"National and digital institutions take {nd:.0%} of competitor dollars; local institutions take {loc:.0%}",
+    present = {r["tier"] for r in t["cl_tiers"]}
+    has_local = bool(present & {CL.LOCAL, CL.LOCAL_MARKET})
+    title = f"National and digital institutions take {nd:.0%} of competitor dollars; local institutions take {loc:.0%}" if has_local else         f"National and digital institutions take {nd:.0%} of competitor dollars; no local institution appears in the card spending"
+    s, top = _slide(h, title,
                     f"Share of {base} paying each tier. Accounts do not add across tiers; the de-duplicated total is {t['cl_any']['pct']:.1f}%",
                     "The layer ladder")
     ordered = sorted(t["cl_tiers"], key=lambda r: -r["accounts"])
@@ -248,7 +251,7 @@ def layers_full_list(h, t, base):
                         LIST_TOPIC)
         body = [["#", "Institution", "Tier", "Accounts", "% of base", "Dollars / yr", "Nearest mi", "20%+ depth"]]
         for i, r in enumerate(page, start=k + 1):
-            body.append([i, r["inst"][:34], r["tier"], f"{r['accounts']:,}", f"{r['pct']:.2f}", money(r["dollars"]),
+            body.append([i, r["inst"][:34], r["tier"], f"{r['accounts']:,}", f"{r['pct']:.2f}%", money(r["dollars"]),
                          "" if r.get("nearest_mi") is None else f"{r['nearest_mi']:g}", "" if r.get("heavy") is None else f"{r['heavy']:,}"])
         shape = h["table"](s, body, 0.6, top + 0.05, 12.1, [0.5, 3.4, 2.4, 1.1, 1.0, 1.3, 1.2, 1.2], 11)
         _left_text(shape, (1, 2))
@@ -483,13 +486,26 @@ def layers_near_responders(h, t, base):
         h["chart_left"](s, path, top, right)
 
 
+def _span(months):
+    """Every month from the first to the last, so a month with no rows is a visible gap, never a skipped tick."""
+    if not months:
+        return months
+    y, m = map(int, months[0].split("-"))
+    y2, m2 = map(int, months[-1].split("-"))
+    out = []
+    while (y, m) <= (y2, m2):
+        out.append(f"{y}-{m:02d}")
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out
+
+
 def _line_slide(h, t, topic, key, head, sub, fmt, ylabel):
     tr = t.get("cl_trend")
     lens = _lens(h)
     main = _main(t, lens)
     if not tr or not main:
         return _no(topic)
-    months = sorted({r["month"] for r in tr})
+    months = _span(sorted({r["month"] for r in tr}))      # a month with no card rows stays on the axis as a gap
     if len(months) < 3:
         return _no(topic, "fewer than three months in the window")
     lab = _labels(t)

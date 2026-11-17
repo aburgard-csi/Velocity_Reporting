@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — Competition layers: three slide fixes found reviewing a real client's deck (`ti/deck/txn_layers.py`)
+
+Summary: A month with no card rows stays on the trend axis as a gap, the full list's "% of base" carries a % sign, and the ladder headline no longer says "local institutions take 0%" for a client with no local tier.
+
+Found by looking at the exported slides of a real credit-union client's Transaction Intelligence deck.
+
+- **Trend axis.** The month axis came from months that had card rows, so a month with none (a gap in the client's files) dropped off the chart and the line ran straight across it. `_span` fills every month from first to last; the missing month has no point (a gap), never a zero.
+- **Full list.** "% of base" showed `0.90` with no unit; it now reads `0.90%`.
+- **Ladder headline.** With no local tier in the card spending the headline now says no local institution appears, instead of stating 0%.
+- A test covers all three.
+
 ### 2026-11-17 — Competition layers: three fixes from Aaron's review of the analyses (`competition_layers_modules.py`)
 
 Summary: A branch on the map takes the tier of the longest matching institution name, not the first; "live" means the same thing in the movement, recency and winback figures; and the section that wires the analyses into the pack is now tested.
