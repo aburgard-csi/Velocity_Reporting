@@ -423,6 +423,7 @@ def exception_treemap(fr, accttype, out_dir, size=(5.9, 3.3), ref=None):
     ax.set_ylim(1, 0)
     ax.axis("off")
     rects = _squarify([r["items"] for r in stats], 0, 0, 1, 1)
+    tiny = []
     for k, (r_, (x, y, w, h)) in enumerate(zip(stats, rects)):
         col = palette[k % len(palette)]
         ax.add_patch(plt.Rectangle((x, y), w, h, facecolor=col, edgecolor="white", linewidth=2))
@@ -430,13 +431,21 @@ def exception_treemap(fr, accttype, out_dir, size=(5.9, 3.3), ref=None):
         ink = "white" if dark else R.NAVY
         big = w * h > 0.05
         cnt = (f"{r_['items'] / 1000:.0f}K items" if r_["items"] >= 1000 else f"{r_['items']:,} items")
+        if w < 0.12 or h < 0.16:
+            # Dannemora FCU: CHK and ATM labels ran over each other in slivers; a sliver is named below the chart
+            tiny.append(f"{r_['channel']} {cnt}")
+            continue
         ax.text(x + 0.012, y + 0.02, r_["channel"], ha="left", va="top", color=ink, fontsize=15 if big else 9.5,
                 fontweight="bold")
         if big:
             ax.text(x + w / 2, y + h / 2, f"Median\n${r_['median_amount']:,.2f}", ha="center", va="center",
                     color=ink, fontsize=12)
         ax.text(x + 0.012, y + h - 0.02, cnt, ha="left", va="bottom", color=ink, fontsize=11 if big else 8.5)
-    fig.subplots_adjust(0.005, 0.005, 0.995, 0.995)
+    if tiny:
+        fig.text(0.005, 0.0, "Smallest tiles: " + "; ".join(tiny), ha="left", va="bottom", fontsize=9, color=R.TICK)
+        fig.subplots_adjust(0.005, 0.07, 0.995, 0.995)
+    else:
+        fig.subplots_adjust(0.005, 0.005, 0.995, 0.995)
     path = R.save(fig, out_dir, key)
     res = ChartResult(key, f"Exception items by channel - {accttype}", path,
                       numbers={"window": [str(lo + pd.Timedelta(days=1))[:10], str(hi)[:10]], "channels": stats,

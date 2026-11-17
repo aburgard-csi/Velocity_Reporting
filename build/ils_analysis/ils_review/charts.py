@@ -118,7 +118,21 @@ def bar(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
     if data_labels:
         _label_series(plot, number_format, label_size, XL_LABEL_POSITION.OUTSIDE_END)
     _style_axes(chart, cat_size=cat_size, val_size=label_size, val_format=number_format)
+    _zero_base(chart, values, number_format)
     return chart
+
+
+def _zero_base(chart, values, number_format):
+    """Bars start at zero: PowerPoint's automatic axis began Dannemora FCU's activation bars at 81% and its
+    volatility bars at 0.30, which turned a few points into a bar twice the length of its neighbour; a percent
+    axis also stops at 100 instead of reading 102%."""
+    vals = [v for v in values if v is not None]
+    if not vals or min(vals) < 0:
+        return
+    ax = chart.value_axis
+    ax.minimum_scale = 0
+    if "%" in number_format and max(vals) <= 100 and max(vals) > 50:
+        ax.maximum_scale = 100
 
 
 def column(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
@@ -145,6 +159,7 @@ def column(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NA
                 ser.points[i].format.fill.fore_color.rgb = c
     _label_series(plot, number_format, label_size, XL_LABEL_POSITION.OUTSIDE_END)
     _style_axes(chart, cat_size=cat_size, val_size=label_size, val_format=number_format)
+    _zero_base(chart, values, number_format)
     return chart
 
 

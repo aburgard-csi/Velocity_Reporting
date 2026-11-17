@@ -55,7 +55,10 @@ def _fmt_override_value(v):
     try:
         f = float(s)
     except ValueError:
-        return s
+        if "[" not in s:
+            return s                      # '-75%' stays '-75%'
+        # a SQL expression; the DBIC export cuts it at ~16 characters ('-[ACCOUNTS].[Ou'), so say what it is
+        return "calc"
     return "0" if f == 0 else f"{f:,.0f}"
 
 
@@ -223,7 +226,7 @@ def _limit_trend(dk, d, *, section):
     C.line(slide, rx, y + 0.38, 9.3, h - 0.38, labels, [
         ("Accounts calculated", c.accounts, T.BLUE_2),
         ("Zero limit", c.zero_limit, T.CORAL),
-        ("Overrides applied", c.overrides, T.ORANGE),
+        ("Overrides applied", c.overrides, T.GOLD),     # CORAL is ORANGE in the RPE palette: two lines drew one colour
     ], number_format="#,##0", tick_every=tick)
 
     bits = []
@@ -252,8 +255,9 @@ def _eligibility(dk, d, *, section):
     y = T.CONTENT_TOP
     lw = 11.4
     T.band_label(slide, X, y, lw, "  ACCOUNTS, ELIGIBILITY AND OPT-IN")
-    headers = ["Account Type", "Total Accts", "Open/Active", "Open %",
-               "ILS Eligible", "Eligible %", "Reg E Opt-In", "Opt-In %"]
+    # headers break only at spaces: "Open/Active" and "Reg E Opt-In" split mid-word in a 1.5 in column
+    headers = ["Account Type", "Total Accts", "Open or Active", "Open %",
+               "ILS Eligible", "Eligible %", "Opted In (Reg E)", "Opted In %"]
     rows = []
     for r in sorted(e.rows, key=lambda r: -(r["total"] or 0)):
         rows.append([r["type"], count(r["total"]), count(r["open"]),
@@ -294,15 +298,19 @@ def _eligibility(dk, d, *, section):
     T.band_label(slide, rx, y, rw, "  READ")
     items = []
     per = {r["type"]: r for r in e.rows}
-    lowest = min((r for r in e.rows if r["optin_pct"] is not None),
-                 key=lambda r: r["optin_pct"], default=None)
-    highest = max((r for r in e.rows if r["optin_pct"] is not None),
-                  key=lambda r: r["optin_pct"], default=None)
+    # Reg E opt-in is a consumer-account election: Business at 0% is expected, not an opportunity (Dannemora FCU
+    # 1781 read "Business at 0.0% ... the clearest Reg E opportunity"). Compare consumer types only.
+    consumer = [r for r in e.rows if r["optin_pct"] is not None and "business" not in str(r["type"]).lower()]
+    lowest = min(consumer, key=lambda r: r["optin_pct"], default=None)
+    highest = max(consumer, key=lambda r: r["optin_pct"], default=None)
     if lowest is not None and highest is not None and lowest is not highest:
         items.append(f"{highest['type']} opt-in runs {pct(highest['optin_pct'])} against "
                      f"{lowest['type']} at {pct(lowest['optin_pct'])} — a "
                      f"{abs((highest['optin_pct'] or 0) - (lowest['optin_pct'] or 0)):.0f} "
                      f"point gap, and the clearest Reg E opportunity in the portfolio.")
+    elif lowest is not None:
+        items.append(f"{lowest['type']} opt-in is {pct(lowest['optin_pct'])} of accounts on file. Reg E opt-in "
+                     f"is a consumer election, so business accounts are not counted against it.")
     # Against accounts on file, matching the export's own opt-in denominator —
     # opt-in counts are not restricted to open accounts and can exceed them.
     if lowest is not None and lowest["total"] and lowest["optin"]:
@@ -529,7 +537,7 @@ def _limits(dk, d, *, section):
     for r in d.overrides[:8]:
         # The export gives no account type, and the same rule text is configured
         # per type — so the rule id is what distinguishes otherwise identical rows.
-        rows.append([r["id"] or "—", r["calc"][:42] or "—",
+        rows.append([r["id"] or "—", T.clip_words(T.expr_text(r["calc"]), 44) or "—",
                      _fmt_override_value(r["value"]), count(r["count"]),
                      money(r["avg_limit"]),
                      count(r["avg_age"]) if r["avg_age"] is not None else "—",

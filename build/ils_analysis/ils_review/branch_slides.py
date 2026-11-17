@@ -64,7 +64,9 @@ def ranked_with_panel(dk, slide, df, col, top_n, *, series_name, fmt, fmtv, port
         C.bar(slide, CHART_X, CHART_Y, CHART_W, CHART_H, sel["branchname"].tolist(), sel[col].tolist(),
               series_name=series_name, color=T.NAVY, number_format=number_format)
         return sel
-    k = 3
+    # Small institutions (Dannemora FCU, four branches): three highest and three lowest overlapped, so the table
+    # listed branches twice and every bar was coloured both ways. Highlight at most half of the branches each way.
+    k = min(3, len(sel) // 2)
     hi_c, lo_c = (T.ORANGE, T.NAVY) if higher_is_worse else (T.NAVY, T.ORANGE)
     colors = [lo_c if i < k else hi_c if i >= len(sel) - k else T.STEEL_SOFT for i in range(len(sel))]
     C.bar(slide, CHART_X, CHART_Y, BAR_W, CHART_H, sel["branchname"].tolist(), sel[col].tolist(),
@@ -78,18 +80,26 @@ def ranked_with_panel(dk, slide, df, col, top_n, *, series_name, fmt, fmtv, port
              (fmtv(lo[col]), "Lowest branch")]
     for i, (v, lab) in enumerate(tiles):
         shapes.tile(slide, x0 + (i % 2) * (tw + 0.15), 1.75 + (i // 2) * 1.08, tw, 0.98, v, lab, small_label=True)
-    top3 = sel.iloc[::-1].head(3)
-    bot3 = sel.head(3)
-    rows = [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in top3.iterrows()]
-    rows += [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in bot3.iloc[::-1].iterrows()]
-    T.band_real(slide, x0, 4.02, w, "THREE HIGHEST AND THREE LOWEST", h=0.34)
+    if len(sel) <= 6:
+        rows = [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in sel.iloc[::-1].iterrows()]
+        band = "EVERY BRANCH, HIGHEST FIRST"
+    else:
+        top3 = sel.iloc[::-1].head(3)
+        bot3 = sel.head(3)
+        rows = [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in top3.iterrows()]
+        rows += [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in bot3.iloc[::-1].iterrows()]
+        band = "THREE HIGHEST AND THREE LOWEST"
+    T.band_real(slide, x0, 4.02, w, band, h=0.34)
     CS.table(slide, {"headers": ["Branch", "Accounts", unit], "rows": rows}, x0, 4.42, w, 1.75, max_fs=12)
-    big5 = sel.sort_values("n", ascending=False).head(5)["n"].sum()
-    share = big5 / max(1, sel["n"].sum()) * 100
     above = int((sel[col] > portfolio).sum()) if portfolio is not None else 0
-    T.bullets_real(slide, x0, 6.2, w, 0.55, [
-        f"The five largest branches hold {share:.0f}% of the {lower} accounts shown; "
-        f"{above} of {len(sel)} branches sit above the portfolio figure."], size=12, min_size=11)
+    if len(sel) > 5:
+        big5 = sel.sort_values("n", ascending=False).head(5)["n"].sum()
+        share = big5 / max(1, sel["n"].sum()) * 100
+        line = (f"The five largest branches hold {share:.0f}% of the {lower} accounts shown; "
+                f"{above} of {len(sel)} branches sit above the portfolio figure.")
+    else:
+        line = f"{above} of {len(sel)} branches sit above the portfolio figure."
+    T.bullets_real(slide, x0, 6.2, w, 0.55, [line], size=12, min_size=11)
     return sel
 
 
@@ -239,7 +249,11 @@ def add_branch_section(dk, cfg, loaded, accttype, *, section, cv=None, divider=F
 
     # ── repayment-trend segment ────────────────────────────────────────────
     seg = M.repayment_trend_segment(za, accttype)
-    if seg is not None:
+    if seg is not None and getattr(seg, "n_qualifying", 0) < 25:
+        # Dannemora FCU: a full slide (chart, five bullets) about 2 accounts
+        notes.append(f"The {lower} repayment-trend segment was skipped — only {seg.n_qualifying} account(s) qualify, "
+                     f"too few for a slide.")
+    elif seg is not None:
         _slide_repayment(dk, seg, accttype, section=section)
     else:
         notes.append(f"The {lower} repayment-trend segment was skipped — "

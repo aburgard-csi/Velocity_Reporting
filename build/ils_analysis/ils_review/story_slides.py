@@ -164,7 +164,11 @@ def add_calculating(dk, cfg, fr, S, *, section, progress=None):
         png = _columns([x / max(1, sum(ns)) * 100 for x in ns], [l for l, _, _ in LIMIT_BANDS], ns, dk.chart_dir, key,
                        ylab="Share of eligible accounts", fmt=lambda v: f"{v:.0f}%", hi=int(np.argmax(ns)))
         top = int(np.argmax(ns))
-        s2 = _slide(dk, cfg, fr, f"Most eligible accounts sit at {LIMIT_BANDS[top][0]}: {ns[top] / max(1, sum(ns)) * 100:.0f}% of them",
+        sh = ns[top] / max(1, sum(ns)) * 100
+        # "Most" only for a majority (Dannemora's largest band held 45%)
+        head = (f"Most eligible accounts sit at {LIMIT_BANDS[top][0]}: {sh:.0f}% of them" if sh > 50 else
+                f"The largest group of eligible accounts sits at {LIMIT_BANDS[top][0]}: {sh:.0f}% of them")
+        s2 = _slide(dk, cfg, fr, head,
                     f"Current ILS limit of the {len(el):,} eligible open personal accounts; $0 is its own band.",
                     "This is how the limits are spread today across the accounts that can have one.", section=section)
         T.image_real(s2, png, 0.5, 1.75, 7.8, 4.75)
@@ -236,8 +240,9 @@ def add_performing(dk, cfg, fr, S, *, section, progress=None):
         png = _columns(r_, lab, n_, dk.chart_dir, k, ylab="Share of notices cured within 60 days", fmt=lambda v: f"{v:.0f}%",
                        hi=int(np.argmin(r_)), ymax=105)
         s = _slide(dk, cfg, fr, f"Cure rate runs from {min(r_):.0f}% to {max(r_):.0f}% by {TITLE_NOUN[key]}",
-                   f"Personal accounts: share of notices where the negative balance reached $0 or more within {CURE_DAYS} days, "
-                   f"notices {str(lo)[:10]} to {str(hi)[:10]}.", say, section=section,
+                   f"Personal accounts: share of notices that reached $0 or more within {CURE_DAYS} days, "
+                   f"notices {pd.Timestamp(lo):%b} {pd.Timestamp(lo).day}, {pd.Timestamp(lo).year} to "
+                   f"{pd.Timestamp(hi):%b} {pd.Timestamp(hi).day}, {pd.Timestamp(hi).year}.", say, section=section,
                    extra=f"Cured = Next_Positive_Date within {CURE_DAYS} days of the notice. A notice is one account on one date.")
         T.image_real(s, png, 0.5, 1.75, 7.8, 4.75)
         _tiles(s, [(f"{overall:.0f}%", "Cured, all notices"), (f"{max(r_):.0f}%", f"Highest band: {lab[int(np.argmax(r_))]}"),

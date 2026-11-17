@@ -969,6 +969,125 @@ def table_label_fit_findings(prs):
     return out
 
 
+def table_growth_overlap_findings(prs):
+    """FAIL when a table, grown by its wrapped cells, runs into a shape placed below it.
+
+    THE GAP THIS CLOSES: the ILS matrix appendix (Dannemora FCU, 2026-11-16) listed nine overrides in a narrow
+    panel; one return value wrapped to three lines, and the last two rules were drawn under the "Trend Settings"
+    bar. python-pptx reports row heights as set, so no rule saw the table grow.
+
+    Each row's rendered height is estimated from its tallest cell (measured text width over the column's usable
+    width, in the bundled font); a shape that starts below the table's nominal top, overlaps it horizontally and
+    begins above the estimated bottom FAILs."""
+    try:
+        from textfit import text_width_in
+    except Exception:
+        return []
+    import math
+    from pptx.util import Emu
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        shapes_ = list(slide.shapes)
+        for sh in shapes_:
+            if not sh.has_table or sh.top is None or sh.left is None:
+                continue
+            tbl = sh.table
+            widths = [Emu(c.width).inches for c in tbl.columns]
+            top = Emu(sh.top).inches
+            left, right = Emu(sh.left).inches, Emu(sh.left).inches + sum(widths)
+            nominal = top + sum(Emu(r.height).inches for r in tbl.rows)
+            grown = top
+            for row in tbl.rows:
+                h = Emu(row.height).inches
+                for j, cell in enumerate(row.cells):
+                    if j >= len(widths):
+                        continue
+                    text = " ".join(cell.text_frame.text.split())
+                    if not text:
+                        continue
+                    size, bold = 14.0, False
+                    for pa in cell.text_frame.paragraphs:
+                        for r in pa.runs:
+                            if r.font.size:
+                                size = r.font.size.pt
+                            bold = bool(r.font.bold) or bold
+                    ml = Emu(cell.margin_left).inches if cell.margin_left is not None else 0.1
+                    mr = Emu(cell.margin_right).inches if cell.margin_right is not None else 0.1
+                    mt = Emu(cell.margin_top).inches if cell.margin_top is not None else 0.05
+                    mb = Emu(cell.margin_bottom).inches if cell.margin_bottom is not None else 0.05
+                    avail = widths[j] - ml - mr
+                    if avail <= 0:
+                        continue
+                    lines = max(1, math.ceil(text_width_in(text, size, "Carlito", bold) / avail))
+                    if lines > 1:                      # only a wrapped cell grows a row past its set height
+                        h = max(h, lines * size * 1.2 / 72 + mt + mb)
+                grown += h
+            if grown <= nominal + 0.05:
+                continue
+            for other in shapes_:
+                if other is sh or other.top is None or other.left is None or other.width is None:
+                    continue
+                ot, ol = Emu(other.top).inches, Emu(other.left).inches
+                orr = ol + Emu(other.width).inches
+                if ot >= nominal - 0.02 and ot < grown - 0.05 and ol < right - 0.05 and orr > left + 0.05:
+                    out.append(("FAIL", idx,
+                                f"a table's wrapped rows grow it to ~{grown:.2f}\" (drawn to {nominal:.2f}\") and run "
+                                f"into the shape at {ot:.2f}\" below it: shorten the cell text or give the table room"))
+                    break
+    return out
+
+
+def table_word_break_findings(prs):
+    """FAIL when one WORD in a table cell is wider than the cell, so PowerPoint breaks it mid-word.
+
+    THE GAP THIS CLOSES: the ILS Program Analysis eligibility table (Dannemora FCU, 2026-11-16) printed its
+    "Open/Active" header as "Open/Activ" over "e" in a 1.5" column, and "Reg E Opt-In" as "Opt-" over "In".
+    Wrapping at a space is fine; a broken word is not, and nothing in the gate measured single words.
+
+    Each word (split on spaces) of each cell is measured in the bundled font (textfit) at the cell's run size
+    and weight, against the column width less the cell's own left and right margins."""
+    try:
+        from textfit import text_width_in
+    except Exception:
+        return []
+    from pptx.util import Emu
+    out = []
+    for idx, slide in enumerate(prs.slides, 1):
+        for sh in slide.shapes:
+            if not sh.has_table:
+                continue
+            tbl = sh.table
+            widths = [Emu(c.width).inches for c in tbl.columns]
+            seen = set()
+            for row in tbl.rows:
+                for j, cell in enumerate(row.cells):
+                    if j >= len(widths):
+                        continue
+                    tf = cell.text_frame
+                    text = tf.text.strip()
+                    if not text:
+                        continue
+                    size, bold = 14.0, False
+                    for pa in tf.paragraphs:
+                        for r in pa.runs:
+                            if r.font.size:
+                                size = r.font.size.pt
+                            bold = bool(r.font.bold) or bold
+                    ml = Emu(cell.margin_left).inches if cell.margin_left is not None else 0.1
+                    mr = Emu(cell.margin_right).inches if cell.margin_right is not None else 0.1
+                    avail = widths[j] - ml - mr
+                    for word in text.split():
+                        if len(word) < 2 or (j, word) in seen:
+                            continue
+                        if text_width_in(word, size, "Carlito", bold) > avail + 0.01:
+                            seen.add((j, word))
+                            out.append(("FAIL", idx,
+                                        f"table cell word '{word}' ({size:.0f} pt) is wider than its "
+                                        f"{widths[j]:.2f}\" column and breaks mid-word: shorten the label or "
+                                        f"widen the column in the builder"))
+    return out
+
+
 def closing_month_findings(prs):
     """FAIL when the Questions & Discussion slide names a different month or client
     than the cover.
@@ -1938,6 +2057,8 @@ def run(path, extract=None):
     findings += closing_month_findings(prs)
     findings += peer_slide_findings(prs)
     findings += table_label_fit_findings(prs)
+    findings += table_word_break_findings(prs)
+    findings += table_growth_overlap_findings(prs)
     findings += tile_label_findings(prs)
     findings += account_population_findings(prs)
     findings += ptd_ratio_findings(prs)
@@ -1961,7 +2082,8 @@ RULES = (package_findings, reference_leak_findings, single_line_overflow_finding
          text_rule_findings, geometry_findings, text_collision_findings,
          autofit_findings, mailing_table_findings, extract_findings,
          labelled_metric_findings, summit_date_findings, closing_month_findings,
-         peer_slide_findings, table_label_fit_findings, tile_label_findings)
+         peer_slide_findings, table_label_fit_findings, table_word_break_findings,
+         table_growth_overlap_findings, tile_label_findings)
 
 
 def main(argv=None):

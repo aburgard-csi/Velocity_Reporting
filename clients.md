@@ -238,6 +238,7 @@ column's position is free.
 | 1770 | Central State Bank | Aaron Burgard | yes | 27 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
 | 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
 | 1776 | CoastHills CU | James Gilmore | yes | 1,246 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster |
+| 1781 | Dannemora FCU | Aaron Burgard | yes | 166 | standalone deck   | added 2026-11-16 (Aaron: "create the CashPlease deck for Dannemora"); no other RPE program (ILS is not tracked in this file) |
 | 1828 | New Frontier Bank | Aaron Burgard | **no** | — | — | added 2026-10-28 (Aaron: "add New Frontier Bank"; no kickoff yet). New client, "In Process of Converting": no CashPlease tab yet, so not built; set Build to yes and the loans when the weekly carries a tab |
 
 **Fourteen combined decks and five standalone decks per run.** A client whose CashPlease

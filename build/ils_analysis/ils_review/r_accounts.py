@@ -436,7 +436,7 @@ def debit_decline_tables(fr, accttype, ref=None):
             rows2.append([name, f"{len(s):,}", f"{int((_num(s['items365']) >= 1).sum()):,}",
                           f"{int(s['decl90'].fillna(0).sum()):,}", money(med, 2) if pd.notna(med) else "n/a",
                           f"{_num(s['items365']).sum():,.0f}", money(_num(s["DepAmt33"]).fillna(0).median(), 2)])
-        t2 = {"headers": ["ILS Limit Band", "Accounts" + (" (Reg E opted in)" if accttype == "Personal" else ""),
+        t2 = {"headers": ["ILS Limit Band", "Accounts",            # the subtitle says they are Reg E opted in
                           "NSF/OD Users", "Declines, Last 90 Days", "Median Declined Amount", "NSF/OD Items (365)",
                           "Median 33-Day Deposits"], "rows": rows2}
     return {"segmentation": t1, "score_bands": t2, "population": int(len(seg))}

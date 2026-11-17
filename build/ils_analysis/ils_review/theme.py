@@ -191,6 +191,28 @@ def _set_run(run, text, size, *, bold=False, color=DARK, font=BODY, italic=False
     return run
 
 
+def expr_text(s):
+    """A matrix value that is a SQL expression, in words: '-[ACCOUNTS].[OutstandingLoanAmount]' -> 'minus Outstanding
+    Loan Amount' (Dannemora FCU's loan override printed the raw expression, which wrapped under the next bar)."""
+    import re
+    s = str(s).strip()
+    neg = s.startswith("-")
+    body = re.sub(r"\[[A-Za-z_]+\]\.", "", s.lstrip("-").strip())        # drop the [TABLE]. prefix
+    body = re.sub(r"\b[A-Z_]{3,}\.(?=[A-Za-z])", "", body)              # and an unbracketed ACCOUNTS. prefix
+    body = body.replace("[", "").replace("]", "")
+    body = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", body)
+    return ("minus " if neg else "") + body
+
+
+def clip_words(s, n):
+    """At most n characters, cut at a word boundary with an ellipsis, never mid-word ('...AND LTD D')."""
+    s = str(s or "").strip()
+    if len(s) <= n:
+        return s
+    cut = s[:n - 1].rsplit(" ", 1)[0].rstrip(" ,;-")
+    return cut + "…"
+
+
 def textbox(slide, x, y, w, h, text, size, *, bold=False, color=DARK,
             align=PP_ALIGN.LEFT, wrap=True, font=BODY, anchor=None,
             line_spacing=None, italic=False, floor=11.0, raw=False):
