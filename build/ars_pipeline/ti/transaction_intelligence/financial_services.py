@@ -280,6 +280,47 @@ def _reach_by_category(addr_acc: pd.DataFrame) -> list:
     return rows
 
 
+LIST_COLUMNS = ["acct", "cif", "category", "kind", "addressable", "tier", "txns", "dollars",
+                "first", "last", "months", "wallet_share", "mailable"]
+MASTER_COLUMNS = ["acct_id", "cif", "list_type", "kind", "addressable", "tier", "txns", "dollars",
+                  "wallet_share", "last", "mailable"]
+MAILABLE_UNKNOWN = "unknown"          # the account is not in the ODD, so its flag is not known
+
+
+def _list_file(name: str) -> str:
+    return f"finserv_{re.sub(r'[^A-Za-z0-9]+', '_', name).strip('_').lower()}.csv"
+
+
+def write_lists(ac: pd.DataFrame, categories: dict, attrs: pd.DataFrame, lists_dir: Path,
+                cif_map: pd.Series | None = None) -> dict:
+    """The mail lists: one CSV for EVERY category in the dictionary (a category with nobody in
+    it gets its header only, so the set of files never depends on the month) and one master,
+    ``finserv_master_list.csv``, one row per account per category.
+
+    Rows are the personal-account base of the headline, the same accounts the figures count.
+    ``cif`` is blank until a crosswalk (``cif_map``) is supplied; ``mailable`` is the ODD's
+    ``Mailable?`` flag, or "unknown" for an account the ODD does not list."""
+    lists_dir.mkdir(parents=True, exist_ok=True)
+    grp = ac.copy()
+    grp["addressable"] = grp["category"].map(lambda c: "yes" if categories.get(c, {}).get("addressable") else "no")
+    grp["cif"] = grp["acct"].map(cif_map).fillna("") if cif_map is not None else ""
+    mail = attrs["Mailable?"] if "Mailable?" in attrs.columns else pd.Series(dtype=object)
+    grp["mailable"] = grp["acct"].map(mail).fillna(MAILABLE_UNKNOWN)
+    extra = [c for c in attrs.columns if c not in grp.columns and c != "Mailable?"]
+    written = {}
+    for name in categories:
+        one = grp[grp["category"] == name].sort_values(["tier", "dollars"], ascending=[True, False])
+        one = one.join(attrs[extra], on="acct", how="left") if len(one) else one.reindex(columns=LIST_COLUMNS + extra)
+        path = lists_dir / _list_file(name)
+        one[LIST_COLUMNS + extra].to_csv(path, index=False)
+        written[name] = str(path)
+    master = grp.rename(columns={"acct": "acct_id", "category": "list_type"})
+    master = master.sort_values(["list_type", "tier", "dollars"], ascending=[True, True, False])
+    mpath = lists_dir / "finserv_master_list.csv"
+    master.reindex(columns=MASTER_COLUMNS).to_csv(mpath, index=False)
+    return {"finserv_lists": written, "finserv_master": str(mpath)}
+
+
 # ---------------------------------------------------------------------------
 # compute
 # ---------------------------------------------------------------------------
@@ -320,8 +361,13 @@ def classify_rows(df: pd.DataFrame, spec: dict) -> pd.DataFrame:
 def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.Timestamp,
             lists_dir: Path | None, warn, account_filter: pd.Index | None = None,
             key_prefix: str = "fin_", base_label: str = "all accounts",
-            classification: pd.DataFrame | None = None) -> tuple[dict, dict]:
+            classification: pd.DataFrame | None = None,
+            cif_map: pd.Series | None = None) -> tuple[dict, dict]:
     """Returns (metrics, outputs). outputs holds CSV paths.
+
+    cif_map is an optional account id -> CIF lookup for the mail lists. No client file carries
+    a member key today (ti/core/facts.py), so it is None and the cif column is written blank;
+    the day a crosswalk exists it fills with no other change.
 
     account_filter restricts the base (e.g. personal accounts only); the
     by-lens table is always computed over every lens regardless, so the
@@ -632,19 +678,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
             out[key_prefix + "review_queue"] = [[s, int(r.txns), round(float(r.dollars))] for s, r in q.head(REVIEW_QUEUE).iterrows()]
             out[key_prefix + "review_queue_dollars"] = round(float(q["dollars"].sum()))
 
-    # ---- action lists: CSV per addressable category, paths in outputs -----------
+    # ---- mail lists: one CSV per category (all of them) and one master -----------
     if lists_dir is not None and lenses is not None:
-        lists_dir.mkdir(parents=True, exist_ok=True)
-        attrs = lenses.attrs
-        written = {}
-        for name in sorted(addressable & set(ac["category"].unique())):
-            grp = ac[ac["category"] == name].copy()
-            grp = grp.join(attrs, on="acct", how="left")
-            grp = grp.sort_values(["tier", "dollars"], ascending=[True, False])
-            path = lists_dir / f"finserv_{re.sub(r'[^A-Za-z0-9]+', '_', name).strip('_').lower()}.csv"
-            cols = ["acct", "txns", "dollars", "first", "last", "tier", "months", "wallet_share"] + \
-                   [c for c in attrs.columns if c in grp.columns]
-            grp[cols].to_csv(path, index=False)
-            written[name] = str(path)
-        outputs["finserv_lists"] = written
+        outputs.update(write_lists(ac, spec["categories"], lenses.attrs, lists_dir, cif_map))
     return out, outputs
