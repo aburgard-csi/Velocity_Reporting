@@ -55,6 +55,7 @@ FIGURES = [
         ("fin_new_recurring_stopped", "Started, continuing and stopped in the last 90 days."),
         ("fin_months", "The months in the window."),
         ("fin_monthly", "Per category and month: accounts paying and dollars. A month with no payments reads zero."),
+        ("fin_mail_months", "The months a mailing dropped, from the ODD's Mail columns, so the series can mark them. Months outside the window are left out."),
         ("fin_trend", "Last three months against the three before, per category; peak month from twelve months on file."),
     ]),
     ("Depth", [
@@ -103,7 +104,8 @@ def smoke_figures() -> dict:
     spec = F.load_patterns(DICT, client)
     cls = F.classify_rows(df, spec)
     out, _ = F.compute(df, lenses, spec, pd.Timestamp("2026-10-31"), None, lambda m: None,
-                       base_label="transacting personal accounts", classification=cls)
+                       base_label="transacting personal accounts", classification=cls,
+                       mail_months=["2026-03", "2026-10"])
     from ti.transaction_intelligence import competition as C
     out.update(IV.compute(df, cls, C.load_config(DICT, client)))
     return out
