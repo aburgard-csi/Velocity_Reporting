@@ -822,6 +822,12 @@
     "PERPAY"
    ]
   },
+  "Snap Finance": {
+   "tier": "Buy Now, Pay Later",
+   "patterns": [
+    "SNAP FINANCE"
+   ]
+  },
   "Splitit": {
    "tier": "Buy Now, Pay Later",
    "patterns": [
