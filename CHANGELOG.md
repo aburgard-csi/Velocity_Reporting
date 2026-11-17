@@ -15,6 +15,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — Financial services x institution: named by the registry when the Competition layers ran (`ti/transaction_intelligence/institution_view.py`, `txn_sections.py`, `chapters_txn.py`)
+
+Summary: Adds to `fininst_*` (merged in #167); **no slide and no other figure changes.** Based on `main` after the Competition layers (#173-#180).
+
+- **Why.** `fininst_*` named a bank or credit union only from Competition's configured list (the universal names plus the client's own), so most depositories were not found. The layers section now matches card descriptions against every FDIC bank and NCUA credit union and keeps the result in `cl_parts`.
+- **Now:** the section runs **after** `competition_layers` and, when `cl_parts` exists, names the institution from the registry match and carries its tier (National, Digital, Local, Regional, State, Other, card-issuing). An ambiguous name is left unplaced, never guessed. If the registry did not run, or its rows do not line up with the card rows exactly, it falls back to the configured match as before.
+- **`fininst_source`** (`registry` or `configured`) says which was used. Still a cross-tab of the two views, never a third total (tested); still a floor, since the files are card rows.
+- **Order change:** `T.institution_view` moves from before to after `T.competition_layers` in `compute_all`.
+- The Financial Services guide's wording and status table are brought up to date (merged, not yet released), and `docs/financial-services.html` is regenerated.
+- Tests: six new in `tests/test_ti_finserv_institution_view.py`; the TI group passes (1,369).
+
+---
+
 ### 2026-11-17 — Competition layers: three slide fixes found reviewing a real client's deck (`ti/deck/txn_layers.py`)
 
 Summary: A month with no card rows stays on the trend axis as a gap, the full list's "% of base" carries a % sign, and the ladder headline no longer says "local institutions take 0%" for a client with no local tier.

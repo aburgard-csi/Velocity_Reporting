@@ -9,9 +9,12 @@ Rule (James, 2026-11): a payment to a named depository counts in BOTH views and 
 across them. Competition counts it as the institution (tier, proximity); Financial Services
 counts it as the product. The tables here are a cross-tab of the two, not a third total.
 
-The match to an institution uses the competition configuration as it stands: the universal list
-plus the client's own regional and local names. A depository that is in neither is not found,
-so the share at a named institution is a floor until the Competition registry exists.
+Two ways to name the institution. When the Competition layers ran (`cl_parts` in the shared context), the
+match is the registry's: every FDIC bank and NCUA credit union, matched on the card description, with
+its tier (National, Digital, Local, Regional, State, Other, Card-issuing banks). Without them, it is the
+competition configuration (the universal list plus the client's own regional and local names), and a
+depository in neither is not found. Either way the share at a named institution is a floor: the files
+are card rows, and an ambiguous name is left unplaced, never guessed. `fininst_source` says which.
 """
 
 from __future__ import annotations
@@ -24,7 +27,8 @@ from .competition import _classify
 DEPOSITORY_TIERS = ("National Bank", "Regional Bank", "Local Bank / CU")
 TOP_PAIRS = 60
 NOTE = ("counted in both Competition (as the institution) and Financial Services (as the product); "
-        "the two views are never added; a floor, since only configured institutions are named")
+        "the two views are never added; a floor: only institutions the match can name are counted")
+UNRESOLVED = "Unresolved (ambiguous)"
 
 
 def compute(df: pd.DataFrame, fin_rows: pd.DataFrame, comp_spec: dict,
@@ -54,6 +58,14 @@ def compute(df: pd.DataFrame, fin_rows: pd.DataFrame, comp_spec: dict,
     rows = pd.DataFrame({"acct": acct.to_numpy()[leak], "category": cat.to_numpy()[leak],
                          "amount": amt[leak], "named": named[leak],
                          "institution": inst.to_numpy()[leak], "tier": tier.to_numpy()[leak]})
+    out.update(_tables(rows, key_prefix))
+    out[key_prefix + "source"] = "configured"
+    return out
+
+
+def _tables(rows: pd.DataFrame, key_prefix: str) -> dict:
+    """The cross-tab from one row per leakage payment: acct, category, amount, named, institution, tier."""
+    out: dict = {}
     by_cat = []
     for name, grp in rows.groupby("category", observed=True):
         n_acc = int(grp["acct"].nunique())
@@ -75,4 +87,33 @@ def compute(df: pd.DataFrame, fin_rows: pd.DataFrame, comp_spec: dict,
     out[key_prefix + "matrix_columns"] = ["category", "institution", "tier", "accounts", "dollars"]
     out[key_prefix + "named_accounts"] = int(rows.loc[rows["named"], "acct"].nunique())
     out[key_prefix + "note"] = NOTE
+    return out
+
+
+def compute_from_layers(df: pd.DataFrame, fin_rows: pd.DataFrame, sub: pd.DataFrame,
+                        account_filter: pd.Index | None = None, key_prefix: str = "fininst_") -> dict:
+    """The same cross-tab, with the institution named by the registry. `sub` is
+    `competition_layers.classify_cards`: one row per card transaction of the base, in the order of the
+    card rows of `df` that belong to the base, with its institution and tier. An institution the
+    registry could not place (ambiguous) is not named."""
+    if df.empty or fin_rows is None or sub is None or not len(sub):
+        return {}
+    acct = df["primary_account_num"].astype(str)
+    in_base = acct.isin(account_filter).to_numpy() if account_filter is not None         else np.ones(len(df), dtype=bool)
+    mask = fin_rows["is_card"].to_numpy() & in_base
+    if int(mask.sum()) != len(sub):                      # the rows must line up exactly, or say nothing
+        return {}
+    cat = fin_rows["category"].to_numpy()[mask]
+    kind = fin_rows["kind"].to_numpy()[mask]
+    leak = pd.notna(cat) & (kind == "leakage")
+    if not leak.any():
+        return {}
+    inst = sub["inst"].to_numpy()
+    tier = sub["tier"].to_numpy()
+    named = leak & pd.notna(inst) & (tier != UNRESOLVED)
+    rows = pd.DataFrame({"acct": sub["acct"].to_numpy()[leak], "category": cat[leak],
+                         "amount": sub["amt"].to_numpy()[leak], "named": named[leak],
+                         "institution": inst[leak], "tier": tier[leak]})
+    out = _tables(rows, key_prefix)
+    out[key_prefix + "source"] = "registry"
     return out

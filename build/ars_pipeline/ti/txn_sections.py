@@ -211,10 +211,17 @@ def competition_layers(ctx):
 
 def institution_view(ctx):
     """fininst_*: each financial-services category against the named bank or credit union that holds
-    it (fs-05). Reads financial services' classification and competition's configuration; both
-    views count the same payment and are never added (see transaction_intelligence/institution_view)."""
+    it (fs-05, fs-09). Reads financial services' classification, and the Competition layers' registry
+    matches when they ran (`cl_parts`; this section runs after them), else the competition
+    configuration. Both views count the same payment and are never added (see
+    transaction_intelligence/institution_view)."""
     from ti.transaction_intelligence import institution_view as IV
     personal, _business, _label = base_accounts(ctx)
+    parts = ctx.shared.get("cl_parts")
+    if parts and parts[0] is not None:
+        out = IV.compute_from_layers(ctx.txn, ctx.shared.get("fin_rows"), parts[0], account_filter=personal)
+        if out:
+            return out
     return IV.compute(ctx.txn, ctx.shared.get("fin_rows"), ctx.shared.get("comp_spec"),
                       account_filter=personal)
 
