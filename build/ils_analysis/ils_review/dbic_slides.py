@@ -72,7 +72,7 @@ def _delta(a, b, *, money_fmt=False, dp=0):
     return f"{'−' if diff < 0 else sign}{body}"
 
 
-def add_dbic_section(dk, d, *, section, divider=False, progress=None):
+def add_dbic_section(dk, d, *, section, divider=False, progress=None, medians=None, medians_source=None):
     """Every DBIC slide. Returns notes."""
     say = progress or (lambda m: None)
     if not d.available:
@@ -102,7 +102,7 @@ def add_dbic_section(dk, d, *, section, divider=False, progress=None):
     if d.notices and d.notices.dates:
         _fees(dk, d, section=section)
     if d.channels and d.channels[1]:
-        _channels(dk, d, section=section)
+        _channels(dk, d, section=section, medians=medians, source=medians_source)
     if d.deposits and d.deposits.dates:
         _feeds(dk, d, section=section)
     if d.limits.get("by_limit"):
@@ -399,16 +399,20 @@ def _fees(dk, d, *, section):
 
 
 # ── 5. channel mix ──────────────────────────────────────────────────────────
-def _channels(dk, d, *, section):
+def _channels(dk, d, *, section, medians=None, source=None):
+    """Paid and returned items by channel (DBIC, trailing 60 days). With `medians` ({account type: channel_medians()})
+    each account type also gets its median item amount per channel from ZTrend: this slide and the ZTrend treemap
+    ("Trends in exception items") showed the same items, so they are one slide (Aaron, 2026-11-17)."""
     mix, totals = d.channels
-    slide = dk.content("Exception items by channel",
-                       "Paid and returned items over the trailing 60 days, split by "
-                       "presentment channel and account type.",
-                       section=section)
+    medians = {t: m for t, m in (medians or {}).items() if m}
+    win = next(iter(medians.values()))["window"] if medians else None
+    sub = ("Paid and returned items over the trailing 60 days, split by presentment channel and account type"
+           + (f"; median item amount over {win[0]} to {win[1]}." if win else "."))
+    slide = dk.content("Exception items by channel", sub, section=section, source=source)
     chans = sorted(totals, key=lambda c: -totals[c])
     types = sorted({t for (t, _) in mix})
     y = T.CONTENT_TOP + 0.05
-    h = T.CONTENT_H * 0.62
+    h = T.CONTENT_H * (0.52 if medians else 0.62)
 
     series = []
     palette = [T.NAVY, T.TEAL, T.PURPLE, T.BLUE_2, T.GREEN]
@@ -439,6 +443,10 @@ def _channels(dk, d, *, section):
             rows.append([t, "Paid" if kind == "PD" else "Returned"]
                         + [count(v) if v else "—" for v in vals]
                         + [count(sum(vals))])
+        m = (medians.get(t) or {}).get("medians")
+        if m:
+            rows.append([t, "Median item amount"] + [money(m[c], 2) if c in m else "—" for c in chans]
+                        + [money(m["Total"], 2)])
     if rows and ty < T.CONTENT_BOTTOM - 0.6:
         widths = [2.2, 2.0] + [1.35] * len(chans) + [1.5]
         rh = min(0.44, max(0.28, (T.CONTENT_BOTTOM - ty - 0.5) / max(1, len(rows))))
@@ -451,7 +459,8 @@ def _channels(dk, d, *, section):
         share = totals[top] / (sum(totals.values()) or 1) * 100
         T.footnote(slide, f"{top} is the largest exception channel at "
                           f"{pct(share)} of all items in the window. Channels with no "
-                          f"activity are omitted.")
+                          f"activity are omitted."
+                          + (" Median amounts are from ZTrend, 365 days." if medians else ""))
     return slide
 
 

@@ -200,6 +200,7 @@ class BuildConfig:
     output_path: Optional[str] = None
     output_dir: Optional[str] = None
     report_date: Optional[str] = None       # label override, e.g. "September 11, 2026"
+    data_as_of: Optional[str] = None        # YYYY-MM-DD: cut the notices, declines and refunds at this date
     shell_path: Optional[str] = None        # RPE shell override (default templates/ars_template.pptx)
     chart_dir: Optional[str] = None         # where chart PNGs and the figure sidecar are written
 

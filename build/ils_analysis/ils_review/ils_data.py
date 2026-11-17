@@ -418,6 +418,30 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
         rf["AcctID"] = rf["AcctID"].astype(str).str.strip()
         rf["Date"] = pd.to_datetime(rf["Date"], errors="coerce")
         say(f"  {len(rf):,} refund rows.")
+    if snapshot_date is not None:
+        # An as-of date earlier than the pull (to match an earlier review's data date): the dated rows after it are
+        # left out. ZAccounts is one row per account as pulled, so its fields (status, the 365-day totals, the
+        # charge-off flag) are as of the pull and the note says so.
+        cut = pd.Timestamp(snapshot_date)
+        dropped = []
+        if zt is not None:
+            k = ~(zt["noticedate"] > cut)
+            dropped += [f"{int((~k).sum()):,} notice rows"] if (~k).any() else []
+            zt = zt[k].copy()
+        if dd is not None:
+            k = ~(dd["decline_date"] > cut)
+            dropped += [f"{int((~k).sum()):,} debit declines"] if (~k).any() else []
+            dd = dd[k].copy()
+        if rf is not None:
+            k = ~(rf["Date"] > cut)
+            dropped += [f"{int((~k).sum()):,} refunds"] if (~k).any() else []
+            rf = rf[k].copy()
+        pulled = date_from_name(zaccounts_path)
+        notes.append(f"Built as of {cut:%Y-%m-%d}: " + (", ".join(dropped) + " dated after it were left out"
+                     if dropped else "no dated rows fall after it") +
+                     (f"; account fields (status, 365-day totals, charge-off flag) are as pulled on {pulled:%Y-%m-%d}."
+                      if pulled else "; account fields are as pulled."))
+        say(notes[-1])
     return Loaded(zaccounts=za, ztrend=zt, snapshot=snapshot, branches=branches, notes=notes,
                   file_date=date_from_name(zaccounts_path), declines=dd, refunds=rf)
 

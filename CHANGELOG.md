@@ -15,6 +15,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — ILS analysis: build as of an earlier data date; exception items on one slide (`build/ils_analysis/ils_review/`)
+
+Summary: An ILS analysis deck can now be built as of an earlier date, so a newer pull can match a review already given. The two exception-item slides are now one: the median item amount per channel sits in the paid and returned table.
+
+Aaron, 2026-11-17, on Dannemora 1781: "Why is the October 26' fatal notices so high? validate this.", then "That doesn't match up with William and Tim's deck". Shown the two options, he chose to rebuild as of William's data date. Then, of "Exception items by channel" and "Trends in exception items": "these two slides have the same data. Combine them into one slide."
+
+- **Why October read 17%.** With 99% of Dannemora's accounts flagged charged off, almost every account with a notice gets one "fatal" notice: the one nearest its latest positive date. For an open account that keeps coming back to positive, that date is recent, so the newest month piles up, and it moves as data lands. One more week took September from 9.29% (William's slide 35) to 7.77% and put 1,100 fatal notices in October. 1,097 of those are on open accounts, each dated on the day the account was last positive. The rule is William's, reproduced: cut at his date, the table matches his.
+- **`--as-of YYYY-MM-DD`** (`cli.py`, `BuildConfig.data_as_of`, `ils_data.load`). It sets the as-of date and leaves out notices, debit declines and refunds dated after it. ZAccounts is one row per account as pulled, so its fields and the DBIC stay as pulled. "About this data" and the Data Notes say what was cut and what was not. On 1781 at 2026-10-25: 2,878 notice rows and 1,599 declines left out. The not-repaid table reads Oct 2025 to Sep 2026 and matches William's in 11 of 12 months to the hundredth (August 5.85% against his 5.86%).
+- **One exception-items slide.** When the DBIC carries its channel table, "Exception items by channel" adds a "Median item amount" row under each account type, from ZTrend `Item_Amts` over the 365 days to the as-of date (`r_fees.channel_medians`; the subtitle and footnote name the window). The ZTrend treemap slide "Trends in exception items" is not built then (`build._sec_exception_items`). With no DBIC channel table, the treemap slide is built as before.
+- "About this data" now says the debit declines feed the Debit declines slide, and the DBIC feeds program health and exception items by channel. It used to name "Exception items by channel" against the declines.
+- Tests: `test_as_of_cuts_the_dated_rows_and_says_so`, `test_channel_medians_are_per_channel_over_the_year`, `test_exception_items_are_one_slide_when_the_dbic_carries_the_channels`.
+
 ### 2026-11-17 — ILS analysis: an impossible loss rate marks the charge-off data unusable (`build/ils_analysis/ils_review/r_common.py`)
 
 Summary: The ILS analysis deck now also treats charge-off data as unusable when charge-offs exceed every fee collected in the year, and withholds charge-off dollars and loss rates. On Dannemora, the not-repaid slide's speaker note now says the flag is known wrong instead of reading the rate out.

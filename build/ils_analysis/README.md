@@ -54,7 +54,8 @@ nothing here is wired into `build_month`, Sheila, `deliveries.json` or `Outputs/
 
 See `Build Artifacts\ils_analysis\out\INVENTORY.md` for the slide-by-slide map, with the data file and columns behind each
 figure and how closely it matches the hand-built Achieva deck. In short: KPI rollup, fee trending, paid vs returned,
-exception-item treemaps, eligibility, Reg E tables, debit-decline segmentation and the Scoring Summary tables
+exception items by channel (the DBIC's paid and returned items with ZTrend's median item amount, one slide; the treemaps when
+there is no DBIC channel table), eligibility, Reg E tables, debit-decline segmentation and the Scoring Summary tables
 reproduce the deck's figures from the extracts; the not-repaid chart, branch bubbles, alluvial, windfall predictor and
 the deck's "open active" population are close but depend on definitions that are not in the extracts; the peer NSF / OD
 fee slides need ILS-wide data and are labelled placeholders.
@@ -106,6 +107,9 @@ cd <checkout>\build\ils_analysis
 ```
 
 Run it from the checkout, never with a client's data folder (or the analysis share) as the working directory.
+`--as-of YYYY-MM-DD` builds as of an earlier date, to match a review already given: notices, debit declines and refunds after
+it are left out, while the ZAccounts fields and the DBIC stay as pulled ("About this data" says so). Dannemora 1781 is built
+`--as-of 2026-10-25`, William's data date, because the not-repaid table's newest month moves as data lands.
 The deck is named `<id>-<yyyy.mm>-ILS-<Client> ILS Analysis.pptx` (`ILS` is not an RPE program tag; `promote_month` never reads it
 as one), where `yyyy.mm` is the data pull's file stamp, never the clock. A `parity_reference.json` beside the charts
 (Achieva's hand-built figures, kept in the work folder, never in git) switches on the sidecars' comparison with the hand-built deck.

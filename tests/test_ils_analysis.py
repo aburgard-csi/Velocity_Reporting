@@ -449,3 +449,44 @@ def test_lowess_follows_a_trend_and_a_sparse_series_is_not_pulled_flat():
     assert fit[-1] > fit[0] + 8
     sparse = np.where(x % 5 == 0, 30.0, 0.0)                               # one day in five at 30%: a 6% series
     assert F._lowess(x, sparse, iters=0).mean() == pytest.approx(6.0, abs=0.5)
+
+
+def test_as_of_cuts_the_dated_rows_and_says_so(tmp_path):
+    """Aaron, 2026-11-17 (1781): rebuild a newer pull as of an earlier review's data date so the slides match it.
+    Notices after the date are left out, the as-of date is that date, and the Data Notes say what was cut."""
+    from datetime import datetime
+    from ils_review import ils_data
+    ld = _loaded()
+    za, zt = ld.zaccounts.assign(branch="1"), ld.ztrend
+    zp, tp = tmp_path / "1781_zaccounts_20261106.csv", tmp_path / "1781_ztrend_20261106.csv"
+    za.to_csv(zp, index=False)
+    zt.to_csv(tp, index=False)
+    full = ils_data.load(str(zp), str(tp))
+    cut = ils_data.load(str(zp), str(tp), snapshot_date=datetime(2025, 10, 15))
+    assert len(full.ztrend) == 4 and len(cut.ztrend) == 3
+    assert cut.ztrend["noticedate"].max() <= pd.Timestamp("2025-10-15")
+    assert pd.Timestamp(cut.snapshot) == pd.Timestamp("2025-10-15")
+    assert any("Built as of 2025-10-15" in n and "as pulled on 2026-11-06" in n for n in cut.notes)
+
+
+def test_channel_medians_are_per_channel_over_the_year():
+    ld = _loaded()
+    ld.ztrend["POS"] = [1, 0, 1, 0]
+    ld.ztrend["ACH"] = [0, 1, 0, 1]
+    fr = R.Frame(ld)
+    m = F.channel_medians(fr, "Personal")
+    assert m["medians"] == {"ACH": 30.0, "POS": 80.0, "Total": 55.0}      # the 2025-09-01 notices fall outside the year
+    assert F.channel_medians(fr, "Personal", ["POS"])["medians"] == {"POS": 80.0, "Total": 80.0}
+    assert F.channel_medians(fr, "Business") is None
+
+
+def test_exception_items_are_one_slide_when_the_dbic_carries_the_channels():
+    """Aaron, 2026-11-17: "Exception items by channel" (DBIC) and "Trends in exception items" (ZTrend treemap) showed the
+    same items. With the DBIC channel table the medians ride on its slide and the treemap slide is not built."""
+    from types import SimpleNamespace
+    from ils_review import build as B
+    run = SimpleNamespace(cfg=SimpleNamespace(dbic_path="x_dbic.txt", sections=["dbic", "exception_items"]),
+                          _dbic=SimpleNamespace(available=True, channels=({("Personal", "PD"): {"POS": 3}}, {"POS": 3})))
+    assert B._dbic_channels(run) and B._sec_exception_items(run, "exception_items") == []
+    run.cfg.sections = ["exception_items"]
+    assert not B._dbic_channels(run)

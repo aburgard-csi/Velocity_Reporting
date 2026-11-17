@@ -440,6 +440,30 @@ def _squarify(values, x, y, w, h):
     return rects
 
 
+def channel_medians(fr, accttype, channels=None):
+    """Median item amount (ZTrend Item_Amts) per presentment channel over the 365 days to the as-of date, plus
+    "Total" over every item in those channels. Folded into the DBIC "Exception items by channel" slide (Aaron,
+    2026-11-17: it and the treemap slide carried the same items, so they are one slide). None with no notices."""
+    z = fr.zt_type(accttype)
+    if z is None or z.empty or "Item_Amts" not in z.columns:
+        return None
+    lo, hi = fr.trailing(365)
+    s = z[(z["noticedate"] > lo) & (z["noticedate"] <= hi)]
+    want = None if channels is None else {str(c).upper() for c in channels}
+    out, anyf = {}, pd.Series(False, index=s.index)
+    for c in CHANNELS:
+        if c not in s.columns or (want is not None and c not in want):
+            continue
+        flag = pd.to_numeric(s[c], errors="coerce").fillna(0) > 0
+        if flag.any():
+            out[c] = float(s.loc[flag, "Item_Amts"].median())
+            anyf |= flag
+    if not out:
+        return None
+    out["Total"] = float(s.loc[anyf, "Item_Amts"].median())
+    return {"window": [str(lo + pd.Timedelta(days=1))[:10], str(hi)[:10]], "medians": out}
+
+
 def exception_treemap(fr, accttype, out_dir, size=(5.9, 3.3), ref=None):
     key = f"exception_items_{accttype.lower()}"
     z = fr.zt_type(accttype)

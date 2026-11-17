@@ -120,10 +120,14 @@ def add_data_pull(dk, cfg, fr, *, section="data_pull"):
     types = [t for t in ("Personal", "Business") if (loaded.zaccounts["accttype"] == t).any()]
     n_open = {t: len(fr.open_accounts(t)) for t in types}
     br = loaded.branches
-    s = dk.content("About this data", f"Every figure in this review is measured to {asof}; the extracts were pulled as shown below.",
+    # --as-of (1781, 2026-11-17): notices, declines and refunds are cut at the date; account fields and the DBIC are as pulled
+    cut = bool(getattr(cfg, "data_as_of", None))
+    lead = (f"Notices, declines and refunds are measured to {asof}; account fields and the DBIC are as pulled, shown below."
+            if cut else f"Every figure in this review is measured to {asof}; the extracts were pulled as shown below.")
+    s = dk.content("About this data", lead,
                    section=section, source=_src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic",
                                                 extra="Pull dates are the date stamps in the extract file names; record counts are the rows read."))
-    tiles = [("Data as of", asof, "latest account update in the extract"),
+    tiles = [("Data as of", asof, "notices cut at this date" if cut else "latest account update in the extract"),
              ("Accounts pulled", f"{n_all:,}", "every status, personal and business"),
              ("Open accounts", f"{sum(n_open.values()):,}", "  ·  ".join(f"{t} {n_open[t]:,}" for t in types)),
              ("Branches analysed", f"{len(br.retail) + len(br.digital)}", f"{len(br.retail)} retail, {len(br.digital)} digital ({len(br.back_office)} held out)")]
@@ -148,13 +152,13 @@ def add_data_pull(dk, cfg, fr, *, section="data_pull"):
     if loaded.ztrend is not None:
         rows.append(["Notices (ZTrend)", _pulled(cfg.ztrend_path), f"{len(loaded.ztrend):,} notices", "Cure, pull-back and repayment"])
     if loaded.declines is not None:
-        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines", "Exception items by channel"])
+        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines", "Debit declines"])
     if getattr(loaded, "refunds", None) is not None:
         rows.append(["Refunds", _pulled(cfg.refunds_path), f"{len(loaded.refunds):,} refunds", "Collected fees net of refunds"])
     if cfg.matrix_path:
         rows.append(["Matrix validation", _pulled(cfg.matrix_path), "—", "Matrix parameters and overrides"])
     if cfg.dbic_path:
-        rows.append(["DBIC", _pulled(cfg.dbic_path), "—", "Dormant, blocked and inactive accounts"])
+        rows.append(["DBIC", _pulled(cfg.dbic_path), "—", "Program health; exception items by channel"])
     # data the extract cannot support is said here, on the slide, not only in the notes
     problems = [p for p in (getattr(fr, "co_problem", None), getattr(fr, "refund_problem", None)) if p]
     room = 0.80 if problems else 0.0
