@@ -1,6 +1,6 @@
 {
  "_about": "Financial-services detection for transaction_intelligence. Categories carry a kind (leakage | adjacency) and an addressable flag. Patterns match against the cleaned merchant core (prefix/mask/date stripped, upper-cased) as whole tokens. Add client-specific providers under LocalFinancialServices in clients_config.json, same shape. review_ignore lists channel-noise strings (bill pay, online pmt) kept out of the review queue. SelfNames in clients_config.json (the client's OWN institution names) are excluded from every match and every queue -- internal transfers are not leakage.",
- "_source": "legacy analytics/financial_services/01_config.py (16 categories, 584 patterns) + three new buckets 2026-08-19; 2026-08-19 v2 after 1615's first run: generic tokens (MTG, AUTO FINANCE, INS PREM, 401K, LOAN PAYMT), missing issuers (Capital One, Chase, Citi, Synchrony, Comenity), mortgage servicers, MA insurers; US TREASURY/IRS moved to Tax & Accounting; v3 from 1615 run 2 (Ally/Honda payment forms, store cards, Citicard, Credit One, Fidelity FID BKG); v4 2026-08-19 from 1192's first run: TYPE:/ID: labels as lender-unknown generics (MTG*/STUDENT LN/BROKERAGE/CC PYMT/INS.PREM/LOAN), review_ignore for channel noise; v5 2026-09-18 from 1776's first run (#245): National General, Bristol West, Flexible Finance, US TREAS -- the matcher now normalises both sides",
+ "_source": "legacy analytics/financial_services/01_config.py (16 categories, 584 patterns) + three new buckets 2026-08-19; 2026-08-19 v2 after 1615's first run: generic tokens (MTG, AUTO FINANCE, INS PREM, 401K, LOAN PAYMT), missing issuers (Capital One, Chase, Citi, Synchrony, Comenity), mortgage servicers, MA insurers; US TREASURY/IRS moved to Tax & Accounting; v3 from 1615 run 2 (Ally/Honda payment forms, store cards, Citicard, Credit One, Fidelity FID BKG); v4 2026-08-19 from 1192's first run: TYPE:/ID: labels as lender-unknown generics (MTG*/STUDENT LN/BROKERAGE/CC PYMT/INS.PREM/LOAN), review_ignore for channel noise; v5 2026-09-18 from 1776's first run (#245): National General, Bristol West, Flexible Finance, US TREAS -- the matcher now normalises both sides; v6 2026-11 (fs-01): 16 cross-category duplicates resolved to one category, generic descriptors publish as (unnamed), bank+AUTO/MTG patterns, DISCOVER CARD / CREDIT ONE / LENDINGCLUB / GOLDMAN SACHS BANK / DAVE added, Payday / Small-Dollar Loans category added",
  "categories": {
   "Auto Loans": {
    "kind": "leakage",
@@ -109,7 +109,17 @@
     "WESTLAKE FINANCIAL",
     "WESTLAKE SERVICES",
     "WORLD OMNI FINANCIAL",
-    "YAMAHA MOTOR FIN"
+    "YAMAHA MOTOR FIN",
+    "PNC AUTO",
+    "PNC BANK AUTO",
+    "USAA AUTO",
+    "WELLS FARGO AUTO",
+    "BANK OF AMERICA AUTO",
+    "US BANK AUTO",
+    "TRUIST AUTO",
+    "FIFTH THIRD AUTO",
+    "REGIONS AUTO",
+    "CITIZENS BANK AUTO"
    ]
   },
   "Investment/Brokerage": {
@@ -140,7 +150,6 @@
     "FIDELITY BROKERAGE",
     "FIDELITY INVESTMENTS",
     "FIDELITY MONEYLINE",
-    "FIDELITY NETBENEFITS",
     "FRANKLIN TEMPLETON",
     "IBKR",
     "INTERACTIVE BROKERS",
@@ -286,7 +295,26 @@
     "WELLS FARGO HOME",
     "WELLS FARGO HOME LOANS",
     "WELLS FARGO HOME MTG",
-    "WF HOME MTG"
+    "WF HOME MTG",
+    "PNC MTG",
+    "PNC BANK MTG",
+    "PNC BANK MORTGAGE",
+    "USAA MTG",
+    "USAA MORTGAGE",
+    "WELLS FARGO MTG",
+    "WELLS FARGO MORTGAGE",
+    "BANK OF AMERICA MTG",
+    "BANK OF AMERICA MORTGAGE",
+    "US BANK MTG",
+    "US BANK MORTGAGE",
+    "TRUIST MTG",
+    "TRUIST MORTGAGE",
+    "FIFTH THIRD MTG",
+    "FIFTH THIRD MORTGAGE",
+    "REGIONS MTG",
+    "REGIONS MORTGAGE",
+    "CITIZENS BANK MTG",
+    "CITIZENS BANK MORTGAGE"
    ]
   },
   "Personal Loans": {
@@ -310,8 +338,6 @@
     "LENDINGPOINT",
     "LENDMARK",
     "LIGHTSTREAM",
-    "MARCUS BY GOLDMAN",
-    "MARCUS GOLDMAN",
     "MARCUS LOAN",
     "MARCUS PERSONAL",
     "MARINER FINANCE",
@@ -326,7 +352,6 @@
     "PROSPER LOAN",
     "PROSPER MARKETPLACE",
     "REGIONAL FINANCE",
-    "SOFI BANK",
     "SOFI LENDING",
     "SOFI LOAN",
     "SOFI PERSONAL",
@@ -335,7 +360,8 @@
     "UPGRADE LENDING",
     "UPSTART",
     "UPSTART HOLDINGS",
-    "UPSTART NETWORK"
+    "UPSTART NETWORK",
+    "LENDINGCLUB"
    ]
   },
   "Credit Cards": {
@@ -429,7 +455,10 @@
     "US BANK CC",
     "WALMART CARD",
     "WELLS FARGO CARD",
-    "WF CARD"
+    "WF CARD",
+    "DISCOVER CARD",
+    "DISCOVER CRD",
+    "CREDIT ONE"
    ]
   },
   "Student Loans": {
@@ -746,9 +775,7 @@
     "EDWARD D JONES",
     "EDWARD JONES",
     "EDWARDS JONES",
-    "EMPOWER",
     "EMPOWER FINANCIAL",
-    "EMPOWER RETIREMENT",
     "EQUITABLE",
     "FISHER INVESTMENTS",
     "GREAT WEST LIFE",
@@ -916,15 +943,11 @@
     "REGIONS",
     "REGIONS BANK",
     "ROCKLAND TRUST",
-    "SALLIE MAE BANK",
     "SANTANDER",
     "SANTANDER BANK",
-    "SANTANDER CONSUMER",
     "SOFI",
     "SOFI BANK",
-    "SOFI LENDING",
     "SOFI MONEY",
-    "SYNCHRONY BANK",
     "TD BANK",
     "TIAA BANK",
     "TRUIST",
@@ -933,7 +956,6 @@
     "USAA",
     "USAA FSB",
     "VIO BANK",
-    "WEALTHFRONT",
     "WELLS FARGO"
    ]
   },
@@ -980,7 +1002,6 @@
    "addressable": false,
    "note": "app-based accounts and wallets; adjacency, not a lender",
    "patterns": [
-    "ACORNS",
     "ALBERT",
     "ASPIRATION",
     "BRIGIT",
@@ -999,15 +1020,13 @@
     "N26",
     "ONE FINANCE",
     "PAYPAL",
-    "PAYPAL INST XFER",
-    "PAYPAL PAYMENT",
-    "PAYPAL TRANSFER",
     "REVOLUT",
     "ROBINHOOD",
     "STASH",
     "STEP",
     "VARO",
-    "VARO BANK"
+    "VARO BANK",
+    "DAVE COM"
    ]
   },
   "Other Loans (lender unknown)": {
@@ -1018,7 +1037,6 @@
     "LN PAYMENT",
     "LN PMT",
     "LOAN",
-    "LOAN DEPOT",
     "LOAN PAY",
     "LOAN PAYMENT",
     "LOAN PAYMT",
@@ -1028,6 +1046,20 @@
     "TO LOAN"
    ],
    "note": "generic loan-payment descriptions whose lender is not in any named category. fallback: consulted only when no named category matched, so a lender name outranks a longer generic descriptor. Review per client and move to a named category or LocalFinancialServices"
+  },
+  "Payday / Small-Dollar Loans": {
+   "kind": "leakage",
+   "addressable": true,
+   "patterns": [
+    "CHECK INTO CASH",
+    "ADVANCE AMERICA",
+    "PLAIN GREEN",
+    "SPEEDY CASH",
+    "ACE CASH EXPRESS",
+    "CHECK N GO",
+    "OPPLOANS",
+    "OPP LOANS"
+   ]
   }
  },
  "false_positives": [
@@ -1236,5 +1268,32 @@
    "US",
    "USA"
   ]
- }
+ },
+ "generic_descriptors": [
+  "AUTO FIN",
+  "AUTO FINANCE",
+  "AUTO LOAN",
+  "HOME LOAN",
+  "HOME MTG",
+  "MTG PAYMENT",
+  "MTG PAYMT",
+  "MTG PMT",
+  "MTG PYMT",
+  "CARD PAYMENT",
+  "CC PAYMENT",
+  "CC PMT",
+  "CC PYMT",
+  "CREDIT CARD PMT",
+  "CREDIT CRD",
+  "STUDENT LN",
+  "STUDENT LOAN",
+  "INS PREM",
+  "INS PREMIUM",
+  "LN PAYMENT",
+  "LN PMT",
+  "LOAN PAYMENT",
+  "LOAN PAYMT",
+  "LOAN PMT",
+  "LOAN PYMT"
+ ]
 }
