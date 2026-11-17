@@ -28,6 +28,7 @@ James Gilmore, 2026-11-16: "the visuals, the charts, the insight ... the list of
 - **Slide notes** name the client and say these slides are computed by the competition layers section and are not ported from the ARS v5 engine.
 - `ti/slides.json` lists all 52 new titles as "keep" and in the Competition chapter's register. `COMP_BUILDERS` stays v5's twenty (the existing test pins it); the layers builders are appended to what the chapter draws. `Deck.helpers()` gains `lens` and `relabel`.
 - Branch labels carry no decimal; charts use the cut's palette and type floor, and a bubble's label starts at its own bubble's edge so the chart layer's overlap check passes.
+- Chart labels on a bar, a wedge or a heat cell are navy with a white stroke, never white: `tests/test_chart_colors.py` refuses a mark drawn in the canvas colour.
 - Tests: `tests/test_ti_competition_layers_slides.py` (synthetic figures: every builder declines on an empty client and draws on a full one, the full list covers every institution once, the ICS lens, and the whole set through the real `Deck` helpers into a presentation).
 - **Not done in this stage:** the month-over-month comparison slides.
 

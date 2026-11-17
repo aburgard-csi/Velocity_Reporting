@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+from matplotlib import patheffects as _pe
 
 from .charts import (FIG_H_FULL, FIG_H_RAIL, FIG_W_FULL, FIG_W_RAIL, GOLD, GREEN, GREY, LINE, NAVY, ORANGE, STEEL,
                      TINT, _save, plt)
@@ -20,6 +21,9 @@ TIER_COLOR = {"National": NAVY, "Digital": GREEN, "Local": ORANGE, "Local (25-50
 GROUP_COLOR = {"responders": NAVY, "mailed_nonresp": GOLD, "mailed_nonresp_nu1_4": "#F6A98A",
                "mailed_nonresp_none": ORANGE, "not_mailed": GREEN, "ics": NAVY, "ics_dm": GREEN, "ics_ref": GOLD,
                "not_ics": GREY}
+
+
+_CASED = [_pe.withStroke(linewidth=3, foreground="white")]      # navy core + white stroke: a label reads on a bar and on the canvas
 
 
 def tier_color(t):
@@ -66,7 +70,7 @@ def hbar_stacked(labels: list, series: dict, out, colors: dict, fmt="{:,.0f}", f
         ax.barh(ys, v, left=left, color=colors.get(name, STEEL), height=0.7, label=name, zorder=2)
         for y, a, b in zip(ys, v, left):
             if abs(a) >= max(label_min, 1e-9) and abs(a) > 0:
-                ax.text(b + a / 2, y, fmt.format(abs(a)), ha="center", va="center", color="white", fontsize=11)
+                ax.text(b + a / 2, y, fmt.format(abs(a)), ha="center", va="center", color=NAVY, fontsize=11, path_effects=_CASED)
         pos = np.where(v >= 0, pos + v, pos)
         neg = np.where(v < 0, neg + v, neg)
     ax.axvline(0, color=NAVY, lw=1)
@@ -141,7 +145,7 @@ def heat(rows: list, cols: list, out, fmt="{:.1f}%"):
     for i in range(mat.shape[0]):
         for j in range(mat.shape[1]):
             if not np.isnan(mat[i, j]):
-                ax.text(j, i, fmt.format(mat[i, j]), ha="center", va="center", color="white" if mat[i, j] > top * 0.6 else NAVY)
+                ax.text(j, i, fmt.format(mat[i, j]), ha="center", va="center", color=NAVY, path_effects=_CASED)
     for s in ax.spines.values():
         s.set_visible(False)
     ax.tick_params(length=0, colors=NAVY)
@@ -179,7 +183,7 @@ def donut_tiers(rows: list, out, center_value="", center_label=""):
         if share < 0.04:
             continue
         ang = math.radians((w.theta1 + w.theta2) / 2)
-        ax.text(math.cos(ang) * 0.79, math.sin(ang) * 0.79, f"{share:.0%}", ha="center", va="center", color="white" if tier_color(r[0]) in (NAVY, ORANGE, GREEN, STEEL) else NAVY, fontsize=13, fontweight="bold")
+        ax.text(math.cos(ang) * 0.79, math.sin(ang) * 0.79, f"{share:.0%}", ha="center", va="center", color=NAVY, fontsize=13, fontweight="bold", path_effects=_CASED)
     ax.legend(wedges, [r[0] for r in rows], loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False)
     if center_value:
         ax.text(0, 0.1, center_value, ha="center", va="center", fontsize=24, fontweight="bold", color=NAVY)
