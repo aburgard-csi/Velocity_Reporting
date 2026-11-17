@@ -207,7 +207,7 @@ def layers_universe(h, t, base):
                     "FDIC and NCUA institutions by tier, against the institutions that members or customers actually pay"
                     + (f". The other {extra} are digital-only names with no branches, or names that fit several institutions" if extra > 0 else ""),
                     "How many exist and how many are paid")
-    right = h["rail"](s, [("In the registry", f"{reg:,}", "banks and credit unions"), ("Paid", f"{paid:,}", f"{seen} matched to a registry institution"),
+    right = h["rail"](s, [("In the registry", f"{reg:,}", "banks and credit unions"), ("Paid", f"{paid:,}", f"{seen} in the registry"),
                           ("Branch within reach", f"{sum(r['within_local'] for r in u):,}", "within the local radius")], top=top)
     shown = [r for r in u if r["seen"] or r["within_local"]]
     path = h["chart"]("layers_universe", CLY.columns, [r["tier"].replace(" (", "\n(") for r in shown],
