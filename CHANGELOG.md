@@ -15,6 +15,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — ILS analysis: William's not-repaid and default rates replace the 60-day cure slides; November industry edition
+
+Summary: The ILS analysis deck now reports the analysis team's own "not repaid" (fatal notice) rates and Scoring Summary default rates, the way William's Dannemora review computes them, in place of the 60-day cure-rate slides; it adds the Branch Summary slides and the November 2026 industry edition, and fixes three chart and table layout faults.
+
+Aaron, 2026-11-17: "Your cure rate slides are wrong. Look at the fatal notice rates in the deck that William built. Reproduce that logic from his analysis code." Then: "continue adding slides from Williams code overnight, work to organize the deck."
+
+- **Not repaid (`r_fees.not_repaid`).** A charged-off account's fatal notice is its notice nearest its last positive date (the largest Last_Positive_Date over its notices), once per account: `ILS Analysis - Python Script.ipynb` cells 30-34, the same rule as `MasterQueryReordered2025.R`. The table is the notebook's `198_NEWTS_BETA` (accounts, collected fees, business days, fees per business day, pay rate, ineligible %, % fatal, loss rate) for the 12 months to the last complete month; the chart is the daily share over the scoring window with a lowess trend. On 1781, cut at William's 10/25 data date, all twelve monthly % Fatal Notices equal his slide 35, and accounts, fees, business days, pay rate and ineligible % match to the cent. It replaces the "last notice before charge-off" approximation, and is on by default (`include_not_repaid`).
+- **Scoring Summary.** The default rate (the notebook's CURE flag) now shows on an extract whose charge-off flag is on most accounts, as William's deck shows it, with the flag share stated on the slide; only losses and loss rates read n/a. Notices with a limit above the matrix maximum are left out, as the notebook's `risk_set` does ($1,500 on 1781 reproduces William's band counts and fees exactly). Northwest 1245's ten predictor tables are unchanged.
+- **Default story.** `performing` (cure = back to $0 within 60 days) left `DEFAULT_SECTIONS`; `scoring_personal`, `scoring_business` and `branch_summary` joined the Observations part, debit declines lost their stray "Client Analysis" divider, and the business block opens with a "Business Accounts" divider.
+- **Layout.** The predictor bubble chart's key and average now sit above the plot (they collided with the highest bubbles); the Scoring Summary table budgets a two-line header (a 17-band table grew into the slide number); a sparse daily series takes a plain local fit (the robust passes pulled 1781's business trend to "-0.0%").
+- **Industry.** `standard_slides` gains four slide kinds (status cards, a headline panel beside a table, chips, a dated record) for the November 2026 edition in `Build Artifacts/ils_analysis/standard/industry_2026-11.json`; the settlements table wraps its cells at 13 pt instead of shrinking to 10 pt.
+- **Pre-go-live deck.** The core-versus-ILS matrix headers break at their dash on purpose; the new word-break check failed them.
+- Tests: `tests/test_ils_analysis.py` (the fatal rule, dollars withheld but rates kept, the default story, lowess).
+
 ### 2026-11-16 — CashPlease roster: every client in Bradford's weekly; ILS analysis matches the analysts' figures; two new table checks
 
 Summary: The CashPlease roster now lists every client in the 11/08 CashPlease weekly (54 added: 44 build, 10 wait for a CashPlease confirmation), so their CashPlease modules show in Sheila after a release; the ILS analysis deck now uses the analysis team's own Scoring Summary and debit-decline rules, holds back charge-off figures when a client's charge-off data is unusable, and the deck gate fails a table word that breaks mid-word or a table that grows into the shape below it.

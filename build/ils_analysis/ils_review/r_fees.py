@@ -275,46 +275,83 @@ def paid_vs_returned(fr, out_dir, size=(7.2, 3.9), ref=None):
 
 
 # ═════════════════════════════ percent of items not repaid ══════════════════
+# The analysis notebook's rule ('ILS Analysis - Python Script.ipynb' cells 30-34, 70, 86-87; William's Dannemora
+# FCU review, 2026-10): a charged-off account's 'fatal' notice is its notice nearest the account's last positive
+# date (the largest Last_Positive_Date over its notices; the earliest notice on a tie). The chart is the daily
+# share of notices that are fatal over the scoring window (425 to 60 days before the newest notice) with a lowess
+# trend; the table is the notebook's 198_NEWTS_BETA, the 12 calendar months to the last complete month.
+# Reproduced exactly on 1781 (all twelve monthly % Fatal Notices equal William's slide 35 on a pull cut at his
+# 10/25 data date). Losses are the account's Chargeoff_Amt_365, once, on its fatal notice.
+
+def _lowess(x, y, frac=0.4, iters=2):
+    """Local linear regression with tricube weights and two robustness passes (Cleveland's lowess, as
+    statsmodels' lowess(frac=0.4) the notebook draws); numpy only."""
+    x, y = np.asarray(x, float), np.asarray(y, float)
+    n = len(x)
+    if n < 4:
+        return y.copy()
+    r = max(2, int(math.ceil(frac * n)))
+    fit, rob = np.zeros(n), np.ones(n)
+    for _ in range(iters + 1):
+        for i in range(n):
+            d = np.abs(x - x[i])
+            h = np.partition(d, r - 1)[r - 1] or 1.0
+            w = np.clip(1 - (d / h) ** 3, 0, None) ** 3 * rob
+            sw = w.sum()
+            if sw <= 0:
+                fit[i] = y[i]
+                continue
+            xm, ym = (w * x).sum() / sw, (w * y).sum() / sw
+            b = (w * (x - xm) ** 2).sum()
+            slope = (w * (x - xm) * (y - ym)).sum() / b if b > 0 else 0.0
+            fit[i] = ym + slope * (x[i] - xm)
+        res = y - fit
+        s = np.median(np.abs(res)) or 1e-12
+        rob = np.clip(1 - (res / (6 * s)) ** 2, 0, None) ** 2
+    return fit
+
+
 def _fatal_frame(fr, accttype):
-    """Notices for one account type with the 'fatal' flag: the LAST notice of an account that was
-    charged off. The hand-built deck's definition is not in the extract (its R script reads a
-    charge-off table the pull does not carry), so this is the nearest the extract supports."""
+    """One account type's notices with the notebook's 'fatal' flag (r_common's nb_fatal) and its loss."""
     n = fr.notices
-    if n is None:
+    if n is None or "nb_fatal" not in n.columns:
         return None
-    s = n[n["accttype"] == accttype].sort_values(["acctid", "noticedate"]).copy()
-    s["is_last"] = ~s.duplicated("acctid", keep="last")
-    s["fatal"] = s["co"] & s["is_last"]
-    s["loss"] = np.where(s["fatal"], s["co_amt"], 0.0)
+    s = n[n["accttype"] == accttype].copy()
+    s["fatal"] = s["nb_fatal"].astype(bool)
+    s["loss"] = s["nb_loss"]
     return s
 
 
-def not_repaid(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
+def not_repaid(fr, accttype, out_dir, size=(6.2, 4.6), ref=None):
     key = f"not_repaid_{accttype.lower()}"
     s = _fatal_frame(fr, accttype)
     if s is None or s.empty:
-        return R.skipped(key, f"Percent of NSF/OD items not repaid - {accttype}", "no ZTrend notices")
-    lo, hi = fr.scoring_window()
+        return R.skipped(key, f"Percent of NSF/OD items not repaid - {accttype}", "no ZTrend notices with a last positive date")
+    top = fr.notices["noticedate"].max()
+    lo, hi = top - pd.Timedelta(days=425), top - pd.Timedelta(days=60)
     w = s[(s["noticedate"] >= lo) & (s["noticedate"] <= hi)]
     daily = w.groupby("noticedate").agg(n=("acctid", "size"), f=("fatal", "sum"))
-    daily = daily.reindex(pd.date_range(lo, hi, freq="D"), fill_value=0)
-    rate = (daily["f"] / daily["n"].where(daily["n"] > 0) * 100).fillna(0.0)
-    n30 = daily["n"].rolling(30).sum()
-    f30 = daily["f"].rolling(30).sum()
-    r30 = (f30 / n30.where(n30 > 0) * 100)
+    if daily.empty:
+        return R.skipped(key, f"Percent of NSF/OD items not repaid - {accttype}", "no notices in the window")
+    rate = daily["f"] / daily["n"] * 100
+    x = np.array([d.toordinal() for d in daily.index], float)
+    # On a sparse series (most days with no fatal notice: 1781's business accounts) the robustness passes treat every
+    # non-zero day as an outlier and pull the trend flat to zero, which read "-0.0%" beside a 6% series; such a series
+    # takes the plain local fit.
+    sparse = float((rate == 0).mean()) > 0.5
+    trend = np.clip(_lowess(x, rate.to_numpy(), iters=0 if sparse else 2), 0, None)
     fig, ax = R.new_fig(*size)
-    ax.plot(rate.index, rate.values, color=R.STEEL_SOFT, linewidth=0.6, alpha=0.30, label="Each day (context)")
-    ax.plot(r30.index, r30.values, color=R.NAVY, linewidth=2.8, label="30-day share of notices not repaid")
-    last = r30.dropna()
-    ax.scatter([last.index[-1]], [last.values[-1]], color=R.ORANGE, s=38, zorder=5)
-    ax.annotate(f"30 days to {last.index[-1]:%b} {last.index[-1].day}, {last.index[-1].year}:\n{last.values[-1]:.2f}% of notices not repaid",
-                (last.index[-1], last.values[-1]), (-10, 40), textcoords="offset points", ha="right", fontsize=10,
+    ax.plot(daily.index, rate.values, color=R.STEEL_SOFT, linewidth=0.8, alpha=0.75, label="Each notice day")
+    ax.plot(daily.index, trend, color=R.NAVY, linewidth=2.8, label="Trend (lowess)")
+    ax.scatter([daily.index[-1]], [trend[-1]], color=R.ORANGE, s=38, zorder=5)
+    ax.annotate(f"Trend at {daily.index[-1]:%b} {daily.index[-1].day}, {daily.index[-1].year}: {trend[-1]:.1f}%",
+                (daily.index[-1], trend[-1]), (-10, 34), textcoords="offset points", ha="right", fontsize=10,
                 color=R.NAVY, fontweight="bold", bbox=dict(boxstyle="round,pad=0.3", fc="white", ec=R.ORANGE, lw=1),
                 arrowprops=dict(arrowstyle="-", color=R.ORANGE, lw=1))
     R.style_axes(ax)
     R.month_ticks(ax, lo, hi, every=2)
     ax.yaxis.set_major_formatter(lambda v, _: f"{v:.1f}%")
-    ax.set_ylim(0, max(float(np.nanmax(r30.values)) * 2.2, 0.5))
+    ax.set_ylim(0, max(float(np.nanpercentile(rate.values, 99)) * 1.15, float(np.nanmax(trend)) * 1.6, 0.5))
     ax.set_ylabel("Share of notices not repaid", fontsize=10.5, color=R.TICK)
     ax.legend(loc="upper left", frameon=False, fontsize=10, labelcolor=R.TICK)
     fig.tight_layout()
@@ -323,39 +360,44 @@ def not_repaid(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
                       numbers={"window": [str(lo)[:10], str(hi)[:10]], "notices": int(daily["n"].sum()),
                                "not_repaid_notices": int(daily["f"].sum()),
                                "rate_pct": float(daily["f"].sum() / max(1, daily["n"].sum()) * 100),
-                               "loss_dollars": float(w["loss"].sum())})
-    # monthly table: only months whose notices all fall inside the matured window (month_complete)
-    mons = _month_range(fr, 12)
-    allw = s
+                               "trend_end_pct": float(trend[-1])})
+    bad_co = getattr(fr, "co_problem", None) is not None
     rows, nums = [], []
-    for m in mons:
-        sm_ = allw[allw["noticedate"].dt.to_period("M") == m]
+    for m in _month_range(fr, 12):
+        sm_ = s[s["noticedate"].dt.to_period("M") == m]
         if sm_.empty:
             continue
-        label = R.periods.mon_yy(f"{m.year}-{m.month:02d}")
-        mature = m.end_time.normalize() <= hi
         fees = float(sm_["CollectedFees"].sum())
-        if mature:
-            fatal_pct = sm_["fatal"].mean() * 100
-            loss_rate = sm_["loss"].sum() / fees * 100 if fees else 0
-            rows.append([label, f"{sm_['acctid'].nunique():,}", money(fees), pct(fatal_pct, 2), pct(loss_rate, 2)])
-            nums.append({"month": str(m), "fatal_pct": fatal_pct, "loss_rate_pct": loss_rate, "fees": fees})
-        else:
-            rows.append([label, f"{sm_['acctid'].nunique():,}", money(fees), "—", "—"])
-            nums.append({"month": str(m), "fatal_pct": None, "loss_rate_pct": None, "fees": fees})
-    res.tables["monthly"] = {"headers": ["Month", "OD Accounts", "Collected Fees", "% Fatal Notices", "Loss Rate"],
-                             "rows": rows}
+        days = int(sm_["noticedate"].nunique())
+        items = float(sm_["Items"].sum()) if "Items" in sm_ else float("nan")
+        pay = float(sm_["PD"].sum()) / items * 100 if items else float("nan")
+        inelig = float(sm_["limit"].isna().mean() * 100)
+        fatal_pct = float(sm_["fatal"].mean() * 100)
+        loss_rate = None if bad_co else (float(sm_["loss"].sum()) / fees * 100 if fees else 0.0)
+        rows.append([R.periods.mon_yy(f"{m.year}-{m.month:02d}"), f"{sm_['acctid'].nunique():,}", money(fees), f"{days}",
+                     money(fees / days if days else 0), pct(pay, 2), pct(inelig, 2), pct(fatal_pct, 2),
+                     "n/a" if loss_rate is None else pct(loss_rate, 2)])
+        nums.append({"month": str(m), "accounts": int(sm_["acctid"].nunique()), "fees": fees, "business_days": days,
+                     "pay_rate_pct": pay, "ineligible_pct": inelig, "fatal_pct": fatal_pct, "loss_rate_pct": loss_rate})
+    res.tables["monthly"] = {"headers": ["Month", "OD Accts", "Collected Fees", "Biz Days", "Fees / Biz Day", "Pay Rate",
+                                         "Ineligible", "% Fatal", "Loss Rate"], "rows": rows}
     res.numbers["monthly"] = nums
-    first = next((x for x in nums if x["fatal_pct"] is not None), None)
+    first = nums[0] if nums else None
     if first:
         res.parity.append(compare(first["fatal_pct"], (ref or {}).get(f"not_repaid.{accttype}.{first['month']}.fatal_pct"),
-                                  tol=0.35, measure=f"{accttype} {first['month']} % fatal notices"))
-        res.parity.append(compare(first["loss_rate_pct"], (ref or {}).get(f"not_repaid.{accttype}.{first['month']}.loss_rate_pct"),
-                                  tol=0.35, measure=f"{accttype} {first['month']} loss rate"))
-    res.notes.append("A notice is counted as not repaid when it is the last notice before its account was charged "
-                     "off. The hand-built deck's definition comes from a charge-off table that is not in the "
-                     "extract, so these rates are close to, not equal to, the deck's. Months whose notices run "
-                     "past the 60-day follow-up are shown as a dash: they have not matured.")
+                                  tol=0.005, measure=f"{accttype} {first['month']} % fatal notices"))
+    res.notes.append("A notice is not repaid ('fatal') when its account was charged off and it is the account's notice nearest "
+                     "its last positive date: the analysis notebook's rule, counted once per charged-off account. % Fatal is "
+                     "fatal notices over all notices in the month; Ineligible is the share of notices with no ILS limit; pay "
+                     "rate is paid items over items. A recent month's rate keeps moving as later data lands, because an "
+                     "account's last positive date can still move: the table runs to the last complete month, as the "
+                     "notebook's does, but the chart stops 60 days before the newest notice.")
+    if nums and nums[-1]["fatal_pct"] > 2 * max(1e-9, float(np.median([m["fatal_pct"] for m in nums[:-1]] or [0]))):
+        res.notes.append(f"{nums[-1]['month']} reads {nums[-1]['fatal_pct']:.2f}% fatal against a median of "
+                         f"{np.median([m['fatal_pct'] for m in nums[:-1]]):.2f}% for the eleven months before: it has had the "
+                         "least time to settle and should be read with that in mind.")
+    if bad_co:
+        res.notes.append(fr.co_problem)
     return res
 
 

@@ -122,10 +122,13 @@ DEFAULT_SECTIONS = [
     # the matrix and the detail tables sit in the appendix, behind them.
     "industry",
     "kpi_rollup", "fee_trends", "yoy", "nsf_share", "chargeoffs", "peers",
-    "exception_items", "usage_segments", "eligibility", "reg_e", "branch_personal",
-    "calculating", "performing", "pullback",
+    "exception_items", "usage_segments", "eligibility", "reg_e", "branch_personal", "branch_summary",
+    "calculating", "scoring_personal", "scoring_business", "pullback",
     "matrix", "comm_strategies", "data_notes",
 ]
+# "performing" (cure = back to $0 within 60 days) left the default on 2026-11-17: Aaron, "Your cure rate slides are
+# wrong. Look at the fatal notice rates in the deck that William built." The Scoring Summary's default rate by
+# predictor (the analysis notebook's CURE flag) took its place; the section still builds when named.
 # every other section is still in SECTIONS and builds when named (--sections); they are left out of the story
 # because each says less than a narrative slide, or uses the 40-day Scoring Summary basis.
 
@@ -142,6 +145,8 @@ PART_OF = {
     "exception_items": PART_OBSERVATIONS, "usage_segments": PART_OBSERVATIONS, "eligibility": PART_OBSERVATIONS,
     "reg_e": PART_OBSERVATIONS, "branch_personal": PART_OBSERVATIONS, "calculating": PART_OBSERVATIONS,
     "performing": PART_OBSERVATIONS, "pullback": PART_OBSERVATIONS,
+    "scoring_personal": PART_OBSERVATIONS, "scoring_business": PART_OBSERVATIONS, "debit_declines": PART_OBSERVATIONS,
+    "branch_summary": PART_OBSERVATIONS,
     "matrix": PART_APPENDIX, "comm_strategies": PART_APPENDIX,
 }
 # built after the Contact Us slide, so they sit in the appendix
@@ -155,7 +160,9 @@ GROUP_DIVIDERS = {
     "pullback": ("Where the Limit Pulls Back", "Limits lowered · How many · By how much"),
     "matrix": ("ILS Matrix", "Parameters · Overrides · Trends"),
     "client_data": ("Client Analysis", "Fees · Eligibility · Branches · Reg E · Debit Declines"),
-    "branch": ("Branch Overdraft and Deposit Behavior", "Deposit intensity · Engagement · Overdraft activity"),
+    # the business block opens here (branch_business, then scoring_business), as William's "Business Account Summary
+    # Details" divider opens his (1781, 2026-11-17)
+    "branch": ("Business Accounts", "Branch deposit behavior · Scoring summary"),
     "scoring": ("Risk Review", "Score distribution · Predictor validation"),
     "deposit_score": ("Deposit Score", "Output analysis · Rule logic"),
     "program": ("Program Health", "Calculation log · Feeds · Reg E · Fee collection"),
@@ -214,7 +221,7 @@ class BuildConfig:
     default_basis: str = "notebook"         # Scoring Summary default rule: "notebook" (the analysis notebook's CURE flag), "deck" (40 days) or "readme"
     predictor_bands: str = "deck"           # "deck" = the hand-built deck's bands, "readme" = the analysis registry
     branch_core_only: bool = True           # branch section: overview + three ranked charts only
-    include_not_repaid: bool = False        # the 'fatal notice' slides (40-day basis) are not in the story
+    include_not_repaid: bool = True         # the notebook's fatal-notice slides (Aaron, 2026-11-17: reproduce William's)
     consultant: Optional[dict] = None       # the ILS consultant's Contact Us card: name, role, phone, email (--consultant)
     standard_dir: Optional[str] = None      # folder holding industry_<yyyy-mm>.json (default: Build Artifacts/ils_analysis/standard)
     peer_pool: Optional[object] = None      # ready peer rows (tests); None = read them (peers_slides.collect_pool)

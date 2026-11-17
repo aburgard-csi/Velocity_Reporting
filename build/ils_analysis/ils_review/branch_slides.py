@@ -168,9 +168,10 @@ def add_branch_section(dk, cfg, loaded, accttype, *, section, cv=None, divider=F
     if vol is not None:
         labels, values = M.top_branches(vol, "median_cv", top_n)
         s = dk.content(f"{accttype} accounts — deposit volatility by branch",
-                       f"Median coefficient of variation of each account's rolling 33-day "
-                       f"deposit total, for accounts with "
-                       f"{cfg.min_periods_for_volatility}+ observations. Higher is more erratic.",
+                       # an observation is a ZTrend notice row, so this covers frequent overdrafters, not every
+                       # account; the caption says so (Aaron asked what it meant, 2026-11-17)
+                       f"How much the 33-day deposit total swings against its own average (median per branch), "
+                       f"for accounts with {cfg.min_periods_for_volatility}+ overdraft notices. Higher is more erratic.",
                        section=section)
         ranked_with_panel(dk, s, vol, "median_cv", top_n, series_name="Median CV",
                           fmt="", fmtv=lambda v: f"{v:.2f}", portfolio=float(vol["median_cv"].median()),

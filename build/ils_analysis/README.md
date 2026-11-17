@@ -65,10 +65,17 @@ fee slides need ILS-wide data and are labelled placeholders.
   default since 2026-11-13 (`default_basis="notebook"`): a notice on a charged-off account dated on or after the
   account's last positive date (the largest `Last_Positive_Date` over all its notices) is a default; losses are the
   account's `Chargeoff_Amt_365`, once, on the notice nearest that date; the window is 425 to 60 days before the newest
-  notice, notices with a limit. It reproduces Tim Barrett's Northwest Bank 1245 tables (2026.11) band for band and
-  Achieva's 10.1% first Days On Book band. The earlier fit, 40 days with never-repaid excluded (`--default-basis deck`,
-  9.8% on Achieva), and the README rule (`--default-basis readme`, 30 days with never-repaid counted, 40% on Achieva)
-  remain as options.
+  notice, notices with a limit at or under the matrix maximum (the notebook's `risk_set`). It reproduces Tim Barrett's
+  Northwest Bank 1245 tables (2026.11) band for band, Achieva's 10.1% first Days On Book band, and William's Dannemora
+  1781 band counts and fees. The earlier fit, 40 days with never-repaid excluded (`--default-basis deck`, 9.8% on
+  Achieva), and the README rule (`--default-basis readme`, 30 days with never-repaid counted, 40% on Achieva) remain as
+  options.
+* **Not repaid (fatal notices).** The notebook's `FATAL2` (cells 30-34, `MasterQueryReordered2025.R` in R): a
+  charged-off account's ONE notice nearest its last positive date. The monthly table is its `198_NEWTS_BETA`; on 1781
+  all twelve months equal William's slide 35 on a pull cut at his data date. The 60-day cure slides (`performing`) are
+  out of the default story since 2026-11-17 (Aaron: "Your cure rate slides are wrong").
+* **A charge-off flag on most accounts** (1781: 99%). Rates follow the flag as the notebook's do and say so on the
+  slide; charge-off dollars and loss rates read n/a.
 * **Notice.** One account on one notice date (ZTrend has one row per item): Achieva's window holds 317,064 item rows and
   216,062 account-days, and the deck's bands sum to 216,034.
 * **Window.** 365 days ending 60 days before the data as-of date (Achieva 2025-07-12 to 2026-07-12), not "trailing 12 months from the snapshot".

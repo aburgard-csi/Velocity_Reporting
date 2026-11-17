@@ -225,6 +225,9 @@ def compute_predictor(predictor, fr, cfg, accttype):
         top = n["noticedate"].max()
         lo, hi = top - pd.Timedelta(days=425), top - pd.Timedelta(days=60)
         w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi) & n["limit"].notna()]
+        cap = (getattr(fr, "max_limit", None) or {}).get(accttype)
+        if cap:                                         # the notebook's risk_set: LIMIT <= the matrix maximum
+            w = w[w["limit"] <= cap]
     else:
         lo, hi = fr.scoring_window()
         w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi)]
@@ -310,7 +313,7 @@ def placeholder_slide(dk, title, subtitle, caption, detail, *, section, source=N
     return s
 
 
-def _render_table(dk, slide, result):
+def _render_table(dk, slide, result, losses_withheld=False):
     import shapes
     p = result.predictor
     heads = [""] + ["# Notices", "Collected Fees"] + (["Losses"] if p.losses else []) + \
@@ -319,19 +322,24 @@ def _render_table(dk, slide, result):
     for i, band in enumerate(result.bands):
         r = [band, count(result.notices[i]), money(result.collected_fees[i])]
         if p.losses:
-            r.append(money(result.losses[i]))
+            r.append("n/a" if losses_withheld else money(result.losses[i]))
         r.append(pct(result.default_rate[i], 2))
         if p.losses:
-            r.append(pct(result.loss_rate[i], 2))
+            r.append("n/a" if losses_withheld else pct(result.loss_rate[i], 2))
         rows.append(r)
     n_rows = len(rows) + 1
     avail = BODY_BOTTOM - BODY_TOP
-    row_h = min(0.32, avail / n_rows)
+    # the header wraps onto two lines ("Collected / Fees") in the narrow columns, so it is given 1.75 rows of room:
+    # budgeting it as one row let a 17-band table grow past the body into the slide number (1781, 2026-11-17)
+    row_h = min(0.32, avail / (n_rows + 0.75))
     fs = 11 if row_h >= 0.27 else 10
     data = [heads] + rows
     colw = [2.0] + [1.3, 1.6] + ([1.5] if p.losses else []) + [1.3] + ([1.2] if p.losses else [])
-    gf = shapes.add_table(slide, TABLE_L, BODY_TOP, TABLE_W, row_h * n_rows, data, colw, fs=fs)
+    gf = shapes.add_table(slide, TABLE_L, BODY_TOP, TABLE_W, row_h * (n_rows + 0.75), data, colw, fs=fs)
     tbl = gf.table
+    tbl.rows[0].height = T.Inches(row_h * 1.75)
+    for i in range(1, n_rows):
+        tbl.rows[i].height = T.Inches(row_h)
     for i in range(1, n_rows):
         c = tbl.cell(i, 0)
         c.fill.solid()
@@ -348,9 +356,10 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
     fr = frame
     if fr is None or not fr.has_trend:
         return [f"ILS Scoring Summary ({accttype}) was skipped — no ZTrend file, so notices cannot be banded."]
-    if getattr(fr, "co_problem", None):
-        # the default rate and the losses are built on the charge-off flag and amount
-        return [f"ILS Scoring Summary ({accttype}) was skipped. " + fr.co_problem]
+    bad_co = getattr(fr, "co_problem", None)
+    if bad_co:
+        # the default rate follows the flag as the notebook's does (shown); the loss dollars are not usable (withheld)
+        notes.append(f"ILS Scoring Summary ({accttype}): losses and loss rates withheld. " + bad_co)
     basis = getattr(cfg, "default_basis", "notebook")
     rule = {"deck": DEFAULT_DAYS_NOTE, "readme": "README rule (30 days, never-repaid counted)",
             "notebook": ("the analysis notebook's rule: a notice on a charged-off account dated on or after the "
@@ -368,13 +377,25 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
         subtitle = f"{accttype} accounts  ·  {p.note}"
         src = (f"{os.path.basename(str(cfg.ztrend_path))} (notices {result.window_label}) joined to "
                f"{os.path.basename(str(cfg.zaccounts_path))}; {p.source}. Default: {rule}.")
+        if bad_co:
+            src += " " + bad_co
+        cap = (getattr(fr, "max_limit", None) or {}).get(accttype)
+        if cap and getattr(cfg, "default_basis", "notebook") == "notebook":
+            src += f" Notices with a limit above the matrix maximum (${cap:,.0f}) are left out, as the notebook does."
         slide = dk.content(f"Scoring Summary: {p.title}", subtitle, section=section, source=src)
-        _render_table(dk, slide, result)
+        _render_table(dk, slide, result, losses_withheld=bool(bad_co))
+        chart_h = BODY_BOTTOM - BODY_TOP - (0.45 if bad_co else 0.0)    # the flag line sits under the chart
+        if bad_co:
+            import shapes
+            shapes.textbox(slide, CHART_L, BODY_BOTTOM - 0.40, CHART_W, 0.38,
+                           f"{(getattr(fr, 'co_flag_share', 0) or 0) * 100:.0f}% of accounts carry the charge-off flag: "
+                           "default rates follow it; losses are withheld.", 12, T.SUBTLE, False, T.PP_ALIGN.LEFT, T.BODY,
+                           T.MSO_ANCHOR.TOP)
         png = os.path.join(dk.chart_dir, f"scoring_{p.key}_{accttype.lower()}.png")
         C.predictor_bubble(result.bands, result.default_rate, result.notices, png,
                            title=f"% Default Rate by {p.title}  ·  {result.window_label}", xlabel=p.xlabel,
-                           avg_line=result.avg_default_rate, figsize=(CHART_W, BODY_BOTTOM - BODY_TOP - 0.05))
-        T.image_real(slide, png, CHART_L, BODY_TOP, CHART_W, BODY_BOTTOM - BODY_TOP)
+                           avg_line=result.avg_default_rate, figsize=(CHART_W, chart_h - 0.05))
+        T.image_real(slide, png, CHART_L, BODY_TOP, CHART_W, chart_h)
         dk.sidecars.append({"key": f"scoring_{p.key}_{accttype.lower()}",
                             "title": f"Scoring Summary: {p.title} ({accttype})", "png": os.path.basename(png),
                             "numbers": {"window": result.window_label, "bands": result.bands,

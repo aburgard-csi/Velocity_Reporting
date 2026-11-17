@@ -327,15 +327,19 @@ def add_fee_trends(dk, cfg, fr, *, section, progress=None):
         if _skip(notes, res):
             continue
         _emit(dk, res, cfg, fr, "zt", "za")
+        w0, w1 = res.numbers["window"]
         s = dk.content(f"Percent of NSF/OD items not repaid — {t}",
-                       f"{t} accounts, notices {res.numbers['window'][0]} to {res.numbers['window'][1]}; "
-                       "a notice is not repaid when its account was later charged off.",
-                       section=section, source=_src(cfg, fr, "zt", "za", extra="Window ends 60 days before the as-of date so each "
-                                                    "notice has had time to resolve. " + " ".join(res.notes)))
-        _picture(s, res, LEFT, BODY_T + 0.05, 7.8, 4.85)
-        table(s, res.tables["monthly"], 8.45, BODY_T + 0.05, 4.38, BODY_B - BODY_T - 0.15)
-        notes.append(f"Percent of items not repaid ({t}): the hand-built deck's definition comes from a charge-off table that is "
-                     f"not in the extract, so these rates approximate it (see the figure sidecar).") if t == "Personal" else None
+                       f"{t} accounts. Chart: notices {w0} to {w1}. Table: the last 12 complete months.",
+                       section=section, source=_src(cfg, fr, "zt", "za", extra="Chart window ends 60 days before the newest "
+                                                    "notice so each notice has had time to resolve. " + " ".join(res.notes)))
+        _picture(s, res, LEFT, BODY_T + 0.05, 5.9, 4.55)
+        table(s, res.tables["monthly"], 6.55, BODY_T + 0.05, 6.28, BODY_B - BODY_T - 0.55)
+        if getattr(fr, "co_problem", None):
+            T.bullets_real(s, 6.55, BODY_B - 0.42, 6.28, 0.40, [f"{(fr.co_flag_share or 0) * 100:.0f}% of accounts carry the "
+                           "charge-off flag in this extract: these rates follow it, and loss rates are withheld."],
+                           size=12, min_size=11)
+        say_first(s, f"{res.numbers['rate_pct']:.2f}% of {t.lower()} notices in the chart window were not repaid "
+                     "(the notebook's fatal-notice rule).")
     return notes
 
 

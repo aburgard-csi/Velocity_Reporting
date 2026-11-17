@@ -383,3 +383,52 @@ def test_the_default_story_sits_in_the_four_agenda_parts():
     order = [C.PART_OF[k] for k in C.DEFAULT_SECTIONS if k in C.PART_OF]
     assert [p for i, p in enumerate(order) if i == 0 or p != order[i - 1]] == [
         C.PART_INDUSTRY, C.PART_PERFORMANCE, C.PART_OBSERVATIONS, C.PART_APPENDIX]
+
+def test_not_repaid_is_the_notice_nearest_the_last_positive_date(tmp_path):
+    """Aaron, 2026-11-17: "Your cure rate slides are wrong. Look at the fatal notice rates in the deck that William
+    built." The analysis notebook's rule (cells 30-34): a charged-off account's fatal notice is the ONE notice nearest
+    its last positive date (the largest Last_Positive_Date over its notices). Account 2 is charged off with notices on
+    2025-10-01 and 2025-11-01 and a last positive date of 2025-10-31: the 11-01 notice is fatal, the 10-01 is not.
+    On 1781 this rule gave all twelve of William's monthly % Fatal Notices exactly."""
+    fr = R.Frame(_loaded())
+    n = fr.notices.set_index(["acctid", "noticedate"])
+    assert n.loc[("2", pd.Timestamp("2025-11-01")), "nb_fatal"]
+    assert not n.loc[("2", pd.Timestamp("2025-10-01")), "nb_fatal"]
+    assert not n["nb_fatal"].loc["1"].any()                                # account 1 was never charged off
+    assert n["nb_loss"].sum() == 500.0                                     # its charge-off counted once
+    res = F.not_repaid(fr, "Personal", str(tmp_path))
+    t = res.tables["monthly"]
+    assert t["headers"] == ["Month", "OD Accts", "Collected Fees", "Biz Days", "Fees / Biz Day", "Pay Rate", "Ineligible",
+                            "% Fatal", "Loss Rate"]
+    nov = [m for m in res.numbers["monthly"] if m["month"] == "2025-11"][0]
+    assert nov["fatal_pct"] == 100.0 and nov["pay_rate_pct"] == 100.0       # one notice, fatal, its one item paid
+    sep = [m for m in res.numbers["monthly"] if m["month"] == "2025-09"][0]
+    assert sep["fatal_pct"] == 0.0 and sep["business_days"] == 1
+
+
+def test_a_charge_off_flag_on_most_accounts_withholds_dollars_not_rates(tmp_path):
+    """Dannemora 1781: 99% of accounts flagged charged off. The notebook still reports the rates (William's deck does);
+    the loss dollars are absurd, so they read n/a, and the Scoring Summary is built rather than skipped."""
+    ld = _loaded()
+    ld.zaccounts["Chargeoff_Account"] = [True, True, False]
+    fr = R.Frame(ld)
+    assert fr.co_problem and fr.co_flag_share == pytest.approx(2 / 3)
+    res = F.not_repaid(fr, "Personal", str(tmp_path))
+    assert all(r[-1] == "n/a" for r in res.tables["monthly"]["rows"])
+    assert all(m["loss_rate_pct"] is None for m in res.numbers["monthly"])
+
+
+def test_the_cure_slides_left_the_default_story_for_the_scoring_summary():
+    from ils_review import config as C
+    assert "performing" not in C.DEFAULT_SECTIONS
+    assert {"scoring_personal", "scoring_business", "branch_summary"} <= set(C.DEFAULT_SECTIONS)
+    assert C.BuildConfig.__dataclass_fields__["include_not_repaid"].default is True
+
+
+def test_lowess_follows_a_trend_and_a_sparse_series_is_not_pulled_flat():
+    x = np.arange(200, dtype=float)
+    y = x * 0.05 + np.sin(x) * 0.5
+    fit = F._lowess(x, y)
+    assert fit[-1] > fit[0] + 8
+    sparse = np.where(x % 5 == 0, 30.0, 0.0)                               # one day in five at 30%: a 6% series
+    assert F._lowess(x, sparse, iters=0).mean() == pytest.approx(6.0, abs=0.5)

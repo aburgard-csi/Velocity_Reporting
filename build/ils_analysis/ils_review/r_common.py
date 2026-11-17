@@ -138,16 +138,19 @@ class Frame:
         self.client_types = ("Personal", "Business")
         # Charge-off data the extract cannot be trusted with (Dannemora FCU 1781, 2026-11: every account flagged
         # charged off, $2.0B charged off and -$5.3B recovered on a $320M credit union). A program charges off a few
-        # percent of its accounts; past half, the flag is a load fault, and every figure built on it (charge-off
-        # dollars, loss rate, the Scoring Summary default and losses, charge-offs against growth) is withheld and
-        # said so, never shown as $0 or 0%.
+        # percent of its accounts; past half, the flag is a load fault. Charge-off DOLLARS (losses, loss rates,
+        # charge-offs against growth) are withheld and said so, never shown as $0 or 0%. The default and fatal-notice
+        # RATES are still shown, as the analysis team's notebook shows them (Aaron, 2026-11-17: "reproduce that
+        # logic"), with the flag stated beside them: on such an extract they are driven by it.
         self.co_problem = None
+        self.co_flag_share = None
         if "Chargeoff_Account" in za.columns and len(za):
             share = float(_yes(za["Chargeoff_Account"]).mean())
+            self.co_flag_share = share
             if share > 0.5:
                 self.co_problem = (f"Charge-off data in this extract is not usable ({share * 100:.0f}% of accounts are flagged "
-                                   f"as charged off), so charge-off dollars, loss rates and the Scoring Summary are left out "
-                                   f"until it is corrected.")
+                                   f"as charged off), so charge-off dollars and loss rates are left out until it is corrected; "
+                                   f"default and not-repaid rates follow the analysis notebook and are driven by that flag.")
         self.refund_problem = None
         if "Refund_Amt_365" in za.columns and len(za) and za["Refund_Amt_365"].isna().all():
             self.refund_problem = "Refund data is not in this extract (Refund_Amt_365 is blank on every account)."
@@ -197,11 +200,11 @@ class Frame:
         if zt is None:
             return None
         a1 = self.za.drop_duplicates("acctid").set_index("acctid")
-        keep = [c for c in ("CollectedFees", "PossibleFees", "Next_Positive_Date", "Last_Positive_Date",
+        keep = [c for c in ("CollectedFees", "PossibleFees", "Items", "PD", "Next_Positive_Date", "Last_Positive_Date",
                             "deptotal33", "depcount33", "limit") if c in zt.columns]
-        # The notebook's aggregation ('ILS Analysis - Python Script.ipynb', cell 24): sums for fees, the
-        # largest value for the last positive date, the 33-day deposits and the limit.
-        agg = {c: ("sum" if c in ("CollectedFees", "PossibleFees") else "max") for c in keep}
+        # The notebook's aggregation ('ILS Analysis - Python Script.ipynb', cell 24): sums for fees, items and paid
+        # items, the largest value for the last positive date, the 33-day deposits and the limit.
+        agg = {c: ("sum" if c in ("CollectedFees", "PossibleFees", "Items", "PD") else "max") for c in keep}
         if "Next_Positive_Date" in agg:
             agg["Next_Positive_Date"] = "min"
         n = zt.groupby(["acctid", "noticedate", "accttype"], observed=True, sort=False).agg(agg).reset_index()
