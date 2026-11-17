@@ -201,6 +201,57 @@ def test_a_ti_deck_goes_to_outputs_and_supersedes_only_its_own_name(tmp_path, mo
     assert len(list((dest / R.ARCHIVE_DIRNAME).rglob("*superseded*"))) == 1
 
 
+def _ti_lists_setup(tmp_path, monkeypatch):
+    out = tmp_path / "Outputs"
+    dest = out / "James Gilmore"
+    dest.mkdir(parents=True)
+    monkeypatch.setattr(R, "outputs", lambda: out)
+    monkeypatch.setattr(R, "client_outputs", lambda cid, root=None: dest)
+    monkeypatch.setattr(R, "client_csm", lambda cid: "James Gilmore")
+    tdir = tmp_path / "work" / "ti"
+    (tdir / "lists").mkdir(parents=True)
+    for n in ("finserv_auto_loans.csv", "finserv_master_list.csv", "finserv_review_queue.csv"):
+        (tdir / "lists" / n).write_text("acct\n1\n", encoding="utf-8")
+    (tdir / "ti_slide_ledger.csv").write_text("chapter,slide,status,reason\n", encoding="utf-8")
+    return dest, tdir
+
+
+def test_the_mail_lists_and_ledger_go_to_outputs_beside_the_deck(tmp_path, monkeypatch):
+    dest, tdir = _ti_lists_setup(tmp_path, monkeypatch)
+    lvl, msg = L.ti_lists_to_outputs("1441", tdir, "2026.10", "FNB Alaska")
+    assert lvl == L.OK and "1441-2026.10-TI-Lists" in msg
+    folder = dest / "1441-2026.10-TI-Lists"
+    assert sorted(p.name for p in folder.iterdir()) == [
+        "finserv_auto_loans.csv", "finserv_master_list.csv", "finserv_review_queue.csv", "ti_slide_ledger.csv"]
+
+
+def test_a_rebuilt_period_archives_the_old_lists_and_never_overwrites_them(tmp_path, monkeypatch):
+    dest, tdir = _ti_lists_setup(tmp_path, monkeypatch)
+    L.ti_lists_to_outputs("1441", tdir, "2026.10", "FNB Alaska")
+    (tdir / "lists" / "finserv_master_list.csv").write_text("acct\n2\n", encoding="utf-8")
+    lvl, _ = L.ti_lists_to_outputs("1441", tdir, "2026.10", "FNB Alaska")
+    assert lvl == L.OK
+    assert (dest / "1441-2026.10-TI-Lists" / "finserv_master_list.csv").read_text(encoding="utf-8") == "acct\n2\n"
+    arch = list((dest / R.ARCHIVE_DIRNAME).rglob("*TI-Lists (superseded*"))
+    assert len(arch) == 1 and (arch[0] / "finserv_master_list.csv").read_text(encoding="utf-8") == "acct\n1\n"
+
+
+def test_no_lists_in_the_build_is_not_a_problem(tmp_path, monkeypatch):
+    _dest, tdir = _ti_lists_setup(tmp_path, monkeypatch)
+    for p in (tdir / "lists").glob("*.csv"):
+        p.unlink()
+    lvl, msg = L.ti_lists_to_outputs("1441", tdir, "2026.10", "FNB Alaska")
+    assert lvl == L.OK and "No mail lists" in msg
+
+
+def test_a_copy_failure_is_a_warning_never_a_stop(tmp_path, monkeypatch):
+    _dest, tdir = _ti_lists_setup(tmp_path, monkeypatch)
+    import shutil
+    monkeypatch.setattr(shutil, "copytree", lambda *a, **k: (_ for _ in ()).throw(OSError("share is read-only")))
+    lvl, msg = L.ti_lists_to_outputs("1441", tdir, "2026.10", "FNB Alaska")
+    assert lvl == L.WARN and "deck is in Outputs" in msg and "read-only" in msg
+
+
 def test_the_launcher_takes_ti_on_status_and_build(capsys):
     """`--ti` is accepted by both; a bad client number still stops first."""
     assert L.main(["status", "12", "--ti"]) == 2

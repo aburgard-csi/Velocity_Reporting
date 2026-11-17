@@ -26,6 +26,7 @@ from ti.deck import labels
 from ti.deck import txn_attrition as A
 from ti.deck import txn_cards as C
 from ti.deck import txn_compete as P
+from ti.deck import txn_layers as LAYERS
 from ti.deck import txn_leakage as L
 from ti.deck import txn_slides as S
 from ti.deck import txn_value as V
@@ -146,6 +147,11 @@ COMP_COMBINED = (
 # the pairs above drawn as one, and the titles a declined combined slide is stated under
 TI_DRAWN, DRAWN_TITLES = _combine(TI_BUILDERS, TITLES, TI_COMBINED)
 COMP_DRAWN, DRAWN_TITLES = _combine(COMP_BUILDERS, DRAWN_TITLES, COMP_COMBINED)
+# The competition layers slides (ti/deck/txn_layers.py, new to RPE) follow the chapter's own slides. They sit
+# beside them and replace none (docs/migration/DUPLICATES.md); COMP_BUILDERS stays v5's twenty.
+TITLES.update(LAYERS.TITLES)
+DRAWN_TITLES.update(LAYERS.TITLES)
+COMP_DRAWN = COMP_DRAWN + LAYERS.BUILDERS
 
 SOURCE = "the ODD extract and the monthly debit-card transaction files"
 
@@ -167,7 +173,8 @@ def compute_all(ctx):
     if ctx.txn is None:
         return {}
     out = {}
-    for section in (T.portfolio, T.financial_services, T.competition, T.merchants,
+    for section in (T.portfolio, T.financial_services, T.competition, T.institution_view, T.competition_layers,
+                    T.merchants,
                     T.merchant_profiles, T.mapping_audit, T.card_behavior, T.interchange,
                     T.relationship, T.overlay, T.leakage, T.stressors_txn):
         t = time.perf_counter()

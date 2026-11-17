@@ -81,6 +81,7 @@
     <a href="#process">How a deck is built</a>
     <a href="#build">Build a deck</a>
     <a href="#sheila">CSM Sheila in your browser</a>
+    <a href="#ti">Transaction Intelligence and the mail lists</a>
     <a href="#checks">What the checks mean</a>
     <a href="#feeds">Data feeds</a>
     <a href="#where">Where things are</a>
@@ -232,7 +233,7 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
       </table>
     </div>
     <p>Click a client to see its checks &mdash; the same <span class="tag ok">[ok]</span>, <span class="tag warn">[!!]</span> and <span class="tag stop">[STOP]</span> lines as the window version, explained under <a href="#checks">What the checks mean</a> &mdash; then <strong>Build</strong>. When another of the client's programs has its data this cycle you get two buttons: <strong>Build ARS only</strong>, or <strong>Build combined</strong> with every program that has data named on it. A program left out is named with the reason.</p>
-    <p>Under those checks, an ARS client's page has a <strong>Transaction Intelligence</strong> panel and an <strong>ARS Companion</strong> panel, and a folded <strong>ILS pre-go-live and kickoff</strong> panel that opens when a client has an extract to run. Each is a separate presentation from the Executive Review, with its own checks and its own build button. Their decks go to Outputs beside the Executive Review and never replace it; each panel says when its deck is in Outputs and has a link to open it.</p>
+    <p>Under those checks, an ARS client's page has a <strong>Transaction Intelligence</strong> panel and an <strong>ARS Companion</strong> panel, and a folded <strong>ILS pre-go-live and kickoff</strong> panel that opens when a client has an extract to run. Each is a separate presentation from the Executive Review, with its own checks and its own build button. Their decks go to Outputs beside the Executive Review and never replace it; each panel says when its deck is in Outputs and has a link to open it. What the Transaction Intelligence build also leaves beside its deck, the financial-services mail lists, is under <a href="#ti">Transaction Intelligence and the mail lists</a>.</p>
     <p>A client's checks are kept for a few minutes so the page stays quick. A row that says it is checking again holds its Build buttons until the fresh answer arrives; <strong>Check again</strong> always re-reads the share from scratch.</p>
 
     <h3>Lift Matrix</h3>
@@ -258,6 +259,34 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
     <h2>CSM Sheila in Claude</h2>
     <p>You can also ask Sheila things in Claude Desktop: &ldquo;where am I this month?&rdquo;, &ldquo;what&rsquo;s 1798&rsquo;s status?&rdquo;, &ldquo;build 1798&rdquo;, &ldquo;where does slide 127&rsquo;s 9.7% come from?&rdquo;. She answers from the same checks and builds as her page, and she replaces a deck in Outputs only after you say yes.</p>
     <p>Set it up once: open <code>CSM Sheila.mcpb</code> in the CSM_Reporting folder (or in Claude, <strong>Settings &rarr; Extensions</strong> and install that file), then click <strong>Install</strong>. The extension&rsquo;s one setting is the CSM Reporting folder (<code>M:\CSM_Reporting</code> unless yours is mapped elsewhere). Each time Claude starts, Sheila picks up the newest release from the share, so there is nothing to update. The very first start on a PC can take a minute or two while Sheila sets up Python; if Claude says she failed to start, restart Claude.</p>
+  </section>
+
+  <section id="ti">
+    <h2>Transaction Intelligence and the mail lists</h2>
+    <p>The Transaction Intelligence deck has a Financial Services part that answers one question: <strong>where do our members and customers send money that is not to us?</strong> It reads the client's debit-card transaction files and counts the payments that go to someone else's financial product: an auto loan, a credit card, insurance, a buy-now-pay-later plan, a payday lender.</p>
+    <p>Each Transaction Intelligence build now leaves a folder beside the deck:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">In <span class="path">Outputs\&lt;CSM&gt;\</span></th><th scope="col">What it is</th></tr></thead>
+        <tbody>
+          <tr><td><span class="path">&lt;id&gt;-&lt;period&gt;-TI-Lists\</span></td><td>The folder. A rebuild of the same period moves the old one to your <span class="path">_Archive\</span>; nothing is overwritten.</td></tr>
+          <tr><td><span class="path">finserv_master_list.csv</span></td><td><strong>The one to hand to the client's marketing team.</strong> One row per account per category. To mail a category, filter <code>list_type</code>.</td></tr>
+          <tr><td><span class="path">finserv_&lt;category&gt;.csv</span></td><td>The same accounts for one category, one file per category, with balance, tenure and other columns from the ODD.</td></tr>
+          <tr><td><span class="path">finserv_review_queue.csv</span></td><td>Names that look financial but the build does not recognise yet, biggest dollars first. Send the top rows to Aaron so they are added for every client.</td></tr>
+          <tr><td><span class="path">ti_slide_ledger.csv</span></td><td>Every slide in the deck and whether it was drawn, merged into another, hidden for this client, or left out, with the reason.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Using the master list</h3>
+    <ol>
+      <li><strong>Filter <code>mailable</code> to Yes.</strong> An account marked <code>unknown</code> is not in this month's ODD; leave it out.</li>
+      <li><strong>Pick the campaign</strong> with <code>list_type</code> (the category) and <code>addressable</code> (yes means the institution offers that product). <code>tier</code> says how recently the account last paid: start with <code>cooling</code>, the accounts that paid in the last 31 to 90 days.</li>
+      <li><strong>The <code>cif</code> column is blank.</strong> No file the build reads carries a customer number, so the lists key on the account id. Marketing adds the CIF from the institution's own system.</li>
+    </ol>
+    <div class="note caution">The lists cover <strong>personal accounts</strong>, the same accounts the deck's headline counts. Every figure is a floor: the files hold debit-card payments only, so payments by ACH, check or bill pay are not in them.</div>
+    <h3>Three words on the slides</h3>
+    <p><strong>Any leakage</strong> is the share of accounts that paid any outside financial product. <strong>Addressable</strong> is the share that paid a category the institution offers, so it is always the smaller number. <strong>Adjacency</strong> is person-to-person and wallet payments, shown apart and never added in. Quote any leakage and addressable together, with the number of accounts they are out of.</p>
+    <p>The Financial Services Guide explains every figure and how to add a missing provider; ask Aaron for the current copy.</p>
   </section>
 
   <section id="checks">
@@ -345,6 +374,7 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
           <tr><td><span class="path">Client CSM List.csv</span></td><td>Which CSM owns each client, and the client's products.</td></tr>
           <tr><td><span class="path">CSM Contacts.csv</span></td><td>The card on each deck's Contact slide, one row per CSM.</td></tr>
           <tr><td><span class="path">Outputs\&lt;CSM&gt;\</span></td><td>Your finished decks. The program is in the file name, not a subfolder.</td></tr>
+          <tr><td><span class="path">Outputs\&lt;CSM&gt;\&lt;id&gt;-&lt;period&gt;-TI-Lists\</span></td><td>The Transaction Intelligence mail lists for a client and month, beside its deck. See <a href="#ti">Transaction Intelligence and the mail lists</a>.</td></tr>
           <tr><td><span class="path">Outputs\&lt;CSM&gt;\_Archive\</span></td><td>Decks replaced by a newer build, one folder per client. It stays at the top of the folder. Nothing is deleted.</td></tr>
           <tr><td><span class="path">Inputs\</span></td><td>The files the build reads, sorted by kind. Leave these alone. The table below lists the folders an ARS deck uses.</td></tr>
           <tr><td><span class="path">Build Artifacts\launcher\</span></td><td>A build's log, charts and data files. You only need these if Aaron asks for a <code>build.log</code>.</td></tr>
@@ -461,6 +491,10 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
           <tr><td>MM, SM</td><td>The two revenue models above.</td></tr>
           <tr><td>Profitability</td><td>Incremental revenue against the program's costs, shown as a ratio such as 2.2 : 1. The program guarantees a minimum of 2 : 1, and the Revenue Guarantee slide appears on a deck whose ratio is below 3 : 1.</td></tr>
           <tr><td>Reg E opt-in</td><td>The share of applicable personal accounts that have opted in to overdraft on debit transactions. Not-applicable accounts aren't counted.</td></tr>
+          <tr><td>Any leakage</td><td>Transaction Intelligence: the share of accounts that paid any outside financial product (loan, card, insurance, BNPL, and so on), from the debit-card files. Adjacency (person-to-person, wallets) is not in it.</td></tr>
+          <tr><td>Addressable</td><td>Transaction Intelligence: the share of accounts that paid a category the institution offers. A part of any leakage, so never larger.</td></tr>
+          <tr><td>Master list</td><td>One CSV for the client and month with a row per account per category, for the client's marketing team. The CIF column is blank today.</td></tr>
+          <tr><td>Review queue</td><td>Payee names that look financial but are not in the dictionary yet, by dollars. The top rows are what to send Aaron.</td></tr>
           <tr><td>Almost flat</td><td>A change within 2% either way.</td></tr>
           <tr><td>YTD YoY</td><td>This year to date against the same months a year earlier. Both windows must be complete months, else the tile reads n/a. A client whose history starts mid-year is compared over the months both years share.</td></tr>
         </tbody>
@@ -493,10 +527,12 @@ Done. The deck is in Outputs, ready to review, save as PDF and email.</div>
     <p>The deck didn't pass the quality check, so it wasn't put in Outputs. Send Aaron the client number.</p>
     <h3>The data is on the share but the build says it isn't</h3>
     <p>The share is copied into Inputs once a day, at 08:00, and only when the VPN is on. Ask Aaron to copy it now, or check that you are connected.</p>
+    <h3>The deck is in Outputs but there is no TI-Lists folder</h3>
+    <p>The lists are copied after the deck. If the copy failed, the build says "The deck is in Outputs, but its mail lists could not be copied" and names where they are. Send Aaron the client number and that line. A client with no transaction files has no lists at all.</p>
     <h3>"The launcher runtime is missing"</h3>
     <p>The launcher isn't fully installed on the share. Ask Aaron to run the launcher release.</p>
   </section>
 </main>
-<footer>Questions or a build that won't finish: contact Aaron Burgard with the client number. Guide updated 2026-11-03.</footer>
+<footer>Questions or a build that won't finish: contact Aaron Burgard with the client number. Guide updated 2026-11-16.</footer>
 </body>
 </html>
