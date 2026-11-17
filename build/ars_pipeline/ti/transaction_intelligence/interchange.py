@@ -22,6 +22,7 @@ import pandas as pd
 from .financial_services import _pct
 from .lens import Lenses
 from .merchant_profiles import AGE_BANDS
+from ti.compat import str_values
 
 SIG_GOAL = 60.0                      # legacy 04: the share of card $ on signature to aim for
 SIG_RISK = 40.0                      # legacy 09: a product below this looks PIN-defaulted
@@ -70,7 +71,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, anchor_end: pd.Timestamp, w
             base_label: str = "all accounts") -> dict:
     out: dict = {}
     K = key_prefix
-    typ = df["transaction_type"].astype(str).str.upper()
+    typ = str_values(df["transaction_type"], lambda v: v.str.upper())
     is_card = typ.isin(["PIN", "SIG"]).to_numpy()
     acct_all = df["primary_account_num"].astype(str)
     in_base = acct_all.isin(account_filter).to_numpy() if account_filter is not None \
@@ -87,7 +88,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, anchor_end: pd.Timestamp, w
         "acct": card["primary_account_num"].astype(str).to_numpy(),
         "sig": (typ[is_card & in_base] == "SIG").to_numpy(),
         "amount": card["amount"].abs().to_numpy(),
-        "key": card["merchant_key"].astype(str).to_numpy(),
+        "key": str_values(card["merchant_key"]).to_numpy(),
         "month": card["transaction_date"].dt.to_period("M").astype(str).to_numpy()})
     n_months = max(int(frame["month"].nunique()), 1)
     accounts, sig_pct, spend = _mix(frame)

@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from .merchants import OTHER, group_ranges
+from ti.compat import str_values
 
 TOP_UNMAPPED = 25
 NAMES_PER_CODE = 3
@@ -58,7 +59,7 @@ def unmapped_mcc(card: pd.DataFrame, cats: pd.Series, spec: dict,
         return []
     frame = pd.DataFrame({"mcc": mcc[other].astype(int),
                           "amount": amounts[other],
-                          "key": card.loc[other, "merchant_key"].astype(str)})
+                          "key": str_values(card.loc[other, "merchant_key"])})
     rows = []
     for code, g in frame.groupby("mcc", observed=True):
         names = (g.groupby("key")["amount"].sum()

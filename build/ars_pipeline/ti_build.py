@@ -104,7 +104,7 @@ class _Clock:
         print(f"[time] {step}: {self.times[step]:,.1f} s{mem}", flush=True)
 
 
-def compute_pack(client_id, period, name, ics=False):
+def compute_pack(client_id, period, name, ics=False, lists_dir=None, prior_pack=None):
     """The cut's data pack for one client: sources, data month, figures, and every warning."""
     import pandas as pd
     from ti import config, cut, lens, odd
@@ -137,6 +137,8 @@ def compute_pack(client_id, period, name, ics=False):
     subsets = build_subsets(frame, cfg, anchor)
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
+    if lists_dir is not None:                         # the mail lists land beside the decks (fs-02)
+        ctx.shared["lists_dir"] = Path(lists_dir)
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     clock.lap("account subsets")
@@ -154,6 +156,23 @@ def compute_pack(client_id, period, name, ics=False):
         clock.lap(f"chapter {ch.title}")
     warnings += ctx.warnings
 
+    if prior_pack:
+        # what changed in the layered competition figures since the previous month's pack (same client)
+        try:
+            from ti.transaction_intelligence import competition_layers as CL
+            from ti.transaction_intelligence import competition_layers_compare as CLC
+            prior = json.loads(Path(prior_pack).read_text(encoding="utf-8"))
+            if prior.get("client_id") != str(client_id):
+                warnings.append(f"competition layers: the prior pack {prior_pack} is for client {prior.get('client_id')}, "
+                                f"not {client_id}; no comparison")
+            else:
+                chg = CLC.compare(metrics, prior.get("metrics") or {}, CL.settings(cfg), prior.get("period"))
+                if chg:
+                    metrics["cl_changes"] = chg
+                else:
+                    warnings.append("competition layers: this month's or the prior pack has no layered figures; no comparison")
+        except Exception as exc:
+            warnings.append(f"competition layers: the prior pack could not be compared ({type(exc).__name__}: {exc})")
     lenses = ["ars"] + (["ics"] if ics else [])
     unavailable = {}
     end = pd.Timestamp(report.anchor_date) if report.anchor_date is not None else None
@@ -167,6 +186,25 @@ def compute_pack(client_id, period, name, ics=False):
             "lenses": [k for k in lenses if k not in unavailable], "lenses_unavailable": unavailable,
             "metrics": metrics, "warnings": warnings, "inputs": fingerprint, "timings": clock.times,
             "computed": time.strftime("%Y-%m-%d %H:%M")}
+
+
+def write_run_tables(pack, out):
+    """The slide ledger and the portfolio row (fs-06). Both are beside the decks; the portfolio row is
+    also upserted into the shared table when RPE_TI_PORTFOLIO names one. A failure here never costs the
+    decks: it is printed and the build still succeeds."""
+    try:
+        from ti import ledger, portfolio
+        rows = ledger.rows(pack)
+        ledger.write(Path(out) / "ti_slide_ledger.csv", rows)
+        print(f"{pack['client_id']}: slide ledger: {ledger.summary(rows)} ({Path(out) / 'ti_slide_ledger.csv'})")
+        row = portfolio.row(pack)
+        portfolio.upsert(Path(out) / "ti_portfolio_row.csv", row)
+        shared = portfolio.shared_table()
+        if shared:
+            portfolio.upsert(shared, row)
+            print(f"{pack['client_id']}: portfolio row upserted into {shared}")
+    except Exception as exc:                          # never the decks
+        print(f"{pack['client_id']}: slide ledger / portfolio row not written ({type(exc).__name__}: {exc})")
 
 
 def pack_for_reuse(out, client_id, period):
@@ -207,6 +245,9 @@ def main(argv=None):
     ap.add_argument("client_name")
     ap.add_argument("out_dir")
     ap.add_argument("--ics", action="store_true", help="the client is on ICS: build the ICS lens too")
+    ap.add_argument("--prior-pack", default=None,
+                    help="the previous month's ti_pack.json for this client: adds 'this month's changes' to the "
+                         "competition layers")
     ap.add_argument("--from-pack", action="store_true",
                     help="draw the decks from the ti_pack.json in <out dir>; compute nothing")
     a = ap.parse_args(argv)
@@ -221,20 +262,23 @@ def main(argv=None):
         pack = pack_for_reuse(out, a.client_id, a.period)
         print(f"figures from the pack computed {pack.get('computed')}: nothing recomputed", flush=True)
     else:
-        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics)
+        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics, lists_dir=out / "lists",
+                            prior_pack=a.prior_pack)
         (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
     for w in pack["warnings"]:
         print(f"{a.client_id}: {w}")
     # v5's own read-outs of the transaction figures, into the build log (never a deck)
-    from ti.transaction_intelligence import competition_report, sections_report
-    for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
+    from ti.transaction_intelligence import competition_report, finserv_report, sections_report
+    for line in (competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"])
+                 + finserv_report.lines(pack["metrics"])):
         print(line)
     t = time.perf_counter()
     for p in build_decks(pack, out):
         print(f"built {p}")
     print(f"[time] decks drawn: {time.perf_counter() - t:,.1f} s", flush=True)
+    write_run_tables(pack, out)
     return 0
 
 

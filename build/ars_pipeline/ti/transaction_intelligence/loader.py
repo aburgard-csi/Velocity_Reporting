@@ -194,6 +194,13 @@ HEADER_MAP = {
     "INSTITUTION": "institution",
     "CARD PRESENT TRANSACTION": "card_present",
     "DDA TRAN CODE": "transaction_code", "TRAN CODE": "transaction_code",
+    # The 6.0.11.0 export (a bank whose files carry card, ACH and check rows): the account column is
+    # headed "DDA Account", the description "Description1", and the rail ("PIN", "ACH", "CHK") is the
+    # FIRST "External Transaction Code"; the numeric code is the second, which _names_from_header
+    # reads as the transaction code.
+    "DDA ACCOUNT": "primary_account_num",
+    "DESCRIPTION1": "merchant_name",
+    "EXTERNAL TRANSACTION CODE": "transaction_type",
 }
 # Header cells whose presence marks a line as a NAMED header row (a data
 # cell can never equal one of these).
@@ -204,9 +211,14 @@ _HASH_HEADER_RE = re.compile(r"^[0-9A-F]{20,}$")
 
 def _names_from_header(cells: list[str]) -> list[str]:
     names = []
+    seen = {}
     for i, cell in enumerate(cells):
         u = str(cell).strip().upper()
-        if u in HEADER_MAP:
+        seen[u] = seen.get(u, 0) + 1
+        if u == "EXTERNAL TRANSACTION CODE" and seen[u] > 1:
+            # the second one is the numeric code beside the rail, never a second type column
+            names.append("transaction_code" if "transaction_code" not in names else f"extra_{i}")
+        elif u in HEADER_MAP and HEADER_MAP[u] not in names:
             names.append(HEADER_MAP[u])
         elif _HASH_HEADER_RE.fullmatch(u):
             names.append("primary_account_num")
@@ -320,11 +332,13 @@ def read_file(path: Path, cache_dir: Path, rpt: LoadReport) -> pd.DataFrame:
     cached = _cache_path(cache_dir, path)
     if cached.exists():
         frame = pd.read_parquet(cached)
-        if len(frame) and frame["transaction_date"].isna().all():
+        if len(frame) and (frame["transaction_date"].isna().all()
+                           or frame["primary_account_num"].isna().all()):
             # a stale/poisoned cache (e.g. parsed by an older loader) must
-            # never mask a readable raw file -- discard and re-read
+            # never mask a readable raw file -- discard and re-read. A frame with no account on
+            # any row is the same case: it is what a layout the loader did not yet know parsed to
             rpt.warnings.append(f"{path.name}: cached parquet had no parseable "
-                                f"dates -- cache discarded, raw file re-read")
+                                f"dates or no accounts -- cache discarded, raw file re-read")
             cached.unlink()
         else:
             # Does the cache actually account for the file it claims to be?

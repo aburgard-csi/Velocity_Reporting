@@ -35,6 +35,7 @@ from .financial_services import (_pct, _recency_tier, _token_regex, classify_str
 from .lens import Lenses
 from .financial_services import marketplace_purchase
 from .merchant import merchant_core, merchant_text
+from ti.compat import str_values
 
 LOCAL_TIER = "Local Bank / CU"
 REGIONAL_TIER = "Regional Bank"
@@ -196,7 +197,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     else:
         text = merchant_text(df["merchant_name"])
         core = merchant_core(df["merchant_name"])
-        is_card = df["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"]).to_numpy()
+        is_card = str_values(df["transaction_type"], lambda v: v.str.upper()).isin(["PIN", "SIG"]).to_numpy()
         product = pd.Series(None, index=df.index, dtype=object)
     is_transfer = ~is_card
     # A feed with no transfer rail at all (1776, 1100: card only) has to be
