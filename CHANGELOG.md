@@ -15,6 +15,14 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — User guide: Transaction Intelligence and the mail lists (`scripts/launchers/ARS Deck User Guide.html`)
+
+Summary: Documentation only. Based on `docs/financial-services-guide`, which sits on the Financial Services stack; **describes what that stack delivers, so it should merge after it.** The copy on the share is released from this file (Aaron's release), so the share is unchanged until then.
+
+- New section **Transaction Intelligence and the mail lists**: the `<id>-<period>-TI-Lists` folder beside the deck, the master list and how to use it, the blank `cif` column, the personal-accounts base, and the three words on the slides (any leakage, addressable, adjacency).
+- Where things are: a row for the lists folder. Terms: any leakage, addressable, master list, review queue. If something goes wrong: the deck is in Outputs but the lists are not. Contents and the Sheila panel paragraph link to the new section. Footer date 2026-11-16.
+- A new generated page, `docs/financial-services.html` (`scripts/build_financial_services_guide.py`), is the full reference; the guide points CSMs to Aaron for the current copy.
+
 ### 2026-11-16 — The Transaction Intelligence build now puts the mail lists in Outputs beside the deck (`scripts/ars_launcher.py`)
 
 Summary: Based on `feat/ars-ti/fs-07-dictionary-v7` (stacked on PR 163). **A launcher change (`build_ti`), which Sheila's button depends on: for Aaron's review.** The deck delivery is untouched.
