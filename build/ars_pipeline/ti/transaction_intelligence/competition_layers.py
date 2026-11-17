@@ -422,7 +422,8 @@ def compute(df, rows, lenses, frame, config, anchor_ts, record, book, dict_spec,
     placed, review = float(matched["amt"].sum()), float(bank_like["amt"].sum())
     denom = {k: len(ids & active) for k, ids in sets.items()}
     out[K + "scope"] = {"depository_only": True, "rail": "card (PIN, SIG)", "window_end": str(pd.Timestamp(anchor_ts).date()) if anchor_ts is not None else None,
-                       "district": district, "points": len(points), "thresholds": cfg, "out_of_scope_names": len(out_of_scope)}
+                       "district": district, "points": len(points), "thresholds": cfg, "out_of_scope_names": len(out_of_scope),
+                       "client_type": ((record or {}).get("profile") or {}).get("fi_type")}
     out[K + "base"] = {"accounts": base_n, "dollars": round(total), "groups": denom, "group_labels": labels}
     by = {}
     for gk, ids in sets.items():

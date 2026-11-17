@@ -15,6 +15,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-16 — Competition layers slides: the full set, drawn after the Competition chapter's own (`build/ars_pipeline/ti/deck/txn_layers.py`, `charts_layers.py`, `chapters_txn.py`, `slides.json`)
+
+Summary: The Competition chapter now ends with the layers slides: how to read them, a summary, the layer ladder, a map of competitor branches near the client, the top institutions, **every institution paid in a ranked list**, six slides for each of the five main tiers, and fifteen whole-book slides. Every headline is computed from the figures it sits on; the chapter's own twenty builders are unchanged.
+
+James Gilmore, 2026-11-16: "the visuals, the charts, the insight ... the list of competitors."
+
+- **What is drawn.** Orientation (how to read the layers, summary, ladder, branch map, registry against institutions paid, top by dollars and by accounts); the full ranked list, 15 institutions a page; for each of Local, Regional, National, Digital and Other: who the money goes to, who pays (by group), movement in 90 days, depth, reach against depth, and profile cards; then the heat table of group by tier, every group against every tier, near-responders (ARS lens only), spend, PIN share and competitor share by month and group, institutions per account, recency, distance from a client branch, competition and attrition, the branch scatter, winback counts, coverage and the unplaced text, and the action register. About 55 slides for a client with every analysis available.
+- **Headlines state the finding** and are computed: "National and digital institutions take 68% of competitor dollars; local institutions take 15%" is the figure, not a template. A client's own base is "members" at a credit union and "customers" at a bank, and "accounts" when the client's type is unknown; a competitor's base follows that institution's type.
+- **A view the client's files cannot support declines with its reason and is hidden**, as every builder of the cut does: no closure dates (competition and attrition), no branch coordinates (the map), fewer than three institutions in a tier (that tier's slides), a client with no near-responders. Nothing is drawn as a zero.
+- **Both lens decks.** The ARS lens draws responders, mailed non-response (with the near-responder split) and no mail; the ICS lens draws ICS account, direct mail, referral and not ICS.
+- **Slide notes** name the client and say these slides are computed by the competition layers section and are not ported from the ARS v5 engine.
+- `ti/slides.json` lists all 52 new titles as "keep" and in the Competition chapter's register. `COMP_BUILDERS` stays v5's twenty (the existing test pins it); the layers builders are appended to what the chapter draws. `Deck.helpers()` gains `lens` and `relabel`.
+- Branch labels carry no decimal; charts use the cut's palette and type floor, and a bubble's label starts at its own bubble's edge so the chart layer's overlap check passes.
+- Tests: `tests/test_ti_competition_layers_slides.py` (synthetic figures: every builder declines on an empty client and draws on a full one, the full list covers every institution once, the ICS lens, and the whole set through the real `Deck` helpers into a presentation).
+- **Not done in this stage:** the month-over-month comparison slides.
+
 ### 2026-11-16 — Competition by layer: the analyses on the layered figures (`build/ars_pipeline/ti/transaction_intelligence/competition_layers_modules.py`)
 
 Summary: The `cl_*` figures now carry ten analyses of who members pay and how: a monthly trend by group, 90-day movement, depth of wallet, institutions per account, recency, distance from a client branch, winback counts, closure after paying a competitor, a branch table, and the competitor branches near the client for a map. It adds figures only: no `comp_*` figure and no slide changes in this stage.
