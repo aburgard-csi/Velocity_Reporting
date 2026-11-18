@@ -83,6 +83,30 @@ def deposit_behaviour(ctx):
     return _section("deposit_behaviour")(ctx)
 
 
+def deposit_daily(ctx):
+    """R7's daily deposits and deposit-to-outflow timing (ti/monthly_analysis/deposit_daily.py). No v5
+    counterpart, so not in PARITY. The categories are the ones the Transaction Intelligence chapter
+    used, which computes first: financial services' row classification (ctx.shared["fin_rows"]) and
+    the merchant categories (merchants._categorize on the card rows, with the spec it left)."""
+    _deposits(ctx)
+    from ti.monthly_analysis import deposit_daily as DD
+    txn = ctx.txn
+    card = fin = None
+    if txn is not None and len(txn):
+        from ti import dictionaries
+        from ti.transaction_intelligence import merchants as M
+        rows = ctx.shared.get("fin_rows")
+        if rows is None:
+            from ti.transaction_intelligence import financial_services as F
+            rows = F.classify_rows(txn, F.load_patterns(dictionaries.folder(), ctx.config))
+        fin = rows["category"]
+        is_card = txn["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"])
+        if is_card.any():
+            spec = ctx.shared.get("mch_spec") or M.load_categories(dictionaries.folder())
+            card, _method, _cov = M._categorize(txn[is_card], spec, lambda _m: None)
+    return DD.compute(ctx.config, ctx.warn, txn=txn, card_category=card, fin_category=fin)
+
+
 def profile(ctx):
     """v5's profile section; the attrition chapter reads its survival-by-tenure figures."""
     return _section("profile")(ctx)
