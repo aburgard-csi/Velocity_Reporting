@@ -144,10 +144,10 @@ JS = r"""
   }
 
   // Each send carries the slide's whole state, so a star keeps the vote and a vote keeps the star. The page changes at once and puts it back if the share refuses.
-  async function send(i, patch) {
+  async function send(i, patch, quiet) {
     const s = V.d.slides[i], before = s.mine, m = mineOf(s);
     const next = {vote: m.vote || "", star: !!m.star, comment: m.comment || "", ...patch};
-    s.mine = next; paintRow(i);
+    s.mine = next; if (!quiet) paintRow(i);
     try {
       await api("/api/votes/vote", {method: "POST", body: JSON.stringify({program: V.program, slide: s.n, title: s.title, vote: next.vote, star: next.star, comment: next.comment})});
       const el = $(`.vrow[data-i="${i}"]`); if (el) { el.classList.add("just"); setTimeout(() => el.classList.remove("just"), 900); }
@@ -213,11 +213,11 @@ JS = r"""
     if (t.closest("[data-star]")) return send(i, {star: !mineOf(V.d.slides[i]).star});
     const b = t.closest("button.vb"); if (b) { const v = b.dataset.vote; send(i, {vote: mineOf(V.d.slides[i]).vote === v ? "" : v}); }
   });
-  // A comment typed after the vote is saved with it again; typed before, it travels with the first click.
+  // A comment is saved on its own (a vote is not needed) and the row is not repainted, so the click on a button beside it still lands.
   $("#v-votes").addEventListener("change", e => {
     if (!e.target.classList.contains("vc")) return;
     const r = e.target.closest(".vrow"), i = +r.dataset.i, m = mineOf(V.d.slides[i]);
-    if (m.vote || m.star || e.target.value) send(i, {comment: e.target.value});
+    if (e.target.value !== (m.comment || "")) send(i, {comment: e.target.value}, true);
   });
   $("#v-votes").addEventListener("keydown", e => { if (e.target.classList.contains("vc") && e.key === "Enter") e.target.blur(); });
 
