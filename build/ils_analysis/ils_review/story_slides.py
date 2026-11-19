@@ -104,6 +104,26 @@ def _status_map(S):
     return m
 
 
+def _status_codes(s):
+    """ZAccounts' odstatuscode as the matrix's STATUS_CODE spells it: whole numbers for numeric codes (Achieva's
+    1, 2, ...), text as written for text codes (Northwest Bank's ACTIVE, CUST OUT, ...), "" for a blank."""
+    def one(v):
+        if pd.isna(v) or not str(v).strip():
+            return ""
+        n = pd.to_numeric(v, errors="coerce")
+        return str(int(n)) if pd.notna(n) else str(v).strip()
+    return s.map(one)
+
+
+def _lookup(smap, c):
+    """A status code's (description, can overdraft), matching text codes without regard to case."""
+    if c in smap:
+        return smap[c]
+    up = {k.upper(): v for k, v in smap.items()}
+    # a blank code the mapping does not list read "Status " on Dannemora FCU's slide; name it for what it is
+    return up.get(str(c).upper(), ("No status code" if not str(c).strip() else f"Status {c}", False))
+
+
 def add_calculating(dk, cfg, fr, S, *, section, progress=None):
     notes = []
     t = "Personal"
@@ -114,9 +134,9 @@ def add_calculating(dk, cfg, fr, S, *, section, progress=None):
     if not smap:
         notes.append("Which accounts receive an ILS limit: the matrix validation extract has no OD STATUS CODE MAPPING, so the status codes cannot be read; the eligibility slide was skipped.")
     else:
-        code = pd.to_numeric(o["odstatuscode"], errors="coerce").map(lambda v: "" if pd.isna(v) else str(int(v)))
-        desc = code.map(lambda c: smap.get(c, (f"Status {c}", False))[0])
-        elig = code.map(lambda c: smap.get(c, ("", False))[1])
+        code = _status_codes(o["odstatuscode"])
+        desc = code.map(lambda c: _lookup(smap, c)[0])
+        elig = code.map(lambda c: _lookup(smap, c)[1])
         n, ne = len(o), int(elig.sum())
         by = desc.groupby(desc).size().sort_values(ascending=False)
         rows = []
@@ -144,7 +164,11 @@ def add_calculating(dk, cfg, fr, S, *, section, progress=None):
         png = _columns([x / max(1, sum(ns)) * 100 for x in ns], [l for l, _, _ in LIMIT_BANDS], ns, dk.chart_dir, key,
                        ylab="Share of eligible accounts", fmt=lambda v: f"{v:.0f}%", hi=int(np.argmax(ns)))
         top = int(np.argmax(ns))
-        s2 = _slide(dk, cfg, fr, f"Most eligible accounts sit at {LIMIT_BANDS[top][0]}: {ns[top] / max(1, sum(ns)) * 100:.0f}% of them",
+        sh = ns[top] / max(1, sum(ns)) * 100
+        # "Most" only for a majority (Dannemora's largest band held 45%)
+        head = (f"Most eligible accounts sit at {LIMIT_BANDS[top][0]}: {sh:.0f}% of them" if sh > 50 else
+                f"The largest group of eligible accounts sits at {LIMIT_BANDS[top][0]}: {sh:.0f}% of them")
+        s2 = _slide(dk, cfg, fr, head,
                     f"Current ILS limit of the {len(el):,} eligible open personal accounts; $0 is its own band.",
                     "This is how the limits are spread today across the accounts that can have one.", section=section)
         T.image_real(s2, png, 0.5, 1.75, 7.8, 4.75)
@@ -182,6 +206,12 @@ def add_performing(dk, cfg, fr, S, *, section, progress=None):
     if cf is None:
         return ["Performing slides skipped: no ZTrend file."]
     w, lo, hi = cf
+    # A cure rate needs the extract to see CURE_DAYS past each notice. Northwest Bank's ZTrend fills
+    # Next_Positive_Date for nearly every notice and never more than ~46 days out, so every band read 100%.
+    reach = w["days_to_positive"].max()
+    if pd.isna(reach) or reach < CURE_DAYS:
+        return [f"Performing slides skipped: the extract's Next_Positive_Date reaches at most {reach:.0f} days past a notice, "
+                f"so a {CURE_DAYS}-day cure rate cannot be measured and would read 100% in every band."]
     overall = w["cured"].mean() * 100
     notes = []
     specs = [("limit", "ILS limit in force at the notice", w["limit"].fillna(0.0), LIMIT_BANDS,
@@ -210,8 +240,9 @@ def add_performing(dk, cfg, fr, S, *, section, progress=None):
         png = _columns(r_, lab, n_, dk.chart_dir, k, ylab="Share of notices cured within 60 days", fmt=lambda v: f"{v:.0f}%",
                        hi=int(np.argmin(r_)), ymax=105)
         s = _slide(dk, cfg, fr, f"Cure rate runs from {min(r_):.0f}% to {max(r_):.0f}% by {TITLE_NOUN[key]}",
-                   f"Personal accounts: share of notices where the negative balance reached $0 or more within {CURE_DAYS} days, "
-                   f"notices {str(lo)[:10]} to {str(hi)[:10]}.", say, section=section,
+                   f"Personal accounts: share of notices that reached $0 or more within {CURE_DAYS} days, "
+                   f"notices {pd.Timestamp(lo):%b} {pd.Timestamp(lo).day}, {pd.Timestamp(lo).year} to "
+                   f"{pd.Timestamp(hi):%b} {pd.Timestamp(hi).day}, {pd.Timestamp(hi).year}.", say, section=section,
                    extra=f"Cured = Next_Positive_Date within {CURE_DAYS} days of the notice. A notice is one account on one date.")
         T.image_real(s, png, 0.5, 1.75, 7.8, 4.75)
         _tiles(s, [(f"{overall:.0f}%", "Cured, all notices"), (f"{max(r_):.0f}%", f"Highest band: {lab[int(np.argmax(r_))]}"),
@@ -265,6 +296,8 @@ def add_nsf_share(dk, cfg, fr, S, *, section, progress=None):
 
 
 def add_chargeoffs(dk, cfg, fr, S, *, section, progress=None):
+    if fr.co_problem:
+        return ["Charge-offs against account growth skipped. " + fr.co_problem]
     za = fr.za
     d = za[za["accttype"] == "Personal"]
     mons = _month_range(fr, 12)
@@ -315,8 +348,8 @@ def add_pullback(dk, cfg, fr, S, *, section, progress=None):
     if "MaxODLimit" not in o.columns:
         return ["Pulling back skipped: the ZAccounts extract has no MaxODLimit column."]
     smap = _status_map(S)
-    code = pd.to_numeric(o["odstatuscode"], errors="coerce").map(lambda v: "" if pd.isna(v) else str(int(v)))
-    elig = code.map(lambda c: smap.get(c, ("", False))[1]) if smap else pd.Series(True, index=o.index)
+    code = _status_codes(o["odstatuscode"])
+    elig = code.map(lambda c: _lookup(smap, c)[1]) if smap else pd.Series(True, index=o.index)
     o = o[elig.to_numpy()]
     cur = pd.to_numeric(o["ODLimit"], errors="coerce")
     mx = pd.to_numeric(o["MaxODLimit"], errors="coerce")

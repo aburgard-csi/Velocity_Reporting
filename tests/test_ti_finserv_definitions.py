@@ -24,7 +24,7 @@ def spec():
 def _txn(transfers=False):
     rows = [
         ("a1", "AFFIRM INC", "SIG", 40.0, "2026-10-20"),          # leakage, addressable (BNPL)
-        ("a1", "STATE FARM INS", "SIG", 120.0, "2026-10-02"),     # leakage, not addressable
+        ("a1", "STATE FARM INS", "SIG", 120.0, "2026-10-02"),     # leakage, addressable (insurance is addressable, R2)
         ("a2", "ADVANCE AMERICA", "SIG", 300.0, "2026-10-01"),    # leakage, addressable
         ("a3", "VENMO PAYMENT", "SIG", 25.0, "2026-10-25"),       # adjacency
         ("a4", "WM SUPERCENTER", "PIN", 80.0, "2026-10-25"),      # nothing
@@ -52,7 +52,7 @@ def test_definitions_put_any_and_addressable_side_by_side(spec, tmp_path):
     d = out["fin_definitions"]
     assert d["base_accounts"] == 5 and d["file_accounts"] == 5
     assert d["any"]["accounts"] == 2 and d["addressable"]["accounts"] == 2    # a1 and a2
-    assert d["any"]["dollars"] == 460 and d["addressable"]["dollars"] == 340
+    assert d["any"]["dollars"] == 460 and d["addressable"]["dollars"] == 460
     assert d["adjacency"]["accounts"] == 1 and d["adjacency"]["dollars"] == 25
 
 

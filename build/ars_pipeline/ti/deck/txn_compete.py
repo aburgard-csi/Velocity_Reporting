@@ -286,9 +286,10 @@ def where_the_outflow_goes(h, t, base):
     if not dests:
         return None
     s, top = h["slide"]((
-        f"{money(t.get('ovl_named_destination_deposits'))} of outflow has a "
-        f"named destination — {t.get('ovl_named_destination_n', 0):,} "
-        f"flight-risk accounts already pay it",
+        # RPE matching fixes (2026-11-05): the figure is the balances those accounts hold today,
+        # not money that left -- the headline called it outflow
+        f"{t.get('ovl_named_destination_n', 0):,} flight-risk accounts already pay a named "
+        f"destination, and they hold {money(t.get('ovl_named_destination_deposits'))} with us",
         f"flight risk = balance >= {money(t.get('ovl_flight_threshold'))} and "
         f"below its own average"), "Where the outflow goes")
     right = h["rail"](s, [
