@@ -120,10 +120,14 @@ def add_data_pull(dk, cfg, fr, *, section="data_pull"):
     types = [t for t in ("Personal", "Business") if (loaded.zaccounts["accttype"] == t).any()]
     n_open = {t: len(fr.open_accounts(t)) for t in types}
     br = loaded.branches
-    s = dk.content("About this data", f"Every figure in this review is measured to {asof}; the extracts were pulled as shown below.",
+    # --as-of (1781, 2026-11-17): notices, declines and refunds are cut at the date; account fields and the DBIC are as pulled
+    cut = bool(getattr(cfg, "data_as_of", None))
+    lead = (f"Notices, declines and refunds are measured to {asof}; account fields and the DBIC are as pulled, shown below."
+            if cut else f"Every figure in this review is measured to {asof}; the extracts were pulled as shown below.")
+    s = dk.content("About this data", lead,
                    section=section, source=_src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic",
                                                 extra="Pull dates are the date stamps in the extract file names; record counts are the rows read."))
-    tiles = [("Data as of", asof, "latest account update in the extract"),
+    tiles = [("Data as of", asof, "notices cut at this date" if cut else "latest account update in the extract"),
              ("Accounts pulled", f"{n_all:,}", "every status, personal and business"),
              ("Open accounts", f"{sum(n_open.values()):,}", "  ·  ".join(f"{t} {n_open[t]:,}" for t in types)),
              ("Branches analysed", f"{len(br.retail) + len(br.digital)}", f"{len(br.retail)} retail, {len(br.digital)} digital ({len(br.back_office)} held out)")]
@@ -148,15 +152,21 @@ def add_data_pull(dk, cfg, fr, *, section="data_pull"):
     if loaded.ztrend is not None:
         rows.append(["Notices (ZTrend)", _pulled(cfg.ztrend_path), f"{len(loaded.ztrend):,} notices", "Cure, pull-back and repayment"])
     if loaded.declines is not None:
-        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines", "Exception items by channel"])
+        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines", "Debit declines"])
     if getattr(loaded, "refunds", None) is not None:
         rows.append(["Refunds", _pulled(cfg.refunds_path), f"{len(loaded.refunds):,} refunds", "Collected fees net of refunds"])
     if cfg.matrix_path:
         rows.append(["Matrix validation", _pulled(cfg.matrix_path), "—", "Matrix parameters and overrides"])
     if cfg.dbic_path:
-        rows.append(["DBIC", _pulled(cfg.dbic_path), "—", "Dormant, blocked and inactive accounts"])
-    table(s, {"headers": ["Extract", "Pulled", "Records", "Used for"], "rows": rows}, LEFT, top + 0.5, FULL_W, BODY_B - (top + 0.5) - 0.1,
-          first_w=2.9, max_fs=14)
+        rows.append(["DBIC", _pulled(cfg.dbic_path), "—", "Program health; exception items by channel"])
+    # data the extract cannot support is said here, on the slide, not only in the notes
+    problems = [p for p in (getattr(fr, "co_problem", None), getattr(fr, "refund_problem", None)) if p]
+    room = 0.80 if problems else 0.0
+    table(s, {"headers": ["Extract", "Pulled", "Records", "Used for"], "rows": rows}, LEFT, top + 0.5, FULL_W,
+          BODY_B - (top + 0.5) - 0.1 - room, first_w=2.9, max_fs=14)
+    if problems:
+        shapes.textbox(s, LEFT, BODY_B - room + 0.02, 10.3, room, "Data note: " + " ".join(problems), 12, T.ORANGE, True,
+                       PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
     say_first(s, "Here is when the data was pulled and how big the book is; every figure after this is measured to the as-of date, so the slides do not repeat it.")
     return s
 
@@ -242,13 +252,18 @@ def add_kpi_rollup(dk, cfg, fr, *, section, progress=None):
         vals = [(compact_money(rows[key][cols[t]]) if money_ else rows[key][cols[t]]) for t in types]
         # the largest size at which every value in the tile stays on one line (a $35.43M book wrapped at 30 pt)
         from textfit import fits_one_line
-        fs = next((p for p in (30, 28, 26, 24, 22, 20) if all(fits_one_line(str(v), cw, p, "Montserrat", True) for v in vals)), 20)
+        # measured against the box less its 0.1 in side insets: "$20.74M" passed at the full width and wrapped
+        fs = next((p for p in (30, 28, 26, 24, 22, 20) if all(fits_one_line(str(v), cw - 0.25, p, "Montserrat", True) for v in vals)), 20)
         for k, t in enumerate(types):
             v = vals[k]
             shapes.textbox(s, x + 0.1 + k * cw, y + 0.62, cw, 0.80, v, fs, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
             shapes.textbox(s, x + 0.1 + k * cw, y + 1.45, cw, 0.30, t, 13, T.SUBTLE, False, PP_ALIGN.CENTER, T.BODY, MSO_ANCHOR.TOP)
-    caption(s, "each tile shows Personal and Business side by side; loss rate is charge-off dollars over collected fees. "
-               "The full table is in the appendix.", T0=6.40, size=12)
+    if fr.co_problem:
+        caption(s, "each tile shows Personal and Business side by side. Charge-offs and loss rate read n/a: the charge-off "
+                   "data in this extract is not usable (see About this data). The full table is in the appendix.", T0=6.40, size=12)
+    else:
+        caption(s, "each tile shows Personal and Business side by side; loss rate is charge-off dollars over collected fees. "
+                   "The full table is in the appendix.", T0=6.40, size=12)
     say_first(s, "These six numbers are the size of the program and what it costs us in charge-offs.")
     dk.defer(lambda: _kpi_detail(dk, cfg, fr, res))
     return notes
@@ -316,15 +331,24 @@ def add_fee_trends(dk, cfg, fr, *, section, progress=None):
         if _skip(notes, res):
             continue
         _emit(dk, res, cfg, fr, "zt", "za")
+        w0, w1 = res.numbers["window"]
         s = dk.content(f"Percent of NSF/OD items not repaid — {t}",
-                       f"{t} accounts, notices {res.numbers['window'][0]} to {res.numbers['window'][1]}; "
-                       "a notice is not repaid when its account was later charged off.",
-                       section=section, source=_src(cfg, fr, "zt", "za", extra="Window ends 60 days before the as-of date so each "
-                                                    "notice has had time to resolve. " + " ".join(res.notes)))
-        _picture(s, res, LEFT, BODY_T + 0.05, 7.8, 4.85)
-        table(s, res.tables["monthly"], 8.45, BODY_T + 0.05, 4.38, BODY_B - BODY_T - 0.15)
-        notes.append(f"Percent of items not repaid ({t}): the hand-built deck's definition comes from a charge-off table that is "
-                     f"not in the extract, so these rates approximate it (see the figure sidecar).") if t == "Personal" else None
+                       f"{t} accounts. Chart: notices {w0} to {w1}. Table: the last 12 complete months.",
+                       section=section, source=_src(cfg, fr, "zt", "za", extra="Chart window ends 60 days before the newest "
+                                                    "notice so each notice has had time to resolve. " + " ".join(res.notes)))
+        _picture(s, res, LEFT, BODY_T + 0.05, 5.9, 4.55)
+        table(s, res.tables["monthly"], 6.55, BODY_T + 0.05, 6.28, BODY_B - BODY_T - 0.55)
+        if getattr(fr, "co_problem", None):
+            T.bullets_real(s, 6.55, BODY_B - 0.42, 6.28, 0.40, [fr.co_slide_line()], size=12, min_size=11)
+        if (getattr(fr, "co_flag_share", 0) or 0) > 0.5:
+            # the rate is built by the flag: on an extract that flags most accounts charged off, every account with a
+            # notice gets one 'fatal' notice, so the figure must not be read out as a not-repaid rate (Aaron, 2026-11-17:
+            # "charge-off information is incorrect and we know it")
+            say_first(s, "The charge-off flag in this extract is known to be wrong, so these rates are not a real "
+                         "not-repaid rate; do not quote them.")
+        else:
+            say_first(s, f"{res.numbers['rate_pct']:.2f}% of {t.lower()} notices in the chart window were not repaid "
+                         "(the notebook's fatal-notice rule).")
     return notes
 
 
@@ -374,7 +398,17 @@ def add_eligibility(dk, cfg, fr, *, section, progress=None):
             return int(str(v).replace(",", "").replace("$", "") or 0)
         top = body[:6]
         rest = body[6:]
-        rows = [[("Blank (active)" if r[0] == "Blank" else r[0]), r[ci["Accounts"]], r[ci["Can Overdraft"]], r[ci["Users"]]] for r in top]
+        # name each code from the matrix's OD STATUS CODE MAPPING (Dannemora's codes are single letters: O, N, D);
+        # a blank code is "active" only where the mapping says a blank can overdraft
+        smap = {str(k).upper(): v for k, v in (getattr(fr, "status_map", None) or {}).items()}
+
+        def label(code):
+            if code == "Blank":
+                # "active" only where the mapping lists a blank code that can overdraft (Dannemora's lists none)
+                return "Blank (active)" if ("" in smap and smap[""][1]) else "No status code"
+            d = smap.get(str(code).upper())
+            return f"{code} – {d[0]}" if d and d[0] and d[0].upper() != str(code).upper() else str(code)
+        rows = [[label(r[0]), r[ci["Accounts"]], r[ci["Can Overdraft"]], r[ci["Users"]]] for r in top]
         if rest:
             rows.append([f"All other ({len(rest)} codes)", f"{sum(n_(r[ci['Accounts']]) for r in rest):,}",
                          f"{sum(n_(r[ci['Can Overdraft']]) for r in rest):,}", f"{sum(n_(r[ci['Users']]) for r in rest):,}"])
@@ -383,7 +417,7 @@ def add_eligibility(dk, cfg, fr, *, section, progress=None):
         users_total = n_(total[ci["Users"]]) if total else 0
         topr = max(body, key=lambda r: n_(r[ci["Users"]])) if body else None
         share = (n_(topr[ci["Users"]]) / users_total * 100) if topr and users_total else None
-        which = "a blank status code" if topr and topr[0] == "Blank" else (f"status code {topr[0]}" if topr else "")
+        which = "a blank status code" if topr and topr[0] == "Blank" else (f"status code {label(topr[0])}" if topr else "")
         title = (f"{share:.0f}% of {t.lower()} NSF/OD users hold accounts with {which}" if share is not None
                  else f"{t} accounts by overdraft status code")
         s = dk.content(title, f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}), by overdraft status code.",
@@ -547,8 +581,11 @@ def add_debit_declines(dk, cfg, fr, *, section, progress=None):
             size=14)
         if d["score_bands"] and d["score_bands"]["rows"]:
             s2 = dk.content(f"Debit declines — {t} accounts by ILS limit",
-                            "Accounts with a debit decline in the decline file, by current ILS limit.", section=section,
-                            source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, joined to open accounts by account id."))
+                            (f"Open {t.lower()} accounts that can overdraft" + (" and are opted in to Reg E" if t == "Personal" else "")
+                             + f", by current ILS limit; declines in the 90 days to {fr.asof:%b} {fr.asof.day}, {fr.asof.year}."),
+                            section=section,
+                            source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, the 90 days to the data as-of date, "
+                                        "counted as distinct amounts per account per day (the analysis notebook's rule), joined by account id."))
             table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
     return notes
 
