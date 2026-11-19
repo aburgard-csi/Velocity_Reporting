@@ -100,6 +100,7 @@ includes the old flat folder, so a file dropped there by hand is still found.
 | ARS database code tables (product, Reg E, account status codes per client; written by `scripts/ars_code_tables.py` from a database export — the export's settings table holds plaintext FTP credentials and is never copied) | `Inputs/ARS Settings/ars_code_tables.json` |
 | Client code sheets (product with its Personal/Business flag, account status, mail flag and Reg E mappings per client; saved by the data team, where a CSM's corrections land) | `Inputs/Code Sheets/` |
 | Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
+| Files a person drops by hand, any kind (Aaron, 2026-11-10; swept by the 08:00 file get since 2026-11-19, see **Daily source watch**). Not an input folder: nothing reads it but the sweep. The name lives in `rpe_env.DROP_FOLDER_DIRNAME` | `-Drop Folder/` (at the root, beside `Inputs/`) |
 | ICS detailed referral exports (`<id>_ics_detailed referral_v<N>.xls`), for a client with no VIP sheet (hand-landed, member-level, never scanned) | `Inputs/ICS Referrals/` |
 | ICS direct-mail new-accounts lists | `Inputs/ICS Direct Mail/` |
 | Branch names: `branch_names.csv` (one row per name a source gave a client's branch number, with first/last seen; kept by the morning source check) and `charts_files.csv` (Charts workbooks matched to a client id by hand) | `Inputs/Branch Names/` |
@@ -719,6 +720,21 @@ with 0 CPU and 0 handles, or one from yesterday, by hand.
   Every deck reads only the ODD member; the transaction member feeds one opt-in James view. A
   workbook mismatch is never reduced.
 - One unreachable CSM folder counts as off VPN.
+
+**Drop Folder (`--copy`, Aaron, 2026-11-16: "Drop folder during a file get").** `<root>/-Drop Folder`
+(`rpe_env.drop_folder()`) is where a person drops input files by hand; Aaron allows moving, sorting and
+renaming them. The same `--copy` that the 08:00 task passes sweeps it, after the share copy and before
+the prune, so the task needed no new argument. Each file is read by the naming the share copy and the
+mail step already use (`classify`, `mail_sources.classify_attachment`, the DDA count's saved name;
+`watch_sources.classify_drop`) and filed into that kind's `Inputs/` folder.
+- Not in `Inputs/`: copied through a `.part`, size checked, and the dropped file must not have changed
+  while it was copied; then the dropped copy is removed.
+- Byte-identical copy already in `Inputs/` (any kind folder or the legacy flat one): the dropped copy is
+  removed ("Yes, delete the duplicates", 2026-11-10).
+- **A different file of the same name in `Inputs/` is never overwritten**: both stay and the report says
+  so (for an ODD extract, with both pull stamps). A file no reader knows, and any subfolder, are left.
+- A refused delete is reported, never fatal. A folder that is not there is one line in the report.
+  `--dry-run` lists what it would do. The report gets a `## Drop Folder` section; an empty folder adds nothing.
 
 **Prune (`--prune`).** A workbook-ish file in `Inputs/` is deleted only when a NEWER version of the
 same client id and kind (or the same weekly family, later stamp) is present and non-empty. The

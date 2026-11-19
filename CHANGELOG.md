@@ -15,6 +15,21 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-19 — The morning file get sweeps the Drop Folder (`scripts/watch_sources.py`, `build/rpe_env.py`)
+
+Summary: Files dropped in the CSM_Reporting Drop Folder are now filed into Inputs by the 08:00 file get, by the same naming rules as files from the shares and the mailbox. A file it cannot place, or one whose name already holds different contents in Inputs, is left in the folder and listed in the morning report.
+
+Aaron, 2026-11-10: "added a Drop Folder for input files here: \\PADMIS105\Velocity_company\CSM_Reporting\-Drop Folder. You can move, sort, and rename them." On 2026-11-16: "Drop folder during a file get"; on 2026-11-19: "start the drop-folder sweep in watch_sources".
+
+- **Runs under `--copy`**, which the "RPE Source Watch" task already passes, after the share copy and before the prune. The task does not need registering again.
+- **No new classifier.** `classify_drop` uses the watch's own `classify` (ODD extracts, DCOs, ARS workbooks, MRPCPM analyses, ICS workbooks), `mail_sources.classify_attachment` (the MRPC and CashPlease weeklies, the CashPlease marketing files) and the DDA count's saved name (`ils_dda_count_mail.SAVED_RE`). The folder name is `rpe_env.DROP_FOLDER_DIRNAME`, resolved by `rpe_env.drop_folder()`.
+- **Filed:** a recognised file not in Inputs is copied through a `.part`, checked by size and against a change during the copy, then removed from the Drop Folder. **Already filed:** a byte-identical copy in Inputs means the dropped one is removed.
+- **Never overwritten:** a different file of the same name in Inputs leaves both, with both pull stamps named for an ODD extract. A name no reader knows, and any subfolder, are left. A refused delete is reported, never fatal.
+- The report and log carry a `## Drop Folder` section; the one-line summary says "Filed N from the Drop Folder." or "Drop Folder needs a look (N).", and `--notify` raises a toast for the latter.
+- Tests: 15 new in `tests/test_watch_sources.py`, 26 cases (the naming, each outcome, a refused delete, a file still arriving, `--copy` with and without `--dry-run`, a missing folder).
+
+---
+
 ### 2026-11-17 — ILS analysis: build as of an earlier data date; exception items on one slide (`build/ils_analysis/ils_review/`)
 
 Summary: An ILS analysis deck can now be built as of an earlier date, so a newer pull can match a review already given. The two exception-item slides are now one: the median item amount per channel sits in the paid and returned table.

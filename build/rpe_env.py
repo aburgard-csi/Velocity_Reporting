@@ -626,6 +626,29 @@ def build_artifacts() -> Path:
 _ARTIFACTS_MADE: set = set()
 
 
+# A folder at the top of the root where a person drops input files by hand (Aaron, 2026-11-10:
+# "added a Drop Folder for input files here: \\PADMIS105\Velocity_company\CSM_Reporting\-Drop Folder.
+# You can move, sort, and rename them"; 2026-11-16: "Drop folder during a file get"). The morning
+# file get (`watch_sources.py --copy`) files what it recognises into Inputs/ by kind and leaves the
+# rest for a person. The leading dash keeps it at the top of the root folder.
+DROP_FOLDER_DIRNAME = "-Drop Folder"
+
+
+def drop_folder():
+    """The drop folder, or None when RPE_DATA_ROOT is unset or the folder is not there.
+
+    Never created: a missing folder means the share is not mounted or nobody has made one, and
+    a sweep has nothing to do either way."""
+    try:
+        p = data_root() / DROP_FOLDER_DIRNAME
+    except SystemExit:
+        return None
+    try:
+        return p if p.is_dir() else None
+    except OSError:
+        return None
+
+
 VIP_DATA_DIRNAME = "VIP Data"
 
 
