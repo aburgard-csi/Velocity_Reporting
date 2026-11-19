@@ -118,7 +118,21 @@ def bar(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
     if data_labels:
         _label_series(plot, number_format, label_size, XL_LABEL_POSITION.OUTSIDE_END)
     _style_axes(chart, cat_size=cat_size, val_size=label_size, val_format=number_format)
+    _zero_base(chart, values, number_format)
     return chart
+
+
+def _zero_base(chart, values, number_format):
+    """Bars start at zero: PowerPoint's automatic axis began Dannemora FCU's activation bars at 81% and its
+    volatility bars at 0.30, which turned a few points into a bar twice the length of its neighbour; a percent
+    axis also stops at 100 instead of reading 102%."""
+    vals = [v for v in values if v is not None]
+    if not vals or min(vals) < 0:
+        return
+    ax = chart.value_axis
+    ax.minimum_scale = 0
+    if "%" in number_format and max(vals) <= 100 and max(vals) > 50:
+        ax.maximum_scale = 100
 
 
 def column(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
@@ -145,6 +159,7 @@ def column(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NA
                 ser.points[i].format.fill.fore_color.rgb = c
     _label_series(plot, number_format, label_size, XL_LABEL_POSITION.OUTSIDE_END)
     _style_axes(chart, cat_size=cat_size, val_size=label_size, val_format=number_format)
+    _zero_base(chart, values, number_format)
     return chart
 
 
@@ -316,24 +331,28 @@ def predictor_bubble(bands, rates, counts, out_path, *, title, xlabel,
     rates = np.asarray(rates, dtype=float)
     sizes = 30 + (counts / (counts.max() or 1)) * 700
     ax.scatter(x, rates, s=sizes, color=T.HEX["navy"], zorder=3, alpha=0.92)
-    for xi, r, n in zip(x, rates, counts):
-        ax.annotate(f"{int(n):,}", (xi, r), (0, 11), textcoords="offset points",
+    for xi, r, n, s in zip(x, rates, counts, sizes):
+        # clear the bubble: its radius in points is sqrt(area) / 2
+        ax.annotate(f"{int(n):,}", (xi, r), (0, 6 + np.sqrt(s) / 2), textcoords="offset points",
                     ha="center", fontsize=9, color=T.HEX["subtle"])
+    # The key sits ABOVE the plot, under the title: inside the axes it collided with the labels of the highest bubbles,
+    # and the average's label at the line's end sat on the right-hand bubbles (1781, 2026-11-17).
+    key = "Figure above each bubble = notices in the band"
     if avg_line is not None:
         ax.axhline(avg_line, color=T.HEX["orange"], linestyle="--", linewidth=1.6, zorder=2)
-        ax.annotate(f"All notices {avg_line:.2f}%", (len(bands) - 0.4, avg_line), (0, 5),
-                    textcoords="offset points", ha="right", fontsize=9, color=T.HEX["orange"])
-    ax.text(0.99, 0.985, "Figure above each bubble = notices in the band", transform=ax.transAxes, ha="right",
-            va="top", fontsize=8.5, color=T.HEX["subtle"])
+        key += f"   ·   dashed line = all notices, {avg_line:.2f}%"
+    ax.text(0.0, 1.015, key, transform=ax.transAxes, ha="left", va="bottom", fontsize=8.5, color=T.HEX["subtle"])
+    top = float(np.nanmax(rates)) if len(rates) else 1.0
+    ax.set_ylim(0, max(top * 1.20, (avg_line or 0) * 1.2, 1.0))   # room for the count above the highest bubble
     ax.set_xticks(x)
     ax.set_xticklabels(bands, rotation=45, ha="right", fontsize=10, color=T.HEX["subtle"])
     ax.set_ylabel(ylabel, fontsize=11, color=T.HEX["subtle"])
     ax.set_xlabel(xlabel, fontsize=11, color=T.HEX["subtle"])
-    ax.set_title(title, fontsize=11.5, color=T.HEX["navy"], loc="left", pad=14)
-    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0f}%")
+    ax.set_title(title, fontsize=11.5, color=T.HEX["navy"], loc="left", pad=20)
+    # whole percents only when the ticks are whole: a 0-3% axis with 0.5 steps printed "2%" twice
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0f}%" if abs(v - round(v)) < 1e-9 else f"{v:.1f}%")
     ax.tick_params(axis="y", labelsize=10, colors=T.HEX["subtle"])
-    ax.set_ylim(bottom=0)
-    ax.margins(x=0.04, y=0.22)
+    ax.margins(x=0.04)
     ax.grid(True, color=T.HEX["grid"], linewidth=0.8)
     ax.set_axisbelow(True)
     for s in ("top", "right"):
