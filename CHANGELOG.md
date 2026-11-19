@@ -398,6 +398,19 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-05 — MCC codes by spend, transactions and members (`build/ars_pipeline/ti/transaction_intelligence/merchant_profiles.py`, `build/ars_pipeline/ti/deck/txn_cards.py`, `build/ars_pipeline/ti/deck/txn_slides.py`, `build/ars_pipeline/ti/chapters_txn.py`, `build/ars_pipeline/ti/slides.json`)
+
+Summary: The Transaction Intelligence chapter gets a new slide, "MCC codes by spend, transactions and members". It shows the top 10 MCC codes three ways, side by side, and shades any code that is top 3 one way but outside the top 10 another.
+
+The user: "mcc code should be included / we should see mcc code by spend, transactions, # of members/customers". The only MCC table (`mch_mcc_top`) ranked codes by card dollars, so a code with many members and small tickets (fast food, transit) never showed. That slide ("The MCC codes behind the categories") was also tossed in `slides.json`.
+
+- `merchant_profiles.py` writes `mch_mcc_by_dollars`, `mch_mcc_by_txns` and `mch_mcc_by_accounts`, top 10 each. Every row carries all three measures, $/txn, the % of card accounts using the code and its rank on each measure (`*_columns` keys give the order). Ties break on the lower code.
+- The base is card transactions (PIN and signature) in the window that carry an MCC. Accounts are distinct accounts with a card transaction in that MCC, and the % is of every account with a card transaction in the window (`mch_mcc_card_accounts`, `mch_mcc_ways_window`, `mch_mcc_ways_note`).
+- `mch_mcc_standouts` lists codes that rank very differently: top 3 on one measure and outside the top 10 on another, with both ranks. Codes that lead on members or transactions are listed first.
+- The new slide (`txn_cards.mcc_codes_three_ways`) is a table with three ranked lists side by side. Each code reads as its category and code, e.g. "Dining (5814)". The headline names the widest gap ("Dining (5814) is #1 by members but #12 by card dollars"); with no gaps, it names each measure's leader. The rail shows the card-account base and up to three standouts. It is registered in `TI_BUILDERS`, `TITLES`, `txn_slides.BUILDERS` and `slides.json` (keep).
+- `mch_mcc_top` and the dollar-only slide are unchanged and still tossed.
+- Tests: `tests/test_ti_mcc_three_ways.py` (new), plus updated counts in `tests/test_ti_chapters_txn.py` (62 builders, 40 in the chapter) and the order in `tests/test_ti_merchant_profile_slides.py`.
+
 ### 2026-11-05 — Financial-services and competitor matching: no more stadiums, towns and refunds; missed lenders and insurers added (`financial_services.py`, `competition.py`, both dictionaries, `chapters_txn.py`, `deck/txn_leakage.py`, `deck/txn_compete.py`)
 Summary: Financial services and Competition match more carefully. Stadiums, towns, street names and refunds are no longer counted as a bank or lender, the client's own name in every spelling is never an outside lender, and missed lenders, insurers and payment apps are now found. Leakage figures rise for most clients (1100: $68.7M to $136.2M), mostly from payments the old rule missed.
 From the TI readiness review (James: "Yes, fix them here"). The matcher counted a cinema as Marcus by
