@@ -199,7 +199,12 @@ def render_strips(items, out_png, w_in, h_in, who="Another client", client_name=
 
 def _rank_text(c):
     # the metrics here have no better direction, so say where the client sits, highest first
-    return f"{PC.ordinal(c['rank'])} highest of {int(c['total'])} clients"
+    n, r = int(c["total"]), int(c["rank"])
+    if r == 1:
+        return f"Highest of {n} clients"          # not "1st highest" (Dannemora FCU, 2026-11)
+    if r == n:
+        return f"Lowest of {n} clients"
+    return f"{PC.ordinal(r)} highest of {n} clients"
 
 
 # ═════════════════════════════ the slides ═══════════════════════════════════════

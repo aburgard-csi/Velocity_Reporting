@@ -83,9 +83,9 @@ def test_each_slide_registers_its_id_and_draws_for_real(build, slide_id, chart, 
 def test_the_group_sits_after_engagement_breadth_in_order():
     names = [getattr(b, "__name__", "") for b in txn_slides.BUILDERS]
     start = names.index("engagement_breadth") + 1
-    assert names[start:start + 6] == [
+    assert names[start:start + 7] == [
         "merchants_rising_and_falling", "new_and_faded_merchants", "_the_mcc_codes",
-        "how_broadly_the_card_is_used", "card_spend_by_member_age",
+        "mcc_codes_three_ways", "how_broadly_the_card_is_used", "card_spend_by_member_age",
         "card_use_by_account_tenure"]
 
 
