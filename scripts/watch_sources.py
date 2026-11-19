@@ -28,7 +28,10 @@ clients.md marks as stopped (Aaron, 2026-09-14), each only from the newest month
 the share; see `copy_plan` for why that rule exists. With `--prune` it deletes inputs that
 a newer period or weekly of the same client and kind supersedes (Aaron,
 2026-09-08); the newest is always kept and a file with no newer version is never
-touched — see `prune_plan`.
+touched — see `prune_plan`. `--copy` also sweeps the Drop Folder
+(`<root>/-Drop Folder`, Aaron 2026-11-16): a file a person dropped there is filed into
+Inputs/ by kind and taken out of the folder; anything it cannot place is left and
+reported — see `drop_plan`.
 
 State and reports live in `Build Artifacts/` (bookkeeping, not a
 deliverable, and one copy per pipeline rather than per machine):
@@ -47,7 +50,7 @@ so the run records what is there and reports the counts, not sixty new files.
 Usage:
     python scripts/watch_sources.py                # check, report, save
     python scripts/watch_sources.py --notify       # + Windows toast when there is news
-    python scripts/watch_sources.py --copy         # + copy what Inputs/ lacks (see --copy)
+    python scripts/watch_sources.py --copy         # + copy what Inputs/ lacks, sweep the Drop Folder
     python scripts/watch_sources.py --prune        # + delete inputs a newer version supersedes
     python scripts/watch_sources.py --dry-run      # report only; save nothing
     python scripts/watch_sources.py --period 2026.09 --period 2026.08
@@ -483,6 +486,227 @@ def apply_copies(plan):
         except OSError as e:
             out.append((rec, dest, "FAILED: %s" % e))
     return out
+
+
+# ------------------------------------------------------------------ drop folder
+# Aaron drops input files by hand into `<root>/-Drop Folder` (2026-11-10: "You can move, sort, and
+# rename them"), and the morning file get sweeps it (2026-11-16: "Drop folder during a file get").
+# A dropped file is read by the SAME rules as a file on the share or an attachment in the mailbox
+# (`classify`, `mail_sources.classify_attachment`, the DDA count's saved name) and filed into the
+# same Inputs/ folder those would have used. This module has no classifier of its own for it.
+#
+# It never overwrites: Inputs/ holding a different file of the same name is a person's call (the
+# copy there may have been opened and saved in Excel on purpose, or the dropped extract may be last
+# month's). A byte-identical copy already in Inputs/ is simply taken out of the folder (Aaron,
+# 2026-11-10: "Yes, delete the duplicates").
+_DROP_REPORT_EXT = (".xlsx", ".xlsm", ".xls")
+
+DROP_FILE, DROP_DUPLICATE, DROP_DIFFERS, DROP_UNKNOWN, DROP_FOLDER = (
+    "file", "duplicate", "differs", "unrecognised", "folder")
+
+
+def _drop_dir():
+    p = R.drop_folder()
+    return str(p) if p else None
+
+
+def classify_drop(name):
+    """(kind, client) for a file in the Drop Folder, or (None, None) when no input reader knows it.
+
+    `kind` is an `rpe_env.INPUT_KIND_DIRS` key, so the destination folder follows from it."""
+    m = _ODDD_RX.match(name)
+    if m:
+        return ODDD, m.group(1)
+    rec = classify(name, "reports")
+    if rec and rec["kind"] != OTHER and name.lower().endswith(_DROP_REPORT_EXT):
+        return rec["kind"], rec["client"]
+    import mail_sources as M
+    kind, client, _period = M.classify_attachment(name)
+    if kind in (M.WEEKLY, M.CP_WEEKLY) and name.lower().endswith(M.WANTED_EXT):
+        return kind, None
+    if kind == M.CP_MARKETING:                 # its pattern already pins .xlsx / .xlsm / .csv
+        return kind, client
+    import ils_dda_count_mail                  # the CashPlease DDA denominator, saved by name
+    if ils_dda_count_mail.SAVED_RE.match(name):
+        return M.CP_WEEKLY, None
+    return None, None
+
+
+def _same_bytes(a, b):
+    import hashlib
+    if os.path.getsize(a) != os.path.getsize(b):
+        return False
+    digests = []
+    for p in (a, b):
+        h = hashlib.sha256()
+        with open(p, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        digests.append(h.digest())
+    return digests[0] == digests[1]
+
+
+def _drop_existing(kind, client, name, inputs_dir):
+    """(the copy Inputs/ already holds or None, where a new one would go)."""
+    if kind == ODDD:
+        dest = os.path.join(inputs_dir, R.INPUT_KIND_DIRS[ODDD], client + "_ODDD.zip")
+        return (dest if os.path.exists(dest) else None), dest
+    dest = os.path.join(inputs_dir, R.INPUT_KIND_DIRS[kind], name)
+    if os.path.exists(dest):
+        return dest, dest
+    if kind not in R.NOT_SCANNED_KINDS:
+        held = _find_input(inputs_dir, name)     # every kind folder, and the legacy flat one
+        if os.path.exists(held):
+            return held, dest
+    return None, dest
+
+
+def drop_plan(drop_dir, inputs_dir):
+    """One item per entry in the Drop Folder, each with the action the sweep takes:
+
+    file          recognised and not in Inputs/: copy it in, then take it out of the folder
+    duplicate     Inputs/ already holds the same bytes: take it out of the folder
+    differs       Inputs/ holds a different file of the same name: leave both, a person decides
+    unrecognised  no input reader knows the name: leave it
+    folder        a subfolder: leave it (the sweep reads files only)
+
+    Office lock files and half-written `.part` files are not listed."""
+    out = []
+    for name in sorted(os.listdir(drop_dir), key=str.lower):
+        path = os.path.join(drop_dir, name)
+        if name.startswith(("~$", ".")) or name.lower().endswith(".part"):
+            continue
+        item = {"name": name, "path": path, "kind": None, "client": None,
+                "existing": None, "dest": None}
+        if os.path.isdir(path):
+            item["action"] = DROP_FOLDER
+            out.append(item)
+            continue
+        kind, client = classify_drop(name)
+        if kind is None:
+            item["action"] = DROP_UNKNOWN
+            out.append(item)
+            continue
+        existing, dest = _drop_existing(kind, client, name, inputs_dir)
+        item.update(kind=kind, client=client, existing=existing, dest=dest)
+        if existing is None:
+            item["action"] = DROP_FILE
+        else:
+            try:
+                item["action"] = DROP_DUPLICATE if _same_bytes(path, existing) else DROP_DIFFERS
+            except OSError as e:
+                item["action"], item["error"] = DROP_DIFFERS, str(e)
+        if item["action"] == DROP_DIFFERS and kind == ODDD:
+            item["stamps"] = (DS.odd_stamp_period(path), DS.odd_stamp_period(existing))
+        out.append(item)
+    return out
+
+
+def _take_out(path):
+    """Remove a dropped file once Inputs/ holds it. Some mounts refuse deletes: reported, never raised."""
+    try:
+        os.remove(path)
+        return None
+    except OSError as e:
+        return str(e)
+
+
+def apply_drop(plan):
+    """Carry out a `drop_plan`. Returns [(item, outcome)].
+
+    A filed copy goes through a `.part` file renamed over the target, and is verified by size
+    against the dropped file, which must not have changed while it was copied (a file still being
+    dropped would otherwise be filed cut short and taken out of the folder). Only then is the
+    dropped copy removed."""
+    import shutil
+    out = []
+    for item in plan:
+        act = item["action"]
+        if act == DROP_DUPLICATE:
+            err = _take_out(item["path"])
+            out.append((item, "removed" if err is None else "NOT removed: %s" % err))
+            continue
+        if act != DROP_FILE:
+            out.append((item, "left"))
+            continue
+        src, dest = item["path"], item["dest"]
+        part = dest + ".part"
+        try:
+            before = os.path.getsize(src)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.copy2(src, part)
+            if os.path.getsize(src) != before:
+                raise OSError("the dropped file changed while it was copied (still arriving?)")
+            if os.path.exists(dest):                 # appeared since the plan: never overwrite
+                raise OSError("%s appeared in Inputs during the sweep" % dest)
+            os.replace(part, dest)
+            if os.path.getsize(dest) != before:
+                raise OSError("size mismatch after copy (%d vs %d)" % (os.path.getsize(dest), before))
+        except OSError as e:
+            try:
+                if os.path.exists(part):
+                    os.remove(part)
+            except OSError:
+                pass
+            out.append((item, "FAILED: %s" % e))
+            continue
+        err = _take_out(src)
+        out.append((item, "filed" if err is None else "filed; NOT removed from the Drop Folder: %s" % err))
+    return out
+
+
+def _drop_section(result):
+    """The sweep's lines for the report and log; nothing on a morning the folder was empty."""
+    note = result.get("drop_note")
+    if note:
+        return ["", "## Drop Folder", "", note]
+    done = result.get("drop")
+    planned = result.get("drop_plan")
+    if done is None and planned is None:
+        return []
+    rows = done if done is not None else [(it, None) for it in planned]
+    if not rows:
+        return []
+    dry = done is None
+    out = ["", "## Drop Folder (%d)%s" % (len(rows), " — dry run" if dry else ""), ""]
+    for it, outcome in rows:
+        act, nm = it["action"], it["name"]
+        if act == DROP_FILE:
+            verb = "would file" if dry else outcome
+            out.append("- **%s** `%s` — %s -> `%s`" % (it["kind"], nm, verb, it["dest"]))
+        elif act == DROP_DUPLICATE:
+            verb = "would remove" if dry else outcome
+            out.append("- `%s` — already filed (same bytes as `%s`); %s from the Drop Folder"
+                       % (nm, it["existing"], verb))
+        elif act == DROP_DIFFERS:
+            extra = ""
+            st = it.get("stamps")
+            if st:
+                extra = " Pull stamps: dropped %s, Inputs %s." % (st[0] or "unknown", st[1] or "unknown")
+            if it.get("error"):
+                extra += " (%s)" % it["error"]
+            out.append("- `%s` — LEFT: Inputs already holds a different file of this name (`%s`); "
+                       "a person decides which is right.%s" % (nm, it["existing"], extra))
+        elif act == DROP_UNKNOWN:
+            out.append("- `%s` — LEFT: no input reader knows this name; file it by hand or rename it."
+                       % nm)
+        else:
+            out.append("- `%s/` — LEFT: a folder; the sweep files single files only." % nm)
+    return out
+
+
+def _drop_tail(result):
+    """The sweep's part of the one-line summary."""
+    done = result.get("drop") or []
+    filed = sum(1 for it, o in done if it["action"] == DROP_FILE and o.startswith("filed"))
+    failed = sum(1 for it, o in done if o.startswith("FAILED") or "NOT removed" in o)
+    left = sum(1 for it, o in done if it["action"] in (DROP_DIFFERS, DROP_UNKNOWN, DROP_FOLDER))
+    tail = ""
+    if filed:
+        tail += " Filed %d from the Drop Folder." % filed
+    if left or failed:
+        tail += " Drop Folder needs a look (%d)." % (left + failed)
+    return tail
 
 
 # ------------------------------------------------------------------ prune
@@ -986,7 +1210,8 @@ def _copies_section(result):
     elif prune_planned:
         out += ["", "## Would remove superseded inputs (%d) — dry run" % len(prune_planned), ""]
         out += ["- `%s` — superseded by `%s`" % (o, n) for o, n in prune_planned]
-    return out + (result.get("ics_referrals") or []) + (result.get("branch_names") or [])
+    return (out + (result.get("ics_referrals") or []) + (result.get("branch_names") or [])
+            + _drop_section(result))
 
 
 def summary_line(result, roster):
@@ -1010,6 +1235,7 @@ def summary_line(result, roster):
         tail += " Merged %d ICS referral pull%s." % (merged, "" if merged == 1 else "s")
     if any(ln.startswith(("- NOT merged", "- FAILED")) for ln in ics):
         tail += " ICS referrals need a look."
+    tail += _drop_tail(result)
     if result["baseline"]:
         return "Baseline recorded: %d files." % len(result["inventory"]) + tail
     new, changed, gone = result["new"], result["changed"], result["gone"]
@@ -1238,7 +1464,8 @@ def main(argv=None):
     ap.add_argument("--copy", action="store_true",
                     help="copy what Inputs/ lacks into it: ODD extracts, DCOs and "
                          "workbooks for every client on the shares except stopped ones "
-                         "(copy-only; newest month only)")
+                         "(copy-only; newest month only), then sweep the Drop Folder into "
+                         "Inputs/ by kind")
     ap.add_argument("--prune", action="store_true",
                     help="delete inputs that a newer period / weekly of the same "
                          "client and kind supersedes (the newest is always kept)")
@@ -1319,6 +1546,25 @@ def main(argv=None):
             result["copy_plan"] = plan
         else:
             result["copies"] = apply_copies(plan)
+    # The Drop Folder (Aaron, 2026-11-16: "Drop folder during a file get"). Part of the file get,
+    # so the 08:00 task's `--copy` runs it, and before the prune so a weekly filed from it is
+    # weighed against the ones already there. Unlike the share copy it does not wait on the CSI
+    # source shares: the folder is under RPE_DATA_ROOT.
+    if a.copy and not a.no_inputs:
+        inputs_dir, drop = _inputs_dir(), _drop_dir()
+        if not inputs_dir or not drop:
+            result["drop_note"] = ("Not swept: %s is not reachable."
+                                   % (R.DROP_FOLDER_DIRNAME if inputs_dir else "Inputs/"))
+        else:
+            try:
+                dplan = drop_plan(drop, inputs_dir)
+            except OSError as e:
+                result["drop_note"] = "Not swept: %s" % e
+            else:
+                if a.dry_run:
+                    result["drop_plan"] = dplan
+                else:
+                    result["drop"] = apply_drop(dplan)
     if a.prune and not a.no_inputs and _inputs_dir():
         # Across every kind folder, not one: a client's ARS workbook and the DCO
         # it supersedes now live apart, and prune compares them by name.
@@ -1397,7 +1643,7 @@ def main(argv=None):
                 fh.write("\n" + issues_text + "\n")
 
     if a.notify and (not result["reachable"] or result["new"]
-                     or result["changed"] or result["gone"]):
+                     or result["changed"] or result["gone"] or _drop_tail(result)):
         notify("RPE source check", line)
 
     return 2 if not result["reachable"] else 0
