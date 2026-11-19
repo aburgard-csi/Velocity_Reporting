@@ -85,7 +85,9 @@ def lines(m: dict, outputs: dict | None = None, prefix: str = "comp_") -> list[s
         A(f"  THREAT SCORE   {m.get(P + 'threat_basis', '')}")
         A(f"    {'institution':<26}{'score':>7}{'accts':>8}{'$':>14}{'growth':>9}")
         for name, score, n, d, g in threat[:8]:
-            A(f"    {str(name)[:25]:<26}{score:>7.1f}{n:>8,}{d:>14,}{g:>8.1f}%")
+            # growth is None when the data covers under six months (competition.MIN_GROWTH_DAYS)
+            growth = f"{g:>8.1f}%" if g is not None else f"{'n/a':>9}"
+            A(f"    {str(name)[:25]:<26}{score:>7.1f}{n:>8,}{d:>14,}{growth}")
     eco = m.get(P + "ecosystems") or []
     if eco:
         A("")

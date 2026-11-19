@@ -195,7 +195,7 @@ def insurance_by_line(h, t, base):
         items.append((r[0], money(r[4]), f"{r[1]:,} accts; " + ", ".join(
             labels.clip(labels.display_name(p), 14) for p in r[6][:2])))
     right = h["rail"](s, items[:5], top=top)
-    one_line = {"Auto", "Home & property", "Life & annuity", "Health & dental"}
+    one_line = {"Auto", "Home & property", "Life", "Health & dental"}
     bars = [[r[0], r[4], r[1], "line" if r[0] in one_line else "mixed"] for r in rows]
     kinds = {"line": ("one line of cover", charts.NAVY),
              "mixed": ("multi-line carrier or no carrier named", charts.GREY)}

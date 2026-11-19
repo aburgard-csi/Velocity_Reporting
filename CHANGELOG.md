@@ -15,6 +15,16 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-19 — Insurance by line says "Life"; the competition report reads a short window (`ti/dictionaries/financial_services_patterns.json`, `deck/txn_leakage.py`, `competition_report.py`)
+
+Summary: The Transaction Intelligence Insurance by line slide now names the life line "Life", and a client with under six months of transaction data no longer stops the Transaction Intelligence build.
+
+Two defects that came in with the insurance PR (#142), found in review before a release:
+
+- **"Life & annuity" is "Life".** The subtype name prints on the Insurance by line slide (headline and rail), and "annuity" is a banned word, so `validate_deck` failed any deck whose life carriers ranked in the top three lines and the launcher kept it out of Outputs. The carriers and patterns are unchanged.
+- **The threat score's growth reads n/a on a short window.** `competition` leaves growth out when the data covers under six months (`MIN_GROWTH_DAYS`), and the text report formatted it as a number, so `ti_build` raised a TypeError before any deck was drawn.
+- **The check that would have caught each** (`tests/test_ti_label_guards.py`): every category, subtype, tier and institution name in the two dictionaries is checked against the validator's banned list, and the report is run with a missing growth figure.
+
 ### 2026-11-17 — The slide ledger lists the competition layers slides (`ti/ledger.py`)
 
 Summary: `ti_slide_ledger.csv` now has a line for every competition layers slide, so a layers slide that is tossed, declined for a client or merged is listed with its reason instead of being absent.
