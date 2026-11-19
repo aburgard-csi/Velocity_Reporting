@@ -85,11 +85,13 @@ def lines(m: dict, outputs: dict | None = None, prefix: str = "comp_") -> list[s
         A(f"  THREAT SCORE   {m.get(P + 'threat_basis', '')}")
         A(f"    {'institution':<26}{'score':>7}{'accts':>8}{'$':>14}{'growth':>9}")
         for name, score, n, d, g in threat[:8]:
-            A(f"    {str(name)[:25]:<26}{score:>7.1f}{n:>8,}{d:>14,}{g:>8.1f}%")
+            # growth is None when the data covers under six months (competition.MIN_GROWTH_DAYS)
+            growth = f"{g:>8.1f}%" if g is not None else f"{'n/a':>9}"
+            A(f"    {str(name)[:25]:<26}{score:>7.1f}{n:>8,}{d:>14,}{growth}")
     eco = m.get(P + "ecosystems") or []
     if eco:
         A("")
-        A(f"  PAYMENT ECOSYSTEMS (apart from competitors; a wallet is not a bank)   "
+        A(f"  PAYMENT ECOSYSTEMS (P2P and wallets; apart from competitors and BNPL)   "
           f"{m.get(P + 'ecosystem_accounts', 0):,} accounts   "
           f"${m.get(P + 'ecosystem_dollars', 0):,}")
         A("    " + "   ".join(f"{r[0]} {r[1]:,} accts ${r[3]:,}" for r in eco[:8]))
@@ -139,6 +141,14 @@ def lines(m: dict, outputs: dict | None = None, prefix: str = "comp_") -> list[s
           f"${b.get('dollars', 0):,} over {b.get('months', 0)} months   ${b.get('per_acct_month', 0):,} per account a month"
           + ("   SIGNAL: 10%+ reach, revolving credit displaced" if (b.get("pct") or 0) >= 10 else ""))
         A("    " + "   ".join(f"{r[0]} {r[1]:,} accts ${r[3]:,}" for r in b["providers"][:6]))
+        if b.get("stacked_accounts") is not None:
+            A(f"    repeat ({b.get('repeat_months', 3)}+ months) {b.get('repeat_accounts', 0):,} "
+              f"({b.get('repeat_pct', 0)}%)   two or more providers {b.get('stacked_accounts', 0):,} "
+              f"({b.get('stacked_pct', 0)}%)   median payment ${b.get('median_ticket', 0):,}")
+        if b.get("merchants"):
+            A(f"    merchant named on {b.get('merchant_named_pct', 0)}% of BNPL dollars, "
+              f"{b.get('merchants_n', 0):,} merchants:   "
+              + "   ".join(f"{r[0]} {r[1]:,} accts ${r[4]:,} ({r[5]})" for r in b["merchants"][:6]))
     rq = m.get(P + "review_queue") or []
     if rq:
         A("")

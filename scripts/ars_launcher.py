@@ -529,7 +529,7 @@ def combined_checks(cid, period, roster, cp_row=None):
 # rules, inputs and Lift Matrix are not consulted, and a TI deck in Outputs never counts as the
 # period's RPE deck (decks_in_outputs leaves it out) nor is archived by an RPE build.
 TI_TAG = "TI"
-TI_MONTHS = 12                       # v5's transaction window, as ti_build.attach_txn asks for it
+TI_MONTHS = 12                       # the default N; a client's TxnWindowMonths or TI_WINDOW_MONTHS wins (ti/window.py)
 TI_RESULT_NAME = "_launcher_result_ti.json"
 _TI_DECK_RX = re.compile(r"^\d{3,5}-\d{4}\.\d{2}-%s-" % TI_TAG)
 
@@ -578,7 +578,17 @@ def code_table_clients():
     return hit
 
 
-def txn_months_on_hand(cid, period, months=TI_MONTHS):
+def txn_window_months(cid):
+    """N for this client, as the build reads it (ti/window.py months_for): TI_WINDOW_MONTHS, else the
+    client's TxnWindowMonths, else 12. A bad value raises, naming where it came from."""
+    _, _, _, ti_config = _ti_modules()
+    from ti import window
+    p = ti_config.config_path()           # only the config FILE can set it; a derived entry never does
+    entry = (json.loads(p.read_text(encoding="utf-8-sig")).get(str(cid)) if p.is_file() else None) or {}
+    return window.months_for(entry)
+
+
+def txn_months_on_hand(cid, period, months=None):
     """(the data months with a transaction file on hand, the window's data months) for the window
     of `months` ending at the period's DATA month — from the file NAMES in Inputs/Txn Files/<id>/,
     never by opening a zip (one folder listing). v5's own name and window rules (ti/txn_stage): a
@@ -589,6 +599,7 @@ def txn_months_on_hand(cid, period, months=TI_MONTHS):
     and the window it built was Oct 25 to Sep 26 (2026-10-23). The check anchors the same way."""
     _, txn_stage, _, _ = _ti_modules()
     import pandas as pd
+    months = months or txn_window_months(cid)
     y, m = (int(x) for x in str(period).split("."))
     anchor = pd.Timestamp(y, m, 1) - pd.offsets.MonthEnd(1)       # the data month: the one before the cycle
     hi = anchor.year * 12 + anchor.month - 1
@@ -667,7 +678,11 @@ def ti_checks(cid, period, row, roster, rebuild=False):
         else:
             out.append((STOP, f"Client codes: {cid} is not in ars_code_tables.json, so the eligible accounts "
                               "cannot be found. Ask Aaron to refresh the code tables."))
-    found, window = txn_months_on_hand(cid, period)
+    try:
+        found, window = txn_months_on_hand(cid, period)
+    except ValueError as e:
+        out.append((STOP, f"Transaction window: {e}"))
+        return out
     span = f"{_month_label(window[0])} to {_month_label(window[-1])}"
     if not found:
         out.append((WARN, f"Transaction files: none in Inputs/Txn Files for {span}; the transaction chapters "

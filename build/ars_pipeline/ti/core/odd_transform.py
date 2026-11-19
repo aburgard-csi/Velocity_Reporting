@@ -160,18 +160,49 @@ def _is_response(series: pd.Series, cfg: "TransformConfig") -> pd.Series:
 # Transform
 # ---------------------------------------------------------------------------
 
+TXN_SUFFIXES = ("PIN $", "Sig $", "PIN #", "Sig #", "MTD", "Spend", "Swipes")
+
+
+def _cap_months(df: pd.DataFrame, end_month: pd.Timestamp, rpt: TransformReport) -> pd.DataFrame:
+    """RPE: the transaction window ends with the last completed month before the cycle
+    (ti/window.py). Transaction-track month columns dated after it are left out, so the
+    rolling totals and the data month stop there too. The mail/response track runs a month
+    ahead by design and is kept."""
+    end = pd.Timestamp(end_month.year, end_month.month, 1)
+    late = []
+    for col in df.columns:
+        parsed = parse_month_tag(col)
+        if parsed and parsed[1] in TXN_SUFFIXES and parsed[0] > end:
+            late.append(col)
+    if late:
+        rpt.warnings.append(f"{len(late)} month column(s) dated after {end:%b %Y}, the end of the "
+                            f"window, left out ({', '.join(late[:4])}{', ...' if len(late) > 4 else ''})")
+        rpt.dropped.extend(late)
+        df = df.drop(columns=late)
+    return df
+
+
 def transform_odd(
     df: pd.DataFrame,
     config: TransformConfig | None = None,
+    end_month: pd.Timestamp | None = None,
 ) -> tuple[pd.DataFrame, TransformReport]:
-    """Transform a raw ODD DataFrame into analysis-ready form."""
+    """Transform a raw ODD DataFrame into analysis-ready form. With `end_month` (the window's
+    last completed month), month columns after it are left out first."""
     cfg = config or TransformConfig()
     rpt = TransformReport(rows_in=len(df), cols_in=len(df.columns))
 
     df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
+    if end_month is not None:
+        df = _cap_months(df, end_month, rpt)
 
     _resolve_dates(df, rpt)
+    if end_month is not None and rpt.data_month is not None and (
+            (rpt.data_month.year, rpt.data_month.month) != (end_month.year, end_month.month)):
+        rpt.warnings.append(f"the ODD's newest month is {rpt.data_month:%b %Y}, not {end_month:%b %Y} "
+                            f"(the last completed month before the cycle); its figures run to "
+                            f"{rpt.data_month:%b %Y}")
     df = _drop_columns(df, cfg, rpt)
     df = _coerce_numeric(df, rpt)
     df = _add_monthly_combined(df, rpt)
@@ -226,7 +257,7 @@ def _drop_columns(df, cfg, rpt) -> pd.DataFrame:
         c for c in df.columns
         if any(c.endswith(s) for s in cfg.drop_suffixes) or c in cfg.drop_columns
     ]
-    rpt.dropped = drop
+    rpt.dropped = rpt.dropped + drop
     return df.drop(columns=drop, errors="ignore")
 
 
