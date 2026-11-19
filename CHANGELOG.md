@@ -30,6 +30,15 @@ Aaron, 2026-11-10: "added a Drop Folder for input files here: \\PADMIS105\Veloci
 
 ---
 
+### 2026-11-17 — The slide ledger lists the competition layers slides (`ti/ledger.py`)
+
+Summary: `ti_slide_ledger.csv` now has a line for every competition layers slide, so a layers slide that is tossed, declined for a client or merged is listed with its reason instead of being absent.
+
+The ledger walked only the 20 older competition builders, so the 55 layers slides were drawn or declined with no line, against the rule that nothing leaves the deck without a line saying why. A real 1798 build listed 12 drawn, 12 merged, 7 hidden and 28 tossed and none of the layers slides.
+
+- The layers builders are listed under the Competition chapter with the same four statuses. No deck changes.
+- Two tests: the count of lines now includes the layers builders, and a layers slide declined for a client is listed as hidden with its reason.
+
 ### 2026-11-17 — ILS analysis: build as of an earlier data date; exception items on one slide (`build/ils_analysis/ils_review/`)
 
 Summary: An ILS analysis deck can now be built as of an earlier date, so a newer pull can match a review already given. The two exception-item slides are now one: the median item amount per channel sits in the paid and returned table.
