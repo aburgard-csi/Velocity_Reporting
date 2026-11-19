@@ -400,6 +400,8 @@ Aaron asked for a more efficient workflow after running out of Actions minutes. 
 
 ### 2026-11-04 — "Competitor spend before closure" reads named competitors only, and joins the ODD like the lenses do (`competition.py`, `leakage.py`, `lens.py`)
 
+Summary: The Transaction Intelligence competitor spend before closure curve now counts named competitors only, not payment apps, and accounts whose ID was read as a number are no longer dropped from it.
+
 James asked for this fix after the TI overview review.
 
 - **Payment-app dollars removed.** The pre-closure curve was fed every matched row, including payment-app rows (Venmo, Cash App, PayPal; also BNPL, while it sat in that tier). Those are not competitors, and they lifted the curve. `_competitor_monthly` now carries competitor-kind rows only. On the slide, mean competitor dollars per closer per month fall by the payment-app share, and so do the control's. The divergence month can move.
