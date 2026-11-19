@@ -399,6 +399,9 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
 ### 2026-11-05 — One window for every file: the ODD and the deposits file end with the last completed month too (`ti/core/odd_transform.py`, `odd.py`, `deposits_input.py`, `ti_build.py`, `scripts/ars_launcher.py`)
+
+Summary: In Transaction Intelligence the ODD and the deposits file now stop at the same last completed month as the transaction files, and the Sheila files-on-hand check uses the client window length.
+
 James: the last-N-completed-months rule "should apply to all files". The transaction files took it
 on 2026-11-04; the ODD and the deposits file still ran to whatever they carried.
 - ODD: transaction-track month columns (PIN/Sig $ and #, MTD, Spend, Swipes) dated after the window's
