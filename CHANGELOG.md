@@ -398,6 +398,27 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-04 — TI transaction window is the last N completed months before the cycle (`ti/window.py`, `ti_build.py`, TI deck copy)
+
+Summary: Transaction Intelligence totals now cover the last N completed months before the cycle (12 by default), rows outside that window are left out with a warning, and slides name the real window instead of a year.
+
+James: "it has to be the Last N completed months. these will run on the 4th or later every month, it
+will always include through the end of the previous month." The window was 12 months ending at the
+ODD's newest month, and rows were never filtered by date, so a file carrying a few days of the next
+month put them in the figures. Now:
+- The window ends on the last day of the month before the cycle (cycle 2026.11 runs through 31 Oct
+  2026). N is 12 by default; `TxnWindowMonths` in the client config or `TI_WINDOW_MONTHS` for a run
+  sets 1, 3, 6, 18 or any whole number of months.
+- Rows dated outside the window are left out, with a warning that counts them. A month in the
+  window with no rows is named in a warning; nothing is filled in.
+- A warning when the ODD's newest month is not the window's last month, and when a run for the
+  current cycle happens before the 4th.
+- The pack carries `txn_window_months`, `txn_window_start`, `txn_window_end`, `txn_window_label` and
+  `txn_window_missing`; `txn_anchor` is now the window's end month.
+- Slide copy no longer says "a year" or "12 months" for transaction totals: it says the real window
+  ("in the last 12 months", "Last 6 months" on the rail, the chart axes too). The figures were window
+  totals all along, never annualised, so "a year" was only true at N = 12.
+
 ### 2026-11-05 — Buy now, pay later: providers, merchants and who uses it (`ti/dictionaries/competitors.json`, `ti/dictionaries/financial_services_patterns.json`, `competition.py`, `competition_report.py`, `deck/txn_compete.py`, `chapters_txn.py`, `deck/txn_slides.py`, `ti/slides.json`)
 
 Summary: The Transaction Intelligence buy now, pay later section names more providers, shows the merchants behind each payment, repeat use and stacking, and adds two slides: what buy now, pay later pays for, and who uses it.
