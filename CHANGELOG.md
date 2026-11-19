@@ -398,6 +398,24 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-05 — One window for every file: the ODD and the deposits file end with the last completed month too (`ti/core/odd_transform.py`, `odd.py`, `deposits_input.py`, `ti_build.py`, `scripts/ars_launcher.py`)
+
+Summary: In Transaction Intelligence the ODD and the deposits file now stop at the same last completed month as the transaction files, and the Sheila files-on-hand check uses the client window length.
+
+James: the last-N-completed-months rule "should apply to all files". The transaction files took it
+on 2026-11-04; the ODD and the deposits file still ran to whatever they carried.
+- ODD: transaction-track month columns (PIN/Sig $ and #, MTD, Spend, Swipes) dated after the window's
+  last month are left out before anything is computed, with a warning naming them, so the data month
+  and every rolling total (last 3-mon, last 12-mon) stop at the end of the previous month. The
+  mail/response track runs a month ahead by design and is kept. An ODD whose newest month is not the
+  window's last month is warned.
+- Deposits: days outside the window (the last N completed months) are left out and counted; a file
+  that stops short of the window end is warned.
+- Launcher: the files-on-hand check reads the client's N (`TxnWindowMonths` in clients_config, or
+  `TI_WINDOW_MONTHS`), not a fixed 12; a bad value stops the check and says where it came from.
+- Not changed: measures defined by a fixed span keep it (accounts opened in the last 12 months, L12M
+  take rate, 12-month closure rate, cohort 12 months on); they now end at the window's end.
+
 ### 2026-11-04 — TI transaction window is the last N completed months before the cycle (`ti/window.py`, `ti_build.py`, TI deck copy)
 
 Summary: Transaction Intelligence totals now cover the last N completed months before the cycle (12 by default), rows outside that window are left out with a warning, and slides name the real window instead of a year.
