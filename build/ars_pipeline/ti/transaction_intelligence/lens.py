@@ -14,7 +14,9 @@ Built-ins (when the ODD columns exist):
 The ICS lens reads EITHER "ICS Account" or "DM-REF Source" (the column
 ics_sources.py stamps from the DM and referral lists) -- see ics_masks().
 Families (one mask per value, from the ODD attribute): branch, product
-    (Prod Desc, falling back to Prod Code), swipe_tier (SwipeCat3).
+    (Prod Desc, falling back to Prod Code), swipe_tier (SwipeCat3), and the
+    banded age_band (Account Holder Age) and tenure_band (tenure_years, from
+    Date Opened), on the card slides' cut points.
     `Lenses.family("branch")` -> {value: account ids}; a family whose column
     is absent from the ODD returns {}.
 
@@ -60,7 +62,8 @@ class Lenses:
 
     def family(self, name: str) -> dict:
         """{value: account ids} for a mask family (branch / product /
-        swipe_tier). Empty dict when the ODD lacks the column."""
+        swipe_tier / age_band / tenure_band). Empty dict when the ODD lacks
+        the column."""
         return family_of(self.attrs, name)
 
 
@@ -93,13 +96,22 @@ def _key(odd: pd.DataFrame) -> str | None:
     return None
 
 
-def build(odd: pd.DataFrame, anchor_end: pd.Timestamp, warn,
-          branch_map: dict | None = None) -> Lenses | None:
+def account_ids(odd: pd.DataFrame) -> pd.Series | None:
+    """The ODD account id as the transaction file spells it: stripped, and a
+    float-read id's trailing ".0" removed (12345.0 -> 12345). One helper, so
+    every section that joins the ODD to transactions keys it the same way."""
     key = _key(odd)
     if key is None:
+        return None
+    return odd[key].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+
+
+def build(odd: pd.DataFrame, anchor_end: pd.Timestamp, warn,
+          branch_map: dict | None = None) -> Lenses | None:
+    ids = account_ids(odd)
+    if ids is None:
         warn("ODD has no Acct Number / Acct ID; lenses unavailable")
         return None
-    ids = odd[key].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
     df = odd.copy()
     df.index = ids
     df = df[~df.index.duplicated(keep="first")]
@@ -121,4 +133,4 @@ def build(odd: pd.DataFrame, anchor_end: pd.Timestamp, warn,
         # One branch axis for the whole run: attrition groups by the mapped
         # display name, so anything that wants to sit beside it must too.
         attrs["Branch Name"] = branch_names(attrs["Branch"], branch_map or {})
-    return Lenses(key_column=key, accounts=df.index, masks=masks, attrs=attrs)
+    return Lenses(key_column=_key(odd), accounts=df.index, masks=masks, attrs=attrs)

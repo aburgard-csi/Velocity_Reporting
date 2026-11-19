@@ -109,6 +109,7 @@ def test_the_transaction_months_are_counted_from_file_names_without_opening_a_zi
                      + ["1441_1_[2026.05.03][10.00.00]_deposits.csv",        # not a transaction file
                         "1441_1_[2025.06.03][10.00.00]_monthlytran.csv"])    # outside the window
     monkeypatch.setattr(R, "txn_files", lambda cid=None, root_=None: sorted((root / str(cid)).iterdir()))
+    monkeypatch.setattr(L._ti_modules()[3], "config_path", lambda: tmp_path / "none.json")   # N: the default 12
     opened = []
     real = zipfile.ZipFile.__init__
     monkeypatch.setattr(zipfile.ZipFile, "__init__", lambda self, *a, **k: opened.append(a) or real(self, *a, **k))

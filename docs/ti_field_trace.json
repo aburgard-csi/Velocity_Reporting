@@ -46,6 +46,7 @@
     "competition_layers.classify_cards",
     "financial_services.compute",
     "interchange.compute",
+    "merchant_profiles._mcc_three_ways",
     "merchant_profiles._rows_frame",
     "merchant_profiles.compute",
     "merchants.compute",
@@ -68,6 +69,8 @@
      "handoffs": [],
      "slides": [
       "deck.txn_cards.twelve_months",
+      "deck.txn_leakage.how_long_it_has_run",
+      "deck.txn_leakage.started_and_stopped",
       "deck.txn_compete.where_the_dollars_go"
      ]
     },
@@ -109,9 +112,11 @@
       "fin_responder_leak_gap_note",
       "fin_responder_leak_gap_pp",
       "fin_self",
+      "fin_subtypes",
       "fin_top_providers",
       "fin_trend",
       "fin_trend_note",
+      "fin_unmatched_top",
       "finb_addressable_dollars",
       "finb_by_category",
       "finb_leaking_accounts",
@@ -129,6 +134,7 @@
       "deck.txn_slides._where_the_money_goes",
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
+      "deck.txn_leakage.insurance_by_line",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -139,7 +145,8 @@
       "deck.txn_leakage.which_services_travel_together",
       "deck.txn_leakage.still_within_reach",
       "deck.txn_cards.responder_profile",
-      "deck.txn_cards.what_the_banker_opens"
+      "deck.txn_cards.what_the_banker_opens",
+      "deck.txn_cards.dictionary_gaps"
      ]
     },
     {
@@ -151,6 +158,7 @@
      "pack_keys": [
       "comp_accounts_total",
       "comp_at_risk",
+      "comp_base_label",
       "comp_bnpl",
       "comp_branch_worst",
       "comp_breadth_bands",
@@ -164,6 +172,7 @@
       "comp_competitor_dollars",
       "comp_competitor_pct_of_transfer_dollars",
       "comp_competitors_per_account",
+      "comp_declined",
       "comp_depth_growth",
       "comp_ecosystem_accounts",
       "comp_ecosystem_dollars",
@@ -171,6 +180,8 @@
       "comp_engagement",
       "comp_engagement_avg_share_pct",
       "comp_engagement_heavy_n",
+      "comp_growth_coverage_days",
+      "comp_growth_note",
       "comp_institutions",
       "comp_institutions_by_lens",
       "comp_institutions_configured",
@@ -190,6 +201,7 @@
       "comp_review_queue",
       "comp_review_queue_dollars",
       "comp_threat",
+      "comp_threat_basis",
       "comp_wallet_by_institution",
       "comp_wallet_high_exposure_n",
       "comp_wallet_tiers",
@@ -197,8 +209,10 @@
       "comp_winback_accounts",
       "comp_winback_window",
       "comp_with_competitor",
+      "comp_with_competitor_base",
       "comp_with_competitor_pct",
       "compb_accounts_total",
+      "compb_base_label",
       "compb_by_tier",
       "compb_competitor_dollars",
       "compb_institutions",
@@ -211,6 +225,7 @@
       "_competitor_monthly"
      ],
      "slides": [
+      "deck.txn_leakage.leakage_by_branch",
       "deck.txn_slides._how_members_spend",
       "deck.txn_cards.responder_profile",
       "deck.txn_cards.every_group_against_the_book",
@@ -230,7 +245,9 @@
       "deck.txn_compete.winback_targets",
       "deck.txn_compete.depth_against_growth",
       "deck.txn_compete.the_payment_ecosystems_ranked",
-      "deck.txn_compete.buy_now_pay_later"
+      "deck.txn_compete.buy_now_pay_later",
+      "deck.txn_compete.what_bnpl_pays_for",
+      "deck.txn_compete.who_uses_bnpl"
      ]
     },
     {
@@ -285,6 +302,7 @@
     {
      "section": "merchant_profiles",
      "read_in": [
+      "merchant_profiles._mcc_three_ways",
       "merchant_profiles._rows_frame",
       "merchant_profiles.compute"
      ],
@@ -305,11 +323,14 @@
       "mch_growth_falling_n",
       "mch_growth_ranked_n",
       "mch_growth_rising_n",
-      "mch_growth_window"
+      "mch_growth_window",
+      "mch_mcc_ways_note",
+      "mch_mcc_ways_window"
      ],
      "handoffs": [],
      "slides": [
       "deck.txn_cards.merchants_rising_and_falling",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.card_spend_by_member_age",
       "deck.txn_cards.card_use_by_account_tenure"
@@ -502,6 +523,7 @@
     "interchange.compute",
     "lens.family_table",
     "merchant_profiles._mcc_codes",
+    "merchant_profiles._mcc_three_ways",
     "merchant_profiles._rows_frame",
     "merchant_profiles.compute",
     "merchants.compute",
@@ -549,8 +571,10 @@
       "fin_by_lens_category",
       "fin_category_pairs",
       "fin_coverage",
+      "fin_declined",
       "fin_definitions",
       "fin_fintech",
+      "fin_inbound_excluded",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
       "fin_leakers_hold",
@@ -576,6 +600,7 @@
       "fin_review_queue",
       "fin_review_queue_dollars",
       "fin_self",
+      "fin_subtypes",
       "fin_top_providers",
       "fin_trend",
       "fin_trend_note",
@@ -599,6 +624,7 @@
       "deck.txn_slides._where_the_money_goes",
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
+      "deck.txn_leakage.insurance_by_line",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -623,6 +649,7 @@
      "pack_keys": [
       "comp_accounts_total",
       "comp_at_risk",
+      "comp_base_label",
       "comp_bnpl",
       "comp_branch_worst",
       "comp_breadth_bands",
@@ -636,6 +663,7 @@
       "comp_competitor_dollars",
       "comp_competitor_pct_of_transfer_dollars",
       "comp_competitors_per_account",
+      "comp_declined",
       "comp_depth_growth",
       "comp_ecosystem_accounts",
       "comp_ecosystem_dollars",
@@ -643,6 +671,8 @@
       "comp_engagement",
       "comp_engagement_avg_share_pct",
       "comp_engagement_heavy_n",
+      "comp_growth_coverage_days",
+      "comp_growth_note",
       "comp_institutions",
       "comp_institutions_by_lens",
       "comp_institutions_configured",
@@ -662,6 +692,7 @@
       "comp_review_queue",
       "comp_review_queue_dollars",
       "comp_threat",
+      "comp_threat_basis",
       "comp_wallet_by_institution",
       "comp_wallet_high_exposure_n",
       "comp_wallet_tiers",
@@ -669,8 +700,10 @@
       "comp_winback_accounts",
       "comp_winback_window",
       "comp_with_competitor",
+      "comp_with_competitor_base",
       "comp_with_competitor_pct",
       "compb_accounts_total",
+      "compb_base_label",
       "compb_by_tier",
       "compb_competitor_dollars",
       "compb_institutions",
@@ -683,6 +716,7 @@
       "_competitor_monthly"
      ],
      "slides": [
+      "deck.txn_leakage.leakage_by_branch",
       "deck.txn_slides._how_members_spend",
       "deck.txn_cards.responder_profile",
       "deck.txn_cards.every_group_against_the_book",
@@ -702,7 +736,9 @@
       "deck.txn_compete.winback_targets",
       "deck.txn_compete.depth_against_growth",
       "deck.txn_compete.the_payment_ecosystems_ranked",
-      "deck.txn_compete.buy_now_pay_later"
+      "deck.txn_compete.buy_now_pay_later",
+      "deck.txn_compete.what_bnpl_pays_for",
+      "deck.txn_compete.who_uses_bnpl"
      ]
     },
     {
@@ -784,6 +820,7 @@
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_cards.new_and_faded_merchants",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.responder_profile"
      ]
@@ -792,6 +829,7 @@
      "section": "merchant_profiles",
      "read_in": [
       "merchant_profiles._mcc_codes",
+      "merchant_profiles._mcc_three_ways",
       "merchant_profiles._rows_frame",
       "merchant_profiles.compute"
      ],
@@ -813,15 +851,23 @@
       "mch_growth_ranked_n",
       "mch_growth_rising_n",
       "mch_growth_window",
+      "mch_mcc_by_accounts",
+      "mch_mcc_by_dollars",
+      "mch_mcc_by_txns",
+      "mch_mcc_card_accounts",
       "mch_mcc_distinct",
+      "mch_mcc_standouts",
       "mch_mcc_top",
-      "mch_mcc_top5_share_pct"
+      "mch_mcc_top5_share_pct",
+      "mch_mcc_ways_note",
+      "mch_mcc_ways_window"
      ],
      "handoffs": [],
      "slides": [
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_cards.merchants_rising_and_falling",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.card_spend_by_member_age",
       "deck.txn_cards.card_use_by_account_tenure"
@@ -1115,8 +1161,10 @@
       "fin_categories_n",
       "fin_category_pairs",
       "fin_coverage",
+      "fin_declined",
       "fin_definitions",
       "fin_fintech",
+      "fin_inbound_excluded",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
       "fin_leakers_hold",
@@ -1142,6 +1190,7 @@
       "fin_review_queue",
       "fin_review_queue_dollars",
       "fin_self",
+      "fin_subtypes",
       "fin_top_providers",
       "fin_trend",
       "fin_unmatched_top",
@@ -1163,6 +1212,7 @@
       "deck.txn_slides._where_the_money_goes",
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
+      "deck.txn_leakage.insurance_by_line",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -1187,6 +1237,7 @@
      "pack_keys": [
       "comp_accounts_total",
       "comp_at_risk",
+      "comp_base_label",
       "comp_bnpl",
       "comp_branch_worst",
       "comp_breadth_bands",
@@ -1200,6 +1251,7 @@
       "comp_competitor_dollars",
       "comp_competitor_pct_of_transfer_dollars",
       "comp_competitors_per_account",
+      "comp_declined",
       "comp_depth_growth",
       "comp_ecosystem_accounts",
       "comp_ecosystem_dollars",
@@ -1207,6 +1259,8 @@
       "comp_engagement",
       "comp_engagement_avg_share_pct",
       "comp_engagement_heavy_n",
+      "comp_growth_coverage_days",
+      "comp_growth_note",
       "comp_institutions",
       "comp_institutions_by_lens",
       "comp_institutions_configured",
@@ -1226,6 +1280,7 @@
       "comp_review_queue",
       "comp_review_queue_dollars",
       "comp_threat",
+      "comp_threat_basis",
       "comp_wallet_by_institution",
       "comp_wallet_high_exposure_n",
       "comp_wallet_tiers",
@@ -1233,8 +1288,10 @@
       "comp_winback_accounts",
       "comp_winback_window",
       "comp_with_competitor",
+      "comp_with_competitor_base",
       "comp_with_competitor_pct",
       "compb_accounts_total",
+      "compb_base_label",
       "compb_by_tier",
       "compb_competitor_dollars",
       "compb_institutions",
@@ -1247,6 +1304,7 @@
       "_competitor_monthly"
      ],
      "slides": [
+      "deck.txn_leakage.leakage_by_branch",
       "deck.txn_slides._how_members_spend",
       "deck.txn_cards.responder_profile",
       "deck.txn_cards.every_group_against_the_book",
@@ -1266,7 +1324,9 @@
       "deck.txn_compete.winback_targets",
       "deck.txn_compete.depth_against_growth",
       "deck.txn_compete.the_payment_ecosystems_ranked",
-      "deck.txn_compete.buy_now_pay_later"
+      "deck.txn_compete.buy_now_pay_later",
+      "deck.txn_compete.what_bnpl_pays_for",
+      "deck.txn_compete.who_uses_bnpl"
      ]
     },
     {
@@ -1351,6 +1411,7 @@
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_cards.new_and_faded_merchants",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.responder_profile"
      ]
@@ -1378,15 +1439,23 @@
       "mch_growth_ranked_n",
       "mch_growth_rising_n",
       "mch_growth_window",
+      "mch_mcc_by_accounts",
+      "mch_mcc_by_dollars",
+      "mch_mcc_by_txns",
+      "mch_mcc_card_accounts",
       "mch_mcc_distinct",
+      "mch_mcc_standouts",
       "mch_mcc_top",
-      "mch_mcc_top5_share_pct"
+      "mch_mcc_top5_share_pct",
+      "mch_mcc_ways_note",
+      "mch_mcc_ways_window"
      ],
      "handoffs": [],
      "slides": [
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_cards.merchants_rising_and_falling",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.card_spend_by_member_age",
       "deck.txn_cards.card_use_by_account_tenure"
@@ -1666,6 +1735,7 @@
       "fin_coverage",
       "fin_definitions",
       "fin_fintech",
+      "fin_inbound_excluded",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
       "fin_leakers_hold",
@@ -1688,6 +1758,7 @@
       "fin_review_queue",
       "fin_review_queue_dollars",
       "fin_self",
+      "fin_subtypes",
       "fin_top_providers",
       "fin_trend",
       "fin_unmatched_top",
@@ -1709,6 +1780,7 @@
       "deck.txn_slides._where_the_money_goes",
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
+      "deck.txn_leakage.insurance_by_line",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -1733,6 +1805,7 @@
      "pack_keys": [
       "comp_accounts_total",
       "comp_at_risk",
+      "comp_base_label",
       "comp_bnpl",
       "comp_branch_worst",
       "comp_breadth_bands",
@@ -1746,6 +1819,7 @@
       "comp_competitor_dollars",
       "comp_competitor_pct_of_transfer_dollars",
       "comp_competitors_per_account",
+      "comp_declined",
       "comp_depth_growth",
       "comp_ecosystem_accounts",
       "comp_ecosystem_dollars",
@@ -1753,6 +1827,8 @@
       "comp_engagement",
       "comp_engagement_avg_share_pct",
       "comp_engagement_heavy_n",
+      "comp_growth_coverage_days",
+      "comp_growth_note",
       "comp_institutions",
       "comp_institutions_by_lens",
       "comp_institutions_configured",
@@ -1772,6 +1848,7 @@
       "comp_review_queue",
       "comp_review_queue_dollars",
       "comp_threat",
+      "comp_threat_basis",
       "comp_wallet_by_institution",
       "comp_wallet_high_exposure_n",
       "comp_wallet_tiers",
@@ -1779,8 +1856,10 @@
       "comp_winback_accounts",
       "comp_winback_window",
       "comp_with_competitor",
+      "comp_with_competitor_base",
       "comp_with_competitor_pct",
       "compb_accounts_total",
+      "compb_base_label",
       "compb_by_tier",
       "compb_competitor_dollars",
       "compb_institutions",
@@ -1793,6 +1872,7 @@
       "_competitor_monthly"
      ],
      "slides": [
+      "deck.txn_leakage.leakage_by_branch",
       "deck.txn_slides._how_members_spend",
       "deck.txn_cards.responder_profile",
       "deck.txn_cards.every_group_against_the_book",
@@ -1812,7 +1892,9 @@
       "deck.txn_compete.winback_targets",
       "deck.txn_compete.depth_against_growth",
       "deck.txn_compete.the_payment_ecosystems_ranked",
-      "deck.txn_compete.buy_now_pay_later"
+      "deck.txn_compete.buy_now_pay_later",
+      "deck.txn_compete.what_bnpl_pays_for",
+      "deck.txn_compete.who_uses_bnpl"
      ]
     },
     {
@@ -1912,7 +1994,11 @@
       "mch_growth_ranked_n",
       "mch_growth_rising_n",
       "mch_growth_window",
+      "mch_mcc_by_accounts",
+      "mch_mcc_by_dollars",
+      "mch_mcc_by_txns",
       "mch_mcc_distinct",
+      "mch_mcc_standouts",
       "mch_mcc_top",
       "mch_mcc_top5_share_pct"
      ],
@@ -1921,6 +2007,7 @@
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_cards.merchants_rising_and_falling",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.card_spend_by_member_age",
       "deck.txn_cards.card_use_by_account_tenure"
@@ -2179,6 +2266,7 @@
      "slides": [
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used"
      ]
     },
@@ -2204,7 +2292,11 @@
       "mch_growth_ranked_n",
       "mch_growth_rising_n",
       "mch_growth_window",
+      "mch_mcc_by_accounts",
+      "mch_mcc_by_dollars",
+      "mch_mcc_by_txns",
       "mch_mcc_distinct",
+      "mch_mcc_standouts",
       "mch_mcc_top",
       "mch_mcc_top5_share_pct"
      ],
@@ -2213,6 +2305,7 @@
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_cards.merchants_rising_and_falling",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.card_spend_by_member_age",
       "deck.txn_cards.card_use_by_account_tenure"
@@ -2284,8 +2377,10 @@
       "fin_categories_n",
       "fin_category_pairs",
       "fin_coverage",
+      "fin_declined",
       "fin_definitions",
       "fin_fintech",
+      "fin_inbound_excluded",
       "fin_leakage_dollars",
       "fin_leakage_pct_of_transfer_dollars",
       "fin_leakers_hold",
@@ -2311,6 +2406,7 @@
       "fin_review_queue",
       "fin_review_queue_dollars",
       "fin_self",
+      "fin_subtypes",
       "fin_top_providers",
       "fin_trend",
       "fin_unmatched_top",
@@ -2332,6 +2428,7 @@
       "deck.txn_slides._where_the_money_goes",
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
+      "deck.txn_leakage.insurance_by_line",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -2356,6 +2453,7 @@
      "pack_keys": [
       "comp_accounts_total",
       "comp_at_risk",
+      "comp_base_label",
       "comp_bnpl",
       "comp_branch_worst",
       "comp_breadth_bands",
@@ -2369,6 +2467,7 @@
       "comp_competitor_dollars",
       "comp_competitor_pct_of_transfer_dollars",
       "comp_competitors_per_account",
+      "comp_declined",
       "comp_depth_growth",
       "comp_ecosystem_accounts",
       "comp_ecosystem_dollars",
@@ -2376,6 +2475,8 @@
       "comp_engagement",
       "comp_engagement_avg_share_pct",
       "comp_engagement_heavy_n",
+      "comp_growth_coverage_days",
+      "comp_growth_note",
       "comp_institutions",
       "comp_institutions_by_lens",
       "comp_institutions_configured",
@@ -2395,6 +2496,7 @@
       "comp_review_queue",
       "comp_review_queue_dollars",
       "comp_threat",
+      "comp_threat_basis",
       "comp_wallet_by_institution",
       "comp_wallet_high_exposure_n",
       "comp_wallet_tiers",
@@ -2402,8 +2504,10 @@
       "comp_winback_accounts",
       "comp_winback_window",
       "comp_with_competitor",
+      "comp_with_competitor_base",
       "comp_with_competitor_pct",
       "compb_accounts_total",
+      "compb_base_label",
       "compb_by_tier",
       "compb_competitor_dollars",
       "compb_institutions",
@@ -2416,6 +2520,7 @@
       "_competitor_monthly"
      ],
      "slides": [
+      "deck.txn_leakage.leakage_by_branch",
       "deck.txn_slides._how_members_spend",
       "deck.txn_cards.responder_profile",
       "deck.txn_cards.every_group_against_the_book",
@@ -2435,7 +2540,9 @@
       "deck.txn_compete.winback_targets",
       "deck.txn_compete.depth_against_growth",
       "deck.txn_compete.the_payment_ecosystems_ranked",
-      "deck.txn_compete.buy_now_pay_later"
+      "deck.txn_compete.buy_now_pay_later",
+      "deck.txn_compete.what_bnpl_pays_for",
+      "deck.txn_compete.who_uses_bnpl"
      ]
     },
     {
@@ -2791,10 +2898,12 @@
      "via": [],
      "pack_keys": [
       "fin_coverage",
+      "fin_subtypes",
       "fin_unmatched_top"
      ],
      "handoffs": [],
      "slides": [
+      "deck.txn_leakage.insurance_by_line",
       "deck.txn_cards.dictionary_gaps"
      ]
     },
@@ -2829,6 +2938,7 @@
       "deck.txn_cards.card_spend_by_category",
       "deck.txn_cards.new_and_faded_merchants",
       "deck.txn_slides._the_mcc_codes",
+      "deck.txn_cards.mcc_codes_three_ways",
       "deck.txn_cards.how_broadly_the_card_is_used",
       "deck.txn_cards.responder_profile"
      ]
@@ -3031,55 +3141,17 @@
   },
   "Acct ID": {
    "read_in": [
-    "leakage.compute",
     "lens._key",
     "portfolio.compute"
    ],
-   "sections": [
-    {
-     "section": "leakage",
-     "read_in": [
-      "leakage.compute"
-     ],
-     "via": [],
-     "pack_keys": [
-      "leak_control",
-      "leak_curve",
-      "leak_divergence_month",
-      "leak_divergence_note"
-     ],
-     "handoffs": [],
-     "slides": [
-      "deck.txn_attrition.spend_before_closure"
-     ]
-    }
-   ]
+   "sections": []
   },
   "Acct Number": {
    "read_in": [
-    "leakage.compute",
     "lens._key",
     "portfolio.compute"
    ],
-   "sections": [
-    {
-     "section": "leakage",
-     "read_in": [
-      "leakage.compute"
-     ],
-     "via": [],
-     "pack_keys": [
-      "leak_control",
-      "leak_curve",
-      "leak_divergence_month",
-      "leak_divergence_note"
-     ],
-     "handoffs": [],
-     "slides": [
-      "deck.txn_attrition.spend_before_closure"
-     ]
-    }
-   ]
+   "sections": []
   },
   "Avg Bal": {
    "read_in": [
@@ -3144,6 +3216,7 @@
   },
   "Curr Bal": {
    "read_in": [
+    "competition._bnpl_users_against_nonusers",
     "financial_services.compute",
     "lens.build",
     "overlay.compute"
@@ -3467,6 +3540,7 @@
   "comp_competitor_dollars",
   "comp_competitor_pct_of_transfer_dollars",
   "comp_competitors_per_account",
+  "comp_declined",
   "comp_depth_growth",
   "comp_ecosystem_accounts",
   "comp_ecosystem_dollars",
@@ -3474,6 +3548,8 @@
   "comp_engagement",
   "comp_engagement_avg_share_pct",
   "comp_engagement_heavy_n",
+  "comp_growth_coverage_days",
+  "comp_growth_note",
   "comp_institutions",
   "comp_institutions_by_lens",
   "comp_institutions_configured",
@@ -3493,6 +3569,7 @@
   "comp_review_queue",
   "comp_review_queue_dollars",
   "comp_threat",
+  "comp_threat_basis",
   "comp_wallet_by_institution",
   "comp_wallet_high_exposure_n",
   "comp_wallet_tiers",
@@ -3503,6 +3580,7 @@
   "comp_with_competitor_base",
   "comp_with_competitor_pct",
   "compb_accounts_total",
+  "compb_base_label",
   "compb_by_tier",
   "compb_competitor_dollars",
   "compb_institutions",
@@ -3523,8 +3601,10 @@
   "fin_by_lens_category",
   "fin_category_pairs",
   "fin_coverage",
+  "fin_declined",
   "fin_definitions",
   "fin_fintech",
+  "fin_inbound_excluded",
   "fin_leakage_dollars",
   "fin_leakage_pct_of_transfer_dollars",
   "fin_leakers_hold",
@@ -3550,6 +3630,7 @@
   "fin_review_queue",
   "fin_review_queue_dollars",
   "fin_self",
+  "fin_subtypes",
   "fin_top_providers",
   "fin_trend",
   "fin_trend_note",
@@ -3631,10 +3712,17 @@
   "mch_growth_ranked_n",
   "mch_growth_rising_n",
   "mch_growth_window",
+  "mch_mcc_by_accounts",
+  "mch_mcc_by_dollars",
+  "mch_mcc_by_txns",
+  "mch_mcc_card_accounts",
   "mch_mcc_coverage_pct",
   "mch_mcc_distinct",
+  "mch_mcc_standouts",
   "mch_mcc_top",
   "mch_mcc_top5_share_pct",
+  "mch_mcc_ways_note",
+  "mch_mcc_ways_window",
   "mch_merchants_for_80pct",
   "mch_monthly",
   "mch_new",
@@ -4890,13 +4978,20 @@
     "competition.compute"
    ],
    "handoff": false,
-   "txn_fields": [],
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
    "odd_fields": [
     "(account lenses)"
    ],
    "via": [
     "shared:base_label",
     "shared:business",
+    "shared:fin_rows",
     "shared:personal"
    ],
    "slides": []
@@ -4926,8 +5021,11 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_slides._how_members_spend",
     "deck.txn_compete.the_payment_ecosystems_ranked",
-    "deck.txn_compete.buy_now_pay_later"
+    "deck.txn_compete.buy_now_pay_later",
+    "deck.txn_compete.what_bnpl_pays_for",
+    "deck.txn_compete.who_uses_bnpl"
    ]
   },
   "comp_branch_worst": {
@@ -5134,6 +5232,7 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_leakage.leakage_by_branch",
     "deck.txn_compete.where_we_leak_by_branch"
    ]
   },
@@ -5339,6 +5438,32 @@
    "txn_fields": [],
    "odd_fields": [],
    "via": [],
+   "slides": []
+  },
+  "comp_declined": {
+   "sections": [
+    "competition"
+   ],
+   "writers": [
+    "competition.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
    "slides": []
   },
   "comp_depth_growth": {
@@ -5565,6 +5690,58 @@
    "slides": [
     "deck.txn_compete.who_owns_the_relationship"
    ]
+  },
+  "comp_growth_coverage_days": {
+   "sections": [
+    "competition"
+   ],
+   "writers": [
+    "competition.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "comp_growth_note": {
+   "sections": [
+    "competition"
+   ],
+   "writers": [
+    "competition.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
+   "slides": []
   },
   "comp_institutions": {
    "sections": [
@@ -6161,9 +6338,22 @@
     "competition.compute"
    ],
    "handoff": false,
-   "txn_fields": [],
-   "odd_fields": [],
-   "via": [],
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
    "slides": []
   },
   "comp_threat_columns": {
@@ -6452,13 +6642,20 @@
     "competition.compute"
    ],
    "handoff": false,
-   "txn_fields": [],
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
    "odd_fields": [
     "(account lenses)"
    ],
    "via": [
     "shared:base_label",
     "shared:business",
+    "shared:fin_rows",
     "shared:personal"
    ],
    "slides": []
@@ -6525,9 +6722,22 @@
     "competition.compute"
    ],
    "handoff": false,
-   "txn_fields": [],
-   "odd_fields": [],
-   "via": [],
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:fin_rows",
+    "shared:personal"
+   ],
    "slides": []
   },
   "compb_by_tier": {
@@ -6936,6 +7146,7 @@
     "deck.txn_slides._where_the_money_goes",
     "deck.txn_leakage.where_the_leakage_goes",
     "deck.txn_leakage.who_they_pay",
+    "deck.txn_leakage.insurance_by_line",
     "deck.txn_leakage.how_the_leakage_builds"
    ]
   },
@@ -7119,6 +7330,29 @@
    ],
    "slides": []
   },
+  "fin_declined": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "merchant_name",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
   "fin_definitions": {
    "sections": [
     "financial_services"
@@ -7157,6 +7391,30 @@
     "merchant_name",
     "primary_account_num",
     "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "fin_inbound_excluded": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_name",
+    "primary_account_num",
     "transaction_type"
    ],
    "odd_fields": [
@@ -7562,6 +7820,7 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_leakage.how_long_it_has_run",
     "deck.txn_leakage.started_and_stopped"
    ]
   },
@@ -7877,6 +8136,62 @@
    ],
    "slides": []
   },
+  "fin_subtypes": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "merchant_key",
+    "merchant_name",
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": [
+    "deck.txn_leakage.insurance_by_line"
+   ]
+  },
+  "fin_subtypes_columns": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "fin_subtypes_note": {
+   "sections": [
+    "financial_services"
+   ],
+   "writers": [
+    "financial_services.compute"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": [
+    "deck.txn_leakage.insurance_by_line"
+   ]
+  },
   "fin_top_providers": {
    "sections": [
     "financial_services"
@@ -7977,6 +8292,7 @@
     "merchant_key",
     "merchant_name",
     "primary_account_num",
+    "transaction_date",
     "transaction_type"
    ],
    "odd_fields": [
@@ -9307,8 +9623,6 @@
    ],
    "odd_fields": [
     "(account lenses)",
-    "Acct ID",
-    "Acct Number",
     "Date Closed"
    ],
    "via": [
@@ -9350,8 +9664,6 @@
    ],
    "odd_fields": [
     "(account lenses)",
-    "Acct ID",
-    "Acct Number",
     "Date Closed"
    ],
    "via": [
@@ -9429,8 +9741,6 @@
    ],
    "odd_fields": [
     "(account lenses)",
-    "Acct ID",
-    "Acct Number",
     "Date Closed"
    ],
    "via": [
@@ -9457,8 +9767,6 @@
    ],
    "odd_fields": [
     "(account lenses)",
-    "Acct ID",
-    "Acct Number",
     "Date Closed"
    ],
    "via": [
@@ -10428,6 +10736,147 @@
     "deck.txn_cards.merchants_rising_and_falling"
    ]
   },
+  "mch_mcc_by_accounts": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "mcc_code",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": [
+    "deck.txn_cards.mcc_codes_three_ways"
+   ]
+  },
+  "mch_mcc_by_accounts_columns": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "mch_mcc_by_dollars": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "mcc_code",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": [
+    "deck.txn_cards.mcc_codes_three_ways"
+   ]
+  },
+  "mch_mcc_by_dollars_columns": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "mch_mcc_by_txns": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "mcc_code",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": [
+    "deck.txn_cards.mcc_codes_three_ways"
+   ]
+  },
+  "mch_mcc_by_txns_columns": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
+  },
+  "mch_mcc_card_accounts": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": [
+    "deck.txn_cards.mcc_codes_three_ways"
+   ]
+  },
   "mch_mcc_coverage_pct": {
    "sections": [
     "merchants"
@@ -10453,6 +10902,7 @@
    "slides": [
     "deck.txn_cards.card_spend_by_category",
     "deck.txn_slides._the_mcc_codes",
+    "deck.txn_cards.mcc_codes_three_ways",
     "deck.txn_cards.how_broadly_the_card_is_used"
    ]
   },
@@ -10482,6 +10932,46 @@
     "deck.txn_cards.card_spend_by_category",
     "deck.txn_slides._the_mcc_codes"
    ]
+  },
+  "mch_mcc_standouts": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "amount",
+    "mcc_code",
+    "primary_account_num",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:mch_spec",
+    "shared:personal"
+   ],
+   "slides": [
+    "deck.txn_cards.mcc_codes_three_ways"
+   ]
+  },
+  "mch_mcc_standouts_columns": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [],
+   "odd_fields": [],
+   "via": [],
+   "slides": []
   },
   "mch_mcc_top": {
    "sections": [
@@ -10550,6 +11040,54 @@
    "odd_fields": [],
    "via": [],
    "slides": []
+  },
+  "mch_mcc_ways_note": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": []
+  },
+  "mch_mcc_ways_window": {
+   "sections": [
+    "merchant_profiles"
+   ],
+   "writers": [
+    "merchant_profiles._mcc_three_ways"
+   ],
+   "handoff": false,
+   "txn_fields": [
+    "primary_account_num",
+    "transaction_date",
+    "transaction_type"
+   ],
+   "odd_fields": [
+    "(account lenses)"
+   ],
+   "via": [
+    "shared:base_label",
+    "shared:business",
+    "shared:personal"
+   ],
+   "slides": [
+    "deck.txn_cards.mcc_codes_three_ways"
+   ]
   },
   "mch_merchants_for_80pct": {
    "sections": [
@@ -12397,6 +12935,8 @@
    "via": [],
    "slides": [
     "deck.txn_cards.twelve_months",
+    "deck.txn_leakage.how_long_it_has_run",
+    "deck.txn_leakage.started_and_stopped",
     "deck.txn_compete.where_the_dollars_go"
    ]
   },
@@ -12704,12 +13244,25 @@
    ],
    "label": "Who they pay"
   },
+  "deck.txn_leakage.insurance_by_line": {
+   "builder": "insurance_by_line",
+   "chapter": "Transaction Intelligence",
+   "title": "Insurance by line",
+   "keys": [
+    "fin_by_category",
+    "fin_subtypes",
+    "fin_subtypes_note"
+   ],
+   "label": "Insurance by line"
+  },
   "deck.txn_leakage.how_long_it_has_run": {
    "builder": "how_long_it_has_run",
    "chapter": "Transaction Intelligence",
    "title": "How long the relationship has run",
    "keys": [
-    "fin_recency"
+    "fin_new_recurring_stopped",
+    "fin_recency",
+    "txn_months_covered"
    ],
    "label": "How long the relationship has run [drawn with Started and stopped as \"How external relationships age and turn over\"]"
   },
@@ -12718,7 +13271,8 @@
    "chapter": "Transaction Intelligence",
    "title": "Started and stopped",
    "keys": [
-    "fin_new_recurring_stopped"
+    "fin_new_recurring_stopped",
+    "txn_months_covered"
    ],
    "label": "Started and stopped [drawn with How long the relationship has run as \"How external relationships age and turn over\"]"
   },
@@ -12750,6 +13304,36 @@
     "lenses"
    ],
    "label": "Leakage by group and category"
+  },
+  "deck.txn_leakage.leakage_by_member_age": {
+   "builder": "leakage_by_member_age",
+   "chapter": "Transaction Intelligence",
+   "title": "Leakage by member age",
+   "keys": [
+    "comp_by_age_band",
+    "fin_by_age_band"
+   ],
+   "label": "Leakage by member age"
+  },
+  "deck.txn_leakage.leakage_by_account_tenure": {
+   "builder": "leakage_by_account_tenure",
+   "chapter": "Transaction Intelligence",
+   "title": "Leakage by account tenure",
+   "keys": [
+    "comp_by_tenure_band",
+    "fin_by_tenure_band"
+   ],
+   "label": "Leakage by account tenure"
+  },
+  "deck.txn_leakage.leakage_by_branch": {
+   "builder": "leakage_by_branch",
+   "chapter": "Transaction Intelligence",
+   "title": "Leakage by branch",
+   "keys": [
+    "comp_by_branch",
+    "fin_by_branch"
+   ],
+   "label": "Leakage by branch"
   },
   "deck.txn_leakage.what_leakers_hold": {
    "builder": "what_leakers_hold",
@@ -12798,6 +13382,7 @@
    "keys": [
     "beh_ticket_median",
     "beh_txns_per_active_acct_mo",
+    "comp_bnpl",
     "comp_ecosystems",
     "mch_card_accounts",
     "mch_card_spend",
@@ -12919,6 +13504,21 @@
     "mch_mcc_top5_share_pct"
    ],
    "label": "The MCC codes behind the categories"
+  },
+  "deck.txn_cards.mcc_codes_three_ways": {
+   "builder": "mcc_codes_three_ways",
+   "chapter": "Transaction Intelligence",
+   "title": "MCC codes by spend, transactions and members",
+   "keys": [
+    "mch_mcc_by_accounts",
+    "mch_mcc_by_dollars",
+    "mch_mcc_by_txns",
+    "mch_mcc_card_accounts",
+    "mch_mcc_coverage_pct",
+    "mch_mcc_standouts",
+    "mch_mcc_ways_window"
+   ],
+   "label": "MCC codes by spend, transactions and members"
   },
   "deck.txn_cards.how_broadly_the_card_is_used": {
    "builder": "how_broadly_the_card_is_used",
@@ -13303,6 +13903,25 @@
    ],
    "label": "Buy now, pay later [drawn with The payment ecosystems, ranked as \"Payment apps and buy now, pay later\"]"
   },
+  "deck.txn_compete.what_bnpl_pays_for": {
+   "builder": "what_bnpl_pays_for",
+   "chapter": "Competition",
+   "title": "What buy now, pay later pays for",
+   "keys": [
+    "comp_bnpl"
+   ],
+   "label": "What buy now, pay later pays for"
+  },
+  "deck.txn_compete.who_uses_bnpl": {
+   "builder": "who_uses_bnpl",
+   "chapter": "Competition",
+   "title": "Who uses buy now, pay later",
+   "keys": [
+    "comp_bnpl",
+    "lenses"
+   ],
+   "label": "Who uses buy now, pay later"
+  },
   "deck.txn_attrition.spend_before_closure": {
    "builder": "spend_before_closure",
    "chapter": "Attrition",
@@ -13353,17 +13972,36 @@
   "filed"
  ],
  "slide_keys_without_producer": {
+  "comp_by_age_band": [
+   "deck.txn_leakage.leakage_by_member_age"
+  ],
+  "comp_by_tenure_band": [
+   "deck.txn_leakage.leakage_by_account_tenure"
+  ],
   "comp_filed": [
    "deck.txn_compete.filed_growth_slide"
   ],
   "comp_filed_columns": [
    "deck.txn_compete.filed_growth_slide"
   ],
+  "fin_by_age_band": [
+   "deck.txn_leakage.leakage_by_member_age"
+  ],
+  "fin_by_branch": [
+   "deck.txn_leakage.leakage_by_branch"
+  ],
+  "fin_by_tenure_band": [
+   "deck.txn_leakage.leakage_by_account_tenure"
+  ],
   "lenses": [
+   "deck.txn_compete.who_uses_bnpl",
    "deck.txn_leakage.leakage_by_group_and_category"
   ]
  },
  "unresolved": [
+  "`band_lenses.family_cuts` writes a pack key that cannot be resolved: `out[key + '_basis']`",
+  "`band_lenses.family_cuts` writes a pack key that cannot be resolved: `out[key + '_columns']`",
+  "`band_lenses.family_cuts` writes a pack key that cannot be resolved: `out[key]`",
   "`competition._write_lists`: joins the ODD frame `attrs` whole: every column it holds (lens.build's kept columns) can reach the result",
   "`competition_layers._group_sets`: column(s) `lenses.key_column` of the odd frame cannot be resolved",
   "`financial_services.write_lists`: joins the ODD frame `attrs[extra]` whole: every column it holds (lens.build's kept columns) can reach the result",
