@@ -191,6 +191,28 @@ def _set_run(run, text, size, *, bold=False, color=DARK, font=BODY, italic=False
     return run
 
 
+def expr_text(s):
+    """A matrix value that is a SQL expression, in words: '-[ACCOUNTS].[OutstandingLoanAmount]' -> 'minus Outstanding
+    Loan Amount' (Dannemora FCU's loan override printed the raw expression, which wrapped under the next bar)."""
+    import re
+    s = str(s).strip()
+    neg = s.startswith("-")
+    body = re.sub(r"\[[A-Za-z_]+\]\.", "", s.lstrip("-").strip())        # drop the [TABLE]. prefix
+    body = re.sub(r"\b[A-Z_]{3,}\.(?=[A-Za-z])", "", body)              # and an unbracketed ACCOUNTS. prefix
+    body = body.replace("[", "").replace("]", "")
+    body = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", body)
+    return ("minus " if neg else "") + body
+
+
+def clip_words(s, n):
+    """At most n characters, cut at a word boundary with an ellipsis, never mid-word ('...AND LTD D')."""
+    s = str(s or "").strip()
+    if len(s) <= n:
+        return s
+    cut = s[:n - 1].rsplit(" ", 1)[0].rstrip(" ,;-")
+    return cut + "…"
+
+
 def textbox(slide, x, y, w, h, text, size, *, bold=False, color=DARK,
             align=PP_ALIGN.LEFT, wrap=True, font=BODY, anchor=None,
             line_spacing=None, italic=False, floor=11.0, raw=False):
@@ -526,6 +548,11 @@ def kpi_cards(slide, x, y, w, h, cards, *, gap=0.28, accent=NAVY):
     """Row of stat tiles: each card is (value, label, sub) — sub may be None."""
     n = max(1, len(cards))
     cw = (w - gap * (n - 1)) / n
+    # one value size for the row: the largest at which every value fits its tile on one line, measured inside the
+    # textbox's 0.1 in insets ("$4,348,647" wrapped at 28 pt in a five-tile row)
+    from textfit import fits_one_line
+    inner = W(cw) - 0.12 - 0.25
+    vpt = next((p for p in (28, 26, 24, 22, 20) if all(fits_one_line(str(c[0]), inner, p, "Montserrat", True) for c in cards)), 20)
     for i, c in enumerate(cards):
         value, label = c[0], c[1]
         sub = c[2] if len(c) > 2 else None
@@ -537,7 +564,7 @@ def kpi_cards(slide, x, y, w, h, cards, *, gap=0.28, accent=NAVY):
         tile.line.fill.background()
         shapes.shadow(tile)
         rx, ry, rw, rh = X(cx) + 0.06, Y(y), W(cw) - 0.12, H(h)
-        shapes.textbox(slide, rx, ry + rh * 0.05, rw, rh * 0.34, value, 28, WHITE, True,
+        shapes.textbox(slide, rx, ry + rh * 0.05, rw, rh * 0.34, value, vpt, WHITE, True,
                        PP_ALIGN.CENTER, HEAD, MSO_ANCHOR.MIDDLE)
         shapes.textbox(slide, rx, ry + rh * 0.40, rw, rh * 0.28, label, 12, WHITE, True,
                        PP_ALIGN.CENTER, BODY, MSO_ANCHOR.TOP)
