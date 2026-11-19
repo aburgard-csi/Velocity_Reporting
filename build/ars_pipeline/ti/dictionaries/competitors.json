@@ -224,7 +224,8 @@
     "DISCOVER BANK",
     "DISCOVER CARD",
     "DISCOVER PERS LOANS",
-    "DFS"
+    "DFS",
+    "DISCOVER CAP"
    ]
   },
   "Barclays": {
@@ -270,7 +271,10 @@
     "GOLDMAN SACHS",
     "GS BANK",
     "APPLE CARD",
-    "APPLECARD"
+    "APPLECARD",
+    "APPLECARD GSBANK",
+    "GSBANK",
+    "APPLE CARD GS BANK"
    ]
   },
   "Ally": {
@@ -330,7 +334,8 @@
   "Upstart": {
    "tier": "Digital Bank / Fintech Lender",
    "patterns": [
-    "UPSTART"
+    "UPSTART",
+    "UPSTART NETWORK"
    ]
   },
   "Best Egg": {
@@ -425,7 +430,8 @@
     "FORD CREDIT",
     "FORD MOTOR CREDIT",
     "FORD MOTOR CR",
-    "LINCOLN AUTOMOTIVE FIN"
+    "LINCOLN AUTOMOTIVE FIN",
+    "FORD MTR CR"
    ]
   },
   "Honda Financial": {
@@ -694,7 +700,10 @@
   "Robinhood": {
    "tier": "Brokerage / Wealth",
    "patterns": [
-    "ROBINHOOD"
+    "ROBINHOOD",
+    "RH BROKERAGE",
+    "ROBINHOOD MARKETS",
+    "ROBINHOOD SECURITIES"
    ]
   },
   "Ameriprise": {
@@ -706,7 +715,9 @@
   "LPL Financial": {
    "tier": "Brokerage / Wealth",
    "patterns": [
-    "LPL FINANCIAL"
+    "LPL FINANCIAL",
+    "LPL",
+    "LPL FIN"
    ]
   },
   "Betterment": {
@@ -810,24 +821,105 @@
     "QUADPAY"
    ],
    "bnpl": true
+  },
+  "Stellantis Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "STELLANTIS FINANCIAL",
+    "STELLANTIS FIN"
+   ]
+  },
+  "Sheffield Financial": {
+   "tier": "Captive Auto Finance",
+   "patterns": [
+    "SHEFFIELD FINANCIAL",
+    "SHEFFIELD FI"
+   ]
+  },
+  "World Finance": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "WORLD ACCEPTANCE",
+    "WORLD FINANCE"
+   ]
+  },
+  "Security Finance": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "SECURITY FINANCE"
+   ]
+  },
+  "Regional Finance": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "REGFINANCE",
+    "REGIONAL FINANCE"
+   ]
+  },
+  "Heights Finance": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "HEIGHTS FINANCE"
+   ]
+  },
+  "Tower Loan": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "TOWER LOAN"
+   ]
+  },
+  "Sun Loan": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "SUN LOAN",
+    "SUN LOANS"
+   ]
+  },
+  "Republic Finance": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "REPUBLIC FINANCE"
+   ]
+  },
+  "Mariner Finance": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "MARINER FINANCE"
+   ]
+  },
+  "Lendmark": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "LENDMARK",
+    "LENDMARK FINANCIAL"
+   ]
+  },
+  "1st Franklin Financial": {
+   "tier": "Digital Bank / Fintech Lender",
+   "patterns": [
+    "1ST FRANKLIN",
+    "1ST FRANKLIN FINANCIAL"
+   ]
   }
  },
  "false_positives": [
-  "NEIMAN MARCUS",
+  "ALLY LOGISTICS",
+  "CAPITAL GRILLE",
   "CHASE CENTER",
   "CHASE FIELD",
-  "PAPER CHASE",
-  "KEY FOOD",
-  "KEY WEST",
+  "CITI FIELD",
   "CURRENT ELECTRIC",
-  "ALLY LOGISTICS",
   "DAVE & BUSTERS",
   "DISCOVERY",
-  "CITI FIELD",
-  "REGIONS HOSPITAL",
+  "FIDELITY BANK",
+  "FIDELITY BK",
   "HUNTINGTON LEARNING",
-  "CAPITAL GRILLE",
-  "PROSPER ISD"
+  "KEY FOOD",
+  "KEY WEST",
+  "NEIMAN MARCUS",
+  "PAPER CHASE",
+  "PROSPER ISD",
+  "REGIONS HOSPITAL"
  ],
  "review_tokens": [
   "BANK",

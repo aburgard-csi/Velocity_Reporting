@@ -81,6 +81,9 @@ def _cond(text):
     s = re.sub(r"\s+", " ", s).strip()
     s = re.sub(r"BETWEEN\s+(-?\d+)\s+AND\s+(-?\d+)", r"\1-\2", s, flags=re.I)
     s = s.replace("IntermediateODLimit", "Scored limit")
+    s = re.sub(r"\bACCOUNTS\.", "", s)
+    # a run-together field name ('OutstandingLoanAmount') broke mid-word in the appendix table (Dannemora FCU)
+    s = re.sub(r"\b([A-Z][a-z]+(?:[A-Z][a-z]+){2,})\b", lambda m: re.sub(r"(?<=[a-z])(?=[A-Z])", " ", m.group(1)), s)
     return s
 
 
@@ -89,7 +92,10 @@ def _ret(v):
     if s.endswith("%"):
         return s
     n = MD._num(s)
-    return _money(s) if n is not None else s
+    if n is not None:
+        return _money(s)
+    from . import theme as _T
+    return _T.expr_text(s)        # '-[ACCOUNTS].[OutstandingLoanAmount]' -> 'minus Outstanding Loan Amount'
 
 
 def override_rows(rows):
@@ -161,6 +167,17 @@ def _bar(slide, x, y, w, left, right=""):
         shapes.textbox(slide, x + w * 0.5, y, w * 0.5 - 0.10, 0.36, right, 12, brand.PEACH_RGB, True, PP_ALIGN.RIGHT, brand.HEAD)
 
 
+def _value_pt(value, width, start):
+    """Largest point size, from `start` down to 12, at which the value fits one line in `width` inches.
+    Measured with the bundled Montserrat (textfit), so a long criterion such as "ProdCode = 453" shrinks
+    instead of wrapping over its label."""
+    from textfit import text_width_in
+    pt = start
+    while pt > 12 and text_width_in(str(value), pt, "Montserrat", True) > width - 0.2:
+        pt -= 1
+    return pt
+
+
 def _card(slide, x, y, w, h, value, label, hot=False):
     sh = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
     sh.fill.solid()
@@ -168,7 +185,7 @@ def _card(slide, x, y, w, h, value, label, hot=False):
     sh.line.fill.background()
     shapes.shadow(sh)
     ink = brand.WHITE_RGB if hot else brand.NAVY_RGB
-    shapes.textbox(slide, x, y + 0.03, w, h * 0.55, value, 20, ink, True, PP_ALIGN.CENTER, brand.HEAD)
+    shapes.textbox(slide, x, y + 0.03, w, h * 0.55, value, _value_pt(value, w, 20), ink, True, PP_ALIGN.CENTER, brand.HEAD)
     shapes.textbox(slide, x, y + h * 0.56, w, h * 0.38, label, 12, ink if hot else brand.TICK_RGB, False,
                    PP_ALIGN.CENTER, brand.BODY, MSO_ANCHOR.TOP)
 
@@ -225,9 +242,15 @@ def add_matrix_detail_slides(dk, cfg, S, settings, *, section, fr=None, only=Non
         # ── limits
         _bar(sl, LEFT, TOP, 7.75, "Matrix Minimum / Maximum Limits", "Prior to overrides")
         cards = _limits(s)
-        cw = (7.75 - 4 * 0.12) / 5
-        for i, (lab, val, hot) in enumerate(cards):
-            _card(sl, LEFT + i * (cw + 0.12), 2.12, cw, 0.66, val, lab, hot)
+        # The custom-inclusion card is wider than the other four: a criterion such as "ProdCode = 453" does not
+        # fit a 1.3in card on one line even at 12 pt, and the four fixed cards keep their size.
+        cw = 1.3
+        wide = 7.75 - 0.12 * 4 - 4 * cw
+        x = LEFT
+        for lab, val, hot in cards:
+            w_ = wide if lab == "Custom Inclusion" else cw
+            _card(sl, x, 2.12, w_, 0.66, val, lab, hot)
+            x += w_ + 0.12
         # ── factors
         _bar(sl, LEFT, 2.88, 7.75, "Scoring Factors", "OD limit contribution by band")
         top = 3.30
@@ -257,11 +280,18 @@ def add_matrix_detail_slides(dk, cfg, S, settings, *, section, fr=None, only=Non
             n = len(ovr) + 1
             rh = min(0.30, 2.55 / n)
             fs = 12 if rh >= 0.28 else (11 if rh >= 0.25 else 10)
-            rows = [[o["n"], ("   " if o["sub"] else "") + o["text"], o["ret"], o["stop"]] for o in ovr]
-            _small_table(sl, rx, 2.12, [0.32, rw - 0.32 - 0.95 - 0.5, 0.95, 0.5], rows, ["#", "Override", "Returns", "Stop"], rh, fs,
+            # A worded return ("minus Outstanding Loan Amount") wrapped in this narrow panel and pushed the last rows
+            # under the Trend Settings bar; widening the column squeezed the rules instead (Dannemora FCU, 2026-11).
+            # The cell says "note †" and the expression is written out under the trend chips.
+            long_rets = [o["ret"] for o in ovr if len(str(o["ret"])) > 9]
+            rows = [[o["n"], ("   " if o["sub"] else "") + o["text"],
+                     ("note †" if len(str(o["ret"])) > 9 else o["ret"]), o["stop"]] for o in ovr]
+            retw = 0.95
+            _small_table(sl, rx, 2.12, [0.32, rw - 0.32 - retw - 0.5, retw, 0.5], rows, ["#", "Override", "Returns", "Stop"], rh, fs,
                          [PP_ALIGN.CENTER, PP_ALIGN.LEFT, PP_ALIGN.LEFT, PP_ALIGN.CENTER])
             ob = 2.12 + rh * n
         else:
+            long_rets = []
             shapes.textbox(sl, rx, 2.12, rw, 0.4, "No overrides in the extract.", 14, brand.TICK_RGB, False, PP_ALIGN.LEFT, brand.BODY)
             ob = 2.55
         # ── trends: On / Off chips only
@@ -282,6 +312,8 @@ def add_matrix_detail_slides(dk, cfg, S, settings, *, section, fr=None, only=Non
                            brand.PEACH_RGB if on else brand.TICK_RGB, False, PP_ALIGN.CENTER, brand.BODY)
         msg = ("Override enabled / pending flags and trend switches are not in the matrix validation extract; "
                "every override exported is listed.")
+        if long_rets:
+            msg = "† Returns " + "; ".join(dict.fromkeys(str(r) for r in long_rets)) + ". " + msg
         if both:
             msg = "Deposit Regularity and Windfall both read as On in the extract; a matrix runs one of them. Check the matrix. " + msg
             notes.append(f"Matrix {t}: Deposit Regularity and Windfall trending both read as on in the extract (a matrix runs one of them).")
@@ -310,7 +342,7 @@ def _card_big(slide, x, y, w, h, value, label, hot=False):
     sh.line.fill.background()
     shapes.shadow(sh)
     ink = brand.WHITE_RGB if hot else brand.NAVY_RGB
-    shapes.textbox(slide, x, y + 0.06, w, h * 0.55, value, 26, ink, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
+    shapes.textbox(slide, x, y + 0.06, w, h * 0.55, value, _value_pt(value, w, 26), ink, True, PP_ALIGN.CENTER, brand.HEAD, MSO_ANCHOR.MIDDLE)
     shapes.textbox(slide, x, y + h * 0.60, w, h * 0.34, label, 14, ink if hot else brand.TICK_RGB, False,
                    PP_ALIGN.CENTER, brand.BODY, MSO_ANCHOR.TOP)
 
@@ -429,7 +461,8 @@ def add_matrix_prep_slides(dk, cfg, S, settings, *, section, fr=None):
             shown = ovr[:cap_rows]
             rh = min(0.36, 4.0 / (len(shown) + 1))
             rows = [[o["n"], ("   " if o["sub"] else "") + o["text"], o["ret"], o["stop"]] for o in shown]
-            _small_table(s2, LEFT, 2.20, [0.45, lw - 0.45 - 1.7 - 0.8, 1.7, 0.8], rows, ["#", "Override", "Returns", "Stop"], rh, 13,
+            retw = 1.7 if all(len(str(o["ret"])) <= 12 for o in shown) else 2.75
+            _small_table(s2, LEFT, 2.20, [0.45, lw - 0.45 - retw - 0.8, retw, 0.8], rows, ["#", "Override", "Returns", "Stop"], rh, 13,
                          [PP_ALIGN.CENTER, PP_ALIGN.LEFT, PP_ALIGN.LEFT, PP_ALIGN.CENTER])
             if len(ovr) > cap_rows:
                 shapes.textbox(s2, LEFT, 2.25 + rh * (len(shown) + 1), lw, 0.3,

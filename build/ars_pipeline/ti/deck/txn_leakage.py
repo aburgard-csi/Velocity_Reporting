@@ -60,7 +60,7 @@ def their_financial_life(h, t, base):
         f"{money(t.get('fin_leakage_dollars'))} of financial products a year"
     s, top = h["slide"]((head,
         "every external category as area; grey is non-addressable — "
-        "insurance and tax are not products the institution sells"),
+        "tax and Treasury bonds are not products the institution sells"),
         "Their financial life")
     rows = [[r[0], r[4], f"{r[1]:,} accts · {money(r[5])}/acct",
              bool(r[7])] for r in cat]
@@ -170,28 +170,103 @@ def who_they_pay(h, t, base):
         h["chart_left"](s, path, y, h["RIGHT_EDGE"])
 
 
+def insurance_by_line(h, t, base):
+    """RPE (R2, James 2026-11-05): insurance is addressable, so the room needs to know which line
+    the money buys. The dictionary's subtypes split it by carrier line; a multi-line carrier
+    (State Farm, Allstate) is "Auto & home", never guessed as one, and a generic INS PREM
+    descriptor is "Unspecified" -- both drawn grey, so only a known line is lit."""
+    rows = (t.get("fin_subtypes") or {}).get("Insurance") or []
+    if not rows:
+        return "Insurance by line (no insurance payments matched)"
+    total = sum(r[4] for r in rows)
+    known = [r for r in rows if r[0] not in ("Auto & home", "Unspecified")]
+    lead = max(known, key=lambda r: r[4]) if known else None
+    cat = next((r for r in (t.get("fin_by_category") or []) if r[0] == "Insurance"), None)
+    n_acc = cat[1] if cat else max(r[1] for r in rows)
+    head = (f"{lead[0]} is the biggest single line: {money(lead[4])} from {lead[1]:,} accounts, "
+            f"{lead[5]:.0f}% of the {money(total)} {base} pay to outside insurers"
+            if lead else f"{money(total)} paid to outside insurers by {n_acc:,} {base}")
+    s, top = h["slide"]((head,
+        "each carrier filed under the line it writes; a carrier that writes auto and home together "
+        "is shown as one, and a payment that names no carrier is unspecified"), "Insurance by line")
+    items = [("Paying an insurer", f"{n_acc:,}", f"{base}"),
+             ("Insurance dollars", money(total), "to outside carriers")]
+    for r in [r for r in rows if r[0] != "Unspecified"][:3]:
+        items.append((r[0], money(r[4]), f"{r[1]:,} accts; " + ", ".join(
+            labels.clip(labels.display_name(p), 14) for p in r[6][:2])))
+    right = h["rail"](s, items[:5], top=top)
+    one_line = {"Auto", "Home & property", "Life & annuity", "Health & dental"}
+    bars = [[r[0], r[4], r[1], "line" if r[0] in one_line else "mixed"] for r in rows]
+    kinds = {"line": ("one line of cover", charts.NAVY),
+             "mixed": ("multi-line carrier or no carrier named", charts.GREY)}
+    path = h["chart"]("fin_insurance_lines", CT.kind_bars, bars, kinds,
+                      note=t.get("fin_subtypes_note") or "")
+    if path:
+        h["chart_left"](s, path, top, right)
+
+
+MIN_MONTHS_FOR_NEW = 6     # "new" = first seen in the last 90 days; it needs history before that
+
+
+def _relationship_counts(t):
+    """(new, recurring, stopped, total) account-category relationships from the pack."""
+    nrs = t.get("fin_new_recurring_stopped") or []
+    new, rec, stop = (sum(r[i] for r in nrs) for i in (1, 2, 3))
+    return new, rec, stop, new + rec + stop
+
+
 def how_long_it_has_run(h, t, base):
+    """RPE matching fixes (2026-11-05): the headline was fixed text ("Most external relationships
+    are not new"), drawn whatever the figures said. It now reads them, and on short data says
+    that new and first-seen cannot be told apart."""
     rec = t.get("fin_recency") or []
     if not rec:
         return "How long the relationship has run (no fin_recency)"
-    s, top = h["slide"]((
-        "Most external relationships are not new — they are habits the "
-        "institution never saw start",
-        "each category as one bar: active within 30 days, cooling to 90, "
-        "dormant to a year, lapsed beyond it"),
-        "How long the relationship has run")
+    new, _, _, total = _relationship_counts(t)
+    months = t.get("txn_months_covered") or 0
+    live = sum(r[1] + r[2] for r in rec)
+    all_ = sum(r[1] + r[2] + r[3] + r[4] for r in rec) or 1
+    if total and months >= MIN_MONTHS_FOR_NEW:
+        old = (total - new) / total * 100
+        head = (f"{old:.0f}% of external relationships were already running before the last "
+                f"90 days" if old >= 50 else
+                f"{100 - old:.0f}% of external relationships started in the last 90 days")
+    else:
+        head = f"{live / all_ * 100:.0f}% of external relationships were paid in the last 90 days"
+    sub = ("each category as one bar: active within 30 days, cooling to 90, "
+           "dormant to a year, lapsed beyond it")
+    if months and months < MIN_MONTHS_FOR_NEW:
+        sub += f"; {months} months of data, too short to tell a new relationship from a first-seen one"
+    s, top = h["slide"]((head, sub), "How long the relationship has run")
     path = h["chart"]("fin_recency", CT.band_stack, rec[:9], RECENCY_BANDS)
     if path:
         h["chart_left"](s, path, top, h["RIGHT_EDGE"])
 
 
 def started_and_stopped(h, t, base):
+    """RPE matching fixes (2026-11-05): the headline said relationships "form faster than they
+    are dropped" whatever the counts were, and on three months of data every relationship is
+    "new" because none could be seen before. Short data is declined; the headline reads the sums."""
     nrs = t.get("fin_new_recurring_stopped") or []
     if not nrs:
         return "Started and stopped (no fin_new_recurring_stopped)"
+    months = t.get("txn_months_covered") or 0
+    if months and months < MIN_MONTHS_FOR_NEW:
+        return (f"Started and stopped ({months} months of data; new and stopped need "
+                f"{MIN_MONTHS_FOR_NEW})")
     rows = sorted(nrs, key=lambda r: -(r[1] - r[3]))[:8]
-    s, top = h["slide"]((
-        "Where external relationships form faster than they are dropped",
+    new, _, stop, _ = _relationship_counts(t)
+    lead = rows[0]
+    if new > stop:
+        head = (f"{new - stop:,} more external relationships started than stopped in the last "
+                f"90 days — {lead[0].lower()} gained most")
+    elif stop > new:
+        low = min(nrs, key=lambda r: r[1] - r[3])
+        head = (f"{stop - new:,} more external relationships stopped than started in the last "
+                f"90 days — {low[0].lower()} lost most")
+    else:
+        head = "As many external relationships stopped as started in the last 90 days"
+    s, top = h["slide"]((head,
         "new relationships in the last 90 days against those that stopped, "
         "per category, off a centre line"), "Started and stopped")
     path = h["chart"]("fin_tornado", CT.tornado,

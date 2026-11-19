@@ -1,4 +1,4 @@
-"""The slide ledger: every slide of the Transaction Intelligence and Competition chapters, and what
+"""The slide ledger: every slide of the Transaction Intelligence and Competition chapters (the competition layers included), and what
 became of it in this build (fs-06). Nothing leaves the deck without a line saying why.
 
 Status, in order of precedence:
@@ -20,6 +20,7 @@ COLUMNS = ["chapter", "slide", "status", "reason"]
 def rows(pack: dict | None = None, selection_path=None) -> list[list[str]]:
     from ti import chapters_txn as X
     from ti import selection
+    from ti.deck import txn_layers
 
     hidden: dict[str, str] = {}
     for lens_hidden in ((pack or {}).get("hidden_declined") or {}).values():
@@ -31,7 +32,9 @@ def rows(pack: dict | None = None, selection_path=None) -> list[list[str]]:
         merged[b] = (topic, X.TITLES[a])
 
     out = []
-    for chapter, builders in (("Transaction Intelligence", X.TI_BUILDERS), ("Competition", X.COMP_BUILDERS)):
+    # the layers slides are Competition slides too: a slide the layers section declines or the register tosses is listed
+    for chapter, builders in (("Transaction Intelligence", X.TI_BUILDERS),
+                              ("Competition", list(X.COMP_BUILDERS) + list(txn_layers.BUILDERS))):
         for builder in builders:
             name = builder.__name__
             title = X.TITLES[name]

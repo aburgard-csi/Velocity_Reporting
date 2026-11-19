@@ -507,6 +507,102 @@ def the_mcc_codes(h, t, base, merchant_bars):
         h["chart_left"](s, path, top, right)
 
 
+MCC_WAYS_TITLE = "MCC codes by spend, transactions and members"
+# (metric suffix, column header, the word a headline uses)
+MCC_WAYS = [("dollars", "By card dollars", "card dollars"),
+            ("txns", "By transactions", "transactions"),
+            ("accounts", "By members", "members")]
+MCC_STANDOUT_FILL = "FFF3E2"         # the worklist's "hot" row tint
+
+
+def _mcc_name(r, width=16) -> str:
+    """"Dining (5814)": the category the code rolls into, then the code."""
+    return f"{labels.clip(r[1], width)} ({r[0]})"
+
+
+def _mcc_value(r, measure) -> str:
+    if measure == "dollars":
+        return money(r[4])
+    if measure == "txns":
+        return f"{r[3]:,}"
+    return f"{r[2]:,} ({r[6]:.0f}%)"
+
+
+def mcc_codes_three_ways(h, t, base):
+    """R6 (2026-11-05): the MCC codes ranked three ways, side by side -- by card dollars, by
+    transactions and by members (distinct accounts) -- because ranked by dollars alone a code
+    with many members and small tickets (fast food, transit) never showed. A code that is top 3
+    one way and outside the top 10 another is shaded, and the headline names the widest gap."""
+    ways = {m: t.get(f"mch_mcc_by_{m}") or [] for m, _h, _w in MCC_WAYS}
+    if not ways["dollars"]:
+        cov = t.get("mch_mcc_coverage_pct")
+        if cov is not None:
+            return (f"{MCC_WAYS_TITLE} (MCC on {cov:.0f}% of card rows; the three "
+                    f"rankings need the feed to carry it)")
+        return f"{MCC_WAYS_TITLE} (no mch_mcc_by_dollars)"
+    word = {m: w for m, _h, w in MCC_WAYS}
+    standouts = t.get("mch_mcc_standouts") or []
+    if standouts:
+        s = standouts[0]
+        head = (f"{_mcc_name(s, 24)} is #{s[3]} by {word[s[2]]} but #{s[5]} by "
+                f"{word[s[4]]}")
+    else:
+        leads = {}
+        for m, _h, _w in MCC_WAYS:
+            if ways[m]:
+                leads.setdefault(ways[m][0][0], (ways[m][0], []))[1].append(word[m])
+        parts = [f"{_mcc_name(r, 24)} leads on "
+                 + (" and ".join(ms) if len(ms) < 3 else "card dollars, transactions and members")
+                 for r, ms in leads.values()]
+        head = "; ".join(parts)
+    window = t.get("mch_mcc_ways_window") or "the window"
+    n = max(len(v) for v in ways.values())
+    s_, top = h["slide"]((head,
+        f"top {n} MCC codes each way, card transactions {window}, {base}; members = distinct "
+        f"accounts with a card transaction in the code (% of card accounts); shaded = top 3 "
+        f"one way, outside the top 10 another"),
+        MCC_WAYS_TITLE)
+    card_accounts = t.get("mch_mcc_card_accounts")
+    items = []
+    if card_accounts:
+        items.append(("Card accounts", f"{card_accounts:,}",
+                      f"with a card transaction {window}"))
+    seen = set()
+    for s in standouts:
+        if s[0] in seen:
+            continue
+        seen.add(s[0])
+        items.append((_mcc_name(s, 18), f"#{s[3]} by {word[s[2]]}",
+                      f"#{s[5]} by {word[s[4]]}"))
+        if len(items) >= 4:
+            break
+    if not standouts:
+        items.append(("Standouts", "none", "no top-3 code sits outside the top 10 another way"))
+    right = h["rail"](s_, items, top=top)
+    hot = {(s[2], s[0]) for s in standouts}       # shaded in the list it is top 3 in
+    table = [["#"] + [hd for _m, hd, _w in MCC_WAYS]]
+    cells = {}
+    for i in range(n):
+        row = [str(i + 1)]
+        for c, (m, _h, _w) in enumerate(MCC_WAYS, start=1):
+            r = ways[m][i] if i < len(ways[m]) else None
+            row.append(f"{_mcc_name(r)}  {_mcc_value(r, m)}" if r else "")
+            if r and (m, r[0]) in hot:
+                cells[(i + 1, c)] = True
+        table.append(row)
+
+    def fill(r, c):
+        if (r, c) in cells:
+            from pptx.dml.color import RGBColor
+            return RGBColor.from_string(MCC_STANDOUT_FILL)
+        return None
+    left = h.get("MARGIN_L", 0.6)
+    edge = right if isinstance(right, (int, float)) else RAIL_EDGE
+    width = min(edge, RAIL_EDGE) - left
+    h["table"](s_, table, left, top, width,
+               col_widths=[0.4] + [(width - 0.4) / 3] * 3, size=11, cell_fill=fill)
+
+
 def how_broadly_the_card_is_used(h, t, base):
     bands = t.get("mch_breadth_bands") or []
     if not bands:
