@@ -398,6 +398,16 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-04 — "Competitor spend before closure" reads named competitors only, and joins the ODD like the lenses do (`competition.py`, `leakage.py`, `lens.py`)
+
+Summary: The Transaction Intelligence competitor spend before closure curve now counts named competitors only, not payment apps, and accounts whose ID was read as a number are no longer dropped from it.
+
+James asked for this fix after the TI overview review.
+
+- **Payment-app dollars removed.** The pre-closure curve was fed every matched row, including payment-app rows (Venmo, Cash App, PayPal; also BNPL, while it sat in that tier). Those are not competitors, and they lifted the curve. `_competitor_monthly` now carries competitor-kind rows only. On the slide, mean competitor dollars per closer per month fall by the payment-app share, and so do the control's. The divergence month can move.
+- **Float account IDs now join.** `leakage.py` keyed the ODD by the raw id string, so an id read as a float ("12345.0") never matched the transaction file and the account dropped out of the curve silently. The lenses already removed the ".0". The new `lens.account_ids()` does it once, for both.
+- **Docstring corrected.** It said the curve was a share of the account's spend. It is mean raw dollars per account per month, and the docstring now says so and explains why raw dollars bias against a finding rather than towards one.
+
 ### 2026-11-05 — Leakage and competitor use by member age, account age and branch (`build/ars_pipeline/ti/transaction_intelligence/band_lenses.py`, `financial_services.py`, `competition.py`, `merchant_profiles.py`, `lens.py`, `build/ars_pipeline/ti/core/account_lenses.py`, `build/ars_pipeline/ti/deck/txn_leakage.py`, `txn_slides.py`, `build/ars_pipeline/ti/chapters_txn.py`, `build/ars_pipeline/ti/slides.json`, `tests/test_ti_band_lenses.py`, `tests/test_ti_chapters_txn.py`)
 
 Summary: The Transaction Intelligence chapter gains three slides that cut financial-services leakage and competitor use by the member's age band, by how long the account has been open, and by branch: for each band, the accounts in it, the share paying an outside financial product, the share paying a named competitor, leakage dollars per leaking account, and the top category and top competitor.
