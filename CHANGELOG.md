@@ -398,6 +398,16 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-05 — A field trace of the transaction file, rebuilt from the code (`scripts/ti_field_trace.py`, `docs/ti_field_trace.md`, `docs/ti_field_trace.json`, `tests/test_ti_field_trace.py`)
+
+Summary: A trace of every transaction-file field, showing which Transaction Intelligence analyses and slides use it, is now generated from the code, and a test fails when it is out of date. No figure changes.
+
+James, R10: "id really like to trace each individual field in the transaction file by analysis." A hand-kept list would be wrong the first time an analysis changed, so the trace is generated from the source and a test fails when the checked-in copy no longer matches. No figure, slide or loader rule moves.
+
+- `scripts/ti_field_trace.py` reads the loader, the analyses in `ti/transaction_intelligence/`, the section driver `ti/txn_sections.py` and the slide builders in `ti/deck/txn_*.py` with `ast` (nothing is run) and follows each field by data flow: loader column and header aliases, the functions that read it, the pack keys computed from it (with `key_prefix` expanded per caller: fin_, finb_, comp_, compb_, mch_, mchb_, beh_, ic_, rel_, and the business subsets filtered as `txn_sections` filters them), the hand-offs between sections, and the slides (titles from `chapters_txn.TITLES`) that draw each key. ODD columns the analyses read are traced the same way.
+- `docs/ti_field_trace.md` (CRLF) has one table per field plus a key-to-slide table; `docs/ti_field_trace.json` holds the same data. Today: 13 positional columns, 8 kept and all 8 read; 358 pack keys, 61 slide builders, 17 ODD columns. Anything the scan cannot resolve is listed under Unresolved (7 items: frames handed to `ti/core` and `monthly_analysis`, two whole joins of the lens attribute frame, and `filed`'s keys), never dropped.
+- `tests/test_ti_field_trace.py` fails when the trace is stale (run `python scripts/ti_field_trace.py`), when a kept field is read by no analysis, and when an analysis reads a transaction column the loader does not keep unless it is in the test's `DERIVED_COLUMNS` allowlist with a reason (today only `merchant_key`).
+
 ### 2026-11-05 — One window for every file: the ODD and the deposits file end with the last completed month too (`ti/core/odd_transform.py`, `odd.py`, `deposits_input.py`, `ti_build.py`, `scripts/ars_launcher.py`)
 
 Summary: In Transaction Intelligence the ODD and the deposits file now stop at the same last completed month as the transaction files, and the Sheila files-on-hand check uses the client window length.
