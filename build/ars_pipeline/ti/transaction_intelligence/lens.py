@@ -14,7 +14,9 @@ Built-ins (when the ODD columns exist):
 The ICS lens reads EITHER "ICS Account" or "DM-REF Source" (the column
 ics_sources.py stamps from the DM and referral lists) -- see ics_masks().
 Families (one mask per value, from the ODD attribute): branch, product
-    (Prod Desc, falling back to Prod Code), swipe_tier (SwipeCat3).
+    (Prod Desc, falling back to Prod Code), swipe_tier (SwipeCat3), and the
+    banded age_band (Account Holder Age) and tenure_band (tenure_years, from
+    Date Opened), on the card slides' cut points.
     `Lenses.family("branch")` -> {value: account ids}; a family whose column
     is absent from the ODD returns {}.
 
@@ -60,7 +62,8 @@ class Lenses:
 
     def family(self, name: str) -> dict:
         """{value: account ids} for a mask family (branch / product /
-        swipe_tier). Empty dict when the ODD lacks the column."""
+        swipe_tier / age_band / tenure_band). Empty dict when the ODD lacks
+        the column."""
         return family_of(self.attrs, name)
 
 
