@@ -139,6 +139,14 @@ def lines(m: dict, outputs: dict | None = None, prefix: str = "comp_") -> list[s
           f"${b.get('dollars', 0):,} over {b.get('months', 0)} months   ${b.get('per_acct_month', 0):,} per account a month"
           + ("   SIGNAL: 10%+ reach, revolving credit displaced" if (b.get("pct") or 0) >= 10 else ""))
         A("    " + "   ".join(f"{r[0]} {r[1]:,} accts ${r[3]:,}" for r in b["providers"][:6]))
+        if b.get("stacked_accounts") is not None:
+            A(f"    repeat ({b.get('repeat_months', 3)}+ months) {b.get('repeat_accounts', 0):,} "
+              f"({b.get('repeat_pct', 0)}%)   two or more providers {b.get('stacked_accounts', 0):,} "
+              f"({b.get('stacked_pct', 0)}%)   median payment ${b.get('median_ticket', 0):,}")
+        if b.get("merchants"):
+            A(f"    merchant named on {b.get('merchant_named_pct', 0)}% of BNPL dollars, "
+              f"{b.get('merchants_n', 0):,} merchants:   "
+              + "   ".join(f"{r[0]} {r[1]:,} accts ${r[4]:,} ({r[5]})" for r in b["merchants"][:6]))
     rq = m.get(P + "review_queue") or []
     if rq:
         A("")

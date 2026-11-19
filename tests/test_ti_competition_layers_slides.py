@@ -195,7 +195,7 @@ def test_the_clients_own_base_is_named_by_its_type_and_never_guessed():
 
 def test_the_layers_slides_follow_the_chapters_own_and_replace_none():
     names = [b.__name__ for b in X.COMP_DRAWN]
-    assert len(X.COMP_BUILDERS) == 20
+    assert len(X.COMP_BUILDERS) == 22      # +2: the BNPL providers-in-depth and who-uses-it slides (test_ti_bnpl_expansion)
     assert names[-len(LAYERS.BUILDERS):] == [b.__name__ for b in LAYERS.BUILDERS]
     assert all(X.TITLES[b.__name__] for b in LAYERS.BUILDERS) and X.DRAWN_TITLES["layers_map"] == LAYERS.TITLES["layers_map"]
 
