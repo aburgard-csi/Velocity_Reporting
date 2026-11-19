@@ -15,6 +15,63 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — The slide ledger lists the competition layers slides (`ti/ledger.py`)
+
+Summary: `ti_slide_ledger.csv` now has a line for every competition layers slide, so a layers slide that is tossed, declined for a client or merged is listed with its reason instead of being absent.
+
+The ledger walked only the 20 older competition builders, so the 55 layers slides were drawn or declined with no line, against the rule that nothing leaves the deck without a line saying why. A real 1798 build listed 12 drawn, 12 merged, 7 hidden and 28 tossed and none of the layers slides.
+
+- The layers builders are listed under the Competition chapter with the same four statuses. No deck changes.
+- Two tests: the count of lines now includes the layers builders, and a layers slide declined for a client is listed as hidden with its reason.
+
+### 2026-11-17 — ILS analysis: build as of an earlier data date; exception items on one slide (`build/ils_analysis/ils_review/`)
+
+Summary: An ILS analysis deck can now be built as of an earlier date, so a newer pull can match a review already given. The two exception-item slides are now one: the median item amount per channel sits in the paid and returned table.
+
+Aaron, 2026-11-17, on Dannemora 1781: "Why is the October 26' fatal notices so high? validate this.", then "That doesn't match up with William and Tim's deck". Shown the two options, he chose to rebuild as of William's data date. Then, of "Exception items by channel" and "Trends in exception items": "these two slides have the same data. Combine them into one slide."
+
+- **Why October read 17%.** With 99% of Dannemora's accounts flagged charged off, almost every account with a notice gets one "fatal" notice: the one nearest its latest positive date. For an open account that keeps coming back to positive, that date is recent, so the newest month piles up, and it moves as data lands. One more week took September from 9.29% (William's slide 35) to 7.77% and put 1,100 fatal notices in October. 1,097 of those are on open accounts, each dated on the day the account was last positive. The rule is William's, reproduced: cut at his date, the table matches his.
+- **`--as-of YYYY-MM-DD`** (`cli.py`, `BuildConfig.data_as_of`, `ils_data.load`). It sets the as-of date and leaves out notices, debit declines and refunds dated after it. ZAccounts is one row per account as pulled, so its fields and the DBIC stay as pulled. "About this data" and the Data Notes say what was cut and what was not. On 1781 at 2026-10-25: 2,878 notice rows and 1,599 declines left out. The not-repaid table reads Oct 2025 to Sep 2026 and matches William's in 11 of 12 months to the hundredth (August 5.85% against his 5.86%).
+- **One exception-items slide.** When the DBIC carries its channel table, "Exception items by channel" adds a "Median item amount" row under each account type, from ZTrend `Item_Amts` over the 365 days to the as-of date (`r_fees.channel_medians`; the subtitle and footnote name the window). The ZTrend treemap slide "Trends in exception items" is not built then (`build._sec_exception_items`). With no DBIC channel table, the treemap slide is built as before.
+- "About this data" now says the debit declines feed the Debit declines slide, and the DBIC feeds program health and exception items by channel. It used to name "Exception items by channel" against the declines.
+- Tests: `test_as_of_cuts_the_dated_rows_and_says_so`, `test_channel_medians_are_per_channel_over_the_year`, `test_exception_items_are_one_slide_when_the_dbic_carries_the_channels`.
+
+### 2026-11-17 — ILS analysis: an impossible loss rate marks the charge-off data unusable (`build/ils_analysis/ils_review/r_common.py`)
+
+Summary: The ILS analysis deck now also treats charge-off data as unusable when charge-offs exceed every fee collected in the year, and withholds charge-off dollars and loss rates. On Dannemora, the not-repaid slide's speaker note now says the flag is known wrong instead of reading the rate out.
+
+Aaron, 2026-11-17: "Dannemora's charge-off information is incorrect and we know it. A high charge-off client will have maybe 20%, but most of our clients are between 4 and 12%." Then: "4 to 12% would be the loss rate, not the percentage of accounts charging off. For 1781, we will keep those slides for the moment."
+
+- **The check.** Until now the only test was the share of accounts flagged charged off (above half). The loss rate is the measure Aaron's range describes: 365-day charge-off dollars over 365-day collected fees, across the extract. Real pulls read 11.8% (Adirondack 1403), 16.3% (Affinity 1568) and 17.4% (Northwest 1245); Dannemora 1781 reads 303,433% ($2.02B against $667K). Above 100% (`LOSS_RATE_LIMIT`), the dollars are a load fault, withheld and said so, whatever the flag share. Northwest's scoring tables are unchanged.
+- **The slides stay** on 1781 (Aaron's call) with the flag stated on each. The line on a slide names whichever check fired (`Frame.co_slide_line`).
+- **The speaker note** on the not-repaid slides no longer tells the presenter to read the rate out when most accounts carry the flag: with 99% flagged, every account with a notice gets one "fatal" notice, so the rate looks normal and means nothing.
+- The test fixture's charge-off ($500 on $118 of fees, a 424% loss rate) is now $15 (12.7%), which the new check would otherwise catch.
+
+### 2026-11-17 — ILS analysis: William's not-repaid and default rates replace the 60-day cure slides; November industry edition
+
+Summary: The ILS analysis deck now reports the analysis team's own "not repaid" (fatal notice) rates and Scoring Summary default rates, the way William's Dannemora review computes them, in place of the 60-day cure-rate slides; it adds the Branch Summary slides and the November 2026 industry edition, and fixes three chart and table layout faults.
+
+Aaron, 2026-11-17: "Your cure rate slides are wrong. Look at the fatal notice rates in the deck that William built. Reproduce that logic from his analysis code." Then: "continue adding slides from Williams code overnight, work to organize the deck."
+
+- **Not repaid (`r_fees.not_repaid`).** A charged-off account's fatal notice is its notice nearest its last positive date (the largest Last_Positive_Date over its notices), once per account: `ILS Analysis - Python Script.ipynb` cells 30-34, the same rule as `MasterQueryReordered2025.R`. The table is the notebook's `198_NEWTS_BETA` (accounts, collected fees, business days, fees per business day, pay rate, ineligible %, % fatal, loss rate) for the 12 months to the last complete month; the chart is the daily share over the scoring window with a lowess trend. On 1781, cut at William's 10/25 data date, all twelve monthly % Fatal Notices equal his slide 35, and accounts, fees, business days, pay rate and ineligible % match to the cent. It replaces the "last notice before charge-off" approximation, and is on by default (`include_not_repaid`).
+- **Scoring Summary.** The default rate (the notebook's CURE flag) now shows on an extract whose charge-off flag is on most accounts, as William's deck shows it, with the flag share stated on the slide; only losses and loss rates read n/a. Notices with a limit above the matrix maximum are left out, as the notebook's `risk_set` does ($1,500 on 1781 reproduces William's band counts and fees exactly). Northwest 1245's ten predictor tables are unchanged.
+- **Default story.** `performing` (cure = back to $0 within 60 days) left `DEFAULT_SECTIONS`; `scoring_personal`, `scoring_business` and `branch_summary` joined the Observations part, debit declines lost their stray "Client Analysis" divider, and the business block opens with a "Business Accounts" divider.
+- **Layout.** The predictor bubble chart's key and average now sit above the plot (they collided with the highest bubbles); the Scoring Summary table budgets a two-line header (a 17-band table grew into the slide number); a sparse daily series takes a plain local fit (the robust passes pulled 1781's business trend to "-0.0%").
+- **Industry.** `standard_slides` gains four slide kinds (status cards, a headline panel beside a table, chips, a dated record) for the November 2026 edition in `Build Artifacts/ils_analysis/standard/industry_2026-11.json`; the settlements table wraps its cells at 13 pt instead of shrinking to 10 pt.
+- **Pre-go-live deck.** The core-versus-ILS matrix headers break at their dash on purpose; the new word-break check failed them.
+- Tests: `tests/test_ils_analysis.py` (the fatal rule, dollars withheld but rates kept, the default story, lowess).
+
+### 2026-11-16 — CashPlease roster: every client in Bradford's weekly; ILS analysis matches the analysts' figures; two new table checks
+
+Summary: The CashPlease roster now lists every client in the 11/08 CashPlease weekly (54 added: 44 build, 10 wait for a CashPlease confirmation), so their CashPlease modules show in Sheila after a release; the ILS analysis deck now uses the analysis team's own Scoring Summary and debit-decline rules, holds back charge-off figures when a client's charge-off data is unusable, and the deck gate fails a table word that breaks mid-word or a table that grows into the shape below it.
+
+Aaron, 2026-11-16: "update the roster, and add any CP clients from Bradford's weekly summary spreadsheet"; "create the CashPlease deck for Dannemora"; "check the deck for visual issues. The e on Active here wraps and looks bad."
+
+- **`clients.md` CashPlease roster.** 1781 Dannemora FCU (standalone deck), then every weekly tab the table lacked, from `scripts/roster_candidate.py`: 41 standalone decks for clients whose only RPE program is CashPlease; 1121 Timberland, 1806 SOCU and 1816 Beginnings as sections (they build once their ICS/ARS rows are on the main table, which this change does not add); and Build **no** for ten clients the Velocity export does not list with CashPlease (1049, 1140, 1164, 1472, 1487, 1512, 1543, 1690) or that are not in the Client CSM List (1688, 1701), each with a note to confirm. Names and CSMs come from the Client CSM List.
+- **`scripts/build_cashplease.py`.** `--period` defaulted to a literal `2026.08`, so a November module was filed as `1781-2026.08-CP-...` under a "November 2026" cover; it now defaults to the current month.
+- **ILS analysis (`build/ils_analysis`).** Built against Tim Barrett's Northwest Bank 1245 review from the same pull: the Scoring Summary default is now the analysis notebook's rule (a notice on a charged-off account on or after its last positive date; losses once, on the nearest notice), which reproduces his tables band for band and Achieva's 10.1% first band; Debit Declines to ILS Limit uses the notebook's population (open, can-overdraft, Reg E opted-in) and 90-day count; Private Banking counts with Personal in the KPI rollup only. Dannemora FCU 1781: when more than half of accounts are flagged charged off (every account there: the flag mirrors daily "Charge" rows in the Adjustments feed), charge-off dollars, loss rates and the Scoring Summary read n/a or are left out, with the reason on About this data; a four-branch client keeps its branches (the "dominant branch" rule now needs six or more); text OD status codes are named from the matrix mapping; cure-rate slides skip when the extract cannot see 60 days ahead; layout fixes (zero-based bars, branch tables without repeats, override rules cut at words, treemap slivers, colours, agenda badges). `merge_review.py` adds the ILS prep build's Program Detail, fee schedule and matrix slides and the CashPlease section to a review deck.
+- **Gate.** `validate_deck.table_word_break_findings` (a word wider than its cell breaks mid-word) and `table_growth_overlap_findings` (wrapped rows grow a table into the shape below it); both found real defects on the Dannemora deck that passed at 0 FAIL. Tests: `tests/test_table_word_break.py`.
+
 ### 2026-11-17 — Competition layers read transaction_type through `str_values` (`competition_layers.py`)
 
 Summary: The two places the layers cast the categorical transaction type to text row by row now use `ti.compat.str_values`, the rule issue #161 set, so the guard test passes with the layers on main.
@@ -1400,6 +1457,49 @@ Third stage, `feat/ils/g12-03-run-workbook`: v5's run and its 19-tab workbook (`
 Fourth stage, `feat/ils/g12-04-deck`: v5's kickoff deck (`kickoff/deck/slides.py`, `kickoff/deck/forms.py`: cover, provenance, three section dividers, a slide per analysis, an appendix table per analysis, and a warnings slide when the run has warnings; 45 when all 19 analyses reach it), with `--deck` / `deck=True`, written beside the workbook in Build Artifacts. It draws through v5's own `deckkit` facade and the ARS deck modules it re-exports, copied unchanged to `kickoff/_v5/` with their imports rewritten; it never imports `ti` or any of Aaron's deck code. The one other edit: v5's two orange literals in those copies read `brand.ORANGE` / `brand.ORANGE_RGB` instead (the same value), so the brand single-source test holds. The template is RPE's `templates/ars_template.pptx`, read only: it has every layout v5's has, by the same names in the same order, and the kickoff uses one, BLANK. `tests/test_ils_kickoff_deck.py` (v5's, all of it), `tests/test_ils_kickoff_manual.py` (v5's; skips, as v5's manual page is not ported).
 
 Stage g12-05 (James Gilmore, 2026-10-27: "fix in CSM Reporting"), the first change to what the ported kickoff computes, so its own stage: two real extracts v5 could not run. 1840 FNB KY names its item counts `Paid Annualized` / `Returned Annualized` (Items = paid + returned on every account, 12,919 = 10,379 + 2,540); they are now read as Paid / Returned Items, where v5 refused the file. 1842 carries Items / Paid / Returned blank on all 5,554 rows: v5 read zero items everywhere and failed in the deck on a 0/0 share; the load now says so (the field summary still works) and the run refuses, naming the file's `Paid Items # Calc` / `Returned Items # Calc` columns, unless it is run with `--items-from-calc`, which reads those fee-derived estimates and puts an ESTIMATED ITEM COUNTS warning on the warnings slide. The stacked paid/returned bar labels are cased (navy, white stroke) instead of white, per `tests/test_chart_colors.py`. `tests/test_ils_kickoff_extract_spellings.py`.
+
+### 2026-10-28 — Transaction Intelligence cut: column names for the tables v5 never named (stage g14-04)
+
+Summary: the TI cut now writes a CSV for 67 more tables. Their column names are in the new `ti/table_columns.py`, each read from the line of code that builds the row. The real 1761 pack goes from 42 CSVs to 72, and 1776 from 101 to 167.
+
+v5's tables layer writes only tables that declare their columns, so 30 of 1761's and 68 of 1776's Sep26 tables had no CSV and could not be backed up row by row. The names sit in an RPE-side file, not in the ported modules, and are applied only on the way into `tables.write`. No ported file changes and no figure in `ti_pack.json` moves.
+
+The business-side tables (`finb_`, `compb_`, `mchb_`) take the names their personal-side siblings already declare. Those declarations were dropped by `txn_sections.py`'s business allow-lists. `beh_routing_by_merchant` takes the names declared as `beh_routing_columns`. In every one of these cases, if the declared names are absent the table stays unwritten and is named in the warnings, so no header is ever invented.
+
+Two keys stay out on purpose:
+- `tier_migration_matrix`: its rows carry no tier label, so a CSV could not be read on its own.
+- `tier_migration_windows`: month tags, not a table.
+
+On all three real packs every header is exactly as wide as its rows.
+
+Where a name would be easy to misread, it says what is counted:
+- `age` and `balance_profile` rates are responders over mailed accounts, a count the row does not carry, hence `response_rate_of_mailed_pct`.
+- `comp_recency_bands` counts account × competitor pairs.
+- `swipe_tier`'s last column is the monthly NSF/OD item count.
+
+### 2026-10-28 — Transaction Intelligence cut: the ODD's shape is checked before any figure (stage g14-03)
+
+Summary: before any chapter computes, the TI cut's build now runs v5's extract check on the client's ODD. It records the file's shape in `ti_pack.json` as `extract_*` figures and warns when that shape would quietly distort a figure elsewhere.
+
+Before v5 added this check, any of these produced numbers that were wrong in ways no section could detect, because every figure computed over whatever arrived:
+- a month missing inside the covered range, which reads as a month of zero activity;
+- Swipes and Spend covering different months, so a per-swipe ratio divides one window by another;
+- an account appearing twice, so every headcount counts it more than once;
+- an anchor month absent from the series.
+
+`ti/monthly_analysis/extract_check.py` is v5's at `a491b5c`, logic unchanged, and it runs first, as in v5's `metrics.py`. It never suppresses a section, it only reports. Its warnings sit in the build log beside the others, and no figure, slide or deck changes. The ARS deck is untouched.
+
+### 2026-10-28 — Transaction Intelligence cut: one concept, one number, or no deck (stage g14-02)
+
+Summary: the TI cut's build now runs v5's consistency audit. Wherever two slides quote the same figure differently, it records each disagreement in `ti_pack.json` and in the build log, and builds no deck until they agree.
+
+v5 added this audit after the real 1585 deck disagreed with itself: the hero quoted 12.4% where the per-mailer table said 11.4% for the same wave, three slides gave three responder counts, and the P&L slide relabelled window revenue as cumulative. James's rule then: "fail safe if the numbers dont align". `ti/monthly_analysis/consistency.py` is v5's at `a491b5c`, logic unchanged. A rule fires only when both of the figures it compares are present, so a section that declined is never a violation. v5 passes its ODD and transaction figures as two dicts. The cut holds them in one, so `ti_build.main` passes that dict as both. Checked against the cut's real Sep26 packs for 1761 and 1776: no violations, so no deck that builds today is refused. One v5 test is not ported because it checks `run.py`'s card-spend reconciliation through v5's whole metrics harness, not this module. The ARS deck is untouched.
+
+### 2026-10-28 — Transaction Intelligence cut: every table behind its slides as a CSV (stage g14-01)
+
+Summary: the TI cut's build now writes v5's analyst tables: each tabular figure that names its columns becomes a CSV in `ti/tables/`, listed in `ti_pack.json`. A tabular figure that names no columns is listed in the build's warnings by name, never dropped silently.
+
+James, 2026-10-27: "i just need to be able to back up the data." A figure on a slide has to be checkable against the rows behind it. v5 wrote these tables in `run.py` beside `metrics.json`. The cut had no equivalent, so its figures lived only inside `ti_pack.json`. `ti/monthly_analysis/tables.py` is v5's `tables.py` at `a491b5c`, logic unchanged: rows are written exactly as the figure holds them, nothing rounded or re-ordered, so a CSV cannot disagree with its slide. The files are UTF-8 with a BOM so Excel on Windows opens accented names cleanly. `ti_build.main` calls it after the figures and before the decks, as v5 does. A failure here is a warning and the build goes on. No figure, slide or deck changes. The ARS deck is untouched. The figures that are tables but declare no columns are named in the warning; declaring them is a follow-up.
 
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 
