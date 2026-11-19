@@ -342,6 +342,7 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
 ### 2026-11-05 — Financial-services and competitor matching: no more stadiums, towns and refunds; missed lenders and insurers added (`financial_services.py`, `competition.py`, both dictionaries, `chapters_txn.py`, `deck/txn_leakage.py`, `deck/txn_compete.py`)
+Summary: Financial services and Competition match more carefully. Stadiums, towns, street names and refunds are no longer counted as a bank or lender, the client's own name in every spelling is never an outside lender, and missed lenders, insurers and payment apps are now found. Leakage figures rise for most clients (1100: $68.7M to $136.2M), mostly from payments the old rule missed.
 From the TI readiness review (James: "Yes, fix them here"). The matcher counted a cinema as Marcus by
 Goldman Sachs, a stadium as Capital One, a beach town as Huntington, a store purchase as Kohl's card,
 a tax refund as tax paid, and the client's own loans as an outside lender. Competition shares the
@@ -396,6 +397,7 @@ National/Life, and Chase branch-name rows (CHASE INC PISMO, CHASE NORTHGATE — 
 2,254 accounts to 40).
 
 ### 2026-11-05 — Insurance is addressable, and split by line: auto, home, life, health (`dictionaries/financial_services_patterns.json`, `financial_services.py`, new slide "Insurance by line")
+Summary: Insurance now counts as addressable, since many clients sell it through an agency partner, so it joins the addressable dollars and action lists. A new slide, "Insurance by line", splits it into auto, home, life and health; category totals do not change.
 James: "we shouldnt default insurance as non-addressable. but we should try to discern auto vs life vs
 health". Many clients sell insurance through an agency partner, so it was wrong to grey it out.
 - Insurance is now `addressable: true`. It joins the addressable dollars, the funnel's "in a category
