@@ -398,6 +398,22 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-04 — Buy now, pay later is its own competitor tier, apart from the payment apps (`ti/dictionaries/competitors.json`, `competition.py`, `deck/txn_compete.py`)
+
+Summary: Buy now, pay later lenders are now their own competitor group in Transaction Intelligence, so payment-app figures no longer include them, and the group names the same 12 providers as the financial-services BNPL category.
+
+James: "payment ecosystem should not have BNPL. BNPL is distinct." The five BNPL lenders (Affirm, Klarna, Afterpay, Sezzle, Zip) sat in the Payment Ecosystem tier with a `bnpl` flag. That put them inside every payment-app figure, and the competition chapter's BNPL list was narrower than the financial-services BNPL category (5 providers against 12 patterns, so PayPal Credit counted as a P2P PayPal transfer).
+
+- **New tier.** `Buy Now, Pay Later` has its own kind, `bnpl`. Like adjacency, it is reported apart from competitors, so penetration, threat, winback and the tier donut do not move.
+- **Providers aligned.** The tier now names the same 12 patterns as the finserv `Buy Now Pay Later` category. PayPal Credit / Pay in 4, Perpay, Splitit, Sunbit and Uplift are added. `UPLIFT DESK` is a false positive (the standing-desk store).
+- **Numbers that move.** `comp_ecosystems`, `comp_ecosystem_accounts` and `comp_ecosystem_dollars` are now P2P and wallets only, so "In a payment app" on *Who competes* and the headline of *Payment apps and buy now, pay later* fall by the BNPL-only members. `comp_bnpl` grows by the newly named providers and PayPal Credit. The payment-app slide still draws BNPL in orange, now from `comp_bnpl`.
+- **Snap Finance (added after rebasing onto main).** Dictionary v7 put Snap Finance in the Financial Services Buy Now Pay Later category, so it joins this tier too (`SNAP FINANCE`); the two lists stay the same, as `test_same_providers_as_the_finserv_category` requires.
+- **Numbers that don't move.** Competitor figures. The pre-closure leakage curve keeps the same rows it had.
+- **Code.**
+  - `mapping_audit` reads the tier's kind instead of the literal "Payment Ecosystem".
+  - The "How members spend" lead still skips BNPL names.
+- **Parity.** The v5 figure-for-figure match no longer holds for `comp_ecosystems` / `comp_bnpl`.
+
 ### 2026-11-04 — "Competitor spend before closure" reads named competitors only, and joins the ODD like the lenses do (`competition.py`, `leakage.py`, `lens.py`)
 
 Summary: The Transaction Intelligence competitor spend before closure curve now counts named competitors only, not payment apps, and accounts whose ID was read as a number are no longer dropped from it.

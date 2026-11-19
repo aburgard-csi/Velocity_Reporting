@@ -89,7 +89,7 @@ def lines(m: dict, outputs: dict | None = None, prefix: str = "comp_") -> list[s
     eco = m.get(P + "ecosystems") or []
     if eco:
         A("")
-        A(f"  PAYMENT ECOSYSTEMS (apart from competitors; a wallet is not a bank)   "
+        A(f"  PAYMENT ECOSYSTEMS (P2P and wallets; apart from competitors and BNPL)   "
           f"{m.get(P + 'ecosystem_accounts', 0):,} accounts   "
           f"${m.get(P + 'ecosystem_dollars', 0):,}")
         A("    " + "   ".join(f"{r[0]} {r[1]:,} accts ${r[3]:,}" for r in eco[:8]))
