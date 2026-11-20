@@ -78,7 +78,11 @@ def ranked_with_panel(dk, slide, df, col, top_n, *, series_name, fmt, fmtv, port
              (f"{hi[col] / lo[col]:.1f}x" if lo[col] else "n/a", "Highest branch over lowest"),
              (fmtv(hi[col]), "Highest branch"),
              (fmtv(lo[col]), "Lowest branch")]
+    import textfit
     for i, (v, lab) in enumerate(tiles):
+        # A seven-figure dollar value ("$1,314,642") does not fit a half-width tile at 28 pt: show it compact ($1.31M).
+        if not textfit.fits_one_line(str(v), tw - 0.1, 28, bold=True):
+            v = CS.compact_money(v)
         shapes.tile(slide, x0 + (i % 2) * (tw + 0.15), 1.75 + (i // 2) * 1.08, tw, 0.98, v, lab, small_label=True)
     if len(sel) <= 6:
         rows = [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in sel.iloc[::-1].iterrows()]

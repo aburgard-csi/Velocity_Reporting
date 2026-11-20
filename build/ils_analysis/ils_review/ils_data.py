@@ -366,6 +366,58 @@ def _headerless_names(path, key, columns):
     return columns if len(fields) == len(columns) else None
 
 
+EPOCH = pd.Timestamp("1970-01-01")
+NUMERIC_ZA = ("items365", "PD_365", "PD_Amt_365", "CollectedFees365", "PossibleFees365", "Chargeoff_Amt_365",
+              "Recovery_Amt_365", "Refund_Amt_365", "Refund_365", "depAmt365", "depCount365", "DepAmt33", "DepCount33",
+              "ODLimit", "AvgODLimit", "declines_365", "declines_amt_365", "WindfallRatio")
+
+
+def validate_zaccounts(za):
+    """The analysis team's Data Validation notebook, applied before every figure ('ILS Analysis - Data
+    Validation.ipynb', cells 4-6): Savings and Time Deposit account types are left out; a negative
+    Chargeoff_Amt_365 is taken as its absolute value; a 1970-01-01 date (the source system's null marker)
+    is blank in every date column but opendate. Returns the cleaned frame and a note per change made.
+
+    The absolute value matters: without it a client whose extract carries charge-off reversals as negative
+    amounts read a lower charge-off total and loss rate than the analyst deck, by exactly twice the negatives."""
+    notes = []
+    # A header line repeated inside the file (two extracts joined end to end) reads as one row whose every value is
+    # its column name, and turns every numeric column into text, so a sum concatenates instead of adding.
+    hdr = za["acctid"].astype(str).str.strip().str.lower() == "acctid"
+    if hdr.any():
+        za = za[~hdr].copy()
+        notes.append(f"{int(hdr.sum())} repeated header line(s) inside the ZAccounts file were dropped.")
+    for c in NUMERIC_ZA:
+        if c in za.columns and not pd.api.types.is_numeric_dtype(za[c]):
+            v = pd.to_numeric(za[c].astype(str).str.strip().str.replace(",", "", regex=False), errors="coerce")
+            bad = int((v.isna() & za[c].notna() & (za[c].astype(str).str.strip() != "")).sum())
+            if bad:
+                notes.append(f"{bad:,} {c} values were not numbers and were read as blank.")
+            za[c] = v
+    t = za["accttype"].astype(str)
+    drop = t.str.contains("Savings", case=False, na=False) | t.str.contains("Time Deposit", case=False, na=False)
+    if drop.any():
+        kinds = ", ".join(sorted(set(t[drop])))
+        za = za[~drop].copy()
+        notes.append(f"{int(drop.sum()):,} savings and time-deposit accounts ({kinds}) were left out, as the analysis "
+                     "team's Data Validation step does.")
+    if "Chargeoff_Amt_365" in za.columns:
+        amt = pd.to_numeric(za["Chargeoff_Amt_365"], errors="coerce")
+        neg = amt < 0
+        if neg.any():
+            notes.append(f"{int(neg.sum()):,} accounts carried a negative Chargeoff_Amt_365 (${-amt[neg].sum():,.2f} in "
+                         "all); each is taken as its absolute value, as the analysis team's Data Validation step does.")
+        za["Chargeoff_Amt_365"] = amt.abs()
+    for c in ("closeddate", "lastdepdate", "Chargeoff_Date", "lastupdate", "max_notice_dt", "min_notice_dt",
+              "RegEResponseDate"):
+        if c in za.columns and pd.api.types.is_datetime64_any_dtype(za[c]):
+            ep = za[c] == EPOCH
+            if ep.any():
+                za.loc[ep, c] = pd.NaT
+                notes.append(f"{int(ep.sum()):,} {c} values of 1970-01-01 (the source's null marker) were read as blank.")
+    return za, notes
+
+
 def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
          digital_branches=None, retail_branches=None, include_digital=True,
          snapshot_date=None, progress=None, declines_path=None, refunds_path=None):
@@ -394,6 +446,8 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
         if n_del:
             za = za[~_truthy(za["Deleted"])].copy()
             notes.append(f"{n_del:,} rows flagged Deleted were excluded.")
+    za, cleaned = validate_zaccounts(za)
+    notes.extend(cleaned)
     say(f"  {len(za):,} accounts, {len(za.columns)} columns in scope.")
 
     snapshot = snapshot_date or infer_snapshot(za, zaccounts_path)
@@ -414,10 +468,20 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
             notes.append("ztrend file lacks acctid/noticedate; trend-based analyses skipped.")
             zt = None
         else:
+            no_id = zt["acctid"].isna() | zt["acctid"].astype(str).str.strip().str.lower().isin(("", "acctid"))
+            if no_id.any():
+                zt = zt[~no_id].copy()
+                notes.append(f"{int(no_id.sum()):,} ZTrend rows with no account id (or a repeated header line) were dropped (the analysis team's "
+                             "Data Validation step).")
             zt["acctid"] = zt["acctid"].astype(str).str.strip()
             for c in ("noticedate", "Next_Positive_Date", "Last_Positive_Date"):
                 if c in zt.columns:
                     zt[c] = pd.to_datetime(zt[c], errors="coerce")
+                    ep = zt[c] == EPOCH
+                    if ep.any():
+                        zt.loc[ep, c] = pd.NaT
+                        notes.append(f"{int(ep.sum()):,} ZTrend {c} values of 1970-01-01 (the source's null marker) "
+                                     "were read as blank.")
             for c in ("deptotal33", "CollectedFees", "PossibleFees", "Item_Amts",
                       "Items", "PD", "Min_Bal", "limit", "depcount33"):
                 if c in zt.columns:
@@ -449,8 +513,11 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
                          header=None if names else "infer", names=names,
                          usecols=lambda c: str(c).strip().lower() in
                          ("acctid", "odstatuscode", "prodcode", "decline_date", "transaction_type",
-                          "transaction_amount", "mcc_code"))
-        dd.columns = [str(c).strip().lower() for c in dd.columns]
+                          "transaction_amount", "mcc_code", "odstatus_code", "prod_code", "transaction_amt"))
+        # dd.csv, the analysis team's Data Validation copy, renames three columns (cell 2: odstatus_code, prod_code,
+        # transaction_amt); read them under the extract's own names.
+        dd.columns = [{"odstatus_code": "odstatuscode", "prod_code": "prodcode", "transaction_amt": "transaction_amount"}
+                      .get(str(c).strip().lower(), str(c).strip().lower()) for c in dd.columns]
         dd["acctid"] = dd["acctid"].astype(str).str.strip()
         dd["decline_date"] = pd.to_datetime(dd["decline_date"], errors="coerce")
         say(f"  {len(dd):,} decline rows.")

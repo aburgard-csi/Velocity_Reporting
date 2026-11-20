@@ -32,13 +32,14 @@ def _find(folder, *patterns):
 
 
 def find_inputs(folder):
-    """The extracts in one data-pull folder, found by file name (newest wins)."""
+    """The extracts in one data-pull folder, found by file name (newest wins). The raw extract names come first;
+    za.csv / zt.csv / dd.csv are the analysis team's Data Validation output, which some pull folders keep instead."""
     return {
-        "zaccounts_path": _find(folder, "*zaccounts*.csv", "*zaccounts*.txt"),
-        "ztrend_path": _find(folder, "*ztrend*.csv", "*ztrend*.txt"),
+        "zaccounts_path": _find(folder, "*zaccounts*.csv", "*zaccounts*.txt", "za.csv"),
+        "ztrend_path": _find(folder, "*ztrend*.csv", "*ztrend*.txt", "zt.csv"),
         "matrix_path": _find(folder, "*matrixval*.txt"),
         "dbic_path": _find(folder, "*dbic*.txt"),
-        "declines_path": _find(folder, "*debitdecline*.csv"),
+        "declines_path": _find(folder, "*debitdecline*.csv", "dd.csv"),
         "refunds_path": _find(folder, "*refundhistory*.csv"),
     }
 

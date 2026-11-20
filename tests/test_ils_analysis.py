@@ -666,3 +666,64 @@ def test_exception_items_are_one_slide_when_the_dbic_carries_the_channels():
     assert B._dbic_channels(run) and B._sec_exception_items(run, "exception_items") == []
     run.cfg.sections = ["exception_items"]
     assert not B._dbic_channels(run)
+
+
+# ── the analysis notebook's own rules (Data Validation and the main notebook), 2026-11-20 ─────────────────────────────
+
+def test_a_charged_off_account_with_no_last_positive_date_still_carries_its_loss():
+    ld = _loaded()
+    ld.ztrend.loc[ld.ztrend["acctid"] == "2", "Last_Positive_Date"] = pd.NaT
+    n = R.Frame(ld).notices
+    two = n[n["acctid"] == "2"].sort_values("noticedate")
+    assert not two["nb_fatal"].any()                                        # no last positive date: no fatal notice
+    assert two["nb_loss"].tolist() == [15.0, 0.0]                           # but the loss sits on its earliest notice
+
+
+def test_validation_drops_savings_takes_charge_offs_absolute_and_blanks_the_epoch():
+    from ils_review import ils_data as D
+    za = _loaded().zaccounts.copy()
+    za.loc[0, "accttype"] = "Regular Savings"
+    za.loc[1, "Chargeoff_Amt_365"] = -15.0
+    za.loc[2, "closeddate"] = pd.Timestamp("1970-01-01")
+    out, notes = D.validate_zaccounts(za)
+    assert list(out["acctid"]) == ["2", "3"]
+    assert out.loc[out["acctid"] == "2", "Chargeoff_Amt_365"].item() == 15.0
+    assert out.loc[out["acctid"] == "3", "closeddate"].isna().all()
+    assert len(notes) == 3
+
+
+def test_active_is_fifty_dollars_deposited_or_an_item_and_new_start_types_stay_out():
+    ld = _loaded()
+    za = ld.zaccounts
+    za.loc[2, "depAmt365"] = 40.0                                            # no items and $40 deposited: not active
+    extra = za.iloc[[0]].assign(acctid="9", accttype="New Start - Personal", IsPersonal=False)
+    ld.zaccounts = pd.concat([za.assign(IsPersonal=True), extra], ignore_index=True)
+    fr = R.Frame(ld)
+    assert set(fr.active_open("Personal")["acctid"]) == {"1", "2"}
+    assert fr.segment("Business").empty                                     # not P/Q/B/Z: out of the rollup entirely
+    rows = {r[0]: r[1:] for r in F.kpi_rollup(fr).tables["kpi"]["rows"]}
+    assert rows["Active Checking Accts"] == ["2"] and rows["% Active Users"] == ["100.0%"]
+
+
+def test_a_header_line_repeated_inside_zaccounts_is_dropped_and_numbers_stay_numbers():
+    from ils_review import ils_data as D
+    za = _loaded().zaccounts.astype({"CollectedFees365": object})
+    hdr = {c: c for c in za.columns}
+    za = pd.concat([za, pd.DataFrame([hdr])], ignore_index=True)
+    out, notes = D.validate_zaccounts(za)
+    assert len(out) == 3 and out["CollectedFees365"].sum() == 118.0
+    assert any("repeated header" in n for n in notes)
+
+
+def test_the_analysis_teams_cleaned_decline_file_is_read_by_its_own_names(tmp_path):
+    from ils_review import ils_data as D, cli
+    (tmp_path / "za.csv").write_text("x")
+    (tmp_path / "dd.csv").write_text("acctid,odstatus_code,prod_code,hashed_account,decline_date,transaction_type,"
+                                     "transaction_amt,mcc_code,terminal_location,id\n1,A,P1,h,2026-09-01,POS,12.5,5411,x,1\n")
+    found = cli.find_inputs(str(tmp_path))
+    assert found["zaccounts_path"].endswith("za.csv") and found["declines_path"].endswith("dd.csv")
+    ld = _loaded()
+    za_p = tmp_path / "zaccounts.csv"
+    ld.zaccounts.assign(branch="1").to_csv(za_p, index=False)
+    got = D.load(str(za_p), declines_path=found["declines_path"])
+    assert {"odstatuscode", "prodcode", "transaction_amount"} <= set(got.declines.columns)

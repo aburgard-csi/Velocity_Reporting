@@ -291,7 +291,7 @@ def _kpi_detail(dk, cfg, fr, res):
         "Collected fees, charge-offs and refunds are the 365-day totals carried on each account.",
         "Loss rate is charge-off dollars divided by collected fees; refund % is refund dollars divided by collected fees.",
         "A user is an account with at least one NSF/OD item in 365 days.",
-        "Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365.",
+        "Open active accounts are open accounts with more than $50 deposited or an NSF/OD item in the last 365 days.",
     ], size=14)
     say_first(s, "Reference table behind the six headline figures.")
     return [s]
@@ -435,8 +435,7 @@ def add_eligibility(dk, cfg, fr, *, section, progress=None):
                  else f"{t} accounts by overdraft status code")
         s = dk.content(title, f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}), by overdraft status code.",
                        section=section,
-                       source=_src(cfg, fr, "za", extra="Open active = deposit in the last 240 days or an NSF/OD item in the last "
-                                   "365. Users are accounts with at least one NSF/OD item in 365 days. Every code is listed in "
+                       source=_src(cfg, fr, "za", extra="Open active = open with " + "more than $50 deposited or an NSF/OD item in the last 365 days." + " Users are accounts with at least one NSF/OD item in 365 days. Every code is listed in "
                                    "'Appendix: every overdraft status code'."))
         _picture(s, res, LEFT, BODY_T + 0.05, 6.4, 4.5)
         table(s, {"headers": ["Status code", "Accounts", "Can overdraft", "NSF/OD users"], "rows": rows}, 7.1, BODY_T + 0.1, 5.73,
@@ -451,7 +450,7 @@ def _eligibility_detail(dk, cfg, fr, t, tabs, first=True):
     """One appendix slide per account type: every status code, and the NSF/OD item segments below it."""
     s = dk.content(f"Appendix: every overdraft status code and item segment, {t.lower()}",
                    f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}).", section="appendix",
-                   source=_src(cfg, fr, "za", extra="Open active = deposit in the last 240 days or an NSF/OD item in the last 365."))
+                   source=_src(cfg, fr, "za", extra="Open active = open with more than $50 deposited or an NSF/OD item in the last 365 days."))
     table(s, tabs["codes"], LEFT, BODY_T, 6.1, BODY_B - BODY_T, highlight_last=True, max_fs=10)
     table(s, tabs["segments"], 6.85, BODY_T, 5.98, 3.0, highlight_last=True, max_fs=10)
     T.bullets_real(s, 6.85, 5.0, 5.98, 1.4, [

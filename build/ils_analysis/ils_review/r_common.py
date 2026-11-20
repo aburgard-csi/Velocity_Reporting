@@ -32,7 +32,7 @@ TICK, GRID, MUTED = HEX["subtle"], HEX["grid"], HEX["muted"]
 STEEL, STEEL_SOFT, LABEL = HEX["steel"], HEX["steel_soft"], HEX["label"]
 GOLD, SLATE, ROWALT = HEX["gold"], HEX["slate"], HEX["band"]
 DEFAULT_REPAYMENT_DAYS = 40         # see scoring_summary.DEFAULT_DAYS_NOTE
-ACTIVE_DAYS = 240                  # see Frame.active_open
+ACTIVE_DAYS = 240                  # Frame.active's fallback when the extract has no depAmt365
 LOSS_RATE_LIMIT = 1.0              # charge-offs above every fee collected in the year: see Frame.__init__
 
 
@@ -199,9 +199,14 @@ class Frame:
         za = self.za
         if not self.folded:
             return za[za["accttype"] == accttype]
-        other = ~za["accttype"].isin(("Personal", "Business"))
+        # The notebook's rule (cells 38, 41, 97): an account is analysed when its account type starts with P, Q, B or
+        # Z, and the rollup groups the analysed accounts by IsPersonal. A type starting with anything else ("New
+        # Start - Personal", flagged IsPersonal False) is left out; folding it in by IsPersonal put every such account
+        # in Business and inflated its closed and charged-off counts.
+        analysed = za["accttype"].astype(str).str.strip().str[:1].str.upper().isin(("P", "Q", "B", "Z"))
         seg = np.where(_yes(za["IsPersonal"]), "Personal", "Business")
-        return za[(za["accttype"] == accttype) | (other & (seg == accttype))]
+        main = za["accttype"].isin(("Personal", "Business"))
+        return za[(main & (za["accttype"] == accttype)) | (~main & analysed & (seg == accttype))]
 
     # ── typed ZTrend ────────────────────────────────────────────────────
     @property
@@ -267,7 +272,13 @@ class Frame:
             fatal = span.groupby(c["acctid"]).idxmin()
             n["nb_fatal"] = False
             n.loc[fatal.to_numpy(), "nb_fatal"] = True
-            n["nb_loss"] = np.where(n["nb_fatal"], n["co_amt"], 0.0)
+            # A charged-off account with no last positive date on any notice has no fatal notice, but the notebook
+            # still carries its Chargeoff_Amt_365, on its earliest notice (cell 30: min_span_lp keeps every notice
+            # when no span exists, and drop_duplicates keeps the first). Leaving those dollars out made monthly loss
+            # rates read low, never high, while % fatal and the 365-day charge-off total agreed.
+            no_lp = n[n["co"] & last_pos.isna()].sort_values("noticedate")
+            carrier = no_lp.groupby("acctid").head(1).index
+            n["nb_loss"] = np.where(n["nb_fatal"] | n.index.isin(carrier), n["co_amt"], 0.0)
         self._notices = n
         return n
 
@@ -287,19 +298,22 @@ class Frame:
         z = self.za[self.za["acctstatus"].astype(str).str.upper() == "O"]
         return z if accttype is None else z[z["accttype"] == accttype]
 
-    def active_open(self, accttype):
-        """Open accounts that are 'active': a deposit in the trailing ACTIVE_DAYS days, or an NSF/OD item
-        in the trailing 365.
+    def active(self, d):
+        """The analysis notebook's ACTIVITY flag (cell 38): more than $50 deposited in 365 days, or at least one
+        NSF/OD item in 365 days. An extract with no depAmt365 column falls back to a deposit in the last
+        ACTIVE_DAYS days."""
+        user = pd.to_numeric(d["items365"], errors="coerce").fillna(0) >= 1
+        if "depAmt365" in d.columns:
+            return (pd.to_numeric(d["depAmt365"], errors="coerce").fillna(0) > 50) | user
+        last = pd.to_datetime(d["lastdepdate"], errors="coerce")
+        return (last >= self.asof - pd.Timedelta(days=ACTIVE_DAYS)) | user
 
-        The hand-built deck's 'Open Active' population is defined in the analysis team's SQL, not in the
-        extract. This is the closest the extract supports: with 240 days Achieva's personal population
-        is 93,670 (deck 93,668) with 71,297 non-users (deck 71,295), and the business population is
-        within 0.6% of the deck. The window is calibrated on that one client; the sidecars record the
-        comparison and the slides say how the population is defined."""
+    def active_open(self, accttype):
+        """Open accounts that are active (`active`): the notebook's own definition, which reproduces the analyst
+        decks' Open Active Accts exactly. The 240-day deposit window it replaced was fitted on one client and ran
+        from -3% to +9% against the analyst decks on twelve others."""
         o = self.open_accounts(accttype)
-        last = pd.to_datetime(o["lastdepdate"], errors="coerce")
-        user = pd.to_numeric(o["items365"], errors="coerce").fillna(0) > 0
-        return o[(last >= self.asof - pd.Timedelta(days=ACTIVE_DAYS)) | user]
+        return o[self.active(o)]
 
 
 # ═══════════════════════════ figure helpers ═════════════════════════════════

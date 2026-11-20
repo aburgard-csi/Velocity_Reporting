@@ -246,7 +246,7 @@ def compute_predictor(predictor, fr, cfg, accttype):
     days = None
     if basis == "notebook" and "nb_default" in w.columns:
         w["dflt"] = w["nb_default"]
-        loss_by = w[w["nb_fatal"]].groupby("band")["nb_loss"].sum()
+        loss_by = w.groupby("band")["nb_loss"].sum()      # fatal notices, plus the earliest notice of an account with no last positive date
     else:
         if basis == "readme":
             days = getattr(cfg, "default_repayment_days", 30)

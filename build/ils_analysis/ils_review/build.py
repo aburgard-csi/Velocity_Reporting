@@ -283,7 +283,7 @@ def _slide_data_notes(run, key):
     scope.append(f"{count(len(za))} accounts in the extract, {count(n_open)} open, as of {str(fr.asof)[:10]}{pull}.")
     kept = "retail branches and digital channels" if cfg.include_digital else "retail branches"
     scope.append(f"Branch views cover the {kept}; back-office codes are held out ({br.summary()}).")
-    scope.append("Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365; a user has at least one NSF/OD item in 365 days.")
+    scope.append("Open active accounts are open accounts with more than $50 deposited or an NSF/OD item in the last 365 days; a user has at least one NSF/OD item in 365 days.")
     scope.append("Comparisons use complete months only; movement within 2% is called almost flat.")
     scope.append("Peers are other ILS clients, shown by client number only; very large clients are compared with other very large ones, "
                  "the rest within their Census region, with five peers at least.")

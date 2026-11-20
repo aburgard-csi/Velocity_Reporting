@@ -59,10 +59,16 @@ def kpi_rollup(fr, ref=None):
         closed = int((pd.to_datetime(d["closeddate"], errors="coerce") >= lo).sum())
         codt = pd.to_datetime(d["Chargeoff_Date"], errors="coerce")
         co_n = int((codt >= lo).sum())
-        users = int((d["items365"] > 0).sum())
-        co_users = int(((codt >= lo) & (d["items365"] > 0)).sum())
+        is_user = pd.to_numeric(d["items365"], errors="coerce").fillna(0) >= 1
+        users = int(is_user.sum())
+        # The notebook's p1 (cell 97): a charged-off user is a user on a charged-off account whose charge-off date
+        # falls in the 365 days; % closed accounts charged off is that count over accounts closed in the 365 days
+        # (its numerator counts users, as the notebook's does); % active users is users over active accounts.
+        co_flag = R._yes(d["Chargeoff_Account"]) if "Chargeoff_Account" in d.columns else pd.Series(True, index=d.index)
+        co_users = int((co_flag & (codt >= lo) & is_user).sum())
+        active_all = int(fr.active(d).sum())
         act = fr.active_open(t)
-        act_users = int((act["items365"] > 0).sum())
+        act_users = int((pd.to_numeric(act["items365"], errors="coerce").fillna(0) >= 1).sum())
         bad_co, bad_rf = fr.co_problem is not None, fr.refund_problem is not None
         cols[t] = {
             "Data as of": _fmt_asof(asof),
@@ -70,11 +76,15 @@ def kpi_rollup(fr, ref=None):
             "Loss Rate": "n/a" if bad_co else (pct(co / fees * 100) if fees else "n/a"),
             "Refund Amt": "n/a" if bad_rf else money(refund, 2),
             "Refund %": "n/a" if bad_rf else (pct(refund / fees * 100) if fees else "n/a"),
+            "Active Checking Accts": f"{active_all:,}",
             "Open Accts": f"{len(o):,}", "Accts Opened (365 days)": f"{opened:,}",
             "Accts Closed (365 days)": f"{closed:,}",
             "Accounts Charged Off (365 days)": "n/a" if bad_co else f"{co_n:,}",
+            "% Closed Accts Charged Off": "n/a" if bad_co else (pct(co_users / closed * 100) if closed else "n/a"),
             "Growth Rate": pct((opened - closed) / len(o) * 100) if len(o) else "n/a",
-            "NSF/OD Users": f"{users:,}", "Users Charged Off (365 days)": "n/a" if bad_co else f"{co_users:,}",
+            "NSF/OD Users": f"{users:,}",
+            "% Active Users": pct(users / active_all * 100) if active_all else "n/a",
+            "Users Charged Off (365 days)": "n/a" if bad_co else f"{co_users:,}",
             "User Charge-Off Rate": "n/a" if bad_co else (pct(co_users / users * 100) if users else "n/a"),
             "Open Active Accts": f"{len(act):,}",
             "Open Active NSF/OD Users": f"{act_users:,}",
@@ -100,9 +110,10 @@ def kpi_rollup(fr, ref=None):
     for p in (fr.co_problem, fr.refund_problem):
         if p:
             res.notes.append(p)
-    res.notes.append("Open Active Accts = open accounts with a deposit in the last 240 days or an NSF/OD item in the "
-                     "last 365 (the analysis team's own definition is in their SQL, not in the extract; 240 days "
-                     "reproduces Achieva's personal figure to 2 accounts).")
+    res.notes.append("Active = more than $50 deposited or at least one NSF/OD item in the last 365 days (the analysis "
+                     "notebook's definition). Open Active Accts are the open accounts among them; % Active Users is "
+                     "NSF/OD users over active accounts; % Closed Accts Charged Off is users charged off in the 365 days "
+                     "over accounts closed in the 365 days.")
     return res
 
 

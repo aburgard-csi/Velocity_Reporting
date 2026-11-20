@@ -164,8 +164,8 @@ def add_usage_segments(dk, cfg, fr, S, *, section, progress=None):
     png = R.save(fig, dk.chart_dir, "usage_segments_personal")
     s = dk.content(f"{ha:.1f}% of active personal accounts generate {hf:.0f}% of collected fees",
                    f"Open active personal accounts ({n:,}) by NSF/OD items in 365 days to {fr.asof:%B} {fr.asof.day}, {fr.asof.year}; the 24+ group is the heavy users.",
-                   section=section, source=CS._src(cfg, fr, "za", extra="Items = items365; fees = CollectedFees365; open active = a deposit in the last "
-                                                   "240 days or an NSF/OD item in the last 365. Heavy user = 24 or more items."))
+                   section=section, source=CS._src(cfg, fr, "za", extra="Items = items365; fees = CollectedFees365; open active = "
+                                                   "more than $50 deposited or an NSF/OD item in the last 365 days. Heavy user = 24 or more items."))
     T.image_real(s, png, CS.LEFT, CS.BODY_T + 0.05, 7.8, 4.55)
     CS._tiles_real(s, [(f"{heavy[1]:,}", "Accounts with 24+ items"), (money(heavy[2]), "Collected fees from them"),
                        (f"{segs[0][1] / n * 100:.0f}%", "Accounts with no items")])

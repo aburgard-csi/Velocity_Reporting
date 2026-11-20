@@ -15,6 +15,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-20 — ILS analysis: the analysis team's own rules for losses, active accounts, the KPI population and data clean-up (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck now follows the analysis team's notebooks for monthly loss rates, open active accounts, which account types the 365-day KPI counts, and the Data Validation clean-up (negative charge-offs, savings accounts, 1970 null dates); the KPI table gains Active Checking Accts, % Closed Accts Charged Off and % Active Users. On twenty recent analyst-built pulls the not-repaid and KPI tables now match the analyst decks cell for cell.
+
+Aaron, 2026-11-20: "continue to iterate. use as much time and data as you need to be confident in the results." Each rule below is the notebook's ('ILS Analysis - Python Script.ipynb', 'ILS Analysis - Data Validation.ipynb'), found by comparing built decks with the analysts' tables by script:
+
+- **Monthly loss rate**: a charged-off account with no last positive date on any notice has no fatal notice, but its Chargeoff_Amt_365 still counts, on its earliest notice (notebook cell 30). Leaving it out made loss rates read low, never high, while % fatal and the 365-day total agreed. The Scoring Summary's band losses follow the same rule.
+- **Open active accounts**: open, with more than $50 deposited or at least one NSF/OD item in 365 days (the notebook's ACTIVITY flag). It replaces a 240-day deposit window fitted on one client, which ran -3% to +9% elsewhere.
+- **KPI population**: account types starting P, Q, B or Z, grouped by IsPersonal; any other type ("New Start - Personal") is left out, where it had been folded into Business. New rows Active Checking Accts, % Closed Accts Charged Off and % Active Users, as the notebook computes them.
+- **Data Validation** (`ils_data.validate_zaccounts`): savings and time-deposit types left out; a negative Chargeoff_Amt_365 taken as its absolute value; 1970-01-01 read as blank; ZTrend rows with no account id dropped. Each change is listed in the build notes.
+- **Robustness**: a header line repeated inside ZAccounts is dropped and numeric columns are read as numbers (a sum had concatenated text); a folder holding the analysis team's cleaned za.csv / zt.csv / dd.csv is read, dd.csv's renamed columns included; a branch tile whose dollar figure does not fit is shown compact.
+- Tests: seven new in `tests/test_ils_analysis.py`, synthetic data only.
+
 ### 2026-11-20 — ILS analysis: deck checks after every build; prep slides merged hidden; more input and empty-data checks (`build/ils_analysis/`)
 
 Summary: Every ILS analysis build now checks its own deck for failed sections, stale extracts and all-zero or all-n/a columns; the ILS prep slides merge into the deck as hidden context, with the matrix slides visible at the start of each account type's risk analysis; and empty data, tab-delimited files and very large percentages no longer break a slide.
