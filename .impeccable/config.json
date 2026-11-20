@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "montserrat",
+        "createdAt": "2026-11-20T23:23:01.068Z",
+        "reason": "CSI brand display face (build/brand.py, templates/STYLE.md); Aaron 2026-11-20"
+      }
+    ]
+  }
+}

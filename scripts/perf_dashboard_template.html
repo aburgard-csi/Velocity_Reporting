@@ -2,51 +2,53 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Carlito:ital,wght@0,400;0,700;1,400&display=swap">
 <style>
-/* The Sheila Hub's frame and colors (Aaron, 2026-11-02): a glass sidebar that folds to a rail, a bottom bar on
-   phones, KPI tiles, dense rows. Hub colors only: ground, navy, teal; no orange. Program colors are the four
-   validated with the dataviz script (light on #FFFFFF, dark on #141D38); every program name sits beside its dot. */
+/* Layout: the Sheila Hub frame (Aaron, 2026-11-02): a glass sidebar that folds to a rail, a bottom bar on phones,
+   KPI tiles, dense rows. Colors and type: the Velocity page system (velocity-artifact-design skill, values from
+   build/brand.py; Aaron, 2026-11-20): navy carries the page, CSI blue for links and controls, orange only for focus
+   and the single finding. Program colors are the four validated with the dataviz script (light on #FFFFFF, dark on
+   #141D38, re-checked on #12263A); every program name sits beside its dot. */
 :root{
   --display:Montserrat,"Segoe UI",system-ui,sans-serif;
   --body:Carlito,Calibri,"Segoe UI",system-ui,sans-serif;
-  --ground:#EDF1F7; --glow-a:rgba(21,98,126,.13); --glow-b:rgba(91,192,222,.26);
-  --surface:rgba(255,255,255,.74); --sheet:#FFFFFF; --fill:#E4EAF3; --line:#C6D1E0;
-  --glass:rgba(255,255,255,.62); --glass-line:rgba(58,80,107,.22); --glass-hi:rgba(58,80,107,.12);
-  --ink:#0B132B; --muted:#4A5C75; --navy:#1C2541;
-  --accent:#15627E; --accent-ink:#15627E; --accent-soft:rgba(21,98,126,.12); --on-accent:#FFFFFF;
-  --good:#15627E; --good-soft:#D9EFF6; --warn:#6E4A12; --warn-soft:#F8EBD8; --bad:#8F2D0B; --bad-soft:#FAE3D8;
+  --ground:#F5F7FA; --glow-a:transparent; --glow-b:transparent;
+  --surface:rgba(255,255,255,.82); --sheet:#FFFFFF; --fill:#EEF2F7; --line:#D3DCE6;
+  --glass:rgba(255,255,255,.78); --glass-line:rgba(0,39,76,.14); --glass-hi:rgba(0,39,76,.07);
+  --ink:#1D2B3A; --muted:#5A6670; --navy:#00274C;
+  --accent:#035B95; --accent-ink:#035B95; --accent-soft:rgba(3,91,149,.10); --on-accent:#FFFFFF;
+  --good:#0F766E; --good-soft:#E3F3F0; --warn:#6E4A12; --warn-soft:#F8EBD8; --bad:#8F2D0B; --bad-soft:#FAE3D8;
   --c-ars:#2F5FB5; --c-ics:#B5476B; --c-mrpc:#9A7B10; --c-cp:#8F4FB0;
-  --shadow:0 1px 2px rgba(11,19,43,.05),0 14px 30px -24px rgba(11,19,43,.35);
+  --shadow:0 1px 2px rgba(0,24,54,.06),0 8px 24px rgba(0,24,54,.06); --focus-ring:#C2410C;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
-    --ground:#0B132B; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
-    --surface:rgba(28,37,65,.66); --sheet:#141D38; --fill:#28344F; --line:#3A506B;
-    --glass:rgba(28,37,65,.55); --glass-line:rgba(159,176,199,.24); --glass-hi:rgba(244,247,251,.1);
-    --ink:#EEF3FA; --muted:#A3B3C9; --navy:#EEF3FA;
-    --accent:#5BC0DE; --accent-ink:#5BC0DE; --accent-soft:rgba(91,192,222,.18); --on-accent:#0B132B;
-    --good:#5BC0DE; --good-soft:#17324B; --warn:#F4D6B0; --warn-soft:#352F2B; --bad:#F59A78; --bad-soft:#3A241C;
+    --ground:#0A1624; --glow-a:transparent; --glow-b:transparent;
+    --surface:rgba(18,38,58,.72); --sheet:#12263A; --fill:#0E1E2F; --line:#2C4560;
+    --glass:rgba(18,38,58,.62); --glass-line:rgba(159,176,194,.22); --glass-hi:rgba(234,240,246,.08);
+    --ink:#D3DDE8; --muted:#9FB0C2; --navy:#EAF0F6;
+    --accent:#6CB4E8; --accent-ink:#6CB4E8; --accent-soft:rgba(108,180,232,.16); --on-accent:#0A1624;
+    --good:#5EC4B6; --good-soft:#10302C; --warn:#F4D6B0; --warn-soft:#352F2B; --bad:#F59A78; --bad-soft:#3A241C;
     --c-ars:#5F86DB; --c-ics:#D0608F; --c-mrpc:#AB8A22; --c-cp:#A06CD0;
-    --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -24px rgba(0,0,0,.85);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); --focus-ring:#F47D4E;
   }
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --ground:#0B132B; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
-  --surface:rgba(28,37,65,.66); --sheet:#141D38; --fill:#28344F; --line:#3A506B;
-  --glass:rgba(28,37,65,.55); --glass-line:rgba(159,176,199,.24); --glass-hi:rgba(244,247,251,.1);
-  --ink:#EEF3FA; --muted:#A3B3C9; --navy:#EEF3FA;
-  --accent:#5BC0DE; --accent-ink:#5BC0DE; --accent-soft:rgba(91,192,222,.18); --on-accent:#0B132B;
-  --good:#5BC0DE; --good-soft:#17324B; --warn:#F4D6B0; --warn-soft:#352F2B; --bad:#F59A78; --bad-soft:#3A241C;
+  --ground:#0A1624; --glow-a:transparent; --glow-b:transparent;
+  --surface:rgba(18,38,58,.72); --sheet:#12263A; --fill:#0E1E2F; --line:#2C4560;
+  --glass:rgba(18,38,58,.62); --glass-line:rgba(159,176,194,.22); --glass-hi:rgba(234,240,246,.08);
+  --ink:#D3DDE8; --muted:#9FB0C2; --navy:#EAF0F6;
+  --accent:#6CB4E8; --accent-ink:#6CB4E8; --accent-soft:rgba(108,180,232,.16); --on-accent:#0A1624;
+  --good:#5EC4B6; --good-soft:#10302C; --warn:#F4D6B0; --warn-soft:#352F2B; --bad:#F59A78; --bad-soft:#3A241C;
   --c-ars:#5F86DB; --c-ics:#D0608F; --c-mrpc:#AB8A22; --c-cp:#A06CD0;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -24px rgba(0,0,0,.85);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); --focus-ring:#F47D4E;
 }
 *{box-sizing:border-box}
 html,body{background:var(--ground)}
 body{margin:0;color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
 .glow{position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:radial-gradient(38rem 26rem at 8% 14%,var(--glow-a),transparent 70%),radial-gradient(44rem 30rem at 96% 4%,var(--glow-b),transparent 70%)}
-:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 button{font:inherit;color:inherit}
 a{color:var(--accent-ink)}
 .app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:24px;align-items:start;max-width:1560px;margin:0 auto;
@@ -1330,8 +1332,8 @@ function toggleTheme(){
 }
 // The corner mark: two stacked slides, navy in front of teal (light); pale in front of light blue (dark).
 function paintMark(dark){
-  document.getElementById("mk-front").setAttribute("fill", dark ? "#EEF3FA" : "#1C2541");
-  document.getElementById("mk-back").setAttribute("fill", dark ? "#5FB3C9" : "#15627E");
+  document.getElementById("mk-front").setAttribute("fill", dark ? "#EAF0F6" : "#00274C");
+  document.getElementById("mk-back").setAttribute("fill", dark ? "#6CB4E8" : "#035B95");
 }
 document.getElementById("q").addEventListener("input", e=>{ Q = e.target.value.trim().toLowerCase(); update(); });
 document.addEventListener("keydown", e=>{

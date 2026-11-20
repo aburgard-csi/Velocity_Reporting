@@ -762,18 +762,24 @@ def test_template_is_the_hub_frame():
     for view in ("overview", "ars", "ics", "mrpc", "cp", "roster", "actions"):
         assert '"%s"' % view in t, view
     assert 'href="workflow.html"' in t
-    assert 'aria-label="Two stacked slides"' in t and "#1C2541" in t and "#15627E" in t, "the slide-stack corner mark"
-    assert "#EEF3FA" in t and "#5FB3C9" in t, "its dark-mode colors"
-    assert "--ground:#EDF1F7" in t and "--ground:#0B132B" in t
+    # Colors moved to the Velocity page system (Aaron, 2026-11-20); the Hub layout stays.
+    assert 'aria-label="Two stacked slides"' in t and "#00274C" in t and "#035B95" in t, "the slide-stack corner mark"
+    assert "#EAF0F6" in t and "#6CB4E8" in t, "its dark-mode colors"
+    assert "--ground:#F5F7FA" in t and "--ground:#0A1624" in t
     assert t.count(':root:not([data-theme="light"])') == 1 and ':root[data-theme="dark"]{' in t
     assert 'name="claude:viewport-fit-sides"' in t
     assert "min-height:44px" in t, "44 px touch targets"
 
 
-def test_template_uses_hub_colors_and_no_orange():
+def test_template_uses_velocity_colors_and_orange_only_for_focus():
+    """Aaron, 2026-11-20: Velocity colors (velocity-artifact-design, build/brand.py); orange marks focus only.
+    The light ring is #C2410C because #F15D22 is 2.99:1 on #EEF2F7."""
     t = _template().upper()
-    for orange in ("#F47A29", "#F15D22", "#D97706", "#F79552", "#E8590C"):
-        assert orange not in t, orange
+    for gone in ("#F47A29", "#F15D22", "#D97706", "#F79552", "#E8590C", "#EDF1F7", "#0B132B", "#15627E", "#5BC0DE"):
+        assert gone not in t, gone
+    assert "--FOCUS-RING:#C2410C;" in t and t.count("#C2410C") == 1
+    assert t.count("--FOCUS-RING:#F47D4E;") == 2 and t.count("#F47D4E") == 2
+    assert ":FOCUS-VISIBLE{OUTLINE:2PX SOLID VAR(--FOCUS-RING)" in t
 
 
 def test_template_program_colors_are_the_validated_set():
@@ -837,8 +843,10 @@ def test_nothing_animates_but_the_loading_shimmer():
     assert "prefers-reduced-motion:reduce" in t
 
 
-def test_workflow_page_uses_hub_colors_and_links_back():
+def test_workflow_page_uses_velocity_colors_and_links_back():
     w = (P.REPO / "scripts" / "perf_workflow.html").read_text(encoding="utf-8").upper()
-    for old in ("#F47A29", "#F79552", "#00274C", "#0D9488", "#E7B84C"):
+    for old in ("#F47A29", "#F79552", "#E7B84C", "#EDF1F7", "#0B132B", "#15627E", "#5BC0DE"):
         assert old not in w, old
-    assert "--BG:#EDF1F7" in w and "--BG:#0B132B" in w and 'HREF="INDEX.HTML"' in w
+    assert "--BG:#F5F7FA" in w and "--BG:#0A1624" in w and "--HEAD:#00274C" in w and 'HREF="INDEX.HTML"' in w
+    for small in ("600 10PX", "600 10.5PX", "600 11.5PX"):
+        assert small not in w, "labels stay at 11px or more (Impeccable undersized-ui-text)"

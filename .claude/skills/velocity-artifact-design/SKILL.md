@@ -48,6 +48,14 @@ Google Fonts), then write markup with the `v-` classes. Do not re-declare a colo
 8. **Motion is optional and quiet.** A 200 ms lift on a link card, switched off under `prefers-reduced-motion`.
 9. **Real content.** Real figures, real names of things, no lorem. State a snapshot's date on the page.
 
+## App pages (dashboards)
+
+A dashboard people work in daily (the RPE Client Performance artifact) keeps its app layout: sidebar, KPI tiles, dense
+rows. It takes this system's tokens, not its page structure (no hero, no alternating sections). Map its variables to the
+`velocity-page.css` values: navy text and headings, CSI blue `#035B95` for links, active nav and controls, orange only
+for focus and the single finding. In light mode a focus ring on `#EEF2F7` needs `#C2410C` (orange `#F15D22` is 2.99:1
+there). Keep the program colors validated with the dataviz script. (Aaron, 2026-11-20.)
+
 ## Brand values
 
 Take values from `build/brand.py` and `templates/STYLE.md`, never from memory or an old page. The ones that have moved:
@@ -94,6 +102,10 @@ A library is one artifact with an `index.html` front door and supporting pages.
 3. Look at the picture. A page driven by script can render its chrome and nothing else.
 4. Check dark mode (render a copy with `data-theme="dark"` on `<html>`) and a 400 px width.
 5. Search the saved page for the old orange, `#F47A29`, and for stale dates.
+6. Run the Impeccable detector on the rendered copy: `npx impeccable detect --json <page>.html` (or
+   `.claude/skills/impeccable/scripts/impeccable detect`). Fix every finding the page owns; `.impeccable/config.json`
+   already waives Montserrat. Its contrast check can pair one theme's text with the other theme's ground on pages with a
+   dark block; confirm a contrast finding in a real dark render before acting on it.
 
 ## The Velocity Design Library
 

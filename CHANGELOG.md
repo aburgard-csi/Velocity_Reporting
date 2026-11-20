@@ -15,6 +15,15 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-20 — RPE Client Performance page moves to the Velocity colors; Impeccable added for HTML pages (`scripts/perf_dashboard_template.html`, `scripts/perf_workflow.html`, `.claude/skills/`)
+
+Summary: The performance dashboard and its "How decks are made" page now use the Velocity page system's colors (navy, CSI blue, orange for focus only) instead of the Sheila Hub palette; layout, data and every figure are unchanged. No deck changes.
+
+- **Why:** Aaron, 2026-11-20 — one style system for internal pages. Three overlapped (the Hub palette on this page, the `velocity-artifact-design` skill, a separate personal design system); the repo's own skill, built on `build/brand.py`, wins.
+- **What moved:** token values only, light and dark. Text, links and status colors pass WCAG AA on every ground (checked by script); the light focus ring is `#C2410C` because `#F15D22` measures 2.99:1 on `#EEF2F7`. Program colors (ARS, ICS, MRPC, CashPlease) are unchanged and still pass 3:1 on the new dark sheet.
+- **Workflow page labels** were 10–11.5px; raised to 11–12px (the Impeccable detector flagged 42 undersized or tiny labels; 0 remain).
+- **Impeccable 4.10.0** (`.claude/skills/impeccable/`, `.impeccable/config.json`) is the detector the `velocity-artifact-design` skill now runs before a page is published. Montserrat is waived as the brand face. It does not touch decks.
+
 ### 2026-11-19 — Insurance by line says "Life"; the competition report reads a short window (`ti/dictionaries/financial_services_patterns.json`, `deck/txn_leakage.py`, `competition_report.py`)
 
 Summary: The Transaction Intelligence Insurance by line slide now names the life line "Life", and a client with under six months of transaction data no longer stops the Transaction Intelligence build.

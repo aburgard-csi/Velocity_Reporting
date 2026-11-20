@@ -5,28 +5,28 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Carlito:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
-  /* The Sheila Hub's colors (Aaron, 2026-11-02): ground, navy, teal; no orange. Program colors validated with the dataviz script. */
+  /* Velocity page system colors (velocity-artifact-design skill, build/brand.py; Aaron, 2026-11-20). Program colors validated with the dataviz script. */
   --ars:#2F5FB5; --ics:#B5476B; --mrpc:#9A7B10; --cp:#8F4FB0;
-  --bg:#EDF1F7; --surface:#FFFFFF; --tile:#E4EAF3; --hair:#C6D1E0; --grid:#D6DFEB;
-  --ink:#0B132B; --ink2:#4A5C75; --ink3:#4A5C75; --head:#1C2541;
-  --block:#8F2D0B; --block-bg:#FAE3D8; --ok:#15627E; --opt:#4A5C75;
-  --focus:#15627E; --glow-a:rgba(21,98,126,.13); --glow-b:rgba(91,192,222,.26);
+  --bg:#F5F7FA; --surface:#FFFFFF; --tile:#EEF2F7; --hair:#D3DCE6; --grid:#E4EAF1;
+  --ink:#1D2B3A; --ink2:#5A6670; --ink3:#5A6670; --head:#00274C;
+  --block:#8F2D0B; --block-bg:#FAE3D8; --ok:#0F766E; --opt:#4A5C75;
+  --focus:#C2410C; --glow-a:transparent; --glow-b:transparent;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --ars:#5F86DB; --ics:#D0608F; --mrpc:#AB8A22; --cp:#A06CD0;
-    --bg:#0B132B; --surface:#141D38; --tile:#28344F; --hair:#3A506B; --grid:#2B3C58;
-    --ink:#EEF3FA; --ink2:#A3B3C9; --ink3:#A3B3C9; --head:#EEF3FA;
-    --block:#F59A78; --block-bg:#3A241C; --ok:#5BC0DE; --opt:#A3B3C9;
-    --focus:#5BC0DE; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
+    --bg:#0A1624; --surface:#12263A; --tile:#0E1E2F; --hair:#2C4560; --grid:#22384D;
+    --ink:#D3DDE8; --ink2:#9FB0C2; --ink3:#9FB0C2; --head:#EAF0F6;
+    --block:#F59A78; --block-bg:#3A241C; --ok:#5EC4B6; --opt:#A3B3C9;
+    --focus:#F47D4E; --glow-a:transparent; --glow-b:transparent;
   }
 }
 :root[data-theme="dark"]{
   --ars:#5F86DB; --ics:#D0608F; --mrpc:#AB8A22; --cp:#A06CD0;
-  --bg:#0B132B; --surface:#141D38; --tile:#28344F; --hair:#3A506B; --grid:#2B3C58;
-  --ink:#EEF3FA; --ink2:#A3B3C9; --ink3:#A3B3C9; --head:#EEF3FA;
-  --block:#F59A78; --block-bg:#3A241C; --ok:#5BC0DE; --opt:#A3B3C9;
-  --focus:#5BC0DE; --glow-a:rgba(91,192,222,.15); --glow-b:rgba(91,192,222,.17);
+  --bg:#0A1624; --surface:#12263A; --tile:#0E1E2F; --hair:#2C4560; --grid:#22384D;
+  --ink:#D3DDE8; --ink2:#9FB0C2; --ink3:#9FB0C2; --head:#EAF0F6;
+  --block:#F59A78; --block-bg:#3A241C; --ok:#5EC4B6; --opt:#A3B3C9;
+  --focus:#F47D4E; --glow-a:transparent; --glow-b:transparent;
 }
 *{box-sizing:border-box}
 body{margin:0;background:radial-gradient(38rem 26rem at 8% 6%,var(--glow-a),transparent 70%),radial-gradient(44rem 30rem at 96% 2%,var(--glow-b),transparent 70%),var(--bg);color:var(--ink);font:16px/1.55 Carlito,Calibri,"Segoe UI",system-ui,sans-serif}
@@ -56,11 +56,11 @@ section{margin-top:40px}
 .step::before{content:attr(data-n);position:absolute;left:-15px;top:-2px;width:28px;height:28px;border-radius:50%;
   background:var(--surface);border:2px solid var(--head);color:var(--head);display:grid;place-items:center;
   font:700 12px Montserrat,"Segoe UI",sans-serif}
-.step .when{font:600 11.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.04em;color:var(--ink3);margin-bottom:2px}
+.step .when{font:600 12px Montserrat,"Segoe UI",sans-serif;letter-spacing:.04em;color:var(--ink3);margin-bottom:2px}
 .step p{color:var(--ink2);max-width:62ch;margin-top:4px}
 .io{display:grid;gap:8px;align-content:start;font-size:14px}
 .io div{display:grid;gap:2px}
-.io .k{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.io .k{font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
 .io .v{color:var(--ink);overflow-wrap:anywhere}
 .io code,.prog .where{white-space:normal;overflow-wrap:anywhere}
 @media (max-width:720px){.step{grid-template-columns:1fr}}
@@ -72,11 +72,11 @@ section{margin-top:40px}
 .prog>.ph .cad{margin-left:auto;font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
 .prog>.ph .note{flex-basis:100%;color:var(--ink2);font-size:14px}
 .prog table{width:100%;border-collapse:collapse;font-size:14px}
-.prog th{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:8px 16px 6px;border-top:1px solid var(--grid)}
+.prog th{font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:8px 16px 6px;border-top:1px solid var(--grid)}
 .prog td{padding:8px 16px;border-top:1px solid var(--grid);vertical-align:top}
 .prog td:first-child{width:42%}
 .prog td .where{display:block;color:var(--ink3);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
-.need{display:inline-block;font:600 10px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-bottom:3px;white-space:nowrap}
+.need{display:inline-block;font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-bottom:3px;white-space:nowrap}
 .need.req{color:var(--block);background:var(--block-bg)}
 .need.opt{color:var(--opt);background:var(--tile)}
 .prog td .miss{display:block;color:var(--ink2)}
@@ -84,7 +84,7 @@ section{margin-top:40px}
 /* folder map */
 .map{overflow-x:auto;background:var(--surface);border:1px solid var(--hair);border-radius:18px}
 .map table{width:100%;min-width:560px;border-collapse:collapse;font-size:14.5px}
-.map th{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:10px 16px 8px;border-bottom:1px solid var(--hair)}
+.map th{font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:10px 16px 8px;border-bottom:1px solid var(--hair)}
 .map td{padding:8px 16px;border-top:1px solid var(--grid);vertical-align:top}
 .map tr.group td{background:var(--tile);font:600 12px Montserrat,"Segoe UI",sans-serif;color:var(--head);letter-spacing:.02em}
 .map td.p{white-space:nowrap}
@@ -101,7 +101,7 @@ section{margin-top:40px}
 .fname{display:flex;flex-wrap:wrap;gap:0;font-family:"IBM Plex Mono",Consolas,monospace;font-size:15px;line-height:1.2}
 .part{display:grid;gap:6px;justify-items:start;padding-right:2px}
 .part .t{padding:5px 3px;border-bottom:3px solid var(--c,var(--hair));color:var(--ink);white-space:pre}
-.part .n{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding-left:3px}
+.part .n{font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding-left:3px}
 .anat .ex{margin-top:14px;display:grid;gap:4px;font-size:14px;color:var(--ink2)}
 .anat .ex code{white-space:normal}
 
