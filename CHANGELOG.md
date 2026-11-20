@@ -624,6 +624,18 @@ Summary: The ILS analysis deck's matrix is now two slides (Personal and Business
 
 Aaron's review of PR #132. Matrix: `matrix_prep_slides.py` replaces the multi-page matrix section with the ILS prep deck's layout drawn in RPE styling; everything comes from the MatrixVal file named in each slide's notes, and the slide says what the extract does not carry (override enabled / pending flags, trend switches: a trend is On when its grid is in the extract with a non-zero factor). Strategic refunds are gone (section, matrix helper, the Zaccounts column alias, a DBIC caption); the extracts do not tag refunds as strategic, so the KPI "Refund Amt" is all refund-history fees and cannot be split. The Windfall Ratio predictor slides are dropped as trend detail. Communication strategies list only active ones, and "None active" when there are none. Bars: `branch_slides.ranked_with_panel` draws the intensity, engagement and volatility rankings at about 60% of the slide with the three highest and three lowest coloured and the rest muted, four headline tiles, a six-row table and the share of the book held by the five largest branches. Charts: the fee and not-repaid lines are a 30-day average with the days faint behind, the end point is labelled with what it is, its window and date, and the fee slide adds last complete month against the same month a year earlier in the +/-2% wording; DBIC feed lines are 5-business-day averages; treemap tiles and bubble labels carry their unit. Contact Us (the CSM, through `rpe_env.csm_contact`) closes both decks; the ILS consultant card is not built because the only record is initials.
 
+### 2026-11-04 — Transaction Intelligence: a Super-Regional Bank tier of 31 banks in the shared competitor dictionary
+
+Summary: payments to 31 large regional banks now count as named-competitor payments in their own Super-Regional Bank tier. Until now they matched nothing unless a CSM had listed the bank for that client.
+
+**Moves the competition figures for any client whose account holders pay one of these banks**: penetration, dollars, the competitor list and the quadrant. James, on 1441 (2026-09-30): "19 national banks seems wrong." The shared dictionary had the 19 national banks and nothing between them and a client's own RegionalCompetitors / LocalCompetitors lists.
+
+- **Where:** `ti/dictionaries/competitors.json` gains the `Super-Regional Bank` tier (kind: competitor), placed between the national and regional tiers.
+- **The 31 banks:** Comerica, First Citizens, First Horizon, Synovus, Frost, BOK, Webster, Valley, Old National, Flagstar, Associated, Prosperity, Wintrust, UMB, Pinnacle, Texas Capital, Popular, Cadence, Hancock Whitney, Arvest, BankUnited, Simmons, United Community, Atlantic Union, Commerce, FNBO, Fulton, Trustmark, Ameris, SouthState, FirstBank.
+- **Client lists still win:** a client's own Regional / Local lists take precedence by name.
+- **Origin:** the list and patterns come from the 2026-09-30 `test/unified-analysis` work (kept as `backup/txn-intelligence-migration`). No pattern is shared with another institution.
+- **Test:** `tests/test_ti_super_regional_tier.py`.
+
 ### 2026-11-04 — ILS Program Analysis deck: the analysis team's Python builder on RPE styling, with the pasted R / Power BI / Excel charts redrawn in Python (new, `build/ils_analysis/`)
 
 Summary: A new builder, `build/ils_analysis/`, makes a client's ILS Program Analysis deck from the extracts in a data-pull folder on RPE styling, and draws in Python the charts and tables the analysis team pastes in each cycle from R, Power BI and Excel; it is separate from the Executive Review, writes only to Build Artifacts, and is not wired into the monthly run.
