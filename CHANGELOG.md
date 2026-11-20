@@ -15,6 +15,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-20 — ILS analysis: peer comparisons on eight measures, two to a slide (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck's peer comparison grows from three measures on one slide to eight measures over four slides per account type, never more than two on a slide: NSF/OD usage, fee revenue, items paid and losses, and refunds and Reg E. A measure the client's extract cannot give is left out and said why, never shown as 0.
+
+Aaron, 2026-11-20: "build out additional peer comparison slides. No more than 2 comparisons per slide."
+
+- **Measures**: items per 1,000 open accounts and users as a share of open accounts; fees per open account and per user; pay rate and loss rate; refunds as a share of fees and Reg E opt-in (Personal only). `peers_slides.GROUPS` holds the pairs and `MAX_PER_SLIDE = 2`; a test fails if a group grows past two.
+- **One calculation**: the client's own figures and every peer's come from `peer_pull.metrics_from_frame`, with the same Data Validation clean-up (`validate_zaccounts`), so a slide cannot compare two arithmetics.
+- **Unknown is blank, not 0**: refunds when the extract's Refund_Amt_365 is blank; a loss rate above 100% or no charge-off dollars on a book with 100 or more users (the extract does not carry charge-offs); Reg E when no open account is coded opted in. Such a peer is left out of that measure only; each measure has its own peer count.
+- **Peer table**: `peer_pull` reads six more ZAccounts columns and re-reads any row from before them. Re-pulled 2026-11-20 for 347 client and account-type rows; the old table is kept in `peers/_before_2026-11-20/`.
+- **A section that vanishes says so**: a section that adds no slide and gives no reason, or a Contact Us slide that could not be drawn, is now a REVIEW in the deck checks. Industry Update, the peer slide and Contact Us dropped silently when the share root was passed through a Bash shell, which turns the share's leading `\\` into a single `\`.
+- Tests: four new in `tests/test_ils_analysis.py`, synthetic data only.
+
 ### 2026-11-20 — ILS analysis: the analysis team's own rules for losses, active accounts, the KPI population and data clean-up (`build/ils_analysis/`)
 
 Summary: The ILS analysis deck now follows the analysis team's notebooks for monthly loss rates, open active accounts, which account types the 365-day KPI counts, and the Data Validation clean-up (negative charge-offs, savings accounts, 1970 null dates); the KPI table gains Active Checking Accts, % Closed Accts Charged Off and % Active Users. On twenty recent analyst-built pulls the not-repaid and KPI tables now match the analyst decks cell for cell.

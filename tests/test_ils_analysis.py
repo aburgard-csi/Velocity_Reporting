@@ -447,7 +447,7 @@ def test_peers_are_client_numbers_only_and_need_five(tmp_path):
     from ils_review import peers_slides as P
     sh, dk = _deck(tmp_path)
     notes = P.add_peers(dk, _cfg(tmp_path, peer_pool=_pool(6)), R.Frame(_loaded()), None, section="peers")
-    assert len(sh.prs.slides) == 1
+    assert len(sh.prs.slides) == 2                  # usage and fee revenue; a table without the newer columns draws nothing else
     s = sh.prs.slides[0]
     note = s.notes_slide.notes_text_frame.text
     assert "Peers by client number" in note and "2000" in note and "Demo" not in note.split("Source:")[0]
@@ -663,7 +663,7 @@ def test_exception_items_are_one_slide_when_the_dbic_carries_the_channels():
     from ils_review import build as B
     run = SimpleNamespace(cfg=SimpleNamespace(dbic_path="x_dbic.txt", sections=["dbic", "exception_items"]),
                           _dbic=SimpleNamespace(available=True, channels=({("Personal", "PD"): {"POS": 3}}, {"POS": 3})))
-    assert B._dbic_channels(run) and B._sec_exception_items(run, "exception_items") == []
+    assert B._dbic_channels(run) and "carried on the DBIC channel slide" in B._sec_exception_items(run, "exception_items")[0]
     run.cfg.sections = ["exception_items"]
     assert not B._dbic_channels(run)
 
@@ -727,3 +727,47 @@ def test_the_analysis_teams_cleaned_decline_file_is_read_by_its_own_names(tmp_pa
     ld.zaccounts.assign(branch="1").to_csv(za_p, index=False)
     got = D.load(str(za_p), declines_path=found["declines_path"])
     assert {"odstatuscode", "prodcode", "transaction_amount"} <= set(got.declines.columns)
+
+
+
+def _full_pool(n_peers, refunds=True):
+    pool = _pool(n_peers)
+    for i, (k, row) in enumerate(sorted(pool["metrics"].items())):
+        row.update({"pd365": row["items365"] * 0.8, "fees365_all": row["fees365"] * 1.1, "co365_all": 20000 + 1000 * i,
+                    "refund365_all": (5000 + 300 * i) if refunds else "", "eligible": 9000, "rege_y": 1500 + 50 * i})
+    return pool
+
+
+def test_peer_slides_carry_at_most_two_comparisons_and_a_missing_measure_is_left_out(tmp_path):
+    from ils_review import peers_slides as P
+    assert all(len(keys) <= P.MAX_PER_SLIDE == 2 for _, _, keys in P.GROUPS)
+    assert {k for _, _, keys in P.GROUPS for k in keys} == set(P.SPEC)          # every measure is on some slide
+    sh, dk = _deck(tmp_path)
+    notes = P.add_peers(dk, _cfg(tmp_path, peer_pool=_full_pool(6, refunds=False)), R.Frame(_loaded()), None, section="peers")
+    titles = [next(x.text_frame.text for x in s.shapes if x.has_text_frame) for s in sh.prs.slides]
+    assert len(titles) == 4 and titles[2].startswith("Personal accounts: items paid and losses")
+    assert all(len(sc["numbers"]["metrics"]) <= 2 for sc in dk.sidecars if sc["key"].startswith("peers_"))
+    last = [sc for sc in dk.sidecars if sc["key"] == "peers_personal_refunds_rege"][0]
+    assert set(last["numbers"]["metrics"]) == {"rege_pct"}          # this client's extract has no refund data
+    assert any("Refunds, share of collected fees" in n for n in notes)
+    assert titles[3].startswith("Personal accounts: Reg E opt-in against")       # titled for what it shows
+
+
+def test_the_client_and_its_peers_go_through_one_calculation():
+    from ils_review import peers_slides as P, peer_pull
+    fr = R.Frame(_loaded())
+    mine = P.own_metrics(fr, "Personal")
+    raw = fr.za.rename(columns=str.lower)
+    assert P.values(mine) == P.values(peer_pull.metrics_from_frame(raw)["Personal"])
+    assert P.values({"open_accounts": 10, "items365": 5, "fees365": 50, "users365": 2})["loss_rate"] is None   # an old row: unknown, not 0
+
+
+def test_a_section_that_vanishes_silently_or_a_missing_contact_slide_is_reported(tmp_path):
+    import json
+    from ils_review import deck_checks as DC
+    idx = tmp_path / "figures_index.json"
+    idx.write_text(json.dumps({"skipped_or_noted": [
+        "Industry update (standard): produced no slides and gave no reason; check its inputs (RPE_DATA_ROOT and the files it reads there).",
+        "Contact Us slide not added: no CSM for client 1", "Pulling back: a note that is fine"]}), encoding="utf-8")
+    found = DC.index_findings(str(idx))
+    assert [lvl for lvl, _ in found] == ["REVIEW", "REVIEW"]

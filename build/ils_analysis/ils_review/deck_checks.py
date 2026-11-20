@@ -79,7 +79,8 @@ def index_findings(index_path):
         n = str(note)
         if "failed to build" in n:
             out.append(("FAIL", n[:240]))
-        elif " extract ends " in n or "holds no dated rows" in n:
+        elif " extract ends " in n or "holds no dated rows" in n or "produced no slides and gave no reason" in n \
+                or n.startswith("Contact Us slide not added"):
             out.append(("REVIEW", n[:240]))
     return out
 

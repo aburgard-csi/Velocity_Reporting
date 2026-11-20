@@ -174,7 +174,7 @@ def _dbic_channels(run):
 def _sec_exception_items(run, key):
     # One slide, not two (Aaron, 2026-11-17): with the DBIC channel table, the medians ride on that slide.
     if _dbic_channels(run):
-        return []
+        return ["Exception items by channel: carried on the DBIC channel slide, which has the channel table and medians."]
     return CS.add_exception_items(run.dk, run.cfg, run.fr, section=key, progress=run.say)
 
 
@@ -443,9 +443,14 @@ def build_review(cfg: BuildConfig, progress=None):
             run.notes.append(f"{sec.label}: skipped — no {' or '.join(missing)} supplied.")
             return
         say(f"Building section: {sec.label}…")
-        before = len(dk.generated)
+        before, notes_before, errors_before = len(dk.generated), len(run.notes), len(run.errors)
         try:
             run.notes.extend(n for n in (BUILDERS[key](run, key) or []) if n)
+            if len(dk.generated) == before and len(run.notes) == notes_before and len(run.errors) == errors_before:
+                # A section that adds nothing and says nothing (the Industry Update and peer slides when the share
+                # root could not be read) would otherwise vanish from the deck unnoticed.
+                run.notes.append(f"{sec.label}: produced no slides and gave no reason; check its inputs "
+                                 "(RPE_DATA_ROOT and the files it reads there).")
         except Exception as exc:
             detail = traceback.format_exc(limit=3).strip().splitlines()[-1]
             run.errors.append(f"{sec.label}: failed to build — {type(exc).__name__}: {exc}. ({detail})")
@@ -483,6 +488,7 @@ def build_review(cfg: BuildConfig, progress=None):
     except SystemExit as exc:
         contact = None
         run.build_log.append(f"Contact Us slide not added: {exc}")
+        run.notes.append(f"Contact Us slide not added: {exc}")        # deck_checks reports it (REVIEW)
     if contact:
         cs = shell.add_slide()
         dk.generated.append(cs)
