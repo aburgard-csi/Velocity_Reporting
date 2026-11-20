@@ -170,6 +170,14 @@ def fees_daily(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
     daily = daily.reindex(idx, fill_value=0.0)
     if len(daily) < 60:
         return R.skipped(key, f"Collected fees - {accttype}", "fewer than 60 days of notices, too short for a 30-day average")
+    # The slide's table is the last 12 complete months. An account type whose notices all fall before them (a small
+    # business book with no recent notices) has no table, and the slide
+    # would claim a window it does not have, so it is skipped and says why.
+    tbl = monthly_fee_table(fr, accttype, ref=ref)
+    if not tbl or not tbl.get("rows"):
+        return R.skipped(key, f"Collected fees - {accttype}",
+                         f"no notices in the last 12 complete months (its notices run "
+                         f"{daily.index.min():%Y-%m-%d} to {daily.index.max():%Y-%m-%d})")
     avg30 = daily.rolling(30).mean()
     last_day = daily.index.max()
     fig, ax = R.new_fig(*size)
@@ -197,7 +205,6 @@ def fees_daily(fr, accttype, out_dir, size=(7.7, 4.45), ref=None):
                                "first_30d_avg": float(avg30.dropna().values[0])})
     res.numbers["year_on_year"] = _month_vs_year_ago(daily, fr)
     res.notes.append("The line is the 30-day average of daily collected fees; each day is drawn faintly behind it.")
-    tbl = monthly_fee_table(fr, accttype, ref=ref)
     if tbl:
         res.tables["monthly"] = {"headers": tbl["headers"], "rows": tbl["rows"]}
         res.numbers["monthly"] = tbl["numbers"]
@@ -215,6 +222,8 @@ def paid_vs_returned_stats(fr, accttype, n=12):
         return None
     mons = _month_range(fr, n)
     s = z[z["noticedate"].dt.to_period("M").isin(mons)]
+    if s.empty or not float(s["Items"].sum()):
+        return None          # notices, but none in the window: no shares to show
     paid, ret = s[s["PD"] == 1], s[s["PD"] == 0]
     tot_items, tot_fees = float(s["Items"].sum()), float(s["CollectedFees"].sum())
     paid_items, ret_items = float(paid["Items"].sum()), float(ret["Items"].sum())

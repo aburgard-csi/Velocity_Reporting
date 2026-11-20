@@ -15,6 +15,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-20 — ILS analysis: input checks for headerless, stale and empty extracts (`build/ils_analysis/ils_review/`)
+
+Summary: The ILS analysis build now checks each extract before it builds: it reads debit-decline and refund files saved without a header line, names any dated extract that ends well before the data date, shows n/a instead of zero where a window has no data, and leaves out fee-trend and peer slides for an account type with no notices.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues." Each check below came from a pull that built with an error or a misleading slide:
+
+- **Headerless extracts.** A DebitDecline or RefundHistory file whose first line does not name `AcctID` but has the query's field count (10 and 14) is read with the known column names (`DECLINE_COLUMNS`, `REFUND_COLUMNS`), and Data Notes say so. It stopped the build with `KeyError: 'acctid'`.
+- **Stale extracts** (`extract_checks`, `STALE_EXTRACT_DAYS` = 31). A ZTrend, DebitDecline or RefundHistory extract whose newest row is a month or more before the data date, or that holds no dated rows, is named in the build log and on Data Notes. "About this data" prints the decline file's date range.
+- **No data is not zero.** "Debit declines by ILS limit" reads n/a in its decline columns, with a line naming where the extract ends, when the extract stops before its 90-day window. It showed 0 in every band.
+- **An account type with no notices in the window.** Fee trending and paid vs returned skip it with the reason. They raised `IndexError` and `ZeroDivisionError`, which also lost the other account type's paid-vs-returned and not-repaid slides. The peer slide is left out for an account type with no NSF/OD items in 365 days, where it ranked zeros as "Lowest of N clients".
+- Tests: `tests/test_ils_analysis.py` (five new, synthetic data).
+
 ### 2026-11-19 — Insurance by line says "Life"; the competition report reads a short window (`ti/dictionaries/financial_services_patterns.json`, `deck/txn_leakage.py`, `competition_report.py`)
 
 Summary: The Transaction Intelligence Insurance by line slide now names the life line "Life", and a client with under six months of transaction data no longer stops the Transaction Intelligence build.

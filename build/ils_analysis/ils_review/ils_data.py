@@ -14,6 +14,7 @@ so a new client works out of the box, and explicit overrides still win.
 """
 from __future__ import annotations
 
+import csv
 import os
 import re
 from dataclasses import dataclass, field
@@ -329,6 +330,27 @@ def infer_snapshot(za, zaccounts_path=None):
     return d or datetime.today()
 
 
+# The debit-decline and refund-history extracts' columns, in the order the queries write them. Some pulls are saved
+# without the header line (both files then start on a data row), so a file whose first line
+# does not name its key column but has exactly this many fields is read with these names.
+DECLINE_COLUMNS = ["AcctID", "ODStatusCode", "ProdCode", "HASHED_ACCOUNT", "DECLINE_DATE", "TRANSACTION_TYPE",
+                   "TRANSACTION_AMOUNT", "MCC_CODE", "TERMINAL_LOCATION", "ID"]
+REFUND_COLUMNS = ["Branch", "BranchName", "CORecoveryID", "AcctID", "Principal", "Fees", "NsfOdFees", "SodFees",
+                  "MiscFees", "TotalAmount", "Type", "Date", "Reason", "IMPORT_ID"]
+
+
+def _headerless_names(path, key, columns):
+    """The column names to read `path` with when it was saved without its header line, else None (read the header).
+    A first line that names `key` is a header. One that does not, and splits into exactly len(columns) fields, is a
+    data row of the known layout. Anything else is left to the normal read, which then fails on the missing key."""
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        first = f.readline()
+    fields = next(csv.reader([first]), [])
+    if any(str(c).strip().lower() == key.lower() for c in fields):
+        return None
+    return columns if len(fields) == len(columns) else None
+
+
 def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
          digital_branches=None, retail_branches=None, include_digital=True,
          snapshot_date=None, progress=None, declines_path=None, refunds_path=None):
@@ -403,7 +425,13 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
     dd = rf = None
     if declines_path:
         say(f"Loading debit declines — {os.path.basename(str(declines_path))}…")
+        names = _headerless_names(declines_path, "AcctID", DECLINE_COLUMNS)
+        if names:
+            say("  no header line: read with the known debit-decline columns.")
+            notes.append("The debit-decline extract has no header line; it was read with the query's ten columns "
+                         "in order (AcctID, ODStatusCode, ProdCode, HASHED_ACCOUNT, DECLINE_DATE, ...).")
         dd = pd.read_csv(declines_path, encoding="utf-8-sig", low_memory=False,
+                         header=None if names else "infer", names=names,
                          usecols=lambda c: str(c).strip().lower() in
                          ("acctid", "odstatuscode", "prodcode", "decline_date", "transaction_type",
                           "transaction_amount", "mcc_code"))
@@ -413,7 +441,13 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
         say(f"  {len(dd):,} decline rows.")
     if refunds_path:
         say(f"Loading refund history — {os.path.basename(str(refunds_path))}…")
-        rf = pd.read_csv(refunds_path, encoding="utf-8-sig", low_memory=False)
+        names = _headerless_names(refunds_path, "AcctID", REFUND_COLUMNS)
+        if names:
+            say("  no header line: read with the known refund-history columns.")
+            notes.append("The refund-history extract has no header line; it was read with the query's fourteen "
+                         "columns in order (Branch, BranchName, CORecoveryID, AcctID, ..., Type, Date, Reason).")
+        rf = pd.read_csv(refunds_path, encoding="utf-8-sig", low_memory=False,
+                         header=None if names else "infer", names=names)
         rf.columns = [str(c).strip() for c in rf.columns]
         rf["AcctID"] = rf["AcctID"].astype(str).str.strip()
         rf["Date"] = pd.to_datetime(rf["Date"], errors="coerce")
@@ -442,8 +476,40 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
                      (f"; account fields (status, 365-day totals, charge-off flag) are as pulled on {pulled:%Y-%m-%d}."
                       if pulled else "; account fields are as pulled."))
         say(notes[-1])
+    for msg in extract_checks(snapshot, ztrend=zt, declines=dd, refunds=rf):
+        notes.append(msg)
+        say(f"  ! {msg}")
     return Loaded(zaccounts=za, ztrend=zt, snapshot=snapshot, branches=branches, notes=notes,
                   file_date=date_from_name(zaccounts_path), declines=dd, refunds=rf)
+
+
+# A dated extract whose newest row is this many days or more before the pull's data date is named on Data Notes: the
+# pulls arrive as one folder, and an extract run from an older saved query (or copied in from an earlier pull) still
+# loads, builds and validates, while every window that reads it comes up empty or short.
+STALE_EXTRACT_DAYS = 31
+
+
+def extract_checks(snapshot, *, ztrend=None, declines=None, refunds=None):
+    """One line per dated extract that ends well before the data date, or holds no dated rows. Nothing is dropped
+    here; each section that reads an extract decides how to show a short one, and this says why up front."""
+    if snapshot is None:
+        return []
+    asof = pd.Timestamp(snapshot)
+    out = []
+    for name, df, col in (("ZTrend notice", ztrend, "noticedate"), ("DebitDecline", declines, "decline_date"),
+                          ("RefundHistory", refunds, "Date")):
+        if df is None or col not in df.columns:
+            continue
+        dates = pd.to_datetime(df[col], errors="coerce").dropna()
+        if dates.empty:
+            out.append(f"The {name} extract holds no dated rows ({len(df):,} rows read).")
+            continue
+        end = dates.max()
+        gap = (asof - end).days
+        if gap >= STALE_EXTRACT_DAYS:
+            out.append(f"The {name} extract ends {end:%Y-%m-%d}, {gap:,} days before the data date ({asof:%Y-%m-%d}); "
+                       f"figures that read its recent months are short or n/a. Ask for a current pull of it.")
+    return out
 
 
 # ── shared little helpers ───────────────────────────────────────────────────

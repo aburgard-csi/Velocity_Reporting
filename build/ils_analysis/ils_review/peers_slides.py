@@ -221,6 +221,12 @@ def add_peers(dk, cfg, fr, S, *, section, progress=None):
         mine = own_metrics(fr, t)
         if mine is None:
             continue
+        if not float(mine.get("items365") or 0):
+            # Nothing to rank: an account type with no NSF/OD items reads "Lowest of N clients" on every measure, all
+            # zeros, which says nothing and reads as a judgement.
+            notes.append(f"Peer comparison, {t}: skipped; the {int(mine.get('open_accounts') or 0):,} open "
+                         f"{t.lower()} account(s) had no NSF/OD items in 365 days, so there is nothing to rank.")
+            continue
         mv = values(mine)
         by_metric = {m["key"]: ([], []) for m in METRICS}
         stamps = []

@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import os
 
+import pandas as pd
+
 import shapes
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
@@ -152,7 +154,9 @@ def add_data_pull(dk, cfg, fr, *, section="data_pull"):
     if loaded.ztrend is not None:
         rows.append(["Notices (ZTrend)", _pulled(cfg.ztrend_path), f"{len(loaded.ztrend):,} notices", "Cure, pull-back and repayment"])
     if loaded.declines is not None:
-        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines", "Debit declines"])
+        dts = loaded.declines["decline_date"].dropna()
+        span = f", {dts.min():%m/%d/%y} to {dts.max():%m/%d/%y}" if len(dts) else ""
+        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines{span}", "Debit declines"])
     if getattr(loaded, "refunds", None) is not None:
         rows.append(["Refunds", _pulled(cfg.refunds_path), f"{len(loaded.refunds):,} refunds", "Collected fees net of refunds"])
     if cfg.matrix_path:
@@ -586,7 +590,16 @@ def add_debit_declines(dk, cfg, fr, *, section, progress=None):
                             section=section,
                             source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, the 90 days to the data as-of date, "
                                         "counted as distinct amounts per account per day (the analysis notebook's rule), joined by account id."))
-            table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
+            if d.get("declines_stale"):
+                end = d["declines_end"]
+                when = f"{end:%b} {end.day}, {end.year}" if end is not None and pd.notna(end) else "an unknown date"
+                msg = (f"The DebitDecline extract ends {when}, before the 90 days to {fr.asof:%b} {fr.asof.day}, "
+                       f"{fr.asof.year}, so its declines read n/a here; a current decline pull fills them in.")
+                table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.1, max_fs=12)
+                T.bullets_real(s2, LEFT, 5.95, FULL_W, 0.6, [msg], size=14, min_size=12)
+                notes.append(f"Debit declines ({t}) by ILS limit: {msg}")
+            else:
+                table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
     return notes
 
 

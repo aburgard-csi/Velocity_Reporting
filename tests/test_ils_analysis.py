@@ -217,6 +217,53 @@ def test_movement_wording_follows_the_two_percent_band():
     assert "up" not in F.movement_phrase(90, 100, str) and "(-10%)" in F.movement_phrase(90, 100, str)
 
 
+def test_fee_trend_skips_an_account_type_with_no_complete_month_in_the_window(tmp_path):
+    """An account type whose notices all fall before the 12-month window (a small business book). The monthly table was
+    empty and add_fee_trends raised IndexError, which also took paid vs returned and the not-repaid slides with it. The
+    account type is now skipped with the reason, as a result that is not ok."""
+    ld = _loaded()
+    ld.ztrend["noticedate"] = pd.to_datetime(["2024-06-01", "2024-06-01", "2024-07-15", "2024-09-01"])
+    res = F.fees_daily(R.Frame(ld), "Personal", str(tmp_path))
+    assert res.ok is False and "no notices in the last 12 complete months" in res.skipped
+    assert "2024-06-01 to 2024-09-01" in res.skipped
+    # paid vs returned divided by the window's item count (ZeroDivisionError) for the same account type
+    assert F.paid_vs_returned_stats(R.Frame(ld), "Personal") is None
+
+
+def test_a_decline_extract_that_ends_before_the_window_reads_na_not_zero():
+    """A DebitDecline extract that ends a year before the pull's data date: the
+    'Debit declines by ILS limit' table showed 0 declines in every band. Missing data is stated, never zeroed: the
+    decline cells read n/a and the result says where the extract ends."""
+    from ils_review import r_accounts as RA
+    ld = _loaded()
+    ld.zaccounts["declines_365"] = [2.0, 3.0, 0.0]
+    ld.declines = pd.DataFrame({"acctid": ["1", "2"], "decline_date": pd.to_datetime(["2025-01-10", "2025-02-01"]),
+                                "transaction_amount": [20.0, 35.0]})
+    d = RA.debit_decline_tables(R.Frame(ld), "Personal")
+    assert d["declines_stale"] and d["declines_end"] == pd.Timestamp("2025-02-01")
+    rows = d["score_bands"]["rows"]
+    assert rows and all(r[3] == "n/a" and r[4] == "n/a" for r in rows)
+    # a current extract still counts
+    ld.declines["decline_date"] = pd.to_datetime([ASOF - pd.Timedelta(days=5)] * 2)
+    d = RA.debit_decline_tables(R.Frame(ld), "Personal")
+    assert not d["declines_stale"] and any(r[3] != "n/a" for r in d["score_bands"]["rows"])
+
+
+def test_a_dated_extract_that_ends_well_before_the_data_date_is_named():
+    """A pull folder can carry an extract from an older run. Each dated extract's newest row is checked against the data
+    date; one that ends STALE_EXTRACT_DAYS or more before it, or holds no dated rows, is named for Data Notes."""
+    from ils_review import ils_data
+    asof = pd.Timestamp("2026-11-05")
+    current = pd.DataFrame({"noticedate": pd.to_datetime(["2026-10-01", "2026-11-04"])})
+    old = pd.DataFrame({"decline_date": pd.to_datetime(["2024-09-07", "2025-11-16"])})
+    blank = pd.DataFrame({"Date": [None, None]})
+    msgs = ils_data.extract_checks(asof, ztrend=current, declines=old, refunds=blank)
+    assert len(msgs) == 2
+    assert "DebitDecline extract ends 2025-11-16, 354 days before the data date" in msgs[0]
+    assert "RefundHistory extract holds no dated rows" in msgs[1]
+    assert ils_data.extract_checks(asof, ztrend=current) == []
+
+
 def test_fee_chart_callout_says_what_it_is(tmp_path):
     res = F.fees_daily(R.Frame(_loaded()), "Personal", str(tmp_path))
     assert res.ok is False or (res.numbers["latest_30d_avg_date"] and any("30-day average" in n for n in res.notes))
@@ -326,6 +373,18 @@ def test_peers_are_client_numbers_only_and_need_five(tmp_path):
     sh3, dk3 = _deck(tmp_path)
     P.add_peers(dk3, _cfg(tmp_path, peer_pool=_pool(6, as_of="202301")), R.Frame(_loaded()), None, section="peers")
     assert "Not enough peers" in " ".join(shp.text_frame.text for shp in sh3.prs.slides[0].shapes if shp.has_text_frame)   # stale extracts do not count
+
+
+def test_an_account_type_with_no_items_is_not_ranked_against_peers(tmp_path):
+    """An account type with open accounts but no NSF/OD items read "Lowest of N clients" on every
+    measure, all zeros. An account type with no items in 365 days gets no peer slide, and the notes say why."""
+    from ils_review import peers_slides as P
+    ld = _loaded()
+    ld.zaccounts["items365"] = 0.0
+    sh, dk = _deck(tmp_path)
+    notes = P.add_peers(dk, _cfg(tmp_path, peer_pool=_pool(6)), R.Frame(ld), None, section="peers")
+    assert len(sh.prs.slides) == 0
+    assert any("no NSF/OD items in 365 days, so there is nothing to rank" in n for n in notes)
 
 
 def test_industry_slides_come_from_the_standard_file_and_say_so(tmp_path):
@@ -467,6 +526,37 @@ def test_as_of_cuts_the_dated_rows_and_says_so(tmp_path):
     assert cut.ztrend["noticedate"].max() <= pd.Timestamp("2025-10-15")
     assert pd.Timestamp(cut.snapshot) == pd.Timestamp("2025-10-15")
     assert any("Built as of 2025-10-15" in n and "as pulled on 2026-11-06" in n for n in cut.notes)
+
+
+def test_headerless_decline_and_refund_extracts_are_read_by_their_known_columns(tmp_path):
+    """Debit-decline and refund-history files saved without their header line:
+    and the build stopped on KeyError 'acctid'. A first line that does not name AcctID but has the query's field count
+    is read with the known columns, and the Data Notes say so; a file with its header reads as before."""
+    from ils_review import ils_data
+    ld = _loaded()
+    za, zt = ld.zaccounts.assign(branch="1"), ld.ztrend
+    zp, tp = tmp_path / "9999_zaccounts_20261106.csv", tmp_path / "9999_ztrend_20261106.csv"
+    za.to_csv(zp, index=False)
+    zt.to_csv(tp, index=False)
+    dec = ["502,3,0082,0B208D33D1CA,2024-09-07 00:00:00.000,SIG,15.00,6012,SYNTHETIC MERCHANT,1",
+           "503,3,0082,0B208D33D1CB,2024-09-08 00:00:00.000,PIN,40.00,5411,SYNTHETIC GROCER,2"]
+    ref = ['0009,Synthetic Branch,18689,132664,60.5100,0.0000,0.0000,0.0000,0.0000,60.5100,"Charge         ",'
+           '2024-09-07 00:00:00.000,Undefined,10650']
+    dp, rp = tmp_path / "DebitDecline.csv", tmp_path / "RefundHistory.csv"
+    dp.write_text("\n".join(dec) + "\n", encoding="utf-8")
+    rp.write_text("\n".join(ref) + "\n", encoding="utf-8")
+    got = ils_data.load(str(zp), str(tp), declines_path=str(dp), refunds_path=str(rp))
+    assert len(got.declines) == 2 and list(got.declines["acctid"]) == ["502", "503"]
+    assert got.declines["decline_date"].min() == pd.Timestamp("2024-09-07")
+    assert len(got.refunds) == 1 and got.refunds["AcctID"].iloc[0] == "132664"
+    assert got.refunds["Date"].iloc[0] == pd.Timestamp("2024-09-07")
+    assert sum("has no header line" in n for n in got.notes) == 2
+    # with the header line, nothing is said and the same rows are read
+    dp.write_text(",".join(ils_data.DECLINE_COLUMNS) + "\n" + "\n".join(dec) + "\n", encoding="utf-8")
+    rp.write_text(",".join(ils_data.REFUND_COLUMNS) + "\n" + "\n".join(ref) + "\n", encoding="utf-8")
+    again = ils_data.load(str(zp), str(tp), declines_path=str(dp), refunds_path=str(rp))
+    assert len(again.declines) == 2 and len(again.refunds) == 1
+    assert not any("has no header line" in n for n in again.notes)
 
 
 def test_channel_medians_are_per_channel_over_the_year():
