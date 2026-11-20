@@ -626,6 +626,24 @@ def build_artifacts() -> Path:
 _ARTIFACTS_MADE: set = set()
 
 
+# ------------------------------------------------------------------ the peer reference
+# One compiled, dated reference of every figure any peer comparison uses (Aaron, 2026-11-20: "develop a peer comparison
+# reference file that gets saved to the reporting folder. any metrics we use for peer comparisons should be compiled in
+# one source, tagged and dated"). Written by scripts/build_peer_reference.py: `peer_metrics_<YYYY-MM-DD>.csv`, a
+# `peer_metrics_latest.csv` copy and `manifest.json`. It sits at the root beside `Client CSM List.csv`, not in Outputs/
+# (decks only) and not in Build Artifacts/ (build evidence). No repo-local fallback: a reference written anywhere but
+# the share is a second copy, so an unset or missing RPE_DATA_ROOT raises (data_root()).
+PEER_REFERENCE_DIRNAME = "Peer Reference"
+
+
+def peer_reference_dir(create: bool = False) -> Path:
+    """`<RPE_DATA_ROOT>/Peer Reference/`, made only when `create` is true."""
+    path = data_root() / PEER_REFERENCE_DIRNAME
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 VIP_DATA_DIRNAME = "VIP Data"
 
 
