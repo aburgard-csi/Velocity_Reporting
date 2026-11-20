@@ -374,10 +374,11 @@ def compile_cp(cat, period, notes):
             DEFS[("CP", "loans_charged_off")], "CashPlease pack (cp_extract)", "Sheila in Claude: cashplease_report")
     coll = PP.collect_cashplease(PP.PeerCtx(client=SENTINEL))
     packs = rpe_env.build_artifacts() / "cashplease" / "packs"
-    rows, n = [], 0
+    rows, n, gens = [], 0, []
     for cid, r in _peer_rows(coll).items():
         d = _json_file(packs / f"{cid}_cashplease.json") or {}
         gen = MC.report_date(d.get("report_generated"))
+        gens.append(gen)
         src = _in("CP weekly", d.get("source_file")) or _rel(packs / f"{cid}_cashplease.json")
         mon = sorted((x.get("period_month") for x in d.get("monthly") or [] if x.get("period_month")), reverse=True)
         n += 1
@@ -398,7 +399,8 @@ def compile_cp(cat, period, notes):
     bench = _json_file(packs / "peer_benchmark.json")
     ds = _json_file(rpe_env.build_artifacts() / "perf_dashboard" / "dataset.json") or {}
     for seg, d, src, gen_date in (
-            ("all_tabs_rollup", bench, _rel(packs / "peer_benchmark.json"), None),
+            # The rollup is the same weekly's all-clients tab, so it carries the packs' report date.
+            ("all_tabs_rollup", bench, _rel(packs / "peer_benchmark.json"), max((g for g in gens if g), default=None)),
             ("current_clients", ds.get("cp_peer"), _rel(rpe_env.build_artifacts() / "perf_dashboard" / "dataset.json"),
              _date(ds.get("generated") or ds.get("generated_at")))):
         if not d:

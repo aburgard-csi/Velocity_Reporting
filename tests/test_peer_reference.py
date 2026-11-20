@@ -175,6 +175,7 @@ def test_cashplease_rows_carry_no_name_and_the_cohorts_in_client_units(root):
     assert roll["charge_off"]["value"] == pytest.approx(5.0) and roll["per_1k"]["value"] == pytest.approx(25.0)
     assert cur["per_1k"]["value"] == pytest.approx(22.0) and "charge_off" not in cur   # absent stays absent, never 0
     assert roll["per_1k"]["client_id"] == "" and cur["avg_loan"]["source_date"] == "2026-11-18"
+    assert roll["per_1k"]["source_date"] == "2026-11-17"                              # the weekly the packs came from
 
 
 def test_rems_rows_carry_no_name_and_name_the_window(root):

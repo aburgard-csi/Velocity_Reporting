@@ -25,10 +25,23 @@ Aaron, 2026-11-20: "develop a peer comparison reference file that gets saved to 
 - **Values are the consumers' own.** Each program's rows are what `review_page/peer_pool.py`'s collectors return, the code behind Live Review's "How you compare" and every deck's How You Compare slide. They are run with a client id that is in no pool, so every client comes back with its own number. Also recorded: the ARS fields Sheila in Claude ranks, the two CashPlease cohort benchmarks and the ILS peer table. A test checks the rows against the collector.
 - **Dated and idempotent.** Today's file is rewritten only when its content changed, and an earlier day's file is never touched. A program that fails to compile stops the write unless `--allow-partial` is given.
 - **Found while compiling it: places where one comparison is computed two ways.** These are recorded in the PR for a decision and are not changed here:
-  - CashPlease has three peer definitions, and two of them are on one deck. The Peer Comparison slide reads the workbook's all-tabs rollup, which includes cancelled and non-current tabs and pools the figures. The How You Compare slide uses the median of current clients. The performance dashboard pools current clients.
-  - Sheila in Claude's `peer_compare` ranks ARS clients with its own arithmetic. It uses nearest-rank quartiles, puts the client in its own pool, uses an exact-period pool, ranks on the latest mailing's response rate, and has no minimum-pool guards on Reg E or take rate. That arithmetic is not `peer_compare.py`'s.
-  - ICS referrals per 1,000 DDAs puts two numerators in one distribution: the all-clients referral file for most clients and the VIP trend for the rest. The file's `source_kind` column shows which source each client used.
-  - MRPC monthly enrollments per 1,000 debit-card accounts, and MRPC share of goal, are not trimmed to complete months in `peer_pool`. The file flags any such month `month_complete = no`.
+  - **CashPlease has three peer definitions, and two of them are on one deck.** The first compiled file (2026-11-20) shows how far apart they are:
+
+    | Measure | All-tabs rollup (Peer Comparison slide) | Current clients, pooled (dashboard) | Median of current clients (How You Compare slide) |
+    | --- | --- | --- | --- |
+    | Loans per 1,000 DDAs | 16.7 | 14.6 | 12.4 |
+    | Charge-off rate | 6.3% | not available | 3.4% |
+
+    The Peer Comparison slide reads the workbook's all-tabs rollup, which includes cancelled and non-current tabs. The performance dashboard pools current clients. The How You Compare slide takes the median of current clients.
+  - **Sheila in Claude's `peer_compare` ranks ARS clients with arithmetic that is not `peer_compare.py`'s:**
+    - nearest-rank quartiles
+    - the client counted in its own pool
+    - a pool limited to the exact period
+    - ranking on the latest mailing's response rate
+    - no minimum-pool guards on Reg E or take rate (they change no figure today, because all 41 packs pass them)
+  - **Two problems that are in the code but change no figure today:**
+    - ICS referrals per 1,000 DDAs can put two numerators in one distribution: the all-clients referral file, or the VIP trend for a client the file lacks. Every row in the first file came from the referral file, and the `source_kind` column shows the source on every row.
+    - MRPC monthly enrollments and share of goal are not trimmed to complete months in `peer_pool`. The file judges `month_complete` against each source's own date, and no row in the first file was flagged `no`.
 
 ### 2026-11-19 — Insurance by line says "Life"; the competition report reads a short window (`ti/dictionaries/financial_services_patterns.json`, `deck/txn_leakage.py`, `competition_report.py`)
 
