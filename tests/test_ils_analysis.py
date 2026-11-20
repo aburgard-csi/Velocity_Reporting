@@ -249,6 +249,54 @@ def test_a_decline_extract_that_ends_before_the_window_reads_na_not_zero():
     assert not d["declines_stale"] and any(r[3] != "n/a" for r in d["score_bands"]["rows"])
 
 
+def test_charged_off_accounts_without_notice_history_are_counted():
+    """A pull whose ZTrend leaves out most charged-off accounts' notices gives near-zero default rates in every band
+    (the analysis team's deck showed the same zeros, unexplained). The coverage is measured so the build can say so."""
+    from ils_review import scoring_summary as SS
+    ld = _loaded()
+    extra = pd.DataFrame({"acctid": [f"x{i}" for i in range(11)], "accttype": "Personal", "acctstatus": "C",
+                          "Chargeoff_Account": True})
+    ld.zaccounts = pd.concat([ld.zaccounts, extra], ignore_index=True)
+    cov = SS.charged_off_notice_coverage(R.Frame(ld), "Personal")
+    assert cov == {"accounts": 12, "with_notices": 1, "share": 1 / 12}
+    assert SS.charged_off_notice_coverage(R.Frame(_loaded()), "Business") == {"accounts": 0, "with_notices": 0, "share": 1.0}
+
+
+def test_a_percentage_of_a_thousand_or_more_drops_its_decimals():
+    from ils_review.ils_data import pct
+    assert pct(2500.517, 2) == "2,501%" and pct(-1250.4, 2) == "-1,250%"
+    assert pct(52.254, 2) == "52.25%" and pct(999.994, 2) == "999.99%" and pct(None) == "—"
+
+
+def test_the_integrity_table_fits_its_longest_table_name():
+    """REF_CHARGE_OFF has no break point; at the fixed 1.8 design width it broke mid-word."""
+    from ils_review import dbic_slides as D, theme as T
+    import textfit
+    rows = [["Adjustments File type must be Refund, Charge, Recovery, SOD or Repayment", "REF_CHARGE_OFF", "Type", "10"],
+            ["Balance is overdrawn, however DaysOD is less than 1", "ACCOUNTS", "Balance, DaysOD", "10"]]
+    w = D._integrity_widths(rows, 11.6, 10.0)
+    assert abs(sum(w) - 11.6) < 1e-6 and w[1] > 1.8
+    assert textfit.text_width_in("REF_CHARGE_OFF", 10.0, "Calibri") + 0.2 <= w[1] * T.SX
+
+
+def test_a_tab_delimited_extract_is_read_by_its_own_delimiter(tmp_path):
+    """One pull's DebitDecline file was tab-delimited beside comma-delimited ZAccounts and ZTrend, and the build stopped
+    on KeyError 'acctid'. Each extract's delimiter is read from its own first line."""
+    from ils_review import ils_data
+    ld = _loaded()
+    za, zt = ld.zaccounts.assign(branch="1"), ld.ztrend
+    zp, tp = tmp_path / "9999_zaccounts_20261110.csv", tmp_path / "9999_ztrend_20261110.csv"
+    za.to_csv(zp, index=False, sep="\t")
+    zt.to_csv(tp, index=False)
+    dp = tmp_path / "9999_Debitdecline_20261110.csv"
+    dp.write_text("\t".join(ils_data.DECLINE_COLUMNS) + "\n"
+                  "130\t0   \t0045\tABC\t2026-09-11 00:00:00.000\tPIN\t15.99\t5734\tSYNTHETIC\t1\n", encoding="utf-8")
+    assert ils_data.sniff_sep(str(dp)) == "\t" and ils_data.sniff_sep(str(tp)) == ","
+    got = ils_data.load(str(zp), str(tp), declines_path=str(dp))
+    assert len(got.zaccounts) == 3 and list(got.declines["acctid"]) == ["130"]
+    assert got.declines["transaction_amount"].iloc[0] == 15.99
+
+
 def test_a_dated_extract_that_ends_well_before_the_data_date_is_named():
     """A pull folder can carry an extract from an older run. Each dated extract's newest row is checked against the data
     date; one that ends STALE_EXTRACT_DAYS or more before it, or holds no dated rows, is named for Data Notes."""
@@ -262,6 +310,44 @@ def test_a_dated_extract_that_ends_well_before_the_data_date_is_named():
     assert "DebitDecline extract ends 2025-11-16, 354 days before the data date" in msgs[0]
     assert "RefundHistory extract holds no dated rows" in msgs[1]
     assert ils_data.extract_checks(asof, ztrend=current) == []
+
+
+def test_deck_checks_find_all_zero_and_all_na_columns_and_empty_tables():
+    from ils_review import deck_checks as D
+    head = ["Band", "Accounts", "Declines", "Median"]
+    rows = [head, ["A", "10", "0", "n/a"], ["B", "12", "0", "n/a"], ["Total", "22", "0", "n/a"]]
+    found = D.table_findings(rows, "slide 9")
+    assert ("REVIEW", "slide 9: column 'Declines' is zero in every row") in found
+    assert ("REVIEW", "slide 9: column 'Median' is n/a in every row") in found
+    assert not any("'Accounts'" in m for _, m in found)
+    assert D.table_findings([head], "slide 9") == [("REVIEW", "slide 9: a table with a header and no rows")]
+    assert D.table_findings([head, ["A", "10", "$0", "n/a"]], "s") == []          # one row cannot show a whole column
+    money = [["M", "Fees"], ["Jan", "$0"], ["Feb", "$0.00"]]
+    assert D.table_findings(money, "s") == [("REVIEW", "s: column 'Fees' is zero in every row")]
+
+
+def test_an_empty_chart_is_stated_not_raised():
+    """python-pptx raises "chart data contains no categories" on an empty chart, and that took a whole section down
+    (branch overdraft activity for an account type with no users). Every chart helper states it instead."""
+    from pptx import Presentation
+    from ils_review import charts as C
+    prs = Presentation()
+    for fn, args in ((C.bar, ([], [])), (C.column, ([], [])), (C.grouped_column, ([], [])), (C.line, ([], [])),
+                     (C.stacked_bar_100, ([], []))):
+        s = prs.slides.add_slide(prs.slide_layouts[6])
+        assert fn(s, 1, 1, 6, 3, *args) is None
+        assert "No data for this chart" in " ".join(sh.text_frame.text for sh in s.shapes if sh.has_text_frame)
+        assert not any(sh.has_chart for sh in s.shapes)
+
+
+def test_pulled_falls_back_to_the_file_time_when_the_name_has_no_stamp(tmp_path):
+    from ils_review import client_slides as CS
+    stamped, plain = tmp_path / "9999_zaccounts_20261106.csv", tmp_path / "Zaccounts.csv"
+    stamped.write_text("x", encoding="utf-8")
+    plain.write_text("x", encoding="utf-8")
+    assert CS._pulled(str(stamped)) == "Nov 6, 2026"
+    assert CS._pulled(str(plain)).endswith("(file time)")
+    assert CS._pulled(None) == "n/a"
 
 
 def test_fee_chart_callout_says_what_it_is(tmp_path):

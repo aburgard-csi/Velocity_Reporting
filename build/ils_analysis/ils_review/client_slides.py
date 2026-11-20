@@ -106,9 +106,18 @@ def _emit(dk, res, cfg, fr, *kinds):
 
 # ═════════════════════════════ about this data (slide 3) ═════════════════════
 def _pulled(path):
+    """The pull date from the file name's stamp; a file named without one (`Zaccounts.csv`) falls back to its modified
+    time, marked as such, since copies keep it. n/a only when neither is readable."""
     from .ils_data import date_from_name
     d = date_from_name(path) if path else None
-    return f"{d:%b} {d.day}, {d.year}" if d else "n/a"
+    if d:
+        return f"{d:%b} {d.day}, {d.year}"
+    try:
+        from datetime import datetime
+        m = datetime.fromtimestamp(os.path.getmtime(path))
+        return f"{m:%b} {m.day}, {m.year} (file time)"
+    except (OSError, TypeError, ValueError):
+        return "n/a"
 
 
 def add_data_pull(dk, cfg, fr, *, section="data_pull"):

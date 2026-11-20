@@ -66,12 +66,18 @@ def add_yoy(dk, cfg, fr, S, *, section, progress=None):
     lab_cur = f"{R.periods.mon_yy(f'{mons[0].year}-{mons[0].month:02d}')} to {R.periods.mon_yy(f'{mons[-1].year}-{mons[-1].month:02d}')}"
     pm0, pm1 = mons[0] - 12, mons[-1] - 12
     lab_prev = f"{R.periods.mon_yy(f'{pm0.year}-{pm0.month:02d}')} to {R.periods.mon_yy(f'{pm1.year}-{pm1.month:02d}')}"
-    stats = {}
+    stats, left_out = {}, []
     for t in ("Personal", "Business"):
         z = fr.zt_type(t)
         if z is None or z.empty:
             continue
-        stats[t] = (_window_stats(z, a, b), _window_stats(z, pa, pb))
+        st = (_window_stats(z, a, b), _window_stats(z, pa, pb))
+        if t != "Personal" and not st[0]["notices"]:
+            # a table of zeros against last year's handful reads "-100%" on every row and says nothing about the program
+            left_out.append(f"Year over year ({t}): left out; no {t.lower()} notices in the last 12 complete months "
+                            f"({st[1]['notices']:,} in the 12 before).")
+            continue
+        stats[t] = st
     if "Personal" not in stats:
         return ["Year-over-year comparison skipped: no personal notices."]
     cur, prev = stats["Personal"]
@@ -112,8 +118,9 @@ def add_yoy(dk, cfg, fr, S, *, section, progress=None):
             parity.append(compare(nums[t]["change_pct"][k_], dk.ref.get(rk), tol=0.10, measure=f"{t} {k_} change %"))
     dk.sidecars.append({"key": "yoy_comparison", "title": "Year-over-year comparison", "numbers": nums, "parity": R._jsonable(parity),
                         "notes": [f"Windows: {lab_cur} against {lab_prev}. The hand-built deck's windows are not reproducible from the extract (see module docstring)."]})
-    return [f"Year over year: this build compares the last 12 complete months ({lab_cur}) with the 12 before; the hand-built deck's windows "
-            f"cannot be reproduced from the extract, so its levels differ and its changes agree to within about two points. Its default-rate row is not shown."]
+    return left_out + [
+        f"Year over year: this build compares the last 12 complete months ({lab_cur}) with the 12 before; the hand-built deck's windows "
+        f"cannot be reproduced from the extract, so its levels differ and its changes agree to within about two points. Its default-rate row is not shown."]
 
 
 # ═════════════════════════════ who generates the fees ═══════════════════════════

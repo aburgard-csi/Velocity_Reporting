@@ -551,6 +551,16 @@ def build_review(cfg: BuildConfig, progress=None):
     say(f"Done — {total} generated slide(s) in a {len(shell.prs.slides)}-slide deck.")
     if run.errors:
         say(f"{len(run.errors)} section(s) reported an error; see the Data Notes slide.")
+    # the defects a layout validator cannot see (a failed section, a stale extract, an all-zero column): deck_checks
+    try:
+        from . import deck_checks
+        found = deck_checks.check(out_path, os.path.join(chart_dir, "figures_index.json"))
+        fails = sum(1 for f in found if f[0] == "FAIL")
+        say(f"Deck checks: {fails} FAIL, {len(found) - fails} REVIEW.")
+        for level, msg in found:
+            say(f"  {level} {msg}")
+    except Exception as exc:        # the checks never take a built deck down
+        say(f"Deck checks could not run: {type(exc).__name__}: {exc}")
     return out_path
 
 

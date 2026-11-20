@@ -255,9 +255,24 @@ def _rename_map(columns, alias_map):
     return out
 
 
+def sniff_sep(path):
+    """The extract's delimiter from its first line: tab, pipe or comma, whichever the line holds most of. Pulls are
+    saved by different hands: one pull's DebitDecline file was tab-delimited while its other files used commas, and
+    read as one comma-separated column it lost every field the build needs."""
+    try:
+        with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
+            first = f.readline()
+    except (OSError, TypeError):
+        return ","
+    counts = {sep: first.count(sep) for sep in ("\t", "|", ",")}
+    best = max(counts, key=counts.get)
+    return best if counts[best] else ","
+
+
 def _read_selective(path, alias_map, **kw):
     """Read only the columns this app uses — these extracts are 60-190 MB."""
     kw.setdefault("encoding", "utf-8-sig")            # the exports carry a BOM
+    kw.setdefault("sep", sniff_sep(path))
     header = pd.read_csv(path, nrows=0, **kw)
     rename = _rename_map(header.columns, alias_map)
     df = pd.read_csv(path, usecols=list(rename.keys()), low_memory=False, **kw)
@@ -345,7 +360,7 @@ def _headerless_names(path, key, columns):
     data row of the known layout. Anything else is left to the normal read, which then fails on the missing key."""
     with open(path, encoding="utf-8-sig", newline="") as f:
         first = f.readline()
-    fields = next(csv.reader([first]), [])
+    fields = next(csv.reader([first], delimiter=sniff_sep(path)), [])
     if any(str(c).strip().lower() == key.lower() for c in fields):
         return None
     return columns if len(fields) == len(columns) else None
@@ -430,7 +445,7 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
             say("  no header line: read with the known debit-decline columns.")
             notes.append("The debit-decline extract has no header line; it was read with the query's ten columns "
                          "in order (AcctID, ODStatusCode, ProdCode, HASHED_ACCOUNT, DECLINE_DATE, ...).")
-        dd = pd.read_csv(declines_path, encoding="utf-8-sig", low_memory=False,
+        dd = pd.read_csv(declines_path, encoding="utf-8-sig", low_memory=False, sep=sniff_sep(declines_path),
                          header=None if names else "infer", names=names,
                          usecols=lambda c: str(c).strip().lower() in
                          ("acctid", "odstatuscode", "prodcode", "decline_date", "transaction_type",
@@ -446,7 +461,7 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
             say("  no header line: read with the known refund-history columns.")
             notes.append("The refund-history extract has no header line; it was read with the query's fourteen "
                          "columns in order (Branch, BranchName, CORecoveryID, AcctID, ..., Type, Date, Reason).")
-        rf = pd.read_csv(refunds_path, encoding="utf-8-sig", low_memory=False,
+        rf = pd.read_csv(refunds_path, encoding="utf-8-sig", low_memory=False, sep=sniff_sep(refunds_path),
                          header=None if names else "infer", names=names)
         rf.columns = [str(c).strip() for c in rf.columns]
         rf["AcctID"] = rf["AcctID"].astype(str).str.strip()
@@ -546,8 +561,13 @@ def money(x, decimals=0):
 
 
 def pct(x, decimals=1):
+    """A percentage for a slide. At 1,000% and over the decimals go and a thousands separator comes in: a loss rate on a
+    band with very little in fees and large losses runs to thousands of percent, which broke mid-word in its table
+    column, and the hundredths say nothing at that size."""
     if x is None or (isinstance(x, float) and (np.isnan(x) or np.isinf(x))):
         return "—"
+    if abs(x) >= 1000:
+        return f"{x:,.0f}%"
     return f"{x:.{decimals}f}%"
 
 

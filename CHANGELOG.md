@@ -15,6 +15,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-20 — ILS analysis: deck checks after every build; prep slides merged hidden; more input and empty-data checks (`build/ils_analysis/`)
+
+Summary: Every ILS analysis build now checks its own deck for failed sections, stale extracts and all-zero or all-n/a columns; the ILS prep slides merge into the deck as hidden context, with the matrix slides visible at the start of each account type's risk analysis; and empty data, tab-delimited files and very large percentages no longer break a slide.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues", and "Build the ILS prep slides as hidden slides at the front of the deck so they don't print or show when we display ... I like the matrix slides at the beginning of the risk analysis for personal or business." Found by building twelve recent analyst-built pulls and checking each by script:
+
+- **`ils_review/deck_checks.py`**, run at the end of every build: FAIL for a section that failed to build; REVIEW for a stale extract, a table column that is zero or n/a in every row, a table with no rows, a peer slide that is "Lowest" on every measure, and a chart stated as having no data.
+- **`merge_review.py` is general** (it was one client's script): prep slides go in hidden after the cover; the Matrix Parameters / Overrides slides go in visible before the first Scoring Summary slide of their account type, or after the Appendix divider when the deck has none; optional CashPlease section before Thank You; page numbers count visible slides only. `tests/test_ils_merge_review.py`.
+- **Delimiters** are read from each extract's first line (`sniff_sep`): a tab-delimited decline file stopped a build.
+- **Empty data is stated, never a crash**: every chart helper writes "No data for this chart" where python-pptx raised on an empty chart; branch overdraft activity and year over year leave out an account type with no users or no notices, and say so.
+- **Charged-off accounts with no notice history**: when fewer than a quarter of an account type's charged-off accounts have any notice in ZTrend, the Scoring Summary notes that its near-zero default rates come from missing history, not missing losses.
+- **Fit**: the data-integrity table sizes its Table and Column columns to the longest database name (`REF_CHARGE_OFF` broke mid-word); a percentage of 1,000% or more drops its decimals; "Pulled" falls back to the file's own time when its name carries no date.
+- Tests: `tests/test_ils_analysis.py` (eight new) and `tests/test_ils_merge_review.py`, synthetic data only.
+
 ### 2026-11-20 — ILS analysis: input checks for headerless, stale and empty extracts (`build/ils_analysis/ils_review/`)
 
 Summary: The ILS analysis build now checks each extract before it builds: it reads debit-decline and refund files saved without a header line, names any dated extract that ends well before the data date, shows n/a instead of zero where a window has no data, and leaves out fee-trend and peer slides for an account type with no notices.
