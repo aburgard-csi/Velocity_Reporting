@@ -173,6 +173,14 @@ def main():
               "so these name clients no module is built for):")
         for f in idx["flags"]:
             print("  ", f)
+    if built:
+        # The packs and the peer benchmark were rewritten: the peer reference's CashPlease rows follow, in the
+        # background (Aaron, 2026-11-22: "update data on the peer comparison dataset when we build new presentations").
+        try:
+            import build_peer_reference as BPR
+            BPR.spawn_update(["CP"], f"build_cashplease {a.period} ({len(built)} modules)")
+        except Exception as exc:                              # noqa: BLE001 - the modules are built whatever happens here
+            print(f"Peer reference: not updated ({type(exc).__name__}: {exc})")
     return 1 if failed else 0
 
 

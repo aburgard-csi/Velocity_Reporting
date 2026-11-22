@@ -1368,10 +1368,22 @@ def cmd_build(a):
         "finished": f"{dt.datetime.now():%Y-%m-%d %H:%M}", "minutes": round((time.time() - t0) / 60, 1)},
         indent=1), encoding="utf-8")
     if delivered:
+        update_peer_reference(progs, f"ars_launcher build {a.client} {period}")
         print(f"\nDone. The deck is in Outputs, ready to review, save as PDF and email.")
         return 0
     print("\nNot put in Outputs. Details are in " + str(work / "build.log"))
     return 1
+
+
+def update_peer_reference(progs, reason):
+    """Start the peer reference's update for this deck's programs in the background (Aaron, 2026-11-22: "update data on
+    the peer comparison dataset when we build new presentations"). Called only after the deck is in Outputs and after
+    the build's result is written: the update runs as its own process and nothing it does reaches this build."""
+    try:
+        import build_peer_reference as BPR
+        BPR.spawn_update(progs, reason, log=lambda m: print(f"  [..]   {m}", flush=True))
+    except Exception as exc:                                  # noqa: BLE001 - a deck in Outputs is never undone for this
+        print(f"  [..]   Peer reference: not updated ({type(exc).__name__}: {exc})", flush=True)
 
 
 VALIDATION_SUFFIX = ".validation.txt"

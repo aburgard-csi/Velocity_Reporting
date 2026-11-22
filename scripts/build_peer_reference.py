@@ -40,8 +40,22 @@ even with --dry-run. Idempotent: a rerun on the same day whose content is unchan
 file is never touched. A program that fails to compile stops the write (the reference is never quietly short a program)
 unless --allow-partial, which records the failure in the manifest.
 
-Not scheduled and not in the 08:00 watch: run by hand after a month's builds (warm the ICS cache first with
+Not scheduled and not in the 08:00 watch. A full compilation is run by hand (warm the ICS cache first with
 scripts/warm_peer_tables.py when new workbooks have landed).
+
+UPDATED WHEN A DECK IS BUILT (Aaron, 2026-11-22: "update data on the peer comparison dataset when we build new
+presentations"). `--update --programs ARS CP` recompiles only the programs named and keeps every other program's rows,
+sources and catalog entries from the newest file, each row keeping the `compiled_at` of the run that made it. The builds
+start it with `spawn_update(programs, reason)` once a deck has been put in Outputs (ars_launcher build, Sheila's builds
+included; build_cashplease; build_month's batch, once at the end), and the ILS peer pull starts it for ILS once it has
+written the peer table. It runs as its own detached process, its output appended to `Build Artifacts/peer_reference_
+updates.log`, so a build never waits for it and nothing it does can change a build's result. Several PCs can build at
+once: an update takes `Peer Reference/.update.lock` (created exclusively; host, pid, user and time inside; broken after
+LOCK_STALE_MINUTES), waits up to LOCK_WAIT_MINUTES for another update to finish, and then skips a program another update
+already compiled after this one was asked for (`program_compiled_at` in the manifest is when each program's compile
+STARTED, so a compile that began after a build finished has that build's figures). In an update a program that fails
+keeps its previous rows; the manifest names it under `failed` and `stale` rather than the file losing it. With no file yet,
+an update compiles every program.
 """
 import argparse
 import csv
@@ -51,8 +65,10 @@ import hashlib
 import io
 import json
 import os
+import socket
 import subprocess
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -67,6 +83,13 @@ import rpe_env                                               # noqa: E402
 SENTINEL = "__peer_reference__"      # a client id in no pool: every real client comes back as a peer, with its number
 LATEST_NAME = "peer_metrics_latest.csv"
 MANIFEST_NAME = "manifest.json"
+LOCK_NAME = ".update.lock"
+LOCK_STALE_MINUTES = 90          # a full compilation over the share takes 15 to 25 minutes
+LOCK_WAIT_MINUTES = 60           # how long an update waits for another one to finish before it gives up
+LOCK_POLL_SECONDS = 15
+UPDATE_LOG_NAME = "peer_reference_updates.log"
+# The deck tags a build carries -> the programs of this reference whose figures that build can change.
+DECK_PROGRAMS = {"ARS": "ARS", "ICS": "ICS", "MRPC": "MRPC", "CP": "CP"}
 PROGRAMS = ("ARS", "ICS", "MRPC", "CP", "REMS", "ILS")
 
 COLUMNS = ["program", "metric_key", "segment", "scope", "client_id", "period", "period_basis", "month_complete", "value",
@@ -479,9 +502,20 @@ COMPILERS = {"ARS": compile_ars, "ICS": compile_ics, "MRPC": compile_mrpc, "CP":
 
 
 # ================================================================= assemble and write
+def _now():
+    return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def _stamp():
+    """When a compile started or an update was asked for, to the microsecond: a compile that began in the same second
+    as a request, but before it, must not count as having read that build's figures."""
+    return datetime.datetime.now().isoformat(timespec="microseconds")
+
+
 def compile_all(period, programs=PROGRAMS, log=print):
-    cat, rows, sources, failed, notes = Catalog(), [], {}, {}, []
+    cat, rows, sources, failed, notes, started = Catalog(), [], {}, {}, [], {}
     for p in programs:
+        started[p] = _stamp()                                 # the START: whatever landed before it is in these rows
         try:
             got, src = COMPILERS[p](cat, period, notes)
         except (Exception, SystemExit) as exc:                # noqa: BLE001 - every failure is named, never swallowed
@@ -492,24 +526,32 @@ def compile_all(period, programs=PROGRAMS, log=print):
         rows.extend(got)
         sources[p] = src
         log(f"{p}: {len(got)} rows")
+    _sort(rows)
+    return {"rows": rows, "catalog": list(cat.items.values()), "sources": sources, "failed": failed, "notes": notes,
+            "program_compiled_at": {p: t for p, t in started.items() if p not in failed}}
+
+
+def _sort(rows):
     rows.sort(key=lambda r: (r["program"], r["metric_key"], r["segment"], r["scope"], r["client_id"].zfill(6), r["period"]))
-    return {"rows": rows, "catalog": list(cat.items.values()), "sources": sources, "failed": failed, "notes": notes}
+    return rows
 
 
-def _csv_text(rows, compiled_at):
+def _csv_text(rows, compiled_at, stamp=True):
+    """The file's text. A row kept from an earlier compilation (an update) keeps its own `compiled_at`; a row compiled now
+    gets `compiled_at`. With stamp=False every compile time is left blank (the content hash)."""
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=COLUMNS, lineterminator="\n")
     w.writeheader()
     for r in rows:
-        out = dict(r, compiled_at=compiled_at)
+        out = dict(r, compiled_at=(r.get("compiled_at") or compiled_at) if stamp else "")
         out["value"] = format(r["value"], ".10g")
         w.writerow(out)
     return buf.getvalue()
 
 
 def content_hash(rows):
-    """SHA-256 of the rows without the compile time, so an unchanged rerun is recognised."""
-    return hashlib.sha256(_csv_text(rows, "").encode("utf-8")).hexdigest()
+    """SHA-256 of the rows without the compile times, so an unchanged rerun is recognised."""
+    return hashlib.sha256(_csv_text(rows, "", stamp=False).encode("utf-8")).hexdigest()
 
 
 def counts(rows):
@@ -529,7 +571,8 @@ def _git_commit():
 
 
 def _write(path, text):
-    part = path.with_name(path.name + ".part")
+    # The part name is this process's own: two PCs writing at the same moment never share one.
+    part = path.with_name(f"{path.name}.{socket.gethostname()}-{os.getpid()}.part")
     part.write_text(text, encoding="utf-8", newline="")
     os.replace(part, path)
 
@@ -555,11 +598,188 @@ def write_reference(result, period, today=None, now=None, log=print):
         "latest_file": LATEST_NAME, "content_hash": h, "git_commit": _git_commit(), "rows": len(result["rows"]),
         "rows_by_program": {p: sum(1 for r in result["rows"] if r["program"] == p) for p in PROGRAMS},
         "rows_by_metric": counts(result["rows"]), "sources": result["sources"], "failed": result["failed"],
-        "notes": result["notes"], "columns": COLUMNS, "catalog": result["catalog"],
+        "program_compiled_at": result.get("program_compiled_at") or {}, "stale": result.get("stale") or {},
+        "update": result.get("update"), "notes": result["notes"], "columns": COLUMNS, "catalog": result["catalog"],
     }
     _write(folder / MANIFEST_NAME, json.dumps(manifest, indent=2, default=str))
     log(f"wrote {dated} ({len(result['rows'])} rows), {LATEST_NAME} and {MANIFEST_NAME}")
     return "written", folder
+
+
+# ================================================================= update after a build
+def read_reference(folder):
+    """(rows, manifest) of the newest file in `folder`; ([], {}) when there is none or it cannot be read. Values are
+    floats again, and each row keeps the compile time it was written with."""
+    man = _json_file(Path(folder) / MANIFEST_NAME) or {}
+    try:
+        with open(Path(folder) / LATEST_NAME, encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+    except OSError:
+        return [], {}
+    out = []
+    for r in rows:
+        v = _value(r.get("value"))
+        if v is None:
+            continue
+        out.append(dict(r, value=v))
+    return out, man
+
+
+def merge(old_rows, old_man, result, programs):
+    """The reference after recompiling `programs`: their rows from `result`, every other program's rows (and its sources,
+    catalog entries and compile time) from the previous file. A program in `programs` that failed keeps its previous
+    rows, named under `failed` and `stale` (with the compile time of the rows kept)."""
+    failed = dict(result["failed"])
+    fresh = [p for p in programs if p not in failed]
+    old_when = old_man.get("program_compiled_at") or {}
+    old_at = lambda p: old_when.get(p) or old_man.get("compiled_at") or ""
+    rows = [r for r in old_rows if r["program"] not in fresh] + [r for r in result["rows"] if r["program"] in fresh]
+    catalog = [e for e in old_man.get("catalog") or [] if e.get("program") not in fresh]
+    catalog += [e for e in result["catalog"] if e.get("program") in fresh]
+    sources = {p: s for p, s in (old_man.get("sources") or {}).items() if p not in fresh}
+    sources.update({p: s for p, s in result["sources"].items() if p in fresh})
+    when = {p: old_at(p) for p in PROGRAMS if p not in fresh and (old_at(p) and any(r["program"] == p for r in old_rows))}
+    when.update({p: t for p, t in (result.get("program_compiled_at") or {}).items() if p in fresh})
+    # A program that failed before and was not retried stays failed; one retried now carries today's failure.
+    prev_failed = {p: e for p, e in (old_man.get("failed") or {}).items() if p not in programs}
+    stale = {p: old_at(p) for p in failed if any(r["program"] == p for r in old_rows)}
+    stale.update({p: s for p, s in (old_man.get("stale") or {}).items() if p not in programs})
+    notes = [n for n in old_man.get("notes") or [] if n.split(":", 1)[0] not in fresh]
+    notes += [n for n in result["notes"] if n.split(":", 1)[0] in fresh or n.split(":", 1)[0] not in PROGRAMS]
+    return {"rows": _sort(rows), "catalog": sorted(catalog, key=lambda e: (e["program"], e["metric_key"])),
+            "sources": sources, "failed": {**prev_failed, **failed}, "stale": stale, "notes": notes,
+            "program_compiled_at": when}
+
+
+def _lock_info():
+    return {"host": socket.gethostname(), "pid": os.getpid(), "user": os.environ.get("USERNAME") or os.environ.get("USER"),
+            "started": _now()}
+
+
+def take_lock(folder, wait_minutes=LOCK_WAIT_MINUTES, poll=LOCK_POLL_SECONDS, log=print, clock=time.time,
+              sleep=time.sleep):
+    """The update lock's path once this process holds it, or None after waiting `wait_minutes`. A lock older than
+    LOCK_STALE_MINUTES (a crashed update) is broken."""
+    path = Path(folder) / LOCK_NAME
+    deadline = clock() + 60 * wait_minutes
+    said = False
+    while True:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                age = (clock() - path.stat().st_mtime) / 60
+            except OSError:
+                continue                                      # released between the two calls: try again at once
+            if age > LOCK_STALE_MINUTES:
+                log(f"breaking a lock {age:.0f} minutes old: {_json_file(path)}")
+                path.unlink(missing_ok=True)
+                continue
+            if clock() >= deadline:
+                log(f"gave up after {wait_minutes} minutes: another update still holds {path} ({_json_file(path)})")
+                return None
+            if not said:
+                log(f"waiting for another update to finish ({_json_file(path)})")
+                said = True
+            sleep(poll)
+            continue
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(_lock_info(), f)
+        return path
+
+
+def release_lock(path):
+    if path is None:
+        return
+    info = _json_file(path) or {}
+    if info.get("host") == socket.gethostname() and info.get("pid") == os.getpid():
+        Path(path).unlink(missing_ok=True)
+
+
+def update(programs, reason="", requested_at=None, today=None, log=print, compile_fn=None, wait_minutes=LOCK_WAIT_MINUTES):
+    """Recompile `programs` into the reference and keep every other program's rows. Returns 'written', 'unchanged',
+    'current' (another update compiled them after `requested_at`), 'locked' (gave up waiting) or 'failed'."""
+    compile_fn = compile_fn or compile_all
+    programs = [p for p in PROGRAMS if p in set(programs)]
+    if not programs:
+        log("nothing to update: no program of this reference was named")
+        return "unchanged"
+    folder = rpe_env.peer_reference_dir(create=True)
+    log(f"update {' '.join(programs)}" + (f" ({reason})" if reason else "") + (f", asked for at {requested_at}" if requested_at else ""))
+    lock = take_lock(folder, wait_minutes=wait_minutes, log=log)
+    if lock is None:
+        return "locked"
+    try:
+        old_rows, old_man = read_reference(folder)
+        if requested_at and old_rows:
+            when = old_man.get("program_compiled_at") or {}
+            todo = [p for p in programs if not (when.get(p) and when[p] > requested_at)]
+            if not todo:
+                log(f"current: {' '.join(programs)} compiled after this update was asked for; nothing to do")
+                return "current"
+            programs = todo
+        if not old_rows:
+            log("no reference yet: compiling every program")
+            programs = list(PROGRAMS)
+        period = (today or datetime.date.today()).strftime("%Y.%m")
+        result = compile_fn(period, programs, log=log)
+        if old_rows:
+            merged = merge(old_rows, old_man, result, programs)
+        else:
+            if result["failed"]:
+                log("not written: " + "; ".join(f"{p} ({e})" for p, e in result["failed"].items()))
+                return "failed"
+            merged = dict(result, stale={})
+        merged["update"] = {"programs": programs, "reason": reason, "requested_at": requested_at, "by": _lock_info()}
+        status, _ = write_reference(merged, period, today=today, log=log)
+        if status == "unchanged":
+            # Same figures, but these programs WERE compiled now (or failed now): say so, so an update waiting behind
+            # this one skips them, and a failure is never hidden by an unchanged file.
+            man = _json_file(folder / MANIFEST_NAME) or {}
+            man["program_compiled_at"] = {**(man.get("program_compiled_at") or {}), **merged["program_compiled_at"]}
+            for k in ("failed", "stale", "update"):
+                man[k] = merged.get(k)
+            _write(folder / MANIFEST_NAME, json.dumps(man, indent=2, default=str))
+        return status
+    finally:
+        release_lock(lock)
+
+
+def spawn_update(programs, reason="", log=print):
+    """Start an update of `programs` as its own detached process and return at once; never raises. Its output is appended
+    to Build Artifacts/peer_reference_updates.log (a file, never a pipe). Returns the process id, or None."""
+    try:
+        if os.environ.get("RPE_PEER_REFERENCE_UPDATE", "1").strip() == "0":    # the test suite sets this
+            return None
+        # clients.md tokens carry a shape after the program ("ICS-REFERRALS"): the program is the part before it.
+        tags = {str(x).upper().split("-")[0] for x in programs}
+        programs = [p for p in PROGRAMS if p in {DECK_PROGRAMS.get(t, t) for t in tags}]
+        if not programs:
+            return None
+        logf = rpe_env.build_artifacts() / UPDATE_LOG_NAME
+        cmd = [sys.executable, str(Path(__file__).resolve()), "--update", "--programs", *programs,
+               "--requested-at", _stamp(), "--reason", reason or "build"]
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        flags = 0
+        if os.name == "nt":
+            flags = (getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                     | getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        with open(logf, "a", encoding="utf-8") as out:
+            out.write(f"\n=== {_now()} {socket.gethostname()} {' '.join(programs)} ({reason})\n")
+            out.flush()
+            kw = dict(stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, env=env, cwd=str(REPO), close_fds=True)
+            try:                                              # leave the build's job object, so its end does not end this
+                p = subprocess.Popen(cmd, creationflags=flags | getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0), **kw)
+            except OSError:
+                p = subprocess.Popen(cmd, creationflags=flags, **kw)
+        log(f"Peer reference: updating {' '.join(programs)} in the background (log: {logf})")
+        return p.pid
+    except Exception as exc:                                  # noqa: BLE001 - the build it follows must never fail for this
+        try:
+            log(f"Peer reference: the background update could not be started ({type(exc).__name__}: {exc})")
+        except Exception:                                     # noqa: BLE001
+            pass
+        return None
 
 
 def main(argv=None, today=None, log=print):
@@ -568,7 +788,17 @@ def main(argv=None, today=None, log=print):
     ap.add_argument("--programs", nargs="*", default=list(PROGRAMS), choices=PROGRAMS)
     ap.add_argument("--dry-run", action="store_true", help="compile and report; write nothing")
     ap.add_argument("--allow-partial", action="store_true", help="write even when a program failed to compile")
+    ap.add_argument("--update", action="store_true",
+                    help="recompile only --programs and keep every other program's rows from the newest file")
+    ap.add_argument("--requested-at", help="(update) skip a program another update compiled after this time")
+    ap.add_argument("--reason", default="", help="(update) what asked for it, recorded in the manifest")
     a = ap.parse_args(argv)
+    if a.update:
+        if a.dry_run:
+            ap.error("--update writes; use a plain --dry-run to see what a compilation would hold")
+        status = update(a.programs, a.reason, a.requested_at, today=today, log=log)
+        log(f"update: {status}")
+        return 0 if status in ("written", "unchanged", "current") else 1
     period = a.period or (today or datetime.date.today()).strftime("%Y.%m")
     result = compile_all(period, a.programs, log=log)
     for k, v in counts(result["rows"]).items():

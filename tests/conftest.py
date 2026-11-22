@@ -15,6 +15,10 @@ for p in (BUILD, ARS, ICS, MRPC, SCRIPTS):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+# A test that runs a build to the end must not start a real peer reference update in the background
+# (build_peer_reference.spawn_update); the tests of that function set it back themselves.
+os.environ["RPE_PEER_REFERENCE_UPDATE"] = "0"
+
 
 def pytest_configure(config):
     """An EMPTY RPE_DATA_ROOT gets the three folders the pipeline expects, as CI's runner does.
