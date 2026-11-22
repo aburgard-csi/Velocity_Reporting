@@ -230,6 +230,32 @@ def test_ils_rows_are_per_account_type(root):
     assert got[("personal", "users_pct")]["period"] == "2026.06"
 
 
+
+def test_every_ils_peer_measure_has_a_definition_and_reg_e_is_personal_only(root):
+    pytest.importorskip("pptx")
+    try:
+        from ils_review import peers_slides as IP
+    except Exception as exc:                               # noqa: BLE001
+        pytest.skip(f"ils_review not importable: {exc}")
+    d = root / "Build Artifacts" / "ils_analysis" / "peers"
+    d.mkdir(parents=True)
+    cols = ["client_id", "accttype", "as_of", "open_accounts", "items365", "fees365", "users365", "pd365",
+            "fees365_all", "co365_all", "refund365_all", "eligible", "rege_y", "source"]
+    with open(d / "ils_peer_metrics.csv", "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        w.writerow([IDS[0], "Personal", "20260612", 1000, 2000, 50000.0, 150, 1800, 52000.0, 5200.0, 1040.0, 900, 300, "x.csv"])
+        w.writerow([IDS[0], "Business", "20260612", 100, 50, 900.0, 10, 45, 950.0, 95.0, 19.0, 90, 20, "x.csv"])
+    res = BR.compile_all("2026.11", ["ILS"], log=lambda *a: None)
+    assert not res["failed"], res["failed"]                # a measure with no definition would fail the program
+    got = {(r["segment"], r["metric_key"]): r for r in res["rows"]}
+    for spec in IP.METRICS:
+        assert ("personal", spec["key"]) in got, spec["key"]
+    assert got[("personal", "pay_rate")]["value"] == pytest.approx(90.0)
+    assert got[("personal", "loss_rate")]["value"] == pytest.approx(10.0)
+    assert ("business", "rege_pct") not in got             # the slide shows Reg E for personal accounts only
+
+
 # ----------------------------------------------------------------- the file on the share
 def test_dry_run_writes_nothing(root):
     ars_packs(root)

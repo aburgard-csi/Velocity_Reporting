@@ -86,15 +86,15 @@ fee slides need ILS-wide data and are labelled placeholders.
 * **Days OD.** In the deck it is days since the account last had a positive balance (`noticedate` minus
   `Last_Positive_Date`; 157,932 notices, an exact count match), not days to repayment as the README says.
 * **Data as-of.** The data's maximum `lastupdate` (2026-09-10), not the file stamp (2026-09-11), which goes in the notes.
-* **Open active accounts.** A deposit in the last 240 days or an NSF/OD item in the last 365; calibrated on Achieva (93,670
-  against the deck's 93,668).
+* **Open active accounts.** Open, with more than $50 deposited or at least one NSF/OD item in 365 days: the notebook's
+  `ACTIVITY` flag (cell 38), which reproduces the analyst decks' figure exactly. It replaced a 240-day deposit window fitted
+  on Achieva, which ran -3% to +9% on twelve other clients.
 * **Bands.** `scoring_summary.DECK_BANDS` overrides the three predictors whose bands differ in the deck (Days OD, Windfall Ratio,
   ILS Limit); `predictors("readme")` is the analysis registry.
 
-The 40-day and 240-day values were fitted to one client (Achieva) and tested on a second (Affinity, built with no code
-change). The 240-day open-active window held (personal population within 0.1% of the hand-built deck); the 40-day default
-held to about 0.6 pt on mature accounts but not on accounts under 30 days old. Treat both as unconfirmed with the
-analysis team, not as their rules.
+The 40-day default was fitted to one client (Achieva) and tested on a second (Affinity, built with no code change); it
+held to about 0.6 pt on mature accounts but not on accounts under 30 days old. Treat it as unconfirmed with the analysis
+team, not as their rule.
 
 ## Run
 
