@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import os
 
+import pandas as pd
+
 import shapes
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
@@ -104,9 +106,18 @@ def _emit(dk, res, cfg, fr, *kinds):
 
 # ═════════════════════════════ about this data (slide 3) ═════════════════════
 def _pulled(path):
+    """The pull date from the file name's stamp; a file named without one (`Zaccounts.csv`) falls back to its modified
+    time, marked as such, since copies keep it. n/a only when neither is readable."""
     from .ils_data import date_from_name
     d = date_from_name(path) if path else None
-    return f"{d:%b} {d.day}, {d.year}" if d else "n/a"
+    if d:
+        return f"{d:%b} {d.day}, {d.year}"
+    try:
+        from datetime import datetime
+        m = datetime.fromtimestamp(os.path.getmtime(path))
+        return f"{m:%b} {m.day}, {m.year} (file time)"
+    except (OSError, TypeError, ValueError):
+        return "n/a"
 
 
 def add_data_pull(dk, cfg, fr, *, section="data_pull"):
@@ -152,7 +163,9 @@ def add_data_pull(dk, cfg, fr, *, section="data_pull"):
     if loaded.ztrend is not None:
         rows.append(["Notices (ZTrend)", _pulled(cfg.ztrend_path), f"{len(loaded.ztrend):,} notices", "Cure, pull-back and repayment"])
     if loaded.declines is not None:
-        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines", "Debit declines"])
+        dts = loaded.declines["decline_date"].dropna()
+        span = f", {dts.min():%m/%d/%y} to {dts.max():%m/%d/%y}" if len(dts) else ""
+        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines{span}", "Debit declines"])
     if getattr(loaded, "refunds", None) is not None:
         rows.append(["Refunds", _pulled(cfg.refunds_path), f"{len(loaded.refunds):,} refunds", "Collected fees net of refunds"])
     if cfg.matrix_path:
@@ -278,7 +291,7 @@ def _kpi_detail(dk, cfg, fr, res):
         "Collected fees, charge-offs and refunds are the 365-day totals carried on each account.",
         "Loss rate is charge-off dollars divided by collected fees; refund % is refund dollars divided by collected fees.",
         "A user is an account with at least one NSF/OD item in 365 days.",
-        "Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365.",
+        "Open active accounts are open accounts with more than $50 deposited or an NSF/OD item in the last 365 days.",
     ], size=14)
     say_first(s, "Reference table behind the six headline figures.")
     return [s]
@@ -422,8 +435,7 @@ def add_eligibility(dk, cfg, fr, *, section, progress=None):
                  else f"{t} accounts by overdraft status code")
         s = dk.content(title, f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}), by overdraft status code.",
                        section=section,
-                       source=_src(cfg, fr, "za", extra="Open active = deposit in the last 240 days or an NSF/OD item in the last "
-                                   "365. Users are accounts with at least one NSF/OD item in 365 days. Every code is listed in "
+                       source=_src(cfg, fr, "za", extra="Open active = open with " + "more than $50 deposited or an NSF/OD item in the last 365 days." + " Users are accounts with at least one NSF/OD item in 365 days. Every code is listed in "
                                    "'Appendix: every overdraft status code'."))
         _picture(s, res, LEFT, BODY_T + 0.05, 6.4, 4.5)
         table(s, {"headers": ["Status code", "Accounts", "Can overdraft", "NSF/OD users"], "rows": rows}, 7.1, BODY_T + 0.1, 5.73,
@@ -438,7 +450,7 @@ def _eligibility_detail(dk, cfg, fr, t, tabs, first=True):
     """One appendix slide per account type: every status code, and the NSF/OD item segments below it."""
     s = dk.content(f"Appendix: every overdraft status code and item segment, {t.lower()}",
                    f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}).", section="appendix",
-                   source=_src(cfg, fr, "za", extra="Open active = deposit in the last 240 days or an NSF/OD item in the last 365."))
+                   source=_src(cfg, fr, "za", extra="Open active = open with more than $50 deposited or an NSF/OD item in the last 365 days."))
     table(s, tabs["codes"], LEFT, BODY_T, 6.1, BODY_B - BODY_T, highlight_last=True, max_fs=10)
     table(s, tabs["segments"], 6.85, BODY_T, 5.98, 3.0, highlight_last=True, max_fs=10)
     T.bullets_real(s, 6.85, 5.0, 5.98, 1.4, [
@@ -586,7 +598,16 @@ def add_debit_declines(dk, cfg, fr, *, section, progress=None):
                             section=section,
                             source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, the 90 days to the data as-of date, "
                                         "counted as distinct amounts per account per day (the analysis notebook's rule), joined by account id."))
-            table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
+            if d.get("declines_stale"):
+                end = d["declines_end"]
+                when = f"{end:%b} {end.day}, {end.year}" if end is not None and pd.notna(end) else "an unknown date"
+                msg = (f"The DebitDecline extract ends {when}, before the 90 days to {fr.asof:%b} {fr.asof.day}, "
+                       f"{fr.asof.year}, so its declines read n/a here; a current decline pull fills them in.")
+                table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.1, max_fs=12)
+                T.bullets_real(s2, LEFT, 5.95, FULL_W, 0.6, [msg], size=14, min_size=12)
+                notes.append(f"Debit declines ({t}) by ILS limit: {msg}")
+            else:
+                table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
     return notes
 
 

@@ -246,7 +246,7 @@ def compute_predictor(predictor, fr, cfg, accttype):
     days = None
     if basis == "notebook" and "nb_default" in w.columns:
         w["dflt"] = w["nb_default"]
-        loss_by = w[w["nb_fatal"]].groupby("band")["nb_loss"].sum()
+        loss_by = w.groupby("band")["nb_loss"].sum()      # fatal notices, plus the earliest notice of an account with no last positive date
     else:
         if basis == "readme":
             days = getattr(cfg, "default_repayment_days", 30)
@@ -347,6 +347,24 @@ def _render_table(dk, slide, result, losses_withheld=False):
     return tbl
 
 
+def charged_off_notice_coverage(fr, accttype):
+    """{accounts, with_notices, share} for the account type's charged-off accounts: how many have any ZTrend notice.
+    None when the extract has no charge-off flag or no notices."""
+    try:
+        from .ils_data import _truthy
+        za = fr.za if hasattr(fr, "za") else fr.loaded.zaccounts
+        za = za[za["accttype"].astype(str) == accttype]
+        if "Chargeoff_Account" not in za.columns or not fr.has_trend:
+            return None
+        ids = set(za.loc[_truthy(za["Chargeoff_Account"]), "acctid"].astype(str))
+        if not ids:
+            return {"accounts": 0, "with_notices": 0, "share": 1.0}
+        seen = ids & set(fr.zt["acctid"].astype(str))
+        return {"accounts": len(ids), "with_notices": len(seen), "share": len(seen) / len(ids)}
+    except Exception:                       # a check never takes the section down
+        return None
+
+
 def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, progress=None, frame=None):
     """Scoring Summary slides for one account type. Returns notes."""
     from . import charts as C
@@ -366,6 +384,15 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
         notes.append(f"ILS Scoring Summary ({accttype}): no matrix maximum limit was found for {accttype} accounts, so notices "
                      "above it could not be left out as the analysis notebook does.")
     basis = getattr(cfg, "default_basis", "notebook")
+    cov = charged_off_notice_coverage(fr, accttype) if basis == "notebook" else None
+    if cov and cov["accounts"] >= 10 and cov["share"] < 0.25:
+        # The notebook rule finds a default only on a charged-off account's own notices. When most charged-off accounts
+        # carry no notice history in the extract, every band reads near zero for want of data, not for want of losses;
+        # the analysis team's deck showed the same zeros on such a pull, unexplained.
+        notes.append(f"ILS Scoring Summary ({accttype}): only {cov['with_notices']:,} of {cov['accounts']:,} charged-off "
+                     f"{accttype.lower()} accounts have any notice in the ZTrend extract, so default and loss rates read near "
+                     "zero because the charged-off accounts' notice history is not in the extract; ask for a ZTrend pull "
+                     "that keeps closed and charged-off accounts.")
     rule = {"deck": DEFAULT_DAYS_NOTE, "readme": "README rule (30 days, never-repaid counted)",
             "notebook": ("the analysis notebook's rule: a notice on a charged-off account dated on or after the "
                          "account's last positive date; losses = its charge-off amount, once, on the notice nearest that date")}[basis]

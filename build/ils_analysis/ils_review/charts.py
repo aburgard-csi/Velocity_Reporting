@@ -88,6 +88,16 @@ def _label_series(plot, number_format, size=12, position=None):
             pass
 
 
+def _no_data(slide, x, y, w, h, labels):
+    """True, with a plain line in the chart's place, when there is nothing to chart. python-pptx raises 'chart data
+    contains no categories' on an empty chart, which used to take the whole section down with it; an account type or
+    branch set with no activity is stated instead (CLAUDE.md: missing data is stated, never zeroed)."""
+    if len(list(labels)):
+        return False
+    T.textbox(slide, x, y + h / 2 - 0.2, w, 0.4, "No data for this chart in the extract.", 13, color=T.NAVY)
+    return True
+
+
 def _frame(slide, kind, x, y, w, h, cd):
     return slide.shapes.add_chart(kind, Inches(T.X(x)), Inches(T.Y(y)),
                                   Inches(T.W(w)), Inches(T.H(h)), cd)
@@ -96,6 +106,8 @@ def _frame(slide, kind, x, y, w, h, cd):
 def bar(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
         number_format="#,##0", label_size=12, cat_size=13, data_labels=True, colors=None):
     """Horizontal bar chart. `labels`/`values` ascending -> largest at top."""
+    if _no_data(slide, x, y, w, h, labels):
+        return None
     cd = CategoryChartData()
     cd.categories = list(labels)
     cd.add_series(series_name, list(values))
@@ -138,6 +150,8 @@ def _zero_base(chart, values, number_format):
 def column(slide, x, y, w, h, labels, values, *, series_name="Value", color=T.NAVY,
            number_format="#,##0", label_size=12, cat_size=13, colors=None):
     """Vertical column chart; `colors` gives per-point fills when supplied."""
+    if _no_data(slide, x, y, w, h, labels):
+        return None
     cd = CategoryChartData()
     cd.categories = list(labels)
     cd.add_series(series_name, list(values))
@@ -174,6 +188,8 @@ def _legend(chart):
 def grouped_column(slide, x, y, w, h, labels, series, *, number_format="0.0",
                    label_size=11, cat_size=13, legend=True):
     """Clustered columns; `series` is a list of (name, values, color)."""
+    if _no_data(slide, x, y, w, h, labels):
+        return None
     cd = CategoryChartData()
     cd.categories = list(labels)
     for name, values, _ in series:
@@ -204,6 +220,8 @@ def line(slide, x, y, w, h, labels, series, *, number_format="#,##0",
     Used for the DBIC daily feeds, which run 61 points — too many for readable columns.
     `tick_every` thins the category labels so the axis stays legible.
     """
+    if _no_data(slide, x, y, w, h, labels):
+        return None
     cd = CategoryChartData()
     cd.categories = list(labels)
     for name, values, _ in series:
@@ -236,6 +254,8 @@ def line(slide, x, y, w, h, labels, series, *, number_format="#,##0",
 
 def stacked_bar_100(slide, x, y, w, h, labels, series, *, cat_size=13, legend=True):
     """100% stacked columns; `series` is a list of (name, values, color)."""
+    if _no_data(slide, x, y, w, h, labels):
+        return None
     cd = CategoryChartData()
     cd.categories = list(labels)
     for name, values, _ in series:

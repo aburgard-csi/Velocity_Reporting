@@ -15,6 +15,58 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-20 — ILS analysis: peer comparisons on eight measures, two to a slide (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck's peer comparison grows from three measures on one slide to eight measures over four slides per account type, never more than two on a slide: NSF/OD usage, fee revenue, items paid and losses, and refunds and Reg E. A measure the client's extract cannot give is left out and said why, never shown as 0.
+
+Aaron, 2026-11-20: "build out additional peer comparison slides. No more than 2 comparisons per slide."
+
+- **Measures**: items per 1,000 open accounts and users as a share of open accounts; fees per open account and per user; pay rate and loss rate; refunds as a share of fees and Reg E opt-in (Personal only). `peers_slides.GROUPS` holds the pairs and `MAX_PER_SLIDE = 2`; a test fails if a group grows past two.
+- **One calculation**: the client's own figures and every peer's come from `peer_pull.metrics_from_frame`, with the same Data Validation clean-up (`validate_zaccounts`), so a slide cannot compare two arithmetics.
+- **Unknown is blank, not 0**: refunds when the extract's Refund_Amt_365 is blank; a loss rate above 100% or no charge-off dollars on a book with 100 or more users (the extract does not carry charge-offs); Reg E when no open account is coded opted in. Such a peer is left out of that measure only; each measure has its own peer count.
+- **Peer table**: `peer_pull` reads six more ZAccounts columns and re-reads any row from before them. Re-pulled 2026-11-20 for 347 client and account-type rows; the old table is kept in `peers/_before_2026-11-20/`.
+- **A section that vanishes says so**: a section that adds no slide and gives no reason, or a Contact Us slide that could not be drawn, is now a REVIEW in the deck checks. Industry Update, the peer slide and Contact Us dropped silently when the share root was passed through a Bash shell, which turns the share's leading `\\` into a single `\`.
+- Tests: four new in `tests/test_ils_analysis.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: the analysis team's own rules for losses, active accounts, the KPI population and data clean-up (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck now follows the analysis team's notebooks for monthly loss rates, open active accounts, which account types the 365-day KPI counts, and the Data Validation clean-up (negative charge-offs, savings accounts, 1970 null dates); the KPI table gains Active Checking Accts, % Closed Accts Charged Off and % Active Users. On twenty recent analyst-built pulls the not-repaid and KPI tables now match the analyst decks cell for cell.
+
+Aaron, 2026-11-20: "continue to iterate. use as much time and data as you need to be confident in the results." Each rule below is the notebook's ('ILS Analysis - Python Script.ipynb', 'ILS Analysis - Data Validation.ipynb'), found by comparing built decks with the analysts' tables by script:
+
+- **Monthly loss rate**: a charged-off account with no last positive date on any notice has no fatal notice, but its Chargeoff_Amt_365 still counts, on its earliest notice (notebook cell 30). Leaving it out made loss rates read low, never high, while % fatal and the 365-day total agreed. The Scoring Summary's band losses follow the same rule.
+- **Open active accounts**: open, with more than $50 deposited or at least one NSF/OD item in 365 days (the notebook's ACTIVITY flag). It replaces a 240-day deposit window fitted on one client, which ran -3% to +9% elsewhere.
+- **KPI population**: account types starting P, Q, B or Z, grouped by IsPersonal; any other type ("New Start - Personal") is left out, where it had been folded into Business. New rows Active Checking Accts, % Closed Accts Charged Off and % Active Users, as the notebook computes them.
+- **Data Validation** (`ils_data.validate_zaccounts`): savings and time-deposit types left out; a negative Chargeoff_Amt_365 taken as its absolute value; 1970-01-01 read as blank; ZTrend rows with no account id dropped. Each change is listed in the build notes.
+- **Robustness**: a header line repeated inside ZAccounts is dropped and numeric columns are read as numbers (a sum had concatenated text); a folder holding the analysis team's cleaned za.csv / zt.csv / dd.csv is read, dd.csv's renamed columns included; a branch tile whose dollar figure does not fit is shown compact.
+- Tests: seven new in `tests/test_ils_analysis.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: deck checks after every build; prep slides merged hidden; more input and empty-data checks (`build/ils_analysis/`)
+
+Summary: Every ILS analysis build now checks its own deck for failed sections, stale extracts and all-zero or all-n/a columns; the ILS prep slides merge into the deck as hidden context, with the matrix slides visible at the start of each account type's risk analysis; and empty data, tab-delimited files and very large percentages no longer break a slide.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues", and "Build the ILS prep slides as hidden slides at the front of the deck so they don't print or show when we display ... I like the matrix slides at the beginning of the risk analysis for personal or business." Found by building twelve recent analyst-built pulls and checking each by script:
+
+- **`ils_review/deck_checks.py`**, run at the end of every build: FAIL for a section that failed to build; REVIEW for a stale extract, a table column that is zero or n/a in every row, a table with no rows, a peer slide that is "Lowest" on every measure, and a chart stated as having no data.
+- **`merge_review.py` is general** (it was one client's script): prep slides go in hidden after the cover; the Matrix Parameters / Overrides slides go in visible before the first Scoring Summary slide of their account type, or after the Appendix divider when the deck has none; optional CashPlease section before Thank You; page numbers count visible slides only. `tests/test_ils_merge_review.py`.
+- **Delimiters** are read from each extract's first line (`sniff_sep`): a tab-delimited decline file stopped a build.
+- **Empty data is stated, never a crash**: every chart helper writes "No data for this chart" where python-pptx raised on an empty chart; branch overdraft activity and year over year leave out an account type with no users or no notices, and say so.
+- **Charged-off accounts with no notice history**: when fewer than a quarter of an account type's charged-off accounts have any notice in ZTrend, the Scoring Summary notes that its near-zero default rates come from missing history, not missing losses.
+- **Fit**: the data-integrity table sizes its Table and Column columns to the longest database name (`REF_CHARGE_OFF` broke mid-word); a percentage of 1,000% or more drops its decimals; "Pulled" falls back to the file's own time when its name carries no date.
+- Tests: `tests/test_ils_analysis.py` (eight new) and `tests/test_ils_merge_review.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: input checks for headerless, stale and empty extracts (`build/ils_analysis/ils_review/`)
+
+Summary: The ILS analysis build now checks each extract before it builds: it reads debit-decline and refund files saved without a header line, names any dated extract that ends well before the data date, shows n/a instead of zero where a window has no data, and leaves out fee-trend and peer slides for an account type with no notices.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues." Each check below came from a pull that built with an error or a misleading slide:
+
+- **Headerless extracts.** A DebitDecline or RefundHistory file whose first line does not name `AcctID` but has the query's field count (10 and 14) is read with the known column names (`DECLINE_COLUMNS`, `REFUND_COLUMNS`), and Data Notes say so. It stopped the build with `KeyError: 'acctid'`.
+- **Stale extracts** (`extract_checks`, `STALE_EXTRACT_DAYS` = 31). A ZTrend, DebitDecline or RefundHistory extract whose newest row is a month or more before the data date, or that holds no dated rows, is named in the build log and on Data Notes. "About this data" prints the decline file's date range.
+- **No data is not zero.** "Debit declines by ILS limit" reads n/a in its decline columns, with a line naming where the extract ends, when the extract stops before its 90-day window. It showed 0 in every band.
+- **An account type with no notices in the window.** Fee trending and paid vs returned skip it with the reason. They raised `IndexError` and `ZeroDivisionError`, which also lost the other account type's paid-vs-returned and not-repaid slides. The peer slide is left out for an account type with no NSF/OD items in 365 days, where it ranked zeros as "Lowest of N clients".
+- Tests: `tests/test_ils_analysis.py` (five new, synthetic data).
+
 ### 2026-11-20 — The peer reference: every peer comparison's figures in one dated file (`scripts/build_peer_reference.py`, `rpe_env.peer_reference_dir`)
 
 Summary: Every figure a peer comparison uses is now compiled into one dated, tagged file on the share, `Peer Reference/peer_metrics_<date>.csv`, with a latest copy and a manifest. Nothing that a deck, Live Review or Sheila shows changes yet.
