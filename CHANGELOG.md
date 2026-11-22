@@ -30,6 +30,34 @@ Aaron, 2026-11-10: "added a Drop Folder for input files here: \\PADMIS105\Veloci
 
 ---
 
+### 2026-11-20 — The peer reference: every peer comparison's figures in one dated file (`scripts/build_peer_reference.py`, `rpe_env.peer_reference_dir`)
+
+Summary: Every figure a peer comparison uses is now compiled into one dated, tagged file on the share, `Peer Reference/peer_metrics_<date>.csv`, with a latest copy and a manifest. Nothing that a deck, Live Review or Sheila shows changes yet.
+
+Aaron, 2026-11-20: "develop a peer comparison reference file that gets saved to the reporting folder. any metrics we use for peer comparisons should be compiled in one source, tagged and dated."
+
+- **One row per figure**: program, metric, segment, scope (a client, or a cohort benchmark), client number, period, period basis, whether the month had ended when the source was made, the value, its unit, which way is better, the definition, the source file and its date, and which consumers read it. No name field is carried.
+- **Values are the consumers' own.** Each program's rows are what `review_page/peer_pool.py`'s collectors return, the code behind Live Review's "How you compare" and every deck's How You Compare slide. They are run with a client id that is in no pool, so every client comes back with its own number. Also recorded: the ARS fields Sheila in Claude ranks, the two CashPlease cohort benchmarks and the ILS peer table. A test checks the rows against the collector.
+- **Dated and idempotent.** Today's file is rewritten only when its content changed, and an earlier day's file is never touched. A program that fails to compile stops the write unless `--allow-partial` is given.
+- **Found while compiling it: places where one comparison is computed two ways.** These are recorded in the PR for a decision and are not changed here:
+  - **CashPlease has three peer definitions, and two of them are on one deck.** The first compiled file (2026-11-20) shows how far apart they are:
+
+    | Measure | All-tabs rollup (Peer Comparison slide) | Current clients, pooled (dashboard) | Median of current clients (How You Compare slide) |
+    | --- | --- | --- | --- |
+    | Loans per 1,000 DDAs | 16.7 | 14.6 | 12.4 |
+    | Charge-off rate | 6.3% | not available | 3.4% |
+
+    The Peer Comparison slide reads the workbook's all-tabs rollup, which includes cancelled and non-current tabs. The performance dashboard pools current clients. The How You Compare slide takes the median of current clients.
+  - **Sheila in Claude's `peer_compare` ranks ARS clients with arithmetic that is not `peer_compare.py`'s:**
+    - nearest-rank quartiles
+    - the client counted in its own pool
+    - a pool limited to the exact period
+    - ranking on the latest mailing's response rate
+    - no minimum-pool guards on Reg E or take rate (they change no figure today, because all 41 packs pass them)
+  - **Two problems that are in the code but change no figure today:**
+    - ICS referrals per 1,000 DDAs can put two numerators in one distribution: the all-clients referral file, or the VIP trend for a client the file lacks. Every row in the first file came from the referral file, and the `source_kind` column shows the source on every row.
+    - MRPC monthly enrollments and share of goal are not trimmed to complete months in `peer_pool`. The file judges `month_complete` against each source's own date, and no row in the first file was flagged `no`.
+
 ### 2026-11-19 — Insurance by line says "Life"; the competition report reads a short window (`ti/dictionaries/financial_services_patterns.json`, `deck/txn_leakage.py`, `competition_report.py`)
 
 Summary: The Transaction Intelligence Insurance by line slide now names the life line "Life", and a client with under six months of transaction data no longer stops the Transaction Intelligence build.
