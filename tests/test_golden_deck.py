@@ -335,7 +335,7 @@ def test_a_slide_with_no_data_is_left_out_and_said_so(no_dob_deck, deck):
     assert not any(t.startswith("Responder Age Profile") for t in titles)
     assert "Responder Age Profile" in _build_titles(deck)
     assert len(no_dob_deck["prs"].slides) == len(deck["prs"].slides) - 1
-    log = (no_dob_deck["dir"] / "build.log").read_text(encoding="utf-8")
+    log = (no_dob_deck["dir"] / "build.log").read_text(encoding="utf-8", errors="replace")   # the runner writes stdout in its code page
     assert "slide left out (no data): Responder Age Profile - date of birth is not carried" in log
     assert vd.package_findings(no_dob_deck["path"]) == []
     assert not any("Date of birth is not carried" in titles_of(s) for s in no_dob_deck["prs"].slides)
