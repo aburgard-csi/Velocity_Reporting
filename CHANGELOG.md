@@ -15,6 +15,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-22 — The peer reference is updated whenever a deck is built (`build_peer_reference.py --update`, `spawn_update`)
+
+Summary: Building a deck now refreshes that deck's programs in the peer reference file on the share, in the background, so the file follows the newest decks without a hand run. The build does not wait for it, and its result never depends on it.
+
+Aaron, 2026-11-22: "update data on the peer comparison dataset when we build new presentations."
+
+- **When:** once a deck is in Outputs. `ars_launcher build` (CSM Sheila's builds and Sheila in Claude's included), `build_cashplease.py`, and `build_month.py` once at the end of a batch start `build_peer_reference.py --update --programs <the deck's programs>`. The ILS rows change when the ILS peer pull (`ils_review/peer_pull.py`) writes the peer table, so the pull starts an ILS update once it has written a client. Transaction Intelligence and Companion decks carry no peer figure and start nothing.
+- **Background, never in the build's way:** the update runs as its own detached process, with its output appended to `Build Artifacts/peer_reference_updates.log` (a file, never a pipe). A failure to start it is printed and ignored. Over the share ARS takes about five minutes, ICS about one and a half, CashPlease about one, MRPC seconds.
+- **Only what the build touched:** an update recompiles the deck's programs and keeps every other program's rows, sources, catalog entries and compile time from the newest file. Each row keeps the `compiled_at` of the run that made it. A program that fails keeps its previous rows; the manifest names it under `failed` and `stale`, so the file is never quietly short a program. With no file yet, an update compiles every program.
+- **Several PCs at once:** `Peer Reference/.update.lock` is created exclusively, with host, pid, user and time inside, and is broken after 90 minutes. A second update waits up to an hour for it, then skips any program another update began compiling after it was asked for (`program_compiled_at` in the manifest, to the microsecond). Each writer's temporary file now carries its host and process id, so two writers never share one.
+- **Off switch:** `RPE_PEER_REFERENCE_UPDATE=0`; the test suite sets it, so no test starts a real update.
+
 ### 2026-11-20 — ILS analysis: peer comparisons on eight measures, two to a slide (`build/ils_analysis/`)
 
 Summary: The ILS analysis deck's peer comparison grows from three measures on one slide to eight measures over four slides per account type, never more than two on a slide: NSF/OD usage, fee revenue, items paid and losses, and refunds and Reg E. A measure the client's extract cannot give is left out and said why, never shown as 0.
