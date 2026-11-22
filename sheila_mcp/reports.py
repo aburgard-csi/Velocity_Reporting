@@ -181,20 +181,20 @@ def cashplease_portfolio():
 # ------------------------------------------------------------------ peers
 # The figures each client's ARS deck was built from (Build Artifacts\launcher\<period>\<id>\metrics.json).
 # Every rate here is already a percent (84.0 means 84%).
+# Only what the CLIENT controls is ranked against other clients (Aaron, 2026-11-22: "For ARS peer comparisons, don't
+# compare program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."):
+# the program's own results (response, repeat response, card usage) were taken out of this list.
 KPIS = {
     "debit_take": ("Debit card take rate", "overall_take", True),
     "debit_take_new": ("Debit take rate, new accounts", "take_new_pct", True),
     "rege": ("Reg E opt-in", "rege_pct", True),
     "rege_new": ("Reg E opt-in, new accounts", "rege_new_pct", True),
-    "response": ("Latest mailer response rate", "latest_resprate", True),
-    "repeat": ("Responders who responded again", "depth_repeat_pct", True),
-    "active_new": ("New accounts swiping monthly", "new_active_pct", True),
-    "active_book": ("Book swiping monthly", "book_active_pct", True),
+    "account_growth": ("Account growth, last 12 months", "acct_growth_pct", True),
     "debit_on_checking": ("Open checking with a debit card", "open_chk_debit_pct", True),
     "retention_1yr": ("Accounts still open after 1 year", "ret_1yr", True),
     "retention_3yr": ("Accounts still open after 3 years", "ret_3yr", True),
 }
-DEFAULT_KPIS = ["debit_take", "rege", "response", "active_book", "retention_1yr"]
+DEFAULT_KPIS = ["debit_take", "rege", "account_growth", "retention_1yr"]
 
 
 def _periods():

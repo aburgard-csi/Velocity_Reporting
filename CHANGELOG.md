@@ -15,6 +15,34 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-22 — Peer comparisons: ARS on what the client controls, two to a slide; a slide with no data is left out (`build/peer_slide.py`, `review_page/peer_pool.py`, `metrics_gen.py`, `shapes.py`, the four builders)
+
+Summary: ARS clients are now compared with their peers only on what they control: Reg E opt-in, debit card take rate, account growth and retention, never the program's own results. Every deck's "How You Compare" slides carry at most two comparisons each. Any slide with no data for the client is left out of the deck rather than shown with a sentence saying so.
+
+Aaron, 2026-11-22: "For ARS peer comparisons, don't compare program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."; "Don't put more than 2 peer comparison charts on a slide."; "skip a slide if it doesn't have data" (on Brooks Bank's Responder Age Profile, which read "Date of birth is not carried in this client's data extract...").
+
+- **ARS peer measures** (`peer_pool.ARS_METRICS`, read by Live Review, the decks, the peer reference and Sheila in Claude):
+  - **Now compared:** Reg E opt-in (open personal accounts; accounts opened in the last 12 months), debit card take rate (the whole eligible book; new accounts), account growth, one-year retention.
+  - **No longer compared:** response rates, responder spend before and after a mailing, swipe-tier movement, swipes and spend per account, cards in use, ARS revenue per 1,000 (`ARS_PROGRAM_RESULTS`). Sheila in Claude's `peer_compare` lost "response", "repeat", "active_new" and "active_book" and gained "account_growth".
+- **Account growth is new** (`metrics_gen`: `n_open_personal`, `acct_growth_pct`, `acct_growth_window`, `acct_growth_net`): personal accounts opened minus closed over the last 12 complete months (a month counts once the extract was pulled after it ended), as a share of the personal accounts open at the start of those months. A pack built before today does not carry it, so the measure fills in as decks are rebuilt; it needs five peers with it before it is drawn.
+- **Two comparisons a slide** (`peer_slide.GROUPS`, `MAX_PER_SLIDE`). Each program's slides are titled "How You Compare — <pair>":
+  - **ARS:** Reg E Opt-In; Debit Card Take Rate; Accounts Gained & Kept.
+  - **ICS:** Referrals and Revenue; Revenue by Source; Spread on Deposits.
+  - **MRPC:** Enrollments; Cardholder Activity.
+  - **CashPlease:** Loan Volume; Repayment.
+
+  The slide inventory (Slide Review) lists each one. Every title is checked to fit on one line.
+- **A slide with no data is left out** (CLAUDE.md, the rule that replaces "Never drop slides automatically"), named in the build log as `slide left out (no data): <title> - <why>`:
+  - the ARS Responder Age Profile with no date of birth;
+  - the MRPC Program to Date and Current Program Status slides when the weekly has no tab for the client;
+  - CashPlease Loan Volume by Month with no loans in the workbook;
+  - a peer slide with no measure that has five peers, and the peer section when the program has fewer than five other clients;
+  - every opt-in ARS view (James / Companion / test slides) that drew a "not shown" sentence.
+
+  A failure to READ the peers' figures still draws its slide and fails the gate.
+- **`shapes.drop_slide`** takes a slide out (its list entry and relationship) and renames the kept parts in order, so a slide added later never reuses a freed part name.
+- Tests: `tests/test_peer_slide.py` (rewritten), `tests/test_skip_no_data.py` (new), a no-DOB golden build in `tests/test_golden_deck.py`, account growth in `tests/test_peer_tables.py` and the golden pack. The golden deck is 50 slides, not 51: it has no peers, so its peer slide is now left out.
+
 ### 2026-11-22 — The peer reference is updated whenever a deck is built (`build_peer_reference.py --update`, `spawn_update`)
 
 Summary: Building a deck now refreshes that deck's programs in the peer reference file on the share, in the background, so the file follows the newest decks without a hand run. The build does not wait for it, and its result never depends on it.
