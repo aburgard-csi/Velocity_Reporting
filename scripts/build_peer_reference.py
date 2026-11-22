@@ -122,6 +122,7 @@ UNIT = {
     ("ICS", "rev_total"): "USD per account a month", ("ICS", "rev_interchange"): "USD per account a month",
     ("ICS", "rev_nsf_od"): "USD per account a month", ("ICS", "rev_spread"): "USD per account a month",
     ("ILS", "items_per_1k"): "items per 1,000 open accounts", ("ILS", "fees_per_acct"): "USD per open account",
+    ("ILS", "fees_per_user"): "USD per NSF/OD user",
 }
 # Definitions the deck slide's notes do not carry (peer_slide.DEFS covers the rest).
 DEFS = {
@@ -137,6 +138,13 @@ DEFS = {
     ("ILS", "items_per_1k"): "NSF/OD items in 365 days per 1,000 open accounts (the client's newest ZAccounts extract)",
     ("ILS", "fees_per_acct"): "collected fees in 365 days per open account (the client's newest ZAccounts extract)",
     ("ILS", "users_pct"): "open accounts with an NSF/OD item in 365 days, share of open accounts",
+    ("ILS", "fees_per_user"): "collected fees in 365 days per open account with an NSF/OD item in 365 days",
+    ("ILS", "pay_rate"): "NSF/OD items paid in 365 days, share of NSF/OD items, open accounts",
+    ("ILS", "loss_rate"): "charge-offs in 365 days over collected fees in 365 days, every account of the type "
+                          "(left out when the extract's charge-off figures cannot be used)",
+    ("ILS", "refund_pct"): "refunds in 365 days over collected fees in 365 days, every account of the type "
+                           "(left out when the extract carries no refunds)",
+    ("ILS", "rege_pct"): "open accounts coded Reg E opt-in (Y), share of open accounts; personal accounts only",
 }
 
 
@@ -492,6 +500,8 @@ def compile_ils(cat, period, notes):
             continue
         as_of = _date(r.get("as_of"))
         for spec in IP.METRICS:
+            if str(acct) not in spec.get("types", (str(acct),)):
+                continue
             rows.append(_row(cat, "ILS", spec["key"], cid, as_of.strftime("%Y.%m") if as_of else "", vals.get(spec["key"]),
                              as_of, src_of[(cid, acct)], segment=str(acct).lower()))
     return [r for r in rows if r], {"tables": [Path(f).name for f in files], "client segments": len(table)}

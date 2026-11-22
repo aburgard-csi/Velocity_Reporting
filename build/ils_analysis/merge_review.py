@@ -1,26 +1,34 @@
-"""Assemble Dannemora FCU's ILS review: the ILS Program Analysis deck (built without its matrix section), plus
-  - the ILS prep build's Program Detail and Published Fee Schedule slides, after the Program Performance divider;
-  - the ILS prep build's Matrix Parameters / Overrides slides, after the Appendix divider;
-  - the CashPlease module's section (divider and content slides), before Thank You / Questions.
-Slides are only ever ADDED, then moved (never deleted), so no partname is reused (CLAUDE.md).
+"""Assemble a client's ILS review from the ILS Program Analysis deck (built without its own matrix section) and:
 
-    python merge_deck.py <ils.pptx> <prep.pptx> <cp.pptx> <out.pptx>
+  - the ILS prep build's slides (recap, matrix updates, tickets, client and industry update, program detail, fee
+    schedule) as HIDDEN slides right after the cover: context for the presenter, not shown in a slide show and not
+    printed (Aaron, 2026-11-20: "Build the ILS prep slides as hidden slides at the front of the deck so they don't
+    print or show when we display, but they will give us context");
+  - the prep build's Matrix Parameters / Matrix Overrides slides, VISIBLE, at the start of the risk analysis for each
+    account type ("I like the matrix slides at the beginning of the risk analysis for personal or business"): before
+    the first Scoring Summary slide of that type, or after the Appendix divider when the deck has no risk analysis
+    for it (an account type with no notices in the window builds none);
+  - optionally the CashPlease module's section (divider and content slides), before Thank You.
+
+Slides are only ever ADDED, then moved (never deleted), so no partname is reused (CLAUDE.md). Page numbers are
+renumbered over the visible slides only, so the shown deck runs 1, 2, 3 with the hidden context slides skipped.
+
+    python merge_review.py <ils.pptx> --prep <prep.pptx> [--cp <cp.pptx>] --out <out.pptx> [--repo <checkout>]
 """
+import argparse
 import copy
 import io
+import os
 import sys
 
 from pptx import Presentation
 from pptx.oxml.ns import qn
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+from pptx.util import Inches
 
-REPO = sys.argv[5] if len(sys.argv) > 5 else None
-if REPO:
-    sys.path[:0] = [REPO + r"\build"]
-import shapes  # noqa: E402
-
-ils_p, prep_p, cp_p, out_p = sys.argv[1:5]
-ils, prep, cp = Presentation(ils_p), Presentation(prep_p), Presentation(cp_p)
+MATRIX_TITLES = ("Matrix Parameters", "Matrix Overrides")
+RISK_TITLES = ("scoring summary",)             # the first slide of each account type's risk analysis
+APPENDIX_DIVIDER = "Appendix and Matrix Validation"
 
 
 def title(sl):
@@ -30,6 +38,18 @@ def title(sl):
     return ""
 
 
+def text(sl):
+    return " ".join(sh.text_frame.text for sh in sl.shapes if sh.has_text_frame)
+
+
+def is_hidden(sl):
+    return sl._element.get("show") == "0"
+
+
+def hide(sl):
+    sl._element.set("show", "0")
+
+
 def layout(prs, name):
     for m in prs.slide_masters:
         for lay in m.slide_layouts:
@@ -37,7 +57,7 @@ def layout(prs, name):
                 return lay
     for m in prs.slide_masters:
         for lay in m.slide_layouts:
-            if lay.name.lower() in ("blank", "BLANK".lower()):
+            if lay.name.lower() == "blank":
                 return lay
     return prs.slide_layouts[len(prs.slide_layouts) - 1]
 
@@ -68,36 +88,53 @@ def copy_slide(src, dst_prs):
     return dst
 
 
-def move_after(prs, slides, anchor_title, before=False):
+def _el(prs, slide):
+    return next(e for e in prs.slides._sldIdLst if int(e.get("id")) == slide.slide_id)
+
+
+def move_to(prs, slides, pos):
+    """Move `slides` (in order) so the first sits at index `pos` of the deck as it stands without them."""
     lst = prs.slides._sldIdLst
-    ids = {s.slide_id: e for e in lst for s in prs.slides if int(e.get("id")) == s.slide_id}
-    anchor = next(s for s in prs.slides if title(s).startswith(anchor_title))
-    a_el = next(e for e in lst if int(e.get("id")) == anchor.slide_id)
-    pos = list(lst).index(a_el) + (0 if before else 1)
-    els = [next(e for e in lst if int(e.get("id")) == s.slide_id) for s in slides]
+    els = [_el(prs, s) for s in slides]
     for e in els:
         lst.remove(e)
     for k, e in enumerate(els):
         lst.insert(pos + k, e)
 
 
-prep_titles = [title(s) for s in prep.slides]
-detail = [s for s in prep.slides if title(s).startswith(("Program Detail", "Published Fee Schedule"))]
-matrix = [s for s in prep.slides if title(s).startswith(("Matrix Parameters", "Matrix Overrides"))]
-cp_from = next(i for i, s in enumerate(cp.slides) if i > 0 and title(s).startswith("CashPlease"))   # the section divider
-cp_sec = [s for i, s in enumerate(cp.slides) if i >= cp_from and not title(s).startswith(("Questions", "Contact Us"))]
+def index_of(prs, slide):
+    return list(prs.slides._sldIdLst).index(_el(prs, slide))
 
-new_detail = [copy_slide(s, ils) for s in detail]
-new_matrix = [copy_slide(s, ils) for s in matrix]
-new_cp = [copy_slide(s, ils) for s in cp_sec]
-move_after(ils, new_detail, "Program Performance")
-move_after(ils, new_matrix, "Appendix and Matrix Validation")
-move_after(ils, new_cp, "Thank You", before=True)
-def renumber_existing(prs):
-    """Update the page numbers the slides already carry; never add one. The prep slides are designed without a
-    number (a number added there sat on the last talking point), and the dividers have none."""
-    from pptx.util import Inches
-    for n, s in enumerate(prs.slides, 1):
+
+def account_type(sl):
+    """Personal or Business when the slide names exactly one of them (any case: the analysis deck writes "Open
+    personal accounts", the prep build "Personal Accounts"), else None."""
+    t = text(sl).lower()
+    bus, per = "business" in t, "personal" in t
+    if bus and not per:
+        return "Business"
+    if per and not bus:
+        return "Personal"
+    return None
+
+
+def risk_anchor(prs, acct, exclude):
+    """The first visible Scoring Summary slide of this account type, or None."""
+    for s in prs.slides:
+        if s.slide_id in exclude or is_hidden(s):
+            continue
+        if title(s).lower().startswith(RISK_TITLES) and account_type(s) == acct:
+            return s
+    return None
+
+
+def renumber_visible(prs):
+    """Update the page numbers the slides already carry, counting visible slides only; never add one."""
+    n = 0
+    for s in prs.slides:
+        if is_hidden(s):
+            continue
+        n += 1
         for sh in s.shapes:
             if (sh.has_text_frame and sh.top is not None and sh.top > Inches(6.8) and sh.left is not None
                     and sh.left < Inches(1.2)):
@@ -107,9 +144,65 @@ def renumber_existing(prs):
                     break
 
 
-renumber_existing(ils)
-ils.save(out_p)
-print(f"added {len(new_detail)} program-detail, {len(new_matrix)} matrix, {len(new_cp)} CashPlease slides -> "
-      f"{len(ils.slides)} slides")
-for i, s in enumerate(ils.slides, 1):
-    print(i, "|", title(s)[:70])
+def merge(ils_p, prep_p, out_p, cp_p=None):
+    ils, prep = Presentation(ils_p), Presentation(prep_p)
+    matrix = [s for s in prep.slides if title(s).startswith(MATRIX_TITLES)]
+    context = [s for s in prep.slides if not title(s).startswith(MATRIX_TITLES)]
+
+    # hidden context slides right after the cover
+    new_context = [copy_slide(s, ils) for s in context]
+    for s in new_context:
+        hide(s)
+    move_to(ils, new_context, 1)
+
+    # visible matrix slides at the start of each account type's risk analysis
+    placed = {}
+    added = {s.slide_id for s in new_context}
+    for acct in ("Personal", "Business"):
+        mine = [s for s in matrix if account_type(s) == acct]
+        if not mine:
+            continue
+        new = [copy_slide(s, ils) for s in mine]
+        added |= {s.slide_id for s in new}
+        anchor = risk_anchor(ils, acct, added)
+        if anchor is not None:
+            move_to(ils, new, index_of(ils, anchor))
+            placed[acct] = f"before '{title(anchor)}'"
+        else:
+            div = next((s for s in ils.slides if title(s).startswith(APPENDIX_DIVIDER)), None)
+            move_to(ils, new, index_of(ils, div) + 1 if div is not None else len(ils.slides._sldIdLst))
+            placed[acct] = "after the Appendix divider (no risk analysis for this account type)"
+
+    new_cp = []
+    if cp_p:
+        cp = Presentation(cp_p)
+        start = next(i for i, s in enumerate(cp.slides) if i > 0 and title(s).startswith("CashPlease"))
+        sec = [s for i, s in enumerate(cp.slides) if i >= start and not title(s).startswith(("Questions", "Contact Us"))]
+        new_cp = [copy_slide(s, ils) for s in sec]
+        thanks = next(s for s in ils.slides if title(s).startswith("Thank You"))
+        move_to(ils, new_cp, index_of(ils, thanks))
+
+    renumber_visible(ils)
+    ils.save(out_p)
+    return {"hidden": len(new_context), "matrix": placed, "cashplease": len(new_cp), "slides": len(ils.slides),
+            "visible": sum(1 for s in ils.slides if not is_hidden(s))}
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("ils")
+    ap.add_argument("--prep", required=True)
+    ap.add_argument("--cp")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--repo", help="checkout whose build/ holds shapes.py (unused; kept for the old call form)")
+    a = ap.parse_args(argv)
+    if os.path.abspath(a.out) == os.path.abspath(a.ils):
+        ap.error("--out must differ from the input deck")
+    r = merge(a.ils, a.prep, a.out, a.cp)
+    print(f"{r['hidden']} hidden prep slide(s) after the cover; matrix: {r['matrix']}; {r['cashplease']} CashPlease "
+          f"slide(s); {r['visible']} visible of {r['slides']} slides -> {a.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
