@@ -240,7 +240,26 @@ def pull(ids=None, since="202509", limit=None, say=print, root=ANALYSIS_ROOT, sh
                 w.writerow(mine[k])
         if limit and n_done >= limit:
             break
+    if n_done:
+        update_peer_reference(f"ILS peer pull ({n_done} client(s){', shard %d/%d' % shard if shard else ''})", say)
     return path
+
+
+def update_peer_reference(reason, say=print):
+    """The peer table changed: refresh the ILS rows of the peer reference on the share in the background (Aaron,
+    2026-11-22: "update data on the peer comparison dataset when we build new presentations"; an ILS deck's peers come
+    from this table, so this is where its figures change). Never raises: the pull's own result never depends on it.
+    Several shards finishing one after another each ask; the update's lock and its "compiled since" check make the
+    later ones a no-op."""
+    try:
+        scripts = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+                               "scripts")
+        if scripts not in sys.path:
+            sys.path.insert(0, scripts)
+        import build_peer_reference as BPR
+        BPR.spawn_update(["ILS"], reason, log=say)
+    except Exception as exc:                                   # noqa: BLE001
+        say(f"Peer reference: not updated ({type(exc).__name__}: {exc})")
 
 
 if __name__ == "__main__":

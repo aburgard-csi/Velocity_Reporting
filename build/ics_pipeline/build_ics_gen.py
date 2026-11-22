@@ -1689,7 +1689,8 @@ def build(d, static_path, out, referrals_only=False):
     # The same comparison Live Review's "How you compare" shows (peer_compare.for_deck): referrals per 1,000 DDAs and,
     # when the client's workbook is for the deck's own period, revenue per account per month by source. Anonymous on the
     # slide. Built before the Contact slide, so it is the last data slide and lands after the results, before the
-    # education slides. Always drawn; it says so when there are too few peers.
+    # education slides. Two comparisons a slide at most; a slide with no measure that has enough peers is not added
+    # (Aaron, 2026-11-22).
     import peer_slide
     peer_slide.add_peer_slide(prs, "ICS", _cid, (d.get("meta") or {}).get("client_name") or "The client", f"PTD · {data_date}", A,
                               f"Client figures: {base}", period=_period, brand="std",

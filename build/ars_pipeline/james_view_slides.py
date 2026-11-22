@@ -39,11 +39,12 @@ def _pill(ctx):
 
 
 def _unavailable(prs, ctx, title, selection, reason, anchor_after, before=None, source=None):
-    """The stated-not-zeroed slide: title, selection, one plain sentence, and the reason in the
-    notes. The slide is kept so the gap is visible when the deck is edited down."""
+    """A view with no data: drawn with its title, selection and one plain sentence so its anchors hold while the deck
+    is built, then LEFT OUT by the ARS builder (Aaron, 2026-11-22: "skip a slide if it doesn't have data"), the reason
+    printed in the build log."""
     s = CIS._new_slide(prs, CIS._find(prs, anchor_after) or prs.slides[0])
     CIS._header(s, title, _pill(ctx), selection)
-    CIS._caption(s, f"Not shown for this period: {reason}.", width=12.3, top=2.4, height=1.2)
+    CIS._no_data_caption(s, f"Not shown for this period: {reason}.")
     CIS._notes(s, source or ctx["odd_src"],
                issues=[f"Nothing on this slide is measured — {reason}."])
     CIS._place(prs, s, after=anchor_after, before=before)
