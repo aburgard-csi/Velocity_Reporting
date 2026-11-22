@@ -553,6 +553,16 @@ def main():
     print(f"{len(results)-len(failed)}/{len(results)} clients resolved without error")
     for cid, name, progs, err, gate, deck in failed:
         print(f"  {cid} {name}: {err or gate}")
+    # ONE peer reference update for the whole batch, in the background, for the programs of the decks that built clean
+    # (Aaron, 2026-11-22). A batch stages its decks outside the launcher's packs, so its ARS rows change only when a
+    # launcher build writes a pack; the other programs' rows follow the inputs this batch read.
+    clean = {p for c, n, progs, e, g, d in results if not e and g.startswith("0 FAIL") for p in progs}
+    if clean:
+        try:
+            import build_peer_reference as BPR
+            BPR.spawn_update(sorted(clean), f"build_month {a.period} ({len(results) - len(failed)} decks)")
+        except Exception as exc:                              # noqa: BLE001 - the batch's result is never changed by this
+            print(f"Peer reference: not updated ({type(exc).__name__}: {exc})")
     return len(failed)
 
 

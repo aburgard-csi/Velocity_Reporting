@@ -299,3 +299,163 @@ def test_a_program_that_fails_stops_the_write_unless_partial_is_asked_for(root, 
     assert BR.main(args + ["--allow-partial"], today=TODAY, log=lambda *a: None) == 1
     man = json.loads((root / rpe_env.PEER_REFERENCE_DIRNAME / BR.MANIFEST_NAME).read_text(encoding="utf-8"))
     assert "synthetic failure" in man["failed"]["CP"] and man["rows_by_program"]["ARS"] > 0
+
+
+# ----------------------------------------------------------------- updated when a deck is built (Aaron, 2026-11-22)
+def _quiet(*a):
+    return None
+
+
+def _folder(root):
+    return root / rpe_env.PEER_REFERENCE_DIRNAME
+
+
+def _manifest(root):
+    return json.loads((_folder(root) / BR.MANIFEST_NAME).read_text(encoding="utf-8"))
+
+
+def _by_program(rows, program):
+    return sorted((r["metric_key"], r["segment"], r["client_id"], r["period"], float(r["value"]))
+                  for r in rows if r["program"] == program)
+
+
+def test_an_update_recompiles_only_its_programs_and_keeps_the_rest(root):
+    ars_packs(root)
+    cp_packs(root)
+    assert BR.main(["--programs", "ARS", "CP"], today=TODAY, log=_quiet) == 0
+    before = _rows(_folder(root) / BR.LATEST_NAME)
+    man0 = _manifest(root)
+    # A new ARS deck is built for one client: its pack changes.
+    pack = root / "Build Artifacts" / "launcher" / "2026.10" / IDS[0] / "metrics.json"
+    m = json.loads(pack.read_text(encoding="utf-8"))
+    m["rege_pct"] = 91.0
+    pack.write_text(json.dumps(m), encoding="utf-8")
+    asked = BR._stamp()
+    assert BR.update(["ARS"], "test build", requested_at=asked, today=TODAY, log=_quiet) == "written"
+    after = _rows(_folder(root) / BR.LATEST_NAME)
+    full = BR.compile_all("2026.11", ["ARS"], log=_quiet)
+    assert _by_program(after, "ARS") == _by_program(full["rows"], "ARS")          # the same as a full compilation
+    assert any(r["metric_key"] == "rege_pct" and r["client_id"] == IDS[0] and float(r["value"]) == 91.0 for r in after)
+    cp_before = [r for r in before if r["program"] == "CP"]
+    cp_after = [r for r in after if r["program"] == "CP"]
+    assert cp_after == cp_before                                  # every column, compile time included, carried through
+    man = _manifest(root)
+    assert man["sources"]["CP"] == man0["sources"]["CP"] and man["program_compiled_at"]["CP"] == man0["program_compiled_at"]["CP"]
+    assert man["program_compiled_at"]["ARS"] > asked and man["update"]["reason"] == "test build"
+    assert {e["program"] for e in man["catalog"]} == {"ARS", "CP"}
+    assert (_folder(root) / f"peer_metrics_{TODAY.isoformat()}.csv").read_bytes() == (_folder(root) / BR.LATEST_NAME).read_bytes()
+
+
+def test_an_update_whose_program_fails_keeps_that_programs_previous_rows(root, monkeypatch):
+    ars_packs(root)
+    cp_packs(root)
+    assert BR.main(["--programs", "ARS", "CP"], today=TODAY, log=_quiet) == 0
+    before = _rows(_folder(root) / BR.LATEST_NAME)
+
+    def boom(cat, period, notes):
+        raise ValueError("synthetic failure")
+    monkeypatch.setitem(BR.COMPILERS, "CP", boom)
+    assert BR.update(["CP"], "test", today=TODAY, log=_quiet) == "unchanged"
+    assert _rows(_folder(root) / BR.LATEST_NAME) == before        # never quietly short a program
+    man = _manifest(root)
+    assert "synthetic failure" in man["failed"]["CP"] and man["stale"]["CP"]
+
+
+def test_an_update_asked_for_before_another_compiled_its_programs_does_nothing(root):
+    ars_packs(root)
+    assert BR.main(["--programs", "ARS"], today=TODAY, log=_quiet) == 0
+    called = []
+    status = BR.update(["ARS"], "test", requested_at="2000-01-01T00:00:00", today=TODAY, log=_quiet,
+                       compile_fn=lambda *a, **k: called.append(a))
+    assert status == "current" and not called
+
+
+def test_an_update_with_no_reference_yet_compiles_every_program(root):
+    seen = []
+
+    def fake(period, programs, log=print):
+        seen.append(list(programs))
+        return {"rows": [], "catalog": [], "sources": {}, "failed": {}, "notes": [], "program_compiled_at": {}}
+    BR.update(["ARS"], "test", today=TODAY, log=_quiet, compile_fn=fake)
+    assert seen == [list(BR.PROGRAMS)]
+
+
+def test_a_second_update_waits_for_the_lock_and_a_stale_lock_is_broken(root):
+    ars_packs(root)
+    assert BR.main(["--programs", "ARS"], today=TODAY, log=_quiet) == 0
+    lock = _folder(root) / BR.LOCK_NAME
+    lock.write_text(json.dumps({"host": "another-pc", "pid": 1}), encoding="utf-8")
+    assert BR.update(["ARS"], "test", today=TODAY, log=_quiet, wait_minutes=0) == "locked"
+    assert lock.exists()                                          # someone else's lock is never removed while it is fresh
+    old = datetime.datetime.now().timestamp() - 60 * (BR.LOCK_STALE_MINUTES + 5)
+    os.utime(lock, (old, old))
+    assert BR.update(["ARS"], "test", today=TODAY, log=_quiet, wait_minutes=0) in ("written", "unchanged")
+    assert not lock.exists()                                      # this update's own lock is released
+
+
+def test_a_lock_held_by_another_process_is_not_released_by_this_one(root):
+    folder = _folder(root)
+    folder.mkdir()
+    lock = folder / BR.LOCK_NAME
+    lock.write_text(json.dumps({"host": "another-pc", "pid": 1}), encoding="utf-8")
+    BR.release_lock(lock)
+    assert lock.exists()
+
+
+class _FakePopen:
+    calls = []
+
+    def __init__(self, cmd, **kw):
+        _FakePopen.calls.append((cmd, kw))
+        self.pid = 4321
+
+
+def test_spawn_update_starts_a_detached_process_for_the_decks_programs(root, monkeypatch):
+    monkeypatch.setenv("RPE_PEER_REFERENCE_UPDATE", "1")
+    _FakePopen.calls = []
+    monkeypatch.setattr(BR.subprocess, "Popen", _FakePopen)
+    assert BR.spawn_update(["ARS", "ICS-REFERRALS", "CP", "TI"], "ars_launcher build 7001", log=_quiet) == 4321
+    cmd, kw = _FakePopen.calls[0]
+    assert cmd[cmd.index("--programs") + 1:cmd.index("--requested-at")] == ["ARS", "ICS", "CP"]
+    assert "--update" in cmd and kw["stdin"] == BR.subprocess.DEVNULL
+    assert kw["stdout"] is not BR.subprocess.PIPE                 # a file, never a pipe (CLAUDE.md)
+    assert (root / "Build Artifacts" / BR.UPDATE_LOG_NAME).exists()
+
+
+def test_spawn_update_never_raises_and_is_off_in_the_test_suite(root, monkeypatch):
+    assert BR.spawn_update(["ARS"], "x", log=_quiet) is None      # conftest turns it off
+    monkeypatch.setenv("RPE_PEER_REFERENCE_UPDATE", "1")
+
+    def refuse(*a, **k):
+        raise OSError("no process for you")
+    monkeypatch.setattr(BR.subprocess, "Popen", refuse)
+    assert BR.spawn_update(["ARS"], "x", log=_quiet) is None
+    assert BR.spawn_update(["TI"], "x", log=_quiet) is None       # a deck with no peer figures starts nothing
+
+
+def test_the_launchers_hook_never_raises(monkeypatch):
+    import ars_launcher as AL
+
+    def boom(*a, **k):
+        raise RuntimeError("synthetic")
+    monkeypatch.setattr(BR, "spawn_update", boom)
+    AL.update_peer_reference(["ARS"], "test")                     # a deck in Outputs is never undone for this
+
+
+def test_the_ils_peer_pull_starts_an_ils_update_and_never_raises(root, monkeypatch):
+    """The ILS rows change when the peer pull writes the peer table, so that is where the ILS update starts."""
+    try:
+        from ils_review import peer_pull as PPL
+    except Exception as exc:                               # noqa: BLE001
+        pytest.skip(f"ils_review not importable: {exc}")
+    calls = []
+    monkeypatch.setattr(BR, "spawn_update", lambda programs, reason, log=None: calls.append((list(programs), reason)))
+    PPL.update_peer_reference("ILS peer pull (2 client(s))", say=lambda m: None)
+    assert calls == [(["ILS"], "ILS peer pull (2 client(s))")]
+
+    def boom(*a, **k):
+        raise RuntimeError("synthetic")
+    monkeypatch.setattr(BR, "spawn_update", boom)
+    seen = []
+    PPL.update_peer_reference("x", say=seen.append)
+    assert seen and "not updated" in seen[0]
