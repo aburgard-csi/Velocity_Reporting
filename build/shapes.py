@@ -239,6 +239,52 @@ def slide_title(slide):
     return ""
 
 
+# Slides a builder drew in a "no data" state, by slide id, with the sentence that said why (Aaron, 2026-11-22: "skip a
+# slide if it doesn't have data"). The ARS builder takes them out of the deck at the end, once nothing more is added
+# (drop_no_data_slides), so a view keeps its anchors while the deck is being built.
+NO_DATA = {}
+
+
+def _nd_key(slide):
+    # A slide id is unique within ONE presentation only, so the key carries the package too.
+    return (id(slide.part.package), slide.slide_id)
+
+
+def mark_no_data(slide, reason):
+    NO_DATA[_nd_key(slide)] = reason
+    return slide
+
+
+def drop_no_data_slides(prs, log=print):
+    """Drop every slide `mark_no_data` registered that is in this deck; returns [(title, reason)]."""
+    gone = []
+    for s in [x for x in prs.slides if _nd_key(x) in NO_DATA]:
+        gone.append((slide_title(s).split("\n")[0], NO_DATA.pop(_nd_key(s))))
+        log(f"slide left out (no data): {gone[-1][0]} - {gone[-1][1]}")
+        drop_slide(prs, s)
+    return gone
+
+
+def drop_slide(prs, slide):
+    """Take a slide out of the deck: its entry in the slide list AND its relationship, so its part (and notes) are not
+    written when the deck is saved. Used for a slide with no data for this client (Aaron, 2026-11-22: "skip a slide if it
+    doesn't have data").
+
+    The kept slides' parts are then renamed slide1..slideN in deck order (as build_ics_gen does after its drops):
+    python-pptx names a new slide after the slide count, and a freed name in the middle of the sequence handed to a slide
+    added later (the Summit, say) is the duplicate-part defect (CLAUDE.md)."""
+    from pptx.oxml.ns import qn
+    el = sldid_of(prs, slide)
+    rid = el.get(qn("r:id"))
+    lst = prs.slides._sldIdLst
+    lst.remove(el)
+    try:
+        prs.part.drop_rel(rid)
+    except KeyError:
+        pass
+    prs.part.rename_slide_parts([e.get(qn("r:id")) for e in list(lst)])
+
+
 def sldid_of(prs, slide):
     for el in prs.slides._sldIdLst:
         rId = el.get(qn("r:id"))

@@ -131,16 +131,17 @@ def test_ars_rows_are_the_collectors_values_with_their_provenance(root):
     res = BR.compile_all("2026.10", ["ARS"], log=lambda *a: None)
     assert not res["failed"]
     coll = PP.collect_ars(PP.PeerCtx(client=BR.SENTINEL, period="2026.10"))
-    want = {(p["id"], k): v for p in coll["peers"] for k, v in p["point"].items()}
+    compared = {m["key"] for m in PP.ARS_METRICS}
+    want = {(p["id"], k): v for p in coll["peers"] for k, v in p["point"].items() if k in compared}
     got = {(r["client_id"], r["metric_key"]): r["value"] for r in res["rows"] if r["period_basis"] != "month"
            and not r["metric_key"].startswith("metrics.")}
-    assert got == pytest.approx(want) and len(got) >= 7 * 4
+    assert got == pytest.approx(want) and len(got) >= 7 * 2       # the synthetic packs carry Reg E and retention
     r = next(r for r in res["rows"] if r["metric_key"] == "rege_pct" and r["client_id"] == IDS[0])
     assert r["period"] == "2026.09" and r["source_date"] == "2026-10-03" and r["month_complete"] == "n/a"
     assert r["source_file"] == f"Build Artifacts/launcher/2026.10/{IDS[0]}/metrics.json"
     assert "Live Review" in r["consumers"] and "How You Compare slide" in r["consumers"]
-    resp = next(r for r in res["rows"] if r["metric_key"] == "resp_12m" and r["client_id"] == IDS[0])
-    assert resp["period"] == "2026.09" and resp["month_complete"] == "yes"
+    # The program's own results are never compared (Aaron, 2026-11-22), so they are not peer figures.
+    assert not any(r["metric_key"] in PP.ARS_PROGRAM_RESULTS for r in res["rows"])
     # Sheila in Claude's fields are recorded too, raw from the same packs.
     take = [r for r in res["rows"] if r["metric_key"] == "metrics.overall_take"]
     assert len(take) == 7 and "Sheila in Claude" in take[0]["consumers"]
