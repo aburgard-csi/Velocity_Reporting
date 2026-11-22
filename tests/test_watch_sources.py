@@ -1140,7 +1140,7 @@ def _odd(folder, stamp, body="a,b\n1,2\n"):
 
 
 def test_a_dropped_odd_extract_with_a_newer_pull_replaces_the_held_one(drop):
-    """Aaron, 2026-11-22: "yes, newer stamp should replace it automatically" (1509 Texas Bay's emailed
+    """Aaron, 2026-11-22: "yes, newer stamp should replace it automatically": an emailed
     October extract against September's in Inputs). The held one is archived, never deleted."""
     import os
     import time

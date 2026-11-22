@@ -498,8 +498,8 @@ def apply_copies(plan):
 # Inputs/ holding a different file of the same name is a person's call (the copy there may have been
 # opened and saved in Excel on purpose), with ONE exception: an ODD extract whose own pull stamp is
 # newer than the held extract's replaces it, and the held one is moved to `Inputs/ODDD/_Archive/`,
-# never deleted (Aaron, 2026-11-22: "yes, newer stamp should replace it automatically"; 1509 Texas
-# Bay's emailed October extract is the case). An older, equal or unreadable stamp is left for a
+# never deleted (Aaron, 2026-11-22: "yes, newer stamp should replace it automatically"; an extract
+# emailed in after the share's is the case). An older, equal or unreadable stamp is left for a
 # person. A byte-identical copy already in Inputs/ is simply taken out of the folder (Aaron,
 # 2026-11-10: "Yes, delete the duplicates").
 _DROP_REPORT_EXT = (".xlsx", ".xlsm", ".xls")
