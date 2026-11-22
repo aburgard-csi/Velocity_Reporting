@@ -733,7 +733,12 @@ mail step already use (`classify`, `mail_sources.classify_attachment`, the DDA c
 - Byte-identical copy already in `Inputs/` (any kind folder or the legacy flat one): the dropped copy is
   removed ("Yes, delete the duplicates", 2026-11-10).
 - **A different file of the same name in `Inputs/` is never overwritten**: both stay and the report says
-  so (for an ODD extract, with both pull stamps). A file no reader knows, and any subfolder, are left.
+  so. **The one exception is an ODD extract whose own pull stamp (`(MMDDYY_HHMMSS)`) is newer than the held
+  one's** (Aaron, 2026-11-22: "yes, newer stamp should replace it automatically"): it replaces the held
+  extract, which moves to `Inputs/ODDD/_Archive/<id>_ODDD pulled <stamp>.zip`, never deleted. The new file
+  carries today's write time, so the share's older extract (an older write) cannot undo it the next morning.
+  An older, equal or unreadable stamp is left with both stamps in the report. A file no reader knows, and
+  any subfolder, are left.
 - A refused delete is reported, never fatal. A folder that is not there is one line in the report.
   `--dry-run` lists what it would do. The report gets a `## Drop Folder` section; an empty folder adds nothing.
 

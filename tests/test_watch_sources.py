@@ -1131,19 +1131,91 @@ def test_a_different_file_of_the_same_name_is_never_overwritten(drop):
     assert (d / name).read_bytes() == b"as the data team sent it"
 
 
-def test_a_different_odd_extract_is_left_and_its_pull_stamps_are_named(drop):
+def _odd(folder, stamp, body="a,b\n1,2\n"):
     import zipfile
+    folder.mkdir(exist_ok=True)
+    with zipfile.ZipFile(folder / "1509_ODDD.zip", "w") as z:
+        z.writestr("1509_ODDD (%s).csv" % stamp if stamp else "1509_ODDD.csv", body)
+    return folder / "1509_ODDD.zip"
+
+
+def test_a_dropped_odd_extract_with_a_newer_pull_replaces_the_held_one(drop):
+    """Aaron, 2026-11-22: "yes, newer stamp should replace it automatically" (1509 Texas Bay's emailed
+    October extract against September's in Inputs). The held one is archived, never deleted."""
+    import os
+    import time
     d, inp = drop
-    (inp / "ODDD").mkdir()
-    for root, stamp in ((inp / "ODDD", "091526_101010"), (d, "101326_090000")):
-        with zipfile.ZipFile(root / "1509_ODDD.zip", "w") as z:
-            z.writestr("1509_ODDD (%s).csv" % stamp, "a,b\n1,2\n")
+    held = _odd(inp / "ODDD", "091526_101010", "september\n")
+    old = time.time() - 30 * 86400
+    os.utime(held, (old, old))
+    dropped = _odd(d, "101326_090000", "october rows\n")
+    new_bytes = dropped.read_bytes()
+    plan = W.drop_plan(str(d), str(inp))
+    assert _actions(plan) == {"1509_ODDD.zip": W.DROP_REPLACE}
+    done = W.apply_drop(plan)
+    assert [o for _, o in done] == ["filed"]
+    assert held.read_bytes() == new_bytes
+    archived = list((inp / "ODDD" / W.R.ARCHIVE_DIRNAME).iterdir())
+    assert [p.name for p in archived] == ["1509_ODDD pulled 2026-09-15 101010.zip"]
+    assert W.odd_pull_stamp(archived[0]).month == 9
+    assert not dropped.exists() and not list(inp.rglob("*.part"))
+    # Today's write time: the share's older extract (an older write) must not overwrite it tomorrow.
+    assert held.stat().st_mtime > time.time() - 3600
+    lines = "\n".join(W._drop_section({"drop": done}))
+    assert "replaced" in lines and "2026-10-13 09:00" in lines and "2026-09-15 10:10" in lines
+    assert "replacing an older ODD extract" in W._drop_tail({"drop": done})
+
+
+def test_a_replaced_extract_never_overwrites_an_earlier_archive(drop):
+    d, inp = drop
+    _odd(inp / "ODDD", "091526_101010", "september\n")
+    arch = inp / "ODDD" / W.R.ARCHIVE_DIRNAME
+    arch.mkdir()
+    (arch / "1509_ODDD pulled 2026-09-15 101010.zip").write_bytes(b"kept from before")
+    _odd(d, "101326_090000", "october\n")
+    assert [o for _, o in W.apply_drop(W.drop_plan(str(d), str(inp)))] == ["filed"]
+    assert (arch / "1509_ODDD pulled 2026-09-15 101010.zip").read_bytes() == b"kept from before"
+    assert (arch / "1509_ODDD pulled 2026-09-15 101010 (2).zip").exists()
+
+
+@pytest.mark.parametrize("held_stamp, dropped_stamp, why", [
+    ("101326_090000", "091526_101010", "not newer"),       # an older pull
+    ("101326_090000", "101326_090000", "not newer"),       # the same pull, other bytes
+    ("091526_101010", None, "could not be read"),          # the dropped one carries no stamp
+])
+def test_a_dropped_odd_extract_that_is_not_newer_is_left_and_its_pull_stamps_are_named(drop, held_stamp,
+                                                                                     dropped_stamp, why):
+    d, inp = drop
+    held = _odd(inp / "ODDD", held_stamp, "held\n")
+    before = held.read_bytes()
+    _odd(d, dropped_stamp, "dropped\n")
     plan = W.drop_plan(str(d), str(inp))
     assert _actions(plan) == {"1509_ODDD.zip": W.DROP_DIFFERS}
-    assert plan[0]["stamps"] == ("2026.10", "2026.09")
     lines = "\n".join(W._drop_section({"drop": W.apply_drop(plan)}))
-    assert "Pull stamps: dropped 2026.10, Inputs 2026.09" in lines
-    assert (d / "1509_ODDD.zip").exists()
+    assert "Pull stamps: dropped" in lines and why in lines
+    assert held.read_bytes() == before and (d / "1509_ODDD.zip").exists()
+    assert not (inp / "ODDD" / W.R.ARCHIVE_DIRNAME).exists()
+
+
+def test_a_replacement_that_fails_leaves_the_held_extract_where_it_was(drop, monkeypatch):
+    d, inp = drop
+    held = _odd(inp / "ODDD", "091526_101010", "september\n")
+    before = held.read_bytes()
+    _odd(d, "101326_090000", "october\n")
+    plan = W.drop_plan(str(d), str(inp))
+    real = W.os.replace
+
+    def refuse_new(src, dst):
+        if str(src).endswith(".part"):
+            raise OSError("synthetic: the share refused the write")
+        return real(src, dst)
+    monkeypatch.setattr(W.os, "replace", refuse_new)
+    done = W.apply_drop(plan)
+    assert done[0][1].startswith("FAILED")
+    assert held.read_bytes() == before                           # put back from the archive
+    assert not list((inp / "ODDD" / W.R.ARCHIVE_DIRNAME).iterdir())
+    assert (d / "1509_ODDD.zip").exists() and not list(inp.rglob("*.part"))
+    assert "Drop Folder needs a look" in W._drop_tail({"drop": done})
 
 
 def test_what_the_sweep_cannot_place_is_left_and_reported(drop):

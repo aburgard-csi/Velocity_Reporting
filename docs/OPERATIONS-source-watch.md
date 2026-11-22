@@ -170,7 +170,8 @@ what happens to each file and `apply_drop` does it:
 | --- | --- |
 | A recognised input not in `Inputs/` | copies it to that kind's folder through a `.part`, checks the size and that the dropped file did not change during the copy, then removes the dropped copy |
 | The same bytes are already in `Inputs/` (any kind folder or the legacy flat one) | removes the dropped copy |
-| `Inputs/` holds a different file of that name | leaves both and reports it, naming both pull stamps for an ODD extract. It never overwrites: the copy in `Inputs/` may have been saved in Excel on purpose, and a dropped extract may be last month's |
+| `Inputs/` holds a different ODD extract, and the dropped one's pull stamp is newer | replaces it; the held extract moves to `Inputs/ODDD/_Archive/<id>_ODDD pulled <stamp>.zip`, never deleted (Aaron, 2026-11-22). The new file carries today's write time, so the share's older extract cannot undo it the next morning. A failed replacement puts the held extract back |
+| `Inputs/` holds a different file of that name (any other kind, or an ODD extract whose dropped pull is not newer or has no readable stamp) | leaves both and reports it, naming both pull stamps for an ODD extract. The copy in `Inputs/` may have been saved in Excel on purpose, and a dropped extract may be last month's |
 | A name no reader knows, or a subfolder | leaves it and reports it |
 
 A refused delete (some mounts allow writes but not deletes) is reported and the run goes on.

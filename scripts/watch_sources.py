@@ -495,14 +495,41 @@ def apply_copies(plan):
 # (`classify`, `mail_sources.classify_attachment`, the DDA count's saved name) and filed into the
 # same Inputs/ folder those would have used. This module has no classifier of its own for it.
 #
-# It never overwrites: Inputs/ holding a different file of the same name is a person's call (the
-# copy there may have been opened and saved in Excel on purpose, or the dropped extract may be last
-# month's). A byte-identical copy already in Inputs/ is simply taken out of the folder (Aaron,
+# Inputs/ holding a different file of the same name is a person's call (the copy there may have been
+# opened and saved in Excel on purpose), with ONE exception: an ODD extract whose own pull stamp is
+# newer than the held extract's replaces it, and the held one is moved to `Inputs/ODDD/_Archive/`,
+# never deleted (Aaron, 2026-11-22: "yes, newer stamp should replace it automatically"; 1509 Texas
+# Bay's emailed October extract is the case). An older, equal or unreadable stamp is left for a
+# person. A byte-identical copy already in Inputs/ is simply taken out of the folder (Aaron,
 # 2026-11-10: "Yes, delete the duplicates").
 _DROP_REPORT_EXT = (".xlsx", ".xlsm", ".xls")
 
-DROP_FILE, DROP_DUPLICATE, DROP_DIFFERS, DROP_UNKNOWN, DROP_FOLDER = (
-    "file", "duplicate", "differs", "unrecognised", "folder")
+DROP_FILE, DROP_DUPLICATE, DROP_DIFFERS, DROP_UNKNOWN, DROP_FOLDER, DROP_REPLACE = (
+    "file", "duplicate", "differs", "unrecognised", "folder", "replace")
+
+_PULL_STAMP_RX = re.compile(r"\((\d{6})_(\d{6})\)")
+
+
+def odd_pull_stamp(zip_path):
+    """The full pull stamp an ODD extract's member file carries, "(MMDDYY_HHMMSS)", as a datetime, or None.
+
+    Finer than `deck_status.odd_stamp_period` (a month): two pulls in one month are told apart. Only
+    the zip's central directory is read."""
+    import datetime
+    import zipfile
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            names = [n for n in z.namelist() if n.lower().endswith(".csv")] or z.namelist()
+    except Exception:                                # noqa: BLE001 - not a readable zip: no stamp
+        return None
+    for n in names:
+        m = _PULL_STAMP_RX.search(os.path.basename(n))
+        if m:
+            try:
+                return datetime.datetime.strptime(m.group(1) + m.group(2), "%m%d%y%H%M%S")
+            except ValueError:
+                continue
+    return None
 
 
 def _drop_dir():
@@ -566,6 +593,8 @@ def drop_plan(drop_dir, inputs_dir):
 
     file          recognised and not in Inputs/: copy it in, then take it out of the folder
     duplicate     Inputs/ already holds the same bytes: take it out of the folder
+    replace       an ODD extract whose pull stamp is newer than the held one's: file it, and move
+                  the held one to Inputs/ODDD/_Archive/
     differs       Inputs/ holds a different file of the same name: leave both, a person decides
     unrecognised  no input reader knows the name: leave it
     folder        a subfolder: leave it (the sweep reads files only)
@@ -598,8 +627,68 @@ def drop_plan(drop_dir, inputs_dir):
                 item["action"], item["error"] = DROP_DIFFERS, str(e)
         if item["action"] == DROP_DIFFERS and kind == ODDD:
             item["stamps"] = (DS.odd_stamp_period(path), DS.odd_stamp_period(existing))
+            new, held = odd_pull_stamp(path), odd_pull_stamp(existing)
+            item["pulls"] = (new, held)
+            if new and held and new > held:
+                item["action"] = DROP_REPLACE
+                item["archive"] = _odd_archive_path(existing, held)
+            else:
+                item["why"] = ("its pull stamp is not newer than the held extract's" if new and held
+                               else "a pull stamp could not be read, so which is newer is not known")
         out.append(item)
     return out
+
+
+def _odd_archive_path(held, stamp):
+    """Where a replaced ODD extract goes: `Inputs/ODDD/_Archive/<id>_ODDD pulled <stamp>.zip`, a new name
+    if that one is taken. Readers look for `<id>_ODDD.zip` in Inputs/ODDD itself, never in _Archive."""
+    folder = os.path.join(os.path.dirname(held), R.ARCHIVE_DIRNAME)
+    base = os.path.splitext(os.path.basename(held))[0] + " pulled " + stamp.strftime("%Y-%m-%d %H%M%S")
+    cand, n = os.path.join(folder, base + ".zip"), 2
+    while os.path.exists(cand):
+        cand, n = os.path.join(folder, "%s (%d).zip" % (base, n)), n + 1
+    return cand
+
+
+def _replace_odd(item):
+    """File a newer dropped ODD extract over the held one; the held one moves to the archive. Returns
+    None, or what went wrong (with the held extract put back where it was when it can be).
+
+    The new file is written with TODAY's modified time (copyfile, not copy2): the share copy replaces a
+    held file only when the share's is the newer write, so the share's older extract cannot undo this
+    the next morning."""
+    import shutil
+    src, dest, arch = item["path"], item["dest"], item["archive"]
+    part = dest + ".part"
+    try:
+        before = os.path.getsize(src)
+        shutil.copyfile(src, part)
+        if os.path.getsize(src) != before or os.path.getsize(part) != before:
+            raise OSError("the dropped file changed while it was copied (still arriving?)")
+        os.makedirs(os.path.dirname(arch), exist_ok=True)
+        os.replace(dest, arch)
+    except OSError as e:
+        try:
+            if os.path.exists(part):
+                os.remove(part)
+        except OSError:
+            pass
+        return str(e)
+    try:
+        os.replace(part, dest)
+        if os.path.getsize(dest) != before:
+            raise OSError("size mismatch after copy (%d vs %d)" % (os.path.getsize(dest), before))
+    except OSError as e:
+        try:                                         # put the held extract back
+            if os.path.exists(dest):
+                os.remove(dest)
+            os.replace(arch, dest)
+            if os.path.exists(part):
+                os.remove(part)
+        except OSError as e2:
+            return "%s; and the held extract could not be put back from %s: %s" % (e, arch, e2)
+        return str(e)
+    return None
 
 
 def _take_out(path):
@@ -625,6 +714,14 @@ def apply_drop(plan):
         if act == DROP_DUPLICATE:
             err = _take_out(item["path"])
             out.append((item, "removed" if err is None else "NOT removed: %s" % err))
+            continue
+        if act == DROP_REPLACE:
+            err = _replace_odd(item)
+            if err:
+                out.append((item, "FAILED: %s" % err))
+                continue
+            err = _take_out(item["path"])
+            out.append((item, "filed" if err is None else "filed; NOT removed from the Drop Folder: %s" % err))
             continue
         if act != DROP_FILE:
             out.append((item, "left"))
@@ -678,11 +775,30 @@ def _drop_section(result):
             verb = "would remove" if dry else outcome
             out.append("- `%s` — already filed (same bytes as `%s`); %s from the Drop Folder"
                        % (nm, it["existing"], verb))
+        elif act == DROP_REPLACE:
+            new, held = it["pulls"]
+            if dry:
+                verb, moved = "would replace", "would move to"
+            elif outcome.startswith("filed"):
+                verb, moved = "replaced", "moved to"
+            else:
+                verb, moved = outcome + " — did not replace", "stays as it was; archive would have been"
+            line = ("- **%s** `%s` — %s `%s`: newer pull (%s, held %s); the held extract %s `%s`"
+                    % (it["kind"], nm, verb, it["dest"], new.strftime("%Y-%m-%d %H:%M"),
+                       held.strftime("%Y-%m-%d %H:%M"), moved, it["archive"]))
+            if not dry and outcome.startswith("filed;"):
+                line += " (%s)" % outcome[len("filed; "):]
+            out.append(line)
         elif act == DROP_DIFFERS:
             extra = ""
             st = it.get("stamps")
             if st:
                 extra = " Pull stamps: dropped %s, Inputs %s." % (st[0] or "unknown", st[1] or "unknown")
+            pulls = it.get("pulls")
+            if pulls and all(pulls):
+                extra += " Pulled %s and %s." % tuple(x.strftime("%Y-%m-%d %H:%M") for x in pulls)
+            if it.get("why"):
+                extra += " Left because %s." % it["why"]
             if it.get("error"):
                 extra += " (%s)" % it["error"]
             out.append("- `%s` — LEFT: Inputs already holds a different file of this name (`%s`); "
@@ -698,12 +814,14 @@ def _drop_section(result):
 def _drop_tail(result):
     """The sweep's part of the one-line summary."""
     done = result.get("drop") or []
-    filed = sum(1 for it, o in done if it["action"] == DROP_FILE and o.startswith("filed"))
+    filed = sum(1 for it, o in done if it["action"] in (DROP_FILE, DROP_REPLACE) and o.startswith("filed"))
+    replaced = sum(1 for it, o in done if it["action"] == DROP_REPLACE and o.startswith("filed"))
     failed = sum(1 for it, o in done if o.startswith("FAILED") or "NOT removed" in o)
     left = sum(1 for it, o in done if it["action"] in (DROP_DIFFERS, DROP_UNKNOWN, DROP_FOLDER))
     tail = ""
     if filed:
-        tail += " Filed %d from the Drop Folder." % filed
+        tail += " Filed %d from the Drop Folder%s." % (
+            filed, " (%d replacing an older ODD extract)" % replaced if replaced else "")
     if left or failed:
         tail += " Drop Folder needs a look (%d)." % (left + failed)
     return tail
