@@ -20,6 +20,21 @@ from . import charts as C
 from . import theme as T
 from .ils_data import count, money, pct
 
+
+def _integrity_widths(rows, total, real_pt):
+    """Design widths for the integrity table: the Table and Column columns are at least as wide as their longest word.
+    Table names such as REF_CHARGE_OFF have no break point, and at the fixed 1.8 design width (1.17 in) one broke
+    mid-word; the width comes out of the Condition column, which wraps at spaces."""
+    import textfit                  # build/ is on the path in every entry point of this package
+
+    def need(words, floor):
+        w = max((textfit.text_width_in(x, real_pt, "Calibri") for x in words if x), default=0.0)
+        return max(floor, (w + 0.25) / T.SX)
+
+    tab = need([r[1] for r in rows] + ["Table"], 1.8)
+    col = need([w for r in rows for w in r[2].replace(",", " ").split()] + ["Column"], 2.0)
+    return [max(3.0, total - tab - col - 1.4), tab, col, 1.4]
+
 X = 0.42
 W = T.SLIDE_W - 2 * X
 
@@ -163,10 +178,12 @@ def _health(dk, d, *, section):
                  count(g["n"])]
                 for g in d.errors[:9]]
         rh = min(0.52, max(0.30, (T.CONTENT_BOTTOM - y - 0.6) / max(1, len(rows))))
-        tbl = dk.table(slide, X, y + 0.50, lw, [6.4, 1.8, 2.0, 1.4], len(rows) + 1,
+        size = min(14, rh * 24)
+        widths = _integrity_widths(rows, lw, T.table_pt(size))
+        tbl = dk.table(slide, X, y + 0.50, lw, widths, len(rows) + 1,
                        row_h=rh)
         T.fill_table(tbl, ["Condition", "Table", "Column", "Rows"], rows,
-                     size=min(14, rh * 24),
+                     size=size,
                      align=[PP_ALIGN.LEFT, PP_ALIGN.LEFT, PP_ALIGN.LEFT,
                             PP_ALIGN.RIGHT])
     else:
