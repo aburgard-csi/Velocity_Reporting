@@ -7,6 +7,7 @@ import pytest
 import ti_build
 from ti import chapters_txn as X
 from ti import ledger, portfolio
+from ti.deck import txn_layers as LAYERS
 
 
 def _all_keep(tmp_path):
@@ -18,7 +19,7 @@ def _all_keep(tmp_path):
 # ---------------------------------------------------------------- ledger
 def test_every_builder_has_exactly_one_line():
     rows = ledger.rows()
-    assert len(rows) == len(X.TI_BUILDERS) + len(X.COMP_BUILDERS)
+    assert len(rows) == len(X.TI_BUILDERS) + len(X.COMP_BUILDERS) + len(LAYERS.BUILDERS)
     titles = [r[1] for r in rows]
     assert len(set(titles)) == len(titles)
 
@@ -26,7 +27,7 @@ def test_every_builder_has_exactly_one_line():
 def test_chapters_are_assigned():
     rows = ledger.rows()
     assert {r[0] for r in rows} == {"Transaction Intelligence", "Competition"}
-    assert sum(r[0] == "Competition" for r in rows) == len(X.COMP_BUILDERS)
+    assert sum(r[0] == "Competition" for r in rows) == len(X.COMP_BUILDERS) + len(LAYERS.BUILDERS)
 
 
 def test_statuses_are_the_four_and_each_has_a_reason_when_not_drawn():
@@ -149,3 +150,14 @@ def test_the_build_upserts_the_shared_table_only_when_named(tmp_path, monkeypatc
 def test_a_failure_never_costs_the_decks(tmp_path, capsys):
     ti_build.write_run_tables({"client_id": "1798"}, tmp_path)         # no metrics, no month
     assert "not written" in capsys.readouterr().out or (tmp_path / "ti_slide_ledger.csv").is_file()
+
+
+def test_the_layers_slides_are_in_the_ledger_with_their_status(tmp_path):
+    """The ledger listed only the older competition slides, so 55 layers slides were drawn or declined with no line."""
+    rows = {r[1]: r for r in ledger.rows(selection_path=_all_keep(tmp_path))}
+    for b in LAYERS.BUILDERS:
+        assert X.TITLES[b.__name__] in rows and rows[X.TITLES[b.__name__]][0] == "Competition"
+    first = X.TITLES[LAYERS.BUILDERS[0].__name__]
+    pack = {"hidden_declined": {"ars": [{"title": first, "reason": "no layered figures"}]}}
+    got = {r[1]: r for r in ledger.rows(pack, selection_path=_all_keep(tmp_path))}
+    assert got[first][2] == "hidden" and got[first][3] == "no layered figures"

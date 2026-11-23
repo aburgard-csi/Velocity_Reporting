@@ -819,17 +819,11 @@ def slide_volume(prs, d, pill_text, art_dir):
         }
 
     if not months and not partial:
-        head(s, "CashPlease Loan Volume by Month",
-             f"No loans booked by {d['client_name']} in this workbook.", pill_text)
-        textbox(s, 0.90, 2.20, 11.5, 1.10,
-                "The workbook carries no month roll-up and no daily rows for this "
-                "client, so there is nothing to plot. This is stated rather than "
-                "drawn as an empty chart.",
-                16, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-        notes(s, f"Source: {d['source_file']}, tab '{d['sheet_name']}' (report "
-                 f"generated {d['report_generated']}). No rows in the 'Created Date' "
-                 f"series at all. Nothing is zeroed.")
-        return s
+        # No loans in the workbook for this client: the slide is LEFT OUT (Aaron, 2026-11-22: "skip a slide if it
+        # doesn't have data"). The slide made above is not in the deck's order, so the strip_dead pass removes it.
+        print(f"slide left out (no data): CashPlease Loan Volume by Month - the workbook carries no month roll-up "
+              f"and no daily rows for {d['client_name']} ({d['source_file']}, tab '{d['sheet_name']}')")
+        return None
 
     if months:
         sub = (f"Loans booked per completed month, most recent "
@@ -1061,13 +1055,14 @@ def main():
             slide_overview(prs, d, pill_text, art_dir)]
     if S is not None:
         made.append(slide_settings(prs, d, S, settings_path.name))
-    made += [slide_volume(prs, d, pill_text, art_dir),
-             slide_status(prs, d, pill_text, art_dir),
-             slide_peer(prs, d, pill_text, art_dir)]
+    made += [x for x in (slide_volume(prs, d, pill_text, art_dir),       # None: no data, left out
+                         slide_status(prs, d, pill_text, art_dir),
+                         slide_peer(prs, d, pill_text, art_dir)) if x is not None]
     # How You Compare (Aaron, 2026-11-03): the client against every other CashPlease client, the same comparison
-    # Live Review's "How you compare" shows; anonymous. Always drawn; the slide says so when there are too few peers.
+    # Live Review's "How you compare" shows; anonymous. Two comparisons a slide at most; a slide with no measure that has
+    # enough peers is not added (Aaron, 2026-11-22).
     import peer_slide
-    made.append(peer_slide.add_peer_slide(
+    made.extend(peer_slide.add_peer_slide(
         prs, "CP", d["client_id"], d["client_name"], pill_text, str(art_dir),
         f"Client figures: {d['source_file']}, tab '{d['sheet_name']}' (report generated {d['report_generated']}).",
         anchor_slide=made[-1], own={"cashplease": d}))

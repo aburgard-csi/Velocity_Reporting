@@ -32,7 +32,20 @@ TICK, GRID, MUTED = HEX["subtle"], HEX["grid"], HEX["muted"]
 STEEL, STEEL_SOFT, LABEL = HEX["steel"], HEX["steel_soft"], HEX["label"]
 GOLD, SLATE, ROWALT = HEX["gold"], HEX["slate"], HEX["band"]
 DEFAULT_REPAYMENT_DAYS = 40         # see scoring_summary.DEFAULT_DAYS_NOTE
-ACTIVE_DAYS = 240                  # see Frame.active_open
+ACTIVE_DAYS = 240                  # Frame.active's fallback when the extract has no depAmt365
+LOSS_RATE_LIMIT = 1.0              # charge-offs above every fee collected in the year: see Frame.__init__
+
+
+def _money(x):
+    """'$2.02B', '$667K': the size of a figure in a sentence, not its last dollar."""
+    for div, unit in ((1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if abs(x) >= div:
+            return f"${x / div:,.{2 if div > 1e3 else 0}f}{unit}"
+    return f"${x:,.0f}"
+
+
+def _yes(s):
+    return s.astype(str).str.strip().str.lower().isin(("true", "1", "t", "y", "yes"))
 
 
 # ═══════════════════════════ the result of one chart ════════════════════════
@@ -119,12 +132,81 @@ class Frame:
         self.asof = pd.Timestamp(loaded.snapshot).normalize()
         self.default_days = default_days
         za = loaded.zaccounts
+        # A third account type (Northwest Bank's "Private Banking", its own matrix) stays out of the
+        # Personal and Business figures, as in the analysis team's notebook (paid vs returned, Scoring
+        # Summary, branches), EXCEPT the KPI rollup, which groups by IsPersonal (kpi_rollup, `segment`).
+        self.folded = {}
+        other = ~za["accttype"].isin(("Personal", "Business"))
+        if other.any() and "IsPersonal" in za.columns:
+            personal = _yes(za["IsPersonal"])
+            for (raw, seg), n in pd.DataFrame({"raw": za.loc[other, "accttype"],
+                                               "seg": np.where(personal[other], "Personal", "Business")}
+                                              ).groupby(["raw", "seg"]).size().items():
+                self.folded[str(raw)] = (seg, int(n))
         self.za = za
         self.client_types = ("Personal", "Business")
+        # Charge-off data the extract cannot be trusted with (Dannemora FCU 1781, 2026-11: every account flagged
+        # charged off, $2.0B charged off and -$5.3B recovered on a $320M credit union). A program charges off a few
+        # percent of its accounts; past half, the flag is a load fault. Charge-off DOLLARS (losses, loss rates,
+        # charge-offs against growth) are withheld and said so, never shown as $0 or 0%. The default and fatal-notice
+        # RATES are still shown, as the analysis team's notebook shows them (Aaron, 2026-11-17: "reproduce that
+        # logic"), with the flag stated beside them: on such an extract they are driven by it.
+        # The loss rate is the other check (Aaron, 2026-11-17: "4 to 12% would be the loss rate ... a high charge-off
+        # client will have maybe 20%"): 365-day charge-off dollars over 365-day collected fees, the whole extract.
+        # Real pulls read 12-17% (Adirondack 1403, Affinity 1568, Northwest 1245); 1781 reads 303,433% ($2.0B against
+        # $667K). Past LOSS_RATE_LIMIT, more charged off than every fee collected in the year, the dollars are a load fault.
+        self.co_problem = None
+        self.co_flag_share = None
+        self.co_loss_rate = None
+        reasons = []
+        if "Chargeoff_Account" in za.columns and len(za):
+            share = float(_yes(za["Chargeoff_Account"]).mean())
+            self.co_flag_share = share
+            if share > 0.5:
+                reasons.append(f"{share * 100:.0f}% of accounts are flagged as charged off")
+        if {"Chargeoff_Amt_365", "CollectedFees365"} <= set(za.columns) and len(za):
+            fees = float(pd.to_numeric(za["CollectedFees365"], errors="coerce").fillna(0).sum())
+            amt = float(pd.to_numeric(za["Chargeoff_Amt_365"], errors="coerce").fillna(0).sum())
+            if fees > 0:
+                self.co_loss_rate = amt / fees
+                if self.co_loss_rate > LOSS_RATE_LIMIT:
+                    reasons.append(f"charge-offs of {_money(amt)} against {_money(fees)} in collected fees, a "
+                                   f"{self.co_loss_rate * 100:,.0f}% loss rate where programs run 4% to 20%")
+        if reasons:
+            self.co_problem = (f"Charge-off data in this extract is not usable ({'; '.join(reasons)}), so charge-off "
+                               f"dollars and loss rates are left out until it is corrected; default and not-repaid rates "
+                               f"follow the analysis notebook and are driven by the charge-off flag.")
+        self.refund_problem = None
+        if "Refund_Amt_365" in za.columns and len(za) and za["Refund_Amt_365"].isna().all():
+            self.refund_problem = "Refund data is not in this extract (Refund_Amt_365 is blank on every account)."
         self.dd = loaded.declines
         self.rf = loaded.refunds
         self._zt = None
         self._notices = None
+
+    def co_slide_line(self, rates="these rates"):
+        """The one-line flag on a slide whose figures the charge-off data drives (None when the data is usable)."""
+        if not self.co_problem:
+            return None
+        if (self.co_flag_share or 0) > 0.5:
+            return (f"{self.co_flag_share * 100:.0f}% of accounts carry the charge-off flag in this extract: {rates} "
+                    "follow it, and loss rates are withheld.")
+        return "Charge-off dollars in this extract are not usable: loss rates are withheld."
+
+    def segment(self, accttype):
+        """Accounts in a KPI-rollup segment: the account type, plus any third type whose IsPersonal flag
+        puts it there (Northwest's Private Banking counts with Personal in the rollup)."""
+        za = self.za
+        if not self.folded:
+            return za[za["accttype"] == accttype]
+        # The notebook's rule (cells 38, 41, 97): an account is analysed when its account type starts with P, Q, B or
+        # Z, and the rollup groups the analysed accounts by IsPersonal. A type starting with anything else ("New
+        # Start - Personal", flagged IsPersonal False) is left out; folding it in by IsPersonal put every such account
+        # in Business and inflated its closed and charged-off counts.
+        analysed = za["accttype"].astype(str).str.strip().str[:1].str.upper().isin(("P", "Q", "B", "Z"))
+        seg = np.where(_yes(za["IsPersonal"]), "Personal", "Business")
+        main = za["accttype"].isin(("Personal", "Business"))
+        return za[(main & (za["accttype"] == accttype)) | (~main & analysed & (seg == accttype))]
 
     # ── typed ZTrend ────────────────────────────────────────────────────
     @property
@@ -157,9 +239,11 @@ class Frame:
         if zt is None:
             return None
         a1 = self.za.drop_duplicates("acctid").set_index("acctid")
-        keep = [c for c in ("CollectedFees", "PossibleFees", "Next_Positive_Date", "Last_Positive_Date",
+        keep = [c for c in ("CollectedFees", "PossibleFees", "Items", "PD", "Next_Positive_Date", "Last_Positive_Date",
                             "deptotal33", "depcount33", "limit") if c in zt.columns]
-        agg = {c: ("sum" if c in ("CollectedFees", "PossibleFees") else "first") for c in keep}
+        # The notebook's aggregation ('ILS Analysis - Python Script.ipynb', cell 24): sums for fees, items and paid
+        # items, the largest value for the last positive date, the 33-day deposits and the limit.
+        agg = {c: ("sum" if c in ("CollectedFees", "PossibleFees", "Items", "PD") else "max") for c in keep}
         if "Next_Positive_Date" in agg:
             agg["Next_Positive_Date"] = "min"
         n = zt.groupby(["acctid", "noticedate", "accttype"], observed=True, sort=False).agg(agg).reset_index()
@@ -175,6 +259,26 @@ class Frame:
         n["windfall"] = pd.to_numeric(n["acctid"].map(a1["WindfallRatio"]), errors="coerce") \
             if "WindfallRatio" in a1.columns else np.nan
         n["is_default"] = n["days_to_positive"] > self.default_days
+        # The analysis notebook's default (cells 26-34 and 'CURE', Tim Barrett's Scoring Summary): on a
+        # charged-off account, every notice dated on or after the account's last positive date (the
+        # largest Last_Positive_Date over all its notices) is a default. Its losses are the account's
+        # Chargeoff_Amt_365, counted once, on the notice nearest that date (the 'fatal' notice).
+        if "Last_Positive_Date" in n:
+            lp = pd.to_datetime(n["Last_Positive_Date"], errors="coerce")
+            last_pos = lp.groupby(n["acctid"]).transform("max")
+            n["nb_default"] = n["co"] & (n["noticedate"] >= last_pos)
+            c = n[n["co"] & last_pos.notna()].sort_values("noticedate")
+            span = (c["noticedate"] - last_pos[c.index]).dt.days.abs()
+            fatal = span.groupby(c["acctid"]).idxmin()
+            n["nb_fatal"] = False
+            n.loc[fatal.to_numpy(), "nb_fatal"] = True
+            # A charged-off account with no last positive date on any notice has no fatal notice, but the notebook
+            # still carries its Chargeoff_Amt_365, on its earliest notice (cell 30: min_span_lp keeps every notice
+            # when no span exists, and drop_duplicates keeps the first). Leaving those dollars out made monthly loss
+            # rates read low, never high, while % fatal and the 365-day charge-off total agreed.
+            no_lp = n[n["co"] & last_pos.isna()].sort_values("noticedate")
+            carrier = no_lp.groupby("acctid").head(1).index
+            n["nb_loss"] = np.where(n["nb_fatal"] | n.index.isin(carrier), n["co_amt"], 0.0)
         self._notices = n
         return n
 
@@ -194,19 +298,22 @@ class Frame:
         z = self.za[self.za["acctstatus"].astype(str).str.upper() == "O"]
         return z if accttype is None else z[z["accttype"] == accttype]
 
-    def active_open(self, accttype):
-        """Open accounts that are 'active': a deposit in the trailing ACTIVE_DAYS days, or an NSF/OD item
-        in the trailing 365.
+    def active(self, d):
+        """The analysis notebook's ACTIVITY flag (cell 38): more than $50 deposited in 365 days, or at least one
+        NSF/OD item in 365 days. An extract with no depAmt365 column falls back to a deposit in the last
+        ACTIVE_DAYS days."""
+        user = pd.to_numeric(d["items365"], errors="coerce").fillna(0) >= 1
+        if "depAmt365" in d.columns:
+            return (pd.to_numeric(d["depAmt365"], errors="coerce").fillna(0) > 50) | user
+        last = pd.to_datetime(d["lastdepdate"], errors="coerce")
+        return (last >= self.asof - pd.Timedelta(days=ACTIVE_DAYS)) | user
 
-        The hand-built deck's 'Open Active' population is defined in the analysis team's SQL, not in the
-        extract. This is the closest the extract supports: with 240 days Achieva's personal population
-        is 93,670 (deck 93,668) with 71,297 non-users (deck 71,295), and the business population is
-        within 0.6% of the deck. The window is calibrated on that one client; the sidecars record the
-        comparison and the slides say how the population is defined."""
+    def active_open(self, accttype):
+        """Open accounts that are active (`active`): the notebook's own definition, which reproduces the analyst
+        decks' Open Active Accts exactly. The 240-day deposit window it replaced was fitted on one client and ran
+        from -3% to +9% against the analyst decks on twelve others."""
         o = self.open_accounts(accttype)
-        last = pd.to_datetime(o["lastdepdate"], errors="coerce")
-        user = pd.to_numeric(o["items365"], errors="coerce").fillna(0) > 0
-        return o[(last >= self.asof - pd.Timedelta(days=ACTIVE_DAYS)) | user]
+        return o[self.active(o)]
 
 
 # ═══════════════════════════ figure helpers ═════════════════════════════════

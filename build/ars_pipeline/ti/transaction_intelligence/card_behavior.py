@@ -19,6 +19,7 @@ import pandas as pd
 
 from .financial_services import _pct
 from .lens import Lenses
+from ti.compat import str_values
 
 TICKET_BANDS = [(0, 5, "< $5"), (5, 15, "$5-15"), (15, 30, "$15-30"), (30, 60, "$30-60"),
                 (60, 120, "$60-120"), (120, 300, "$120-300"), (300, 1e18, "$300+")]
@@ -47,7 +48,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, anchor_end: pd.Timestamp, w
             base_label: str = "all accounts") -> dict:
     out: dict = {}
     K = key_prefix
-    typ = df["transaction_type"].astype(str).str.upper()
+    typ = str_values(df["transaction_type"], lambda v: v.str.upper())
     is_card = typ.isin(["PIN", "SIG"]).to_numpy()
     if not is_card.any():
         warn("card_behavior: no card rows (PIN/SIG); section skipped")
@@ -111,7 +112,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, anchor_end: pd.Timestamp, w
         rec_accts = acct[rec].nunique()
         out[K + "accounts_with_recurring"] = int(rec_accts)
         out[K + "accounts_with_recurring_pct"] = _pct(int(rec_accts), int(acct.nunique()))
-        top = pd.DataFrame({"key": card["merchant_key"].astype(str)[rec], "amount": amt[rec],
+        top = pd.DataFrame({"key": str_values(card["merchant_key"])[rec], "amount": amt[rec],
                             "acct": acct[rec]}).groupby("key", observed=True) \
             .agg(accounts=("acct", "nunique"), txns=("amount", "size"), dollars=("amount", "sum")) \
             .sort_index().sort_values("accounts", ascending=False, kind="mergesort")
@@ -155,7 +156,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, anchor_end: pd.Timestamp, w
     rails = set(typ[is_card & in_base].unique())
     if {"PIN", "SIG"} <= rails:
         t = typ[is_card & in_base]
-        rt = pd.DataFrame({"key": card["merchant_key"].astype(str), "t": t.to_numpy(),
+        rt = pd.DataFrame({"key": str_values(card["merchant_key"]), "t": t.to_numpy(),
                            "amount": amt}).groupby("key", observed=True)
         rows = []
         for k, r in rt:

@@ -66,8 +66,8 @@ CATS = [["Insurance", 12_143, 19.0, 76_474, 14_872_771, 1_225, "leakage", False,
 PROVIDERS = {"Insurance": [["STATE FARM INS", 3_445, 4_598_713]],
              "Buy Now Pay Later": [["AFFIRM", 6_804, 7_196_944], ["(unnamed)", 10, 900_000]],
              "P2P Transfers": [["CASH APP", 28_459, 78_143_006]]}
-ECO = [["Cash App", 28_478, 44.5, 78_316_482], ["Apple Cash", 14_184, 22.2, 21_942_706],
-       ["Klarna", 6_854, 10.7, 5_740_835], ["Affirm", 6_817, 10.7, 7_203_574]]
+# comp_ecosystems is P2P and wallets only; BNPL is its own tier and arrives in comp_bnpl
+ECO = [["Cash App", 28_478, 44.5, 78_316_482], ["Apple Cash", 14_184, 22.2, 21_942_706]]
 
 
 def test_who_they_pay_ranks_financial_products_only():
@@ -88,7 +88,7 @@ def test_the_payment_app_slide_splits_p2p_from_products():
     h = _h()
     P.the_payment_ecosystems_ranked(h, t, BASE)
     (head, sub), _ = h.slides[0]
-    assert "Cash App reaches 28,478 and moves $78.3M a year" in head
+    assert "Cash App reaches 28,478 and moves $78.3M in the last 12 months" in head
     assert "not a financial product" in sub and "$49.6M" in sub
     rail = dict((r[0], r[1]) for r in h.rails[0])
     assert rail["P2P and wallets"] == "$100.3M" and rail["Buy now, pay later"] == "$12.9M"
@@ -144,8 +144,8 @@ def test_one_competitor_slide_carries_reach_breadth_apps_and_the_leader():
     (head, _), title = h.slides[0]
     assert title == "Who competes for our members"
     assert head == ("20% of transacting personal accounts pay a named competitor — Synchrony "
-                    "reaches 3,147 and takes $3.4M a year")
-    assert [r[0] for r in h.rails[0]] == ["With a competitor", "Two or more", "Per year",
+                    "reaches 3,147 and takes $3.4M in the last 12 months")
+    assert [r[0] for r in h.rails[0]] == ["With a competitor", "Two or more", "Last 12 months",
                                          "In a payment app", "Top competitor"]
     assert h.rails[0][4][2] == "5% of accounts, leads credit cards"
     assert h.charts[0]["name"] == "comp_quadrant"

@@ -102,6 +102,14 @@ def _header(s, title, pill, selection):
     SH.textbox(s, 0.5, 1.12, 12.3, 0.5, sel, 16, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
 
+def _no_data_caption(s, text):
+    """The one sentence a view with no data carries. The slide is registered (shapes.mark_no_data) and the ARS builder
+    leaves it out of the deck (Aaron, 2026-11-22: "skip a slide if it doesn't have data"); the sentence is the reason
+    printed in the build log."""
+    SH.mark_no_data(s, " ".join(str(text).split()))
+    _caption(s, text, width=12.3, top=2.4, height=1.2)
+
+
 def _caption(s, text, width=CAPTION_W_RAIL, top=5.95, height=0.95):
     SH.textbox(s, 0.5, top, width, height, text, 16, GREYT, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
@@ -193,9 +201,8 @@ def responder_control_slide(prs, ci, ctx):
     if not rc.get("available"):
         _header(s, "Responders vs Mailed Non-Responders", f"{ctx['as_of_long']} Data",
                 "Selection: personal accounts mailed by the program, responders and non-responders.")
-        _caption(s, "No mailing in this extract has the 3 months before and 6 months after it that "
-                    "the comparison needs, so it is not shown for this period.",
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "No mailing in this extract has the 3 months before and 6 months after it that "
+                    "the comparison needs, so it is not shown for this period.")
         note_detail = "No mailing had a full window on both sides."
     else:
         r, c = rc["responders"], rc["control"]
@@ -390,8 +397,8 @@ def health_slide(prs, ci, ctx):
     if not hk.get("available"):
         _header(s, "Card Account Health", f"{ctx['as_of_long']} Data",
                 "Selection: ARS-eligible personal accounts.")
-        _caption(s, f"This extract carries {hk.get('months', 0)} months of card activity; the health "
-                    f"view needs 6, so it is not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, f"This extract carries {hk.get('months', 0)} months of card activity; the health "
+                    f"view needs 6, so it is not shown for this period.")
         detail = "Fewer than 6 activity months."
     else:
         rw, pw = hk["recent_window"], hk["prior_window"]
@@ -448,8 +455,7 @@ def wave_revenue_slide(prs, ci, ctx):
     if not wr.get("available"):
         _header(s, "Revenue by Mailing", f"PTD · {ctx['data_month_short']}",
                 "Selection: incremental revenue booked to each mailing.")
-        _caption(s, f"Revenue by mailing is not available for this client: {wr.get('reason')}.",
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, f"Revenue by mailing is not available for this client: {wr.get('reason')}.")
         detail = f"Not available: {wr.get('reason')}."
     else:
         waves = wr["waves"]
@@ -564,9 +570,8 @@ def wave_build_slide(prs, ci, ctx):
     if not wr.get("available") or not waves:
         _header(s, "Revenue Build by Mailing", f"PTD · {ctx['data_month_short']}",
                 "Selection: booked revenue by month since each mailing.")
-        _caption(s, "The month-by-month build is not available for this client: "
-                    f"{wr.get('reason', 'the workbook carries no mailing months')}.",
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "The month-by-month build is not available for this client: "
+                    f"{wr.get('reason', 'the workbook carries no mailing months')}.")
         _notes(s, f"ARS Workbook {ctx['id']} ({wb})",
                issues=["Nothing on this slide is measured — the workbook carried no "
                        "month-by-month figures for any mailing."])
@@ -632,9 +637,8 @@ def month_split_slide(prs, ci, ctx):
     if not wr.get("available") or not rows:
         _header(s, "Where This Month's Revenue Came From", f"PTD · {ctx['data_month_short']}",
                 "Selection: the newest booked month, split by mailing.")
-        _caption(s, "The month's revenue cannot be split by mailing for this client: "
-                    f"{wr.get('reason', 'no mailing booked a figure in the newest month')}.",
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "The month's revenue cannot be split by mailing for this client: "
+                    f"{wr.get('reason', 'no mailing booked a figure in the newest month')}.")
         _notes(s, f"ARS Workbook {ctx['id']} ({wb})",
                issues=["Nothing on this slide is measured — no mailing booked revenue in the "
                        "newest month on the rollup sheet."])
@@ -696,8 +700,8 @@ def _cut_slide(prs, ci, ctx, measure, title, after, before, png_name, subject, p
     pool = rc.get("eligible" if measure == "take" else "rege_pool", 0)
     if not rc.get("available") or book is None:
         _header(s, title, f"{ctx['as_of_long']} Data", f"Selection: {subject}.")
-        _caption(s, "This extract does not carry the columns the cuts need, so the view is "
-                    "not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "This extract does not carry the columns the cuts need, so the view is "
+                    "not shown for this period.")
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the extract "
                                           "carried no eligible population to cut."])
         _place(prs, s, after=after, before=before)
@@ -787,9 +791,8 @@ def migration_slide(prs, ci, ctx):
     if not mig.get("available"):
         _header(s, "Swipe Tier Migration", f"{ctx['as_of_long']} Data",
                 "Selection: ARS-eligible personal card holders.")
-        _caption(s, f"This extract carries {mig.get('months', 0)} activity months; the migration "
-                    f"view needs {mig.get('needs', 15)}, so it is not shown for this period.",
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, f"This extract carries {mig.get('months', 0)} activity months; the migration "
+                    f"view needs {mig.get('needs', 15)}, so it is not shown for this period.")
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the extract is "
                                           "too short to compare two windows a year apart."])
         _place(prs, s, after="Debit Usage Segmentation", before="Average Ticket")
@@ -847,8 +850,8 @@ def routing_slide(prs, ci, ctx):
     if not mix.get("available"):
         _header(s, "PIN and Signature Mix", f"{ctx['as_of_long']} Data",
                 "Selection: personal card holders' transactions.")
-        _caption(s, "This extract carries no signature or PIN transactions to split, so the "
-                    "view is not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "This extract carries no signature or PIN transactions to split, so the "
+                    "view is not shown for this period.")
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — no Sig # or "
                                           "PIN # columns carried a figure."])
         _place(prs, s, after="Average Ticket", before="Reg E Review")
@@ -928,8 +931,8 @@ def overdraft_slide(prs, ci, ctx):
     if not od.get("available"):
         _header(s, "Overdraft Limits by Reg E Election", f"{ctx['as_of_long']} Data",
                 "Selection: open personal accounts holding a debit card.")
-        _caption(s, "This extract carries no open card holders with a readable Reg E election, "
-                    "so the view is not shown for this period.", width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "This extract carries no open card holders with a readable Reg E election, "
+                    "so the view is not shown for this period.")
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured."])
         _place(prs, s, after="Reg E Opt-In by Account Vintage", before="Take Rate and Reg E")
         return s
@@ -999,9 +1002,8 @@ def efficiency_slide(prs, ci, ctx):
     if not eff.get("available"):
         _header(s, "Revenue per 1,000 Offers", f"PTD · {ctx['data_month_short']}",
                 "Selection: booked revenue against the offers each mailing sent.")
-        _caption(s, "This client's revenue and offer counts cannot be matched by mailing "
-                    f"month: {eff.get('reason', 'no mailing appears in both the workbook and the extract')}.",
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "This client's revenue and offer counts cannot be matched by mailing "
+                    f"month: {eff.get('reason', 'no mailing appears in both the workbook and the extract')}.")
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — no mailing "
                                           "matched between the workbook and the extract."])
         _place(prs, s, after="Revenue Build by Mailing", before="Debit Card Review")
@@ -1064,8 +1066,8 @@ def sizing_slide(prs, ci, ctx):
     if not sz.get("available"):
         _header(s, "What Five Points Would Be Worth", f"{ctx['as_of_long']} Data",
                 "Selection: ARS-eligible personal accounts and open card holders.")
-        _caption(s, "The book's own rates are not available for this period, so the sizing is "
-                    "not shown.", width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "The book's own rates are not available for this period, so the sizing is "
+                    "not shown.")
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured."])
         _place(prs, s, before="ARS Key Takeaways", after="ARS Scorecard")
         return s
@@ -1130,9 +1132,8 @@ def by_tier_slide(prs, ci, ctx):
     if not bt.get("available"):
         _header(s, "Responders vs Their Own Segment", f"{ctx['as_of_long']} Data",
                 "Selection: personal accounts mailed by the program, by pre-mailing tier.")
-        _caption(s, "No tier has both enough responders and enough mailed non-responders to "
-                    "compare, so the view is not shown for this period.",
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "No tier has both enough responders and enough mailed non-responders to "
+                    "compare, so the view is not shown for this period.")
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — every tier was "
                                           "below the cohort floor."])
         _place(prs, s, after="Responders vs Mailed Non-Responders", before="Reg E Review")
@@ -1198,9 +1199,8 @@ def balance_slide(prs, ci, ctx):
     if not bc.get("available"):
         _header(s, "Where the Balances Sit", f"{ctx['as_of_long']} Data",
                 "Selection: ARS-eligible personal accounts.")
-        _caption(s, "This extract carries no average balances, so the view is not shown for "
-                    f"this period. {bc.get('reason', '')}".strip(),
-                 width=12.3, top=2.4, height=1.2)
+        _no_data_caption(s, "This extract carries no average balances, so the view is not shown for "
+                    f"this period. {bc.get('reason', '')}".strip())
         _notes(s, ctx["odd_src"], issues=["Nothing on this slide is measured — the Avg Bal "
                                           "column is empty in this extract."])
         _place(prs, s, after="Who Responds", before="ARS Key Takeaways")   # "Who Responds — Balance Profile"

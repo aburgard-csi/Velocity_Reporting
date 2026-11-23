@@ -195,7 +195,7 @@ def test_the_clients_own_base_is_named_by_its_type_and_never_guessed():
 
 def test_the_layers_slides_follow_the_chapters_own_and_replace_none():
     names = [b.__name__ for b in X.COMP_DRAWN]
-    assert len(X.COMP_BUILDERS) == 20
+    assert len(X.COMP_BUILDERS) == 22      # +2: the BNPL providers-in-depth and who-uses-it slides (test_ti_bnpl_expansion)
     assert names[-len(LAYERS.BUILDERS):] == [b.__name__ for b in LAYERS.BUILDERS]
     assert all(X.TITLES[b.__name__] for b in LAYERS.BUILDERS) and X.DRAWN_TITLES["layers_map"] == LAYERS.TITLES["layers_map"]
 
@@ -230,3 +230,23 @@ def test_a_review_of_a_real_deck_three_fixes_months_gap_percent_sign_and_absent_
     h = _Harness(tmp_path)
     LAYERS.layers_ladder(h, t, "x")
     assert "take 0%" not in h.slides[0][0][0] and "no local institution" in h.slides[0][0][0]
+
+
+def test_the_universe_headline_counts_every_paid_institution_not_only_the_registry_matches(tmp_path):
+    """Seen on a real client: slide 33 said 202 institutions and the universe slide said 174, because 6 digital names and 22
+    ambiguous names are paid but have no registry branch."""
+    h = _Harness(tmp_path)
+    t = dict(FULL)
+    t["cl_institutions"] = list(FULL["cl_institutions"]) + [{"inst": "Digital Only", "tier": "Digital", "accounts": 1, "dollars": 1}]
+    LAYERS.layers_universe(h, t, "x")
+    head = h.slides[0][0][0]
+    seen = sum(r["seen"] for r in FULL["cl_universe"])
+    assert f"{len(t['cl_institutions']):,} institutions appear in card spending" in head and f"{seen} of them" in head
+    assert "digital-only" in h.slides[0][0][1]
+
+
+def test_the_lens_headline_is_short_and_the_group_figures_sit_in_the_subtitle(tmp_path):
+    h = _Harness(tmp_path)
+    LAYERS.layers_lens(h, dict(FULL), "x")
+    head, sub = h.slides[0][0]
+    assert head == "Share of each group paying a competitor, by tier" and "Any tier:" in sub

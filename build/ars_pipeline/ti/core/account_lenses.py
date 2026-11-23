@@ -70,6 +70,19 @@ FAMILY_COLUMNS = {"branch": ("Branch Name", "Branch"),
                   "product": ("Prod Desc", "Prod Code"),
                   "swipe_tier": ("SwipeCat3",)}
 
+# Banded families: a numeric attribute cut into fixed bands, low <= v < high.
+# The cut points are the card side's (merchant_profiles' mch_by_age /
+# mch_by_tenure, "Card spend by member age" / "Card use by account tenure"),
+# moved here unchanged so the leakage and competition cuts band members
+# exactly as the card slides do. "tenure_years" is the attribute lens.build
+# derives from Date Opened.
+AGE_BANDS = [(18, 26, "18-25"), (26, 36, "26-35"), (36, 46, "36-45"),
+             (46, 56, "46-55"), (56, 65, "56-64"), (65, 200, "65+")]
+TENURE_BANDS = [(0, 0.25, "< 3 mo"), (0.25, 1, "3-12 mo"), (1, 3, "1-3 yrs"),
+                (3, 10, "3-10 yrs"), (10, 200, "10+ yrs")]
+BAND_FAMILIES = {"age_band": ("Account Holder Age", AGE_BANDS),
+                 "tenure_band": ("tenure_years", TENURE_BANDS)}
+
 NEW_ACCOUNT_MONTHS = 12
 # "recently inactive" needs a clean before/after: three silent months
 # against the nine before them.
@@ -175,11 +188,23 @@ def label(name: str) -> str:
 
 
 def family_of(df: pd.DataFrame, family: str) -> dict[str, pd.Index]:
-    """`{value: index}` for a many-valued cut (branch / product / swipe tier).
+    """`{value: index}` for a many-valued cut (branch / product / swipe tier,
+    or a banded attribute: age_band / tenure_band, in band order).
 
     Empty when the ODD carries none of the family's columns, so a caller can
     say the cut is unavailable rather than printing an empty chart.
     """
+    if family in BAND_FAMILIES:
+        col, bands = BAND_FAMILIES[family]
+        if col not in df.columns:
+            return {}
+        v = pd.to_numeric(df[col], errors="coerce")
+        out = {}
+        for low, high, band in bands:
+            idx = v.index[((v >= low) & (v < high)).to_numpy()]
+            if len(idx):
+                out[band] = idx
+        return out
     for col in FAMILY_COLUMNS.get(family, ()):
         if col in df.columns:
             values = norm(df[col])
