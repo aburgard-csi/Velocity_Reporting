@@ -68,13 +68,24 @@ def test_the_mrpc_and_cashplease_lists_name_the_client_as_the_client():
     assert "CashPlease Peer Comparison" in cp
 
 
-def test_every_program_lists_its_how_you_compare_slide_where_the_builder_puts_it():
-    """build/peer_slide.py (2026-11-03): one per program deck, placed by title."""
+def test_every_program_lists_its_how_you_compare_slides_where_the_builder_puts_them():
+    """build/peer_slide.py: one slide per pair of measures (2026-11-22), in order, placed by title."""
+    import peer_slide as PS
     ars, mrpc, cp, ics = _titles("ARS"), _titles("MRPC"), _titles("CP"), _titles("ICS")
-    assert ics.index("How You Compare — ICS Clients") == next(i for i, x in enumerate(ics) if x.startswith("New in 2026")) - 1
-    assert ars.index("How You Compare — ARS Clients") == ars.index("ARS Key Takeaways") - 1
-    assert mrpc.index("How You Compare — MRPC Clients") == mrpc.index("MRPC Current Program Status") + 1
-    assert cp.index("How You Compare — CashPlease Clients") == cp.index("CashPlease Peer Comparison") + 1
+
+    def block(titles, program):
+        want = [PS.title_for(program, label) for label, _k in PS.GROUPS[program]]
+        i = titles.index(want[0])
+        assert titles[i:i + len(want)] == want, (program, titles[i:i + len(want)])
+        return i, i + len(want)
+    a, b = block(ics, "ICS")
+    assert ics[b].startswith("New in 2026")
+    a, b = block(ars, "ARS")
+    assert ars[b] == "ARS Key Takeaways"
+    a, b = block(mrpc, "MRPC")
+    assert mrpc[a - 1] == "MRPC Current Program Status"
+    a, b = block(cp, "CP")
+    assert cp[a - 1] == "CashPlease Peer Comparison"
     for prog in ("ARS", "ICS", "MRPC", "CP"):
         assert not any("anchor not found" in r["source"] for r in SI.inventory()[prog])
 

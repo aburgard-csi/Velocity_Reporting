@@ -52,10 +52,26 @@ for _region, _states in {
         REGION_OF_STATE[_s] = _region
 
 METRICS = [
-    {"key": "items_per_1k", "label": "NSF/OD items per 1,000 open accounts", "fmt": "int", "higher": None},
-    {"key": "fees_per_acct", "label": "Collected fees per open account", "fmt": "usd2", "higher": None},
-    {"key": "users_pct", "label": "NSF/OD users, share of open accounts", "fmt": "pct1", "higher": None},
+    {"key": "items_per_1k", "short": "NSF/OD items", "label": "NSF/OD items per 1,000 open accounts", "fmt": "int", "higher": None},
+    {"key": "users_pct", "short": "NSF/OD users", "label": "NSF/OD users, share of open accounts", "fmt": "pct1", "higher": None},
+    {"key": "fees_per_acct", "short": "fees per account", "label": "Collected fees per open account", "fmt": "usd2", "higher": None},
+    {"key": "fees_per_user", "short": "fees per user", "label": "Collected fees per NSF/OD user", "fmt": "usd2", "higher": None},
+    {"key": "pay_rate", "short": "pay rate", "label": "Pay rate, share of NSF/OD items paid", "fmt": "pct1", "higher": None},
+    {"key": "loss_rate", "short": "losses", "label": "Loss rate, charge-offs over collected fees", "fmt": "pct1", "higher": None},
+    {"key": "refund_pct", "short": "refunds", "label": "Refunds, share of collected fees", "fmt": "pct1", "higher": None},
+    {"key": "rege_pct", "short": "Reg E opt-in", "label": "Reg E opt-in, share of open accounts", "fmt": "pct1", "higher": None, "types": ("Personal",)},
 ]
+# One slide per group and account type, NEVER more than two measures on a slide (Aaron, 2026-11-20: "build out additional
+# peer comparison slides. No more than 2 comparisons per slide."). tests/test_ils_analysis.py checks every group.
+MAX_PER_SLIDE = 2
+ZERO_LOSS_USERS = 100       # see values()
+GROUPS = [
+    ("usage", "NSF/OD usage", ("items_per_1k", "users_pct")),
+    ("revenue", "fee revenue", ("fees_per_acct", "fees_per_user")),
+    ("paid_lost", "items paid and losses", ("pay_rate", "loss_rate")),
+    ("refunds_rege", "refunds and Reg E", ("refund_pct", "rege_pct")),
+]
+SPEC = {m["key"]: m for m in METRICS}
 
 
 # ═════════════════════════════ the pool ═════════════════════════════════════════
@@ -123,20 +139,34 @@ def read_metrics(path=None):
 
 
 def own_metrics(fr, t):
-    o = fr.open_accounts(t)
-    if o.empty:
-        return None
-    import pandas as pd
-    items = pd.to_numeric(o["items365"], errors="coerce").fillna(0)
-    fees = pd.to_numeric(o["CollectedFees365"], errors="coerce").fillna(0.0)
-    return {"open_accounts": len(o), "items365": float(items.sum()), "fees365": float(fees.sum()), "users365": int((items > 0).sum())}
+    """The client's own figures for one account type, from the SAME calculation as every peer's
+    (peer_pull.metrics_from_frame), so a slide cannot compare two arithmetics."""
+    from . import peer_pull
+    m = peer_pull.metrics_from_frame(fr.za, validated=True).get(t)
+    return m if m and m.get("open_accounts") else None
 
 
 def values(m):
-    n = float(m["open_accounts"])
-    if n <= 0:
+    """{metric key: value or None} from one client's figures (a peer row or own_metrics). A figure the extract
+    could not give (blank in the peer table, None from metrics_from_frame) makes its measures None, never 0."""
+    n = _f(m.get("open_accounts"))
+    if not n or n <= 0:
         return None
-    return {"items_per_1k": float(m["items365"]) / n * 1000.0, "fees_per_acct": float(m["fees365"]) / n, "users_pct": float(m["users365"]) / n * 100.0}
+    g = lambda k: _f(m.get(k)) if m.get(k) not in (None, "") else None
+    items, fees, users = g("items365") or 0.0, g("fees365") or 0.0, g("users365") or 0.0
+    pdv, fa, co, rf, ry = g("pd365"), g("fees365_all"), g("co365_all"), g("refund365_all"), g("rege_y")
+    loss = co / fa * 100.0 if co is not None and fa else None
+    # Not a usable loss rate (the client's own charge-off guard, per account type): more charged off than every fee
+    # collected, or no charge-off dollars at all on a book with ZERO_LOSS_USERS or more NSF/OD users in a year, which in
+    # the peer table means the extract does not carry charge-offs for that type rather than that nothing was lost.
+    if loss is not None and (loss > R.LOSS_RATE_LIMIT * 100 or (co == 0 and users >= ZERO_LOSS_USERS)):
+        loss = None
+    return {"items_per_1k": items / n * 1000.0, "fees_per_acct": fees / n, "users_pct": users / n * 100.0,
+            "fees_per_user": fees / users if users else None,
+            "pay_rate": pdv / items * 100.0 if pdv is not None and items else None,
+            "loss_rate": loss,
+            "refund_pct": rf / fa * 100.0 if rf is not None and fa else None,
+            "rege_pct": ry / n * 100.0 if ry else None}        # no open account coded 'Y': Reg E not carried
 
 
 def _months_between(a, b):
@@ -199,7 +229,12 @@ def render_strips(items, out_png, w_in, h_in, who="Another client", client_name=
 
 def _rank_text(c):
     # the metrics here have no better direction, so say where the client sits, highest first
-    return f"{PC.ordinal(c['rank'])} highest of {int(c['total'])} clients"
+    n, r = int(c["total"]), int(c["rank"])
+    if r == 1:
+        return f"Highest of {n} clients"          # not "1st highest" (Dannemora FCU, 2026-11)
+    if r == n:
+        return f"Lowest of {n} clients"
+    return f"{PC.ordinal(r)} highest of {n} clients"
 
 
 # ═════════════════════════════ the slides ═══════════════════════════════════════
@@ -216,38 +251,57 @@ def add_peers(dk, cfg, fr, S, *, section, progress=None):
         mine = own_metrics(fr, t)
         if mine is None:
             continue
+        if not float(mine.get("items365") or 0):
+            # Nothing to rank: an account type with no NSF/OD items reads "Lowest of N clients" on every measure, all
+            # zeros, which says nothing and reads as a judgement.
+            notes.append(f"Peer comparison, {t}: skipped; the {int(mine.get('open_accounts') or 0):,} open "
+                         f"{t.lower()} account(s) had no NSF/OD items in 365 days, so there is nothing to rank.")
+            continue
         mv = values(mine)
-        by_metric = {m["key"]: ([], []) for m in METRICS}
-        stamps = []
+        peer_vals, stamps = {}, []
         for cid in ids:
             row = table.get((cid, t))
             if not row or _months_between(str(row["as_of"])[:6], asof) > PEER_MAX_AGE_MONTHS:
                 continue
-            pv = values({"open_accounts": float(row["open_accounts"]), "items365": float(row["items365"]),
-                         "fees365": float(row["fees365"]), "users365": float(row["users365"])})
+            pv = values(row)
             if pv is None:
                 continue
             stamps.append(str(row["as_of"]))
-            for m in METRICS:
-                by_metric[m["key"]][0].append(pv[m["key"]])
-                by_metric[m["key"]][1].append(cid)
-        items = []
-        for m in METRICS:
-            vals_, pids = by_metric[m["key"]]
-            c = PC.compare_values(m, mv[m["key"]], vals_, pids)
-            if c is not None:
+            peer_vals[cid] = pv
+        drew = 0
+        for gkey, glabel, keys in GROUPS:
+            assert len(keys) <= MAX_PER_SLIDE
+            items, left_out = [], []
+            for k in keys:
+                m = SPEC[k]
+                if t not in m.get("types", (t,)):
+                    continue
+                if mv.get(k) is None:
+                    left_out.append(f"{m['label']}: this extract does not give a usable figure")
+                    continue
+                pids = [cid for cid, pv in peer_vals.items() if pv.get(k) is not None]
+                c = PC.compare_values(m, mv[k], [peer_vals[cid][k] for cid in pids], pids)
+                if c is None:
+                    left_out.append(f"{m['label']}: fewer than {MIN_PEERS} peers carry it")
+                    continue
                 items.append({"spec": m, "c": c})
-        n_have = len(by_metric[METRICS[0]["key"]][0])
-        title = f"{t} accounts against {n_have} {group}" if items else f"{t} accounts: peer comparison not shown"
-        sub = (f"Open {t.lower()} accounts per client, 365 days to each client's own data date; {len(ids)} other clients are in the group, {n_have} have current data."
-               if items else f"Fewer than {MIN_PEERS} other clients in the group ({group}) have current data for this account type.")
-        s = dk.content(title, sub, section=section,
-                       source=CS._src(cfg, fr, "za", extra=f"Peers: {group}; {n_have} of {len(ids)} with an extract pulled within {PEER_MAX_AGE_MONTHS} months "
-                                      f"({min(stamps) if stamps else 'n/a'} to {max(stamps) if stamps else 'n/a'}); metric values from each peer's own ZAccounts "
-                                      f"extract (open accounts, items365, CollectedFees365); client numbers only."))
-        if items:
+            for why in left_out:
+                notes.append(f"Peer comparison, {t}, {glabel}: {why}; not drawn.")
+            if not items:
+                continue
+            drew += 1
+            n_have = max(int(it["c"]["n"]) for it in items)
+            # the title names what the slide shows: one measure left out (no data) leaves its partner's name, not the pair's
+            topic = glabel if len(items) == len(keys) else " and ".join(it["spec"]["short"] for it in items)
+            s = dk.content(f"{t} accounts: {topic} against {n_have} {group}",
+                           f"Open {t.lower()} accounts per client, 365 days to each client's own data date; {len(ids)} other clients "
+                           f"are in the group, {len(peer_vals)} have current data.", section=section,
+                           source=CS._src(cfg, fr, "za", extra=f"Peers: {group}; {len(peer_vals)} of {len(ids)} with an extract pulled within "
+                                          f"{PEER_MAX_AGE_MONTHS} months ({min(stamps) if stamps else 'n/a'} to {max(stamps) if stamps else 'n/a'}); "
+                                          f"each client's own ZAccounts extract, read the same way for this client and its peers "
+                                          f"(peer_pull.metrics_from_frame); client numbers only."))
             h = min(4.55, 1.6 * len(items) + 0.42)
-            png = os.path.join(dk.chart_dir, f"peers_{t.lower()}.png")
+            png = os.path.join(dk.chart_dir, f"peers_{t.lower()}_{gkey}.png")
             render_strips(items, png, 7.9, h, client_name=cfg.client_name)
             shapes.fit_picture(s, png, CS.LEFT, CS.BODY_T + 0.05, 7.9, h)
             row_h = (h - 0.42) / len(items)
@@ -260,26 +314,31 @@ def add_peers(dk, cfg, fr, S, *, section, progress=None):
                 shapes.textbox(s, 8.7, y + 0.4, 4.1, 0.9, rel[0].upper() + rel[1:] + ".", 15, T.SUBTLE, False, PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
             CS.caption(s, f"each dot is one other client in the group; the shaded band is the middle half of peers and the tick is their median. "
                           f"A measure needs {MIN_PEERS} peers with current data.", T0=6.45, size=12)
-            CS.say_first(s, f"This is where {t.lower()} sits against similar ILS clients on items, fees and users per open account.")
-            lines = [f"Peer group: {group}. Very large = assets of ${VERY_LARGE_ASSETS_M / 1000:.0f}B or more, or in the top {VERY_LARGE_TOP_SHARE:.0%} of ILS clients by DDA count; "
-                     f"other clients are compared within their Census region. Peers need an extract pulled within {PEER_MAX_AGE_MONTHS} months."]
+            CS.say_first(s, f"This is where {t.lower()} sits against similar ILS clients on {topic}.")
+            lines_ = [f"Peer group: {group}. Very large = assets of ${VERY_LARGE_ASSETS_M / 1000:.0f}B or more, or in the top {VERY_LARGE_TOP_SHARE:.0%} of ILS clients by DDA count; "
+                      f"other clients are compared within their Census region. Peers need an extract pulled within {PEER_MAX_AGE_MONTHS} months; a peer whose "
+                      "extract does not carry a measure is left out of that measure only."]
             for it in items:
                 c = it["c"]
                 f = PC.formatter(it["spec"]["fmt"])
-                lines.append(f"{it['spec']['label']}: client {f(c['client'])}; peers n = {c['n']}, median {f(c['median'])}, middle half {f(c['q1'])} to {f(c['q3'])}. "
-                             "Peers by client number: " + "; ".join(f"{i} {f(v)}" for i, v in sorted(zip(c["dot_ids"], c["dots"]), key=lambda x: x[1])) + ".")
-            s.notes_slide.notes_text_frame.text += "\n" + "\n".join(lines)
-            dk.sidecars.append({"key": f"peers_{t.lower()}", "title": f"Peer comparison, {t}", "png": f"peers_{t.lower()}.png",
-                                "numbers": {"group": group, "group_size": len(ids), "with_current_data": n_have,
-                                            "client": mv, "metrics": {it["spec"]["key"]: {"n": it["c"]["n"], "median": it["c"]["median"], "q1": it["c"]["q1"],
-                                                                                           "q3": it["c"]["q3"], "rank": it["c"]["rank"], "peer_ids": it["c"]["dot_ids"],
-                                                                                           "peer_values": it["c"]["dots"]} for it in items}}})
-        else:
-            msg = (f"Not enough peers to compare: only {n_have} of the {len(ids)} other {group} have an ILS extract on file that is current "
+                lines_.append(f"{it['spec']['label']}: client {f(c['client'])}; peers n = {c['n']}, median {f(c['median'])}, middle half {f(c['q1'])} to {f(c['q3'])}. "
+                              "Peers by client number: " + "; ".join(f"{i} {f(v)}" for i, v in sorted(zip(c["dot_ids"], c["dots"]), key=lambda x: x[1])) + ".")
+            s.notes_slide.notes_text_frame.text += "\n" + "\n".join(lines_)
+            dk.sidecars.append({"key": f"peers_{t.lower()}_{gkey}", "title": f"Peer comparison, {t}, {glabel}", "png": os.path.basename(png),
+                                "numbers": {"group": group, "group_size": len(ids), "with_current_data": len(peer_vals),
+                                            "client": {it["spec"]["key"]: mv[it["spec"]["key"]] for it in items},
+                                            "metrics": {it["spec"]["key"]: {"n": it["c"]["n"], "median": it["c"]["median"], "q1": it["c"]["q1"],
+                                                                             "q3": it["c"]["q3"], "rank": it["c"]["rank"], "peer_ids": it["c"]["dot_ids"],
+                                                                             "peer_values": it["c"]["dots"]} for it in items}}})
+        if not drew:
+            s = dk.content(f"{t} accounts: peer comparison not shown",
+                           f"Fewer than {MIN_PEERS} other clients in the group ({group}) have current data for this account type.", section=section,
+                           source=CS._src(cfg, fr, "za", extra=f"Peers: {group}; {len(peer_vals)} of {len(ids)} with a current extract."))
+            msg = (f"Not enough peers to compare: only {len(peer_vals)} of the {len(ids)} other {group} have an ILS extract on file that is current "
                    f"(pulled within {PEER_MAX_AGE_MONTHS} months). Five are needed. This slide fills in when their extracts are pulled; nothing is estimated.")
             shapes.textbox(s, CS.LEFT + 0.2, 2.3, CS.FULL_W - 0.4, 2.0, msg, 22, T.NAVY, False, PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
             CS.say_first(s, "We cannot show this comparison yet; here is why.")
-            notes.append(f"Peer comparison, {t}: {n_have} peers with current data in {group}, {MIN_PEERS} needed.")
+            notes.append(f"Peer comparison, {t}: {len(peer_vals)} peers with current data in {group}, {MIN_PEERS} needed.")
     if not any(sc.get("key", "").startswith("peers_") for sc in dk.sidecars):
         notes.append("Peer comparison: the peer metrics table has no current peers for this client's group; run `python -m ils_review.peer_pull`.")
     return notes

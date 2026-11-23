@@ -727,6 +727,23 @@ while mo<=NOW:
     mo=datetime.datetime(mo.year+(mo.month//12), (mo.month%12)+1,1)
 M['openings']=oc
 M['open_24']=sum(x[1] for x in oc); M['close_24']=sum(x[2] for x in oc); M['net_24']=oc[-1][3]
+# Account growth, a peer measure the client controls (Aaron, 2026-11-22: "For ARS peer comparisons, don't compare
+# program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."):
+# personal accounts opened minus closed over the last 12 COMPLETE months of the series above (a month counts once the
+# extract was pulled after it ended; with no pull stamp the snapshot month is left out), as a share of the personal
+# accounts open at the start of those 12 months (open now, less the net change since then).
+M['n_open_personal']=sum(1 for r in data if personal(r) and isopen(r))
+_pull_d=_MC.pull_date(_SRC_NAME)
+_oc_done=[x for x in oc if _MC.month_ended(datetime.datetime.strptime(x[0],'%b %y').strftime('%Y-%m'),_pull_d)]
+if _pull_d is None: _oc_done=oc[:-1]
+M['acct_growth_window']=None; M['acct_growth_net']=None; M['acct_growth_pct']=None
+if len(_oc_done)>=12:
+    _w=_oc_done[-12:]
+    _net=sum(x[1]-x[2] for x in _w)
+    _since=sum(x[1]-x[2] for x in oc[oc.index(_w[0]):])          # the window and anything after it
+    _start=M['n_open_personal']-_since
+    M['acct_growth_window']=[_w[0][0],_w[-1][0]]; M['acct_growth_net']=_net
+    M['acct_growth_pct']=round(100.0*_net/_start,1) if _start>0 else None
 # retention survival (slide 42) — Kaplan-Meier on well-observed cohort (opened >= Jul 2021,
 # the window over which account closings are reliably captured in the extract).
 allp=[r for r in data if personal(r)]

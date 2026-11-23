@@ -100,7 +100,8 @@ def deposit_daily(ctx):
             from ti.transaction_intelligence import financial_services as F
             rows = F.classify_rows(txn, F.load_patterns(dictionaries.folder(), ctx.config))
         fin = rows["category"]
-        is_card = txn["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"])
+        from ti.compat import str_values                 # not astype(str) on a categorical (issue #161)
+        is_card = str_values(txn["transaction_type"], lambda v: v.str.upper()).isin(["PIN", "SIG"])
         if is_card.any():
             spec = ctx.shared.get("mch_spec") or M.load_categories(dictionaries.folder())
             card, _method, _cov = M._categorize(txn[is_card], spec, lambda _m: None)
