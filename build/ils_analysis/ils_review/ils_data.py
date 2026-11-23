@@ -14,6 +14,7 @@ so a new client works out of the box, and explicit overrides still win.
 """
 from __future__ import annotations
 
+import csv
 import os
 import re
 from dataclasses import dataclass, field
@@ -48,6 +49,9 @@ ZACCOUNTS_COLUMNS = {
     "balance": ["balance"],
     "AvgCollectedBalance": ["avgcollectedbalance"],
     "ODLimit": ["odlimit"],
+    "MaxODLimit": ["maxodlimit"],
+    "MinODLimit": ["minodlimit"],
+    "UniqueODLimit": ["uniqueodlimit"],
     "AvgODLimit": ["avgodlimit"],
     "InitODLimit": ["initodlimit"],
     "ODLOCAmount": ["odlocamount"],
@@ -92,7 +96,6 @@ ZACCOUNTS_COLUMNS = {
     "RegEResponseDate": ["regeresponsedate"],
     "MRPC_Eligible": ["mrpc_eligible"],
     "MRPC_Loan_Eligible": ["mrpc_loan_eligible"],
-    "Strategic_Refunds": ["strategic_refunds"],
     "RepaymentTrendCount33": ["repaymenttrendcount33"],
     "DepositTrendCount33": ["deposittrendcount33"],
     "WindfallTrendCount33": ["windfalltrendcount33"],
@@ -213,6 +216,10 @@ def classify_branches(za, *, exclude=None, digital=None, retail=None,
         names[code] = nm or str(code)
 
     c = BranchClassification(names=names)
+    # The dominant-code rule is for a holding branch among many (UCCU's 'Corporate'); at a four-branch credit
+    # union (Dannemora FCU 1781) the main branch simply holds 45% of accounts, and the rule set aside two of the
+    # four real branches. It applies only when there are six or more codes of real size.
+    sizable = int((counts >= min_accounts).sum())
     for code, n in counts.items():
         key = str(code)
         name = names[code]
@@ -226,7 +233,7 @@ def classify_branches(za, *, exclude=None, digital=None, retail=None,
             c.digital.add(code); c.reasons[code] = "name looks like a digital channel"
         elif _matches(name, BACK_OFFICE_PATTERNS):
             c.back_office.add(code); c.reasons[code] = "name looks like a back-office unit"
-        elif n / total > dominant_share:
+        elif sizable >= 6 and n / total > dominant_share:
             c.back_office.add(code)
             c.reasons[code] = f"holds {n / total * 100:.0f}% of open accounts — core default branch"
         elif n < min_accounts:
@@ -248,9 +255,24 @@ def _rename_map(columns, alias_map):
     return out
 
 
+def sniff_sep(path):
+    """The extract's delimiter from its first line: tab, pipe or comma, whichever the line holds most of. Pulls are
+    saved by different hands: one pull's DebitDecline file was tab-delimited while its other files used commas, and
+    read as one comma-separated column it lost every field the build needs."""
+    try:
+        with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
+            first = f.readline()
+    except (OSError, TypeError):
+        return ","
+    counts = {sep: first.count(sep) for sep in ("\t", "|", ",")}
+    best = max(counts, key=counts.get)
+    return best if counts[best] else ","
+
+
 def _read_selective(path, alias_map, **kw):
     """Read only the columns this app uses — these extracts are 60-190 MB."""
     kw.setdefault("encoding", "utf-8-sig")            # the exports carry a BOM
+    kw.setdefault("sep", sniff_sep(path))
     header = pd.read_csv(path, nrows=0, **kw)
     rename = _rename_map(header.columns, alias_map)
     df = pd.read_csv(path, usecols=list(rename.keys()), low_memory=False, **kw)
@@ -323,6 +345,79 @@ def infer_snapshot(za, zaccounts_path=None):
     return d or datetime.today()
 
 
+# The debit-decline and refund-history extracts' columns, in the order the queries write them. Some pulls are saved
+# without the header line (both files then start on a data row), so a file whose first line
+# does not name its key column but has exactly this many fields is read with these names.
+DECLINE_COLUMNS = ["AcctID", "ODStatusCode", "ProdCode", "HASHED_ACCOUNT", "DECLINE_DATE", "TRANSACTION_TYPE",
+                   "TRANSACTION_AMOUNT", "MCC_CODE", "TERMINAL_LOCATION", "ID"]
+REFUND_COLUMNS = ["Branch", "BranchName", "CORecoveryID", "AcctID", "Principal", "Fees", "NsfOdFees", "SodFees",
+                  "MiscFees", "TotalAmount", "Type", "Date", "Reason", "IMPORT_ID"]
+
+
+def _headerless_names(path, key, columns):
+    """The column names to read `path` with when it was saved without its header line, else None (read the header).
+    A first line that names `key` is a header. One that does not, and splits into exactly len(columns) fields, is a
+    data row of the known layout. Anything else is left to the normal read, which then fails on the missing key."""
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        first = f.readline()
+    fields = next(csv.reader([first], delimiter=sniff_sep(path)), [])
+    if any(str(c).strip().lower() == key.lower() for c in fields):
+        return None
+    return columns if len(fields) == len(columns) else None
+
+
+EPOCH = pd.Timestamp("1970-01-01")
+NUMERIC_ZA = ("items365", "PD_365", "PD_Amt_365", "CollectedFees365", "PossibleFees365", "Chargeoff_Amt_365",
+              "Recovery_Amt_365", "Refund_Amt_365", "Refund_365", "depAmt365", "depCount365", "DepAmt33", "DepCount33",
+              "ODLimit", "AvgODLimit", "declines_365", "declines_amt_365", "WindfallRatio")
+
+
+def validate_zaccounts(za):
+    """The analysis team's Data Validation notebook, applied before every figure ('ILS Analysis - Data
+    Validation.ipynb', cells 4-6): Savings and Time Deposit account types are left out; a negative
+    Chargeoff_Amt_365 is taken as its absolute value; a 1970-01-01 date (the source system's null marker)
+    is blank in every date column but opendate. Returns the cleaned frame and a note per change made.
+
+    The absolute value matters: without it a client whose extract carries charge-off reversals as negative
+    amounts read a lower charge-off total and loss rate than the analyst deck, by exactly twice the negatives."""
+    notes = []
+    # A header line repeated inside the file (two extracts joined end to end) reads as one row whose every value is
+    # its column name, and turns every numeric column into text, so a sum concatenates instead of adding.
+    hdr = za["acctid"].astype(str).str.strip().str.lower() == "acctid"
+    if hdr.any():
+        za = za[~hdr].copy()
+        notes.append(f"{int(hdr.sum())} repeated header line(s) inside the ZAccounts file were dropped.")
+    for c in NUMERIC_ZA:
+        if c in za.columns and not pd.api.types.is_numeric_dtype(za[c]):
+            v = pd.to_numeric(za[c].astype(str).str.strip().str.replace(",", "", regex=False), errors="coerce")
+            bad = int((v.isna() & za[c].notna() & (za[c].astype(str).str.strip() != "")).sum())
+            if bad:
+                notes.append(f"{bad:,} {c} values were not numbers and were read as blank.")
+            za[c] = v
+    t = za["accttype"].astype(str)
+    drop = t.str.contains("Savings", case=False, na=False) | t.str.contains("Time Deposit", case=False, na=False)
+    if drop.any():
+        kinds = ", ".join(sorted(set(t[drop])))
+        za = za[~drop].copy()
+        notes.append(f"{int(drop.sum()):,} savings and time-deposit accounts ({kinds}) were left out, as the analysis "
+                     "team's Data Validation step does.")
+    if "Chargeoff_Amt_365" in za.columns:
+        amt = pd.to_numeric(za["Chargeoff_Amt_365"], errors="coerce")
+        neg = amt < 0
+        if neg.any():
+            notes.append(f"{int(neg.sum()):,} accounts carried a negative Chargeoff_Amt_365 (${-amt[neg].sum():,.2f} in "
+                         "all); each is taken as its absolute value, as the analysis team's Data Validation step does.")
+        za["Chargeoff_Amt_365"] = amt.abs()
+    for c in ("closeddate", "lastdepdate", "Chargeoff_Date", "lastupdate", "max_notice_dt", "min_notice_dt",
+              "RegEResponseDate"):
+        if c in za.columns and pd.api.types.is_datetime64_any_dtype(za[c]):
+            ep = za[c] == EPOCH
+            if ep.any():
+                za.loc[ep, c] = pd.NaT
+                notes.append(f"{int(ep.sum()):,} {c} values of 1970-01-01 (the source's null marker) were read as blank.")
+    return za, notes
+
+
 def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
          digital_branches=None, retail_branches=None, include_digital=True,
          snapshot_date=None, progress=None, declines_path=None, refunds_path=None):
@@ -351,6 +446,8 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
         if n_del:
             za = za[~_truthy(za["Deleted"])].copy()
             notes.append(f"{n_del:,} rows flagged Deleted were excluded.")
+    za, cleaned = validate_zaccounts(za)
+    notes.extend(cleaned)
     say(f"  {len(za):,} accounts, {len(za.columns)} columns in scope.")
 
     snapshot = snapshot_date or infer_snapshot(za, zaccounts_path)
@@ -371,10 +468,20 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
             notes.append("ztrend file lacks acctid/noticedate; trend-based analyses skipped.")
             zt = None
         else:
+            no_id = zt["acctid"].isna() | zt["acctid"].astype(str).str.strip().str.lower().isin(("", "acctid"))
+            if no_id.any():
+                zt = zt[~no_id].copy()
+                notes.append(f"{int(no_id.sum()):,} ZTrend rows with no account id (or a repeated header line) were dropped (the analysis team's "
+                             "Data Validation step).")
             zt["acctid"] = zt["acctid"].astype(str).str.strip()
             for c in ("noticedate", "Next_Positive_Date", "Last_Positive_Date"):
                 if c in zt.columns:
                     zt[c] = pd.to_datetime(zt[c], errors="coerce")
+                    ep = zt[c] == EPOCH
+                    if ep.any():
+                        zt.loc[ep, c] = pd.NaT
+                        notes.append(f"{int(ep.sum()):,} ZTrend {c} values of 1970-01-01 (the source's null marker) "
+                                     "were read as blank.")
             for c in ("deptotal33", "CollectedFees", "PossibleFees", "Item_Amts",
                       "Items", "PD", "Min_Bal", "limit", "depcount33"):
                 if c in zt.columns:
@@ -397,23 +504,94 @@ def load(zaccounts_path, ztrend_path=None, *, exclude_branches=None,
     dd = rf = None
     if declines_path:
         say(f"Loading debit declines — {os.path.basename(str(declines_path))}…")
-        dd = pd.read_csv(declines_path, encoding="utf-8-sig", low_memory=False,
+        names = _headerless_names(declines_path, "AcctID", DECLINE_COLUMNS)
+        if names:
+            say("  no header line: read with the known debit-decline columns.")
+            notes.append("The debit-decline extract has no header line; it was read with the query's ten columns "
+                         "in order (AcctID, ODStatusCode, ProdCode, HASHED_ACCOUNT, DECLINE_DATE, ...).")
+        dd = pd.read_csv(declines_path, encoding="utf-8-sig", low_memory=False, sep=sniff_sep(declines_path),
+                         header=None if names else "infer", names=names,
                          usecols=lambda c: str(c).strip().lower() in
                          ("acctid", "odstatuscode", "prodcode", "decline_date", "transaction_type",
-                          "transaction_amount", "mcc_code"))
-        dd.columns = [str(c).strip().lower() for c in dd.columns]
+                          "transaction_amount", "mcc_code", "odstatus_code", "prod_code", "transaction_amt"))
+        # dd.csv, the analysis team's Data Validation copy, renames three columns (cell 2: odstatus_code, prod_code,
+        # transaction_amt); read them under the extract's own names.
+        dd.columns = [{"odstatus_code": "odstatuscode", "prod_code": "prodcode", "transaction_amt": "transaction_amount"}
+                      .get(str(c).strip().lower(), str(c).strip().lower()) for c in dd.columns]
         dd["acctid"] = dd["acctid"].astype(str).str.strip()
         dd["decline_date"] = pd.to_datetime(dd["decline_date"], errors="coerce")
         say(f"  {len(dd):,} decline rows.")
     if refunds_path:
         say(f"Loading refund history — {os.path.basename(str(refunds_path))}…")
-        rf = pd.read_csv(refunds_path, encoding="utf-8-sig", low_memory=False)
+        names = _headerless_names(refunds_path, "AcctID", REFUND_COLUMNS)
+        if names:
+            say("  no header line: read with the known refund-history columns.")
+            notes.append("The refund-history extract has no header line; it was read with the query's fourteen "
+                         "columns in order (Branch, BranchName, CORecoveryID, AcctID, ..., Type, Date, Reason).")
+        rf = pd.read_csv(refunds_path, encoding="utf-8-sig", low_memory=False, sep=sniff_sep(refunds_path),
+                         header=None if names else "infer", names=names)
         rf.columns = [str(c).strip() for c in rf.columns]
         rf["AcctID"] = rf["AcctID"].astype(str).str.strip()
         rf["Date"] = pd.to_datetime(rf["Date"], errors="coerce")
         say(f"  {len(rf):,} refund rows.")
+    if snapshot_date is not None:
+        # An as-of date earlier than the pull (to match an earlier review's data date): the dated rows after it are
+        # left out. ZAccounts is one row per account as pulled, so its fields (status, the 365-day totals, the
+        # charge-off flag) are as of the pull and the note says so.
+        cut = pd.Timestamp(snapshot_date)
+        dropped = []
+        if zt is not None:
+            k = ~(zt["noticedate"] > cut)
+            dropped += [f"{int((~k).sum()):,} notice rows"] if (~k).any() else []
+            zt = zt[k].copy()
+        if dd is not None:
+            k = ~(dd["decline_date"] > cut)
+            dropped += [f"{int((~k).sum()):,} debit declines"] if (~k).any() else []
+            dd = dd[k].copy()
+        if rf is not None:
+            k = ~(rf["Date"] > cut)
+            dropped += [f"{int((~k).sum()):,} refunds"] if (~k).any() else []
+            rf = rf[k].copy()
+        pulled = date_from_name(zaccounts_path)
+        notes.append(f"Built as of {cut:%Y-%m-%d}: " + (", ".join(dropped) + " dated after it were left out"
+                     if dropped else "no dated rows fall after it") +
+                     (f"; account fields (status, 365-day totals, charge-off flag) are as pulled on {pulled:%Y-%m-%d}."
+                      if pulled else "; account fields are as pulled."))
+        say(notes[-1])
+    for msg in extract_checks(snapshot, ztrend=zt, declines=dd, refunds=rf):
+        notes.append(msg)
+        say(f"  ! {msg}")
     return Loaded(zaccounts=za, ztrend=zt, snapshot=snapshot, branches=branches, notes=notes,
                   file_date=date_from_name(zaccounts_path), declines=dd, refunds=rf)
+
+
+# A dated extract whose newest row is this many days or more before the pull's data date is named on Data Notes: the
+# pulls arrive as one folder, and an extract run from an older saved query (or copied in from an earlier pull) still
+# loads, builds and validates, while every window that reads it comes up empty or short.
+STALE_EXTRACT_DAYS = 31
+
+
+def extract_checks(snapshot, *, ztrend=None, declines=None, refunds=None):
+    """One line per dated extract that ends well before the data date, or holds no dated rows. Nothing is dropped
+    here; each section that reads an extract decides how to show a short one, and this says why up front."""
+    if snapshot is None:
+        return []
+    asof = pd.Timestamp(snapshot)
+    out = []
+    for name, df, col in (("ZTrend notice", ztrend, "noticedate"), ("DebitDecline", declines, "decline_date"),
+                          ("RefundHistory", refunds, "Date")):
+        if df is None or col not in df.columns:
+            continue
+        dates = pd.to_datetime(df[col], errors="coerce").dropna()
+        if dates.empty:
+            out.append(f"The {name} extract holds no dated rows ({len(df):,} rows read).")
+            continue
+        end = dates.max()
+        gap = (asof - end).days
+        if gap >= STALE_EXTRACT_DAYS:
+            out.append(f"The {name} extract ends {end:%Y-%m-%d}, {gap:,} days before the data date ({asof:%Y-%m-%d}); "
+                       f"figures that read its recent months are short or n/a. Ask for a current pull of it.")
+    return out
 
 
 # ── shared little helpers ───────────────────────────────────────────────────
@@ -450,8 +628,13 @@ def money(x, decimals=0):
 
 
 def pct(x, decimals=1):
+    """A percentage for a slide. At 1,000% and over the decimals go and a thousands separator comes in: a loss rate on a
+    band with very little in fees and large losses runs to thousands of percent, which broke mid-word in its table
+    column, and the hundredths say nothing at that size."""
     if x is None or (isinstance(x, float) and (np.isnan(x) or np.isinf(x))):
         return "—"
+    if abs(x) >= 1000:
+        return f"{x:,.0f}%"
     return f"{x:.{decimals}f}%"
 
 

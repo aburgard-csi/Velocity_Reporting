@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Financial Services Guide</title>
+<style>
+:root{
+  --navy:#00274C; --orange:#F15D22; --gold:#F8971D; --red:#C0392B;
+  --green:#1E7A5E; --grey:#5A6670;
+  --line:#DFE4EA; --line-soft:#EDF1F5; --bg:#F8F8F8; --card:#FFFFFF;
+  --rail-w:250px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto} *{transition:none!important}
+}
+body{
+  margin:0; background:var(--bg); color:var(--navy);
+  font:16px/1.65 Montserrat,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{
+  max-width:1240px; margin:0 auto; padding:0 28px 100px;
+  display:grid; grid-template-columns:var(--rail-w) minmax(0,1fr); gap:60px;
+  align-items:start;
+}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{
+  grid-column:1/-1; padding:54px 0 26px;
+  border-bottom:3px solid var(--orange); margin-bottom:40px;
+}
+header.top h1{font-size:38px; line-height:1.1; margin:0 0 10px; letter-spacing:-.7px}
+header.top .sub{margin:0; color:var(--grey); max-width:70ch; font-size:17px}
+.built{
+  margin-top:20px; font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:12px; color:var(--grey);
+}
+
+/* ---- task index -------------------------------------------------------- */
+.jobs{
+  grid-column:1/-1; background:var(--card); border:1px solid var(--line);
+  padding:20px 24px 22px; margin:0 0 44px;
+}
+.jobs h2{
+  font-size:12px; letter-spacing:1.1px; text-transform:uppercase;
+  color:var(--orange); margin:0 0 14px; font-weight:700;
+}
+.jobs ul{
+  list-style:none; margin:0; padding:0; display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:8px 26px;
+}
+.jobs li{margin:0}
+.jobs a{color:var(--navy); text-decoration:none; border-bottom:1px solid var(--line)}
+.jobs a:hover{border-bottom-color:var(--orange)}
+
+/* ---- rail -------------------------------------------------------------- */
+nav.rail{
+  position:sticky; top:0; max-height:100vh; overflow-y:auto;
+  padding:6px 22px 40px 0; border-right:1px solid var(--line); font-size:13.5px;
+}
+nav.rail .grp{
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:10.5px;
+  letter-spacing:1.1px; text-transform:uppercase; color:var(--grey);
+  margin:22px 0 6px; font-weight:700;
+}
+nav.rail .grp:first-child{margin-top:0}
+nav.rail a{
+  display:block; color:var(--grey); text-decoration:none;
+  padding:4px 0 4px 12px; border-left:2px solid transparent; line-height:1.4;
+}
+nav.rail a:hover{color:var(--navy); border-left-color:var(--line)}
+nav.rail a.on{color:var(--navy); border-left-color:var(--orange); font-weight:600}
+nav.rail a:focus-visible{outline:2px solid var(--orange); outline-offset:2px}
+
+/* ---- sections ---------------------------------------------------------- */
+main{min-width:0}
+section{scroll-margin-top:20px; padding-bottom:6px}
+section+section{margin-top:54px; padding-top:54px; border-top:1px solid var(--line-soft)}
+.eyebrow{
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px;
+  letter-spacing:1.2px; text-transform:uppercase; color:var(--orange);
+  font-weight:700; display:block; margin-bottom:8px;
+}
+h2{font-size:27px; line-height:1.2; margin:0 0 18px; letter-spacing:-.4px}
+h3{font-size:17px; margin:30px 0 10px; letter-spacing:-.1px}
+h4{font-size:14.5px; margin:22px 0 8px; color:var(--grey);
+   text-transform:uppercase; letter-spacing:.7px}
+p{margin:0 0 14px; max-width:70ch}
+ul,ol{margin:0 0 15px; padding-left:22px; max-width:70ch}
+li{margin:0 0 7px}
+a{color:var(--orange)}
+strong{font-weight:600}
+
+code{
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.87em;
+  background:var(--card); border:1px solid var(--line); padding:1px 5px;
+}
+pre{
+  background:var(--navy); color:#fff; padding:15px 18px; margin:0 0 16px;
+  overflow-x:auto; font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:12.8px; line-height:1.6;
+}
+pre code{background:none; border:0; padding:0; color:inherit; font-size:inherit}
+
+.tablewrap{overflow-x:auto; margin:0 0 18px}
+table.grouped tr.chapter td{
+  background:var(--soft, #F2F5F8); font-weight:700; padding-top:14px;
+}
+table.grouped tr.chapter td span{
+  font-weight:400; color:var(--muted, #6B7785); margin-left:10px; font-size:13px;
+}
+table{
+  border-collapse:collapse; width:100%; background:var(--card); font-size:14px;
+  font-variant-numeric:tabular-nums;
+}
+th,td{text-align:left; padding:9px 13px; border-bottom:1px solid var(--line);
+      vertical-align:top}
+th{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:10.5px;
+   letter-spacing:.8px; text-transform:uppercase; color:var(--grey)}
+tbody tr:last-child td{border-bottom:0}
+
+/* ---- blocks ------------------------------------------------------------ */
+.note,.stop,.callout{background:var(--card); padding:14px 18px; margin:0 0 16px}
+.note{border-left:4px solid var(--gold)}
+.stop{border-left:4px solid var(--red)}
+.callout{border-left:4px solid var(--orange)}
+.note>:last-child,.stop>:last-child,.callout>:last-child{margin-bottom:0}
+.blab{
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:10.5px;
+  letter-spacing:1.1px; text-transform:uppercase; font-weight:700;
+  display:block; margin-bottom:6px;
+}
+.note .blab{color:var(--gold)} .stop .blab{color:var(--red)}
+.callout .blab{color:var(--orange)}
+
+.steps{counter-reset:s; list-style:none; padding:0; margin:0 0 18px; max-width:none}
+.steps li{
+  counter-increment:s; position:relative; padding-left:50px; margin:0 0 22px;
+  max-width:70ch;
+}
+.steps li:before{
+  content:counter(s); position:absolute; left:0; top:-2px; width:32px;
+  height:32px; border-radius:50%; background:var(--navy); color:#fff;
+  font-weight:700; font-size:14px; display:flex; align-items:center;
+  justify-content:center;
+}
+.tree{
+  background:var(--card); border:1px solid var(--line); padding:14px 18px;
+  margin:0 0 16px; font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:12.8px; line-height:1.6; white-space:pre; overflow-x:auto;
+}
+.twocol{display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 16px}
+.twocol>div{background:var(--card); border:1px solid var(--line); padding:14px 18px}
+.twocol h4{margin-top:0}
+
+.state{
+  display:inline-block; font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:11px; padding:3px 9px; margin:0 0 14px;
+}
+.state.ok{background:#E7F2EE; color:var(--green)}
+.state.warn{background:#FDF2E0; color:#9A6206}
+.state.no{background:#F8E7E5; color:var(--red)}
+
+.toolcard,.formcard{
+  background:var(--card); border:1px solid var(--line); padding:12px 16px;
+  margin:0 0 10px;
+}
+.toolcard b,.formcard b{font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:13.5px; color:var(--navy)}
+.toolcard p,.formcard p{margin:5px 0 0; color:var(--grey); font-size:14px}
+.cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+       gap:10px; margin:0 0 18px}
+.cards>*{margin:0}
+
+dl{background:var(--card); border:1px solid var(--line); padding:4px 18px; margin:0 0 16px}
+dt{font-weight:600; margin:14px 0 2px}
+dd{margin:0 0 12px; color:var(--grey)}
+
+figure{margin:0 0 18px; background:var(--card); border:1px solid var(--line);
+       padding:16px; overflow-x:auto}
+/* an inlined <svg> carrying only a viewBox has no intrinsic width, and
+   collapses in a grid/flex ancestor. width:100% is what makes it fill. */
+figure svg{width:100%; max-width:100%; height:auto; display:block}
+figcaption{margin-top:10px; color:var(--grey); font-size:13.5px}
+
+footer{
+  grid-column:1/-1; margin-top:70px; padding-top:20px;
+  border-top:1px solid var(--line); color:var(--grey); font-size:13px;
+}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:960px){
+  .wrap{grid-template-columns:minmax(0,1fr); gap:0}
+  nav.rail{position:static; max-height:none; border-right:0;
+           border-bottom:1px solid var(--line); padding:0 0 22px; margin:0 0 30px}
+  .twocol{grid-template-columns:1fr}
+}
+
+/* ---- print: the whole manual, one document ----------------------------- */
+@media print{
+  body{background:#fff; font-size:11pt}
+  .wrap{display:block; max-width:none; padding:0}
+  nav.rail,.jobs{display:none}
+  section{break-inside:auto; page-break-inside:auto}
+  section+section{border-top:0; margin-top:26px; padding-top:0}
+  h2{break-after:avoid; page-break-after:avoid}
+  pre,table,figure,.note,.stop,.callout{break-inside:avoid; page-break-inside:avoid}
+  a{color:inherit; text-decoration:none}
+  a[href^="http"]:after{content:" (" attr(href) ")"; font-size:9pt; color:#666}
+}
+</style>
+</head><body>
+<div class="wrap">
+<header class="top">
+  <h1>Financial Services Guide</h1>
+  <p class="sub">Where members' and customers' money goes outside the institution: what the analysis computes,
+  how to read it, the mail lists it produces, and what it cannot say. 16 sections; use the contents on the left,
+  or Ctrl+F &mdash; every word is on this page.</p>
+  <p class="built">Generated by <code>scripts/build_financial_services_guide.py</code> on 2026-11-16
+  from commit f9a6d6f. Never hand-edited: change the script and run it again.</p>
+</header>
+<div class="jobs"><h2>I need to&hellip;</h2><ul><li><a href="#what-this-is">I am new here</a></li><li><a href="#numbers">Read a client&#x27;s numbers</a></li><li><a href="#lists">Get the mail list</a></li><li><a href="#coverage">Check the numbers can be trusted</a></li><li><a href="#fixing">Fix a missing provider</a></li><li><a href="#competition">Tell Financial Services from Competition</a></li><li><a href="#cannot">Know what it cannot say</a></li></ul></div>
+<nav class="rail"><span class="grp">Start here</span><a href="#what-this-is">What this is, and what you do</a><a href="#numbers">Read the numbers</a><span class="grp">Get running</span><a href="#needs">What it needs</a><a href="#run">How to run it</a><a href="#comes-out">What comes out</a><span class="grp">Use it</span><a href="#lists">The lists and the master list</a><a href="#categories">The categories</a><a href="#deck">Its deck, slide by slide</a><span class="grp">Reference</span><a href="#figures">The figures it computes</a><a href="#coverage">Coverage: how much the dictionary can see</a><a href="#competition">How it relates to Competition</a><span class="grp">Know the limits</span><a href="#cannot">What it cannot do</a><a href="#fixing">When the numbers look wrong</a><span class="grp">Reference</span><a href="#terms">Wording on slides and lists</a><a href="#status">What ships when</a><a href="#glossary">Glossary</a></nav>
+<main><section id="what-this-is"><span class="eyebrow">Start here · 01</span><h2>What this is, and what you do</h2>
+<p>Financial Services is the part of the Transaction Intelligence deck that answers one question:
+<strong>where do our members and customers send money that is not to us?</strong> It reads the
+debit-card transaction files, finds the payments that go to someone else's financial product (an
+auto loan, a credit card, insurance, a buy-now-pay-later plan) and tells you how many accounts, how
+many dollars, how recent, and who they pay.</p>
+<p>It is not the same as Competition. <strong>Competition is banks and credit unions</strong> (who holds the
+relationship). <strong>Financial Services is the product</strong> (what they are buying). The same payment can
+appear in both, and the two views are never added together; see <a href="#competition">How it relates to Competition</a>.</p>
+<div class="callout"><span class="blab">What you do with it</span><p>You read the numbers (<a href="#numbers">Read the numbers</a>), open the mail
+lists (<a href="#lists">The lists and the master list</a>) and give the client's marketing team the master list. If a client's
+numbers look thin, the <a href="#coverage">coverage line</a> says how much the dictionary could see, and
+<a href="#fixing">the review queue</a> says what to add.</p></div>
+<p>Everything on this page is read out of the code when it is built, so it cannot describe a figure the
+pipeline no longer computes. If a number here looks wrong, the code moved: rebuild the page.</p></section><section id="numbers"><span class="eyebrow">Start here · 02</span><h2>Read the numbers</h2>
+<p>Three words are used on every slide and in every list. Learn them once.</p>
+<div class="tablewrap"><table><thead><tr><th>Word</th><th>Means</th><th>Use it for</th></tr></thead><tbody><tr><td><strong>Any leakage</strong></td><td>The account paid at least one outside financial product, in any of the 20 leakage categories.</td><td>The headline: how many members or customers have a financial life elsewhere.</td></tr><tr><td><strong>Addressable</strong></td><td>The account paid one of the 17 categories the institution offers (auto loans, mortgage, cards, personal loans, student loans, and others; not insurance or tax).</td><td>What the institution could realistically win back.</td></tr><tr><td><strong>Adjacency</strong></td><td>2 categories: person-to-person payments and fintech wallets. Reported apart, never added to leakage.</td><td>Context, not a leak: a Venmo payment may be rent.</td></tr></tbody></table></div>
+<div class="stop"><span class="blab">Two percentages, one client</span><p>On 1798 the headline reads 42% (any leakage) and the by-lens table reads 18% (addressable). Both are
+right; they answer different questions. Every figure in the pack now carries both, with the base printed
+(<code>fin_definitions</code>), so quote them together.</p></div>
+<h3>Every figure is a floor</h3>
+<p>The files are <strong>debit-card rows</strong>. Payments made by ACH, check or a bill-pay service are not in them, so every
+account and dollar figure is the least that is true. The slides say &ldquo;card rails only&rdquo; for this reason.
+Wallet share (the category's share of an account's ACH and check dollars) needs those rails and is blank on a card-only file;
+the coverage line says so.</p>
+<h3>Dollars are payments, not balances</h3>
+<p>A $50M figure is money that moved in twelve months. It is not a loan book and carries no rate or margin. No revenue-at-stake
+estimate is made, by decision.</p></section><section id="needs"><span class="eyebrow">Get running · 03</span><h2>What it needs</h2>
+<p>Nothing beyond what a Transaction Intelligence build already reads:</p>
+<ul>
+<li><strong>The ODD extract</strong> for the month (the account list, branch, product, <code>Mailable?</code>, business or personal).</li>
+<li><strong>The monthly debit-card transaction files</strong> for the client (<code>Inputs\Txn Files\&lt;id&gt;</code>). Twelve months is the
+full picture; a single month works but has no trend.</li>
+<li><strong>The client's config</strong> (<code>ti_clients_config.json</code>): <code>SelfNames</code> (the client's own names, so internal transfers are never leakage) and,
+if the client has providers the dictionary lacks, <code>LocalFinancialServices</code>.</li>
+</ul>
+<p>A client with no transaction files has no Financial Services chapter, and the build says so instead of drawing empty slides.</p></section><section id="run"><span class="eyebrow">Get running · 04</span><h2>How to run it</h2>
+<p>From CSM Sheila, open the client and use the <strong>Transaction Intelligence</strong> panel. There is nothing separate to run for Financial Services:
+it is a chapter of that build.</p>
+<p>By hand, for one client (the Sheila button runs this):</p>
+<pre><code>python build\ars_pipeline\ti_build.py &lt;id&gt; &lt;period&gt; "&lt;client name&gt;" &lt;out dir&gt;    (add --ics for an ICS client)</code></pre>
+<p>The build prints a read-out near the end: the three definitions, the coverage line, and the slide ledger summary. Read it before you open the deck.</p></section><section id="comes-out"><span class="eyebrow">Get running · 05</span><h2>What comes out</h2>
+<p>A build writes three kinds of thing. The deck goes to Outputs as before; the lists and the ledger now go beside it.</p>
+<div class="tree">Outputs\&lt;CSM&gt;\
+  &lt;id&gt;-&lt;period&gt;-TI-&lt;client&gt; Transaction Intelligence.pptx      the deck (one per lens)
+  &lt;id&gt;-&lt;period&gt;-TI-Lists\
+     finserv_master_list.csv                                  <strong>the one to hand over</strong>
+     finserv_&lt;category&gt;.csv                                   one per category (22)
+     finserv_review_queue.csv                                 what the dictionary missed
+     ti_slide_ledger.csv                                      every slide: drawn, merged, hidden, tossed</div>
+<div class="tablewrap"><table><thead><tr><th>File</th><th>Who uses it</th><th>What it is</th></tr></thead><tbody><tr><td><code>finserv_master_list.csv</code></td><td>Client marketing</td><td>One row per account per category. Filter on <code>list_type</code> to mail one category.</td></tr><tr><td><code>finserv_&lt;category&gt;.csv</code></td><td>CSM, client marketing</td><td>The same accounts for one category, with balance, tenure and the ODD columns beside them.</td></tr><tr><td><code>finserv_review_queue.csv</code></td><td>CSM, the dictionary owner</td><td>Every descriptor that looks financial and matched nothing, by dollars.</td></tr><tr><td><code>ti_slide_ledger.csv</code></td><td>Whoever reviews the deck</td><td>A line for every slide with its status and the reason it is not drawn.</td></tr></tbody></table></div>
+<div class="note"><span class="blab">The staging folder</span><p>The build writes into a staging folder first. Only the validated deck used to be copied to Outputs; the
+<code>-TI-Lists</code> folder is copied after it. If a CSM cannot find the lists, the build log says whether the copy failed.</p></div></section><section id="lists"><span class="eyebrow">Use it · 06</span><h2>The lists and the master list</h2>
+<p>Every category gets a list, and there is one master list across all of them, so a campaign is a filter, not a rebuild.</p>
+<div class="tablewrap"><table><thead><tr><th>Column</th><th>What it is</th></tr></thead><tbody><tr><td><code>acct_id</code></td><td>The account, as the ODD and the transaction file key it (a long hashed id, not an account number).</td></tr><tr><td><code>cif</code></td><td>The member's customer information file number. <strong>Blank today</strong>: no client file carries one. It fills when a crosswalk is supplied; nothing else changes.</td></tr><tr><td><code>list_type</code></td><td>The category, which is the campaign or list type (Auto Loans, Credit Cards, &hellip;).</td></tr><tr><td><code>kind</code></td><td><code>leakage</code> or <code>adjacency</code>.</td></tr><tr><td><code>addressable</code></td><td><code>yes</code> if the institution offers this category.</td></tr><tr><td><code>tier</code></td><td>How recently the account last paid: <code>active</code> (30 days), <code>cooling</code> (90), <code>dormant</code> (a year), <code>lapsed</code>.</td></tr><tr><td><code>txns</code></td><td>How many payments in the window.</td></tr><tr><td><code>dollars</code></td><td>How much, in the window.</td></tr><tr><td><code>wallet_share</code></td><td>That category's share of the account's ACH and check dollars; blank without the transfer rail.</td></tr><tr><td><code>last</code></td><td>The date of the last payment.</td></tr><tr><td><code>mailable</code></td><td>The ODD's <code>Mailable?</code> flag, or <code>unknown</code> for an account the ODD does not list.</td></tr></tbody></table></div>
+<p>The master list's columns, in order: <code>acct_id, cif, list_type, kind, addressable, tier, txns, dollars, wallet_share, last, mailable</code>.</p>
+<h3>How to use it</h3>
+<ol class="steps">
+<li><p><strong>Open the master list</strong> and filter <code>mailable</code> to <code>Yes</code>. An account marked <code>unknown</code> is not in this month's ODD: leave it out.</p></li>
+<li><p><strong>Pick the campaign</strong> by <code>list_type</code> and <code>addressable</code>. Start with <code>cooling</code>: those accounts paid in the last 31 to 90 days and are the cheapest to keep.</p></li>
+<li><p><strong>Add the CIF</strong> from the institution's own system when marketing needs it; the file carries the account id only.</p></li>
+</ol>
+<div class="stop"><span class="blab">Business accounts</span><p>The lists cover the <strong>personal-account</strong> base, the same accounts the headline counts. Business accounts are not in them.</p></div>
+<div class="note"><span class="blab">Mailing is not Competition</span><p>These lists are financial-services lists only. Competition keeps its own files, and competition-based mail targeting is not part of this work.</p></div></section><section id="categories"><span class="eyebrow">Use it · 07</span><h2>The categories</h2>
+<p>22 categories (20 leakage, 2 adjacency), 936 name patterns. Read from the dictionary
+(<code>financial_services_patterns.json</code>), so this is the list in force.</p>
+<div class="tablewrap"><table><thead><tr><th>Category</th><th>Kind</th><th>Addressable</th><th>Patterns</th></tr></thead><tbody><tr><td>Auto Loans</td><td>leakage</td><td>yes</td><td>115</td></tr><tr><td>Investment/Brokerage</td><td>leakage</td><td>yes</td><td>77</td></tr><tr><td>Treasury/Bonds</td><td>leakage</td><td>no</td><td>7</td></tr><tr><td>Mortgage/HELOC</td><td>leakage</td><td>yes</td><td>94</td></tr><tr><td>Personal Loans</td><td>leakage</td><td>yes</td><td>41</td></tr><tr><td>Credit Cards</td><td>leakage</td><td>yes</td><td>91</td></tr><tr><td>Student Loans</td><td>leakage</td><td>yes</td><td>32</td></tr><tr><td>Business Loans</td><td>leakage</td><td>yes</td><td>23</td></tr><tr><td>Insurance</td><td>leakage</td><td>no</td><td>143</td></tr><tr><td>Crypto/Digital Assets</td><td>leakage</td><td>yes</td><td>35</td></tr><tr><td>Tax &amp; Accounting</td><td>leakage</td><td>no</td><td>43</td></tr><tr><td>Financial Advisory</td><td>leakage</td><td>yes</td><td>36</td></tr><tr><td>Debt Services</td><td>leakage</td><td>yes</td><td>17</td></tr><tr><td>Credit Monitoring</td><td>leakage</td><td>yes</td><td>20</td></tr><tr><td>Retirement / 401k</td><td>leakage</td><td>yes</td><td>20</td></tr><tr><td>HSA / FSA</td><td>leakage</td><td>yes</td><td>11</td></tr><tr><td>Online Banks / Savings</td><td>leakage</td><td>yes</td><td>55</td></tr><tr><td>Buy Now Pay Later</td><td>leakage</td><td>yes</td><td>13</td></tr><tr><td>P2P Transfers</td><td>adjacency</td><td>no</td><td>13</td></tr><tr><td>Fintech / Neobanks</td><td>adjacency</td><td>no</td><td>25</td></tr><tr><td>Other Loans (lender unknown)</td><td>leakage</td><td>yes</td><td>10</td></tr><tr><td>Payday / Small-Dollar Loans</td><td>leakage</td><td>yes</td><td>15</td></tr></tbody></table></div>
+<p>A payment is matched on its description. Longest match wins, a descriptor that names a product but no lender
+(<code>AUTO LOAN</code>, <code>CARD PAYMENT</code>, <code>LOAN PMT</code>, 25 in all) keeps its category and
+shows as <code>(unnamed)</code> instead of as a provider, and a pattern lives in exactly one category.</p></section><section id="deck"><span class="eyebrow">Use it · 08</span><h2>Its deck, slide by slide</h2>
+<p>The Financial Services slides inside the Transaction Intelligence deck, and what became of each in a build.
+8 drawn, 2 merged, 0 hidden, 6 tossed
+(by the selection file, <code>ti/slides.json</code>). The ledger file lists every slide of the deck, not only these.</p>
+<div class="tablewrap"><table><thead><tr><th>Slide</th><th>Status</th><th>Why</th></tr></thead><tbody><tr><td>The book, narrowed</td><td><code>drawn</code></td><td></td></tr><tr><td>Twelve months of flow</td><td><code>drawn</code></td><td></td></tr><tr><td>Their financial life</td><td><code>tossed</code></td><td>tossed in ti/slides.json</td></tr><tr><td>Where the money goes</td><td><code>drawn</code></td><td></td></tr><tr><td>Where the leakage goes</td><td><code>tossed</code></td><td>tossed in ti/slides.json</td></tr><tr><td>Who they pay</td><td><code>drawn</code></td><td></td></tr><tr><td>How long the relationship has run</td><td><code>merged</code></td><td>drawn with &#x27;Started and stopped&#x27; as &#x27;How external relationships age and turn over&#x27;</td></tr><tr><td>Started and stopped</td><td><code>merged</code></td><td>drawn with &#x27;How long the relationship has run&#x27; as &#x27;How external relationships age and turn over&#x27;</td></tr><tr><td>How deep the leakage runs</td><td><code>tossed</code></td><td>tossed in ti/slides.json</td></tr><tr><td>Leakage by group</td><td><code>tossed</code></td><td>tossed in ti/slides.json</td></tr><tr><td>Leakage by group and category</td><td><code>drawn</code></td><td></td></tr><tr><td>What leakers hold with us</td><td><code>drawn</code></td><td></td></tr><tr><td>How the leakage builds</td><td><code>tossed</code></td><td>tossed in ti/slides.json</td></tr><tr><td>Which services travel together</td><td><code>drawn</code></td><td></td></tr><tr><td>Still within reach</td><td><code>drawn</code></td><td></td></tr><tr><td>What the dictionary does not know yet</td><td><code>tossed</code></td><td>tossed in ti/slides.json</td></tr></tbody></table></div>
+<div class="note"><span class="blab">Nothing is dropped silently</span><p><strong>Tossed</strong> is a reviewed decision for every client. <strong>Hidden</strong> means this client's files
+do not hold the figures. <strong>Merged</strong> means two slides share one page. The ledger file says which, for the client in front of you.</p></div></section><section id="figures"><span class="eyebrow">Reference · 09</span><h2>The figures it computes</h2>
+<p>Every figure below is checked against a real run when this page is built. They are keys in the pack
+(<code>ti_pack.json</code>) and in the metrics the deck reads.</p><h3>Headline</h3><div class="tablewrap"><table><thead><tr><th>Figure</th><th>What it answers</th></tr></thead><tbody><tr><td><code>fin_leaking_pct</code></td><td>Share of the base paying any outside financial product (any leakage).</td></tr><tr><td><code>fin_leakage_dollars</code></td><td>Dollars a year to those products, adjacency excluded.</td></tr><tr><td><code>fin_addressable_pct</code></td><td>Share of the base paying a category the institution offers.</td></tr><tr><td><code>fin_addressable_dollars</code></td><td>Dollars in those categories.</td></tr><tr><td><code>fin_definitions</code></td><td>Any, addressable and adjacency side by side: accounts, % of the base, dollars, with the base printed.</td></tr><tr><td><code>fin_coverage</code></td><td>Matched rows and dollars, card and transfer rows, whether wallet share can be computed, review-queue dollars.</td></tr></tbody></table></div><h3>Who and what</h3><div class="tablewrap"><table><thead><tr><th>Figure</th><th>What it answers</th></tr></thead><tbody><tr><td><code>fin_by_category</code></td><td>Per category: accounts, transactions, dollars, dollars per account, median wallet share, card share.</td></tr><tr><td><code>fin_top_providers</code></td><td>The named providers in each category, by dollars; generic descriptors show as (unnamed).</td></tr><tr><td><code>fin_provider_concentration</code></td><td>How much of a category the top three providers take.</td></tr><tr><td><code>fin_by_lens</code></td><td>Addressable accounts by program group (responders, mailed non-responders, no mail, ICS groups).</td></tr></tbody></table></div><h3>Over time</h3><div class="tablewrap"><table><thead><tr><th>Figure</th><th>What it answers</th></tr></thead><tbody><tr><td><code>fin_recency</code></td><td>Per category, relationships active, cooling, dormant and lapsed.</td></tr><tr><td><code>fin_new_recurring_stopped</code></td><td>Started, continuing and stopped in the last 90 days.</td></tr><tr><td><code>fin_months</code></td><td>The months in the window.</td></tr><tr><td><code>fin_monthly</code></td><td>Per category and month: accounts paying and dollars. A month with no payments reads zero.</td></tr><tr><td><code>fin_trend</code></td><td>Last three months against the three before, per category; peak month from twelve months on file.</td></tr></tbody></table></div><h3>Depth</h3><div class="tablewrap"><table><thead><tr><th>Figure</th><th>What it answers</th></tr></thead><tbody><tr><td><code>fin_multi_category</code></td><td>How many categories each leaker pays.</td></tr><tr><td><code>fin_category_pairs</code></td><td>Which categories leave together.</td></tr><tr><td><code>fin_reach</code></td><td>How much of each addressable category was paid in the last 90 days.</td></tr><tr><td><code>fin_leakers_profile</code></td><td>Balance, tenure and response of the accounts paying each addressable category.</td></tr><tr><td><code>fin_leakers_hold</code></td><td>The top products those accounts hold with us.</td></tr></tbody></table></div><h3>Named institutions</h3><div class="tablewrap"><table><thead><tr><th>Figure</th><th>What it answers</th></tr></thead><tbody><tr><td><code>fininst_by_category</code></td><td>Per category: how many accounts, and how many dollars, sit at a named bank or credit union.</td></tr><tr><td><code>fininst_matrix</code></td><td>The largest category by institution pairs.</td></tr></tbody></table></div><h3>Data quality</h3><div class="tablewrap"><table><thead><tr><th>Figure</th><th>What it answers</th></tr></thead><tbody><tr><td><code>fin_unmatched_top</code></td><td>The biggest counterparties on the transfer rail that matched nothing.</td></tr><tr><td><code>fin_review_queue</code></td><td>Descriptors that look financial and matched nothing, by dollars (top rows; the whole queue is a file).</td></tr></tbody></table></div></section><section id="coverage"><span class="eyebrow">Reference · 10</span><h2>Coverage: how much the dictionary can see</h2>
+<p>The dictionary matches names, so it can only count what it knows. Every build reports it, in the build log and in the pack
+(<code>fin_coverage</code>):</p>
+<ul>
+<li><strong>Matched rows and dollars</strong> as a share of the file. Most card rows are ordinary shopping, so the row share is low by design; look at dollars.</li>
+<li><strong>Review queue dollars</strong>: money that went to something financial-looking the dictionary did not recognise. This is the number to bring down.</li>
+<li><strong>Wallet share available</strong>: <code>False</code> on a card-only file.</li>
+</ul>
+<p>On 1798's October 2026 file, the first run matched 15.9% of dollars and left $1.14M in the review queue; adding the names
+from that queue moved 1,765 rows into categories.</p></section><section id="competition"><span class="eyebrow">Reference · 11</span><h2>How it relates to Competition</h2>
+<p>Competition counts <strong>who</strong>; Financial Services counts <strong>what</strong>. A payment to a named bank or credit union is in both:</p>
+<div class="callout"><span class="blab">The rule</span><p><code>NUSENDA CU AUTO LOAN</code> is an <strong>auto loan</strong> here and <strong>Nusenda</strong> in Competition.
+Each view counts it. The two are <strong>never added</strong>. Where the page or a slide shows both, it says the other view exists.</p></div>
+<p><code>fininst_by_category</code> and <code>fininst_matrix</code> are the bridge: for each category, how much sits at a named national, regional
+or local bank or credit union, and the largest pairs. They are cross-tabs of the two views, not a third total. They use what Competition
+is configured with today (the universal list plus the client's regional and local names), so a depository in neither is not named and the
+share is a floor.</p></section><section id="cannot"><span class="eyebrow">Know the limits · 12</span><h2>What it cannot do</h2>
+<ul>
+<li><strong>See payments off the card rail.</strong> ACH, checks and bill pay are not in the files. Every figure is a floor.</li>
+<li><strong>Know a loan balance, rate or margin.</strong> It sees payments. It does not estimate revenue or opportunity.</li>
+<li><strong>Name a lender that is not in the dictionary.</strong> It shows in the review queue until someone adds it.</li>
+<li><strong>Tell you who an account is.</strong> No client file carries a name, address or CIF. The lists key on the account id.</li>
+<li><strong>Prove a program effect.</strong> The responder-against-control gap is descriptive: responders are chosen by a dip in activity. Only a before-and-after comparison against a control is causal.</li>
+<li><strong>Cover business accounts in the lists.</strong> The headline and the lists are personal accounts.</li>
+</ul></section><section id="fixing"><span class="eyebrow">Know the limits · 13</span><h2>When the numbers look wrong</h2>
+<table><thead><tr><th>You see</th><th>It means</th><th>Do this</th></tr></thead><tbody>
+<tr><td>No Financial Services slides</td><td>No transaction files for the period, or the chapter failed.</td><td>Read the build log for <code>failed:</code> or <code>not on hand</code>. The ledger lists the slides as <code>hidden</code> with the reason.</td></tr>
+<tr><td>A provider shows as <code>(unnamed)</code></td><td>The descriptor names a product but no lender (<code>LOAN PMT</code>).</td><td>Normal. If it is a big dollar amount, look it up in the review queue.</td></tr>
+<tr><td>A large review queue</td><td>Financial-looking counterparties the dictionary does not know.</td><td>Open <code>finserv_review_queue.csv</code>, take the top names, and add them (below).</td></tr>
+<tr><td>A bank or credit union in the review queue</td><td>It is a Competition name, not a product.</td><td>Add it to the client's <code>LocalCompetitors</code> (Competition's config), not to this dictionary.</td></tr>
+<tr><td>Wallet share is blank</td><td>The file has no ACH or check rows.</td><td>Expected for a card-only client.</td></tr>
+<tr><td>A category list is empty</td><td>Nobody paid that category this month.</td><td>The file is still written, header only, so the set of files never changes.</td></tr>
+</tbody></table>
+<h3>Adding a name to the dictionary</h3>
+<ol class="steps">
+<li><p><strong>Read the review queue</strong> and pick names that are real lenders, insurers or wallets. Leave out look-alikes (a store called &ldquo;Sun Valley Hardware&rdquo; is not Sun Loans).</p></li>
+<li><p><strong>One client only?</strong> Put the name under <code>LocalFinancialServices</code> in that client's config.
+<strong>Every client?</strong> Add it to the category in <code>financial_services_patterns.json</code>, once. A pattern in two categories fails the tests.</p></li>
+<li><p><strong>Change goes through a branch and pull request,</strong> with the before and after for a real client. A dictionary change moves figures, so it is its own PR.</p></li>
+</ol></section><section id="terms"><span class="eyebrow">Reference · 14</span><h2>Wording on slides and lists</h2>
+<p>Credit union: say <strong>member</strong> (members, member accounts, members at GECU). Bank: say <strong>customer</strong>.
+Text that covers both: &ldquo;members and customers&rdquo;, or the institution's own word per row. Never &ldquo;user&rdquo;, &ldquo;consumer&rdquo; or &ldquo;account holder&rdquo;.</p></section><section id="status"><span class="eyebrow">Reference · 15</span><h2>What ships when</h2>
+<p>This page describes the code at commit <code>f9a6d6f</code>. The Financial Services work lands as a stack of pull requests,
+one purpose each, because a change to what a figure counts is reviewed on its own.</p>
+<div class="tablewrap"><table><thead><tr><th>Stage</th><th>What it adds</th><th>Moves a figure?</th></tr></thead><tbody><tr><td>Dictionary v6</td><td>One category per pattern, generic descriptors never the provider, bank and product patterns, payday category, known misses.</td><td>Yes</td></tr><tr><td>Mail lists</td><td>Lists for every category, the master list, the build sets where they are written, <code>Mailable?</code> carried through.</td><td>No</td></tr><tr><td>Definitions and coverage</td><td>Any, addressable and adjacency side by side; the coverage line; the whole review queue as a file.</td><td>No</td></tr><tr><td>Trend and depth</td><td>A monthly series and trend per category; the products leakers hold.</td><td>No</td></tr><tr><td>Named institutions</td><td>Each category against the bank or credit union that holds it.</td><td>No</td></tr><tr><td>Ledger and portfolio row</td><td>A line for every slide; one row per client and month for benchmarking.</td><td>No</td></tr><tr><td>Dictionary v7</td><td>Names read from 1798's review queue.</td><td>Yes</td></tr><tr><td>Delivery</td><td>The lists and ledger copied to Outputs beside the deck (a launcher change).</td><td>No</td></tr></tbody></table></div>
+<div class="note"><span class="blab">Until a stage is merged</span><p>A stage that is not merged is not in the build the CSMs run. The first (dictionary v6) is open for review; the others are stacked on it.
+Rebuild this page after each merge and the status line follows the code.</p></div></section><section id="glossary"><span class="eyebrow">Reference · 16</span><h2>Glossary</h2>
+<dl>
+<dt>Leakage</dt><dd>Money to someone else's financial product (loan, card, insurance, brokerage, BNPL, crypto, payday).</dd>
+<dt>Addressable</dt><dd>A leakage category the institution offers.</dd>
+<dt>Adjacency</dt><dd>Person-to-person and fintech wallet payments, reported apart.</dd>
+<dt>Review queue</dt><dd>Financial-looking descriptors the dictionary did not match, by dollars.</dd>
+<dt>Wallet share</dt><dd>A category's share of an account's ACH and check dollars; needs the transfer rail.</dd>
+<dt>Coverage</dt><dd>How much of the file the dictionary can see.</dd>
+<dt>CIF</dt><dd>The member or customer's customer information file number. Not in any file today.</dd>
+<dt>Master list</dt><dd>One row per account per category; the single hand-off to marketing.</dd>
+<dt>Ledger</dt><dd>A line for every slide with its status and reason.</dd>
+<dt>ODD</dt><dd>The monthly account-level extract.</dd>
+<dt>Lens</dt><dd>A program group: for ARS, responders, mailed non-responders and no mail; for ICS, ICS accounts and their sources.</dd>
+</dl></section></main>
+<footer>
+  <p>A guide that promises the wrong thing is worse than no guide. The categories, slides, list columns and figures named
+  here are read from the code when this page is built, and the build stops if one is no longer there.</p>
+</footer>
+</div>
+<script>
+(function(){
+  var pairs=[];
+  document.querySelectorAll('nav.rail a').forEach(function(a){
+    var el=document.getElementById(a.getAttribute('href').slice(1));
+    if(el) pairs.push({link:a,el:el});
+  });
+  if(!pairs.length) return;
+  var ticking=false;
+  function sync(){
+    ticking=false;
+    var marker=window.innerHeight*0.22, active=pairs[0];
+    pairs.forEach(function(p){
+      if(p.el.getBoundingClientRect().top<=marker) active=p;
+    });
+    pairs.forEach(function(p){p.link.classList.toggle('on',p===active);});
+  }
+  function onScroll(){if(!ticking){ticking=true;requestAnimationFrame(sync);}}
+  addEventListener('scroll',onScroll,{passive:true});
+  addEventListener('resize',onScroll,{passive:true});
+  sync();
+})();
+</script>
+</body></html>

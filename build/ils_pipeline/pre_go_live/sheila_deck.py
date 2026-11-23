@@ -308,7 +308,10 @@ def _core_ils_slides(ctx, kind):
         tile(s2, x, 3.55, 3.3, 1.35, value, label)
         x += 3.45
     bands = cv["matrix_bands"]
-    mrows = [["Core today → ILS"] + bands] + [[b] + [n_(v) for v in row] for b, row in zip(bands, cv["matrix"])]
+    # A range header is wider than its 0.66" column at 8.5 pt ("$501–$1,000"), so it breaks at its dash onto two lines
+    # by design, never mid-word (validate_deck.table_word_break_findings).
+    heads = [b.replace("–", "–\n", 1) if "–" in b else b for b in bands]
+    mrows = [["Core today → ILS"] + heads] + [[b] + [n_(v) for v in row] for b, row in zip(bands, cv["matrix"])]
     add_table(s2, 7.55, 3.55, 5.2, 0.3 * len(mrows), mrows, [1.4] + [0.76] * len(bands), fs=8.5)
     say(s2, f"The core extends {usd(cv['nodep_core_dollars'])} of limit to accounts with no deposits; ILS extends "
             f"{usd(cv['nodep_ils_dollars'])}. The members the core under-serves are where the returned items and declines "

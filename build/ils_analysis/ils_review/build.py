@@ -27,8 +27,12 @@ import os
 import traceback
 from datetime import datetime
 
+from . import theme as T                       # first: it puts build/ on sys.path for the modules below
+from . import analysis_slides
 from . import branch_metrics as BM
 from . import branch_slides
+from . import peers_slides
+from . import standard_slides
 from . import client_slides as CS
 from . import dbic
 from . import dbic_slides
@@ -38,11 +42,14 @@ from . import ds_slides
 from . import ils_data
 from . import matrix_data as MD
 from . import matrix_report
+from . import matrix_prep_slides
 from . import matrix_slides
 from . import r_common
 from . import scoring_summary
+from . import story_slides
 from . import theme as T
-from .config import GROUP_DIVIDERS, SECTIONS, BuildConfig
+from .config import (APPENDIX_KEYS, GROUP_DIVIDERS, MAX_SLIDES, NO_DIVIDER_GROUPS, PART_APPENDIX, PART_OF,
+                     SECTIONS, BuildConfig)
 from .ils_data import count
 from .template import Shell
 
@@ -72,6 +79,7 @@ class _Run:
         self.slides_by_section = {}
         self.section_counts = {}
         self.settings = {}
+        self.build_log = []
         self.say = lambda m: None
         self.cv = None                 # shared per-account volatility table
         self.notice66 = None           # shared 66-day notice counts
@@ -133,18 +141,47 @@ def _sec_dbic(run, key):
         return ["No DBIC export was supplied, so the program-health slides (calculation log, feed integrity, Reg E "
                 "opt-in, fee collection) were skipped."]
     run.say("Parsing DBIC export…")
-    d = dbic.load(run.cfg.dbic_path)
+    d = _dbic_data(run)
     if not d.available:
         return [f"The DBIC export {os.path.basename(str(run.cfg.dbic_path))} contained no recognised sections, so the "
                 f"program-health slides were skipped."]
     run.say(f"  {len(d.secs)} section(s) recognised.")
-    return dbic_slides.add_dbic_section(run.dk, d, section=key, divider=False, progress=run.say)
+    medians, src = None, None
+    if run.fr.has_trend and _dbic_channels(run):
+        types = sorted({t for (t, _) in d.channels[0]})
+        medians = {t: CS.RF.channel_medians(run.fr, t, d.channels[1]) for t in types}
+        src = CS._src(run.cfg, run.fr, "dbic", "zt", extra="Paid and returned items: the DBIC channel table, trailing "
+                      "60 days. Median item amount: ZTrend Item_Amts on notices flagged for each channel, 365 days to the "
+                      "as-of date.")
+    return dbic_slides.add_dbic_section(run.dk, d, section=key, divider=False, progress=run.say, medians=medians,
+                                        medians_source=src)
+
+
+def _dbic_data(run):
+    if getattr(run, "_dbic", None) is None:
+        run._dbic = dbic.load(run.cfg.dbic_path)
+    return run._dbic
+
+
+def _dbic_channels(run):
+    """True when the DBIC section will draw "Exception items by channel" (it carries the ZTrend medians then)."""
+    if not run.cfg.dbic_path or "dbic" not in run.cfg.sections:
+        return False
+    d = _dbic_data(run)
+    return bool(d.available and d.channels and d.channels[1])
+
+
+def _sec_exception_items(run, key):
+    # One slide, not two (Aaron, 2026-11-17): with the DBIC channel table, the medians ride on that slide.
+    if _dbic_channels(run):
+        return ["Exception items by channel: carried on the DBIC channel slide, which has the channel table and medians."]
+    return CS.add_exception_items(run.dk, run.cfg, run.fr, section=key, progress=run.say)
 
 
 def _sec_matrix(run, key):
     if not run.S:
-        return ["No matrix validation export was supplied, so the ILS Matrix Validation slides were skipped."]
-    return matrix_slides.add_matrix_slides(run.dk, run.S, run.settings, section=key, show_all_rows=run.cfg.show_all_rows)
+        return ["No matrix validation export was supplied, so the matrix slides (parameters and overrides) were skipped."]
+    return matrix_prep_slides.add_matrix_prep_slides(run.dk, run.cfg, run.S, run.settings, section=key, fr=run.fr)
 
 
 def _sec_comm(run, key):
@@ -152,17 +189,8 @@ def _sec_comm(run, key):
         return []
     if not MD.has_comm_strategies(run.S):
         return ["No Communication Strategies were found in the matrix export."]
+    run.dk.source = CS._src(run.cfg, run.fr, "mx", extra="Strategies with ACTIVE = 1 only; inactive strategies are not shown.")
     matrix_slides.slides_comm_strategies(run.dk, run.S, section=key, show_all=run.cfg.show_all_rows)
-    return []
-
-
-def _sec_refunds(run, key):
-    if not run.S:
-        return []
-    if not MD.has_strategic_refunds(run.S):
-        return ["Strategic Refunds are configured but carry no ranges, tiers or daily maximums in this export, so "
-                "the section was skipped."]
-    matrix_slides.slides_strategic_refunds(run.dk, run.S, section=key, show_all=run.cfg.show_all_rows)
     return []
 
 
@@ -180,15 +208,23 @@ BUILDERS = {
     "dbic": _sec_dbic,
     "matrix": _sec_matrix,
     "comm_strategies": _sec_comm,
-    "strategic_refunds": _sec_refunds,
     "kpi_rollup": _client(CS.add_kpi_rollup),
     "fee_trends": _client(CS.add_fee_trends),
-    "exception_items": _client(CS.add_exception_items),
+    "exception_items": _sec_exception_items,
     "eligibility": _client(CS.add_eligibility),
     "branch_summary": _client(CS.add_branch_summary),
     "reg_e": _client(CS.add_reg_e),
     "debit_declines": _client(CS.add_debit_declines),
     "peer_data": _client(CS.add_peer_data),
+    "calculating": lambda r, k: story_slides.add_calculating(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "performing": lambda r, k: story_slides.add_performing(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "nsf_share": lambda r, k: story_slides.add_nsf_share(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "chargeoffs": lambda r, k: story_slides.add_chargeoffs(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "pullback": lambda r, k: story_slides.add_pullback(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "yoy": lambda r, k: analysis_slides.add_yoy(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "usage_segments": lambda r, k: analysis_slides.add_usage_segments(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "peers": lambda r, k: peers_slides.add_peers(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
+    "industry": lambda r, k: standard_slides.add_industry(r.dk, r.cfg, r.fr, r.S, section=k, progress=r.say),
 }
 
 
@@ -216,9 +252,10 @@ def _draw_cover(slide, client, month, logo=None):
         fit = rpe_env.fit_box(logo, 2.5, 0.7)
         if fit:
             lw, lh = fit
-            x = cover_divider.SLIDE_W - 0.9 - 2.9
-            cover_divider._rect(slide, x, 1.0, 2.9, 1.0, brand.WHITE, radius=0.1)
-            slide.shapes.add_picture(logo, Inches(x + (2.9 - lw) / 2), Inches(1.0 + (1.0 - lh) / 2), width=Inches(lw))
+            # bottom right, on the navy band, balancing the CSI mark at the top left (Aaron, 2026-11-06)
+            x, y = cover_divider.SLIDE_W - 0.9 - 2.9, 5.45
+            cover_divider._rect(slide, x, y, 2.9, 1.0, brand.WHITE, radius=0.1)
+            slide.shapes.add_picture(logo, Inches(x + (2.9 - lw) / 2), Inches(y + (1.0 - lh) / 2), width=Inches(lw))
     return slide
 
 
@@ -232,67 +269,54 @@ def _move_before(prs, slide, ref):
     return True
 
 
-# ── the data-notes slide(s) ──────────────────────────────────────────────────
+# ── the data-notes slide ─────────────────────────────────────────────────────
 def _slide_data_notes(run, key):
+    """ONE appendix page: scope on the left, methods and limits on the right. Everything that was skipped, noted or
+    compared with the hand-built decks is in the speaker notes (and figures_index.json), not on the slide."""
     cfg, loaded, fr = run.cfg, run.loaded, run.fr
     br = loaded.branches
     dk = run.dk
     scope = []
     za = loaded.zaccounts
     n_open = int((za["acctstatus"].astype(str).str.upper() == "O").sum())
-    scope.append(f"{count(len(za))} accounts in the extract; {count(n_open)} currently open. Data as of {str(fr.asof)[:10]}; "
-                 f"the extract was pulled {loaded.file_date:%Y-%m-%d}." if loaded.file_date is not None else
-                 f"{count(len(za))} accounts in the extract; {count(n_open)} currently open.")
+    pull = f"; the extract was pulled {loaded.file_date:%Y-%m-%d}" if loaded.file_date is not None else ""
+    scope.append(f"{count(len(za))} accounts in the extract, {count(n_open)} open, as of {str(fr.asof)[:10]}{pull}.")
     kept = "retail branches and digital channels" if cfg.include_digital else "retail branches"
-    scope.append(f"Branch classification: {br.summary()}. Branch-level metrics cover the {kept}; back-office codes are held out.")
-    if br.digital:
-        names = ", ".join(sorted(br.names[c] for c in br.digital)[:4])
-        verb = "included in" if cfg.include_digital else "excluded from"
-        scope.append(f"Digital channels {verb} branch metrics: {names}.")
-    opn = za[za["acctstatus"].astype(str).str.upper() == "O"]
-    excluded_sizes = (opn[opn["branch"].isin(br.back_office)].groupby("branch", observed=True).size()
-                      .sort_values(ascending=False))
-    if len(excluded_sizes):
-        top = excluded_sizes.head(3)
-        parts = [f"{br.names.get(c, c)} ({count(n)}, {n / max(1, len(opn)) * 100:.1f}% of open accounts)"
-                 for c, n in top.items()]
-        scope.append("Largest non-retail units held out of the branch views: " + "; ".join(parts) + ".")
-    scope.append(f"Branch charts show the top {cfg.top_n_personal} personal / {cfg.top_n_business} business branches by "
-                 f"account count; smaller branches are in the portfolio totals but omitted from charts.")
-    if loaded.has_trend:
-        scope.append(f"Deposit volatility uses accounts with {cfg.min_periods_for_volatility}+ notice observations in ZTrend.")
-
-    method = []
-    method.append("'Presented an item' means PD_365 + RT_365 > 0 — at least one item paid into overdraft or returned in "
-                  "the trailing 12 months — restricted to currently open accounts.")
-    method.append("Deposit intensity is the total 33-day deposit amount divided by open accounts; a blank DepAmt33 counts "
-                  "as no deposit activity, not $0.")
-    method.append(f"A notice in the Scoring Summary is one account on one notice date. A notice defaults when repayment took "
-                  f"more than {fr.default_days} days (never-repaid notices excluded); losses are charge-off dollars counted "
-                  f"once, in the band of the account's first defaulting notice. The analysis README uses 30 days with "
-                  f"never-repaid counted as a default; the {fr.default_days}-day rule reproduces the hand-built deck.")
-    method.append("Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365.")
-    method.extend(loaded.notes)
-    method.extend(run.notes)
-    method.extend(run.errors)
-    method = [m for m in method if m]
-
-    per = 4
-    first, rest = method[:per], method[per:]
-    n_notes_pages = 1 + -(-len(rest) // 6)
-    slide = dk.content("Data notes & methodology" + (f" (1 of {n_notes_pages})" if rest else ""),
-                       f"Scope, sources and caveats for the analysis in this deck  ·  data as of {str(fr.asof)[:10]}",
+    scope.append(f"Branch views cover the {kept}; back-office codes are held out ({br.summary()}).")
+    scope.append("Open active accounts are open accounts with more than $50 deposited or an NSF/OD item in the last 365 days; a user has at least one NSF/OD item in 365 days.")
+    scope.append("Comparisons use complete months only; movement within 2% is called almost flat.")
+    scope.append("Peers are other ILS clients, shown by client number only; very large clients are compared with other very large ones, "
+                 "the rest within their Census region, with five peers at least.")
+    nb = getattr(cfg, "default_basis", "notebook") == "notebook"
+    method = [
+        ("The Scoring Summary's default is the analysis notebook's: a notice on a charged-off account dated on or after the "
+         "account's last positive date, over notices 425 to 60 days before the newest one, limit at or under the matrix maximum."
+         if nb else f"The Scoring Summary uses a {fr.default_days}-day default.")
+        + (f" Cure (the performing slides): a negative balance reaches $0 or more within {story_slides.CURE_DAYS} days."
+           if "performing" in cfg.sections else ""),
+        "Not repaid ('fatal'): a charged-off account's notice nearest its last positive date, counted once per account "
+        "(the analysis notebook's rule).",
+        "NSF is collected fees on returned items and OD is collected fees on paid items; neither is netted for refunds.",
+        "Pulled back means the current limit is below the account's own earlier maximum. The extracts have no daily limit history, so when "
+        "and why are not shown, and no savings are claimed.",
+        "Year over year compares the last 12 complete months with the 12 before. The hand-built decks' windows cannot be reproduced "
+        "from the extract; the changes agree to within about two points and the levels differ.",
+        "Trends are On or Off only, communication strategies are listed only when active, and strategic refunds are not shown.",
+    ]
+    extras = [m for m in (list(loaded.notes) + list(run.notes) + list(run.errors)) if m]
+    full = ["Scope"] + scope + ["Methods"] + method + (["Notes, skips and comparisons"] + extras if extras else [])
+    slide = dk.content("Appendix: data notes and methodology",
+                       "Scope, definitions and limits for the analysis in this deck",
                        section=key, source=CS._src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic"))
-    T.two_column_text(slide, T.CONTENT_TOP, "SCOPE & CLASSIFICATION", scope, "METHODOLOGY & CAVEATS", first, size=15,
-                      h=T.CONTENT_BOTTOM - T.CONTENT_TOP)
-    pages = [rest[i:i + 6] for i in range(0, len(rest), 6)]
-    for i, chunk in enumerate(pages, 2):
-        s2 = dk.content(f"Data notes & methodology ({i} of {len(pages) + 1})",
-                        "What was skipped, what differs from the analysis team's definitions, and why",
-                        section=key, source=CS._src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic"))
-        T.band_real(s2, 0.5, 1.7, 12.33, "METHODOLOGY & CAVEATS (CONTINUED)")
-        T.bullets_real(s2, 0.5, 2.25, 12.33, 4.4, chunk, size=16)
-    return []
+    colw = 6.0
+    T.band_real(slide, 0.50, 1.75, colw, "SCOPE AND DEFINITIONS")
+    T.bullets_real(slide, 0.50, 2.25, colw, 4.35, scope, size=13, min_size=10)
+    T.band_real(slide, 0.50 + colw + 0.33, 1.75, colw, "METHODS AND LIMITS")
+    T.bullets_real(slide, 0.50 + colw + 0.33, 2.25, colw, 4.35, method, size=13, min_size=10)
+    note = slide.notes_slide.notes_text_frame.text
+    slide.notes_slide.notes_text_frame.text = ("Say first: this page is for reference; it says what the figures cover and what they do not.\n" + note +
+                                               "\n" + "\n".join(full))
+    return slide
 
 
 # ── slide furniture ──────────────────────────────────────────────────────────
@@ -326,7 +350,8 @@ def build_review(cfg: BuildConfig, progress=None):
         cfg.zaccounts_path, cfg.ztrend_path, exclude_branches=cfg.exclude_branches,
         digital_branches=cfg.digital_branches, retail_branches=cfg.retail_branches,
         include_digital=cfg.include_digital, progress=say,
-        declines_path=cfg.declines_path, refunds_path=cfg.refunds_path)
+        declines_path=cfg.declines_path, refunds_path=cfg.refunds_path,
+        snapshot_date=datetime.strptime(cfg.data_as_of, "%Y-%m-%d") if cfg.data_as_of else None)
     fr = r_common.Frame(loaded)
 
     S, types, codes, settings = None, [], {}, {}
@@ -349,7 +374,8 @@ def build_review(cfg: BuildConfig, progress=None):
     dk = T.Deck(shell, cfg.client_name, date_label, client_id=cfg.client_id, footer_label=DECK_KIND,
                 footer_extra=footer_types, types=types, codes=codes, colors=T.assign_type_colors(types))
     dk.relabel_mrpc = cfg.relabel_mrpc
-    dk.pill_text = f"As of {loaded.snapshot:%b} {loaded.snapshot.day}, {loaded.snapshot.year}"
+    # No "As of" pill on the slides: the date and the pull dates are said once, on "About this data" (Aaron, 2026-11-06).
+    dk.pill_text = ""
     chart_dir = cfg.chart_dir or os.path.join(str(rpe_env.build_artifacts()), "ils_analysis", "out",
                                               f"{cfg.client_id or 'client'}-{period}-charts")
     os.makedirs(chart_dir, exist_ok=True)
@@ -362,6 +388,16 @@ def build_review(cfg: BuildConfig, progress=None):
     run = _Run(cfg, shell, dk, loaded, fr, S)
     run.settings = settings
     run.say = say
+    fr.status_map = story_slides._status_map(S) if S else {}
+    # the matrix's maximum limit per account type: the notebook's personal_od_limit / business_od_limit, which caps the
+    # Scoring Summary population (LIMIT <= max_p); 1781's $1,500 reproduces William's band counts exactly
+    try:
+        fr.max_limit = {k: v["max_limit"] for k, v in MD.tier_summary(S).items() if v.get("max_limit")} if S else {}
+    except Exception:                                   # a matrix this reader cannot tier must not stop the build
+        fr.max_limit = {}
+    for raw, (seg, n) in fr.folded.items():
+        run.notes.append(f"{n:,} {raw} accounts are counted with {seg} in the KPI rollup only (by the IsPersonal flag, "
+                         f"as the analysis team's rollup is); every other figure keeps {raw} out of {seg}.")
 
     # ── cover ──────────────────────────────────────────────────────────────
     cover = shell.add_slide()
@@ -378,9 +414,21 @@ def build_review(cfg: BuildConfig, progress=None):
 
     # ── sections ───────────────────────────────────────────────────────────
     done_groups = set()
-    for key in cfg.sections:
+    done_parts = set()
+    agenda_rows = []
+
+    def _part_divider(part, first_slide, key):
+        """The part's divider, with no description line (Aaron, 2026-11-05), before its first slide; once per part."""
+        if part in done_parts:
+            return
+        done_parts.add(part)
+        agenda_rows.append((part, ""))
+        div = dk.divider(part, section=key, source=f"Source: section divider for {cfg.client_name} (no data).")
+        _move_before(dk.prs, div, first_slide)
+
+    def _do_section(key):
         if key == "data_notes":
-            continue                       # always built last, below
+            return                         # always built last, below
         sec = SECTIONS[key]
         missing = []
         if "matrix" in sec.needs and not S:
@@ -393,11 +441,16 @@ def build_review(cfg: BuildConfig, progress=None):
             missing.append("DebitDecline file")
         if missing:
             run.notes.append(f"{sec.label}: skipped — no {' or '.join(missing)} supplied.")
-            continue
+            return
         say(f"Building section: {sec.label}…")
-        before = len(dk.generated)
+        before, notes_before, errors_before = len(dk.generated), len(run.notes), len(run.errors)
         try:
             run.notes.extend(n for n in (BUILDERS[key](run, key) or []) if n)
+            if len(dk.generated) == before and len(run.notes) == notes_before and len(run.errors) == errors_before:
+                # A section that adds nothing and says nothing (the Industry Update and peer slides when the share
+                # root could not be read) would otherwise vanish from the deck unnoticed.
+                run.notes.append(f"{sec.label}: produced no slides and gave no reason; check its inputs "
+                                 "(RPE_DATA_ROOT and the files it reads there).")
         except Exception as exc:
             detail = traceback.format_exc(limit=3).strip().splitlines()[-1]
             run.errors.append(f"{sec.label}: failed to build — {type(exc).__name__}: {exc}. ({detail})")
@@ -407,29 +460,96 @@ def build_review(cfg: BuildConfig, progress=None):
         added = dk.generated[before:]
         run.slides_by_section[key] = added
         run.section_counts[key] = len(added)
-        if added and sec.group in GROUP_DIVIDERS and sec.group not in done_groups:
+        if added and key in PART_OF:
+            _part_divider(PART_OF[key], added[0], key)
+        elif added and sec.group in GROUP_DIVIDERS and sec.group not in done_groups:
             done_groups.add(sec.group)
             title, benefits = GROUP_DIVIDERS[sec.group]
-            div = dk.divider(title, blurb=benefits, section=key,
-                             source=f"Source: section divider for {cfg.client_name} (no data).")
-            _move_before(dk.prs, div, added[0])
+            agenda_rows.append((title, ""))
+            if sec.group not in NO_DIVIDER_GROUPS:
+                div = dk.divider(title, blurb=benefits, section=key,
+                                 source=f"Source: section divider for {cfg.client_name} (no data).")
+                _move_before(dk.prs, div, added[0])
         if added:
             say(f"  {len(added)} slide(s).")
 
-    # ── data notes (always last of the content), closing ───────────────────
-    _slide_data_notes(run, "data_notes")
+    for key in cfg.sections:
+        if key not in APPENDIX_KEYS:
+            _do_section(key)
+
     closing = shell.add_slide()
     dk.generated.append(closing)
     cover_divider.draw_closing(closing, f"{cfg.client_name}  •  {month}", title="Thank You")
     dk.set_notes(closing, "Source: closing slide, no data.")
+    # Contact Us: the client's managing CSM (rpe_env.csm_contact, drawn by shapes.draw_contact_slide, the same
+    # card every RPE deck carries), then the ILS consultant when one is passed (--consultant; Aaron, 2026-11-05).
+    try:
+        contact = rpe_env.csm_contact(cfg.client_id)
+    except SystemExit as exc:
+        contact = None
+        run.build_log.append(f"Contact Us slide not added: {exc}")
+        run.notes.append(f"Contact Us slide not added: {exc}")        # deck_checks reports it (REVIEW)
+    if contact:
+        cs = shell.add_slide()
+        dk.generated.append(cs)
+        cards = [contact] + ([cfg.consultant] if cfg.consultant else [])
+        shapes.draw_contact_slide(cs, cards)
+        note = shapes.contact_card_note(contact)
+        if cfg.consultant:
+            note += (f" ILS consultant {cfg.consultant['name']}: details as given by the CSM from the Outlook "
+                     "directory, passed to the build with --consultant.")
+        cs.notes_slide.notes_text_frame.text = note
+        run.build_log.append("Contact Us carries the CSM"
+                             + (f" and ILS consultant {cfg.consultant['name']}." if cfg.consultant
+                                else " only: no consultant details were passed (--consultant)."))
+
+    # ── the appendix: the matrix first, then the detail tables the story slides point to, then the data notes ─────
+    for key in cfg.sections:
+        if key in APPENDIX_KEYS:
+            _do_section(key)
+    n_before_deferred = len(dk.generated)
+    for fn in list(dk.deferred):
+        try:
+            for n in (fn() or []):
+                if isinstance(n, str) and n and n not in run.notes:
+                    run.notes.append(n)
+        except Exception as exc:
+            detail = traceback.format_exc(limit=3).strip().splitlines()[-1]
+            run.errors.append(f"Appendix slide failed to build — {type(exc).__name__}: {exc}. ({detail})")
+            if os.environ.get("ILS_REVIEW_DEBUG"):
+                traceback.print_exc()
+    n_appendix = len(dk.deferred)
+    _slide_data_notes(run, "data_notes")
+    if PART_APPENDIX not in done_parts and len(dk.generated) > n_before_deferred:
+        _part_divider(PART_APPENDIX, dk.generated[n_before_deferred], "appendix")
+    if PART_APPENDIX not in done_parts:
+        agenda_rows.append((PART_APPENDIX, ""))
+    # ── the agenda goes right after the cover ───────────────────────────────
+    ref = dk.prs.slides[1] if len(dk.prs.slides) > 1 else None
+    ag = standard_slides.add_agenda(dk, agenda_rows)
+    if ref is not None:
+        _move_before(dk.prs, ag, ref)
+    # the slide that says when the data was pulled sits right after the agenda
+    ref2 = dk.prs.slides[2] if len(dk.prs.slides) > 2 else None
+    try:
+        dp = CS.add_data_pull(dk, cfg, fr)
+        if ref2 is not None:
+            _move_before(dk.prs, dp, ref2)
+    except Exception as exc:
+        run.errors.append(f"About this data failed to build — {type(exc).__name__}: {exc}.")
 
     _finish(run)
+    if len(shell.prs.slides) > MAX_SLIDES:
+        msg = f"The deck has {len(shell.prs.slides)} slides, over the {MAX_SLIDES}-slide limit; name fewer sections (--sections) or shorten the appendix."
+        run.build_log.append(msg)
+        run.errors.append(msg)
+        say("  ! " + msg)
     out_path = cfg.resolve_output(period)
     say("Saving…")
     shell.save(out_path)
     index = {"client_id": cfg.client_id, "client": cfg.client_name, "period": period, "data_as_of": str(fr.asof)[:10],
              "deck": os.path.basename(out_path), "figures": dk.sidecars,
-             "skipped_or_noted": run.notes + run.errors}
+             "skipped_or_noted": run.notes + run.errors, "build_log": run.build_log}
     with open(os.path.join(chart_dir, "figures_index.json"), "w", encoding="utf-8") as fh:
         json.dump(index, fh, indent=1, ensure_ascii=False, default=str)
     say(f"Saved: {out_path}")
@@ -437,6 +557,16 @@ def build_review(cfg: BuildConfig, progress=None):
     say(f"Done — {total} generated slide(s) in a {len(shell.prs.slides)}-slide deck.")
     if run.errors:
         say(f"{len(run.errors)} section(s) reported an error; see the Data Notes slide.")
+    # the defects a layout validator cannot see (a failed section, a stale extract, an all-zero column): deck_checks
+    try:
+        from . import deck_checks
+        found = deck_checks.check(out_path, os.path.join(chart_dir, "figures_index.json"))
+        fails = sum(1 for f in found if f[0] == "FAIL")
+        say(f"Deck checks: {fails} FAIL, {len(found) - fails} REVIEW.")
+        for level, msg in found:
+            say(f"  {level} {msg}")
+    except Exception as exc:        # the checks never take a built deck down
+        say(f"Deck checks could not run: {type(exc).__name__}: {exc}")
     return out_path
 
 

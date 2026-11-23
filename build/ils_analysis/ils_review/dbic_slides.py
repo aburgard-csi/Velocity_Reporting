@@ -20,8 +20,30 @@ from . import charts as C
 from . import theme as T
 from .ils_data import count, money, pct
 
+
+def _integrity_widths(rows, total, real_pt):
+    """Design widths for the integrity table: the Table and Column columns are at least as wide as their longest word.
+    Table names such as REF_CHARGE_OFF have no break point, and at the fixed 1.8 design width (1.17 in) one broke
+    mid-word; the width comes out of the Condition column, which wraps at spaces."""
+    import textfit                  # build/ is on the path in every entry point of this package
+
+    def need(words, floor):
+        w = max((textfit.text_width_in(x, real_pt, "Calibri") for x in words if x), default=0.0)
+        return max(floor, (w + 0.25) / T.SX)
+
+    tab = need([r[1] for r in rows] + ["Table"], 1.8)
+    col = need([w for r in rows for w in r[2].replace(",", " ").split()] + ["Column"], 2.0)
+    return [max(3.0, total - tab - col - 1.4), tab, col, 1.4]
+
 X = 0.42
 W = T.SLIDE_W - 2 * X
+
+
+def _avg5(values):
+    """Trailing 5-business-day average (the daily series are one point per business day), so a payday or
+    a Monday does not read as a trend. Fewer than 5 days: the average of the days so far."""
+    vals = [float(v) if v is not None else 0.0 for v in values]
+    return [sum(vals[max(0, i - 4):i + 1]) / len(vals[max(0, i - 4):i + 1]) for i in range(len(vals))]
 
 
 def _fmt_date(d):
@@ -48,7 +70,10 @@ def _fmt_override_value(v):
     try:
         f = float(s)
     except ValueError:
-        return s
+        if "[" not in s:
+            return s                      # '-75%' stays '-75%'
+        # a SQL expression; the DBIC export cuts it at ~16 characters ('-[ACCOUNTS].[Ou'), so say what it is
+        return "calc"
     return "0" if f == 0 else f"{f:,.0f}"
 
 
@@ -62,7 +87,7 @@ def _delta(a, b, *, money_fmt=False, dp=0):
     return f"{'−' if diff < 0 else sign}{body}"
 
 
-def add_dbic_section(dk, d, *, section, divider=False, progress=None):
+def add_dbic_section(dk, d, *, section, divider=False, progress=None, medians=None, medians_source=None):
     """Every DBIC slide. Returns notes."""
     say = progress or (lambda m: None)
     if not d.available:
@@ -92,7 +117,7 @@ def add_dbic_section(dk, d, *, section, divider=False, progress=None):
     if d.notices and d.notices.dates:
         _fees(dk, d, section=section)
     if d.channels and d.channels[1]:
-        _channels(dk, d, section=section)
+        _channels(dk, d, section=section, medians=medians, source=medians_source)
     if d.deposits and d.deposits.dates:
         _feeds(dk, d, section=section)
     if d.limits.get("by_limit"):
@@ -153,10 +178,12 @@ def _health(dk, d, *, section):
                  count(g["n"])]
                 for g in d.errors[:9]]
         rh = min(0.52, max(0.30, (T.CONTENT_BOTTOM - y - 0.6) / max(1, len(rows))))
-        tbl = dk.table(slide, X, y + 0.50, lw, [6.4, 1.8, 2.0, 1.4], len(rows) + 1,
+        size = min(14, rh * 24)
+        widths = _integrity_widths(rows, lw, T.table_pt(size))
+        tbl = dk.table(slide, X, y + 0.50, lw, widths, len(rows) + 1,
                        row_h=rh)
         T.fill_table(tbl, ["Condition", "Table", "Column", "Rows"], rows,
-                     size=min(14, rh * 24),
+                     size=size,
                      align=[PP_ALIGN.LEFT, PP_ALIGN.LEFT, PP_ALIGN.LEFT,
                             PP_ALIGN.RIGHT])
     else:
@@ -216,7 +243,7 @@ def _limit_trend(dk, d, *, section):
     C.line(slide, rx, y + 0.38, 9.3, h - 0.38, labels, [
         ("Accounts calculated", c.accounts, T.BLUE_2),
         ("Zero limit", c.zero_limit, T.CORAL),
-        ("Overrides applied", c.overrides, T.ORANGE),
+        ("Overrides applied", c.overrides, T.GOLD),     # CORAL is ORANGE in the RPE palette: two lines drew one colour
     ], number_format="#,##0", tick_every=tick)
 
     bits = []
@@ -245,8 +272,9 @@ def _eligibility(dk, d, *, section):
     y = T.CONTENT_TOP
     lw = 11.4
     T.band_label(slide, X, y, lw, "  ACCOUNTS, ELIGIBILITY AND OPT-IN")
-    headers = ["Account Type", "Total Accts", "Open/Active", "Open %",
-               "ILS Eligible", "Eligible %", "Reg E Opt-In", "Opt-In %"]
+    # headers break only at spaces: "Open/Active" and "Reg E Opt-In" split mid-word in a 1.5 in column
+    headers = ["Account Type", "Total Accts", "Open or Active", "Open %",
+               "ILS Eligible", "Eligible %", "Opted In (Reg E)", "Opted In %"]
     rows = []
     for r in sorted(e.rows, key=lambda r: -(r["total"] or 0)):
         rows.append([r["type"], count(r["total"]), count(r["open"]),
@@ -287,15 +315,19 @@ def _eligibility(dk, d, *, section):
     T.band_label(slide, rx, y, rw, "  READ")
     items = []
     per = {r["type"]: r for r in e.rows}
-    lowest = min((r for r in e.rows if r["optin_pct"] is not None),
-                 key=lambda r: r["optin_pct"], default=None)
-    highest = max((r for r in e.rows if r["optin_pct"] is not None),
-                  key=lambda r: r["optin_pct"], default=None)
+    # Reg E opt-in is a consumer-account election: Business at 0% is expected, not an opportunity (Dannemora FCU
+    # 1781 read "Business at 0.0% ... the clearest Reg E opportunity"). Compare consumer types only.
+    consumer = [r for r in e.rows if r["optin_pct"] is not None and "business" not in str(r["type"]).lower()]
+    lowest = min(consumer, key=lambda r: r["optin_pct"], default=None)
+    highest = max(consumer, key=lambda r: r["optin_pct"], default=None)
     if lowest is not None and highest is not None and lowest is not highest:
         items.append(f"{highest['type']} opt-in runs {pct(highest['optin_pct'])} against "
                      f"{lowest['type']} at {pct(lowest['optin_pct'])} — a "
                      f"{abs((highest['optin_pct'] or 0) - (lowest['optin_pct'] or 0)):.0f} "
                      f"point gap, and the clearest Reg E opportunity in the portfolio.")
+    elif lowest is not None:
+        items.append(f"{lowest['type']} opt-in is {pct(lowest['optin_pct'])} of accounts on file. Reg E opt-in "
+                     f"is a consumer election, so business accounts are not counted against it.")
     # Against accounts on file, matching the export's own opt-in denominator —
     # opt-in counts are not restricted to open accounts and can exceed them.
     if lowest is not None and lowest["total"] and lowest["optin"]:
@@ -346,11 +378,11 @@ def _fees(dk, d, *, section):
     labels = [_fmt_date(x) for x in bdates]
     tick = max(1, len(labels) // 12)
     T.textbox(slide, X, y, 12.6, 0.34,
-              "Fees assessed vs. fees possible, per business day", 13,
+              "5-business-day average of fees assessed and fees possible, per business day", 13,
               bold=True, color=T.NAVY)
     C.line(slide, X, y + 0.38, 12.6, h - 0.42, labels, [
-        ("Fees possible", bvals["Possible_Fees"], T.RULE),
-        ("Fees assessed", bvals["Fees_Assessed"], T.NAVY),
+        ("Fees possible (5-day avg)", _avg5(bvals["Possible_Fees"]), T.RULE),
+        ("Fees assessed (5-day avg)", _avg5(bvals["Fees_Assessed"]), T.NAVY),
     ], number_format='"$"#,##0', tick_every=tick)
 
     rx = X + 12.9
@@ -370,7 +402,7 @@ def _fees(dk, d, *, section):
         items.append(f"A {pct(f['collection_rate'])} collection rate is {verdict}.")
     if f["forgone"] > 0:
         items.append(f"{money(f['forgone'])} of assessable fees were not collected over "
-                     f"the window — check waiver settings, refund strategies and "
+                     f"the window — check waiver settings and "
                      f"de minimis thresholds before reading this as leakage.")
     if f["pay_ratio"] is not None:
         items.append(f"{pct(f['pay_ratio'])} of presented items were paid rather than "
@@ -384,22 +416,28 @@ def _fees(dk, d, *, section):
 
 
 # ── 5. channel mix ──────────────────────────────────────────────────────────
-def _channels(dk, d, *, section):
+def _channels(dk, d, *, section, medians=None, source=None):
+    """Paid and returned items by channel (DBIC, trailing 60 days). With `medians` ({account type: channel_medians()})
+    each account type also gets its median item amount per channel from ZTrend: this slide and the ZTrend treemap
+    ("Trends in exception items") showed the same items, so they are one slide (Aaron, 2026-11-17)."""
     mix, totals = d.channels
-    slide = dk.content("Exception items by channel",
-                       "Paid and returned items over the trailing 60 days, split by "
-                       "presentment channel and account type.",
-                       section=section)
+    medians = {t: m for t, m in (medians or {}).items() if m}
+    win = next(iter(medians.values()))["window"] if medians else None
+    sub = ("Paid and returned items over the trailing 60 days, split by presentment channel and account type"
+           + (f"; median item amount over {win[0]} to {win[1]}." if win else "."))
+    slide = dk.content("Exception items by channel", sub, section=section, source=source)
     chans = sorted(totals, key=lambda c: -totals[c])
     types = sorted({t for (t, _) in mix})
     y = T.CONTENT_TOP + 0.05
-    h = T.CONTENT_H * 0.62
+    h = T.CONTENT_H * (0.52 if medians else 0.62)
 
     series = []
     palette = [T.NAVY, T.TEAL, T.PURPLE, T.BLUE_2, T.GREEN]
     for i, t in enumerate(types):
         for kind, shade in (("PD", palette[i % len(palette)]),
-                            ("RT", T.CORAL if i == 0 else T.ORANGE)):
+                            # one returned shade per type: Personal and Private Banking both drew ORANGE, so the legend could
+            # not tell them apart (the same flaw is on the analysis team's p29)
+            ("RT", (T.ORANGE, T.GOLD, T.RED)[i % 3])):
             row = mix.get((t, kind))
             if not row or not any(row.get(c) for c in chans):
                 continue
@@ -422,6 +460,10 @@ def _channels(dk, d, *, section):
             rows.append([t, "Paid" if kind == "PD" else "Returned"]
                         + [count(v) if v else "—" for v in vals]
                         + [count(sum(vals))])
+        m = (medians.get(t) or {}).get("medians")
+        if m:
+            rows.append([t, "Median item amount"] + [money(m[c], 2) if c in m else "—" for c in chans]
+                        + [money(m["Total"], 2)])
     if rows and ty < T.CONTENT_BOTTOM - 0.6:
         widths = [2.2, 2.0] + [1.35] * len(chans) + [1.5]
         rh = min(0.44, max(0.28, (T.CONTENT_BOTTOM - ty - 0.5) / max(1, len(rows))))
@@ -434,7 +476,8 @@ def _channels(dk, d, *, section):
         share = totals[top] / (sum(totals.values()) or 1) * 100
         T.footnote(slide, f"{top} is the largest exception channel at "
                           f"{pct(share)} of all items in the window. Channels with no "
-                          f"activity are omitted.")
+                          f"activity are omitted."
+                          + (" Median amounts are from ZTrend, 365 days." if medians else ""))
     return slide
 
 
@@ -469,18 +512,18 @@ def _feeds(dk, d, *, section):
     bdates, bvals = dep.business_only("DepositCount", NODEP)
     labels = [_fmt_date(x) for x in bdates]
     tick = max(1, len(labels) // 12)
-    T.textbox(slide, X, y, 9.3, 0.34, "Deposits per business day", 16, bold=True,
+    T.textbox(slide, X, y, 9.3, 0.34, "5-business-day average of deposits per business day", 14, bold=True,
               color=T.NAVY)
     C.line(slide, X, y + 0.38, 9.3, h - 0.42, labels,
-           [("Deposits", bvals["DepositCount"], T.NAVY)],
+           [("Deposits (5-day avg)", _avg5(bvals["DepositCount"]), T.NAVY)],
            number_format="#,##0", legend=False, tick_every=tick)
 
     rx = X + 9.6
     T.textbox(slide, rx, y, 9.3, 0.34,
-              "Accounts with no deposit in the last 20 days", 13, bold=True,
+              "5-business-day average: accounts with no deposit in the last 20 days", 13, bold=True,
               color=T.NAVY)
     C.line(slide, rx, y + 0.38, 9.3, h - 0.42, labels,
-           [("No deposit in 20 days", bvals[NODEP], T.CORAL)],
+           [("No deposit in 20 days (5-day avg)", _avg5(bvals[NODEP]), T.CORAL)],
            number_format="#,##0", legend=False, tick_every=tick)
 
     if gaps:
@@ -516,10 +559,11 @@ def _limits(dk, d, *, section):
     rw = T.SLIDE_W - rx - X
     T.band_label(slide, rx, y, rw, "  OVERRIDE EFFECTIVENESS")
     rows = []
-    for r in d.overrides[:10]:
+    # eight rows: ten two-line rule rows ran past the slide bottom into the caption and the logo (Northwest, 2026-11)
+    for r in d.overrides[:8]:
         # The export gives no account type, and the same rule text is configured
         # per type — so the rule id is what distinguishes otherwise identical rows.
-        rows.append([r["id"] or "—", r["calc"][:42] or "—",
+        rows.append([r["id"] or "—", T.clip_words(T.expr_text(r["calc"]), 44) or "—",
                      _fmt_override_value(r["value"]), count(r["count"]),
                      money(r["avg_limit"]),
                      count(r["avg_age"]) if r["avg_age"] is not None else "—",
@@ -527,7 +571,7 @@ def _limits(dk, d, *, section):
     if rows:
         rh = min(0.46, max(0.28, (T.CONTENT_BOTTOM - y - 1.4) / max(1, len(rows))))
         tbl = dk.table(slide, rx, y + 0.50, rw,
-                       [0.7, 3.0, 0.9, 1.0, 1.2, 1.0, 0.9], len(rows) + 1, row_h=rh)
+                       [0.95, 2.75, 1.0, 1.0, 1.1, 1.0, 0.9], len(rows) + 1, row_h=rh)
         T.fill_table(tbl, ["ID", "Override rule", "Value", "Accts", "Avg limit",
                            "Avg age (d)", "Days OD"], rows,
                      size=min(13, rh * 24),

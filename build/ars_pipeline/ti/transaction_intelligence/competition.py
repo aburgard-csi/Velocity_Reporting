@@ -15,9 +15,15 @@ rows (passed in), so the two sections never disagree about a counterparty.
 
 Kinds (from the tier):
     competitor  counted in penetration and dollars, on both rails
-    adjacency   payment ecosystems (Venmo, Zelle, PayPal transfers, BNPL);
-                reported apart, counted only on ACH / check -- a PayPal card
+    adjacency   payment ecosystems (Venmo, Zelle, PayPal transfers, wallets);
+                reported apart, on every rail -- a PayPal marketplace
                 purchase stays merchant spend
+    bnpl        buy-now-pay-later lenders (Affirm, Klarna, ...): their own
+                tier, reported apart from competitors AND ecosystems (comp_bnpl):
+                reach, each provider's use (payments, median ticket, repeat
+                months), accounts on two or more providers, the merchant a
+                card descriptor names behind the lender (AFFIRM *PELOTON),
+                and who uses it, by lens and against non-users
 """
 
 from __future__ import annotations
@@ -25,16 +31,19 @@ from __future__ import annotations
 from .txn_common import ranked
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from .financial_services import (_pct, _recency_tier, _token_regex, classify_strings,
-                                 normalize_core)
+from .financial_services import (_pct, _recency_tier, _token_regex, blank_description_decline,
+                                 classify_strings, depository_variants, normalize_core)
+from . import band_lenses
 from .lens import Lenses
 from .financial_services import marketplace_purchase
 from .merchant import merchant_core, merchant_text
+from ti.compat import str_values
 
 LOCAL_TIER = "Local Bank / CU"
 REGIONAL_TIER = "Regional Bank"
@@ -60,46 +69,20 @@ TOP_WALLET = 15
 RECENCY_BANDS = (("Last 30 days", 0, 30), ("31-90 days", 31, 90),
                  ("91-180 days", 91, 180), ("180+ days", 181, 10**6))
 BREADTH_BANDS = (("1", 1, 1), ("2-3", 2, 3), ("4-5", 4, 5), ("6+", 6, 10**6))  # who each group pays, not the whole field
+# Buy now, pay later in depth (James, 2026-11-05: "there are alot of gaps, especially around
+# vendors/merchats"). Repeat use is payments in this many distinct months; stacking is this many
+# providers on one account.
+BNPL_REPEAT_MONTHS = 3
+BNPL_STACKED_AT = 2
+TOP_BNPL_MERCHANTS = 12
 
 
 # ---------------------------------------------------------------------------
 # config
 # ---------------------------------------------------------------------------
 
-_CU_TAILS = ("FEDERAL CREDIT UNION", "CREDIT UNION", "FCU", "CU", "FEDERAL")
-_BANK_TAILS = ("BANK & TRUST", "BANK AND TRUST", "BANK & TRUST CO", "BANK, NATIONAL ASSOCIATION",
-               "BANK NATIONAL ASSOCIATION", "NATIONAL BANK", "BANK", "BK")
-_CU_FORMS = ("{r} CU", "{r} FCU", "{r} CREDIT UNION", "{r} FEDERAL CREDIT UNION", "{r} FEDERAL")
-_BANK_FORMS = ("{r} BANK", "{r} BK")
-_MIN_STEM = 4
-
-
-def depository_variants(name: str) -> set[str]:
-    """The spellings a card descriptor can carry for one configured name.
-
-    14 of 1776's 24 locals shipped a single spelling, so SCHOOLSFIRST CU,
-    FIRST TECH CU, PATELCO FCU and MONTECITO BK matched nothing (#261). The
-    root is the name with its depository tail removed; the family is the
-    root with every tail an acquirer prints. The bare root is never a
-    pattern: "SESLOC" alone is fine, "FIRST" alone claims half the world.
-    """
-    base = " ".join(str(name).upper().replace(".", "").split())
-    if base.startswith("THE "):
-        base = base[4:]
-    out = {base}
-    for tails, forms in ((_CU_TAILS, _CU_FORMS), (_BANK_TAILS, _BANK_FORMS)):
-        for tail in sorted(tails, key=len, reverse=True):
-            if base.endswith(" " + tail):
-                root = base[: -len(tail) - 1].strip(" ,")
-                if root and (len(root) >= _MIN_STEM or " " in root):
-                    out.update(f.format(r=root) for f in forms)
-                break
-    for spelling in list(out):
-        if " AND " in spelling:
-            out.add(spelling.replace(" AND ", " & "))
-        elif " & " in spelling:
-            out.add(spelling.replace(" & ", " AND "))
-    return {s for s in out if s}
+# depository_variants lives in financial_services (SelfNames use it too) and is imported above.
+MIN_GROWTH_DAYS = 183   # growth and winback compare the last three months with the three before
 
 
 def _patterns(name: str, aliases) -> list[str]:
@@ -131,14 +114,24 @@ def load_config(config_dir: Path, client_config: dict | None = None) -> dict:
     spec["regional_names"] = [str(n) for n in regional]
     fin = config_dir / "financial_services_patterns.json"
     if fin.exists():
-        extra = json.loads(fin.read_text(encoding="utf-8")).get("false_positives", [])
+        fspec = json.loads(fin.read_text(encoding="utf-8"))
+        extra = fspec.get("false_positives", [])
         spec["false_positives"] = sorted(set(spec.get("false_positives", [])) | set(extra))
-    # The client's own names are not competitors; internal transfers are
-    # excluded from matching and from the review queue.
-    self_names = [str(n).upper().strip() for n in (client_config or {}).get("SelfNames") or []]
+        # The same placement rules as financial services (RPE matching fixes, 2026-11-05): a lone
+        # name needs financial context, the town is not an institution, a venue is not a bank,
+        # and refund wording is money coming back. Competition had none of them, so CITI TRENDS
+        # was Citi and US BANK STADIUM was US Bank.
+        for key in ("single_token_context", "venue_words", "inbound_words"):
+            if key in fspec:
+                spec.setdefault(key, fspec[key])
+    # The client's own names are not competitors; internal transfers are excluded from matching
+    # and from the review queue -- in every depository spelling, as on the finserv side.
+    self_names = sorted({v for n in (client_config or {}).get("SelfNames") or []
+                         for v in depository_variants(str(n).upper().strip())})
     if self_names:
         spec["false_positives"] = sorted(set(spec["false_positives"]) | set(self_names))
         spec["review_ignore"] = self_names
+        spec["self_names"] = self_names
     return spec
 
 
@@ -149,7 +142,11 @@ def _as_category_spec(spec: dict) -> dict:
     for name, inst in spec["institutions"].items():
         kind = tiers.get(inst.get("tier"), {}).get("kind", "competitor")
         cats[name] = {"kind": kind, "patterns": inst.get("patterns", [])}
-    return {"categories": cats, "false_positives": spec.get("false_positives", [])}
+    out = {"categories": cats, "false_positives": spec.get("false_positives", [])}
+    for key in ("single_token_context", "venue_words", "inbound_words", "self_names"):
+        if spec.get(key):
+            out[key] = spec[key]
+    return out
 
 
 def _classify(distinct: pd.Index, spec: dict) -> pd.DataFrame:
@@ -196,7 +193,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     else:
         text = merchant_text(df["merchant_name"])
         core = merchant_core(df["merchant_name"])
-        is_card = df["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"]).to_numpy()
+        is_card = str_values(df["transaction_type"], lambda v: v.str.upper()).isin(["PIN", "SIG"]).to_numpy()
         product = pd.Series(None, index=df.index, dtype=object)
     is_transfer = ~is_card
     # A feed with no transfer rail at all (1776, 1100: card only) has to be
@@ -223,8 +220,15 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     tier_of = {n: i.get("tier", "") for n, i in spec["institutions"].items()}
     is_comp = (kind == "competitor").to_numpy()
     is_eco = (kind == "adjacency").to_numpy()
+    is_bnpl = (kind == "bnpl").to_numpy()
 
     total_accounts = int(acct[in_base].nunique())
+    declined = blank_description_decline(text, in_base, "which institutions the accounts pay")
+    if declined:
+        out[K + "declined"] = declined
+        out[K + "accounts_total"] = total_accounts
+        warn(f"competition: {declined}")
+        return out, outputs
     transfer_dollars = float(amt[is_transfer & in_base].sum())
     out[K + "accounts_total"] = total_accounts
     out[K + "institutions_configured"] = len(spec["institutions"])
@@ -233,16 +237,17 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     out[K + "competitor_pct_of_transfer_dollars"] = (
         _pct(float(amt[is_comp & is_transfer & in_base].sum()), transfer_dollars)
         if transfer_dollars else None)      # no transfer rail -> no share (#245)
-    if not is_comp.any() and not is_eco.any():
+    if not is_comp.any() and not is_eco.any() and not is_bnpl.any():
         warn("competition: no transaction matched an institution")
         return out, outputs
 
     # ---- per account x institution (competitors) --------------------------
-    hit = is_comp | is_eco
+    hit = is_comp | is_eco | is_bnpl
     m = pd.DataFrame({"acct": acct.to_numpy()[hit], "institution": inst.to_numpy()[hit],
                       "kind": kind.to_numpy()[hit], "amount": amt[hit],
                       "date": df["transaction_date"].to_numpy()[hit],
-                      "product": product.to_numpy()[hit]})
+                      "product": product.to_numpy()[hit],
+                      "text": text.to_numpy()[hit]})      # the BNPL merchant is read from it
     m["product"] = m["product"].fillna(OTHER_PRODUCT).replace(PRODUCT_RELABEL)
     m["tier"] = m["institution"].map(tier_of)
     g = m.groupby(["acct", "institution"], observed=True)
@@ -260,6 +265,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         m = m[m["acct"].isin(account_filter)]
     comp = ac[ac["kind"] == "competitor"]
     eco = ac[ac["kind"] == "adjacency"]
+    bnpl = ac[ac["kind"] == "bnpl"]
 
     # ---- 1. institutions and tiers ----------------------------------------------
     prod_by_inst = {}
@@ -338,6 +344,18 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     # Growth is the last three months against the three before, in dollars.
     recent_from = anchor_end - pd.DateOffset(months=3)
     prior_from = anchor_end - pd.DateOffset(months=6)
+    # Growth needs both quarters in the data (RPE matching fixes, 2026-11-05). 1075 Austin Bank
+    # had three months on hand: the "prior" quarter was empty, so every institution grew 100%
+    # and nothing could fall. Short data states the gap instead of drawing it.
+    first_day = pd.to_datetime(df["transaction_date"]).min()
+    span_days = int((anchor_end - first_day).days) + 1 if pd.notna(first_day) else 0
+    growth_ok = span_days >= MIN_GROWTH_DAYS
+    out[K + "growth_coverage_days"] = span_days
+    if not growth_ok:
+        out[K + "growth_note"] = (f"the data covers {span_days} days; growth, winback and depth "
+                                  f"against growth need six months (the last three against the "
+                                  f"three before), so they are left out")
+        warn(f"competition: {out[K + 'growth_note']}")
     mc = m[m["kind"] == "competitor"]
     by_recent = mc[mc["date"] > recent_from].groupby("institution", observed=True)["amount"].sum()
     by_prior = mc[(mc["date"] > prior_from) & (mc["date"] <= recent_from)] \
@@ -350,15 +368,21 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         pri = frame["institution"].map(by_prior).fillna(0.0)
         frame["growth_pct"] = np.where(pri > 0, (rec - pri) / pri * 100, np.where(rec > 0, 100.0, 0.0))
         pr = lambda s: s.rank(pct=True) * 100  # noqa: E731
-        frame["score"] = (0.4 * pr(frame["accounts"]) + 0.3 * pr(frame["dollars"])
-                          + 0.3 * pr(frame["growth_pct"].clip(lower=0)))
+        if growth_ok:
+            frame["score"] = (0.4 * pr(frame["accounts"]) + 0.3 * pr(frame["dollars"])
+                              + 0.3 * pr(frame["growth_pct"].clip(lower=0)))
+        else:
+            frame["score"] = (0.4 * pr(frame["accounts"]) + 0.3 * pr(frame["dollars"])) / 0.7
         frame = frame.sort_values("score", ascending=False).head(10)
         out[K + "threat"] = [[r.institution, round(float(r.score), 1), int(r.accounts),
-                              int(r.dollars), round(float(r.growth_pct), 1)]
+                              int(r.dollars), round(float(r.growth_pct), 1) if growth_ok else None]
                              for r in frame.itertuples()]
         out[K + "threat_columns"] = ["institution", "score", "accounts", "dollars", "growth_pct"]
-        out[K + "threat_basis"] = ("40% penetration, 30% dollars, 30% growth (last 3 months vs "
-                                   "the 3 before), each a percentile rank across institutions seen")
+        out[K + "threat_basis"] = (
+            "40% penetration, 30% dollars, 30% growth (last 3 months vs the 3 before), each a "
+            "percentile rank across institutions seen" if growth_ok else
+            "penetration and dollars only (4:3), each a percentile rank -- growth left out, the "
+            "data is shorter than six months")
 
     # ---- 4. ecosystems, apart ---------------------------------------------------------
     eco_rows = []
@@ -371,8 +395,10 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
 
     # ---- 4b. the competition family (legacy 14-35, 66-67; #258) -----------------------
     window_months = max(int(df["transaction_date"].dt.to_period("M").nunique()), 1)
-    _family(out, K, comp, eco, m, acct[in_base], amt[in_base], acct_total, total_accounts,
+    _family(out, K, comp, bnpl, m, acct[in_base], amt[in_base], acct_total, total_accounts,
             by_recent, by_prior, recent_from, prior_from, anchor_end, spec, window_months)
+    _bnpl_users_against_nonusers(out[K + "bnpl"], bnpl, comp_ids, acct, amt, is_card, in_base,
+                                 lenses, window_months, base_label)
 
     # ---- 5. by lens; at-risk and new accounts x competitor -----------------------------
     txn_accounts = pd.Index(acct.unique())
@@ -420,6 +446,7 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         ctrl = next((r for r in by_lens if r[0] == "mailed_nonresp"), None)
         if resp and ctrl:
             out[K + "responder_gap_pp"] = round(resp[4] - ctrl[4], 1)
+        _bnpl_by_lens(out[K + "bnpl"], ac_all, lenses, txn_accounts)
         for special, key in (("recently_inactive", K + "at_risk"), ("new_accounts", K + "new_accounts")):
             if special in lenses.masks:
                 ids = lenses.ids(special).intersection(txn_accounts)
@@ -474,6 +501,13 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
         else:
             warn("competition by branch unavailable: the ODD carries no Branch")
 
+        # ---- 5c. by member age and account age (R5) ----------------------------
+        # Branch is the table above; this adds the two banded families on the
+        # same basis financial_services' fin_by_age_band / fin_by_tenure_band use.
+        out.update(band_lenses.family_cuts(
+            lenses, txn_accounts, comp_all[["acct", "institution", "dollars"]],
+            "institution", K, ("age_band", "tenure_band"), warn, "a named competitor"))
+
     # ---- 6. local competitors, review queue, lists ----------------------------------------
     local_names = spec.get("local_names", [])
     loc = comp[comp["tier"] == LOCAL_TIER]
@@ -507,8 +541,11 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, fin_rows: pd.Da
     # MONTH, for the pre-closure leakage curve. Exported from this module's own
     # classification rather than re-derived downstream -- leakage.py must never
     # hold a second opinion about what counts as a competitor.
-    monthly = m.assign(
-        date=pd.to_datetime(m["date"], errors="coerce").dt.to_period("M").dt.to_timestamp()
+    # Named competitors only: m also holds the payment-app rows (Venmo, Cash
+    # App ...), which are not competitors and must not lift the curve.
+    mc_rows = m[m["kind"] == "competitor"]
+    monthly = mc_rows.assign(
+        date=pd.to_datetime(mc_rows["date"], errors="coerce").dt.to_period("M").dt.to_timestamp()
     ).groupby(["acct", "date"], observed=True, as_index=False)["amount"].sum()
     out["_competitor_monthly"] = monthly.rename(
         columns={"amount": "dollars"})[["acct", "date", "dollars"]]
@@ -559,7 +596,7 @@ def _band(value, bands):
     return bands[-1][0]
 
 
-def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.DataFrame,
+def _family(out: dict, K: str, comp: pd.DataFrame, bnpl: pd.DataFrame, m: pd.DataFrame,
             acct_in_base: pd.Series, amt_in_base, acct_total: pd.Series, total_accounts: int,
             by_recent: pd.Series, by_prior: pd.Series, recent_from, prior_from, anchor_end,
             spec: dict, months: int = 1) -> None:
@@ -567,8 +604,8 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
     account's transactions at a competitor; wallet share per institution is
     the share of its dollars; recency and breadth read the account-competitor
     pairs; winback names the competitors whose volume fell; depth against
-    growth feeds one quadrant; BNPL reads the flagged ecosystems. Ecosystems
-    stay apart from competitors throughout."""
+    growth feeds one quadrant; BNPL reads its own tier. Ecosystems and BNPL
+    stay apart from competitors, and from each other, throughout."""
     acct_txns = pd.Series(acct_in_base.to_numpy()).value_counts()
     c = comp.copy()
     c["txn_share"] = (c["txns"] / c["acct"].map(acct_txns).replace(0, np.nan) * 100) \
@@ -633,7 +670,9 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
     out[K + "breadth_deep"] = int((per_acct >= 6).sum())
 
     # 16 -- winback: competitors whose volume fell, last three months against the three before
-    mc = m[m["kind"] == "competitor"]
+    growth_ok = K + "growth_note" not in out          # set by compute's coverage check
+    span_days = out.get(K + "growth_coverage_days", 0)
+    mc = m[m["kind"] == "competitor"] if growth_ok else m.iloc[0:0]
     rec_n = mc[mc["date"] > recent_from].groupby("institution", observed=True).size()
     pri_n = mc[(mc["date"] > prior_from) & (mc["date"] <= recent_from)] \
         .groupby("institution", observed=True).size()
@@ -658,6 +697,8 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
     out[K + "winback_window"] = (f"{(recent_from + day):%b%y} - {anchor_end:%b%y} against "
                                  f"{(prior_from + day):%b%y} - {recent_from:%b%y}")
     out[K + "winback_min_accounts"] = MIN_WINBACK_ACCOUNTS
+    if not growth_ok:
+        out[K + "winback_window"] = f"needs six months of data; {span_days} days on hand"
 
     # 14 -- depth against growth: transactions per account, dollars now against then
     dg = []
@@ -667,24 +708,189 @@ def _family(out: dict, K: str, comp: pd.DataFrame, eco: pd.DataFrame, m: pd.Data
         growth = (rec - pri) / pri * 100 if pri > 0 else (100.0 if rec > 0 else 0.0)
         dg.append([name, n, round(float(grp["txns"].sum()) / n, 1) if n else 0.0, round(growth, 1)])
     dg.sort(key=lambda r: (-r[1], r[0]))
-    out[K + "depth_growth"] = dg[:10]
+    out[K + "depth_growth"] = dg[:10] if growth_ok else []
     out[K + "depth_growth_columns"] = ["institution", "accounts", "txns_per_acct", "growth_pct"]
 
-    # 66-67 -- buy now, pay later: the flagged ecosystems, apart from the rest
-    bnpl_names = {n for n, i in spec.get("institutions", {}).items() if i.get("bnpl")}
-    eb = eco[eco["institution"].isin(bnpl_names)]
+    # 66-67 -- buy now, pay later: its own tier (kind bnpl), apart from the
+    # payment ecosystems -- a BNPL balance is credit, a Venmo transfer is not
+    eb = bnpl
+    mb = m[m["kind"] == "bnpl"]
     n_b = int(eb["acct"].nunique())
     d_b = round(float(eb["dollars"].sum()))
     providers = []
     for name, grp in eb.groupby("institution", observed=True):
         n = int(grp["acct"].nunique())
         d = round(float(grp["dollars"].sum()))
+        tickets = mb.loc[mb["institution"] == name, "amount"]
+        repeat = int((grp["months"] >= BNPL_REPEAT_MONTHS).sum())   # one row per account here
         providers.append([name, n, _pct(n, total_accounts), d,
-                          round(d / n / months, 2) if n else 0.0])
+                          round(d / n / months, 2) if n else 0.0,
+                          int(grp["txns"].sum()),
+                          round(float(tickets.median()), 2) if len(tickets) else 0.0,
+                          repeat, _pct(repeat, n)])
     providers.sort(key=lambda r: (-r[1], r[0]))
     out[K + "bnpl"] = {"accounts": n_b, "pct": _pct(n_b, total_accounts), "dollars": d_b,
                        "months": months,
                        "per_acct_month": round(d_b / n_b / months, 2) if n_b else 0.0,
                        "providers": providers,
                        "providers_columns": ["institution", "accounts", "pct_of_accounts",
-                                             "dollars", "per_acct_month"]}
+                                             "dollars", "per_acct_month", "txns",
+                                             "median_ticket", "repeat_accounts", "repeat_pct"]}
+    out[K + "bnpl"].update(_bnpl_depth(mb, eb, n_b, d_b, spec))
+
+
+# ---------------------------------------------------------------------------
+# buy now, pay later in depth (James, 2026-11-05)
+# ---------------------------------------------------------------------------
+
+# After the lender's name a card descriptor may carry a corporate tail, then a star, then the
+# merchant: "AFFIRM *PELOTON", "KLARNA*TARGET", "AFTERPAY* ULTA", "ZIP.CO*BESTBUY".
+_BNPL_TAIL = r"(?:[\s.\-]*(?:COM|INC|US|USA|LLC|CO))*"
+# A merchant made only of these words names no merchant: "AFFIRM * PAY 4ZE3UE".
+_BNPL_GENERIC = frozenset({
+    "PAY", "PAYMENT", "PAYMENTS", "PMT", "PMTS", "PYMT", "PYMNT", "LOAN", "LOANS", "AUTOPAY",
+    "AUTO", "INSTALLMENT", "INSTALLMENTS", "PURCHASE", "ORDER", "ORDERS", "DEBIT", "ACH", "WEB",
+    "ONLINE", "RECURRING", "BILL", "BILLPAY", "REPAYMENT", "IN", "OF", "LATER", "NOW", "SHOP",
+    "STORE", "CARD", "CREDIT", "ZIP"})
+_BNPL_NOISE = frozenset({"COM", "WWW", "INC", "LLC", "US", "USA", "CO", "CORP", "LTD", "THE"})
+_US_STATES = frozenset(
+    "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ "
+    "NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR".split())
+_MERCHANT_CHARS = re.compile(r"[^A-Z0-9&' ]+")
+
+
+def bnpl_merchant_matcher(spec: dict):
+    """A function from a descriptor's text to the merchant a BNPL payment names, or None.
+
+    Built from the BNPL tier's own patterns, so a provider added to the dictionary is read here
+    too. Only the starred form names a merchant: "KLARNA INC" and "AFFIRM.COM PAYMENTS" are the
+    lender alone. The name ends at a phone, store or reference number; a trailing state code and
+    corporate tails are dropped; the first two words are kept, the rule merchant_key groups every
+    other merchant by ("FOREVER 21 SAN JOSE CA" is FOREVER 21)."""
+    tiers = spec.get("tiers", {})
+    pats = sorted({str(p).upper() for i in spec.get("institutions", {}).values()
+                   if tiers.get(i.get("tier"), {}).get("kind") == "bnpl"
+                   for p in i.get("patterns", []) if p}, key=len, reverse=True)
+    if not pats:
+        return lambda _text: None
+    alts = "|".join(r"[\s.\-]*".join(re.escape(w) for w in p.split()) for p in pats)
+    rx = re.compile(r"(?<![A-Z0-9])(?:" + alts + r")" + _BNPL_TAIL + r"\s*\*+\s*(?P<m>[^*].*)$")
+    lenders = {p for p in pats if " " not in p}
+    generic = _BNPL_GENERIC | lenders
+
+    def merchant(text):
+        hit = rx.search(str(text or "").upper())
+        if not hit:
+            return None
+        words = []
+        for tok in _MERCHANT_CHARS.sub(" ", hit.group("m").split("*")[0]).split():
+            digits = sum(ch.isdigit() for ch in tok)
+            if digits and (len(tok) >= 4 or digits >= 3):
+                break                       # a phone, store or reference number ends the name
+            words.append(tok)
+        if len(words) >= 2 and words[-1] in _US_STATES:
+            words = words[:-1]
+        words = [w for w in words if w not in _BNPL_NOISE][:2]
+        if not words or all(w in generic for w in words):
+            return None
+        return " ".join(words)
+
+    return merchant
+
+
+def _bnpl_depth(mb: pd.DataFrame, eb: pd.DataFrame, users: int, dollars: int, spec: dict) -> dict:
+    """How buy now, pay later is used, past reach: payments and the median ticket, repeat use
+    (payments in BNPL_REPEAT_MONTHS+ distinct months), stacking (BNPL_STACKED_AT+ providers on one
+    account) and the merchants the payments name. mb is the BNPL rows, eb the account x provider
+    pairs, both on the base."""
+    out = {"txns": int(len(mb)),
+           "median_ticket": round(float(mb["amount"].median()), 2) if len(mb) else 0.0,
+           "repeat_months": BNPL_REPEAT_MONTHS, "stacked_at": BNPL_STACKED_AT}
+    if len(mb):
+        month = pd.to_datetime(mb["date"]).dt.to_period("M")
+        months_per = month.groupby(mb["acct"].to_numpy()).nunique()
+    else:
+        months_per = pd.Series(dtype=int)
+    rep = int((months_per >= BNPL_REPEAT_MONTHS).sum())
+    out["repeat_accounts"] = rep
+    out["repeat_pct"] = _pct(rep, users)
+    per = eb.groupby("acct")["institution"].nunique() if len(eb) else pd.Series(dtype=int)
+    stacked = int((per >= BNPL_STACKED_AT).sum())
+    out["stacked_accounts"] = stacked
+    out["stacked_pct"] = _pct(stacked, users)
+    out["providers_per_account"] = [[1, int((per == 1).sum())], [2, int((per == 2).sum())],
+                                    [3, int((per >= 3).sum())]]
+    out["providers_per_account_note"] = "last row is 3 or more"
+
+    match = bnpl_merchant_matcher(spec)
+    lookup = {s: match(s) for s in mb["text"].unique()} if len(mb) else {}
+    merchant = mb["text"].map(lookup) if len(mb) else pd.Series(dtype=object)
+    named = mb.assign(merchant=merchant)[merchant.notna()] if len(mb) else mb.assign(merchant=None)
+    named_d = round(float(named["amount"].sum()))
+    out["merchant_named_dollars"] = named_d
+    out["merchant_named_pct"] = _pct(named_d, dollars)
+    out["merchant_named_txns"] = int(len(named))
+    rows = []
+    for name, grp in named.groupby("merchant"):
+        lender = grp.groupby("institution", observed=True)["amount"].sum().sort_values(
+            ascending=False, kind="stable")
+        n = int(grp["acct"].nunique())
+        rows.append([str(name), n, _pct(n, users), int(len(grp)), round(float(grp["amount"].sum())),
+                     str(lender.index[0])])
+    out["merchants_n"] = len(rows)
+    out["merchants"] = sorted(rows, key=lambda r: (-r[4], -r[1], r[0]))[:TOP_BNPL_MERCHANTS]
+    out["merchants_by_accounts"] = sorted(rows, key=lambda r: (-r[1], -r[4], r[0]))[:TOP_BNPL_MERCHANTS]
+    out["merchants_columns"] = ["merchant", "accounts", "pct_of_users", "txns", "dollars", "lender"]
+    out["merchants_basis"] = ("the merchant a card descriptor names after the lender and a star, "
+                              "as in AFFIRM *PELOTON; a payment that names only the lender has none; "
+                              "lender is the provider behind most of the merchant's dollars")
+    return out
+
+
+def _bnpl_users_against_nonusers(b: dict, bnpl: pd.DataFrame, comp_ids: pd.Index, acct: pd.Series,
+                                 amt, is_card, in_base, lenses, months: int, base_label: str) -> None:
+    """BNPL users against everyone else in the base: card dollars an account a month, the share
+    paying a named competitor, and the median current balance when the ODD carries one."""
+    base_ids = pd.Index(acct[in_base].unique())
+    users = pd.Index(bnpl["acct"].unique()).intersection(base_ids)
+    others = base_ids.difference(users)
+    sel = np.asarray(is_card) & in_base
+    card = pd.Series(amt[sel]).groupby(acct[sel].to_numpy()).sum()
+    bal = None
+    if lenses is not None and "Curr Bal" in lenses.attrs.columns:
+        bal = pd.to_numeric(lenses.attrs["Curr Bal"], errors="coerce")
+    rows = []
+    for label, ids in (("BNPL users", users), ("Non-users", others)):
+        n = len(ids)
+        med = bal.reindex(ids).median() if bal is not None and n else None
+        rows.append([label, n,
+                     round(float(card.reindex(ids).fillna(0).sum()) / n / max(months, 1), 2) if n else 0.0,
+                     _pct(len(comp_ids.intersection(ids)), n),
+                     round(float(med)) if med is not None and pd.notna(med) else None])
+    b["users_vs_nonusers"] = rows
+    b["users_vs_nonusers_columns"] = ["group", "accounts", "card_dollars_per_acct_month",
+                                      "with_competitor_pct", "median_balance"]
+    b["users_vs_nonusers_base"] = base_label
+
+
+def _bnpl_by_lens(b: dict, ac_all: pd.DataFrame, lenses: Lenses, txn_accounts: pd.Index) -> None:
+    """The share of each lens that paid a BNPL provider, against every transacting account (the
+    book), the way the competitor by-lens rows read the whole book rather than the base."""
+    users = pd.Index(ac_all.loc[ac_all["kind"] == "bnpl", "acct"].unique()).intersection(txn_accounts)
+    book_pct = _pct(len(users), len(txn_accounts))
+    rows = []
+    for ln in lenses.names():
+        ids = lenses.ids(ln).intersection(txn_accounts)
+        if not len(ids):
+            continue
+        u = len(users.intersection(ids))
+        pct = _pct(u, len(ids))
+        rows.append([ln, lenses.label(ln), len(ids), u, pct,
+                     round(pct / book_pct * 100) if book_pct else None])
+    b["by_lens"] = rows
+    b["by_lens_columns"] = ["lens", "label", "accounts", "users", "pct", "index_to_book"]
+    b["book_accounts"] = len(txn_accounts)
+    b["book_users"] = len(users)
+    b["book_pct"] = book_pct
+    b["by_lens_basis"] = ("every transacting account in each group, personal and business; "
+                          "the book is every transacting account")

@@ -13,6 +13,7 @@ Lists v5 writes beside its outputs (`lists/*.csv`) go to `ctx.shared["lists_dir"
 sets one, and nowhere when it does not (the parity check).
 """
 from ti import dictionaries
+from ti.compat import str_values
 
 
 def base_accounts(ctx):
@@ -46,7 +47,8 @@ def financial_services(ctx):
     ctx.shared.update(fin_spec=spec, fin_rows=rows)
     out, _files = F.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.shared.get("lists_dir"),
                             ctx.warn, account_filter=personal, key_prefix="fin_",
-                            base_label=base_label, classification=rows)
+                            base_label=base_label, classification=rows,
+                            cif_map=ctx.shared.get("cif_crosswalk"))
     if business is not None and len(business):
         finb, _ = F.compute(ctx.txn, None, spec, ctx.anchor_ts, None, lambda _m: None,
                             account_filter=business, key_prefix="finb_",
@@ -153,6 +155,71 @@ def competition(ctx):
     return out
 
 
+_BOOKS: dict = {}
+
+
+def competition_layers(ctx):
+    """cl_*: banks and credit unions by layer and by group (ti/transaction_intelligence/competition_layers.py).
+    New to RPE, not a v5 port; it adds figures and changes no comp_* figure. Reads financial services'
+    row classification, the public FDIC / NCUA reference store and the client's market record; with no
+    reference store it says so and adds nothing, as `filed` does."""
+    import json
+    from ti.transaction_intelligence import competition_layers as CL
+    rows = ctx.shared.get("fin_rows")
+    if rows is None or ctx.txn is None:
+        return {}
+    personal, _business, _label = base_accounts(ctx)
+    cache = reference_dir()
+    try:
+        from ti.core.filed.join import require_cache
+        from ti.core.market import institutions as I
+        require_cache(cache)
+        book = _BOOKS.get(str(cache))
+        if book is None:
+            book = _BOOKS[str(cache)] = I.load_book(cache)
+    except Exception as exc:
+        ctx.warn(f"competition layers: the FDIC / NCUA reference store is not available "
+                 f"({type(exc).__name__}: {str(exc).splitlines()[0] if str(exc) else ''}); the layers are not computed")
+        return {}
+    rec = market_dir() / f"{ctx.client_id}.json"
+    record = json.loads(rec.read_text(encoding="utf-8")) if rec.exists() else None
+    spec = json.loads((dictionaries.folder() / "competitors.json").read_text(encoding="utf-8"))
+    out = CL.compute(ctx.txn, rows, ctx.lenses, ctx.frame, ctx.config, ctx.anchor_ts, record, book, spec,
+                     ctx.warn, base_ids=personal)
+    # hand-offs to the analysis modules, never written to the pack
+    parts = tuple(out.pop(k, None) for k in ("_cl_sub", "_cl_matched", "_cl_active", "_cl_sets"))
+    ctx.shared["cl_parts"] = parts
+    if out and parts[1] is not None:
+        from ti.transaction_intelligence import competition_layers_modules as CLM
+        points = [(b["lat"], b["lon"]) for b in (record or {}).get("branches") or [] if b.get("lat") is not None]
+        figs, warns = CLM.compute(parts, ctx.frame, ctx.lenses, ctx.anchor_ts, book, points,
+                                  CL.settings(ctx.config)["local_miles"], out["cl_institutions"])
+        for w in warns:
+            ctx.warn(w)
+        out.update(figs)
+        mv = {r["inst"]: r for r in figs.get("cl_movement", [])}
+        dp = {r["inst"]: r for r in figs.get("cl_depth_institutions", [])}
+        for r in out["cl_institutions"]:               # each institution's movement and depth beside its reach
+            m, d = mv.get(r["inst"]), dp.get(r["inst"])
+            if m:
+                r.update(new_90=m["new_90"], stopped_90=m["stopped_90"], live_30=m["live_30"])
+            if d:
+                r.update(heavy=d["heavy"], mid=d["mid"], median_share_pct=d["median_share_pct"])
+        from ti.transaction_intelligence import competition_layers_compare as CLC
+        out["cl_portfolio_row"] = CLC.portfolio_row(out)       # the row a month adds to a portfolio benchmark
+    return out
+
+
+def institution_view(ctx):
+    """fininst_*: each financial-services category against the named bank or credit union that holds
+    it (fs-05). Reads financial services' classification and competition's configuration; both
+    views count the same payment and are never added (see transaction_intelligence/institution_view)."""
+    from ti.transaction_intelligence import institution_view as IV
+    personal, _business, _label = base_accounts(ctx)
+    return IV.compute(ctx.txn, ctx.shared.get("fin_rows"), ctx.shared.get("comp_spec"),
+                      account_filter=personal)
+
+
 def mapping_audit(ctx):
     """What the dictionaries do not know yet, on the personal card rows (reports only: no figure
     elsewhere moves). Reads the three specs and financial services' providers, as v5's run does."""
@@ -160,7 +227,7 @@ def mapping_audit(ctx):
     from ti.transaction_intelligence import merchants as M
     personal, _business, _label = base_accounts(ctx)
     df = ctx.txn
-    is_card = df["transaction_type"].astype(str).str.upper().isin(["PIN", "SIG"])
+    is_card = str_values(df["transaction_type"], lambda v: v.str.upper()).isin(["PIN", "SIG"])
     if personal is not None:
         is_card &= df["primary_account_num"].astype(str).isin(personal)
     card = df[is_card]

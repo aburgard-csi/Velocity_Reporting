@@ -15,6 +15,27 @@ for p in (BUILD, ARS, ICS, MRPC, SCRIPTS):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+# A test that runs a build to the end must not start a real peer reference update in the background
+# (build_peer_reference.spawn_update); the tests of that function set it back themselves.
+os.environ["RPE_PEER_REFERENCE_UPDATE"] = "0"
+
+
+def pytest_configure(config):
+    """An EMPTY RPE_DATA_ROOT gets the three folders the pipeline expects, as CI's runner does.
+
+    rpe_env refuses a root without Inputs/, so a machine that points RPE_DATA_ROOT at a fresh
+    empty folder fails about sixty tests for want of folders rather than for want of data. This
+    creates only those folders, and only when the root is empty. A root with anything in it,
+    such as the real share, is never touched.
+    """
+    raw = os.environ.get("RPE_DATA_ROOT")
+    if not raw or not os.path.isdir(raw):
+        return
+    if os.listdir(raw):
+        return
+    for d in ("Inputs", "Outputs", "Build Artifacts"):
+        os.makedirs(os.path.join(raw, d), exist_ok=True)
+
 
 @pytest.fixture(scope="session")
 def odd_csv():

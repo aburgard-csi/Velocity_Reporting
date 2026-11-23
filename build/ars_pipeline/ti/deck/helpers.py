@@ -445,11 +445,11 @@ class Deck:
         self.render_warnings = []     # charts._report_overlaps, per chart drawn (2026-10-28)
         self.topics = {}          # id(slide) -> v5's topic label (the slide() fallback)
 
-    def _note(self, slide, title):
+    def _note(self, slide, title, computed="the analysis ported from the ARS v5 engine (ti/PORTING.md)"):
         p = self.ctx.pack
         frame.notes(slide, f"Source: {self.source} for client {p['client_id']} {p['client_name']} "
                            f"({p['sources']['odd']}). {self.ctx.lens.label}. Slide: {title}. "
-                           f"Computed by the analysis ported from the ARS v5 engine (ti/PORTING.md).")
+                           f"Computed by {computed}.")
 
     def new(self, *_layout):
         s = frame.new_slide(self.ctx.prs)
@@ -617,5 +617,7 @@ class Deck:
                 "kpi": _kpi, "text": _text, "chart_left": _chart_left, "picture": _picture,
                 "fit_picture": _fit_picture, "money": labels.money, "kicker": _kicker,
                 "row_budget": _row_budget, "charts": __import__("ti.deck.charts", fromlist=["x"]),
+                "lens": getattr(self.ctx.lens, "key", "ars"),
+                "relabel": lambda s, title, computed: self._note(s, title, computed),
                 "MARGIN_L": MARGIN_L, "RIGHT_EDGE": RIGHT_EDGE, "CONTENT_W": CONTENT_W,
                 "NAVY": NAVY, "ORANGE": ORANGE, "GREY": GREY}
