@@ -455,7 +455,8 @@ def build(data, template, out):
 
     # ---- How You Compare (Aaron, 2026-11-03): the client against every other MRPC client ----
     # The same comparison Live Review's "How you compare" shows (peer_compare.for_deck), anonymous on the slide,
-    # placed by TITLE before Questions & Discussion. Always drawn; it says so when there are too few peers.
+    # placed by TITLE before Questions & Discussion. Two comparisons a slide at most; a slide with no measure that has
+    # enough peers is not added (Aaron, 2026-11-22).
     import peer_slide
     peer_slide.add_peer_slide(prs, "MRPC", m["client_id"], client, f"As of {rm}", assets,
                               f"Client figures: {src} for {client} ({m['client_id']}), pulled {pull}; the MRPCEnrollmentSummary weekly.",
@@ -503,6 +504,14 @@ def build(data, template, out):
 
     add_contact_slide(prs, contact)   # Contact Us at the very end: the managing CSM
     summit_slide.insert_summit_after_title(prs)   # Executive Summit after the title (all decks)
+    # A slide with no data for this client is LEFT OUT (Aaron, 2026-11-22: "skip a slide if it doesn't have data"): with no
+    # tab in the MRPC Enrollment Summary weekly, both status slides go, named in the build log. Nothing is added to the
+    # deck after this point, so the freed part names are never handed out again (shapes.drop_slide).
+    if _f is None:
+        import shapes as _shapes
+        for _sl in [x for x in prs.slides if _shapes.slide_title(x) in ("MRPC Program to Date", "MRPC Current Program Status")]:
+            print(f"slide left out (no data): {_shapes.slide_title(_sl)} - {client} has no tab in the MRPC Enrollment Summary weekly")
+            _shapes.drop_slide(prs, _sl)
     renumber_pages(prs)
     restyle_fonts(prs)   # size floor only; names/skips handled by build/restyle_fonts.py post-processor
     # Per-title geometry contract, before fit_layout — the same call ARS makes.

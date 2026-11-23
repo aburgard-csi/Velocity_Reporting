@@ -41,6 +41,7 @@ import rpe_env as R           # noqa: E402
 import ars_launcher as L      # noqa: E402
 import slide_votes as SV      # noqa: E402
 import ils_ui                 # noqa: E402
+import live_review_ui         # noqa: E402
 import sheila_hub              # noqa: E402
 
 TOKEN = secrets.token_urlsafe(24)
@@ -767,11 +768,20 @@ def compute_status(cid):
             companion = {"checks": [{"level": L.STOP, "text": f"The ARS Companion checks could not run "
                                                               f"({type(e).__name__}: {e})"}],
                          "state": "stop", "last": None, "decks": []}
+    # The Live Review block (Aaron, 2026-11-06; prototype): the page a CSM presents a review from, read from the
+    # packs a deck build left. File presence only, and like TI and the Companion a failure here never costs the
+    # RPE status.
+    live = None
+    try:
+        live = live_review_ui.status(cid, period, entry[3] if entry else ["ARS"])
+    except (Exception, SystemExit) as e:              # noqa: BLE001 — shown, never raised
+        live = {"state": "stop", "programs": [],
+                "checks": [{"level": L.STOP, "text": f"The Live Review checks could not run ({type(e).__name__}: {e})"}]}
     return {"client": cid, "name": (entry[1] if entry else None) or row.get("client_name"),
             "csm": row.get("csm") or (cp_row or {}).get("csm"), "period": period,
             "state": state, "checks": [{"level": l, "text": m} for l, m in checks], "last": last,
             "builds": builds_on_offer(entry[3] if entry else ["ARS"], avail, ars_only, has_ars),
-            "ti": ti, "companion": companion}
+            "ti": ti, "companion": companion, "live": live}
 
 
 def builds_on_offer(progs, avail, ars_only, has_ars):
@@ -1943,6 +1953,8 @@ class Handler(BaseHTTPRequestHandler):
                 return votes_route(self, u.path, {k: v[0] for k, v in q.items()})
             if u.path.startswith("/api/ils/"):
                 return ils_ui.get(self, u.path, {k: v[0] for k, v in q.items()})
+            if u.path.startswith("/api/live/"):
+                return live_review_ui.get(self, u.path, {k: v[0] for k, v in q.items()})
             if u.path == "/api/lift/overview":
                 return self._send(200, lift_overview_doc())
             if u.path == "/api/lift/client":
@@ -1994,6 +2006,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(*votes_vote(body))
         if path.startswith("/api/ils/"):
             return ils_ui.post(self, path, body)
+        if path.startswith("/api/live/"):
+            return live_review_ui.post(self, path, body)
         if path == "/api/reveal":
             if body.get("deck"):
                 return self._send(*reveal_deck(str(body.get("client", "")), str(body.get("period", "")),

@@ -16,7 +16,7 @@ browser knows these block types and nothing about any program:
     variants  a segmented control that swaps the blocks beneath it (a cohort, a metric)
     drill     a chart tied to the table behind it: click a bar, the table opens on that row
 
-`fmt` names how the browser prints a raw number: int, usd, usdk, usd2, pct1 (the value is already a
+`fmt` names how the browser prints a raw number: int, usd, usdk, usd2, pct1 and pct2 (the value is already a
 percent), pct0, frac1 (0-1), dec1, dec2, ratio. Numbers in the model are raw; the browser formats.
 
 Import-safe.

@@ -1075,9 +1075,11 @@ repl(SB("Depth of Engagement"), {"50.7% of responders (1,536 customers) have res
              f"{M['depth_repeat_pct']:.1f}% of responders ({M['depth_repeat']:,} customers) have responded to two or more mailings"})
 # ============================ SLIDE 35 — Age
 u25 = M['age_u25_rate']; o65 = M['age_o65_rate']
+# Slides with no data for this client, LEFT OUT of the deck (Aaron, 2026-11-22: "skip a slide if it doesn't have data"):
+# each is dropped by title in phase 2 and printed to the build log ("slide left out (no data)"). Never a zero.
+SKIPPED_SLIDES = []
 if M.get('age_missing'):
-    # DOB absent from this client's extract — state that plainly. NEVER a phantom 0%
-    # (CLAUDE.md: no slide is dropped and no zero is invented; this is a sourcing task).
+    # DOB absent from this client's extract: the slide is left out (below). The text is still set, never a phantom 0%.
     agetxt = ("Date of birth is not carried in this client's data extract, so the age profile "
               "cannot be produced for this period. Response-rate analysis by age resumes once "
               "age is available in the extract.")
@@ -1089,30 +1091,11 @@ repl(SB("Responder Age Profile"), {"(8,768 with age on file)": ("(age not availa
              "Response rates are highest among younger accounts — 58% of under-25 eligibles respond versus 27% of those 65+ — even though the eligible base skews older (55+ = 56%).": agetxt})
 
 if M.get('age_missing'):
-    # The sentence above was already correct, but the CHART was still drawn — an empty
-    # axis with a row of twelve zeros under it (1537 FNB&T, whose DOB column is present
-    # but blank on all 29,852 rows). CLAUDE.md is explicit: state the absence, do NOT
-    # render a 0% or an empty chart. Remove the plot and let the sentence carry the
-    # slide. The PNG is still generated and swapped in elsewhere — leaving the template
-    # image in place would show the REFERENCE client's age chart, which is worse than
-    # an empty one (Aaron, 2026-08-28).
-    _age_sl = SB("Responder Age Profile")
-    # the Selection line promised "Age mix — full eligible base vs. responders" for a
-    # chart that is no longer on the slide; say what is actually shown instead
-    # replace the WHOLE clause, including its trailing as-of date — leaving that behind
-    # produced "No age mix is shown, as of July 2026". This runs before the as-of caption
-    # pass, so the needle is still the template's June literal.
-    repl(_age_sl, {"Age mix — full eligible base vs. responders, as of June 2026.":
-                   "No age mix is shown."}, optional=True)
-    _dropped = 0
-    for _sh in list(_age_sl.shapes):
-        if _sh.shape_type == 13 and Emu(_sh.top).inches < 6.0 and Emu(_sh.width).inches > 5.0:
-            _sh._element.getparent().remove(_sh._element); _dropped += 1
-    # lift the explanatory sentence into the space the chart occupied
-    for _sh in frames(_age_sl.shapes):
-        if _sh.text_frame.text.strip().startswith("Date of birth is not carried"):
-            _sh.top = Inches(2.60); _sh.left = Inches(1.45); _sh.width = Inches(10.4)
-    print(f"age profile: DOB absent — removed {_dropped} empty chart image(s), kept the statement")
+    # No date of birth in the extract: the slide is LEFT OUT of the deck (Aaron, 2026-11-22: "skip a slide if it
+    # doesn't have data"), dropped by title in phase 2 below and named in the build log. It
+    # used to stay with a sentence saying age was not carried, and before that with an empty chart (1537, 2026-08-28).
+    SKIPPED_SLIDES.append({"title": "Responder Age Profile",
+                           "reason": "date of birth is not carried in this client's data extract"})
 
 # ============================ SLIDE 36 — Balance
 rm_, nm_ = M['bal_resp_med'], M['bal_non_med']
@@ -1359,8 +1342,16 @@ _br_tbl = next((i for i, _sl in enumerate(p2.slides)
                          if _sh.has_text_frame and _sh.text_frame.text.strip()), "")
                 .startswith("12-Month Take Rate by Branch")), None)
 _drop = [list(_xml)[4]] + ([list(_xml)[_br_tbl]] if _br_tbl is not None else [])
+# Slides with no data for this client (SKIPPED_SLIDES above), resolved by TITLE like the branch table.
+_skip_titles = [x["title"] for x in SKIPPED_SLIDES]
+for _i, _sl in enumerate(p2.slides):
+    _t = next((_sh.text_frame.text.strip() for _sh in _sl.shapes if _sh.has_text_frame and _sh.text_frame.text.strip()), "")
+    if any(_t.startswith(_st) for _st in _skip_titles):
+        _drop.append(list(_xml)[_i])
+for _x in SKIPPED_SLIDES:
+    print(f"slide left out (no data): {_x['title']} - {_x['reason']}")
 for _el in _drop:
-    _xml.remove(_el)                           # orphan reference product-mix slide + template branch table
+    _xml.remove(_el)                           # orphan reference product-mix slide + template branch table + no-data slides
 p2.save(_B)
 subprocess.run([sys.executable, STRIP, _B, _C], check=True)   # GC the orphan -> 45 clean slides
 prs = Presentation(_C)
@@ -1921,15 +1912,16 @@ for _sl in prs.slides:
             if _x.shape_type==13 and _x.width is not None and _in(_x.width)>5: _x.left=Inches(1.03); _x.top=Inches(1.81); _x.width=Inches(8.4); _x.height=Inches(4.38)
 
 # ---- How You Compare (Aaron, 2026-11-03): the client against every other ARS client ----
-# The same comparison Live Review's "How you compare" shows (peer_compare.for_deck): response rate, responder spend
-# after a mailing, swipe-tier movement, debit spend per eligible account, Reg E opt-in. Every peer is anonymous on the
-# slide. Placed by TITLE before "ARS Key Takeaways", after every index-based pass; a failure to read the peers is
-# stated on the slide and fails validate_deck.peer_slide_findings. Always drawn: the slide is never dropped.
+# The same comparison Live Review's "How you compare" shows (peer_compare.for_deck), on what the CLIENT controls only
+# (Aaron, 2026-11-22): Reg E opt-in, debit card take rate, account growth and retention; never the program's results.
+# Two comparisons a slide at most, one slide per pair (peer_slide.GROUPS), and a pair with no data adds no slide.
+# Every peer is anonymous. Placed by TITLE before "ARS Key Takeaways", after every index-based pass; a failure to read
+# the peers is stated on a slide and fails validate_deck.peer_slide_findings.
 import peer_slide as _peer_slide
-_peer_slide.add_peer_slide(prs, "ARS", ID, NAME, f"{AS_OF_SHORT} Data", ASSETS,
-                           f"Client figures: {ODD_SRC}; {WB_SRC}.", before_title="ARS Key Takeaways",
-                           period=_per or None, own={"metrics": M, "base": B})
-print("peer slide: " + _peer_slide.title_for("ARS"))
+_peer_made = _peer_slide.add_peer_slide(prs, "ARS", ID, NAME, f"{AS_OF_SHORT} Data", ASSETS,
+                                        f"Client figures: {ODD_SRC}; {WB_SRC}.", before_title="ARS Key Takeaways",
+                                        period=_per or None, own={"metrics": M, "base": B})
+print("peer slides: " + ("; ".join(_peer_slide.SH_title(_s) for _s in _peer_made) if _peer_made else "none (no measure has enough peers)"))
 
 # ARS Companion deck (Aaron, 2026-10-27): the launcher builds this deck with every opt-in view on
 # (RPE_JAMES_SLIDES, RPE_SPEND_SLIDES) and RPE_COMPANION=1, then companion_deck.py keeps only the
@@ -1999,6 +1991,13 @@ if os.environ.get("RPE_SPEND_SLIDES") == "1":
     print(f"spend trend slides (RPE_SPEND_SLIDES): {len(_made)} added"
           + (f"; windows {_ST['windows']['prior_name']} vs {_ST['windows']['current_name']}"
              if _ST["windows"] else "; no like-for-like window in this series"))
+
+# ---- Opt-in views with no data are LEFT OUT (Aaron, 2026-11-22: "skip a slide if it doesn't have data") ----
+# Each was drawn so its neighbours could anchor on it, and registered (shapes.mark_no_data). They go now, after the last
+# view is added, so no later view loses its anchor; drop_slide renames the kept parts so the Summit inserted later cannot
+# reuse a freed part name. Each is named in the build log. Nothing here runs for the monthly deck's own slides.
+import shapes as _shapes_nd
+_shapes_nd.drop_no_data_slides(prs)
 
 if os.environ.get("RPE_COMPANION") == "1":
     _cs = [_sl for _sl in prs.slides if _sl.slide_id not in _companion_base]
