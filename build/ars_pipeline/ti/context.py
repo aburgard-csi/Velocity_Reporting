@@ -25,6 +25,7 @@ class Ctx:
     anchor_ts: object = None
     lenses: object = None
     txn_report: object = None
+    txn_window: dict = None          # ti/window.py describe(): the last N completed months
     shared: dict = field(default_factory=dict)
 
     def warn(self, message):

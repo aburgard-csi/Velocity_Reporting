@@ -218,29 +218,86 @@ column's position is free.
 
 | ID | Client | CSM | Build | Loans | Ships as | Note |
 | --- | --- | --- | --- | --- | --- | --- |
+| 1049 | The First National Bank and Trust Company | Jordan Berkowitz | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists ARS without CashPlease: confirm before building |
+| 1121 | Timberland | Jordan Berkowitz | yes | 1626 | **ARS-ICS-MRPC-CP** section | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); its main-table row (ICS/ARS) is not on the roster yet, so this section builds once that row is added |
+| 1130 | Northern Credit Union | Jordan Berkowitz | yes | 3128 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1131 | People's Bank AL | Aaron Burgard | yes | 10,540 | standalone deck   | no other RPE program |
+| 1138 | Arizona Financial Credit Union | Jordan Berkowitz | yes | 4738 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1140 | First Citizens National Bank | Jordan Berkowitz | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists ARS; MRPC; ILS without CashPlease: confirm before building |
+| 1164 | First Federal Savings Bank of Twin Falls | James Gilmore | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists ILS without CashPlease: confirm before building |
+| 1186 | Members 1st Federal Credit Union | James Gilmore | yes | 205 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1192 | Ascend FCU | Jordan Berkowitz | yes | 6,325 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
+| 1207 | EECU Credit Union | Daniel Wood | yes | 5558 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1217 | Pioneer FCU | James Gilmore | yes | 750 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Pioneer Federal Credit Union" |
+| 1409 | Fulton Bank, National Association | Jordan Berkowitz | yes | 8653 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1435 | REV Federal Credit Union | Max Willett | yes | 1385 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1445 | First National Bank of Pennsylvania | Jordan Berkowitz | yes | 10336 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1466 | Peoples Bank | James Gilmore | yes | 771 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1472 | Springs Valley Bank & Trust Company | Daniel Wood | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists ILS without CashPlease: confirm before building |
+| 1487 | Orsa CU | Max Willett | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists ARS; ICS; Account Engagement without CashPlease: confirm before building |
+| 1512 | Citizens National Bank | James Gilmore | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists ILS without CashPlease: confirm before building |
+| 1524 | Peninsula Community Federal Credit Union | James Gilmore | yes | 104 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1526 | Create CU | Max Willett | yes | 64 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clark County Credit Union" |
 | 1529 | Vantage West CU | Jordan Berkowitz | yes | 13,494 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
 | 1539 | Marine FCU | Aaron Burgard | yes | 6,745 | **ARS-ICS-MRPC-CP** section | the client book's product list omits CashPlease — see gap 3 |
 | 1542 | The Friendship SB | Daniel Wood | yes | 401 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Friendship State Bank" |
+| 1543 | Credit Union Of Georgia | Jordan Berkowitz | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists ILS without CashPlease: confirm before building |
+| 1552 | Credit Union Of America | Jordan Berkowitz | yes | 1508 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1564 | OneUnited Bank | Aaron Burgard | yes | 11,495 | standalone deck   | no other RPE program |
 | 1585 | First Community Bank of the Heartland | James Gilmore | yes | 1,324 | **ARS-CP** section | added 2026-10-27 (James: "1585 - ARS + CP + ILS - missing"); ILS is not tracked in this file; the CashPlease summary tab reads "First Community Bank of Tennessee" |
+| 1609 | Red River Bank | Daniel Wood | yes | 4011 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1624 | First Financial Bank | Daniel Wood | yes | 44373 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1632 | WesBanco Bank | Aaron Burgard | yes | 11,927 | **ICS-CP** section | |
 | 1652 | Security CU | Max Willett | yes | 51 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Security Rewards" |
+| 1654 | United Bank | Jordan Berkowitz | yes | 14893 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1658 | Truliant FCU | Aaron Burgard | **no** | 8,296 | — | CashPlease cancelled 2026-09-01 |
+| 1659 | Workers Federal Credit Union | Daniel Wood | yes | 665 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1671 | Pasadena Federal Credit Union | James Gilmore | yes | 233 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1681 | First Financial CU | Jordan Berkowitz | yes | 24,715 | **ARS-CP** section | added 2026-09-15 with the ARS roster |
+| 1683 | Peoples Bank of East Tennessee | Jordan Berkowitz | yes | 1082 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1688 | Bank of Ripley | — | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); not in the Client CSM List: confirm the client and its CSM |
+| 1690 | United Heritage Credit Union | Daniel Wood | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); the Velocity export lists MRPC without CashPlease: confirm before building |
+| 1698 | Potlatch No. 1 Financial Credit Union | Max Willett | yes | 995 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1700 | Emprise Bank | Daniel Wood | yes | 22561 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1701 | Bank of Lincoln County | — | **no** | — | — | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); not in the Client CSM List: confirm the client and its CSM |
+| 1707 | Allsouth Federal Credit Union | Aaron Burgard | yes | 17110 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1711 | Coosa Valley Credit Union | Jordan Berkowitz | yes | 478 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1724 | We Florida Financial Credit Union | Jordan Berkowitz | yes | 166 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1727 | U. S. Employees O. C. Federal Credit Union | James Gilmore | yes | 1749 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1728 | Midland States Bank | Aaron Burgard | yes | 3 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1729 | First Family Federal Credit Union | James Gilmore | yes | 196 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1733 | Commercial Bank & Trust Co. | James Gilmore | yes | 56 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1734 | Altamaha Bank and Trust Company | Aaron Burgard | yes | 651 | **ICS-CP** section | |
+| 1737 | Texas National Bank | James Gilmore | yes | 2441 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1741 | Del-One Federal Credit Union | James Gilmore | yes | 17832 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1748 | Clearview FCU | Jordan Berkowitz | yes | 10,886 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "Clearview Federal Credit Union" |
+| 1749 | CB&S Bank, Inc. | Max Willett | yes | 450 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1750 | All In FCU | Aaron Burgard | yes | 5,701 | standalone deck   | no other RPE program |
+| 1758 | ABNB Federal Credit Union | Jordan Berkowitz | yes | 2633 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1760 | People First Federal Credit Union | James Gilmore | yes | 1592 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1761 | Capital Educators FCU | James Gilmore | yes | 223 | **ARS-CP** section | added 2026-09-15 with the ARS roster; the workbook tab reads "CapEd CU" |
 | 1770 | Central State Bank | Aaron Burgard | yes | 27 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
 | 1771 | Copper State CU | Aaron Burgard | yes | 156 | standalone deck   | the client book's product list omits CashPlease — see gap 3 |
+| 1775 | First Bank | Daniel Wood | yes | 1123 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1776 | CoastHills CU | James Gilmore | yes | 1,246 | **ARS-MRPC-CP** section | added 2026-09-15 with the ARS roster |
+| 1779 | 1st Advantage Federal Credit Union | Jordan Berkowitz | yes | 2017 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1781 | Dannemora FCU | Aaron Burgard | yes | 166 | standalone deck   | added 2026-11-16 (Aaron: "create the CashPlease deck for Dannemora"); no other RPE program (ILS is not tracked in this file) |
+| 1783 | Guardian Credit Union | Jordan Berkowitz | yes | 9823 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1789 | Spero Financial Federal Credit Union | Max Willett | yes | 275 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1790 | Jonestown Bank and Trust Company, of Jonestown, Pennsylvania | Jordan Berkowitz | yes | 243 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1791 | Greater Texas Federal Credit Union | Daniel Wood | yes | 309 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1803 | First Source Federal Credit Union | Daniel Wood | yes | 792 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1806 | SOCU | Daniel Wood | yes | 207 | **ICS-CP** section | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); its main-table row (ICS/ARS) is not on the roster yet, so this section builds once that row is added |
+| 1813 | Partners 1st Federal Credit Union | Jordan Berkowitz | yes | 19 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1816 | Beginnings CU | Max Willett | yes | 3 | **ICS-CP** section | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); its main-table row (ICS/ARS) is not on the roster yet, so this section builds once that row is added |
+| 1820 | Loyalty Credit Union | Jordan Berkowitz | yes | 130 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
+| 1825 | Mutual Savings Association | Daniel Wood | yes | 6 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 | 1828 | New Frontier Bank | Aaron Burgard | **no** | — | — | added 2026-10-28 (Aaron: "add New Frontier Bank"; no kickoff yet). New client, "In Process of Converting": no CashPlease tab yet, so not built; set Build to yes and the loans when the weekly carries a tab |
+| 1838 | American Eagle Financial Credit Union | Jordan Berkowitz | yes | 356 | standalone deck | added 2026-11-16 from the 11/08 CashPlease weekly (Aaron: "add any CP clients from Bradford's weekly summary spreadsheet"); no other RPE program |
 
-**Fourteen combined decks and five standalone decks per run.** A client whose CashPlease
+**Fourteen combined decks and forty-seven standalone decks per run** (2026-11-16: every client in the 11/08 weekly is
+now on this table; three more section rows, 1121, 1806 and 1816, build once their ICS/ARS rows are on the main table, and
+ten rows read Build **no** until their CashPlease status is confirmed). A client whose CashPlease
 slides ship inside a combined deck does NOT also get a standalone deck (Aaron,
 2026-09-01) — the Executive Review and the ILS review would otherwise carry the same five
 slides. Loan counts are program-to-date **as of the 2026-09-06 workbook** and are a

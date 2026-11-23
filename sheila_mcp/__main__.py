@@ -159,9 +159,10 @@ def cashplease_portfolio() -> dict:
 @mcp.tool
 def peer_compare(client: str, kpis: str = "", period: str = "") -> dict:
     """How a client's ARS figures rank against every client whose deck was built the same cycle: value, rank,
-    median and middle half. kpis: comma-separated from debit_take, debit_take_new, rege, rege_new, response,
-    repeat, active_new, active_book, debit_on_checking, retention_1yr, retention_3yr (default: debit_take,
-    rege, response, active_book, retention_1yr). period: YYYY.MM (default: the client's newest)."""
+    median and middle half, on measures the client controls only (never the program's results). kpis:
+    comma-separated from debit_take, debit_take_new, rege, rege_new, account_growth, debit_on_checking,
+    retention_1yr, retention_3yr (default: debit_take, rege, account_growth, retention_1yr). period: YYYY.MM
+    (default: the client's newest)."""
     return reports.peer_compare(client, kpis, period)
 
 

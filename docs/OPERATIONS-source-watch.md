@@ -155,6 +155,29 @@ lacks, or holds a different landing of, is copied into `Inputs/` — DCOs, ARS
 workbooks, MRPCPM analyses and ICS workbooks each to their own folder, the ODD extract
 to `ODDD/<id>_ODDD.zip`.
 
+**The same `--copy` sweeps the Drop Folder (Aaron, 2026-11-16).** Aaron made
+`<root>/-Drop Folder` on 2026-11-10 for input files dropped by hand ("You can move, sort,
+and rename them"). For a week it was swept by hand: the first two files were Bradford's
+11/08 weeklies, already in `Inputs/` byte for byte (deleted on his yes), and on 11/16 the
+11/15 MRPC weekly sat there until a session filed it. Asked "Drop folder during a file
+get", the sweep became part of the 08:00 run. It runs after the share copy and before the
+prune, so a weekly filed from the folder is weighed against the ones already there, and it
+needs no new task argument. `watch_sources.classify_drop` reads each name with the rules
+the share copy and the mail step already use (no classifier of its own); `drop_plan` says
+what happens to each file and `apply_drop` does it:
+
+| The dropped file | What the sweep does |
+| --- | --- |
+| A recognised input not in `Inputs/` | copies it to that kind's folder through a `.part`, checks the size and that the dropped file did not change during the copy, then removes the dropped copy |
+| The same bytes are already in `Inputs/` (any kind folder or the legacy flat one) | removes the dropped copy |
+| `Inputs/` holds a different ODD extract, and the dropped one's pull stamp is newer | replaces it; the held extract moves to `Inputs/ODDD/_Archive/<id>_ODDD pulled <stamp>.zip`, never deleted (Aaron, 2026-11-22). The new file carries today's write time, so the share's older extract cannot undo it the next morning. A failed replacement puts the held extract back |
+| `Inputs/` holds a different file of that name (any other kind, or an ODD extract whose dropped pull is not newer or has no readable stamp) | leaves both and reports it, naming both pull stamps for an ODD extract. The copy in `Inputs/` may have been saved in Excel on purpose, and a dropped extract may be last month's |
+| A name no reader knows, or a subfolder | leaves it and reports it |
+
+A refused delete (some mounts allow writes but not deletes) is reported and the run goes on.
+A Drop Folder that is not there is one line in the report. Office lock files and `.part`
+files are skipped. `--dry-run` lists what it would do and touches nothing.
+
 **ODD extracts come from ALL FIVE CSMs' folders (Aaron, 2026-09-14).** The data team
 lands each CSM's extracts in that CSM's own folder, so `deck_status.SRC_ODDD` lists all
 five as `CSM=path` entries (override with `RPE_SRC_ODDD`, same format; a bare path still

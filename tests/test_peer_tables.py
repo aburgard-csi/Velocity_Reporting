@@ -190,7 +190,11 @@ def test_collect_ars_snapshots_need_the_clients_extract_month(tmp_path):
     assert coll["n_pool"] == 7 and coll["me"]["point"]["resp_12m"] == pytest.approx(9.0)
     stale = next(p for p in coll["peers"] if p["id"] == "7007")
     assert stale["point"] == {} and stale["series"]["resp_rate"]               # its by-mailing series still aligns by month
-    ev = PC.evaluate(coll, peer_pool.ARS_METRICS, "ARS")
+    # The collector's alignment, checked on the response rates it still reads (they are no longer COMPARED: Aaron,
+    # 2026-11-22, peer_pool.ARS_PROGRAM_RESULTS), so the specs are given here rather than taken from ARS_METRICS.
+    specs = [{"key": "resp_12m", "label": "r12", "fmt": "pct1", "higher": True, "month": False},
+             {"key": "resp_rate", "label": "rr", "fmt": "pct1", "higher": True, "month": True}]
+    ev = PC.evaluate(coll, specs, "ARS")
     byk = {i["spec"]["key"]: i["c"] for i in ev["items"]}
     assert byk["resp_12m"]["n"] == 6 and byk["resp_12m"]["total"] == 7
     assert byk["resp_rate"]["n"] == 7                                          # Aug 2026 mailing: all seven peers
@@ -215,3 +219,13 @@ def test_cashplease_rows_carry_loan_size_interest_and_paid_off():
     assert p["avg_loan"] == 410.0 and p["avg_interest"] == 38.25 and p["paid_off"] == pytest.approx(83.0)
     assert p["overdue"] == pytest.approx(2.0) and p["charge_off"] == pytest.approx(3.1)
     assert {"avg_loan", "avg_interest", "paid_off"} <= {m["key"] for m in peer_pool.CP_METRICS}
+
+
+def test_ars_peer_row_carries_the_client_controlled_measures():
+    """Aaron, 2026-11-22: ARS peers are compared on what the client controls; the whole-book take rate and account growth
+    are read from the pack, and a book too small to rate is left out rather than ranked."""
+    p = PT.ars_metrics(pack(overall_take=71.5, acct_growth_pct=2.4, n_open_personal=9000))["point"]
+    assert p["take_all"] == 71.5 and p["acct_growth"] == 2.4
+    small = PT.ars_metrics(pack(overall_take=71.5, acct_growth_pct=2.4, n_open_personal=40, n_eligible=60))["point"]
+    assert "take_all" not in small and "acct_growth" not in small
+    assert "acct_growth" not in PT.ars_metrics(pack())["point"]          # a pack built before the measure existed

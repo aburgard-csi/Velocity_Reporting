@@ -15,11 +15,749 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-19 — The morning file get sweeps the Drop Folder (`scripts/watch_sources.py`, `build/rpe_env.py`)
+
+Summary: Files dropped in the CSM_Reporting Drop Folder are now filed into Inputs by the 08:00 file get, by the same naming rules as files from the shares and the mailbox. A file it cannot place, or one whose name already holds different contents in Inputs, is left in the folder and listed in the morning report. A dropped ODD extract whose pull stamp is newer than the one in Inputs replaces it, and the older one is archived.
+
+Aaron, 2026-11-10: "added a Drop Folder for input files here: \\PADMIS105\Velocity_company\CSM_Reporting\-Drop Folder. You can move, sort, and rename them." On 2026-11-16: "Drop folder during a file get"; on 2026-11-19: "start the drop-folder sweep in watch_sources".
+
+- **Runs under `--copy`**, which the "RPE Source Watch" task already passes, after the share copy and before the prune. The task does not need registering again.
+- **No new classifier.** `classify_drop` uses the watch's own `classify` (ODD extracts, DCOs, ARS workbooks, MRPCPM analyses, ICS workbooks), `mail_sources.classify_attachment` (the MRPC and CashPlease weeklies, the CashPlease marketing files) and the DDA count's saved name (`ils_dda_count_mail.SAVED_RE`). The folder name is `rpe_env.DROP_FOLDER_DIRNAME`, resolved by `rpe_env.drop_folder()`.
+- **Filed:** a recognised file not in Inputs is copied through a `.part`, checked by size and against a change during the copy, then removed from the Drop Folder. **Already filed:** a byte-identical copy in Inputs means the dropped one is removed.
+- **Never overwritten, except a newer ODD pull:** a different file of the same name in Inputs leaves both, with both pull stamps named for an ODD extract. The exception (Aaron, 2026-11-22: "yes, newer stamp should replace it automatically") is an ODD extract whose own pull stamp is newer than the held one's: it replaces the held extract, which is moved to `Inputs/ODDD/_Archive/<id>_ODDD pulled <stamp>.zip`, never deleted, and the new file carries today's write time so the share's older extract cannot copy back over it. An older, equal or unreadable stamp is still left. A name no reader knows, and any subfolder, are left. A refused delete is reported, never fatal.
+- The report and log carry a `## Drop Folder` section; the one-line summary says "Filed N from the Drop Folder." (with how many replaced an older ODD extract) or "Drop Folder needs a look (N).", and `--notify` raises a toast for the latter.
+- Tests: 15 new in `tests/test_watch_sources.py`, 26 cases (the naming, each outcome, a refused delete, a file still arriving, `--copy` with and without `--dry-run`, a missing folder).
+
+---
+
+### 2026-11-22 — Peer comparisons: ARS on what the client controls, two to a slide; a slide with no data is left out (`build/peer_slide.py`, `review_page/peer_pool.py`, `metrics_gen.py`, `shapes.py`, the four builders)
+
+Summary: ARS clients are now compared with their peers only on what they control: Reg E opt-in, debit card take rate, account growth and retention, never the program's own results. Every deck's "How You Compare" slides carry at most two comparisons each. Any slide with no data for the client is left out of the deck rather than shown with a sentence saying so.
+
+Aaron, 2026-11-22: "For ARS peer comparisons, don't compare program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."; "Don't put more than 2 peer comparison charts on a slide."; "skip a slide if it doesn't have data" (on Brooks Bank's Responder Age Profile, which read "Date of birth is not carried in this client's data extract...").
+
+- **ARS peer measures** (`peer_pool.ARS_METRICS`, read by Live Review, the decks, the peer reference and Sheila in Claude):
+  - **Now compared:** Reg E opt-in (open personal accounts; accounts opened in the last 12 months), debit card take rate (the whole eligible book; new accounts), account growth, one-year retention.
+  - **No longer compared:** response rates, responder spend before and after a mailing, swipe-tier movement, swipes and spend per account, cards in use, ARS revenue per 1,000 (`ARS_PROGRAM_RESULTS`). Sheila in Claude's `peer_compare` lost "response", "repeat", "active_new" and "active_book" and gained "account_growth".
+- **Account growth is new** (`metrics_gen`: `n_open_personal`, `acct_growth_pct`, `acct_growth_window`, `acct_growth_net`): personal accounts opened minus closed over the last 12 complete months (a month counts once the extract was pulled after it ended), as a share of the personal accounts open at the start of those months. A pack built before today does not carry it, so the measure fills in as decks are rebuilt; it needs five peers with it before it is drawn.
+- **Two comparisons a slide** (`peer_slide.GROUPS`, `MAX_PER_SLIDE`). Each program's slides are titled "How You Compare — <pair>":
+  - **ARS:** Reg E Opt-In; Debit Card Take Rate; Accounts Gained & Kept.
+  - **ICS:** Referrals and Revenue; Revenue by Source; Spread on Deposits.
+  - **MRPC:** Enrollments; Cardholder Activity.
+  - **CashPlease:** Loan Volume; Repayment.
+
+  The slide inventory (Slide Review) lists each one. Every title is checked to fit on one line.
+- **A slide with no data is left out** (CLAUDE.md, the rule that replaces "Never drop slides automatically"), named in the build log as `slide left out (no data): <title> - <why>`:
+  - the ARS Responder Age Profile with no date of birth;
+  - the MRPC Program to Date and Current Program Status slides when the weekly has no tab for the client;
+  - CashPlease Loan Volume by Month with no loans in the workbook;
+  - a peer slide with no measure that has five peers, and the peer section when the program has fewer than five other clients;
+  - every opt-in ARS view (James / Companion / test slides) that drew a "not shown" sentence.
+
+  A failure to READ the peers' figures still draws its slide and fails the gate.
+- **`shapes.drop_slide`** takes a slide out (its list entry and relationship) and renames the kept parts in order, so a slide added later never reuses a freed part name.
+- Tests: `tests/test_peer_slide.py` (rewritten), `tests/test_skip_no_data.py` (new), a no-DOB golden build in `tests/test_golden_deck.py`, account growth in `tests/test_peer_tables.py` and the golden pack. The golden deck is 50 slides, not 51: it has no peers, so its peer slide is now left out.
+
+### 2026-11-22 — The peer reference is updated whenever a deck is built (`build_peer_reference.py --update`, `spawn_update`)
+
+Summary: Building a deck now refreshes that deck's programs in the peer reference file on the share, in the background, so the file follows the newest decks without a hand run. The build does not wait for it, and its result never depends on it.
+
+Aaron, 2026-11-22: "update data on the peer comparison dataset when we build new presentations."
+
+- **When:** once a deck is in Outputs. `ars_launcher build` (CSM Sheila's builds and Sheila in Claude's included), `build_cashplease.py`, and `build_month.py` once at the end of a batch start `build_peer_reference.py --update --programs <the deck's programs>`. The ILS rows change when the ILS peer pull (`ils_review/peer_pull.py`) writes the peer table, so the pull starts an ILS update once it has written a client. Transaction Intelligence and Companion decks carry no peer figure and start nothing.
+- **Background, never in the build's way:** the update runs as its own detached process, with its output appended to `Build Artifacts/peer_reference_updates.log` (a file, never a pipe). A failure to start it is printed and ignored. Over the share ARS takes about five minutes, ICS about one and a half, CashPlease about one, MRPC seconds.
+- **Only what the build touched:** an update recompiles the deck's programs and keeps every other program's rows, sources, catalog entries and compile time from the newest file. Each row keeps the `compiled_at` of the run that made it. A program that fails keeps its previous rows; the manifest names it under `failed` and `stale`, so the file is never quietly short a program. With no file yet, an update compiles every program.
+- **Several PCs at once:** `Peer Reference/.update.lock` is created exclusively, with host, pid, user and time inside, and is broken after 90 minutes. A second update waits up to an hour for it, then skips any program another update began compiling after it was asked for (`program_compiled_at` in the manifest, to the microsecond). Each writer's temporary file now carries its host and process id, so two writers never share one.
+- **Off switch:** `RPE_PEER_REFERENCE_UPDATE=0`; the test suite sets it, so no test starts a real update.
+
+### 2026-11-20 — ILS analysis: peer comparisons on eight measures, two to a slide (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck's peer comparison grows from three measures on one slide to eight measures over four slides per account type, never more than two on a slide: NSF/OD usage, fee revenue, items paid and losses, and refunds and Reg E. A measure the client's extract cannot give is left out and said why, never shown as 0.
+
+Aaron, 2026-11-20: "build out additional peer comparison slides. No more than 2 comparisons per slide."
+
+- **Measures**: items per 1,000 open accounts and users as a share of open accounts; fees per open account and per user; pay rate and loss rate; refunds as a share of fees and Reg E opt-in (Personal only). `peers_slides.GROUPS` holds the pairs and `MAX_PER_SLIDE = 2`; a test fails if a group grows past two.
+- **One calculation**: the client's own figures and every peer's come from `peer_pull.metrics_from_frame`, with the same Data Validation clean-up (`validate_zaccounts`), so a slide cannot compare two arithmetics.
+- **Unknown is blank, not 0**: refunds when the extract's Refund_Amt_365 is blank; a loss rate above 100% or no charge-off dollars on a book with 100 or more users (the extract does not carry charge-offs); Reg E when no open account is coded opted in. Such a peer is left out of that measure only; each measure has its own peer count.
+- **Peer table**: `peer_pull` reads six more ZAccounts columns and re-reads any row from before them. Re-pulled 2026-11-20 for 347 client and account-type rows; the old table is kept in `peers/_before_2026-11-20/`.
+- **A section that vanishes says so**: a section that adds no slide and gives no reason, or a Contact Us slide that could not be drawn, is now a REVIEW in the deck checks. Industry Update, the peer slide and Contact Us dropped silently when the share root was passed through a Bash shell, which turns the share's leading `\\` into a single `\`.
+- Tests: four new in `tests/test_ils_analysis.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: the analysis team's own rules for losses, active accounts, the KPI population and data clean-up (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck now follows the analysis team's notebooks for monthly loss rates, open active accounts, which account types the 365-day KPI counts, and the Data Validation clean-up (negative charge-offs, savings accounts, 1970 null dates); the KPI table gains Active Checking Accts, % Closed Accts Charged Off and % Active Users. On twenty recent analyst-built pulls the not-repaid and KPI tables now match the analyst decks cell for cell.
+
+Aaron, 2026-11-20: "continue to iterate. use as much time and data as you need to be confident in the results." Each rule below is the notebook's ('ILS Analysis - Python Script.ipynb', 'ILS Analysis - Data Validation.ipynb'), found by comparing built decks with the analysts' tables by script:
+
+- **Monthly loss rate**: a charged-off account with no last positive date on any notice has no fatal notice, but its Chargeoff_Amt_365 still counts, on its earliest notice (notebook cell 30). Leaving it out made loss rates read low, never high, while % fatal and the 365-day total agreed. The Scoring Summary's band losses follow the same rule.
+- **Open active accounts**: open, with more than $50 deposited or at least one NSF/OD item in 365 days (the notebook's ACTIVITY flag). It replaces a 240-day deposit window fitted on one client, which ran -3% to +9% elsewhere.
+- **KPI population**: account types starting P, Q, B or Z, grouped by IsPersonal; any other type ("New Start - Personal") is left out, where it had been folded into Business. New rows Active Checking Accts, % Closed Accts Charged Off and % Active Users, as the notebook computes them.
+- **Data Validation** (`ils_data.validate_zaccounts`): savings and time-deposit types left out; a negative Chargeoff_Amt_365 taken as its absolute value; 1970-01-01 read as blank; ZTrend rows with no account id dropped. Each change is listed in the build notes.
+- **Robustness**: a header line repeated inside ZAccounts is dropped and numeric columns are read as numbers (a sum had concatenated text); a folder holding the analysis team's cleaned za.csv / zt.csv / dd.csv is read, dd.csv's renamed columns included; a branch tile whose dollar figure does not fit is shown compact.
+- Tests: seven new in `tests/test_ils_analysis.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: deck checks after every build; prep slides merged hidden; more input and empty-data checks (`build/ils_analysis/`)
+
+Summary: Every ILS analysis build now checks its own deck for failed sections, stale extracts and all-zero or all-n/a columns; the ILS prep slides merge into the deck as hidden context, with the matrix slides visible at the start of each account type's risk analysis; and empty data, tab-delimited files and very large percentages no longer break a slide.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues", and "Build the ILS prep slides as hidden slides at the front of the deck so they don't print or show when we display ... I like the matrix slides at the beginning of the risk analysis for personal or business." Found by building twelve recent analyst-built pulls and checking each by script:
+
+- **`ils_review/deck_checks.py`**, run at the end of every build: FAIL for a section that failed to build; REVIEW for a stale extract, a table column that is zero or n/a in every row, a table with no rows, a peer slide that is "Lowest" on every measure, and a chart stated as having no data.
+- **`merge_review.py` is general** (it was one client's script): prep slides go in hidden after the cover; the Matrix Parameters / Overrides slides go in visible before the first Scoring Summary slide of their account type, or after the Appendix divider when the deck has none; optional CashPlease section before Thank You; page numbers count visible slides only. `tests/test_ils_merge_review.py`.
+- **Delimiters** are read from each extract's first line (`sniff_sep`): a tab-delimited decline file stopped a build.
+- **Empty data is stated, never a crash**: every chart helper writes "No data for this chart" where python-pptx raised on an empty chart; branch overdraft activity and year over year leave out an account type with no users or no notices, and say so.
+- **Charged-off accounts with no notice history**: when fewer than a quarter of an account type's charged-off accounts have any notice in ZTrend, the Scoring Summary notes that its near-zero default rates come from missing history, not missing losses.
+- **Fit**: the data-integrity table sizes its Table and Column columns to the longest database name (`REF_CHARGE_OFF` broke mid-word); a percentage of 1,000% or more drops its decimals; "Pulled" falls back to the file's own time when its name carries no date.
+- Tests: `tests/test_ils_analysis.py` (eight new) and `tests/test_ils_merge_review.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: input checks for headerless, stale and empty extracts (`build/ils_analysis/ils_review/`)
+
+Summary: The ILS analysis build now checks each extract before it builds: it reads debit-decline and refund files saved without a header line, names any dated extract that ends well before the data date, shows n/a instead of zero where a window has no data, and leaves out fee-trend and peer slides for an account type with no notices.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues." Each check below came from a pull that built with an error or a misleading slide:
+
+- **Headerless extracts.** A DebitDecline or RefundHistory file whose first line does not name `AcctID` but has the query's field count (10 and 14) is read with the known column names (`DECLINE_COLUMNS`, `REFUND_COLUMNS`), and Data Notes say so. It stopped the build with `KeyError: 'acctid'`.
+- **Stale extracts** (`extract_checks`, `STALE_EXTRACT_DAYS` = 31). A ZTrend, DebitDecline or RefundHistory extract whose newest row is a month or more before the data date, or that holds no dated rows, is named in the build log and on Data Notes. "About this data" prints the decline file's date range.
+- **No data is not zero.** "Debit declines by ILS limit" reads n/a in its decline columns, with a line naming where the extract ends, when the extract stops before its 90-day window. It showed 0 in every band.
+- **An account type with no notices in the window.** Fee trending and paid vs returned skip it with the reason. They raised `IndexError` and `ZeroDivisionError`, which also lost the other account type's paid-vs-returned and not-repaid slides. The peer slide is left out for an account type with no NSF/OD items in 365 days, where it ranked zeros as "Lowest of N clients".
+- Tests: `tests/test_ils_analysis.py` (five new, synthetic data).
+
+### 2026-11-20 — The peer reference: every peer comparison's figures in one dated file (`scripts/build_peer_reference.py`, `rpe_env.peer_reference_dir`)
+
+Summary: Every figure a peer comparison uses is now compiled into one dated, tagged file on the share, `Peer Reference/peer_metrics_<date>.csv`, with a latest copy and a manifest. Nothing that a deck, Live Review or Sheila shows changes yet.
+
+Aaron, 2026-11-20: "develop a peer comparison reference file that gets saved to the reporting folder. any metrics we use for peer comparisons should be compiled in one source, tagged and dated."
+
+- **One row per figure**: program, metric, segment, scope (a client, or a cohort benchmark), client number, period, period basis, whether the month had ended when the source was made, the value, its unit, which way is better, the definition, the source file and its date, and which consumers read it. No name field is carried.
+- **Values are the consumers' own.** Each program's rows are what `review_page/peer_pool.py`'s collectors return, the code behind Live Review's "How you compare" and every deck's How You Compare slide. They are run with a client id that is in no pool, so every client comes back with its own number. Also recorded: the ARS fields Sheila in Claude ranks, the two CashPlease cohort benchmarks and the ILS peer table. A test checks the rows against the collector.
+- **Dated and idempotent.** Today's file is rewritten only when its content changed, and an earlier day's file is never touched. A program that fails to compile stops the write unless `--allow-partial` is given.
+- **Found while compiling it: places where one comparison is computed two ways.** These are recorded in the PR for a decision and are not changed here:
+  - **CashPlease has three peer definitions, and two of them are on one deck.** The first compiled file (2026-11-20) shows how far apart they are:
+
+    | Measure | All-tabs rollup (Peer Comparison slide) | Current clients, pooled (dashboard) | Median of current clients (How You Compare slide) |
+    | --- | --- | --- | --- |
+    | Loans per 1,000 DDAs | 16.7 | 14.6 | 12.4 |
+    | Charge-off rate | 6.3% | not available | 3.4% |
+
+    The Peer Comparison slide reads the workbook's all-tabs rollup, which includes cancelled and non-current tabs. The performance dashboard pools current clients. The How You Compare slide takes the median of current clients.
+  - **Sheila in Claude's `peer_compare` ranks ARS clients with arithmetic that is not `peer_compare.py`'s:**
+    - nearest-rank quartiles
+    - the client counted in its own pool
+    - a pool limited to the exact period
+    - ranking on the latest mailing's response rate
+    - no minimum-pool guards on Reg E or take rate (they change no figure today, because all 41 packs pass them)
+  - **Two problems that are in the code but change no figure today:**
+    - ICS referrals per 1,000 DDAs can put two numerators in one distribution: the all-clients referral file, or the VIP trend for a client the file lacks. Every row in the first file came from the referral file, and the `source_kind` column shows the source on every row.
+    - MRPC monthly enrollments and share of goal are not trimmed to complete months in `peer_pool`. The file judges `month_complete` against each source's own date, and no row in the first file was flagged `no`.
+
+### 2026-11-19 — Insurance by line says "Life"; the competition report reads a short window (`ti/dictionaries/financial_services_patterns.json`, `deck/txn_leakage.py`, `competition_report.py`)
+
+Summary: The Transaction Intelligence Insurance by line slide now names the life line "Life", and a client with under six months of transaction data no longer stops the Transaction Intelligence build.
+
+Two defects that came in with the insurance PR (#142), found in review before a release:
+
+- **"Life & annuity" is "Life".** The subtype name prints on the Insurance by line slide (headline and rail), and "annuity" is a banned word, so `validate_deck` failed any deck whose life carriers ranked in the top three lines and the launcher kept it out of Outputs. The carriers and patterns are unchanged.
+- **The threat score's growth reads n/a on a short window.** `competition` leaves growth out when the data covers under six months (`MIN_GROWTH_DAYS`), and the text report formatted it as a number, so `ti_build` raised a TypeError before any deck was drawn.
+- **The check that would have caught each** (`tests/test_ti_label_guards.py`): every category, subtype, tier and institution name in the two dictionaries is checked against the validator's banned list, and the report is run with a missing growth figure.
+
+### 2026-11-17 — The slide ledger lists the competition layers slides (`ti/ledger.py`)
+
+Summary: `ti_slide_ledger.csv` now has a line for every competition layers slide, so a layers slide that is tossed, declined for a client or merged is listed with its reason instead of being absent.
+
+The ledger walked only the 20 older competition builders, so the 55 layers slides were drawn or declined with no line, against the rule that nothing leaves the deck without a line saying why. A real 1798 build listed 12 drawn, 12 merged, 7 hidden and 28 tossed and none of the layers slides.
+
+- The layers builders are listed under the Competition chapter with the same four statuses. No deck changes.
+- Two tests: the count of lines now includes the layers builders, and a layers slide declined for a client is listed as hidden with its reason.
+
+### 2026-11-17 — ILS analysis: build as of an earlier data date; exception items on one slide (`build/ils_analysis/ils_review/`)
+
+Summary: An ILS analysis deck can now be built as of an earlier date, so a newer pull can match a review already given. The two exception-item slides are now one: the median item amount per channel sits in the paid and returned table.
+
+Aaron, 2026-11-17, on Dannemora 1781: "Why is the October 26' fatal notices so high? validate this.", then "That doesn't match up with William and Tim's deck". Shown the two options, he chose to rebuild as of William's data date. Then, of "Exception items by channel" and "Trends in exception items": "these two slides have the same data. Combine them into one slide."
+
+- **Why October read 17%.** With 99% of Dannemora's accounts flagged charged off, almost every account with a notice gets one "fatal" notice: the one nearest its latest positive date. For an open account that keeps coming back to positive, that date is recent, so the newest month piles up, and it moves as data lands. One more week took September from 9.29% (William's slide 35) to 7.77% and put 1,100 fatal notices in October. 1,097 of those are on open accounts, each dated on the day the account was last positive. The rule is William's, reproduced: cut at his date, the table matches his.
+- **`--as-of YYYY-MM-DD`** (`cli.py`, `BuildConfig.data_as_of`, `ils_data.load`). It sets the as-of date and leaves out notices, debit declines and refunds dated after it. ZAccounts is one row per account as pulled, so its fields and the DBIC stay as pulled. "About this data" and the Data Notes say what was cut and what was not. On 1781 at 2026-10-25: 2,878 notice rows and 1,599 declines left out. The not-repaid table reads Oct 2025 to Sep 2026 and matches William's in 11 of 12 months to the hundredth (August 5.85% against his 5.86%).
+- **One exception-items slide.** When the DBIC carries its channel table, "Exception items by channel" adds a "Median item amount" row under each account type, from ZTrend `Item_Amts` over the 365 days to the as-of date (`r_fees.channel_medians`; the subtitle and footnote name the window). The ZTrend treemap slide "Trends in exception items" is not built then (`build._sec_exception_items`). With no DBIC channel table, the treemap slide is built as before.
+- "About this data" now says the debit declines feed the Debit declines slide, and the DBIC feeds program health and exception items by channel. It used to name "Exception items by channel" against the declines.
+- Tests: `test_as_of_cuts_the_dated_rows_and_says_so`, `test_channel_medians_are_per_channel_over_the_year`, `test_exception_items_are_one_slide_when_the_dbic_carries_the_channels`.
+
+### 2026-11-17 — ILS analysis: an impossible loss rate marks the charge-off data unusable (`build/ils_analysis/ils_review/r_common.py`)
+
+Summary: The ILS analysis deck now also treats charge-off data as unusable when charge-offs exceed every fee collected in the year, and withholds charge-off dollars and loss rates. On Dannemora, the not-repaid slide's speaker note now says the flag is known wrong instead of reading the rate out.
+
+Aaron, 2026-11-17: "Dannemora's charge-off information is incorrect and we know it. A high charge-off client will have maybe 20%, but most of our clients are between 4 and 12%." Then: "4 to 12% would be the loss rate, not the percentage of accounts charging off. For 1781, we will keep those slides for the moment."
+
+- **The check.** Until now the only test was the share of accounts flagged charged off (above half). The loss rate is the measure Aaron's range describes: 365-day charge-off dollars over 365-day collected fees, across the extract. Real pulls read 11.8% (Adirondack 1403), 16.3% (Affinity 1568) and 17.4% (Northwest 1245); Dannemora 1781 reads 303,433% ($2.02B against $667K). Above 100% (`LOSS_RATE_LIMIT`), the dollars are a load fault, withheld and said so, whatever the flag share. Northwest's scoring tables are unchanged.
+- **The slides stay** on 1781 (Aaron's call) with the flag stated on each. The line on a slide names whichever check fired (`Frame.co_slide_line`).
+- **The speaker note** on the not-repaid slides no longer tells the presenter to read the rate out when most accounts carry the flag: with 99% flagged, every account with a notice gets one "fatal" notice, so the rate looks normal and means nothing.
+- The test fixture's charge-off ($500 on $118 of fees, a 424% loss rate) is now $15 (12.7%), which the new check would otherwise catch.
+
+### 2026-11-17 — ILS analysis: William's not-repaid and default rates replace the 60-day cure slides; November industry edition
+
+Summary: The ILS analysis deck now reports the analysis team's own "not repaid" (fatal notice) rates and Scoring Summary default rates, the way William's Dannemora review computes them, in place of the 60-day cure-rate slides; it adds the Branch Summary slides and the November 2026 industry edition, and fixes three chart and table layout faults.
+
+Aaron, 2026-11-17: "Your cure rate slides are wrong. Look at the fatal notice rates in the deck that William built. Reproduce that logic from his analysis code." Then: "continue adding slides from Williams code overnight, work to organize the deck."
+
+- **Not repaid (`r_fees.not_repaid`).** A charged-off account's fatal notice is its notice nearest its last positive date (the largest Last_Positive_Date over its notices), once per account: `ILS Analysis - Python Script.ipynb` cells 30-34, the same rule as `MasterQueryReordered2025.R`. The table is the notebook's `198_NEWTS_BETA` (accounts, collected fees, business days, fees per business day, pay rate, ineligible %, % fatal, loss rate) for the 12 months to the last complete month; the chart is the daily share over the scoring window with a lowess trend. On 1781, cut at William's 10/25 data date, all twelve monthly % Fatal Notices equal his slide 35, and accounts, fees, business days, pay rate and ineligible % match to the cent. It replaces the "last notice before charge-off" approximation, and is on by default (`include_not_repaid`).
+- **Scoring Summary.** The default rate (the notebook's CURE flag) now shows on an extract whose charge-off flag is on most accounts, as William's deck shows it, with the flag share stated on the slide; only losses and loss rates read n/a. Notices with a limit above the matrix maximum are left out, as the notebook's `risk_set` does ($1,500 on 1781 reproduces William's band counts and fees exactly). Northwest 1245's ten predictor tables are unchanged.
+- **Default story.** `performing` (cure = back to $0 within 60 days) left `DEFAULT_SECTIONS`; `scoring_personal`, `scoring_business` and `branch_summary` joined the Observations part, debit declines lost their stray "Client Analysis" divider, and the business block opens with a "Business Accounts" divider.
+- **Layout.** The predictor bubble chart's key and average now sit above the plot (they collided with the highest bubbles); the Scoring Summary table budgets a two-line header (a 17-band table grew into the slide number); a sparse daily series takes a plain local fit (the robust passes pulled 1781's business trend to "-0.0%").
+- **Industry.** `standard_slides` gains four slide kinds (status cards, a headline panel beside a table, chips, a dated record) for the November 2026 edition in `Build Artifacts/ils_analysis/standard/industry_2026-11.json`; the settlements table wraps its cells at 13 pt instead of shrinking to 10 pt.
+- **Pre-go-live deck.** The core-versus-ILS matrix headers break at their dash on purpose; the new word-break check failed them.
+- Tests: `tests/test_ils_analysis.py` (the fatal rule, dollars withheld but rates kept, the default story, lowess).
+
+### 2026-11-16 — CashPlease roster: every client in Bradford's weekly; ILS analysis matches the analysts' figures; two new table checks
+
+Summary: The CashPlease roster now lists every client in the 11/08 CashPlease weekly (54 added: 44 build, 10 wait for a CashPlease confirmation), so their CashPlease modules show in Sheila after a release; the ILS analysis deck now uses the analysis team's own Scoring Summary and debit-decline rules, holds back charge-off figures when a client's charge-off data is unusable, and the deck gate fails a table word that breaks mid-word or a table that grows into the shape below it.
+
+Aaron, 2026-11-16: "update the roster, and add any CP clients from Bradford's weekly summary spreadsheet"; "create the CashPlease deck for Dannemora"; "check the deck for visual issues. The e on Active here wraps and looks bad."
+
+- **`clients.md` CashPlease roster.** 1781 Dannemora FCU (standalone deck), then every weekly tab the table lacked, from `scripts/roster_candidate.py`: 41 standalone decks for clients whose only RPE program is CashPlease; 1121 Timberland, 1806 SOCU and 1816 Beginnings as sections (they build once their ICS/ARS rows are on the main table, which this change does not add); and Build **no** for ten clients the Velocity export does not list with CashPlease (1049, 1140, 1164, 1472, 1487, 1512, 1543, 1690) or that are not in the Client CSM List (1688, 1701), each with a note to confirm. Names and CSMs come from the Client CSM List.
+- **`scripts/build_cashplease.py`.** `--period` defaulted to a literal `2026.08`, so a November module was filed as `1781-2026.08-CP-...` under a "November 2026" cover; it now defaults to the current month.
+- **ILS analysis (`build/ils_analysis`).** Built against Tim Barrett's Northwest Bank 1245 review from the same pull: the Scoring Summary default is now the analysis notebook's rule (a notice on a charged-off account on or after its last positive date; losses once, on the nearest notice), which reproduces his tables band for band and Achieva's 10.1% first band; Debit Declines to ILS Limit uses the notebook's population (open, can-overdraft, Reg E opted-in) and 90-day count; Private Banking counts with Personal in the KPI rollup only. Dannemora FCU 1781: when more than half of accounts are flagged charged off (every account there: the flag mirrors daily "Charge" rows in the Adjustments feed), charge-off dollars, loss rates and the Scoring Summary read n/a or are left out, with the reason on About this data; a four-branch client keeps its branches (the "dominant branch" rule now needs six or more); text OD status codes are named from the matrix mapping; cure-rate slides skip when the extract cannot see 60 days ahead; layout fixes (zero-based bars, branch tables without repeats, override rules cut at words, treemap slivers, colours, agenda badges). `merge_review.py` adds the ILS prep build's Program Detail, fee schedule and matrix slides and the CashPlease section to a review deck.
+- **Gate.** `validate_deck.table_word_break_findings` (a word wider than its cell breaks mid-word) and `table_growth_overlap_findings` (wrapped rows grow a table into the shape below it); both found real defects on the Dannemora deck that passed at 0 FAIL. Tests: `tests/test_table_word_break.py`.
+
+### 2026-11-17 — Competition layers read transaction_type through `str_values` (`competition_layers.py`)
+
+Summary: The two places the layers cast the categorical transaction type to text row by row now use `ti.compat.str_values`, the rule issue #161 set, so the guard test passes with the layers on main.
+
+- `competition_layers.compute` upper-cased the type of every card row and listed the rails in the file with `astype(str)`; both now cast each category once. No figure changes.
+
+### 2026-11-14 — Transaction Intelligence: large clients no longer run out of memory on the transaction type and merchant columns (`ti/compat.py`, `ti/transaction_intelligence/`, issue #161)
+
+Summary: The Transaction Intelligence build for a client with a very large transaction file (1100 Rally, 46.9 million rows) stopped with "financial_services failed: MemoryError". It now reads those columns without the huge temporary copy; no figure changes.
+
+James Gilmore, 2026-11-13 (issue #161): "1100 - Rally - Memory issues with Transaction intelligence", with Sheila's error "Unable to allocate 8.39 GiB for an array with shape (46941130,) and data type <U48".
+
+- **What was wrong.** The loader keeps the repeated transaction fields (transaction type, merchant key, MCC, field 9 / 11) as categoricals. The ported v5 code turns them into text with `astype(str)`, and under the pandas 2 string rules the cut runs on, that first builds a fixed-width string array over every row: 46,941,130 rows x 48 characters x 4 bytes = 8.39 GiB in one piece, for one column. The 2026-10-29 change for 1798 (merchant descriptions read once per distinct value) did not cover these columns.
+- **What changed.** `ti.compat.str_values` casts each category once (and runs any `.str.upper()` / `.str.strip()` on the categories only), then points every row at its category's string. A missing value still reads "nan", exactly as `astype(str)` writes it, so every figure is the same row for row. All 23 such calls in the transaction sections (portfolio, financial services, competition, merchants, merchant profiles, card behaviour, interchange, relationship, mapping audit, the card-merchant table) now go through it, so the next section does not fail the same way. On a test frame the financial-services step's peak memory fell from about 930 to about 160 bytes a row (measured at 100,000 and 400,000 rows).
+- **Checks.** `tests/test_ti_str_values.py`: the same strings as `astype(str)` (missing values, numeric codes, `.str` steps, filtered rows), a peak-memory bound on the financial-services step that the old code fails, and a source check that no TI module casts one of those columns row by row again.
+- **Not verified on 1100's own file.** The fix was checked on synthetic frames; 1100's TI build has not been rerun. The rest of the step still holds about 160 bytes a row at its peak (about 7.5 GB at 46.9 million rows), so a PC with little free memory can still be short; if it is, the next step is reading the window in parts.
+
+### 2026-11-17 — Competition: one set of figures in the deck, and three fixes from reading a full real deck (`slides.json`, `ti/deck/txn_layers.py`, `ti/deck/charts_layers.py`)
+
+Summary: The Competition chapter no longer carries two sets of figures that disagree. Eleven slides of the older competition section are tossed in the register because the layers slides carry the same figures for banks and credit unions only, and three slide defects found in a full 130-slide deck are fixed.
+
+Found by reading every competition slide of a built 130-slide Transaction Intelligence deck for a credit union (1798). The older section said 20% of accounts, $21.1M, 79 institutions and a $4.9M review queue; the layers said 15.6%, $16.4M, 202 institutions and $376K unplaced. The older figures count payment apps, lenders and card issuers as competitors; the layers count banks and credit unions only, as the plan states.
+
+- **Register.** (The combined slide What competitors take and how much they own is tossed with its two parts, and its pair entry is removed from the combined list, since it can no longer be combined.) Tossed in `slides.json`, with the reason under `_tossed_2026-11-17`: Who competes for our members, The local field, Where the field sits, Where we lose and where we leak, Gaining and losing, Where the dollars go, Who owns the relationship, What competitors take and how much they own, Is the competitor money still moving, Winback targets, Depth against growth. Kept: Filed growth, Payment apps and buy now, pay later, and the ecosystem slides. `TI_SLIDES` all-keep draws them all again, and the ledger lists each as tossed.
+- **Universe slide.** The headline said 174 institutions appear in card spending while the summary said 202: 174 are matched to a registry institution, 6 are digital-only names and 22 are names that fit several institutions. It now says 202 and how many of them are registry institutions.
+- **Lens slide.** The headline carried three group figures and ran into the subtitle; it is now short and the figures are in the subtitle.
+- **Multi-institution slide.** The legend sat on top of the bars; for stacked columns it is now below the chart.
+- Two tests.
+
+### 2026-11-17 — Competition layers: three slide fixes found reviewing a real client's deck (`ti/deck/txn_layers.py`)
+
+Summary: A month with no card rows stays on the trend axis as a gap, the full list's "% of base" carries a % sign, and the ladder headline no longer says "local institutions take 0%" for a client with no local tier.
+
+Found by looking at the exported slides of a real credit-union client's Transaction Intelligence deck.
+
+- **Trend axis.** The month axis came from months that had card rows, so a month with none (a gap in the client's files) dropped off the chart and the line ran straight across it. `_span` fills every month from first to last; the missing month has no point (a gap), never a zero.
+- **Full list.** "% of base" showed `0.90` with no unit; it now reads `0.90%`.
+- **Ladder headline.** With no local tier in the card spending the headline now says no local institution appears, instead of stating 0%.
+- A test covers all three.
+
+### 2026-11-17 — Competition layers: three fixes from Aaron's review of the analyses (`competition_layers_modules.py`)
+
+Summary: A branch on the map takes the tier of the longest matching institution name, not the first; "live" means the same thing in the movement, recency and winback figures; and the section that wires the analyses into the pack is now tested.
+
+Aaron, 2026-11-17, reviewing the stacked pull request 175: "Three things to fix before merge."
+
+- **Map tiers.** `nearby()` found a branch's tier by looking for a seen institution's name inside the branch's institution name and returned the first hit in dictionary order, so a short name such as "First" could take the tier of "First National" or the reverse. It now takes the longest matching name, and a tie goes to the name that sorts first, so the result no longer depends on order. A test with two overlapping names, in both orders.
+- **One definition of live.** `live (30d)` in the recency figure included a relationship exactly 30 days old (its band is right-closed), while `live_30` in the movement figure and the live count in the winback figure used a strict cutoff and left it out, so one relationship was live in one table and cooling in another. All three now use `is_live`: the last payment was `LIVE_DAYS` (30) days ago or less, the day itself included. A test pins a relationship exactly 30 days old and one 31 days old across all three.
+- **The wiring is tested.** `tests/test_ti_competition_layers_section.py` runs `txn_sections.competition_layers` on a small context: the pack keys it writes, the `cl_parts` hand-off left on the context, each institution row carrying its movement and depth, nothing written under the `_cl_` hand-off keys, and the two cases that add nothing (no classification; no reference store, which is stated in the build warnings).
+- No figure changes except the 30-day boundary: a relationship whose last payment was exactly 30 days before the data month now counts as live in the movement and winback figures, as it already did in recency.
+
+### 2026-11-16 — Competition layers month over month: what changed since the prior pack, the triggers, and the portfolio row (`ti/transaction_intelligence/competition_layers_compare.py`, `ti_build.py --prior-pack`)
+
+Summary: A build can be given the previous month's `ti_pack.json` for the same client and then draws "this month's changes": each tier's share of accounts against last month, the institutions that gained or lost accounts, and the triggers that fired. The pack also carries the one row a month adds to a portfolio benchmark. Figures and slides added only.
+
+James Gilmore, 2026-11-16: "i like it monthly."
+
+- **Usage.** `ti_build.py <id> <period> <name> <out dir> --prior-pack <last month's ti_pack.json>`. The pack for another client is refused with a sentence; a prior pack with no layered figures says so in the build warnings and the slides are hidden. Nothing is recomputed from the transaction files: the comparison reads two packs.
+- **What is compared.** The two 12-month windows overlap by eleven months, so a change is what the newest month added and the oldest dropped; the slides say so. Tiers are compared by their share of the transacting accounts, in points; institutions by the number of accounts paying them, each marked new this month, not seen this month or continuing.
+- **Triggers** (defaults in `competition_layers.DEFAULTS`, set per client with `CompetitionLayers`): an institution newly seen with 50 or more accounts, a tier's share moving 0.3 points or more, and coverage under 95%.
+- **Portfolio row** (`cl_portfolio_row`): accounts, the share paying any bank or credit union, dollars, institutions placed, coverage, and the share of accounts paying each tier and each group. It carries no client identifier; whatever writes the benchmark adds the client and the period. Writing the benchmark file is not done here.
+- **Slides** (three, appended to the layers slides): "This month's changes", "Who moved this month", "Triggers this month"; each declines with its reason when no prior pack was given. `ti/slides.json` lists them as keep.
+- **Fix to the stage before it.** The build warning that a file "also carries ... rows" counted a blank transaction type as a rail and read "NAN rows"; a blank type is no longer reported.
+- Tests: `tests/test_ti_competition_layers_compare.py` and the extended slide tests.
+- **Not done:** Sheila does not yet find the previous month's pack by itself; the launcher would need to pass `--prior-pack`, which is a launcher change and its own pull request. A portfolio ledger file is not written.
+
+### 2026-11-16 — Competition layers slides: the full set, drawn after the Competition chapter's own (`build/ars_pipeline/ti/deck/txn_layers.py`, `charts_layers.py`, `chapters_txn.py`, `slides.json`)
+
+Summary: The Competition chapter now ends with the layers slides: how to read them, a summary, the layer ladder, a map of competitor branches near the client, the top institutions, **every institution paid in a ranked list**, six slides for each of the five main tiers, and fifteen whole-book slides. Every headline is computed from the figures it sits on; the chapter's own twenty builders are unchanged.
+
+James Gilmore, 2026-11-16: "the visuals, the charts, the insight ... the list of competitors."
+
+- **What is drawn.** Orientation (how to read the layers, summary, ladder, branch map, registry against institutions paid, top by dollars and by accounts); the full ranked list, 15 institutions a page; for each of Local, Regional, National, Digital and Other: who the money goes to, who pays (by group), movement in 90 days, depth, reach against depth, and profile cards; then the heat table of group by tier, every group against every tier, near-responders (ARS lens only), spend, PIN share and competitor share by month and group, institutions per account, recency, distance from a client branch, competition and attrition, the branch scatter, winback counts, coverage and the unplaced text, and the action register. About 55 slides for a client with every analysis available.
+- **Headlines state the finding** and are computed: "National and digital institutions take 68% of competitor dollars; local institutions take 15%" is the figure, not a template. A client's own base is "members" at a credit union and "customers" at a bank, and "accounts" when the client's type is unknown; a competitor's base follows that institution's type.
+- **A view the client's files cannot support declines with its reason and is hidden**, as every builder of the cut does: no closure dates (competition and attrition), no branch coordinates (the map), fewer than three institutions in a tier (that tier's slides), a client with no near-responders. Nothing is drawn as a zero.
+- **Both lens decks.** The ARS lens draws responders, mailed non-response (with the near-responder split) and no mail; the ICS lens draws ICS account, direct mail, referral and not ICS.
+- **Slide notes** name the client and say these slides are computed by the competition layers section and are not ported from the ARS v5 engine.
+- `ti/slides.json` lists all 52 new titles as "keep" and in the Competition chapter's register. `COMP_BUILDERS` stays v5's twenty (the existing test pins it); the layers builders are appended to what the chapter draws. `Deck.helpers()` gains `lens` and `relabel`.
+- Branch labels carry no decimal; charts use the cut's palette and type floor, and a bubble's label starts at its own bubble's edge so the chart layer's overlap check passes.
+- Chart labels on a bar, a wedge or a heat cell are navy with a white stroke, never white: `tests/test_chart_colors.py` refuses a mark drawn in the canvas colour.
+- Tests: `tests/test_ti_competition_layers_slides.py` (synthetic figures: every builder declines on an empty client and draws on a full one, the full list covers every institution once, the ICS lens, and the whole set through the real `Deck` helpers into a presentation).
+- **Not done in this stage:** the month-over-month comparison slides.
+
+### 2026-11-16 — Competition by layer: the analyses on the layered figures (`build/ars_pipeline/ti/transaction_intelligence/competition_layers_modules.py`)
+
+Summary: The `cl_*` figures now carry ten analyses of who members pay and how: a monthly trend by group, 90-day movement, depth of wallet, institutions per account, recency, distance from a client branch, winback counts, closure after paying a competitor, a branch table, and the competitor branches near the client for a map. It adds figures only: no `comp_*` figure and no slide changes in this stage.
+
+James Gilmore, 2026-11-16: "rich insights at every level."
+
+- **Trend** (`cl_trend`): card dollars, active accounts, PIN share and competitor share by month, for the whole base and each group. Every month is a complete month inside the 12-month window the loader returns.
+- **Movement** (`cl_movement`, `cl_tier_movement`): per institution, relationships (an account paying an institution) first seen in the last 90 days, last seen before that, and live in the last 30. The window is 12 months, so "new" is a floor and "stopped" counts long-quiet relationships; the slides say so.
+- **Depth** (`cl_depth_tiers`, `cl_depth_institutions`): each relationship by the share of the account's card dollars it takes (under 5%, 5-20%, 20% or more); 20% or more is primary-relationship competition.
+- **Institutions per account** (`cl_multi`), **recency** (`cl_recency`: live in 30 days, 31-90, 91-180, dormant), **distance** (`cl_distance`: competitor dollars by the distance of the institution's nearest branch to a client branch; a name on the universal list takes the distance of the registry institution it names, so a national with a branch next door is not counted as distant).
+- **Winback** (`cl_winback`): heavy relationships still live in the last 30 days at a Local, Local (25-50 mi), Regional or State institution, by institution and group. Counts only: no account list is written.
+- **Competition and attrition** (`cl_attrition`): closure in the second half of the window by whether the account paid a competitor in the first half, for any institution and for each tier, with the relative risk. An association, never a cause; the cohort is the accounts with card activity before the midpoint that had not closed by then. Needs the ODD's `Date Closed`; without it the build says so and the figure is absent.
+- **Branches** (`cl_branches`): per ODD branch with 50 or more transacting accounts, the competitor share by tier and the 12-month closure rate. A branch is written as a person writes it: no decimal on a number ("309", not "309.0") and "(no branch)" when it is missing.
+- **Map points** (`cl_map`): the client's branches and every competitor branch within the local radius, each carrying its institution's tier when the institution appears in the card spending.
+- Each institution row in `cl_institutions` also carries its new, stopped and live counts and its heavy and mid depth counts.
+- Tests: `tests/test_ti_competition_layers_modules.py` (synthetic matched rows, each analysis pinned to figures worked out by hand).
+- **Not done in this stage:** the slides and the monthly comparison.
+
+### 2026-11-16 — Competition by layer: every bank and credit union members pay, placed in a layer, split by group (`build/ars_pipeline/ti/transaction_intelligence/competition_layers.py`, `ti/txn_sections.py`)
+
+Summary: The transaction figures now include `cl_*`, which finds banks and credit unions in the card file by matching against every FDIC and NCUA institution (not a list of about 100 names), places each in a layer, and splits the result by the account groups. It adds figures only: no `comp_*` figure and no slide changes in this stage.
+
+James Gilmore, 2026-11-16: "we should be able to find all the competition ... national, regional, district, state, local."
+
+- **Why.** On the lab check of one client the existing competition figures named 79 institutions from a fixed dictionary, while the card file held more than a thousand bank-and-credit-union-looking names: card text is cut near 22 characters and carries processor tags (`CU#`, `OBP*`), which defeated name matching (a configured credit union matched $34K while $321K of its own spend sat unmatched in the review queue). The Regional tier was empty and the Fed-district layer from v5's competitor book was not carried over.
+- **How an institution is found.** The registry (`ti.core.market`, the FDIC and NCUA reference store the filed figures already read) holds every bank and credit union with its branches. A description is matched on whole tokens in `normalize_core`'s form, after the tag is dropped and a cut ending is repaired (`CREDIT UNIO`, `FEDERAL CREDIT`). A credit union matches as its stem plus CU or FED CU, never as a bare stem; a bank needs two words or BK. Marketplace tags (`SQ *`), venues named after a bank (an arena) and the client's own names are refused. A name that fits several institutions goes to the nearest only when it is more than 25 miles nearer, else it is left "Unresolved (ambiguous)".
+- **Layers.** National (the universal list, or branches in 10 or more states), Digital, Local (a branch within 25 miles of a client branch), Local (25-50 mi), Regional (headquartered in the client's Fed district), State, Other, and Card-issuing banks (FDIC banks whose payments are card payments, shown apart for review). The thresholds are `competition_layers.DEFAULTS`, overridable per client with `CompetitionLayers` in the client config. The Fed district is the client's `FedDistrict`, else its state's primary district.
+- **Scope.** Banks and credit unions only; lenders, auto captives, brokerages, payment apps and BNPL stay in the financial-services figures. Card rail only (PIN and signature): a file that also carries ACH or check rows says so in the build warnings, and transfers to institutions are not in the layers.
+- **Groups.** Responders, mailed non-response, no mail; the mailed non-response split into near-responders (`NU 1-4` on a mailer's Resp column, below the response threshold) and no response at all; and, for an ICS client, ICS account, direct mail, referral, not ICS. Each tier row carries every group's accounts, percentage and dollars. Accounts do not add across tiers, so `cl_any` is the de-duplicated total.
+- **Figures added** (`cl_scope`, `cl_base`, `cl_any`, `cl_tiers`, `cl_institutions`, `cl_review_queue`, `cl_coverage`, `cl_universe`): coverage is placed dollars over placed plus unplaced bank-like dollars, and the unplaced text is listed (60 names), never dropped. A client with no market record, no Fed district or no reference store says so in the build warnings and the affected tiers are not placed, never zeroed.
+- The configured names in the client config (`LocalCompetitors`, `RegionalCompetitors`) are matched to the registry and kept as aliases; a name the registry does not know becomes an institution of its own in that tier.
+- Tests: `tests/test_ti_competition_layers.py` (synthetic institutions and accounts; the look-alike descriptions that matched wrongly in the lab, the cut and tagged names that must match, tier placement, ambiguity, group partition, reconciliation).
+- **Not done in this stage:** the analyses built on these figures (trend, movement, depth, recency, attrition, branches, winback), the slides, and the monthly comparison; each is its own stage.
+
+### 2026-11-16 — Transaction loader reads the 6.0.11.0 export: `DDA Account`, `Description1`, `External Transaction Code` (`build/ars_pipeline/ti/transaction_intelligence/loader.py`)
+
+Summary: A client whose monthly transaction files use the 6.0.11.0 header now loads with an account, a transaction type and a description on every row; before, all three were empty on every row, so the Transaction Intelligence cut read no card rows for that client.
+
+James Gilmore, 2026-11-16: "build everything completely."
+
+- **What was wrong, found by reading one client's cached files.** The files carry a pipe banner and then a named tab header: `Transaction Date`, `DDA Account`, `External Transaction Code`, `Transaction Amount`, `MCC Code`, `Description1`, and a second `External Transaction Code`. The loader's header map had none of `DDA Account`, `Description1` or `External Transaction Code`, so those columns were read as extras: in all 11 cached months 100% of rows had no account and no transaction type, and a build reported 0 personal card rows.
+- `DDA ACCOUNT` is read as the account, `DESCRIPTION1` as the merchant text, and the **first** `EXTERNAL TRANSACTION CODE` (the rail: `PIN`, `ACH`, `CHK`) as the transaction type. The **second** column of that name is the numeric code and is read as `transaction_code`, never as a second type column. A header that names the same field twice keeps the first and reads the rest as extras.
+- A cached parquet whose account column is empty on every row is discarded and the raw file read again, with the warning "no parseable dates or no accounts". Without this, the months already parsed with the old header would have been served from the cache.
+- No figure moves for a client whose files already parsed: the single-account-header layout reads exactly as before (`test_a_layout_with_one_account_header_is_unchanged`).
+- **Not done:** this layout carries ACH and check rows as well as card rows, so the transfer-rail rules in the competition and leakage sections apply to it; they have not been checked against a build of that client's real files.
+- Tests: `tests/test_ti_loader_dda_header.py` (synthetic rows).
+
+### 2026-11-16 — User guide: Transaction Intelligence and the mail lists (`scripts/launchers/ARS Deck User Guide.html`)
+
+Summary: Documentation only. Based on `docs/financial-services-guide`, which sits on the Financial Services stack; **describes what that stack delivers, so it should merge after it.** The copy on the share is released from this file (Aaron's release), so the share is unchanged until then.
+
+- New section **Transaction Intelligence and the mail lists**: the `<id>-<period>-TI-Lists` folder beside the deck, the master list and how to use it, the blank `cif` column, the personal-accounts base, and the three words on the slides (any leakage, addressable, adjacency).
+- Where things are: a row for the lists folder. Terms: any leakage, addressable, master list, review queue. If something goes wrong: the deck is in Outputs but the lists are not. Contents and the Sheila panel paragraph link to the new section. Footer date 2026-11-16.
+- A new generated page, `docs/financial-services.html` (`scripts/build_financial_services_guide.py`), is the full reference; the guide points CSMs to Aaron for the current copy.
+
+### 2026-11-16 — The Transaction Intelligence build now puts the mail lists in Outputs beside the deck (`scripts/ars_launcher.py`)
+
+Summary: Based on `feat/ars-ti/fs-07-dictionary-v7` (stacked on PR 163). **A launcher change (`build_ti`), which Sheila's button depends on: for Aaron's review.** The deck delivery is untouched.
+
+- **What was wrong.** `ti_build` writes the lists, the review queue and the slide ledger into the staging folder, and `build_ti` copied only the validated `*.pptx` out, so a CSM never saw any of them (found while documenting where the lists land).
+- **Now:** after the deck is delivered, `ti_lists_to_outputs` copies `lists/` (one CSV per category, `finserv_master_list.csv`, `finserv_review_queue.csv`) and `ti_slide_ledger.csv` to `Outputs/<CSM>/<id>-<period>-TI-Lists/`. A folder already there for the same period is archived under the CSM's `_Archive`, never overwritten, the same way a superseded deck is.
+- **A problem copying the lists is a warning, never a stop,** and never un-delivers the deck.
+- Tests: four in `tests/test_ti_launcher.py` (delivery, archive on rebuild, no lists, a copy failure). The seven tests in `test_ti_launcher.py` and `test_companion_deck.py` that raise `SystemExit` from `rpe_env` with an empty data root fail the same way on clean `main`.
+
+### 2026-11-16 — Financial-services dictionary v7: 14 names read from 1798's review queue (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`)
+
+Summary: Based on `feat/ars-ti/fs-06-portfolio-ledger` (stacked on PR 163). **Moves figures**, so it is its own PR: more rows match, no matched row changes category.
+
+- **Why these names.** The review queue (descriptors the dictionary missed, by dollars) on 1798's October 2026 file was $1.14M; its top rows were consumer-finance lenders, insurers and a crypto on-ramp. The depository names in the same queue (Nusenda, Mountain Star, Raiz, White Sands, Hughes, US Eagle) are Competition's, not added here.
+- **Added (14):** Payday / Small-Dollar Loans: World Finance, World Acceptance, Sun Loans, Security Finance, Republic Finance, Regional Acceptance, Heights Finance. Buy Now Pay Later: Snap Finance. Insurance: Fred Loya, Foremost Insurance. Crypto: Transak, Trust Wallet. Mortgage: Bilt Mortgage. Auto Loans: Stellantis Financial. Names already in the dictionary (Mariner, Lendmark, OneMain, Chrysler Capital) were not repeated.
+- **Effect on 1798, October 2026 (one month):** 1,765 rows ($338K) newly matched: Payday 983 rows / $158K, Insurance 611 / $78K, Crypto 15 / $34K, BNPL 127 / $27K, Mortgage 10 / $23K, Auto 19 / $18K. **Accounts with any leakage 13,694 to 14,393 (+5%).** No row that matched before changed category. Every newly matched descriptor was read.
+- Lookalikes stay unmatched (tested): World Market, Sun Valley Hardware, Security Storage, Republic Services, Regional Medical Center, Snap Fitness, Heights Bakery.
+- Tests: `tests/test_ti_finserv_dictionary_v7.py` (21).
+
+### 2026-11-16 — A slide ledger and a portfolio row beside every TI build (`ti/ledger.py`, `ti/portfolio.py`, `ti_build.py`)
+
+Summary: Based on `feat/ars-ti/fs-05-institution-view` (stacked on PR 163). Writes two small files beside the decks; **changes no slide and no figure.** A failure writing them is printed and never costs the decks.
+
+- **`ti_slide_ledger.csv`:** every slide of the Transaction Intelligence and Competition chapters with its status (`drawn`, `merged`, `hidden`, `tossed`) and the reason, so nothing leaves the deck without a line (James reviews the whole deck and needs to see what was removed). Today's selection file: 59 slides, 27 drawn, 14 merged into 7 pairs, 18 tossed in `ti/slides.json`; `hidden` comes from the client's own declined slides.
+- **`ti_portfolio_row.csv`:** one row for this client and data month (any / addressable / adjacency leakage rates and dollars, coverage, review-queue dollars, accounts at a named depository). The Competition columns are added to `portfolio.COLUMNS` when that chapter's registry lands.
+- **The shared table is opt-in.** If `RPE_TI_PORTFOLIO` names a file, the row is also upserted there (the same client and month replaced, other clients and any columns a newer build added are kept). The build never chooses a shared location itself; where the table lives is Aaron's call.
+- Tests: `tests/test_ti_ledger_portfolio.py` (18).
+
+### 2026-11-16 — Financial services x named institution: who holds the product members pay for (`ti/transaction_intelligence/institution_view.py`, `txn_sections.py`, `chapters_txn.py`)
+
+Summary: Based on `feat/ars-ti/fs-04-trend-depth` (stacked on PR 163). A new section, `institution_view`, runs right after `competition`. Adds figures; **changes no slide and no existing figure.**
+
+- **`fininst_by_category`:** per leakage category, accounts and dollars, and how many sit at a named national, regional or local bank or credit union. **`fininst_matrix`:** the top category x institution pairs.
+- **Both views count the payment; they are never added** (James). Competition counts `NUSENDA CU LOAN PMT` as Nusenda; Financial Services counts it as a loan. This is a cross-tab of the two, not a third total: every pair's dollars are already inside the category's dollars (tested).
+- **A floor.** The match uses what Competition is configured with today (the universal list plus the client's regional and local names). A depository in neither is not found; the Competition registry is what closes that.
+- **1798, October 2026:** 867 personal accounts at a named depository; Insurance at USAA 511 accounts / $171K; Credit Cards at Capital One 226 / $47K; Auto Loans at TD Bank 24, Capital One 23, Wells Fargo 12. Buy Now Pay Later, Personal Loans and Payday: none (fintech lenders, not banks).
+- Depository tiers only (`National Bank`, `Regional Bank`, `Local Bank / CU`); card issuers, captives, brokerages and ecosystems are not named here.
+- Tests: `tests/test_ti_finserv_institution_view.py` (9). The TI group passes except the four `test_ti_launcher.py` tests that fail the same way on clean `main`.
+
+### 2026-11-16 — Financial services: a monthly series per category, a three-month trend, and the products leakers hold with us (`ti/transaction_intelligence/financial_services.py`)
+
+Summary: Based on `feat/ars-ti/fs-03-definitions-coverage` (stacked on PR 163). Adds figures; **changes no slide and no existing figure.**
+
+- **`fin_months`, `fin_monthly`:** for every category, accounts paying and dollars in each month of the window. The month axis is the file's months, so a month with no match reads zero instead of disappearing.
+- **`fin_trend`:** last three months against the three before (dollars and % change) per category, from six months of data; `peak_month` from twelve. A category that spikes seasonally (insurance renewals, tax) should be read against `peak_month`, not the three-month change.
+- **`fin_leakers_hold`:** for each addressable category with 20+ leakers, the top three products they hold with us (ODD `Prod Desc`), so a list can say what to offer.
+- **Not built:** marking mail months on the series needs the mailing calendar, which is not in these figures; charts and slides for the series are for Aaron.
+- Tests: `tests/test_ti_finserv_trend.py` (7), including the empty-month case a first draft got wrong.
+
+### 2026-11-16 — Financial services: one printed definition of "leaking", and a coverage figure (`ti/transaction_intelligence/financial_services.py`, `finserv_report.py`, `ti_build.py`)
+
+Summary: Based on `feat/ars-ti/fs-02-lists-master` (stacked on PR 163). Adds figures and a build-log read-out; **changes no slide and no existing figure.** Slide wording is for Aaron (see below).
+
+- **`fin_definitions`:** "any leakage" (the headline) and "addressable" (the by-lens table) side by side, each as accounts, % of the base and dollars, with the base size and the accounts in the file; adjacency (P2P, fintech wallets) reported apart and never added. On 1798 October 2026 these are 26.9% and 18.6% of 49,615 accounts; the deck's 42% and 18% are the same two definitions over twelve months.
+- **`fin_coverage`:** matched rows and dollars as a share of the file, card vs transfer rows, whether wallet share can be computed (it needs the ACH/check rail), and the review-queue dollars. 1798 October: 8.8% of rows and 15.9% of dollars matched, $1.14M in the review queue.
+- **`finserv_review_queue.csv`:** the whole review queue (634 descriptors on 1798), written beside the lists when `lists_dir` is set. The deck still shows the top rows; this is for dictionary work.
+- **Build log:** `finserv_report.lines` prints both definitions and the coverage line after the v5 read-outs. `sections_report.py` is a v5 port and is untouched.
+- **For Aaron, not built:** the headline slide's sub-line could print both rates and the base. It is Sheila-reviewed wording, so it is left as it is.
+- Tests: `tests/test_ti_finserv_definitions.py` (8).
+
+### 2026-11-16 — Financial-services mail lists: every category, one master list, and the build now writes them (`ti_build.py`, `ti/transaction_intelligence/financial_services.py`, `lens.py`)
+
+Summary: Based on `feat/ars-ti/fs-01-finserv-dictionary-repair` (PR 163); merge that first. Adds files; changes no figure on a slide.
+
+- **The lists were never written.** `financial_services.compute` wrote its lists only when `ctx.shared["lists_dir"]` was set, and nothing in the build set it. `ti_build.compute_pack` now takes `lists_dir` and `main` passes `<out dir>/lists`. This also turns on the lists Competition already knew how to write (`competition_*.csv`); they are v5's files, unchanged.
+- **A list for every category, not only the 16 addressable ones** (22 now). A category nobody is in gets its header only, so the file set does not change month to month.
+- **`finserv_master_list.csv`:** one row per account per category: `acct_id`, `cif`, `list_type`, `kind`, `addressable`, `tier`, `txns`, `dollars`, `wallet_share`, `last`, `mailable`. Rows are the personal-account base the headline counts.
+- **`cif` is blank today.** No client file carries a member key (`ti/core/facts.py`). `compute` takes an optional `cif_map` and `txn_sections` reads it from `ctx.shared["cif_crosswalk"]`; when a crosswalk is loaded there it fills with no other change.
+- **`mailable`** is the ODD's `Mailable?` (now kept in the lens attributes), or `unknown` for an account the ODD does not list.
+- Checked on 1798, October 2026 card file: 22 lists, 36,716 rows, master equals the sum, no account twice in a category.
+- Tests: `tests/test_ti_finserv_lists.py` (11).
+
+### 2026-11-16 — Financial-services dictionary v6: one category per pattern, generic descriptors are never the provider, payday lenders and known misses added (`build/ars_pipeline/ti/dictionaries/financial_services_patterns.json`, `ti/transaction_intelligence/financial_services.py`)
+
+Summary: A change to what the Financial Services figures count, so it is its own PR (COLLABORATORS: a change to what a figure computes). Found by auditing the chapter and re-running 1798's October 2026 card file before and after. No Competition code changed; Competition reads the same matcher, so a descriptor that moves category here moves there too.
+
+- **Generic descriptors published as a provider.** `CARD PAYMENT`, `AUTO LOAN`, `LOAN PAYMENT`, `AUTO FINANCE` and `INS PREMIUM` showed in the who-they-pay tables as if they were lenders. The dictionary now lists `generic_descriptors`; they keep their category and publish as `(unnamed)`. On 1798: 120 rows relabelled, none left.
+- **16 patterns sat in two categories** (SOFI BANK, SYNCHRONY BANK, SALLIE MAE BANK, WEALTHFRONT, SANTANDER CONSUMER, LOAN DEPOT, EMPOWER, MARCUS, ACORNS, FIDELITY NETBENEFITS, three PAYPAL forms). Each is now in the more specific product category. These are judgment calls; review them before merging.
+- **Added:** bank + AUTO / MTG / MORTGAGE patterns for PNC, USAA, Wells Fargo, Bank of America, US Bank, Truist, Fifth Third, Regions, Citizens (so `WELLS FARGO AUTO` is an auto loan, not an online bank); DISCOVER CARD, CREDIT ONE, LENDINGCLUB, GOLDMAN SACHS BANK, DAVE COM; a new addressable leakage category, **Payday / Small-Dollar Loans** (Advance America, Speedy Cash, Check N Go, Ace Cash Express, Plain Green, Check Into Cash, OppLoans).
+- **Effect on 1798, October 2026 (one month):** matched rows 183,157 to 183,360; accounts with any leakage 13,637 to 13,694; 203 rows ($55K) newly in Payday; 16 rows moved from Online Banks to Auto Loans; 1 row Financial Advisory to Retirement. Every new payday and Wells Fargo match was read and is a real lender.
+- Categories 21 to 22, so a deck's category count and any hard-coded category list move with it.
+- Tests: `tests/test_ti_finserv_dictionary_v6.py` (25 new). The TI group passes except four `test_ti_launcher.py` tests that fail the same way on clean `main` with an empty data root.
+
+### 2026-11-09 — ILS review reader: every cover style, and a plain reason when a review's figures are pictures (`build/review_page/ils_review_pack.py`)
+
+Summary: Live Review's ILS reader now reads the client's name and date from all four cover styles in use, and says when a review's tables are pictures instead of calling it "not an ILS Program Analysis"; it still reads the same 5 of the 46 reviews on the share, because the other 41 hold their figures as images.
+
+Aaron, 2026-11-09: "teach the reader the other review layouts."
+
+- **What was wrong, found by running the reader over all 46 reviews on the share.** 18 failed on the cover (the line it needed is not on the cover of the 2026 layouts, which print the title later, with stray spaces in "PARTNERING FOR SUCCESS", or on the older ones carry only the legal notice) and 23 on "fewer than three tables". With the covers fixed, **no review gained a pack**: the other 41 are the analysis team's current decks, whose KPI rollup, peer comparison and monthly tables are pasted in as pictures, so there is no text to read a figure from. What the text layer still gives them is the institution page (39 of the 41) and the consultant's opportunity bullets (31 of the 41), never a number the page could trace.
+- Cover: the title is searched on the first three pages in all four styles ("Partnering for Success <client> <date>", "PARTNERING FOR SUCCESS · ANNUAL REVIEW ILS® Program Analysis <client> <date>", "ILS Program Analysis <client> <date>", both phrases together). A cover with no title takes the client from the file name and has **no day**: the pack carries `review_period` (the file name's month) and the page says "the July 2026 review", never a day it was not given. `title_from` records which.
+- A review with fewer than three text tables is refused with the reason ("only N of the review's tables are text: the rest are pictures in the PDF"). Live Review's message for a client whose review is on the share but has no pack now says that, not "not on the share yet". The three-table bar is unchanged, so no near-empty pack is written.
+- **Not done, and Aaron's call:** reading the pictures (OCR: a new dependency, and every figure would still have to reconcile with its total), packing the institution page and bullets alone, or taking the ILS figures from the data pull with `build/ils_analysis`, which already builds the deck from a pull (1821 was built that way on 2026-11-09).
+- One file-name oddity on the share: 1677's review is named 2022.02 but its cover is dated January 30, 2023.
+
+### 2026-11-06 — ILS review PDFs go on the share, and Live Review's ILS section is offered from Sheila
+
+Summary: Each client's newest ILS Program Analysis review PDF is now copied to the CSM_Reporting share and read into the figures Live Review shows, so any CSM can open the ILS pages from Sheila without the OneDrive Clients library. The ILS pages are now offered from Sheila.
+
+Aaron, 2026-11-06: "put ILS review PDFs on the share" (the ILS source decision left open when Live Review first opened from Sheila).
+
+- New input folder `Inputs/ILS Reviews/<id>/` (`rpe_env.INPUT_KIND_DIRS["ILS reviews"]`, never scanned by the watch). `scripts/land_ils_reviews.py --from <Clients library>` copies the newest review per client from its `ILS Delivery` folder, copy-only: nothing deleted or overwritten, an older review stays beside a newer one, a same-name file at another size is reported and left.
+- The same run reads the review into `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json`, so a CSM's PC reads that pack and parses no PDF. A review whose tables do not reconcile is landed and reported with no pack, and a client with a pack that cannot be refreshed keeps the old one.
+- `live_review_ui.EXCLUDED_PROGRAMS` is now empty: ILS is on Sheila's Live Review. The card's readiness list names the ILS review for a client that has one, and for a client the roster lists on ILS that has none yet.
+- A page for a client with no ILS pack says the review is not on the share yet and to ask Aaron (it used to say to run a Python script).
+- The ILS pages show the review's own date and its data-through date and do not change with the period the page is opened for, so a client whose newest review is old (the oldest newest is 2018) shows an old review.
+
+## 2026-11-06 — Live Review opens from a client's page in CSM Sheila (prototype)
+
+### 2026-11-06 — Live Review opens from a client's page in CSM Sheila (prototype)
+
+Summary: A CSM can now open Live Review for a client from the client's page in Sheila, with a Live Review card (Open, Stop and what is ready), instead of a command in a terminal. It is still a prototype, the peer comparisons show client numbers only, and the ILS section is not offered yet.
+
+Aaron, 2026-11-06: "what would it take to let other CSM create these?", then "start with the Sheila button and release, include peer comparisons with the client number only. LR stays in prototype status."
+
+- `scripts/live_review_ui.py` runs Live Review's server inside Sheila's own process on a thread. It is not a build job: it takes no place in the build queue and not `build.lock`, so a review held open for an hour does not stop the PC's builds. Building the page reads the share and can take minutes, so Open returns at once and the card shows "Building the page" until it is ready; the page then opens in the CSM's browser.
+- The traceability audit still refuses to serve a page with a figure that traces to no pack (the card lists the figures); a peer is a dot whose hover gives its client number and nothing else.
+- ILS is held back from this door (`EXCLUDED_PROGRAMS`) whether or not a build of Live Review has it; its section reads a finished review PDF that not every CSM can see. Decision pending.
+- `scripts/sheila_hub_live.py` is the card; `ars_launcher_web.py` adds the `live` block to a client's status (file presence only; a failure never costs the RPE status) and the `/api/live/*` routes behind Sheila's token.
+- `tests/test_live_review.py`: the old "Sheila does not know about it" test now says Sheila reaches it only through `live_review_ui`. `tests/test_live_review_ui.py` is new.
+- Reaches CSM PCs with the next release (the release already mirrors `scripts/` and `build/`); nothing about the release script changed.
+
 ## Changes, newest first
 
 This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an entry out of it:
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
+
+### 2026-11-06 — Live Review: the side bar's list scrolls under its border, not over it (`build/review_page/static/live.css`)
+
+Summary: In Live Review's side bar, the screen names now slide under the bar's top edge as the list scrolls, instead of crossing it.
+
+Aaron, 2026-11-06: "on the LR side bar, the item labels should slide under the slide bar border, not over it."
+
+- The bar's lit top edge was an inset shadow, which is painted beneath the content, and 18 px of padding above the first item was part of the scrolling area, so a scrolled label crossed the edge and showed in that strip. The edge is now the border, there is no padding to scroll into, and the old padding is two spacers that scroll away with the list. The phone's bottom bar is unchanged.
+
+### 2026-11-06 — Contact Us slide: phone and email are centered under the name (`build/shapes.py`)
+
+Summary: On every deck's Contact Us slide the phone number and email address now sit centered under the contact's name, with the small icon to the left of each line.
+
+Aaron, 2026-11-06: "placement for phone and email should be centered under the name." `draw_contact_slide` used to center the icon-and-text pair as a unit with the text left-aligned, so each line's words started at a different place and sat off the name's center line. The text box is now centered on the name's column and its paragraph centered; the icon hangs off the text's left edge. A missing phone still lets the email take its row. `tests/test_contact_slide.py` pins the centering for one and two contacts.
+
+### 2026-11-06 — Live Review takes the Burgard Finances dashboard's blue glass colors in place of orange (`build/review_page/static/live.css`, `live.js`)
+
+Summary: Live Review no longer uses orange to mark what is selected. It now uses the blue accent, black selected pill and blue-teal background of the Burgard Finances dashboard, in light and dark.
+
+Aaron, 2026-11-06: "i don't like the orange highlight. use the color scheme from my financial dashboard." The selected program tab, the selected screen, the page mark, the sidebar and bar highlights, a selected table row, this client's dot and legend in the peer plots and a single highlighted bar all wear the accent (`#0E6FB0` light, `#58B6EC` dark); the selected pill in a segmented control is black in light mode and near white in dark; the page ground is the dashboard's blue-teal gradient. The second series color in a chart is the dashboard's amber for money out (`#D08A1A`, `#E5B15B` in dark), not the old CSI orange. The title card shown when the story moves to another product keeps its deck artwork (the orange wedge); its progress track uses the accent. Program tag colors (REMS in rust) are unchanged.
+
+### 2026-11-06 — Live Review: an ILS section built from the client's latest ILS Program Analysis review (`build/review_page/programs/ils.py`, `ils_review_pack.py`, `scripts/ils_review_pack.py`)
+
+Summary: Live Review has a new ILS program that shows a client's latest ILS review as four pages: program summary, fees and losses, how accounts use the program, and how the client compares with its peers. A script reads the review's PDF into a pack first, and refuses a table that does not add up.
+
+Aaron, 2026-11-06: "build a LR page for Marine FCU using their last ILS analysis review" (Marine's July 18, 2026 review, data through June 25, 2026). The review is a deck, so `scripts/ils_review_pack.py <review>.pdf` reads its text tables (institution, peer comparison, account utilization, mature accounts, the two 12-month periods and their annual comparison, the OD risk metrics) into `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json`; the 12 months of each period must add to the annual row and the utilization tiers to their total, or nothing is written. The page derives only differences (a percent change, points apart) and records each; the review's own commentary and opportunity analysis are quoted in the Sources panel, not restated as claims. Every screen says the figures are the review's date, whatever period the page is opened for. The review's charts are pictures and are not on the page. Fee changes are stated with both figures and no cause, because the +/-2% movement wording is about what the program did and a price cut is not that. New `pct2` format (two decimals) for a default rate, which a one-decimal percent shows as 1.4% against a prior 1.69%.
+
+### 2026-11-06 — Inputs/ILS Analysis gets a naming convention and a tool that applies it (`scripts/ils_analysis_inputs.py`, `docs/ILS-ANALYSIS-INPUTS.md`)
+
+Summary: The ILS Analysis inputs folder now follows one layout: a folder per client number, a folder per data pull named by its date, extracts named `<id>_<kind>_<yyyymmdd>`, and the analysts' workbooks kept by name under an `analysis` folder. A tool applies it, and it can undo what it did.
+
+Aaron, 2026-11-06: "clean up the file names in Inputs\ILS Analysis and create a naming convention and organization system for those files going forward." The folder was a copy of the analysis share's small files with dozens of spellings of a pull folder (`DataPull_202209`, `Data Pull 2017-07-13`, `2015_08 Redwood`, `DataPull_2024.11.5 1155 winsouth`) and half a dozen of an adjustments file. The extract kinds are the names the ILS Program Analysis builder finds, so a pull folder can be handed to it as it stands. Nothing is deleted or overwritten, every move is listed in `Build Artifacts/ils_analysis_inputs/renames-<stamp>.csv` first, and `--undo` restores it.
+
+### 2026-11-06 — ILS analysis deck: "About this data" slide after the agenda, no "As of" pill on every slide (`build/ils_analysis/ils_review/client_slides.py`, `build.py`)
+
+Summary: The ILS Program Analysis deck no longer repeats the "As of" date at the top of every slide. A new slide 3, "About this data", gives the as-of date, when each extract was pulled, and four size figures: accounts pulled, open accounts, branches analysed.
+
+Aaron, 2026-11-06: "we don't need to repeat the same data on the ILS deck every slide, especially on the Agenda slide. We can add a slide outlining when the data was pulled at the top with some key summary metrics." The pull dates are the date stamps in the extract file names and the counts are the rows read, so the slide cannot disagree with the slides after it. The Data Notes slide's subtitle no longer repeats the date either. Other slides' subtitles still name their own window ("trailing 365 days to ...").
+
+### 2026-11-06 — ILS analysis deck: cover logo at the bottom right, no client numbers on the peer slides (`build/ils_analysis/ils_review/build.py`, `peers_slides.py`)
+
+Summary: On the ILS Program Analysis deck the client's logo now sits at the bottom right of the title slide, balancing the CSI mark at the top left. The peer comparison slides no longer print other clients' numbers, and the orange dot is named with the client's own name instead of "This client".
+
+Aaron, 2026-11-06: "move the client logo to the bottom right to balance against the CSI logo in the top left"; "For the power point version, don't show Client IDs since we can't hover to show them. Also, where it says 'this client' use the actual client's name." The strips no longer label the highest and lowest peer, the legend reads "Another client / Middle half of peers / Median / <client name>", and the "how to read it" line describes the shaded band and the median. The speaker notes and the figure sidecar still carry every peer's number and value. Live Review is unchanged: it shows a peer's number on hover.
+
+### 2026-11-05 — ILS Program Analysis deck: four-part agenda, matrix in the appendix, and the ILS consultant on Contact Us (`build/ils_analysis/ils_review/`)
+Summary: The ILS Program Analysis deck now follows Aaron's agenda (Industry Update, Program Performance, Observations and Recommended Actions, Appendix and Matrix Validation), with no description lines, the matrix moved into the appendix, and the ILS consultant's card beside the CSM on Contact Us.
+
+"use these agenda items and remove the descriptions of the agenda items" (Aaron, 2026-11-05). Each part has one divider with no subtitle; the story's three-act dividers are gone, so the slide count is unchanged. Industry Update now comes first. Observations and Recommended Actions holds the slides that explain what drives the numbers (exceptions, eligibility, Reg E, branches, where the limit calculates, performs and pulls back); no recommended actions are written, those are the consultant's call. The matrix and communication strategies are built after Contact Us, ahead of the appendix detail. `--consultant "Name|Title|Phone|Email"` adds a second Contact Us card (Tim Barrett, from Aaron's Outlook directory); without it the slide carries the CSM only, as before.
+
+### 2026-11-05 — ILS Program Analysis deck: large-book figures fit their tiles (`build/ils_analysis/ils_review/client_slides.py`, `branch_slides.py`)
+Summary: The ILS Program Analysis deck now shrinks the six headline figures to fit when a client's numbers are large, and shortens long branch names in the highest and lowest tiles, so Broadview's deck builds with no layout failure.
+
+Found building Broadview FCU (1670): "$35.43M" wrapped inside its tile at 30 pt and "Cohoes - 219 Ontario Street" ran out of its branch tile. The headline tile now takes the largest size (30 down to 20 pt) at which both values stay on one line, measured with `textfit`, and the branch tile label is cut at 16 characters.
+
+### 2026-11-06 — CI runs the unit suite on parallel workers (`.github/workflows/tests.yml`, `requirements.txt`)
+
+Summary: The GitHub test check now splits the unit suite across the runner's CPUs (pytest-xdist), so a pull request's check finishes sooner. No deck, figure or slide changes.
+
+Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
+
+### 2026-11-05 — A field trace of the transaction file, rebuilt from the code (`scripts/ti_field_trace.py`, `docs/ti_field_trace.md`, `docs/ti_field_trace.json`, `tests/test_ti_field_trace.py`)
+
+Summary: A trace of every transaction-file field, showing which Transaction Intelligence analyses and slides use it, is now generated from the code, and a test fails when it is out of date. No figure changes.
+
+James, R10: "id really like to trace each individual field in the transaction file by analysis." A hand-kept list would be wrong the first time an analysis changed, so the trace is generated from the source and a test fails when the checked-in copy no longer matches. No figure, slide or loader rule moves.
+
+- `scripts/ti_field_trace.py` reads the loader, the analyses in `ti/transaction_intelligence/`, the section driver `ti/txn_sections.py` and the slide builders in `ti/deck/txn_*.py` with `ast` (nothing is run) and follows each field by data flow: loader column and header aliases, the functions that read it, the pack keys computed from it (with `key_prefix` expanded per caller: fin_, finb_, comp_, compb_, mch_, mchb_, beh_, ic_, rel_, and the business subsets filtered as `txn_sections` filters them), the hand-offs between sections, and the slides (titles from `chapters_txn.TITLES`) that draw each key. ODD columns the analyses read are traced the same way.
+- `docs/ti_field_trace.md` (CRLF) has one table per field plus a key-to-slide table; `docs/ti_field_trace.json` holds the same data. Today: 13 positional columns, 8 kept and all 8 read; 358 pack keys, 61 slide builders, 17 ODD columns. Anything the scan cannot resolve is listed under Unresolved (7 items: frames handed to `ti/core` and `monthly_analysis`, two whole joins of the lens attribute frame, and `filed`'s keys), never dropped.
+- `tests/test_ti_field_trace.py` fails when the trace is stale (run `python scripts/ti_field_trace.py`), when a kept field is read by no analysis, and when an analysis reads a transaction column the loader does not keep unless it is in the test's `DERIVED_COLUMNS` allowlist with a reason (today only `merchant_key`).
+
+### 2026-11-05 — One window for every file: the ODD and the deposits file end with the last completed month too (`ti/core/odd_transform.py`, `odd.py`, `deposits_input.py`, `ti_build.py`, `scripts/ars_launcher.py`)
+
+Summary: In Transaction Intelligence the ODD and the deposits file now stop at the same last completed month as the transaction files, and the Sheila files-on-hand check uses the client window length.
+
+James: the last-N-completed-months rule "should apply to all files". The transaction files took it
+on 2026-11-04; the ODD and the deposits file still ran to whatever they carried.
+- ODD: transaction-track month columns (PIN/Sig $ and #, MTD, Spend, Swipes) dated after the window's
+  last month are left out before anything is computed, with a warning naming them, so the data month
+  and every rolling total (last 3-mon, last 12-mon) stop at the end of the previous month. The
+  mail/response track runs a month ahead by design and is kept. An ODD whose newest month is not the
+  window's last month is warned.
+- Deposits: days outside the window (the last N completed months) are left out and counted; a file
+  that stops short of the window end is warned.
+- Launcher: the files-on-hand check reads the client's N (`TxnWindowMonths` in clients_config, or
+  `TI_WINDOW_MONTHS`), not a fixed 12; a bad value stops the check and says where it came from.
+- Not changed: measures defined by a fixed span keep it (accounts opened in the last 12 months, L12M
+  take rate, 12-month closure rate, cohort 12 months on); they now end at the window's end.
+
+### 2026-11-04 — TI transaction window is the last N completed months before the cycle (`ti/window.py`, `ti_build.py`, TI deck copy)
+
+Summary: Transaction Intelligence totals now cover the last N completed months before the cycle (12 by default), rows outside that window are left out with a warning, and slides name the real window instead of a year.
+
+James: "it has to be the Last N completed months. these will run on the 4th or later every month, it
+will always include through the end of the previous month." The window was 12 months ending at the
+ODD's newest month, and rows were never filtered by date, so a file carrying a few days of the next
+month put them in the figures. Now:
+- The window ends on the last day of the month before the cycle (cycle 2026.11 runs through 31 Oct
+  2026). N is 12 by default; `TxnWindowMonths` in the client config or `TI_WINDOW_MONTHS` for a run
+  sets 1, 3, 6, 18 or any whole number of months.
+- Rows dated outside the window are left out, with a warning that counts them. A month in the
+  window with no rows is named in a warning; nothing is filled in.
+- A warning when the ODD's newest month is not the window's last month, and when a run for the
+  current cycle happens before the 4th.
+- The pack carries `txn_window_months`, `txn_window_start`, `txn_window_end`, `txn_window_label` and
+  `txn_window_missing`; `txn_anchor` is now the window's end month.
+- Slide copy no longer says "a year" or "12 months" for transaction totals: it says the real window
+  ("in the last 12 months", "Last 6 months" on the rail, the chart axes too). The figures were window
+  totals all along, never annualised, so "a year" was only true at N = 12.
+
+### 2026-11-05 — Buy now, pay later: providers, merchants and who uses it (`ti/dictionaries/competitors.json`, `ti/dictionaries/financial_services_patterns.json`, `competition.py`, `competition_report.py`, `deck/txn_compete.py`, `chapters_txn.py`, `deck/txn_slides.py`, `ti/slides.json`)
+
+Summary: The Transaction Intelligence buy now, pay later section names more providers, shows the merchants behind each payment, repeat use and stacking, and adds two slides: what buy now, pay later pays for, and who uses it.
+
+James: "i think our BNPL section needs to be expanded and improved. there are alot of gaps, especially around vendors/merchats." The competition chapter gave BNPL one slide: reach, dollars and five provider blocks. It never said what the payments bought, how each provider is used, or who uses BNPL.
+
+- **Providers.** Added patterns real descriptors carry: `CASH APP AFTERPAY` (Afterpay; it was filed under Cash App before), `ZIP PAY` and `ZIPPAY` (Zip), `PAYPAL PAY LATER` and `PAYPAL PAY MONTHLY` (PayPal Credit). Two new providers: Apple Pay Later and Credova. The finserv `Buy Now Pay Later` category carries the same patterns. Chime Credit Builder is a secured card, not BNPL, and is not added.
+- **Merchants.** `comp_bnpl` now reads the merchant a card descriptor names after the lender and a star (`AFFIRM *PELOTON`, `KLARNA*TARGET`, `ZIP.CO*BESTBUY`). The name stops at a phone, store or reference number and keeps the first two words, the same rule `merchant_key` uses. A payment that names only the lender (`AFFIRM.COM PAYMENTS`, `KLARNA INC`) has no merchant. New figures: the top merchants by dollars and by accounts, each with the lender behind most of its dollars; the share of BNPL dollars that name a merchant; the merchant count.
+- **Vendors.** Each provider row gains payments, the median payment, and repeat use: the accounts that paid it in 3 or more distinct months. The tier as a whole gains payments, the median payment, repeat use, and stacking: accounts on 2 or more providers, with a 1 / 2 / 3+ split.
+- **Who uses it.** For each lens, the share of its transacting accounts that paid a BNPL provider, against every transacting account. This covers responders, mailed non-responders, personal, business and new accounts. BNPL users are also compared with non-users in the personal base on card dollars an account a month, the share paying a named competitor, and median balance.
+- **Slides.** *Buy now, pay later* keeps its headline. Its provider blocks add the median payment and the repeat share, and its rail adds repeat users and accounts on 2+ providers. Two new slides follow it in the Competition chapter:
+  - *What buy now, pay later pays for*: merchants by dollars, coloured by lender, with the merchant-named share.
+  - *Who uses buy now, pay later*: each group against the book, with users against non-users on the rail.
+  Groups under 30 accounts are left off. The ICS deck shows the ICS groups, following its lens list. All figures are window totals and the slides say "in the window", never "a year".
+- **Numbers that move.** `comp_bnpl` accounts and dollars grow by any member the new patterns name. A `CASH APP AFTERPAY` payment moves from Cash App to Afterpay, so `comp_ecosystems` falls by those payments. Competitor figures do not move.
+- **Text report.** `competition_report` prints repeat use, stacking, the median payment and the top merchants under the BNPL line.
+
+### 2026-11-04 — Buy now, pay later is its own competitor tier, apart from the payment apps (`ti/dictionaries/competitors.json`, `competition.py`, `deck/txn_compete.py`)
+
+Summary: Buy now, pay later lenders are now their own competitor group in Transaction Intelligence, so payment-app figures no longer include them, and the group names the same 12 providers as the financial-services BNPL category.
+
+James: "payment ecosystem should not have BNPL. BNPL is distinct." The five BNPL lenders (Affirm, Klarna, Afterpay, Sezzle, Zip) sat in the Payment Ecosystem tier with a `bnpl` flag. That put them inside every payment-app figure, and the competition chapter's BNPL list was narrower than the financial-services BNPL category (5 providers against 12 patterns, so PayPal Credit counted as a P2P PayPal transfer).
+
+- **New tier.** `Buy Now, Pay Later` has its own kind, `bnpl`. Like adjacency, it is reported apart from competitors, so penetration, threat, winback and the tier donut do not move.
+- **Providers aligned.** The tier now names the same 12 patterns as the finserv `Buy Now Pay Later` category. PayPal Credit / Pay in 4, Perpay, Splitit, Sunbit and Uplift are added. `UPLIFT DESK` is a false positive (the standing-desk store).
+- **Numbers that move.** `comp_ecosystems`, `comp_ecosystem_accounts` and `comp_ecosystem_dollars` are now P2P and wallets only, so "In a payment app" on *Who competes* and the headline of *Payment apps and buy now, pay later* fall by the BNPL-only members. `comp_bnpl` grows by the newly named providers and PayPal Credit. The payment-app slide still draws BNPL in orange, now from `comp_bnpl`.
+- **Snap Finance (added after rebasing onto main).** Dictionary v7 put Snap Finance in the Financial Services Buy Now Pay Later category, so it joins this tier too (`SNAP FINANCE`); the two lists stay the same, as `test_same_providers_as_the_finserv_category` requires.
+- **Numbers that don't move.** Competitor figures. The pre-closure leakage curve keeps the same rows it had.
+- **Code.**
+  - `mapping_audit` reads the tier's kind instead of the literal "Payment Ecosystem".
+  - The "How members spend" lead still skips BNPL names.
+- **Parity.** The v5 figure-for-figure match no longer holds for `comp_ecosystems` / `comp_bnpl`.
+
+### 2026-11-04 — "Competitor spend before closure" reads named competitors only, and joins the ODD like the lenses do (`competition.py`, `leakage.py`, `lens.py`)
+
+Summary: The Transaction Intelligence competitor spend before closure curve now counts named competitors only, not payment apps, and accounts whose ID was read as a number are no longer dropped from it.
+
+James asked for this fix after the TI overview review.
+
+- **Payment-app dollars removed.** The pre-closure curve was fed every matched row, including payment-app rows (Venmo, Cash App, PayPal; also BNPL, while it sat in that tier). Those are not competitors, and they lifted the curve. `_competitor_monthly` now carries competitor-kind rows only. On the slide, mean competitor dollars per closer per month fall by the payment-app share, and so do the control's. The divergence month can move.
+- **Float account IDs now join.** `leakage.py` keyed the ODD by the raw id string, so an id read as a float ("12345.0") never matched the transaction file and the account dropped out of the curve silently. The lenses already removed the ".0". The new `lens.account_ids()` does it once, for both.
+- **Docstring corrected.** It said the curve was a share of the account's spend. It is mean raw dollars per account per month, and the docstring now says so and explains why raw dollars bias against a finding rather than towards one.
+
+### 2026-11-05 — Leakage and competitor use by member age, account age and branch (`build/ars_pipeline/ti/transaction_intelligence/band_lenses.py`, `financial_services.py`, `competition.py`, `merchant_profiles.py`, `lens.py`, `build/ars_pipeline/ti/core/account_lenses.py`, `build/ars_pipeline/ti/deck/txn_leakage.py`, `txn_slides.py`, `build/ars_pipeline/ti/chapters_txn.py`, `build/ars_pipeline/ti/slides.json`, `tests/test_ti_band_lenses.py`, `tests/test_ti_chapters_txn.py`)
+
+Summary: The Transaction Intelligence chapter gains three slides that cut financial-services leakage and competitor use by the member's age band, by how long the account has been open, and by branch: for each band, the accounts in it, the share paying an outside financial product, the share paying a named competitor, leakage dollars per leaking account, and the top category and top competitor.
+
+James, 2026-11-05: "it would be nice to have the age band lens, maybe branch lens. account age lens". The by-lens tables compared responders with the book; nothing said which members leak. The card side already cut spend by age and tenure, so these use its bands rather than new cut points.
+
+- Lens families: `age_band` (Account Holder Age) and `tenure_band` (tenure from Date Opened) sit beside `branch`, `product` and `swipe_tier`. The bands are the card slides' own (18-25 ... 65+; < 3 mo ... 10+ yrs), moved from `merchant_profiles.py` to `core/account_lenses.py` unchanged, so both sides share one definition. A family whose column the ODD lacks returns nothing, and the run log says the cut was not drawn.
+- Figures: `fin_by_age_band`, `fin_by_tenure_band` and `fin_by_branch` (financial services) and `comp_by_age_band` and `comp_by_tenure_band` (competition), each with `_columns` and `_basis`. Rows: band, accounts, paying, paying %, dollars per payer (window total), top category or institution and its accounts. The base is the same as the existing by-lens and by-branch tables: every transacting account in the band, personal and business. That way a band's leakage row and its competitor row divide by the same accounts. A band needs 50 transacting accounts, the floor `comp_by_branch` already uses. Branches keep the 12 largest. Accounts left out are counted in the run log.
+- Competition does not get a second branch table: the branch slide reads the competitor share from the existing `comp_by_branch`, which has the same base and floor.
+- Slides: "Leakage by member age", "Leakage by account tenure" and "Leakage by branch" (eight largest branches), placed after "Leakage by group and category", all "keep". Each shows paired bars (outside financial product against named competitor) with a rail for accounts, the leading band's dollars per leaking account, its top product and its top competitor. The headline names the band with the highest leaking share and says when bands tie. Dollars are described as window totals, never "a year". A slide with fewer than two band rows is declined and hidden for that client.
+
+### 2026-11-05 — MCC codes by spend, transactions and members (`build/ars_pipeline/ti/transaction_intelligence/merchant_profiles.py`, `build/ars_pipeline/ti/deck/txn_cards.py`, `build/ars_pipeline/ti/deck/txn_slides.py`, `build/ars_pipeline/ti/chapters_txn.py`, `build/ars_pipeline/ti/slides.json`)
+
+Summary: The Transaction Intelligence chapter gets a new slide, "MCC codes by spend, transactions and members". It shows the top 10 MCC codes three ways, side by side, and shades any code that is top 3 one way but outside the top 10 another.
+
+The user: "mcc code should be included / we should see mcc code by spend, transactions, # of members/customers". The only MCC table (`mch_mcc_top`) ranked codes by card dollars, so a code with many members and small tickets (fast food, transit) never showed. That slide ("The MCC codes behind the categories") was also tossed in `slides.json`.
+
+- `merchant_profiles.py` writes `mch_mcc_by_dollars`, `mch_mcc_by_txns` and `mch_mcc_by_accounts`, top 10 each. Every row carries all three measures, $/txn, the % of card accounts using the code and its rank on each measure (`*_columns` keys give the order). Ties break on the lower code.
+- The base is card transactions (PIN and signature) in the window that carry an MCC. Accounts are distinct accounts with a card transaction in that MCC, and the % is of every account with a card transaction in the window (`mch_mcc_card_accounts`, `mch_mcc_ways_window`, `mch_mcc_ways_note`).
+- `mch_mcc_standouts` lists codes that rank very differently: top 3 on one measure and outside the top 10 on another, with both ranks. Codes that lead on members or transactions are listed first.
+- The new slide (`txn_cards.mcc_codes_three_ways`) is a table with three ranked lists side by side. Each code reads as its category and code, e.g. "Dining (5814)". The headline names the widest gap ("Dining (5814) is #1 by members but #12 by card dollars"); with no gaps, it names each measure's leader. The rail shows the card-account base and up to three standouts. It is registered in `TI_BUILDERS`, `TITLES`, `txn_slides.BUILDERS` and `slides.json` (keep).
+- `mch_mcc_top` and the dollar-only slide are unchanged and still tossed.
+- Tests: `tests/test_ti_mcc_three_ways.py` (new), plus updated counts in `tests/test_ti_chapters_txn.py` (62 builders, 40 in the chapter) and the order in `tests/test_ti_merchant_profile_slides.py`.
+
+### 2026-11-05 — Financial-services and competitor matching: no more stadiums, towns and refunds; missed lenders and insurers added (`financial_services.py`, `competition.py`, both dictionaries, `chapters_txn.py`, `deck/txn_leakage.py`, `deck/txn_compete.py`)
+Summary: Financial services and Competition match more carefully. Stadiums, towns, street names and refunds are no longer counted as a bank or lender, the client's own name in every spelling is never an outside lender, and missed lenders, insurers and payment apps are now found. Leakage figures rise for most clients (1100: $68.7M to $136.2M), mostly from payments the old rule missed.
+From the TI readiness review (James: "Yes, fix them here"). The matcher counted a cinema as Marcus by
+Goldman Sachs, a stadium as Capital One, a beach town as Huntington, a store purchase as Kohl's card,
+a tax refund as tax paid, and the client's own loans as an outside lender. Competition shares the
+finserv matcher, so both sides change.
+- **Towns.** The merchant's town and state are cut off before matching (HUNTINGTON BEACH CA,
+  LIVE OAK FL, TRAVELERS REST SC), as is a street address after a house number (1425 ROBINHOOD DR,
+  77 MAIDEN LN). Competition now uses the same guard.
+- **Venues.** A name followed by a venue word is not the institution: CAPITAL ONE ARENA, US BANK
+  STADIUM, PNC PARK, MARCUS THEATRES, GREAT LAKES BREWING, ALLIANT ENERGY, CITI TRENDS
+  (`venue_words`, ~65 words). A payment app opening the descriptor is exempt (CASH APP MARINA).
+- **One-word names.** A one-word match needs a word around it that says money is moving (PMT, LOAN,
+  CARD, ONLINE, BILL... and their cut-off forms FINANCI, PAYM, MORTG). Ordinary words that are also
+  brands (KOHLS, MACYS, MARCUS, REGIONS, HUNTINGTON, TRAVELERS, PROGRESSIVE...) always need one
+  (`needs_context`). Coined names that open the descriptor (COINBASE, SYNCB, CITIBANK, SANTANDER,
+  ONEMAIN...) count on their own (`strong_tokens`), as does the payee after a bill-pay processor
+  (PNM SANTANDER, OPC*AVANT: `payment_prefixes`) and a payment processor before a star or at the
+  start (VENMO *NAME, KLARNA*TARGET, AFTERPAY: `processor_tokens`).
+- **Money coming in.** Refunds, rebates, reversals and chargebacks are not leakage (`inbound_words`);
+  the pack reports what was set aside as `fin_inbound_excluded`. The files carry no debit/credit
+  flag and every amount is positive, so wording is the only signal.
+- **The client's own name.** Self names expand to their bank/credit-union variants (FIRSTLIGHT FCU,
+  FIRSTLIGHT FEDERAL CREDIT UNION...), and a descriptor naming the client is dropped whole, so its own
+  loan payments are no longer an outside lender. Generic roots (FIRST, CITIZENS, COMMUNITY...) get no
+  short variants. FIDELITY BANK is a false positive; TO LOAN is an internal transfer.
+- **Missed institutions added.** Installment lenders (World Finance, Security, Regional, Heights,
+  Tower Loan, Sun Loan, Republic, 1st Franklin, ACE, Upstart Network), auto (Sheffield, Stellantis,
+  Regional Acceptance), insurers (Fred Loya, Foremost, Dairyland, CSAA, Tesla), RH Brokerage, LPL,
+  Apple Card / GS Bank, Discover Cap, and IRS USATAXPYMT. Competitors gains the same lenders.
+- **A blank merchant field declines.** When 95% or more of a client's descriptors are blank (1038),
+  both chapters decline with the reason instead of reporting near-zero leakage.
+- **Growth needs six months.** Competitor growth and win-back need 183 days of data; with less, the
+  threat score uses penetration and dollars only and the slide says why. "How long it has run" and
+  "Started and stopped" decline below six months.
+- **Headlines from the data.** "How long it has run" and "Started and stopped" headlines are computed
+  ("N more started than stopped — X gained most"); "Where the outflow goes" now says the figure is
+  balances held with us, not outflow.
+
+Before → after, 12 months to 2026-09-30:
+
+| Client | Leakage | Addressable | Review queue | Competitor $ |
+|---|---|---|---|---|
+| 1075 | $396.9M → $505.1M | $392.4M → $436.9M | $72.7M → $64.4M | $375.9M → $388.9M |
+| 1100 | $68.7M → $136.2M | $67.4M → $135.0M | $23.0M → $17.6M | $35.2M → $39.5M |
+| 1776 | $24.3M → $30.7M | $23.6M → $30.0M | $4.2M → $3.3M | $6.6M → $6.2M |
+| 1798 | $51.4M → $67.6M | $50.2M → $66.3M | $13.6M → $10.1M | $21.5M → $24.4M |
+
+Most of the rise is payments the old rule missed: Venmo, Klarna and Afterpay card payments (1100:
+Klarna $2.1M → $17.2M, Afterpay $0 → $11.8M; 1776: Venmo $0.3M → $27.0M), Citibank and Santander
+($4–5M each at 1100), and the installment lenders. 1075's $63.6M of IRS USATAXPYMT is tax paid and sits
+in leakage, not in addressable. Dropped: stadiums, street names, duty-free (DFS), Fidelity
+National/Life, and Chase branch-name rows (CHASE INC PISMO, CHASE NORTHGATE — 1776's Chase fell from
+2,254 accounts to 40).
+
+### 2026-11-05 — Insurance is addressable, and split by line: auto, home, life, health (`dictionaries/financial_services_patterns.json`, `financial_services.py`, new slide "Insurance by line")
+Summary: Insurance now counts as addressable, since many clients sell it through an agency partner, so it joins the addressable dollars and action lists. A new slide, "Insurance by line", splits it into auto, home, life and health; category totals do not change.
+James: "we shouldnt default insurance as non-addressable. but we should try to discern auto vs life vs
+health". Many clients sell insurance through an agency partner, so it was wrong to grey it out.
+- Insurance is now `addressable: true`. It joins the addressable dollars, the funnel's "in a category
+  we offer" band, the reach table and the action lists; "Their financial life" can now lead with it,
+  and its subtitle no longer says insurance is not a product the institution sells.
+- A category may carry `subtypes` ({subtype: [patterns]}). Insurance's 136 named carrier patterns are
+  filed by the line the carrier writes: Auto (30), Home & property (6), Life & annuity (26),
+  Health & dental (24), and Auto & home (50) for multi-line carriers (State Farm, Allstate, USAA...),
+  which the descriptor cannot split. The 5 generic patterns (INSURANCE, INS PREM...) report as
+  Unspecified. Category totals do not move: subtypes only divide them.
+- New pack key `fin_subtypes` {category: [subtype, accounts, % of category accounts, txns, dollars,
+  % of category dollars, top 3 providers]}, Unspecified last.
+- New slide "Insurance by line", after "Who they pay": the lines as bars, a known line navy,
+  multi-line and unspecified grey; the headline names the biggest known line.
+
+### 2026-11-04 — Live Review takes the liquid-glass look of the Pack 205 Hub and his finances page (`build/review_page/static/live.css`, `live.js`)
+
+Summary: Live Review's page now has the same frosted-glass look as Aaron's Pack 205 Hub and finances pages: a lit navy page behind a frosted stage, cards with a lit top edge, a dark glass bar and side list, in light and dark. The figures, charts, colors and keys are unchanged.
+
+Aaron, 2026-11-04: "apply the liquid glass look from Pack 205 and my finances to LR." Only surfaces change. The CSI palette stays (CSI Orange `#F15D22` marks the active item and the product ribbons, navy carries the type, the `--c-*` chart colors and the product colors are untouched), so charts read as before on the new cards. What is new: a fixed gradient page behind a frosted stage; cards, tiles and program cards with a rim light, a soft shadow and the page blurred behind; the top bar, the section list and the presenter strip as dark glass in both themes; a drawer for sources, tables and the agenda that stays solid so a table never shows through; a sheen that follows the pointer (set by a few lines in `live.js`, skipped for touch). Light and dark are both designed and the theme button still switches them. Where the browser has no backdrop blur, or the viewer asks for less transparency or more contrast, every glass surface becomes a solid one with the same layout; reduced motion switches the hover lift off. Text contrast was checked numerically with every translucent layer composited over the page's darkest and brightest points (body text, chart labels, tooltips, the bar, the orange pill: all at least 4.5 : 1), and `tests/test_live_review_glass.py` keeps that check, the dark-theme token pairs, the blur fallback and the no-network rule. Nothing about the figures, the story, the audit or the trace rules moved.
+
+### 2026-11-04 — ILS Program Analysis deck: simpler slides, an appendix, peers, year over year and the industry update (49 slides, 50 at most)
+
+Summary: The ILS analysis deck now has one message per slide: dense tables moved to an appendix, the matrix is four readable slides per client (with the full factor tables in the appendix), and the deck adds an agenda, a peer comparison against other ILS clients (client numbers only), a year-over-year slide, a heavy-user fee slide, Reg E by year opened and a standard industry update.
+
+What changed, for Aaron's "easy to explain and narrate, not too busy" (coordinator, 2026-11-04). The 365-day KPI table is six headline figures (the full table is an appendix slide). Paid versus returned keeps five columns. The eligibility drilldown shows the top six status codes and the rest as one row at 14 pt (every code is in the appendix), and the Reg E drilldown is two slides (opt-in by year opened, and the election table). The matrix is, per account type, a limits-and-scoring slide (limit cards and one bar chart with a one-sentence caption per scoring factor) and an overrides-and-trends slide (override list at 13 pt, trend On / Off chips); the old dense page with every factor band is an appendix slide. Communication strategies are one line each in large type. The data notes are ONE appendix page; everything skipped or compared is in its speaker notes and `figures_index.json`. Detail slides are queued with `Deck.defer` and built after the story sections.
+
+From the analysis team's delivered decks (Kevin Higginbotham's, read only): `analysis_slides.py` (year over year: the last 12 complete months against the 12 before; fees by NSF/OD items, heavy users 24+), `standard_slides.py` (an agenda that matches the sections, and the cycle's consumer-survey and regulatory slides read from `industry_<yyyy-mm>.json` in `Build Artifacts/ils_analysis/standard/`, not from git). Parity with his figures is recorded in each sidecar: the heavy-user share of fees agrees to within a point, the year-over-year changes agree to within about two points, and his year-over-year LEVELS cannot be reproduced from the extract (his windows are not defined in it). His cure-by-deposit-regularity slides are not built (the Windfall predictor is not shown), and his cure-by-share-of-limit slide is not built because his measure is an item pay rate, not the 60-day cure.
+
+Peers (`peers_slides.py`, `peer_pull.py`), on Live Review's `peer_compare.py`: very large clients (assets of $10B or more, or the top 10% of ILS clients by DDA count: `VERY_LARGE_ASSETS_M`, `VERY_LARGE_TOP_SHARE`) against other very large clients, every other client against the clients in its Census region that are not very large; items per 1,000 open accounts, collected fees per open account and users as a share of open accounts; five peers at least, else the slide says so; client numbers only (the highest and lowest peer on the slide, every peer in the speaker notes). The peers' figures are read from their own newest ZAccounts extract on the analysis share (read-only) into `Build Artifacts/ils_analysis/peers/`. The deck is capped at `MAX_SLIDES` = 50; a build over it says so on the data notes.
+
+### 2026-11-04 — ILS Program Analysis deck: the story is now where the limit is calculating, performing and pulling back (37 slides)
+
+Summary: The ILS analysis deck now tells one story in about 37 slides: where the program stands, what drives it, where the ILS limit is calculating (who is eligible by overdraft status, how limits are spread and change), where it is performing (cure rate within 60 days by limit, deposits and days on book), where it pulls back, and the two matrix slides, with one message per slide.
+
+Aaron's definitions, in `story_slides.py`: eligible for a limit is decided by the Overdraft Status Code (read from the matrix validation extract's OD STATUS CODE MAPPING), not CanOverdraft or ODLimit; cured means a negative balance reaches $0 or more within 60 days; NSF is collected fees on returned items and OD on paid items, not netted for refunds; charge-offs are counted by Chargeoff_Date month against accounts opened, complete months only. The 40-day Scoring Summary slides, the not-repaid slides, the debit-decline, branch-bubble, DBIC and peer-placeholder slides, and the Business branch slides are no longer in the default story (each still builds when named with --sections). The pulling-back slide shows how many eligible accounts have a limit below their own earlier maximum and by how much; it does not compare charge-offs, because MaxODLimit is a recent-window figure (charged-off accounts carry a $0 earlier maximum), and it says so. Each slide has a one-line speaker note ahead of its Source line.
+
+### 2026-11-04 — ILS Program Analysis deck: two matrix slides, narrower bar charts with a figures panel, de-noised fee charts, Contact Us, and strategic refunds, trend detail and inactive communication strategies taken out
+
+Summary: The ILS analysis deck's matrix is now two slides (Personal and Business, each with limits, scoring factors, overrides and trends as On or Off, all read from the matrix validation extract), the branch ranking bar charts are 60% wide with the headline figures beside them, the daily fee charts show a labelled 30-day average instead of a spiky daily line, and strategic refunds, trend rule detail and inactive communication strategies no longer appear.
+
+Aaron's review of PR #132. Matrix: `matrix_prep_slides.py` replaces the multi-page matrix section with the ILS prep deck's layout drawn in RPE styling; everything comes from the MatrixVal file named in each slide's notes, and the slide says what the extract does not carry (override enabled / pending flags, trend switches: a trend is On when its grid is in the extract with a non-zero factor). Strategic refunds are gone (section, matrix helper, the Zaccounts column alias, a DBIC caption); the extracts do not tag refunds as strategic, so the KPI "Refund Amt" is all refund-history fees and cannot be split. The Windfall Ratio predictor slides are dropped as trend detail. Communication strategies list only active ones, and "None active" when there are none. Bars: `branch_slides.ranked_with_panel` draws the intensity, engagement and volatility rankings at about 60% of the slide with the three highest and three lowest coloured and the rest muted, four headline tiles, a six-row table and the share of the book held by the five largest branches. Charts: the fee and not-repaid lines are a 30-day average with the days faint behind, the end point is labelled with what it is, its window and date, and the fee slide adds last complete month against the same month a year earlier in the +/-2% wording; DBIC feed lines are 5-business-day averages; treemap tiles and bubble labels carry their unit. Contact Us (the CSM, through `rpe_env.csm_contact`) closes both decks; the ILS consultant card is not built because the only record is initials.
 
 ### 2026-11-04 — ILS Program Analysis deck: the analysis team's Python builder on RPE styling, with the pasted R / Power BI / Excel charts redrawn in Python (new, `build/ils_analysis/`)
 
@@ -1045,6 +1783,49 @@ Third stage, `feat/ils/g12-03-run-workbook`: v5's run and its 19-tab workbook (`
 Fourth stage, `feat/ils/g12-04-deck`: v5's kickoff deck (`kickoff/deck/slides.py`, `kickoff/deck/forms.py`: cover, provenance, three section dividers, a slide per analysis, an appendix table per analysis, and a warnings slide when the run has warnings; 45 when all 19 analyses reach it), with `--deck` / `deck=True`, written beside the workbook in Build Artifacts. It draws through v5's own `deckkit` facade and the ARS deck modules it re-exports, copied unchanged to `kickoff/_v5/` with their imports rewritten; it never imports `ti` or any of Aaron's deck code. The one other edit: v5's two orange literals in those copies read `brand.ORANGE` / `brand.ORANGE_RGB` instead (the same value), so the brand single-source test holds. The template is RPE's `templates/ars_template.pptx`, read only: it has every layout v5's has, by the same names in the same order, and the kickoff uses one, BLANK. `tests/test_ils_kickoff_deck.py` (v5's, all of it), `tests/test_ils_kickoff_manual.py` (v5's; skips, as v5's manual page is not ported).
 
 Stage g12-05 (James Gilmore, 2026-10-27: "fix in CSM Reporting"), the first change to what the ported kickoff computes, so its own stage: two real extracts v5 could not run. 1840 FNB KY names its item counts `Paid Annualized` / `Returned Annualized` (Items = paid + returned on every account, 12,919 = 10,379 + 2,540); they are now read as Paid / Returned Items, where v5 refused the file. 1842 carries Items / Paid / Returned blank on all 5,554 rows: v5 read zero items everywhere and failed in the deck on a 0/0 share; the load now says so (the field summary still works) and the run refuses, naming the file's `Paid Items # Calc` / `Returned Items # Calc` columns, unless it is run with `--items-from-calc`, which reads those fee-derived estimates and puts an ESTIMATED ITEM COUNTS warning on the warnings slide. The stacked paid/returned bar labels are cased (navy, white stroke) instead of white, per `tests/test_chart_colors.py`. `tests/test_ils_kickoff_extract_spellings.py`.
+
+### 2026-10-28 — Transaction Intelligence cut: column names for the tables v5 never named (stage g14-04)
+
+Summary: the TI cut now writes a CSV for 67 more tables. Their column names are in the new `ti/table_columns.py`, each read from the line of code that builds the row. The real 1761 pack goes from 42 CSVs to 72, and 1776 from 101 to 167.
+
+v5's tables layer writes only tables that declare their columns, so 30 of 1761's and 68 of 1776's Sep26 tables had no CSV and could not be backed up row by row. The names sit in an RPE-side file, not in the ported modules, and are applied only on the way into `tables.write`. No ported file changes and no figure in `ti_pack.json` moves.
+
+The business-side tables (`finb_`, `compb_`, `mchb_`) take the names their personal-side siblings already declare. Those declarations were dropped by `txn_sections.py`'s business allow-lists. `beh_routing_by_merchant` takes the names declared as `beh_routing_columns`. In every one of these cases, if the declared names are absent the table stays unwritten and is named in the warnings, so no header is ever invented.
+
+Two keys stay out on purpose:
+- `tier_migration_matrix`: its rows carry no tier label, so a CSV could not be read on its own.
+- `tier_migration_windows`: month tags, not a table.
+
+On all three real packs every header is exactly as wide as its rows.
+
+Where a name would be easy to misread, it says what is counted:
+- `age` and `balance_profile` rates are responders over mailed accounts, a count the row does not carry, hence `response_rate_of_mailed_pct`.
+- `comp_recency_bands` counts account × competitor pairs.
+- `swipe_tier`'s last column is the monthly NSF/OD item count.
+
+### 2026-10-28 — Transaction Intelligence cut: the ODD's shape is checked before any figure (stage g14-03)
+
+Summary: before any chapter computes, the TI cut's build now runs v5's extract check on the client's ODD. It records the file's shape in `ti_pack.json` as `extract_*` figures and warns when that shape would quietly distort a figure elsewhere.
+
+Before v5 added this check, any of these produced numbers that were wrong in ways no section could detect, because every figure computed over whatever arrived:
+- a month missing inside the covered range, which reads as a month of zero activity;
+- Swipes and Spend covering different months, so a per-swipe ratio divides one window by another;
+- an account appearing twice, so every headcount counts it more than once;
+- an anchor month absent from the series.
+
+`ti/monthly_analysis/extract_check.py` is v5's at `a491b5c`, logic unchanged, and it runs first, as in v5's `metrics.py`. It never suppresses a section, it only reports. Its warnings sit in the build log beside the others, and no figure, slide or deck changes. The ARS deck is untouched.
+
+### 2026-10-28 — Transaction Intelligence cut: one concept, one number, or no deck (stage g14-02)
+
+Summary: the TI cut's build now runs v5's consistency audit. Wherever two slides quote the same figure differently, it records each disagreement in `ti_pack.json` and in the build log, and builds no deck until they agree.
+
+v5 added this audit after the real 1585 deck disagreed with itself: the hero quoted 12.4% where the per-mailer table said 11.4% for the same wave, three slides gave three responder counts, and the P&L slide relabelled window revenue as cumulative. James's rule then: "fail safe if the numbers dont align". `ti/monthly_analysis/consistency.py` is v5's at `a491b5c`, logic unchanged. A rule fires only when both of the figures it compares are present, so a section that declined is never a violation. v5 passes its ODD and transaction figures as two dicts. The cut holds them in one, so `ti_build.main` passes that dict as both. Checked against the cut's real Sep26 packs for 1761 and 1776: no violations, so no deck that builds today is refused. One v5 test is not ported because it checks `run.py`'s card-spend reconciliation through v5's whole metrics harness, not this module. The ARS deck is untouched.
+
+### 2026-10-28 — Transaction Intelligence cut: every table behind its slides as a CSV (stage g14-01)
+
+Summary: the TI cut's build now writes v5's analyst tables: each tabular figure that names its columns becomes a CSV in `ti/tables/`, listed in `ti_pack.json`. A tabular figure that names no columns is listed in the build's warnings by name, never dropped silently.
+
+James, 2026-10-27: "i just need to be able to back up the data." A figure on a slide has to be checkable against the rows behind it. v5 wrote these tables in `run.py` beside `metrics.json`. The cut had no equivalent, so its figures lived only inside `ti_pack.json`. `ti/monthly_analysis/tables.py` is v5's `tables.py` at `a491b5c`, logic unchanged: rows are written exactly as the figure holds them, nothing rounded or re-ordered, so a CSV cannot disagree with its slide. The files are UTF-8 with a BOM so Excel on Windows opens accented names cleanly. `ti_build.main` calls it after the figures and before the decks, as v5 does. A failure here is a warning and the build goes on. No figure, slide or deck changes. The ARS deck is untouched. The figures that are tables but declare no columns are named in the warning; declaring them is a follow-up.
 
 ### 2026-10-27 — ARS Companion deck: James's analysis slides get their own button in Sheila
 

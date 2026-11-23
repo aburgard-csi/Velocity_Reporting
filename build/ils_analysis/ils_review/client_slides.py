@@ -16,8 +16,12 @@ from __future__ import annotations
 
 import os
 
+import pandas as pd
+
 import shapes
+from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.util import Inches
 
 from . import r_accounts as RA
 from . import r_common as R
@@ -99,6 +103,87 @@ def _emit(dk, res, cfg, fr, *kinds):
                         "notes": res.notes, "skipped": res.skipped or None})
 
 
+
+# ═════════════════════════════ about this data (slide 3) ═════════════════════
+def _pulled(path):
+    """The pull date from the file name's stamp; a file named without one (`Zaccounts.csv`) falls back to its modified
+    time, marked as such, since copies keep it. n/a only when neither is readable."""
+    from .ils_data import date_from_name
+    d = date_from_name(path) if path else None
+    if d:
+        return f"{d:%b} {d.day}, {d.year}"
+    try:
+        from datetime import datetime
+        m = datetime.fromtimestamp(os.path.getmtime(path))
+        return f"{m:%b} {m.day}, {m.year} (file time)"
+    except (OSError, TypeError, ValueError):
+        return "n/a"
+
+
+def add_data_pull(dk, cfg, fr, *, section="data_pull"):
+    """One slide near the top that says when each extract was pulled and sizes the book, so no other slide repeats the as-of
+    date (Aaron, 2026-11-06: "we don't need to repeat the same data on the ILS deck every slide ... add a slide outlining when
+    the data was pulled at the top with some key summary metrics")."""
+    from textfit import fits_one_line
+    loaded = fr.loaded
+    asof = f"{fr.asof:%b} {fr.asof.day}, {fr.asof.year}"
+    n_all = len(loaded.zaccounts)
+    types = [t for t in ("Personal", "Business") if (loaded.zaccounts["accttype"] == t).any()]
+    n_open = {t: len(fr.open_accounts(t)) for t in types}
+    br = loaded.branches
+    # --as-of (1781, 2026-11-17): notices, declines and refunds are cut at the date; account fields and the DBIC are as pulled
+    cut = bool(getattr(cfg, "data_as_of", None))
+    lead = (f"Notices, declines and refunds are measured to {asof}; account fields and the DBIC are as pulled, shown below."
+            if cut else f"Every figure in this review is measured to {asof}; the extracts were pulled as shown below.")
+    s = dk.content("About this data", lead,
+                   section=section, source=_src(cfg, fr, "za", "zt", "dd", "rf", "mx", "dbic",
+                                                extra="Pull dates are the date stamps in the extract file names; record counts are the rows read."))
+    tiles = [("Data as of", asof, "notices cut at this date" if cut else "latest account update in the extract"),
+             ("Accounts pulled", f"{n_all:,}", "every status, personal and business"),
+             ("Open accounts", f"{sum(n_open.values()):,}", "  ·  ".join(f"{t} {n_open[t]:,}" for t in types)),
+             ("Branches analysed", f"{len(br.retail) + len(br.digital)}", f"{len(br.retail)} retail, {len(br.digital)} digital ({len(br.back_office)} held out)")]
+    gap = 0.20
+    tw = (FULL_W - 3 * gap) / 4
+    th = 1.62
+    for i, (label, value, sub_) in enumerate(tiles):
+        x = LEFT + i * (tw + gap)
+        y = BODY_T + 0.05
+        card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(tw), Inches(th))
+        card.fill.solid()
+        card.fill.fore_color.rgb = T.BAND
+        card.line.fill.background()
+        shapes.shadow(card)
+        shapes.textbox(s, x + 0.1, y + 0.08, tw - 0.2, 0.34, label, 15, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.TOP)
+        fs = next((p for p in (30, 28, 26, 24, 22, 20, 18) if fits_one_line(value, tw - 0.3, p, "Montserrat", True)), 18)
+        shapes.textbox(s, x + 0.1, y + 0.46, tw - 0.2, 0.62, value, fs, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
+        shapes.textbox(s, x + 0.1, y + 1.12, tw - 0.2, 0.42, sub_, 12, T.SUBTLE, False, PP_ALIGN.CENTER, T.BODY, MSO_ANCHOR.TOP)
+    top = BODY_T + 0.05 + th + 0.30
+    T.band_real(s, LEFT, top, FULL_W, "WHEN EACH EXTRACT WAS PULLED")
+    rows = [["Accounts (ZAccounts)", _pulled(cfg.zaccounts_path), f"{n_all:,} accounts", "Balances, limits, fees, eligibility, Reg E, branches"]]
+    if loaded.ztrend is not None:
+        rows.append(["Notices (ZTrend)", _pulled(cfg.ztrend_path), f"{len(loaded.ztrend):,} notices", "Cure, pull-back and repayment"])
+    if loaded.declines is not None:
+        dts = loaded.declines["decline_date"].dropna()
+        span = f", {dts.min():%m/%d/%y} to {dts.max():%m/%d/%y}" if len(dts) else ""
+        rows.append(["Debit declines", _pulled(cfg.declines_path), f"{len(loaded.declines):,} declines{span}", "Debit declines"])
+    if getattr(loaded, "refunds", None) is not None:
+        rows.append(["Refunds", _pulled(cfg.refunds_path), f"{len(loaded.refunds):,} refunds", "Collected fees net of refunds"])
+    if cfg.matrix_path:
+        rows.append(["Matrix validation", _pulled(cfg.matrix_path), "—", "Matrix parameters and overrides"])
+    if cfg.dbic_path:
+        rows.append(["DBIC", _pulled(cfg.dbic_path), "—", "Program health; exception items by channel"])
+    # data the extract cannot support is said here, on the slide, not only in the notes
+    problems = [p for p in (getattr(fr, "co_problem", None), getattr(fr, "refund_problem", None)) if p]
+    room = 0.80 if problems else 0.0
+    table(s, {"headers": ["Extract", "Pulled", "Records", "Used for"], "rows": rows}, LEFT, top + 0.5, FULL_W,
+          BODY_B - (top + 0.5) - 0.1 - room, first_w=2.9, max_fs=14)
+    if problems:
+        shapes.textbox(s, LEFT, BODY_B - room + 0.02, 10.3, room, "Data note: " + " ".join(problems), 12, T.ORANGE, True,
+                       PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
+    say_first(s, "Here is when the data was pulled and how big the book is; every figure after this is measured to the as-of date, so the slides do not repeat it.")
+    return s
+
+
 def _parity_lines(res):
     return [f"{p['measure']}: ours {p['ours']:,.2f} vs deck {p['deck']:,.2f} ({p['status']})"
             for p in res.parity if p.get("deck") is not None]
@@ -118,24 +203,98 @@ def _banner(slide, text):
 
 
 # ═════════════════════════════ 365-day KPI rollup ═══════════════════════════
+def say_first(slide, text):
+    """The one sentence the presenter says first: it leads the speaker notes, ahead of the Source line."""
+    slide.notes_slide.notes_text_frame.text = f"Say first: {text}\n" + slide.notes_slide.notes_text_frame.text
+
+
+def caption(slide, text, *, T0=6.42, size=13, L=LEFT, W=10.3):
+    """A 'how to read it' under the content, kept clear of the client's logo at the bottom right (10.3 in wide)."""
+    shapes.textbox(slide, L, T0, W, 0.5, "How to read it: " + text, size, T.SUBTLE, False, PP_ALIGN.LEFT, T.BODY, MSO_ANCHOR.TOP)
+
+
+def compact_money(v):
+    """'$7,294,040' -> '$7.29M'; '$866,858.22' -> '$867K'; other text unchanged."""
+    s = str(v).replace(",", "")
+    if not s.startswith("$"):
+        return str(v)
+    try:
+        n = float(s[1:])
+    except ValueError:
+        return str(v)
+    if n >= 1e6:
+        return f"${n / 1e6:.2f}M"
+    if n >= 1e4:
+        return f"${n / 1e3:.0f}K"
+    return f"${n:,.0f}"
+
+
+KPI_TILES = (("Collected fees, 365 days", "Collected Fees", True), ("Charge-offs, 365 days", "Charge-Off Amount", True),
+             ("Loss rate", "Loss Rate", False), ("Open accounts", "Open Accts", False),
+             ("NSF/OD users", "NSF/OD Users", False), ("Account growth", "Growth Rate", False))
+
+
 def add_kpi_rollup(dk, cfg, fr, *, section, progress=None):
+    """Six headline figures, Personal beside Business. The full 365-day table is an appendix slide."""
     notes = []
     res = RF.kpi_rollup(fr, dk.ref)
     if _skip(notes, res):
         return notes
     _emit(dk, res, cfg, fr, "za")
-    s = dk.content("365-day KPI rollup", f"Business and personal accounts, trailing 365 days to {fr.asof:%B} {fr.asof.day}, {fr.asof.year}.",
-                   section=section, source=_src(cfg, fr, "za"))
     tbl = res.tables["kpi"]
-    table(s, tbl, LEFT, BODY_T, 8.0, BODY_B - BODY_T, first_w=3.6)
+    cols = {h: j for j, h in enumerate(tbl["headers"])}
+    rows = {r[0]: r for r in tbl["rows"]}
+    types = [t for t in ("Personal", "Business") if t in cols]
+    s = dk.content("Where the program stands: six figures", f"Personal and business accounts, trailing 365 days to {fr.asof:%B} {fr.asof.day}, {fr.asof.year}.",
+                   section=section, source=_src(cfg, fr, "za", extra="Full 365-day table: appendix slide 'Appendix: 365-day KPI detail'."))
+    gap = 0.20
+    tw = (FULL_W - 2 * gap) / 3
+    th = 2.05
+    for i, (label, key, money_) in enumerate(KPI_TILES):
+        if key not in rows:
+            continue
+        x = LEFT + (i % 3) * (tw + gap)
+        y = BODY_T + 0.05 + (i // 3) * (th + gap)
+        card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(tw), Inches(th))
+        card.fill.solid()
+        card.fill.fore_color.rgb = T.BAND
+        card.line.fill.background()
+        shapes.shadow(card)
+        shapes.textbox(s, x + 0.1, y + 0.10, tw - 0.2, 0.36, label, 15, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.TOP)
+        cw = (tw - 0.2) / max(1, len(types))
+        vals = [(compact_money(rows[key][cols[t]]) if money_ else rows[key][cols[t]]) for t in types]
+        # the largest size at which every value in the tile stays on one line (a $35.43M book wrapped at 30 pt)
+        from textfit import fits_one_line
+        # measured against the box less its 0.1 in side insets: "$20.74M" passed at the full width and wrapped
+        fs = next((p for p in (30, 28, 26, 24, 22, 20) if all(fits_one_line(str(v), cw - 0.25, p, "Montserrat", True) for v in vals)), 20)
+        for k, t in enumerate(types):
+            v = vals[k]
+            shapes.textbox(s, x + 0.1 + k * cw, y + 0.62, cw, 0.80, v, fs, T.NAVY, True, PP_ALIGN.CENTER, T.HEAD, MSO_ANCHOR.MIDDLE)
+            shapes.textbox(s, x + 0.1 + k * cw, y + 1.45, cw, 0.30, t, 13, T.SUBTLE, False, PP_ALIGN.CENTER, T.BODY, MSO_ANCHOR.TOP)
+    if fr.co_problem:
+        caption(s, "each tile shows Personal and Business side by side. Charge-offs and loss rate read n/a: the charge-off "
+                   "data in this extract is not usable (see About this data). The full table is in the appendix.", T0=6.40, size=12)
+    else:
+        caption(s, "each tile shows Personal and Business side by side; loss rate is charge-off dollars over collected fees. "
+                   "The full table is in the appendix.", T0=6.40, size=12)
+    say_first(s, "These six numbers are the size of the program and what it costs us in charge-offs.")
+    dk.defer(lambda: _kpi_detail(dk, cfg, fr, res))
+    return notes
+
+
+def _kpi_detail(dk, cfg, fr, res):
+    s = dk.content("Appendix: 365-day KPI detail", f"Business and personal accounts, trailing 365 days to {fr.asof:%B} {fr.asof.day}, {fr.asof.year}.",
+                   section="appendix", source=_src(cfg, fr, "za"))
+    table(s, res.tables["kpi"], LEFT, BODY_T, 8.0, BODY_B - BODY_T, first_w=3.6)
     T.band_real(s, 8.85, BODY_T, 3.98, "DEFINITIONS")
     T.bullets_real(s, 8.85, BODY_T + 0.5, 3.98, BODY_B - BODY_T - 0.55, [
         "Collected fees, charge-offs and refunds are the 365-day totals carried on each account.",
         "Loss rate is charge-off dollars divided by collected fees; refund % is refund dollars divided by collected fees.",
         "A user is an account with at least one NSF/OD item in 365 days.",
-        "Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365.",
+        "Open active accounts are open accounts with more than $50 deposited or an NSF/OD item in the last 365 days.",
     ], size=14)
-    return notes
+    say_first(s, "Reference table behind the six headline figures.")
+    return [s]
 
 
 # ═════════════════════════════ fees, repayment ══════════════════════════════
@@ -158,6 +317,9 @@ def add_fee_trends(dk, cfg, fr, *, section, progress=None):
                                    "exponentially weighted moving average (span 30). Pay rate is paid items over items."))
         _picture(s, res, LEFT, BODY_T + 0.05, 7.8, 4.85)
         table(s, res.tables["monthly"], 8.45, BODY_T + 0.05, 4.38, BODY_B - BODY_T - 0.15)
+        yoy = res.numbers.get("year_on_year")
+        if yoy:
+            T.bullets_real(s, LEFT, 6.30, 7.8, 0.40, [yoy["phrase"] + " (last complete month)."], size=14, min_size=12)
     res = RF.paid_vs_returned(fr, dk.chart_dir, ref=ref)
     if not _skip(notes, res):
         _emit(dk, res, cfg, fr, "zt")
@@ -172,21 +334,34 @@ def add_fee_trends(dk, cfg, fr, *, section, progress=None):
             "The first bar splits collected fee dollars between paid and returned items; the second splits item counts.",
             "Returned items carry the lower NSF fee, so the returned share of items runs above its share of fee dollars.",
         ], size=14)
-        table(s, res.tables["summary"], LEFT, 5.3, FULL_W, 1.35, max_fs=10)
-    for t in ("Personal", "Business"):
+        full = res.tables["summary"]
+        keep = [j for j, h in enumerate(full["headers"]) if h in ("Account Type", "Collected Fees", "% Returned Fees", "% Returned Items", "Purchase Power x")]
+        small = {"headers": [full["headers"][j] for j in keep], "rows": [[r[j] for j in keep] for r in full["rows"]]}
+        table(s, small, LEFT, 5.3, FULL_W, 1.45, max_fs=14)
+        say_first(s, "About a quarter of the fee dollars come from returned items; every column is in the figure's sidecar.")
+    for t in (("Personal", "Business") if getattr(cfg, "include_not_repaid", False) else ()):
         res = RF.not_repaid(fr, t, dk.chart_dir, ref=ref)
         if _skip(notes, res):
             continue
         _emit(dk, res, cfg, fr, "zt", "za")
+        w0, w1 = res.numbers["window"]
         s = dk.content(f"Percent of NSF/OD items not repaid — {t}",
-                       f"{t} accounts, notices {res.numbers['window'][0]} to {res.numbers['window'][1]}; "
-                       "a notice is not repaid when its account was later charged off.",
-                       section=section, source=_src(cfg, fr, "zt", "za", extra="Window ends 60 days before the as-of date so each "
-                                                    "notice has had time to resolve. " + " ".join(res.notes)))
-        _picture(s, res, LEFT, BODY_T + 0.05, 7.8, 4.85)
-        table(s, res.tables["monthly"], 8.45, BODY_T + 0.05, 4.38, BODY_B - BODY_T - 0.15)
-        notes.append(f"Percent of items not repaid ({t}): the hand-built deck's definition comes from a charge-off table that is "
-                     f"not in the extract, so these rates approximate it (see the figure sidecar).") if t == "Personal" else None
+                       f"{t} accounts. Chart: notices {w0} to {w1}. Table: the last 12 complete months.",
+                       section=section, source=_src(cfg, fr, "zt", "za", extra="Chart window ends 60 days before the newest "
+                                                    "notice so each notice has had time to resolve. " + " ".join(res.notes)))
+        _picture(s, res, LEFT, BODY_T + 0.05, 5.9, 4.55)
+        table(s, res.tables["monthly"], 6.55, BODY_T + 0.05, 6.28, BODY_B - BODY_T - 0.55)
+        if getattr(fr, "co_problem", None):
+            T.bullets_real(s, 6.55, BODY_B - 0.42, 6.28, 0.40, [fr.co_slide_line()], size=12, min_size=11)
+        if (getattr(fr, "co_flag_share", 0) or 0) > 0.5:
+            # the rate is built by the flag: on an extract that flags most accounts charged off, every account with a
+            # notice gets one 'fatal' notice, so the figure must not be read out as a not-repaid rate (Aaron, 2026-11-17:
+            # "charge-off information is incorrect and we know it")
+            say_first(s, "The charge-off flag in this extract is known to be wrong, so these rates are not a real "
+                         "not-repaid rate; do not quote them.")
+        else:
+            say_first(s, f"{res.numbers['rate_pct']:.2f}% of {t.lower()} notices in the chart window were not repaid "
+                         "(the notebook's fatal-notice rule).")
     return notes
 
 
@@ -226,19 +401,63 @@ def add_eligibility(dk, cfg, fr, *, section, progress=None):
         res.tables.update({"codes": tabs["codes"], "segments": tabs["segments"]})
         res.parity += tabs["parity"]
         _emit(dk, res, cfg, fr, "za")
-        s = dk.content(f"{t} eligibility drilldown", f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}), by ILS "
-                       "status code, user segment and 33-day deposit band.", section=section,
-                       source=_src(cfg, fr, "za", extra="Open active = deposit in the last 240 days or an NSF/OD item in the last "
-                                   "365. Users are accounts with at least one NSF/OD item in 365 days; heavy users have 24 or more."))
-        _picture(s, res, LEFT, BODY_T + 0.05, 6.4, 4.9)
-        table(s, tabs["codes"], 7.1, BODY_T + 0.05, 5.73, BODY_B - BODY_T - 0.1, highlight_last=True, max_fs=11)
-        s2 = dk.content(f"{t} eligibility — items segments", f"Open {t.lower()} accounts with recent activity, by NSF/OD items in 365 days.",
-                        section=section, source=_src(cfg, fr, "za"))
-        table(s2, tabs["segments"], LEFT, BODY_T + 0.05, FULL_W, 3.6, highlight_last=True, max_fs=12)
-        T.bullets_real(s2, LEFT, 5.55, FULL_W, 1.1, [
-            "Reg E opt in and opt out are counted among the accounts that can overdraft.",
-            "Accounts with no OD status code are in the table on the previous slide, not in its chart."], size=14)
+        codes = tabs["codes"]
+        body = [r for r in codes["rows"] if r[0] != "Total"]
+        total = next((r for r in codes["rows"] if r[0] == "Total"), None)
+        hdr = codes["headers"]
+        ci = {h: j for j, h in enumerate(hdr)}
+
+        def n_(v):
+            return int(str(v).replace(",", "").replace("$", "") or 0)
+        top = body[:6]
+        rest = body[6:]
+        # name each code from the matrix's OD STATUS CODE MAPPING (Dannemora's codes are single letters: O, N, D);
+        # a blank code is "active" only where the mapping says a blank can overdraft
+        smap = {str(k).upper(): v for k, v in (getattr(fr, "status_map", None) or {}).items()}
+
+        def label(code):
+            if code == "Blank":
+                # "active" only where the mapping lists a blank code that can overdraft (Dannemora's lists none)
+                return "Blank (active)" if ("" in smap and smap[""][1]) else "No status code"
+            d = smap.get(str(code).upper())
+            return f"{code} – {d[0]}" if d and d[0] and d[0].upper() != str(code).upper() else str(code)
+        rows = [[label(r[0]), r[ci["Accounts"]], r[ci["Can Overdraft"]], r[ci["Users"]]] for r in top]
+        if rest:
+            rows.append([f"All other ({len(rest)} codes)", f"{sum(n_(r[ci['Accounts']]) for r in rest):,}",
+                         f"{sum(n_(r[ci['Can Overdraft']]) for r in rest):,}", f"{sum(n_(r[ci['Users']]) for r in rest):,}"])
+        if total:
+            rows.append(["Total", total[ci["Accounts"]], total[ci["Can Overdraft"]], total[ci["Users"]]])
+        users_total = n_(total[ci["Users"]]) if total else 0
+        topr = max(body, key=lambda r: n_(r[ci["Users"]])) if body else None
+        share = (n_(topr[ci["Users"]]) / users_total * 100) if topr and users_total else None
+        which = "a blank status code" if topr and topr[0] == "Blank" else (f"status code {label(topr[0])}" if topr else "")
+        title = (f"{share:.0f}% of {t.lower()} NSF/OD users hold accounts with {which}" if share is not None
+                 else f"{t} accounts by overdraft status code")
+        s = dk.content(title, f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}), by overdraft status code.",
+                       section=section,
+                       source=_src(cfg, fr, "za", extra="Open active = open with " + "more than $50 deposited or an NSF/OD item in the last 365 days." + " Users are accounts with at least one NSF/OD item in 365 days. Every code is listed in "
+                                   "'Appendix: every overdraft status code'."))
+        _picture(s, res, LEFT, BODY_T + 0.05, 6.4, 4.5)
+        table(s, {"headers": ["Status code", "Accounts", "Can overdraft", "NSF/OD users"], "rows": rows}, 7.1, BODY_T + 0.1, 5.73,
+              BODY_B - BODY_T - 0.5, highlight_last=True, max_fs=14)
+        caption(s, "each bar is a status code, split by 33-day deposits; a blank code means the account carries no status code.")
+        say_first(s, "Most of our NSF/OD users sit on one status code; this is where the program's users are.")
+        dk.defer(lambda t=t, tabs=tabs: _eligibility_detail(dk, cfg, fr, t, tabs, first=(t == "Personal")))
     return notes
+
+
+def _eligibility_detail(dk, cfg, fr, t, tabs, first=True):
+    """One appendix slide per account type: every status code, and the NSF/OD item segments below it."""
+    s = dk.content(f"Appendix: every overdraft status code and item segment, {t.lower()}",
+                   f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}).", section="appendix",
+                   source=_src(cfg, fr, "za", extra="Open active = open with more than $50 deposited or an NSF/OD item in the last 365 days."))
+    table(s, tabs["codes"], LEFT, BODY_T, 6.1, BODY_B - BODY_T, highlight_last=True, max_fs=10)
+    table(s, tabs["segments"], 6.85, BODY_T, 5.98, 3.0, highlight_last=True, max_fs=10)
+    T.bullets_real(s, 6.85, 5.0, 5.98, 1.4, [
+        "Reg E opt in and opt out are counted among the accounts that can overdraft.",
+        "Accounts with no OD status code are listed as Blank."], size=12, min_size=11)
+    say_first(s, "Reference tables behind the status code and heavy-user slides.")
+    return [s]
 
 
 # ═════════════════════════════ branch summary ═══════════════════════════════
@@ -278,18 +497,79 @@ def add_reg_e(dk, cfg, fr, *, section, progress=None):
     notes = []
     t = "Personal"
     tabs = RA.reg_e_tables(fr, t)
-    res = RA.reg_e_flow(fr, t, dk.chart_dir, size=(6.4, 3.45))
     if tabs is None:
         return ["Reg E drilldown was skipped — no open accounts."]
-    s = dk.content(f"Reg E drilldown — {t} accounts", f"Opt-in by election and by year opened. D = default, N = opted out, Y = opted in.",
-                   section=section, source=_src(cfg, fr, "za", extra="Election table: open accounts with recent activity. Year table: all open accounts."))
-    table(s, tabs["by_election"], LEFT, BODY_T + 0.05, 7.4, 1.5, highlight_last=True, max_fs=10)
-    if not _skip(notes, res):
-        res.tables.update({"by_election": tabs["by_election"], "by_year": tabs["by_year"]})
-        _emit(dk, res, cfg, fr, "za")
-        _picture(s, res, LEFT, 3.35, 7.4, 3.35)
-    table(s, tabs["by_year"], 8.2, BODY_T + 0.05, 4.63, BODY_B - BODY_T - 0.1, max_fs=10)
+    dk.sidecars.append({"key": "reg_e_tables", "title": "Reg E by election and by year opened",
+                        "tables": {"by_election": tabs["by_election"], "by_year": tabs["by_year"]}})
+    be = tabs["by_election"]
+    ci = {h: j for j, h in enumerate(be["headers"])}
+    rows = {r[0]: r for r in be["rows"]}
+
+    def n_(v):
+        return float(str(v).replace(",", "").replace("$", "") or 0)
+    tot = rows.get("Total")
+    yes = rows.get("Y")
+    # ── slide 1: opt-in by the year the account opened
+    yrs = tabs["by_year"]["rows"]
+    rates = [float(r[3].rstrip("%")) for r in yrs]
+    ns = [n_(r[1]) for r in yrs]
+    labels = [r[0] for r in yrs]
+    if yrs:
+        lo_i = min(range(len(rates)), key=lambda i: rates[i])
+        hi_i = max(range(len(rates)), key=lambda i: rates[i])
+        overall = sum(n_(r[2]) for r in yrs) / max(1.0, sum(ns)) * 100
+        fig, ax = R.new_fig(7.8, 4.5)
+        cols = [R.NAVY] * len(rates)
+        cols[lo_i] = R.ORANGE
+        ax.bar(range(len(rates)), rates, color=cols, width=0.66)
+        for i, v in enumerate(rates):
+            ax.text(i, v + max(rates) * 0.015, f"{v:.0f}%", ha="center", va="bottom", fontsize=9.5, color=R.NAVY, fontweight="bold")
+        ax.set_xticks(range(len(rates)))
+        ax.set_xticklabels(labels, rotation=60, ha="right", fontsize=9.5, color=R.TICK)
+        R.style_axes(ax)
+        ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0f}%")
+        ax.set_ylabel("Share opted in to Reg E", fontsize=10.5, color=R.TICK)
+        ax.set_ylim(0, max(rates) * 1.18)
+        fig.tight_layout()
+        png = R.save(fig, dk.chart_dir, "reg_e_by_year_opened")
+        s0 = dk.content(f"Reg E opt-in runs from {rates[lo_i]:.0f}% to {rates[hi_i]:.0f}% by the year the account opened",
+                        f"Open {t.lower()} accounts by year opened: share with a Reg E opt-in, as of {fr.asof:%B} {fr.asof.day}, {fr.asof.year}.",
+                        section=section, source=_src(cfg, fr, "za", extra="Reg E opt-in = RegEOptinvalue Y; all open accounts, not only active ones."))
+        T.image_real(s0, png, LEFT, BODY_T + 0.05, 7.8, 4.55)
+        _tiles_real(s0, [(f"{overall:.0f}%", "Opted in, all open accounts"), (f"{rates[hi_i]:.0f}%", f"Highest: {labels[hi_i]}"),
+                         (f"{rates[lo_i]:.0f}%", f"Lowest (orange): {labels[lo_i]}")])
+        caption(s0, "each bar is the share of accounts opened in that year that opted in to Reg E.", T0=6.35)
+        say_first(s0, "Reg E opt-in is not the same for every group of accounts; look at which opening years are low.")
+        dk.sidecars.append({"key": "reg_e_by_year_opened", "title": "Reg E opt-in by year opened", "png": "reg_e_by_year_opened.png",
+                            "numbers": {"years": labels, "opt_in_pct": rates, "accounts": ns}})
+    # ── slide 2: who is opted in, and what they bring in
+    if tot and yes:
+        share_a = n_(yes[ci["Accounts"]]) / n_(tot[ci["Accounts"]]) * 100
+        share_f = n_(yes[ci["Collected Fees (365)"]]) / max(1.0, n_(tot[ci["Collected Fees (365)"]])) * 100
+        rows2 = []
+        names = {"Y": "Opted in (Y)", "N": "Opted out (N)", "D": "Default (D)", "Total": "Total"}
+        for k in ("Y", "N", "D", "Total"):
+            r = rows.get(k)
+            if not r:
+                continue
+            fees_share = n_(r[ci["Collected Fees (365)"]]) / max(1.0, n_(tot[ci["Collected Fees (365)"]])) * 100
+            rows2.append([names[k], r[ci["Accounts"]], f"{fees_share:.0f}%", r[ci["Fees / User"]], r[ci["Median ILS Limit"]]])
+        s = dk.content(f"Opted-in accounts are {share_a:.0f}% of accounts and {share_f:.0f}% of fees",
+                       f"Open {t.lower()} accounts with recent activity ({tabs['population']:,}) by Reg E election. D = default, N = opted out, Y = opted in.",
+                       section=section, source=_src(cfg, fr, "za", extra="Election table: open accounts with recent activity; fees are CollectedFees365."))
+        table(s, {"headers": ["Reg E election", "Accounts", "Share of fees", "Fees per user", "Median ILS limit"], "rows": rows2},
+              LEFT, BODY_T + 0.2, FULL_W, 3.0, highlight_last=True, max_fs=16)
+        caption(s, "fees per user is collected fees over accounts with at least one NSF/OD item; the median limit is the ILS limit in force.", T0=5.2)
+        say_first(s, "Accounts that opted in to Reg E bring in more fees per user and hold higher limits.")
     return notes
+
+
+def _tiles_real(slide, items, L=8.45, W=4.38, T0=1.80):
+    h = 1.12
+    for i, (v, lab) in enumerate(items[:3]):
+        shapes.tile(slide, L, T0 + i * (h + 0.18), W, h, v, lab, small_label=True)
+
+
 
 
 # ═════════════════════════════ debit declines ═══════════════════════════════
@@ -313,9 +593,21 @@ def add_debit_declines(dk, cfg, fr, *, section, progress=None):
             size=14)
         if d["score_bands"] and d["score_bands"]["rows"]:
             s2 = dk.content(f"Debit declines — {t} accounts by ILS limit",
-                            "Accounts with a debit decline in the decline file, by current ILS limit.", section=section,
-                            source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, joined to open accounts by account id."))
-            table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
+                            (f"Open {t.lower()} accounts that can overdraft" + (" and are opted in to Reg E" if t == "Personal" else "")
+                             + f", by current ILS limit; declines in the 90 days to {fr.asof:%b} {fr.asof.day}, {fr.asof.year}."),
+                            section=section,
+                            source=_src(cfg, fr, "za", "dd", extra="Declines: DebitDecline file, the 90 days to the data as-of date, "
+                                        "counted as distinct amounts per account per day (the analysis notebook's rule), joined by account id."))
+            if d.get("declines_stale"):
+                end = d["declines_end"]
+                when = f"{end:%b} {end.day}, {end.year}" if end is not None and pd.notna(end) else "an unknown date"
+                msg = (f"The DebitDecline extract ends {when}, before the 90 days to {fr.asof:%b} {fr.asof.day}, "
+                       f"{fr.asof.year}, so its declines read n/a here; a current decline pull fills them in.")
+                table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.1, max_fs=12)
+                T.bullets_real(s2, LEFT, 5.95, FULL_W, 0.6, [msg], size=14, min_size=12)
+                notes.append(f"Debit declines ({t}) by ILS limit: {msg}")
+            else:
+                table(s2, d["score_bands"], LEFT, BODY_T + 0.1, FULL_W, 4.8, max_fs=12)
     return notes
 
 

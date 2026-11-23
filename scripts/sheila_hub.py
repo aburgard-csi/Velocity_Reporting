@@ -97,7 +97,7 @@ def who_am_i():
 # The modules the page is assembled from, tabs in sidebar order. Each defines TAB (id, or None for a part of the
 # Decks tab), NAME, VIEW (the tab section's inner HTML), CSS and JS; a tab's JS calls registerTab(id, {...}) (see
 # "tabs" in the page script).
-TAB_MODULES = ("sheila_hub_ils", "sheila_hub_lift", "sheila_hub_issues", "sheila_hub_votes", "sheila_hub_feedback")
+TAB_MODULES = ("sheila_hub_ils", "sheila_hub_live", "sheila_hub_lift", "sheila_hub_issues", "sheila_hub_votes", "sheila_hub_feedback")
 
 
 # The mark (option E, Aaron 2026-11-02): a navy slide in front of a teal one, light and dark; the favicon draws the same.
@@ -790,8 +790,8 @@ function renderDetail() {
   const k = kindOf(c);
   $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(s.name || c.name || s.client)}</h2><span class="chip k-${k.k}">${si(k.k)}${esc(k.label)}</span>
     <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span><span class="meta clientlinks" id="clientlinks"></span></header>
-    <div class="pres">${cards.join("")}<div id="ilscards"></div></div>`;
-  ilsCards(s.client); clientLinks(s.client, "decks", $("#clientlinks"));
+    <div class="pres">${cards.join("")}<div id="livecard"></div><div id="ilscards"></div></div>`;
+  ilsCards(s.client); liveCard(); clientLinks(s.client, "decks", $("#clientlinks"));
   if (JOB) renderJob(JOB);
   if (s.refreshing) for (const x of $$("#detail [data-act=build]")) { x.disabled = true; x.title = "Waiting for the fresh check"; }
 }
