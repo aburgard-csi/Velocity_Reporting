@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — Financial services: the mailing calendar on the monthly series (`ti/transaction_intelligence/financial_services.py`, `txn_sections.py`)
+
+Summary: Adds `fin_mail_months`. Based on `feat/ars-ti/fs-09-institution-registry`. Adds a figure only; **no slide and no existing figure changes.**
+
+- **`fin_mail_months`:** the months a mailing dropped, so the monthly series (`fin_monthly`) can mark them. A month is a mail month when the ODD's `<tag> Mail` column has any entry, the same columns the mailer analysis reads (`monthly_analysis/mailer.py`), so it follows the data. Months outside the window are left out; no calendar, no key.
+- **1798:** mails every other month; six mailings in its 12-month window (Dec, Feb, Apr, Jun, Aug, Oct), about 23,000 accounts each.
+- **Not built:** drawing the marks on a chart. The series and the calendar are in the pack; the chart is for Aaron.
+- Tests: four in `tests/test_ti_finserv_trend.py`; the guide documents the figure.
+
+---
+
 ### 2026-11-17 — Financial services x institution: named by the registry when the Competition layers ran (`ti/transaction_intelligence/institution_view.py`, `txn_sections.py`, `chapters_txn.py`)
 
 Summary: Adds to `fininst_*` (merged in #167); **no slide and no other figure changes.** Based on `main` after the Competition layers (#173-#180).
