@@ -29,7 +29,16 @@ import zipfile
 import pandas as pd
 
 ANALYSIS_ROOT = r"\\ilsdbsrvr2.csi.corp\ClientAnalysis\ILS Client Analysis"
-COLS = ("acctid", "acctstatus", "accttype", "items365", "collectedfees365")
+# Each column read, lower-case name -> the name ils_data uses, so a peer's frame goes through the same
+# validate_zaccounts as the client's own.
+CANON = {"acctid": "acctid", "acctstatus": "acctstatus", "accttype": "accttype", "items365": "items365",
+         "collectedfees365": "CollectedFees365", "pd_365": "PD_365", "chargeoff_amt_365": "Chargeoff_Amt_365",
+         "chargeoff_account": "Chargeoff_Account", "refund_amt_365": "Refund_Amt_365", "canoverdraft": "CanOverdraft",
+         "regeoptinvalue": "RegEOptinvalue"}
+COLS = tuple(CANON)
+FIELDS = ["client_id", "accttype", "as_of", "open_accounts", "items365", "fees365", "users365", "pd365", "fees365_all",
+          "co365_all", "refund365_all", "eligible", "rege_y", "source"]
+NEW_FIELDS = ("pd365", "fees365_all", "co365_all", "refund365_all", "eligible", "rege_y")
 
 
 def peers_dir():
@@ -104,7 +113,7 @@ def newest_zaccounts(client_dir):
 
 
 def _read(ref):
-    """The four columns, read through pandas with usecols."""
+    """The COLS columns, read through pandas with usecols."""
     want = set(COLS)
 
     def use(c):
@@ -120,20 +129,52 @@ def _read(ref):
                 return pd.read_csv(io.TextIOWrapper(fh, encoding="utf-8", errors="replace"), usecols=use, low_memory=False)
     return pd.read_csv(ref, usecols=use, low_memory=False, encoding="utf-8", encoding_errors="replace")
 
-def metrics_from_frame(df):
-    """{accttype: {open_accounts, items365, fees365, users365}} from a ZAccounts frame."""
-    df = df.rename(columns={c: c.strip().lower() for c in df.columns})
-    if not {"acctstatus", "accttype", "items365", "collectedfees365"} <= set(df.columns):
-        raise ValueError("missing columns: " + ", ".join(sorted({"acctstatus", "accttype", "items365", "collectedfees365"} - set(df.columns))))
-    df = df[df["acctstatus"].astype(str).str.upper().str.strip() == "O"].copy()
-    df["items365"] = pd.to_numeric(df["items365"], errors="coerce").fillna(0)
-    df["collectedfees365"] = pd.to_numeric(df["collectedfees365"], errors="coerce").fillna(0.0)
+def metrics_from_frame(df, validated=False):
+    """{accttype: figures} from a ZAccounts frame: the ONE calculation used for the client and for every peer.
+
+    Open accounts: open_accounts, items365, fees365, users365, pd365 (paid items), eligible (CanOverdraft), rege_y
+    (Reg E opt-in 'Y'). All accounts of the type, because charged-off accounts are closed: fees365_all, co365_all and
+    refund365_all. A figure the extract cannot give is None, never 0: refunds when Refund_Amt_365 is blank on every
+    account, charge-offs when the frame trips the same charge-off guard as the client (r_common: more than half the
+    accounts flagged, or more charged off than every fee collected), Reg E when no account is coded 'Y'."""
+    from . import ils_data as D
+    from . import r_common as RC
+    df = df.rename(columns={c: CANON.get(c.strip().lower(), c.strip()) for c in df.columns})
+    need = {"acctstatus", "accttype", "items365", "CollectedFees365"}
+    if not need <= set(df.columns):
+        raise ValueError("missing columns: " + ", ".join(sorted(need - set(df.columns))))
+    if not validated:
+        if "acctid" not in df.columns:
+            df = df.assign(acctid=range(len(df)))
+        df, _ = D.validate_zaccounts(df)
+    num = lambda c: pd.to_numeric(df[c], errors="coerce") if c in df.columns else pd.Series(float("nan"), index=df.index)
+    items, fees, pdn = num("items365").fillna(0), num("CollectedFees365").fillna(0.0), num("PD_365")
+    co, refund = num("Chargeoff_Amt_365").abs(), num("Refund_Amt_365")
+    co_ok = co.notna().any()
+    if co_ok:
+        flags = RC._yes(df["Chargeoff_Account"]).mean() if "Chargeoff_Account" in df.columns else 0.0
+        tot_fees = float(fees.sum())
+        if flags > 0.5 or (tot_fees and float(co.fillna(0).sum()) / tot_fees > RC.LOSS_RATE_LIMIT):
+            co_ok = False
+    is_open = df["acctstatus"].astype(str).str.upper().str.strip() == "O"
+    elig = RC._yes(df["CanOverdraft"]) if "CanOverdraft" in df.columns else None
+    rege = df["RegEOptinvalue"].astype(str).str.strip().str.upper() == "Y" if "RegEOptinvalue" in df.columns else None
     out = {}
-    for t, g in df.groupby(df["accttype"].astype(str).str.strip()):
-        if t not in ("Personal", "Business"):
+    types = df["accttype"].astype(str).str.strip()
+    for t in ("Personal", "Business"):
+        a = types == t
+        o = a & is_open
+        if not a.any():
             continue
-        out[t] = {"open_accounts": int(len(g)), "items365": float(g["items365"].sum()), "fees365": float(g["collectedfees365"].sum()),
-                  "users365": int((g["items365"] > 0).sum())}
+        fa = float(fees[a].sum())
+        out[t] = {"open_accounts": int(o.sum()), "items365": float(items[o].sum()), "fees365": float(fees[o].sum()),
+                  "users365": int((items[o] > 0).sum()),
+                  "pd365": float(pdn[o].sum()) if pdn[o].notna().any() else None,
+                  "fees365_all": fa,
+                  "co365_all": float(co[a].fillna(0).sum()) if co_ok else None,
+                  "refund365_all": float(refund[a].fillna(0).sum()) if refund[a].notna().any() else None,
+                  "eligible": int((elig & o).sum()) if elig is not None else None,
+                  "rege_y": int((rege & o).sum()) if rege is not None and bool((rege & a).any()) else None}
     return out
 
 
@@ -176,26 +217,49 @@ def pull(ids=None, since="202509", limit=None, say=print, root=ANALYSIS_ROOT, sh
         if since and stamp[:6] < since:
             say(f"{cid}: newest extract {stamp} is older than {since}; left out")
             continue
-        if any(have.get((cid, t), {}).get("as_of") == stamp for t in ("Personal", "Business")):
-            continue
+        if any(have.get((cid, t), {}).get("as_of") == stamp and all(f in have[(cid, t)] for f in NEW_FIELDS)
+               for t in ("Personal", "Business")):
+            continue                                   # a row from before NEW_FIELDS is read again
         try:
             m = metrics_from_frame(_read(zp))
         except Exception as exc:                       # a client's file that cannot be read is reported, never guessed
             say(f"{cid}: could not read {os.path.basename(zp)} ({type(exc).__name__}: {exc})")
             continue
         for t, v in m.items():
-            mine[(cid, t)] = have[(cid, t)] = {"client_id": cid, "accttype": t, "as_of": stamp, "open_accounts": v["open_accounts"], "items365": round(v["items365"], 1),
-                              "fees365": round(v["fees365"], 2), "users365": v["users365"], "source": os.path.basename(zp.split("::")[0]) + ("::" + zp.split("::")[1] if "::" in zp else "")}
+            row = {"client_id": cid, "accttype": t, "as_of": stamp,
+                   "source": os.path.basename(zp.split("::")[0]) + ("::" + zp.split("::")[1] if "::" in zp else "")}
+            for k, x in v.items():
+                row[k] = "" if x is None else (round(x, 2) if isinstance(x, float) else x)   # blank, never 0, when unknown
+            mine[(cid, t)] = have[(cid, t)] = row
         say(f"{cid}: {stamp} {', '.join(f'{t} {v['open_accounts']:,}' for t, v in m.items())}")
         n_done += 1
         with open(path, "w", newline="", encoding="utf-8") as fh:
-            w = csv.DictWriter(fh, fieldnames=["client_id", "accttype", "as_of", "open_accounts", "items365", "fees365", "users365", "source"])
+            w = csv.DictWriter(fh, fieldnames=FIELDS, restval="", extrasaction="ignore")
             w.writeheader()
             for k in sorted(mine):
                 w.writerow(mine[k])
         if limit and n_done >= limit:
             break
+    if n_done:
+        update_peer_reference(f"ILS peer pull ({n_done} client(s){', shard %d/%d' % shard if shard else ''})", say)
     return path
+
+
+def update_peer_reference(reason, say=print):
+    """The peer table changed: refresh the ILS rows of the peer reference on the share in the background (Aaron,
+    2026-11-22: "update data on the peer comparison dataset when we build new presentations"; an ILS deck's peers come
+    from this table, so this is where its figures change). Never raises: the pull's own result never depends on it.
+    Several shards finishing one after another each ask; the update's lock and its "compiled since" check make the
+    later ones a no-op."""
+    try:
+        scripts = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+                               "scripts")
+        if scripts not in sys.path:
+            sys.path.insert(0, scripts)
+        import build_peer_reference as BPR
+        BPR.spawn_update(["ILS"], reason, log=say)
+    except Exception as exc:                                   # noqa: BLE001
+        say(f"Peer reference: not updated ({type(exc).__name__}: {exc})")
 
 
 if __name__ == "__main__":

@@ -78,7 +78,11 @@ def ranked_with_panel(dk, slide, df, col, top_n, *, series_name, fmt, fmtv, port
              (f"{hi[col] / lo[col]:.1f}x" if lo[col] else "n/a", "Highest branch over lowest"),
              (fmtv(hi[col]), "Highest branch"),
              (fmtv(lo[col]), "Lowest branch")]
+    import textfit
     for i, (v, lab) in enumerate(tiles):
+        # A seven-figure dollar value ("$1,314,642") does not fit a half-width tile at 28 pt: show it compact ($1.31M).
+        if not textfit.fits_one_line(str(v), tw - 0.1, 28, bold=True):
+            v = CS.compact_money(v)
         shapes.tile(slide, x0 + (i % 2) * (tw + 0.15), 1.75 + (i // 2) * 1.08, tw, 0.98, v, lab, small_label=True)
     if len(sel) <= 6:
         rows = [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in sel.iloc[::-1].iterrows()]
@@ -187,18 +191,24 @@ def add_branch_section(dk, cfg, loaded, accttype, *, section, cv=None, divider=F
     # ── overdraft activity (two-up) ────────────────────────────────────────
     fee_labels, fee_values = M.top_branches(od, "avg_fee_per_user", top_n)
     pres_labels, pres_values = M.top_branches(od, "pct_presented", top_n)
-    s = dk.content(f"{accttype} accounts — overdraft activity by branch",
-                   '"Users" = an open account with at least one item paid into overdraft or '
-                   'returned in the trailing 12 months.',
-                   section=section)
-    T.textbox(s, HALF_L, CHART_Y, HALF_W, 0.34,
-              "Fees collected per user ($)", 13, bold=True, color=T.NAVY)
-    C.bar(s, HALF_L, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, fee_labels, fee_values,
-          series_name="Avg fees / user", color=T.PURPLE, number_format='"$"#,##0')
-    T.textbox(s, HALF_R, CHART_Y, HALF_W, 0.34,
-              "Share of accounts that presented an item (%)", 13, bold=True, color=T.NAVY)
-    C.bar(s, HALF_R, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, pres_labels, pres_values,
-          series_name="% presented", color=T.CORAL, number_format='0.0"%"')
+    if not len(fee_labels) or not len(pres_labels):
+        # no branch has an NSF/OD user of this type: a chart with no bars cannot be drawn (python-pptx raises
+        # "chart data contains no categories") and would say nothing, so the slide is left out and the notes say why
+        notes.append(f"Overdraft activity by branch ({lower} accounts) was skipped: no branch has an account with an "
+                     f"NSF/OD item in 365 days.")
+    else:
+        s = dk.content(f"{accttype} accounts — overdraft activity by branch",
+                       '"Users" = an open account with at least one item paid into overdraft or '
+                       'returned in the trailing 12 months.',
+                       section=section)
+        T.textbox(s, HALF_L, CHART_Y, HALF_W, 0.34,
+                  "Fees collected per user ($)", 13, bold=True, color=T.NAVY)
+        C.bar(s, HALF_L, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, fee_labels, fee_values,
+              series_name="Avg fees / user", color=T.PURPLE, number_format='"$"#,##0')
+        T.textbox(s, HALF_R, CHART_Y, HALF_W, 0.34,
+                  "Share of accounts that presented an item (%)", 13, bold=True, color=T.NAVY)
+        C.bar(s, HALF_R, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, pres_labels, pres_values,
+              series_name="% presented", color=T.CORAL, number_format='0.0"%"')
 
     # ── growth & activation (two-up) ───────────────────────────────────────
     if growth is not None and len(growth):

@@ -123,8 +123,11 @@ def test_slide_count(deck):
     Financial Performance is the P&L since 2026-10-02, drawn over the template's slide of
     that name rather than added beside it, so the count did not move. If this moves,
     assemble_combined's section boundary is the next thing to check — adding two slides
-    broke it before."""
-    assert len(deck["prs"].slides) == 51
+    broke it before.
+
+    50 since 2026-11-22: the golden client has no peers, and a "How You Compare" slide with no measure that has five
+    peers is no longer added (Aaron: "skip a slide if it doesn't have data"); it used to be drawn saying so."""
+    assert len(deck["prs"].slides) == 50
 
 
 # --- it has the right shape ----------------------------------------------
@@ -231,7 +234,7 @@ def test_nsf_slide_compares_complete_months_and_says_what_was_left_out(partial_d
     notes = s.notes_slide.notes_text_frame.text
     assert "Jul 2026 is left out as incomplete in this extract" in notes, notes
     assert "Items YTD YoY compares Jan\u2013Jun 25 (" in notes and ") to Jan\u2013Jun 26 (" in notes, notes
-    assert len(partial_deck["prs"].slides) == 51, "a partial month never drops a slide"
+    assert len(partial_deck["prs"].slides) == 50, "a partial month never drops a slide"
 
 
 def test_spend_yoy_is_year_to_date_too(deck):
@@ -286,3 +289,53 @@ def test_every_slide_of_the_golden_deck_is_in_the_slide_inventory(deck):
         if not any(built == t or built.startswith(t + " ") for t in listed):      # "Reg E Opt-In by Branch — Last 12 Months"
             missing.append(first)
     assert not missing, f"built but not in the inventory: {missing}"
+
+
+def test_the_pack_carries_account_growth_over_twelve_complete_months(deck):
+    """Account growth (Aaron, 2026-11-22, a peer measure the client controls): net personal accounts over the last 12
+    complete months of the openings series, as a share of those open at the start of them."""
+    import json
+    m = json.load(open(deck["metrics"], encoding="utf-8"))
+    assert m["n_open_personal"] > 0
+    win = m["acct_growth_window"]
+    assert win and len(win) == 2
+    names = [x[0] for x in m["openings"]]
+    i, j = names.index(win[0]), names.index(win[1])
+    assert j - i == 11
+    net = sum(x[1] - x[2] for x in m["openings"][i:j + 1])
+    assert m["acct_growth_net"] == net
+    start = m["n_open_personal"] - sum(x[1] - x[2] for x in m["openings"][i:])
+    assert m["acct_growth_pct"] == round(100.0 * net / start, 1)
+
+
+@pytest.fixture(scope="module")
+def no_dob_deck(tmp_path_factory, odd_csv):
+    """The same deck on an ODD whose DOB column is blank on every row (the 1537 shape, 2026-08-28)."""
+    import csv
+    w = tmp_path_factory.mktemp("golden_no_dob")
+    odd = w / "no_dob_odd.csv"
+    with open(odd_csv, encoding="utf-8", newline="") as fi, open(odd, "w", encoding="utf-8", newline="") as fo:
+        rows = list(csv.reader(fi))
+        h = next(i for i, r in enumerate(rows) if "DOB" in r)     # the extract's banner lines come first
+        col = rows[h].index("DOB")
+        wr = csv.writer(fo, lineterminator=chr(10))
+        for i, r in enumerate(rows):
+            if i > h and len(r) > col:
+                r[col] = ""
+            wr.writerow(r)
+    return _build(w, str(odd))
+
+
+def test_a_slide_with_no_data_is_left_out_and_said_so(no_dob_deck, deck):
+    """Aaron, 2026-11-22: "skip a slide if it doesn't have data". With no date of birth the Responder Age Profile slide
+    is left out (it used to say age was not carried), the build log names it, and the package stays sound."""
+    sys.path.insert(0, os.path.join(REPO, "validation"))
+    import validate_deck as vd
+    titles = _build_titles(no_dob_deck)
+    assert not any(t.startswith("Responder Age Profile") for t in titles)
+    assert "Responder Age Profile" in _build_titles(deck)
+    assert len(no_dob_deck["prs"].slides) == len(deck["prs"].slides) - 1
+    log = (no_dob_deck["dir"] / "build.log").read_text(encoding="utf-8", errors="replace")   # the runner writes stdout in its code page
+    assert "slide left out (no data): Responder Age Profile - date of birth is not carried" in log
+    assert vd.package_findings(no_dob_deck["path"]) == []
+    assert not any("Date of birth is not carried" in titles_of(s) for s in no_dob_deck["prs"].slides)

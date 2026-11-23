@@ -174,7 +174,7 @@ def _dbic_channels(run):
 def _sec_exception_items(run, key):
     # One slide, not two (Aaron, 2026-11-17): with the DBIC channel table, the medians ride on that slide.
     if _dbic_channels(run):
-        return []
+        return ["Exception items by channel: carried on the DBIC channel slide, which has the channel table and medians."]
     return CS.add_exception_items(run.dk, run.cfg, run.fr, section=key, progress=run.say)
 
 
@@ -283,7 +283,7 @@ def _slide_data_notes(run, key):
     scope.append(f"{count(len(za))} accounts in the extract, {count(n_open)} open, as of {str(fr.asof)[:10]}{pull}.")
     kept = "retail branches and digital channels" if cfg.include_digital else "retail branches"
     scope.append(f"Branch views cover the {kept}; back-office codes are held out ({br.summary()}).")
-    scope.append("Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365; a user has at least one NSF/OD item in 365 days.")
+    scope.append("Open active accounts are open accounts with more than $50 deposited or an NSF/OD item in the last 365 days; a user has at least one NSF/OD item in 365 days.")
     scope.append("Comparisons use complete months only; movement within 2% is called almost flat.")
     scope.append("Peers are other ILS clients, shown by client number only; very large clients are compared with other very large ones, "
                  "the rest within their Census region, with five peers at least.")
@@ -443,9 +443,14 @@ def build_review(cfg: BuildConfig, progress=None):
             run.notes.append(f"{sec.label}: skipped — no {' or '.join(missing)} supplied.")
             return
         say(f"Building section: {sec.label}…")
-        before = len(dk.generated)
+        before, notes_before, errors_before = len(dk.generated), len(run.notes), len(run.errors)
         try:
             run.notes.extend(n for n in (BUILDERS[key](run, key) or []) if n)
+            if len(dk.generated) == before and len(run.notes) == notes_before and len(run.errors) == errors_before:
+                # A section that adds nothing and says nothing (the Industry Update and peer slides when the share
+                # root could not be read) would otherwise vanish from the deck unnoticed.
+                run.notes.append(f"{sec.label}: produced no slides and gave no reason; check its inputs "
+                                 "(RPE_DATA_ROOT and the files it reads there).")
         except Exception as exc:
             detail = traceback.format_exc(limit=3).strip().splitlines()[-1]
             run.errors.append(f"{sec.label}: failed to build — {type(exc).__name__}: {exc}. ({detail})")
@@ -483,6 +488,7 @@ def build_review(cfg: BuildConfig, progress=None):
     except SystemExit as exc:
         contact = None
         run.build_log.append(f"Contact Us slide not added: {exc}")
+        run.notes.append(f"Contact Us slide not added: {exc}")        # deck_checks reports it (REVIEW)
     if contact:
         cs = shell.add_slide()
         dk.generated.append(cs)
@@ -551,6 +557,16 @@ def build_review(cfg: BuildConfig, progress=None):
     say(f"Done — {total} generated slide(s) in a {len(shell.prs.slides)}-slide deck.")
     if run.errors:
         say(f"{len(run.errors)} section(s) reported an error; see the Data Notes slide.")
+    # the defects a layout validator cannot see (a failed section, a stale extract, an all-zero column): deck_checks
+    try:
+        from . import deck_checks
+        found = deck_checks.check(out_path, os.path.join(chart_dir, "figures_index.json"))
+        fails = sum(1 for f in found if f[0] == "FAIL")
+        say(f"Deck checks: {fails} FAIL, {len(found) - fails} REVIEW.")
+        for level, msg in found:
+            say(f"  {level} {msg}")
+    except Exception as exc:        # the checks never take a built deck down
+        say(f"Deck checks could not run: {type(exc).__name__}: {exc}")
     return out_path
 
 

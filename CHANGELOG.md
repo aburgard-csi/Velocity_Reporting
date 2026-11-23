@@ -31,6 +31,141 @@ outputs, sort them into each CSM's folders with the other files."
   `Outputs/<CSM>/<id>-<period>-TI-Lists/`, which #170 already wrote. `ti_lists_backfill.py` copies the lists builds
   made before #170 left in Build Artifacts, only where that period's TI deck is in Outputs.
 
+### 2026-11-19 — The morning file get sweeps the Drop Folder (`scripts/watch_sources.py`, `build/rpe_env.py`)
+
+Summary: Files dropped in the CSM_Reporting Drop Folder are now filed into Inputs by the 08:00 file get, by the same naming rules as files from the shares and the mailbox. A file it cannot place, or one whose name already holds different contents in Inputs, is left in the folder and listed in the morning report. A dropped ODD extract whose pull stamp is newer than the one in Inputs replaces it, and the older one is archived.
+
+Aaron, 2026-11-10: "added a Drop Folder for input files here: \\PADMIS105\Velocity_company\CSM_Reporting\-Drop Folder. You can move, sort, and rename them." On 2026-11-16: "Drop folder during a file get"; on 2026-11-19: "start the drop-folder sweep in watch_sources".
+
+- **Runs under `--copy`**, which the "RPE Source Watch" task already passes, after the share copy and before the prune. The task does not need registering again.
+- **No new classifier.** `classify_drop` uses the watch's own `classify` (ODD extracts, DCOs, ARS workbooks, MRPCPM analyses, ICS workbooks), `mail_sources.classify_attachment` (the MRPC and CashPlease weeklies, the CashPlease marketing files) and the DDA count's saved name (`ils_dda_count_mail.SAVED_RE`). The folder name is `rpe_env.DROP_FOLDER_DIRNAME`, resolved by `rpe_env.drop_folder()`.
+- **Filed:** a recognised file not in Inputs is copied through a `.part`, checked by size and against a change during the copy, then removed from the Drop Folder. **Already filed:** a byte-identical copy in Inputs means the dropped one is removed.
+- **Never overwritten, except a newer ODD pull:** a different file of the same name in Inputs leaves both, with both pull stamps named for an ODD extract. The exception (Aaron, 2026-11-22: "yes, newer stamp should replace it automatically") is an ODD extract whose own pull stamp is newer than the held one's: it replaces the held extract, which is moved to `Inputs/ODDD/_Archive/<id>_ODDD pulled <stamp>.zip`, never deleted, and the new file carries today's write time so the share's older extract cannot copy back over it. An older, equal or unreadable stamp is still left. A name no reader knows, and any subfolder, are left. A refused delete is reported, never fatal.
+- The report and log carry a `## Drop Folder` section; the one-line summary says "Filed N from the Drop Folder." (with how many replaced an older ODD extract) or "Drop Folder needs a look (N).", and `--notify` raises a toast for the latter.
+- Tests: 15 new in `tests/test_watch_sources.py`, 26 cases (the naming, each outcome, a refused delete, a file still arriving, `--copy` with and without `--dry-run`, a missing folder).
+
+---
+
+### 2026-11-22 — Peer comparisons: ARS on what the client controls, two to a slide; a slide with no data is left out (`build/peer_slide.py`, `review_page/peer_pool.py`, `metrics_gen.py`, `shapes.py`, the four builders)
+
+Summary: ARS clients are now compared with their peers only on what they control: Reg E opt-in, debit card take rate, account growth and retention, never the program's own results. Every deck's "How You Compare" slides carry at most two comparisons each. Any slide with no data for the client is left out of the deck rather than shown with a sentence saying so.
+
+Aaron, 2026-11-22: "For ARS peer comparisons, don't compare program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."; "Don't put more than 2 peer comparison charts on a slide."; "skip a slide if it doesn't have data" (on Brooks Bank's Responder Age Profile, which read "Date of birth is not carried in this client's data extract...").
+
+- **ARS peer measures** (`peer_pool.ARS_METRICS`, read by Live Review, the decks, the peer reference and Sheila in Claude):
+  - **Now compared:** Reg E opt-in (open personal accounts; accounts opened in the last 12 months), debit card take rate (the whole eligible book; new accounts), account growth, one-year retention.
+  - **No longer compared:** response rates, responder spend before and after a mailing, swipe-tier movement, swipes and spend per account, cards in use, ARS revenue per 1,000 (`ARS_PROGRAM_RESULTS`). Sheila in Claude's `peer_compare` lost "response", "repeat", "active_new" and "active_book" and gained "account_growth".
+- **Account growth is new** (`metrics_gen`: `n_open_personal`, `acct_growth_pct`, `acct_growth_window`, `acct_growth_net`): personal accounts opened minus closed over the last 12 complete months (a month counts once the extract was pulled after it ended), as a share of the personal accounts open at the start of those months. A pack built before today does not carry it, so the measure fills in as decks are rebuilt; it needs five peers with it before it is drawn.
+- **Two comparisons a slide** (`peer_slide.GROUPS`, `MAX_PER_SLIDE`). Each program's slides are titled "How You Compare — <pair>":
+  - **ARS:** Reg E Opt-In; Debit Card Take Rate; Accounts Gained & Kept.
+  - **ICS:** Referrals and Revenue; Revenue by Source; Spread on Deposits.
+  - **MRPC:** Enrollments; Cardholder Activity.
+  - **CashPlease:** Loan Volume; Repayment.
+
+  The slide inventory (Slide Review) lists each one. Every title is checked to fit on one line.
+- **A slide with no data is left out** (CLAUDE.md, the rule that replaces "Never drop slides automatically"), named in the build log as `slide left out (no data): <title> - <why>`:
+  - the ARS Responder Age Profile with no date of birth;
+  - the MRPC Program to Date and Current Program Status slides when the weekly has no tab for the client;
+  - CashPlease Loan Volume by Month with no loans in the workbook;
+  - a peer slide with no measure that has five peers, and the peer section when the program has fewer than five other clients;
+  - every opt-in ARS view (James / Companion / test slides) that drew a "not shown" sentence.
+
+  A failure to READ the peers' figures still draws its slide and fails the gate.
+- **`shapes.drop_slide`** takes a slide out (its list entry and relationship) and renames the kept parts in order, so a slide added later never reuses a freed part name.
+- Tests: `tests/test_peer_slide.py` (rewritten), `tests/test_skip_no_data.py` (new), a no-DOB golden build in `tests/test_golden_deck.py`, account growth in `tests/test_peer_tables.py` and the golden pack. The golden deck is 50 slides, not 51: it has no peers, so its peer slide is now left out.
+
+### 2026-11-22 — The peer reference is updated whenever a deck is built (`build_peer_reference.py --update`, `spawn_update`)
+
+Summary: Building a deck now refreshes that deck's programs in the peer reference file on the share, in the background, so the file follows the newest decks without a hand run. The build does not wait for it, and its result never depends on it.
+
+Aaron, 2026-11-22: "update data on the peer comparison dataset when we build new presentations."
+
+- **When:** once a deck is in Outputs. `ars_launcher build` (CSM Sheila's builds and Sheila in Claude's included), `build_cashplease.py`, and `build_month.py` once at the end of a batch start `build_peer_reference.py --update --programs <the deck's programs>`. The ILS rows change when the ILS peer pull (`ils_review/peer_pull.py`) writes the peer table, so the pull starts an ILS update once it has written a client. Transaction Intelligence and Companion decks carry no peer figure and start nothing.
+- **Background, never in the build's way:** the update runs as its own detached process, with its output appended to `Build Artifacts/peer_reference_updates.log` (a file, never a pipe). A failure to start it is printed and ignored. Over the share ARS takes about five minutes, ICS about one and a half, CashPlease about one, MRPC seconds.
+- **Only what the build touched:** an update recompiles the deck's programs and keeps every other program's rows, sources, catalog entries and compile time from the newest file. Each row keeps the `compiled_at` of the run that made it. A program that fails keeps its previous rows; the manifest names it under `failed` and `stale`, so the file is never quietly short a program. With no file yet, an update compiles every program.
+- **Several PCs at once:** `Peer Reference/.update.lock` is created exclusively, with host, pid, user and time inside, and is broken after 90 minutes. A second update waits up to an hour for it, then skips any program another update began compiling after it was asked for (`program_compiled_at` in the manifest, to the microsecond). Each writer's temporary file now carries its host and process id, so two writers never share one.
+- **Off switch:** `RPE_PEER_REFERENCE_UPDATE=0`; the test suite sets it, so no test starts a real update.
+
+### 2026-11-20 — ILS analysis: peer comparisons on eight measures, two to a slide (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck's peer comparison grows from three measures on one slide to eight measures over four slides per account type, never more than two on a slide: NSF/OD usage, fee revenue, items paid and losses, and refunds and Reg E. A measure the client's extract cannot give is left out and said why, never shown as 0.
+
+Aaron, 2026-11-20: "build out additional peer comparison slides. No more than 2 comparisons per slide."
+
+- **Measures**: items per 1,000 open accounts and users as a share of open accounts; fees per open account and per user; pay rate and loss rate; refunds as a share of fees and Reg E opt-in (Personal only). `peers_slides.GROUPS` holds the pairs and `MAX_PER_SLIDE = 2`; a test fails if a group grows past two.
+- **One calculation**: the client's own figures and every peer's come from `peer_pull.metrics_from_frame`, with the same Data Validation clean-up (`validate_zaccounts`), so a slide cannot compare two arithmetics.
+- **Unknown is blank, not 0**: refunds when the extract's Refund_Amt_365 is blank; a loss rate above 100% or no charge-off dollars on a book with 100 or more users (the extract does not carry charge-offs); Reg E when no open account is coded opted in. Such a peer is left out of that measure only; each measure has its own peer count.
+- **Peer table**: `peer_pull` reads six more ZAccounts columns and re-reads any row from before them. Re-pulled 2026-11-20 for 347 client and account-type rows; the old table is kept in `peers/_before_2026-11-20/`.
+- **A section that vanishes says so**: a section that adds no slide and gives no reason, or a Contact Us slide that could not be drawn, is now a REVIEW in the deck checks. Industry Update, the peer slide and Contact Us dropped silently when the share root was passed through a Bash shell, which turns the share's leading `\\` into a single `\`.
+- Tests: four new in `tests/test_ils_analysis.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: the analysis team's own rules for losses, active accounts, the KPI population and data clean-up (`build/ils_analysis/`)
+
+Summary: The ILS analysis deck now follows the analysis team's notebooks for monthly loss rates, open active accounts, which account types the 365-day KPI counts, and the Data Validation clean-up (negative charge-offs, savings accounts, 1970 null dates); the KPI table gains Active Checking Accts, % Closed Accts Charged Off and % Active Users. On twenty recent analyst-built pulls the not-repaid and KPI tables now match the analyst decks cell for cell.
+
+Aaron, 2026-11-20: "continue to iterate. use as much time and data as you need to be confident in the results." Each rule below is the notebook's ('ILS Analysis - Python Script.ipynb', 'ILS Analysis - Data Validation.ipynb'), found by comparing built decks with the analysts' tables by script:
+
+- **Monthly loss rate**: a charged-off account with no last positive date on any notice has no fatal notice, but its Chargeoff_Amt_365 still counts, on its earliest notice (notebook cell 30). Leaving it out made loss rates read low, never high, while % fatal and the 365-day total agreed. The Scoring Summary's band losses follow the same rule.
+- **Open active accounts**: open, with more than $50 deposited or at least one NSF/OD item in 365 days (the notebook's ACTIVITY flag). It replaces a 240-day deposit window fitted on one client, which ran -3% to +9% elsewhere.
+- **KPI population**: account types starting P, Q, B or Z, grouped by IsPersonal; any other type ("New Start - Personal") is left out, where it had been folded into Business. New rows Active Checking Accts, % Closed Accts Charged Off and % Active Users, as the notebook computes them.
+- **Data Validation** (`ils_data.validate_zaccounts`): savings and time-deposit types left out; a negative Chargeoff_Amt_365 taken as its absolute value; 1970-01-01 read as blank; ZTrend rows with no account id dropped. Each change is listed in the build notes.
+- **Robustness**: a header line repeated inside ZAccounts is dropped and numeric columns are read as numbers (a sum had concatenated text); a folder holding the analysis team's cleaned za.csv / zt.csv / dd.csv is read, dd.csv's renamed columns included; a branch tile whose dollar figure does not fit is shown compact.
+- Tests: seven new in `tests/test_ils_analysis.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: deck checks after every build; prep slides merged hidden; more input and empty-data checks (`build/ils_analysis/`)
+
+Summary: Every ILS analysis build now checks its own deck for failed sections, stale extracts and all-zero or all-n/a columns; the ILS prep slides merge into the deck as hidden context, with the matrix slides visible at the start of each account type's risk analysis; and empty data, tab-delimited files and very large percentages no longer break a slide.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues", and "Build the ILS prep slides as hidden slides at the front of the deck so they don't print or show when we display ... I like the matrix slides at the beginning of the risk analysis for personal or business." Found by building twelve recent analyst-built pulls and checking each by script:
+
+- **`ils_review/deck_checks.py`**, run at the end of every build: FAIL for a section that failed to build; REVIEW for a stale extract, a table column that is zero or n/a in every row, a table with no rows, a peer slide that is "Lowest" on every measure, and a chart stated as having no data.
+- **`merge_review.py` is general** (it was one client's script): prep slides go in hidden after the cover; the Matrix Parameters / Overrides slides go in visible before the first Scoring Summary slide of their account type, or after the Appendix divider when the deck has none; optional CashPlease section before Thank You; page numbers count visible slides only. `tests/test_ils_merge_review.py`.
+- **Delimiters** are read from each extract's first line (`sniff_sep`): a tab-delimited decline file stopped a build.
+- **Empty data is stated, never a crash**: every chart helper writes "No data for this chart" where python-pptx raised on an empty chart; branch overdraft activity and year over year leave out an account type with no users or no notices, and say so.
+- **Charged-off accounts with no notice history**: when fewer than a quarter of an account type's charged-off accounts have any notice in ZTrend, the Scoring Summary notes that its near-zero default rates come from missing history, not missing losses.
+- **Fit**: the data-integrity table sizes its Table and Column columns to the longest database name (`REF_CHARGE_OFF` broke mid-word); a percentage of 1,000% or more drops its decimals; "Pulled" falls back to the file's own time when its name carries no date.
+- Tests: `tests/test_ils_analysis.py` (eight new) and `tests/test_ils_merge_review.py`, synthetic data only.
+
+### 2026-11-20 — ILS analysis: input checks for headerless, stale and empty extracts (`build/ils_analysis/ils_review/`)
+
+Summary: The ILS analysis build now checks each extract before it builds: it reads debit-decline and refund files saved without a header line, names any dated extract that ends well before the data date, shows n/a instead of zero where a window has no data, and leaves out fee-trend and peer slides for an account type with no notices.
+
+Aaron, 2026-11-20: "Use this to build checks rather than highlighting specific client issues." Each check below came from a pull that built with an error or a misleading slide:
+
+- **Headerless extracts.** A DebitDecline or RefundHistory file whose first line does not name `AcctID` but has the query's field count (10 and 14) is read with the known column names (`DECLINE_COLUMNS`, `REFUND_COLUMNS`), and Data Notes say so. It stopped the build with `KeyError: 'acctid'`.
+- **Stale extracts** (`extract_checks`, `STALE_EXTRACT_DAYS` = 31). A ZTrend, DebitDecline or RefundHistory extract whose newest row is a month or more before the data date, or that holds no dated rows, is named in the build log and on Data Notes. "About this data" prints the decline file's date range.
+- **No data is not zero.** "Debit declines by ILS limit" reads n/a in its decline columns, with a line naming where the extract ends, when the extract stops before its 90-day window. It showed 0 in every band.
+- **An account type with no notices in the window.** Fee trending and paid vs returned skip it with the reason. They raised `IndexError` and `ZeroDivisionError`, which also lost the other account type's paid-vs-returned and not-repaid slides. The peer slide is left out for an account type with no NSF/OD items in 365 days, where it ranked zeros as "Lowest of N clients".
+- Tests: `tests/test_ils_analysis.py` (five new, synthetic data).
+
+### 2026-11-20 — The peer reference: every peer comparison's figures in one dated file (`scripts/build_peer_reference.py`, `rpe_env.peer_reference_dir`)
+
+Summary: Every figure a peer comparison uses is now compiled into one dated, tagged file on the share, `Peer Reference/peer_metrics_<date>.csv`, with a latest copy and a manifest. Nothing that a deck, Live Review or Sheila shows changes yet.
+
+Aaron, 2026-11-20: "develop a peer comparison reference file that gets saved to the reporting folder. any metrics we use for peer comparisons should be compiled in one source, tagged and dated."
+
+- **One row per figure**: program, metric, segment, scope (a client, or a cohort benchmark), client number, period, period basis, whether the month had ended when the source was made, the value, its unit, which way is better, the definition, the source file and its date, and which consumers read it. No name field is carried.
+- **Values are the consumers' own.** Each program's rows are what `review_page/peer_pool.py`'s collectors return, the code behind Live Review's "How you compare" and every deck's How You Compare slide. They are run with a client id that is in no pool, so every client comes back with its own number. Also recorded: the ARS fields Sheila in Claude ranks, the two CashPlease cohort benchmarks and the ILS peer table. A test checks the rows against the collector.
+- **Dated and idempotent.** Today's file is rewritten only when its content changed, and an earlier day's file is never touched. A program that fails to compile stops the write unless `--allow-partial` is given.
+- **Found while compiling it: places where one comparison is computed two ways.** These are recorded in the PR for a decision and are not changed here:
+  - **CashPlease has three peer definitions, and two of them are on one deck.** The first compiled file (2026-11-20) shows how far apart they are:
+
+    | Measure | All-tabs rollup (Peer Comparison slide) | Current clients, pooled (dashboard) | Median of current clients (How You Compare slide) |
+    | --- | --- | --- | --- |
+    | Loans per 1,000 DDAs | 16.7 | 14.6 | 12.4 |
+    | Charge-off rate | 6.3% | not available | 3.4% |
+
+    The Peer Comparison slide reads the workbook's all-tabs rollup, which includes cancelled and non-current tabs. The performance dashboard pools current clients. The How You Compare slide takes the median of current clients.
+  - **Sheila in Claude's `peer_compare` ranks ARS clients with arithmetic that is not `peer_compare.py`'s:**
+    - nearest-rank quartiles
+    - the client counted in its own pool
+    - a pool limited to the exact period
+    - ranking on the latest mailing's response rate
+    - no minimum-pool guards on Reg E or take rate (they change no figure today, because all 41 packs pass them)
+  - **Two problems that are in the code but change no figure today:**
+    - ICS referrals per 1,000 DDAs can put two numerators in one distribution: the all-clients referral file, or the VIP trend for a client the file lacks. Every row in the first file came from the referral file, and the `source_kind` column shows the source on every row.
+    - MRPC monthly enrollments and share of goal are not trimmed to complete months in `peer_pool`. The file judges `month_complete` against each source's own date, and no row in the first file was flagged `no`.
+
 ### 2026-11-19 — Insurance by line says "Life"; the competition report reads a short window (`ti/dictionaries/financial_services_patterns.json`, `deck/txn_leakage.py`, `competition_report.py`)
 
 Summary: The Transaction Intelligence Insurance by line slide now names the life line "Life", and a client with under six months of transaction data no longer stops the Transaction Intelligence build.

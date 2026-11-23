@@ -626,6 +626,47 @@ def build_artifacts() -> Path:
 _ARTIFACTS_MADE: set = set()
 
 
+# A folder at the top of the root where a person drops input files by hand (Aaron, 2026-11-10:
+# "added a Drop Folder for input files here: \\PADMIS105\Velocity_company\CSM_Reporting\-Drop Folder.
+# You can move, sort, and rename them"; 2026-11-16: "Drop folder during a file get"). The morning
+# file get (`watch_sources.py --copy`) files what it recognises into Inputs/ by kind and leaves the
+# rest for a person. The leading dash keeps it at the top of the root folder.
+DROP_FOLDER_DIRNAME = "-Drop Folder"
+
+
+def drop_folder():
+    """The drop folder, or None when RPE_DATA_ROOT is unset or the folder is not there.
+
+    Never created: a missing folder means the share is not mounted or nobody has made one, and
+    a sweep has nothing to do either way."""
+    try:
+        p = data_root() / DROP_FOLDER_DIRNAME
+    except SystemExit:
+        return None
+    try:
+        return p if p.is_dir() else None
+    except OSError:
+        return None
+
+
+# ------------------------------------------------------------------ the peer reference
+# One compiled, dated reference of every figure any peer comparison uses (Aaron, 2026-11-20: "develop a peer comparison
+# reference file that gets saved to the reporting folder. any metrics we use for peer comparisons should be compiled in
+# one source, tagged and dated"). Written by scripts/build_peer_reference.py: `peer_metrics_<YYYY-MM-DD>.csv`, a
+# `peer_metrics_latest.csv` copy and `manifest.json`. It sits at the root beside `Client CSM List.csv`, not in Outputs/
+# (decks only) and not in Build Artifacts/ (build evidence). No repo-local fallback: a reference written anywhere but
+# the share is a second copy, so an unset or missing RPE_DATA_ROOT raises (data_root()).
+PEER_REFERENCE_DIRNAME = "Peer Reference"
+
+
+def peer_reference_dir(create: bool = False) -> Path:
+    """`<RPE_DATA_ROOT>/Peer Reference/`, made only when `create` is true."""
+    path = data_root() / PEER_REFERENCE_DIRNAME
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 VIP_DATA_DIRNAME = "VIP Data"
 
 

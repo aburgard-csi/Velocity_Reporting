@@ -417,10 +417,14 @@ def debit_decline_tables(fr, accttype, ref=None):
     # Score-band table, the analysis notebook's (cells 20-21 and 148, Tim Barrett's "Debit Declines to ILS Limit"):
     # open accounts that can overdraft and are opted in to Reg E (business: all), banded by current ILS limit, with
     # the declines of the 90 days to the data as-of date counted as distinct amounts per account per day.
-    t2 = None
+    t2, dd_end, stale = None, None, False
     if fr.dd is not None and len(fr.dd):
         dd = fr.dd
         lo90 = fr.asof - pd.Timedelta(days=90)
+        # An extract that stops before the window (a decline file a year older than the rest of the pull) has no
+        # declines to count, and a column of zeros would read as none happening: those cells are n/a.
+        dd_end = dd["decline_date"].max()
+        stale = bool(pd.isna(dd_end) or dd_end < lo90)
         d = dd[(dd["decline_date"] >= lo90) & dd["acctid"].notna()].assign(amt=lambda x: _num(x["transaction_amount"]))
         c1 = d.groupby(["acctid", "decline_date"]).agg(u=("amt", "nunique"), m=("amt", "median")).reset_index()
         c2 = c1.groupby("acctid").agg(decl90=("u", "sum"), med=("m", "median"))
@@ -434,9 +438,11 @@ def debit_decline_tables(fr, accttype, ref=None):
                 continue
             med = s["med"].median()
             rows2.append([name, f"{len(s):,}", f"{int((_num(s['items365']) >= 1).sum()):,}",
-                          f"{int(s['decl90'].fillna(0).sum()):,}", money(med, 2) if pd.notna(med) else "n/a",
+                          "n/a" if stale else f"{int(s['decl90'].fillna(0).sum()):,}",
+                          money(med, 2) if pd.notna(med) and not stale else "n/a",
                           f"{_num(s['items365']).sum():,.0f}", money(_num(s["DepAmt33"]).fillna(0).median(), 2)])
         t2 = {"headers": ["ILS Limit Band", "Accounts",            # the subtitle says they are Reg E opted in
                           "NSF/OD Users", "Declines, Last 90 Days", "Median Declined Amount", "NSF/OD Items (365)",
                           "Median 33-Day Deposits"], "rows": rows2}
-    return {"segmentation": t1, "score_bands": t2, "population": int(len(seg))}
+    return {"segmentation": t1, "score_bands": t2, "population": int(len(seg)),
+            "declines_end": dd_end, "declines_stale": stale}

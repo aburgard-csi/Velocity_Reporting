@@ -42,6 +42,21 @@ _SHELL_EXACT = ("appendix", "cashplease")
 # The slides a builder adds to its shell, where it puts them, and where that is written. An anchor is the
 # shell title the builder itself anchors on (its after_title / before_title), so this list reads like the
 # builder. `where` is "after" or "before".
+def _peer_slides(program, where, anchor):
+    """The program's "How You Compare" slides (build/peer_slide.py GROUPS), two comparisons a slide (Aaron, 2026-11-22), in deck
+    order: the first by the builder's own anchor, each next one after the one before. A slide whose measures have too few
+    peers is not added to a deck, so the source says so."""
+    import peer_slide as PS
+    rows, prev = [], None
+    for label, _keys in PS.GROUPS[program]:
+        title = PS.title_for(program, label)
+        rows.append((title, where if prev is None else "after", anchor if prev is None else prev,
+                     "build/peer_slide.py — the client against every other " + PS.WHO[program] + " client, anonymous; "
+                     "left out when no measure on it has five peers with current data"))
+        prev = title
+    return rows
+
+
 ADDED = {
     "ARS": [
         ("Excluded Accounts", "after", "Product Mix & ARS Eligibility",
@@ -60,8 +75,7 @@ ADDED = {
          "build/ars_pipeline/branch_appendix_slides.py — all open personal debit-card holders, by branch"),
         ("Appendix: Reg E New Accounts by Branch", "before", "Program Reach — Cumulative Responders",
          "build/ars_pipeline/branch_appendix_slides.py — accounts opened in the last 12 months, by election"),
-        ("How You Compare — ARS Clients", "before", "ARS Key Takeaways",
-         "build/peer_slide.py — every build; the client against every other ARS client, anonymous (2026-11-03)"),
+        *_peer_slides("ARS", "before", "ARS Key Takeaways"),
     ],
     "ICS": [
         ("Direct Mail New Accounts", "after", "Results by Branch — Year to Date",
@@ -76,18 +90,15 @@ ADDED = {
          "build/ics_pipeline/build_ics_gen.py — where the ODD join was made (Cindy Draper, 2026-11-03)"),
         ("Appendix: Monthly Detail", "after", "VIP Best Practices",
          "build/ics_pipeline/build_ics_gen.py — the workbook's Monthly Detail cohorts, a program year a page, rows grouped"),
-        ("How You Compare — ICS Clients", "before", "New in 2026: E-Learning Modules",
-         "build/peer_slide.py — every build; the client against every other ICS client, anonymous (2026-11-03)"),
+        *_peer_slides("ICS", "before", "New in 2026: E-Learning Modules"),
     ],
     "MRPC": [
-        ("How You Compare — MRPC Clients", "after", "MRPC Current Program Status",
-         "build/peer_slide.py — every build; the client against every other MRPC client, anonymous (2026-11-03)"),
+        *_peer_slides("MRPC", "after", "MRPC Current Program Status"),
     ],
     "CP": [
         ("CashPlease Program Settings", "after", "CashPlease Program Overview",
          "build/cashplease_pipeline/build_cp_gen.py"),
-        ("How You Compare — CashPlease Clients", "after", "CashPlease Peer Comparison",
-         "build/peer_slide.py — every build; the client against every other CashPlease client, anonymous (2026-11-03)"),
+        *_peer_slides("CP", "after", "CashPlease Peer Comparison"),
     ],
 }
 

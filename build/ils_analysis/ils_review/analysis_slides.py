@@ -66,12 +66,18 @@ def add_yoy(dk, cfg, fr, S, *, section, progress=None):
     lab_cur = f"{R.periods.mon_yy(f'{mons[0].year}-{mons[0].month:02d}')} to {R.periods.mon_yy(f'{mons[-1].year}-{mons[-1].month:02d}')}"
     pm0, pm1 = mons[0] - 12, mons[-1] - 12
     lab_prev = f"{R.periods.mon_yy(f'{pm0.year}-{pm0.month:02d}')} to {R.periods.mon_yy(f'{pm1.year}-{pm1.month:02d}')}"
-    stats = {}
+    stats, left_out = {}, []
     for t in ("Personal", "Business"):
         z = fr.zt_type(t)
         if z is None or z.empty:
             continue
-        stats[t] = (_window_stats(z, a, b), _window_stats(z, pa, pb))
+        st = (_window_stats(z, a, b), _window_stats(z, pa, pb))
+        if t != "Personal" and not st[0]["notices"]:
+            # a table of zeros against last year's handful reads "-100%" on every row and says nothing about the program
+            left_out.append(f"Year over year ({t}): left out; no {t.lower()} notices in the last 12 complete months "
+                            f"({st[1]['notices']:,} in the 12 before).")
+            continue
+        stats[t] = st
     if "Personal" not in stats:
         return ["Year-over-year comparison skipped: no personal notices."]
     cur, prev = stats["Personal"]
@@ -112,8 +118,9 @@ def add_yoy(dk, cfg, fr, S, *, section, progress=None):
             parity.append(compare(nums[t]["change_pct"][k_], dk.ref.get(rk), tol=0.10, measure=f"{t} {k_} change %"))
     dk.sidecars.append({"key": "yoy_comparison", "title": "Year-over-year comparison", "numbers": nums, "parity": R._jsonable(parity),
                         "notes": [f"Windows: {lab_cur} against {lab_prev}. The hand-built deck's windows are not reproducible from the extract (see module docstring)."]})
-    return [f"Year over year: this build compares the last 12 complete months ({lab_cur}) with the 12 before; the hand-built deck's windows "
-            f"cannot be reproduced from the extract, so its levels differ and its changes agree to within about two points. Its default-rate row is not shown."]
+    return left_out + [
+        f"Year over year: this build compares the last 12 complete months ({lab_cur}) with the 12 before; the hand-built deck's windows "
+        f"cannot be reproduced from the extract, so its levels differ and its changes agree to within about two points. Its default-rate row is not shown."]
 
 
 # ═════════════════════════════ who generates the fees ═══════════════════════════
@@ -157,8 +164,8 @@ def add_usage_segments(dk, cfg, fr, S, *, section, progress=None):
     png = R.save(fig, dk.chart_dir, "usage_segments_personal")
     s = dk.content(f"{ha:.1f}% of active personal accounts generate {hf:.0f}% of collected fees",
                    f"Open active personal accounts ({n:,}) by NSF/OD items in 365 days to {fr.asof:%B} {fr.asof.day}, {fr.asof.year}; the 24+ group is the heavy users.",
-                   section=section, source=CS._src(cfg, fr, "za", extra="Items = items365; fees = CollectedFees365; open active = a deposit in the last "
-                                                   "240 days or an NSF/OD item in the last 365. Heavy user = 24 or more items."))
+                   section=section, source=CS._src(cfg, fr, "za", extra="Items = items365; fees = CollectedFees365; open active = "
+                                                   "more than $50 deposited or an NSF/OD item in the last 365 days. Heavy user = 24 or more items."))
     T.image_real(s, png, CS.LEFT, CS.BODY_T + 0.05, 7.8, 4.55)
     CS._tiles_real(s, [(f"{heavy[1]:,}", "Accounts with 24+ items"), (money(heavy[2]), "Collected fees from them"),
                        (f"{segs[0][1] / n * 100:.0f}%", "Accounts with no items")])
