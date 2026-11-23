@@ -54,10 +54,10 @@ def their_financial_life(h, t, base):
         return "Their financial life (no fin_by_category)"
     addr = [r for r in cat if r[7]]
     big = max(addr, key=lambda r: r[4]) if addr else None
-    head = (f"{money(t.get('fin_leakage_dollars'))} a year of financial "
-            f"products, and {big[0].lower()} is the biggest one we could "
+    head = (f"{money(t.get('fin_leakage_dollars'))} of financial products {labels.window(t)}, "
+            f"and {big[0].lower()} is the biggest one we could "
             f"actually compete for") if big else \
-        f"{money(t.get('fin_leakage_dollars'))} of financial products a year"
+        f"{money(t.get('fin_leakage_dollars'))} of financial products {labels.window(t)}"
     s, top = h["slide"]((head,
         "every external category as area; grey is non-addressable — "
         "tax and Treasury bonds are not products the institution sells"),
@@ -77,7 +77,7 @@ def where_the_money_goes(h, t, base, category_bars):
     2026-10-30, group A); this slide now carries the top categories and the addressable callout."""
     cat = t.get("fin_by_category")
     head = (f"{t.get('fin_leaking_pct', 0):.0f}% of {base} send "
-            f"{money(t.get('fin_leakage_dollars'))} a year to other "
+            f"{money(t.get('fin_leakage_dollars'))} {labels.window(t)} to other "
             f"institutions' financial products")
     share = t.get("fin_leakage_pct_of_transfer_dollars")
     sub = ((f"{share:.0f}% of all ACH and check dollars; " if share is not None
@@ -88,7 +88,7 @@ def where_the_money_goes(h, t, base, category_bars):
     right = h["rail"](s, [
         ("Leaking", f"{t.get('fin_leaking_accounts', 0):,}",
          f"of {t.get('fin_accounts_total', 0):,} {base}"),
-        ("Per year", money(t.get("fin_leakage_dollars")),
+        (labels.window_title(t), money(t.get("fin_leakage_dollars")),
          "to external financial products"),
         ("Addressable", money(t.get("fin_addressable_dollars")),
          "in categories the institution offers"),
@@ -120,7 +120,7 @@ def where_the_leakage_goes(h, t, base):
     if len(cat) < 3:
         return "Where the leakage goes (too few categories)"
     s, top = h["slide"]((
-        f"{money(t.get('fin_leakage_dollars'))} leaves every year, and the "
+        f"{money(t.get('fin_leakage_dollars'))} left {labels.window(t)}, and the "
         f"top categories carry most of it",
         "the accounts on the left, the products their money reaches on the "
         "right; ribbon width is dollars"), "Where the leakage goes")
@@ -195,7 +195,7 @@ def insurance_by_line(h, t, base):
         items.append((r[0], money(r[4]), f"{r[1]:,} accts; " + ", ".join(
             labels.clip(labels.display_name(p), 14) for p in r[6][:2])))
     right = h["rail"](s, items[:5], top=top)
-    one_line = {"Auto", "Home & property", "Life & annuity", "Health & dental"}
+    one_line = {"Auto", "Home & property", "Life", "Health & dental"}
     bars = [[r[0], r[4], r[1], "line" if r[0] in one_line else "mixed"] for r in rows]
     kinds = {"line": ("one line of cover", charts.NAVY),
              "mixed": ("multi-line carrier or no carrier named", charts.GREY)}
@@ -428,6 +428,93 @@ def leakage_by_group_and_category(h, t, base):
     path = h["chart"]("fin_heat", CT.heat_matrix, grid)
     if path:
         h["chart_left"](s, path, top, h["RIGHT_EDGE"])
+
+
+# ---- leakage by member age, account age and branch (R5) ---------------------------------------
+# James, 2026-11-05: "it would be nice to have the age band lens, maybe branch lens. account age
+# lens". fin_by_* rows (transaction_intelligence/band_lenses.py): [band, accounts, paying,
+# paying_pct, dollars_per_payer, top_category, top_category_accounts]. The competitor share comes
+# from comp_by_age_band / comp_by_tenure_band (same row shape, same accounts per band) or, for
+# branches, from competition's own comp_by_branch ([branch, accounts, with_competitor, pct, ...,
+# top_institution]), which divides by the same transacting accounts.
+BAND_CHART_MAX = 8
+
+
+def _lead_band(rows):
+    """The band with the highest leaking share, and every band tied with it."""
+    best = max(r[3] for r in rows)
+    tied = [r for r in rows if r[3] == best]
+    return max(tied, key=lambda r: r[1]), tied
+
+
+def _leakage_by_band(h, t, key, comp_key, comp_pct_idx, comp_top_idx, comp_n_idx, title,
+                     who, unit, chart_name, rows=None, scope=""):
+    """`who` is the headline's lead-in to a band name ("Members aged ", "" for a branch)."""
+    rows = rows if rows is not None else (t.get(key) or [])
+    if len(rows) < 2:
+        return f"{title} (fewer than two {key} rows)"
+    comp = {r[0]: r for r in (t.get(comp_key) or [])}
+    lead, tied = _lead_band(rows)
+    plural = f"{unit}{'es' if unit == 'branch' else 's'}"
+    if len(tied) > 2:
+        head = (f"{_count_word(len(tied))} {plural} tie for the most leakage — "
+                f"{lead[3]:.0f}% of accounts in each pay an outside financial product")
+    elif len(tied) == 2:
+        head = (f"{who}{tied[0][0]} and {tied[1][0]} leak the most — {lead[3]:.0f}% "
+                f"of accounts in each pay an outside financial product")
+    else:
+        head = (f"{who}{lead[0]} {'leaks' if unit == 'branch' else 'leak'} the most — "
+                f"{lead[3]:.0f}% {'of its accounts ' if unit == 'branch' else ''}"
+                f"pay an outside financial product")
+    sub = (f"share of transacting accounts in each {unit}{scope} paying an outside financial "
+           f"product and a named competitor; {money(lead[4])} of leakage per leaking account "
+           f"in {lead[0]} over the window")
+    if not comp:
+        sub += " (no competitor cut for this client)"
+    s, top = h["slide"]((head, sub), title)
+    items = [("Accounts", f"{sum(r[1] for r in rows):,}", f"transacting, across {len(rows)} {plural}"),
+             ("Most leakage", labels.clip(lead[0], 18),
+              f"{money(lead[4])} per leaking account, window total")]
+    if lead[5]:
+        items.append(("Top product", labels.clip(lead[5], 18),
+                      f"{lead[6]:,} accounts in {lead[0]}"))
+    c = comp.get(lead[0])
+    if c and c[comp_top_idx]:
+        n = c[comp_n_idx] if comp_n_idx is not None else None
+        items.append(("Top competitor", labels.clip(c[comp_top_idx], 18),
+                      f"{n:,} accounts in {lead[0]}" if n is not None
+                      else f"most accounts in {lead[0]}"))
+    right = h["rail"](s, items, top=top)
+    path = h["chart"](chart_name, charts.grouped_bars,
+                      [labels.clip(r[0], 12) for r in rows],
+                      [r[3] for r in rows],
+                      [(comp[r[0]][comp_pct_idx] if r[0] in comp else 0) for r in rows],
+                      "outside financial product", "named competitor", fmt="{:.0f}%")
+    if path:
+        h["chart_left"](s, path, top, right)
+
+
+def leakage_by_member_age(h, t, base):
+    return _leakage_by_band(h, t, "fin_by_age_band", "comp_by_age_band", 3, 5, 6,
+                            "Leakage by member age", "Members aged ", "age band",
+                            "fin_by_age_band")
+
+
+def leakage_by_account_tenure(h, t, base):
+    return _leakage_by_band(h, t, "fin_by_tenure_band", "comp_by_tenure_band", 3, 5, 6,
+                            "Leakage by account tenure", "Accounts open ",
+                            "tenure band", "fin_by_tenure_band")
+
+
+def leakage_by_branch(h, t, base):
+    """The largest branches by transacting accounts; comp_by_branch supplies the competitor share
+    on the same accounts (it is competition's table, not a second branch cut)."""
+    rows = sorted(t.get("fin_by_branch") or [], key=lambda r: (-r[1], r[0]))
+    shown = rows[:BAND_CHART_MAX]
+    scope = f" (the {len(shown)} largest)" if len(rows) > len(shown) else ""
+    return _leakage_by_band(h, t, "fin_by_branch", "comp_by_branch", 3, 6, None,
+                            "Leakage by branch", "", "branch", "fin_by_branch",
+                            rows=shown, scope=scope)
 
 
 def what_leakers_hold(h, t, base):

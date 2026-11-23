@@ -31,7 +31,7 @@ def test_insurance_is_addressable_and_every_subtype_pattern_is_its_own():
     left = set(ins["patterns"]) - set(listed)
     assert left == {"INSURANCE", "INS PREM", "INS PREMIU", "INS PREMIUM", "INS.PREM"}
     assert "GEICO" in ins["subtypes"]["Auto"] and "STATE FARM" in ins["subtypes"]["Auto & home"]
-    assert "METLIFE" in ins["subtypes"]["Life & annuity"] and "AETNA" in ins["subtypes"]["Health & dental"]
+    assert "METLIFE" in ins["subtypes"]["Life"] and "AETNA" in ins["subtypes"]["Health & dental"]
 
 
 def _frame():
@@ -53,7 +53,7 @@ def test_insurance_is_split_by_line():
     spec = fs.load_patterns(dictionaries.folder(), {})
     m, _ = fs.compute(_frame(), None, spec, ANCHOR, None, lambda _m: None)
     rows = {r[0]: r for r in m["fin_subtypes"]["Insurance"]}
-    assert set(rows) == {"Auto", "Auto & home", "Life & annuity", "Health & dental", "Unspecified"}
+    assert set(rows) == {"Auto", "Auto & home", "Life", "Health & dental", "Unspecified"}
     assert rows["Auto"][1:5] == [2, 40.0, 3, 800]           # A1 and A2, of 5 insurance accounts
     assert rows["Auto & home"][4] == 400 and rows["Unspecified"][4] == 80
     assert sum(r[4] for r in rows.values()) == next(

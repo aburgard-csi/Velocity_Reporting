@@ -38,14 +38,15 @@ TI_BUILDERS = [
     L.their_financial_life, S._where_the_money_goes, L.where_the_leakage_goes, L.who_they_pay,
     L.insurance_by_line, L.category_drilldowns,
     L.how_long_it_has_run, L.started_and_stopped, L.how_deep, L.leakage_by_group,
-    L.leakage_by_group_and_category, L.what_leakers_hold, L.how_the_leakage_builds,
+    L.leakage_by_group_and_category, L.leakage_by_member_age, L.leakage_by_account_tenure,
+    L.leakage_by_branch, L.what_leakers_hold, L.how_the_leakage_builds,
     L.which_services_travel_together, L.still_within_reach,
     S._how_members_spend, C.card_spend_by_category, C.ticket_and_intensity, C.when_the_card_is_used,
     C.recurring_on_the_card, C.card_behaviour_by_lens, C.engagement_breadth,
     C.merchants_rising_and_falling, C.new_and_faded_merchants, S._the_mcc_codes,
-    C.how_broadly_the_card_is_used, C.card_spend_by_member_age, C.card_use_by_account_tenure,
-    V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts, V.where_pin_gets_pressed,
-    V.channels_used_together, V.what_a_second_channel_is_worth,
+    C.mcc_codes_three_ways, C.how_broadly_the_card_is_used, C.card_spend_by_member_age,
+    C.card_use_by_account_tenure, V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts,
+    V.where_pin_gets_pressed, V.channels_used_together, V.what_a_second_channel_is_worth,
     C.responder_profile, C.every_group_against_the_book, C.what_the_banker_opens, C.dictionary_gaps,
 ]
 COMP_BUILDERS = [
@@ -55,7 +56,7 @@ COMP_BUILDERS = [
     P.where_the_outflow_goes, P.where_the_dollars_go, P.who_owns_the_relationship,
     P.how_much_of_the_wallet_has_left, P.is_the_competitor_money_still_moving,
     P.how_many_competitors_each_account_uses, P.winback_targets, P.depth_against_growth,
-    P.the_payment_ecosystems_ranked, P.buy_now_pay_later,
+    P.the_payment_ecosystems_ranked, P.buy_now_pay_later, P.what_bnpl_pays_for, P.who_uses_bnpl,
 ]
 ATTRITION_BUILDERS = [A.spend_before_closure, A.stresses_across_files]
 
@@ -70,6 +71,9 @@ TITLES = {
     "started_and_stopped": "Started and stopped", "how_deep": "How deep the leakage runs",
     "leakage_by_group": "Leakage by group",
     "leakage_by_group_and_category": "Leakage by group and category",
+    "leakage_by_member_age": "Leakage by member age",
+    "leakage_by_account_tenure": "Leakage by account tenure",
+    "leakage_by_branch": "Leakage by branch",
     "what_leakers_hold": "What leakers hold with us", "how_the_leakage_builds": "How the leakage builds",
     "which_services_travel_together": "Which services travel together",
     "still_within_reach": "Still within reach", "_how_members_spend": "How members spend",
@@ -80,6 +84,7 @@ TITLES = {
     "merchants_rising_and_falling": "Merchants rising and falling",
     "new_and_faded_merchants": "New and faded merchants",
     "_the_mcc_codes": "The MCC codes behind the categories",
+    "mcc_codes_three_ways": "MCC codes by spend, transactions and members",
     "how_broadly_the_card_is_used": "How broadly the card is used",
     "card_spend_by_member_age": "Card spend by member age",
     "card_use_by_account_tenure": "Card use by account tenure", "pin_or_signature": "PIN or signature",
@@ -104,6 +109,8 @@ TITLES = {
     "winback_targets": "Winback targets", "depth_against_growth": "Depth against growth",
     "the_payment_ecosystems_ranked": "The payment ecosystems, ranked",
     "buy_now_pay_later": "Buy now, pay later",
+    "what_bnpl_pays_for": "What buy now, pay later pays for",
+    "who_uses_bnpl": "Who uses buy now, pay later",
     "spend_before_closure": "Competitor spend before closure",
     "stresses_across_files": "Stresses across both files",
 }
@@ -234,7 +241,7 @@ def _ti_stats(pack, _ln):
     if not m.get("fin_by_category"):
         return []
     return [(f"{m.get('fin_leaking_pct', 0)}%", "of personal accounts pay an outside provider"),
-            (_money(m.get("fin_leakage_dollars")), "sent to outside providers, 12 months"),
+            (_money(m.get("fin_leakage_dollars")), f"sent to outside providers, {labels.window(m, prefix='')}"),
             (f"{m.get('txn_accounts', 0):,}", "accounts in the transaction file")]
 
 
@@ -243,7 +250,7 @@ def _comp_stats(pack, _ln):
     if not m.get("comp_institutions"):
         return []
     return [(f"{m.get('comp_with_competitor_pct', 0)}%", "of personal accounts pay a competitor"),
-            (_money(m.get("comp_competitor_dollars")), "sent to competitors, 12 months"),
+            (_money(m.get("comp_competitor_dollars")), f"sent to competitors, {labels.window(m, prefix='')}"),
             (f"{len(m.get('comp_institutions') or []):,}", "competing institutions seen")]
 
 

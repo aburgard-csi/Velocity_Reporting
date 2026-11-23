@@ -32,13 +32,14 @@ def _find(folder, *patterns):
 
 
 def find_inputs(folder):
-    """The extracts in one data-pull folder, found by file name (newest wins)."""
+    """The extracts in one data-pull folder, found by file name (newest wins). The raw extract names come first;
+    za.csv / zt.csv / dd.csv are the analysis team's Data Validation output, which some pull folders keep instead."""
     return {
-        "zaccounts_path": _find(folder, "*zaccounts*.csv", "*zaccounts*.txt"),
-        "ztrend_path": _find(folder, "*ztrend*.csv", "*ztrend*.txt"),
+        "zaccounts_path": _find(folder, "*zaccounts*.csv", "*zaccounts*.txt", "za.csv"),
+        "ztrend_path": _find(folder, "*ztrend*.csv", "*ztrend*.txt", "zt.csv"),
         "matrix_path": _find(folder, "*matrixval*.txt"),
         "dbic_path": _find(folder, "*dbic*.txt"),
-        "declines_path": _find(folder, "*debitdecline*.csv"),
+        "declines_path": _find(folder, "*debitdecline*.csv", "dd.csv"),
         "refunds_path": _find(folder, "*refundhistory*.csv"),
     }
 
@@ -60,8 +61,13 @@ def main(argv=None):
     ap.add_argument("--digital-branches", default="")
     ap.add_argument("--retail-branches", default="")
     ap.add_argument("--exclude-digital", action="store_true")
-    ap.add_argument("--default-basis", choices=("deck", "readme"), default="deck",
-                    help="Scoring Summary default rule: the hand-built deck's (40 days, never-repaid excluded) or the README's")
+    ap.add_argument("--default-basis", choices=("notebook", "deck", "readme"), default="notebook",
+                    help="Scoring Summary default rule: the analysis notebook's (charged-off account, on or after its last positive date), the 40-day fit, or the README's")
+    ap.add_argument("--all-branch-slides", action="store_true",
+                    help="every branch slide the analysis team's deck carries (overdraft activity, growth, deposit-health "
+                         "tiers, repayment trend), not only the overview and the three ranked charts")
+    ap.add_argument("--as-of", help="YYYY-MM-DD: build as of this date - notices, debit declines and refunds after it are "
+                    "left out (to match an earlier review's data date); the ZAccounts fields stay as pulled")
     ap.add_argument("--consultant", help="the ILS consultant card on Contact Us: Name|Title|Phone|Email (the CSM card comes from CSM Contacts.csv)")
     a = ap.parse_args(argv)
 
@@ -86,6 +92,10 @@ def main(argv=None):
                       digital_branches=a.digital_branches, retail_branches=a.retail_branches,
                       include_digital=not a.exclude_digital, logic_image=a.logic_image, **paths)
     cfg.default_basis = a.default_basis
+    if a.as_of:
+        cfg.data_as_of = a.as_of
+    if a.all_branch_slides:
+        cfg.branch_core_only = False
     if a.consultant:
         parts = [x.strip() for x in a.consultant.split("|")]
         if len(parts) != 4 or not parts[0] or not parts[3]:

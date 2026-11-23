@@ -1039,3 +1039,277 @@ def test_copy_plan_copies_small_files_first_and_odd_extracts_last(tmp_path):
     assert [(r["kind"], r["client"]) for r, _ in plan] == [
         (W.DCO, "1835"), (W.MRPCPM, "1529"), (W.WORKBOOK, "1075"),
         (W.ODDD, "1038"), (W.ODDD, "1100")]
+
+
+# ------------------------------------------------------------------ the Drop Folder sweep
+# Aaron, 2026-11-16: "Drop folder during a file get". A person drops input files in
+# `<root>/-Drop Folder`; `--copy` files each one into Inputs/ by the same naming the share copy
+# and the mail step use, takes it out of the folder, and leaves anything it cannot place.
+@pytest.mark.parametrize("name,kind,client", [
+    ("1038_ODDD.zip", "ODDD", "1038"),
+    ("1038-2026.09-Sugar River-DCO v2_2.xlsx", "DCO", "1038"),
+    ("1038-2026.09-Sugar River-Workbook_v2_1_0.xlsx", "Workbook", "1038"),
+    ("1075-2026.09-MRPC-Austin Bank-MRPCPM_Analysis_v10.xlsx", "MRPCPM", "1075"),
+    ("1705-2026.09-CoastLife-Invitation Checking Workbook.xlsx", "ICS workbook", "1705"),
+    ("261115_064902-MRPCEnrollmentSummary_v3_13.xlsx", "weekly", None),
+    ("CashPleaseSummaryV1_261115_064539.xlsx", "CP weekly", None),
+    ("1781_Dannemora FCU_10.2026_Loan_Marketing_Emails.csv", "CP marketing", "1781"),
+    ("ILS-DDA-Count-2026-11-16.txt", "CP weekly", None),
+    ("notes from the call.docx", None, None),
+    ("1038-2026.09-Sugar River-DCO v2_2.pdf", None, None),
+    ("CashPleaseSummaryV1_261115_064539.csv", None, None),
+])
+def test_a_dropped_file_is_read_by_the_same_naming_as_the_share_and_the_mailbox(name, kind, client):
+    assert W.classify_drop(name) == (kind, client)
+
+
+def test_every_drop_kind_has_an_inputs_folder():
+    for name in ("1038_ODDD.zip", "261115_064902-MRPCEnrollmentSummary_v3_13.xlsx",
+                 "CashPleaseSummaryV1_261115_064539.xlsx",
+                 "1781_Dannemora FCU_10.2026_Loan_Marketing_Emails.csv"):
+        assert W.classify_drop(name)[0] in W.R.INPUT_KIND_DIRS
+
+
+@pytest.fixture
+def drop(tmp_path):
+    d = tmp_path / "-Drop Folder"; inp = tmp_path / "Inputs"
+    d.mkdir(); inp.mkdir()
+    return d, inp
+
+
+def _actions(plan):
+    return {it["name"]: it["action"] for it in plan}
+
+
+def test_the_sweep_files_new_inputs_and_takes_them_out_of_the_folder(drop):
+    d, inp = drop
+    _land(d, "CashPleaseSummaryV1_261115_064539.xlsx", size=40)
+    _land(d, "261115_064902-MRPCEnrollmentSummary_v3_13.xlsx", size=30)
+    _land(d, "1038-2026.09-Sugar River-DCO v2_2.xlsx", size=20)
+    plan = W.drop_plan(str(d), str(inp))
+    assert set(_actions(plan).values()) == {W.DROP_FILE}
+    done = W.apply_drop(plan)
+    assert [o for _, o in done] == ["filed"] * 3
+    assert (inp / "CashPlease" / "CashPleaseSummaryV1_261115_064539.xlsx").stat().st_size == 40
+    assert (inp / "MRPC Analyses" / "261115_064902-MRPCEnrollmentSummary_v3_13.xlsx").exists()
+    assert (inp / "DCOs" / "1038-2026.09-Sugar River-DCO v2_2.xlsx").exists()
+    assert list(d.iterdir()) == []
+    assert not list(inp.rglob("*.part"))
+
+
+def test_a_byte_identical_copy_already_filed_is_removed_from_the_folder(drop):
+    d, inp = drop
+    name = "CashPleaseSummaryV1_261108_075029.xlsx"
+    (inp / "CashPlease").mkdir()
+    (inp / "CashPlease" / name).write_bytes(b"same bytes")
+    (d / name).write_bytes(b"same bytes")
+    plan = W.drop_plan(str(d), str(inp))
+    assert _actions(plan) == {name: W.DROP_DUPLICATE}
+    assert [o for _, o in W.apply_drop(plan)] == ["removed"]
+    assert not (d / name).exists() and (inp / "CashPlease" / name).read_bytes() == b"same bytes"
+
+
+def test_a_copy_in_the_legacy_flat_folder_counts_as_filed(drop):
+    d, inp = drop
+    name = "1038-2026.09-Sugar River-DCO v2_2.xlsx"
+    (inp / "ARS & MRPC Reports").mkdir()
+    (inp / "ARS & MRPC Reports" / name).write_bytes(b"dco")
+    (d / name).write_bytes(b"dco")
+    assert _actions(W.drop_plan(str(d), str(inp))) == {name: W.DROP_DUPLICATE}
+
+
+def test_a_different_file_of_the_same_name_is_never_overwritten(drop):
+    d, inp = drop
+    name = "1038-2026.09-Sugar River-Workbook_v2_1_0.xlsx"
+    (inp / "ARS Workbooks").mkdir()
+    (inp / "ARS Workbooks" / name).write_bytes(b"opened and saved in Excel")
+    (d / name).write_bytes(b"as the data team sent it")
+    plan = W.drop_plan(str(d), str(inp))
+    assert _actions(plan) == {name: W.DROP_DIFFERS}
+    assert [o for _, o in W.apply_drop(plan)] == ["left"]
+    assert (inp / "ARS Workbooks" / name).read_bytes() == b"opened and saved in Excel"
+    assert (d / name).read_bytes() == b"as the data team sent it"
+
+
+def _odd(folder, stamp, body="a,b\n1,2\n"):
+    import zipfile
+    folder.mkdir(exist_ok=True)
+    with zipfile.ZipFile(folder / "1509_ODDD.zip", "w") as z:
+        z.writestr("1509_ODDD (%s).csv" % stamp if stamp else "1509_ODDD.csv", body)
+    return folder / "1509_ODDD.zip"
+
+
+def test_a_dropped_odd_extract_with_a_newer_pull_replaces_the_held_one(drop):
+    """Aaron, 2026-11-22: "yes, newer stamp should replace it automatically": an emailed
+    October extract against September's in Inputs). The held one is archived, never deleted."""
+    import os
+    import time
+    d, inp = drop
+    held = _odd(inp / "ODDD", "091526_101010", "september\n")
+    old = time.time() - 30 * 86400
+    os.utime(held, (old, old))
+    dropped = _odd(d, "101326_090000", "october rows\n")
+    new_bytes = dropped.read_bytes()
+    plan = W.drop_plan(str(d), str(inp))
+    assert _actions(plan) == {"1509_ODDD.zip": W.DROP_REPLACE}
+    done = W.apply_drop(plan)
+    assert [o for _, o in done] == ["filed"]
+    assert held.read_bytes() == new_bytes
+    archived = list((inp / "ODDD" / W.R.ARCHIVE_DIRNAME).iterdir())
+    assert [p.name for p in archived] == ["1509_ODDD pulled 2026-09-15 101010.zip"]
+    assert W.odd_pull_stamp(archived[0]).month == 9
+    assert not dropped.exists() and not list(inp.rglob("*.part"))
+    # Today's write time: the share's older extract (an older write) must not overwrite it tomorrow.
+    assert held.stat().st_mtime > time.time() - 3600
+    lines = "\n".join(W._drop_section({"drop": done}))
+    assert "replaced" in lines and "2026-10-13 09:00" in lines and "2026-09-15 10:10" in lines
+    assert "replacing an older ODD extract" in W._drop_tail({"drop": done})
+
+
+def test_a_replaced_extract_never_overwrites_an_earlier_archive(drop):
+    d, inp = drop
+    _odd(inp / "ODDD", "091526_101010", "september\n")
+    arch = inp / "ODDD" / W.R.ARCHIVE_DIRNAME
+    arch.mkdir()
+    (arch / "1509_ODDD pulled 2026-09-15 101010.zip").write_bytes(b"kept from before")
+    _odd(d, "101326_090000", "october\n")
+    assert [o for _, o in W.apply_drop(W.drop_plan(str(d), str(inp)))] == ["filed"]
+    assert (arch / "1509_ODDD pulled 2026-09-15 101010.zip").read_bytes() == b"kept from before"
+    assert (arch / "1509_ODDD pulled 2026-09-15 101010 (2).zip").exists()
+
+
+@pytest.mark.parametrize("held_stamp, dropped_stamp, why", [
+    ("101326_090000", "091526_101010", "not newer"),       # an older pull
+    ("101326_090000", "101326_090000", "not newer"),       # the same pull, other bytes
+    ("091526_101010", None, "could not be read"),          # the dropped one carries no stamp
+])
+def test_a_dropped_odd_extract_that_is_not_newer_is_left_and_its_pull_stamps_are_named(drop, held_stamp,
+                                                                                     dropped_stamp, why):
+    d, inp = drop
+    held = _odd(inp / "ODDD", held_stamp, "held\n")
+    before = held.read_bytes()
+    _odd(d, dropped_stamp, "dropped\n")
+    plan = W.drop_plan(str(d), str(inp))
+    assert _actions(plan) == {"1509_ODDD.zip": W.DROP_DIFFERS}
+    lines = "\n".join(W._drop_section({"drop": W.apply_drop(plan)}))
+    assert "Pull stamps: dropped" in lines and why in lines
+    assert held.read_bytes() == before and (d / "1509_ODDD.zip").exists()
+    assert not (inp / "ODDD" / W.R.ARCHIVE_DIRNAME).exists()
+
+
+def test_a_replacement_that_fails_leaves_the_held_extract_where_it_was(drop, monkeypatch):
+    d, inp = drop
+    held = _odd(inp / "ODDD", "091526_101010", "september\n")
+    before = held.read_bytes()
+    _odd(d, "101326_090000", "october\n")
+    plan = W.drop_plan(str(d), str(inp))
+    real = W.os.replace
+
+    def refuse_new(src, dst):
+        if str(src).endswith(".part"):
+            raise OSError("synthetic: the share refused the write")
+        return real(src, dst)
+    monkeypatch.setattr(W.os, "replace", refuse_new)
+    done = W.apply_drop(plan)
+    assert done[0][1].startswith("FAILED")
+    assert held.read_bytes() == before                           # put back from the archive
+    assert not list((inp / "ODDD" / W.R.ARCHIVE_DIRNAME).iterdir())
+    assert (d / "1509_ODDD.zip").exists() and not list(inp.rglob("*.part"))
+    assert "Drop Folder needs a look" in W._drop_tail({"drop": done})
+
+
+def test_what_the_sweep_cannot_place_is_left_and_reported(drop):
+    d, inp = drop
+    _land(d, "notes from the call.docx")
+    (d / "sorted by hand").mkdir()
+    _land(d, "~$open workbook.xlsx")
+    _land(d, "half copied.xlsx.part")
+    plan = W.drop_plan(str(d), str(inp))
+    assert _actions(plan) == {"notes from the call.docx": W.DROP_UNKNOWN,
+                              "sorted by hand": W.DROP_FOLDER}
+    lines = "\n".join(W._drop_section({"drop": W.apply_drop(plan)}))
+    assert "no input reader knows this name" in lines and "`sorted by hand/`" in lines
+    assert (d / "notes from the call.docx").exists() and (d / "sorted by hand").is_dir()
+    assert "Drop Folder needs a look (2)." in W._drop_tail({"drop": W.apply_drop(plan)})
+
+
+def test_a_refused_delete_is_reported_not_raised(drop, monkeypatch):
+    d, inp = drop
+    _land(d, "CashPleaseSummaryV1_261115_064539.xlsx")
+    real = os.remove
+    monkeypatch.setattr(W.os, "remove", lambda p: (_ for _ in ()).throw(PermissionError("Operation not permitted"))
+                        if str(p).startswith(str(d)) else real(p))
+    done = W.apply_drop(W.drop_plan(str(d), str(inp)))
+    assert done[0][1].startswith("filed; NOT removed from the Drop Folder")
+    assert (inp / "CashPlease" / "CashPleaseSummaryV1_261115_064539.xlsx").exists()
+    assert "needs a look (1)" in W._drop_tail({"drop": done})
+
+
+def test_a_file_still_arriving_is_not_filed_or_removed(drop, monkeypatch):
+    import shutil
+    d, inp = drop
+    src = _land(d, "CashPleaseSummaryV1_261115_064539.xlsx", size=10)
+    real = shutil.copy2
+
+    def copy_then_grow(a, b):
+        real(a, b)
+        with open(src, "ab") as fh:
+            fh.write(b"more")
+    monkeypatch.setattr(shutil, "copy2", copy_then_grow)
+    done = W.apply_drop(W.drop_plan(str(d), str(inp)))
+    assert done[0][1].startswith("FAILED: the dropped file changed")
+    assert src.exists() and not (inp / "CashPlease" / src.name).exists()
+    assert not list(inp.rglob("*.part"))
+
+
+def test_copy_flag_sweeps_the_drop_folder_and_dry_run_touches_nothing(shares, tmp_path, monkeypatch, capsys):
+    oddd, reports, held = shares
+    d = tmp_path / "-Drop Folder"; d.mkdir()
+    _land(d, "CashPleaseSummaryV1_261115_064539.xlsx")
+    monkeypatch.setattr(W, "_drop_dir", lambda: str(d))
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba"); (tmp_path / "ba").mkdir()
+    monkeypatch.setattr(W, "_roster", lambda: {})
+    dest = held / "CashPlease" / "CashPleaseSummaryV1_261115_064539.xlsx"
+
+    assert W.main(["--period", "2026.09", "--copy", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "## Drop Folder (1) — dry run" in out and "would file" in out
+    assert (d / dest.name).exists() and not dest.exists()
+
+    assert W.main(["--period", "2026.09", "--copy"]) == 0
+    out = capsys.readouterr().out
+    assert dest.exists() and not (d / dest.name).exists()
+    assert "Filed 1 from the Drop Folder." in out
+    assert "## Drop Folder (1)" in (tmp_path / "ba" / W.REPORT_NAME).read_text(encoding="utf-8")
+
+
+def test_without_copy_the_drop_folder_is_not_touched(shares, tmp_path, monkeypatch, capsys):
+    oddd, reports, held = shares
+    d = tmp_path / "-Drop Folder"; d.mkdir()
+    _land(d, "CashPleaseSummaryV1_261115_064539.xlsx")
+    monkeypatch.setattr(W, "_drop_dir", lambda: str(d))
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba"); (tmp_path / "ba").mkdir()
+    monkeypatch.setattr(W, "_roster", lambda: {})
+    assert W.main(["--period", "2026.09"]) == 0
+    assert (d / "CashPleaseSummaryV1_261115_064539.xlsx").exists()
+    assert "Drop Folder" not in capsys.readouterr().out
+
+
+def test_a_missing_drop_folder_is_one_line_not_a_failure(shares, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(W, "_drop_dir", lambda: None)
+    monkeypatch.setattr(W.R, "build_artifacts", lambda: tmp_path / "ba"); (tmp_path / "ba").mkdir()
+    monkeypatch.setattr(W, "_roster", lambda: {})
+    assert W.main(["--period", "2026.09", "--copy"]) == 0
+    assert "Not swept: -Drop Folder is not reachable." in capsys.readouterr().out
+
+
+def test_an_empty_drop_folder_adds_nothing_to_the_report(drop):
+    d, inp = drop
+    assert W._drop_section({"drop": W.apply_drop(W.drop_plan(str(d), str(inp)))}) == []
+
+
+def test_the_drop_folder_is_resolved_under_the_data_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("RPE_DATA_ROOT", str(tmp_path))
+    assert W.R.drop_folder() is None                    # never created
+    (tmp_path / W.R.DROP_FOLDER_DIRNAME).mkdir()
+    assert W.R.drop_folder() == tmp_path / "-Drop Folder"
