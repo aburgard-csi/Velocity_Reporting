@@ -251,6 +251,8 @@ def add_sustained_split_slide(prs, M, ctx):
                    "No mailing in this extract has a month after its response month yet, so "
                    "sustained activity cannot be split by segment for this period. "
                    + caption_text(rows), 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+        # Left out of the deck by the ARS builder (Aaron, 2026-11-22: "skip a slide if it doesn't have data").
+        SH.mark_no_data(s, "no mailing in this extract has a month after its response month yet")
     s.notes_slide.notes_text_frame.text = notes_text(rows, M, ctx)
     lst = prs.slides._sldIdLst
     src = SH.sldid_of(prs, s)

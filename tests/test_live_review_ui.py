@@ -175,10 +175,25 @@ def test_a_period_change_replaces_the_servers_and_the_number_is_capped(root, mon
     assert LU.state_doc("1003")["period"] == "2026.09" and len(LU._sessions) == 2
 
 
-def test_ils_is_held_back_whether_or_not_this_build_has_it(monkeypatch):
-    assert "ils" not in LU.programs()
-    monkeypatch.setattr(registry, "REGISTRY", registry.REGISTRY + [("ils", "ILS", "ils")])
+def test_ils_is_offered_and_only_the_constant_holds_a_program_back(monkeypatch):
+    """The review PDFs are on the share and read into a pack (scripts/land_ils_reviews.py), so ILS is on Sheila's door."""
+    assert LU.EXCLUDED_PROGRAMS == () and LU.programs() == [k for k, _l, _m in registry.REGISTRY]
+    assert "ils" in LU.programs()
+    monkeypatch.setattr(LU, "EXCLUDED_PROGRAMS", ("ils",))
     assert "ils" not in LU.programs() and "ars" in LU.programs()
+
+
+def test_readiness_names_the_ils_review_for_a_client_that_has_one_or_should(root):
+    import json
+    packs = root / "Build Artifacts" / "ils_analysis" / "review_packs"
+    packs.mkdir(parents=True)
+    st = LU.status(CID, PERIOD, ["ARS"])
+    assert "ILS" not in " ".join(c["text"] for c in st["checks"])             # most clients are not on ILS: no line
+    st = LU.status(CID, PERIOD, ["ARS", "ILS"])
+    assert any(c["level"] == "ask" and "ILS review is not on the share yet" in c["text"] for c in st["checks"])
+    (packs / f"{CID}_ils_review.json").write_text(json.dumps({"client_id": CID}), encoding="utf-8")
+    st = LU.status(CID, PERIOD, ["ARS"])
+    assert "ILS" in st["programs"] and any("latest ILS review is on the share" in c["text"] for c in st["checks"])
 
 
 def test_it_never_takes_the_build_lock_or_queues_a_job():

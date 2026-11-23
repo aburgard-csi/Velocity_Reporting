@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """peer_slide.py — the "How You Compare" slide each Executive Review deck carries (Aaron, 2026-11-03).
 
-One slide per program deck (ARS, ICS, MRPC, CashPlease), drawn by the program's builder and placed by title. It shows the
-client against every other client on the program: for each metric a strip plot (one dot per other client, the median, the
+Each program deck (ARS, ICS, MRPC, CashPlease) carries these slides, drawn by the program's builder and placed by title,
+NEVER more than two comparisons a slide (Aaron, 2026-11-22: "Don't put more than 2 peer comparison charts on a slide"): the
+measures come in pairs (GROUPS), one slide per pair. It shows the client against every other client on the program: for
+each metric a strip plot (one dot per other client, the median, the
 middle half of the peers and the client's own mark), the client's rank ("6th of 38 ARS clients") and one plain sentence
 against the peer median. The figures are Live Review's: `peer_compare.for_deck` runs the same collectors, metric lists and
 arithmetic, so the deck and the page cannot disagree.
@@ -11,16 +13,23 @@ NOBODY IS IDENTIFIED. A printed deck is forwarded, so unlike Live Review (where 
 number) a deck slide carries no client number, name, logo or CSM of another client: `for_deck` strips them before this module
 sees anything, and the speaker notes say so. `tests/test_peer_slide.py` reads the finished file for them.
 
-TOO FEW PEERS. A metric with fewer than five other clients having current data is not drawn; when no metric qualifies the
-slide says so in a sentence (the slide is never dropped, and nothing is zeroed). A failure to READ the peers' figures is
-stated on the slide too, and `validate_deck.peer_slide_findings` FAILs the deck, so it cannot ship quietly.
+TOO FEW PEERS. A metric with fewer than five other clients having current data is not drawn, and a slide none of whose
+measures can be drawn is not added at all (Aaron, 2026-11-22: "skip a slide if it doesn't have data"); each skipped slide
+is printed to the build log and named in the notes of the comparison slides that are drawn. Nothing is zeroed. A failure to
+READ the peers' figures is different: that one slide is drawn and says so, and `validate_deck.peer_slide_findings` FAILs the
+deck, so it cannot ship quietly.
+
+ARS IS COMPARED ON WHAT THE CLIENT CONTROLS (Aaron, 2026-11-22: "For ARS peer comparisons, don't compare program results.
+Compare things the customer controls, like Reg E, account growth, debit card take rate."): Reg E opt-in, debit card take
+rate, account growth and retention. Response rates, responder spend, tier movement and ARS revenue are never ranked.
 
 Public entry points
 -------------------
-    METRICS[program]                       the keys each program's slide shows, in order
-    title_for(program)                     "How You Compare — ARS Clients"
+    GROUPS[program]                        [(title label, [keys])], at most MAX_PER_SLIDE keys each, one slide per group
+    METRICS[program]                       every key the program's slides show, in order
+    title_for(program, label=None)         "How You Compare — Reg E Opt-In" ("How You Compare — ARS Clients" with no label)
     render_strips(items, out_png, w_in, h_in)
-    add_peer_slide(prs, program, ...) -> slide
+    add_peer_slide(prs, program, ...) -> [slides]   (empty when no group has data)
 """
 import os
 import sys
@@ -32,13 +41,23 @@ if HERE not in sys.path:
 import peer_compare as PC                                    # noqa: E402
 
 WHO = {"ARS": "ARS", "ICS": "ICS", "MRPC": "MRPC", "CP": "CashPlease"}
-# The metrics each program's slide shows, in order (a subset of Live Review's: five rows is what the slide seats).
-METRICS = {
-    "ARS": ["resp_12m", "spend_gain", "moved_up", "spend_per_acct", "rege_pct"],
-    "ICS": ["per_1k", "rev_total", "rev_interchange", "rev_nsf_od", "rev_spread"],
-    "MRPC": ["enroll_12_per_1k", "still_active", "take_active", "pct_goal"],
-    "CP": ["per_1k", "overdue", "charge_off"],
+MAX_PER_SLIDE = 2
+# The slides each program's deck carries, in order: (title label, the measures on it). Never more than MAX_PER_SLIDE measures
+# a slide; tests/test_peer_slide.py checks every group and that every title fits its box on one line.
+GROUPS = {
+    "ARS": [("Reg E Opt-In", ["rege_pct", "rege_new_pct"]),
+            ("Debit Card Take Rate", ["take_all", "take_new_pct"]),
+            ("Accounts Gained & Kept", ["acct_growth", "ret_1yr"])],
+    "ICS": [("ICS Referrals and Revenue", ["per_1k", "rev_total"]),
+            ("ICS Revenue by Source", ["rev_interchange", "rev_nsf_od"]),
+            ("ICS Spread on Deposits", ["rev_spread"])],
+    "MRPC": [("MRPC Enrollments", ["enroll_12_per_1k", "pct_goal"]),
+             ("MRPC Cardholder Activity", ["still_active", "take_active"])],
+    "CP": [("CashPlease Loan Volume", ["per_1k"]),
+           ("CashPlease Repayment", ["overdue", "charge_off"])],
 }
+# Every measure each program's slides show, in order (a subset of Live Review's).
+METRICS = {p: [k for _label, keys in g for k in keys] for p, g in GROUPS.items()}
 # What each metric is, in the words of the deck's notes (the "how it is measured" line).
 DEFS = {
     "resp_12m": "responders over personal-account offers sent, the mailings of the 12 months to the data month (the Mailing Response Summary's arithmetic, pooled)",
@@ -51,6 +70,8 @@ DEFS = {
     "rege_pct": "open personal debit-card accounts with a Reg E opt-in",
     "rege_new_pct": "Reg E opt-in among accounts opened in the last 12 months",
     "take_new_pct": "new ARS-eligible accounts holding a debit card",
+    "take_all": "ARS-eligible personal accounts holding a debit card, the whole book",
+    "acct_growth": "personal accounts opened minus closed over the last 12 complete months, as a share of the personal accounts open at the start of them",
     "active_cards": "open personal card holders swiping in the month",
     "ret_1yr": "accounts still open one year after opening (survival estimate)",
     "rev_per_1k": "the ARS workbook's incremental revenue, monthly average of the last 12 months, per 1,000 eligible accounts",
@@ -69,8 +90,10 @@ DEFS = {
 }
 
 
-def title_for(program):
-    return f"How You Compare — {WHO[program]} Clients"
+def title_for(program, label=None):
+    """The slide title: "How You Compare — <the group's label>", or "How You Compare — <program> Clients" for the one slide
+    that says the comparison could not be drawn."""
+    return f"How You Compare — {label}" if label else f"How You Compare — {WHO[program]} Clients"
 
 
 def _def(program, key):
@@ -213,75 +236,137 @@ def notes_text(program, ev, ctx):
 
 def add_peer_slide(prs, program, client_id, client_name, pill, assets_dir, client_source,
                    before_title=None, after_title=None, period=None, own=None, root=None, keys=None, extra=None, evaluation=None,
-                   anchor_slide=None, brand=None):
-    """Draw the slide, place it by title and return it.
+                   anchor_slide=None, brand=None, log=None):
+    """Draw the program's comparison slides, place them by title and return them as a list, in deck order.
+
+    One slide per GROUPS entry, two measures at most; a group none of whose measures can be drawn adds no slide (printed to
+    the build log, and named in the notes of the slides that are drawn). The list is empty when no group has data.
+    `keys` limits the measures (tests). A failure to READ the peers' figures adds ONE slide that says so (and fails the gate).
 
     `client_source` is the sentence naming the client's own sources for the notes ("ODD extract ..., ARS workbook ...");
     `own` the packs the build already holds (see peer_pool.PeerCtx); `evaluation` a ready `peer_compare.for_deck` result (tests).
-    Placement: `before_title` or `after_title`, a title prefix, resolved at run time; with neither the slide stays at the end of
-    the deck and `anchor_slide` (any slide of the deck) supplies its layout, for a builder that orders its own slides.
-    `brand` is "std" (the logo and a number box, `std_brand`) or a function called last with the slide, for a builder whose logo and
-    number are drawn per slide; ARS and CashPlease add theirs in their own passes."""
-    from pptx.util import Inches
-    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-    from brand import NAVY_RGB, TICK_RGB, ORANGE_RGB, BODY
-    import shapes as SH
-
+    Placement: `before_title` or `after_title`, a title prefix, resolved at run time; with neither the slides stay at the end of
+    the deck and `anchor_slide` (any slide of the deck) supplies their layout, for a builder that orders its own slides.
+    `brand` is "std" (the logo and a number box, `std_brand`) or a function called last with each slide, for a builder whose logo
+    and number are drawn per slide; ARS and CashPlease add theirs in their own passes."""
+    log = log or (lambda m: print(m, flush=True))
     who = WHO[program]
     err = None
     ev = evaluation
     if ev is None:
         try:
             ev = _evaluate(program, client_id, period, root, own, keys)
-        except Exception as e:                                # the peers' figures could not be read: say so on the slide
+        except Exception as e:                                # the peers' figures could not be read: say so on a slide
             err = f"{type(e).__name__}: {e}"
             print(f"!! peer slide ({program}): the other clients' figures could not be read - {err}", file=sys.stderr)
             ev = {"program": program, "who": who, "n_pool": 0, "pull": None, "items": [], "left": [], "notes": [], "unavailable": None}
-    anchor = anchor_slide or next((x for x in prs.slides if SH.slide_title(x).startswith(before_title or after_title or "-")), None)
+    anchor = anchor_slide or next((x for x in prs.slides if SH_title(x).startswith(before_title or after_title or "-")), None)
     if anchor is None:
         raise SystemExit(f"peer slide: no '{before_title or after_title}' slide to place it by")
-    n_items = len(ev["items"])
-    if err:
-        selection = f"The comparison could not be drawn for this build."
-    elif n_items:
-        selection = (f"{client_name} against the other {who} clients with current data: one dot per client, none named.")
-    else:
-        selection = f"{client_name} is not compared with other {who} clients on this slide."
-    s = _frame(prs, anchor, title_for(program), pill, selection)
     ctx = {"client_id": client_id, "client_name": client_name, "client_source": client_source, "extra": extra}
-    if n_items:
-        row_h = min(ROW_MAX, (BAND_BOTTOM - CHART[1] - 0.42) / n_items)
-        h = row_h * n_items + 0.42
-        png = os.path.join(assets_dir, f"peers_{program.lower()}.png")
-        render_strips(ev["items"], png, CHART[2], h, "This client")
-        s.shapes.add_picture(png, Inches(CHART[0]), Inches(CHART[1]), Inches(CHART[2]), Inches(h))
-        for k, it in enumerate(ev["items"]):
-            rank, rel = _tail(it, who)
-            top = CHART[1] + k * row_h + 0.2
-            SH.textbox(s, TEXT_X, top, TEXT_W, 0.4, rank, 18, ORANGE_RGB, True, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-            SH.textbox(s, TEXT_X, top + 0.38, TEXT_W, 0.55, rel[0].upper() + rel[1:] + ".", 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-        ns = sorted({i["c"]["n"] for i in ev["items"]})
-        cap = (f"Peers: {ns[0]} other {who} clients per measure" if len(ns) == 1
-               else f"Peers: {ns[0]} to {ns[-1]} other {who} clients per measure")
-        SH.textbox(s, 0.5, 6.42, 10.5, 0.4, cap + "; a measure needs five with current data.", 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-    else:
-        if err:
-            msg = ("The peer comparison could not be drawn for this build: the other clients' figures could not be read. "
-                   "Rebuild this deck when the shares are reachable.")
-        else:
-            msg = ev.get("unavailable") or f"No measure has {PC.MIN_PEERS} other {who} clients with current data yet."
-        SH.textbox(s, 0.7, 2.3, 11.8, 2.0, msg, 22, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
-    note = notes_text(program, ev, ctx)
     if err:
-        note += f"\nThe other clients' figures could not be read for this build ({err})."
-    s.notes_slide.notes_text_frame.text = note
+        s = _frame(prs, anchor, title_for(program), pill, "The comparison could not be drawn for this build.")
+        msg = ("The peer comparison could not be drawn for this build: the other clients' figures could not be read. "
+               "Rebuild this deck when the shares are reachable.")
+        _say(s, msg)
+        s.notes_slide.notes_text_frame.text = notes_text(program, ev, ctx) + f"\nThe other clients' figures could not be read for this build ({err})."
+        made = [s]
+    else:
+        wanted = keys or METRICS[program]
+        by_key = {it["spec"]["key"]: it for it in ev["items"]}
+        groups = [(label, [k for k in ks if k in wanted]) for label, ks in GROUPS[program]]
+        groups = [(label, ks) for label, ks in groups if ks]
+        drawn, skipped = [], []
+        for label, ks in groups:
+            items = [by_key[k] for k in ks if k in by_key]
+            if items:
+                drawn.append((label, ks, items))
+            else:
+                skipped.append(label)
+        if ev.get("unavailable"):
+            log(f"peer slides ({program}): none added - {ev['unavailable']}")
+        for label in skipped:
+            log(f"peer slide skipped ({program}): '{title_for(program, label)}' has no measure with {PC.MIN_PEERS} other clients' current data")
+        made = []
+        for label, ks, items in drawn:
+            s = _frame(prs, anchor, title_for(program, label), pill,
+                       f"{client_name} against the other {who} clients with current data: one dot per client, none named.")
+            _draw(s, items, who, os.path.join(assets_dir, f"peers_{program.lower()}_{_slug(label)}.png"))
+            labels = [_spec_label(program, k) for k in ks]
+            left_here = [x for x in ev.get("left") or [] if any(x.startswith(lbl + ":") for lbl in labels)]
+            ev_g = dict(ev, items=items, left=left_here)
+            note = notes_text(program, ev_g, ctx)
+            if skipped:
+                note += ("\nNot added (no measure with " + str(PC.MIN_PEERS) + " other clients' current data): "
+                         + "; ".join(title_for(program, l) for l in skipped) + ".")
+            s.notes_slide.notes_text_frame.text = note
+            made.append(s)
     if before_title or after_title:
-        _place(prs, s, before_title, after_title)
-    if brand == "std":
-        std_brand(s, client_id, assets_dir)
-    elif brand:
-        brand(s)
-    return s
+        prev = None
+        for s in made:
+            if prev is None:
+                _place(prs, s, before_title, after_title)
+            else:
+                _after(prs, s, prev)
+            prev = s
+    for s in made:
+        if brand == "std":
+            std_brand(s, client_id, assets_dir)
+        elif brand:
+            brand(s)
+    return made
+
+
+def SH_title(slide):
+    import shapes as SH
+    return SH.slide_title(slide)
+
+
+def _spec_label(program, key):
+    from review_page import peer_pool as PP
+    return next((m["label"] for m in PP.PROGRAMS[program][1] if m["key"] == key), key)
+
+
+def _slug(label):
+    return "".join(ch.lower() if ch.isalnum() else "_" for ch in label).strip("_")
+
+
+def _after(prs, slide, prev):
+    import shapes as SH
+    lst = prs.slides._sldIdLst
+    src = SH.sldid_of(prs, slide)
+    lst.remove(src)
+    SH.sldid_of(prs, prev).addnext(src)
+
+
+def _say(s, msg):
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    from brand import NAVY_RGB, BODY
+    import shapes as SH
+    SH.textbox(s, 0.7, 2.3, 11.8, 2.0, msg, 22, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+
+
+def _draw(s, items, who, png):
+    """Two strips at most, with the rank and the plain sentence beside each, and the peer count under them."""
+    from pptx.util import Inches
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    from brand import TICK_RGB, ORANGE_RGB, BODY
+    import shapes as SH
+    assert len(items) <= MAX_PER_SLIDE, "never more than two comparisons a slide"
+    n_items = len(items)
+    row_h = min(ROW_MAX, (BAND_BOTTOM - CHART[1] - 0.42) / n_items)
+    h = row_h * n_items + 0.42
+    render_strips(items, png, CHART[2], h, "This client")
+    s.shapes.add_picture(png, Inches(CHART[0]), Inches(CHART[1]), Inches(CHART[2]), Inches(h))
+    for k, it in enumerate(items):
+        rank, rel = _tail(it, who)
+        top = CHART[1] + k * row_h + 0.2
+        SH.textbox(s, TEXT_X, top, TEXT_W, 0.4, rank, 18, ORANGE_RGB, True, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+        SH.textbox(s, TEXT_X, top + 0.38, TEXT_W, 0.55, rel[0].upper() + rel[1:] + ".", 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    ns = sorted({i["c"]["n"] for i in items})
+    cap = (f"Peers: {ns[0]} other {who} clients per measure" if len(ns) == 1
+           else f"Peers: {ns[0]} to {ns[-1]} other {who} clients per measure")
+    SH.textbox(s, 0.5, 6.42, 10.5, 0.4, cap + "; a measure needs five with current data.", 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
 
 def std_brand(slide, client_id, assets_dir):

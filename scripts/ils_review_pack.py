@@ -4,6 +4,7 @@
     python scripts/ils_review_pack.py "<...>/1539-2026.07-ILS-Marine FCU ILS Review.pdf" [--client 1539] [--dry-run]
 
 Writes `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json` (a newer review replaces the older pack).
+For the reviews on the share, `scripts/land_ils_reviews.py` lands the PDFs (Inputs/ILS Reviews/<id>/) and runs this same read for each.
 Read-only on the PDF; a table that does not reconcile stops the read and nothing is written. Details and the list of
 pages read: build/review_page/ils_review_pack.py.
 """

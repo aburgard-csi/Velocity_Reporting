@@ -141,12 +141,41 @@ def _sec_dbic(run, key):
         return ["No DBIC export was supplied, so the program-health slides (calculation log, feed integrity, Reg E "
                 "opt-in, fee collection) were skipped."]
     run.say("Parsing DBIC export…")
-    d = dbic.load(run.cfg.dbic_path)
+    d = _dbic_data(run)
     if not d.available:
         return [f"The DBIC export {os.path.basename(str(run.cfg.dbic_path))} contained no recognised sections, so the "
                 f"program-health slides were skipped."]
     run.say(f"  {len(d.secs)} section(s) recognised.")
-    return dbic_slides.add_dbic_section(run.dk, d, section=key, divider=False, progress=run.say)
+    medians, src = None, None
+    if run.fr.has_trend and _dbic_channels(run):
+        types = sorted({t for (t, _) in d.channels[0]})
+        medians = {t: CS.RF.channel_medians(run.fr, t, d.channels[1]) for t in types}
+        src = CS._src(run.cfg, run.fr, "dbic", "zt", extra="Paid and returned items: the DBIC channel table, trailing "
+                      "60 days. Median item amount: ZTrend Item_Amts on notices flagged for each channel, 365 days to the "
+                      "as-of date.")
+    return dbic_slides.add_dbic_section(run.dk, d, section=key, divider=False, progress=run.say, medians=medians,
+                                        medians_source=src)
+
+
+def _dbic_data(run):
+    if getattr(run, "_dbic", None) is None:
+        run._dbic = dbic.load(run.cfg.dbic_path)
+    return run._dbic
+
+
+def _dbic_channels(run):
+    """True when the DBIC section will draw "Exception items by channel" (it carries the ZTrend medians then)."""
+    if not run.cfg.dbic_path or "dbic" not in run.cfg.sections:
+        return False
+    d = _dbic_data(run)
+    return bool(d.available and d.channels and d.channels[1])
+
+
+def _sec_exception_items(run, key):
+    # One slide, not two (Aaron, 2026-11-17): with the DBIC channel table, the medians ride on that slide.
+    if _dbic_channels(run):
+        return ["Exception items by channel: carried on the DBIC channel slide, which has the channel table and medians."]
+    return CS.add_exception_items(run.dk, run.cfg, run.fr, section=key, progress=run.say)
 
 
 def _sec_matrix(run, key):
@@ -181,7 +210,7 @@ BUILDERS = {
     "comm_strategies": _sec_comm,
     "kpi_rollup": _client(CS.add_kpi_rollup),
     "fee_trends": _client(CS.add_fee_trends),
-    "exception_items": _client(CS.add_exception_items),
+    "exception_items": _sec_exception_items,
     "eligibility": _client(CS.add_eligibility),
     "branch_summary": _client(CS.add_branch_summary),
     "reg_e": _client(CS.add_reg_e),
@@ -254,13 +283,19 @@ def _slide_data_notes(run, key):
     scope.append(f"{count(len(za))} accounts in the extract, {count(n_open)} open, as of {str(fr.asof)[:10]}{pull}.")
     kept = "retail branches and digital channels" if cfg.include_digital else "retail branches"
     scope.append(f"Branch views cover the {kept}; back-office codes are held out ({br.summary()}).")
-    scope.append("Open active accounts have a deposit in the last 240 days or an NSF/OD item in the last 365; a user has at least one NSF/OD item in 365 days.")
+    scope.append("Open active accounts are open accounts with more than $50 deposited or an NSF/OD item in the last 365 days; a user has at least one NSF/OD item in 365 days.")
     scope.append("Comparisons use complete months only; movement within 2% is called almost flat.")
     scope.append("Peers are other ILS clients, shown by client number only; very large clients are compared with other very large ones, "
                  "the rest within their Census region, with five peers at least.")
+    nb = getattr(cfg, "default_basis", "notebook") == "notebook"
     method = [
-        f"Cure (the performing slides): a negative balance reaches $0 or more within {story_slides.CURE_DAYS} days of the notice. The Scoring "
-        f"Summary uses a separate {fr.default_days}-day default and never shares a slide with a cure rate.",
+        ("The Scoring Summary's default is the analysis notebook's: a notice on a charged-off account dated on or after the "
+         "account's last positive date, over notices 425 to 60 days before the newest one, limit at or under the matrix maximum."
+         if nb else f"The Scoring Summary uses a {fr.default_days}-day default.")
+        + (f" Cure (the performing slides): a negative balance reaches $0 or more within {story_slides.CURE_DAYS} days."
+           if "performing" in cfg.sections else ""),
+        "Not repaid ('fatal'): a charged-off account's notice nearest its last positive date, counted once per account "
+        "(the analysis notebook's rule).",
         "NSF is collected fees on returned items and OD is collected fees on paid items; neither is netted for refunds.",
         "Pulled back means the current limit is below the account's own earlier maximum. The extracts have no daily limit history, so when "
         "and why are not shown, and no savings are claimed.",
@@ -315,7 +350,8 @@ def build_review(cfg: BuildConfig, progress=None):
         cfg.zaccounts_path, cfg.ztrend_path, exclude_branches=cfg.exclude_branches,
         digital_branches=cfg.digital_branches, retail_branches=cfg.retail_branches,
         include_digital=cfg.include_digital, progress=say,
-        declines_path=cfg.declines_path, refunds_path=cfg.refunds_path)
+        declines_path=cfg.declines_path, refunds_path=cfg.refunds_path,
+        snapshot_date=datetime.strptime(cfg.data_as_of, "%Y-%m-%d") if cfg.data_as_of else None)
     fr = r_common.Frame(loaded)
 
     S, types, codes, settings = None, [], {}, {}
@@ -352,6 +388,16 @@ def build_review(cfg: BuildConfig, progress=None):
     run = _Run(cfg, shell, dk, loaded, fr, S)
     run.settings = settings
     run.say = say
+    fr.status_map = story_slides._status_map(S) if S else {}
+    # the matrix's maximum limit per account type: the notebook's personal_od_limit / business_od_limit, which caps the
+    # Scoring Summary population (LIMIT <= max_p); 1781's $1,500 reproduces William's band counts exactly
+    try:
+        fr.max_limit = {k: v["max_limit"] for k, v in MD.tier_summary(S).items() if v.get("max_limit")} if S else {}
+    except Exception:                                   # a matrix this reader cannot tier must not stop the build
+        fr.max_limit = {}
+    for raw, (seg, n) in fr.folded.items():
+        run.notes.append(f"{n:,} {raw} accounts are counted with {seg} in the KPI rollup only (by the IsPersonal flag, "
+                         f"as the analysis team's rollup is); every other figure keeps {raw} out of {seg}.")
 
     # ── cover ──────────────────────────────────────────────────────────────
     cover = shell.add_slide()
@@ -397,9 +443,14 @@ def build_review(cfg: BuildConfig, progress=None):
             run.notes.append(f"{sec.label}: skipped — no {' or '.join(missing)} supplied.")
             return
         say(f"Building section: {sec.label}…")
-        before = len(dk.generated)
+        before, notes_before, errors_before = len(dk.generated), len(run.notes), len(run.errors)
         try:
             run.notes.extend(n for n in (BUILDERS[key](run, key) or []) if n)
+            if len(dk.generated) == before and len(run.notes) == notes_before and len(run.errors) == errors_before:
+                # A section that adds nothing and says nothing (the Industry Update and peer slides when the share
+                # root could not be read) would otherwise vanish from the deck unnoticed.
+                run.notes.append(f"{sec.label}: produced no slides and gave no reason; check its inputs "
+                                 "(RPE_DATA_ROOT and the files it reads there).")
         except Exception as exc:
             detail = traceback.format_exc(limit=3).strip().splitlines()[-1]
             run.errors.append(f"{sec.label}: failed to build — {type(exc).__name__}: {exc}. ({detail})")
@@ -437,6 +488,7 @@ def build_review(cfg: BuildConfig, progress=None):
     except SystemExit as exc:
         contact = None
         run.build_log.append(f"Contact Us slide not added: {exc}")
+        run.notes.append(f"Contact Us slide not added: {exc}")        # deck_checks reports it (REVIEW)
     if contact:
         cs = shell.add_slide()
         dk.generated.append(cs)
@@ -505,6 +557,16 @@ def build_review(cfg: BuildConfig, progress=None):
     say(f"Done — {total} generated slide(s) in a {len(shell.prs.slides)}-slide deck.")
     if run.errors:
         say(f"{len(run.errors)} section(s) reported an error; see the Data Notes slide.")
+    # the defects a layout validator cannot see (a failed section, a stale extract, an all-zero column): deck_checks
+    try:
+        from . import deck_checks
+        found = deck_checks.check(out_path, os.path.join(chart_dir, "figures_index.json"))
+        fails = sum(1 for f in found if f[0] == "FAIL")
+        say(f"Deck checks: {fails} FAIL, {len(found) - fails} REVIEW.")
+        for level, msg in found:
+            say(f"  {level} {msg}")
+    except Exception as exc:        # the checks never take a built deck down
+        say(f"Deck checks could not run: {type(exc).__name__}: {exc}")
     return out_path
 
 

@@ -59,9 +59,14 @@ def safe(name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--workbook")
-    ap.add_argument("--period", default="2026.08")
+    # The reporting month is the generation month (templates/STYLE.md). This defaulted to a literal "2026.08", so
+    # Dannemora FCU's November 2026 module was filed as 1781-2026.08-CP-... with "November 2026" on its cover.
+    ap.add_argument("--period", default=None, help="yyyy.mm for the file name; default: this month")
     ap.add_argument("--only", help="comma-separated client ids")
     a = ap.parse_args()
+    if not a.period:
+        import datetime as _dt
+        a.period = _dt.date.today().strftime("%Y.%m")
 
     wb = Path(a.workbook) if a.workbook else newest("CashPleaseSummary*.xlsx")
     if wb is None:
@@ -168,6 +173,14 @@ def main():
               "so these name clients no module is built for):")
         for f in idx["flags"]:
             print("  ", f)
+    if built:
+        # The packs and the peer benchmark were rewritten: the peer reference's CashPlease rows follow, in the
+        # background (Aaron, 2026-11-22: "update data on the peer comparison dataset when we build new presentations").
+        try:
+            import build_peer_reference as BPR
+            BPR.spawn_update(["CP"], f"build_cashplease {a.period} ({len(built)} modules)")
+        except Exception as exc:                              # noqa: BLE001 - the modules are built whatever happens here
+            print(f"Peer reference: not updated ({type(exc).__name__}: {exc})")
     return 1 if failed else 0
 
 
