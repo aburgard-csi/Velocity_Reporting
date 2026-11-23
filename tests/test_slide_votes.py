@@ -304,7 +304,7 @@ def test_the_page_is_not_tied_to_a_client():
 
 def test_a_vote_button_sends_the_slides_title_and_number_and_the_star_with_the_vote():
     import sheila_hub as H
-    send = _between(H.PAGE, "async function send(i, patch, quiet)", "function paintRow(i)")
+    send = _between(H.PAGE, "function post(body)", "function paintRow(i)")          # post() is send's queue (2026-11-23)
     for part in ('"/api/votes/vote"', "slide: s.n", "title: s.title", "star: next.star", "vote: next.vote"):
         assert part in send
     assert 'aria-pressed="${m.vote === v}"' in H.PAGE and 'class="star"' in H.PAGE and "Favorite slide" in H.PAGE
@@ -339,3 +339,40 @@ def test_a_comment_alone_is_exported_as_a_comment_not_a_star(root):
     rows = SV.aggregate(SV.read_votes())
     assert (rows[0]["keep"], rows[0]["delete"], rows[0]["appendix"], rows[0]["stars"]) == (0, 0, 0, 0)
     assert "(comment): check the Reg E figure" in SV.summary_csv(rows)
+
+
+# ---------------------------------------------------------------- change and clear, nothing lost (Aaron, 2026-11-23)
+
+def test_a_vote_can_be_changed_and_cleared_and_every_earlier_choice_stays_on_disk(root):
+    """ "Don't lose existing votes, and I do want to be able to clear them or change them." Each change is a new file, the
+    newest is what counts, a clear keeps the star and the comment, and no earlier file is ever removed."""
+    vote(v="keep", star=True, comment="clients ask for it")
+    vote(v="delete", star=True, comment="clients ask for it")          # changed
+    vote(v="", star=True, comment="clients ask for it")                # cleared: the star and comment stay
+    held = SV.mine(SV.read_votes(), "aaron", "ARS")["ARS|account retention"]
+    assert held["vote"] == "" and held["star"] and held["comment"] == "clients ask for it"
+    rows = SV.aggregate(SV.read_votes())
+    assert (rows[0]["keep"], rows[0]["delete"], rows[0]["appendix"], rows[0]["stars"]) == (0, 0, 0, 1)
+    vote(v="appendix", star=True, comment="clients ask for it")        # voted again after clearing
+    assert SV.aggregate(SV.read_votes())[0]["appendix"] == 1
+    assert len(os.listdir(root / "Build Artifacts" / "slide_votes")) == 4   # every choice kept
+
+
+def test_votes_stored_before_this_change_are_all_still_read(root):
+    """Documents written by earlier versions (a vote, a star alone) read exactly as before."""
+    vote(v="keep", voter="sheila")
+    vote(title="Reg E Opt-In", v="", star=True, voter="james")
+    vote(title="Program Reach", v="delete", voter="aaron")
+    cur = {(v["voter"], v["key"]): v for v in SV.latest(SV.read_votes())}
+    assert cur[("sheila", "ARS|account retention")]["vote"] == "keep"
+    assert cur[("james", "ARS|reg e opt-in")]["star"] and cur[("aaron", "ARS|program reach")]["vote"] == "delete"
+    assert sum(r["keep"] + r["delete"] + r["appendix"] for r in SV.aggregate(SV.read_votes())) == 2
+
+
+def test_the_page_saves_a_slides_changes_in_order_and_offers_a_clear_button():
+    import sheila_hub as H
+    js = _between(H.PAGE, "// ------------------------------------------------------------ Slide Review", "registerTab(\"votes\"")
+    assert "V.chain.then(() => api(\"/api/votes/vote\"" in js, "saves go out one at a time, in order"
+    assert "await post(" in js and "await api(\"/api/votes/vote\"" not in js
+    assert 'data-clear' in js and 'send(i, {vote: ""})' in js and "Clear" in js
+    assert "loadReview().then(() => paint())" in js, "a refused save shows what the share holds"

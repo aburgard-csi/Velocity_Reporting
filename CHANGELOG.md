@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-23 — Slide Review: a vote can be changed or cleared, and no change is lost (`scripts/sheila_hub_votes.py`)
+
+Summary: In Slide Review each slide now has a Clear button beside its vote, and a slide's changes are saved one at a time in the order they were made, so the vote you see is always the vote that is kept.
+
+Aaron, 2026-11-23: "Don't lose existing votes, and I do want to be able to clear them or change them."
+
+- **Clear:** the row's Clear button (shown only when the slide has your vote), the 0 key, or clicking the chosen button again. Clearing keeps the slide's star and comment. A vote is changed by choosing another.
+- **Nothing lost:** a comment saved as its box lost focus and the vote clicked straight after went to the share as two saves at once. Each carries the slide's whole state, and the newest stored one wins, so when the comment's save arrived second it carried the OLD vote and the change was lost. Saves now go out one at a time, in order (`post`, `V.chain`). A save the share refuses is put back on the row and the program's votes are read again, so the page shows what is stored.
+- **Existing votes are untouched:** every vote is its own file and none is removed. Documents written by earlier versions (a vote, or a star with no vote) read exactly as before.
+- Tests: `tests/test_slide_votes.py` (change, clear, vote again, every file kept; earlier documents still read; the page's ordered saves and Clear button). Checked in the browser against an empty data folder: a comment then Appendix, a change to Delete, and a clear each survive a reload.
+
 ### 2026-11-19 — The morning file get sweeps the Drop Folder (`scripts/watch_sources.py`, `build/rpe_env.py`)
 
 Summary: Files dropped in the CSM_Reporting Drop Folder are now filed into Inputs by the 08:00 file get, by the same naming rules as files from the shares and the mailbox. A file it cannot place, or one whose name already holds different contents in Inputs, is left in the folder and listed in the morning report. A dropped ODD extract whose pull stamp is newer than the one in Inputs replaces it, and the older one is archived.

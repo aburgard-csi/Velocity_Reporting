@@ -7,7 +7,10 @@ and a comment; **Summary** is the votes and stars for the program's slides in wh
 vote on the share (slide_votes.py); a changed mind or a star is a newer vote, and a slide is matched by its title.
 
 In the Hub layout voting is one keystroke per slide: 1, 2 or 3 votes and moves to the next slide, S stars, C writes a
-comment, N jumps to the next slide not voted on, [ and ] change program. The routes are the same as ever
+comment, N jumps to the next slide not voted on, [ and ] change program. A vote is changed by choosing another and cleared
+with the row's Clear button, 0, or the pressed button again (Aaron, 2026-11-23: "I do want to be able to clear them or
+change them"); a clear keeps the star and the comment. Every change is a NEW file and none is ever removed, and a slide's
+saves go out one at a time in the order they were made, so the newest stored state is always the last one chosen. The routes are the same as ever
 (`GET /api/votes/programs`, `/program`, `/summary`, `/export`; `POST /api/votes/vote`); this is the page side, moved
 here from the old page's slide_review_ui.py (the Hub layout, 2026-11-02).
 """
@@ -50,6 +53,8 @@ button.star[aria-pressed="true"]{color:var(--warn)}
 button.vb{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 11px;border-radius:10px;border:1px solid var(--line);background:var(--sheet);font-size:13px;font-weight:600}
 button.vb:hover{border-color:var(--muted)}
 button.vb kbd{font-size:10.5px;padding:2px 5px}
+button.vclr{min-height:32px;padding:0 9px;border-radius:10px;border:1px dashed var(--line);background:none;color:var(--muted);font-size:12.5px;font-weight:600}
+button.vclr:hover{color:var(--ink);border-color:var(--muted)}
 button.vb.keep[aria-pressed="true"]{background:var(--good-soft);color:var(--good);border-color:var(--good)}
 button.vb.delete[aria-pressed="true"]{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
 button.vb.appendix[aria-pressed="true"]{background:var(--fill);color:var(--ink);border-color:var(--ink)}
@@ -98,7 +103,7 @@ JS = r"""
       <span class="vn">${s.n}</span>
       <button class="star" data-star aria-pressed="${!!m.star}" title="Favorite slide (S)" aria-label="Favorite slide">${m.star ? "★" : "☆"}</button>
       <span class="vt"><b>${esc(s.title)}</b>${s.source ? `<small>${esc(s.source)}</small>` : ""}</span>
-      <span class="vseg">${b("keep")}${b("delete")}${b("appendix")}<span class="vsaved" aria-hidden="true">✓</span></span>
+      <span class="vseg">${b("keep")}${b("delete")}${b("appendix")}<button class="vclr" data-clear title="Clear my vote on this slide (0)" aria-label="Clear my vote on slide ${s.n}"${m.vote ? "" : " hidden"}>Clear</button><span class="vsaved" aria-hidden="true">✓</span></span>
       <span class="vcw"><input class="vc" type="text" maxlength="500" placeholder="Comment (optional)" value="${esc(m.comment || "")}" aria-label="Comment on slide ${s.n}"></span></div>`;
   }
 
@@ -144,16 +149,25 @@ JS = r"""
   }
 
   // Each send carries the slide's whole state, so a star keeps the vote and a vote keeps the star. The page changes at once and puts it back if the share refuses.
+  // Saves go out ONE AT A TIME, in the order they were made (V.chain). The newest stored document per voter and slide wins, and the
+  // server stamps it as it arrives: a comment saved on blur and the vote clicked straight after used to race, and when the comment's
+  // save landed second it carried the OLD vote, so the change was lost (Aaron, 2026-11-23: "Don't lose existing votes").
+  V.chain = Promise.resolve();
+  function post(body) { const p = V.chain.then(() => api("/api/votes/vote", {method: "POST", body})); V.chain = p.catch(() => {}); return p; }
   async function send(i, patch, quiet) {
     const s = V.d.slides[i], before = s.mine, m = mineOf(s);
     const next = {vote: m.vote || "", star: !!m.star, comment: m.comment || "", ...patch};
     s.mine = next; if (!quiet) paintRow(i);
     try {
-      await api("/api/votes/vote", {method: "POST", body: JSON.stringify({program: V.program, slide: s.n, title: s.title, vote: next.vote, star: next.star, comment: next.comment})});
+      await post(JSON.stringify({program: V.program, slide: s.n, title: s.title, vote: next.vote, star: next.star, comment: next.comment}));
       const el = $(`.vrow[data-i="${i}"]`); if (el) { el.classList.add("just"); setTimeout(() => el.classList.remove("just"), 900); }
       loadProgs().then(() => paintProgs(V.progs, "program", false)).catch(() => {});
       return true;
-    } catch (e) { s.mine = before; paintRow(i); paintHead(); toast("Couldn't save that: " + e.message, "bad", 6000); return false; }
+    } catch (e) {
+      s.mine = before; paintRow(i); paintHead(); toast("Couldn't save that: " + e.message, "bad", 6000);
+      loadReview().then(() => paint()).catch(() => {});      // then show what the share actually holds
+      return false;
+    }
   }
   function paintRow(i) {
     const el = $(`.vrow[data-i="${i}"]`); if (!el) return paint();
@@ -211,6 +225,7 @@ JS = r"""
     const r = t.closest(".vrow[data-i]"); if (!r) return;
     const i = +r.dataset.i; setCursor(i, false);
     if (t.closest("[data-star]")) return send(i, {star: !mineOf(V.d.slides[i]).star});
+    if (t.closest("[data-clear]")) return send(i, {vote: ""});      // the star and the comment stay
     const b = t.closest("button.vb"); if (b) { const v = b.dataset.vote; send(i, {vote: mineOf(V.d.slides[i]).vote === v ? "" : v}); }
   });
   // A comment is saved on its own (a vote is not needed) and the row is not repainted, so the click on a button beside it still lands.
