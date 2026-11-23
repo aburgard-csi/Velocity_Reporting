@@ -38,6 +38,75 @@ def _rank_note(df, shown, label):
     return f"Top {shown} of {total} branches by {label} count."
 
 
+# ── ranked bars: 60% chart, headline panel on the right ───────────────────────
+BAR_W = 11.30                       # design inches: about 60% of the slide width
+KEEP, MUTE = "navy", "steel"
+
+
+def _short(name, n=22):
+    t = str(name).strip()
+    return t if len(t) <= n else t[:n - 1] + "."
+
+
+def ranked_with_panel(dk, slide, df, col, top_n, *, series_name, fmt, fmtv, portfolio, port_label, lower,
+                      higher_is_worse, number_format, unit):
+    """A horizontal ranked bar chart at about 60% of the slide width and, on its right, the figures the
+    chart is about: the portfolio figure, the highest and lowest branch and the spread between them, the
+    three highest and three lowest branches with their account counts, and how much of the book the five
+    largest branches hold. Only the three highest and three lowest bars carry colour; the rest are muted,
+    so the slide is not a wall of one colour (Aaron, 2026-11-04). All figures are derived from `df`, the
+    same table the chart is drawn from."""
+    import shapes
+    from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+    from . import client_slides as CS
+    sel = (df.sort_values("n", ascending=False).head(top_n).dropna(subset=[col]).sort_values(col))
+    if len(sel) < 4:
+        C.bar(slide, CHART_X, CHART_Y, CHART_W, CHART_H, sel["branchname"].tolist(), sel[col].tolist(),
+              series_name=series_name, color=T.NAVY, number_format=number_format)
+        return sel
+    # Small institutions (Dannemora FCU, four branches): three highest and three lowest overlapped, so the table
+    # listed branches twice and every bar was coloured both ways. Highlight at most half of the branches each way.
+    k = min(3, len(sel) // 2)
+    hi_c, lo_c = (T.ORANGE, T.NAVY) if higher_is_worse else (T.NAVY, T.ORANGE)
+    colors = [lo_c if i < k else hi_c if i >= len(sel) - k else T.STEEL_SOFT for i in range(len(sel))]
+    C.bar(slide, CHART_X, CHART_Y, BAR_W, CHART_H, sel["branchname"].tolist(), sel[col].tolist(),
+          series_name=series_name, color=T.STEEL_SOFT, number_format=number_format, colors=colors)
+    hi, lo = sel.iloc[-1], sel.iloc[0]
+    x0, w = 8.25, 12.833 - 8.25
+    tw = (w - 0.15) / 2
+    tiles = [(fmtv(portfolio), port_label),
+             (f"{hi[col] / lo[col]:.1f}x" if lo[col] else "n/a", "Highest branch over lowest"),
+             (fmtv(hi[col]), "Highest branch"),
+             (fmtv(lo[col]), "Lowest branch")]
+    import textfit
+    for i, (v, lab) in enumerate(tiles):
+        # A seven-figure dollar value ("$1,314,642") does not fit a half-width tile at 28 pt: show it compact ($1.31M).
+        if not textfit.fits_one_line(str(v), tw - 0.1, 28, bold=True):
+            v = CS.compact_money(v)
+        shapes.tile(slide, x0 + (i % 2) * (tw + 0.15), 1.75 + (i // 2) * 1.08, tw, 0.98, v, lab, small_label=True)
+    if len(sel) <= 6:
+        rows = [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in sel.iloc[::-1].iterrows()]
+        band = "EVERY BRANCH, HIGHEST FIRST"
+    else:
+        top3 = sel.iloc[::-1].head(3)
+        bot3 = sel.head(3)
+        rows = [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in top3.iterrows()]
+        rows += [[_short(r["branchname"]), f"{int(r['n']):,}", fmtv(r[col])] for _, r in bot3.iloc[::-1].iterrows()]
+        band = "THREE HIGHEST AND THREE LOWEST"
+    T.band_real(slide, x0, 4.02, w, band, h=0.34)
+    CS.table(slide, {"headers": ["Branch", "Accounts", unit], "rows": rows}, x0, 4.42, w, 1.75, max_fs=12)
+    above = int((sel[col] > portfolio).sum()) if portfolio is not None else 0
+    if len(sel) > 5:
+        big5 = sel.sort_values("n", ascending=False).head(5)["n"].sum()
+        share = big5 / max(1, sel["n"].sum()) * 100
+        line = (f"The five largest branches hold {share:.0f}% of the {lower} accounts shown; "
+                f"{above} of {len(sel)} branches sit above the portfolio figure.")
+    else:
+        line = f"{above} of {len(sel)} branches sit above the portfolio figure."
+    T.bullets_real(slide, x0, 6.2, w, 0.55, [line], size=12, min_size=11)
+    return sel
+
+
 def add_branch_section(dk, cfg, loaded, accttype, *, section, cv=None, divider=False,
                        progress=None):
     """Build the whole branch section for one account type. Returns notes."""
@@ -83,8 +152,10 @@ def add_branch_section(dk, cfg, loaded, accttype, *, section, cv=None, divider=F
                    f"Average 33-day deposit per open account.  "
                    f"{_rank_note(intensity, len(labels), lower + ' account')}",
                    section=section)
-    C.bar(s, CHART_X, CHART_Y, CHART_W, CHART_H, labels, values,
-          series_name="Avg deposit / account", color=T.NAVY, number_format='"$"#,##0')
+    ranked_with_panel(dk, s, intensity, "avg_dep_per_acct", top_n, series_name="Avg deposit / account",
+                      fmt="", fmtv=lambda v: f"${v:,.0f}", portfolio=summary["avg_dep_per_acct"],
+                      port_label="Portfolio average", lower=lower, higher_is_worse=False,
+                      number_format='"$"#,##0', unit="Avg deposit")
 
     # ── engagement ─────────────────────────────────────────────────────────
     labels, values = M.top_branches(intensity, "pct_no_deposit", top_n)
@@ -92,39 +163,52 @@ def add_branch_section(dk, cfg, loaded, accttype, *, section, cv=None, divider=F
                    "Share of open accounts with no deposit activity in the trailing 33 days. "
                    "Higher is worse.",
                    section=section)
-    C.bar(s, CHART_X, CHART_Y, CHART_W, CHART_H, labels, values,
-          series_name="No-deposit rate", color=T.CORAL, number_format='0.0"%"')
+    ranked_with_panel(dk, s, intensity, "pct_no_deposit", top_n, series_name="No-deposit rate",
+                      fmt="", fmtv=lambda v: f"{v:.1f}%", portfolio=summary["pct_no_deposit"],
+                      port_label="Portfolio rate", lower=lower, higher_is_worse=True,
+                      number_format='0.0"%"', unit="No-deposit")
 
     # ── volatility ─────────────────────────────────────────────────────────
     if vol is not None:
         labels, values = M.top_branches(vol, "median_cv", top_n)
         s = dk.content(f"{accttype} accounts — deposit volatility by branch",
-                       f"Median coefficient of variation of each account's rolling 33-day "
-                       f"deposit total, for accounts with "
-                       f"{cfg.min_periods_for_volatility}+ observations. Higher is more erratic.",
+                       # an observation is a ZTrend notice row, so this covers frequent overdrafters, not every
+                       # account; the caption says so (Aaron asked what it meant, 2026-11-17)
+                       f"How much the 33-day deposit total swings against its own average (median per branch), "
+                       f"for accounts with {cfg.min_periods_for_volatility}+ overdraft notices. Higher is more erratic.",
                        section=section)
-        C.bar(s, CHART_X, CHART_Y, CHART_W, CHART_H, labels, values,
-              series_name="Median CV", color=T.PURPLE, number_format="0.00")
+        ranked_with_panel(dk, s, vol, "median_cv", top_n, series_name="Median CV",
+                          fmt="", fmtv=lambda v: f"{v:.2f}", portfolio=float(vol["median_cv"].median()),
+                          port_label="Median across branches", lower=lower, higher_is_worse=True,
+                          number_format="0.00", unit="Median CV")
     else:
         notes.append(f"Deposit volatility for {lower} accounts was skipped — "
                      f"no ZTrend file, or too few accounts with "
                      f"{cfg.min_periods_for_volatility}+ notice observations.")
 
+    if getattr(cfg, "branch_core_only", True):
+        return notes            # the story keeps the overview and the three ranked charts; the rest is in the full build
     # ── overdraft activity (two-up) ────────────────────────────────────────
     fee_labels, fee_values = M.top_branches(od, "avg_fee_per_user", top_n)
     pres_labels, pres_values = M.top_branches(od, "pct_presented", top_n)
-    s = dk.content(f"{accttype} accounts — overdraft activity by branch",
-                   '"Users" = an open account with at least one item paid into overdraft or '
-                   'returned in the trailing 12 months.',
-                   section=section)
-    T.textbox(s, HALF_L, CHART_Y, HALF_W, 0.34,
-              "Fees collected per user ($)", 13, bold=True, color=T.NAVY)
-    C.bar(s, HALF_L, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, fee_labels, fee_values,
-          series_name="Avg fees / user", color=T.PURPLE, number_format='"$"#,##0')
-    T.textbox(s, HALF_R, CHART_Y, HALF_W, 0.34,
-              "Share of accounts that presented an item (%)", 13, bold=True, color=T.NAVY)
-    C.bar(s, HALF_R, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, pres_labels, pres_values,
-          series_name="% presented", color=T.CORAL, number_format='0.0"%"')
+    if not len(fee_labels) or not len(pres_labels):
+        # no branch has an NSF/OD user of this type: a chart with no bars cannot be drawn (python-pptx raises
+        # "chart data contains no categories") and would say nothing, so the slide is left out and the notes say why
+        notes.append(f"Overdraft activity by branch ({lower} accounts) was skipped: no branch has an account with an "
+                     f"NSF/OD item in 365 days.")
+    else:
+        s = dk.content(f"{accttype} accounts — overdraft activity by branch",
+                       '"Users" = an open account with at least one item paid into overdraft or '
+                       'returned in the trailing 12 months.',
+                       section=section)
+        T.textbox(s, HALF_L, CHART_Y, HALF_W, 0.34,
+                  "Fees collected per user ($)", 13, bold=True, color=T.NAVY)
+        C.bar(s, HALF_L, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, fee_labels, fee_values,
+              series_name="Avg fees / user", color=T.PURPLE, number_format='"$"#,##0')
+        T.textbox(s, HALF_R, CHART_Y, HALF_W, 0.34,
+                  "Share of accounts that presented an item (%)", 13, bold=True, color=T.NAVY)
+        C.bar(s, HALF_R, CHART_Y + 0.38, HALF_W, CHART_H - 0.38, pres_labels, pres_values,
+              series_name="% presented", color=T.CORAL, number_format='0.0"%"')
 
     # ── growth & activation (two-up) ───────────────────────────────────────
     if growth is not None and len(growth):
@@ -176,7 +260,11 @@ def add_branch_section(dk, cfg, loaded, accttype, *, section, cv=None, divider=F
 
     # ── repayment-trend segment ────────────────────────────────────────────
     seg = M.repayment_trend_segment(za, accttype)
-    if seg is not None:
+    if seg is not None and getattr(seg, "n_qualifying", 0) < 25:
+        # Dannemora FCU: a full slide (chart, five bullets) about 2 accounts
+        notes.append(f"The {lower} repayment-trend segment was skipped — only {seg.n_qualifying} account(s) qualify, "
+                     f"too few for a slide.")
+    elif seg is not None:
         _slide_repayment(dk, seg, accttype, section=section)
     else:
         notes.append(f"The {lower} repayment-trend segment was skipped — "
@@ -242,14 +330,18 @@ def _slide_overview(dk, cfg, loaded, accttype, summary, intensity, od, vol, grow
     gap = intensity.copy()
     gap = gap[gap["n"] >= 100]
     if len(gap) >= 3:
-        gap["rank_int"] = gap["avg_dep_per_acct"].rank(ascending=False)
-        gap["rank_eng"] = gap["pct_no_deposit"].rank(ascending=False)
-        gap["spread"] = gap["rank_eng"] - gap["rank_int"]
-        w = gap.sort_values("spread", ascending=False).iloc[0]
-        watch.append(f"{w['branchname']} pairs strong deposit intensity "
-                     f"({money(w['avg_dep_per_acct'])}/account) with a high no-deposit rate "
-                     f"({w['pct_no_deposit']:.1f}%) — a few large accounts may be masking a "
-                     f"less-engaged base.")
+        # A branch ABOVE the median on both deposit intensity and no-deposit rate. The old ranking picked the
+        # largest rank spread, which named Dannemora FCU's branch with the LOWEST no-deposit rate (13.2% of a
+        # 13.2%-20.8% range) as "high". No such branch: no bullet.
+        both = gap[(gap["avg_dep_per_acct"] > gap["avg_dep_per_acct"].median())
+                   & (gap["pct_no_deposit"] > gap["pct_no_deposit"].median())]
+        if len(both):
+            both = both.assign(score=both["avg_dep_per_acct"].rank(pct=True) + both["pct_no_deposit"].rank(pct=True))
+            w = both.sort_values("score", ascending=False).iloc[0]
+            watch.append(f"{w['branchname']} pairs strong deposit intensity "
+                         f"({money(w['avg_dep_per_acct'])}/account) with a no-deposit rate above the branch median "
+                         f"({w['pct_no_deposit']:.1f}% against {gap['pct_no_deposit'].median():.1f}%) — a few large "
+                         f"accounts may be masking a less-engaged base.")
     if vol is not None and len(vol) >= 3:
         v = vol.sort_values("median_cv", ascending=False).iloc[0]
         watch.append(f"{v['branchname']} carries the most erratic deposit behaviour "

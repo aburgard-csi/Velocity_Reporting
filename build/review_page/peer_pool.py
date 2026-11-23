@@ -458,21 +458,21 @@ def collect_ars(ctx):
             "pull": _span([str(r.get("pack_period") or "").replace(".", "-") + "-01" for r in rows.values() if r.get("pack_period")])}
 
 
+# ARS peers are compared ONLY on what the client controls (Aaron, 2026-11-22: "For ARS peer comparisons, don't compare
+# program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."). The program's
+# own results (response rates, responder spend, tier movement, card usage, ARS revenue) are never ranked against other
+# clients; peer_tables.ars_metrics still reads them for the figures that use them directly.
 ARS_METRICS = [
-    {"key": "resp_12m", "label": "Mailing response rate, last 12 months", "fmt": "pct1", "higher": True, "month": False},
-    {"key": "resp_rate", "label": "Mailing response rate by mailing", "fmt": "pct1", "higher": True, "month": True},
-    {"key": "spend_gain", "label": "Responder debit spend, change after a mailing", "fmt": "pct0", "higher": True, "month": False},
-    {"key": "spend_after", "label": "Responder debit spend a month, after a mailing", "fmt": "usd", "higher": True, "month": False},
-    {"key": "moved_up", "label": "Repeat responders moving up a swipe tier", "fmt": "pct1", "higher": True, "month": False},
-    {"key": "swipes_per_acct", "label": "Debit swipes per eligible account a month", "fmt": "dec1", "higher": True, "month": False},
-    {"key": "spend_per_acct", "label": "Debit spend per eligible account a month", "fmt": "usd", "higher": True, "month": False},
     {"key": "rege_pct", "label": "Reg E opt-in, open personal accounts", "fmt": "pct1", "higher": True, "month": False},
     {"key": "rege_new_pct", "label": "Reg E opt-in, accounts opened in the last 12 months", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "take_all", "label": "Debit card take rate, eligible accounts", "fmt": "pct1", "higher": True, "month": False},
     {"key": "take_new_pct", "label": "Debit card take rate, new accounts", "fmt": "pct1", "higher": True, "month": False},
-    {"key": "active_cards", "label": "Cardholders swiping in the month", "fmt": "pct1", "higher": True, "month": False},
+    {"key": "acct_growth", "label": "Account growth, last 12 months", "fmt": "pct1", "higher": True, "month": False},
     {"key": "ret_1yr", "label": "One-year account retention", "fmt": "pct1", "higher": True, "month": False},
-    {"key": "rev_per_1k", "label": "ARS revenue a month per 1,000 eligible accounts", "fmt": "usd", "higher": True, "month": False},
 ]
+# Program results: never compared with other clients (kept so a test can say so).
+ARS_PROGRAM_RESULTS = ("resp_12m", "resp_rate", "spend_gain", "spend_after", "moved_up", "swipes_per_acct", "spend_per_acct",
+                       "active_cards", "rev_per_1k")
 
 
 # ----------------------------------------------------------------- the registry a deck reads

@@ -305,7 +305,7 @@ def test_ids_are_validated_before_any_path_is_built():
 
 
 def test_the_registry_lists_the_programs_in_order():
-    assert [k for k, _l, _m in registry.REGISTRY] == ["ars", "analysis", "ti", "ics", "mrpc", "cashplease", "rems"]
+    assert [k for k, _l, _m in registry.REGISTRY] == ["ars", "analysis", "ti", "ics", "mrpc", "cashplease", "ils", "rems"]
 
 
 # ----------------------------------------------------------------- the page and the server
@@ -452,10 +452,12 @@ def test_a_model_with_an_untraced_figure_is_not_served(pack_root, monkeypatch):
         srv.shutdown()
 
 
-# ----------------------------------------------------------------- it stays out of Sheila and the delivery record
-def test_sheila_does_not_know_about_it():
+# ----------------------------------------------------------------- Sheila reaches it one way, and it stays out of the delivery record
+def test_sheila_reaches_it_only_through_live_review_ui():
+    """Since 2026-11-06 Sheila opens it (tests/test_live_review_ui.py), but her server module still imports nothing from the
+    page itself: the one door is live_review_ui, which keeps it out of the build queue and the build lock."""
     sheila = open(os.path.join(REPO, "scripts", "ars_launcher_web.py"), encoding="utf-8").read()
-    assert "review_page" not in sheila and "live review" not in sheila.lower()
+    assert "review_page" not in sheila and "live_review_ui" in sheila
 
 
 def test_it_writes_nothing():

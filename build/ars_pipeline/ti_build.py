@@ -46,27 +46,56 @@ REPO = HERE.parent.parent
 TEMPLATE = REPO / "templates" / "ars_template.pptx"
 
 
-def attach_txn(ctx, warnings, months=12):
-    """The client's transaction window on the context: v5's loader over the staged files (window
-    end = the ODD's data month, as in v5's run), and the account lenses keyed on the ODD's ids.
+def attach_txn(ctx, warnings, months=12, period=None):
+    """The client's transaction window on the context, and the account lenses keyed on the ODD's ids.
+
+    The window is the last `months` COMPLETED months before the cycle `period` (ti/window.py):
+    cycle 2026.11 runs through 31 Oct 2026, whatever the newest file or the ODD carries. Rows
+    dated outside it are left out, and a month inside it with no rows is warned. With no period
+    (an older caller), the cycle is the month after the ODD's data month, as v5's run had it.
     A client with no transaction files on hand gets none, and the chapters that need them say so."""
     import pandas as pd
     import rpe_env
-    from ti import txn_stage
+    from ti import txn_stage, window
     from ti.transaction_intelligence import lens as txn_lens
     if not rpe_env.txn_files(ctx.client_id):
         warnings.append(f"client {ctx.client_id}: no transaction files in Inputs/Txn Files; "
                         f"the transaction chapters are stated, not rendered")
         return ctx
-    ctx.anchor_ts = pd.Timestamp(ctx.anchor.year, ctx.anchor.month, 1) + pd.offsets.MonthEnd(0)
+    if period is None:
+        y, m = ctx.anchor.year, ctx.anchor.month
+        period = f"{y + (m == 12)}.{m % 12 + 1:02d}"
+    end = window.end_month(period)
+    if (ctx.anchor.year, ctx.anchor.month) != (end.year, end.month):
+        warnings.append(f"client {ctx.client_id}: the ODD runs to {ctx.anchor.iso} but the transaction "
+                        f"window is the last {months} completed month(s) through {end:%b %Y}")
+    ctx.anchor_ts = end + pd.offsets.MonthEnd(0)
+    ctx.txn_window = window.describe(period, months)
     def staging(msg):                 # each copy from the share to the build log; a duplicated month to the pack too
         print(msg, flush=True)
         if "more than once" in msg:
             warnings.append(f"client {ctx.client_id}: {msg}")
     ctx.txn, ctx.txn_report = txn_stage.load(ctx.client_id, months, ctx.anchor_ts, log=staging)
     warnings.extend(ctx.txn_report.warnings)
+    if not ctx.txn.empty:
+        label = ctx.txn_window["txn_window_label"]
+        start, stop = window.bounds(period, months)
+        dates = pd.to_datetime(ctx.txn["transaction_date"], errors="coerce")
+        inside = ((dates >= start) & (dates < stop)).to_numpy()
+        if not inside.all():
+            warnings.append(f"client {ctx.client_id}: {int((~inside).sum()):,} transaction row(s) dated "
+                            f"outside the {label} window left out")
+            ctx.txn = ctx.txn[inside]
+            dates = dates[inside]
+        have = set(dates.dt.to_period("M").astype(str))
+        missing = [f"{s:%b %Y}" for s in window.month_starts(period, months)
+                   if str(s.to_period("M")) not in have]
+        if missing:
+            warnings.append(f"client {ctx.client_id}: no transaction rows for {', '.join(missing)}; "
+                            f"the {label} window is short by {len(missing)} month(s)")
+        ctx.txn_window["txn_window_missing"] = missing
     if ctx.txn.empty:
-        warnings.append(f"client {ctx.client_id}: no transaction rows in the window ending {ctx.anchor.iso}")
+        warnings.append(f"client {ctx.client_id}: no transaction rows in the window ending {end:%Y-%m}")
         ctx.txn = None
         return ctx
     ctx.lenses = txn_lens.build(ctx.frame, ctx.anchor_ts, warnings.append,
@@ -104,7 +133,7 @@ class _Clock:
         print(f"[time] {step}: {self.times[step]:,.1f} s{mem}", flush=True)
 
 
-def compute_pack(client_id, period, name, ics=False):
+def compute_pack(client_id, period, name, ics=False, lists_dir=None, prior_pack=None):
     """The cut's data pack for one client: sources, data month, figures, and every warning."""
     import pandas as pd
     from ti import config, cut, lens, odd
@@ -114,14 +143,20 @@ def compute_pack(client_id, period, name, ics=False):
     clock = _Clock()
     fingerprint = input_fingerprint(client_id)
     warnings = []
-    frame, report, source = odd.load_client(client_id)
+    from ti import window
+    # one window for every file (ti/window.py): the last N completed months before the cycle
+    frame, report, source = odd.load_client(client_id, end_month=window.end_month(period))
     clock.lap("ODD extract read")
     if report.errors:
         raise SystemExit(f"client {client_id}: the ODD transform failed: {'; '.join(report.errors)}")
     warnings += list(report.warnings)
     cfg = config.client_config(client_id, warn=warnings.append)
     from ti import deposits_input
-    cfg = deposits_input.attach(cfg, client_id, warnings.append)
+    try:
+        months = window.months_for(cfg)
+    except ValueError as exc:
+        raise SystemExit(f"client {client_id}: {exc}")
+    cfg = deposits_input.attach(cfg, client_id, warnings.append, bounds=window.bounds(period, months))
     # the workbook first, as in v5's run: its rates feed the value math (ti/workbook_input.py)
     from ti import workbook_input
     cfg, wb = workbook_input.attach(cfg, client_id, period, warnings.append)
@@ -137,15 +172,24 @@ def compute_pack(client_id, period, name, ics=False):
     subsets = build_subsets(frame, cfg, anchor)
     warnings += list(subsets.warnings)
     ctx = Ctx(frame, cfg, anchor, subsets, client_id=str(client_id))
+    if lists_dir is not None:                         # the mail lists land beside the decks (fs-02)
+        ctx.shared["lists_dir"] = Path(lists_dir)
     metrics = {"data_month": anchor.iso, "anchor_tag": anchor.tag, **subsets.sizes(), **wb, **gt}
+    # v5's extract check first, as in v5's metrics.py: what shape the file is (months missing,
+    # Swipes and Spend on different months, an account twice) before any figure is computed on it
+    from ti.monthly_analysis import extract_check
+    metrics.update(extract_check.compute(subsets, cfg, warnings.append))
     deferred_input.review(gt, wb, anchor.iso, warnings.append)
     clock.lap("account subsets")
-    attach_txn(ctx, warnings)
+    early = window.early_run_warning(period)
+    if early:
+        warnings.append(f"client {client_id}: {early}")
+    attach_txn(ctx, warnings, months=months, period=period)
     clock.lap(f"transaction files loaded ({ctx.txn_report.rows:,} rows)" if ctx.txn_report is not None
               else "transaction files (none)")
     if ctx.txn_report is not None:
         metrics.update({"txn_files_loaded": ctx.txn_report.files, "txn_rows": ctx.txn_report.rows,
-                        "txn_anchor": anchor.iso})
+                        "txn_anchor": f"{ctx.anchor_ts:%Y-%m}", **(getattr(ctx, "txn_window", None) or {})})
     for ch in cut.CHAPTERS:
         try:
             metrics.update(ch.compute(ctx) or {})
@@ -154,6 +198,23 @@ def compute_pack(client_id, period, name, ics=False):
         clock.lap(f"chapter {ch.title}")
     warnings += ctx.warnings
 
+    if prior_pack:
+        # what changed in the layered competition figures since the previous month's pack (same client)
+        try:
+            from ti.transaction_intelligence import competition_layers as CL
+            from ti.transaction_intelligence import competition_layers_compare as CLC
+            prior = json.loads(Path(prior_pack).read_text(encoding="utf-8"))
+            if prior.get("client_id") != str(client_id):
+                warnings.append(f"competition layers: the prior pack {prior_pack} is for client {prior.get('client_id')}, "
+                                f"not {client_id}; no comparison")
+            else:
+                chg = CLC.compare(metrics, prior.get("metrics") or {}, CL.settings(cfg), prior.get("period"))
+                if chg:
+                    metrics["cl_changes"] = chg
+                else:
+                    warnings.append("competition layers: this month's or the prior pack has no layered figures; no comparison")
+        except Exception as exc:
+            warnings.append(f"competition layers: the prior pack could not be compared ({type(exc).__name__}: {exc})")
     lenses = ["ars"] + (["ics"] if ics else [])
     unavailable = {}
     end = pd.Timestamp(report.anchor_date) if report.anchor_date is not None else None
@@ -167,6 +228,25 @@ def compute_pack(client_id, period, name, ics=False):
             "lenses": [k for k in lenses if k not in unavailable], "lenses_unavailable": unavailable,
             "metrics": metrics, "warnings": warnings, "inputs": fingerprint, "timings": clock.times,
             "computed": time.strftime("%Y-%m-%d %H:%M")}
+
+
+def write_run_tables(pack, out):
+    """The slide ledger and the portfolio row (fs-06). Both are beside the decks; the portfolio row is
+    also upserted into the shared table when RPE_TI_PORTFOLIO names one. A failure here never costs the
+    decks: it is printed and the build still succeeds."""
+    try:
+        from ti import ledger, portfolio
+        rows = ledger.rows(pack)
+        ledger.write(Path(out) / "ti_slide_ledger.csv", rows)
+        print(f"{pack['client_id']}: slide ledger: {ledger.summary(rows)} ({Path(out) / 'ti_slide_ledger.csv'})")
+        row = portfolio.row(pack)
+        portfolio.upsert(Path(out) / "ti_portfolio_row.csv", row)
+        shared = portfolio.shared_table()
+        if shared:
+            portfolio.upsert(shared, row)
+            print(f"{pack['client_id']}: portfolio row upserted into {shared}")
+    except Exception as exc:                          # never the decks
+        print(f"{pack['client_id']}: slide ledger / portfolio row not written ({type(exc).__name__}: {exc})")
 
 
 def pack_for_reuse(out, client_id, period):
@@ -207,6 +287,9 @@ def main(argv=None):
     ap.add_argument("client_name")
     ap.add_argument("out_dir")
     ap.add_argument("--ics", action="store_true", help="the client is on ICS: build the ICS lens too")
+    ap.add_argument("--prior-pack", default=None,
+                    help="the previous month's ti_pack.json for this client: adds 'this month's changes' to the "
+                         "competition layers")
     ap.add_argument("--from-pack", action="store_true",
                     help="draw the decks from the ti_pack.json in <out dir>; compute nothing")
     a = ap.parse_args(argv)
@@ -221,20 +304,43 @@ def main(argv=None):
         pack = pack_for_reuse(out, a.client_id, a.period)
         print(f"figures from the pack computed {pack.get('computed')}: nothing recomputed", flush=True)
     else:
-        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics)
+        pack = compute_pack(a.client_id, a.period, a.client_name, ics=a.ics, lists_dir=out / "lists",
+                            prior_pack=a.prior_pack)
+        # v5's analyst tables (ti/monthly_analysis/tables.py): every tabular figure that declares its
+        # columns, as a CSV under out/tables, so a number on a slide can be checked row by row. The
+        # names v5 never declared come from ti/table_columns.py, on the way in only (the pack is untouched).
+        try:
+            from ti import table_columns
+            from ti.monthly_analysis import tables
+            pack["tables"] = tables.write(table_columns.with_columns(pack["metrics"]), out,
+                                          pack["warnings"].append)
+        except Exception as exc:                      # the tables never take the build down
+            pack["warnings"].append(f"analyst tables failed: {type(exc).__name__}: {exc}")
+        # v5's consistency audit (ti/monthly_analysis/consistency.py): one concept, one number. The cut
+        # holds the ODD and transaction figures in one dict, so it is passed as both of v5's arguments.
+        from ti.monthly_analysis import consistency
+        pack["consistency"] = consistency.audit(pack["metrics"], pack["metrics"])
+        pack["warnings"] += [f"consistency: {msg}" for msg in pack["consistency"]]
         (out / "ti_pack.json").write_text(json.dumps(pack, indent=1, default=str), encoding="utf-8")
     for key, why in pack["lenses_unavailable"].items():
         print(f"{a.client_id}: {cut.lens(key).label} not built: {why}")
     for w in pack["warnings"]:
         print(f"{a.client_id}: {w}")
     # v5's own read-outs of the transaction figures, into the build log (never a deck)
-    from ti.transaction_intelligence import competition_report, sections_report
-    for line in competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"]):
+    from ti.transaction_intelligence import competition_report, finserv_report, sections_report
+    for line in (competition_report.lines(pack["metrics"], {}) + sections_report.lines(pack["metrics"])
+                 + finserv_report.lines(pack["metrics"])):
         print(line)
+    if pack.get("consistency"):
+        # as v5's run.py: a deck whose slides contradict each other is worse than no deck
+        print(f"{a.client_id}: decks not built: the consistency audit found {len(pack['consistency'])} "
+              f"number(s) that disagree across slides (see 'consistency:' above)")
+        return 0
     t = time.perf_counter()
     for p in build_decks(pack, out):
         print(f"built {p}")
     print(f"[time] decks drawn: {time.perf_counter() - t:,.1f} s", flush=True)
+    write_run_tables(pack, out)
     return 0
 
 

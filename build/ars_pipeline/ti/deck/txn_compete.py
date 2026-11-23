@@ -35,15 +35,15 @@ def who_competes(h, t, base):
     lead = inst[0]
     s, top = h["slide"]((
         f"{t.get('comp_with_competitor_pct', 0):.0f}% of {base} pay a named "
-        f"competitor — {lead[0]} reaches {lead[2]:,} and takes {money(lead[5])} a year",
-        f"{t.get('comp_institutions_n', 0)} institutions seen; penetration against dollars a "
-        f"year, bubble is accounts; payment apps counted apart, never added"),
+        f"competitor — {lead[0]} reaches {lead[2]:,} and takes {money(lead[5])} {labels.window(t)}",
+        f"{t.get('comp_institutions_n', 0)} institutions seen; penetration against dollars "
+        f"{labels.window(t, prefix='')}, bubble is accounts; payment apps counted apart, never added"),
         "Who competes for our members")
     items = [("With a competitor", f"{t.get('comp_with_competitor', 0):,}",
               f"of {total:,} {base}"),
              ("Two or more", f"{t.get('comp_multi_banked', 0):,}",
               "named competitors"),
-             ("Per year", money(t.get("comp_competitor_dollars")),
+             (labels.window_title(t), money(t.get("comp_competitor_dollars")),
               "to named competitors")]
     eco_n = t.get("comp_ecosystem_accounts") or 0
     if eco_n and total:
@@ -59,7 +59,7 @@ def who_competes(h, t, base):
                           quads=("monitor", "act now", "watch", "defend"),
                           bubble_label="bubble = accounts reached",
                           xlabel="penetration — % of accounts",
-                          ylabel="Spend outside the client, a year", yfmt=money)
+                          ylabel=f"Spend outside the client, {labels.window(t, prefix='')}", yfmt=money)
     else:
         # too few for a quadrant: v5's reach and momentum bars. comp_institutions is already cut
         # to TOP_INSTITUTIONS, so the note counts every institution that MATCHED
@@ -90,7 +90,7 @@ def the_local_field(h, t, base):
     missing = [n for n in configured if n not in seen_names]
     head = (f"{len(seen)} of {len(configured)} named local institutions seen "
             f"-- {loc.get('accounts', 0):,} {base} pay one, "
-            f"{money(loc.get('dollars', 0))} a year")
+            f"{money(loc.get('dollars', 0))} {labels.window(t)}")
     # RPE: the subtitle no longer lists every unseen name (88 words on 1798; Sheila's slide
     # review, 2026-10-30: too dense); it counts them and names the first
     if len(missing) == 1:
@@ -131,7 +131,7 @@ def which_to_work_first(h, t, base):
     med_dol = sorted(r[5] for r in inst)[len(inst) // 2]
     hot = [r for r in inst if r[3] > med_pen and r[5] > med_dol]
     head = (f"{hot[0][0]} sits top right — {hot[0][3]:.0f}% penetration and "
-            f"{money(hot[0][5])} a year" if hot else
+            f"{money(hot[0][5])} {labels.window(t)}" if hot else
             "Reach against dollars, with the medians as the crosshairs")
     s, top = h["slide"]((head,
         "penetration against Spend outside the client, bubble is accounts; the lit "
@@ -142,7 +142,7 @@ def which_to_work_first(h, t, base):
                       quads=("monitor", "act now", "watch", "defend"),
                       bubble_label="bubble = accounts reached",
                       xlabel="penetration — % of accounts",
-                      ylabel="Spend outside the client, a year", yfmt=money)
+                      ylabel=f"Spend outside the client, {labels.window(t, prefix='')}", yfmt=money)
     if path:
         h["chart_left"](s, path, top, RAIL_EDGE)
 
@@ -266,9 +266,9 @@ def banks_against_ecosystems(h, t, base):
         "Banks against the ecosystems")
     panels = [
         ("Named banks and lenders", "of accounts", bank_n / total * 100,
-         [(f"{bank_n:,}", "accounts"), (money(bank_d), "a year")]),
+         [(f"{bank_n:,}", "accounts"), (money(bank_d), labels.window(t, prefix=""))]),
         ("Payment ecosystems", "of accounts", eco_n / total * 100,
-         [(f"{eco_n:,}", "accounts"), (money(eco_d), "a year")]),
+         [(f"{eco_n:,}", "accounts"), (money(eco_d), labels.window(t, prefix=""))]),
     ]
     if eco_d + bank_d:
         panels.append(
@@ -288,9 +288,10 @@ def where_the_outflow_goes(h, t, base):
     if not dests:
         return None
     s, top = h["slide"]((
-        f"{money(t.get('ovl_named_destination_deposits'))} of outflow has a "
-        f"named destination — {t.get('ovl_named_destination_n', 0):,} "
-        f"flight-risk accounts already pay it",
+        # RPE matching fixes (2026-11-05): the figure is the balances those accounts hold today,
+        # not money that left -- the headline called it outflow
+        f"{t.get('ovl_named_destination_n', 0):,} flight-risk accounts already pay a named "
+        f"destination, and they hold {money(t.get('ovl_named_destination_deposits'))} with us",
         f"flight risk = balance >= {money(t.get('ovl_flight_threshold'))} and "
         f"below its own average"), "Where the outflow goes")
     right = h["rail"](s, [
@@ -327,7 +328,7 @@ def where_we_leak_by_branch(h, t, base):
     s, top = h["slide"]((
         f"{worst[0]} leaks hardest — {worst[3]:.0f}% of its accounts pay "
         f"a competitor",
-        f"{money(worst[5])} an account a year across every account at the "
+        f"{money(worst[5])} an account {labels.window(t)} across every account at the "
         f"branch, not just the ones already leaking; {worst[6]} takes the "
         f"most there"),
         "Where we leak, by branch")
@@ -566,7 +567,7 @@ def where_the_dollars_go(h, t, base):
     top3 = sum(r[5] for r in ranked[:3])
     months = t.get("txn_months_covered") or 12
     s, top = h["slide"]((
-        f"The top three take {money(top3)} a year, {top3 / total * 100:.0f}% of every dollar "
+        f"The top three take {money(top3)} {labels.window(t)}, {top3 / total * 100:.0f}% of every dollar "
         f"paid to a named competitor",
         f"{ranked[0][0]} leads with {money(ranked[0][5])}; {len(ranked)} institutions shown "
         f"of {t.get('comp_institutions_n', len(inst))} seen"),
@@ -574,7 +575,7 @@ def where_the_dollars_go(h, t, base):
     right = h["rail"](s, [
         ("Top three", money(top3), f"{top3 / total * 100:.0f}% of competitor dollars"),
         ("Run rate", money(top3 / months), "a month, top three"),
-        ("All named", money(total), "a year"),
+        ("All named", money(total), labels.window(t, prefix="")),
     ], top=top)
     path = h["chart"]("comp_dollars", charts.value_waterfall,
                       [[labels.clip(r[0], 22), r[5]] for r in ranked])
@@ -585,10 +586,12 @@ def where_the_dollars_go(h, t, base):
 def the_payment_ecosystems_ranked(h, t, base):
     """Legacy 33_non_bank_threats: the wallets, P2P and BNPL services by
     members, apart from the banks. Not competitors; replacing a banking
-    function all the same."""
+    function all the same. comp_ecosystems is P2P and wallets only; BNPL is
+    its own tier (comp_bnpl), drawn beside them in its own colour."""
     eco = t.get("comp_ecosystems") or []
     if not eco:
         return "The payment ecosystems, ranked (no ecosystem rows)"
+    bnpl_rows = [r[:4] for r in ((t.get("comp_bnpl") or {}).get("providers") or [])]
     n = t.get("comp_ecosystem_accounts") or 0
     total = t.get("comp_accounts_total") or 0
     # RPE: the one Cash App slide, its flow split from the financial products (Sheila's 1798 slide
@@ -596,39 +599,42 @@ def the_payment_ecosystems_ranked(h, t, base):
     # $78.3M here, beside a $49.6M financial-product total it is not part of. The figure is this
     # one, comp_ecosystems; the buy-now-pay-later services ARE financial products, counted in that
     # total, and are coloured apart (their dollars here are matched by service name, so they are not the leakage category total).
-    bnpl = {str(r[0]).upper() for r in ((t.get("comp_bnpl") or {}).get("providers") or [])}
-    kind = lambda name: "bnpl" if str(name).upper() in bnpl else "p2p"
-    p2p_d = sum(r[3] for r in eco if kind(r[0]) == "p2p")
-    bnpl_d = sum(r[3] for r in eco if kind(r[0]) == "bnpl")
+    p2p_d = sum(r[3] for r in eco)
+    bnpl_d = sum(r[3] for r in bnpl_rows)
     lead = eco[0]
-    lead_is_p2p = kind(lead[0]) == "p2p"
     s, top = h["slide"]((
         f"{n / total * 100 if total else 0:.0f}% of {base} run money through a payment app; "
-        f"{lead[0]} reaches {lead[1]:,} and moves {money(lead[3])} a year",
+        f"{lead[0]} reaches {lead[1]:,} and moves {money(lead[3])} {labels.window(t)}",
         (f"{lead[0]} is P2P and card flow, not a financial product: it is not in the "
          f"{money(t.get('fin_leakage_dollars'))} paid to outside financial products"
-         if lead_is_p2p and t.get("fin_leakage_dollars") else
-         f"{len(eco)} services seen; counted apart from competitors and never added to them")),
+         if t.get("fin_leakage_dollars") else
+         f"{len(eco)} apps seen; counted apart from competitors and never added to them")),
         "The payment ecosystems, ranked")
     items = [("In a payment app", f"{n:,}", f"of {total:,} {base}"),
-             ("P2P and wallets", money(p2p_d), "a year, not financial products")]
+             ("P2P and wallets", money(p2p_d), f"{labels.window(t, prefix='')}, not financial products")]
     if bnpl_d:
         items.append(("Buy now, pay later", money(bnpl_d),
-                      "a year; a financial product"))
+                      f"{labels.window(t, prefix='')}; a financial product"))
     items.append(("Leading service", labels.clip(lead[0], 18), f"{lead[1]:,} accounts"))
     right = h["rail"](s, items, top=top)
-    rows = [[labels.clip(r[0], 20), r[3], r[1], kind(r[0])] for r in eco[:9]]
+    both = sorted([(r, "p2p") for r in eco] + [(r, "bnpl") for r in bnpl_rows],
+                  key=lambda x: -x[0][1])
+    rows = [[labels.clip(r[0], 20), r[3], r[1], k] for r, k in both[:9]]
     kinds = {"p2p": ("P2P and wallets", charts.NAVY),
              "bnpl": ("Buy now, pay later", charts.ORANGE)}
     path = h["chart"]("comp_eco_ranked", CT.kind_bars, rows, kinds,
-                      note=labels.coverage_note(len(rows), len(eco), "services") or "")
+                      note=labels.coverage_note(len(rows), len(both), "services") or "")
     if path:
         h["chart_left"](s, path, top, right)
 
 
 def buy_now_pay_later(h, t, base):
     """Legacy 66-67: the BNPL providers, the reach, the dollars per account a
-    month. Ten percent reach is the signal for a card or loan campaign."""
+    month. Ten percent reach is the signal for a card or loan campaign.
+
+    RPE (James, 2026-11-05: "there are alot of gaps, especially around vendors"): each provider's
+    block adds its median payment and the share of its users who paid in three or more months,
+    and the rail adds repeat use and the accounts on two or more providers."""
     b = t.get("comp_bnpl") or {}
     providers = b.get("providers") or []
     if not providers:
@@ -642,14 +648,119 @@ def buy_now_pay_later(h, t, base):
          f"from your own cards and loans" if signal else
          f"{providers[0][0]} leads; under 10% reach, worth watching rather than acting on")),
         "Buy now, pay later")
-    right = h["rail"](s, [
+    items = [
         ("Reach", f"{pct:.0f}%", f"{b.get('accounts', 0):,} accounts"),
         ("Dollars", money(b.get("dollars")), f"over {b.get('months', 0)} months"),
         ("Per account", money(b.get("per_acct_month")), "a month"),
-    ], top=top)
-    blocks = [[labels.clip(r[0], 16), f"{r[1]:,}", f"{r[2]:.1f}% of {base} · {money(r[3])}", None]
+    ]
+    if b.get("repeat_pct") is not None:
+        items.append(("Repeat users", f"{b['repeat_pct']:.0f}%",
+                      f"paid in {b.get('repeat_months', 3)}+ months"))
+    if b.get("stacked_accounts") is not None:
+        items.append(("Two or more", f"{b['stacked_accounts']:,}",
+                      f"providers, {b.get('stacked_pct', 0):.0f}% of users"))
+    right = h["rail"](s, items[:5], top=top)
+    months_n = b.get("repeat_months", 3)
+    blocks = [[labels.clip(r[0], 16), f"{r[1]:,}",
+               f"{r[2]:.1f}% of {base} · {money(r[3])}"
+               + (f" · {money(r[6])} median payment · {r[8]:.0f}% paid in {months_n}+ months"
+                  if len(r) > 8 else ""), None]
               for r in providers[:5]]
     path = h["chart"]("comp_bnpl", charts.category_blocks, blocks,
                       note="accounts per provider; a member can use more than one")
+    if path:
+        h["chart_left"](s, path, top, right)
+
+
+BNPL_LENDER_COLOURS = (charts.NAVY, charts.ORANGE, charts.STEEL, charts.GOLD)
+BNPL_MIN_GROUP = 30        # a group's BNPL share swings too hard below this many accounts
+
+
+def what_bnpl_pays_for(h, t, base):
+    """RPE (James, 2026-11-05: "there are alot of gaps, especially around vendors/merchats"): the
+    merchants behind the BNPL payments. A card descriptor often names the merchant after the
+    lender and a star (AFFIRM *PELOTON, KLARNA*TARGET); comp_bnpl reads it, and this slide ranks
+    those merchants by dollars, coloured by the lender behind most of each one's dollars."""
+    b = t.get("comp_bnpl") or {}
+    rows = b.get("merchants") or []
+    if not rows:
+        return "What buy now, pay later pays for (no BNPL payment names its merchant)"
+    name = labels.display_name
+    lead = rows[0]
+    wide = (b.get("merchants_by_accounts") or rows)[0]
+    named = b.get("merchant_named_pct") or 0
+    n_m = b.get("merchants_n") or len(rows)
+    s, top = h["slide"]((
+        f"{name(lead[0])} is the merchant most paid for through buy now, pay later: "
+        f"{money(lead[4])} from {lead[1]:,} accounts in the window",
+        f"{named:.0f}% of BNPL dollars name the merchant behind the payment; the rest carry only "
+        f"the lender's name, so the merchants below are a floor"),
+        "What buy now, pay later pays for")
+    right = h["rail"](s, [
+        ("Merchant named", f"{named:.0f}%", f"of {money(b.get('dollars'))} BNPL dollars"),
+        ("Merchants seen", f"{n_m:,}", "named on a payment"),
+        ("Most accounts", labels.clip(name(wide[0]), 18), f"{wide[1]:,} accounts"),
+        ("Most dollars", labels.clip(name(lead[0]), 18), f"{money(lead[4])}, via {lead[5]}"),
+    ], top=top)
+    shown = rows[:9]
+    lenders = []
+    for r in shown:
+        if r[5] not in lenders:
+            lenders.append(r[5])
+    kinds = {lender: (lender, colour) for lender, colour in zip(lenders, BNPL_LENDER_COLOURS)}
+    chart_rows = [[labels.clip(name(r[0]), 20), r[4], r[1], r[5] if r[5] in kinds else "_other"]
+                  for r in shown]
+    if any(r[3] == "_other" for r in chart_rows):
+        kinds["_other"] = ("Other lenders", charts.GREY)
+    note = "; ".join(x for x in (labels.coverage_note(len(shown), n_m, "merchants"),
+                                 "colour is the lender behind most of each merchant's dollars") if x)
+    path = h["chart"]("comp_bnpl_merchants", CT.kind_bars, chart_rows, kinds, note=note)
+    if path:
+        h["chart_left"](s, path, top, right)
+
+
+def who_uses_bnpl(h, t, base):
+    """RPE (James, 2026-11-05): who uses buy now, pay later. Each group's share paying a BNPL
+    provider in the window against every transacting account (responders, mailed non-responders,
+    personal, business, new accounts ... as the lens list carries them), and BNPL users against
+    non-users in the base on card spend and competitor use."""
+    b = t.get("comp_bnpl") or {}
+    book = b.get("book_pct") or 0
+    keep = {r[0] for r in t["lenses"]} if t.get("lenses") else None
+    rows = [r for r in (b.get("by_lens") or [])
+            if r[0] != "all" and r[2] >= BNPL_MIN_GROUP and (keep is None or r[0] in keep)]
+    if len(rows) < 2 or not book:
+        return (f"Who uses buy now, pay later (fewer than two groups with {BNPL_MIN_GROUP}+ "
+                f"transacting accounts, or no BNPL user)")
+    rows = sorted(rows, key=lambda r: (-r[4], r[1]))[:8]
+    lead = rows[0]
+    head = (f"{lead[1]}: {lead[4]:.1f}% use buy now, pay later, against {book:.1f}% of all "
+            f"transacting accounts" if lead[4] > book else
+            f"No group uses buy now, pay later more than the book's {book:.1f}%")
+    uv = {r[0]: r for r in (b.get("users_vs_nonusers") or [])}
+    users, others = uv.get("BNPL users"), uv.get("Non-users")
+    both = bool(users and others and users[1] and others[1])
+    uv_base = b.get("users_vs_nonusers_base") or base
+    sub = (f"BNPL users spend {money(users[2])} an account a month on the card, non-users "
+           f"{money(others[2])} ({uv_base}); groups are every transacting account in the window"
+           if both else
+           "share of each group that paid a BNPL provider in the window; groups are every "
+           "transacting account")
+    s, top = h["slide"]((head, sub), "Who uses buy now, pay later")
+    items = [("Book reach", f"{book:.1f}%",
+              f"{b.get('book_users', 0):,} of {b.get('book_accounts', 0):,} accounts")]
+    if both:
+        items += [("Card spend, users", money(users[2]), "an account a month"),
+                  ("Card spend, others", money(others[2]), "non-users, a month"),
+                  ("Also a competitor", f"{users[3]:.0f}%",
+                   f"of users; {others[3]:.0f}% of non-users")]
+    if b.get("stacked_accounts") is not None:
+        items.append(("Two or more", f"{b['stacked_accounts']:,}",
+                      f"BNPL providers, {b.get('stacked_pct', 0):.0f}% of users"))
+    right = h["rail"](s, items[:5], top=top)
+    bul = [[f"{labels.clip(r[1], 26)}  ({r[2]:,})", r[4], book, f"{r[4] - book:+.1f} pts"]
+           for r in rows]
+    path = h["chart"]("comp_bnpl_groups", CS.bullet, bul,
+                      f"the book, {book:.1f}%")      # longer runs off the chart's edge
     if path:
         h["chart_left"](s, path, top, right)

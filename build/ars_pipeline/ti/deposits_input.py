@@ -21,6 +21,8 @@ import time
 import zipfile
 from pathlib import Path
 
+import pandas as pd
+
 from ti.core import deposits as D
 from ti.txn_stage import cache_root
 
@@ -63,10 +65,11 @@ def stage(path: Path, client_id) -> Path:
     return dest
 
 
-def attach(config: dict, client_id, warn) -> dict:
+def attach(config: dict, client_id, warn, bounds=None) -> dict:
     """The config with v5's deposit inputs added (`_deposit_raw`, `_deposit_cadence`,
     `_deposit_monthly`), as v5's run adds them; unchanged, with the reason stated, when the client
-    has no file or the file parses to nothing."""
+    has no file or the file parses to nothing. `bounds`: the window's [start, stop) (ti/window.py);
+    deposit days outside it are left out, so the file ends with the last completed month too."""
     files = own_files(client_id)
     if not files:
         warn(f"deposits: no file for client {client_id} in Inputs/Deposits. The deposit behaviour "
@@ -77,6 +80,17 @@ def attach(config: dict, client_id, warn) -> dict:
     raw = D.load(stage(src, client_id), cache_root() / "deposits_parquet" / str(client_id), report)
     for message in report.warnings:
         warn(f"deposits: {message}")
+    if bounds is not None and len(raw):
+        start, stop = bounds
+        inside = ((raw["date"] >= start) & (raw["date"] < stop)).to_numpy()
+        if not inside.all():
+            late = int((raw["date"][~inside] >= stop).sum())
+            warn(f"deposits: {int((~inside).sum()):,} deposit row(s) outside {start:%b %Y} to "
+                 f"{stop - pd.Timedelta(days=1):%b %Y} left out ({late:,} after the window end)")
+            raw = raw[inside]
+        if len(raw) and raw["date"].max() < stop - pd.offsets.MonthBegin(1):
+            warn(f"deposits: {src.name} runs only to {raw['date'].max():%d %b %Y}; the window ends "
+                 f"{stop - pd.Timedelta(days=1):%d %b %Y}")
     if not len(raw):
         warn(f"deposits: {src.name} was found but parsed to 0 rows -- headers did not map, or every "
              f"row failed date/amount parsing. Deposit conditions are NOT built; they would otherwise "

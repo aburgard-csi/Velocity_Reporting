@@ -26,6 +26,7 @@ from ti.deck import labels
 from ti.deck import txn_attrition as A
 from ti.deck import txn_cards as C
 from ti.deck import txn_compete as P
+from ti.deck import txn_layers as LAYERS
 from ti.deck import txn_leakage as L
 from ti.deck import txn_slides as S
 from ti.deck import txn_value as V
@@ -35,15 +36,16 @@ from ti.deck.helpers import Deck
 TI_BUILDERS = [
     L.the_book_narrowed, C.how_the_money_moves, C.twelve_months,
     L.their_financial_life, S._where_the_money_goes, L.where_the_leakage_goes, L.who_they_pay,
-    L.how_long_it_has_run, L.started_and_stopped, L.how_deep, L.leakage_by_group,
-    L.leakage_by_group_and_category, L.what_leakers_hold, L.how_the_leakage_builds,
+    L.insurance_by_line, L.how_long_it_has_run, L.started_and_stopped, L.how_deep, L.leakage_by_group,
+    L.leakage_by_group_and_category, L.leakage_by_member_age, L.leakage_by_account_tenure,
+    L.leakage_by_branch, L.what_leakers_hold, L.how_the_leakage_builds,
     L.which_services_travel_together, L.still_within_reach,
     S._how_members_spend, C.card_spend_by_category, C.ticket_and_intensity, C.when_the_card_is_used,
     C.recurring_on_the_card, C.card_behaviour_by_lens, C.engagement_breadth,
     C.merchants_rising_and_falling, C.new_and_faded_merchants, S._the_mcc_codes,
-    C.how_broadly_the_card_is_used, C.card_spend_by_member_age, C.card_use_by_account_tenure,
-    V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts, V.where_pin_gets_pressed,
-    V.channels_used_together, V.what_a_second_channel_is_worth,
+    C.mcc_codes_three_ways, C.how_broadly_the_card_is_used, C.card_spend_by_member_age,
+    C.card_use_by_account_tenure, V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts,
+    V.where_pin_gets_pressed, V.channels_used_together, V.what_a_second_channel_is_worth,
     C.responder_profile, C.every_group_against_the_book, C.what_the_banker_opens, C.dictionary_gaps,
 ]
 COMP_BUILDERS = [
@@ -53,7 +55,7 @@ COMP_BUILDERS = [
     P.where_the_outflow_goes, P.where_the_dollars_go, P.who_owns_the_relationship,
     P.how_much_of_the_wallet_has_left, P.is_the_competitor_money_still_moving,
     P.how_many_competitors_each_account_uses, P.winback_targets, P.depth_against_growth,
-    P.the_payment_ecosystems_ranked, P.buy_now_pay_later,
+    P.the_payment_ecosystems_ranked, P.buy_now_pay_later, P.what_bnpl_pays_for, P.who_uses_bnpl,
 ]
 ATTRITION_BUILDERS = [A.spend_before_closure, A.stresses_across_files]
 
@@ -62,10 +64,14 @@ TITLES = {
     "the_book_narrowed": "The book, narrowed", "how_the_money_moves": "How the money moves",
     "twelve_months": "Twelve months of flow", "their_financial_life": "Their financial life",
     "_where_the_money_goes": "Where the money goes", "where_the_leakage_goes": "Where the leakage goes",
-    "who_they_pay": "Who they pay", "how_long_it_has_run": "How long the relationship has run",
+    "who_they_pay": "Who they pay", "insurance_by_line": "Insurance by line",
+    "how_long_it_has_run": "How long the relationship has run",
     "started_and_stopped": "Started and stopped", "how_deep": "How deep the leakage runs",
     "leakage_by_group": "Leakage by group",
     "leakage_by_group_and_category": "Leakage by group and category",
+    "leakage_by_member_age": "Leakage by member age",
+    "leakage_by_account_tenure": "Leakage by account tenure",
+    "leakage_by_branch": "Leakage by branch",
     "what_leakers_hold": "What leakers hold with us", "how_the_leakage_builds": "How the leakage builds",
     "which_services_travel_together": "Which services travel together",
     "still_within_reach": "Still within reach", "_how_members_spend": "How members spend",
@@ -76,6 +82,7 @@ TITLES = {
     "merchants_rising_and_falling": "Merchants rising and falling",
     "new_and_faded_merchants": "New and faded merchants",
     "_the_mcc_codes": "The MCC codes behind the categories",
+    "mcc_codes_three_ways": "MCC codes by spend, transactions and members",
     "how_broadly_the_card_is_used": "How broadly the card is used",
     "card_spend_by_member_age": "Card spend by member age",
     "card_use_by_account_tenure": "Card use by account tenure", "pin_or_signature": "PIN or signature",
@@ -100,6 +107,8 @@ TITLES = {
     "winback_targets": "Winback targets", "depth_against_growth": "Depth against growth",
     "the_payment_ecosystems_ranked": "The payment ecosystems, ranked",
     "buy_now_pay_later": "Buy now, pay later",
+    "what_bnpl_pays_for": "What buy now, pay later pays for",
+    "who_uses_bnpl": "Who uses buy now, pay later",
     "spend_before_closure": "Competitor spend before closure",
     "stresses_across_files": "Stresses across both files",
 }
@@ -146,6 +155,11 @@ COMP_COMBINED = (
 # the pairs above drawn as one, and the titles a declined combined slide is stated under
 TI_DRAWN, DRAWN_TITLES = _combine(TI_BUILDERS, TITLES, TI_COMBINED)
 COMP_DRAWN, DRAWN_TITLES = _combine(COMP_BUILDERS, DRAWN_TITLES, COMP_COMBINED)
+# The competition layers slides (ti/deck/txn_layers.py, new to RPE) follow the chapter's own slides. They sit
+# beside them and replace none (docs/migration/DUPLICATES.md); COMP_BUILDERS stays v5's twenty.
+TITLES.update(LAYERS.TITLES)
+DRAWN_TITLES.update(LAYERS.TITLES)
+COMP_DRAWN = COMP_DRAWN + LAYERS.BUILDERS
 
 SOURCE = "the ODD extract and the monthly debit-card transaction files"
 
@@ -167,7 +181,8 @@ def compute_all(ctx):
     if ctx.txn is None:
         return {}
     out = {}
-    for section in (T.portfolio, T.financial_services, T.competition, T.merchants,
+    for section in (T.portfolio, T.financial_services, T.competition, T.institution_view, T.competition_layers,
+                    T.merchants,
                     T.merchant_profiles, T.mapping_audit, T.card_behavior, T.interchange,
                     T.relationship, T.overlay, T.leakage, T.stressors_txn):
         t = time.perf_counter()
@@ -206,8 +221,10 @@ def _build(ctx, builders, chapter_title, art):
     m = ctx.pack.get("metrics") or {}
     d = Deck(ctx, SOURCE, Path(ctx.art_dir or ".") / art)
     if not m.get("fin_by_category"):
-        d.declined(chapter_title, "the transaction files for this period are not on hand, so "
-                                  "this chapter cannot be computed")
+        # a file on hand that names nobody says so (1038, RPE matching fixes 2026-11-05)
+        d.declined(chapter_title, m.get("fin_declined") or
+                   "the transaction files for this period are not on hand, so "
+                   "this chapter cannot be computed")
         return list(d.slides)
     t = lens_view(m, ctx.lens)
     return d.run(builders, DRAWN_TITLES, t, m.get("fin_base_label") or "transacting accounts")
@@ -222,7 +239,7 @@ def _ti_stats(pack, _ln):
     if not m.get("fin_by_category"):
         return []
     return [(f"{m.get('fin_leaking_pct', 0)}%", "of personal accounts pay an outside provider"),
-            (_money(m.get("fin_leakage_dollars")), "sent to outside providers, 12 months"),
+            (_money(m.get("fin_leakage_dollars")), f"sent to outside providers, {labels.window(m, prefix='')}"),
             (f"{m.get('txn_accounts', 0):,}", "accounts in the transaction file")]
 
 
@@ -231,7 +248,7 @@ def _comp_stats(pack, _ln):
     if not m.get("comp_institutions"):
         return []
     return [(f"{m.get('comp_with_competitor_pct', 0)}%", "of personal accounts pay a competitor"),
-            (_money(m.get("comp_competitor_dollars")), "sent to competitors, 12 months"),
+            (_money(m.get("comp_competitor_dollars")), f"sent to competitors, {labels.window(m, prefix='')}"),
             (f"{len(m.get('comp_institutions') or []):,}", "competing institutions seen")]
 
 

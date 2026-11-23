@@ -46,8 +46,22 @@ def _dep_band(v):
 
 
 def _code_label(s):
-    c = _num(s)
-    return c.map(lambda v: "Blank" if pd.isna(v) else str(int(v)))
+    """The OD status code as a label: numeric codes as whole numbers, text codes (Northwest Bank's
+    "ACTIVE", "CUST OUT", ...) as written, an empty cell as "Blank"."""
+    def one(v):
+        if pd.isna(v) or not str(v).strip():
+            return "Blank"
+        n = pd.to_numeric(v, errors="coerce")
+        return str(int(n)) if pd.notna(n) else str(v).strip().upper()
+    return s.map(one)
+
+
+def _eligible_codes(p):
+    """Codes whose accounts mostly CAN overdraft (Achieva's blank, Northwest's "ACTIVE"): the drilldown
+    draws the codes that take accounts out of the program, so these are left off the chart."""
+    can = _yes(p["CanOverdraft"]) if "CanOverdraft" in p.columns else pd.Series(False, index=p.index)
+    share = can.groupby(p["code"]).mean()
+    return set(share[share >= 0.5].index) | {"Blank"}
 
 
 def _yes(s):
@@ -65,9 +79,10 @@ def eligibility_chart(fr, accttype, out_dir, size=(6.4, 4.75)):
     if p.empty:
         return R.skipped(key, f"Eligibility drilldown - {accttype}", "no open accounts with a deposit in 365 days")
     p = p.assign(code=_code_label(p["odstatuscode"]), band=_dep_band(p["DepAmt33"]), items=_num(p["items365"]).fillna(0))
-    coded = p[p["code"] != "Blank"]
+    eligible = _eligible_codes(p)
+    coded = p[~p["code"].isin(eligible)]
     if coded.empty:
-        return R.skipped(key, f"Eligibility drilldown - {accttype}", "no account carries an OD status code")
+        return R.skipped(key, f"Eligibility drilldown - {accttype}", "no account carries an OD status code that removes it")
     codes = sorted(coded["code"].unique(), key=lambda c: (len(c), c))
     colors = {"NO DEPS": R.STEEL, "LESS 1000": R.ORANGE, "1001-2000": R.TEAL, "2001-5000": R.SLATE, "5000+": R.GOLD}
     fig, axes = plt.subplots(1, 3, figsize=size, sharey=True)
@@ -81,7 +96,10 @@ def eligibility_chart(fr, accttype, out_dir, size=(6.4, 4.75)):
             bottom += vals
         nums[seg] = {c: int(v) for c, v in zip(codes, bottom)}
         ax.set_xticks(range(len(codes)))
-        ax.set_xticklabels(codes, fontsize=9, color=R.TICK)
+        # text codes ("CUST OUT", "INELIG PRD") run into each other level; numeric ones stay level
+        long_ = any(len(c) > 3 for c in codes)
+        ax.set_xticklabels(codes, fontsize=8 if long_ else 9, color=R.TICK,
+                           rotation=60 if long_ else 0, ha="right" if long_ else "center")
         ax.set_title(seg, fontsize=10.5, color=R.NAVY, fontweight="bold")
         R.style_axes(ax)
         ax.yaxis.set_major_formatter(lambda v, _: f"{v:,.0f}")
@@ -89,13 +107,16 @@ def eligibility_chart(fr, accttype, out_dir, size=(6.4, 4.75)):
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=5, frameon=False, fontsize=9.5, labelcolor=R.TICK,
                title="33-day deposits", title_fontsize=9.5)
-    fig.supxlabel("OD status code", fontsize=10, color=R.TICK, y=0.17)
-    fig.tight_layout(rect=(0, 0.17, 1, 1))
+    long_ = any(len(c) > 3 for c in codes)
+    fig.supxlabel("OD status code", fontsize=10, color=R.TICK, y=0.15)
+    fig.tight_layout(rect=(0, 0.30 if long_ else 0.17, 1, 1))
     path = R.save(fig, out_dir, key)
     res = ChartResult(key, f"Eligibility drilldown - {accttype}", path,
                       numbers={"accounts_in_population": int(len(p)), "accounts_with_status_code": int(len(coded)),
                                "by_segment_and_code": nums})
-    res.notes.append("Accounts with no OD status code (the large majority) are not drawn; they are in the table.")
+    shown = ", ".join(sorted(eligible - {"Blank"})) or "none"
+    res.notes.append(f"Accounts with no OD status code, or a code whose accounts can overdraft ({shown}), are not "
+                     "drawn; they are in the table.")
     return res
 
 
@@ -393,28 +414,35 @@ def debit_decline_tables(fr, accttype, ref=None):
     t1 = {"headers": ["Annual Decline Segment", "Accounts", "Items Presented (365)", "Paid Items (365)",
                       "Collected Fees (365)", "Refunded Fees (365)", "Avg Deposit Count (33 days)",
                       "Avg Deposit Amount (33 days)"], "rows": rows}
-    # score-band table from the decline file, joined to the accounts
-    t2 = None
+    # Score-band table, the analysis notebook's (cells 20-21 and 148, Tim Barrett's "Debit Declines to ILS Limit"):
+    # open accounts that can overdraft and are opted in to Reg E (business: all), banded by current ILS limit, with
+    # the declines of the 90 days to the data as-of date counted as distinct amounts per account per day.
+    t2, dd_end, stale = None, None, False
     if fr.dd is not None and len(fr.dd):
         dd = fr.dd
         lo90 = fr.asof - pd.Timedelta(days=90)
-        a1 = p.set_index("acctid")
-        j = dd[dd["acctid"].isin(a1.index)].copy()
-        if len(j):
-            j["lim"] = j["acctid"].map(a1["lim"])
-            j["amt"] = _num(j["transaction_amount"])
-            j["last90"] = j["decline_date"] >= lo90
-            rows2 = []
-            for name, lo, hi in SCORE_BANDS:
-                lim = j["lim"]
-                m = (lim == 0) if lo is None else ((lim >= lo) & ((lim <= hi) if hi is not None else True))
-                s = j[m]
-                if s.empty:
-                    continue
-                accts = a1.loc[s["acctid"].unique()]
-                rows2.append([name, f"{s['acctid'].nunique():,}", f"{int((accts['items365'] > 0).sum()):,}",
-                              f"{int(s['last90'].sum()):,}", money(s["amt"].median(), 2),
-                              f"{_num(accts['items365']).sum():,.0f}", money(_num(accts["DepAmt33"]).median(), 2)])
-            t2 = {"headers": ["ILS Limit Band", "Accounts Declined", "Of Which NSF/OD Users", "Declines, Last 90 Days",
-                              "Median Declined Amount", "NSF/OD Items (365)", "Median 33-Day Deposits"], "rows": rows2}
-    return {"segmentation": t1, "score_bands": t2, "population": int(len(seg))}
+        # An extract that stops before the window (a decline file a year older than the rest of the pull) has no
+        # declines to count, and a column of zeros would read as none happening: those cells are n/a.
+        dd_end = dd["decline_date"].max()
+        stale = bool(pd.isna(dd_end) or dd_end < lo90)
+        d = dd[(dd["decline_date"] >= lo90) & dd["acctid"].notna()].assign(amt=lambda x: _num(x["transaction_amount"]))
+        c1 = d.groupby(["acctid", "decline_date"]).agg(u=("amt", "nunique"), m=("amt", "median")).reset_index()
+        c2 = c1.groupby("acctid").agg(decl90=("u", "sum"), med=("m", "median"))
+        pop = p[p["can"] & ((p["regE"] == "Y") if accttype == "Personal" else True)].join(c2, on="acctid")
+        rows2 = []
+        for name, lo, hi in SCORE_BANDS:
+            lim = pop["lim"]
+            m = (lim <= 0) if lo is None else ((lim >= lo) & ((lim <= hi) if hi is not None else True))
+            s = pop[m]
+            if s.empty:
+                continue
+            med = s["med"].median()
+            rows2.append([name, f"{len(s):,}", f"{int((_num(s['items365']) >= 1).sum()):,}",
+                          "n/a" if stale else f"{int(s['decl90'].fillna(0).sum()):,}",
+                          money(med, 2) if pd.notna(med) and not stale else "n/a",
+                          f"{_num(s['items365']).sum():,.0f}", money(_num(s["DepAmt33"]).fillna(0).median(), 2)])
+        t2 = {"headers": ["ILS Limit Band", "Accounts",            # the subtitle says they are Reg E opted in
+                          "NSF/OD Users", "Declines, Last 90 Days", "Median Declined Amount", "NSF/OD Items (365)",
+                          "Median 33-Day Deposits"], "rows": rows2}
+    return {"segmentation": t1, "score_bands": t2, "population": int(len(seg)),
+            "declines_end": dd_end, "declines_stale": stale}

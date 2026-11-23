@@ -14,7 +14,9 @@ resolves to 127.0.0.1 is refused). Sheila's handler is bound to Sheila's module-
 mirrors the same checks in its own small handler rather than importing Sheila's page, queue and
 build machinery.
 
-NOT part of Sheila's page or the CSM release: run by hand.
+Run by hand with this script, or from a client's page in CSM Sheila (Aaron, 2026-11-06): `live_review_ui.py` imports
+`Service` and `make_server` from here and serves the page on a thread inside Sheila, never as a queued build. It ships
+with the CSM release like the rest of scripts/ and build/. Still a prototype.
 """
 import argparse
 import datetime

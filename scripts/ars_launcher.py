@@ -529,7 +529,7 @@ def combined_checks(cid, period, roster, cp_row=None):
 # rules, inputs and Lift Matrix are not consulted, and a TI deck in Outputs never counts as the
 # period's RPE deck (decks_in_outputs leaves it out) nor is archived by an RPE build.
 TI_TAG = "TI"
-TI_MONTHS = 12                       # v5's transaction window, as ti_build.attach_txn asks for it
+TI_MONTHS = 12                       # the default N; a client's TxnWindowMonths or TI_WINDOW_MONTHS wins (ti/window.py)
 TI_RESULT_NAME = "_launcher_result_ti.json"
 _TI_DECK_RX = re.compile(r"^\d{3,5}-\d{4}\.\d{2}-%s-" % TI_TAG)
 
@@ -578,7 +578,17 @@ def code_table_clients():
     return hit
 
 
-def txn_months_on_hand(cid, period, months=TI_MONTHS):
+def txn_window_months(cid):
+    """N for this client, as the build reads it (ti/window.py months_for): TI_WINDOW_MONTHS, else the
+    client's TxnWindowMonths, else 12. A bad value raises, naming where it came from."""
+    _, _, _, ti_config = _ti_modules()
+    from ti import window
+    p = ti_config.config_path()           # only the config FILE can set it; a derived entry never does
+    entry = (json.loads(p.read_text(encoding="utf-8-sig")).get(str(cid)) if p.is_file() else None) or {}
+    return window.months_for(entry)
+
+
+def txn_months_on_hand(cid, period, months=None):
     """(the data months with a transaction file on hand, the window's data months) for the window
     of `months` ending at the period's DATA month — from the file NAMES in Inputs/Txn Files/<id>/,
     never by opening a zip (one folder listing). v5's own name and window rules (ti/txn_stage): a
@@ -589,6 +599,7 @@ def txn_months_on_hand(cid, period, months=TI_MONTHS):
     and the window it built was Oct 25 to Sep 26 (2026-10-23). The check anchors the same way."""
     _, txn_stage, _, _ = _ti_modules()
     import pandas as pd
+    months = months or txn_window_months(cid)
     y, m = (int(x) for x in str(period).split("."))
     anchor = pd.Timestamp(y, m, 1) - pd.offsets.MonthEnd(1)       # the data month: the one before the cycle
     hi = anchor.year * 12 + anchor.month - 1
@@ -667,7 +678,11 @@ def ti_checks(cid, period, row, roster, rebuild=False):
         else:
             out.append((STOP, f"Client codes: {cid} is not in ars_code_tables.json, so the eligible accounts "
                               "cannot be found. Ask Aaron to refresh the code tables."))
-    found, window = txn_months_on_hand(cid, period)
+    try:
+        found, window = txn_months_on_hand(cid, period)
+    except ValueError as e:
+        out.append((STOP, f"Transaction window: {e}"))
+        return out
     span = f"{_month_label(window[0])} to {_month_label(window[-1])}"
     if not found:
         out.append((WARN, f"Transaction files: none in Inputs/Txn Files for {span}; the transaction chapters "
@@ -739,6 +754,44 @@ def ti_to_outputs(cid, deck, client_name=""):
         return STOP, (f"The deck built clean but could not be put in Outputs ({e}). If it is open in "
                       "PowerPoint, close it and build again.")
     return OK, f"In Outputs: {cur}"
+
+
+def ti_lists_to_outputs(cid, tdir, period, client_name=""):
+    """Put the build's mail lists and slide ledger in `Outputs/<CSM>/<id>-<period>-TI-Lists/` (fs-08).
+
+    ti_build writes them beside the decks in the staging folder, and only the validated decks were ever
+    copied out, so a CSM never saw the lists. The folder holds one CSV per financial-services category,
+    `finserv_master_list.csv`, the full review queue and `ti_slide_ledger.csv`. A folder for the same
+    period is archived, never overwritten. Returns (level, message); a problem here is a WARN, never a
+    reason to un-deliver the deck."""
+    src = Path(tdir) / "lists"
+    if not src.is_dir() or not any(src.glob("*.csv")):
+        return OK, "No mail lists in this build."
+    import promote_month as P
+    out = R.outputs()
+    dest = R.client_outputs(cid, root=out) / f"{cid}-{period}-{TI_TAG}-Lists"
+    stamp = dt.date.today().isoformat()
+    try:
+        if dest.exists():
+            folder = P.client_folder(out / R.ARCHIVE_DIRNAME, cid, client_name)
+            folder.mkdir(parents=True, exist_ok=True)
+            arch = folder / f"{dest.name} (superseded {stamp})"
+            k = 1
+            while arch.exists():
+                k += 1
+                arch = folder / f"{dest.name} (superseded {stamp}-{k})"
+            shutil.move(str(dest), str(arch))
+            print(f"         archive   {dest.name}", flush=True)
+        shutil.copytree(src, dest)
+        ledger = Path(tdir) / "ti_slide_ledger.csv"
+        if ledger.is_file():
+            shutil.copy2(ledger, dest / ledger.name)
+        n = len(list(dest.glob("*.csv")))
+        if n < len(list(src.glob("*.csv"))):
+            raise OSError(f"{n} files in Outputs, {len(list(src.glob('*.csv')))} built")
+    except OSError as e:
+        return WARN, f"The deck is in Outputs, but its mail lists could not be copied ({e}). They are in {src}."
+    return OK, f"Mail lists in Outputs: {dest}"
 
 
 # A warning the cut writes when an analysis raised rather than declined: chapters_txn's per-section wrapper,
@@ -830,6 +883,9 @@ def build_ti(a, BM, row, period, roster, work):
                     where.append(msg)
             result = "; ".join(gates)
             delivered = bool(where) and len(where) == len(made)
+            if delivered:
+                lvl, msg = ti_lists_to_outputs(a.client, tdir, period, entry[1])
+                say(lvl, msg)
     finally:
         lk.unlink(missing_ok=True)
     (work / TI_RESULT_NAME).write_text(json.dumps({
@@ -1312,10 +1368,22 @@ def cmd_build(a):
         "finished": f"{dt.datetime.now():%Y-%m-%d %H:%M}", "minutes": round((time.time() - t0) / 60, 1)},
         indent=1), encoding="utf-8")
     if delivered:
+        update_peer_reference(progs, f"ars_launcher build {a.client} {period}")
         print(f"\nDone. The deck is in Outputs, ready to review, save as PDF and email.")
         return 0
     print("\nNot put in Outputs. Details are in " + str(work / "build.log"))
     return 1
+
+
+def update_peer_reference(progs, reason):
+    """Start the peer reference's update for this deck's programs in the background (Aaron, 2026-11-22: "update data on
+    the peer comparison dataset when we build new presentations"). Called only after the deck is in Outputs and after
+    the build's result is written: the update runs as its own process and nothing it does reaches this build."""
+    try:
+        import build_peer_reference as BPR
+        BPR.spawn_update(progs, reason, log=lambda m: print(f"  [..]   {m}", flush=True))
+    except Exception as exc:                                  # noqa: BLE001 - a deck in Outputs is never undone for this
+        print(f"  [..]   Peer reference: not updated ({type(exc).__name__}: {exc})", flush=True)
 
 
 VALIDATION_SUFFIX = ".validation.txt"

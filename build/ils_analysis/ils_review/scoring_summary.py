@@ -143,12 +143,19 @@ DECK_BANDS = {
 }
 
 
+# Windfall Ratio is the Windfall Deposit trend's input; Aaron wants trends shown as On / Off only
+# (2026-11-04), so the predictor is not built into the deck. It stays in PREDICTORS for diffing.
+NOT_IN_DECK = {"windfall"}
+
+
 def predictors(basis="deck"):
-    """The six predictors with the deck's bands (basis 'deck') or the analysis team's registry ('readme')."""
+    """The predictors the deck shows, with the deck's bands (basis 'deck') or the analysis team's registry ('readme')."""
     if basis != "deck":
-        return PREDICTORS
+        return tuple(p for p in PREDICTORS if p.key not in NOT_IN_DECK)
     out = []
     for p in PREDICTORS:
+        if p.key in NOT_IN_DECK:
+            continue
         o = DECK_BANDS.get(p.key)
         out.append(Predictor(p.key, p.title, o.get("xlabel", p.xlabel), o.get("source", p.source),
                              tuple(o["bands"]), tuple(o["edges"]), o.get("note", p.note),
@@ -212,8 +219,18 @@ def compute_predictor(predictor, fr, cfg, accttype):
     n = fr.notices
     if n is None:
         return None
-    lo, hi = fr.scoring_window()
-    w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi)]
+    basis = getattr(cfg, "default_basis", "notebook")
+    if basis == "notebook" and "nb_default" in n.columns:
+        # The notebook's window and population: notices from 425 to 60 days before the newest notice, with a limit.
+        top = n["noticedate"].max()
+        lo, hi = top - pd.Timedelta(days=425), top - pd.Timedelta(days=60)
+        w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi) & n["limit"].notna()]
+        cap = (getattr(fr, "max_limit", None) or {}).get(accttype)
+        if cap:                                         # the notebook's risk_set: LIMIT <= the matrix maximum
+            w = w[w["limit"] <= cap]
+    else:
+        lo, hi = fr.scoring_window()
+        w = n[(n["accttype"] == accttype) & (n["noticedate"] >= lo) & (n["noticedate"] <= hi)]
     if w.empty:
         return None
     val, ok = _band_values(predictor, w)
@@ -226,16 +243,20 @@ def compute_predictor(predictor, fr, cfg, accttype):
     idx = np.searchsorted(np.array(edges, dtype=float), val.to_numpy(dtype=float), side="left")
     idx = np.clip(idx, 0, len(labels) - 1)
     w = w.assign(band=idx)
-    basis = getattr(cfg, "default_basis", "deck")
-    if basis == "readme":
-        days = getattr(cfg, "default_repayment_days", 30)
-        w["dflt"] = w["days_to_positive"].isna() | (w["days_to_positive"] > days)
+    days = None
+    if basis == "notebook" and "nb_default" in w.columns:
+        w["dflt"] = w["nb_default"]
+        loss_by = w.groupby("band")["nb_loss"].sum()      # fatal notices, plus the earliest notice of an account with no last positive date
     else:
-        days = fr.default_days
-        w["dflt"] = w["days_to_positive"] > days
-    # losses: charge-off dollars once per account, in the band of its first defaulting notice
-    first = w[w["dflt"] & w["co"]].sort_values("noticedate").drop_duplicates("acctid", keep="first")
-    loss_by = first.groupby("band")["co_amt"].sum()
+        if basis == "readme":
+            days = getattr(cfg, "default_repayment_days", 30)
+            w["dflt"] = w["days_to_positive"].isna() | (w["days_to_positive"] > days)
+        else:
+            days = fr.default_days
+            w["dflt"] = w["days_to_positive"] > days
+        # losses: charge-off dollars once per account, in the band of its first defaulting notice
+        first = w[w["dflt"] & w["co"]].sort_values("noticedate").drop_duplicates("acctid", keep="first")
+        loss_by = first.groupby("band")["co_amt"].sum()
     g = w.groupby("band").agg(n=("acctid", "size"), fees=("CollectedFees", "sum"), d=("dflt", "sum"))
     rows = [i for i in range(len(labels)) if i in g.index]
     if not rows:
@@ -248,8 +269,13 @@ def compute_predictor(predictor, fr, cfg, accttype):
         loss_rate=[float(loss_by.get(i, 0.0) / g.loc[i, "fees"] * 100) if g.loc[i, "fees"] else 0.0 for i in rows],
         avg_default_rate=float(w["dflt"].mean() * 100),
         window_label=f"{str(lo)[:10]} to {str(hi)[:10]}")
-    res.notes.append(f"{predictor.title} ({accttype}): window {res.window_label}; default = repayment more than "
-                     f"{days} days after the notice" + ("" if basis == "readme" else ", never-repaid notices excluded") + ".")
+    if days is None:
+        res.notes.append(f"{predictor.title} ({accttype}): window {res.window_label}; default = a notice on a charged-off "
+                         "account dated on or after the account's last positive date (the analysis notebook's rule); "
+                         "losses = the account's charge-off amount, once, on the notice nearest that date.")
+    else:
+        res.notes.append(f"{predictor.title} ({accttype}): window {res.window_label}; default = repayment more than "
+                         f"{days} days after the notice" + ("" if basis == "readme" else ", never-repaid notices excluded") + ".")
     return res.validate()
 
 
@@ -287,7 +313,7 @@ def placeholder_slide(dk, title, subtitle, caption, detail, *, section, source=N
     return s
 
 
-def _render_table(dk, slide, result):
+def _render_table(dk, slide, result, losses_withheld=False):
     import shapes
     p = result.predictor
     heads = [""] + ["# Notices", "Collected Fees"] + (["Losses"] if p.losses else []) + \
@@ -296,24 +322,47 @@ def _render_table(dk, slide, result):
     for i, band in enumerate(result.bands):
         r = [band, count(result.notices[i]), money(result.collected_fees[i])]
         if p.losses:
-            r.append(money(result.losses[i]))
+            r.append("n/a" if losses_withheld else money(result.losses[i]))
         r.append(pct(result.default_rate[i], 2))
         if p.losses:
-            r.append(pct(result.loss_rate[i], 2))
+            r.append("n/a" if losses_withheld else pct(result.loss_rate[i], 2))
         rows.append(r)
     n_rows = len(rows) + 1
     avail = BODY_BOTTOM - BODY_TOP
-    row_h = min(0.32, avail / n_rows)
+    # the header wraps onto two lines ("Collected / Fees") in the narrow columns, so it is given 1.75 rows of room:
+    # budgeting it as one row let a 17-band table grow past the body into the slide number (1781, 2026-11-17)
+    row_h = min(0.32, avail / (n_rows + 0.75))
     fs = 11 if row_h >= 0.27 else 10
     data = [heads] + rows
     colw = [2.0] + [1.3, 1.6] + ([1.5] if p.losses else []) + [1.3] + ([1.2] if p.losses else [])
-    gf = shapes.add_table(slide, TABLE_L, BODY_TOP, TABLE_W, row_h * n_rows, data, colw, fs=fs)
+    gf = shapes.add_table(slide, TABLE_L, BODY_TOP, TABLE_W, row_h * (n_rows + 0.75), data, colw, fs=fs)
     tbl = gf.table
+    tbl.rows[0].height = T.Inches(row_h * 1.75)
+    for i in range(1, n_rows):
+        tbl.rows[i].height = T.Inches(row_h)
     for i in range(1, n_rows):
         c = tbl.cell(i, 0)
         c.fill.solid()
         c.fill.fore_color.rgb = T.BAND
     return tbl
+
+
+def charged_off_notice_coverage(fr, accttype):
+    """{accounts, with_notices, share} for the account type's charged-off accounts: how many have any ZTrend notice.
+    None when the extract has no charge-off flag or no notices."""
+    try:
+        from .ils_data import _truthy
+        za = fr.za if hasattr(fr, "za") else fr.loaded.zaccounts
+        za = za[za["accttype"].astype(str) == accttype]
+        if "Chargeoff_Account" not in za.columns or not fr.has_trend:
+            return None
+        ids = set(za.loc[_truthy(za["Chargeoff_Account"]), "acctid"].astype(str))
+        if not ids:
+            return {"accounts": 0, "with_notices": 0, "share": 1.0}
+        seen = ids & set(fr.zt["acctid"].astype(str))
+        return {"accounts": len(ids), "with_notices": len(seen), "share": len(seen) / len(ids)}
+    except Exception:                       # a check never takes the section down
+        return None
 
 
 def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, progress=None, frame=None):
@@ -325,7 +374,28 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
     fr = frame
     if fr is None or not fr.has_trend:
         return [f"ILS Scoring Summary ({accttype}) was skipped — no ZTrend file, so notices cannot be banded."]
-    basis = getattr(cfg, "default_basis", "deck")
+    bad_co = getattr(fr, "co_problem", None)
+    if bad_co:
+        # the default rate follows the flag as the notebook's does (shown); the loss dollars are not usable (withheld)
+        notes.append(f"ILS Scoring Summary ({accttype}): losses and loss rates withheld. " + bad_co)
+    if getattr(cfg, "default_basis", "notebook") == "notebook" and not (getattr(fr, "max_limit", None) or {}).get(accttype):
+        # the notebook caps its risk set at the matrix maximum; a matrix whose tiers are not named Personal / Business
+        # (or no matrix) leaves the cap off, and that must be visible, not silent
+        notes.append(f"ILS Scoring Summary ({accttype}): no matrix maximum limit was found for {accttype} accounts, so notices "
+                     "above it could not be left out as the analysis notebook does.")
+    basis = getattr(cfg, "default_basis", "notebook")
+    cov = charged_off_notice_coverage(fr, accttype) if basis == "notebook" else None
+    if cov and cov["accounts"] >= 10 and cov["share"] < 0.25:
+        # The notebook rule finds a default only on a charged-off account's own notices. When most charged-off accounts
+        # carry no notice history in the extract, every band reads near zero for want of data, not for want of losses;
+        # the analysis team's deck showed the same zeros on such a pull, unexplained.
+        notes.append(f"ILS Scoring Summary ({accttype}): only {cov['with_notices']:,} of {cov['accounts']:,} charged-off "
+                     f"{accttype.lower()} accounts have any notice in the ZTrend extract, so default and loss rates read near "
+                     "zero because the charged-off accounts' notice history is not in the extract; ask for a ZTrend pull "
+                     "that keeps closed and charged-off accounts.")
+    rule = {"deck": DEFAULT_DAYS_NOTE, "readme": "README rule (30 days, never-repaid counted)",
+            "notebook": ("the analysis notebook's rule: a notice on a charged-off account dated on or after the "
+                         "account's last positive date; losses = its charge-off amount, once, on the notice nearest that date")}[basis]
     for p in predictors(getattr(cfg, "predictor_bands", "deck")):
         result = None
         try:
@@ -338,15 +408,25 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
         say(f"  {accttype}: scoring summary — {p.title}…")
         subtitle = f"{accttype} accounts  ·  {p.note}"
         src = (f"{os.path.basename(str(cfg.ztrend_path))} (notices {result.window_label}) joined to "
-               f"{os.path.basename(str(cfg.zaccounts_path))}; {p.source}. Default: "
-               f"{DEFAULT_DAYS_NOTE if basis == 'deck' else 'README rule (30 days, never-repaid counted)'}.")
+               f"{os.path.basename(str(cfg.zaccounts_path))}; {p.source}. Default: {rule}.")
+        if bad_co:
+            src += " " + bad_co
+        cap = (getattr(fr, "max_limit", None) or {}).get(accttype)
+        if cap and getattr(cfg, "default_basis", "notebook") == "notebook":
+            src += f" Notices with a limit above the matrix maximum (${cap:,.0f}) are left out, as the notebook does."
         slide = dk.content(f"Scoring Summary: {p.title}", subtitle, section=section, source=src)
-        _render_table(dk, slide, result)
+        _render_table(dk, slide, result, losses_withheld=bool(bad_co))
+        chart_h = BODY_BOTTOM - BODY_TOP - (0.45 if bad_co else 0.0)    # the flag line sits under the chart
+        if bad_co:
+            import shapes
+            shapes.textbox(slide, CHART_L, BODY_BOTTOM - 0.40, CHART_W, 0.38,
+                           fr.co_slide_line("default rates"), 12, T.SUBTLE, False, T.PP_ALIGN.LEFT, T.BODY,
+                           T.MSO_ANCHOR.TOP)
         png = os.path.join(dk.chart_dir, f"scoring_{p.key}_{accttype.lower()}.png")
         C.predictor_bubble(result.bands, result.default_rate, result.notices, png,
                            title=f"% Default Rate by {p.title}  ·  {result.window_label}", xlabel=p.xlabel,
-                           avg_line=result.avg_default_rate, figsize=(CHART_W, BODY_BOTTOM - BODY_TOP - 0.05))
-        T.image_real(slide, png, CHART_L, BODY_TOP, CHART_W, BODY_BOTTOM - BODY_TOP)
+                           avg_line=result.avg_default_rate, figsize=(CHART_W, chart_h - 0.05))
+        T.image_real(slide, png, CHART_L, BODY_TOP, CHART_W, chart_h)
         dk.sidecars.append({"key": f"scoring_{p.key}_{accttype.lower()}",
                             "title": f"Scoring Summary: {p.title} ({accttype})", "png": os.path.basename(png),
                             "numbers": {"window": result.window_label, "bands": result.bands,
@@ -357,8 +437,5 @@ def add_scoring_section(dk, cfg, loaded, accttype, *, section, divider=False, pr
                             "notes": result.notes})
         rendered += 1
     if rendered:
-        notes.append(f"Scoring Summary ({accttype}): {rendered} predictor slides. Default means repayment more than "
-                     f"{fr.default_days} days after the notice, never-repaid notices excluded"
-                     if basis == "deck" else
-                     f"Scoring Summary ({accttype}): {rendered} predictor slides, README default rule.")
+        notes.append(f"Scoring Summary ({accttype}): {rendered} predictor slides. Default: {rule}.")
     return notes
