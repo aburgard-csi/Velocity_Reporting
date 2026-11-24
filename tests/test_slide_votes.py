@@ -179,7 +179,7 @@ def test_the_summary_exports_as_csv(root):
 # ---------------------------------------------------------------- what is refused
 
 @pytest.mark.parametrize("kw", [
-    {"vote": "maybe"}, {"vote": ""}, {"program": "XYZ"}, {"program": ""}, {"title": ""}, {"title": "x" * 201},
+    {"vote": "maybe"}, {"program": "XYZ"}, {"program": ""}, {"title": ""}, {"title": "x" * 201},
     {"slide": 0}, {"slide": "one"}, {"comment": "c" * 501}])
 def test_a_bad_vote_is_refused(root, kw):
     args = {"program": "ARS", "slide": 1, "title": "Overview", "vote": "keep", "comment": ""}
@@ -238,7 +238,9 @@ def test_the_tab_lists_each_programs_slides_from_the_build_never_from_a_deck(ser
     status, doc = jcall(server, "GET", "/api/votes/programs")
     assert status == 200 and doc["period"] == "2026.10" and doc["me"] == "aaron"
     counts = {p["id"]: p["slides"] for p in doc["programs"]}
-    assert counts["ARS"] > 40 and counts["ICS"] > 20 and counts["MRPC"] == 8 and counts["CP"] == 6
+    import peer_slide as PS                     # one "How You Compare" slide per pair of measures (2026-11-22)
+    assert counts["ARS"] > 40 and counts["ICS"] > 20
+    assert counts["MRPC"] == 7 + len(PS.GROUPS["MRPC"]) and counts["CP"] == 5 + len(PS.GROUPS["CP"])
     assert counts["TI"] > 100 and counts["COMP"] > 30
     assert "templates" in doc["from"]
     status, doc = jcall(server, "GET", "/api/votes/program?program=ICS")
@@ -302,7 +304,7 @@ def test_the_page_is_not_tied_to_a_client():
 
 def test_a_vote_button_sends_the_slides_title_and_number_and_the_star_with_the_vote():
     import sheila_hub as H
-    send = _between(H.PAGE, "async function send(i, patch)", "function paintRow(i)")
+    send = _between(H.PAGE, "function post(body)", "function paintRow(i)")          # post() is send's queue (2026-11-23)
     for part in ('"/api/votes/vote"', "slide: s.n", "title: s.title", "star: next.star", "vote: next.vote"):
         assert part in send
     assert 'aria-pressed="${m.vote === v}"' in H.PAGE and 'class="star"' in H.PAGE and "Favorite slide" in H.PAGE
@@ -313,3 +315,64 @@ def test_the_vote_buttons_use_the_hubs_colours_not_an_accent():
     import sheila_hub as H
     css = _between(H.PAGE, "button.vb{", "input.vc{")
     assert "var(--good-soft)" in css and "var(--bad-soft)" in css and "var(--orange)" not in H.PAGE and "#F47A29" not in H.PAGE.upper()
+
+
+# ---------------------------------------------------------------- a cleared vote, a comment before a vote (issue 158)
+
+def test_a_cleared_vote_is_saved_and_leaves_no_count(root):
+    vote(v="delete")
+    vote(v="")                                       # cleared: no star, no comment
+    assert SV.mine(SV.read_votes(), "aaron", "ARS")["ARS|account retention"]["vote"] == ""
+    assert SV.aggregate(SV.read_votes()) == []
+
+
+def test_a_comment_typed_before_a_vote_is_kept_and_then_the_vote_is_recorded(root):
+    vote(v="", comment="needs the branch names")     # typed on an unvoted slide
+    vote(v="appendix", comment="needs the branch names")
+    ars = SV.aggregate(SV.read_votes())[0]
+    assert (ars["keep"], ars["delete"], ars["appendix"]) == (0, 0, 1)
+    assert ars["comments"][0]["text"] == "needs the branch names" and ars["comments"][0]["vote"] == "appendix"
+
+
+def test_a_comment_alone_is_exported_as_a_comment_not_a_star(root):
+    vote(v="", comment="check the Reg E figure")
+    rows = SV.aggregate(SV.read_votes())
+    assert (rows[0]["keep"], rows[0]["delete"], rows[0]["appendix"], rows[0]["stars"]) == (0, 0, 0, 0)
+    assert "(comment): check the Reg E figure" in SV.summary_csv(rows)
+
+
+# ---------------------------------------------------------------- change and clear, nothing lost (Aaron, 2026-11-23)
+
+def test_a_vote_can_be_changed_and_cleared_and_every_earlier_choice_stays_on_disk(root):
+    """ "Don't lose existing votes, and I do want to be able to clear them or change them." Each change is a new file, the
+    newest is what counts, a clear keeps the star and the comment, and no earlier file is ever removed."""
+    vote(v="keep", star=True, comment="clients ask for it")
+    vote(v="delete", star=True, comment="clients ask for it")          # changed
+    vote(v="", star=True, comment="clients ask for it")                # cleared: the star and comment stay
+    held = SV.mine(SV.read_votes(), "aaron", "ARS")["ARS|account retention"]
+    assert held["vote"] == "" and held["star"] and held["comment"] == "clients ask for it"
+    rows = SV.aggregate(SV.read_votes())
+    assert (rows[0]["keep"], rows[0]["delete"], rows[0]["appendix"], rows[0]["stars"]) == (0, 0, 0, 1)
+    vote(v="appendix", star=True, comment="clients ask for it")        # voted again after clearing
+    assert SV.aggregate(SV.read_votes())[0]["appendix"] == 1
+    assert len(os.listdir(root / "Build Artifacts" / "slide_votes")) == 4   # every choice kept
+
+
+def test_votes_stored_before_this_change_are_all_still_read(root):
+    """Documents written by earlier versions (a vote, a star alone) read exactly as before."""
+    vote(v="keep", voter="sheila")
+    vote(title="Reg E Opt-In", v="", star=True, voter="james")
+    vote(title="Program Reach", v="delete", voter="aaron")
+    cur = {(v["voter"], v["key"]): v for v in SV.latest(SV.read_votes())}
+    assert cur[("sheila", "ARS|account retention")]["vote"] == "keep"
+    assert cur[("james", "ARS|reg e opt-in")]["star"] and cur[("aaron", "ARS|program reach")]["vote"] == "delete"
+    assert sum(r["keep"] + r["delete"] + r["appendix"] for r in SV.aggregate(SV.read_votes())) == 2
+
+
+def test_the_page_saves_a_slides_changes_in_order_and_offers_a_clear_button():
+    import sheila_hub as H
+    js = _between(H.PAGE, "// ------------------------------------------------------------ Slide Review", "registerTab(\"votes\"")
+    assert "V.chain.then(() => api(\"/api/votes/vote\"" in js, "saves go out one at a time, in order"
+    assert "await post(" in js and "await api(\"/api/votes/vote\"" not in js
+    assert 'data-clear' in js and 'send(i, {vote: ""})' in js and "Clear" in js
+    assert "loadReview().then(() => paint())" in js, "a refused save shows what the share holds"

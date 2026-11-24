@@ -112,6 +112,24 @@ def institution_bars(rows: list, out: Path, top: int = TOP_INSTITUTIONS) -> Path
     return charts._save(fig, out)
 
 
+def leader_names(rows: list, out: Path) -> Path:
+    """One line per category: the leader's name and its colour, no count. comp_institutions
+    carries only whole-book reach, so a figure beside a category would be the institution's
+    total, not the category's (issue #87)."""
+    rows = rows[:TOP_INSTITUTIONS][::-1]
+    fig, ax = plt.subplots(figsize=(charts.FIG_W_RAIL, 5.2))
+    y = np.arange(len(rows))
+    for i, r in enumerate(rows):
+        color = charts.ORANGE if r[1] == "Local Bank / CU" else charts.NAVY
+        ax.text(0.0, y[i], labels.clip(r[0], 26), va="center", fontsize=12.5, color=charts.NAVY)
+        ax.text(0.5, y[i], labels.clip(r[7][0], 30), va="center", fontsize=13, color=color,
+                fontweight="bold")
+    ax.set_ylim(-0.6, len(rows) - 0.4)
+    ax.set_xlim(0, 1)
+    ax.axis("off")
+    return charts._save(fig, out)
+
+
 def _where_the_money_goes(h, t, base):
     return L.where_the_money_goes(h, t, base, category_bars)
 
@@ -132,9 +150,13 @@ BUILDERS = [
     L.the_book_narrowed, C.how_the_money_moves, C.twelve_months,
     # leakage
     L.their_financial_life, _where_the_money_goes,
-    L.where_the_leakage_goes, L.who_they_pay, L.how_long_it_has_run,
+    L.where_the_leakage_goes, L.who_they_pay, L.insurance_by_line, L.category_drilldowns,
+    L.how_long_it_has_run,
     L.started_and_stopped, L.how_deep, L.leakage_by_group,
-    L.leakage_by_group_and_category, L.what_leakers_hold,
+    L.leakage_by_group_and_category,
+    # by member age, account age and branch (R5, 2026-11-05)
+    L.leakage_by_member_age, L.leakage_by_account_tenure, L.leakage_by_branch,
+    L.what_leakers_hold,
     L.how_the_leakage_builds, L.which_services_travel_together,
     L.still_within_reach,
     # competition
@@ -148,13 +170,15 @@ BUILDERS = [
     P.how_much_of_the_wallet_has_left, P.is_the_competitor_money_still_moving,
     P.how_many_competitors_each_account_uses, P.winback_targets,
     P.depth_against_growth, P.the_payment_ecosystems_ranked, P.buy_now_pay_later,
+    # buy now, pay later in depth (James, 2026-11-05)
+    P.what_bnpl_pays_for, P.who_uses_bnpl,
     # the card
     _how_members_spend, C.card_spend_by_category, C.ticket_and_intensity,
     C.when_the_card_is_used, C.recurring_on_the_card,
     C.card_behaviour_by_lens, C.engagement_breadth,
     # merchants, MCC codes and the card book by holder (#258 group 3)
     C.merchants_rising_and_falling, C.new_and_faded_merchants, _the_mcc_codes,
-    C.how_broadly_the_card_is_used, C.card_spend_by_member_age,
+    C.mcc_codes_three_ways, C.how_broadly_the_card_is_used, C.card_spend_by_member_age,
     C.card_use_by_account_tenure,
     # the routing mix and the relationship shape (#258 group 4)
     V.pin_or_signature, V.who_routes_pin, V.pin_heavy_accounts,

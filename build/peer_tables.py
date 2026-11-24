@@ -202,6 +202,12 @@ def ars_metrics(m, base=None):
       active_cards   share of open personal card holders swiping in the month
       ret_1yr        one-year account survival (Kaplan-Meier)
       rev_per_1k     incremental ARS revenue a month per 1,000 eligible accounts, average of the last 12 months (workbook)
+      take_all       share of ARS-eligible accounts holding a debit card, the whole book (overall_take)
+      acct_growth    personal accounts opened minus closed over the last 12 complete months, as a share of those open at
+                     the start (metrics_gen `acct_growth_pct`; a pack built before 2026-11-22 does not carry it)
+
+    The peer COMPARISONS use only the measures the client controls (Aaron, 2026-11-22; peer_pool.ARS_METRICS); the program
+    results above stay in the row for the figures that read them directly.
     """
     activity = m.get("activity_month")
     point, series = {}, {}
@@ -233,10 +239,15 @@ def ars_metrics(m, base=None):
         point["swipes_per_acct"] = tot[1] / tot[0]
         point["spend_per_acct"] = tot[2] / tot[0]
     for key, src in (("rege_pct", "rege_pct"), ("rege_new_pct", "rege_new_pct"), ("take_new_pct", "take_new_pct"),
-                     ("active_cards", "book_active_pct"), ("ret_1yr", "ret_1yr")):
+                     ("active_cards", "book_active_pct"), ("ret_1yr", "ret_1yr"), ("take_all", "overall_take"),
+                     ("acct_growth", "acct_growth_pct")):
         v = _num(m.get(src))
         if v is not None:
             point[key] = v
+    if (m.get("n_eligible") or 0) < 100:
+        point.pop("take_all", None)
+    if (m.get("n_open_personal") or 0) < 100:
+        point.pop("acct_growth", None)
     if m.get("rege_pool", 1) == 0:
         point.pop("rege_pct", None)
     if (m.get("take_new_total") or 0) < 100:

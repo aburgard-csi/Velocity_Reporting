@@ -96,3 +96,29 @@ def test_bnpl_says_signal_only_at_ten_percent_reach():
     P.buy_now_pay_later(h, FULL, "personal accounts")
     (_, sub), _ = h.slides[-1]
     assert "displaced" in sub
+
+
+def test_change_measures_decline_when_the_prior_window_is_empty():
+    # issue #86: stopped is 0 everywhere and every growth reads 100 -> not compared, never drawn
+    mom = [["Chase", 8_395, 0, 8_395], ["Capital One", 14_150, 0, 14_150]]
+    t = dict(FULL, comp_momentum=mom,
+             comp_depth_growth=[["A", 10, 5.0, 100.0], ["B", 8, 4.0, 100.0], ["C", 6, 3.0, 100.0]])
+    h = _Harness()
+    assert "not compared" in P.gaining_and_losing(h, t, "base")
+    assert "not compared" in P.depth_against_growth(h, t, "base")
+    # who_competes draws the momentum bars only below three institutions (the quadrant otherwise)
+    P.who_competes(h, dict(t, comp_institutions=FULL["comp_institutions"][:2]), "base")
+    assert h.charts[0]["name"] == "comp_momentum_bars"
+    assert all(r[3] is None for r in h.charts[0]["rows"])
+
+
+def test_who_leads_each_product_prints_no_count_beside_a_category():
+    # issue #87: comp_institutions has only whole-book reach, so a per-category count is wrong
+    t = dict(FULL, comp_institutions=[
+        ["Capital One", "National Bank", 14_150, 50.0, 10, 23_300_000, 212,
+         ["Credit Cards", "Auto Loans", "Transfer / other"], 2, 0]])
+    h = _Harness()
+    P.who_leads_each_product(h, t, "base")
+    (headline, sub), _title = h.slides[0]
+    assert "14,150" not in headline and "14,150" not in sub
+    assert h.charts[0]["fn"] == "leader_names"
