@@ -64,6 +64,8 @@ def register(t, spec, c):
     t.derive(c["total"], "the client and its peers", sv[0])
     if c["diff"] is not None:
         t.derive(abs(c["diff"]), "percent difference from the median", c["client"], c["median"])
+    if c.get("diff_pts") is not None:             # a rate's gap is stated in percentage points (peer_compare.relation_phrase)
+        t.derive(abs(c["diff_pts"]), "percentage-point difference from the median", c["client"], c["median"])
     for n in c["counts"]:
         t.derive(n, "peers in a histogram bin", sv[0])
     for e in c["edges"]:
@@ -96,6 +98,8 @@ def peers_screen(t, program_label, who, collected, metrics, trend=None, extra_no
                          f"per-client sheets the performance dashboard reads" + (f"; pulled {pull_dates}" if pull_dates else "")
                          + ". Each dot is one other client and its hover gives that client's number; no name, logo or CSM of another client appears on this page.")}]
     ev = PC.evaluate(collected, metrics, who)
+    for v in collected.get("figures") or []:      # thresholds and counts a collector's own notes state (CashPlease charge-off)
+        t.derive(v, "a figure the peer collector's notes state")
     if n_pool < MIN_PEERS:
         blk = {"t": "statement", "title": "Not enough peers to compare", "text": ev["unavailable"]}
         t.derive(MIN_PEERS, "the smallest peer pool shown")

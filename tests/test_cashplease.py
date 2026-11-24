@@ -189,36 +189,34 @@ def test_the_cashplease_table_does_not_leak_into_the_rpe_roster():
 
 
 # ------------------------------------------------------------------ the peer slide's face
-def _peer_slide(tmp_path, monthly, dda_rec):
-    """Render slide_peer from a synthetic pack; returns (face texts, notes text)."""
-    import json
+def _peer_slide(tmp_path, dda):
+    """Render slide_peer for a synthetic client (7001) against eight synthetic current peers; returns (face texts,
+    notes text). The peers' median is the comparison (Aaron, 2026-11-24: "D: median, pooled internal")."""
     from pptx import Presentation
-    sys.path.insert(0, str(REPO / "build"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     import build_cp_gen as G
-    m = _metrics(monthly, dda_rec)
-    m["peer"] = {"cohort": "All Velocity CashPlease clients", "cohort_tabs": 76, "cohort_reconciles": True,
-                 "charge_off_pct": 0.0626, "avg_loan_size": 569.0, "avg_interest_per_loan": 34.0,
-                 "total_loans": 309633, "total_principal": 1.0, "pct_loans_paid_off": 0.828,
-                 "loans_per_1k_dda": 14.9, "cohort_dda_clients": 53, "pct_active_accounts_with_loans": 0.1}
-    d = {"client_id": "9999", "client_name": "Union Financial", "metrics": m, "source_file": "CashPleaseSummary.xlsx",
-         "sheet_name": "Union Financial", "report_generated": "10/11/2026 6:35:45 AM"}
+    import peer_compare as PC
+    from test_peer_decisions import cp_pack, peers
+    peers(tmp_path / "ba", n=8)
+    d = cp_pack("7001", dda=dda, name="Union Financial")
+    d["_peer_eval"] = PC.for_deck("CP", "7001", root=tmp_path / "ba", own={"cashplease": d})
     prs = Presentation(str(REPO / "templates" / "cashplease_template.pptx"))
     s = G.slide_peer(prs, d, "PTD · test", str(tmp_path))
     face = [sh.text_frame for sh in s.shapes if sh.has_text_frame]
     return face, s.notes_slide.notes_text_frame.text
 
 
-def test_the_dda_label_breaks_before_its_window_and_the_cohort_note_is_in_the_notes(tmp_path):
+def test_the_dda_label_breaks_before_its_window_and_the_peer_method_is_in_the_notes(tmp_path):
     """Aaron, 2026-10-28: "(12 mo)" wrapped as "(12" / "mo)" inside its box, and the cohort footnote
-    came off the slide face. The cohort's make-up still has to be auditable, so it is in the notes."""
-    face, notes = _peer_slide(tmp_path, [10] * 12, {"dda_accounts": 1000, "last_updated": "2026-09-04"})
+    came off the slide face. Who the peers are still has to be auditable, so it is in the notes."""
+    face, notes = _peer_slide(tmp_path, 1000)
     label = next(tf for tf in face if "DDAs" in tf.text)
     assert [p.text for p in label.paragraphs] == ["Loans per 1,000 DDAs", "(12 mo)"]
-    assert not any("Cohort:" in tf.text for tf in face)
-    assert "309,633 CashPlease loans across all 76 tabs" in notes and "53 clients with a DDA count" in notes
+    assert not any("Cohort" in tf.text for tf in face)
+    assert "MEDIAN of the other current CashPlease clients" in notes and "8 of them" in notes
 
 
 def test_an_absent_dda_row_is_still_stated_on_the_face(tmp_path):
-    face, _ = _peer_slide(tmp_path, [10] * 12, None)
+    face, _ = _peer_slide(tmp_path, None)
     assert any(tf.text.startswith("Loans per 1,000 DDAs is not shown") for tf in face)
     assert not any("DDAs (12 mo)" in tf.text or "DDAs\n(12 mo)" in tf.text for tf in face)

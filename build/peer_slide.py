@@ -218,7 +218,8 @@ def notes_text(program, ev, ctx):
              f"Selection: each strip is one measure; a dot is one other client, the shaded band is the middle half of them, the line is "
              f"their median, the orange mark is {ctx['client_name']}. The rank counts {ctx['client_name']} among the clients with a figure. "
              f"A measure with fewer than {PC.MIN_PEERS} other clients having current data is not shown. "
-             "Wording follows the +/-2% rule: within 2% of the median is almost flat."]
+             "Wording follows the +/-2% rule: within 2% of the median is almost flat. A rate's gap from the median is stated "
+             "in percentage points, any other measure's in percent of the median."]
     for it in ev["items"]:
         c = it["c"]
         f = PC.formatter(it["spec"]["fmt"])

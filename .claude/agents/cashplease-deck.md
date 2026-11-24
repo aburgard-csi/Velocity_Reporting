@@ -58,7 +58,7 @@ The four content slides: **Program Overview** (KPI tiles, cumulative growth curv
 read-out) · **Loan Volume by Month** (navy bars, last complete month orange, partial month
 hatched steel, principal as a teal line) · **Loan Portfolio by Status** (status table with
 an orange total row, ranked status bars) · **Peer Comparison** (pill layout plus an index
-chart where the cohort is 100).
+chart where the median current client is 100).
 
 **Program Settings** — only for a client with a settings record, placed after the
 Overview (eleven slides). Loan terms beside eligibility and controls, production values
@@ -99,9 +99,12 @@ why. A client live under a month has no completed-month row and gets a chart of 
 partial bar. An empty chart captioned "0 in the most recent complete month" shipped once
 and must not again.
 
-**Cohorts are not interchangeable.** The rollup cohort is every tab in the workbook; the
-DDA rate's cohort is only the clients with a count AND a full 12 months. Any slide
-carrying both names both.
+**Peers are the median of the other current CashPlease clients** (Aaron, 2026-11-24: "D: median,
+pooled internal"). The Overview sentences, the Peer Comparison slide and How You Compare read one
+`peer_compare.for_deck("CP")` evaluation, with rank, n and the 5-peer minimum, and a rate's gap in
+points. The workbook's all-clients rollup is a pooled book total: internal pages only, never a
+client's slide. A 0.0% charge-off on 500 or more loans is not reported, not zero: left out of the
+charge-off comparison only, and the slide says how many.
 
 **Name the client, never "this client".** The deck is read in a room with them in it.
 
