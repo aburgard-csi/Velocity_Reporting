@@ -188,7 +188,7 @@ table.t{border-collapse:separate;border-spacing:0;width:100%;font-size:.95rem}
 .t th.sorted{color:var(--ink);font-weight:600}
 .t th .ar{display:inline-block;margin-left:4px}
 .t td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}
-.t:not(.pnl) td:first-child{font-weight:700;color:var(--ink)}
+.t:not(.pnl) td:first-child:not(.v-empty){font-weight:700;color:var(--ink)}
 .t th:first-child{left:0;z-index:2}
 .t td{padding:16px 24px;border-top:1px solid var(--line);white-space:nowrap;vertical-align:top;transition:background-color .15s}
 .t td.r{font-variant-numeric:tabular-nums}
