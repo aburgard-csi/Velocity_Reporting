@@ -55,6 +55,7 @@ FIGURES = [
         ("fin_new_recurring_stopped", "Started, continuing and stopped in the last 90 days."),
         ("fin_months", "The months in the window."),
         ("fin_monthly", "Per category and month: accounts paying and dollars. A month with no payments reads zero."),
+        ("fin_mail_months", "The months a mailing dropped, from the ODD's Mail columns, so the series can mark them. Months outside the window are left out."),
         ("fin_trend", "Last three months against the three before, per category; peak month from twelve months on file."),
     ]),
     ("Depth", [
@@ -66,7 +67,8 @@ FIGURES = [
     ]),
     ("Named institutions", [
         ("fininst_by_category", "Per category: how many accounts, and how many dollars, sit at a named bank or credit union."),
-        ("fininst_matrix", "The largest category by institution pairs."),
+        ("fininst_matrix", "The largest category by institution pairs, each with its tier."),
+        ("fininst_source", "Which match named the institution: the registry (Competition layers ran) or the configured names."),
     ]),
     ("Data quality", [
         ("fin_unmatched_top", "The biggest counterparties on the transfer rail that matched nothing."),
@@ -102,7 +104,8 @@ def smoke_figures() -> dict:
     spec = F.load_patterns(DICT, client)
     cls = F.classify_rows(df, spec)
     out, _ = F.compute(df, lenses, spec, pd.Timestamp("2026-10-31"), None, lambda m: None,
-                       base_label="transacting personal accounts", classification=cls)
+                       base_label="transacting personal accounts", classification=cls,
+                       mail_months=["2026-03", "2026-10"])
     from ti.transaction_intelligence import competition as C
     out.update(IV.compute(df, cls, C.load_config(DICT, client)))
     return out
@@ -313,10 +316,12 @@ from that queue moved 1,765 rows into categories.</p>"""))
 <p>Competition counts <strong>who</strong>; Financial Services counts <strong>what</strong>. A payment to a named bank or credit union is in both:</p>
 <div class="callout"><span class="blab">The rule</span><p><code>NUSENDA CU AUTO LOAN</code> is an <strong>auto loan</strong> here and <strong>Nusenda</strong> in Competition.
 Each view counts it. The two are <strong>never added</strong>. Where the page or a slide shows both, it says the other view exists.</p></div>
-<p><code>fininst_by_category</code> and <code>fininst_matrix</code> are the bridge: for each category, how much sits at a named national, regional
-or local bank or credit union, and the largest pairs. They are cross-tabs of the two views, not a third total. They use what Competition
-is configured with today (the universal list plus the client's regional and local names), so a depository in neither is not named and the
-share is a floor.</p>"""))
+<p><code>fininst_by_category</code> and <code>fininst_matrix</code> are the bridge: for each category, how much sits at a named bank or credit union,
+and the largest pairs with their tier. They are cross-tabs of the two views, not a third total.</p>
+<p>When the Competition layers run, the institution is named by the registry (every FDIC bank and NCUA credit union, matched on the card description,
+with its tier: National, Digital, Local, Regional, State, Other, or a card-issuing bank). A name that fits several institutions is left unplaced, never
+guessed. Without the layers (no reference store), the match falls back to the institutions Competition is configured with, and a depository in neither is
+not found. <code>fininst_source</code> says which was used. Either way the share is a floor, because the files are card rows.</p>"""))
 
     S.append(("cannot", "Know the limits", "What it cannot do", """
 <ul>
@@ -357,13 +362,13 @@ one purpose each, because a change to what a figure counts is reviewed on its ow
     ["Mail lists", "Lists for every category, the master list, the build sets where they are written, <code>Mailable?</code> carried through.", "No"],
     ["Definitions and coverage", "Any, addressable and adjacency side by side; the coverage line; the whole review queue as a file.", "No"],
     ["Trend and depth", "A monthly series and trend per category; the products leakers hold.", "No"],
-    ["Named institutions", "Each category against the bank or credit union that holds it.", "No"],
+    ["Named institutions", "Each category against the bank or credit union that holds it, named by the registry when the Competition layers run.", "No"],
     ["Ledger and portfolio row", "A line for every slide; one row per client and month for benchmarking.", "No"],
     ["Dictionary v7", "Names read from 1798's review queue.", "Yes"],
     ["Delivery", "The lists and ledger copied to Outputs beside the deck (a launcher change).", "No"],
 ])}
-{block("note", "Until a stage is merged", '''<p>A stage that is not merged is not in the build the CSMs run. The first (dictionary v6) is open for review; the others are stacked on it.
-Rebuild this page after each merge and the status line follows the code.</p>''')}"""))
+{block("note", "Merged is not released", '''<p>These stages are merged to <code>main</code> (2026-11-17), but the build CSMs run comes from the release, which is Aaron's. Until he
+releases, Sheila builds do not have them. Rebuild this page after each merge and the commit named above follows the code.</p>''')}"""))
 
     S.append(("glossary", "Reference", "Glossary", """
 <dl>

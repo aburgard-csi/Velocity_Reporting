@@ -91,4 +91,76 @@ def test_no_leakage_returns_nothing():
 
 def test_the_section_is_registered_after_competition():
     src = (ROOT / "build" / "ars_pipeline" / "ti" / "chapters_txn.py").read_text(encoding="utf-8")
-    assert "T.competition, T.institution_view" in src
+    assert "T.competition_layers, T.institution_view" in src      # after the layers: it reads their matches
+
+
+# ---------------------------------------------------------------- the registry path (fs-09)
+def _layer_sub(df, rows, inst_by_core):
+    """What competition_layers.classify_cards returns for these rows: one row per card transaction."""
+    mask = rows["is_card"].to_numpy()
+    sub = pd.DataFrame({"acct": df["primary_account_num"].astype(str)[mask].to_numpy(),
+                        "amt": df["amount"].abs()[mask].to_numpy(), "core": rows["core"][mask].to_numpy()})
+    sub["inst"] = sub["core"].map(lambda c: inst_by_core.get(c, (None, None))[0])
+    sub["tier"] = sub["core"].map(lambda c: inst_by_core.get(c, (None, None))[1])
+    return sub
+
+
+def _registry_case():
+    df = _txn()
+    rows = F.classify_rows(df, F.load_patterns(DICT_DIR, CLIENT))
+    by_core = {}
+    for core in rows["core"].unique():
+        if "NUSENDA" in core:
+            by_core[core] = ("Nusenda Credit Union", "Local")
+        elif "CHASE" in core:
+            by_core[core] = ("Chase", "National")
+    return df, rows, by_core
+
+
+def test_the_registry_names_the_institution_and_its_tier():
+    df, rows, by_core = _registry_case()
+    out = IV.compute_from_layers(df, rows, _layer_sub(df, rows, by_core))
+    assert out["fininst_source"] == "registry"
+    assert any(r[1] == "Nusenda Credit Union" and r[2] == "Local" for r in out["fininst_matrix"])
+    assert any(r[1] == "Chase" and r[2] == "National" for r in out["fininst_matrix"])
+
+
+def test_an_ambiguous_name_is_not_named():
+    df, rows, by_core = _registry_case()
+    by_core = {c: (i, IV.UNRESOLVED) for c, (i, t) in by_core.items()}
+    out = IV.compute_from_layers(df, rows, _layer_sub(df, rows, by_core))
+    assert out["fininst_named_accounts"] == 0
+    assert all(r[2] == 0 for r in out["fininst_by_category"])
+
+
+def test_rows_that_do_not_line_up_say_nothing():
+    df, rows, by_core = _registry_case()
+    sub = _layer_sub(df, rows, by_core).iloc[:-1]
+    assert IV.compute_from_layers(df, rows, sub) == {}
+
+
+def test_the_registry_path_is_still_a_cross_tab_not_a_new_total():
+    df, rows, by_core = _registry_case()
+    out = IV.compute_from_layers(df, rows, _layer_sub(df, rows, by_core))
+    for cat, _n, _h, _p, dollars, named_dollars in out["fininst_by_category"]:
+        assert named_dollars <= dollars
+        assert sum(r[4] for r in out["fininst_matrix"] if r[0] == cat) == named_dollars
+
+
+def test_the_configured_path_says_so(built):
+    out, _ = built
+    assert out["fininst_source"] == "configured"
+
+
+def test_the_section_prefers_the_registry_and_falls_back(monkeypatch):
+    import types
+    from ti import txn_sections as T
+    df, rows, by_core = _registry_case()
+    ctx = types.SimpleNamespace(txn=df, shared={"fin_rows": rows, "comp_spec": C.load_config(DICT_DIR, CLIENT),
+                                                "personal": None, "business": None, "base_label": "x"})
+    monkeypatch.setattr(T, "base_accounts", lambda c: (None, None, "x"))
+    assert T.institution_view(ctx)["fininst_source"] == "configured"           # no layers ran
+    ctx.shared["cl_parts"] = (_layer_sub(df, rows, by_core), None, None, None)
+    assert T.institution_view(ctx)["fininst_source"] == "registry"
+    ctx.shared["cl_parts"] = (_layer_sub(df, rows, by_core).iloc[:-1], None, None, None)
+    assert T.institution_view(ctx)["fininst_source"] == "configured"           # misaligned: fall back

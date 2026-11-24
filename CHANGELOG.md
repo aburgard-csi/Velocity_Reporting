@@ -15,6 +15,28 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-17 — Financial services: the mailing calendar on the monthly series (`ti/transaction_intelligence/financial_services.py`, `txn_sections.py`)
+
+Summary: Adds `fin_mail_months`. Based on `feat/ars-ti/fs-09-institution-registry`. Adds a figure only; **no slide and no existing figure changes.**
+
+- **`fin_mail_months`:** the months a mailing dropped, so the monthly series (`fin_monthly`) can mark them. A month is a mail month when the ODD's `<tag> Mail` column has any entry, the same columns the mailer analysis reads (`monthly_analysis/mailer.py`), so it follows the data. Months outside the window are left out; no calendar, no key.
+- **1798:** mails every other month; six mailings in its 12-month window (Dec, Feb, Apr, Jun, Aug, Oct), about 23,000 accounts each.
+- **Not built:** drawing the marks on a chart. The series and the calendar are in the pack; the chart is for Aaron.
+- Tests: four in `tests/test_ti_finserv_trend.py`; the guide documents the figure.
+
+---
+
+### 2026-11-17 — Financial services x institution: named by the registry when the Competition layers ran (`ti/transaction_intelligence/institution_view.py`, `txn_sections.py`, `chapters_txn.py`)
+
+Summary: Adds to `fininst_*` (merged in #167); **no slide and no other figure changes.** Based on `main` after the Competition layers (#173-#180).
+
+- **Why.** `fininst_*` named a bank or credit union only from Competition's configured list (the universal names plus the client's own), so most depositories were not found. The layers section now matches card descriptions against every FDIC bank and NCUA credit union and keeps the result in `cl_parts`.
+- **Now:** the section runs **after** `competition_layers` and, when `cl_parts` exists, names the institution from the registry match and carries its tier (National, Digital, Local, Regional, State, Other, card-issuing). An ambiguous name is left unplaced, never guessed. If the registry did not run, or its rows do not line up with the card rows exactly, it falls back to the configured match as before.
+- **`fininst_source`** (`registry` or `configured`) says which was used. Still a cross-tab of the two views, never a third total (tested); still a floor, since the files are card rows.
+- **Order change:** `T.institution_view` moves from before to after `T.competition_layers` in `compute_all`.
+- The Financial Services guide's wording and status table are brought up to date (merged, not yet released), and `docs/financial-services.html` is regenerated.
+- Tests: six new in `tests/test_ti_finserv_institution_view.py`; the TI group passes (1,369).
+
 ### 2026-11-23 — Transaction Intelligence: the market reference store gets a build script, and mail lists are deliverables (`scripts/build_market_reference.py`, `scripts/ti_lists_backfill.py`, `CLAUDE.md`)
 
 Summary: The competition-layers slides need the public FDIC / NCUA reference store on the share, and nothing built it; a new script fetches it, checks it and puts it there. The TI mail lists now officially belong in each CSM's Outputs folder beside the deck, and earlier builds' lists can be copied there too.

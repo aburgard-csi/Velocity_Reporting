@@ -89,3 +89,31 @@ def test_products_held_lists_the_top_products(spec):
     out = F.compute(df, lens, spec, pd.Timestamp("2026-10-31"), None, lambda m: None)[0]
     cat, n, top = next(r for r in out["fin_leakers_hold"] if r[0] == "Buy Now Pay Later")
     assert n == 25 and top == [["Basic Checking", 15], ["Premier Checking", 10]]
+
+
+# ---------------------------------------------------------------- the mailing calendar (fs-10)
+def test_mail_months_are_the_months_a_mail_column_has_entries():
+    from ti import txn_sections as T
+    frame = pd.DataFrame({"Acct ID": ["a", "b", "c"],
+                          "Sep26 Mail": ["", None, "  "],             # no one mailed: not a mail month
+                          "Oct26 Mail": ["NU 5+", "", None],
+                          "Aug26 Mail": ["TH-10", "NU 5+", ""],
+                          "Oct26 Resp": ["", "", ""]})                # a Resp column is not a Mail column
+    assert T.mail_months(frame) == ["2026-08", "2026-10"]
+
+
+def test_no_mail_columns_gives_an_empty_calendar():
+    from ti import txn_sections as T
+    assert T.mail_months(pd.DataFrame({"Acct ID": ["a"]})) == []
+    assert T.mail_months(None) == []
+
+
+def test_the_series_marks_mail_months_inside_the_window_only(spec):
+    out = F.compute(_txn(12), _lenses(), spec, pd.Timestamp("2026-10-31"), None, lambda m: None,
+                    mail_months=["2025-01", "2026-03", "2026-10", "2027-01"])[0]
+    assert out["fin_mail_months"] == ["2026-03", "2026-10"]
+
+
+def test_without_a_calendar_there_is_no_key(spec):
+    out = F.compute(_txn(12), _lenses(), spec, pd.Timestamp("2026-10-31"), None, lambda m: None)[0]
+    assert "fin_mail_months" not in out
