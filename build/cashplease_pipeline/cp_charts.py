@@ -256,7 +256,7 @@ def status_mix_chart(out_png, labels, counts, box=(4.52, 2.52)):
 
 
 def peer_index_chart(out_png, labels, ratios, box=(5.75, 4.02), wrap=18):
-    """Client measured against the cohort, cohort = 100.
+    """Client measured against the median current client, median = 100 (2026-11-24: the median replaced the pooled cohort).
 
     One axis for metrics that do not share a unit (rates and dollars), which a
     grouped bar chart cannot do honestly. Bars are one colour and the reference line
@@ -285,7 +285,7 @@ def peer_index_chart(out_png, labels, ratios, box=(5.75, 4.02), wrap=18):
     ax.set_ylim(len(labels) - 0.5, -0.9)     # inverted, with headroom for the caption
     ax.set_xlim(0, xmax)
     ax.set_xticks([])
-    ax.text(100, 1.0, "cohort = 100", transform=ax.get_xaxis_transform(),
+    ax.text(100, 1.0, "median = 100", transform=ax.get_xaxis_transform(),
             ha="center", va="bottom", fontsize=AXIS_PT, color=ORANGE)
     for side in ("top", "right", "bottom"):
         ax.spines[side].set_visible(False)

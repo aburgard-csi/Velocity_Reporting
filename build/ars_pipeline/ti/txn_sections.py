@@ -38,6 +38,22 @@ FINB_KEYS = ("finb_base_label", "finb_accounts_total", "finb_leaking_accounts",
              "finb_by_category", "finb_top_providers", "finb_provider_concentration", "finb_p2p")
 
 
+def mail_months(frame):
+    """The client's mailing calendar as "YYYY-MM" strings: a month is a mail month when its ODD
+    `<tag> Mail` column has any entry. The mailer analysis reads the same columns (monthly_analysis/mailer.py),
+    so the calendar follows the data rather than a list someone typed. [] when the ODD has none."""
+    from ti.core.periods import Month, columns_for
+    out = []
+    for col in columns_for(getattr(frame, "columns", []), "Mail"):
+        m = Month.from_tag(col.split()[0])
+        if m is None:
+            continue
+        v = frame[col]
+        if bool((v.notna() & (v.astype(str).str.strip() != "")).any()):
+            out.append(f"{m.year}-{m.month:02d}")
+    return sorted(set(out))
+
+
 def financial_services(ctx):
     """fin_* on personal accounts, finb_* (v5's subset of keys) on business accounts."""
     from ti.transaction_intelligence import financial_services as F
@@ -48,7 +64,8 @@ def financial_services(ctx):
     out, _files = F.compute(ctx.txn, ctx.lenses, spec, ctx.anchor_ts, ctx.shared.get("lists_dir"),
                             ctx.warn, account_filter=personal, key_prefix="fin_",
                             base_label=base_label, classification=rows,
-                            cif_map=ctx.shared.get("cif_crosswalk"))
+                            cif_map=ctx.shared.get("cif_crosswalk"),
+                            mail_months=mail_months(ctx.frame))
     if business is not None and len(business):
         finb, _ = F.compute(ctx.txn, None, spec, ctx.anchor_ts, None, lambda _m: None,
                             account_filter=business, key_prefix="finb_",
@@ -212,10 +229,17 @@ def competition_layers(ctx):
 
 def institution_view(ctx):
     """fininst_*: each financial-services category against the named bank or credit union that holds
-    it (fs-05). Reads financial services' classification and competition's configuration; both
-    views count the same payment and are never added (see transaction_intelligence/institution_view)."""
+    it (fs-05, fs-09). Reads financial services' classification, and the Competition layers' registry
+    matches when they ran (`cl_parts`; this section runs after them), else the competition
+    configuration. Both views count the same payment and are never added (see
+    transaction_intelligence/institution_view)."""
     from ti.transaction_intelligence import institution_view as IV
     personal, _business, _label = base_accounts(ctx)
+    parts = ctx.shared.get("cl_parts")
+    if parts and parts[0] is not None:
+        out = IV.compute_from_layers(ctx.txn, ctx.shared.get("fin_rows"), parts[0], account_filter=personal)
+        if out:
+            return out
     return IV.compute(ctx.txn, ctx.shared.get("fin_rows"), ctx.shared.get("comp_spec"),
                       account_filter=personal)
 

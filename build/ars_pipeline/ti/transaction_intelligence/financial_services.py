@@ -595,8 +595,12 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
             lists_dir: Path | None, warn, account_filter: pd.Index | None = None,
             key_prefix: str = "fin_", base_label: str = "all accounts",
             classification: pd.DataFrame | None = None,
-            cif_map: pd.Series | None = None) -> tuple[dict, dict]:
+            cif_map: pd.Series | None = None,
+            mail_months: list[str] | None = None) -> tuple[dict, dict]:
     """Returns (metrics, outputs). outputs holds CSV paths.
+
+    mail_months is the client's mailing calendar as "YYYY-MM" strings (the months an ODD `<tag> Mail`
+    column has entries), so the monthly series can mark the months a mailing dropped.
 
     cif_map is an optional account id -> CIF lookup for the mail lists. No client file carries
     a member key today (ti/core/facts.py), so it is None and the cif column is written blank;
@@ -847,6 +851,9 @@ def compute(df: pd.DataFrame, lenses: Lenses | None, spec: dict, anchor_end: pd.
     # the axis is the file's months, not the matched rows' months: a month with no match reads zero
     months = sorted(df["transaction_date"][in_base].dt.to_period("M").dropna().unique())
     out[key_prefix + "months"] = [str(p) for p in months]
+    if mail_months:
+        window = {str(p) for p in months}
+        out[key_prefix + "mail_months"] = sorted({m for m in mail_months if m in window})
     series, trend = {}, []
     for name, grp in mm.groupby("category", observed=True):
         g = grp.groupby("month").agg(accounts=("acct", "nunique"), dollars=("amount", "sum"))
