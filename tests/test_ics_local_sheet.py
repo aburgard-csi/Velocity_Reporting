@@ -845,3 +845,21 @@ def test_the_workbooks_own_program_to_date_average_balance_is_carried(root, tmp_
     write_workbook(p)                                  # no Program to Date column: the weighted mean, named as such
     fs = extract(str(p))["financial_summary"]
     assert fs["average_balance_basis"] == "weighted by accounts opened" and fs["average_balance"] != 777.77
+
+
+def test_the_workbook_is_read_through_the_cell_cache(root, monkeypatch):
+    """`ws.cell(r, c)` on a read-only sheet re-reads the sheet from the top on every call, and this extractor
+    reads cell by cell: 13 to 78 s a workbook over the share. Through `xl_cache` each sheet is read once
+    (2026-11-24: four real workbooks 170 s -> 3 s, the same output)."""
+    import ics_workbook_extract as X
+    p = workbook_file(root, PERIOD)
+    write_workbook(p)
+    real, opened = X.xl_cache.load, []
+
+    def spy(path):
+        opened.append(path)
+        return real(path)
+    monkeypatch.setattr(X.xl_cache, "load", spy)
+    out = X.extract(str(p))
+    assert opened == [str(p)]
+    assert out["financial_summary"] and out["revenue"]

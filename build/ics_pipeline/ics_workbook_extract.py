@@ -34,7 +34,13 @@ import re
 import sys
 import warnings
 
-import openpyxl
+import openpyxl  # noqa: F401  (xl_cache reads through it)
+
+# Each sheet read once into memory: `ws.cell(r, c)` on a read-only sheet re-streams its XML from the
+# top on every call, and this extractor reads cell by cell (2026-11-24: 13 to 78 s a workbook over
+# the share). Same `[name]`, `cell(r, c).value` and `max_column` access as openpyxl.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ars_pipeline"))
+import xl_cache  # noqa: E402
 
 warnings.filterwarnings("ignore")
 
@@ -87,7 +93,7 @@ def month_cols(ws, header_row=14):
 
 
 def extract(path):
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    wb = xl_cache.load(path)
     md = wb["Monthly Detail"]
     cols = month_cols(md) or month_cols(md, 7)
     if not cols:
