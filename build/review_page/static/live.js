@@ -230,7 +230,7 @@
     if (b.t === "kpis") return kpisHTML(b);
     if (b.t === "bars" || b.t === "line" || b.t === "donut" || b.t === "waterfall" || b.t === "scatter") return '<div class="card blk">' + chartHead(b) + '<div class="cbox" data-chart="' + b.id + '"></div><div class="legend" data-legend="' + b.id + '"></div></div>';
     if (b.t === "matrix") return matrixHTML(b);
-    if (b.t === "table") return '<div class="card blk">' + tableCard(b) + "</div>";
+    if (b.t === "table") return '<div class="card blk tcard">' + tableCard(b) + "</div>";
     if (b.t === "variants") return variantsHTML(b, scr);
     if (b.t === "drill") return drillHTML(b);
     if (b.t === "cards") return cardsHTML(b);
@@ -363,14 +363,15 @@
     var s = tableState(t), rows = rowsFor(t);
     var sel = S.drill && S.drill.table === t.id ? S.drill.key : null;
     var head = t.columns.map(function (c) {
-      return '<th class="' + (c.align === "right" ? "r" : "") + '" data-sort="' + c.key + '" data-table="' + t.id + '" aria-sort="' + (s.key === c.key ? (s.dir === "asc" ? "ascending" : "descending") : "none") + '">' + esc(c.label) + '<span class="ar">' + (s.key === c.key ? (s.dir === "asc" ? "▲" : "▼") : "") + "</span></th>";
+      var on = s.key === c.key, how = on ? (s.dir === "asc" ? "smallest first" : "largest first") : "";   // the sorted column: its arrow, darker ink, and the order in its title
+      return '<th class="' + (c.align === "right" ? "r" : "") + (on ? " sorted" : "") + '" data-sort="' + c.key + '" data-table="' + t.id + '" aria-sort="' + (on ? (s.dir === "asc" ? "ascending" : "descending") : "none") + '" title="' + esc(on ? "Sorted by " + c.label + ", " + how + ". Click to reverse." : "Sort by " + c.label) + '">' + esc(c.label) + '<span class="ar" aria-hidden="true">' + (on ? (s.dir === "asc" ? "↑" : "↓") : "") + "</span></th>";
     }).join("");
     var body = rows.map(function (r) {
       return '<tr data-key="' + esc(r[t.key]) + '"' + (sel != null && r[t.key] === sel ? ' class="sel ' + esc(r.kind || "") + '"' : ' class="' + esc(r.kind || "") + '"') + ">" + t.columns.map(function (c) { return '<td class="' + (c.align === "right" ? "r" : "") + '">' + esc(cellText(t, c, r)) + "</td>"; }).join("") + "</tr>";
     }).join("");
     var tot = "";
     if (t.total) tot = '<tr class="tot">' + t.columns.map(function (c) { return '<td class="' + (c.align === "right" ? "r" : "") + '">' + esc(c.fmt ? fmt(t.total[c.key], c.fmt) : (t.total[c.key] == null ? "" : t.total[c.key])) + "</td>"; }).join("") + "</tr>";
-    var empty = rows.length ? "" : '<tr><td colspan="' + t.columns.length + '" class="empty">No rows match.</td></tr>';
+    var empty = rows.length ? "" : '<tr><td colspan="' + t.columns.length + '" class="v-empty">No rows match.</td></tr>';
     return '<table class="t ' + (t.kind === "pnl" ? "pnl" : "") + '"><thead><tr>' + head + "</tr></thead><tbody>" + body + empty + (rows.length ? tot : "") + "</tbody></table>";
   }
   function searchBox(t) {

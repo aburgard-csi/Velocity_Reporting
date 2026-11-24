@@ -62,18 +62,16 @@ input.vc{font:inherit;width:100%;min-width:0;padding:6px 10px;border:1px solid v
 input.vc:focus-visible{outline:2px solid var(--good);outline-offset:1px}
 .vsaved{color:var(--good);font-size:12px;opacity:0;transition:opacity .2s}
 .vrow.just .vsaved{opacity:1}
-table.vtbl{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
-.vtbl th{text-align:right;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:8px 10px;white-space:nowrap}
-.vtbl td{text-align:right;padding:8px 10px;border-top:1px solid var(--line);vertical-align:top}
+/* the Summary is the shell's v-table: counts right-aligned with their header, text columns (.l) left */
+.vtbl th,.vtbl td{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .vtbl th.l,.vtbl td.l{text-align:left}
-.vtbl .vsrc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-.vtbl .stars{color:var(--warn);white-space:nowrap}
-.vtbl tr:hover td{background:var(--glass-hi)}
-.lead{font-weight:700;text-transform:capitalize}
-.lead.delete{color:var(--bad)} .lead.keep{color:var(--good)}
+.vtbl td.vslide{white-space:normal;min-width:240px}
+.vtbl .vsrc{white-space:normal}
+.vtbl .stars{color:var(--warn)}
+.lead{text-transform:capitalize}
 .vempty{padding:22px 16px;color:var(--muted)}
 @media (max-width:980px){.kpis4{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:820px){.kpis4{display:flex}.vrow{grid-template-columns:2em 34px minmax(0,1fr)}.vrow .vseg,.vrow .vcw{grid-column:1/4}.vrow .vseg{flex-wrap:wrap}.vtbl{display:block;overflow-x:auto}}
+@media (max-width:820px){.kpis4{display:flex}.vrow{grid-template-columns:2em 34px minmax(0,1fr)}.vrow .vseg,.vrow .vcw{grid-column:1/4}.vrow .vseg{flex-wrap:wrap}}
 """
 
 JS = r"""
@@ -81,6 +79,7 @@ JS = r"""
 (function () {
   const V = {view: "review", program: "ARS", filter: "", progs: [], me: "", period: "", d: null, sum: null, cur: -1, loaded: false, error: ""};
   const WORD = {keep: "Keep", delete: "Delete", appendix: "Appendix"}, KEY = {keep: "1", delete: "2", appendix: "3"};
+  const LEAD = {delete: "k-blocked", keep: "k-outputs"};     // the Summary's Leading chip; appendix and split are neutral
 
   async function loadProgs() { const {body} = await api("/api/votes/programs"); V.progs = body.programs || []; V.me = body.me || ""; V.period = body.period || ""; }
   async function loadReview() { const {body} = await api("/api/votes/program?program=" + encodeURIComponent(V.program)); V.d = body; V.me = body.me || V.me; }
@@ -115,6 +114,7 @@ JS = r"""
   function paint() {
     $("#sv-rv").setAttribute("aria-pressed", V.view === "review"); $("#sv-sm").setAttribute("aria-pressed", V.view === "summary");
     $("#sv-export").hidden = V.view !== "summary";
+    $("#sv-body").closest(".card").classList.remove("v-table-card");
     if (!V.loaded) {
       $("#sv-sub").textContent = "Reading the slide list…";
       $("#sv-kpis").innerHTML = ["Voted", "Keep", "Delete", "Appendix"].map(w => `<div class="kpi"><span class="k">${w}</span><span class="v">–</span></div>`).join("");
@@ -142,9 +142,10 @@ JS = r"""
     $("#sv-sub").textContent = "One row per slide, for each program as a whole, not by client. The slides with the most Delete votes come first.";
     $("#sv-kpis").innerHTML = [["Votes", b.votes, "ready", "keep, delete or appendix"], ["Stars", b.stars, "attention", "favorites"], ["Voters", b.voters, "outputs", "CSMs who voted"], ["Slides", b.rows.length, "checking", "with a vote or a star"]]
       .map(([w, v, ic, n]) => `<div class="kpi"><span class="k">${si(ic)}${w}</span><span class="v">${v}</span><span class="n">${n}</span></div>`).join("");
-    const rows = b.rows.map(r => `<tr><td class="l">${esc(label[r.program] || r.program)}</td><td class="l"><b>${esc(r.title)}</b>${r.comments.length ? `<span class="vsrc">${r.comments.slice(0, 3).map(c => esc(c.voter + (c.vote ? " (" + c.vote + ")" : "") + ": " + c.text)).join("<br>")}${r.comments.length > 3 ? `<br>+${r.comments.length - 3} more in the export` : ""}</span>` : ""}</td>
-      <td>${r.keep}</td><td>${r.delete}</td><td>${r.appendix}</td><td class="stars">${r.stars ? "★ " + r.stars : ""}</td><td class="l"><span class="lead ${esc(r.leading)}">${esc(r.leading)}</span></td><td>${r.voters.length}</td></tr>`).join("");
-    $("#sv-body").innerHTML = rows ? `<div style="overflow-x:auto"><table class="vtbl"><thead><tr><th class="l">Program</th><th class="l">Slide</th><th>Keep</th><th>Delete</th><th>Appendix</th><th>Stars</th><th class="l">Leading</th><th>Voters</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    const rows = b.rows.map(r => `<tr><td class="l">${esc(label[r.program] || r.program)}</td><td class="l vslide"><span class="v-cell-main">${esc(r.title)}</span>${r.comments.length ? `<span class="v-cell-sub vsrc">${r.comments.slice(0, 3).map(c => esc(c.voter + (c.vote ? " (" + c.vote + ")" : "") + ": " + c.text)).join("<br>")}${r.comments.length > 3 ? `<br>+${r.comments.length - 3} more in the export` : ""}</span>` : ""}</td>
+      <td>${r.keep}</td><td>${r.delete}</td><td>${r.appendix}</td><td class="stars">${r.stars ? "★ " + r.stars : ""}</td><td class="l"><span class="chip lead ${LEAD[r.leading] || ""}">${esc(r.leading)}</span></td><td>${r.voters.length}</td></tr>`).join("");
+    $("#sv-body").closest(".card").classList.toggle("v-table-card", !!rows);
+    $("#sv-body").innerHTML = rows ? `<div class="v-scroll"><table class="v-table vtbl"><thead><tr><th class="l">Program</th><th class="l">Slide</th><th>Keep</th><th class="sorted" aria-sort="descending" title="Sorted by Delete votes, most first">Delete<span class="v-sort" aria-hidden="true">↓</span></th><th>Appendix</th><th>Stars</th><th class="l">Leading</th><th>Voters</th></tr></thead><tbody>${rows}</tbody></table></div>`
       : `<p class="vempty">No votes yet. Review a program to add the first.</p>`;
   }
 

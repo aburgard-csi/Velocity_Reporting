@@ -19,13 +19,13 @@ VIEW = r"""
 <div id="lm-ov">
   <div class="vh"><div><h1>Lift Matrix</h1><p id="lm-sub">Reading every ARS client's workbook…</p></div><div class="vhr" id="lm-csm"></div></div>
   <div class="kpis" id="lm-kpis" role="group" aria-label="Filter by matrix"></div>
-  <section class="card" aria-label="Lift Matrices">
+  <section class="card v-table-card" aria-label="Lift Matrices">
     <div class="lhead">
       <div class="row1"><label class="find"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><input id="lm-q" type="search" placeholder="Name or number" autocomplete="off" aria-label="Find a client"><kbd>/</kbd></label>
         <button class="btn" id="lm-all">Calculate every MM client from its ODD</button></div>
       <div class="filt" id="lm-filt"></div>
     </div>
-    <div class="lmwrap"><table class="lmt" id="lm-table"></table></div>
+    <div class="lmwrap"><table class="v-table lmt" id="lm-table"></table></div>
     <p class="srcnote">Workbook rows are the matrix each client's newest ARS workbook carries. Calculated rows use the client's own rates and appear once its ODD has been read. Pick a client to compare the full matrices, change the values and export the file for Bradford.</p>
   </section>
 </div>
@@ -36,19 +36,21 @@ CSS = r"""
 /* Lift Matrix */
 .kpis3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .vhr{display:flex;gap:8px;align-items:center}
-.lmwrap{overflow-x:auto;padding:0 6px 6px}
-table.lmt{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:13.5px}
-.lmt th{position:sticky;top:0;text-align:right;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:8px 10px;white-space:nowrap;background:var(--sheet)}
+/* the tables are the shell's v-table; figures are right-aligned with their header, a .l column is text */
+.lmwrap{overflow-x:auto;padding-bottom:6px}
+.lmt th,.lmt td{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .lmt th.l,.lmt td.l{text-align:left}
-.lmt td{text-align:right;padding:7px 10px;border-top:1px solid var(--line);white-space:nowrap}
 .lmt tr.pick{cursor:pointer}
-.lmt tr.pick:hover td{background:var(--glass-hi)}
 .lmt tr.pick[aria-current="true"] td{background:var(--fill)}
-.lmt tr.grp td{border-top:0}
-.lmt tr.calc td{color:var(--ink)}
+.lmt tr.calc td{border-top:0;padding-top:0;color:var(--ink)}
 .lmt tr.calc td.l{color:var(--muted)}
-.lmt td .sub{display:block;font-size:12px;color:var(--muted)}
-.lmt .nm{font-weight:600}
+.lmt td .sub{display:block;font-size:13px;color:var(--muted)}
+/* two dense matrices: ten columns overview, two grids side by side; tighter across so they fit without scrolling at desktop width */
+#lm-table th,#lm-table td{padding-inline:12px}
+#lm-table th:first-child,#lm-table td:first-child{padding-left:24px}
+#lm-table th:last-child,#lm-table td:last-child{padding-right:24px}
+.gridbox .lmt th,.gridbox .lmt td{padding:10px 12px}
+.lmt td.v-empty{text-align:left}
 .dchip{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:0 7px;border-radius:999px;font-size:11.5px;font-weight:700;line-height:18px}
 .dline{display:block;line-height:1.2}.dline .dchip{margin-left:0}
 .dchip.up{background:var(--good-soft);color:var(--good)} .dchip.down{background:var(--bad-soft);color:var(--bad)} .dchip.flat{background:var(--fill);color:var(--muted)}
@@ -110,7 +112,7 @@ const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
   function paintOv() {
     $("#lm-csm").innerHTML = csmPick();
     const d = L.ov && L.ov.doc, scanning = L.ov ? Object.values(L.ov.scans || {}).filter(x => x === "queued" || x === "scanning").length : 0;
-    if (L.error && !d) { $("#lm-table").innerHTML = `<tr><td class="l err">${esc(L.error)}</td></tr>`; return; }
+    if (L.error && !d) { $("#lm-table").innerHTML = `<tbody><tr><td class="l v-empty" colspan="10">${esc(L.error)}</td></tr></tbody>`; return; }
     if (!d) {
       $("#lm-sub").textContent = "Reading every ARS client's workbook. This takes about a minute the first time.";
       $("#lm-kpis").innerHTML = ["Current", "Expired", "Calculated", "No matrix", "Reading now"].map(w => `<div class="kpi"><span class="k">${w}</span><span class="v">–</span></div>`).join("");
@@ -131,10 +133,10 @@ const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
         : `<span class="chip">${c.path === "SM" ? "SM model" : c.workbook ? "No matrix" : "No workbook"}</span>`;
       const cur = SEGS.map(s => `<td>${c.current ? money(c.current[s]) : ""}</td>`).join("");
       const calc = c.calculated ? `<tr class="calc pick" data-lid="${esc(c.id)}"><td class="l"></td><td class="l">Calculated</td>${SEGS.map(s => `<td>${money(c.calculated[s])}${c.current ? `<span class="dline">${chip(c.calculated[s] != null && c.current[s] != null ? c.calculated[s] - c.current[s] : null)}</span>` : ""}</td>`).join("")}</tr>` : "";
-      return `<tr class="pick${calc ? " grp" : ""}" data-lid="${esc(c.id)}" aria-current="${L.cursor === c.id}"><td class="l"><span class="nm">${esc(c.name)}</span> <span class="sub" style="display:inline">${esc(c.id)}</span></td>
+      return `<tr class="pick${calc ? " grp" : ""}" data-lid="${esc(c.id)}" aria-current="${L.cursor === c.id}"><td class="l"><span class="v-cell-main">${esc(c.name)}</span><span class="v-cell-sub">${esc(c.id)}</span></td>
         <td class="l">${st}${c.window ? `<span class="sub">${esc(c.window)}</span>` : ""}</td>${cur}</tr>${calc}`;
     }).join("");
-    $("#lm-table").innerHTML = head + `<tbody>${body || `<tr><td class="l" colspan="10"><p class="empty">No clients match.</p></td></tr>`}</tbody>`;
+    $("#lm-table").innerHTML = head + `<tbody>${body || `<tr><td class="l v-empty" colspan="10">No clients match.</td></tr>`}</tbody>`;
   }
 
   // ---------------------------------------------------------------- one client
@@ -240,24 +242,24 @@ const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
       return `<tr><td class="l"><b>${esc(s)}</b></td><td>${g ? g.n.toLocaleString() : ""}</td><td>${curSeg[s] && curSeg[s].dist != null ? pct(curSeg[s].dist) : "–"}</td><td>${pct(g.dist)}</td>
         <td>${money(cv)}</td><td><b>${money(nv)}</b></td><td>${chip(dlt)}</td><td>${signed(step(curV, i))}</td><td>${signed(step(newV, i))}</td></tr>`;
     }).join("");
-    const seg = `<section class="card" style="margin-top:14px"><div class="panelh"><h3>Revenue segmentation: current and new</h3><span class="sub">Current is the matrix in ${esc(d.workbook || "the workbook")}${cur.window ? " (" + esc(cur.window) + ")" : ""}. A step is a segment's DDA value less the one above it.</span></div>
-      <div class="lmwrap"><table class="lmt"><thead><tr><th class="l" rowspan="2">Segment</th><th rowspan="2">Accounts</th><th colspan="2">Distribution</th><th colspan="3">DDA value</th><th colspan="2">Step from the segment before</th></tr>
+    const seg = `<section class="card v-table-card" style="margin-top:14px"><div class="panelh"><h3>Revenue segmentation: current and new</h3><span class="sub">Current is the matrix in ${esc(d.workbook || "the workbook")}${cur.window ? " (" + esc(cur.window) + ")" : ""}. A step is a segment's DDA value less the one above it.</span></div>
+      <div class="lmwrap"><table class="v-table lmt"><thead><tr><th class="l" rowspan="2">Segment</th><th rowspan="2">Accounts</th><th colspan="2">Distribution</th><th colspan="3">DDA value</th><th colspan="2">Step from the segment before</th></tr>
       <tr><th>Current</th><th>New</th><th>Current</th><th>New</th><th>Change</th><th>Current</th><th>New</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
-    const detail = `<details class="logd"><summary>How each new value is made up</summary><div class="lmwrap"><table class="lmt"><thead><tr><th class="l">Segment</th><th>Avg spend / mo</th><th>NSF/OD items / mo</th><th>Interchange</th><th>NSF/OD</th><th>DDA value</th></tr></thead><tbody>${
+    const detail = `<details class="logd"><summary>How each new value is made up</summary><div class="lmwrap"><table class="v-table lmt"><thead><tr><th class="l">Segment</th><th>Avg spend / mo</th><th>NSF/OD items / mo</th><th>Interchange</th><th>NSF/OD</th><th>DDA value</th></tr></thead><tbody>${
       SEGS.map(s => { const g = segs[s], c = bySeg[s]; return `<tr><td class="l"><b>${esc(s)}</b></td><td>${money(g.spend)}</td><td>${g.items.toFixed(3)}</td><td>${c ? money(c.interchange) : ""}</td><td>${c ? money(c.nsf) : ""}</td><td>${c ? money(c.dda) : ""}</td></tr>`; }).join("")
     }</tbody></table></div></details>`;
     let out;
     if (!calc) out = seg + `<p class="lmnote err" style="margin-top:12px">Enter the client's NSF/OD fee to calculate the new matrix.</p>`;
     else {
       const cols = SEGS.slice(2), bases = SEGS.slice(1, 6);
-      const grid = (title, get, compare) => `<div class="gridbox"><h4>${title}</h4><div class="lmwrap" style="padding:0"><table class="lmt"><thead><tr><th class="l">Baseline</th>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${
+      const grid = (title, get, compare) => `<div class="gridbox"><h4>${title}</h4><div class="lmwrap" style="padding:0"><table class="v-table lmt"><thead><tr><th class="l">Baseline</th>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${
         bases.map(b => `<tr><td class="l"><b>${esc(b)}</b></td>${cols.map(c => {
           const v = get(b, c); if (v == null) return "<td></td>";
           const was = compare ? compare(b, c) : null, k = was == null ? "" : cls(Math.round((v - was) * 100) / 100);
           return `<td class="${k === "up" || k === "down" ? k : ""}"${was == null ? "" : ` title="Current ${money(was)}"`}>${money(v)}</td>`;
         }).join("")}</tr>`).join("")}</tbody></table></div></div>`;
       const curGet = (b, c) => (curGrid[b] || {})[c] ?? null, newGet = (b, c) => calc.matrix[b][c] ?? null;
-      const grids = `<section class="card" style="margin-top:14px"><div class="panelh"><h3>Monthly incremental revenue lift</h3><span class="sub">New cells are tinted where they are above the current matrix and where they are below. Hover a cell for the current value.</span></div><div class="grids">
+      const grids = `<section class="card v-table-card" style="margin-top:14px"><div class="panelh"><h3>Monthly incremental revenue lift</h3><span class="sub">New cells are tinted where they are above the current matrix and where they are below. Hover a cell for the current value.</span></div><div class="grids">
         ${grid("Current" + (cur.window ? " · " + esc(cur.window) : ""), curGet)}${grid("New", newGet, Object.keys(curGrid).length ? curGet : null)}</div></section>`;
       const sc = d.scan, fee = sc.fee;
       const feeLine = fee ? (fee.values.length ? `NSF/OD fee in the ODD (${esc(fee.columns.join(", "))}): ${fee.values.map(x => `${money(x.fee)} on ${pct(x.share, 0)} of items`).join(", ")}. The most common is the default.` : `The ODD has ${esc(fee.columns.join(", "))} but no fee on any NSF/OD item, so the fee comes from the workbook.`)

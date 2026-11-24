@@ -15,6 +15,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-24 — Web page tables in the "Mission Control" style (Velocity page CSS, CSM Sheila, the performance dashboard, Live Review)
+
+Summary: Every table on our web pages now reads the same way: a quiet header, one thin rule between rows with no stripes or grid lines, figures right-aligned with their header in even-width digits, the client in bold over its number, status as a coloured pill with a dot, and the table on a card with a thin coloured rule along the top. No figure, sort order or wording changes; no deck changes.
+
+Aaron chose the table style of his "Mission Control" dashboard on 2026-11-24, in the Velocity colours, and asked for the same data formatting in Sheila ("apply the same data formatting to Sheila").
+
+- **House page CSS** (`.claude/skills/velocity-artifact-design/assets/velocity-page.css`, SKILL.md): a table component (`v-table-card`, `table.v-table`, `th.sorted`, `v-cell-main` / `v-cell-sub`, `v-pill good|warn|bad|neutral`, `v-num`, `v-meta`, `td.v-empty`) with good / warn / bad tokens for both themes, documented with a snippet. The older `<div class="v-table"><table>` markup still renders, in the new look.
+- **CSM Sheila**: the shared table style lives in the shell (`sheila_hub.py`, in the Hub's own colours, amber rule) and is used by the Lift Matrix overview and client tables and the Slide Review Summary. The Summary marks Delete as the sorted column (↓, `aria-sort`, a title saying so), which is the order the server already gives; its Leading column is a pill. Compact density still tightens rows. The Lift Matrix overview now draws its rule between clients, not between a client's workbook and calculated rows (it was the other way round), and its two dense matrices keep tighter padding across so ten columns fit at desktop width. The Decks list, Data Issues, Feedback and the ILS cards are lists and cards, not tables, and are unchanged.
+- **Performance dashboard** (`perf_dashboard_template.html`, `perf_workflow.html`): CSS, plus the sort arrow (↑ / ↓ on the sorted column, hidden on the others until hover). Each program section's card carries a rule in that program's colour. The header labels and the data are unchanged.
+- **Live Review** (`build/review_page/static/`): the zebra stripes are gone; the sorted column is marked with ↑ / ↓, darker ink and a title; a table card carries a rule in the product's colour; "No rows match." is a muted full-width row. The sticky header, first column and total row keep an opaque ground.
+- Checked by rendering each page with synthetic data in light, dark and at 400 px.
+
+---
+
 ### 2026-11-17 — Financial services: the mailing calendar on the monthly series (`ti/transaction_intelligence/financial_services.py`, `txn_sections.py`)
 
 Summary: Adds `fin_mail_months`. Based on `feat/ars-ti/fs-09-institution-registry`. Adds a figure only; **no slide and no existing figure changes.**
