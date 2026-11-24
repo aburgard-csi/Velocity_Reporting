@@ -550,8 +550,11 @@ def test_a_program_is_inactive_with_no_activity_in_six_complete_months():
 
 
 def test_template_labels_the_current_peer_row_and_tags_inactive_programs():
+    """Aaron, 2026-11-24 ("D: median, pooled internal"): the median client, which clients are compared with, and the
+    book pooled, labelled as internal."""
     t = P.TEMPLATE.read_text(encoding="utf-8")
-    assert "Current Velocity CashPlease clients" in t and "All Velocity CashPlease clients" not in t
+    assert "Median current CashPlease client" in t and "CashPlease book, pooled" in t and "internal only" in t
+    assert "All Velocity CashPlease clients" not in t and "cp_peer_median" in t
     assert "no loans since " in t and "no enrollments since " in t
 
 
@@ -722,10 +725,15 @@ def test_the_scope_is_part_of_the_content_hash(monkeypatch, tmp_path):
     assert P.content_hash(a) != P.content_hash(b)
 
 
-def _cp_pack(tmp_path, cid, loans, principal, interest, status, dda=None, window=0, comparable=False, cancelled=None):
-    d = {"total": {"loans": loans, "principal": principal, "interest": interest},
+def _cp_pack(tmp_path, cid, loans, principal, interest, status, dda=None, window=0, comparable=False, cancelled=None,
+             recent=True, charge_off=0.05):
+    d = {"client_id": cid, "report_generated": "11/15/2026 6:00:00 AM", "charge_off_pct": charge_off,
+         "total": {"loans": loans, "principal": principal, "interest": interest},
          "status": {k: {"loans": v} for k, v in {"Overdue": 0, "Charged Off": 0, "Paid Off": 0, **status}.items()},
-         "metrics": {"peer_comparable": comparable, "dda_accounts": dda or 0, "window_loans": window}}
+         # a loan in the last six complete months is what makes a client current (peer_pool._cp_row)
+         "monthly": [{"period_month": "2026-10", "loans": 5 if recent else 0}],
+         "metrics": {"peer_comparable": comparable, "dda_accounts": dda or 0, "window_loans": window,
+                     "total_loans": loans, "pct_loans_overdue": status.get("Overdue", 0) / loans}}
     if cancelled:
         d["cancelled"] = cancelled
     (tmp_path / ("%s_cashplease.json" % cid)).write_text(json.dumps(d), encoding="utf-8")
@@ -733,21 +741,41 @@ def _cp_pack(tmp_path, cid, loans, principal, interest, status, dda=None, window
 
 def test_the_cashplease_company_row_is_rates_and_averages_only(tmp_path):
     """Aaron, 2026-09-14: current clients only; 2026-11-02: no other CSM's volume on the page. The row
-    still spans every CSM's current clients, so the sums it was built from do not leave current_peer."""
-    _cp_pack(tmp_path, "1131", 100, 50000.0, 5000.0, {"Overdue": 5, "Charged Off": 10, "Paid Off": 80},
+    still spans every CSM's current clients, so the sums it was built from do not leave current_peer.
+    2026-11-24: EVERY current client in the weekly, not only those whose roster row carries CP, and labelled as the
+    pooled book (internal)."""
+    _cp_pack(tmp_path, "7131", 100, 50000.0, 5000.0, {"Overdue": 5, "Charged Off": 10, "Paid Off": 80},
              dda=4000, window=40, comparable=True)
-    _cp_pack(tmp_path, "1750", 300, 150000.0, 9000.0, {"Overdue": 3, "Charged Off": 30, "Paid Off": 250})
-    _cp_pack(tmp_path, "1658", 999, 1.0, 1.0, {}, cancelled="2026-09-01")         # cancelled: out
-    _cp_pack(tmp_path, "9999", 5000, 1.0, 1.0, {})                                  # not current: out
-    peer = P.current_peer(tmp_path, ["1131", "1750", "1658"])
-    assert peer["cohort_clients"] == 2
+    _cp_pack(tmp_path, "7750", 300, 150000.0, 9000.0, {"Overdue": 3, "Charged Off": 30, "Paid Off": 250})
+    _cp_pack(tmp_path, "7658", 999, 1.0, 1.0, {}, cancelled="2026-09-01")         # cancelled: out
+    _cp_pack(tmp_path, "7999", 5000, 1.0, 1.0, {}, recent=False)                  # no loan in six months: not current
+    peer = P.current_peer(tmp_path)
+    assert peer["cohort"] == "CashPlease book, pooled" and peer["cohort_clients"] == 2
     assert peer["avg_loan_size"] == 500.0 and peer["avg_interest_per_loan"] == 35.0
     assert peer["pct_loans_overdue"] == 8 / 400 and peer["pct_loans_charged_off"] == 40 / 400
     assert peer["charge_off_pct"] is None and peer["pct_active_accounts_with_loans"] is None
     assert peer["loans_per_1k_dda"] == 10.0 and peer["cohort_dda_clients"] == 1
     for volume in ("total_loans", "total_principal", "cohort_dda_accounts", "cohort_window_loans"):
         assert volume not in peer, volume
-    assert P.current_peer(tmp_path, []) is None
+    empty = tmp_path / "none"
+    empty.mkdir()
+    assert P.current_peer(empty) is None and P.current_median(empty) is None
+
+
+def test_the_cashplease_median_row_is_every_current_client_medians_and_counts_only(tmp_path):
+    """Aaron, 2026-11-24: the median current client is what a client is compared with; a 0.0% charge-off on 500+ loans
+    is left out of charge-off only, and the row says how many."""
+    for i in range(6):
+        _cp_pack(tmp_path, str(7101 + i), 100, 50000.0, 3000.0, {"Overdue": 2 + i}, charge_off=0.01 * (i + 1))
+    _cp_pack(tmp_path, "7120", 900, 450000.0, 27000.0, {"Overdue": 9}, charge_off=0.0)     # not reported: out of charge-off
+    med = P.current_median(tmp_path)
+    assert med["cohort"] == "Median current CashPlease client" and med["cohort_clients"] == 7
+    assert med["charge_off_pct"] == pytest.approx(0.035) and med["n"]["charge_off_pct"] == 6
+    assert med["charge_off_left_out"] == 1
+    assert med["n"]["pct_loans_overdue"] == 7                                           # still counted elsewhere
+    assert med["loans_per_1k_dda"] is None                                               # no comparable DDA rate: absent
+    blob = json.dumps(med)
+    assert "7101" not in blob and "total_loans" not in blob
 
 
 # ------------------------------------------------------------------ the Hub page

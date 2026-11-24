@@ -364,15 +364,18 @@ def share(tmp_path, monkeypatch, fake):
     ba = tmp_path / "Build Artifacts"
     monkeypatch.setattr(reports.R, "build_artifacts", lambda: ba)
     reports._cache.clear()
-    takes = {"1826": 70.0, "1156": 80.0, "1615": 82.0, "1453": 90.0, "1776": 75.0, "1798": 84.0}
+    # The deck's own peer code reads these packs (Aaron, 2026-11-24: "A: use the deck's code"), so each carries what a
+    # launcher pack carries for it: a mailing summary, the activity month, and the pools behind each rate.
+    def pack(folder, take, rege, activity="Sep 2026"):
+        folder.mkdir(parents=True)
+        (folder / "metrics.json").write_text(json.dumps({
+            "overall_take": take, "rege_pct": rege, "ret_1yr": 90.0, "activity_month": activity, "n_eligible": 5000,
+            "rege_pool": 500, "n_open_personal": 5000, "mail_summary": [["Mar26", 2000, 100, 0, 0, 5.0]]}),
+            encoding="utf-8")
+    takes = {"1826": 70.0, "1156": 80.0, "1615": 82.0, "1453": 90.0, "1776": 75.0, "1798": 84.0, "7801": 78.0}
     for cid, take in takes.items():
-        d = ba / "launcher" / "2026.10" / cid
-        d.mkdir(parents=True)
-        (d / "metrics.json").write_text(json.dumps({"overall_take": take, "rege_pct": 30.0 + take / 10,
-                                                    "ret_1yr": 90.0}), encoding="utf-8")
-    prior = ba / "launcher" / "2026.09" / "1798"
-    prior.mkdir(parents=True)
-    (prior / "metrics.json").write_text(json.dumps({"overall_take": 80.0, "rege_pct": 38.4, "ret_1yr": 90.0}), encoding="utf-8")
+        pack(ba / "launcher" / "2026.10" / cid, take, 30.0 + take / 10)
+    pack(ba / "launcher" / "2026.09" / "1798", 80.0, 38.4, activity="Aug 2026")
     packs = ba / "cashplease" / "packs"
     packs.mkdir(parents=True)
     peer = {"cohort": "All Velocity CashPlease clients", "cohort_tabs": 3, "charge_off_pct": 0.06, "loans_per_1k_dda": 16.5,
@@ -404,11 +407,16 @@ def share(tmp_path, monkeypatch, fake):
     return reports
 
 
-def test_peer_compare_ranks_a_client_against_the_cycles_built_decks(share):
+def test_peer_compare_says_what_the_clients_deck_says(share):
+    """Aaron, 2026-11-24 ("A: use the deck's code"): peer_compare.for_deck at the client's newest build period, the
+    client left out of its own pool, the deck's sentence."""
     r = share.peer_compare("1798", "debit_take")
     row, = r["data"]["rows"]
-    assert (row["value"], row["rank"], row["of"], row["median"]) == (84.0, 2, 6, 81.0)
-    assert r["data"]["quotable"] and "84.0%, rank 2 of 6, median 81.0%" in r["answer"]
+    assert row["kpi"] == "take_all"
+    assert (row["value"], row["rank"], row["of"], row["n"], row["median"]) == (84.0, 2, 7, 6, 79.0)
+    assert r["data"]["quotable"] and r["data"]["period"] == "2026.10"
+    assert "Debit card take rate, eligible accounts: 84.0%, 2nd of 7 ARS clients; 5.0 points above the peer median (79.0%)." \
+        in r["answer"]
     assert "Unknown measure(s): reach" in share.peer_compare("1798", "reach")["answer"]
     assert "no ARS deck figures" in share.peer_compare("1539")["answer"]
 
@@ -416,16 +424,20 @@ def test_peer_compare_ranks_a_client_against_the_cycles_built_decks(share):
 def test_the_one_pager_leads_with_what_beat_the_prior_cycle_or_the_peers(share):
     r = share.one_pager("1798")
     labels = [p["label"] for p in r["data"]["points"]]
-    assert "Debit card take rate" in labels and "up from 80.0% in 2026.09" in r["answer"]
+    assert "Debit card take rate, eligible accounts" in labels and "up from 80.0% in 2026.09" in r["answer"]
     assert "29 months live" in r["answer"] and "2.4x return" in r["answer"]
-    assert all(p["label"] != "Accounts still open after 1 year" for p in r["data"]["points"]), "level with peers says nothing"
+    assert all(p["label"] != "One-year account retention" for p in r["data"]["points"]), "level with peers says nothing"
 
 
-def test_the_cashplease_report_sets_the_client_beside_both_cohorts(share):
+def test_the_cashplease_report_sets_the_client_beside_the_median_not_a_pooled_cohort(share):
+    """Aaron, 2026-11-24 ("D: median, pooled internal"): two current clients are under the 5-peer minimum, so nothing is
+    compared, and the pooled cohorts are not shown at all."""
     r = share.cashplease_report("1826")
     assert "1826 Client 1826: CashPlease, from CashPleaseSummaryV1_x.xlsx" in r["answer"]
     row = next(x for x in r["data"]["rows"] if x["measure"].startswith("Loans per 1,000"))
-    assert (row["client"], row["all_cp"], row["current_cp"]) == (20.0, 16.5, 14.6)
+    assert (row["client"], row["median"], row["rank"]) == (20.0, None, None)
+    assert "16.5" not in r["answer"] and "14.6" not in r["answer"] and "All CP" not in r["answer"]
+    assert "nothing: too few other current clients have a figure" in r["answer"]
     assert len(r["data"]["monthly"]) == 6
     assert "No loans-per-DDA rate: no DDA count" in share.cashplease_report("1156")["answer"]
     assert "has no CashPlease pack" in share.cashplease_report("1615")["answer"]

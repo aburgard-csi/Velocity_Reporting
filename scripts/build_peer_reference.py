@@ -24,9 +24,10 @@ carried, although a source file's own name on the share can include one (as the 
 HOW THE VALUES ARE MADE. Not re-derived here. Each program's figures are the rows `review_page/peer_pool.py`'s collectors
 return (the code behind Live Review's "How you compare" and every Executive Review deck's "How You Compare" slide, through
 `peer_compare.for_deck`), called with a client id that is in no pool so EVERY client comes back as a peer with its own
-number. The ARS fields Sheila in Claude ranks (`sheila_mcp.reports.KPIS`) are read straight from the same launcher
-`metrics.json` packs. The CashPlease cohort rows are the files the CashPlease deck and the performance dashboard wrote
-(`cashplease/packs/peer_benchmark.json`, `perf_dashboard/dataset.json` `cp_peer`). ILS rows are the ILS peer table
+number. Sheila in Claude's ARS peer_compare is the deck's own comparison (Aaron, 2026-11-24), so its measures are the
+collector's. The CashPlease cohort rows are the files cp_extract and the performance dashboard wrote
+(`cashplease/packs/peer_benchmark.json`; `perf_dashboard/dataset.json` `cp_peer`, the book pooled over current clients,
+and `cp_peer_median`, the median current client): internal benchmarks, never what a client is compared with. ILS rows are the ILS peer table
 (`ils_analysis/peers/ils_peer_metrics*.csv`) through `ils_review.peers_slides.values`. Only the provenance (file, date,
 period) is looked up beside them.
 
@@ -255,6 +256,11 @@ def compile_ars(cat, period, notes):
     from review_page import peer_pool as PP
     import peer_tables as PT
     metrics = _collector_catalog(cat, "ARS", "ARS launcher data pack (metrics.json, base.json)")
+    # Sheila in Claude's peer_compare is the deck's comparison over these same measures (Aaron, 2026-11-24: "A: use the
+    # deck's code"), so it is a consumer of the collector's rows, not a source of its own.
+    for k in [m["key"] for m in PP.ARS_METRICS]:
+        if ("ARS", k) in cat.items:
+            cat.items[("ARS", k)]["consumers"] += "; Sheila in Claude: peer_compare"
     ba = rpe_env.build_artifacts()
     coll = PP.collect_ars(PP.PeerCtx(client=SENTINEL, period=period))
     rows, meta = [], {}
@@ -278,28 +284,6 @@ def compile_ars(cat, period, notes):
                                      _rel(Path(mt["folder"]) / "base.json") if mt.get("folder") else ""))
                 else:
                     rows.append(_row(cat, "ARS", k, cid, _yyyymm(mt.get("activity")), r["point"][k], mt.get("pull"), src))
-    # The fields Sheila in Claude ranks clients on (sheila_mcp.reports.KPIS), read as they are from the same packs. Sheila
-    # compares the clients whose deck was built for one period; the reference records every client's newest pack.
-    try:
-        from sheila_mcp import reports as SR
-        kpis = SR.KPIS
-    except Exception as exc:                                  # noqa: BLE001 - a broken import is reported, never fatal here
-        notes.append(f"ARS: Sheila in Claude's KPI list could not be read ({type(exc).__name__}: {exc}); its fields are left out")
-        kpis = {}
-    for kpi, (label, field, higher) in kpis.items():
-        key = f"metrics.{field}"
-        ent = cat.items.get(("ARS", key))
-        if ent:
-            ent["consumers"] += f"; Sheila in Claude: peer_compare ({kpi})"
-            continue
-        cat.add("ARS", key, label, "percent", higher, "snapshot" if field != "latest_resprate" else "latest_mailing",
-                f"the launcher pack's `{field}` field as the deck states it, unfiltered (Sheila in Claude ranks it among "
-                f"the clients built for the same period)", "ARS launcher data pack (metrics.json)",
-                f"Sheila in Claude: peer_compare ({kpi})")
-    for cid, mt in meta.items():
-        for kpi, (label, field, higher) in kpis.items():
-            rows.append(_row(cat, "ARS", f"metrics.{field}", cid, _yyyymm(mt.get("activity")), mt["metrics"].get(field),
-                             mt.get("pull"), _rel(Path(mt["folder"]) / "metrics.json")))
     return [r for r in rows if r], {"launcher packs": len(meta), "pull": coll.get("pull")}
 
 
@@ -400,7 +384,7 @@ def compile_cp(cat, period, notes):
     metrics = _collector_catalog(cat, "CP", "CashPlease pack (cp_extract, from the CashPleaseSummary weekly)")
     for k in ("per_1k", "overdue", "charge_off", "avg_loan", "avg_interest", "paid_off"):
         if ("CP", k) in cat.items:
-            cat.items[("CP", k)]["consumers"] += "; CashPlease deck: Peer Comparison slide (cohort rows); Sheila in Claude: cashplease_report"
+            cat.items[("CP", k)]["consumers"] += "; CashPlease deck: Overview and Peer Comparison slide (the median); Sheila in Claude: cashplease_report"
     cat.add("CP", "loans_charged_off", "Share of loans charged off", "percent", False, "program_to_date",
             DEFS[("CP", "loans_charged_off")], "CashPlease pack (cp_extract)", "Sheila in Claude: cashplease_report")
     coll = PP.collect_cashplease(PP.PeerCtx(client=SENTINEL))
@@ -433,6 +417,8 @@ def compile_cp(cat, period, notes):
             # The rollup is the same weekly's all-clients tab, so it carries the packs' report date.
             ("all_tabs_rollup", bench, _rel(packs / "peer_benchmark.json"), max((g for g in gens if g), default=None)),
             ("current_clients", ds.get("cp_peer"), _rel(rpe_env.build_artifacts() / "perf_dashboard" / "dataset.json"),
+             _date(ds.get("generated") or ds.get("generated_at"))),
+            ("current_median", ds.get("cp_peer_median"), _rel(rpe_env.build_artifacts() / "perf_dashboard" / "dataset.json"),
              _date(ds.get("generated") or ds.get("generated_at")))):
         if not d:
             continue

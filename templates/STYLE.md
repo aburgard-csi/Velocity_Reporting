@@ -408,8 +408,9 @@ branch number over its name). Calibri cells. The ARS Debit Usage Segmentation ta
   re-dated to match.
 - Loan Volume by Month uses the house time-series treatment, partial month as a
   hatched bar annotated with its through-date. Never render the workbook's
-  "Percentage of Active Accounts with Loans"; the rate is loans per 1,000 DDAs, and a
-  slide carrying both cohorts (73-tab rollup, 51-client DDA rate) names both.
+  "Percentage of Active Accounts with Loans"; the rate is loans per 1,000 DDAs. Every
+  peer figure on a CashPlease slide is the median of the other current CashPlease clients,
+  with its n (2026-11-24), never the workbook's pooled rollup.
 - Name the client — never "this client". Footnotes stay under two lines; a longer
   one is pushed up by `fit_layout` into the content (the defect behind
   `text_collision_findings`).

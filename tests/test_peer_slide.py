@@ -149,8 +149,8 @@ def test_ars_compares_only_what_the_client_controls():
     assert set(PS.METRICS["ARS"]) <= keys
     sys.path.insert(0, REPO)
     from sheila_mcp import reports as SR
-    fields = {f for _l, f, _h in SR.KPIS.values()}
-    assert not fields & {"latest_resprate", "depth_repeat_pct", "new_active_pct", "book_active_pct"}
+    # Sheila in Claude compares with the deck's own code and measures (Aaron, 2026-11-24: "A: use the deck's code").
+    assert SR.kpi_keys() == [m["key"] for m in PP.ARS_METRICS]
 
 
 def test_every_programs_metrics_exist_in_the_shared_lists():

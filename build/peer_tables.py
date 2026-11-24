@@ -281,21 +281,43 @@ def ars_pack_dirs(root, period=None):
     return {c: (p, d) for c, (p, d) in best.items()}
 
 
+_JSON = {}
+
+
 def _json(path):
+    """A pack file read once per change (size and modified time): Sheila in Claude asks for the same packs over the share
+    question after question. `path` may be an os.DirEntry, whose size and time come with the directory listing (on the
+    share a separate stat costs more than the listing). A copy is returned, so no caller can change the cached one."""
+    import copy
+    p = path.path if isinstance(path, os.DirEntry) else str(path)
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        st = path.stat() if isinstance(path, os.DirEntry) else os.stat(p)
+    except OSError:
         return None
+    key = (st.st_mtime_ns, st.st_size)
+    hit = _JSON.get(p)
+    if hit is None or hit[0] != key:
+        try:
+            hit = (key, json.loads(Path(p).read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            return None
+        _JSON[p] = hit
+    return copy.deepcopy(hit[1])
 
 
 def ars_rows(root, period=None):
     """{client id: {"pack_period", "activity", "point", "series"}} for every client with a launcher pack."""
     out = {}
     for cid, (per, folder) in ars_pack_dirs(root, period).items():
-        m = _json(Path(folder) / "metrics.json")
+        try:
+            with os.scandir(folder) as it:                    # one listing gives both files' size and time
+                ents = {e.name: e for e in it if e.name in ("metrics.json", "base.json")}
+        except OSError:
+            continue
+        m = _json(ents["metrics.json"]) if "metrics.json" in ents else None
         if not isinstance(m, dict) or not m.get("mail_summary"):
             continue
-        row = ars_metrics(m, _json(Path(folder) / "base.json"))
+        row = ars_metrics(m, _json(ents["base.json"]) if "base.json" in ents else None)
         row["pack_period"] = per
         out[cid] = row
     return out

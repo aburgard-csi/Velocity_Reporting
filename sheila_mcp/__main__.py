@@ -144,25 +144,29 @@ def ils_progress(client: str, kind: str) -> dict:
 @mcp.tool
 def cashplease_report(client: str) -> dict:
     """One institution's CashPlease (small-dollar loans): volume, loans per 1,000 checking accounts, loan size,
-    charge-off, overdue and paid-off rates, each against all CashPlease clients and the current cohort, plus
-    the last six months. From the newest CashPleaseSummary export on the share."""
+    charge-off, overdue and paid-off rates, each against the MEDIAN of the other current CashPlease clients with
+    the client's rank, exactly as the client's deck compares them (rates in points; a 0.0% charge-off on 500+
+    loans is not compared), plus the last six months. From the newest CashPleaseSummary export on the share."""
     return reports.cashplease_report(client)
 
 
 @mcp.tool
 def cashplease_portfolio() -> dict:
-    """The whole CashPlease book: institutions live and cancelled, loans and dollars lent, charge-off, active
-    loans, and who leads and trails on loans per 1,000 checking accounts."""
+    """The whole CashPlease book (internal): institutions live and cancelled, loans and dollars lent, charge-off,
+    active loans, the book's rates pooled over current clients ("CashPlease book, pooled", never what a client is
+    compared with), and who leads and trails on loans per 1,000 checking accounts."""
     return reports.cashplease_portfolio()
 
 
 @mcp.tool
 def peer_compare(client: str, kpis: str = "", period: str = "") -> dict:
-    """How a client's ARS figures rank against every client whose deck was built the same cycle: value, rank,
-    median and middle half, on measures the client controls only (never the program's results). kpis:
-    comma-separated from debit_take, debit_take_new, rege, rege_new, account_growth, debit_on_checking,
-    retention_1yr, retention_3yr (default: debit_take, rege, account_growth, retention_1yr). period: YYYY.MM
-    (default: the client's newest)."""
+    """How a client's ARS figures compare with the other ARS clients, exactly as the client's deck says it (the
+    deck's own code): value, rank, median and middle half, n, and the deck's wording (a rate's gap in points,
+    within 2% almost flat), on measures the client controls only; a measure with fewer than 5 other clients is
+    not compared. kpis: comma-separated from rege_pct, rege_new_pct, take_all, take_new_pct, acct_growth, ret_1yr
+    (default: all six; the older names debit_take, debit_take_new, rege, rege_new, account_growth and
+    retention_1yr still work). period: YYYY.MM (default: the period of the client's newest deck build, so the pool
+    is the one that deck was compared with)."""
     return reports.peer_compare(client, kpis, period)
 
 
