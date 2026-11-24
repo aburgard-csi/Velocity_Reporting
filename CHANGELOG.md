@@ -37,6 +37,33 @@ Summary: Adds to `fininst_*` (merged in #167); **no slide and no other figure ch
 - The Financial Services guide's wording and status table are brought up to date (merged, not yet released), and `docs/financial-services.html` is regenerated.
 - Tests: six new in `tests/test_ti_finserv_institution_view.py`; the TI group passes (1,369).
 
+### 2026-11-23 — Transaction Intelligence: the market reference store gets a build script, and mail lists are deliverables (`scripts/build_market_reference.py`, `scripts/ti_lists_backfill.py`, `CLAUDE.md`)
+
+Summary: The competition-layers slides need the public FDIC / NCUA reference store on the share, and nothing built it; a new script fetches it, checks it and puts it there. The TI mail lists now officially belong in each CSM's Outputs folder beside the deck, and earlier builds' lists can be copied there too.
+
+Aaron, 2026-11-23: "You can add the reference files to the market reference folder, and you can also send those lists to
+outputs, sort them into each CSM's folders with the other files."
+- **Market reference.** Since #181 tossed eleven older Competition slides in favor of the layers slides, a client
+  with no store at `Inputs/Market Reference` got neither. The fetchers in `ti/core/market/sources.py` existed but
+  nothing called them all. `build_market_reference.py` fetches every table into local scratch, checks each against
+  its row floor and loads the whole book as a build does, and only then lands the files on the share (`.part`,
+  rename, size check, nothing deleted). A failed or short download leaves the share as it was. Moves no figure by
+  itself; a build after it carries the layers slides it skipped before.
+- **Mail lists.** CLAUDE.md said Outputs holds decks only; it now records the exception for
+  `Outputs/<CSM>/<id>-<period>-TI-Lists/`, which #170 already wrote. `ti_lists_backfill.py` copies the lists builds
+  made before #170 left in Build Artifacts, only where that period's TI deck is in Outputs.
+
+### 2026-11-23 — Slide Review: a vote can be changed or cleared, and no change is lost (`scripts/sheila_hub_votes.py`)
+
+Summary: In Slide Review each slide now has a Clear button beside its vote, and a slide's changes are saved one at a time in the order they were made, so the vote you see is always the vote that is kept.
+
+Aaron, 2026-11-23: "Don't lose existing votes, and I do want to be able to clear them or change them."
+
+- **Clear:** the row's Clear button (shown only when the slide has your vote), the 0 key, or clicking the chosen button again. Clearing keeps the slide's star and comment. A vote is changed by choosing another.
+- **Nothing lost:** a comment saved as its box lost focus and the vote clicked straight after went to the share as two saves at once. Each carries the slide's whole state, and the newest stored one wins, so when the comment's save arrived second it carried the OLD vote and the change was lost. Saves now go out one at a time, in order (`post`, `V.chain`). A save the share refuses is put back on the row and the program's votes are read again, so the page shows what is stored.
+- **Existing votes are untouched:** every vote is its own file and none is removed. Documents written by earlier versions (a vote, or a star with no vote) read exactly as before.
+- Tests: `tests/test_slide_votes.py` (change, clear, vote again, every file kept; earlier documents still read; the page's ordered saves and Clear button). Checked in the browser against an empty data folder: a comment then Appendix, a change to Delete, and a clear each survive a reload.
+
 ### 2026-11-23 — Spend trend reads the ODD member of the ODDD zip, not the first .csv (`build/ars_pipeline/spend_trend.py`)
 
 Summary: The ARS build for 1799 Central Bank stopped at `build_ars_gen` with "spend trend: no header row with 'Debit?' in 1799_32212_..._velocitytransactions_fullmonth_20260930.csv". Its ODDD zip carries the month's transaction file beside the ODD extract, listed first, and `spend_trend._open_csv` took the first .csv in the zip. It now picks the member with `rpe_env.extract_odd_csv`, as the rest of the build already does (2026-09-16), and also accepts an ODD .csv path. No figure changes for a client whose zip holds only the ODD; for a zip like 1799's the spend-trend slides now build from the ODD instead of the build stopping.
@@ -512,6 +539,14 @@ Aaron, 2026-11-06: "what would it take to let other CSM create these?", then "st
 This section was headed "Unreleased" until 2026-10-12, and nothing ever moved an entry out of it:
 there is no release-tagging step. What is released is what `Tools\RPE\RELEASE.txt` names, and this
 file travels with the code, so Sheila's change log page shows that stamp above these entries.
+
+### 2026-11-09 — Slide Review: a comment or a cleared vote no longer fails to save (`scripts/slide_votes.py`, `scripts/sheila_hub_votes.py`)
+
+Summary: In Slide Review, typing a comment on a slide before choosing Keep, Delete or Appendix no longer shows "Couldn't save that: a vote is keep, delete or appendix", and the Appendix click that followed it is no longer lost. Clearing a vote on a slide with no star or comment now saves too, and a cleared vote is not counted in the Summary.
+
+Issue #158 (James Gilmore, 2026-11-06): choosing Appendix on a slide with a comment showed the error. The comment was saved on blur, with no vote, and the share refused a save that had neither a vote nor a star, which also refused clearing a vote. A comment is now saved on its own, and the row is not repainted while the comment is saved, so the click on a vote button beside it still lands. A stored document with no vote, star or comment counts as cleared: it does not add a voter or a row to the Summary, and the CSV labels a comment with no vote as "comment" rather than "star".
+
+- Reported in CSM Sheila: slide review on the Reported page.
 
 ### 2026-11-06 — Live Review: the side bar's list scrolls under its border, not over it (`build/review_page/static/live.css`)
 
@@ -1335,6 +1370,18 @@ James Gilmore, 2026-10-30: "turn my m365 tools into Sheila tools ... Sheila, cre
 - **No new packages.** The MCP stdio protocol is spoken with the standard library (`sheila_mcp/stdio.py`), so Sheila's Python runtime is unchanged and nothing new is unpacked on any PC.
 - **Built once.** The release copies `sheila_mcp/` with the code. `runtime.cmd`, which every Sheila launcher runs, ends by running `sheila_mcp/register.py`. That writes `%LOCALAPPDATA%\RPE\sheila_start.py` and adds a `sheila` entry to `claude_desktop_config.json`: the installer's copy and the Microsoft Store one. It keeps every other entry, saves the old file as `.bak`, rewrites nothing that is already right, and leaves a PC without Claude Desktop alone. Each time Claude starts Sheila, she refreshes her code from the share as the page does, then serves from the local copy.
 - **Who is asking** comes from the Windows sign-in (`james.gilmore` is "James Gilmore" in the Client CSM List), with `CSM Contacts.csv`'s email as the fallback. A CSM can still ask about anyone's book by name.
+
+### 2026-10-29 — TI: Who leads each product no longer prints a count per category
+
+Summary: the Who leads each product slide names the leading institution in each category without an account count or dollar figure, because the data has only whole-book figures per institution.
+
+Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #87): `who_leads_each_product` used the institution's whole-book reach and dollars for every category it appears in, which put one figure beside three categories. It now draws the names only (`leader_names`) and the headline claims no count.
+
+### 2026-10-29 — TI: card-use heat map names posting dates when the weekend is empty
+
+Summary: the When the card gets used slide says the dates are posting dates, and no longer calls Monday the busiest day, when Saturday and Sunday are empty.
+
+Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #88): `when_the_card_is_used` detects empty weekend rows beside busy weekdays and words the headline and subtitle as posting dates ("weekend activity appears on Monday"). Whether the file carries a true transaction date is a question for the data team.
 
 ### 2026-10-29 — TI: Where PIN gets pressed declines when no merchant carries PIN
 
