@@ -135,6 +135,7 @@
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
       "deck.txn_leakage.insurance_by_line",
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -625,6 +626,7 @@
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
       "deck.txn_leakage.insurance_by_line",
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -1213,6 +1215,7 @@
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
       "deck.txn_leakage.insurance_by_line",
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -1781,6 +1784,7 @@
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
       "deck.txn_leakage.insurance_by_line",
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -2429,6 +2433,7 @@
       "deck.txn_leakage.where_the_leakage_goes",
       "deck.txn_leakage.who_they_pay",
       "deck.txn_leakage.insurance_by_line",
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.how_long_it_has_run",
       "deck.txn_leakage.started_and_stopped",
       "deck.txn_leakage.how_deep",
@@ -2904,6 +2909,7 @@
      "handoffs": [],
      "slides": [
       "deck.txn_leakage.insurance_by_line",
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_cards.dictionary_gaps"
      ]
     },
@@ -3234,6 +3240,7 @@
      ],
      "handoffs": [],
      "slides": [
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.what_leakers_hold",
       "deck.txn_cards.what_the_banker_opens"
      ]
@@ -3422,6 +3429,7 @@
      ],
      "handoffs": [],
      "slides": [
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.what_leakers_hold",
       "deck.txn_cards.what_the_banker_opens"
      ]
@@ -3459,6 +3467,7 @@
      ],
      "handoffs": [],
      "slides": [
+      "deck.txn_leakage.category_drilldowns",
       "deck.txn_leakage.what_leakers_hold",
       "deck.txn_cards.what_the_banker_opens"
      ]
@@ -7147,6 +7156,7 @@
     "deck.txn_leakage.where_the_leakage_goes",
     "deck.txn_leakage.who_they_pay",
     "deck.txn_leakage.insurance_by_line",
+    "deck.txn_leakage.category_drilldowns",
     "deck.txn_leakage.how_the_leakage_builds"
    ]
   },
@@ -7187,6 +7197,7 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_leakage.category_drilldowns",
     "deck.txn_leakage.leakage_by_group",
     "deck.txn_cards.responder_profile"
    ]
@@ -7215,6 +7226,7 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_leakage.category_drilldowns",
     "deck.txn_leakage.leakage_by_group_and_category"
    ]
   },
@@ -7550,6 +7562,7 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_leakage.category_drilldowns",
     "deck.txn_leakage.what_leakers_hold",
     "deck.txn_cards.what_the_banker_opens"
    ]
@@ -7820,6 +7833,7 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_leakage.category_drilldowns",
     "deck.txn_leakage.how_long_it_has_run",
     "deck.txn_leakage.started_and_stopped"
    ]
@@ -7981,6 +7995,7 @@
     "shared:personal"
    ],
    "slides": [
+    "deck.txn_leakage.category_drilldowns",
     "deck.txn_leakage.how_long_it_has_run"
    ]
   },
@@ -8161,7 +8176,8 @@
     "shared:personal"
    ],
    "slides": [
-    "deck.txn_leakage.insurance_by_line"
+    "deck.txn_leakage.insurance_by_line",
+    "deck.txn_leakage.category_drilldowns"
    ]
   },
   "fin_subtypes_columns": {
@@ -8189,7 +8205,8 @@
    "odd_fields": [],
    "via": [],
    "slides": [
-    "deck.txn_leakage.insurance_by_line"
+    "deck.txn_leakage.insurance_by_line",
+    "deck.txn_leakage.category_drilldowns"
    ]
   },
   "fin_top_providers": {
@@ -8216,7 +8233,8 @@
     "shared:personal"
    ],
    "slides": [
-    "deck.txn_leakage.who_they_pay"
+    "deck.txn_leakage.who_they_pay",
+    "deck.txn_leakage.category_drilldowns"
    ]
   },
   "fin_trend": {
@@ -13254,6 +13272,23 @@
     "fin_subtypes_note"
    ],
    "label": "Insurance by line"
+  },
+  "deck.txn_leakage.category_drilldowns": {
+   "builder": "category_drilldowns",
+   "chapter": "Transaction Intelligence",
+   "title": "Category drill-down",
+   "keys": [
+    "fin_by_category",
+    "fin_by_lens",
+    "fin_by_lens_category",
+    "fin_leakers_profile",
+    "fin_new_recurring_stopped",
+    "fin_recency",
+    "fin_subtypes",
+    "fin_subtypes_note",
+    "fin_top_providers"
+   ],
+   "label": "Category drill-down"
   },
   "deck.txn_leakage.how_long_it_has_run": {
    "builder": "how_long_it_has_run",
