@@ -277,6 +277,27 @@ main{min-width:0;display:flex;flex-direction:column;gap:16px;padding-top:2px}
 .card h2{margin:0;font:700 16px var(--display)}
 .card .sub{margin:0;font-size:13px;color:var(--muted)}
 
+/* ---- tables: the Mission Control table (Aaron, 2026-11-24), in the Hub colours. A card with a 3px accent rule along the
+   top; a quiet header; one hairline between rows, no stripes, no vertical lines; figures right-aligned in tabular digits
+   with their header; status as a chip with a dot; an empty or failed list is a sentence in a full-width row. ---- */
+.card.v-table-card{border-radius:20px;box-shadow:inset 0 3px 0 var(--accent),var(--shadow)}
+.v-scroll{overflow-x:auto}
+table.v-table{border-collapse:collapse;width:100%;font-size:14px}
+.v-table th{text-align:left;font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);padding:16px 24px 12px;white-space:nowrap;vertical-align:bottom;background:none}
+.v-table th.sorted{color:var(--ink);font-weight:600}
+.v-table th .v-sort{margin-left:4px}
+.v-table td{padding:16px 24px;border-top:1px solid var(--line);vertical-align:top;transition:background-color .15s}
+.v-table tbody tr:hover td{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+:root[data-density="compact"] .v-table td{padding-block:8px}
+.v-table .v-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.v-cell-main{display:block;font-weight:700;color:var(--ink)}
+.v-cell-sub{display:block;margin-top:2px;font-size:13px;font-weight:400;color:var(--muted)}
+.v-table .v-meta{font-size:13px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.v-table td.v-empty{padding:24px;color:var(--muted);text-align:left;white-space:normal}
+.v-table .chip{font-size:13px;font-weight:600;padding:3px 10px}
+.v-table .chip::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:currentColor}
+@media (max-width:720px){.v-table th,.v-table td{padding-inline:16px}}
+
 /* ---- client list: dense rows ---- */
 .lhead{display:grid;gap:8px;padding:12px 12px 8px;border-bottom:1px solid var(--line)}
 .lhead .row1{display:flex;gap:8px;align-items:center}
