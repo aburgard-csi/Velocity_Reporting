@@ -15,6 +15,14 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-24 — Contact Us: a long job title gets two lines (`build/shapes.py`)
+
+Summary: On the Contact Us slide, a job title too long for one line now wraps onto a second line, and the phone and email move down to make room. Before, the ICS program contact's long title ran into her phone number, and every ICS deck failed its check.
+
+- **What failed:** rebuilding the 2026.11 decks, every deck carrying the ICS program contact failed the gate. Her title ("Strategist and Program Manager for Invitation Checking® System") is 6.7 in wide at 18 pt in a 5.2 in column, so it wrapped out of its one-line box into the phone row. This started when the phone and email were moved up under the name (2026-11-06), after the 2026.11 ICS decks had first been built, so it showed only on this rebuild.
+- **The fix:** `draw_contact_slide` measures every role first. When any needs a second line, the role boxes get two lines and the phone and email of EVERY column move down one line, so the two columns stay level. A one-line role leaves the slide exactly as it was.
+- **Tests:** `tests/test_contact_slide.py` draws a long role in either column and alone, and runs the gate's own wrap and collision checks on the slide. These fail on the old code. A one-line role keeps the rows where they were.
+
 ### 2026-11-24 — Faster peer reference compile and ICS workbook read (`scripts/build_peer_reference.py`, `build/ics_pipeline/ics_workbook_extract.py`)
 
 Summary: The peer comparison file and the ICS workbook figures are worked out much faster. No figure changes: the same inputs give the same output.

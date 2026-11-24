@@ -181,3 +181,37 @@ def test_the_text_stays_readable_on_the_gradient():
     there = tuple(round(navy[i] + t * (blue[i] - navy[i])) for i in range(3))
     assert ratio(orange, there) >= 3.0
     assert ratio(white, blue) >= 7.0            # white at the lightest corner of the slide
+
+
+LONG = {"name": "Program Lead", "role": "Strategist and Program Manager for a Program With a Long Name",
+        "phone": "555-010-0200", "email": "program.lead@example.com"}
+
+
+@pytest.mark.parametrize("contacts", [[CONTACT, LONG], [LONG, CONTACT], [LONG]])
+def test_a_role_too_long_for_one_line_gets_two_and_nothing_collides(contacts, tmp_path):
+    """2026-11-24: every 2026.11 ICS deck failed the gate because the ICS program contact's title (6.7 in at 18 pt)
+    wrapped out of its one-line box into the phone row. The role box takes two lines and the phone and email move
+    down one role line, in every column, so the columns stay level and the gate's wrap check passes."""
+    import sys
+    sys.path.insert(0, os.path.join(REPO, "validation"))
+    import validate_deck
+    prs = Presentation(os.path.join(REPO, "templates", "ics_template.pptx"))
+    slide = prs.slides.add_slide(prs.slide_layouts[-1])
+    shapes.draw_contact_slide(slide, contacts)
+    _assert_the_slide(slide, contacts)
+    roles = _named(slide, "Contact role")
+    phones = _named(slide, "Contact phone")
+    assert all(_inches(r.height) >= shapes.CONTACT_ROLE_BOX_H + shapes.CONTACT_ROLE_LINE_H - 0.001 for r in roles)
+    assert len({p.top for p in phones}) == 1                                    # level across the columns
+    assert all(_inches(p.top) >= _inches(r.top + r.height) for p in phones for r in roles)
+    findings = [f for f in validate_deck.single_line_overflow_findings(prs) if f[1] == len(prs.slides)]
+    findings += [f for f in validate_deck.text_collision_findings(prs) if f[1] == len(prs.slides)]
+    assert not [f for f in findings if f[0] == "FAIL"], findings
+
+
+def test_a_one_line_role_keeps_the_rows_where_they_were():
+    slide = _slide()
+    shapes.draw_contact_slide(slide, [CONTACT, PROGRAM])
+    top = {sh.name: _inches(sh.top) for sh in _named(slide, *LINES)}
+    assert abs(top["Contact phone"] - shapes.CONTACT_TOPS["phone"]) < 0.001
+    assert all(abs(_inches(r.height) - shapes.CONTACT_ROLE_BOX_H) < 0.001 for r in _named(slide, "Contact role"))
