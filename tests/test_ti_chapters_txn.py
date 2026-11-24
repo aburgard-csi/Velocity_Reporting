@@ -26,13 +26,13 @@ from ti.deck import txn_slides  # noqa: E402
 def test_the_chapters_carry_v5s_builders_in_v5s_order():
     v5 = [b.__name__ for b in txn_slides.BUILDERS]
     ours = [b.__name__ for b in X.TI_BUILDERS + X.COMP_BUILDERS + X.ATTRITION_BUILDERS]
-    # v5's 61, plus Insurance by line (R2), MCC codes (R6), the three R5 leakage cuts by member age,
-    # account age and branch, and the two buy-now-pay-later slides
-    assert sorted(ours) == sorted(v5) and len(v5) == 68
+    # v5's 61, plus Insurance by line (R2), Category drill-down (R3), MCC codes (R6), the three R5 leakage cuts by
+    # member age, account age and branch, and the two buy-now-pay-later slides
+    assert sorted(ours) == sorted(v5) and len(v5) == 69
     for chapter in (X.TI_BUILDERS, X.COMP_BUILDERS):
         names = [b.__name__ for b in chapter]
         assert names == [n for n in v5 if n in names], "kept in v5's own order"
-    assert len(X.TI_BUILDERS) == 44 and len(X.COMP_BUILDERS) == 22
+    assert len(X.TI_BUILDERS) == 45 and len(X.COMP_BUILDERS) == 22
 
 
 def test_every_builder_has_a_title_for_a_stated_slide():
