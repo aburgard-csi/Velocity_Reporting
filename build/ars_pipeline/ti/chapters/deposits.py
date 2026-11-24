@@ -28,6 +28,12 @@ TITLES = {
     "overdraft_and_income": "Who overdrafts, by how they are paid",
     "deposit_primacy": "Who banks here first",
     "inflow_against_outflow": "What arrives against what leaves",
+    # R7 (2026-11-05): the daily series, and what is spent in the days after a deposit
+    "daily_deposits": "Deposits, day by day",
+    "deposit_timing": "What is spent after a deposit",
+    "deposit_overlay_first": "Deposits against the most deposit-timed category",
+    "deposit_overlay_second": "Deposits against the second most deposit-timed category",
+    "deposit_overlay_bnpl": "Deposits against buy now, pay later",
 }
 
 
@@ -47,6 +53,10 @@ COMBINED = (
 def compute(ctx):
     out = odd_sections.balance(ctx)
     out.update(odd_sections.deposit_behaviour(ctx))
+    try:                                          # R7's figures never take the chapter's own down
+        out.update(odd_sections.deposit_daily(ctx))
+    except Exception as exc:
+        ctx.warn(f"deposit daily: figures not computed ({type(exc).__name__}: {exc})")
     return out
 
 

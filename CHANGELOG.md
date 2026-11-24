@@ -551,6 +551,19 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-05 — Deposits chapter: daily deposits, and what is spent in the days after a deposit, for every spend category (`build/ars_pipeline/ti/core/deposits/daily.py`, `build/ars_pipeline/ti/monthly_analysis/deposit_daily.py`, `build/ars_pipeline/ti/odd_sections.py`, `build/ars_pipeline/ti/chapters/deposits.py`, `build/ars_pipeline/ti/deck/deposit_slides.py`, `build/ars_pipeline/ti/deck/charts.py`, `build/ars_pipeline/ti/slides.json`, `tests/test_ti_daily_deposits.py`)
+
+Summary: The Transaction Intelligence Deposits chapter now has the deposits file per calendar day (deposits, dollars, accounts), its weekday and day-of-month pattern, and, for accounts in both the deposits and the transaction file, how much of each spend category goes out within 0-3 days after the account's own deposit against an even spread. Five new slides; each declines with its reason when a file is missing.
+
+James, 2026-11-05: "we should have daily [deposit] amounts (aggregate count and amount), we could tie up with large txns around bnpl or something", then "i meant daily deposit amounts (the daily aggregate amount)", and "r7 daily deposit amount could be overlayed with any and all spend categories".
+
+- Daily series (`dep_daily`, `[date, deposits, dollars, accounts]`, at most 366 days): every calendar day from the file's first to its last date, a day with nothing posted counted as zero, credits only. With the average and median day, the weekday and day-of-month tables (`% of the average day`) and the top ten days.
+- Deposit timing (`dep_timing`): for every category (card merchant categories, financial-services categories including Buy Now Pay Later, all outflows, and large transactions), the share of its dollars spent 0-3 days after a deposit, the share an even spread would put there (each account's covered days over its observed days, weighted by its dollars in the category) and the ratio of the two. The ratio is stated only on 30+ accounts and 200+ transactions; the base is in the table and on the slides.
+- "Large" is the account's own: above its 90th-percentile outflow, for accounts with 10 or more outflows in the window.
+- Overlay series (`dep_daily_by_category`, `{category: [[date, txns, dollars], ...]}`, days with activity only): every category that reaches the base, at most 20, so the deck can draw deposits against any of them.
+- Slides: "Deposits, day by day", "What is spent after a deposit" (every ranked category), and the overlay for the two most deposit-timed categories and for buy now, pay later. With no deposits file all five decline "no deposits file"; with no transaction file the four timing slides decline "no transaction files for this period"; a short transaction load declines them as "What arrives against what leaves" does.
+- Not changed: the eleven existing deposit slides, their figures, and the transaction chapters' figures. The timing reads the categories the Transaction Intelligence chapter already computed.
+
 ### 2026-11-05 — A field trace of the transaction file, rebuilt from the code (`scripts/ti_field_trace.py`, `docs/ti_field_trace.md`, `docs/ti_field_trace.json`, `tests/test_ti_field_trace.py`)
 
 Summary: A trace of every transaction-file field, showing which Transaction Intelligence analyses and slides use it, is now generated from the code, and a test fails when it is out of date. No figure changes.
