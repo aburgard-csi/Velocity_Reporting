@@ -110,3 +110,15 @@ def test_change_measures_decline_when_the_prior_window_is_empty():
     P.who_competes(h, dict(t, comp_institutions=FULL["comp_institutions"][:2]), "base")
     assert h.charts[0]["name"] == "comp_momentum_bars"
     assert all(r[3] is None for r in h.charts[0]["rows"])
+
+
+def test_who_leads_each_product_prints_no_count_beside_a_category():
+    # issue #87: comp_institutions has only whole-book reach, so a per-category count is wrong
+    t = dict(FULL, comp_institutions=[
+        ["Capital One", "National Bank", 14_150, 50.0, 10, 23_300_000, 212,
+         ["Credit Cards", "Auto Loans", "Transfer / other"], 2, 0]])
+    h = _Harness()
+    P.who_leads_each_product(h, t, "base")
+    (headline, sub), _title = h.slides[0]
+    assert "14,150" not in headline and "14,150" not in sub
+    assert h.charts[0]["fn"] == "leader_names"
