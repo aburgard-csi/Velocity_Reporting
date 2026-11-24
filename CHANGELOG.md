@@ -15,6 +15,14 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-23 — Spend trend reads the ODD member of the ODDD zip, not the first .csv (`build/ars_pipeline/spend_trend.py`)
+
+Summary: The ARS build for 1799 Central Bank stopped at `build_ars_gen` with "spend trend: no header row with 'Debit?' in 1799_32212_..._velocitytransactions_fullmonth_20260930.csv". Its ODDD zip carries the month's transaction file beside the ODD extract, listed first, and `spend_trend._open_csv` took the first .csv in the zip. It now picks the member with `rpe_env.extract_odd_csv`, as the rest of the build already does (2026-09-16), and also accepts an ODD .csv path. No figure changes for a client whose zip holds only the ODD; for a zip like 1799's the spend-trend slides now build from the ODD instead of the build stopping.
+
+- Tests: 2 new in `tests/test_spend_trend.py` (a transaction file listed first; an ODD .csv path).
+
+---
+
 ### 2026-11-19 — The morning file get sweeps the Drop Folder (`scripts/watch_sources.py`, `build/rpe_env.py`)
 
 Summary: Files dropped in the CSM_Reporting Drop Folder are now filed into Inputs by the 08:00 file get, by the same naming rules as files from the shares and the mailbox. A file it cannot place, or one whose name already holds different contents in Inputs, is left in the folder and listed in the morning report. A dropped ODD extract whose pull stamp is newer than the one in Inputs replaces it, and the older one is archived.
