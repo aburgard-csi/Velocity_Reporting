@@ -15,6 +15,22 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-23 — Transaction Intelligence: the market reference store gets a build script, and mail lists are deliverables (`scripts/build_market_reference.py`, `scripts/ti_lists_backfill.py`, `CLAUDE.md`)
+
+Summary: The competition-layers slides need the public FDIC / NCUA reference store on the share, and nothing built it; a new script fetches it, checks it and puts it there. The TI mail lists now officially belong in each CSM's Outputs folder beside the deck, and earlier builds' lists can be copied there too.
+
+Aaron, 2026-11-23: "You can add the reference files to the market reference folder, and you can also send those lists to
+outputs, sort them into each CSM's folders with the other files."
+- **Market reference.** Since #181 tossed eleven older Competition slides in favor of the layers slides, a client
+  with no store at `Inputs/Market Reference` got neither. The fetchers in `ti/core/market/sources.py` existed but
+  nothing called them all. `build_market_reference.py` fetches every table into local scratch, checks each against
+  its row floor and loads the whole book as a build does, and only then lands the files on the share (`.part`,
+  rename, size check, nothing deleted). A failed or short download leaves the share as it was. Moves no figure by
+  itself; a build after it carries the layers slides it skipped before.
+- **Mail lists.** CLAUDE.md said Outputs holds decks only; it now records the exception for
+  `Outputs/<CSM>/<id>-<period>-TI-Lists/`, which #170 already wrote. `ti_lists_backfill.py` copies the lists builds
+  made before #170 left in Build Artifacts, only where that period's TI deck is in Outputs.
+
 ### 2026-11-23 — Slide Review: a vote can be changed or cleared, and no change is lost (`scripts/sheila_hub_votes.py`)
 
 Summary: In Slide Review each slide now has a Clear button beside its vote, and a slide's changes are saved one at a time in the order they were made, so the vote you see is always the vote that is kept.
