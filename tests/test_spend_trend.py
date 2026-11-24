@@ -85,7 +85,7 @@ def test_no_window_is_stated_not_substituted():
 
 
 # ------------------------------------------------------------------ the ODD
-def _odd_zip(tmp_path):
+def _odd_zip(tmp_path, txn_first=False):
     hdr = ["Acct ID", "Business?", "Debit?", "Date Opened", "Date Closed", "Sep26 Elig",
            "Jan26 Sig $", "Jan26 PIN $", "Feb26 Sig $", "Feb26 PIN $", "Mar26 Sig $", "Mar26 PIN $"]
     data = [
@@ -101,6 +101,9 @@ def _odd_zip(tmp_path):
     w.writerow(["1", "Test - OD Data Dump"]); w.writerow([]); w.writerow(hdr); w.writerows(data)
     p = tmp_path / "9999_ODDD.zip"
     with zipfile.ZipFile(p, "w") as z:
+        if txn_first:       # 1799 Central Bank's zip: the month's transaction file listed first, and larger
+            z.writestr("9999_32212_[2026.10.15][14.24.15]_velocitytransactions_fullmonth_20260930.csv",
+                       "Acct Number,Txn Date,Amount\n" + "1,09/01/2026,10.00\n" * 500)
         z.writestr("9999-test-ODD.csv", buf.getvalue())
     return str(p)
 
@@ -114,6 +117,18 @@ def test_from_odd_counts_cards_in_use_and_eligible_accounts_open_in_the_month(tm
     assert o["spend_per_eligible"][1] == pytest.approx((0 + 300 + 80 + 0) / 4)
     assert o["eligible_active_share"][1] == pytest.approx(50.0)
     assert o["cards_snapshot"] == 4 and o["eligible_snapshot"] == 4   # business account f is outside both
+
+
+def test_from_odd_reads_the_odd_member_when_a_transaction_file_is_listed_first(tmp_path):
+    o = ST.from_odd(_odd_zip(tmp_path, txn_first=True), through="Mar 2026")
+    assert o["source_member"] == "9999-test-ODD.csv"
+    assert o["cards_in_use"] == [3, 3, 3]
+
+
+def test_from_odd_reads_an_odd_csv_path_too(tmp_path):
+    with zipfile.ZipFile(_odd_zip(tmp_path)) as z:
+        csv_path = z.extract("9999-test-ODD.csv", tmp_path)
+    assert ST.from_odd(csv_path, through="Mar 2026")["eligible_open"] == [3, 4, 4]
 
 
 def test_from_odd_is_capped_at_the_complete_month(tmp_path):
