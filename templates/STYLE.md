@@ -213,11 +213,16 @@ alpha 28%. `shapes.shadow` is the only definition; the ARS, ICS and MRPC builder
 import it. Not on chart backdrops. A callout with a two-line label is >= ~1.55"
 tall so the second line is not clipped.
 
-**Tables** (`shapes.add_table`). Navy header row, white bold text; alternating
-white / `ROWALT` rows; the highlighted or total row orange; Calibri cells; white
-grid lines. The ARS Debit Usage Segmentation table carries % Accounts, % Swipes,
-% Spend and % NSFs. Dense tables fit to slide first; a smaller font only when the
-element is already maxed.
+**Tables** (`build/table_style.py`, drawn by `shapes.add_table` and applied to every table in every deck by
+`fit_layout.fit`; Aaron, 2026-11-24, from his Mission Control page). Navy header row, white bold text: kept, because
+it anchors the brand and reads from across the room. Body rows white, with NO alternating grey and NO grid lines: one
+thin rule under each row (`LABEL`, 0.75 pt). The highlighted or total row stays orange, and any other deliberate
+colour (a navy band row, a heat cell) stays. Figure columns are right-aligned together with their header, so digits
+and decimals line up; text columns are left-aligned. A status column ("Leading", "Status", "vs peers") shows its word
+as a pill: a tinted cell with the word bold in colour, never colour alone (good: navy on `LABEL`; attention: orange on
+`PEACH`; neutral: `TICK` on `ROWALT`). A cell can carry a bold label over a smaller grey line (`{"text", "sub"}`, e.g. a
+branch number over its name). Calibri cells. The ARS Debit Usage Segmentation table carries % Accounts, % Swipes,
+% Spend and % NSFs. Dense tables fit to slide first; a smaller font only when the element is already maxed.
 
 **Charts** (all renderers).
 

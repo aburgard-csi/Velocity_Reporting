@@ -32,6 +32,18 @@ Aaron, 2026-11-24, choosing among the options in the peer-comparison review: "D:
 
 ---
 
+### 2026-11-24 — Deck tables: thin rules instead of stripes, figures right-aligned (`build/table_style.py`, `shapes.add_table`, `fit_layout.fit`)
+
+Summary: Every table in every deck now has white rows with one thin rule between them instead of grey stripes and grid lines, and figures are right-aligned so they line up. The navy header and the orange total row are unchanged.
+
+Aaron, 2026-11-24, on bringing his Mission Control page's table layout into the decks: "Pages and decks", "Keep the navy header", all four row treatments, then "go ahead as shown" after the before/after slides.
+
+- **Every deck:** `table_style.restyle_deck` runs inside `fit_layout.fit`, which every builder calls before saving, so ARS, ICS, MRPC, CashPlease, the Companion and Transaction Intelligence decks, the combined deck and the ILS decks Sheila builds all match. Tables a template shell carries are restyled at build time; the shells themselves are unchanged.
+- **Kept:** the navy header, the orange total or highlighted row, and any deliberate colour (a navy band row, a heat cell). Only zebra greys and white are cleared.
+- **Figures** (numbers, percentages, money, ratios, and n/a or Pending beside them) are right-aligned with their column header; text columns left-aligned.
+- **Status pills:** a column headed Leading, Status or vs peers shows a known status word as a tinted cell with the word in colour (good navy on the pale grey, attention orange on peach, neutral grey). `shapes.add_table` also takes `{"text", "pill"}` and `{"text", "sub"}` cells (a bold label over a smaller grey line).
+- Colours come from the existing palette (`LABEL`, `PEACH`, `ROWALT`, `TICK`); no new grey. Tests: `tests/test_table_style.py`. The QA gate's layout baseline is unchanged (the shells are not edited).
+
 ### 2026-11-17 — Financial services: the mailing calendar on the monthly series (`ti/transaction_intelligence/financial_services.py`, `txn_sections.py`)
 
 Summary: Adds `fin_mail_months`. Based on `feat/ars-ti/fs-09-institution-registry`. Adds a figure only; **no slide and no existing figure changes.**

@@ -34,6 +34,10 @@ def _ov(a,b,pad=0.05):
     return (min(a[2],b[2])-max(a[0],b[0]))>pad and (min(a[3],b[3])-max(a[1],b[1]))>pad
 
 def fit(prs):
+    # The shared table style (thin rules, figures right-aligned, navy header kept; Aaron, 2026-11-24). Here because
+    # every builder runs this pass before saving, so no deck's tables can be left in the old style.
+    import table_style
+    table_style.restyle_deck(prs)
     for s in prs.slides:
         if _is_summit(s): continue
         # dividers/covers (full-bleed background) carry NO slide number (STYLE.md)
