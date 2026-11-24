@@ -429,8 +429,9 @@ def current_peer(packs):
 
     Current is peer_pool's one rule (`cashplease_current`: not cancelled, a loan in the last six complete months), read over
     EVERY pack the weekly gave, all CSMs' clients. Until 2026-11-24 the row covered only the clients whose main roster row
-    carried CP, about a quarter of the current clients, so its rate was not the book's. It is internal: this page labels it "CashPlease book, pooled", beside the median client (`current_median`), which
-    is the figure every client-facing comparison uses. Rates and averages only (Aaron, 2026-11-02: the page lists his own
+    carried CP, about a quarter of the current clients, so its rate was not the book's. It is internal: this page labels
+    it "CashPlease book, pooled", beside the median client (`current_median`), which is the figure every client-facing
+    comparison uses. Rates and averages only (Aaron, 2026-11-02: the page lists his own
     clients, and a sum over other CSMs' clients is their data too). Charge-off % is a value each tab REPORTS, and no
     weighting of the per-client values reproduces the rollup's, so it is None: stated as absent, never approximated.
     """

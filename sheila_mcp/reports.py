@@ -174,7 +174,7 @@ def cashplease_report(client):
         lines.append("Last six months (loans, principal, charged off): " + "; ".join(
             f"{x['period_month']} {x.get('loans', 0)}, {money(x.get('principal'))}, {x.get('charged_off', 0)}" for x in months))
     lines.append(f"Median = the median of the other current CashPlease clients with a figure ({(ev or {}).get('n_pool', 0)} "
-                 "current clients in the weekly), the same comparison as the deck's How You Compare and Peer Comparison "
+                 "other current clients in the weekly), the same comparison as the deck's How You Compare and Peer Comparison "
                  "slides. The pooled book total is internal: ask for the CashPlease portfolio.")
     return reply("\n".join(lines), client=cid, name=name, rows=rows, monthly=months,
                  source=p.get("source_file"), report_generated=p.get("report_generated"))
@@ -286,7 +286,9 @@ def compare(cid, kpis=None, period=None):
     if not mine:
         return None, None, []
     keys = kpis or kpi_keys()
-    ev = PC.for_deck("ARS", cid, period=period, root=_ba(), keys=keys)
+    # The client's own packs, as the deck build passes them (its own row then needs no mailing summary to be read).
+    own = {"metrics": mine, "base": _json(_ba() / "launcher" / period / cid / "base.json")}
+    ev = PC.for_deck("ARS", cid, period=period, root=_ba(), keys=keys, own=own)
     items = {it["spec"]["key"]: it for it in ev.get("items") or []}
     specs = {m["key"]: m for m in _ars_specs()}
     out = []
