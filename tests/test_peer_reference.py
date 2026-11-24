@@ -459,3 +459,37 @@ def test_the_ils_peer_pull_starts_an_ils_update_and_never_raises(root, monkeypat
     seen = []
     PPL.update_peer_reference("x", say=seen.append)
     assert seen and "not updated" in seen[0]
+
+
+def test_source_paths_are_named_relative_to_the_root_without_asking_the_share(root, monkeypatch):
+    """`_rel` used to resolve every path it named (a share round trip each, most of a 210 s compile);
+    a path built under RPE_DATA_ROOT is now named without resolving it (2026-11-24)."""
+    BR._ROOTS.clear()
+    inside = root / "Inputs" / "ICS Workbooks" / "7001-2026.11-Zephyrville-Invitation Checking Workbook.xlsx"
+    assert BR._rel(inside) == "Inputs/ICS Workbooks/7001-2026.11-Zephyrville-Invitation Checking Workbook.xlsx"
+    assert BR._rel(str(inside)) == BR._rel(inside)
+    assert BR._rel("") == ""
+    outside = root.parent / "elsewhere" / "notes.json"
+    assert BR._rel(outside) == "notes.json"                  # not under the root: its name, as before
+
+    calls = []
+    real = BR.Path.resolve
+
+    def counting(self, *a, **k):
+        calls.append(str(self))
+        return real(self, *a, **k)
+    monkeypatch.setattr(BR.Path, "resolve", counting)
+    for i in range(50):
+        BR._rel(root / "Build Artifacts" / "launcher" / "2026.11" / str(7000 + i) / "metrics.json")
+    assert calls == []                                       # the root was worked out once, above
+    BR._rel(outside)
+    assert len(calls) == 1                                   # only a path outside the root falls back to resolve
+
+
+def test_the_root_is_worked_out_again_when_it_changes(root, tmp_path_factory, monkeypatch):
+    BR._ROOTS.clear()
+    assert BR._rel(root / "Inputs" / "a.json") == "Inputs/a.json"
+    other = tmp_path_factory.mktemp("other_root")
+    monkeypatch.setenv("RPE_DATA_ROOT", str(other))
+    assert BR._rel(other / "Outputs" / "b.pptx") == "Outputs/b.pptx"
+    assert BR._rel(root / "Inputs" / "a.json") == "a.json"

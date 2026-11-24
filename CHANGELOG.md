@@ -15,6 +15,16 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-24 — Faster peer reference compile and ICS workbook read (`scripts/build_peer_reference.py`, `build/ics_pipeline/ics_workbook_extract.py`)
+
+Summary: The peer comparison file and the ICS workbook figures are worked out much faster. No figure changes: the same inputs give the same output.
+
+Aaron, 2026-11-24, after the profiling of the monthly data reads: "yes, do the speed fixes".
+
+- **Peer reference:** `_rel`, which names each source file relative to the data root, resolved every path it was given, a round trip to the share each time (about 0.46 s a path). It now works the root out once and names a path under it without asking the share; only a path outside the root still resolves, as before. On 125 real share paths: 57 s down to 0.2 s, with the same names.
+- **ICS workbook:** `extract` read the workbook cell by cell through openpyxl's read-only sheets, which re-read a sheet from the top on every cell. It now opens the workbook through `xl_cache`, as the ARS extractors do, so each sheet is read once. Four real workbooks: 170 s down to 3 s, with byte-identical output. The ICS deck builder, the local ICS sheet build and the peer tables all read workbooks through this extractor.
+- Tests: `tests/test_peer_reference.py` (paths under the root are named without resolving; the root is worked out again when it changes) and `tests/test_ics_local_sheet.py` (the workbook is read through the cache).
+
 ### 2026-11-24 — Web page tables in the "Mission Control" style (Velocity page CSS, CSM Sheila, the performance dashboard, Live Review)
 
 Summary: Every table on our web pages now reads the same way: a quiet header, one thin rule between rows with no stripes or grid lines, figures right-aligned with their header in even-width digits, the client in bold over its number, status as a coloured pill with a dot, and the table on a card with a thin coloured rule along the top. No figure, sort order or wording changes; no deck changes.

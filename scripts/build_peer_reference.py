@@ -181,14 +181,51 @@ def _complete(month, as_of, basis):
     return "" if done is None else ("yes" if done else "no")
 
 
+_ROOTS = {}
+
+
+def _roots():
+    """RPE_DATA_ROOT as written and as resolved, worked out once per root (2026-11-24).
+
+    `_rel` used to resolve the root and every path it was given: each `resolve()` is a round trip to
+    the share (about 0.23 s), and a compile names thousands of source files, so the ARS compile spent
+    most of its 210 s there. The paths come from `rpe_env`, so they sit under the root as written."""
+    key = os.environ.get("RPE_DATA_ROOT", "")
+    if key not in _ROOTS:
+        root = rpe_env.data_root()
+        found = [Path(os.path.abspath(root))]
+        try:
+            found.append(root.resolve())
+        except OSError:
+            pass
+        _ROOTS[key] = tuple(dict.fromkeys(found))
+    return _ROOTS[key]
+
+
+def _under(path, roots):
+    for r in roots:
+        try:
+            return path.relative_to(r).as_posix()
+        except ValueError:
+            continue
+    return None
+
+
 def _rel(path):
-    """A path relative to RPE_DATA_ROOT, with forward slashes ('' when it is not under it)."""
+    """A path relative to RPE_DATA_ROOT, with forward slashes (the bare file name when it is not under it)."""
     if not path:
         return ""
     try:
-        return Path(path).resolve().relative_to(rpe_env.data_root().resolve()).as_posix()
-    except (ValueError, OSError, SystemExit):
+        roots = _roots()
+    except (OSError, SystemExit):
         return Path(path).name
+    rel = _under(Path(os.path.abspath(path)), roots)
+    if rel is None:                          # a mapped drive or a link: resolve, as before, only here
+        try:
+            rel = _under(Path(path).resolve(), roots)
+        except OSError:
+            rel = None
+    return Path(path).name if rel is None else rel
 
 
 def _value(v):
