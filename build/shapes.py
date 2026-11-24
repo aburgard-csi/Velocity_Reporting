@@ -178,13 +178,20 @@ def tile(slide, L, T, W, H, value, label, fill=NAVY, small_label=False):
 
 
 def add_table(slide, L, T, W, H, data, colw, highlight=(), header=True, fs=10):
-    """Navy header, alternating pale rows, orange highlight rows."""
+    """Navy header, white rows with one thin rule between them, orange highlight rows, figures right-aligned
+    (build/table_style.py; Aaron, 2026-11-24). A cell value may be:
+      * plain text or a number;
+      * {"text": ..., "sub": ...}: a bold label over a smaller grey line (a branch number over its name);
+      * {"text": ..., "pill": "good" | "attention" | "neutral"}: a status shown as a tinted cell with the word in colour.
+    """
+    import table_style as TS
     rows = len(data); cols = len(data[0])
     gf = slide.shapes.add_table(rows, cols, Inches(L), Inches(T), Inches(W), Inches(H))
     tb = gf.table; tb.first_row = False; tb.horz_banding = False
     tot = sum(colw)
     for j, wd in enumerate(colw):
         tb.columns[j].width = Inches(W * wd / tot)
+    pills = []
     for i, row in enumerate(data):
         tb.rows[i].height = Inches(H / rows)
         for j, val in enumerate(row):
@@ -193,8 +200,9 @@ def add_table(slide, L, T, W, H, data, colw, highlight=(), header=True, fs=10):
             c.margin_left = Pt(5); c.margin_right = Pt(4)
             c.vertical_anchor = MSO_ANCHOR.MIDDLE
             tf = c.text_frame; tf.word_wrap = True; p = tf.paragraphs[0]
-            p.alignment = PP_ALIGN.LEFT if j == 0 else PP_ALIGN.CENTER
-            r = p.add_run(); r.text = str(val); r.font.name = BODY; r.font.size = Pt(fs)
+            p.alignment = PP_ALIGN.LEFT
+            spec = val if isinstance(val, dict) else {"text": val}
+            r = p.add_run(); r.text = str(spec.get("text", "")); r.font.name = BODY; r.font.size = Pt(fs)
             if header and i == 0:
                 c.fill.solid(); c.fill.fore_color.rgb = NAVY
                 r.font.color.rgb = WHITE; r.font.bold = True
@@ -202,8 +210,17 @@ def add_table(slide, L, T, W, H, data, colw, highlight=(), header=True, fs=10):
                 c.fill.solid(); c.fill.fore_color.rgb = ORANGE
                 r.font.color.rgb = WHITE; r.font.bold = True
             else:
-                c.fill.solid(); c.fill.fore_color.rgb = (WHITE if i % 2 else ROWALT)
                 r.font.color.rgb = NAVY
+                if spec.get("sub") is not None:
+                    TS.two_line(c, spec.get("text", ""), spec["sub"], fs, color=NAVY)
+                    for q in c.text_frame.paragraphs:
+                        for rr in q.runs:
+                            rr.font.name = BODY
+                if spec.get("pill"):
+                    pills.append((c, spec["pill"]))
+    TS.restyle_table(tb)                 # rules, figure alignment, status columns
+    for c, tone in pills:
+        TS.pill(c, tone)
     return gf
 
 
