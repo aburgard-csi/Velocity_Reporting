@@ -356,6 +356,10 @@ CONTACT_TITLE_TOP, CONTACT_TITLE_PT = 2.55, 44
 CONTACT_COL_W, CONTACT_COL_GAP = 5.2, 0.6
 CONTACT_TOPS = {"name": 3.75, "role": 4.35, "phone": 5.0, "email": 5.42}     # the phone and email sit together
 CONTACT_PT = {"name": 30, "role": 18, "phone": 20, "email": 18}              # the role is bold orange: large text
+# A role too long for one line (the ICS program contact's title runs 6.7 in at 18 pt in a 5.2 in column) gets a
+# second line, and the phone and email move down by one role line in EVERY column, so the columns stay level
+# (2026-11-24: the 2026.11 ICS decks failed the gate on the role wrapping into the phone row).
+CONTACT_ROLE_BOX_H, CONTACT_ROLE_LINE_H = 0.4, 0.32
 CONTACT_ICON_W, CONTACT_ICON_GAP = 0.22, 0.14
 CONTACT_TAG_FILL, CONTACT_TAG_ICON = "Contact slide fill", "Contact icon"
 
@@ -435,13 +439,15 @@ def draw_contact_slide(slide, contacts):
     brand_art.add_logo(slide, "white", (13.333 - CONTACT_LOGO_W) / 2, CONTACT_LOGO_TOP, CONTACT_LOGO_W)
     n, colw = len(contacts), CONTACT_COL_W
     x0 = (13.333 - (n * colw + (n - 1) * CONTACT_COL_GAP)) / 2
+    two_line_role = not all(fits_one_line(c["role"], colw, CONTACT_PT["role"], BODY, True) for c in contacts)
+    drop = CONTACT_ROLE_LINE_H if two_line_role else 0.0
     for i, c in enumerate(contacts):
         x = x0 + i * (colw + CONTACT_COL_GAP)
         name_pt = CONTACT_PT["name"] if fits_one_line(c["name"], colw - 0.2, CONTACT_PT["name"], HEAD, True) else 22
         textbox(slide, x, CONTACT_TOPS["name"], colw, 0.6, c["name"], name_pt, WHITE, True, font=HEAD, name="Contact name")
-        textbox(slide, x, CONTACT_TOPS["role"], colw, 0.4, c["role"], CONTACT_PT["role"], ORANGE, True, font=BODY,
-                name="Contact role")
-        y = CONTACT_TOPS["phone"]
+        textbox(slide, x, CONTACT_TOPS["role"], colw, CONTACT_ROLE_BOX_H + drop, c["role"], CONTACT_PT["role"], ORANGE,
+                True, font=BODY, name="Contact role")
+        y = CONTACT_TOPS["phone"] + drop
         for field, kind in (("phone", "phone"), ("email", "mail")):
             if not c.get(field):
                 continue
