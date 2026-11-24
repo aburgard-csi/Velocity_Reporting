@@ -163,25 +163,40 @@ a.kpi{cursor:pointer} a.kpi:hover{border-color:var(--muted)}
 .trend .hot{fill:var(--c);stroke:var(--sheet);stroke-width:2;opacity:0}
 .trend .lab{fill:var(--ink);font-weight:700}
 
-/* ---- tables ---- */
-.tbl{overflow-x:auto;padding:0 8px 12px}
+/* ---- tables: the Mission Control table (Aaron, 2026-11-24), in the Hub colours ----
+   A card with a 3px rule in the section's colour along the top; a quiet header; one hairline between rows, no stripes and
+   no vertical lines; figures right-aligned in tabular digits with their header, text (.l) left; the client in bold over its
+   number; status as a chip with a dot; the table scrolls sideways inside its own wrapper. */
+.tbl{overflow-x:auto;padding:0 0 6px}
 table{border-collapse:collapse;width:100%;font-size:14.5px;font-variant-numeric:tabular-nums}
-th{font-size:12.5px;font-weight:700;color:var(--muted);text-align:right;padding:10px 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:bottom}
+th{font-size:13px;font-weight:500;color:var(--muted);text-align:right;padding:16px 24px 12px;white-space:nowrap;vertical-align:bottom;background:none}
 th.l,td.l{text-align:left}
-td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle;min-height:40px}
-tr:last-child td{border-bottom:none}
-tbody tr:hover td{background:var(--glass-hi)}
-td .cl{font-weight:700}
-td .id{color:var(--muted);font-size:13px;margin-left:6px}
+td{padding:16px 24px;text-align:right;border-top:1px solid var(--line);white-space:nowrap;vertical-align:top;transition:background-color .15s}
+tbody tr:hover td{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.sect .tbl :is(th,td){padding-inline:14px}
+.sect .tbl :is(th,td):first-child{padding-left:24px}
+.sect .tbl :is(th,td):last-child{padding-right:24px}
+@media (max-width:720px){.tbl :is(th,td),.sect .tbl :is(th,td):is(:first-child,:last-child){padding-inline:16px}}
+td .cl{display:block;font-weight:700}
+td .id{color:var(--muted);font-size:13px}
 td .sub{display:block;color:var(--muted);font-size:13px}
+td .chip{font-weight:600}
+td .chip.good::before,td .chip.warn::before,td .chip.bad::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:currentColor}
+.card:has(> .tbl),.card.sect{border-radius:20px;box-shadow:inset 0 3px 0 var(--sec,var(--accent)),var(--shadow)}
+section.sect[data-sec="ARS"]{--sec:var(--c-ars)} section.sect[data-sec="ICS"]{--sec:var(--c-ics)}
+section.sect[data-sec="MRPC"]{--sec:var(--c-mrpc)} section.sect[data-sec="CP"]{--sec:var(--c-cp)}
 td.dim,td .dim{color:var(--muted)}
 td .neg{color:var(--bad)}
-th.sortable{padding:0}
-th.sortable button{appearance:none;background:none;border:0;margin:0;width:100%;font:inherit;color:inherit;text-align:inherit;cursor:pointer;padding:10px 10px 8px;display:block;min-height:44px}
+th.sortable{padding:0!important}
+th.sortable button{appearance:none;background:none;border:0;margin:0;width:100%;font:inherit;color:inherit;text-align:inherit;cursor:pointer;padding:16px 24px 12px;display:block;min-height:44px}
+.sect .tbl th.sortable button{padding-inline:14px}
+.sect .tbl th.sortable:first-child button{padding-left:24px}
+.sect .tbl th.sortable:last-child button{padding-right:24px}
 th.sortable button:hover{color:var(--ink)}
-th.sortable .arr{font-size:10px;opacity:.45;margin-left:4px}
-th.sortable[aria-sort="ascending"] button,th.sortable[aria-sort="descending"] button{color:var(--ink)}
-th.sortable[aria-sort="ascending"] .arr,th.sortable[aria-sort="descending"] .arr{opacity:1;color:var(--accent-ink)}
+th.sortable .arr{display:inline-block;width:0;white-space:nowrap;text-indent:4px;opacity:0}   /* takes no width, so a figure header lines up with its figures */
+th.sortable button:is(:hover,:focus-visible) .arr{opacity:.55}
+th.sortable[aria-sort="ascending"] button,th.sortable[aria-sort="descending"] button{color:var(--ink);font-weight:600}
+th.sortable[aria-sort="ascending"] .arr,th.sortable[aria-sort="descending"] .arr{opacity:1}
 .rdy th.sortable button{text-align:left}
 .peer td{background:var(--fill);color:var(--muted)}
 .peer td .cl{font-weight:700;color:var(--muted)}
@@ -1118,7 +1133,7 @@ function sortRoster(rows){
 function sortTh(k, label){
   const on = rSort.k===k;
   const aria = on ? (rSort.dir===1 ? "ascending" : "descending") : "none";
-  const arr = on ? (rSort.dir===1 ? "\u25b2" : "\u25bc") : "\u2195";
+  const arr = on ? (rSort.dir===1 ? "\u2191" : "\u2193") : "\u2195";
   const hint = !on ? "Click to sort"
     : (rSort.dir===1 ? "Sorted ascending \u2014 click for descending" : "Sorted descending \u2014 click to clear the sort");
   return `<th class="l sortable" aria-sort="${aria}"><button type="button" data-rsort="${k}" title="${hint}">` +
@@ -1255,7 +1270,7 @@ function applySectionSorts(){
       th.setAttribute("aria-sort", on ? (st.dir === 1 ? "ascending" : "descending") : "none");
       const hint = on ? "Sorted " + (st.dir === 1 ? "ascending" : "descending") + " \u2014 click to change" : "Click to sort";
       th.innerHTML = `<button type="button" data-ssort="${esc(key)}" data-col="${esc(label)}" data-num="${th.classList.contains("l") ? 0 : 1}" title="${hint}">` +
-        `${th.innerHTML}<span class="arr" aria-hidden="true">${on ? (st.dir === 1 ? "\u25b2" : "\u25bc") : "\u2195"}</span></button>`;
+        `${th.innerHTML}<span class="arr" aria-hidden="true">${on ? (st.dir === 1 ? "\u2191" : "\u2193") : "\u2195"}</span></button>`;
     });
     if (idx < 0) return;
     const keyed = rows.filter(r => !r.classList.contains("peer"))

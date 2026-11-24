@@ -28,7 +28,7 @@ Google Fonts), then write markup with the `v-` classes. Do not re-declare a colo
 | `v-cards` / `v-card` / `a.v-card` | Flat rounded tiles. A card that links ends with `<span class="more">Open it ›</span>` |
 | `v-stats` / `v-stat` (`hot`) | Large figures with a label. Orange only for the one that matters |
 | `v-note` (`warn`) | A tinted box. Not a ruled-off quote |
-| `v-table` | Hairlines only, uppercase muted headers, first column in ink |
+| `v-table-card` / `table.v-table` | The Mission Control table: see **Tables** below. `<div class="v-table"><table>` still renders |
 | `v-sw`, `v-ramp`, `v-pillars`, `v-chip`, `v-foot` | Swatches, colour ramps, principle tiles, chips, footer |
 
 ## The rules
@@ -47,6 +47,43 @@ Google Fonts), then write markup with the `v-` classes. Do not re-declare a colo
 7. **Honour both themes.** Every colour is a token. Check the page in dark mode and at 400 px before publishing.
 8. **Motion is optional and quiet.** A 200 ms lift on a link card, switched off under `prefers-reduced-motion`.
 9. **Real content.** Real figures, real names of things, no lorem. State a snapshot's date on the page.
+
+## Tables
+
+The house table is the "Mission Control" table (Aaron, 2026-11-24), in the Velocity colours. Every table on a Velocity page
+(Sheila, the performance dashboard, Live Review, an artifact) follows it:
+
+1. **Quiet header.** 13 px muted text, weight 500, no fill, nowrap. A figure column's header is right-aligned with its
+   figures; every other header is left-aligned. The sorted column carries `↓` or `↑`, darker ink and weight 600 (`th.sorted`
+   and `aria-sort`), and its `title` states the order ("Sorted by Delete votes, most first").
+2. **One hairline between rows** (`border-top` on the cells). No zebra stripes, no vertical lines, no fill on the header.
+   Padding 16 px by 24 px (16 px across under 720 px), cells top-aligned, a 5% accent tint on row hover (no transition under
+   `prefers-reduced-motion`).
+3. **Two-line primary cell.** The item in bold (`v-cell-main`, a link where there is one) over a 13 px muted line
+   (`v-cell-sub`).
+4. **Status is a pill**, never colour alone: `v-pill good | warn | bad | neutral`, a 6 px dot in front of the word.
+5. **Figures and dates.** `v-num` right-aligns a figure column in tabular digits and keeps it on one line; `v-meta` is a 13 px
+   muted date or note. Text columns stay left. Total and highlight rows (`tr.hl`) keep their weight.
+6. **A card around it.** `v-table-card`: 20 px radius, the soft shadow, a 3 px rule along the top in the section's accent
+   (`--table-accent`; the link blue by default, `.hot` for orange, `.teal`). The card scrolls sideways itself, so the page
+   never does.
+7. **An empty or failed list is a sentence** in a full-width muted row (`td.v-empty`): "Nothing waiting." or "Couldn't load
+   this list.", never a blank table.
+
+```html
+<div class="v-table-card">
+  <table class="v-table">
+    <thead><tr><th>Client</th><th>Status</th>
+      <th class="v-num sorted" aria-sort="descending" title="Sorted by revenue, highest first">Revenue <span class="v-sort">↓</span></th>
+      <th>Updated</th></tr></thead>
+    <tbody>
+      <tr><td><a class="v-cell-main" href="#">Union Financial</a><span class="v-cell-sub">9001 · ARS, ICS</span></td>
+        <td><span class="v-pill good">Current</span></td><td class="v-num">$45,187</td><td class="v-meta">Nov 3, 2026</td></tr>
+      <!-- no rows: <tr><td colspan="4" class="v-empty">Nothing waiting.</td></tr> -->
+    </tbody>
+  </table>
+</div>
+```
 
 ## Brand values
 

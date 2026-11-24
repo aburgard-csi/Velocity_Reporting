@@ -67,13 +67,16 @@ section{margin-top:40px}
 
 /* programs */
 .progs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}
-.prog{background:var(--surface);border:1px solid var(--hair);border-radius:18px;overflow:hidden}
+.prog{background:var(--surface);border:1px solid var(--hair);border-radius:20px;overflow:hidden}
 .prog>.ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:14px 16px 10px;border-top:4px solid var(--c)}
 .prog>.ph .cad{margin-left:auto;font:600 11px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
 .prog>.ph .note{flex-basis:100%;color:var(--ink2);font-size:14px}
 .prog table{width:100%;border-collapse:collapse;font-size:14px}
-.prog th{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:8px 16px 6px;border-top:1px solid var(--grid)}
-.prog td{padding:8px 16px;border-top:1px solid var(--grid);vertical-align:top}
+/* tables: the Mission Control table (Aaron, 2026-11-24): a quiet header, one hairline between rows, no stripes */
+.prog th{font-size:13px;font-weight:500;color:var(--ink2);text-align:left;padding:16px 24px 10px;white-space:nowrap;border-top:1px solid var(--grid)}
+.prog td{padding:16px 24px;border-top:1px solid var(--grid);vertical-align:top}
+.prog tbody tr:hover td,.map tbody tr:not(.group):hover td{background:color-mix(in srgb,var(--ok) 5%,transparent)}
+.prog td,.map td{transition:background-color .15s}
 .prog td:first-child{width:42%}
 .prog td .where{display:block;color:var(--ink3);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
 .need{display:inline-block;font:600 10px Montserrat,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 6px;margin-bottom:3px;white-space:nowrap}
@@ -82,11 +85,12 @@ section{margin-top:40px}
 .prog td .miss{display:block;color:var(--ink2)}
 
 /* folder map */
-.map{overflow-x:auto;background:var(--surface);border:1px solid var(--hair);border-radius:18px}
+.map{overflow-x:auto;background:var(--surface);border:1px solid var(--hair);border-radius:20px;padding-top:3px;box-shadow:inset 0 3px 0 var(--ok)}
 .map table{width:100%;min-width:560px;border-collapse:collapse;font-size:14.5px}
-.map th{font:600 10.5px Montserrat,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:10px 16px 8px;border-bottom:1px solid var(--hair)}
-.map td{padding:8px 16px;border-top:1px solid var(--grid);vertical-align:top}
-.map tr.group td{background:var(--tile);font:600 12px Montserrat,"Segoe UI",sans-serif;color:var(--head);letter-spacing:.02em}
+.map th{font-size:13px;font-weight:500;color:var(--ink2);text-align:left;padding:16px 24px 10px;white-space:nowrap}
+.map td{padding:16px 24px;border-top:1px solid var(--grid);vertical-align:top}
+@media (max-width:720px){.prog th,.prog td,.map th,.map td{padding-inline:16px}}
+.map tr.group td{padding-block:8px;background:var(--tile);font:600 12px Montserrat,"Segoe UI",sans-serif;color:var(--head);letter-spacing:.02em}
 .map td.p{white-space:nowrap}
 
 /* rules */
