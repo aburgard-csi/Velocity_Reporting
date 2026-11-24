@@ -30,6 +30,7 @@ Import-safe: nothing runs on import.
 import csv
 import datetime as dt
 import io
+import os
 import re
 import zipfile
 
@@ -148,9 +149,18 @@ def _date(v):
 
 
 def _open_csv(zip_path):
-    z = zipfile.ZipFile(zip_path)
-    name = next(n for n in z.namelist() if n.lower().endswith(".csv"))
-    return name, csv.reader(io.TextIOWrapper(z.open(name), encoding="latin-1", newline=""))
+    """(member name, csv reader) for the ODD extract in an ODDD zip, or an ODD .csv itself.
+
+    The ODD member is chosen by `rpe_env.extract_odd_csv`, as the rest of the build chooses it:
+    several ODDD zips also carry the month's transaction file as a .csv, and 1799 Central Bank's
+    lists it first, so taking the first .csv read the transaction file and stopped the build
+    with "no header row with 'Debit?'" (2026-11-23)."""
+    path = str(zip_path)
+    if zipfile.is_zipfile(path):
+        import rpe_env
+        path = rpe_env.extract_odd_csv(path)
+    fh = open(path, encoding="latin-1", newline="")
+    return os.path.basename(path), csv.reader(fh)
 
 
 def from_odd(zip_path, through=None):
