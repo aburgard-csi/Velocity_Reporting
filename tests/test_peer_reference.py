@@ -142,9 +142,9 @@ def test_ars_rows_are_the_collectors_values_with_their_provenance(root):
     assert "Live Review" in r["consumers"] and "How You Compare slide" in r["consumers"]
     # The program's own results are never compared (Aaron, 2026-11-22), so they are not peer figures.
     assert not any(r["metric_key"] in PP.ARS_PROGRAM_RESULTS for r in res["rows"])
-    # Sheila in Claude's fields are recorded too, raw from the same packs.
-    take = [r for r in res["rows"] if r["metric_key"] == "metrics.overall_take"]
-    assert len(take) == 7 and "Sheila in Claude" in take[0]["consumers"]
+    # Sheila in Claude compares with the deck's own code (Aaron, 2026-11-24), so it reads these same rows.
+    assert "Sheila in Claude: peer_compare" in r["consumers"]
+    assert not any(r["metric_key"].startswith("metrics.") for r in res["rows"])
 
 
 def test_every_metric_a_peer_comparison_names_is_in_the_catalog(root):

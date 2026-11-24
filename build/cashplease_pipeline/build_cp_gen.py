@@ -68,25 +68,72 @@ SLIDE_W, SLIDE_H = 13.333, 7.5
 # "healthy" is on the banned-word list for exactly the register it belongs to.
 BENEFITS = "Loan Volume · Portfolio Status · Peer Comparison"
 
-# The cohort is described by its TAB count, which is what the rollup actually sums.
-# It is not the number of clients this pipeline builds decks for — the rollup also
-# carries an internal test tab and any cancelled client's data.
+# EVERY PEER FIGURE A CLIENT SEES IS THE MEDIAN OF THE OTHER CURRENT CASHPLEASE CLIENTS (Aaron, 2026-11-24: "D: median,
+# pooled internal"). The Overview sentences, the Peer Comparison slide and the How You Compare slides all read ONE
+# evaluation, `peer_compare.for_deck("CP", ...)` over `peer_pool.collect_cashplease` (`peer_eval` below), so they cannot
+# disagree: the median, the client's rank, the 5-peer minimum, a rate's gap in points. Until then the Overview and the Peer
+# Comparison slide compared with the workbook's all-tabs rollup, a POOLED figure well above the median client's, that
+# every cancelled tab and the internal test tab fed and a few large books dominate. The pooled book rate is still computed (cp_extract's peer_benchmark.json) for the internal pages only: the
+# performance dashboard and Sheila's cashplease_portfolio, labelled "CashPlease book, pooled".
 #
-# Keep this SHORT. `fit_layout` parks a bottom caption in a fixed band sized by its
-# line count — top = 7.00 - 0.08 - 0.26*lines — so every extra wrapped line pushes
-# the caption 0.26" further UP into the slide's content. A four-line footnote is what
-# put this text on top of the Peer Comparison pills. At 11 pt across 12.1" a line
-# holds roughly 155 characters; two lines is the budget.
-COHORT_NOTE = ("Cohort: the workbook's all-clients rollup — {total_loans:,} "
-               "CashPlease loans across all {cohort_tabs} tabs, {client} included.")
+# Keep the face notes SHORT. `fit_layout` parks a bottom caption in a fixed band sized by its line count — top = 7.00 -
+# 0.08 - 0.26*lines — so every extra wrapped line pushes the caption 0.26" further UP into the slide's content. At 11 pt
+# across 12.1" a line holds roughly 155 characters; two lines is the budget.
+PEER_WHO = "CashPlease"
+# The Peer Comparison slide's rows: (label, peer_pool metric key). Values and medians are peer_pool's, in its units.
+PEER_ROWS = [("Loans per 1,000 DDAs\n(12 mo)", "per_1k"), ("Charge-off rate", "charge_off"),
+             ("Average loan size", "avg_loan"), ("Average interest per loan", "avg_interest"),
+             ("Loans paid off", "paid_off")]
 
-# Loans per 1,000 DDAs runs on a NARROWER cohort than every other peer figure, and
-# saying so is not optional. The rollup covers all 73 tabs; the DDA rate can only
-# cover clients that have both a DDA count and a full 12-month window — 51 of them.
-# One footnote describing the rollup while a row on the same slide is measured
-# against a different population would be wrong on the face of the slide.
-DDA_COHORT_NOTE = (" The DDA rate uses a narrower cohort: the {cohort_dda_clients} "
-                   "clients with a DDA count and a full 12 months.")
+
+def peer_eval(d):
+    """The one comparison of this client with the other current CashPlease clients, computed once per build and kept on
+    the pack (`d["_peer_eval"]`): `peer_compare.for_deck("CP", ...)` with the client's own pack. None when the other
+    clients' figures could not be read (the How You Compare slide then says so and the gate fails the deck)."""
+    if "_peer_eval" not in d:
+        import peer_compare as PC
+        try:
+            d["_peer_eval"] = PC.for_deck("CP", d["client_id"], own={"cashplease": d})
+        except Exception as e:                                # the peers could not be read: stated, never a stale benchmark
+            print(f"!! CashPlease peers could not be read - {type(e).__name__}: {e}", file=sys.stderr)
+            d["_peer_eval"] = None
+    return d["_peer_eval"]
+
+
+def peer_item(d, key):
+    """The comparison item for one metric, or None."""
+    ev = peer_eval(d) or {}
+    return next((it for it in ev.get("items") or [] if it["spec"]["key"] == key), None)
+
+
+def peer_left(d, key):
+    """Why a metric has no comparison, from the evaluation ("fewer than 5 peers ..."), or None."""
+    import review_page.peer_pool as PP
+    label = next(m["label"] for m in PP.CP_METRICS if m["key"] == key)
+    ev = peer_eval(d) or {}
+    hit = next((x for x in ev.get("left") or [] if x.startswith(label + ":")), None)
+    return hit[len(label) + 1:].strip() if hit else None
+
+
+def vs_median(subject, it):
+    """'<subject>, 84.9, is 594.0% above the median of 52 other current CashPlease clients (12.2).' — the deck's wording
+    (peer_compare.relation_phrase: a rate's gap in points, +/-2% almost flat) with the peer count said."""
+    import peer_compare as PC
+    c = it["c"]
+    f = PC.formatter(it["spec"]["fmt"])
+    rel = PC.relation_phrase(c, f).replace(
+        "the peer median", f"the median of {c['n']} other current {PEER_WHO} clients")
+    return f"{subject}, {f(c['client'])}, is {rel}."
+
+
+def charge_off_left_note(d):
+    """The face line for peers left out of the charge-off comparison (Aaron, 2026-11-24), or ''."""
+    ex = ((peer_eval(d) or {}).get("excluded") or {}).get("charge_off", 0)
+    if not ex:
+        return ""
+    import review_page.peer_pool as PP
+    return (f"Charge-off leaves out {ex} client{'s' if ex != 1 else ''} reading exactly 0.0% on "
+            f"{PP.CP_ZERO_CHARGE_OFF_MIN_LOANS:,}+ loans: taken as not reported.")
 
 
 # ------------------------------------------------------------------ formatting
@@ -180,26 +227,23 @@ def movement(now, prev, noun):
             f"({change:+.1%}).")
 
 
-def against_peer(label, client, peer, kind="rate"):
-    """One comparison sentence carrying both figures, so the claim is checkable.
+def charge_off_sentence(d):
+    """The Overview's charge-off line: against the median of the other current clients, or why it is not compared.
 
-    The gap between two RATES is measured in percentage POINTS, not percent: 2.58%
-    against 4.67% is 2.09 points apart, and calling that "2.1% below" states a
-    different — and wrong — quantity.
-    """
-    fmt = {"rate": lambda v: pct(v, 2),
-           "index": lambda v: f"{v:.1f}"}.get(kind, money)
-    if peer == 0:
-        return f"{label}: {fmt(client)}."
-    diff = client - peer
-    if abs(diff) <= abs(peer) * 0.02:
-        return (f"{label} is in line with the CashPlease client average — "
-                f"{fmt(client)} against {fmt(peer)}.")
-    word = "above" if diff > 0 else "below"
-    gap = {"rate": f"{abs(diff)*100:.2f} points",
-           "index": f"{abs(diff):.1f}"}.get(kind, money(abs(diff)))
-    return (f"{label} is {gap} {word} the CashPlease client average — "
-            f"{fmt(client)} against {fmt(peer)}.")
+    The gap between two RATES is stated in percentage POINTS (peer_compare.relation_phrase): 2.58% against 4.67% is 2.09
+    points apart, and calling that "2.1% below" states a different quantity."""
+    m = d["metrics"]
+    it = peer_item(d, "charge_off")
+    if it is not None:
+        return vs_median("The charge-off rate", it)
+    own = f"The charge-off rate reads {pct(m['charge_off_pct'], 2)}"
+    if peer_eval(d) is None:
+        return own + "; the other clients' figures could not be read for this build."
+    why = peer_left(d, "charge_off") or ""
+    if why.startswith("not compared:"):                       # 0.0% on a book this size: not reported (Aaron, 2026-11-24)
+        return (f"{own} on {m['total_loans']:,} loans booked. A zero on that many loans is taken as not reported, so it is "
+                f"not compared with other clients.")
+    return own + f"; it is not compared: {why or 'fewer than 5 other current clients have a figure'}."
 
 
 def dda_note(d, m):
@@ -229,13 +273,14 @@ def dda_note(d, m):
             f"{age}. " + unused)
 
 
-def rate_sentence(m, peer, client):
-    """The loans-per-DDA line, saying exactly what it can and no more.
+def rate_sentence(d):
+    """The loans-per-DDA line, saying exactly what it can and no more, against the median of the other current clients.
 
     Named, not "this client" (Aaron, 2026-09-02). The deck is FOR that client and is
     read in a room with them in it; a sentence whose subject is "this client" reads as
     a template that was never filled in.
     """
+    m, client = d["metrics"], d["client_name"]
     if m["loans_per_1k_dda"] is None:
         return ("Loans per 1,000 DDAs is not shown: "
                 + (m["dda_missing_reason"] or "no DDA count is available") + ".")
@@ -244,10 +289,14 @@ def rate_sentence(m, peer, client):
            f"against {m['dda_accounts']:,} DDA accounts — "
            f"{m['loans_per_1k_dda']:.1f} per 1,000.")
     if not m["peer_comparable"]:
-        return (own + " It is not compared with the cohort, whose rate covers a full "
+        return (own + " It is not compared with other clients, whose rates cover a full "
                       "12 months.")
-    return own + " " + against_peer("That rate", m["loans_per_1k_dda"],
-                                    peer["loans_per_1k_dda"], "index")
+    it = peer_item(d, "per_1k")
+    if it is None:
+        return own + " It is not compared with other clients: " + (
+            "their figures could not be read for this build." if peer_eval(d) is None
+            else (peer_left(d, "per_1k") or "fewer than 5 other current clients have a figure") + ".")
+    return own + " " + vs_median("That rate", it)
 
 
 # ------------------------------------------------------------------ slide frame
@@ -488,8 +537,47 @@ def slide_divider(prs, d):
     return s
 
 
+def peer_note(d):
+    """The face line saying what the peer figures are: the median of the other current clients, with n per measure."""
+    parts = []
+    for key, name in (("per_1k", "the DDA rate"), ("charge_off", "charge-off")):
+        it = peer_item(d, key)
+        if it is not None:
+            parts.append(f"{it['c']['n']} for {name}")
+    if not parts:
+        return ""
+    return (f"Peers: the median of the other current {PEER_WHO} clients with a figure ({', '.join(parts)}), "
+            f"the comparison on How You Compare.")
+
+
+def peer_method_note(d):
+    """The speaker-notes account of the peer figures: who the peers are, the arithmetic, each measure's n and median,
+    and who was left out and why."""
+    import peer_compare as PC
+    ev = peer_eval(d)
+    if ev is None:
+        return ("Peer values: the other current CashPlease clients' figures could not be read for this build, so nothing is "
+                "compared with them.")
+    out = [f"Peer values: the MEDIAN of the other current CashPlease clients (not cancelled, a loan in the last six complete "
+           f"months; {ev['n_pool']} of them in the packs from the same weekly"
+           + (f", {ev['pull']}" if ev.get("pull") else "") + "), each from its own tab, computed by build/peer_compare.py "
+           f"over build/review_page/peer_pool.py, the arithmetic of the How You Compare slides and Live Review. A measure "
+           f"needs {PC.MIN_PEERS} other clients with a figure. The workbook's all-clients rollup (a pooled book total) is not "
+           f"used on any client-facing slide (Aaron, 2026-11-24)."]
+    for it in ev.get("items") or []:
+        if it["spec"]["key"] not in ("per_1k", "charge_off", "avg_loan", "avg_interest", "paid_off"):
+            continue
+        c, f = it["c"], PC.formatter(it["spec"]["fmt"])
+        out.append(f"{it['spec']['label']}: {d['client_name']} {f(c['client'])}; median of {c['n']} other current clients "
+                   f"{f(c['median'])} (middle half {f(c['q1'])} to {f(c['q3'])}); {PC.rank_phrase(c, PEER_WHO)}.")
+        out.extend(n for n in it.get("notes") or [] if "left out of this comparison" in n)
+    for x in ev.get("left") or []:
+        out.append((x if "not compared" in x else f"Not compared: {x}") + ".")
+    return " ".join(out)
+
+
 def slide_overview(prs, d, pill_text, art_dir):
-    m, peer = d["metrics"], d["metrics"]["peer"]
+    m = d["metrics"]
     s = new_slide(prs)
     head(s, "CashPlease Program Overview",
          f"All CashPlease loans booked by {d['client_name']}, program to date.",
@@ -544,10 +632,9 @@ def slide_overview(prs, d, pill_text, art_dir):
         f"Average loan size is {money(m['avg_loan_size'])}, with "
         f"{money(m['avg_interest_per_loan'])} of interest per loan.",
         "",
-        rate_sentence(m, peer, d["client_name"]),
+        rate_sentence(d),
         "",
-        against_peer("The charge-off rate", m["charge_off_pct"],
-                     peer["charge_off_pct"], "rate"),
+        charge_off_sentence(d),
     ]
     box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
                              Inches(8.25), Inches(3.14 + OV_DROP), Inches(4.47), Inches(3.08))
@@ -557,17 +644,16 @@ def slide_overview(prs, d, pill_text, art_dir):
     textbox(s, 8.45, 3.30 + OV_DROP, 4.07, 2.76, lines, 13, NAVY_RGB, False,
             PP_ALIGN.LEFT, BODY, MSO_ANCHOR.MIDDLE)
 
-    cohort_note = COHORT_NOTE.format(client=d["client_name"], **peer)
-    if m["loans_per_1k_dda"] is not None:
-        cohort_note += DDA_COHORT_NOTE.format(client=d["client_name"], **peer)
-    textbox(s, 0.62, 6.36 + OV_DROP, 12.1, 0.40, cohort_note,
-            11, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+    note = peer_note(d)
+    if note:
+        textbox(s, 0.62, 6.36 + OV_DROP, 12.1, 0.40, note,
+                11, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
     notes(s, f"Source: {d['source_file']}, tab '{d['sheet_name']}' "
              f"(report generated {d['report_generated']}). Selection: every "
              f"CashPlease loan booked for client {d['client_id']} program to date. "
              f"Charge-off % is taken as reported on the tab (L9); it is not "
-             f"derivable from the tab's own totals. Peer values from the 'All Clients Summary - Loans' tab. "
+             f"derivable from the tab's own totals. " + peer_method_note(d) + " "
              + dda_note(d, m) + " "
              f"The curve is the running total of the completed-month roll-up rows, "
              f"all {len(d['monthly'])} of them; axis labels are sampled so a long "
@@ -914,99 +1000,95 @@ def slide_status(prs, d, pill_text, art_dir):
 
 
 def slide_peer(prs, d, pill_text, art_dir):
-    """Pills on the left, the same comparison as an index chart on the right.
+    """Pills on the left, the same comparison as an index chart on the right: the client against the MEDIAN of the other
+    current CashPlease clients (Aaron, 2026-11-24: "D: median, pooled internal"), from the same evaluation as the How You
+    Compare slides. It used to show the workbook's all-clients rollup, a pooled figure.
 
     The pill block used to run the full slide width and end at 6.70", leaving the
     footnote nowhere to go: fit_layout pulled it up off the bottom edge and dropped
     it straight onto the last row of capsules. Narrowing the block buys the footnote
     its own band AND makes room for the chart, so the fix and the addition are the
     same change.
+
+    A row is drawn only when its measure has a median (5 other current clients with a figure); a row that is absent is
+    stated on the face. With no row at all the slide says why, rather than being dropped.
     """
-    m, peer = d["metrics"], d["metrics"]["peer"]
+    import peer_compare as PC
+    m = d["metrics"]
     s = new_slide(prs)
     head(s, "CashPlease Peer Comparison",
-         f"{d['client_name']} against the all-accounts cohort of every "
-         f"CashPlease client.", pill_text)
+         f"{d['client_name']} against the median current CashPlease client.", pill_text)
 
-    rows = []
-    # Only a client with a DDA count AND a full 12-month window earns this row. Without
-    # the count there is no rate; without the window the comparison is against tenure.
-    if m["peer_comparable"]:
-        # The window goes on its own line: at 13 pt the label wrapped inside the parenthesis,
-        # "(12" / "mo)" (Aaron, 2026-10-28). The chart re-wraps the label itself.
-        rows.append(("Loans per 1,000 DDAs\n(12 mo)", peer["loans_per_1k_dda"],
-                     m["loans_per_1k_dda"], lambda v: f"{v:.1f}"))
-    rows += [
-        ("Charge-off rate", peer["charge_off_pct"], m["charge_off_pct"],
-         lambda v: pct(v, 2)),
-        ("Average loan size", peer["avg_loan_size"], m["avg_loan_size"], money),
-        ("Average interest per loan", peer["avg_interest_per_loan"],
-         m["avg_interest_per_loan"], money),
-        ("Loans paid off", peer["pct_loans_paid_off"], m["pct_loans_paid_off"], pct),
-    ]
-
-    textbox(s, 0.70, 1.54, 1.62, 0.40, "Cohort", 11,
-            TICK_RGB, True, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
-    # Wider and a point smaller than the pill column it sits over, because it carries a
-    # client NAME — "Altamaha Bank and Trust Company" is 31 characters and will not fit
-    # a 1.62" box on one line. The extra width runs into empty space above the metric
-    # labels, not over any shape.
-    textbox(s, 4.16, 1.54, 3.02, 0.40, d["client_name"], 11,
-            TICK_RGB, True, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
-
-    T, H, GAP = 1.98, 0.66, 0.18
-    for i, (label, pv, cv, fmt) in enumerate(rows):
-        y = T + i * (H + GAP)
-        capsule(s, 0.70, y, 1.62, H, fmt(pv), ORANGE_RGB, size=13)
-        textbox(s, 2.42, y, 2.34, H, label.split("\n"), 13, NAVY_RGB, False,
-                PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
-        capsule(s, 4.86, y, 1.62, H, fmt(cv), NAVY_RGB, size=13)
-
-    png = str(Path(art_dir) / f"{d['client_id']}_cp_peer.png")
-    cp_charts.peer_index_chart(
-        png, [r[0].replace("\n", " ") for r in rows],
-        [(r[2] / r[1] * 100) if r[1] else 0.0 for r in rows],
-        box=(5.75, 4.02))
-    fit_picture(s, png, 6.95, 1.98, 5.75, 4.02)
-    textbox(s, 6.95, 1.54, 5.75, 0.40,
-            f"{d['client_name']} relative to the cohort", 11,
-            TICK_RGB, True, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
-
-    # The cohort's make-up is in the notes with the rest of the methodology (Aaron, 2026-10-28:
-    # the footnote stating it came off the face). What stays on the face is a row that is
-    # absent, and why: a silently missing row reads as an oversight; a stated one reads as a
-    # limit of the data.
-    cohort = (COHORT_NOTE.format(client=d["client_name"], **peer)
-              + DDA_COHORT_NOTE.format(client=d["client_name"], **peer)
-              + " The index reads each figure against the cohort's, so 100 is it.")
-    why = ""
+    rows, why = [], []
+    for label, key in PEER_ROWS:
+        it = peer_item(d, key)
+        if it is not None:
+            # The window goes on its own line: at 13 pt the label wrapped inside the parenthesis,
+            # "(12" / "mo)" (Aaron, 2026-10-28). The chart re-wraps the label itself.
+            rows.append((label, it["c"]["median"], it["c"]["client"], PC.formatter(it["spec"]["fmt"])))
+    # A row that is absent, and why: a silently missing row reads as an oversight; a stated one reads as a limit of the
+    # data. Only a client with a DDA count AND a full 12-month window has a comparable rate.
     if m["loans_per_1k_dda"] is None:
-        why = ("Loans per 1,000 DDAs is not shown: "
-               + (m["dda_missing_reason"] or "no DDA count is available") + ".")
+        why.append("Loans per 1,000 DDAs is not shown: " + (m["dda_missing_reason"] or "no DDA count is available") + ".")
     elif not m["peer_comparable"]:
-        why = (f"Loans per 1,000 DDAs is not compared: {d['client_name']} has "
-               f"{m['window_months']} completed months, not the cohort's 12.")
+        why.append(f"Loans per 1,000 DDAs is not compared: {d['client_name']} has {m['window_months']} completed months, "
+                   f"not 12.")
+    if peer_eval(d) is None:
+        why.append("The other clients' figures could not be read for this build, so nothing is compared.")
+    else:
+        own_co = peer_left(d, "charge_off") or ""
+        if own_co.startswith("not compared:"):
+            why.append(f"Charge-off is not compared: {pct(m['charge_off_pct'], 2)} on {m['total_loans']:,} loans is taken as "
+                       f"not reported.")
+        else:
+            why.append(charge_off_left_note(d))
+        if not rows:
+            why.append(f"No measure has {PC.MIN_PEERS} other current CashPlease clients with a figure, so no median is shown.")
+    why = " ".join(w for w in why if w)
+
+    if rows:
+        textbox(s, 0.70, 1.54, 1.62, 0.40, "Median client", 11,
+                TICK_RGB, True, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
+        # Wider and a point smaller than the pill column it sits over, because it carries a
+        # client NAME — "Altamaha Bank and Trust Company" is 31 characters and will not fit
+        # a 1.62" box on one line. The extra width runs into empty space above the metric
+        # labels, not over any shape.
+        textbox(s, 4.16, 1.54, 3.02, 0.40, d["client_name"], 11,
+                TICK_RGB, True, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
+
+        T, H, GAP = 1.98, 0.66, 0.18
+        for i, (label, pv, cv, fmt) in enumerate(rows):
+            y = T + i * (H + GAP)
+            capsule(s, 0.70, y, 1.62, H, fmt(pv), ORANGE_RGB, size=13)
+            textbox(s, 2.42, y, 2.34, H, label.split("\n"), 13, NAVY_RGB, False,
+                    PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
+            capsule(s, 4.86, y, 1.62, H, fmt(cv), NAVY_RGB, size=13)
+
+        png = str(Path(art_dir) / f"{d['client_id']}_cp_peer.png")
+        cp_charts.peer_index_chart(
+            png, [r[0].replace("\n", " ") for r in rows],
+            [(r[2] / r[1] * 100) if r[1] else 0.0 for r in rows],
+            box=(5.75, 4.02))
+        fit_picture(s, png, 6.95, 1.98, 5.75, 4.02)
+        textbox(s, 6.95, 1.54, 5.75, 0.40,
+                f"{d['client_name']} relative to the median client", 11,
+                TICK_RGB, True, PP_ALIGN.CENTER, BODY, MSO_ANCHOR.MIDDLE)
+    else:
+        textbox(s, 0.70, 2.30, 11.8, 1.60,
+                f"No peer comparison is shown for {d['client_name']} in this build.",
+                20, NAVY_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
+
     if why:
         textbox(s, 0.62, 6.18, 12.1, 0.56, why, 11, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
 
-    notes(s, f"Source: {d['source_file']} — client figures from tab "
-             f"'{d['sheet_name']}', peer figures from tab 'All Clients Summary - "
-             f"Loans' (report generated {d['report_generated']}). Selection: the "
-             f"all-accounts cohort is the rollup tab, verified at extract time to "
-             f"equal the sum of all {peer['cohort_tabs']} client tabs. It includes "
-             f"{d['client_name']} (it is not adjusted to exclude them) and it also "
-             f"includes "
-             f"tabs no deck is built for — the internal 'enterpoints' test tab and "
-             f"any cancelled client — so the cohort is stated as a tab count, never "
-             f"as a client count. 'Charge-off rate' is a reported value (L9) on "
-             f"both tabs and is not derivable from the tabs' own totals. "
-             + dda_note(d, m) +
-             f" Average loan size and average interest per "
-             f"loan are the cohort's total principal / total interest divided by its "
-             f"loan count. The index chart plots client / cohort x 100 for each "
-             f"row shown; bars are one colour and the reference line carries the "
-             f"accent, because 'above' is not 'better' for the charge-off rate. "
-             + cohort)
+    notes(s, f"Source: {d['source_file']}, client figures from tab '{d['sheet_name']}' (report generated "
+             f"{d['report_generated']}); peer figures from every other current client's own tab in the same weekly. "
+             f"Selection: each row is the client against the median of the other current CashPlease clients with a "
+             f"figure for it. 'Charge-off rate' is a reported value (L9) on each tab and is not derivable from the tab's own "
+             f"totals. " + peer_method_note(d) + " " + dda_note(d, m) +
+             " The index chart plots client / median x 100 for each row shown; bars are one colour and the reference line "
+             "carries the accent, because 'above' is not 'better' for the charge-off rate. The index reads each figure "
+             "against the median client's, so 100 is the median.")
     return s
 
 
@@ -1065,7 +1147,8 @@ def main():
     made.extend(peer_slide.add_peer_slide(
         prs, "CP", d["client_id"], d["client_name"], pill_text, str(art_dir),
         f"Client figures: {d['source_file']}, tab '{d['sheet_name']}' (report generated {d['report_generated']}).",
-        anchor_slide=made[-1], own={"cashplease": d}))
+        anchor_slide=made[-1], own={"cashplease": d},
+        evaluation=peer_eval(d)))     # the SAME evaluation the Overview and Peer Comparison read (None: read again, and said)
 
     lst = prs.slides._sldIdLst
     order = [sldid_of(prs, s) for s in

@@ -966,7 +966,10 @@ function viewCP(vis){
   const trend = trendCard(p, "Loans by month", `All ${ok.length} clients together, last 24 months; a month not yet ended is left out.`,
     trendChart("tr-cp", labs.map(monLabel), [{name:"Loans", c:p.c, vals}], {fmt:N, aria:"loans by month, all clients"}),
     {head:["Loans"], rows:labs.map((m,i)=>[monLabel(m), N(vals[i])])});
-  const peer = DATA.cp_peer;
+  // Two company rows (Aaron, 2026-11-24: "D: median, pooled internal"): the MEDIAN current client, the figure every
+  // client-facing comparison uses, and the book pooled, internal only. Both span every CSM's current clients.
+  const peer = DATA.cp_peer, med = DATA.cp_peer_median;
+  const usd2 = v => v==null||isNaN(v) ? "\u2014" : "$"+nf2.format(v);
   const tiles = `<div class="kpis">` +
     kpi("Loans, trailing 12", N(sum(ok,c=>c.cp.window_loans)), `${ok.length} clients`, p.c) +
     kpi("Active principal", USDk(sum(ok,c=>c.cp.active_principal)), "outstanding on active loans", p.c) +
@@ -982,13 +985,18 @@ function viewCP(vis){
         <td>${N(k.total_loans)}</td><td>${N(k.window_loans)}</td><td>${N(last.loans)}<span class="sub">${monLabel(last.month)}</span></td>
         <td class="l">${spark(k.monthly.map(r=>({label:monLabel(r.month), v:r.loans, note:USD(r.principal)+" principal"})),{c:p.c, aria:"loans per month"})}</td>
         <td>${N(k.active_loans)}</td><td>${USDk(k.active_principal)}</td><td>${USD(k.avg_loan_size)}</td><td>$${nf2.format(k.avg_interest_per_loan)}</td>
-        <td><span style="color:${(peer&&co>peer.charge_off_pct*1.5)?'var(--bad)':'inherit'}">${PCTf(co,2)}</span></td><td>${PCTf(k.pct_overdue,2)}</td><td>${PCTf(k.pct_active_accounts_with_loans,2)}</td></tr>`;
+        <td><span style="color:${(med&&med.charge_off_pct&&co>med.charge_off_pct*1.5)?'var(--bad)':'inherit'}">${PCTf(co,2)}</span></td><td>${PCTf(k.pct_overdue,2)}</td><td>${PCTf(k.pct_active_accounts_with_loans,2)}</td></tr>`;
     }).join("") +
+    (med
+      ? `<tr class="peer"><td class="l"><span class="cl">Median current CashPlease client</span><span class="sub">the figure clients are compared with: the median of ${med.cohort_clients} current client${med.cohort_clients===1?"":"s"}, all CSMs${med.charge_off_left_out?`; charge-off leaves out ${med.charge_off_left_out} reading exactly 0.0% on 500+ loans (taken as not reported)`:""}</span></td>
+      <td>\u2014</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(med.avg_loan_size)}</td><td>${usd2(med.avg_interest_per_loan)}</td>
+      <td>${PCTf(med.charge_off_pct,2)}</td><td>${PCTf(med.pct_loans_overdue,2)}</td><td>\u2014</td></tr>`
+      : `<tr class="peer"><td class="l" colspan="12">The median client is not in this build \u2014 the CashPlease packs were not read.</td></tr>`) +
     (peer
-      ? `<tr class="peer"><td class="l"><span class="cl">Current Velocity CashPlease clients</span><span class="sub">${peer.cohort_clients} current client${peer.cohort_clients===1?"":"s"}, all CSMs; rates and averages only. Charge-off and accounts with loans are not derivable per client</span></td>
-      <td>\u2014</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(peer.avg_loan_size)}</td><td>$${nf2.format(peer.avg_interest_per_loan)}</td>
+      ? `<tr class="peer"><td class="l"><span class="cl">CashPlease book, pooled</span><span class="sub">internal only: totals over ${peer.cohort_clients} current client${peer.cohort_clients===1?"":"s"}, all CSMs, so large books weigh most; rates and averages only. Charge-off and accounts with loans are not derivable per client</span></td>
+      <td>\u2014</td><td>\u2014</td><td>\u2014</td><td></td><td>\u2014</td><td>\u2014</td><td>${USD(peer.avg_loan_size)}</td><td>${usd2(peer.avg_interest_per_loan)}</td>
       <td>${PCTf(peer.charge_off_pct,2)}</td><td>${PCTf(peer.pct_loans_overdue,2)}</td><td>${PCTf(peer.pct_active_accounts_with_loans,2)}</td></tr>`
-      : `<tr class="peer"><td class="l" colspan="12">The company peer row is not in this build \u2014 the CashPlease rollup was not read.</td></tr>`) +
+      : `<tr class="peer"><td class="l" colspan="12">The pooled book row is not in this build \u2014 the CashPlease packs were not read.</td></tr>`) +
     `</tbody></table></div>`;
   return progHead(p, esc(DATA.sources.cp)) + tiles + `<div class="two">${rank}${trend}</div>` +
     `<section class="card sect" data-sec="CP"><header><h2>By client</h2><span class="chip">${rows.length} client${rows.length===1?"":"s"}</span></header>${table}</section>`;
