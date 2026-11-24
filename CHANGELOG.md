@@ -15,6 +15,14 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-23 — Spend trend reads the ODD member of the ODDD zip, not the first .csv (`build/ars_pipeline/spend_trend.py`)
+
+Summary: The ARS build for 1799 Central Bank stopped at `build_ars_gen` with "spend trend: no header row with 'Debit?' in 1799_32212_..._velocitytransactions_fullmonth_20260930.csv". Its ODDD zip carries the month's transaction file beside the ODD extract, listed first, and `spend_trend._open_csv` took the first .csv in the zip. It now picks the member with `rpe_env.extract_odd_csv`, as the rest of the build already does (2026-09-16), and also accepts an ODD .csv path. No figure changes for a client whose zip holds only the ODD; for a zip like 1799's the spend-trend slides now build from the ODD instead of the build stopping.
+
+- Tests: 2 new in `tests/test_spend_trend.py` (a transaction file listed first; an ODD .csv path).
+
+---
+
 ### 2026-11-19 — The morning file get sweeps the Drop Folder (`scripts/watch_sources.py`, `build/rpe_env.py`)
 
 Summary: Files dropped in the CSM_Reporting Drop Folder are now filed into Inputs by the 08:00 file get, by the same naming rules as files from the shares and the mailbox. A file it cannot place, or one whose name already holds different contents in Inputs, is left in the folder and listed in the morning report. A dropped ODD extract whose pull stamp is newer than the one in Inputs replaces it, and the older one is archived.
@@ -543,6 +551,19 @@ Summary: The GitHub test check now splits the unit suite across the runner's CPU
 
 Aaron asked for a more efficient workflow after running out of Actions minutes. `pytest -n auto` passed the whole suite locally (3,835 passed, 29 skipped) with two workers, so no test shares state. `requirements.txt` gains `pytest-xdist==3.8.0`; the workflow adds `-n auto`.
 
+### 2026-11-05 — Deposits chapter: daily deposits, and what is spent in the days after a deposit, for every spend category (`build/ars_pipeline/ti/core/deposits/daily.py`, `build/ars_pipeline/ti/monthly_analysis/deposit_daily.py`, `build/ars_pipeline/ti/odd_sections.py`, `build/ars_pipeline/ti/chapters/deposits.py`, `build/ars_pipeline/ti/deck/deposit_slides.py`, `build/ars_pipeline/ti/deck/charts.py`, `build/ars_pipeline/ti/slides.json`, `tests/test_ti_daily_deposits.py`)
+
+Summary: The Transaction Intelligence Deposits chapter now has the deposits file per calendar day (deposits, dollars, accounts), its weekday and day-of-month pattern, and, for accounts in both the deposits and the transaction file, how much of each spend category goes out within 0-3 days after the account's own deposit against an even spread. Five new slides; each declines with its reason when a file is missing.
+
+James, 2026-11-05: "we should have daily [deposit] amounts (aggregate count and amount), we could tie up with large txns around bnpl or something", then "i meant daily deposit amounts (the daily aggregate amount)", and "r7 daily deposit amount could be overlayed with any and all spend categories".
+
+- Daily series (`dep_daily`, `[date, deposits, dollars, accounts]`, at most 366 days): every calendar day from the file's first to its last date, a day with nothing posted counted as zero, credits only. With the average and median day, the weekday and day-of-month tables (`% of the average day`) and the top ten days.
+- Deposit timing (`dep_timing`): for every category (card merchant categories, financial-services categories including Buy Now Pay Later, all outflows, and large transactions), the share of its dollars spent 0-3 days after a deposit, the share an even spread would put there (each account's covered days over its observed days, weighted by its dollars in the category) and the ratio of the two. The ratio is stated only on 30+ accounts and 200+ transactions; the base is in the table and on the slides.
+- "Large" is the account's own: above its 90th-percentile outflow, for accounts with 10 or more outflows in the window.
+- Overlay series (`dep_daily_by_category`, `{category: [[date, txns, dollars], ...]}`, days with activity only): every category that reaches the base, at most 20, so the deck can draw deposits against any of them.
+- Slides: "Deposits, day by day", "What is spent after a deposit" (every ranked category), and the overlay for the two most deposit-timed categories and for buy now, pay later. With no deposits file all five decline "no deposits file"; with no transaction file the four timing slides decline "no transaction files for this period"; a short transaction load declines them as "What arrives against what leaves" does.
+- Not changed: the eleven existing deposit slides, their figures, and the transaction chapters' figures. The timing reads the categories the Transaction Intelligence chapter already computed.
+
 ### 2026-11-05 — A field trace of the transaction file, rebuilt from the code (`scripts/ti_field_trace.py`, `docs/ti_field_trace.md`, `docs/ti_field_trace.json`, `tests/test_ti_field_trace.py`)
 
 Summary: A trace of every transaction-file field, showing which Transaction Intelligence analyses and slides use it, is now generated from the code, and a test fails when it is out of date. No figure changes.
@@ -713,6 +734,20 @@ Klarna $2.1M → $17.2M, Afterpay $0 → $11.8M; 1776: Venmo $0.3M → $27.0M), 
 in leakage, not in addressable. Dropped: stadiums, street names, duty-free (DFS), Fidelity
 National/Life, and Chase branch-name rows (CHASE INC PISMO, CHASE NORTHGATE — 1776's Chase fell from
 2,254 accounts to 40).
+
+### 2026-11-05 — Category drill-downs: one slide per leading addressable category (`ti/deck/txn_leakage.py`, `chapters_txn.py`, `slides.json`)
+James: "would be nice to have category summary slides/drill downs". The pack already held every
+figure a category needs (top providers, recency, new and stopped, the lens-by-category table, the
+leakers' profile, and since R2 the split by line); no slide put them together for one category.
+- New builder `category_drilldowns`, after "Insurance by line": one slide for each of the top 5
+  addressable leakage categories by dollars with 100+ accounts.
+- Each slide: the accounts and dollars and the lead provider's share in the headline; the share
+  still paying in the last 90 days, how many started and stopped, and the lens it over-indexes in
+  (against all accounts, only on a lens base of 200+) in the subtitle; a rail with accounts,
+  dollars, still paying, the median balance those accounts hold with us, and the over-index; and
+  the providers as bars, or the category's lines when it has a split (Insurance).
+- All the drill-downs share one topic, "Category drill-down", in `slides.json`, so they are kept or
+  tossed together. No category qualifying is a stated decline.
 
 ### 2026-11-05 — Insurance is addressable, and split by line: auto, home, life, health (`dictionaries/financial_services_patterns.json`, `financial_services.py`, new slide "Insurance by line")
 Summary: Insurance now counts as addressable, since many clients sell it through an agency partner, so it joins the addressable dollars and action lists. A new slide, "Insurance by line", splits it into auto, home, life and health; category totals do not change.
@@ -1284,6 +1319,12 @@ James Gilmore, 2026-10-30: "turn my m365 tools into Sheila tools ... Sheila, cre
 Summary: the When the card gets used slide says the dates are posting dates, and no longer calls Monday the busiest day, when Saturday and Sunday are empty.
 
 Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #88): `when_the_card_is_used` detects empty weekend rows beside busy weekdays and words the headline and subtitle as posting dates ("weekend activity appears on Monday"). Whether the file carries a true transaction date is a question for the data team.
+
+### 2026-10-29 — TI: Where PIN gets pressed declines when no merchant carries PIN
+
+Summary: the Where PIN gets pressed slide no longer draws an all-signature chart when the file shows no PIN dollars at any merchant; it states that the file has no PIN/SIG mix.
+
+Aaron, 2026-10-28, from the review of 1075 Austin Bank's Transaction Intelligence deck (issue #89): `where_pin_gets_pressed` now declines with the existing "no PIN/SIG mix in the file" sentence when PIN (or signature) is $0 at every merchant, since that means the indicator is missing or unmapped, not that the market is signature-only. Whether 1075's file carries a usable indicator is still a data question.
 
 ### 2026-10-29 — Sheila: a client's list status is renewed, not left on "Checking…"
 
