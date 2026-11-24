@@ -4,10 +4,12 @@ portfolio, peer compare, the one-pager, and the client brief and prep "need to b
 These were James's v5 tools, reading his OneDrive checkout. Here they read what the RPE builds already
 leave on M:\\CSM_Reporting, so every CSM gets the same answer:
   CashPlease   Build Artifacts\\cashplease\\packs\\<id>_cashplease.json (+ index.json), from the newest
-               CashPleaseSummary export in Inputs\\CashPlease; peers are the pack's "all CashPlease clients"
-               cohort and the dashboard's "current clients" cohort
+               CashPleaseSummary export in Inputs\\CashPlease; a client is compared with the MEDIAN of the other
+               current CashPlease clients, the deck's own comparison (peer_compare.for_deck); the pooled book total
+               is internal and only cashplease_portfolio states it (Aaron, 2026-11-24: "D: median, pooled internal")
   peers        Build Artifacts\\launcher\\<period>\\<id>\\metrics.json across clients, the figures each
-               client's deck was built from
+               client's deck was built from, compared by the deck's own code (peer_compare.for_deck("ARS"), at the
+               client's newest build period; Aaron, 2026-11-24: "A: use the deck's code")
   everything   Build Artifacts\\perf_dashboard\\dataset.json (programs, revenue, readiness, decks)
 Notes, tasks, calendar and mail are each CSM's own Microsoft 365, not Sheila's: the brief says so and
 leaves them to the CSM's Microsoft 365 connector in Claude.
@@ -17,13 +19,12 @@ import os
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from statistics import median
 
 import rpe_env as R
 
 from .core import find_client, label, reply
 
-MIN_PEERS = 5          # fewer than this and a rank is shown as a count, never as a percentile
+MIN_PEERS = 5          # the deck's minimum (peer_compare.MIN_PEERS): a measure with fewer peers is not compared
 _cache = {}
 _cache_lock = threading.Lock()
 
@@ -83,17 +84,18 @@ def cp_pack(cid):
     return _json(_cp_dir() / f"{cid}_cashplease.json")
 
 
-CP_ROWS = [  # (label, metric key, peer key, format, higher is better)
+CP_ROWS = [  # (label, metric key on the pack, peer_pool key (None: not compared), format, higher is better)
     ("Loans, all time", "total_loans", None, "n", None),
     ("Loans, last 12 months", "window_loans", None, "n", None),
-    ("Loans per 1,000 checking accounts (12 mo)", "loans_per_1k_dda", "loans_per_1k_dda", "r", True),
-    ("Average loan", "avg_loan_size", "avg_loan_size", "$", None),
-    ("Interest per loan", "avg_interest_per_loan", "avg_interest_per_loan", "$", True),
-    ("Charge-off rate (dollars)", "charge_off_pct", "charge_off_pct", "%", False),
-    ("Loans charged off", "pct_loans_charged_off", "pct_loans_charged_off", "%", False),
-    ("Loans overdue now", "pct_loans_overdue", "pct_loans_overdue", "%", False),
-    ("Loans paid off", "pct_loans_paid_off", "pct_loans_paid_off", "%", True),
+    ("Loans per 1,000 checking accounts (12 mo)", "loans_per_1k_dda", "per_1k", "r", True),
+    ("Average loan", "avg_loan_size", "avg_loan", "$", None),
+    ("Interest per loan", "avg_interest_per_loan", "avg_interest", "$", True),
+    ("Charge-off rate (dollars)", "charge_off_pct", "charge_off", "%", False),
+    ("Loans charged off", "pct_loans_charged_off", None, "%", False),
+    ("Loans overdue now", "pct_loans_overdue", "overdue", "%", False),
+    ("Loans paid off", "pct_loans_paid_off", "paid_off", "%", True),
 ]
+CP_RATES = {"charge_off", "overdue", "paid_off"}   # peer_pool states these in percent; the pack in fractions
 
 
 def _fmt(v, f):
@@ -102,9 +104,22 @@ def _fmt(v, f):
     return {"n": f"{v:,.0f}", "r": f"{v:.1f}", "$": f"${v:,.0f}", "%": pct(v, nd=2)}[f]
 
 
+def cp_median(cid):
+    """The client's CashPlease comparison exactly as its deck states it (Aaron, 2026-11-24: "D: median, pooled
+    internal"): `peer_compare.for_deck("CP", ...)`, the median of the other current CashPlease clients, the client's rank,
+    the 5-peer minimum, a rate's gap in points, and a 0.0% charge-off on a large book left out of charge-off. None when the
+    packs could not be read."""
+    import peer_compare as PC
+    try:
+        return PC.for_deck("CP", cid, root=_ba())
+    except Exception:
+        return None
+
+
 def cashplease_report(client):
-    """One institution's CashPlease: volume, loss and repayment against all CashPlease clients and the current
-    cohort, the last six months, and anything the pack flags."""
+    """One institution's CashPlease: volume, loss and repayment against the median of the other current CashPlease
+    clients (the deck's comparison), the last six months, and anything the pack flags."""
+    import peer_compare as PC
     c, why = find_client(client)
     cid = c["id"] if c else str(client).strip()
     if why and not re.fullmatch(r"\d{3,5}", cid):
@@ -116,20 +131,39 @@ def cashplease_report(client):
                      f"({idx.get('source_file', 'none found')}) has no tab for it, or the CashPlease build has not "
                      "run since it landed in Inputs\\CashPlease.", client=cid)
     m = p.get("metrics") or {}
-    allp = m.get("peer") or {}
-    cur = dataset().get("cp_peer") or {}
+    ev = cp_median(cid)
+    items = {it["spec"]["key"]: it for it in (ev or {}).get("items") or []}
     name = p.get("client_name") or (c or {}).get("name")
     lines = [f"{cid} {name}: CashPlease, from {p.get('source_file')} (report {p.get('report_generated')})."]
     if p.get("cancelled"):
         lines.append(f"Cancelled: {p['cancelled']}.")
-    lines.append(f"{'':44}{'Client':>12}{'All CP':>12}{'Current':>12}")
-    rows = []
+    lines.append(f"{'':44}{'Client':>12}{'Median':>12}{'Rank':>14}")
+    rows, said = [], []
     for lab, k, pk, f, better in CP_ROWS:
         v = m.get(k)
-        a = allp.get(pk) if pk else None
-        cu = cur.get(pk) if pk else None
-        rows.append({"measure": lab, "client": v, "all_cp": a, "current_cp": cu, "higher_is_better": better})
-        lines.append(f"{lab:44}{_fmt(v, f):>12}{_fmt(a, f) if pk else '':>12}{_fmt(cu, f) if pk else '':>12}")
+        it = items.get(pk) if pk else None
+        med = rank = None
+        if it:
+            cc = it["c"]
+            med = cc["median"] / 100.0 if pk in CP_RATES else cc["median"]
+            rank = f"{PC.ordinal(cc['rank'])} of {cc['total']}"
+            said.append(f"  {lab}: {PC.relation_phrase(cc, PC.formatter(it['spec']['fmt']))}; "
+                        f"median of {cc['n']} other current clients, middle half {PC.formatter(it['spec']['fmt'])(cc['q1'])} "
+                        f"to {PC.formatter(it['spec']['fmt'])(cc['q3'])}.")
+        rows.append({"measure": lab, "client": v, "median": med, "peers": it["c"]["n"] if it else None,
+                     "rank": it["c"]["rank"] if it else None, "of": it["c"]["total"] if it else None,
+                     "relation": PC.relation_phrase(it["c"], PC.formatter(it["spec"]["fmt"])) if it else None,
+                     "higher_is_better": better})
+        lines.append(f"{lab:44}{_fmt(v, f):>12}{_fmt(med, f) if it else '':>12}{rank or '':>14}")
+    lines += ["Against the median (the deck's wording):"] + (said or ["  nothing: too few other current clients have a figure."])
+    if ev is None:
+        lines.append("The other clients' figures could not be read, so nothing is compared.")
+    else:
+        for x in ev.get("left") or []:
+            if any(x.startswith(s["label"] + ":") for s in _cp_specs() if s["key"] in {r[2] for r in CP_ROWS if r[2]}):
+                lines.append(f"Not compared: {x}.")
+        for it in items.values():
+            lines.extend(n for n in it.get("notes") or [] if "left out of this comparison" in n)
     if m.get("dda_missing_reason"):
         lines.append(f"No loans-per-DDA rate: {m['dda_missing_reason']}.")
     elif m.get("dda_stale_days") and m["dda_stale_days"] > 120:
@@ -139,15 +173,23 @@ def cashplease_report(client):
     if months:
         lines.append("Last six months (loans, principal, charged off): " + "; ".join(
             f"{x['period_month']} {x.get('loans', 0)}, {money(x.get('principal'))}, {x.get('charged_off', 0)}" for x in months))
-    lines.append(f"All CP = {allp.get('cohort', 'all CashPlease clients')} ({allp.get('cohort_tabs')} tabs); "
-                 f"Current = {cur.get('cohort', 'current clients')} ({cur.get('cohort_clients')}).")
+    lines.append(f"Median = the median of the other current CashPlease clients with a figure ({(ev or {}).get('n_pool', 0)} "
+                 "current clients in the weekly), the same comparison as the deck's How You Compare and Peer Comparison "
+                 "slides. The pooled book total is internal: ask for the CashPlease portfolio.")
     return reply("\n".join(lines), client=cid, name=name, rows=rows, monthly=months,
                  source=p.get("source_file"), report_generated=p.get("report_generated"))
 
 
+def _cp_specs():
+    from review_page import peer_pool as PP
+    return PP.CP_METRICS
+
+
 def cashplease_portfolio():
     """Every CashPlease institution in the current export: totals, the book's loss and repayment, and who
-    leads and trails on loans per 1,000 checking accounts."""
+    leads and trails on loans per 1,000 checking accounts. Internal: the pooled book figures here are never what a
+    client is compared with (that is the median, cashplease_report)."""
+    from review_page import peer_pool as PP
     idx = _json(_cp_dir() / "index.json")
     if not idx:
         return reply("No CashPlease packs on the share: the CashPlease build has not run.")
@@ -165,6 +207,18 @@ def cashplease_portfolio():
              f"  {tot('total_loans'):,.0f} loans, {money(principal)} lent; {tot('window_loans'):,.0f} loans in the last 12 months.",
              f"  Charged off: {money(co)} of principal ({pct(co / principal if principal else None, nd=2)}).",
              f"  Active now: {tot('active_loans'):,.0f} loans, {money(tot('active_principal'))}."]
+    book = None
+    try:
+        book = PP.cashplease_book(PP.cashplease_current(_cp_dir()))
+    except Exception:
+        book = None
+    if book:
+        lines.append(f"CashPlease book, pooled (internal only; a client is compared with the median, never this), over "
+                     f"{book['cohort_clients']} current clients: "
+                     + (f"{book['loans_per_1k_dda']:.1f} loans per 1,000 checking accounts ({book['cohort_dda_clients']} "
+                        f"clients with a count and 12 months); " if book.get("loans_per_1k_dda") is not None else "")
+                     + f"average loan {money(book['avg_loan_size'])}; overdue {pct(book['pct_loans_overdue'], nd=2)}; "
+                       f"loans charged off {pct(book['pct_loans_charged_off'], nd=2)}; paid off {pct(book['pct_loans_paid_off'], nd=2)}.")
     if rated:
         lines.append("Most loans per 1,000 checking accounts: " + "; ".join(
             f"{p['client_id']} {p['client_name']} {p['metrics']['loans_per_1k_dda']:.1f}" for p in rated[:5]))
@@ -173,28 +227,32 @@ def cashplease_portfolio():
     for f in idx.get("flags") or []:
         lines.append(f"Note: {f}")
     return reply("\n".join(lines), institutions=len(live), cancelled=len(packs) - len(live),
-                 loans=tot("total_loans"), principal=principal, charged_off=co,
+                 loans=tot("total_loans"), principal=principal, charged_off=co, book_pooled=book,
                  ranking=[{"id": p["client_id"], "name": p["client_name"],
                            "loans_per_1k_dda": p["metrics"]["loans_per_1k_dda"]} for p in rated])
 
 
 # ------------------------------------------------------------------ peers
-# The figures each client's ARS deck was built from (Build Artifacts\launcher\<period>\<id>\metrics.json).
-# Every rate here is already a percent (84.0 means 84%).
-# Only what the CLIENT controls is ranked against other clients (Aaron, 2026-11-22: "For ARS peer comparisons, don't
-# compare program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."):
-# the program's own results (response, repeat response, card usage) were taken out of this list.
-KPIS = {
-    "debit_take": ("Debit card take rate", "overall_take", True),
-    "debit_take_new": ("Debit take rate, new accounts", "take_new_pct", True),
-    "rege": ("Reg E opt-in", "rege_pct", True),
-    "rege_new": ("Reg E opt-in, new accounts", "rege_new_pct", True),
-    "account_growth": ("Account growth, last 12 months", "acct_growth_pct", True),
-    "debit_on_checking": ("Open checking with a debit card", "open_chk_debit_pct", True),
-    "retention_1yr": ("Accounts still open after 1 year", "ret_1yr", True),
-    "retention_3yr": ("Accounts still open after 3 years", "ret_3yr", True),
+# The ARS comparison is the DECK's (Aaron, 2026-11-24: "A: use the deck's code"): `peer_compare.for_deck("ARS", client,
+# period=<the client's newest launcher pack period>)`, so Sheila says exactly what the client's How You Compare slides say
+# (median, middle half, rank, n, the +/-2% wording with a rate's gap in points, the 5-peer minimum, the client not in its
+# own pool). The period is passed explicitly: asked with no period, the pool is the one at the client's own newest build,
+# never "today's newest pack per client", which shrinks as other clients rebuild for the next month.
+# Only what the CLIENT controls is compared (Aaron, 2026-11-22): peer_pool.ARS_METRICS.
+KPI_ALIASES = {  # the keys this tool took before 2026-11-24, still accepted
+    "debit_take": "take_all", "debit_take_new": "take_new_pct", "rege": "rege_pct", "rege_new": "rege_new_pct",
+    "account_growth": "acct_growth", "retention_1yr": "ret_1yr",
 }
-DEFAULT_KPIS = ["debit_take", "rege", "account_growth", "retention_1yr"]
+RETIRED_KPIS = {"debit_on_checking", "retention_3yr"}   # not deck measures: the deck never ranks them
+
+
+def _ars_specs():
+    from review_page import peer_pool as PP
+    return PP.ARS_METRICS
+
+
+def kpi_keys():
+    return [m["key"] for m in _ars_specs()]
 
 
 def _periods():
@@ -210,30 +268,6 @@ def _metrics(period, cid):
     return _json(_ba() / "launcher" / period / cid / "metrics.json")
 
 
-def peer_set(period):
-    """{client id: metrics} for every client whose deck was built for this period."""
-    base = _ba() / "launcher" / period
-    try:
-        ids = [d.name for d in os.scandir(base) if d.is_dir() and re.fullmatch(r"\d{3,5}", d.name)]
-    except OSError:
-        return {}
-    with ThreadPoolExecutor(8) as ex:
-        got = dict(zip(ids, ex.map(lambda i: _metrics(period, i), ids)))
-    return {k: v for k, v in got.items() if v}
-
-
-def _standing(value, values, higher):
-    vals = sorted(v for v in values if isinstance(v, (int, float)))
-    n = len(vals)
-    if value is None or not n:
-        return None
-    better = sum(1 for v in vals if (v > value if higher else v < value))
-    q = lambda f: vals[min(n - 1, int(round(f * (n - 1))))]
-    return {"rank": better + 1, "of": n, "median": median(vals), "p25": q(0.25), "p75": q(0.75),
-            "percentile": round(100 * sum(1 for v in vals if v < value) / max(1, n - 1)) if n > 1 else None,
-            "vs_median": value - median(vals)}
-
-
 def _client_period(cid, period=None):
     """The newest period this client has deck figures for (or the one asked for), and those figures."""
     for p in ([period] if period else _periods()):
@@ -244,44 +278,82 @@ def _client_period(cid, period=None):
 
 
 def compare(cid, kpis=None, period=None):
+    """(period, the deck's evaluation, rows) for the client's ARS measures, at its newest build period (or the one asked
+    for). Each row: kpi, label, value, and when compared rank, of, n, median, p25, p75, vs_median (points), relation
+    (the deck's words) and sentence; a measure the deck leaves out carries `left` (why) instead."""
+    import peer_compare as PC
     period, mine = _client_period(cid, period)
     if not mine:
         return None, None, []
-    peers = peer_set(period)
+    keys = kpis or kpi_keys()
+    ev = PC.for_deck("ARS", cid, period=period, root=_ba(), keys=keys)
+    items = {it["spec"]["key"]: it for it in ev.get("items") or []}
+    specs = {m["key"]: m for m in _ars_specs()}
     out = []
-    for key in kpis or DEFAULT_KPIS:
-        lab, field, higher = KPIS[key]
-        v = mine.get(field)
-        st = _standing(v, [m.get(field) for m in peers.values()], higher)
-        out.append({"kpi": key, "label": lab, "value": v, **(st or {})})
-    return period, peers, out
+    for key in keys:
+        spec = specs[key]
+        it = items.get(key)
+        if it is None:
+            why = next((x.split(":", 1)[1].strip() for x in ev.get("left") or [] if x.startswith(spec["label"] + ":")),
+                       "not compared")
+            out.append({"kpi": key, "label": spec["label"], "value": None, "left": why})
+            continue
+        c = it["c"]
+        f = PC.formatter(spec["fmt"])
+        out.append({"kpi": key, "label": spec["label"], "value": c["client"], "rank": c["rank"], "of": c["total"],
+                    "n": c["n"], "median": c["median"], "p25": c["q1"], "p75": c["q3"],
+                    "vs_median": c["client"] - c["median"], "relation": PC.relation_phrase(c, f),
+                    "sentence": it["sentence"]})
+    return period, ev, out
+
+
+def _want(kpis):
+    """(keys, unknown, retired) from the tool's kpis text."""
+    raw = [k.strip() for k in re.split(r"[,\s]+", kpis or "") if k.strip()]
+    keys, bad, gone = [], [], []
+    for k in raw:
+        k2 = KPI_ALIASES.get(k, k)
+        if k in RETIRED_KPIS:
+            gone.append(k)
+        elif k2 in kpi_keys():
+            if k2 not in keys:
+                keys.append(k2)
+        else:
+            bad.append(k)
+    return keys, bad, gone
 
 
 def peer_compare(client, kpis="", period=""):
-    """How a client's ARS figures rank against every client whose deck was built the same cycle."""
+    """How a client's ARS figures compare with the other ARS clients, exactly as the client's deck says it."""
+    import peer_compare as PC
     c, why = find_client(client)
     if why:
         return reply(why)
-    want = [k.strip() for k in re.split(r"[,\s]+", kpis or "") if k.strip()] or None
-    bad = [k for k in want or [] if k not in KPIS]
+    want, bad, gone = _want(kpis)
     if bad:
-        return reply(f"Unknown measure(s): {', '.join(bad)}. Available: {', '.join(KPIS)}.")
-    per, peers, rows = compare(c["id"], want, period or None)
+        return reply(f"Unknown measure(s): {', '.join(bad)}. Available: {', '.join(kpi_keys())}.")
+    if gone and not want:
+        return reply(f"{', '.join(gone)} {'is' if len(gone) == 1 else 'are'} not compared with other clients: the deck's "
+                     f"ARS comparison covers {', '.join(kpi_keys())}.")
+    per, ev, rows = compare(c["id"], want or None, period or None)
     if not per:
         return reply(f"{label(c)} has no ARS deck figures on the share yet (no launcher build), so there is "
                      "nothing to compare.", client=c["id"])
-    n = len(peers)
-    lines = [f"{label(c)} against {n} clients whose ARS deck was built for {per}"
-             + ("" if n >= MIN_PEERS else f" (fewer than {MIN_PEERS}: ranks only, not percentiles)") + ":"]
+    n_pool = (ev or {}).get("n_pool", 0)
+    lines = [f"{label(c)} against the other ARS clients, as its {per} deck compares them "
+             f"({n_pool} other clients with a deck at or before {per}; each measure needs {PC.MIN_PEERS} with a current figure):"]
+    if gone:
+        lines.append(f"  ({', '.join(gone)}: not compared with other clients, so left out.)")
     for r in rows:
         if r["value"] is None:
-            lines.append(f"  {r['label']}: not in this client's figures.")
+            lines.append(f"  {r['label']}: not compared ({r['left']}).")
             continue
-        s = f"  {r['label']}: {r['value']:.1f}%, rank {r['rank']} of {r['of']}, median {r['median']:.1f}%"
-        if n >= MIN_PEERS:
-            s += f" (middle half {r['p25']:.1f}% to {r['p75']:.1f}%)"
-        lines.append(s + f", {'+' if r['vs_median'] >= 0 else ''}{r['vs_median']:.1f} pts vs median.")
-    return reply("\n".join(lines), client=c["id"], period=per, peers=n, quotable=n >= MIN_PEERS, rows=rows)
+        f = PC.formatter(next(m["fmt"] for m in _ars_specs() if m["key"] == r["kpi"]))
+        lines.append(f"  {r['sentence']} Middle half {f(r['p25'])} to {f(r['p75'])}; n = {r['n']}.")
+    if ev and ev.get("unavailable"):
+        lines.append(ev["unavailable"])
+    quotable = any(r["value"] is not None for r in rows)
+    return reply("\n".join(lines), client=c["id"], period=per, peers=n_pool, quotable=quotable, rows=rows)
 
 
 # ------------------------------------------------------------------ one-pager
@@ -302,21 +374,24 @@ def one_pager(client):
         return reply(why)
     cid = c["id"]
     d = ds_client(cid) or {}
-    per, peers, rows = compare(cid, list(KPIS))
+    per, _ev, rows = compare(cid)
     points = []
     if per:
+        import peer_tables as PT
         pp, prior = _prior(cid, per)
+        prior_point = PT.ars_metrics(prior)["point"] if prior else {}
+        higher_of = {m["key"]: m["higher"] for m in _ars_specs()}
         for r in rows:
             v = r.get("value")
             if v is None:
                 continue
-            higher = KPIS[r["kpi"]][2]
-            pv = (prior or {}).get(KPIS[r["kpi"]][1])
+            higher = higher_of[r["kpi"]]
+            pv = prior_point.get(r["kpi"])
             if pv is not None and ((v > pv) if higher else (v < pv)) and abs(v - pv) >= 1:
                 points.append({"label": r["label"], "value": v, "frame": f"up from {pv:.1f}% in {pp}", "gain": abs(v - pv)})
-            elif r.get("of", 0) >= MIN_PEERS and r.get("vs_median", 0) * (1 if higher else -1) >= 2:
+            elif r.get("n", 0) >= MIN_PEERS and r.get("vs_median", 0) * (1 if higher else -1) >= 2:
                 points.append({"label": r["label"], "value": v,
-                               "frame": f"rank {r['rank']} of {r['of']}, median {r['median']:.1f}%", "gain": abs(r["vs_median"])})
+                               "frame": f"{r['relation']}; rank {r['rank']} of {r['of']}", "gain": abs(r["vs_median"])})
         points = sorted(points, key=lambda x: -x["gain"])[:3]
     a = d.get("ars") or {}
     lines = [f"{label(c)}: {c.get('csm')}'s client. Programs: {', '.join(c.get('covered') or d.get('programs') or []) or 'none on the roster'}."]
@@ -336,8 +411,11 @@ def one_pager(client):
     p = cp_pack(cid)
     if p and p.get("metrics"):
         m = p["metrics"]
+        co = next((it for it in (cp_median(cid) or {}).get("items") or [] if it["spec"]["key"] == "charge_off"), None)
         lines.append(f"CashPlease: {m.get('total_loans', 0):,} loans, {m.get('window_loans', 0):,} in 12 months, "
-                     f"charge-off {pct(m.get('charge_off_pct'), nd=2)} (all CP {pct((m.get('peer') or {}).get('charge_off_pct'), nd=2)}).")
+                     f"charge-off {pct(m.get('charge_off_pct'), nd=2)}"
+                     + (f" (median of {co['c']['n']} other current clients {co['c']['median']:.1f}%)." if co
+                        else " (not compared with other clients)."))
     decks = d.get("decks") or c.get("decks") or []
     lines.append(f"This cycle: {', '.join(decks) if decks else 'no deck in Outputs yet'}.")
     return reply("\n".join(lines), client=cid, period=per, points=points, programs=d.get("programs"), ars=a)

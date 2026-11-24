@@ -19,6 +19,13 @@ other trace of who a peer is before anything reaches a slide, and `tests/test_pe
 
 SMALL POOLS. A metric with fewer than MIN_PEERS other clients having current data is left out and said to be.
 
+RATES ARE STATED IN POINTS (Aaron, 2026-11-24, with the CashPlease decision "D: median, pooled internal"). A measure whose
+format is a percentage ("pct0", "pct1") states its gap from the median in percentage POINTS ("1.2 points above the peer median
+(3.4%)"), never as a relative percent of the median ("35.3% above"), which is a different quantity. Every program follows it,
+so an ARS Reg E strip and a CashPlease charge-off strip read alike. Whether a gap is "almost flat" is still the +/-2% band of
+the median (BAND), the house rule for every comparison; only the wording of a gap outside it changed. A gap under 0.1 points
+carries two decimals, so it never prints as "0.0 points". With a median of zero there is no relative band: any gap is stated.
+
 LIKE PERIODS. Month-based metrics compare the client's latest complete month with the peers' value for the same month;
 when fewer than MIN_PEERS peers have it, the comparison falls back to the most recent month the client and enough peers
 share, and says so.
@@ -88,6 +95,17 @@ def relation(client, median):
     return ("above" if d > 0 else "below", d)
 
 
+def is_rate(fmt):
+    """True for a percentage measure, whose gap from the median is stated in points."""
+    return str(fmt or "").startswith("pct")
+
+
+def points_text(gap):
+    """'1.2 points' / '0.04 points': a gap in percentage points, never printed as '0.0 points'."""
+    g = abs(gap)
+    return f"{g:.2f} points" if 0 < g < 0.095 else f"{g:.1f} points"
+
+
 def histogram(vals, bins=8):
     lo, hi = min(vals), max(vals)
     if hi == lo:
@@ -117,11 +135,16 @@ def compare_values(spec, client_val, peer_vals, peer_ids=None):
     higher = spec.get("higher")
     rank = rank_among(client_val, peers, True if higher is None else higher)
     kind, diff = relation(client_val, med)
+    diff_pts = None
+    if is_rate(spec.get("fmt")):
+        diff_pts = float(client_val) - med                    # the gap a rate is stated in
+        if med == 0:                                          # no relative band around a zero median: any gap is stated
+            kind = "flat" if client_val == 0 else ("above" if client_val > 0 else "below")
     edges, counts = histogram(sv)
     return {"key": spec["key"], "label": spec["label"], "fmt": spec["fmt"], "higher": higher, "client": client_val, "median": med,
             "q1": q1, "q3": q3, "min": sv[0], "max": sv[-1], "dots": sv, "dot_ids": [p[1] for p in pairs] if peer_ids else None,
             "n": n, "total": n + 1, "rank": rank, "pct": percentile_rank(client_val, peers),
-            "relation": kind, "diff": diff, "edges": edges, "counts": counts}
+            "relation": kind, "diff": diff, "diff_pts": diff_pts, "edges": edges, "counts": counts}
 
 
 def rank_phrase(c, who):
@@ -130,11 +153,15 @@ def rank_phrase(c, who):
 
 
 def relation_phrase(c, fmt):
+    """'almost flat against the peer median (3.4%)'; '1.2 points above the peer median (3.4%)' for a rate; '12.3% above
+    the peer median ($540)' for anything else."""
     med = fmt(c["median"])
     if c["relation"] == "flat":
         return f"almost flat against the peer median ({med})"
-    pct = f"{abs(c['diff']):.1f}%"
-    return f"{pct} {'above' if c['relation'] == 'above' else 'below'} the peer median ({med})"
+    side = "above" if c["relation"] == "above" else "below"
+    if c.get("diff_pts") is not None:
+        return f"{points_text(c['diff_pts'])} {side} the peer median ({med})"
+    return f"{abs(c['diff']):.1f}% {side} the peer median ({med})"
 
 
 def formatter(f):
@@ -172,7 +199,11 @@ def evaluate(collected, metrics, who):
     """The comparison of every metric in `metrics` for one program.
 
     collected: {"n_pool": other clients on the program at all, "me": {...}, "peers": [...]}, where `me` and each peer are
-               {"point": {key: value}, "series": {key: {month: value}}} (a peer may carry "id").
+               {"point": {key: value}, "series": {key: {month: value}}} (a peer may carry "id"). Optional, keyed by metric:
+               "reasons" {key: why the client's own figure is not compared}, said instead of "no current figure";
+               "excluded" {key: peers the collector left out ON PURPOSE}, not counted as "no current data"; and
+               "metric_notes" {key: [sentences]} said with that metric (CashPlease: who was left out of charge-off and why);
+               "figures" [numbers those sentences state], which Live Review's tracer registers.
     Returns {"n_pool", "items": [{"spec","c","month","fell","out","sentence"}], "left": [...], "notes": [...],
              "unavailable": text or None}. `unavailable` is set when the program has fewer than MIN_PEERS other clients at
     all or no metric reached MIN_PEERS."""
@@ -182,12 +213,14 @@ def evaluate(collected, metrics, who):
                 "unavailable": (f"A comparison needs at least {MIN_PEERS} other clients on {who}; this book has {n_pool}. "
                                 f"Nothing is shown rather than a comparison a reader could trace to one client.")}
     me, peers = collected["me"], collected["peers"]
+    reasons, excluded, mnotes = (collected.get(k) or {} for k in ("reasons", "excluded", "metric_notes"))
     items, left, notes = [], [], []
     for spec in metrics:
         key = spec["key"]
+        own = f"{spec['label']}: {reasons.get(key) or 'this client has no current figure for it'}"
         if spec.get("month"):
             if not any(v is not None for v in (me["series"].get(key) or {}).values()):
-                left.append(f"{spec['label']}: this client has no current figure for it")
+                left.append(own)
                 continue
             al = align_month(me["series"].get(key) or {}, [p["series"].get(key) or {} for p in peers])
             if not al:
@@ -198,7 +231,7 @@ def evaluate(collected, metrics, who):
         else:
             cv = me["point"].get(key)
             if cv is None:
-                left.append(f"{spec['label']}: this client has no current figure for it")
+                left.append(own)
                 continue
             pv = [p["point"].get(key) for p in peers]
             pid = [p.get("id") for p, v in zip(peers, pv) if v is not None]
@@ -212,13 +245,16 @@ def evaluate(collected, metrics, who):
         item = {"spec": spec, "c": c, "month": mlabel, "fell": fell, "out": out, "sentence": sentence(spec, c, who, mlabel), "notes": []}
         if fell:
             item["notes"].append(f"{spec['label']}: the client's latest month has too few peers with data, so this compares {mlabel}, the most recent month enough peers share.")
+        out -= min(out, int(excluded.get(key) or 0))          # left out on purpose: said by metric_notes, with the reason
         if out:
             item["notes"].append(f"{spec['label']}: {int(out)} other clients had no current data for it and are not in n.")
+        item["notes"].extend(mnotes.get(key) or [])
         items.append(item)
     unavailable = None
     if not items:
         unavailable = "; ".join(left) + f". Each metric needs at least {MIN_PEERS} other clients with current data."
-    return {"n_pool": n_pool, "items": items, "left": left, "notes": notes, "unavailable": unavailable}
+    return {"n_pool": n_pool, "items": items, "left": left, "notes": notes, "unavailable": unavailable,
+            "excluded": {k: int(v) for k, v in excluded.items() if v}}
 
 
 def trend_series(me, peers, key, last=12):
@@ -244,14 +280,15 @@ def anonymous(item):
     return dict(item, c=c)
 
 
-def for_deck(program, client, period=None, root=None, who=None, keys=None):
+def for_deck(program, client, period=None, root=None, who=None, keys=None, own=None):
     """The deck's comparison for one program and client, from the SAME collectors and metric lists Live Review uses.
 
-    program: "ARS" | "ICS" | "MRPC" | "CP" (also "REMS"); `keys` limits and orders the metrics to those the slide shows.
+    program: "ARS" | "ICS" | "MRPC" | "CP" (also "REMS"); `keys` limits and orders the metrics to those the slide shows;
+    `own` the client's own packs when the caller already holds them (peer_pool.PeerCtx; the CashPlease build passes its pack).
     Returns {"program","who","n_pool","pull","items","left","notes","unavailable"} with every peer anonymous."""
     from review_page import peer_pool as PP
     collect, metrics, label = PP.PROGRAMS[program]
-    ctx = PP.PeerCtx(client=str(client), period=period, root=root)
+    ctx = PP.PeerCtx(client=str(client), period=period, root=root, own=own)
     coll = collect(ctx)
     if keys:
         by = {m["key"]: m for m in metrics}

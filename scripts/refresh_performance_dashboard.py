@@ -423,52 +423,43 @@ def _complete_spend(series):
 from mrpc_weekly import MrpcWeekly, complete_months  # noqa: E402
 
 
-def current_peer(packs, ids):
-    """The CashPlease peer row over CURRENT clients only (Aaron, 2026-09-14: "only show current
-    clients").
+def current_peer(packs):
+    """The CashPlease BOOK, pooled over every CURRENT client in the weekly (Aaron, 2026-09-14: "only show current
+    clients"; 2026-11-24: "D: median, pooled internal").
 
-    cp_extract's benchmark is the workbook's rollup tab: every CashPlease tab, and on 2026-09-14
-    51 of its 72 client tabs were not current clients. It stays the CashPlease decks' peer slide.
-    The page rebuilds its row from the current clients' own packs with cp_extract's formulas.
-    Summed over every tab, those reproduce the rollup (loans, average loan size and interest,
-    status shares; checked 2026-09-14). Charge-off % and the share of active accounts with loans
-    are values the workbook REPORTS, and no weighting of the per-client values reproduces the
-    rollup's, so they are None: stated as absent, never approximated. Cancelled programs and
-    tabs with no loans are left out, as cp_extract leaves them out of its own cohort rate.
+    Current is peer_pool's one rule (`cashplease_current`: not cancelled, a loan in the last six complete months), read over
+    EVERY pack the weekly gave, all CSMs' clients. Until 2026-11-24 the row covered only the clients whose main roster row
+    carried CP, about a quarter of the current clients, so its rate was not the book's. It is internal: this page labels it "CashPlease book, pooled", beside the median client (`current_median`), which
+    is the figure every client-facing comparison uses. Rates and averages only (Aaron, 2026-11-02: the page lists his own
+    clients, and a sum over other CSMs' clients is their data too). Charge-off % is a value each tab REPORTS, and no
+    weighting of the per-client values reproduces the rollup's, so it is None: stated as absent, never approximated.
     """
-    rows = []
-    for cid in sorted(set(ids)):
-        f = Path(packs) / ("%s_cashplease.json" % cid)
-        if not f.exists():
-            continue
-        d = json.loads(f.read_text(encoding="utf-8"))
-        if d.get("cancelled") or not d["total"]["loans"]:
-            continue
-        rows.append(d)
-    if not rows:
+    from review_page import peer_pool as PP
+    return PP.cashplease_book(PP.cashplease_current(packs))
+
+
+def current_median(packs):
+    """The median CURRENT CashPlease client (every CSM's), the figure the CashPlease decks, Live Review and Sheila compare a
+    client with: peer_pool's rows and exclusions (a 0.0% charge-off on 500 or more loans is left out of charge-off) and
+    peer_compare's quantile. In the pack's units (a rate as a fraction), with each measure's n; medians and counts only."""
+    from review_page import peer_pool as PP
+    cur = PP.cashplease_current(packs)
+    med = PP.cashplease_medians(cur)
+    if not med:
         return None
-    loans = sum(d["total"]["loans"] for d in rows)
-    principal = sum(d["total"]["principal"] for d in rows)
-    interest = sum(d["total"]["interest"] for d in rows)
-
-    def share(status):
-        return sum(d["status"][status]["loans"] for d in rows) / loans
-
-    inc = [d for d in rows if d["metrics"].get("peer_comparable")]
-    dda = sum(d["metrics"]["dda_accounts"] for d in inc)
-    win = sum(d["metrics"]["window_loans"] for d in inc)
-    # Rates and averages only (Aaron, 2026-11-02: the page lists his own clients). The cohort spans
-    # every CSM's current clients, so the volumes it was built from - loans, principal, DDA
-    # accounts - stay out of the dataset; a sum over other CSMs' clients is their data too.
-    return {
-        "cohort": "Current Velocity CashPlease clients", "cohort_clients": len(rows),
-        "avg_loan_size": principal / loans, "avg_interest_per_loan": interest / loans,
-        "pct_loans_overdue": share("Overdue"), "pct_loans_charged_off": share("Charged Off"),
-        "pct_loans_paid_off": share("Paid Off"),
-        "charge_off_pct": None, "pct_active_accounts_with_loans": None,
-        "cohort_dda_clients": len(inc),
-        "loans_per_1k_dda": (win / dda * 1000) if dda else None,
-    }
+    frac = {"overdue", "charge_off", "paid_off"}
+    fields = {"per_1k": "loans_per_1k_dda", "overdue": "pct_loans_overdue", "charge_off": "charge_off_pct",
+              "avg_loan": "avg_loan_size", "avg_interest": "avg_interest_per_loan", "paid_off": "pct_loans_paid_off"}
+    out = {"cohort": "Median current CashPlease client", "cohort_clients": len(cur), "n": {},
+           "charge_off_left_out": (med.get("charge_off") or {}).get("left_out", 0)}
+    for key, field in fields.items():
+        m = med.get(key) or {}
+        if "median" in m:
+            out[field] = m["median"] / 100.0 if key in frac else m["median"]
+            out["n"][field] = m["n"]
+        else:
+            out[field] = None
+    return out
 
 
 def inactive_since(rows, generated, value, key="month", window=6):
@@ -921,19 +912,6 @@ def in_scope(assigned, who):
     return bool(assigned) and assigned.strip().casefold() == who.strip().casefold()
 
 
-def cp_is_current(c, packs):
-    """Whether the client's CashPlease counts as current for the peer row: the rule the page
-    applies to its own CashPlease rows, so a client outside the page's scope is judged the same
-    way as one inside it (an inferred program with no loan in six complete months is dropped)."""
-    if "CP" not in c["roster_programs"]:
-        return False
-    sec = cp_section(c["id"], Path(packs))
-    if sec.get("missing"):
-        return c.get("programs_from") != "data"
-    since = inactive_since(sec.get("monthly"), sec.get("report_generated"), lambda r: r.get("loans"))
-    return since is None or c.get("programs_from") != "data"
-
-
 # ------------------------------------------------------------------ assemble
 def build_dataset(period, work, log=print, csm_name=None):
     I, O, BA = R.inputs(), R.outputs(), R.build_artifacts()
@@ -955,11 +933,6 @@ def build_dataset(period, work, log=print, csm_name=None):
         % (who, len(clients), len(all_clients), len(unassigned), ", ".join(unassigned) or "none"))
     if not clients:
         raise SystemExit("no client is assigned to %r; check the Client CSM List" % who)
-    # The CashPlease peer row benchmarks against ALL current Velocity clients, so it needs the
-    # ids outside the scope too; only its rates and averages reach the page (current_peer).
-    peer_ids = [cid for cid, c in all_clients.items()
-                if cid not in clients and packs and cp_is_current(c, packs)]
-
     for cid, c in clients.items():
         rp = c["roster_programs"]
         if "ARS" in rp:
@@ -1068,10 +1041,11 @@ def build_dataset(period, work, log=print, csm_name=None):
                    "CashPlease roster in clients.md, else the CSM on the client's CashPlease "
                    "settings record; a client nothing names is Unassigned",
         },
-        # The peer row over ALL current clients' own programs (not the workbook's every-tab
-        # rollup), as rates and averages only: no other CSM's volume or client is in it.
-        "cp_peer": current_peer(packs, [cid for cid, c in clients.items() if "CP" in c["programs"]]
-                                + peer_ids) if packs else None,
+        # The CashPlease company rows, over EVERY current client in the weekly (all CSMs; not the workbook's every-tab
+        # rollup): the median client, which is what a client is compared with, and the book pooled, internal only.
+        # Rates, averages, medians and counts only: no other CSM's volume or client is in either.
+        "cp_peer": current_peer(packs) if packs else None,
+        "cp_peer_median": current_median(packs) if packs else None,
         "scope": {"csm": who, "clients": len(clients),
                   "programs": {k: sum(k in c["programs"] for c in clients.values())
                                for k in ("ARS", "ICS", "MRPC", "CP")}},

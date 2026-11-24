@@ -376,7 +376,7 @@ def _cp_row(d):
         point["per_1k"] = float(mt["loans_per_1k_dda"])
     if mt.get("pct_loans_overdue") is not None:
         point["overdue"] = 100.0 * mt["pct_loans_overdue"]
-    if d.get("charge_off_pct") is not None:
+    if d.get("charge_off_pct") is not None and not charge_off_unreported(d):
         point["charge_off"] = 100.0 * d["charge_off_pct"]
     # Program to date, as the CashPlease deck's own cohort slide states them (Aaron, 2026-11-03: "anything else ... a head
     # of retail banking would want benchmarked"): the size of a loan, the interest it earns, and how many are paid off.
@@ -393,28 +393,148 @@ def _cp_row(d):
     return {"point": point, "series": series}, gen
 
 
-def collect_cashplease(ctx):
+def charge_off_unreported(d):
+    """True when a pack's charge-off rate reads as NOT REPORTED rather than as no losses: exactly 0.0% on at least
+    CP_ZERO_CHARGE_OFF_MIN_LOANS loans booked (Aaron, 2026-11-24: "Leave out of charge-off peers")."""
+    co = d.get("charge_off_pct")
+    loans = (d.get("total") or {}).get("loans") or (d.get("metrics") or {}).get("total_loans") or 0
+    return co is not None and float(co) == 0.0 and loans >= CP_ZERO_CHARGE_OFF_MIN_LOANS
+
+
+# A charge-off rate of exactly 0.0% on this many loans booked or more is taken as NOT REPORTED (Aaron, 2026-11-24): that
+# client is left out of the CHARGE-OFF comparison only, and still counted for loans per 1,000 DDAs and every other measure.
+# On the 11/15/2026 weekly a third of the current clients read exactly 0.0%, several of them on thousands of loans.
+# At the program's typical charge-off of about 3% a book of 500 loans would expect some 15 charge-offs, so a true zero there
+# is not credible; under 500 a zero is left in as reported. Any comparison that states the count says why they are out.
+CP_ZERO_CHARGE_OFF_MIN_LOANS = 500
+CP_ZERO_CHARGE_OFF_WHY = (f"a charge-off rate of exactly 0.0% on {CP_ZERO_CHARGE_OFF_MIN_LOANS:,} or more loans booked is "
+                          "taken as not reported, not as no losses")
+
+
+def cp_packs_dir(root=None):
+    """The folder of CashPlease packs (`<Build Artifacts>/cashplease/packs`, or under `root`)."""
     import rpe_env
-    root = ctx.root or rpe_env.build_artifacts()
-    rows, pulls = {}, []
-    for f in sorted(glob.glob(os.path.join(str(root), "cashplease", "packs", "*_cashplease.json"))):
-        cid = os.path.basename(f).split("_")[0]
-        try:
-            d = json.loads(open(f, encoding="utf-8").read())
-        except (OSError, ValueError):
+    return os.path.join(str(root or rpe_env.build_artifacts()), "cashplease", "packs")
+
+
+def cashplease_current(packs_dir):
+    """{client id: (pack, row, report date)} for every CURRENT client's pack in `packs_dir` (`_cp_row`: not cancelled, a loan
+    in the last six complete months). The one currency rule, shared by the decks, Live Review and the performance dashboard,
+    whose packs live in its own work folder."""
+    out = {}
+    try:
+        entries = sorted((e for e in os.scandir(str(packs_dir)) if e.name.endswith("_cashplease.json")), key=lambda e: e.name)
+    except OSError:
+        return out
+    for e in entries:
+        cid = e.name.split("_")[0]
+        d = _pack_json(e)
+        if d is None:
             continue
         row, gen = _cp_row(d)
-        if row is None:
+        if row is not None:
+            out[cid] = (d, row, gen)
+    return out
+
+
+_PACKS = {}
+
+
+def _pack_json(entry):
+    """A pack read once per change (its size and modified time, from the directory listing): Sheila in Claude is a
+    long-running process and the packs sit on the share, where reading some 75 of them costs seconds every question.
+    A copy is returned, so no caller can change the cached one."""
+    import copy
+    try:
+        st = entry.stat()
+    except OSError:
+        return None
+    key = (st.st_mtime_ns, st.st_size)
+    hit = _PACKS.get(entry.path)
+    if hit is None or hit[0] != key:
+        try:
+            hit = (key, json.loads(open(entry.path, encoding="utf-8").read()))
+        except (OSError, ValueError):
+            return None
+        _PACKS[entry.path] = hit
+    return copy.deepcopy(hit[1])
+
+
+def cashplease_book(current):
+    """The CashPlease BOOK, pooled over the current clients `cashplease_current` returned: totals divided by totals
+    (cp_extract's formulas, which summed over every tab reproduce the workbook's rollup). INTERNAL ONLY (Aaron, 2026-11-24:
+    "D: median, pooled internal"): the performance dashboard and Sheila's cashplease_portfolio show it labelled "CashPlease
+    book, pooled"; anything a client sees is the median (`cashplease_medians`, peer_compare). A few large books dominate a
+    pooled rate, so it is not "the typical client". Rates and averages only, so no client's volume leaves the function.
+    The charge-off % is a value each tab REPORTS and no weighting of the clients' values reproduces the rollup's, so it is
+    None: stated as absent, never approximated. None when there is no current client."""
+    packs = [d for d, _row, _gen in current.values()]
+    loans = sum((d.get("total") or {}).get("loans") or 0 for d in packs)
+    if not loans:
+        return None
+    principal = sum(d["total"].get("principal") or 0 for d in packs)
+    interest = sum(d["total"].get("interest") or 0 for d in packs)
+
+    def share(status):
+        return sum(((d.get("status") or {}).get(status) or {}).get("loans") or 0 for d in packs) / loans
+
+    inc = [d for d in packs if (d.get("metrics") or {}).get("peer_comparable")]
+    dda = sum(d["metrics"]["dda_accounts"] for d in inc)
+    win = sum(d["metrics"]["window_loans"] for d in inc)
+    return {"cohort": "CashPlease book, pooled", "cohort_clients": len(packs),
+            "avg_loan_size": principal / loans, "avg_interest_per_loan": interest / loans,
+            "pct_loans_overdue": share("Overdue"), "pct_loans_charged_off": share("Charged Off"),
+            "pct_loans_paid_off": share("Paid Off"), "charge_off_pct": None, "pct_active_accounts_with_loans": None,
+            "cohort_dda_clients": len(inc), "loans_per_1k_dda": (win / dda * 1000) if dda else None}
+
+
+def cashplease_medians(current):
+    """{metric key: {"median", "n"}} over every current client, for a page that shows the median client beside the pooled
+    book (the dashboard). The same rows and exclusions as `collect_cashplease` (a charge-off of 0.0% on a large book is
+    left out), and peer_compare's quantile; values in peer_pool's units (percent for a rate). Medians and counts only: no
+    client's own figure leaves the function. A measure with fewer than peer_compare.MIN_PEERS clients is left out."""
+    import peer_compare as PC
+    out = {}
+    for spec in CP_METRICS:
+        if spec.get("month"):
             continue
-        rows[cid] = row
-        pulls.append(str(gen or ""))
+        vals = [row["point"][spec["key"]] for _d, row, _gen in current.values() if row["point"].get(spec["key"]) is not None]
+        if len(vals) >= PC.MIN_PEERS:
+            out[spec["key"]] = {"median": PC.quantile(vals, 0.5), "n": len(vals)}
+    n_out = sum(1 for d, _row, _gen in current.values() if charge_off_unreported(d))
+    if n_out:
+        out.setdefault("charge_off", {})["left_out"] = n_out
+    return out
+
+
+def collect_cashplease(ctx):
+    cur = cashplease_current(cp_packs_dir(ctx.root))
+    packs = {cid: d for cid, (d, _row, _gen) in cur.items()}
+    rows = {cid: row for cid, (_d, row, _gen) in cur.items()}
+    pulls = [str(gen or "") for _d, _row, gen in cur.values()]
+    me = str(ctx.client)
     own = (getattr(ctx, "own", None) or {}).get("cashplease")      # the pack the deck was built from, when the build holds it
     if own:
         row, gen = _cp_row(own)
         if row is not None:
-            rows[str(ctx.client)] = row
-    mine, peers = _split(rows, str(ctx.client))
-    return {"n_pool": len(peers), "me": mine, "peers": peers, "pull": _span(pulls)}
+            rows[me], packs[me] = row, own
+    mine, peers = _split(rows, me)
+    out = {"n_pool": len(peers), "me": mine, "peers": peers, "pull": _span(pulls)}
+    n_out = sum(1 for p in peers if charge_off_unreported(packs.get(p["id"]) or {}))
+    if n_out or (me in packs and charge_off_unreported(packs[me])):
+        out["figures"] = [CP_ZERO_CHARGE_OFF_MIN_LOANS, 0.0]                 # what the notes state, for Live Review's tracer
+    if n_out:
+        out["excluded"] = {"charge_off": n_out}
+        out["figures"].append(n_out)
+        out["metric_notes"] = {"charge_off": [
+            f"Charge-off rate: {n_out} other client{'s' if n_out != 1 else ''} left out of this comparison only, because "
+            f"{CP_ZERO_CHARGE_OFF_WHY}; they are still counted for every other measure."]}
+    if me in packs and charge_off_unreported(packs[me]):
+        loans = (packs[me].get("total") or {}).get("loans") or 0
+        out["reasons"] = {"charge_off": f"not compared: this client's charge-off rate reads 0.0% on {loans:,} loans booked, and "
+                                        f"{CP_ZERO_CHARGE_OFF_WHY}"}
+        out["figures"].append(loans)
+    return out
 
 
 CP_METRICS = [
