@@ -78,9 +78,15 @@ def test_the_tools_reject_bad_input(capsys):
     assert RC.main(["12x"]) == 2 and RC.main([]) == 2
 
 
-def test_the_two_skills_name_tools_that_exist_and_keep_their_guards():
+def test_the_skills_name_tools_that_exist_and_keep_their_guards():
     for name, must in (("merge-and-release", ("Never rebase", "changelog_merge.py", "release_launcher.ps1", "empty")),
-                       ("add-client-to-roster", ("roster_candidate.py", "ILS is not tracked", "release"))):
+                       ("add-client-to-roster", ("roster_candidate.py", "ILS is not tracked", "release")),
+                       # the five ops skills (Aaron, 2026-11-25): each keeps its command and its guard
+                       ("rebuild-decks", ("ars_launcher.py build", "--rebuild", "--combined", "Monitor KILLS", "MIN_PEERS")),
+                       ("fix-deck-failure", (".validation.txt", "validate_deck.run", "render.ps1", "fails on the old code")),
+                       ("tasks-health", ("RPE Source Watch Watchdog", "RELEASE.txt", "--check-stale", "no `-Repo` parameter")),
+                       ("sheila-change", ("TAB_MODULES", "CLIENTS_TTL", "VERSION", "ARS Deck User Guide.html")),
+                       ("publish-dashboard", ("F4jLMLqxmQdBNYXpJHH6We", "STATUS: changed", "const DATA", "--mark-published"))):
         text = open(os.path.join(REPO, ".claude", "skills", name, "SKILL.md"), encoding="utf-8").read()
         head = re.match(r"---\nname: ([\w-]+)\ndescription: (.+)\n---\n", text)
         assert head and head.group(1) == name

@@ -22,6 +22,11 @@ Identify the program from the request, then dispatch to the one matching subagen
 | Transaction Intelligence, the TI cut, a lens (ARS lens / ICS lens), a chapter, the v5 port, parity, the duplicates register | Transaction Intelligence — a SEPARATE presentation, never an RPE build and never a change to one | no subagent: `build/ars_pipeline/ti/`, by hand, after reading `ti/PORTING.md` and **Transaction Intelligence branches** in `docs/COLLABORATORS.md` |
 | An Executive Summit one-pager, a Summit handout, the Key Performance Metrics page, Summit attendees | Executive Summit one-pager: hand-built for ATTENDING clients only, never an RPE build and never scheduled | no subagent: the `summit-one-pager` skill (`.claude/skills/summit-one-pager/`), which also records Aaron's corrections to these pages |
 | An HTML Artifact or web page for CSI / Velocity: a guide, catalog, dashboard, report or comparison, or the Design Library | A shared page, not a deck | no subagent: the `velocity-artifact-design` skill (`.claude/skills/velocity-artifact-design/`), on top of the bundled `artifact-design` |
+| Rebuild a set of clients' decks for a period (after a fix, a CSM's book) | Launcher builds, one at a time | the `rebuild-decks` skill |
+| A deck that fails the validation gate | Fix the builder, then rebuild | the `fix-deck-failure` skill |
+| Did the morning tasks run, the scheduled tasks or the tasks checkout | A read-only health check | the `tasks-health` skill |
+| A new or changed CSM Sheila tab, card or button | Sheila's page and routes | the `sheila-change` skill |
+| Refresh or republish the RPE Client Performance dashboard | Hand run of the 08:30 refresh | the `publish-dashboard` skill |
 
 If a request names a client but not a program, ask which program before building. If it
 asks for a combined ARS+ICS+MRPC review, run each subagent in turn and assemble with
