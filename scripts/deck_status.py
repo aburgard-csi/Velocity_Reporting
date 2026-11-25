@@ -64,6 +64,21 @@ _DEFAULT_SRC_ODDD = ";".join([
 SRC_ODDD = os.environ.get("RPE_SRC_ODDD", _DEFAULT_SRC_ODDD)
 SRC_REPORTS = os.environ.get(
     "RPE_SRC_REPORTS", "\\\\PADMIS105\\Velocity_clientreports")
+# The ILS analysts' client analysis share (one folder per client, each holding its dated
+# DataPull folders or zips) and their review schedule (Aaron, 2026-11-24). Both are the
+# analysts' own: READ ONLY. scripts/land_ils_analysis.py copies the newest pull of each
+# scheduled client into Inputs/ILS Analysis. The share root is the one
+# build/ils_analysis/ils_review/peer_pull.py names (ANALYSIS_ROOT); a test pins the two.
+# The schedule may be this .csv or the analysts' live .xlsx (the same column names). The
+# share's .csv was last written in October 2022, so a machine that lands pulls points
+# RPE_SRC_ILS_SCHEDULE at the live workbook's synced copy; these two are also read from the
+# repo's .env (as RPE_DATA_ROOT is), so the scheduled tasks see the same setting.
+_DEFAULT_SRC_ILS_ANALYSIS = "\\\\ilsdbsrvr2.csi.corp\\ClientAnalysis\\ILS Client Analysis"
+_DEFAULT_SRC_ILS_SCHEDULE = "\\\\PADMIS105\\Velocity_company\\Analysis\\__Analysis\\current_scheduled_analysis.csv"
+SRC_ILS_ANALYSIS = (os.environ.get("RPE_SRC_ILS_ANALYSIS") or R._load_dotenv().get("RPE_SRC_ILS_ANALYSIS")
+                    or _DEFAULT_SRC_ILS_ANALYSIS)
+SRC_ILS_SCHEDULE = (os.environ.get("RPE_SRC_ILS_SCHEDULE") or R._load_dotenv().get("RPE_SRC_ILS_SCHEDULE")
+                    or _DEFAULT_SRC_ILS_SCHEDULE)
 
 PRESENT, MISSING, UNKNOWN, NA = "present", "missing", "unknown", "n/a"
 # The ODD extract is the one input `Inputs/` CANNOT date from its filename, so it gets

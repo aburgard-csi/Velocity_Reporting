@@ -1568,6 +1568,22 @@ def issues_step(dry_run=False):
         return f"{head}\n\n- SKIPPED: {type(e).__name__}: {e}. Reports stay queued."
 
 
+def ils_analysis_step(dry_run=False):
+    """List each scheduled client's newest pull on the ILS analysis share, and which are new since the last check
+    (Aaron, 2026-11-24: "add the analysis data folders to our scan for data files"). -> markdown for the report.
+
+    Only a listing, by folder and zip NAME: nothing is copied (that is `land_ils_analysis.py --apply`, its own task) and
+    the analysis server is not one of the shares `reachable()` checks. Never raises: that server being down is reported
+    and the last listing kept, and the share check's findings are already saved before this runs.
+    """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import land_ils_analysis
+        return "\n".join(land_ils_analysis.watch(dry_run=dry_run)).strip()
+    except Exception as e:                      # noqa: BLE001 — a listing must not fail the watch
+        return f"## ILS analysis pulls\n\n- SKIPPED: {type(e).__name__}: {e}"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="Report what landed on the CSI shares since the last check.")
@@ -1602,6 +1618,9 @@ def main(argv=None):
     ap.add_argument("--issues", action="store_true",
                     help="file the issue reports CSM Sheila queued on the share, and refresh "
                          "the issue list its Reported tab reads (needs gh; this machine only)")
+    ap.add_argument("--ils-analysis", action="store_true",
+                    help="list new ILS analysis data pulls for the clients on the analysts' review schedule "
+                         "(a listing only: land_ils_analysis.py --apply copies them)")
     ap.add_argument("--once-daily", action="store_true",
                     help="do nothing if a run already reached the shares today "
                          "(what the retry fires after the 08:00 one pass)")
@@ -1759,6 +1778,22 @@ def main(argv=None):
                 fh.write(issues_text + "\n\n---\n\n")
             with open(str(art / REPORT_NAME), "a", encoding="utf-8") as fh:
                 fh.write("\n" + issues_text + "\n")
+
+    # The ILS analysts' data pulls (Aaron, 2026-11-24). Last, and for the same reason as the two
+    # steps above: another server, which must not hold up or fail the share check.
+    if a.ils_analysis:
+        ils_text = ils_analysis_step(a.dry_run)
+        print()
+        print(ils_text)
+        if not a.dry_run:
+            try:
+                art = R.build_artifacts()
+                with open(str(art / LOG_NAME), "a", encoding="utf-8") as fh:
+                    fh.write(ils_text + "\n\n---\n\n")
+                with open(str(art / REPORT_NAME), "a", encoding="utf-8") as fh:
+                    fh.write("\n" + ils_text + "\n")
+            except OSError as e:
+                print("!! could not append the ILS analysis listing to the report: %s" % e, file=sys.stderr)
 
     if a.notify and (not result["reachable"] or result["new"]
                      or result["changed"] or result["gone"] or _drop_tail(result)):
