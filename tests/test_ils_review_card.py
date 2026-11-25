@@ -338,3 +338,66 @@ def test_sheila_in_claude_speaks_the_review_card(root, monkeypatch):
     r = actions.ils_run(CID, "review", merge_prep=True)
     assert r["answer"].startswith("Not started: not ready")
     assert actions.ils_run(CID, "nope")["answer"] == "kind is pgl, kickoff or review."
+
+
+# --- the client list's state for a client on ILS alone (2026-11-24: they all read Blocked before) ---------------------
+def _web():
+    import ars_launcher_web as W
+    return W
+
+
+@pytest.mark.parametrize("state,ready,blocked", [("ready", True, None), ("waiting", False, "waiting for ILS data"),
+                                                  ("blocked", False, "ILS data problem"), ("unknown", False, None)])
+def test_an_ils_only_clients_list_state_comes_from_the_review_card(monkeypatch, state, ready, blocked):
+    W = _web()
+    monkeypatch.setattr(RR, "readiness", lambda cid: {"state": state, "pull": PULL})
+    monkeypatch.setattr(RR, "_decks_in_outputs", lambda cid, pull=None: {"analysis": None, "review": None})
+    st = W.ils_list_state(CID, True)
+    assert (st["ready"], st["blocked"]) == (ready, blocked)
+    assert st["checked"] == (state != "unknown")                 # the share unreadable reads as not checked, never Ready
+
+
+def test_this_reviews_deck_in_outputs_reads_in_outputs_and_an_earlier_one_does_not(monkeypatch):
+    W = _web()
+    monkeypatch.setattr(RR, "readiness", lambda cid: {"state": "ready", "pull": PULL})
+    monkeypatch.setattr(RR, "_decks_in_outputs", lambda cid, pull=None: {
+        "analysis": {"name": "7001-2026.11-ILS-ANL-Harbor FCU ILS Analysis.pptx", "current": True},
+        "review": {"name": "7001-2026.05-ILS-REV-Harbor FCU ILS Review.pptx", "current": False}})
+    assert W.ils_list_state(CID, True)["decks"] == ["7001-2026.11-ILS-ANL-Harbor FCU ILS Analysis.pptx"]
+
+
+def test_a_pre_go_live_client_with_no_review_scheduled_is_not_blocked(monkeypatch):
+    W = _web()
+    monkeypatch.setattr(RR, "readiness", lambda cid: pytest.fail("no readiness read for an unscheduled client"))
+    st = W.ils_list_state(CID, False)
+    assert st["blocked"] is None and not st["ready"] and st["note"] == "ILS"
+
+
+def test_a_readiness_error_never_breaks_the_list_or_reads_ready(monkeypatch):
+    W = _web()
+
+    def boom(cid):
+        raise RuntimeError("synthetic")
+    monkeypatch.setattr(RR, "readiness", boom)
+    st = W.ils_list_state(CID, True)
+    assert st == {"checked": False, "ready": False, "blocked": None, "note": None, "decks": []}
+
+
+def test_the_served_list_uses_the_ils_state_not_the_rpe_stop(monkeypatch):
+    """An RPE status saying stop (every ILS-only client's) must not reach the list for a client on ILS alone."""
+    import time
+    W = _web()
+    row = {"id": CID, "name": "Harbor FCU", "csm": "A Csm", "programs": [], "decks": [], "ils_only": True,
+           "ils": {"checked": True, "ready": True, "blocked": None, "note": None, "decks": []}}
+    monkeypatch.setitem(W._clients, "doc", {"period": "2026.11", "clients": [row]})
+    monkeypatch.setattr(W, "_status_cache", {CID: (time.time(), {"period": "2026.11", "state": "stop",
+                                                                   "checks": [{"level": W.L.STOP, "text": "No program"}]})})
+    monkeypatch.setattr(W, "_jobs", {})
+    served = W._served_clients()
+    c = (served["clients"] if isinstance(served, dict) else served)[0]
+    assert c["ready"] is True and c["blocked"] is None and c["checked"] is True and "ils" not in c
+
+
+def test_the_page_reads_the_ils_decks_and_note():
+    src = (REPO / "scripts" / "sheila_hub.py").read_text(encoding="utf-8")
+    assert "(c.ils_decks || []).length" in src and "if (c.ils_note) return" in src
