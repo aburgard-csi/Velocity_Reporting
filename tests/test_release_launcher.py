@@ -90,3 +90,27 @@ def test_the_script_parses():
     out = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", prog],
                          capture_output=True, text=True, timeout=60)
     assert out.stdout.strip() == "0", out.stdout + out.stderr
+
+
+# ------------------------------------------------------------------ the scheduled tasks' checkout
+def test_a_release_from_origin_main_moves_the_tasks_checkout_to_the_released_commit():
+    """Aaron, 2026-11-24: "have the release update the tasks checkout too". The 08:00 watch, its watchdog and the
+    ILS landing run from their own checkout (RPE_TASKS_CHECKOUT); each release from origin/main moves it to the
+    commit just released, AFTER the release succeeded, and -FromWorkingTree (which exits before) never does."""
+    src = _src()
+    inner = src.index("& powershell @args")
+    failed = src.index('throw "release from origin/main failed')
+    update = src.index("Update-TasksCheckout -Released (git -C $wt rev-parse HEAD)")
+    assert inner < failed < update < src.index("exit 0", update)
+    assert "git -C $full checkout --detach $Released --quiet" in src
+    assert "RPE_TASKS_CHECKOUT" in src and "'^\\s*RPE_TASKS_CHECKOUT\\s*='" in src   # environment, else .env
+
+
+def test_the_tasks_checkout_step_never_fails_a_release_and_never_touches_changes():
+    src = _src()
+    body = src[src.index("function Update-TasksCheckout"):src.index("# ---------------------------------------------------------------- origin/main")]
+    assert "throw" not in body                                    # the release has already happened
+    assert "RPE_TASKS_CHECKOUT not set; skipped." in body
+    assert "is not a worktree of $repo; left alone." in body
+    assert "local change(s); left alone" in body and "status --porcelain" in body
+    assert "catch {" in body

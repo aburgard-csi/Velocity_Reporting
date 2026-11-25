@@ -29,6 +29,10 @@ anyone's checkout never reaches the share. On 2026-10-07 a release from the work
 robocopy mirrors whatever is on disk. -FromWorkingTree releases this checkout instead, and then
 refuses a dirty tree or a HEAD not on origin/main unless -Force is also given; a forced release
 says FORCED in RELEASE.txt. Neither should be the habit.
+
+After a release from origin/main, the scheduled tasks' own checkout (RPE_TASKS_CHECKOUT in the
+environment or .env) is moved to the commit just released, so the 08:00 watch, its watchdog and the
+ILS analysis landing run the released code (2026-11-24). -FromWorkingTree leaves it alone.
 #>
 param(
     [string]$Root = $env:RPE_DATA_ROOT,
@@ -49,6 +53,41 @@ if (-not $Root) {
 }
 if (-not $Root -or -not (Test-Path $Root)) { throw "Share root not found: '$Root'. Pass -Root." }
 if (-not $VenvRepo) { $VenvRepo = $repo }
+
+# ---------------------------------------------------------------- the scheduled tasks' checkout
+# The source watch, its watchdog and the ILS analysis landing run from a clean checkout of their own
+# (RPE_TASKS_CHECKOUT, e.g. C:\Projects\RPE-Tasks; Aaron, 2026-11-24), never from a working checkout,
+# where they ran whatever branch someone had out. Each release from origin/main moves it to the
+# commit just released, so the tasks run what the CSMs run. A release has already happened by the
+# time this runs, so nothing here fails it: a missing setting skips, and a checkout that is not this
+# repo's worktree, or holds changes, is left alone with a warning.
+function Get-TasksCheckout {
+    if ($env:RPE_TASKS_CHECKOUT) { return $env:RPE_TASKS_CHECKOUT.Trim().Trim('"') }
+    $envFile = Join-Path $repo '.env'
+    if (Test-Path $envFile) {
+        $line = Get-Content $envFile | Where-Object { $_ -match '^\s*RPE_TASKS_CHECKOUT\s*=' } | Select-Object -First 1
+        if ($line) { return ($line -split '=', 2)[1].Trim().Trim('"') }
+    }
+    return $null
+}
+
+function Update-TasksCheckout([string]$Released) {
+    $tasks = Get-TasksCheckout
+    if (-not $tasks) { Write-Host 'tasks checkout: RPE_TASKS_CHECKOUT not set; skipped.'; return }
+    try {
+        $full = (Resolve-Path $tasks -ErrorAction Stop).Path.TrimEnd('\')
+        $registered = @(git -C $repo worktree list --porcelain 2>$null | Where-Object { $_ -like 'worktree *' } |
+            ForEach-Object { ($_ -replace '^worktree ', '').Replace('/', '\').TrimEnd('\') })
+        if ($registered -notcontains $full) { Write-Warning "tasks checkout $full is not a worktree of $repo; left alone."; return }
+        $changes = @(git -C $full status --porcelain 2>$null | Where-Object { $_ })
+        if ($changes.Count) { Write-Warning "tasks checkout $full has $($changes.Count) local change(s); left alone:`n    $($changes -join "`n    ")"; return }
+        git -C $full checkout --detach $Released --quiet
+        if ($LASTEXITCODE) { Write-Warning "tasks checkout $full could not check out $Released; left as it was."; return }
+        Write-Host "tasks checkout $full now at $((git -C $full rev-parse --short HEAD))"
+    } catch {
+        Write-Warning "tasks checkout ${tasks}: $($_.Exception.Message); left as it was."
+    }
+}
 
 # ---------------------------------------------------------------- origin/main, not this checkout
 if (-not $FromWorkingTree) {
@@ -73,6 +112,7 @@ if (-not $FromWorkingTree) {
     if ($Runtime) { $args += '-Runtime' }
     & powershell @args
     if ($LASTEXITCODE) { throw "release from origin/main failed (exit $LASTEXITCODE)" }
+    Update-TasksCheckout -Released (git -C $wt rev-parse HEAD)
     exit 0
 }
 
