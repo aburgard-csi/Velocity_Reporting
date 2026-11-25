@@ -17,13 +17,14 @@ stops every CSM building. CLAUDE.md's file map has the full account of each file
 - **Routes and logic:** `scripts/ars_launcher_web.py` (every `/api/...` route, the background client-list refresh, the
   build queue, the caches). The page modules hold no logic of their own.
 - **ILS cards:** `scripts/ils_ui.py` (routes and labels), `scripts/ils_runs.py` (pre-go-live and kickoff runs),
-  `scripts/ils_review_runs.py` (the ILS Review card); the page side is `scripts/sheila_hub_ils.py`.
+  `scripts/ils_review_runs.py` (the ILS Review card); the page side is `scripts/sheila_hub_ils.py` (the cards) and
+  `scripts/sheila_hub_ilsdecks.py` (the ILS Decks tab).
 - **Sheila in Claude** (`sheila_mcp/`) calls the same functions the buttons call. Decide whether it needs the change too
   (a new answer a CSM would ask Claude for), and say so in the PR either way.
 
 ## 2. Keep the page conventions
 
-- **Hash routes.** The address names the tab (`#lift`, `#issues`, `#votes`, `#reported`; none is Decks) and what it
+- **Hash routes.** The address names the tab (`#ils`, `#lift`, `#issues`, `#votes`, `#reported`; none or `#decks` is RPE Decks) and what it
   shows (`#lift&client=<id>`), so bookmarks and cross-tab links land where they say. A new tab gets a route.
 - **Keys.** `G` then a letter between tabs (`TAB_KEY` in `sheila_hub.py`), the Ctrl K palette (it lists every tab from
   the same table), and `?` for the keys of the tab you are on. A new tab gets a letter, a palette entry and its `?` help.

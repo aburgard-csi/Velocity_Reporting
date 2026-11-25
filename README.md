@@ -49,7 +49,8 @@ rebuilt from scratch without guessing.
 
 | File | Decides |
 | --- | --- |
-| **`CLAUDE.md`** | How the pipeline works and the rules it must follow — file locations, build machinery, the validation gate, and the standing rules (fix the builder not the deck; state missing data, never zero it). Start here. |
+| **`CLAUDE.md`** | How the pipeline works and the rules it must follow — file locations, build machinery, the validation gate, and the standing rules (fix the builder not the deck; a slide with no data is left out and logged, never zeroed — Aaron, 2026-11-22). Start here. |
+| **`docs/FILE-MAP.md`**, **`docs/PIPELINE-NOTES.md`**, **`docs/OPERATIONS-*.md`** | The full per-file index, and the full text behind `CLAUDE.md`'s rules: their reasons, the incidents and the operational detail (moved out of `CLAUDE.md` on 2026-11-25 to keep it short). |
 | **`clients.md`** | Which clients get which programs, and what each client is called. Presence of a data file is never a signal to build — this file is. |
 | **`CHANGELOG.md`** | Every change that moves a number on a client-facing slide, or changes where a number comes from, with the reason. Newest first. |
 | **`templates/STYLE.md`** | How a slide should look — colours, type roles, chart conventions, the two different "months" a deck reports. |

@@ -173,7 +173,7 @@ def test_my_month_groups_the_book_and_says_what_to_do_next(fake):
     g = {k: [c["id"] for c in v] for k, v in r["data"]["groups"].items()}
     assert g == {"ready": ["1826"], "blocked": ["1156"], "failed": ["1615"], "in_outputs": ["1453", "1776"],
                  "unchecked": []}
-    assert "James Gilmore's book for 2026.10: 5 clients." in r["answer"]
+    assert "James Gilmore's book for 2026.10: 5 clients on RPE Decks." in r["answer"]
     assert "1156 BancFirst (ARS workbook)" in r["answer"], "a blocked client says what blocks it"
     assert "build all ready" in r["answer"]
     assert "1798" not in r["answer"], "only the CSM's own book"

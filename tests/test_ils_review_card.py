@@ -315,15 +315,16 @@ def test_the_client_doc_carries_the_review_card_and_the_list_carries_scheduled_c
     assert ils_runs.scheduled_clients() == {CID: {"name": "Harbor FCU", "csm": "A Csm"}}
 
 
-def test_the_page_draws_the_review_card_outside_the_fold():
+def test_the_page_draws_the_review_card_first():
     import sheila_hub as H
     page = H.PAGE
     assert "Coming soon" not in page
     draw = page[page.index("function ilsDraw()"):page.index("function ilsReviewCard()")]
-    assert "box.innerHTML = ilsReviewCard() + `<details class=\"ilsfold\"" in draw
+    assert 'box.innerHTML = ilsReviewCard() + ilsCard("pgl") + ilsCard("kickoff");' in draw
     card = page[page.index("function ilsReviewCard()"):page.index("function ilsReviewJobHtml(j)")]
     assert 'data-ilsreview="plain"' in card and 'data-ilsreview="prep"' in card and "r.prep ?" in card
-    assert 'r.state === "not_scheduled"' in card and 'id="ilsjobreview"' in card
+    # shown for a client not on the schedule too (2026-11-25), saying so, rather than hidden
+    assert 'r.state === "not_scheduled" && !d.analysis' not in card and "not_scheduled" in page and 'id="ilsjobreview"' in card
     assert "Show in File Explorer" in page and '"/api/ils/run"' in page and 'kind: "review"' in page
 
 
@@ -380,7 +381,8 @@ def test_a_readiness_error_never_breaks_the_list_or_reads_ready(monkeypatch):
         raise RuntimeError("synthetic")
     monkeypatch.setattr(RR, "readiness", boom)
     st = W.ils_list_state(CID, True)
-    assert st == {"checked": False, "ready": False, "blocked": None, "note": None, "decks": []}
+    assert st == {"checked": False, "ready": False, "blocked": None, "note": None, "decks": [], "state": "unknown",
+                  "review_date": None, "review_status": None, "pull": None}
 
 
 def test_the_served_list_uses_the_ils_state_not_the_rpe_stop(monkeypatch):
@@ -395,9 +397,13 @@ def test_the_served_list_uses_the_ils_state_not_the_rpe_stop(monkeypatch):
     monkeypatch.setattr(W, "_jobs", {})
     served = W._served_clients()
     c = (served["clients"] if isinstance(served, dict) else served)[0]
-    assert c["ready"] is True and c["blocked"] is None and c["checked"] is True and "ils" not in c
+    assert c["ready"] is True and c["blocked"] is None and c["checked"] is True
+    assert c["ils"]["ready"] is True, "the ILS Decks tab reads the block itself (2026-11-25)"
 
 
-def test_the_page_reads_the_ils_decks_and_note():
+def test_the_page_reads_an_ils_only_clients_state_from_its_ils_block():
+    """2026-11-25: a client on ILS alone is on ILS Decks, whose state is ilsKind's; RPE Decks' kindOf no longer reads it."""
     src = (REPO / "scripts" / "sheila_hub.py").read_text(encoding="utf-8")
-    assert "(c.ils_decks || []).length" in src and "if (c.ils_note) return" in src
+    kind_of = src[src.index("function kindOf(c)"):src.index("function ilsKind(c)")]
+    assert "ils_decks" not in kind_of and "ils_note" not in kind_of
+    assert "const rowKind = c => c.ils_only ? ilsKind(c)" in src
