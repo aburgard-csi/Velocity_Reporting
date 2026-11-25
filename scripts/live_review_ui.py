@@ -124,14 +124,18 @@ def _work(s, opener):
             if _sessions.get(s.cid) is not s:  # stopped while it was being built
                 srv.server_close()
                 return
-            s.srv, s.url, s.state, s.ready_at = srv, url, "ready", time.time()
+            s.srv = srv                        # held now so a Stop during the open still shuts it
         t = threading.Thread(target=srv.serve_forever, name="live-review-" + s.cid, daemon=True)
         s.thread = t
         t.start()
+        ready_at = time.time()
         try:
-            opener(url)
+            opener(url)                        # BEFORE "ready" is published: whoever sees ready sees it opened
         except Exception:                      # noqa: BLE001  (the card still shows the link)
             pass
+        with _lock:
+            if _sessions.get(s.cid) is s:      # not stopped while the browser was opening
+                s.url, s.state, s.ready_at = url, "ready", ready_at
     except (Exception, SystemExit) as e:       # noqa: BLE001  (shown on the card, never raised into Sheila)
         s.error = "%s: %s" % (type(e).__name__, e) if not isinstance(e, SystemExit) else str(e)
         s.state = "failed"

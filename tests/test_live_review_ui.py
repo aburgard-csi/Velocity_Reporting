@@ -144,6 +144,25 @@ def test_open_serves_the_page_reuses_it_and_stop_ends_it(root):
         get(url)
 
 
+def test_the_page_is_opened_before_ready_is_published_and_a_failing_open_still_serves(root):
+    """"ready" once went out before the browser was opened, so a poller could see ready with nothing opened (main CI,
+    2026-11-25). The opener now runs first: while it runs the card still says starting and carries no link."""
+    seen = []
+
+    def slow_failing_opener(url):
+        time.sleep(0.5)                                                   # a slow browser launch
+        seen.append((url, LU.state_doc(CID)))
+        raise OSError("no browser on this PC")
+
+    LU.open_page(CID, PERIOD, opener=slow_failing_opener)
+    ready = wait_for(CID, {"ready", "failed"})
+    assert ready["state"] == "ready", ready                               # a failed open is not a failed page
+    assert len(seen) == 1 and seen[0][0] == ready["url"]
+    assert seen[0][1]["state"] == "starting" and seen[0][1]["url"] is None
+    status, page = get(ready["url"])
+    assert status == 200 and b"Live Review" in page
+
+
 def test_a_figure_that_does_not_trace_is_never_served(root, monkeypatch):
     monkeypatch.setattr(registry, "audit", lambda model, t: ["number not in any pack or derivation: 1.0 at x"])
     LU.open_page(CID, PERIOD, opener=lambda u: pytest.fail("opened a page that failed its audit"))
