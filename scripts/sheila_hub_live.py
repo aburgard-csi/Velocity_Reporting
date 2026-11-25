@@ -50,7 +50,9 @@ function liveDraw() {
   const chip = d.state === "ready" ? `<span class="chip k-outputs">${si("outputs")}Running</span>`
     : d.state === "starting" ? `<span class="chip k-ready">${si("ready")}Building the page</span>`
     : d.state === "failed" ? `<span class="chip k-blocked">${si("blocked")}Could not open</span>`
-    : live.state === "stop" ? `<span class="chip k-blocked">${si("blocked")}Nothing to show yet</span>`
+    // Nothing to show yet is the expected state before a deck build has left its packs, not a failure: neutral,
+    // never red (Aaron, 2026-11-25). Red is kept for "Could not open", which is something that broke.
+    : live.state === "stop" ? `<span class="chip k-idle">${si("idle")}Nothing to show yet</span>`
     : `<span class="chip k-ready">${si("ready")}Ready to open</span>`;
   let btns = "", fact = "";
   if (d.state === "ready") {
@@ -68,7 +70,7 @@ function liveDraw() {
     btns = live.state === "stop" ? `<button class="btn" data-act="recheck">Check again <kbd>R</kbd></button>` : `<button class="btn primary" data-live="open">Open Live Review</button>`;
   }
   const checks = (live.checks || []);
-  box.innerHTML = `<section class="pc${live.state === "stop" && d.state === "idle" ? " stopc" : ""}" id="pc-live">
+  box.innerHTML = `<section class="pc" id="pc-live">
     <div class="pch"><h3>Live Review <span class="protochip">prototype</span> <span class="mix">present this review from a web page</span>${chip}</h3>
       <div class="act">${btns}<span class="why">built from the ${esc(s.period || "")} deck build's data; nothing is written to Outputs</span></div></div>
     ${fact ? `<p class="fact">${fact}</p>` : ""}

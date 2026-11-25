@@ -419,6 +419,11 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
 .toast{display:flex;gap:10px;align-items:center;max-width:min(420px,calc(100vw - 32px));padding:10px 14px;border-radius:14px;background:var(--toast-bg);color:var(--toast-ink);box-shadow:var(--pop);font-size:14px;animation:pop .3s ease}
 .toast.bad{border-left:4px solid var(--bad)} .toast.good{border-left:4px solid var(--good)}
 .toast button{margin-left:6px;border:0;background:none;color:inherit;text-decoration:underline;padding:0}
+.toast button.x{margin-left:auto;min-width:24px;min-height:24px;text-decoration:none;font-size:18px;line-height:1;opacity:.8}
+/* Read by a screen reader, not shown: the one place real changes are announced (2026-11-25). */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.keysw{display:flex;align-items:center;gap:8px;margin:14px 0 0;font-size:14px}
+:root[data-keys="off"] .btn kbd,:root[data-keys="off"] .hint,:root[data-keys="off"] .find kbd{display:none}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:95}
 .tabbar{display:none}
 .empty{padding:24px 18px;color:var(--muted)}
@@ -445,6 +450,12 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 /*__TAB_CSS__*/
+/* Windows "Transparency effects" off (or the browser's own setting): solid surfaces, nothing blurred through (2026-11-25).
+   Three :root pseudo-classes outrank the dark theme's `:root:not([data-theme="light"])`, so this holds in both themes. */
+@media (prefers-reduced-transparency:reduce){
+  :root:root:root{--glass:var(--sheet);--surface:var(--sheet)}
+  *,*::before,*::after,dialog::backdrop{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+}
 </style>
 </head>
 <body>
@@ -491,9 +502,9 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
             <label class="find"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><input id="q" type="search" placeholder="Name or number" autocomplete="off" aria-label="Find a client"><kbd>/</kbd></label>
             <div class="filt" id="filt"></div>
           </div>
-          <div class="list" id="list" role="list" aria-live="polite"></div>
+          <div class="list" id="list" role="list"></div>
         </section>
-        <section class="card" id="detail" aria-label="Client" aria-live="polite"></section>
+        <section class="card" id="detail" aria-label="Client"></section>
       </div>
     </section>
 <!--__TAB_VIEWS__-->
@@ -508,8 +519,11 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
   <a data-tab="reported" href="#reported"><svg viewBox="0 0 20 20"><path d="M4 4h12v9H9l-4 3v-3H4V4Z"/></svg>Feedback</a>
 </nav>
 <dialog id="pal" aria-label="Search and actions"><input id="pq" type="text" placeholder="Search a client, or type an action…" autocomplete="off" aria-label="Search"><ul id="pl" role="listbox"></ul><div class="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div></dialog>
-<dialog id="keys"><h2>Keyboard shortcuts</h2><dl id="keyl"></dl><p style="margin:14px 0 0;text-align:right"><button class="btn" id="keyx">Close</button></p></dialog>
+<dialog id="keys"><h2>Keyboard shortcuts</h2><dl id="keyl"></dl>
+  <label class="keysw"><input type="checkbox" id="keyson"> Single-key shortcuts on (letters, <kbd>/</kbd> and <kbd>?</kbd>; <kbd>Ctrl K</kbd> and <kbd>Esc</kbd> always work)</label>
+  <p style="margin:14px 0 0;text-align:right"><button class="btn" id="keyx">Close</button></p></dialog>
 <div id="toasts" role="status" aria-live="polite"></div>
+<div id="sr" class="sr" role="status" aria-live="polite"></div>
 <canvas id="confetti"></canvas>
 <script>
 const TOKEN = "__TOKEN__";
@@ -677,11 +691,23 @@ async function pollQueue() {
       const was = JSON.parse(before);
       if (was.building && was.building !== QUEUE.building) {
         loadClients();
-        if (CUR !== was.building) toast(`The build for ${was.building} finished. Open it to see how it went.`, "", 6000);
+        if (CUR !== was.building) finishedElsewhere(was.building);
       } else renderList();
       paintBuildPill();
     }
   } catch (e) {}
+}
+
+// A build for a client that is not open: ask how it ended, so the notice can say so (follow() handles the open one).
+async function finishedElsewhere(id) {
+  let j = null;
+  try { ({body: j} = await api("/api/job?client=" + encodeURIComponent(id))); } catch (e) {}
+  const key = j && j.done ? id + ":" + (j.deck || j.code) : null;
+  if (key && CELEBRATED.has(key)) return;
+  if (key) CELEBRATED.add(key);
+  if (j && j.done && !j.code && j.deck) buildFinished(id, true, `Done. ${id} is in Outputs.`);
+  else if (j && j.done) buildFinished(id, false, `${id} was not put in Outputs. Open it to see why.`);
+  else toast(`The build for ${id} finished. Open it to see how it went.`, "", away() ? 0 : 6000);
 }
 
 let buildSince = null;
@@ -916,8 +942,8 @@ function follow(id) {
         const key = id + ":" + (body.deck || body.code);
         if (wasRunning !== false && !CELEBRATED.has(key)) {
           CELEBRATED.add(key);
-          if (!body.code && body.deck) { toast(`Done. ${id} is in Outputs.`, "good", 6000); celebrate(); }
-          else toast(`${id} was not put in Outputs.`, "bad", 8000);
+          if (!body.code && body.deck) buildFinished(id, true, `Done. ${id} is in Outputs.`);
+          else buildFinished(id, false, `${id} was not put in Outputs.`);
         }
       }
     } catch (e) {}
@@ -958,9 +984,32 @@ function renderJob(j) {
 }
 
 // ------------------------------------------------------------ toasts, confetti
+// ms = 0 keeps the toast until it is closed: a failure, or news that arrived while Sheila was in the background.
 function toast(msg, kind, ms) {
-  const t = document.createElement("div"); t.className = "toast " + (kind || ""); t.textContent = msg;
-  $("#toasts").appendChild(t); setTimeout(() => t.remove(), ms || 3800);
+  const t = document.createElement("div"); t.className = "toast " + (kind || "");
+  const m = document.createElement("span"); m.textContent = msg; t.appendChild(m);
+  if (ms === 0) {
+    const x = document.createElement("button"); x.className = "x"; x.type = "button"; x.setAttribute("aria-label", "Dismiss"); x.textContent = "×";
+    x.addEventListener("click", () => t.remove()); t.appendChild(x);
+  } else setTimeout(() => t.remove(), ms || 3800);
+  $("#toasts").appendChild(t);
+}
+// The one screen-reader line: real changes only (a build finished, a filter applied, figures updated). The list and
+// the client card are NOT live regions: they redraw every few seconds and would be read out each time (2026-11-25).
+function say(msg) { const r = $("#sr"); if (!r) return; r.textContent = ""; setTimeout(() => { r.textContent = msg; }, 60); }
+
+// A build that finishes while Sheila is not in front: the tab's title carries it until she is looked at again, and the
+// toast stays until closed. In front, a success toast fades as before. A failure always stays (2026-11-25).
+let BASE_TITLE = "CSM Sheila", FLAG = "";
+const away = () => document.hidden || !document.hasFocus();
+function paintTitle() { document.title = (FLAG ? FLAG + " · " : "") + BASE_TITLE; }
+function clearFlag() { if (FLAG && !away()) { FLAG = ""; paintTitle(); } }
+window.addEventListener("focus", clearFlag); document.addEventListener("visibilitychange", clearFlag);
+function buildFinished(id, ok, msg) {
+  const bg = away();
+  toast(msg, ok ? "good" : "bad", ok && !bg ? 6000 : 0);       // #toasts is itself a status region: no say() as well
+  if (bg) { FLAG = (ok ? "✓ " : "✗ ") + id + (ok ? " done" : " not in Outputs"); paintTitle(); }
+  if (ok && !bg) celebrate();
 }
 function celebrate() {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -988,6 +1037,7 @@ const ACTIONS = () => [
   {t: "Switch to night or day", s: "T", run: toggleNight},
   {t: "Compact rows on or off", s: "C", run: () => setDensity(document.documentElement.dataset.density === "compact" ? "" : "compact")},
   {t: "Show keyboard shortcuts", s: "?", run: showKeys},
+  {t: KEYS_ON ? "Turn single-key shortcuts off" : "Turn single-key shortcuts on", s: "", run: () => setKeys(!KEYS_ON)},
 ];
 function fuzzy(q, text) {
   q = q.toLowerCase(); text = text.toLowerCase(); if (!q) return 1;
@@ -1052,7 +1102,7 @@ function setTab(id, params) {
   TAB = id; TABPARAMS = params || {};
   for (const v of $$(".view[id^=v-]")) v.hidden = v.id !== "v-" + id;
   for (const a of $$("[data-tab]")) { if (a.dataset.tab === id) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); }
-  document.title = id === "decks" ? "CSM Sheila" : "CSM Sheila · " + TAB_NAMES[id];
+  BASE_TITLE = id === "decks" ? "CSM Sheila" : "CSM Sheila · " + TAB_NAMES[id]; paintTitle();
   closeMenus(); syncHash();
   if (id !== "decks" && TABS[id].enter) TABS[id].enter(TABPARAMS);
 }
@@ -1066,8 +1116,8 @@ document.addEventListener("click", ev => {
   if (tabLink && TABS[tabLink.dataset.tab] || tabLink && tabLink.dataset.tab === "decks") { ev.preventDefault(); return go(tabLink.dataset.tab); }
   // The open client's row again closes it (Aaron, 2026-11-02): back to the overview.
   const row = t.closest(".row[data-id], .wi[data-id]"); if (row) return row.dataset.id === CUR ? closeClient() : openClient(row.dataset.id);
-  const kp = t.closest("#kpis .kpi"); if (kp) { FILTER = FILTER === kp.dataset.kind ? "" : kp.dataset.kind; return renderList(); }
-  if (t.closest("#clearf")) { FILTER = ""; return renderList(); }
+  const kp = t.closest("#kpis .kpi"); if (kp) { FILTER = FILTER === kp.dataset.kind ? "" : kp.dataset.kind; renderList(); return sayCount(); }
+  if (t.closest("#clearf")) { FILTER = ""; renderList(); return sayCount(); }
   if (t.closest("#relist")) return loadClients(true);
   if (t.closest("#period")) return openCycles();
   if (t.closest("#news-btn")) return openNews();
@@ -1099,7 +1149,9 @@ function csmPick() {
 }
 document.addEventListener("change", e => { if (e.target.classList.contains("csmpick")) setCsm(e.target.value); });
 $("#csm").addEventListener("change", e => setCsm(e.target.value));
-$("#q").addEventListener("input", renderList);
+let sayTimer = null;
+function sayCount() { const n = visible().length; say(`${n} client${n === 1 ? "" : "s"} shown${WORD[FILTER] ? ": " + WORD[FILTER] : ""}.`); }
+$("#q").addEventListener("input", () => { renderList(); clearTimeout(sayTimer); sayTimer = setTimeout(sayCount, 700); });
 $("#palbtn").addEventListener("click", openPalette);
 $("#night").addEventListener("click", toggleNight);
 $("#dn-c").addEventListener("click", () => setDensity("")); $("#dn-k").addEventListener("click", () => setDensity("compact"));
@@ -1124,8 +1176,16 @@ function showKeys() {
   const dl = (rows) => rows.map(([k, d]) => `<dt>${k.split("  ").map(x => `<kbd>${esc(x)}</kbd>`).join("")}</dt><dd>${esc(d)}</dd>`).join("");
   $("#keyl").innerHTML = `<dt style="grid-column:1/-1;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${esc(TAB_NAMES[TAB])}</dt>` + dl(tab) +
     `<dt style="grid-column:1/-1;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:6px">Everywhere</dt>` + dl(KEYS_ALL);
+  $("#keyson").checked = KEYS_ON;
   $("#keys").showModal();
 }
+// Kept per browser (per CSM PC); on unless turned off here or from Ctrl K.
+let KEYS_ON = recall("hub-keys") !== "off";
+function setKeys(on) { KEYS_ON = !!on; store("hub-keys", on ? "on" : "off"); paintKeys(); say(on ? "Single-key shortcuts on." : "Single-key shortcuts off. Ctrl K still works."); }
+// With them off, the letter hints on buttons and under the list would promise keys that do nothing: hide them.
+function paintKeys() { if (KEYS_ON) delete document.documentElement.dataset.keys; else document.documentElement.dataset.keys = "off"; }
+$("#keyson").addEventListener("change", e => setKeys(e.target.checked));
+paintKeys();
 
 let CHORD = 0;
 document.addEventListener("keydown", e => {
@@ -1138,6 +1198,9 @@ document.addEventListener("keydown", e => {
   }
   if (typing || e.ctrlKey || e.metaKey || e.altKey || $("#pal").open || $("#keys").open || $("dialog[open]")) return;
   const k = e.key;
+  // Single-character shortcuts can be turned off (WCAG 2.1.4): speech input types letters, and a stray one must not build.
+  // Arrows, Enter, Esc and Ctrl K are not single characters and keep working.
+  if (!KEYS_ON && k.length === 1) { CHORD = 0; return; }
   if (TAB !== "decks" && TABS[TAB] && TABS[TAB].key && TABS[TAB].key(e) === true) return;
   if (CHORD && Date.now() - CHORD < 1500) { CHORD = 0; if (TAB_KEY[k]) { e.preventDefault(); go(TAB_KEY[k]); return; } }
   CHORD = 0;

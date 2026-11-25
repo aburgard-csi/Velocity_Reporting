@@ -24,7 +24,7 @@ VIEW = r"""
 <section class="card">
   <div class="svbar"><div class="svprogs" id="sv-progs" role="group" aria-label="Program"></div><button class="btn" id="sv-export" hidden>Export CSV <kbd>E</kbd></button></div>
   <div class="svmeter" id="sv-meter" aria-hidden="true"></div>
-  <div class="svbody" id="sv-body" role="list" aria-live="polite"></div>
+  <div class="svbody" id="sv-body" role="list"></div>
 </section>
 """
 

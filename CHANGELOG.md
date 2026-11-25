@@ -15,6 +15,21 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-25 — CSM Sheila: calmer, clearer signals (`scripts/sheila_hub.py`, `sheila_hub_lift.py`, `sheila_hub_live.py`)
+
+Summary: Sheila now says when a build finishes even while you are in another window (the browser tab's title shows it, and the message stays until you close it), the Lift Matrix overview keeps its column headings and client names in view as you scroll, Live Review's "Nothing to show yet" is no longer drawn in red, single-letter shortcuts can be turned off from the `?` list or Ctrl K, and Sheila's see-through panels turn solid when Windows' transparency effects are off. Nothing a deck shows changes.
+
+Aaron, 2026-11-25: "do 2, 3, 5, 6, 7, 8", six of eight proposals drawn from public design guidance (GOV.UK, Nielsen Norman Group, IBM Carbon, Microsoft Fluent, GitHub Primer, W3C WCAG 2.2) and compared with Sheila 2.5.
+
+- **A finished build is noticed.** `buildFinished()` is the one notice for both ways a build ends: the open client (`follow`) and a client that is not open (`finishedElsewhere`, which now asks `/api/job` how it ended instead of "finished, open it to see"). When Sheila is not in front, the tab title carries "✓ 7104 done" or "✗ 7104 not in Outputs" until she is looked at, and the toast stays until closed; a failure always stays. In front, a success fades as before, with the confetti. A toast that stays has a 24 px close button. The title goes through one painter (`paintTitle`), so changing tab keeps the flag.
+- **One screen-reader line.** The client list, the client card and the Data Issues, Slide Review and Feedback lists were live regions, so a screen reader read them out again on every 60-second refresh and every 1.5-second build tick. Only the toasts and one hidden status line (`#sr`, `say()`) are live now: a filter or search result ("4 clients shown: Ready"), a shortcut switch, and a Lift Matrix recalculation ("Figures updated.").
+- **Lift Matrix overview.** The table scrolls inside its card, with the header row and the client column pinned and the card on one solid ground; `scroll-padding` keeps a focused row out from under the header (WCAG 2.4.11). Full height on a phone, where only the column is pinned.
+- **Red is for what broke.** Live Review's "Nothing to show yet" (no deck build to read from yet) is a neutral chip in a plain card; "Could not open" keeps its red chip.
+- **Single-key shortcuts can be turned off** (WCAG 2.1.4): a switch in the `?` list, and "Turn single-key shortcuts off/on" in Ctrl K, which never turns off. Off, every single-character key (letters, `/`, `?`, a tab's own keys) does nothing, arrows, Enter, Esc and Ctrl K still work, and the letter hints on buttons and under the list are hidden. Kept per browser.
+- **Solid when transparency is off.** Under `prefers-reduced-transparency` (Windows "Transparency effects" off) the glass surfaces take the sheet colour and nothing is blurred, in both themes.
+
+Proposed and not picked this round: the blocking reason on a Blocked row, and the reason for a held Build or Export shown beside the button rather than in its tooltip. Tests: `tests/test_sheila_calm_design.py`.
+
 ### 2026-11-25 — Five operations skills: rebuild-decks, fix-deck-failure, tasks-health, sheila-change, publish-dashboard (`.claude/skills/`)
 
 Summary: Five new instruction files tell Claude how to do this week's routine jobs the same way each time: rebuild a set of decks, fix a deck that fails the gate, check the morning tasks, change Sheila, and refresh the performance dashboard. Nothing a deck shows changes.
