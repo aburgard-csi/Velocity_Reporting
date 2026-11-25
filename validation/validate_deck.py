@@ -969,6 +969,27 @@ def table_label_fit_findings(prs):
     return out
 
 
+def _default_text_pt(prs):
+    """The presentation's default text size (defaultTextStyle, level 1), which an unsized empty cell falls back to;
+    18 pt when the deck does not set one."""
+    from pptx.oxml.ns import qn
+    d = prs.part._element.find(qn("p:defaultTextStyle"))
+    l1 = d.find(qn("a:lvl1pPr")) if d is not None else None
+    r = l1.find(qn("a:defRPr")) if l1 is not None else None
+    return int(r.get("sz")) / 100 if r is not None and r.get("sz") else 18.0
+
+
+def _empty_cell_pt(cell, default_pt):
+    """The size PowerPoint gives an empty table cell's line: its last paragraph's end mark, else the deck's default
+    text size (an empty run's size is ignored)."""
+    from pptx.oxml.ns import qn
+    for p in reversed(cell.text_frame.paragraphs):
+        end = p._p.find(qn("a:endParaRPr"))
+        if end is not None and end.get("sz"):
+            return int(end.get("sz")) / 100
+    return default_pt
+
+
 def table_growth_overlap_findings(prs):
     """FAIL when a table, grown by its wrapped cells, runs into a shape placed below it.
 
@@ -986,6 +1007,7 @@ def table_growth_overlap_findings(prs):
     import math
     from pptx.util import Emu
     out = []
+    default_pt = _default_text_pt(prs)
     for idx, slide in enumerate(prs.slides, 1):
         shapes_ = list(slide.shapes)
         for sh in shapes_:
@@ -1003,7 +1025,12 @@ def table_growth_overlap_findings(prs):
                     if j >= len(widths):
                         continue
                     text = " ".join(cell.text_frame.text.split())
+                    mt = Emu(cell.margin_top).inches if cell.margin_top is not None else 0.05
+                    mb = Emu(cell.margin_bottom).inches if cell.margin_bottom is not None else 0.05
                     if not text:
+                        # An EMPTY cell is drawn at its end mark's size (an empty run's size is ignored), else the
+                        # deck's default text size: RBFCU's 8 pt override rows with no Returns drew at 14 pt (2026-11-25).
+                        h = max(h, _empty_cell_pt(cell, default_pt) * 1.2 / 72 + mt + mb)
                         continue
                     size, bold = 14.0, False
                     for pa in cell.text_frame.paragraphs:
@@ -1013,14 +1040,13 @@ def table_growth_overlap_findings(prs):
                             bold = bool(r.font.bold) or bold
                     ml = Emu(cell.margin_left).inches if cell.margin_left is not None else 0.1
                     mr = Emu(cell.margin_right).inches if cell.margin_right is not None else 0.1
-                    mt = Emu(cell.margin_top).inches if cell.margin_top is not None else 0.05
-                    mb = Emu(cell.margin_bottom).inches if cell.margin_bottom is not None else 0.05
                     avail = widths[j] - ml - mr
                     if avail <= 0:
                         continue
                     lines = max(1, math.ceil(text_width_in(text, size, "Carlito", bold) / avail))
-                    if lines > 1:                      # only a wrapped cell grows a row past its set height
-                        h = max(h, lines * size * 1.2 / 72 + mt + mb)
+                    # A row is never drawn shorter than its text: one line counts too, not only a wrapped cell
+                    # (RBFCU's 10 pt override rows were set to 0.14", under one line, 2026-11-25).
+                    h = max(h, lines * size * 1.2 / 72 + mt + mb)
                 grown += h
             if grown <= nominal + 0.05:
                 continue
