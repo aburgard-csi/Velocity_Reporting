@@ -2,8 +2,18 @@
 
 Builds a client's ILS Program Analysis deck from the extracts in a data-pull folder (ZAccounts, ZTrend,
 DebitDecline, RefundHistory, DBIC, MatrixVal). **Not an Executive Review and not part of the monthly run:**
-nothing here is wired into `build_month`, Sheila, `deliveries.json` or `Outputs/`. A build writes to
-`Build Artifacts\ils_analysis\out\` (deck) and a charts folder beside it (PNGs and a JSON sidecar per figure).
+nothing here is wired into `build_month` or `deliveries.json`. Run by hand, a build writes where `--out-dir`
+points (`Build Artifacts\ils_analysis\out\` in the example below) and a charts folder beside it (PNGs and a JSON
+sidecar per figure); the CLI itself never writes to `Outputs/`.
+
+**From CSM Sheila (2026-11-24).** The client page's **ILS Review** card (`scripts/ils_review_runs.py`) runs this
+CLI unchanged, as its own process, for a client on the ILS analysts' review schedule whose newest landed pull is
+current: the pull staged unzipped from `Inputs\ILS Analysis\<id>\<pull>\` into the local cache, the deck into
+`Build Artifacts\ils\review\<id>\<pull>\`, `--consultant` from the schedule's consultant and CSM Contacts.csv. That
+route, not this package, copies a deck that passes `validation/validate_deck.py` at 0 FAIL to
+`Outputs\<CSM>\ILS\` as `<id>-<yyyy.mm>-ILS-ANL-<Client> ILS Analysis.pptx`. Its second button builds again
+without the `matrix` section, merges the client's prep slides with `merge_review.py`, and delivers
+`<id>-<yyyy.mm>-ILS-REV-<Client> ILS Review.pptx` the same way.
 
 ## Provenance
 

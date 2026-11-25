@@ -149,7 +149,7 @@ def test_the_live_workbook_reads_like_the_csv_and_keeps_only_the_columns_used(tm
     wb.save(p)
     rows = L.read_schedule(p)
     assert rows == [{"fi_id": "7001", "fi_name": "7001 - Harbor FCU", "review_date": "2026-12-10", "tentative_date": "",
-                     "pull_by": "2026-11-19", "status": "Data Ready", "csm": "A CSM"}]
+                     "pull_by": "2026-11-19", "status": "Data Ready", "csm": "A CSM", "consultant": ""}]
     assert "example.com" not in L.snapshot_text(rows)
 
 

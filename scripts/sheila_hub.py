@@ -544,9 +544,10 @@ function kindOf(c) {
   if (place >= 0) return {k: "building", label: "Queued #" + (place + 1)};
   if (c.error) return {k: "attention", label: "Last build failed", short: "Failed"};
   if (c.lift_expired) return {k: "attention", label: "Lift Matrix expired", short: "Lift expired"};
-  if ((c.decks || []).length) return {k: "outputs", label: "In Outputs"};
+  if ((c.decks || []).length || (c.ils_decks || []).length) return {k: "outputs", label: "In Outputs"};
   if (c.blocked) return {k: "blocked", label: "Blocked · " + c.blocked, short: "Blocked"};
   if (c.ready) return {k: "ready", label: "Ready"};
+  if (c.ils_note) return {k: "checking", label: c.ils_note, short: c.ils_note};   // ILS alone, no review scheduled
   return {k: "checking", label: "Checking"};
 }
 

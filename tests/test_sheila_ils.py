@@ -1,7 +1,7 @@
 """The ILS cards on Sheila's client page (scripts/ils_ui.py, scripts/ils_runs.py; James Gilmore, 2026-10-28).
 
-Pinned: the cards are drawn on the client page beside the other presentations, with an ILS Review card
-marked Coming soon (the Hub layout's test, below); a client with an ILS folder is in
+Pinned: the cards are drawn on the client page beside the other presentations, with the ILS Review card
+(the Hub layout's test, below; the card itself is tests/test_ils_review_card.py); a client with an ILS folder is in
 Sheila's list; step 1 returns the field summary and computes nothing; step 2 is refused until the required
 codes are typed; the codes a run was confirmed with are kept for the next one; reveal opens nothing outside
 Build Artifacts/ils.
@@ -136,11 +136,12 @@ def test_a_finished_deck_is_delivered_to_the_csms_ils_folder_and_the_ars_readers
 
 
 # ------------------------------------------------------------------ the cards in the Hub layout (2026-11-02)
-def test_the_hub_draws_the_ils_cards_on_the_client_page_with_ils_review_coming_soon():
+def test_the_hub_draws_the_ils_cards_on_the_client_page_with_the_ils_review_card():
     import sheila_hub as H
     page = H.PAGE
     assert '<div id="ilscards"></div></div>`;\n  ilsCards(s.client);' in page, "drawn after the presentation cards"
-    assert "ILS Review" in page and "Coming soon" in page
+    # the ILS Review card replaced "Coming soon" (2026-11-24; tests/test_ils_review_card.py pins it)
+    assert "ILS Review" in page and "Coming soon" not in page and "function ilsReviewCard()" in page
     assert 'data-tab="ils"' not in page          # the cards are on the client page, not a tab
     draw = page[page.index("function ilsDraw()"):page.index("// The deck's CSM inputs")]
     assert '<details class="ilsfold"${open ? " open" : ""}>' in draw and "const open = was ? was.open : ilsActive();" in draw

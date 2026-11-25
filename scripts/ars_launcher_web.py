@@ -284,9 +284,15 @@ def compute_clients():
     for cid, cp in cp_rows.items():          # standalone module clients are on the CashPlease roster alone
         if cid not in entries and L.standalone_cp(cp):
             entries[cid] = L.client_entry(cid, roster, cp)
-    for cid in ils_ui.ils_runs.landed_clients():  # on ILS alone: their ILS cards are on the client page (2026-10-28)
+    # On ILS alone: their ILS cards are on the client page (2026-10-28), and so is the ILS Review for a client on the
+    # analysts' review schedule (2026-11-24), whose name and CSM come from the schedule when the CSM List lacks them.
+    ils_sched = ils_ui.ils_runs.scheduled_clients()
+    ils_only = set()
+    for cid in sorted(ils_ui.ils_runs.landed_clients() | set(ils_sched)):
         if cid not in entries:
-            entries[cid] = (cid, rows.get(cid, {}).get("client_name") or cid, None, [])
+            ils_only.add(cid)
+            entries[cid] = (cid, rows.get(cid, {}).get("client_name") or (ils_sched.get(cid) or {}).get("name") or cid,
+                            None, [])
     results = launcher_results(period, list(entries)) if period else {}
     out = []
     for cid, (_, name, path, progs) in entries.items():
@@ -297,7 +303,7 @@ def compute_clients():
             "id": cid,
             # clients.md's name, as on the deck; the CSM List's can carry a filename flag.
             "name": name or row.get("client_name"),
-            "csm": row.get("csm") or (cp or {}).get("csm") or "Unassigned",
+            "csm": row.get("csm") or (cp or {}).get("csm") or (ils_sched.get(cid) or {}).get("csm") or "Unassigned",
             "programs": progs,
             # The products the client's deck covers, and the rest of their Velocity products, for the
             # pills after the name (Aaron, 2026-10-13: "ID which products are covered for each client").
@@ -313,11 +319,46 @@ def compute_clients():
             "lift_expired": "ARS" in progs and _lift.get(cid) == L.STOP,
             "error": bool(period) and last_build_failed(cid, period, decks.get(cid, []), result=res),
             "result_written": res[1],
+            "ils_only": cid in ils_only,
+            **({"ils": ils_list_state(cid, cid in ils_sched)} if cid in ils_only else {}),
         })
     out.sort(key=lambda c: (c["csm"], (c["name"] or "").lower()))
     return {"period": period, "clients": out,
             "periods": available_periods(), "cycle_now": L.cycle_period(),
             "lift_pending": _lift_state["started"] and not _lift_state["done"]}
+
+
+def ils_list_state(cid, scheduled):
+    """The list's state for a client on ILS alone, from the ILS Review card (2026-11-24).
+
+    The RPE pre-build checks always stop for a client with no RPE program, so the list used to call every such client
+    Blocked, a review that was ready to build included. Its state comes from `ils_review_runs.readiness` instead: Ready,
+    In Outputs (this review's deck is there), Blocked only while it waits for this review's data or its pull has a
+    problem, and a plain "ILS" note for a pre-go-live or kickoff client with no review scheduled. Worked out in the
+    background list refresh, never per request; a failure reads as not checked, never as Ready.
+    """
+    if not scheduled:
+        return {"checked": True, "ready": False, "blocked": None, "note": "ILS", "decks": []}
+    try:
+        import ils_review_runs as RR
+        doc = RR.readiness(cid)
+    except Exception:                                    # noqa: BLE001 - the list must load whatever one card does
+        return {"checked": False, "ready": False, "blocked": None, "note": None, "decks": []}
+    state = doc.get("state")
+    out = {"checked": state != "unknown", "ready": state == "ready", "blocked": None, "note": None, "decks": []}
+    if state == "waiting":
+        out["blocked"] = "waiting for ILS data"
+    elif state == "blocked":
+        out["blocked"] = "ILS data problem"
+    elif state == "not_scheduled":
+        out["note"] = "ILS"
+    if state == "ready":
+        try:
+            have = RR._decks_in_outputs(cid, doc.get("pull"))
+        except Exception:                                # noqa: BLE001
+            have = {}
+        out["decks"] = sorted(v["name"] for v in have.values() if v and v.get("current"))
+    return out
 
 
 def refresh_clients(fresh=False):
@@ -468,6 +509,11 @@ def _served_clients():
         c["checked"] = current            # no current status yet: the list says "Checking…" (Aaron, 2026-10-13)
         c["ready"] = current and hit[1].get("state") == "ready"
         c["blocked"] = stop_label(hit[1].get("checks") or []) if current and hit[1].get("state") == "stop" else None
+        if c.get("ils_only"):
+            # On ILS alone: the ILS Review card's state, never the RPE checks, which always stop here (ils_list_state)
+            st = c.pop("ils", None) or {}
+            c["checked"], c["ready"], c["blocked"] = st.get("checked", False), st.get("ready", False), st.get("blocked")
+            c["ils_note"], c["ils_decks"] = st.get("note"), st.get("decks") or []
         job = jobs.get(c["id"])
         if job:
             # A build this server ran is known now, not at the next refresh.
