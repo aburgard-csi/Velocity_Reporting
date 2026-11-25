@@ -15,6 +15,17 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-25 — Live Review from Sheila opens the browser before it says "ready" (`scripts/live_review_ui.py`)
+
+Summary: When a CSM opens Live Review from Sheila, the page is now opened in the browser before the card switches to ready, so "ready" always means the page has been opened. Nothing a CSM sees changes except that the card may say "starting" for the moment the browser takes to open.
+
+`_work()` set the session to "ready" (with its link) and only then called the opener, so anything watching the state could see ready before the page was opened. `tests/test_live_review_ui.py::test_open_serves_the_page_reuses_it_and_stop_ends_it` waits for ready and then checks the page was opened; it failed main CI once on a slow runner (run 45662344335, 2026-11-25; passed on rerun).
+
+- The server is held on the session and serving before the opener runs, so Stop during the open still shuts it down; the link and "ready" are published after the opener returns, and only if the session was not stopped meanwhile.
+- A browser that fails to open still leaves the page ready and serving (the card shows the link, as before). The reuse path (a second Open of a ready session) is unchanged.
+- The seconds-to-ready figure is still measured to when the server started serving, not to when the browser finished opening.
+- New test `test_the_page_is_opened_before_ready_is_published_and_a_failing_open_still_serves`: a slow opener that raises sees the card still "starting" with no link, and the page is then ready and served. It fails on the old order.
+
 ### 2026-11-25 — CSM Sheila: calmer, clearer signals (`scripts/sheila_hub.py`, `sheila_hub_lift.py`, `sheila_hub_live.py`)
 
 Summary: Sheila now says when a build finishes even while you are in another window (the browser tab's title shows it, and the message stays until you close it), the Lift Matrix overview keeps its column headings and client names in view as you scroll, Live Review's "Nothing to show yet" is no longer drawn in red, single-letter shortcuts can be turned off from the `?` list or Ctrl K, and Sheila's see-through panels turn solid when Windows' transparency effects are off. Nothing a deck shows changes.
