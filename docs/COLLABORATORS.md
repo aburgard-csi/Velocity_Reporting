@@ -122,7 +122,9 @@ Read-only inspection of the share is fine. A build for a client goes through CSM
   read of an activity series any other way.
 - **A claim needs a figure.** A sentence that says a measure moved must be derived from the data, not
   written as a constant (see "Describing movement" in `CLAUDE.md`).
-- **Missing data is stated, never zeroed.** Do not drop a slide or render a 0% for absent data.
+- **A slide with no data is left out, and said so — never zeroed** (Aaron, 2026-11-22). Never draw a
+  0%, an empty chart or a stand-in figure; log `slide left out (no data): <title> - <why>`; take a
+  slide out only with `shapes.drop_slide`. Absent data is a data-sourcing question first.
 - **Every slide lists its data source in the speaker notes**, naming the client being built.
 - **Resolve slides by title, never by index.**
 - **Writing style:** the banned-word list in `CLAUDE.md` applies to all client-facing text.

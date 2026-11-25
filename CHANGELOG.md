@@ -25,6 +25,15 @@ Aaron, 2026-11-25: keep the rules, move the history.
 - **What stays in `CLAUDE.md` (about 35 KB):** the routing table and every standing rule, each in a sentence or two with its date and who said it, plus a "Where the detail lives" list and a short project map.
 - **Where the rest went, verbatim:** `docs/FILE-MAP.md` (the full per-file index; keep it current there), `docs/PIPELINE-NOTES.md` (file locations and the full Inputs table, shared conventions, cadence, Summit, data sources), `docs/OPERATIONS-dashboards.md` (the delivery dashboard and the performance artifact) and the end of `docs/OPERATIONS-source-watch.md` (the watch section as it stood).
 - **Checked:** every sentence of the old file is in the new `CLAUDE.md` or one of those files. `docs/COLLABORATORS.md`, the PR template and `README.md` now point at `docs/FILE-MAP.md` for the file map.
+- **Stale text corrected (Aaron's go-ahead, the same day):**
+  - four programs and four template shells, CashPlease included;
+  - data sources named by their `Inputs/` kind folders, with a CashPlease line;
+  - the ICS workbook folder;
+  - `qa_all` checks package integrity and does not prove a deck opens;
+  - the retired `C:\Data Pipelines` root marked as history;
+  - in the file map: deleted entries removed, misplaced entries moved, and sections added for the CashPlease and ILS build folders;
+  - three stray control characters removed;
+  - `docs/COLLABORATORS.md` and `README.md` now state the 2026-11-22 no-data rule.
 - **No behaviour change.** Nothing a build reads or renders moved.
 
 ### 2026-11-24 — A release also moves the scheduled tasks' checkout (`scripts/release_launcher.ps1`)
@@ -1987,7 +1996,7 @@ Aaron, 2026-10-28, from a screenshot of 1585: "These buttons should be Build Sep
 
 Summary: Building the ARS Companion deck stopped at the end with a missing companion_slides.json; the build now carries the settings that add James's views, so the deck is cut and put in Outputs.
 
-Aaron, 2026-10-28, from Sheila on 1075 Austin Bank: the Companion build ran every step, then FileNotFoundError ... companion\1075\companion_slides.json. uild_month copies the environment once, when it is imported, so the Companion switches were set too late and the ARS build ran without James's views, never recording their slides. They are now handed to the build process directly, and a test pins it.
+Aaron, 2026-10-28, from Sheila on 1075 Austin Bank: the Companion build ran every step, then FileNotFoundError ... companion\1075\companion_slides.json. `build_month` copies the environment once, when it is imported, so the Companion switches were set too late and the ARS build ran without James's views, never recording their slides. They are now handed to the build process directly, and a test pins it.
 
 ### 2026-10-27 — ILS pre-go-live: proposed home and input folder for James's v5 PGL engine (draft, computes nothing)
 

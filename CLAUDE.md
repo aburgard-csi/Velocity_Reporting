@@ -409,7 +409,7 @@ python scripts/refresh_performance_dashboard.py --mark-published
 
 ## Data sources by program (do not cross these)
 
-Detail: `docs/PIPELINE-NOTES.md`, Data sources by program (as it stood).
+Detail: `docs/PIPELINE-NOTES.md`, Data sources by program (each source's folder).
 
 - **ARS** — raw ODD via the `oddd-optimizer` subagent (run it first), plus the ARS
   workbook (Lift Matrix MM tab / `base_extract.json`) and DCO. ODD-driven.
@@ -418,7 +418,9 @@ Detail: `docs/PIPELINE-NOTES.md`, Data sources by program (as it stood).
   Not ODD-driven; `oddd-optimizer` is not used.
 - **MRPC** — VIP MyRewards Premium Cards dashboards + the MRPC workbook (MRPCPM Analysis) and the
   MRPCEnrollmentSummary weekly. Not ODD-driven.
-- **CashPlease** — the newest CashPleaseSummary weekly and the weekly DDA count. Not ODD-driven.
+- **CashPlease** — the newest CashPleaseSummary weekly and the weekly DDA count (`Inputs/CashPlease/`),
+  the production settings (`Inputs/Product Settings/`) and the marketing emails
+  (`Inputs/CashPlease Marketing/`). Not ODD-driven.
 - Every input is read from its `Inputs/` kind folder (see **File locations**); if a file is not where it
   should be, ask Aaron to point at it rather than guessing.
 

@@ -2,25 +2,17 @@
 
 Moved verbatim from `CLAUDE.md` on 2026-11-25, when Aaron asked for a shorter CLAUDE.md. `CLAUDE.md` now states each rule in a sentence or two; this file keeps the sections those rules were condensed from, word for word: the reasons, the incidents, the full Inputs table and the per-program detail. Read the matching section here before changing the behaviour a rule describes, or when a rule needs its reason. When a rule changes, change it in `CLAUDE.md` and in the paragraph here. The dashboards and the source watch are in `docs/OPERATIONS-dashboards.md` and `docs/OPERATIONS-source-watch.md`; the file map is `docs/FILE-MAP.md`.
 
-**Where this differs from CLAUDE.md, CLAUDE.md is current.** Known stale in the text below as of
-2026-11-25 (kept word for word so the move can be checked; not yet corrected):
+**Where this differs from CLAUDE.md, CLAUDE.md is current.** The text below is the old CLAUDE.md word for word, except for these factual corrections made on 2026-11-25 (Aaron's go-ahead on PR #205):
 
-- "Three programs" and "used by ALL THREE programs": CashPlease is a fourth program with its own
-  subagent and builder.
-- Templates names three shells; `templates/cashplease_template.pptx` is a fourth.
-- Combined decks says `qa_all.py` checks that the file "actually opens"; since the render test was removed
-  (2026-09-11) it checks package integrity only.
-- The "History" paragraph on `C:\Data Pipelines\RPE Pipeline` ("the sibling folder", "deliberate again as
-  of 2026-09-09") predates the 2026-09-14 move to the share.
-- The Cadence ICS row reads the workbook "from `Inputs/ARS & MRPC Reports/`"; the builder resolves it
-  through `rpe_env.report_dirs()` (`Inputs/ICS Workbooks/`).
-- Data sources by program names a per-session location with `Workbooks - ARS` / `Workbooks - ICS`
-  folders and has no CashPlease line; inputs are in the `Inputs/` kind folders.
-- "Five CSMs" may no longer be the count.
+- Four programs and four template shells, CashPlease included (was three).
+- Combined decks: `qa_all.py` checks package integrity (`validate_deck.package_findings`); it does not prove the deck opens.
+- The `C:\Data Pipelines` paragraphs are marked as history; the root is the share since 2026-09-14.
+- Cadence, ICS row: the workbook is resolved through `rpe_env.report_dirs()` (`Inputs/ICS Workbooks/`).
+- Data sources by program: the `Inputs/` kind folders replace the old `Workbooks - ARS / ICS` layout, and CashPlease has its line.
 
 ## Preamble (the opening of CLAUDE.md as it stood)
 
-This project builds client Executive Review decks for three programs. Each program has
+This project builds client Executive Review decks for four programs (ARS, ICS, MRPC, CashPlease). Each program has
 its own subagent and its own data sources. **Keep them separate** — never run one
 program's logic while building another. Confusion between programs is the exact problem
 this structure exists to prevent.
@@ -162,14 +154,15 @@ is a subfolder it does not enter; a root `_Archive/` is skipped by name). Each C
 the per-client `Clients/<Client Name> <clientid>/` copy — do not deliver to client folders.
 
 **`C:\Data Pipelines\` also holds `Renewals Pipeline` — a DIFFERENT project.** It has its
-own `Inputs\` and `Outputs\` and is easy to mistake for this one at a glance. RPE is the
-sibling folder `RPE Pipeline`, and nothing here ever reads or writes the Renewals tree.
+own `Inputs\` and `Outputs\` and is easy to mistake for this one at a glance. RPE's old local root
+there, `RPE Pipeline`, was retired on 2026-09-14 (above), and nothing here ever reads or writes the
+Renewals tree.
 
-*History, so this does not get "corrected" back:* `C:\Data Pipelines\RPE Pipeline\` was
-the CSI/Cowork root after the move off OneDrive (Aaron, 2026-07-17); it was retired to
-elsewhere on 2026-08-31, and this file then said "do not point `RPE_DATA_ROOT` anywhere under
-`C:\Data Pipelines\`". That guard is spent — the local root is deliberate again as of
-2026-09-09. A wrong root still fails loudly rather than quietly, because
+*History only — none of these is a current root:* `C:\Data Pipelines\RPE Pipeline\` was
+the CSI/Cowork root after the move off OneDrive (Aaron, 2026-07-17), was retired to elsewhere on
+2026-08-31, was the local root again from 2026-09-09, and was retired for good on 2026-09-14, when
+the root moved to the share. Do not point `RPE_DATA_ROOT` anywhere under `C:\Data Pipelines\`.
+A wrong root still fails loudly rather than quietly, because
 `rpe_env.data_root()` raises on a path that is not a directory.
 
 **Write hazard on mounted folders.** Some mounts allow creating and copying files but NOT
@@ -216,8 +209,10 @@ the combined deck carries exactly one of each; the title slide lists all three p
 agenda names the three sections. Slides are only ever ADDED and then reordered — never deleted
 — because freeing a slide partname makes python-pptx hand that number to a later slide and the
 package ends up referencing parts twice (the defect behind the unopenable 2026.08 ICS decks).
-Run `validation/qa_all.py` on the assembled deck: it checks package integrity and that the file
-actually opens, which a 0-FAIL lint pass alone does not.
+Run `validation/qa_all.py` on the assembled deck: it checks package integrity
+(`validate_deck.package_findings`: the archive reads, no part name is written twice, no duplicate,
+dangling or orphaned slide reference), which a 0-FAIL lint pass alone does not. It does not prove
+the deck opens or renders: open one before a batch goes to clients.
 
 **The ICS section presents current results only (Aaron, 2026-08-28).** ICS financials are
 quarterly, and a monthly build used to carry the previous workbook's figures forward. It no
@@ -257,7 +252,8 @@ add the row, never fall back to another CSM. Standalone ICS decks add the ICS pr
 
 **Templates — build from the shell, never from a client deck (Aaron, 2026-08-29).** Each
 program is BUILT by its builder from the stripped per-program template in the repo's
-`templates/` folder — `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — each
+`templates/` folder — `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx`,
+`cashplease_template.pptx` — each
 a cleaned, styled shell carrying the "Union Financial" dummy client and no real client's
 numbers. The builder takes that shell as its first argument and populates every slide from
 the data pack.
@@ -281,9 +277,9 @@ re-materializing the shells — it is a STYLING reference, not a build input.
 (reorganized 2026-07-24): `build/ars_pipeline/` (the full ARS chain — `build_ars_gen.py`
 plus `metrics_gen`, `charts_gen`, `extract_base_gen`, `extract_lift`, `render_lift`,
 `ticket_calc`, `ticket_chart`, `base_tab_extract`, `product_mix_slide`), `build/ics_pipeline/`,
-`build/mrpc_pipeline/`.
+`build/mrpc_pipeline/`, `build/cashplease_pipeline/`.
 
-**Shared layer in `build/` root — used by ALL THREE programs (Aaron, 2026-08-29).** Anything
+**Shared layer in `build/` root — used by ALL FOUR programs (Aaron, 2026-08-29).** Anything
 that is not specific to one program lives here, not inside a pipeline folder:
 `brand.py` (the palette and type roles — the ONE source; it was previously re-declared in
 seven files under four naming conventions, and the greys had already drifted),
@@ -295,7 +291,7 @@ fine when it IS the month being described, but never hand-derive a span or a cou
 `month_complete.py` (the ONE definition of a complete month — see **Comparisons use
 complete months only**),
 `slide_geometry.py` (the per-title geometry contract, promoted out of `ars_pipeline/` so
-all three programs can adopt it), plus the post-processors `restyle_fonts.py`,
+every program can adopt it), plus the post-processors `restyle_fonts.py`,
 `summit_slide.py`, `fit_layout.py` (layout-fit + 10pt slide numbers, run by all builders
 before save), `strip_dead.py`, `textfit.py`, `branch_names.py` and `assemble_combined.py`.
 ARS-specific shared code stays in `build/ars_pipeline/` — `odd_rows.py` (the ODD row
@@ -563,7 +559,7 @@ The Executive Summit one-pagers are a separate, non-monthly delivery — see
 | ARS | Monthly | Every ARS client, each month — MM or SM path per client |
 | MRPC | Monthly | Every MRPC client, each month |
 | CashPlease | **Weekly** | The one program that is not monthly. Bradford Sanders' "CashPlease Summary" workbook arrives weekly and the build **always uses the most recent one** (Aaron, 2026-09-01) — not the one nearest a deck's period. So a CashPlease section inside a monthly Executive Review can report a LATER date than the ARS/ICS/MRPC sections beside it, and that is intended: the CP pill keeps its own `PTD · <date>` and is never re-dated to match its neighbours. `assemble_combined.py` prints each section's period so the divergence is visible at build time. Scope is the `### CashPlease roster` table in `clients.md` — never the workbook, which carries every Velocity CashPlease client across all CSMs. |
-| ICS | Monthly | **The ICS deck ships monthly like the other two (Aaron, 2026-08-31)** — what is quarterly is the WORKBOOK, not the delivery. Referrals come from VIP monthly. **Financial detail ships ONLY when the ICS workbook is for the deck's own period (Aaron, 2026-08-28).** This REPLACES the previous carry-forward rule: a monthly build used to carry the last workbook's financial sections forward, which kept them auditable in the source notes but dated them as current on the slide face — 1537 and 1676 both stamped "PTD · August 2026" on figures from 2026.06 and 2026.07 workbooks. The builder now resolves the newest ICS workbook for the client from `Inputs/ARS & MRPC Reports/` and, if its period differs from the deck's, omits the workbook-driven sections entirely. Referrals, Referral Trend, Results by Branch and the education slides are unaffected. Missing-section guard still stops a build whose data sheet was never populated. |
+| ICS | Monthly | **The ICS deck ships monthly like the other two (Aaron, 2026-08-31)** — what is quarterly is the WORKBOOK, not the delivery. Referrals come from VIP monthly. **Financial detail ships ONLY when the ICS workbook is for the deck's own period (Aaron, 2026-08-28).** This REPLACES the previous carry-forward rule: a monthly build used to carry the last workbook's financial sections forward, which kept them auditable in the source notes but dated them as current on the slide face — 1537 and 1676 both stamped "PTD · August 2026" on figures from 2026.06 and 2026.07 workbooks. The builder now resolves the newest ICS workbook for the client through `rpe_env.report_dirs()` (`Inputs/ICS Workbooks/`, and the legacy flat folder) and, if its period differs from the deck's, omits the workbook-driven sections entirely. Referrals, Referral Trend, Results by Branch and the education slides are unaffected. Missing-section guard still stops a build whose data sheet was never populated. |
 
 **ICS before the first workbook — referrals-only builds (Aaron, 2026-08-27).** A client can be
 live on ICS and generating referrals before their first ICS workbook ever lands (Wellworth 1549).
@@ -613,17 +609,19 @@ builder depends on the date printed on it.
 
 ## Data sources by program (do not cross these)
 
-All inputs live under the **source-data location** Aaron names at the start of the session
-(see **File locations**). The folder names below (`Workbooks - ARS`, `Workbooks - ICS`) are
-the expected layout inside that location — if Aaron's local copy is organized differently,
-ask him to point at the specific file rather than guessing.
+Every input is read from its kind folder under `RPE_DATA_ROOT/Inputs/` (the names live in
+`rpe_env.INPUT_KIND_DIRS`; see **File locations**). If a file is not where it should be, ask Aaron to
+point at the specific file rather than guessing.
 
-- **ARS** — raw ODD via the `oddd-optimizer` subagent (run it first), plus the ARS
-  workbook (Lift Matrix MM tab / `base_extract.json`). ODD-driven.
-- **ICS** — ICS Workbook (ROI, lifetime value, revenue, financial summary), VIP ICS
-  Referral dashboard (referral counts/trend/branch), ICS Charts 2026 (mystery shops).
-  Not ODD-driven; `oddd-optimizer` is not used.
-- **MRPC** — VIP MyRewards Premium Cards dashboards + the MRPC workbook (MRPCPM
-  Analysis) for enrollments, channel mix, retention, revenue. Not ODD-driven. The
-  `...-MRPCPM_Analysis_v10.xlsx` files live in the shared **Workbooks - ARS** folder
-  (no separate MRPC folder). ICS workbooks + Charts live in **Workbooks - ICS**.
+- **ARS** — raw ODD (`Inputs/ODDD/`) via the `oddd-optimizer` subagent (run it first), plus the ARS
+  workbook (`Inputs/ARS Workbooks/`: Lift Matrix MM tab / `base_extract.json`) and the DCO
+  (`Inputs/DCOs/`). ODD-driven.
+- **ICS** — ICS Workbook (`Inputs/ICS Workbooks/`: ROI, lifetime value, revenue, financial summary),
+  VIP ICS Referral dashboard (`Inputs/VIP Data/ICS/`: referral counts/trend/branch), ICS Charts
+  (`Inputs/ICS Charts/`: mystery shops). Not ODD-driven; `oddd-optimizer` is not used.
+- **MRPC** — VIP MyRewards Premium Cards dashboards (`Inputs/VIP Data/MRPC/`) + the MRPC workbook
+  (MRPCPM Analysis) and the MRPCEnrollmentSummary weekly, both in `Inputs/MRPC Analyses/`, for
+  enrollments, channel mix, retention, revenue. Not ODD-driven.
+- **CashPlease** — the newest CashPleaseSummary weekly and the weekly `ILS-DDA-Count-<date>.txt`
+  (`Inputs/CashPlease/`), the production settings (`Inputs/Product Settings/<id>_cp_settings.json`)
+  and the marketing emails (`Inputs/CashPlease Marketing/`). Not ODD-driven.
