@@ -5,7 +5,7 @@
 .DESCRIPTION
     Creates the task "RPE ILS Analysis Landing", which runs
 
-        <repo>\.venv\Scripts\pythonw.exe scripts\land_ils_analysis.py --apply
+        <repo>\.venv\Scripts\pythonw.exe scripts\land_ils_analysis.py --apply --current-only
 
     once a day at the given time (default 08:20, after the 08:00 source watch, whose
     --ils-analysis step lists what is new), as the current user, only while that user is
@@ -31,6 +31,11 @@
     Which checkout the task should run. Defaults to the one this script lives in, which is
     wrong in a worktree: a worktree has no .venv and no .env, and the task needs both.
 
+.PARAMETER AllPulls
+    Land every scheduled client's newest pull, including one taken for an earlier review. By default the
+    task lands CURRENT pulls only (Aaron, 2026-11-24: "Current pulls only"): an earlier review's data is
+    never built from, and on the live schedule it was about 24 GB against 4.6 GB current.
+
 .PARAMETER Unregister
     Remove the task instead of creating it.
 
@@ -43,6 +48,7 @@
 param(
     [string]$Time = "08:20",
     [string]$Repo = "",
+    [switch]$AllPulls,
     [switch]$Unregister
 )
 
@@ -71,6 +77,7 @@ if (-not (Test-Path $Script)) { throw "Missing $Script (is this checkout up to d
 
 $parsed = [datetime]::ParseExact($Time, "HH:mm", $null)
 $TaskArgs = "`"$Script`" --apply"
+if (-not $AllPulls) { $TaskArgs += " --current-only" }
 $action = New-ScheduledTaskAction -Execute $Python -Argument $TaskArgs -WorkingDirectory $Repo
 $trigger = New-ScheduledTaskTrigger -Daily -At $parsed
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `

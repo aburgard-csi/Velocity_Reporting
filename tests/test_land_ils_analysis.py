@@ -468,3 +468,5 @@ def test_the_morning_task_passes_it_and_the_landing_has_its_own_task():
     assert "land_ils_analysis" not in "".join(l for l in task.splitlines() if l.strip().startswith("$TaskArgs ="))
     own = (REPO / "scripts" / "register_ils_landing_task.ps1").read_text(encoding="utf-8")
     assert '"RPE ILS Analysis Landing"' in own and "--apply" in own and "-Minutes 50" in own and "-Unregister" in own
+    # Aaron, 2026-11-24: "Current pulls only" -- the task lands current pulls unless -AllPulls is given
+    assert 'if (-not $AllPulls) { $TaskArgs += " --current-only" }' in own
