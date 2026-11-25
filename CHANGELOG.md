@@ -15,6 +15,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-24 — A release also moves the scheduled tasks' checkout (`scripts/release_launcher.ps1`)
+
+Summary: The morning source watch, its watchdog and the ILS analysis landing now run from their own clean checkout, and each Sheila release moves that checkout to the code just released, so they always run what the CSMs run.
+
+Aaron, 2026-11-24: "have the release update the tasks checkout too".
+
+- **Why:** the scheduled tasks ran whatever was checked out in the working checkout, and that day it was an old branch holding another session's unfinished edits. The watch was missing weeks of merged fixes. They now run from a checkout of their own, a worktree that shares the real checkout's `.venv` and `.env`.
+- **What the release does:** after a release from origin/main succeeds, `Update-TasksCheckout` checks out that exact commit in the folder named by `RPE_TASKS_CHECKOUT` (environment, else `.env`).
+  - Unset: skipped and said.
+  - A folder that is not a worktree of this repo, or that holds local changes: left alone with a warning.
+  - It never fails a release, because the release has already happened by the time it runs.
+  - `-FromWorkingTree` releases never move it.
+- **Tests:** `tests/test_release_launcher.py` pins the order (after the release succeeded), the released commit, the setting, and that the step never throws or touches a checkout with changes.
+
 ### 2026-11-24 — ILS analysis pulls landed for the scheduled reviews (`scripts/land_ils_analysis.py`, `scripts/ils_analysis_landed.py`)
 
 Summary: The newest data pull of each client on the ILS analysts' review schedule can now be copied into Inputs/ILS Analysis, zipped, and the morning source check lists new pulls. Each client gets a note saying whether its pull is current for the coming review. No deck changes.
