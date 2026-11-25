@@ -40,13 +40,32 @@ on it are fine without asking. Never rebase, never force-push, never use `-FromW
 
 Only when asked. `main` must be green at the commit being released.
 
+**Run the release script from the tasks checkout** (`RPE_TASKS_CHECKOUT` in `.env`, today `C:\Projects\RPE-Tasks`), not from
+`C:\Projects\RetailPerformanceEngine`. The script releases `origin/main` either way, but the OUTER script that runs is the copy
+in the folder you start it from, and only a current copy has the step that moves the tasks checkout afterwards
+(2026-11-24: the working checkout sat on an old branch, so its copy lacked the step and the tasks checkout had to be moved by hand).
+
 ```
 $env:RPE_DATA_ROOT = '\\PADMIS105\Velocity_company\CSM_Reporting'      # needs the VPN off-site
-powershell -ExecutionPolicy Bypass -File scripts\release_launcher.ps1
+powershell -ExecutionPolicy Bypass -File C:\Projects\RPE-Tasks\scripts\release_launcher.ps1
 ```
 
-The default releases `origin/main` from its own worktree, never a working tree. The last line prints the stamp
-(`released <date> <time> ... at <sha> (on origin/main, clean)`): quote it back. Then tag the backup and push the tag:
+The default releases `origin/main` from its own worktree, never a working tree. The output prints the stamp
+(`released <date> <time> ... at <sha> (on origin/main, clean)`) and `tasks checkout ... now at <sha>`: quote both back.
+
+**Check the tasks checkout moved.** The 08:00 source watch, its 08:10 watchdog and the 08:20 ILS analysis landing run from it,
+so it must sit on the released commit:
+
+```
+git -C C:\Projects\RPE-Tasks log --oneline -1          # must match the <sha> in the stamp
+```
+
+If it did not move (the output said "left alone" or "not set", or the script ran from an old copy), move it by hand, only
+when `git -C C:\Projects\RPE-Tasks status --porcelain` is empty: `git -C C:\Projects\RPE-Tasks fetch -q origin main` then
+`git -C C:\Projects\RPE-Tasks checkout --detach <sha>`. Never edit files in that checkout; its `.venv` (junction) and `.env`
+(hard link) are the real checkout's.
+
+Then tag the backup and push the tag:
 
 ```
 git tag -a backup-<YYYY-MM-DD>-release[-N] <sha> -m "Backup of origin/main as released <date>"
@@ -79,9 +98,18 @@ Use the repo `.venv` (the Store `python` has no pytest). A change to `templates/
   heredoc passed through a shell becomes a real newline: write the Python to a file instead.
 - **Line endings:** files here are often CRLF. Read with `newline=""`, detect `"\r\n" in text`, and write back with `newline=""`;
   never `.replace("\n", nl)` on text that already holds `\r\n` (it makes `\r\r\n`).
-- **Commit messages and PR bodies:** commits end with `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`; PR bodies end with
-  `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Use `git commit -F <file>` and `gh pr create --body-file <file>`.
+- **Commit messages and PR bodies:** end them with the attribution lines the session's own attribution reminder gives (the
+  `Co-Authored-By:` model line changes with the model; never copy one from an old commit). Use `git commit -F <file>` and
+  `gh pr create --body-file <file>`, with the file written by the Write tool: a message file written any other way has shipped as a
+  stray test string ("x", 2026-11-24) and once with a BOM in the subject. Look at `git log -1` before pushing; a pushed message is
+  never amended (no force-push), so a wrong one gets an empty follow-up commit carrying the right message.
   Push from PowerShell. Every CHANGELOG entry starts with a `Summary:` line.
+- **Scheduled tasks run from the tasks checkout**, never from a working checkout: re-registering one (`register_watch_task.ps1`,
+  `register_watchdog_task.ps1`, `register_ils_landing_task.ps1`) takes `-Repo C:\Projects\RPE-Tasks`, and only with Aaron's yes. A
+  task registered with a fixed UTC offset drifts an hour at each clock change; after re-registering, check
+  `Get-ScheduledTaskInfo` shows 08:00 / 08:10 / 08:20 local.
+- **Auto-fix and old heads:** an Auto-fix conflict or failure event can arrive for a PR already merged, or for a head already
+  replaced; check `gh pr view <N> --json state,headRefOid` before acting, and say so when there is nothing to do.
 - **No client data in git, no hardcoded paths** (`rpe_env` resolves everything).
 - **Releases include `clients.md`:** a roster edit that is merged but not released is invisible in Sheila.
 - A merged PR's branch worktrees can be removed (`git worktree remove`) once nothing else needs them.
