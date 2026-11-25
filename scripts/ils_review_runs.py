@@ -226,8 +226,16 @@ def _peer_and_industry(today=None):
     return out
 
 
-def _decks_in_outputs(cid):
-    """{"analysis": {...}, "review": {...}} for the newest delivered deck of each kind, or None for a kind with none."""
+def pull_period(pull):
+    """yyyy.mm of a pull stamp (yyyymmdd or yyyymm), the month the builder names its deck for; None if unreadable."""
+    s = str(pull or "")
+    return f"{s[:4]}.{s[4:6]}" if re.fullmatch(r"\d{6}(\d{2})?", s) else None
+
+
+def _decks_in_outputs(cid, pull=None):
+    """{"analysis": {...}, "review": {...}} for the newest delivered deck of each kind, or None for a kind with none.
+    Each carries `current`: its period is the month of `pull`, this review's data. Reviews recur, so a deck from an
+    earlier review's pull is listed but never makes the card read as done."""
     import ils_job
     out = {}
     try:
@@ -240,8 +248,10 @@ def _decks_in_outputs(cid):
             decks = sorted(d.glob(f"{cid}-*-ILS-{tag}-*.pptx"), key=lambda p: p.stat().st_mtime)
         except OSError:
             decks = []
+        want = pull_period(pull)
         out[key] = ({"deck": str(decks[-1]), "name": decks[-1].name,
-                     "when": _dt.datetime.fromtimestamp(decks[-1].stat().st_mtime).strftime("%Y-%m-%d %H:%M")}
+                     "when": _dt.datetime.fromtimestamp(decks[-1].stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                     "current": bool(want) and (DECK_PERIOD_RX.match(decks[-1].name) or [None, None])[1] == want}
                     if decks else None)
     return out
 
@@ -352,7 +362,7 @@ def review_doc(cid, job=None):
     except (OSError, SystemExit):
         doc["prep"] = None
     try:
-        doc["decks"] = _decks_in_outputs(cid)
+        doc["decks"] = _decks_in_outputs(cid, doc.get("pull"))
     except (OSError, SystemExit):
         doc["decks"] = {"analysis": None, "review": None}
     doc["job"] = job
@@ -362,14 +372,11 @@ def review_doc(cid, job=None):
 # ------------------------------------------------------------------ the run (child process)
 def stage_pull(cid, pull, say=print):
     """The pull's extracts, unzipped, in the local cache; the client's other pulls there are removed first."""
+    # No trim here: a review is not in Sheila's build queue, so trimming the shared cache now could evict a client a
+    # Transaction Intelligence build is using. The cache is trimmed when Sheila starts and at each TI stage, and
+    # ils_review/ is one of its SUBDIRS, so these files are counted there.
     import local_cache
     L = _landed()
-    try:
-        r = local_cache.trim_ti_cache(keep=cid, log=say)
-        if r["removed"]:
-            say(f"cleared {len(r['removed'])} client(s) from the local cache")
-    except OSError as e:
-        say(f"[note] the local cache could not be tidied: {e}")
     client_dir = cache_root() / str(cid)
     if client_dir.is_dir():
         for old in client_dir.iterdir():

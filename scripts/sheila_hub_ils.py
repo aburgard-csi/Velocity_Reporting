@@ -163,17 +163,18 @@ function ilsReviewCard() {
   const r = ILS.doc && ILS.doc.review; if (!r) return "";
   const j = r.job, running = !!(j && !j.done), d = r.decks || {};
   if (r.state === "not_scheduled" && !d.analysis && !d.review && !j) return "";
-  const delivered = d.review || d.analysis;
+  // a deck counts as this review's only when it was built from this review's pull (its period is the pull month)
+  const delivered = (d.review && d.review.current) || (d.analysis && d.analysis.current);
   const [cls, icon, label] = (delivered && r.state === "ready") ? ["k-outputs", "outputs", "In Outputs"] : (ILS_REVIEW_CHIP[r.state] || ILS_REVIEW_CHIP.unknown);
   const ready = r.state === "ready";
-  const btns = ready ? `<span class="btns"><button class="btn primary" data-ilsreview="plain"${running ? " disabled" : ""}>${d.analysis ? "Rebuild" : "Build"}</button>` +
+  const btns = ready ? `<span class="btns"><button class="btn primary" data-ilsreview="plain"${running ? " disabled" : ""}>${d.analysis && d.analysis.current ? "Rebuild" : "Build"}</button>` +
     (r.prep ? `<button class="btn" data-ilsreview="prep"${running ? " disabled" : ""} title="${esc(r.prep.name)}">Build with prep slides</button>` : "") +
     `</span><span class="why">goes to Outputs\\ILS when it passes validation</span>` : `<button class="btn" data-ilsreview="recheck">Check again</button>`;
   const facts = [];
   if (r.pull) facts.push(`Data pull <b>${esc(r.pull)}</b>`);
   if (r.review_date) facts.push(`review <b>${esc(r.review_date)}</b>`);
   for (const [k, what] of [["analysis", "analysis deck"], ["review", "review deck with prep slides"]]) {
-    if (d[k]) facts.push(`${what} ${esc(d[k].when)} · <button class="link" data-ilsreveal="${esc(d[k].deck)}">open it</button>`);
+    if (d[k]) facts.push(`${d[k].current ? "" : "an earlier review's "}${what} ${esc(d[k].when)} · <button class="link" data-ilsreveal="${esc(d[k].deck)}">open it</button>`);
   }
   const prep = ready && r.prep ? `<p class="ilssaved">Build with prep slides merges <b>${esc(r.prep.name)}</b> (matched by client number) and leaves out the analysis deck's own matrix slides.</p>` : "";
   const rows = (r.checks || []).map(c => ({...c, ck: LEVEL[c.level] || "ok"}));
@@ -205,6 +206,7 @@ async function ilsReviewRun(mode) {
   let r;
   try { r = await api("/api/ils/run", {method: "POST", body: JSON.stringify(body)}); }
   catch (e) { const b = $("#ilsjobreview"); if (b) b.innerHTML = `<p class="why err">${esc(e.message)}</p>`; return; }
+  if (!r.body.job) { const b = $("#ilsjobreview"); if (b) b.innerHTML = `<p class="why err">Not started: ${esc(r.body.error || "the server refused it")}</p>`; return; }
   ilsShow("review", r.body.job); ilsPoll("review");
 }
 

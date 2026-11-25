@@ -272,7 +272,8 @@ def review_lines(r):
     for k, what in (("analysis", "analysis deck"), ("review", "review deck with prep slides")):
         d = (r.get("decks") or {}).get(k)
         if d:
-            out.append(f"    {what} in Outputs: {d['name']} ({d['when']}).")
+            out.append(f"    {what} in Outputs: {d['name']} ({d['when']})"
+                       + ("." if d.get("current") else ", from an earlier review's pull."))
     job = r.get("job")
     if job and not job.get("done"):
         out.append("    a build is running.")

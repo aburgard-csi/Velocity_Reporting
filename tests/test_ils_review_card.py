@@ -214,6 +214,20 @@ def test_the_run_builds_validates_and_delivers_to_the_csms_ils_folder(root, monk
     assert R.output_decks(f"{CID}-*.pptx") == []
 
 
+def test_a_deck_from_an_earlier_reviews_pull_does_not_make_the_card_read_as_done(root):
+    _ready(root)                                                        # this review's pull is 2026.11
+    ils = root / "Outputs" / "A Csm" / "ILS"
+    ils.mkdir(parents=True)
+    (ils / f"{CID}-2026.05-ILS-ANL-Harbor FCU ILS Analysis.pptx").write_bytes(b"x")
+    d = RR.review_doc(CID)["decks"]
+    assert d["analysis"]["name"].startswith(f"{CID}-2026.05-") and d["analysis"]["current"] is False
+    (ils / f"{CID}-2026.11-ILS-ANL-Harbor FCU ILS Analysis.pptx").write_bytes(b"y")
+    assert RR.review_doc(CID)["decks"]["analysis"]["current"] is True
+    import sheila_hub as H
+    card = H.PAGE[H.PAGE.index("function ilsReviewCard()"):H.PAGE.index("function ilsReviewJobHtml(j)")]
+    assert "(d.analysis && d.analysis.current)" in card and "an earlier review's " in card
+
+
 def test_a_deck_that_fails_validation_stays_in_build_artifacts(root, monkeypatch):
     _ready(root)
     monkeypatch.setattr(RR, "run_streamed", _stub_builder([], []))
