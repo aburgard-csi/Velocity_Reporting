@@ -303,6 +303,67 @@ def test_the_status_file_judges_each_scheduled_client(world):
     assert doc["schedule"]["rows"] == 7 and doc["schedule"]["in_scope"] == 4
 
 
+def test_a_run_for_one_client_keeps_every_other_client_s_status(world):
+    _run(world, apply=True)
+    _run(world, apply=True, clients=["7002"])
+    assert sorted(L.pulls_status(world["dest"])["clients"]) == ["7001", "7002", "7003", "7004"]
+
+
+def test_a_differing_file_is_not_counted_as_landed(world):
+    d = world["dest"] / "7001" / "20261103"
+    _write(d / "7001_dbic_20261103.txt", "a different landing\n")
+    _run(world, apply=True)
+    c = L.pulls_status(world["dest"])["clients"]["7001"]
+    assert c["differs"] == ["7001_dbic_20261103.txt"] and "dbic" not in c["landed_kinds"]
+
+
+def test_a_current_pull_lands_before_any_stale_one(world):
+    f = LA.client_folders(world["src"])
+    resolved = {c: LA.resolve(c, f[c], world["src"]) for c in ("7001", "7004")}
+    wanted, _ = LA.plan(resolved, world["dest"], first={"7001"})
+    order = [i["client"] for i in wanted]
+    assert order == ["7001"] * 4 + ["7004"] * 2                 # though every 7004 file is smaller than every 7001 file
+    assert max(i["file"]["size"] for i in wanted[4:]) < min(i["file"]["size"] for i in wanted[:4])
+
+
+def test_a_zip_gone_by_the_end_of_the_run_is_landed_raw(world, monkeypatch):
+    real = LA.record
+
+    def agent_later(results, path):                         # the zip vanishes some time after its check passed
+        for r in results:
+            if r["status"] == "landed" and r["name"].startswith("7004_zaccounts"):
+                os.remove(world["dest"] / r["client"] / r["pull"] / (r["name"] + ".zip"))
+        real(results, path)
+    monkeypatch.setattr(LA, "record", agent_later)
+    rc, out = _run(world, apply=True, clients=["7004"])
+    assert rc == 0, out
+    assert (world["dest"] / "7004" / "20250301" / "7004_zaccounts_20250301.csv").read_bytes() == b"z\n"
+    assert "gone by the end of the run" in out
+
+
+def test_a_file_too_large_for_any_budgeted_run_is_not_started(world, monkeypatch):
+    monkeypatch.setattr(LA, "ZIP_MB_PER_S", 1e-9)
+    rc, out = _run(world, apply=True, clients=["7004"], budget_minutes=1)
+    assert rc == 0 and "too large for a 1-minute run" in out
+    assert not list(world["dest"].rglob("*.zip"))
+
+
+def test_staged_files_are_what_the_review_builder_finds(world, tmp_path):
+    """The contract PR 2 relies on: stage() output handed to `ils_review.cli --from-folder` finds the extracts."""
+    import sys
+    sys.path.insert(0, str(REPO / "build" / "ils_analysis"))
+    from ils_review.cli import find_inputs
+    _run(world, apply=True, clients=["7001", "7002"])
+    for client, pull in (("7001", "20261103"), ("7002", "20261110")):
+        out = tmp_path / f"stage_{client}"
+        L.stage(client, pull, out, base=world["dest"])
+        found = find_inputs(str(out))
+        assert found["zaccounts_path"].endswith(f"{client}_zaccounts_{pull}.csv")
+        assert found["ztrend_path"].endswith(f"{client}_ztrend_{pull}.csv")
+    assert find_inputs(str(tmp_path / "stage_7002"))["declines_path"].endswith("7002_debitdeclines_20261110.csv")
+    assert find_inputs(str(tmp_path / "stage_7001"))["dbic_path"].endswith("7001_dbic_20261103.txt")
+
+
 def test_current_only_lands_only_current_pulls(world):
     rc, out = _run(world, apply=True, current_only=True)
     assert rc == 0

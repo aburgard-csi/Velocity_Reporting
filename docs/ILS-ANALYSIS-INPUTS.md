@@ -80,9 +80,11 @@ that `scripts/register_ils_landing_task.ps1` registers, daily at 08:20). `python
 and writes nothing; `--apply` lands it; `--client <id>` limits it; `--current-only` leaves out the clients whose newest pull is
 an earlier review's.
 
-* **Sources, read only.** The schedule is `deck_status.SRC_ILS_SCHEDULE` (`RPE_SRC_ILS_SCHEDULE`), the share's
-  `current_scheduled_analysis.csv` by default, or the analysts' live `.xlsx` (the same column names; only `fi_id`, `status` and
-  `review_date` are required). The pulls are on `deck_status.SRC_ILS_ANALYSIS` (`RPE_SRC_ILS_ANALYSIS`), the share
+* **Sources, read only.** The schedule is `deck_status.SRC_ILS_SCHEDULE` (`RPE_SRC_ILS_SCHEDULE`, from the environment or
+  the repo's `.env`), the share's `current_scheduled_analysis.csv` by default, or the analysts' live `.xlsx` (the same column
+  names; only `fi_id`, `status` and `review_date` are required). **The share's `.csv` was last written in October 2022**, so
+  on it no review is upcoming; set `RPE_SRC_ILS_SCHEDULE` in `.env` to this machine's synced copy of the live workbook
+  (`.env.example` shows where). A schedule more than 30 days old is warned about on every run. The pulls are on `deck_status.SRC_ILS_ANALYSIS` (`RPE_SRC_ILS_ANALYSIS`), the share
   `build/ils_analysis/ils_review/peer_pull.py` reads (a test pins the two names equal). A client number that matches two client
   folders there is reported and left, never guessed.
 * **Which clients.** A schedule row whose review date is from today to 60 days ahead, or whose status says OVERDUE, and not
@@ -99,12 +101,17 @@ an earlier review's.
 * **Safely.** Each zip is written as `.zip.part`, read back (member name, size and CRC against the source) and renamed; its
   presence is checked again. A zip the share removes or empties (its security agent has done this to zips before) is landed raw
   instead, checked the same way. A file on hand at the same size, zipped or raw, is skipped; one at another size is reported
-  and never overwritten. Smallest files first; a 45-minute budget stops between files, and the next run carries on.
+  and never overwritten. Every zip a run landed is looked at again at the end of the run, and one gone by then is landed raw.
+* **In what order.** Clients whose pull is current first, then smallest files first. A 45-minute budget stops between files
+  and the next run carries on; a file that would overrun what is left of the budget waits, and one too large for any budgeted
+  run is reported and left for a hand run with a larger `--budget-minutes`. `pulls.json` is written before the first file
+  and after the last, and each landing is logged as it is made, so a run cut off at the task's limit still leaves a record.
 * **For Sheila.** `_schedule/current_scheduled_analysis.csv` is the schedule, only the columns these rules read (never the
   contacts or notes the live workbook carries), replaced only when its content changes; `_schedule/schedule_read.json` records
   each read. `_schedule/pulls.json` holds, per scheduled client, the review, the newest pull, the kinds on the share and the
-  kinds landed, the required kinds missing (ZAccounts and ZTrend), the names not recognised, and **whether the pull is
-  current**. Each landing is logged in `Build Artifacts/ils_analysis/landings.json`; an `--apply` run's report is
+  kinds landed (never a kind whose file on hand differs from the share's: those are listed under `differs`), the required
+  kinds missing (ZAccounts and ZTrend), the names not recognised, and **whether the pull is current**. A run limited by
+  `--client` keeps the other clients' entries. Each landing is logged in `Build Artifacts/ils_analysis/landings.json`; an `--apply` run's report is
   `landing_latest.md` beside it.
 * **A current pull** is one run no more than 60 days before the review date, or after it. Calibrated on the schedule's own
   history: of about 300 reviews held since June 2025, the newest pull before the review came a median of 22 days earlier, 48

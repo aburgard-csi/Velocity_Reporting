@@ -4,7 +4,7 @@
 
     python scripts/land_ils_analysis.py                  # dry run (the default): the plan, nothing written
     python scripts/land_ils_analysis.py --apply          # land it
-    python scripts/land_ils_analysis.py --client 1130    # one client (repeat for several)
+    python scripts/land_ils_analysis.py --client 7001    # one client (repeat for several)
 
 Aaron, 2026-11-24: the scope is the clients on the analysts' review schedule, and each one's newest pull is copied once,
 zipped, as its own step, verified and never overwriting. The two sources are the analysts' and are READ ONLY:
@@ -14,7 +14,7 @@ zipped, as its own step, verified and never overwriting. The two sources are the
     `ils_analysis_landed.in_scope` / `judge` — read there.
   * the client analysis share, `deck_status.SRC_ILS_ANALYSIS` (`RPE_SRC_ILS_ANALYSIS`): one folder per client
     (`<Name>_<id>`, `<Name> - <id>`; the id read by `ils_review.peer_pull.client_id_of`), each holding dated pulls, as a
-    folder or a zip (`DataPull_20260911`, `DataPull_2024.8.22`, `DataPull_202605` holding `1048_DataPull_20260504.zip`).
+    folder or a zip (`DataPull_20260911`, `DataPull_2024.8.22`, `DataPull_202605` holding `7001_DataPull_20260504.zip`).
     A client number that matches two folders is reported and left: never guessed.
 
 What lands: every extract of the newest pull that holds one (`ils_analysis_inputs.kind_of`: ZAccounts, ZTrend, debit
@@ -28,8 +28,13 @@ are their outputs, not inputs, and are never copied; a .csv/.txt the convention 
     instead, through its own `.part`, checked the same way.
   * A file on hand at the same size (the zip's member, or a raw file) is skipped; one at another size is reported and
     left. Nothing is ever overwritten or deleted, here or on the source.
-  * Smallest files first, across every client; a soft budget (`--budget-minutes`, 45) stops between files and says what is
-    left, and the next run picks up from there.
+  * The clients whose pull is current first, then smallest files first. A soft budget (`--budget-minutes`, 45) stops
+    between files and says what is left, and the next run picks up from there; a file whose estimated time would overrun
+    what is left waits for the next run, and one that could not finish inside any budgeted run is not started (land it by
+    hand with a larger budget). Every zip this run landed is looked at again at the end, and one gone by then is landed raw.
+  * `pulls.json` is written before the first file and again after the last, and each landing is logged as it is made, so a
+    run the task kills at its limit still leaves its record. A run limited by `--client` keeps the other clients' status.
+    A kind whose file on hand DIFFERS from the share's is listed under `differs` and left out of `landed_kinds`.
   * The schedule is kept as `_schedule/current_scheduled_analysis.csv` (only the columns the rules read; replaced only when
     its content changes; `schedule_read.json` records each read), and each scheduled client's newest pull, landed kinds
     and current judgement go to `_schedule/pulls.json`, for Sheila. Every landing is logged to
@@ -255,8 +260,10 @@ def on_hand(dest_dir, canonical, size):
     return None
 
 
-def plan(resolved, dest_root):
-    """(wanted, skipped): items to land, smallest first, and [(item, why)] for the rest. `resolved` is {client: resolve()}."""
+def plan(resolved, dest_root, first=()):
+    """(wanted, skipped): items to land and [(item, why)] for the rest. `resolved` is {client: resolve()}. The clients in
+    `first` (those with a current pull) come first, then smallest first: a review that can be built is never queued behind
+    gigabytes of an earlier review's data."""
     wanted, skipped = [], []
     for client, r in resolved.items():
         if r.get("problem"):
@@ -267,7 +274,8 @@ def plan(resolved, dest_root):
                     "pull_name": r["pull_name"]}
             why = on_hand(d, canon, f["size"])
             (skipped.append((item, why)) if why else wanted.append(item))
-    wanted.sort(key=lambda i: (i["file"]["size"], i["client"], i["canonical"]))
+    first = set(first)
+    wanted.sort(key=lambda i: (i["client"] not in first, i["file"]["size"], i["client"], i["canonical"]))
     return wanted, skipped
 
 
@@ -332,7 +340,7 @@ def land_one(item):
     f, d, name = item["file"], Path(item["dest_dir"]), item["canonical"]
     target, part = d / (name + ".zip"), d / (name + ".zip.part")
     res = {"client": item["client"], "pull": item["pull"], "name": name, "source": f["src"] + (
-        "::" + f["member"] if f["member"] else ""), "size": f["size"], "zip_size": None, "status": None, "error": None}
+        "::" + f["member"] if f["member"] else ""), "size": f["size"], "zip_size": None, "crc": None, "status": None, "error": None}
     try:
         d.mkdir(parents=True, exist_ok=True)
         if part.exists():
@@ -358,7 +366,8 @@ def land_one(item):
             raise ValueError(f"read {size:,} bytes from the source, expected {f['size']:,}")
         if f["crc"] is not None and crc != f["crc"]:
             raise ValueError(f"the source read back as CRC {crc:08x}; its zip says {f['crc']:08x}")
-        kept = part.is_file() and part.stat().st_size > 0
+        res["crc"] = crc
+        kept =part.is_file() and part.stat().st_size > 0
         if kept:
             _check(part, name, size, crc)
             os.replace(part, target)
@@ -395,21 +404,26 @@ def record(results, path):
 
 
 # ── the judgement Sheila reads ───────────────────────────────────────────────
-def status_doc(scope, resolved, dest_root, schedule_meta):
-    clients = {}
+def status_doc(scope, resolved, dest_root, schedule_meta, previous=None):
+    """The `pulls.json` document. `previous` (a run limited to some clients): its other clients are kept as they were.
+    `landed_kinds` leaves out a kind whose file on hand DIFFERS from the share's (`differs`): never build from that."""
+    clients = dict((previous or {}).get("clients") or {})
     for cid, row in scope.items():
         r = resolved.get(cid, {})
         pull = r.get("pull")
         current, reason = L.judge(pull, row)
         if r.get("problem"):
             reason = r["problem"]
-        landed = sorted(L.landed_files(cid, pull, dest_root)) if pull else []
+        d = Path(dest_root) / cid / str(pull)
+        differs = sorted(c for c, f in (r.get("extracts") or {}).items() if on_hand(d, c, f["size"]) == "differs")
+        landed = sorted(k for k, p in (L.landed_files(cid, pull, dest_root) if pull else {}).items()
+                        if _stem(p.name) not in differs)
         clients[cid] = {
             "name": row.get("fi_name", ""), "status": row.get("status", ""), "review_date": row.get("review_date", ""),
             "pull_by": row.get("pull_by", ""), "tentative_date": row.get("tentative_date", ""), "csm": row.get("csm", ""),
             "folder": r.get("folder"), "pull": pull, "pull_source": r.get("pull_name"),
             "kinds_on_share": sorted({IA.kind_of(f["name"]) for f in (r.get("extracts") or {}).values()}),
-            "landed_kinds": landed, "missing_kinds": r.get("missing", list(L.REQUIRED_KINDS)),
+            "landed_kinds": landed, "differs": differs, "missing_kinds": r.get("missing", list(L.REQUIRED_KINDS)),
             "unrecognised": r.get("unrecognised", []), "problem": r.get("problem"),
             "current": bool(current and not r.get("problem")), "reason": reason}
     return {"written": datetime.now().isoformat(timespec="seconds"), "schedule": schedule_meta, "clients": clients}
@@ -461,11 +475,12 @@ def run(apply=False, clients=None, source=None, schedule=None, dest_root=None, t
         f"{horizon_days} days ahead or OVERDUE" + (f" (limited to {', '.join(clients)})" if clients else ""))
     dest_root = Path(dest_root) if dest_root else L.root()
     resolved = {cid: resolve(cid, folders.get(cid, []), source) for cid in scope}
+    current = {cid for cid, r in resolved.items() if L.judge(r.get("pull"), scope[cid])[0]}
     to_land = resolved
     if current_only:
-        to_land = {cid: r for cid, r in resolved.items() if L.judge(r.get("pull"), scope[cid])[0]}
+        to_land = {cid: r for cid, r in resolved.items() if cid in current}
         say(f"--current-only: {len(to_land)} of {len(resolved)} client(s) have a current pull; only those are landed")
-    wanted, skipped = plan(to_land, dest_root)
+    wanted, skipped = plan(to_land, dest_root, first=current)
     total = sum(i["file"]["size"] for i in wanted)
     for cid, row in scope.items():
         r = resolved[cid]
@@ -493,21 +508,52 @@ def run(apply=False, clients=None, source=None, schedule=None, dest_root=None, t
         return 0
 
     L.write_snapshot(rows, schedule, os.path.getmtime(schedule), base=dest_root)
-    t0, results, left = time.time(), [], []
+    # pulls.json before the first file and again after the last: a run the task kills part way still leaves Sheila the
+    # judgement, and every landing is recorded the moment it is made.
+    previous = L.pulls_status(dest_root) if clients else None
+    L.write_pulls_status(status_doc(scope, resolved, dest_root, meta, previous), base=dest_root)
+    log = artifacts_dir() / LANDINGS_NAME
+    budget = budget_minutes * 60
+    t0, results, left, too_big = time.time(), [], [], []
     for n, item in enumerate(wanted, 1):
-        if time.time() - t0 > budget_minutes * 60:
-            left = wanted[n - 1:]
+        elapsed = time.time() - t0
+        if elapsed > budget:
+            left += wanted[n - 1:]
             break
+        est = item["file"]["size"] / 1_048_576 / ZIP_MB_PER_S
+        if est > budget > 0:
+            too_big.append(item)                                # could never finish inside one budgeted run
+            continue
+        if results and elapsed + est > budget:
+            left.append(item)                                   # would overrun: a smaller file after it may still fit
+            continue
         r = land_one(item)
         results.append(r)
+        record([r], log)
         say(f"[{n}/{len(wanted)}] {r['status']} {r['client']}/{r['pull']}/{r['name']} {_mb(r['size'])}"
             + (f" -> {_mb(r['zip_size'])}" if r["zip_size"] else "") + (f"  ({r['error']})" if r["error"] else ""))
-    if results:
-        record(results, artifacts_dir() / LANDINGS_NAME)
+    # The share's agent has removed zips some time after they were written: look again at every zip this run landed.
+    by_name = {(i["client"], i["pull"], i["canonical"]): i for i in wanted}
+    for r in results:
+        if r["status"] != "landed":
+            continue
+        item = by_name[(r["client"], r["pull"], r["name"])]
+        if (Path(item["dest_dir"]) / (r["name"] + ".zip")).is_file():
+            continue
+        try:
+            _land_raw(item["file"], Path(item["dest_dir"]) / r["name"], r["crc"])
+            r.update(status="landed raw", error="the zip was gone by the end of the run; landed raw")
+        except Exception as e:                                  # noqa: BLE001 — reported per file
+            r.update(status="FAILED", error=f"the zip was gone by the end of the run, and landing it raw failed: {e}")
+        record([dict(r)], log)
+        say(f"  {r['status']} {r['client']}/{r['pull']}/{r['name']}: {r['error']}")
+    for item in too_big:
+        say(f"  too large for a {budget_minutes:g}-minute run: {item['client']}/{item['pull']}/{item['canonical']} "
+            f"({_mb(item['file']['size'])}); land it by hand with a larger --budget-minutes")
     if left:
-        say(f"stopped at the {budget_minutes}-minute budget: {len(left)} file(s), {_mb(sum(i['file']['size'] for i in left))}"
-            " left for the next run")
-    L.write_pulls_status(status_doc(scope, resolved, dest_root, meta), base=dest_root)
+        say(f"stopped at the {budget_minutes:g}-minute budget: {len(left)} file(s), "
+            f"{_mb(sum(i['file']['size'] for i in left))} left for the next run")
+    L.write_pulls_status(status_doc(scope, resolved, dest_root, meta, previous), base=dest_root)
     failed = sum(1 for r in results if r["status"] == "FAILED")
     say(f"landed {len(results) - failed}, failed {failed}; status written to "
         f"{L.schedule_dir(dest_root) / L.PULLS_NAME}")
@@ -588,23 +634,34 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
-    lines = []
+    lines = [f"# ILS analysis landing, {datetime.now():%Y-%m-%d %H:%M}", ""]
+    latest = None
+    if a.apply:
+        # The scheduled task runs under pythonw, which has no console: the report goes to Build Artifacts too, a line at
+        # a time, so a run the task kills at its limit still leaves what it did.
+        try:
+            latest = open(artifacts_dir() / "landing_latest.md", "w", encoding="utf-8")
+            latest.write("\n".join(lines) + "\n")
+        except (OSError, SystemExit) as e:
+            print(f"!! could not write the landing report: {e}", file=sys.stderr)
 
     def say(s):
         lines.append(s)
         print(s, flush=True)
-    rc = run(apply=a.apply, clients=a.client, source=a.source, schedule=a.schedule, dest_root=a.root,
-             horizon_days=a.horizon_days, budget_minutes=a.budget_minutes, current_only=a.current_only, say=say)
-    if a.apply:
-        # The scheduled task runs under pythonw, which has no console: the report goes to Build Artifacts too.
-        text = f"# ILS analysis landing, {datetime.now():%Y-%m-%d %H:%M}\n\n" + "\n".join(lines) + "\n"
-        try:
-            d = artifacts_dir()
-            (d / "landing_latest.md").write_text(text, encoding="utf-8")
-            with open(d / "landing.log", "a", encoding="utf-8") as fh:
-                fh.write(text + "\n---\n\n")
-        except OSError as e:
-            print(f"!! could not write the landing report: {e}", file=sys.stderr)
+        if latest:
+            latest.write(s + "\n")
+            latest.flush()
+    try:
+        rc = run(apply=a.apply, clients=a.client, source=a.source, schedule=a.schedule, dest_root=a.root,
+                 horizon_days=a.horizon_days, budget_minutes=a.budget_minutes, current_only=a.current_only, say=say)
+    finally:
+        if latest:
+            latest.close()
+            try:
+                with open(artifacts_dir() / "landing.log", "a", encoding="utf-8") as fh:
+                    fh.write("\n".join(lines) + "\n\n---\n\n")
+            except OSError as e:
+                print(f"!! could not append to the landing log: {e}", file=sys.stderr)
     return rc
 
 

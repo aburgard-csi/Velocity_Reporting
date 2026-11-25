@@ -92,7 +92,7 @@ def parse_date(v):
 
 
 def _client_id(v):
-    """'1130', 1130 or 1130.0 -> '1130'; anything else -> None."""
+    """'7001', 7001 or 7001.0 -> '7001'; anything else -> None."""
     s = str(v if v is not None else "").strip()
     m = re.fullmatch(r"(\d{3,5})(?:\.0+)?", s)
     return m.group(1) if m else None
@@ -140,7 +140,7 @@ def read_schedule(path):
         finally:
             wb.close()
         return _rows_from_table(header, rows)
-    for enc in ("utf-8-sig", "cp1252"):
+    for enc in ("utf-8-sig", "cp1252", "latin-1"):            # latin-1 decodes any byte: the last resort
         try:
             text = raw.decode(enc)
             break
