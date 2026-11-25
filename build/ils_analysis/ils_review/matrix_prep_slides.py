@@ -191,11 +191,13 @@ def _card(slide, x, y, w, h, value, label, hot=False):
 
 
 def _small_table(slide, x, y, colw, rows, heads, row_h, fs, aligns=None):
+    """`row_h` is one height for every row, or a list with one height per row (header first)."""
     data = [heads] + [list(r) for r in rows]
-    gf = shapes.add_table(slide, x, y, sum(colw), row_h * len(data), data, colw, fs=fs)
+    hs = list(row_h) if isinstance(row_h, (list, tuple)) else [row_h] * len(data)
+    gf = shapes.add_table(slide, x, y, sum(colw), sum(hs), data, colw, fs=fs)
     tb = gf.table
     for i in range(len(data)):
-        tb.rows[i].height = int(row_h * 914400)
+        tb.rows[i].height = int(hs[i] * 914400)
         for j in range(len(heads)):
             c = tb.cell(i, j)
             c.margin_top = c.margin_bottom = 0
@@ -204,7 +206,83 @@ def _small_table(slide, x, y, colw, rows, heads, row_h, fs, aligns=None):
                     p.alignment = aligns[j]
                 for r in p.runs:
                     r.font.size = T.Pt(fs)
+                _end_size(p, fs)
     return gf
+
+
+def _end_size(p, fs):
+    """Give the paragraph's end mark the table's size. PowerPoint sizes an EMPTY cell (an empty run is ignored) by
+    its end mark, and with none it falls back to the deck's default text size (14 pt): RBFCU's 8 pt override rows with
+    no Returns or Stop drew at 14 pt and ran under the Trend Settings bar (2026-11-25)."""
+    from pptx.oxml.ns import qn
+    el = p._p.find(qn("a:endParaRPr"))
+    if el is None:
+        el = p._p.makeelement(qn("a:endParaRPr"), {})
+        p._p.append(el)
+    el.set("sz", str(int(round(fs * 100))))
+
+
+# The overrides panel on the matrix appendix slide runs from OVR_TOP down to the Trend Settings block, which must end
+# above the logo in the bottom-right corner (it starts at 6.78").
+OVR_TOP, PANEL_BOTTOM = 2.12, 6.74
+# The Trend Settings block under the overrides: bar and gap, two rows of chips, then the caveat line.
+TREND_GAP, TREND_CHIPS, TREND_NOTE = 0.08, 1.54, 0.42
+OVR_SIZES = (12, 11, 10, 9, 8)     # 8 pt is the size of the factor tables beside it (STYLE.md 9, dense tables)
+
+
+def _row_heights(data, colw, fs):
+    """Each row's height as PowerPoint draws it: every cell's text measured in the bundled body font against its
+    column (less the 5 pt + 4 pt side margins shapes.add_table sets), one line at least, the tallest cell wins.
+    Top and bottom margins are 0 (_small_table). The same line height, 1.2 x the size, as validate_deck's
+    table_growth_overlap_findings, so the builder and the gate agree on where the table ends."""
+    import math
+    from textfit import text_width_in
+    out = []
+    for row in data:
+        lines = 1
+        for j, val in enumerate(row):
+            text = " ".join(str(val).split())
+            avail = colw[j] - (5 + 4) / 72
+            if text and avail > 0:
+                lines = max(lines, math.ceil(text_width_in(text, fs, "Carlito", False) / avail))
+        out.append(lines * fs * 1.2 / 72)
+    return out
+
+
+def _fit_overrides(data, colw, note_required=False):
+    """(font size, row heights, caveat on the slide) for the overrides table: the largest size whose rows, drawn at
+    the height they will really take, leave room under them for the Trend Settings block.
+
+    THE DEFECT THIS FIXES: the panel gave the table a fixed 2.55" whatever its length. RBFCU's personal matrix has 17
+    override rows, two of them long enough to wrap ("RDI (33 days) / Deposits (33-days) Non-zero BETWEEN 0.25 AND
+    0.50"), so 10 pt rows set at 0.14" grew to ~5.05" in PowerPoint and ran under the Trend Settings bar at 4.75"
+    (2026-11-25; validate_deck FAILed the build). Sizes step down to 8 pt; past that the caveat line, which the
+    speaker note also carries, leaves the slide to make room, unless the note carries a "†" return or the trend
+    warning (`note_required`). Nothing is dropped from the table."""
+    room = PANEL_BOTTOM - OVR_TOP - TREND_GAP - TREND_CHIPS
+    for keep_note in ((True,) if note_required else (True, False)):
+        budget = room - (TREND_NOTE if keep_note else 0)
+        for fs in OVR_SIZES:
+            hs = _row_heights(data, colw, fs)
+            if sum(hs) <= budget:
+                return fs, hs, keep_note
+    fs = OVR_SIZES[-1]
+    return fs, _row_heights(data, colw, fs), note_required
+
+
+def _cut_at_rule(hs, subs, budget):
+    """How many data rows fit in `budget` (hs[0] is the header), cut only where a rule starts, so a rule is never
+    parted from its sub-conditions. At least one rule, whatever its height."""
+    cut, used = 0, hs[0]
+    for i, h in enumerate(hs[1:]):
+        if used + h > budget:
+            break
+        used += h
+        if i + 1 == len(subs) or not subs[i + 1]:
+            cut = i + 1
+    if cut == 0:
+        cut = next((i for i in range(1, len(subs)) if not subs[i]), len(subs))
+    return cut
 
 
 def _limits(settings_row):
@@ -276,10 +354,11 @@ def add_matrix_detail_slides(dk, cfg, S, settings, *, section, fr=None, only=Non
         # ── overrides
         rx, rw = 8.50, RIGHT - 8.50
         _bar(sl, rx, TOP, rw, "Overrides", "Applied after scoring")
+        keep_note = True
+        rest = []
+        heads = ["#", "Override", "Returns", "Stop"]
+        aligns = [PP_ALIGN.CENTER, PP_ALIGN.LEFT, PP_ALIGN.LEFT, PP_ALIGN.CENTER]
         if ovr:
-            n = len(ovr) + 1
-            rh = min(0.30, 2.55 / n)
-            fs = 12 if rh >= 0.28 else (11 if rh >= 0.25 else 10)
             # A worded return ("minus Outstanding Loan Amount") wrapped in this narrow panel and pushed the last rows
             # under the Trend Settings bar; widening the column squeezed the rules instead (Dannemora FCU, 2026-11).
             # The cell says "note †" and the expression is written out under the trend chips.
@@ -287,15 +366,32 @@ def add_matrix_detail_slides(dk, cfg, S, settings, *, section, fr=None, only=Non
             rows = [[o["n"], ("   " if o["sub"] else "") + o["text"],
                      ("note †" if len(str(o["ret"])) > 9 else o["ret"]), o["stop"]] for o in ovr]
             retw = 0.95
-            _small_table(sl, rx, 2.12, [0.32, rw - 0.32 - retw - 0.5, retw, 0.5], rows, ["#", "Override", "Returns", "Stop"], rh, fs,
-                         [PP_ALIGN.CENTER, PP_ALIGN.LEFT, PP_ALIGN.LEFT, PP_ALIGN.CENTER])
-            ob = 2.12 + rh * n
+            colw = [0.32, rw - 0.32 - retw - 0.5, retw, 0.5]
+            # Every row is drawn at the height PowerPoint will give it, at the largest size that leaves the Trend
+            # Settings block its room (_fit_overrides), so a long list cannot grow under the bar (RBFCU, 2026-11-25).
+            fs, hs, keep_note = _fit_overrides([heads] + rows, colw, note_required=bool(long_rets or both))
+            budget = PANEL_BOTTOM - OVR_TOP - TREND_GAP - TREND_CHIPS
+            if sum(hs) > budget - (TREND_NOTE if keep_note else 0):
+                # Too long even at 8 pt: the rules that fit stay here, the rest continue on a slide of their own,
+                # each rule kept whole with its sub-conditions. The caveat stays on this slide and says so.
+                keep_note = True
+                cut = _cut_at_rule(hs, [o["sub"] for o in ovr], budget - TREND_NOTE)
+                rows, rest, hs = rows[:cut], rows[cut:], hs[:cut + 1]
+            else:
+                hs = [max(h, min(0.30, 2.55 / (len(rows) + 1))) for h in hs]      # short lists keep their airy rows
+                if sum(hs) > budget - (TREND_NOTE if keep_note else 0):
+                    hs = _row_heights([heads] + rows, colw, fs)
+            _small_table(sl, rx, OVR_TOP, colw, rows, heads, hs, fs, aligns)
+            ob = OVR_TOP + sum(hs)
+            if not keep_note:
+                notes.append(f"Matrix {t}: {len(rows)} override rows; the line saying the extract has no enabled / "
+                             f"pending flags or trend switches is in the speaker note only, to make room.")
         else:
             long_rets = []
-            shapes.textbox(sl, rx, 2.12, rw, 0.4, "No overrides in the extract.", 14, brand.TICK_RGB, False, PP_ALIGN.LEFT, brand.BODY)
+            shapes.textbox(sl, rx, OVR_TOP, rw, 0.4, "No overrides in the extract.", 14, brand.TICK_RGB, False, PP_ALIGN.LEFT, brand.BODY)
             ob = 2.55
         # ── trends: On / Off chips only
-        ty = max(ob + 0.08, 4.15)
+        ty = max(ob + TREND_GAP, 4.15)
         _bar(sl, rx, ty, rw, "Trend Settings", "On or Off only")
         cw2 = (rw - 0.12) / 2
         for i, (lab, on) in enumerate(states):
@@ -311,15 +407,48 @@ def add_matrix_detail_slides(dk, cfg, S, settings, *, section, fr=None, only=Non
             shapes.textbox(sl, cx, cy + 0.27, cw2, 0.21, "On" if on else "Off", 11,
                            brand.PEACH_RGB if on else brand.TICK_RGB, False, PP_ALIGN.CENTER, brand.BODY)
         msg = ("Override enabled / pending flags and trend switches are not in the matrix validation extract; "
-               "every override exported is listed.")
+               "every override exported is listed.") if keep_note else ""
         if long_rets:
             msg = "† Returns " + "; ".join(dict.fromkeys(str(r) for r in long_rets)) + ". " + msg
         if both:
             msg = "Deposit Regularity and Windfall both read as On in the extract; a matrix runs one of them. Check the matrix. " + msg
             notes.append(f"Matrix {t}: Deposit Regularity and Windfall trending both read as on in the extract (a matrix runs one of them).")
-        shapes.textbox(sl, rx, ty + 0.42 + 1.12, rw, 0.42, msg, 11, brand.TICK_RGB, False, PP_ALIGN.LEFT, brand.BODY, MSO_ANCHOR.TOP)
+        if rest:
+            msg = "Overrides continue on the next slide. " + msg
+        if msg.strip():
+            shapes.textbox(sl, rx, ty + TREND_CHIPS, rw, TREND_NOTE, msg.strip(), 11, brand.TICK_RGB, False,
+                           PP_ALIGN.LEFT, brand.BODY, MSO_ANCHOR.TOP)
         from . import client_slides as CS
-        CS.say_first(sl, f"This is the full {t.lower()} matrix on one page, for reference; the next slides show it in plain terms.")
+        if rest:
+            CS.say_first(sl, f"This is the {t.lower()} matrix for reference; its overrides run onto the next slide.")
+            n_rest, cw = len(rest), [0.5, RIGHT - LEFT - 0.5 - 2.0 - 0.8, 2.0, 0.8]
+            subs = [o["sub"] for o in ovr][len(ovr) - n_rest:]
+            pages = 0
+            while rest:
+                part, psubs = rest, subs
+                cfs, chs = None, None
+                for size in OVR_SIZES:
+                    h = _row_heights([heads] + rest, cw, size)
+                    if sum(h) <= PANEL_BOTTOM - OVR_TOP:
+                        cfs, chs = size, h
+                        break
+                if cfs is None:                     # still too long at 8 pt on a slide of its own: another page
+                    cfs = OVR_SIZES[-1]
+                    h = _row_heights([heads] + rest, cw, cfs)
+                    cut = _cut_at_rule(h, subs, PANEL_BOTTOM - OVR_TOP)
+                    part, chs = rest[:cut], h[:cut + 1]
+                rest, subs = rest[len(part):], subs[len(part):]
+                more = " They continue on the next slide." if rest else ""
+                cont = dk.content(f"Appendix: matrix detail, overrides continued — {t}",
+                                  f"{t} matrix ({code}), matrix validation query, modified {mod}: overrides "
+                                  f"{part[0][0]} onward.{more}", section=section, source=src)
+                _bar(cont, LEFT, TOP, RIGHT - LEFT, "Overrides, continued", "Applied after scoring")
+                _small_table(cont, LEFT, OVR_TOP, cw, part, heads, chs, cfs, aligns)
+                CS.say_first(cont, f"The rest of the {t.lower()} matrix's overrides, in the order the matrix applies them.")
+                pages += 1
+            notes.append(f"Matrix {t}: {len(ovr)} override rows; {n_rest} continue on {pages} slide(s) of their own.")
+        else:
+            CS.say_first(sl, f"This is the full {t.lower()} matrix on one page, for reference; the next slides show it in plain terms.")
     return notes
 
 
