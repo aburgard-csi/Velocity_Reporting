@@ -16,9 +16,11 @@ checked", never Ready.
 The sidebar badge counts the CSM's ILS reviews that are **Ready to build**: on the schedule, this review's data pull
 landed and sound, and no deck for this review in Outputs yet (`paintIlsBadge` in sheila_hub.py).
 
-A row opens the client's own page, the one RPE Decks opens, moved into this tab (there is one client page, `#detail`,
-and the ILS cards' listeners are bound to it); Back, Close and Esc return to this list, and `#ils&client=<id>` opens it
-from a bookmark. A client on ILS alone leads with its ILS cards; a client on both lists has its page unchanged.
+A row opens the client's ILS page: the one client page (`#detail`, whose listeners the ILS cards are bound to) moved
+into this tab and drawn ILS only (sheila_hub.renderIlsDetail; Aaron, 2026-11-25: "fix the ILS client page clutter"): the
+ILS Review, Pre-go-live and Kickoff cards, all shown, and none of the RPE page's cards, links or Live Review. A client on
+both lists gets one line opening its RPE page, and the RPE page one line opening this. Back, Close and Esc return to
+this list, and `#ils&client=<id>` opens it from a bookmark.
 """
 TAB = "ils"
 NAME = "ILS Decks"
@@ -50,7 +52,7 @@ CSS = r"""
 .il-pill{display:inline-flex;align-items:center;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted);white-space:nowrap;margin:0 4px 4px 0}
 .il-note{margin:0;padding:0 24px 16px;font-size:12.5px;color:var(--muted)}
 #il-listcard .lhead{padding:12px 16px 8px;border-bottom:0}
-.rpenote{padding:0 2px}
+.xlist{padding:0 2px}
 @media (max-width:720px){.il-table .il-opt{display:none}.il-table th,.il-table td{padding-inline:10px}.il-note{padding-inline:16px}}
 """
 

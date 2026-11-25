@@ -17,7 +17,7 @@ Format: newest first, dated, with the reason — not just the change.
 
 ### 2026-11-25 — CSM Sheila has RPE Decks and ILS Decks (`scripts/sheila_hub_ilsdecks.py`, Sheila 2.5)
 
-Summary: Sheila's sidebar now has RPE Decks (what Decks was) and a new ILS Decks tab listing every ILS client with its review status, review date, newest data pull and which other ILS cards apply. Clients on ILS alone moved out of RPE Decks, and their client page now opens on the ILS cards.
+Summary: Sheila's sidebar now has RPE Decks (what Decks was) and a new ILS Decks tab listing every ILS client with its review status, review date, newest data pull and which other ILS cards apply. Clients on ILS alone moved out of RPE Decks. A client's page is now RPE only when opened from RPE Decks and ILS only when opened from ILS Decks, where the ILS Review, Pre-go-live and Kickoff cards are all shown with no dropdown.
 
 Aaron, 2026-11-25: "We'll need to view ILS only clients in Sheila now. On the left side bar change Decks to RPE Decks, add another entry for ILS Decks."
 
@@ -30,7 +30,13 @@ Aaron, 2026-11-25: "We'll need to view ILS only clients in Sheila now. On the le
   - the tiles: five KPI tiles that filter the list.
 - **A client on both** stays on RPE Decks for its RPE deck and is also on ILS Decks. Its RPE status is never touched by the ILS one.
 - **The badge** on ILS Decks counts the shown CSM's ILS reviews that are **Ready to build**: on the schedule, this review's pull landed and sound, and no deck for this review in Outputs yet.
-- **A row opens the client's page** inside ILS Decks. Back, Close and Esc return to the list, and `#ils&client=<id>` opens it from a bookmark. A client on ILS alone now leads with its ILS cards, and the Executive Review card (which could only say "Can't build yet") is left out. A client on both keeps its page as it was.
+- **A row opens the client's ILS page** inside ILS Decks. Back, Close and Esc return to the list, and `#ils&client=<id>` opens it from a bookmark.
+- **The client page has two sides.** Aaron, the same day, after the screenshots: "fix the ILS client page clutter in this release too. Note that the ILS Pre-GoLive and Kickoff can be moved to the ILS Decks section, and it no longer needs the dropdown to show them."
+  - **The ILS page is ILS only.** It shows the ILS Review card, then the ILS Pre-go-live card, then the ILS Kickoff card, all shown, with no fold. A card whose extract has not landed is a compact one saying which extract is missing, where it goes, and Check again. A client not on the review schedule gets the review card saying so.
+  - **No RPE clutter on the ILS page.** It drops the code-sheet note, the Lift Matrix and Data Issues links, the "Not on an RPE program" sentence and the Live Review card. The header keeps the name, number, CSM, review chip and Close, and "ILS checked at … · Check ILS again" re-reads the ILS readiness. No RPE status is read for this page.
+  - **The RPE page is RPE only.** The ILS cards left it.
+  - **A client on both lists** gets one line on each side: on the RPE page, "ILS: <state> · open in ILS Decks"; on the ILS page, "RPE: <state> · open in RPE Decks".
+  - **A client on ILS alone** asked for on RPE Decks (a bookmark) opens on ILS Decks.
 - **Where the figures come from:** all of it is worked out in the background list refresh (`ars_launcher_web.ils_clients`). It reads the schedule snapshot, `pulls.json` and the landed folders in Inputs, never the analysts' shares.
 - **Fewer wasted checks:** clients on ILS alone are no longer given RPE pre-build checks at startup or in the background renewal. Those checks could only stop.
 - **Sheila in Claude:** `clients` says which list each client is on. `my_month` groups only the RPE clients and lists the ILS clients after them with their review state.

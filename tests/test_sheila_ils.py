@@ -139,19 +139,19 @@ def test_a_finished_deck_is_delivered_to_the_csms_ils_folder_and_the_ars_readers
 def test_the_hub_draws_the_ils_cards_on_the_client_page_with_the_ils_review_card():
     import sheila_hub as H
     page = H.PAGE
-    assert '<div id="livecard"></div><div id="ilscards"></div>`;' in page, "drawn after the presentation cards"
-    assert 'c.ils_only ? `<div id="ilscards"></div>' in page, "first for a client on ILS alone (2026-11-25)"
-    assert "ilsCards(s.client);" in page
+    # the cards are on the client page's ILS side only (2026-11-25: "fix the ILS client page clutter")
+    ils = page[page.index("function renderIlsDetail(id)"):page.index("function renderDetail()")]
+    assert '<div id="ilscards"></div>' in ils and "ilsCards(id);" in ils
+    assert page.count('id="ilscards"') == 1 and "ilsCards(s.client)" not in page, "never on the RPE side"
     # the ILS Review card replaced "Coming soon" (2026-11-24; tests/test_ils_review_card.py pins it)
     assert "ILS Review" in page and "Coming soon" not in page and "function ilsReviewCard()" in page
-    # the cards are on the client page; the ILS Decks tab (2026-11-25) is a list of ILS clients that opens that page
-    assert 'data-tab="ils" href="#ils"' in page and page.count('id="ilscards"') == 2, "one place each, RPE or ILS alone"
+    # every card shown, no fold (Aaron, 2026-11-25: "it no longer needs the dropdown to show them")
     draw = page[page.index("function ilsDraw()"):page.index("// The deck's CSM inputs")]
-    assert '<details class="ilsfold"${open ? " open" : ""}>' in draw
-    assert "const open = was ? was.open : (ilsActive() || (!!known.ils_only && !ilsReviewCard()));" in draw
-    active = page[page.index("function ilsActive()"):page.index("function ilsDraw()")]
-    assert "c.extract || c.last || (c.job && !c.job.done)" in active
-    assert "one-time reports, not set up for this client" in page
+    assert 'box.innerHTML = ilsReviewCard() + ilsCard("pgl") + ilsCard("kickoff");' in draw
+    assert "ilsfold" not in page and "one-time reports, not set up for this client" not in page and "function ilsActive()" not in page
+    card = page[page.index("function ilsCard(kind)"):page.index("function ilsWarn(text)")]
+    assert "if (!c.extract) return `<section class=\"pc\" id=\"ils${kind}\">" in card and "stopc" not in card
+    assert "extract has landed for this client" in card and 'data-ilsreview="recheck"' in card
     # what is typed in a code field survives the status redraw, and both steps and the deck inputs reach the server
     for route in ("/api/ils/client", "/api/ils/run", "/api/ils/inputs", "/api/ils/reveal", "/api/ils/job"):
         assert route in page

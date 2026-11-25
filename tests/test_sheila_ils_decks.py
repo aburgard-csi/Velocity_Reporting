@@ -206,11 +206,31 @@ def test_the_ils_state_mapping_never_reads_ready_when_not_checked():
         assert label in k
 
 
-def test_an_ils_only_clients_page_leads_with_the_ils_cards():
+def test_the_ils_page_is_ils_only():
+    """Aaron, 2026-11-25: "fix the ILS client page clutter": no code sheet, Lift Matrix, data issues, RPE sentence or
+    Live Review on the page opened from ILS Decks, and no RPE status read for it."""
     page = H.PAGE
-    d = page[page.index("function renderDetail()"):page.index("// ------------------------------------------------------------ building")]
-    assert 'c.ils_only ? `<div id="ilscards"></div>' in d
+    ils = page[page.index("function renderIlsDetail(id)"):page.index("function renderDetail()")]
+    assert '<div id="ilscards"></div>' in ils and "Check ILS again" in ils and 'id="ilsage"' in ils
+    for clutter in ("clientlinks", "livecard", "liveCard", "Lift Matrix", "code sheet", "Not on an RPE program", "/api/status"):
+        assert clutter not in ils, clutter
+    assert "Not on an RPE program" not in page
+    opener = page[page.index("function openClient(id, fresh)"):page.index("async function recheckQuietly")]
+    assert opener.index("if (ilsSide()) return renderIlsDetail(id);") < opener.index('api("/api/status')
+    assert "if (known && known.ils_only && !ilsSide()) return go(\"ils\", {client: id});" in opener
     assert "TABS[TAB].closed" in page and 'appendChild(d)' in page and '$("#il-host")' in page
+
+
+def test_the_rpe_page_is_rpe_only_and_a_client_on_both_links_across():
+    page = H.PAGE
+    rpe = page[page.index("function renderDetail()"):page.index("// ------------------------------------------------------------ building")]
+    assert "ilscards" not in rpe and "ilsCards" not in rpe
+    assert 'c.ils ? `<p class="fact xlist">ILS: <b>${esc(ilsKind(c).label)}</b> · <a class="link" href="#ils&client=${esc(s.client)}" data-act="toils">open in ILS Decks</a></p>`' in rpe
+    ils = page[page.index("function renderIlsDetail(id)"):page.index("function renderDetail()")]
+    assert 'RPE: <b>${esc(kindOf(c).label)}</b> · <button class="link" data-act="torpe">open in RPE Decks</button>' in ils
+    assert "c.ils_only ||" in ils, "a client on ILS alone has no RPE page to link to"
+    assert 'else if (a === "toils") { ev.preventDefault(); go("ils", {client: CUR}); }' in page
+    assert 'else if (a === "torpe") { const id = CUR; go("decks"); openClient(id); }' in page
 
 
 def test_a_row_opens_the_client_page_in_the_tab_and_the_address_names_it():

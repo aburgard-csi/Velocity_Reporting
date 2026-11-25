@@ -756,8 +756,13 @@ function renderOverview() {
 // ------------------------------------------------------------ client detail
 const LEVEL = {ok: "ok", warn: "warn", ask: "warn", stop: "stop"};
 function openClient(id, fresh) {
+  // A client on ILS alone has no RPE page: it opens on ILS Decks, wherever it was asked for (a bookmark, the Building pill).
+  const known = CLIENTS.find(x => x.id === id);
+  if (known && known.ils_only && !ilsSide()) return go("ils", {client: id});
   clearTimeout(openTimer); CUR = id; CURSOR = id; ARMED = null; JOB = null; clearInterval(poller); clearTimeout(statusTimer);
   document.body.classList.add("sheetmode"); syncHash(); renderList();
+  // Opened from ILS Decks: the ILS page, with no RPE status read at all.
+  if (ilsSide()) return renderIlsDetail(id);
   const c = CLIENTS.find(x => x.id === id) || {id};
   $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(c.name || id)}</h2><span class="meta">${esc(id)} · ${esc(c.csm || "")}</span></header>
     <div class="pres">${[1, 2].map(() => `<div class="pc"><span class="sk" style="width:40%;height:18px"></span><span class="sk" style="width:85%;height:12px"></span><span class="sk" style="width:60%;height:12px"></span></div>`).join("")}</div>`;
@@ -829,8 +834,22 @@ function presentation(o) {
     <div id="job-${o.key || "rpe"}"></div></section>`;
 }
 
+// The client page has two sides (Aaron, 2026-11-25: "fix the ILS client page clutter"). Opened from RPE Decks it is RPE
+// only: the Executive Review, Transaction Intelligence, ARS Companion and Live Review cards and the links row. Opened from
+// ILS Decks (the one #detail, moved into that tab) it is ILS only: the ILS Review, Pre-go-live and Kickoff cards, all shown.
+// A client on both lists gets one line on each side naming its state on the other and opening it there.
+const ilsSide = () => { const d = $("#detail"); return TAB === "ils" && !!d && !!d.parentElement && d.parentElement.id === "il-host"; };
+function renderIlsDetail(id) {
+  const c = CLIENTS.find(x => x.id === id) || {id}, k = ilsKind(c);
+  const other = c.ils_only || !c.id || !LOADED ? "" : `<p class="fact xlist">RPE: <b>${esc(kindOf(c).label)}</b> · <button class="link" data-act="torpe">open in RPE Decks</button></p>`;
+  $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(c.name || id)}</h2><span class="chip k-${k.cls}">${si(k.cls)}${esc(k.label)}</span>
+    <span class="meta"><span>${esc(id)} · ${esc(c.csm || "")}</span><span><span id="ilsage">reading the ILS status…</span> · <button class="link" data-act="ilsrecheck">Check ILS again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span></header>
+    <div class="pres">${other}<div id="ilscards"></div></div>`;
+  ilsCards(id);
+}
+
 function renderDetail() {
-  const s = S; if (!s) return;
+  const s = S; if (!s || ilsSide()) return;
   const c = CLIENTS.find(x => x.id === s.client) || {};
   const b = s.builds || {ars_only: true, has_ars: true, base: ["ARS"], combined: null, left_out: {}};
   const noArs = b.has_ars === false, baseList = b.base && b.base.length ? b.base : ["ARS"], plain = baseList.join(" + ");
@@ -853,14 +872,13 @@ function renderDetail() {
                                             buttons: btn => btn("comp", s.companion.state === "ask" ? "Rebuild" : (s.companion.last && !s.companion.last.delivered) ? "Retry" : "Build", false), match: j => !!j.companion}));
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : "checked " + Math.round(s.age_seconds / 60) + " min ago") + (s.refreshing ? ", checking again…" : "");
   const k = rowKind(c);
-  // A client on ILS alone leads with its ILS cards (Aaron, 2026-11-25): it has no Executive Review, so that card, which
-  // could only say "Can't build yet", is left out. A client on both lists keeps its page as it was.
-  const body = c.ils_only ? `<div id="ilscards"></div><p class="fact rpenote">Not on an RPE program in clients.md, so there is no Executive Review to build.</p><div id="livecard"></div>`
-    : `${cards.join("")}<div id="livecard"></div><div id="ilscards"></div>`;
+  // RPE only (2026-11-25): the ILS cards are on ILS Decks; a client on both lists gets one line that opens it there.
+  const other = c.ils ? `<p class="fact xlist">ILS: <b>${esc(ilsKind(c).label)}</b> · <a class="link" href="#ils&client=${esc(s.client)}" data-act="toils">open in ILS Decks</a></p>` : "";
+  const body = `${other}${cards.join("")}<div id="livecard"></div>`;
   $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(s.name || c.name || s.client)}</h2><span class="chip k-${k.cls}">${si(k.cls)}${esc(k.label)}</span>
     <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span><span class="meta clientlinks" id="clientlinks"></span></header>
     <div class="pres">${body}</div>`;
-  ilsCards(s.client); liveCard(); clientLinks(s.client, "decks", $("#clientlinks"));
+  liveCard(); clientLinks(s.client, "decks", $("#clientlinks"));
   if (JOB) renderJob(JOB);
   if (s.refreshing) for (const x of $$("#detail [data-act=build]")) { x.disabled = true; x.title = "Waiting for the fresh check"; }
 }
@@ -1064,6 +1082,9 @@ document.addEventListener("click", ev => {
   else if (a === "allcsm") setCsm("");
   else if (a === "recheck") openClient(CUR, true);
   else if (a === "close" || a === "back") closeClient();
+  else if (a === "ilsrecheck") ilsCards(CUR);
+  else if (a === "toils") { ev.preventDefault(); go("ils", {client: CUR}); }
+  else if (a === "torpe") { const id = CUR; go("decks"); openClient(id); }
   else if (a === "revealpath") api("/api/reveal", {method: "POST", body: JSON.stringify({path: act.dataset.path})}).then(() => toast("Shown in File Explorer.")).catch(e => toast(e.message, "bad"));
 });
 function setCsm(v) {
