@@ -139,12 +139,16 @@ def test_a_finished_deck_is_delivered_to_the_csms_ils_folder_and_the_ars_readers
 def test_the_hub_draws_the_ils_cards_on_the_client_page_with_the_ils_review_card():
     import sheila_hub as H
     page = H.PAGE
-    assert '<div id="ilscards"></div></div>`;\n  ilsCards(s.client);' in page, "drawn after the presentation cards"
+    assert '<div id="livecard"></div><div id="ilscards"></div>`;' in page, "drawn after the presentation cards"
+    assert 'c.ils_only ? `<div id="ilscards"></div>' in page, "first for a client on ILS alone (2026-11-25)"
+    assert "ilsCards(s.client);" in page
     # the ILS Review card replaced "Coming soon" (2026-11-24; tests/test_ils_review_card.py pins it)
     assert "ILS Review" in page and "Coming soon" not in page and "function ilsReviewCard()" in page
-    assert 'data-tab="ils"' not in page          # the cards are on the client page, not a tab
+    # the cards are on the client page; the ILS Decks tab (2026-11-25) is a list of ILS clients that opens that page
+    assert 'data-tab="ils" href="#ils"' in page and page.count('id="ilscards"') == 2, "one place each, RPE or ILS alone"
     draw = page[page.index("function ilsDraw()"):page.index("// The deck's CSM inputs")]
-    assert '<details class="ilsfold"${open ? " open" : ""}>' in draw and "const open = was ? was.open : ilsActive();" in draw
+    assert '<details class="ilsfold"${open ? " open" : ""}>' in draw
+    assert "const open = was ? was.open : (ilsActive() || (!!known.ils_only && !ilsReviewCard()));" in draw
     active = page[page.index("function ilsActive()"):page.index("function ilsDraw()")]
     assert "c.extract || c.last || (c.job && !c.job.done)" in active
     assert "one-time reports, not set up for this client" in page

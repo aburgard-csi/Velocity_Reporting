@@ -2,9 +2,15 @@
 
 Served at `/` with the token baked in; `/hub` redirects there. The page talks to the server's own API (clients,
 status, job, queue, build, reveal, cycle, changelog, lift, issues, votes, reports, ils), so a check or a build
-started here is the launcher's, nothing more. The shell, the Decks tab and the client page are this module; every
+started here is the launcher's, nothing more. The shell, the RPE Decks tab and the client page are this module; every
 other tab is its own module (`sheila_hub_<tab>.py`: a view, its style and its script), added to `TAB_MODULES` and
-assembled into the page here. The address names the tab: `#lift`, `#issues`, `#votes`, `#reported`; none is Decks.
+assembled into the page here. The address names the tab: `#ils`, `#lift`, `#issues`, `#votes`, `#reported`; none (or
+`#decks`) is RPE Decks.
+
+RPE Decks and ILS Decks (Aaron, 2026-11-25: "On the left side bar change Decks to RPE Decks, add another entry for ILS
+Decks"): RPE Decks lists the clients with an RPE program (ARS, ICS, MRPC, CashPlease), ILS Decks every ILS client
+(sheila_hub_ilsdecks.py). A client on both is on both; a client on ILS alone is on ILS Decks only, and its client page
+leads with the ILS cards.
 
 Whether a deck was sent is not Sheila's to track (Aaron, 2026-11-02), so there is no sent state anywhere on this
 page: a client is Ready, Building, In Outputs, Needs attention or Blocked.
@@ -95,9 +101,9 @@ def who_am_i():
 
 
 # The modules the page is assembled from, tabs in sidebar order. Each defines TAB (id, or None for a part of the
-# Decks tab), NAME, VIEW (the tab section's inner HTML), CSS and JS; a tab's JS calls registerTab(id, {...}) (see
+# RPE Decks tab), NAME, VIEW (the tab section's inner HTML), CSS and JS; a tab's JS calls registerTab(id, {...}) (see
 # "tabs" in the page script).
-TAB_MODULES = ("sheila_hub_ils", "sheila_hub_live", "sheila_hub_lift", "sheila_hub_issues", "sheila_hub_votes", "sheila_hub_feedback")
+TAB_MODULES = ("sheila_hub_ils", "sheila_hub_ilsdecks", "sheila_hub_live", "sheila_hub_lift", "sheila_hub_issues", "sheila_hub_votes", "sheila_hub_feedback")
 
 
 # The mark (option E, Aaron 2026-11-02): a navy slide in front of a teal one, light and dark; the favicon draws the same.
@@ -451,7 +457,8 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
       <button class="foldbtn" id="fold" aria-label="Fold the sidebar" title="Fold the sidebar"><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button>
     </div>
     <nav class="nav" aria-label="Views">
-      <a class="nl" data-tab="decks" href="#" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg><span class="lbl">Decks</span><span class="badge hot" id="b-attn" title="Needs attention or blocked"></span></a>
+      <a class="nl" data-tab="decks" href="#" aria-current="page" data-tip="RPE Decks"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg><span class="lbl">RPE Decks</span><span class="badge hot" id="b-attn" title="Needs attention or blocked"></span></a>
+      <a class="nl" data-tab="ils" href="#ils" data-tip="ILS Decks"><svg viewBox="0 0 20 20"><path d="M10 3 3 6.5 10 10l7-3.5L10 3Z"/><path d="m3 10 7 3.5 7-3.5"/><path d="m3 13.5 7 3.5 7-3.5"/></svg><span class="lbl">ILS Decks</span><span class="badge" id="b-ils" title="ILS reviews ready to build"></span></a>
       <a class="nl" data-tab="lift" href="#lift" data-tip="Lift Matrix"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg><span class="lbl">Lift Matrix</span></a>
       <a class="nl" data-tab="issues" href="#issues" data-tip="Data Issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg><span class="lbl">Data Issues</span><span class="badge hot" id="b-issues" title="Open data issues"></span></a>
       <a class="nl" data-tab="votes" href="#votes" data-tip="Slide Review"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg><span class="lbl">Slide Review</span></a>
@@ -473,8 +480,8 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
       <button class="ctl" id="night" aria-label="Switch between night and day"><svg viewBox="0 0 16 16"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5Z"/></svg><span id="night-l">Night</span></button>
       <button class="ctl" id="period" aria-haspopup="menu" aria-expanded="false"></button>
     </div>
-    <section class="view" id="v-decks" aria-label="Decks">
-      <div class="vh"><div><h1>Decks</h1><p id="sub">Loading this cycle…</p></div></div>
+    <section class="view" id="v-decks" aria-label="RPE Decks">
+      <div class="vh"><div><h1>RPE Decks</h1><p id="sub">Loading this cycle…</p></div></div>
       <div class="mine" id="mine"></div>
       <div class="kpis" id="kpis" role="group" aria-label="Filter by status"></div>
       <div class="split" id="split">
@@ -493,7 +500,8 @@ dialog::backdrop{background:rgba(11,19,43,.38);-webkit-backdrop-filter:blur(3px)
   </main>
 </div>
 <nav class="tabbar" aria-label="Views">
-  <a data-tab="decks" href="#" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg>Decks</a>
+  <a data-tab="decks" href="#" aria-current="page"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg>RPE</a>
+  <a data-tab="ils" href="#ils"><svg viewBox="0 0 20 20"><path d="M10 3 3 6.5 10 10l7-3.5L10 3Z"/><path d="m3 10 7 3.5 7-3.5"/><path d="m3 13.5 7 3.5 7-3.5"/></svg>ILS</a>
   <a data-tab="lift" href="#lift"><svg viewBox="0 0 20 20"><path d="M3 16h14M5 16V9m5 7V4m5 12v-5"/></svg>Lift</a>
   <a data-tab="issues" href="#issues"><svg viewBox="0 0 20 20"><path d="M10 3 2.5 16h15L10 3Zm0 5v4m0 2.5v.01"/></svg>Issues</a>
   <a data-tab="votes" href="#votes"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="m7 17 3-3 3 3"/></svg>Review</a>
@@ -538,17 +546,42 @@ let CLIENTS = [], PERIOD = null, PERIODS = [], CYCLE_NOW = null, AGE = null, REF
 let QUEUE = {building: null, queued: []}, CUR = null, S = null, JOB = null, ARMED = null;
 let ME_APPLIED = false, FILTER = "", CURSOR = null, poller = null, statusTimer = null, clientsTimer = null, openTimer = null, LOADED = false;
 
+// A client's RPE state (RPE Decks). A client on ILS alone is not on that list (Aaron, 2026-11-25): its state is ilsKind's.
 function kindOf(c) {
   const place = QUEUE.queued.indexOf(c.id);
   if (QUEUE.building === c.id) return {k: "building", label: "Building"};
   if (place >= 0) return {k: "building", label: "Queued #" + (place + 1)};
   if (c.error) return {k: "attention", label: "Last build failed", short: "Failed"};
   if (c.lift_expired) return {k: "attention", label: "Lift Matrix expired", short: "Lift expired"};
-  if ((c.decks || []).length || (c.ils_decks || []).length) return {k: "outputs", label: "In Outputs"};
+  if ((c.decks || []).length) return {k: "outputs", label: "In Outputs"};
   if (c.blocked) return {k: "blocked", label: "Blocked · " + c.blocked, short: "Blocked"};
   if (c.ready) return {k: "ready", label: "Ready"};
-  if (c.ils_note) return {k: "checking", label: c.ils_note, short: c.ils_note};   // ILS alone, no review scheduled
   return {k: "checking", label: "Checking"};
+}
+
+// A client's ILS review state (ILS Decks), from the `ils` block the background list refresh worked out
+// (ars_launcher_web.ils_list_state). `k` is the filter it counts under, `cls` the status shape and chip it wears. Not
+// checked (the share unreadable, the card failed) is never Ready and has no tile of its own.
+const ILS_KINDS = [["ready", "Ready", "to build"], ["outputs", "In Outputs", "this review"], ["waiting", "Waiting for data", "this review's pull"],
+  ["problem", "Data problem", "the pull needs a look"], ["none", "No review scheduled", "pre-go-live, kickoff or roster"]];
+function ilsKind(c) {
+  const s = c.ils || {};
+  if (!s.checked) return {k: "unchecked", cls: "checking", label: "Not checked"};
+  if (s.state === "ready") return (s.decks || []).length ? {k: "outputs", cls: "outputs", label: "In Outputs"} : {k: "ready", cls: "ready", label: "Ready"};
+  if (s.state === "waiting") return {k: "waiting", cls: "blocked", label: "Blocked · waiting for ILS data", short: "Waiting for data"};
+  if (s.state === "blocked") return {k: "problem", cls: "blocked", label: "Blocked · ILS data problem", short: "Data problem"};
+  return {k: "none", cls: "idle", label: "No review scheduled"};
+}
+// The one state a row wears wherever it is named outside its own list (the palette, the client page's header).
+const rowKind = c => c.ils_only ? ilsKind(c) : {...kindOf(c), cls: kindOf(c).k};
+// RPE Decks lists the clients with an RPE program (ARS, ICS, MRPC, CashPlease); a client on ILS alone is on ILS Decks only.
+const rpeClients = () => CLIENTS.filter(c => !c.ils_only);
+// The ILS Decks badge: the CSM's ILS reviews that are Ready to build (no deck for this review in Outputs yet).
+function paintIlsBadge() {
+  const b = $("#b-ils"); if (!b) return;
+  const csm = $("#csm").value, n = LOADED ? CLIENTS.filter(c => c.ils && (!csm || c.csm === csm) && ilsKind(c).k === "ready").length : 0;
+  b.textContent = n ? String(n) : "";
+  if (TAB === "ils" && TABS.ils && TABS.ils.refresh) TABS.ils.refresh();
 }
 
 // ------------------------------------------------------------ list
@@ -559,7 +592,7 @@ const pdots = c => { const cov = new Set(c.covered || []);
 
 function visible() {
   const csm = $("#csm").value, q = $("#q").value.trim().toLowerCase();
-  return CLIENTS.filter(c => (!csm || c.csm === csm) && (!q || c.id.includes(q) || (c.name || "").toLowerCase().includes(q)) && (!FILTER || kindOf(c).k === FILTER));
+  return rpeClients().filter(c => (!csm || c.csm === csm) && (!q || c.id.includes(q) || (c.name || "").toLowerCase().includes(q)) && (!FILTER || kindOf(c).k === FILTER));
 }
 
 function running() { return !!(QUEUE.building || QUEUE.queued.length); }
@@ -568,7 +601,7 @@ function paintBusy() { document.body.classList.toggle("busy", running() || !!(JO
 
 function renderKpis() {
   paintBusy();
-  const csm = $("#csm").value, base = CLIENTS.filter(c => !csm || c.csm === csm);
+  const csm = $("#csm").value, base = rpeClients().filter(c => !csm || c.csm === csm);
   const n = {}; for (const [k] of KINDS) n[k] = 0;
   for (const c of base) { const k = kindOf(c).k; if (n[k] !== undefined) n[k]++; }
   const queued = QUEUE.queued.length;
@@ -577,6 +610,7 @@ function renderKpis() {
       <span class="k">${si(k === "building" && !running() ? "idle" : k)}${esc(w)}</span><span class="v">${LOADED ? n[k] : "–"}</span><span class="n">${esc(sub[k] || s)}</span></button>`).join("");
   const bad = n.attention + n.blocked;
   const b = $("#b-attn"); b.textContent = bad ? String(bad) : "";
+  paintIlsBadge();
 }
 
 function renderList() {
@@ -585,7 +619,7 @@ function renderList() {
   $("#filt").innerHTML = !LOADED ? "Loading clients…" : FILTER ? `Showing <b>${esc(WORD[FILTER])}</b> <button class="x" id="clearf">Clear ✕</button>` : `${rows.length} client${rows.length === 1 ? "" : "s"}`;
   if (!LOADED) { $("#list").innerHTML = Array.from({length: 9}, () => `<div class="row"><span class="sk" style="width:16px;height:16px"></span><span class="sk" style="width:38px;height:12px"></span><span class="sk" style="width:${50 + Math.random() * 40 | 0}%;height:14px"></span><span></span><span class="sk" style="width:70px;height:16px"></span></div>`).join(""); return; }
   let html = '<div class="legend">' + DOT_ORDER.map(p => `<span><span class="pdot ${p.toLowerCase()}"></span>${DOT_NAME[p]}</span>`).join("") + "</div>", last = null;
-  const multi = new Set(CLIENTS.map(c => c.csm)).size > 1;
+  const multi = new Set(rpeClients().map(c => c.csm)).size > 1;
   for (const c of rows) {
     if (!csm && multi && c.csm !== last) { html += `<div class="gh">${esc(c.csm)}</div>`; last = c.csm; }
     const k = kindOf(c);
@@ -707,7 +741,7 @@ async function openNews() {
 // ------------------------------------------------------------ overview (right pane, nothing selected)
 function renderOverview() {
   document.body.classList.remove("sheetmode");
-  const csm = $("#csm").value, base = CLIENTS.filter(c => !csm || c.csm === csm);
+  const csm = $("#csm").value, base = rpeClients().filter(c => !csm || c.csm === csm);
   const items = base.map(c => ({c, k: kindOf(c)})).filter(x => x.k.k === "attention" || x.k.k === "blocked")
     .sort((a, b) => (a.k.k === "attention" ? 0 : 1) - (b.k.k === "attention" ? 0 : 1));
   const ready = base.filter(c => kindOf(c).k === "ready").length;
@@ -744,7 +778,7 @@ async function recheckQuietly(id) {
     S = body; if (body.job) JOB = body.job; renderDetail();
   } catch (e) { statusTimer = setTimeout(() => recheckQuietly(id), 5000); }
 }
-// Back to the Decks overview (the KPI tiles, the list, "Waiting on you"): no client open, no cursor, no #client in the address.
+// Back to the RPE Decks overview (the KPI tiles, the list, "Waiting on you"): no client open, no cursor, no #client in the address.
 // A build for the client keeps running on the server; its steps come back when the client is opened again, and the Building pill
 // and the finished toast reach it meanwhile.
 function closeClient() {
@@ -752,7 +786,16 @@ function closeClient() {
   clearTimeout(openTimer); clearTimeout(statusTimer); clearInterval(poller);
   CUR = null; CURSOR = null; S = null; JOB = null; ARMED = null;
   syncHash(); renderList(); renderOverview();
+  // A tab that showed the client page (ILS Decks) puts its own list back.
+  if (TAB !== "decks" && TABS[TAB] && TABS[TAB].closed) TABS[TAB].closed();
   if (building) toast(`${was} is still building. Open it again, or the Building pill, to see the steps.`, "", 5000);
+}
+// A client found in the palette opens on its own list: ILS Decks for a client on ILS alone (or any ILS client while ILS
+// Decks is open), RPE Decks otherwise.
+function openFromAnywhere(c) {
+  if (c.ils_only || (TAB === "ils" && c.ils)) return go("ils", {client: c.id});
+  if (TAB !== "decks") go("decks");
+  openClient(c.id);
 }
 
 
@@ -809,10 +852,14 @@ function renderDetail() {
   if (s.companion) cards.push(presentation({key: "comp", title: "ARS Companion", mix: "James's analysis slides", state: s.companion.state, checks: s.companion.checks, last: s.companion.last, decks: s.companion.decks || [],
                                             buttons: btn => btn("comp", s.companion.state === "ask" ? "Rebuild" : (s.companion.last && !s.companion.last.delivered) ? "Retry" : "Build", false), match: j => !!j.companion}));
   const age = s.age_seconds == null ? "" : (s.age_seconds < 60 ? "checked just now" : "checked " + Math.round(s.age_seconds / 60) + " min ago") + (s.refreshing ? ", checking again…" : "");
-  const k = kindOf(c);
-  $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(s.name || c.name || s.client)}</h2><span class="chip k-${k.k}">${si(k.k)}${esc(k.label)}</span>
+  const k = rowKind(c);
+  // A client on ILS alone leads with its ILS cards (Aaron, 2026-11-25): it has no Executive Review, so that card, which
+  // could only say "Can't build yet", is left out. A client on both lists keeps its page as it was.
+  const body = c.ils_only ? `<div id="ilscards"></div><p class="fact rpenote">Not on an RPE program in clients.md, so there is no Executive Review to build.</p><div id="livecard"></div>`
+    : `${cards.join("")}<div id="livecard"></div><div id="ilscards"></div>`;
+  $("#detail").innerHTML = `<header class="dh"><button class="ctl back" data-act="back">← Back</button><h2>${esc(s.name || c.name || s.client)}</h2><span class="chip k-${k.cls}">${si(k.cls)}${esc(k.label)}</span>
     <span class="meta"><span>${esc(s.client)} · ${esc(s.csm || c.csm || "")} · ${esc(s.period || "")}</span><span>${esc(age)} · <button class="link" data-act="recheck">Check again</button></span><button class="link" data-act="close" style="margin-left:auto">Close <kbd>Esc</kbd></button></span><span class="meta clientlinks" id="clientlinks"></span></header>
-    <div class="pres">${cards.join("")}<div id="livecard"></div><div id="ilscards"></div></div>`;
+    <div class="pres">${body}</div>`;
   ilsCards(s.client); liveCard(); clientLinks(s.client, "decks", $("#clientlinks"));
   if (JOB) renderJob(JOB);
   if (s.refreshing) for (const x of $$("#detail [data-act=build]")) { x.disabled = true; x.title = "Waiting for the fresh check"; }
@@ -915,7 +962,7 @@ const ACTIONS = () => [
   ...Object.entries(TAB_NAMES).filter(([id]) => id !== TAB).map(([id, n]) => ({t: "Go to " + n, s: "G " + Object.keys(TAB_KEY).find(k => TAB_KEY[k] === id).toUpperCase(), run: () => go(id)})),
   ...(TAB !== "decks" && TABS[TAB] && TABS[TAB].palette ? TABS[TAB].palette() : []),
   ...Object.values(TABS).flatMap(t => t.global ? t.global() : []),
-  ...(TAB === "decks" && CUR ? [{t: "Back to the Decks overview", s: "Esc", run: () => closeClient()}] : []),
+  ...(TAB === "decks" && CUR ? [{t: "Back to the RPE Decks overview", s: "Esc", run: () => closeClient()}] : []),
   {t: "Refresh the client list", s: "", run: () => { loadClients(true); toast("Refreshing the list…"); }},
   ...(ME.csm ? [{t: "Show my clients (" + ME.csm + ")", s: "", run: () => setCsm(ME.csm)}, {t: "Show every CSM's clients", s: "", run: () => setCsm("")}] : []),
   ...(CUR && S ? [{t: "Check " + CUR + " again", s: "R", run: () => openClient(CUR, true)}, {t: "Build the Executive Review for " + CUR, s: "B", run: () => firstBuild()}] : []),
@@ -933,7 +980,7 @@ let PAL = [], PSEL = 0;
 function paint() {
   const q = $("#pq").value.trim();
   const cl = CLIENTS.map(c => ({c, sc: fuzzy(q, c.id + " " + c.name)})).filter(x => x.sc).sort((a, b) => b.sc - a.sc).slice(0, q ? 8 : 5)
-    .map(({c}) => ({t: c.id + "  " + c.name, s: kindOf(c).label, ic: kindOf(c).k, run: () => openClient(c.id)}));
+    .map(({c}) => ({t: c.id + "  " + c.name, s: (c.ils_only ? "ILS · " : "") + rowKind(c).label, ic: rowKind(c).cls, run: () => openFromAnywhere(c)}));
   const ac = ACTIONS().map(a => ({...a, sc: fuzzy(q, a.t)})).filter(a => a.sc).sort((a, b) => b.sc - a.sc).slice(0, q ? 8 : 20);
   PAL = [...cl, ...ac]; PSEL = Math.min(PSEL, Math.max(0, PAL.length - 1));
   let html = "", shownC = false, shownA = false;
@@ -959,12 +1006,13 @@ function setRail(on) { $("#app").classList.toggle("rail", on); store("hub-rail",
 function firstBuild() { const b = $("#detail [data-act=build]:not([disabled])"); if (b) b.click(); else toast("Nothing to build for this client right now."); }
 
 // ------------------------------------------------------------ tabs
-// Each tab after Decks is a <section class="view tabview" id="v-<id>"> that its module fills when it is opened:
-// registerTab(id, {enter(params), leave(), refresh(), key(e), keys: [[keys, what]], palette(): [{t, s, run}]}).
-// The address names the tab (#lift, #issues, #votes, #reported; none is Decks) and carries what it shows
-// (#lift&client=1705, #votes&program=ICS), so a bookmark or a link from another tab lands where it says.
-const TABS = {}, TAB_NAMES = {decks: "Decks", lift: "Lift Matrix", issues: "Data Issues", votes: "Slide Review", reported: "Feedback"};
-const TAB_KEY = {d: "decks", l: "lift", i: "issues", v: "votes", f: "reported"};
+// Each tab after RPE Decks is a <section class="view tabview" id="v-<id>"> that its module fills when it is opened:
+// registerTab(id, {enter(params), leave(), refresh(), closed(), key(e), keys: [[keys, what]], palette(): [{t, s, run}]}).
+// The address names the tab (#ils, #lift, #issues, #votes, #reported; none, or #decks, is RPE Decks, so the bookmarks made
+// when it was called Decks still land there) and carries what it shows (#lift&client=1705, #ils&client=1705,
+// #votes&program=ICS), so a bookmark or a link from another tab lands where it says.
+const TABS = {}, TAB_NAMES = {decks: "RPE Decks", ils: "ILS Decks", lift: "Lift Matrix", issues: "Data Issues", votes: "Slide Review", reported: "Feedback"};
+const TAB_KEY = {d: "decks", s: "ils", l: "lift", i: "issues", v: "votes", f: "reported"};
 let TAB = "decks", TABPARAMS = {};
 function registerTab(id, def) { TABS[id] = def; }
 function readHash() {
@@ -1023,7 +1071,7 @@ function setCsm(v) {
   for (const s of $$(".csmpick")) s.value = v;
   if (TAB !== "decks" && TABS[TAB] && TABS[TAB].refresh) TABS[TAB].refresh();
 }
-// The same CSM filter in a tab's header: one choice for every tab, kept in the Decks list's own select.
+// The same CSM filter in a tab's header: one choice for every tab, kept in the RPE Decks list's own select.
 function csmPick() {
   const opts = [...$("#csm").options].map(o => `<option value="${esc(o.value)}"${o.value === $("#csm").value ? " selected" : ""}>${esc(o.textContent)}</option>`).join("");
   return `<select class="csmpick ctl" aria-label="CSM">${opts}</select>`;
@@ -1049,7 +1097,7 @@ for (const d of ["#pal", "#keys"]) $(d).addEventListener("close", () => { if (do
 $("#keys").addEventListener("click", e => { if (e.target === $("#keys")) $("#keys").close(); });
 const KEYS_DECKS = [["j  k", "Move down or up the list"], ["Enter", "Open the client; again to close it"], ["/", "Find a client"], ["B", "Build (asks first if a deck is in Outputs)"],
   ["R", "Check the open client again"], ["E", "Show the deck in File Explorer"], ["Esc", "Close the client or a menu"]];
-const KEYS_ALL = [["Ctrl K", "Search clients, tabs and actions"], ["G  D", "Go to Decks (G then L, I, V or F for the other tabs)"], ["T", "Night or day"], ["C", "Compact rows"], ["?", "This list"]];
+const KEYS_ALL = [["Ctrl K", "Search clients, tabs and actions"], ["G  D", "Go to RPE Decks (G then S for ILS Decks; L, I, V or F for the other tabs)"], ["T", "Night or day"], ["C", "Compact rows"], ["?", "This list"]];
 function showKeys() {
   const tab = TAB === "decks" ? KEYS_DECKS : ((TABS[TAB] && TABS[TAB].keys) || []);
   const dl = (rows) => rows.map(([k, d]) => `<dt>${k.split("  ").map(x => `<kbd>${esc(x)}</kbd>`).join("")}</dt><dd>${esc(d)}</dd>`).join("");

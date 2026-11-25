@@ -238,10 +238,10 @@ def test_the_corner_mark_is_two_stacked_slides_and_there_is_no_orange_in_it():
 
 def test_the_address_names_the_tab_and_the_old_bookmarks_still_work():
     page = H.PAGE
-    for tab in ("decks", "lift", "issues", "votes", "reported"):
+    for tab in ("decks", "ils", "lift", "issues", "votes", "reported"):
         assert f'data-tab="{tab}"' in page
     assert "function readHash()" in page and "function setTab(" in page and 'addEventListener("hashchange"' in page
-    assert 'const TAB_KEY = {d: "decks", l: "lift", i: "issues", v: "votes", f: "reported"}' in page
+    assert 'const TAB_KEY = {d: "decks", s: "ils", l: "lift", i: "issues", v: "votes", f: "reported"}' in page
 
 
 def test_the_old_orange_is_not_drawn_anywhere_on_the_page_or_the_change_log():

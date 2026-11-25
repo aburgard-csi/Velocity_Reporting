@@ -199,20 +199,29 @@ def last_output(kind, cid):
             "when": _dt.datetime.fromtimestamp(d.stat().st_mtime).strftime("%Y-%m-%d %H:%M")}
 
 
-def landed_clients():
-    """Every client with a folder under either ILS input kind: Sheila lists them, so a client who is on
-    ILS alone (a pre-go-live prospect, a kickoff) can be opened and run from the client page."""
-    out = set()
+def landed_by_kind():
+    """{client id: ["kickoff", "pgl"]}: the ILS input kinds each client has a folder (or a pre-go-live delivery zip)
+    under. One listing per kind; a kind whose folder cannot be read is left out, never guessed. The ILS Decks tab
+    reads it for its "pre-go-live / kickoff inputs landed" column (Aaron, 2026-11-25)."""
+    out = {}
     for kind in KINDS:
         try:
             root = _input_root(kind)
-            out.update(d.name for d in root.iterdir() if d.is_dir() and CID_RX.match(d.name))
+            found = {d.name for d in root.iterdir() if d.is_dir() and CID_RX.match(d.name)}
             if kind == "pgl":            # a pre-go-live delivery may land as <id>_..._PGL_<date>.zip
-                out.update(m.group(1) for m in (ZIP_RX.match(p.name) for p in root.iterdir()
-                                                if p.is_file()) if m)
+                found.update(m.group(1) for m in (ZIP_RX.match(p.name) for p in root.iterdir()
+                                                  if p.is_file()) if m)
         except (OSError, SystemExit):
             continue
-    return out
+        for cid in found:
+            out.setdefault(cid, []).append(kind)
+    return {cid: sorted(kinds) for cid, kinds in out.items()}
+
+
+def landed_clients():
+    """Every client with a folder under either ILS input kind: Sheila lists them, so a client who is on
+    ILS alone (a pre-go-live prospect, a kickoff) can be opened and run from the client page."""
+    return set(landed_by_kind())
 
 
 def client_doc(cid):

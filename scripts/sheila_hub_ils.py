@@ -52,6 +52,9 @@ details.ilsinputs summary{cursor:pointer;font-weight:600;color:var(--ink)}
 .ilsin textarea{min-height:70px;resize:vertical}
 .sub{color:var(--muted)}
 ul.ilsnotes{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted)}
+/* a long folder path or file name wraps inside its card rather than widening the page (a phone, 2026-11-25) */
+#ilscards{min-width:0} #ilscards .pc{min-width:0;overflow-wrap:anywhere}
+details.ilsfold>summary{flex-wrap:wrap}
 @media (max-width:820px){.ilsform,.ilsin{grid-template-columns:1fr}}
 """
 
@@ -146,7 +149,9 @@ function ilsActive() {
 function ilsDraw() {
   const box = $("#ilscards"); if (!box || !ILS.doc) return;
   const was = box.querySelector("details.ilsfold");
-  const open = was ? was.open : ilsActive();
+  // A client on ILS alone with no review card has nothing else on its page: the fold opens, to say where an extract goes.
+  const known = (typeof CLIENTS !== "undefined" && CLIENTS.find(x => x.id === ILS.cid)) || {};
+  const open = was ? was.open : (ilsActive() || (!!known.ils_only && !ilsReviewCard()));
   box.innerHTML = ilsReviewCard() + `<details class="ilsfold"${open ? " open" : ""}><summary>ILS pre-go-live and kickoff <span class="sub">${esc(ilsSummary())}</span></summary>` +
     ilsCard("pgl") + ilsCard("kickoff") + `</details>`;
 }
