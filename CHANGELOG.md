@@ -15,6 +15,19 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-25 — Five operations skills: rebuild-decks, fix-deck-failure, tasks-health, sheila-change, publish-dashboard (`.claude/skills/`)
+
+Summary: Five new instruction files tell Claude how to do this week's routine jobs the same way each time: rebuild a set of decks, fix a deck that fails the gate, check the morning tasks, change Sheila, and refresh the performance dashboard. Nothing a deck shows changes.
+
+Aaron, 2026-11-25: five project skills from this week's runs.
+
+- **`rebuild-decks`:** asks whose decks first (other CSMs review theirs), runs `ars_launcher.py build --rebuild` one client at a time from the tasks checkout as a background job with a progress file (a Monitor kills its command after 30 minutes), builds ARS clients first and checks each peer slide (a measure needs five peers; on 2026-11-24 five ARS decks were built before account growth had them), then refreshes the dashboard.
+- **`fix-deck-failure`:** the validator report beside the deck, classify (builder, data, false positive), prove the fix on a copy, a test that fails on the old code, render the slide, then PR, release on Aaron's word and rebuild. Worked example: the Contact Us role that wrapped (#199).
+- **`tasks-health`:** the three morning tasks' times (and the clock-change drift seen in November), the tasks checkout against `RELEASE.txt`, its `.venv` junction and `.env` hard link, and the latest reports. Re-registering needs Aaron's yes. It records that `register_watchdog_task.ps1` takes no `-Repo` (it registers the checkout it lives in).
+- **`sheila-change`:** where the page, routes and ILS cards live, the page conventions, the tests (the page-parse test skips without `node`), seeing it on a scratch data root with headless Chrome, and VERSION, the user guide and a release.
+- **`publish-dashboard`:** refresh from the tasks checkout with `RPE_REPO` set, publish only on `changed` to the one URL after diffing the page against the live artifact with the data line removed, then `--mark-published`.
+- **CLAUDE.md** lists them in the routing table; `tests/test_roster_and_changelog_tools.py` pins each skill's essentials and that every script it names exists.
+
 ### 2026-11-25 — CLAUDE.md trimmed to the rules; the detail moved to docs (`CLAUDE.md`, `docs/`)
 
 Summary: The instructions every Claude session loads are now about a quarter of their old size, so long sessions stop running out of room. The rules are all still there; the history behind them, the full file map and the operational detail moved, word for word, into files under `docs/`.

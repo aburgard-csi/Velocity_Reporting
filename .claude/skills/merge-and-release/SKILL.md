@@ -104,8 +104,10 @@ Use the repo `.venv` (the Store `python` has no pytest). A change to `templates/
   stray test string ("x", 2026-11-24) and once with a BOM in the subject. Look at `git log -1` before pushing; a pushed message is
   never amended (no force-push), so a wrong one gets an empty follow-up commit carrying the right message.
   Push from PowerShell. Every CHANGELOG entry starts with a `Summary:` line.
-- **Scheduled tasks run from the tasks checkout**, never from a working checkout: re-registering one (`register_watch_task.ps1`,
-  `register_watchdog_task.ps1`, `register_ils_landing_task.ps1`) takes `-Repo C:\Projects\RPE-Tasks`, and only with Aaron's yes. A
+- **Scheduled tasks run from the tasks checkout**, never from a working checkout, and are re-registered only with Aaron's yes:
+  `register_watch_task.ps1` and `register_ils_landing_task.ps1` take `-Repo C:\Projects\RPE-Tasks`; `register_watchdog_task.ps1`
+  has no `-Repo` (and ignores one silently), so run the copy INSIDE the tasks checkout,
+  `C:\Projects\RPE-Tasks\scripts\register_watchdog_task.ps1`, which points the task at that copy. A
   task registered with a fixed UTC offset drifts an hour at each clock change; after re-registering, check
   `Get-ScheduledTaskInfo` shows 08:00 / 08:10 / 08:20 local.
 - **Auto-fix and old heads:** an Auto-fix conflict or failure event can arrive for a PR already merged, or for a head already
