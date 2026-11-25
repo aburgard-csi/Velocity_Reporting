@@ -15,9 +15,11 @@ Standing rule (Aaron, 2026-09-15): after any deck delivery, refresh, and republi
 
 ## 1. Sends recorded on the page (if any)
 
-The page's roster has a "Mark sent" button that writes to the artifact's own database, collection `deliveries`. List it
-with the `ArtifactData` tool (action `list`, the URL above) into a scratch folder. Usually empty. When it holds rows, pass
-that folder to step 2 as `--merge-sent <folder>`; the script folds them into `deliveries.json` (never hand-edit that file).
+The page's roster has a "Mark sent" button that writes to the artifact's own database, collection `deliveries`. Read it
+with the `ArtifactData` tool: action `list`, `url` the URL above, `collection` `deliveries`, `out_dir` a new scratch folder
+(each row lands as `<out_dir>/deliveries/<doc_id>.json`; page with `query.cursor` if the result gives a `next_cursor`).
+Usually empty. When it holds rows, pass the folder to step 2 as `--merge-sent <out_dir>` (the script reads every `.json`
+under it) and it folds them into `deliveries.json`. Never hand-edit that file, and never write to the artifact's database.
 
 ## 2. Refresh, from the released code
 

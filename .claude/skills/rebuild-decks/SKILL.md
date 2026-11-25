@@ -33,7 +33,7 @@ python scripts/ars_launcher.py status <id> --period <yyyy.mm>
   STOPs an ARS-only build for them. Other CSMs' clients get whatever they last built (the deck name in Outputs says
   `ARS` or `ARS-ICS-...`); ask when unsure. `build_programs` decides what a build carries (CashPlease rides on every
   build of a client who ships it as a section; a non-ARS client always builds everything with data).
-- **Order:** ARS clients first, every other client after (see step 5, peers).
+- **Order:** ARS clients first, every other client after (see step 4, peers).
 
 ## 3. Run the builds: one at a time, in the background
 
@@ -89,19 +89,22 @@ TI and Companion builds are the same loop with `--ti` or `--companion` in place 
 
 ## 4. Check the peer slides
 
-Every Executive Review carries "How You Compare" slides (`build/peer_slide.py`). A measure is drawn only when at least
-`MIN_PEERS` (5, `build/peer_compare.py`) OTHER clients have current data for it; otherwise the slide says it is left
-out. After a deck lands, the launcher starts a background peer-reference update (`update_peer_reference`; its log is
-`Build Artifacts/peer_reference_updates.log`).
+Every Executive Review carries "How You Compare" slides (`build/peer_slide.py`), one per group of at most two measures. A
+measure is drawn only when at least `MIN_PEERS` (5, `build/peer_compare.py`) OTHER clients have current data for it. A
+measure under that is left out and named in the notes ("Left out: ..."); a group with no measure left is NOT drawn at all,
+so the slide is simply missing, and the build log says so. After a deck lands, the launcher starts a background
+peer-reference update (`update_peer_reference`; its log is `Build Artifacts/peer_reference_updates.log`).
 
-Read each rebuilt ARS deck's peer slides:
+So compare the rebuilt ARS decks with each other:
 
-```
-python -c "import sys; from pptx import Presentation; p=Presentation(sys.argv[1]); [print(i, ' | '.join(s.text_frame.text.replace(chr(10),' ') for s in sl.shapes if s.has_text_frame)) for i, sl in enumerate(p.slides, 1) if any(s.has_text_frame and s.text_frame.text.startswith('How You Compare') for s in sl.shapes)]" "<deck>.pptx"
-```
+1. List each deck's peer slide titles (the deck in `Outputs/<CSM>/`):
+   ```
+   python -c "import sys; from pptx import Presentation; [print(sys.argv[1][-60:], '|', t) for t in (next((s.text_frame.text for s in sl.shapes if s.has_text_frame and s.text_frame.text.strip()), '') for sl in Presentation(sys.argv[1]).slides) if t.startswith('How You Compare')]" "<deck>.pptx"
+   ```
+2. Grep each client's `Build Artifacts/launcher/<period>/<id>/build.log` for `peer slide skipped` and `peer slides (`.
 
-A slide saying a measure has fewer than 5 peers, on a measure the other rebuilt decks show, means the deck was built
-before enough peers carried it: rebuild that client once more at the end.
+A deck missing a title the later-built decks have (or whose log says it was skipped) was built before enough peers carried
+that measure: rebuild that client once more at the end, and check again.
 
 ## 5. Afterwards
 

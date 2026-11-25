@@ -43,7 +43,7 @@ Work in a scratch worktree on a new branch from `origin/main`. Add tests beside 
 (empty `RPE_DATA_ROOT`; merge-and-release skill, section 3):
 
 ```
-... -m pytest tests/test_sheila_hub.py tests/test_sheila_hub_tabs.py tests/test_sheila_ils.py tests/test_ils_review_card.py tests/test_sheila_build_panel.py tests/test_ars_launcher_web.py -q -p no:cacheprovider
+... -m pytest tests -q -p no:cacheprovider -k "sheila or ils_review_card or launcher_web"     # every tests/test_sheila_*.py and the rest
 ```
 
 The page-parse test in `tests/test_sheila_ils.py` runs `node --check` over the page's script and SKIPS when `node` is
