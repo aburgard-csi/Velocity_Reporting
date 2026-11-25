@@ -362,6 +362,11 @@ INPUT_KIND_DIRS = {
     # (Aaron, 2026-11-06: "put ILS review PDFs on the share"). Landed by scripts/land_ils_reviews.py from the Clients library's
     # `ILS Delivery` folders, newest review per client, and read into the pack Live Review's ILS section shows. Copy-only.
     "ILS reviews": "ILS Reviews",
+    # The ILS analysts' data pulls, one folder per client then one per pull: <id>/<yyyymmdd>/<id>_<kind>_<yyyymmdd>.<ext>
+    # (Aaron, 2026-11-06; docs/ILS-ANALYSIS-INPUTS.md). The newest pull of each client on the analysts' review schedule is
+    # landed here zipped, `<canonical name>.zip` (Aaron, 2026-11-24; scripts/land_ils_analysis.py), beside older raw files;
+    # read through scripts/ils_analysis_landed.py, which takes either form. `_schedule/` holds the schedule snapshot.
+    "ILS analysis": "ILS Analysis",
 }
 
 # Kinds resolved by exact path, never by scanning for workbook-ish files. Neither
@@ -370,7 +375,8 @@ INPUT_KIND_DIRS = {
 # "newer version" the watcher's copier or pruner understands, so neither may touch them.
 NOT_SCANNED_KINDS = ("ODDD", "CP settings", "CP marketing", "ARS codes", "Code sheets",
                      "ICS referrals", "ICS direct mail", "Branch names", "Txn", "Deposits",
-                     "Deferred Billing", "ILS PGL", "ILS Kickoff", "REMS", "GL Data", "ILS reviews")
+                     "Deferred Billing", "ILS PGL", "ILS Kickoff", "REMS", "GL Data", "ILS reviews",
+                     "ILS analysis")
 
 # The flat folder everything used to land in. Kept as a READ location for good:
 # a file dropped there by hand still resolves, and the migration does not have to

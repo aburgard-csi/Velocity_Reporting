@@ -38,7 +38,9 @@ REPO = HERE.parent
 if str(REPO / "build") not in sys.path:
     sys.path.insert(0, str(REPO / "build"))
 
-SUBDIR = "ILS Analysis"
+import rpe_env as _R                                      # noqa: E402
+
+SUBDIR = _R.INPUT_KIND_DIRS["ILS analysis"]                # the folder name lives in rpe_env, as every input kind's does
 ANALYSIS_DIR = "analysis"
 UNPLACED_DIR = "_unplaced"
 YEARS = range(2005, 2036)
@@ -51,6 +53,11 @@ EXTRACT_KINDS = (
     "account_types", "branches", "institutions", "returned_deposits", "mobile_deposits", "overdraft_history",
 )
 EXTRACT_EXTS = {".csv", ".txt"}
+# Short names some pull folders carry instead of the export's own name (seen on the analysis share, 2026-11-24). Matched on
+# the WHOLE stem (dates, separators and a leading client id taken out), never as a substring: za / zt / dd are the analysis
+# team's Data Validation output, which `ils_review.cli.find_inputs` already accepts in place of the raw extract.
+ALIASES = {"za": "zaccounts", "zaccount": "zaccounts", "zt": "ztrend", "dd": "debitdeclines",
+           "declines": "debitdeclines", "matrix": "matrixval"}
 _QUERY_PARTS = {"accounttypes": "account_types", "branches": "branches", "institutions": "institutions",
                 "returneddeposits": "returned_deposits", "mobiledeposits": "mobile_deposits",
                 "overdrafthistory": "overdraft_history"}
@@ -101,6 +108,8 @@ def kind_of(name):
         return "dbic"
     if any(w in key for w in ("pivot", "validate", "summary")):
         return None
+    if key in ALIASES:
+        return ALIASES[key]
     if "refund" in key:
         return "refundhistory"
     if "debitdecline" in key:
@@ -153,6 +162,10 @@ def target(client, rel, pull, mtime=None):
     name = rel[-1]
     if pull is None:
         return list(rel), "no pull date could be read; left where it is"
+    if name.lower().endswith(".zip") and kind_of(name[:-4]):
+        # An extract landed zipped by land_ils_analysis.py: `<canonical name>.zip`, one member. It is filed as its member is.
+        parts, reason = target(client, [*rel[:-1], name[:-4]], pull, mtime)
+        return [*parts[:-1], parts[-1] + ".zip"], reason + " (zipped)"
     filed = _is_pull_name(rel[0]) and len(rel) > 2 and rel[1] == ANALYSIS_DIR      # already under <pull>/analysis/: stays an analysis file
     kind = None if filed else kind_of(name)
     if kind:

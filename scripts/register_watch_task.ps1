@@ -6,7 +6,7 @@
     Creates the task "RPE Source Watch", which runs
 
         <repo>\.venv\Scripts\pythonw.exe scripts\watch_sources.py `
-            --notify --copy --prune --ics-referrals --branch-names --mail --issues --once-daily
+            --notify --copy --prune --ics-referrals --branch-names --mail --issues --ils-analysis --once-daily
 
     once a day at the given time, as the current user, only while that user is
     logged on. Logged-on matters twice over: the task needs this user's network
@@ -147,6 +147,14 @@ if (Select-String -Path $Script -Pattern '--issues' -Quiet -SimpleMatch) {
 } else {
     Write-Warning ("{0} has no --issues; registering without it. Reports queued in " -f $Script)
     Write-Warning "  Sheila will stay queued until the checkout is updated and this is re-run."
+}
+# --ils-analysis lists new ILS analysis data pulls for the clients on the analysts' review schedule
+# (Aaron, 2026-11-24). A listing only, by name: the copy is its own task (register_ils_landing_task.ps1).
+# Guarded like --issues, for the same reason.
+if (Select-String -Path $Script -Pattern '--ils-analysis' -Quiet -SimpleMatch) {
+    $TaskArgs += " --ils-analysis"
+} else {
+    Write-Warning ("{0} has no --ils-analysis; registering without it." -f $Script)
 }
 # Only pass --once-daily if the code being registered actually knows it. This
 # script is routinely newer than the checkout it points at - an unmerged branch,
