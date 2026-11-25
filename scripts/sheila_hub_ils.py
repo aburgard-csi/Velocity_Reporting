@@ -9,6 +9,12 @@ file; they are the CSM's to keep or change and are never applied until Build is 
 "the user will confirm the limits. the client wont confirm anything"). What the CSM types is held in the page, so the
 status refresh that redraws the client page does not lose it.
 
+Above the two, outside their fold, the **ILS Review** card (Aaron, 2026-11-24; it was "Coming soon"): the ILS Program
+Analysis deck for a client on the ILS analysts' review schedule, built from the client's landed data pull, with its
+readiness checks, Build, and Build with prep slides when the client's prep deck is on hand (the file it merges is
+named on the card). A client not on the schedule, with no such deck and no run, gets no card. Its facts and run are
+ils_review_runs.py's.
+
 The runs and the files are in ils_runs.py and the routes in ils_ui.py (`get`, `post`); this is the page side, moved
 here from the old page's `ils_ui.JS` when Sheila moved to the Hub layout. It is not a tab: sheila_hub.py draws
 `<div id="ilscards">` on the client page and calls `ilsCards(client)` after drawing it.
@@ -45,6 +51,7 @@ details.ilsinputs summary{cursor:pointer;font-weight:600;color:var(--ink)}
 .ilsin{display:grid;grid-template-columns:minmax(170px,max-content) minmax(200px,520px);gap:8px 14px;align-items:start;margin:8px 0}
 .ilsin textarea{min-height:70px;resize:vertical}
 .sub{color:var(--muted)}
+ul.ilsnotes{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted)}
 @media (max-width:820px){.ilsform,.ilsin{grid-template-columns:1fr}}
 """
 
@@ -68,6 +75,7 @@ async function ilsCards(cid) {
   if (ILS.cid !== cid) return;
   ilsDraw();
   for (const k of ["pgl", "kickoff"]) { const j = ILS.doc.kinds[k] && ILS.doc.kinds[k].job; if (j && !j.done) ilsPoll(k); }
+  const rj = ILS.doc.review && ILS.doc.review.job; if (rj && !rj.done) ilsPoll("review");
 }
 
 function ilsVal(kind, f, dflt) {
@@ -139,10 +147,65 @@ function ilsDraw() {
   const box = $("#ilscards"); if (!box || !ILS.doc) return;
   const was = box.querySelector("details.ilsfold");
   const open = was ? was.open : ilsActive();
-  box.innerHTML = `<details class="ilsfold"${open ? " open" : ""}><summary>ILS pre-go-live and kickoff <span class="sub">${esc(ilsSummary())}</span></summary>` +
-    ilsCard("pgl") + ilsCard("kickoff") +
-    `<section class="pc" id="ilsreview"><div class="pch"><h3>ILS Review <span class="mix">a live ILS client's results</span> <span class="chip">Coming soon</span></h3><div class="act"></div></div>
-     <p class="fact">The review of a client already live on ILS will build here.</p></section></details>`;
+  box.innerHTML = ilsReviewCard() + `<details class="ilsfold"${open ? " open" : ""}><summary>ILS pre-go-live and kickoff <span class="sub">${esc(ilsSummary())}</span></summary>` +
+    ilsCard("pgl") + ilsCard("kickoff") + `</details>`;
+}
+
+// ------------------------------------------------------------------ the ILS Review card (Aaron, 2026-11-24)
+// The ILS Program Analysis deck for a client on the analysts' review schedule, from its landed data pull
+// (ils_review_runs.py). Outside the fold: a scheduled review is this month's work, not a one-time report. A client
+// not on the schedule, with no deck and no run, gets no card. Build with prep slides is offered only when the
+// client's prep deck is on hand, and names the file it will merge.
+const ILS_REVIEW_CHIP = {ready: ["k-ready", "ready", "Ready to build"], waiting: ["k-idle", "idle", "Waiting for data"],
+  blocked: ["k-blocked", "blocked", "Can't build yet"], unknown: ["k-checking", "checking", "Unknown"],
+  not_scheduled: ["k-idle", "idle", "Not scheduled"]};
+function ilsReviewCard() {
+  const r = ILS.doc && ILS.doc.review; if (!r) return "";
+  const j = r.job, running = !!(j && !j.done), d = r.decks || {};
+  if (r.state === "not_scheduled" && !d.analysis && !d.review && !j) return "";
+  const delivered = d.review || d.analysis;
+  const [cls, icon, label] = (delivered && r.state === "ready") ? ["k-outputs", "outputs", "In Outputs"] : (ILS_REVIEW_CHIP[r.state] || ILS_REVIEW_CHIP.unknown);
+  const ready = r.state === "ready";
+  const btns = ready ? `<span class="btns"><button class="btn primary" data-ilsreview="plain"${running ? " disabled" : ""}>${d.analysis ? "Rebuild" : "Build"}</button>` +
+    (r.prep ? `<button class="btn" data-ilsreview="prep"${running ? " disabled" : ""} title="${esc(r.prep.name)}">Build with prep slides</button>` : "") +
+    `</span><span class="why">goes to Outputs\\ILS when it passes validation</span>` : `<button class="btn" data-ilsreview="recheck">Check again</button>`;
+  const facts = [];
+  if (r.pull) facts.push(`Data pull <b>${esc(r.pull)}</b>`);
+  if (r.review_date) facts.push(`review <b>${esc(r.review_date)}</b>`);
+  for (const [k, what] of [["analysis", "analysis deck"], ["review", "review deck with prep slides"]]) {
+    if (d[k]) facts.push(`${what} ${esc(d[k].when)} · <button class="link" data-ilsreveal="${esc(d[k].deck)}">open it</button>`);
+  }
+  const prep = ready && r.prep ? `<p class="ilssaved">Build with prep slides merges <b>${esc(r.prep.name)}</b> (matched by client number) and leaves out the analysis deck's own matrix slides.</p>` : "";
+  const rows = (r.checks || []).map(c => ({...c, ck: LEVEL[c.level] || "ok"}));
+  const li = c => `<li><span class="t ck-${c.ck}">${ICONS[c.ck === "ok" ? "ok" : c.ck === "warn" ? "warn" : "stop"].replace('<svg', '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"')}</span><span>${esc(c.text)}</span></li>`;
+  const shown = rows.filter(c => c.ck !== "ok"), folded = rows.filter(c => c.ck === "ok");
+  return `<section class="pc${r.state === "blocked" ? " stopc" : ""}" id="ilsreview">
+    <div class="pch"><h3>ILS Review <span class="mix">ILS Program Analysis</span> <span class="chip ${cls}">${si(icon)}${esc(label)}</span></h3><div class="act">${btns}</div></div>
+    ${facts.length ? `<p class="fact">${facts.join(" · ")}</p>` : ""}${prep}
+    ${shown.length ? `<ul class="checks">${shown.map(li).join("")}</ul>` : ""}
+    ${folded.length ? `<details class="fold"><summary>${folded.length}${shown.length ? " other" : ""} check${folded.length === 1 ? "" : "s"} passed</summary><ul class="checks" style="margin-top:6px">${folded.map(li).join("")}</ul></details>` : ""}
+    <div id="ilsjobreview">${j ? ilsReviewJobHtml(j) : ""}</div></section>`;
+}
+
+function ilsReviewJobHtml(j) {
+  const what = j.merge_prep ? "Build with prep slides" : "Build";
+  let state;
+  if (!j.done) state = `<p class="why">${what} running… ${j.seconds}s</p>`;
+  else if (j.ok) state = `<p class="why"><b>In Outputs.</b> ${j.deck ? `<button class="link" data-ilsreveal="${esc(j.deck)}">Show in File Explorer</button>` : ""}${j.verdict ? " · validation " + esc(j.verdict) : ""} — read the builder's notes below before quoting any number.</p>`;
+  else state = `<p class="why err">${what} stopped${j.error ? ": " + esc(j.error) : ""}.${j.deck ? ` <button class="link" data-ilsreveal="${esc(j.deck)}">Show the deck in File Explorer</button>` : ""}</p>`;
+  const notes = (j.notes || []).filter(Boolean);
+  return state + (notes.length ? `<ul class="ilsnotes">${notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : "") +
+    `<pre class="ilslog">${esc((j.lines || []).join("\n"))}</pre>`;
+}
+
+async function ilsReviewRun(mode) {
+  if (mode === "recheck") return ilsCards(ILS.cid);
+  const known = (typeof CLIENTS !== "undefined" && CLIENTS.find(x => x.id === ILS.cid)) || {};
+  const body = {kind: "review", client: ILS.cid, client_name: known.name || "", merge_prep: mode === "prep"};
+  let r;
+  try { r = await api("/api/ils/run", {method: "POST", body: JSON.stringify(body)}); }
+  catch (e) { const b = $("#ilsjobreview"); if (b) b.innerHTML = `<p class="why err">${esc(e.message)}</p>`; return; }
+  ilsShow("review", r.body.job); ilsPoll("review");
 }
 
 // The deck's CSM inputs (James Gilmore, 2026-10-28): what only the CSM can tell a pre-go-live deck. Saved per
@@ -211,6 +274,14 @@ function ilsFill(kind, j) {
 }
 
 function ilsShow(kind, j) {
+  if (kind === "review") {
+    if (ILS.doc && ILS.doc.review) ILS.doc.review.job = j;
+    const rb = $("#ilsjobreview"); if (!rb || !j) return;
+    rb.innerHTML = ilsReviewJobHtml(j);
+    const rp = rb.querySelector("pre"); if (rp && !j.done) rp.scrollTop = rp.scrollHeight;
+    for (const b of document.querySelectorAll("#ilsreview [data-ilsreview]")) if (b.dataset.ilsreview !== "recheck") b.disabled = !j.done;
+    return;
+  }
   if (ILS.doc && ILS.doc.kinds[kind]) ILS.doc.kinds[kind].job = j;
   if (j && j.done && j.step === 1 && j.ok && j.suggested_basis && Object.keys(j.suggested_basis).length) {
     ilsFill(kind, j);
@@ -265,6 +336,7 @@ $("#detail").addEventListener("input", e => {
 $("#detail").addEventListener("click", async e => {
   const t = e.target;
   const run = t.closest("[data-ilsrun]"); if (run) return ilsRun(run.dataset.ilskind, +run.dataset.ilsrun);
+  const rv1 = t.closest("[data-ilsreview]"); if (rv1) return ilsReviewRun(rv1.dataset.ilsreview);
   if (t.closest("#ilsinsave")) return ilsSaveInputs();
   const rv = t.closest("[data-ilsreveal]");
   if (rv) { try { await api("/api/ils/reveal", {method: "POST", body: JSON.stringify({path: rv.dataset.ilsreveal})}); } catch (err) { alert(err.message); } }

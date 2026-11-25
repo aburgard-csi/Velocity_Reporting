@@ -13,6 +13,9 @@ on the share, so it is safe to lose; losing it costs the next build for that cli
     MAX_AGE_DAYS  a client not built for this long goes, whatever the size
     MAX_GB        the whole cache stays under this, never counting the client being built
 
+The ILS Review card (scripts/ils_review_runs.py, 2026-11-24) stages each client's landed data pull, unzipped, under
+`ils_review/<id>/<pull>/` in the same cache, under the same limits.
+
 Override with TI_CACHE_MAX_GB and TI_CACHE_MAX_AGE_DAYS. It runs when Sheila starts, at the start of every Transaction
 Intelligence stage (`ti/txn_stage.stage`), and by hand with `python scripts/ars_launcher_web.py --tidy`.
 
@@ -25,7 +28,8 @@ from pathlib import Path
 
 MAX_GB = 3.0
 MAX_AGE_DAYS = 21
-SUBDIRS = ("txn_raw", "txn_parquet", "deposits_raw", "deposits_parquet")
+# ils_review: the ILS Review card's staged data pulls, unzipped (scripts/ils_review_runs.py, 2026-11-24)
+SUBDIRS = ("txn_raw", "txn_parquet", "deposits_raw", "deposits_parquet", "ils_review")
 USED = "used"                       # one tiny stamp file per client, touched whenever its files are staged
 
 

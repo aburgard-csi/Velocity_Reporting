@@ -284,9 +284,13 @@ def compute_clients():
     for cid, cp in cp_rows.items():          # standalone module clients are on the CashPlease roster alone
         if cid not in entries and L.standalone_cp(cp):
             entries[cid] = L.client_entry(cid, roster, cp)
-    for cid in ils_ui.ils_runs.landed_clients():  # on ILS alone: their ILS cards are on the client page (2026-10-28)
+    # On ILS alone: their ILS cards are on the client page (2026-10-28), and so is the ILS Review for a client on the
+    # analysts' review schedule (2026-11-24), whose name and CSM come from the schedule when the CSM List lacks them.
+    ils_sched = ils_ui.ils_runs.scheduled_clients()
+    for cid in sorted(ils_ui.ils_runs.landed_clients() | set(ils_sched)):
         if cid not in entries:
-            entries[cid] = (cid, rows.get(cid, {}).get("client_name") or cid, None, [])
+            entries[cid] = (cid, rows.get(cid, {}).get("client_name") or (ils_sched.get(cid) or {}).get("name") or cid,
+                            None, [])
     results = launcher_results(period, list(entries)) if period else {}
     out = []
     for cid, (_, name, path, progs) in entries.items():
@@ -297,7 +301,7 @@ def compute_clients():
             "id": cid,
             # clients.md's name, as on the deck; the CSM List's can carry a filename flag.
             "name": name or row.get("client_name"),
-            "csm": row.get("csm") or (cp or {}).get("csm") or "Unassigned",
+            "csm": row.get("csm") or (cp or {}).get("csm") or (ils_sched.get(cid) or {}).get("csm") or "Unassigned",
             "programs": progs,
             # The products the client's deck covers, and the rest of their Velocity products, for the
             # pills after the name (Aaron, 2026-10-13: "ID which products are covered for each client").

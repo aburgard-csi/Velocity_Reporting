@@ -106,8 +106,10 @@ an earlier review's.
   and the next run carries on; a file that would overrun what is left of the budget waits, and one too large for any budgeted
   run is reported and left for a hand run with a larger `--budget-minutes`. `pulls.json` is written before the first file
   and after the last, and each landing is logged as it is made, so a run cut off at the task's limit still leaves a record.
-* **For Sheila.** `_schedule/current_scheduled_analysis.csv` is the schedule, only the columns these rules read (never the
-  contacts or notes the live workbook carries), replaced only when its content changes; `_schedule/schedule_read.json` records
+* **For Sheila.** `_schedule/current_scheduled_analysis.csv` is the schedule, only the columns these rules read, plus the
+  ILS consultant's NAME (2026-11-24: Sheila's ILS Review card looks it up in CSM Contacts.csv for the deck's Contact Us
+  slide; a snapshot written before then has no such column, and the card says so). It never carries the technical contacts
+  or notes the live workbook holds, and is replaced only when its content changes; `_schedule/schedule_read.json` records
   each read. `_schedule/pulls.json` holds, per scheduled client, the review, the newest pull, the kinds on the share and the
   kinds landed (never a kind whose file on hand differs from the share's: those are listed under `differs`), the required
   kinds missing (ZAccounts and ZTrend), the names not recognised, and **whether the pull is current**. A run limited by
