@@ -52,6 +52,8 @@ when a program starts or stops (the `add-client-to-roster` skill).
 
 ## File locations
 
+Detail: `docs/PIPELINE-NOTES.md`, File locations (the full Inputs table, VIP Data, logos, archive history).
+
 - **Every path resolves from `RPE_DATA_ROOT`** (`build/rpe_env.py` → `inputs()` / `outputs()`), set per
   machine in `.env`. **Do not hardcode a path anywhere** and do not reintroduce a per-machine branch in the
   build code; if the root moves, repoint `RPE_DATA_ROOT` in `.env` and nothing else. If a build's inputs
@@ -106,6 +108,8 @@ deliver to client folders and make no per-client Delivery copies. Superseded dec
 `_older decks - delete after review/`, never deletes them and never moves a hand-made PDF.
 
 ## Shared conventions (all programs)
+
+Detail: `docs/PIPELINE-NOTES.md`, Shared conventions (the incidents behind each rule).
 
 **Decks ship as `.pptx` only — do not generate a PDF** (Aaron, 2026-07-24): no LibreOffice/`soffice` step,
 no `.pdf` alongside the deck.
@@ -248,7 +252,7 @@ state the figures, or do not make the claim. `validate_deck.claim_consistency_fi
   growth, retention), never on program results (Aaron, 2026-11-22).
 - A client-facing CashPlease peer figure is the MEDIAN of the other current clients; the pooled book is
   internal only (Aaron, 2026-11-24).
-- `validate_deck.peer_slide_findings` fails a peer slide that could not read its peers or names a client.
+- `validate_deck.peer_slide_findings` fails a peer slide that could not read its peers or names another client.
 - `Peer Reference/` (every peer figure, tagged and dated; Aaron, 2026-11-20) is refreshed by a detached
   process after each deck build (2026-11-22); a build never waits on it or depends on it.
 
@@ -262,6 +266,8 @@ the ARS Companion and Transaction Intelligence are SEPARATE decks that never cha
 Review, its metrics or its template.
 
 ## Validation and the QA gate
+
+Detail: `docs/PIPELINE-NOTES.md`, Validation gate and QA gate.
 
 **Validation gate.** Run `validation/validate_deck.py <deck> [base.json]` on every built
 deck before it ships. A non-zero exit blocks delivery — fix and re-run, do not override.
@@ -294,6 +300,8 @@ Three hard-won rules (cited by number in the code):
 
 ## Shared layer and build machinery
 
+Detail: `docs/PIPELINE-NOTES.md`, Build machinery and Shared layer; `docs/FILE-MAP.md`.
+
 - Code that is not specific to one program lives in `build/` root and serves every program: `brand.py`,
   `shapes.py`, `periods.py` (every derived date phrase; never hand-derive a span or a count),
   `month_complete.py`, `slide_geometry.py`, `fit_layout.py`, `restyle_fonts.py`, `table_style.py`,
@@ -309,6 +317,8 @@ Three hard-won rules (cited by number in the code):
   this repo, and nothing should import it.
 
 ## Cadence
+
+Detail: `docs/PIPELINE-NOTES.md`, Cadence and Executive Summit one-pagers.
 
 ARS, ICS and MRPC deliver **monthly**; **CashPlease is weekly**. Nothing is quarterly: the quarterly ICS
 workbook gates which SECTIONS carry current figures, never whether the deck ships.
@@ -334,6 +344,8 @@ judgement. Build them through the `summit-one-pager` skill and record his correc
   deck is a standing branding slide, unrelated to who attends.
 
 ## Delivery dashboard
+
+Detail: `docs/OPERATIONS-dashboards.md`; the source watch in `docs/OPERATIONS-source-watch.md`.
 
 **Delivery dashboard:** `python3 scripts/dashboard.py [--period 2026.09] [--port 8787] [--no-source]`, loopback
 only (it has a write endpoint); `scripts/deck_status.py <period> --json out.json` gives the same document.
@@ -397,6 +409,8 @@ python scripts/refresh_performance_dashboard.py --mark-published
 
 ## Data sources by program (do not cross these)
 
+Detail: `docs/PIPELINE-NOTES.md`, Data sources by program (as it stood).
+
 - **ARS** — raw ODD via the `oddd-optimizer` subagent (run it first), plus the ARS
   workbook (Lift Matrix MM tab / `base_extract.json`) and DCO. ODD-driven.
 - **ICS** — ICS Workbook (ROI, lifetime value, revenue, financial summary), VIP ICS
@@ -409,6 +423,8 @@ python scripts/refresh_performance_dashboard.py --mark-published
   should be, ask Aaron to point at it rather than guessing.
 
 ## Sheila, the launcher and releases
+
+Detail: `docs/FILE-MAP.md` (`ars_launcher.py`, `ars_launcher_web.py`, `sheila_hub*.py`, `sheila_mcp/`, `release_launcher.ps1`).
 
 - `scripts/ars_launcher.py` builds one client's deck and puts a 0-FAIL deck straight into
   `Outputs/<CSM>/`, archiving what it supersedes. No staging step: each CSM reviews, PDFs and emails the
@@ -432,6 +448,8 @@ python scripts/refresh_performance_dashboard.py --mark-published
   asks.
 
 ## Repo rules
+
+Detail: `docs/FILE-MAP.md`, Root and `.github/`; `docs/COLLABORATORS.md`.
 
 - **`CHANGELOG.md` records every correction and change (Aaron, 2026-09-01)**: a moved number or source, a
   changed claim, AND a change to what a slide renders. Post to it whenever you change pipeline behaviour.

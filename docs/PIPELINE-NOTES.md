@@ -2,6 +2,22 @@
 
 Moved verbatim from `CLAUDE.md` on 2026-11-25, when Aaron asked for a shorter CLAUDE.md. `CLAUDE.md` now states each rule in a sentence or two; this file keeps the sections those rules were condensed from, word for word: the reasons, the incidents, the full Inputs table and the per-program detail. Read the matching section here before changing the behaviour a rule describes, or when a rule needs its reason. When a rule changes, change it in `CLAUDE.md` and in the paragraph here. The dashboards and the source watch are in `docs/OPERATIONS-dashboards.md` and `docs/OPERATIONS-source-watch.md`; the file map is `docs/FILE-MAP.md`.
 
+**Where this differs from CLAUDE.md, CLAUDE.md is current.** Known stale in the text below as of
+2026-11-25 (kept word for word so the move can be checked; not yet corrected):
+
+- "Three programs" and "used by ALL THREE programs": CashPlease is a fourth program with its own
+  subagent and builder.
+- Templates names three shells; `templates/cashplease_template.pptx` is a fourth.
+- Combined decks says `qa_all.py` checks that the file "actually opens"; since the render test was removed
+  (2026-09-11) it checks package integrity only.
+- The "History" paragraph on `C:\Data Pipelines\RPE Pipeline` ("the sibling folder", "deliberate again as
+  of 2026-09-09") predates the 2026-09-14 move to the share.
+- The Cadence ICS row reads the workbook "from `Inputs/ARS & MRPC Reports/`"; the builder resolves it
+  through `rpe_env.report_dirs()` (`Inputs/ICS Workbooks/`).
+- Data sources by program names a per-session location with `Workbooks - ARS` / `Workbooks - ICS`
+  folders and has no CashPlease line; inputs are in the `Inputs/` kind folders.
+- "Five CSMs" may no longer be the count.
+
 ## Preamble (the opening of CLAUDE.md as it stood)
 
 This project builds client Executive Review decks for three programs. Each program has

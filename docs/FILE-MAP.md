@@ -2,6 +2,20 @@
 
 Moved verbatim from `CLAUDE.md` on 2026-11-25, when Aaron asked for a shorter CLAUDE.md (it is loaded into every message of every session). This is the full per-file index; `CLAUDE.md` keeps a short map of the folders and the entry points sessions use most. **Keep this file current**: add, change or remove the entry in the same commit that adds, moves or removes a file. The text below is the original section, heading included.
 
+**Where this differs from CLAUDE.md, CLAUDE.md is current.** Known stale below as of 2026-11-25 (not yet
+corrected):
+
+- `build/ics_pipeline/data/` and `build/mrpc_pipeline/data/` no longer exist (deleted 2026-08-29; VIP Data
+  is the only source).
+- `launchers/` is `scripts/launchers/`; `sheila_mcp/` sits at the repo root, not under `scripts/`;
+  `slide_geometry.py` lives in `build/`, not `build/ars_pipeline/`.
+- About a dozen `scripts/` entries (`issue_pages/` onward) sit under the `.github/` heading.
+- `build/cashplease_pipeline/`, `build/ils_pipeline/` and `build/ils_analysis/` have no section.
+- `templates/` lists three shells; `cashplease_template.pptx` is a fourth.
+- The `CLAUDE.md` entry still reads "this file ... and this file map".
+- The `live_review_ui.py` entry carries a stray control character in `%LOCALAPPDATA%\RPE\build.lock`.
+- `summit_slide.py` is "used by ICS/MRPC", but every builder clones the one Summit slide.
+
 ## Project file map (keep current)
 
 This is the readme index — update it whenever files are added, removed, or moved.
