@@ -95,7 +95,10 @@ def my_month(csm="me", check=True):
         return reply(why)
     W = web()
     doc = all_clients()
-    book = [c for c in doc["clients"] if c.get("csm") == name]
+    # RPE Decks and ILS Decks, as in Sheila's sidebar (Aaron, 2026-11-25): a client on ILS alone has no RPE deck, so it
+    # is not checked or grouped here; the ILS clients are listed after the RPE groups with their review state.
+    book = [c for c in doc["clients"] if c.get("csm") == name and not c.get("ils_only")]
+    ils_book = [c for c in doc["clients"] if c.get("csm") == name and c.get("ils")]
     todo = [c for c in book if not (c.get("decks") or c.get("error"))]
     statuses = {}
     if check and todo:
@@ -117,7 +120,7 @@ def my_month(csm="me", check=True):
             row["blocked_by"] = W.stop_label(st.get("checks") or []) if st.get("state") == "stop" else None
             row["asks"] = [k["text"] for k in st.get("checks") or [] if k.get("level") == "ask"]
         groups[_bucket(c, st)].append(row)
-    lines = [f"{name}'s book for {doc['period']}: {len(book)} clients."]
+    lines = [f"{name}'s book for {doc['period']}: {len(book)} clients on RPE Decks."]
     for key, title in GROUPS:
         rows = groups[key]
         if not rows:
@@ -141,9 +144,34 @@ def my_month(csm="me", check=True):
         nxt.append("Ask \"what happened to <client>'s build\" for the launcher's message.")
     if groups["unchecked"]:
         nxt.append(f"{len(groups['unchecked'])} still being checked: ask again in a minute.")
+    ils_rows = [{"id": c["id"], "name": c.get("name"), "list": ils_list(c), "review": ils_word(c.get("ils")),
+                 "review_date": (c.get("ils") or {}).get("review_date")} for c in ils_book]
+    if ils_rows:
+        lines.append(f"\nILS Decks ({len(ils_rows)}):")
+        for r in ils_rows:
+            lines.append(f"  {r['id']} {r['name']} ({r['review']}" + (f", review {r['review_date']}" if r["review_date"] else "")
+                         + ("; ILS only" if r["list"] == "ILS Decks" else "") + ")")
     if nxt:
         lines.append("\nNext: " + " ".join(nxt))
-    return reply("\n".join(lines), csm=name, period=doc["period"], groups=groups)
+    return reply("\n".join(lines), csm=name, period=doc["period"], groups=groups, ils=ils_rows)
+
+
+def ils_word(st):
+    """The ILS Decks tab's word for a client's ILS state (sheila_hub.ilsKind): never "ready" when it was not read."""
+    st = st or {}
+    if not st.get("checked"):
+        return "not checked"
+    state = st.get("state")
+    if state == "ready":
+        return "in Outputs" if st.get("decks") else "ready to build"
+    return {"waiting": "waiting for this review's ILS data", "blocked": "ILS data problem"}.get(state, "no review scheduled")
+
+
+def ils_list(c):
+    """Which of Sheila's lists a client is on: "RPE Decks", "ILS Decks" (ILS alone) or "RPE Decks and ILS Decks"."""
+    if c.get("ils_only"):
+        return "ILS Decks"
+    return "RPE Decks and ILS Decks" if c.get("ils") else "RPE Decks"
 
 
 def _status_or_error(W, cid):
@@ -339,9 +367,11 @@ def clients(csm="me", query="", program=""):
     lines = [f"{len(rows)} client(s):"] + [
         f"  {c['id']} {c.get('name')} [{', '.join(c.get('covered') or c.get('programs') or [])}]"
         + (" in Outputs" if c.get("decks") else "")
-        + (" | TI in Outputs" if c.get("ti_decks") else "") for c in rows]
-    return reply("\n".join(lines), clients=[{k: c.get(k) for k in ("id", "name", "csm", "covered", "products",
-                                                                   "decks", "ti_decks")} for c in rows])
+        + (" | TI in Outputs" if c.get("ti_decks") else "")
+        + (f" | {ils_list(c)}, ILS review {ils_word(c.get('ils'))}" if c.get("ils") else "") for c in rows]
+    return reply("\n".join(lines), clients=[{**{k: c.get(k) for k in ("id", "name", "csm", "covered", "products",
+                                                                      "decks", "ti_decks")}, "list": ils_list(c)}
+                                            for c in rows])
 
 
 # ------------------------------------------------------------------ about Sheila

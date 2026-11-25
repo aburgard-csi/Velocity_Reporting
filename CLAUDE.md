@@ -446,6 +446,10 @@ Detail: `docs/FILE-MAP.md` (`ars_launcher.py`, `ars_launcher_web.py`, `sheila_hu
   included. A release ships origin/main and nothing else (Aaron, 2026-10-07).** Nothing merges or releases
   without Aaron's word (the `merge-and-release` skill). Bump `VERSION` by hand in the commit that adds a
   major feature.
+- **RPE Decks and ILS Decks** (Aaron, 2026-11-25): Sheila's sidebar lists RPE clients (any RPE program) under RPE
+  Decks and every ILS client (review schedule, landed pre-go-live / kickoff inputs, the clients.md ILS roster)
+  under ILS Decks; a client on both is on both. A client page opened from ILS Decks shows ILS only, from RPE
+  Decks RPE only. Detail: `docs/FILE-MAP.md`, `sheila_hub.py`.
 - The team issue pages (`scripts/issue_pages/`) are not published now: do not republish them unless Aaron
   asks.
 
