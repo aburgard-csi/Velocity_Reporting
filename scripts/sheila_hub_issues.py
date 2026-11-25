@@ -22,9 +22,9 @@ VIEW = r"""
       <label class="find"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><input id="is-q" type="search" placeholder="Name or number" autocomplete="off" aria-label="Find a client"><kbd>/</kbd></label>
       <div class="filt" id="is-filt"></div>
     </div>
-    <div class="list" id="is-list" role="list" aria-live="polite"></div>
+    <div class="list" id="is-list" role="list"></div>
   </section>
-  <section class="card isdetail" id="is-detail" aria-label="Issues" aria-live="polite"></section>
+  <section class="card isdetail" id="is-detail" aria-label="Issues"></section>
 </div>
 """
 
