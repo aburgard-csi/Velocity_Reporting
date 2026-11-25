@@ -17,6 +17,11 @@ and nothing runs on them until the CSM presses Build.
 Each step runs in its own process (scripts/ils_job.py), as Sheila's deck builds do. A finished deck is
 also copied to Outputs/<CSM>/ILS/ (ils_job.deliver, 2026-10-29). Reveal opens a file under Build
 Artifacts/ils or a deck under Outputs.
+
+The ILS Review (Aaron, 2026-11-24) is a third job kind, "review", with no codes and one step: the ILS Program
+Analysis deck for a client on the analysts' review schedule, from its landed pull (scripts/ils_review_runs.py, which
+holds its readiness and its run). It is in JOB_KINDS, not KINDS, because everything keyed on KINDS assumes an input
+folder and codes.
 """
 import datetime as _dt
 import json
@@ -45,6 +50,10 @@ FIELDS = {
 }
 REQUIRED = {"pgl": ["open_status", "od_eligible", "rege_opt_in"],
             "kickoff": ["personal_code", "business_code", "open_code", "eligible_stat_codes"]}
+# The ILS Review card (scripts/ils_review_runs.py, Aaron 2026-11-24) is a job kind too, but not one of the two-step,
+# codes-based KINDS above: its readiness is client_doc's "review" and its run is one step.
+REVIEW = "review"
+JOB_KINDS = set(KINDS) | {REVIEW}
 CID_RX = re.compile(r"^\d{3,5}$")
 PERIOD_RX = re.compile(r"^\d{4}-\d{2}$")
 RESULT_RX = re.compile(r"^ILS_RESULT (\{.*\})\s*$")
@@ -225,15 +234,23 @@ def client_doc(cid):
                      "job": job_doc(kind, cid)}
         if kind == "pgl":
             out[kind]["inputs"] = saved_inputs(cid)
+    import ils_review_runs
     return {"client": str(cid), "kinds": out, "fields": FIELDS, "required": REQUIRED,
-            "program_fields": PROGRAM_FIELDS}
+            "program_fields": PROGRAM_FIELDS, "review": ils_review_runs.review_doc(cid, job_doc(REVIEW, str(cid)))}
+
+
+def scheduled_clients():
+    """{id: {"name", "csm"}} of the clients on the ILS analysts' review schedule: Sheila lists them, so a client on
+    ILS alone can be opened and its ILS Review built from the client page."""
+    import ils_review_runs
+    return ils_review_runs.scheduled_clients()
 
 
 # ------------------------------------------------------------------ jobs
 class IlsJob:
     def __init__(self, kind, cid, args):
         self.kind, self.cid, self.args = kind, cid, args
-        self.step = 2 if args.get("codes") else 1
+        self.step = 2 if args.get("codes") or kind == REVIEW else 1
         self.lines, self.done, self.code, self.result = [], False, None, None
         self.started, self.finished = time.time(), None
 
@@ -257,7 +274,7 @@ class IlsJob:
         except OSError as e:
             self.lines.append(f"[STOP] The run could not start: {e}")
             self.code = 1
-        if self.step == 2 and self.result and self.result.get("ok"):
+        if self.kind in FIELDS and self.step == 2 and self.result and self.result.get("ok"):
             try:
                 save_codes(self.kind, self.cid, self.args["codes"], _extract(self.kind, self.cid),
                            {k: self.args[k] for k in ("fee", "include_deleted", "current_only",
@@ -274,6 +291,10 @@ class IlsJob:
                 "needs_codes": bool(r.get("needs_codes")), "deck": r.get("deck"), "folder": r.get("folder"),
                 "error": r.get("error"), "suggested": r.get("suggested") or {},
                 "suggested_basis": r.get("suggested_basis") or {},
+                # the ILS Review run's own (ils_review_runs.run_review): the builder's notes, the validator's verdict,
+                # whether the deck went to Outputs, and which prep deck was merged
+                "notes": r.get("notes") or [], "verdict": r.get("verdict"), "delivered": bool(r.get("delivered")),
+                "merge_prep": bool(self.args.get("merge_prep")), "prep": r.get("prep"),
                 "seconds": round((self.finished or time.time()) - self.started)}
 
 
@@ -290,7 +311,7 @@ def start(body):
     """POST /api/ils/run: step 1 when no codes are given, step 2 with them. 409 while one runs."""
     kind = str(body.get("kind", ""))
     cid = str(body.get("client", "")).strip()
-    if kind not in KINDS:
+    if kind not in JOB_KINDS:
         return 400, {"error": "not an ILS analysis"}
     if not CID_RX.match(cid):
         return 400, {"error": "not a client number"}
@@ -298,6 +319,8 @@ def start(body):
     name = str(body.get("client_name") or "").strip()
     if name:
         args["client_name"] = name[:120]                # the deck's cover; the page sends the name it shows
+    if kind == REVIEW:
+        return _start_review(cid, args, bool(body.get("merge_prep")))
     codes = body.get("codes") or None
     if codes:
         codes = {f: str(codes.get(f) or "").strip() for f in FIELDS[kind]}
@@ -324,6 +347,10 @@ def start(body):
                 return 400, {"error": "the fee is a number"}
         args["include_deleted"] = bool(body.get("include_deleted"))
         args["current_only"] = bool(body.get("current_only"))
+    return _launch(kind, cid, args)
+
+
+def _launch(kind, cid, args):
     with _lock:
         j = _jobs.get((kind, cid))
         if j and not j.done:
@@ -332,6 +359,20 @@ def start(body):
         _jobs[(kind, cid)] = j
     threading.Thread(target=j.run, daemon=True).start()
     return 200, {"job": j.to_json()}
+
+
+def _start_review(cid, args, merge_prep):
+    """The ILS Review card's Build (and Build with prep slides): refused unless the card says ready, and, with the prep
+    slides, unless a prep deck for the client is on hand. The child process checks both again."""
+    import ils_review_runs as RR
+    doc = RR.readiness(cid)
+    if doc["state"] != "ready":
+        return 409, {"error": doc["why"] or f"not ready ({doc['state']})", "review": doc}
+    if merge_prep:
+        if not RR.prep_deck(cid):
+            return 409, {"error": "no prep deck for this client in the prep folder"}
+        args["merge_prep"] = True
+    return _launch(REVIEW, cid, args)
 
 
 def reveal(path):

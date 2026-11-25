@@ -12,6 +12,10 @@ the CSM confirms and **Build** (step 2: the report or workbook, and the deck). U
 confirmed with are offered back with that run's date and file; they are the CSM's to keep or change and are never
 applied until Build is pressed. The CSM confirms the codes, never the client (James Gilmore, 2026-10-28: "the user
 will confirm the limits. the client wont confirm anything"). The runs and the files are in ils_runs.py.
+
+The ILS Review card (Aaron, 2026-11-24) replaced "Coming soon": one Build, and Build with the prep slides when the
+client has a prep deck, through the same /api/ils/run and /api/ils/job routes with kind "review"; its readiness is the
+"review" block of /api/ils/client (scripts/ils_review_runs.py).
 """
 import ils_runs
 
@@ -35,7 +39,7 @@ def get(handler, path, params):
     if path == "/api/ils/client":
         return handler._send(200, ils_runs.client_doc(cid))
     if path == "/api/ils/job":
-        if kind not in ils_runs.KINDS:
+        if kind not in ils_runs.JOB_KINDS:
             return handler._send(400, {"error": "not an ILS analysis"})
         return handler._send(200, ils_runs.job_doc(kind, cid) or {})
     return handler._send(404, {"error": "not found"})

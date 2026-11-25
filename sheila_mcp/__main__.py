@@ -122,22 +122,27 @@ def data_issues(client: str = "", csm: str = "me", include_done: bool = False) -
 @mcp.tool
 def ils_status(client: str) -> dict:
     """A client's ILS pre-go-live and kickoff: whether the extract has landed (and where it goes), the codes
-    last confirmed, the newest output, any run going."""
+    last confirmed, the newest output, any run going. Also the ILS Review: whether the client is on the
+    analysts' review schedule, whether this review's data pull has landed, the prep deck it would merge."""
     return actions.ils_status(client)
 
 
 @mcp.tool
-def ils_run(client: str, kind: str, codes: dict = None, period: str = "", fee: str = "") -> dict:
-    """Run an ILS analysis. kind: "pgl" (pre-go-live) or "kickoff". Without codes: step 1, the field
-    summary, computing nothing. With codes: step 2, on the codes the CSM confirmed (pgl: open_status,
-    od_eligible, rege_opt_in, rege_opt_out; kickoff: personal_code, business_code, open_code,
-    eligible_stat_codes, rege_opt_in, rege_opt_out). period: YYYY-MM (kickoff). fee: the OD fee (pgl)."""
-    return actions.ils_run(client, kind, codes, period or None, fee or None)
+def ils_run(client: str, kind: str, codes: dict = None, period: str = "", fee: str = "",
+            merge_prep: bool = False) -> dict:
+    """Run an ILS analysis. kind: "pgl" (pre-go-live), "kickoff" or "review". pgl / kickoff: without codes,
+    step 1, the field summary, computing nothing; with codes, step 2, on the codes the CSM confirmed (pgl:
+    open_status, od_eligible, rege_opt_in, rege_opt_out; kickoff: personal_code, business_code, open_code,
+    eligible_stat_codes, rege_opt_in, rege_opt_out). period: YYYY-MM (kickoff). fee: the OD fee (pgl).
+    review: the ILS Program Analysis deck from the client's landed data pull, one step, into Outputs at
+    0 FAIL; merge_prep=true merges the client's prep slides in (only when ils_status names a prep deck)."""
+    return actions.ils_run(client, kind, codes, period or None, fee or None, merge_prep)
 
 
 @mcp.tool
 def ils_progress(client: str, kind: str) -> dict:
-    """An ILS run's progress; when step 1 is done, the field summary the CSM confirms codes from."""
+    """An ILS run's progress (kind pgl, kickoff or review); when step 1 is done, the field summary the CSM
+    confirms codes from; when a review is done, the builder's notes and the validator's verdict."""
     return actions.ils_progress(client, kind)
 
 

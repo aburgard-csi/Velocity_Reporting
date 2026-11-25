@@ -4,8 +4,9 @@ ils_job.py — one step of an ILS run, in its own process, for Sheila's ILS tab 
 
     python scripts/ils_job.py '<json>'
 
-The json names the analysis ("pgl" or "kickoff"), the client, and — for step 2 — the codes the CSM
-confirmed. With no codes it is step 1: the engine reads the newest extract and prints the field
+The json names the analysis ("pgl", "kickoff" or "review"), the client, and — for step 2 — the codes the CSM
+confirmed. "review" is the ILS Review card's one-step build (scripts/ils_review_runs.run_review: stage the landed
+pull, build the ILS Program Analysis deck, optionally merge the prep slides, validate, deliver only at 0 FAIL). With no codes it is step 1: the engine reads the newest extract and prints the field
 summary (the distinct values of each code field, with counts) and computes nothing. With codes it is
 step 2: the engine's report (PGL) or workbook (kickoff) and the deck.
 
@@ -27,7 +28,10 @@ for p in (REPO / "build", HERE):
 
 
 ILS_DIRNAME = "ILS"
-TITLES = {"pgl": ("PGL", "ILS Pre-Go-Live Review"), "kickoff": ("KO", "ILS Kickoff")}
+# review / review_prep: the ILS Review card's two decks (scripts/ils_review_runs.py, 2026-11-24), the ILS Program
+# Analysis deck and the same deck with the client's prep slides merged in
+TITLES = {"pgl": ("PGL", "ILS Pre-Go-Live Review"), "kickoff": ("KO", "ILS Kickoff"),
+          "review": ("ANL", "ILS Analysis"), "review_prep": ("REV", "ILS Review")}
 
 
 def deliver(kind, cid, deck, period, client_name):
@@ -155,6 +159,9 @@ def main(argv):
     try:
         if a.get("analysis") == "pgl":
             out = pgl(a)
+        elif a.get("analysis") == "review":
+            import ils_review_runs
+            out = ils_review_runs.run_review(a)
         elif a.get("analysis") == "kickoff":
             from ils_pipeline.kickoff._v5.compat import legacy_strings
             with legacy_strings():

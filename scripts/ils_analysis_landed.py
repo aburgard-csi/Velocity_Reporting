@@ -50,8 +50,10 @@ SCHEDULE_DIR = "_schedule"
 SNAPSHOT_NAME = "current_scheduled_analysis.csv"
 SNAPSHOT_META = "schedule_read.json"
 PULLS_NAME = "pulls.json"
-# Only the columns these rules read. The analysts' live workbook also carries technical contacts and notes: never copied.
-SNAPSHOT_COLUMNS = ("fi_id", "fi_name", "review_date", "tentative_date", "pull_by", "status", "csm")
+# Only the columns these rules and CSM Sheila read. The analysts' live workbook also carries technical contacts and notes:
+# never copied. `consultant` is the ILS consultant's NAME (2026-11-24): Sheila's ILS Review card looks it up in
+# CSM Contacts.csv for the deck's Contact Us slide; no contact detail is ever taken from the schedule.
+SNAPSHOT_COLUMNS = ("fi_id", "fi_name", "review_date", "tentative_date", "pull_by", "status", "csm", "consultant")
 REQUIRED_COLUMNS = ("fi_id", "status", "review_date")
 CURRENT_WINDOW_DAYS = 60
 HORIZON_DAYS = CURRENT_WINDOW_DAYS

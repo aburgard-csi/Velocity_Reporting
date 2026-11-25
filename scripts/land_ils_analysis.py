@@ -421,6 +421,7 @@ def status_doc(scope, resolved, dest_root, schedule_meta, previous=None):
         clients[cid] = {
             "name": row.get("fi_name", ""), "status": row.get("status", ""), "review_date": row.get("review_date", ""),
             "pull_by": row.get("pull_by", ""), "tentative_date": row.get("tentative_date", ""), "csm": row.get("csm", ""),
+            "consultant": row.get("consultant", ""),
             "folder": r.get("folder"), "pull": pull, "pull_source": r.get("pull_name"),
             "kinds_on_share": sorted({IA.kind_of(f["name"]) for f in (r.get("extracts") or {}).values()}),
             "landed_kinds": landed, "differs": differs, "missing_kinds": r.get("missing", list(L.REQUIRED_KINDS)),

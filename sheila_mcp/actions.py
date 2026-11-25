@@ -251,20 +251,54 @@ def ils_status(client):
         if job and not job.get("done"):
             bits.append(f"step {job['step']} running")
         lines.append(f"  {k['label']}: " + "; ".join(str(b) for b in bits) + ".")
+    lines += review_lines(doc.get("review"))
     return reply("\n".join(lines), **doc)
 
 
-def ils_run(client, kind, codes=None, period=None, fee=None):
-    """Step 1 (no codes): the field summary, computing nothing. Step 2: the run on the codes the CSM confirmed."""
+def review_lines(r):
+    """The ILS Review card (scripts/ils_review_runs.py) in words: its state and why, the pull and review dates, the
+    checks that need a look, the prep deck it would merge, and the decks in Outputs."""
+    if not r:
+        return []
+    out = [f"  ILS Review: {r.get('state')}" + (f": {r['why']}" if r.get("why") else ".")]
+    if r.get("pull") or r.get("review_date"):
+        out.append(f"    data pull {r.get('pull') or 'none'}, review {r.get('review_date') or 'not dated'}.")
+    for c in r.get("checks") or []:
+        if c.get("level") != "ok" and c.get("text") != r.get("why"):
+            out.append(f"    {c['level']}: {c['text']}")
+    if r.get("state") == "ready":
+        out.append("    Build it with ils_run kind=\"review\"" + (f"; with merge_prep=true it merges {r['prep']['name']}."
+                                                              if r.get("prep") else "."))
+    for k, what in (("analysis", "analysis deck"), ("review", "review deck with prep slides")):
+        d = (r.get("decks") or {}).get(k)
+        if d:
+            out.append(f"    {what} in Outputs: {d['name']} ({d['when']})"
+                       + ("." if d.get("current") else ", from an earlier review's pull."))
+    job = r.get("job")
+    if job and not job.get("done"):
+        out.append("    a build is running.")
+    return out
+
+
+def ils_run(client, kind, codes=None, period=None, fee=None, merge_prep=False):
+    """Step 1 (no codes): the field summary, computing nothing. Step 2: the run on the codes the CSM confirmed.
+    kind "review": the ILS Review build, one step (merge_prep: with the client's prep slides)."""
     import ils_runs
     kind = (kind or "").lower()
-    if kind not in ils_runs.KINDS:
-        return reply("kind is pgl or kickoff.")
+    if kind not in ils_runs.JOB_KINDS:
+        return reply("kind is pgl, kickoff or review.")
     c, why = find_client(client)
     cid = c["id"] if c else str(client).strip()
     if why and not re.fullmatch(r"\d{3,5}", cid):
         return reply(why)
     body = {"kind": kind, "client": cid, "client_name": (c or {}).get("name") or ""}
+    if kind == ils_runs.REVIEW:
+        body["merge_prep"] = bool(merge_prep)
+        code, doc = ils_runs.start(body)
+        if code != 200:
+            return reply(f"Not started: {doc.get('error')}", **doc)
+        return reply(f"ILS Review for {cid} started" + (" with the prep slides" if merge_prep else "")
+                     + ". It goes to Outputs only at 0 FAIL. Ask for its progress.", **doc)
     if codes:
         body["codes"] = codes
     if period:
@@ -301,6 +335,12 @@ def ils_progress(client, kind):
         return reply(f"ILS {kind} for {cid}, step 1 done. The field summary:\n{body}\n\n"
                      + (f"Suggested from the last confirmed run ({j.get('suggested_basis')}): {sug}. " if sug else "")
                      + "The CSM decides which value means what. Then call ils_run with those codes.", job=j)
+    if kind == "review":
+        notes = "".join(f"\n  {n}" for n in j.get("notes") or [] if n)
+        if j.get("ok"):
+            return reply(f"ILS Review for {cid}: in Outputs, {j.get('deck')} (validation {j.get('verdict')}). "
+                         f"The builder's notes:{notes or ' none'}", job=j)
+        return reply(f"ILS Review for {cid}: not put in Outputs. {j.get('error') or ''}{notes}\n" + body, job=j)
     if j.get("ok"):
         return reply(f"ILS {kind} for {cid}: done. Deck: {j.get('deck')}; folder: {j.get('folder')}.", job=j)
     return reply(f"ILS {kind} for {cid}: failed. {j.get('error') or ''}\n{body}", job=j)
