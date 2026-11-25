@@ -13,7 +13,7 @@
 - [ ] `.venv\Scripts\python -m pytest tests -q` passes
 - [ ] `validation\qa_all.py` run if `templates/`, `build/` or `validation/` changed (DRIFT reviewed)
 - [ ] `CHANGELOG.md` entry added, starting with `Summary:`
-- [ ] `CLAUDE.md` file map updated for any file added, moved or removed
+- [ ] `docs/FILE-MAP.md` updated for any file added, moved or removed
 - Not run (VPN, Outlook, the share): 
 
 ## Transaction Intelligence branches only (`feat/ars-ti/...`)

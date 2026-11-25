@@ -15,6 +15,18 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-25 — CLAUDE.md trimmed to the rules; the detail moved to docs (`CLAUDE.md`, `docs/`)
+
+Summary: The instructions every Claude session loads are now about a quarter of their old size, so long sessions stop running out of room. The rules are all still there; the history behind them, the full file map and the operational detail moved, word for word, into files under `docs/`.
+
+Aaron, 2026-11-25: keep the rules, move the history.
+
+- **Why:** `CLAUDE.md` was about 147 KB and is loaded into every message of every session in this repo.
+- **What stays in `CLAUDE.md` (about 35 KB):** the routing table and every standing rule, each in a sentence or two with its date and who said it, plus a "Where the detail lives" list and a short project map.
+- **Where the rest went, verbatim:** `docs/FILE-MAP.md` (the full per-file index; keep it current there), `docs/PIPELINE-NOTES.md` (file locations and the full Inputs table, shared conventions, cadence, Summit, data sources), `docs/OPERATIONS-dashboards.md` (the delivery dashboard and the performance artifact) and the end of `docs/OPERATIONS-source-watch.md` (the watch section as it stood).
+- **Checked:** every sentence of the old file is in the new `CLAUDE.md` or one of those files. `docs/COLLABORATORS.md`, the PR template and `README.md` now point at `docs/FILE-MAP.md` for the file map.
+- **No behaviour change.** Nothing a build reads or renders moved.
+
 ### 2026-11-24 — A release also moves the scheduled tasks' checkout (`scripts/release_launcher.ps1`)
 
 Summary: The morning source watch, its watchdog and the ILS analysis landing now run from their own clean checkout, and each Sheila release moves that checkout to the code just released, so they always run what the CSMs run.
