@@ -422,7 +422,7 @@ ILS was not added as a column of the main table: that table is read by position,
 - **2026-09-16 — 1776 CoastHills CU is on ICS** (Aaron: "Add ICS, but don't pull from VIP since I
   don't have access to their clients"). James Gilmore landed a 2026.09 ICS workbook, a detailed referral
   file and a direct-mail new-accounts list in Inputs. There is no VIP ICS sheet and none will be pulled:
-  the ICS section is built from those local files (uild/ics_pipeline/ics_local_sheet.py), with any
+  the ICS section is built from those local files (`build/ics_pipeline/ics_local_sheet.py`), with any
   section they cannot supply left out. James's client, so the CSM chooses an ARS-only or a combined deck
   in CSM Sheila.
 - **2026-09-16 — ARS added for three of Jordan Berkowitz's clients: 1121 Timberland Bank, 1554

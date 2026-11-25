@@ -54,7 +54,7 @@ one before it. Do not rebase a stage someone else's branch is based on.
 
 **What a Transaction Intelligence PR may touch.** `build/ars_pipeline/ti/`, `ti_build.py`,
 `build_ti_gen.py`, `scripts/ti_parity.py`, `tests/test_ti_*.py`, `docs/migration/DUPLICATES.md`, the
-`ti/` lines of the file map in `CLAUDE.md`, and a `CHANGELOG.md` entry. A port copies v5's logic
+`ti/` lines of the file map in `docs/FILE-MAP.md`, and a `CHANGELOG.md` entry. A port copies v5's logic
 unchanged (PORTING.md rule 1); a change to what a figure computes is its own PR.
 
 **What it must not touch.** The ARS, ICS, MRPC and CashPlease builders, `metrics_gen`, the template
@@ -122,7 +122,9 @@ Read-only inspection of the share is fine. A build for a client goes through CSM
   read of an activity series any other way.
 - **A claim needs a figure.** A sentence that says a measure moved must be derived from the data, not
   written as a constant (see "Describing movement" in `CLAUDE.md`).
-- **Missing data is stated, never zeroed.** Do not drop a slide or render a 0% for absent data.
+- **A slide with no data is left out, and said so — never zeroed** (Aaron, 2026-11-22). Never draw a
+  0%, an empty chart or a stand-in figure; log `slide left out (no data): <title> - <why>`; take a
+  slide out only with `shapes.drop_slide`. Absent data is a data-sourcing question first.
 - **Every slide lists its data source in the speaker notes**, naming the client being built.
 - **Resolve slides by title, never by index.**
 - **Writing style:** the banned-word list in `CLAUDE.md` applies to all client-facing text.
@@ -142,7 +144,7 @@ Read-only inspection of the share is fine. A build for a client goes through CSM
    what a slide renders, even when no number moves. Start it with a `Summary:` line of one or two
    plain sentences for a CSM. (There is no "unreleased" section: a release copies this file with
    the code, and Sheila's change log page names the release it is in.)
-5. If you added, moved or removed a file, update the file map at the end of `CLAUDE.md`.
+5. If you added, moved or removed a file, update the file map in `docs/FILE-MAP.md`.
 6. In the PR description, say what you ran, what you did **not** run (anything needing the VPN or
    Outlook), and which client-facing output could change.
 

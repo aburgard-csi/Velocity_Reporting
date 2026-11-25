@@ -15,6 +15,27 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-25 — CLAUDE.md trimmed to the rules; the detail moved to docs (`CLAUDE.md`, `docs/`)
+
+Summary: The instructions every Claude session loads are now about a quarter of their old size, so long sessions stop running out of room. The rules are all still there; the history behind them, the full file map and the operational detail moved, word for word, into files under `docs/`.
+
+Aaron, 2026-11-25: keep the rules, move the history.
+
+- **Why:** `CLAUDE.md` was about 147 KB and is loaded into every message of every session in this repo.
+- **What stays in `CLAUDE.md` (about 35 KB):** the routing table and every standing rule, each in a sentence or two with its date and who said it, plus a "Where the detail lives" list and a short project map.
+- **Where the rest went, verbatim:** `docs/FILE-MAP.md` (the full per-file index; keep it current there), `docs/PIPELINE-NOTES.md` (file locations and the full Inputs table, shared conventions, cadence, Summit, data sources), `docs/OPERATIONS-dashboards.md` (the delivery dashboard and the performance artifact) and the end of `docs/OPERATIONS-source-watch.md` (the watch section as it stood).
+- **Checked:** every sentence of the old file is in the new `CLAUDE.md` or one of those files. `docs/COLLABORATORS.md`, the PR template and `README.md` now point at `docs/FILE-MAP.md` for the file map.
+- **Stale text corrected (Aaron's go-ahead, the same day):**
+  - four programs and four template shells, CashPlease included;
+  - data sources named by their `Inputs/` kind folders, with a CashPlease line;
+  - the ICS workbook folder;
+  - `qa_all` checks package integrity and does not prove a deck opens;
+  - the retired `C:\Data Pipelines` root marked as history;
+  - in the file map: deleted entries removed, misplaced entries moved, and sections added for the CashPlease and ILS build folders;
+  - three stray control characters removed;
+  - `docs/COLLABORATORS.md` and `README.md` now state the 2026-11-22 no-data rule.
+- **No behaviour change.** Nothing a build reads or renders moved.
+
 ### 2026-11-25 — CSM Sheila has RPE Decks and ILS Decks (`scripts/sheila_hub_ilsdecks.py`, Sheila 2.5)
 
 Summary: Sheila's sidebar now has RPE Decks (what Decks was) and a new ILS Decks tab listing every ILS client with its review status, review date, newest data pull and which other ILS cards apply. Clients on ILS alone moved out of RPE Decks. A client's page is now RPE only when opened from RPE Decks and ILS only when opened from ILS Decks, where the ILS Review, Pre-go-live and Kickoff cards are all shown with no dropdown.
@@ -2003,7 +2024,7 @@ Aaron, 2026-10-28, from a screenshot of 1585: "These buttons should be Build Sep
 
 Summary: Building the ARS Companion deck stopped at the end with a missing companion_slides.json; the build now carries the settings that add James's views, so the deck is cut and put in Outputs.
 
-Aaron, 2026-10-28, from Sheila on 1075 Austin Bank: the Companion build ran every step, then FileNotFoundError ... companion\1075\companion_slides.json. uild_month copies the environment once, when it is imported, so the Companion switches were set too late and the ARS build ran without James's views, never recording their slides. They are now handed to the build process directly, and a test pins it.
+Aaron, 2026-10-28, from Sheila on 1075 Austin Bank: the Companion build ran every step, then FileNotFoundError ... companion\1075\companion_slides.json. `build_month` copies the environment once, when it is imported, so the Companion switches were set too late and the ARS build ran without James's views, never recording their slides. They are now handed to the build process directly, and a test pins it.
 
 ### 2026-10-27 — ILS pre-go-live: proposed home and input folder for James's v5 PGL engine (draft, computes nothing)
 

@@ -1,11 +1,29 @@
 # Retail Performance Engine — Deck Build Router
 
-This project builds client Executive Review decks for three programs. Each program has
-its own subagent and its own data sources. **Keep them separate** — never run one
-program's logic while building another. Confusion between programs is the exact problem
-this structure exists to prevent.
+This project builds client Executive Review decks for four programs (ARS, ICS, MRPC, CashPlease), plus
+the ILS, Transaction Intelligence and Summit work routed below. Each program has its own subagent and its
+own data sources. **Keep them separate** — never run one program's logic while building another. Confusion
+between programs is the exact problem this structure exists to prevent.
 
 **Working here as a collaborator (not Aaron)?** Read `docs/COLLABORATORS.md` first: branches and pull requests, what not to run, and what to check before a PR.
+
+This file holds the rules, tersely, each with its date and who said it. The reasons, the incidents and
+the per-file detail are in the docs below (Aaron, 2026-11-25: keep the rules, move the history). **When a
+rule changes, change it here and in the matching paragraph of its docs file.**
+
+## Where the detail lives
+
+| File | Read it when |
+| --- | --- |
+| `docs/FILE-MAP.md` | You touch a file you do not know, or add, move or remove one (update it in the same commit). The full per-file index. |
+| `docs/PIPELINE-NOTES.md` | A rule below needs its reason, or you change the behaviour it describes: file locations and the full Inputs table, shared conventions, combined decks, ICS, the validation gate's history, complete months, the +/-2% band, cadence, Summit, data sources. |
+| `docs/OPERATIONS-source-watch.md` | You edit `watch_sources.py`, `mail_sources.py`, the Drop Folder sweep, prune, the scheduled tasks or the watchdog. |
+| `docs/OPERATIONS-dashboards.md` | You edit the delivery dashboard (`dashboard.py`, `deck_status.py`) or the RPE Client Performance artifact. |
+| `templates/STYLE.md`, `templates/TEMPLATES.md` | Before building any deck (visual style, the single source of truth) / a shell's slide inventory and swap targets. |
+| `docs/ILS-schema.md` | Before writing any ILS query. |
+| `build/ars_pipeline/ti/PORTING.md` | Before any Transaction Intelligence work (with **Transaction Intelligence branches** in `docs/COLLABORATORS.md`). |
+| `build/ils_pipeline/README.md` | ILS pre-go-live or kickoff work. |
+| `CHANGELOG.md` | What changed and why; add an entry for every behaviour change (see **Repo rules**). |
 
 ## Routing
 
@@ -28,222 +46,73 @@ asks for a combined ARS+ICS+MRPC review, run each subagent in turn and assemble 
 `build/assemble_combined.py` (see **Combined decks**) — do not improvise one blended path,
 and do not start from an existing combined deck.
 
+**`clients.md` decides which clients get which programs** — never infer membership from an input file on
+disk (a cancelled client's leftover data kept producing a section). Check it before building; update it
+when a program starts or stops (the `add-client-to-roster` skill).
+
 ## File locations
 
-Paths are resolved from **`RPE_DATA_ROOT`** (`build/rpe_env.py` → `inputs()` / `outputs()`),
-set per machine in `.env`. Never hardcode a path in code — if a build's inputs
-aren't where `RPE_DATA_ROOT` says, ask Aaron to point at the specific file rather than
-guessing, but do not re-ask the whole walk-through each session.
+Detail: `docs/PIPELINE-NOTES.md`, File locations (the full Inputs table, VIP Data, logos, archive history).
 
-**The pipeline root is `\\PADMIS105\Velocity_company\CSM_Reporting\` on the CSI share,
-and it is the ONE copy (Aaron, 2026-09-14)** — one place for every CSM's imports, exports
-and project files, now that the pipeline covers all five CSMs' books. Point
-`RPE_DATA_ROOT` at it and read and write everything there. It needs the VPN off-site.
+- **Every path resolves from `RPE_DATA_ROOT`** (`build/rpe_env.py` → `inputs()` / `outputs()`), set per
+  machine in `.env`. **Do not hardcode a path anywhere** and do not reintroduce a per-machine branch in the
+  build code; if the root moves, repoint `RPE_DATA_ROOT` in `.env` and nothing else. If a build's inputs
+  aren't where `RPE_DATA_ROOT` says, ask Aaron to point at the specific file rather than guessing, but do
+  not re-ask the whole walk-through each session.
+- **The root is `\\PADMIS105\Velocity_company\CSM_Reporting\`, the ONE copy (Aaron, 2026-09-14)**; it needs
+  the VPN off-site. The old local root `C:\Data Pipelines\RPE Pipeline (retired 2026-09-14 - use CSM_Reporting)\`
+  is retired: do not point anything back at it. `C:\Data Pipelines\Renewals Pipeline` is a DIFFERENT
+  project: nothing here ever reads or writes it.
+- **No mirror and no second copy (Aaron, 2026-09-09).** The original sources are the backup
+  (`scripts/watch_sources.py --copy --mail` re-fetches them); two stores for one fact is how month-old ICS
+  figures shipped and validated.
+- **Inputs are filed in a folder per KIND (Aaron, 2026-09-09).** The names live in `rpe_env.INPUT_KIND_DIRS`
+  and nowhere else; readers glob `rpe_env.report_dirs()` / `report_files()`, never a literal folder.
+- **Write hazard on mounted folders.** Some mounts allow creating and copying files but NOT
+  deleting. If a file must be replaced or removed, ask Aaron. Confirm the writable target per session.
 
-```
-# Every machine — moved 2026-09-14 from C:\Data Pipelines\RPE Pipeline (a full robocopy,
-# a SHA-256 comparison of every file, then a catch-up pass for files written during the
-# copy, verified before .env was repointed)
-RPE_DATA_ROOT=\\PADMIS105\Velocity_company\CSM_Reporting
-```
+The main folders under `RPE_DATA_ROOT` (the full table, with each kind's naming and reader, is in
+`docs/PIPELINE-NOTES.md`):
 
-*History:* `C:\Data Pipelines\RPE Pipeline\` was the local root from 2026-09-09 to
-2026-09-14. It was renamed to `C:\Data Pipelines\RPE Pipeline (retired 2026-09-14 - use
-CSM_Reporting)\` once the share copy was verified, so nothing can keep reading or writing
-it; nothing in it was deleted. Do not point anything back at it.
-
-**There is no second copy, and nothing syncs this tree anywhere. THE ORIGINAL SOURCES
-ARE THE BACKUP (Aaron, 2026-09-09).** Every input can be re-fetched from where it came
-from: the CSI shares hold the ODD extracts, DCOs, ARS workbooks and MRPCPM analyses, and
-the mailbox holds the MRPC / CashPlease reports and the ICS workbooks —
-`scripts/watch_sources.py --copy --mail` is how they come back. Outputs are rebuildable
-from those inputs by definition, and **each CSM's folder holds its own archive**,
-`Outputs/<CSM>/_Archive/<id> <client>/`, with the newest superseded deck of each kind per client
-per period (Aaron, 2026-10-15: "Move the Archive under each CSM's folder in outputs rather than
-in the root Outputs folder"; it was `Outputs/_Archive/<CSM>/<id> <client>/` from 2026-09-15 and
-flat `Outputs/Archive/` before, and the folders were moved on 2026-10-15). `promote_month` moves
-older decks of the same period and kind to
-`Outputs/<CSM>/_Archive/_older decks - delete after review/<id> <client>/` — never deletes them —
-and never moves a hand-made PDF. `promote_month.client_folder` resolves the folder: an existing
-one in the CSM's archive first, else one still under the root archive (left by an older copy of
-the code), so a client is never split across two places. The folder name lives in
-`rpe_env.ARCHIVE_DIRNAME`; its underscore keeps it above the decks in the CSM's folder.
-
-Do not introduce a mirror. Two copies of one tree is the two-stores problem that shipped
-month-old ICS figures in August: `build/{ics,mrpc}_pipeline/data/` and the VIP store
-disagreed, and the deck that read the stale one validated perfectly because it was
-internally consistent.
-
-If the root ever moves again the answer is to repoint `RPE_DATA_ROOT` in `.env` — nothing
-else. That is the whole reason the path is resolved through `rpe_env` and never written
-into code: **do not hardcode a path anywhere,** and do not reintroduce a per-machine
-branch in the build code.
-
-**Inputs are sorted into a folder per KIND (Aaron, 2026-09-09).** Everything used to
-land in one flat `ARS & MRPC Reports/`. `scripts/watch_sources.py` now files each copy by
-kind on arrival. **The folder names live in `rpe_env.INPUT_KIND_DIRS` and nowhere else** —
-renaming one is a line there plus a move on disk. Readers glob
-`rpe_env.report_dirs()` / `report_files()`, never a literal folder, and that set still
-includes the old flat folder, so a file dropped there by hand is still found.
-
-| Input | Folder under `RPE_DATA_ROOT` |
+| Input | Folder |
 | --- | --- |
-| Raw ODDD extracts (zipped, `<id>_ODDD.zip`) | `Inputs/ODDD/` |
-| DCOs | `Inputs/DCOs/` |
-| ARS workbooks | `Inputs/ARS Workbooks/` |
-| MRPCPM analyses, and Bradford's MRPCEnrollmentSummary weeklies (Aaron, 2026-10-19: each weekly lands with its program; `Inputs/Weekly Summaries/` is gone) | `Inputs/MRPC Analyses/` |
-| ICS workbooks | `Inputs/ICS Workbooks/` |
-| ICS Charts (mystery shops) | `Inputs/ICS Charts/` |
-| CashPlease data: CashPleaseSummary weeklies and the weekly `ILS-DDA-Count-<YYYY-MM-DD>.txt` (Aaron, 2026-09-16) | `Inputs/CashPlease/` |
-| CashPlease production settings (Velocity Product Settings Power BI app, one record per client) | `Inputs/Product Settings/<id>_cp_settings.json` |
-| CashPlease marketing emails from Bradford's "CashPlease Marketing eMails" thread (Aaron, 2026-09-21): the monthly per-client data `<id>_<Client>_<MM.YYYY>_Loan_Marketing_Emails.csv` — the ONE `.csv` the mail step accepts — and the undated per-client `<id>_<Client>_Loan_Marketing_Emails.xlsx`. Newest month per client; `mail_sources.cp_marketing_parts` reads both names, and `watch_sources.PRUNE_ALSO_KINDS` is how prune reaches a folder no reader globs | `Inputs/CashPlease Marketing/` |
-| ARS database code tables (product, Reg E, account status codes per client; written by `scripts/ars_code_tables.py` from a database export — the export's settings table holds plaintext FTP credentials and is never copied) | `Inputs/ARS Settings/ars_code_tables.json` |
-| Client code sheets (product with its Personal/Business flag, account status, mail flag and Reg E mappings per client; saved by the data team, where a CSM's corrections land) | `Inputs/Code Sheets/` |
+| ODD extracts `<id>_ODDD.zip`, no period in the name | `Inputs/ODDD/` |
+| DCOs; ARS workbooks | `Inputs/DCOs/`; `Inputs/ARS Workbooks/` |
+| MRPCPM analyses and the MRPCEnrollmentSummary weeklies | `Inputs/MRPC Analyses/` |
+| ICS workbooks; ICS Charts (mystery shops); referral exports; direct-mail lists | `Inputs/ICS Workbooks/`; `Inputs/ICS Charts/`; `Inputs/ICS Referrals/`; `Inputs/ICS Direct Mail/` |
+| CashPleaseSummary weeklies and `ILS-DDA-Count-<date>.txt`; marketing emails; production settings | `Inputs/CashPlease/`; `Inputs/CashPlease Marketing/`; `Inputs/Product Settings/` |
+| ARS code tables (never the export's settings table: it holds plaintext credentials); client code sheets | `Inputs/ARS Settings/`; `Inputs/Code Sheets/` |
+| ICS / MRPC client sheets from VIP (the ONLY source: `rpe_env.resolve_client_json(id, program)`) | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/` |
+| Debit-card transaction files, stored zipped, read only through `rpe_env.txn_files()` / `open_txn()` | `Inputs/Txn Files/<id>/` |
+| ILS: deposits; analysis pulls; pre-go-live; kickoff; finished reviews | `Inputs/Deposits/`, `Inputs/ILS Analysis/`, `Inputs/ILS PGL/<id>/`, `Inputs/ILS Kickoff/<id>/`, `Inputs/ILS Reviews/<id>/` |
+| REMS responses; GL data; branch names; market reference; logos | `Inputs/REMS/`, `Inputs/GL Data/`, `Inputs/Branch Names/`, `Inputs/Market Reference/`, `Inputs/Logos/` |
 | Anything unrecognised (read, never written) | `Inputs/ARS & MRPC Reports/` |
-| Files a person drops by hand, any kind (Aaron, 2026-11-10; swept by the 08:00 file get since 2026-11-19, see **Daily source watch**). Not an input folder: nothing reads it but the sweep. The name lives in `rpe_env.DROP_FOLDER_DIRNAME` | `-Drop Folder/` (at the root, beside `Inputs/`) |
-| ICS detailed referral exports (`<id>_ics_detailed referral_v<N>.xls`), for a client with no VIP sheet (hand-landed, member-level, never scanned) | `Inputs/ICS Referrals/` |
-| ICS direct-mail new-accounts lists | `Inputs/ICS Direct Mail/` |
-| Branch names: `branch_names.csv` (one row per name a source gave a client's branch number, with first/last seen; kept by the morning source check) and `charts_files.csv` (Charts workbooks matched to a client id by hand) | `Inputs/Branch Names/` |
-| Client logos (`<clientid>.png`) | `Inputs/Logos/` |
-| The FDIC / NCUA market reference store the Transaction Intelligence competition-layers slides match against: eight public JSON tables (FDIC institutions, branches, call reports; NCUA institutions, branches, trade names, call reports; Census ZIP centroids) and `vintages.json`. No client data. Built and landed by `scripts/build_market_reference.py` on a PC with the VPN (Aaron, 2026-11-23); refreshed each NCUA quarter (`--quarter`). Without it the layers slides are skipped and the build log says the store is not available. `TI_REFERENCE_DIR` overrides | `Inputs/Market Reference/` |
-| Monthly debit-card transaction files, one folder per client, **stored zipped**: `<original name>.zip`, one file each (Aaron, 2026-09-17). **They come from the CSM ODDD folders** (Aaron, 2026-10-20; James's issue #23): the data team ships each one INSIDE `<id>_ODDD.zip` beside the ODD member, or unzipped in a `<id>_ODDD/` folder, and `scripts/land_txn_files.py` copies every non-ODD member out as its own zip here, by the member's banner line (a member the banner calls a *Master File* is not a transaction file and is reported, not landed), leaving the extract whole. It is run by hand, not by the 08:00 watch (50-minute limit; a month is about 10 GB). No deck reads them yet; any reader goes through `rpe_env.txn_files()` / `open_txn()`, which take either form — four files a security agent refuses to let the share hold zipped are still raw, and read the same way. `scripts/zip_txn_files.py` zips raw arrivals (safe to re-run) | `Inputs/Txn Files/<id>/` |
-| The ILS deposits extract, rolling 365 days, one per client: `<id>_<Client>_ILSDeposits_<yyyy.mm>.zip` holding one CSV of hashed_account, deposit_date, deposit_amount (James Gilmore, 2026-10-23). Read only by the Transaction Intelligence cut, which takes a client's OWN file (`ti/deposits_input.py`); not scanned by the watch | `Inputs/Deposits/` |
-| The ILS client analysis share's small files, one folder per client number then one per data pull, dated the day it was run: `<id>/<yyyymmdd>/<id>_<kind>_<yyyymmdd>.<ext>` for the extracts (kind from a fixed list), the analysts' workbooks kept by name under `analysis/` (Aaron, 2026-11-06; `docs/ILS-ANALYSIS-INPUTS.md`, applied by `scripts/ils_analysis_inputs.py`). **The newest pull of each client on the analysts' review schedule is landed whole, each extract zipped as `<canonical name>.zip`** (Aaron, 2026-11-24; `scripts/land_ils_analysis.py`, its own task, never the 08:00 watch), with `_schedule/` holding the schedule snapshot and `pulls.json` (newest pull, landed kinds, current or not). Read through `scripts/ils_analysis_landed.py`, raw or zipped. Not scanned by the watch (its `--ils-analysis` step lists the share, never this folder) | `Inputs/ILS Analysis/` |
-| The ILS pre-go-live extract, one folder per client: `<id>_<Client>_PreGL_<yyyymmdd>.csv` or `.xlsx`, with the vendor's MatrixValidation / IntegrityCheck dumps beside it (James Gilmore, 2026-10-27). Read only by `build/ils_pipeline/pgl_input.py`; not scanned by the watch | `Inputs/ILS PGL/<id>/` |
-| The ILS kickoff one-time data extract, one folder per client: `<id>_OneTimeData_<yyyymmdd>.csv` or `.xlsx` (James Gilmore, 2026-10-27). Read only by `build/ils_pipeline/kickoff_input.py`; not scanned by the watch | `Inputs/ILS Kickoff/<id>/` |
-| The clients' finished **ILS Program Analysis reviews**, one folder per client: `<id>/<id>-<yyyy.mm>-ILS-<Client> ILS Review.pdf` (Aaron, 2026-11-06: "put ILS review PDFs on the share"). `scripts/land_ils_reviews.py --from <the Clients library>` copies the newest review per client from its `ILS Delivery` folder (copy-only, an older review stays beside a newer one) and reads it into `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json`, so a CSM's PC reads the pack and parses no PDF; a review whose tables do not reconcile is landed and reported with no pack. Read only by Live Review's ILS section; not scanned by the watch | `Inputs/ILS Reviews/<id>/` |
-| The REMS (Reg E Management Solution) responses report: the result of `sql/rems_responses_report.sql` (one row per client per month: responses, opt-ins, opt-in rate), saved by a person as `rems_responses <YYYY-MM-DD>.csv` (Aaron, 2026-11-03). It holds every client, so it feeds both a client's REMS section and the peer comparison. Read only by Live Review (`peer_pool.rems_rows`); not scanned by the watch | `Inputs/REMS/` |
-| Clients' **GL data and NSF / OD performance tracking spreadsheets**, emailed to us (Aaron, 2026-11-03): a monthly GL sheet (`FSB Michigan GL.xlsx`) or the ILS "NSF Performance Tracking Workbook". `scripts/gl_data_ingest.py` folds them into **`gl_data.json` in this folder, one table for every client** (keyed by client id, a source per spreadsheet), and `--archive` moves each one that was placed on a client to `_Archive/<id> <client>/`; `aliases.json` maps a file name to a client when it does not start with the client number. Kept to validate our own figures against; not read by any deck yet; not scanned by the watch | `Inputs/GL Data/` |
-| ICS / MRPC client sheets from the VIP dashboards | `Inputs/VIP Data/<PROGRAM>/<id>-<Name>/<id>_<program>.json` |
-| Build evidence (figure sidecars) — NOT deliverables | `Build Artifacts/` |
-| The peer reference: every figure any peer comparison uses, one row per client, program, metric and period, tagged (unit, definition, period basis, complete month, source file and date, consumers) and dated (Aaron, 2026-11-20). `peer_metrics_<YYYY-MM-DD>.csv`, `peer_metrics_latest.csv` and `manifest.json`, written by `scripts/build_peer_reference.py` through `rpe_env.peer_reference_dir()`; client numbers, no name fields. No deck reads it yet | `Peer Reference/` |
-| A launcher build's working files (log, charts, data, result) — its clean deck goes straight to `Outputs/<CSM>/` | `Build Artifacts/launcher/<period>/<id>/` |
-| Per-program template shells (`*_template.pptx`) | the project `templates/` folder |
+| Files a person drops by hand (swept by the 08:00 file get) | `-Drop Folder/` at the root |
+| Build evidence, launcher working files (NOT deliverables) | `Build Artifacts/`, `Build Artifacts/launcher/<period>/<id>/` |
+| The peer reference | `Peer Reference/` |
+| Template shells | the repo's `templates/` |
 
-**VIP Data.** `Inputs/VIP Data/` holds the per-client ICS and MRPC sheets pulled from the
-VIP dashboards, one folder per client (`<PROGRAM>/<id>-<Name>/`), indexed by
-`manifest.json` (program, client id, period, pull date, sections). Resolve one with
-`rpe_env.resolve_client_json("1705", "ics")` — it takes a bare client id and prefers the
-manifest. **This is the only source.** `build/{ics,mrpc}_pipeline/data/` used to hold
-copies and was deleted 2026-08-29: the store carried 2026-08-29 pulls while the repo still
-had 2026-08-10, and a build reading the repo shipped month-old figures that validated
-perfectly because they were internally consistent. Two stores for one fact is the problem.
-See the folder's own `README.md` for provenance, currency and the refresh procedure.
+**Nothing client-identifiable belongs in git**: logos (`Inputs/Logos/`, read through `rpe_env.client_logo`,
+`trim_logo`, `fit_box`; a missing logo never fails a build), customer lists, query results, client data.
 
-**Client logos** live in `Inputs/Logos/<clientid>.png` — NOT in the repo: a client's logo is
-their brand asset and nothing client-identifiable belongs in git. `rpe_env.client_logo(id)`
-resolves it (png → jpg → extensionless, each opened before use) and returns `None` when
-absent, so a missing logo never fails a build. `rpe_env.trim_logo()` crops to the ink before
-placement — the files carry white OR transparent padding (1549 is a 2940x1532 canvas with the
-mark in one corner), and fitting the raw canvas renders a right-sized box holding a tiny logo.
-`rpe_env.fit_box()` preserves aspect: these run 1.50 to 8.77 wide-to-tall, so a fixed width
-stretches one client and overflows another.
+**`Outputs/` holds finished decks and nothing else (Aaron, 2026-08-29).** Anything a build emits to prove
+itself goes to `Build Artifacts/` (`rpe_env.build_artifacts()`). One exception: a Transaction Intelligence
+build's mail lists go out as `Outputs/<CSM>/<id>-<period>-TI-Lists/` (Aaron, 2026-11-23), archived like a deck.
 
-**`Outputs/` holds finished decks and nothing else (Aaron, 2026-08-29).** Anything a build
-emits to prove itself — the figure provenance sidecar, the `.A/.B/.C/.D` phase decks — goes
-to `Build Artifacts/` or is cleaned up. `rpe_env.build_artifacts()` resolves that folder and
-creates it on demand; unlike `inputs()`/`outputs()` it never raises, because a build must not
-die for want of somewhere to put its bookkeeping.
-
-**One exception: a Transaction Intelligence build's mail lists (Aaron, 2026-11-23: "send those lists to
-outputs, sort them into each CSM's folders with the other files").** They go out with the delivered TI deck
-as `Outputs/<CSM>/<id>-<period>-TI-Lists/` (one CSV per financial-services category, the master list, the
-review queue and the slide ledger), put there by `ars_launcher.ti_lists_to_outputs` and, for builds made
-before that, `scripts/ti_lists_backfill.py`. They are account-level lists for the CSM to work from, which is
-why they are deliverables and not bookkeeping. A superseded lists folder is archived like a deck, never
-overwritten. Readers of decks are unaffected: `rpe_env.output_decks` matches files, never a folder.
-
-**Output — ONE destination (Aaron, 2026-07-25), filed by CSM (Aaron, 2026-09-14).** Every
-finished deck goes to `Outputs/<CSM>/` — e.g. `Outputs/Aaron Burgard/` — now that the project
-covers all five CSMs' books. Program is still distinguished by the filename tag, not by
-subfolder. Writers resolve the folder with `rpe_env.client_outputs(id)` (the CSM from
-`<RPE_DATA_ROOT>/Client CSM List.csv`, else the CashPlease roster's CSM column, else
-`Outputs/_Unassigned/` — never a guessed CSM); readers use `rpe_env.output_decks(pattern)`,
-which lists every CSM folder's own files and the flat root but never an archive (`<CSM>/_Archive/`
-is a subfolder it does not enter; a root `_Archive/` is skipped by name). Each CSM folder's
-`_Archive/` keeps a folder per client (2026-10-15). This replaced both the old **Client Presentations** drop and
-the per-client `Clients/<Client Name> <clientid>/` copy — do not deliver to client folders.
-
-**`C:\Data Pipelines\` also holds `Renewals Pipeline` — a DIFFERENT project.** It has its
-own `Inputs\` and `Outputs\` and is easy to mistake for this one at a glance. RPE is the
-sibling folder `RPE Pipeline`, and nothing here ever reads or writes the Renewals tree.
-
-*History, so this does not get "corrected" back:* `C:\Data Pipelines\RPE Pipeline\` was
-the CSI/Cowork root after the move off OneDrive (Aaron, 2026-07-17); it was retired to
-elsewhere on 2026-08-31, and this file then said "do not point `RPE_DATA_ROOT` anywhere under
-`C:\Data Pipelines\`". That guard is spent — the local root is deliberate again as of
-2026-09-09. A wrong root still fails loudly rather than quietly, because
-`rpe_env.data_root()` raises on a path that is not a directory.
-
-**Write hazard on mounted folders.** Some mounts allow creating and copying files but NOT
-deleting — `rm` returns "Operation not permitted". Copy-to-deliver works; if a file must be
-replaced or removed, ask Aaron. Confirm the writable target per session.
+**Output — ONE destination (Aaron, 2026-07-25), filed by CSM (Aaron, 2026-09-14).** Every finished deck goes
+to `Outputs/<CSM>/`, resolved by `rpe_env.client_outputs(id)` (`Client CSM List.csv`, else the CashPlease
+roster's CSM column, else `Outputs/_Unassigned/` — never a guessed CSM); readers use
+`rpe_env.output_decks(pattern)`. Program is distinguished by the filename tag, not by subfolder. Do not
+deliver to client folders and make no per-client Delivery copies. Superseded decks go to the CSM's own
+`Outputs/<CSM>/_Archive/<id> <client>/` (Aaron, 2026-10-15); `promote_month` moves older ones to
+`_older decks - delete after review/`, never deletes them and never moves a hand-made PDF.
 
 ## Shared conventions (all programs)
 
-**Output — one destination.** Every finished deck is saved to the client's CSM folder in
-the pipeline `Outputs\` only — `Outputs\<CSM>\` (see **File locations** above). Program is
-distinguished by the filename tag, not by subfolder. No per-client Delivery copies (Aaron,
-2026-07-25).
+Detail: `docs/PIPELINE-NOTES.md`, Shared conventions (the incidents behind each rule).
 
-**Decks ship as `.pptx` only — do not generate a PDF** (Aaron, 2026-07-24). PDF is not part
-of the pipeline; do not add a LibreOffice/`soffice` conversion step or deliver a `.pdf`
-alongside the deck.
-
-**Combined decks — the standard for multi-product clients (Aaron, 2026-08-27).** A client on
-more than one program gets ONE combined ARS+ICS+MRPC Executive Review, not three separate
-decks. Build each program's deck first (each must pass its own validation gate), then
-assemble:
-
-```
-python3 build/assemble_combined.py [--ars <ars.pptx>] [--ics <ics.pptx>] [--mrpc <mrpc.pptx>] \
-                                   [--cashplease <cp.pptx>] --out <out.pptx>
-```
-
-Any two or more programs make a combined deck. **`--ars` is no longer required** (Aaron,
-2026-09-01): the first program present in `BASE_PRECEDENCE` (ARS, ICS, CP, MRPC) supplies
-the shared shell and Questions/Contact, so 1632 WesBanco and 1734 Altamaha assemble as
-**ICS-CP** with no ARS at all. The ARS Appendix stays ARS-only — a deck with no ARS section
-has no appendix. `--ics` / `--mrpc` / `--cashplease` are optional, so the same tool builds
-a two-program deck:
-**most multi-product clients are on two programs, not three** (2026.08: five ARS+ICS, one
-ARS+MRPC, two all-three). The title slide lists only the included products and the agenda
-only the included sections — an unused agenda row is REMOVED, not blanked, because an empty
-numbered row reads as a section that failed to render.
-
-All three programs gives the 79-slide structure of
-`templates/multi-product_reference_deck.pptx`: shared shell (1-3), ARS (4-30), ICS (31-53),
-MRPC (54-62), Questions + Contact (63-64), ARS Appendix (65-79). ARS+ICS drops the MRPC
-section for 70 slides; ARS+MRPC drops the ICS section. Each program deck's own title / Summit / agenda / Q&A / Contact slides are dropped so
-the combined deck carries exactly one of each; the title slide lists all three products and the
-agenda names the three sections. Slides are only ever ADDED and then reordered — never deleted
-— because freeing a slide partname makes python-pptx hand that number to a later slide and the
-package ends up referencing parts twice (the defect behind the unopenable 2026.08 ICS decks).
-Run `validation/qa_all.py` on the assembled deck: it checks package integrity and that the file
-actually opens, which a 0-FAIL lint pass alone does not.
-
-**The ICS section presents current results only (Aaron, 2026-08-28).** ICS financials are
-quarterly, and a monthly build used to carry the previous workbook's figures forward. It no
-longer does: **if there is no workbook for the deck's own period, the workbook-driven ICS
-elements are not included at all.** The builder resolves the newest ICS workbook for the client
-via `rpe_env.report_dirs()` and compares its period to the deck's; on a mismatch the ICS
-section falls back to the referrals-only shape — Referrals, Referral Trend, Results by Branch
-and the education slides — and the divider drops to "Referrals".
-
-Do not carry an older workbook's figures forward, and do not re-date, align or zero them. An
-ICS section that reports an older month than ARS and MRPC is no longer an expected outcome; it
-is a defect. The fix is a current workbook, not a carried-forward number.
-`assemble_combined.py` prints each section's period so any divergence is visible at build time.
-
-**Contact Us = the managing CSM (Aaron, 2026-09-16).** Every deck's Contact card is the client's CSM
-(`Client CSM List.csv`) with that CSM's row in `<RPE_DATA_ROOT>/CSM Contacts.csv`, resolved by
-`rpe_env.csm_contact` and drawn or filled through `build/shapes.py`. Never hardcode a person's card; the
-template shells' static cards are overwritten at build time. No CSM, or no contacts row, stops the build —
-add the row, never fall back to another CSM. Standalone ICS decks add the ICS program contact
-(`rpe_env.ICS_PROGRAM_CONTACT`, Cindy Draper) as a second card.
-
-**ICS direct mail.** A sheet's `direct_mail` block (from `Inputs/ICS Direct Mail/`) renders as its own
-"Direct Mail New Accounts" slide after Results by Branch; those accounts are never added to referral counts.
+**Decks ship as `.pptx` only — do not generate a PDF** (Aaron, 2026-07-24): no LibreOffice/`soffice` step,
+no `.pdf` alongside the deck.
 
 **Filename convention:**
 
@@ -254,224 +123,93 @@ add the row, never fall back to another CSM. Standalone ICS decks add the ICS pr
 - `<PROGRAM>` is one of `ARS`, `ICS`, `MRPC`, `CP`, or the included tags joined in
   section order for a combined deck (`ARS-ICS-MRPC`, `ICS-CP`, `ARS-ICS-MRPC-CP`).
 - `<yyyy.mm>` is the data/period month, e.g. `2026.07`.
-- Examples: `1204-2026.08-ARS-FSB Michigan ARS Results.pptx`,
-  `1705-2026.08-ICS-CoastLife Credit Union ICS Results.pptx`,
-  `1075-2026.08-ARS-ICS-MRPC-Austin Bank Results.pptx` (combined; Aaron 2026-08-27).
+- `TI` and `COMP` (Transaction Intelligence, ARS Companion) are not program tags: those decks are filed
+  beside the RPE deck, never counted as the period's RPE deck and never archived by an RPE build.
 
-**Templates — build from the shell, never from a client deck (Aaron, 2026-08-29).** Each
-program is BUILT by its builder from the stripped per-program template in the repo's
-`templates/` folder — `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — each
-a cleaned, styled shell carrying the "Union Financial" dummy client and no real client's
-numbers. The builder takes that shell as its first argument and populates every slide from
-the data pack.
-
-**No deck is ever cloned from another client's finished deck.** The older recipe cloned the
-latest Marine FCU (1539) results deck and swapped its content; that is retired. Cloning a
-client deck carries that client's numbers, captions, branch names and speaker notes into the
-next client's file, and every one of those has leaked in practice — it is the mechanism
-behind the reference-leak rule below and behind `validate_deck.py`'s
-`reference_leak_findings`. A figure that was never swapped is indistinguishable from one
-that was, which is why the gate has to hunt for them at all.
-
-If a slide is wrong, fix the BUILDER and the template shell, then rebuild. Do not hand-edit
-a deck and do not reach for a previous client's file as a starting point.
-
-`templates/TEMPLATES.md` records each shell's slide inventory and per-slide swap targets.
-`multi-product_reference_deck.pptx` (Union Financial demo) is the source for
-re-materializing the shells — it is a STYLING reference, not a build input.
-
-**Build machinery.** The deck-assembly code lives in `build/`, one folder per program
-(reorganized 2026-07-24): `build/ars_pipeline/` (the full ARS chain — `build_ars_gen.py`
-plus `metrics_gen`, `charts_gen`, `extract_base_gen`, `extract_lift`, `render_lift`,
-`ticket_calc`, `ticket_chart`, `base_tab_extract`, `product_mix_slide`), `build/ics_pipeline/`,
-`build/mrpc_pipeline/`.
-
-**Shared layer in `build/` root — used by ALL THREE programs (Aaron, 2026-08-29).** Anything
-that is not specific to one program lives here, not inside a pipeline folder:
-`brand.py` (the palette and type roles — the ONE source; it was previously re-declared in
-seven files under four naming conventions, and the greys had already drifted),
-`shapes.py` (the slide primitives — textbox, pill, tile, add_table, fit_picture,
-blank_slide, move_before, renumber; these used to live inside `product_mix_slide.py`, a
-module about one slide, where ICS and MRPC could not reach them),
-`periods.py` (every derived date phrase — windows, spans, month counts; a literal month is
-fine when it IS the month being described, but never hand-derive a span or a count),
-`month_complete.py` (the ONE definition of a complete month — see **Comparisons use
-complete months only**),
-`slide_geometry.py` (the per-title geometry contract, promoted out of `ars_pipeline/` so
-all three programs can adopt it), plus the post-processors `restyle_fonts.py`,
-`summit_slide.py`, `fit_layout.py` (layout-fit + 10pt slide numbers, run by all builders
-before save), `strip_dead.py`, `textfit.py`, `branch_names.py` and `assemble_combined.py`.
-ARS-specific shared code stays in `build/ars_pipeline/` — `odd_rows.py` (the ODD row
-vocabulary: `g`, `fnum`, `swipes`, `spend`, `personal`, `hascard`, `isopen`) and
-`before_after.py` (the responder before/after measure) are there because the ODD is an
-ARS input. **Both are import-safe on purpose**: `metrics_gen` reads `sys.argv` at module
-scope, so importing it RUNS it, and that hazard is why each of these was re-implemented
-standalone and then drifted.
-
-The ODD optimizer is `scripts/oddd_optimize.py`; the validator is `validation/validate_deck.py`.
-Superseded one-offs, the deprecated pre-`build_ars_gen` ARS recipe (`build_gen`/`build_gen_b`/
-`build_swipepct`/`style_tables`/`swap_imgs`), backups (`*_orig`), and the old combined-Marine
-helpers were left OUT of this repo (they remain in the pipeline `archive/`) — nothing here
-imports them, and nothing should. See `build/README.md`. Requires python-pptx, matplotlib, openpyxl, Pillow.
-
-**Validation gate.** Run `validation/validate_deck.py <deck> [base.json]` on every built
-deck before it ships. A non-zero exit blocks delivery — fix and re-run, do not override.
-Passing `base.json` switches on the data-vs-deck cross-check; `validation/qa_all.py` finds
-it automatically when it sits beside the deck, or takes `--extract`.
-
-**Unit suite.** `pytest tests/` — classifiers, the ODD row vocabulary, metrics invariants,
-the palette, the period derivations, the deck rules and `assemble_combined`. It runs as
-step 0 of `qa_all.py` and a failure fails the gate, because a classifier regression that
-mis-buckets 18,000 accounts still produces a deck that passes every layout rule. The
-fixture is a synthetic 800-row ODD (`tests/fixtures/make_odd.py`) carrying no real member
-data. Skip with `--no-tests` only when you know why.
-
-**QA gate — run after ANY change to `templates/`, `build/`, or `validation/` (2026-07-24):**
+**Combined decks — the standard for multi-product clients (Aaron, 2026-08-27).** A client on more than one
+program gets ONE combined Executive Review. Build each program's deck first (each must pass its own
+validation gate), then assemble:
 
 ```
-python3 validation/qa_all.py [built_deck.pptx ...]        # gate: validates every template + given decks
-python3 validation/qa_all.py --snapshot ...               # accept INTENTIONAL layout changes as the new baseline
-python3 validation/qa_all.py --no-tests ...               # skip the unit suite (know why)
+python3 build/assemble_combined.py [--ars <ars.pptx>] [--ics <ics.pptx>] [--mrpc <mrpc.pptx>] \
+                                   [--cashplease <cp.pptx>] --out <out.pptx>
 ```
 
-Run it from the repo `.venv` (`.venv/Scripts/python` on Windows). The Windows Store
-`python` has python-pptx but no pytest, and a gate started under it used to skip the whole
-unit suite with one quiet line; it now looks for the venv itself and prints a banner when
-the suite could not run (2026-09-02).
+- Any two or more programs make a combined deck; `--ars` is not required (Aaron, 2026-09-01): the first
+  program in `BASE_PRECEDENCE` (ARS, ICS, CP, MRPC) supplies the shell and Questions/Contact. The ARS
+  Appendix exists only with an ARS section.
+- The title slide lists only the included products; an unused agenda row is REMOVED, not blanked. Each
+  program deck's own title / Summit / agenda / Q&A / Contact slides are dropped so there is one of each.
+- The assembler only ADDS slides and reorders them: a freed slide part name is handed to a later slide and
+  the package references parts twice (the unopenable-deck defect). Run `validation/qa_all.py` on the result.
 
-**Standing rule (Aaron, 2026-08-17): when a defect gets through the gate, add the check
-that would have caught it.** Fixing only the instance guarantees the next one ships too.
+**The ICS section presents current results only (Aaron, 2026-08-28).** Workbook-driven ICS elements ship only
+when the newest ICS workbook (via `rpe_env.report_dirs()`) is for the deck's own period; otherwise the
+section falls back to the referrals-only shape (Referrals, Referral Trend, Results by Branch, the education
+slides; divider "Referrals"). Do not carry an older workbook's figures forward, and do not re-date, align or
+zero them; an ICS section older than its neighbours is a defect. A client live before its first workbook
+builds with the opt-in `build_ics_gen.py --referrals-only` (Aaron, 2026-08-27); without the flag the
+missing-section guard stops the build. The ICS revenue tiles are program to date across every cohort, never
+the cohort window (Aaron, 2026-10-13). Direct-mail accounts get their own slide and are never added to
+referral counts.
 
-It runs the full validator on every template (banned words, counts, glyph-aware collisions,
-caption overflow, PowerPoint autofit shrink, chart-vs-tile rail) AND compares each slide's
-layout fingerprint against `validation/layout_baseline.json` — **DRIFT warnings mean a shared
-pass touched slides you didn't intend to change** (the class of regression that otherwise
-only a human spots). Review drifts, then `--snapshot` to accept. It also runs an **OOXML
-package-integrity check** (`validate_deck.package_findings`): the archive opens and every
-member passes its CRC, no part name is written twice, and slide parts are neither duplicated,
-dangling nor orphaned.
+**Contact Us = the managing CSM (Aaron, 2026-09-16).** Every Contact card is the client's CSM with their row in
+`<RPE_DATA_ROOT>/CSM Contacts.csv` (`rpe_env.csm_contact`). Never hardcode a person's card. No CSM or no
+contacts row stops the build — add the row, never fall back to another CSM. Standalone ICS decks add the ICS
+program contact (`rpe_env.ICS_PROGRAM_CONTACT`) as a second card.
 
-**There WAS a render smoke test — LibreOffice opened each deck and its PDF page count was
-compared to the slide count. It was REMOVED on 2026-09-11 (Aaron): LibreOffice is not going
-on the build machine, so the check had never once run there** and every gate closed with a
-banner saying so. Do not add it back without the renderer to run it.
+**Templates — build from the shell, never from a client deck (Aaron, 2026-08-29).** Each builder populates the
+stripped shell in `templates/` (`ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx`,
+`cashplease_template.pptx`; "Union Financial" dummy client). **No deck is ever cloned from another client's
+finished deck** (that is how a reference client's numbers, captions and notes leaked). If a slide is wrong,
+fix the BUILDER and the template shell, then rebuild. Do not hand-edit a deck and do not reach for a
+previous client's file as a starting point. `multi-product_reference_deck.pptx` is a STYLING reference, not
+a build input.
 
-**Know what its removal costs.** Nothing in the gate now proves a deck OPENS. The structural
-half is recovered by the package check above — including the duplicate-part case, added the
-same day after cloning the Summit slide wrote `/ppt/media/image2.png` twice. What is NOT
-recovered is everything past "structurally sound": a deck that opens but renders wrong, a
-font that does not resolve, an image that will not decode. **Open one deck before a batch
-goes to clients.** Three hard-won rules:
-1. **Nominal font size is not rendered font size.** `normAutofit` silently shrinks text to
-   fit its box, and that scaling is invisible in a render — which is part of why a renderer
-   was never the whole answer. The validator FAILs any frame with fontScale <90%; never trust
-   nominal font sizes on template-inherited frames.
-2. **Box geometry is not glyph geometry.** Text overflows its box silently; the validator
-   estimates rendered glyph runs (font-size- and alignment-aware). When adding layout rules,
-   fix the BUILDER/geometry contract (slide_geometry.py, fit_layout.py) — never hand-edit
-   one deck.
-3. **python-pptx is not the file.** Every text/geometry rule reads the deck *through*
-   python-pptx, which enumerates a duplicated slide reference as two real slides. All seven
-   2026.08 ICS decks passed at 0 FAIL while being unopenable (50 parts, 28 references, six
-   parts referenced twice). `package_findings` reads the ZIP directly and is the only thing
-   in the gate that can see that class of defect — added 2026-08-17 after it shipped, and
-   the last line of defence since the render test was removed.
-
-**Swap gate — a text swap that matches nothing FAILS the build (2026-07-25).** The ARS
-builder records every find-string that matched no shape and exits non-zero listing them. This
-exists because a silent no-op is the worst failure mode in this pipeline: the slide keeps the
-TEMPLATE's numbers and ships looking perfectly plausible. It is how the entire Appendix and the
-"Profit This Month" tile carried the reference client's figures into every deck until
-2026-07-25. Related rule: **resolve slides by TITLE, never by index** — `build_ars_gen.SB(title)`
-raises if the title is absent, whereas `S[n]` silently points at the wrong slide the moment the
-template gains or loses one.
-
-**The closing slide carries the cover's month (2026-09-17).** Questions & Discussion reads
-"<client>  •  <reporting month>", the same client and month as the cover. Every 2026.09 ARS deck
-(33, combined decks included) shipped "<Client>  •  July 2026" there under a September cover,
-because `build_ars_gen` swapped only the client name on that slide. `validate_deck.closing_month_findings`
-FAILs any deck whose closing line names a different month or client than the cover.
+**Resolve slides by TITLE, never by index.** **Swap gate (2026-07-25): a text swap that matches nothing FAILS
+the build** — a silent no-op ships the template's numbers. **The closing slide carries the cover's client
+and month (2026-09-17)**; `validate_deck.closing_month_findings` FAILs a mismatch.
 
 **A slide with no data is left out, and said so — never zeroed (Aaron, 2026-11-22: "skip a slide if it
-doesn't have data").** This REPLACES "Missing source data is stated" and "Never drop slides automatically",
-under which a slide whose data the extract did not carry stayed in the deck with a sentence saying so
-(Brooks Bank's Responder Age Profile: "Date of birth is not carried in this client's data extract..."). Now:
+doesn't have data").** This replaced "missing source data is stated" and "never drop slides automatically".
+- No 0%, empty chart or stand-in figure is ever drawn; the slide is not in the deck.
+- Never silent: the build log prints `slide left out (no data): <title> - <why>`.
+- A slide is only taken out with `shapes.drop_slide` (or never put in the deck's order and removed by
+  `strip_dead`), never by freeing a part name another way.
+- Absent data is a data-sourcing question first: if it is carried in another source (Reg E in the workbook
+  rather than the ODD), populate the slide from there. A tile or caption on a slide that does carry data
+  still states its gap ("n/a"). A failure to READ data is a build failure, never quietly skipped.
 
-- **The slide is not in the deck.** A 0%, an empty chart or a stand-in figure is still never drawn.
-- **Never silent.** Each one is printed to the build log as `slide left out (no data): <title> - <why>`.
-- **Where it applies today:**
-  - the ARS Responder Age Profile with no DOB (dropped by title in `build_ars_gen` phase 2);
-  - the MRPC Program to Date and Current Program Status slides when the weekly has no tab for the client;
-  - CashPlease Loan Volume by Month when the workbook has no loans for the client;
-  - a "How You Compare" slide with no measure that has five peers (`build/peer_slide.py`);
-  - every opt-in ARS view (the James / Companion views and the test slides), which registers itself with
-    `shapes.mark_no_data` and is dropped by `shapes.drop_no_data_slides` once every view is in.
-- **A slide is only taken out with `shapes.drop_slide`.** It removes the list entry and the relationship, then
-  renames the kept parts in order, so a slide added later never reuses a freed part name (the duplicate-part
-  defect). The other way to leave a slide out is to never put it in the deck's order and let `strip_dead` remove
-  it (CashPlease).
-- **What did NOT change:**
-  - Absent data is still a data-sourcing question first. If the data is carried somewhere else (Reg E in the
-    workbook rather than the ODD), populate the slide from that source rather than leaving it out.
-  - A tile or a caption inside a slide that does carry data still states its gap ("n/a", "not shown").
-  - A failure to READ data (the peers' figures unreadable) is a build problem, drawn and failed by the gate,
-    never quietly skipped.
-  - A left-out month is stated on its slide as before.
+Transaction Intelligence exception (James Gilmore, 2026-10-30): a TI slide whose builder declines for a
+client is hidden from that client's deck, and a chapter with every slide declined loses its divider and
+agenda row; each one is logged and listed in `hidden_declined.json` (`build_ti_gen.build`).
 
-Transaction Intelligence exception (James Gilmore, 2026-10-30, Sheila's 1798 slide review):
-a TI slide whose builder declines for a client ("Not shown for this client: ...") is hidden from
-that client's deck, and a TI chapter with every slide declined loses its divider and agenda row.
-Nothing is silent: each hidden slide is logged and listed in `hidden_declined.json` beside the art
-(`build_ti_gen.build`). The data-sourcing rule above still applies to why a slide declined.
+**Data sources in slide notes — always (hard requirement).** Every slide lists its data source(s) in its
+speaker notes: the source file or dashboard (ODD extract + pull date, workbook tab, VIP dashboard, ICS
+Charts, MRPCPM Analysis, …) and the selection/period behind the numbers. No slide ships without a source line.
+The notes name **the client being built** — its id, name, ODD pull stamp and workbook filename — derived from
+the data pack, never hardcoded and never the reference/template client. **Verify every build:** grep the
+finished deck's notes for the reference client (e.g. "CoastLife", "1705") — zero hits required — and confirm
+the client id, pull stamp, workbook name and MM-vs-SM tab wording.
 
-**Data sources in slide notes — always.** Every slide must list its data source(s) in the
-slide's speaker notes: the source file(s) or dashboard (ODD extract + pull date, workbook
-tab, VIP dashboard, ICS Charts, MRPCPM Analysis, etc.) and the selection/period behind the
-numbers. No slide ships without a source line in its notes. This is a hard requirement, not
-a nicety — it is what makes a figure auditable back to its origin.
-
-The source strings in the notes must name **the client being built** — its own client id,
-name, ODD extract + pull stamp, and workbook filename — never the reference/template
-client. The builders derive these per-client from the data pack (`oddd_metrics.json`
-`source_file`/`latest_month`, plus the client id and name); do not hardcode them. This is a
-real defect that has shipped before: `build/ars_pipeline/build_ars_gen.py` defaulted its
-`ODD_SRC`/`WB_SRC` to CoastLife 1705, so every client's deck inherited CoastLife source
-notes (fixed 2026-07-24 — now derived, with env overrides `ARS_ODD_SRC` / `ARS_WB_SRC` /
-`ARS_WB_FILE`). **Verify every build:** grep the finished deck's notes for the reference
-client (e.g. "CoastLife", "1705") — zero hits required — and confirm the notes carry the
-correct client id, pull stamp, workbook name, and MM-vs-SM tab wording before delivery.
-
-**Standardized category values (every build, every client).** These mappings apply to all
-programs and all clients without exception. Normalize these fields to one fixed vocabulary
-so every build reads the same — never invent a mapping:
+**Standardized category values (every build, every client).** Normalize to one fixed vocabulary — never
+invent a mapping:
 
 - **Reg E opt-in status** → `Reg E Opt In`, `Reg E Opt Out`, `Reg E Default`.
 - **Account status** → `Open`, `Closed`, `Dormant`, `Inactive`, `Frozen`, `Charged Off`, `Other`.
-  Core lifecycle wording confirmed by Aaron (2026-07-25), now in the shared classifier:
-  `Purge at Yearend` → **Closed**, `Pending Closeout` → **Closed**, `New This Cycle` → **Open**,
-  `Pending Activation` → **Open**, `Manually controlled` → **Other** (deliberate — it no longer
-  surfaces as unmapped).
+  Core lifecycle wording confirmed by Aaron (2026-07-25): `Purge at Yearend` and `Pending Closeout` →
+  **Closed**, `New This Cycle` and `Pending Activation` → **Open**, `Manually controlled` → **Other**.
+- **Status CODE fallback** (Aaron, 2026-08-28), used only when `Stat Desc` is blank:
+  `oddd_optimize.STAT_CODE_MAP`, **`O`/`A` → Open, `C` → Closed, `X` → Charged Off**.
 
-- **Status CODE fallback** (Aaron, 2026-08-28) — not every core populates `Stat Desc`.
-  1549 Wellworth fills `Stat Code` and leaves `Stat Desc` BLANK on every non-open account
-  (18,274 of 50,218 rows). `oddd_optimize.STAT_CODE_MAP` is the one place that mapping
-  lives: **`O`/`A` → Open, `C` → Closed, `X` → Charged Off**. The description still wins
-  whenever it carries text; the code is consulted only when it is blank.
+`oddd_optimize.py` applies these (`classify_rege` / `classify_status`). Blank Reg E cells are excluded; a
+blank status with no usable code falls to `Other`. Any non-blank value that doesn't map is surfaced in the
+pack's `flags` block — **ask Aaron how to map it before building; do not guess.** An unmapped code is
+corrected on the client's code sheet by the CSM, never forced in code.
 
-`oddd_optimize.py` applies these (`classify_rege` / `classify_status`). Blank Reg E cells are
-excluded (closed/business — not applicable); a blank status with no usable `Stat Code` falls
-to `Other`. Any non-blank value that doesn't map — description OR code — is surfaced in the
-pack's `flags` block — **ask Aaron how to map it before building; do not guess.**
-
-**Visual style guide.** Every client-facing deck — the ARS / ICS / MRPC / CashPlease
-Executive Reviews, the standalone CashPlease module and the ILS review prep slides — follows
-`templates/STYLE.md`: the palette and type roles (`build/brand.py`), the slide anatomy
-(numbers, logos, pills), the shell (title lists only the included products; reporting month
-= generation month), callouts with the one drop shadow (pies and donuts flat), tables, chart
-standards (`MMM'YY` axes, `TEAL` lines over navy, no mark in the canvas color), selection on
-the slide / source in the notes, and where each rule is enforced. **Read it before building
-any deck, and keep it as the single source of truth for visual style.** `tests/test_style_doc.py`
-fails if it cites a file that no longer exists.
+**Visual style guide.** Every client-facing deck follows `templates/STYLE.md` (palette and type roles from
+`build/brand.py`, the ONE source). **Read it before building any deck, and keep it as the single source of
+truth for visual style.**
 
 **Writing style.** All client-facing text follows Aaron's writing rules, recorded
 here in full rather than pointed at elsewhere. Banned words include: robust, comprehensive,
@@ -480,48 +218,19 @@ leverage, seamless, delve, and the banker-deck list — engine, lever, lift (as 
 companion, seasoned book, annuity. No superlatives or unsupported higher/lower claims.
 
 **Comparisons use complete months only (Aaron, 2026-09-17).** "Don't calculate YoY or
-comparisons on partial months, only use complete months." Marine FCU 1539's 2026.09 NSF/OD
-slide said "-98% Items YoY (Aug 25 → Aug 26)": the extract was pulled 09/04/26 with whole
-August swipes and spend, but only 390 NSF/OD items for August against 19,451 in July.
-
-`build/month_complete.py` is the one definition, shared by every program. A month is
-incomplete for a MEASURE when the data was pulled before it ended (the ODD member's
-`(MMDDYY_HHMMSS)` stamp, a weekly's "Report Generated" date, a VIP sheet's `data_pull`), or
-when its total is below half the median of the six months before it (trailing months only,
-at most two, baseline median 50 or more). Completeness is per measure: Marine's August is
-complete for swipes and spend and incomplete for NSF/OD.
-
-- Every YoY, month-over-month, latest-month tile, trend endpoint and trailing window uses the
-  last complete month of the measures it reads. A computation that reads several measures
-  (the swipe-tier window, before/after) uses months complete in all of them.
-- **A month that collapses in the MIDDLE of an extract is left out too (2026-10-13).** Marine's Aug 2026
-  NSF/OD (390 items against about 19,000) stopped being a trailing month when September loaded and passed as
-  complete. `month_complete` now reports `interior` gaps (below half the baseline median, at most two months,
-  followed by recovery); read `usable_months(months, result)`, never `months[:complete]`, so a gap is skipped.
-  A fall that holds is a real change and is not a gap.
-- A left-out month is STATED — on the slide ("Aug 2026 left out: incomplete in this
-  extract.") and with its figures in the notes — never zeroed, never charted as a collapse,
-  and its slide is never dropped. Status snapshots (Elig, Reg E, account status) are not
-  activity and still read the snapshot month.
-- **The NSF/OD "Items YTD YoY" and the "Spend YTD YoY" tiles are year to date against the prior
-  year to date** (Aaron, 2026-10-12: "change this to YTD rather than month vs month"; "did you
-  also update the YoY comparison for debit card spend?"): January through the last complete
-  month, summed, over the same months a year earlier; the caption names both windows
-  ("Jan–Sep 25 → Jan–Sep 26") and the notes carry both sums. Every month of both windows must
-  be complete, else the tile reads n/a — never a partial sum passed off as a year. A new YoY
-  tile follows the same rule. **When the series does not reach back to January of the prior
-  year, the spend tile falls back to like for like** (Aaron, 2026-10-15, Brooks Bank, whose
-  Key Trends start Feb 2025): the longest run of months ending at the last complete month that
-  both years carry, at least three, labelled "Spend YoY, like for like" with the caption naming
-  the window ("Feb–Sep 25 → Feb–Sep 26") — the `spend_trend` rule. Fewer than three matching
-  months still reads n/a.
-- ARS: `metrics_gen` and `ticket_calc` call `month_complete.odd_completeness`; the workbook's
-  Key Trends spend goes through `complete_rows` (in `build_ars_gen`, `charts_gen`, the
-  one-pager and the performance dashboard). CashPlease: `cp_extract` holds a `*` roll-up for a
-  month not yet ended out of `monthly`. MRPC: `build_mrpc_gen.complete_series` trims
-  `performance_vs_goal` and `revenue.by_month`. ICS branch YTD referrals cannot be split by
-  month, so the notes say they include the month to date.
-- Do not write a new "latest month" read of an activity series without going through it.
+comparisons on partial months, only use complete months."
+- `build/month_complete.py` is the one definition, per MEASURE: a month is incomplete when the data was
+  pulled before it ended, or its total is below half the median of the six months before it. A month that
+  collapses in the MIDDLE of an extract is left out too (2026-10-13): read `usable_months(months, result)`,
+  never `months[:complete]`.
+- Every YoY, month-over-month, latest-month tile, trend endpoint and trailing window uses the last complete
+  month of the measures it reads. Do not write a new "latest month" read of an activity series without going
+  through it. Status snapshots (Elig, Reg E, account status) still read the snapshot month.
+- A left-out month is STATED on the slide and with its figures in the notes — never zeroed, never charted
+  as a collapse, and its slide is never dropped.
+- YoY tiles are year to date against the prior year to date (Aaron, 2026-10-12); every month of both windows
+  complete, else n/a. Where the series does not reach back to January of the prior year, spend falls back to
+  like for like over at least three months (Aaron, 2026-10-15).
 
 **Describing movement — the +/-2% band (Aaron, 2026-08-31).** A sentence that says a
 measure moved must agree with the figures beside it:
@@ -532,144 +241,121 @@ measure moved must agree with the figures beside it:
 | **positive** | state the increase — the figures and the % |
 | **negative** | say it did not have an impact on that measure |
 
-The verb is DERIVED, never written as a constant. The Average Ticket caption hardcoded
-"ticket holds through response" and shipped that over declines of 5.2% to 8.6% on six
-2026.08 decks (1509, 1537, 1539, 1549, 1676, 1705); the same sentence hardcoded "monthly
-swipes rise", which real clients happen to do, so it went unseen until the golden deck's
-synthetic ODD fell 3.0% and still said "rise". Both now follow the data
-(`build_ars_gen.py` slide 11, `ticket_chart.py`), as does the chart title above the bars.
+The verb is DERIVED, never written as a constant. **A claim with no figure behind it is not checkable**:
+state the figures, or do not make the claim. `validate_deck.claim_consistency_findings` FAILs a mismatch.
 
-**A claim with no figure behind it is not checkable.** "NSF/OD activity stayed roughly
-flat" shipped in Marine FCU commentary while NSF/OD had risen 27% (0.40 -> 0.50 per
-responder per month) in the extract that slide was built from. Nothing contradicted it
-because nothing had to: the clause carried no number. State the figures, or do not make
-the claim.
+**Peer comparisons.** `build/peer_compare.py` is the ONE arithmetic (decks, Live Review, Sheila in Claude).
+- Peers are anonymous: a peer is a client NUMBER at most — never a name, logo or CSM (Aaron, 2026-11-03).
+  Fewer than five peers is stated, not shown.
+- Never more than two comparisons on a slide (Aaron, 2026-11-22).
+- ARS is compared only on what the client controls (`peer_pool.ARS_METRICS`: Reg E, take rate, account
+  growth, retention), never on program results (Aaron, 2026-11-22).
+- A client-facing CashPlease peer figure is the MEDIAN of the other current clients; the pooled book is
+  internal only (Aaron, 2026-11-24).
+- `validate_deck.peer_slide_findings` fails a peer slide that could not read its peers or names another client.
+- `Peer Reference/` (every peer figure, tagged and dated; Aaron, 2026-11-20) is refreshed by a detached
+  process after each deck build (2026-11-22); a build never waits on it or depends on it.
 
-**`validate_deck.claim_consistency_findings` FAILs a mismatch.** It reads one sentence at
-a time and matches each claim to its NEAREST figure pair. It distinguishes a COMPARISON
-("responders carry lower balances than non-responders, $924 vs $2,477" — two groups, one
-moment) from a MOVEMENT ("spend rose from $556 to $1,077" — one measure, two times);
-reading the first as the second failed six correct slides. It also honours negation, so
-"did not increase" is not read as an increase. See `tests/test_claim_consistency.py`,
-where half the cases are the false positives that had to be designed out.
+**ARS rules that live in the builders.** A ratio is printed only by `revenue_guarantee_slide.ratio_text`,
+from the unrounded quotient (2026-10-12). A workbook with unevaluated formulas is stopped by `base_guard.py`
+(`UNEVALUATED WORKBOOK`: open it in Excel, save, rebuild). An MM client's build stops when the data month is
+past the Lift Matrix End Date or the workbook name carries the data team's flag (`ars_launcher.lift_checks`).
+The Lift Matrix file exported for Bradford is never written to Outputs.
+The James / Companion / spend views are opt-in (`RPE_JAMES_SLIDES`, `RPE_SPEND_SLIDES`, `RPE_TEST_SLIDES`);
+the ARS Companion and Transaction Intelligence are SEPARATE decks that never change the approved Executive
+Review, its metrics or its template.
+
+## Validation and the QA gate
+
+Detail: `docs/PIPELINE-NOTES.md`, Validation gate and QA gate.
+
+**Validation gate.** Run `validation/validate_deck.py <deck> [base.json]` on every built
+deck before it ships. A non-zero exit blocks delivery — fix and re-run, do not override.
+
+**QA gate — run after ANY change to `templates/`, `build/`, or `validation/` (2026-07-24):**
+
+```
+python3 validation/qa_all.py [built_deck.pptx ...]        # gate: validates every template + given decks
+python3 validation/qa_all.py --snapshot ...               # accept INTENTIONAL layout changes as the new baseline
+python3 validation/qa_all.py --no-tests ...               # skip the unit suite (know why)
+```
+
+- Run it from the repo `.venv` (`.venv/Scripts/python` on Windows); the Windows Store `python` has no pytest.
+  The unit suite (`pytest tests/`) is its step 0; skip it with `--no-tests` only when you know why.
+- **DRIFT warnings mean a shared pass touched slides you didn't intend to change.** Review them, then
+  `--snapshot` to accept.
+- **Standing rule (Aaron, 2026-08-17): when a defect gets through the gate, add the check
+  that would have caught it.** Fixing only the instance guarantees the next one ships too.
+- The LibreOffice render test was removed on 2026-09-11 (no renderer on the build machine). Do not add it
+  back without the renderer to run it. Nothing in the gate now proves a deck renders; the package check
+  (`validate_deck.package_findings`) covers structure only. **Open one deck before a batch goes to clients.**
+
+Three hard-won rules (cited by number in the code):
+1. **Nominal font size is not rendered font size.** `normAutofit` silently shrinks text; the validator FAILs
+   any frame with fontScale <90%. Never trust nominal font sizes on template-inherited frames.
+2. **Box geometry is not glyph geometry.** Fix layout in the BUILDER/geometry contract (`slide_geometry.py`,
+   `fit_layout.py`, `textfit.py` — never eyeball whether a label fits) — never hand-edit one deck.
+3. **python-pptx is not the file.** It enumerates a duplicated slide reference as two slides;
+   `package_findings` reads the ZIP directly and is the only check that sees that class of defect.
+
+## Shared layer and build machinery
+
+Detail: `docs/PIPELINE-NOTES.md`, Build machinery and Shared layer; `docs/FILE-MAP.md`.
+
+- Code that is not specific to one program lives in `build/` root and serves every program: `brand.py`,
+  `shapes.py`, `periods.py` (every derived date phrase; never hand-derive a span or a count),
+  `month_complete.py`, `slide_geometry.py`, `fit_layout.py`, `restyle_fonts.py`, `table_style.py`,
+  `cover_divider.py`, `textfit.py`, `summit_slide.py`, `assemble_combined.py`, `rpe_env.py`. A change there
+  can alter every program's decks at once.
+- `metrics_gen` reads `sys.argv` at module scope, so importing it RUNS it; `odd_rows.py` and
+  `before_after.py` are import-safe on purpose — never re-implement them standalone.
+- `rpe_env.use_font()` RAISES rather than let matplotlib substitute a missing face; every chart renderer
+  goes through it.
+- `build/assets/summit_slide.pptx` is the ONE Summit slide (Aaron, 2026-09-11); replace it there (or at
+  `Inputs/Summit/summit_slide.pptx`) and rebuild.
+- Retired code (the pre-`build_ars_gen` recipe, `*_orig` backups, the old combined-Marine helpers) is not in
+  this repo, and nothing should import it.
 
 ## Cadence
 
-ARS, ICS and MRPC deliver **monthly** — one deck per client per month, per the table
-below. **CashPlease is weekly**, and is the exception to everything in this paragraph. Nothing in this table is quarterly: where a quarterly input exists (the ICS
-workbook) it gates which SECTIONS carry current figures, never whether the deck ships.
-The Executive Summit one-pagers are a separate, non-monthly delivery — see
-**Executive Summit one-pagers** below.
+Detail: `docs/PIPELINE-NOTES.md`, Cadence and Executive Summit one-pagers.
+
+ARS, ICS and MRPC deliver **monthly**; **CashPlease is weekly**. Nothing is quarterly: the quarterly ICS
+workbook gates which SECTIONS carry current figures, never whether the deck ships.
 
 | Program | When | Scope |
 | --- | --- | --- |
 | ARS | Monthly | Every ARS client, each month — MM or SM path per client |
 | MRPC | Monthly | Every MRPC client, each month |
-| CashPlease | **Weekly** | The one program that is not monthly. Bradford Sanders' "CashPlease Summary" workbook arrives weekly and the build **always uses the most recent one** (Aaron, 2026-09-01) — not the one nearest a deck's period. So a CashPlease section inside a monthly Executive Review can report a LATER date than the ARS/ICS/MRPC sections beside it, and that is intended: the CP pill keeps its own `PTD · <date>` and is never re-dated to match its neighbours. `assemble_combined.py` prints each section's period so the divergence is visible at build time. Scope is the `### CashPlease roster` table in `clients.md` — never the workbook, which carries every Velocity CashPlease client across all CSMs. |
-| ICS | Monthly | **The ICS deck ships monthly like the other two (Aaron, 2026-08-31)** — what is quarterly is the WORKBOOK, not the delivery. Referrals come from VIP monthly. **Financial detail ships ONLY when the ICS workbook is for the deck's own period (Aaron, 2026-08-28).** This REPLACES the previous carry-forward rule: a monthly build used to carry the last workbook's financial sections forward, which kept them auditable in the source notes but dated them as current on the slide face — 1537 and 1676 both stamped "PTD · August 2026" on figures from 2026.06 and 2026.07 workbooks. The builder now resolves the newest ICS workbook for the client from `Inputs/ARS & MRPC Reports/` and, if its period differs from the deck's, omits the workbook-driven sections entirely. Referrals, Referral Trend, Results by Branch and the education slides are unaffected. Missing-section guard still stops a build whose data sheet was never populated. |
-
-**ICS before the first workbook — referrals-only builds (Aaron, 2026-08-27).** A client can be
-live on ICS and generating referrals before their first ICS workbook ever lands (Wellworth 1549).
-Their VIP referral data is real and worth showing, so build the ICS deck with:
-
-```
-python3 build/ics_pipeline/build_ics_gen.py --referrals-only <client_ics.json> \
-        templates/ics_template.pptx <out.pptx>
-```
-
-This keeps the referral slides (Power of Referrals, Referral Trend, Results by Branch) plus the
-education/reference and Q&A slides, and **omits** the workbook-driven slides (account
-performance, revenue, financial summary, comparisons) entirely — they are absent, never
-rendered from null or shown as 0. The section divider drops to "Referrals" so the deck does not
-advertise sections it lacks. It is **opt-in only**: without the flag the missing-section guard
-still stops the build, so a client whose data sheet was simply never populated cannot silently
-ship a short section. Combined decks handle the shorter section automatically — `assemble_combined.py`
-selects a program's slides by exclusion, not by fixed index.
+| ICS | Monthly (Aaron, 2026-08-31) | Referrals monthly; financial detail only with the deck's own period's workbook (see **The ICS section presents current results only**) |
+| CashPlease | **Weekly** | The build **always uses the most recent** CashPleaseSummary weekly (Aaron, 2026-09-01), so a CP section can carry a later date than its neighbours: its pill keeps its own `PTD · <date>` and is never re-dated. Scope is the `### CashPlease roster` table in `clients.md` — never the workbook, which carries every client of every CSM. |
 
 ### Executive Summit one-pagers — NOT a canned deliverable
 
 **The Summit one-pagers are hand-built, per attendee, and are never generated on a schedule
-(Aaron, 2026-08-31).** Summits run a couple of times a year and the one-pager goes only to
-clients who are ATTENDING. It is a selective document: the point is to show that attendee
-their strongest metrics, which is a judgement call about that client, at that Summit, for
-that audience. That judgement is Aaron's — it is not a template fill and there is no
-"correct" set of figures to automate toward.
+(Aaron, 2026-08-31).** They go only to clients who are ATTENDING; which metrics they show is Aaron's
+judgement. Build them through the `summit-one-pager` skill and record his corrections there (2026-10-30).
 
-So:
-
-- **Do not add the one-pager to the monthly run.** `scripts/build_month.py` builds the
-  monthly ARS/ICS/MRPC reviews and must not learn to emit one-pagers. It does not today —
-  keep it that way.
+- **Do not add the one-pager to the monthly run.** `scripts/build_month.py` must not learn to emit one-pagers.
 - **Do not build one for a client who is not attending**, and do not build the full roster
   "so they are ready". Ask Aaron which attendees need one.
-- **Do not pick the metrics.** `build/ars_pipeline/build_ars_onepager.py` renders a
-  one-pager from figures it is given; which story it tells is Aaron's call. Ask rather
-  than choosing what looks best.
-- The monthly reviews are the opposite in every respect — every client, every month, same
-  slides, no curation. Conflating the two has caused real errors: a monthly deck's
-  reporting month was once derived from the twice-yearly Summit date, which is wrong ten
-  months out of twelve (fixed 2026-08-29, commit `02def05`).
-
-The Summit slide that every monthly deck carries is a different thing again: a standing
-title/branding slide inserted by `build/summit_slide.py`, unrelated to who attends. No
-builder depends on the date printed on it.
+- **Do not pick the metrics.** Ask rather than choosing what looks best.
+- Never derive a monthly deck's reporting month from the Summit date. The Summit slide in every monthly
+  deck is a standing branding slide, unrelated to who attends.
 
 ## Delivery dashboard
 
-```
-python3 scripts/dashboard.py [--period 2026.09] [--port 8787] [--no-source]
-```
+Detail: `docs/OPERATIONS-dashboards.md`; the source watch in `docs/OPERATIONS-source-watch.md`.
 
-Serves `http://127.0.0.1:8787/` — data readiness, what is built, and what still
-needs sending, per client for one period. Loopback only: it exposes a write
-endpoint and the delivery log is not public. `scripts/deck_status.py <period>
---json out.json` produces the same document without a browser.
-
-**Where each fact comes from.** The dashboard invents nothing; it displays
-`deck_status.collect()`.
-
-| Fact | Source |
-| --- | --- |
-| Who gets a deck | `clients.md`, via `build_month.read_roster` — the same parser the builder uses |
-| Has the data team landed it | every CSM's ODD folder (`deck_status.SRC_ODDD` — all five, each with its own month-folder naming; see **Daily source watch**) and `\\PADMIS105\Velocity_clientreports\<YYYY.MM>\<Account Manager>\` |
-| Can the build run | `Inputs/` — the copy the builders actually read |
-| Built | `Outputs/<CSM>/<id>-<period>-*.pptx` (via `rpe_env.output_decks`) |
-| Sent | `Build Artifacts/deliveries.json` |
-
-Override the share paths with `RPE_SRC_ODDD` / `RPE_SRC_REPORTS`; they are never
-hardcoded, for the same reason `RPE_DATA_ROOT` is not.
-
-**The CSI shares need the VPN (Aaron, 2026-08-31).** Off VPN they are not empty,
-they are *unknown*, and the dashboard says so rather than reporting a full cycle
-of phantom gaps. The input columns stay accurate either way.
-
-**Sent is recorded, never inferred.** A deck in `Outputs/` proves it was BUILT.
-Nothing on disk knows whether it reached the client, so sent-state is written to
-`Build Artifacts/deliveries.json` by the dashboard's Mark sent button (Aaron,
-2026-08-31) — bookkeeping, so it stays out of `Outputs/`. A damaged log raises
-rather than reading as "nothing sent", which would invite sending twice.
-
-**An ODD extract in `Inputs/` is only current if the SOURCE says so.** `Inputs/ODDD/`
-holds `<id>_ODDD.zip` with no period in the name, overwritten in place each
-month — so last month's extract sits at the same path under the same name and
-"a file is there" does NOT mean this period's data is there. The dashboard
-reports that as **stale**, and stale blocks exactly as hard as missing: a build
-on the previous month's ODD completes, validates, and reports the wrong month.
-Off VPN the period cannot be confirmed and is reported as unknown, not current.
-**The watch's landing record also counts as the source saying so** (2026-10-13): when the
-share no longer holds this period's file but `source_watch.json` recorded an ODDD landing
-for this client and period whose size matches the copy, `deck_status.watch_landing` vouches
-for it (1539 Marine's October extract was taken back off the share a week after the watch
-copied it, and Sheila called the copy "previous month"). **So does the extract's own pull stamp**
-(2026-10-13, 1509 Texas Bay: an extract that came by email and was copied into Inputs by hand):
-`deck_status.odd_stamp_period` reads the member file's `(MMDDYY_HHMMSS)` stamp, and a pull in the
-cycle's month is that cycle's extract. A stamp naming another month is stale and says which; no
-share copy, no watch record and no stamp is the stale case it always was.
-
-**ICS workbooks arrive by email, not on the share (Aaron, 2026-08-31).** They
-have no source-side signal, so their source column is `n/a` and a missing one
-does not block — without a workbook for the period the ICS section builds
-referrals-only, which is a valid deck.
+**Delivery dashboard:** `python3 scripts/dashboard.py [--period 2026.09] [--port 8787] [--no-source]`, loopback
+only (it has a write endpoint); `scripts/deck_status.py <period> --json out.json` gives the same document.
+- **Sent is recorded, never inferred**: written to `Build Artifacts/deliveries.json` by the Mark sent button
+  (Aaron, 2026-08-31). A deck in Outputs proves only that it was built. A damaged log raises.
+- **The CSI shares need the VPN (Aaron, 2026-08-31).** Off VPN a share is *unknown*, never empty.
+- **An ODD extract in `Inputs/` is only current if the SOURCE says so** (the share, the watch's landing
+  record, or the extract's own pull stamp). Stale blocks exactly as hard as missing.
+- ICS workbooks arrive by email; a missing one does not block (the section builds referrals-only).
+- Share paths come from `RPE_SRC_ODDD` / `RPE_SRC_REPORTS` and friends, never hardcoded.
 
 ### Daily source watch
 
@@ -680,511 +366,117 @@ powershell -ExecutionPolicy Bypass -File scripts\register_watch_task.ps1 \
         [-Time 08:00] [-Repo <checkout>] [-RetryHours 0] [-Unregister]
 ```
 
-`deck_status.py` answers "is it there now"; `watch_sources.py` answers "what landed since I last
-looked" (Aaron, 2026-09-08). It scans this month's and last month's folders on the CSI shares — ODD
-extracts in all five CSMs' folders on `Velocity_company`, DCOs / ARS workbooks / MRPCPM analyses on
-`Velocity_clientreports` — diffs the inventory against the last one, and reports files that are new,
-re-landed (same name, new bytes) or gone, roster clients first. State lives in `Build Artifacts/`
-(`source_watch.json`, `.log`, `_latest.md`, `source_watch_runs.json`). Share roots and their
-`RPE_SRC_*` overrides come from `deck_status`. The full account — the incidents behind each rule,
-the registration history and the watchdog's record — is in
-[`docs/OPERATIONS-source-watch.md`](docs/OPERATIONS-source-watch.md); the rules that matter when
-touching this code are here.
+- **The file-get runs ONCE a day, at 08:00, and no more (Aaron, 2026-10-05).** Do not start a hand-run beside
+  it. The one sanctioned second fire is the watchdog's retry on a morning the 08:00 fire never executed.
+- The task "RPE Source Watch" runs as the logged-on user with a 50-minute limit. `-Repo` targets a
+  checkout other than the script's own: the scheduled tasks run from their own checkout
+  (`RPE_TASKS_CHECKOUT`), which each release moves to the commit it released (Aaron, 2026-11-24).
+- **Off VPN it exits 2 and leaves the saved inventory alone.**
+- **Health is checked from OUTSIDE the watch** — do not "simplify" this by having it check its own health.
+  The "RPE Source Watch Watchdog" fires once at 08:10 (Aaron, 2026-10-15); a later check is a hand run. A
+  `watch_sources.py` process older than 3 h is stuck whatever its counters say (Aaron, 2026-10-07).
+- **Copy:** copy-only, never deletes; every client except a stopped one; the ODD extract only from the newest
+  month on the share; a "differs" file is overwritten only when the SOURCE is the newer write; small files
+  first; one unreachable CSM folder counts as off VPN.
+- **Drop Folder (Aaron, 2026-11-16):** swept by the same `--copy`. A different file of the same name in
+  `Inputs/` is never overwritten, except an ODD extract whose own pull stamp is newer, which replaces the held
+  one (archived to `Inputs/ODDD/_Archive/`, never deleted) (Aaron, 2026-11-22).
+- **Prune:** deletes a file only when a newer non-empty version of the same client and kind is present;
+  never ODD extracts or ICS Charts workbooks.
+- **Mail:** Outlook read-only (nothing marked read, moved, deleted or replied to); it cannot hang the run.
+  The child writes to FILES and a timeout kills its process tree: **do not hand a child `subprocess.PIPE`
+  with a timeout anywhere here.** Each sender may supply only their own kinds; an attachment whose name
+  does not match is parked and reported, never guessed at.
+- `--issues` runs here because `gh` is authenticated on this machine only. `--ils-analysis` lists, never
+  copies; `land_ils_analysis.py --apply` is its own 08:20 task, registered by Aaron (never run for him).
+  Transaction files are landed by hand (`land_txn_files.py`), never by the watch.
 
-**Scheduling**
-- **The file-get runs ONCE a day, at 08:00, and no more (Aaron, 2026-10-05).** Do not start a
-  hand-run beside it: two copiers writing the same `Inputs/` folder produced a duplicate. The one
-  sanctioned second fire is the watchdog's retry, on a morning the 08:00 fire never executed.
-- The task is **"RPE Source Watch"**, run as the logged-on user (the share needs those credentials,
-  the toast needs a desktop), with a 50-minute execution limit. `-Repo` targets a checkout other
-  than the script's own — a worktree has no `.venv` or `.env` and cannot host the task.
-- **Off VPN it exits 2 and leaves the saved inventory alone**; saving an empty one would make every
-  file "new" the next morning. The scan's report, log block and inventory are saved BEFORE the copy
-  and the steps after it, so a run killed part way still leaves its scan.
-
-**Health is checked from OUTSIDE the watch.** A run that never executed writes nothing, so the
-watch cannot report on itself — do not "simplify" this by having it check its own health.
-`watch_sources.run_health()` reads the run record (`ok` / `stale` / `never`, by last FINISH,
-outcome ignored); `refresh_performance_dashboard.py` prints it at 08:30 and the delivery dashboard
-banners it; `--check-stale` scans nothing and answers off VPN. The **"RPE Source Watch Watchdog"**
-task (`scripts/watch_task_watchdog.ps1`, **one fire a day at 08:10**, Aaron 2026-10-15: "I want this
-running only at 8am or manually"; it was 08:20 and every 30 minutes for four hours from 2026-09-21,
-which on a morning off the VPN logged "needs a human look" every half hour into the afternoon) asks
-`--check-today`, and if no run has reached the shares it kills a fire Windows created suspended
-and retries the main task, appending to `Build Artifacts/source_watch_watchdog.log`. It stays
-(Aaron, 2026-10-05). A later check is a hand run: `Start-ScheduledTask -TaskName "RPE Source Watch
-Watchdog"`, or the script itself; `register_watchdog_task.ps1 -RepeatHours 4` restores the old window. **A `watch_sources.py` process older than `MaxAgeSecondsAlive` (3 h) is
-stuck whatever its counters say** (Aaron, 2026-10-07): a run that reached the shares and then
-hung looks healthy, and the task is `MultipleInstances IgnoreNew`, so the next 08:00 fire is
-dropped while it lives — the watchdog clears one even on a morning whose run did reach the
-shares. A morning that logs "needs a human look" is the human look: check for a `pythonw.exe`
-with 0 CPU and 0 handles, or one from yesterday, by hand.
-
-**Copy (`--copy`)**
-- Every file for **every client except a stopped one** (`clients.md` skipped rows) that `Inputs/`
-  lacks or holds a different landing of is copied — all five CSMs' ODD folders, which each name
-  month folders differently (`deck_status.odd_folder_period` is the one reader). `clients.md`
-  decides what gets BUILT; the copy only decides what is on hand.
-- **The ODD extract is copied only from the newest month on the share** for that client
-  (`copy_plan`; `tests/test_watch_sources.py` pins it) — the local copy carries no period in its
-  name, so copying last month's back would be the stale-ODD failure.
-- **A "differs" file is overwritten only when the SOURCE is the newer write.** A workbook opened and
-  saved in Excel so its formulas carry values is a deliberate change. A workbook that lands with
-  unevaluated formulas reads as 1 month, 0 mailings, $0; `build/ars_pipeline/base_guard.py` stops
-  every ARS entry point with `UNEVALUATED WORKBOOK` (open it in Excel, save, rebuild).
-- Copy-only — a copy never deletes. A `.part` file is renamed over the target and the size verified.
-  Small files first (`_copy_order`): every DCO, workbook and analysis before any extract, extracts
-  smallest first, so a cut-short run never leaves a workbook waiting behind an extract.
-- **An extract the share refuses as a zip is re-landed as its ODD member alone** (2026-10-13, 1815
-  FedChoice): a security agent on the share deletes a zipped extract that carries the data team's
-  monthly transaction file the instant it is written, under any name, with no error — the copy
-  "succeeded", the `.part` was gone, and three mornings logged "size mismatch after copy" while
-  Inputs kept September's extract. The raw CSVs and a zip of the ODD member alone are held.
-  `_land_odd_member_only` writes the ODD member(s) into a new zip with their original entries (the
-  pull stamp is unchanged), the record carries `reduced`, and the report says what was left out.
-  Every deck reads only the ODD member; the transaction member feeds one opt-in James view. A
-  workbook mismatch is never reduced.
-- One unreachable CSM folder counts as off VPN.
-
-**Drop Folder (`--copy`, Aaron, 2026-11-16: "Drop folder during a file get").** `<root>/-Drop Folder`
-(`rpe_env.drop_folder()`) is where a person drops input files by hand; Aaron allows moving, sorting and
-renaming them. The same `--copy` that the 08:00 task passes sweeps it, after the share copy and before
-the prune, so the task needed no new argument. Each file is read by the naming the share copy and the
-mail step already use (`classify`, `mail_sources.classify_attachment`, the DDA count's saved name;
-`watch_sources.classify_drop`) and filed into that kind's `Inputs/` folder.
-- Not in `Inputs/`: copied through a `.part`, size checked, and the dropped file must not have changed
-  while it was copied; then the dropped copy is removed.
-- Byte-identical copy already in `Inputs/` (any kind folder or the legacy flat one): the dropped copy is
-  removed ("Yes, delete the duplicates", 2026-11-10).
-- **A different file of the same name in `Inputs/` is never overwritten**: both stay and the report says
-  so. **The one exception is an ODD extract whose own pull stamp (`(MMDDYY_HHMMSS)`) is newer than the held
-  one's** (Aaron, 2026-11-22: "yes, newer stamp should replace it automatically"): it replaces the held
-  extract, which moves to `Inputs/ODDD/_Archive/<id>_ODDD pulled <stamp>.zip`, never deleted. The new file
-  carries today's write time, so the share's older extract (an older write) cannot undo it the next morning.
-  An older, equal or unreadable stamp is left with both stamps in the report. A file no reader knows, and
-  any subfolder, are left.
-- A refused delete is reported, never fatal. A folder that is not there is one line in the report.
-  `--dry-run` lists what it would do. The report gets a `## Drop Folder` section; an empty folder adds nothing.
-
-**Prune (`--prune`).** A workbook-ish file in `Inputs/` is deleted only when a NEWER version of the
-same client id and kind (or the same weekly family, later stamp) is present and non-empty. The
-newest of each group is always kept, a lone file is never touched however old, files with the same
-version key are ambiguous and both stay, and ODD extracts and ICS Charts workbooks are left alone
-(`prune_plan`; tests pin it). The delivery dashboard's input columns for a PAST period therefore
-read "not copied" once its inputs are pruned.
-
-**Mail (`--mail`, `scripts/mail_sources.py`).** Bradford Sanders' MRPC and CashPlease reports and
-CashPlease marketing emails, and Matt Milliman's ICS workbooks, come from Outlook and are filed by
-kind with everything else.
-- Outlook COM as the logged-on user, **read-only** (nothing marked read, moved, deleted or replied
-  to). An unreachable mailbox is reported and skipped, never fatal.
-- **The mail step cannot hang the run**: share results are saved BEFORE it, it runs as its own
-  process (`watch_sources.mail_step`, `MAIL_TIMEOUT` = 10 min) and a timeout is reported;
-  `mail_sources._outlook()` tries `GetActiveObject` before `Dispatch` because the latter can block.
-  **The child writes to FILES, never pipes, and a timeout kills its whole process tree**
-  (`_kill_tree`, `taskkill /T`; 2026-10-07): the endpoint agent relaunches each python start
-  under the first, a relaunch left suspended inherits the pipe, and `subprocess.run(timeout=)`
-  killed only the child and then read that pipe to an end that never came — the run hung for
-  hours on 2026-10-05 and -06. Do not hand a child `subprocess.PIPE` with a timeout anywhere here.
-- Senders are matched on the resolved SMTP address, and each sender may supply only their own
-  kinds. Scan Inbox AND Archive plus subfolders; keep only the newest of each thing; an attachment
-  whose name does not match `<id>-<period>-<kind>` is parked in the legacy folder and reported,
-  never guessed at.
-
-**ICS referrals (`--ics-referrals`, `--branch-names`).** `scripts/ics_referrals_pull.py` merges
-each saved all-clients referrals query result into `ics_referrals.csv` (a referral = client,
-account, issue date; a newer pull replaces the older rows) and rewrites the query's `@since` to the
-day of the newest referral merged, so windows overlap on purpose and a skipped day widens the next
-one rather than leaving a gap. `--branch-names` then adds new branch names from the Charts
-workbooks and that pull to `Inputs/Branch Names/branch_names.csv`.
-
-**Issue reports (`--issues`, Aaron, 2026-10-05).** `issue_reports.sync()` files every report queued
-from CSM Sheila and refreshes the issue list its **Feedback** tab reads. It runs here because `gh`
-is authenticated on this machine only; a morning with no `gh` or internet leaves reports queued.
-
-**ILS analysis pulls (`--ils-analysis`, Aaron, 2026-11-24).** After the report is saved, lists each
-client on the ILS analysts' review schedule (review in the next 60 days, or OVERDUE) with its newest
-pull on the analysis share, by folder and zip NAME, and reports the pulls new since its last listing
-(`Build Artifacts/ils_analysis/watch_state.json`) and the clients still waiting for a current pull.
-It copies nothing: `scripts/land_ils_analysis.py --apply` does, as its own task ("RPE ILS Analysis
-Landing", 08:20, `register_ils_landing_task.ps1`). The analysis server is not in `reachable()`; it
-being down is reported and the last listing kept, never a failed watch.
-
-Because the copy happens before the 08:30 dashboard refresh, a new month's workbooks reaching
-`Inputs/` roll the performance artifact forward the same morning. `--notify` raises a toast only
-when there is news or the shares were unreachable.
-
-### The performance dashboard artifact — refreshed after each source check
+### The performance dashboard artifact
 
 ```
 python scripts/refresh_performance_dashboard.py [--period 2026.08] [--csm "Aaron Burgard"] [--force]
 python scripts/refresh_performance_dashboard.py --mark-published
 ```
 
-The "RPE Client Performance" artifact
-(`https://claude.ai/artifact/F4jLMLqxmQdBNYXpJHH6We`; the older `claude.ai/code/artifact/71e542f6-cb48-4386-ae73-708e513c854b` form opens the same artifact, and the refresh task still uses it) is the
-cross-client, cross-product page Aaron asked for on 2026-09-08: one section per
-program (ARS, ICS, MRPC, CashPlease) with a ranked bar, a metrics table and trend
-sparklines, and a deck roster. It is a static page with its dataset embedded.
-`refresh_performance_dashboard.py` rebuilds that dataset from the same inputs the
-deck builders read (ARS workbooks + DCOs through the ARS extractors, mailing response
-from the shipped deck's figure sidecar, the VIP ICS / MRPC sheets, the newest
-MRPCEnrollmentSummary and CashPleaseSummary weeklies — the last through the
-in-repo `build/cashplease_pipeline/cp_extract.py`, so the page and the CashPlease
-decks are computed once), injects it into `scripts/perf_dashboard_template.html`, and writes the
-page and its bookkeeping to `Build Artifacts/perf_dashboard/`. **The period is the
-calendar month (Aaron, 2026-10-02).** It used to be the newest ARS workbook in `Inputs/`,
-which left the page reading "Reporting period 2026.09" on 2 October while that month's
-workbooks were still landing. **Within that cycle every client shows its own newest figures**
-(Aaron, 2026-09-08): the newest ARS workbook, shipped-deck sidecar and built deck at or
-before the cycle period, with the row tagged when that is older than the cycle. A
-cycle-only page went blank for three ARS clients and every deck the first morning of a
-month. It ends with `STATUS: changed|unchanged`, comparing a content hash (generation
-date excluded) to the hash last published.
-
-Publishing needs the Artifact tool, so the script never publishes. The Claude
-scheduled task **`rpe-dashboard-refresh`** (daily 08:30, after the 08:00 source
-watch; stored under `~/.claude/scheduled-tasks/`) runs the script, republishes to the
-URL above only on `changed`, then runs `--mark-published`. It runs while the Claude
-desktop app is open and catches up on next launch. **Do not create a new artifact
-for this page** — republish to the URL, or the link people hold goes stale.
-
-**The page lists ONE CSM's clients (Aaron, 2026-11-02: "limit that artifact to my own clients, since we
-now have Sheila").** `--csm "Name"`, else `RPE_DASH_CSM`, else Aaron Burgard; the Client CSM List decides, and the
-scope is applied before a client's inputs are read, so another CSM's client is not extracted and is nowhere in the
-embedded dataset (`tests/test_refresh_performance_dashboard.py` pins it). There is no all-CSMs option. The CashPlease
-company rows span EVERY current client in the weekly, all CSMs (Aaron, 2026-11-24; they covered only the clients whose
-roster row carried CP until then): the **median current client** (`cp_peer_median`), the figure every client is compared
-with, and the book pooled (`cp_peer`), labelled "CashPlease book, pooled" and internal only; medians, counts, rates and
-averages only, never a client's volume. The page is in the Sheila
-Hub's look (sidebar, KPI tiles, Hub colors, no orange): edit `scripts/perf_dashboard_template.html` and
-`scripts/perf_workflow.html`, never the published copy.
+- The "RPE Client Performance" artifact is `https://claude.ai/artifact/F4jLMLqxmQdBNYXpJHH6We`. **Do not
+  create a new artifact for this page** — republish to the URL, or the link people hold goes stale.
+- The script never publishes. The Claude scheduled task `rpe-dashboard-refresh` (daily 08:30) republishes
+  only on `STATUS: changed`, then runs `--mark-published`.
+- The period is the calendar month (Aaron, 2026-10-02); each client shows its own newest figures within it.
+- **The page lists ONE CSM's clients (Aaron, 2026-11-02)**; there is no all-CSMs option. CashPlease company
+  rows are medians, counts, rates and averages only, never a client's volume (Aaron, 2026-11-24).
+- Edit `scripts/perf_dashboard_template.html` and `scripts/perf_workflow.html`, never the published copy.
 
 ## Data sources by program (do not cross these)
 
-All inputs live under the **source-data location** Aaron names at the start of the session
-(see **File locations**). The folder names below (`Workbooks - ARS`, `Workbooks - ICS`) are
-the expected layout inside that location — if Aaron's local copy is organized differently,
-ask him to point at the specific file rather than guessing.
+Detail: `docs/PIPELINE-NOTES.md`, Data sources by program (each source's folder).
 
 - **ARS** — raw ODD via the `oddd-optimizer` subagent (run it first), plus the ARS
-  workbook (Lift Matrix MM tab / `base_extract.json`). ODD-driven.
+  workbook (Lift Matrix MM tab / `base_extract.json`) and DCO. ODD-driven.
 - **ICS** — ICS Workbook (ROI, lifetime value, revenue, financial summary), VIP ICS
   Referral dashboard (referral counts/trend/branch), ICS Charts 2026 (mystery shops).
   Not ODD-driven; `oddd-optimizer` is not used.
-- **MRPC** — VIP MyRewards Premium Cards dashboards + the MRPC workbook (MRPCPM
-  Analysis) for enrollments, channel mix, retention, revenue. Not ODD-driven. The
-  `...-MRPCPM_Analysis_v10.xlsx` files live in the shared **Workbooks - ARS** folder
-  (no separate MRPC folder). ICS workbooks + Charts live in **Workbooks - ICS**.
+- **MRPC** — VIP MyRewards Premium Cards dashboards + the MRPC workbook (MRPCPM Analysis) and the
+  MRPCEnrollmentSummary weekly. Not ODD-driven.
+- **CashPlease** — the newest CashPleaseSummary weekly and the weekly DDA count (`Inputs/CashPlease/`),
+  the production settings (`Inputs/Product Settings/`) and the marketing emails
+  (`Inputs/CashPlease Marketing/`). Not ODD-driven.
+- Every input is read from its `Inputs/` kind folder (see **File locations**); if a file is not where it
+  should be, ask Aaron to point at it rather than guessing.
 
-## Project file map (keep current)
+## Sheila, the launcher and releases
 
-This is the readme index — update it whenever files are added, removed, or moved.
+Detail: `docs/FILE-MAP.md` (`ars_launcher.py`, `ars_launcher_web.py`, `sheila_hub*.py`, `sheila_mcp/`, `release_launcher.ps1`).
 
-**Root**
-- `CLAUDE.md` — this file: routing, shared conventions, and this file map.
-- `clients.md` — **which clients get which programs.** Program membership is recorded
-  here, NOT inferred from whether an input file exists: CoastLife 1705 kept producing an
-  ICS section after cancelling because their ICS data was still on disk. Check it before
-  building, and update it when a program starts or stops.
-- `CHANGELOG.md` — **the record of corrections and changes** (Aaron, 2026-09-01): a
-  moved number or source, a changed claim, AND a change to what a slide renders.
-  Post to it whenever you change pipeline behavior. This used to say "changes that
-  move a client-facing number or its source", and that reading kept the MRPC
-  invisible-retention-line fix out of the file entirely. **Every entry starts with a
-  `Summary:` line** — one or two plain sentences saying what changed, for a CSM (2026-09-25).
-  CSM Sheila shows that line in What's new and on its change log page, and leaves out the
-  quoted request and inline "(Aaron, …)" attributions, which stay here as the record.
-- `requirements.txt`, `.env.example` — runtime deps; `RPE_DATA_ROOT` and friends.
-- `VERSION` — CSM Sheila's version (first line, `N.N`), shown in her header and copied by the release (Aaron, 2026-10-26: starts at 2.0). Bump it by hand in the commit that adds a major feature; `RELEASE.txt` still names the date and commit of each release.
-- `docs/COLLABORATORS.md` — what a collaborator's Claude Code session needs: branches and PRs, what not to run, pre-PR checks.
-- `docs/` — the PRDs: `PRD-2026-08-26-repo-portability-and-response-rates.md`,
-  `PRD-2026-09-11-rpe-client-performance-artifact.md` (the cross-client performance page:
-  what it is for, where each figure comes from, and why the script never publishes).
-  `ILS-schema.md` — the hosted ILS database: every table's columns (names only, no sample
-  rows), the join keys, the account-type / Reg E / status code values, and what Aaron has
-  confirmed (`DELETED IS NULL` = in the current import; `ODCustomer` = access to the OD
-  program, not usage). **Read it before writing any ILS query.**
-- `sql/` — ILS queries a person runs in a client's ILS database; Claude cannot reach it.
-  `ils_od_lookup_by_last4.sql` takes a customer list (raw account numbers, which cannot be
-  matched to `HASHED_ACCOUNT`) and returns OD usage and the OD limit before an account
-  number change and now. Customer lists and results never go in the repo.
+- `scripts/ars_launcher.py` builds one client's deck and puts a 0-FAIL deck straight into
+  `Outputs/<CSM>/`, archiving what it supersedes. No staging step: each CSM reviews, PDFs and emails the
+  deck from Outputs (Aaron, 2026-09-15). `build <id> --ti` / `--companion` build the separate decks.
+- `scripts/build_month.py` builds a period's monthly reviews from the `clients.md` roster into a staging
+  folder; `promote_month.py --apply` delivers. It never emits Summit one-pagers; TI only with `RPE_TI=1`.
+- **CSM Sheila** (`scripts/ars_launcher_web.py`, the page in `scripts/sheila_hub*.py`) serves on 127.0.0.1
+  only with a token; builds run one at a time per PC (`%LOCALAPPDATA%\RPE\build.lock`); it decides nothing
+  itself. Her issue button QUEUES and never calls GitHub. **Sheila in Claude** (`sheila_mcp/`) is delivered as
+  a Claude Desktop extension, never through the launcher (James Gilmore, 2026-10-30): `runtime.cmd` and the
+  launcher .bat files never touch Claude. It replaces a deck in Outputs only after the CSM's yes. In Sheila,
+  Aaron's multi-program clients get only the combined build. Slide Review votes are per program template,
+  never per client, and a program's slide list is read from the build, never from a deck.
+- **Live Review** (`scripts/live_review.py`, `build/review_page/`) is run by hand or from Sheila; it is never
+  in Outputs or `deliveries.json`, and its traceability audit is a hard refusal.
+- **The launcher runs the released copy: re-run `release_launcher.ps1` after any change, `clients.md`
+  included. A release ships origin/main and nothing else (Aaron, 2026-10-07).** Nothing merges or releases
+  without Aaron's word (the `merge-and-release` skill). Bump `VERSION` by hand in the commit that adds a
+  major feature.
+- **RPE Decks and ILS Decks** (Aaron, 2026-11-25): Sheila's sidebar lists RPE clients (any RPE program) under RPE
+  Decks and every ILS client (review schedule, landed pre-go-live / kickoff inputs, the clients.md ILS roster)
+  under ILS Decks; a client on both is on both. A client page opened from ILS Decks shows ILS only, from RPE
+  Decks RPE only. Detail: `docs/FILE-MAP.md`, `sheila_hub.py`.
+- The team issue pages (`scripts/issue_pages/`) are not published now: do not republish them unless Aaron
+  asks.
 
-**`scripts/`**
-- `oddd_optimize.py` — raw ODD → data pack (`oddd_pack.md` + `oddd_metrics.json`); Reg E / account-status classifiers, funnel, mix.
-- `build_month.py` — builds the monthly ARS/ICS/MRPC reviews for one period from the `clients.md` roster, `--jobs` clients at once (default 3; the share's ~3 MB/s is the limit). Never emits Summit one-pagers. `read_roster` adds **CP** to a client's programs when the CashPlease roster says their slides ship as a *section* (2026-10-12 — until then nothing read that column, so no CashPlease section was ever built here and 1632 / 1734 came out as plain ICS decks); a standalone CashPlease module is `build_cashplease.py`'s. Stages into a folder; `promote_month.py --apply` delivers.
-- `deck_status.py` — the status engine behind the dashboard: for one period, what data has landed, what has been built, and what has been sent. Reuses `build_month.read_roster` so there is one answer to who gets a deck.
-- `dashboard.py` — the local delivery dashboard (see **Delivery dashboard**).
-- `ics_referrals_pull.py` — the `--ics-referrals` step: merges each ICS referrals query result saved as `Inputs/ICS Referrals/ics_referrals <date>.csv` into one `ics_referrals.csv` (a referral = client, account, issue date; a newer pull replaces an older pull's rows for the same referral) and rewrites `ICS Referrals - new since last pull.sql` beside it with `@since` = the day of the newest referral merged. The query itself (`sql/ics_referrals_all_clients.sql`) is run by a person; Claude cannot reach that database.
-- `build_peer_reference.py` — **the peer reference** (Aaron, 2026-11-20: "any metrics we use for peer comparisons should be compiled in one source, tagged and dated"): every peer figure in one dated file, `<RPE_DATA_ROOT>/Peer Reference/peer_metrics_<YYYY-MM-DD>.csv` plus `peer_metrics_latest.csv` and `manifest.json` (sources and their dates, row counts, the metric catalog, a content hash). Values are NOT re-derived: each program's rows are what `review_page/peer_pool.py`'s collectors return (the code behind Live Review and the decks' How You Compare slide), run with a client id in no pool so every client comes back with its own number; plus the CashPlease cohort benchmarks (`peer_benchmark.json`, the workbook rollup; the dashboard's `cp_peer`, the book pooled over current clients, and `cp_peer_median`, the median current client: internal benchmarks, never what a client is compared with) and the ILS peer table through `ils_review.peers_slides.values`. A consumer's own filters (MIN_PEERS, a peer's workbook age, same activity month) are not applied: each client's newest figure is recorded with its own period, and `month_complete` (yes / no / n/a) is judged against the source's own date. Read-only, except that the ICS collector refreshes the `peer_tables` cache as every deck build does; `--dry-run` writes nothing; a same-day rerun with the same content writes nothing and an earlier day's file is never touched; a program that fails stops the write unless `--allow-partial`. A full compilation is run by hand, not in the 08:00 watch. **It is updated whenever a deck is built** (Aaron, 2026-11-22: "update data on the peer comparison dataset when we build new presentations"): once a deck is in Outputs, `ars_launcher build` (Sheila's builds included), `build_cashplease.py` and, once at the end of a batch, `build_month.py` call `spawn_update`, and the ILS peer pull (`ils_review/peer_pull.py`) calls it for ILS once it has written the peer table, which starts `--update --programs <the deck's programs>` as its own detached process (output appended to `Build Artifacts/peer_reference_updates.log`, a file, never a pipe), so a build never waits for it and its result never depends on it. An update recompiles only those programs and keeps every other program's rows, sources, catalog entries and compile time; a program that fails keeps its previous rows and is named under `failed` and `stale`. Several PCs can build at once: `Peer Reference/.update.lock` (created exclusively, broken after 90 minutes) makes a second update wait, and it then skips any program compiled after it was asked for (`program_compiled_at`, each compile's START). Over the share ARS takes about five minutes, ICS one and a half, CashPlease about one. `RPE_PEER_REFERENCE_UPDATE=0` turns the hook off (the test suite sets it). No consumer reads the file yet. `tests/test_peer_reference.py`.
-- `gl_data_ingest.py` — the clients' GL data and NSF performance tracking spreadsheets in `Inputs/GL Data` as one JSON table, `gl_data.json` (Aaron, 2026-11-03): a monthly GL series per measure, or every line of the ILS tracking workbook (typed in or calculated, with the key lines gathered under standard names), each placed on a client by the number at the start of its file name or an alias, read back before `--archive` moves the original to `_Archive/`; a blank template or a file with no client is reported and left. `tests/test_gl_data_ingest.py`.
-- `ils_analysis_inputs.py` — the naming convention for `Inputs/ILS Analysis` and the tool that applies it (Aaron, 2026-11-06): a plan of every move (dry run unless `--apply`), written to `Build Artifacts/ils_analysis_inputs/renames-<stamp>.csv` first; `--undo <list>` reverses it. Never deletes or overwrites; `target()` is the one rule the landing step calls. `tests/test_ils_analysis_inputs.py`.
-- `land_ils_analysis.py` — lands the newest data pull of each client on the ILS analysts' review schedule in `Inputs/ILS Analysis` (Aaron, 2026-11-24), for CSM Sheila's ILS analysis review. Sources are read only: the schedule (`deck_status.SRC_ILS_SCHEDULE` / `RPE_SRC_ILS_SCHEDULE`, read from the environment or `.env`; the share's `.csv`, last written October 2022, or the analysts' live `.xlsx`) and the client analysis share (`deck_status.SRC_ILS_ANALYSIS` / `RPE_SRC_ILS_ANALYSIS`, the root `ils_review/peer_pull.py` names; a test pins them equal). Dry run unless `--apply`; every extract lands under its `target()` name zipped, through a `.part`, verified, raw when the share will not keep the zip, never over a differing file; current pulls first, then smallest, within a 45-minute budget; the analysts' .pptm / .pbix / workbooks never copied; a client number matching two folders reported, never guessed. Writes `_schedule/` (snapshot, `pulls.json` with the current-pull judgement) and logs to `Build Artifacts/ils_analysis/`. `watch()` is the source watch's `--ils-analysis` listing. Registered as its own task by `register_ils_landing_task.ps1` (Aaron decides; never run for him). `tests/test_land_ils_analysis.py`.
-- `ils_analysis_landed.py` — the import-safe reader of what that landing wrote, and the ONE reading of the schedule: `in_scope` (review in the next 60 days or OVERDUE, not cancelled), `judge` (a pull is current when run no more than 60 days before the review, calibrated on the schedule's history), `scheduled()`, `pulls_status()`, `landed_files(client, pull)` (raw or zipped) and `stage(client, pull, dest)` (unzipped, canonical names, for `ils_review.cli --from-folder`).
-- `register_ils_landing_task.ps1` — registers / removes the Windows task "RPE ILS Analysis Landing" (`land_ils_analysis.py --apply`, daily 08:20, logged-on user, 50-minute limit).
-- `ils_review_runs.py` — **CSM Sheila's ILS Review card** (Aaron, 2026-11-24: "build the ability to generate the ILS review decks into Sheila"), for every client on the analysts' review schedule (an ILS-only one is listed too, its name and CSM from the schedule when the CSM List lacks them). Readiness reads only `_schedule/` and the landed pull: unknown off the share (never ready), waiting (no landing yet, the client not reached, or the newest pull an earlier review's, with both dates), not scheduled, blocked (a landing problem, or no ZAccounts on hand), ready; ZTrend, the other extracts, the peer metrics table and the cycle's industry file are reported, never blocking. The run (a "review" job through `ils_runs` / `ils_job.py`, one step) stages the pull unzipped into the local cache (`local_cache`, `ils_review/<id>/<pull>/`), runs `python -m ils_review.cli` unchanged into `Build Artifacts/ils/review/<id>/<pull>/` with `--consultant` from the schedule's consultant NAME and CSM Contacts.csv (none when the name has no row or is the client's CSM), validates, and only at 0 FAIL with the validator's zero exit copies it to `Outputs/<CSM>/ILS/` as `<id>-<yyyy.mm>-ILS-ANL-<Client> ILS Analysis.pptx` (the replaced deck to `ILS/_Archive/`). The builder's notes (slide count against its cap, failed sections, deck checks) come back to the card. **Build with prep slides**, offered only when `RPE_ILS_PREP_DIR` (environment, `.env`, else the local ILS Pipeline folder) holds the client's `<id>-<yyyy.mm>-ILS-*Prep Slides*.pptx` (newest by period then time, matched by client NUMBER since the prep deck carries the review month and the analysis deck the pull month), builds again without the `matrix` section into `with_prep/`, merges with `merge_review.py`, validates and delivers `<id>-<yyyy.mm>-ILS-REV-<Client> ILS Review.pptx`. Sheila in Claude reaches it as `ils_status` / `ils_run kind="review"` / `ils_progress`. `tests/test_ils_review_card.py`.
-- `ils_dda_count_mail.py` — saves the newest "ILS Management Server DDA Count" email body (Charles Baker's weekly forward) word for word from Outlook as `Inputs/CashPlease/ILS-DDA-Count-<sent date>.txt`, the CashPlease loans-per-DDA denominator. Run by the CSI Email Monitor task (`C:\Data Pipelines\Email Pipeline\run-monitor.ps1`) before its Claude step (Aaron, 2026-09-17); never overwrites a saved week whose table differs.
-- `mail_sources.py` — the `--mail` step: reads Bradford's and Matt's attachments out of Outlook via COM, files them by kind, newest-only (see **Daily source watch**). `.xlsx`/`.xlsm` only, except the CashPlease marketing CSVs (`CSV_KINDS`).
-- `watch_task_watchdog.ps1` — detects a "RPE Source Watch" run Windows created suspended and never executed, kills it, and retries (see `docs/OPERATIONS-source-watch.md`).
-- `register_watchdog_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch Watchdog" that runs it.
-- `watch_sources.py` — the daily CSI-share check: what ODDD / DCO / workbook files landed since the last run, with local-copy state (see **Daily source watch**). Also keeps the run record and answers `--check-stale`.
-- `register_watch_task.ps1` — registers / removes the Windows scheduled task "RPE Source Watch" that runs it daily, one fire at 08:00 (`-RetryHours 4` restores the old morning retry window). `-Repo` targets a checkout other than its own.
-- `refresh_performance_dashboard.py` — rebuilds the "RPE Client Performance" artifact's dataset and page into `Build Artifacts/perf_dashboard/`, with change detection against the last published hash (see **The performance dashboard artifact**).
-- `perf_dashboard_template.html` — that artifact's page in the Sheila Hub's look (glass sidebar, KPI tiles, ranked and trend charts drawn inline, Hub colors, one CSM's clients), with a `__DATA__` slot the refresh script fills. Edit here, never in the published copy. **Build readiness carries a Live Review column** (Aaron, 2026-11-03): Live Review is served locally with a fresh port and token, so it has no link; each client's **Copy command** and the card's **Copy Live Review script** put the PowerShell that starts it on the clipboard (a box to select from when the artifact sandbox blocks copying), using the client's newest deck period and the checkout in `DATA.live_review.repo` (this refresh's own checkout, or `RPE_REPO`).
-- `ars_launcher.py` — builds one client's deck: an ARS client's ARS deck, or with `--combined` one deck with ARS plus every other program whose data is on hand; **a client with no ARS builds the one deck their programs make** — ICS, MRPC, the standalone CashPlease module, or any mix of ICS, MRPC and CP — from every program with data, checked on each program's own data and none of the ARS rules (Aaron, 2026-10-13: "bring CP only, ICS only, and MRPC only decks into Sheila, also any combination of those"; `client_entry`, `build_programs`, `cashplease_availability(standalone=True)`) (`program_availability`: ICS from VIP or the local ICS files, MRPC from VIP, **CashPlease from its own roster table in clients.md** — not the main roster row, which does not carry it; only a row that ships CP as a SECTION joins the deck, and CP is last in section order, Aaron 2026-10-02). **CashPlease is on the PLAIN build too** (Aaron, 2026-10-12, "add the CashPlease slides into Sheila decks"): `build_programs` makes every build's program list — ARS, plus CP for a client who ships it as a section, plus ICS/MRPC only when `--combined` — so a CSM choosing the first button for 1192 Ascend gets ARS-CP, never an ARS deck with the CashPlease section missing), into Outputs without Claude (`status | build <id> [--combined]`): checks the product list, `clients.md`, the combined-deck rule and input currency first, works in `Build Artifacts/launcher/<period>/<id>/`, and puts a 0-FAIL deck straight into `Outputs/<CSM>/`, archiving what it supersedes. No staging step: each CSM reviews, PDFs and emails the deck from Outputs (Aaron, 2026-09-15). **`build <id> --ti` builds the Transaction Intelligence decks instead** (Aaron, 2026-10-23): a separate presentation, one deck per lens, checked by `ti_checks` and filed by `ti_to_outputs` beside the RPE deck, never in its place; `status <id> --ti` shows those checks; the record is `_launcher_result_ti.json`.
-- `ars_launcher_web.py` — CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics (was ARS Deck Builder until 2026-09-16, then briefly WILL), the browser front end for `ars_launcher.py`: a 127.0.0.1-only server whose page lists every client with a deck to build — the whole `clients.md` roster in any program mix plus the standalone CashPlease module clients (2026-10-13), each with pills for the programs its deck covers and the client's other Velocity products — shows the launcher's checks and runs `ars_launcher.py build` as a child process, streaming its steps. A client with no ARS gets one button, named for the programs with data (`builds_on_offer`). Builds run one at a time; one asked for while another runs waits in a first-in, first-out queue, the client page offers "Build ARS only" and, when another program has data, "Build combined (ARS + …)" (Aaron's multi-program clients get only the combined one), and the list shows one status per client: Ready, Building / Queued #N, In Outputs, Needs attention (the last build was not put in Outputs, its button then reading Retry build, or the Lift Matrix expired) or Blocked. Every API call needs the token baked into the page and a localhost Host header; "Show in File Explorer" opens only a file under Outputs. A **Data Issues** tab (2026-09-25) shows each client's issues from `issue_pages/gaps.json`, `issue_pages/odd_findings.json` (2026-10-02) and the morning dashboard's `actions` (unmapped codes, Lift Matrix flags), each dated, and any item can be marked complete (`Build Artifacts/issue_pages/done.json`) until a newer ARS / MRPCPM / ICS workbook lands for the client (2026-09-28); every client page links its newest code sheet in `Inputs/Code Sheets` (opened by Sheila, found by client number). A **Lift Matrix** tab (2026-09-25) lists every ARS client's current workbook matrix beside the one `lift_values` calculates from its ODD, side by side with the change and each segment's step, both lift grids, the IC rate, NSF/OD fee, OD collection rate and outlier cap editable and recalculated a moment after each edit (Enter or **Recalculate** at once, and Export is held until the figures are current); **Export this matrix** records the export in `Build Artifacts/lift_values/<id>-<period>-exported.json` and downloads the Excel file for Bradford (never written to Outputs); each ODD is read once in the background and kept in `Build Artifacts/lift_values/`, and each workbook's Lift Matrix is read again only when the file's size or modified time changes (`workbooks.json` there, shared by every copy of Sheila). What's new in the sidebar shows the five newest CHANGELOG.md entries and links the full log (`/changelog`). **It serves from memory and refreshes behind the page (2026-09-17):** the client list is rebuilt in the background when it is older than `CLIENTS_TTL` (60 s), on "Refresh", or when a build finishes, and the page shows its age ("List as of …") and the last list it had (sessionStorage) while loading; builds this server ran (Building, Queued, Error, the deck put in Outputs) and Lift Matrix tags are laid over the stored list on every request. A client's status older than `STATUS_TTL` (600 s) is shown at once, marked "checking again", with its Build buttons held until the fresh check arrives; "Check again" is always a fresh read, and a client whose list row changes (deck, last build) has its status dropped. Repeated share questions (reachability, report folders, VIP manifest, cycle period, the CSM list row) are kept for `SHARE_TTL` (60 s) by `install_share_caches()`, which only `main()` installs: `ars_launcher.py build` runs as its own process and its pre-build checks never see these caches. It decides nothing itself. **The client page's Transaction Intelligence panel** (2026-10-23) shows `ars_launcher.ti_status` for an ARS client — its own checks, verdict, last build and a button that runs `build --ti` through the same one-at-a-time queue — under the Executive Review's; the panel says when its decks are in Outputs, and a TI deck is never counted as the period's RPE deck. The status is cached with the client's (`STATUS_TTL`), and its share reads (`rpe_env.txn_files`) for `SHARE_TTL`.
-- `sheila_mcp/` — **Sheila in Claude** (James Gilmore, 2026-10-30): CSM Sheila as a Claude Desktop connector for every CSM, "built once, no csm has to do it". `python -m sheila_mcp` serves the MCP stdio protocol with the standard library (`stdio.py`; no SDK, so the Python runtime is unchanged). Its tools (`__main__.py`; the answers in `core.py` and `actions.py`) call the same `ars_launcher_web` / `ils_runs` functions the page's buttons call, never copies of them: `my_month`, `clients`, `client_status`, `build` (refuses a blocked client; replaces a deck in Outputs only with `confirm=true` after the CSM's yes), `build_progress`, `build_queue`, `deck_summary`, `review` (the validator's report kept beside each built deck as `<deck>.pptx.validation.txt` by `ars_launcher.run_validator`), `explain` (a slide's figures and the source its notes name), `outputs`, `data_issues`, `ils_status` / `ils_run` / `ils_progress` (step 1 field summary; codes are the CSM's call), `whats_new`; and from `reports.py`, reading only the share: `cashplease_report` (the client against the MEDIAN of the other current CashPlease clients with its rank, the deck's own comparison) / `cashplease_portfolio` (the CashPlease build's packs, and the book pooled over current clients, labelled "CashPlease book, pooled", internal only; Aaron, 2026-11-24: "D: median, pooled internal"), `peer_compare` (the ARS deck's own comparison, `peer_compare.for_deck("ARS")` at the client's newest launcher period passed explicitly, on the deck's ARS measures, `peer_pool.ARS_METRICS`, whose keys the `kpis` argument takes, the old names too; Aaron, 2026-11-24: "A: use the deck's code"), `one_pager`, `client_brief`, `client_prepare` (with `perf_dashboard/dataset.json`; notes, tasks, calendar and mail are the CSM's own Microsoft 365, not Sheila's). Who is asking is the Windows user read as a CSM name (`who.py`). Builds from either door take `%LOCALAPPDATA%\RPE\build.lock` (`ars_launcher_web._take_build_lock`), so one runs at a time per PC. Delivery is a **Claude Desktop extension, never the launcher** (James Gilmore, 2026-10-30: "none of this should be in the sheila.bat gui"): the release runs `sheila_mcp/pack_extension.py`, which writes `CSM Sheila.mcpb` to the CSM_Reporting root (MCPB manifest 0.3, `binary` server, Windows only; version from `VERSION`, tool list read from the `@mcp.tool` functions in `__main__.py`). A CSM installs it once in Claude (Settings → Extensions, or by opening the file). It carries no Sheila code: `extension/server/sheila.cmd` (started as `cmd /d /c`) runs the share's `runtime.cmd` with stdin from nul and output to stderr (stdout is the protocol), then serves `python -m sheila_mcp` from `%LOCALAPPDATA%\RPE\Code`; the share folder is the extension's one setting (`csm_reporting_folder`, default `M:\CSM_Reporting`). `runtime.cmd` and the launcher .bat files never touch Claude. `legacy.py`, run by `sheila.cmd` before serving, removes the `sheila` entry the launcher wrote into `claude_desktop_config.json` for a few hours on 2026-10-30 (only an entry whose script is `sheila_start.py`; `.bak` kept), so Claude never runs two Sheilas. Tests: `tests/test_sheila_mcp.py`.
-- `issue_reports.py` — issues reported from CSM Sheila (Aaron, 2026-10-02). The button QUEUES
-  to `Build Artifacts/issue_reports/` and never calls GitHub: Sheila runs on each CSM's machine
-  from the share and the repo is private, so a token in `Tools\\RPE` would be readable by
-  everyone. `sync` (run where `gh` is authenticated — Aaron's machine) files each queued report
-  and writes `gh issue list` back as `issues.json`; `view` merges the queue with that cache for
-  Sheila's **Feedback** tab. A report that cannot be filed STAYS queued, sync is idempotent, and
-  the `sheila` label is created if the repo has not got one.
-- `sheila_hub.py`, `sheila_hub_<tab>.py` — **CSM Sheila's page, the Hub layout** (Aaron, 2026-11-02: "move Sheila entirely to the hub layout"; the classic page is gone). `sheila_hub.py` is the shell and the RPE Decks tab (it was Decks until 2026-11-25): glass sidebar that folds to a rail (a bar along the bottom on a phone), the slide-stack mark (option E: a navy slide in front of a teal one; also the favicon), KPI tiles that filter the list, a status shape per client (Ready, Building, In Outputs, Needs attention, Blocked), the client page with its Executive Review, Transaction Intelligence and ARS Companion cards, a Ctrl K palette, `?` for the keys of the tab you are on, `G` then a letter between tabs, toasts, a confetti burst on a clean build, light and dark in the Hub's own colors (no switch). It is served at `/` (`/hub` redirects there) with the token baked in. The address names the tab (`#ils`, `#lift`, `#issues`, `#votes`, `#reported`, none or `#decks` = RPE Decks; `#lift&client=1705`, `#ils&client=1705`), so old bookmarks work. **RPE Decks and ILS Decks** (Aaron, 2026-11-25: "On the left side bar change Decks to RPE Decks, add another entry for ILS Decks"): RPE Decks lists only clients with an RPE program, so its tiles and badge count RPE work; `sheila_hub_ilsdecks.py` is the ILS Decks tab (`G` then `S`), one row per ILS client (the review schedule snapshot, landed pre-go-live / kickoff inputs and the clients.md ILS roster, by `ars_launcher_web.ils_clients` in the background list refresh, never the analysts' shares) with its review status, review date and status, newest pull and other ILS cards, KPI tiles that filter it, and a badge counting the CSM's reviews Ready to build; a row opens the one client page (`#detail`, moved into the tab) on its ILS side. The client page has two sides (Aaron, 2026-11-25: "fix the ILS client page clutter"): from RPE Decks it is RPE only (`renderDetail`), from ILS Decks ILS only (`renderIlsDetail`: the ILS Review, Pre-go-live and Kickoff cards all shown, no fold, no links row or Live Review, no RPE status read), and a client on both gets one line on each side opening the other. A client on both is on both lists. **Opens on the signed-in CSM's clients**: the server matches the Windows login to the Client CSM List name or the `CSM Contacts.csv` email's local part once at startup (`sheila_hub.detect`; `RPE_SHEILA_CSM="Name"` overrides; no match or more than one filters nothing). No sent state: that is the delivery dashboard's. Each other tab is a module with `TAB`, `NAME`, `VIEW`, `CSS` and `JS`, listed in `sheila_hub.TAB_MODULES` and assembled into the page: `sheila_hub_lift.py` (Lift Matrix: overview table with up/down chips, a client page whose figures follow the rates as they are typed, export held until current), `sheila_hub_issues.py` (Data Issues: client list with counts beside the cards, one-click mark complete, the links row everywhere a client is named, the sidebar badge), `sheila_hub_votes.py` (Slide Review: one keystroke per slide, progress meter, Summary and CSV), `sheila_hub_feedback.py` (Feedback: the report form and the list; the change log page, `/changelog`, wears the same colors), `sheila_hub_ilsdecks.py` (ILS Decks, above) and `sheila_hub_ils.py` (the ILS Review, Pre-go-live and Kickoff cards on the client page's ILS side, all shown, the review card from `ils_review_runs.py`; `TAB = None`). The routes and logic stay in `ars_launcher_web.py`, `ils_ui.py` (routes and labels), `ils_runs.py` and `issue_reports.py`; the modules are only the page side. `tests/test_sheila_hub.py`, `tests/test_sheila_hub_tabs.py`.
-- `slide_votes.py` — **Slide Review** (Aaron, 2026-10-27; made program-level 2026-10-28): CSMs vote Keep / Delete / Appendix, and star favorites, on each PROGRAM's slides (ARS, ICS, MRPC, CashPlease, Transaction Intelligence, ARS Companion) — **not tied to a client**, so a CSM can open Sheila beside any deck. A program's slide list is the build itself, never a deck (Aaron, 2026-10-29): `build/slide_inventory.py` reads each template shell and splices in the slides its builder adds where the builder anchors them, the Transaction Intelligence register (`ti/slides.json`) and the Companion's view titles; cover, agenda, dividers, Questions and Contact are not voted on. (`slide_votes.deck_slides` still splits a deck into programs at each divider, for the first-round votes and the tests.) A vote is one JSON file in `Build Artifacts/slide_votes/` (never a shared file several CSMs write back) carrying the voter's whole state for the slide (vote, star, comment); the newest per voter and slide wins, and a slide is its TITLE with any client's name and figures taken out — never its number. `slide_votes` is the record and the counting (import-safe); the tab's page is `sheila_hub_votes.py`. The Summary counts keep / delete / appendix / stars per program and exports CSV. First-round votes (per client) are still read: a single-program deck's maps to its program. `tests/test_slide_votes.py` pins it.
-- `live_review_ui.py`, `sheila_hub_live.py` — **Live Review from CSM Sheila** (Aaron, 2026-11-06: "let other CSMs create these"; prototype). A **Live Review** card on a client's page (Open, Stop, readiness list, the page's address) that starts `live_review.py`'s server **inside Sheila's own process on a daemon thread**, never as a queued build and never under `%LOCALAPPDATA%\RPEuild.lock` (a CSM presenting for an hour would otherwise stop every build on that PC), and opens it in the CSM's browser (`webbrowser`, server-side: Sheila runs on the CSM's PC). Building the page's model reads the share and can take minutes, so `open_page` returns at once and a worker builds it; the card polls `/api/live/state`. One server per client (a repeat Open reuses it, another period replaces it, at most `MAX_OPEN` at once, all stopped when Sheila exits). The traceability audit stays a hard refusal (no `--allow-untraced`); peers are client numbers only. **ILS is offered** (Aaron, 2026-11-06): its section reads the client's review pack, made from the PDF on the share (`Inputs/ILS Reviews/`, `scripts/land_ils_reviews.py`), so no CSM needs the OneDrive Clients library; `EXCLUDED_PROGRAMS` stays the one place to hold a program back. Readiness (`status`) is file presence only and rides in the client's status as `live`; a failure there never costs the RPE status. Routes `/api/live/state|open|stop` sit behind Sheila's token. `tests/test_live_review_ui.py`.
-- `launchers/` — `Build ARS Deck CLI.bat`, `ARS Deck Builder GUI.bat` (starts `ars_launcher_web.py`), `ARS Deck User Guide.html` (released to the CSM_Reporting root) and `runtime.cmd`, which unpacks the released Python to `%LOCALAPPDATA%\RPE` on first use and copies `Tools\RPE` to `%LOCALAPPDATA%\RPE\Code` whenever a new release is stamped (`RELEASE.txt`); the .bat files run the code from that local copy, never from the share (2026-10-06: a build run from the share took over an hour in imports alone).
-- `.claude/skills/summit-one-pager/` — the checklist for an Executive Summit one-pager (Aaron, 2026-10-28): attendees named by Aaron, figures shown unranked, his say on the story, then, for the multi-program **Key Performance Metrics page** (Fort Lauderdale 2026), `kpm_page.py` and `kpm_charts.py` beside it on the brand template in `assets/` (a JSON spec per attendee, every figure verified against the newest reports, rendered and looked at, saved to OneDrive `Executive Summits\<yyyy> <City>\`), or `build_ars_onepager.py` for the older ARS-only page. Aaron's standing corrections to these pages are recorded in the skill's Standards section (2026-10-30: build through the skill and keep it updated). `tests/test_summit_kpm_page.py`. Not a schedule and not in `build_month`.
-- `.claude/skills/velocity-artifact-design/` — how a Velocity HTML Artifact looks (Aaron, 2026-11-02): the Apple-style page system in `assets/velocity-page.css`, the brand values to take from `build/brand.py` (CSI Orange `#F15D22`), multi-page artifacts, and how to render and check a page before publishing. It is the house look for the Velocity Design Library (Brand Guide, Chart Catalog, James vs Aaron). Not a deck and not part of the pipeline.
-- `scripts/live_review.py`, `build/review_page/`, `build/peer_data.py` — **Live Review**, a client's review presented from a web page (prototype; Aaron, 2026-11-02; named 2026-11-03; test client Marine FCU 1539): `python scripts/live_review.py <id> --period <yyyy.mm>` serves it on 127.0.0.1 with a per-run token and a Host check, the way Sheila is served. It is a VIEW of the packs a deck build left in `Build Artifacts/launcher/<period>/<id>/` (and of the sheets the other deck builders read), so its numbers are the deck's. `review_page/__init__.py` holds `PRODUCT_NAME` (the one name the page reads); `registry.py` lists the programs (ARS; `analysis`, the ARS Companion views from `combined_insights.json`; `ti`, the Transaction Intelligence screens from `ti_pack.json`; ICS, MRPC, CashPlease, ILS (the client's latest ILS Program Analysis review, read from its PDF by `scripts/ils_review_pack.py` into `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json`; Aaron, 2026-11-06, Marine FCU), REMS (the saved REMS query result in `Inputs/REMS/`); a program with no pack is a greyed stub or a "run this first" state that says what to run) and builds one JSON view model; `story.py` is the ranked storyline (sections, refs, stubs) whose selection is `docs/LIVE-REVIEW-SELECTION.md`; `programs/<program>.py` each supply `load` / `build`; `trace.py` makes every figure on the page trace to a pack (`audit` fails the server otherwise) and holds the banned-word and +/-2% movement rules; `common.py` applies `month_complete`; `packs.py` reads packs and the deck's own speaker notes for each screen's Sources; `peers.py` + `peer_pool.py` are the "How you compare" screens (a peer is a dot whose hover gives its CLIENT NUMBER and nothing else: no name, logo or CSM, Aaron 2026-11-03; fewer than five peers is stated, not shown); `static/` draws charts, tables, the strip plot and the agenda in the browser with no network. `build/peer_data.py` is the per-client ICS / MRPC / CashPlease reading the performance dashboard and Live Review share. `build/peer_compare.py` is the ONE arithmetic of a peer comparison (quantiles, rank, the +/-2% words, like periods, `for_deck`; a percentage measure's gap from the median is stated in percentage POINTS, every program, Aaron 2026-11-24, while "almost flat" stays within 2% of the median), shared by Live Review and the Executive Review decks' peer slide the way `before_after.py` is shared (Aaron, 2026-11-03); `build/peer_tables.py` reads the two sources the other sheets lack, ICS revenue per account per month from the ICS workbooks (cached by file size and time in `Build Artifacts/peer_tables/`) and the ARS rows from the data packs in `Build Artifacts/launcher/` (`scripts/warm_peer_tables.py` warms the cache by hand; not in the 08:00 watch). **Every client-facing CashPlease peer figure is the MEDIAN of the other current CashPlease clients** (Aaron, 2026-11-24: "D: median, pooled internal"): the CashPlease deck's Overview sentences, its Peer Comparison slide (a "Median client" column) and How You Compare read ONE `peer_compare.for_deck("CP")` evaluation (`build_cp_gen.peer_eval`), never the workbook's all-clients rollup, a pooled book total that stays on the internal pages. A charge-off of exactly 0.0% on 500 or more loans booked is taken as NOT REPORTED and that client is left out of the charge-off comparison only, the count and reason said (`peer_pool.CP_ZERO_CHARGE_OFF_MIN_LOANS`; Aaron, 2026-11-24: "Leave out of charge-off peers"). `build/peer_slide.py` draws the "How You Compare" slides of each Executive Review deck (ARS, ICS, MRPC, CashPlease; Aaron, 2026-11-03) from `peer_compare.for_deck` with every peer anonymous: **never more than two comparisons a slide**, the measures in pairs (`GROUPS`), one slide per pair titled "How You Compare — <pair>" (Aaron, 2026-11-22: "Don't put more than 2 peer comparison charts on a slide"), and a pair with no measure that has five peers adds no slide. **ARS is compared only on what the client controls** (Aaron, 2026-11-22: "For ARS peer comparisons, don't compare program results. Compare things the customer controls, like Reg E, account growth, debit card take rate."): Reg E opt-in (open personal and new accounts), debit card take rate (whole book and new accounts), account growth (net personal accounts over the last 12 complete months, `metrics_gen` `acct_growth_pct`) and one-year retention, in `peer_pool.ARS_METRICS`, which Live Review, the decks, the peer reference and Sheila in Claude's `peer_compare` all follow; response rates, responder spend, tier movement, card usage and ARS revenue (`peer_pool.ARS_PROGRAM_RESULTS`) are never ranked. Each builder calls it and `validate_deck.peer_slide_findings` fails a slide that could not read its peers or names another client. `tests/test_peer_compare.py`, `tests/test_peer_tables.py`. `tests/test_peer_slide.py`. Run by hand with `scripts/live_review.py`, or from a client's page in CSM Sheila (Aaron, 2026-11-06; see `scripts/live_review_ui.py` below); never in Outputs or `deliveries.json`. `tests/test_live_review.py`, `test_live_review_story.py`, `test_live_review_peers.py`, `test_live_review_ils.py`.
-- `release_launcher.ps1` — copies the code to `<root>\Tools\RPE` and the .bat files to the root; `-Runtime` also ships the zipped Python. **The launcher runs the released copy: re-run after any change, `clients.md` included.** **A release ships origin/main and nothing else (Aaron, 2026-10-07; the default since 2026-10-08):** by default it fetches `origin/main`, checks it out detached into its own release worktree (`%LOCALAPPDATA%\RPE\release-worktree`, kept between runs so robocopy copies only what changed) and releases that — whatever is half-done in a checkout never reaches the share (a 2026-10-07 release from the working tree carried another session's unfinished file). `-FromWorkingTree` releases this checkout instead and refuses a dirty tree or a HEAD not on `origin/main` unless `-Force` is added, which stamps `RELEASE.txt` `FORCED`. The `.venv` for `-Runtime` is always read from the real checkout. `tests/test_release_launcher.py` pins all of it. **After a release from origin/main it also moves the scheduled tasks' own checkout** (`RPE_TASKS_CHECKOUT` in the environment or `.env`, e.g. `C:\Projects\RPE-Tasks`, a worktree sharing the real checkout's `.venv` and `.env`) to the commit just released, so the 08:00 watch, its watchdog and the ILS analysis landing run what the CSMs run, never whatever branch a working checkout has out (Aaron, 2026-11-24). Unset skips; a folder that is not this repo's worktree, or holds changes, is left alone with a warning; it never fails the release.
+## Repo rules
 
-**`.github/`** — the repo's own protection, now that it has several contributors (Aaron, 2026-10-07):
-- `workflows/tests.yml` — the unit suite on every pull request and push to `main`, on a Windows runner, against an empty `RPE_DATA_ROOT` (tests that need the share skip). This is the status check a ruleset on `main` requires before a merge. No secrets, no share.
-- `CODEOWNERS` — `build/`, `validation/`, `templates/`, `clients.md`, `CLAUDE.md`, `.github/` and the release and task-registration scripts request Aaron's review on every pull request that touches them.
-- Branch protection itself (pull requests only, one approving review, no force-pushes or deletion, the `tests` check required) lives in the repo's ruleset on GitHub, not in a file; it needs GitHub Pro or an organization plan — a private repo on a Free personal account cannot protect a branch.
-- `issue_pages/` — the two team issue pages, **ODD and Workbook Issues** and **CSM Data Gaps** — built as Claude artifacts and copied to `Notes/`. **Neither is published now: Aaron removed both in his 2026-11-02 artifact cleanup.** Do not republish them unless he asks; if he does, record the new links here and republish to them from then on, never to a fresh link each time. `build_issue_pages.py [--no-scan] [--no-notes]` runs the chain after `refresh_performance_dashboard.py`: `gaps_matrix.py` (per-client gaps -> gaps.json), `noprog_odd_dates.py`, `missing_wb_history.py` (every month on the reports share for the Missing Workbook clients), `business_flags.py` / `mail_flags.py` (full ODD scans; `--no-scan` reuses them), `odd_wb_by_csm.py` (the ODD page, with the Lift Matrix date check; it also writes `odd_findings.json`, its findings beyond gaps.json, which CSM Sheila's Data Issues tab reads beside gaps.json and the dashboard dataset, so one issue-pages run refreshes Sheila too), `gaps_inject.py` + `gaps_template.html` (the Data Gaps page). `clients_products.py <export.csv>` loads a new Velocity client/product export. Paths come from `common.py` via rpe_env; working data and pages live in `Build Artifacts/issue_pages/` because they carry client names and products. Publishing the artifacts needs Claude.
-- `perf_workflow.html` — the page's linked "How the decks are made" page (inputs, outputs, folder map), published beside it as `workflow.html`.
-- `perf_clients.py` — which clients the page lists: every current client on the reports share, with programs inferred for clients `clients.md` does not cover.
-- `perf_overview.py` — the page's Client overview figures, and the per-client code counts, from each ODD extract (cached per extract).
-- `perf_actions.py` — the page's CSM action items: Lift Matrix flags in workbook filenames, and ODD codes the client's ARS code tables do not list. Never maps a code; the CSM corrects the client's code sheet.
-- `build_market_reference.py` — fetches the FDIC, NCUA and Census tables into local scratch, checks every file against its row floor and loads the store as a build would, and only then lands each file on the share through a `.part` (Aaron, 2026-11-23); `--check` only checks what is there. Needs the internet and the VPN; run by hand, not by the watch. `tests/test_market_reference_and_lists_backfill.py`.
-- `ti_lists_backfill.py` — copies the mail lists that TI builds made before 2026-11-16 left in `Build Artifacts/launcher/<period>/<id>/ti/lists/` into `Outputs/<CSM>/<id>-<period>-TI-Lists/` with `ars_launcher.ti_lists_to_outputs`, only where that period's TI deck is in Outputs and no lists folder is there yet (Aaron, 2026-11-23). Dry run unless `--apply`; copy-only.
-- `zip_txn_files.py` — zips each file in `Inputs/Txn Files/` to `<name>.zip` beside it, checks the zip's size and CRC against the original, then deletes the original (a refused delete is reported). Re-run it after landing new transaction files by hand.
-- `land_txn_files.py` — collects the clients' monthly transaction files from every CSM's ODDD folder on the share into `Inputs/Txn Files/<id>/` (Aaron, 2026-10-20, for James's issue #23): every non-ODD member of `<id>_ODDD.zip`, and every non-ODD file in a `<id>_ODDD/` folder, for month folders from `--since` (default last month) on, each landed as `<member name>.zip` with its timestamp, verified (size, CRC, decompressed CRC, not emptied by the share) and written through a `.part`. A member whose banner line names something other than a transaction file (1121's September extract carried its DDA master file) is reported and left. Idempotent: a file on hand is skipped, one on hand at another size is reported, never overwritten; the source extract is never changed. Landings are logged to `Build Artifacts/txn_landings.json`. Hand-run (`--dry-run` first): not in the watch, whose 50-minute limit a month's files would overrun.
-- `land_ils_reviews.py` — puts each client's newest ILS Program Analysis review PDF on the share and reads it into the pack Live Review's ILS section shows (Aaron, 2026-11-06): `--from` the Clients library on this machine (or env `RPE_ILS_CLIENTS_DIR`), newest review per client by the period in its name (`review_page/ils_review_pack.review_period` / `newest`), landed to `Inputs/ILS Reviews/<id>/` through a `.part` and verified by size; copy-only, a same-name file at another size is reported and left; then `pack_client` writes `Build Artifacts/ils_analysis/review_packs/<id>_ils_review.json` unless the pack already comes from that file, and a review that does not read (a table that does not reconcile) keeps the old pack and is reported. `--dry-run`, `--no-pack`, `--client`. Hand-run: not in the watch or Sheila. `tests/test_ils_reviews_on_share.py`. **Only a review whose tables are text packs** (5 of the 46 landed on 2026-11-06: the analysis team's current decks paste the tables in as pictures); the reader takes the client and date from every cover style and, with no title on the cover, the client from the file name and the month only, and refuses the rest with that reason (Aaron, 2026-11-09).
-- `changelog_merge.py` — resolves a `CHANGELOG.md` merge conflict by keeping BOTH sides (every branch adds its entry at the top, so two branches always conflict there): markers removed, a blank line before every entry, line endings kept, entries with no `Summary:` line reported; refuses a file with no conflict or unpaired markers. Used by the `merge-and-release` skill (`.claude/skills/merge-and-release/SKILL.md`: merge a PR once CI passes, fix its conflict or failure, check `main`, release Sheila with `release_launcher.ps1`, tag the backup; nothing merges or releases without Aaron's word). `tests/test_roster_and_changelog_tools.py`.
-- `roster_candidate.py` — read-only: the `clients.md` rows a client is missing, from the CSM list (programs, CSM), the newest ARS workbook (Path MM or SM, via `perf_clients.detect_path`) and the CashPlease pack (loans). Used by the `add-client-to-roster` skill (`.claude/skills/add-client-to-roster/SKILL.md`), written after 1585 was "missing" from Sheila for want of a row.
-- `mail_strategy_facts.py` — the figures behind Aaron's **Delivery Call Notes** (2026-10-28), read-only: per client the programs, the last send (= Recent Review Date, from `deliveries.json`), ARS profitability (a phrase only below 3:1) and the ICS / MRPC / CashPlease lines, each the last COMPLETE month against the prior six months' average with the +/-20% band ("consistent with" / "higher than" / "lower than"; never % of goal), worded in one function. It never touches the Mail Strategy form: the project skill `.claude/skills/mail-strategy-notes/SKILL.md` drives that (Claude in Chrome on the Work Laptop, snapshot the month grid first, a table and a yes before filling, a yes before Submit, reload and compare after; ILS items are left out of these notes). `tests/test_mail_strategy_facts.py`.
-- `ars_code_tables.py` — extracts ONLY the product, Reg E and status code tables from an ARS database export into `Inputs/ARS Settings/`; the settings table (plaintext credentials) is never parsed past its header.
+Detail: `docs/FILE-MAP.md`, Root and `.github/`; `docs/COLLABORATORS.md`.
 
-**`build/ars_pipeline/` — the ARS pipeline (client-agnostic)**
-- `build_ars_gen.py` — the ARS deck assembler: populates the `ars_template.pptx` shell, inserts Product Mix and Excluded Accounts, writes source notes, adds the Contact slide, moves the Appendix after Contact, restyles fonts, runs the logo/slide-number branding pass.
-- `metrics_gen.py` — ~105 chart metrics from the ODD (streams the `.zip`).
-- `charts_gen.py` — renders the 28 chart PNGs; `DIM` = each chart's pixel size (must match its slide box aspect).
-- `chart_lib.py` — shared take-rate-by-branch renderer (personal orange / business navy; identical size).
-- `base_tab_extract.py` — SM financials from the workbook (+ DCO).
-- `xl_cache.py` — random cell access over a read-only workbook with each sheet read once (`ws.cell` on a read-only sheet re-streams it from the top); used by the three workbook extractors.
-- `base_guard.py` — refuses a workbook whose formulas were never evaluated (extracts as 1 month, 0 mailings, $0); called by both extractors, the builder and the dashboard refresh.
-- `extract_base_gen.py` / `extract_lift.py` — MM financials / Lift Matrix rows.
-- `lift_window.py` — the ONE reading of the Lift Matrix MM window (Start/End Date, the data month, `in_window` / `data_past_end`), import-safe. `extract_lift` puts it in lift.json; `ars_launcher.lift_checks` stops an MM client's build when the data month is past the End Date or the workbook filename carries the data team's Lift Matrix flag.
-- `lift_values.py` — a client's ARS Lift Matrix valued from its own ODD (Aaron, 2026-09-25): every ARS-eligible card-holding account, consumer and business — `POPULATION` at the top selects `both` (the default), `personal` or `business`, a blank `Business?` counting only under `both`, and the scan records the choice (Aaron, 2026-10-05) — in seven swipe segments, and NH valued independently on the eligible accounts with no card; the distribution is of every eligible account, NH included; 12 complete months, swipes rounded down into the band, spend and NSF/OD items capped at a percentile of each segment (`WINSOR_PCT` = 0.99, one of `WINSOR_OPTIONS`); IC rate from the workbook (else 60 BP), NSF/OD fee = the most common per-item `Fees1` value in the ODD (else the workbook's NSF Fee), collection 100%. Renders the file emailed to Bradford as `<id>-<yyyy.mm>-ARS-<Client> ARS Lift Matrix.xlsx`. CSM Sheila's Lift Matrix tab runs it; import-safe.
-- `render_lift.py`, `ticket_calc.py`, `ticket_chart.py` — Lift Matrix chart (MM); average-ticket calc + chart.
-- `product_mix_slide.py` — builds the Product Mix & ARS Eligibility slide from the ODD.
-- `branch_appendix_slides.py` — the branch-detail TABLES, in the ARS Appendix (Aaron, 2026-11-02: "We don't
-  need the branch detail in the main deck, just the charts"): Take Rate by Branch (cards by month opened),
-  Reg E Opt-In by Branch (all personal debit-card holders) and Reg E New Accounts by Branch (opted in / out /
-  no election), each "Appendix: ... (k of n)" with every branch the metric reports over as many pages as it
-  takes, 12 pt (`restyle_fonts.BRANCH_DETAIL_TABLE`), an "All other branches" row for the branches under the
-  threshold and a Total that is the program figure on the chart slides. The template's "12-Month Take Rate by
-  Branch" slide is dropped in phase 2 with the other orphan and rebuilt here. It replaced `rege_branch_slide.py`.
-- `excluded_accounts_slide.py` — builds the Excluded Accounts slide that follows it: the
-  eligibility waterfall (status → product code → debit card, each account counted once) and
-  the per-client excluded product codes, derived as those with no eligible account. $0
-  balance and address quality are reported as observations, NOT as exclusions — neither
-  predicts the `Elig` flag (see the module docstring for the evidence).
-- `before_after.py` — the responder before/after measure (cohort, windows, winsorizing,
-  pooling), imported by BOTH `metrics_gen` (the monthly deck) and `responder_activity`
-  (the Summit one-pager). **The Summit and the monthly decks use the same logic**
-  (Aaron, 2026-09-08): the two used to compute it four different ways and the one-pager
-  reported True Sky at +118% while the client's own deck said +103%.
-- `slide_geometry.py` — the builder/geometry contract layout rules are fixed in (CLAUDE.md rule 2).
-- `pnl_slide.py` — **ARS Financial Performance**, on every ARS deck (Aaron, 2026-10-02): the
-  program's P&L from the workbook's Actuals tab — incremental revenue, each itemised cost line,
-  total costs, incremental profit and profitability — for the last complete month, the year to
-  date and the program to date, over a twelve-month chart of revenue split into cost and profit.
-  Figures come from `revenue_guarantee_slide.pnl`, so this slide and the guarantee cannot
-  disagree. **A ratio is printed by `revenue_guarantee_slide.ratio_text` and nowhere else, from
-  the UNROUNDED quotient (2026-10-12):** the extractors stored `profitability` at two decimals
-  and the divider printed `f"{2.15:.1f}"` = "2.1 : 1" under a P&L that printed 2.2 : 1 from the
-  same True Sky figures. `validate_deck.ptd_ratio_findings` FAILs a deck that states the
-  program-to-date ratio two ways. It is drawn IN PLACE over the template's slide of that name: nothing is added and
-  nothing is dropped, because a freed partname gets handed to the next slide added (it removed
-  Excluded Accounts from a build on 2026-10-02).
-- `revenue_guarantee_slide.py` — the Revenue Guarantee slide, inserted after ARS Financial
-  Performance: a P&L from the Actuals tab (revenue, each cost line, total costs, profit — last
-  complete month and program to date; Aaron, 2026-10-02) beside the profitability callout, and
-  either the surplus over the 2 : 1 guaranteed minimum or the gap with the months to cover it (the months account for cost accruing over
-  those same months). Run rate reads complete months only. On EVERY ARS deck whose ratio is
-  below 3 : 1 (Aaron, 2026-09-25) — not one of the opt-in James views.
-- `combined_insights.py`, `insight_charts.py`, `combined_insight_slides.py` — the views from James
-  Gilmore's deck, merged from `test/james-aaron-combined` 2026-09-17 and still OPT-IN:
-  `build_ars_gen` adds them only when `RPE_JAMES_SLIDES=1`. The original six (revenue by mailing,
-  responders vs mailed non-responders, card account health, take rate and Reg E by branch, Branch
-  Scorecard with number and name, ARS scorecard) plus, from 2026-09-21: Revenue Build by Mailing,
-  Where This Month's Revenue Came From, Revenue per 1,000 Offers, Where Take Rate Lags, Where
-  Reg E Opt-In Lags, Swipe Tier Migration, PIN and Signature Mix, Overdraft Limits by Reg E
-  Election, Responders vs Their Own Segment, Where the Balances Sit, and What Five Points Would
-  Be Worth. **These are REVIEW slides**: each one's speaker notes carry its source, its method
-  and its open issues in full (`_notes` in `combined_insight_slides`), which is why they are not
-  worded for a client.
-- `james_views.py`, `james_view_charts.py`, `james_view_slides.py` — the SECOND round of James
-  views (Aaron, 2026-09-25: "add in as many as possible and then we'll edit down from the
-  maximized copy"), same opt-in, reached through `combined_insights.compute` (`ci["more"]`) and
-  `combined_insight_slides.add_insight_slides`: Revenue per Fee Dollar by Mailing, Offer Segments
-  per 1,000 Mailed, Response by Offer Number, Responders vs Non-Responders by Mailing, What a
-  Response Is Worth, Tier Movement by Response, First Swipes: Program and Organic, Where Card
-  Spend Goes, How the Money Moves (the ODD zip's monthly transaction file), Where Cards Lag, What
-  a Card and an Opt-In Earn, Value by Account Age, Accounts Under Stress, Branch Value per
-  Account, Reg E Elections Over Time, Program Cascade, Where Accounts Close, Card Spend Before a
-  Close. Money is priced only at the WORKBOOK's own Interchange Rate and NSF Fee
-  (`lift_values.workbook_assumptions`); activity windows go through `month_complete`.
+- **`CHANGELOG.md` records every correction and change (Aaron, 2026-09-01)**: a moved number or source, a
+  changed claim, AND a change to what a slide renders. Post to it whenever you change pipeline behaviour.
+  **Every entry starts with a `Summary:` line** — one or two plain sentences for a CSM (2026-09-25).
+- **ILS databases:** Claude cannot reach them (nor VIP or MRDB). Read `docs/ILS-schema.md` before writing any
+  ILS query; SQL in `sql/` is run by a person. Customer lists and results never go in the repo.
+- **`.github/`:** CI runs the unit suite on every PR and push to `main` against an empty `RPE_DATA_ROOT`;
+  `CODEOWNERS` requests Aaron's review for `build/`, `validation/`, `templates/`, `clients.md`, `CLAUDE.md`,
+  `.github/` and the release and task scripts.
 
-- `sustained_split.py`, `sustained_split_slide.py` — the ONE sustained-responder measure
-  (`by_mailing`, also used by `metrics_gen`) split by offer, Non-User vs Threshold, and the
-  opt-in test slide that shows it (`RPE_TEST_SLIDES=1` or `RPE_JAMES_SLIDES=1`; Aaron, 2026-10-02).
-- `spend_trend.py`, `spend_trend_slides.py` — debit spend per cardholder (the workbook's Key Trends,
-  the figure to quote), and from the ODD the SHAPE of it: cards in use each month, spend per card in
-  use, spend per ARS-eligible account open in the month (Aaron, 2026-10-12, Brooks Bank). The
-  comparison is **like for like**: the months of this year to date that the prior year also carries
-  (a series starting Feb 2025 compares Feb–Sep with Feb–Sep; a full series Jan–Sep with Jan–Sep; a
-  series with no prior-year month makes no comparison, stated). Wording follows the +/-2% band.
-  Two slides after "Overall Debit Swipes & Spend", **opt-in** (`RPE_SPEND_SLIDES=1`; "we may include
-  those permanently"). The ODD is today's book, so its history understates earlier months — the notes
-  say so.
+## Project map (short — the full index is `docs/FILE-MAP.md`; keep it current there)
 
-- `companion_deck.py` — the **ARS Companion deck** (Aaron, 2026-10-27: "Build functionality in Sheila (a new button) to build a ARS Companion Deck with James's slides"): James's analysis slides as a SEPARATE presentation beside the approved Executive Review, never changing it. `ars_launcher.py build <id> --companion` builds the ARS deck in its own staging folder (`Build Artifacts/launcher/<period>/<id>/companion/`) with every opt-in view on (`RPE_JAMES_SLIDES`, `RPE_SPEND_SLIDES`, `RPE_COMPANION`; `ars_launcher.COMPANION_ENV`); with `RPE_COMPANION=1` `build_ars_gen` records the ids of the slides those views added (`companion_slides.json` beside `metrics.json`), and `companion_deck.build` keeps only the cover (retitled "Executive Review Analysis • <month>", so `validate_deck._cover_client_and_month` still reads it), those slides, Questions & Discussion and Contact. Slides are only dropped, never added, so the freed-partname hazard does not arise. Validated like any deck (0 FAIL + package check) and filed by `ti_to_outputs` as `<id>-<yyyy.mm>-COMP-<Client> ARS Companion.pptx`: "COMP" is not a program tag, so `promote_month` never reads it as an ARS deck, `decks_in_outputs` never counts it as the period's RPE deck and an RPE build never archives it (`is_companion_deck`). `status <id> --companion` shows its checks (`companion_checks`: the client on ARS, this period's ODD extract, workbook, DCO and the Lift Matrix window); CSM Sheila's client page carries its own **ARS Companion** panel and button (`companionPanel`, `/api/build` with `companion`), a "Companion in Outputs" chip, and the same one-build-at-a-time queue. `tests/test_companion_deck.py` pins all of it.
-- `build_ti_gen.py`, `ti/` — the **Transaction Intelligence cut** (James Gilmore, 2026-10-22): a
-  SEPARATE deck, in an ARS lens and an ICS lens, for the transaction intelligence, competition,
-  attrition and deposit analyses migrated one at a time from his ARS v5 engine. It never edits the
-  ARS deck, its metrics or its template; an overlap with an existing slide is recorded, not
-  replaced. `ti/cut.py` holds the lenses, the chapter list (`CHAPTERS`, resolved on first use from
-  `ti/chapters/`, which imports `cut` for `Chapter`) and the file name `<id>-<yyyy.mm>-TI-<ARS|ICS>-<Client> Transaction
-  Intelligence.pptx` — "TI" is not a program tag, so `promote_month` never reads it as an ARS
-  deck. `ti/frame.py` is the slide frame chapters draw on; its `notes()` refuses a note with no
-  Source line. `build_month` runs it only with `RPE_TI=1`; the launcher builds it on its own with
-  `build <id> --ti` — CSM Sheila's **Transaction Intelligence** panel and button (Aaron, 2026-10-23:
-  "a separate Transaction Intelligence presentation, separate from the currently approved RPE
-  presentation"). `ars_launcher.ti_checks` is its readiness check: a chapter ported
-  (`cut.CHAPTERS`), the client on ARS, this period's ODD extract, the client's codes
-  (`ti/config`: the v5 config file, else `ars_code_tables.json`, parsed once per change), the
-  transaction files for v5's window counted from file NAMES alone (`txn_stage` rules, no zip
-  opened; Sheila keeps the folder listing for `SHARE_TTL`), and for the ICS lens the ICS lists
-  (`lens.ics_list_files`). `ti_to_outputs` files the decks beside the RPE deck and supersedes
-  only their own names; `decks_in_outputs` never counts a TI deck as the period's RPE deck and
-  an RPE build never archives one (`is_ti_deck`). `tests/test_ti_launcher.py` pins all of it,
-  so a change to any of those names is a change to the launcher too.
-  Past five agenda rows (chapters + Questions) `build_ti_gen` keeps
-  each chapter's heading and drops its detail line, which no longer fits. `ti/PORTING.md` holds the porting
-  rules; `ti/compat.py` runs the ported code under v5's pandas 2 semantics inside a with-block, never
-  process-wide (entry points and `test_ti_*` only); `ti/context.py` is the `Ctx` every computation
-  is handed, shared by the build and the parity check; `ti/core/` the v5 foundation modules (periods, ODD transform, account bases, facts);
-  `ti/odd.py` reads the client's ODD as v5 does; `ti/config.py` the client config the analyses
-  read (a v5-shaped file when supplied, else derived from `ars_code_tables.json`, and said so);
-  `ti/lens.py` the ARS and ICS lens groups, with the ICS lists found in `Inputs/ICS Direct Mail`
-  and `Inputs/ICS Referrals` and joined onto the ODD by v5's `ti/monthly_analysis/ics_sources.py`;
-  `ti/parity.py` + `scripts/ti_parity.py` check each ported analysis against a v5 run's own figures
-  on v5's own frame (read-only; exit status = keys that differ).
-  `ti_build.py` builds the cut for one client (figures once into `ti_pack.json`, a deck per lens);
-  `build_month.build_client` runs it after the ARS deck only when `RPE_TI=1`, into `<stage>/<id>/ti/`,
-  never delivered or combined. `docs/migration/DUPLICATES.md` records where the cut overlaps this repo.
-  `ti/deck/` holds v5's chart renderers, headlines and copy rules (palette and face from `brand` /
-  `use_font`) and `helpers.py`, the helper bundle v5's slide builders draw through, on RPE's anatomy.
-  `ti/transaction_intelligence/` holds v5's transaction-file analyses; `ti/txn_stage.py` stages the
-  window's zipped files from `Inputs/Txn Files/<id>/` once into a local cache for v5's loader;
-  `ti/txn_sections.py` is v5's transaction run one section at a time, in v5's order;
-  `ti/dictionaries/` the three reference dictionaries the transaction analyses classify against
-  (competitors, financial-service patterns, merchant categories; copied from v5 `0_Config/`).
-  `ti/chapters/` holds the cut's eight chapters in deck order (Transaction Intelligence, Competition,
-  Attrition, Deposits, ICS accounts, Economics, Value, Campaign); `ti/chapters_txn.py` computes and
-  builds the first two; `ti/deck/economics_inline.py`, `value_inline.py` and `campaign_inline.py` hold
-  v5's economics, value and campaign slides, lifted out of v5's build function
-  (`ti/deck/migration_slides.py` is v5's tier-matrix module); `tests/ti_v5_harness.py` stands in for v5's
-  whole-month test harness; `ti/slides.json` sets every chapter and slide of the cut to "keep" or
-  "toss" and `ti/selection.py` reads it (how the DUPLICATES overlaps get settled);
-  `ti/deck/combine.py` draws two one-chart slides as ONE, two charts side by side (Aaron, 2026-11-02:
-  "charts that can be combined into one slide"): each builder is probed for its headline and chart, the
-  charts are redrawn at half a slide so their type keeps its size, and a pair that cannot share a slide
-  (a table, tiles of its own, two charts, a half-width figure under 0.86 of its size, one half declined) is
-  drawn as it always was, said in the build log; a chapter lists its pairs in `COMBINED`;
-  `ti/odd_sections.py` runs v5's ODD sections; `ti/deposits_input.py` reads the client's own
-  `Inputs/Deposits` file; `ti/workbook.py` is v5's ARS Workbook reader (`wb_*`: P&L, offers, Lift
-  Matrix, rates) and `ti/workbook_input.py` finds the client's workbook by `build_month`'s rule and
-  fills a blank `ICRate` / `NSF_OD_Fee` from it; `ti/guarantee.py` is v5's 2:1 deferral tracker reader
-  (`gt_*`) and `ti/deferred_input.py` finds the client's tracker in `Inputs/Deferred Billing` and says
-  when it is missing, stale or disagrees with the workbook.
-
-*Standalone ARS tools — run by hand, not part of the deck chain:*
-- `build_ars_onepager.py` — the 8.5x11 print one-pager. Deliberately skips
-  restyle_fonts / fit_layout / validate_deck, which enforce the 13.33x7.5 deck contract.
-- `responder_activity.py` — reads the raw ODD for the one-pager: eligible count, reach,
-  depth, transactions over the ask. The before/after figures come from the shared
-  `before_after.compute`, not from this file.
-- `build_lift_matrix.py` — the Lift Matrix file for Bradford from the command line, without Sheila: a
-  thin wrapper over `lift_values` (Aaron, 2026-09-25), same accounts, rates and file. `lift_extract.py`,
-  its old `.pkl` step, is retired.
-
-**`build/` (shared)**
-- `restyle_fonts.py` — font-role post-processor, run last on every deck (all programs).
-- `strip_dead.py` — zip-level dead-slide GC (called by the ARS assembler).
-- `summit_slide.py` — inserts the Executive Summit slide (used by ICS/MRPC).
-- `assemble_combined.py` — builds the combined ARS+ICS+MRPC deck from the three finished
-  program decks (see **Combined decks** above).
-- `fit_layout.py` — layout-fit pass + 10pt slide numbers; run by every builder before save.
-- `cover_divider.py` — the cover and the section dividers, drawn the same way by all four
-  builders (Aaron, 2026-10-02: "move the section dividers and title slides into main"):
-  left-aligned navy, the client's logo, the month at 84 pt, product chips; a program divider
-  carries its three headline figures and, in a combined deck, the progress track
-  `assemble_combined.set_divider_tracks` draws. Keeps every invariant the pipeline reads off
-  those slides (the "Executive Review  •  <month>" line, first text shape = title, the
-  full-bleed rectangle, the 16 pt floor, no shadow). `tests/test_cover_divider.py` pins them.
-- `slide_inventory.py` — every program's slide list from the templates and the builders, never from a client's deck (Aaron, 2026-10-29): the shell's titles with each builder's added slides spliced in at the builder's own anchor (`ADDED`), a shell slide the builder retitles (`RENAMED`), the Transaction Intelligence register and the Companion's view titles; the shell slides every deck shares are left out, a conditional slide carries its condition in `source`, and a lost anchor is stated. CSM Sheila's Slide Review reads it. `tests/test_slide_inventory.py`, and `tests/test_golden_deck.py` checks the ARS builder's own output against it.
-- `table_style.py` — the one table style of every deck (Aaron, 2026-11-24, from his Mission Control page): navy header kept, no zebra or grid, one thin `LABEL` rule under each row, figures right-aligned with their header, orange total and other deliberate colours kept, a status column as pills, two-line cells. `restyle_deck` runs inside `fit_layout.fit`, so every builder (ARS, ICS, MRPC, CashPlease, Companion, TI, combined, Sheila's ILS decks) applies it; `shapes.add_table` draws it. `tests/test_table_style.py`.
-- `textfit.py` — measures rendered glyph width against the bundled TTFs (`fits_one_line`);
-  used by the ICS builder and the validator. Never eyeball whether a label fits.
-- `branch_names.py` — branch id → name lookup shared by the ARS chart renderers (since 2026-09-17 `metrics_gen` puts the names on every branch chart, table and caption when most of a deck's branch ids resolve; numbers otherwise), and the branch-name dataset in `Inputs/Branch Names/` (Aaron, 2026-09-17): `morning_update` adds names from each client's Charts workbook (Branch Results tab, the file matched to one client by name or by `charts_files.csv`) and from the ICS referrals pull (VIP branch table), never removing one; `client_map(id)` reads it back, Charts name first, and leaves a number unnamed when one source gives it two different names.
-- `month_complete.py` — the one definition of a complete month (pull/generation date, and a trailing month below half its six-month median), per measure; import-safe. Every YoY, latest-month and trailing-window comparison in every program goes through it (Aaron, 2026-09-17).
-- `local_cache.py` — keeps Sheila's local Transaction Intelligence cache (`%LOCALAPPDATA%/RPE/ti_cache`) inside a size (3 GB) and age (21 days) limit, evicting whole clients least recently used first and never the one being built (Aaron, 2026-11-03: "my harddrive is nearly full. make sure sheila cleans up after herself"). Run when Sheila starts, at the start of each TI stage, and by hand with `ars_launcher_web.py --tidy`. The ILS Review card's staged pulls (`ils_review/<id>/<pull>/`, 2026-11-24) live in the same cache under the same limits. `tests/test_local_cache.py`.
-- `rpe_env.py` — machine-local paths (`RPE_DATA_ROOT` → `inputs()` / `outputs()`), build scratch (`temp_dir`, removed at exit; `sweep_temp`, run first by every `build_client`, clears scratch a crashed build left in the temp folder — 2026-09-16, after ~180 GB of it filled C:) and
-  `use_font()`, which registers the bundled fonts and RAISES instead of letting matplotlib
-  substitute a missing face. Every chart renderer goes through it.
-- `assets/` — `logo.png` (CSI|Velocity lockup), `csi_logo.png`, `summit_slide.pptx`.
-  **`summit_slide.pptx` is the ONE Summit slide** (Aaron, 2026-09-11): every builder
-  clones it, and `summit_date()` reads its printed date, so replacing the Summit is one
-  file. It used to be two — ICS/MRPC stamped a flat `Velocity Executive Summit.jpg`
-  while ARS/CashPlease carried their own copy in their template shells, so the slide
-  could only be replaced with PowerPoint, and every 2026.09 deck went out naming a
-  Summit that had already happened. Drop the new `.pptx` here (or at
-  `Inputs/Summit/summit_slide.pptx`, which wins when present) and rebuild.
-- `README.md` — build/ layout notes (incl. the SM-vs-MM revenue-model extractor notes).
-
-**`build/ics_pipeline/`** — ICS pipeline: `build_ics_gen.py`, `ics_charts_gen.py`, `ics_channel_split.py` (direct mail vs branch referral, Cindy Draper's review of KEMBA 1195, 2026-11-03: the direct-mail list, the all-clients referral export in `Inputs/ICS Referrals/` — which reproduces the VIP referral table, so a client with no VIP sheet builds the "full" shape from it — and the ODD joined by account hash; its docstring says what each source can and cannot split; the cohort charts show EVERY cohort with the first 12 months called out; `compute` is wrapped so a failure never stops a deck),
-`ics_local_sheet.py` (builds the ICS client sheet from local files — referral export, current workbook, Charts Goals tab, direct-mail list — when there is no VIP sheet; `build_month` uses it only then, 2026-09-16. **With the period's workbook and nothing else it builds the `workbook-only` shape** (Aaron, 2026-10-13, 1195 KEMBA CU): the ordinary referral block from the workbook's Monthly Detail row "Accounts Opened via Invitation Checking System" — **which counts referrals** (Aaron, the same day; it sums to the Value tab's figure) — and its DDA Openings by Branch tab, goals from the Charts Goals tab, names from it or the branch-name dataset, and notes that name the workbook row. The same three referral slides render it; for a few hours that day it was worded "accounts opened, not referrals", on the premise that the row was a different measure, and on 1776 the row runs above the referral detail export (2,575 vs 2,280), which is a question for the data team, not two measures. **The workbook's own ROI and Present Value are carried** (Aaron, 2026-10-13, "Carry the workbook's ROI figures"): `ics_workbook_extract` reads the Value tab's "Present Value of New ICS Accounts @ 3%" and "Present Value Per Account", and `build_ics_gen` shows them with the workbook ROI; the 2026-07-13 recalculation runs only for a sheet with no Present Value, the VIP pulls, and the notes say which was used), `ics_workbook_extract.py` (the quarterly step: populates a client JSON's workbook sections
-from the ICS workbook — see **Cadence**; since 2026-10-13 also `monthly_detail_full`, every cohort
-column of the Monthly Detail tab, which `build_ics_gen` renders as the **ICS appendix** — "Appendix:
-Monthly Detail (k of n)", ten cohorts a page, after the education slides and before Questions &
-Discussion so a combined deck keeps the pages in the ICS section; a sheet without the block gets no
-appendix — and the Value tab's Present Value figures the deck carries with the workbook ROI. **Its `monthly_detail` block is the newest TWELVE cohorts** (nine until 2026-10-13) with the workbook's Total Expense row per cohort, and **its benchmark reads the Program to Date row** of Life of Account Data (Aaron, 2026-10-13, "Program-to-date everywhere"; `benchmark.window` says which row). **The revenue tiles on every ICS deck are program to date across every cohort** — `build_ics_gen` reads them from `revenue.components` / `revenue.total`, never from the cohort window, after Cindy's review of KEMBA found $11,044 "Interchange PTD" (nine cohorts) where the workbook's figure is $573,936; the chart subtitles name the window. The Financial Summary's expense lines are "Referral Fees to Date" (the workbook's Total Expense row) and "Acquisition Cost" ($245 × accounts, not deducted)), `data/` (per-client VIP ICS data — one folder per client; keep client-named).
-**`build/mrpc_pipeline/`** — MRPC pipeline: `build_mrpc_gen.py`, `mrpc_charts_gen.py` (charts drawn at their slide slot size, `SLOT_IN`), `revenue_projection.py` (the projected year on Revenue by Year: a straight line through the last 6 complete months; Aaron, 2026-10-02), `mrpc_weekly.py` (the ONE reader of the MRPCEnrollmentSummary weekly, shared with the performance dashboard), `status_slides.py` (the Program to Date and Current Program Status slides, from that weekly; they replaced Card Portfolio and Key Metrics 2026-10-02), `setup_template.py` (one-time template bootstrap; needs `mrpc_template_base.pptx`, which is NOT in the repo — ask Aaron for it if the template must be rebuilt), `data/` (per-client VIP MRPC data).
-
-**`templates/`** — ALL deck templates live here (consistent naming; passed to each builder as an arg).
-- `ars_template.pptx`, `ics_template.pptx`, `mrpc_template.pptx` — the three stripped per-program shells the builders populate (cleaned + styled; "Union Financial" dummy client). **The only legitimate starting point for a build.**
-- `multi-product_reference_deck.pptx` — combined ARS+ICS+MRPC reference (Union Financial demo, styled); source for re-materializing the stripped templates.
-- `STYLE.md` — visual style guide (single source of truth). `TEMPLATES.md` — reference section map + template materialization.
-
-
-**`prototype/`** — test-only deck experiments, never part of the pipeline or the gate:
-`build_prototype.py` builds the redesigned Executive Review of
-`docs/STYLE-PROPOSAL-2026-10-02.md` from a client's launcher data pack and VIP sheets into
-the session scratchpad, so a change can be judged on real figures before any builder work.
-The cover and dividers were moved into `build/cover_divider.py` from it (2026-10-02); the
-rest is still a proposal.
-
-**`validation/`** — `validate_deck.py` (pre-ship lint gate, 0 FAIL to ship), `qa_all.py`
-(the full gate: every template + given decks, package integrity, layout drift), `layout_baseline.json` (the drift fingerprints — `--snapshot` to accept).
-**`fonts/`** — Montserrat (headings) and Carlito (Calibri-metric, charts), both bundled and
-embedded. `rpe_env.use_font` RAISES rather than let matplotlib substitute a missing face.
-
-`archive/` and `dashboards/` are NOT in this repo — the initial import excluded them. They
-live only in the pipeline data root. Nothing here references either.
+| Folder | What is in it |
+| --- | --- |
+| `build/` | The shared layer (above) and the pipelines: `ars_pipeline/` (`build_ars_gen.py`, `metrics_gen.py`, `companion_deck.py`, `ti/` + `build_ti_gen.py`), `ics_pipeline/` (`build_ics_gen.py`), `mrpc_pipeline/` (`build_mrpc_gen.py`), `cashplease_pipeline/` (`build_cp_gen.py`), `ils_pipeline/`, `ils_analysis/`, `review_page/` (Live Review). |
+| `scripts/` | Entry points: `build_month.py`, `promote_month.py`, `ars_launcher.py`, `ars_launcher_web.py` + `sheila_hub*.py` (Sheila), `build_cashplease.py`, `oddd_optimize.py`, `watch_sources.py`, `deck_status.py`, `dashboard.py`, `refresh_performance_dashboard.py`, `release_launcher.ps1`, `live_review.py`, `register_*.ps1`, `launchers/`. |
+| `sheila_mcp/` | Sheila in Claude (the Claude Desktop extension's server). |
+| `validation/` | `validate_deck.py` (0 FAIL to ship), `qa_all.py` (the full gate), `layout_baseline.json`. |
+| `templates/` | The per-program shells, the reference deck, `STYLE.md`, `TEMPLATES.md`. |
+| `tests/` | The unit suite (synthetic data only). |
+| `docs/`, `sql/` | The docs above, PRDs; ILS queries a person runs. |
+| `.claude/` | The deck subagents and the skills named in **Routing**. |
+| `fonts/` | Montserrat and Carlito, bundled and embedded. |
+| `prototype/` | Deck experiments, never part of the pipeline or the gate. |
