@@ -153,6 +153,35 @@ def scheduled_clients():
         return {}
 
 
+def share_readable():
+    """True when Inputs can be read now. The schedule readers answer {} / [] when they cannot read, which looks the
+    same as "nothing scheduled", so the ILS Decks list asks this first and reads every row as not checked when it is
+    False: an unreadable share never reads as "no review scheduled", let alone Ready."""
+    try:
+        return R.inputs().is_dir()
+    except (OSError, SystemExit):
+        return False
+
+
+def landed_pulls():
+    """{client id: newest pull stamp} of the pulls landed in Inputs/ILS Analysis/<id>/<yyyymmdd>/ (the landing step's
+    folders, never the analysts' share); {} when the folder cannot be read. For the ILS Decks list's pull column."""
+    out = {}
+    try:
+        base = _landed().root()
+        clients = [d for d in base.iterdir() if d.is_dir() and re.fullmatch(r"\d{3,5}", d.name)]
+    except (OSError, SystemExit):
+        return out
+    for d in clients:
+        try:
+            pulls = [p.name for p in d.iterdir() if p.is_dir() and re.fullmatch(r"\d{8}", p.name)]
+        except OSError:
+            continue
+        if pulls:
+            out[d.name] = max(pulls)
+    return out
+
+
 def _clean_name(cid, name):
     """The schedule's fi_name can lead with the client number ("7001 - Harbor FCU"): the name alone."""
     s = str(name or "").strip()

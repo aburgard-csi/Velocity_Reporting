@@ -1,23 +1,27 @@
-"""The ILS cards on a client's page in CSM Sheila (James Gilmore, 2026-10-28), in the Hub layout.
+"""The ILS cards on a client's ILS page in CSM Sheila (James Gilmore, 2026-10-28), in the Hub layout.
 
-Run James's ILS pre-go-live or kickoff analysis from the client's page, beside the Executive Review,
-Transaction Intelligence and ARS Companion cards. Each card is the engine's two steps in order: **Read the field
+The client page opened from ILS Decks is ILS only (Aaron, 2026-11-25: "the ILS Pre-GoLive and Kickoff can be moved to
+the ILS Decks section, and it no longer needs the dropdown to show them"): the ILS Review card, then the ILS Pre-go-live
+card and the ILS Kickoff card, all shown, with no fold. The RPE page carries none of them.
+
+Run James's ILS pre-go-live or kickoff analysis from the client's ILS page. Each card is the engine's two steps in order: **Read the field
 summary** (step 1, computes nothing), then the codes the CSM confirms and **Build** (step 2: the report or workbook,
 and the deck). Until the client's extract has landed (Inputs/ILS PGL/<id>/ or Inputs/ILS Kickoff/<id>/) the card
-says where to put it. The codes a client's last run was confirmed with are offered back with that run's date and
+is a compact one that says which extract is missing and where it goes, with Check again. The codes a client's last run was confirmed with are offered back with that run's date and
 file; they are the CSM's to keep or change and are never applied until Build is pressed (James Gilmore, 2026-10-28:
 "the user will confirm the limits. the client wont confirm anything"). What the CSM types is held in the page, so the
 status refresh that redraws the client page does not lose it.
 
-Above the two, outside their fold, the **ILS Review** card (Aaron, 2026-11-24; it was "Coming soon"): the ILS Program
+Above the two, the **ILS Review** card (Aaron, 2026-11-24; it was "Coming soon"): the ILS Program
 Analysis deck for a client on the ILS analysts' review schedule, built from the client's landed data pull, with its
 readiness checks, Build, and Build with prep slides when the client's prep deck is on hand (the file it merges is
-named on the card). A client not on the schedule, with no such deck and no run, gets no card. Its facts and run are
+named on the card). A client not on the schedule gets the card too, saying so. Its facts and run are
 ils_review_runs.py's.
 
 The runs and the files are in ils_runs.py and the routes in ils_ui.py (`get`, `post`); this is the page side, moved
 here from the old page's `ils_ui.JS` when Sheila moved to the Hub layout. It is not a tab: sheila_hub.py draws
-`<div id="ilscards">` on the client page and calls `ilsCards(client)` after drawing it.
+`<div id="ilscards">` on the ILS side of the client page (renderIlsDetail) and calls `ilsCards(client)` after drawing it;
+the header's "ILS checked at" and "Check ILS again" are this read.
 """
 TAB = None
 NAME = "ILS"
@@ -39,19 +43,14 @@ CSS = r"""
 .ilsopts input[type=text]{width:90px;padding:4px 8px}
 pre.ilslog{font:12px/1.45 var(--mono);background:var(--fill);border:1px solid var(--line);border-radius:12px;padding:10px 12px;max-height:360px;overflow:auto;white-space:pre-wrap;color:var(--ink);margin:8px 0 0}
 .ilssaved{font-size:12.5px;color:var(--muted);margin:2px 0}
-details.ilsfold{margin-top:2px}
-details.ilsfold>summary{cursor:pointer;font:600 13.5px/1.3 var(--body);color:var(--ink);padding:6px 2px;list-style:none;display:flex;gap:8px;align-items:baseline}
-details.ilsfold>summary::-webkit-details-marker{display:none}
-details.ilsfold>summary::before{content:"\25B8";font-size:11px;color:var(--muted)}
-details.ilsfold[open]>summary::before{content:"\25BE"}
-details.ilsfold>summary .sub{font-weight:400;color:var(--muted)}
-details.ilsfold>.pc{margin-top:10px}
 details.ilsinputs{margin:6px 0 2px;border:1px solid var(--line);border-radius:12px;padding:6px 12px}
 details.ilsinputs summary{cursor:pointer;font-weight:600;color:var(--ink)}
 .ilsin{display:grid;grid-template-columns:minmax(170px,max-content) minmax(200px,520px);gap:8px 14px;align-items:start;margin:8px 0}
 .ilsin textarea{min-height:70px;resize:vertical}
 .sub{color:var(--muted)}
 ul.ilsnotes{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted)}
+/* a long folder path or file name wraps inside its card rather than widening the page (a phone, 2026-11-25) */
+#ilscards{min-width:0} #ilscards .pc{min-width:0;overflow-wrap:anywhere}
 @media (max-width:820px){.ilsform,.ilsin{grid-template-columns:1fr}}
 """
 
@@ -70,7 +69,7 @@ async function ilsCards(cid) {
   const box = $("#ilscards"); if (!box) return;
   if (ILS.cid !== cid) { ILS.cid = cid; ILS.doc = null; }
   if (ILS.doc) ilsDraw();
-  try { ({body: ILS.doc} = await api("/api/ils/client?client=" + encodeURIComponent(cid))); }
+  try { ({body: ILS.doc} = await api("/api/ils/client?client=" + encodeURIComponent(cid))); ILS.at = new Date(); }
   catch (e) { box.innerHTML = `<section class="pc"><p class="err">Couldn't read the ILS folders: ${esc(e.message)}</p></section>`; return; }
   if (ILS.cid !== cid) return;
   ilsDraw();
@@ -107,11 +106,12 @@ function ilsCard(kind) {
   const c = ILS.doc.kinds[kind], title = "ILS " + (kind === "pgl" ? "Pre-go-live" : "Kickoff");
   if (!c || c.error) return `<section class="pc"><div class="pch"><h3>${esc(title)}</h3></div><p class="err">${esc((c && c.error) || "unavailable")}</p></section>`;
   const j = c.job, running = j && !j.done;
-  const state = !c.extract ? `<span class="chip k-blocked">No extract yet</span>` : c.last ? `<span class="chip k-outputs">Deck built</span>` : `<span class="chip k-ready">Extract landed</span>`;
+  const state = !c.extract ? `<span class="chip k-idle">${si("idle")}No extract yet</span>` : c.last ? `<span class="chip k-outputs">Deck built</span>` : `<span class="chip k-ready">Extract landed</span>`;
   const head = (btns) => `<div class="pch"><h3>${esc(title)} <span class="mix">${kind === "pgl" ? "report and board deck" : "workbook and deck"}</span> ${state}</h3><div class="act">${btns}</div></div>`;
-  if (!c.extract) return `<section class="pc stopc" id="ils${kind}">${head("")}
-      <p class="fact">${esc(ILS_WHAT[kind])}</p>
-      <p class="why">Land the client's ${kind === "pgl" ? "pre-go-live extract (<code>&lt;id&gt;_&lt;Client&gt;_PreGL_&lt;yyyymmdd&gt;.csv</code>, with the vendor's MatrixValidation / IntegrityCheck dumps beside it)" : "one-time data extract (<code>&lt;id&gt;_OneTimeData_&lt;yyyymmdd&gt;.csv</code> or <code>.xlsx</code>)"} in <b>${esc(c.folder || "")}</b>${kind === "pgl" ? " (or the delivery's zip, <code>&lt;id&gt;_…_PGL_&lt;yyyymmdd&gt;.zip</code>, in the folder above it)" : ""}, then Check again.</p></section>`;
+  // No extract yet (2026-11-25): a compact card, like the review card waiting for its data: what is missing, where it goes.
+  if (!c.extract) return `<section class="pc" id="ils${kind}">${head(`<button class="btn" data-ilsreview="recheck">Check again</button>`)}
+      <ul class="checks">${ilsWarn(`No ${kind === "pgl" ? "pre-go-live" : "kickoff one-time data"} extract has landed for this client. Put it in ${c.folder || "its folder"}, then Check again.`)}</ul>
+      <p class="why">${kind === "pgl" ? "Expected: <code>&lt;id&gt;_&lt;Client&gt;_PreGL_&lt;yyyymmdd&gt;.csv</code> with the vendor's MatrixValidation / IntegrityCheck dumps beside it, or the delivery's <code>&lt;id&gt;_…_PGL_&lt;yyyymmdd&gt;.zip</code> in the folder above." : "Expected: <code>&lt;id&gt;_OneTimeData_&lt;yyyymmdd&gt;.csv</code> or <code>.xlsx</code>."}</p></section>`;
   const step1 = `<button class="btn" data-ilsrun="1" data-ilskind="${kind}"${running ? " disabled" : ""}>Read the field summary</button>`;
   const step2 = `<button class="btn primary" data-ilsrun="2" data-ilskind="${kind}"${running ? " disabled" : ""}>${c.last ? "Rebuild" : "Build"}</button>`;
   const fact = `Extract <b>${esc(c.extract)}</b>` + (c.last ? ` · last deck ${esc(c.last.when)} · <button class="link" data-ilsreveal="${esc(c.last.deck)}">open the deck</button>` : "");
@@ -123,38 +123,23 @@ function ilsCard(kind) {
     ${ilsOptions(kind, c)}${kind === "pgl" ? ilsInputsHtml(c) : ""}<div id="ilsjob${kind}">${j ? ilsJobHtml(j) : ""}</div></section>`;
 }
 
-// The pre-go-live and kickoff reports are made once per client, so for almost every client the cards only
-// said "No extract yet" (Aaron, 2026-10-29). They fold under one line, opened only when a kind has an
-// extract, a run in progress or a deck built; a CSM opens it to land an extract. The open state a CSM
-// chose is kept while the page lives, so the status refresh that redraws the cards does not close it.
-function ilsSummary() {
-  const parts = [];
-  for (const k of ["pgl", "kickoff"]) {
-    const c = ILS.doc.kinds[k], name = k === "pgl" ? "Pre-go-live" : "Kickoff";
-    if (!c || c.error) parts.push(`${name}: unavailable`);
-    else if (c.job && !c.job.done) parts.push(`${name}: running`);
-    else if (c.last) parts.push(`${name}: deck built`);
-    else if (c.extract) parts.push(`${name}: extract landed`);
-  }
-  return parts.length ? parts.join(" · ") : "one-time reports, not set up for this client";
-}
-
-function ilsActive() {
-  return ["pgl", "kickoff"].some(k => { const c = ILS.doc.kinds[k]; return c && !c.error && (c.extract || c.last || (c.job && !c.job.done)); });
+// The ILS page shows every ILS card (Aaron, 2026-11-25: "it no longer needs the dropdown to show them"): the review
+// card, then pre-go-live and kickoff, each saying plainly what it is waiting for. The header says when this was read.
+function ilsWarn(text) {
+  return `<li><span class="t ck-warn">${ICONS.warn.replace('<svg', '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"')}</span><span>${esc(text)}</span></li>`;
 }
 
 function ilsDraw() {
   const box = $("#ilscards"); if (!box || !ILS.doc) return;
-  const was = box.querySelector("details.ilsfold");
-  const open = was ? was.open : ilsActive();
-  box.innerHTML = ilsReviewCard() + `<details class="ilsfold"${open ? " open" : ""}><summary>ILS pre-go-live and kickoff <span class="sub">${esc(ilsSummary())}</span></summary>` +
-    ilsCard("pgl") + ilsCard("kickoff") + `</details>`;
+  box.innerHTML = ilsReviewCard() + ilsCard("pgl") + ilsCard("kickoff");
+  const age = $("#ilsage");
+  if (age && ILS.at) age.textContent = "ILS checked at " + ILS.at.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
 }
 
 // ------------------------------------------------------------------ the ILS Review card (Aaron, 2026-11-24)
 // The ILS Program Analysis deck for a client on the analysts' review schedule, from its landed data pull
-// (ils_review_runs.py). Outside the fold: a scheduled review is this month's work, not a one-time report. A client
-// not on the schedule, with no deck and no run, gets no card. Build with prep slides is offered only when the
+// (ils_review_runs.py). First on the ILS page; a client not on the schedule gets the card saying so (2026-11-25), with
+// Check again. Build with prep slides is offered only when the
 // client's prep deck is on hand, and names the file it will merge.
 const ILS_REVIEW_CHIP = {ready: ["k-ready", "ready", "Ready to build"], waiting: ["k-idle", "idle", "Waiting for data"],
   blocked: ["k-blocked", "blocked", "Can't build yet"], unknown: ["k-checking", "checking", "Unknown"],
@@ -162,7 +147,6 @@ const ILS_REVIEW_CHIP = {ready: ["k-ready", "ready", "Ready to build"], waiting:
 function ilsReviewCard() {
   const r = ILS.doc && ILS.doc.review; if (!r) return "";
   const j = r.job, running = !!(j && !j.done), d = r.decks || {};
-  if (r.state === "not_scheduled" && !d.analysis && !d.review && !j) return "";
   // a deck counts as this review's only when it was built from this review's pull (its period is the pull month)
   const delivered = (d.review && d.review.current) || (d.analysis && d.analysis.current);
   const [cls, icon, label] = (delivered && r.state === "ready") ? ["k-outputs", "outputs", "In Outputs"] : (ILS_REVIEW_CHIP[r.state] || ILS_REVIEW_CHIP.unknown);
