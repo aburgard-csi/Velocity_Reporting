@@ -49,6 +49,16 @@ CSS = r"""
 #lm-table th,#lm-table td{padding-inline:12px}
 #lm-table th:first-child,#lm-table td:first-child{padding-left:24px}
 #lm-table th:last-child,#lm-table td:last-child{padding-right:24px}
+/* The overview scrolls inside its card, so its header row and client column stay in view (Aaron, 2026-11-25).
+   A sticky cell needs a solid ground, or the rows scroll through it; scroll-padding keeps a focused row out from under the header. */
+#lm-ov .v-table-card{background:var(--sheet)}            /* one solid ground, so the pinned column matches its row */
+#lm-ov .lmwrap{max-height:calc(100vh - 150px);overflow:auto;scroll-padding-top:52px;scroll-padding-left:200px}
+#lm-table thead th{position:sticky;top:0;z-index:2;background:var(--sheet);box-shadow:inset 0 -1px 0 var(--line)}
+#lm-table thead th:first-child{left:0;z-index:3}
+#lm-table tbody td:first-child{position:sticky;left:0;z-index:1;background:var(--sheet)}
+#lm-table tbody tr:hover td:first-child{background:color-mix(in srgb,var(--accent) 5%,var(--sheet))}
+#lm-table tr.pick[aria-current="true"] td:first-child{background:var(--fill)}
+@media (max-width:820px){#lm-ov .lmwrap{max-height:none}}
 .gridbox .lmt th,.gridbox .lmt td{padding:10px 12px}
 .lmt td.v-empty{text-align:left}
 .dchip{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:0 7px;border-radius:999px;font-size:11.5px;font-weight:700;line-height:18px}
@@ -212,7 +222,7 @@ const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
     $("#lm-calc").addEventListener("click", recalc);
     $("#lm-reset").addEventListener("click", () => { clearTimeout(L.debounce); liftOpen(d.client); });
   }
-  function recalc() { clearTimeout(L.debounce); if (L.id) liftOpen(L.id, true); }
+  function recalc() { clearTimeout(L.debounce); if (L.id) { L.saying = true; liftOpen(L.id, true); } }
 
   // The headline numbers, which move as the rates do: the book's weighted DDA value, the biggest single change, and where the export stands.
   function paintKpis(d) {
@@ -233,6 +243,7 @@ const pct = (v, d = 1) => v == null ? "–" : (100 * v).toFixed(d) + "%";
   // Current (the workbook's) and new (calculated) side by side: each segment's DDA value in both, the change, and the step from the segment before; then both lift grids.
   function paintResults(d) {
     paintKpis(d);
+    if (L.saying) { L.saying = false; say("Figures updated."); }        // a screen reader hears the recalculation land
     const segs = d.segments, calc = d.calculated, cur = d.current || {}, curSeg = cur.segments || {}, curGrid = cur.grid || {};
     const bySeg = calc ? Object.fromEntries(calc.segments.map(x => [x.segment, x])) : {};
     const newV = s => { const c = bySeg[s]; return c ? c.dda : null; }, curV = s => curSeg[s] ? curSeg[s].dda : null;
