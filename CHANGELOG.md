@@ -25,6 +25,18 @@ Summary: The deck check that catches a table running into the shape below it now
 - Across the 103 decks in Outputs for 2026.10 and 2026.11 and the templates, this newly FAILs only ARS slide 6, Excluded Accounts, for 1100 Rally CU and 1800 First American Bank (both months): rendered, the "Total — excluded products" row sits on the "$0 average balance" note. Those two clients' ARS builds stop until that slide is fixed. A Transaction Intelligence table the first draft flagged (assuming 18 pt for empty cells) clears its slide number in the render and is not flagged.
 - Tests: `tests/test_table_word_break.py` (empty cells with and without an end mark, rows set under one line).
 
+### 2026-11-25 — ILS matrix appendix: a long override list no longer runs under Trend Settings (`build/ils_analysis/ils_review/matrix_prep_slides.py`)
+
+Summary: The ILS Program Analysis deck's "matrix detail" appendix slide now sizes its Overrides table to fit, so a client with a long override list builds instead of stopping at validation. RBFCU's personal and business matrices (17 and 15 override rows) failed the build on 2026-11-25; their overrides now print at 8 pt, the size of the factor tables beside them, and a list too long even at 8 pt continues on an "overrides continued" appendix slide.
+
+The panel gave the table a fixed 2.55" whatever its length: rows were set to 2.55" divided by the row count (0.14" for 18 rows) at 10 pt, below one line of text, and two of RBFCU's rules wrap ("RDI (33 days) / Deposits (33-days) Non-zero BETWEEN 0.25 AND 0.50"). `validate_deck.table_growth_overlap_findings` FAILed slides 72 and 73 (the table grew to ~5.05" and ran into the Trend Settings bar at 4.75").
+
+- `_fit_overrides` measures every cell in the bundled font (`_row_heights`, the same line height as the gate) and picks the largest size from 12 to 8 pt that leaves the Trend Settings block its room; each row is drawn at the height it will take. Short lists keep their roomier rows and 12 pt.
+- Past 8 pt the line saying the extract carries no enabled / pending flags or trend switches moves to the speaker note (it is already in the Source line) unless the slide's note carries a "†" return or the Deposit Regularity / Windfall warning. Past that, the rules that fit stay and the rest go on "Appendix: matrix detail, overrides continued — <type>" slides straight after, each rule kept whole with its sub-conditions; the matrix slide says "Overrides continue on the next slide." No override is dropped.
+- Every table cell now carries its size on the paragraph's end mark (`_end_size`). An EMPTY cell (a rule with no Returns or Stop, a sub-condition with no #) is drawn at its end mark's size and, with none, at the deck's default 14 pt; the empty 8 pt run is ignored. That alone made RBFCU's rows two and three times their height in PowerPoint, which the gate could not see.
+- Checked by rebuilding RBFCU's deck from its 2026-10-16 pull into a scratch folder (0 FAIL, the same 31 REVIEW as before) and rendering slides 72 and 73 in PowerPoint: every override clears the bar.
+- Test: `tests/test_ils_analysis.py::test_matrix_appendix_overrides_never_grow_under_the_trend_bar` (3 to 40 rules, continuation slides, every rule listed once in order, end marks set).
+
 ### 2026-11-25 — Live Review from Sheila opens the browser before it says "ready" (`scripts/live_review_ui.py`)
 
 Summary: When a CSM opens Live Review from Sheila, the page is now opened in the browser before the card switches to ready, so "ready" always means the page has been opened. Nothing a CSM sees changes except that the card may say "starting" for the moment the browser takes to open.

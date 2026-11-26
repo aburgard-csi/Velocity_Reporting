@@ -190,6 +190,71 @@ def test_all_zero_factor_tables_are_left_out():
     assert [c for c, _ in MP.factor_tables(S, "Personal")] == ["Age of Account"]
 
 
+def _long_overrides(n_rules):
+    """`n_rules` overrides, every third one long enough to wrap in the panel, with sub-conditions on others."""
+    rows = []
+    for i in range(n_rules):
+        crit = ("[RDI (33 days) / Deposits (33-days) Non-zero] BETWEEN 0.25 AND 0.50" if i % 3 == 0 else
+                f"[Age of Account] BETWEEN 31 AND {100 + i} AND [Scored limit] > {500 + i}" if i % 3 == 1 else
+                f"[Days OD] >= {10 + i}")
+        rows.append({"Account Type": "Personal", "Order Index": str(i + 1), "Override Criteria": crit,
+                     "Override Value": "-50%", "Stop Process": "0"})
+    return rows
+
+
+@pytest.mark.parametrize("n_rules,continued", [(3, False), (8, False), (11, False), (17, True), (40, True)])
+def test_matrix_appendix_overrides_never_grow_under_the_trend_bar(n_rules, continued, tmp_path):
+    """RBFCU (2026-11-25): 17 override rows at 10 pt, set to 0.14" each, grew to ~5.05" and ran under the Trend
+    Settings bar at 4.75"; validate_deck FAILed the build. The rows are now drawn at the height they take, at the
+    largest size that leaves the trend block its room, and a list too long even at 8 pt continues on a slide of its
+    own (17 rules here make 23 rows, a third of them wrapping)."""
+    from pptx.util import Emu
+    from ils_review import matrix_prep_slides as MP, theme as T
+    sys.path.insert(0, str(REPO / "validation"))
+    import validate_deck as VD
+    sh = Shell()
+    dk = T.Deck(sh, "Demo CU", "September 10, 2026", client_id="9999", types=["Personal"], codes={"Personal": "P"})
+    S = _S(OVERRIDES=_long_overrides(n_rules),
+           **{"RANGES AND FACTORS": [{"Account Type": "Personal", "Category": "Age of Account",
+                                      "Range": "[00] - 0 to 30 days (0.00, 30.00)", "Factor": "-100"}]})
+    MP.add_matrix_detail_slides(dk, _cfg(tmp_path), S, {"Personal": {"Calc?": "1", "Min": "0", "Max": "1000"}},
+                                section="appendix")
+    assert VD.table_growth_overlap_findings(sh.prs) == []
+    titles = [next(s.text_frame.text for s in sl.shapes if s.has_text_frame) for sl in sh.prs.slides]
+    main = [i for i, x in enumerate(titles) if "every factor and override" in x]
+    cont = [i for i, x in enumerate(titles) if "overrides continued" in x]
+    assert len(main) == 1 and bool(cont) == continued
+    assert cont == list(range(main[0] + 1, main[0] + 1 + len(cont)))   # straight after the matrix slide, in a run
+    tabs = [s for i in main + cont for s in sh.prs.slides[i].shapes
+            if s.has_table and s.table.cell(0, 1).text == "Override"]
+    numbers = [r.cells[0].text for tb in tabs for r in list(tb.table.rows)[1:] if r.cells[0].text]
+    assert numbers == [str(i + 1) for i in range(n_rules)]       # every rule listed once, in order, none dropped
+    for i in cont:                                               # a rule's sub-conditions never start a slide
+        assert [s for s in sh.prs.slides[i].shapes if s.has_table][0].table.cell(1, 0).text
+        bottom = max(Emu(s.top).inches + Emu(s.height).inches for s in sh.prs.slides[i].shapes if s.has_table)
+        assert bottom <= MP.PANEL_BOTTOM + 0.01
+    slide = sh.prs.slides[main[0]]
+    tb = tabs[0]
+    bottom = Emu(tb.top).inches + sum(Emu(r.height).inches for r in tb.table.rows)
+    bar = [s for s in slide.shapes if s.has_text_frame and s.text_frame.text == "Trend Settings"][0]
+    assert bottom <= Emu(bar.top).inches - 0.05
+    # each row is at least one line of its type tall: PowerPoint never draws a row shorter than its text
+    pt = tb.table.cell(1, 1).text_frame.paragraphs[0].runs[0].font.size.pt
+    assert all(Emu(r.height).inches >= pt * 1.2 / 72 - 0.005 for r in tb.table.rows)
+    # an EMPTY cell is drawn at its end mark's size, else 18 pt: every cell carries the table's size there
+    from pptx.oxml.ns import qn
+    for r in tb.table.rows:
+        for c in r.cells:
+            assert c.text_frame.paragraphs[-1]._p.find(qn("a:endParaRPr")).get("sz") == str(int(pt * 100))
+    lowest = max(Emu(s.top).inches + Emu(s.height).inches for s in slide.shapes
+                 if Emu(s.left).inches >= 8.4 and s.shape_type != 13)
+    assert lowest <= MP.PANEL_BOTTOM + 0.01                      # clear of the logo in the corner
+    said = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
+    assert ("Overrides continue on the next slide" in said) == continued
+    if n_rules <= 8 or continued:
+        assert "not in the matrix validation extract" in said
+
+
 def test_communication_strategies_only_when_active():
     from ils_review import matrix_slides as MS, theme as T
     rows = [{"STRATEGY_NAME": "Off one", "ACTIVE": "0"}, {"STRATEGY_NAME": "On one", "ACTIVE": "1"}]
