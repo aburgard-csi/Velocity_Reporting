@@ -109,8 +109,11 @@ def _jitter(i, n):
     return (((i * 0.6180339887) % 1.0) - 0.5)
 
 
-def render_strips(items, out_png, w_in, h_in, client_label="This client"):
-    """One image, one strip per item: peers as dots, the middle half shaded, the median ticked, the client in orange."""
+def render_strips(items, out_png, w_in, h_in, client_label="This client", row_max=None):
+    """One image, one strip per item: peers as dots, the middle half shaded, the median ticked, the client in orange.
+
+    The height above the key is split into one slot per item; with `row_max` each strip is at most that tall and sits in
+    the middle of its slot, so a tall image spreads its strips out instead of stretching them."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -120,12 +123,13 @@ def render_strips(items, out_png, w_in, h_in, client_label="This client"):
     rpe_env.use_font("Carlito")
     n = len(items)
     legend_h = 0.42
-    row_h = (h_in - legend_h) / max(n, 1)
+    slot = (h_in - legend_h) / max(n, 1)
+    row_h = min(slot, row_max) if row_max else slot
     fig = plt.figure(figsize=(w_in, h_in))
     for k, it in enumerate(items):
         c, spec = it["c"], it["spec"]
         f = PC.formatter(spec["fmt"])
-        top = 1 - (k * row_h) / h_in
+        top = 1 - (k * slot + (slot - row_h) / 2) / h_in
         ax = fig.add_axes([0.03, top - row_h / h_in + 0.02 / h_in * 4, 0.94, (row_h - 0.12) / h_in])
         vals = list(c["dots"]) + [c["client"]]
         lo, hi = min(vals), max(vals)
@@ -355,13 +359,16 @@ def _draw(s, items, who, png):
     import shapes as SH
     assert len(items) <= MAX_PER_SLIDE, "never more than two comparisons a slide"
     n_items = len(items)
-    row_h = min(ROW_MAX, (BAND_BOTTOM - CHART[1] - 0.42) / n_items)
-    h = row_h * n_items + 0.42
-    render_strips(items, png, CHART[2], h, "This client")
+    # The strips share the whole band down to the key, each in the middle of its slot, so the slide is not two strips at
+    # the top over an empty lower half (Aaron, 2026-11-25: "let's balance these peer comparison slides better").
+    h = BAND_BOTTOM - CHART[1]
+    slot = (h - 0.42) / n_items
+    row_h = min(ROW_MAX, slot)
+    render_strips(items, png, CHART[2], h, "This client", row_max=ROW_MAX)
     s.shapes.add_picture(png, Inches(CHART[0]), Inches(CHART[1]), Inches(CHART[2]), Inches(h))
     for k, it in enumerate(items):
         rank, rel = _tail(it, who)
-        top = CHART[1] + k * row_h + 0.2
+        top = CHART[1] + k * slot + (slot - row_h) / 2 + 0.2
         SH.textbox(s, TEXT_X, top, TEXT_W, 0.4, rank, 18, ORANGE_RGB, True, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
         SH.textbox(s, TEXT_X, top + 0.38, TEXT_W, 0.55, rel[0].upper() + rel[1:] + ".", 16, TICK_RGB, False, PP_ALIGN.LEFT, BODY, MSO_ANCHOR.TOP)
     ns = sorted({i["c"]["n"] for i in items})
