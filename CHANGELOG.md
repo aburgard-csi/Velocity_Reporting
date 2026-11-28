@@ -15,6 +15,16 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-25 — The gate sees a table grown by short rows and empty cells (`validation/validate_deck.py`)
+
+Summary: The deck check that catches a table running into the shape below it now also counts rows set shorter than one line of their text and empty cells, which PowerPoint draws at the deck's default size. It newly stops two clients' ARS decks (Rally CU and First American Bank), whose Excluded Accounts table already overlaps the note under it.
+
+`table_growth_overlap_findings` grew a row only when a cell's text WRAPPED. Two things it could not see, both found on RBFCU's ILS matrix appendix (2026-11-25): rows set below one line of their own text (0.14" for 10 pt), and empty cells, which PowerPoint draws at their paragraph end mark's size or, with none, the deck's default text size (14 pt in every RPE deck), ignoring an empty run's size. A rebuild of that slide passed the gate at 0 FAIL while the render showed the last four overrides under the Trend Settings bar.
+
+- Every row now counts at least one line of its tallest cell, and an empty cell counts at its end mark's size, else the presentation's default text size (`_default_text_pt`, `_empty_cell_pt`).
+- Across the 103 decks in Outputs for 2026.10 and 2026.11 and the templates, this newly FAILs only ARS slide 6, Excluded Accounts, for 1100 Rally CU and 1800 First American Bank (both months): rendered, the "Total — excluded products" row sits on the "$0 average balance" note. Those two clients' ARS builds stop until that slide is fixed. A Transaction Intelligence table the first draft flagged (assuming 18 pt for empty cells) clears its slide number in the render and is not flagged.
+- Tests: `tests/test_table_word_break.py` (empty cells with and without an end mark, rows set under one line).
+
 ### 2026-11-25 — ICS cohort table: right table, after ICS Revenue, no repeated column; peer slides balanced (`build/ics_pipeline/build_ics_gen.py`, `build/peer_slide.py`)
 
 Summary: Three changes from Aaron's review of Marine FCU's November deck. The ICS cohort table now follows ICS Revenue. It no longer shows "Year 1" and "Program to Date" side by side with the same figures. The "How You Compare" peer slides spread their charts down the slide instead of leaving the lower half empty.
