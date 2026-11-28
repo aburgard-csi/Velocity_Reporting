@@ -78,6 +78,9 @@ ADDED = {
         *_peer_slides("ARS", "before", "ARS Key Takeaways"),
     ],
     "ICS": [
+        ("Program Results by Opening Year", "after", "ICS Revenue",
+         "build/ics_pipeline/build_ics_gen.py — every cohort grouped into program years (Cindy Draper, 2026-11-03), after "
+         "ICS Revenue (Aaron, 2026-11-25); a sheet without the full Monthly Detail tab keeps the newest-cohort month table"),
         ("Direct Mail New Accounts", "after", "Results by Branch — Year to Date",
          "build/ics_pipeline/build_ics_gen.py — a client with a list in Inputs/ICS Direct Mail"),
         ("Direct Mail and Branch Referral Accounts", "after", "Direct Mail New Accounts",
@@ -105,6 +108,9 @@ ADDED = {
 # A shell slide the builder does not put in the main deck: its content moved elsewhere (see ADDED).
 DROPPED = {
     "ARS": ["12-Month Take Rate by Branch"],      # the table is now "Appendix: Take Rate by Branch"
+    # The builder draws the cohort table AFTER ICS Revenue (Aaron, 2026-11-25), as "Program Results by Opening Year"
+    # (see ADDED); the shell's slide sits before it.
+    "ICS": ["Program Results by Month Opened"],
 }
 
 # A shell slide a builder retitles when it fills it: the list carries the title a deck ends up with.
@@ -112,10 +118,6 @@ RENAMED = {
     "ARS": {"Responder Activity: Before vs After (Median)":
             ("Responder Activity: Before vs After by Offer",
              "build/ars_pipeline/build_ars_gen.py — the shell's Median slide, retitled when filled")},
-    "ICS": {"Program Results by Month Opened":
-            ("Program Results by Opening Year",
-             "build/ics_pipeline/build_ics_gen.py — every cohort grouped into program years (Cindy Draper, "
-             "2026-11-03); a sheet without the full Monthly Detail tab keeps the newest-twelve month table")},
 }
 
 _DUMMY_CLIENT = "Union Financial"

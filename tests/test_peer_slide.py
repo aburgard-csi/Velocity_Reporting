@@ -169,3 +169,26 @@ def test_the_strip_plot_renders_every_row(tmp_path):
     from PIL import Image
     with Image.open(out) as im:
         assert im.size == (int(7.75 * 200), int(3.0 * 200))
+
+
+def test_the_strips_fill_the_slide_and_the_ranks_sit_beside_them(tmp_path):
+    """Aaron, 2026-11-25 ("let's balance these peer comparison slides better"): two strips used to sit in the top half over
+    an empty lower half. The picture now runs the whole band down to the key; each strip keeps its size in the middle of
+    its slot, and each rank sits beside its own strip. A one-strip slide centers its strip."""
+    import re
+    from pptx.util import Emu
+    prs = deck()
+    made = add(prs, tmp_path)
+    two, one = made[0], made[1]                                   # Reg E: two measures; take rate: one
+    for s in (two, one):
+        pic = pictures(s)[0]
+        assert abs(Emu(pic.top).inches - PS.CHART[1]) < 0.01
+        assert abs(Emu(pic.top + pic.height).inches - PS.BAND_BOTTOM) < 0.01
+    ranks = lambda s: sorted(Emu(sh.top).inches for sh in s.shapes if sh.has_text_frame and re.search(r"\bof \d+ ARS clients\b", sh.text_frame.text))
+    r = ranks(two)
+    slot = (PS.BAND_BOTTOM - PS.CHART[1] - 0.42) / 2
+    assert len(r) == 2 and abs((r[1] - r[0]) - slot) < 0.01      # one slot apart, the second strip in the lower half
+    assert r[1] > (PS.CHART[1] + PS.BAND_BOTTOM) / 2
+    (r1,) = ranks(one)
+    mid = PS.CHART[1] + (PS.BAND_BOTTOM - PS.CHART[1] - 0.42) / 2
+    assert abs((r1 - 0.2 + PS.ROW_MAX / 2) - mid) < 0.01         # a single strip is centered in the band

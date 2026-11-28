@@ -15,6 +15,16 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-25 — ICS cohort table: right table, after ICS Revenue, no repeated column; peer slides balanced (`build/ics_pipeline/build_ics_gen.py`, `build/peer_slide.py`)
+
+Summary: Three changes from Aaron's review of Marine FCU's November deck. The ICS cohort table now follows ICS Revenue. It no longer shows "Year 1" and "Program to Date" side by side with the same figures. The "How You Compare" peer slides spread their charts down the slide instead of leaving the lower half empty.
+
+- **Wrong table (a bug).** The Results by Branch block reused the variable `_all` for its branch list, so by the time the cohort table was chosen `_all` meant "this sheet has branches", not "this sheet has every cohort". A sheet with only the newest-cohort window (Marine's: 9 cohorts, Nov'25 – Jul'26) was drawn as the program-year table, its newest nine months labelled "Year 1 (9 mo)" (the program's FIRST year) beside an identical "Program to Date". The branch list is now `_brs`; such a sheet gets "Program Results by Month Opened", the newest-cohort table, as intended.
+- **One program year, one column.** A program whose every cohort fits one program year (a program in its first year) now shows one column, "Program to Date (N mo)"; Year 1 and Program to Date were the same numbers.
+- **Order.** The cohort table (either title) now comes straight after ICS Revenue (Aaron: "move Program Results by Opening Year after ICS Revenue"); `build/slide_inventory.py` lists it there.
+- **Peer slides.** The strip plot used only the height its strips needed (two strips filled the top half). The picture now runs the whole band down to the key; each strip keeps its size in the middle of its own slot, each rank and sentence sits beside its strip, and a one-strip slide centers its strip. All four programs' peer slides change.
+- Tests: `tests/test_ics_channel_split.py` (a sheet without the full tab keeps the month table whatever its branches; the table follows ICS Revenue; one program year is one column) and `tests/test_peer_slide.py` (the strips fill the band, ranks beside their strips, a single strip centered). Checked by drawing Marine's ARS and ICS peer slides from the share's figures and rendering them in PowerPoint.
+
 ### 2026-11-25 — ILS matrix appendix: a long override list no longer runs under Trend Settings (`build/ils_analysis/ils_review/matrix_prep_slides.py`)
 
 Summary: The ILS Program Analysis deck's "matrix detail" appendix slide now sizes its Overrides table to fit, so a client with a long override list builds instead of stopping at validation. RBFCU's personal and business matrices (17 and 15 override rows) failed the build on 2026-11-25; their overrides now print at 8 pt, the size of the factor tables beside them, and a list too long even at 8 pt continues on an "overrides continued" appendix slide.

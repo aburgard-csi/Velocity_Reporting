@@ -1070,11 +1070,11 @@ def build(d, static_path, out, referrals_only=False):
     # Callouts in the empty left column (Aaron, 2026-08-28). The table shows the top 8;
     # these read across EVERY branch, so participation and overall pace are visible
     # without the reader adding up a truncated table.
-    _all = bb["branches"]
-    _rep = sum(1 for b in _all if b.get("referrals", 0) > 0)
-    _none = len(_all) - _rep
-    _ar = sum(b.get("referrals", 0) for b in _all)
-    _ag = sum(_prorate(b["goal"]) for b in _all if b.get("goal"))
+    _brs = bb["branches"]
+    _rep = sum(1 for b in _brs if b.get("referrals", 0) > 0)
+    _none = len(_brs) - _rep
+    _ar = sum(b.get("referrals", 0) for b in _brs)
+    _ag = sum(_prorate(b["goal"]) for b in _brs if b.get("goal"))
     _apct = f"{round(_ar/_ag*100)}%" if _ag else "—"
     for _i, (_big, _lab) in enumerate([
             (f"{_rep}", W["s5_rep"]),
@@ -1096,7 +1096,7 @@ def build(d, static_path, out, referrals_only=False):
                      + ", which is not complete.")
                     if ((rf.get("month_to_date") or {}).get("partial") and _has_goals) else "")
     if _wb_only:
-        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none"
+        notes(s,base+f" Callouts: {_rep} of {len(_brs)} branches logged a referral, {_none} none"
                      +(f"; all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal)." if _has_goals else ". ")
                      +f" Referrals by branch, year to date ({_ar:,} in total), from the workbook's "
                      f"{bb.get('_source', 'DDA Openings by Branch tab')}"
@@ -1106,12 +1106,12 @@ def build(d, static_path, out, referrals_only=False):
                      +" Every branch by referrals (beyond 14, the smallest share one row); branch names from the Charts 'Goals' tab or the branch-name "
                      "dataset, a branch neither names shown by number." + _partial_ytd)
     elif _local and not _has_goals:
-        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none. "
+        notes(s,base+f" Callouts: {_rep} of {len(_brs)} branches logged a referral, {_none} none. "
                      f"Referrals by branch, YTD ({_ar:,} in total); no branch goals on file, so no "
                      f"goal or % of goal is shown. Every branch by referrals (beyond 14, the smallest share one row). Referral detail file, "
                      f"counted by Issue Date and Branch.")
     elif _local:
-        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
+        notes(s,base+f" Callouts: {_rep} of {len(_brs)} branches logged a referral, {_none} none; "
                      f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
                      f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
                      f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
@@ -1119,7 +1119,7 @@ def build(d, static_path, out, referrals_only=False):
                      f"Every branch by referrals (beyond 14, the smallest share one row). Referral detail file, counted by Issue Date and Branch; "
                      f"branch names from the Charts 'Goals' tab." + _partial_ytd)
     else:
-        notes(s,base+f" Callouts: {_rep} of {len(_all)} branches logged a referral, {_none} none; "
+        notes(s,base+f" Callouts: {_rep} of {len(_brs)} branches logged a referral, {_none} none; "
                  f"all-branch pace {_apct} ({_ar:,} referrals vs {_ag:,} pro-rated goal). "
                  f"Referrals by branch, YTD, vs each branch's goal pro-rated to "
                  f"{_elapsed} month{'s' if _elapsed != 1 else ''} of program activity "
@@ -1296,6 +1296,13 @@ def build(d, static_path, out, referrals_only=False):
         logo(s); pagenum(s,6)
         notes(s,base+" "+_roi_note)
 
+        # 7 ICS Revenue
+        s=blank(prs); title(s,"ICS Revenue"); pill(s,f"PTD · {wbm}")
+        sub(s,"Selection: ICS-originated checking accounts; revenue program-to-date.")
+        s.shapes.add_picture(a("ics_revpie.png"),Inches(0.5),Inches(1.55),Inches(12.3))
+        logo(s); pagenum(s,7)
+        notes(s,base+" PTD revenue by source: "+", ".join(f"{c['name']} ${c['amount']:,.0f}" for c in d['revenue']['components'])+f"; total ${d['revenue']['total']:,.0f}. Workbook 'Monthly Detail'.")
+
         # 6b Program Results — the monthly-detail table.
         _rr=lambda label,vals,fmt:[label]+[fmt(v) for v in vals]
         if _all:
@@ -1331,12 +1338,19 @@ def build(d, static_path, out, referrals_only=False):
                      ["Revenue / Acct / Month"]+_col(_pam,(sum(cs["profit_contribution"])/(_tot(_am) or 1)),lambda v:f"${v:,.2f}")]
             if cs.get("total_expense"):
                 trows.append(["Total Expense (referral fees)"]+_col(ysum("total_expense"),sum(cs["total_expense"]),_usd0))
+            # A program in its first year has ONE program year, and Year 1 is then the program to date: the two
+            # columns printed the same figures side by side (Aaron, 2026-11-25, Marine FCU). Keep the one column.
+            _one=len(yrs)==1
+            if _one:
+                trows=[[r[0]]+r[2:] for r in trows]
+                trows[0][1]=f"Program to Date ({nn} mo)" if nn<CH.YEAR_COHORTS else "Program to Date"
             s=blank(prs); title(s,"Program Results by Opening Year"); pill(s,f"PTD · {wbm}")
             sub(s,_subfit(f"ICS-originated checking accounts by program year, {_win}; each cohort's figures life to date.",
                           f"ICS accounts by program year, {_win}; figures life to date.",
                           f"ICS accounts by program year, all {_nw} cohorts; figures life to date."))
             _rowh=min(0.34,4.3/len(trows))
-            std_table(s,trows,0.35,1.65,12.63,[3.0]+[1.7]*len(yrs)+[1.9],highlight_last=False,fs=12,rowh=_rowh,hdr_fills={1:ORANGE})
+            std_table(s,trows,0.35,1.65,12.63,([3.0,1.9] if _one else [3.0]+[1.7]*len(yrs)+[1.9]),highlight_last=False,fs=12,rowh=_rowh,
+                      hdr_fills=({} if _one else {1:ORANGE}))
             _es=CH.early_stats(d,["profit_contribution"])
             _early_txt=""
             if _es:
@@ -1352,8 +1366,10 @@ def build(d, static_path, out, referrals_only=False):
             if _early_txt:
                 tb(s,0.4,5.95,10.7,0.9,_early_txt,16,NAVY,False,font="Calibri")
             logo(s); pagenum(s,7)
-            notes(s,base+f" Monthly Detail tab, every cohort ({_win}) grouped into program years of {CH.YEAR_COHORTS} cohorts from the first "
-                         f"({ylab[0]} = the program's first {CH.EARLY_COHORTS} months, the early referrals; orange header). Each cohort's "
+            notes(s,base+(f" Monthly Detail tab, every cohort ({_win}): the program is in its first year, so its one program year is "
+                          f"the program to date and the table carries one column. Each cohort's " if _one else
+                          f" Monthly Detail tab, every cohort ({_win}) grouped into program years of {CH.YEAR_COHORTS} cohorts from the first "
+                          f"({ylab[0]} = the program's first {CH.EARLY_COHORTS} months, the early referrals; orange header). Each cohort's ")+
                          f"figures are life to date, so the columns sum to program to date. Average balance by cohort is in the appendix; "
                          f"revenue per account per month = account profit contribution ÷ account-months (accounts opened × months open). "
                          + (f"The early-program sentence: ${_es['revenue']:,.0f} of ${_es['total']:,.0f} account profit contribution from "
@@ -1391,13 +1407,6 @@ def build(d, static_path, out, referrals_only=False):
             notes(s,base+f" Monthly Detail tab, the {_win}: accounts opened, average balance, revenue components, account "
                          f"profit contribution and the workbook's total expense (referral fee) per cohort, each cohort's "
                          f"figures life to date; months open counted from the opening month.")
-
-        # 7 ICS Revenue
-        s=blank(prs); title(s,"ICS Revenue"); pill(s,f"PTD · {wbm}")
-        sub(s,"Selection: ICS-originated checking accounts; revenue program-to-date.")
-        s.shapes.add_picture(a("ics_revpie.png"),Inches(0.5),Inches(1.55),Inches(12.3))
-        logo(s); pagenum(s,7)
-        notes(s,base+" PTD revenue by source: "+", ".join(f"{c['name']} ${c['amount']:,.0f}" for c in d['revenue']['components'])+f"; total ${d['revenue']['total']:,.0f}. Workbook 'Monthly Detail'.")
 
         # 8-13 monthly detail
         md=CH.cohorts(d); acc=md["cumulative_accounts"][-1]     # every cohort the charts draw

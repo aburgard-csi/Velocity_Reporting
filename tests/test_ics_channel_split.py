@@ -388,6 +388,33 @@ def test_a_young_program_keeps_the_month_table_and_no_early_tile(root, tmp_path)
     ts = _titles(prs)
     assert "Program Results by Opening Year" in ts       # the full tab is on the sheet, so even nine cohorts group by year
     assert "Year 1 interchange" not in _text(prs)         # no cohort beyond the first twelve to set it against
+    # One program year IS the program to date: one column, never "Year 1 (9 mo)" beside an identical "Program to Date"
+    # (Aaron, 2026-11-25, Marine FCU)
+    tbl = next(sh for sh in prs.slides[ts.index("Program Results by Opening Year")].shapes if sh.has_table).table
+    assert [c.text for c in tbl.rows[0].cells] == ["Opened", "Program to Date (9 mo)"]
+
+
+def test_the_cohort_table_follows_ics_revenue(root, tmp_path):
+    """Aaron, 2026-11-25: "move Program Results by Opening Year after ICS Revenue"."""
+    d, out, prs = _deck_with_cohorts(root, tmp_path)
+    ts = _titles(prs)
+    assert ts.index("Program Results by Opening Year") == ts.index("ICS Revenue") + 1
+
+
+def test_a_sheet_without_the_full_tab_keeps_the_month_table_whatever_its_branches(root, tmp_path):
+    """Marine FCU (2026-11-25): the Results by Branch block reused the name `_all` for its branch list, so any sheet with
+    branches drew the program-year table from the newest-cohort window, labelled "Year 1" (the program's first year) beside
+    an identical "Program to Date"."""
+    write_workbook(workbook_file(root, PERIOD), months=24, first=(2024, 9))
+    write_charts(charts_file(root))
+    write_referrals(referral_file(root))
+    d = _sheet(root, tmp_path)
+    d.pop("monthly_detail_full", None)
+    assert d["referrals"]["by_branch"]["branches"]
+    out, prs = _build_deck(root, tmp_path, d)
+    ts = _titles(prs)
+    assert "Program Results by Month Opened" in ts and "Program Results by Opening Year" not in ts
+    assert ts.index("Program Results by Month Opened") == ts.index("ICS Revenue") + 1
 
 
 def test_the_appendix_has_a_page_per_program_year_and_rows_under_bands(root, tmp_path):
